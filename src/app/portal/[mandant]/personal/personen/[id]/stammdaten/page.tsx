@@ -242,11 +242,14 @@ export default async function Stammdatenblatt({
             </Button>
           </div>
 
-          {stammdaten === null && !keinRecht && (
-            <p className="m-0 text-xs text-warning">
+          {stammdaten === null && (
+            <p className="m-0 text-xs text-warning" data-cse="stammdaten-blindschreiben">
               Die Felder sind leer vorbelegt, weil zu diesem Menschen nichts
-              lesbar war. Absenden überschreibt, was dort steht — prüfen Sie
-              vorher, ob Ihnen nur das Leserecht fehlt.
+              lesbar war{keinRecht ? ' — dieser Sitzung fehlt das Leserecht' : ''}.
+              Absenden schreibt genau das, was hier steht: drei leere Felder
+              leeren die drei Spalten. {keinRecht
+                ? 'Prüfen Sie vorher, ob nur das Leserecht fehlt — sonst löschen Sie Angaben, die Sie nicht sehen.'
+                : 'Prüfen Sie vorher, ob dort wirklich nichts hinterlegt ist.'}
             </p>
           )}
         </form>

@@ -1,5 +1,6 @@
 import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
+import { istUuid } from '../../../lib/uuid.js';
 import type { Bauleistungsart, StatusZeile } from './steuer/nachweis.js';
 import type { Uebertragungsweg, Rechnungsformat } from '../crm/erechnung.js';
 
@@ -63,6 +64,37 @@ export interface SteuerRechte {
   readonly finanzenLesen: boolean;
   readonly finanzenSchreiben: boolean;
   readonly crmSchreiben: boolean;
+  /** Für die AUSWAHL der Aufträge im §48b-Formular. */
+  readonly auftragLesen: boolean;
+}
+
+/**
+ * Eine Kennung aus einem FORMULAR prüfen, bevor Postgres es tut.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Ohne diese Prüfung wird aus einem Tippfehler ein 500 — und die ganze
+ * Formulareingabe ist weg.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Ein Mensch, der ein Feld „Auftrag" sieht, tippt dort die Auftragsnummer
+ * (`A-2026-001`). Die geht als `$n::uuid` in das INSERT, Postgres wirft
+ * `22P02 invalid input syntax for type uuid`, und weil das kein `SteuerFehler`
+ * ist, greift der 303-Umweg der Route nicht: die Anfrage endet mit 500, und
+ * alles Getippte ist verloren. Dieses Haus verspricht an jeder anderen Stelle
+ * dieser Domäne eine deutsche Meldung statt eines rohen Datenbankfehlers.
+ */
+function alsKennung(
+  wert: string | undefined, feld: string, grund: string,
+): string | null {
+  const t = wert?.trim() ?? '';
+  if (t === '') return null;
+  if (!istUuid(t)) {
+    throw new SteuerFehler(
+      `„${feld}" erwartet eine Kennung aus der Adresszeile (36 Zeichen, mit `
+      + `Bindestrichen), keine Nummer und keinen Namen. Eingegeben wurde: „${t}".`,
+      grund);
+  }
+  return t;
 }
 
 export interface BauleistenderZeile {
@@ -102,11 +134,20 @@ export interface SteuerKopf {
   readonly rechnung_email: string | null;
 }
 
+/** Ein Auftrag dieses Kunden — für die Auswahl statt eines getippten Feldes. */
+export interface AuftragZeile {
+  readonly id: string;
+  readonly auftragsnummer: string;
+  readonly bezeichnung: string;
+}
+
 export interface Steuerblatt {
   readonly kopf: SteuerKopf;
   readonly rechte: SteuerRechte;
   readonly bauleistender: readonly BauleistenderZeile[];
   readonly bescheinigungen: readonly BescheinigungZeile[];
+  /** Leer, wenn `auftrag.lesen` fehlt — die Seite sagt dann, dass es fehlt. */
+  readonly auftraege: readonly AuftragZeile[];
   /** `app.berlin_heute()` — der Stichtag, wenn keiner gewählt ist. */
   readonly heute: string;
 }
@@ -134,12 +175,13 @@ export async function leseSteuerblatt(
 
   const [rechte] = await kontext.abfrage<{
     finanzen_lesen: boolean; finanzen_schreiben: boolean; crm_schreiben: boolean;
-    heute: string;
+    auftrag_lesen: boolean; heute: string;
   }>(
     `select app.hat_recht('finanzen.lesen', app.aktiver_mandant()) as finanzen_lesen,
             app.hat_recht('finanzen.schreiben', app.aktiver_mandant())
               as finanzen_schreiben,
             app.hat_recht('crm.schreiben', app.aktiver_mandant()) as crm_schreiben,
+            app.hat_recht('auftrag.lesen', app.aktiver_mandant()) as auftrag_lesen,
             app.berlin_heute()::text as heute`);
 
   /*
@@ -151,6 +193,7 @@ export async function leseSteuerblatt(
     finanzenLesen: rechte?.finanzen_lesen === true,
     finanzenSchreiben: rechte?.finanzen_schreiben === true,
     crmSchreiben: rechte?.crm_schreiben === true,
+    auftragLesen: rechte?.auftrag_lesen === true,
   };
 
   /*
@@ -182,8 +225,22 @@ export async function leseSteuerblatt(
         order by f.gueltig_bis desc`, [kundeId])
     : [];
 
+  /*
+   * Die Aufträge dieses Kunden — damit das §48b-Formular eine AUSWAHL zeigt
+   * statt eines Freitextfeldes, in das ein Mensch die Auftragsnummer tippt.
+   * Eine getippte Kennung ist auch bei richtigem Format die falsche Bedienung.
+   */
+  const auftraege = r.auftragLesen
+    ? await kontext.abfrage<AuftragZeile>(
+      `select a.id, a.auftragsnummer, a.bezeichnung
+         from auftrag a
+        where a.mandant_id = app.aktiver_mandant() and a.kunde_id = $1::uuid
+        order by a.auftragsnummer desc
+        limit 200`, [kundeId])
+    : [];
+
   return {
-    kopf, rechte: r, bauleistender, bescheinigungen,
+    kopf, rechte: r, bauleistender, bescheinigungen, auftraege,
     heute: rechte?.heute ?? '',
   };
 }
@@ -269,6 +326,8 @@ export async function legeZeitscheibeAn(
     && eingabe.giltBis < eingabe.giltAb) {
     throw new SteuerFehler('Das Ende liegt vor dem Beginn.', 'zeitraum_verdreht');
   }
+  const dokument = alsKennung(
+    eingabe.dokumentId, 'Beleg (Dokumentkennung)', 'dokument_keine_kennung');
 
   const [recht] = await kontext.abfrage<{ darf: boolean }>(
     `select app.hat_recht('finanzen.schreiben', app.aktiver_mandant()) as darf`);
@@ -308,7 +367,7 @@ export async function legeZeitscheibeAn(
         eingabe.giltAb,
         eingabe.giltBis === undefined || eingabe.giltBis === ''
           ? null : eingabe.giltBis,
-        grundlage, eingabe.dokumentId ?? null]);
+        grundlage, dokument]);
     const z = zeilen[0];
     if (z === undefined) {
       throw new SteuerFehler('Die Zeitscheibe wurde nicht angelegt.', 'nicht_angelegt');
@@ -366,8 +425,10 @@ export async function legeBescheinigungAn(
   if (eingabe.gueltigBis < eingabe.gueltigVon) {
     throw new SteuerFehler('Das Ende liegt vor dem Beginn.', 'zeitraum_verdreht');
   }
-  const auftrag = eingabe.auftragId === undefined || eingabe.auftragId === ''
-    ? null : eingabe.auftragId;
+  const auftrag = alsKennung(
+    eingabe.auftragId, 'Auftrag (nur bei „auftragsbezogen")', 'auftrag_keine_kennung');
+  const dokument = alsKennung(
+    eingabe.dokumentId, 'Scan (Dokumentkennung)', 'dokument_keine_kennung');
   if ((eingabe.umfang === 'auftragsbezogen') !== (auftrag !== null)) {
     throw new SteuerFehler(
       eingabe.umfang === 'auftragsbezogen'
@@ -393,7 +454,7 @@ export async function legeBescheinigungAn(
              app.aktueller_benutzer())
      returning id`,
     [eingabe.kundeId, nummer, finanzamt, eingabe.gueltigVon, eingabe.gueltigBis,
-      eingabe.umfang, auftrag, eingabe.dokumentId ?? null]);
+      eingabe.umfang, auftrag, dokument]);
   const z = zeilen[0];
   if (z === undefined) {
     throw new SteuerFehler('Die Bescheinigung wurde nicht erfasst.', 'nicht_angelegt');

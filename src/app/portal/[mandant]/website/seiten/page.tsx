@@ -9,6 +9,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { listeSeiten, type SeiteZeile } from '@/server/services/inhalt/redaktion';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { WebsiteSpruenge } from '../spruenge';
 
 /**
  * `/portal/[mandant]/website/seiten` — die Seiten des öffentlichen Auftritts
@@ -50,9 +51,12 @@ export default async function WebsiteSeiten(
       nurLesen={zugang.sitzung.ansicht === 'gruppe'}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
+      aktiverTab="website"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
+      <WebsiteSpruenge mandant={mandant} zweig="seiten"
+                       sitzung={zugang.sitzung} />
       <h1 className="mb-s4 text-h1 text-text">Seiten</h1>
       <p className="mb-s5 max-w-[72ch] text-base text-text-muted">
         Was hier veröffentlicht ist, steht auf dem öffentlichen Auftritt. Ein

@@ -43,19 +43,55 @@ export type Rechnungsformat = (typeof FORMATE)[number];
  * Oberfläche schreibt an jedem „nicht verbunden" und täuscht keinen Versand
  * vor.
  *
- * `email`, `kundenportal` und `post` sind keine E-Rechnungshäfen: sie
- * brauchen keinen Anschluss, weil ein Mensch sie bedient. Sie gelten
- * deshalb als verbunden — nicht weil etwas angeschlossen wäre, sondern weil
- * nichts anzuschliessen ist.
+ * `kundenportal` und `post` sind keine Anschlüsse: sie brauchen keinen, weil
+ * ein Mensch sie bedient. Sie stehen deshalb auf `true` — nicht weil etwas
+ * angeschlossen wäre, sondern weil nichts anzuschliessen ist.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **`email` steht hier auf `false`, und das ist eine Tatsache, keine
+ * Vorsicht.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * E-Mail IST ein Anschluss, und dieses Haus hat keinen: `emailDienst(...)`
+ * (`server/versand/email.ts`) gibt in JEDER Umgebung einen Dienst mit
+ * `verbunden = false` zurück — der Entwicklungsdienst ebenso wie der
+ * Auslieferungsdienst (O-501). Hier `true` zu schreiben hiess, auf dem
+ * Steuerblatt eines Kunden „Versand bereit" zu zeigen für einen Kanal, den
+ * niemand bedienen kann: genau die vorgetäuschte Integration, die diese Datei
+ * für peppol/zre/ozg_re sorgfältig vermeidet.
+ *
+ * Diese Tabelle ist trotzdem nicht die Wahrheit über den Postausgang — sie
+ * ist der RUHESTAND. Die Wahrheit hat `emailDienst(...)`, und `versandLage`
+ * nimmt sie als `postausgangVerbunden` entgegen, damit es EINE Auskunft über
+ * den Postausgang gibt und nicht zwei, die auseinanderlaufen können.
  */
 export const WEG_VERBUNDEN: Readonly<Record<Uebertragungsweg, boolean>> = {
   peppol: false,
   zre: false,
   ozg_re: false,
-  email: true,
+  email: false,
   kundenportal: true,
   post: true,
 };
+
+/** Was `versandLage` über die Aussenwelt wissen muss. */
+export interface VersandUmgebung {
+  /**
+   * Ist ein Postausgang angeschlossen? — aus `emailDienst(...).verbunden`,
+   * nie aus einer zweiten Behauptung an dieser Stelle.
+   */
+  readonly postausgangVerbunden: boolean;
+}
+
+/**
+ * Ist DIESER Weg bedienbar — mit dem, was die Umgebung über den Postausgang
+ * sagt?
+ */
+export function wegVerbunden(
+  weg: Uebertragungsweg, umgebung: VersandUmgebung,
+): boolean {
+  return weg === 'email' ? umgebung.postausgangVerbunden : WEG_VERBUNDEN[weg];
+}
 
 export const WEG_TEXT: Readonly<Record<Uebertragungsweg, string>> = {
   peppol: 'Peppol (Access Point)',
@@ -172,8 +208,17 @@ export function fehlendeKaeuferangaben(lage: KaeuferLage): readonly FehlendeAnga
  *  - `offen`           — kein Pflichtkäufer und kein Weg verabredet. Kein
  *                        Fehler, aber auch keine Zusage.
  *  - `bereit`          — der Weg steht und ist bedienbar.
+ *
+ * **Der Postausgang kommt als Argument herein.** Ohne ihn stünde hier eine
+ * zweite Behauptung über einen Anschluss, den `server/versand/email.ts`
+ * bereits verneint — und die zweite Wahrheit gewinnt immer dort, wo niemand
+ * hinsieht. Fehlt das Argument, gilt `postausgangVerbunden = false`: kein
+ * Anschluss, bis jemand einen nachweist.
  */
-export function versandLage(lage: KaeuferLage): VersandLage {
+export function versandLage(
+  lage: KaeuferLage,
+  umgebung: VersandUmgebung = { postausgangVerbunden: false },
+): VersandLage {
   const fehlend = fehlendeKaeuferangaben(lage);
   const pflicht = lage.xrechnungPflicht || lage.istOeffentlicherAuftraggeber;
 
@@ -197,16 +242,6 @@ export function versandLage(lage: KaeuferLage): VersandLage {
     };
   }
 
-  if (!WEG_VERBUNDEN[lage.uebertragungsweg]) {
-    return {
-      art: 'nicht_verbunden',
-      text: `Verabredet ist ${WEG_TEXT[lage.uebertragungsweg]}. Dieser Hafen ist `
-        + 'NICHT verbunden (O-22): das Dokument entsteht und ist herunterladbar, '
-        + 'die Übermittlung erfolgt bis auf Weiteres von Hand.',
-      fehlend,
-    };
-  }
-
   if (lage.uebertragungsweg === 'email'
     && (lage.rechnungEmail === null || lage.rechnungEmail.trim() === '')) {
     return {
@@ -217,6 +252,21 @@ export function versandLage(lage: KaeuferLage): VersandLage {
         bt: 'BT-43', regel: 'BR-DE-1', feld: 'Rechnung an (E-Mail)',
         text: 'Der Zustellweg ist E-Mail; die Adresse dafür fehlt am Kundenstamm.',
       }],
+    };
+  }
+
+  if (!wegVerbunden(lage.uebertragungsweg, umgebung)) {
+    return {
+      art: 'nicht_verbunden',
+      text: `Verabredet ist ${WEG_TEXT[lage.uebertragungsweg]}. `
+        + (lage.uebertragungsweg === 'email'
+          ? 'Es ist kein Postausgang verbunden (O-501): das Dokument entsteht und ist '
+            + 'herunterladbar, versendet wird es bis auf Weiteres von Hand. Ein '
+            + '„bereit" stünde hier für einen Kanal, den diese Plattform nicht '
+            + 'bedienen kann.'
+          : 'Dieser Hafen ist NICHT verbunden (O-22): das Dokument entsteht und ist '
+            + 'herunterladbar, die Übermittlung erfolgt bis auf Weiteres von Hand.'),
+      fehlend,
     };
   }
 

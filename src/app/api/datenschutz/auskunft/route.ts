@@ -46,6 +46,27 @@ type Format = (typeof FORMATE)[number];
 
 const KENNUNG = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
+/**
+ * **Die offene Aufbewahrungsfrist hält den Abruf auf, bis ein Mensch sie
+ * bestätigt.**
+ *
+ * `fristText` gibt für 12 der 15 Abschnitte „Noch nicht entschieden — O-514"
+ * zurück, und die Datei ging damit als `vollstaendig` hinaus: mit Prüfsumme,
+ * mit dem Wort „Vollständig" und ohne die Pflichtangabe des Art. 15 Abs. 1
+ * lit. d. Dieselbe Route verweigert die Auslieferung, wenn ein LESERECHT
+ * fehlt, mit der Begründung, eine halbe Auskunft sehe aus wie eine Antwort —
+ * das gilt hier genauso.
+ *
+ * **Warum eine Bestätigung und kein `vollstaendig = false`.** Das fehlende
+ * Recht ist ein Mangel, den die Plattform beheben kann (das Recht erteilen);
+ * die offene Frist ist eine Entscheidung, die dem Auftraggeber gehört und auf
+ * die eine laufende Monatsfrist nicht warten kann. Art. 12 Abs. 3 läuft
+ * weiter. Also: nicht sperren, sondern benennen — im Markdown als Warnblock
+ * über allen Abschnitten, und hier als ausdrückliche Bestätigung, damit
+ * niemand sie versehentlich hinausschickt.
+ */
+const FRISTEN_BESTAETIGT = 'bestaetigt';
+
 export async function GET(anfrage: NextRequest): Promise<NextResponse> {
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
@@ -94,7 +115,10 @@ export async function GET(anfrage: NextRequest): Promise<NextResponse> {
          * Aushaendigung, die es nicht gab — und diese Tabelle ist genau der
          * Nachweis (SEC-A9).
          */
-        if (auskunft.vollstaendig) {
+        const fristenBestaetigt =
+          auskunft.offeneFristen.length === 0
+          || p.get('fristen') === FRISTEN_BESTAETIGT;
+        if (auskunft.vollstaendig && fristenBestaetigt) {
           await halteFest(kontext, auskunft, format);
           await kontext.schreibe(
             `select app.protokolliere('datenschutz.auskunft_abgerufen',
@@ -103,6 +127,12 @@ export async function GET(anfrage: NextRequest): Promise<NextResponse> {
             [anfrageId, {
               format, sha256: auskunft.sha256,
               abschnitte: auskunft.abschnitte.length, zeilen: auskunft.zeilen,
+              /*
+               * Dass jemand die offenen Fristen BESTAETIGT hat, gehoert ins
+               * Protokoll und nicht nur in die Datei: es ist eine
+               * Entscheidung eines Menschen ueber eine Pflichtangabe.
+               */
+              offeneFristen: auskunft.offeneFristen.length,
             }]);
         }
         return auskunft;
@@ -127,6 +157,21 @@ export async function GET(anfrage: NextRequest): Promise<NextResponse> {
           + `Rechte: ${a.fehlendeRechte.join(', ')}.`,
       }, { status: 409 });
     }
+    if (a.offeneFristen.length > 0
+        && p.get('fristen') !== FRISTEN_BESTAETIGT) {
+      return NextResponse.json({
+        fehler: 'frist_offen',
+        offeneFristen: a.offeneFristen,
+        meldung: `Für ${String(a.offeneFristen.length)} von `
+          + `${String(a.abschnitte.length)} Abschnitten ist die `
+          + 'Aufbewahrungsfrist noch nicht entschieden (O-514). Art. 15 Abs. 1 '
+          + 'lit. d verlangt die geplante Speicherdauer oder wenigstens die '
+          + 'Kriterien. Die Auskunft nennt das jetzt sichtbar über allen '
+          + 'Abschnitten; bestätigen Sie den Abruf mit '
+          + '`fristen=bestaetigt`, wenn sie in dieser Form hinausgehen soll. '
+          + `Betroffen: ${a.offeneFristen.join(', ')}.`,
+      }, { status: 409 });
+    }
 
     const datei = `auskunft-art15-${anfrageId}`;
     if (format === 'json') {
@@ -136,6 +181,7 @@ export async function GET(anfrage: NextRequest): Promise<NextResponse> {
         firma: a.firma,
         betroffener: { art: a.betroffener.art, name: a.betroffener.name },
         abschnitte: a.abschnitte,
+        offeneFristen: a.offeneFristen,
         vollstaendig: a.vollstaendig,
         zeilen: a.zeilen,
         sha256: a.sha256,

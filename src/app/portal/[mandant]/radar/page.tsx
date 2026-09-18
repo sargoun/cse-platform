@@ -5,6 +5,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { KpiStat } from '@/components/ui/KpiStat';
 import { StatusPill } from '@/components/ui/StatusPill';
+import { fristKlasse, fristText } from './frist';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { DataTable, type Spalte } from '@/components/ui/DataTable';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
@@ -51,21 +52,9 @@ const VORGANG: Readonly<Record<string, string>> = {
  *
  * Fünf Tage nennt RAD-06 selbst; die Grenze ist nicht erfunden.
  */
-function fristKlasse(rest: number | null): string {
-  if (rest === null) return 'text-text-subtle';
-  if (rest < 0) return 'text-text-subtle';
-  if (rest < 5) return 'text-danger font-semibold';
-  if (rest < 14) return 'text-warning';
-  return 'text-text-muted';
-}
-
-function fristText(rest: number | null): string {
-  if (rest === null) return 'keine Frist genannt';
-  if (rest < 0) return 'Frist abgelaufen';
-  if (rest === 0) return 'heute';
-  if (rest === 1) return 'noch 1 Tag';
-  return `noch ${String(rest)} Tage`;
-}
+/* Die beiden Funktionen stehen in `./frist` — dieselbe Schwelle benutzt
+   `/radar/[id]/status`, und zwei Abschriften von „fünf Tage" liefen
+   auseinander. */
 
 export default async function Radar(
   { params, searchParams }: {

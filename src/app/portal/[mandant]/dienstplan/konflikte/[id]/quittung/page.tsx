@@ -13,7 +13,7 @@ import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { leseKonflikt, type KonfliktBlatt } from '@/server/services/dienstplan/konflikt';
-import { ArbzgBlock, KonfliktKopf } from '../Bausteine';
+import { ArbzgBlock, KonfliktKopf, STATUS_TEXT } from '../Bausteine';
 
 /**
  * `/portal/[mandant]/dienstplan/konflikte/[id]/quittung` — ein Konflikt in
@@ -209,8 +209,9 @@ export default async function Konfliktquittung(
           </form>
         ) : (
           <p className="max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Dieser Konflikt ist nicht offen ({k.status}) — zu quittieren ist
-            nichts mehr.
+            Dieser Konflikt ist nicht offen ({STATUS_TEXT[k.status] ?? k.status})
+            {k.hinfaellig && k.status === 'offen' ? ' — er wurde überholt' : ''} — zu
+            quittieren ist nichts mehr.
           </p>
         )}
       </section>

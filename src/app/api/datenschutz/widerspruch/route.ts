@@ -8,7 +8,7 @@ import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import { ladeZuordnung } from '@/server/services/datenschutz/anfrage';
 import {
-  WiderspruchFehler, setzeVerarbeitungswiderspruch,
+  WiderspruchFehler, setzeVerarbeitungswiderspruch, stand,
 } from '@/server/services/datenschutz/werbewiderspruch';
 
 /**
@@ -72,18 +72,44 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         }
 
         /*
-         * Die Firma kommt aus der Zeile des Kontakts, nicht aus dem Formular:
-         * welcher Kunde dahinter steht, weiss die Datenbank. Der Haken sagt
-         * nur, OB er mitgenommen wird — §2.4 nennt beide Ebenen.
+         * **Die Firma kommt über den DEFINER, nicht über ein eigenes
+         * `select`** — und das war ein stiller Datenverlust.
+         *
+         * Hier stand `select kunde_id from ansprechpartner …`. Diese Abfrage
+         * läuft unter der Policy `t_mandant`, und die verlangt `crm.lesen`.
+         * Diese Route autorisiert aber bewusst `datenschutz.auskunft_erstellen`
+         * und NICHT `crm.schreiben` — genau für die Datenschutzbeauftragte ohne
+         * CRM-Recht. Für sie kam keine Zeile, `k?.kunde_id ?? null` wurde
+         * `null`, und der Haken „Auch auf Ebene der Firma festhalten" wurde
+         * verworfen: ohne Fehler, ohne Hinweis, bei einer UNWIDERRUFLICHEN
+         * Wirkung. Es gibt keinen zweiten Versuch.
+         *
+         * `app.widerspruch_stand` prüft `darf_widerspruch_lesen()` (also auch
+         * `datenschutz.auskunft_erstellen`) und gibt die Firma seit 0222 mit
+         * heraus. Die Seite liest ohnehin über denselben Weg — dieselbe
+         * Quelle, dieselbe Antwort.
          */
-        const [k] = await kontext.abfrage<{ kunde_id: string | null }>(
-          `select kunde_id from ansprechpartner
-            where id = $1::uuid and mandant_id = app.aktiver_mandant()`,
-          [zuordnung.id]);
+        const [kontakt] = await stand(kontext, zuordnung.id, null);
+        const kundeId = kontakt?.kundeId ?? null;
+
+        /*
+         * Und wenn die Firma trotz gesetztem Haken nicht auflösbar ist: 409,
+         * nicht stillschweigend die Kontaktebene allein. „Ich habe die Firma
+         * mitgenommen" ist eine Aussage, die entweder stimmt oder scheitert.
+         */
+        if (auchFirma && kundeId === null) {
+          throw new WiderspruchFehler(
+            'Zu diesem Kontakt ist keine Firma auflösbar — der Widerspruch auf '
+            + 'Firmenebene wurde NICHT gesetzt. Entweder hängt der Kontakt an '
+            + 'keinem Kunden, oder der Widerspruchsstand ist mit den erteilten '
+            + 'Rechten nicht lesbar. Setzen Sie ihn ohne den Haken, oder holen '
+            + 'Sie eine Sitzung mit `crm.rechtsgrundlage_lesen` hinzu.',
+            'firma_nicht_aufloesbar', 409);
+        }
 
         await setzeVerarbeitungswiderspruch(kontext, {
           ansprechpartnerId: zuordnung.id,
-          kundeId: auchFirma ? k?.kunde_id ?? null : null,
+          kundeId: auchFirma ? kundeId : null,
           bemerkung,
         });
       }));

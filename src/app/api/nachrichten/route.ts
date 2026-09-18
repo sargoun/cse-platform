@@ -78,8 +78,18 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
            * bzw. `app.aktuelle_person()`; ein fremder Faden trifft null
            * Zeilen und antwortet wie ein nicht vorhandener (AUT-06).
            */
-          await markiereGelesen(kontext, id as string);
-          return { art: 'getan' as const, was: 'gelesen', ziel: id as string };
+          /*
+           * Die ZAHL wird durchgereicht, nicht verworfen. Traf der Stempel
+           * null eigene Zeilen, hat sich nichts geändert — und dann ist
+           * „Gespeichert." eine Behauptung. Die Seite sagt stattdessen, dass
+           * schon alles gelesen war.
+           */
+          const gestempelt = await markiereGelesen(kontext, id as string);
+          return {
+            art: 'getan' as const,
+            was: gestempelt === 0 ? 'gelesen_schon' : 'gelesen',
+            ziel: id as string,
+          };
         }
 
         await authorize(akteur, { recht: 'nachricht.versenden', schreibend: true }, pruefer);

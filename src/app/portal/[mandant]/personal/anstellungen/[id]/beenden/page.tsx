@@ -207,6 +207,40 @@ export default async function Beendenblatt({
         offen, hält das die Beendigung nicht auf — es soll nur niemand
         hinterher davon erfahren.
       </p>
+
+      {/*
+        * **Die Tafel muss dem Datum folgen können, sonst gehört sie zu einem anderen.**
+        *
+        * Der Regelfall einer Beendigung ist ein Austritt in der ZUKUNFT
+        * (Kündigungsfrist). Ohne dieses Formular stünde die Tafel fest auf
+        * „heute", während der Bearbeiter unten +3 Monate einträgt — und genau
+        * die Zahl, die vor der Bestätigung stehen soll, gehörte dann zu einem
+        * anderen Tag. Ein eigenes GET-Formular, weil die Seite kein JavaScript
+        * hat und das Datumsfeld unten zum POST gehört: das hier lädt neu, das
+        * dort beendet. Der gewählte Tag wird unten vorbelegt, damit niemand
+        * ihn zweimal tippt.
+        */}
+      <form
+        method="get"
+        action={pfad}
+        data-cse="beenden-vorschau"
+        className="mb-s5 flex max-w-prose flex-wrap items-end gap-s3 rounded-lg border border-line bg-surface-2 p-s4"
+      >
+        <label className="flex flex-1 flex-col gap-s2 text-sm text-text">
+          Folgen zu diesem Austrittsdatum
+          <input
+            type="date"
+            name="austritt"
+            min={zeile.eintritt}
+            defaultValue={vorschau}
+            className={feld}
+            data-cse="beenden-vorschau-datum"
+          />
+        </label>
+        <Button type="submit" variante="secondary" data-cse="beenden-vorschau-absenden">
+          Anzeigen
+        </Button>
+      </form>
       <dl
         data-cse="beenden-folgen"
         className="mb-s6 grid max-w-prose grid-cols-[1fr_auto] gap-x-s5 gap-y-s3 rounded-lg border border-line bg-surface p-s5 text-sm"

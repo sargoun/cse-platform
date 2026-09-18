@@ -12,7 +12,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
 import { formatiereGeld, type Cent } from '@/server/services/finanz/geld';
 import {
-  findeAnstellung, KeinEntgeltRecht, leseEntgelt, leseKonditionen,
+  findeAnstellung, leseEntgelt, leseKonditionen,
   type AnstellungZeile, type KonditionZeile,
 } from '@/server/services/personal/anstellung';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
@@ -65,8 +65,19 @@ export default async function Entgeltblatt({
      Jeder Verweis wird vorher gefragt (D-581). */
   const darf = await haeltRechte(
     zugang.sitzung,
-    'personal.lesen', 'personal.entgelt_schreiben', 'personal.schreiben',
-    'personal.anstellung_beenden');
+    'personal.lesen', 'personal.entgelt_lesen', 'personal.entgelt_schreiben',
+    'personal.schreiben', 'personal.anstellung_beenden');
+  /*
+   * **Das Entgeltrecht wird VORHER gefragt, nicht am Fehler erkannt.**
+   *
+   * `app.entgelt_lesen` hebt `42501`, wenn das Recht fehlt - und ein Fehler
+   * bricht die TRANSAKTION ab. `postgres.js` setzt keinen Savepoint je
+   * Abfrage; die naechste Abfrage in derselben Transaktion
+   * (`leseKonditionen`) scheiterte danach mit `25P02`, und der Zweig, der
+   * "kein Recht" sauber anzeigen sollte, konnte gar nicht funktionieren. Die
+   * Abwesenheitsseite fragt aus demselben Grund vorher.
+   */
+  const entgeltRecht = darf['personal.entgelt_lesen'] === true;
 
   const suche = await searchParams;
   const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
@@ -84,16 +95,18 @@ export default async function Entgeltblatt({
           konditionen: [] as readonly KonditionZeile[],
         };
       }
-      let satz: Cent | null = null;
-      let keinRecht = false;
-      try {
-        satz = await leseEntgelt(kontext, id, stichtag);
-      } catch (fehler) {
-        if (fehler instanceof KeinEntgeltRecht) keinRecht = true;
-        else throw fehler;
-      }
+      /*
+       * Ohne das Recht wird `app.entgelt_lesen` gar nicht erst gerufen - siehe
+       * oben. Die Konditionsliste kommt trotzdem: sie traegt keine Betraege
+       * (Zeitraeume, Stunden, Grund) und ist genau die Auskunft, die jemand
+       * ohne Entgeltrecht haben darf.
+       */
+      const satz: Cent | null = entgeltRecht
+        ? await leseEntgelt(kontext, id, stichtag)
+        : null;
       return {
-        zeile, satz, keinRecht, konditionen: await leseKonditionen(kontext, id),
+        zeile, satz, keinRecht: !entgeltRecht,
+        konditionen: await leseKonditionen(kontext, id),
       };
     })) as Promise<{
       zeile: AnstellungZeile | null; satz: Cent | null; keinRecht: boolean;

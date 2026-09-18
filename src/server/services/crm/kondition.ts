@@ -92,6 +92,21 @@ export async function mahnsperreAktiv(
 
 export interface KonditionSetzen {
   readonly kundeId: string;
+  /**
+   * ═══════════════════════════════════════════════════════════════════════
+   * **`undefined` heisst NICHT ÜBERGEBEN, `''` heisst LÖSCHEN.**
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Der Unterschied ist der ganze Punkt. Der erste Entwurf setzte alle vier
+   * Spalten bei jedem Aufruf — ein Teilformular (oder eine Anfrage, die nur
+   * die Debitorennummer schickt) leerte damit stillschweigend das
+   * Zahlungsziel und die begründete Mahnsperre. Nicht genannte Felder werden
+   * deshalb gar nicht erst in die `SET`-Liste aufgenommen.
+   *
+   * `coalesce($n, spalte)` wäre der kürzere Weg gewesen und ist hier
+   * VERBOTEN: die rechte Seite wäre ein Lesezugriff auf eine `cse_app`
+   * spaltenweise entzogene Spalte und scheiterte mit `42501` (K-05).
+   */
   readonly debitorennummer?: string | undefined;
   /** `0`–`180` (CHECK `kunde_zahlungsziel_plausibel`) oder leer. */
   readonly zahlungszielTage?: string | undefined;
@@ -102,20 +117,66 @@ export interface KonditionSetzen {
 /**
  * Die drei Angaben setzen.
  *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Wer die Werte nicht LESEN darf, darf sie auch nicht überschreiben.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Geprüft werden deshalb ZWEI Rechte: `crm.schreiben` für den Kundenstamm und
+ * `crm_entgelt.lesen` für genau diesen Block — dasselbe Recht, mit dem
+ * `app.zahlungskondition_lesen` ihn herausgibt. Ohne die zweite Prüfung
+ * konnte die Sitzung, der die vier Spalten spaltenweise entzogen sind
+ * (K-05), sie auf NULL setzen und bekam „gespeichert" zurück: Debitorennummer
+ * weg (DATEV-Export), Zahlungsziel weg (die Faktura schreibt kein
+ * `faellig_am`, die Festschreibung weist ab), Mahnsperre samt Grund weg (der
+ * Mahnlauf mahnt einen Kunden mit vereinbarter Stundung). `crm.schreiben` ist
+ * für `leitung` gebunden, `crm_entgelt.lesen` nur bindbar — das war keine
+ * Randrolle.
+ *
  * **Die Mahnsperre ist ein PAAR.** Der CHECK `kunde_mahnsperre_begruendet`
  * verlangt `(mahnsperre_bis is null) = (mahnsperre_grund is null)`: entweder
  * beides oder keines. Das steht hier als Satz und nicht als
  * Datenbankfehler — „new row for relation kunde violates check constraint"
- * erklärt niemandem, dass der Grund fehlt.
+ * erklärt niemandem, dass der Grund fehlt. Geprüft wird das Paar, das NACH
+ * dem Speichern dasteht, nicht das übergebene: wer nur den Grund
+ * nachreicht, ändert das Paar nicht.
+ *
+ * **Eine ABGELAUFENE Sperre darf stehen bleiben.** Die Vergangenheitsprüfung
+ * greift nur bei einem GEÄNDERTEN `mahnsperre_bis`. Sonst wäre an einem
+ * Kunden, dessen Sperre gestern endete, weder die Debitorennummer noch das
+ * Zahlungsziel änderbar, ohne zugleich den festgehaltenen Grund zu löschen —
+ * und der Grund ist das, was später die Frage beantwortet, warum nicht
+ * gemahnt wurde.
  */
 export async function setzeKondition(
   kontext: SchreibKontext, eingabe: KonditionSetzen,
 ): Promise<void> {
-  const [recht] = await kontext.abfrage<{ darf: boolean }>(
-    `select app.hat_recht('crm.schreiben', app.aktiver_mandant()) as darf`);
-  if (recht?.darf !== true) {
+  const [recht] = await kontext.abfrage<{ schreiben: boolean; entgelt: boolean }>(
+    `select app.hat_recht('crm.schreiben', app.aktiver_mandant()) as schreiben,
+            app.hat_recht('crm_entgelt.lesen', app.aktiver_mandant()) as entgelt`);
+  if (recht?.schreiben !== true) {
     throw new CrmFehler('Zum Ändern der Konditionen fehlt `crm.schreiben`.',
       'kein_schreibrecht', 403);
+  }
+  if (recht.entgelt !== true) {
+    throw new CrmFehler(
+      'Zum Ändern der Konditionen fehlt `crm_entgelt.lesen`. Diese vier Angaben sind '
+      + 'der Anwendung spaltenweise entzogen (K-05) und werden nur über '
+      + '`app.zahlungskondition_lesen` herausgegeben — wer sie nicht sehen darf, darf '
+      + 'sie nicht blind ersetzen. Sonst stünde hier „gespeichert", während die '
+      + 'Debitorennummer, das Zahlungsziel und die begründete Mahnsperre geleert '
+      + 'wären, ohne dass jemand den vorherigen Stand gesehen hat.',
+      'kein_entgelt_leserecht', 403);
+  }
+
+  /*
+   * Der VORHERIGE Stand — ein Abruf, eine Protokollzeile, über denselben
+   * Definer, den auch die Seite fragt. Er wird für zweierlei gebraucht: für
+   * das Paar der Mahnsperre (übergeben wird vielleicht nur eine Hälfte) und
+   * dafür, eine unveränderte abgelaufene Sperre durchzulassen.
+   */
+  const vorher = await leseKondition(kontext, eingabe.kundeId);
+  if (vorher === null) {
+    throw new CrmFehler('Diesen Kunden gibt es nicht.', 'nicht_gefunden', 404);
   }
 
   const debitor = eingabe.debitorennummer?.trim() ?? '';
@@ -138,20 +199,38 @@ export async function setzeKondition(
     }
   }
 
-  if ((bis === '') !== (grund === '')) {
+  /*
+   * Das Paar, wie es NACH dem Speichern dasteht: was nicht übergeben wurde,
+   * bleibt, was es war.
+   */
+  const bisNachher = eingabe.mahnsperreBis === undefined
+    ? (vorher.mahnsperreBis ?? '') : bis;
+  const grundNachher = eingabe.mahnsperreGrund === undefined
+    ? (vorher.mahnsperreGrund ?? '') : grund;
+  if ((bisNachher === '') !== (grundNachher === '')) {
     throw new CrmFehler(
       'Eine Mahnsperre besteht aus BEIDEM: bis wann sie gilt und warum. Ohne Grund '
       + 'steht später nur da, dass nicht gemahnt wurde — und niemand weiss, ob das '
       + 'so gewollt war. Beide Felder leeren hebt die Sperre auf.',
       'mahnsperre_unvollstaendig');
   }
-  if (bis !== '') {
+
+  /*
+   * Die Vergangenheitsprüfung nur auf eine GEÄNDERTE Sperre. Eine, die
+   * unverändert mitgeschickt wird — das Formular belegt die Felder vor —,
+   * hält ohnehin nichts an und darf stehen bleiben.
+   */
+  const bisGeaendert = eingabe.mahnsperreBis !== undefined
+    && bis !== (vorher.mahnsperreBis ?? '');
+  if (bisGeaendert && bis !== '') {
     const [pruefung] = await kontext.abfrage<{ vergangen: boolean }>(
       `select ($1::date < app.berlin_heute()) as vergangen`, [bis]);
     if (pruefung?.vergangen === true) {
       throw new CrmFehler(
         'Eine Mahnsperre, die schon abgelaufen ist, hält nichts an. Wählen Sie '
-        + 'heute oder einen späteren Tag — oder leeren Sie beide Felder.',
+        + 'heute oder einen späteren Tag — oder leeren Sie beide Felder. Eine '
+        + 'BESTEHENDE abgelaufene Sperre dürfen Sie unverändert stehen lassen; sie '
+        + 'trägt den Grund, aus dem einmal nicht gemahnt wurde.',
         'mahnsperre_vergangen');
     }
   }
@@ -159,19 +238,42 @@ export async function setzeKondition(
   /*
    * `returning id` — und keine der vier entzogenen Spalten, weder hier noch
    * in der WHERE-Klausel. Siehe Kopf dieser Datei.
+   *
+   * Die `SET`-Liste wird aus den TATSÄCHLICH übergebenen Feldern gebaut. Ein
+   * Formular, das nur die Debitorennummer schickt, fasst die drei anderen
+   * Spalten nicht an.
    */
+  const werte: unknown[] = [eingabe.kundeId];
+  const saetze: string[] = [];
+  const nimm = (spalte: string, guss: string, wert: unknown): void => {
+    werte.push(wert);
+    saetze.push(`${spalte} = $${String(werte.length)}${guss}`);
+  };
+  if (eingabe.debitorennummer !== undefined) {
+    nimm('debitorennummer', '', debitor === '' ? null : debitor);
+  }
+  if (eingabe.zahlungszielTage !== undefined) {
+    nimm('zahlungsziel_tage', '::smallint', ziel);
+  }
+  if (eingabe.mahnsperreBis !== undefined) {
+    nimm('mahnsperre_bis', '::date', bis === '' ? null : bis);
+  }
+  if (eingabe.mahnsperreGrund !== undefined) {
+    nimm('mahnsperre_grund', '', grund === '' ? null : grund);
+  }
+  if (saetze.length === 0) {
+    throw new CrmFehler(
+      'Es wurde keine Angabe übergeben — es gibt nichts zu speichern.',
+      'keine_angaben');
+  }
+  saetze.push('geaendert_am = now()', 'geaendert_von = app.aktueller_benutzer()');
+
   const zeilen = await kontext.schreibe<{ id: string }>(
     `update kunde
-        set debitorennummer = $2,
-            zahlungsziel_tage = $3::smallint,
-            mahnsperre_bis = $4::date,
-            mahnsperre_grund = $5,
-            geaendert_am = now(), geaendert_von = app.aktueller_benutzer()
+        set ${saetze.join(',\n            ')}
       where mandant_id = app.aktiver_mandant() and id = $1::uuid
         and archiviert_am is null
-      returning id`,
-    [eingabe.kundeId, debitor === '' ? null : debitor, ziel,
-      bis === '' ? null : bis, grund === '' ? null : grund]);
+      returning id`, werte);
 
   if (zeilen[0] === undefined) {
     throw new CrmFehler('Diesen Kunden gibt es nicht.', 'nicht_gefunden', 404);
@@ -182,9 +284,16 @@ export async function setzeKondition(
               null,
               jsonb_build_object('debitor_gesetzt', $2::boolean,
                                  'ziel_gesetzt', $3::boolean,
-                                 'mahnsperre_gesetzt', $4::boolean),
+                                 'mahnsperre_gesetzt', $4::boolean,
+                                 'felder', $5::text[]),
               app.aktiver_mandant())`,
-    [eingabe.kundeId, debitor !== '', ziel !== null, bis !== '']);
+    [eingabe.kundeId, debitor !== '', ziel !== null, bisNachher !== '',
+      [
+        ...(eingabe.debitorennummer === undefined ? [] : ['debitorennummer']),
+        ...(eingabe.zahlungszielTage === undefined ? [] : ['zahlungsziel_tage']),
+        ...(eingabe.mahnsperreBis === undefined ? [] : ['mahnsperre_bis']),
+        ...(eingabe.mahnsperreGrund === undefined ? [] : ['mahnsperre_grund']),
+      ]]);
 }
 
 /**

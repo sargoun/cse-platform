@@ -10,7 +10,7 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
 import { withTenant } from '@/server/kontext/index';
 import {
   AbnahmeFehler, istAbnahmeArt, meldeMangelBehoben, protokolliereAbnahme, storniereAbnahme,
-  type MangelEingabe,
+  verknuepfeErsatzprotokoll, type MangelEingabe,
 } from '@/server/services/bau/abnahme';
 
 /**
@@ -119,6 +119,17 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           );
         }
 
+        /**
+         * **Der Ersatzverweis gehört in DIESE Transaktion.** „Korrigiert wird
+         * durch Storno mit Ersatzprotokoll" ist der Korrekturweg der Abnahme;
+         * ohne `ersetzt_durch_id` stünden das stornierte Protokoll und sein
+         * Ersatz unverbunden nebeneinander, und die Kette, die den Storno
+         * rechtfertigt, entstünde nie. Das Formular schickt das zu ersetzende
+         * Protokoll mit; der Dienst verbindet nur, was zum selben Projekt
+         * gehört und wirklich storniert ist.
+         */
+        const ersetzt = feld('ersetzt');
+
         const protokoll = await protokolliereAbnahme(kontext, {
           projektId: feld('projekt'),
           art,
@@ -135,11 +146,20 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           teilnehmer: liste('teilnehmer').filter((t) => t !== ''),
           maengel,
         });
-        return { art: 'protokoll' as const, ...protokoll };
+        const verbunden = ersetzt === ''
+          ? false
+          : await verknuepfeErsatzprotokoll(kontext, {
+            storniertesId: ersetzt,
+            ersatzId: protokoll.id,
+          });
+        return { art: 'protokoll' as const, ...protokoll, verbunden };
       }))) as
         | { art: 'mangel'; ok: boolean }
         | { art: 'storno'; ok: boolean }
-        | { art: 'protokoll'; id: string; hash: string; fristEnde: string | null };
+        | {
+          art: 'protokoll'; id: string; hash: string; fristEnde: string | null;
+          verbunden: boolean;
+        };
 
     if (ergebnis.art !== 'protokoll' && !ergebnis.ok) {
       return NextResponse.json(

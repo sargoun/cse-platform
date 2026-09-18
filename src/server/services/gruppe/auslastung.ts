@@ -81,18 +81,29 @@ export async function gruppenAuslastung(
     [von, bis],
   );
 
+  /*
+   * **Gruppiert wird auf der KANONISCHEN Kennung, nicht auf `z.person_id`.**
+   *
+   * Eine Zusammenfuehrung haengt keine Zeile um (0194) — die alten
+   * Zeiteintraege tragen weiter die alte `person_id`. Auf der rohen Spalte zu
+   * gruppieren hiesse, denselben Menschen nach der Zusammenfuehrung als zwei
+   * Zeilen mit je halber Auslastung zu zeigen. `app.person_kanonisch` loest
+   * den Zeiger auf; der Name kommt dann aus der FUEHRENDEN Zeile, denn die
+   * ist die, die gepflegt wird.
+   */
   const summen = await kontext.abfrage<SummeRoh>(
-    `select z.person_id, p.vorname, p.nachname, m.slug,
+    `select app.person_kanonisch(z.person_id) as person_id,
+            p.vorname, p.nachname, m.slug,
             to_char(z.beginn_zeitpunkt at time zone 'Europe/Berlin', 'IYYY-"W"IW') as iso,
             coalesce(sum(z.dauer_netto_minuten), 0)::int as minuten
        from zeiteintrag z
-       join person p on p.id = z.person_id
+       join person p on p.id = app.person_kanonisch(z.person_id)
        join mandant m on m.id = z.mandant_id
       where z.ende_zeitpunkt is not null
         and z.storniert_am is null and z.ersetzt_am is null
         and z.beginn_zeitpunkt >= ($1::date::timestamp at time zone 'Europe/Berlin')
         and z.beginn_zeitpunkt <  (($2::date + 1)::timestamp at time zone 'Europe/Berlin')
-      group by z.person_id, p.vorname, p.nachname, m.slug, 5`,
+      group by 1, p.vorname, p.nachname, m.slug, 5`,
     [von, bis],
   );
 
@@ -160,17 +171,28 @@ export async function gruppenArbzgBefunde(
   kontext: LeseKontext, heute: string,
 ): Promise<readonly GruppenArbzgBefund[]> {
   const von = tagePlus(heute, -RUECKBLICK_TAGE);
+  /*
+   * **Auch hier die kanonische Kennung — und hier ist es kein Schoenheitsfehler.**
+   *
+   * `pruefeArbzg` nimmt die Schichten GENAU EINER Person und misst Grenzen,
+   * die nach Invariante 9 je MENSCH gelten. Gruppiert auf der rohen
+   * `person_id` bliebe die Belastung nach einer Zusammenfuehrung auf zwei
+   * Schluessel verteilt — und die 8-Stunden-Grenze, wegen der die Aggregation
+   * ueberhaupt existiert, wuerde nie erreicht. Der Aufloeser aus 0194 gehoert
+   * genau hierher.
+   */
   const roh = await kontext.abfrage<SchichtRoh>(
-    `select z.id, z.person_id, p.vorname, p.nachname, z.mandant_id, m.slug,
+    `select z.id, app.person_kanonisch(z.person_id) as person_id,
+            p.vorname, p.nachname, z.mandant_id, m.slug,
             z.beginn_zeitpunkt as beginn, z.ende_zeitpunkt as ende, z.pause_minuten
        from zeiteintrag z
-       join person p on p.id = z.person_id
+       join person p on p.id = app.person_kanonisch(z.person_id)
        join mandant m on m.id = z.mandant_id
       where z.ende_zeitpunkt is not null
         and z.storniert_am is null and z.ersetzt_am is null
         and z.beginn_zeitpunkt >= ($1::date::timestamp at time zone 'Europe/Berlin')
         and z.beginn_zeitpunkt <  (($2::date + 1)::timestamp at time zone 'Europe/Berlin')
-      order by z.person_id, z.beginn_zeitpunkt`,
+      order by 2, z.beginn_zeitpunkt`,
     [von, heute],
   );
 

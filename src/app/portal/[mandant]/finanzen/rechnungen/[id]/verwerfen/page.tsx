@@ -79,8 +79,11 @@ export default async function Verwerfenblatt(
   const { sitzung } = zugang;
 
   /* Diese Seite öffnet mit `finanzen.entwurf_verwerfen`; der Beleg daneben
-     verlangt `finanzen.lesen` (AUT-06, D-581). */
-  const darf = await haeltRechte(sitzung, 'finanzen.lesen');
+     verlangt `finanzen.lesen`, und die Stornoseite `finanzen.stornieren`
+     (nach Katalog nur an super_admin gebunden). Beide werden gefragt, BEVOR
+     ein Verweis gezeigt wird — ohne das Recht führte er auf 404 und verriete,
+     was er verbergen soll (AUT-06, D-581). */
+  const darf = await haeltRechte(sitzung, 'finanzen.lesen', 'finanzen.stornieren');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -269,7 +272,7 @@ export default async function Verwerfenblatt(
                 + 'nicht verworfen, sondern durch eine Stornobuchung aufgehoben — '
                 + 'das ist der einzige Weg zu einer Korrektur (Invariante 4).'}
           </p>
-          {k.status === 'festgeschrieben' ? (
+          {k.status === 'festgeschrieben' && darf['finanzen.stornieren'] === true ? (
             <p className="m-0 mt-s2">
               <Link
                 href={`/portal/${mandant}/finanzen/rechnungen/${id}/storno`}
@@ -277,6 +280,13 @@ export default async function Verwerfenblatt(
               >
                 Zur Stornoseite →
               </Link>
+            </p>
+          ) : k.status === 'festgeschrieben' ? (
+            <p className="m-0 mt-s2 text-sm text-text-muted">
+              Der Storno läuft über <code>/storno</code> und verlangt{' '}
+              <code>finanzen.stornieren</code>. Dieses Konto hält das Recht
+              nicht — deshalb steht hier der Weg als Satz und nicht als Verweis:
+              ein Verweis auf 404 verrät, was er verbergen soll (AUT-06).
             </p>
           ) : null}
         </Hinweis>

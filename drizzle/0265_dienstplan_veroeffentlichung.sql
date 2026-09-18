@@ -237,4 +237,5 @@ create trigger trg_dienstplan_veroeffentlichung_kein_truncate
 revoke delete, truncate on dienstplan_veroeffentlichung from cse_app, cse_anon, cse_checkin, cse_job;
 
 
+
 -- >>> Ende des generierten Blocks

@@ -26,6 +26,7 @@ import { AUFMASS_PILLE, AUFMASS_STATUS_TEXT } from './aufmass-anzeige';
 import { AusserhalbLvWarnungen } from './AusserhalbLvWarnungen';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { portalZugang } from '../../zugang';
+import { haeltRechte } from '@/app/portal/rechte';
 import { slugTor } from '../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -60,6 +61,16 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  */
 export const dynamic = 'force-dynamic';
 
+/**
+ * Wie viele Zeilen ein Abschnitt dieser Uebersicht hoechstens zeigt.
+ *
+ * Eine TECHNISCHE Grenze und keine fachliche: die vollstaendigen Listen
+ * stehen einen Verweis weiter (`.../bau/aufmass`, `.../bau/nachtraege`). Die
+ * Zahl in der Kachel kommt aus `ladeBauKennzahlen` und ist UNBESCHNITTEN —
+ * gezaehlt wird alles, gezeigt wird ein Ausschnitt.
+ */
+const UEBERSICHT_GRENZE = 50;
+
 export default async function BauUebersicht(
   { params }: { params: Promise<{ mandant: string }> },
 ) {
@@ -74,6 +85,17 @@ export default async function BauUebersicht(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+  /**
+   * **Ein Verweis auf ein 404 ist schlechter als keiner** (AUT-06).
+   *
+   * Diese Seite traegt `bau.lesen`; der EINZELNE Bautag
+   * (`.../bautagebuch/[datum]`) verlangt `bau.schreiben` — dort wird er
+   * geschrieben, nicht bloss gelesen. Wer nur lesen darf, bekam hier
+   * anklickbare Tage und landete auf einer nicht vorhandenen Seite. Dasselbe
+   * Muster steht in `bau/bautagebuch/page.tsx` und auf der
+   * Aufmassdetailseite.
+   */
+  const darf = await haeltRechte(sitzung, 'bau.schreiben');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
@@ -82,8 +104,15 @@ export default async function BauUebersicht(
       behinderungen: await listeBehinderungen(kontext, { nurLaufend: true }),
       bautageEntwurf: await listeBautage(kontext, { nurOffene: true, grenze: 10 }),
       luecken: await tageOhneBautagebuch(kontext),
-      aufmasse: await listeAufmasse(kontext),
-      warnungen: await ladeAusserhalbLv(kontext),
+      /*
+       * Gefiltert in SQL und begrenzt: vorher lud diese Zeile JEDES lebende
+       * Blatt des Mandanten — vierzehn Spalten und zwei Unterabfragen je
+       * Blatt —, um danach in TypeScript auf `vorgelegt` zu filtern. Genau
+       * das Muster, gegen dessen Kosten `bau/uebersicht.ts` im Dateikopf
+       * argumentiert.
+       */
+      aufmasse: await listeAufmasse(kontext, { status: 'vorgelegt', grenze: UEBERSICHT_GRENZE }),
+      warnungen: await ladeAusserhalbLv(kontext, { grenze: UEBERSICHT_GRENZE }),
     })),
   ) as Promise<{
     zahlen: BauKennzahlen;
@@ -96,7 +125,6 @@ export default async function BauUebersicht(
   }>);
 
   const { zahlen } = daten;
-  const vorgelegt = daten.aufmasse.filter((a) => a.status === 'vorgelegt');
 
   const kacheln: readonly KachelAnzeige[] = [
     {
@@ -131,6 +159,20 @@ export default async function BauUebersicht(
       ton: zahlen.aufmasse_vorgelegt > 0 ? 'warning' : 'success',
       ziel: `/portal/${mandant}/bau/aufmass`,
     },
+    {
+      /*
+       * `ladeBauKennzahlen` zaehlt die Abnahmen mit; ohne diese Kachel war
+       * das eine mitgelesene Spalte ohne Leser — die naechste, die jemand
+       * fuer vorhanden haelt. Das Ziel ist die PROJEKTLISTE und nicht ein
+       * Protokoll: `…/projekte/[id]/abnahme` traegt `bau.schreiben`, diese
+       * Seite `bau.lesen` (AUT-06).
+       */
+      schluessel: 'bau-abnahmen',
+      label: 'Abnahmeprotokolle (§ 12 VOB/B)',
+      wert: zahlen.abnahmen,
+      ton: 'info',
+      ziel: `/portal/${mandant}/bau/projekte`,
+    },
   ];
 
   return (
@@ -164,6 +206,7 @@ export default async function BauUebersicht(
         warnungen={daten.warnungen}
         mandant={mandant}
         projektId={null}
+        beschnitten={daten.warnungen.length >= UEBERSICHT_GRENZE}
       />
 
       {/* ------------------------------------------------------------------ */}
@@ -391,14 +434,20 @@ export default async function BauUebersicht(
               {
                 schluessel: 'datum',
                 kopf: 'Tag',
-                zelle: (z) => (
+                /*
+                 * Verlinkt nur mit `bau.schreiben` — der einzelne Bautag
+                 * traegt dieses Recht an der Tuer, und ohne es endet der
+                 * Aufruf in `notFound()`. Dasselbe Muster wie in
+                 * `bau/bautagebuch/page.tsx`.
+                 */
+                zelle: (z) => (darf['bau.schreiben'] === true ? (
                   <Link
                     href={`/portal/${mandant}/bau/projekte/${z.projekt_id}/bautagebuch/${z.datum}`}
                     className="text-text underline-offset-2 hover:text-brand hover:underline"
                   >
                     {z.datum_lokal}
                   </Link>
-                ),
+                ) : z.datum_lokal),
               },
               {
                 schluessel: 'mannstunden',
@@ -436,12 +485,16 @@ export default async function BauUebersicht(
                 key={`${l.projekt_id}-${l.datum}`}
                 className="mb-s2 rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted"
               >
-                <Link
-                  href={`/portal/${mandant}/bau/projekte/${l.projekt_id}/bautagebuch/${l.datum}`}
-                  className="text-text underline-offset-2 hover:text-brand hover:underline"
-                >
-                  {l.wochentag}, {l.datum_lokal}
-                </Link>
+                {darf['bau.schreiben'] === true ? (
+                  <Link
+                    href={`/portal/${mandant}/bau/projekte/${l.projekt_id}/bautagebuch/${l.datum}`}
+                    className="text-text underline-offset-2 hover:text-brand hover:underline"
+                  >
+                    {l.wochentag}, {l.datum_lokal}
+                  </Link>
+                ) : (
+                  <span className="text-text">{l.wochentag}, {l.datum_lokal}</span>
+                )}
                 {' · '}{l.projekt_nummer} · {l.projekt}
               </li>
             ))}
@@ -475,7 +528,7 @@ export default async function BauUebersicht(
             Alle Aufmaße
           </Link>
         </div>
-        {vorgelegt.length === 0 ? (
+        {daten.aufmasse.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
             Kein Blatt ist vorgelegt und wartet auf die Gegenzeichnung des
             Auftraggebers.
@@ -483,7 +536,7 @@ export default async function BauUebersicht(
         ) : (
           <DataTable
             beschriftung="Vorgelegte Aufmaßblätter"
-            zeilen={vorgelegt}
+            zeilen={daten.aufmasse}
             schluessel={(z) => z.id}
             spalten={[
               {
@@ -539,6 +592,18 @@ export default async function BauUebersicht(
               },
             ]}
           />
+        )}
+        {daten.aufmasse.length >= UEBERSICHT_GRENZE && (
+          /*
+           * Die Kachel oben zählt ALLE vorgelegten Blätter; diese Tabelle zeigt
+           * höchstens {UEBERSICHT_GRENZE}. Ohne diesen Satz widersprächen sich
+           * die beiden Zahlen auf derselben Seite.
+           */
+          <p className="mt-s3 text-sm text-text-muted">
+            Gezeigt sind die ersten {String(UEBERSICHT_GRENZE)} von{' '}
+            {String(zahlen.aufmasse_vorgelegt)} vorgelegten Blättern. Die
+            vollständige Liste steht unter „Alle Aufmaße".
+          </p>
         )}
       </section>
     </PortalRahmen>

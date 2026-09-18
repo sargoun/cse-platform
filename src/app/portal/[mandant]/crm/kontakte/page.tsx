@@ -94,7 +94,7 @@ export default async function Kontaktliste(
 ) {
   const { mandant } = await params;
   const suche = await searchParams;
-  const filter: Filter = FILTER.find((f) => f === suche.grundlage) ?? 'alle';
+  const filterRoh: Filter = FILTER.find((f) => f === suche.grundlage) ?? 'alle';
   const frage = (suche.q ?? '').trim();
 
   const pfad = `/portal/${mandant}/crm/kontakte`;
@@ -148,13 +148,33 @@ export default async function Kontaktliste(
       darfGrundlage: boolean;
     }>);
 
+  /*
+   * ═══════════════════════════════════════════════════════════════════════════
+   * **Ohne das Recht gibt es KEINEN Filter — auch nicht aus der Adresszeile.**
+   * ═══════════════════════════════════════════════════════════════════════════
+   *
+   * Die Filterleiste erscheint nur mit `crm.rechtsgrundlage_lesen`. Der
+   * PARAMETER kam bis hierher trotzdem durch: eine getippte oder
+   * weitergegebene Adresse `?grundlage=keine` liess ohne das Recht jede Zeile
+   * durchfallen (`karte` ist dann leer), und die Seite schrieb „Kein
+   * Ansprechpartner mit dieser Einstufung". Das ist eine Aussage über den
+   * Bestand, die niemand treffen durfte — und genau das Gegenteil dessen, was
+   * der Kommentar unten versprach. Fehlt das Recht, gilt „alle".
+   */
+  const filter: Filter = daten.darfGrundlage ? filterRoh : 'alle';
+
   const karte = new Map(daten.grundlagen.map((g) => [g.ansprechpartner_id, g]));
   const gefiltert = daten.zeilen.filter((z) => {
     if (filter === 'alle') return true;
     const g = karte.get(z.id);
-    // Ohne Einstufung gibt es keinen Filter — und eine Zeile, die der Filter
-    // nicht beurteilen kann, wird nicht weggelassen, sondern der Filter ist
-    // dann gar nicht sichtbar (siehe unten).
+    /*
+     * Hier kommt nur an, wer `crm.rechtsgrundlage_lesen` hält — sonst steht
+     * `filter` oben schon auf `'alle'`. Eine einzelne Zeile ohne Einstufung
+     * gibt es dann nicht: `app.kontakt_rechtsgrundlage_liste()` liefert eine
+     * je Kontakt des Bereichs. Bleibt trotzdem eine übrig (ein Kontakt, der
+     * zwischen den beiden Abfragen entstand), wird sie weggelassen — sie
+     * gehört nachweislich in kein Fach dieses Filters.
+     */
     if (g === undefined) return false;
     if (filter === 'widerspruch') {
       return g.werbewiderspruch_am !== null || g.widerspruch_am !== null;

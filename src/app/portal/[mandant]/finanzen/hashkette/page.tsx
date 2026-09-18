@@ -7,7 +7,7 @@ import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { ALGORITHMUS, GENESIS } from '@/server/services/finanz/hash-chain';
-import { meldung, pruefeKette, type KettenBefund }
+import { meldung, pruefeKette, type KettenBefund, type KettenBruch }
   from '@/server/services/finanz/kettenlauf';
 import {
   kettenkoepfe, letzterKettenlauf, type Kettenkopf, type Kettenlauf,
@@ -54,25 +54,64 @@ const ERGEBNIS_PILLE: Readonly<Record<string, PillZustand>> = {
   abgebrochen: 'Fehler',
 };
 
-/** Die Bruchart in einem Satz, den ein Mensch lesen kann. */
-const BRUCH_TEXT: Readonly<Record<string, string>> = {
-  falscher_vorgaenger:
-    'Das Glied nennt einen anderen Vorgänger-Hash als den seines Vorgängers — '
-    + 'zwischen beiden fehlt etwas oder es wurde eines ersetzt.',
-  falscher_hash:
+/**
+ * Die zwei Befunde der Kettenkopf-Tabelle — als eigene Konstanten und nicht
+ * über die Zuordnung geholt.
+ *
+ * `kopfStimmt` und `uebergangStimmt` sind BOOLESCHE Spalten aus
+ * `kettenkoepfe()`, kein `KettenBruch`. Sie über `BRUCH_TEXT['…']` zu lesen
+ * hiess, einen Schlüssel zu raten, den der Typechecker nicht prüft — genau so
+ * entstand die textlose rote Pille. Jetzt stehen die Sätze da, wo sie
+ * gebraucht werden, und `BRUCH_TEXT` benutzt sie mit.
+ */
+const TEXT_KOPF =
+  'Der Kettenkopf des Kreises weicht vom Hash seines letzten Gliedes ab.';
+
+const TEXT_UEBERGANG =
+  'Der Genesis-Hash dieses Kreises ist nicht der letzte Hash seines Vorgängers '
+  + '(§5.7 Schritt 3b).';
+
+/**
+ * Die Bruchart in einem Satz, den ein Mensch lesen kann.
+ *
+ * **`Record<KettenBruch['grund'], string>` und nicht `Record<string, string>`.**
+ * Die erste Fassung war auf `string` getippt und traf mit ihren sieben
+ * erfundenen Schlüsseln — `falscher_vorgaenger`, `falscher_hash`, `luecke` …
+ * — KEINEN einzigen echten Bruchgrund. In der Live-Tabelle fiel sie auf den
+ * rohen Enum-Bezeichner zurück; in der Kettenkopf-Tabelle stand ein fester
+ * Zugriff ohne `??`-Rückfall und ergab `undefined`, also eine rote Pille ohne
+ * Text — bei `!kopfStimmt`, dem wichtigsten Befund dieser Seite. Der
+ * Typechecker meldete nichts, weil `string | undefined` ein gültiges
+ * React-Kind ist.
+ *
+ * Auf `KettenBruch['grund']` getippt meldet er jede künftige Abweichung: ein
+ * neuer Bruchgrund in `hash-chain.ts` oder `kettenlauf.ts` macht diese Zuordnung
+ * unvollständig, und das ist ein Fehler beim Übersetzen und nicht eine leere
+ * Zelle beim Kunden.
+ */
+const BRUCH_TEXT: Readonly<Record<KettenBruch['grund'], string>> = {
+  hash_falsch:
     'Der gespeicherte Hash stimmt nicht mit dem überein, der sich aus Nutzlast '
     + 'und Vorgänger ergibt.',
-  falscher_nutzlast_hash:
+  nutzlast_veraendert:
     'Der Nutzlast-Hash passt nicht zu den Bytes des Snapshots — der Beleginhalt '
     + 'ist ein anderer als der, über den gehasht wurde.',
-  fehlendes_glied:
+  verkettung_gebrochen:
+    'Das Glied nennt einen anderen Vorgänger-Hash als den seines Vorgängers — '
+    + 'zwischen beiden fehlt etwas oder es wurde eines ersetzt.',
+  position_luecke:
+    'Die Kettenposition springt oder wiederholt sich — zwischen zwei Gliedern '
+    + 'liegt eine Lücke.',
+  format_ungueltig:
+    'Der Hash ist kein Hex-64. Er kann damit aus keinem SHA-256 stammen, und '
+    + 'nachrechnen lässt sich an dieser Stelle nichts mehr.',
+  kopf_weicht_ab: TEXT_KOPF,
+  ohne_kettenglied:
     'Eine Kettenposition fehlt: eine festgeschriebene Rechnung ohne Kettensatz.',
-  luecke: 'Zwischen zwei Positionen liegt eine Lücke.',
-  falscher_kopf:
-    'Der Kettenkopf des Kreises weicht vom Hash seines letzten Gliedes ab.',
-  falscher_uebergang:
-    'Der Genesis-Hash dieses Kreises ist nicht der letzte Hash seines Vorgängers '
-    + '(§5.7 Schritt 3b).',
+  kreisuebergang_gebrochen: TEXT_UEBERGANG,
+  kettenkopf_weicht_ab:
+    'Der in `nummernkreis.letzter_hash` gespeicherte Kettenkopf ist nicht der '
+    + 'Hash des letzten Gliedes dieses Kreises.',
 };
 
 function kurz(hash: string | null): string {
@@ -275,9 +314,9 @@ export default async function Hashkettenblatt(
                       : <StatusPill zustand="Fehler" />}
                     <span className="text-xs text-text-muted">
                       {!z.kopfStimmt
-                        ? BRUCH_TEXT['falscher_kopf']
+                        ? TEXT_KOPF
                         : !z.uebergangStimmt
-                          ? `${BRUCH_TEXT['falscher_uebergang'] ?? ''} Vorgänger: `
+                          ? `${TEXT_UEBERGANG} Vorgänger: `
                             + `${z.vorgaengerBezeichnung ?? '—'}`
                           : z.hoechstePosition === null
                             ? 'kein Glied'
@@ -341,7 +380,7 @@ export default async function Hashkettenblatt(
                           </span>
                         </span>
                         <span className="max-w-prose text-xs text-text-muted">
-                          {BRUCH_TEXT[z.bruch.grund] ?? z.bruch.grund}
+                          {BRUCH_TEXT[z.bruch.grund]}
                         </span>
                         <span className="font-mono text-xs text-text-muted">
                           erwartet {kurz(z.bruch.erwartet)} · gefunden{' '}

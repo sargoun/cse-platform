@@ -34,6 +34,7 @@
  * Standes tragen denselben Abdruck.
  */
 import { createHash } from 'node:crypto';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import type { LeseKontext } from '../../kontext/index.js';
 import { VERARBEITUNGEN, type Verarbeitung } from '@/server/registry/verarbeitungen';
 import { liesAufbewahrung } from '@/server/services/dokument/aufbewahrung';
@@ -60,6 +61,18 @@ interface AbschnittDefinition {
   readonly verarbeitung: string | null;
   /** Die Tabelle(n), aus der die Zeilen kommen — so, wie sie heissen. */
   readonly quelle: string;
+  /**
+   * Dieselben Tabellen, maschinenlesbar — die Grundlage der Wache.
+   *
+   * `quelle` ist ein Satz für einen Menschen („person (über
+   * app.person_stammdaten_lesen)"). Die Wache in
+   * `tests/isolation/datenschutz-abdeckung.test.ts` stellt jede Tabelle des
+   * Schemas mit `person_id`, `ansprechpartner_id` oder `bewerbung_id` GEGEN
+   * diese Liste und fällt, sobald eine neue Migration eine dazulegt. Ohne
+   * diese Angabe müsste sie den Satz parsen — und wäre damit grün, sobald
+   * jemand die Formulierung ändert.
+   */
+  readonly tabellen: readonly string[];
   readonly leseweg: Leseweg;
   /** Das Recht, ohne das die Datenbank null Zeilen liefert. */
   readonly recht: string | null;
@@ -89,6 +102,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Stammdaten der Person',
     verarbeitung: 'V-01',
     quelle: 'person',
+    tabellen: ['person'],
     leseweg: 'policy',
     recht: null,
     fuer: ['person'],
@@ -115,6 +129,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Geschützte Stammdaten (Bewacherregister)',
     verarbeitung: 'V-01',
     quelle: 'person (über app.person_stammdaten_lesen)',
+    tabellen: ['person'],
     leseweg: 'definer',
     recht: 'personal.stammdaten_lesen',
     fuer: ['person'],
@@ -141,6 +156,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Anstellungen in dieser Gesellschaft',
     verarbeitung: 'V-01',
     quelle: 'anstellung',
+    tabellen: ['anstellung'],
     leseweg: 'policy',
     recht: null,
     fuer: ['person'],
@@ -172,6 +188,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Arbeitszeitaufzeichnungen',
     verarbeitung: 'V-02',
     quelle: 'zeiteintrag',
+    tabellen: ['zeiteintrag'],
     leseweg: 'policy',
     recht: 'zeit.lesen',
     fuer: ['person'],
@@ -200,6 +217,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Abwesenheiten',
     verarbeitung: 'V-04',
     quelle: 'abwesenheit',
+    tabellen: ['abwesenheit'],
     leseweg: 'policy',
     recht: 'zeit.abwesenheit_lesen',
     fuer: ['person'],
@@ -231,6 +249,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Anträge (Urlaub, Tausch, Änderung)',
     verarbeitung: 'V-04',
     quelle: 'antrag',
+    tabellen: ['antrag'],
     leseweg: 'policy',
     recht: 'zeit.abwesenheit_lesen',
     fuer: ['person'],
@@ -255,6 +274,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Stundenkonten je Monat',
     verarbeitung: 'V-02',
     quelle: 'stundenkonto',
+    tabellen: ['stundenkonto'],
     leseweg: 'policy',
     recht: 'zeit.konto_lesen',
     fuer: ['person'],
@@ -279,6 +299,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Urlaubskonten je Jahr',
     verarbeitung: 'V-04',
     quelle: 'urlaubskonto',
+    tabellen: ['urlaubskonto'],
     leseweg: 'policy',
     recht: 'zeit.konto_lesen',
     fuer: ['person'],
@@ -302,6 +323,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Qualifikationsnachweise',
     verarbeitung: 'V-01',
     quelle: 'nachweis',
+    tabellen: ['nachweis'],
     leseweg: 'policy',
     recht: 'personal.nachweis_lesen',
     fuer: ['person'],
@@ -322,6 +344,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Bestätigte Dienstanweisungen',
     verarbeitung: 'V-09',
     quelle: 'da_kenntnisnahme',
+    tabellen: ['da_kenntnisnahme'],
     leseweg: 'policy',
     recht: 'dienstanweisung.lesen',
     fuer: ['person'],
@@ -342,6 +365,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Wachbucheinträge, die diese Person erfasst hat',
     verarbeitung: 'V-09',
     quelle: 'wachbuch_eintrag',
+    tabellen: ['wachbuch_eintrag'],
     leseweg: 'policy',
     recht: 'wachbuch.lesen',
     fuer: ['person'],
@@ -362,6 +386,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Schlüsselquittungen',
     verarbeitung: 'V-09',
     quelle: 'schluessel_quittung',
+    tabellen: ['schluessel_quittung'],
     leseweg: 'policy',
     recht: 'schluessel.lesen',
     fuer: ['person'],
@@ -381,6 +406,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Mitarbeiterzugang (Telefonnummer, letzte Anmeldung)',
     verarbeitung: 'V-10',
     quelle: 'mitarbeiter_zugang',
+    tabellen: ['mitarbeiter_zugang'],
     leseweg: 'policy',
     recht: null,
     fuer: ['person'],
@@ -398,6 +424,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Benachrichtigungen im Portal',
     verarbeitung: 'V-10',
     quelle: 'benachrichtigung (über app.benachrichtigung_auskunft)',
+    tabellen: ['benachrichtigung'],
     leseweg: 'definer',
     recht: 'datenschutz.auskunft_erstellen',
     fuer: ['person'],
@@ -424,6 +451,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Kontaktdaten als Ansprechpartner',
     verarbeitung: 'V-06',
     quelle: 'ansprechpartner',
+    tabellen: ['ansprechpartner'],
     leseweg: 'policy',
     recht: 'crm.lesen',
     fuer: ['ansprechpartner'],
@@ -447,6 +475,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Werberechtliche Einstufung und Widersprüche',
     verarbeitung: 'V-06',
     quelle: 'ansprechpartner (über app.widerspruch_stand)',
+    tabellen: ['ansprechpartner'],
     leseweg: 'definer',
     recht: 'datenschutz.auskunft_erstellen',
     fuer: ['ansprechpartner'],
@@ -469,6 +498,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Protokoll der erklärten Widersprüche',
     verarbeitung: 'V-06',
     quelle: 'werbewiderspruch',
+    tabellen: ['werbewiderspruch'],
     leseweg: 'policy',
     recht: 'crm.rechtsgrundlage_lesen',
     fuer: ['ansprechpartner'],
@@ -491,6 +521,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Bewerbung',
     verarbeitung: 'V-05',
     quelle: 'bewerbung',
+    tabellen: ['bewerbung'],
     leseweg: 'policy',
     recht: 'recruiting.bewerbung_lesen',
     fuer: ['bewerbung'],
@@ -516,6 +547,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Bewertungen der Bewerbung',
     verarbeitung: 'V-05',
     quelle: 'bewerbung_bewertung',
+    tabellen: ['bewerbung_bewertung'],
     leseweg: 'policy',
     recht: 'recruiting.bewerbung_lesen',
     fuer: ['bewerbung'],
@@ -536,6 +568,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Gespräche und Notizen',
     verarbeitung: 'V-05',
     quelle: 'gespraech',
+    tabellen: ['gespraech'],
     leseweg: 'policy',
     recht: 'recruiting.bewerbung_lesen',
     fuer: ['bewerbung'],
@@ -555,6 +588,7 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     titel: 'Antworten an die Bewerberin',
     verarbeitung: 'V-05',
     quelle: 'bewerbung_antwort',
+    tabellen: ['bewerbung_antwort'],
     leseweg: 'policy',
     recht: 'recruiting.bewerbung_lesen',
     fuer: ['bewerbung'],
@@ -562,12 +596,290 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
       { kopf: 'Art', feld: 'art' },
       { kopf: 'Stand', feld: 'stand' },
       { kopf: 'Betreff', feld: 'betreff' },
+      { kopf: 'Text', feld: 'text' },
       { kopf: 'Gesendet', feld: 'gesendet_am' },
       { kopf: 'An', feld: 'gesendet_an' },
     ],
-    sql: `select art::text as art, stand::text as stand, betreff, gesendet_am,
-                 gesendet_an
+    /*
+     * **`text` steht MIT drin.** Der Abschnitt gab vorher nur Betreff,
+     * Zeitpunkt und Empfängeradresse — also die Metadaten einer Nachricht an
+     * diesen Menschen, nicht die Nachricht. Art. 15 Abs. 1 verlangt die Daten.
+     */
+    sql: `select art::text as art, stand::text as stand, betreff, text,
+                 gesendet_am, gesendet_an
             from bewerbung_antwort
+           where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()
+           order by erstellt_am desc`,
+  },
+  {
+    schluessel: 'betroffenenanfrage',
+    titel: 'Frühere und laufende Betroffenenanfragen',
+    verarbeitung: 'V-12',
+    quelle: 'betroffenenanfrage',
+    tabellen: ['betroffenenanfrage'],
+    leseweg: 'policy',
+    recht: 'datenschutz.auskunft_erstellen',
+    fuer: ['person', 'ansprechpartner', 'bewerbung'],
+    spalten: [
+      { kopf: 'Eingegangen', feld: 'eingegangen_am' },
+      { kopf: 'Art', feld: 'art' },
+      { kopf: 'Status', feld: 'status' },
+      { kopf: 'Frist', feld: 'frist_am' },
+      { kopf: 'Beantwortet', feld: 'beantwortet_am' },
+    ],
+    /*
+     * **Der Vorgang selbst gehört in die Auskunft.** Dass jemand vor einem Jahr
+     * schon einmal Auskunft verlangt hat, ist eine gespeicherte Angabe über
+     * ihn — und `betroffenenanfrage` trägt alle drei Zuordnungsspalten. Ohne
+     * diesen Abschnitt fehlte die einzige Tabelle, die in JEDEM Zweig einen
+     * Personenbezug hat.
+     *
+     * Die Entscheidungs- und Verlängerungstexte stehen NICHT drin: sie sind
+     * die interne Bearbeitung des Vorgangs, und das Ergebnis geht als
+     * Antwortschreiben hinaus, nicht als Tabellenzelle.
+     */
+    sql: `select eingegangen_am, art::text as art, status::text as status,
+                 coalesce(verlaengert_bis, frist_am) as frist_am,
+                 beantwortet_am
+            from betroffenenanfrage
+           where mandant_id = app.aktiver_mandant()
+             and (person_id = $1::uuid or ansprechpartner_id = $1::uuid
+                  or bewerbung_id = $1::uuid)
+           order by eingegangen_am desc`,
+  },
+  /* -----------------------------------------------------------------------
+   * Der Kontaktzweig, vollständig — und der Befund, der ihn vollständig
+   * gemacht hat.
+   *
+   * Hier standen DREI Abschnitte (`ansprechpartner`, der Widerspruchsstand,
+   * das Widerspruchsprotokoll). `ansprechpartner_id` steht aber in SIEBEN
+   * Tabellen des Schemas, nachgezählt in `information_schema.columns`:
+   * `angebot`, `betroffenenanfrage`, `lead`, `lead_aktivitaet`, `objekt`,
+   * `werbewiderspruch`, `werbewiderspruch_token`. Die Auskunft ging trotzdem
+   * mit `vollstaendig = true`, Prüfsumme und dem Wort „Vollständig" an die
+   * betroffene Person hinaus.
+   *
+   * **Das hebelte den eigenen Grundsatz der Datei aus.** Ein Abschnitt ohne
+   * Recht ist `gesperrt` und sperrt den Abruf — eine Tabelle, die gar nicht
+   * in der Liste steht, erscheint nirgends. Genau dann „sieht sie aus wie eine
+   * Antwort". `lead_aktivitaet.inhalt` ist die tatsächliche Korrespondenz mit
+   * diesem Menschen; sie wegzulassen ist nicht eine Auslegungsfrage, sondern
+   * das Gegenteil von Art. 15 Abs. 1 lit. b.
+   *
+   * Dass die Liste nicht wieder hinter dem Schema zurückbleibt, hält
+   * `tests/isolation/datenschutz-abdeckung.test.ts` fest: sie fällt bei der
+   * nächsten Migration, die eine achte Tabelle dazulegt.
+   * -------------------------------------------------------------------- */
+  {
+    schluessel: 'lead',
+    titel: 'Anfragen und Vorgänge (Leads)',
+    verarbeitung: 'V-06',
+    quelle: 'lead',
+    tabellen: ['lead'],
+    leseweg: 'policy',
+    recht: 'crm.lesen',
+    fuer: ['ansprechpartner'],
+    spalten: [
+      { kopf: 'Nummer', feld: 'leadnummer' },
+      { kopf: 'Eingang', feld: 'erstellt_am' },
+      { kopf: 'Quelle', feld: 'quelle' },
+      { kopf: 'Betreff', feld: 'betreff' },
+      { kopf: 'Bedarf', feld: 'bedarf_zusammenfassung' },
+      { kopf: 'Status', feld: 'status' },
+      { kopf: 'Nächste Aktion', feld: 'naechste_aktion_text' },
+      { kopf: 'Verloren, Grund', feld: 'verloren_grund' },
+    ],
+    /*
+     * **Ohne `punktzahl` und `punktzahl_begruendung`.** Die Bewertung ist eine
+     * Kalkulationsgrösse über den Vorgang, keine Angabe über den Menschen —
+     * und ob sie in eine Art.-15-Auskunft gehört, ist dieselbe Frage wie beim
+     * internen Stundensatz (O-642). Sie steht deshalb NICHT hier und nicht
+     * stillschweigend drin: der Abschnitt nennt die Tabelle, die Spalten sind
+     * gewählt.
+     */
+    sql: `select leadnummer, erstellt_am, quelle::text as quelle, betreff,
+                 bedarf_zusammenfassung, status::text as status,
+                 naechste_aktion_text, verloren_grund
+            from lead
+           where ansprechpartner_id = $1::uuid
+             and mandant_id = app.aktiver_mandant()
+           order by erstellt_am desc`,
+  },
+  {
+    schluessel: 'lead_aktivitaet',
+    titel: 'Korrespondenz und Vermerke zum Vorgang',
+    verarbeitung: 'V-06',
+    quelle: 'lead_aktivitaet',
+    tabellen: ['lead_aktivitaet'],
+    leseweg: 'policy',
+    recht: 'crm.lesen',
+    fuer: ['ansprechpartner'],
+    spalten: [
+      { kopf: 'Wann', feld: 'geschehen_am' },
+      { kopf: 'Typ', feld: 'typ' },
+      { kopf: 'Richtung', feld: 'richtung' },
+      { kopf: 'Zweck', feld: 'zweck' },
+      { kopf: 'Kanal', feld: 'kanal' },
+      { kopf: 'Betreff', feld: 'betreff' },
+      { kopf: 'Inhalt', feld: 'inhalt' },
+      { kopf: 'Rechtsgrundlage (Stand)', feld: 'rechtsgrundlage_snapshot' },
+      { kopf: 'Von', feld: 'akteur_art' },
+    ],
+    /*
+     * `inhalt` steht MIT drin, und das ist der Punkt dieses Abschnitts: das
+     * ist die Korrespondenz selbst. `rechtsgrundlage_snapshot` daneben, weil
+     * Art. 15 Abs. 1 lit. a die Zwecke UND die Grundlage verlangt — und die
+     * ist hier je Nachricht festgehalten, nicht je Kontakt.
+     */
+    sql: `select geschehen_am, typ::text as typ, richtung::text as richtung,
+                 zweck::text as zweck, kanal, betreff, inhalt,
+                 rechtsgrundlage_snapshot::text as rechtsgrundlage_snapshot,
+                 akteur_art::text as akteur_art
+            from lead_aktivitaet
+           where ansprechpartner_id = $1::uuid
+             and mandant_id = app.aktiver_mandant()
+           order by geschehen_am desc`,
+  },
+  {
+    schluessel: 'angebot',
+    titel: 'Angebote, in denen diese Person als Ansprechpartner steht',
+    verarbeitung: 'V-06',
+    quelle: 'angebot',
+    tabellen: ['angebot'],
+    leseweg: 'policy',
+    recht: 'angebot.lesen',
+    fuer: ['ansprechpartner'],
+    spalten: [
+      { kopf: 'Nummer', feld: 'angebotsnummer' },
+      { kopf: 'Titel', feld: 'titel' },
+      { kopf: 'Status', feld: 'status' },
+      { kopf: 'Versendet', feld: 'versendet_am' },
+      { kopf: 'Entschieden', feld: 'entschieden_am' },
+      { kopf: 'Notiz zur Entscheidung', feld: 'entscheidung_notiz' },
+    ],
+    /*
+     * **Ohne `netto_cent`.** Der Preis ist eine Angabe über das Geschäft, nicht
+     * über den Menschen; er steht im Angebot, das der Kunde ohnehin hat.
+     * Das Recht ist `angebot.lesen` und nicht `crm.lesen` — so verlangt es die
+     * Policy `t_mandant` auf `angebot`, nachgemessen in `pg_policies`.
+     */
+    sql: `select angebotsnummer, titel, status::text as status, versendet_am,
+                 entschieden_am, entscheidung_notiz
+            from angebot
+           where ansprechpartner_id = $1::uuid
+             and mandant_id = app.aktiver_mandant()
+           order by erstellt_am desc`,
+  },
+  {
+    schluessel: 'objekt',
+    titel: 'Objekte, für die diese Person als Ansprechpartner geführt wird',
+    verarbeitung: 'V-06',
+    quelle: 'objekt',
+    tabellen: ['objekt'],
+    leseweg: 'policy',
+    recht: 'objekt.lesen',
+    fuer: ['ansprechpartner'],
+    spalten: [
+      { kopf: 'Nummer', feld: 'objektnummer' },
+      { kopf: 'Bezeichnung', feld: 'bezeichnung' },
+      { kopf: 'Ort', feld: 'ort' },
+      { kopf: 'Seit', feld: 'erstellt_am' },
+    ],
+    /*
+     * **Nur die Zuordnung, nicht das Objekt.** „Diese Person ist
+     * Ansprechpartnerin für Objekt X" IST eine Angabe über sie und gehört
+     * deshalb hierher. Der Zutrittshinweis, die Bemerkung und die Geodaten
+     * sind Angaben über das Gebäude und stehen NICHT drin — eine
+     * Art.-15-Auskunft ist kein Objektauszug.
+     */
+    sql: `select objektnummer, bezeichnung, ort, erstellt_am
+            from objekt
+           where ansprechpartner_id = $1::uuid
+             and mandant_id = app.aktiver_mandant()
+           order by objektnummer`,
+  },
+  {
+    schluessel: 'werbewiderspruch_token',
+    titel: 'Ausgegebene Widerspruchslinks (§ 7 Abs. 3 Nr. 4 UWG)',
+    verarbeitung: 'V-06',
+    quelle: 'werbewiderspruch_token (über app.werbewiderspruch_token_auskunft)',
+    tabellen: ['werbewiderspruch_token'],
+    leseweg: 'definer',
+    recht: 'datenschutz.auskunft_erstellen',
+    fuer: ['ansprechpartner'],
+    spalten: [
+      { kopf: 'Ausgegeben', feld: 'ausgegeben_am' },
+      { kopf: 'Kanal', feld: 'kanal' },
+      { kopf: 'Benutzt', feld: 'eingeloest_am' },
+      { kopf: 'Versuche', feld: 'versuche' },
+      { kopf: 'Zurückgezogen', feld: 'widerrufen_am' },
+      { kopf: 'Grund', feld: 'widerruf_grund' },
+    ],
+    /*
+     * **Der einzige Weg, und der Abdruck bleibt drinnen.** `cse_app` hat auf
+     * `werbewiderspruch_token` GAR KEIN Recht (0222) — ein direktes `select`
+     * liefert nicht „keine Links", sondern scheitert. Der Definer prüft sein
+     * Recht und protokolliert; `token_hash` gibt er nicht heraus: das wäre der
+     * Schlüssel, mit dem sich der Widerspruch dieses Kontakts erklären liesse.
+     */
+    sql: `select ausgegeben_am, kanal, eingeloest_am, versuche, widerrufen_am,
+                 widerruf_grund
+            from app.werbewiderspruch_token_auskunft($1::uuid)`,
+  },
+  /* -----------------------------------------------------------------------
+   * Und derselbe Befund im Bewerbungszweig: `bewerbung_id` steht in SECHS
+   * Tabellen, geführt waren vier. `einstellungsentscheidung` und `kandidat`
+   * fehlten — die Entscheidung mit ihrer Begründung und die
+   * Qualifikationsnotiz, also genau das, was eine Bewerberin wissen will.
+   * -------------------------------------------------------------------- */
+  {
+    schluessel: 'einstellungsentscheidung',
+    titel: 'Einstellungsentscheidung',
+    verarbeitung: 'V-05',
+    quelle: 'einstellungsentscheidung',
+    tabellen: ['einstellungsentscheidung'],
+    leseweg: 'policy',
+    recht: 'recruiting.bewerbung_lesen',
+    fuer: ['bewerbung'],
+    spalten: [
+      { kopf: 'Ergebnis', feld: 'ergebnis' },
+      { kopf: 'Begründung', feld: 'begruendung' },
+      { kopf: 'Entschieden', feld: 'entschieden_am' },
+    ],
+    /*
+     * Die Begründung steht drin. Sie ist die Angabe, die der Bewerberin
+     * gegenüber NICHT genannt wird (eine Absage nennt keinen Grund — AGG),
+     * und sie ist genau deshalb eine gespeicherte Angabe über sie, die Art. 15
+     * herausverlangt. Die zwei Pflichten widersprechen sich nicht: die eine
+     * betrifft die Absage, die andere die Auskunft.
+     */
+    sql: `select ergebnis::text as ergebnis, begruendung, entschieden_am
+            from einstellungsentscheidung
+           where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()
+           order by entschieden_am desc`,
+  },
+  {
+    schluessel: 'kandidat',
+    titel: 'Kandidatenprofil',
+    verarbeitung: 'V-05',
+    quelle: 'kandidat',
+    tabellen: ['kandidat'],
+    leseweg: 'policy',
+    recht: 'recruiting.bewerbung_lesen',
+    fuer: ['bewerbung'],
+    spalten: [
+      { kopf: 'Quelle', feld: 'quelle_art' },
+      { kopf: 'Qualifikationen', feld: 'qualifikationen' },
+      { kopf: 'Sprachen', feld: 'sprachen' },
+      { kopf: 'Erfahrung (Jahre)', feld: 'erfahrung_jahre' },
+      { kopf: 'Notiz', feld: 'notiz' },
+      { kopf: 'Bestätigt', feld: 'bestaetigt_am' },
+    ],
+    sql: `select quelle_art::text as quelle_art,
+                 array_to_string(qualifikationen, ', ') as qualifikationen,
+                 array_to_string(sprachen, ', ') as sprachen,
+                 erfahrung_jahre, notiz, bestaetigt_am
+            from kandidat
            where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()
            order by erstellt_am desc`,
   },
@@ -587,15 +899,79 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
  */
 const OFFENE_ABSCHNITTE: readonly {
   readonly schluessel: string; readonly titel: string;
-  readonly quelle: string; readonly frage: string;
+  readonly quelle: string; readonly tabellen: readonly string[];
+  readonly fuer: readonly ('person' | 'ansprechpartner' | 'bewerbung')[];
+  readonly frage: string;
 }[] = [
   {
     schluessel: 'agentenlauf',
     titel: 'Agentenläufe, Wissens-Chunks, Freigabe-Snapshots',
-    quelle: 'agent_lauf · wissens_chunk · freigabe',
+    /*
+     * **`agent_aufgabe` und `agent_schritt`, nicht `agent_lauf`.** Hier stand
+     * ein Name, den es im Schema gar nicht gibt — und niemand merkte es, weil
+     * ein offener Abschnitt nichts abfragt. Die neue Wache
+     * (`datenschutz-abdeckung.test.ts`) hat ihn beim ersten Lauf gefunden: sie
+     * prüft beide Richtungen, also auch, dass die Liste keine Tabelle nennt,
+     * die es nicht gibt.
+     */
+    quelle: 'agent_aufgabe · agent_schritt · wissens_chunk · freigabe_snapshot',
+    tabellen: ['agent_aufgabe', 'agent_schritt', 'wissens_chunk',
+      'freigabe_snapshot'],
+    fuer: ['person', 'ansprechpartner', 'bewerbung'],
     frage: 'O-113',
   },
+  {
+    /*
+     * **Zwölf Tabellen des Personenzweigs, benannt statt weggelassen.**
+     *
+     * Sie tragen `person_id` und sind heute KEIN eigener Abschnitt. Der Grund
+     * ist nicht, dass sie nichts enthalten — er ist, dass der Umfang eine
+     * rechtliche Entscheidung ist und keine Programmierentscheidung: ein
+     * abgeleiteter Befund (`arbeitszeit_verstoss`, `planungs_konflikt`,
+     * `nachweis_warnung`, `da_pflicht`) rechnet aus Daten, die weiter oben
+     * schon vollständig stehen, und ihn ein zweites Mal auszugeben macht die
+     * Auskunft länger, nicht richtiger. Ein technischer Datensatz
+     * (`checkin_token`, `offline_ereignis`, `benutzer`) ist die Mechanik des
+     * Zugangs, nicht die Beschäftigung.
+     *
+     * Das ist eine These, keine Entscheidung — also steht sie HIER, in der
+     * Auskunft, die die betroffene Person liest, und nicht in einem Kommentar,
+     * den nur wir lesen. Vorher fehlten diese Tabellen schlicht, und die
+     * Auskunft trug darüber das Wort „Vollständig".
+     */
+    schluessel: 'personenzweig_offen',
+    titel: 'Abgeleitete Befunde, Zugangsdaten und Zuordnungen',
+    quelle:
+      'arbeitszeit_verstoss · planungs_konflikt · nachweis_warnung · da_pflicht '
+      + '· benutzer · checkin_token · offline_ereignis · einsatz_zuordnung '
+      + '· zeitnachweis · team_mitglied · bewacher_eintrag',
+    tabellen: [
+      'arbeitszeit_verstoss', 'planungs_konflikt', 'nachweis_warnung',
+      'da_pflicht', 'benutzer', 'checkin_token', 'offline_ereignis',
+      'einsatz_zuordnung', 'zeitnachweis', 'team_mitglied', 'bewacher_eintrag',
+    ],
+    fuer: ['person'],
+    frage: 'O-648',
+  },
 ];
+
+/*
+ * // TODO(client, O-648): Welche der abgeleiteten Befunde, Zugangsdaten und Zuordnungen des Personenzweigs gehoeren in eine Art.-15-Auskunft, und welche sind Mechanik?
+ */
+
+/**
+ * Jede Tabelle, über die diese Auskunft etwas sagt — auch die, über die sie
+ * ausdrücklich NICHTS sagt.
+ *
+ * `tests/isolation/datenschutz-abdeckung.test.ts` stellt sie gegen jede
+ * Tabelle des Schemas mit `person_id`, `ansprechpartner_id` oder
+ * `bewerbung_id` und fällt, sobald eine neue dazukommt. Ein Abschnitt, ein
+ * offener Abschnitt — beides zählt; nur Schweigen zählt nicht.
+ */
+export const ABDECKUNG: ReadonlySet<string> = new Set([
+  ...ABSCHNITTE.flatMap((d) => [...d.tabellen]),
+  ...OFFENE_ABSCHNITTE.flatMap((o) => [...o.tabellen]),
+]);
 
 export interface AuskunftAbschnitt {
   readonly schluessel: string;
@@ -623,6 +999,17 @@ export interface Auskunft {
   readonly abschnitte: readonly AuskunftAbschnitt[];
   /** Die Rechte, die für einen Abschnitt fehlen — leer heisst vollständig. */
   readonly fehlendeRechte: readonly string[];
+  /**
+   * Die Abschnitte, für die keine BEZIFFERTE Aufbewahrungsfrist vorliegt.
+   *
+   * Art. 15 Abs. 1 lit. d verlangt die geplante Speicherdauer oder wenigstens
+   * die Kriterien für ihre Festlegung. „Noch nicht entschieden — O-514" ist
+   * beides nicht. Die Frist stand in der ausgelieferten Datei und wurde dabei
+   * als Angabe geführt; jetzt zählt sie hier, erscheint als Warnblock über
+   * allen Abschnitten und der Abruf verlangt dafür eine ausdrückliche
+   * Bestätigung (`/api/datenschutz/auskunft?fristen=bestaetigt`).
+   */
+  readonly offeneFristen: readonly string[];
   readonly vollstaendig: boolean;
   readonly zeilen: number;
   readonly sha256: string;
@@ -668,6 +1055,20 @@ function kanonisch(a: readonly AuskunftAbschnitt[]): string {
   })));
 }
 
+/**
+ * Trägt dieser Fristtext eine Zahl — oder sagt er „noch nicht entschieden"?
+ *
+ * **Warum ein Textvergleich und keine zweite Datenquelle.** `fristText` ist die
+ * EINE Stelle, die aus dem Register und den Aufbewahrungsregeln einen Satz
+ * macht; eine zweite Funktion, die dasselbe noch einmal entscheidet, wäre die
+ * zweite Wahrheit, die beim ersten Auseinanderlaufen niemand sieht. Geprüft
+ * wird deshalb das Ergebnis: ein Satz mit dem Wort „nicht entschieden" oder
+ * „nicht gesetzt" ist keine Speicherdauer im Sinne des Art. 15 Abs. 1 lit. d.
+ */
+function istBeziffert(frist: string): boolean {
+  return !/nicht entschieden|nicht gesetzt/iu.test(frist);
+}
+
 function verarbeitungOder(nummer: string | null): Verarbeitung | undefined {
   return nummer === null
     ? undefined : VERARBEITUNGEN.find((v) => v.nummer === nummer);
@@ -692,7 +1093,15 @@ export async function erstelleAuskunft(
        join mandant m on m.id = b.mandant_id
       where b.mandant_id = app.aktiver_mandant() and b.id = $1::uuid`, [anfrageId]);
   if (kopf === undefined) {
-    throw new Error('Diese Betroffenenanfrage ist nicht lesbar.');
+    /*
+     * **404, nicht 500 — und nicht 403** (AUT-06). Hier stand ein nackter
+     * `Error`; `/api/datenschutz/auskunft` fängt nur die drei typisierten
+     * Fehler und liess ihn durch, also antwortete eine erfundene oder fremde
+     * Kennung mit 500. Ein Vorgang, den diese Sitzung nicht sehen darf, ist
+     * einer, den es nicht gibt — dieselbe Antwort wie `ladeVorgang`.
+     */
+    throw new NichtGefundenFehler(
+      `betroffenenanfrage ${anfrageId} nicht im aktiven Mandanten`);
   }
 
   /*
@@ -732,12 +1141,14 @@ export async function erstelleAuskunft(
 
   const abschnitte: AuskunftAbschnitt[] = [];
   const fehlend = new Set<string>();
+  const ohneFrist: string[] = [];
 
   for (const d of anwendbar) {
     const v = verarbeitungOder(d.verarbeitung);
     const frist = v === undefined
       ? 'noch nicht entschieden (O-514)'
       : fristText(v, regeln, tageBewerbung);
+    if (!istBeziffert(frist)) ohneFrist.push(d.titel);
     const zweck = v === undefined ? 'nicht im Register geführt' : v.zweck;
     const gesperrt = d.recht !== null && gehalten.get(d.recht) !== true;
     if (gesperrt && d.recht !== null) fehlend.add(d.recht);
@@ -754,7 +1165,14 @@ export async function erstelleAuskunft(
     });
   }
 
-  for (const o of OFFENE_ABSCHNITTE) {
+  /*
+   * `art` schliesst `'keine'` ein (`ZuordnungArt`); die Verengung weiter oben
+   * wirkt nicht in den Rueckruf hinein — dieselbe Stelle, an der `anwendbar`
+   * den Fall schon einmal getrennt hat.
+   */
+  const offen = art === 'keine'
+    ? [] : OFFENE_ABSCHNITTE.filter((x) => x.fuer.includes(art));
+  for (const o of offen) {
     abschnitte.push({
       schluessel: o.schluessel, titel: o.titel,
       zweck: 'noch nicht entschieden — der Umfang ist offen',
@@ -775,6 +1193,7 @@ export async function erstelleAuskunft(
     betroffener: zuordnung,
     abschnitte,
     fehlendeRechte: [...fehlend].sort(),
+    offeneFristen: ohneFrist,
     vollstaendig: fehlend.size === 0 && zuordnung.art !== 'keine',
     zeilen: zeilenZahl,
     sha256,
@@ -805,6 +1224,25 @@ export function alsMarkdown(a: Auskunft): string {
       + 'gekennzeichneten Abschnitte fehlen die Leserechte '
       + `(${a.fehlendeRechte.join(', ')}). Sie darf in dieser Form nicht `
       + 'herausgegeben werden.', '');
+  }
+  /*
+   * **Die offene Frist steht VOR den Abschnitten, nicht in einer Zelle.**
+   *
+   * Sie stand bisher je Abschnitt als „Aufbewahrung: Noch nicht entschieden —
+   * O-514" und ging als Angabe durch. Art. 15 Abs. 1 lit. d verlangt die
+   * geplante Dauer oder die Kriterien; „noch nicht entschieden" ist keins von
+   * beidem, und eine Auskunft, die zur wichtigsten Pflichtangabe schweigt,
+   * darf das nicht im Kleingedruckten tun.
+   */
+  if (a.offeneFristen.length > 0) {
+    z.push(
+      `> **Für ${String(a.offeneFristen.length)} von `
+      + `${String(a.abschnitte.length)} Abschnitten ist die Aufbewahrungsfrist `
+      + 'noch nicht entschieden (O-514).** Art. 15 Abs. 1 lit. d verlangt die '
+      + 'geplante Speicherdauer oder wenigstens die Kriterien für ihre '
+      + 'Festlegung. Wir nennen sie für diese Abschnitte deshalb NICHT, statt '
+      + 'eine Zahl zu behaupten: '
+      + `${a.offeneFristen.join(' · ')}.`, '');
   }
   for (const s of a.abschnitte) {
     z.push(`## ${s.titel}`, '',

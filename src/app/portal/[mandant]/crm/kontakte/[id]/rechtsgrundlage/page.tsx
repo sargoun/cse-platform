@@ -8,10 +8,10 @@ import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
 import {
-  alsKontaktLage, leseGrundlage, torAntworten,
+  alsKontaktLage, leseGrundlage, leseKundenLage, torAntworten,
   type GrundlageStand, type TorAntwort,
 } from '@/server/services/crm/kontakt-grundlage';
-import { matrixAntwort } from '@/server/services/crm/uwg-matrix';
+import { matrixAntwort, type KundenLage } from '@/server/services/crm/uwg-matrix';
 import { AnmeldungNoetig } from '../../../../../Anmeldung';
 import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
@@ -94,7 +94,8 @@ export default async function Rechtsgrundlage(
   if (sitzung.aktiverMandantId === null) notFound();
 
   const darf = await haeltRechte(sitzung,
-    'crm.schreiben', 'crm.rechtsgrundlage_lesen', 'datenschutz.auskunft_erstellen');
+    'crm.schreiben', 'crm.rechtsgrundlage_lesen', 'datenschutz.auskunft_erstellen',
+    'crm.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -111,17 +112,27 @@ export default async function Rechtsgrundlage(
       const stand = darf['crm.rechtsgrundlage_lesen'] === true
         ? await leseGrundlage(kontext, id)
         : null;
+      /* Die Ebene des Kunden — das Tor fragt sie mit (siehe uwg-matrix.ts). */
+      const kundenLage = await leseKundenLage(kontext, kopf.kunde_id);
       const antworten = await torAntworten(kontext, id);
       const [heute] = await kontext.abfrage<{ tag: string }>(
         `select app.berlin_heute()::text as tag`);
-      return { kopf, stand, antworten, heute: heute?.tag ?? '' };
+      return { kopf, stand, kundenLage, antworten, heute: heute?.tag ?? '' };
     })) as Promise<{
-      kopf: Kopf; stand: GrundlageStand | null;
+      kopf: Kopf; stand: GrundlageStand | null; kundenLage: KundenLage | null;
       antworten: readonly TorAntwort[]; heute: string;
     } | null>);
 
   if (daten === null) notFound();
-  const { kopf, stand, antworten, heute } = daten;
+  const { kopf, stand, kundenLage, antworten, heute } = daten;
+  /*
+   * `null` und nicht `true`: dieses Blatt sendet nichts, also ist nicht
+   * feststellbar, ob eine Nachricht die Abmeldezeile trüge (§ 7 Abs. 3 Nr. 4
+   * UWG). Die Matrix antwortet dann „nein" MIT diesem Grund statt „ja" aus
+   * einer Annahme.
+   */
+  const lage = stand === null
+    ? null : alsKontaktLage(stand, null, kundenLage);
   const gesperrt = stand !== null && stand.widerspruchAm !== null;
   const darfSchreiben = darf['crm.schreiben'] === true;
   const blatt = `/portal/${mandant}/crm/kontakte/${id}`;
@@ -533,7 +544,9 @@ export default async function Rechtsgrundlage(
               schluessel: 'grund',
               kopf: 'Nach § 7 UWG (noch nicht wirksam)',
               zelle: (z: TorAntwort) => {
-                const m = matrixAntwort(alsKontaktLage(stand), 'werbung', z.kanal);
+                const m = lage === null
+                  ? { erlaubt: false, grund: '', norm: '' }
+                  : matrixAntwort(lage, 'werbung', z.kanal);
                 return (
                   <span className="text-xs text-text-muted" data-cse="matrix-grund"
                         data-erlaubt={String(m.erlaubt)}>

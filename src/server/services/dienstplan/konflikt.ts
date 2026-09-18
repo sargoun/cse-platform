@@ -78,6 +78,20 @@ export interface ArbzgBlatt {
   /** Ist der Grenzwert eine UNTERgrenze? § 5 ArbZG verlangt 11 Stunden MINDESTENS. */
   readonly grenzwertIstMindestwert: boolean;
   readonly fremd: boolean;
+  /**
+   * Ist dieser Befund UEBERHOLT?
+   *
+   * `hinfaellig_am is not null` bei weiterhin `status = 'offen'` — so schreibt
+   * es `app.arbzg_befund_ueberholen` (der Nachtlauf raeumt auf, laesst den
+   * Status aber stehen, weil eine Quittierung ihre Begruendung behalten
+   * soll). Der Status allein sagt hier also NICHT, ob der Befund noch
+   * uebersteuerbar ist: `app.arbzg_befund_quittieren` aktualisiert nur
+   * `where v.hinfaellig_am is null` und protokolliert danach bedingungslos.
+   * Ohne dieses Feld endet ein ueberholter Befund als null geaenderte Zeilen,
+   * ein Pruefprotokolleintrag ueber eine Uebersteuerung, die es nicht gibt,
+   * und ein gruener Satz auf dem Bildschirm.
+   */
+  readonly hinfaellig: boolean;
   readonly beginnLokal: string;
   readonly endeLokal: string;
   readonly quittiertAmLokal: string | null;
@@ -129,6 +143,7 @@ interface RohKonflikt {
   v_ist_minuten: number | null;
   v_grenzwert_minuten: number | null;
   v_fremd: boolean | null;
+  v_hinfaellig: boolean | null;
   v_beginn_lokal: string | null;
   v_ende_lokal: string | null;
   v_quittiert_am_lokal: string | null;
@@ -186,6 +201,7 @@ export async function leseKonflikt(
             v.ist_minuten               as v_ist_minuten,
             v.grenzwert_minuten         as v_grenzwert_minuten,
             v.betrifft_fremden_mandant  as v_fremd,
+            (v.hinfaellig_am is not null) as v_hinfaellig,
             to_char((v.zeitraum_beginn at time zone 'Europe/Berlin'), 'DD.MM.YYYY HH24:MI')
               as v_beginn_lokal,
             to_char((v.zeitraum_ende   at time zone 'Europe/Berlin'), 'DD.MM.YYYY HH24:MI')
@@ -217,6 +233,7 @@ export async function leseKonflikt(
       grenzwertMinuten: Number(z.v_grenzwert_minuten ?? 0),
       grenzwertIstMindestwert: grenzwertIstMindestwert(z.v_regel),
       fremd: z.v_fremd === true,
+      hinfaellig: z.v_hinfaellig === true,
       beginnLokal: z.v_beginn_lokal ?? '',
       endeLokal: z.v_ende_lokal ?? '',
       quittiertAmLokal: z.v_quittiert_am_lokal,
@@ -269,12 +286,58 @@ export async function leseKonflikt(
  * Bis eine Migration den Definer nachzieht, steht das als D-Zeile im Register
  * (siehe docs/DECISIONS.md) — verlassen darf sich niemand darauf.
  */
+export class BefundNichtMehrAktuell extends Error {
+  readonly code = 'nicht_mehr_aktuell';
+  readonly status = 409;
+  constructor(nachricht: string) {
+    super(nachricht);
+    this.name = 'BefundNichtMehrAktuell';
+  }
+}
+
 export async function uebersteuereBefund(
-  kontext: { schreibe<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]> },
+  kontext: {
+    schreibe<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
+    abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
+  },
   befundId: string, begruendung: string,
 ): Promise<void> {
   await kontext.schreibe(
     `select app.arbzg_befund_quittieren($1::uuid, $2)`,
     [befundId, begruendung.trim()],
   );
+
+  /**
+   * **Nachlesen, ob es wirklich geschehen ist** — und das ist kein Gürtel zum
+   * Hosenträger.
+   *
+   * `app.arbzg_befund_quittieren` aktualisiert `where v.id = p_id and
+   * v.hinfaellig_am is null` und protokolliert danach BEDINGUNGSLOS
+   * `arbzg.befund_quittiert`. Ein ueberholter Befund traegt aber
+   * `hinfaellig_am is not null` bei weiterhin `status = 'offen'` (so schreibt
+   * es `app.arbzg_befund_ueberholen`, weil eine Quittierung ihre Begruendung
+   * behalten soll). Ohne diese Nachlese endeten null geaenderte Zeilen als
+   * gruener Satz „Der Befund ist übersteuert" — neben einem ArbZG-Block, der
+   * weiter „offen" sagt, und einem Pruefprotokolleintrag, der eine
+   * Uebersteuerung behauptet, die es nicht gibt.
+   *
+   * Erreichbar ist das nicht nur theoretisch: zwischen dem gerenderten
+   * Formular und dem Absenden laeuft der Nachtlauf (`raeumeAuf` in
+   * `arbzg/detektor.ts`), und ein nachgebauter POST braucht das Rennen gar
+   * nicht.
+   */
+  const [danach] = await kontext.abfrage<{ status: string; hinfaellig: boolean }>(
+    `select v.status::text as status, (v.hinfaellig_am is not null) as hinfaellig
+       from arbeitszeit_verstoss v where v.id = $1::uuid`,
+    [befundId],
+  );
+  if (danach === undefined || danach.status !== 'quittiert') {
+    throw new BefundNichtMehrAktuell(
+      danach?.hinfaellig === true
+        ? 'Dieser Befund ist inzwischen überholt — der Nachtlauf hat ihn abgeräumt, '
+          + 'weil die zugrunde liegende Einteilung sich geändert hat. Es gibt nichts '
+          + 'mehr zu übersteuern.'
+        : 'Die Übersteuerung wurde nicht geschrieben. Der Befund steht unverändert.',
+    );
+  }
 }

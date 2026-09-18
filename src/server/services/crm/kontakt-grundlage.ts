@@ -1,7 +1,11 @@
 import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { CrmFehler, type Rechtsgrundlage } from './anlegen.js';
-import { KANAELE, type Kanal, type KontaktLage } from './uwg-matrix.js';
+import { istUuid } from '../../../lib/uuid.js';
+import {
+  GRUNDLAGEN as MATRIX_GRUNDLAGEN, KANAELE,
+  type Kanal, type KontaktLage, type KundenLage,
+} from './uwg-matrix.js';
 
 /**
  * Der Rechtsgrundlagen-Block eines Ansprechpartners — lesen und setzen
@@ -103,9 +107,70 @@ export async function leseGrundlage(
   };
 }
 
-/** Der Stand als Eingabe für die geprüfte §7-Matrix. */
+/**
+ * Die Ebene des Kunden, die das TOR mitfragt — für `abweichungenVomTor`.
+ *
+ * Diese fünf Spalten sind `cse_app` lesbar (0020: der K-05-Entzug auf `kunde`
+ * trifft die wirtschaftlichen Spalten, nicht diese). Gelesen werden sie
+ * trotzdem hier und nicht in der Seite: dieselbe Frage an zwei Stellen
+ * formuliert ist zweimal dieselbe Gelegenheit, eine Bedingung zu vergessen.
+ *
+ * `null` heisst „dieser Kontakt hängt an keiner Firma" — dann prüft auch das
+ * Tor keine.
+ */
+export async function leseKundenLage(
+  kontext: LeseKontext, kundeId: string | null,
+): Promise<KundenLage | null> {
+  if (kundeId === null) return null;
+  const [z] = await kontext.abfrage<{
+    rechtsgrundlage: string;
+    widerspruch: boolean;
+    werbewiderspruch: boolean;
+    gesperrt: boolean;
+    archiviert: boolean;
+  }>(
+    `select k.rechtsgrundlage::text as rechtsgrundlage,
+            (k.widerspruch_am is not null) as widerspruch,
+            (k.werbewiderspruch_am is not null) as werbewiderspruch,
+            (k.status = 'gesperrt') as gesperrt,
+            (k.archiviert_am is not null or k.anonymisiert_am is not null)
+              as archiviert
+       from kunde k
+      where k.mandant_id = app.aktiver_mandant() and k.id = $1::uuid`, [kundeId]);
+  if (z === undefined) return null;
+  return {
+    grundlage: MATRIX_GRUNDLAGEN.find((g) => g === z.rechtsgrundlage) ?? 'keine',
+    widerspruch: z.widerspruch,
+    werbewiderspruch: z.werbewiderspruch,
+    gesperrt: z.gesperrt,
+    archiviert: z.archiviert,
+  };
+}
+
+/** Was der Kontakt selbst an Sperrmerkmalen trägt — das Tor fragt beide. */
+export interface KontaktSperren {
+  readonly archiviert: boolean;
+  readonly anonymisiert: boolean;
+}
+
+/**
+ * Der Stand als Eingabe für die geprüfte §7-Matrix.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **`abmeldezeileGerendert` hat KEINEN Vorgabewert mehr.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Er stand auf `true` und bejahte damit § 7 Abs. 3 Nr. 4 UWG für einen
+ * Versandweg, der gar nicht gebaut ist — eine Annahme im Code, die auf dem
+ * Bildschirm als Rechtsauskunft erschien. Ein Blatt ohne Sendeweg übergibt
+ * `null` („nicht feststellbar"); erst ein wirklicher Sendepfad darf `true`
+ * sagen, und dann, weil er die Zeile tatsächlich rendert.
+ */
 export function alsKontaktLage(
-  stand: GrundlageStand, abmeldezeileGerendert = true,
+  stand: GrundlageStand,
+  abmeldezeileGerendert: boolean | null,
+  kunde: KundenLage | null,
+  sperren: KontaktSperren = { archiviert: false, anonymisiert: false },
 ): KontaktLage {
   return {
     grundlage: stand.rechtsgrundlage,
@@ -114,6 +179,9 @@ export function alsKontaktLage(
     werbewiderspruch: stand.werbewiderspruchAm !== null,
     einwilligungKanaele: stand.einwilligungKanaele,
     abmeldezeileGerendert,
+    archiviert: sperren.archiviert,
+    anonymisiert: sperren.anonymisiert,
+    kunde,
   };
 }
 
@@ -255,6 +323,22 @@ export async function setzeGrundlage(
       + 'ab.', 'einwilligung_ohne_kanal');
   }
 
+  /*
+   * Die Kennung des Belegs ist ein FREITEXTFELD im Formular. Ohne diese
+   * Prüfung ginge eine getippte Dokumentnummer als `$5::uuid` in das UPDATE,
+   * Postgres antwortete mit `22P02`, und weil das kein `CrmFehler` ist,
+   * endete die Anfrage mit 500 statt mit dem 303 zurück aufs Formular — die
+   * ganze Eingabe verloren, ohne einen Satz, der erklärt, was falsch war.
+   */
+  const belegRoh = eingabe.belegDokumentId?.trim() ?? '';
+  if (belegRoh !== '' && !istUuid(belegRoh)) {
+    throw new CrmFehler(
+      `„Beleg (Dokumentkennung)" erwartet eine Kennung aus der Adresszeile des `
+      + `Dokuments (36 Zeichen, mit Bindestrichen), keine Nummer und keinen `
+      + `Dateinamen. Eingegeben wurde: „${belegRoh}".`,
+      'beleg_keine_kennung');
+  }
+
   const aehnlich = eingabe.aehnlicheLeistung === true;
   const begruendung = eingabe.aehnlicheBegruendung?.trim() ?? '';
   if (aehnlich && begruendung === '') {
@@ -308,7 +392,7 @@ export async function setzeGrundlage(
     [eingabe.ansprechpartnerId, grundlage, quelle === '' ? null : quelle,
       eingabe.nachweisAm === undefined || eingabe.nachweisAm === ''
         ? null : eingabe.nachweisAm,
-      eingabe.belegDokumentId ?? null, kanaele, aehnlich,
+      belegRoh === '' ? null : belegRoh, kanaele, aehnlich,
       begruendung === '' ? null : begruendung]);
 
   if (zeilen[0] === undefined) {

@@ -557,6 +557,73 @@ export interface MeinTexte {
   /** Die Landmarken der Kopfzeile — ein Screenreader liest sie vor. */
   readonly sitzung: string;
   readonly pfad: string;
+
+  /**
+   * Die Seiten, die AUF der Schicht entstehen (SEC-05, CLN-04, TIM-10,
+   * BAU-07) — und der Antrag und die Nachricht im Einzelnen.
+   *
+   * Sie stehen hier und nicht als zweite Karte daneben, weil `MEIN_TEXTE` die
+   * einzige Stelle ist, die `tests/kern/mitarbeiter-sprachen.test.ts` auf
+   * Vollstaendigkeit prueft. Ein zweiter Datensatz waere ein zweiter, den
+   * niemand prueft — und die halbe Uebersetzung faellt genau dort an.
+   *
+   * **Was NICHT uebersetzt wird**: der Bestaetigungstext, unter dem der Kunde
+   * unterschreibt. Er ist die Erklaerung, an die die Gesellschaft gebunden
+   * ist, und bleibt deutsch (SEITENKARTE §12, 0066).
+   */
+  readonly zurueck: string;
+  readonly empfangenAm: string;
+  readonly zumDatensatz: string;
+  readonly eingereichtAm: string;
+  readonly entschiedenAm: string;
+  readonly entscheidung: string;
+  readonly zurueckgezogen: string;
+  readonly zurueckziehenHinweis: string;
+
+  readonly wachbuch: string;
+  readonly wachbuchNeu: string;
+  readonly uebergabe: string;
+  readonly uebergabeZu: string;
+  readonly art: string;
+  readonly betreff: string;
+  readonly eintragstext: string;
+  readonly kontrollpunkt: string;
+  readonly praesenz: string;
+  readonly polizei: string;
+  readonly nummer: string;
+  readonly erfasstAm: string;
+  readonly unveraenderlich: string;
+
+  readonly leistungsnachweis: string;
+  readonly leistungszeitraum: string;
+  readonly positionen: string;
+  readonly menge: string;
+  readonly einheit: string;
+  readonly entwurfAnlegen: string;
+  readonly vorlegen: string;
+  readonly unterschrift: string;
+  readonly unterzeichnerName: string;
+  readonly unterschreiben: string;
+  readonly unterschrieben: string;
+
+  readonly fotos: string;
+  readonly aufnahmeHinzufuegen: string;
+  readonly beschreibung: string;
+  readonly keineAufnahmen: string;
+  readonly ohneOrtsdaten: string;
+
+  readonly bautagebuch: string;
+  readonly mannstunden: string;
+  readonly gewerk: string;
+  readonly anzahlPersonen: string;
+  readonly geraet: string;
+  readonly lieferung: string;
+  readonly vorkommnis: string;
+  readonly bezeichnung: string;
+  readonly hinzufuegen: string;
+  readonly tagGeschlossen: string;
+  readonly abgleich: string;
+  readonly offeneFrage: string;
 }
 
 export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
@@ -659,6 +726,59 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abmelden: 'Abmelden',
     sitzung: 'Sitzung',
     pfad: 'Pfad',
+     zurueck: 'Zurück',
+    empfangenAm: 'Empfangen am',
+    zumDatensatz: 'Zum Vorgang',
+    eingereichtAm: 'Eingereicht am',
+    entschiedenAm: 'Entschieden am',
+    entscheidung: 'Entscheidung',
+    zurueckgezogen: 'Zurückgezogen',
+    zurueckziehenHinweis:
+      'Zurückziehen geht, solange niemand entschieden hat. Der Antrag bleibt lesbar.',
+    wachbuch: 'Wachbuch',
+    wachbuchNeu: 'Eintrag schreiben',
+    uebergabe: 'Übergabe',
+    uebergabeZu:
+      'Das Übergabefenster ist nicht eingestellt (offen, O-151). Bis dahin stehen hier '
+      + 'nur die eigenen Einträge.',
+    art: 'Art',
+    betreff: 'Betreff',
+    eintragstext: 'Was ist passiert?',
+    kontrollpunkt: 'Kontrollpunkt',
+    praesenz: 'Präsenz bestätigt',
+    polizei: 'Polizei informiert',
+    nummer: 'Nummer',
+    erfasstAm: 'Erfasst am',
+    unveraenderlich:
+      'Ein Eintrag bleibt stehen. Falsches wird richtiggestellt, nicht gelöscht.',
+    leistungsnachweis: 'Leistungsnachweis',
+    leistungszeitraum: 'Leistungszeitraum',
+    positionen: 'Positionen',
+    menge: 'Menge',
+    einheit: 'Einheit',
+    entwurfAnlegen: 'Nachweis anlegen',
+    vorlegen: 'Vorlegen',
+    unterschrift: 'Unterschrift',
+    unterzeichnerName: 'Name des Unterzeichners',
+    unterschreiben: 'Unterschreiben',
+    unterschrieben: 'Unterschrieben',
+    fotos: 'Fotos',
+    aufnahmeHinzufuegen: 'Aufnahme hinzufügen',
+    beschreibung: 'Beschreibung',
+    keineAufnahmen: 'Zu dieser Schicht ist noch keine Aufnahme abgelegt.',
+    ohneOrtsdaten: 'Ortsdaten werden vor dem Ablegen entfernt.',
+    bautagebuch: 'Bautagebuch',
+    mannstunden: 'Mannstunden',
+    gewerk: 'Gewerk',
+    anzahlPersonen: 'Personen',
+    geraet: 'Gerät',
+    lieferung: 'Lieferung',
+    vorkommnis: 'Vorkommnis',
+    bezeichnung: 'Bezeichnung',
+    hinzufuegen: 'Hinzufügen',
+    tagGeschlossen: 'Dieser Bautag ist geschlossen — es kommt nichts mehr hinzu.',
+    abgleich: 'Abgleich mit der Zeiterfassung',
+    offeneFrage: 'offen',
   },
   en: {
     heute: 'Today',
@@ -758,6 +878,59 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abmelden: 'Sign out',
     sitzung: 'Session',
     pfad: 'Path',
+     zurueck: 'Back',
+    empfangenAm: 'Received on',
+    zumDatensatz: 'Go to record',
+    eingereichtAm: 'Submitted on',
+    entschiedenAm: 'Decided on',
+    entscheidung: 'Decision',
+    zurueckgezogen: 'Withdrawn',
+    zurueckziehenHinweis:
+      'You can withdraw while nobody has decided. The request stays readable.',
+    wachbuch: 'Security log',
+    wachbuchNeu: 'Write an entry',
+    uebergabe: 'Handover',
+    uebergabeZu:
+      'The handover window is not configured (open, O-151). Until then only your own '
+      + 'entries appear here.',
+    art: 'Type',
+    betreff: 'Subject',
+    eintragstext: 'What happened?',
+    kontrollpunkt: 'Checkpoint',
+    praesenz: 'Presence confirmed',
+    polizei: 'Police informed',
+    nummer: 'Number',
+    erfasstAm: 'Recorded on',
+    unveraenderlich:
+      'An entry stays. What is wrong is corrected alongside it, never deleted.',
+    leistungsnachweis: 'Proof of service',
+    leistungszeitraum: 'Service period',
+    positionen: 'Line items',
+    menge: 'Quantity',
+    einheit: 'Unit',
+    entwurfAnlegen: 'Create proof',
+    vorlegen: 'Submit',
+    unterschrift: 'Signature',
+    unterzeichnerName: 'Name of the signatory',
+    unterschreiben: 'Sign',
+    unterschrieben: 'Signed',
+    fotos: 'Photos',
+    aufnahmeHinzufuegen: 'Add a photo',
+    beschreibung: 'Description',
+    keineAufnahmen: 'No photo has been stored for this shift yet.',
+    ohneOrtsdaten: 'Location data is removed before storing.',
+    bautagebuch: 'Site diary',
+    mannstunden: 'Labour hours',
+    gewerk: 'Trade',
+    anzahlPersonen: 'People',
+    geraet: 'Equipment',
+    lieferung: 'Delivery',
+    vorkommnis: 'Incident',
+    bezeichnung: 'Designation',
+    hinzufuegen: 'Add',
+    tagGeschlossen: 'This site day is closed — nothing more is added.',
+    abgleich: 'Comparison with time tracking',
+    offeneFrage: 'open',
   },
   ar: {
     heute: 'اليوم',
@@ -857,6 +1030,56 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abmelden: 'تسجيل الخروج',
     sitzung: 'الجلسة',
     pfad: 'المسار',
+     zurueck: 'رجوع',
+    empfangenAm: 'تاريخ الاستلام',
+    zumDatensatz: 'إلى السجل',
+    eingereichtAm: 'تاريخ التقديم',
+    entschiedenAm: 'تاريخ القرار',
+    entscheidung: 'القرار',
+    zurueckgezogen: 'مسحوب',
+    zurueckziehenHinweis: 'يمكن سحب الطلب ما لم يُتخذ قرار بعد. ويبقى الطلب قابلاً للقراءة.',
+    wachbuch: 'دفتر الحراسة',
+    wachbuchNeu: 'كتابة قيد',
+    uebergabe: 'التسليم',
+    uebergabeZu:
+      'لم تُضبط فترة التسليم بعد (مسألة مفتوحة، O-151). حتى ذلك الحين تظهر هنا قيودك أنت فقط.',
+    art: 'النوع',
+    betreff: 'الموضوع',
+    eintragstext: 'ماذا حدث؟',
+    kontrollpunkt: 'نقطة التفتيش',
+    praesenz: 'تم تأكيد الحضور',
+    polizei: 'تم إبلاغ الشرطة',
+    nummer: 'الرقم',
+    erfasstAm: 'تاريخ التسجيل',
+    unveraenderlich: 'القيد يبقى. الخطأ يُصحَّح إلى جانبه ولا يُحذف.',
+    leistungsnachweis: 'إثبات الخدمة',
+    leistungszeitraum: 'فترة الخدمة',
+    positionen: 'البنود',
+    menge: 'الكمية',
+    einheit: 'الوحدة',
+    entwurfAnlegen: 'إنشاء الإثبات',
+    vorlegen: 'تقديم',
+    unterschrift: 'التوقيع',
+    unterzeichnerName: 'اسم الموقِّع',
+    unterschreiben: 'توقيع',
+    unterschrieben: 'موقَّع',
+    fotos: 'الصور',
+    aufnahmeHinzufuegen: 'إضافة صورة',
+    beschreibung: 'الوصف',
+    keineAufnahmen: 'لا توجد صورة محفوظة لهذه المناوبة بعد.',
+    ohneOrtsdaten: 'تُزال بيانات الموقع قبل الحفظ.',
+    bautagebuch: 'يوميات الموقع',
+    mannstunden: 'ساعات العمل',
+    gewerk: 'الحرفة',
+    anzahlPersonen: 'عدد الأشخاص',
+    geraet: 'المعدات',
+    lieferung: 'التوريد',
+    vorkommnis: 'حادثة',
+    bezeichnung: 'التسمية',
+    hinzufuegen: 'إضافة',
+    tagGeschlossen: 'أُغلق يوم الموقع هذا — لا يُضاف إليه شيء بعد الآن.',
+    abgleich: 'المقارنة مع تسجيل الوقت',
+    offeneFrage: 'مفتوح',
   },
   tr: {
     heute: 'Bugün',
@@ -956,6 +1179,58 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abmelden: 'Çıkış yap',
     sitzung: 'Oturum',
     pfad: 'Yol',
+     zurueck: 'Geri',
+    empfangenAm: 'Alındığı tarih',
+    zumDatensatz: 'Kayda git',
+    eingereichtAm: 'Verildiği tarih',
+    entschiedenAm: 'Karar tarihi',
+    entscheidung: 'Karar',
+    zurueckgezogen: 'Geri çekildi',
+    zurueckziehenHinweis:
+      'Kimse karar vermediği sürece geri çekebilirsiniz. Talep okunabilir kalır.',
+    wachbuch: 'Güvenlik defteri',
+    wachbuchNeu: 'Kayıt yaz',
+    uebergabe: 'Devir teslim',
+    uebergabeZu:
+      'Devir teslim penceresi ayarlanmadı (açık soru, O-151). O zamana kadar burada '
+      + 'yalnızca kendi kayıtlarınız görünür.',
+    art: 'Tür',
+    betreff: 'Konu',
+    eintragstext: 'Ne oldu?',
+    kontrollpunkt: 'Kontrol noktası',
+    praesenz: 'Mevcudiyet onaylandı',
+    polizei: 'Polis bilgilendirildi',
+    nummer: 'Numara',
+    erfasstAm: 'Kaydedildiği tarih',
+    unveraenderlich: 'Bir kayıt kalır. Yanlış olan yanında düzeltilir, silinmez.',
+    leistungsnachweis: 'Hizmet tutanağı',
+    leistungszeitraum: 'Hizmet dönemi',
+    positionen: 'Kalemler',
+    menge: 'Miktar',
+    einheit: 'Birim',
+    entwurfAnlegen: 'Tutanak oluştur',
+    vorlegen: 'Sun',
+    unterschrift: 'İmza',
+    unterzeichnerName: 'İmzalayanın adı',
+    unterschreiben: 'İmzala',
+    unterschrieben: 'İmzalandı',
+    fotos: 'Fotoğraflar',
+    aufnahmeHinzufuegen: 'Fotoğraf ekle',
+    beschreibung: 'Açıklama',
+    keineAufnahmen: 'Bu vardiya için henüz fotoğraf kaydedilmedi.',
+    ohneOrtsdaten: 'Konum verileri kaydetmeden önce kaldırılır.',
+    bautagebuch: 'Şantiye günlüğü',
+    mannstunden: 'Adam-saat',
+    gewerk: 'Meslek dalı',
+    anzahlPersonen: 'Kişi sayısı',
+    geraet: 'Ekipman',
+    lieferung: 'Teslimat',
+    vorkommnis: 'Olay',
+    bezeichnung: 'Tanım',
+    hinzufuegen: 'Ekle',
+    tagGeschlossen: 'Bu şantiye günü kapatıldı — artık hiçbir şey eklenmez.',
+    abgleich: 'Zaman kaydıyla karşılaştırma',
+    offeneFrage: 'açık',
   },
 };
 
@@ -1033,5 +1308,57 @@ Readonly<Record<PortalSprache, Readonly<Record<EinwandArtSchluessel, string>>>> 
     pause_falsch: 'Mola süresi yanlış',
     zuordnung_falsch: 'Yanlış nesne veya yanlış vardiya',
     sonstiges: 'Başka bir şey',
+  },
+};
+
+/**
+ * Die Arten eines Wachbucheintrags (SEC-05, `wachbuch_art`).
+ *
+ * Wie bei den Einwandarten: die SCHLUESSEL sind das Vokabular des Enums und
+ * reisen unuebersetzt in die Datenbank; uebersetzt wird nur, was auf dem
+ * Bildschirm steht (D-83). Die deutschen Bezeichnungen sind zeichengleich mit
+ * `ART_TEXT` in `server/services/security/wachbuch.ts` — sie stehen dort fuer
+ * das interne Portal und hier fuer die vier Sprachen der Wache.
+ *
+ * `schluessel` steht mit dabei, obwohl der Dienst die Art heute abweist: das
+ * Wort gehoert zum Enum, und ein Buch, in dem eine Art keinen Namen hat, waere
+ * beim Lesen alter Eintraege leer an genau dieser Stelle.
+ */
+export type WachbuchArtSchluessel =
+  'rundgang' | 'vorkommnis' | 'uebergabe' | 'schluessel' | 'alarm';
+
+export const WACHBUCH_ARTEN_I18N: readonly WachbuchArtSchluessel[] = [
+  'rundgang', 'vorkommnis', 'uebergabe', 'schluessel', 'alarm',
+];
+
+export const WACHBUCH_ART_TEXTE:
+Readonly<Record<PortalSprache, Readonly<Record<WachbuchArtSchluessel, string>>>> = {
+  de: {
+    rundgang: 'Rundgang',
+    vorkommnis: 'Vorkommnis',
+    uebergabe: 'Übergabe',
+    schluessel: 'Schlüssel',
+    alarm: 'Alarm',
+  },
+  en: {
+    rundgang: 'Patrol',
+    vorkommnis: 'Incident',
+    uebergabe: 'Handover',
+    schluessel: 'Key',
+    alarm: 'Alarm',
+  },
+  ar: {
+    rundgang: 'جولة تفتيش',
+    vorkommnis: 'حادثة',
+    uebergabe: 'تسليم',
+    schluessel: 'مفتاح',
+    alarm: 'إنذار',
+  },
+  tr: {
+    rundgang: 'Devriye',
+    vorkommnis: 'Olay',
+    uebergabe: 'Devir teslim',
+    schluessel: 'Anahtar',
+    alarm: 'Alarm',
   },
 };

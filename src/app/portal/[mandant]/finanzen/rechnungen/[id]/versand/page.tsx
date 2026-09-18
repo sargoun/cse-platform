@@ -12,6 +12,7 @@ import {
   empfaengerlage, irgendeinWegVerbunden, versandprotokoll, versandwege,
   type Empfaengerlage, type VersandStatus, type VersandZeile, type Versandweg,
 } from '@/server/services/finanz/versand';
+import { FORMAT_TEXT, WEG_TEXT } from '@/server/services/crm/erechnung';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
@@ -268,21 +269,75 @@ export default async function Versandblatt(
                 {daten.empfaenger.elektronischeAdresse ?? '—'}
               </dd>
             </div>
+            <div>
+              <dt className="text-xs text-text-muted">Verabredeter Weg</dt>
+              <dd className="text-sm text-text">
+                {daten.empfaenger.uebertragungsweg === null
+                  ? <span className="text-text-muted">nicht verabredet</span>
+                  : WEG_TEXT[daten.empfaenger.uebertragungsweg]}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-text-muted">Verabredetes Format</dt>
+              <dd className="text-sm text-text">
+                {daten.empfaenger.rechnungsformat === null
+                  ? <span className="text-text-muted">nicht verabredet</span>
+                  : FORMAT_TEXT[daten.empfaenger.rechnungsformat]}
+              </dd>
+            </div>
           </dl>
-          {daten.empfaenger.wegOffen ? (
-            <Hinweis art="warnung" cse="versand-weg-offen" className="mb-s7">
-              <p className="m-0 max-w-prose">
-                Für diesen Käufer ist <strong>kein Übertragungsweg
-                hinterlegt</strong>. Die Spalte{' '}
-                <code>kunde.uebertragungsweg</code> gehört dem CRM-Datenmodell
-                und gibt es in der Datenbank noch nicht. Ein Käufer mit
-                XRechnungspflicht und ohne hinterlegten Weg{' '}
-                <strong>blockiert</strong> den Versand, statt auf einen Kanal
-                zurückzufallen — so hält es 07-INTEGRATIONEN §12.1
-                ausdrücklich fest, und so wird es hier auch nicht umgangen.
-              </p>
-            </Hinweis>
-          ) : null}
+          <div
+            data-cse="versand-empfaengerlage"
+            data-art={daten.empfaenger.lage.art}
+            data-weg-offen={String(daten.empfaenger.wegOffen)}
+            className={`mb-s3 rounded-lg border p-s5 text-sm ${
+              daten.empfaenger.lage.art === 'gesperrt'
+                ? 'border-danger bg-danger-soft text-danger'
+                : daten.empfaenger.lage.art === 'bereit'
+                  ? 'border-line bg-surface text-text'
+                  : 'border-warning bg-warning-soft text-warning'}`}
+          >
+            <p className="m-0 flex flex-wrap items-center gap-s3">
+              <StatusPill
+                zustand={daten.empfaenger.lage.art === 'gesperrt'
+                  ? 'Fehler'
+                  : daten.empfaenger.lage.art === 'bereit'
+                    ? 'Abgeschlossen'
+                    : 'Wartet'}
+              />
+              <strong className="text-text">
+                {daten.empfaenger.lage.art === 'gesperrt'
+                  ? 'Versand gesperrt'
+                  : daten.empfaenger.lage.art === 'nicht_verbunden'
+                    ? 'Weg verabredet, Hafen nicht verbunden'
+                    : daten.empfaenger.lage.art === 'offen'
+                      ? 'Kein Zustellweg verabredet'
+                      : 'Zustellweg steht'}
+              </strong>
+            </p>
+            <p className="m-0 mt-s3 max-w-prose">{daten.empfaenger.lage.text}</p>
+            {daten.empfaenger.lage.fehlend.length === 0 ? null : (
+              <ul className="m-0 mt-s3 list-none space-y-s2 p-0">
+                {daten.empfaenger.lage.fehlend.map((f) => (
+                  <li key={`${f.bt}-${f.feld}`} className="max-w-prose">
+                    <span className="text-xs text-text-muted">
+                      {f.bt} · {f.regel}
+                    </span>
+                    <span className="ml-s2 text-sm text-text">{f.feld}</span>
+                    <span className="mt-s1 block text-xs">{f.text}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="m-0 mt-s3 max-w-prose text-xs text-text-muted">
+              Bewertet von <code>services/crm/erechnung.ts</code> — derselben
+              Stelle, die den Kundenstamm bewertet. Ein Käufer mit
+              XRechnungspflicht ohne hinterlegten Weg{' '}
+              <strong>blockiert</strong> den Versand, statt auf einen Kanal
+              zurückzufallen (07-INTEGRATIONEN §12.1). Zwei Formulierungen
+              derselben Regel wären eine zu viel.
+            </p>
+          </div>
         </>
       )}
 

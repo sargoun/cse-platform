@@ -173,12 +173,25 @@ export default async function Vorlagen(
           ) : (
             <div data-cse="mahntexte">
               <DataTable
-                beschriftung="Laufende Mahnstufen und ihr Zustand"
+                beschriftung="Laufende Mahnstufen mit ihrem Mahntext und ihrem Zustand"
                 zeilen={[...mahnstufen]}
                 schluessel={(s) => s.id}
                 spalten={[
                   { schluessel: 'stufe', kopf: 'Stufe', zelle: (s) => String(s.stufe) },
                   { schluessel: 'bez', kopf: 'Bezeichnung', zelle: (s) => s.bezeichnung },
+                  /*
+                   * Der Text SELBST, und nicht nur die Stufe: eine Stufenliste
+                   * ohne ihn steht schon unter Mahnwesen, und die Ueberschrift
+                   * hier verspricht den Mahntext.
+                   */
+                  { schluessel: 'text', kopf: 'Mahntext',
+                    zelle: (s) => (s.textbaustein === null || s.textbaustein.trim() === ''
+                      ? <span className="text-text-subtle">nicht hinterlegt</span>
+                      : (
+                        <span className="block max-w-[48ch] whitespace-pre-line text-xs text-text-muted">
+                          {s.textbaustein}
+                        </span>
+                      )) },
                   { schluessel: 'gueltig', kopf: 'Gültig ab', zelle: (s) => s.gueltigAb },
                   { schluessel: 'zustand', kopf: 'Zustand',
                     zelle: (s) => (s.istPlatzhalter

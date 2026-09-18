@@ -81,6 +81,25 @@ const KORREKTUR_ART_TEXT: Readonly<Record<string, string>> = {
   storno: 'Storniert',
 };
 
+/**
+ * Die sechs Werte von `korrektur_grund` — deutsch.
+ *
+ * Nachgesehen und nicht geraten: `vergessen_auszustempeln`, `geraet_defekt`,
+ * `falsches_objekt`, `einwand_mitarbeiter`, `nachtrag_offline`, `sonstiges`.
+ *
+ * Ohne diese Karte stand `vergessen_auszustempeln` roh auf dem Bildschirm —
+ * neben vier Nachbarfeldern, die ihre eigene Karte haben. Genau der
+ * Fehlertyp, den der Konflikteingang schon einmal hatte.
+ */
+const KORREKTUR_GRUND_TEXT: Readonly<Record<string, string>> = {
+  vergessen_auszustempeln: 'Ausstempeln vergessen',
+  geraet_defekt: 'Gerät defekt',
+  falsches_objekt: 'falsches Objekt',
+  einwand_mitarbeiter: 'Einwand der Kraft',
+  nachtrag_offline: 'Nachtrag nach Offline-Erfassung',
+  sonstiges: 'Sonstiges',
+};
+
 export default async function Einwandblatt(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
@@ -381,7 +400,8 @@ export default async function Einwandblatt(
                   {KORREKTUR_ART_TEXT[e.korrektur.art] ?? e.korrektur.art}
                 </strong>
                 {' · '}
-                {e.korrektur.grundKategorie}
+                {KORREKTUR_GRUND_TEXT[e.korrektur.grundKategorie]
+                  ?? e.korrektur.grundKategorie}
               </span>
               <span className="text-sm tabular-nums text-success">
                 {e.korrektur.amLokal}
@@ -419,7 +439,14 @@ export default async function Einwandblatt(
             {darf['zeit.korrigieren'] === true && e.eintrag !== null && (
               <p className="m-0 mt-s3 text-sm">
                 <Link
-                  href={`/portal/${mandant}/zeiten/${e.eintrag.id}/korrektur`}
+                  /*
+                   * `?einwand=` ist nicht Zierde: es ist das, was
+                   * `zeiteintrag_korrektur.zeit_einwand_id` fuellt. Ohne den
+                   * Anhang entstuende eine Korrektur, die diese Meldung
+                   * beantwortet und nirgends auf sie zeigt — und dieser
+                   * Abschnitt zeigte danach weiter „keine Korrektur".
+                   */
+                  href={`/portal/${mandant}/zeiten/${e.eintrag.id}/korrektur?einwand=${e.id}`}
                   data-cse="zur-korrektur"
                   className="text-warning underline"
                 >

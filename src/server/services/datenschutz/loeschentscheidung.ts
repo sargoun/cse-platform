@@ -98,23 +98,52 @@ function monatsletzter(j: number, m: number): number {
  */
 export function aoFrist(entstanden: Kalendertag): Kalendertag {
   const { j } = teile(entstanden);
+  /*
+   * Auch hier: der ERSTE Tag, an dem gelöscht werden darf. `milogFrist` sagt
+   * dasselbe — eine Spalte, eine Bedeutung.
+   */
   return `${String(j + 11)}-01-01`;
 }
 
 /**
  * § 17 Abs. 2 MiLoG: die Arbeitszeitaufzeichnung ist **zwei Jahre** ab dem für
- * die Aufzeichnung maßgeblichen Zeitpunkt aufzubewahren. Die Sperre fällt am
- * Tag danach.
+ * die Aufzeichnung maßgeblichen Zeitpunkt aufzubewahren.
  *
- * **Kalendarisch, nicht 730 Tage.** Der 29. Februar hat in zwei Jahren keinen
- * Nachfolger; er fällt auf den 28. Februar, und das ist der frühere der beiden
- * möglichen Tage — die für den Betroffenen ungünstigere Wahl wäre der 1. März.
+ * **Die Rückgabe ist der ERSTE Tag, an dem gelöscht werden darf** — dieselbe
+ * Bedeutung wie bei `aoFrist`, und das war der Befund: `aoFrist` gab mit dem
+ * 1. Januar den Tag NACH dem Fristende, `milogFrist` gab denselben
+ * Kalendertag zwei Jahre später, also den LETZTEN Tag der Aufbewahrung. Zwei
+ * Bedeutungen in einer Spalte (`loeschentscheidung.sperre_faellt_am`), und der
+ * Unterschied ist ein Tag, den niemand sieht.
+ *
+ * **Und deshalb rundet der 29. Februar AUF.** Die Vorfassung gab für den
+ * 29.02.2024 den 28.02.2026 zurück — mit der Begründung, das sei die für den
+ * Betroffenen günstigere Wahl. Die Grenze setzt hier aber nicht sein
+ * Interesse, sondern die Aufbewahrungspflicht: einen Tag früher zu löschen
+ * heisst, die gesetzlichen „mindestens zwei Jahre" zu unterschreiten. Also
+ * 01.03.2026 — der erste Tag NACH zwei vollen Jahren.
+ *
+ * **Kalendarisch, nicht 730 Tage** (das bleibt): eine Frist, die auf Tage
+ * rechnet, verschiebt sich um ein Schaltjahr.
  */
 export function milogFrist(aufgezeichnet: Kalendertag): Kalendertag {
   const { j, m, t } = teile(aufgezeichnet);
   const zielJahr = j + 2;
+  /*
+   * Zwei Jahre auf denselben Kalendertag, dann EIN Tag weiter. Der 29.02.
+   * hat in zwei Jahren keinen Nachfolger; `Math.min` gäbe den 28.02., und der
+   * Tag danach ist der 01.03. — also genau die Aufrundung, die die Pflicht
+   * verlangt, ohne einen Sonderfall dafür zu schreiben.
+   */
   const tag = Math.min(t, monatsletzter(zielJahr, m));
-  return `${String(zielJahr)}-${ZWEI(m)}-${ZWEI(tag)}`;
+  return naechsterTag(zielJahr, m, tag);
+}
+
+/** Der Kalendertag nach diesem — im Kalender, ohne Zeitzone. */
+function naechsterTag(j: number, m: number, t: number): Kalendertag {
+  if (t < monatsletzter(j, m)) return `${String(j)}-${ZWEI(m)}-${ZWEI(t + 1)}`;
+  if (m < 12) return `${String(j)}-${ZWEI(m + 1)}-01`;
+  return `${String(j + 1)}-01-01`;
 }
 
 /* =========================================================================
@@ -325,6 +354,136 @@ const ORTE: readonly OrtDefinition[] = [
             from gespraech
            where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()`,
   },
+  /* -----------------------------------------------------------------------
+   * **Der Kontaktzweig war vier Orte lang, das Schema hat sieben.**
+   *
+   * Die Seite zeigt darüber „N von N entschieden" und behauptet damit eine
+   * tabellenweise Vollständigkeit, die 04-SEITENKARTE §5.25 zusagt („PER
+   * FIELD and PER TABLE") und die nicht vorlag. Die Datei schützte sich gegen
+   * „Recht fehlt" (`ungelesen` statt leer) und nicht gegen „Tabelle steht
+   * nicht in der Liste" — und der zweite Fall ist der stillere: ein Ort, der
+   * fehlt, erscheint nirgends.
+   *
+   * `tests/isolation/datenschutz-abdeckung.test.ts` hält die Liste jetzt gegen
+   * `information_schema` und fällt bei der nächsten neuen Tabelle.
+   * -------------------------------------------------------------------- */
+  {
+    tabelle: 'lead',
+    titel: 'Anfragen und Vorgänge (Leads)',
+    fuer: ['ansprechpartner'],
+    recht: 'crm.lesen',
+    /*
+     * `{art:'offen', frage:'O-71'}`: hier fallen der § 7 UWG-Nachweis und der
+     * Akquiseverlauf zusammen. Der Vorgang selbst ist eine
+     * Geschäftsanbahnung (GoBD-nah, § 147 AO), die Kontaktspur daran ist
+     * Werbung — welche der beiden Pflichten die Löschung überlagert, ist
+     * nicht entschieden. Eine Frist zu behaupten wäre hier der Fehler.
+     */
+    sperre: { art: 'offen', frage: 'O-71' },
+    sql: `select count(*)::int as zeilen, min(erstellt_am) as anker
+            from lead
+           where ansprechpartner_id = $1::uuid
+             and mandant_id = app.aktiver_mandant()`,
+  },
+  {
+    tabelle: 'lead_aktivitaet',
+    titel: 'Korrespondenz und Vermerke zum Vorgang',
+    fuer: ['ansprechpartner'],
+    recht: 'crm.lesen',
+    sperre: { art: 'offen', frage: 'O-71' },
+    sql: `select count(*)::int as zeilen, min(geschehen_am) as anker
+            from lead_aktivitaet
+           where ansprechpartner_id = $1::uuid
+             and mandant_id = app.aktiver_mandant()`,
+  },
+  {
+    tabelle: 'angebot',
+    titel: 'Angebote mit dieser Person als Ansprechpartner',
+    fuer: ['ansprechpartner'],
+    recht: 'angebot.lesen',
+    sperre: { art: 'gesetz',
+              fundstelle: '§ 147 Abs. 1 Nr. 5 AO — Handelsbrief, zehn Jahre ab '
+                + 'Ende des Kalenderjahres',
+              frist: 'ao' },
+    sql: `select count(*)::int as zeilen, min(erstellt_am) as anker
+            from angebot
+           where ansprechpartner_id = $1::uuid
+             and mandant_id = app.aktiver_mandant()`,
+  },
+  {
+    tabelle: 'objekt',
+    titel: 'Objekte mit dieser Person als Ansprechpartner',
+    fuer: ['ansprechpartner'],
+    recht: 'objekt.lesen',
+    /*
+     * Keine Aufbewahrungspflicht auf der ZUORDNUNG: das Objekt bleibt, die
+     * Ansprechpartnerspalte lässt sich räumen. Das ist der einzige Ort dieses
+     * Zweigs, an dem eine Löschung ohne Gegenpflicht geschuldet sein kann —
+     * und genau deshalb muss er in der Matrix stehen.
+     */
+    sperre: { art: 'keine' },
+    sql: `select count(*)::int as zeilen, min(erstellt_am) as anker
+            from objekt
+           where ansprechpartner_id = $1::uuid
+             and mandant_id = app.aktiver_mandant()`,
+  },
+  {
+    tabelle: 'werbewiderspruch_token',
+    titel: 'Ausgegebene Widerspruchslinks (§ 7 Abs. 3 Nr. 4 UWG)',
+    fuer: ['ansprechpartner'],
+    recht: 'datenschutz.auskunft_erstellen',
+    sperre: { art: 'gesetz',
+              fundstelle: '§ 7 Abs. 3 Nr. 4 UWG — der Abdruck belegt, DASS die '
+                + 'Werbenachricht einen wirksamen Widerspruchsweg trug',
+              frist: null },
+    /*
+     * Über den Definer: `cse_app` hat auf dieser Tabelle GAR KEIN Recht
+     * (0222). Ein direktes `count(*)` zählte nicht null, es SCHEITERTE — und
+     * ein Ort, der beim Zählen scheitert, nimmt die ganze Matrix mit.
+     */
+    sql: `select count(*)::int as zeilen, min(ausgegeben_am) as anker
+            from app.werbewiderspruch_token_auskunft($1::uuid)`,
+  },
+  /* -----------------------------------------------------------------------
+   * Und derselbe Befund im Bewerbungszweig: fünf Orte, sechs Tabellen mit
+   * `bewerbung_id`.
+   * -------------------------------------------------------------------- */
+  {
+    tabelle: 'bewerbung_antwort',
+    titel: 'Antworten an die Bewerberin',
+    fuer: ['bewerbung'],
+    recht: 'recruiting.bewerbung_lesen',
+    sperre: { art: 'offen', frage: 'O-373' },
+    sql: `select count(*)::int as zeilen, min(erstellt_am) as anker
+            from bewerbung_antwort
+           where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()`,
+  },
+  {
+    tabelle: 'einstellungsentscheidung',
+    titel: 'Einstellungsentscheidung',
+    fuer: ['bewerbung'],
+    recht: 'recruiting.bewerbung_lesen',
+    /*
+     * `{art:'offen', frage:'O-46'}` und nicht „geschuldet": die Entscheidung
+     * mit ihrer Begründung ist das, was im Streitfall nach § 15 Abs. 4 AGG
+     * die Beweislage trägt — und ob diese Zweimonatsfrist die Löschung
+     * überlagert, ist eine Rechtsfrage und keine Voreinstellung.
+     */
+    sperre: { art: 'offen', frage: 'O-46' },
+    sql: `select count(*)::int as zeilen, min(entschieden_am) as anker
+            from einstellungsentscheidung
+           where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()`,
+  },
+  {
+    tabelle: 'kandidat',
+    titel: 'Kandidatenprofil',
+    fuer: ['bewerbung'],
+    recht: 'recruiting.bewerbung_lesen',
+    sperre: { art: 'offen', frage: 'O-373' },
+    sql: `select count(*)::int as zeilen, min(erstellt_am) as anker
+            from kandidat
+           where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()`,
+  },
   {
     tabelle: 'betroffenenanfrage',
     titel: 'Diese und frühere Betroffenenanfragen',
@@ -361,6 +520,62 @@ const ORTE: readonly OrtDefinition[] = [
            where mandant_id = app.aktiver_mandant() and objekt_id = $1::text`,
   },
 ];
+
+/**
+ * **Was die Matrix NICHT entscheidet — benannt, nicht weggelassen.**
+ *
+ * Elf Tabellen tragen `person_id` und stehen nicht in `ORTE`. Der Grund ist
+ * nicht, dass dort nichts steht: es sind abgeleitete Befunde
+ * (`arbeitszeit_verstoss`, `planungs_konflikt`, `nachweis_warnung`,
+ * `da_pflicht`), technische Datensätze des Zugangs (`benutzer`,
+ * `checkin_token`, `offline_ereignis`) und Zuordnungen, die mit ihrem
+ * Hauptsatz fallen (`einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`,
+ * `bewacher_eintrag`).
+ *
+ * Ob sie eine eigene Entscheidungszeile brauchen oder mit dem Datensatz
+ * fallen, an dem sie hängen, ist eine Rechtsfrage — und solange sie offen ist,
+ * gehört sie auf den Bildschirm und nicht in einen Kommentar. Genau derselbe
+ * Grund, aus dem `VOLLZUG.fehlend` dort steht: eine Matrix, die schweigt,
+ * behauptet Vollständigkeit.
+ *
+ * `tests/isolation/datenschutz-abdeckung.test.ts` hält diese Liste zusammen
+ * mit `ORTE` gegen das Schema.
+ *
+ * **Die offene Frage ist O-71 und keine neue.** „Erasure concept (Art. 17):
+ * which personal data is anonymised, on which trigger?" — genau das ist hier
+ * zu entscheiden, und eine zweite Nummer daneben teilte eine Entscheidung in
+ * zwei, die zusammen beantwortet wird.
+ * // TODO(client, O-71): Brauchen abgeleitete Befunde, Zugangsdatensaetze und Zuordnungen eine eigene Loeschentscheidung, oder fallen sie mit ihrem Hauptsatz?
+ */
+export const NICHT_IN_DER_MATRIX: readonly {
+  readonly tabelle: string; readonly grund: string;
+}[] = [
+  { tabelle: 'arbeitszeit_verstoss', grund: 'abgeleiteter Befund aus zeiteintrag' },
+  { tabelle: 'planungs_konflikt', grund: 'abgeleiteter Befund aus dem Dienstplan' },
+  { tabelle: 'nachweis_warnung', grund: 'abgeleiteter Befund aus nachweis' },
+  { tabelle: 'da_pflicht', grund: 'abgeleitete Pflicht aus der Dienstanweisung' },
+  { tabelle: 'benutzer', grund: 'Portalkonto — eigener Lebenszyklus (deaktiviert_am)' },
+  { tabelle: 'checkin_token', grund: 'technische Marke, verfällt von selbst' },
+  { tabelle: 'offline_ereignis', grund: 'Warteschlange, geht in zeiteintrag auf' },
+  { tabelle: 'einsatz_zuordnung', grund: 'Zuordnung zum Einsatz' },
+  { tabelle: 'zeitnachweis', grund: 'Monatsnachweis über zeiteintrag' },
+  { tabelle: 'team_mitglied', grund: 'Zuordnung zum Team' },
+  { tabelle: 'bewacher_eintrag', grund: '§ 34a GewO — Bewacherregister, eigene Frist' },
+];
+
+/**
+ * Jeder Ort, über den diese Matrix etwas sagt — auch die, über die sie
+ * ausdrücklich NICHTS sagt.
+ *
+ * Dieselbe Wache wie bei der Auskunft
+ * (`tests/isolation/datenschutz-abdeckung.test.ts`). `audit_log` steht mit
+ * drin, obwohl es keinen Personenbezug in einer Spalte trägt — es zählt über
+ * `objekt_id`, und die Menge ist ein Obermengenvergleich.
+ */
+export const ABDECKUNG: ReadonlySet<string> = new Set([
+  ...ORTE.map((o) => o.tabelle),
+  ...NICHT_IN_DER_MATRIX.map((o) => o.tabelle),
+]);
 
 /** Eine Zeile der Entscheidungsmatrix. */
 export interface Ort {
@@ -432,6 +647,14 @@ function sperreText(s: Sperrgrund): string {
   }
 }
 
+/**
+ * Der Tag, an dem die Sperre fällt — der ERSTE, an dem gelöscht werden darf.
+ *
+ * Beide Rechenwege liefern diese eine Bedeutung; der Spaltenkommentar in
+ * `0221` sagt sie ebenfalls. Vorher sagten `aoFrist` (Tag danach) und
+ * `milogFrist` (letzter Tag der Aufbewahrung) zwei verschiedene Dinge in
+ * dieselbe Spalte.
+ */
 function faelltAm(s: Sperrgrund, anker: Date | null): Kalendertag | null {
   if (s.art !== 'gesetz' || s.frist === null || anker === null) return null;
   const tag = berlinTag(anker);

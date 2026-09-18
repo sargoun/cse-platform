@@ -1,7 +1,8 @@
 import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import {
-  StammdatenFehler, alsStammdatenFehler, i18nAus, pflichttext, pruefeSchluessel,
+  StammdatenFehler, alsStammdatenFehler, alsStufenkollision, i18nAus, pflichttext,
+  pruefeSchluessel,
 } from './katalog.js';
 
 /**
@@ -154,9 +155,11 @@ export function pruefeArtEingabe(
       + 'nicht „nein".');
   }
   const tage = (lies('nachweisAbTagen') ?? '').trim();
-  if (tage !== '' && !/^\d{1,3}$/u.test(tage)) {
+  // Neun Stellen = die Kapazitaet von `integer`, nicht eine hier erfundene
+  // Hoechstzahl von Tagen: welche Frist sinnvoll ist, beantwortet O-139.
+  if (tage !== '' && !/^\d{1,9}$/u.test(tage)) {
     throw new StammdatenFehler('ungueltig',
-      'Nachweis ab Tag: eine ganze Zahl oder leer.');
+      'Nachweis ab Tag: eine ganze Zahl bis 999999999 oder leer.');
   }
   return {
     schluessel: pruefeSchluessel(lies('schluessel') ?? ''),
@@ -175,12 +178,45 @@ export function pruefeArtEingabe(
 }
 
 /**
+ * Der Spaltensatz, den VORHER und NACHHER im Pruefprotokoll TEILEN.
+ *
+ * **Beide Seiten muessen dasselbe Vokabular sprechen.** `app.protokolliere`
+ * rechnet `geaendert_felder` als „welcher Schluessel von NACHHER steht in
+ * VORHER anders" (0004). Stuende dort das Eingabeobjekt dieser Schicht
+ * (`zaehltAufUrlaubskonto`, camelCase, dazu `i18n` und `plattform`, die gar
+ * keine Spalten sind) gegen eine gelesene Zeile (`zaehlt_auf_urlaubskonto`,
+ * snake_case), waere jedes nur-camelCase-Feld immer `distinct` von NULL: das
+ * Protokoll meldete bei JEDER Aenderung dieselben sechs Felder als geaendert,
+ * und eine ECHTE Umstellung von `bezahlt` oder `ist_gesundheitsbezogen` waere
+ * darin nicht mehr zu erkennen. Genau das soll diese Zeile beantworten —
+ * „seit wann rechnet das so".
+ *
+ * Vorher wird gelesen (`einZeile`), nachher kommt aus dem `returning`
+ * DESSELBEN Satzes. Beide tragen damit die Spaltennamen der Tabelle, und
+ * `geaendert_felder` nennt genau die Felder, die sich wirklich geaendert
+ * haben.
+ */
+const PROTOKOLL_SPALTEN = `schluessel, bezeichnung, bezeichnung_i18n, bezahlt,
+            zaehlt_auf_urlaubskonto, erzeugt_stundenkonto_bewegung,
+            ist_gesundheitsbezogen, nachweis_pflicht_ab_tagen,
+            lohnart_schluessel, farbe_token, archiviert_am`;
+
+/**
  * Traegt die ANDERE Katalogstufe diesen Schluessel schon?
  *
- * Die Antwort steht auch in `kern.katalog_schluessel_frei` (0276) — dort als
- * Sperre, hier als Satz. Ohne diese Vorpruefung kaeme die Meldung als
- * `unique_violation` aus der Datenbank, in Ascii-Schreibweise und ohne den
- * einen Hinweis, der hilft: welche Stufe den Schluessel fuehrt.
+ * **Diese Vorpruefung sieht nur den AKTIVEN Mandanten — und das ist ihre
+ * Grenze.** Die Lesepolicy `t_katalog` zeigt `mandant_id is null` plus
+ * `app.sichtbare_mandanten()`, und das ist in der Mandantensicht genau die
+ * eine aktive Gesellschaft. In der MANDANTENRICHTUNG (eigene Art gegen den
+ * Plattformkatalog) ist die Antwort damit vollstaendig. In der
+ * PLATTFORMRICHTUNG — ein Super-Admin legt eine Art an, deren Schluessel eine
+ * ANDERE Gesellschaft fuehrt — sieht sie die fremde Zeile nicht und schweigt.
+ *
+ * Sie ist deshalb nicht die Sperre, sondern der Satz davor. Die Sperre ist
+ * `kern.katalog_schluessel_frei` (0276): `security definer` und damit an der
+ * RLS vorbei, genau fuer diesen Fall. `alsStufenkollision` holt ihre Meldung
+ * zurueck in dieselbe Sprache — ohne das faende der Mensch die Meldung fuer
+ * eine Dublette auf DERSELBEN Stufe vor.
  */
 async function pruefeStufenkollision(
   kontext: LeseKontext, schluessel: string, plattform: boolean,
@@ -231,7 +267,7 @@ export async function legeAbwesenheitsartAn(
 ): Promise<string> {
   await pruefeStufenkollision(kontext, e.schluessel, e.plattform);
   try {
-    const [zeile] = await kontext.schreibe<{ id: string }>(
+    const [zeile] = await kontext.schreibe<Record<string, unknown>>(
       `insert into abwesenheitsart
          (mandant_id, schluessel, bezeichnung, bezeichnung_i18n, bezahlt,
           zaehlt_auf_urlaubskonto, erzeugt_stundenkonto_bewegung,
@@ -240,21 +276,26 @@ export async function legeAbwesenheitsartAn(
        values (case when $11::boolean then null else app.aktiver_mandant() end,
                $1, $2, $3::jsonb, $4::boolean, $5::boolean, $6::boolean,
                $7::boolean, $8::int, $9, $10, $12::uuid)
-       returning id`,
+       returning id, ${PROTOKOLL_SPALTEN}`,
       [e.schluessel, e.bezeichnung, e.i18n, e.bezahlt,
         e.zaehltAufUrlaubskonto, e.erzeugtStundenkontoBewegung,
         e.istGesundheitsbezogen, e.nachweisPflichtAbTagen, e.lohnartSchluessel,
         e.farbeToken, e.plattform, kontext.benutzerId]);
-    const id = zeile?.id;
-    if (id === undefined) {
+    const id = zeile?.['id'];
+    if (typeof id !== 'string') {
       throw new StammdatenFehler('plattform',
         'Die Art wurde nicht angelegt — der Plattformkatalog wird von der '
         + 'Super-Administration gepflegt.');
     }
-    await protokolliere(kontext, 'stammdaten.abwesenheitsart_angelegt', id, null, e);
+    await kontext.schreibe(
+      `select app.protokolliere('stammdaten.abwesenheitsart_angelegt',
+                                'abwesenheitsart', $1, null, $2::jsonb,
+                                app.aktiver_mandant())`,
+      [id, zeile]);
     return id;
   } catch (fehler: unknown) {
-    throw alsStammdatenFehler(fehler, 'dieser Katalog') ?? fehler;
+    throw alsStufenkollision(fehler)
+      ?? alsStammdatenFehler(fehler, 'dieser Katalog') ?? fehler;
   }
 }
 
@@ -273,7 +314,7 @@ export async function aendereAbwesenheitsart(
 ): Promise<void> {
   const vorher = await einZeile(kontext, id);
   try {
-    const [zeile] = await kontext.schreibe<{ id: string }>(
+    const [nachher] = await kontext.schreibe<Record<string, unknown>>(
       `update abwesenheitsart
           set bezeichnung = $2, bezeichnung_i18n = $3::jsonb, bezahlt = $4::boolean,
               zaehlt_auf_urlaubskonto = $5::boolean,
@@ -282,13 +323,17 @@ export async function aendereAbwesenheitsart(
               lohnart_schluessel = $9, farbe_token = $10,
               geaendert_am = now(), geaendert_von = $11::uuid
         where id = $1 and archiviert_am is null
-        returning id`,
+        returning ${PROTOKOLL_SPALTEN}`,
       [id, e.bezeichnung, e.i18n, e.bezahlt,
         e.zaehltAufUrlaubskonto, e.erzeugtStundenkontoBewegung,
         e.istGesundheitsbezogen, e.nachweisPflichtAbTagen, e.lohnartSchluessel,
         e.farbeToken, kontext.benutzerId]);
-    if (zeile === undefined) throw nichtAenderbar(vorher !== null);
-    await protokolliere(kontext, 'stammdaten.abwesenheitsart_geaendert', id, vorher, e);
+    if (nachher === undefined) throw nichtAenderbar(vorher !== null);
+    await kontext.schreibe(
+      `select app.protokolliere('stammdaten.abwesenheitsart_geaendert',
+                                'abwesenheitsart', $1, $2::jsonb, $3::jsonb,
+                                app.aktiver_mandant())`,
+      [id, vorher, nachher]);
   } catch (fehler: unknown) {
     throw uebersetzeSchutz(fehler) ?? alsStammdatenFehler(fehler, 'dieser Katalog') ?? fehler;
   }
@@ -299,14 +344,18 @@ export async function archiviereAbwesenheitsart(
   kontext: SchreibKontext, id: string,
 ): Promise<void> {
   const vorher = await einZeile(kontext, id);
-  const [zeile] = await kontext.schreibe<{ id: string }>(
+  const [nachher] = await kontext.schreibe<Record<string, unknown>>(
     `update abwesenheitsart
         set archiviert_am = now(), geaendert_am = now(), geaendert_von = $2::uuid
       where id = $1 and archiviert_am is null
-      returning id`,
+      returning ${PROTOKOLL_SPALTEN}`,
     [id, kontext.benutzerId]);
-  if (zeile === undefined) throw nichtAenderbar(vorher !== null);
-  await protokolliere(kontext, 'stammdaten.abwesenheitsart_archiviert', id, vorher, null);
+  if (nachher === undefined) throw nichtAenderbar(vorher !== null);
+  await kontext.schreibe(
+    `select app.protokolliere('stammdaten.abwesenheitsart_archiviert',
+                              'abwesenheitsart', $1, $2::jsonb, $3::jsonb,
+                              app.aktiver_mandant())`,
+    [id, vorher, nachher]);
 }
 
 /**
@@ -328,29 +377,6 @@ async function einZeile(
   kontext: LeseKontext, id: string,
 ): Promise<Readonly<Record<string, unknown>> | null> {
   const [zeile] = await kontext.abfrage<Record<string, unknown>>(
-    `select schluessel, bezeichnung, bezahlt, zaehlt_auf_urlaubskonto,
-            erzeugt_stundenkonto_bewegung, ist_gesundheitsbezogen,
-            nachweis_pflicht_ab_tagen, lohnart_schluessel, farbe_token,
-            archiviert_am
-       from abwesenheitsart where id = $1`, [id]);
+    `select ${PROTOKOLL_SPALTEN} from abwesenheitsart where id = $1`, [id]);
   return zeile ?? null;
-}
-
-/**
- * Die Katalogaenderung ins Pruefprotokoll — von Hand.
- *
- * `abwesenheitsart` traegt, anders als `belagsart`, KEINEN Audit-Ausloeser
- * (`rls.ts.AUDITIERT`, eine Entscheidung und keine Auslassung: der Katalog
- * aendert sich selten). „Selten" heisst aber nicht „unbeobachtet": wer
- * `bezahlt` umstellt, aendert die Lohnfolge jeder kuenftigen Abwesenheit
- * dieser Art. Diese Zeile ist die Antwort auf „seit wann rechnet das so".
- */
-async function protokolliere(
-  kontext: SchreibKontext, aktion: string, id: string,
-  vorher: unknown, nachher: unknown,
-): Promise<void> {
-  await kontext.schreibe(
-    `select app.protokolliere($1, 'abwesenheitsart', $2, $3::jsonb, $4::jsonb,
-                              app.aktiver_mandant())`,
-    [aktion, id, vorher, nachher]);
 }

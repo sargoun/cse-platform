@@ -404,10 +404,22 @@ export default async function Abschlagsblatt(
             <dd className="mt-s2 max-w-prose text-xs text-text-muted"
                 data-cse="abschlaege-einbehalt-auftrag">
               Im Auftrag hinterlegt:{' '}
-              {k.auftrag_einbehalt_bp === null
-                ? formatiereGeld(cent(BigInt(k.auftrag_einbehalt_cent ?? '0')))
-                : `${(k.auftrag_einbehalt_bp / 100).toLocaleString('de-DE')} %`}
+              {k.auftrag_einbehalt_bp !== null && k.auftrag_einbehalt_cent !== null
+                ? `${(k.auftrag_einbehalt_bp / 100).toLocaleString('de-DE')} % `
+                  + `bzw. ${formatiereGeld(cent(BigInt(k.auftrag_einbehalt_cent)))}`
+                : k.auftrag_einbehalt_bp === null
+                  ? formatiereGeld(cent(BigInt(k.auftrag_einbehalt_cent ?? '0')))
+                  : `${(k.auftrag_einbehalt_bp / 100).toLocaleString('de-DE')} %`}
               . Abgezogen wird davon nichts, solange die Regel dazu offen ist.
+              {k.auftrag_einbehalt_bp !== null && k.auftrag_einbehalt_cent !== null ? (
+                <span className="mt-s1 block text-warning">
+                  Es stehen <strong>zwei</strong> Angaben im Auftrag — ein
+                  Prozentsatz und ein Betrag. Welche gilt, wenn sie sich
+                  widersprechen, ist nicht entschieden: es steht in derselben
+                  offenen Frage wie die Einbehaltsregel selbst (O-20). Beide
+                  werden deshalb gezeigt und keine verschwiegen.
+                </span>
+              ) : null}
             </dd>
           )}
         </div>

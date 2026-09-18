@@ -117,6 +117,7 @@ export default async function Auskunftsseite(
   const knopf = 'inline-flex min-h-11 items-center rounded-md border border-line-strong '
     + 'px-s5 py-s3 text-sm text-text hover:bg-surface-2';
   const api = `/api/datenschutz/auskunft?anfrage=${z.id}`;
+  const fristen = a.offeneFristen.length > 0 ? '&fristen=bestaetigt' : '';
 
   return (
     <PortalRahmen
@@ -173,6 +174,23 @@ export default async function Auskunftsseite(
         </Hinweis>
       ) : null}
 
+      {a.offeneFristen.length > 0 ? (
+        <Hinweis art="warnung" cse="auskunft-frist-offen" className="mb-s6 max-w-prose">
+          <strong className="block">
+            {`Für ${String(a.offeneFristen.length)} von ${String(a.abschnitte.length)} Abschnitten ist die Aufbewahrungsfrist noch nicht entschieden (O-514).`}
+          </strong>
+          Art. 15 Abs. 1 lit. d verlangt die geplante Speicherdauer oder
+          wenigstens die Kriterien für ihre Festlegung. „Noch nicht entschieden"
+          ist beides nicht. Der Satz steht jetzt AUCH in der ausgelieferten
+          Datei, über allen Abschnitten — und der Abruf verlangt eine
+          ausdrückliche Bestätigung, damit niemand sie versehentlich so
+          hinausschickt.
+          <ul className="m-0 mt-s2 list-disc ps-s5">
+            {a.offeneFristen.map((t) => <li key={t}>{t}</li>)}
+          </ul>
+        </Hinweis>
+      ) : null}
+
       <dl data-cse="auskunft-kopf"
           className="mb-s5 grid max-w-prose grid-cols-1 gap-s2 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-s5">
         <dt className="text-text-muted">Erstellt</dt>
@@ -193,15 +211,26 @@ export default async function Auskunftsseite(
 
       {a.vollstaendig ? (
         <div data-cse="auskunft-abrufe" className="mb-s6 flex flex-wrap items-center gap-s3">
-          <a href={`${api}&format=md`} data-cse="auskunft-markdown" className={knopf}>
+          {/*
+            * **Die Bestätigung hängt im Verweis, nicht in einem Haken.** Der
+            * Abruf ist ein GET auf eine Adresse; ein Haken daneben wäre ein
+            * Zustand, den die Adresse nicht trägt — und der Verweis, den
+            * jemand kopiert, liesse die Bestätigung fallen. So steht sie in
+            * dem, was geklickt wird, und die Protokollzeile hält sie fest.
+            */}
+          <a href={`${api}&format=md${fristen}`} data-cse="auskunft-markdown" className={knopf}>
             Markdown
           </a>
-          <a href={`${api}&format=json`} data-cse="auskunft-json" className={knopf}>
+          <a href={`${api}&format=json${fristen}`} data-cse="auskunft-json" className={knopf}>
             Struktur (JSON) — auch Art. 20
           </a>
           <span className="text-xs text-text-muted">
             Jeder Abruf wird protokolliert und mit seiner Prüfsumme festgehalten.
             Versendet wird nichts von allein.
+            {a.offeneFristen.length > 0
+              ? ' Mit dem Abruf bestätigen Sie die oben genannten offenen '
+                + 'Aufbewahrungsfristen.'
+              : ''}
           </span>
         </div>
       ) : (

@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
+import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
@@ -57,6 +58,21 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (fehler instanceof RedaktionFehler) {
       return NextResponse.json({ fehler: fehler.grund }, { status: 400 });
     }
+    /*
+     * **`authorize` wirft, und der Wurf muss übersetzt werden.** Hier stand
+     * nur der `RedaktionFehler` darüber — ein fehlendes Recht flog durch und
+     * endete als **500**. Und dieser Fall war nicht hypothetisch:
+     * `referenz.veroeffentlichen` hält NUR `super_admin`, während die
+     * Referenzliste ihren Veröffentlichen-Knopf gegen `nurLesen` und die
+     * Kundenfreigabe stellte, nie gegen das Recht. Ein `admin` sah den Knopf,
+     * drückte ihn und bekam den Bildschirm „Da ist etwas schiefgegangen" —
+     * für eine Handlung, die er einfach nicht darf. 500 heisst „hier ist
+     * etwas"; 404 heisst nichts (AUT-06). Der Knopf ist inzwischen gegen
+     * `haeltRechte('referenz.veroeffentlichen')` gestellt; dieser Riegel
+     * steht trotzdem, denn ein POST kommt auch ohne Knopf.
+     */
+    const autorisierung = autorisierungsAntwort(fehler);
+    if (autorisierung !== null) return autorisierung;
     throw fehler;
   }
 

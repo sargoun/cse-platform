@@ -25,8 +25,17 @@
  * `super_admin` gebunden und an `admin` bindbar) und macht den Test
  * unabhaengig davon, was die Plattformvorgabe gerade sagt.
  */
+import { createHash } from 'node:crypto';
+import type postgres from 'postgres';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
+import type { SchreibKontext } from '../../src/server/kontext/index.js';
+import {
+  MANIFEST_NAME, NUTZLAST_NAME, ZEILEN_NAME, erstelleAuditBuendel, nutzlastCsv,
+  packeAuditBuendel, zeilenCsv,
+} from '../../src/server/services/audit/buendel.js';
+import { leseZipEintrag, leseZipVerzeichnis }
+  from '../../src/server/services/archiv/zip.js';
 
 let f: Fixtur;
 const zufall = (): string => String(Math.random()).slice(2, 10);
@@ -71,6 +80,45 @@ async function partition(): Promise<string> {
   const [p] = await sql.unsafe<{ p: string }[]>(
     `select 'audit_log_' || to_char(now() at time zone 'UTC', 'YYYY_MM') as p`);
   return p!.p;
+}
+
+/**
+ * Eine Protokollzeile mit einem Zeitstempel des VORMONATS — nur als
+ * Eigentuemer, denn `app.protokolliere` setzt `now()`.
+ *
+ * Genau das passiert im Betrieb von selbst: `audit_log.erstellt_am` ist
+ * `now()`, also die STARTZEIT der Transaktion. Eine Transaktion, die am
+ * Monatsletzten um 23:59:50 beginnt und nach Mitternacht committet, legt
+ * Zeilen des Vormonats ab, nachdem die Kette des neuen Monats schon steht.
+ */
+async function nachgetragen(mandant: string): Promise<void> {
+  await sql.unsafe(
+    `insert into audit_log (mandant_id, ebene, akteur_typ, aktion, objekt_typ,
+                            objekt_id, nachher, erstellt_am)
+     values ($1::uuid, 'mandant', 'system', 'probe.nachgetragen', 'probe', $2,
+             $3::jsonb, date_trunc('month', now()) - interval '5 days')`,
+    [mandant, zufall(), JSON.stringify({ wert: zufall() })] as never[]);
+}
+
+function kontextAus(
+  tx: postgres.TransactionSql, mandant: string, benutzer: string,
+): SchreibKontext {
+  const abfrage = async <T>(
+    anweisung: string, werte?: readonly unknown[],
+  ): Promise<readonly T[]> =>
+    (await tx.unsafe(anweisung, (werte ?? []) as never[])) as unknown as readonly T[];
+  return {
+    scope: 'mandant', portal: 'intern', benutzerId: benutzer,
+    aktiverMandantId: mandant, mandantIds: [mandant],
+    abfrage, schreibe: abfrage,
+  };
+}
+
+/** Der Berliner Kalendertag von `now()` — der Zeitraum, den ein Buendel trifft. */
+async function heute(): Promise<string> {
+  const [t] = await sql.unsafe<{ t: string }[]>(
+    `select app.berlin_heute()::text as t`);
+  return t!.t;
 }
 
 beforeEach(async () => {
@@ -166,6 +214,75 @@ describe('app.audit_kette_pruefen — die Gegenprobe', () => {
     expect(befund.kopf_hash).toMatch(/^[0-9a-f]{64}$/u);
   });
 
+  /*
+   * **Der falsche Alarm, den es nicht geben darf.** `fortschreiben` haengt
+   * eine nachgetragene Vormonatszeile korrekt an die VORMONATSKETTE und
+   * bewegt dabei deren `letzter_hash`. Ein Pruefer, der den Startwert der
+   * Folgekette aus dem JETZIGEN Kopf des Vormonats holte, saehe danach einen
+   * Bruch am ersten Glied des Folgemonats, wo keiner ist — ein
+   * Manipulationsalarm auf der Beweiskette, ausgeloest vom normalen Betrieb.
+   * Deshalb haelt `kern.audit_kette.start_hash` den Wert fest, gegen den
+   * tatsaechlich gehasht wurde.
+   */
+  it('eine nachgetragene Vormonatszeile bricht die Folgekette NICHT', async () => {
+    const benutzer = await konto(f.reinigung);
+    const sitzung = {
+      scope: 'mandant' as const, mandantId: f.reinigung, benutzerId: benutzer,
+      portal: 'intern' as const, readonly: false,
+    };
+    const teil = await partition();
+
+    /* 1. Vormonat zuerst, damit die Kette dieses Monats einen Vorgaenger hat. */
+    await nachgetragen(f.reinigung);
+    await protokolliere(f.reinigung, 'probe.laufend');
+    await alsApp(sitzung, (tx) => tx.unsafe(`select app.audit_kette_fortschreiben()`));
+
+    const [vorher] = await sql.unsafe<{ id: string; start_hash: string | null;
+      letzter_hash: string | null }[]>(
+      `select k.id::text as id, k.start_hash, v.letzter_hash
+         from kern.audit_kette k
+         left join kern.audit_kette v on v.id = k.vorgaenger_kette_id
+        where k.partition = $1`, [teil]);
+    expect(vorher?.start_hash).toBe(vorher?.letzter_hash);
+
+    /* 2. Noch eine Vormonatszeile — sie bewegt den Kopf des Vormonats. */
+    await nachgetragen(f.reinigung);
+    await alsApp(sitzung, (tx) => tx.unsafe(`select app.audit_kette_fortschreiben()`));
+
+    const [nachher] = await sql.unsafe<{ start_hash: string | null;
+      letzter_hash: string | null }[]>(
+      `select k.start_hash, v.letzter_hash
+         from kern.audit_kette k
+         left join kern.audit_kette v on v.id = k.vorgaenger_kette_id
+        where k.partition = $1`, [teil]);
+    /* Der Vormonatskopf ist gewandert, der Startwert dieser Kette nicht. */
+    expect(nachher?.letzter_hash).not.toBe(vorher?.letzter_hash);
+    expect(nachher?.start_hash).toBe(vorher?.start_hash);
+
+    /* 3. Und die Pruefung sieht trotzdem keinen Bruch. */
+    const befund = await alsApp(sitzung, async (tx) => {
+      const [r] = await tx.unsafe(
+        `select glieder::text, bruch_bei::text from app.audit_kette_pruefen($1)`,
+        [teil] as never[]) as { glieder: string; bruch_bei: string | null }[];
+      return r!;
+    });
+    expect(Number(befund.glieder)).toBeGreaterThan(0);
+    expect(befund.bruch_bei).toBeNull();
+  });
+
+  it('der Startwert einer Kette ist fest — auch fuer den Eigentuemer', async () => {
+    await protokolliere(f.reinigung, 'probe.start');
+    const benutzer = await konto(f.reinigung);
+    await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,
+        portal: 'intern', readonly: false },
+      (tx) => tx.unsafe(`select app.audit_kette_fortschreiben()`));
+    const teil = await partition();
+    await expect(sql.unsafe(
+      `update kern.audit_kette set start_hash = repeat('a', 64) where partition = $1`,
+      [teil] as never[])).rejects.toThrow(/Startwert/u);
+  });
+
   it('eine veraenderte Protokollzeile bricht die Kette — und die Stelle wird genannt', async () => {
     await protokolliere(f.reinigung, 'probe.drei');
     const benutzer = await konto(f.reinigung);
@@ -215,7 +332,7 @@ describe('app.audit_nutzlast_buendel', () => {
 
     const zeilen = await alsApp(
       { scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,
-        portal: 'intern', readonly: false },
+        portal: 'intern', readonly: false, aal: 'aal2' },
       (tx) => tx.unsafe(
         `select audit_id::text as audit_id, vorher, nachher
            from app.audit_nutzlast_buendel(now() - interval '1 day',
@@ -236,6 +353,39 @@ describe('app.audit_nutzlast_buendel', () => {
     expect(Number(nachher[0]?.n ?? '0')).toBe(Number(vorher[0]?.n ?? '0') + 1);
   });
 
+  /*
+   * 0206: `system.audit_sensitiv_lesen` traegt `berechtigung.erfordert_2fa`.
+   * Die Werte sind Loehne, Geburtsdaten und gesundheitsnahe
+   * Abwesenheitsgruende — im Klartext und im Zweifel ueber ein ganzes Jahr
+   * (SEC-A9, 03-AUTH-BERECHTIGUNGEN Z. 2342). Eine Sitzung ohne zweiten
+   * Faktor bekommt deshalb ein REDIGIERTES Buendel, keinen Fehler.
+   */
+  it('in einer aal1-Sitzung kommt NICHTS — das Recht verlangt den zweiten Faktor',
+    async () => {
+      await protokolliere(f.reinigung, 'probe.aal');
+      const benutzer = await konto(f.reinigung);
+      const befund = await alsApp(
+        { scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,
+          portal: 'intern', readonly: false },
+        async (tx) => {
+          const [r] = await tx.unsafe(
+            `select app.hat_recht('system.audit_exportieren') as export,
+                    app.hat_recht('system.audit_sensitiv_lesen') as sensitiv`) as
+            { export: boolean; sensitiv: boolean }[];
+          return {
+            recht: r!,
+            zeilen: await tx.unsafe(
+              `select audit_id from app.audit_nutzlast_buendel(
+                        now() - interval '1 day', now() + interval '1 day')`) as unknown[],
+          };
+        },
+      );
+      /* Das Buendel selbst bleibt erlaubt — nur seine Werte nicht. */
+      expect(befund.recht.export).toBe(true);
+      expect(befund.recht.sensitiv).toBe(false);
+      expect(befund.zeilen).toHaveLength(0);
+    });
+
   it('ohne system.audit_sensitiv_lesen kommt NICHTS — nicht etwa Nullwerte', async () => {
     await protokolliere(f.reinigung, 'probe.fuenf');
     /* Das Recht der Werte wird in diesem Bereich entzogen, das der Route bleibt. */
@@ -246,9 +396,10 @@ describe('app.audit_nutzlast_buendel', () => {
                                   where schluessel = 'system.audit_sensitiv_lesen')`,
       [await rolleId('admin'), f.reinigung] as never[]);
     const benutzer = await konto(f.reinigung);
+    /* `aal2`: geprueft wird das fehlende RECHT, nicht der fehlende Faktor (0206). */
     const zeilen = await alsApp(
       { scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,
-        portal: 'intern', readonly: false },
+        portal: 'intern', readonly: false, aal: 'aal2' },
       (tx) => tx.unsafe(
         `select audit_id from app.audit_nutzlast_buendel(now() - interval '1 day',
                                                          now() + interval '1 day')`),
@@ -271,17 +422,25 @@ describe('app.audit_nutzlast_buendel', () => {
       `select app.protokolliere('probe.plattform', 'probe', $1, null, $2::jsonb, null)`,
       [zufall(), JSON.stringify({ a: 1 })] as never[]);
     const benutzer = await konto(f.reinigung);
-    const zeilen = await alsApp(
+    const befund = await alsApp(
       { scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,
-        portal: 'intern', readonly: false },
-      (tx) => tx.unsafe(
-        `select b.audit_id::text as audit_id
-           from app.audit_nutzlast_buendel(now() - interval '1 day',
-                                           now() + interval '1 day') b
-           join audit_log a on a.id = b.audit_id
-          where a.ebene = 'plattform'`),
-    ) as unknown[];
-    expect(zeilen).toHaveLength(0);
+        portal: 'intern', readonly: false, aal: 'aal2' },
+      async (tx) => ({
+        alle: await tx.unsafe(
+          `select audit_id from app.audit_nutzlast_buendel(now() - interval '1 day',
+                                                           now() + interval '1 day')`,
+        ) as unknown[],
+        plattform: await tx.unsafe(
+          `select b.audit_id::text as audit_id
+             from app.audit_nutzlast_buendel(now() - interval '1 day',
+                                             now() + interval '1 day') b
+             join audit_log a on a.id = b.audit_id
+            where a.ebene = 'plattform'`) as unknown[],
+      }),
+    );
+    /* Sonst ginge der Test auch durch, wenn die Funktion gar nichts gaebe. */
+    expect(befund.alle.length).toBeGreaterThan(0);
+    expect(befund.plattform).toHaveLength(0);
   });
 });
 
@@ -334,6 +493,83 @@ describe('app.audit_kette_deckung', () => {
     ) as unknown[];
     expect(zeilen).toHaveLength(0);
   });
+});
+
+/**
+ * **Das Manifest bindet die NUTZLAST — oder es ist eine Behauptung.**
+ *
+ * `x-cse-manifest-sha256` signiert das Manifest. Traegt das Manifest keinen
+ * Hash je Datei, sagt es nur etwas ueber sich selbst: wer `nutzlast.csv` im
+ * Archiv austauscht, laesst den Manifesthash und den Dateinamen unveraendert,
+ * und die Pruefung geht durch. Fuer ein Beweismittel nach SEC-A9/LEG-01 ist
+ * das der Unterschied zwischen einer Signatur und einer Behauptung; das
+ * Vorbild `services/buchhaltung/pruefbuendel.ts` fuehrt `sha256` je Datei und
+ * rechnet die Bytes vor dem Packen dagegen.
+ */
+describe('erstelleAuditBuendel — das Manifest ueber dem echten Bestand', () => {
+  it('fuehrt jede Datei mit ihrem SHA-256, und das Archiv haelt sie ein',
+    async () => {
+      await protokolliere(f.reinigung, 'probe.manifest');
+      const benutzer = await konto(f.reinigung);
+      const tag = await heute();
+      const b = await alsApp(
+        { scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,
+          portal: 'intern', readonly: false, aal: 'aal2' },
+        (tx) => erstelleAuditBuendel(
+          kontextAus(tx, f.reinigung, benutzer), { von: tag, bis: tag }),
+      );
+      expect(b.redigiert).toBe(false);
+      expect(b.zeilen.length).toBeGreaterThan(0);
+
+      /* Das Manifest SELBST — nicht nur das Objekt daneben. */
+      const manifest = JSON.parse(new TextDecoder().decode(b.manifest)) as {
+        dateien: readonly { pfad: string; sha256: string; groesseBytes: number }[];
+      };
+      const pfade = manifest.dateien.map((d) => d.pfad).sort();
+      expect(pfade).toEqual([NUTZLAST_NAME, ZEILEN_NAME].sort());
+      const zeilenEintrag = manifest.dateien.find((d) => d.pfad === ZEILEN_NAME)!;
+      expect(zeilenEintrag.sha256).toBe(createHash('sha256')
+        .update(new TextEncoder().encode(zeilenCsv(b))).digest('hex'));
+      const nutzlastEintrag = manifest.dateien.find((d) => d.pfad === NUTZLAST_NAME)!;
+      expect(nutzlastEintrag.sha256).toBe(createHash('sha256')
+        .update(new TextEncoder().encode(nutzlastCsv(b))).digest('hex'));
+
+      /* Und die Bytes im ZIP sind genau diese. */
+      const archiv = packeAuditBuendel(b);
+      const verzeichnis = leseZipVerzeichnis(archiv);
+      expect(verzeichnis.map((e) => e.pfad).sort())
+        .toEqual([MANIFEST_NAME, NUTZLAST_NAME, ZEILEN_NAME].sort());
+      for (const d of manifest.dateien) {
+        const eintrag = verzeichnis.find((e) => e.pfad === d.pfad)!;
+        const bytes = leseZipEintrag(archiv, eintrag);
+        expect(createHash('sha256').update(bytes).digest('hex')).toBe(d.sha256);
+        expect(bytes.length).toBe(d.groesseBytes);
+      }
+    });
+
+  it('ein redigiertes Buendel fuehrt nur protokoll.csv — und sagt den Grund',
+    async () => {
+      await protokolliere(f.reinigung, 'probe.redigiert');
+      const benutzer = await konto(f.reinigung);
+      const tag = await heute();
+      /* `aal1`: das Recht der Werte verlangt den zweiten Faktor (0206). */
+      const b = await alsApp(
+        { scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,
+          portal: 'intern', readonly: false },
+        (tx) => erstelleAuditBuendel(
+          kontextAus(tx, f.reinigung, benutzer), { von: tag, bis: tag }),
+      );
+      expect(b.redigiert).toBe(true);
+      const manifest = JSON.parse(new TextDecoder().decode(b.manifest)) as {
+        dateien: readonly { pfad: string }[];
+        nutzlast: { redigiert: boolean; grund: string | null };
+      };
+      expect(manifest.dateien.map((d) => d.pfad)).toEqual([ZEILEN_NAME]);
+      expect(manifest.nutzlast.redigiert).toBe(true);
+      expect(manifest.nutzlast.grund).toContain('system.audit_sensitiv_lesen');
+      expect(leseZipVerzeichnis(packeAuditBuendel(b)).map((e) => e.pfad))
+        .not.toContain(NUTZLAST_NAME);
+    });
 });
 
 describe('Kein DELETE auf der Kette (Invariante 8)', () => {

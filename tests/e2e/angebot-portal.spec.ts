@@ -1,10 +1,25 @@
 /**
- * OPS-07 bis OPS-09 im Browser — vom Raumbuch zum Auftrag, in vier Klicks.
+ * OPS-07 bis OPS-09 im Browser — vom Raumbuch zum Auftrag, in fuenf Klicks.
  *
  * Das ist die Kette, die das Abnahmekriterium der Phase 4 im Ganzen zeigt:
  * gerechnet wird aus der Flaeche, angeboten wird mit Nummer, gewandelt wird
  * in einer Handlung. Und dazwischen die Zusage, die zaehlt: **nichts geht
  * hinaus, ohne dass ein Mensch geklickt hat.**
+ *
+ * **Aus vier Klicks sind fuenf geworden, und das ist der Punkt.** Bis zur
+ * Auftrennung setzte `versendeAngebot` Preisfreigabe UND Versand in einem
+ * UPDATE. Der Rechtekatalog fuehrt sie getrennt:
+ * `angebot.preis_freigeben` haben super_admin und leitung (bindbar an admin),
+ * `angebot.versenden` zusaetzlich admin. Ein Klick fuer beides hiess also:
+ * eine Administration hat den Preis freigegeben, ohne dieses Recht zu halten.
+ *
+ * **Und darum laeuft diese Suite jetzt als `leitungReinigung`.** Sie lief als
+ * `adminReinigung` — ein Konto, das den Preis nach der Auftrennung gar nicht
+ * freigeben DARF; die Freigabeseite antwortet ihm mit 404 (AUT-06). Das ist
+ * kein Mangel des Tests, sondern die Zusage, die er jetzt zeigt: wer versenden
+ * darf, darf darum nicht den Preis verantworten. Die Vier-Augen-Lage selbst —
+ * zwei Menschen, zwei Rechte — prueft `tests/isolation/angebot-dienst.test.ts`,
+ * wo sich zwei Sitzungen billiger nebeneinanderstellen lassen als im Browser.
  */
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
@@ -63,12 +78,38 @@ async function kalkulationBestaetigen(page: Page): Promise<void> {
   const haken = page.locator('[data-cse="feld-leistungswerte"]');
   if (await haken.count() > 0) await haken.check();
   await page.locator('[data-cse="kalkulation-bestaetigen"]').click();
+
+  /**
+   * **Und dann die PREISFREIGABE** — der zweite Schritt, den es vor der
+   * Auftrennung nicht gab.
+   *
+   * Bestaetigte Werte machen den Versand noch nicht frei: der Preis ist
+   * gerechnet, aber niemand hat ihn verantwortet. Die Detailseite sagt das mit
+   * `[data-cse="freigabe-fehlt"]`, und der Versandknopf bleibt gesperrt —
+   * genau die Trennung, die `angebot.preis_freigeben` und `angebot.versenden`
+   * ausdruecken.
+   */
+  await expect(page.locator('[data-cse="freigabe-fehlt"]')).toBeVisible();
+  await expect(page.locator('[data-cse="versenden"]')).toBeDisabled();
+  await page.locator('[data-cse="zur-freigabe"]').click();
+  await expect(page.locator('h1')).toHaveText('Preisfreigabe');
+  await page.locator('[data-cse="preis-freigeben"]').click();
+
+  /*
+   * Die Freigabe fuehrt auf die VERSANDSEITE (das ist der naechste Schritt),
+   * nicht auf die Detailseite. Von dort zurueck zum Angebot — die uebrigen
+   * Faelle dieser Datei klicken `[data-cse="versenden"]` dort.
+   */
+  await expect(page.locator('h1')).toHaveText('Versand');
+  await expect(page.locator('[data-cse="sperre-freigabe-frei"]')).toBeVisible();
+  await page.getByRole('link', { name: '← Zum Angebot' }).click();
+  await expect(page.locator('[data-cse="freigabe-erteilt"]')).toBeVisible();
   await expect(page.locator('[data-cse="versenden"]')).toBeEnabled();
 }
 
 test.describe('(1) Aus der Kalkulation wird ein Angebot', () => {
   test('der Knopf legt eines an und führt hinein', async ({ page }) => {
-    await alsKonto(page, KONTO.adminReinigung);
+    await alsKonto(page, KONTO.leitungReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
 
@@ -80,7 +121,7 @@ test.describe('(1) Aus der Kalkulation wird ein Angebot', () => {
   });
 
   test('das Angebot erscheint in der Liste', async ({ page }) => {
-    await alsKonto(page, KONTO.adminReinigung);
+    await alsKonto(page, KONTO.leitungReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
     await page.goto('/portal/reinigung/angebote');
@@ -91,7 +132,7 @@ test.describe('(1) Aus der Kalkulation wird ein Angebot', () => {
 
 test.describe('(2) Der Versand — und was er erzeugt', () => {
   test('ein Klick, eine Nummer, ein unveränderliches Dokument', async ({ page }) => {
-    await alsKonto(page, KONTO.adminReinigung);
+    await alsKonto(page, KONTO.leitungReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
     const angebotsUrl = page.url();
@@ -112,7 +153,7 @@ test.describe('(2) Der Versand — und was er erzeugt', () => {
   });
 
   test('das Angebotsdokument trägt die Identität DIESER Gesellschaft', async ({ page }) => {
-    await alsKonto(page, KONTO.adminReinigung);
+    await alsKonto(page, KONTO.leitungReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
     await kalkulationBestaetigen(page);
@@ -132,7 +173,7 @@ test.describe('(2) Der Versand — und was er erzeugt', () => {
 
 test.describe('(3) Angebot → Auftrag, in einer Handlung (OPS-09)', () => {
   test('ein Klick, und der Auftrag steht', async ({ page }) => {
-    await alsKonto(page, KONTO.adminReinigung);
+    await alsKonto(page, KONTO.leitungReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
     const angebotsUrl = page.url();
@@ -150,7 +191,7 @@ test.describe('(3) Angebot → Auftrag, in einer Handlung (OPS-09)', () => {
 
 test.describe('(4) barrierefrei', () => {
   test('axe findet nichts auf dem Angebot', async ({ page }) => {
-    await alsKonto(page, KONTO.adminReinigung);
+    await alsKonto(page, KONTO.leitungReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
     const ergebnis = await new AxeBuilder({ page })
@@ -166,7 +207,7 @@ test.describe('(5) Ein Preis auf Platzhaltern geht NICHT hinaus', () => {
    * Knopf ohne Erklaerung waere eine Sackgasse mit Tooltip.
    */
   test('der Versandknopf ist gesperrt, und die Seite sagt warum', async ({ page }) => {
-    await alsKonto(page, KONTO.adminReinigung);
+    await alsKonto(page, KONTO.leitungReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
 
@@ -175,9 +216,51 @@ test.describe('(5) Ein Preis auf Platzhaltern geht NICHT hinaus', () => {
     await expect(page.locator('[data-cse="zur-kalkulation"]')).toBeVisible();
   });
 
+  /**
+   * Die ZWEITE Sperre, und sie ist eine andere: die Werte sind bestaetigt, der
+   * Preis ist gerechnet — verantwortet hat ihn niemand. Ein gesperrter Knopf
+   * ohne diesen Unterschied waere eine Sackgasse mit zwei Ursachen und einem
+   * Satz.
+   */
+  test('und die Freigabeseite sperrt, solange Werte offen sind', async ({ page }) => {
+    await alsKonto(page, KONTO.leitungReinigung);
+    await zumRaumbuch(page);
+    await page.locator('[data-cse="angebot-erzeugen"]').click();
+    const angebotsUrl = page.url();
+
+    await page.goto(`${angebotsUrl}/freigabe`);
+    await expect(page.locator('h1')).toHaveText('Preisfreigabe');
+    await expect(page.locator('[data-cse="freigabe-gesperrt"]')).toContainText('O-16');
+    // Kein Knopf — und ein Satz, der den Weg heraus nennt.
+    await expect(page.locator('[data-cse="preis-freigeben"]')).toHaveCount(0);
+    await expect(page.locator('[data-cse="zur-kalkulation"]')).toBeVisible();
+  });
+
+  /**
+   * Und der Versand nennt die drei Sperren einzeln. „Irgendetwas ist offen"
+   * schickt niemanden an die richtige Stelle.
+   */
+  test('die Versandseite nennt die drei Sperren einzeln', async ({ page }) => {
+    await alsKonto(page, KONTO.leitungReinigung);
+    await zumRaumbuch(page);
+    await page.locator('[data-cse="angebot-erzeugen"]').click();
+    const angebotsUrl = page.url();
+
+    await page.goto(`${angebotsUrl}/versand`);
+    await expect(page.locator('h1')).toHaveText('Versand');
+    await expect(page.locator('[data-cse="sperre-kalkulation"]')).toBeVisible();
+    await expect(page.locator('[data-cse="sperre-freigabe"]')).toBeVisible();
+    // Positionen gibt es — die dritte Sperre ist frei.
+    await expect(page.locator('[data-cse="sperre-positionen-frei"]')).toBeVisible();
+    // Und der Kanal sagt die Wahrheit: nicht verbunden (O-36).
+    await expect(page.locator('[data-cse="kanal-nicht-verbunden"]'))
+      .toContainText('O-36');
+    await expect(page.locator('[data-cse="versenden"]')).toHaveCount(0);
+  });
+
   test('die Kalkulationsseite zeigt den Rechenweg, bevor sie nach Zahlen fragt',
     async ({ page }) => {
-      await alsKonto(page, KONTO.adminReinigung);
+      await alsKonto(page, KONTO.leitungReinigung);
       await zumRaumbuch(page);
       await page.locator('[data-cse="angebot-erzeugen"]').click();
       await page.locator('[data-cse="zur-kalkulation"]').click();
@@ -190,7 +273,7 @@ test.describe('(5) Ein Preis auf Platzhaltern geht NICHT hinaus', () => {
     });
 
   test('nach dem Versand ist die Kalkulation eingefroren', async ({ page }) => {
-    await alsKonto(page, KONTO.adminReinigung);
+    await alsKonto(page, KONTO.leitungReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
     const angebotsUrl = page.url();

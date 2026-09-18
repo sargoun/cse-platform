@@ -9,6 +9,7 @@ import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import { fuehreLaufAus, type AgentKennung } from '@/server/agent/orchestrator';
 import { ENTWURF_AUFTRAEGE, fuelleTatsachen } from '@/server/agent/auftraege';
+import { slugFuer } from '../../../portal/[mandant]/agenten/kennung';
 import { alsAntwort } from '../../sicherheit/antwort';
 
 /**
@@ -117,7 +118,20 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      * Absturz: „kein Modell freigegeben" ist ein Betriebszustand (§8).
      */
     const { lauf } = ergebnis;
-    const seite = `/portal/${ergebnis.slug}/agenten/${agent}`;
+    /*
+     * **Der Pfad braucht den SLUG des Agenten, nicht seinen Enum-Wert.**
+     *
+     * Hier stand `${agent}`, also der Wert aus dem Formular — und der ist
+     * `kennung::text`, also `ceo_assistent`. Die Detailseite loest aber nur
+     * Slugs auf (`kennungFuer('ceo-assistent')`) und ruft bei allem anderen
+     * `notFound()`. Jeder Lauf des CEO-Assistenten endete damit nach dem 303
+     * auf einem 404: der Vorschlag lag vor, und der Bildschirm sagte „diese
+     * Seite gibt es nicht". Die drei anderen Agenten trugen es nicht, weil
+     * ihr Slug ihrem Enum-Wert gleicht — also fiel es genau bei dem einen
+     * auf, bei dem beide auseinandergehen. Die Listenseite macht es seit je
+     * richtig (`slugFuer(a.kennung)`); diese Stelle war die Ausnahme.
+     */
+    const seite = `/portal/${ergebnis.slug}/agenten/${slugFuer(agent)}`;
     const ziel = lauf.gestoert !== null
       ? `${seite}?lauf=gestoert&code=${encodeURIComponent(lauf.gestoert.code)}`
       : lauf.bestand

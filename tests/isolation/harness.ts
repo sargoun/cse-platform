@@ -35,6 +35,14 @@ export interface Sitzung {
    * fail-closed `mitarbeiter`, which is deliberate and asserted below.
    */
   readonly portal?: 'intern' | 'mitarbeiter' | 'kunde';
+  /**
+   * The AAL of the session (AUT-02). Left unset it resolves to `aal1`, which
+   * is what a fresh login is — `aal2` means „the second factor was shown IN
+   * THIS session", and the helper never claims it on its own. A right with
+   * `berechtigung.erfordert_2fa` is false at `aal1`, so a test that wants to
+   * exercise such a right has to say so.
+   */
+  readonly aal?: 'aal1' | 'aal2';
 }
 
 export const sql = postgres(DB_URL, { max: 4, onnotice: () => {} });
@@ -66,6 +74,7 @@ export async function alsApp<T>(
     // membership's role. In the other three it is a constant of the scope and
     // app.portal() ignores this GUC entirely.
     await tx.unsafe(`select set_config('app.portal', $1, true)`, [sitzung.portal ?? '']);
+    await tx.unsafe(`select set_config('app.aal', $1, true)`, [sitzung.aal ?? 'aal1']);
     await tx.unsafe(`select set_config('app.akteur_typ', 'mensch', true)`);
     return fn(tx);
   }) as Promise<T>;
@@ -197,10 +206,18 @@ readonly (readonly [string, string, boolean, boolean, boolean, boolean, boolean]
  * Mandanten und steht deshalb ausdruecklich hier: ohne diese Wurzel tragen
  * sich Fehlversuche von Test zu Test weiter, bis eine Sperre in einem Test
  * zuschlaegt, der sie nicht ausloest.
+ *
+ * `kern.audit_kette` steht aus demselben Grund hier. Die Rekursion laeuft die
+ * Fremdschluessel VON den Wurzeln abwaerts: `kern.audit_kettenglied` haengt
+ * an `audit_log` und wird geleert, der KOPF der Kette haengt an nichts und
+ * wurde nie erreicht. Zurueck blieb `letzte_nr = N` mit `letzter_hash = H` —
+ * der naechste Test kettete ab `N+1` gegen `H`, waehrend die Pruefung bei
+ * `start_hash` beginnt, und „eine unveraenderte Kette ist geschlossen" haette
+ * je nach Reihenfolge der Tests einen Bruch gesehen.
  */
 const RESET_WURZELN = [
   ['public', 'audit_log'], ['public', 'anstellung'], ['public', 'person'], ['public', 'mandant'],
-  ['auth', 'users'], ['kern', 'anmeldeversuch'],
+  ['auth', 'users'], ['kern', 'anmeldeversuch'], ['kern', 'audit_kette'],
 ] as const;
 
 const LEEREN = `

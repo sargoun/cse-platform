@@ -19,6 +19,10 @@
  *  - **Die Projektions-View gibt `email_absender`, `email_signatur` und
  *    `domain` NICHT heraus** (§6.2). Sie ist der Pfad des oeffentlichen
  *    Renderings; eine Absenderadresse dort waere eine Adresse fuer jeden.
+ *    Die TABELLE gibt sie weiterhin heraus — der interne Editor braucht sie
+ *    zum Pflegen, und ein Spaltenrecht unterscheidet nicht nach Prinzipal.
+ *    Der letzte Fall unten haelt genau diesen Stand fest, damit ihn niemand
+ *    fuer eine Schranke haelt.
  *  - **Kein DELETE.** Es gibt keinen Zustand „diese Gesellschaft hat kein
  *    Erscheinungsbild", nur Felder ohne Wert.
  *
@@ -200,6 +204,44 @@ describe('Der prinzipallose Renderpfad (§6.2)', () => {
     ) as unknown[];
     expect(zeilen).toHaveLength(0);
   });
+
+  /**
+   * **Welche Grenze die View ist — und welche nicht.**
+   *
+   * Die ZEILENgrenze haelt `mi_oeffentlich` (der Block darueber prueft sie).
+   * Die SPALTENgrenze ist die View und sonst nichts: `grant select on
+   * mandant_identitaet to cse_app` gilt fuer alle Spalten, weil der interne
+   * Editor Absender und Signatur zum Pflegen lesen muss und ein Spaltenrecht
+   * nicht nach Prinzipal unterscheidet. Dieser Test HAELT diesen Stand fest,
+   * statt ihn zu behaupten: wer einen neuen prinzipallosen Lesepfad baut,
+   * nimmt die View — die Tabelle haelt ihn nicht auf.
+   */
+  it('die Spaltengrenze ist die VIEW, nicht ein Spaltenrecht auf der Tabelle',
+    async () => {
+      await identitaet(f.reinigung, 'area-reinigung', {
+        oeffentlich: true, absender: 'post@example.org', domain: 'beispiel.de',
+      });
+      const rechte = await sql.unsafe<{ column_name: string }[]>(
+        `select column_name from information_schema.column_privileges
+          where table_name = 'mandant_identitaet' and grantee = 'cse_app'
+            and privilege_type = 'SELECT'
+            and column_name in ('email_absender','email_signatur','domain')
+          order by column_name`);
+      /*
+       * Drei Spaltenrechte, nicht null: wuerde hier eines fehlen, waere die
+       * Grenze eine echte — dann gehoert dieser Test umgeschrieben und der
+       * interne Lesepfad auf eine Definer-Funktion gelegt.
+       */
+      expect(rechte.map((r) => r.column_name))
+        .toEqual(['domain', 'email_absender', 'email_signatur']);
+
+      /* Die Zeilengrenze dagegen HAELT auch auf der Tabelle. */
+      const fremd = await alsApp(
+        { scope: 'mandant', mandantId: f.bau, portal: 'intern', readonly: true },
+        (tx) => tx.unsafe(`select email_absender from mandant_identitaet`),
+      ) as unknown[];
+      expect(fremd).toHaveLength(0);
+    });
 });
 
 describe('Der Alt-Text-CHECK (PUB-09, LEG-07)', () => {

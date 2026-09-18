@@ -344,18 +344,37 @@ export async function seedDatenschutz(
      * die CRM-Vorführung ihre Kontakte behält.
      */
     if (bereich === 'operations' && bearbeiter !== null) {
-      await sql`
-        update ansprechpartner
-           set widerspruch_am = now() - interval '3 days'
-         where mandant_id = ${mandantId} and id = ${ziele.ansprechpartnerId}`;
-      await sql`
-        insert into werbewiderspruch
-          (mandant_id, art, ansprechpartner_id, quelle, bemerkung,
-           eingegangen_am, erfasst_von)
-        values (${mandantId}, 'verarbeitung', ${ziele.ansprechpartnerId},
-                'manuell',
-                'Am Telefon erklärt und im Vorgang festgehalten; die Grundlage fällt damit auf „keine".',
-                now() - interval '3 days', ${bearbeiter})`;
+      /*
+       * **Über `app.widerspruch_verarbeitung_setzen`, nicht mit zwei
+       * Anweisungen von Hand.**
+       *
+       * Hier stand ein direktes `update ansprechpartner set widerspruch_am`
+       * plus ein eigenes `insert into werbewiderspruch` — genau das, was der
+       * Kopf dieser Datei ausschliesst („Ein Seed, der die Zeitstempel direkt
+       * setzte, liesse die Protokollzeile fehlen"). Die Protokollzeile
+       * entstand dabei NEBEN der Wirkung statt mit ihr, der einzige
+       * Schreibweg des Hauses wurde vom Seed nicht ein einziges Mal gerufen,
+       * und ein umbenannter Parameter wäre erst im Betrieb aufgefallen.
+       *
+       * Die gebundene Sitzung braucht `app.benutzer_id`: die Funktion prüft
+       * `datenschutz.auskunft_erstellen` und schreibt `erfasst_von` aus
+       * `app.aktueller_benutzer()`.
+       *
+       * Der Zeitpunkt ist jetzt `now()` der Transaktion statt „vor drei
+       * Tagen": die Funktion setzt ihn selbst, und ein nachträgliches
+       * Zurückdatieren wäre wieder ein direktes UPDATE auf die Spalte — das
+       * `kern.erzwinge_widerspruch()` ohnehin nur in eine Richtung zulässt.
+       */
+      await sql.begin(async (tx) => {
+        await tx`select set_config('app.scope', 'mandant', true)`;
+        await tx`select set_config('app.mandant_id', ${mandantId}, true)`;
+        await tx`select set_config('app.portal', 'intern', true)`;
+        await tx`select set_config('app.readonly', 'off', true)`;
+        await tx`select set_config('app.benutzer_id', ${bearbeiter}, true)`;
+        await tx`select app.widerspruch_verarbeitung_setzen(
+                   ${ziele.ansprechpartnerId}::uuid, null,
+                   'Am Telefon erklärt und im Vorgang festgehalten; die Grundlage fällt damit auf „keine".')`;
+      });
       art21 += 1;
     }
   }

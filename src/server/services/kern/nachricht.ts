@@ -246,6 +246,20 @@ export interface Faden {
   readonly bezugTyp: string | null;
   readonly bezugId: string | null;
   readonly nachrichten: readonly Nachricht[];
+  /**
+   * Wie viele Zeilen dieses Fadens ICH ungelesen habe.
+   *
+   * **Nicht „irgendwer".** Die Detailseite rechnete das einmal selbst, aus
+   * den EMPFAENGERZEILEN des Fadens — und im internen Portal gibt `ladeFaden`
+   * alle Empfaenger der Gesellschaft heraus. Der Knopf „Als gelesen
+   * markieren" erschien damit, solange irgendwer den Faden nicht gelesen
+   * hatte; der POST traf dann null eigene Zeilen, und die Seite meldete
+   * „Gespeichert." Der Lesestand eines Fremden ist keine Aussage ueber
+   * meinen. Gezaehlt wird deshalb hier, mit derselben Bedingung wie die CTE
+   * in `listeFaeden` — `benutzer`-Id UND `person`-Id, denn das sind zwei
+   * verschiedene Ids (D-09, §7.9 B11).
+   */
+  readonly ungelesen: number;
 }
 
 /**
@@ -332,12 +346,30 @@ export async function ladeFaden(
     [threadId],
   );
 
+  /*
+   * Die EIGENE Ungelesen-Zahl — dieselbe Bedingung wie in `listeFaeden`.
+   * Eine eigene Abfrage und keine Auswertung der `empfaenger`-Liste oben:
+   * diese enthaelt im internen Portal alle Empfaenger der Gesellschaft, und
+   * daraus „habe ich ungelesen" zu schliessen ist genau der Fehler, den der
+   * Kommentar am Feld beschreibt.
+   */
+  const [eigene] = await kontext.abfrage<{ ungelesen: string }>(
+    `select count(*)::text as ungelesen
+       from nachricht_empfaenger e
+       join nachricht n on n.mandant_id = e.mandant_id and n.id = e.nachricht_id
+      where n.thread_id = $1 and n.geloescht_am is null and e.gelesen_am is null
+        and ((e.empfaenger_typ = 'benutzer' and e.empfaenger_id = app.aktueller_benutzer())
+          or (e.empfaenger_typ = 'person'   and e.empfaenger_id = app.aktuelle_person()))`,
+    [threadId],
+  );
+
   return {
     threadId,
     betreff: wurzel?.betreff ?? zeilen[0]?.betreff ?? null,
     geschlossenAm: alsInstant(wurzel?.geschlossen_am ?? null),
     bezugTyp: wurzel?.bezug_typ ?? null,
     bezugId: wurzel?.bezug_id ?? null,
+    ungelesen: Number(eigene?.ungelesen ?? '0'),
     nachrichten: zeilen.map((z) => ({
       id: z.id,
       betreff: z.betreff,

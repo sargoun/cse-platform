@@ -86,18 +86,32 @@ export default async function Nachrichtenliste(
   const { zugang } = tor;
 
   const jetzt = new Date();
-  const { faeden, ziele } = await (db().begin(
+  const { faeden, ziele, darfVersenden } = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-      withTenant(tx, zugang.sitzung, async (kontext) => ({
-        faeden: await listeFaeden(kontext, {
-          ...(nurUngelesen ? { nurUngelesen: true } : {}),
-          ...(richtung === undefined ? {} : { richtung }),
-        }),
-        ziele: await ladeEmpfaengerziele(kontext),
-      })),
+      withTenant(tx, zugang.sitzung, async (kontext) => {
+        /*
+         * `nachricht.versenden` in DERSELBEN gebundenen Transaktion: die
+         * Route trägt nur `nachricht.lesen`, ein reines Lesekonto erreicht
+         * diese Seite also. Ohne die Frage stünde hier ein Formular, dessen
+         * „Absenden" von `/api/nachrichten` mit einer nackten 404 beantwortet
+         * wird — richtig nach AUT-06 und unerklärt. Dieselbe Frage stellt die
+         * Detailseite für das Antwortfeld.
+         */
+        const [recht] = await kontext.abfrage<{ versenden: boolean }>(
+          `select app.hat_recht('nachricht.versenden', app.aktiver_mandant()) as versenden`);
+        return {
+          faeden: await listeFaeden(kontext, {
+            ...(nurUngelesen ? { nurUngelesen: true } : {}),
+            ...(richtung === undefined ? {} : { richtung }),
+          }),
+          ziele: await ladeEmpfaengerziele(kontext),
+          darfVersenden: recht?.versenden === true,
+        };
+      }),
   ) as Promise<{
     faeden: readonly Fadenkopf[];
     ziele: readonly { id: string; name: string }[];
+    darfVersenden: boolean;
   }>);
 
   const ungelesenGesamt = faeden.reduce((s, f) => s + f.ungelesen, 0);
@@ -146,14 +160,17 @@ export default async function Nachrichtenliste(
       {ohneVersand.length > 0 && (
         <Hinweis art="warnung" cse="versand-nicht-verbunden" className="mb-s5 max-w-prose">
           <strong>Nach draussen geht nichts.</strong>{' '}
-          {ohneVersand.map((w) => `${KANAL_TEXT[w.kanal] ?? w.kanal}: nicht verbunden`)
-            .join(' · ')}
+          {/*
+            * **Die offene Frage steht JE KANAL.** Vorher stand nur die des
+            * ersten unverbundenen Kanals am Satzende — E-Mail und SMS wurden
+            * beide aufgezählt, nachgelesen werden konnte nur O-36, und die
+            * SMS-Frage (O-82) fiel weg, obwohl das Register sie führt.
+            */}
+          {ohneVersand.map((w) => `${KANAL_TEXT[w.kanal] ?? w.kanal}: nicht verbunden`
+            + (w.offen === null ? '' : ` (offen ${w.offen})`)).join(' · ')}
           {'. '}
           Interne Fäden im Portal funktionieren. Was den Kunden erreichen soll,
-          geht erst hinaus, wenn ein Versender eingerichtet ist
-          {ohneVersand[0]?.offen === null || ohneVersand[0]?.offen === undefined
-            ? '' : ` (offen ${ohneVersand[0].offen})`}
-          .
+          geht erst hinaus, wenn ein Versender eingerichtet ist.
         </Hinweis>
       )}
 
@@ -185,6 +202,13 @@ export default async function Nachrichtenliste(
 
       <section aria-labelledby="neuer-faden" className="mb-s6">
         <h2 id="neuer-faden" className="text-h2 text-text">Neuer interner Faden</h2>
+        {!darfVersenden ? (
+          <p data-cse="eroeffnen-fehlt" className="mt-s3 max-w-prose text-sm text-text-muted">
+            Zum Eröffnen eines Fadens fehlt das Recht{' '}
+            <code>nachricht.versenden</code>. Mitlesen bleibt möglich — wer in
+            einem Vorgang steht, soll den Schriftverkehr kennen.
+          </p>
+        ) : (
         <form
           method="post"
           action={`/api/nachrichten?mandant=${mandant}`}
@@ -224,6 +248,7 @@ export default async function Nachrichtenliste(
             verlässt das System nicht.
           </p>
         </form>
+        )}
       </section>
 
       {faeden.length === 0 ? (

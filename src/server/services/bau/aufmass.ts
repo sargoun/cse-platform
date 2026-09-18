@@ -315,9 +315,31 @@ export interface AufmassKopfZeile {
  * 'Europe/Berlin')` rechnet in Postgres; der Node-Prozess rechnet keine Zone
  * um (Invariante 2, PHASE-5-STAND).
  */
+/**
+ * Was die Liste einschraenkt — **in SQL, nicht danach im Node-Prozess**.
+ *
+ * `status` und `grenze` gibt es, weil die Moduluebersicht genau eine Frage
+ * hat („welches Blatt wartet auf Gegenzeichnung?") und vorher JEDES lebende
+ * Blatt des Mandanten geladen hat, um in TypeScript vier davon
+ * uebrigzulassen — vierzehn Spalten und zwei Unterabfragen je Blatt. Auf
+ * einem Baustellentelefon ist das der Unterschied zwischen einer Seite und
+ * einer Wartezeit; dieselbe Begruendung steht in `bau/uebersicht.ts`.
+ */
+export interface AufmassFilter {
+  readonly projektId?: string | null;
+  /** Nur Blaetter in diesem Status — z. B. `'vorgelegt'` (BAU-03). */
+  readonly status?: AufmassStatus | null;
+  /**
+   * Hoechstzahl der Zeilen. Eine TECHNISCHE Grenze, keine fachliche: eine
+   * Uebersicht mit zweihundert Zeilen liest ohnehin niemand, und die Liste
+   * daneben (`…/bau/aufmass`) zeigt alle.
+   */
+  readonly grenze?: number;
+}
+
 export async function listeAufmasse(
   kontext: LeseKontext,
-  filter: { readonly projektId?: string | null } = {},
+  filter: AufmassFilter = {},
 ): Promise<readonly AufmassKopfZeile[]> {
   return kontext.abfrage<AufmassKopfZeile>(
     `select a.id, a.nummer, a.bezeichnung, a.bereich,
@@ -336,8 +358,10 @@ export async function listeAufmasse(
        join kunde   k on k.id = a.kunde_id and k.mandant_id = a.mandant_id
       where a.storniert_am is null
         and ($1::uuid is null or a.projekt_id = $1::uuid)
-      order by a.messdatum desc, a.nummer desc`,
-    [filter.projektId ?? null],
+        and ($2::text is null or a.status::text = $2::text)
+      order by a.messdatum desc, a.nummer desc
+      limit $3::int`,
+    [filter.projektId ?? null, filter.status ?? null, filter.grenze ?? 500],
   );
 }
 

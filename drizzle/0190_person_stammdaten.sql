@@ -89,17 +89,81 @@ grant  select (id, vorname, nachname, telefon, sprache,
        -- geburtsdatum, geburtsort, staatsangehoerigkeit ausgelassen (§11)
 
 /**
- * INSERT und UPDATE bleiben — auf ALLEN drei Feldern.
+ * INSERT und UPDATE — auf den drei Feldern, und auf KEINEM mehr.
  *
  * Ohne den UPDATE-Grant ist die Stammdatenmaske ein Leseblatt: das Formular
  * nimmt ein Geburtsdatum auf, das es nicht zurueckliest, und traegt es ein.
  * `sprache` war bisher die einzige Spalte mit UPDATE — sie steht hier mit,
  * damit die Liste an EINER Stelle vollstaendig ist.
+ *
+ * **`vorname`, `nachname` und `telefon` stehen ausdruecklich NICHT hier.**
+ * Ein frueherer Entwurf dieser Migration hat sie mitgenommen, „weil die
+ * Personalstelle sie ohnehin pflegt" — das war ein Rueckschritt hinter 0165.
+ * `person` traegt mit `t_person_selbstpflege` eine Policy, die jedem Menschen
+ * seine EIGENE Zeile oeffnet, und RLS kennt keine Spalten: jedes Recht in
+ * dieser Liste gilt damit auch fuer den Menschen selbst. `telefon` ist der
+ * Anmeldeweg (`app.zugang_code_anfordern`, EMP-01) — aus „ich stelle meine
+ * Sprache um" wuerde eine Kontouebernahme. `vorname`/`nachname` gehoeren zur
+ * Bewachermeldung (SEC-03). `schreibeStammdaten` schreibt keines der drei;
+ * das Recht waere ohne Nutzen und mit Schaden.
  */
 grant insert (geburtsort, staatsangehoerigkeit) on person to cse_app;
-grant update (vorname, nachname, geburtsdatum, geburtsort, staatsangehoerigkeit,
-              telefon, sprache, geaendert_am, geaendert_von)
+grant update (geburtsdatum, geburtsort, staatsangehoerigkeit,
+              sprache, geaendert_am, geaendert_von)
       on person to cse_app;
+
+/**
+ * **Der Spaltenwaechter — weil der Grant allein zu grob bleibt.**
+ *
+ * Auch die geschnittene Liste oben traegt die drei Stammdatenfelder, und
+ * `t_person_selbstpflege` (0165) gilt fuer JEDE Spalte der eigenen Zeile.
+ * Ohne diesen Trigger koennte eine angemeldete Reinigungskraft aus dem
+ * Personen-Scope heraus ihr eigenes Geburtsdatum, ihren Geburtsort und ihre
+ * Staatsangehoerigkeit umschreiben — also genau die drei Angaben, die § 16
+ * BewachV fuer die Meldung an das Bewacherregister verlangt (SEC-03). Eine
+ * Selbstauskunft, die sich selbst korrigiert, ist keine.
+ *
+ * `current_user` und nicht `session_user`: in einer `security definer`
+ * -Funktion ist er `cse_definer`, im Migrations- und Seedlauf `postgres`,
+ * und nur im Anwendungsweg `cse_app`. Der Waechter greift deshalb genau
+ * dort, wo eine Sitzung an der Tastatur haengt (dasselbe Muster wie
+ * `kern.freigabe_snapshot_nur_definer`, 0136).
+ *
+ * `app.hat_recht(..., app.aktiver_mandant())` ist im Personen-Scope
+ * zwangslaeufig falsch: `app.aktiver_mandant()` liefert dort `null`. Der
+ * Waechter braucht also keinen eigenen Scope-Zweig — die Rechtefrage
+ * beantwortet ihn mit.
+ */
+create function kern.person_stammdaten_schutz() returns trigger
+language plpgsql set search_path = pg_catalog, public, app as $$
+begin
+  if current_user <> 'cse_app' then return new; end if;
+
+  if new.geburtsdatum         is distinct from old.geburtsdatum
+     or new.geburtsort           is distinct from old.geburtsort
+     or new.staatsangehoerigkeit is distinct from old.staatsangehoerigkeit then
+    if not (select app.hat_recht('personal.schreiben', app.aktiver_mandant())) then
+      raise exception
+        'Geburtsdatum, Geburtsort und Staatsangehoerigkeit pflegt die '
+        'Personalstelle (personal.schreiben in der aktiven Gesellschaft), '
+        'nicht der Mensch selbst.'
+        using errcode = '42501',
+              hint = 'SEC-03/§ 16 BewachV: diese drei Angaben gehen an das '
+                     'Bewacherregister. Die Selbstpflege aus 0165 reicht bis '
+                     '`sprache` und nicht weiter.';
+    end if;
+  end if;
+  return new;
+end $$;
+
+create trigger trg_person_stammdaten_schutz
+  before update on person
+  for each row execute function kern.person_stammdaten_schutz();
+
+comment on function kern.person_stammdaten_schutz() is
+  'SEC-03: die drei Bewacherregister-Felder aendert nur, wer '
+  'personal.schreiben im aktiven Mandanten haelt. RLS kann keine Spalten '
+  'einschraenken — t_person_selbstpflege (0165) gilt sonst auch fuer sie.';
 
 /**
  * Der DEFINER braucht sein eigenes Recht — und seine eigene Policy.

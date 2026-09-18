@@ -70,11 +70,28 @@ interface Kopf {
 interface Pos {
   readonly id: string;
   readonly position_nr: number;
+  /**
+   * `leistung`, `textzeile` oder `zwischensumme`. **`storniere()` spiegelt
+   * ausschliesslich `leistung`** — die beiden anderen Arten stehen hier
+   * deshalb mit dem Vermerk „wird nicht übernommen" und ohne negierte Zahl.
+   *
+   * Vorher las diese Seite ALLE Zeilen und zeigte auch eine `zwischensumme`
+   * mit negiertem Netto, obwohl der Stornobeleg sie nicht enthält. Eine
+   * Vorschau, die etwas anderes zeigt als das, was gebucht wird, ist
+   * schlimmer als keine: sie wird nachgerechnet und stimmt.
+   */
+  readonly positionsart: string;
   readonly bezeichnung: string;
   readonly menge: string | null;
   readonly einheit: string | null;
   readonly netto_cent: string | null;
 }
+
+const POSITIONSART_TEXT: Readonly<Record<string, string>> = {
+  leistung: 'Leistung',
+  textzeile: 'Textzeile',
+  zwischensumme: 'Zwischensumme',
+};
 
 export default async function Stornoblatt(
   { params }: { params: Promise<{ mandant: string; id: string }> },
@@ -139,7 +156,8 @@ export default async function Stornoblatt(
       return {
         kopf,
         positionen: await kontext.abfrage<Pos>(
-          `select p.id, p.position_nr, p.bezeichnung, p.menge::text as menge,
+          `select p.id, p.position_nr, p.positionsart::text as positionsart,
+                  p.bezeichnung, p.menge::text as menge,
                   e.bezeichnung as einheit, p.netto_cent::text
              from rechnungsposition p
              left join masseinheit e on e.id = p.masseinheit_id
@@ -293,21 +311,47 @@ export default async function Stornoblatt(
             },
             { schluessel: 'bezeichnung', kopf: 'Bezeichnung', zelle: (p) => p.bezeichnung },
             {
+              schluessel: 'art', kopf: 'Art',
+              zelle: (p) => (
+                <span className="inline-flex flex-col gap-s1">
+                  <span className="text-sm text-text">
+                    {POSITIONSART_TEXT[p.positionsart] ?? p.positionsart}
+                  </span>
+                  {p.positionsart === 'leistung' ? null : (
+                    <span className="text-xs text-warning">
+                      wird nicht übernommen
+                    </span>
+                  )}
+                </span>
+              ),
+            },
+            {
               schluessel: 'menge', kopf: 'Menge im Storno', numerisch: true,
-              zelle: (p) => (p.menge === null
+              zelle: (p) => (p.positionsart !== 'leistung' || p.menge === null
                 ? '—'
                 : `${formatiereMenge(milliMenge(-mengeAusPostgres(p.menge)))}${
                   p.einheit === null ? '' : ` ${p.einheit}`}`),
             },
             {
               schluessel: 'netto', kopf: 'Netto im Storno', numerisch: true,
-              zelle: (p) => (p.netto_cent === null
+              zelle: (p) => (p.positionsart !== 'leistung' || p.netto_cent === null
                 ? '—'
                 : formatiereGeld(negiere(cent(BigInt(p.netto_cent))))),
             },
           ]}
         />
       )}
+      {daten.positionen.some((p) => p.positionsart !== 'leistung') ? (
+        <p className="mt-s3 max-w-prose text-xs text-text-muted"
+           data-cse="storno-nicht-gespiegelt">
+          Nur <strong>Leistungszeilen</strong> werden gespiegelt.
+          Textzeilen und Zwischensummen stehen oben mit dem Vermerk „wird nicht
+          übernommen" und ohne Zahl: eine negierte Zwischensumme wäre eine
+          Summe über Zeilen, die der Stornobeleg gar nicht führt. Die
+          Kopfsummen darunter sind die des Originals, negiert — sie rechnen
+          nicht über die Zeilen dieser Tabelle.
+        </p>
+      ) : null}
 
       <dl
         data-cse="storno-summen"

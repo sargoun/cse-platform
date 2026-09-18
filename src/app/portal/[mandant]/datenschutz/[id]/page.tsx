@@ -254,6 +254,50 @@ export default async function Vorgangsakte(
         </Hinweis>
       )}
 
+      {/*
+        * **Art. 21 für eine Beschäftigte oder eine Bewerberin — benannt, nicht
+        * verschwiegen.**
+        *
+        * Der ganze Abschnitt darunter hängt an
+        * `zuordnung.art === 'ansprechpartner'`, denn `widerspruch_am` gibt es
+        * nur auf `ansprechpartner` und `kunde` (nachgemessen in
+        * `information_schema`). Wer als Person oder als Bewerberin Art. 21
+        * erklärt, sah auf der Akte deshalb GAR NICHTS darüber — während Art. 18
+        * (O-647) und Art. 20 ausdrücklich als Hinweis erscheinen. Dieselbe
+        * stille Lücke, die die Domäne für Art. 18 richtig vermeidet.
+        */}
+      {z.art === 'widerspruch'
+       && (zuordnung.art === 'person' || zuordnung.art === 'bewerbung') && (
+        <Hinweis art="warnung" cse="vorgang-art21-ohne-merkmal" className="mb-s7 max-w-prose">
+          <strong className="block">
+            Art. 21 DSGVO für diese Personengruppe: kein Merkmal im Datenmodell
+            (O-647).
+          </strong>
+          Ein Widerspruchsmerkmal führen nur{' '}
+          <code className="font-mono">ansprechpartner</code> und{' '}
+          <code className="font-mono">kunde</code> — die werbliche Ansprache.
+          Für eine Beschäftigte oder eine Bewerberin gibt es keine Spalte, die
+          eine Verarbeitung anhält: die Verarbeitung ruht hier auf dem
+          Arbeitsverhältnis beziehungsweise auf dem Bewerbungsverfahren
+          (Art. 6 Abs. 1 lit. b, § 26 BDSG), und ein Haken, der nichts sperrt,
+          wäre die schlechtere Antwort.
+          {' '}Der Widerspruch wird deshalb von einem Menschen beschieden,
+          organisatorisch umgesetzt und im Abschlusstext dieses Vorgangs
+          festgehalten — er steht dann unten bei der Entscheidung und ist über
+          die Prüfsumme der Akte belegt.
+          {/*
+            * **Dieselbe Nummer wie Art. 18, und das ist kein Sparen.** O-647
+            * fragt „Sperrmerkmal je Datensatz oder organisatorisch?" — die
+            * Antwort darauf entscheidet beides: ein Merkmal, das eine
+            * Verarbeitung anhaelt, ist dasselbe Merkmal, das einen
+            * Art.-21-Widerspruch einer Beschaeftigten traegt. Zwei Nummern
+            * teilten EINE Entscheidung in zwei Haelften, die niemand getrennt
+            * beantworten kann.
+            */}
+          {/* TODO(client, O-647): Gilt das Sperrmerkmal auch fuer einen Art.-21-Widerspruch einer Beschaeftigten oder Bewerberin, oder bleibt der organisatorisch? */}
+        </Hinweis>
+      )}
+
       {zuordnung.art === 'ansprechpartner' && (
         <section aria-labelledby="art21" className="mb-s7">
           <h2 id="art21" className="mb-s2 text-h2 text-text">
@@ -267,8 +311,13 @@ export default async function Vorgangsakte(
             {ART_WIRKUNG.verarbeitung} Die Datenbank nimmt den Widerspruch nicht
             zurück: <code className="font-mono">kern.erzwinge_widerspruch()</code>
             {' '}wirft bei jedem Versuch. Der Werbewiderspruch nach § 7 UWG ist
-            etwas anderes und schwächer — er sperrt nur Werbung und lässt
-            Rechnungen, Leistungsnachweise und Mahnungen laufen.
+            etwas anderes und schwächer — er sperrt Werbung und lässt
+            vertraglich notwendige Post laufen (eine Rechnung etwa).
+            Terminbestätigung, Leistungsnachweis und Mahnung sind als
+            {' '}<code className="font-mono">transaktional</code> geführt und
+            werden bis zur Entscheidung von O-65 ebenfalls abgewiesen —
+            nachgemessen in{' '}
+            <code className="font-mono">app.darf_kontaktiert_werden</code>.
           </Hinweis>
 
           {extra.stand.length === 0 ? (

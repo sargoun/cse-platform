@@ -75,7 +75,12 @@ export default async function AgentenZentrum(
    * ein Verweis auf eine Seite, die diese Sitzung nicht oeffnen darf, fuehrt
    * auf 404 (AUT-06, D-567).
    */
-  const darf = await haeltRechte(sitzung, 'agent.budget_verwalten', 'agent.aufgabe_starten');
+  const darf = await haeltRechte(
+    sitzung, 'agent.budget_verwalten', 'agent.aufgabe_starten',
+    /* Das Tor der Richtlinienliste im Manifest — gefragt wird genau das
+       Recht, mit dem die Route bewacht ist, damit der Verweis nie auf ein
+       404 fuehrt (AUT-06). */
+    'agent.richtlinie_verwalten');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const { agenten, budget, modell } = await (db().begin(SCHNAPPSCHUSS,
@@ -184,6 +189,22 @@ export default async function AgentenZentrum(
               className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
             >
               Budget
+            </Link>
+          )}
+          {/*
+            * **Der Eingang zu den Richtlinien.** Die Liste war gebaut und von
+            * nirgendwo im Portal erreichbar — nur ihre eigene Detailseite
+            * verwies zurueck auf sie. Sie gehoert hierher: wer ueber das
+            * Einschalten eines Agenten nachdenkt, stellt als naechstes die
+            * Frage, was ohne einen Menschen hinausgehen darf (Invariante 7).
+            */}
+          {darf['agent.richtlinie_verwalten'] === true && (
+            <Link
+              href={`/portal/${mandant}/agenten/richtlinien`}
+              data-cse="zu-den-richtlinien"
+              className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
+            >
+              Was hinausgehen darf
             </Link>
           )}
         </div>

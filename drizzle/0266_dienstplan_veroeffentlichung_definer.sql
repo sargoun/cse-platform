@@ -39,6 +39,22 @@
  * Kolonne nicht erreicht, ist keine, und der Planer muss es sehen, solange er
  * noch anrufen kann.
  *
+ * **Und der Empfaenger muss zu DIESER Gesellschaft gehoeren.** Ohne diese
+ * Schranke waere die Funktion fuer jede Stelle in `cse_app` das Primitiv
+ * „stelle einem beliebigen Konto einen beliebigen Text unter
+ * `dienstplan.plan_veroeffentlicht` zu" — die Hintertuer, die der fehlende
+ * `grant insert` gerade verhindern sollte. Geprueft wird gegen `anstellung`
+ * und nicht gegen eine Einteilung im Fenster, weil O-711 offen ist: ob auch
+ * Menschen mit GESTRICHENER Schicht eine Meldung bekommen, entscheidet der
+ * Kunde, und eine Schranke, die diese Antwort schon ausschliesst, waere eine
+ * erfundene Geschaeftsregel. `einsatz_zuordnung.anstellung_id` ist `not null`
+ * — wer im Fenster eingeteilt ist, hat hier also eine Anstellung, und die
+ * Schranke schneidet niemanden weg, den die Vorschau nennt.
+ *
+ * Ein Eintrag ohne Anstellung in `v_mandant` wird wie „ohne Zugang" GEZAEHLT
+ * und nicht zugestellt: die Zahl bedeutet „diese Meldung ist nicht
+ * angekommen", und genau das trifft zu.
+ *
  * **Die Serveruhr setzt die Zeit** (Invariante 5): `now()` im Definer, nie ein
  * Zeitpunkt aus dem Aufruf.
  */
@@ -116,7 +132,10 @@ begin
       from public.benutzer b
      where b.person_id = v_person
        and b.status = 'aktiv'
-       and b.deaktiviert_am is null;
+       and b.deaktiviert_am is null
+       and exists (select 1 from public.anstellung a
+                    where a.person_id = v_person
+                      and a.mandant_id = v_mandant);
     if v_konto is null then
       v_ohne := v_ohne + 1;
     else
@@ -142,11 +161,16 @@ begin
     select value from jsonb_array_elements(coalesce(p_empfaenger, '[]'::jsonb))
   loop
     v_person := (v_eintrag->>'person_id')::uuid;
+    -- Dieselbe Aufloesung wie oben, Wort fuer Wort: eine zweite, schwaechere
+    -- Fassung hier waere die Luecke, die die erste gerade geschlossen hat.
     select b.id into v_konto
       from public.benutzer b
      where b.person_id = v_person
        and b.status = 'aktiv'
-       and b.deaktiviert_am is null;
+       and b.deaktiviert_am is null
+       and exists (select 1 from public.anstellung a
+                    where a.person_id = v_person
+                      and a.mandant_id = v_mandant);
     if v_konto is not null then
       insert into public.benachrichtigung
         (mandant_id, empfaenger_id, art, titel, text, ziel,
@@ -182,7 +206,8 @@ comment on function app.dienstplan_veroeffentlichung_anlegen(
   'dienstplan.plan_veroeffentlicht zu — der einzige Weg, auf dem eine Anwendungsrolle '
   'eine benachrichtigung-Zeile erzeugen kann, denn cse_app haelt darauf kein INSERT. '
   'Prueft dienstplan.veroeffentlichen, Nur-Lesen und das interne Portal selbst; weist '
-  'jeden anderen Artschluessel ab. Zahlen kommen vom Aufrufer aus einer getesteten '
+  'jeden anderen Artschluessel ab und stellt nur Menschen mit einer anstellung in der '
+  'aktiven Gesellschaft zu. Zahlen kommen vom Aufrufer aus einer getesteten '
   'Abfrage (Invariante 6), die Zeit aus now() (Invariante 5).';
 
 /**
@@ -194,8 +219,10 @@ comment on function app.dienstplan_veroeffentlichung_anlegen(
  * SELECT und traegt `d_benutzer_anmeldung using (true)`;
  * `dienstplan_veroeffentlichung` bekommt in 0265 Grant und Policy
  * ausdruecklich dafuer. `app.protokolliere` ist an `cse_definer` granted.
- * `person` wird NICHT gelesen — `cse_definer` haelt darauf kein
- * Tabellenrecht, und der Aufrufer liefert die Kennung.
+ * `anstellung` gewaehrt `cse_definer` SELECT und traegt `a_definer using
+ * (true)` — nachgesehen, nicht vermutet. `person` wird NICHT gelesen —
+ * `cse_definer` haelt darauf kein Tabellenrecht, und der Aufrufer liefert die
+ * Kennung.
  */
 alter function app.dienstplan_veroeffentlichung_anlegen(
   date, date, text, integer, integer, integer, integer, jsonb, text, text, jsonb)

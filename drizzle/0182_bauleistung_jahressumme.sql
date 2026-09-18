@@ -33,7 +33,11 @@ create table bauleistung_jahressumme (
 
   /**
    * Die bereits erbrachte Gegenleistung dieses Kalenderjahres, in Cent
-   * (Invariante 1). Fortgeschrieben vom Ausloeser unten, nicht von Hand.
+   * (Invariante 1).
+   *
+   * **Eine gecachte Spalte, kein Zaehler.** Der Ausloeser unten SETZT sie auf
+   * die Summe der Quelle und erhoeht sie nie — siehe die Begruendung dort.
+   * Von Hand wird sie nicht gepflegt.
    */
   gegenleistung_cent    bigint not null default 0 check (gegenleistung_cent >= 0),
 
@@ -86,48 +90,153 @@ create trigger trg_blj_geaendert
   for each row execute function kern.setze_geaendert_am();
 
 -- =========================================================================
--- Fortgeschrieben beim Uebergang nach `freigegeben` — VOR der Abzugsentscheidung
+-- NEU GERECHNET aus der Quelle, nicht fortgeschrieben
 -- =========================================================================
 
 /**
- * Die Summe muss stehen, BEVOR ueber den Einbehalt entschieden wird; danach
- * waere sie die Begruendung fuer eine Entscheidung, die schon gefallen ist.
- * Der Ausloeser haengt deshalb am Uebergang nach `freigegeben` und nicht am
- * Buchen.
+ * **Eine addierende Fortschreibung zaehlt doppelt, und diese hier tat es.**
+ *
+ * Die erste Fassung addierte das Brutto bei jedem Uebergang nach
+ * `freigegeben`. Ihre Wache war `if new.status <> 'freigegeben' or old.status
+ * = 'freigegeben' then return new`, also feuerte sie bei JEDEM
+ * `in_pruefung -> freigegeben`. `fin.eingangsrechnung_uebergang()` erlaubt
+ * `freigegeben -> in_pruefung` ausdruecklich („Ruecknahme vor dem Buchen") und
+ * danach wieder den Weg nach vorn: eine Ruecknahme zog nichts ab, das zweite
+ * Freigeben addierte erneut. Eine direkt als `freigegeben` eingefuegte Zeile
+ * wurde ueberhaupt nie gezaehlt — der Ausloeser hing nur am UPDATE.
+ *
+ * Das ist die Groesse, an der sich die Bagatellgrenze des §48 Abs. 2 EStG
+ * messen soll, und die Tabelle ist append-only ohne Korrekturweg: die falsche
+ * Zahl waere stehen geblieben und auf `/eingangsrechnungen/[id]/steuer` als
+ * „Bereits erbrachte Gegenleistung" erschienen.
+ *
+ * **Deshalb wird nicht addiert, sondern aus der QUELLE gerechnet.**
+ * `gegenleistung_cent` ist eine gecachte Spalte: sie wird auf `sum(brutto_cent)`
+ * ueber `eingangsrechnung` GESETZT und nie erhoeht. Damit ist der Ausloeser
+ * idempotent — zweimal freigeben, zurueckziehen und wieder freigeben, buchen:
+ * jeder dieser Wege endet bei derselben Zahl, weil die Zahl die Quelle
+ * abliest, statt eine eigene Geschichte zu erzaehlen.
  *
  * Gezaehlt wird nach dem LEISTUNGSJAHR und nicht nach dem Rechnungsdatum:
  * §48 misst das Kalenderjahr der Bauleistung. Fehlt `leistungsdatum`, gilt
  * `rechnungsdatum` — und das ist keine erfundene Regel, sondern derselbe
  * Rueckfall, den `STICHTAG_QUELLE = 'leistung_bis'` im Dienst benennt.
  *
- * Nur Rechnungen, die `bauabzugsteuer_pflichtig` tragen, zaehlen: die Grenze
- * des §48 Abs. 2 misst Bauleistungen, nicht jeden Einkauf bei derselben Firma.
+ * Gezaehlt werden `freigegeben` UND `gebucht`: das Buchen nimmt nichts
+ * zurueck, es fuehrt weiter. Nur Rechnungen mit `bauabzugsteuer_pflichtig`
+ * zaehlen — die Grenze des §48 Abs. 2 misst Bauleistungen, nicht jeden
+ * Einkauf bei derselben Firma.
+ *
+ * Die Summe muss stehen, BEVOR ueber den Einbehalt entschieden wird; danach
+ * waere sie die Begruendung fuer eine Entscheidung, die schon gefallen ist.
+ * Der Ausloeser haengt deshalb am Uebergang nach `freigegeben` und nicht am
+ * Buchen — und weil er neu rechnet, haengt er zusaetzlich an jedem Uebergang,
+ * der die Menge VERKLEINERT.
  */
-create function fin.bauleistung_jahressumme_fortschreiben() returns trigger
+create function fin.bauleistung_jahressumme_neu_rechnen(
+  p_mandant uuid, p_lieferant uuid, p_jahr integer) returns void
 language plpgsql set search_path = pg_catalog, public as $$
-declare v_jahr integer;
+declare v_summe bigint;
 begin
-  if new.status <> 'freigegeben' or old.status = 'freigegeben' then return new; end if;
-  if not new.bauabzugsteuer_pflichtig then return new; end if;
-  if new.lieferant_id is null then return new; end if;
+  if p_mandant is null or p_lieferant is null or p_jahr is null then return; end if;
+  /*
+   * Ausserhalb von 2000..2999 gibt es keine Zeile: der CHECK auf `jahr`
+   * wiese den `insert` ab, und das brachte die ganze Freigabe zu Fall — eine
+   * Eingangsrechnung mit verdrehtem Leistungsdatum sperrte damit einen
+   * Vorgang, der mit der Jahressumme nichts zu tun hat.
+   */
+  if p_jahr < 2000 or p_jahr > 2999 then return; end if;
 
-  v_jahr := extract(year from coalesce(new.leistungsdatum, new.rechnungsdatum))::integer;
-  if v_jahr is null then return new; end if;
+  select coalesce(sum(er.brutto_cent), 0) into v_summe
+    from public.eingangsrechnung er
+   where er.mandant_id = p_mandant
+     and er.lieferant_id = p_lieferant
+     and er.bauabzugsteuer_pflichtig
+     and er.status in ('freigegeben', 'gebucht')
+     and extract(year from coalesce(er.leistungsdatum, er.rechnungsdatum))::integer
+         = p_jahr;
+
+  /*
+   * **Keine Zeile fuer eine Null, die noch nie eine Zahl war.**
+   *
+   * Der Ausloeser haengt seit dem Umbau auch am INSERT, und eine frisch
+   * erfasste Eingangsrechnung steht in `eingegangen` oder `in_pruefung` —
+   * gezaehlt wird sie also nicht, und die Summe ist 0. Eine Zeile dafuer
+   * anzulegen hiesse, fuer jeden Lieferanten mit einer offenen Rechnung eine
+   * Jahressumme von 0,00 € zu behaupten. Steht die Zeile schon, wird sie
+   * sehr wohl auf 0 GESETZT: das ist die Ruecknahme, und sie muss sichtbar
+   * sein.
+   */
+  if v_summe = 0 and not exists (
+       select 1 from public.bauleistung_jahressumme j
+        where j.mandant_id = p_mandant and j.lieferant_id = p_lieferant
+          and j.jahr = p_jahr) then
+    return;
+  end if;
 
   insert into public.bauleistung_jahressumme
          (mandant_id, lieferant_id, jahr, gegenleistung_cent,
           erstellt_von_art, erstellt_von_dienst)
-  values (new.mandant_id, new.lieferant_id, v_jahr, coalesce(new.brutto_cent, 0),
-          'system', 'fin.bauleistung_jahressumme_fortschreiben')
+  values (p_mandant, p_lieferant, p_jahr, v_summe,
+          'system', 'fin.bauleistung_jahressumme_neu_rechnen')
   on conflict (mandant_id, lieferant_id, jahr) do update
-     set gegenleistung_cent = public.bauleistung_jahressumme.gegenleistung_cent
-                            + coalesce(new.brutto_cent, 0),
+     set gegenleistung_cent    = v_summe,
          letzte_aktualisierung = now();
+end $$;
+
+comment on function fin.bauleistung_jahressumme_neu_rechnen(uuid, uuid, integer) is
+  'FIN-10, LEG-06, §48 Abs. 2 EStG. Setzt gegenleistung_cent auf die Summe der '
+  'freigegebenen und gebuchten bauabzugsteuerpflichtigen Eingangsrechnungen dieses '
+  'Leistungsjahres. SETZEN und nicht addieren: eine addierende Fortschreibung '
+  'zaehlte jede erneute Freigabe nach einer Ruecknahme doppelt.';
+
+/**
+ * Der Ausloeser deckt INSERT und UPDATE, und beim UPDATE beide betroffenen
+ * Jahre.
+ *
+ * Ein UPDATE kann das Leistungsjahr, den Lieferanten oder die
+ * Bauleistungseigenschaft selbst verschieben; dann sind ZWEI (mandant,
+ * lieferant, jahr)-Schluessel neu zu rechnen — der alte und der neue. Beide
+ * einzeln abzuziehen und aufzuschlagen waere dieselbe Arithmetik, die den
+ * Fehler erzeugt hat. Neu gerechnet wird deshalb jeder beruehrte Schluessel
+ * ganz.
+ */
+create function fin.bauleistung_jahressumme_fortschreiben() returns trigger
+language plpgsql set search_path = pg_catalog, public as $$
+declare
+  v_jahr_neu integer;
+  v_jahr_alt integer;
+begin
+  if new.bauabzugsteuer_pflichtig and new.lieferant_id is not null then
+    v_jahr_neu := extract(year from coalesce(new.leistungsdatum,
+                                             new.rechnungsdatum))::integer;
+    perform fin.bauleistung_jahressumme_neu_rechnen(
+      new.mandant_id, new.lieferant_id, v_jahr_neu);
+  end if;
+
+  if tg_op = 'UPDATE' and old.bauabzugsteuer_pflichtig
+     and old.lieferant_id is not null then
+    v_jahr_alt := extract(year from coalesce(old.leistungsdatum,
+                                             old.rechnungsdatum))::integer;
+    /*
+     * Derselbe Schluessel zweimal zu rechnen waere harmlos (die Funktion
+     * setzt), aber zwei Schreibvorgaenge auf dieselbe Zeile in einer
+     * Anweisung sind eine Einladung an den naechsten Leser, den Fall fuer
+     * beabsichtigt zu halten.
+     */
+    if old.lieferant_id is distinct from new.lieferant_id
+       or v_jahr_alt is distinct from v_jahr_neu
+       or not new.bauabzugsteuer_pflichtig then
+      perform fin.bauleistung_jahressumme_neu_rechnen(
+        old.mandant_id, old.lieferant_id, v_jahr_alt);
+    end if;
+  end if;
+
   return new;
 end $$;
 
 create trigger er_9_bauleistung_jahressumme
-  after update on eingangsrechnung
+  after insert or update on eingangsrechnung
   for each row execute function fin.bauleistung_jahressumme_fortschreiben();
 
 -- =========================================================================
@@ -170,6 +279,21 @@ create policy d_blj_schreiben on bauleistung_jahressumme for all to cse_definer
 
 alter function fin.bauleistung_jahressumme_fortschreiben() owner to cse_definer;
 alter function fin.bauleistung_jahressumme_fortschreiben() security definer;
+
+/**
+ * Die rechnende Funktion gehoert demselben Eigentuemer und ist derselbe
+ * Definer — sie schreibt in `bauleistung_jahressumme` und LIEST
+ * `eingangsrechnung`. `cse_definer` haelt fuer das Lesen `select` und die
+ * Policy `d_eingangsrechnung_kennzahlen`; ohne `security definer` liefe sie
+ * mit den Rechten dessen, der freigibt, und der haelt `eingang.freigeben` —
+ * nicht zwangslaeufig `eingang.lesen` (D-388).
+ */
+alter function fin.bauleistung_jahressumme_neu_rechnen(uuid, uuid, integer)
+  owner to cse_definer;
+alter function fin.bauleistung_jahressumme_neu_rechnen(uuid, uuid, integer)
+  security definer;
+revoke all on function fin.bauleistung_jahressumme_neu_rechnen(uuid, uuid, integer)
+  from public;
 
 -- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0182)
 -- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.

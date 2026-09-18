@@ -140,6 +140,31 @@ export async function loeseBezugAuf(
   return { typ, id, titel, pfad: titel === null ? null : `${a.pfad}/${id}` };
 }
 
+/* ----------------------------------------------------------- Bezugsarten */
+
+/**
+ * Die 26 Werte des Aufzaehlungstyps `bezug_typ` aus 0230 — hier, weil ein
+ * Cast keine Pruefung ist.
+ *
+ * `$n::bezug_typ` wirft bei einem unbekannten Wort `22P02` („invalid input
+ * value for enum"), und das ist in einem Routenhandler eine 500 statt einer
+ * 400 und auf einer Seite eine Fehlerseite statt einer leeren Liste. Beides
+ * kam von aussen und war keine Stoerung, sondern eine Eingabe — also wird
+ * sie geprueft, bevor sie in die Abfrage geht. Die Reihenfolge ist die des
+ * Enums; wer dort einen Wert ergaenzt, ergaenzt ihn hier.
+ */
+export const BEZUG_TYPEN: readonly string[] = [
+  'lead', 'angebot', 'auftrag', 'projekt', 'rechnung', 'eingangsrechnung',
+  'objekt', 'einsatz', 'zeiteintrag', 'nachtrag', 'ausschreibung',
+  'ausschreibung_vorgang', 'vergabemappe', 'bewerbung', 'kandidat',
+  'gespraech', 'stelle', 'social_post', 'referenz', 'seite', 'person',
+  'anstellung', 'kunde', 'freigabe', 'dokument', 'agent_aufgabe',
+];
+
+export function istBezugTyp(wert: string): boolean {
+  return BEZUG_TYPEN.includes(wert);
+}
+
 /* --------------------------------------------------------------------- Liste */
 
 export interface AufgabeFilter {
@@ -147,7 +172,40 @@ export interface AufgabeFilter {
   readonly nurMeine?: boolean;
   /** Nur offene, in Arbeit und wartende. */
   readonly nurOffene?: boolean;
+  /** Einer der Werte aus `BEZUG_TYPEN` — sonst wirft der Dienst. */
   readonly bezugTyp?: string;
+}
+
+/**
+ * Die WHERE-Bausteine des Filters — EINMAL, fuer Liste und Zaehlung.
+ *
+ * Getrennt geschrieben waren sie auseinandergelaufen, und zwar sichtbar: die
+ * Kopfzeile zaehlte ungefiltert, die Liste darunter gefiltert, und ueber
+ * einer einzeiligen Liste stand „12 offen". Die Kopfzahl ist die
+ * DSH-01-Auskunft, auf die jemand reagiert; zwei Zahlen auf zwei
+ * Grundmengen sind dort schlimmer als eine Zahl weniger.
+ */
+function filterBausteine(
+  filter: AufgabeFilter, werte: unknown[],
+): readonly string[] {
+  const wo: string[] = ['a.geloescht_am is null'];
+  if (filter.nurOffene === true) {
+    wo.push(`a.status in ('offen','in_arbeit','wartend')`);
+  }
+  if (filter.nurMeine === true) {
+    wo.push(`(a.zugewiesen_an = app.aktueller_benutzer()
+              or a.zugewiesen_team_id in (select tm.team_id from team_mitglied tm
+                                           where tm.person_id = app.aktuelle_person()))`);
+  }
+  if (filter.bezugTyp !== undefined) {
+    // Der Cast liegt hinter der Whitelist, nicht davor.
+    if (!istBezugTyp(filter.bezugTyp)) {
+      throw new Error(`Unbekannte Bezugsart: ${filter.bezugTyp}`);
+    }
+    werte.push(filter.bezugTyp);
+    wo.push(`a.bezug_typ = $${String(werte.length)}::bezug_typ`);
+  }
+  return wo;
 }
 
 export interface AufgabeZeile {
@@ -209,20 +267,7 @@ export async function listeAufgaben(
   kontext: LeseKontext, filter: AufgabeFilter = {},
 ): Promise<readonly AufgabeZeile[]> {
   const werte: unknown[] = [];
-  const wo: string[] = ['a.geloescht_am is null'];
-
-  if (filter.nurOffene === true) {
-    wo.push(`a.status in ('offen','in_arbeit','wartend')`);
-  }
-  if (filter.nurMeine === true) {
-    wo.push(`(a.zugewiesen_an = app.aktueller_benutzer()
-              or a.zugewiesen_team_id in (select tm.team_id from team_mitglied tm
-                                           where tm.person_id = app.aktuelle_person()))`);
-  }
-  if (filter.bezugTyp !== undefined) {
-    werte.push(filter.bezugTyp);
-    wo.push(`a.bezug_typ = $${String(werte.length)}::bezug_typ`);
-  }
+  const wo = filterBausteine(filter, werte);
 
   const zeilen = await kontext.abfrage<RohZeile>(
     `select a.id, a.titel, a.status::text as status, a.prioritaet::text as prioritaet,
@@ -295,14 +340,31 @@ export async function listeAufgaben(
   }));
 }
 
-/** Wie viele offen sind, je Zustand — fuer die Kopfzeile und DSH-01. */
+/**
+ * Wie viele je Zustand — fuer die Kopfzeile und DSH-01.
+ *
+ * **Derselbe Filter wie die Liste**, und das ist der ganze Punkt: die
+ * Kopfzahl steht ueber der Liste, also muss sie dieselbe Grundmenge zaehlen.
+ * `nurOffene` bleibt dabei aussen vor — die Zaehlung GRUPPIERT nach Zustand,
+ * die Kopfzeile addiert daraus selbst, und ein `nurOffene` im WHERE machte
+ * aus „3 offen, 12 erledigt" ein „3 offen" ohne Gegenzahl.
+ */
 export async function zaehleJeZustand(
-  kontext: LeseKontext,
+  kontext: LeseKontext, filter: AufgabeFilter = {},
 ): Promise<Readonly<Record<string, number>>> {
+  const werte: unknown[] = [];
+  const wo = filterBausteine(
+    {
+      ...(filter.nurMeine === true ? { nurMeine: true } : {}),
+      ...(filter.bezugTyp === undefined ? {} : { bezugTyp: filter.bezugTyp }),
+    },
+    werte,
+  );
   const zeilen = await kontext.abfrage<{ status: string; anzahl: string }>(
     `select a.status::text as status, count(*)::text as anzahl
-       from aufgabe a where a.geloescht_am is null
+       from aufgabe a where ${wo.join(' and ')}
       group by 1`,
+    werte,
   );
   return Object.fromEntries(zeilen.map((z) => [z.status, Number(z.anzahl)]));
 }
@@ -448,6 +510,20 @@ export interface NeueAufgabe {
 export async function legeAn(
   kontext: SchreibKontext, eingabe: NeueAufgabe,
 ): Promise<string> {
+  /*
+   * Die zwei Zusagen, die `$11::bezug_typ` und `aufgabe_bezug_paarweise`
+   * sonst als 22P02 bzw. 23514 aus der Datenbank holen — und ein 22P02 aus
+   * einem Routenhandler ist eine 500, wo eine 400 hingehoert.
+   */
+  if (eingabe.bezugTyp !== null && eingabe.bezugTyp !== undefined
+      && !istBezugTyp(eingabe.bezugTyp)) {
+    throw new Error(`Unbekannte Bezugsart: ${eingabe.bezugTyp}`);
+  }
+  const hatTyp = eingabe.bezugTyp !== null && eingabe.bezugTyp !== undefined;
+  const hatId = eingabe.bezugId !== null && eingabe.bezugId !== undefined;
+  if (hatTyp !== hatId) {
+    throw new Error('Ein Bezug ist ein Paar: bezugTyp und bezugId, oder keines von beiden');
+  }
   const [z] = await kontext.schreibe<{ id: string }>(
     `insert into aufgabe
        (mandant_id, titel, beschreibung, prioritaet, faellig_am, faellig_datum,

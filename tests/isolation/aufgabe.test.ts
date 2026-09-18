@@ -221,6 +221,57 @@ describe('(3) das Mitarbeiterportal sieht das EIGENE', () => {
     })).toEqual([]);
   });
 
+  /**
+   * **Ein Mitarbeiterkonto ERLEDIGT seine Aufgabe — schreibend.**
+   *
+   * Der Satz, der hier fehlte und deshalb einen Defekt verdeckte: alle
+   * Mitarbeiterfälle darüber laufen mit `readonly: true`, prüfen also nur das
+   * Lesen. `p_aufgabe_kunde_decke` trug einmal `with check (app.portal() =
+   * 'intern')`, und weil eine restriktive WITH-CHECK-Bedingung bei JEDEM
+   * Schreibvorgang wahr sein muss, wies sie jedes Erledigen durch ein
+   * Mitarbeiterkonto ab — obwohl 03-AUTH-BERECHTIGUNGEN.md:2441 der Rolle
+   * `mitarbeiter` genau `aufgabe.schreiben` gibt. Kein Lesetest hätte das je
+   * gesehen.
+   */
+  it('und erledigt sie auch — `aufgabe.schreiben` gilt für das Portal', async () => {
+    const ich = await legeKontoAn(f.reinigung, 'mitarbeiter', f.fatima);
+    const id = await legeAufgabeAn(f.reinigung, 'Fenster im 2. OG', { zugewiesenAn: ich });
+
+    await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, mandantIds: [f.reinigung],
+        benutzerId: ich, personId: f.fatima, portal: 'mitarbeiter', readonly: false },
+      async (tx: postgres.TransactionSql) => tx.unsafe(
+        `update aufgabe set status = 'erledigt', erledigt_am = now(), erledigt_von = $2::uuid
+          where id = $1::uuid`, [id, ich] as never[]),
+    );
+
+    const [z] = await sql.unsafe<{ status: string }[]>(
+      `select status::text from aufgabe where id = $1`, [id]);
+    expect(z!.status).toBe('erledigt');
+  });
+
+  it('eine FREMDE Aufgabe erledigt es nicht (`p_zustaendig` als WITH CHECK)', async () => {
+    const ich = await legeKontoAn(f.reinigung, 'mitarbeiter', f.fatima);
+    const andere = await legeKontoAn(f.reinigung, 'mitarbeiter');
+    const id = await legeAufgabeAn(f.reinigung, 'Nicht meine', { zugewiesenAn: andere });
+
+    // Die Decke bleibt eine Decke: `<> 'kunde'` öffnet das Portal, verengt
+    // aber nichts — das leistet `p_zustaendig`, dessen USING bei einer
+    // `for all`-Policy ohne eigenes WITH CHECK auch als WITH CHECK gilt.
+    const betroffen = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, mandantIds: [f.reinigung],
+        benutzerId: ich, personId: f.fatima, portal: 'mitarbeiter', readonly: false },
+      async (tx: postgres.TransactionSql) => tx.unsafe(
+        `update aufgabe set status = 'in_arbeit' where id = $1::uuid returning id`,
+        [id] as never[]),
+    ) as readonly unknown[];
+    expect(betroffen).toHaveLength(0);
+
+    const [z] = await sql.unsafe<{ status: string }[]>(
+      `select status::text from aufgabe where id = $1`, [id]);
+    expect(z!.status).toBe('offen');
+  });
+
   it('die eigene Mitgliedschaft ja, die fremde nein (`p_tm_ma_decke`)', async () => {
     const ich = await legeKontoAn(f.reinigung, 'mitarbeiter', f.fatima);
     const team = await legeTeamAn(f.reinigung, `Team ${zufall()}`);

@@ -217,14 +217,34 @@ export default async function Festschreibeblatt(
 
   const entwurf = k.status === 'entwurf';
   /*
-   * Der Kreis, der die Nummer ziehen WIRD. Gutschriften laufen über ihren
-   * eigenen Kreis; alles andere über `ausgangsrechnung`. Es kann höchstens
-   * einen offenen geben (`nummernkreis_offen_key`), also ist „der erste
-   * offene" nicht eine Auswahl unter mehreren, sondern der einzige.
+   * **Der Kreis, der die Nummer ziehen WIRD — und das ist immer
+   * `ausgangsrechnung`.**
+   *
+   * Hier stand `k.rechnungsart === 'storno' ? 'gutschrift' : 'ausgangsrechnung'`.
+   * `fin.rechnung_nummer_ziehen` wählt aber unabhängig von der Rechnungsart:
+   *
+   *     where nk.kreis_typ = 'ausgangsrechnung'
+   *       and nk.kontext_id is null
+   *       and nk.geschlossen_am is null
+   *
+   * Der Seed legt keinen `gutschrift`-Kreis an. Die Seite fand also für jede
+   * Stornorechnung `null`, schrieb „für Gutschriften ist kein offener
+   * Nummernkreis eingerichtet" und sperrte den Knopf — mit einem Grund, den
+   * es nicht gibt, während die Stornoseite daneben das Gegenteil sagt („zieht
+   * seine eigene Nummer aus demselben Kreis"). Zwei Stellen mit derselben
+   * Regel sind eine zu viel; wenn ein Gutschriftenkreis eingeführt wird,
+   * gehört die Wahl in `fin.rechnung_nummer_ziehen`, und diese Seite liest sie
+   * von dort.
+   *
+   * **`kontextId === null` steht ausdrücklich dabei.**
+   * `nummernkreis_offen_key` ist `(mandant_id, kreis_typ, kontext_id) where
+   * geschlossen_am is null` — mehrere offene Kreise desselben Typs mit
+   * verschiedenem `kontext_id` sind also erlaubt. Ohne diese Bedingung zeigte
+   * die Seite Maske und Zähler eines Kreises, der die Nummer nicht zieht.
    */
-  const kreisTyp = k.rechnungsart === 'storno' ? 'gutschrift' : 'ausgangsrechnung';
   const kreis = daten.kreise.find(
-    (kr) => kr.kreisTyp === kreisTyp && kr.geschlossenAm === null) ?? null;
+    (kr) => kr.kreisTyp === 'ausgangsrechnung'
+      && kr.kontextId === null && kr.geschlossenAm === null) ?? null;
 
   const blockierend = bericht.fehler.length > 0;
   const keinePositionen = k.positionen === 0;
@@ -400,9 +420,11 @@ export default async function Festschreibeblatt(
       {kreis === null ? (
         <Hinweis art="warnung" cse="festschreiben-kein-kreis" className="mb-s5">
           <p className="m-0 max-w-prose">
-            Für <strong>{kreisTyp === 'gutschrift' ? 'Gutschriften' : 'Ausgangsrechnungen'}</strong>{' '}
-            ist in dieser Gesellschaft kein offener Nummernkreis eingerichtet. Ohne
-            ihn entsteht keine Nummer, und ohne Nummer keine Rechnung.
+            Für <strong>Ausgangsrechnungen</strong> ist in dieser Gesellschaft
+            kein offener Nummernkreis ohne Kontext eingerichtet. Ohne ihn
+            entsteht keine Nummer, und ohne Nummer keine Rechnung.{' '}
+            <code>fin.rechnung_nummer_ziehen</code> sucht genau diesen einen
+            Kreis — auch für eine Stornorechnung.
           </p>
         </Hinweis>
       ) : (
@@ -515,14 +537,26 @@ export default async function Festschreibeblatt(
             </p>
           )}
 
-          <button
-            type="submit"
-            disabled={!moeglich}
-            className="min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
-            data-cse="festschreiben-knopf"
-          >
-            Rechnung festschreiben
-          </button>
+          {/*
+            * **Kein Knopf, wenn nicht festgeschrieben werden kann** — und
+            * nicht ein ausgegrauter.
+            *
+            * Ein `disabled`-Knopf erklärt nichts: er sieht aus wie ein
+            * Vorgang, der gleich geht, und lässt den Grund suchen. Der Grund
+            * steht direkt darüber, benannt und einzeln — Platzhalterkreis,
+            * geschlossener Kreis, offener Abschlag (FIN-08) oder
+            * blockierender §14-Befund. Dasselbe Prinzip hält die
+            * Verwerfen-Seite („keine Löschung, kein ausgegrauter Knopf").
+            */}
+          {moeglich ? (
+            <button
+              type="submit"
+              className="min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover"
+              data-cse="festschreiben-knopf"
+            >
+              Rechnung festschreiben
+            </button>
+          ) : null}
         </form>
       )}
 

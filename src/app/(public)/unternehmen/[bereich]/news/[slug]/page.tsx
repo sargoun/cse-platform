@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { BeitragDetailSeite } from '@/app/(public)/unternehmen/[bereich]/_profil/seiten';
-import { ladeBereich } from '@/app/(public)/unternehmen/[bereich]/_profil/Rahmen';
+import { beitragsMetadaten } from '@/app/(public)/unternehmen/[bereich]/_profil/kanonik';
 
 /**
  * `/unternehmen/[bereich]/news/[slug]` — die KANONISCHE Adresse eines Beitrags (SEITENKARTE §2.2).
@@ -14,10 +14,14 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata(
   { params }: { params: Promise<{ bereich: string; slug: string }> },
 ): Promise<Metadata> {
-  const { bereich } = await params;
-  const daten = await ladeBereich(bereich, 'de');
-  if (daten === null) return { title: 'Nicht gefunden' };
-  return { title: daten.name };
+  const { bereich, slug } = await params;
+  /*
+   * `canonical` auf die EINE Adresse, die die Art dieses Beitrags trägt —
+   * dieselbe, die `detailEintraege()` in die Sitemap schreibt. Vorher stand
+   * hier nur der Name der Gesellschaft, und zwei Adressen lieferten
+   * denselben Text ohne jede Zuordnung (SEITENKARTE §2.2).
+   */
+  return beitragsMetadaten(bereich, slug, 'de');
 }
 
 export default async function Seite(

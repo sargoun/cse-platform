@@ -135,13 +135,51 @@ interface KundeVorgabe {
     readonly eadresse: string;
     readonly eadresseSchema: string;
   };
+  /**
+   * Die beiden EN-16931-Angaben, die auch ein PRIVATER Auftraggeber traegt —
+   * und ohne die aus einem festgeschriebenen Beleg keine XRechnung und kein
+   * ZUGFeRD entsteht.
+   *
+   * Der Grund, dass sie hier stehen: `fehlendePflichtfelder` meldet BT-10
+   * (Kaeuferreferenz, BR-DE-15) UNABHAENGIG davon, ob der Empfaenger ein
+   * oeffentlicher Auftraggeber ist — nur der Meldungstext wechselt. Ohne
+   * diese Zeilen antwortete `belegAusgabe` fuer JEDE Rechnung des
+   * Portalkunden `unvollstaendig`, die beiden Ausgaberouten waeren im ganzen
+   * Demobestand unerreichbar, und der aufwendigste Teil des Kundenportals
+   * liefe in keinem Durchlauf. „Seed data exercises it" (CLAUDE.md) waere
+   * nicht erfuellt.
+   *
+   * **Demowerte, wie die uebrigen Firmen auch.** Die Kaeuferreferenz eines
+   * privaten Auftraggebers ist SEINE Angabe (Bestell-, Kostenstellen- oder
+   * Objektkennung) — welche ein wirklicher Kunde fuehrt, ist O-22 und wird
+   * nicht geraten; hier steht eine erfundene Kennung in der Form einer
+   * echten. `EM` ist der EAS-Code fuer eine E-Mail-Adresse, die ueblichste
+   * elektronische Adresse ausserhalb des Behoerdenwegs.
+   */
+  readonly erechnung?: {
+    readonly kaeuferReferenz: string;
+    readonly eadresse: string;
+    readonly eadresseSchema: string;
+  };
 }
 
 const KUNDEN: readonly KundeVorgabe[] = [
+  /*
+   * Der Kunde MIT Portalzugang (`kunde.demo@example.test`). Er traegt als
+   * einziger private Auftraggeber die beiden e-Rechnungsangaben — damit im
+   * Demobestand wenigstens ein Beleg vorliegt, aus dem ZUGFeRD und XRechnung
+   * wirklich entstehen und den die Ausgaberouten des Kundenportals ausliefern
+   * koennen.
+   */
   { bereich: 'reinigung', firma: 'Berliner Hausverwaltung GmbH', rechtsform: 'GmbH',
     nummer: 'K-10001', name: 'Berliner Hausverwaltung GmbH',
     kontakt: ['Anna', 'Radtke', 'a.radtke@bhv-berlin.example'],
-    anschrift: ['Musterallee', '12', '10115', 'Berlin'] },
+    anschrift: ['Musterallee', '12', '10115', 'Berlin'],
+    erechnung: {
+      kaeuferReferenz: 'BHV-OBJ-10115',
+      eadresse: 'rechnungseingang@bhv-berlin.example',
+      eadresseSchema: 'EM',
+    } },
   { bereich: 'reinigung', firma: 'Charlottenburg Immobilien GmbH', rechtsform: 'GmbH',
     nummer: 'K-10002', name: 'Charlottenburg Immobilien GmbH',
     kontakt: ['Jens', 'Petrow', 'j.petrow@chb-immo.example'],
@@ -292,7 +330,8 @@ export async function seedOperations(
                 ${k.anschrift[0]}, ${k.anschrift[1]}, ${k.anschrift[2]}, ${k.anschrift[3]},
                 ${k.behoerde !== undefined}, ${k.behoerde !== undefined},
                 ${k.behoerde?.leitwegId ?? null},
-                ${k.behoerde?.eadresse ?? null}, ${k.behoerde?.eadresseSchema ?? null},
+                ${k.behoerde?.eadresse ?? k.erechnung?.eadresse ?? null},
+                ${k.behoerde?.eadresseSchema ?? k.erechnung?.eadresseSchema ?? null},
                 'bestandskunde', 'Rahmenvertrag (Demodaten)', now(), 'aktiv')
         returning id`;
       kundeId = neu!.id;
@@ -335,6 +374,34 @@ export async function seedOperations(
            where id = ${kundeId}
              and (leitweg_id is null or elektronische_adresse is null)`;
       }
+      /*
+       * Dieselbe Nachtragslogik wie eine Zeile hoeher, fuer den privaten
+       * Auftraggeber mit Portalzugang: nur WAS FEHLT, eine von Hand gesetzte
+       * Angabe bleibt stehen.
+       */
+      if (k.erechnung !== undefined) {
+        await sql`
+          update kunde
+             set kaeufer_referenz = coalesce(kaeufer_referenz, ${k.erechnung.kaeuferReferenz}),
+                 elektronische_adresse =
+                   coalesce(elektronische_adresse, ${k.erechnung.eadresse}),
+                 elektronische_adresse_schema =
+                   coalesce(elektronische_adresse_schema, ${k.erechnung.eadresseSchema})
+           where id = ${kundeId}
+             and (kaeufer_referenz is null or elektronische_adresse is null
+                  or elektronische_adresse_schema is null)`;
+      }
+    }
+    if (k.erechnung !== undefined) {
+      /*
+       * `kaeufer_referenz` steht NICHT in der `insert`-Spaltenliste oben (die
+       * ist die der Anlage, und die Referenz ist eine Angabe des Kunden, die
+       * nachgereicht wird). Fuer den frisch angelegten Fall wird sie hier
+       * gesetzt — dieselbe Anweisung deckt beide Wege ab.
+       */
+      await sql`
+        update kunde set kaeufer_referenz = ${k.erechnung.kaeuferReferenz}
+         where id = ${kundeId} and kaeufer_referenz is null`;
     }
     kundenIds.set(k.nummer, kundeId);
 

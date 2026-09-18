@@ -12,9 +12,11 @@ import {
 } from '@/server/services/finanz/kunde-steuer';
 import { reverseChargeLage } from '@/server/services/finanz/steuer/nachweis';
 import {
-  FORMATE, FORMAT_TEXT, WEGE, WEG_TEXT, WEG_VERBUNDEN, versandLage,
+  FORMATE, FORMAT_TEXT, WEGE, WEG_TEXT, versandLage, wegVerbunden,
   type Rechnungsformat, type Uebertragungsweg,
 } from '@/server/services/crm/erechnung';
+import { versandwege, type Versandweg } from '@/server/services/finanz/versand';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { AnmeldungNoetig } from '../../../../../Anmeldung';
 import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
@@ -92,7 +94,8 @@ export default async function Steuer(
   if (sitzung.aktiverMandantId === null) notFound();
 
   const darf = await haeltRechte(sitzung,
-    'crm.lesen', 'crm_entgelt.lesen', 'abrechnung.lesen', 'system.benutzer_verwalten');
+    'crm.lesen', 'crm_entgelt.lesen', 'abrechnung.lesen', 'system.benutzer_verwalten',
+    'dokument.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -103,8 +106,12 @@ export default async function Steuer(
             and k.archiviert_am is null`, [id]);
       if (kopf === undefined) return null;
       const blatt = await leseSteuerblatt(kontext, id);
-      return blatt === null ? null : { kopf, blatt };
-    })) as Promise<{ kopf: Kopf; blatt: Steuerblatt } | null>);
+      if (blatt === null) return null;
+      /* Derselbe Schlüssel, den der Auslöser 0181 prüft — siehe unten. */
+      return { kopf, blatt, wege: await versandwege(kontext) };
+    })) as Promise<{
+      kopf: Kopf; blatt: Steuerblatt; wege: readonly Versandweg[];
+    } | null>);
 
   if (daten === null) notFound();
   const { kopf, blatt } = daten;
@@ -125,6 +132,21 @@ export default async function Steuer(
   }));
   const bescheinigung = bescheinigungAm(blatt.bescheinigungen, stichtag);
 
+  /*
+   * Der Postausgang wird GEFRAGT, nicht behauptet — und zwar an DERSELBEN
+   * Stelle, die auch die Rechnung fragt.
+   *
+   * `versandwege()` liest `versand.email.verbunden` aus `mandant_einstellung`;
+   * denselben Schlüssel prüft der Auslöser `rechnung_versand_2_kanal_
+   * verbunden` (0181), bevor er eine Versandzeile annimmt. `erechnung.ts`
+   * führte `email` daneben als „braucht keinen Anschluss" und liess dieses
+   * Blatt „Versand bereit" zeigen für einen Kanal, den die Datenbank bei
+   * jedem Versuch abweist. Zwei Wahrheiten über einen Anschluss, und die
+   * freundlichere stand auf dem Bildschirm.
+   */
+  const emailWeg = daten.wege.find((w: Versandweg) => w.kanal === 'email');
+  const umgebung = { postausgangVerbunden: emailWeg?.verbunden === true };
+
   const versand = versandLage({
     xrechnungPflicht: blatt.kopf.xrechnung_pflicht,
     istOeffentlicherAuftraggeber: blatt.kopf.ist_oeffentlicher_auftraggeber,
@@ -135,7 +157,7 @@ export default async function Steuer(
     uebertragungsweg: blatt.kopf.uebertragungsweg,
     rechnungsformat: blatt.kopf.rechnungsformat,
     rechnungEmail: blatt.kopf.rechnung_email,
-  });
+  }, umgebung);
 
   const VERSAND_PILLE = {
     gesperrt: 'Fehler', offen: 'Wartet', bereit: 'Bereit', nicht_verbunden: 'Inaktiv',
@@ -293,7 +315,7 @@ export default async function Steuer(
                 ? 'nicht verabredet (O-22)'
                 : WEG_TEXT[blatt.kopf.uebertragungsweg]}
               {blatt.kopf.uebertragungsweg !== null
-                && !WEG_VERBUNDEN[blatt.kopf.uebertragungsweg] ? (
+                && !wegVerbunden(blatt.kopf.uebertragungsweg, umgebung) ? (
                   <span className="block text-xs text-warning" data-cse="steuer-weg-unverbunden">
                     nicht verbunden
                   </span>
@@ -324,6 +346,17 @@ export default async function Steuer(
           ankommt, wäre der teuerste Fehler dieser Seite: die Zahlungsfrist läuft, und
           der Mahnlauf mahnt einen Beleg an, den niemand erhalten hat.
         </p>
+        {umgebung.postausgangVerbunden ? null : (
+          <p className="mt-s3 max-w-prose text-xs text-text-muted"
+             data-cse="steuer-postausgang">
+            <strong>Auch E-Mail ist kein Anschluss dieser Installation.</strong>{' '}
+            {emailWeg?.grund
+              ?? 'Für den Kanal „E-Mail" ist keine Verbindung hinterlegt.'} Der Weg
+            „E-Mail" darf deshalb verabredet werden — er steht dann als{' '}
+            <em>nicht verbunden</em> und nie als <em>bereit</em>. Kundenportal und Post
+            brauchen keinen Anschluss: dort bedient ein Mensch den Weg.
+          </p>
+        )}
 
         {blatt.rechte.crmSchreiben ? (
           <details className="mt-s5" data-cse="steuer-erechnung-aendern">
@@ -380,7 +413,8 @@ export default async function Steuer(
                   <option value="">nicht verabredet</option>
                   {WEGE.map((w: Uebertragungsweg) => (
                     <option key={w} value={w}>
-                      {WEG_TEXT[w]}{WEG_VERBUNDEN[w] ? '' : ' — nicht verbunden'}
+                      {WEG_TEXT[w]}
+                      {wegVerbunden(w, umgebung) ? '' : ' — nicht verbunden'}
                     </option>
                   ))}
                 </select>
@@ -489,12 +523,16 @@ export default async function Steuer(
                     },
                     {
                       schluessel: 'ab', kopf: 'Gilt ab',
-                      zelle: (z) => <span className="tabular-nums">{z.gilt_ab}</span>,
+                      zelle: (z) => (
+                        <span className="tabular-nums">{tagDeutsch(z.gilt_ab)}</span>
+                      ),
                     },
                     {
                       schluessel: 'bis', kopf: 'Gilt bis',
                       zelle: (z) => (
-                        <span className="tabular-nums">{z.gilt_bis ?? 'offen'}</span>
+                        <span className="tabular-nums">
+                          {z.gilt_bis === null ? 'offen' : tagDeutsch(z.gilt_bis)}
+                        </span>
                       ),
                     },
                     { schluessel: 'grundlage', kopf: 'Grundlage', zelle: (z) => z.grundlage },
@@ -616,9 +654,11 @@ export default async function Steuer(
                 <StatusPill zustand={bescheinigung === null ? 'Fehler' : 'Aktiv'} />
                 <span className="text-sm text-text">
                   {bescheinigung === null
-                    ? `Am ${stichtag} liegt keine gültige Bescheinigung vor.`
-                    : `Am ${stichtag} gültig: ${bescheinigung.bescheinigung_nummer} `
-                      + `(${bescheinigung.finanzamt}), bis ${bescheinigung.gueltig_bis}.`}
+                    ? `Am ${tagDeutsch(stichtag)} liegt keine gültige Bescheinigung vor.`
+                    : `Am ${tagDeutsch(stichtag)} gültig: `
+                      + `${bescheinigung.bescheinigung_nummer} `
+                      + `(${bescheinigung.finanzamt}), bis `
+                      + `${tagDeutsch(bescheinigung.gueltig_bis)}.`}
                 </span>
               </p>
               <p className="m-0 mt-s3 max-w-prose text-sm text-text-muted">
@@ -648,7 +688,7 @@ export default async function Steuer(
                       schluessel: 'gueltig', kopf: 'Gültig',
                       zelle: (z) => (
                         <span className="tabular-nums">
-                          {z.gueltig_von} – {z.gueltig_bis}
+                          {tagDeutsch(z.gueltig_von)} – {tagDeutsch(z.gueltig_bis)}
                         </span>
                       ),
                     },
@@ -662,10 +702,10 @@ export default async function Steuer(
                       schluessel: 'zustand', kopf: 'Zustand',
                       zelle: (z) => (z.widerrufen_am !== null
                         ? (
-                          <span className="inline-flex items-center gap-s2">
+                          <span className="inline-flex flex-wrap items-center gap-s2">
                             <StatusPill zustand="Abgelehnt" />
                             <span className="text-xs text-text-muted">
-                              widerrufen {z.widerrufen_am}
+                              widerrufen {tagDeutsch(z.widerrufen_am)}
                             </span>
                           </span>
                         )
@@ -675,14 +715,28 @@ export default async function Steuer(
                     },
                     {
                       schluessel: 'scan', kopf: 'Scan',
-                      zelle: (z) => (z.dokument_id === null ? '—' : (
-                        <Link
-                          href={`/portal/${mandant}/dokumente/${z.dokument_id}`}
-                          className="text-text underline-offset-2 hover:text-brand hover:underline"
-                        >
-                          öffnen
-                        </Link>
-                      )),
+                      /*
+                       * Der Verweis nur mit `dokument.lesen` — das Dokumentblatt
+                       * verlangt es, und ein Knopf, der auf ein 404 zeigt (AUT-06),
+                       * ist schlechter als keiner. Ohne das Recht steht, DASS ein
+                       * Scan hinterlegt ist: das ist eine Aussage über die
+                       * Bescheinigung, nicht über die Berechtigung.
+                       */
+                      zelle: (z) => (z.dokument_id === null ? '—'
+                        : darf['dokument.lesen'] !== true
+                          ? (
+                            <span className="text-text-subtle"
+                                  title="Zum Öffnen fehlt dokument.lesen">
+                              hinterlegt
+                            </span>
+                          ) : (
+                            <Link
+                              href={`/portal/${mandant}/dokumente/${z.dokument_id}`}
+                              className="text-text underline-offset-2 hover:text-brand hover:underline"
+                            >
+                              öffnen
+                            </Link>
+                          )),
                     },
                     ...(blatt.rechte.finanzenSchreiben ? [{
                       schluessel: 'widerruf', kopf: 'Widerruf',
@@ -761,19 +815,52 @@ export default async function Steuer(
                   </label>
                   <label className="flex flex-col gap-s2 text-sm text-text">
                     Auftrag (nur bei „auftragsbezogen")
-                    <input name="auftragId" className={FELD} />
+                    {/*
+                      * Eine AUSWAHL, kein Freitextfeld. Wer „Auftrag" liest,
+                      * tippt sonst die Auftragsnummer — und die ging bis
+                      * hierher ungeprüft als `::uuid` in das INSERT: `22P02`,
+                      * 500, Eingabe weg. Der Dienst prüft die Kennung
+                      * zusätzlich, weil eine Auswahl im Browser keine Wache
+                      * ist.
+                      */}
+                    {blatt.rechte.auftragLesen ? (
+                      <select name="auftragId" className={FELD}
+                              defaultValue="" data-cse="steuer-48b-auftrag">
+                        <option value="">keiner — unbeschränkte Bescheinigung</option>
+                        {blatt.auftraege.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.auftragsnummer} · {a.bezeichnung}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input name="auftragId" className={FELD}
+                             data-cse="steuer-48b-auftrag-feld" />
+                    )}
                     <span className="text-xs text-text-muted">
                       Der CHECK <code className="text-text">fsb_umfang_auftrag</code>
                       {' '}nimmt den Auftrag genau dann, wenn der Umfang
                       „auftragsbezogen" ist.
+                      {blatt.rechte.auftragLesen
+                        ? (blatt.auftraege.length === 0
+                          ? ' Zu diesem Kunden steht kein Auftrag — eine auftragsbezogene'
+                            + ' Bescheinigung ist deshalb hier nicht erfassbar.'
+                          : '')
+                        : ' Die Auswahl der Aufträge ist Ihnen nicht sichtbar — dafür'
+                          + ' fehlt `auftrag.lesen`. Erwartet wird deshalb die Kennung'
+                          + ' aus der Adresszeile des Auftrags, nicht die'
+                          + ' Auftragsnummer.'}
                     </span>
                   </label>
                   <label className="flex flex-col gap-s2 text-sm text-text">
                     Scan (Dokumentkennung, optional)
-                    <input name="dokumentId" className={FELD} />
+                    <input name="dokumentId" className={FELD}
+                           data-cse="steuer-48b-dokument" />
                     <span className="text-xs text-text-muted">
-                      Das Dokument liegt im privaten Speicher und wird über eine
-                      signierte Adresse geöffnet — nie öffentlich.
+                      Die <strong>Kennung</strong> aus der Adresszeile des Dokuments
+                      (36 Zeichen, mit Bindestrichen) — nicht der Dateiname und nicht
+                      die Belegnummer. Das Dokument liegt im privaten Speicher und wird
+                      über eine signierte Adresse geöffnet — nie öffentlich.
                     </span>
                   </label>
                   <button

@@ -218,6 +218,45 @@ describe('(3) die Schreibpolicy der Personalstelle (0190)', () => {
     expect(zeilen, 'eine fremde Gesellschaft pflegt keine Stammdaten').toHaveLength(0);
   });
 
+  it('der SELBSTpflege-Weg reicht bis `sprache` und nicht weiter (SEC-03)', async () => {
+    /*
+     * **Der Befund, den dieser Fall einfriert.** Ein frueherer Entwurf von
+     * 0190 nahm `vorname`, `nachname` und `telefon` in den UPDATE-Grant mit.
+     * RLS kann keine Spalten einschraenken, und `t_person_selbstpflege`
+     * (0165) oeffnet jedem Menschen seine EIGENE Zeile — jede Spalte im Grant
+     * gilt damit auch fuer ihn. `telefon` ist der Anmeldeweg (EMP-01): aus
+     * „ich stelle meine Sprache um" waere eine Kontouebernahme geworden.
+     *
+     * Und der Grant allein genuegt nicht: die drei Stammdatenfelder MUESSEN
+     * im Grant stehen (die Personalstelle schreibt sie), also haelt sie ein
+     * Spaltenwaechter von der Selbstpflege fern.
+     */
+    const selbst = { scope: 'person' as const, personId: f.fatima, readonly: false };
+
+    await alsApp(selbst, (tx) =>
+      tx`update person set sprache = 'tr' where id = ${f.fatima}`);
+    const [nach] = await sql.unsafe<{ sprache: string }[]>(
+      `select sprache from person where id = $1`, [f.fatima]);
+    expect(nach?.sprache, 'die eigene Sprache bleibt erlaubt (EMP-12)').toBe('tr');
+
+    for (const spalte of ['telefon', 'vorname', 'nachname']) {
+      const [z] = await sql.unsafe<{ ok: boolean }[]>(
+        `select has_column_privilege('cse_app', 'person', $1, 'UPDATE') as ok`, [spalte]);
+      expect(z?.ok, `cse_app darf person.${spalte} schreiben`).toBe(false);
+    }
+
+    await expect(
+      alsApp(selbst, (tx) =>
+        tx`update person set geburtsdatum = '1900-01-01' where id = ${f.fatima}`),
+      'das eigene Geburtsdatum pflegt die Personalstelle, nicht der Mensch',
+    ).rejects.toThrow(/Personalstelle|nicht berechtigt|permission denied/iu);
+
+    await expect(
+      alsApp(selbst, (tx) =>
+        tx`update person set staatsangehoerigkeit = 'XX' where id = ${f.fatima}`),
+    ).rejects.toThrow(/Personalstelle|nicht berechtigt|permission denied/iu);
+  });
+
   it('und in der Gruppenansicht schreibt niemand (Invariante 10)', async () => {
     /*
      * Null Zeilen und kein Wurf, und das ist die richtige Form: die Policy

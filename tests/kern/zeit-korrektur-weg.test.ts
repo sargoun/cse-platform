@@ -207,3 +207,68 @@ describe('der Dienst bleibt, was er ist', () => {
     expect(d).toContain('insert into zeiteintrag_korrektur');
   });
 });
+
+/**
+ * **Die Verknüpfung, die es nie gab** (EMP-07, TIM-11).
+ *
+ * `zeiteintrag_korrektur.zeit_einwand_id` steht seit der Anlage der Tabelle da,
+ * mit eigenem Fremdschlüssel `zk_einwand_fk` auf `zeit_einwand(mandant_id, id)`.
+ * GELESEN wurde die Spalte: `leseEinwand` hängt daran den Abschnitt „Ist eine
+ * Korrektur gefolgt?" des Einwandblatts. GESCHRIEBEN hat sie im ganzen
+ * `src/`-Baum niemand — `korrigiereZeiteintrag` führte sie nicht in seinem
+ * `insert`, und die Eingabe hatte kein Feld dafür.
+ *
+ * Die Folge war eine Seite, die IMMER dasselbe sagte: „Anerkannt, aber keine
+ * Korrektur", auch für die Korrektur, die genau diese Meldung beantwortet und
+ * eine Minute später entstand. Ein Bildschirm, der eine Warnung zeigt, die
+ * nicht abschaltbar ist, lehrt seinen Leser, sie zu übersehen — und damit auch
+ * in dem Fall, für den es sie gibt.
+ *
+ * Geprüft wird die VERDRAHTUNG der vier Stellen, am Quelltext und ohne
+ * Datenbank; dass die Kette gegen echte Policies trägt, steht in
+ * `tests/isolation/`.
+ */
+describe('eine Korrektur weiss, welche Meldung sie beantwortet', () => {
+  const EINWANDBLATT = 'src/app/portal/[mandant]/zeiten/einwaende/[id]/page.tsx';
+
+  it('der Dienst nimmt die Meldung an und schreibt die Spalte', () => {
+    const d = quelle(DIENST);
+    expect(d).toContain('zeitEinwandId');
+    // Die Spalte MUSS in der Spaltenliste des `insert` stehen — ein Feld in
+    // der Eingabe, das nirgends ankommt, ist schlimmer als keines.
+    expect(d).toMatch(/insert into zeiteintrag_korrektur[\s\S]*?zeit_einwand_id/u);
+  });
+
+  it('die Route reicht sie durch und prüft ihre Form', () => {
+    const r = quelle(ROUTE);
+    expect(r).toContain("feld(daten, 'einwand')");
+    expect(r).toContain('zeitEinwandId');
+    // Eine unbrauchbare Kennung wird abgewiesen, nicht an Postgres gegeben.
+    expect(r).toContain('UUID.test(einwand)');
+    // Der Fremdschluessel antwortet mit 23503, und das ist nach aussen 404
+    // und nicht 403 (AUT-06) — die Zeile eines anderen Mandanten ist nicht
+    // vorhanden, nicht verboten.
+    expect(r).toContain("pg.code === '23503'");
+  });
+
+  it('das Formular trägt sie als verstecktes Feld', () => {
+    const s = quelle(SEITE);
+    expect(s).toContain('name="einwand"');
+    expect(s).toContain('leseEinwand');
+    /*
+     * Und eine Kennung, die diese Sitzung nicht lesen darf, verschwindet
+     * nicht still: die Seite sagt es. Ein stilles Fallenlassen wäre genau
+     * dieselbe Lücke noch einmal, nur eine Ebene höher.
+     */
+    expect(s).toContain('einwandUnlesbar');
+  });
+
+  it('und das Einwandblatt bringt sie beim Verweis mit', () => {
+    const b = quelle(EINWANDBLATT);
+    /*
+     * Der Knopf „Korrektur schreiben" OHNE `?einwand=` wäre der Weg, auf dem
+     * die Verknüpfung wieder verlorengeht — er sieht dann genauso aus.
+     */
+    expect(b).toMatch(/\/korrektur\?einwand=\$\{e\.id\}/u);
+  });
+});

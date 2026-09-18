@@ -20,8 +20,9 @@ import {
   PAUSE_AB_6H, PAUSE_AB_9H, RUHEZEIT_MINUTEN,
 } from '../../src/server/services/zeit/arbzg.js';
 import {
-  ArbeitszeitFehler, GESETZ, GEWERKE, GEWERK_TEXT, alsMengeText, pruefeTarifRegel,
-  regelFuerModell, strengerAlsGesetz, type TarifEingabe,
+  ArbeitszeitFehler, GESETZ, GEWERKE, GEWERK_TEXT, UEBERTRAG_ARTEN, alsMengeText,
+  istUebertragArt, pruefeTarifRegel, regelFuerModell, strengerAlsGesetz,
+  type TarifEingabe,
 } from '../../src/server/services/zeit/arbeitszeitmodell.js';
 import {
   SOLLSTUNDEN_OFFEN, SollstundenOffenFehler, sollMinutenOderFehler,
@@ -183,6 +184,27 @@ describe('regelFuerModell', () => {
       { anstellungId: 'a1', jahr: 2026, monat: 3, wochenstunden: null,
         arbeitszeitmodell: 'x' },
     )).toThrowError(SollstundenOffenFehler);
+  });
+});
+
+describe('UEBERTRAG_ARTEN', () => {
+  /*
+   * Solange O-18 offen ist, gibt es genau EINEN Wert. Vorher stand an dieser
+   * Stelle ein Freitextfeld: „verfalen" liess sich speichern und sah in der
+   * Tabelle danach aus wie eine hinterlegte Uebertragsregel — mit Lohnfolge.
+   * Ein offener Punkt gehoert hinter einen benannten Platzhalter, nicht in
+   * ein Textfeld (CLAUDE.md, „Never invent a business rule").
+   */
+  it('ist eine geschlossene Menge mit genau „offen"', () => {
+    expect([...UEBERTRAG_ARTEN]).toEqual(['offen']);
+  });
+
+  it('nimmt nur, was in der Menge steht', () => {
+    expect(istUebertragArt('offen')).toBe(true);
+    expect(istUebertragArt('verfalen')).toBe(false);
+    expect(istUebertragArt('verfall')).toBe(false);
+    expect(istUebertragArt('')).toBe(false);
+    expect(istUebertragArt('OFFEN')).toBe(false);
   });
 });
 

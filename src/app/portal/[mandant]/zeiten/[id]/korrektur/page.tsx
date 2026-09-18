@@ -1,5 +1,9 @@
+import type postgres from 'postgres';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { withTenant } from '@/server/kontext/index';
+import { leseEinwand, type EinwandBlatt } from '@/server/services/zeit/einwand';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
@@ -9,7 +13,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
 import { darfKorrigieren, ladeZeiteintrag } from '../../daten';
-import { kennungOder404 } from '../../../../kennung';
+import { istKennung, kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 
 /**
@@ -125,6 +129,31 @@ export default async function Korrekturblatt({
 
   const frage = await searchParams;
   const fehler = typeof frage['fehler'] === 'string' ? frage['fehler'] : null;
+
+  /**
+   * `?einwand=…` — die Meldung, die diese Korrektur beantwortet (EMP-07).
+   *
+   * **Der Befund, der diesen Zweig gebracht hat.**
+   * `zeiteintrag_korrektur.zeit_einwand_id` existiert seit der Anlage der
+   * Tabelle mit eigenem Fremdschlüssel, und geschrieben hat sie niemand.
+   * `leseEinwand` liest sie: auf dem Einwandblatt steht darum unter „Ist eine
+   * Korrektur gefolgt?" für immer „keine" — auch für die Korrektur, die
+   * genau diese Meldung beantwortet. Der Knopf dort führt jetzt hierher UND
+   * bringt die Kennung mit.
+   *
+   * **Nicht einsehbar heisst nicht still weg.** Steht in der Adresse eine
+   * Kennung, die diese Sitzung nicht lesen darf, wird die Verknüpfung nicht
+   * heimlich fallengelassen: die Seite sagt es, und die Korrektur entsteht
+   * ohne sie. Ein 404 wäre hier falsch — korrigiert wird der Zeiteintrag,
+   * nicht die Meldung.
+   */
+  const einwandId = typeof frage['einwand'] === 'string' ? frage['einwand'] : null;
+  const einwand: EinwandBlatt | null = einwandId === null || !istKennung(einwandId)
+    ? null
+    : await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+      withTenant(tx, sitzung, async (kontext) => leseEinwand(kontext, einwandId)),
+    ) as Promise<EinwandBlatt | null>);
+  const einwandUnlesbar = einwandId !== null && einwand === null;
 
   const abgeloest = e.ersetztDurchId !== null;
   const laeuft = e.status === 'laufend';
@@ -254,6 +283,43 @@ export default async function Korrekturblatt({
           <input type="hidden" name="eintrag" value={id} />
           <input type="hidden" name="mandant" value={mandant} />
           <input type="hidden" name="zurueck" value={pfad} />
+          {einwand !== null && (
+            <input type="hidden" name="einwand" value={einwand.id} />
+          )}
+
+          {einwand !== null && (
+            <p
+              data-cse="antwortet-auf-einwand"
+              className="m-0 rounded-md border border-line bg-surface-2 p-s3 text-sm text-text-muted"
+            >
+              <strong className="text-text">Antwort auf eine Meldung.</strong>{' '}
+              {einwand.person} hat für den{' '}
+              {einwand.betrifftDatum.slice(8, 10)}.{einwand.betrifftDatum.slice(5, 7)}.
+              {einwand.betrifftDatum.slice(0, 4)} eine Abweichung gemeldet
+              (Stand: {einwand.status}). Diese Korrektur wird mit ihr verknüpft, damit
+              auf dem Einwandblatt steht, dass sie gefolgt ist.{' '}
+              {darf['zeit.lesen'] === true && (
+                <Link
+                  href={`/portal/${mandant}/zeiten/einwaende/${einwand.id}`}
+                  className="underline"
+                >
+                  Zur Meldung
+                </Link>
+              )}
+            </p>
+          )}
+          {einwandUnlesbar && (
+            <p
+              data-cse="einwand-unlesbar"
+              className="m-0 rounded-md border border-line bg-surface-2 p-s3 text-sm text-text-muted"
+            >
+              <strong className="text-text">Die angegebene Meldung ist nicht
+              einsehbar.</strong> Sie gehört einer anderen Gesellschaft, es gibt sie
+              nicht, oder dieser Sitzung fehlt <code>zeit.lesen</code>. Die Korrektur
+              entsteht <strong>ohne</strong> Verknüpfung — sie wird nicht stillschweigend
+              angehängt.
+            </p>
+          )}
 
           <div className="grid grid-cols-1 gap-s4 sm:grid-cols-2">
             <div>

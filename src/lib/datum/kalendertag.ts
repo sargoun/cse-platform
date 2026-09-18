@@ -83,3 +83,24 @@ export function monatsName(monat: string): string {
   const m = Number(monat.slice(5, 7));
   return `${MONATSNAMEN[m - 1] ?? monat.slice(5, 7)} ${monat.slice(0, 4)}`;
 }
+
+/**
+ * Ein Kalendertag `JJJJ-MM-TT` als `TT.MM.JJJJ` — die Hausschreibweise.
+ *
+ * **Eine Zeichenkettenumformung, absichtlich ohne `Date`.** Ein
+ * `new Date('2026-09-18').toLocaleDateString('de-DE')` liest den Tag als
+ * UTC-Mitternacht und formatiert ihn in der Zone des Prozesses; westlich von
+ * Greenwich steht dann der Vortag auf dem Bildschirm. Ein Kalendertag ist hier
+ * eine Beschriftung (siehe Kopf), und eine Beschriftung wird umgeschrieben,
+ * nicht umgerechnet.
+ *
+ * Alles, was nicht wie ein Kalendertag aussieht, kommt unverändert zurück:
+ * ein Datum, das die Datenbank in einer anderen Form liefert, soll sichtbar
+ * bleiben und nicht als `undefined.undefined.` erscheinen.
+ */
+export function tagDeutsch(datum: string | null | undefined): string {
+  if (typeof datum !== 'string') return '';
+  const treffer = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(datum.slice(0, 10));
+  if (treffer === null) return datum;
+  return `${treffer[3] ?? ''}.${treffer[2] ?? ''}.${treffer[1] ?? ''}`;
+}

@@ -87,8 +87,20 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const grund = feld(daten, 'grund');
   const begruendung = feld(daten, 'begruendung');
   const mandant = feld(daten, 'mandant');
+  /*
+   * Der Einwand, auf den diese Korrektur antwortet (EMP-07) — optional.
+   *
+   * Er kommt aus dem Formular und nicht aus einer Vermutung: dass jemand am
+   * selben Tag korrigiert hat, heisst nicht, dass er DIESE Meldung beantwortet
+   * hat. Ein fremder oder erfundener Wert scheitert am Fremdschluessel
+   * `zk_einwand_fk` ueber `(mandant_id, zeit_einwand_id)` und wird zu 404 und
+   * nicht zu 403 (AUT-06) — die Zeile eines anderen Mandanten ist nicht
+   * vorhanden, nicht verboten.
+   */
+  const einwand = feld(daten, 'einwand');
 
   if (!UUID.test(eintrag)
+      || (einwand !== '' && !UUID.test(einwand))
       || !SLUG.test(mandant)
       || !ARTEN.has(art as KorrekturArt)
       || !GRUENDE.has(grund as KorrekturGrund)
@@ -134,6 +146,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           grundKategorie: grund as KorrekturGrund,
           begruendung,
           durchgefuehrtVon: sitzung.benutzerId,
+          ...(einwand === '' ? {} : { zeitEinwandId: einwand }),
           ...(beginn === null ? {} : { beginnZeitpunkt: beginn }),
           ...(ende === null ? {} : { endeZeitpunkt: ende }),
           ...(pause === null ? {} : { pauseMinuten: pause }),

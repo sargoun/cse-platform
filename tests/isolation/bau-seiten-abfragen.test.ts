@@ -25,8 +25,8 @@ import {
   ladeBauKennzahlen, ladeProjektMarge, tageOhneBautagebuch,
 } from '../../src/server/services/bau/uebersicht.js';
 import {
-  bestaetigeLvPosition, findeLvPosition, findeProjektDetail, ladeAufmasseJePosition,
-  ladeLvPfad, ladeNachtraegeJePosition,
+  bestaetigeLvPosition, findeLvPosition, findeProjektDetail, gruppiereLvAuswahl,
+  ladeAufmasseJePosition, ladeLvAuswahl, ladeLvPfad, ladeNachtraegeJePosition,
 } from '../../src/server/services/bau/lv.js';
 import { listeAbnahmen } from '../../src/server/services/bau/abnahme.js';
 import { listeLvImporte } from '../../src/server/services/bau/lv-import.js';
@@ -177,6 +177,36 @@ describe('ohne `bau.preis_lesen` (Rolle `leitung`) laeuft JEDE Abfrage', () => {
     expect(d.kennzahlen.nachtraege_offen).toBe(1);
     expect(d.kennzahlen.abnahmen).toBe(0);
     expect(Array.isArray(d.luecken)).toBe(true);
+  });
+
+  it('Positionsauswahl: nur Positionen, jede mit ihrem Verzeichnis', async () => {
+    /*
+     * Zwei Verzeichnisse, und beide führen eine OZ `1`: der Hauptauftrag als
+     * TITEL (keine Buchungsstelle) und der Nachtrag als Position. Ohne die
+     * Angabe des Verzeichnisses stünde in der Auswahl der Aufmasserfassung
+     * `1 · Schachtverkleidung F90` neben `1.1 · Ständerwand CW 75`, und bei
+     * einer zweiten Fassung des Hauptauftrags jede OZ doppelt.
+     */
+    const bau = await baueProjekt(f.bau);
+    const auswahl = await alsApp(SITZUNG(bau),
+      async (tx) => ladeLvAuswahl(kontextAus(tx, bau), bau.projekt));
+
+    // Der Titel `1` des Hauptauftrags ist KEINE Buchungsstelle.
+    expect(auswahl.map((z) => z.oz).sort()).toEqual(['1', '1.1']);
+    const nachtrag = auswahl.find((z) => z.verzeichnis_art === 'nachtrag');
+    const haupt = auswahl.find((z) => z.verzeichnis_art === 'hauptauftrag');
+    expect(nachtrag?.oz).toBe('1');
+    expect(haupt?.oz).toBe('1.1');
+    // APR-03: die Position trägt Konfidenz 82 und ist unbestätigt.
+    expect(haupt?.ungeprueft).toBe(true);
+
+    // Und die Gruppierung nennt Verzeichnis UND Fassung — je Gruppe einmal.
+    const gruppen = gruppiereLvAuswahl(auswahl);
+    expect(gruppen).toHaveLength(2);
+    expect(gruppen.map((g) => g.beschriftung)).toEqual([
+      'Hauptauftrag · LV Ausbau (Fassung 1)',
+      'Nachtrag · Nachtrags-LV N-001 (Fassung 1)',
+    ]);
   });
 
   it('Projektdetail — und die Vertragssumme bleibt LEER, nie 0 € (0213)', async () => {

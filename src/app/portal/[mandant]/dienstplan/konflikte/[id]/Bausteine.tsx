@@ -33,6 +33,22 @@ export const REGEL_TEXT: Readonly<Record<string, string>> = {
   ausgleichszeitraum_ueberschritten: 'Ausgleichszeitraum überschritten (§ 3 Satz 2 ArbZG)',
 };
 
+/**
+ * Die vier Werte von `konflikt_status` bzw. `verstoss_status` — deutsch.
+ *
+ * Nachgesehen und nicht geraten: beide Enums tragen
+ * ('offen','quittiert','behoben','hinfaellig'). Ohne diese Karte stand auf
+ * dem Bildschirm „Dieser Konflikt ist nicht offen (hinfaellig)" — der rohe
+ * Enum-Wert, also genau der Fehlertyp, den der Kopfkommentar von
+ * `ERKANNT_TEXT` als Lehre notiert.
+ */
+export const STATUS_TEXT: Readonly<Record<string, string>> = {
+  offen: 'offen',
+  quittiert: 'quittiert',
+  behoben: 'behoben',
+  hinfaellig: 'hinfällig',
+};
+
 export const SCHWERE_TEXT: Readonly<Record<string, string>> = {
   hinweis: 'Hinweis',
   warnung: 'Warnung',

@@ -88,7 +88,8 @@ export default async function Raumbuch(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
   const mandantId = sitzung.aktiverMandantId;
-  const darf = await haeltRechte(sitzung, 'objekt_import.schreiben');
+  const darf = await haeltRechte(
+    sitzung, 'objekt_import.schreiben', 'stammdaten.verwalten');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -185,7 +186,22 @@ export default async function Raumbuch(
               // und liesse einen Raum ohne Nummer wie einen mit aussehen.
               schluessel: 'raum',
               kopf: 'Raum',
-              zelle: (z) => z.raumnummer ?? <span className="text-text-subtle">ohne Nummer</span>,
+              /*
+                * Der Zeilenverweis auf das RAUMBLATT — er fehlte, und damit
+                * war die Einzelpflege eines Raums von hier aus unerreichbar.
+                * Die Zelle traegt ihn auch dann, wenn keine Nummer steht:
+                * „ohne Nummer" ist kein Grund, den Raum nicht oeffnen zu
+                * koennen — sondern einer, ihn zu benennen.
+                */
+              zelle: (z) => (
+                <Link
+                  href={`/portal/${mandant}/objekte/${id}/raumbuch/${z.id}`}
+                  data-cse="zum-raumblatt"
+                  className="text-text underline underline-offset-2 hover:text-brand"
+                >
+                  {z.raumnummer ?? <span className="text-text-subtle">ohne Nummer</span>}
+                </Link>
+              ),
             },
             {
               schluessel: 'bezeichnung',
@@ -411,6 +427,27 @@ export default async function Raumbuch(
           </>
         )}
       </section>
+      {/* Rechtegeprueft (AUT-06). Der Leistungswert, aus dem die Sollzeit
+        * und damit der Preis entsteht, haengt an der BELAGSART — im Raumbuch
+        * steht nur, welcher Raum welchen Belag hat. Wer den Wert aendern will,
+        * sucht ihn sonst ueber die Einstellungskarten. */}
+      {darf['stammdaten.verwalten'] === true ? (
+        <p className="mt-s5 max-w-prose text-sm text-text-muted">
+          Der Leistungswert je Belagsart — aus ihm entsteht die Sollzeit — steht
+          in den{' '}
+          <Link href={`/portal/${mandant}/stammdaten/belagsarten`}
+                className="text-text underline-offset-2 hover:text-brand hover:underline">
+            Belagsarten
+          </Link>
+          ; die Einstufung der Räume in den{' '}
+          <Link href={`/portal/${mandant}/stammdaten/reinigungsklassen`}
+                className="text-text underline-offset-2 hover:text-brand hover:underline">
+            Reinigungsklassen
+          </Link>
+          .
+        </p>
+      ) : null}
+
     </PortalRahmen>
   );
 }

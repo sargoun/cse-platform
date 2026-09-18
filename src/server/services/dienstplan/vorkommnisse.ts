@@ -127,8 +127,16 @@ export class PlanungsFehler extends Error {
   }
 }
 
-/** Eine Schicht laenger als ein Tag ist keine Schicht, sondern ein Tippfehler. */
-const MAX_DAUER_MINUTEN = 24 * 60 - 1;
+/**
+ * Eine Schicht laenger als ein Tag ist keine Schicht, sondern ein Tippfehler.
+ *
+ * **Exportiert, weil es zwei Grenzen fuer dasselbe Feld gab.**
+ * `pruefeTurnusEingabe` in `serie.ts` liess bis 1440 zu, `nominalesEnde` hier
+ * bis 1439 — ein Turnus mit genau 1440 Minuten liess sich also anlegen und
+ * brachte danach jede Nacht den Generator zum Stehen, an einer Zeile, die
+ * niemand mehr mit dem Formular verband. Eine Zahl, zwei Aufrufer.
+ */
+export const MAX_DAUER_MINUTEN = 24 * 60 - 1;
 
 const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
 const ORTSZEIT = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/u;

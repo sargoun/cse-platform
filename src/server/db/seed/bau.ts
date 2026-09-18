@@ -1118,11 +1118,21 @@ export async function seedBau(
      * **Der Import bleibt in der Vorschau — uebernommen wird er NICHT.**
      *
      * Die Uebernahme legte eine NEUE Fassung des Leistungsverzeichnisses an,
-     * und jede maschinell gelesene Position waere bis zu ihrer Bestaetigung
-     * ungeprueft (`geprueft_von is null`) — ein Aufmass koennte dann auf
-     * keiner von ihnen gegengezeichnet werden (Hindernis in `pruefeVorlage`).
-     * Der Demobestand zeigt deshalb genau den Zustand, den die Seite
+     * und die AKTUELLE Fassung waere danach diese Datei: vier Zeilen statt
+     * der geseedeten 23+. Genau das zeigt die Vorschau als „Positionen der
+     * aktuellen Fassung fehlen in dieser Datei" (offen, O-633) — und der
+     * Demobestand bleibt damit im Zustand, den die Seite
      * `/lv/import?import=…` fuehrt: gelesen, verglichen, wartend.
+     *
+     * **Keine dieser Zeilen ist „maschinell gelesen".** Hier stand, jede
+     * Position waere bis zu ihrer Bestaetigung ungeprueft — das stimmt fuer
+     * CSV nicht: `CSV_QUELLE` setzt `konfidenz: null`, weil eine Spalte, die
+     * woertlich dasteht, kein Modell geraten hat. Damit greift weder
+     * `istUngeprueftMaschinell` noch das Hindernis in
+     * `kern.aufmass_vorlage_pruefen()` (0072), und der Bestaetigungsweg
+     * (`bestaetigeLvPosition`) trifft diese Positionen nicht. Die Sicherung
+     * beginnt bei einem EXTRAHIERENDEN Leser (PDF, Bild) — der ist noch
+     * nicht gebaut (O-41).
      *
      * Die vier Zeilen sind die vier Faelle, die die Vorschau unterscheidet:
      * eine unveraenderte (1.1.2), eine geaenderte Menge (1.2.5), eine neue

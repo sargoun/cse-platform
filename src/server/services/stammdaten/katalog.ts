@@ -110,15 +110,25 @@ export function i18nAus(
   return karte;
 }
 
-/** Eine nicht-negative ganze Zahl oder `null` — nie `NaN`, nie ein Rest. */
+/**
+ * Eine nicht-negative ganze Zahl oder `null` — nie `NaN`, nie ein Rest.
+ *
+ * **Neun Stellen, und die Zahl ist nicht gegriffen:** alle Ziel-Spalten sind
+ * `integer`, und 999.999.999 ist die groesste Zahl mit voller Stellenzahl, die
+ * sicher unter `int4` (2.147.483.647) bleibt. Eine engere Form waere eine
+ * Obergrenze, die weder die Tabelle noch SPEC/DESIGN/DECISIONS kennen — und
+ * die Meldung nannte sie nicht einmal, sodass `1234567` als „keine ganze
+ * Zahl" abgewiesen wurde, obwohl es eine ist.
+ */
 export function ganzzahlOderNull(
   eingabe: string | null, feld: string, mindestens = 0,
 ): number | null {
   const roh = (eingabe ?? '').trim();
   if (roh === '') return null;
-  if (!/^\d{1,6}$/u.test(roh)) {
+  if (!/^\d{1,9}$/u.test(roh)) {
     throw new StammdatenFehler('ungueltig',
-      `${feld}: „${roh}" ist keine ganze Zahl.`);
+      `${feld}: „${roh}" ist keine ganze Zahl bis 999999999 (die Spalte ist `
+      + '`integer`).');
   }
   const zahl = Number.parseInt(roh, 10);
   if (zahl < mindestens) {
@@ -175,6 +185,31 @@ export function sperrgrund(
       + 'vier Gesellschaften und wird von der Super-Administration gepflegt.';
   }
   return null;
+}
+
+/**
+ * Die Kollision ueber die KATALOGSTUFEN hinweg — aus dem Ausloeser zurueck in
+ * einen Satz.
+ *
+ * `kern.katalog_schluessel_frei` (0276) meldet mit
+ * `errcode = 'unique_violation'`, weil das der naechstliegende Code ist. Fuer
+ * `alsStammdatenFehler` sieht das aus wie eine gewoehnliche Dublette auf
+ * DERSELBEN Stufe, und der Mensch bekaeme „Diesen Schluessel fuehrt dieser
+ * Katalog schon" — die Meldung fuer einen anderen Fall. Unterscheidbar sind
+ * die beiden nur am Text des Ausloesers, und genau den liest diese Funktion.
+ *
+ * Sie steht deshalb VOR `alsStammdatenFehler`: beide sehen `23505`.
+ */
+export function alsStufenkollision(fehler: unknown): StammdatenFehler | null {
+  const f = fehler as { code?: unknown; message?: unknown };
+  if (f.code !== '23505') return null;
+  const text = typeof f.message === 'string' ? f.message : '';
+  if (!text.includes('anderen Katalogstufe')) return null;
+  return new StammdatenFehler('kollision',
+    'Diesen Schlüssel führt die ANDERE Katalogstufe schon — entweder der '
+    + 'Plattformkatalog oder mindestens eine Gesellschaft als eigene Art. Im '
+    + 'Antragsformular stünden sonst zwei gleich aussehende Einträge mit '
+    + 'verschiedener Lohnfolge (0276).');
 }
 
 /**

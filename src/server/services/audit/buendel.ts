@@ -32,7 +32,10 @@ import { schreibeZip } from '../archiv/zip.js';
  * Manifest — kein Buendel, das aussieht, als sei nichts geaendert worden.
  *
  * **Und das Wort „revisionssicher" faellt hier nicht.** Signiert ist das
- * MANIFEST ueber seinen SHA-256. Die Hashkette ueber das Protokoll
+ * MANIFEST ueber seinen SHA-256 — und weil das Manifest je Datei deren
+ * SHA-256 und Groesse fuehrt (`dateien`), haengt der Inhalt des Archivs an
+ * diesem einen Hash. Wer `nutzlast.csv` im ZIP austauscht, bricht ihn.
+ * Die Hashkette ueber das Protokoll
  * (`kern.audit_kette`, 0204) wird beim Bilden des Buendels fortgeschrieben,
  * und das Manifest nennt, wieviele Zeilen des Zeitraums gekettet sind. Eine
  * ungekettete Zeile ist keine Luecke im Beweis — sie ist ein Beweis, der
@@ -48,7 +51,7 @@ export const MAX_ZEILEN = 50_000;
 
 export class AuditBuendelFehler extends Error {
   constructor(
-    readonly grund: 'zeitraum' | 'zu_gross' | 'kein_mandant',
+    readonly grund: 'zeitraum' | 'zu_gross' | 'kein_mandant' | 'integritaet',
     nachricht: string,
   ) {
     super(nachricht);
@@ -89,6 +92,21 @@ export interface Nutzlast {
   readonly nachher: unknown;
 }
 
+/**
+ * Eine Datei des Buendels, wie das Manifest sie fuehrt.
+ *
+ * Der Eintrag ist die Bindung zwischen Manifest und Inhalt: das Manifest
+ * traegt `sha256` und `groesseBytes` je Datei, `packeAuditBuendel` rechnet
+ * die Bytes vor dem Packen dagegen. Ohne diese Bindung waere der
+ * Manifest-Hash eine Behauptung ueber sich selbst — wer die Vorher/Nachher-
+ * Werte im Archiv austauschte, liesse ihn unveraendert.
+ */
+export interface BuendelDatei {
+  readonly pfad: string;
+  readonly sha256: string;
+  readonly groesseBytes: number;
+}
+
 export interface Kettendeckung {
   readonly zeilen: number;
   readonly gekettet: number;
@@ -108,6 +126,13 @@ export interface AuditBuendel {
   /** `true`: die Werte fehlen, weil das Recht fehlt. Das Manifest sagt es. */
   readonly redigiert: boolean;
   readonly deckung: Kettendeckung;
+  /**
+   * Die Dateien NEBEN dem Manifest, jede mit ihrem SHA-256 — dieselben
+   * Eintraege, die im Manifest stehen. `manifest.json` steht nicht darin:
+   * es kann seinen eigenen Hash nicht tragen, dafuer gibt es
+   * `manifestSha256` (und die Kopfzeile `x-cse-manifest-sha256`).
+   */
+  readonly dateien: readonly BuendelDatei[];
   readonly manifest: Uint8Array;
   readonly manifestSha256: string;
 }
@@ -299,6 +324,29 @@ export async function erstelleAuditBuendel(
       auditId: n.audit_id, vorher: n.vorher, nachher: n.nachher,
     }));
 
+  /*
+   * Die CSV-Bytes entstehen VOR dem Manifest — sonst koennte das Manifest
+   * ihren SHA-256 nicht tragen, und der signierte Kopf saegte nur ueber sich
+   * selbst. Dieselbe Reihenfolge wie beim Pruefbuendel
+   * (`buchhaltung/pruefbuendel.ts`): erst die Dateien, dann das Manifest,
+   * dann die Gegenprobe beim Packen.
+   */
+  const kodierer = new TextEncoder();
+  const zeilenBytes = kodierer.encode(zeilenCsv({ zeilen }));
+  const nutzlastBytes = redigiert ? null : kodierer.encode(nutzlastCsv({ nutzlasten }));
+  const dateien: readonly BuendelDatei[] = [
+    {
+      pfad: ZEILEN_NAME,
+      sha256: createHash('sha256').update(zeilenBytes).digest('hex'),
+      groesseBytes: zeilenBytes.length,
+    },
+    ...(nutzlastBytes === null ? [] : [{
+      pfad: NUTZLAST_NAME,
+      sha256: createHash('sha256').update(nutzlastBytes).digest('hex'),
+      groesseBytes: nutzlastBytes.length,
+    }]),
+  ];
+
   const manifestWert = {
     art: 'cse-audit-buendel',
     version: 1,
@@ -334,12 +382,23 @@ export async function erstelleAuditBuendel(
         : null,
       anzahl: nutzlasten.length,
     },
+    /**
+     * Jede Datei des Archivs mit ihrem SHA-256. Das Manifest ist damit
+     * die Signatur ueber den INHALT, nicht nur ueber die Metadaten:
+     * wer `nutzlast.csv` im ZIP austauscht, bricht diesen Hash.
+     * `manifest.json` selbst fehlt hier — sein Hash ist
+     * `x-cse-manifest-sha256` und steht im Dateinamen.
+     */
+    dateien: dateien.map((d) => ({
+      pfad: d.pfad, sha256: d.sha256, groesseBytes: d.groesseBytes,
+    })),
     kette: {
       zeilenImZeitraum: deckung.zeilen,
       gekettet: deckung.gekettet,
       ketten: [...deckung.ketten],
       neuGeketteteGlieder: deckung.neuGekettet,
-      hinweis: 'Signiert ist DIESES Manifest über seinen SHA-256. Die Hashkette über '
+      hinweis: 'Signiert ist DIESES Manifest über seinen SHA-256; die übrigen Dateien '
+        + 'des Archivs hängen über dateien[].sha256 daran. Die Hashkette über '
         + 'das Protokoll liegt in kern.audit_kette/kern.audit_kettenglied und wird beim '
         + 'Bilden eines Bündels fortgeschrieben; app.audit_kette_pruefen rechnet sie nach. '
         + 'Was nicht gekettet ist, ist nicht bewiesen — und steht deshalb als Zahl hier.',
@@ -349,13 +408,13 @@ export async function erstelleAuditBuendel(
 
   return {
     mandantId, filter, vonUtc: f.von_utc, bisUtc: f.bis_utc,
-    zeilen, nutzlasten, redigiert, deckung, manifest,
+    zeilen, nutzlasten, redigiert, deckung, dateien, manifest,
     manifestSha256: createHash('sha256').update(manifest).digest('hex'),
   };
 }
 
 /** Die Zeilen als CSV nach RFC 4180 — dieselbe Feldform wie die Berichte. */
-export function zeilenCsv(b: AuditBuendel): string {
+export function zeilenCsv(b: { readonly zeilen: readonly BuendelZeile[] }): string {
   const kopf = ['id', 'ebene', 'akteur_typ', 'akteur', 'aktion', 'objekt_typ',
     'objekt_id', 'geaenderte_felder', 'ip', 'sitzung_id', 'zeitpunkt_utc',
     'zeitpunkt_berlin'].map((k) => csvFeld(k, true)).join(';');
@@ -375,7 +434,7 @@ export function zeilenCsv(b: AuditBuendel): string {
  * andere, und ein Buendel ueber zwanzig Tabellen haette hundert Spalten,
  * von denen jede Zeile zwei fuellt.
  */
-export function nutzlastCsv(b: AuditBuendel): string {
+export function nutzlastCsv(b: { readonly nutzlasten: readonly Nutzlast[] }): string {
   const kopf = ['audit_id', 'vorher', 'nachher'].map((k) => csvFeld(k, true)).join(';');
   const zeilen = b.nutzlasten.map((n) => [
     csvFeld(n.auditId, true),
@@ -388,6 +447,10 @@ export function nutzlastCsv(b: AuditBuendel): string {
 /**
  * Manifest, Protokoll-CSV und — wo erlaubt — die Nutzlasten als ZIP.
  *
+ * Jede Datei wird vor dem Packen gegen ihren Manifesteintrag nachgerechnet
+ * (wie `packePruefbuendel`); eine Abweichung ist ein `AuditBuendelFehler`
+ * mit `grund = 'integritaet'`, kein stillschweigend krummes Archiv.
+ *
  * Reproduzierbar: `schreibeZip` schreibt STORE mit Nullzeitstempel, das
  * Manifest ist kanonisches JSON ohne Uhr. Dasselbe Buendel zweimal gepackt
  * ergibt dieselben Bytes — und derselbe SHA-256 ist der Beweis, dass ein
@@ -395,12 +458,36 @@ export function nutzlastCsv(b: AuditBuendel): string {
  */
 export function packeAuditBuendel(b: AuditBuendel): Uint8Array {
   const kodierer = new TextEncoder();
-  const eintraege = [
-    { pfad: MANIFEST_NAME, bytes: b.manifest },
-    { pfad: ZEILEN_NAME, bytes: kodierer.encode(zeilenCsv(b)) },
-  ];
-  if (!b.redigiert) {
-    eintraege.push({ pfad: NUTZLAST_NAME, bytes: kodierer.encode(nutzlastCsv(b)) });
+  const roh = new Map<string, Uint8Array>([
+    [ZEILEN_NAME, kodierer.encode(zeilenCsv(b))],
+  ]);
+  if (!b.redigiert) roh.set(NUTZLAST_NAME, kodierer.encode(nutzlastCsv(b)));
+
+  /*
+   * Die Gegenprobe, wie `packePruefbuendel` sie fuehrt: jede Datei wird
+   * gegen IHREN Manifesteintrag nachgerechnet. Weicht ein Byte ab, entsteht
+   * kein Archiv — ein Buendel, dessen Manifest etwas anderes beschreibt als
+   * das, was danebenliegt, ist schlimmer als keines.
+   */
+  const eintraege = [{ pfad: MANIFEST_NAME, bytes: b.manifest }];
+  for (const d of b.dateien) {
+    const bytes = roh.get(d.pfad);
+    if (bytes === undefined) {
+      throw new AuditBuendelFehler('integritaet',
+        `Das Manifest führt ${d.pfad}, das Bündel hat die Datei nicht — es wird nicht gepackt.`);
+    }
+    const sha = createHash('sha256').update(bytes).digest('hex');
+    if (sha !== d.sha256 || bytes.length !== d.groesseBytes) {
+      throw new AuditBuendelFehler('integritaet',
+        `Die Datei ${d.pfad} hat nicht mehr den SHA-256 ihres Manifesteintrags — `
+        + 'das Bündel wird nicht gepackt.');
+    }
+    eintraege.push({ pfad: d.pfad, bytes });
+    roh.delete(d.pfad);
+  }
+  for (const pfad of roh.keys()) {
+    throw new AuditBuendelFehler('integritaet',
+      `${pfad} liegt im Bündel, steht aber nicht im Manifest — es wird nicht gepackt.`);
   }
   return schreibeZip(eintraege);
 }

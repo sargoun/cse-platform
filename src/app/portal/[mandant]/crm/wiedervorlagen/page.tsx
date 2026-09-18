@@ -18,6 +18,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '@/app/portal/rechte';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 
 /**
  * `/portal/[mandant]/crm/wiedervorlagen` — die Arbeitsliste des Vertriebs
@@ -38,8 +39,12 @@ import { alsRoute } from '@/server/auth/kennwort-anmeldung';
  * **Diese Seite ist die SICHT, nicht der Ort der Entstehung.**
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Angelegt werden Wiedervorlagen dort, wo sie entstehen — am Lead und am
- * Kontakt. Hier stehen zwei Vorgänge: „erledigt" (mit der Serverzeit) und
+ * Angelegt werden Wiedervorlagen dort, wo sie entstehen — heute auf dem
+ * KONTAKTBLATT (`crm/kontakte/[id]`, Abschnitt „Wiedervorlage"). Auf dem
+ * Leadblatt fehlt das Formular noch; bis es dort steht, entsteht eine
+ * Wiedervorlage zu einem Lead über den Kontakt, der daran hängt.
+ *
+ * Hier stehen zwei Vorgänge: „erledigt" (mit der Serverzeit) und
  * „verschieben" (mit Pflichtnotiz). Beide fassen die gespiegelte
  * `aufgabe`-Zeile mit an, sonst stünde derselbe Vorgang an einer Stelle offen
  * und an der anderen erledigt (O-663).
@@ -80,6 +85,14 @@ export default async function Wiedervorlagen(
 
   const gruppen: readonly Fachgruppe[] = gruppiere(daten.zeilen, daten.anker);
   const ueberfaellig = gruppen.find((g) => g.fach === 'ueberfaellig')?.zeilen.length ?? 0;
+  /*
+   * „Fällig" heisst: bis einschliesslich HEUTE — dieselbe Frage, die die
+   * Kachel auf `/crm` zählt (überfällig + heute). Sie stand dort mit einer
+   * anderen Zahl als hier „N offen", ohne dass jemand die beiden hätte
+   * zusammenbringen können. Jetzt steht sie daneben.
+   */
+  const faellig = ueberfaellig
+    + (gruppen.find((g) => g.fach === 'heute')?.zeilen.length ?? 0);
   const darfSchreiben = darf['crm.schreiben'] === true;
 
   const spalten = (fach: string) => [
@@ -202,14 +215,27 @@ export default async function Wiedervorlagen(
         <h1 className="m-0 text-h1 text-text">Wiedervorlagen</h1>
         <p className="m-0 text-sm text-text-muted" data-cse="wv-anzahl">
           {daten.zeilen.length === 1 ? '1 offen' : `${String(daten.zeilen.length)} offen`}
+          {` · ${String(faellig)} fällig`}
           {ueberfaellig === 0 ? '' : ` · ${String(ueberfaellig)} überfällig`}
+          {nurMeine ? ' (nur meine)' : ' (alle Zuständigen)'}
         </p>
       </div>
 
       <p className="mb-s4 max-w-prose text-sm text-text-muted">
         Sortiert nach Fälligkeit, nicht nach Eingang. Heute ist der{' '}
-        <span className="tabular-nums">{daten.anker.heute}</span> in Berliner Zeit —
-        gerechnet in der Datenbank, nicht im Browser.
+        <span className="tabular-nums">{tagDeutsch(daten.anker.heute)}</span> in
+        Berliner Zeit — gerechnet in der Datenbank, nicht im Browser.
+      </p>
+      <p className="mb-s4 max-w-prose text-xs text-text-muted" data-cse="wv-zahlen">
+        <strong>Drei Zahlen, drei Fragen.</strong> „Offen" zählt auch das, was erst in
+        drei Wochen dran ist; „fällig" zählt bis einschliesslich heute — das ist die
+        Zahl, die auf der CRM-Kachel steht; „überfällig" zählt, was schon vorbei ist.
+        Alle drei gelten für die gerade gewählte Zuständigkeit.
+      </p>
+      <p className="mb-s4 max-w-prose text-xs text-text-muted" data-cse="wv-woher">
+        <strong>Angelegt wird eine Wiedervorlage dort, wo sie entsteht</strong> — auf
+        dem Blatt des Ansprechpartners. Diese Liste erledigt und verschiebt; sie legt
+        nichts an, weil hier der Bezug fehlt, an dem eine Wiedervorlage hängen muss.
       </p>
 
       {/* Zwei Filter als GET-Verweise; kein JavaScript (wie bei den Nachträgen). */}

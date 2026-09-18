@@ -168,10 +168,12 @@ export function pruefeWarnstufen(eingabe: string): readonly number[] {
   const teile = roh.split(/[,;\s]+/u).filter((t) => t !== '');
   const zahlen: number[] = [];
   for (const teil of teile) {
-    if (!/^\d{1,4}$/u.test(teil)) {
+    // Neun Stellen = die Kapazitaet von `integer` (die Spalte ist `int[]`),
+    // nicht eine hier erfundene Hoechstzahl von Vorwarntagen.
+    if (!/^\d{1,9}$/u.test(teil)) {
       throw new StammdatenFehler('ungueltig',
-        `Warnstufen: „${teil}" ist keine Anzahl von Tagen. Erwartet wird eine `
-        + 'Liste wie „60, 30, 7".');
+        `Warnstufen: „${teil}" ist keine Anzahl von Tagen bis 999999999. `
+        + 'Erwartet wird eine Liste wie „60, 30, 7".');
     }
     const zahl = Number.parseInt(teil, 10);
     if (zahl <= 0) {
@@ -196,9 +198,11 @@ export function pruefeQualifikationEingabe(
   }
   const laeuftAb = lies('laeuftAb') === 'ja';
   const monateRoh = (lies('standardGueltigkeitMonate') ?? '').trim();
-  if (monateRoh !== '' && !/^\d{1,3}$/u.test(monateRoh)) {
+  // Neun Stellen = die Kapazitaet von `integer`. Wie lange ein
+  // Bewacherausweis gilt, ist O-341 und nicht eine Stellenzahl im Formular.
+  if (monateRoh !== '' && !/^\d{1,9}$/u.test(monateRoh)) {
     throw new StammdatenFehler('ungueltig',
-      'Standardgültigkeit: eine ganze Zahl in Monaten oder leer.');
+      'Standardgültigkeit: eine ganze Zahl in Monaten bis 999999999 oder leer.');
   }
   const monate = monateRoh === '' ? null : Number.parseInt(monateRoh, 10);
   if (monate !== null && monate <= 0) {
@@ -231,6 +235,55 @@ export function pruefeQualifikationEingabe(
   };
 }
 
+/**
+ * `qualifikation` traegt bewusst KEINEN Audit-Ausloeser (`rls.ts`: „`nachweis`
+ * und `bewacher_eintrag` ja, `qualifikation` nein"). Fuer `blockiert_einsatz`
+ * genuegt das nicht: der Schalter entscheidet, ob eine Einteilung verweigert
+ * wird, und „seit wann sperrt das" ist eine Frage, die im Streitfall gestellt
+ * wird. Diese Zeile beantwortet sie.
+ */
+
+/**
+ * Der Spaltensatz, den VORHER und NACHHER im Pruefprotokoll TEILEN.
+ *
+ * **Beide Seiten muessen dasselbe Vokabular sprechen.** `app.protokolliere`
+ * rechnet `geaendert_felder` als „welcher Schluessel von NACHHER steht in
+ * VORHER anders" (0004). Stuende dort das Eingabeobjekt dieser Schicht
+ * (camelCase, dazu Felder wie `i18n` und `plattform`, die gar keine Spalten
+ * sind) gegen eine gelesene Zeile (snake_case), waere jedes nur-camelCase-Feld
+ * immer `distinct` von NULL: das Protokoll meldete bei JEDER Aenderung
+ * dieselben Felder als geaendert, und eine ECHTE Umstellung waere darin nicht
+ * mehr zu erkennen.
+ *
+ * Vorher wird gelesen (`einZeile`), nachher kommt aus dem `returning`
+ * DESSELBEN Satzes. Beide tragen damit die Spaltennamen der Tabelle.
+ */
+const PROTOKOLL_SPALTEN = `schluessel, bezeichnung, bezeichnung_i18n, beschreibung,
+            kategorie::text as kategorie, rechtsgrundlage, laeuft_ab,
+            standard_gueltigkeit_monate, warnung_tage, blockiert_einsatz,
+            erfordert_dokument, archiviert_am`;
+
+/**
+ * Traegt die ANDERE Katalogstufe diesen Schluessel schon?
+ *
+ * **Diese Vorpruefung sieht nur den AKTIVEN Mandanten — und hier gibt es
+ * nichts hinter ihr.** Die Lesepolicy zeigt `mandant_id is null` plus
+ * `app.sichtbare_mandanten()`, in der Mandantensicht also genau die eine
+ * aktive Gesellschaft. In der MANDANTENRICHTUNG (eigene Qualifikation gegen
+ * den Plattformkatalog) ist die Antwort vollstaendig. In der
+ * PLATTFORMRICHTUNG — ein Super-Admin legt eine Qualifikation an, deren
+ * Schluessel eine ANDERE Gesellschaft fuehrt — sieht sie die fremde Zeile
+ * nicht und schweigt.
+ *
+ * **Und anders als bei `abwesenheitsart`/`antragsart` faengt das kein
+ * Ausloeser auf.** `kern.katalog_schluessel_frei` (0276) haengt an genau jenen
+ * beiden Tabellen; `qualifikation` traegt nur
+ * `unique nulls not distinct (mandant_id, schluessel)`, und die erlaubt
+ * denselben Schluessel einmal plattformweit UND einmal je Gesellschaft. Diese
+ * Funktion ist fuer die Plattformrichtung also ein Hinweis, keine Sperre —
+ * was sie heute ist, steht hier und nicht in einem Kommentar, der etwas
+ * anderes verspricht.
+ */
 async function pruefeStufenkollision(
   kontext: LeseKontext, schluessel: string, plattform: boolean,
 ): Promise<void> {
@@ -255,7 +308,7 @@ export async function legeQualifikationAn(
 ): Promise<string> {
   await pruefeStufenkollision(kontext, e.schluessel, e.plattform);
   try {
-    const [zeile] = await kontext.schreibe<{ id: string }>(
+    const [zeile] = await kontext.schreibe<Record<string, unknown>>(
       `insert into qualifikation
          (mandant_id, schluessel, bezeichnung, bezeichnung_i18n, beschreibung,
           kategorie, rechtsgrundlage, laeuft_ab, standard_gueltigkeit_monate,
@@ -264,19 +317,23 @@ export async function legeQualifikationAn(
                $1, $2, $3::jsonb, $4, $5::qualifikation_kategorie, $6,
                $7::boolean, $8::int, $9::int[], $10::boolean, $11::boolean,
                $13::uuid)
-       returning id`,
+       returning id, ${PROTOKOLL_SPALTEN}`,
       [e.schluessel, e.bezeichnung, e.i18n, e.beschreibung,
         e.kategorie, e.rechtsgrundlage, e.laeuftAb, e.standardGueltigkeitMonate,
         `{${e.warnungTage.join(',')}}`, e.blockiertEinsatz, e.erfordertDokument,
         e.plattform, kontext.benutzerId]);
-    const id = zeile?.id;
-    if (id === undefined) {
+    const id = zeile?.['id'];
+    if (typeof id !== 'string') {
       throw new StammdatenFehler('plattform',
         'Die Qualifikation wurde nicht angelegt. Plattformweite Katalogzeilen '
         + 'pflegt die Super-Administration (§6.16); eigene Qualifikationen '
         + 'brauchen stammdaten.verwalten in dieser Gesellschaft.');
     }
-    await protokolliere(kontext, 'stammdaten.qualifikation_angelegt', id, null, e);
+    await kontext.schreibe(
+      `select app.protokolliere('stammdaten.qualifikation_angelegt',
+                                'qualifikation', $1, null, $2::jsonb,
+                                app.aktiver_mandant())`,
+      [id, zeile]);
     return id;
   } catch (fehler: unknown) {
     throw alsStammdatenFehler(fehler, 'dieser Katalog') ?? fehler;
@@ -292,7 +349,7 @@ export async function aendereQualifikation(
 ): Promise<void> {
   const vorher = await einZeile(kontext, id);
   try {
-    const [zeile] = await kontext.schreibe<{ id: string }>(
+    const [nachher] = await kontext.schreibe<Record<string, unknown>>(
       `update qualifikation
           set bezeichnung = $2, bezeichnung_i18n = $3::jsonb, beschreibung = $4,
               kategorie = $5::qualifikation_kategorie, rechtsgrundlage = $6,
@@ -300,13 +357,17 @@ export async function aendereQualifikation(
               warnung_tage = $9::int[], blockiert_einsatz = $10::boolean,
               erfordert_dokument = $11::boolean, geaendert_von = $12::uuid
         where id = $1 and archiviert_am is null
-        returning id`,
+        returning ${PROTOKOLL_SPALTEN}`,
       [id, e.bezeichnung, e.i18n, e.beschreibung, e.kategorie,
         e.rechtsgrundlage, e.laeuftAb, e.standardGueltigkeitMonate,
         `{${e.warnungTage.join(',')}}`, e.blockiertEinsatz, e.erfordertDokument,
         kontext.benutzerId]);
-    if (zeile === undefined) throw nichtAenderbar(vorher !== null);
-    await protokolliere(kontext, 'stammdaten.qualifikation_geaendert', id, vorher, e);
+    if (nachher === undefined) throw nichtAenderbar(vorher !== null);
+    await kontext.schreibe(
+      `select app.protokolliere('stammdaten.qualifikation_geaendert',
+                                'qualifikation', $1, $2::jsonb, $3::jsonb,
+                                app.aktiver_mandant())`,
+      [id, vorher, nachher]);
   } catch (fehler: unknown) {
     throw alsStammdatenFehler(fehler, 'dieser Katalog') ?? fehler;
   }
@@ -322,14 +383,18 @@ export async function archiviereQualifikation(
   kontext: SchreibKontext, id: string,
 ): Promise<void> {
   const vorher = await einZeile(kontext, id);
-  const [zeile] = await kontext.schreibe<{ id: string }>(
+  const [nachher] = await kontext.schreibe<Record<string, unknown>>(
     `update qualifikation
         set archiviert_am = now(), archiviert_von = $2::uuid, geaendert_von = $2::uuid
       where id = $1 and archiviert_am is null
-      returning id`,
+      returning ${PROTOKOLL_SPALTEN}`,
     [id, kontext.benutzerId]);
-  if (zeile === undefined) throw nichtAenderbar(vorher !== null);
-  await protokolliere(kontext, 'stammdaten.qualifikation_archiviert', id, vorher, null);
+  if (nachher === undefined) throw nichtAenderbar(vorher !== null);
+  await kontext.schreibe(
+    `select app.protokolliere('stammdaten.qualifikation_archiviert',
+                              'qualifikation', $1, $2::jsonb, $3::jsonb,
+                              app.aktiver_mandant())`,
+    [id, vorher, nachher]);
 }
 
 function nichtAenderbar(sichtbar: boolean): StammdatenFehler {
@@ -345,26 +410,6 @@ async function einZeile(
   kontext: LeseKontext, id: string,
 ): Promise<Readonly<Record<string, unknown>> | null> {
   const [zeile] = await kontext.abfrage<Record<string, unknown>>(
-    `select schluessel, bezeichnung, beschreibung, kategorie::text as kategorie,
-            rechtsgrundlage, laeuft_ab, standard_gueltigkeit_monate, warnung_tage,
-            blockiert_einsatz, erfordert_dokument, archiviert_am
-       from qualifikation where id = $1`, [id]);
+    `select ${PROTOKOLL_SPALTEN} from qualifikation where id = $1`, [id]);
   return zeile ?? null;
-}
-
-/**
- * `qualifikation` traegt bewusst KEINEN Audit-Ausloeser (`rls.ts`: „`nachweis`
- * und `bewacher_eintrag` ja, `qualifikation` nein"). Fuer `blockiert_einsatz`
- * genuegt das nicht: der Schalter entscheidet, ob eine Einteilung verweigert
- * wird, und „seit wann sperrt das" ist eine Frage, die im Streitfall gestellt
- * wird. Diese Zeile beantwortet sie.
- */
-async function protokolliere(
-  kontext: SchreibKontext, aktion: string, id: string,
-  vorher: unknown, nachher: unknown,
-): Promise<void> {
-  await kontext.schreibe(
-    `select app.protokolliere($1, 'qualifikation', $2, $3::jsonb, $4::jsonb,
-                              app.aktiver_mandant())`,
-    [aktion, id, vorher, nachher]);
 }

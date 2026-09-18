@@ -13,7 +13,7 @@ import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { leseKonflikt, type KonfliktBlatt } from '@/server/services/dienstplan/konflikt';
-import { ArbzgBlock, KonfliktKopf } from '../Bausteine';
+import { ArbzgBlock, KonfliktKopf, STATUS_TEXT } from '../Bausteine';
 
 /**
  * `/portal/[mandant]/dienstplan/konflikte/[id]/uebersteuern` — eine
@@ -83,8 +83,16 @@ export default async function ArbzgUebersteuern(
   const arbzgSichtbar = darf['dienstplan.arbzg_lesen'] === true && k.arbzgSichtbar;
   const befund = k.verstoss;
   const uebersteuert = befund !== null && befund.status === 'quittiert';
+  /*
+   * `befund.hinfaellig` steht MIT in der Bedingung, und nicht nur der Status.
+   *
+   * `app.arbzg_befund_ueberholen` setzt `hinfaellig_am` und laesst
+   * `status = 'offen'` stehen; `app.arbzg_befund_quittieren` aendert dann
+   * null Zeilen. Ein Formular, das in diesem Zustand dasteht, fuehrt genau in
+   * die 409 `nicht_mehr_aktuell` der Route — besser, es steht gar nicht da.
+   */
   const uebersteuerbar = befund !== null && befund.status === 'offen'
-    && !k.blockiert && !k.hinfaellig;
+    && !befund.hinfaellig && !k.blockiert && !k.hinfaellig;
 
   return (
     <PortalRahmen
@@ -226,8 +234,12 @@ export default async function ArbzgUebersteuern(
           </form>
         ) : (
           <p className="max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Dieser Befund ist nicht offen ({befund.status}) — zu übersteuern ist
-            nichts mehr.
+            {befund.hinfaellig && befund.status === 'offen'
+              ? 'Dieser Befund ist überholt — der Nachtlauf hat ihn abgeräumt, weil '
+                + 'die zugrunde liegende Einteilung sich geändert hat. Zu übersteuern '
+                + 'ist nichts mehr.'
+              : `Dieser Befund ist nicht offen (${STATUS_TEXT[befund.status] ?? befund.status}) `
+                + '— zu übersteuern ist nichts mehr.'}
           </p>
         )}
       </section>

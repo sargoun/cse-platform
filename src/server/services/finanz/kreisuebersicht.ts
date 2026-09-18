@@ -369,3 +369,5 @@ export async function letzterKettenlauf(db: Abfrage): Promise<Kettenlauf | null>
     geprueft: z.geprueft === null ? null : Number(z.geprueft),
   };
 }
+
+// TODO(client, O-606): Die drei `ausgangsrechnung`-Kreise der Demofläche heissen „Ausgangsrechnungen (DEMO — Maske unbestätigt, O-134)" und tragen `ist_platzhalter = false`; der Name behauptet den Schutz, die Spalte hebt ihn auf, und für Rechnungskreise sitzt der Platzhalterschutz ausschliesslich in `fin.rechnung_nummer_ziehen` und prüft genau diese Spalte. Gehört sie auf `true` — und mit welcher Wirkung auf bereits festgeschriebene Belege? `kreise()` stellt beides nebeneinander und löst es nicht auf.

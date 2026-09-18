@@ -70,7 +70,8 @@ export default async function Belegblatt(
    * nicht — sonst endete er in einem 403 und verriete, was er verbirgt
    * (AUT-06, D-581).
    */
-  const darf = await haeltRechte(sitzung, 'dokument.lesen', 'buchhaltung.lesen');
+  const darf = await haeltRechte(
+    sitzung, 'dokument.lesen', 'buchhaltung.lesen', 'finanzen.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -299,9 +300,10 @@ export default async function Belegblatt(
       {daten.verwendung.length === 0 ? (
         <p className="mb-s5 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Keine Zeile beruft sich auf diesen Beleg. Er liegt im Archiv, aber
-          keine Buchung, keine Eingangsrechnung und keine Ausgabe verweist auf
-          ihn — dafür kann es Gründe geben (ein Vertrag, eine Anlage), und es
-          kann auch eine unfertige Erfassung sein.
+          keine Buchung, keine Eingangsrechnung, keine Ausgabe und keine
+          Ausgangsrechnung verweist auf ihn — dafür kann es Gründe geben (ein
+          Vertrag, eine Anlage), und es kann auch eine unfertige Erfassung
+          sein.
         </p>
       ) : (
         <DataTable
@@ -317,12 +319,13 @@ export default async function Belegblatt(
               schluessel: 'bezeichnung',
               kopf: 'Beleg / Text',
               /*
-               * Verlinkt werden genau die zwei Ziele, die hinter DEMSELBEN
-               * Recht liegen wie diese Seite (`eingang.lesen`): die
-               * Eingangsrechnung und die Ausgabe. Der Buchungssatz hat keine
-               * Einzelseite — das Journal ist die Liste —, und die
-               * Ausgangsrechnung liegt hinter `finanzen.lesen`. Beides bleibt
-               * Text, bevor ein Verweis auf 404 führt (AUT-06, D-581).
+               * Eingangsrechnung und Ausgabe liegen hinter DEMSELBEN Recht
+               * wie diese Seite (`eingang.lesen`) und sind immer verlinkt.
+               * Die Ausgangsrechnung liegt hinter `finanzen.lesen` — sie wird
+               * verlinkt, wenn dieses Konto es hält, und bleibt sonst Text,
+               * bevor ein Verweis auf 404 führt (AUT-06, D-581; dasselbe
+               * Muster wie beim buchungssatz-Zweig). Der Buchungssatz hat
+               * keine Einzelseite — das Journal ist die Liste.
                */
               zelle: (v) => (v.art === 'eingangsrechnung' ? (
                 <Link
@@ -334,6 +337,13 @@ export default async function Belegblatt(
               ) : v.art === 'ausgabe' ? (
                 <Link
                   href={`/portal/${mandant}/finanzen/ausgaben/${v.id}`}
+                  className="text-text underline-offset-2 hover:text-brand hover:underline"
+                >
+                  {v.bezeichnung}
+                </Link>
+              ) : v.art === 'rechnung' && darf['finanzen.lesen'] === true ? (
+                <Link
+                  href={`/portal/${mandant}/finanzen/rechnungen/${v.id}`}
                   className="text-text underline-offset-2 hover:text-brand hover:underline"
                 >
                   {v.bezeichnung}

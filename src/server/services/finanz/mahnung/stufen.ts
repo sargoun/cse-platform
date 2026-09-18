@@ -42,6 +42,15 @@ export interface StufenZeile {
   readonly zinsAufschlagBp: number | null;
   readonly zinsMethode: ZinsMethode | null;
   readonly folgeaktion: Folgeaktion;
+  /**
+   * Der Mahntext dieser Stufe — `null`, solange keiner hinterlegt ist.
+   *
+   * Er wird hier mitgelesen, weil `/einstellungen/vorlagen` alle Vorlagen an
+   * EINER Stelle zeigt und eine Stufenliste ohne ihren Text dort genau das
+   * verfehlt, was die Seite verspricht. Gepflegt wird er weiterhin nur unter
+   * `/einstellungen/mahnwesen`.
+   */
+  readonly textbaustein: string | null;
   readonly istPlatzhalter: boolean;
   readonly gueltigAb: string;
   readonly gueltigBis: string | null;
@@ -50,7 +59,8 @@ export interface StufenZeile {
 interface Roh {
   id: string; stufe: number; bezeichnung: string; tage_nach_faelligkeit: number;
   gebuehr_cent: string; zinsberechnung: string; zins_aufschlag_bp: number | null;
-  zins_methode: string | null; folgeaktion: string; ist_platzhalter: boolean;
+  zins_methode: string | null; folgeaktion: string; textbaustein: string | null;
+  ist_platzhalter: boolean;
   gueltig_ab: string; gueltig_bis: string | null;
 }
 
@@ -63,6 +73,7 @@ function zuZeile(r: Roh): StufenZeile {
     zinsAufschlagBp: r.zins_aufschlag_bp,
     zinsMethode: r.zins_methode as ZinsMethode | null,
     folgeaktion: r.folgeaktion as Folgeaktion,
+    textbaustein: r.textbaustein,
     istPlatzhalter: r.ist_platzhalter,
     gueltigAb: r.gueltig_ab, gueltigBis: r.gueltig_bis,
   };
@@ -90,7 +101,7 @@ export async function mahnstufen(
     `select id, stufe, bezeichnung, tage_nach_faelligkeit, gebuehr_cent::text,
             zinsberechnung::text as zinsberechnung, zins_aufschlag_bp,
             zins_methode::text as zins_methode, folgeaktion::text as folgeaktion,
-            ist_platzhalter, gueltig_ab::text as gueltig_ab,
+            textbaustein, ist_platzhalter, gueltig_ab::text as gueltig_ab,
             gueltig_bis::text as gueltig_bis
        from mahnstufe
       order by stufe, gueltig_ab desc`);

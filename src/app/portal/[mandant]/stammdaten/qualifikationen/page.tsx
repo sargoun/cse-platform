@@ -216,20 +216,39 @@ export default async function Qualifikationen(
                 },
                 {
                   schluessel: 'sperre', kopf: 'Sperrt',
+                  /*
+                   * KEINE Statuspille. Das feste Vokabular aus DESIGN §5 kennt kein
+                   * Wort fuer „gesperrt"; „Überfällig" stand hier und heisst dort
+                   * „Frist verstrichen" — gelesen ergab die Zeile „Überfällig
+                   * Einteilung", also einen Zustand, den diese Zeile nicht hat.
+                   * Ein neues Pill-Wort waere zuerst eine Aenderung an DESIGN.md,
+                   * nie umgekehrt; bis dahin traegt der Text die Aussage, wie es
+                   * die Seite bei den Platzhaltermarken auch tut.
+                   */
                   zelle: (q) => (q.blockiertEinsatz
                     ? (
-                      <span className="flex items-center gap-s2" data-cse="qualifikation-sperrt">
-                        <StatusPill zustand="Überfällig" />
-                        <span className="text-xs text-text-muted">Einteilung</span>
+                      <span className="text-xs text-danger" data-cse="qualifikation-sperrt">
+                        sperrt die Einteilung (SEC-04)
                       </span>
                     )
                     : <span className="text-xs text-text-muted">warnt nur</span>),
                 },
                 {
                   schluessel: 'dokument', kopf: 'Urkunde',
+                  /*
+                   * `erfordert_dokument` ist `boolean not null default false` —
+                   * ZWEI Zustaende. „offen (O-343)" an jedem ausgeschalteten
+                   * Haekchen behauptete, die Frage sei fuer diese Zeile
+                   * unbeantwortet, und machte ein bewusstes „nein" von „noch
+                   * niemand gefragt" ununterscheidbar. Genau diese Verwechslung
+                   * vermeidet `abwesenheitsart.bezahlt` mit drei Zustaenden.
+                   * O-343 steht deshalb in der Frage VOR der Liste, nicht in
+                   * jeder Zeile; dreiwertig zu werden waere eine Migration und
+                   * gehoert hinter die Antwort.
+                   */
                   zelle: (q) => (q.erfordertDokument
-                    ? <span className="text-xs text-text">Pflicht (O-343)</span>
-                    : <span className="text-xs text-warning">offen (O-343)</span>),
+                    ? <span className="text-xs text-text">Pflicht</span>
+                    : <span className="text-xs text-text-muted">nicht verlangt</span>),
                 },
                 {
                   schluessel: 'reichweite', kopf: 'Reichweite', numerisch: true,

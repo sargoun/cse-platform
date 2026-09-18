@@ -289,8 +289,35 @@ grant select, insert, update on werbewiderspruch_token to cse_definer;
 -- aktive Mandant — der Definer soll die Gesellschaftsgrenze nicht
 -- ueberschreiten, nur die Spaltenrechte (K-05).
 
-grant select, update on ansprechpartner to cse_definer;
-grant select, update on kunde           to cse_definer;
+/*
+ * **Das UPDATE ist SPALTENWEISE, das SELECT nicht — und der Unterschied ist
+ * kein Versehen.**
+ *
+ * Vorher stand hier `grant select, update on ansprechpartner to cse_definer`.
+ * Damit hielt JEDE Definer-Funktion des Hauses volles Schreiben auf beiden
+ * CRM-Tabellen im aktiven Mandanten; die Policies darunter pruefen nur die
+ * Gesellschaft und koennen nicht wissen, welche Funktion ruft. Geschrieben
+ * werden hier aber genau zwei Spalten — von `app.werbewiderspruch_einloesen`,
+ * `app.werbewiderspruch_formular`, `app.widerspruch_verarbeitung_setzen` und
+ * (spaeter) `app.werbewiderspruch_manuell_setzen`. Hausvorbild fuer das
+ * Spaltengrant: 0040:535 und 0077:308.
+ *
+ * Das SELECT bleibt tabellenweit, und zwar mit Grund: eine Spaltenliste HIER
+ * kann die Spalten nicht nennen, die spaetere Migrationen anlegen (0246 fuegt
+ * `aehnliche_leistung` hinzu und stuetzt sich in seinem eigenen Kommentar
+ * ausdruecklich auf dieses Tabellen-SELECT; 0247 liest sie). Eine Liste an
+ * dieser Stelle brach damit die Definer-Leser der CRM-Domaene — lautlos, mit
+ * „permission denied for column" erst im Betrieb. Den Entzug spaltenweise
+ * nachzuziehen gehoert deshalb in dieselbe Hand wie 0246/0247: sie muessen
+ * ihre eigenen Spaltengrants mitbringen, dann faellt dieses Tabellen-SELECT.
+ * Es steht als technische Nachziehung im Domaenenregister — keine offene
+ * Geschaeftsregel, sondern eine Reihenfolge zwischen zwei Migrationen.
+ */
+grant select on ansprechpartner to cse_definer;
+grant select on kunde           to cse_definer;
+
+grant update (werbewiderspruch_am, widerspruch_am) on ansprechpartner to cse_definer;
+grant update (werbewiderspruch_am, widerspruch_am) on kunde           to cse_definer;
 
 create policy d_ansprechpartner_widerspruch on ansprechpartner for select to cse_definer
   using (mandant_id = app.aktiver_mandant());
@@ -362,6 +389,13 @@ comment on function app.werbewiderspruch_liste() is
 
 alter function app.werbewiderspruch_liste() owner to cse_definer;
 grant execute on function app.werbewiderspruch_liste() to cse_app;
+/*
+ * K-08: `create function` erteilt PUBLIC automatisch EXECUTE; das `grant`
+ * darueber FUEGT HINZU und ersetzt nichts. Ohne den Entzug haelt jede Rolle
+ * das Ausfuehrungsrecht — `cse_anon` eingeschlossen. Reihenfolge wie
+ * 0031:552, 0040:1070, 0069:636, 0073:641.
+ */
+revoke all on function app.werbewiderspruch_liste() from public;
 
 /**
  * Der Stand EINES Betroffenen — fuer die Vorgangsakte.
@@ -372,7 +406,7 @@ grant execute on function app.werbewiderspruch_liste() to cse_app;
  * `app.rechtsgrundlage_lesen` verlangt.
  */
 create function app.widerspruch_stand(p_ansprechpartner uuid, p_kunde uuid)
-returns table (ebene text, betroffener_id uuid, name text,
+returns table (ebene text, betroffener_id uuid, kunde_id uuid, name text,
                werbewiderspruch_am timestamptz, widerspruch_am timestamptz,
                rechtsgrundlage text)
 language plpgsql stable security definer set search_path = pg_catalog, public, app as $$
@@ -386,14 +420,26 @@ begin
       using errcode = 'insufficient_privilege';
   end if;
 
+  /*
+   * `kunde_id` steht MIT in der Antwort, und das ist kein Beiwerk.
+   *
+   * `/api/datenschutz/widerspruch` nimmt den Haken „Auch auf Ebene der Firma
+   * festhalten" und braucht dafuer die Firma des Kontakts. Es las sie vorher
+   * direkt (`select kunde_id from ansprechpartner`) — unter der Policy
+   * `t_mandant`, und die verlangt `crm.lesen`. Genau die
+   * Datenschutzbeauftragte ohne CRM-Recht, fuer die diese Funktion existiert,
+   * bekam dort NULL Zeilen: der Haken wirkte still nicht, und die Wirkung ist
+   * unwiderruflich. Wer den Stand lesen darf, darf auch wissen, welche Firma
+   * dahinter steht.
+   */
   return query
-    select 'ansprechpartner'::text, ap.id,
+    select 'ansprechpartner'::text, ap.id, ap.kunde_id,
            btrim(coalesce(ap.vorname, '') || ' ' || ap.nachname),
            ap.werbewiderspruch_am, ap.widerspruch_am, ap.rechtsgrundlage::text
       from public.ansprechpartner ap
      where ap.mandant_id = app.aktiver_mandant() and ap.id = p_ansprechpartner
     union all
-    select 'kunde'::text, k.id, k.name,
+    select 'kunde'::text, k.id, k.id, k.name,
            k.werbewiderspruch_am, k.widerspruch_am, k.rechtsgrundlage::text
       from public.kunde k
      where k.mandant_id = app.aktiver_mandant() and k.id = p_kunde;
@@ -405,6 +451,7 @@ comment on function app.widerspruch_stand(uuid, uuid) is
 
 alter function app.widerspruch_stand(uuid, uuid) owner to cse_definer;
 grant execute on function app.widerspruch_stand(uuid, uuid) to cse_app;
+revoke all on function app.widerspruch_stand(uuid, uuid) from public;
 
 /**
  * Den Pflichtlink ausgeben — EIN Token je ausgehender Werbenachricht.
@@ -451,6 +498,8 @@ alter function app.werbewiderspruch_token_ausgeben(uuid, uuid, text, uuid, text)
   owner to cse_definer;
 grant execute on function
   app.werbewiderspruch_token_ausgeben(uuid, uuid, text, uuid, text) to cse_app;
+revoke all on function
+  app.werbewiderspruch_token_ausgeben(uuid, uuid, text, uuid, text) from public;
 
 /**
  * Welche Gesellschaft gehoert zu diesem Token?
@@ -476,6 +525,7 @@ comment on function app.werbewiderspruch_token_mandant(text) is
 
 alter function app.werbewiderspruch_token_mandant(text) owner to cse_definer;
 grant execute on function app.werbewiderspruch_token_mandant(text) to cse_app;
+revoke all on function app.werbewiderspruch_token_mandant(text) from public;
 
 /**
  * Der Ein-Klick-Widerspruch — bedingter Schreibvorgang nach K-09, idempotent.
@@ -518,22 +568,36 @@ begin
 
   if v_t.id is null then
     /*
-     * Kein Verbrauch. Drei Lagen, und die Antwort unterscheidet nur zwei:
-     * den Token gibt es (dann ist er eingeloest, widerrufen oder abgelaufen)
-     * oder nicht. Feiner zu antworten hiesse, einem Fremden zu sagen, welche
-     * Tokens existieren.
+     * Kein Verbrauch — und jetzt DREI Lagen statt zwei.
+     *
+     * Vorher gab dieser Zweig `bereits` fuer alles, was existiert: auch fuer
+     * einen WIDERRUFENEN oder abgelaufenen Token, der nie eingeloest wurde.
+     * Die Seite machte daraus „Ist bereits erfasst … Werbung an diese Adresse
+     * ist gestoppt" — eine falsche Zusage an die betroffene Person, auf dem
+     * Pflichtweg des § 7 UWG, und der Widerspruch war NICHT erfasst.
+     *
+     * Unterschieden wird an `eingeloest_am`, nicht am Grund. Dem Inhaber des
+     * Tokens verraet „verbraucht" vs. „ungueltig" nichts, was er nicht
+     * ohnehin weiss; WARUM ein Token ungueltig ist (widerrufen oder
+     * abgelaufen) bleibt drinnen. Ein Token, den es gar nicht gibt, bleibt
+     * `unbekannt` — feiner zu antworten hiesse, einem Fremden zu sagen,
+     * welche Tokens existieren.
      */
-    if exists (select 1 from public.werbewiderspruch_token t
-                where t.token_hash = lower(p_token_hash)
-                  and t.mandant_id = app.aktiver_mandant()) then
-      update public.werbewiderspruch_token t
-         set versuche = t.versuche + 1, letzter_versuch_am = now()
-       where t.token_hash = lower(p_token_hash)
-         and t.mandant_id = app.aktiver_mandant();
-      return query select 'bereits'::text, null::text, null::text;
+    update public.werbewiderspruch_token t
+       set versuche = t.versuche + 1, letzter_versuch_am = now()
+     where t.token_hash = lower(p_token_hash)
+       and t.mandant_id = app.aktiver_mandant()
+    returning t.* into v_t;
+
+    if v_t.id is null then
+      return query select 'unbekannt'::text, null::text, null::text;
       return;
     end if;
-    return query select 'unbekannt'::text, null::text, null::text;
+    if v_t.eingeloest_am is not null then
+      return query select 'verbraucht'::text, null::text, null::text;
+      return;
+    end if;
+    return query select 'ungueltig'::text, null::text, null::text;
     return;
   end if;
 
@@ -569,11 +633,86 @@ end $$;
 
 comment on function app.werbewiderspruch_einloesen(text) is
   'CRM-08, § 7 Abs. 3 Nr. 4 UWG, K-09. Bedingter Verbrauch, dann Zeitstempel '
-  'und Protokollzeile in EINER Transaktion. Zweiter Klick: „bereits", nie ein '
-  'Fehler (04-SEITENKARTE §2.4).';
+  'und Protokollzeile in EINER Transaktion. Vier Antworten: erfasst, '
+  'verbraucht (zweiter Klick — kein Fehler, 04-SEITENKARTE §2.4), ungueltig '
+  '(widerrufen oder abgelaufen, NICHT erfasst) und unbekannt.';
 
 alter function app.werbewiderspruch_einloesen(text) owner to cse_definer;
 grant execute on function app.werbewiderspruch_einloesen(text) to cse_app;
+revoke all on function app.werbewiderspruch_einloesen(text) from public;
+
+/**
+ * **Die Drossel des tokenlosen Weges** (§ 7 UWG gegen Missbrauch).
+ *
+ * Der tokenlose Widerspruch ist oeffentlich, unangemeldet und schreibt
+ * UNWIDERRUFLICH in fremde CRM-Datensaetze: `kern.erzwinge_widerspruch()`
+ * wirft bei jedem Versuch, den Stempel zu raeumen. Ohne Bremse stellt jeder,
+ * der Adressen kennt oder raet, die Werbeansprache fremder Kontakte lautlos
+ * und dauerhaft ab — und die Antwort ist immer dieselbe, er erfaehrt also
+ * nicht einmal, ob er getroffen hat. 04-SEITENKARTE:653 verlangt fuer genau
+ * diese Adresse ein Ratenlimit.
+ *
+ * **Warum ein eigener Zaehler und nicht `app.formular_eingang_zaehlen`.** Der
+ * zaehlt Zeilen in `formular_eingang`; dieser Weg legt dort keine an. Das
+ * Limit haette gezaehlt, was andere Formulare einsenden, und den eigenen Weg
+ * nie gebremst — eine Bremse, die aussieht wie eine.
+ *
+ * **Gezaehlt wird MANDANTENUEBERGREIFEND.** `kern.anmeldeversuch` traegt
+ * keinen Mandanten, und das ist hier richtig: die Gesellschaft steht im
+ * Formular, und wer sie durchwechselt, hat sonst vier Fenster statt einem.
+ *
+ * **Die rohe IP kommt nie herein**, nur ihr Abdruck (derselbe Hash wie
+ * `ipHash` in `services/lead/annahme.ts`). Sie ist personenbezogen; die
+ * Missbrauchsabwehr braucht nur Gleichheit.
+ *
+ * **Ein abgewiesener Versuch wird NICHT gezaehlt.** Sonst verlaengerte jeder
+ * Klick auf die geschlossene Tuer die Sperre, und wer den Weg wirklich
+ * braucht, kaeme nie mehr durch — auf einem gesetzlichen Pflichtweg.
+ */
+create function app.werbewiderspruch_drossel(p_ip_hash text)
+returns boolean
+language plpgsql security definer set search_path = pg_catalog, public, app as $$
+declare
+  v_fenster int := 15;
+  v_limit   int := 5;
+  v_anzahl  int;
+begin
+  if p_ip_hash is null or btrim(p_ip_hash) = '' then
+    /*
+     * Keine Herkunft, keine Drossel — aber auch kein stiller Durchlass: die
+     * Zeile entsteht trotzdem, damit im Protokoll steht, dass hier ohne
+     * Abdruck geschrieben wurde. Ohne `CSE_IP_PFEFFER` gibt es keinen Hash
+     * (der Pfeffer ist die Umkehrbarkeitssperre), und der Pflichtweg darf
+     * daran nicht scheitern.
+     */
+    insert into kern.anmeldeversuch (kennung_hash, ip, art, erfolg, grund)
+    values ('', null, 'werbewiderspruch', true, 'ohne_ip_abdruck');
+    return true;
+  end if;
+
+  select count(*) into v_anzahl
+    from kern.anmeldeversuch a
+   where a.art = 'werbewiderspruch'
+     and a.kennung_hash = p_ip_hash
+     and a.erstellt_am >= now() - make_interval(mins => v_fenster);
+
+  if v_anzahl >= v_limit then
+    return false;
+  end if;
+
+  insert into kern.anmeldeversuch (kennung_hash, ip, art, erfolg, grund)
+  values (p_ip_hash, null, 'werbewiderspruch', true, null);
+  return true;
+end $$;
+
+comment on function app.werbewiderspruch_drossel(text) is
+  'CRM-08, LEG-08, 04-SEITENKARTE:653. Fuenf tokenlose Widersprueche je '
+  'IP-Abdruck in 15 Minuten, mandantenuebergreifend. VORLAEUFIGE Zahlen — '
+  'dieselbe offene Frage wie LIMIT_JE_IP in services/lead/annahme.ts (O-80).';
+
+alter function app.werbewiderspruch_drossel(text) owner to cse_definer;
+grant execute on function app.werbewiderspruch_drossel(text) to cse_app;
+revoke all on function app.werbewiderspruch_drossel(text) from public;
 
 /**
  * Der tokenlose Weg — auf E-Mail-Adresse, in EINER Gesellschaft.
@@ -593,7 +732,7 @@ grant execute on function app.werbewiderspruch_einloesen(text) to cse_app;
  * waere eine Auskunft ueber einen fremden Datenbestand an jeden, der eine
  * Adresse errät.
  */
-create function app.werbewiderspruch_formular(p_email text)
+create function app.werbewiderspruch_formular(p_email text, p_ip_hash text)
 returns integer
 language plpgsql security definer set search_path = pg_catalog, public, app as $$
 declare
@@ -601,6 +740,43 @@ declare
   v_anzahl integer := 0;
   v_id uuid;
 begin
+  /*
+   * **Drei Pruefungen, die hier vorher NICHT standen** — und sie fehlten
+   * ausgerechnet dem einzigen Schreibweg dieser Migration, der von einer
+   * OEFFENTLICHEN Route gerufen wird. Ihre Geschwister tragen je mindestens
+   * zwei davon (`werbewiderspruch_token_ausgeben`: readonly + Recht,
+   * `widerspruch_verarbeitung_setzen`: alle drei). Der Schutz hing damit
+   * vollstaendig am Aufrufer, und der ist eine Route ohne Konto.
+   *
+   *  1. K-04: kein Schreiben aus einem fremden Portal.
+   *  2. Invariante 10: eine Gruppenansicht erklaert keinen Widerspruch.
+   *  3. `formular.schreiben` — das Recht des EINGANGSPRINZIPALS, genau das,
+   *     was die Route in ihrem Kommentar bereits behauptet („ohne Token der
+   *     Eingangsprinzipal mit `formular.schreiben`"). Geprueft hat es
+   *     niemand.
+   */
+  if app.portal() <> 'intern' then
+    raise exception 'Der tokenlose Werbewiderspruch laeuft ueber den Eingangsprinzipal (K-04)'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if app.ist_readonly() then
+    raise exception 'In der Gruppenansicht wird kein Widerspruch erklaert (Invariante 10)'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if not app.hat_recht('formular.schreiben', app.aktiver_mandant()) then
+    raise exception 'formular.schreiben fehlt' using errcode = 'insufficient_privilege';
+  end if;
+
+  /*
+   * Das Ratenlimit in DERSELBEN Transaktion wie das Schreiben — getrennt
+   * liesse ein Ansturm beliebig viele Widersprueche zwischen Zaehlung und
+   * UPDATE durch. Dieselbe Begruendung wie bei /api/karriere/bewerbung.
+   */
+  if not app.werbewiderspruch_drossel(p_ip_hash) then
+    raise exception 'Zu viele Widerspruchsversuche von dieser Verbindung'
+      using errcode = '54000';
+  end if;
+
   if v_email = '' or v_email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[a-z]{2,}$' then
     raise exception 'Keine gueltige E-Mail-Adresse' using errcode = 'check_violation';
   end if;
@@ -646,12 +822,71 @@ begin
   return v_anzahl;
 end $$;
 
-comment on function app.werbewiderspruch_formular(text) is
+comment on function app.werbewiderspruch_formular(text, text) is
   'CRM-08, LEG-08. Der tokenlose Widerspruch auf E-Mail-Adresse, in EINER '
-  'Gesellschaft. Die Trefferzahl geht ins Protokoll, nicht in die Antwort.';
+  'Gesellschaft. Prueft Portal (K-04), Gruppenansicht (Invariante 10), '
+  'formular.schreiben und das Ratenlimit selbst — sie wird von einer '
+  'oeffentlichen Route gerufen. Die Trefferzahl geht ins Protokoll, nicht in '
+  'die Antwort.';
 
-alter function app.werbewiderspruch_formular(text) owner to cse_definer;
-grant execute on function app.werbewiderspruch_formular(text) to cse_app;
+alter function app.werbewiderspruch_formular(text, text) owner to cse_definer;
+grant execute on function app.werbewiderspruch_formular(text, text) to cse_app;
+revoke all on function app.werbewiderspruch_formular(text, text) from public;
+
+/**
+ * **Die Pflichtlinks eines Kontakts — fuer die Auskunft nach Art. 15.**
+ *
+ * `werbewiderspruch_token` traegt einen Personenbezug (`ansprechpartner_id`),
+ * und `cse_app` hat auf der Tabelle GAR KEIN Recht. Eine Art.-15-Auskunft, die
+ * sie deshalb auslaesst, behauptet stillschweigend, es gaebe dort nichts —
+ * derselbe Fehler, gegen den `auskunft.ts` jeden Abschnitt sein Recht nennen
+ * laesst. Also ein Leseweg, der sein Recht selbst prueft und den Abruf
+ * protokolliert, genau wie `app.benachrichtigung_auskunft` (0221).
+ *
+ * **Der Abdruck geht NICHT hinaus.** `token_hash` ist der Schluessel, mit dem
+ * sich der Widerspruch dieses Kontakts erklaeren liesse — er bleibt drinnen.
+ * Herausgegeben wird, WAS ueber den Menschen gespeichert ist: dass ein
+ * Pflichtlink ausgegeben wurde, ueber welchen Kanal, wann, und ob er benutzt
+ * wurde.
+ */
+create function app.werbewiderspruch_token_auskunft(p_ansprechpartner uuid)
+returns table (ausgegeben_am timestamptz, kanal text,
+               eingeloest_am timestamptz, versuche integer,
+               widerrufen_am timestamptz, widerruf_grund text)
+language plpgsql stable security definer
+set search_path = pg_catalog, public, app as $$
+begin
+  if app.portal() <> 'intern' then
+    raise exception 'Die Pflichtlinks sind nur im internen Portal lesbar (K-04)'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if not app.hat_recht('datenschutz.auskunft_erstellen', app.aktiver_mandant()) then
+    raise exception 'datenschutz.auskunft_erstellen fehlt'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  perform app.protokolliere('datenschutz.werbewiderspruch_token_gelesen',
+                            'ansprechpartner', p_ansprechpartner::text, null,
+                            jsonb_build_object('zweck', 'art15'),
+                            app.aktiver_mandant());
+
+  return query
+    select t.ausgegeben_am, t.kanal, t.eingeloest_am, t.versuche,
+           t.widerrufen_am, t.widerruf_grund
+      from public.werbewiderspruch_token t
+     where t.mandant_id = app.aktiver_mandant()
+       and t.ansprechpartner_id = p_ansprechpartner
+     order by t.ausgegeben_am desc;
+end $$;
+
+comment on function app.werbewiderspruch_token_auskunft(uuid) is
+  'LEG-09, Art. 15 DSGVO. Die ausgegebenen Pflichtlinks eines Kontakts — ohne '
+  'den Abdruck selbst. cse_app hat auf werbewiderspruch_token kein Recht; '
+  'ohne diesen Weg fehlte die Tabelle in der Auskunft, ohne dass es auffiele.';
+
+alter function app.werbewiderspruch_token_auskunft(uuid) owner to cse_definer;
+grant execute on function app.werbewiderspruch_token_auskunft(uuid) to cse_app;
+revoke all on function app.werbewiderspruch_token_auskunft(uuid) from public;
 
 /**
  * Der Art.-21-Widerspruch — im Vorgang entschieden, von einem Menschen.
@@ -742,6 +977,8 @@ alter function app.widerspruch_verarbeitung_setzen(uuid, uuid, text)
   owner to cse_definer;
 grant execute on function app.widerspruch_verarbeitung_setzen(uuid, uuid, text)
   to cse_app;
+revoke all on function app.widerspruch_verarbeitung_setzen(uuid, uuid, text)
+  from public;
 
 -- ---------------------------------------------------------------------------
 -- Keine Loeschung (Invariante 8)

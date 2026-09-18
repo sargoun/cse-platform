@@ -88,7 +88,8 @@ export default async function Nachweisregister({
      Register öffnet mit `personal.nachweis_lesen` allein. Ohne das Recht
      führte der Verweis auf 404 und verriet, was er nicht zeigen darf
      (Copilot-Runde auf PR 16 / D-581). */
-  const darf = await haeltRechte(sitzung, 'personal.lesen', 'personal.nachweis_verwalten');
+  const darf = await haeltRechte(
+    sitzung, 'personal.lesen', 'personal.nachweis_verwalten', 'stammdaten.verwalten');
 
   const frage = await searchParams;
   const filter = typeof frage['lage'] === 'string' ? frage['lage'] : null;
@@ -272,6 +273,27 @@ export default async function Nachweisregister({
         Gesellschaft trägt diese Seite nicht und kann sie auch nicht erfragen
         (K-05).
       </p>
+      {/*
+        * Der Rueckweg zum Katalog — rechtegeprueft (AUT-06).
+        *
+        * Welche Qualifikation wie lange gilt, ab wann sie warnt und ob sie die
+        * Einteilung sperrt, steht NICHT hier, sondern im Katalog. Ohne diesen
+        * Verweis findet man ihn nur ueber die Einstellungskarten, also genau
+        * dort nicht, wo die Frage entsteht. Ohne `stammdaten.verwalten` fuehrte
+        * er auf 404 und verriete, was er nicht zeigen darf.
+        */}
+      {darf['stammdaten.verwalten'] === true ? (
+        <p className="mt-s4 max-w-prose text-sm text-text-muted">
+          Wie lange eine Qualifikation gilt, wann sie warnt und ob sie die
+          Einteilung sperrt, steht im{' '}
+          <Link href={`/portal/${mandant}/stammdaten/qualifikationen`}
+                className="text-text underline-offset-2 hover:text-brand hover:underline">
+            Qualifikationskatalog
+          </Link>
+          .
+        </p>
+      ) : null}
+
     </PortalRahmen>
   );
 }

@@ -60,7 +60,15 @@ export const metadata: Metadata = {
  */
 const TOKEN_FORM = /^[A-Za-z0-9_-]{20,200}$/u;
 
-const STAENDE = new Set(['erfasst', 'bereits', 'unbekannt']);
+/*
+ * **Vier Staende, nicht drei.** `bereits` hiess vorher beides: der zweite
+ * Klick UND ein widerrufener oder abgelaufener Token, der nie eingeloest
+ * wurde. Die Seite sagte in beiden Faellen „Werbung an diese Adresse ist
+ * gestoppt" — im zweiten Fall eine falsche Zusage auf dem Pflichtweg des § 7
+ * UWG. `app.werbewiderspruch_einloesen` unterscheidet sie seit 0222 an
+ * `eingeloest_am`.
+ */
+const STAENDE = new Set(['erfasst', 'verbraucht', 'ungueltig', 'unbekannt']);
 
 /**
  * **Der Hinweistext nach § 7 Abs. 3 Nr. 4 UWG — ein PLATZHALTER.**
@@ -101,19 +109,34 @@ export default async function Seite(
       {stand === 'erfasst' && (
         <Hinweis art="erfolg" cse="widerspruch-erfasst" className="mb-s5 max-w-prose">
           <strong>Ihr Widerspruch ist erfasst.</strong>{' '}
-          Werbung an diese Adresse wird gestoppt. Vertragliche Post —
-          Rechnungen, Leistungsnachweise, Mahnungen — erreicht Sie weiter; dafür
-          ist ein Widerspruch nach Art. 21 DSGVO nötig, und den nehmen wir über
-          das Datenschutzformular entgegen.
+          Werbung an diese Adresse wird gestoppt. Vertraglich notwendige Post —
+          Rechnungen etwa — erreicht Sie weiter; dafür ist ein Widerspruch nach
+          Art. 21 DSGVO nötig, und den nehmen wir über das Datenschutzformular
+          entgegen.
         </Hinweis>
       )}
 
-      {stand === 'bereits' && (
-        <Hinweis art="hinweis" cse="widerspruch-bereits" className="mb-s5 max-w-prose">
+      {stand === 'verbraucht' && (
+        <Hinweis art="hinweis" cse="widerspruch-verbraucht" className="mb-s5 max-w-prose">
           <strong>Ist bereits erfasst.</strong>{' '}
           Für diesen Link ist nichts weiter zu tun — Werbung an diese Adresse
           ist gestoppt. Ein zweiter Klick ändert daran nichts und ist kein
           Fehler.
+        </Hinweis>
+      )}
+
+      {stand === 'ungueltig' && (
+        <Hinweis art="warnung" cse="widerspruch-ungueltig" className="mb-s5 max-w-prose">
+          <strong>Dieser Link ist nicht mehr gültig — Ihr Widerspruch wurde
+          NICHT erfasst.</strong>{' '}
+          Damit er wirkt, nutzen Sie bitte{' '}
+          <a href="/werbewiderspruch"
+             className="underline underline-offset-2 hover:text-text">
+            das Formular ohne Link
+          </a>{' '}
+          oder schreiben Sie an die im Impressum genannte Adresse — der
+          Widerspruch gilt dann genauso und kostet Sie nichts als die
+          Übermittlung.
         </Hinweis>
       )}
 
@@ -145,11 +168,20 @@ export default async function Seite(
             </Button>
           </form>
 
+          {/*
+            * **Leistungsnachweis und Mahnung standen hier und stimmen nicht.**
+            * Sie sind als `zweck = 'transaktional'` gefuehrt, und
+            * `app.darf_kontaktiert_werden` weist die bei gesetztem
+            * Werbewiderspruch ab — bis O-65 entschieden ist, der restriktive
+            * Zweig. Nur `zweck = 'vertraglich'` laeuft wirklich weiter.
+            */}
           <p className="m-0 mb-s5 max-w-prose text-sm text-text-muted">
-            Vertragliche Post läuft weiter: Rechnungen, Leistungsnachweise und
-            Mahnungen erreichen Sie auch nach diesem Widerspruch. Wenn Sie der
-            Verarbeitung insgesamt widersprechen möchten (Art. 21 DSGVO), nutzen
-            Sie bitte das Datenschutzformular.
+            Vertraglich notwendige Post läuft weiter: eine Rechnung erreicht Sie
+            auch nach diesem Widerspruch. Terminbestätigungen,
+            Leistungsnachweise und Mahnungen halten wir bis zu einer
+            ausdrücklichen Entscheidung ebenfalls zurück — im Zweifel zu Ihren
+            Gunsten. Wenn Sie der Verarbeitung insgesamt widersprechen möchten
+            (Art. 21 DSGVO), nutzen Sie bitte das Datenschutzformular.
           </p>
         </>
       )}

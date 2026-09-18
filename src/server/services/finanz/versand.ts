@@ -25,6 +25,11 @@ import 'server-only';
  * festgeschriebener Beleg keine Spalte bekommt, die sich noch ändert (K-12).
  */
 
+import {
+  FORMATE, versandLage, WEGE,
+  type Rechnungsformat, type Uebertragungsweg, type VersandLage,
+} from '../crm/erechnung.js';
+
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
 }
@@ -211,16 +216,35 @@ export interface Empfaengerlage {
   readonly istOeffentlicherAuftraggeber: boolean;
   readonly xrechnungPflicht: boolean;
   /**
-   * Der Weg, den DIESER Käufer verlangt — oder `null`.
-   *
-   * `kunde.uebertragungsweg` gibt es in der Datenbank noch nicht (die Spalte
-   * gehört `02-CRM-OPERATIONS.md` §2 und kommt mit dem CRM-Ausbau). Solange
-   * sie fehlt, ist der Weg nicht hinterlegt — und ein Käufer mit
-   * `xrechnung_pflicht` ohne hinterlegten Weg BLOCKIERT den Versand, statt
-   * auf einen Kanal zurückzufallen (07-INTEGRATIONEN §12.1, ausdrücklich).
+   * Der Weg, den DIESER Käufer verlangt — oder `null` für „nicht
+   * verabredet". `kunde.uebertragungsweg` trägt ihn seit 0245.
    */
-  readonly uebertragungsweg: Kanal | null;
+  readonly uebertragungsweg: Uebertragungsweg | null;
+  readonly rechnungsformat: Rechnungsformat | null;
+  /**
+   * **Nur dann offen, wenn das Fehlen den Versand wirklich sperrt**: kein Weg
+   * hinterlegt UND der Käufer verlangt eine XRechnung (`xrechnung_pflicht`
+   * oder öffentlicher Auftraggeber). Ein Käufer ohne Pflicht und ohne
+   * verabredeten Weg ist kein Mangel, sondern eine Zustellung, die ein Mensch
+   * entscheidet — `lage.art` sagt `offen` und nicht `gesperrt`.
+   *
+   * Vorher stand hier fest `true`, mit der Begründung, die Spalte gebe es
+   * noch nicht. Sie gibt es. Der Warnkasten stand damit auf JEDER Rechnung,
+   * auch für Käufer mit verabredetem Weg — und eine Warnung, die immer
+   * steht, ist keine.
+   */
   readonly wegOffen: boolean;
+  /**
+   * Die vollständige Bewertung aus `services/crm/erechnung.ts` — vier
+   * benannte Zustände samt den einzeln aufgeführten fehlenden Pflichtangaben.
+   *
+   * **Sie wird gerufen und nicht ein zweites Mal formuliert.** Die Sperre des
+   * Pflichtkäufers ohne Weg (07-INTEGRATIONEN §12.1) ist die teuerste Regel
+   * dieses Bildschirms; zwei Formulierungen derselben Regel sind eine zu
+   * viel, und die zweite ist die, die beim nächsten Lesen nicht mitgezogen
+   * wird.
+   */
+  readonly lage: VersandLage;
 }
 
 export async function empfaengerlage(
@@ -228,17 +252,62 @@ export async function empfaengerlage(
 ): Promise<Empfaengerlage | null> {
   const [z] = await db.abfrage<{
     kunde_id: string; kunde_name: string; leitweg_id: string | null;
+    kaeufer_referenz: string | null;
     elektronische_adresse: string | null;
+    elektronische_adresse_schema: string | null;
     ist_oeffentlicher_auftraggeber: boolean; xrechnung_pflicht: boolean;
+    uebertragungsweg: string | null; rechnungsformat: string | null;
+    rechnung_email: string | null;
   }>(
     `select k.id::text as kunde_id, k.name as kunde_name, k.leitweg_id,
-            k.elektronische_adresse, k.ist_oeffentlicher_auftraggeber,
-            k.xrechnung_pflicht
+            k.kaeufer_referenz,
+            k.elektronische_adresse, k.elektronische_adresse_schema,
+            k.ist_oeffentlicher_auftraggeber, k.xrechnung_pflicht,
+            k.uebertragungsweg::text as uebertragungsweg,
+            k.rechnungsformat::text as rechnungsformat,
+            coalesce(k.rechnung_email, k.email_zentral) as rechnung_email
        from rechnung r
        join kunde k on k.mandant_id = r.mandant_id and k.id = r.kunde_id
       where r.id = $1`,
     [rechnungId]);
   if (z === undefined) return null;
+
+  /*
+   * Die Enumwerte kommen als `text` herein und werden gegen die geschlossenen
+   * Listen geprüft, nicht gecastet: ein neuer Wert im Datenbank-Enum, den
+   * `WEGE` noch nicht kennt, wäre als Typzusicherung ein stiller Durchgang
+   * und als Prüfung ein „nicht verabredet". Die zweite Antwort ist die
+   * ehrliche.
+   */
+  const weg = (WEGE as readonly string[]).includes(z.uebertragungsweg ?? '')
+    ? (z.uebertragungsweg as Uebertragungsweg) : null;
+  const format = (FORMATE as readonly string[]).includes(z.rechnungsformat ?? '')
+    ? (z.rechnungsformat as Rechnungsformat) : null;
+
+  /*
+   * Der Postausgang wird GEFRAGT, nicht angenommen.
+   *
+   * `versandLage` kannte `email` bis hierher als „braucht keinen Anschluss"
+   * und meldete `bereit`, während `versandwege()` und der Auslöser
+   * `rechnung_versand_2_kanal_verbunden` (0181) denselben Kanal längst als
+   * nicht verbunden führen. Zwei Wahrheiten über EINEN Anschluss — und die
+   * freundlichere stand auf dem Bildschirm. Hier wird deshalb derselbe
+   * Schlüssel gelesen, den auch die Datenbank prüft.
+   */
+  const email = (await versandwege(db)).find((w) => w.kanal === 'email');
+
+  const lage = versandLage({
+    xrechnungPflicht: z.xrechnung_pflicht,
+    istOeffentlicherAuftraggeber: z.ist_oeffentlicher_auftraggeber,
+    leitwegId: z.leitweg_id,
+    kaeuferReferenz: z.kaeufer_referenz,
+    elektronischeAdresse: z.elektronische_adresse,
+    elektronischeAdresseSchema: z.elektronische_adresse_schema,
+    uebertragungsweg: weg,
+    rechnungsformat: format,
+    rechnungEmail: z.rechnung_email,
+  }, { postausgangVerbunden: email?.verbunden === true });
+
   return {
     kundeId: z.kunde_id,
     kundeName: z.kunde_name,
@@ -246,8 +315,11 @@ export async function empfaengerlage(
     elektronischeAdresse: z.elektronische_adresse,
     istOeffentlicherAuftraggeber: z.ist_oeffentlicher_auftraggeber,
     xrechnungPflicht: z.xrechnung_pflicht,
-    uebertragungsweg: null,
-    wegOffen: true,
+    uebertragungsweg: weg,
+    rechnungsformat: format,
+    wegOffen: weg === null
+      && (z.xrechnung_pflicht || z.ist_oeffentlicher_auftraggeber),
+    lage,
   };
 }
 

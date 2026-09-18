@@ -22,7 +22,7 @@ import {
   leseNachweis, praegeNachweis, summeDerEintraege,
 } from '../../src/server/services/zeit/milog.js';
 import {
-  entscheideEinwand, listeOffeneEinwaende, reicheEinwandEin,
+  entscheideEinwand, leseEinwand, listeOffeneEinwaende, reicheEinwandEin,
 } from '../../src/server/services/zeit/einwand.js';
 import { korrigiereZeiteintrag } from '../../src/server/services/zeit/korrektur.js';
 import { splitteNachMonat } from '../../src/server/services/zeit/dauer.js';
@@ -531,6 +531,111 @@ describe('(4) ein Mitarbeitender ändert keinen Zeiteintrag — unter keiner Rol
       [einwandId]);
     expect(nachher!.status).toBe('anerkannt');
     expect(nachher!.am).not.toBeNull();
+  });
+
+  /**
+   * **Die Korrektur weiss, welche Meldung sie beantwortet** (TIM-11).
+   *
+   * `zeiteintrag_korrektur.zeit_einwand_id` gibt es seit der Anlage der
+   * Tabelle, mit eigenem Fremdschluessel `zk_einwand_fk`. Gelesen wurde sie
+   * (`leseEinwand` haengt daran den Abschnitt „Ist eine Korrektur gefolgt?"),
+   * geschrieben hat sie niemand: `korrigiereZeiteintrag` fuehrte die Spalte
+   * nicht in seinem `insert`. Die Folge war ein Einwandblatt, das IMMER
+   * „anerkannt, aber keine Korrektur" sagte — auch fuer die Korrektur, die
+   * genau diese Meldung beantwortet.
+   *
+   * Der Fall geht den Weg zu Ende und prueft danach BEIDE Richtungen: die
+   * Spalte, und was das Blatt daraus liest.
+   */
+  it('die anerkannte Meldung findet ihre Korrektur wieder', async () => {
+    const bau = await baueAuftrag(f.reinigung);
+    const kraft = await konto(`kraft-${zufall()}@cse.test`, f.fatima);
+    await mitglied(kraft, f.reinigung, 'mitarbeiter');
+    const eintrag = await baueZeiteintrag({
+      mandant: f.reinigung, anstellung: f.fatimaReinigung, person: f.fatima,
+      von: '2026-10-22T05:00:00Z', bis: '2026-10-22T13:00:00Z', pause: 30,
+    });
+
+    const einwandId = await alsApp(
+      {
+        scope: 'mandant', mandantId: f.reinigung, benutzerId: kraft,
+        personId: f.fatima, portal: 'mitarbeiter', readonly: false,
+      },
+      async (tx) => reicheEinwandEin(
+        kontextAus(tx, f.reinigung, kraft, 'mitarbeiter'),
+        {
+          anstellungId: f.fatimaReinigung, zeiteintragId: eintrag, art: 'zeit_falsch',
+          betrifftDatum: '2026-10-22',
+          begruendung: 'Ich habe eine halbe Stunde vor dem Stempeln angefangen.',
+          eingereichtVonBenutzerId: kraft,
+        },
+      ),
+    );
+
+    await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: bau.planer,
+        portal: 'intern', readonly: false },
+      async (tx) => entscheideEinwand(kontextAus(tx, f.reinigung, bau.planer), {
+        einwandId, status: 'anerkannt',
+        begruendung: 'Die Objektleitung bestaetigt den fruehen Beginn.',
+        entschiedenVon: bau.planer,
+      }),
+    );
+
+    const erg = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: bau.planer,
+        portal: 'intern', readonly: false },
+      async (tx) => korrigiereZeiteintrag(kontextAus(tx, f.reinigung, bau.planer), {
+        zeiteintragId: eintrag, art: 'zeit_korrektur',
+        grundKategorie: 'einwand_mitarbeiter',
+        begruendung: 'Beginn um 30 Minuten vorverlegt, wie gemeldet und bestaetigt.',
+        durchgefuehrtVon: bau.planer,
+        zeitEinwandId: einwandId,
+        beginnZeitpunkt: new Date('2026-10-22T04:30:00Z'),
+        behauptetBeginn: new Date('2026-10-22T04:30:00Z'),
+      }),
+    );
+
+    // Die Spalte selbst — nachgesehen und nicht aus dem Rueckgabewert geschlossen.
+    const [k] = await sql.unsafe<{ einwand: string | null }[]>(
+      `select zeit_einwand_id as einwand from zeiteintrag_korrektur where id = $1`,
+      [erg.korrekturId] as never[]);
+    expect(k!.einwand).toBe(einwandId);
+
+    // Und was das Blatt daraus liest: eine Korrektur, nicht „keine".
+    const blatt = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: bau.planer,
+        portal: 'intern', readonly: false },
+      async (tx) => leseEinwand(kontextAus(tx, f.reinigung, bau.planer), einwandId),
+    );
+    expect(blatt?.status).toBe('anerkannt');
+    expect(blatt?.korrektur?.id).toBe(erg.korrekturId);
+    expect(blatt?.korrektur?.art).toBe('zeit_korrektur');
+    expect(blatt?.korrektur?.ersatzZeiteintragId).toBe(erg.neueFassungId);
+  });
+
+  /**
+   * Die Gegenprobe: eine Kennung, die es in diesem Mandanten nicht gibt,
+   * scheitert am Fremdschluessel — sie wird nicht still als `null`
+   * geschrieben. Ein stilles Fallenlassen waere dieselbe Luecke noch einmal.
+   */
+  it('eine erfundene Meldung wird abgewiesen, nicht stillschweigend weggelassen', async () => {
+    const bau = await baueAuftrag(f.reinigung);
+    const eintrag = await baueZeiteintrag({
+      mandant: f.reinigung, anstellung: f.fatimaReinigung, person: f.fatima,
+      von: '2026-10-23T05:00:00Z', bis: '2026-10-23T13:00:00Z', pause: 30,
+    });
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: bau.planer,
+        portal: 'intern', readonly: false },
+      async (tx) => korrigiereZeiteintrag(kontextAus(tx, f.reinigung, bau.planer), {
+        zeiteintragId: eintrag, art: 'pause_korrektur',
+        grundKategorie: 'sonstiges', begruendung: 'Probe.',
+        durchgefuehrtVon: bau.planer,
+        zeitEinwandId: '00000000-0000-4000-8000-000000000000',
+        pauseMinuten: 45,
+      }),
+    )).rejects.toMatchObject({ code: '23503' });
   });
 });
 

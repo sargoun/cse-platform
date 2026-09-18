@@ -111,10 +111,18 @@ export default async function Ausgabenblatt(
         a,
         steuer: await steuerzeilen(kontext, id),
         /*
-         * Gefragt wird nur, wenn die Liste überhaupt eine Erstattung
-         * gemeldet hat: der Definer PROTOKOLLIERT jeden Aufruf, und ein
-         * Protokolleintrag für jede Ausgabenseite machte das Protokoll
-         * unlesbar — genau dort, wo es lesbar bleiben muss.
+         * Gefragt wird nur, wenn das Ja/Nein überhaupt eine Erstattung
+         * gemeldet hat: `erstattung()` ruft
+         * `app.ausgabe_erstattung_lesen()`, und die PROTOKOLLIERT jeden
+         * Aufruf. Ein Protokolleintrag für jede Ausgabenseite machte das
+         * Protokoll unlesbar — genau dort, wo es lesbar bleiben muss
+         * (SEC-A9).
+         *
+         * Das Ja/Nein selbst kommt aus `app.ausgabe_ist_erstattung()` (0184)
+         * und protokolliert nicht. Vorher stand in derselben Spaltenliste der
+         * protokollierende Definer: die Liste schrieb damit bei jedem
+         * Seitenaufruf eine Zeile je Erstattung und diese Seite zwei — die
+         * Flut, die dieser Kommentar zu vermeiden behauptete.
          */
         erstattung: a.istErstattung ? await erstattung(kontext, id) : null,
         weiter: await weiterberechnungen(kontext, id),

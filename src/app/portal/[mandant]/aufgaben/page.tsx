@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/Button';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import {
-  fristlage, listeAufgaben, zaehleJeZustand,
-  type AufgabeZeile, type Fristlage,
+  fristlage, istBezugTyp, istOffen, listeAufgaben, zaehleJeZustand,
+  type AufgabeFilter, type AufgabeZeile, type Fristlage,
 } from '@/server/services/kern/aufgabe';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../unterseite';
@@ -68,11 +68,16 @@ const BEZUG_TEXT: Readonly<Record<string, string>> = {
 function frist(z: AufgabeZeile, jetzt: Date): { text: string; lage: Fristlage } {
   const lage = fristlage(z, jetzt);
   if (z.faelligAm !== null) {
+    /*
+     * **Mit Jahr.** Ohne stand „14.06. 16:00" für eine seit einem Jahr
+     * überfällige Aufgabe und für eine Frist in zwei Tagen dasselbe da —
+     * dieselbe `dateStyle`/`timeStyle`-Kombination wie auf der Detailseite,
+     * damit zwei Seiten derselben Aufgabe nicht zwei Fristen zeigen.
+     */
     return {
       lage,
       text: new Intl.DateTimeFormat('de-DE', {
-        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-        timeZone: 'Europe/Berlin',
+        dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Berlin',
       }).format(z.faelligAm),
     };
   }
@@ -95,7 +100,13 @@ export default async function Aufgabenliste(
 
   const nurOffene = suche['alle'] !== '1';
   const nurMeine = suche['meine'] === '1';
-  const bezugTyp = typeof suche['bezug'] === 'string' && /^[a-z_]+$/u.test(suche['bezug'])
+  /*
+   * **Gegen die Werteliste geprüft, nicht gegen eine Form.** `/^[a-z_]+$/`
+   * liess `?bezug=foo` durch, und daraus wurde `$1::bezug_typ` — ein 22P02
+   * und eine Fehlerseite, wo eine leere Liste hingehört. Ein unbekanntes Wort
+   * ist keine Störung, sondern eine Eingabe.
+   */
+  const bezugTyp = typeof suche['bezug'] === 'string' && istBezugTyp(suche['bezug'])
     ? suche['bezug'] : undefined;
 
   const tor = await mandantTor(pfad, mandant);
@@ -104,24 +115,45 @@ export default async function Aufgabenliste(
   const { zugang } = tor;
 
   const jetzt = new Date();
-  const { zeilen, jeZustand } = await (db().begin(
+  /** EIN Filter für Liste und Kopfzahl — sonst zählen sie zwei Mengen. */
+  const filter: AufgabeFilter = {
+    ...(nurOffene ? { nurOffene: true } : {}),
+    ...(nurMeine ? { nurMeine: true } : {}),
+    ...(bezugTyp === undefined ? {} : { bezugTyp }),
+  };
+
+  const { zeilen, jeZustand, darfSchreiben } = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-      withTenant(tx, zugang.sitzung, async (kontext) => ({
-        zeilen: await listeAufgaben(kontext, {
-          ...(nurOffene ? { nurOffene: true } : {}),
-          ...(nurMeine ? { nurMeine: true } : {}),
-          ...(bezugTyp === undefined ? {} : { bezugTyp }),
-        }),
-        jeZustand: await zaehleJeZustand(kontext),
-      })),
+      withTenant(tx, zugang.sitzung, async (kontext) => {
+        /*
+         * `aufgabe.schreiben` in DERSELBEN gebundenen Transaktion, in der
+         * gelesen wird: die Route trägt nur `aufgabe.lesen`, ein reines
+         * Lesekonto erreicht diese Seite also. Ohne die Frage stünde hier
+         * ein Formular, dessen „Anlegen" von `/api/aufgaben` mit einer nackten
+         * 404 beantwortet wird — richtig nach AUT-06 und unerklärt.
+         */
+        const [recht] = await kontext.abfrage<{ schreiben: boolean }>(
+          `select app.hat_recht('aufgabe.schreiben', app.aktiver_mandant()) as schreiben`);
+        return {
+          zeilen: await listeAufgaben(kontext, filter),
+          jeZustand: await zaehleJeZustand(kontext, filter),
+          darfSchreiben: recht?.schreiben === true,
+        };
+      }),
   ) as Promise<{
     zeilen: readonly AufgabeZeile[];
     jeZustand: Readonly<Record<string, number>>;
+    darfSchreiben: boolean;
   }>);
 
   const offenGesamt = (jeZustand['offen'] ?? 0) + (jeZustand['in_arbeit'] ?? 0)
     + (jeZustand['wartend'] ?? 0);
-  const ueberfaellig = zeilen.filter((z) => fristlage(z, jetzt) === 'ueberfaellig').length;
+  /*
+   * Beide Zahlen über derselben Menge: offene Aufgaben dieses Filters. Eine
+   * erledigte Aufgabe mit alter Frist ist nicht überfällig, sie ist fertig.
+   */
+  const ueberfaellig = zeilen.filter(
+    (z) => istOffen(z.status) && fristlage(z, jetzt) === 'ueberfaellig').length;
 
   /** Die Filterlinks — zusammengesetzt, also über `alsRoute` (D-504). */
   const filterLink = (
@@ -199,6 +231,13 @@ export default async function Aufgabenliste(
 
       <section aria-labelledby="neue-aufgabe" className="mb-s6">
         <h2 id="neue-aufgabe" className="text-h2 text-text">Neue Aufgabe</h2>
+        {!darfSchreiben ? (
+          <p data-cse="anlegen-fehlt" className="mt-s3 max-w-prose text-sm text-text-muted">
+            Zum Anlegen fehlt das Recht <code>aufgabe.schreiben</code>. Die
+            Liste bleibt sichtbar — wer eine Aufgabe sieht, soll wissen, was
+            offen ist.
+          </p>
+        ) : (
         <form
           method="post"
           action={`/api/aufgaben?mandant=${mandant}`}
@@ -249,6 +288,7 @@ export default async function Aufgabenliste(
             Anlegen
           </Button>
         </form>
+        )}
       </section>
 
       {zeilen.length === 0 ? (

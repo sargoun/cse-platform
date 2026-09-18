@@ -15,6 +15,7 @@ import {
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
+import { WebsiteSpruenge } from '../../spruenge';
 
 /**
  * `/portal/[mandant]/website/seiten/[id]` — eine Seite bearbeiten (PUB-07,
@@ -80,6 +81,8 @@ export default async function WebsiteSeite(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
+      <WebsiteSpruenge mandant={mandant} zweig="seiten"
+                       sitzung={zugang.sitzung} />
       <p className="mb-s3 text-sm">
         <Link href={`/portal/${mandant}/website/seiten`}
               className="text-text-muted underline-offset-2 hover:underline">

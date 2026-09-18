@@ -173,12 +173,27 @@ export async function materialisiereSerie(
   };
 }
 
-interface Feiertagsfenster {
+export interface Feiertagsfenster {
   readonly namen: ReadonlyMap<string, string>;
   readonly ids: ReadonlyMap<string, string>;
 }
 
-async function ladeFeiertage(
+/**
+ * Die gesetzlichen Feiertage eines Bundeslandes im Fenster.
+ *
+ * **Exportiert, weil eine Vorschau ohne sie luegt.** `planeVorkommnisse`
+ * verlangt die Feiertagskarte als Argument und entscheidet damit, welcher
+ * Termin ausfaellt (CLN-03, TIM-02). Wer eine leere Karte uebergibt — weil
+ * dieser Lader privat war —, zeigt auf der Seite Termine an Feiertagen, die
+ * der Generator unmittelbar danach ueberspringt: Vorschau und Ergebnis
+ * widersprechen sich, und zwar auf demselben Bildschirm.
+ *
+ * `feiertag` ist plattformweit lesbar (Policy `f_lesen` auf `cse_app`, `using
+ * (true)`), also braucht diese Abfrage kein eigenes Recht — sie traegt aber
+ * auch keinen Mandanten und darf deshalb nie mit einer Mandantenspalte
+ * verbunden werden.
+ */
+export async function ladeFeiertage(
   db: Abfrage, bundesland: string, von: string, bis: string,
 ): Promise<Feiertagsfenster> {
   const zeilen = (await db.unsafe(

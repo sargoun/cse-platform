@@ -26,6 +26,33 @@ export const dynamic = 'force-dynamic';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
+/**
+ * Wohin eine ABGEWIESENE Handlung zurueckgeht — aus einem GESCHLOSSENEN Satz.
+ *
+ * **Der Befund, der das gebracht hat.** Diese Route leitete in allen drei
+ * Ausgaengen fest auf die Detailseite `/portal/{mandant}/freigaben/{id}` um.
+ * Die beiden Unterseiten `/einspruch` und `/rueckgaengig` tragen aber ihr
+ * eigenes Formular, und die Detailseite wertet `?fehler=grund` und
+ * `?fehler=fenster` gar nicht aus (sie kennt nur `fehler=ausfuehrung`): jede
+ * Fehlermeldung dieser zwei Seiten verschwand spurlos. Wer einen zu kurzen
+ * Grund eintippte, landete auf einer Seite, die nichts dazu sagte, und
+ * konnte nur raten.
+ *
+ * **Der ERFOLG geht weiter auf die Detailseite** — und das bleibt so. Nach
+ * einem Einspruch ist die Freigabe widerrufen, nach einer Ruecknahme die
+ * Ausfuehrung zurueckgedreht; die Unterseite waere danach leer, und was
+ * jetzt gilt, steht auf der Detailseite. Genau dieselbe Aufteilung wie bei
+ * `/api/vergabe/einreichung`: Fehler zum Formular, Erfolg zum Ergebnis.
+ *
+ * **Und der Name wird aufgeloest, nicht eingesetzt.** Das Formular schickt
+ * `einspruch` oder `ruecknahme`, nie einen Pfad — sonst waere das Feld eine
+ * offene Weiterleitung.
+ */
+const FORMULARSEITE: Readonly<Record<string, string>> = {
+  einspruch: 'einspruch',
+  ruecknahme: 'rueckgaengig',
+};
+
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
     return NextResponse.json({ fehler: 'fremder_ursprung' }, { status: 403 });
@@ -47,9 +74,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (was !== 'einspruch' && was !== 'ruecknahme') {
     return NextResponse.json({ fehler: 'unbekannte_handlung' }, { status: 400 });
   }
+  /*
+   * Kam das Formular von einer Unterseite, gehen Absagen DORTHIN zurueck —
+   * mit der Eingabe im Blick und einem Satz dazu. Ohne `zurueck` ist die
+   * Detailseite das Ziel, wie fuer ihr eingebettetes Formular.
+   */
+  const unterseite = FORMULARSEITE[String(daten.get('zurueck') ?? '')];
+  const formular = unterseite === undefined ? seite : `${seite}/${unterseite}`;
   if (grund.length < 5) {
     return NextResponse.redirect(
-      internesZiel(`${seite}?fehler=grund`, seite, anfrage), 303);
+      internesZiel(`${formular}?fehler=grund`, formular, anfrage), 303);
   }
 
   try {
@@ -68,8 +102,15 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       }));
   } catch (fehler) {
     if (fehler instanceof FensterFehler) {
+      /*
+       * **Der Code der Absage, nicht immer „Fenster".** Ein fehlendes
+       * `erforderliches_recht` der Zeile weist `app.freigabe_einspruch`
+       * mit `insufficient_privilege` ab; das als abgelaufene Frist
+       * auszugeben liess den Menschen auf ein naechstes Fenster warten,
+       * das ihm nie geholfen haette.
+       */
       return NextResponse.redirect(
-        internesZiel(`${seite}?fehler=fenster`, seite, anfrage), 303);
+        internesZiel(`${formular}?fehler=${fehler.code}`, formular, anfrage), 303);
     }
     const antwort = alsAntwort(fehler);
     if (antwort !== null) return antwort;

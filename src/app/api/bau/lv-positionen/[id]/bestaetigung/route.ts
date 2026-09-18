@@ -15,8 +15,9 @@ import { bestaetigeLvPosition } from '@/server/services/bau/lv';
  * LV-Position bestätigen (APR-03, K-10, BAU-01).
  *
  * **Warum dieser Endpunkt der Engpass einer ganzen Abrechnung ist.** Der
- * Auslöser `bau.pruefe_lv_geprueft()` (0072) weist jede Aufmasszeile ab, die
- * auf eine unbestätigte, maschinell gelesene Position bucht — ein Preis, den
+ * Auslöser `kern.aufmass_vorlage_pruefen()` (0072) weist jede Vorlage eines
+ * Aufmasses ab, deren Zeilen auf eine unbestätigte, maschinell gelesene
+ * Position buchen — ein Preis, den
  * ein Modell aus einem PDF gelesen hat, darf keine abrechenbare Menge tragen,
  * bevor ein benannter Mensch ihn bestätigt hat. Ohne diesen Endpunkt gäbe es
  * das Hindernis `lv_ungeprueft` in `pruefeVorlage` und keinen Weg, es zu

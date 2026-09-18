@@ -110,6 +110,22 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         if (k.verstoss.status !== 'offen') {
           return NextResponse.json({ fehler: 'nicht_offen' }, { status: 409 });
         }
+        /*
+         * `status = 'offen'` reicht NICHT.
+         *
+         * Ein ueberholter Befund traegt `hinfaellig_am is not null` und
+         * weiterhin `status = 'offen'` — `app.arbzg_befund_ueberholen` laesst
+         * den Status mit Absicht stehen. `app.arbzg_befund_quittieren`
+         * aktualisiert aber nur `where v.hinfaellig_am is null` und
+         * protokolliert danach bedingungslos. Ohne diese Zeile waere die
+         * Antwort eine 303 auf `?uebersteuert=1` mit dem gruenen Satz „Der
+         * Befund ist übersteuert" — ueber eine Zeile, die sich nicht geaendert
+         * hat. Dasselbe gilt fuer den Konflikt davor: ist ER hinfaellig, ist
+         * der Befund dahinter keine offene Frage mehr.
+         */
+        if (k.hinfaellig || k.verstoss.hinfaellig) {
+          return NextResponse.json({ fehler: 'nicht_mehr_aktuell' }, { status: 409 });
+        }
 
         await uebersteuereBefund(kontext, k.verstoss.id, begruendung);
         return null;

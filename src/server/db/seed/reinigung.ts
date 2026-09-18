@@ -61,6 +61,11 @@ import {
 import {
   erstelleReklamation, schreibeAbstellung,
 } from '../../services/reinigung/reklamation.js';
+import {
+  erfasseAbruf, storniereAbruf,
+} from '../../services/reinigung/sonderleistung.js';
+import { erfassePruefung } from '../../services/reinigung/qualitaet.js';
+import { tagePlus } from '@/lib/datum/kalendertag';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -573,5 +578,374 @@ export async function seedReinigung(
     unterschriften: 1,
     reklamationen,
     nummerOffen: signiert.nummerOffen ?? offen.nummerOffen,
+  };
+}
+
+/* ==========================================================================
+ * Teil 4 — Sonderleistungen und Qualitaetspruefungen (CLN-05, OPS-11)
+ *
+ * **Beide Tabellen hatten im ganzen Seed null Zeilen**, und
+ * `leistungskatalog_position` genau eine (das Platzhalterelement). Die Seiten
+ * `/reinigung/sonderleistungen`, `/qualitaet/pruefungen` und
+ * `/qualitaet/pruefungen/[id]` waren damit baubar, aber nicht belegbar: eine
+ * leere Tabelle prueft keine Spalte, keinen Zustand und keinen Verweis.
+ *
+ * **Die Werte der Katalogzeilen sind PLATZHALTER und sagen es.** Welcher
+ * Zeitwert fuer Glasreinigung gilt, ist eine Kalkulationsgrundlage und steht
+ * in keinem Dokument dieser Plattform (O-17, dieselbe Lage wie bei den
+ * Leistungswerten der Belagsarten). `ist_platzhalter` bleibt deshalb `true`,
+ * die Oberflaeche schreibt „Zeitwert unbestaetigt", und kein Preis wird
+ * erfunden: `standard_einzelpreis_cent` bleibt NULL, denn bepreist wird ueber
+ * `auftrag_leistung` — den mit DIESEM Kunden vereinbarten Preis (0067).
+ * ======================================================================= */
+
+/** Die drei Sonderleistungen, die CLN-05 namentlich nennt. */
+const SONDERKATALOG: readonly {
+  readonly oz: string;
+  readonly kurztext: string;
+  readonly langtext: string;
+  readonly einheit: string;
+  /** PLATZHALTER (O-17) — als Text, damit kein Double dazwischenkommt. */
+  readonly zeitwertMinuten: string;
+}[] = [
+  {
+    oz: '90.10', kurztext: 'Glasreinigung', einheit: 'm²',
+    langtext: 'Glasflächen innen und aussen, einschliesslich Rahmen und Bank.',
+    zeitwertMinuten: '3.500',
+  },
+  {
+    oz: '90.20', kurztext: 'Sonderreinigung', einheit: 'm²',
+    langtext: 'Grund- oder Bauendreinigung nach Aufmass, einzeln beauftragt.',
+    zeitwertMinuten: '6.000',
+  },
+  {
+    oz: '90.30', kurztext: 'Warenräumung', einheit: 'Stunde',
+    langtext: 'Räumung und Entsorgung nach Aufwand, mit Entsorgungsnachweis.',
+    zeitwertMinuten: '60.000',
+  },
+];
+
+/**
+ * Die Katalogzeilen der Sonderleistungen — in den Katalog, der schon da ist.
+ *
+ * Kein neuer `leistungskatalog`: es gibt einen je Gesellschaft, und ein
+ * zweiter waere eine zweite Antwort auf „welcher Katalog gilt".
+ */
+async function seedSonderkatalog(
+  sql: Sql, mandantId: string,
+): Promise<readonly { readonly id: string; readonly kurztext: string }[]> {
+  const [katalog] = await sql<{ id: string }[]>`
+    select id from leistungskatalog
+     where mandant_id = ${mandantId} and status <> 'archiviert'
+     order by version desc limit 1`;
+  if (katalog === undefined) return [];
+
+  const zeilen: { id: string; kurztext: string }[] = [];
+  for (const [index, k] of SONDERKATALOG.entries()) {
+    const [da] = await sql<{ id: string }[]>`
+      select id from leistungskatalog_position
+       where mandant_id = ${mandantId} and katalog_id = ${katalog.id} and oz = ${k.oz}
+         and gueltig_bis is null limit 1`;
+    if (da !== undefined) {
+      zeilen.push({ id: da.id, kurztext: k.kurztext });
+      continue;
+    }
+    const [neu] = await sql<{ id: string }[]>`
+      insert into leistungskatalog_position
+        (mandant_id, katalog_id, oz, kurztext, langtext, einheit, zeitwert_minuten,
+         kostenart, ist_platzhalter, gueltig_ab, sortierung)
+      values (${mandantId}, ${katalog.id}, ${k.oz}, ${k.kurztext}, ${k.langtext},
+              ${k.einheit},
+              ${k.zeitwertMinuten}::numeric, -- nicht-geld: Minuten je Einheit
+              'lohn',
+              /* PLATZHALTER: der Zeitwert ist nicht bestaetigt (O-17). */
+              true, '2026-01-01', ${900 + index})
+      returning id`;
+    if (neu !== undefined) zeilen.push({ id: neu.id, kurztext: k.kurztext });
+  }
+  return zeilen;
+}
+
+/**
+ * Einzelabrufe in vier Zustaenden — die, die die Seite unterscheiden muss.
+ *
+ * `angefragt` (noch keine Beauftragung), `beauftragt` (Termin steht aus),
+ * `erbracht` (abrechenbar — genau das liest `einzelabruf.ts`) und `storniert`
+ * (mit Grund und Urheber, NICHT geloescht, Invariante 8). `abgerechnet` fehlt
+ * absichtlich: diesen Stempel setzt die Rechnungsuebernahme, und ein Seed, der
+ * ihn selbst schreibt, behauptete eine Rechnung, die es nicht gibt.
+ *
+ * Der Abruf laeuft ueber den ECHTEN Dienst (`erfasseAbruf`) und damit unter
+ * RLS — ein `insert` als Eigentuemer haette an jeder Policy vorbeigeschrieben
+ * und im Seed nie gezeigt, ob der Schreibweg ueberhaupt gangbar ist.
+ */
+async function seedSonderleistungen(
+  sql: Sql, mandantId: string, planerId: string, heute: string,
+): Promise<number> {
+  const katalog = await seedSonderkatalog(sql, mandantId);
+  if (katalog.length === 0) return 0;
+
+  const [objekt] = await sql<{ id: string; kunde_id: string }[]>`
+    select o.id, o.kunde_id from objekt o
+     where o.mandant_id = ${mandantId} and o.archiviert_am is null
+       and o.kunde_id is not null
+     order by o.objektnummer limit 1`;
+  if (objekt === undefined) return 0;
+
+  const [revier] = await sql<{ id: string }[]>`
+    select id from revier
+     where mandant_id = ${mandantId} and objekt_id = ${objekt.id}
+       and archiviert_am is null
+     order by sortierung limit 1`;
+
+  /** Die Auftragszeile, aus der der PREIS kommt — nicht aus dem Katalog. */
+  const [leistung] = await sql<{ id: string }[]>`
+    select al.id from auftrag_leistung al
+     join auftrag a on a.mandant_id = al.mandant_id and a.id = al.auftrag_id
+    where al.mandant_id = ${mandantId} and al.objekt_id = ${objekt.id}
+      and a.status = 'aktiv'
+    order by al.position_nr limit 1`;
+
+  const abrufe: readonly {
+    readonly katalog: number;
+    readonly bezeichnung: string;
+    readonly beauftragtVor: number;
+    readonly fensterVon: number | null;
+    readonly fensterBis: number | null;
+    readonly menge: string | null;
+    readonly einheit: string | null;
+    readonly status: 'angefragt' | 'beauftragt' | 'geplant' | 'erbracht';
+    readonly stornoGrund: string | null;
+  }[] = [
+    {
+      katalog: 0, bezeichnung: 'Glasreinigung Treppenhaus, aussen',
+      beauftragtVor: -18, fensterVon: -4, fensterBis: -3,
+      menge: '184.500', einheit: 'm²', status: 'erbracht', stornoGrund: null,
+    },
+    {
+      katalog: 1, bezeichnung: 'Sonderreinigung Kantine nach Wasserschaden',
+      beauftragtVor: -6, fensterVon: 3, fensterBis: 4,
+      menge: '96.000', einheit: 'm²', status: 'beauftragt', stornoGrund: null,
+    },
+    {
+      katalog: 2, bezeichnung: 'Warenräumung Kellerarchiv',
+      beauftragtVor: -2, fensterVon: null, fensterBis: null,
+      menge: null, einheit: null, status: 'angefragt', stornoGrund: null,
+    },
+    {
+      katalog: 0, bezeichnung: 'Glasreinigung Fassade Südseite',
+      beauftragtVor: -25, fensterVon: -10, fensterBis: -9,
+      menge: '240.000', einheit: 'm²', status: 'beauftragt',
+      stornoGrund: 'Gerüst nicht gestellt — Kunde hat abbestellt',
+    },
+  ];
+
+  let angelegt = 0;
+  for (const a of abrufe) {
+    const [da] = await sql<{ id: string }[]>`
+      select id from sonderleistung
+       where mandant_id = ${mandantId} and bezeichnung = ${a.bezeichnung} limit 1`;
+    if (da !== undefined) continue;
+    const position = katalog[a.katalog];
+    if (position === undefined) continue;
+
+    const id = await alsPortalSitzung(sql, mandantId, planerId, async (kontext) => {
+      const { id: neu } = await erfasseAbruf(kontext, {
+        objektId: objekt.id,
+        kundeId: objekt.kunde_id,
+        leistungskatalogPositionId: position.id,
+        bezeichnung: a.bezeichnung,
+        beauftragtAm: tagePlus(heute, a.beauftragtVor),
+        revierId: revier?.id ?? null,
+        auftragLeistungId: leistung?.id ?? null,
+        beauftragtDurch: 'Objektverwaltung des Kunden',
+        ausfuehrungVon: a.fensterVon === null ? null : tagePlus(heute, a.fensterVon),
+        ausfuehrungBis: a.fensterBis === null ? null : tagePlus(heute, a.fensterBis),
+        menge: a.menge,
+        einheit: a.einheit,
+        status: a.status,
+      });
+      if (a.stornoGrund !== null) {
+        await storniereAbruf(kontext, { id: neu, grund: a.stornoGrund });
+      }
+      return neu;
+    });
+    if (id !== undefined) angelegt += 1;
+  }
+  return angelegt;
+}
+
+/**
+ * Zwei Qualitaetspruefungen — eine mit Mangel und ueberfaelliger Frist, eine
+ * ohne Befund im Zustand „nicht in Ordnung".
+ *
+ * **Ohne Skala kein Urteil.** Das Pruefverfahren ist der Platzhalter
+ * `unbestimmt` (`max_punkte` NULL, `bestehensschwelle_prozent` NULL,
+ * `ist_platzhalter` true); `erfassePruefung` laesst `bestanden` deshalb auf
+ * NULL — nicht auf `false` (K-17, O-29). Die EINZELNEN Befunde tragen
+ * trotzdem Punkte, damit nichts verloren geht, sobald der Kunde die Skala
+ * nennt.
+ *
+ * **Die ueberfaellige Frist ist Absicht.** Sie ist der einzige Zustand, an
+ * dem sich zeigen laesst, dass die Seite eine verstrichene Maengelfrist
+ * farbig UND im Text markiert (DESIGN §9) — und dass daraus NICHTS von selbst
+ * folgt (O-705).
+ *
+ * **Die Kriterien sind freier Text**, weil es keinen Kriterienkatalog gibt
+ * (O-29). Eine Tabelle mit vorgegebenen Pruefkriterien anzulegen waere eine
+ * erfundene Geschaeftsregel.
+ */
+async function seedQualitaetspruefungen(
+  sql: Sql, mandantId: string, planerId: string, heute: string,
+): Promise<number> {
+  const [objekt] = await sql<{ id: string; kunde_id: string }[]>`
+    select o.id, o.kunde_id from objekt o
+     where o.mandant_id = ${mandantId} and o.archiviert_am is null
+       and o.kunde_id is not null
+     order by o.objektnummer limit 1`;
+  if (objekt === undefined) return 0;
+
+  const [revier] = await sql<{ id: string; objekt_id: string }[]>`
+    select id, objekt_id from revier
+     where mandant_id = ${mandantId} and objekt_id = ${objekt.id}
+       and archiviert_am is null
+     order by sortierung limit 1`;
+
+  /** Die Revierraeume DIESES Reviers — ein fremder waere ein falscher Befund. */
+  const revierRaeume = revier === undefined ? [] : await sql<{ id: string }[]>`
+    select rr.id from revier_raum rr
+     where rr.mandant_id = ${mandantId} and rr.revier_id = ${revier.id}
+     order by rr.reihenfolge limit 3`;
+
+  const [verfahren] = await sql<{ id: string }[]>`
+    select id from pruefverfahren
+     where mandant_id = ${mandantId} and archiviert_am is null
+     order by ist_platzhalter, bezeichnung limit 1`;
+  if (verfahren === undefined) return 0;
+
+  const [pruefer] = await sql<{ id: string }[]>`
+    select a.id from anstellung a
+     join benutzer b on b.person_id = a.person_id
+    where a.mandant_id = ${mandantId} and a.status = 'aktiv'
+      and a.geloescht_am is null and b.id = ${planerId}
+    limit 1`;
+
+  const [schon] = await sql<{ n: string }[]>`
+    select count(*)::text as n from qualitaetspruefung where mandant_id = ${mandantId}`;
+  if (Number(schon?.n ?? '0') > 0) return 0;
+
+  return alsPortalSitzung(sql, mandantId, planerId, async (kontext) => {
+    let angelegt = 0;
+
+    /* Erste Pruefung: mit Mangel und ÜBERFÄLLIGER Frist. */
+    await erfassePruefung(kontext, {
+      objektId: objekt.id,
+      revierId: revier?.id ?? null,
+      kundeId: objekt.kunde_id,
+      pruefverfahrenId: verfahren.id,
+      prueferAnstellungId: pruefer?.id ?? null,
+      prueferExternName: pruefer === undefined ? 'Objektleitung (extern erfasst)' : null,
+      mitKunde: true,
+      bemerkung: 'Begehung mit der Objektverwaltung des Kunden, Rundgang EG bis 2. OG.',
+      positionen: [
+        {
+          kriterium: 'Böden — Nassreinigung',
+          ergebnis: 'io',
+          punkte: '5.00',
+          revierRaumId: revierRaeume[0]?.id ?? null,
+        },
+        {
+          kriterium: 'Sanitärbereich — Becken und Armaturen',
+          ergebnis: 'nio',
+          punkte: '1.00',
+          revierRaumId: revierRaeume[1]?.id ?? null,
+          mangelBeschreibung:
+            'Kalkränder an drei Armaturen, Spiegel nicht nachgezogen.',
+          /* Die Frist ist VERSTRICHEN — der Zustand, den die Seite markieren
+             muss und aus dem NICHTS von selbst folgt (O-705). */
+          fristAm: tagePlus(heute, -5),
+        },
+        {
+          kriterium: 'Sanitärbereich — Verbrauchsmaterial',
+          ergebnis: 'nio',
+          punkte: '2.00',
+          revierRaumId: revierRaeume[1]?.id ?? null,
+          mangelBeschreibung: 'Handtuchspender in Damen-WC leer.',
+          fristAm: tagePlus(heute, 7),
+        },
+        {
+          kriterium: 'Glasflächen innen',
+          ergebnis: 'nicht_pruefbar',
+          punkte: null,
+          mangelBeschreibung: null,
+        },
+      ],
+    });
+    angelegt += 1;
+
+    /* Zweite Pruefung: ohne Mangel — damit die Liste beide Faelle zeigt. */
+    await erfassePruefung(kontext, {
+      objektId: objekt.id,
+      revierId: revier?.id ?? null,
+      kundeId: objekt.kunde_id,
+      pruefverfahrenId: verfahren.id,
+      prueferAnstellungId: pruefer?.id ?? null,
+      prueferExternName: pruefer === undefined ? 'Objektleitung (extern erfasst)' : null,
+      mitKunde: false,
+      bemerkung: 'Eigenkontrolle ohne Kunden, Stichprobe Treppenhaus.',
+      positionen: [
+        {
+          kriterium: 'Treppenhaus — Handläufe',
+          ergebnis: 'io',
+          punkte: '5.00',
+          revierRaumId: revierRaeume[0]?.id ?? null,
+        },
+        {
+          kriterium: 'Abfallbehälter geleert',
+          ergebnis: 'io',
+          punkte: '5.00',
+        },
+      ],
+    });
+    angelegt += 1;
+
+    return angelegt;
+  });
+}
+
+/**
+ * Sonderleistungen und Qualitaetspruefungen — der Nachtrag zu `seedReinigung`.
+ *
+ * Eine eigene Funktion und kein Anhaengsel: sie steigt einzeln aus, wenn
+ * Objekt, Katalog oder Planer fehlen, und ein fehlender Abruf soll nicht den
+ * Revierzuschnitt verhindern.
+ */
+export interface SonderErgebnis {
+  readonly abrufe: number;
+  readonly pruefungen: number;
+}
+
+export async function seedSonderUndQualitaet(
+  sql: Sql, ids: ReadonlyMap<string, string>,
+): Promise<SonderErgebnis> {
+  const leer: SonderErgebnis = { abrufe: 0, pruefungen: 0 };
+  const mandantId = ids.get('reinigung');
+  if (mandantId === undefined) return leer;
+
+  const [planer] = await sql<{ id: string }[]>`
+    select b.id from benutzer b
+     join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${mandantId}
+     join rolle r on r.id = bm.rolle_id
+    where r.schluessel in ('admin', 'leitung', 'super_admin') and b.status = 'aktiv'
+      and bm.entzogen_am is null
+    order by r.schluessel limit 1`;
+  if (planer === undefined) return leer;
+
+  const [tag] = await sql<{ t: string }[]>`select app.berlin_heute()::text as t`;
+  const heute = tag?.t ?? '2026-01-01';
+
+  return {
+    abrufe: await seedSonderleistungen(sql, mandantId, planer.id, heute),
+    pruefungen: await seedQualitaetspruefungen(sql, mandantId, planer.id, heute),
   };
 }

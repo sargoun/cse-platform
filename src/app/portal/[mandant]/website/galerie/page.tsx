@@ -8,6 +8,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { listeGalerie, type GaleriePflegeZeile } from '@/server/services/inhalt/redaktion';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { WebsiteSpruenge } from '../spruenge';
 
 /**
  * `/portal/[mandant]/website/galerie` — welche Bilder öffentlich stehen
@@ -54,9 +55,12 @@ export default async function WebsiteGalerie(
       nurLesen={nurLesen}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
+      aktiverTab="website"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
+      <WebsiteSpruenge mandant={mandant} zweig="galerie"
+                       sitzung={zugang.sitzung} />
       <h1 className="mb-s4 text-h1 text-text">Galerie</h1>
       <p className="mb-s5 max-w-[72ch] text-base text-text-muted">
         Nur Bilder mit einer Reihenfolge stehen auf der öffentlichen Seite. Alles

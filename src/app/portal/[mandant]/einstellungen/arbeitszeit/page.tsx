@@ -6,8 +6,8 @@ import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill } from '@/components/ui/StatusPill';
 import {
-  GESETZ, GEWERKE, GEWERK_TEXT, ladeArbeitszeitmodelle, ladeTarifvereinbarungen,
-  type ModellZeile, type TarifZeile,
+  GESETZ, GEWERKE, GEWERK_TEXT, UEBERTRAG_ARTEN, ladeArbeitszeitmodelle,
+  ladeTarifvereinbarungen, type ModellZeile, type TarifZeile,
 } from '@/server/services/zeit/arbeitszeitmodell';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
@@ -123,9 +123,8 @@ export default async function Arbeitszeit(
         <p data-cse="modelle-offen" data-offen={String(offeneModelle)}
            className="mb-s4 max-w-[72ch] rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           {laufendeModelle.length === 0
-            ? 'Es ist kein Modell hinterlegt. Der Bestand trägt in '
-              + '`anstellung_kondition.arbeitszeitmodell` ausschliesslich „unbekannt"; '
-              + 'bis hier ein Modell steht, gibt es nichts zu wählen.'
+            ? 'Es ist kein Modell hinterlegt. Solange hier keines steht, gibt es in '
+              + 'den Anstellungskonditionen nichts zu wählen.'
             : offeneModelle === 0
               ? 'Alle laufenden Modelle sind bestätigt.'
               : `${String(offeneModelle)} von ${String(laufendeModelle.length)} `
@@ -259,8 +258,10 @@ export default async function Arbeitszeit(
           <h2 id="modell-setzen-titel" className="text-h2 text-text">Modell hinterlegen</h2>
           <p className="mt-s2 text-xs text-text-muted">
             Die neue Fassung gilt ab dem angegebenen Tag; die bisherige endet am Tag
-            davor und bleibt lesbar. Rückwirkend geht keine Fassung — sie bewertete
-            abgerechnete Monate neu.
+            davor und bleibt lesbar. Ein Tag vor heute ({heute}) legt eine
+            rückwirkende Fassung an — nötig für die Übernahme von Altbeständen. Ob
+            und ab wann ein Monat dafür gesperrt sein muss, ist offen (O-626);
+            überschneiden dürfen sich zwei Fassungen desselben Schlüssels nicht.
           </p>
           <form method="post"
                 action={`/api/einstellungen/arbeitszeit?mandant=${mandant}&was=modell`}>
@@ -296,11 +297,17 @@ export default async function Arbeitszeit(
             <label className="mt-s4 block text-sm text-text" htmlFor="uebertragArt">
               Übertragsregel
             </label>
-            <input id="uebertragArt" name="uebertragArt" type="text" className={feld}
-                   defaultValue="offen" />
+            <select id="uebertragArt" name="uebertragArt" className={feld}
+                    defaultValue="offen">
+              {UEBERTRAG_ARTEN.map((a) => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
             <p className="mt-s2 text-xs text-text-muted">
               „offen" heisst: es wird nichts übertragen und nichts verfallen gelassen.
-              Eine geratene Verfallsregel löscht Überstunden (O-18).
+              Eine geratene Verfallsregel löscht Überstunden (O-18) — deshalb steht
+              hier eine geschlossene Liste mit genau diesem einen Wert und kein
+              Freitextfeld. Die Liste wächst, wenn O-18 beantwortet ist.
             </p>
 
             <label className="mt-s4 block text-sm text-text" htmlFor="uebertragGrenze">
@@ -319,7 +326,7 @@ export default async function Arbeitszeit(
               Gültig ab
             </label>
             <input id="gueltigAb" name="gueltigAb" type="date" required className={feld}
-                   min={heute} defaultValue={morgen} />
+                   defaultValue={morgen} />
 
             <label className="mt-s4 flex min-h-11 items-center gap-s3 text-sm text-text">
               <input type="checkbox" name="bestaetigt" value="ja" />

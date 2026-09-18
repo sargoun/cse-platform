@@ -23,7 +23,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  UMFAENGE, VeroeffentlichungFehler, deutschesDatum, pruefeZeitraum, zeitraumText,
+  UMFAENGE, VeroeffentlichungFehler, deutschesDatum, pruefeZeitraum, veroeffentliche,
+  zeitraumText,
 } from '../../src/server/services/dienstplan/veroeffentlichung.js';
 import {
   ART_PLAN_VEROEFFENTLICHT, ZIEL_MEINE_SCHICHTEN, registriereDienstplanArten,
@@ -192,5 +193,54 @@ describe('die Benachrichtigungsart dienstplan.plan_veroeffentlicht (NOT-01, NOT-
     // deshalb steht er im Quelltext als `${DIENSTPLAN}.plan_veroeffentlicht`
     // und nicht als Literal. Hier wird nur die Form geprueft.
     expect(ART_PLAN_VEROEFFENTLICHT).toBe('dienstplan.plan_veroeffentlicht');
+  });
+});
+
+/**
+ * **Der Beleg darf nicht aus einer Abfrage entstehen, die die RLS gerade
+ * leergeraeumt hat** (AUT-06, Invariante 3, 0265).
+ *
+ * Die Seitenkarte tort die Route nur auf `dienstplan.veroeffentlichen`, und
+ * der Definer in 0266 prueft auch nur das. `einsatz`, `einsatz_zuordnung` und
+ * `planungs_konflikt` sind fuer `cse_app` aber nur mit `dienstplan.lesen`
+ * lesbar, `objekt` nur mit `objekt.lesen`. Eine Sitzung mit dem
+ * Veroeffentlichungsrecht ohne Leserecht bekam deshalb eine Vorschau aus
+ * lauter Nullen — und schrieb eine `dienstplan_veroeffentlichung`-Zeile mit
+ * `schichten = 0` und `empfaenger = 0`, die laut 0265 genau der Beleg ist,
+ * „der im Streit zaehlt". Sie behauptete dann eine Bekanntgabe, die niemanden
+ * erreicht hat.
+ */
+describe('veroeffentliche() prueft die LESERECHTE, bevor es einen Beleg schreibt', () => {
+  const kontext = (rechte: { plan: boolean; objekt: boolean }) => ({
+    scope: 'mandant',
+    portal: 'intern',
+    benutzerId: 'be-1',
+    aktiverMandantId: 'ma-1',
+    mandantIds: ['ma-1'],
+    abfrage: async <T,>(): Promise<readonly T[]> => [rechte] as unknown as readonly T[],
+    schreibe: async <T,>(): Promise<readonly T[]> => {
+      throw new Error('es darf nichts geschrieben werden');
+    },
+  }) as unknown as Parameters<typeof veroeffentliche>[0];
+
+  const fenster = { von: '2026-09-21', bis: '2026-09-27', umfang: 'woche' };
+
+  it('weist ab, wenn dienstplan.lesen fehlt', async () => {
+    await expect(veroeffentliche(kontext({ plan: false, objekt: true }), fenster))
+      .rejects.toBeInstanceOf(VeroeffentlichungFehler);
+  });
+
+  it('und ebenso, wenn objekt.lesen fehlt — der join objekt raeumt die '
+    + 'Empfaengerliste leer', async () => {
+    await expect(veroeffentliche(kontext({ plan: true, objekt: false }), fenster))
+      .rejects.toBeInstanceOf(VeroeffentlichungFehler);
+  });
+
+  it('prueft die Rechte VOR dem Zeitraum nicht — ein verkehrtes Fenster bleibt '
+    + 'ein verkehrtes Fenster', async () => {
+    await expect(veroeffentliche(
+      kontext({ plan: true, objekt: true }),
+      { von: '2026-09-27', bis: '2026-09-21', umfang: 'woche' },
+    )).rejects.toBeInstanceOf(VeroeffentlichungFehler);
   });
 });

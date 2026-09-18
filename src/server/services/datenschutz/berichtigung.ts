@@ -92,7 +92,15 @@ export function editorPfad(
 ): string | null {
   if (id === null) return null;
   switch (art) {
-    case 'person': return `/portal/${mandantSlug}/personal/${id}`;
+    /*
+     * `/personal/personen/<id>` und nicht `/personal/<id>`: die zweite Adresse
+     * gibt es nicht. Unter `/personal` liegen abwesenheiten, anstellungen,
+     * antraege, nachweise, personen, stundenkonten und zusammenfuehren — kein
+     * `[id]`, und das Routen-Manifest fuehrt sie auch nicht. Der Verweis fiel
+     * also auf 404, und zwar aus genau der Funktion, deren Aufgabe es ist, das
+     * NICHT zu tun (AUT-06).
+     */
+    case 'person': return `/portal/${mandantSlug}/personal/personen/${id}`;
     case 'bewerbung': return `/portal/${mandantSlug}/recruiting/bewerbungen/${id}`;
     /*
      * Ein Ansprechpartner wird auf der Seite seines KUNDEN bearbeitet — dort
@@ -154,6 +162,10 @@ export interface NeuesFeld {
  * Vorlage liest, zeigt dann den neuen Wert auf beiden Seiten und belegt
  * nichts. Was hier steht, ist der Stand zur Zeit der Aufnahme — und genau das
  * will Art. 19 belegen können.
+ *
+ * **Und deshalb ist die Aufnahme einmalig.** Solange das Feld `offen` ist,
+ * darf sie berichtigt werden (ein Tippfehler im behaupteten Wert); sobald
+ * entschieden ist, antwortet sie mit 409 statt den Beweis zu überschreiben.
  */
 export async function nimmAuf(
   kontext: SchreibKontext, anfrageId: string, f: NeuesFeld,
@@ -167,6 +179,36 @@ export async function nimmAuf(
       'Was ist der richtige Wert? Eine Berichtigung ohne Ziel ist eine Beschwerde.',
       'ohne_ziel');
   }
+  /*
+   * **Ein bereits entschiedenes Feld wird NICHT überschrieben.**
+   *
+   * Der Upsert setzte `wert_gespeichert = excluded.wert_gespeichert` — also
+   * genau den Beweis, für den diese Tabelle angelegt wurde. Wird dasselbe
+   * `tabelle.feld` ein zweites Mal aufgenommen (und die Oberfläche lässt das
+   * zu, per Auswahlliste oder von Hand), steht danach der NACHHERIGE Wert
+   * darin, während `ergebnis`, `berichtigt_am` und `berichtigt_von`
+   * unverändert auf „berichtigt" stehen bleiben: die Zeile belegt dann eine
+   * Berichtigung von X auf X. Die Löschsperre (`append`) schützt gegen
+   * DELETE, nicht gegen dieses UPDATE.
+   *
+   * Ein zweiter Streit um dasselbe Feld ist ein zweiter Vorgang — die
+   * Zuordnung steckt im Unique (`mandant_id, anfrage_id, tabelle, feld`), eine
+   * neue Anfrage bekommt also ihre eigene Zeile.
+   */
+  const [vorhanden] = await kontext.abfrage<{ ergebnis: string }>(
+    `select ergebnis::text as ergebnis from berichtigung_feld
+      where mandant_id = app.aktiver_mandant() and anfrage_id = $1::uuid
+        and tabelle = $2 and feld = $3`,
+    [anfrageId, f.tabelle.trim(), f.feld.trim()]);
+  if (vorhanden !== undefined && vorhanden.ergebnis !== 'offen') {
+    throw new BerichtigungFehler(
+      `Zu „${f.tabelle.trim()}.${f.feld.trim()}" ist in diesem Vorgang bereits `
+      + `entschieden (${vorhanden.ergebnis}). Diese Zeile ist der Nachweis der `
+      + 'Entscheidung und wird nicht überschrieben — ein zweiter Streit um '
+      + 'dasselbe Feld ist ein zweiter Vorgang.',
+      'bereits_entschieden', 409);
+  }
+
   const zeilen = await kontext.schreibe<{ id: string }>(
     `insert into berichtigung_feld
        (mandant_id, anfrage_id, tabelle, feld, wert_gespeichert, wert_behauptet,
@@ -174,9 +216,16 @@ export async function nimmAuf(
      values (app.aktiver_mandant(), $1::uuid, $2, $3, $4, $5, $6,
              app.aktueller_benutzer())
      on conflict (mandant_id, anfrage_id, tabelle, feld)
-     do update set wert_gespeichert = excluded.wert_gespeichert,
-                   wert_behauptet = excluded.wert_behauptet,
-                   quelle = excluded.quelle
+     -- Der ERSTE erfasste Stand bleibt stehen: coalesce statt excluded.
+     -- Nachgereicht werden darf er (wenn er beim ersten Mal leer blieb),
+     -- ersetzt nie.
+     do update set
+          wert_gespeichert = coalesce(berichtigung_feld.wert_gespeichert,
+                                      excluded.wert_gespeichert),
+          wert_behauptet = excluded.wert_behauptet,
+          quelle = coalesce(excluded.quelle, berichtigung_feld.quelle),
+          geaendert_am = now()
+     where berichtigung_feld.ergebnis = 'offen'
      returning id`,
     [anfrageId, f.tabelle.trim(), f.feld.trim(),
       (f.wertGespeichert ?? '').trim() === '' ? null : (f.wertGespeichert ?? '').trim(),

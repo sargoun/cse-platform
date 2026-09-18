@@ -138,7 +138,29 @@ export default async function Antragsblatt({
     }
   }
 
+  /*
+   * **Gesperrt wird am richtigen Merkmal — und das ist nicht „Tausch".**
+   *
+   * Die Lage, in der `entscheideAntrag` wirkungslos ist, hat mit dem Tausch
+   * nur zufaellig zu tun: der Dienst betritt den Abwesenheitszweig genau dann,
+   * wenn `erzeugt_abwesenheit` UND eine Abwesenheitsart UND ein Zeitraum da
+   * sind (services/abwesenheit/antrag.ts). Sonst legt eine „Genehmigung" nur
+   * den Status um.
+   *
+   * An `istTausch` zu haengen war deshalb in beide Richtungen falsch: eine Art
+   * mit `erzeugt_abwesenheit = true` UND `erfordert_einsatz = true` haette
+   * ihren Knopf verloren, obwohl der Dienst sie behandelt — und eine Art ohne
+   * beides (`ist_stammdatenaenderung` ist eine vorhandene Spalte, O-142 nennt
+   * „Stammdatenaenderung" und „Schichtabgabe" als kommende Arten) haette einen
+   * Knopf bekommen, der nichts tut. Der Katalog ist nach K-17 kundenpflegbar
+   * (0275 gibt `insert` auf `antragsart`); das ist keine hypothetische Lage.
+   *
+   * `istTausch` bleibt — aber nur noch fuer den Verweis in den Dienstplan.
+   */
   const istTausch = antrag.tauschPartnerAnstellungId !== null || antrag.einsatzId !== null;
+  const wirktGenehmigung = antrag.erzeugtAbwesenheit
+    && antrag.abwesenheitsartId !== null
+    && antrag.vonDatum !== null && antrag.bisDatum !== null;
   const offen = antrag.status === 'eingereicht' || antrag.status === 'in_pruefung';
   const urlaubsantrag = antrag.erzeugtAbwesenheit && antrag.zaehltAufUrlaubskonto === true;
   const kontoFehlt = urlaubsantrag && darf['zeit.konto_lesen'] === true
@@ -291,7 +313,7 @@ export default async function Antragsblatt({
       )}
 
       <h2 className="mb-s3 text-h2 text-text">Entscheidung</h2>
-      {istTausch ? (
+      {!wirktGenehmigung && istTausch ? (
         <Hinweis art="hinweis" cse="antrag-tausch" className="max-w-prose">
           <strong>Ein Tausch wird im Dienstplan vollzogen, nicht hier.</strong>{' '}
           Diese Seite hat dafür bewusst keinen Genehmigen-Knopf: eine
@@ -305,6 +327,22 @@ export default async function Antragsblatt({
             ausführen soll oder nur freigibt, und wer das
             Qualifikationstor verantwortet.
             {/* TODO(client, O-613): Soll die Genehmigung eines Tauschantrags die Umbesetzung im Dienstplan selbst ausfuehren (mit SEC-04-Qualifikationstor) oder nur die Freigabe erteilen, die eine Planerin dann umsetzt? */}
+          </span>
+        </Hinweis>
+      ) : !wirktGenehmigung ? (
+        <Hinweis art="hinweis" cse="antrag-ohne-wirkung" className="max-w-prose">
+          <strong>Diese Antragsart legt hier nur den Status um.</strong> Die
+          Entscheidung ist gebaut für Arten, die eine Abwesenheit erzeugen —
+          mit Abwesenheitsart und Zeitraum. Diese Art bringt {antrag.erzeugtAbwesenheit
+            ? 'zwar die Kennzeichnung mit, aber keine Abwesenheitsart oder keinen Zeitraum'
+            : 'die Kennzeichnung nicht mit'}; eine Genehmigung schriebe also
+          nichts und rechnete nichts. Einen Knopf dafür zu zeigen hiesse, eine
+          Wirkung zu versprechen, die es nicht gibt.
+          <span className="mt-s2 block text-xs">
+            Offen (O-616): was die Genehmigung der Antragsarten leisten soll,
+            die der Kunde nach K-17 selbst anlegt — Stammdatenänderung,
+            Schichtabgabe, unbezahlte Freistellung.
+            {/* TODO(client, O-616): Was soll die Genehmigung einer kundeneigenen Antragsart bewirken, die keine Abwesenheit erzeugt — Stammdatenaenderung, Schichtabgabe, unbezahlte Freistellung (K-17, O-142)? */}
           </span>
         </Hinweis>
       ) : !offen ? (

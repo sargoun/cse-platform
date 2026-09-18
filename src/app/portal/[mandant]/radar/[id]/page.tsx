@@ -359,9 +359,31 @@ export default async function Bekanntmachung(
             Unterlagen. Einreichen geht nicht von hier — die Plattformen bieten dafür keine
             Schnittstelle an (D-07).
           </p>
+          {/*
+            * **Der Eingang zur Statusseite.** `/radar/[id]/status` wird im
+            * Manifest mit demselben `radar.status_setzen` bewacht wie dieses
+            * Formular — wer den Verweis sieht, darf die Seite auch oeffnen
+            * (AUT-06). Ohne ihn war sie von nirgendwo im Portal erreichbar:
+            * gebaut, aber nur ueber die Adresszeile zu finden. Dort steht,
+            * was das eingebettete Formular nicht traegt — Fristlage,
+            * Quellstand und das Protokoll der bisher gesetzten Staende.
+            */}
+          <p className="mb-s4 text-sm">
+            <Link href={`/portal/${mandant}/radar/${id}/status`}
+                  data-cse="radar-zur-statusseite"
+                  className="text-brand underline underline-offset-2">
+              Stand auf eigener Seite setzen
+            </Link>
+            <span className="text-text-muted">
+              {' '}— mit Fristlage, Quellstand und dem Protokoll der bisher gesetzten Stände.
+            </span>
+          </p>
           <form method="post" action="/api/radar/vorgang" data-cse="radar-status-formular"
                 className="flex flex-col gap-s3">
-            <input type="hidden" name="mandant" value={mandant} />
+            {/* Kein verstecktes `mandant`-Feld: den Bereich nimmt die Route
+                aus `app.aktiver_mandant()` (Invariante 3). Ein Feld, das der
+                Server nicht liest, sieht wie eine Stellschraube aus und ist
+                keine. */}
             <input type="hidden" name="ausschreibung" value={id} />
             <input type="hidden" name="profil" value={kopf.profilId} />
             <input type="hidden" name="bewertung" value={kopf.bewertungId} />

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { schreibeStammdaten } from '@/server/services/personal/stammdaten';
+import { schreibeStammdaten, type StammdatenEingabe }
+  from '@/server/services/personal/stammdaten';
 import { fuehrePersonalAus } from '../../../gemeinsam';
 import { UUID } from '../../../../rumpf';
 
@@ -31,15 +32,33 @@ export async function POST(
   return fuehrePersonalAus(anfrage, {
     recht: 'personal.schreiben',
     handle: async (kontext, rumpf) => {
-      const text = (name: string): string | null => {
-        const wert = (rumpf.felder[name] ?? '').trim();
+      /*
+       * **Nicht mitgeschickt ist nicht dasselbe wie leer.** `undefined` laesst
+       * die Spalte in Ruhe, `null` leert sie. Das vollstaendige Formular
+       * schickt alle drei Felder (leer heisst dort also „leeren"); ein
+       * Teil-POST ueber die Schnittstelle loescht die anderen zwei nicht mehr.
+       */
+      const text = (name: string): string | null | undefined => {
+        const roh = rumpf.felder[name];
+        if (roh === undefined) return undefined;
+        const wert = roh.trim();
         return wert === '' ? null : wert;
+      };
+      /*
+       * `exactOptionalPropertyTypes`: ein Schluessel mit dem Wert `undefined`
+       * ist etwas anderes als ein FEHLENDER Schluessel. Genau darum geht es
+       * hier, also wird der Schluessel weggelassen statt auf `undefined`
+       * gesetzt.
+       */
+      const nimm = (name: keyof StammdatenEingabe & string): Partial<StammdatenEingabe> => {
+        const wert = text(name);
+        return wert === undefined ? {} : { [name]: wert };
       };
       await schreibeStammdaten(kontext, {
         personId: id,
-        geburtsdatum: text('geburtsdatum'),
-        geburtsort: text('geburtsort'),
-        staatsangehoerigkeit: text('staatsangehoerigkeit'),
+        ...nimm('geburtsdatum'),
+        ...nimm('geburtsort'),
+        ...nimm('staatsangehoerigkeit'),
       });
     },
     ziel: (slug) => `/portal/${slug}/personal/personen/${id}/stammdaten?gespeichert=1`,

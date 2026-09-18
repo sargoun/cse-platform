@@ -19,8 +19,10 @@ import {
   ausnahmeLeserecht, ausnahmeSchreibrecht, leseAusnahmen, leseSerie, leseSerienEinsaetze,
   type AusnahmeZeile, type SerienBlatt, type SerienEinsatzZeile,
 } from '@/server/services/dienstplan/serie';
+import { lesbareRegel } from '@/lib/datum/regeltext';
+import { MAX_DAUER_MINUTEN } from '@/server/services/dienstplan/vorkommnisse';
 import {
-  ANOMALIE_TEXT, AUSNAHME_TEXT, Feld, QUELLE_TEXT, lesbareRegel,
+  ANOMALIE_TEXT, AUSNAHME_TEXT, Feld, QUELLE_TEXT,
 } from './Bausteine';
 
 /**
@@ -489,6 +491,11 @@ export default async function Serienblatt(
                   className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm tabular-nums text-text"
                 />
               </label>
+              {/*
+                * Die Obergrenze kommt aus dem Dienst, nicht aus der Tastatur:
+                * `nominalesEnde` wirft ab 1440, und ein Formular, das 1440
+                * anbietet, produzierte dann einen 500er statt einer Meldung.
+                */}
               <label>
                 <span className="mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted">
                   Dauer in Minuten
@@ -497,7 +504,7 @@ export default async function Serienblatt(
                   type="number"
                   name="dauer"
                   min={15}
-                  max={1440}
+                  max={MAX_DAUER_MINUTEN}
                   placeholder={String(blatt.dauerMinuten)}
                   className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm tabular-nums text-text"
                 />

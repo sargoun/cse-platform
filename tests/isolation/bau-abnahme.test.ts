@@ -24,8 +24,9 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import {
-  baueAbnahmeSchnappschuss, abnahmeSchnappschussHash,
-  ladeMaengel, listeAbnahmen, protokolliereAbnahme,
+  baueAbnahmeSchnappschuss, abnahmeSchnappschussHash, AbnahmeFehler,
+  ladeMaengel, listeAbnahmen, protokolliereAbnahme, storniereAbnahme,
+  verknuepfeErsatzprotokoll,
 } from '../../src/server/services/bau/abnahme.js';
 import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index.js';
 
@@ -689,5 +690,141 @@ describe('der Dienst laeuft durch die Policies — dieselbe Eingabe wie der Saat
       const [stand] = await sql.unsafe<{ status: string }[]>(
         `select status::text as status from projekt where id = $1`, [bau.projekt]);
       expect(stand!.status).toBe('in_arbeit');
+    });
+});
+
+/* ===========================================================================
+ * Die zweite Gesamtabnahme und die Korrekturspur
+ * ======================================================================== */
+/**
+ * Zwei Befunde, die beide erst gegen echtes Postgres sichtbar wurden.
+ *
+ *  1. **Die Einmaligkeit stand nur im Index.** `abnahme_gesamt_uk` (0211)
+ *     weist die zweite wirksame Gesamtabnahme ab — der Dienst prüfte sie
+ *     nicht und fing sie nicht, und die Route übersetzt nur `AbnahmeFehler`.
+ *     Zwei offene Reiter, ein Doppelklick oder der Weg über den Endpunkt
+ *     endeten damit in einer 500, obwohl die richtige Antwort ein Satz ist.
+ *  2. **`ersetzt_durch_id` schrieb niemand.** „Korrigiert wird durch Storno
+ *     mit Ersatzprotokoll" ist der erklärte Weg — aber die Spalte wurde von
+ *     keinem erreichbaren Pfad gesetzt: das stornierte Protokoll und sein
+ *     Ersatz standen unverbunden nebeneinander.
+ */
+describe('zweite Gesamtabnahme und Ersatzprotokoll', () => {
+  const SCHREIBEND2 = (bau: Aufbau) => ({
+    scope: 'mandant' as const, mandantId: bau.mandant, benutzerId: bau.benutzer,
+    portal: 'intern' as const, readonly: false,
+  });
+
+  function kontext2(tx: postgres.TransactionSql, bau: Aufbau): SchreibKontext {
+    const fuehre = async <T>(s: string, w?: readonly unknown[]): Promise<readonly T[]> =>
+      tx.unsafe(s, (w ?? []) as never[]) as unknown as readonly T[];
+    return {
+      scope: 'mandant', portal: 'intern', benutzerId: bau.benutzer,
+      aktiverMandantId: bau.mandant, mandantIds: [bau.mandant],
+      abfrage: fuehre, schreibe: fuehre,
+    } satisfies LeseKontext & SchreibKontext;
+  }
+
+  const EINGABE = (am: string, art: 'foermlich' | 'teilabnahme', umfang: string | null) => ({
+    art, abnahmeAm: am, leistungsumfang: umfang,
+    abgenommen: true, verweigerungGrund: null,
+    vorbehaltVertragsstrafe: false, vorbehaltMaengel: false, vorbehaltText: null,
+    teilnehmer: ['Bauleitung AN', 'Bauleitung AG'], maengel: [],
+  });
+
+  it('die zweite wirksame Gesamtabnahme ist ein AbnahmeFehler, keine 500', async () => {
+    const bau = await baueProjekt(f.bau);
+    await alsApp(SCHREIBEND2(bau), async (tx) => protokolliereAbnahme(
+      kontext2(tx, bau), { projektId: bau.projekt, ...EINGABE('2026-09-10', 'foermlich', null) },
+    ));
+
+    const fehler = await alsApp(SCHREIBEND2(bau), async (tx) => {
+      try {
+        await protokolliereAbnahme(kontext2(tx, bau), {
+          projektId: bau.projekt, ...EINGABE('2026-09-20', 'foermlich', null),
+        });
+        return null;
+      } catch (e: unknown) {
+        return e;
+      }
+    });
+
+    expect(fehler).toBeInstanceOf(AbnahmeFehler);
+    expect((fehler as AbnahmeFehler).grund).toBe('schon_abgenommen');
+    expect((fehler as AbnahmeFehler).status).toBe(409);
+    // Der Satz nennt den Tag, an dem abgenommen wurde — sonst sucht ihn jemand.
+    expect((fehler as AbnahmeFehler).message).toMatch(/10\.09\.2026/u);
+  });
+
+  it('aber die Teilabnahme eines anderen Teils bleibt möglich (§ 12 Abs. 2)', async () => {
+    const bau = await baueProjekt(f.bau);
+    const ergebnis = await alsApp(SCHREIBEND2(bau), async (tx) => {
+      const kontext = kontext2(tx, bau);
+      await protokolliereAbnahme(kontext, {
+        projektId: bau.projekt, ...EINGABE('2026-09-10', 'foermlich', null),
+      });
+      const teil = await protokolliereAbnahme(kontext, {
+        projektId: bau.projekt, ...EINGABE('2026-09-20', 'teilabnahme', 'Bauteil C'),
+      });
+      return teil;
+    });
+    expect(ergebnis.hash).toMatch(/^[0-9a-f]{64}$/u);
+  });
+
+  it('nach Storno verbindet `verknuepfeErsatzprotokoll` beide Protokolle', async () => {
+    const bau = await baueProjekt(f.bau);
+    const stand = await alsApp(SCHREIBEND2(bau), async (tx) => {
+      const kontext = kontext2(tx, bau);
+      const erste = await protokolliereAbnahme(kontext, {
+        projektId: bau.projekt, ...EINGABE('2026-09-10', 'foermlich', null),
+      });
+      await storniereAbnahme(kontext, {
+        id: erste.id, grund: 'Datum falsch protokolliert; Ersatzprotokoll folgt',
+      });
+      const ersatz = await protokolliereAbnahme(kontext, {
+        projektId: bau.projekt, ...EINGABE('2026-09-11', 'foermlich', null),
+      });
+      const verbunden = await verknuepfeErsatzprotokoll(kontext, {
+        storniertesId: erste.id, ersatzId: ersatz.id,
+      });
+      return {
+        verbunden, ersatz: ersatz.id,
+        liste: await listeAbnahmen(kontext, { projektId: bau.projekt }),
+      };
+    });
+
+    expect(stand.verbunden).toBe(true);
+    const storniert = stand.liste.find((a) => a.storniert_lokal !== null);
+    expect(storniert?.ersetzt_durch_id).toBe(stand.ersatz);
+    // Das Siegel des stornierten Protokolls bleibt unberührt — der Verweis
+    // steht ausserhalb der eingefrorenen Spalten (kern.abnahme_einfrieren).
+    expect(storniert?.snapshot_hash).toMatch(/^[0-9a-f]{64}$/u);
+  });
+
+  it('und verbindet NICHT, was nicht storniert ist oder zu einem anderen Projekt gehört',
+    async () => {
+      const bau = await baueProjekt(f.bau);
+      const fremd = await baueProjekt(f.bau);
+      const ergebnis = await alsApp(SCHREIBEND2(bau), async (tx) => {
+        const kontext = kontext2(tx, bau);
+        const lebend = await protokolliereAbnahme(kontext, {
+          projektId: bau.projekt, ...EINGABE('2026-09-10', 'foermlich', null),
+        });
+        const andere = await protokolliereAbnahme(kontext, {
+          projektId: fremd.projekt, ...EINGABE('2026-09-10', 'foermlich', null),
+        });
+        return {
+          // Das Ziel lebt — ein Ersatz für ein gültiges Protokoll gibt es nicht.
+          aufLebendes: await verknuepfeErsatzprotokoll(kontext, {
+            storniertesId: lebend.id, ersatzId: andere.id,
+          }),
+          // Und auf sich selbst schon gar nicht.
+          aufSichSelbst: await verknuepfeErsatzprotokoll(kontext, {
+            storniertesId: lebend.id, ersatzId: lebend.id,
+          }),
+        };
+      });
+      expect(ergebnis.aufLebendes).toBe(false);
+      expect(ergebnis.aufSichSelbst).toBe(false);
     });
 });

@@ -18,8 +18,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  StammdatenFehler, ganzzahlOderNull, i18nAus, isoDatum, pflegbar, pflichttext,
-  pruefeSchluessel, sperrgrund,
+  StammdatenFehler, alsStufenkollision, ganzzahlOderNull, i18nAus, isoDatum,
+  pflegbar, pflichttext, pruefeSchluessel, sperrgrund,
 } from '../../src/server/services/stammdaten/katalog.js';
 import {
   alsLeistungswert, pruefeBelagsartEingabe, pruefeDatierung, vortag,
@@ -333,5 +333,87 @@ describe('die Eingabe einer Reinigungsklasse', () => {
 
   it('und ein Code ohne Inhalt wird abgewiesen', () => {
     expect(() => pruefeKlasseEingabe(formular({ bezeichnung: 'Büro' }))).toThrow(/Code/u);
+  });
+});
+
+describe('die Obergrenzen, die niemand entschieden hat', () => {
+  /*
+   * Beide Code-Spalten sind `text` ohne CHECK und ohne `varchar(n)`; die
+   * frueheren 20 Zeichen standen in keiner Tabelle, in keiner SPEC und in
+   * keiner Entscheidung. Ein 24-stelliger Belagscode aus dem Raumbuch des
+   * Kunden wurde davon abgewiesen (O-694).
+   */
+  const lang = 'BELAG-AUS-DEM-KUNDENRAUMBUCH-2026';
+
+  it('weist einen langen Belagsart-Code nicht mehr ab', () => {
+    expect(lang.length).toBeGreaterThan(20);
+    expect(pruefeBelagsartEingabe(formular({
+      code: lang, bezeichnung: 'Linoleum', leistungswert: '250',
+      quelle: 'Zeitaufnahme', gueltigAb: '2026-01-01',
+    })).code).toBe(lang);
+  });
+
+  it('und einen langen Reinigungsklassen-Code ebenso wenig', () => {
+    expect(pruefeKlasseEingabe(formular({ code: lang, bezeichnung: 'Büro' })).code)
+      .toBe(lang);
+  });
+
+  it('nimmt eine siebenstellige Ganzzahl — `integer` kann sie', () => {
+    // `\d{1,6}` wies `1234567` mit „ist keine ganze Zahl" ab, obwohl es eine
+    // ist und die Spalte sie traegt.
+    expect(ganzzahlOderNull('1234567', 'Reihenfolge')).toBe(1234567);
+  });
+
+  it('und einen Leistungswert mit sieben Vorkommastellen — numeric(10,3) auch', () => {
+    expect(alsLeistungswert('1234567')).toBe('1234567.000');
+  });
+});
+
+describe('die Kollision über die Katalogstufen hinweg', () => {
+  /*
+   * `kern.katalog_schluessel_frei` (0276) meldet mit `unique_violation`. Ohne
+   * diesen Uebersetzer sah das aus wie eine gewoehnliche Dublette auf
+   * DERSELBEN Stufe — und der Mensch bekam die Meldung fuer einen anderen
+   * Fall, waehrend der eigens gebaute Grund `kollision` unerreichbar blieb.
+   */
+  it('wird am Text des Auslösers erkannt, nicht am SQLSTATE allein', () => {
+    const fehler = alsStufenkollision({
+      code: '23505',
+      message: 'Der Schluessel urlaub ist auf der anderen Katalogstufe belegt '
+        + '(der Plattformkatalog fuehrt diesen Schluessel schon): im '
+        + 'Antragsformular stuenden zwei gleich aussehende Eintraege.',
+    });
+    expect(fehler?.grund).toBe('kollision');
+    expect(fehler?.message).toMatch(/ANDERE Katalogstufe/u);
+  });
+
+  it('lässt eine gewöhnliche Dublette durch — die heisst etwas anderes', () => {
+    expect(alsStufenkollision({
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "abwesenheitsart_key"',
+    })).toBeNull();
+    expect(alsStufenkollision({ code: '42501', message: 'anderen Katalogstufe' }))
+      .toBeNull();
+  });
+});
+
+describe('wie weit eine Belagsart-Fassung rückwirkend beginnen darf', () => {
+  /*
+   * Der Docstring behauptete frueher, eine Fassung duerfe VOR der laufenden
+   * beginnen. Der Code weist das ab — und es waere ohnehin unmoeglich, weil
+   * die laufende `gueltig_bis is null` traegt. Was wirklich offen ist, steht
+   * im zweiten Fall: der Bereich ZWISCHEN dem Beginn der laufenden Fassung
+   * und heute ist unbewacht (O-692).
+   */
+  it('nicht vor den Beginn der laufenden — das ist keine Lage, sondern ein Fehler', () => {
+    expect(pruefeDatierung('2026-01-01', '2026-06-01').art).toBe('fehler');
+  });
+
+  it('aber zwischen deren Beginn und heute schon — und genau das ist O-692', () => {
+    // Laufend seit 2026-01-01, „heute" waere 2026-09-18: ein Beginn am
+    // 2026-03-01 liegt dazwischen, wird angenommen und aendert rueckwirkend
+    // die Grundlage jeder Kalkulation aus dieser Zeit.
+    expect(pruefeDatierung('2026-03-01', '2026-01-01'))
+      .toEqual({ art: 'ablösung', schliesseZu: '2026-02-28' });
   });
 });

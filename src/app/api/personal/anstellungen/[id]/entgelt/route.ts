@@ -63,6 +63,11 @@ export async function POST(
         grund: text('grund'),
       });
     },
-    ziel: (slug) => `/portal/${slug}/personal/anstellungen/${id}/entgelt`,
+    /* `?gespeichert=1`: die Seite liest den Parameter und zeigt dafuer
+       "Kondition eingetragen". Ohne ihn erschien der Erfolgshinweis nie - das
+       Formular kam zurueck, und nichts sagte, dass es geklappt hat. Die
+       Stammdatenroute macht es seit jeher so. */
+    ziel: (slug) =>
+      `/portal/${slug}/personal/anstellungen/${id}/entgelt?gespeichert=1`,
   });
 }

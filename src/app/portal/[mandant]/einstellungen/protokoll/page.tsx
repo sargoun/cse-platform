@@ -12,8 +12,10 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
  *
  * `audit_log` ist anfuegend und ohne Loeschpfad (Invariante 8). Gelesen
  * werden die Spalten, die `cse_app` halten darf — Vorher/Nachher gehoeren
- * nicht dazu (Spaltenrecht); sie stehen dem Export mit
- * `system.audit_exportieren` offen.
+ * nicht dazu (Spaltenrecht). Sie stehen dem Export nur mit
+ * `system.audit_sensitiv_lesen` offen, und das Recht verlangt seit 0206 den
+ * zweiten Faktor (AUT-02, SEC-A9); ohne beides ist das Buendel redigiert und
+ * das Manifest sagt warum (Einstellungen › Protokoll exportieren).
  */
 export const dynamic = 'force-dynamic';
 

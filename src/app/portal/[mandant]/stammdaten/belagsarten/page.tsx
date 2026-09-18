@@ -38,8 +38,15 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
  * speichern — die Seite sagt das vorher, statt ein Formular anzubieten, das
  * die Datenbank abweist.
  *
- * // TODO(client, O-692): Darf eine Fassung RÜCKWIRKEND beginnen, wenn für den
- * Zeitraum schon Kalkulationen gerechnet wurden — und wer gibt das frei?
+ * **Wie weit rückwirkend überhaupt geht.** Eine neue Fassung beginnt STRIKT
+ * NACH dem Beginn der laufenden; früher ist technisch ausgeschlossen, weil die
+ * laufende `gueltig_bis is null` trägt und sich mit jedem früheren Tag
+ * überschneidet. Unbewacht ist genau der Bereich DAZWISCHEN — zwischen dem
+ * Beginn der laufenden Fassung und heute.
+ *
+ * // TODO(client, O-692): Darf eine Belagsart-Fassung zwischen dem Beginn der
+ * laufenden Fassung und heute beginnen, wenn für diesen Zeitraum schon
+ * Kalkulationen gerechnet wurden — und wer gibt das frei?
  */
 export const dynamic = 'force-dynamic';
 
@@ -248,6 +255,17 @@ export default async function Belagsarten(
                           </label>
                           <input id={`nbez-${f.id}`} name="bezeichnung" type="text" required
                                  defaultValue={f.bezeichnung} className={klein} />
+                          {/*
+                            * Vorbelegt wie Bezeichnung und Quelle: die neue Fassung ist
+                            * eine andere ZAHL, nicht eine andere Belagsart. Ohne dieses
+                            * Feld schriebe `datiereBelagsartUm` NULL in die Beschreibung
+                            * — lautlos, weil auf dem Bildschirm nichts davon stünde.
+                            */}
+                          <label className="text-xs text-text-muted" htmlFor={`nbes-${f.id}`}>
+                            Beschreibung
+                          </label>
+                          <input id={`nbes-${f.id}`} name="beschreibung" type="text"
+                                 defaultValue={f.beschreibung ?? ''} className={klein} />
                           <label className="text-xs text-text-muted" htmlFor={`nwert-${f.id}`}>
                             Leistungswert in m²/h
                           </label>
@@ -370,8 +388,12 @@ export default async function Belagsarten(
             <input id="neu-ab" name="gueltigAb" type="date" required className={feld}
                    defaultValue={morgen} />
             <p className="mt-s2 text-xs text-text-muted">
-              Heute ist der {heute}. Ein Beginn in der Vergangenheit ist möglich,
-              solange sich kein Zeitraum überschneidet — er ändert dann aber die
+              Heute ist der {heute}. Für einen NEUEN Code ist jeder Tag möglich.
+              Für einen vorhandenen beginnt die neue Fassung immer NACH dem Beginn
+              der laufenden — früher weist der Dienst ab, weil die laufende bis auf
+              Weiteres gilt und jeder frühere Tag sich mit ihr überschneidet. Offen
+              bleibt der Bereich dazwischen: ein Beginn zwischen dem Beginn der
+              laufenden Fassung und heute wird angenommen und ändert rückwirkend die
               Grundlage jeder Kalkulation aus dieser Zeit (O-692).
             </p>
 

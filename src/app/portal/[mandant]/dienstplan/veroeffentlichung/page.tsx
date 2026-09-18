@@ -104,9 +104,28 @@ export default async function Veroeffentlichung(
   const empfaenger = einWert('empfaenger');
   const ohne = einWert('ohne');
 
+  /*
+   * Drei Rechte, und zwei davon sind die LESERECHTE — nicht das Torrecht.
+   *
+   * Die Seitenkarte tort diese Route auf `dienstplan.veroeffentlichen`. Die
+   * Policies fragen etwas anderes: `einsatz`, `einsatz_zuordnung` und
+   * `planungs_konflikt` sind fuer `cse_app` nur mit `dienstplan.lesen` lesbar,
+   * `objekt` nur mit `objekt.lesen`. Eine Sitzung mit dem
+   * Veroeffentlichungsrecht ohne Leserecht bekaeme eine Vorschau aus lauter
+   * Nullen, der Knopf staende trotzdem da, und der Beleg behauptete danach
+   * eine Bekanntgabe, die niemanden erreicht hat.
+   *
+   * Deshalb dieselbe Zeile wie in den Schwesterblaettern `…/quittung` und
+   * `…/uebersteuern`: ohne `dienstplan.lesen` ist 404 die ehrliche Antwort und
+   * nicht ein leeres Blatt (AUT-06). `objekt.lesen` fehlt seltener, raeumt die
+   * Empfaengerliste aber genauso leer (der `join objekt` in der Vorschau) —
+   * das steht als Warnung auf der Seite, und `veroeffentliche()` weist den
+   * Schreibweg dann ab.
+   */
   const darf = await haeltRechte(
-    sitzung, 'dienstplan.veroeffentlichen', 'dienstplan.lesen', 'dienstplan.arbzg_lesen',
+    sitzung, 'dienstplan.veroeffentlichen', 'dienstplan.lesen', 'objekt.lesen',
   );
+  if (darf['dienstplan.lesen'] !== true) notFound();
 
   const { bild, vorgaenge } = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -310,6 +329,26 @@ export default async function Veroeffentlichung(
             Vorschau oben steht trotzdem — wer den Plan lesen darf, darf sehen, was
             bekanntgegeben würde.
           </p>
+        ) : darf['objekt.lesen'] !== true ? (
+          /*
+           * Kein Knopf ueber einer leeren Liste: die Empfaengerabfrage
+           * verbindet `einsatz_zuordnung` mit `objekt`, und ohne
+           * `objekt.lesen` raeumt die Policy sie leer. Der Beleg saehe dann
+           * aus wie eine Bekanntgabe an niemanden — `veroeffentliche()` weist
+           * den Weg deshalb auch serverseitig ab.
+           */
+          <p className="max-w-prose rounded-lg border border-warning bg-surface p-s4 text-sm text-text">
+            Diese Sitzung darf Objekte nicht lesen (<code className="text-xs">objekt.lesen</code>).
+            Die Empfängerliste oben bliebe damit leer, ohne dass jemand fehlt —
+            und der Beleg behauptete eine Bekanntgabe, die niemanden erreicht
+            hat. Der Weg ist bis dahin gesperrt.
+          </p>
+        ) : bild.schichten === 0 && bild.personen.length === 0 ? (
+          <p className="max-w-prose rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
+            In diesem Zeitraum steht keine Schicht und ist niemand eingeteilt. Eine
+            Bekanntgabe darüber wäre ein Beleg über nichts — wählen Sie einen anderen
+            Zeitraum.
+          </p>
         ) : (
           <form
             action="/api/dienstplan/veroeffentlichung"
@@ -337,7 +376,8 @@ export default async function Veroeffentlichung(
               </Button>
               <span className="text-sm text-text-muted">
                 {bild.personen.length === 0
-                  ? 'Niemand ist eingeteilt — es ginge keine Meldung hinaus.'
+                  ? 'Niemand ist eingeteilt — es ginge keine Meldung hinaus, der '
+                    + 'Vorgang hielte aber fest, dass der Zeitraum bekanntgegeben wurde.'
                   : `${String(bild.personen.length - bild.ohneZugang)} Meldung(en) `
                     + 'gehen in den Posteingang.'}
               </span>

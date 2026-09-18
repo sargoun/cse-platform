@@ -99,14 +99,34 @@ export function Vorgangskopf({ mandant, z, zuordnung, aktiv, darf }: {
 }) {
   return (
     <>
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/datenschutz`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Alle Betroffenenanfragen
-        </Link>
-      </nav>
+      {/*
+        * **Der Rücklink führt nur dorthin, wo die Sitzung auch hindarf.**
+        *
+        * Das Tor des Posteingangs verlangt `datenschutz.auskunft_erstellen`
+        * (Register, §5.25) und antwortet sonst mit 404. Wer seit 0220 als
+        * Träger von `berichtigung_bearbeiten` den VORGANG lesen darf, wurde
+        * von diesem Link also auf eine 404 geschickt — ein Menüpunkt, der auf
+        * 404 führt, ist schlechter als keiner (AUT-06).
+        *
+        * Das ist die halbe Reparatur: dass der Posteingang selbst für diese
+        * Zuständigkeit nicht erreichbar ist, steht im Register und nicht hier.
+        */}
+      {darf['datenschutz.auskunft_erstellen'] === true ? (
+        <nav aria-label="Zurück" className="mb-s3">
+          <Link
+            href={`/portal/${mandant}/datenschutz`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            ← Alle Betroffenenanfragen
+          </Link>
+        </nav>
+      ) : (
+        <p className="mb-s3 text-sm text-text-subtle" data-cse="ohne-posteingang">
+          Der gemeinsame Posteingang verlangt
+          {' '}<code className="font-mono">datenschutz.auskunft_erstellen</code>.
+          Dieser Vorgang ist über seine Adresse erreichbar.
+        </p>
+      )}
 
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{ART_TEXT[z.art].kurz}</h1>

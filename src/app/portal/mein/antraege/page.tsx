@@ -25,12 +25,12 @@ import { Feld, Felder, Gesellschaft, Leer } from '../bausteine';
  * Zeile. Wer den Grund braucht, geht ueber `leseGrund`, und das schreibt eine
  * Auditzeile.
  *
- * **Zurueckziehen wird hier nicht angeboten.** `zieheAntragZurueck` gibt es im
- * Dienst, aber `antrag` traegt heute keine permissive UPDATE-Policy fuer
- * `app.aktuelle_person()` — der Aufruf traefe null Zeilen und antwortete 404.
- * Ein Knopf, der 404 ergibt, ist schlechter als keiner; die fehlende Policy
- * ist im Abschlussbericht vermerkt, und sie braucht eine Migration, die zu
- * diesem PR nicht gehoert.
+ * **Zurueckziehen steht auf der EINZELSEITE, nicht hier.** Der Weg dorthin ist
+ * die Zeile selbst: `/portal/mein/antraege/[id]` zeigt den Vorgang mit
+ * Eingang, Entscheidung und — solange niemand entschieden hat — dem Knopf.
+ * Bis 0301 gab es ihn nirgends, weil `antrag` keine permissive UPDATE-Policy
+ * fuer `app.aktuelle_person()` trug und der Aufruf null Zeilen getroffen
+ * haette; `t_selbst_zurueckziehen` traegt ihn jetzt.
  */
 export const dynamic = 'force-dynamic';
 
@@ -99,28 +99,36 @@ export default async function MeineAntraege() {
         {daten.antraege.length === 0 ? <Leer text={t.keineEintraege} /> : (
           <ul data-cse="antraege" className="m-0 flex list-none flex-col gap-s3 p-0">
             {daten.antraege.map((a) => (
-              <li
-                key={a.antrag.id}
-                data-cse="antrag"
-                data-mandant={a.mandantSlug}
-                className="rounded-lg border border-line bg-surface p-s4"
-              >
-                <div className="mb-s3 flex flex-wrap items-center gap-s3">
-                  <Gesellschaft slug={a.mandantSlug} name={a.mandantName} />
-                  <StatusPill zustand={antragPille(a.antrag.status)} />
-                </div>
-                <Felder>
-                  <Feld label={t.antragArt}>{a.antrag.art}</Feld>
-                  <Feld label={t.von}>
-                    <span className="cse-zahl">{a.antrag.vonDatum ?? '—'}</span>
-                  </Feld>
-                  <Feld label={t.bis}>
-                    <span className="cse-zahl">{a.antrag.bisDatum ?? '—'}</span>
-                  </Feld>
-                  {a.antrag.entscheidungKommentar !== null && (
-                    <Feld label={t.nachricht}>{a.antrag.entscheidungKommentar}</Feld>
-                  )}
-                </Felder>
+              <li key={a.antrag.id}>
+                {/*
+                  Die ganze Zeile ist der Weg zum Vorgang — auf einem Telefon
+                  ist ein kleiner Link am Zeilenende ein Ziel, das man nicht
+                  trifft (DESIGN §8: 44px).
+                */}
+                <Link
+                  href={`/portal/mein/antraege/${a.antrag.id}`}
+                  data-cse="antrag"
+                  data-mandant={a.mandantSlug}
+                  className="block rounded-lg border border-line bg-surface p-s4
+                             no-underline transition-colors duration-fast hover:bg-surface-2"
+                >
+                  <div className="mb-s3 flex flex-wrap items-center gap-s3">
+                    <Gesellschaft slug={a.mandantSlug} name={a.mandantName} />
+                    <StatusPill zustand={antragPille(a.antrag.status)} />
+                  </div>
+                  <Felder>
+                    <Feld label={t.antragArt}>{a.antrag.art}</Feld>
+                    <Feld label={t.von}>
+                      <span className="cse-zahl">{a.antrag.vonDatum ?? '—'}</span>
+                    </Feld>
+                    <Feld label={t.bis}>
+                      <span className="cse-zahl">{a.antrag.bisDatum ?? '—'}</span>
+                    </Feld>
+                    {a.antrag.entscheidungKommentar !== null && (
+                      <Feld label={t.nachricht}>{a.antrag.entscheidungKommentar}</Feld>
+                    )}
+                  </Felder>
+                </Link>
               </li>
             ))}
           </ul>

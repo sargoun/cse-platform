@@ -11,8 +11,11 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
-import { leseRegel, RegelFehler } from '@/lib/datum/rrule';
+import { lesbareRegel } from '@/lib/datum/regeltext';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
+import {
+  listeSerien, type SerienListeZeile,
+} from '@/server/services/dienstplan/serienliste';
 
 /**
  * `/portal/[mandant]/dienstplan/serien` — TIM-02, TIM-03, CLN-02.
@@ -27,21 +30,16 @@ import { stundenAusMinuten } from '@/lib/datum/stunden';
  */
 export const dynamic = 'force-dynamic';
 
-interface SerienZeile {
-  readonly id: string;
-  readonly bezeichnung: string;
-  readonly objekt: string;
-  readonly revier: string | null;
-  readonly rrule: string;
-  readonly beginn_lokal: string;
-  readonly dauer_minuten: number;
-  readonly feiertagsregel: string;
-  readonly gueltig_ab: string;
-  readonly gueltig_bis: string | null;
-  readonly generiert_bis: string | null;
-  readonly archiviert: boolean;
-  readonly einsaetze: number;
-}
+/**
+ * Die Zeile kommt aus dem Dienst, nicht aus dieser Datei.
+ *
+ * Die Abfrage stand hier inline. Mit `/reinigung/turnus` daneben waere sie
+ * eine ZWEITE Wahrheit ueber „wie viele Termine hat diese Serie" und „bis
+ * wann ist geplant" geworden — die beiden Zahlen, die beide Seiten gross
+ * anzeigen. Sie liegt jetzt in `services/dienstplan/serienliste.ts`, und der
+ * turnus-verankerte Blick der Reinigung benutzt dieselben Bausteine.
+ */
+type SerienZeile = SerienListeZeile;
 
 export default async function Serienliste(
   { params, searchParams }: {
@@ -67,37 +65,8 @@ export default async function Serienliste(
   if (sitzung.aktiverMandantId === null) notFound();
 
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, sitzung, async (kontext) => kontext.abfrage<SerienZeile>(
-      /**
-       * Die Zahl der Termine kommt aus demselben `select` — hundert Serien
-       * waeren sonst hunderteins Abfragen, und die Liste waere genau dann
-       * langsam, wenn sie sich lohnt.
-       */
-      /* Turnus-Serien (Reinigung) und Posten-Serien (Sicherheit) in einer Liste (D-487). */
-      `select ps.id, coalesce(t.bezeichnung, p.bezeichnung) as bezeichnung,
-              o.bezeichnung as objekt, r.bezeichnung as revier,
-              coalesce(t.rrule, p.abdeckung_rrule)                        as rrule,
-              to_char(coalesce(t.dtstart_lokal, p.dtstart_lokal), 'HH24:MI') as beginn_lokal,
-              coalesce(t.dauer_minuten, p.dauer_minuten, 0)::int           as dauer_minuten,
-              coalesce(t.feiertagsregel::text,
-                       case when ps.feiertage_ueberspringen then 'ausfall' else 'unveraendert' end)
-                                                                          as feiertagsregel,
-              to_char(coalesce(t.gueltig_ab, p.gueltig_ab), 'YYYY-MM-DD')   as gueltig_ab,
-              to_char(coalesce(t.gueltig_bis, p.gueltig_bis), 'YYYY-MM-DD') as gueltig_bis,
-              to_char(ps.generiert_bis, 'YYYY-MM-DD')        as generiert_bis,
-              (ps.archiviert_am is not null)                 as archiviert,
-              coalesce(e.anzahl, 0)::int                     as einsaetze
-         from planungsserie ps
-         left join turnus t on t.mandant_id = ps.mandant_id and t.id = ps.turnus_id
-         left join posten p on p.mandant_id = ps.mandant_id and p.id = ps.posten_id
-         left join revier r on r.mandant_id = t.mandant_id and r.id = t.revier_id
-         join objekt o on o.mandant_id = ps.mandant_id and o.id = coalesce(r.objekt_id, p.objekt_id)
-         left join lateral (
-                select count(*) as anzahl from einsatz e
-                 where e.planungsserie_id = ps.id and e.storniert_am is null
-              ) e on true
-        order by ps.archiviert_am nulls first, o.bezeichnung, coalesce(t.bezeichnung, p.bezeichnung)`,
-    ))) as Promise<readonly SerienZeile[]>);
+    withTenant(tx, sitzung, async (kontext) =>
+      listeSerien(kontext))) as Promise<readonly SerienZeile[]>);
 
   return (
     <PortalRahmen
@@ -221,41 +190,3 @@ export default async function Serienliste(
     </PortalRahmen>
   );
 }
-
-const TAGE: Readonly<Record<string, string>> = {
-  MO: 'Mo', TU: 'Di', WE: 'Mi', TH: 'Do', FR: 'Fr', SA: 'Sa', SU: 'So',
-};
-
-/**
- * Die RRULE in einem Satz — gelesen vom **selben Parser**, den der Generator
- * benutzt.
- *
- * Eine zweite, nur fuer die Anzeige geschriebene Auslegung waere die
- * gefaehrlichste Variante: sie zeigte „montags", waehrend der Generator
- * dienstags plant, und beides saehe richtig aus.
- *
- * Was der Parser nicht lesen kann, wird als Rohtext gezeigt und nicht
- * geraten — eine erfundene Zusammenfassung waere schlimmer als die Regel
- * selbst.
- */
-function lesbareRegel(rrule: string): string {
-  try {
-    const r = leseRegel(rrule);
-    const jede = r.interval === 1 ? 'jede' : `jede ${String(r.interval)}.`;
-    if (r.freq === 'WEEKLY') {
-      const tage = r.byday?.map((d) => TAGE[d] ?? d).join(', ');
-      return tage === undefined ? `${jede} Woche` : `${jede} Woche · ${tage}`;
-    }
-    if (r.freq === 'DAILY') {
-      return r.interval === 1 ? 'täglich' : `jeden ${String(r.interval)}. Tag`;
-    }
-    const tage = r.bymonthday?.map((d) => `${String(d)}.`).join(', ');
-    return tage === undefined
-      ? `${jede} Monat`
-      : `${jede === 'jede' ? 'jeden' : jede} Monat · ${tage}`;
-  } catch (fehler) {
-    if (fehler instanceof RegelFehler) return rrule;
-    throw fehler;
-  }
-}
-

@@ -7,7 +7,8 @@ import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { MandantAntwort } from '@/app/portal/unterseite';
 import {
-  ERGEBNIS_TEXT, VOLLZUG, matrix, type Entscheidungszeile, type Ort,
+  ERGEBNIS_TEXT, NICHT_IN_DER_MATRIX, VOLLZUG, matrix,
+  type Entscheidungszeile, type Ort,
 } from '@/server/services/datenschutz/loeschentscheidung';
 import { ladeVorgang } from '../../vorgang';
 import { BERLIN_TAG, Vorgangskopf } from '../../Vorgangskopf';
@@ -119,6 +120,26 @@ export default async function Loeschungsseite(
           </Link>
         </span>
       </Hinweis>
+
+      {zuordnung.art === 'person' ? (
+        <Hinweis art="hinweis" cse="loeschung-ausserhalb" className="mb-s6 max-w-prose">
+          <strong className="block">
+            {`${String(NICHT_IN_DER_MATRIX.length)} Orte entscheidet diese Matrix NICHT — und das steht hier, statt zu fehlen (O-648).`}
+          </strong>
+          Es sind abgeleitete Befunde, technische Datensätze des Zugangs und
+          Zuordnungen, die mit ihrem Hauptsatz fallen. Ob sie eine eigene
+          Entscheidungszeile brauchen, ist eine Rechtsfrage. Eine Matrix, die
+          sie stillschweigend auslässt, behauptet „N von N entschieden" über
+          einen Bestand, den sie nicht kennt.
+          <ul className="m-0 mt-s2 list-disc ps-s5">
+            {NICHT_IN_DER_MATRIX.map((o) => (
+              <li key={o.tabelle}>
+                <code className="font-mono">{o.tabelle}</code> — {o.grund}
+              </li>
+            ))}
+          </ul>
+        </Hinweis>
+      ) : null}
 
       {zuordnung.art === 'keine' ? (
         <Hinweis art="warnung" cse="loeschung-ohne-zuordnung" className="mb-s6 max-w-prose">

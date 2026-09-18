@@ -27,7 +27,7 @@ import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import {
   legeLvImportAn, ladeLvImportZeilen, findeLvImport, uebernimmLvImport,
 } from '../../src/server/services/bau/lv-import.js';
-import { ladeLvPositionen } from '../../src/server/services/bau/lv.js';
+import { ladeLvAuswahl, ladeLvPositionen } from '../../src/server/services/bau/lv.js';
 import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index.js';
 
 let f: Fixtur;
@@ -543,5 +543,134 @@ describe('Invariante 8 — der Kopf bleibt, die Zwischenzeilen dürfen weichen',
       `select p.polname from pg_policy p join pg_class c on c.oid = p.polrelid
         where c.relname = 'lv_import_zeile' and p.polcmd = 'd'`);
     expect(policies.map((p) => p.polname)).toContain('t_job_raeumen');
+  });
+});
+
+/**
+ * Zwei Fassungen — und trotzdem EINE Auswahl.
+ *
+ * **Der Befund, gegen den dieser Block steht.** Die Übernahme legt eine neue
+ * Fassung an und lässt die alte stehen (sie ist der Beleg dessen, was
+ * ursprünglich vereinbart wurde, § 2 Abs. 6 VOB/B). `ladeLvAuswahl` filterte
+ * aber nur auf `projekt_id` und `archiviert_am is null` — also stand nach dem
+ * ersten Import JEDE Ordnungszahl zweimal in der Auswahl der
+ * Aufmasserfassung und der Mängelliste, angezeigt als `{oz} · {kurztext}` und
+ * damit nicht unterscheidbar.
+ *
+ * Das ist kein Anzeigefehler: `findeLvPosition` summiert `menge_aufgemessen`
+ * je `lv_position_id`. Wer die alte Zeile traf, liess die Position der
+ * aktuellen Fassung auf 0 stehen — die Mehrmengenwarnung nach § 2 Abs. 3
+ * VOB/B (BAU-05) feuerte nie, und die Menge hing am Einheitspreis einer
+ * überholten Fassung.
+ */
+describe('nach der Übernahme steht keine OZ zweimal in der Auswahl', () => {
+  const CSV_FASSUNG_2 = [
+    'OZ;Art;Kurztext;Einheit;Menge;Einheitspreis;Positionsart',
+    '1;Los;Rohbau;;;;',
+    '1.2;Titel;Mauerwerk;;;;',
+    '1.2.9;Position;Mauerwerk 24 cm KS;m2;4,000;12,99;Normalposition',
+    '1.2.10;Position;Mauerwerk 36 cm KS;m2;17,500;24,50;Normalposition',
+  ].join('\n');
+
+  it('zwei Übernahmen, zwei Fassungen — und jede Ordnungszahl genau einmal', async () => {
+    const bau = await baueProjekt(f.bau);
+    const ergebnis = await alsApp(
+      SCHREIBEND(f.bau, bau.benutzer),
+      async (tx) => {
+        const kontext = kontextAus(tx, bau);
+        const erste = await legeLvImportAn(kontext, {
+          projektId: bau.projekt, dateiname: 'lv-1.csv', format: 'csv_semikolon',
+          bezeichnung: 'LV Rohbau', inhalt: CSV,
+        });
+        const f1 = await uebernimmLvImport(kontext, erste.importId);
+        const zweite = await legeLvImportAn(kontext, {
+          projektId: bau.projekt, dateiname: 'lv-2.csv', format: 'csv_semikolon',
+          bezeichnung: 'LV Rohbau, Fassung 2', inhalt: CSV_FASSUNG_2,
+        });
+        const f2 = await uebernimmLvImport(kontext, zweite.importId);
+        return { f1, f2, auswahl: await ladeLvAuswahl(kontext, bau.projekt) };
+      },
+    );
+
+    expect(ergebnis.f1.fassung).toBe(1);
+    expect(ergebnis.f2.fassung).toBe(2);
+
+    const ozs = ergebnis.auswahl.map((z) => z.oz);
+    expect(new Set(ozs).size, `doppelte OZ in der Auswahl: ${ozs.join(', ')}`)
+      .toBe(ozs.length);
+    // Und es ist die JÜNGSTE Fassung, nicht irgendeine.
+    expect(ergebnis.auswahl.every((z) => z.fassung === 2)).toBe(true);
+    expect(ergebnis.auswahl.every((z) => z.verzeichnis_art === 'hauptauftrag')).toBe(true);
+    // Nur Positionen — ein Titel ist keine Buchungsstelle.
+    expect(ozs.sort()).toEqual(['1.2.10', '1.2.9']);
+  });
+
+  it('die alte Fassung bleibt lesbar — sie ist der Beleg, nicht die Buchungsstelle',
+    async () => {
+      const bau = await baueProjekt(f.bau);
+      const stand = await alsApp(
+        SCHREIBEND(f.bau, bau.benutzer),
+        async (tx) => {
+          const kontext = kontextAus(tx, bau);
+          const erste = await legeLvImportAn(kontext, {
+            projektId: bau.projekt, dateiname: 'lv-1.csv', format: 'csv_semikolon',
+            bezeichnung: 'LV Rohbau', inhalt: CSV,
+          });
+          const f1 = await uebernimmLvImport(kontext, erste.importId);
+          const zweite = await legeLvImportAn(kontext, {
+            projektId: bau.projekt, dateiname: 'lv-2.csv', format: 'csv_semikolon',
+            bezeichnung: 'LV Rohbau, Fassung 2', inhalt: CSV_FASSUNG_2,
+          });
+          await uebernimmLvImport(kontext, zweite.importId);
+          return ladeLvPositionen(kontext, f1.leistungsverzeichnisId);
+        },
+      );
+      // Fassung 1 steht vollständig da — mit der Menge, die damals vereinbart war.
+      expect(stand.map((z) => z.oz)).toEqual(['1', '1.2', '1.2.9', '1.2.10', '1.2.100']);
+      expect(stand.find((z) => z.oz === '1.2.9')?.mengeVertrag).toBe('3.333');
+    });
+
+  it('und die Vorschau der zweiten Datei benennt, was in ihr FEHLT', async () => {
+    /*
+     * Die neue Fassung entsteht ausschliesslich aus den Zeilen der Datei:
+     * `1.2.100` steht in Fassung 1 und nicht in dieser Datei, ist also
+     * gestrichen. Vorher sagte das niemand — und der Begleittext behauptete
+     * das Gegenteil. Ob eine Teildatei fortschreibt oder ersetzt, ist offen
+     * (O-633); genannt werden muss es so oder so.
+     */
+    const bau = await baueProjekt(f.bau);
+    const kopf = await alsApp(
+      SCHREIBEND(f.bau, bau.benutzer),
+      async (tx) => {
+        const kontext = kontextAus(tx, bau);
+        const erste = await legeLvImportAn(kontext, {
+          projektId: bau.projekt, dateiname: 'lv-1.csv', format: 'csv_semikolon',
+          bezeichnung: 'LV Rohbau', inhalt: CSV,
+        });
+        await uebernimmLvImport(kontext, erste.importId);
+        const zweite = await legeLvImportAn(kontext, {
+          projektId: bau.projekt, dateiname: 'lv-2.csv', format: 'csv_semikolon',
+          bezeichnung: 'LV Rohbau, Fassung 2', inhalt: CSV_FASSUNG_2,
+        });
+        return findeLvImport(kontext, zweite.importId);
+      },
+    );
+    expect(kopf?.fehlende_oz).toEqual(['1.2.100']);
+  });
+
+  it('beim ERSTEN Import fehlt nichts — es gibt noch keinen Bestand', async () => {
+    const bau = await baueProjekt(f.bau);
+    const kopf = await alsApp(
+      SCHREIBEND(f.bau, bau.benutzer),
+      async (tx) => {
+        const kontext = kontextAus(tx, bau);
+        const erste = await legeLvImportAn(kontext, {
+          projektId: bau.projekt, dateiname: 'lv-1.csv', format: 'csv_semikolon',
+          bezeichnung: 'LV Rohbau', inhalt: CSV,
+        });
+        return findeLvImport(kontext, erste.importId);
+      },
+    );
+    expect(kopf?.fehlende_oz).toEqual([]);
   });
 });

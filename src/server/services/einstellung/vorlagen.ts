@@ -81,7 +81,7 @@ export interface Vorlagenuebersicht {
  * fuer die Oberflaeche; ein unbekannter Platzhalter wird beim Versand
  * abgewiesen (`platzhalter_unbekannt`), nicht leer ersetzt — ein Schreiben
  * mit offener geschweifter Klammer geht sonst an den Auftraggeber hinaus.
- * `tests/kern/vorlagen.test.ts` haelt die Liste gegen `Vorlagenwerte`.
+ * `tests/kern/einstellungen-vorlagen.test.ts` haelt die Liste gegen `Vorlagenwerte`.
  */
 export const ERLAUBTE_PLATZHALTER: readonly string[] =
   ['projekt', 'ursache', 'grund', 'beginn', 'auswirkung', 'absender'];

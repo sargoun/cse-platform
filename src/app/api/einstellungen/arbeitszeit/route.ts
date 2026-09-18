@@ -9,8 +9,8 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import {
-  ArbeitszeitFehler, GEWERKE, alsMengeText, setzeArbeitszeitmodell,
-  setzeTarifvereinbarung, type Gewerk,
+  ArbeitszeitFehler, GEWERKE, UEBERTRAG_ARTEN, alsMengeText, istUebertragArt,
+  setzeArbeitszeitmodell, setzeTarifvereinbarung, type Gewerk,
 } from '@/server/services/zeit/arbeitszeitmodell';
 
 /**
@@ -54,11 +54,30 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const wert = daten.get(name);
     return typeof wert === 'string' && wert.trim() !== '' ? wert.trim() : null;
   };
-  const ganz = (name: string): number | null => {
+  /**
+   * Eine ganze Minutenzahl — oder `null`, wenn das Feld LEER ist.
+   *
+   * Der Unterschied traegt hier Gewicht: `null` heisst auf dieser Seite
+   * ausdruecklich „der Tarif sagt dazu nichts", und dann gilt das Gesetz.
+   * Ein unlesbarer Wert („dreissig", „30 min", „-5") darf deshalb nicht als
+   * `null` durchrutschen — die Zeile wuerde gespeichert, die Route meldete
+   * Erfolg, und die strengere Pausenregel, die jemand eingetragen hat, waere
+   * lautlos verschwunden. Sie wird abgewiesen, mit dem Namen des Feldes.
+   */
+  const ganz = (name: string, beschriftung: string): number | null => {
     const roh = text(name);
     if (roh === null) return null;
+    if (!/^\d+$/u.test(roh)) {
+      throw new ArbeitszeitFehler('ungueltig',
+        `„${roh}" ist keine Zahl für das Feld „${beschriftung}". Erlaubt ist eine `
+        + 'ganze Zahl ab 0; ein leeres Feld heisst „nicht hinterlegt".');
+    }
     const zahl = Number.parseInt(roh, 10);
-    return Number.isInteger(zahl) && zahl >= 0 ? zahl : null;
+    if (!Number.isSafeInteger(zahl)) {
+      throw new ArbeitszeitFehler('ungueltig',
+        `„${roh}" ist zu groß für das Feld „${beschriftung}".`);
+    }
+    return zahl;
   };
 
   try {
@@ -80,14 +99,20 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           }
           const wochenstunden = text('wochenstunden');
           const arbeitstage = text('arbeitstage');
+          const uebertragArt = text('uebertragArt') ?? 'offen';
+          if (!istUebertragArt(uebertragArt)) {
+            throw new ArbeitszeitFehler('ungueltig',
+              `„${uebertragArt}" ist keine Übertragsregel. Erlaubt ist derzeit nur `
+              + `„${UEBERTRAG_ARTEN.join('", „')}" (O-18).`);
+          }
           await setzeArbeitszeitmodell(kontext, {
             schluessel,
             bezeichnung,
             wochenstunden: wochenstunden === null ? null : alsMengeText(wochenstunden),
             arbeitstageWoche: arbeitstage === null ? null : alsMengeText(arbeitstage),
-            uebertragArt: text('uebertragArt') ?? 'offen',
-            uebertragGrenzeMinuten: ganz('uebertragGrenze'),
-            verfallMonate: ganz('verfallMonate'),
+            uebertragArt,
+            uebertragGrenzeMinuten: ganz('uebertragGrenze', 'Kappung des Übertrags'),
+            verfallMonate: ganz('verfallMonate', 'Verfall nach Monaten'),
             gueltigAb,
             bestaetigt: text('bestaetigt') === 'ja',
           });
@@ -109,9 +134,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           gewerk: gewerk as Gewerk,
           bezeichnung,
           fundstelle: text('fundstelle'),
-          pauseAb6hMinuten: ganz('pause6'),
-          pauseAb9hMinuten: ganz('pause9'),
-          ruhezeitMinuten: ganz('ruhezeit'),
+          pauseAb6hMinuten: ganz('pause6', 'Pause ab 6 Stunden'),
+          pauseAb9hMinuten: ganz('pause9', 'Pause ab 9 Stunden'),
+          ruhezeitMinuten: ganz('ruhezeit', 'Ruhezeit'),
           giltAb,
           bestaetigt: text('bestaetigt') === 'ja',
         });

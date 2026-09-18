@@ -25,6 +25,13 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
  * den Grund hinein — statt eines Buendels, das aussieht, als sei nichts
  * geaendert worden.
  *
+ * **Das zweite Recht verlangt den ZWEITEN FAKTOR** (0206, AUT-02): es
+ * oeffnet Loehne, Geburtsdaten und gesundheitsnahe Abwesenheitsgruende im
+ * Klartext. `app.hat_recht` gibt es in einer `aal1`-Sitzung gar nicht erst
+ * zurueck — die Abfrage unten faellt deshalb ohne Zutun auf `false`, und der
+ * Hinweis erscheint. Ein Riegel in der Route deckte einen Weg; die Pflicht an
+ * der Berechtigung deckt jeden.
+ *
  * **Nur diese Gesellschaft, nur `ebene = 'mandant'`.** Plattformzeilen
  * gehoeren nie in ein Mandantenbuendel (K-16(d)); die Spalte `ebene` steht
  * trotzdem in jeder exportierten Zeile, damit die beiden Ebenen nie
@@ -144,9 +151,11 @@ export default async function ProtokollExport(
         <Hinweis art="warnung" cse="export-redigiert" className="mb-s5 max-w-[72ch]">
           <strong>Das Bündel wird redigiert.</strong> Die Vorher/Nachher-Werte hängen an
           einem eigenen Recht (<code>system.audit_sensitiv_lesen</code>) — sie können
-          Löhne, Geburtsdaten und Gesundheitsangaben tragen. Ihre Sitzung hält es nicht;
-          das Manifest trägt diesen Grund ein und die Nutzlastdatei fehlt. Ein Bündel
-          ohne diesen Satz sähe aus, als hätte sich nichts geändert.
+          Löhne, Geburtsdaten und Gesundheitsangaben tragen. Ihre Sitzung hält es nicht
+          — entweder fehlt das Recht, oder der zweite Faktor wurde in dieser Anmeldung
+          nicht vorgezeigt (das Recht verlangt ihn). Das Manifest trägt diesen Grund
+          ein und die Nutzlastdatei fehlt. Ein Bündel ohne diesen Satz sähe aus, als
+          hätte sich nichts geändert.
         </Hinweis>
       )}
 

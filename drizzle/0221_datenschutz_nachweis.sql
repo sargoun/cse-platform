@@ -244,8 +244,12 @@ comment on table loeschentscheidung is
   'datenschutz.loeschung_pruefen LOESCHT NICHT, es entscheidet.';
 
 comment on column loeschentscheidung.sperre_faellt_am is
-  'Ein Datum, keine Dauer. „Zehn Jahre" ohne Anker ist keine Frist, und der '
-  'Anker ist je Zeile ein anderer.';
+  'Der ERSTE Tag, an dem geloescht werden darf — nicht der letzte Tag der '
+  'Aufbewahrung. Ein Datum, keine Dauer: „Zehn Jahre" ohne Anker ist keine '
+  'Frist, und der Anker ist je Zeile ein anderer. Beide Rechenwege in '
+  'loeschentscheidung.ts (aoFrist, milogFrist) liefern genau diese Bedeutung; '
+  'zwei Bedeutungen in einer Spalte waeren ein Tag Unterschied, den niemand '
+  'sieht.';
 
 /**
  * Eine Entscheidung je Tabelle und Feld — als INDEX mit `coalesce`, nicht als
@@ -435,6 +439,14 @@ comment on function app.benachrichtigung_auskunft(uuid) is
 alter function app.benachrichtigung_auskunft(uuid) owner to cse_definer;
 
 grant execute on function app.benachrichtigung_auskunft(uuid) to cse_app;
+/*
+ * K-08: `create function` erteilt PUBLIC automatisch EXECUTE, und das
+ * `grant` darueber FUEGT HINZU — es ersetzt nichts. Ohne diese Zeile haelt
+ * jede Rolle das Ausfuehrungsrecht auf einem Leser FREMDER Personendaten,
+ * `cse_anon` eingeschlossen. Dieselbe Reihenfolge wie 0031:552, 0040:1070,
+ * 0069:636 und 0073:641.
+ */
+revoke all on function app.benachrichtigung_auskunft(uuid) from public;
 
 -- ---------------------------------------------------------------------------
 -- Keine Loeschung (Invariante 8)

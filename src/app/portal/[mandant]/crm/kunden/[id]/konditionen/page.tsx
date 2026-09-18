@@ -16,6 +16,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { Unternavigation } from '../Unternavigation';
 
 /**
@@ -110,6 +111,18 @@ export default async function Konditionen(
   const { kopf, kondition, sperreAktiv, heute } = daten;
   const herkunft = zielHerkunft(kondition);
   const darfSchreiben = darf['crm.schreiben'] === true;
+  /*
+   * Eine ABGELAUFENE Sperre bleibt bedienbar.
+   *
+   * Sie läuft ja normalerweise ab — der Seed setzt eine auf heute + 30 Tage.
+   * Stünde hier weiter `min={heute}`, verweigerte der Browser ab Tag 31 den
+   * eigenen Vorgabewert, und an diesem Kunden wäre weder die Debitorennummer
+   * noch das Zahlungsziel änderbar, ohne zugleich den festgehaltenen Grund zu
+   * löschen. Der Dienst lässt ein UNVERÄNDERTES `mahnsperre_bis` in der
+   * Vergangenheit deshalb durch; die Schranke im Browser muss dasselbe tun.
+   */
+  const sperreAbgelaufen = kondition?.mahnsperreBis != null
+    && kondition.mahnsperreBis < heute;
 
   return (
     <PortalRahmen
@@ -209,7 +222,9 @@ export default async function Konditionen(
                 ) : (
                   <>
                     <StatusPill zustand={sperreAktiv === true ? 'Wartet' : 'Archiviert'} />
-                    <span className="text-sm tabular-nums">bis {kondition.mahnsperreBis}</span>
+                    <span className="text-sm tabular-nums">
+                      bis {tagDeutsch(kondition.mahnsperreBis)}
+                    </span>
                   </>
                 )}
               </dd>
@@ -224,8 +239,11 @@ export default async function Konditionen(
                         + 'fehlt mahnung.lesen.'
                       : sperreAktiv
                         ? `app.kunde_mahnsperre_aktiv hält den Mahnlauf an. Ab dem Tag `
-                          + `nach dem ${kondition.mahnsperreBis} mahnt er wieder.`
-                        : 'Die Sperre ist abgelaufen — der Mahnlauf läuft wieder.'}
+                          + `nach dem ${tagDeutsch(kondition.mahnsperreBis)} mahnt er `
+                          + 'wieder.'
+                        : 'Die Sperre ist abgelaufen — der Mahnlauf läuft wieder. Sie '
+                          + 'darf trotzdem stehen bleiben: sie trägt den Grund, aus dem '
+                          + 'einmal nicht gemahnt wurde.'}
                   </span>
                 )}
               </p>
@@ -295,10 +313,20 @@ export default async function Konditionen(
                 Auskunft, dass nicht gemahnt wurde — und niemand weiss, ob es so gewollt
                 war. Beide leeren hebt die Sperre auf.
               </p>
+              {sperreAbgelaufen ? (
+                <p className="m-0 text-xs text-text-muted" data-cse="kondition-sperre-alt">
+                  <strong>Diese Sperre ist abgelaufen — und darf so bleiben.</strong> Sie
+                  hält nichts mehr an, trägt aber den Grund, aus dem einmal nicht gemahnt
+                  wurde. Ein neues Datum muss heute oder später liegen; das vorhandene
+                  können Sie unverändert stehen lassen und trotzdem die Debitorennummer
+                  oder das Zahlungsziel ändern.
+                </p>
+              ) : null}
               <label className="flex flex-col gap-s2 text-sm text-text">
                 Gesperrt bis
                 <input
-                  type="date" name="mahnsperreBis" className={FELD} min={heute}
+                  type="date" name="mahnsperreBis" className={FELD}
+                  min={sperreAbgelaufen ? undefined : heute}
                   defaultValue={kondition?.mahnsperreBis ?? ''}
                   data-cse="kondition-sperre-bis"
                 />

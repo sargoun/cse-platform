@@ -9,7 +9,7 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { GeldFehler, parseGeld } from '@/server/services/finanz/geld';
-import { RichtlinieFehler, setzeRichtlinie }
+import { HINWEIS_TEXT, RichtlinieFehler, setzeRichtlinie }
   from '@/server/services/agent/richtlinie';
 import { AKTIONEN, type Aktion } from '@/server/agent/policy';
 
@@ -29,11 +29,39 @@ import { AKTIONEN, type Aktion } from '@/server/agent/policy';
  */
 export const dynamic = 'force-dynamic';
 
-function zurueck(anfrage: NextRequest, hinweis?: string): NextResponse {
+/**
+ * Wohin es nach dem Absenden zurueckgeht — aus einem GESCHLOSSENEN Satz.
+ *
+ * Dieselbe Regel steht an zwei Bildschirmen: in den Einstellungen als
+ * Tabelle mit einem Anlegeformular, im Agentenzentrum
+ * (`/portal/[mandant]/agenten/richtlinien`) als Liste mit je einer
+ * Bearbeitungsseite. Beide schreiben durch DIESEN Handler — eine zweite
+ * Route waere eine zweite Stelle, an der jemand das `authorize` vergisst.
+ * Woher das Formular kam, darf es deshalb mitschicken; WAS daraus als
+ * Adresse wird, entscheidet diese Karte und nicht das Feld.
+ */
+const ZIELE: Readonly<Record<string, (slug: string) => string>> = {
+  einstellungen: (slug) => `/portal/${slug}/einstellungen/agent-richtlinien`,
+  agenten: (slug) => `/portal/${slug}/agenten/richtlinien`,
+};
+
+/**
+ * Zurueck zum Formular — mit einem CODE, nicht mit einem Satz.
+ *
+ * **Der Befund, der das gebracht hat.** Hier stand der fertige Text in der
+ * Adresse (`?hinweis=Die Richtlinie ist gesetzt…`), und alle drei Bildschirme
+ * gaben ihn unveraendert in einem Hinweiskasten aus. Damit liess sich ueber
+ * einen Link jeder beliebige Satz in der Oberflaeche erscheinen lassen. Jetzt
+ * faehrt nur der NAME mit; aufgeloest wird er aus `HINWEIS_TEXT`, und ein
+ * Code, den diese Tabelle nicht kennt, zeigt gar nichts.
+ */
+function zurueck(anfrage: NextRequest, ziel: string, hinweis?: string): NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-  const url = new URL(
-    `/portal/${slug}/einstellungen/agent-richtlinien`, erwarteterUrsprung(anfrage));
-  if (hinweis !== undefined) url.searchParams.set('hinweis', hinweis);
+  const bauer = ZIELE[ziel] ?? ZIELE['einstellungen']!;
+  const url = new URL(bauer(slug), erwarteterUrsprung(anfrage));
+  if (hinweis !== undefined && HINWEIS_TEXT[hinweis] !== undefined) {
+    url.searchParams.set('hinweis', hinweis);
+  }
   return NextResponse.redirect(url, 303);
 }
 
@@ -57,6 +85,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
   }
   const maxBetrag = text('maxBetrag');
+  /* Nicht die Adresse, sondern ihr NAME — aufgelöst wird er in `ZIELE`. */
+  const ziel = text('ziel') ?? 'einstellungen';
 
   try {
     const grenze = maxBetrag === null ? null : parseGeld(maxBetrag);
@@ -74,20 +104,19 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           maxBetragCent: grenze,
           begruendung: text('begruendung'),
         });
-        return zurueck(anfrage,
-          'Die Richtlinie ist gesetzt. Sie gilt ab dem nächsten Versandversuch; '
-          + 'was vorher freigegeben wurde, bleibt freigegeben.');
+        return zurueck(anfrage, ziel, 'gesetzt');
       }))) as NextResponse;
   } catch (fehler: unknown) {
     /*
      * **Der Aufrufer ist ein Formular, also bekommt er eine SEITE zurueck.**
      * Eine JSON-Antwort mit 422 laesst den Browser eine Datei anzeigen, auf
      * der `{"fehler":"im_code_gesperrt"}` steht — und genau dieser Fall ist
-     * der, in dem jemand einen Satz braucht statt eines Codes.
+     * der, in dem jemand einen Satz braucht statt eines Codes. Den Satz
+     * schreibt die Seite aus `HINWEIS_TEXT`; durch die Adresse faehrt nur
+     * der Name.
      */
-    if (fehler instanceof GeldFehler || fehler instanceof RichtlinieFehler) {
-      return zurueck(anfrage, fehler.message);
-    }
+    if (fehler instanceof RichtlinieFehler) return zurueck(anfrage, ziel, fehler.grund);
+    if (fehler instanceof GeldFehler) return zurueck(anfrage, ziel, 'wert');
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }

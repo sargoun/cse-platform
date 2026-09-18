@@ -48,6 +48,29 @@ export const GESETZ: Readonly<Record<'pause6h' | 'pause9h' | 'ruhezeit', number>
   ruhezeit: RUHEZEIT_MINUTEN,
 };
 
+/**
+ * Die GESCHLOSSENE Menge der Uebertragsregeln — heute genau eine.
+ *
+ * `uebertrag_art` entscheidet, was am Monatsende mit einem Stundensaldo
+ * geschieht: mitnehmen, kappen, verfallen lassen. Das ist eine Lohnfrage,
+ * und sie ist offen (O-18). Solange sie offen ist, gibt es hier genau einen
+ * Wert, und „offen" heisst: es wird nichts uebertragen und nichts verfallen
+ * gelassen. Ein FREITEXTFELD an dieser Stelle waere das Gegenteil eines
+ * benannten Platzhalters — ein Tippfehler („verfalen") liesse sich speichern
+ * und saehe in der Tabelle danach aus wie eine hinterlegte Regel.
+ *
+ * Erweitert wird die Liste, wenn O-18 beantwortet ist: ein Wert hier, ein
+ * Zweig in der Sollzeitrechnung, ein Test — und die CHECK-Constraint
+ * `azm_uebertrag_art` (0205) zieht nach.
+ */
+export const UEBERTRAG_ARTEN = ['offen'] as const;
+
+export type UebertragArt = typeof UEBERTRAG_ARTEN[number];
+
+export function istUebertragArt(wert: string): wert is UebertragArt {
+  return (UEBERTRAG_ARTEN as readonly string[]).includes(wert);
+}
+
 export type Gewerk = 'reinigung' | 'security' | 'bau';
 
 export const GEWERKE: readonly Gewerk[] = ['reinigung', 'security', 'bau'];
@@ -207,6 +230,16 @@ export async function ladeTarifvereinbarungen(
  * Datenbankfehler gesucht wird. Ein Rueckfall auf eine Formel gaebe es hier
  * nicht: `wochenstunden / 5 * arbeitstage` sieht harmlos aus und entscheidet
  * vier Fragen, die niemand gestellt hat (O-18).
+ *
+ * **Der zweite Zweig ist heute nicht erreichbar, und das ist Absicht.**
+ * Kein Schreibweg setzt `sollzeitregel` auf etwas anderes als `'offen'`: der
+ * INSERT in `setzeArbeitszeitmodell` schreibt das Literal, die Spalte hat
+ * dieselbe Vorgabe, und der Spaltengrant erlaubt kein UPDATE darauf. Der
+ * Zweig sichert die Spalte gegen einen kuenftigen MIGRATIONSWERT ab — wer
+ * eine zweite Regel benennt, bevor er sie baut, bekommt ihren Namen in der
+ * Meldung statt eine stillschweigende `null`. Er ist also keine benutzbare
+ * Einstellung, sondern eine Wache; wenn `sollzeitregel` je Eingabe wird,
+ * gehoert eine geschlossene Menge dazu, wie bei `UEBERTRAG_ARTEN`.
  */
 export function regelFuerModell(modell: {
   readonly schluessel: string; readonly sollzeitregel: string;
@@ -256,10 +289,17 @@ export function alsMengeText(eingabe: string): string {
  * auf `azm_kein_ueberlapp`, und die neue Zeile waere abgewiesen — mit einer
  * Meldung ueber einen Zustand, den niemand gewollt hat.
  *
- * **Rueckwirkend geht nicht.** Eine geaenderte Wochenstundenzahl bewertet
- * jeden abgerechneten Monat neu, in dem sie galt; der Zeitnachweis nach
- * § 17 MiLoG stimmte danach mit keinem Papier mehr ueberein.
+ * **Eine Rueckwirkungssperre gibt es hier NICHT — und das ist eine bewusste
+ * Nicht-Entscheidung.** Hier stand einmal „vor heute gibt es keine Fassung",
+ * begruendet mit § 17 MiLoG. Diese Regel hat niemand getroffen: das Vorbild
+ * `mahnstufe` kennt sie nicht, `setzeTarifvereinbarung` in dieser Datei kennt
+ * sie nicht (Tarife duerften also rueckwirkend gelten, Modelle nicht), und
+ * sie machte genau den Fall unmoeglich, den `/einstellungen/import`
+ * vorbereitet: ein Mandant, der bei der Uebernahme sein seit 2020 geltendes
+ * Modell hinterlegen will. Die Ablösung regelt allein `azm_kein_ueberlapp`,
+ * wie bei `mahnstufe`.
  */
+// TODO(client, O-626): Darf eine Fassung rueckwirkend hinterlegt werden (Uebernahme von Altbestaenden), und ab welchem Datum ist ein Monat fuer neue Fassungen gesperrt — ab dem Zeitnachweis nach § 17 MiLoG, ab der Lohnabrechnung oder ab der Festschreibung?
 export async function setzeArbeitszeitmodell(
   kontext: SchreibKontext, e: ModellEingabe,
 ): Promise<void> {
@@ -272,14 +312,16 @@ export async function setzeArbeitszeitmodell(
   if (!/^\d{4}-\d{2}-\d{2}$/u.test(e.gueltigAb)) {
     throw new ArbeitszeitFehler('ungueltig', 'Gültig ab: bitte als JJJJ-MM-TT.');
   }
-
-  const [heute] = await kontext.abfrage<{ tag: string }>(
-    `select app.berlin_heute()::text as tag`);
-  if (heute !== undefined && e.gueltigAb < heute.tag) {
+  /*
+   * Zweite Linie hinter der Route: die Menge ist geschlossen, und zwar hier,
+   * damit kein zweiter Schreibweg sie umgeht. Die dritte Linie ist
+   * `azm_uebertrag_art` in der Datenbank (0205).
+   */
+  if (!istUebertragArt(e.uebertragArt)) {
     throw new ArbeitszeitFehler('ungueltig',
-      'Rückwirkend gibt es keine Fassung: sie bewertete jeden abgerechneten Monat '
-      + 'neu, in dem sie gälte, und der Zeitnachweis nach § 17 MiLoG stimmte danach '
-      + 'mit keinem Papier mehr überein.');
+      `„${e.uebertragArt}" ist keine Übertragsregel. Erlaubt ist derzeit nur `
+      + `„${UEBERTRAG_ARTEN.join('", „')}" — was am Monatsende mit einem Saldo `
+      + 'geschieht, ist offen (O-18), und eine geratene Regel löscht Überstunden.');
   }
 
   try {

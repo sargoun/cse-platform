@@ -14,7 +14,11 @@
  *     pflichtig.
  *  4. Peppol, ZRE und OZG-RE gelten als NICHT VERBUNDEN, auch wenn alles
  *     gepflegt ist — der Zustand heisst dann `nicht_verbunden` und nicht
- *     `bereit`.
+ *     `bereit`. **Und `email` genauso**, solange kein Postausgang
+ *     angeschlossen ist (O-501): `server/versand/email.ts` gibt in JEDER
+ *     Umgebung `verbunden = false` zurück, und ein zweites „E-Mail ist
+ *     verbunden" in `erechnung.ts` wäre genau die vorgetäuschte Integration,
+ *     die diese Datei für die drei Häfen ausschliesst.
  *  5. Ein Nicht-Pflichtkäufer ohne Weg ist `offen`, nicht `gesperrt`: kein
  *     Mangel, aber auch keine Zusage.
  *  6. Der Weg `email` ohne Rechnungsadresse sperrt — mit BT-43 in der Liste.
@@ -23,8 +27,14 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  WEGE, WEG_VERBUNDEN, fehlendeKaeuferangaben, versandLage, type KaeuferLage,
+  WEGE, WEG_VERBUNDEN, fehlendeKaeuferangaben, versandLage, wegVerbunden,
+  type KaeuferLage,
 } from '../../src/server/services/crm/erechnung.js';
+
+/** Die Umgebung, in der diese Installation heute läuft: kein Postausgang (O-501). */
+const OHNE_POSTAUSGANG = { postausgangVerbunden: false } as const;
+/** Die Umgebung, die es gäbe, wenn jemand einen Anbieter anschlösse. */
+const MIT_POSTAUSGANG = { postausgangVerbunden: true } as const;
 
 /** Ein vollständig gepflegter Pflichtkäufer — die Grundlage der Abwandlungen. */
 function kaeufer(teil: Partial<KaeuferLage> = {}): KaeuferLage {
@@ -140,10 +150,44 @@ describe('nicht verbunden ist nicht bereit', () => {
     }
   });
 
-  it('E-Mail, Kundenportal und Post brauchen keinen Anschluss', () => {
-    for (const weg of ['email', 'kundenportal', 'post'] as const) {
+  it('Kundenportal und Post brauchen keinen Anschluss — ein Mensch bedient sie', () => {
+    for (const weg of ['kundenportal', 'post'] as const) {
       expect(WEG_VERBUNDEN[weg], weg).toBe(true);
-      expect(versandLage(kaeufer({ uebertragungsweg: weg })).art, weg).toBe('bereit');
+      expect(versandLage(kaeufer({ uebertragungsweg: weg }), OHNE_POSTAUSGANG).art, weg)
+        .toBe('bereit');
+    }
+  });
+
+  it('E-Mail IST ein Anschluss — und dieses Haus hat keinen (O-501)', () => {
+    /*
+     * Der Fehler, den diese Zusage verhindert: `WEG_VERBUNDEN.email = true`
+     * liess auf dem Steuerblatt eines Kunden die grüne Pille „Bereit" für
+     * einen Kanal stehen, den `emailDienst(...)` in jeder Umgebung mit
+     * `verbunden = false` beantwortet. Ein Versandstand, der „bereit" sagt,
+     * während nichts hinausgeht, ist genau der Fall aus dem Kopf dieser Datei.
+     */
+    expect(WEG_VERBUNDEN.email).toBe(false);
+    const lage = versandLage(
+      kaeufer({ uebertragungsweg: 'email' }), OHNE_POSTAUSGANG);
+    expect(lage.art).toBe('nicht_verbunden');
+    expect(lage.text).toContain('O-501');
+  });
+
+  it('OHNE Umgebung gilt: kein Postausgang — fail closed', () => {
+    expect(versandLage(kaeufer({ uebertragungsweg: 'email' })).art)
+      .toBe('nicht_verbunden');
+  });
+
+  it('mit angeschlossenem Postausgang ist E-Mail bereit — und NUR dann', () => {
+    expect(wegVerbunden('email', MIT_POSTAUSGANG)).toBe(true);
+    expect(wegVerbunden('email', OHNE_POSTAUSGANG)).toBe(false);
+    expect(versandLage(kaeufer({ uebertragungsweg: 'email' }), MIT_POSTAUSGANG).art)
+      .toBe('bereit');
+  });
+
+  it('ein angeschlossener Postausgang öffnet KEINEN der drei Häfen', () => {
+    for (const weg of ['peppol', 'zre', 'ozg_re'] as const) {
+      expect(wegVerbunden(weg, MIT_POSTAUSGANG), weg).toBe(false);
     }
   });
 
@@ -165,7 +209,16 @@ describe('offen ist kein Mangel — und keine Zusage', () => {
   });
 });
 
-describe('E-Mail ohne Adresse sperrt — mit BT-43', () => {
+describe('E-Mail ohne Adresse sperrt — mit BT-43, auch ohne Anschluss', () => {
+  it('der Mangel am KUNDEN geht dem fehlenden Anschluss vor', () => {
+    // Sonst verdeckte „nicht verbunden" die fehlende Rechnungsadresse, und
+    // niemand pflegte sie nach, bis der Anschluss steht.
+    const lage = versandLage(kaeufer({
+      uebertragungsweg: 'email', rechnungEmail: null,
+    }), OHNE_POSTAUSGANG);
+    expect(lage.art).toBe('gesperrt');
+  });
+
   it('der Zustand ist gesperrt', () => {
     const lage = versandLage(kaeufer({
       uebertragungsweg: 'email', rechnungEmail: null,
@@ -185,7 +238,7 @@ describe('bereit nennt Weg UND Format', () => {
   it('beides steht im Satz', () => {
     const lage = versandLage(kaeufer({
       uebertragungsweg: 'email', rechnungsformat: 'zugferd',
-    }));
+    }), MIT_POSTAUSGANG);
     expect(lage.art).toBe('bereit');
     expect(lage.text).toContain('E-Mail');
     expect(lage.text).toContain('ZUGFeRD');

@@ -2,6 +2,7 @@ import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { WOCHENTAGE, leseRegel, type Wochentag } from '../../../lib/datum/rrule.js';
 import { generiereEinsaetze, type SerienBericht } from './generator.js';
+import { MAX_DAUER_MINUTEN } from './vorkommnisse.js';
 
 /**
  * Serien anlegen — der Weg, auf dem eine Administration Schichten in den
@@ -38,11 +39,27 @@ export class SerieEingabeFehlt extends Error {
 
 export type Feiertagsregel = 'ausfall' | 'unveraendert';
 
+/**
+ * Die beiden Wiederkehrarten, die ein Reinigungsturnus braucht — in der
+ * Sprache der Oberflaeche, nicht in RFC-Token.
+ *
+ * `FREQ=DAILY` steht absichtlich NICHT hier: eine taegliche Reinigung ist
+ * `FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU` und damit eine Aussage darueber,
+ * ob am Sonntag gereinigt wird. `DAILY` liesse die Frage offen.
+ */
+export type TurnusFrequenz = 'woechentlich' | 'monatlich';
+
 export interface TurnusSerieEingabe {
   readonly revierId: string;
   readonly leistungskatalogPositionId: string;
   readonly bezeichnung: string;
+  /** Vorgabe `woechentlich` — der Weg, den `api/dienstplan/serien` geht. */
+  readonly frequenz?: TurnusFrequenz;
   readonly wochentage: readonly string[];
+  /** Nur zu `monatlich`: die Monatstage 1…31. */
+  readonly monatstage?: readonly number[];
+  /** `INTERVAL`, Vorgabe 1 — „jede zweite Woche", „jeden dritten Monat". */
+  readonly interval?: number;
   /** Wanduhr `HH:MM`, Europe/Berlin. */
   readonly beginnLokal: string;
   readonly dauerMinuten: number;
@@ -77,7 +94,7 @@ const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
  * Wochentage → `FREQ=WEEKLY;BYDAY=MO,WE,FR` — in Wochenreihenfolge, ohne
  * Doppelte, ohne Anker. Unbekannte Kuerzel sind ein Fehler, keine Auslassung.
  */
-export function wochenRegel(tage: readonly string[]): string {
+export function wochenRegel(tage: readonly string[], interval = 1): string {
   const gewaehlt = new Set<Wochentag>();
   for (const t of tage) {
     const kuerzel = t.trim().toUpperCase();
@@ -88,16 +105,82 @@ export function wochenRegel(tage: readonly string[]): string {
   }
   if (gewaehlt.size === 0) throw new SerieEingabeFehlt('Mindestens ein Wochentag.');
   const geordnet = WOCHENTAGE.filter((w) => gewaehlt.has(w));
-  const regel = `FREQ=WEEKLY;BYDAY=${geordnet.join(',')}`;
+  const regel = `FREQ=WEEKLY;BYDAY=${geordnet.join(',')}${intervalTeil(interval)}`;
   leseRegel(regel);
   return regel;
+}
+
+/**
+ * Monatstage → `FREQ=MONTHLY;BYMONTHDAY=1,15` — aufsteigend, ohne Doppelte,
+ * ohne Anker.
+ *
+ * **Warum das fehlte und nicht fehlen durfte.** Der Seed fuehrt bereits
+ * `FREQ=MONTHLY;BYMONTHDAY=15`, `leseRegel` versteht MONTHLY seit dem ersten
+ * Tag, und die Seitenkarte verlangt fuer `/reinigung/turnus/neu` einen
+ * RRULE-Bauer nach RFC 5545. Nur der Bauer kannte ausschliesslich Wochen: ein
+ * monatlicher Turnus liess sich lesen, aber nicht anlegen. Der Zweig gehoert
+ * hierher und nicht ins Formular — sonst gaebe es zwei Stellen, die eine
+ * Regel zusammensetzen, und die zweite waere ungetestet.
+ *
+ * **Der 29., 30. und 31. sind zugelassen und werden NICHT umgedeutet.** RFC
+ * 5545 laesst den Monat ohne diesen Tag einfach aus, und `entfalte` tut
+ * dasselbe: der Februar hat dann keinen Termin. Das auf „letzter Tag des
+ * Monats" zu verschieben waere eine Geschaeftsregel — `BYMONTHDAY=-1` waere
+ * ihre Schreibweise, und die weist `leseRegel` ausdruecklich ab. Die
+ * Oberflaeche sagt es beim Tag statt es zu heilen.
+ */
+export function monatsRegel(tage: readonly number[], interval = 1): string {
+  const gewaehlt = new Set<number>();
+  for (const t of tage) {
+    if (!Number.isInteger(t) || t < 1 || t > 31) {
+      throw new SerieEingabeFehlt(`"${String(t)}" ist kein Monatstag (1 … 31).`);
+    }
+    gewaehlt.add(t);
+  }
+  if (gewaehlt.size === 0) throw new SerieEingabeFehlt('Mindestens ein Monatstag.');
+  const geordnet = [...gewaehlt].sort((a, b) => a - b);
+  const regel = `FREQ=MONTHLY;BYMONTHDAY=${geordnet.join(',')}${intervalTeil(interval)}`;
+  leseRegel(regel);
+  return regel;
+}
+
+function intervalTeil(interval: number): string {
+  if (!Number.isInteger(interval) || interval < 1 || interval > 52) {
+    throw new SerieEingabeFehlt('Das Intervall ist eine ganze Zahl zwischen 1 und 52.');
+  }
+  return interval === 1 ? '' : `;INTERVAL=${String(interval)}`;
+}
+
+/**
+ * Die Regel aus der Eingabe — EIN Einstieg fuer beide Frequenzen.
+ *
+ * Gebaut und danach vom SELBEN Parser gegengelesen, der sie spaeter entfaltet
+ * (`leseRegel` steht in beiden Bauern). Was der Parser abweist, wird nicht
+ * gespeichert.
+ */
+export function turnusRegel(e: Pick<TurnusSerieEingabe,
+  'frequenz' | 'wochentage' | 'monatstage' | 'interval'>): string {
+  const interval = e.interval ?? 1;
+  if ((e.frequenz ?? 'woechentlich') === 'monatlich') {
+    return monatsRegel(e.monatstage ?? [], interval);
+  }
+  return wochenRegel(e.wochentage, interval);
 }
 
 function pruefeTurnusEingabe(e: TurnusSerieEingabe): { rrule: string; gueltigBis: string | null } {
   if (e.bezeichnung.trim() === '') throw new SerieEingabeFehlt('Eine Serie braucht eine Bezeichnung.');
   if (!UHRZEIT.test(e.beginnLokal)) throw new SerieEingabeFehlt('Der Beginn ist eine Uhrzeit HH:MM.');
-  if (!Number.isInteger(e.dauerMinuten) || e.dauerMinuten < 15 || e.dauerMinuten > 1440) {
-    throw new SerieEingabeFehlt('Die Dauer liegt zwischen 15 Minuten und 24 Stunden.');
+  /**
+   * `MAX_DAUER_MINUTEN` (1439) und nicht 1440. Die Grenze gehoert
+   * `nominalesEnde`, das jede Schicht dieser Plattform durchlaeuft; hier stand
+   * 1440, und genau die eine zulaessige Minute Unterschied liess sich anlegen
+   * und brachte den Nachtlauf zum Stehen.
+   */
+  if (!Number.isInteger(e.dauerMinuten) || e.dauerMinuten < 15
+    || e.dauerMinuten > MAX_DAUER_MINUTEN) {
+    throw new SerieEingabeFehlt(
+      `Die Dauer liegt zwischen 15 Minuten und ${String(MAX_DAUER_MINUTEN)} Minuten `
+      + '(eine Schicht ist kuerzer als ein Tag).');
   }
   if (!DATUM.test(e.gueltigAb)) throw new SerieEingabeFehlt('„Gültig ab" ist ein Datum.');
   const gueltigBis = e.gueltigBis === undefined || e.gueltigBis === null || e.gueltigBis === '' ? null : e.gueltigBis;
@@ -107,7 +190,7 @@ function pruefeTurnusEingabe(e: TurnusSerieEingabe): { rrule: string; gueltigBis
   if (e.feiertagsregel !== 'ausfall' && e.feiertagsregel !== 'unveraendert') {
     throw new SerieEingabeFehlt('Die Feiertagsregel ist „ausfall" oder „unveraendert".');
   }
-  return { rrule: wochenRegel(e.wochentage), gueltigBis };
+  return { rrule: turnusRegel(e), gueltigBis };
 }
 
 /** Turnus (Reinigung) anlegen und sofort als Serie planen. */
@@ -608,8 +691,22 @@ export async function legeAusnahmeAn(
   }
 
   const dauer = e.dauerMinuten ?? null;
-  if (dauer !== null && (!Number.isInteger(dauer) || dauer < 15 || dauer > 1440)) {
-    throw new SerieEingabeFehlt('Die Dauer liegt zwischen 15 Minuten und 24 Stunden.');
+  /*
+   * `MAX_DAUER_MINUTEN` (= 1439) und nicht 1440 — dieselbe Zahl wie in
+   * `nominalesEnde`, und aus demselben Grund wie bei `pruefeTurnusEingabe`.
+   *
+   * Genau 1440 liess sich hier eintragen und brachte danach `nominalesEnde`
+   * zum Werfen: bei `zusatz` und `verschiebung` laeuft der Generator in
+   * DERSELBEN Transaktion, `PlanungsFehler` traegt weder `code` noch
+   * `status`, `alsAntwort` gibt `null` zurueck — HTTP 500, Transaktion
+   * zurueckgerollt, und der Planer sieht nicht, was er falsch gemacht hat.
+   * Eine Zahl, zwei Aufrufer (vorkommnisse.ts §MAX_DAUER_MINUTEN).
+   */
+  if (dauer !== null
+      && (!Number.isInteger(dauer) || dauer < 15 || dauer > MAX_DAUER_MINUTEN)) {
+    throw new SerieEingabeFehlt(
+      `Die Dauer liegt zwischen 15 Minuten und ${String(MAX_DAUER_MINUTEN)} Minuten — `
+      + 'eine Schicht über 24 Stunden ist keine Schicht.');
   }
   const staerke = e.ersatzBesetzung ?? null;
   if (staerke !== null && (!Number.isInteger(staerke) || staerke < 1)) {
@@ -622,25 +719,61 @@ export async function legeAusnahmeAn(
    * in beide Anweisungen zu schreiben waere ein Laufzeitfehler auf der
    * Reinigungsseite, und zwar erst beim ersten Klick.
    */
-  const [zeile] = serie.turnus_id !== null
-    ? await kontext.schreibe<{ id: string }>(
-      `insert into turnus_ausnahme
-         (mandant_id, turnus_id, datum, art, ersatz_beginn_lokal, dauer_minuten,
-          grund, erstellt_von_art, erstellt_von)
-       values ($1::uuid, $2::uuid, $3::date, $4::turnus_ausnahme_art,
-               $5::timestamp, $6::integer, $7, 'mensch', $8::uuid)
-       returning id`,
-      [kontext.aktiverMandantId, serie.turnus_id, e.datum, e.art, ersatzBeginn, dauer,
-        grund, kontext.benutzerId])
-    : await kontext.schreibe<{ id: string }>(
-      `insert into posten_ausnahme
-         (mandant_id, posten_id, datum, art, ersatz_beginn_lokal, dauer_minuten,
-          ersatz_besetzung, grund, erstellt_von_art, erstellt_von)
-       values ($1::uuid, $2::uuid, $3::date, $4::turnus_ausnahme_art,
-               $5::timestamp, $6::integer, $7::smallint, $8, 'mensch', $9::uuid)
-       returning id`,
-      [kontext.aktiverMandantId, serie.posten_id, e.datum, e.art, ersatzBeginn, dauer,
-        staerke, grund, kontext.benutzerId]);
+  const schreibeAusnahme = async (): Promise<readonly { id: string }[]> => (
+    serie.turnus_id !== null
+      ? kontext.schreibe<{ id: string }>(
+        `insert into turnus_ausnahme
+           (mandant_id, turnus_id, datum, art, ersatz_beginn_lokal, dauer_minuten,
+            grund, erstellt_von_art, erstellt_von)
+         values ($1::uuid, $2::uuid, $3::date, $4::turnus_ausnahme_art,
+                 $5::timestamp, $6::integer, $7, 'mensch', $8::uuid)
+         returning id`,
+        [kontext.aktiverMandantId, serie.turnus_id, e.datum, e.art, ersatzBeginn, dauer,
+          grund, kontext.benutzerId])
+      : kontext.schreibe<{ id: string }>(
+        `insert into posten_ausnahme
+           (mandant_id, posten_id, datum, art, ersatz_beginn_lokal, dauer_minuten,
+            ersatz_besetzung, grund, erstellt_von_art, erstellt_von)
+         values ($1::uuid, $2::uuid, $3::date, $4::turnus_ausnahme_art,
+                 $5::timestamp, $6::integer, $7::smallint, $8, 'mensch', $9::uuid)
+         returning id`,
+        [kontext.aktiverMandantId, serie.posten_id, e.datum, e.art, ersatzBeginn, dauer,
+          staerke, grund, kontext.benutzerId])
+  );
+
+  /**
+   * **Ein Doppelklick ist kein Serverfehler.**
+   *
+   * `posten_ausnahme_uk` ist UNBEDINGT `(posten_id, datum)` — auch fuer
+   * `zusatz`; `turnus_ausnahme_uk` ist partiell auf `ausfall`/`verschiebung`.
+   * Die zweite Ausnahme am selben Tag kommt also als roher Postgres-Fehler
+   * `23505` zurueck, und `alsAntwort` erkennt nur Fehler mit `code` UND
+   * `status`: die Route wirft weiter, der Planer bekommt eine 500 statt
+   * „für diesen Tag gibt es schon eine Ausnahme". Dasselbe gilt fuer die
+   * Pruefbedingungen (`23514`), sollten sie doch einmal durchschlagen.
+   *
+   * Uebersetzt wird HIER und nicht in der Route: die Route weiss nicht,
+   * welche der beiden Tabellen sie gerade getroffen hat.
+   */
+  let zeilen: readonly { id: string }[];
+  try {
+    zeilen = await schreibeAusnahme();
+  } catch (fehler) {
+    const code = (fehler as { code?: unknown }).code;
+    if (code === '23505') {
+      throw new AusnahmeNichtTragfaehig(
+        'Für diesen Tag gibt es in dieser Serie schon eine Ausnahme. Es gibt genau '
+        + 'eine je Tag — ändern Sie die bestehende, statt eine zweite anzulegen.');
+    }
+    if (code === '23514') {
+      throw new AusnahmeNichtTragfaehig(
+        'Die Ausnahme verletzt eine Prüfbedingung der Tabelle: eine Verschiebung '
+        + 'braucht einen Ersatzbeginn, die Ersatzbesetzung ist eine ganze Zahl ab 1, '
+        + 'und die Dauer ist positiv.');
+    }
+    throw fehler;
+  }
+  const [zeile] = zeilen;
 
   if (zeile === undefined) {
     /*

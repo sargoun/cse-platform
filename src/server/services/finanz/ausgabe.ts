@@ -144,14 +144,32 @@ interface RohZeile {
 }
 
 /**
- * `ist_erstattung` kommt über `app.ausgabe_erstattung_lesen()` und nicht über
+ * `ist_erstattung` kommt über einen Definer und nicht über
  * `anstellung_id is not null`: die Spalte steht nicht im Grant, und ein
  * `is not null` darauf ist derselbe `permission denied` wie ein `select`.
  *
- * Der Definer gibt eine leere Menge zurück, wenn die Sitzung
- * `personal.erstattung_lesen` nicht hält — die Liste sagt dann „keine
- * Erstattung", und das ist genau die Auskunft, die AUT-06 will: sie
- * unterscheidet nicht zwischen „ist keine" und „darfst du nicht wissen".
+ * **Und zwar über `app.ausgabe_ist_erstattung()` (0184), nicht über
+ * `app.ausgabe_erstattung_lesen()`.**
+ *
+ * Hier stand vorher `exists (select 1 from app.ausgabe_erstattung_lesen(a.id))`.
+ * Diese Spaltenliste benutzen `ausgaben()` UND `leseAusgabe()`, und der
+ * gerufene Definer schreibt bei jedem Aufruf `ausgabe.erstattung_gelesen` ins
+ * `audit_log`. Die Liste protokollierte damit bei JEDEM Seitenaufruf eine
+ * Zeile je Erstattungsausgabe, die Einzelseite zwei — obwohl hier nur ein
+ * Ja/Nein angezeigt wird. Ein überlaufendes Zugriffsprotokoll auf
+ * Personenbezug macht den ECHTEN Zugriff nicht mehr auffindbar (SEC-A9), und
+ * genau der ist der Grund, warum es existiert.
+ *
+ * `app.ausgabe_ist_erstattung()` gibt ein Bit heraus und keinen Personenbezug
+ * — also auch keinen Protokolleintrag. Der protokollierte Weg zur PERSON
+ * bleibt `app.ausgabe_erstattung_lesen()` und wird nur noch von
+ * {@link erstattung} gerufen: dort, wo jemand wirklich wissen will, WER.
+ *
+ * Das Bit sagt nichts über das Recht: es ist `true`, sobald eine Anstellung
+ * dranhängt, auch ohne `personal.erstattung_lesen`. Wer sie sehen will,
+ * bekommt dann auf der Einzelseite den Rechtehinweis statt eines Namens —
+ * das ist die Unterscheidung an der richtigen Stelle. Vorher las die Liste
+ * „keine Erstattung", wo „darfst du nicht wissen" gemeint war.
  */
 const SPALTEN = `
   a.id,
@@ -164,7 +182,7 @@ const SPALTEN = `
   a.weiterberechenbar, a.beleg_id, b.belegnummer, ka.bezeichnung as kasse,
   a.eingangsrechnung_id, a.auftrag_id, auf.auftragsnummer,
   a.projekt_id, a.objekt_id, a.abgelehnt_grund,
-  exists (select 1 from app.ausgabe_erstattung_lesen(a.id)) as ist_erstattung`;
+  app.ausgabe_ist_erstattung(a.id) as ist_erstattung`;
 
 const QUELLE = `
   from ausgabe a

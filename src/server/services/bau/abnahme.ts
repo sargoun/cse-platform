@@ -48,8 +48,17 @@ export const ABNAHME_SCHNAPPSCHUSS_FASSUNG = 'abnahme-protokoll-v1' as const;
 export class AbnahmeFehler extends Error {
   readonly status: number;
   constructor(
+    /**
+     * **Jeder Grund hier wird auch geworfen.** `'gesperrt'` stand in dieser
+     * Aufzaehlung und kam in keinem Pfad vor: die Einfrierer
+     * `kern.abnahme_einfrieren` und `kern.abnahme_mangel_einfrieren` (0211)
+     * lassen genau die Spalten zu, die dieser Dienst anfasst — Storno,
+     * `ersetzt_durch_id`, `behoben_am`. Es gibt also keine Lage, in der eine
+     * Sperre zurueckkommt, und ein Typ, der eine Antwort verspricht, die
+     * niemand gibt, ist eine Falle fuer den naechsten Aufrufer.
+     */
     readonly grund:
-      | 'nicht_gefunden' | 'ungueltige_eingabe' | 'schon_abgenommen' | 'gesperrt'
+      | 'nicht_gefunden' | 'ungueltige_eingabe' | 'schon_abgenommen'
       | 'teil_ohne_umfang' | 'vorbehalt_ohne_wortlaut' | 'verweigerung_ohne_grund',
     nachricht: string,
     status = 409,
@@ -58,6 +67,19 @@ export class AbnahmeFehler extends Error {
     this.name = 'AbnahmeFehler';
     this.status = status;
   }
+}
+
+/**
+ * Ein Verstoss GEGEN GENAU DIESEN eindeutigen Index — nicht irgendeiner.
+ *
+ * `23505` allein zu pruefen faenge jede spaetere Eindeutigkeit mit ein und
+ * uebersetzte sie in eine Aussage ueber die Abnahme, die nicht stimmt.
+ * Dasselbe Muster wie in `angebot/index.ts` und `bau/bautagebuch.ts`.
+ */
+function istEindeutigkeitsverstoss(fehler: unknown, index: string): boolean {
+  if (typeof fehler !== 'object' || fehler === null) return false;
+  const f = fehler as { code?: unknown; constraint_name?: unknown };
+  return f.code === '23505' && f.constraint_name === index;
 }
 
 /* ---------------------------------------------------------------------------
@@ -466,6 +488,36 @@ export async function protokolliereAbnahme(
     throw new AbnahmeFehler('nicht_gefunden', 'Projekt nicht gefunden.', 404);
   }
 
+  /**
+   * **Die Gesamtabnahme gibt es einmal** — `abnahme_gesamt_uk` (0211) haelt
+   * das als partieller eindeutiger Index fest. Diese Abfrage ist die LESBARE
+   * erste Linie davor: zwei offene Reiter, ein Doppelklick oder der Weg ueber
+   * den Endpunkt endeten sonst in einem nackten Datenbankfehler und damit in
+   * einer 500, obwohl die richtige Antwort ein Satz und ein 409 ist. Die
+   * harte Kante bleibt der Index; die Uebersetzung unten faengt das Rennen
+   * zwischen zwei gleichzeitigen Protokollen.
+   */
+  if (eingabe.abgenommen && eingabe.art !== 'teilabnahme') {
+    const [vorhanden] = await kontext.abfrage<{ abnahme_lokal: string }>(
+      `select to_char(a.abnahme_am, 'DD.MM.YYYY') as abnahme_lokal
+         from abnahme a
+        where a.mandant_id = $2 and a.projekt_id = $1
+          and a.abgenommen and a.art <> 'teilabnahme' and a.storniert_am is null
+        limit 1`,
+      [eingabe.projektId, kontext.aktiverMandantId],
+    );
+    if (vorhanden !== undefined) {
+      throw new AbnahmeFehler(
+        'schon_abgenommen',
+        `Die Gesamtleistung ist am ${vorhanden.abnahme_lokal} bereits abgenommen. Eine `
+        + 'zweite Abnahme derselben Leistung gibt es nicht — korrigiert wird durch Storno '
+        + 'mit Ersatzprotokoll; ein anderer, in sich abgeschlossener Teil geht als '
+        + 'Teilabnahme (§ 12 Abs. 2 VOB/B).',
+        409,
+      );
+    }
+  }
+
   /** Die OZ der bezogenen Positionen — sie steht IM Siegel, nicht als Kennung. */
   const ozJePosition = new Map<string, string>();
   const bezogene = eingabe.maengel
@@ -518,7 +570,7 @@ export async function protokolliereAbnahme(
   );
   const hash = abnahmeSchnappschussHash(schnappschuss);
 
-  const [kopf] = await kontext.schreibe<{ id: string }>(
+  const einfuegen = (): Promise<readonly { id: string }[]> => kontext.schreibe<{ id: string }>(
     `insert into abnahme (mandant_id, projekt_id, kunde_id, art, abnahme_am,
                           leistungsumfang, vorbehalt_vertragsstrafe, vorbehalt_maengel,
                           vorbehalt_text, abgenommen, verweigerung_grund, teilnehmer,
@@ -542,6 +594,27 @@ export async function protokolliereAbnahme(
       JSON.stringify(schnappschuss), hash,
     ],
   );
+
+  /**
+   * Das Rennen zwischen zwei gleichzeitigen Protokollen faengt der Index, und
+   * hier bekommt es seinen Satz. Nach dem Verstoss ist die Transaktion
+   * abgebrochen — das ist richtig so: nichts von diesem Protokoll darf stehen
+   * bleiben. Der Aufrufer bekommt 409 statt 500.
+   */
+  let kopf: { id: string } | undefined;
+  try {
+    [kopf] = await einfuegen();
+  } catch (fehler: unknown) {
+    if (istEindeutigkeitsverstoss(fehler, 'abnahme_gesamt_uk')) {
+      throw new AbnahmeFehler(
+        'schon_abgenommen',
+        'Für dieses Projekt ist die Gesamtleistung bereits abgenommen (§ 12 VOB/B). '
+        + 'Korrigiert wird durch Storno mit Ersatzprotokoll.',
+        409,
+      );
+    }
+    throw fehler;
+  }
   if (kopf === undefined) {
     throw new AbnahmeFehler('nicht_gefunden', 'Die Abnahme liess sich nicht anlegen.', 404);
   }
@@ -617,6 +690,12 @@ export async function storniereAbnahme(
   eingabe: {
     readonly id: string;
     readonly grund: string;
+    /**
+     * Beim Stornieren steht das Ersatzprotokoll meist noch nicht — es entsteht
+     * danach. Der Verweis wird dann mit {@link verknuepfeErsatzprotokoll}
+     * nachgetragen; dieses Feld ist fuer den Fall, dass beides in einem
+     * Vorgang geschieht.
+     */
     readonly ersetztDurchId?: string | null;
   },
 ): Promise<boolean> {
@@ -635,6 +714,45 @@ export async function storniereAbnahme(
       where id = $1 and mandant_id = $4 and storniert_am is null
       returning id`,
     [eingabe.id, eingabe.grund, eingabe.ersetztDurchId ?? null, kontext.aktiverMandantId],
+  );
+  return zeilen.length > 0;
+}
+
+/**
+ * Das Ersatzprotokoll an sein storniertes haengen (§ 12 VOB/B, LEG-01).
+ *
+ * **Ohne diesen Schritt ist der Storno nur die Haelfte.** „Korrigiert wird
+ * durch Storno mit Ersatzprotokoll" ist der erklaerte Korrekturweg dieser
+ * Datei — aber ein storniertes Protokoll und sein Ersatz, die unverbunden
+ * nebeneinander stehen, belegen die Korrektur nicht: wer spaeter fragt, warum
+ * das erste falsch war und welches an seine Stelle getreten ist, findet zwei
+ * Datensaetze und keine Kette. `ersetzt_durch_id` IST die Kette, und sie
+ * entsteht hier.
+ *
+ * **Die Spalte ist absichtlich nicht eingefroren:** `kern.abnahme_einfrieren`
+ * (0211) zaehlt jede Protokollspalte auf und laesst Storno und Ersatzverweis
+ * aus — genau, damit dieser Nachtrag moeglich ist, ohne dass sich am
+ * gesiegelten Inhalt etwas bewegt. Der Digest bleibt derselbe.
+ *
+ * Verbunden wird nur, was zusammengehoert: dasselbe Projekt, dasselbe
+ * Mandat, das erste storniert, noch ohne Ersatz, und nicht mit sich selbst.
+ * Trifft das nicht zu, aendert sich nichts und die Funktion sagt `false` —
+ * ein falscher Verweis waere schlimmer als keiner.
+ */
+export async function verknuepfeErsatzprotokoll(
+  kontext: SchreibKontext,
+  eingabe: { readonly storniertesId: string; readonly ersatzId: string },
+): Promise<boolean> {
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update abnahme a
+        set ersetzt_durch_id = ersatz.id, geaendert_von = app.aktueller_benutzer()
+       from abnahme ersatz
+      where a.id = $1 and a.mandant_id = $3
+        and ersatz.id = $2 and ersatz.mandant_id = $3
+        and ersatz.projekt_id = a.projekt_id and ersatz.id <> a.id
+        and a.storniert_am is not null and a.ersetzt_durch_id is null
+      returning a.id`,
+    [eingabe.storniertesId, eingabe.ersatzId, kontext.aktiverMandantId],
   );
   return zeilen.length > 0;
 }

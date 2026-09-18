@@ -30,6 +30,15 @@ import {
  * **Der Bereich kommt aus der SITZUNG.** `?mandant=` steht nur fuer den
  * Dateinamen in der Adresse (Invariante 3) — wer den Slug tauscht, bekommt
  * ein anders benanntes Buendel seiner eigenen Gesellschaft, nie ein fremdes.
+ *
+ * **Die Vorher/Nachher-Werte haengen am ZWEITEN FAKTOR, und zwar nicht
+ * hier.** `system.audit_sensitiv_lesen` traegt seit 0206
+ * `berechtigung.erfordert_2fa`; `app.hat_recht` gibt es in einer
+ * `aal1`-Sitzung damit gar nicht erst zurueck, und `erstelleAuditBuendel`
+ * liefert ein REDIGIERTES Buendel mit dem Grund im Manifest. Die Pruefung
+ * steht bewusst an der Berechtigung und nicht in diesem Handler: die Werte
+ * sind auch ueber `app.audit_nutzlast_buendel` und `app.audit_nutzlast_lesen`
+ * erreichbar, und ein Riegel je Handler deckt je einen Weg.
  */
 export const dynamic = 'force-dynamic';
 
@@ -59,8 +68,15 @@ export async function GET(anfrage: NextRequest): Promise<NextResponse> {
   try {
     const { buendel, bytes } = await (db().begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext: SchreibKontext) => {
+        /*
+         * `schreibend: true`, obwohl es ein GET ist: der Aufruf schreibt drei
+         * Dinge (Kettenglieder, die Protokollzeile der Nutzlast, die des
+         * Abrufs). Damit laeuft auch die Invariante-10-Pruefung von
+         * `authorize` — `withTenant` faengt die Gruppenansicht zwar ohnehin
+         * ab, aber die Wache gehoert an die Stelle, die die Absicht kennt.
+         */
         await authorize(
-          sitzung, { recht: 'system.audit_exportieren' },
+          sitzung, { recht: 'system.audit_exportieren', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
         const b = await erstelleAuditBuendel(kontext, {

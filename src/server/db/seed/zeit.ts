@@ -35,6 +35,8 @@ import { tagePlus } from '@/lib/datum/kalendertag';
 import { alsPortalSitzung } from './sitzung.js';
 import { gibCheckinAus } from '../../services/zeit/checkin.js';
 import { nimmClaimAn } from '../../services/zeit/offline.js';
+import { entscheideEinwand, reicheEinwandEin } from '../../services/zeit/einwand.js';
+import { korrigiereZeiteintrag } from '../../services/zeit/korrektur.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -88,6 +90,22 @@ export async function seedZeit(
   const abwesenheiten = await seedAbwesenheiten(sql, mandantId, planer.id, anstellungen, heute);
   const konflikt = await seedRuhezeitkonflikt(sql, mandantId, planer.id, heute);
   const ansprueche = await seedOfflineAnspruch(sql, mandantId, planer.id);
+
+  /*
+   * Beides NACH der Erfassung: die Einwaende haengen an geschlossenen
+   * Zeiteintraegen, die es vorher nicht gibt. Gezaehlt wird hier und nicht in
+   * `ZeitErgebnis` — die Kennzahlen dort werden an einer zentralen Stelle
+   * ausgegeben, und ein zusaetzliches Feld waere eine Aenderung an einer
+   * Datei, die allen gehoert.
+   */
+  const einwaende = await seedEinwaende(sql, mandantId, planer.id);
+  const teilbesetzt = await seedTeilbesetzteSchicht(
+    sql, mandantId, planer.id, anstellungen, heute);
+  process.stdout.write(
+    `  ${String(einwaende)} Zeit-Einwand/-Einwände (offen und entschieden), `
+    + `${String(teilbesetzt)} teilbesetzte Schicht(en)\n`,
+  );
+
   return {
     einteilungen: einteilungen + konflikt,
     uebergangen: uebergangen + konflikt,
@@ -456,6 +474,200 @@ async function seedAbwesenheiten(
   angelegt += 1;
 
   return angelegt;
+}
+
+/**
+ * Zwei Einwaende — einer offen, einer entschieden und korrigiert (EMP-07,
+ * TIM-11).
+ *
+ * **Der Befund, der diese Funktion gebracht hat.** Der Seed legte KEINEN
+ * einzigen `zeit_einwand` an. Der Einwandeingang
+ * (`/portal/[mandant]/zeiten/einwaende`) und das Einwandblatt daneben waren
+ * damit auf jedem Bildschirm leer — nicht mit einer Meldung, sondern mit „0",
+ * und zwar ueberzeugend. Die eine Zeile, die eine Pruefung in `cse_dev` fand,
+ * stammte aus einem Browserlauf (`tests/e2e/mitarbeiter.spec.ts`), nicht aus
+ * dem Seed: sie verschwindet mit dem naechsten Neuaufbau.
+ *
+ * **Zwei Zustaende und nicht einer.** Ein einziger offener Einwand liesse die
+ * HAELFTE des Blattes ungeuebt: die Entscheidung mit Urheber, Serverzeitpunkt
+ * und Begruendung, und daneben die Frage, ob eine Korrektur gefolgt ist. Der
+ * zweite Einwand geht deshalb den ganzen Weg — gemeldet, anerkannt,
+ * korrigiert — und die Korrektur traegt `zeit_einwand_id`, damit auf dem Blatt
+ * steht, dass sie gefolgt ist.
+ *
+ * **Jeder Schritt mit der Sitzung, der ihn im Betrieb macht.** Die Meldung
+ * schreibt die betroffene PERSON (`t_selbst_einreichen` prueft
+ * `app.aktuelle_person()`), Entscheidung und Korrektur die PLANUNG — ueber den
+ * eigenen Einwand entscheidet man nicht (EMP-07), und den eigenen Zeiteintrag
+ * korrigiert man nicht (`zk_nicht_selbst`). Ein Seed, der beides aus einer
+ * Sitzung schriebe, zeigte einen Weg, den es nicht gibt.
+ */
+async function seedEinwaende(
+  sql: Sql, mandantId: string, planerId: string,
+): Promise<number> {
+  const [da] = await sql<{ anzahl: string }[]>`
+    select count(*)::text as anzahl from zeit_einwand where mandant_id = ${mandantId}`;
+  if (Number(da?.anzahl ?? '0') > 0) return 0;
+
+  /*
+   * Zwei ABGESCHLOSSENE Eintraege, deren Person ein eigenes Konto hat — ohne
+   * Konto gaebe es keine Sitzung, aus der die Meldung kommen koennte. Das
+   * Planerkonto ist ausgeschlossen: es muss danach entscheiden.
+   */
+  const kandidaten = await sql<{
+    id: string; anstellung_id: string; person_id: string; benutzer_id: string; tag: string;
+  }[]>`
+    select z.id, z.anstellung_id, z.person_id, b.id as benutzer_id,
+           to_char((z.beginn_zeitpunkt at time zone 'Europe/Berlin'), 'YYYY-MM-DD') as tag
+      from zeiteintrag z
+      join anstellung a on a.mandant_id = z.mandant_id and a.id = z.anstellung_id
+      join benutzer b on b.person_id = a.person_id and b.status = 'aktiv'
+                     and b.deaktiviert_am is null
+     where z.mandant_id = ${mandantId} and z.status = 'abgeschlossen'
+       and z.ersetzt_am is null and z.storniert_am is null
+       and b.id <> ${planerId}
+     order by z.beginn_zeitpunkt desc
+     limit 2`;
+  if (kandidaten.length === 0) return 0;
+
+  let angelegt = 0;
+
+  /* 1. Der OFFENE — der Eingang der Planung soll etwas zu tun haben. */
+  const offen = kandidaten[0];
+  if (offen !== undefined) {
+    await alsPortalSitzung(sql, mandantId, offen.benutzer_id, (k) =>
+      reicheEinwandEin(k, {
+        anstellungId: offen.anstellung_id,
+        zeiteintragId: offen.id,
+        art: 'pause_falsch',
+        betrifftDatum: offen.tag,
+        begruendung:
+          'Die Pause war kürzer — im Objekt kam ein Anruf, ich war nach 15 Minuten zurück.',
+        eingereichtVonBenutzerId: offen.benutzer_id,
+      }), { personId: offen.person_id });
+    angelegt += 1;
+  }
+
+  /* 2. Der ENTSCHIEDENE, mit Korrektur — der Weg zu Ende gegangen. */
+  const erledigt = kandidaten[1];
+  if (erledigt !== undefined) {
+    const einwandId = await alsPortalSitzung(sql, mandantId, erledigt.benutzer_id, (k) =>
+      reicheEinwandEin(k, {
+        anstellungId: erledigt.anstellung_id,
+        zeiteintragId: erledigt.id,
+        art: 'zeit_falsch',
+        betrifftDatum: erledigt.tag,
+        begruendung:
+          'Ich habe eine halbe Stunde vor dem Stempeln angefangen — das Tor war zu.',
+        eingereichtVonBenutzerId: erledigt.benutzer_id,
+      }), { personId: erledigt.person_id });
+
+    await alsPortalSitzung(sql, mandantId, planerId, (k) =>
+      entscheideEinwand(k, {
+        einwandId,
+        status: 'anerkannt',
+        begruendung: 'Die Objektleitung bestätigt den frühen Beginn; der Schlüsseldienst kam später.',
+        entschiedenVon: planerId,
+      }));
+
+    /*
+     * Die Korrektur verlegt den Beginn um 30 Minuten vor — die MENGE kommt
+     * aus der Behauptung der Person und wird hier nicht gerechnet, sondern
+     * als Entscheidung eines Menschen geschrieben (Invariante 6). Der Beginn
+     * kommt als Instant aus der DATENBANK: 30 Minuten vor einem gespeicherten
+     * Zeitpunkt ist eine Differenz von Instants und keine Wanduhrrechnung
+     * (Invariante 2).
+     */
+    const [vor] = await sql<{ beginn: Date }[]>`
+      select (beginn_zeitpunkt - interval '30 minutes') as beginn
+        from zeiteintrag where id = ${erledigt.id}`;
+    if (vor !== undefined) {
+      await alsPortalSitzung(sql, mandantId, planerId, (k) =>
+        korrigiereZeiteintrag(k, {
+          zeiteintragId: erledigt.id,
+          art: 'zeit_korrektur',
+          grundKategorie: 'einwand_mitarbeiter',
+          begruendung: 'Beginn um 30 Minuten vorverlegt, wie gemeldet und bestätigt.',
+          durchgefuehrtVon: planerId,
+          zeitEinwandId: einwandId,
+          beginnZeitpunkt: vor.beginn,
+        }));
+    }
+    angelegt += 1;
+  }
+
+  return angelegt;
+}
+
+/**
+ * Eine Schicht, die besetzt ist — aber nicht voll (TIM-05, O-210).
+ *
+ * **Der Befund, der diese Funktion gebracht hat.** Ueber alle 169 geseedeten
+ * Einsaetze galt `unter_min == unter_soll`: es gab keinen einzigen Fall, in
+ * dem die Mindestbesetzung steht und die Sollbesetzung fehlt. Genau dieser
+ * Fall ist aber die schwaechere der beiden Markierungen auf
+ * `/dienstplan/offene-schichten` — und eine Markierung, die von keiner Zeile
+ * ausgeloest wird, ist eine Behauptung ueber eine Oberflaeche, die niemand je
+ * gesehen hat.
+ *
+ * `soll_besetzung = 3`, `min_besetzung = 1`, eine Person eingeteilt: der
+ * Einsatz laeuft (die Mindestbesetzung steht), und es fehlen zwei. Die Zahlen
+ * sind DEMOWERTE und keine Regel — ob eine vereinbarte Staerke zugleich
+ * Mindestbesetzung ist, ist offen (O-210).
+ */
+async function seedTeilbesetzteSchicht(
+  sql: Sql, mandantId: string, planerId: string,
+  anstellungen: readonly string[], heute: string,
+): Promise<number> {
+  const schluessel = 'seed:teilbesetzt:tagdienst';
+  const [schon] = await sql<{ id: string }[]>`
+    select id from einsatz
+     where mandant_id = ${mandantId} and quell_schluessel = ${schluessel}`;
+  if (schon !== undefined) return 0;
+
+  const erste = anstellungen[0];
+  if (erste === undefined) return 0;
+
+  // Im Vorgabefenster der Seite: die naechsten 14 Tage, also uebermorgen.
+  const tag = tagePlus(heute, 2);
+
+  const [ort] = await sql<{ objekt: string; kunde: string | null }[]>`
+    select e.objekt_id as objekt, e.kunde_id as kunde
+      from einsatz e
+     where e.mandant_id = ${mandantId} and e.kunde_id is not null
+       and e.storniert_am is null
+     order by e.plan_datum limit 1`;
+  if (ort === undefined) return 0;
+
+  const [neu] = await sql<{ id: string }[]>`
+    insert into einsatz (
+      mandant_id, quelle, quell_schluessel, plan_datum,
+      beginn_zeitpunkt, ende_zeitpunkt, zeitzone,
+      beginn_lokal, ende_lokal, endet_am_folgetag,
+      objekt_id, kunde_id, soll_besetzung, min_besetzung,
+      pause_geplant_minuten, erstellt_von_art, status, notiz
+    )
+    select ${mandantId}, 'manuell', ${schluessel}, ${tag}::date,
+           (select zeitpunkt from app.loese_ortszeit(${tag}::date, time '08:00', 'Europe/Berlin')),
+           (select zeitpunkt from app.loese_ortszeit(${tag}::date, time '16:00', 'Europe/Berlin')),
+           'Europe/Berlin', time '08:00', time '16:00', false,
+           ${ort.objekt}, ${ort.kunde}, 3, 1,
+           30, 'system', 'geplant',
+           'Grundreinigung, drei Kräfte vorgesehen — Demodaten (Seed)'
+    returning id`;
+  if (neu === undefined) return 0;
+
+  try {
+    await alsPortalSitzung(sql, mandantId, planerId, (k) =>
+      besetzeEinsatz(k, { einsatzId: neu.id, anstellungId: erste, bestaetigt: true }));
+    return 1;
+  } catch (fehler) {
+    process.stdout.write(
+      '  · Teilbesetzte Schicht nicht besetzt: '
+      + `${fehler instanceof Error ? fehler.message : String(fehler)}\n`,
+    );
+    return 0;
+  }
 }
 
 function leer(): ZeitErgebnis {

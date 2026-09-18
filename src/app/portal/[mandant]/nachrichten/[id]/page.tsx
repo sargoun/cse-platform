@@ -114,8 +114,16 @@ export default async function FadenSeite(
 
   if (daten === null) notFound();
   const { faden, darfAntworten, darfDokument, darfFreigabe } = daten;
-  const ungelesen = faden.nachrichten.some((n) =>
-    n.empfaenger.some((e) => e.gelesenAm === null));
+  /*
+   * **Der EIGENE Lesestand, nicht der von irgendwem.** Hier stand einmal
+   * `faden.nachrichten.some((n) => n.empfaenger.some((e) => e.gelesenAm ===
+   * null))` — und `ladeFaden` gibt im internen Portal ALLE Empfänger der
+   * Gesellschaft heraus. Der Knopf erschien damit, solange irgendwer den
+   * Faden nicht gelesen hatte; der POST traf null eigene Zeilen, und die
+   * Seite meldete trotzdem „Gespeichert." Gezählt wird die Zahl, die der
+   * Dienst mitbringt — dieselbe Bedingung wie in der Liste.
+   */
+  const ungelesen = faden.ungelesen > 0;
   const ohneVersand = versandwege().filter((w) => !w.verbunden);
 
   return (
@@ -145,13 +153,24 @@ export default async function FadenSeite(
       </div>
 
       {getan !== null && (
-        <Hinweis art="erfolg" cse="getan" className="mb-s5 max-w-prose">
-          <strong>Gespeichert.</strong>{' '}
-          {getan === 'gelesen'
-            ? 'Die Zeilen bleiben stehen — gelesen heisst gestempelt, nicht gelöscht.'
-            : getan === 'geschlossen'
-              ? 'Der Faden ist geschlossen. Gelöscht wird nichts (Invariante 8).'
-              : 'Die Änderung ist gespeichert.'}
+        <Hinweis art={getan === 'gelesen_schon' ? 'hinweis' : 'erfolg'}
+                 cse="getan" className="mb-s5 max-w-prose">
+          {getan === 'gelesen_schon' ? (
+            <>
+              <strong>Nichts zu stempeln.</strong>{' '}
+              Für Sie war dieser Faden schon gelesen — der Lesestand anderer
+              Beteiligter bleibt ihr eigener.
+            </>
+          ) : (
+            <>
+              <strong>Gespeichert.</strong>{' '}
+              {getan === 'gelesen'
+                ? 'Die Zeilen bleiben stehen — gelesen heisst gestempelt, nicht gelöscht.'
+                : getan === 'geschlossen'
+                  ? 'Der Faden ist geschlossen. Gelöscht wird nichts (Invariante 8).'
+                  : 'Die Änderung ist gespeichert.'}
+            </>
+          )}
         </Hinweis>
       )}
 

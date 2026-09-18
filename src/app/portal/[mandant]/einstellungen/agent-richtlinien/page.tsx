@@ -7,7 +7,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { formatiereGeld } from '@/server/services/finanz/geld';
 import {
-  ladeRichtlinien, WIRKUNG_TEXT, type RichtlinienZeile, type Wirkung,
+  HINWEIS_TEXT, ladeRichtlinien, WIRKUNG_TEXT, type RichtlinienZeile, type Wirkung,
 } from '@/server/services/agent/richtlinie';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
@@ -54,7 +54,15 @@ export default async function AgentRichtlinien(
   },
 ) {
   const { mandant } = await params;
+  /*
+   * **Ein CODE aus geschlossenem Satz, kein Text aus der Adresse.** Hier ging
+   * der Inhalt von `?hinweis=` unveraendert auf den Bildschirm; damit liess
+   * sich ueber einen Link jeder beliebige Satz in der Oberflaeche erscheinen
+   * lassen. Der Handler schickt jetzt nur noch den Namen.
+   */
   const { hinweis } = await searchParams;
+  const hinweisText = typeof hinweis === 'string'
+    ? HINWEIS_TEXT[hinweis] ?? null : null;
   const tor = await mandantTor(
     `/portal/${mandant}/einstellungen/agent-richtlinien`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
@@ -67,7 +75,6 @@ export default async function AgentRichtlinien(
   const ohneZeile = zeilen.filter((z) => z.wirkung === 'nicht_hinterlegt').length;
   const automatisch = zeilen.filter(
     (z) => z.wirkung === 'automatisch' || z.wirkung === 'automatisch_bis_limit').length;
-  const waehlbar = zeilen.filter((z) => !z.imCodeGesperrt);
 
   const feld = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
@@ -86,12 +93,12 @@ export default async function AgentRichtlinien(
     >
       <h1 className="mb-s3 text-h1 text-text">Agent-Richtlinien</h1>
 
-      {typeof hinweis === 'string' && hinweis !== '' ? (
+      {hinweisText === null ? null : (
         <p data-cse="richtlinie-hinweis"
            className="mb-s5 rounded-lg border border-line bg-surface-3 p-s4 text-sm text-text">
-          {hinweis}
+          {hinweisText}
         </p>
-      ) : null}
+      )}
 
       <p data-cse="richtlinien-zaehler"
          data-ohne={String(ohneZeile)} data-automatisch={String(automatisch)}
@@ -143,10 +150,23 @@ export default async function AgentRichtlinien(
                 zelle: (z) => (z.maxBetragCent === null
                   ? <span className="text-text-muted">kein Limit</span>
                   : formatiereGeld(z.maxBetragCent)) },
+              /*
+               * BEIDE Texte, nicht der eine statt des anderen. `grund` ist der
+               * feste Gesetzestext der drei im Code gesperrten Aktionen;
+               * `begruendung` ist das, was ein Mensch gespeichert hat. Stand
+               * hier `z.grund ?? z.begruendung`, verdeckte der Gesetzestext die
+               * menschliche Begruendung dauerhaft — und zwar genau dort, wo sie
+               * am ehesten erklaert, warum jemand die Zeile angelegt hat.
+               */
               { schluessel: 'begruendung', kopf: 'Begründung',
                 zelle: (z) => (
-                  <span className="text-sm text-text-muted">
-                    {z.grund ?? z.begruendung ?? '—'}
+                  <span className="block text-sm text-text-muted">
+                    {z.begruendung ?? (z.grund === null ? '—' : '')}
+                    {z.grund === null ? null : (
+                      <span className="mt-s1 block text-xs text-text-subtle">
+                        Im Code gesperrt: {z.grund}
+                      </span>
+                    )}
                   </span>
                 ) },
               { schluessel: 'geaendert', kopf: 'Zuletzt gesetzt',
@@ -162,16 +182,21 @@ export default async function AgentRichtlinien(
                className="max-w-prose rounded-lg border border-line bg-surface p-s5">
         <h2 id="setzen-titel" className="text-h2 text-text">Richtlinie setzen</h2>
         <p className="mt-s2 text-xs text-text-muted">
-          Angebot, Nachtrag und Behinderungsanzeige stehen nicht zur Wahl: sie gehen
-          nie automatisch hinaus, und die Sperre steht im Code (§ 145 BGB,
-          § 2 Abs. 6 und § 6 Abs. 1 VOB/B). Eine Erlaubnis hier wäre wirkungslos und
-          sähe wie eine aus.
+          Angebot, Nachtrag und Behinderungsanzeige gehen nie automatisch hinaus; die
+          Sperre steht im Code (§ 145 BGB, § 2 Abs. 6 und § 6 Abs. 1 VOB/B) und nicht
+          in dieser Tabelle. Wählbar sind sie trotzdem — für sie lassen sich
+          Begründung, Betragsgrenze und „aktiv" setzen, nur das Häkchen „darf ohne
+          menschliche Freigabe hinausgehen" nicht: es wird abgewiesen, mit genau
+          diesem Satz. Eine Erlaubnis, die stillschweigend wirkungslos bliebe, sähe
+          wie eine aus.
         </p>
         <form method="post" action={`/api/einstellungen/agent-richtlinien?mandant=${mandant}`}>
           <label className="mt-s4 block text-sm text-text" htmlFor="aktion">Aktion</label>
           <select id="aktion" name="aktion" required className={feld}>
-            {waehlbar.map((z) => (
-              <option key={z.aktion} value={z.aktion}>{z.text}</option>
+            {zeilen.map((z) => (
+              <option key={z.aktion} value={z.aktion}>
+                {z.imCodeGesperrt ? `${z.text} — nie automatisch` : z.text}
+              </option>
             ))}
           </select>
 
@@ -179,6 +204,11 @@ export default async function AgentRichtlinien(
             <input type="checkbox" name="autoErlaubt" value="ja" />
             Darf ohne menschliche Freigabe hinausgehen
           </label>
+          <p className="text-xs text-text-muted">
+            Für Angebot, Nachtrag und Behinderungsanzeige wird dieses Häkchen
+            abgewiesen — dort ist die Sperre im Code, und eine gespeicherte Erlaubnis
+            wäre eine Einstellung, die nichts einstellt.
+          </p>
 
           <label className="mt-s4 flex min-h-11 items-center gap-s3 text-sm text-text">
             <input type="checkbox" name="istAktiv" value="ja" defaultChecked />
@@ -196,10 +226,16 @@ export default async function AgentRichtlinien(
                  className={feld} placeholder="0,00" />
 
           <label className="mt-s4 block text-sm text-text" htmlFor="begruendung">
-            Begründung
+            Begründung (Pflicht, sobald das Häkchen oben gesetzt ist)
           </label>
-          <textarea id="begruendung" name="begruendung" rows={3} className={feld}
+          <textarea id="begruendung" name="begruendung" rows={3} minLength={5}
+                    className={feld}
                     placeholder="Warum diese Aktion so konfiguriert ist." />
+          <p className="text-xs text-text-muted">
+            Leer gelassen bleibt die vorhandene Begründung stehen — sie wird von
+            diesem Formular nicht geleert. Wer sie ersetzen will, schreibt eine
+            neue; was einmal galt, steht im Protokoll (Invariante 8).
+          </p>
 
           <button type="submit"
                   className="mt-s5 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover">

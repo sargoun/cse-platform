@@ -235,6 +235,28 @@ begin
   end if;
 
   /*
+   * **Der Anlege-Zweig gehoert dem Beginn, nicht jedem UPDATE.**
+   *
+   * Der Trigger haengt an `update of status, geloescht_am` — er feuert also
+   * bei jedem UPDATE, das `status` in der SET-Liste NENNT, auch wenn der Wert
+   * derselbe bleibt. `beendeAnstellung` nennt sie immer
+   * (`status = case when $4 then 'beendet' else status end`), und bei einem
+   * Austritt in der ZUKUNFT bleibt der Status `aktiv`. Ohne diese Schranke
+   * liefe „Beschaeftigung beenden" damit in den Anlege-Zweig — und ein von
+   * Hand entzogener Portalzugang kaeme durch eine blosse Datumsaenderung
+   * zurueck. Aus dem Entzug wuerde eine Erteilung, in derselben Anweisung.
+   *
+   * Gemeint ist der Zweig nur zweimal: wenn die Beschaeftigung ENTSTEHT, und
+   * wenn sie aus `beendet`/geloescht zurueckkehrt (Wiedereinstellung, ein
+   * zurueckgenommener Austrag). Alles andere laesst die Mitgliedschaft, wie
+   * sie ist.
+   */
+  if tg_op = 'UPDATE'
+     and not (old.status = 'beendet' or old.geloescht_am is not null) then
+    return null;
+  end if;
+
+  /*
    * Anlegen — nur wenn KEINE laufende Zeile da ist. Eine erteilte `leitung`
    * bleibt damit unberuehrt, und der partielle Unique-Index
    * (benutzer_id, mandant_id) where entzogen_am is null wird nie verletzt.
@@ -243,6 +265,30 @@ begin
               where bm.benutzer_id = v_benutzer
                 and bm.mandant_id  = new.mandant_id
                 and bm.entzogen_am is null) then
+    return null;
+  end if;
+
+  /*
+   * **Ein von Hand zurueckgenommener Zugang bleibt zurueckgenommen.**
+   *
+   * `kern.bm_aus_anstellung_schutz` (0007) zwingt den Menschen, der eine
+   * abgeleitete Mitgliedschaft entzieht, sie vorher zu UEBERNEHMEN
+   * (`aus_anstellung = false`). Danach ist die Zeile von der eigenen
+   * Entzugszeile dieses Triggers nicht mehr zu unterscheiden — ausser am
+   * Grund. Ohne diese Pruefung machte eine Wiedereinstellung eine Sperre
+   * rueckgaengig, die jemand aus einem Grund verhaengt hat, den die Datenbank
+   * nicht kennt. Die sichere Richtung ist, NICHT anzulegen: ein Zugang, der
+   * fehlt, wird gemeldet; ein Zugang, der unbemerkt wiederkommt, nicht.
+   *
+   * TODO(client, O-615): Soll eine Wiedereinstellung einen zuvor von Hand
+   * entzogenen Portalzugang automatisch wiederherstellen, oder bleibt die
+   * Wiedererteilung eine ausdrueckliche Handlung der Leitung?
+   */
+  if exists (select 1 from public.benutzer_mandant bm
+              where bm.benutzer_id = v_benutzer
+                and bm.mandant_id  = new.mandant_id
+                and bm.entzogen_am is not null
+                and bm.entzugsgrund is distinct from 'Beschäftigung beendet (K-14)') then
     return null;
   end if;
 
@@ -265,9 +311,11 @@ create trigger trg_bm_aus_anstellung
   for each row execute function kern.bm_aus_anstellung();
 
 comment on function kern.bm_aus_anstellung() is
-  'K-14, die erzeugende und entziehende Haelfte. Fuegt nur ein, wenn keine '
-  'laufende Mitgliedschaft besteht, und entzieht nur Zeilen mit '
-  'aus_anstellung = true. Eine erteilte Rolle ueberlebt Anlage UND Austritt.';
+  'K-14, die erzeugende und entziehende Haelfte. Legt nur bei INSERT oder bei '
+  'Rueckkehr aus beendet/geloescht an, nur wenn keine laufende Mitgliedschaft '
+  'besteht und kein von Hand entzogener Zugang vorliegt; entzieht nur Zeilen '
+  'mit aus_anstellung = true. Eine erteilte Rolle ueberlebt Anlage UND '
+  'Austritt, und ein Entzug ueberlebt eine Datumsaenderung.';
 
 -- ---------------------------------------------------------------------------
 -- 5. Der Nachzieher fuer ein Austrittsdatum in der Zukunft (§6.14)

@@ -13,6 +13,8 @@
  * Sitemap ist eine Tatsache.
  */
 
+import { NEUIGKEITS_ARTEN } from '../social/dienst.js';
+
 export interface Abfrage {
   unsafe(sql: string, werte?: readonly unknown[]): Promise<readonly unknown[]>;
 }
@@ -38,8 +40,18 @@ export interface SitemapEintrag {
  * Dieselbe Konstante ist der Sitemap-Filter, also war die Flaeche als
  * gesperrt beschrieben und in beiden Richtungen offen.
  */
+/*
+ * **`/en/werbewiderspruch` steht MIT in der Liste.** Die englische Fassung des
+ * Pflichtwegs (D-82) liegt auf demselben Pfad unter `/en/…` und traegt damit
+ * denselben Grund: `istAusgeschlossen` vergleicht Praefixe, und `/en/…`
+ * beginnt nicht mit `/werbewiderspruch`. Ohne diese Zeile waere die
+ * Sperrflaeche in der einen Sprache beschrieben und in der anderen offen —
+ * genau der Fehler, den der Absatz darueber fuer die deutsche Fassung
+ * festhaelt.
+ */
 export const AUSGESCHLOSSEN: readonly string[] = [
   '/dev', '/api', '/portal', '/auth', '/check-in', '/werbewiderspruch',
+  '/en/werbewiderspruch',
 ];
 
 export function istAusgeschlossen(pfad: string): boolean {
@@ -111,13 +123,32 @@ export interface DetailEintrag {
 
 export async function detailEintraege(db: Abfrage): Promise<readonly DetailEintrag[]> {
   const zeilen = (await db.unsafe(
-    `select '/unternehmen/' || m.slug || '/news/' || b.slug as pfad,
+    /*
+     * **Das Segment kommt aus der ART, es wird nicht gefiltert.**
+     *
+     * Hier stand einmal `and b.art::text in ('neuigkeit','aktualisierung')`,
+     * und damit fehlten zwei der vier Arten in JEDER Sitemap. Ein
+     * veroeffentlichter Beitrag der Art `beitrag` oder `projektschau` ist
+     * oeffentlich erreichbar — `oeffentlicherBeitragNachSlug` kennt gar
+     * keinen Artenfilter —, er stand nur nirgends. SEITENKARTE §2.5 verlangt
+     * „every published seite, referenz, social_post, news"; ein Filter, der
+     * die Haelfte weglaesst, erfuellt das nicht, sondern verschweigt es.
+     *
+     * Die Grenze zwischen den beiden Adressen ist dieselbe wie in
+     * `NEUIGKEITS_ARTEN` (§2.2, O-548): was eine Gesellschaft ANKUENDIGT,
+     * steht unter `/news/`, alles andere unter `/beitraege/`. Genau EINE der
+     * beiden Adressen wird gemeldet, und dieselbe setzt die Seite als
+     * `canonical` — sonst erklaerte die Sitemap eine von zwei
+     * ununterschiedenen Adressen zur einen.
+     */
+    `select '/unternehmen/' || m.slug
+            || case when b.art::text = any($1::text[]) then '/news/' else '/beitraege/' end
+            || b.slug as pfad,
             coalesce(b.veroeffentlicht_am, b.geaendert_am, b.erstellt_am) as geaendert
        from beitrag b
        join mandant m on m.id = b.mandant_id and m.archiviert_am is null
       where b.status = 'veroeffentlicht' and b.zurueckgezogen_am is null
         and b.slug is not null
-        and b.art::text in ('neuigkeit', 'aktualisierung')
      union all
      select '/unternehmen/' || m.slug || '/projekte/' || r.slug as pfad,
             coalesce(r.geaendert_am, r.erstellt_am) as geaendert
@@ -126,6 +157,7 @@ export async function detailEintraege(db: Abfrage): Promise<readonly DetailEintr
       where r.status = 'veroeffentlicht' and r.geloescht_am is null
         and r.freigegeben_vom_kunden and r.slug is not null
       order by 1`,
+    [NEUIGKEITS_ARTEN],
   )) as { pfad: string; geaendert: Date | string | null }[];
 
   return zeilen

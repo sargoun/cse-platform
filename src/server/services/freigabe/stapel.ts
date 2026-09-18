@@ -225,9 +225,42 @@ export async function entscheideStapel(
   return { genehmigt, uebersprungen, verzoegert, ausgefuehrt };
 }
 
+/**
+ * Die Absage an einem Fenster — **mit dem Grund, nicht nur mit dem Namen**.
+ *
+ * `code` kam dazu, weil dieser Fehler vorher JEDE Absage der beiden
+ * Definer-Funktionen einsammelte und die Route daraus `?fehler=fenster`
+ * machte, also „das Fenster ist abgelaufen". `app.freigabe_einspruch` weist
+ * aber auch ab, wenn das `erforderliches_recht` der Zeile fehlt
+ * (`insufficient_privilege`) oder der Grund zu kurz ist — und dann stand auf
+ * dem Bildschirm eine Auskunft, die nicht stimmte. Ein fehlendes Recht als
+ * abgelaufene Frist auszugeben ist schlimmer als gar keine Erklärung: der
+ * Mensch wartet auf das nächste Fenster, das ihm nie helfen wird.
+ */
+export type FensterFehlerCode = 'fenster' | 'recht' | 'grund';
+
 export class FensterFehler extends Error {
   readonly status = 409;
-  constructor(nachricht: string) { super(nachricht); this.name = 'FensterFehler'; }
+  readonly code: FensterFehlerCode;
+  constructor(nachricht: string, code: FensterFehlerCode = 'fenster') {
+    super(nachricht);
+    this.name = 'FensterFehler';
+    this.code = code;
+  }
+}
+
+/**
+ * Die Absage der Datenbank in einen Code übersetzen.
+ *
+ * `42501` ist `insufficient_privilege` — die Policy oder die Rechteprüfung in
+ * der Funktion hat abgewiesen, und das hat mit dem Fenster nichts zu tun.
+ * Alles andere (`check_violation`, `no_data_found`) ist die Fensterlage
+ * selbst; der Text der Funktion sagt, welche.
+ */
+function fensterCode(fehler: unknown): FensterFehlerCode {
+  if ((fehler as { code?: unknown } | null)?.code === '42501') return 'recht';
+  const text = fehler instanceof Error ? fehler.message : '';
+  return /braucht einen Grund/u.test(text) ? 'grund' : 'fenster';
 }
 
 /** Der Einspruch innerhalb des Fensters (APR-05). */
@@ -237,7 +270,9 @@ export async function erhebeEinspruch(
   try {
     await kontext.schreibe(`select app.freigabe_einspruch($1::uuid, $2)`, [freigabeId, grund]);
   } catch (fehler) {
-    throw new FensterFehler(fehler instanceof Error ? fehler.message : 'Einspruch abgewiesen.');
+    throw new FensterFehler(
+      fehler instanceof Error ? fehler.message : 'Einspruch abgewiesen.',
+      fensterCode(fehler));
   }
 }
 
@@ -248,7 +283,9 @@ export async function nimmZurueck(
   try {
     await kontext.schreibe(`select app.freigabe_ruecknahme($1::uuid, $2)`, [freigabeId, grund]);
   } catch (fehler) {
-    throw new FensterFehler(fehler instanceof Error ? fehler.message : 'Rücknahme abgewiesen.');
+    throw new FensterFehler(
+      fehler instanceof Error ? fehler.message : 'Rücknahme abgewiesen.',
+      fensterCode(fehler));
   }
 }
 

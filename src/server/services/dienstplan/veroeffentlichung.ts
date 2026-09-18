@@ -291,7 +291,48 @@ export async function veroeffentliche(
   kontext: SchreibKontext, eingabe: VeroeffentlichungEingabe,
 ): Promise<VeroeffentlichungErgebnis> {
   const umfang = pruefeZeitraum(eingabe.von, eingabe.bis, eingabe.umfang);
+
+  /**
+   * **Erst die LESERECHTE, dann der Beleg.**
+   *
+   * Der Definer in 0266 prueft `dienstplan.veroeffentlichen` — und nur das.
+   * Die Zahlen daneben kommen aber aus Tabellen mit eigenen Policies:
+   * `einsatz`, `einsatz_zuordnung` und `planungs_konflikt` verlangen
+   * `dienstplan.lesen`, der `join objekt` in der Empfaengerabfrage verlangt
+   * `objekt.lesen`. Fehlt eines davon, liefert `vorschau()` lauter Nullen und
+   * eine leere Empfaengerliste — nicht weil nichts geplant ist, sondern weil
+   * die RLS gerade aufgeraeumt hat.
+   *
+   * Aus so einer Abfrage darf kein Beleg entstehen. `dienstplan_veroeffentlichung`
+   * ist laut 0265 genau die Zeile, die im Streit zaehlt („der Zeitraum wurde an
+   * diesem Zeitpunkt bekanntgegeben"); mit `schichten = 0` und
+   * `empfaenger = 0` behauptete sie eine Bekanntgabe, die niemanden erreicht
+   * hat, und der Bildschirm sagte daneben in gruen „Veröffentlicht.
+   * 0 Person(en)".
+   */
+  const [sicht] = await kontext.abfrage<{ plan: boolean; objekt: boolean }>(
+    `select app.hat_recht('dienstplan.lesen', app.aktiver_mandant()) as plan,
+            app.hat_recht('objekt.lesen',     app.aktiver_mandant()) as objekt`);
+  if (sicht?.plan !== true || sicht.objekt !== true) {
+    throw new VeroeffentlichungFehler(
+      'Zum Veröffentlichen fehlt ein Leserecht (dienstplan.lesen, objekt.lesen). '
+      + 'Ohne es wäre der Vorgang ein Beleg über eine leere Abfrage und nicht über '
+      + 'einen leeren Plan.');
+  }
+
   const bild = await vorschau(kontext, eingabe.von, eingabe.bis);
+
+  /*
+   * Ein Fenster ohne Schicht UND ohne eingeteilten Menschen ist nichts, was
+   * man bekanntgeben kann. Das ist keine erfundene Geschaeftsregel, sondern
+   * die Weigerung, einen Beleg ueber nichts zu schreiben: welche Zeitraeume
+   * veroeffentlicht werden, bleibt O-710.
+   */
+  if (bild.schichten === 0 && bild.personen.length === 0) {
+    throw new VeroeffentlichungFehler(
+      'In diesem Zeitraum steht keine Schicht und ist niemand eingeteilt — '
+      + 'eine Bekanntgabe darüber wäre ein Beleg über nichts.');
+  }
 
   // Idempotent (D-493). Ohne diesen Aufruf waere `erzeuge` von der Frage
   // abhaengig, ob in DIESER Anfrage schon irgendetwas den Bootstrap gerufen

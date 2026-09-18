@@ -111,13 +111,52 @@ export const WIRKUNG_TEXT: Readonly<Record<Wirkung, string>> = {
 
 export class RichtlinieFehler extends Error {
   constructor(
-    readonly grund: 'unbekannte_aktion' | 'ungueltig' | 'im_code_gesperrt',
+    readonly grund:
+      | 'unbekannte_aktion' | 'ungueltig' | 'im_code_gesperrt' | 'begruendung_fehlt',
     nachricht: string,
   ) {
     super(nachricht);
     this.name = 'RichtlinieFehler';
   }
 }
+
+/**
+ * Die Rueckmeldung nach einem Speichern — als GESCHLOSSENER Satz.
+ *
+ * **Der Befund, der das gebracht hat.** Der Handler haengte seinen Satz als
+ * `?hinweis=<Text>` an die Adresse, und alle drei Bildschirme gaben diesen
+ * Text unveraendert in einem Hinweiskasten aus. Damit liess sich ueber einen
+ * Link jeder beliebige Satz in der Oberflaeche erscheinen lassen — „Ihre
+ * Richtlinie wurde von der Revision freigegeben" an eine Leitungskraft
+ * geschickt, und der Bildschirm sagt es. Ein Code laesst sich genauso
+ * faelschen, aber er loest nur zu einem Satz auf, den DIESE Datei kennt.
+ *
+ * Dieselbe Bauart wie `ZIELE` im Handler: der Name faehrt mit, die Bedeutung
+ * steht hier.
+ */
+export const HINWEIS_TEXT: Readonly<Record<string, string>> = {
+  gesetzt:
+    'Die Richtlinie ist gesetzt. Sie gilt ab dem nächsten Versandversuch; was '
+    + 'vorher freigegeben wurde, bleibt freigegeben.',
+  unbekannte_aktion:
+    'Diese Aktion kennt das Ausgangs-Gate nicht — gespeichert wurde nichts. '
+    + 'Konfigurierbar sind genau die acht AKTIONEN aus server/agent/policy.ts.',
+  im_code_gesperrt:
+    'Angebot, Nachtrag und Behinderungsanzeige gehen nie automatisch hinaus. Die '
+    + 'Sperre steht im Code (§ 145 BGB, § 2 Abs. 6 und § 6 Abs. 1 VOB/B) und nicht '
+    + 'in dieser Tabelle — eine hier gespeicherte Erlaubnis wäre wirkungslos und '
+    + 'sähe wie eine aus. Gespeichert wurde nichts.',
+  begruendung_fehlt:
+    'Ohne Begründung keine Automatik: wer etwas ohne menschliche Freigabe '
+    + 'hinausgehen lässt, schuldet den anderen eine Erklärung von mindestens fünf '
+    + 'Zeichen (Invariante 7). Gespeichert wurde nichts.',
+  ungueltig:
+    'Die Eingabe wurde abgewiesen — gespeichert wurde nichts. Ein Betragslimit ist '
+    + 'nie negativ.',
+  wert:
+    'Die Betragsgrenze liess sich nicht als Betrag lesen. Erwartet wird ein Betrag '
+    + 'in Euro, etwa „1.250,00"; gespeichert wurde nichts.',
+};
 
 export interface RichtlinienZeile {
   readonly aktion: Aktion;
@@ -200,6 +239,87 @@ export async function ladeRichtlinien(
 }
 
 /**
+ * EINE Zeile, gesucht nach ihrer Kennung — fuer die Bearbeitungsseite
+ * `/portal/[mandant]/agenten/richtlinien/[id]`.
+ *
+ * **Warum nicht `ladeRichtlinien().find(…)`.** Die Liste ist nach AKTIONEN
+ * aufgebaut und traegt fuer jede Aktion eine Zeile, auch fuer die ohne
+ * Datensatz — dort ist `id` dann `null`. Eine Suche darin nach einer Kennung
+ * fiele fuer jede nicht hinterlegte Aktion auf `undefined` zusammen mit dem
+ * Fall „diese Kennung gibt es nicht", und die Seite koennte 404 nicht von
+ * „noch nicht konfiguriert" unterscheiden. Diese Abfrage sucht genau die
+ * Zeile; findet sie keine, GIBT es sie nicht (oder die Sitzung darf sie nicht
+ * sehen — nach AUT-06 dasselbe).
+ *
+ * **Die `aktion` einer gefundenen Zeile kann etwas sein, das `AKTIONEN` nicht
+ * kennt.** Die Spalte ist blankes `text`; eine Zeile aus einer aelteren
+ * Fassung oder von Hand eingetragen traegt vielleicht einen Wert, den
+ * `gate()` nie nachschlaegt. Das bleibt hier sichtbar (`unbekannteAktion`)
+ * statt auf eine bekannte Aktion abgebildet zu werden: eine Richtlinie, die
+ * nie greift, muss man SEHEN.
+ */
+export interface RichtlinieBlick {
+  readonly id: string;
+  /** Der Rohwert der Spalte — auch wenn er in `AKTIONEN` nicht vorkommt. */
+  readonly aktion: string;
+  /** `true`, wenn `aktion` keine der acht `AKTIONEN` ist: sie greift dann nie. */
+  readonly unbekannteAktion: boolean;
+  readonly text: string;
+  readonly grund: string | null;
+  readonly autoErlaubt: boolean;
+  readonly maxBetragCent: Cent | null;
+  readonly istAktiv: boolean;
+  readonly begruendung: string | null;
+  readonly geaendertAm: string | null;
+  readonly geaendertVon: string | null;
+  readonly erstelltAm: string | null;
+  readonly imCodeGesperrt: boolean;
+  readonly wirkung: Wirkung;
+}
+
+export async function ladeRichtlinie(
+  kontext: LeseKontext, id: string,
+): Promise<RichtlinieBlick | null> {
+  const [z] = await kontext.abfrage<Roh & { erstellt_am: string | null }>(
+    `select r.id, r.aktion, r.auto_erlaubt, r.max_betrag_cent::text as max_betrag_cent,
+            r.ist_aktiv, r.begruendung,
+            to_char(r.geaendert_am at time zone 'Europe/Berlin',
+                    'DD.MM.YYYY HH24:MI') as geaendert_am,
+            to_char(r.erstellt_am at time zone 'Europe/Berlin',
+                    'DD.MM.YYYY HH24:MI') as erstellt_am,
+            b.name as geaendert_von
+       from agent_richtlinie r
+       left join benutzer b on b.id = r.geaendert_von
+      where r.id = $1::uuid and r.mandant_id = $2::uuid`,
+    [id, kontext.aktiverMandantId]);
+  if (z === undefined) return null;
+
+  const bekannt = (AKTIONEN as readonly string[]).includes(z.aktion);
+  const aktion = z.aktion as Aktion;
+  return {
+    id: z.id,
+    aktion: z.aktion,
+    unbekannteAktion: !bekannt,
+    text: bekannt ? AKTION_TEXT[aktion] : z.aktion,
+    grund: bekannt ? AKTION_GRUND[aktion] ?? null : null,
+    autoErlaubt: z.auto_erlaubt,
+    maxBetragCent: z.max_betrag_cent === null ? null : cent(BigInt(z.max_betrag_cent)),
+    istAktiv: z.ist_aktiv,
+    begruendung: z.begruendung,
+    geaendertAm: z.geaendert_am,
+    geaendertVon: z.geaendert_von,
+    erstelltAm: z.erstellt_am,
+    imCodeGesperrt: bekannt && IM_CODE_GESPERRT.includes(aktion),
+    /*
+     * Eine unbekannte Aktion wirkt wie keine Zeile: `gate()` schlaegt sie nie
+     * nach. Das ist NICHT `automatisch`, auch wenn `auto_erlaubt` steht —
+     * genau diese Falschaussage soll der Bildschirm nicht machen.
+     */
+    wirkung: bekannt ? wirkungVon(aktion, z) : 'nicht_hinterlegt',
+  };
+}
+
+/**
  * Eine Richtlinie im Gate-Format — fuer einen Aufrufer, der `gate()` ruft.
  *
  * Getrennt von `ladeRichtlinien`, weil die Bildschirmform acht Zeilen mit
@@ -246,12 +366,29 @@ export interface RichtlinieEingabe {
  * Was damals galt, steht deshalb im Protokoll (`0203` gibt der Tabelle
  * endlich ihren Audit-Trigger) und nicht in einer zweiten Zeile.
  *
- * **`angebot_senden` mit `auto_erlaubt` weist die Datenbank ab**
- * (`agent_richtlinie_kein_auto_angebot`, 0012). Die beiden anderen im Code
- * gesperrten Aktionen tragen diesen `CHECK` nicht, und das ist kein
- * Versehen: sie sind ueber `gate()` gesperrt, und eine gespeicherte `true`
+ * **Die drei Willenserklaerungen mit `auto_erlaubt` weist die Datenbank ab**
+ * (`agent_richtlinie_kein_auto_willenserklaerung`, 0290). Bis dahin deckte
+ * `agent_richtlinie_kein_auto_angebot` (0012) nur das Angebot; 0290 hat den
+ * alten Riegel fallen gelassen und durch einen ersetzt, der alle drei traegt.
+ * Sie sind zusaetzlich ueber `gate()` gesperrt, und eine gespeicherte `true`
  * waere dort wirkungslos — sie saehe aber auf dem Bildschirm wie eine
- * Erlaubnis aus. Deshalb weist DIESER Dienst sie ab, mit dem Satz, warum.
+ * Erlaubnis aus. Deshalb weist auch DIESER Dienst sie ab, mit dem Satz, warum.
+ *
+ * **Die Begruendung ist Pflicht, sobald die Automatik eingeschaltet wird —
+ * und zwar HIER und nicht nur im Browser.** Die Bearbeitungsseite beschriftete
+ * das Feld mit „(Pflicht)" und setzte `required`; durchgesetzt war das damit
+ * nur dort, wo ein Browser mitspielt. Ein Feld, das nach Invariante 7 belegen
+ * soll, warum etwas OHNE einen Menschen hinausgehen darf, ist genau dann zu
+ * wenig geprueft, wenn es darauf ankommt.
+ *
+ * **Und ein fehlendes Feld ueberschreibt nichts.** Das `begruendung` des
+ * `on conflict` geht durch `coalesce`: die Schwesterseite
+ * `einstellungen/agent-richtlinien` schickt dasselbe Formularfeld ohne
+ * `required` durch denselben Handler, und ein leeres Feld loeschte die auf der
+ * Detailseite geschuldete Erklaerung still weg — eine Aenderung an der
+ * Betragsgrenze nahm die Begruendung mit. Wer sie ERSETZEN will, schreibt eine
+ * neue; geleert wird sie von keiner Oberflaeche, und was einmal galt, steht
+ * ohnehin im Protokoll (Invariante 8).
  */
 export async function setzeRichtlinie(
   kontext: SchreibKontext, e: RichtlinieEingabe,
@@ -270,6 +407,28 @@ export async function setzeRichtlinie(
   if (e.maxBetragCent !== null && e.maxBetragCent < 0n) {
     throw new RichtlinieFehler('ungueltig', 'Ein Betragslimit ist nie negativ.');
   }
+  /*
+   * Fuenf Zeichen, dieselbe Untergrenze wie beim Einspruchs- und
+   * Ruecknahmegrund (`app.freigabe_einspruch`): „ok" ist keine Erklaerung.
+   * Geprueft wird gegen die BESTEHENDE Zeile mit, denn ein Formular, das die
+   * Begruendung gar nicht mitschickt, laesst die vorhandene stehen (coalesce
+   * unten) — dann ist die Pflicht erfuellt, und eine Absage waere falsch.
+   */
+  if (e.autoErlaubt) {
+    const vorhanden = e.begruendung === null || e.begruendung.trim().length < 5
+      ? (await kontext.abfrage<{ begruendung: string | null }>(
+        `select begruendung from agent_richtlinie
+          where mandant_id = $1::uuid and aktion = $2`,
+        [kontext.aktiverMandantId, e.aktion]))[0]?.begruendung ?? null
+      : e.begruendung;
+    if (vorhanden === null || vorhanden.trim().length < 5) {
+      throw new RichtlinieFehler('begruendung_fehlt',
+        `${AKTION_TEXT[e.aktion]} ohne menschliche Freigabe hinausgehen zu lassen `
+        + 'verlangt eine Begründung von mindestens fünf Zeichen. In einem halben Jahr '
+        + 'ist „warum darf das von allein hinaus" eine echte Frage, und Invariante 7 '
+        + 'will darauf einen Satz und kein leeres Feld.');
+    }
+  }
 
   await kontext.schreibe(
     `insert into agent_richtlinie
@@ -280,7 +439,9 @@ export async function setzeRichtlinie(
         set auto_erlaubt    = excluded.auto_erlaubt,
             max_betrag_cent = excluded.max_betrag_cent,
             ist_aktiv       = excluded.ist_aktiv,
-            begruendung     = excluded.begruendung,
+            -- Ein fehlendes Feld loescht nicht, was dasteht (siehe oben).
+            begruendung     = coalesce(excluded.begruendung,
+                                       agent_richtlinie.begruendung),
             geaendert_von   = excluded.geaendert_von`,
     [kontext.aktiverMandantId, e.aktion, e.autoErlaubt,
       e.maxBetragCent === null ? null : String(e.maxBetragCent),

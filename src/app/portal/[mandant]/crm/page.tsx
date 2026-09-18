@@ -32,6 +32,7 @@ interface Zahlen {
   readonly leads_offen: string;
   readonly ohne_grundlage: string;
   readonly akquise_offen: string;
+  readonly wiedervorlagen_offen: string;
 }
 
 export default async function CrmUebersicht(
@@ -61,7 +62,27 @@ export default async function CrmUebersicht(
                 as ohne_grundlage,
               (select count(*) from akquise_ziel
                 where archiviert_am is null and status in ('neu','geprueft'))::text
-                as akquise_offen`,
+                as akquise_offen,
+              /*
+               * Die FAELLIGEN Wiedervorlagen (CRM-04) — ueber ALLE
+               * Zustaendigen und bis einschliesslich heute.
+               *
+               * Die Kachel zaehlte schon so, ihre Beschriftung sagte es aber
+               * nicht, und ihr Ziel oeffnete die Liste in der Vorgabeansicht
+               * „nur meine" ueber ALLE offenen (auch kuenftigen). Drei Zahlen
+               * fuer eine Sache: in den Demodaten stand auf der Kachel 2 und
+               * auf der Seite „4 offen · 1 ueberfaellig". Die Kachel verlinkt
+               * jetzt mit dem Parameter wer=alle und heisst „faellig, alle
+               * Zustaendigen" — dieselbe Frage auf beiden Seiten.
+               *
+               * Gezaehlt wird gegen app.berlin_heute(), nie gegen eine
+               * Browseruhr (Invariante 2).
+               */
+              (select count(*) from lead_aktivitaet la
+                where la.faellig_am is not null and la.erledigt_am is null
+                  and (la.faellig_am at time zone 'Europe/Berlin')::date
+                        <= app.berlin_heute())::text
+                as wiedervorlagen_offen`,
     ))) as Promise<readonly Zahlen[]>);
 
   /**
@@ -75,8 +96,26 @@ export default async function CrmUebersicht(
   const kacheln = [
     { label: 'Kunden', wert: zahlen?.kunden ?? '0',
       ziel: { pathname: `/portal/${mandant}/crm/kunden` } },
+    /*
+     * Die Kachel zeigt auf die KONTAKTLISTE, nicht auf die Kundenliste.
+     *
+     * Sie zeigte bis hierher auf `crm/kunden`, weil es `crm/kontakte` noch
+     * nicht gab — eine Zahl, die etwas zaehlt und beim Klick etwas anderes
+     * oeffnet. Damit war die Kontaktliste ueberhaupt nur ueber die Adresszeile
+     * erreichbar, und dasselbe galt fuer die Wiedervorlagen darunter.
+     */
     { label: 'Ansprechpartner', wert: zahlen?.kontakte ?? '0',
-      ziel: { pathname: `/portal/${mandant}/crm/kunden` } },
+      ziel: { pathname: `/portal/${mandant}/crm/kontakte` } },
+    /*
+     * `query` statt einer zusammengebauten Zeichenkette: `typedRoutes` prueft
+     * das Pfadmuster, und der Parameter steht daneben statt darin.
+     */
+    { label: 'Wiedervorlagen fällig (alle Zuständigen)',
+      wert: zahlen?.wiedervorlagen_offen ?? '0',
+      ziel: {
+        pathname: `/portal/${mandant}/crm/wiedervorlagen`,
+        query: { wer: 'alle' },
+      } },
     { label: 'Leads offen', wert: zahlen?.leads_offen ?? '0',
       ziel: { pathname: `/portal/${mandant}/crm/leads` } },
     /*

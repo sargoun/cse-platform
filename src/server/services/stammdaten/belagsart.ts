@@ -32,8 +32,16 @@ import { StammdatenFehler, isoDatum, pflichttext } from './katalog.js';
  * `kalkulation/raumbuch.ts`.
  */
 
-/** `39,5` → `39.500`; nie ueber eine Gleitkommazahl (K-16). */
-const WERT_FORM = /^\d{1,6}(?:[.,]\d{1,3})?$/u;
+/**
+ * `39,5` → `39.500`; nie ueber eine Gleitkommazahl (K-16).
+ *
+ * Sieben Vorkommastellen, nicht sechs: `leistungswert_qm_pro_stunde` ist
+ * `numeric(10,3)` und traegt damit genau 10 − 3 = 7 Stellen vor dem Komma.
+ * Eine engere Form hier waere eine Grenze, die die Tabelle nicht kennt — und
+ * die Meldung nennt sie nicht einmal, sodass ein abgewiesener Wert wie ein
+ * Tippfehler aussaehe.
+ */
+const WERT_FORM = /^\d{1,7}(?:[.,]\d{1,3})?$/u;
 
 export function alsLeistungswert(eingabe: string): string {
   const roh = eingabe.trim();
@@ -134,12 +142,21 @@ export interface BelagsartEingabe {
 export function pruefeBelagsartEingabe(
   lies: (feld: string) => string | null,
 ): BelagsartEingabe {
+  /*
+   * **Der Code wird auf Länge NICHT geprueft, und das ist Absicht.**
+   *
+   * `belagsart.code` ist `text` ohne CHECK und ohne `varchar(n)` — die
+   * Tabelle fuehrt keine Grenze, SPEC und DECISIONS nennen keine, und der
+   * Code kommt aus dem Raumbuch DES KUNDEN, weshalb ihn diese Schicht auch
+   * nicht umschreibt. Eine hier erfundene Obergrenze wiese eine echte
+   * Kundendatei mit einem laengeren Belagscode ab — mit einer Zahl, die
+   * niemand entschieden hat. `bezeichnung` und `beschreibung` sind aus
+   * demselben Grund ungeprueft lang.
+   *
+   * // TODO(client, O-694): Gibt es eine Hoechstlaenge fuer Belagsart- und
+   * Reinigungsklassen-Codes aus dem Kundenraumbuch — und wenn ja, welche?
+   */
   const code = pflichttext(lies('code'), 'Code');
-  if (code.length > 20) {
-    throw new StammdatenFehler('ungueltig',
-      'Der Code ist höchstens 20 Zeichen lang — er steht in jeder Zeile des '
-      + 'Raumbuchs.');
-  }
   const beschreibung = (lies('beschreibung') ?? '').trim();
   return {
     code,
@@ -176,10 +193,18 @@ export type Datierung =
  *    (`belagsart_zeitraum_stimmig` weist das ab), und ein Zeitraum, der vor
  *    seinem Beginn endet, ist keine Lage, die jemand gemeint haben kann.
  *
- * Rueckwirkend ist damit nicht verboten, sondern GENAU SO WEIT erlaubt, wie es
- * herleitbar bleibt: eine Fassung darf vor der laufenden beginnen, solange die
- * Schranke `belagsart_zeitraum_eindeutig` keine Ueberschneidung findet — und
- * die prueft die Datenbank, nicht diese Funktion.
+ * **Eine neue Fassung beginnt damit STRIKT NACH dem Beginn der laufenden** —
+ * nicht aus Vorsicht, sondern weil es anders nicht geht: die laufende traegt
+ * `gueltig_bis is null`, ihr Bereich ist `daterange(gueltig_ab, 'infinity')`,
+ * und JEDER Tag vor ihrem Beginn ueberschneidet ihn.
+ * `belagsart_zeitraum_eindeutig` liesse das nie zu; ein frueherer Beginn ist
+ * also keine Lage, die die Datenbank noch pruefen koennte.
+ *
+ * **Rueckwirkend heisst hier: zwischen dem Beginn der laufenden Fassung und
+ * heute — und genau dieser Bereich ist unbewacht.** Ein Beginn in ihm wird
+ * angenommen und aendert die Grundlage jeder Kalkulation aus dieser Zeit,
+ * ohne dass jemand zustimmt. Ob das so bleiben soll, ist O-692; die strengere
+ * Variante — Beginn nie vor `app.berlin_heute()` — waere eine Zeile hier.
  */
 export function pruefeDatierung(
   gueltigAb: string, laufendeSeit: string | null,
@@ -211,6 +236,21 @@ export function pruefeDatierung(
 export async function datiereBelagsartUm(
   kontext: SchreibKontext, e: BelagsartEingabe,
 ): Promise<void> {
+  /*
+   * **Der Wert wird HIER normalisiert, nicht nur im Formularleser.**
+   *
+   * `pruefeBelagsartEingabe` ruft `alsLeistungswert` schon — aber
+   * `BelagsartEingabe.leistungswert` ist ein `string`, und dieser Dienst ist
+   * exportiert: ein Aufrufer, der die Eingabe selbst zusammensetzt (ein Job,
+   * ein Import, ein Test), reicht `300,5` mit deutschem Komma herein. Das
+   * kommt als `invalid input syntax for type numeric` aus Postgres zurueck —
+   * eine Meldung ueber einen Datentyp, wo ein Satz ueber ein Formularfeld
+   * hingehoert, und sie faellt erst beim Schreiben, nach dem Schliessen der
+   * laufenden Fassung. `alsLeistungswert` ist dieselbe getestete Funktion
+   * (K-16, Invariante 6) und auf `300.500` idempotent.
+   */
+  const leistungswert = alsLeistungswert(e.leistungswert);
+
   const [laufend] = await kontext.abfrage<{ gueltig_ab: string }>(
     `select gueltig_ab::text as gueltig_ab
        from app.belagsart_historie_lesen()
@@ -238,7 +278,7 @@ export async function datiereBelagsartUm(
           erstellt_von)
        values (app.aktiver_mandant(), $1, $2, $3, $4::numeric, $5, $6::boolean,
                $7::date, $8::uuid)`,
-      [e.code, e.bezeichnung, e.beschreibung, e.leistungswert, e.quelle,
+      [e.code, e.bezeichnung, e.beschreibung, leistungswert, e.quelle,
         !e.bestaetigt, e.gueltigAb, kontext.benutzerId]);
   } catch (fehler: unknown) {
     const f = fehler as { code?: unknown; constraint_name?: unknown };

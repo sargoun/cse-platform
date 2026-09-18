@@ -103,13 +103,27 @@ export async function leseStammdaten(
   }
 }
 
+/**
+ * **`undefined` heisst „nicht mitgeschickt", `null` heisst „leeren".**
+ *
+ * Der Unterschied ist der Befund, der diese Fassung gebaut hat: die erste
+ * schrieb IMMER alle drei Spalten. Ein Aufruf, der nur den Geburtsort
+ * nachtraegt, loeschte damit Geburtsdatum und Staatsangehoerigkeit — und weil
+ * die drei Spalten dem Schreibenden nicht lesbar sind (K-05, §11), merkte es
+ * niemand: das Formular zeigt danach, was es selbst geschrieben hat, und das
+ * ist leer. Genau die drei Angaben, die § 16 BewachV fuer die Meldung an das
+ * Bewacherregister verlangt, verschwanden lautlos.
+ *
+ * Das vollstaendige Formular schickt weiterhin alle drei Felder — ein leeres
+ * Feld bleibt dort also ein ausdrueckliches „leeren", und das ist richtig.
+ */
 export interface StammdatenEingabe {
   readonly personId: string;
-  /** `JJJJ-MM-TT` oder `null` (nicht hinterlegt). */
-  readonly geburtsdatum: string | null;
-  readonly geburtsort: string | null;
+  /** `JJJJ-MM-TT`, `null` (leeren) oder `undefined` (nicht anfassen). */
+  readonly geburtsdatum?: string | null;
+  readonly geburtsort?: string | null;
   /** Zwei Buchstaben; wird gross geschrieben gespeichert. */
-  readonly staatsangehoerigkeit: string | null;
+  readonly staatsangehoerigkeit?: string | null;
 }
 
 /**
@@ -128,35 +142,53 @@ export interface StammdatenEingabe {
 export async function schreibeStammdaten(
   kontext: SchreibKontext, eingabe: StammdatenEingabe,
 ): Promise<void> {
-  const geburtsdatum = eingabe.geburtsdatum?.trim() ?? '';
-  if (geburtsdatum !== '' && !DATUM.test(geburtsdatum)) {
-    throw new StammdatenEingabeFehler(
-      'Das Geburtsdatum erwartet einen Kalendertag als JJJJ-MM-TT.');
-  }
-  const staat = eingabe.staatsangehoerigkeit?.trim() ?? '';
-  if (staat !== '' && !ISO2.test(staat)) {
-    throw new StammdatenEingabeFehler(
-      'Die Staatsangehörigkeit erwartet den zweibuchstabigen Ländercode nach '
-      + 'ISO 3166-1 alpha-2 — „DE", „TR", „SY". Das ist die Form, in der das '
-      + 'Bewacherregister sie verlangt (SEC-03).');
-  }
-  const ort = eingabe.geburtsort?.trim() ?? '';
+  const saetze: string[] = [];
+  const werte: unknown[] = [eingabe.personId];
+  const nimm = (spalte: string, wert: unknown, guss = ''): void => {
+    werte.push(wert);
+    saetze.push(`${spalte} = $${String(werte.length)}${guss}`);
+  };
 
+  if (eingabe.geburtsdatum !== undefined) {
+    const geburtsdatum = eingabe.geburtsdatum?.trim() ?? '';
+    if (geburtsdatum !== '' && !DATUM.test(geburtsdatum)) {
+      throw new StammdatenEingabeFehler(
+        'Das Geburtsdatum erwartet einen Kalendertag als JJJJ-MM-TT.');
+    }
+    nimm('geburtsdatum', geburtsdatum === '' ? null : geburtsdatum, '::date');
+  }
+
+  if (eingabe.geburtsort !== undefined) {
+    const ort = eingabe.geburtsort?.trim() ?? '';
+    nimm('geburtsort', ort === '' ? null : ort);
+  }
+
+  if (eingabe.staatsangehoerigkeit !== undefined) {
+    const staat = eingabe.staatsangehoerigkeit?.trim() ?? '';
+    if (staat !== '' && !ISO2.test(staat)) {
+      throw new StammdatenEingabeFehler(
+        'Die Staatsangehörigkeit erwartet den zweibuchstabigen Ländercode nach '
+        + 'ISO 3166-1 alpha-2 — „DE", „TR", „SY". Das ist die Form, in der das '
+        + 'Bewacherregister sie verlangt (SEC-03).');
+    }
+    nimm('staatsangehoerigkeit', staat === '' ? null : staat.toUpperCase());
+  }
+
+  /*
+   * Kein Feld mitgebracht heisst: nichts zu tun. Ein `update` ohne SET waere
+   * ein Syntaxfehler, und ein `update` allein auf `geaendert_am` schriebe eine
+   * Aenderungsspur fuer eine Aenderung, die es nicht gab.
+   */
+  if (saetze.length === 0) return;
+
+  werte.push(kontext.benutzerId);
   const zeilen = await kontext.schreibe<{ id: string }>(
     `update person
-        set geburtsdatum         = $2::date,
-            geburtsort           = $3,
-            staatsangehoerigkeit = $4,
-            geaendert_am = now(), geaendert_von = $5::uuid
+        set ${saetze.join(', ')},
+            geaendert_am = now(), geaendert_von = $${String(werte.length)}::uuid
       where id = $1::uuid and geloescht_am is null
       returning id`,
-    [
-      eingabe.personId,
-      geburtsdatum === '' ? null : geburtsdatum,
-      ort === '' ? null : ort,
-      staat === '' ? null : staat.toUpperCase(),
-      kontext.benutzerId,
-    ],
+    werte,
   );
   if (zeilen.length === 0) throw new PersonNichtGefunden(eingabe.personId);
 }

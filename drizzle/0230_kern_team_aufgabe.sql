@@ -447,10 +447,22 @@ create policy p_zustaendig on aufgabe as restrictive for all to cse_app
  * zugewiesen waere — eine Zuordnung, die es nicht geben soll und die niemand
  * beabsichtigt. Die Decke sagt es ausdruecklich, statt sich darauf zu
  * verlassen, dass es nie passiert.
+ *
+ * **Die WITH-CHECK-Seite lautet `<> 'kunde'`, nicht `= 'intern'.`** Das war
+ * einmal anders und war falsch: eine restriktive WITH-CHECK-Bedingung muss
+ * bei JEDEM Schreibvorgang wahr sein, und `app.portal()` liefert im
+ * `person`-Scope fest `mitarbeiter` und im Mandanten-Scope das Portal der
+ * Mitgliedschaft — fuer die Rolle `mitarbeiter` also ebenfalls
+ * `mitarbeiter`. `= 'intern'` hat damit jedes Erledigen einer zugewiesenen
+ * Aufgabe abgewiesen, obwohl 03-AUTH-BERECHTIGUNGEN.md §2441 der Rolle
+ * `mitarbeiter` genau `aufgabe.schreiben` gibt („completing an assigned
+ * task"). Die Verengung auf das Zugewiesene leistet `p_zustaendig`: dessen
+ * `using` gilt bei einer `for all`-Policy ohne eigenes `with check` auch als
+ * WITH CHECK. Dieselbe Form tragen 0192 und 0201.
  */
 create policy p_aufgabe_kunde_decke on aufgabe as restrictive for all to cse_app
   using      (app.portal() <> 'kunde')
-  with check (app.portal() = 'intern');
+  with check (app.portal() <> 'kunde');
 
 /**
  * Die Waechter aus SPEC §14 laufen als `cse_job`, ohne Sitzung — und

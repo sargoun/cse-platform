@@ -34,6 +34,17 @@ export interface EigeneSchicht {
   readonly mandantName: string;
   readonly objekt: string | null;
   readonly objektId: string | null;
+  /**
+   * Die Baustelle dieser Schicht — oder `null`, wenn es keine ist.
+   *
+   * Sie steht hier, weil das Bautagebuch ohne sie nicht adressierbar ist
+   * (BAU-07): `/portal/mein/schichten/[zuordnungId]/bautagebuch` braucht das
+   * Projekt, und es aus der Anfrage zu nehmen waere genau die Stelle, an der
+   * jemand ein fremdes einsetzt (K-02). Kein Kunde, kein Auftrag, kein Preis
+   * kommt damit mit — `einsatz.projekt_id` ist eine Zuordnung, keine
+   * kaufmaennische Angabe (EMP-13, K-05).
+   */
+  readonly projektId: string | null;
   /** Der Berliner Plantag, `JJJJ-MM-TT`. */
   readonly planDatum: string;
   /** `TT.MM.JJJJ HH:MM` in Berliner Ortszeit — fertig aus der Datenbank. */
@@ -61,7 +72,8 @@ export interface EigeneSchicht {
  */
 export const SCHICHT_FELDER = [
   'zuordnungId', 'einsatzId', 'anstellungId', 'mandantSlug', 'mandantName',
-  'objekt', 'objektId', 'planDatum', 'beginnLokal', 'endeLokal', 'endetAmFolgetag',
+  'objekt', 'objektId', 'projektId',
+  'planDatum', 'beginnLokal', 'endeLokal', 'endetAmFolgetag',
   'pauseGeplantMinuten', 'dauerMinuten', 'funktion', 'status', 'einsatzStatus',
   'zeitanomalie', 'laeuftJetzt',
 ] as const;
@@ -74,6 +86,7 @@ interface SchichtRoh {
   readonly mandant_name: string;
   readonly objekt: string | null;
   readonly objekt_id: string | null;
+  readonly projekt_id: string | null;
   readonly plan_datum: string;
   readonly beginn_lokal: string;
   readonly ende_lokal: string;
@@ -101,6 +114,7 @@ const SPALTEN = `
   m.name                                        as mandant_name,
   o.bezeichnung                                 as objekt,
   e.objekt_id,
+  e.projekt_id,
   to_char(e.plan_datum, 'YYYY-MM-DD')           as plan_datum,
   to_char(z.beginn_zeitpunkt at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
                                                 as beginn_lokal,
@@ -141,6 +155,7 @@ function abbilden(z: SchichtRoh): EigeneSchicht {
     mandantName: z.mandant_name,
     objekt: z.objekt,
     objektId: z.objekt_id,
+    projektId: z.projekt_id,
     planDatum: z.plan_datum,
     beginnLokal: z.beginn_lokal,
     endeLokal: z.ende_lokal,

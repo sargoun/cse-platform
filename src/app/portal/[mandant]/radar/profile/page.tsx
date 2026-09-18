@@ -25,8 +25,11 @@ import { haeltRechte } from '@/app/portal/rechte';
  * niemand entschieden (O-15), und ein Profil, das so tut, als wären sie
  * bestätigt, erzeugt eine Rangfolge, der jemand glaubt.
  *
- * Bearbeiten kommt mit dem nächsten Schritt; bis dahin ist diese Seite
- * ehrlich lesend statt ein Formular, das nichts speichert.
+ * **Bearbeitet wird je Profil auf seiner eigenen Seite**
+ * (`/radar/profile/[id]`) — und nicht hier in der Liste: wer die Gewichte,
+ * die CPV-Zeilen und die Empfänger eines Profils ändert, soll dabei sehen,
+ * was gesperrt ist und warum. Ein Sammelformular über drei Profile hätte die
+ * offenen Fragen (O-15, O-98, O-191, O-47) einmal in eine Fussnote gedrängt.
  */
 export const dynamic = 'force-dynamic';
 
@@ -104,7 +107,16 @@ export default async function Profile(
             <li key={p.id} data-cse="radar-profil" data-aktiv={String(p.istAktiv)}
                 className="rounded-lg border border-line bg-surface p-s5">
               <div className="mb-s3 flex flex-wrap items-baseline justify-between gap-s3">
-                <h2 className="text-h2 text-text">{p.name}</h2>
+                {/* Diese Seite öffnet mit `radar.profil_schreiben` (Manifest) —
+                    dasselbe Recht wie die Bearbeitungsseite. Der Verweis führt
+                    deshalb nie auf ein 404. */}
+                <h2 className="text-h2">
+                  <Link href={`/portal/${mandant}/radar/profile/${p.id}`}
+                        data-cse="radar-profil-bearbeiten"
+                        className="text-text underline-offset-2 hover:text-brand hover:underline">
+                    {p.name}
+                  </Link>
+                </h2>
                 <span className="flex items-center gap-s2">
                   {p.istPlatzhalter ? <StatusPill zustand="Entwurf" /> : null}
                   <StatusPill zustand={p.istAktiv ? 'Aktiv' : 'Inaktiv'} />
@@ -173,7 +185,8 @@ export default async function Profile(
       <p className="mt-s6 max-w-prose text-xs text-text-muted">
         Jede Änderung an einem Profil zählt seine Fassung hoch, und der nächste Lauf schreibt eine
         NEUE Bewertung — die alte bleibt stehen. So lässt sich später sagen, mit welcher Suche eine
-        Bekanntmachung damals bewertet wurde, und nicht nur, wie sie heute aussähe.
+        Bekanntmachung damals bewertet wurde, und nicht nur, wie sie heute aussähe. Geändert wird
+        über den Namen des Profils.
       </p>
     </PortalRahmen>
   );

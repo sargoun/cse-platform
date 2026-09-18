@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
 import { ladePosteingang, type Eintrag } from '@/server/benachrichtigung/posteingang';
@@ -78,7 +79,18 @@ export default async function MeineNachrichten() {
               }`}
             >
               <div className="flex flex-wrap items-baseline justify-between gap-s2">
-                <span className="text-h3 text-text">{e.titel}</span>
+                {/*
+                  Der Titel fuehrt auf die Meldung selbst und STEMPELT DABEI
+                  NICHT — das tut nur der Knopf unten (D-504). Zwei Wege mit
+                  zwei verschiedenen Wirkungen, und jeder sagt, welche er hat.
+                */}
+                <Link
+                  href={`/portal/mein/nachrichten/${e.id}`}
+                  data-cse="nachricht-lesen"
+                  className="text-h3 text-text underline"
+                >
+                  {e.titel}
+                </Link>
                 <StatusPill zustand={e.gelesenAm === null ? 'Wartet' : 'Inaktiv'} />
               </div>
 

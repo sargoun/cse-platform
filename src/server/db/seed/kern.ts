@@ -50,16 +50,51 @@ const TEAMS: Readonly<Record<string, string>> = {
 };
 
 export async function seedKern(sql: postgres.Sql): Promise<KernErgebnis> {
-  /** Je Gesellschaft ein internes Konto — Ersteller und Empfänger. */
+  /**
+   * Je Gesellschaft ein internes Konto — Ersteller und Empfänger.
+   *
+   * **Drei Stufen, und die dritte ist der Grund, warum es sie gibt.**
+   * Gesucht wurde einmal nur nach `admin`/`leitung`, und `operations` hat im
+   * Seed keine solche Mitgliedschaft — nur zwei DIENSTkonten
+   * (`formular_eingang`, `website_renderer`). Damit entstanden dort kein
+   * Team, keine Aufgabe und kein Faden: `/portal/operations/aufgaben` und
+   * `/portal/operations/nachrichten` zeigten den Leerzustand, und zwar bei
+   * genau der Gesellschaft, die nach SEITENKARTE §2.2 die öffentlichen
+   * Gruppenseiten trägt und deshalb am häufigsten angesehen wird. Ein
+   * Leerzustand sieht aus wie eine kaputte Abfrage — das ist der
+   * schlechteste Demobestand, den es gibt.
+   *
+   *  1. `admin` oder `leitung` des Bereichs,
+   *  2. sonst irgendein aktives Nicht-Dienstkonto mit Mitgliedschaft dort,
+   *  3. sonst die globale `super_admin`-Anmeldung.
+   *
+   * Dienstkonten bleiben in jeder Stufe aussen vor: sie sind kein Mensch, und
+   * eine Aufgabe „von Hand angelegt" mit einem Dienstkonto als Urheber wäre
+   * eine falsche Herkunftsangabe (§7.7 `quelle`).
+   */
   const konten = await sql<Konto[]>`
-    select b.id, bm.mandant_id, m.slug, b.name
-      from benutzer b
-      join benutzer_mandant bm on bm.benutzer_id = b.id and bm.entzogen_am is null
-      join rolle r on r.id = bm.rolle_id
-      join mandant m on m.id = bm.mandant_id
-     where b.status = 'aktiv' and b.deaktiviert_am is null and not b.ist_dienstkonto
-       and r.schluessel in ('admin','leitung')
-     order by m.slug, b.name`;
+    with mensch as (
+      select b.id, bm.mandant_id, m.slug, b.name,
+             case when r.schluessel in ('admin','leitung') then 0 else 1 end as stufe
+        from benutzer b
+        join benutzer_mandant bm on bm.benutzer_id = b.id and bm.entzogen_am is null
+        join rolle r on r.id = bm.rolle_id
+        join mandant m on m.id = bm.mandant_id
+       where b.status = 'aktiv' and b.deaktiviert_am is null and not b.ist_dienstkonto
+         and r.schluessel <> 'kunde'
+    ), gruppe as (
+      -- Stufe 3: die Anmeldung ohne Bereich, für jeden Bereich gültig.
+      select b.id, m.id as mandant_id, m.slug, b.name, 2 as stufe
+        from benutzer b
+        join rolle r on r.id = b.globale_rolle_id
+        cross join mandant m
+       where b.status = 'aktiv' and b.deaktiviert_am is null and not b.ist_dienstkonto
+         and r.schluessel = 'super_admin' and m.archiviert_am is null
+    )
+    select id, mandant_id, slug, name from (
+      select * from mensch union all select * from gruppe
+    ) alle
+     order by slug, stufe, name`;
 
   const jeMandant = new Map<string, Konto>();
   for (const k of konten) if (!jeMandant.has(k.mandant_id)) jeMandant.set(k.mandant_id, k);
@@ -200,17 +235,29 @@ export async function seedKern(sql: postgres.Sql): Promise<KernErgebnis> {
                 'intern', 'portal', 'mensch', ${konto.id}, ${konto.id})
         returning id, thread_id`;
 
-      /* Empfänger: die erste Beschäftigung dieser Gesellschaft — als PERSON
-       * und nicht als Anmeldung, denn EMP-11 adressiert den Menschen (D-09). */
+      /*
+       * Empfänger: die erste Beschäftigung dieser Gesellschaft — als PERSON
+       * und nicht als Anmeldung, denn EMP-11 adressiert den Menschen (D-09).
+       *
+       * Hat die Gesellschaft keine Beschäftigung (`operations` hat keine),
+       * geht die Zeile an das KONTO. Sonst stünde im Posteingang ein Faden
+       * ohne Empfänger, und die eigene Ungelesen-Zahl — die Zahl, an der die
+       * Liste und der „Als gelesen"-Knopf hängen — wäre dort nie prüfbar.
+       */
       const erste = beschaeftigungen[0];
-      if (erste !== undefined) {
-        await sql`
+      await (erste === undefined
+        ? sql`
+          insert into nachricht_empfaenger
+            (mandant_id, nachricht_id, empfaenger_typ, empfaenger_id, art, erstellt_von)
+          values (${konto.mandant_id}, ${wurzel!.id}, 'benutzer', ${konto.id},
+                  'an', ${konto.id})
+          on conflict do nothing`
+        : sql`
           insert into nachricht_empfaenger
             (mandant_id, nachricht_id, empfaenger_typ, empfaenger_id, art, erstellt_von)
           values (${konto.mandant_id}, ${wurzel!.id}, 'person', ${erste.person_id},
                   'an', ${konto.id})
-          on conflict do nothing`;
-      }
+          on conflict do nothing`);
 
       /* Eine Antwort, damit der Faden ein Faden ist und nicht ein Zettel.
        * `antwortet_auf_id` setzt `trg_thread_id` die Wurzel. */

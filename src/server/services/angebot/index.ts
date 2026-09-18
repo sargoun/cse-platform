@@ -31,7 +31,15 @@ export interface Abfrage {
 export class AngebotFehler extends Error {
   constructor(nachricht: string, readonly grund:
     | 'nicht_gefunden' | 'kein_entwurf' | 'ohne_positionen' | 'schon_gewandelt'
-    | 'unbepreiste_flaeche') {
+    | 'unbepreiste_flaeche'
+    /** Versand ohne Preisfreigabe — der Grund, der die Auftrennung tragt. */
+    | 'ohne_freigabe'
+    /** Preisfreigabe auf Kalkulationswerten, die niemand bestaetigt hat. */
+    | 'kalkulation_offen'
+    /** Eine zweite Preisfreigabe auf derselben Zeile (O-732). */
+    | 'schon_freigegeben'
+    /** Eine Entscheidung auf einem Angebot, das keine tragen kann. */
+    | 'nicht_entscheidbar') {
     super(nachricht);
     this.name = 'AngebotFehler';
   }
@@ -241,6 +249,107 @@ export async function uebernimmKalkulation(
   return nr;
 }
 
+export interface Freigabeergebnis {
+  readonly freigegebenAm: Date;
+  readonly nettoCent: bigint;
+}
+
+/**
+ * **Die Preisfreigabe — ein eigener Vorgang, und darum eine eigene Funktion.**
+ *
+ * Bis hierher setzte `versendeAngebot` `freigegeben_von`, `freigegeben_am`,
+ * `versendet_von` und `versendet_am` in EINEM update. Ein Klick, eine
+ * Entscheidung — nur sind es zwei, und der Rechtekatalog fuehrt sie getrennt:
+ * `angebot.preis_freigeben` haben super_admin und leitung (bindbar an admin),
+ * `angebot.versenden` zusaetzlich admin. Das ist ein Vier-Augen-Schnitt mit
+ * Ausnahmeweg: der Vertrieb schickt hinaus, die Leitung verantwortet den
+ * Preis. Solange ein Klick beides tat, hat eine Administration den Preis
+ * freigegeben, ohne dieses Recht zu halten — auf dem vorgesehenen Weg, also
+ * ohne dass es je wie eine Umgehung aussah.
+ *
+ * Diese Funktion setzt NUR die Freigabe. Den Zeitpunkt stempelt die Datenbank
+ * (`kern.angebot_preisfreigabe_pruefen`, 0295) aus der Serveruhr — Invariante
+ * 5 gilt nicht nur fuer Zeiteintraege. Dort steht auch die Pruefung auf
+ * unbestaetigte Werte und das Recht; hier stehen die benannten Fehler, damit
+ * das Portal lesbare Saetze zeigt statt eines `insufficient_privilege`.
+ *
+ * Gerechnet wird nichts: `netto_cent` kommt zurueck, damit die Seite den
+ * Betrag NENNEN kann, ueber den entschieden wurde (Invariante 6 — die Zahl
+ * entsteht in `verteileNetto`, nicht hier und schon gar nicht im Modell).
+ */
+export async function gibPreisFrei(
+  db: Abfrage, angebotId: string, freigeberBenutzerId: string,
+): Promise<Freigabeergebnis> {
+  /**
+   * `for update` — zwei gleichzeitige Freigaben lesen sonst beide `null` und
+   * die zweite ueberschriebe die erste, also den Namen des Menschen, der
+   * verantwortet hat. Der Ausloeser weist sie ab (O-732); die Sperre laesst
+   * sie stattdessen den benannten Fehler sehen.
+   */
+  const [vorher] = await db.abfrage<{
+    status: string; freigegeben_am: Date | null; netto_cent: string;
+    positionen: string; offen: boolean;
+  }>(
+    `select a.status, a.freigegeben_am, a.netto_cent::text as netto_cent,
+            (select count(*) from angebotsposition p
+              where p.angebot_id = a.id and p.typ = 'leistung')::text as positionen,
+            exists (select 1 from kalkulation_platzhalter kp where kp.angebot_id = a.id)
+              as offen
+       from angebot a where a.id = $1 for update`,
+    [angebotId],
+  );
+  if (vorher === undefined) {
+    throw new AngebotFehler('Angebot nicht gefunden', 'nicht_gefunden');
+  }
+  if (vorher.freigegeben_am !== null) {
+    throw new AngebotFehler(
+      'Der Preis dieses Angebots ist bereits freigegeben', 'schon_freigegeben');
+  }
+  if (vorher.status !== 'entwurf' && vorher.status !== 'in_pruefung') {
+    throw new AngebotFehler(
+      `Ein Angebot im Status ${vorher.status} bekommt keine Preisfreigabe`, 'kein_entwurf');
+  }
+  if (Number(vorher.positionen) === 0) {
+    // Ein Preis ohne Leistungszeile ist kein Preis, sondern eine Ueberschrift.
+    throw new AngebotFehler(
+      'Ein Angebot ohne Position hat keinen Preis, der freizugeben waere',
+      'ohne_positionen');
+  }
+  /**
+   * Die Platzhalterpruefung steht auch im Ausloeser — hier steht sie, damit
+   * der Grund `kalkulation_offen` heisst und nicht `CSE01`. Zwei Stellen,
+   * dieselbe Frage: die erste erklaert, die zweite haelt (Invariante 3, auf
+   * eine Geschaeftsregel angewandt).
+   */
+  if (vorher.offen) {
+    /**
+     * DIESELBE Wortwahl wie der Ausloeser (`kern.angebot_versand_pruefen`:
+     * „Kalkulation enthaelt unbestaetigte Werte"). Zwei Formulierungen fuer
+     * dieselbe Tatsache waeren zwei Dinge, nach denen ein Leser suchen muss —
+     * und im Test zwei Muster, von denen eines irgendwann nicht mehr trifft.
+     */
+    throw new AngebotFehler(
+      'Kalkulation enthaelt unbestaetigte Werte — erst bestaetigen, dann freigeben',
+      'kalkulation_offen');
+  }
+
+  const [nachher] = await db.abfrage<{ freigegeben_am: Date }>(
+    `update angebot
+        set freigegeben_von = $2,
+            freigegeben_am = now()
+      where id = $1
+      returning freigegeben_am`,
+    [angebotId, freigeberBenutzerId],
+  );
+  if (nachher === undefined) {
+    throw new AngebotFehler('Die Freigabe hat keine Zeile getroffen', 'nicht_gefunden');
+  }
+  return {
+    freigegebenAm: nachher.freigegeben_am,
+    nettoCent: BigInt(vorher.netto_cent),
+  };
+}
+
 export interface Versandergebnis {
   readonly angebotsnummer: string;
   readonly versendetAm: Date;
@@ -253,9 +362,16 @@ export interface Versandergebnis {
  * sperrt die Zaehlerzeile), dann das UPDATE. Scheitert das UPDATE — etwa,
  * weil die Kalkulation noch auf Platzhaltern steht —, rollt die Transaktion
  * auch den Zug zurueck, und es entsteht keine Luecke.
+ *
+ * **Seit der Auftrennung setzt er die Freigabe NICHT mehr, er VERLANGT sie.**
+ * `versenderBenutzerId` heisst der Parameter deshalb auch nicht mehr
+ * `freigeberBenutzerId`: wer hier klickt, verantwortet den Weg aus dem Haus,
+ * nicht den Preis. Wer den Preis verantwortet hat, steht in
+ * `freigegeben_von`, und das war moeglicherweise ein anderer Mensch — genau
+ * darum geht es.
  */
 export async function versendeAngebot(
-  db: Abfrage & NummernAbfrage, angebotId: string, freigeberBenutzerId: string,
+  db: Abfrage & NummernAbfrage, angebotId: string, versenderBenutzerId: string,
 ): Promise<Versandergebnis> {
   /**
    * Auch hier `for update`: zwei gleichzeitige Versandversuche lesen sonst
@@ -264,8 +380,10 @@ export async function versendeAngebot(
    * Ausloeser — mit einem Fehler, der nichts erklaert, und einer verbrauchten
    * Nummer. Die Sperre laesst ihn stattdessen den benannten Fehler sehen.
    */
-  const [vorher] = await db.abfrage<{ status: string; positionen: string }>(
-    `select a.status,
+  const [vorher] = await db.abfrage<{
+    status: string; positionen: string; freigegeben_am: Date | null;
+  }>(
+    `select a.status, a.freigegeben_am,
             (select count(*) from angebotsposition p
               where p.angebot_id = a.id and p.typ = 'leistung')::text as positionen
        from angebot a where a.id = $1 for update`,
@@ -283,6 +401,19 @@ export async function versendeAngebot(
     // seine Steuerzeilen entstuenden aus einer leeren Gruppierung.
     throw new AngebotFehler('Ein Angebot ohne Position wird nicht versendet', 'ohne_positionen');
   }
+  /**
+   * **Und keine Nummer ohne Freigabe.**
+   *
+   * Die Pruefung steht VOR `vergebeNummer`. Danach waere sie zwar auch
+   * wirksam — die Transaktion rollte den Zug zurueck —, aber sie liefe auf
+   * eine Zaehlersperre, die andere Versandversuche so lange blockiert. Ein
+   * Fehler, den man vor dem Sperren sieht, kostet niemanden Wartezeit.
+   */
+  if (vorher.freigegeben_am === null) {
+    throw new AngebotFehler(
+      'Ohne Preisfreigabe geht kein Angebot hinaus — erst den Preis freigeben '
+      + '(Recht angebot.preis_freigeben), dann versenden', 'ohne_freigabe');
+  }
 
   const nummer = await vergebeNummer(db as NummernAbfrage, { kreisTyp: 'angebot' });
 
@@ -290,13 +421,11 @@ export async function versendeAngebot(
     `update angebot
         set status = 'versendet',
             angebotsnummer = $2,
-            freigegeben_von = $3,
-            freigegeben_am = now(),
             versendet_von = $3,
             versendet_am = now()
       where id = $1
       returning angebotsnummer, versendet_am`,
-    [angebotId, nummer.formatiert, freigeberBenutzerId],
+    [angebotId, nummer.formatiert, versenderBenutzerId],
   );
   if (nachher === undefined) {
     throw new AngebotFehler('Der Versand hat keine Zeile getroffen', 'nicht_gefunden');
@@ -309,6 +438,15 @@ export interface AuftragAnlegen {
   readonly verantwortlichBenutzerId: string;
   readonly startDatum: string;
   readonly laufzeitBis?: string;
+  /**
+   * WAS der Kunde zugesagt hat, in Worten — `angebot.entscheidung_notiz`.
+   *
+   * Die Spalte gab es von Anfang an und keine Funktion schrieb sie. Sie ist
+   * der Beleg: „telefonisch am 14., schriftlich per Mail vom 15." Ohne sie
+   * steht im Datenbestand ein `angenommen` ohne Anlass, und im Streit um den
+   * Vertragsschluss ist das nichts.
+   */
+  readonly entscheidungNotiz?: string;
 }
 
 /**
@@ -408,10 +546,87 @@ export async function wandleInAuftrag(
   }
 
   await db.abfrage(
-    `update angebot set status = 'angenommen', entschieden_am = now() where id = $1`,
-    [angebotId],
+    `update angebot
+        set status = 'angenommen',
+            entschieden_am = now(),
+            /**
+             * coalesce — eine Notiz, die schon steht, wird nicht geleert.
+             *
+             * Der Weg ueber die Detailseite gibt keine mit; ihn die Notiz der
+             * Annahmeseite ueberschreiben zu lassen, loeschte einen Beleg.
+             */
+            entscheidung_notiz = coalesce($2, entscheidung_notiz)
+      where id = $1`,
+    [angebotId, eingabe.entscheidungNotiz ?? null],
   );
   return { auftragId: auftrag.id, auftragsnummer: auftrag.auftragsnummer };
+}
+
+/**
+ * **Der Gegenfall: der Kunde sagt nein.**
+ *
+ * `wandleInAuftrag` kannte nur den einen Ausgang, und `entscheidung_notiz`
+ * wurde von keiner Funktion beschrieben. Ein Angebot, das abgelehnt wurde,
+ * blieb deshalb auf `versendet` stehen — mitten in der Liste der offenen
+ * Angebote, mit `angebot_ablauf_idx` als Wiedervorlage, bis es irgendwann
+ * ablief. Der Vertrieb sah einen offenen Vorgang, und der Kunde hatte
+ * abgesagt.
+ *
+ * `zurueckgezogen` ist NICHT dasselbe und steht deshalb auch hier zur Wahl:
+ * abgelehnt hat der KUNDE, zurueckgezogen haben WIR. Der CHECK
+ * `angebot_rueckzug_ehrlich` besteht darauf, dass ein zurueckgezogenes
+ * Angebot, das schon draussen war, seinen Freigeber behaelt — ein Rueckzug
+ * loescht nicht, dass der Preis einmal verantwortet wurde.
+ *
+ * Kein Betrag, keine Frist und keine Folge entstehen hier: die Zeile haelt
+ * fest, WAS entschieden wurde und mit welcher Begruendung. Was daraus folgt —
+ * Wiedervorlage, Nachfassangebot, Lead-Status — ist nicht entschieden und
+ * wird deshalb nicht erfunden.
+ */
+export async function entscheideAngebot(
+  db: Abfrage, angebotId: string,
+  eingabe: {
+    readonly ausgang: 'abgelehnt' | 'zurueckgezogen';
+    readonly notiz: string;
+  },
+): Promise<{ readonly status: string; readonly entschiedenAm: Date }> {
+  const [vorher] = await db.abfrage<{ status: string; versendet_am: Date | null }>(
+    `select status, versendet_am from angebot where id = $1 for update`, [angebotId]);
+  if (vorher === undefined) {
+    throw new AngebotFehler('Angebot nicht gefunden', 'nicht_gefunden');
+  }
+  /**
+   * Abgelehnt werden kann nur, was draussen war.
+   *
+   * Ein Entwurf, den der Kunde nie gesehen hat, kann er nicht ablehnen — das
+   * waere ein Ausgang, den niemand erklaert hat. Ein Entwurf wird
+   * zurueckgezogen, und dafuer genuegt `zurueckgezogen`.
+   */
+  if (eingabe.ausgang === 'abgelehnt' && vorher.status !== 'versendet') {
+    throw new AngebotFehler(
+      `Ein Angebot im Status ${vorher.status} kann der Kunde nicht ablehnen`,
+      'nicht_entscheidbar');
+  }
+  if (eingabe.ausgang === 'zurueckgezogen'
+      && !['entwurf', 'in_pruefung', 'versendet'].includes(vorher.status)) {
+    throw new AngebotFehler(
+      `Ein Angebot im Status ${vorher.status} wird nicht zurueckgezogen`,
+      'nicht_entscheidbar');
+  }
+
+  const [nachher] = await db.abfrage<{ status: string; entschieden_am: Date }>(
+    `update angebot
+        set status = $2::angebot_status,
+            entschieden_am = now(),
+            entscheidung_notiz = $3
+      where id = $1
+      returning status::text as status, entschieden_am`,
+    [angebotId, eingabe.ausgang, eingabe.notiz],
+  );
+  if (nachher === undefined) {
+    throw new AngebotFehler('Die Entscheidung hat keine Zeile getroffen', 'nicht_gefunden');
+  }
+  return { status: nachher.status, entschiedenAm: nachher.entschieden_am };
 }
 
 /** Die Flaeche, die eine Kalkulation NICHT erfasst hat — fuer den Hinweis. */

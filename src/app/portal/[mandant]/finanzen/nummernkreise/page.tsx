@@ -306,9 +306,11 @@ export default async function Nummernkreisblatt(
             <strong>Es gibt hier keinen Knopf dafür (O-352).</strong> Wer{' '}
             <code>nummernkreis.verwalten</code> in den drei Gesellschaften hält
             und wer den Jahreswechsel ausführt, ist nicht entschieden — und ein
-            Knopf würde die Rolle erfinden, die ihn auslöst. Dieses Konto hält
-            das Recht {darf['nummernkreis.verwalten'] === true ? '' : 'nicht'};
-            auch mit dem Recht gibt es den Vorgang noch nicht.
+            Knopf würde die Rolle erfinden, die ihn auslöst.{' '}
+            {darf['nummernkreis.verwalten'] === true
+              ? 'Dieses Konto hält nummernkreis.verwalten.'
+              : 'Diesem Konto fehlt nummernkreis.verwalten.'}{' '}
+            Auch mit dem Recht gibt es den Vorgang noch nicht.
           </p>
         </div>
       </section>

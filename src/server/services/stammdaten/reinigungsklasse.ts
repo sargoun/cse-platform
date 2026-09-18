@@ -117,19 +117,21 @@ export interface KlasseEingabe {
  * Der Code ist KEIN Schluessel im Sinne der Personal-Kataloge.
  *
  * `RK1`, `RK 1`, `SAN` — die Tabelle prueft keine Form, weil der Code aus dem
- * Raumbuch des Kunden kommt und dort so aussieht, wie er dort aussieht. Was
- * geprueft wird: er ist da, er ist kurz, und er traegt keinen Randleerraum
+ * Raumbuch des Kunden kommt und dort so aussieht, wie er dort aussieht.
+ * Geprueft wird genau zweierlei: er ist da, und er traegt keinen Randleerraum
  * (der Import vergleicht auf Gleichheit, und `„RK1 "` fand nichts).
+ *
+ * **Auf LAENGE wird nicht geprueft.** `reinigungsklasse.code` ist `text` ohne
+ * CHECK; eine hier erfundene Obergrenze wiese eine echte Kundendatei mit einem
+ * laengeren Code ab — mit einer Zahl, die niemand entschieden hat.
+ *
+ * // TODO(client, O-694): Gibt es eine Hoechstlaenge fuer Belagsart- und
+ * Reinigungsklassen-Codes aus dem Kundenraumbuch — und wenn ja, welche?
  */
 export function pruefeKlasseEingabe(
   lies: (feld: string) => string | null,
 ): KlasseEingabe {
   const code = pflichttext(lies('code'), 'Code');
-  if (code.length > 20) {
-    throw new StammdatenFehler('ungueltig',
-      'Der Code ist höchstens 20 Zeichen lang — er steht in jeder Zeile des '
-      + 'Raumbuchs.');
-  }
   const beschreibung = (lies('beschreibung') ?? '').trim();
   return {
     code,
@@ -140,28 +142,84 @@ export function pruefeKlasseEingabe(
   };
 }
 
+/**
+ * `reinigungsklasse` traegt `trg_reinigungsklasse_geaendert_am`, aber KEINEN
+ * Audit-Ausloeser (`rls.ts`: `belagsart` ja, die Klasse nein). Wer eine Klasse
+ * umbenennt oder archiviert, aendert, was im Leistungsverzeichnis eines
+ * laufenden Auftrags steht — diese Zeile ist die Antwort auf „seit wann heisst
+ * das so".
+ */
+
+/**
+ * Der Spaltensatz, den VORHER und NACHHER im Pruefprotokoll TEILEN.
+ *
+ * **Beide Seiten muessen dasselbe Vokabular sprechen.** `app.protokolliere`
+ * rechnet `geaendert_felder` als „welcher Schluessel von NACHHER steht in
+ * VORHER anders" (0004). Stuende dort das Eingabeobjekt dieser Schicht
+ * (camelCase, dazu Felder wie `i18n` und `plattform`, die gar keine Spalten
+ * sind) gegen eine gelesene Zeile (snake_case), waere jedes nur-camelCase-Feld
+ * immer `distinct` von NULL: das Protokoll meldete bei JEDER Aenderung
+ * dieselben Felder als geaendert, und eine ECHTE Umstellung waere darin nicht
+ * mehr zu erkennen.
+ *
+ * Vorher wird gelesen (`einZeile`), nachher kommt aus dem `returning`
+ * DESSELBEN Satzes. Beide tragen damit die Spaltennamen der Tabelle.
+ */
+const PROTOKOLL_SPALTEN = `code, bezeichnung, beschreibung, sortierung, ist_platzhalter,
+            archiviert_am`;
+
+/**
+ * Die `42501` DIESER Tabelle heisst etwas anderes als im Plattformkatalog.
+ *
+ * `reinigungsklasse` traegt `mandant_id not null` und hat ueberhaupt keine
+ * Plattformstufe — der Satz aus `alsStammdatenFehler` („diese Zeile gehoert
+ * dem Plattformkatalog und wird von der Super-Administration gepflegt")
+ * erklaerte hier eine Stufe, die es nicht gibt, und schickte den Menschen zu
+ * einer Stelle, die ihm nicht helfen kann.
+ *
+ * Der wirkliche Grund ist die Policy `t_mandant` (0021): ihr `using` verlangt
+ * `objekt.lesen`, ihr `with check` `stammdaten.verwalten`. Und weil Postgres
+ * auf das `returning` eines `insert` die SELECT-Seite anwendet, faellt schon
+ * das ANLEGEN mit `42501`, wenn nur das zweite Recht da ist — die Seite
+ * blendet die Formulare deshalb aus, und dieser Satz ist der Rueckhalt fuer
+ * jeden anderen Aufrufer.
+ */
+function alsRechtefehler(fehler: unknown): StammdatenFehler | null {
+  if ((fehler as { code?: unknown }).code !== '42501') return null;
+  return new StammdatenFehler('nicht_gefunden',
+    'Gespeichert wurde nichts. Der Katalog dieser Gesellschaft wird mit '
+    + '`objekt.lesen` gelesen und mit `stammdaten.verwalten` gepflegt (0021) — '
+    + 'Ihrer Rolle fehlt eines der beiden. Eine Plattformstufe hat diese Tabelle '
+    + 'nicht: jede Reinigungsklasse gehört genau einer Gesellschaft.');
+}
+
 export async function legeReinigungsklasseAn(
   kontext: SchreibKontext, e: KlasseEingabe,
 ): Promise<string> {
   try {
-    const [zeile] = await kontext.schreibe<{ id: string }>(
+    const [zeile] = await kontext.schreibe<Record<string, unknown>>(
       `insert into reinigungsklasse
          (mandant_id, code, bezeichnung, beschreibung, sortierung, ist_platzhalter,
           erstellt_von)
        values (app.aktiver_mandant(), $1, $2, $3, $4::int, $5::boolean, $6::uuid)
-       returning id`,
+       returning id, ${PROTOKOLL_SPALTEN}`,
       [e.code, e.bezeichnung, e.beschreibung, e.sortierung, !e.bestaetigt,
         kontext.benutzerId]);
-    const id = zeile?.id;
-    if (id === undefined) {
+    const id = zeile?.['id'];
+    if (typeof id !== 'string') {
       throw new StammdatenFehler('nicht_gefunden',
         'Die Klasse wurde nicht angelegt. Zum Pflegen des Katalogs gehört '
         + 'stammdaten.verwalten in dieser Gesellschaft.');
     }
-    await protokolliere(kontext, 'stammdaten.reinigungsklasse_angelegt', id, null, e);
+    await kontext.schreibe(
+      `select app.protokolliere('stammdaten.reinigungsklasse_angelegt',
+                                'reinigungsklasse', $1, null, $2::jsonb,
+                                app.aktiver_mandant())`,
+      [id, zeile]);
     return id;
   } catch (fehler: unknown) {
-    throw alsStammdatenFehler(fehler, 'diese Gesellschaft') ?? fehler;
+    throw alsRechtefehler(fehler)
+      ?? alsStammdatenFehler(fehler, 'diese Gesellschaft') ?? fehler;
   }
 }
 
@@ -179,24 +237,29 @@ export async function aendereReinigungsklasse(
 ): Promise<void> {
   const vorher = await einZeile(kontext, id);
   try {
-    const [zeile] = await kontext.schreibe<{ id: string }>(
+    const [nachher] = await kontext.schreibe<Record<string, unknown>>(
       `update reinigungsklasse
           set code = $2, bezeichnung = $3, beschreibung = $4, sortierung = $5::int,
               ist_platzhalter = $6::boolean, geaendert_von = $7::uuid
         where id = $1 and archiviert_am is null
-        returning id`,
+        returning ${PROTOKOLL_SPALTEN}`,
       [id, e.code, e.bezeichnung, e.beschreibung, e.sortierung, !e.bestaetigt,
         kontext.benutzerId]);
-    if (zeile === undefined) {
+    if (nachher === undefined) {
       throw new StammdatenFehler(vorher === null ? 'nicht_gefunden' : 'benutzt',
         vorher === null
           ? 'Diese Reinigungsklasse gibt es nicht.'
           : 'Diese Klasse ist archiviert; eine archivierte Klasse wird nicht mehr '
             + 'geändert — sonst änderte sich rückwirkend, was in einem Raumbuch stand.');
     }
-    await protokolliere(kontext, 'stammdaten.reinigungsklasse_geaendert', id, vorher, e);
+    await kontext.schreibe(
+      `select app.protokolliere('stammdaten.reinigungsklasse_geaendert',
+                                'reinigungsklasse', $1, $2::jsonb, $3::jsonb,
+                                app.aktiver_mandant())`,
+      [id, vorher, nachher]);
   } catch (fehler: unknown) {
-    throw alsStammdatenFehler(fehler, 'diese Gesellschaft') ?? fehler;
+    throw alsRechtefehler(fehler)
+      ?? alsStammdatenFehler(fehler, 'diese Gesellschaft') ?? fehler;
   }
 }
 
@@ -213,44 +276,29 @@ export async function archiviereReinigungsklasse(
   kontext: SchreibKontext, id: string,
 ): Promise<void> {
   const vorher = await einZeile(kontext, id);
-  const [zeile] = await kontext.schreibe<{ id: string }>(
+  const [nachher] = await kontext.schreibe<Record<string, unknown>>(
     `update reinigungsklasse
         set archiviert_am = now(), geaendert_von = $2::uuid
       where id = $1 and archiviert_am is null
-      returning id`,
+      returning ${PROTOKOLL_SPALTEN}`,
     [id, kontext.benutzerId]);
-  if (zeile === undefined) {
+  if (nachher === undefined) {
     throw new StammdatenFehler(vorher === null ? 'nicht_gefunden' : 'benutzt',
       vorher === null
         ? 'Diese Reinigungsklasse gibt es nicht.'
         : 'Diese Klasse ist bereits archiviert.');
   }
-  await protokolliere(kontext, 'stammdaten.reinigungsklasse_archiviert', id, vorher, null);
+  await kontext.schreibe(
+    `select app.protokolliere('stammdaten.reinigungsklasse_archiviert',
+                              'reinigungsklasse', $1, $2::jsonb, $3::jsonb,
+                              app.aktiver_mandant())`,
+    [id, vorher, nachher]);
 }
 
 async function einZeile(
   kontext: LeseKontext, id: string,
 ): Promise<Readonly<Record<string, unknown>> | null> {
   const [zeile] = await kontext.abfrage<Record<string, unknown>>(
-    `select code, bezeichnung, beschreibung, sortierung, ist_platzhalter,
-            archiviert_am
-       from reinigungsklasse where id = $1`, [id]);
+    `select ${PROTOKOLL_SPALTEN} from reinigungsklasse where id = $1`, [id]);
   return zeile ?? null;
-}
-
-/**
- * `reinigungsklasse` traegt `trg_reinigungsklasse_geaendert_am`, aber KEINEN
- * Audit-Ausloeser (`rls.ts`: `belagsart` ja, die Klasse nein). Wer eine Klasse
- * umbenennt oder archiviert, aendert, was im Leistungsverzeichnis eines
- * laufenden Auftrags steht — diese Zeile ist die Antwort auf „seit wann heisst
- * das so".
- */
-async function protokolliere(
-  kontext: SchreibKontext, aktion: string, id: string,
-  vorher: unknown, nachher: unknown,
-): Promise<void> {
-  await kontext.schreibe(
-    `select app.protokolliere($1, 'reinigungsklasse', $2, $3::jsonb, $4::jsonb,
-                              app.aktiver_mandant())`,
-    [aktion, id, vorher, nachher]);
 }

@@ -249,3 +249,89 @@ describe('der Elternteil einer OZ — auf SEGMENTGRENZEN, nicht als Zeichenkette
     expect(elternOz('', [])).toBeNull();
   });
 });
+
+describe('die dritte Bedingung der Tabelle: ein Preis nur auf einer Position', () => {
+  it('ein Titel mit Titelsumme behält seinen Platz und verliert den Preis', () => {
+    /*
+     * `lvp_preis_nur_position` (0071) weist `einheitspreis_cent` auf allem
+     * ab, was keine Position ist. Der Leser nahm zwei der drei Bedingungen
+     * vorweg und diese nicht: eine Titelsumme in der EP-Spalte — in
+     * exportierten LV-Tabellen üblich — stand als gültig in der Vorschau,
+     * und die Übernahme brach mit einem Datenbankfehler ab.
+     */
+    const { zeilen } = lese(
+      '1;Los;Rohbau;;;25.000,00;',
+      '1.2;Titel;Mauerwerk;;;12.500,00;',
+      '1.2.9;Position;Mauerwerk 24 cm KS;m2;3,000;12,99;Normalposition',
+    );
+    const [los, titel, position] = zeilen;
+
+    // Der Preis fällt weg — aber die Zeile bleibt, sonst hinge `1.2.9` an
+    // der Wurzel statt unter seinem Titel.
+    expect(los?.einheitspreisCent).toBeNull();
+    expect(titel?.einheitspreisCent).toBeNull();
+    expect(los?.fehler).toEqual([]);
+    expect(titel?.fehler).toEqual([]);
+    expect(titel?.hinweise.join(' ')).toMatch(/nicht übernommen/u);
+    expect(titel?.hinweise.join(' ')).toMatch(/12\.500,00/u);
+
+    // Die Position behält ihren Einheitspreis und bekommt keinen Hinweis.
+    expect(position?.einheitspreisCent).toBe('1299');
+    expect(position?.hinweise).toEqual([]);
+  });
+
+  it('ein unleserlicher Preis bleibt ein FEHLER, auch auf einem Titel', () => {
+    // Hinweis ≠ Fehler: „zwölf" ist keine Zahl, und das ist eine andere
+    // Aussage als „diese Zahl gehört hier nicht hin".
+    const { zeilen } = lese('1.2;Titel;Mauerwerk;;;zwölf;');
+    expect(zeilen[0]?.fehler.join(' ')).toMatch(/kein Einheitspreis/u);
+  });
+});
+
+describe('eine OZ kommt einmal vor', () => {
+  it('die zweite Zeile mit derselben OZ wird ungültig — mit Verweis auf die erste', () => {
+    /*
+     * `lv_position_oz_uk` (0071) ist je Verzeichnis eindeutig. Vorher waren
+     * beide Zeilen gültig, beide standen in der Vorschau, und die Übernahme
+     * brach mitten in der Schleife mit `unique_violation` ab — ein 500 nach
+     * einer grünen Vorschau.
+     */
+    const { zeilen } = lese(
+      '1.1.1;Position;Mauerwerk 24 cm KS;m2;3,000;12,99;Normalposition',
+      '1.1.2;Position;Sturz;St;1,000;9,90;Normalposition',
+      '1.1.1;Position;Mauerwerk 24 cm KS (Wiederholung);m2;4,000;12,99;Normalposition',
+    );
+    expect(zeilen[0]?.fehler).toEqual([]);
+    expect(zeilen[1]?.fehler).toEqual([]);
+    expect(zeilen[2]?.fehler.join(' ')).toMatch(/steht in Zeile 1 schon/u);
+  });
+
+  it('und zwei LEERE OZ ergeben nicht den Vorwurf einer Doppelung', () => {
+    // Die leere OZ hat ihren eigenen Fehler; sie zweimal als „schon vergeben"
+    // zu melden verwischte den eigentlichen Befund.
+    const { zeilen } = lese(';Position;A;m2;1,000;1,00;', ';Position;B;m2;1,000;1,00;');
+    for (const z of zeilen) {
+      expect(z.fehler.join(' ')).toMatch(/Ohne Ordnungszahl/u);
+      expect(z.fehler.join(' ')).not.toMatch(/schon/u);
+    }
+  });
+});
+
+describe('CSV trägt keine Konfidenz — und das ist eine Aussage, keine Lücke', () => {
+  it('jede gelesene Zeile hat `konfidenz: null`', () => {
+    /*
+     * Woraus folgt: eine so entstandene Position gilt NICHT als maschinell
+     * gelesen. `istUngeprueftMaschinell` ist falsch, das Hindernis in
+     * `kern.aufmass_vorlage_pruefen()` (0072) greift nicht, und
+     * `bestaetigeLvPosition` trifft sie nicht — die Bestätigungspflicht
+     * beginnt bei einem EXTRAHIERENDEN Leser (PDF, Bild), den es noch nicht
+     * gibt (O-41). Eine erfundene 100 wäre die Behauptung, ein Modell habe
+     * geprüft.
+     */
+    const { zeilen } = lese(
+      '1.1;Position;A;m2;1,000;12,99;Normalposition',
+      '1.2;Titel;B;;;;',
+    );
+    expect(zeilen.every((z) => z.konfidenz === null)).toBe(true);
+  });
+});

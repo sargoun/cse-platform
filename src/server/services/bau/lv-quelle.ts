@@ -80,7 +80,22 @@ export interface QuellZeile {
    * Modell habe geprueft.
    */
   readonly konfidenz: string | null;
+  /**
+   * Was die Zeile UNGUELTIG macht. Eine Zeile mit Fehler wird nicht
+   * uebernommen — sie faellt aus der neuen Fassung heraus.
+   */
   readonly fehler: readonly string[];
+  /**
+   * Was an der Zeile ANGEPASST wurde, ohne sie zu verwerfen.
+   *
+   * **Der Unterschied ist nicht kosmetisch.** Ein Titel mit einer Titelsumme
+   * in der EP-Spalte ist in exportierten LV-Tabellen ueblich; ihn deshalb
+   * ganz wegzulassen risse ein Loch in den Baum, und seine Positionen
+   * haengten danach eine Ebene zu hoch. Der Preis faellt weg (die Tabelle
+   * verbietet ihn auf allem, was keine Position ist), die Zeile bleibt — und
+   * die Vorschau sagt, was passiert ist, statt es zu verschweigen.
+   */
+  readonly hinweise: readonly string[];
 }
 
 export interface QuellErgebnis {
@@ -275,8 +290,21 @@ export const CSV_QUELLE: LvQuelle = {
       return spalte === undefined ? '' : (zeile[spalte] ?? '').trim();
     };
 
+    /**
+     * **Eine OZ kommt EINMAL vor** — `lv_position_oz_uk` (0071) haelt das je
+     * Verzeichnis als eindeutigen Index fest. Zwei Dateizeilen mit derselben
+     * Ordnungszahl wurden vorher beide als gueltig gelesen und beide in der
+     * Vorschau gezeigt; die Uebernahme brach dann mitten in der Schleife mit
+     * `unique_violation` ab — ein Serverfehler nach einer gruenen Vorschau.
+     * Die ZWEITE Zeile bekommt jetzt ihren Fehler, mit der Zeilennummer der
+     * ersten: welche von beiden gemeint war, entscheidet ein Mensch und
+     * nicht die Reihenfolge in der Datei.
+     */
+    const zeileJeOz = new Map<string, number>();
+
     const zeilen = tabelle.zeilen.map((zeile, index): QuellZeile => {
       const fehler: string[] = [];
+      const hinweise: string[] = [];
       const oz = wert(zeile, 'oz');
       const kurztext = wert(zeile, 'kurztext');
       const einheit = wert(zeile, 'einheit');
@@ -310,6 +338,16 @@ export const CSV_QUELLE: LvQuelle = {
       }
 
       if (oz === '') fehler.push('Ohne Ordnungszahl lässt sich die Zeile nicht einordnen.');
+      if (oz !== '') {
+        const schon = zeileJeOz.get(oz);
+        if (schon === undefined) zeileJeOz.set(oz, index + 1);
+        else {
+          fehler.push(
+            `Ordnungszahl „${oz}" steht in Zeile ${String(schon)} schon — eine OZ gibt `
+            + 'es je Leistungsverzeichnis nur einmal.',
+          );
+        }
+      }
       if (kurztext === '') fehler.push('Ohne Kurztext ist die Zeile keine LV-Zeile.');
       if (art === null) fehler.push('Die Art der Zeile (Los, Titel, Position) ist unklar.');
       /**
@@ -324,6 +362,25 @@ export const CSV_QUELLE: LvQuelle = {
       if (art === 'position' && menge === null) {
         fehler.push('Eine Position braucht eine Vertragsmenge.');
       }
+      /**
+       * Die DRITTE Bedingung derselben Tabelle: `lvp_preis_nur_position`.
+       * Sie fehlte hier, und deshalb endete ein Titel mit Titelsumme in der
+       * EP-Spalte — in exportierten LV-Tabellen ueblich — als unbehandelter
+       * Datenbankfehler bei der Uebernahme, nach einer Vorschau, die die
+       * Zeile als gueltig zeigte. Der Preis faellt weg, die Zeile bleibt:
+       * eine Titelsumme ist kein Einheitspreis, und eine Zeile wegzuwerfen,
+       * an der Positionen haengen, waere der teurere Fehler.
+       */
+      const preisCent = art !== null && art !== 'position' && preis.cent !== null
+        ? null
+        : preis.cent;
+      if (art !== null && art !== 'position' && preis.cent !== null) {
+        hinweise.push(
+          `Der Preis „${wert(zeile, 'preis')}" steht auf einer Zeile der Art `
+          + `„${art}" und wird nicht übernommen — einen Einheitspreis trägt nur eine `
+          + 'Position (Titel- und Losummen rechnet die Anwendung aus den Positionen).',
+        );
+      }
 
       return {
         zeilennummer: index + 1,
@@ -335,10 +392,25 @@ export const CSV_QUELLE: LvQuelle = {
         langtext: wert(zeile, 'langtext') === '' ? null : wert(zeile, 'langtext'),
         einheit: einheit === '' ? null : einheit,
         menge,
-        einheitspreisCent: preis.cent,
-        // CSV ist woertlich gelesen, nicht extrahiert (APR-03).
+        einheitspreisCent: preisCent,
+        /**
+         * **CSV ist woertlich gelesen, nicht extrahiert** (APR-03) — und
+         * deshalb bleibt die Konfidenz `null`.
+         *
+         * Was das BEDEUTET, steht hier, damit es niemand anders herum
+         * erinnert: `konfidenz is null` heisst, die Position gilt NICHT als
+         * maschinell gelesen. `istUngeprueftMaschinell` (lv.ts) ist dann
+         * falsch, `kern.aufmass_vorlage_pruefen()` (0072) haelt sie nicht auf,
+         * die Pille „maschinell gelesen, unbestaetigt" erscheint nicht, und
+         * `bestaetigeLvPosition` trifft sie nicht. Das ist richtig so — eine
+         * Zahl, die woertlich in einer Spalte stand, hat kein Modell geraten
+         * —, aber es heisst auch: die Bestaetigungspflicht greift erst bei
+         * einem EXTRAHIERENDEN Leser (PDF, Bild). Eine erfundene 100 waere
+         * die Behauptung, ein Modell habe geprueft.
+         */
         konfidenz: null,
         fehler,
+        hinweise,
       };
     });
 

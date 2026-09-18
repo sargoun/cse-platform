@@ -242,7 +242,40 @@ begin
    order by k.gilt_ab desc
    limit 1;
 
-  if v_kondition.id is null then return null; end if;
+  /*
+   * **Keine heute gueltige Kondition heisst: der Spiegel wird GELEERT.**
+   *
+   * Hier stand `return null` — und damit blieb der Spiegel auf den alten
+   * Werten stehen, sobald die einzige Kondition mit einem `gilt_bis` in der
+   * Vergangenheit geschlossen wurde. Genau das ist der unbezahlte
+   * Ruhezeitraum, den der Kopf dieser Migration als legitime LUECKE
+   * beschreibt: die Beschaeftigung laeuft, aber keine Kondition gilt. Die
+   * Vertrags- und die Entgeltseite zeigten danach Wochenstunden und
+   * Arbeitstage, die niemand mehr vereinbart hat — sichtbar falsch und nicht
+   * als „nicht hinterlegt" erkennbar. Fuer die GELDzahl ist es folgenlos
+   * (`app.entgelt_lesen` liest die Kondition, nicht den Spiegel); fuer die
+   * Anzeige daneben ist es ein stehengebliebener Wert, und ein
+   * stehengebliebener Wert ist der, dem jemand glaubt.
+   *
+   * `arbeitszeitmodell` traegt `not null default 'unbekannt'` und wird
+   * deshalb auf den Vorgabewert und nicht auf NULL gesetzt — „unbekannt" ist
+   * hier die Wahrheit.
+   */
+  if v_kondition.id is null then
+    update public.anstellung a
+       set arbeitszeitmodell  = 'unbekannt',
+           wochenstunden      = null,
+           arbeitstage_woche  = null,
+           stundensatz_intern = null,
+           tarifgruppe        = null,
+           kostenstelle       = null,
+           geaendert_am       = now()
+     where a.id = new.anstellung_id
+       and (a.wochenstunden is not null or a.arbeitstage_woche is not null
+         or a.stundensatz_intern is not null or a.tarifgruppe is not null
+         or a.kostenstelle is not null or a.arbeitszeitmodell <> 'unbekannt');
+    return null;
+  end if;
 
   update public.anstellung a
      set arbeitszeitmodell  = v_kondition.arbeitszeitmodell,
@@ -280,6 +313,19 @@ create function app.anstellung_kondition_spiegel_nachziehen() returns integer
 language plpgsql security definer set search_path = pg_catalog, public, app as $$
 declare v_heute date := app.berlin_heute(); v_anzahl integer := 0;
 begin
+  /*
+   * `gueltig` liefert je Beschaeftigung die heute geltende Kondition — und
+   * fuer eine Beschaeftigung, deren Konditionen alle geschlossen sind, GAR
+   * KEINE Zeile. Das `update ... from gueltig` traf sie deshalb nie, und ihr
+   * Spiegel blieb auf den Werten der letzten Kondition stehen (dieselbe
+   * Luecke wie im Trigger oben). `leer` ist der zweite Zweig: sie hat
+   * Konditionen, aber keine gueltige, also gehoert der Spiegel geleert.
+   *
+   * Beschaeftigungen OHNE jede Kondition bleiben ausdruecklich unberuehrt —
+   * das ist der Bestand vor 0192, dessen `stundensatz_intern` von Hand
+   * gepflegt wurde; ihn zu leeren hiesse, Daten zu loeschen, die dieser Job
+   * nicht geschrieben hat.
+   */
   with gueltig as (
     select distinct on (k.anstellung_id)
            k.anstellung_id, k.arbeitszeitmodell, k.wochenstunden, k.arbeitstage_woche,
@@ -288,6 +334,22 @@ begin
      where k.gilt_ab <= v_heute
        and (k.gilt_bis is null or k.gilt_bis >= v_heute)
      order by k.anstellung_id, k.gilt_ab desc),
+  leer as (
+    update public.anstellung a
+       set arbeitszeitmodell  = 'unbekannt',
+           wochenstunden      = null,
+           arbeitstage_woche  = null,
+           stundensatz_intern = null,
+           tarifgruppe        = null,
+           kostenstelle       = null,
+           geaendert_am       = now()
+     where exists (select 1 from public.anstellung_kondition k
+                    where k.anstellung_id = a.id)
+       and not exists (select 1 from gueltig g where g.anstellung_id = a.id)
+       and (a.wochenstunden is not null or a.arbeitstage_woche is not null
+         or a.stundensatz_intern is not null or a.tarifgruppe is not null
+         or a.kostenstelle is not null or a.arbeitszeitmodell <> 'unbekannt')
+     returning a.id),
   gesetzt as (
     update public.anstellung a
        set arbeitszeitmodell  = g.arbeitszeitmodell,
@@ -306,7 +368,8 @@ begin
          or a.tarifgruppe        is distinct from g.tarifgruppe
          or a.kostenstelle       is distinct from g.kostenstelle)
      returning a.id)
-  select count(*)::integer into v_anzahl from gesetzt;
+  select (select count(*) from gesetzt) + (select count(*) from leer)
+    into v_anzahl;
   return v_anzahl;
 end $$;
 

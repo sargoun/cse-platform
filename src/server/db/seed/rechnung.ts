@@ -174,6 +174,26 @@ export async function seedRechnungen(
           zahlungszielTage: 14,
           leistungVon: zeitraum.von,
           leistungBis: zeitraum.bis,
+          /*
+           * **BT-81 (BR-DE-1) — ohne sie entsteht aus keinem Beleg eine
+           * XRechnung und kein ZUGFeRD.**
+           *
+           * `zahlungsmittel_code` hat keinen Vorgabewert, und der Seed setzte
+           * ihn nirgends. Die Folge war still und teuer: jeder Demobeleg war
+           * festgeschrieben, gehasht und im Ausgangsbuch — und `belegAusgabe`
+           * antwortete auf JEDEN `unvollstaendig`. Die Knöpfe im Kundenportal
+           * erschienen nie, die beiden Ausgaberouten liefen in keinem
+           * Durchlauf mit, und „seed data exercises it" (CLAUDE.md) war für
+           * den ganzen Ausgabeweg nicht erfüllt.
+           *
+           * `58` ist die SEPA-Überweisung (UNTDID 4461) — die Zahlungsart,
+           * die zu einem Geschäftskonto mit IBAN gehört, und das ist genau,
+           * was der Seed anlegt (BR-DE-13 verlangt dann die IBAN der
+           * Gesellschaft, und sie steht). Ein DEMOWERT wie die Beträge
+           * daneben: welche Zahlungsart eine Gesellschaft je Kunde wirklich
+           * vereinbart, steht im Vertrag und nicht hier.
+           */
+          zahlungsmittelCode: '58',
         });
         for (const p of posten) {
           await fuegePositionHinzu(db, {

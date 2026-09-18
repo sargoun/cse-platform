@@ -20,7 +20,7 @@
  */
 import { mengeAusPostgresOderNull, type MilliMenge } from '../finanz/menge.js';
 import { berlinKalendertag } from '../zeit/dauer.js';
-import type { Flaechenposten } from './richtzeit.js';
+import { sekundenJeDurchgang, type Flaechenposten } from './richtzeit.js';
 
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -121,5 +121,83 @@ export async function ladeKalkulationsgrundlage(
     flaecheOhneBelagsart: ohneBelagsart as MilliMenge,
     fensterflaeche: fenster as MilliMenge,
     ohneGueltigenLeistungswert: fehlend,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Ein EINZELNER Raum
+// ---------------------------------------------------------------------------
+
+/**
+ * Die Kalkulationsgrundlage EINES Raums — fuer das Raumblatt.
+ *
+ * **Warum das nicht `ladeKalkulationsgrundlage` kann.** Die fasst mit
+ * `group by belagsart_id` ueber das GANZE Objekt zusammen und kennt keine
+ * einzelne Raumzeile. Fuer „welche Richtzeit traegt DIESER Raum bei" gab es
+ * deshalb keine Lesequelle — und die Zahl in der Seite selbst zu rechnen
+ * waere genau das, was Invariante 6 verbietet.
+ *
+ * Gelesen wird derselbe Weg wie oben: `app.leistungswerte_lesen`, weil
+ * `belagsart.leistungswert_qm_pro_stunde` der Rolle `cse_app` entzogen ist
+ * (K-05), und mit dem BERLINER Kalendertag als Stichtag (D-93).
+ *
+ * `null` heisst: dieser Raum traegt keine Richtzeit bei — keine Belagsart,
+ * oder ihr Leistungswert gilt am Stichtag nicht. Beides ist eine Luecke und
+ * wird als solche zurueckgegeben, nie als Null-Sekunden: eine Flaeche, die
+ * mit 0 Sekunden in eine Summe eingeht, ist eine Flaeche, die niemand
+ * bezahlt.
+ */
+export interface RaumRichtzeit {
+  readonly posten: Flaechenposten;
+  /** Sekunden fuer EINEN Durchgang ueber die Raumflaeche. */
+  readonly sekundenJeDurchgang: bigint;
+}
+
+export async function ladeRaumRichtzeit(
+  db: Abfrage, raumId: string, stichtag: Date,
+): Promise<{ readonly richtzeit: RaumRichtzeit | null; readonly grund: string | null }> {
+  const [raum] = await db.abfrage<{
+    belagsart_id: string | null; flaeche: string | null;
+  }>(
+    `select belagsart_id, flaeche_qm::text as flaeche
+       from raum where id = $1 and archiviert_am is null`,
+    [raumId],
+  );
+  if (raum === undefined) return { richtzeit: null, grund: 'Raum nicht gefunden' };
+  if (raum.belagsart_id === null) {
+    return {
+      richtzeit: null,
+      grund: 'Dieser Raum trägt keine Belagsart — ohne sie gibt es keinen '
+        + 'Leistungswert und damit keine Richtzeit.',
+    };
+  }
+
+  const katalog = await db.abfrage<KatalogZeile>(
+    `select belagsart_id, bezeichnung, leistungswert_qm_pro_stunde,
+            ist_platzhalter, quelle
+       from app.leistungswerte_lesen($1::date)
+      where belagsart_id = $2`,
+    [berlinKalendertag(stichtag), raum.belagsart_id],
+  );
+  const eintrag = katalog[0];
+  if (eintrag === undefined) {
+    return {
+      richtzeit: null,
+      grund: 'Die Belagsart dieses Raums hat am Stichtag keinen gültigen '
+        + 'Leistungswert (O-17). Seine Fläche fehlt deshalb in jeder Summe.',
+    };
+  }
+
+  const posten: Flaechenposten = {
+    belagsartId: raum.belagsart_id,
+    bezeichnung: eintrag.bezeichnung,
+    flaeche: mengeAusPostgresOderNull(raum.flaeche),
+    leistungswert: mengeAusPostgresOderNull(eintrag.leistungswert_qm_pro_stunde),
+    leistungswertIstPlatzhalter: eintrag.ist_platzhalter,
+    ...(eintrag.quelle === null ? {} : { leistungswertQuelle: eintrag.quelle }),
+  };
+  return {
+    richtzeit: { posten, sekundenJeDurchgang: sekundenJeDurchgang(posten) },
+    grund: null,
   };
 }

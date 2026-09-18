@@ -10,8 +10,8 @@ import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
 import {
-  findeLvPosition, ladeAufmasseJePosition, ladeLvPfad, ladeNachtraegeJePosition,
-  positionsBetragCent, zaehltPositionsartInSumme,
+  findeLvPosition, fundstelleText, ladeAufmasseJePosition, ladeLvPfad,
+  ladeNachtraegeJePosition, positionsBetragCent, zaehltPositionsartInSumme,
   type AufmassAufPosition, type LvAhne, type LvPositionDetail, type NachtragAufPosition,
 } from '@/server/services/bau/lv';
 import { formatiereErgebnis } from '@/server/services/bau/aufmass';
@@ -436,7 +436,7 @@ export default async function LvPositionSeite(
           </p>
         ) : (
           <div className="rounded-lg border border-line bg-surface p-s5">
-            <dl className="m-0 grid grid-cols-2 gap-s4 sm:grid-cols-4">
+            <dl className="m-0 grid grid-cols-2 gap-s4 sm:grid-cols-5">
               <div>
                 <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Konfidenz</dt>
                 <dd className="m-0 mt-s1 tabular-nums text-sm text-text" data-cse="konfidenz">
@@ -447,6 +447,20 @@ export default async function LvPositionSeite(
                 <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Quelle: Seite</dt>
                 <dd className="m-0 mt-s1 tabular-nums text-sm text-text">
                   {p.quelle_seite === null ? '—' : String(p.quelle_seite)}
+                </dd>
+              </div>
+              <div>
+                {/*
+                  * `quelle_bereich` wurde gelesen und nirgends gezeigt — eine
+                  * mitgelesene Spalte ohne Leser. Sie steht jetzt hier: die
+                  * Stelle auf der Seite, an der die Zahl gefunden wurde, ist
+                  * der einzige Weg, eine maschinelle Lesung nachzuprüfen.
+                  */}
+                <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">
+                  Quelle: Fundstelle
+                </dt>
+                <dd className="m-0 mt-s1 text-sm text-text" data-cse="quelle-bereich">
+                  {fundstelleText(p.quelle_bereich) ?? '—'}
                 </dd>
               </div>
               <div>

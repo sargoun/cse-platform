@@ -80,6 +80,18 @@ export const FEHLER_TEXT: Readonly<Record<string, string>> = {
     + 'In einem halben Jahr ist „warum wurde das gestoppt" eine echte Frage.',
   fenster: 'Das Fenster ist inzwischen abgelaufen — zwischen dem Anzeigen des Knopfes und '
     + 'seinem Drücken vergeht Zeit. Eine Korrektur ist jetzt eine NEUE Freigabe (§4.5).',
+  /*
+   * **Ein fehlendes Recht ist kein abgelaufenes Fenster.** Beide Wege kamen
+   * vorher als `?fehler=fenster` zurueck, weil `erhebeEinspruch` jede Absage
+   * der Definer-Funktion in denselben Fehler packte. Der Satz „das Fenster ist
+   * abgelaufen" liess den Menschen dann auf das naechste warten, das ihm nie
+   * geholfen haette: `app.freigabe_einspruch` prueft ZUSAETZLICH das
+   * `erforderliches_recht` der Zeile (Vorgabe `freigabe.entscheiden`), und wer
+   * nur das Einspruchsrecht haelt, kommt daran nicht vorbei.
+   */
+  recht: 'Dafür fehlt ein Recht an dieser Freigabe. Einspruch und Rücknahme verlangen '
+    + 'zusätzlich das Recht, das der Vorgang selbst fordert (Vorgabe: '
+    + 'freigabe.entscheiden) — die eigene Befugnis allein genügt nicht.',
 };
 
 /**

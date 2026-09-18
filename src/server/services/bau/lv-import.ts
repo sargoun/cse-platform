@@ -48,7 +48,7 @@ export class LvImportFehler extends Error {
   constructor(
     readonly grund:
       | 'nicht_gefunden' | 'ungueltige_eingabe' | 'schon_uebernommen' | 'keine_gueltige_zeile'
-      | 'zu_viele_zeilen',
+      | 'zu_viele_zeilen' | 'oz_doppelt',
     nachricht: string,
     status = 409,
   ) {
@@ -56,6 +56,19 @@ export class LvImportFehler extends Error {
     this.name = 'LvImportFehler';
     this.status = status;
   }
+}
+
+/**
+ * Ein Verstoss GEGEN GENAU DIESEN eindeutigen Index — nicht irgendeiner.
+ *
+ * `23505` allein zu pruefen faenge jede spaetere Eindeutigkeit mit ein und
+ * uebersetzte sie in eine Aussage ueber die Ordnungszahl, die nicht stimmt.
+ * Dasselbe Muster wie in `bau/bautagebuch.ts` und `katalog/index.ts`.
+ */
+function istEindeutigkeitsverstoss(fehler: unknown, index: string): boolean {
+  if (typeof fehler !== 'object' || fehler === null) return false;
+  const f = fehler as { code?: unknown; constraint_name?: unknown };
+  return f.code === '23505' && f.constraint_name === index;
 }
 
 /**
@@ -205,6 +218,29 @@ export async function legeLvImportAn(
   );
   const jeOz = new Map(bestand.map((b) => [b.oz, b]));
 
+  /**
+   * **Was in der Datei FEHLT, ist Teil der Vorschau.**
+   *
+   * Die neue Fassung entsteht ausschliesslich aus den Zeilen dieser Datei;
+   * eine Position der aktuellen Fassung, die hier nicht vorkommt, ist damit
+   * gestrichen. Vorher stand das nirgends — weder als Zaehler noch als
+   * Liste —, und eine Teillieferung des Auftraggebers verkuerzte das
+   * Leistungsverzeichnis stillschweigend.
+   *
+   * Gezaehlt werden nur POSITIONEN: ein Titel ohne Positionen ist eine
+   * Gliederungszeile, seine Streichung ist keine Mengenaenderung.
+   *
+   * // TODO(client, O-633): Soll eine Teildatei die Positionen der aktuellen
+   * Fassung, die sie nicht enthaelt, uebernehmen (Fortschreibung) oder
+   * streichen (Ersetzung)?
+   */
+  const inDatei = new Set(
+    gelesen.zeilen.map((z) => z.oz).filter((x): x is string => x !== null),
+  );
+  const fehlendeOz = bestand
+    .filter((b) => b.art === 'position' && !inDatei.has(b.oz))
+    .map((b) => b.oz);
+
   const [kopf] = await kontext.schreibe<{ id: string }>(
     `insert into lv_import (mandant_id, projekt_id, dateiname, format, bezeichnung,
                             status, zeilen_gesamt, zeilen_gueltig, zeilen_fehler,
@@ -215,7 +251,9 @@ export async function legeLvImportAn(
     [
       kontext.aktiverMandantId, eingabe.projektId, eingabe.dateiname, eingabe.format,
       eingabe.bezeichnung,
-      JSON.stringify({ kopfzeile: [...gelesen.kopf], preisVerglichen: preisLesbar }),
+      JSON.stringify({
+        kopfzeile: [...gelesen.kopf], preisVerglichen: preisLesbar, fehlendeOz,
+      }),
     ],
   );
   if (kopf === undefined) {
@@ -237,16 +275,16 @@ export async function legeLvImportAn(
       `insert into lv_import_zeile (mandant_id, import_id, zeilennummer, rohdaten,
                                     oz, art, positionsart, kurztext, langtext, einheit,
                                     menge, einheitspreis_cent, konfidenz,
-                                    ist_gueltig, fehler, aktion, lv_position_id)
+                                    ist_gueltig, fehler, hinweise, aktion, lv_position_id)
        values ($1, $2, $3, $4::text::jsonb, $5, $6::lv_art, $7::lv_positionsart,
                $8, $9, $10, $11::numeric, $12::bigint, $13::numeric,
-               $14, $15::text[], $16::lv_import_zeile_aktion, $17::uuid)`,
+               $14, $15::text[], $16::text[], $17::lv_import_zeile_aktion, $18::uuid)`,
       [
         kontext.aktiverMandantId, kopf.id, zeile.zeilennummer,
         JSON.stringify(zeile.rohdaten),
         zeile.oz, zeile.art, zeile.positionsart, zeile.kurztext, zeile.langtext,
         zeile.einheit, zeile.menge, zeile.einheitspreisCent, zeile.konfidenz,
-        istGueltig, zeile.fehler,
+        istGueltig, zeile.fehler, zeile.hinweise,
         aktion,
         // `aktualisieren` braucht sein Ziel (Bedingung `lviz_aktualisieren_mit_ziel`);
         // bei `anlegen` gibt es keines, und bei `unveraendert` ist es der Beleg,
@@ -289,6 +327,17 @@ export interface LvImportKopf {
   readonly leistungsverzeichnis_id: string | null;
   readonly lv_fassung: number | null;
   readonly preis_verglichen: boolean;
+  /**
+   * Die OZ, die in der AKTUELLEN Fassung stehen und in dieser Datei FEHLEN.
+   *
+   * **Die Vorschau muss auch die Streichungen zeigen.** Die neue Fassung
+   * entsteht ausschliesslich aus den Zeilen der Datei — eine Teillieferung
+   * des Auftraggebers macht aus einem LV mit 27 Positionen eine aktuelle
+   * Fassung mit drei, und ab dann vergleicht der naechste Import gegen diese
+   * verkuerzte. Was die Uebernahme nicht mitnimmt, gehoert deshalb genauso
+   * sichtbar in die Vorschau wie das, was sie anlegt.
+   */
+  readonly fehlende_oz: readonly string[];
 }
 
 export async function findeLvImport(
@@ -305,7 +354,11 @@ export async function findeLvImport(
               as uebernommen_lokal,
             i.leistungsverzeichnis_id, lv.fassung as lv_fassung,
             coalesce((i.fehler_bericht->>'preisVerglichen')::boolean, false)
-              as preis_verglichen
+              as preis_verglichen,
+            coalesce((select array_agg(w::text order by ord)
+                        from jsonb_array_elements_text(
+                               coalesce(i.fehler_bericht->'fehlendeOz', '[]'::jsonb))
+                             with ordinality e(w, ord)), '{}') as fehlende_oz
        from lv_import i
        join projekt p on p.id = i.projekt_id and p.mandant_id = i.mandant_id
        left join leistungsverzeichnis lv on lv.id = i.leistungsverzeichnis_id
@@ -330,7 +383,11 @@ export async function listeLvImporte(
               as uebernommen_lokal,
             i.leistungsverzeichnis_id, lv.fassung as lv_fassung,
             coalesce((i.fehler_bericht->>'preisVerglichen')::boolean, false)
-              as preis_verglichen
+              as preis_verglichen,
+            coalesce((select array_agg(w::text order by ord)
+                        from jsonb_array_elements_text(
+                               coalesce(i.fehler_bericht->'fehlendeOz', '[]'::jsonb))
+                             with ordinality e(w, ord)), '{}') as fehlende_oz
        from lv_import i
        join projekt p on p.id = i.projekt_id and p.mandant_id = i.mandant_id
        left join leistungsverzeichnis lv on lv.id = i.leistungsverzeichnis_id
@@ -355,7 +412,10 @@ export interface LvImportZeileAnzeige {
   readonly einheitspreis_cent: string | null;
   readonly konfidenz: string | null;
   readonly ist_gueltig: boolean;
+  /** Was die Zeile ungueltig macht — sie kommt dann nicht mit. */
   readonly fehler: readonly string[];
+  /** Was an der Zeile angepasst wurde; sie kommt trotzdem mit (0214). */
+  readonly hinweise: readonly string[];
   readonly aktion: LvImportAktion;
   readonly lv_position_id: string | null;
 }
@@ -376,7 +436,7 @@ export async function ladeLvImportZeilen(
             z.positionsart::text as positionsart, z.kurztext, z.langtext, z.einheit,
             z.menge::text as menge,
             app.lv_import_preis_lesen(z.id)::text as einheitspreis_cent,
-            z.konfidenz::text as konfidenz, z.ist_gueltig, z.fehler,
+            z.konfidenz::text as konfidenz, z.ist_gueltig, z.fehler, z.hinweise,
             z.aktion::text as aktion, z.lv_position_id
        from lv_import_zeile z
       where z.import_id = $1
@@ -504,6 +564,41 @@ export async function uebernimmLvImport(
   const sortiert = [...zeilen].sort((a, b) => vergleicheOz(a.oz, b.oz));
   const idJeOz = new Map<string, string>();
   const ozStapel: string[] = [];
+  /**
+   * Gezaehlt wird, was WIRKLICH eingefuegt wurde — nicht `idJeOz.size`.
+   * Die Abbildung traegt je OZ einen Eintrag; sie ist der Elternteilindex und
+   * kein Zaehler, und sobald eine Zeile uebersprungen wird, sagen die beiden
+   * Zahlen Verschiedenes.
+   */
+  let angelegt = 0;
+
+  /**
+   * `lv_position_oz_uk` als Auskunft statt als 500.
+   *
+   * Der Leser faengt doppelte OZ schon beim Lesen der Datei ab; das hier ist
+   * der Restfall — eine Quelle, die anders liest, oder eine spaetere
+   * Aenderung am Parser. Nach dem Verstoss ist die Transaktion abgebrochen,
+   * und das ist richtig: eine halb geschriebene Fassung waere schlimmer als
+   * keine.
+   */
+  const mitOzUebersetzung = async (
+    oz: string, tun: () => Promise<readonly { id: string }[]>,
+  ): Promise<readonly { id: string }[]> => {
+    try {
+      return await tun();
+    } catch (fehler: unknown) {
+      if (istEindeutigkeitsverstoss(fehler, 'lv_position_oz_uk')) {
+        throw new LvImportFehler(
+          'oz_doppelt',
+          `Die Ordnungszahl „${oz}" kommt in dieser Datei mehr als einmal vor. In einem `
+          + 'Leistungsverzeichnis gibt es sie einmal — bitte die Datei bereinigen und '
+          + 'erneut hochladen.',
+          422,
+        );
+      }
+      throw fehler;
+    }
+  };
 
   for (const z of sortiert) {
     const eltern = elternOz(z.oz, ozStapel);
@@ -528,7 +623,7 @@ export async function uebernimmLvImport(
      * Auftraggebers als Vertragspreise, oder werden sie nach der Uebernahme
      * kalkuliert und eingetragen?
      */
-    const [neu] = await kontext.schreibe<{ id: string }>(
+    const [neu] = await mitOzUebersetzung(z.oz, () => kontext.schreibe<{ id: string }>(
       `insert into lv_position (mandant_id, leistungsverzeichnis_id, projekt_id, eltern_id,
                                 oz, art, positionsart, kurztext, langtext, einheit,
                                 menge_vertrag, einheitspreis_cent, konfidenz, erstellt_von)
@@ -542,10 +637,11 @@ export async function uebernimmLvImport(
         z.oz, z.art, z.positionsart, z.kurztext, z.langtext, z.einheit,
         z.menge, z.id, z.konfidenz,
       ],
-    );
+    ));
     if (neu === undefined) continue;
     idJeOz.set(z.oz, neu.id);
     ozStapel.push(z.oz);
+    angelegt += 1;
   }
 
   await kontext.schreibe(
@@ -557,7 +653,7 @@ export async function uebernimmLvImport(
     [importId, lv.id],
   );
 
-  return { leistungsverzeichnisId: lv.id, fassung, angelegt: idJeOz.size, preiseUebernommen };
+  return { leistungsverzeichnisId: lv.id, fassung, angelegt, preiseUebernommen };
 }
 
 /** Verwirft einen Import, ohne etwas zu uebernehmen. */

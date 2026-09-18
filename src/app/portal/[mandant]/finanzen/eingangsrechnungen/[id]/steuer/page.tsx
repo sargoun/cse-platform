@@ -158,8 +158,30 @@ export default async function Steuerblatt(
              on l.mandant_id = er.mandant_id and l.id = er.lieferant_id
           where er.id = $1`, [id]);
       if (kopf === undefined) {
-        return { kopf: null, bescheinigungen: [], jahressumme: null };
+        return { kopf: null, bescheinigungen: [], jahressumme: null, satzBp: null };
       }
+
+      /*
+       * **Der Satz kommt aus der datierten Plattformeinstellung — nicht aus
+       * einer Zahl in dieser Datei.**
+       *
+       * Vorher stand hier `k.bauabzugsteuer_satz_bp ?? 1500`. Die Spalte hat
+       * keinen Default; auf jeder Eingangsrechnung ohne gespeicherten Satz
+       * rechnete die Seite damit 15 % aus dem Nichts — eine Geldzahl, die in
+       * einer Komponente entsteht (Invariante 6).
+       *
+       * 0118 legt den Satz ausdrücklich als Einstellung und nicht als
+       * Konstante ab, und `estg48/abzug.ts` schreibt den Grund hin: Sätze sind
+       * schon bewegt worden, und eine einkompilierte Zahl bewertete am Tag
+       * einer Änderung jede historische Rechnung neu. `services/finanz/
+       * steuerfall.ts` liest sie genauso.
+       *
+       * Gelesen wird in DERSELBEN `withTenant`-Transaktion wie der Beleg —
+       * ein zweiter Verbindungsaufbau könnte einen anderen Stand sehen.
+       */
+      const [satz] = await kontext.abfrage<{ bp: number | null }>(
+        `select (app.plattform_einstellung('finanzen.bauabzugsteuer_satz_bp')
+                 #>> '{}')::int as bp`);
 
       const bescheinigungen = kopf.lieferant_id === null ? [] : await kontext.abfrage<{
         id: string; nummer: string; finanzamt: string;
@@ -211,11 +233,13 @@ export default async function Steuerblatt(
           prognoseGrundlage: summe.prognose_grundlage,
           letzteAktualisierung: summe.letzte_aktualisierung,
         } satisfies Jahressumme,
+        satzBp: satz?.bp ?? null,
       };
     })) as Promise<{
       kopf: Kopf | null;
       bescheinigungen: readonly BescheinigungZeile[];
       jahressumme: Jahressumme | null;
+      satzBp: number | null;
     }>);
 
   const k = daten.kopf;
@@ -253,9 +277,33 @@ export default async function Steuerblatt(
    * Seite (Invariante 6). Der Stichtag ist der, den die Abfrage
    * ausgeschrieben hat; fehlt er ganz, gibt es keine Grundlage und die Lage
    * bleibt `null`.
+   *
+   * **Der Satz: erst der auf dem BELEG gespeicherte, sonst die datierte
+   * Einstellung — und sonst nichts.** Fehlt beides, wird nicht 15 %
+   * angenommen; der Bildschirm sagt „kein Satz hinterlegt" und rechnet nicht.
    */
-  const satzBp = k.bauabzugsteuer_satz_bp ?? 1500;
-  const lage: AbzugLage | null = k.stichtag === null || k.brutto_cent === null
+  const satzBp: number | null = k.bauabzugsteuer_satz_bp ?? daten.satzBp;
+
+  /*
+   * **Ohne `finanzen.lesen` wird hier KEIN Ausgang bestimmt.**
+   *
+   * Die Policy `t_mandant` auf `freistellungsbescheinigung` verlangt
+   * `finanzen.lesen`; diese Route öffnet mit `abrechnung.freistellung_pflegen`.
+   * Ein Konto mit `abrechnung.freistellung_pflegen` und `eingang.lesen`, aber
+   * ohne `finanzen.lesen`, sieht `daten.bescheinigungen` deshalb LEER — nicht
+   * weil keine Bescheinigung vorliegt, sondern weil RLS sie entfernt hat.
+   *
+   * `abzugLage()` daraufhin laufen zu lassen ergäbe „Ausgang 3 — es wird
+   * einbehalten" samt gerechnetem Betrag, während eine am Stichtag gültige
+   * §48b-Bescheinigung im Bestand liegt. Ein Ausgang, der aus einer durch RLS
+   * geleerten Liste entsteht, ist kein Ausgang — er ist eine falsche Auskunft
+   * mit dem Ton einer richtigen. Deshalb ein VIERTER, benannter Zustand und
+   * kein Aufruf (O-604).
+   */
+  const bescheinigungenSichtbar = darf['finanzen.lesen'] === true;
+
+  const lage: AbzugLage | null = !bescheinigungenSichtbar || satzBp === null
+    || k.stichtag === null || k.brutto_cent === null
     ? null
     : abzugLage({
       gegenleistungCent: cent(BigInt(k.brutto_cent)),
@@ -278,16 +326,21 @@ export default async function Steuerblatt(
     ? NULL_CENT : cent(BigInt(daten.jahressumme.gegenleistungCent));
   const bagatellGreiftWuerde = grenze !== null && jahressummeCent < grenze;
 
-  const ausgang: 'bescheinigung' | 'bagatelle' | 'einbehalt' | 'keine_bauleistung' =
-    lage === null
-      ? 'keine_bauleistung'
-      : !k.bauabzugsteuer_pflichtig
-        ? 'keine_bauleistung'
-        : lage.bescheinigungId !== null
-          ? 'bescheinigung'
-          : bagatellGreiftWuerde
-            ? 'bagatelle'
-            : 'einbehalt';
+  const ausgang: 'bescheinigung' | 'bagatelle' | 'einbehalt' | 'keine_bauleistung'
+    | 'nicht_bewertbar' | 'kein_satz' =
+    !bescheinigungenSichtbar
+      ? 'nicht_bewertbar'
+      : satzBp === null
+        ? 'kein_satz'
+        : lage === null
+          ? 'keine_bauleistung'
+          : !k.bauabzugsteuer_pflichtig
+            ? 'keine_bauleistung'
+            : lage.bescheinigungId !== null
+              ? 'bescheinigung'
+              : bagatellGreiftWuerde
+                ? 'bagatelle'
+                : 'einbehalt';
 
   return (
     <PortalRahmen
@@ -397,26 +450,46 @@ export default async function Steuerblatt(
           data-cse="steuer-48"
           data-ausgang={ausgang}
           className={`mb-s3 rounded-lg border p-s5 text-sm ${
-            ausgang === 'einbehalt'
+            ausgang === 'einbehalt' || ausgang === 'nicht_bewertbar'
+              || ausgang === 'kein_satz'
               ? 'border-warning bg-warning-soft text-warning'
               : 'border-line bg-surface text-text'}`}
         >
           <p className="m-0 text-text">
             <strong>
-              {ausgang === 'keine_bauleistung'
-                ? 'Angewandt: §48 EStG greift nicht'
-                : ausgang === 'bescheinigung'
-                  ? 'Angewandt: Ausgang 1 — gültige Freistellungsbescheinigung'
-                  : ausgang === 'bagatelle'
-                    ? 'Angewandt: Ausgang 2 — Jahressumme unter der Bagatellgrenze'
-                    : 'Angewandt: Ausgang 3 — es wird einbehalten'}
+              {ausgang === 'nicht_bewertbar'
+                ? 'Nicht bewertbar — finanzen.lesen fehlt'
+                : ausgang === 'kein_satz'
+                  ? 'Nicht gerechnet — kein Satz hinterlegt'
+                  : ausgang === 'keine_bauleistung'
+                    ? 'Angewandt: §48 EStG greift nicht'
+                    : ausgang === 'bescheinigung'
+                      ? 'Angewandt: Ausgang 1 — gültige Freistellungsbescheinigung'
+                      : ausgang === 'bagatelle'
+                        ? 'Angewandt: Ausgang 2 — Jahressumme unter der Bagatellgrenze'
+                        : 'Angewandt: Ausgang 3 — es wird einbehalten'}
             </strong>
           </p>
           <p className="m-0 mt-s3 max-w-prose">
-            {lage === null
-              ? 'Ohne Stichtag oder ohne Betrag lässt sich nichts entscheiden — '
-                + 'und geraten wird hier nichts.'
-              : lage.grund}
+            {ausgang === 'nicht_bewertbar'
+              ? 'Diesem Konto fehlt finanzen.lesen. Die Policy auf '
+                + 'freistellungsbescheinigung verlangt genau dieses Recht, die '
+                + 'Bescheinigungen dieses Lieferanten sind hier also unsichtbar — '
+                + 'und eine leere Liste hiesse „keine Bescheinigung", während sie '
+                + '„nicht sichtbar" bedeutet. Aus einer durch RLS geleerten Liste '
+                + 'wird hier kein Ausgang bestimmt und kein Einbehalt gerechnet '
+                + '(O-604). Wer entscheidet, braucht das Leserecht.'
+              : ausgang === 'kein_satz'
+                ? 'Auf diesem Beleg steht kein Abzugssatz, und die Einstellung '
+                  + 'finanzen.bauabzugsteuer_satz_bp ist nicht belegt. Beides fehlt — '
+                  + 'also wird nichts gerechnet. 15 % wären hier eine Zahl aus dem '
+                  + 'Nichts, auch wenn sie im Gesetz stehen: der Satz ist eine '
+                  + 'datierte Einstellung, damit eine Änderung nicht jede '
+                  + 'historische Rechnung neu bewertet.'
+                : lage === null
+                  ? 'Ohne Stichtag oder ohne Betrag lässt sich nichts entscheiden — '
+                    + 'und geraten wird hier nichts.'
+                  : lage.grund}
           </p>
           {lage === null ? null : (
             <dl className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-3">
@@ -429,7 +502,17 @@ export default async function Steuerblatt(
               <div>
                 <dt className="text-xs text-text-muted">Satz</dt>
                 <dd className="cse-zahl text-sm text-text">
-                  {(satzBp / 100).toLocaleString('de-DE')} %
+                  {satzBp === null
+                    ? <span className="text-warning">kein Satz hinterlegt</span>
+                    : `${(satzBp / 100).toLocaleString('de-DE')} %`}
+                </dd>
+                <dd className="mt-s1 text-xs text-text-muted">
+                  {k.bauabzugsteuer_satz_bp === null
+                    ? 'Aus der datierten Einstellung finanzen.bauabzugsteuer_satz_bp '
+                      + '— auf dem Beleg selbst steht keiner.'
+                    : 'Der auf dem BELEG gespeicherte Satz. Er gilt, auch wenn die '
+                      + 'Einstellung heute eine andere nennt: gebucht wurde nach dem '
+                      + 'Beleg.'}
                 </dd>
               </div>
               <div>
@@ -623,3 +706,6 @@ export default async function Steuerblatt(
     </PortalRahmen>
   );
 }
+
+// TODO(client, O-604): Welches Recht öffnet die Pflege der §48b-Freistellungsbescheinigung — `abrechnung.freistellung_pflegen` (so das Routenregister), `finanzen.schreiben` (so die Policy auf `freistellungsbescheinigung`) oder `eingang.lesen` (so der Beleg daneben)? Bis zur Antwort pflegt diese Seite nichts und nennt bei fehlendem `finanzen.lesen` den Ausgang ausdrücklich „nicht bewertbar" statt „Einbehalt".
+// TODO(client, O-605): Ist der §13b-Status der EIGENEN Gesellschaft als Leistungsempfängerin als Zeitreihe zu führen (wie `kunde_bauleistender_status` für die Ausgangsseite) — und ab wann gilt eine Änderung? Bis zur Antwort zeigt die Seite den auf dem BELEG gespeicherten Stand und bewertet nicht tagesaktuell neu.

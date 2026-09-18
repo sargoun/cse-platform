@@ -62,7 +62,10 @@ describe('die kanonische Adresse zeigt auf die GESELLSCHAFT', () => {
   });
 });
 
-describe('alle sechs Seitendateien setzen sie', () => {
+describe('alle sechs Seitendateien setzen eine kanonische Adresse', () => {
+  /** Die VIER, die auf die Gesellschaftsadresse zeigen; die beiden
+   *  Leistungsseiten stehen darunter, weil ihre kanonische Adresse sie selbst
+   *  ist. Vier plus zwei sind die sechs des Blocktitels. */
   const SEITEN = [
     'src/app/(public)/news/[slug]/page.tsx',
     'src/app/(public)/en/news/[slug]/page.tsx',

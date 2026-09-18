@@ -13,10 +13,18 @@ import { setzeKondition } from '@/server/services/crm/kondition';
  * `POST /api/crm/kunde/konditionen` — Debitorennummer, Zahlungsziel und
  * Mahnsperre setzen (CRM-01, FIN-15, K-05).
  *
- * **Das Recht hier ist `crm.schreiben`, nicht `crm_entgelt.lesen`.** Die
- * Seite davor öffnet mit dem Leserecht der Kondition; geschrieben wird der
- * Kundenstamm, und dafür gilt die `WITH CHECK`-Klausel von `t_mandant`. Wer
- * eine Zahl sehen darf, darf sie nicht schon setzen.
+ * **Hier stehen ZWEI Rechte, und das ist der Kern.** `crm.schreiben` als
+ * erste Linie für den Kundenstamm (`WITH CHECK` von `t_mandant`), und
+ * `crm_entgelt.lesen` im Dienst für genau diese vier Spalten. Sie sind
+ * `cse_app` spaltenweise entzogen; ohne die zweite Prüfung konnte eine
+ * Sitzung, der die Seite ein 404 zeigt, dieselben Werte über diesen Endpunkt
+ * leeren und bekam „gespeichert" zurück. Der Dienst weist mit benanntem Grund
+ * ab, und der Grund landet über den 303 auf dem Formular — ein 403 als JSON
+ * wäre für ein Formular die falsche Antwort.
+ *
+ * **Ein leeres Feld heisst „löschen", ein FEHLENDES Feld heisst „nicht
+ * anfassen".** Deshalb wird hier `daten.has(...)` gefragt und nicht nur der
+ * Wert gelesen: ein Teilformular darf die übrigen Angaben nicht mitnehmen.
  *
  * Der Handler bleibt dünn: autorisieren, Dienst rufen, 303 zurück auf die
  * Seite — mit dem Grund, wenn es nicht ging (D-599).
@@ -38,10 +46,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(kundeId)) {
     return NextResponse.json({ fehler: 'unbekannte_kennung' }, { status: 404 });
   }
-  const wert = (name: string): string | undefined => {
-    const t = String(daten.get(name) ?? '').trim();
-    return t === '' ? undefined : t;
-  };
+  /*
+   * `undefined` nur, wenn das Feld GAR NICHT übergeben wurde. Ein leeres Feld
+   * kommt als `''` durch und heisst im Dienst „löschen".
+   */
+  const wert = (name: string): string | undefined =>
+    (daten.has(name) ? String(daten.get(name) ?? '').trim() : undefined);
 
   try {
     await db().begin(async (tx: postgres.TransactionSql) =>

@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import Link from 'next/link';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
@@ -8,7 +9,9 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { listeReferenzen, type ReferenzPflegeZeile } from '@/server/services/inhalt/redaktion';
+import { haeltRechte } from '@/app/portal/rechte';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { WebsiteSpruenge } from '../spruenge';
 
 /**
  * `/portal/[mandant]/website/referenzen` — welche Projekte öffentlich stehen
@@ -39,6 +42,17 @@ export default async function WebsiteReferenzen(
   const tor = await mandantTor(`/portal/${mandant}/website/referenzen`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+  /*
+   * **Der Veröffentlichen-Knopf stand hier ohne Rechteprüfung**, nur gegen
+   * `nurLesen` und die Kundenfreigabe. `referenz.veroeffentlichen` hält aber
+   * NUR `super_admin`; ein `admin` sah den Knopf, das POST scheiterte in
+   * `authorize`, und weil die Route nur `RedaktionFehler` fing, endete das in
+   * einem 500. Ein Knopf, dessen Route abweist, ist ein Fehlerbericht mit
+   * Verzögerung (AUT-06) — und ein 500 sagt „mein Fehler", wo „das dürfen Sie
+   * nicht" die Wahrheit ist.
+   */
+  const darf = await haeltRechte(
+    zugang.sitzung, 'referenz.schreiben', 'referenz.veroeffentlichen');
 
   const referenzen = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -56,9 +70,12 @@ export default async function WebsiteReferenzen(
       nurLesen={nurLesen}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
+      aktiverTab="website"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
+      <WebsiteSpruenge mandant={mandant} zweig="referenzen"
+                       sitzung={zugang.sitzung} />
       <h1 className="mb-s4 text-h1 text-text">Referenzen</h1>
       <p className="mb-s5 max-w-[72ch] text-base text-text-muted">
         Ein Projekt geht nur mit schriftlicher Zustimmung des Kunden auf die
@@ -80,7 +97,15 @@ export default async function WebsiteReferenzen(
               schluessel: 'titel', kopf: 'Projekt',
               zelle: (z) => (
                 <span data-cse="referenz" data-slug={z.slug} className="text-sm text-text">
-                  {z.titel}
+                  {darf['referenz.schreiben'] === true ? (
+                    <Link
+                      href={`/portal/${mandant}/website/referenzen/${z.id}`}
+                      className="text-text underline underline-offset-4 hover:text-brand"
+                      data-cse="referenz-bearbeiten"
+                    >
+                      {z.titel}
+                    </Link>
+                  ) : z.titel}
                 </span>
               ),
             },
@@ -113,7 +138,7 @@ export default async function WebsiteReferenzen(
               zelle: (z) => (
                 <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={z.status === 'veroeffentlicht' ? 'Aktiv' : 'Entwurf'} />
-                  {!nurLesen && (
+                  {!nurLesen && darf['referenz.veroeffentlichen'] === true && (
                     <form method="post" action="/api/website/referenzen">
                       <input type="hidden" name="id" value={z.id} />
                       <input type="hidden" name="zurueck" value={zurueck} />
@@ -136,6 +161,22 @@ export default async function WebsiteReferenzen(
                         </span>
                       )}
                     </form>
+                  )}
+                  {/*
+                    * Der Verweis auf die ausführliche Fassung steht nur, wo
+                    * das Recht sie öffnet: `/…/veroeffentlichen` ist im
+                    * Manifest mit `referenz.veroeffentlichen` bewacht, und ein
+                    * Verweis auf einen 404 verrät, dass es dort etwas gibt
+                    * (AUT-06).
+                    */}
+                  {darf['referenz.veroeffentlichen'] === true && (
+                    <Link
+                      href={`/portal/${mandant}/website/referenzen/${z.id}/veroeffentlichen`}
+                      className="text-xs text-text-muted underline underline-offset-2 hover:text-brand"
+                      data-cse="zur-veroeffentlichung"
+                    >
+                      Ausführlich
+                    </Link>
                   )}
                 </span>
               ),

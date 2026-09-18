@@ -93,23 +93,66 @@ const FELDER = `b.id, b.slug, b.titel, b.text, b.art::text as art, b.status::tex
                 b.projekt_id as "projektId", b.referenz_id as "referenzId",
                 b.erstellt_am as "erstelltAm"`;
 
+/**
+ * Die Beitraege — gefiltert nach Stand und, wo gewuenscht, nach ART.
+ *
+ * **Warum der Artenfilter nachgereicht wurde.** `/website/news` zeigt, was auf
+ * `/unternehmen/<bereich>/news` erscheint, und das ist nicht alles: die Grenze
+ * zieht `NEUIGKEITS_ARTEN` (O-548). Ohne diesen Filter haette die
+ * Website-Redaktion dieselbe Liste wie `/social/posts` gesehen — vier
+ * Projektschauen darunter, die auf der Newsseite nie auftauchen. Eine Liste,
+ * die mehr zeigt, als die Seite dahinter fuehrt, ist keine Vorschau.
+ *
+ * `arten` ist absichtlich eine Liste und kein einzelner Wert: die Grenze steht
+ * in EINER Konstante, und die ist mehrelementig.
+ *
+ * **Und warum `mandant_id = app.aktiver_mandant()` hier im DIENST steht und
+ * nicht nur in der Policy.** `beitrag` traegt zwei erlaubende Lesepolicies:
+ * `t_beitrag_lesen` (aktiver Mandant + `social.lesen`) und
+ * `t_beitrag_oeffentlich` (`status = 'veroeffentlicht'`, ohne Mandanten-
+ * bedingung, weil die oeffentliche Seite ohne Sitzung laeuft). Erlaubende
+ * Policies werden ver-ODER-t; eine restriktive SELECT-Decke gibt es auf dieser
+ * Tabelle bewusst nicht (`p_beitrag_decke_*` gilt nur fuer INSERT/UPDATE,
+ * siehe 0163). Eine Abfrage ohne eigene Mandantenbedingung sah damit JEDE
+ * veroeffentlichte Neuigkeit ALLER vier Gesellschaften — gemessen, nicht
+ * vermutet. Invariante 3 sagt dazu den Satz, der hier gilt: RLS ist die
+ * zweite Linie, nie die einzige.
+ */
 export async function listeBeitraege(
-  kontext: LeseKontext, filter: { status?: BeitragStatus } = {},
+  kontext: LeseKontext,
+  filter: { status?: BeitragStatus; arten?: readonly string[] } = {},
 ): Promise<readonly BeitragZeile[]> {
   const status = filter.status ?? null;
+  const arten = filter.arten === undefined ? null : [...filter.arten];
   return kontext.abfrage<BeitragZeile>(
     `select ${FELDER}
        from beitrag b
-      where ($1::text is null or b.status::text = $1)
+      where b.mandant_id = app.aktiver_mandant()
+        and ($1::text is null or b.status::text = $1)
+        and ($2::text[] is null or b.art::text = any($2::text[]))
       order by coalesce(b.veroeffentlicht_am, b.geplant_fuer, b.erstellt_am) desc, b.id`,
-    [status]);
+    [status, arten]);
 }
 
+/**
+ * Ein Beitrag DIESER Gesellschaft — und nur ihrer.
+ *
+ * Die Mandantenbedingung steht aus demselben Grund hier wie in
+ * `listeBeitraege`: `t_beitrag_oeffentlich` liesse jede veroeffentlichte Zeile
+ * durch, gleich welcher Gesellschaft. Eine fremde Kennung ist damit wieder
+ * das, was sie sein muss — `null`, also 404 auf der Seite darueber (AUT-06).
+ *
+ * Der Lauf (`jobs/socialPlan.ts`) faellt nicht darunter: `alsJobSitzung`
+ * bindet `app.mandant_id` auf den Mandanten DES Beitrags, bevor er
+ * `veroeffentliche` ruft.
+ */
 export async function ladeBeitrag(
   kontext: LeseZugriff, id: string,
 ): Promise<BeitragZeile | null> {
   const [z] = await kontext.abfrage<BeitragZeile>(
-    `select ${FELDER} from beitrag b where b.id = $1::uuid`, [id]);
+    `select ${FELDER}
+       from beitrag b
+      where b.id = $1::uuid and b.mandant_id = app.aktiver_mandant()`, [id]);
   return z ?? null;
 }
 
@@ -805,6 +848,22 @@ export async function oeffentlicheBeitraege(
  * // Wenn die Gruppe das anders sieht, ist es diese eine Zeile.
  */
 export const NEUIGKEITS_ARTEN: readonly string[] = ['neuigkeit', 'aktualisierung'];
+
+/**
+ * Welches der beiden Segmente die KANONISCHE Adresse eines Beitrags traegt.
+ *
+ * **Warum das eine Funktion ist und nicht zweimal derselbe Vergleich.**
+ * `/unternehmen/<b>/news/<slug>` und `/unternehmen/<b>/beitraege/<slug>`
+ * liefern dieselbe Zeile — `oeffentlicherBeitragNachSlug` kennt keinen
+ * Artenfilter. Ohne EINE Regel erklaerte die Sitemap die eine Adresse zur
+ * kanonischen und die Seite die andere, und beide waeren indexierbar: genau
+ * die Doppelung, wegen der die kurzen Gesellschaftsadressen einmal geloescht
+ * worden sind (§2.2). Gefragt wird deshalb an einer Stelle, und Sitemap wie
+ * `generateMetadata` fragen dieselbe.
+ */
+export function beitragSegment(art: string): 'news' | 'beitraege' {
+  return NEUIGKEITS_ARTEN.includes(art) ? 'news' : 'beitraege';
+}
 
 /**
  * Die Neuigkeiten EINER Gesellschaft — `/unternehmen/<bereich>/news`.

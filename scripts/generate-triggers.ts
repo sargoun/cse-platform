@@ -104,6 +104,8 @@ export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
   // Kern: Teams, Aufgaben (0230) und die Nachrichtenfaeden (0231).
   '0230': join(WURZEL, 'drizzle/0230_kern_team_aufgabe.sql'),
   '0231': join(WURZEL, 'drizzle/0231_nachricht_faden.sql'),
+  // Dienstplan: der Beleg der Veroeffentlichung (0265).
+  '0265': join(WURZEL, 'drizzle/0265_dienstplan_veroeffentlichung.sql'),
 };
 export const BEGINN = '-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern';
 export const ENDE = '-- >>> Ende des generierten Blocks';

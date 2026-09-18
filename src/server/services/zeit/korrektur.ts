@@ -57,6 +57,25 @@ export interface KorrekturEingabe {
    * nirgends ankommt, ist keine Korrektur (EMP-04, §12.2).
    */
   readonly ausgleichBewegungId?: string | null;
+  /**
+   * Der Einwand, auf den diese Korrektur antwortet (EMP-07, TIM-11).
+   *
+   * **Der Befund, der dieses Feld gebracht hat.** Die Spalte
+   * `zeiteintrag_korrektur.zeit_einwand_id` gibt es seit der Anlage der
+   * Tabelle, mit eigenem Fremdschluessel (`zk_einwand_fk` auf
+   * `zeit_einwand(mandant_id, id)`) — und im ganzen `src/`-Baum schrieb sie
+   * NIEMAND. Gelesen wurde sie: `leseEinwand` haengt daran den Abschnitt
+   * „Ist eine Korrektur gefolgt?" des Einwandblatts. Die Antwort war damit
+   * immer „nein", auch wenn jemand denselben Tag eine Minute spaeter
+   * korrigiert hatte. Eine anerkannte Meldung ohne Korrektur ist der Fall,
+   * den man sehen will — eine Seite, die ihn IMMER zeigt, ist schlimmer als
+   * keine, weil sie aussieht wie eine Antwort.
+   *
+   * Optional, und das ist Absicht: nicht jede Korrektur antwortet auf eine
+   * Meldung. Der Planer, der eine vergessene Abmeldung nachtraegt, hat
+   * keinen Einwand vor sich.
+   */
+  readonly zeitEinwandId?: string | null;
   readonly ipAdresse?: string | null;
 }
 
@@ -202,11 +221,11 @@ export async function korrigiereZeiteintrag(
     `insert into zeiteintrag_korrektur
        (mandant_id, kette_id, ursprung_zeiteintrag_id, ersatz_zeiteintrag_id,
         art, grund_kategorie, begruendung, vorher, nachher,
-        ausgleich_bewegung_id, durchgefuehrt_von, ip_adresse,
+        ausgleich_bewegung_id, zeit_einwand_id, durchgefuehrt_von, ip_adresse,
         erstellt_von_art, erstellt_von)
      select $1, $2, $3, $4::uuid, $5::korrektur_art, $6::korrektur_grund, $7,
             to_jsonb(a), coalesce(to_jsonb(n), '{}'::jsonb),
-            $8::uuid, $9, $10::inet, 'mensch', $9
+            $8::uuid, $11::uuid, $9, $10::inet, 'mensch', $9
        from zeiteintrag a
        left join zeiteintrag n on n.id = $4::uuid
       where a.id = $3
@@ -216,6 +235,7 @@ export async function korrigiereZeiteintrag(
       eingabe.art, eingabe.grundKategorie, eingabe.begruendung,
       eingabe.ausgleichBewegungId ?? null, eingabe.durchgefuehrtVon,
       eingabe.ipAdresse ?? null,
+      eingabe.zeitEinwandId ?? null,
     ],
   );
   if (korrektur === undefined) throw new Error('Die Korrekturzeile wurde nicht geschrieben.');

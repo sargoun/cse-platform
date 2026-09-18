@@ -38,38 +38,107 @@ describe('§ 147 AO — zehn Jahre AB ENDE DES KALENDERJAHRES', () => {
   });
 });
 
+/**
+ * **Beide Funktionen geben denselben Begriff zurück: den ERSTEN Tag, an dem
+ * gelöscht werden darf.**
+ *
+ * Diese Datei hat den Befund vorher eingefroren, statt ihn zu fangen:
+ * `aoFrist` gab den 1. Januar — den Tag NACH dem Fristende —, `milogFrist`
+ * denselben Kalendertag zwei Jahre später, also den LETZTEN Tag der
+ * Aufbewahrung. Beide schreiben in `loeschentscheidung.sperre_faellt_am`. Ein
+ * Test, der zwei Bedeutungen in einer Spalte grün meldet, ist genau der Test,
+ * den niemand mehr liest.
+ */
 describe('§ 17 Abs. 2 MiLoG — zwei Jahre, kalendarisch', () => {
-  it('rechnet vom 15. März 2026 auf den 15. März 2028', () => {
-    expect(milogFrist('2026-03-15')).toBe('2028-03-15');
+  it('rechnet vom 15. März 2026 auf den 16. März 2028', () => {
+    // Zwei volle Jahre enden am 15. März 2028; gelöscht werden darf am 16.
+    expect(milogFrist('2026-03-15')).toBe('2028-03-16');
   });
 
-  it('schiebt den 29. Februar auf den 28., nicht auf den 1. März', () => {
+  it('rundet den 29. Februar AUF den 1. März, nicht ab auf den 28.', () => {
     /*
      * 2024 ist ein Schaltjahr, 2026 nicht. „Zwei Jahre spaeter" hat dann
-     * keinen 29. Februar; der 1. Maerz waere der spaetere und damit der fuer
-     * den Betroffenen unguenstigere Tag.
+     * keinen 29. Februar. Die Vorfassung gab den 28.02.2026 und begruendete
+     * das mit dem Interesse des Betroffenen — die Grenze setzt hier aber die
+     * AUFBEWAHRUNGSPFLICHT: der 28.02. waere ein Tag WENIGER als die
+     * „mindestens zwei Jahre" des § 17 Abs. 2 MiLoG.
      */
-    expect(milogFrist('2024-02-29')).toBe('2026-02-28');
+    expect(milogFrist('2024-02-29')).toBe('2026-03-01');
   });
 
-  it('hält den 29. Februar, wenn das Zieljahr ein Schaltjahr ist', () => {
-    // 2028 ist ein Schaltjahr — hier gibt es den Tag.
-    expect(milogFrist('2026-02-28')).toBe('2028-02-28');
-    expect(milogFrist('2024-03-01')).toBe('2026-03-01');
+  it('geht über den Monats- und den Jahreswechsel', () => {
+    expect(milogFrist('2026-02-28')).toBe('2028-02-29'); // Zieljahr Schaltjahr
+    expect(milogFrist('2024-03-01')).toBe('2026-03-02');
+    expect(milogFrist('2024-01-31')).toBe('2026-02-01');
+    expect(milogFrist('2024-12-31')).toBe('2027-01-01');
   });
 
   it('ist nicht 730 Tage — zwei Jahre ueber einen Schalttag sind 731', () => {
     /*
      * 2023-03-01 + 730 Tage waere der 28. Februar 2025: zwischen den beiden
      * Maerztagen liegt der 29. Februar 2024. Kalendarisch sind zwei Jahre der
-     * 1. Maerz 2025 — ein Tag Unterschied, und der Tag entscheidet, ob eine
-     * Aufzeichnung noch vorzulegen ist.
+     * 1. Maerz 2025, und der erste erlaubte Loeschtag ist der 2. — ein Tag
+     * Unterschied, und der Tag entscheidet, ob eine Aufzeichnung noch
+     * vorzulegen ist.
      */
     const tage = (a: string, b: string): number =>
       Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`))
         / 86_400_000);
-    expect(milogFrist('2023-03-01')).toBe('2025-03-01');
-    expect(tage('2023-03-01', milogFrist('2023-03-01'))).toBe(731);
+    expect(milogFrist('2023-03-01')).toBe('2025-03-02');
+    expect(tage('2023-03-01', milogFrist('2023-03-01'))).toBe(732);
+  });
+
+  it('beide Fristen meinen dasselbe: den ersten erlaubten Löschtag', () => {
+    /*
+     * Die Zusage, an der der Befund haengt. `aoFrist` gibt den 1. Januar nach
+     * zehn vollen Jahren; `milogFrist` den Tag nach zwei vollen Jahren. Beide
+     * Werte landen in DERSELBEN Spalte — steht dort ein Datum, darf ab diesem
+     * Tag geloescht werden, und der Tag davor ist noch Aufbewahrung.
+     */
+    expect(aoFrist('2026-12-31')).toBe('2037-01-01');
+    expect(milogFrist('2026-12-31')).toBe('2029-01-01');
+  });
+});
+
+describe('die offene Aufbewahrungsfrist steht ÜBER den Abschnitten', () => {
+  it('nennt Zahl, O-Nummer und die betroffenen Abschnitte', () => {
+    /*
+     * Der Befund: 12 von 15 Abschnitten trugen „Noch nicht entschieden —
+     * O-514" als AUFBEWAHRUNGSFRIST, und die Datei ging mit `vollstaendig =
+     * true`, Pruefsumme und dem Wort „Vollstaendig" hinaus. Art. 15 Abs. 1
+     * lit. d verlangt die geplante Speicherdauer oder wenigstens die
+     * Kriterien; „noch nicht entschieden" ist beides nicht.
+     */
+    const md = alsMarkdown(auskunft({
+      offeneFristen: ['Stammdaten der Person', 'Anstellungen'],
+      abschnitte: [{
+        schluessel: 'stammdaten', titel: 'Stammdaten der Person',
+        zweck: 'Personalverwaltung', quelle: 'person',
+        frist: 'Noch nicht entschieden — O-514',
+        recht: null, leseweg: 'policy', gesperrt: false, offen: null,
+        kopf: ['Vorname'], zeilen: [['Amira']],
+      }],
+    }));
+    const warnung = md.indexOf('Aufbewahrungsfrist');
+    const erster = md.indexOf('## Stammdaten der Person');
+    expect(warnung).toBeGreaterThan(-1);
+    expect(warnung).toBeLessThan(erster);
+    expect(md).toContain('O-514');
+    expect(md).toContain('2 von 1 Abschnitten');
+    expect(md).toContain('Anstellungen');
+  });
+
+  it('schweigt, wenn jede Frist beziffert ist', () => {
+    const md = alsMarkdown(auskunft({
+      abschnitte: [{
+        schluessel: 'zeiteintrag', titel: 'Arbeitszeitaufzeichnungen',
+        zweck: 'Zeiterfassung', quelle: 'zeiteintrag',
+        frist: '§ 17 Abs. 2 MiLoG — zwei Jahre ab Aufzeichnung',
+        recht: 'zeit.lesen', leseweg: 'policy', gesperrt: false, offen: null,
+        kopf: ['Beginn'], zeilen: [['01.01.2026']],
+      }],
+    }));
+    expect(md).not.toContain('noch nicht entschieden (O-514)');
   });
 });
 
@@ -151,6 +220,7 @@ function auskunft(teile: Partial<Auskunft> = {}): Auskunft {
     betroffener: { art: 'person', id: 'x', name: 'Amira Said', pfad: null },
     abschnitte: [],
     fehlendeRechte: [],
+    offeneFristen: [],
     vollstaendig: true,
     zeilen: 0,
     sha256: 'a'.repeat(64),

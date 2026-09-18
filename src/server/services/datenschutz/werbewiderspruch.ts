@@ -6,10 +6,13 @@
  * nicht vermischt.** `04-SEITENKARTE.md` §2.4 trennt sie ausdrücklich:
  *
  *  - **Werbewiderspruch** (`werbewiderspruch_am`) sperrt `zweck = 'werbung'`.
- *    Rechnungen (FIN-11), Leistungsnachweise (CLN-04),
- *    Terminbestätigungen und Mahnungen (FIN-15) laufen weiter: Kommunikation
- *    zur Durchführung des Vertrags ruht auf Art. 6 Abs. 1 lit. b und lässt
- *    sich nicht wegwidersprechen.
+ *    Rechnungen (FIN-11) und alles andere mit `zweck = 'vertraglich'` laufen
+ *    weiter: Kommunikation zur Durchführung des Vertrags ruht auf Art. 6
+ *    Abs. 1 lit. b und lässt sich nicht wegwidersprechen. Leistungsnachweis
+ *    (CLN-04), Terminbestätigung und Mahnung (FIN-15) sind dagegen als
+ *    `zweck = 'transaktional'` geführt, und `app.darf_kontaktiert_werden`
+ *    weist die bis zur Entscheidung von O-65 ebenfalls ab — der restriktive
+ *    Zweig, nachgemessen im Funktionsrumpf und nicht angenommen.
  *  - **Widerspruch nach Art. 21** (`widerspruch_am`) zwingt über
  *    `kern.erzwinge_widerspruch()` `rechtsgrundlage = 'keine'` — der seltenere,
  *    stärkere Fall.
@@ -40,6 +43,24 @@ export class WiderspruchFehler extends Error {
   }
 }
 
+/**
+ * Zu viele tokenlose Widersprüche von derselben Verbindung.
+ *
+ * **Eine eigene Klasse und kein `WiderspruchFehler` mit anderem Grund**: der
+ * Pflichtweg des § 7 UWG darf darauf keine Fehlerseite zeigen, sondern muss
+ * auf dasselbe Formular mit einer Erklärung zurückführen. Zwei verschiedene
+ * Antworten brauchen zwei verschiedene Fehler, sonst entscheidet ein
+ * Zeichenkettenvergleich über eine gesetzliche Zusage.
+ */
+export class WiderspruchDrossel extends Error {
+  readonly grund = 'zu_viele' as const;
+  readonly status = 429 as const;
+  constructor() {
+    super('Zu viele Widerspruchsversuche von dieser Verbindung.');
+    this.name = 'WiderspruchDrossel';
+  }
+}
+
 /** Die fünf Kanäle des Hauses — dieselben wie `einwilligung_kanaele` (0020). */
 export const KANAELE = ['email', 'telefon', 'sms', 'post', 'whatsapp'] as const;
 export type Kanal = (typeof KANAELE)[number];
@@ -53,10 +74,24 @@ export const ART_TEXT: Readonly<Record<WiderspruchArt, string>> = {
 };
 
 export const ART_WIRKUNG: Readonly<Record<WiderspruchArt, string>> = {
+  /*
+   * **Der Satz sagt jetzt, was die Datenbank tut — nicht, was naheliegt.**
+   *
+   * Hier stand, Leistungsnachweise, Terminbestätigungen und Mahnungen liefen
+   * weiter. Das gilt für `zweck = 'vertraglich'`. Genau diese drei sind aber
+   * als `zweck = 'transaktional'` geführt (0020), und
+   * `app.darf_kontaktiert_werden` weist `transaktional` bei gesetztem
+   * `werbewiderspruch_am` ab — bewusst, als restriktiver Zweig zu O-65. Drei
+   * Abschnitte tiefer sagte derselbe Bildschirm im O-65-Punkt das Gegenteil.
+   */
   werbung:
-    'Sperrt jede Nachricht mit zweck = „werbung“. Rechnungen, '
-    + 'Leistungsnachweise, Terminbestätigungen und Mahnungen laufen weiter — '
-    + 'sie ruhen auf Art. 6 Abs. 1 lit. b und sind nicht widersprechlich.',
+    'Sperrt jede Nachricht mit zweck = „werbung“. Rechnungen und andere '
+    + 'vertraglich notwendige Post (zweck = „vertraglich“) laufen weiter — sie '
+    + 'ruhen auf Art. 6 Abs. 1 lit. b und sind nicht widersprechlich. '
+    + 'Terminbestätigung, Leistungsnachweis und Mahnung sind als '
+    + '„transaktional“ geführt und werden bis zur Entscheidung von O-65 '
+    + 'ebenfalls abgewiesen: im Zweifel der restriktive Zweig, sichtbar statt '
+    + 'still.',
   verarbeitung:
     'Zwingt rechtsgrundlage = „keine“ und löscht Quelle, Erfassungszeitpunkt '
     + 'und Einwilligungskanäle. Damit endet jede werbliche Verarbeitung; '
@@ -144,9 +179,15 @@ export type Einloesung =
   /** Der Widerspruch ist neu erfasst. */
   | { readonly zustand: 'erfasst'; readonly kanal: string | null;
       readonly kontakt: string | null }
-  /** Schon erfasst — der zweite Klick. §2.4: das ist kein Fehler. */
-  | { readonly zustand: 'bereits' }
-  /** Diesen Token gibt es nicht, er ist widerrufen oder abgelaufen. */
+  /** Schon eingelöst — der zweite Klick. §2.4: das ist kein Fehler. */
+  | { readonly zustand: 'verbraucht' }
+  /**
+   * Der Token existiert, ist aber widerrufen oder abgelaufen und wurde NIE
+   * eingelöst. Der Widerspruch ist damit NICHT erfasst — und genau das muss
+   * die Seite sagen, statt „ist bereits erfasst" zu behaupten.
+   */
+  | { readonly zustand: 'ungueltig' }
+  /** Diesen Token gibt es nicht. */
   | { readonly zustand: 'unbekannt' };
 
 /**
@@ -169,9 +210,14 @@ export async function mandantFuerToken(
  *
  * `04-SEITENKARTE.md` §2.4: „a second click on the same link says 'already
  * recorded', never an error". Null Zeilen sind hier deshalb NICHT der 409,
- * sondern die Antwort `bereits`. Eine Fehlerseite auf dem Pflichtweg des § 7
- * UWG wäre ein Widerspruch, der nicht ankam — und der Empfänger hat den
+ * sondern die Antwort `verbraucht`. Eine Fehlerseite auf dem Pflichtweg des
+ * § 7 UWG wäre ein Widerspruch, der nicht ankam — und der Empfänger hat den
  * Beweis in der Hand, dass er geklickt hat.
+ *
+ * **`ungueltig` ist der vierte Zustand und keine Feinheit.** Ein widerrufener
+ * oder abgelaufener Token, der nie eingelöst wurde, gab vorher dieselbe
+ * Antwort wie der zweite Klick — die Seite sagte „ist bereits erfasst" für
+ * einen Widerspruch, der nicht erfasst war.
  */
 export async function loeseEin(
   kontext: SchreibKontext, klartext: string,
@@ -181,7 +227,8 @@ export async function loeseEin(
   }>(`select zustand, kanal, kontakt from app.werbewiderspruch_einloesen($1)`,
     [tokenHash(klartext)]);
   if (z === undefined || z.zustand === 'unbekannt') return { zustand: 'unbekannt' };
-  if (z.zustand === 'bereits') return { zustand: 'bereits' };
+  if (z.zustand === 'verbraucht') return { zustand: 'verbraucht' };
+  if (z.zustand === 'ungueltig') return { zustand: 'ungueltig' };
   return { zustand: 'erfasst', kanal: z.kanal, kontakt: z.kontakt };
 }
 
@@ -197,14 +244,28 @@ export async function loeseEin(
  * immer dieselbe.
  */
 export async function erfasseOhneToken(
-  kontext: SchreibKontext, email: string,
+  kontext: SchreibKontext, email: string, ipAbdruck: string | null,
 ): Promise<void> {
   const sauber = email.trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/iu.test(sauber)) {
     throw new WiderspruchFehler(
       'Bitte prüfen Sie die E-Mail-Adresse.', 'email_ungueltig');
   }
-  await kontext.schreibe(`select app.werbewiderspruch_formular($1)`, [sauber]);
+  try {
+    await kontext.schreibe(
+      `select app.werbewiderspruch_formular($1, $2)`, [sauber, ipAbdruck]);
+  } catch (fehler: unknown) {
+    /*
+     * `54000` ist das Ratenlimit aus `app.werbewiderspruch_drossel`. Es kommt
+     * als Datenbankfehler und nicht als Rückgabewert, weil Zählung und
+     * Schreiben in DERSELBEN Transaktion laufen müssen — getrennt liesse ein
+     * Ansturm beliebig viele Widersprüche zwischen beiden durch.
+     */
+    if ((fehler as { code?: string } | null)?.code === '54000') {
+      throw new WiderspruchDrossel();
+    }
+    throw fehler;
+  }
 }
 
 /* =========================================================================
@@ -330,6 +391,16 @@ export async function protokoll(
 export interface Stand {
   readonly ebene: 'ansprechpartner' | 'kunde';
   readonly betroffenerId: string;
+  /**
+   * Die Firma hinter dem Kontakt — aus DEMSELBEN Definer, nicht aus einem
+   * zweiten `select` auf `ansprechpartner`.
+   *
+   * Der direkte Weg lief unter `t_mandant` und verlangte `crm.lesen`; für eine
+   * Datenschutzbeauftragte ohne CRM-Recht kam dort keine Zeile, und der Haken
+   * „auch auf Ebene der Firma" wirkte still nicht — bei einer unwiderruflichen
+   * Handlung.
+   */
+  readonly kundeId: string | null;
   readonly name: string;
   readonly werbewiderspruchAm: Date | null;
   readonly widerspruchAm: Date | null;
@@ -341,8 +412,8 @@ export async function stand(
 ): Promise<readonly Stand[]> {
   if (ansprechpartnerId === null && kundeId === null) return [];
   return kontext.abfrage<Stand>(
-    `select ebene, betroffener_id as "betroffenerId", name,
-            werbewiderspruch_am as "werbewiderspruchAm",
+    `select ebene, betroffener_id as "betroffenerId", kunde_id as "kundeId",
+            name, werbewiderspruch_am as "werbewiderspruchAm",
             widerspruch_am as "widerspruchAm", rechtsgrundlage
        from app.widerspruch_stand($1::uuid, $2::uuid)`,
     [ansprechpartnerId, kundeId]);

@@ -292,11 +292,31 @@ export async function beendigungsfolgen(
     return Number(z?.n ?? '0');
   };
 
+  /*
+   * **Die Tagesgrenze steht in Berlin, nicht in UTC.**
+   *
+   * `$2::date + interval '1 day'` ergibt einen `timestamp without time zone`;
+   * im Vergleich mit der `timestamptz`-Spalte legt Postgres die SITZUNGSzone
+   * darunter, und die ist UTC. Die Grenze laege damit im Sommer zwei und im
+   * Winter eine Stunde zu spaet — und was herausfiele, waere genau die
+   * Nachtschicht (Invariante 2, Guard 5b in scripts/guards/run-all.ts). Die
+   * Seite meldete „0 Einsätze nach dem Austritt" vor einer Bestaetigung, die
+   * sich nicht zuruecknehmen laesst.
+   *
+   * `::timestamp at time zone 'Europe/Berlin'` macht aus dem Kalendertag den
+   * Instant seiner Berliner Mitternacht — daher `>=` und nicht `>`.
+   *
+   * **`abgesagt` und `ersetzt` binden niemanden mehr.** Sie hier mitzuzaehlen
+   * hiesse, in einer sauberen Lage Alarm zu schlagen; eine Warnung, die immer
+   * steht, wird nicht mehr gelesen. Dasselbe Praedikat wie in
+   * `dienstplan/einteilung.ts` — zwei Stellen duerfen nicht zwei Zahlen nennen.
+   */
   const einsaetze = rechte?.dienstplan === true
     ? await zahl(
       `select count(*)::text as n from einsatz_zuordnung
         where anstellung_id = $1::uuid and entfernt_am is null
-          and beginn_zeitpunkt > ($2::date + interval '1 day')`,
+          and status not in ('abgesagt','ersetzt')
+          and beginn_zeitpunkt >= (($2::date + 1)::timestamp at time zone 'Europe/Berlin')`,
       [anstellungId, austritt])
     : null;
 
@@ -537,6 +557,40 @@ export async function setzeKondition(
   if (eingabe.giltAb < vorher.eintritt) {
     throw new VertragEingabeFehler(
       `Eine Kondition kann nicht vor dem Eintritt (${vorher.eintritt}) gelten.`);
+  }
+
+  /*
+   * **Erst die GESCHLOSSENEN Perioden, dann die offene.**
+   *
+   * `ak_kein_ueberlapp` ist eine GIST-Ausschlussbedingung ueber
+   * `daterange(gilt_ab, gilt_bis, '[]')`. Das Schliessen der offenen Kondition
+   * (unten) faengt nur den Regelfall „die naechste Kondition ab morgen". Wird
+   * eine Kondition RUECKWIRKEND nachgetragen und faellt ihr `gilt_ab` in eine
+   * bereits geschlossene Periode, lief der Insert in den rohen
+   * Datenbankfehler: „conflicting key value violates exclusion constraint
+   * ak_kein_ueberlapp". Die Personalnummernkollision beantwortet dieser Dienst
+   * ausdruecklich mit einem Satz statt mit `23505`; hier fehlte dieselbe
+   * Hoeflichkeit. Der Satz nennt den Zeitraum, der im Weg steht — sonst weiss
+   * niemand, welche Zeile zu schliessen waere.
+   */
+  const [kollision] = await kontext.abfrage<{ gilt_ab: string; gilt_bis: string | null }>(
+    `select to_char(gilt_ab, 'YYYY-MM-DD')  as gilt_ab,
+            to_char(gilt_bis, 'YYYY-MM-DD') as gilt_bis
+       from anstellung_kondition
+      where anstellung_id = $1::uuid
+        and gilt_bis is not null
+        and daterange(gilt_ab, gilt_bis, '[]') @> $2::date
+      order by gilt_ab
+      limit 1`,
+    [eingabe.anstellungId, eingabe.giltAb],
+  );
+  if (kollision !== undefined) {
+    throw new VertragEingabeFehler(
+      `Für den ${eingabe.giltAb} gilt bereits die Kondition vom `
+      + `${kollision.gilt_ab} bis ${kollision.gilt_bis ?? 'offen'}. Zwei `
+      + 'gleichzeitig gültige Sätze wären die Frage, welcher gilt. Eine '
+      + 'rückwirkende Korrektur schliesst zuerst die betroffene Periode — sie '
+      + 'wird nicht überschrieben und nicht gelöscht (Invariante 8).');
   }
 
   const [offen] = await kontext.abfrage<{ id: string; gilt_ab: string }>(

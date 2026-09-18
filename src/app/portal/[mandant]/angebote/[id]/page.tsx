@@ -15,6 +15,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinKalendertag } from '@/server/services/zeit/dauer';
 import { kennungOder404 } from '../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/angebote/[id]` — ein Angebot, seine Positionen und die
@@ -45,6 +46,16 @@ interface Kopf {
   readonly netto_cent: string;
   readonly gueltig_bis: string | null;
   readonly versendet_am: string | null;
+  /**
+   * Seit der Auftrennung ein EIGENER Zustand zwischen Entwurf und Versand.
+   *
+   * `versendeAngebot` setzte `freigegeben_*` und `versendet_*` in einem
+   * UPDATE; der Rechtekatalog fuehrt `angebot.preis_freigeben` (super_admin,
+   * leitung) und `angebot.versenden` (zusaetzlich admin) getrennt. Der Knopf
+   * unten bleibt deshalb gesperrt, solange den Preis niemand verantwortet hat.
+   */
+  readonly freigegeben_am: string | null;
+  readonly freigegeben_von: string | null;
   readonly auftragsnummer: string | null;
   readonly kalkulation_offen: boolean;
   /**
@@ -95,6 +106,15 @@ export default async function AngebotDetail(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+  /**
+   * Die Rechte der drei neuen Nachbarseiten — Preisfreigabe, Versand, Annahme.
+   *
+   * Jede oeffnet mit ihrem eigenen Schluessel (Manifest). Ein Verweis ohne
+   * diese Pruefung fuehrte fuer manche Rollen auf 404 und verriete damit, was
+   * er nicht zeigen darf (AUT-06, D-581).
+   */
+  const darfNachbar = await haeltRechte(
+    sitzung, 'angebot.preis_freigeben', 'angebot.versenden', 'angebot.annahme_erfassen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -105,6 +125,9 @@ export default async function AngebotDetail(
                 to_char(a.gueltig_bis, 'DD.MM.YYYY') as gueltig_bis,
                 to_char(a.versendet_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
                   as versendet_am,
+                to_char(a.freigegeben_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
+                  as freigegeben_am,
+                fb.name as freigegeben_von,
                 (select t.auftragsnummer from auftrag t where t.angebot_id = a.id)
                   as auftragsnummer,
                 exists (select 1 from kalkulation_platzhalter kp where kp.angebot_id = a.id)
@@ -116,6 +139,7 @@ export default async function AngebotDetail(
            from angebot a
            join kunde k on k.id = a.kunde_id
            left join objekt o on o.id = a.objekt_id
+           left join benutzer fb on fb.id = a.freigegeben_von
           where a.id = $1`, [id]);
       if (kopf === undefined) return null;
       const positionen = await kontext.abfrage<PositionZeile>(
@@ -240,6 +264,38 @@ export default async function AngebotDetail(
         </p>
       )}
 
+      {!versendet && kopf.freigegeben_am === null ? (
+        <p
+          data-cse="freigabe-fehlt"
+          className="mb-s5 rounded-md border border-warning bg-warning-soft p-s4 text-sm text-warning"
+        >
+          <strong>Der Preis ist nicht freigegeben.</strong> Das ist ein eigener
+          Vorgang mit eigenem Recht (
+          <code className="text-text">angebot.preis_freigeben</code>) und
+          deshalb nicht derselbe Klick wie der Versand: der Vertrieb schickt
+          hinaus, die Leitung verantwortet den Preis.{' '}
+          {darfNachbar['angebot.preis_freigeben'] === true ? (
+            <Link
+              href={`/portal/${mandant}/angebote/${id}/freigabe`}
+              data-cse="zur-freigabe"
+              className="text-text underline underline-offset-2 hover:text-brand"
+            >
+              Zur Preisfreigabe →
+            </Link>
+          ) : (
+            <>Ihnen fehlt dieses Recht; die Freigabe erklärt die Leitung.</>
+          )}
+        </p>
+      ) : null}
+
+      {!versendet && kopf.freigegeben_am !== null ? (
+        <p data-cse="freigabe-erteilt" className="mb-s5 text-sm text-text">
+          <strong>Preis freigegeben</strong> am {kopf.freigegeben_am}
+          {kopf.freigegeben_von === null ? '' : ` von ${kopf.freigegeben_von}`}.
+          Der Versand ist damit frei.
+        </p>
+      ) : null}
+
       <DataTable
         beschriftung="Positionen dieses Angebots"
         zeilen={positionen}
@@ -339,13 +395,47 @@ export default async function AngebotDetail(
             <button
               type="submit"
               data-cse="versenden"
-              disabled={kopf.kalkulation_offen || !kopf.darf_kalkulation_lesen}
+              /*
+                * Die Freigabe steht MIT in der Bedingung. Ohne sie weist der
+                * Dienst ab („Ohne Preisfreigabe kein Versand") — und ein
+                * Knopf, dessen Route abweist, ist ein Fehlerbericht mit
+                * Verzoegerung.
+                */
+              disabled={kopf.kalkulation_offen || !kopf.darf_kalkulation_lesen
+                || kopf.freigegeben_am === null}
               className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm text-white hover:bg-brand-hover disabled:opacity-50"
             >
               Angebot versenden
             </button>
           </form>
         )}
+
+        {/*
+          * Die Versandseite als LANGER Weg daneben: sie zeigt Empfaenger,
+          * Dokument, die drei Sperren und den Versandkanal. Der Knopf hier ist
+          * der kurze Weg fuer den Fall, dass alles steht — beide laufen durch
+          * denselben Dienst.
+          */}
+        {!versendet && darfNachbar['angebot.versenden'] === true ? (
+          <Link
+            href={`/portal/${mandant}/angebote/${id}/versand`}
+            data-cse="zum-versand"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+          >
+            Versand vorbereiten
+          </Link>
+        ) : null}
+
+        {versendet && kopf.auftragsnummer === null
+          && darfNachbar['angebot.annahme_erfassen'] === true ? (
+            <Link
+              href={`/portal/${mandant}/angebote/${id}/annahme`}
+              data-cse="zur-annahme"
+              className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+            >
+              Entscheidung des Kunden erfassen
+            </Link>
+          ) : null}
 
         {versendet && kopf.auftragsnummer === null && kopf.darf_auftrag_lesen ? (
           <form method="post" action={`/api/angebot?mandant=${mandant}`}>

@@ -63,6 +63,23 @@ create table kern.audit_kette (
   letzte_nr bigint not null default 0,
   letzter_hash text,
   /**
+   * Der Startwert DIESER Kette: der letzte Hash der Vormonatskette in dem
+   * Augenblick, in dem diese Kette entstand. Beim Anlegen gesetzt und danach
+   * nie mehr veraendert (`trg_audit_kette_start_unveraenderlich`).
+   *
+   * **Warum er als eigene Spalte festgehalten wird und nicht jedes Mal neu
+   * aus der Vormonatskette gelesen.** `audit_log.erstellt_am` ist `now()`,
+   * also die STARTZEIT der Transaktion. Eine Transaktion, die am 31.08. um
+   * 23:59:50 beginnt und am 01.09. committet, legt AUGUST-Zeilen ab, nachdem
+   * die Septemberkette schon entstanden ist; `fortschreiben` haengt sie
+   * korrekt an die Augustkette und bewegt deren `letzter_hash`. Wer beim
+   * Nachrechnen den JETZIGEN Augusthash als Startwert naehme, saehe einen
+   * Bruch am ersten Septemberglied — ein falscher Manipulationsalarm auf der
+   * Beweiskette. `start_hash` ist der Wert, gegen den auch tatsaechlich
+   * gehasht wurde, und nur er.
+   */
+  start_hash text,
+  /**
    * Der letzte Hash der Vormonatskette ist der Startwert dieser, sodass die
    * Ketten EINE durchgehende Kette bilden (§6.12). Ohne diesen Verweis
    * koennte ein ganzer Monat entfernt werden, ohne dass eine Kette bricht.
@@ -82,6 +99,7 @@ create table kern.audit_kette (
   constraint ak_partition_form check (partition ~ '^audit_log_\d{4}_\d{2}$'),
   constraint ak_nr_nicht_negativ check (letzte_nr >= 0),
   constraint ak_hash_form check (letzter_hash is null or letzter_hash ~ '^[0-9a-f]{64}$'),
+  constraint ak_start_hash_form check (start_hash is null or start_hash ~ '^[0-9a-f]{64}$'),
   /** Eine leere Kette hat keinen Hash, eine gefuellte hat einen. */
   constraint ak_hash_paarweise check ((letzte_nr = 0) = (letzter_hash is null))
 );
@@ -140,6 +158,31 @@ create trigger trg_audit_kette_kein_hard_delete
 create trigger trg_audit_kette_kein_truncate
   before truncate on kern.audit_kette
   for each statement execute function kern.verhindere_loeschung();
+
+/**
+ * `start_hash`, `partition` und `vorgaenger_kette_id` sind beim Anlegen
+ * gesetzt und danach fest. Eine Kette, deren Startwert sich nachtraeglich
+ * verschieben laesst, laesst sich auch nachtraeglich passend rechnen —
+ * und `app.audit_kette_pruefen` prueft ab jetzt GEGEN diesen Wert.
+ * Fortgeschrieben werden nur `letzte_nr`/`letzter_hash` und die beiden
+ * Befundspalten der Pruefung.
+ */
+create function kern.audit_kette_start_unveraenderlich() returns trigger
+language plpgsql as $$
+begin
+  if new.partition is distinct from old.partition
+     or new.start_hash is distinct from old.start_hash
+     or new.vorgaenger_kette_id is distinct from old.vorgaenger_kette_id
+     or new.erstellt_am is distinct from old.erstellt_am then
+    raise exception 'Der Startwert einer Auditkette ist fest: nur letzte_nr, letzter_hash, geprueft_am und gebrochen_bei sind fortschreibbar'
+      using errcode = 'insufficient_privilege';
+  end if;
+  return new;
+end $$;
+
+create trigger trg_audit_kette_start_unveraenderlich
+  before update on kern.audit_kette
+  for each row execute function kern.audit_kette_start_unveraenderlich();
 
 create trigger trg_audit_kettenglied_kein_hard_delete
   before delete on kern.audit_kettenglied
@@ -208,6 +251,7 @@ declare
   v_zeile record;
   v_partition text;
   v_kette kern.audit_kette;
+  v_vorgaenger_id uuid;
   v_prev text;
   v_nr bigint;
   v_hash text;
@@ -246,15 +290,20 @@ begin
       select * into v_kette from kern.audit_kette k
        where k.partition = v_partition for update;
       if not found then
-        insert into kern.audit_kette (partition, vorgaenger_kette_id)
-        values (v_partition,
-                (select k2.id from kern.audit_kette k2
-                  where k2.partition < v_partition
-                  order by k2.partition desc limit 1))
+        /*
+         * Der Startwert ist der letzte Hash der Vormonatskette (§6.12) — und
+         * er wird MITGESCHRIEBEN, nicht nur benutzt: `app.audit_kette_pruefen`
+         * rechnet spaeter gegen `start_hash`, und der Vormonatskopf kann sich
+         * bis dahin bewegt haben (nachgetragene Zeilen einer Transaktion, die
+         * ueber Mitternacht des Monatswechsels lief).
+         */
+        select k2.id, k2.letzter_hash into v_vorgaenger_id, v_prev
+          from kern.audit_kette k2
+         where k2.partition < v_partition
+         order by k2.partition desc limit 1;
+        insert into kern.audit_kette (partition, vorgaenger_kette_id, start_hash)
+        values (v_partition, v_vorgaenger_id, v_prev)
         returning * into v_kette;
-        /* Der Startwert ist der letzte Hash der Vormonatskette (§6.12). */
-        select k2.letzter_hash into v_prev from kern.audit_kette k2
-         where k2.id = v_kette.vorgaenger_kette_id;
       else
         v_prev := v_kette.letzter_hash;
       end if;
@@ -344,8 +393,21 @@ begin
    */
   if app.ist_readonly() then return; end if;
 
-  select k2.letzter_hash into v_prev from kern.audit_kette k2
-   where k2.id = v_kette.vorgaenger_kette_id;
+  /*
+   * **Der Startwert ist `start_hash`, nicht der JETZIGE Kopf der
+   * Vormonatskette.** Beide sind nur gleich, solange sich der Vormonat nie
+   * mehr bewegt — und das ist nicht garantiert: `audit_log.erstellt_am` ist
+   * die Startzeit der Transaktion, also traegt eine Transaktion ueber den
+   * Monatswechsel Augustzeilen nach, wenn die Septemberkette schon steht.
+   * `fortschreiben` haengt sie richtig an den August und bewegt dessen
+   * `letzter_hash`; ein Pruefer, der von dort ausginge, meldete einen Bruch
+   * am ersten Septemberglied, wo keiner ist. Geprueft wird die Kette IN
+   * SICH, gegen den Wert, gegen den auch gehasht wurde.
+   *
+   * Eine Kette ohne `start_hash` gab es vor dieser Migration nicht; `null`
+   * heisst hier wie beim Fortschreiben „es gab keinen Vormonat".
+   */
+  v_prev := v_kette.start_hash;
 
   for v_zeile in
     select g.ketten_nr, g.vorheriger_hash, g.hash,

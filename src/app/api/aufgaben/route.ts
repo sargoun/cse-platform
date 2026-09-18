@@ -10,7 +10,7 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
 import { withTenant } from '@/server/kontext/index';
 import { istKennung } from '@/app/portal/kennung';
 import {
-  brichAb, erledige, legeAn, setzeStatus, weiseZu,
+  brichAb, erledige, istBezugTyp, legeAn, setzeStatus, weiseZu,
 } from '@/server/services/kern/aufgabe';
 
 /**
@@ -35,6 +35,23 @@ export const dynamic = 'force-dynamic';
 const STAENDE = new Set(['offen', 'in_arbeit', 'wartend']);
 const PRIORITAETEN = new Set(['niedrig', 'normal', 'hoch', 'dringend']);
 const TAG = /^\d{4}-\d{2}-\d{2}$/u;
+
+/**
+ * Ein Kalendertag — Form UND Gültigkeit.
+ *
+ * `TAG` allein liess `9999-99-99` durch, und `::date` in der Datenbank
+ * antwortete darauf mit „date/time field value out of range" — ein 22008, das
+ * keine der drei gefangenen Klassen ist und als 500 endete. Eine
+ * unsinnige Eingabe ist eine 400.
+ */
+function istTag(wert: string): boolean {
+  if (!TAG.test(wert)) return false;
+  const t = Date.parse(`${wert}T00:00:00Z`);
+  if (Number.isNaN(t)) return false;
+  // `Date.parse` normalisiert („2026-02-30" wird der 2. März); der Vergleich
+  // mit dem Eingegebenen weist das ab, statt einen anderen Tag zu speichern.
+  return new Date(t).toISOString().slice(0, 10) === wert;
+}
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
@@ -85,10 +102,26 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             return { art: 'fehler' as const, code: 'prioritaet' };
           }
           const tag = text('faelligDatum');
-          if (tag !== null && !TAG.test(tag)) {
+          if (tag !== null && !istTag(tag)) {
             return { art: 'fehler' as const, code: 'datum' };
           }
+          /*
+           * **Der polymorphe Bezug ist ein PAAR und wird als Paar geprüft.**
+           *
+           * `bezugTyp` lief vorher ungeprüft in `$n::bezug_typ` — ein
+           * `bezugTyp=foo` endete als 22P02 und damit als 500. Und ein Typ
+           * ohne Id verletzt `aufgabe_bezug_paarweise` (23514), also
+           * ebenfalls 500. Beides sind Eingaben und beides sind 400er.
+           */
+          const bezugTyp = text('bezugTyp');
           const bezugId = text('bezugId');
+          if (bezugTyp !== null && !istBezugTyp(bezugTyp)) {
+            return { art: 'fehler' as const, code: 'bezug_typ' };
+          }
+          const bezugKennung = istKennung(bezugId ?? undefined) ? bezugId : null;
+          if ((bezugTyp === null) !== (bezugKennung === null)) {
+            return { art: 'fehler' as const, code: 'bezug_paar' };
+          }
           const neueId = await legeAn(kontext, {
             titel,
             beschreibung: text('beschreibung'),
@@ -103,8 +136,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             auftragId: istKennung(text('auftragId') ?? undefined) ? text('auftragId') : null,
             objektId: istKennung(text('objektId') ?? undefined) ? text('objektId') : null,
             leadId: istKennung(text('leadId') ?? undefined) ? text('leadId') : null,
-            bezugTyp: text('bezugTyp'),
-            bezugId: istKennung(bezugId ?? undefined) ? bezugId : null,
+            bezugTyp,
+            bezugId: bezugKennung,
           });
           return { art: 'neu' as const, id: neueId };
         }

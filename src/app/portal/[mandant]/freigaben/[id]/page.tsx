@@ -506,6 +506,43 @@ export default async function Freigabe(
       </details>
 
       {/*
+        * **Die Eingänge zu den beiden Fensterseiten.** Beide Unterseiten waren
+        * gebaut und von nirgendwo im Portal erreichbar — nur über die
+        * Adresszeile. Sie stehen HIER und nicht nur im jeweiligen
+        * Fensterabschnitt, weil sie gerade dann etwas zu sagen haben, wenn
+        * kein Fenster läuft: sie unterscheiden „verpasst" (abgelaufen) von
+        * „für diese Handlung ist keines armiert" (O-368) und von „in diesem
+        * Stand gibt es nichts anzuhalten". Das eingebettete Formular oben
+        * verschwindet in all diesen Fällen wortlos.
+        *
+        * Jeder Verweis hängt an genau dem Recht, mit dem das Manifest seine
+        * Route bewacht (`freigabe.einspruch_erheben`, `freigabe.rueckgaengig`)
+        * — ein Verweis, der auf 404 führt, verrät, was er nicht zeigen darf
+        * (AUT-06).
+        */}
+      {darfEinspruch || darfRuecknahme ? (
+        <p className="mb-s6 max-w-prose text-sm text-text-muted" data-cse="fensterseiten">
+          Fensterlage im Einzelnen:{' '}
+          {darfEinspruch ? (
+            <Link href={`/portal/${mandant}/freigaben/${id}/einspruch`}
+                  data-cse="zum-einspruch"
+                  className="text-brand underline underline-offset-2">
+              Einspruch (APR-05)
+            </Link>
+          ) : null}
+          {darfEinspruch && darfRuecknahme ? ' · ' : null}
+          {darfRuecknahme ? (
+            <Link href={`/portal/${mandant}/freigaben/${id}/rueckgaengig`}
+                  data-cse="zur-ruecknahme"
+                  className="text-brand underline underline-offset-2">
+              Rücknahme (APR-06)
+            </Link>
+          ) : null}
+          {' '}— mit Countdown in Berliner Zeit und dem Grund, wenn kein Fenster läuft.
+        </p>
+      ) : null}
+
+      {/*
         * **Das Einspruchsfenster (APR-05).** Die Entscheidung ist gefallen, die
         * Ausführung noch nicht — und bis zum Ablauf kann jemand widersprechen.
         * Nach Ablauf steht der Knopf nicht mehr da: ein Knopf, den die

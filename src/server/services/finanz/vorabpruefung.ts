@@ -14,15 +14,23 @@ import 'server-only';
  * hinaus ist eine offene Frage und steht als solche auf der Seite — nicht als
  * leere Rubrik und nicht als erfundene Regel.
  *
- * **`fin.auftrag_erfasste_minuten()` und nie die Sicht `zeiteintrag_auftrag`.**
+ * **`fin.auftraege_ohne_zeit()` und nie die Sicht `zeiteintrag_auftrag`.**
  * Die Sicht läuft mit `security_invoker` (0051): eine Buchhaltung ohne
  * `zeit.lesen` bekäme dort null Minuten — also bei JEDEM Auftrag eine
  * Warnung. Eine Warnung, die immer kommt, wird nach dem dritten Mal ungelesen
  * weggeklickt, und dann ist die eine echte mit weg.
  *
- * Die Funktion gibt eine ZAHL zurück, keine Zeile: die Buchhaltung erfährt,
- * DASS Zeit fehlt, nicht von wem (EMP-13). Deshalb springt jede Zeile dieser
- * Liste in den AUFTRAG und nicht in die Zeiterfassung.
+ * Die Funktion gibt eine MENGE VON AUFTRAGSKENNUNGEN zurück, keine
+ * Zeiteintragszeile und keine Minutenzahl: die Buchhaltung erfährt, DASS Zeit
+ * fehlt, nicht von wem und nicht wie viel (EMP-13). Deshalb springt jede Zeile
+ * dieser Liste in den AUFTRAG und nicht in die Zeiterfassung.
+ *
+ * **Und sie öffnet mit `finanzen.lesen`, dem Recht dieser Route** (0183).
+ * `fin.auftrag_erfasste_minuten()` verlangt `finanzen.festschreiben` — sie
+ * gibt die Zahl heraus, an der die Festschreibung hängt — und warf für eine
+ * Leitung `insufficient_privilege`, sobald ein abgeschlossener Auftrag im
+ * Bestand stand. Die Liste brach also genau dann, wenn sie etwas zu zeigen
+ * hatte.
  */
 
 export interface Abfrage {
@@ -127,32 +135,50 @@ export interface Vorabbefund {
 export async function offenePruefungen(db: Abfrage): Promise<Vorabbefund> {
   const ohneZeit = await db.abfrage<{
     id: string; auftragsnummer: string; bezeichnung: string;
-    kunde: string | null; datum: string | null; minuten: string;
+    kunde: string | null; datum: string | null;
   }>(
     /*
-     * `fin.auftrag_erfasste_minuten()` steht im SELECT und nicht im WHERE, und
-     * gefiltert wird erst darum herum: als Bedingung im WHERE ruft Postgres
-     * die Funktion je Kandidat ein zweites Mal, sobald der Planer die Zeile
-     * auch ausgeben will. Hier läuft sie genau einmal je Auftrag.
+     * **`fin.auftraege_ohne_zeit()` und NICHT `fin.auftrag_erfasste_minuten()`
+     * — weil diese Seite mit `finanzen.lesen` öffnet.**
      *
-     * Ein STORNIERTER Auftrag oder einer ohne Abrechnungsart steht nicht
-     * darin: FIN-18 fragt nach abgerechneter Leistung, und was nicht
-     * abgerechnet wird, hat keine zu erfassende Zeit.
+     * Die Minutenfunktion verlangt `finanzen.festschreiben` und wirft sonst
+     * `insufficient_privilege`. In der Rollenmatrix hält `leitung` nur
+     * `finanzen.lesen`; die Liste lief für eine Leitung also genau so lange,
+     * wie es KEINEN abgeschlossenen Auftrag gab, und brach in dem Moment, in
+     * dem sie etwas zu zeigen hatte. Das ist die teuerste Sorte Fehler: er
+     * entsteht bei der Abnahme nicht und beim Kunden sofort.
+     *
+     * `fin.auftraege_ohne_zeit()` (0183) gibt dafür eine MENGE VON
+     * AUFTRAGSKENNUNGEN heraus und keine Minutenzahl — die Ja/Nein-Auskunft,
+     * die diese Liste braucht. EMP-13 bleibt damit gewahrt: es verlässt keine
+     * Zeiteintragszeile und keine Personenkennung den Dienst. Die Minutenzahl
+     * bleibt hinter `finanzen.festschreiben`, weil an ihr die Festschreibung
+     * samt ihrer protokollierten Übergehung hängt.
+     *
+     * Ein STORNIERTER Auftrag steht nicht darin — das sagt jetzt die
+     * Funktion und nicht nur dieser Kommentar (0183 begründet es).
+     *
+     * **`sortiertag` ist der Sortierschlüssel, `datum` nur die Anzeige.**
+     * Vorher wurde nach der deutsch formatierten Zeichenkette `DD.MM.YYYY`
+     * sortiert; „31.01.2024" stand damit vor „01.12.2025" und die Liste war
+     * nach dem Tag im Monat geordnet.
      */
     `with abgeschlossen as (
        select a.id::text as id, a.auftragsnummer, a.bezeichnung,
               k.name as kunde,
+              coalesce(a.abgeschlossen_am,
+                       (a.erstellt_am at time zone 'Europe/Berlin')::date)
+                as sortiertag,
               to_char(coalesce(a.abgeschlossen_am,
                                (a.erstellt_am at time zone 'Europe/Berlin')::date),
-                      'DD.MM.YYYY') as datum,
-              fin.auftrag_erfasste_minuten(a.id)::text as minuten
+                      'DD.MM.YYYY') as datum
          from auftrag a
+         join fin.auftraege_ohne_zeit() o on o = a.id
          left join kunde k on k.mandant_id = a.mandant_id and k.id = a.kunde_id
-        where a.status = 'abgeschlossen' or a.abgeschlossen_am is not null
      )
-     select * from abgeschlossen
-      where minuten::bigint = 0
-      order by datum desc nulls last, auftragsnummer`);
+     select id, auftragsnummer, bezeichnung, kunde, datum
+       from abgeschlossen
+      order by sortiertag desc nulls last, auftragsnummer`);
 
   const ohneRechnung = await db.abfrage<{
     id: string; auftragsnummer: string; bezeichnung: string;
@@ -163,12 +189,19 @@ export async function offenePruefungen(db: Abfrage): Promise<Vorabbefund> {
      * Entwurf zählt nicht — er ist der Satz, der bezeugt, dass hier keine
      * Rechnung entstanden ist, und genau dann gehört der Auftrag wieder in
      * diese Liste.
+     *
+     * Ein STORNIERTER Auftrag steht auch hier nicht darin, und zwar
+     * ausgeschrieben statt behauptet: `auftrag_status` führt `storniert` als
+     * eigenen Wert, und der CHECK aus 0025 räumt `abgeschlossen_am` beim
+     * Stornieren nicht. Ein Auftrag, der nie abgerechnet werden soll, gehört
+     * nicht auf eine Liste, die die Buchhaltung abarbeiten soll.
      */
     `select a.id::text as id, a.auftragsnummer, a.bezeichnung, k.name as kunde,
             to_char(a.abgeschlossen_am, 'DD.MM.YYYY') as datum
        from auftrag a
        left join kunde k on k.mandant_id = a.mandant_id and k.id = a.kunde_id
-      where (a.status = 'abgeschlossen' or a.abgeschlossen_am is not null)
+      where a.status <> 'storniert'
+        and (a.status = 'abgeschlossen' or a.abgeschlossen_am is not null)
         and not exists (select 1 from rechnung r
                          where r.mandant_id = a.mandant_id
                            and r.auftrag_id = a.id

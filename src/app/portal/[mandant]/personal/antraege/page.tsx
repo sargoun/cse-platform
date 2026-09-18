@@ -55,7 +55,8 @@ export default async function Antragseingang(
      führte der Knopf auf 404 und verriet, was er nicht zeigen darf
      (Copilot-Runde auf PR 16 / D-581). */
   const darf = await haeltRechte(
-    sitzung, 'zeit.abwesenheit_lesen', 'zeit.konto_lesen', 'personal.nachweis_lesen');
+    sitzung, 'zeit.abwesenheit_lesen', 'zeit.konto_lesen', 'personal.nachweis_lesen',
+    'stammdaten.verwalten');
 
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => listeOffeneAntraege(kontext)),
@@ -122,6 +123,27 @@ export default async function Antragseingang(
         des Jahres. Welche Wochentage als Arbeitstage gelten, ist noch nicht
         entschieden — ausgeliefert ist Montag bis Freitag (O-18).
       </p>
+      {/* Rechtegeprueft (AUT-06): ohne `stammdaten.verwalten` fuehrte der
+        * Verweis auf 404. Welche Felder ein Antrag verlangt und ob seine
+        * Genehmigung eine Abwesenheit schreibt, entscheidet die ANTRAGSART —
+        * die Frage entsteht hier, die Antwort steht im Katalog. */}
+      {darf['stammdaten.verwalten'] === true ? (
+        <p className="mt-s4 max-w-prose text-sm text-text-muted">
+          Welche Felder eine Antragsart verlangt und ob ihre Genehmigung eine
+          Abwesenheit schreibt, steht in den{' '}
+          <Link href={`/portal/${mandant}/stammdaten/antragsarten`}
+                className="text-text underline-offset-2 hover:text-brand hover:underline">
+            Antragsarten
+          </Link>
+          {' '}— und welche Abwesenheitsart dabei bezahlt wird, in den{' '}
+          <Link href={`/portal/${mandant}/stammdaten/abwesenheitsarten`}
+                className="text-text underline-offset-2 hover:text-brand hover:underline">
+            Abwesenheitsarten
+          </Link>
+          .
+        </p>
+      ) : null}
+
     </PortalRahmen>
   );
 }

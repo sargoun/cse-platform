@@ -239,6 +239,60 @@ describe('(4) der Aufloeser (Invariante 9)', () => {
   });
 });
 
+describe('(4b) der Aufloeser wird auch GERUFEN — sonst ist er Zierde', () => {
+  it('die ArbZG-Leser aggregieren ueber `app.person_identitaeten` (Invariante 9)', async () => {
+    /*
+     * **Der Befund, den dieser Fall einfriert.** Zeiger und Aufloeser waren
+     * gebaut, und niemand rief den Aufloeser: im ganzen Anwendungscode kam er
+     * nur in Kommentaren vor. Die Zusammenfuehrung setzte damit einen Zeiger,
+     * dem kein Lesepfad folgte — die ArbZG-Belastung blieb auf zwei Schluessel
+     * verteilt, und die Grenze, wegen der die Aggregation existiert, wurde nie
+     * erreicht. Die Oberflaeche behauptete das Gegenteil.
+     *
+     * Geprueft wird die DEFINITION und nicht nur das Verhalten: die Stelle,
+     * an der `f.person_id = p_person` stand, ist genau die, die beim naechsten
+     * Umbau versehentlich zurueckfaellt.
+     */
+    for (const [schema, name] of [
+      ['app', 'arbzg_belastung'], ['zeit_intern', 'arbzg_belastung_job'],
+    ] as const) {
+      const [z] = await sql.unsafe<{ nutzt: boolean; roh: boolean }[]>(
+        `select position('person_identitaeten' in pg_get_functiondef(p.oid)) > 0 as nutzt,
+                position('f.person_id = p_person' in pg_get_functiondef(p.oid)) > 0 as roh
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname = $1 and p.proname = $2`, [schema, name]);
+      expect(z?.nutzt, `${schema}.${name} ruft den Aufloeser nicht`).toBe(true);
+      expect(z?.roh, `${schema}.${name} filtert noch roh auf person_id`).toBe(false);
+    }
+  });
+
+  it('die Vorbedingung von `app.arbzg_belastung` folgt dem Zeiger', async () => {
+    /*
+     * Die Beschaeftigung haengt nach einer Zusammenfuehrung an der DUBLETTE
+     * (die Geschichte wird nicht umgehaengt). Die Seite haelt die fuehrende
+     * Kennung in der Hand. Ohne den Aufloeser in der Vorbedingung wies die
+     * Funktion diese berechtigte Anfrage mit 42501 ab.
+     */
+    await als(darfMergen, (tx) =>
+      tx`select app.person_zusammenfuehren(${dublette}, ${f.fatima}, 'Doppelt')`);
+    const pruefer = await konto('arbzg');
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+      [pruefer, f.reinigung, await rolleMit(f.reinigung, 'arbzg', [
+        'personal.lesen', 'dienstplan.arbzg_pruefen',
+      ])]);
+    /* Fatimas eigene Reinigungs-Beschaeftigung wegnehmen: es bleibt nur die
+       der Dublette, und genau die soll der Aufloeser finden. */
+    await sql.unsafe(
+      `update anstellung set geloescht_am = now() where id = $1`, [f.fatimaReinigung]);
+
+    const zeilen = await als(pruefer, (tx) =>
+      tx`select * from app.arbzg_belastung(
+           ${f.fatima}, now() - interval '1 day', now() + interval '1 day')`);
+    expect(Array.isArray(zeilen), 'kein 42501 — der Zeiger wird aufgeloest').toBe(true);
+  });
+});
+
 describe('(5) die Geschichte bleibt, wo sie entstanden ist', () => {
   it('die Beschaeftigung der Dublette bleibt bei der Dublette', async () => {
     /*

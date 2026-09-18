@@ -119,10 +119,15 @@ export default async function Reinigungsklassen(
           </>
         ) : (
           <>
-            <strong>Diese Liste bleibt mit Ihrer Rolle leer.</strong> Gelesen wird der
-            Katalog mit <code>objekt.lesen</code>, gepflegt mit
+            <strong>Diese Liste bleibt mit Ihrer Rolle leer, und gespeichert werden
+            kann hier nichts.</strong> Gelesen wird der Katalog mit
+            {' '}<code>objekt.lesen</code>, gepflegt mit
             {' '}<code>stammdaten.verwalten</code> (0021) — Ihrer Rolle fehlt das erste.
-            Eine leere Tabelle heisst hier also nicht „keine Klassen".
+            Eine leere Tabelle heisst hier also nicht „keine Klassen". Auch das
+            Anlegen schüge fehl: Postgres wendet auf das <code>returning</code> eines
+            <code>insert</code> die Lesepolicy an. Die Formulare sind deshalb
+            ausgeblendet, statt ein Versprechen zu geben, das die Datenbank
+            zurücknimmt.
           </>
         )}
       </Hinweis>
@@ -257,50 +262,52 @@ export default async function Reinigungsklassen(
         )}
       </section>
 
-      <section aria-labelledby="neu-titel"
-               className="max-w-prose rounded-lg border border-line bg-surface p-s5">
-        <h2 id="neu-titel" className="text-h2 text-text">Klasse anlegen</h2>
-        <p className="mt-s2 text-xs text-text-muted">
-          Die Klasse gehört dieser Gesellschaft. Codes kommen aus dem Raumbuch des
-          Kunden und sehen so aus, wie sie dort aussehen — geprüft wird nur, dass er
-          da ist und keinen Randleerraum trägt.
-        </p>
-        <form method="post"
-              action={`/api/stammdaten/reinigungsklassen?was=anlegen&mandant=${mandant}`}>
-          <label className="mt-s4 block text-sm text-text" htmlFor="neu-code">Code</label>
-          <input id="neu-code" name="code" type="text" required className={feld}
-                 placeholder="RK1" />
-
-          <label className="mt-s4 block text-sm text-text" htmlFor="neu-bezeichnung">
-            Bezeichnung
-          </label>
-          <input id="neu-bezeichnung" name="bezeichnung" type="text" required
-                 className={feld} placeholder="Büro und Besprechung" />
-
-          <label className="mt-s4 block text-sm text-text" htmlFor="neu-beschreibung">
-            Beschreibung
-          </label>
-          <input id="neu-beschreibung" name="beschreibung" type="text" className={feld}
-                 placeholder="Was in dieser Klasse zu tun ist" />
-
-          <label className="mt-s4 block text-sm text-text" htmlFor="neu-sortierung">
-            Reihenfolge
-          </label>
-          <input id="neu-sortierung" name="sortierung" type="number" min={0} step={1}
-                 className={feld} defaultValue={0} />
+      {lesbar ? (
+        <section aria-labelledby="neu-titel"
+                 className="max-w-prose rounded-lg border border-line bg-surface p-s5">
+          <h2 id="neu-titel" className="text-h2 text-text">Klasse anlegen</h2>
           <p className="mt-s2 text-xs text-text-muted">
-            Bestimmt nur die Anzeigereihenfolge im Raumbuch — keine Wertung und keine
-            Frequenz.
+            Die Klasse gehört dieser Gesellschaft. Codes kommen aus dem Raumbuch des
+            Kunden und sehen so aus, wie sie dort aussehen — geprüft wird nur, dass er
+            da ist und keinen Randleerraum trägt.
           </p>
+          <form method="post"
+                action={`/api/stammdaten/reinigungsklassen?was=anlegen&mandant=${mandant}`}>
+            <label className="mt-s4 block text-sm text-text" htmlFor="neu-code">Code</label>
+            <input id="neu-code" name="code" type="text" required className={feld}
+                   placeholder="RK1" />
 
-          <label className="mt-s4 flex min-h-11 items-center gap-s3 text-sm text-text">
-            <input type="checkbox" name="bestaetigt" value="ja" />
-            Klasse ist bestätigt (O-55 für diese Zeile beantwortet)
-          </label>
+            <label className="mt-s4 block text-sm text-text" htmlFor="neu-bezeichnung">
+              Bezeichnung
+            </label>
+            <input id="neu-bezeichnung" name="bezeichnung" type="text" required
+                   className={feld} placeholder="Büro und Besprechung" />
 
-          <Button type="submit" variante="primary" className="mt-s5">Klasse anlegen</Button>
-        </form>
-      </section>
+            <label className="mt-s4 block text-sm text-text" htmlFor="neu-beschreibung">
+              Beschreibung
+            </label>
+            <input id="neu-beschreibung" name="beschreibung" type="text" className={feld}
+                   placeholder="Was in dieser Klasse zu tun ist" />
+
+            <label className="mt-s4 block text-sm text-text" htmlFor="neu-sortierung">
+              Reihenfolge
+            </label>
+            <input id="neu-sortierung" name="sortierung" type="number" min={0} step={1}
+                   className={feld} defaultValue={0} />
+            <p className="mt-s2 text-xs text-text-muted">
+              Bestimmt nur die Anzeigereihenfolge im Raumbuch — keine Wertung und keine
+              Frequenz.
+            </p>
+
+            <label className="mt-s4 flex min-h-11 items-center gap-s3 text-sm text-text">
+              <input type="checkbox" name="bestaetigt" value="ja" />
+              Klasse ist bestätigt (O-55 für diese Zeile beantwortet)
+            </label>
+
+            <Button type="submit" variante="primary" className="mt-s5">Klasse anlegen</Button>
+          </form>
+        </section>
+      ) : null}
 
       <p className="mt-s5 max-w-prose text-sm text-text-muted">
         Der Leistungswert, aus dem eine Sollzeit entsteht, hängt an der Belagsart —

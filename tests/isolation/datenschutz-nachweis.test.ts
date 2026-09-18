@@ -345,7 +345,7 @@ describe('§4 der Token — bedingt, idempotent, und ohne Nebenwirkung', () => {
       .rejects.toThrow(/permission denied/iu);
   });
 
-  it('erfasst beim ersten Klick, sagt beim zweiten „bereits" — und wirft nie', async () => {
+  it('erfasst beim ersten Klick, sagt beim zweiten „verbraucht" — und wirft nie', async () => {
     const [erst] = await alsApp(sitzung(dsb), (tx) => tx.unsafe(
       `select zustand from app.werbewiderspruch_einloesen($1)`, [hash]),
     ) as unknown as { zustand: string }[];
@@ -356,7 +356,99 @@ describe('§4 der Token — bedingt, idempotent, und ohne Nebenwirkung', () => {
     ) as unknown as { zustand: string }[];
     // §2.4: „never an error". Eine Fehlerseite auf dem Pflichtweg des § 7 UWG
     // waere ein Widerspruch, der nicht ankam.
-    expect(zweit!.zustand).toBe('bereits');
+    expect(zweit!.zustand).toBe('verbraucht');
+  });
+
+  it('unterscheidet den zweiten Klick vom WIDERRUFENEN Token', async () => {
+    /*
+     * **Der Befund, den dieser Fall einfriert.** `bereits` hiess vorher
+     * beides: eingeloest UND widerrufen/abgelaufen. Die Seite machte daraus
+     * „Ist bereits erfasst … Werbung an diese Adresse ist gestoppt" — fuer
+     * einen Widerspruch, der NICHT erfasst wurde. Eine falsche Zusage an die
+     * betroffene Person, auf dem Pflichtweg des § 7 UWG.
+     *
+     * Unterschieden wird an `eingeloest_am`, nicht am Grund: dem Inhaber des
+     * Tokens verraet das nichts, was er nicht ohnehin weiss.
+     */
+    const klartext = randomBytes(32).toString('base64url');
+    const widerrufen = createHash('sha256').update(klartext, 'utf8').digest('hex');
+    await sql.unsafe(
+      `insert into werbewiderspruch_token
+         (mandant_id, ansprechpartner_id, kanal, token_hash, widerrufen_am,
+          widerruf_grund)
+       values ($1, $2, 'email', $3, now(), 'Verteiler zurueckgezogen')`,
+      [f.reinigung, kontakt, widerrufen]);
+
+    const [r] = await alsApp(sitzung(dsb), (tx) => tx.unsafe(
+      `select zustand from app.werbewiderspruch_einloesen($1)`, [widerrufen]),
+    ) as unknown as { zustand: string }[];
+    expect(r!.zustand).toBe('ungueltig');
+
+    // Und er hat NICHTS gesetzt — das ist der ganze Punkt.
+    const [stand] = await alsApp(sitzung(dsb), (tx) => tx.unsafe(
+      `select werbewiderspruch_am from app.widerspruch_stand($1::uuid, null)`,
+      [kontakt])) as unknown as { werbewiderspruch_am: Date | null }[];
+    expect(stand).toBeDefined();
+  });
+
+  it('der tokenlose Weg prueft Portal, Gruppenansicht und `formular.schreiben`', async () => {
+    /*
+     * **Der Befund: `app.werbewiderspruch_formular` prueft von den drei
+     * Wachen KEINE.** Sie war `cse_app` erteilt (und ueber das fehlende
+     * `revoke` auch PUBLIC), und ihr Schutz haing vollstaendig am Aufrufer —
+     * einer OEFFENTLICHEN Route. Ihre Geschwister tragen mindestens zwei der
+     * drei.
+     *
+     * `formular.schreiben` halten `super_admin`, `admin`, `leitung` und
+     * `formular_eingang` (nachgezaehlt in `rolle_berechtigung`). Geprueft wird
+     * deshalb mit einem Konto OHNE Rolle in dieser Gesellschaft — und mit der
+     * Gruppenansicht.
+     */
+    const ohne = await authBenutzer('ohne-recht@nachweis.test', null);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, ist_standard)
+       values ($1, $2, (select id from rolle
+                         where schluessel = 'mitarbeiter' and mandant_id is null), true)`,
+      [ohne, f.reinigung]);
+    await expect(alsApp(
+      sitzung(ohne),
+      (tx) => tx.unsafe(`select app.werbewiderspruch_formular($1, null)`,
+                        ['nie@nachweis.test'])),
+    ).rejects.toThrow(/formular\.schreiben/u);
+
+    await expect(alsApp(
+      { ...sitzung(dsb), readonly: true },
+      (tx) => tx.unsafe(`select app.werbewiderspruch_formular($1, null)`,
+                        ['nie@nachweis.test'])),
+    ).rejects.toThrow(/Gruppenansicht/u);
+  });
+
+  it('die Drossel laesst fuenf durch und den sechsten nicht', async () => {
+    /*
+     * 04-SEITENKARTE:653 verlangt fuer `/werbewiderspruch` ein Ratenlimit; es
+     * gab keines. Der Weg schreibt UNWIDERRUFLICH in fremde CRM-Datensaetze,
+     * und die Antwort ist immer dieselbe — wer Adressen raet, erfaehrt also
+     * nicht einmal, ob er getroffen hat.
+     */
+    const abdruck = createHash('sha256').update('drossel-probe', 'utf8').digest('hex');
+    const ergebnisse: boolean[] = [];
+    for (let i = 0; i < 6; i += 1) {
+      const [z] = await alsApp(sitzung(dsb), (tx) => tx.unsafe(
+        `select app.werbewiderspruch_drossel($1) as ok`, [abdruck]),
+      ) as unknown as { ok: boolean }[];
+      ergebnisse.push(z!.ok);
+    }
+    expect(ergebnisse).toEqual([true, true, true, true, true, false]);
+
+    /*
+     * Ein anderer Abdruck ist davon unberuehrt — sonst sperrte ein Angreifer
+     * den Pflichtweg fuer alle.
+     */
+    const [andere] = await alsApp(sitzung(dsb), (tx) => tx.unsafe(
+      `select app.werbewiderspruch_drossel($1) as ok`,
+      [createHash('sha256').update('andere', 'utf8').digest('hex')]),
+    ) as unknown as { ok: boolean }[];
+    expect(andere!.ok).toBe(true);
   });
 
   it('antwortet auf einen unbekannten Token mit „unbekannt", nicht mit einem Fehler', async () => {

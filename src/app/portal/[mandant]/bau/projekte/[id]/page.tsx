@@ -14,6 +14,7 @@ import { ladeAusserhalbLv, type AusserhalbLvWarnung }
 import { AusserhalbLvWarnungen } from '../../AusserhalbLvWarnungen';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
+import { haeltRechte } from '@/app/portal/rechte';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -107,6 +108,17 @@ export default async function ProjektDetail(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+  /**
+   * **Die sechste Karte fuehrt nicht ins Leere** (AUT-06).
+   *
+   * Diese Seite traegt `bau.lesen`; das Abnahmeprotokoll
+   * (`.../projekte/[id]/abnahme`) verlangt `bau.schreiben` — es ist die
+   * Erklaerung der Vertragsparteien und entsteht im Buero. Wer nur lesen
+   * darf, bekam eine Kachel, die auf ein 404 fuehrte. Sie steht jetzt ohne
+   * Verweis da und sagt, welches Recht fehlt — dasselbe Muster wie auf der
+   * Aufmassdetailseite fuer `bau.aufmass_freigeben`.
+   */
+  const darf = await haeltRechte(sitzung, 'bau.schreiben');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -161,7 +173,8 @@ export default async function ProjektDetail(
   const karten: readonly {
     readonly schluessel: string;
     readonly titel: string;
-    readonly ziel: string;
+    /** `null`: die Kachel zeigt ihre Zahl, fuehrt aber nirgendwohin. */
+    readonly ziel: string | null;
     readonly wert: string;
     readonly hinweis: string;
     readonly ton?: 'warnung';
@@ -206,11 +219,15 @@ export default async function ProjektDetail(
     {
       schluessel: 'abnahme',
       titel: 'Abnahme',
-      ziel: `/portal/${mandant}/bau/projekte/${id}/abnahme`,
+      ziel: darf['bau.schreiben'] === true
+        ? `/portal/${mandant}/bau/projekte/${id}/abnahme`
+        : null,
       wert: p.abgenommen_lokal ?? String(p.abnahmen),
-      hinweis: p.abgenommen_lokal === null
-        ? 'Protokolle nach § 12 VOB/B — noch keine Abnahme'
-        : 'abgenommen; Gefahr, Frist und Fälligkeit sind umgeschlagen',
+      hinweis: darf['bau.schreiben'] !== true
+        ? 'Das Protokoll nach § 12 VOB/B verlangt bau.schreiben'
+        : p.abgenommen_lokal === null
+          ? 'Protokolle nach § 12 VOB/B — noch keine Abnahme'
+          : 'abgenommen; Gefahr, Frist und Fälligkeit sind umgeschlagen',
     },
   ];
 
@@ -425,6 +442,24 @@ export default async function ProjektDetail(
              * zusammengesetztes Ziel ist für den Typ kein bekanntes Muster.
              * Ein Cast hätte die Prüfung ausgeschaltet, statt sie zu erfüllen.
              */
+            k.ziel === null ? (
+              <div
+                key={k.schluessel}
+                data-cse="projekt-karte"
+                data-karte={k.schluessel}
+                className="block rounded-lg border border-line bg-surface p-s5"
+              >
+                <p className="m-0 text-micro uppercase tracking-[0.08em] text-text-subtle">
+                  {k.titel}
+                </p>
+                <p
+                  className={`m-0 mt-s1 text-h3 tabular-nums ${k.ton === 'warnung' ? 'text-warning' : 'text-text'}`}
+                >
+                  {k.wert}
+                </p>
+                <p className="m-0 mt-s2 text-xs text-text-muted">{k.hinweis}</p>
+              </div>
+            ) : (
             <a
               key={k.schluessel}
               href={k.ziel}
@@ -442,6 +477,7 @@ export default async function ProjektDetail(
               </p>
               <p className="m-0 mt-s2 text-xs text-text-muted">{k.hinweis}</p>
             </a>
+            )
           ))}
         </div>
       </section>

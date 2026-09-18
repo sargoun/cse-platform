@@ -642,9 +642,34 @@ describe('das Prüfprotokoll', () => {
         order by erstellt_am desc limit 1`);
     expect(zeile?.vorher?.['bezeichnung']).toBe('Verkehrsfläche');
     expect(zeile?.nachher?.['bezeichnung']).toBe('Verkehrsflächen');
-    // `geaendert_felder` entsteht in `app.protokolliere` aus beiden Seiten —
-    // das geht nur, wenn wirklich zwei Objekte ankommen und nicht zwei
-    // Zeichenketten.
-    expect(zeile?.geaendert_felder).not.toBeNull();
+    /*
+     * **Genau zwei Felder — und dieser Satz ist der Kern des Tests.**
+     *
+     * `app.protokolliere` rechnet `geaendert_felder` als „welcher Schluessel
+     * von NACHHER steht in VORHER anders". Solange NACHHER das Eingabeobjekt
+     * des Dienstes war (camelCase, `bestaetigt`) und VORHER die gelesene
+     * Zeile (snake_case, `ist_platzhalter`), war JEDES Feld „geaendert" —
+     * bei jeder Aenderung dieselben Phantomfelder — und das Umschalten der
+     * O-55-Marke stand ueberhaupt nicht darin. `not.toBeNull()` ging dabei
+     * durch. Beide Seiten kommen jetzt aus demselben Spaltensatz.
+     */
+    expect([...(zeile?.geaendert_felder ?? [])].sort())
+      .toEqual(['bezeichnung', 'ist_platzhalter']);
+  });
+
+  it('und bei einer reinen Umbenennung genau ein Feld', async () => {
+    const id = await alsAdmin((k) => legeReinigungsklasseAn(k, {
+      code: 'RK3', bezeichnung: 'Sanitär', beschreibung: 'WC und Dusche',
+      sortierung: 30, bestaetigt: true,
+    }));
+    await alsAdmin((k) => aendereReinigungsklasse(k, id, {
+      code: 'RK3', bezeichnung: 'Sanitärbereich', beschreibung: 'WC und Dusche',
+      sortierung: 30, bestaetigt: true,
+    }));
+    const [zeile] = await sql.unsafe<{ geaendert_felder: string[] | null }[]>(
+      `select geaendert_felder from audit_log
+        where aktion = 'stammdaten.reinigungsklasse_geaendert'
+        order by erstellt_am desc limit 1`);
+    expect(zeile?.geaendert_felder).toEqual(['bezeichnung']);
   });
 });

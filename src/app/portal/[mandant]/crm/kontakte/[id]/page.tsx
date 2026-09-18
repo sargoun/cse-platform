@@ -8,10 +8,12 @@ import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
 import {
-  alsKontaktLage, leseGrundlage, torAntworten,
+  alsKontaktLage, leseGrundlage, leseKundenLage, torAntworten,
   type GrundlageStand, type TorAntwort,
 } from '@/server/services/crm/kontakt-grundlage';
-import { abweichungVomTor, matrixAntwort } from '@/server/services/crm/uwg-matrix';
+import {
+  abweichungenVomTor, matrixAntwort, type KundenLage,
+} from '@/server/services/crm/uwg-matrix';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
@@ -90,6 +92,7 @@ interface Kopf {
   readonly ausgeschieden_am: string | null;
   readonly kunde_id: string | null;
   readonly kunde_name: string | null;
+  readonly anonymisiert: boolean;
 }
 
 interface VerlaufZeile {
@@ -104,9 +107,13 @@ interface VerlaufZeile {
 }
 
 export default async function Kontaktblatt(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<{ meldung?: string; erfolg?: string }>;
+  },
 ) {
   const { mandant, id } = await params;
+  const suche = await searchParams;
   kennungOder404(id);
   const pfad = `/portal/${mandant}/crm/kontakte/${id}`;
   const zugang = await portalZugang(pfad);
@@ -125,7 +132,8 @@ export default async function Kontaktblatt(
    * `system.benutzer_lesen`.
    */
   const darf = await haeltRechte(sitzung,
-    'crm.rechtsgrundlage_setzen', 'crm.rechtsgrundlage_lesen', 'system.benutzer_lesen');
+    'crm.rechtsgrundlage_setzen', 'crm.rechtsgrundlage_lesen', 'system.benutzer_lesen',
+    'crm.schreiben', 'aufgabe.schreiben', 'kalender.schreiben', 'dokument.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -135,7 +143,8 @@ export default async function Kontaktblatt(
                 ap.position, ap.abteilung, ap.email, ap.telefon, ap.mobil,
                 ap.sprache::text as sprache, ap.ist_hauptkontakt,
                 ap.ausgeschieden_am::text as ausgeschieden_am,
-                ap.kunde_id, k.name as kunde_name
+                ap.kunde_id, k.name as kunde_name,
+                (ap.anonymisiert_am is not null) as anonymisiert
            from ansprechpartner ap
            left join kunde k on k.mandant_id = ap.mandant_id and k.id = ap.kunde_id
           where ap.mandant_id = app.aktiver_mandant() and ap.id = $1::uuid
@@ -146,6 +155,13 @@ export default async function Kontaktblatt(
       const stand = darf['crm.rechtsgrundlage_lesen'] === true
         ? await leseGrundlage(kontext, id)
         : null;
+
+      /*
+       * Die Ebene des KUNDEN — das Tor fragt sie für Werbung mit, die Matrix
+       * der API-Karte kennt sie nicht. Ohne sie meldete `abweichungenVomTor`
+       * „keine Abweichung", während das Tor längst sperrt.
+       */
+      const kundenLage = await leseKundenLage(kontext, kopf.kunde_id);
 
       const antworten = await torAntworten(kontext, id);
 
@@ -162,18 +178,33 @@ export default async function Kontaktblatt(
           order by la.geschehen_am desc
           limit 50`, [id]);
 
-      return { kopf, stand, antworten, verlauf };
+      return { kopf, stand, kundenLage, antworten, verlauf };
     })) as Promise<{
-      kopf: Kopf; stand: GrundlageStand | null;
+      kopf: Kopf; stand: GrundlageStand | null; kundenLage: KundenLage | null;
       antworten: readonly TorAntwort[]; verlauf: readonly VerlaufZeile[];
     } | null>);
 
   if (daten === null) notFound();
-  const { kopf, stand, antworten, verlauf } = daten;
-  const abweichung = stand === null ? null : abweichungVomTor(alsKontaktLage(stand));
+  const { kopf, stand, kundenLage, antworten, verlauf } = daten;
+
+  /*
+   * `abmeldezeileGerendert = null` — NICHT `true`.
+   *
+   * Es gibt auf diesem Blatt keinen Sendeweg (`POST /api/crm/nachrichten` ist
+   * nicht gebaut), also gibt es keine Nachricht, an der eine Abmeldezeile
+   * hinge. Ein `true` an dieser Stelle bejahte § 7 Abs. 3 Nr. 4 UWG für einen
+   * Weg, den es nicht gibt — und der Bildschirm zeigte diese Annahme als
+   * Rechtsauskunft.
+   */
+  const lage = stand === null ? null : alsKontaktLage(stand, null, kundenLage, {
+    archiviert: false, anonymisiert: kopf.anonymisiert,
+  });
+  const abweichungen = lage === null ? [] : abweichungenVomTor(lage);
 
   const knopf = 'inline-flex min-h-11 items-center rounded-md border '
     + 'border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2';
+  const FELD = 'min-h-11 w-full rounded-md border border-line bg-surface px-s3 py-s2 '
+    + 'text-sm text-text';
 
   return (
     <PortalRahmen
@@ -213,6 +244,17 @@ export default async function Kontaktblatt(
           </Link>
         ) : null}
       </div>
+
+      {typeof suche.meldung === 'string' && suche.meldung !== '' ? (
+        <Hinweis art="warnung" cse="kontakt-meldung" className="mb-s5 max-w-prose">
+          <strong>Nicht gespeichert.</strong> {suche.meldung}
+        </Hinweis>
+      ) : null}
+      {typeof suche.erfolg === 'string' && suche.erfolg !== '' ? (
+        <Hinweis art="erfolg" cse="kontakt-erfolg" className="mb-s5 max-w-prose">
+          {suche.erfolg}
+        </Hinweis>
+      ) : null}
 
       <dl className="m-0 mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
@@ -302,14 +344,21 @@ export default async function Kontaktblatt(
               <div>
                 <dt className="text-xs text-text-muted">Belegdokument</dt>
                 <dd className="m-0 mt-s1 text-sm text-text">
-                  {stand.belegDokumentId === null ? 'keines hinterlegt' : (
-                    <Link
-                      href={`/portal/${mandant}/dokumente/${stand.belegDokumentId}`}
-                      className="text-text underline-offset-2 hover:text-brand hover:underline"
-                    >
-                      Dokument öffnen
-                    </Link>
-                  )}
+                  {stand.belegDokumentId === null ? 'keines hinterlegt'
+                    : darf['dokument.lesen'] !== true ? (
+                      /* Kein Verweis ohne `dokument.lesen` — er führte auf ein 404. */
+                      <span className="text-text-subtle"
+                            title="Zum Öffnen fehlt dokument.lesen">
+                        hinterlegt, aber nicht zu öffnen
+                      </span>
+                    ) : (
+                      <Link
+                        href={`/portal/${mandant}/dokumente/${stand.belegDokumentId}`}
+                        className="text-text underline-offset-2 hover:text-brand hover:underline"
+                      >
+                        Dokument öffnen
+                      </Link>
+                    )}
                 </dd>
               </div>
               <div>
@@ -354,13 +403,30 @@ export default async function Kontaktblatt(
               </div>
             </dl>
 
-            {abweichung === null ? null : (
+            {abweichungen.length === 0 ? null : (
               <Hinweis art="warnung" cse="grundlage-abweichung" className="mt-s4 max-w-prose">
-                <strong>Vorschrift und wirksames Tor gehen hier auseinander.</strong>{' '}
-                {abweichung} Das Tor unten ist das WIRKSAME — es entscheidet, was
-                hinausgeht. Die schärfere Fassung des § 7 UWG ist noch nicht
-                eingeschaltet, und bis dahin steht dieser Satz hier statt in einem
-                Kommentar.
+                <strong>Vorschrift und wirksames Tor gehen hier auseinander — in
+                beide Richtungen.</strong>
+                <ul className="m-0 mt-s3 list-none space-y-s3 p-0">
+                  {abweichungen.map((a) => (
+                    <li key={a.norm + a.text.slice(0, 24)}
+                        data-cse="abweichung" data-richtung={a.richtung}>
+                      <span className="text-xs font-semibold uppercase tracking-[0.08em] text-text-subtle">
+                        {a.richtung === 'tor_strenger'
+                          ? 'Das Tor sperrt, die Matrix nicht'
+                          : 'Die Matrix verbietet, das Tor prüft es nicht'}
+                      </span>
+                      <span className="mt-s1 block">{a.text}</span>
+                      <span className="mt-s1 block text-xs text-text-muted">{a.norm}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="m-0 mt-s3">
+                  Das Tor unten ist das WIRKSAME — es entscheidet, was hinausgeht. Ein
+                  grünes „Bereit" in der Spalte der Matrix ist deshalb keine Zusage für
+                  später: wo oben „Das Tor sperrt" steht, bleibt dieser Kontakt auch
+                  nach einer Entscheidung zu O-660 gesperrt.
+                </p>
               </Hinweis>
             )}
 
@@ -414,7 +480,9 @@ export default async function Kontaktblatt(
               schluessel: 'vorschrift',
               kopf: 'Nach § 7 UWG (noch nicht wirksam)',
               zelle: (z: TorAntwort) => {
-                const m = matrixAntwort(alsKontaktLage(stand), 'werbung', z.kanal);
+                const m = lage === null
+                  ? { erlaubt: false, grund: '', norm: '' }
+                  : matrixAntwort(lage, 'werbung', z.kanal);
                 return (
                   <span title={`${m.norm}: ${m.grund}`} data-cse="matrix-werbung"
                         data-erlaubt={String(m.erlaubt)}>
@@ -476,13 +544,108 @@ export default async function Kontaktblatt(
         )}
       </section>
 
-      <p className="mt-s6 max-w-prose text-xs text-text-muted">
-        Der Werbewiderspruchs-Katalog der Gesellschaft steht unter{' '}
-        <code className="text-text">/portal/{mandant}/datenschutz/widersprueche</code>{' '}
-        und verlangt ebenfalls <code className="text-text">crm.rechtsgrundlage_lesen</code>.
-        Er ist noch nicht gebaut; von hier führt deshalb kein Verweis dorthin, damit
-        keiner auf ein 404 zeigt.
-      </p>
+      <section aria-labelledby="wiedervorlage" className="mb-s7">
+        <h2 id="wiedervorlage" className="text-h2 text-text">Wiedervorlage</h2>
+        {darf['crm.schreiben'] !== true ? (
+          <p className="mt-s3 max-w-prose text-sm text-text-muted"
+             data-cse="wv-kein-schreibrecht">
+            Eine Wiedervorlage legt an, wer <code className="text-text">crm.schreiben</code>{' '}
+            hält.
+          </p>
+        ) : kopf.kunde_id === null ? (
+          <p className="mt-s3 max-w-prose text-sm text-text-muted" data-cse="wv-ohne-kunde">
+            Dieser Ansprechpartner hängt an keinem Kunden. Eine Wiedervorlage hängt
+            aber immer an einem Lead oder an einem Kunden
+            (<code className="text-text">lead_aktivitaet_hat_bezug</code>) — ordnen Sie
+            ihn zuerst einem Kunden zu.
+          </p>
+        ) : (
+          <>
+            <p className="mt-s2 max-w-prose text-sm text-text-muted">
+              Angelegt wird sie <strong>dort, wo sie entsteht</strong> — auf diesem
+              Blatt. Sie erscheint danach unter{' '}
+              <Link href={`/portal/${mandant}/crm/wiedervorlagen`}
+                    className="text-text underline-offset-2 hover:text-brand hover:underline">
+                Wiedervorlagen
+              </Link>.
+            </p>
+            <p className="mt-s2 max-w-prose text-xs text-text-muted"
+               data-cse="wv-spiegel-hinweis">
+              {darf['aufgabe.schreiben'] === true && darf['kalender.schreiben'] === true
+                ? 'Sie wird zugleich als Aufgabe und als Kalendereintrag gespiegelt '
+                  + '(O-663) — sonst stünde derselbe Vorgang hier offen und in der '
+                  + 'Aufgabenliste gar nicht.'
+                : 'Gespiegelt wird sie nur, soweit die Rechte reichen: für die Aufgabe '
+                  + 'braucht es `aufgabe.schreiben`, für den Kalendereintrag '
+                  + '`kalender.schreiben`. Was nicht entsteht, sagt Ihnen die Meldung '
+                  + 'nach dem Speichern beim Namen (O-663) — verschwiegen wird nichts.'}
+            </p>
+            <form
+              method="post" action="/api/crm/wiedervorlage"
+              data-cse="wv-anlegen-formular"
+              className="mt-s4 flex max-w-prose flex-col gap-s4 rounded-lg border border-line bg-surface p-s5"
+            >
+              <input type="hidden" name="was" value="anlegen" />
+              <input type="hidden" name="kundeId" value={kopf.kunde_id} />
+              <input type="hidden" name="ansprechpartnerId" value={id} />
+              <input type="hidden" name="zurueck" value={pfad} />
+
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                Betreff
+                <input name="betreff" required className={FELD} data-cse="wv-betreff" />
+                <span className="text-xs text-text-muted">
+                  Er steht später allein in der Liste — „nachfassen" beantwortet dort
+                  keine Frage.
+                </span>
+              </label>
+
+              <div className="flex flex-wrap gap-s4">
+                <label className="flex flex-1 flex-col gap-s2 text-sm text-text">
+                  Fällig am
+                  <input type="datetime-local" name="faelligAm" required className={FELD}
+                         data-cse="wv-faellig" />
+                </label>
+                <label className="flex flex-1 flex-col gap-s2 text-sm text-text">
+                  Erinnerung (optional)
+                  <input type="datetime-local" name="erinnerungAm" className={FELD}
+                         data-cse="wv-erinnerung" />
+                </label>
+              </div>
+              <span className="text-xs text-text-muted">
+                Beide Angaben werden als <strong>Berliner Zeit</strong> gelesen und als
+                Zeitpunkt gespeichert (Invariante 2). Eine Frist bestimmt ein Mensch —
+                <code className="text-text"> geschehen_am</code> bleibt die Serverzeit.
+              </span>
+
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                Notiz (optional)
+                <input name="notiz" className={FELD} data-cse="wv-notiz" />
+              </label>
+
+              <button
+                type="submit" data-cse="wv-anlegen"
+                className="min-h-11 self-start rounded-md bg-brand px-s5 py-s3 text-sm font-semibold text-white hover:bg-brand-hover"
+              >
+                Wiedervorlage anlegen
+              </button>
+            </form>
+          </>
+        )}
+      </section>
+
+      {darf['crm.rechtsgrundlage_lesen'] === true ? (
+        <p className="mt-s6 max-w-prose text-xs text-text-muted">
+          Der Werbewiderspruchs-Katalog der Gesellschaft steht unter{' '}
+          <Link href={`/portal/${mandant}/datenschutz/widersprueche`}
+                data-cse="verweis-widersprueche"
+                className="text-text underline-offset-2 hover:text-brand hover:underline">
+            Datenschutz · Widersprüche
+          </Link>{' '}
+          und hängt am selben Recht wie dieser Nachweisblock
+          (<code className="text-text">crm.rechtsgrundlage_lesen</code>). Der Verweis
+          erscheint deshalb nur, wenn Sie es halten — er führt nie auf ein 404.
+        </p>
+      ) : null}
     </PortalRahmen>
   );
 }

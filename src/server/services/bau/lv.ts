@@ -251,8 +251,10 @@ export function flachInOrdnung(baum: readonly LvKnoten[]): readonly LvKnoten[] {
  * APR-03/K-10: eine maschinell extrahierte, ungeprüfte Zeile darf keine
  * abrechenbare Menge tragen.
  *
- * Die harte Kante steht als Ausloeser in `0072` (`bau.pruefe_lv_geprueft()`);
- * diese Funktion ist die LESBARE Fassung derselben Bedingung, damit die
+ * Die harte Kante steht als Ausloeser in `0072`
+ * (`kern.aufmass_vorlage_pruefen()`, Bedingung `l.konfidenz is not null and
+ * l.geprueft_am is null`); diese Funktion ist die LESBARE Fassung derselben
+ * Bedingung, damit die
  * Oberfläche die Zeile mit der Pille „Unbestätigter Wert" zeigen kann, statt
  * den Menschen erst beim Speichern in einen Datenbankfehler laufen zu lassen.
  */
@@ -397,19 +399,100 @@ export interface LvAuswahlZeile {
   readonly kurztext: string;
   readonly einheit: string | null;
   readonly ungeprueft: boolean;
+  /** Welches Verzeichnis die Position traegt — Hauptauftrag oder ein Nachtrag. */
+  readonly verzeichnis: string;
+  readonly verzeichnis_art: string;
+  readonly fassung: number;
 }
 
+/** Die Ueberschrift einer Gruppe in der Auswahl — „Hauptauftrag · LV Rohbau, Fassung 2". */
+export const LV_ART_TEXT: Readonly<Record<string, string>> = {
+  hauptauftrag: 'Hauptauftrag',
+  nachtrag: 'Nachtrag',
+  ausschreibung: 'Ausschreibung',
+  eigenkalkulation: 'Eigenkalkulation',
+};
+
+/**
+ * Die Positionen, auf die heute gebucht werden darf — **je Verzeichnis nur die
+ * juengste lebende Fassung**.
+ *
+ * **Der Fehler, den dieser Filter verhindert.** Der LV-Import legt eine NEUE
+ * Fassung an und laesst die alte stehen (sie ist der Beleg dessen, was
+ * urspruenglich vereinbart wurde, § 2 Abs. 6 VOB/B). Ohne
+ * Verzeichnisbezug stand danach JEDE OZ zweimal in dieser Auswahl — Fassung 1
+ * und Fassung 2, angezeigt als `{oz} · {kurztext}` und damit nicht
+ * unterscheidbar. Wer die falsche traf, buchte die Menge auf eine ueberholte
+ * Position: `findeLvPosition` summiert je `lv_position_id`, die Position der
+ * aktuellen Fassung blieb auf 0, die Mehrmengenwarnung nach § 2 Abs. 3 VOB/B
+ * (BAU-05) feuerte nie, und die Menge hing am Einheitspreis der alten
+ * Fassung. Das ist kein Anzeigefehler, sondern ein falsches Ergebnis in der
+ * Schlussrechnung.
+ *
+ * **Gruppiert wird nach (`art`, `nachtrag_id`) und nicht nur nach `art`:** je
+ * Nachtrag gibt es ein eigenes Verzeichnis mit eigener Fassungszaehlung
+ * (`lv_fassung_uk`), und der Hauptauftrag ist die Gruppe mit
+ * `nachtrag_id is null`. Die Anzeige nennt Verzeichnis und Fassung je Zeile,
+ * damit zwei gleiche OZ aus Hauptauftrag und Nachtrag auseinanderzuhalten
+ * sind.
+ */
 export async function ladeLvAuswahl(
   kontext: LeseKontext, projektId: string,
 ): Promise<readonly LvAuswahlZeile[]> {
   return kontext.abfrage<LvAuswahlZeile>(
-    `select l.id, l.oz, l.kurztext, l.einheit,
-            (l.konfidenz is not null and l.geprueft_am is null) as ungeprueft
+    `with aktuell as (
+       select distinct on (lv.art, coalesce(lv.nachtrag_id, $2::uuid))
+              lv.id, lv.art::text as art, lv.bezeichnung, lv.fassung
+         from leistungsverzeichnis lv
+        where lv.projekt_id = $1 and lv.archiviert_am is null
+        order by lv.art, coalesce(lv.nachtrag_id, $2::uuid), lv.fassung desc
+     )
+     select l.id, l.oz, l.kurztext, l.einheit,
+            (l.konfidenz is not null and l.geprueft_am is null) as ungeprueft,
+            a.bezeichnung as verzeichnis, a.art as verzeichnis_art, a.fassung
        from lv_position l
+       join aktuell a on a.id = l.leistungsverzeichnis_id
       where l.projekt_id = $1 and l.art = 'position' and l.archiviert_am is null
-      order by l.sortier_pfad`,
-    [projektId],
+      order by a.art, a.bezeichnung, a.fassung desc, l.sortier_pfad`,
+    [projektId, '00000000-0000-0000-0000-000000000000'],
   );
+}
+
+/** Eine Gruppe der Auswahl — ein Verzeichnis in einer Fassung. */
+export interface LvAuswahlGruppe {
+  readonly schluessel: string;
+  readonly beschriftung: string;
+  readonly zeilen: readonly LvAuswahlZeile[];
+}
+
+/**
+ * Die Auswahl in Gruppen, so wie ein `optgroup` sie braucht.
+ *
+ * Die Gruppierung steht HIER und nicht im Koerper der beiden Seiten, die sie
+ * brauchen (Aufmasserfassung und Maengelliste der Abnahme): zwei Fassungen
+ * derselben Einteilung liefen beim ersten Sonderfall auseinander, und dann
+ * zeigten zwei Seiten dieselbe Position unter zwei Ueberschriften.
+ */
+export function gruppiereLvAuswahl(
+  zeilen: readonly LvAuswahlZeile[],
+): readonly LvAuswahlGruppe[] {
+  const gruppen: LvAuswahlGruppe[] = [];
+  for (const zeile of zeilen) {
+    const schluessel = `${zeile.verzeichnis_art}|${zeile.verzeichnis}|${String(zeile.fassung)}`;
+    const letzte = gruppen[gruppen.length - 1];
+    if (letzte !== undefined && letzte.schluessel === schluessel) {
+      (letzte.zeilen as LvAuswahlZeile[]).push(zeile);
+      continue;
+    }
+    gruppen.push({
+      schluessel,
+      beschriftung:
+        `${LV_ART_TEXT[zeile.verzeichnis_art] ?? zeile.verzeichnis_art} · ${zeile.verzeichnis}`
+        + ` (Fassung ${String(zeile.fassung)})`,
+      zeilen: [zeile],
+    });
+  }
+  return gruppen;
 }
 
 /* ---------------------------------------------------------------------------
@@ -507,6 +590,42 @@ export async function findeProjektDetail(
     [id],
   );
   return zeile ?? null;
+}
+
+/**
+ * Die Fundstelle einer maschinell gelesenen Position — `quelle_bereich` in
+ * lesbar.
+ *
+ * **Warum die Spalte nicht einfach roh dasteht.** `quelle_bereich` ist
+ * `jsonb` und haelt laut 03-GEWERKE §7.5 „the table/region on that page";
+ * WELCHE Form das ist, legt der erste extrahierende Leser fest — heute gibt
+ * es keinen (O-41), also ist die Spalte in jeder Zeile NULL. Diese Funktion
+ * bereitet genau das vor: sie erkennt die naheliegende Rechteckform und gibt
+ * sonst den Wert kompakt zurueck, statt ihn wegzulassen. Eine mitgelesene
+ * Spalte ohne Leser ist die naechste, die jemand fuer vorhanden haelt.
+ *
+ * Sie RECHNET nichts und interpretiert nichts: sie zeigt an, was dasteht.
+ */
+export function fundstelleText(bereich: unknown): string | null {
+  if (bereich === null || bereich === undefined) return null;
+  if (typeof bereich === 'string') return bereich === '' ? null : bereich;
+  if (typeof bereich !== 'object') return String(bereich);
+  const feld = (name: string): number | null => {
+    const wert = (bereich as Record<string, unknown>)[name];
+    return typeof wert === 'number' ? wert : null;
+  };
+  const x = feld('x');
+  const y = feld('y');
+  const breite = feld('breite') ?? feld('w');
+  const hoehe = feld('hoehe') ?? feld('h');
+  if (x !== null && y !== null && breite !== null && hoehe !== null) {
+    return `x ${String(x)}, y ${String(y)} · ${String(breite)} × ${String(hoehe)}`;
+  }
+  try {
+    return JSON.stringify(bereich);
+  } catch {
+    return null;
+  }
 }
 
 /** Eine LV-Position mit ihrer Herkunft — der Kopf der Positionsseite. */
@@ -765,12 +884,17 @@ export async function ladeNachtraegeJePosition(
 /**
  * Eine maschinell gelesene Position BESTAETIGEN (APR-03, K-10).
  *
- * **Was daran haengt:** der Ausloeser `bau.pruefe_lv_geprueft()` (0072) weist
- * jede Aufmasszeile ab, die auf eine unbestaetigte, maschinell gelesene
- * Position bucht — ein Preis, den ein Modell aus einem PDF gelesen hat, darf
+ * **Was daran haengt:** der Ausloeser `kern.aufmass_vorlage_pruefen()` (0072)
+ * weist jede Vorlage eines Aufmasses ab, deren Zeilen auf eine
+ * unbestaetigte, maschinell gelesene Position buchen — ein Preis, den ein Modell aus einem PDF gelesen hat, darf
  * keine abrechenbare Menge tragen, bevor ein benannter Mensch ihn bestaetigt
  * hat. Diese Funktion ist die einzige Stelle, an der dieser Mensch benannt
  * wird.
+ *
+ * **Der Name der Funktion ist wichtig, weil er nachschlagbar sein muss.** Hier
+ * stand `bau.pruefe_lv_geprueft()` — so heisst sie in
+ * `03-GEWERKE.md §7.5`, aber in keiner Migration und in keiner lebenden
+ * Datenbank. Wer die genannte Sicherung nachlesen wollte, fand sie nicht.
  *
  * `geprueft_am` kommt von `now()` und nicht vom Aufrufer (Invariante 5), und
  * eine ZWEITE Bestaetigung wird abgewiesen: die erste ist die, die zaehlt,

@@ -24,9 +24,9 @@ import { haeltRechte } from '@/app/portal/rechte';
  * nicht nachrechnen. Regel, Fundstelle und Sprungziel stehen an der Zeile.
  *
  * **Der Sprung geht in den AUFTRAG, nicht in die Zeiterfassung** (EMP-13). Die
- * Buchhaltung erfährt, DASS Zeit fehlt, nicht von wem: `fin.auftrag_erfasste_
- * minuten()` gibt eine Zahl zurück und keine Zeile, und diese Seite gibt sie
- * genauso weiter.
+ * Buchhaltung erfährt, DASS Zeit fehlt, nicht von wem und nicht wie viel:
+ * `fin.auftraege_ohne_zeit()` gibt eine Menge von Auftragskennungen zurück und
+ * keine Zeiteintragszeile, und diese Seite gibt sie genauso weiter.
  *
  * **Was noch fehlt, steht als benannte offene Frage — nicht als leere
  * Rubrik.** Die Seitenkarte nennt „and the other pre-invoice checks", ohne sie
@@ -259,12 +259,18 @@ export default async function Pruefungsblatt(
       </section>
 
       <p className="mt-s7 max-w-prose text-xs text-text-muted">
-        Die Minuten kommen aus <code>fin.auftrag_erfasste_minuten()</code> und
+        Die FIN-18-Menge kommt aus <code>fin.auftraege_ohne_zeit()</code> und
         nicht aus der Sicht <code>zeiteintrag_auftrag</code>: die läuft mit
         <code> security_invoker</code>, und eine Buchhaltung ohne{' '}
         <code>zeit.lesen</code> bekäme dort überall null Minuten — also bei jedem
         Auftrag eine Warnung. Eine Warnung, die immer kommt, wird nach dem
-        dritten Mal ungelesen weggeklickt.
+        dritten Mal ungelesen weggeklickt. Sie kommt auch nicht aus{' '}
+        <code>fin.auftrag_erfasste_minuten()</code>: die verlangt{' '}
+        <code>finanzen.festschreiben</code>, während diese Route mit{' '}
+        <code>finanzen.lesen</code> öffnet — die Liste brach damit genau dann,
+        wenn der erste abgeschlossene Auftrag im Bestand stand. Die
+        Minutenzahl selbst bleibt hinter dem Festschreiberecht; hier steht nur
+        ja oder nein.
       </p>
     </PortalRahmen>
   );

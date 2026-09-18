@@ -22,13 +22,14 @@ import { seedAuftrag } from './auftrag.js';
 import { seedZeit } from './zeit.js';
 import { seedKonten } from './konto.js';
 import { normalisiereTelefon } from '../../../lib/telefon.js';
-import { seedSecurity } from './security.js';
+import { seedBewacherUndEvents, seedSecurity } from './security.js';
 import { seedWachbuch } from './wachbuch.js';
-import { seedReinigung } from './reinigung.js';
+import { seedReinigung, seedSonderUndQualitaet } from './reinigung.js';
 import { seedVertrieb } from './vertrieb.js';
 import { seedBau } from './bau.js';
 import { seedFreigaben } from './freigaben.js';
 import { seedEingang } from './eingang.js';
+import { seedFinanzAusgaben } from './finanz-ausgabe.js';
 import { seedRechnungen } from './rechnung.js';
 import { seedSocial } from './social.js';
 import { seedRecruiting } from './recruiting.js';
@@ -39,6 +40,7 @@ import { DEMO_KENNWORT, seedZugangsdaten } from './zugang.js';
 import { seedBenachrichtigungen } from './benachrichtigung.js';
 import { seedKern } from './kern.js';
 import { seedDatenschutz } from './datenschutz.js';
+import { seedCrm } from './crm.js';
 import { devFlaechenAn } from '../../../lib/dev-flaechen.js';
 import { SupabaseSpeicher } from '../../storage/adapter.js';
 
@@ -1116,6 +1118,111 @@ async function main(): Promise<void> {
     }
   }
 
+  // ------------------------------------------- Erscheinungsbild je Gesellschaft
+  /**
+   * `mandant_identitaet` traegt nach dem Anlagetrigger nur `kurzname` und das
+   * Token — alles andere ist NULL, und die Einstellungsseite zeigte deshalb
+   * fuenfmal „nicht hinterlegt". Hier entsteht das, was jede Rechnung, jeder
+   * Brief und jedes Angebot unten traegt (DESIGN §11).
+   *
+   * **Was hier NICHT entsteht:** kein Bildpfad. Es gibt keinen Marken-Bucket
+   * und keinen Hochladeweg (O-12/O-13) — ein erfundener Pfad waere eine
+   * vorgetaeuschte Ablage. Die ALTERNATIVTEXTE stehen trotzdem, denn sie sind
+   * pflegbar und `mi_alt_text` prueft sie, sobald ein Bild dazukommt.
+   *
+   * **Kein Kartentext, kein Profiltext**: die stehen je Sprache in
+   * `unternehmensprofil` (D-82) und nicht hier.
+   */
+  for (const b of BEREICHE) {
+    const a = b.auftritt;
+    const anschrift = a === undefined
+      ? b.firma : `${b.firma} · ${a.strasse} · ${a.plz} ${a.ort}`;
+    await sql`
+      update mandant_identitaet
+         set claim = ${`${b.name} · Berlin`},
+             logo_alt = ${`Wortmarke ${b.name}`},
+             avatar_alt = ${`Signet ${b.name}`},
+             cover_alt = ${`Titelbild ${b.name}`},
+             brief_fuss = ${a === undefined
+               ? anschrift : `${anschrift} · ${a.telefon}`},
+             rechnung_fuss = ${`${anschrift} · Zahlbar ohne Abzug — `
+               + 'Zahlungsziel siehe Rechnungskopf'},
+             angebot_fuss = ${a === undefined
+               ? `${b.firma} · Es gelten unsere Allgemeinen Geschäftsbedingungen`
+               : `${b.firma} · ${a.web} · `
+                 + 'Es gelten unsere Allgemeinen Geschäftsbedingungen'},
+             email_absender = ${a?.email ?? null},
+             email_signatur = ${a === undefined
+               ? b.firma
+               : `${b.firma}\n${a.strasse}\n${a.plz} ${a.ort}\n${a.telefon}`},
+             oeffentlich_sichtbar = true
+       where mandant_id = ${ids.get(b.slug)!}`;
+  }
+  process.stdout.write(
+    `  ${String(BEREICHE.length)} Identitaetszeilen (Claim, drei Fusszeilen, Absender, `
+    + 'Alternativtexte — ohne Bildpfade: kein Marken-Bucket, O-12/O-13)\n',
+  );
+
+  // --------------------------------------------- Arbeitszeitmodell (O-18/O-626)
+  /**
+   * Je Bereich ZWEI Fassungen desselben Schluessels: eine abgeloeste und die
+   * laufende. Damit laeuft der Anzeigepfad fuer die Ablösung — und nicht nur
+   * der Leerzustand.
+   *
+   * **Beide sind PLATZHALTER** (`ist_platzhalter = true`, `sollzeitregel =
+   * 'offen'`). O-18 ist unbeantwortet: wie viele Arbeitstage die Woche hat,
+   * ob ein Feiertag Sollzeit senkt, wie das Konto rechnet. Eine bestaetigte
+   * Demozeile behauptete, die Frage sei beantwortet — und die Sollzeitregel
+   * antwortet weiterhin `null`, wie sie soll.
+   *
+   * Die Vorfassung beginnt 2020: genau der Altbestand, den
+   * `/einstellungen/import` uebernimmt — und der Grund, warum es hier keine
+   * Rueckwirkungssperre gibt (O-626).
+   */
+  for (const b of BEREICHE) {
+    await sql`
+      insert into arbeitszeitmodell
+        (mandant_id, schluessel, bezeichnung, wochenstunden, arbeitstage_woche,
+         ist_platzhalter, gueltig_ab, gueltig_bis)
+      values (${ids.get(b.slug)!}, 'vollzeit', 'Vollzeit (Platzhalter, O-18)',
+              39.000, 5.000, true, '2020-01-01', '2024-12-31'),
+             (${ids.get(b.slug)!}, 'vollzeit', 'Vollzeit (Platzhalter, O-18)',
+              39.000, 5.000, true, '2025-01-01', null)
+      on conflict do nothing`;
+  }
+
+  /**
+   * EINE Tarifregel, fuer EIN Gewerk — strenger als das Gesetz und als
+   * Platzhalter markiert.
+   *
+   * Nur eine, weil jede weitere eine Behauptung ueber einen Tarifvertrag
+   * waere, den niemand vorgelegt hat (O-50). 45 statt 30 Minuten Pause ab
+   * sechs Stunden und 60 statt 45 ab neun: strenger, also wirksam — ein
+   * schwaecherer Wert wuerde von `tv_mindestens_gesetz` abgewiesen, und das
+   * ist der Sinn der Schranke.
+   */
+  await sql`
+    insert into tarifvereinbarung
+      (mandant_id, gewerk, bezeichnung, fundstelle,
+       pause_ab_6h_minuten, pause_ab_9h_minuten, ist_platzhalter, gilt_ab)
+    values (${ids.get('reinigung')!}, 'reinigung',
+            'Rahmentarifvertrag Gebäudereinigung (Platzhalter, O-50)',
+            '§ 5 RTV — Wortlaut nicht geprüft', 45, 60, true, '2025-01-01')
+    on conflict do nothing`;
+  process.stdout.write(
+    `  ${String(BEREICHE.length * 2)} Arbeitszeitmodell-Fassungen (je Bereich eine `
+    + 'abgeloeste und eine laufende, beide PLATZHALTER — O-18) und 1 Tarifregel '
+    + 'fuer reinigung, strenger als das Gesetz (O-50)\n',
+  );
+
+  /*
+   * `migration_lauf`/`migration_zeile` bleiben LEER — mit Absicht. Es gibt
+   * keinen Parser und keinen Altsystem-Zugang (`MigrationImportPort` wirft
+   * `NichtVerbundenFehler`); ein geseedeter Lauf taeuschte eine Uebernahme
+   * vor, die nie stattgefunden hat. Die leere Liste ist dort die richtige
+   * Aussage.
+   */
+
   // -------------------------------------------------------- Agent-Werkzeuge
   /**
    * **Freigeschaltet wird genau, was ohne Modellzugang etwas kann** — und das
@@ -1540,6 +1647,24 @@ async function main(): Promise<void> {
   );
 
   /**
+   * Und daneben das Bewacherregister und die Eventdienste — NACH `seedSecurity`,
+   * weil beide an derselben Belegschaft und demselben Objekt haengen.
+   *
+   * Beide Tabellen hatten im ganzen Seed null Zeilen: `/security/bewacherregister`
+   * und `/security/veranstaltungen/[id]` waren damit baubar, aber nicht
+   * belegbar. Eine Person bleibt bewusst OHNE Registereintrag — genau sie ist
+   * die Luecke, die SEC-03 sichtbar machen soll.
+   */
+  const reg = await seedBewacherUndEvents(sql, ids, sec.objektId);
+  process.stdout.write(
+    `  ${String(reg.eintraege)} Bewachereintraege handerfasst `
+    + `(${String(reg.ohneEintrag)} Person(en) bewusst ohne Eintrag — die Luecke, SEC-03; `
+    + `kein Registerabgleich: nicht verbunden, O-40), `
+    + `${String(reg.veranstaltungen)} Veranstaltungen `
+    + `(Herkunft eines Eventauftrags offen: O-703)\n`,
+  );
+
+  /**
    * Und die Reinigung bekommt ihren Zuschnitt, ihre Nachweise und ihre
    * Beanstandungen — NACH `seedZeit`, und das ist zweimal eine Abhaengigkeit
    * und keine Reihenfolge nach Geschmack.
@@ -1571,6 +1696,25 @@ async function main(): Promise<void> {
   if (rein.nummerOffen !== null) {
     process.stdout.write(`  · Nachweisnummer nicht gezogen: ${rein.nummerOffen}\n`);
   }
+
+  /**
+   * Und darauf die Sonderleistungen und die Qualitaetspruefungen — NACH
+   * `seedReinigung`, weil beide den Revierzuschnitt brauchen: ein Abruf haengt
+   * an einem Revier, und ein Pruefbefund an einem REVIERRAUM. Ohne Zuschnitt
+   * gaebe es keinen, und der Befund stuende ohne Ort da.
+   *
+   * `sonderleistung` und `qualitaetspruefung` hatten im ganzen Seed null
+   * Zeilen, `leistungskatalog_position` genau eine. Die Zeitwerte der drei
+   * Katalogzeilen sind PLATZHALTER und sagen es (O-17); ein Preis wird nicht
+   * erfunden, weil bepreist wird ueber `auftrag_leistung` (0067).
+   */
+  const sonder = await seedSonderUndQualitaet(sql, ids);
+  process.stdout.write(
+    `  ${String(sonder.abrufe)} Einzelabrufe in vier Zustaenden `
+    + `(„abgerechnet" fehlt absichtlich — den Stempel setzt die Rechnungsuebernahme), `
+    + `${String(sonder.pruefungen)} Qualitaetspruefungen `
+    + `(ohne Urteil: das Verfahren ist ein Platzhalter ohne Skala, O-29)\n`,
+  );
 
   /**
    * Und darauf der Vertrieb — NACH `seedOperations`, weil er das RAUMBUCH
@@ -1682,6 +1826,19 @@ async function main(): Promise<void> {
           ? '  E-Rechnung im Freigabe-Posteingang: KEIN Vorschlag — kein Administrations- oder Leitungskonto der Reinigung\n'
           : '  E-Rechnung im Freigabe-Posteingang: KEIN Vorschlag — Belegspeicher nicht verbunden '
             + '(SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY), und ein Beleg ohne Datei ist keiner (ACC-03)\n',
+  );
+  /**
+   * Ausgaben, Kassen und die Eingangsseite des §48 EStG — eine eigene Datei
+   * mit EINER Zeile hier: der Seed ist die Datei, an der alle
+   * Domänenagenten gleichzeitig arbeiten.
+   */
+  const ausgaben = await seedFinanzAusgaben(sql, ids);
+  process.stdout.write(
+    `  ${String(ausgaben.kategorien)} Aufwandskategorien (alle ist_platzhalter — O-05), `
+    + `${String(ausgaben.kassen)} Handkassen, ${String(ausgaben.ausgaben)} Ausgaben `
+    + `mit ${String(ausgaben.steuerzeilen)} Steuerzeilen (alle in `
+    + '`erfasst`: ab `freigegeben` verlangt der CHECK einen Beleg, und ein '
+    + 'Beleg ohne Datei ist keiner — ACC-03)\n',
   );
   const konto = await seedKonten(sql, ids);
   process.stdout.write(
@@ -1808,6 +1965,32 @@ async function main(): Promise<void> {
       + 'Token eingeloest, K-09) und '
       + `${String(datenschutz.art21)} Widerspruch nach Art. 21 `
       + '(rechtsgrundlage faellt auf „keine")\n');
+
+  /*
+   * Die CRM-Angaben der vier Unterseiten — NACH `seedOperations` (Kunden und
+   * Ansprechpartner) und nach `seedZugangsdaten` (das Konto, dem die
+   * Wiedervorlagen gehoeren).
+   *
+   * Vor diesem Aufruf standen auf `kunde` NULL Debitorennummern, NULL
+   * Zahlungsziele, NULL Mahnsperren und NULL Uebertragungswege, in
+   * `kunde_bauleistender_status` und `freistellungsbescheinigung` NULL Zeilen
+   * und in `lead_aktivitaet` NULL Faelligkeiten. Vier Seiten hatten damit eine
+   * Ueberschrift und sonst nichts.
+   */
+  const crm = await seedCrm(sql, ids, demodaten);
+  process.stdout.write(crm.uebersprungen
+    ? '  CRM: keine Konditionen und Nachweise ohne CSE_DEV_FLAECHEN\n'
+    : `  CRM: ${String(crm.konditionen)} Zahlungskondition `
+      + '(die uebrigen bleiben LEER — O-66 ist offen, 14 waere geraten), '
+      + `${String(crm.mahnsperren)} Mahnsperre mit Grund, `
+      + `${String(crm.erechnung)} Uebertragungsweg `
+      + '(ozg_re, in dieser Installation NICHT verbunden — O-22), '
+      + `${String(crm.zeitscheiben)} §-13b-Zeitscheiben `
+      + '(erst kein Bauleistender, dann einer — der Stichtag entscheidet, O-21), '
+      + `${String(crm.bescheinigungen)} §-48b-Bescheinigung, `
+      + `${String(crm.wiedervorlagen)} Wiedervorlagen in allen vier Faechern und `
+      + `${String(crm.aehnlicheLeistung)} begruendete §-7-Abs.-3-Wertung `
+      + '(noch ohne Wirkung im Tor — O-660)\n');
 
   /**
    * Zuletzt die Ausgangsrechnungen — nach Kunden, Konten und Nummernkreisen,

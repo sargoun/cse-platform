@@ -277,7 +277,7 @@ export default async function LvImportSeite(
         </>
       ) : (
         <>
-          <dl className="m-0 mb-s5 grid grid-cols-2 gap-s4 sm:grid-cols-5">
+          <dl className="m-0 mb-s5 grid grid-cols-2 gap-s4 sm:grid-cols-6">
             <div>
               <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Datei</dt>
               <dd className="m-0 mt-s1 text-sm text-text">{kopf.dateiname}</dd>
@@ -308,7 +308,52 @@ export default async function LvImportSeite(
                 {String(kopf.zeilen_fehler)}
               </dd>
             </div>
+            <div>
+              <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">
+                Fehlen in der Datei
+              </dt>
+              <dd
+                className={`m-0 mt-s1 cse-zahl text-sm ${kopf.fehlende_oz.length > 0 ? 'text-warning' : 'text-text'}`}
+                data-cse="fehlendezahl"
+              >
+                {String(kopf.fehlende_oz.length)}
+              </dd>
+            </div>
           </dl>
+
+          {kopf.fehlende_oz.length > 0 && (
+            /*
+             * **Die Streichungen gehören in die Vorschau.** Die neue Fassung
+             * entsteht ausschliesslich aus den Zeilen der Datei — eine
+             * Position der aktuellen Fassung, die hier nicht vorkommt, ist
+             * damit weg. Das stand nirgends, und der Begleittext behauptete
+             * sogar das Gegenteil („In die neue Fassung gehen alle gültigen
+             * Zeilen"): das gilt für die Zeilen DIESER DATEI, nicht für den
+             * Bestand.
+             */
+            <section
+              className="mb-s5 rounded-lg border border-line bg-surface p-s5"
+              data-cse="fehlende-positionen"
+            >
+              <h2 className="m-0 mb-s2 text-base font-semibold text-warning">
+                {String(kopf.fehlende_oz.length)} Positionen der aktuellen Fassung
+                fehlen in dieser Datei
+              </h2>
+              <p className="m-0 mb-s3 max-w-prose text-sm text-text-muted">
+                Übernommen wird, was in der Datei steht. Diese Ordnungszahlen stehen
+                nicht darin und wären in der neuen Fassung nicht mehr enthalten — die
+                bisherige Fassung bleibt als Beleg lesbar, aber gebucht wird künftig
+                auf der neuen. Ob eine Teildatei das Leistungsverzeichnis{' '}
+                <em>fortschreibt</em> (die fehlenden Positionen kommen mit) oder{' '}
+                <em>ersetzt</em> (sie fallen weg), ist eine Frage an die
+                Auftraggeberin und <strong>offen (O-633)</strong>; heute wird
+                ersetzt, und diese Liste sagt, was das kostet.
+              </p>
+              <p className="m-0 font-mono text-xs text-text" data-cse="fehlende-oz">
+                {kopf.fehlende_oz.join(' · ')}
+              </p>
+            </section>
+          )}
 
           {!kopf.preis_verglichen && (
             <p className="mb-s4 max-w-prose text-sm text-warning" data-cse="preis-nicht-verglichen">
@@ -361,6 +406,17 @@ export default async function LvImportSeite(
                     {z.fehler.length === 0 ? null : (
                       <span className="text-xs text-warning">{z.fehler.join(' · ')}</span>
                     )}
+                    {/*
+                      * Hinweis ≠ Fehler: die Zeile kommt mit, und etwas an ihr
+                      * wurde angepasst — heute der Preis auf einer Zeile, die
+                      * keine Position ist (Titelsumme). Ihn stillschweigend
+                      * fallen zu lassen wäre eine verschwundene Zahl.
+                      */}
+                    {z.hinweise.length === 0 ? null : (
+                      <span className="text-xs text-text-muted" data-cse="zeilenhinweis">
+                        {z.hinweise.join(' · ')}
+                      </span>
+                    )}
                   </span>
                 ),
               },
@@ -369,9 +425,11 @@ export default async function LvImportSeite(
 
           <p className="mt-s3 max-w-prose text-xs text-text-subtle">
             Die Pille sagt, was sich gegenüber der aktuellen Fassung ÄNDERT — nicht,
-            ob die Zeile mitkommt. In die neue Fassung gehen alle gültigen Zeilen,
-            auch die unveränderten; sonst wäre die neue Fassung unvollständig. Nur
-            fehlerhafte Zeilen bleiben zurück.
+            ob die Zeile mitkommt. In die neue Fassung gehen alle gültigen Zeilen{' '}
+            <strong>dieser Datei</strong>, auch die unveränderten; fehlerhafte Zeilen
+            bleiben zurück. Was in der Datei gar nicht vorkommt, kommt auch nicht in
+            die neue Fassung — deshalb steht die Zahl „Fehlen in der Datei" oben
+            neben den anderen.
           </p>
           <p className="mt-s2 max-w-prose text-xs text-text-subtle">
             Die Einheitspreise wandern in die neue Fassung — aber nur durch den

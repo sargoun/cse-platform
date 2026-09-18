@@ -1,7 +1,8 @@
 import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import {
-  StammdatenFehler, alsStammdatenFehler, i18nAus, pflichttext, pruefeSchluessel,
+  StammdatenFehler, alsStammdatenFehler, alsStufenkollision, i18nAus, pflichttext,
+  pruefeSchluessel,
 } from './katalog.js';
 
 /**
@@ -207,6 +208,45 @@ export function pruefeAntragsartEingabe(
   };
 }
 
+/** `antragsart` traegt keinen Audit-Ausloeser — die Zeile kommt von Hand. */
+
+/**
+ * Der Spaltensatz, den VORHER und NACHHER im Pruefprotokoll TEILEN.
+ *
+ * **Beide Seiten muessen dasselbe Vokabular sprechen.** `app.protokolliere`
+ * rechnet `geaendert_felder` als „welcher Schluessel von NACHHER steht in
+ * VORHER anders" (0004). Stuende dort das Eingabeobjekt dieser Schicht
+ * (camelCase, dazu Felder wie `i18n` und `plattform`, die gar keine Spalten
+ * sind) gegen eine gelesene Zeile (snake_case), waere jedes nur-camelCase-Feld
+ * immer `distinct` von NULL: das Protokoll meldete bei JEDER Aenderung
+ * dieselben Felder als geaendert, und eine ECHTE Umstellung waere darin nicht
+ * mehr zu erkennen.
+ *
+ * Vorher wird gelesen (`einZeile`), nachher kommt aus dem `returning`
+ * DESSELBEN Satzes. Beide tragen damit die Spaltennamen der Tabelle.
+ */
+const PROTOKOLL_SPALTEN = `schluessel, bezeichnung, bezeichnung_i18n, ist_system,
+            erfordert_zeitraum, erfordert_abwesenheitsart, erfordert_einsatz,
+            erfordert_tauschpartner, erzeugt_abwesenheit, ist_stammdatenaenderung,
+            archiviert_am`;
+
+/**
+ * Traegt die ANDERE Katalogstufe diesen Schluessel schon?
+ *
+ * **Diese Vorpruefung sieht nur den AKTIVEN Mandanten — und das ist ihre
+ * Grenze.** Die Lesepolicy `t_katalog` zeigt `mandant_id is null` plus
+ * `app.sichtbare_mandanten()`, und das ist in der Mandantensicht genau die
+ * eine aktive Gesellschaft. In der MANDANTENRICHTUNG (eigene Art gegen den
+ * Plattformkatalog) ist die Antwort damit vollstaendig. In der
+ * PLATTFORMRICHTUNG — ein Super-Admin legt eine Art an, deren Schluessel eine
+ * ANDERE Gesellschaft fuehrt — sieht sie die fremde Zeile nicht und schweigt.
+ *
+ * Sie ist deshalb nicht die Sperre, sondern der Satz davor. Die Sperre ist
+ * `kern.katalog_schluessel_frei` (0276): `security definer` und damit an der
+ * RLS vorbei, genau fuer diesen Fall. `alsStufenkollision` holt ihre Meldung
+ * zurueck in dieselbe Sprache — ohne das faende der Mensch die Meldung fuer
+ * eine Dublette auf DERSELBEN Stufe vor.
+ */
 async function pruefeStufenkollision(
   kontext: LeseKontext, schluessel: string, plattform: boolean,
 ): Promise<void> {
@@ -230,7 +270,7 @@ export async function legeAntragsartAn(
 ): Promise<string> {
   await pruefeStufenkollision(kontext, e.schluessel, e.plattform);
   try {
-    const [zeile] = await kontext.schreibe<{ id: string }>(
+    const [zeile] = await kontext.schreibe<Record<string, unknown>>(
       `insert into antragsart
          (mandant_id, schluessel, bezeichnung, bezeichnung_i18n, erfordert_zeitraum,
           erfordert_abwesenheitsart, erfordert_einsatz, erfordert_tauschpartner,
@@ -238,21 +278,25 @@ export async function legeAntragsartAn(
        values (case when $10::boolean then null else app.aktiver_mandant() end,
                $1, $2, $3::jsonb, $4::boolean, $5::boolean, $6::boolean,
                $7::boolean, $8::boolean, $9::boolean, false, $11::uuid)
-       returning id`,
+       returning id, ${PROTOKOLL_SPALTEN}`,
       [e.schluessel, e.bezeichnung, e.i18n, e.erfordertZeitraum,
         e.erfordertAbwesenheitsart, e.erfordertEinsatz, e.erfordertTauschpartner,
         e.erzeugtAbwesenheit, e.istStammdatenaenderung, e.plattform,
         kontext.benutzerId]);
-    const id = zeile?.id;
-    if (id === undefined) {
+    const id = zeile?.['id'];
+    if (typeof id !== 'string') {
       throw new StammdatenFehler('plattform',
         'Die Art wurde nicht angelegt — der Plattformkatalog wird von der '
         + 'Super-Administration gepflegt.');
     }
-    await protokolliere(kontext, 'stammdaten.antragsart_angelegt', id, null, e);
+    await kontext.schreibe(
+      `select app.protokolliere('stammdaten.antragsart_angelegt', 'antragsart',
+                                $1, null, $2::jsonb, app.aktiver_mandant())`,
+      [id, zeile]);
     return id;
   } catch (fehler: unknown) {
-    throw alsStammdatenFehler(fehler, 'dieser Katalog') ?? fehler;
+    throw alsStufenkollision(fehler)
+      ?? alsStammdatenFehler(fehler, 'dieser Katalog') ?? fehler;
   }
 }
 
@@ -273,7 +317,7 @@ export async function aendereAntragsart(
       + 'Super-Administration. An ihnen hängt die Kette Antrag → Abwesenheit.');
   }
   try {
-    const [zeile] = await kontext.schreibe<{ id: string }>(
+    const [nachher] = await kontext.schreibe<Record<string, unknown>>(
       `update antragsart
           set bezeichnung = $2, bezeichnung_i18n = $3::jsonb,
               erfordert_zeitraum = $4::boolean,
@@ -284,12 +328,15 @@ export async function aendereAntragsart(
               ist_stammdatenaenderung = $9::boolean,
               geaendert_am = now(), geaendert_von = $10::uuid
         where id = $1 and archiviert_am is null and not ist_system
-        returning id`,
+        returning ${PROTOKOLL_SPALTEN}`,
       [id, e.bezeichnung, e.i18n, e.erfordertZeitraum,
         e.erfordertAbwesenheitsart, e.erfordertEinsatz, e.erfordertTauschpartner,
         e.erzeugtAbwesenheit, e.istStammdatenaenderung, kontext.benutzerId]);
-    if (zeile === undefined) throw nichtAenderbar(vorher !== null);
-    await protokolliere(kontext, 'stammdaten.antragsart_geaendert', id, vorher, e);
+    if (nachher === undefined) throw nichtAenderbar(vorher !== null);
+    await kontext.schreibe(
+      `select app.protokolliere('stammdaten.antragsart_geaendert', 'antragsart',
+                                $1, $2::jsonb, $3::jsonb, app.aktiver_mandant())`,
+      [id, vorher, nachher]);
   } catch (fehler: unknown) {
     throw alsStammdatenFehler(fehler, 'dieser Katalog') ?? fehler;
   }
@@ -304,14 +351,17 @@ export async function archiviereAntragsart(
       'Eine Systemart wird nicht archiviert: ohne sie gäbe es keinen Weg, '
       + 'Urlaub oder eine Krankmeldung zu melden (EMP-10).');
   }
-  const [zeile] = await kontext.schreibe<{ id: string }>(
+  const [nachher] = await kontext.schreibe<Record<string, unknown>>(
     `update antragsart
         set archiviert_am = now(), geaendert_am = now(), geaendert_von = $2::uuid
       where id = $1 and archiviert_am is null and not ist_system
-      returning id`,
+      returning ${PROTOKOLL_SPALTEN}`,
     [id, kontext.benutzerId]);
-  if (zeile === undefined) throw nichtAenderbar(vorher !== null);
-  await protokolliere(kontext, 'stammdaten.antragsart_archiviert', id, vorher, null);
+  if (nachher === undefined) throw nichtAenderbar(vorher !== null);
+  await kontext.schreibe(
+    `select app.protokolliere('stammdaten.antragsart_archiviert', 'antragsart',
+                              $1, $2::jsonb, $3::jsonb, app.aktiver_mandant())`,
+    [id, vorher, nachher]);
 }
 
 function nichtAenderbar(sichtbar: boolean): StammdatenFehler {
@@ -327,20 +377,6 @@ async function einZeile(
   kontext: LeseKontext, id: string,
 ): Promise<Readonly<Record<string, unknown>> | null> {
   const [zeile] = await kontext.abfrage<Record<string, unknown>>(
-    `select schluessel, bezeichnung, ist_system, erfordert_zeitraum,
-            erfordert_abwesenheitsart, erfordert_einsatz, erfordert_tauschpartner,
-            erzeugt_abwesenheit, ist_stammdatenaenderung, archiviert_am
-       from antragsart where id = $1`, [id]);
+    `select ${PROTOKOLL_SPALTEN} from antragsart where id = $1`, [id]);
   return zeile ?? null;
-}
-
-/** `antragsart` traegt keinen Audit-Ausloeser — die Zeile kommt von Hand. */
-async function protokolliere(
-  kontext: SchreibKontext, aktion: string, id: string,
-  vorher: unknown, nachher: unknown,
-): Promise<void> {
-  await kontext.schreibe(
-    `select app.protokolliere($1, 'antragsart', $2, $3::jsonb, $4::jsonb,
-                              app.aktiver_mandant())`,
-    [aktion, id, vorher, nachher]);
 }

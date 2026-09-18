@@ -261,8 +261,14 @@ export interface Verwendung {
  * zeigt diese Liste, statt einen ausgegrauten Löschknopf anzubieten — ein
  * gesperrter Knopf erklärt nichts.
  *
- * `rechnung` kommt über `rechnung_dokument`, das es noch nicht gibt; die
- * Ausgangsrechnung erscheint deshalb heute über ihren `buchungssatz`.
+ * **Die Ausgangsrechnung steht mit drin, über `rechnung.beleg_id`.**
+ * Hier stand vorher, `rechnung` komme über ein `rechnung_dokument`, das es
+ * noch nicht gebe — dabei trägt `rechnung` seit 0132 selbst `beleg_id` (das
+ * archivierte Rechnungs-PDF, „das PDF, das der Kunde bekommen hat"). Der
+ * Rückgabetyp führte `'rechnung'` also, und die `union all` erzeugte den
+ * Zweig nie: für genau den Beleg, an dem eine Rechnung hängt, sagte diese
+ * Liste „daran hängt niemand" — auf dem Bildschirm, der die Begründung ist,
+ * warum der Beleg nicht löschbar ist.
  */
 export async function verwendungen(
   db: Abfrage, belegId: string,
@@ -283,6 +289,11 @@ export async function verwendungen(
             coalesce(bs.buchungstext, 'Buchung ohne Text') as bezeichnung,
             case when bs.festgeschrieben then 'festgeschrieben' else 'offen' end as zustand
        from buchungssatz bs where bs.beleg_id = $1
+     union all
+     select 'rechnung' as art, r.id,
+            coalesce(r.nummer, 'Rechnungsentwurf') as bezeichnung,
+            r.status::text as zustand
+       from rechnung r where r.beleg_id = $1
      order by 1, 3`,
     [belegId]);
   return zeilen;

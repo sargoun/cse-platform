@@ -18,7 +18,7 @@
  * verlangt die Wahl, statt eine zu raten.
  */
 import type { LeseKontext } from '../../kontext/index.js';
-import { listeAntraege, type AntragZeile } from '../abwesenheit/antrag.js';
+import { findeAntrag, listeAntraege, type AntragZeile } from '../abwesenheit/antrag.js';
 import { listeAbwesenheiten, type AbwesenheitZeile } from '../abwesenheit/index.js';
 import type { PortalSprache } from '../../../lib/i18n/texte.js';
 import type { EigeneAnstellung } from './person.js';
@@ -66,6 +66,35 @@ export async function listeEigeneAntraege(
   // vorletzten Jahr.
   return alle.sort((x, y) =>
     y.antrag.eingereichtAm.getTime() - x.antrag.eingereichtAm.getTime());
+}
+
+/**
+ * EIN eigener Antrag — in genau der Gestalt, die auch die Liste liefert.
+ *
+ * **Keine zweite Abfrage.** `findeAntrag` fragt `where a.id = $1::uuid` ohne
+ * Anstellungsfilter; die Abgrenzung macht die RLS, und im Personen-Scope
+ * liefert `antrag.t_person` genau die eigenen Zeilen. Eine fremde Kennung gibt
+ * null Zeilen, und die Seite antwortet darauf 404 statt 403 (AUT-06) — der
+ * Unterschied waere die Auskunft, dass es den Antrag gibt.
+ *
+ * Die Gesellschaft kommt aus den Beschaeftigungen, die `meinPortal` ohnehin
+ * gelesen hat: sie zweimal zu lesen hiesse, zwei Namen fuer denselben Bereich
+ * haben zu koennen. Gehoert der Antrag zu keiner davon — was die RLS
+ * eigentlich ausschliesst —, ist er fuer diese Anmeldung nicht vorhanden.
+ */
+export async function findeEigenenAntrag(
+  kontext: LeseKontext, anstellungen: readonly EigeneAnstellung[], id: string,
+): Promise<EigenerAntrag | null> {
+  const antrag = await findeAntrag(kontext, id);
+  if (antrag === null) return null;
+  const a = anstellungen.find((x) => x.anstellungId === antrag.anstellungId);
+  if (a === undefined) return null;
+  return {
+    antrag,
+    mandantSlug: a.mandantSlug,
+    mandantName: a.mandantName,
+    zurueckziehbar: OFFEN.includes(antrag.status),
+  };
 }
 
 export interface EigeneAbwesenheit {
