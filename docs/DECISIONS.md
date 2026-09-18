@@ -14263,3 +14263,117 @@ Vorgreifen in die andere Richtung.
 
 | Betrifft | TEN-05, SEC-A3, REC-07, `06-RADAR-KI-INHALT.md` §1.4/§6.2, `drizzle/0166`, `drizzle/0168`, `drizzle/0370` |
 |---|---|
+
+---
+
+### D-609 · Fünf Seiten liefen über den Rand — und viermal war es dieselbe Ursache eine Ebene tiefer
+
+**Der Befund.** `tests/e2e/abmessungen.spec.ts` meldete zehn Klagen am Telefon
+(390px) und eine am Schreibtisch (1440px), auf fünf verschiedenen Seiten:
+
+| Wo | Breite | Über den Rand | Der schuldige Kasten, wie ihn der Lauf nennt |
+|---|---|---|---|
+| `finanzen/ausgaben` | Telefon | 88 / 56 / 53px (reinigung / security / bau) | `select.min-h-11 …[138…425]` in `div.[138…425]`, `form.flex flex-wrap items-end gap-s3[24…478]` |
+| `freigaben/stapel` | Telefon | 110px | `table.mt-s3 w-full border-collapse text-sm[49…500]`, `th…[386…500]` |
+| `finanzen/nummernkreise` | Telefon | 26px (alle drei) | `span.inline-flex flex-col gap-s1[264…416]` — Spalte „Kettenlage" |
+| `buchhaltung/verfahrensdokumentation` | Telefon | 13px (alle drei) | kein Kasten; `main` mass 403 bei 390 Fensterbreite |
+| `gruppe/kalender` | Schreibtisch | 14px | `span.shrink-0 … tabular-nums[1388…1454]` in einer Zelle, die bei 1407 endet |
+
+**Die gemeinsame Ursache.** Ein Flex-Element hat von sich aus
+`min-width: auto`: es wird nie schmaler als die MINDESTBREITE seines Inhalts,
+und die rechnet der Browser, **bevor** er umbricht. D-420 hat das an `main`
+behoben, D-594 an der Pillenzeile in der Tabellenzelle. Diese fünf sitzen
+jeweils eine Ebene tiefer — an der Überschrift, am Auswahlfeld, an der
+Wertspalte, an der Kalenderzeile. „Die Korrektur war richtig und eine Ebene zu
+hoch" ist damit zum dritten Mal der Satz, der die Seite gerettet hat.
+
+**`flex-wrap` allein genügt nie.** Es bricht die ZEILE um und hilft nicht, wenn
+schon ein EINZELNES Kind breiter ist als die Spalte. Alle vier Fälle brauchten
+deshalb `min-w-0` (die Mindestbreite wegnehmen) **und** etwas, das den Inhalt
+danach wirklich passen lässt — `max-w-full`, `break-all`, `flex-wrap` oder den
+Kartenstapel.
+
+**Die fünf Korrekturen.**
+
+1. **`finanzen/ausgaben` — die Filterzeile.** Ein `<select>` ist so breit wie
+   seine längste Option („freigegeben — zur Buchung bereit", eine
+   Kategoriebezeichnung mit „(unbestätigt)") und schrumpft nicht: es umbricht
+   nicht, also ist seine Mindestbreite seine Breite. Das Formular, die vier
+   Feldkästen und das Ankreuzfeld tragen jetzt `min-w-0`, das Feld selbst
+   `max-w-full` — es folgt damit seinem Kasten statt seiner längsten Option.
+   Dass „alle drei Gesellschaften, drei verschiedene Zahlen" gemeldet wurde,
+   ist die Bestätigung: die Kategoriebezeichnungen sind je Gesellschaft
+   verschieden lang.
+
+2. **`freigaben/stapel` — die handgeschriebene Tabelle.** Eine `<table>` wird
+   nie schmaler als die Summe der Mindestbreiten ihrer Spalten; `w-full`
+   ändert daran nichts. Sie ist jetzt ein `DataTable` — dieselbe Bauart wie
+   die Nachweistabelle der Prüfansicht (`freigaben/[id]`), die mit denselben
+   Daten nie überlief: unter `md` ein Kartenstapel (DESIGN §5, §8 — „nie ein
+   seitlicher Rollbalken auf einem Telefon"), ab `md` die Tabelle in ihrem
+   eigenen Rollbehälter (D-420). Ein `overflow-x-auto` um die eigene Tabelle
+   hätte die Seite auch gerettet und §8 verletzt. Die Anker
+   `data-cse="stapel-feld"` und `data-unsicher` stehen jetzt an der Feldzelle.
+
+3. **`finanzen/nummernkreise` — der gekürzte Hash.** `kurz()` macht aus einem
+   SHA-256 ein 19-Zeichen-Wort ohne Trennstelle. Die Wertspalte des
+   Kartenstapels ist rund 74px breit; das `min-w-0 break-words` am `<dd>`
+   (D-420) wirkt durch den `inline-flex`-Behälter der Zelle hindurch **nicht**
+   (D-594). Die fünf Zellen tragen jetzt `flex min-w-0 flex-col` wie in
+   `freigaben/page.tsx`, die Hashzeilen und die Formatmaske `break-all` wie in
+   `freigaben/[id]` — ein Hash wird gelesen, nicht gesprochen (D-569).
+
+4. **`buchhaltung/verfahrensdokumentation` — die Überschrift.**
+   „Verfahrensdokumentation" ist ein Wort ohne Trennstelle und als `text-h1`
+   am Telefon (30px, DESIGN §2 mobil) rund 379px breit; die Inhaltsspalte hat
+   342. `globals.css` gibt jeder Überschrift dafür `overflow-wrap: anywhere`
+   (D-420), und als BLOCK bricht sie damit auch — `verarbeitungsverzeichnis`
+   trägt ein noch längeres Wort und ist in Ordnung. Hier steht sie aber in
+   einer Flex-Zeile (Titel links, Verweis rechts), und dort greift die
+   Mindestbreite vor dem Umbruch. `min-w-0` an der Überschrift. Passend dazu:
+   kein Kasten ragte hinaus, und die Zahl war in allen drei Gesellschaften
+   **identisch** — die Ursache ist also datenunabhängig, und eine
+   Überschrift ist das Einzige auf dieser Seite, das das ist.
+
+5. **`gruppe/kalender` — die Kalenderzeile.** Eine Zelle des Monatsgitters ist
+   rund 147px breit. Die Bereichsmarke misst für sich 112px
+   („Dienstleistung"), die Uhrzeit 66px, und die Uhrzeit trägt `shrink-0`,
+   weil eine halb abgeschnittene Uhrzeit eine falsche Uhrzeit ist. 112 + 8 +
+   66 in 147 geht einzeilig nicht — und `min-w-0 truncate` am Titel hat getan,
+   was es verspricht: der Lauf mass den Titel bei `[1462…1462]`, also **0px
+   breit**. Der Titel war nicht zu lang, er war weg. `flex-wrap` an der Zeile
+   gibt jedem Teil eine Zeile, wo eine nicht reicht; die Mindestbreite der
+   Zeile sinkt damit auf die ihres breitesten Kindes, und der Titel steht
+   wieder da. Der Kasten trägt `min-h-[120px]` und darf wachsen; bei
+   höchstens drei Einträgen je Zelle bleibt DESIGN §5 unberührt.
+
+**Kein neuer Gestaltungswert.** Ausschliesslich `min-w-0`, `max-w-full`,
+`flex-wrap`, `break-all` und die Abstände aus DESIGN.md.
+
+**Was offen bleibt.** Zwei Befunde des Laufs sind hier NICHT behoben, weil sie
+in anderen Dateien sitzen:
+
+- **Die Sprachumschalterknöpfe des zugeklappten „Mehr"-Blatts** stehen
+  weiterhin bei `x=349…407` in einem Kasten, der bei 390 endet. Das ist der
+  bekannte Zustand aus D-594: Chromium legt den Inhalt eines geschlossenen
+  `<details>` trotzdem aus, das `overflow-x` des Blattes beschneidet sie, und
+  die Seite wächst dadurch nicht. Sie tauchen in der Ausreisserliste jeder
+  internen Portalseite auf und sind nicht die Ursache der 13px.
+- **`finanzen/belege`** trägt dieselbe Filterzeile wie `finanzen/ausgaben` und
+  ist heute nur deshalb grün, weil seine Optionstexte kürzer sind
+  („Rechnung", „Kassenbeleg"). **`finanzen/ausgangsbuch`** trägt
+  „Rechnungsausgangsbuch" als Überschrift in derselben Flex-Zeile wie Fall 4 —
+  21 Zeichen statt 23, also knapp unter der Kante. Beide warten auf ein
+  längeres Wort oder die englische Fassung (D-592), genau wie die 27 Zellen in
+  D-594. Sie gehören in dieselbe Runde und wurden hier nur nicht angefasst,
+  weil parallel an ihnen gearbeitet wurde.
+- **Die Kopfzeile kürzt die Spur, statt sie zu brechen.** Der Lauf mass auf
+  `verfahrensdokumentation` `a.flex min-h-11 min-w-11 items-center (134>60)` —
+  der Weg zurück („‹ Buchhaltung") steht in einem 60px-Kasten, weil `min-w-11`
+  die Mindestbreite auf 44px setzt und der Inhalt 134 braucht. Die Seite wächst
+  davon nicht (der Text bleibt innerhalb der `nav`), aber ein Kasten, der aus
+  seinem Kasten hängt, ist kein Zustand, auf den man sich verlässt. Gehört zu
+  `PortalRahmen` und damit in eine eigene Runde.
+
+| Betrifft | WCAG 1.4.10, DESIGN §2, §5, §8, D-420, D-569, D-594, `tests/e2e/abmessungen.spec.ts`, 5 Portalseiten |
+|---|---|
