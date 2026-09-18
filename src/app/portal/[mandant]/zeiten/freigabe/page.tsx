@@ -259,7 +259,7 @@ export default async function Abrechnungsfreigabe({
           eine Dauer ist der Abstand zweier Zeitpunkte (Invariante 2).
         </p>
       ) : (
-        <form method="post" action="/api/zeiten/freigabe" data-cse="freigabe-formular">
+        <form method="post" action="/api/zeit/abrechnungsfreigabe" data-cse="freigabe-formular">
           <input type="hidden" name="frage" value={lage} />
 
           {zuViele && (

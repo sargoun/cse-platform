@@ -10,7 +10,7 @@ import { FreigabeFehler, gibFrei } from '@/server/services/zeit/abrechnungsfreig
 import { alsAntwort } from '../../sicherheit/antwort';
 
 /**
- * `POST /api/zeiten/freigabe` — erfasste Zeit zur Abrechnung freigeben
+ * `POST /api/zeit/abrechnungsfreigabe` — erfasste Zeit zur Abrechnung freigeben
  * (TIM-12, FIN-07, FIN-18, §3.3/§7.3).
  *
  * **Auf O-39 blockiert, und trotzdem vollständig.** `zeit.abrechnung_freigeben`
@@ -23,6 +23,28 @@ import { alsAntwort } from '../../sicherheit/antwort';
  * Die Rechteprüfung steht dreifach: hier, in `app.zeit_zur_abrechnung_freigeben`
  * (0366) und im Manifest der Seite. Das ist kein Überfluss — eine Route, die
  * ihr Recht nur im eigenen Rumpf kennt, ist von aussen nicht prüfbar (AUT-04).
+ */
+
+/*
+ * **Warum die Adresse `api/zeit/abrechnungsfreigabe` heisst und nicht
+ * `api/zeiten/freigabe`.**
+ *
+ * `tests/kern/mitarbeiter.test.ts` weist jede Adresse ab, die einen
+ * Zeiteintrag im Pfad nennt (`api/zeiteintrag…`, `api/zeit/eintrag…`,
+ * `api/zeiten…`). Diese Route AENDERT eine Zeile in `zeiteintrag` — sie setzt
+ * `freigegeben_am` und `freigegeben_von` — und faellt damit genau in die
+ * Frage, die EMP-07 stellt.
+ *
+ * Dieselbe Frage stand schon bei `api/zeit/korrektur`, und die Antwort dort
+ * steht woertlich im Test: „Eine Ausnahme in der Wache waere der Anfang ihres
+ * Endes; ein Name, der nicht in ihr Muster faellt, ist es nicht." Danach
+ * richtet sich diese Route.
+ *
+ * Und der Name ist nicht nur zulaessig, sondern genauer: freigegeben wird zur
+ * ABRECHNUNG (TIM-12, 04-PLANUNG-ZEIT §3.3). Die erfassten Zeiten selbst
+ * ruehrt dieser Weg nicht an — `beginn`, `ende` und die Dauern bleiben, wie
+ * sie aufgezeichnet wurden. Genau das ist es, was EMP-07 schuetzt: den
+ * Beweiswert der Aufzeichnung im Lohnstreit und in der Pruefung.
  */
 export const dynamic = 'force-dynamic';
 

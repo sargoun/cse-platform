@@ -805,7 +805,7 @@ export const ROUTEN: readonly RouteEintrag[] = [
      * einem Umbau. Die Pruefung steht dreifach: hier, in
      * `app.zeit_zur_abrechnung_freigeben` (0366) und im Manifest der Seite.
      */
-    pfad: 'api/zeiten/freigabe',
+    pfad: 'api/zeit/abrechnungsfreigabe',
     recht: 'zeit.abrechnung_freigeben',
   },
   {
