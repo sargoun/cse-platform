@@ -502,10 +502,30 @@ describe('(4c) beendigungsfolgen — die Tagesgrenze steht in Berlin', () => {
                $6, $7, 1, 1, 'system', 'geplant')
        returning id`,
       [f.reinigung, `beenden:${zufall()}`, datum, von, '23:30', o!.id, k!.id]);
+    /*
+     * **Eine Absage traegt ihren Zeitpunkt und ihren Grund** —
+     * `ez_absage_begruendet` (0028) laesst `status = 'abgesagt'` ohne beides
+     * gar nicht erst entstehen. Das ist keine Huerde der Fixtur, sondern die
+     * Zusage, um die es geht: wer nicht mehr gebunden ist, ist es aus einem
+     * aufgezeichneten Grund. Eine Fixtur, die daran vorbeischriebe, pruefte
+     * eine Lage, die der Betrieb nicht kennt.
+     *
+     * `now()` und kein Wanduhr-Literal: `abgesagt_am` ist ein INSTANT
+     * (Invariante 5, Serveruhr). Die Berliner Wanduhrzeit steht oben an den
+     * Zeiten der SCHICHT, wo sie hingehoert — dort geht sie ueber
+     * `app.loese_ortszeit` in einen Instant, und die Tagesgrenze der
+     * Auswertung zieht `beendigungsfolgen` selbst in Berlin. Gerechnet wird
+     * auch hier auf UTC-Instanten; berlinerisch ist die Eingabe und die
+     * Anzeige (Invariante 2).
+     */
     await sql.unsafe(
       `insert into einsatz_zuordnung (mandant_id, einsatz_id, anstellung_id, person_id,
-                                      status, beginn_zeitpunkt, ende_zeitpunkt, erstellt_von_art)
-       select $1, $2, $3, $4, $5::zuordnung_status, beginn_zeitpunkt, ende_zeitpunkt, 'system'
+                                      status, beginn_zeitpunkt, ende_zeitpunkt,
+                                      abgesagt_am, absage_grund, erstellt_von_art)
+       select $1, $2, $3, $4, $5::zuordnung_status, beginn_zeitpunkt, ende_zeitpunkt,
+              case when $5 = 'abgesagt' then now() end,
+              case when $5 = 'abgesagt' then 'Krankmeldung der Mitarbeiterin' end,
+              'system'
          from einsatz where id = $2`,
       [f.reinigung, e!.id, f.jonasReinigung, f.jonas, status]);
   }

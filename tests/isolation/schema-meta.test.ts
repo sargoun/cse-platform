@@ -142,9 +142,36 @@ describe('(6) costed things hang off anstellung, facts about the human off perso
       expect(fk.spalte, `${fk.quelle}.${fk.spalte} → anstellung.id`)
         .toMatch(/anstellung_id$/u);
     }
-    // The D-09 case itself: anstellung points at person, person points at nothing.
+    // The D-09 case itself: anstellung points at person …
     expect(fks.some((f) => f.quelle === 'anstellung' && f.ziel === 'person')).toBe(true);
-    expect(fks.some((f) => f.quelle === 'person')).toBe(false);
+
+    /**
+     * … und `person` zeigt auf keine Beschaeftigung.
+     *
+     * Hier stand `expect(fks.some((f) => f.quelle === 'person')).toBe(false)`
+     * — „person points at nothing". Das war richtig formuliert, solange
+     * `person` ueberhaupt keinen Fremdschluessel trug. Seit `0194` traegt sie
+     * einen: `zusammengefuehrt_in_person_id → person.id`, der Dublettenzeiger
+     * aus dem Vertrag `01-KERN §6.13` („die veraltete Zeile bleibt und zeigt
+     * auf die fuehrende (kein Hard Delete)"). Er ist keine D-09-Verletzung,
+     * sondern deren Anwendung: eine Tatsache ueber den MENSCHEN, an
+     * `person_id` gehaengt und auch so benannt — die Namensregel oben prueft
+     * ihn bereits und laesst ihn durch.
+     *
+     * Fortgeschrieben statt gestrichen. Geprueft wird jetzt zweierlei: das,
+     * was D-09 wirklich verbietet — `person` zeigt auf keine `anstellung`,
+     * sonst haette der Mensch eine Beschaeftigung statt umgekehrt —, und
+     * die Liste der Zeigerspalten, die `person` tragen darf. Sie ist auf die
+     * EINE benannt; eine zweite faellt auf, statt unter „person zeigt auf
+     * irgendetwas" mitzulaufen.
+     */
+    expect(
+      fks.filter((f) => f.quelle === 'person' && f.ziel === 'anstellung'),
+      'person darf auf keine anstellung zeigen (D-09)',
+    ).toEqual([]);
+    expect(
+      [...new Set(fks.filter((f) => f.quelle === 'person').map((f) => f.spalte))].sort(),
+    ).toEqual(['zusammengefuehrt_in_person_id']);
   });
 
   it('person carries no mandant_id at all — the dual-employed human is ONE row', async () => {

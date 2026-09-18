@@ -1,0 +1,39 @@
+-- ===========================================================================
+-- 0330 — Radar: das Recht zum Entfernen, das die Policies schon voraussetzen
+--        (RAD-04, RAD-05, Invariante 8, 0145)
+--
+-- **Der Befund.** `0145` hat den Loeschweg der beiden Kindtabellen an drei
+-- Stellen fertig gebaut und an einer vergessen:
+--
+--   * `t_cpv_schreiben` und `t_empfaenger_schreiben` stehen `for all` — DELETE
+--     ist darin enthalten und an `radar.profil_schreiben` gebunden;
+--   * `trg_rpc_version_del` und `trg_rpe_version_del` sind eigens fuer
+--     `after delete` geschrieben und zaehlen `radar_profil.version` hoch;
+--   * `services/radar/profil.ts` (`entferneCpv`, `entferneEmpfaenger`)
+--     loescht hart und protokolliert VOR dem Verschwinden der Zeile;
+--   * das GRANT nennt nur `insert, update`.
+--
+-- Postgres prueft erst das Recht und dann die Policy. Der Dienst bekommt
+-- damit `permission denied for table radar_profil_cpv` — kein „gehoert nicht
+-- zu diesem Profil", kein stilles Nichts, sondern ein Abbruch am
+-- Bildschirm „CPV-Zeile entfernen". Die Policy, die den Fall sauber regelt,
+-- wurde nie ausgewertet, und die Loeschtrigger sind seit 0145 toter Code:
+-- erreichbar allein ueber `on delete cascade` vom Profil, das seinerseits nur
+-- archiviert wird.
+--
+-- **Hart geloescht wird hier, und das ist entschieden.** `radar_profil_cpv`
+-- und `radar_profil_empfaenger` tragen weder `geloescht_am` noch `ist_aktiv`;
+-- Invariante 8 nennt Finanzen, Zeiterfassung und Audit — Radar nicht, und
+-- `rls.ts.KEIN_HARD_DELETE` fuehrt keine der beiden. Die Spur bleibt
+-- trotzdem: die Profilfassung springt (die Trigger oben), das Protokoll haelt
+-- Code und Wirkung fest, und die alten `bewertung`-Zeilen behalten ihre
+-- Begruendung mit dem Code, der damals traf.
+--
+-- **Nur diese zwei.** `radar_profil` selbst bekommt kein DELETE: es traegt
+-- `geloescht_am` und wird archiviert, nicht entfernt — und an ihm haengen
+-- Bewertungen und Vorgaenge.
+--
+-- Keine neue Funktion, kein neuer Enum-Wert: nur das fehlende Tabellenrecht.
+-- ===========================================================================
+
+grant delete on radar_profil_cpv, radar_profil_empfaenger to cse_app;

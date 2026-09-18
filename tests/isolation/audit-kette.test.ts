@@ -284,7 +284,27 @@ describe('app.audit_kette_pruefen — die Gegenprobe', () => {
   });
 
   it('eine veraenderte Protokollzeile bricht die Kette — und die Stelle wird genannt', async () => {
-    await protokolliere(f.reinigung, 'probe.drei');
+    /**
+     * **VIER Zeilen, und nicht eine — der Fall schreibt seine Vorbedingung
+     * selbst.**
+     *
+     * Unten wird das DRITTE Glied herausgegriffen (`offset 2`), und das mit
+     * Absicht: ein Bruch am ERSTEN Glied prueft nur den Startwert der Kette.
+     * Erst ein Bruch in der Mitte zeigt, dass das gespeicherte
+     * `vorheriger_hash` und die nachgerechnete Kette zusammengehoeren — und
+     * dass die Pruefung an der ERSTEN Abweichung stehenbleibt und nicht an
+     * irgendeiner.
+     *
+     * Die Zeilen dafuer entstehen hier und nirgendwo sonst. `seed()` raeumt
+     * `audit_log` leer, und die Helfer daneben schreiben keine Protokollzeile:
+     * `benutzer`, `benutzer_mandant` und `rolle_berechtigung` stehen in
+     * `GEAENDERT_AM`, nicht in `AUDITIERT`. Mit dem einen `protokolliere`,
+     * das hier frueher stand, hatte die Kette GENAU EIN Glied, und der Fall
+     * fiel an seiner eigenen Vorbedingung statt an der Sache.
+     */
+    for (const teilname of ['drei.a', 'drei.b', 'drei.c', 'drei.d']) {
+      await protokolliere(f.reinigung, `probe.${teilname}`);
+    }
     const benutzer = await konto(f.reinigung);
     const sitzung = {
       scope: 'mandant' as const, mandantId: f.reinigung, benutzerId: benutzer,

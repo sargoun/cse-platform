@@ -66,10 +66,18 @@ async function objektMit(mandant: string, wer: string): Promise<string> {
   const [k] = await sql.unsafe<{ id: string }[]>(
     `insert into kunde (mandant_id, kundennummer, name)
      values ($1,$2,'Serientestkunde') returning id`, [mandant, `K-${zufall()}`]);
+  /**
+   * `objekt` traegt den KLEINEN Auditblock (`erstellt_am · erstellt_von ·
+   * geaendert_am · geaendert_von`, 02-CRM-OPERATIONS §0.4) — NICHT den
+   * Akteursblock mit `erstellt_von_art`, den die Dienstplantabellen
+   * (`revier`, `turnus`, `posten`, `planungsserie`, 0028/0029/0069) fuehren.
+   * Die Fixtur hat den Block der Nachbarzeilen mitkopiert; hier steht wieder
+   * das, was `objekt` seit 0021 wirklich hat.
+   */
   const [o] = await sql.unsafe<{ id: string }[]>(
     `insert into objekt (mandant_id, kunde_id, objektnummer, bezeichnung, strasse, plz, ort,
-                         erstellt_von_art, erstellt_von)
-     values ($1,$2,$3,'Serientestobjekt','Teststr.','10115','Berlin','mensch',$4)
+                         erstellt_von)
+     values ($1,$2,$3,'Serientestobjekt','Teststr.','10115','Berlin',$4)
      returning id`, [mandant, k!.id, `O-${zufall()}`, wer]);
   return o!.id;
 }

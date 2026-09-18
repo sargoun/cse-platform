@@ -98,11 +98,12 @@ export default async function IdentitaetSeite(
         <h1 className="mb-s3 text-h1 text-text">Identität</h1>
         <Hinweis art="warnung" cse="identitaet-fehlt" className="max-w-prose">
           <strong>Für diesen Bereich ist keine Identitätszeile hinterlegt.</strong> Sie
-          entsteht normalerweise mit dem Bereich selbst. Fehlt sie, hat der Slug dieses
-          Bereichs kein Identitätstoken in DESIGN §1 — und dann ist die Reihenfolge:
-          erst ein Eintrag in <code>docs/DESIGN.md</code> (Farbe mit geprüftem Kontrast),
-          dann eine Migration, die den Wertebereich erweitert. Eine Ersatzfarbe wird
-          hier nicht gewählt.
+          entsteht mit dem Bereich selbst, und seit der Migration 0336 für jeden
+          Bereich — auch für einen, für den <code>docs/DESIGN.md</code> §1 noch keinen
+          Bereichston führt; der bleibt dann leer und wird hier als Platzhalter
+          angezeigt (TEN-08). Fehlt die Zeile trotzdem, ist das ein Datenbefund und
+          keine offene Designfrage: bitte melden. Eine Ersatzfarbe wird hier in keinem
+          Fall gewählt.
         </Hinweis>
       </PortalRahmen>
     );
@@ -176,11 +177,25 @@ export default async function IdentitaetSeite(
                 <span aria-hidden="true"
                       className="inline-block h-6 w-6 rounded-md border border-line"
                       style={farbe === null ? undefined : { backgroundColor: farbe }} />
-                <code className="text-xs">{identitaet.identitaetsToken}</code>
+                <code className="text-xs">
+                  {identitaet.identitaetsToken ?? 'nicht hinterlegt'}
+                </code>
                 <span className="text-xs text-text-muted">
-                  {farbe === null
-                    ? 'kein Wert in DESIGN §1 — dann fehlt der Eintrag, nicht die Farbe'
-                    : `${farbe} · Wert aus docs/DESIGN.md §1, hier nicht wählbar`}
+                  {/*
+                    * Kein Token heisst NICHT „Fehler": eine Gesellschaft darf
+                    * bestehen, bevor DESIGN §1 einen Bereichston fuer sie
+                    * fuehrt (TEN-08, 0336). Sie steht dann sichtbar als
+                    * Platzhalter da — und keine Ersatzfarbe wird gewaehlt.
+                    * // TODO(client, O-750): Welcher Bereichston (DESIGN §1, Kontrast nach §9) gilt fuer eine fuenfte Gesellschaft, und darf ihr Profil oeffentlich gehen, bevor er eingetragen ist?
+                    */}
+                  {identitaet.identitaetsToken === null
+                    ? 'Platzhalter (O-750): für diesen Bereich führt DESIGN §1 noch keinen '
+                      + 'Bereichston. Erst ein Eintrag in docs/DESIGN.md (Farbe mit '
+                      + 'geprüftem Kontrast), dann eine Migration — hier wird keine '
+                      + 'Ersatzfarbe gewählt.'
+                    : farbe === null
+                      ? 'kein Wert in DESIGN §1 — dann fehlt der Eintrag, nicht die Farbe'
+                      : `${farbe} · Wert aus docs/DESIGN.md §1, hier nicht wählbar`}
                 </span>
               </span>
             </dd>

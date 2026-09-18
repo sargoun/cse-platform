@@ -10,6 +10,17 @@
  * **ein Angebot mit einer Kalkulation auf Platzhaltern geht NICHT hinaus.**
  * Ein eingefrorener Preis, der auf vier unbeantworteten Fragen ruht, sieht
  * pruefbar aus und ist es nicht.
+ *
+ * **Seit `0295` sind Preisfreigabe und Versand ZWEI Vorgaenge mit ZWEI
+ * Rechten** (`angebot.preis_freigeben`, `angebot.versenden`), und beide
+ * haengen im Ausloeser an `app.hat_recht` — also an der SITZUNG. Ein rohes
+ * UPDATE ohne Sitzung traegt kein Konto und damit kein Recht; es scheiterte
+ * ab da an der Preisfreigabe und erreichte keinen der Riegel dahinter mehr.
+ * Wo dieser Test den Weg eines Menschen geht, geht er ihn deshalb in einer
+ * Sitzung und in zwei Schritten (`gibPreisFrei` + `versendeNur`). Wo er eine
+ * SPERRE prueft, richtet er die Fixtur so ein, dass der neue Riegel passiert
+ * ist — sonst prueft die Zusicherung den falschen Riegel, und der alte stuende
+ * ungeprueft da.
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
@@ -82,16 +93,76 @@ async function kalkulation(mandant: string, angebotId: string,
   return z!.id;
 }
 
-/** Der Versand, wie der Dienst ihn ausfuehrt: Nummer UND Zeit in einem UPDATE. */
-async function versende(angebotId: string, nummer?: string): Promise<void> {
+type Tx = Parameters<Parameters<typeof alsApp>[1]>[0];
+
+/** Wer den Vorgang ausfuehrt — Gesellschaft und Konto. */
+interface Wer {
+  readonly mandant: string;
+  readonly benutzer: string;
+}
+const wirSelbst = (): Wer => ({ mandant: f.reinigung, benutzer: chef });
+
+/** Ein Konto mit der Rolle `leitung` — sie haelt Freigabe- UND Versandrecht. */
+async function leitungIn(mandant: string): Promise<Wer> {
+  const benutzer = await konto();
   await sql.unsafe(
+    `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+    [benutzer, mandant, await rolleId('leitung')]);
+  return { mandant, benutzer };
+}
+
+/** Eine schreibende Sitzung im internen Portal — so, wie die Route sie bindet. */
+function alsMensch<T>(fn: (tx: Tx) => Promise<T>, wer: Wer = wirSelbst()): Promise<T> {
+  return alsApp({ scope: 'mandant', mandantId: wer.mandant, benutzerId: wer.benutzer,
+                  portal: 'intern', readonly: false }, fn);
+}
+
+/**
+ * Ein Recht in EINER Gesellschaft entziehen (AUT-03).
+ *
+ * `gewaehrt = false` mit gesetztem `mandant_id` uebersteuert die
+ * Plattform-Vorgabe — das ist der vorgesehene Weg, und deshalb der richtige,
+ * um eine Rechtepruefung im Ausloeser zu pruefen: die Rolle behaelt alles
+ * andere, verliert genau das eine Recht, und die zweite Linie (`t_mandant`,
+ * die `*.schreiben` prueft) bleibt offen. Sonst faengt die Policy den Fall,
+ * und der Ausloeser stuende ungeprueft da.
+ */
+async function entziehe(recht: string, mandant: string, rolle = 'leitung'): Promise<void> {
+  await sql.unsafe(
+    `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+     select $1, b.id, $2, false from berechtigung b where b.schluessel = $3`,
+    [await rolleId(rolle), mandant, recht]);
+}
+
+/**
+ * Schritt 1 — die Preisfreigabe (0295): eigener Vorgang, eigenes Recht.
+ *
+ * `freigegeben_am` wird bewusst NICHT mitgeschrieben: der Ausloeser stempelt
+ * es aus der Serveruhr (Invariante 5). Wer es hier setzte, prueft seinen
+ * eigenen Wert.
+ */
+async function gibPreisFrei(angebotId: string, wer: Wer = wirSelbst()): Promise<void> {
+  await alsMensch((tx) => tx.unsafe(
+    `update angebot set freigegeben_von = $2 where id = $1`, [angebotId, wer.benutzer]), wer);
+}
+
+/** Schritt 2 — der Versand, wie der Dienst ihn ausfuehrt: Nummer UND Zeit in einem UPDATE. */
+async function versendeNur(angebotId: string, nummer?: string,
+                           wer: Wer = wirSelbst()): Promise<void> {
+  await alsMensch((tx) => tx.unsafe(
     `update angebot
         set status = 'versendet',
-            freigegeben_von = $2, freigegeben_am = now(),
             versendet_von = $2, versendet_am = now(),
             angebotsnummer = $3
       where id = $1`,
-    [angebotId, chef, nummer ?? `AN-2026-${zufall().slice(0, 5)}`]);
+    [angebotId, wer.benutzer, nummer ?? `AN-2026-${zufall().slice(0, 5)}`]), wer);
+}
+
+/** Der ganze Weg eines Menschen: erst `/freigabe`, dann `/versand`. */
+async function versende(angebotId: string, nummer?: string,
+                        wer: Wer = wirSelbst()): Promise<void> {
+  await gibPreisFrei(angebotId, wer);
+  await versendeNur(angebotId, nummer, wer);
 }
 
 beforeEach(async () => {
@@ -104,14 +175,42 @@ beforeEach(async () => {
 afterAll(schliessen);
 
 describe('(1) Der Katalog ist versioniert und intern', () => {
-  it('nur EINE aktive Fassung je Schluessel', async () => {
+  it('nur EINE aktive Fassung je Schluessel — jetzt mit einem Satz statt 23505', async () => {
     await sql.unsafe(
       `insert into leistungskatalog (mandant_id, schluessel, bezeichnung, version, status, gueltig_ab)
        values ($1,'unterhaltsreinigung','Unterhaltsreinigung',1,'aktiv','2026-01-01')`,
       [f.reinigung]);
+    // `0298` legt einen Ausloeser VOR den Index: dieselbe Zusage, lesbar.
     await expect(sql.unsafe(
       `insert into leistungskatalog (mandant_id, schluessel, bezeichnung, version, status, gueltig_ab)
        values ($1,'unterhaltsreinigung','Unterhaltsreinigung v2',2,'aktiv','2026-06-01')`,
+      [f.reinigung])).rejects.toThrow(/gilt bereits eine aktive Fassung \(Version 1\)/u);
+  });
+
+  /**
+   * Der Riegel darunter ist der INDEX, nicht die Meldung.
+   *
+   * `0298` sagt es selbst: die Datei „macht aus dem Eindeutigkeitsverstoss nur
+   * einen BENANNTEN Fehler". Der Ausloeser deckt zwei Wege — das INSERT mit
+   * `status = 'aktiv'` und den UPDATE-Uebergang NACH `aktiv`. Er deckt NICHT
+   * den dritten: eine bereits aktive Fassung auf einen Schluessel umhaengen,
+   * unter dem schon eine aktive steht. `old.status is distinct from 'aktiv'`
+   * ist dort falsch, der Ausloeser springt ab — und nur
+   * `leistungskatalog_aktiv_uk` steht noch dazwischen.
+   *
+   * Deshalb bleibt er hier geprueft: waere er weg, entstuenden auf diesem Weg
+   * zwei geltende Listenpreise fuer dieselbe Leistung, und welcher gilt,
+   * entschiede die Sortierung der Abfrage.
+   */
+  it('und darunter haelt weiterhin leistungskatalog_aktiv_uk', async () => {
+    await sql.unsafe(
+      `insert into leistungskatalog (mandant_id, schluessel, bezeichnung, version, status, gueltig_ab)
+       values ($1,'unterhaltsreinigung','Unterhaltsreinigung',1,'aktiv','2026-01-01'),
+              ($1,'glasreinigung','Glasreinigung',2,'aktiv','2026-01-01')`,
+      [f.reinigung]);
+    await expect(sql.unsafe(
+      `update leistungskatalog set schluessel = 'unterhaltsreinigung'
+        where mandant_id = $1 and schluessel = 'glasreinigung'`,
       [f.reinigung])).rejects.toThrow(/leistungskatalog_aktiv_uk/u);
   });
 
@@ -280,20 +379,61 @@ describe('(3) Der Versand — Invariante 7 in der Datenbank', () => {
     const k = await kunde(f.reinigung);
     const a = await angebot(f.reinigung, k);
     await position(f.reinigung, a, 1);
+    // `0295` nennt jetzt den VORGANG statt der Bedingung — das ist der Satz,
+    // den ein Mensch im Portal liest.
     await expect(sql.unsafe(
       `update angebot set status = 'versendet', versendet_am = now(),
                           angebotsnummer = 'AN-1' where id = $1`, [a],
-    )).rejects.toThrow(/angebot_freigabe_vor_versand/u);
+    )).rejects.toThrow(/Ohne Preisfreigabe kein Versand/u);
   });
 
-  it('ohne Nummer geht nichts hinaus — mit einem Satz, nicht mit 23514', async () => {
+  /**
+   * **Und der CHECK darunter ist damit NICHT ueberfluessig geworden.**
+   *
+   * `kern.angebot_versand_pruefen` haengt am Uebergang `versendet_am`
+   * null → gesetzt. Ein UPDATE, das NUR den Status auf `versendet` dreht,
+   * laeuft an jedem der fuenf Ausloeser vorbei: `angebot_05_preisfreigabe`
+   * sieht keine Freigabe, `_10`, `_20` und `_30` sehen keinen Versand, `_40`
+   * sieht kein versendetes Angebot. Die Zeile stuende dann als „versendet" in
+   * jeder Liste, ohne Freigabe, ohne Nummer, ohne Zeitpunkt — und die
+   * Kundenpolicy (`versendet_am is not null`) haette sie trotzdem versteckt,
+   * was den Fehler erst recht leise macht.
+   *
+   * Was ihn faengt, ist `angebot_freigabe_vor_versand`: ein CHECK gilt fuer
+   * JEDE Zeile, unabhaengig davon, welche Spalte sich bewegt hat. Er bleibt
+   * die Zusage; der Ausloeser ist der lesbare Satz davor.
+   */
+  it('auch der blosse Statussprung nicht — angebot_freigabe_vor_versand', async () => {
     const k = await kunde(f.reinigung);
     const a = await angebot(f.reinigung, k);
     await position(f.reinigung, a, 1);
     await expect(sql.unsafe(
-      `update angebot set status = 'versendet', freigegeben_von = $2, freigegeben_am = now(),
+      `update angebot set status = 'versendet' where id = $1`, [a],
+    )).rejects.toThrow(/angebot_freigabe_vor_versand/u);
+    // Und dieselbe Bedingung haelt auch die Annahme eines nie abgegebenen
+    // Angebots auf: „angenommen" ohne Versand ist eine Tatsachenbehauptung.
+    await expect(sql.unsafe(
+      `update angebot set status = 'angenommen' where id = $1`, [a],
+    )).rejects.toThrow(/angebot_freigabe_vor_versand/u);
+  });
+
+  /**
+   * Derselbe EINE Anweisungsweg wie vorher — er prueft jetzt zwei Dinge.
+   *
+   * Freigabe und Versand stehen hier bewusst in EINEM UPDATE. `0295` sagt zu,
+   * dass `angebot_05_preisfreigabe` dann VOR `angebot_10_versand_pruefen`
+   * laeuft und `freigegeben_am` stempelt, bevor die Versandpruefung danach
+   * sieht. Haelt die Reihenfolge nicht, endet dieser Test mit „Ohne
+   * Preisfreigabe kein Versand" — und nicht am Riegel, um den es geht.
+   */
+  it('ohne Nummer geht nichts hinaus — mit einem Satz, nicht mit 23514', async () => {
+    const k = await kunde(f.reinigung);
+    const a = await angebot(f.reinigung, k);
+    await position(f.reinigung, a, 1);
+    await expect(alsMensch((tx) => tx.unsafe(
+      `update angebot set status = 'versendet', freigegeben_von = $2,
                           versendet_von = $2, versendet_am = now() where id = $1`, [a, chef],
-    )).rejects.toThrow(/Versand ohne Angebotsnummer/u);
+    ))).rejects.toThrow(/Versand ohne Angebotsnummer/u);
   });
 
   it('eine Kalkulation auf Platzhaltern verhindert den Versand — benannt', async () => {
@@ -301,7 +441,30 @@ describe('(3) Der Versand — Invariante 7 in der Datenbank', () => {
     const a = await angebot(f.reinigung, k);
     await position(f.reinigung, a, 1);
     await kalkulation(f.reinigung, a, true);
-    await expect(versende(a)).rejects.toThrow(/unbestaetigte Werte/u);
+    // `0295` zieht die Pruefung einen Schritt vor: schon die FREIGABE ruht
+    // nicht auf Platzhaltern. Sonst haette die Leitung einen Preis
+    // verantwortet, den die Datenbank danach nicht hinausliesse.
+    await expect(versende(a)).rejects.toThrow(/unbestaetigte Werte — Preisfreigabe nicht moeglich/u);
+  });
+
+  /**
+   * **Und der Riegel am Versand selbst haelt weiterhin.**
+   *
+   * Er ist nicht dasselbe wie der an der Freigabe: zwischen beiden Schritten
+   * liegt Zeit. Wird die Kalkulation NACH der Freigabe an das Angebot gehaengt
+   * — oder ein bestaetigter Wert wieder geoeffnet —, ist die Freigabe laengst
+   * erteilt und nur `kern.angebot_versand_pruefen` steht noch zwischen einem
+   * Preis auf offenen Fragen und dem Kunden. Die Fixtur stellt genau diese
+   * Reihenfolge her: erst freigeben, dann den Platzhalter anlegen.
+   */
+  it('und der Versand selbst ebenso — auch bei bereits erteilter Freigabe', async () => {
+    const k = await kunde(f.reinigung);
+    const a = await angebot(f.reinigung, k);
+    await position(f.reinigung, a, 1);
+    await gibPreisFrei(a);                      // noch ohne Kalkulation: geht durch
+    await kalkulation(f.reinigung, a, true);    // der Platzhalter entsteht erst jetzt
+    await expect(versendeNur(a))
+      .rejects.toThrow(/unbestaetigte Werte — Versand nicht moeglich/u);
   });
 
   it('mit bestaetigter Kalkulation geht er — und friert sie ein', async () => {
@@ -320,13 +483,19 @@ describe('(3) Der Versand — Invariante 7 in der Datenbank', () => {
     const k = await kunde(f.reinigung);
     const a = await angebot(f.reinigung, k);
     await position(f.reinigung, a, 1);
-    await sql.unsafe(
-      `update angebot set status='versendet', freigegeben_von=$2, freigegeben_am=now(),
-                          versendet_von=$2, versendet_am='2001-01-01T00:00:00Z',
-                          angebotsnummer='AN-X' where id = $1`, [a, chef]);
-    const [z] = await sql.unsafe<{ versendet_am: Date }[]>(
-      `select versendet_am from angebot where id = $1`, [a]);
+    // Beide Zeitpunkte werden vom Aufrufer GENANNT — und beide ueberschreibt
+    // die Datenbank. `freigegeben_am` seit 0295, `versendet_am` seit 0024.
+    await alsMensch((tx) => tx.unsafe(
+      `update angebot set freigegeben_von=$2, freigegeben_am='2001-01-01T00:00:00Z'
+        where id = $1`, [a, chef]));
+    await alsMensch((tx) => tx.unsafe(
+      `update angebot set status='versendet', versendet_von=$2,
+                          versendet_am='2001-01-01T00:00:00Z',
+                          angebotsnummer='AN-X' where id = $1`, [a, chef]));
+    const [z] = await sql.unsafe<{ versendet_am: Date; freigegeben_am: Date }[]>(
+      `select versendet_am, freigegeben_am from angebot where id = $1`, [a]);
     expect(z!.versendet_am.getUTCFullYear()).toBeGreaterThan(2020);
+    expect(z!.freigegeben_am.getUTCFullYear()).toBeGreaterThan(2020);
   });
 
   it('die Steuerzeilen entstehen beim Versand — je Satz eine', async () => {
@@ -473,15 +642,40 @@ describe('(5) Angebot → Auftrag (OPS-09)', () => {
     expect(z!.angebot_id).toBe(a);
   });
 
+  /**
+   * **Der CHECK bleibt die Zusage — das neue Recht steht davor, nicht statt
+   * dessen.**
+   *
+   * `0296` bindet jede Beruehrung der Kundenfreigabe an
+   * `referenz.kundenfreigabe_erfassen`. Das beantwortet die Frage „WER darf
+   * eine Freigabe erklaeren" — und kein Wort zur Frage „was gehoert zu einer
+   * Freigabe dazu". Jemand, der das Recht HAT, koennte weiterhin
+   * `freigegeben_vom_kunden = true` ohne Ansprechpartner und ohne Dokument
+   * schreiben; das ist genau die Zeile, aus der eine Referenz auf der Website
+   * entstuende, ohne dass irgendwo steht, wer sie erlaubt hat. Deshalb laeuft
+   * dieser Fall jetzt MIT dem Recht — sonst endete er am Rechtefehler und die
+   * Vollstaendigkeit stuende ungeprueft da.
+   */
   it('eine Referenz ohne hinterlegte Freigabe kann als Datensatz nicht existieren (PRO-05)',
     async () => {
       const k = await kunde(f.reinigung);
-      await expect(sql.unsafe(
+      await expect(alsMensch((tx) => tx.unsafe(
         `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, bezeichnung,
                               verantwortlich_benutzer_id, start_datum, freigegeben_vom_kunden)
-         values ($1,'AU-REF',$2,'einzelauftrag','Referenz',$3,'2026-01-01',true)`,
-        [f.reinigung, k, chef])).rejects.toThrow(/auftrag_referenzfreigabe_vollstaendig/u);
+         values (app.aktiver_mandant(),'AU-REF',$1,'einzelauftrag','Referenz',$2,'2026-01-01',true)`,
+        [k, chef]))).rejects.toThrow(/auftrag_referenzfreigabe_vollstaendig/u);
     });
+
+  /** Und davor das Recht aus `0296` — ohne es entsteht die Zeile gar nicht erst. */
+  it('und ohne referenz.kundenfreigabe_erfassen kommt sie nicht einmal dorthin', async () => {
+    const k = await kunde(f.reinigung);
+    await entziehe('referenz.kundenfreigabe_erfassen', f.reinigung);
+    await expect(alsMensch((tx) => tx.unsafe(
+      `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, bezeichnung,
+                            verantwortlich_benutzer_id, start_datum, freigegeben_vom_kunden)
+       values (app.aktiver_mandant(),'AU-REF2',$1,'einzelauftrag','Referenz',$2,'2026-01-01',true)`,
+      [k, chef]))).rejects.toThrow(/referenz.kundenfreigabe_erfassen fehlt/u);
+  });
 
   it('eine Gewaehrleistungsfrist ohne Abnahme hat keinen Beginn', async () => {
     const k = await kunde(f.reinigung);
@@ -598,10 +792,9 @@ describe('(7) Die Gruppenansicht liest das Angebot — mitsamt seinem Steuerbild
     const k = await kunde(f.security);
     const a = await angebot(f.security, k);
     await position(f.security, a, 1);
-    await sql.unsafe(
-      `update angebot set status='versendet', freigegeben_von=$2, freigegeben_am=now(),
-                          versendet_von=$2, versendet_am=now(), angebotsnummer=$3
-        where id = $1`, [a, sa, `AN-2026-${zufall().slice(0, 5)}`]);
+    // Freigegeben und versendet wird in der SECURITY — von einem Konto, das
+    // dort arbeitet. Der super_admin liest gleich nur die Gruppe.
+    await versende(a, undefined, await leitungIn(f.security));
 
     // Die Gruppe ist hier NUR die Reinigung — `security` gehoert nicht dazu.
     const gesehen = await alsApp(

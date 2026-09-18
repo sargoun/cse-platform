@@ -11,13 +11,23 @@
  * hinterlegt", und das heisst nach Invariante 7 „Freigabe noetig" — also wie
  * eine besonders vorsichtige Konfiguration.
  *
- * **Erreichbar ist der Fall ueber die MODUL-Schnittmenge.**
- * `app.hat_recht_fuer` schneidet mit `benutzer_mandant.module`
- * (`split_part(schluessel, '.', 1) = any (bm.module)`). Eine Administration
- * mit `module = {agent}` haelt `agent.richtlinie_verwalten` und kein
- * `versand.*` — ohne dass jemand eine Rolle geaendert haette. Genau so ist
- * dieser Test gebaut: er braucht keine kuenstliche Rolle, nur eine
- * Modulbuchung.
+ * **Erreichbar ist der Fall ueber die BINDUNG je Bereich UND die
+ * MODUL-Schnittmenge — beide Wege nennt 0203, und es braucht beide.**
+ * `agent.richtlinie_verwalten` haelt nach der Plattform-Vorgabe (§12) nur
+ * `super_admin`; bei `admin` steht dort `○` — „nicht per Vorgabe gewaehrt;
+ * eine Bindung kann in der Oberflaeche angelegt werden" (AUT-03: eine
+ * `rolle_berechtigung`-Zeile MIT `mandant_id`). Und `super_admin` traegt
+ * `geltungsbereich = global`, was `benutzer_mandant` gar nicht annimmt
+ * (0007). Ohne die Bindung gibt es also keine Sitzung, die das Recht der
+ * Seite haelt und in der Modul-Schnittmenge sitzt — der Test prueft die
+ * Policy dann an einem Konto, das sie nie erreicht, und war genau daran rot.
+ *
+ * Darueber die Schnittmenge: `app.hat_recht_fuer` schneidet mit
+ * `benutzer_mandant.module` (`split_part(schluessel, '.', 1) = any
+ * (bm.module)`). Eine Administration MIT der Bindung und `module = {agent}`
+ * haelt `agent.richtlinie_verwalten` und kein `versand.*` — ohne dass jemand
+ * eine Rolle erfindet oder die Vorgabe fuer alle vier Gesellschaften
+ * verschiebt.
  *
  * **Beide Rechte bleiben gueltig.** `services/bau/nachtrag.ts` liest die
  * Zeile unter den Rechten des Versandwegs; ihm das Lesen zu nehmen hiesse,
@@ -55,6 +65,22 @@ async function konto(mandant: string, module: readonly string[] | null): Promise
   return u!.id;
 }
 
+/**
+ * Die Bindung aus der Oberflaeche (AUT-03): eine `rolle_berechtigung`-Zeile
+ * MIT `mandant_id`. Sie uebersteuert die Plattform-Vorgabe fuer genau diese
+ * Gesellschaft — `finanzen.lesen` der `leitung` in `bau` zu binden oder zu
+ * entziehen aendert in `reinigung` nichts, und kostet kein Deployment. Genau
+ * diese Zeile schreibt der Rechte-Editor, und genau sie macht aus dem `○` in
+ * §12 ein gehaltenes Recht.
+ */
+async function bindeRecht(mandant: string, rolle: string, recht: string): Promise<void> {
+  await sql.unsafe(
+    `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+     select $1::uuid, b.id, $2::uuid, true
+       from berechtigung b where b.schluessel = $3`,
+    [await rolleId(rolle), mandant, recht] as never[]);
+}
+
 async function richtlinie(mandant: string, aktion: string): Promise<void> {
   await sql.unsafe(
     `insert into agent_richtlinie (mandant_id, aktion, auto_erlaubt, begruendung)
@@ -65,6 +91,12 @@ async function richtlinie(mandant: string, aktion: string): Promise<void> {
 
 beforeEach(async () => {
   f = await seed();
+  /*
+   * Die Bindung steht NUR in der Reinigung. Der Bau bleibt auf der
+   * Plattform-Vorgabe — das ist unten die Gegenprobe, die zeigt, dass diese
+   * Zeile und nicht ein Zufall der Fixtur den Unterschied macht.
+   */
+  await bindeRecht(f.reinigung, 'admin', 'agent.richtlinie_verwalten');
   await richtlinie(f.reinigung, 'email_senden');
   await richtlinie(f.bau, 'email_senden');
 });
@@ -114,6 +146,31 @@ describe('Das Recht der Seite genuegt (0203)', () => {
     );
     expect(befund.geaendert).toHaveLength(1);
     expect(befund.angelegt).toHaveLength(1);
+  });
+
+  it('und die Gegenprobe: OHNE die Bindung haelt dieselbe Rolle das Recht nicht', async () => {
+    /*
+     * Im Bau steht die Bindung nicht — dort gilt die Plattform-Vorgabe, und
+     * die gibt `agent.richtlinie_verwalten` nur `super_admin`. Ohne diesen
+     * Fall waere oben nicht zu sehen, ob das `true` von der Bindung kommt
+     * oder die Fixtur ohnehin alles darf; und er haelt zugleich fest, dass
+     * die Vorgabe selbst unangetastet ist: gebunden wird je Bereich, nicht
+     * fuer alle vier Gesellschaften auf einmal.
+     */
+    const benutzer = await konto(f.bau, ['agent']);
+    const befund = await alsApp(
+      { scope: 'mandant', mandantId: f.bau, benutzerId: benutzer,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        const [r] = await tx.unsafe(
+          `select app.hat_recht('agent.richtlinie_verwalten') as agent`) as
+          { agent: boolean }[];
+        const zeilen = await tx.unsafe(`select aktion from agent_richtlinie`) as unknown[];
+        return { recht: r!, zeilen };
+      },
+    );
+    expect(befund.recht.agent).toBe(false);
+    expect(befund.zeilen).toHaveLength(0);
   });
 });
 

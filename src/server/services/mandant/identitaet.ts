@@ -20,6 +20,16 @@ import { FARBEN_BEREICH, type BereichSchluessel } from '../../../lib/design/them
  * schlimmer als kein Knopf: er laesst jemanden glauben, das Logo sei
  * hinterlegt.
  *
+ * **Ein fuenfter Bereich hat noch keine Farbe — und trotzdem eine Zeile.**
+ * TEN-08 sagt zu, dass eine fuenfte Gesellschaft eine Datenbankzeile ist und
+ * keine Codeaenderung. DESIGN §1 fuehrt vier Bereichstoene, und einen fuenften
+ * zu erfinden ist verboten. Beides gilt: der Anlageausloeser (0336) schreibt
+ * `identitaets_token = NULL` statt eines geratenen Tokens, und das heisst hier
+ * genau eine Sache — „fuer diesen Bereich steht in DESIGN §1 noch kein
+ * Bereichston". `farbeVon` gibt dafuer `null` zurueck, und der Bildschirm
+ * sagt es hin.
+ * // TODO(client, O-750): Welcher Bereichston (DESIGN §1, Kontrast nach §9) gilt fuer eine fuenfte Gesellschaft, und darf ihr Profil oeffentlich gehen, bevor er eingetragen ist?
+ *
  * **K-12 ist eine Zusage, die noch nicht eingelöst ist.** `rechnung_fuss`
  * gehoert bei der Festschreibung in den kanonischen Payload KOPIERT, damit
  * eine spaetere Aenderung keine festgeschriebene Rechnung veraendert. Der
@@ -30,6 +40,12 @@ import { FARBEN_BEREICH, type BereichSchluessel } from '../../../lib/design/them
 
 export type IdentitaetsToken =
   'area-reinigung' | 'area-security' | 'area-bau' | 'area-operations';
+
+/**
+ * `null` ist der PLATZHALTER, nicht „Datenfehler": die Gesellschaft steht,
+ * ihr Bereichston steht noch nicht in DESIGN §1 (TEN-08, O-750).
+ */
+export type IdentitaetsTokenOderPlatzhalter = IdentitaetsToken | null;
 
 export const IDENTITAETS_TOKEN: readonly IdentitaetsToken[] =
   ['area-reinigung', 'area-security', 'area-bau', 'area-operations'];
@@ -47,7 +63,7 @@ export class IdentitaetFehler extends Error {
 export interface Identitaet {
   readonly mandantId: string;
   readonly kurzname: string;
-  readonly identitaetsToken: IdentitaetsToken;
+  readonly identitaetsToken: IdentitaetsTokenOderPlatzhalter;
   readonly logoHellPfad: string | null;
   readonly logoDunkelPfad: string | null;
   readonly logoDruckPfad: string | null;
@@ -74,7 +90,7 @@ export interface Identitaet {
 interface Roh {
   readonly mandant_id: string;
   readonly kurzname: string;
-  readonly identitaets_token: string;
+  readonly identitaets_token: string | null;
   readonly logo_hell_pfad: string | null;
   readonly logo_dunkel_pfad: string | null;
   readonly logo_druck_pfad: string | null;
@@ -106,7 +122,8 @@ interface Roh {
  * Farbe gibt `null` zurueck und nicht Grau: eine erfundene Ersatzfarbe waere
  * genau der Designwert, den CLAUDE.md verbietet.
  */
-export function farbeVon(token: string): string | null {
+export function farbeVon(token: string | null): string | null {
+  if (token === null) return null;
   const bereich = token.replace(/^area-/u, '') as BereichSchluessel;
   return FARBEN_BEREICH[bereich] ?? null;
 }
@@ -115,7 +132,7 @@ function zuIdentitaet(r: Roh): Identitaet {
   return {
     mandantId: r.mandant_id,
     kurzname: r.kurzname,
-    identitaetsToken: r.identitaets_token as IdentitaetsToken,
+    identitaetsToken: r.identitaets_token as IdentitaetsTokenOderPlatzhalter,
     logoHellPfad: r.logo_hell_pfad,
     logoDunkelPfad: r.logo_dunkel_pfad,
     logoDruckPfad: r.logo_druck_pfad,
@@ -154,11 +171,13 @@ const SPALTEN = `mi.mandant_id, mi.kurzname, mi.identitaets_token,
 /**
  * Die Identitaet des AKTIVEN Bereichs — oder `null`.
  *
- * `null` heisst hier etwas Genaues: der Trigger `mandant_identitaet_anlegen`
- * (0200) legt die Zeile mit dem Mandanten an, und die Nachtragung in derselben
- * Migration holt die vorhandenen nach. Fehlt sie trotzdem, dann weil der Slug
- * dieses Bereichs kein Identitaetstoken in DESIGN §1 hat — und dann ist das
- * die Auskunft, die der Bildschirm geben muss, nicht ein leeres Formular.
+ * `null` heisst hier etwas Genaues: der Ausloeser `mandant_identitaet_anlegen`
+ * (0200/0336) legt die Zeile mit dem Mandanten an, fuer JEDEN Mandanten, und
+ * die Nachtragungen in denselben Migrationen holen den Bestand nach. Seit 0336
+ * gibt es keinen Slug mehr, der keine Zeile bekommt — ein Bereich ohne Eintrag
+ * in DESIGN §1 bekommt sie mit `identitaetsToken === null`. Bleibt sie
+ * trotzdem aus, ist das ein Datenbefund und die Auskunft, die der Bildschirm
+ * geben muss, nicht ein leeres Formular.
  */
 export async function ladeIdentitaet(
   kontext: LeseKontext,
@@ -204,7 +223,10 @@ export interface IdentitaetEingabe {
  * **Was hier NICHT gesetzt wird, und je einen Satz dazu:**
  *  - `identitaets_token` — die Farbe eines Bereichs ist eine
  *    DESIGN.md-Entscheidung, keine Einstellung (siehe Kopf). Ein fuenfter
- *    Bereich braucht zuerst einen DESIGN.md-Eintrag und dann eine Migration.
+ *    Bereich traegt bis dahin `null` und braucht zuerst einen
+ *    DESIGN.md-Eintrag, dann eine Migration, die `mi_token` erweitert
+ *    (O-750). Ein Farbwaehler an dieser Stelle waere genau der Weg, auf dem
+ *    eine ungepruefte Farbe in die Oberflaeche kaeme.
  *  - `logo_*_pfad`, `avatar_pfad`, `cover_pfad` — es gibt keinen
  *    Hochladeweg. Die Alternativtexte schon: sie sind Text, sie sind nach
  *    PUB-09/LEG-07 Pflicht, und sie koennen vor dem Bild da sein.
@@ -234,7 +256,8 @@ export async function setzeIdentitaet(
   if (vorher === null) {
     throw new IdentitaetFehler('nicht_hinterlegt',
       'Für diesen Bereich ist keine Identitätszeile hinterlegt. Sie entsteht mit dem '
-      + 'Bereich (0200); fehlt sie, hat der Slug kein Identitätstoken in DESIGN §1.');
+      + 'Bereich (0200/0336) — seit 0336 für jeden Bereich, auch für einen ohne '
+      + 'Eintrag in DESIGN §1. Fehlt sie trotzdem, ist das ein Datenbefund.');
   }
 
   if (e.oeffentlichSichtbar) {

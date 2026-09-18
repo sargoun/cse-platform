@@ -46,6 +46,41 @@ function sitzung() {
   };
 }
 
+/**
+ * Als EIGENTÜMER, aber MIT gebundener Sitzung — für die Fixturen des §48-Teils.
+ *
+ * **Warum das nötig ist, und warum es kein Testtrick ist.** Der Auslöser
+ * `er_9_bauleistung_jahressumme` (0182) läuft als `cse_definer`, und dessen
+ * Policy `d_blj_schreiben` liest `app.sichtbare_mandanten()`. Auf der
+ * ungebundenen Verbindung ist diese Menge LEER: jedes Fortschreiben der
+ * Jahressumme fiel dann mit „new row violates row-level security policy" —
+ * eine Policy, die im Betrieb nie greift, weil dort immer eine Sitzung steht.
+ *
+ * Aufgefallen ist das erst bei der ZWEITEN Rechnung: solange die Summe 0 ist
+ * und noch keine Zeile steht, schreibt die rechnende Funktion gar nicht
+ * (0182: „keine Zeile für eine Null, die noch nie eine Zahl war"). Die Fixtur
+ * kam also so lange durch, wie sie nichts bewirkte.
+ *
+ * `alsApp` wäre hier zu eng — die Fixtur stellt einen Ausgangszustand her und
+ * prüft nicht den Schreibweg der Eingangsrechnung; den prüft
+ * `eingangsrechnung.test.ts`. Dieselbe Begründung steht in
+ * `bauleistung-jahressumme.test.ts`, und beide Dateien machen es gleich.
+ */
+async function mitSitzung<T>(
+  mandantId: string, fn: (tx: postgres.TransactionSql) => Promise<T>,
+): Promise<T> {
+  return sql.begin(async (tx) => {
+    await tx.unsafe(`select set_config('app.scope', 'mandant', true)`);
+    await tx.unsafe(`select set_config('app.mandant_id', $1, true)`, [mandantId]);
+    await tx.unsafe(`select set_config('app.mandant_ids', $1, true)`, [mandantId]);
+    await tx.unsafe(`select set_config('app.portal', 'intern', true)`);
+    await tx.unsafe(`select set_config('app.readonly', 'off', true)`);
+    await tx.unsafe(`select set_config('app.benutzer_id', $1, true)`, [benutzer]);
+    await tx.unsafe(`select set_config('app.akteur_typ', 'mensch', true)`);
+    return fn(tx);
+  }) as Promise<T>;
+}
+
 async function legeBenutzerAn(email: string): Promise<string> {
   const [u] = await sql.unsafe<{ id: string }[]>(
     `insert into auth.users (email) values ($1) returning id`, [email]);
@@ -291,9 +326,36 @@ describe('K-12 — append-only bis auf den Zustand', () => {
   it('verlangt für „fehlgeschlagen" einen Fehlertext', async () => {
     const { fest } = await belegAnlegen();
     const id = await eintragen(fest);
+
+    /**
+     * **Zuerst der SOC-07-Riegel, und er gilt auch beim UPDATE.**
+     *
+     * `rechnung_versand_2_kanal_verbunden` hängt an `insert or update`: ohne
+     * verbundenen Weg ist `nicht_verbunden` der einzige zulässige Zustand,
+     * und `fehlgeschlagen` behauptete einen Versuch, den niemand unternommen
+     * hat. Diese Zeile stand hier vorher nicht — der Fall lief in den Riegel
+     * und meldete dessen Text, weil die Fixtur den Kanal nie verbunden hatte.
+     */
+    await expect(sql.unsafe(
+      `update rechnung_versand set status = 'fehlgeschlagen' where id = $1`, [id]))
+      .rejects.toThrow(/kein Ausliefererweg verbunden/u);
+
+    /* Und DANN, an einem verbundenen Kanal, trägt der CHECK. */
+    await sql.unsafe(
+      `insert into mandant_einstellung (mandant_id, schluessel, wert)
+       values ($1,'versand.email.verbunden','true'::jsonb)`, [f.reinigung]);
     await expect(sql.unsafe(
       `update rechnung_versand set status = 'fehlgeschlagen' where id = $1`, [id]))
       .rejects.toThrow(/rv_fehlertext_bei_fehler/u);
+
+    /* Mit Text geht derselbe Übergang durch — sonst prüfte der Fall nur eine Mauer. */
+    await sql.unsafe(
+      `update rechnung_versand
+          set status = 'fehlgeschlagen', fehlertext = 'SMTP 550: Postfach unbekannt'
+        where id = $1`, [id]);
+    const [z] = await sql.unsafe<{ status: string }[]>(
+      `select status::text as status from rechnung_versand where id = $1`, [id]);
+    expect(z!.status).toBe('fehlgeschlagen');
   });
 
   it('trägt auf rechnung KEIN versendet_am (K-12)', async () => {
@@ -387,17 +449,22 @@ describe('§48 Abs. 2 EStG — die Jahressumme entsteht VOR der Abzugsentscheidu
        returning id`,
       [f.reinigung, `B-${zufall()}`, d!.id, v!.id, leistungsdatum, String(brutto), benutzer]);
     const netto = brutto - brutto / 6n;
-    const [er] = await sql.unsafe<{ id: string }[]>(
-      `insert into eingangsrechnung
-         (mandant_id, lieferant_id, rechnungsnummer_lieferant, rechnungsdatum,
-          leistungsdatum, netto_cent, steuer_cent, brutto_cent, beleg_id,
-          bauabzugsteuer_pflichtig, bauabzugsteuer_satz_bp, status,
-          erstellt_von_art, erstellt_von)
-       values ($1,$2,$3,$4,$4,$5,$6,$7,$8,true,1500,'in_pruefung','mensch',$9)
-       returning id`,
-      [f.reinigung, l!.id, `GB-${zufall()}`, leistungsdatum,
-        String(netto), String(brutto - netto), String(brutto), b!.id, benutzer] as never[]);
-    return { id: er!.id, lieferant: l!.id };
+    /* In gebundener Sitzung — siehe `mitSitzung`: der Jahressummen-Auslöser
+       schreibt als `cse_definer` und braucht `app.sichtbare_mandanten()`. */
+    const er = await mitSitzung(f.reinigung, async (tx) => {
+      const [z] = await tx.unsafe<{ id: string }[]>(
+        `insert into eingangsrechnung
+           (mandant_id, lieferant_id, rechnungsnummer_lieferant, rechnungsdatum,
+            leistungsdatum, netto_cent, steuer_cent, brutto_cent, beleg_id,
+            bauabzugsteuer_pflichtig, bauabzugsteuer_satz_bp, status,
+            erstellt_von_art, erstellt_von)
+         values ($1,$2,$3,$4,$4,$5,$6,$7,$8,true,1500,'in_pruefung','mensch',$9)
+         returning id`,
+        [f.reinigung, l!.id, `GB-${zufall()}`, leistungsdatum,
+          String(netto), String(brutto - netto), String(brutto), b!.id, benutzer] as never[]);
+      return z!.id;
+    });
+    return { id: er, lieferant: l!.id };
   }
 
   async function gibFrei(erId: string): Promise<void> {
@@ -462,16 +529,19 @@ describe('§48 Abs. 2 EStG — die Jahressumme entsteht VOR der Abzugsentscheidu
        values ($1,$2,'eingangsrechnung','email',$3,$4,repeat('b',64),2,'2026-05-31',
                59500,'mensch',$5) returning id`,
       [f.reinigung, `B-${zufall()}`, d!.id, v!.id, benutzer]);
-    const [er] = await sql.unsafe<{ id: string }[]>(
-      `insert into eingangsrechnung
-         (mandant_id, lieferant_id, rechnungsnummer_lieferant, rechnungsdatum,
-          leistungsdatum, netto_cent, steuer_cent, brutto_cent, beleg_id,
-          bauabzugsteuer_pflichtig, bauabzugsteuer_satz_bp, status,
-          erstellt_von_art, erstellt_von)
-       values ($1,$2,$3,'2026-05-31','2026-05-31',50000,9500,59500,$4,true,1500,
-               'in_pruefung','mensch',$5) returning id`,
-      [f.reinigung, erste.lieferant, `GB-${zufall()}`, b!.id, benutzer]);
-    await gibFrei(er!.id);
+    const er = await mitSitzung(f.reinigung, async (tx) => {
+      const [z] = await tx.unsafe<{ id: string }[]>(
+        `insert into eingangsrechnung
+           (mandant_id, lieferant_id, rechnungsnummer_lieferant, rechnungsdatum,
+            leistungsdatum, netto_cent, steuer_cent, brutto_cent, beleg_id,
+            bauabzugsteuer_pflichtig, bauabzugsteuer_satz_bp, status,
+            erstellt_von_art, erstellt_von)
+         values ($1,$2,$3,'2026-05-31','2026-05-31',50000,9500,59500,$4,true,1500,
+                 'in_pruefung','mensch',$5) returning id`,
+        [f.reinigung, erste.lieferant, `GB-${zufall()}`, b!.id, benutzer] as never[]);
+      return z!.id;
+    });
+    await gibFrei(er);
 
     const [z] = await sql.unsafe<{ betrag: string }[]>(
       `select gegenleistung_cent::text as betrag from bauleistung_jahressumme

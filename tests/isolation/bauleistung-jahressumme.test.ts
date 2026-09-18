@@ -137,6 +137,26 @@ async function legeRechnungAn(
       [mandantId, lieferantId, beleg, `R-${zufall()}`, leistungsdatum,
         netto.toString(), steuer.toString(), bruttoCent.toString(), pflichtig,
         status, freigabe, benutzer] as never[]);
+    /**
+     * **Die Aufteilung nach Steuersätzen gehört zur Rechnung, nicht zum
+     * Buchungsschritt** (§14 Abs. 4 Nr. 8 UStG).
+     *
+     * `fin.eingangsrechnung_buchen` (0123) weist eine Rechnung ohne
+     * Steuerzeilen ab: „Ohne Steuerzeilen wird nicht gebucht — das Entgelt ist
+     * dann nicht nach Sätzen aufgeschlüsselt." Die Fixtur legte den Kopf
+     * bisher allein an, und deshalb kam der Buchungsfall hier nie bis zur
+     * Jahressumme. Der Riegel hat recht: aus einem Bruttobetrag lässt sich
+     * kein Satz zurückrechnen (Invariante 1), also entsteht die Zeile hier
+     * mit ihrer Aufteilung — genau EINE Gruppe, damit Kopf und Zeilen auf den
+     * Cent zusammenpassen.
+     */
+    await tx.unsafe(
+      `insert into eingangsrechnung_steuer
+         (mandant_id, eingangsrechnung_id, steuersatz_gruppe_id, satz_bp, kategorie,
+          netto_cent, steuer_cent, erstellt_von_art, erstellt_von)
+       select $1, $2, g.id, g.satz_bp, g.kategorie, $3::bigint, $4::bigint, 'mensch', $5
+         from steuersatz_gruppe g where g.schluessel = 'ust_19'`,
+      [mandantId, r!.id, netto.toString(), steuer.toString(), benutzer] as never[]);
     return r!.id;
   });
 }
@@ -164,9 +184,26 @@ async function jahressumme(mandantId: string, jahr = 2026): Promise<bigint | nul
   return z === undefined ? null : BigInt(z.c);
 }
 
+/**
+ * Ein offener Kreis `eingangsrechnung_beleg` — ohne ihn zieht
+ * `fin.eingangsrechnung_buchen` keine interne Belegnummer und bricht ab.
+ * `ist_platzhalter = false`: ein Platzhalterkreis vergibt ausdrücklich keine
+ * Nummer (O-134), und der Buchungsfall liefe wieder in einen fremden Riegel.
+ */
+async function macheBuchungsfaehig(mandantId: string): Promise<void> {
+  await sql.unsafe(
+    `insert into nummernkreis
+       (mandant_id, kreis_typ, kontext_id, jahr, bezeichnung, lueckenlos, format_maske,
+        zuruecksetzung, geoeffnet_am, ist_platzhalter, erstellt_von_art, erstellt_von_dienst)
+     values ($1, 'eingangsrechnung_beleg', null, 2026, 'Eingangsbelege', true,
+             'EB-{jahr}-{nr:5}', 'jaehrlich', '2026-01-01', false, 'system', 'job:test')`,
+    [mandantId]);
+}
+
 beforeEach(async () => {
   f = await seed();
   benutzer = await legeBenutzerAn(`buchhaltung-${zufall()}@cse.test`);
+  await macheBuchungsfaehig(f.reinigung);
   const [l] = await sql.unsafe<{ id: string }[]>(
     `insert into lieferant (mandant_id, lieferantennummer, name, status,
                             erstellt_von_art, erstellt_von_dienst)

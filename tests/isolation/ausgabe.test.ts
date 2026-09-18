@@ -413,9 +413,42 @@ describe('Invariante 8 — keine harte Löschung', () => {
       await expect(alsRolle('cse_app', async (tx) =>
         tx.unsafe(`delete from ${tabelle}`)))
         .rejects.toThrow(/permission denied|Hard delete|gesperrt/iu);
-      /* TRUNCATE ist eine harte Löschung jeder Zeile auf einmal. */
+    }
+  });
+
+  /**
+   * **TRUNCATE, und zwar so, dass der Auslöser wirklich geprüft wird.**
+   *
+   * Diese Prüfung ist FORTGESCHRIEBEN und nicht aufgeweicht. Vorher stand sie
+   * in der Schleife oben und erwartete für jede der drei Tabellen die Meldung
+   * des Auslösers. Seit 0180 zeigen `rechnungsposition_quelle`, `buchungssatz`
+   * und `konto_mapping` mit Fremdschlüsseln auf `ausgabe` und
+   * `ausgabe_kategorie` — und PostgreSQL prüft die Fremdschlüssel VOR den
+   * BEFORE-TRUNCATE-Auslösern. Für zwei der drei Tabellen kam deshalb
+   * „cannot truncate a table referenced in a foreign key constraint", bevor
+   * `kern.verhindere_loeschung` überhaupt zu Wort kam.
+   *
+   * Beides einfach in EIN Suchmuster zu werfen wäre die Abschwächung: der
+   * Test bewiese dann nur noch, dass irgendetwas nein sagt — und die
+   * Fremdschlüsselsperre fällt mit `CASCADE`. Geprüft wird deshalb beides
+   * getrennt: die Sperre, die zuerst greift, UND der Auslöser dahinter, der
+   * auch dann noch anhält, wenn `CASCADE` die erste umgeht.
+   */
+  it('sperrt TRUNCATE — und der Auslöser hält auch CASCADE an', async () => {
+    const id = await legeAusgabeAn(f.reinigung);
+    await legeSteuerzeilenAn(f.reinigung, id, [['ust_19', 10_000n, 1900n]]);
+
+    /* Ohne fremde Verweise greift direkt der Auslöser. */
+    await expect(sql.unsafe(`truncate table ausgabe_steuer`))
+      .rejects.toThrow(/Hard delete|gesperrt/iu);
+
+    for (const tabelle of ['ausgabe', 'ausgabe_kategorie']) {
+      /* Erste Sperre: der Fremdschlüssel aus 0180. */
       await expect(sql.unsafe(`truncate table ${tabelle}`))
-        .rejects.toThrow(/Hard delete|gesperrt|permission denied/iu);
+        .rejects.toThrow(/cannot truncate a table referenced in a foreign key/iu);
+      /* Zweite Sperre: der Auslöser, den CASCADE nicht los wird. */
+      await expect(sql.unsafe(`truncate table ${tabelle} cascade`))
+        .rejects.toThrow(/Hard delete|gesperrt/iu);
     }
   });
 });

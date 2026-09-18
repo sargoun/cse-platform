@@ -1,8 +1,8 @@
 /**
- * `mandant_identitaet` gegen die echte Datenbank (TEN-07, PUB-09, LEG-07,
- * DESIGN §1/§9/§11, 0200).
+ * `mandant_identitaet` gegen die echte Datenbank (TEN-07, TEN-08, PUB-09,
+ * LEG-07, DESIGN §1/§9/§11, 0200, 0335, 0336).
  *
- * Fuenf Dinge, die nur hier zu pruefen sind:
+ * Sechs Dinge, die nur hier zu pruefen sind:
  *
  *  - **Lesen ohne Fachrecht, Schreiben nur mit `system.identitaet_verwalten`.**
  *    Die Identitaet steht in jeder Kopfzeile und in jedem Switcher; ein
@@ -25,14 +25,20 @@
  *    fuer eine Schranke haelt.
  *  - **Kein DELETE.** Es gibt keinen Zustand „diese Gesellschaft hat kein
  *    Erscheinungsbild", nur Felder ohne Wert.
+ *  - **Eine fuenfte Gesellschaft ist eine Zeile** (TEN-08). Sie entsteht auch
+ *    dann, wenn DESIGN §1 fuer sie noch keinen Bereichston fuehrt — dann mit
+ *    `identitaets_token = NULL` als sichtbarem Platzhalter (0336, O-750).
+ *    Geraten wird keine Farbe: der `CHECK` laesst weiter nur die vier Namen
+ *    aus DESIGN §1 durch.
  *
  * **`seed()` legt die Zeilen NICHT an.** Die Fixtur laeuft unter
  * `session_replication_role = replica`, und in diesem Modus feuert kein
  * gewoehnlicher Ausloeser — also auch nicht
  * `kern.mandant_identitaet_anlegen`. Derselbe Umstand steht in
  * `reinigung.test.ts` fuer die Behinderungsvorlagen. Die Zeilen entstehen
- * hier deshalb von Hand; DASS der Ausloeser laeuft, prueft der Abschnitt
- * „der Ausloeser" mit einem unbekannten Slug.
+ * hier deshalb von Hand; DASS der Ausloeser laeuft, prueft der letzte
+ * Abschnitt mit einem unbekannten Slug — dort entsteht die Zeile, und dort
+ * bleibt das Token leer.
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
@@ -264,7 +270,28 @@ describe('Der Alt-Text-CHECK (PUB-09, LEG-07)', () => {
   });
 });
 
-describe('Der Ausloeser und die Reihenfolge aus DESIGN §1', () => {
+/**
+ * **Der Ausloeser, TEN-08 und die Reihenfolge aus DESIGN §1 — alle drei.**
+ *
+ * Hier standen bis 0336 zwei Zusagen gegeneinander, und der Ausloeser aus
+ * 0200 entschied sie in die falsche Richtung: er BRACH JEDE Mandantenanlage
+ * AB, deren Slug nicht einer der vier bekannten war. Damit war eine fuenfte
+ * Gesellschaft eine Codeaenderung — und TEN-08 sagt zu, dass sie eine Zeile
+ * ist. `mandanten-trennung.test.ts` fuehrt diese Zusage namentlich.
+ *
+ * Aufgeloest wird sie nicht dadurch, dass eine Ersatzfarbe gewaehlt wird —
+ * das waere der erfundene Gestaltungswert, den CLAUDE.md und DESIGN §1
+ * verbieten: der neue Bereich saehe aus wie „Digital & KI", und niemand
+ * suchte den Grund in einem Ausloeser. Sie wird dadurch aufgeloest, dass die
+ * offene Frage als solche in der Zeile steht: `identitaets_token` ist NULL,
+ * die Zeile entsteht trotzdem, und die Oberflaeche zeigt sie als Platzhalter
+ * (O-750).
+ *
+ * Die drei Faelle unten halten alle drei Haelften fest — die Zeile entsteht,
+ * die Farbe wird NICHT geraten, und die vier Namen aus DESIGN §1 stehen
+ * weiter im `CHECK`.
+ */
+describe('Der Ausloeser, TEN-08 und die Reihenfolge aus DESIGN §1', () => {
   it('er ist angelegt und eingeschaltet', async () => {
     const [t] = await sql.unsafe<{ tgenabled: string }[]>(
       `select tgenabled from pg_trigger
@@ -275,19 +302,65 @@ describe('Der Ausloeser und die Reihenfolge aus DESIGN §1', () => {
     expect(t?.tgenabled).toBe('O');
   });
 
-  it('ein Bereich ohne Farbe in DESIGN §1 wird abgewiesen, mit Anleitung', async () => {
+  it('ein Bereich ohne Farbe in DESIGN §1 entsteht — mit Zeile, ohne Token (TEN-08)',
+    async () => {
+      const slug = `gartenbau-${zufall()}`;
+      const [m] = await sql.unsafe<{ id: string }[]>(
+        `insert into mandant (slug, name, firma)
+         values ($1, 'Garten', 'Garten GmbH') returning id`, [slug] as never[]);
+      expect(m, 'die fuenfte Gesellschaft wurde nicht angelegt').toBeDefined();
+
+      const [mi] = await sql.unsafe<{
+        kurzname: string; identitaets_token: string | null;
+        platzhalter_medien: boolean; oeffentlich_sichtbar: boolean;
+      }[]>(
+        `select kurzname, identitaets_token, platzhalter_medien, oeffentlich_sichtbar
+           from mandant_identitaet where mandant_id = $1`, [m!.id] as never[]);
+
+      /* Die 1:1-Zusage aus §6.2 gilt fuer JEDEN Mandanten, nicht fuer vier. */
+      expect(mi, 'keine Identitaetszeile — TEN-07 liefe ohne Wert').toBeDefined();
+      expect(mi?.kurzname).toBe('Garten');
+      /*
+       * NULL ist die offene Frage, als NULL geschrieben — und ausdruecklich
+       * NICHT `area-operations` oder irgendein anderer geliehener Ton.
+       */
+      expect(mi?.identitaets_token).toBeNull();
+      /* Sichtbar als Platzhalter, und oeffentlich bleibt sie erst einmal zu. */
+      expect(mi?.platzhalter_medien).toBe(true);
+      expect(mi?.oeffentlich_sichtbar).toBe(false);
+    });
+
+  it('eine ERFUNDENE Farbe kommt trotzdem nicht in die Spalte', async () => {
     /*
-     * Das ist die Reihenfolge, die CLAUDE.md verlangt: zuerst ein Eintrag in
-     * docs/DESIGN.md (Farbe mit geprueftem Kontrast), dann eine Migration,
-     * die `mi_token` erweitert. Eine Ersatzfarbe zu waehlen — etwa
-     * `area-operations` — waere genau der erfundene Gestaltungswert, den
-     * dieselbe Regel verbietet: der neue Bereich saehe aus wie „Digital & KI",
-     * und niemand suchte den Grund in einem Ausloeser.
+     * Die Reihenfolge aus CLAUDE.md steht unveraendert: zuerst ein Eintrag in
+     * docs/DESIGN.md (Farbe mit geprueftem Kontrast, DESIGN §9), dann eine
+     * Migration, die `mi_token` erweitert. Was 0336 aendert, ist allein, dass
+     * die Gesellschaft bis dahin existieren darf.
      */
+    const slug = `logistik-${zufall()}`;
+    const [m] = await sql.unsafe<{ id: string }[]>(
+      `insert into mandant (slug, name, firma)
+       values ($1, 'Logistik', 'Logistik GmbH') returning id`, [slug] as never[]);
     await expect(sql.unsafe(
-      `insert into mandant (slug, name, firma) values ($1, 'Garten', 'Garten GmbH')`,
-      [`gartenbau-${zufall()}`] as never[],
-    )).rejects.toThrow(/DESIGN/u);
+      `update mandant_identitaet set identitaets_token = $2 where mandant_id = $1`,
+      [m!.id, `area-${slug}`] as never[],
+    )).rejects.toThrow(/mi_token/u);
+  });
+
+  it('die vier Namen aus DESIGN §1 stehen weiter im CHECK', async () => {
+    /*
+     * Eine eingefrorene Liste darf WACHSEN — ein fuenfter Name kommt hinein,
+     * sobald DESIGN.md ihn fuehrt. Sie darf nicht schrumpfen: faellt einer der
+     * vier heraus, traegt eine bestehende Gesellschaft ihre Farbe nicht mehr.
+     */
+    const [c] = await sql.unsafe<{ def: string }[]>(
+      `select pg_get_constraintdef(oid) as def from pg_constraint
+        where conname = 'mi_token' and conrelid = 'mandant_identitaet'::regclass`);
+    expect(c, 'mi_token fehlt').toBeDefined();
+    for (const token of
+      ['area-reinigung', 'area-security', 'area-bau', 'area-operations']) {
+      expect(c?.def, token).toContain(token);
+    }
   });
 });
 

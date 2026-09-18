@@ -49,6 +49,31 @@ async function konto(
   return u!.id;
 }
 
+/**
+ * `system.einstellung_verwalten` an die Rolle `admin` DIESER Gesellschaft.
+ *
+ * Der Katalog bindet das Recht an `super_admin` und fuehrt `admin` nur als
+ * BINDBAR (`auth/katalog.generiert.ts`) — ein frisch angelegter Admin haelt es
+ * also nicht, und die Policies aus 0202 verlangen genau dieses Recht. Ohne
+ * diese Zeile schrieb hier niemand; und die Pruefungen darunter, die null
+ * Zeilen erwarten, waeren aus dem falschen Grund gruen gewesen: nicht weil die
+ * Mandantengrenze oder die Portaldecke haelt, sondern weil dem Konto das Recht
+ * fehlte. Ein solcher Riegel ist erst gemessen, wenn er der EINZIGE ist, der
+ * noch schliesst.
+ *
+ * Gebunden wird je Gesellschaft (K-03) und nicht global — sonst hielte die
+ * Nachbarpruefung „ohne das Recht: nichts sichtbar" nichts mehr.
+ */
+async function mitEinstellungsrecht(mandant: string, rolle = 'admin'): Promise<void> {
+  await sql.unsafe(
+    `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+     values ($1, (select id from berechtigung
+                   where schluessel = 'system.einstellung_verwalten'), $2, true)
+     on conflict (rolle_id, berechtigung_id, mandant_id)
+       do update set gewaehrt = true`,
+    [await rolleId(rolle), mandant] as never[]);
+}
+
 async function lauf(mandant: string, o: {
   quelle?: string; sha?: string; datei?: string;
 } = {}): Promise<string> {
@@ -181,6 +206,7 @@ describe('Die Rohzeile gehoert zum Lauf derselben Gesellschaft (K-16)', () => {
 
 describe('Die Rechte (0202)', () => {
   it('system.einstellung_verwalten liest und schreibt', async () => {
+    await mitEinstellungsrecht(f.reinigung);
     const benutzer = await konto(f.reinigung, 'admin', ['system']);
     const befund = await alsApp(
       { scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,
@@ -212,6 +238,8 @@ describe('Die Rechte (0202)', () => {
 
   it('der Lauf eines fremden Bereichs bleibt unsichtbar (Invariante 3)', async () => {
     await lauf(f.bau);
+    /* MIT dem Recht — sonst schloesse hier nicht die Mandantengrenze. */
+    await mitEinstellungsrecht(f.reinigung);
     const benutzer = await konto(f.reinigung, 'admin', ['system']);
     const zeilen = await alsApp(
       { scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,
@@ -223,6 +251,8 @@ describe('Die Rechte (0202)', () => {
 
   it('weder Arbeiter- noch Kundenportal sehen einen Uebernahmelauf (K-04)', async () => {
     await lauf(f.reinigung);
+    /* MIT dem Recht: was hier schliesst, ist allein die Portaldecke. */
+    await mitEinstellungsrecht(f.reinigung);
     const benutzer = await konto(f.reinigung, 'admin', ['system']);
     for (const portal of ['mitarbeiter', 'kunde'] as const) {
       const zeilen = await alsApp(
@@ -235,6 +265,8 @@ describe('Die Rechte (0202)', () => {
   });
 
   it('in der Gruppenansicht wird nichts angelegt (Invariante 10)', async () => {
+    /* MIT dem Recht: es scheitert an Invariante 10, nicht am Katalog. */
+    await mitEinstellungsrecht(f.reinigung);
     const benutzer = await konto(f.reinigung, 'admin', ['system']);
     await expect(alsApp(
       { scope: 'gruppe', mandantIds: [f.reinigung, f.bau], benutzerId: benutzer,
@@ -248,6 +280,8 @@ describe('Die Rechte (0202)', () => {
 
   it('cse_app aendert die Datei und ihre Pruefsumme nicht mehr', async () => {
     await lauf(f.reinigung);
+    /* MIT dem Recht: was hier schliesst, ist der entzogene Spaltengrant. */
+    await mitEinstellungsrecht(f.reinigung);
     const benutzer = await konto(f.reinigung, 'admin', ['system']);
     await expect(alsApp(
       { scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,

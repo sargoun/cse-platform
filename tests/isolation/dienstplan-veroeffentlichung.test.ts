@@ -76,13 +76,40 @@ const RUF = `select id, empfaenger_anzahl, ohne_zugang_anzahl
                  $1::date, $2::date, $3, $4::integer, $5::integer, $6::integer, $7::integer,
                  $8::jsonb, $9, $10, $11::jsonb)`;
 
-function empfaenger(...personen: readonly string[]): string {
-  return JSON.stringify(personen.map((p) => ({
+/**
+ * Ein `type` und kein `interface`: nur ein Typalias bekommt in TypeScript die
+ * implizite Indexsignatur, die `postgres.ParameterOrJSON` (JSONValue)
+ * verlangt. Als `interface` scheitert schon die Uebergabe an `tx.unsafe`.
+ */
+type Meldung = {
+  readonly person_id: string;
+  readonly titel: string;
+  readonly text: string;
+  readonly ziel: string;
+};
+
+/**
+ * Die Empfaenger als OBJEKT, nicht als JSON-Text (D-467).
+ *
+ * Bis 0315 stand hier `JSON.stringify(...)` und daneben in den uebrigen
+ * Aufrufen `'[]'` und `'{}'`. Das war NICHT der Aufruf, den der Dienst macht:
+ * `postgres.js` serialisiert eine JS-Zeichenkette in einem `::jsonb`-Parameter
+ * als JSON-ZEICHENKETTE — aus `'[]'` wird der Skalar `"[]"`, `jsonb_typeof`
+ * sagt dazu `string`, und `jsonb_array_elements` brach mit `cannot extract
+ * elements from a scalar` ab. Vierzehn Faelle dieser Datei sind daran
+ * gescheitert, drei davon, ohne ihren eigenen Riegel je zu erreichen.
+ *
+ * `src/server/services/dienstplan/veroeffentlichung.ts` uebergibt das Objekt
+ * und war die ganze Zeit richtig. Diese Datei behauptet in `RUF`, den Aufruf
+ * des Dienstes nachzubilden — also bildet sie ihn nach.
+ */
+function empfaenger(...personen: readonly string[]): readonly Meldung[] {
+  return personen.map((p) => ({
     person_id: p,
     titel: 'Dienstplan veröffentlicht: 15.05.2028 bis 21.05.2028',
     text: 'Für Sie sind 1 Schicht eingeteilt.',
     ziel: '/portal/mein/schichten',
-  })));
+  }));
 }
 
 beforeEach(async () => { f = await seed(); });
@@ -113,7 +140,7 @@ describe('(2) der Definer legt den Vorgang an und stellt genau einmal zu', () =>
     await konto(f.reinigung, 'mitarbeiter', f.fatima);
 
     const [r] = await alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 2, 1, 0, 0, JSON.stringify({ abgrenzung: 'test' }),
+      tx.unsafe(RUF, [VON, BIS, 'woche', 2, 1, 0, 0, { abgrenzung: 'test' },
         'Probelauf', ART, empfaenger(f.fatima, f.jonas)]) as Promise<
         { id: string; empfaenger_anzahl: number; ohne_zugang_anzahl: number }[]>);
 
@@ -132,7 +159,7 @@ describe('(2) der Definer legt den Vorgang an und stellt genau einmal zu', () =>
   it('die Zahlen des Fensters stehen in der Zeile — der Beleg im Streitfall', async () => {
     const planer = await konto(f.reinigung);
     const [r] = await alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 7, 3, 2, 1, '{}', null, ART, '[]'],
+      tx.unsafe(RUF, [VON, BIS, 'woche', 7, 3, 2, 1, {}, null, ART, []],
       ) as Promise<{ id: string }[]>);
     const [z] = await sql.unsafe<{
       schichten_anzahl: number; unbesetzt_anzahl: number;
@@ -151,7 +178,7 @@ describe('(2) der Definer legt den Vorgang an und stellt genau einmal zu', () =>
   it('der Zeitpunkt kommt aus der Serveruhr und der Urheber aus der Sitzung', async () => {
     const planer = await konto(f.reinigung);
     const [r] = await alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, '{}', null, ART, '[]'],
+      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, {}, null, ART, []],
       ) as Promise<{ id: string }[]>);
     const [z] = await sql.unsafe<{ frisch: boolean; von_wem: string }[]>(
       `select (veroeffentlicht_am > now() - interval '1 minute') as frisch,
@@ -164,7 +191,7 @@ describe('(2) der Definer legt den Vorgang an und stellt genau einmal zu', () =>
   it('der Vorgang steht im Pruefprotokoll', async () => {
     const planer = await konto(f.reinigung);
     const [r] = await alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 4, 0, 0, 0, '{}', null, ART, '[]'],
+      tx.unsafe(RUF, [VON, BIS, 'woche', 4, 0, 0, 0, {}, null, ART, []],
       ) as Promise<{ id: string }[]>);
     const [z] = await sql.unsafe<{ anzahl: number; schichten: string | null }[]>(
       `select count(*)::int as anzahl, max(nachher->>'schichten') as schichten
@@ -181,8 +208,8 @@ describe('(3) genau eine Art, und keine andere', () => {
   it('ein fremder Artschluessel wird abgewiesen', async () => {
     const planer = await konto(f.reinigung);
     await expect(alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, '{}', null,
-        'dienstplan.morgen_unbesetzt', '[]']),
+      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, {}, null,
+        'dienstplan.morgen_unbesetzt', []]),
     )).rejects.toThrow(/ausschliesslich dienstplan\.plan_veroeffentlicht/u);
   });
 
@@ -190,8 +217,8 @@ describe('(3) genau eine Art, und keine andere', () => {
     const planer = await konto(f.reinigung);
     await konto(f.reinigung, 'mitarbeiter', f.fatima);
     await expect(alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, '{}', null, ART,
-        JSON.stringify([{ person_id: f.fatima, titel: 'T', text: 'X', ziel: '' }])]),
+      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, {}, null, ART,
+        [{ person_id: f.fatima, titel: 'T', text: 'X', ziel: '' }]]),
     )).rejects.toThrow(/NOT-03/u);
   });
 });
@@ -201,28 +228,28 @@ describe('(4) Recht, Nur-Lesen und Portal antworten gleich (AUT-06)', () => {
     const planer = await konto(f.reinigung);
     await entziehe('admin', 'dienstplan.veroeffentlichen', f.reinigung);
     await expect(alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, '{}', null, ART, '[]']),
+      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, {}, null, ART, []]),
     )).rejects.toThrow(/nicht berechtigt/u);
   });
 
   it('in der Nur-Lese-Ansicht: nicht berechtigt (Invariante 10)', async () => {
     const planer = await konto(f.reinigung);
     await expect(alsApp(sitzung(f.reinigung, planer, { readonly: true }), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, '{}', null, ART, '[]']),
+      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, {}, null, ART, []]),
     )).rejects.toThrow(/nicht berechtigt/u);
   });
 
   it('aus dem Mitarbeiterportal: nicht berechtigt (K-04)', async () => {
     const planer = await konto(f.reinigung);
     await expect(alsApp(sitzung(f.reinigung, planer, { portal: 'mitarbeiter' }), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, '{}', null, ART, '[]']),
+      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, {}, null, ART, []]),
     )).rejects.toThrow(/nicht berechtigt/u);
   });
 
   it('ein verkehrter Zeitraum wird abgewiesen, statt alles zu bedeuten', async () => {
     const planer = await konto(f.reinigung);
     await expect(alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [BIS, VON, 'woche', 0, 0, 0, 0, '{}', null, ART, '[]']),
+      tx.unsafe(RUF, [BIS, VON, 'woche', 0, 0, 0, 0, {}, null, ART, []]),
     )).rejects.toThrow(/verkehrt|leer/u);
   });
 });
@@ -231,7 +258,7 @@ describe('(5) die Zeile gehoert genau einer Gesellschaft', () => {
   it('sie ist im Bau nicht sichtbar — auch nicht fuer eine Leitung (Invariante 3)', async () => {
     const planer = await konto(f.reinigung);
     await alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0, '{}', null, ART, '[]']));
+      tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0, {}, null, ART, []]));
 
     const imBau = await konto(f.bau);
     const zeilen = await alsApp(sitzung(f.bau, imBau), async (tx) =>
@@ -242,7 +269,7 @@ describe('(5) die Zeile gehoert genau einer Gesellschaft', () => {
   it('gelesen wird mit dienstplan.lesen, nicht erst mit dem Veroeffentlichungsrecht', async () => {
     const planer = await konto(f.reinigung);
     await alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0, '{}', null, ART, '[]']));
+      tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0, {}, null, ART, []]));
 
     const leser = await konto(f.reinigung, 'leitung');
     await entziehe('leitung', 'dienstplan.veroeffentlichen', f.reinigung);
@@ -254,7 +281,7 @@ describe('(5) die Zeile gehoert genau einer Gesellschaft', () => {
   it('ohne dienstplan.lesen ist die Liste LEER, nicht fehlerhaft', async () => {
     const planer = await konto(f.reinigung);
     await alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0, '{}', null, ART, '[]']));
+      tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0, {}, null, ART, []]));
 
     const blind = await konto(f.reinigung, 'leitung');
     await entziehe('leitung', 'dienstplan.lesen', f.reinigung);
@@ -266,7 +293,7 @@ describe('(5) die Zeile gehoert genau einer Gesellschaft', () => {
   it('ein Kundenzugang sieht nichts (K-04)', async () => {
     const planer = await konto(f.reinigung);
     await alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0, '{}', null, ART, '[]']));
+      tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0, {}, null, ART, []]));
 
     const kunde = await konto(f.reinigung, 'kunde');
     const zeilen = await alsApp(
@@ -280,7 +307,7 @@ describe('(6) eine Bekanntgabe bleibt stehen', () => {
   it('cse_app hat kein UPDATE — eine Aussage laesst sich nicht umschreiben', async () => {
     const planer = await konto(f.reinigung);
     await alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0, '{}', 'Erst so', ART, '[]']));
+      tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0, {}, 'Erst so', ART, []]));
     await expect(alsApp(sitzung(f.reinigung, planer), async (tx) => tx.unsafe(
       `update dienstplan_veroeffentlichung set notiz = 'umgeschrieben'`,
     ))).rejects.toThrow(/permission denied for table dienstplan_veroeffentlichung/u);
@@ -289,7 +316,7 @@ describe('(6) eine Bekanntgabe bleibt stehen', () => {
   it('geloescht wird nicht — auch nicht vom Eigentuemer (Invariante 8)', async () => {
     const planer = await konto(f.reinigung);
     await alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0, '{}', null, ART, '[]']));
+      tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0, {}, null, ART, []]));
     await expect(alsRolle('', async (tx) =>
       tx.unsafe(`delete from dienstplan_veroeffentlichung`),
     )).rejects.toThrow(/gesperrt/u);
@@ -305,7 +332,7 @@ describe('(6) eine Bekanntgabe bleibt stehen', () => {
     const planer = await konto(f.reinigung);
     for (let i = 0; i < 2; i += 1) {
       await alsApp(sitzung(f.reinigung, planer), async (tx) =>
-        tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0, '{}', null, ART, '[]']));
+        tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0, {}, null, ART, []]));
     }
     const zeilen = await alsApp(sitzung(f.reinigung, planer), async (tx) =>
       tx.unsafe(`select id from dienstplan_veroeffentlichung`));
@@ -319,14 +346,14 @@ describe('(7) die Wachen der Tabelle', () => {
     const planer = await konto(f.reinigung);
     await expect(alsApp(sitzung(f.reinigung, planer), async (tx) =>
       tx.unsafe(RUF, ['2028-01-01', '2030-01-01', 'freier_zeitraum', 0, 0, 0, 0,
-        '{}', null, ART, '[]']),
+        {}, null, ART, []]),
     )).rejects.toThrow(/dv_zeitraum_begrenzt/u);
   });
 
   it('eine unbekannte Zeitraumart wird abgewiesen — O-710 ist offen, nicht beliebig', async () => {
     const planer = await konto(f.reinigung);
     await expect(alsApp(sitzung(f.reinigung, planer), async (tx) =>
-      tx.unsafe(RUF, [VON, BIS, 'quartal', 0, 0, 0, 0, '{}', null, ART, '[]']),
+      tx.unsafe(RUF, [VON, BIS, 'quartal', 0, 0, 0, 0, {}, null, ART, []]),
     )).rejects.toThrow(/dv_umfang_platzhalter/u);
   });
 
@@ -351,5 +378,64 @@ describe('(7) die Wachen der Tabelle', () => {
         where n.nspname = 'app' and p.proname = 'dienstplan_veroeffentlichung_anlegen'`);
     expect(z?.secdef).toBe(true);
     expect(z?.owner).toBe('cse_definer');
+  });
+});
+
+/**
+ * **Die Form der beiden jsonb-Argumente — benannt, nicht erlitten (0315).**
+ *
+ * Ein `jsonb`-Argument traegt seine Form nicht im Typ: `'[]'` und `"[]"` sind
+ * beide gueltiges jsonb, und nur eines davon ist eine Liste. Bis 0315 endete
+ * der falsche Fall in `jsonb_array_elements` mit `cannot extract elements from
+ * a scalar` — einer Meldung, die weder das Argument nennt noch sagt, was
+ * erwartet wurde. Diese Gruppe haelt fest, dass die Funktion stattdessen
+ * antwortet.
+ */
+describe('(8) die Form der jsonb-Argumente wird benannt', () => {
+  it('p_empfaenger als JSON-TEXT wird benannt abgewiesen — der D-467-Fall', async () => {
+    const planer = await konto(f.reinigung);
+    await expect(alsApp(sitzung(f.reinigung, planer), async (tx) =>
+      // Genau der Aufruf, an dem diese Datei vierzehnmal gescheitert ist.
+      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, {}, null, ART, '[]']),
+    )).rejects.toThrow(/p_empfaenger ist eine Liste von Meldungen .*erhalten: string/u);
+  });
+
+  it('p_empfaenger als Objekt ebenso — und nennt die vorgefundene Form', async () => {
+    const planer = await konto(f.reinigung);
+    await expect(alsApp(sitzung(f.reinigung, planer), async (tx) =>
+      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, {}, null, ART,
+        { person_id: f.fatima }]),
+    )).rejects.toThrow(/p_empfaenger ist eine Liste von Meldungen .*erhalten: object/u);
+  });
+
+  it('p_umfang_daten als JSON-TEXT auch — dort waere der Schaden STILL', async () => {
+    const planer = await konto(f.reinigung);
+    // Ohne diese Pruefung landete der Skalar `"{}"` in der Beleg-Spalte, ohne
+    // eine Bedingung zu verletzen; jeder spaetere `->>`-Zugriff griffe ins
+    // Leere, und nichts waere rot geworden.
+    await expect(alsApp(sitzung(f.reinigung, planer), async (tx) =>
+      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, '{}', null, ART, []]),
+    )).rejects.toThrow(/p_umfang_daten ist die Abgrenzung als jsonb-Objekt/u);
+  });
+
+  it('die Abgrenzung steht danach als OBJEKT in der Zeile, nicht als Text', async () => {
+    const planer = await konto(f.reinigung);
+    const [r] = await alsApp(sitzung(f.reinigung, planer), async (tx) =>
+      tx.unsafe(RUF, [VON, BIS, 'woche', 1, 0, 0, 0,
+        { abgrenzung: 'lebende Einteilung im Fenster (O-711)', personen: 1 },
+        null, ART, []]) as Promise<{ id: string }[]>);
+    const [z] = await sql.unsafe<{ typ: string; abgrenzung: string | null }[]>(
+      `select jsonb_typeof(umfang_daten) as typ,
+              umfang_daten->>'abgrenzung' as abgrenzung
+         from dienstplan_veroeffentlichung where id = $1`, [r!.id]);
+    expect(z?.typ).toBe('object');
+    expect(z?.abgrenzung).toBe('lebende Einteilung im Fenster (O-711)');
+  });
+
+  it('fehlendes Recht antwortet weiter ZUERST — auch bei falscher Form (AUT-06)', async () => {
+    const planer = await konto(f.reinigung);
+    await expect(alsApp(sitzung(f.reinigung, planer, { readonly: true }), async (tx) =>
+      tx.unsafe(RUF, [VON, BIS, 'woche', 0, 0, 0, 0, '{}', null, ART, '[]']),
+    )).rejects.toThrow(/nicht berechtigt/u);
   });
 });

@@ -133,21 +133,149 @@ describe('§2 eine Entscheidung trägt einen Menschen und einen Grund', () => {
   });
 });
 
+/**
+ * Die Lage des Eingangsprinzipals (03-AUTH §14.3), nachgebaut.
+ *
+ * Der echte steht im Seed; die Isolationsharness legt die vier Bereiche in
+ * ihrer kleinsten Form an und kennt ihn nicht. Nachgebaut wird deshalb genau
+ * das, was ihn ausmacht: EIN Recht, `formular.schreiben`, an DIESER
+ * Gesellschaft (K-03) — und kein Datenschutzrecht.
+ */
+async function eingangsprinzipal(): Promise<string> {
+  const email = `eingang-${String(Math.random()).slice(2, 10)}@anfrage.test`;
+  const [u] = await sql.unsafe<{ id: string }[]>(
+    `insert into auth.users (email) values ($1) returning id`, [email]);
+  await sql.unsafe(
+    `insert into benutzer (id, email, name, ist_dienstkonto, status)
+     values ($1, $2, 'Formular-Eingang', true, 'aktiv')`, [u!.id, email]);
+  const [r] = await sql.unsafe<{ id: string }[]>(
+    `insert into rolle (mandant_id, schluessel, bezeichnung, geltungsbereich, portal)
+     values ($1, $2, 'Formular-Eingang', 'mandant', 'intern') returning id`,
+    [f.reinigung, `eingang_${String(Math.random()).slice(2, 10)}`]);
+  await sql.unsafe(
+    `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+     select $1, b.id, $2, true from berechtigung b
+      where b.schluessel = 'formular.schreiben'`, [r!.id, f.reinigung]);
+  await sql.unsafe(
+    `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, ist_standard)
+     values ($1, $2, $3, true)`, [u!.id, f.reinigung, r!.id]);
+  return u!.id;
+}
+
+/**
+ * Die Bedingung einer Policy samt allem, was sie fragt.
+ *
+ * Eine Policy, die ihr Praedikat in eine `app.`-Funktion legt, ist dieselbe
+ * Zusage und ein anderer Text. Ein `toContain` auf `qual` allein wird daran
+ * blind — nicht falsch, blind: es meldet rot, wo nichts kaputt ist, und
+ * saehe umgekehrt eine echte Lockerung hinter der ersten Funktion nicht mehr.
+ * Deshalb werden die Quelltexte der genannten Funktionen angehaengt, und
+ * deren genannte Funktionen wieder, bis nichts Neues mehr dazukommt.
+ */
+async function aufgeloesteRegel(policyname: string): Promise<string> {
+  const [z] = await alsRolle('', (tx) => tx.unsafe(
+    `select coalesce(qual::text, '') || ' ' || coalesce(with_check::text, '') as regel
+       from pg_policies
+      where tablename = 'betroffenenanfrage' and policyname = $1`, [policyname],
+  )) as unknown as { regel: string }[];
+  expect(z?.regel, `die Policy ${policyname} steht`).toBeTruthy();
+
+  let text = z!.regel;
+  const gesehen = new Set<string>();
+  for (let tiefe = 0; tiefe < 5; tiefe += 1) {
+    const namen = [...text.matchAll(/app\.(\w+)\s*\(/gu)]
+      .map((t) => t[1]!)
+      .filter((n) => !gesehen.has(n));
+    if (namen.length === 0) break;
+    for (const n of namen) gesehen.add(n);
+    const quellen = await alsRolle('', (tx) => tx.unsafe(
+      `select p.prosrc from pg_proc p
+         join pg_namespace ns on ns.oid = p.pronamespace
+        where ns.nspname = 'app' and p.proname = any($1::text[])`,
+      [namen] as never[],
+    )) as unknown as { prosrc: string }[];
+    text += `\n${quellen.map((q) => q.prosrc).join('\n')}`;
+  }
+  return text;
+}
+
 describe('§3 der Eingangsprinzipal legt an und liest nicht', () => {
   /*
    * Nachgebildet wird die Lage des Prinzipals: `formular.schreiben` ja,
    * `datenschutz.auskunft_erstellen` nein. Geprueft wird die POLICY, nicht der
    * Binder — der steht in `kontext/eingang.ts` und hat seinen eigenen Fall.
    */
-  it('die Leseregel verlangt `datenschutz.auskunft_erstellen`', async () => {
-    const [z] = await alsRolle('', (tx) => tx.unsafe(
-      `select qual::text as regel from pg_policies
-        where tablename = 'betroffenenanfrage' and policyname = 't_betroffenenanfrage_lesen'`,
-    )) as unknown as { regel: string }[];
-    expect(z!.regel).toContain('datenschutz.auskunft_erstellen');
-    /* Und NICHT `formular.schreiben` — das haelt der Eingang. */
-    expect(z!.regel).not.toContain('formular.schreiben');
-  });
+  it('die Leseregel verlangt `datenschutz.auskunft_erstellen` — und zwei Rechte mehr',
+    async () => {
+      /*
+       * **Die Zusage ist dieselbe, der Ort ist ein anderer.** `0220` hat die
+       * beiden Policies ersetzt und das Praedikat in
+       * `app.darf_betroffenenanfrage()` gelegt: dieselbe Arbeitsliste, drei
+       * Zustaendigkeiten (04-SEITENKARTE §5.25), und wer EINE davon haelt,
+       * sieht den Vorgang. Ein fehlendes Recht gab vorher 200 mit leerer
+       * Liste statt 404 — der schlimmste der drei moeglichen Fehler (AUT-06).
+       *
+       * Die Liste darf also WACHSEN; `datenschutz.auskunft_erstellen` darf
+       * nicht daraus verschwinden. Deshalb wird die Regel AUFGELOEST statt
+       * abgelesen: die Bedingung der Policy plus die Quelltexte aller
+       * `app.`-Funktionen, die darin vorkommen, transitiv. Eine
+       * Indirektionsebene mehr kann diese Pruefung damit nicht mehr blind
+       * machen — genau das war sie eben gewesen.
+       */
+      const regel = await aufgeloesteRegel('t_betroffenenanfrage_lesen');
+      expect(regel).toContain('datenschutz.auskunft_erstellen');
+      expect(regel).toContain('datenschutz.berichtigung_bearbeiten');
+      expect(regel).toContain('datenschutz.loeschung_pruefen');
+      /* Und NICHT `formular.schreiben` — das haelt der Eingang. */
+      expect(regel).not.toContain('formular.schreiben');
+    });
+
+  it('und der Eingangsprinzipal schreibt wirklich und liest wirklich nichts',
+    async () => {
+      /*
+       * **Beide Haelften an EINER Sitzung**, und in dieser Reihenfolge: erst
+       * legt sie an — das beweist, dass `formular.schreiben` gebunden ist —,
+       * dann liest sie ihre eigene Zeile nicht. Ohne die erste Haelfte waere
+       * die zweite der klassische Fehlalarm: null Zeilen, weil die Fixtur
+       * daneben lag, und niemand merkt es.
+       *
+       * Was der Policytext oben sagt, sagt diese Pruefung an einer Zeile, die
+       * es wirklich gibt — sie haelt auch dann, wenn das Praedikat eines
+       * Tages hinter einer Funktion liegt, deren Quelltext niemand mehr liest.
+       */
+      const eingang = await eingangsprinzipal();
+      const sitzungEingang = {
+        scope: 'mandant' as const, mandantId: f.reinigung, benutzerId: eingang,
+        readonly: false, portal: 'intern' as const,
+      };
+      const email = `eingang-${String(Math.random()).slice(2, 10)}@example.test`;
+      const anlegen = (nachsatz: string) => alsApp(sitzungEingang, (tx) => tx.unsafe(
+        `insert into betroffenenanfrage (mandant_id, art, name, email, eingegangen_am)
+         values (app.aktiver_mandant(), 'auskunft', 'Amira Said', $1, now()) ${nachsatz}`,
+        [email]));
+
+      /*
+       * **`returning id` geht NICHT, und das ist kein Nebeneffekt.** Postgres
+       * prueft bei `insert … returning` zusaetzlich die SELECT-Policy — und
+       * die haelt hier. Genau deshalb schreibt die oeffentliche Annahme ohne
+       * `RETURNING` und erzeugt ihre Kennungen selbst (`seed/index.ts`,
+       * 03-AUTH §14.3). Faellt diese Zeile, weil das Zurueckgeben ploetzlich
+       * geht, hat der zum Internet offene Prinzipal einen Lesepfad bekommen.
+       */
+      await expect(anlegen('returning id')).rejects.toThrow(/row-level security/u);
+
+      await expect(anlegen(''), '`formular.schreiben` traegt den Eingang')
+        .resolves.toBeTruthy();
+      /* Die Zeile IST da — gezaehlt am Eigentuemer, nicht am Prinzipal. */
+      const [alle] = await alsRolle('', (tx) => tx.unsafe(
+        `select count(*)::text as n from betroffenenanfrage where email = $1`, [email],
+      )) as unknown as { n: string }[];
+      expect(alle!.n, 'die Einsendung ist angekommen').toBe('1');
+
+      const zeilen = await alsApp(sitzungEingang,
+        (tx) => tx.unsafe(`select id from betroffenenanfrage`)) as unknown[];
+      expect(zeilen, 'und er holt nichts zurueck').toHaveLength(0);
+    });
 
   it('die Anlegeregel verlangt `formular.schreiben` und gibt kein Lesen', async () => {
     const [z] = await alsRolle('', (tx) => tx.unsafe(

@@ -224,6 +224,32 @@ async function baueAufmass(menge = '30.870', skaliert = 308_700): Promise<string
   return blatt!.id;
 }
 
+/**
+ * Eine erfasste, weiterberechenbare Ausgabe samt Kategorie — das Elternteil,
+ * auf das `rechnungsposition_quelle.ausgabe_id` seit 0180 zeigen MUSS.
+ *
+ * Status `erfasst`: erst ab `freigegeben` verlangt der CHECK einen Beleg, und
+ * erst `gebucht` verlangt die Aufteilung nach Steuersätzen. Die Fixtur stellt
+ * einen Ausgangszustand her und prüft nicht den Ausgabenweg — den prüft
+ * `ausgabe.test.ts`.
+ */
+async function baueAusgabe(): Promise<string> {
+  const [k] = await sql.unsafe<{ id: string }[]>(
+    `insert into ausgabe_kategorie (mandant_id, schluessel, bezeichnung,
+                                    erstellt_von_art, erstellt_von)
+     values ($1, $2, 'Material', 'mensch', $3) returning id`,
+    [bau.mandant, `material-${zufall()}`, benutzer]);
+  const [a] = await sql.unsafe<{ id: string }[]>(
+    `insert into ausgabe (mandant_id, kategorie_id, bezeichnung, ausgabedatum,
+                          netto_cent, steuer_cent, brutto_cent, zahlungsmittel,
+                          weiterberechenbar, status, erstellt_von_art, erstellt_von)
+     values ($1, $2, 'Dichtungsband', '2026-08-04', 419, 80, 499, 'karte',
+             true, 'erfasst', 'mensch', $3)
+     returning id`,
+    [bau.mandant, k!.id, benutzer]);
+  return a!.id;
+}
+
 /** Ein Entwurf ohne Position — jeder Test bestückt ihn selbst. */
 async function leerEntwurf(
   tx: postgres.TransactionSql, opts: { mitAuftrag?: boolean } = {},
@@ -365,15 +391,23 @@ describe('(1) Eine Leistungszeile ohne Herkunft lässt sich nicht anlegen', () =
       .toBe('rpq_manuell_begruendet');
   });
 
-  it('die Materialspalte ist da und BENANNT — der Fremdschlüssel fehlt mit Grund', async () => {
+  it('die Materialspalte ist da, BENANNT — und seit 0180 auch verankert', async () => {
     /**
-     * `ausgabe` kommt mit PR 54 (§8.5). Die STRUKTUR steht trotzdem schon:
-     * eine spätere Spalte auf einer Tabelle, deren Zeilen per Invariante 4
-     * unveränderlich sind, wäre eine Migration mit Datenwanderung.
+     * **Diese Prüfung ist FORTGESCHRIEBEN, nicht abgeschwächt.**
      *
-     * Diese Prüfung friert genau das ein — Spalte und partieller Unique-Index
-     * gelten heute, der Fremdschlüssel fehlt heute. Wer PR 54 baut, sieht hier,
-     * was dann dazukommen muss.
+     * Ihre erste Fassung fror den Zustand vor PR 54 ein: Spalte und
+     * partieller Unique-Index galten, der Fremdschlüssel fehlte, und der Satz
+     * daneben lautete „wer PR 54 baut, sieht hier, was dann dazukommen muss".
+     * PR 54 ist gebaut — `0180_ausgabe.sql` legt `ausgabe` an und trägt
+     * `rpq_ausgabe_fk` nach. Die Erwartung „kein Fremdschlüssel" wäre ab jetzt
+     * eine Zusage, die gegen die Datenbank steht; sie wächst deshalb mit, statt
+     * zu verschwinden.
+     *
+     * Geprüft wird jetzt beides zusammen: die Kennung zeigt auf eine Zeile,
+     * die es GIBT (Fremdschlüssel), und dieselbe Ausgabe wird genau EINMAL
+     * weiterberechnet (Teilindex). Keiner der beiden ersetzt den anderen —
+     * der Fremdschlüssel sagt nichts über die Anzahl, der Index nichts über
+     * die Existenz.
      */
     const [spalte] = await sql.unsafe<{ data_type: string }[]>(
       `select data_type from information_schema.columns
@@ -386,17 +420,30 @@ describe('(1) Eine Leistungszeile ohne Herkunft lässt sich nicht anlegen', () =
            on c.constraint_name = k.constraint_name
         where k.table_name = 'rechnungsposition_quelle'
           and k.column_name = 'ausgabe_id' and c.constraint_type = 'FOREIGN KEY'`);
-    expect(Number(fks[0]!.n)).toBe(0);
+    expect(Number(fks[0]!.n)).toBe(1);
 
     const [idx] = await sql.unsafe<{ indexdef: string }[]>(
       `select indexdef from pg_indexes
         where tablename = 'rechnungsposition_quelle' and indexname = 'quelle_ausgabe_uk'`);
     expect(idx?.indexdef).toMatch(/UNIQUE.*ausgabe_id.*material.*wirksam/su);
 
-    // Und die Sperre greift schon heute: zweimal dieselbe Ausgabe geht nicht.
+    /*
+     * Der Verweis ins Leere fällt jetzt am Fremdschlüssel — und zwar bei der
+     * ERSTEN Zeile. Vor 0180 kam er durch und fiel niemandem auf.
+     */
+    const ins_leere = await inSitzung(bau.mandant, async (tx) =>
+      fuegePositionHinzu(alsDienst(tx), {
+        rechnungId: await leerEntwurf(tx, { mitAuftrag: false }),
+        bezeichnung: 'Material ohne Ausgabe', menge: milliMenge(1_000n),
+        einheit: 'stk', einzelpreisCent: cent(4_99n), steuergruppe: 'ust_19',
+        quellen: [{ typ: 'material', id: crypto.randomUUID() }],
+      })).catch((e: unknown) => e);
+    expect((ins_leere as { constraint_name?: string }).constraint_name).toBe('rpq_ausgabe_fk');
+
+    // Und die Sperre greift weiterhin: zweimal dieselbe ECHTE Ausgabe geht nicht.
+    const ausgabe = await baueAusgabe();
     const fehler = await inSitzung(bau.mandant, async (tx) => {
       const d = alsDienst(tx);
-      const ausgabe = crypto.randomUUID();
       for (const nr of [1, 2]) {
         const r = await leerEntwurf(tx, { mitAuftrag: false });
         await fuegePositionHinzu(d, {
@@ -522,9 +569,28 @@ describe('(2) Ein Klick auf die Zeile öffnet genau den Beleg dahinter', () => {
 
 describe('(3) Abgeschlossener Auftrag ohne erfasste Minute', () => {
   beforeEach(async () => {
-    await sql.unsafe(
-      `update auftrag set status = 'abgeschlossen', abgeschlossen_am = now() where id = $1`,
-      [bau.auftrag]);
+    /**
+     * **Der Abschluss geht seit 0296 durch `kern.auftrag_uebergang_pruefen`**
+     * und verlangt `auftrag.abschliessen` — ein eigenes Recht neben
+     * `auftrag.schreiben` (OPS-05, D-366).
+     *
+     * Die Fixtur schloss den Auftrag bisher mit rohem SQL auf der
+     * ungebundenen Verbindung. Dort gibt `app.aktueller_benutzer()` NULL,
+     * `app.hat_recht` also `false`, und der Auslöser weist ab — richtig, denn
+     * ein Abschluss ohne Benutzer ist keiner. Abgeschwächt wird deshalb nicht
+     * der Riegel, sondern die Fixtur nimmt den Weg, den die Oberfläche nimmt.
+     *
+     * `abgeschlossen_am` wird ABSICHTLICH nicht mitgeschrieben: der Auslöser
+     * zieht es aus der Serveruhr nach (Invariante 5). Bliebe das aus, stünde
+     * hier eine Zeile mit Abschlussdatum und Status `aktiv` — und genau die
+     * läse FIN-18 als abgeschlossen, während die Liste sie als laufend zeigt.
+     */
+    await inSitzung(bau.mandant, async (tx) => tx.unsafe(
+      `update auftrag set status = 'abgeschlossen' where id = $1`,
+      [bau.auftrag] as never[]));
+    const [a] = await sql.unsafe<{ abgeschlossen_am: Date | null }[]>(
+      `select abgeschlossen_am from auftrag where id = $1`, [bau.auftrag]);
+    expect(a!.abgeschlossen_am).not.toBeNull();
   });
 
   it('blockiert die Festschreibung, BENENNT den Auftrag — und der Zähler steht still', async () => {

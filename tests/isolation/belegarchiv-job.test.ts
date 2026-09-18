@@ -22,6 +22,7 @@ import {
   finalisiere, fuegePositionHinzu, legeEntwurfAn, vonHand, type Abfrage,
 } from '../../src/server/services/finanz/rechnung.js';
 import { laufe } from '../../src/server/jobs/belegarchiv.js';
+import { alsJobSitzung } from '../../src/server/jobs/sitzung.js';
 import type { ArchivKontext } from '../../src/server/services/buchhaltung/belegarchiv.js';
 
 let f: Fixtur;
@@ -174,6 +175,43 @@ describe('der Archivlauf als cse_job', () => {
     const zweit = await laufe(sql, f.reinigung, speicher);
     expect(zweit.offen).toBe(0);
     expect(zweit.abgelegt).toBe(0);
+  });
+
+  /**
+   * **Der Befund, aus dem 0325 kam.** Seit 0297 haengt an `dokument` der
+   * Ausloeser `dokument_05_kundenfreigabe`, und der fragte in EINEM Ausdruck
+   * `new.sichtbar_fuer_kunde and not app.hat_recht(...)`. `cse_job` haelt auf
+   * `app.hat_recht(text, uuid)` kein `execute` (0093), und PostgreSQL prueft
+   * das Recht beim Vorbereiten des Ausdrucks — die Abkuerzung ueber `and`
+   * gibt es also nicht. JEDES Ablegen endete mit
+   * `permission denied for function hat_recht`, der Lauf zaehlte es als
+   * Fehler und meldete sich weiter als gelaufen.
+   *
+   * Dieser Fall haelt die Loesung fest, und zwar in BEIDE Richtungen: der
+   * Lauf legt ab, und freigeben kann er trotzdem nicht.
+   */
+  it('legt ab, gibt aber NICHT frei — ein Lauf ist kein Mensch (Invariante 7)', async () => {
+    await festgeschrieben();
+    const befund = await laufe(sql, f.reinigung, new LokalerSpeicher());
+    expect(befund.abgelegt).toBe(1);
+
+    const [d] = await sql.unsafe<{ sichtbar: boolean }[]>(
+      `select sichtbar_fuer_kunde as sichtbar from dokument
+        where mandant_id = $1 and kategorie = 'buchhaltung'`, [f.reinigung]);
+    expect(d?.sichtbar).toBe(false);
+
+    /*
+     * Und der Weg dorthin steht dem Lauf auch ausdruecklich nicht offen — mit
+     * einem Satz, den man lesen kann, statt mit `permission denied`.
+     */
+    await expect(alsJobSitzung(sql, f.reinigung, async (db) => db.abfrage(
+      `insert into dokument (mandant_id, kategorie, titel, mime_typ, mime_verifiziert,
+                             groesse_bytes, objekt_schluessel, exif_entfernt,
+                             sichtbar_fuer_kunde)
+       values ($1::uuid, 'buchhaltung', 'Vom Lauf freigegeben', 'application/pdf', true,
+               10, $2, true, true)`,
+      [f.reinigung, `lauf/${zufall()}.pdf`]), { nurLesen: false }))
+      .rejects.toThrow(/keine Benutzersitzung/u);
   });
 
   it('ohne verbundenen Speicher wird NICHTS geschrieben, und der Lauf sagt es', async () => {

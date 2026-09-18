@@ -571,13 +571,31 @@ describe('0256 · der Snapshot der eigenen Rechnung', () => {
  */
 describe('0256 · aus dem eigenen Snapshot wird wirklich ein Dokument', () => {
   /**
-   * Was ein Beleg BRAUCHT, damit aus ihm ein Dokument wird — und was der Seed
-   * dem Portalkunden deshalb mitgibt.
+   * Was ein Beleg BRAUCHT, damit aus ihm ein Dokument wird — beide Seiten.
    *
-   * Drei Angaben, drei EN-16931-Felder: BT-10 (Käuferreferenz, BR-DE-15, hier
-   * `kaeufer_referenz`), BT-49/BT-49-1 (elektronische Adresse des Empfängers
-   * samt EAS-Schema) und — an der Gesellschaft — die IBAN zu BT-84
+   * **Am Kunden** zwei Angaben: BT-10 (Käuferreferenz, BR-DE-15, hier
+   * `kaeufer_referenz`) und BT-49/BT-49-1 (elektronische Adresse des
+   * Empfängers samt EAS-Schema).
+   *
+   * **An der Gesellschaft** drei: BT-41 (Kontaktstelle, BR-DE-6), BT-34/34-1
+   * (elektronische Adresse samt EAS-Schema, BR-62) und die IBAN zu BT-84
    * (BR-DE-13), weil `festeRechnung` mit `58` die SEPA-Überweisung angibt.
+   * Die Harness-Fixtur legt die vier Bereiche in ihrer kleinsten Form an;
+   * `beforeEach` ergänzt oben, was § 14 UStG verlangt — die drei hier verlangt
+   * erst die EN 16931.
+   *
+   * **Und sie stehen auf `mandant`, nicht in `bankkonto`.** Der Snapshot
+   * (`rechnung.ts`, Nutzlast v2) liest den Leistenden Spalte für Spalte aus
+   * `mandant` — `m.rechnung_kontakt_name`, `m.iban` —, und die elektronische
+   * Adresse friert `fin.eadresse_einfrieren()` (0120) beim Festschreiben aus
+   * `mandant.elektronische_adresse` auf den Beleg. Eine Zeile in `bankkonto`
+   * erreicht keines dieser Felder: sie ist die Bankverbindung für den
+   * Zahlungsabgleich und nicht die Angabe auf dem Beleg. Deshalb steht die
+   * IBAN hier dort, wo der Beleg sie liest — und deshalb muss das vor
+   * `festeRechnung` geschehen, nicht danach.
+   *
+   * Die Werte sind DEMOWERTE wie im Seed: `DE02120300000000202051` ist eine
+   * öffentlich dokumentierte Testkennung, keine Kontonummer.
    */
   async function mitAusgabefaehigenStammdaten(kundeId: string): Promise<void> {
     await sql.unsafe(
@@ -587,12 +605,14 @@ describe('0256 · aus dem eigenen Snapshot wird wirklich ein Dokument', () => {
               elektronische_adresse_schema = 'EM'
         where id = $1`, [kundeId]);
     await sql.unsafe(
-      `insert into bankkonto
-         (mandant_id, bezeichnung, iban, bic, kontoinhaber, ist_standard,
-          erstellt_von_art, erstellt_von_dienst)
-       values ($1, 'Geschäftskonto', 'DE02120300000000202051', 'BYLADEM1001',
-               'CSE Dienstleistungen GmbH', true, 'system', 'job:test')
-       on conflict do nothing`, [f.reinigung]);
+      `update mandant
+          set rechnung_kontakt_name = 'Buchhaltung',
+              elektronische_adresse = 'DE123456789',
+              elektronische_adresse_schema = '9930',
+              iban = 'DE02120300000000202051',
+              bic = 'BYLADEM1001',
+              bank = 'Testbank (Demodaten)'
+        where id = $1`, [f.reinigung]);
   }
 
   it('(21) ohne Käuferreferenz meldet `belegAusgabe` `unvollstaendig` — BT-10',

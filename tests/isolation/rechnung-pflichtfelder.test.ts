@@ -610,11 +610,20 @@ describe('„kommt mit PR nn" bleibt wahr — sonst lügt ein eingefrorener Bele
      *             der Bericht wird mit dem Snapshot eingefroren, jede ab
      *             dann festgeschriebene Rechnung haette dauerhaft behauptet,
      *             §13b und §48 seien ungeprueft geblieben.
+     *   drei    — `0181_rechnung_versand.sql` brachte `rechnung_versand`.
+     *             Der FIN-11-Eintrag sagte weiter, der Einlieferungsweg
+     *             werde nicht protokolliert — wieder diese Pruefung, wieder
+     *             derselbe Fehler. Der Eintrag BLEIBT: `rechnung_dokument`
+     *             fehlt weiterhin, und `rechnung_versand.rechnung_dokument_id`
+     *             steht ohne Elterntabelle. Nur sein Grund sagt jetzt, was
+     *             es inzwischen gibt.
      *
-     * Faellt die Zahl auf null, prueft der Rest nichts; wer einen Eintrag
-     * ergaenzt oder streicht, kommt hier vorbei.
+     * **Die Zahl darf sinken, die Liste nicht verschwinden.** Faellt sie auf
+     * null, prueft der Rest nichts; wer einen Eintrag ergaenzt oder streicht,
+     * kommt hier vorbei — und wer eine Tabelle baut, deren Fehlen einen
+     * Eintrag begruendet, ebenso.
      */
-    expect(genannt).toHaveLength(4);
+    expect(genannt).toHaveLength(3);
 
     const vorhanden = await sql.unsafe<{ table_name: string }[]>(
       `select table_name from information_schema.tables
