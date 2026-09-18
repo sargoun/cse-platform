@@ -289,6 +289,11 @@ let katalogMarken: readonly { schluessel: string; zwei: boolean; global: boolean
 export async function seed(): Promise<Fixtur> {
   katalogMarken ??= await sql.unsafe<{ schluessel: string; zwei: boolean; global: boolean }[]>(
     `select schluessel, erfordert_2fa as zwei, nur_global as global from berechtigung`);
+  /*
+   * In eine lokale Konstante: die Verengung von `katalogMarken` haelt nicht ueber
+   * die Grenze der Rueckruffunktion hinweg — `tsc` sieht dort wieder `| null`.
+   */
+  const marken = katalogMarken;
 
   return sql.begin(async (tx) => {
     await tx.unsafe(`set local session_replication_role = replica`);
@@ -299,14 +304,14 @@ export async function seed(): Promise<Fixtur> {
      * umgelegte Marke aus einer frueheren Datei wuerde sonst durch diese
      * Fixtur hindurch wirken.
      */
-    if (katalogMarken.length > 0) {
+    if (marken.length > 0) {
       /*
        * Zwei Listen von SCHLUESSELN, keine Wahrheitswert-Reihung: postgres.js
        * schickt ein `boolean[]` nicht als Reihung, und `unnest(…::boolean[])`
        * endet in „cannot cast type boolean to boolean[]".
        */
-      const mitZwei = katalogMarken.filter((m) => m.zwei).map((m) => m.schluessel);
-      const mitGlobal = katalogMarken.filter((m) => m.global).map((m) => m.schluessel);
+      const mitZwei = marken.filter((m) => m.zwei).map((m) => m.schluessel);
+      const mitGlobal = marken.filter((m) => m.global).map((m) => m.schluessel);
       await tx.unsafe(
         `update berechtigung
             set erfordert_2fa = (schluessel = any($1::text[])),
