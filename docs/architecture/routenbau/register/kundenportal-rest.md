@@ -57,15 +57,19 @@ Der Zahlenhinweis für `src/server/registry/tableiste.ts` (Kommentar am Eintrag
 keiner Leiste erreichbar. Die Leiste selbst bleibt unverändert bei fünf Zielen
 ohne `Mehr`. Hier ist nichts mehr offen.
 
-## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen" — ERLEDIGT (18.09.2026)
 
-| O-840 | **Sieht ein Kundenzugang die Auftragssumme (`auftrag.auftragswert_netto_cent`) im Portal?** Sie steht im unterschriebenen Vertrag, ist also keine Neuigkeit — im Portal ist sie aber eine gepflegte Zahl neben den Rechnungen, und bei einem Rahmenvertrag mit Abrufen bedeutet sie etwas anderes als die Summe der Belege. Bis zur Antwort steht sie in KEINER Abfrage von `services/kundenportal/auftrag.ts`; die Auftragsseite nennt stattdessen die vereinbarten Leistungszeilen mit ihren Preisen (das IST der Vertragsinhalt, Position fuer Position) und verweist fuer das Berechnete auf „Rechnungen“. Dieselbe Zurueckhaltung wie bei `projekt.auftragssumme_netto_cent`, die `tests/kern/kundenportal.test.ts` namentlich fernhaelt. | `services/kundenportal/auftrag.ts`, `/portal/kunde/auftraege`, `/portal/kunde/auftraege/[id]`, `drizzle/0025`, OPS-05, CRM-06, 04-SEITENKARTE §8 |
-
-| O-842 | **Gilt ein versendetes Angebot nach Ablauf von `gueltig_bis` automatisch als `abgelaufen` — und wer stellt das fest, ein naechtlicher Lauf oder die Sachbearbeitung?** `angebot_status` fuehrt den Wert seit 0024, und es gibt heute keinen Lauf, der ihn setzt (in `src/server/jobs/` nachgesehen, nicht vermutet). Bis zur Antwort leitet das Kundenportal aus dem Datum KEINEN Zustand ab: es zeigt den gespeicherten `status` und daneben einen rein tatsaechlichen Satz („noch 12 Tage“ / „heute letzter Tag“ / „seit 3 Tagen abgelaufen“), dessen Tageszahl die Datenbank gegen `app.berlin_heute()` rechnet (K-11). Eine Ableitung in der Seite hiesse, dass im Portal ein anderer Zustand stuende als in der Datenbank. | `services/kundenportal/angebot.ts` (`bindefristText`), `/portal/kunde/angebote`, `/portal/kunde/angebote/[id]`, `drizzle/0024`, OPS-08, K-11 |
-
-| O-843 | **Wenn O-671 positiv beantwortet wird: wie wird ein KUNDENabruf einer Datei vermerkt?** DOC-03 und SEC-A6 verlangen, dass jede Datei nur ueber eine signierte Adresse herausgeht (`SIGNATUR_SEKUNDEN` = 15 Minuten) und dass der Abruf VOR der Adresse eine Zeile in `dokument_zugriff` hinterlaesst — Art. 15 DSGVO haengt daran. Aus dem Kunden-Scope geht das heute nicht: `t_dokument_zugriff_anlegen` (`drizzle/0139`) verlangt `mandant_id = app.aktiver_mandant()`, und der ist dort NULL (K-20); ausserdem ist der Scope `app.ist_readonly()` (gemessen, `tests/isolation/kundenportal-stapel.test.ts` Fall 21). Der Weg dafuer ist ein `security definer` wie in `drizzle/0266`/`0325`, NICHT eine gelockerte Policy — und er gehoert in DIESELBE Migration wie die Antwort auf O-671, sonst liefert das Portal Dateien aus, die niemand vermerkt hat. Bis dahin baut das Kundenportal keinen Abrufweg. | `drizzle/0139`, `drizzle/0009`, `drizzle/0297`, `services/kundenportal/dokument.ts`, `/portal/kunde/dokumente/[id]`, DOC-03, DOC-04, SEC-A6, O-671, O-736 |
-
-| O-844 | **Bekommt das versendete Angebot einen Schnappschuss wie die Rechnung (`rechnung_snapshot`, K-12)?** Ohne ihn gibt es im Kundenportal keinen Abzug, der nachweislich derselbe ist wie der versendete: das interne Angebots-PDF (`/portal/[mandant]/angebote/[id]/pdf`) entsteht aus den HEUTIGEN Stammdaten, zwei Abzuege desselben Angebots koennen sich also unterscheiden — bei einem Dokument, das ein Vertragsangebot IST, ist das kein Schoenheitsfehler. Bis zur Antwort bietet `/portal/kunde/angebote/[id]` keinen Dateiverweis an und sagt, warum; die Angaben selbst (Kopf, Texte, Positionen, Steuerzeilen je Satzgruppe, Summen) stehen vollstaendig auf dem Blatt. | `services/kundenportal/angebot.ts`, `/portal/kunde/angebote/[id]`, `drizzle/0024`, `services/finanz/xrechnung/*`, K-12, OPS-08, FIN-11 |
+Eingetragen heisst gelöscht. Die 4 Zeilen dieser Domäne — **O-840**, **O-842**,
+**O-843**, **O-844** — stehen in `docs/DECISIONS.md` unter
+„Open — ask, do not guess", Unterabschnitt
+„Raised while building · die Domänenwelle (Routenbau)", im Block **Kundenportal**,
+hinter O-674. Wortgleich übernommen. Nachgemessen vor dem Eintrag (`w_reg`):
+`auftrag.auftragswert_netto_cent` und `projekt.auftragssumme_netto_cent` gibt es,
+`angebot_status` führt `abgelaufen` und kein Lauf unter `src/server/jobs/` setzt
+ihn, `t_dokument_zugriff_anlegen` verlangt in `0139:200` `mandant_id =
+app.aktiver_mandant()`, `rechnung_snapshot` gibt es und `rechnung_dokument` nicht.
+**O-841 ist und bleibt eine Lücke** — die Nummer steht in keiner Quelle und in
+keiner Zeile Code. Hier ist nichts mehr offen.
 
 
 ## Befunde

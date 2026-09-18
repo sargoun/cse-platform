@@ -36,11 +36,16 @@ Policyliste.
 
 Nachgemessen und deshalb gestrichen. Keine Aenderung noetig. /portal/mein/nachrichten ist als vierter Tab der Mitarbeiterleiste bereits registriert (registry/tableiste.ts), und /portal/mein/nachrichten/[id] ist eine Unterseite derselben Familie. Es kommt keine neue Navigationsadresse hinzu.
 
-## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen" — ERLEDIGT (18.09.2026)
 
-| O-830 | **Darf eine Mitarbeiterin im Portal von sich aus eine Nachricht schreiben — und an wen?** Antworten funktioniert vollstaendig (0350): wer angeschrieben wird, schreibt zurueck, und die Empfaenger ergeben sich aus dem Faden. Beim ERSTEN Brief gibt es diese Antwort nicht — sie waere eine Empfaengerliste, und die zusammenzustellen heisst zu entscheiden, wen eine Reinigungskraft erreichen darf: nur die Einsatzleitung des laufenden Einsatzes, jede Leitung ihrer Gesellschaft, die Verwaltung, jedes Konto? Das ist eine betriebliche Festlegung mit Folgen fuer die Erreichbarkeit der Leitung. Die Datenbank stuende bereit: `nachricht.versenden` ist an die Rolle `mitarbeiter` gebunden (0008), `eroeffneFaden` schreibt intern und im Portal. Heute gilt: kein Eroeffnen; die Seite sagt es als Satz an der Stelle, an der der Knopf staende (`EIGENER_FADEN_MOEGLICH = false`). | `services/mitarbeiter/nachricht.ts`, `/portal/mein/nachrichten`, `drizzle/0350`, `drizzle/0008`, EMP-11, K-19 |
-
-| O-831 | **Darf eine Mitarbeiterin die Anlage einer internen Nachricht im Portal oeffnen?** Die ANZAHL der Anlagen ist im Personen-Scope lesbar (`t_anhang_eigene`, 0231) und steht an jeder Fadenzeile — eine Nachricht mit Anlage, die aussieht wie eine ohne, waere die schlechtere Antwort. Die DATEI haengt an `dokument`, und dort gibt es fuer den Personen-Scope keinen permissiven Lesepfad; einen zu setzen ist eine Entscheidung ueber Anlagen und nicht ueber Policies. Dieselbe Frage stellt O-671 fuer das Kundenportal, sie gehoert aber je Portal beantwortet: ein Dienstplan-PDF an die Kraft ist etwas anderes als eine Kalkulation an den Kunden. Offen ist zusaetzlich, fuer welche `dokument.kategorie` das gelten soll (vgl. O-736). Heute gilt: Zahl ja, Datei nein (`ANLAGEN_ABRUFBAR = false`). | `services/mitarbeiter/nachricht.ts`, `/portal/mein/nachrichten/[id]`, `drizzle/0231`, `drizzle/0350`, O-671, O-736, DOC-01, DOC-03 |
+Eingetragen heisst gelöscht. Die 2 Zeilen dieser Domäne — **O-830** und **O-831** —
+stehen in `docs/DECISIONS.md` unter „Open — ask, do not guess", Unterabschnitt
+„Raised while building · die Domänenwelle (Routenbau)", im Block
+**Mitarbeiterportal**. Wortgleich übernommen. Nachgemessen vor dem Eintrag:
+`EIGENER_FADEN_MOEGLICH` und `ANLAGEN_ABRUFBAR` stehen beide auf `false`
+(`services/mitarbeiter/nachricht.ts:346/363`), `nachricht.versenden` ist in `0008`
+an die Rolle `mitarbeiter` gebunden, `t_anhang_eigene` steht in `0231:500`.
+Hier ist nichts mehr offen.
 
 
 ## Befunde

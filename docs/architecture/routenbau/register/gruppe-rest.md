@@ -37,15 +37,27 @@ Z. 391/393) führen genau ihr Gruppenrecht, und `gruppe.radar.lesen` /
 Kopfkommentar der Liste sagte, beide hätten noch keine Seite — er ist mit
 geändert. Hier ist nichts mehr offen.
 
-## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen" — ERLEDIGT (18.09.2026)
 
-| O-870 | **Wenn zwei Gesellschaften der Gruppe dieselbe Bekanntmachung hoch bewerten — wer bietet?** `/portal/gruppe/radar` macht den Sachverhalt zum ersten Mal sichtbar: die Reinigung sieht ihre Bewertung, die Security ihre, und keine von beiden sieht die andere. Ob dann eine allein bietet, beide getrennt, oder beide als Bietergemeinschaft, und wer das entscheidet, ist eine Regel des Hauses — vergaberechtlich ist sie nicht gleichgültig (§ 124 GWB, wettbewerbsbeschränkende Abreden zwischen verbundenen Unternehmen). Die Seite zählt „Mehrfach im Blick“, markiert die Zeile und schlägt nichts vor. | RAD-07, REP-06, TEN-05, `src/app/portal/gruppe/radar/page.tsx` |
+Eingetragen heisst gelöscht. Die 3 O-Zeilen dieser Domäne — **O-870**, **O-871**,
+**O-872** — stehen in `docs/DECISIONS.md` unter „Open — ask, do not guess",
+Unterabschnitt „Raised while building · die Domänenwelle (Routenbau)", in einem
+neuen Block **Gruppenansicht**; er war nötig, weil keiner der fünfzehn bestehenden
+Blöcke die Gruppensicht führt. Wortgleich übernommen. Nachgemessen vor dem Eintrag
+(`w_reg`): `kalender_eintrag` trägt **kein** `team_id`, die Tabelle
+`kalender_teilnehmer` gibt es nicht, `gruppe.personal.lesen` und
+`gruppe.dienstplan.lesen` stehen beide im Katalog.
 
-| O-871 | **Soll ein Termin einem Team gehören können?** `04-SEITENKARTE.md` §6 verspricht für `/portal/gruppe/kalender` einen Filter „nach Bereich, Team und Person“, und `06-RADAR-KI-INHALT.md` §7.3/§7.4 sehen dafür `kalender_eintrag.team_id` und eine Tabelle `kalender_teilnehmer` vor. Gebaut ist keines von beiden; Teambezug trägt heute nur die Schicht (`einsatz_zuordnung` → `team_mitglied`). Der Teamfilter ist deshalb vollständig gebaut und greift auf Schichten; die Seite sagt es („nur Schichten (O-871)“). Eine Spalte anzulegen, die kein Schreibweg füllt, wäre ein Filter, der immer leer antwortet. | CAL-02, `06-RADAR-KI-INHALT.md` §7.3/§7.5, `drizzle/0230` |
+Die vierte Zeile war keine offene Frage, sondern eine getroffene Entscheidung ohne
+Nummer („D-…"). Sie steht jetzt als **D-608 · Die Gruppenansicht liest keine
+Bewerbung mehr** im Abschnitt der getroffenen Entscheidungen.
 
-| O-872 | **Welches Recht trägt den Personenblick im Gruppenkalender?** Heute: `gruppe.personal.lesen` (schaltet die Personenliste frei) zusammen mit `gruppe.dienstplan.lesen` (gibt die Schichten je Bereich frei) — genau die Kombination, die schon `/portal/gruppe/personen` und die ArbZG-Befunde auf `/portal/gruppe/dienstplan` trägt (D-09: das Gesetz zählt je Person über die Gesellschaften). Offen ist, ob dieser Blick ein eigenes Recht bekommen soll, weil er feiner ist als beide: er zeigt nicht nur DASS jemand in zwei Gesellschaften arbeitet, sondern WANN. Die Voreinstellung der Seite zeigt keinen Personenbezug; der Filter ist ein ausdrücklicher Suchweg, und ohne die Rechte erscheint er gar nicht. | CAL-02, D-09, TEN-05, `src/server/services/gruppe/kalender.ts` |
-
-| D-… | **Die Gruppenansicht liest keine Bewerbung mehr** (`drizzle/0370`). Beim Bau von `/portal/gruppe/kalender` fiel auf, dass `0166` ein `t_bewerbung_gruppe` trägt: eine Gruppensitzung mit `gruppe.recruiting.lesen` las die vollen Bewerbungszeilen der Schwestergesellschaften — Name, E-Mail, Telefon, Anschreiben. `06-RADAR-KI-INHALT.md` §6.2 sagt das Gegenteil und begründet es zweifach: die vier Bereiche sind eigene Verantwortliche im Sinne der DSGVO (eine Bewerberin hat keine Beschäftigung und damit keine Rechtsgrundlage dafür, dass ihre Daten den anderen drei gezeigt werden), und die Aufbewahrung läuft gegenläufig (REC-07/LEG-11 verlangt Löschung, Beschäftigtendaten dürfen nicht gelöscht werden). 0370 nimmt die permissive Policy zurück und setzt `p_gruppe_kein_personenbezug` restriktiv auf alle sechs Bewerbertische — die zweite Linie hält die Tür zu, falls jemand die erste je wieder anlegt. Keine Portaldecke auf `bewerbung`: das öffentliche Bewerbungsformular schreibt über `t_bewerbung_eingang` ohne internes Portal (REC-03), eine Portaldecke schlösse den Eingang. `nachricht`/`nachricht_anhang`/`nachricht_empfaenger` bleiben bewusst aussen vor — das ist O-651 und gehört dem Auftraggeber. | TEN-05, SEC-A3, REC-07, `06-RADAR-KI-INHALT.md` §1.4/§6.2, `drizzle/0166`, `drizzle/0370` |
+**Eine Angabe darin hielt der Nachmessung nicht stand und wurde beim Eintragen
+berichtigt:** die Zeile sagte, `stelle` und `stelle_veroeffentlichung` trügen
+„beide ihre Gruppenpolicy in 0166". `t_stelle_gruppe` steht nur auf `stelle`;
+`stelle_veroeffentlichung` hat gar keine Gruppenpolicy, nur
+`t_stelle_veroeff_lesen`/`_schreiben` auf `app.aktiver_mandant()` (in `pg_policies`
+nachgesehen). D-608 sagt es so. Hier ist nichts mehr offen.
 
 
 ## Befunde

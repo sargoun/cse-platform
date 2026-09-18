@@ -61,13 +61,37 @@ Der letzte erscheint heute für NIEMANDEN, weil das Recht nicht gebunden ist (O-
 
 Ein eigener Navigationspunkt wäre für alle vier falsch: sie sind Handlungen an einer Liste, nicht eigene Module, und die Tab-Leiste führt nach SEITENKARTE §11.2 genau fünf Ziele.
 
-## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen" — ZUR HÄLFTE ERLEDIGT (18.09.2026)
 
-| O-860 | **Darf die Einstellungsmaske einer Gesellschaft mehr sehen als die ZAHL gleichnamiger Menschen in der Gruppe — Name, Kennung, beschäftigende Gesellschaft — und darf sie eine bestehende `person` übernehmen, statt eine zweite anzulegen?** `person` trägt keinen Mandanten (D-09), ist aber nur dort lesbar, wo der Mensch beschäftigt ist: die Dublette bei einer Schwestergesellschaft ist unsichtbar, und ohne Gegenmassnahme erzeugt jede Einstellung genau sie. Ausgeliefert ist die engste Annahme: `app.person_dublettenpruefung` (0365) gibt `hier` und `fremd` als ZAHLEN zurück, nie einen Namen, nie eine Kennung, nie eine Gesellschaft — dieselbe Linie wie `app.arbzg_belastung`. Jede Probe schreibt eine Auditzeile; die Maske bittet um Rückfrage in der Personalstelle der Gruppe, statt zu blockieren (Einstellen muss möglich bleiben) oder zu verschweigen. Getrennte Verantwortliche nach Art. 4 Nr. 7 DSGVO. | D-09, EMP-14, LEG-09, Invariante 9, `drizzle/0365`, `services/personal/einstellung.ts`, `portal/[mandant]/personal/anstellungen/neu` |
+Eingetragen heisst gelöscht. Die 2 O-Zeilen dieser Domäne — **O-860** und
+**O-861** — stehen in `docs/DECISIONS.md` unter „Open — ask, do not guess",
+Unterabschnitt „Raised while building · die Domänenwelle (Routenbau)": O-860 im
+Block **Personal** (hinter O-616), O-861 im Block **Dienstplan und Zeit** (hinter
+O-714). Wortgleich übernommen. Nachgemessen vor dem Eintrag (`w_reg`):
+`app.person_dublettenpruefung` gibt es (0365), `zeit.abrechnung_freigeben` steht im
+Katalog und `rolle_berechtigung` hält dafür **null** Zeilen — das Recht ist also
+gebaut und an keine Rolle gebunden.
 
-| O-861 | **In welcher Einheit wird erfasste Zeit zur Abrechnung freigegeben — je Eintrag, je Woche, je Person, je Monat —, und lässt sich eine erteilte Freigabe zurücknehmen, solange nichts abgerechnet ist?** Hängt an O-39 (gibt es den Schritt überhaupt). Ausgeliefert ist die feinste Einheit — je EINTRAG, aus der sich jede gröbere bilden lässt — und KEINE Rücknahme: was freigegeben ist, kann in ein Stundenkonto geflossen sein, und ein stilles Zurückdrehen änderte eine Zahl, die ein Mensch schon in der Hand hatte (Invariante 8). Offen bleibt zusätzlich, ob eine Freigabe in einen bereits abgeschlossenen Stundenkonto-Monat zulässig ist; die Seite kennzeichnet diese Zeilen und sperrt sie nicht. | TIM-12, FIN-07, FIN-18, EMP-04, O-39, `drizzle/0366`, `services/zeit/abrechnungsfreigabe.ts`, `portal/[mandant]/zeiten/freigabe` |
+**Was dabei auffiel und in DECISIONS.md berichtigt wurde:** die Zeile **O-39** sagte
+„`zeit.abrechnung_freigeben` is not seeded **and the screen does not ship**". Die
+zweite Hälfte stimmt seit dieser Welle nicht mehr — `/portal/[mandant]/zeiten/freigabe`
+und `0366` sind ausgeliefert. Die Zeile nennt jetzt beides getrennt und verweist auf
+O-861.
 
-Vorschlag für zwei D-Einträge (Text, nicht von mir geschrieben — DECISIONS.md nicht angefasst): (a) „Die Anlage von `person` und `anstellung` prüfte kein Recht" — Befund, 0367, und warum `personal.schreiben` und kein neuer Schlüssel (04-SEITENKARTE §5.12 führt die Seite darunter; ein eigener `personal.einstellen` beantwortete eine Rechtefrage, die niemand gestellt hat, K-17). (b) „Der Bucket schreibt als LETZTES" — warum `dokument/ablage.ts` den Puffer benutzt statt der Waisen-Rücknahme der fünf älteren Uploadwege, inklusive des Preises (Übertragung innerhalb der Transaktion).
+### Noch offen in dieser Warteschlange
+
+Der Vorschlag für **zwei D-Einträge** bleibt stehen, weil kein Text geliefert wurde
+(„Text, nicht von mir geschrieben"). Wer sie schreibt, schreibt sie neu — geraten
+wird hier nichts:
+
+(a) „Die Anlage von `person` und `anstellung` prüfte kein Recht" — Befund, `0367`, und
+warum `personal.schreiben` und kein neuer Schlüssel (04-SEITENKARTE §5.12 führt die
+Seite darunter; ein eigener `personal.einstellen` beantwortete eine Rechtefrage, die
+niemand gestellt hat, K-17).
+
+(b) „Der Bucket schreibt als LETZTES" — warum `dokument/ablage.ts` den Puffer benutzt
+statt der Waisen-Rücknahme der fünf älteren Uploadwege, inklusive des Preises
+(Übertragung innerhalb der Transaktion).
 
 
 ## Befunde

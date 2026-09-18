@@ -33,15 +33,18 @@ im erzeugten Block und ist nach `pnpm db:triggers` unverändert.
 
 Nachgemessen und deshalb gestrichen. Nichts nötig. Das Mitarbeiterportal hat keine Seitenleiste, und die Tab-Leiste trägt nach SEITENKARTE §11.2 genau fünf Ziele. Beide Seiten sind über die Liste „Weiteres" auf /portal/mein erreichbar — diese Zeilen habe ich dort ergänzt (src/app/portal/mein/page.tsx), zusammen mit den vorhandenen sechs. tests/kern/mein-dokumente-objekte.test.ts hält fest, dass die Verweise dort stehen.
 
-## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen" — ERLEDIGT (18.09.2026)
 
-| O-850 | **What makes a document „concern THIS person"?** `/portal/mein/dokumente` promises the papers relevant to one human, but `dokument` carries `kunde_id`, `objekt_id` and `formular_eingang_id` — no `person_id`, no `anstellung_id` (`drizzle/0009`). Any person-scoped selection would therefore be guessed, and in the expensive direction: a payslip in the wrong colleague's portal. Until answered the page shows exactly what the RLS pair `p_ma_ceiling` + `t_person` releases — the documents the company released to its WORKFORCE — and says so on screen in all four languages. Answering it positively needs a column, a policy and a release step, not a query change. | `services/mitarbeiter/dokumente.ts`, `/portal/mein/dokumente`, `/portal/mein/dokumente/[id]`, `drizzle/0009`, EMP-11, DOC-03, DOC-04, D-06, O-851 |
-
-| O-851 | **Which of the nine document categories (DOC-01) may EVER be released to the workforce?** The database checks only the release flag `sichtbar_fuer_mitarbeiter`, never the category — a `rechnung` or a `mitarbeiter` document can be switched visible today. This is the staff-side twin of O-736 (customer side). Until answered nothing is blocked, and the category is shown prominently in the list and on the sheet, in the worker's language: the visible category is the place where a wrong release is noticed — by the worker and by the office. | `services/mitarbeiter/dokumente.ts`, `/portal/mein/dokumente`, `drizzle/0009`, DOC-01, DOC-04, O-736, O-850 |
-
-| O-852 | **How long does an object stay in `/portal/mein/objekte` after the last shift there?** Today: for ever — somebody who wants to look up the address of the week before last would otherwise not find it any more. What does NOT stay is the access note: it follows `app.ist_eingesetzt_auf_objekt` (`drizzle/0069`) and ends with the last shift that has not yet finished, the same boundary the shift pages use. A retention window on the list is a separate decision from the access window (O-211) and is not invented here. | `services/mitarbeiter/objekte.ts`, `/portal/mein/objekte`, `drizzle/0028` (`objekt.t_person`), `drizzle/0069`, EMP-02, OPS-01, O-211 |
-
-| O-853 | **Which contact details of the on-site Ansprechpartner may an assigned worker see — name and landline, or the mobile number as well, and does it hold outside the assigned hours?** 04-SEITENKARTE §7 says „contact" without naming a channel, and `ansprechpartner` is customer data the employee portal otherwise keeps out (EMP-13). Until answered the page shows name, landline and mobile — as `tel:` links, because a phone on a service phone is the point — and only while `app.mein_objekt_zugang` answers (`drizzle/0360`), i.e. only while the person is assigned. The e-mail address is deliberately NOT shown: a mail address is a channel, and channels to customer contacts hang on `rechtsgrundlage`/`einwilligung_kanaele` (§7 UWG). | `drizzle/0360`, `services/mitarbeiter/objekte.ts`, `/portal/mein/objekte/[id]`, EMP-02, EMP-13, OPS-01, K-05 |
+Eingetragen heisst gelöscht. Die 4 Zeilen dieser Domäne — **O-850** bis **O-853** —
+stehen in `docs/DECISIONS.md` unter „Open — ask, do not guess", Unterabschnitt
+„Raised while building · die Domänenwelle (Routenbau)", im Block
+**Mitarbeiterportal**. Wortgleich übernommen, also auf Englisch — die Zeile des
+Auftraggebers wird nicht übersetzt, und der Block trägt ohnehin beide Sprachen.
+Nachgemessen vor dem Eintrag (`w_reg`): `dokument` trägt `kunde_id`, `objekt_id`,
+`formular_eingang_id` und `sichtbar_fuer_mitarbeiter`, aber **kein** `person_id`
+und **kein** `anstellung_id`; `p_ma_ceiling` und `t_person` stehen beide auf
+`dokument`; `dokument_kategorie` führt genau neun Werte; `app.mein_objekt_zugang`
+und `app.ist_eingesetzt_auf_objekt` gibt es. Hier ist nichts mehr offen.
 
 
 ## Befunde
