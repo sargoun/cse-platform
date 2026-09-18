@@ -281,6 +281,15 @@ export async function leseRegister(
 /**
  * Ist das Security-Modul in dieser Gesellschaft überhaupt gebucht?
  *
+ * **Das ist eine BUCHUNGSfrage, keine Rechtefrage.** Der Schlüssel
+ * `'security.lesen'` steht hier nur, damit `modulFuerRecht` daraus `security`
+ * liest — dasselbe Vokabular, das `modulAktiv` überall benutzt. Es wird
+ * NICHTS gefragt, was an einer Rolle hängt: `app.hat_recht` kommt hier nicht
+ * vor, und das ist Absicht. `admin`, `leitung` und `super_admin` halten
+ * `security.lesen` mit `rolle.mandant_id is null`, also in JEDEM Bereich
+ * (nachgemessen in `rolle_berechtigung`) — eine Rechtefrage gäbe in der
+ * Reinigung `true` und öffnete genau die Seite, die es dort nicht gibt.
+ *
  * **Warum das hier steht und nicht in der zentralen Sperre.** Die Modulsperre
  * in `app/portal/zugang.ts` prüft ausschliesslich den MODULTEIL der
  * Routenrechte. Diese Route trägt als einziges Recht
@@ -291,9 +300,15 @@ export async function leseRegister(
  * eingegrenzt), und ein leeres Bewacherregister in einer Baugesellschaft ist
  * eine Aussage, die niemand treffen wollte.
  *
- * Geprüft wird gegen `security.lesen` — dasselbe Vokabular, das `modulAktiv`
- * überall benutzt. Die Antwort ist `false` → die Seite gibt 404 (AUT-06:
- * nicht gebucht sieht aus wie nicht vorhanden, D-377).
+ * Die Antwort ist `false` → die Seite gibt 404 (AUT-06: nicht gebucht sieht
+ * aus wie nicht vorhanden, D-377) — und zwar für JEDEN, auch für die
+ * Super-Administration: D-377 nennt das ausdrücklich, sonst hinge die Antwort
+ * auf „wer sieht das Bewacherregister der Reinigungsfirma" an der Rolle statt
+ * an der Buchung.
+ *
+ * **Wer diese Funktion einzeln aufruft, hat die halbe Antwort.** Die ganze
+ * steht in `bewacherregisterErreichbar` darunter; sie ist es, die eine Seite
+ * fragt, bevor sie öffnet ODER verweist.
  */
 export async function securityGebucht(kontext: LeseKontext): Promise<boolean> {
   const [zeile] = await kontext.abfrage<{
@@ -307,6 +322,51 @@ export async function securityGebucht(kontext: LeseKontext): Promise<boolean> {
     gepflegt: zeile?.gepflegt === true,
   };
   return modulAktiv(buchung, 'security.lesen');
+}
+
+/**
+ * **Gibt es das Bewacherregister hier — für DIESE Sitzung in DIESER
+ * Gesellschaft?** Eine Frage, eine Antwort, eine Funktion.
+ *
+ * Diese Funktion ist der Befund von `tests/e2e/verweise.spec.ts` in Codeform:
+ * `[admin · reinigung] /portal/reinigung/security/bewacherregister → 404`. Der
+ * Verweis stand auf dem Stammdatenblatt unter `personal.bewacher_verwalten`
+ * allein; die Zielseite verlangte dieses Recht UND die Buchung. Zwei Stellen,
+ * zwei verschiedene Antworten — und dazwischen ein Knopf, der die Existenz
+ * dessen verrät, was er nicht öffnen kann (AUT-06, D-567).
+ *
+ * **Die beiden Hälften widersprechen sich nicht, sie beantworten
+ * Verschiedenes:**
+ *
+ *  - WELCHES RECHT öffnet das Register → `personal.bewacher_verwalten`, ein
+ *    QUERSCHNITTSrecht. Der Eintrag ist eine Tatsache über den MENSCHEN
+ *    (Invariante 9, D-09): wer bei zwei Schwestergesellschaften beschäftigt
+ *    ist, hat EINE Bewacher-ID, nicht zwei. Deshalb nennt das Routenregister
+ *    genau dieses Recht und nicht `security.*`, und deshalb verlangen
+ *    `be_lesen`/`be_schreiben`/`be_aendern` in 0031 denselben Schlüssel.
+ *  - IN WELCHER GESELLSCHAFT es das Register überhaupt gibt → die Buchung des
+ *    Gewerks Security (D-377). Die DATEN gehören zum Gewerk: § 34a GewO
+ *    verpflichtet den Bewachungsunternehmer, und eine Gesellschaft ohne
+ *    Bewachungsgewerbe hat diese Pflicht nicht. Ein leeres Bewacherregister
+ *    in einer Baugesellschaft wäre eine Aussage, die niemand treffen wollte.
+ *
+ * Das ist die Entscheidung: **beide Hälften bleiben, aber nur EINE Funktion
+ * rechnet sie zusammen.** Wer sie einzeln nachbaut, baut die nächste Lücke —
+ * deshalb gibt es diese hier, und deshalb rufen die Zielseite und jede Seite,
+ * die auf sie verweist, dieselbe auf. Damit gilt wieder, was D-567 verlangt:
+ * wer den Verweis SIEHT, kann die Seite auch öffnen; wer sie nicht öffnen
+ * kann, sieht ihn nicht.
+ *
+ * **Die Buchung wird ZUERST gefragt.** Sie ist die Aussage über die
+ * Gesellschaft und verrät nichts über die Sitzung; ein fehlendes Recht bleibt
+ * damit in einer Gesellschaft ohne Security ungefragt und unbeantwortet.
+ */
+export async function bewacherregisterErreichbar(
+  kontext: LeseKontext,
+): Promise<boolean> {
+  if (!(await securityGebucht(kontext))) return false;
+  const recht = await rechteImKontext(kontext, 'personal.bewacher_verwalten');
+  return recht['personal.bewacher_verwalten'] === true;
 }
 
 export interface EintragEingabe {

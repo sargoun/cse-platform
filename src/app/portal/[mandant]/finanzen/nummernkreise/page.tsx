@@ -53,6 +53,22 @@ const ZURUECKSETZUNG_TEXT: Readonly<Record<string, string>> = {
   jaehrlich: 'jährlich — am 1. Januar zurück auf 1',
 };
 
+/**
+ * Ein Hash, gekürzt auf 12 Zeichen, Auslassung, die letzten 6 — lesbar, und
+ * immer noch **ein Wort ohne Trennstelle**.
+ *
+ * **Deshalb tragen die Zellen dieser Seite `flex min-w-0 flex-col` und die
+ * Hashzeilen `break-all`.** Gemessen am Telefon (390px) lief die Seite in
+ * jeder der drei Gesellschaften 26px über den rechten Rand; der schuldige
+ * Kasten war jedes Mal `span.inline-flex flex-col gap-s1` der Spalte
+ * „Kettenlage" bei x=264…416. Im Kartenstapel unter `md` ist die
+ * Wertspalte rund 74px breit (`DataTable`, D-420) — ein `inline-flex`
+ * schrumpft aber nicht unter die Mindestbreite seiner Kinder, und die ist
+ * hier dieses eine 19-Zeichen-Wort. Das `min-w-0 break-words` am `<dd>`
+ * wirkt durch den Flex-Behälter hindurch nicht (D-594); `break-all` am
+ * Hash selbst wirkt, weil ein Hash gelesen und nicht gesprochen wird
+ * (D-569).
+ */
 function kurz(hash: string | null): string {
   return hash === null ? '—' : `${hash.slice(0, 12)}…${hash.slice(-6)}`;
 }
@@ -168,7 +184,7 @@ export default async function Nummernkreisblatt(
               schluessel: 'bezeichnung',
               kopf: 'Kreis',
               zelle: (k) => (
-                <span className="inline-flex flex-col gap-s1">
+                <span className="flex min-w-0 flex-col gap-s1">
                   <span className="text-text">{k.bezeichnung}</span>
                   <span className="text-xs text-text-muted">{k.typText}</span>
                 </span>
@@ -182,8 +198,8 @@ export default async function Nummernkreisblatt(
               schluessel: 'maske',
               kopf: 'Maske und Rücksetzung',
               zelle: (k) => (
-                <span className="inline-flex flex-col gap-s1">
-                  <code className="text-xs text-text">{k.formatMaske}</code>
+                <span className="flex min-w-0 flex-col gap-s1">
+                  <code className="break-all text-xs text-text">{k.formatMaske}</code>
                   <span className="text-xs text-text-muted">
                     {k.zuruecksetzung === null
                       ? 'Rücksetzung nicht festgelegt'
@@ -198,7 +214,7 @@ export default async function Nummernkreisblatt(
               kopf: 'Nächste Nummer (Ansicht)',
               numerisch: true,
               zelle: (k) => (
-                <span className="inline-flex flex-col gap-s1 text-right">
+                <span className="flex min-w-0 flex-col gap-s1 text-right">
                   <span className="cse-zahl text-text">{k.naechsteNummerFormatiert}</span>
                   <span className="cse-zahl text-xs text-text-muted">
                     Zähler {k.naechsteNummer}
@@ -210,11 +226,11 @@ export default async function Nummernkreisblatt(
               schluessel: 'kette',
               kopf: 'Kettenlage',
               zelle: (k) => (
-                <span className="inline-flex flex-col gap-s1">
-                  <span className="font-mono text-xs text-text-muted">
+                <span className="flex min-w-0 flex-col gap-s1">
+                  <span className="break-all font-mono text-xs text-text-muted">
                     Genesis {kurz(k.genesisHash)}
                   </span>
-                  <span className="font-mono text-xs text-text-muted">
+                  <span className="break-all font-mono text-xs text-text-muted">
                     Letzter {kurz(k.letzterHash)}
                   </span>
                   <span className="text-xs text-text-muted">
@@ -242,7 +258,7 @@ export default async function Nummernkreisblatt(
               schluessel: 'zustand',
               kopf: 'Vergabe',
               zelle: (k) => (
-                <span className="inline-flex flex-col gap-s1">
+                <span className="flex min-w-0 flex-col gap-s1">
                   <span className="inline-flex flex-wrap items-center gap-s2">
                     {k.istPlatzhalter
                       ? <StatusPill zustand="Entwurf" />

@@ -12,6 +12,7 @@ import { berlinHeute } from '@/server/db/heute';
 import {
   KeinStammdatenRecht, leseStammdaten, type Stammdaten,
 } from '@/server/services/personal/stammdaten';
+import { bewacherregisterErreichbar } from '@/server/services/security/bewacherregister';
 import { lesePerson, type PersonZeile } from '../../daten';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { kennungOder404 } from '../../../../../kennung';
@@ -55,12 +56,21 @@ export default async function Stammdatenblatt({
   const { zugang } = tor;
 
   /* AUT-06: das Personenblatt verlangt `personal.lesen`, diese Seite
-     `personal.stammdaten_lesen`, das Formular `personal.schreiben`, der
-     Bewacherverweis `personal.bewacher_verwalten`. Jeder Verweis wird vorher
-     gefragt (D-581). */
+     `personal.stammdaten_lesen`, das Formular `personal.schreiben`. Jeder
+     Verweis wird vorher gefragt (D-581).
+
+     `personal.bewacher_verwalten` steht hier NICHT mehr, und das ist der
+     Punkt. Es war die halbe Frage: das Bewacherregister verlangt dieses Recht
+     UND das gebuchte Gewerk Security (D-377), und in der Reinigung
+     (`mandant.module = {reinigung}`) gibt es die Seite fuer niemanden — auch
+     nicht fuer die Super-Administration. Wer nur das Recht fragte, zeigte der
+     `admin` einen Knopf auf ein 404 und verriet die Existenz dessen, was er
+     nicht oeffnen kann (AUT-06, D-567); gefunden hat es
+     `tests/e2e/verweise.spec.ts`. Die ganze Frage stellt jetzt
+     `bewacherregisterErreichbar` — DIESELBE Funktion, die die Zielseite vor
+     dem Oeffnen fragt. */
   const darf = await haeltRechte(
-    zugang.sitzung,
-    'personal.lesen', 'personal.schreiben', 'personal.bewacher_verwalten');
+    zugang.sitzung, 'personal.lesen', 'personal.schreiben');
 
   const suche = await searchParams;
   const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
@@ -76,7 +86,9 @@ export default async function Stammdatenblatt({
   const daten = await (db().begin(async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
       const person = await lesePerson(kontext, heute, id);
-      if (person === null) return { person: null, stammdaten: null, keinRecht: false };
+      if (person === null) {
+        return { person: null, stammdaten: null, keinRecht: false, registerOffen: false };
+      }
       let stammdaten: Stammdaten | null = null;
       let keinRecht = false;
       try {
@@ -85,13 +97,19 @@ export default async function Stammdatenblatt({
         if (fehler instanceof KeinStammdatenRecht) keinRecht = true;
         else throw fehler;
       }
-      return { person, stammdaten, keinRecht };
+      /* In DIESER gebundenen Transaktion: `app.hat_recht` und
+         `app.aktiver_mandant()` antworten nur unter der Bindung, und eine
+         zweite Rundreise fuer eine Frage, die hier eine Abfrage kostet, waere
+         eine zu viel. */
+      const registerOffen = await bewacherregisterErreichbar(kontext);
+      return { person, stammdaten, keinRecht, registerOffen };
     })) as Promise<{
       person: PersonZeile | null; stammdaten: Stammdaten | null; keinRecht: boolean;
+      registerOffen: boolean;
     }>);
 
   if (daten.person === null) notFound();
-  const { person, stammdaten, keinRecht } = daten;
+  const { person, stammdaten, keinRecht, registerOffen } = daten;
 
   const verweis = 'inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text';
   const feld = 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text';
@@ -123,7 +141,13 @@ export default async function Stammdatenblatt({
             Zur Person
           </Link>
         )}
-        {darf['personal.bewacher_verwalten'] === true && (
+        {/* Recht UND Buchung, aus einer Hand: `registerOffen` ist die Antwort
+            derselben Funktion, die die Zielseite vor dem Oeffnen gibt. Ist sie
+            `false`, steht hier NICHTS — kein ausgegrauter Knopf, kein Name
+            ohne Verweis: in einer Gesellschaft ohne Bewachungsgewerbe gibt es
+            diese Seite nicht, und ihr Name waere eine Aussage ueber ein
+            Gewerk, das diese Gesellschaft nicht fuehrt (D-377, AUT-06). */}
+        {registerOffen && (
           <Link href={`/portal/${mandant}/security/bewacherregister`} className={verweis}>
             Bewacherregister
           </Link>

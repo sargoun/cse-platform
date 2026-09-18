@@ -638,7 +638,7 @@ test.describe('(6) Arabisch: `dir="rtl"` und null axe-Verstöße', () => {
 
 // ---------------------------------------------------------------------------
 
-test.describe('(8) sechs gebaute Seiten, zu denen kein Weg führte', () => {
+test.describe('(8) acht gebaute Seiten, zu denen kein Weg führte', () => {
   /**
    * **Der Befund.** Die Arbeiterleiste trägt fünf Ziele — und `mein/zeiten`,
    * `urlaub`, `antraege`, `nachweise`, `dienstanweisungen` und
@@ -649,11 +649,37 @@ test.describe('(8) sechs gebaute Seiten, zu denen kein Weg führte', () => {
    * Einwandsweg aus EMP-07 — die einzige Stelle, an der eine Kraft einer
    * Aufzeichnung widersprechen kann. Ein Widerspruchsrecht ohne Weg dorthin
    * ist keines.
+   *
+   * **Aus sechs sind acht geworden** — `mein/dokumente` (EMP-11, DOC-03) und
+   * `mein/objekte` (EMP-02, OPS-01) sind gebaut und stehen seither in
+   * derselben Liste, aus demselben Grund: die Leiste trägt fünf Ziele und
+   * nicht mehr (SEITENKARTE §11.2).
+   *
+   * **Deshalb prüft dieser Fall jetzt die EIGENSCHAFT und nicht die Zahl.**
+   * Er hing an `toHaveCount(6)` und an einer Mengengleichheit — und fiel, als
+   * die siebte und achte Seite dazukamen, obwohl genau das der gewollte
+   * Zustand ist. Eine Prüfung, die beim Bauen rot wird, wird beim nächsten Mal
+   * nachgezogen statt gelesen, und dann trägt sie nichts mehr.
+   *
+   * Was hier zugesichert bleibt, ist die Zusage des Befundes, in beide
+   * Richtungen:
+   *
+   *  1. **Keines der bekannten Ziele verschwindet wieder** — `ZIELE` ist die
+   *     untere Schranke, nicht die Liste. Nimmt jemand `mein/zeiten` heraus,
+   *     fällt der Fall, und zwar mit dem Namen des Ziels im Fehlschlag.
+   *  2. **JEDES gezeigte Ziel öffnet wirklich** — auch das neunte, das diese
+   *     Datei noch nicht kennt. Ein Verweis auf eine Adresse, die 404 oder die
+   *     Bauzustandsseite zeigt, ist für den Menschen davor schlimmer als kein
+   *     Verweis: er hat ihn angetippt.
+   *  3. **Kein Ziel steht doppelt da.**
    */
   const ZIELE = [
     '/portal/mein/zeiten', '/portal/mein/urlaub', '/portal/mein/antraege',
     '/portal/mein/nachweise', '/portal/mein/dienstanweisungen',
     '/portal/mein/monatsnachweis',
+    /* Die zwei, die den eingefrorenen Fall rot gemacht haben — gebaut, also
+       gehören sie in die Schranke und nicht in eine Ausnahme. */
+    '/portal/mein/dokumente', '/portal/mein/objekte',
   ];
 
   test('jedes davon steht auf „Heute" und öffnet wirklich', async ({ page }) => {
@@ -661,13 +687,25 @@ test.describe('(8) sechs gebaute Seiten, zu denen kein Weg führte', () => {
     await page.goto('/portal/mein');
 
     const liste = page.locator('[data-cse="mein-weiteres"] [data-cse="mein-weiteres-ziel"]');
-    await expect(liste).toHaveCount(ZIELE.length);
+    const gezeigt = (await liste.evaluateAll(
+      (els) => els.map((e) => e.getAttribute('href')),
+    )).filter((h): h is string => h !== null);
 
-    const gezeigt = await liste.evaluateAll((els) => els.map((e) => e.getAttribute('href')));
-    expect([...gezeigt].sort()).toEqual([...ZIELE].sort());
+    /* (1) Die untere Schranke: kein bekanntes Ziel ist wieder weggefallen. */
+    for (const ziel of ZIELE) expect(gezeigt, `${ziel} steht nicht mehr auf „Heute"`).toContain(ziel);
+    /* (3) Und keines steht zweimal da. */
+    expect([...new Set(gezeigt)].sort(), 'ein Ziel steht doppelt').toEqual([...gezeigt].sort());
 
-    for (const ziel of ZIELE) {
-      await page.goto(ziel);
+    /*
+     * (2) Die Eigenschaft: jedes Ziel der Liste antwortet 200, ist nicht die
+     * Bauzustandsseite und nicht das 404-Blatt. Geprüft wird, was WIRKLICH
+     * dasteht — nicht, was hier getippt ist.
+     */
+    expect(gezeigt.length, 'die Liste ist leer').toBeGreaterThanOrEqual(ZIELE.length);
+    for (const ziel of gezeigt) {
+      const antwort = await page.goto(ziel);
+      expect(antwort?.status(), ziel).toBe(200);
+      await expect(page.locator('[data-cse="noch-nicht"]'), ziel).toHaveCount(0);
       await expect(page.locator('h1').first(), ziel).not.toContainText(/gibt es hier nicht/u);
       await expect(page.locator('h1').first(), ziel).not.toContainText(/wird noch gebaut/u);
     }
@@ -700,33 +738,66 @@ test.describe('(7) „Nur Lesen" ist eine Aussage über die SITZUNG', () => {
    * Rechteauskunft, und zwar eine falsche.
    *
    * Die Regel, die hier festgehalten wird: **das Schild folgt der Sitzung,
-   * nicht dem Bauzustand.** In der Gruppenansicht steht es auch auf einer
-   * nicht gebauten Seite — dort stimmt es.
+   * nicht der Seite.**
+   *
+   * ---
+   *
+   * **Das Vehikel hat sich geändert, die Zusage nicht.**
+   *
+   * Diese Prüfung hing an der Bauzustandsseite: sie brauchte eine Adresse, die
+   * WIRKLICH noch nicht gebaut ist, weil dort der Fehler saß. Sie prüfte
+   * damit über `[data-cse="noch-nicht"]`, und jede Adresse, die sie dafür
+   * benutzte, wurde irgendwann gebaut — erst `/portal/mein/nachrichten` und
+   * `/portal/konto/profil` (D-557, D-558), dann `/portal/mein/dokumente`,
+   * `/portal/mein/objekte` und `/portal/gruppe/radar`. Dreimal dieselbe
+   * Nachzieh-Arbeit, und jedes Mal stand die Zusage einen Lauf lang ungeprüft
+   * da, während die Prüfung nach einer noch nicht gebauten Seite suchte.
+   *
+   * **Sie braucht diese Seite nicht.** Der Bauzustand war nie die Zusage,
+   * sondern nur der Ort des Fehlers. Geprüft wird jetzt an
+   * `/portal/konto/profil` — **einer und derselben gebauten Seite unter zwei
+   * Sitzungen**. Dieselbe Route, dieselbe Komponente, derselbe
+   * `PortalRahmen`; das Einzige, was sich unterscheidet, ist die Sitzung
+   * (`page.tsx`: `nurLesen={sitzung.ansicht === 'gruppe'}`). Ist das Schild
+   * für die Mitarbeiterin da oder für die Gruppe nicht, kann es nicht mehr an
+   * der Seite liegen — die ist beide Male dieselbe.
+   *
+   * Das ist strenger als die alte Fassung, die zwei VERSCHIEDENE Adressen
+   * verglich (eine Mitarbeiterseite gegen eine Gruppenseite) und damit offen
+   * liess, ob der Unterschied von der Sitzung oder von der Route kam. Und sie
+   * rostet nicht mehr: es gibt nichts mehr, was durch Bauen wegfällt.
    */
-  test('eine Mitarbeiterin sieht es NICHT — auch nicht auf einer nicht gebauten Seite',
+  const PROFIL = '/portal/konto/profil';
+
+  test('eine Mitarbeiterin sieht es NICHT — auf derselben Seite, auf der die Gruppe es sieht',
     async ({ page }) => {
       await alsFatima(page);
 
       /*
-       * **Hier standen einmal die zwei Ziele der Leiste**, die der Nutzer
-       * geöffnet hatte — `/portal/mein/nachrichten` und
-       * `/portal/konto/profil`. Beide sind inzwischen gebaut (D-557, D-558),
-       * und damit hätte diese Prüfung ihren Fall verloren: sie braucht eine
-       * Seite, die WIRKLICH noch nicht existiert, sonst misst sie das Schild
-       * auf einer fertigen Seite und wäre grün, ohne etwas zu zeigen.
-       *
-       * `/portal/mein/dokumente` (Phase 3) und `/portal/mein/objekte`
-       * (Phase 5) sind im Manifest geführt, für diese Rolle freigegeben und
-       * noch nicht gebaut — der Auffang antwortet dort mit der
-       * Bauzustandsseite. Fallen auch sie, fällt diese Prüfung auf und
-       * verlangt eine neue Adresse; das ist gewollt.
+       * Erst die gemeinsame Seite: hier hängt alles an der Sitzung, weil die
+       * Route beide Male dieselbe ist.
        */
-      for (const pfad of ['/portal/mein/dokumente', '/portal/mein/objekte']) {
+      const profil = await page.goto(PROFIL);
+      expect(profil?.status(), PROFIL).toBe(200);
+      /* Die Seite ist wirklich gebaut — sonst misst der Rest eine Auffangseite. */
+      await expect(page.locator('[data-cse="noch-nicht"]'), PROFIL).toHaveCount(0);
+      /* Und sie sagt NICHT, dass dieses Konto nichts darf. */
+      await expect(page.locator('[data-cse="header-nur-lesen"]'), PROFIL).toHaveCount(0);
+
+      /*
+       * Dann quer durch ihr eigenes Portal — darunter die zwei Adressen, an
+       * denen diese Prüfung früher hing (`/portal/mein/dokumente`,
+       * `/portal/mein/objekte`). Sie sind gebaut; dass das Schild dort fehlt,
+       * ist seither eine Aussage über eine fertige Seite und nicht über eine
+       * Auffangseite — also über die Sitzung.
+       */
+      for (const pfad of [
+        '/portal/mein', '/portal/mein/zeiten',
+        '/portal/mein/dokumente', '/portal/mein/objekte',
+      ]) {
         const antwort = await page.goto(pfad);
         expect(antwort?.status(), pfad).toBe(200);
-        // Die Seite sagt, dass sie noch entsteht — das ist richtig so.
-        await expect(page.locator('[data-cse="noch-nicht"]'), pfad).toBeVisible();
-        // Und sie sagt NICHT, dass dieses Konto nichts darf.
+        await expect(page.locator('[data-cse="noch-nicht"]'), pfad).toHaveCount(0);
         await expect(page.locator('[data-cse="header-nur-lesen"]'), pfad).toHaveCount(0);
       }
     });
@@ -744,7 +815,7 @@ test.describe('(7) „Nur Lesen" ist eine Aussage über die SITZUNG', () => {
       expect(nachrichten?.status()).toBe(200);
       await expect(page.locator('[data-cse="noch-nicht"]')).toHaveCount(0);
 
-      const profil = await page.goto('/portal/konto/profil');
+      const profil = await page.goto(PROFIL);
       expect(profil?.status()).toBe(200);
       await expect(page.locator('[data-cse="noch-nicht"]')).toHaveCount(0);
       // Die Sprachwahl ist der Grund, aus dem es diese Seite gibt (EMP-12).
@@ -757,15 +828,28 @@ test.describe('(7) „Nur Lesen" ist eine Aussage über die SITZUNG', () => {
       await alsKonto(page, KONTO.gruppe);
       /* Die Gruppenansicht betreten — ein GET wechselt den Mandanten nie. */
       await page.goto('/portal/gruppe');
+
       /*
-       * `/portal/gruppe/radar` steht im Manifest (Phase 8), ist noch nicht
-       * gebaut — und steht trotzdem in der Tab-Leiste der Gruppe. Eine echte
-       * Adresse also, keine erfundene: die Prüfung läuft wirklich durch die
-       * Platzhalterseite und nicht durch ein 404.
+       * **Dieselbe Adresse wie oben**, und diesmal MUSS das Schild dastehen:
+       * eine Gruppensitzung schreibt nicht. Der Vergleich ist damit sauber —
+       * eine Route, zwei Sitzungen, zwei Antworten.
        */
-      const antwort = await page.goto('/portal/gruppe/radar');
-      expect(antwort?.status()).toBe(200);
-      await expect(page.locator('[data-cse="noch-nicht"]')).toBeVisible();
+      const profil = await page.goto(PROFIL);
+      expect(profil?.status(), PROFIL).toBe(200);
+      await expect(page.locator('[data-cse="noch-nicht"]'), PROFIL).toHaveCount(0);
+      await expect(page.locator('[data-cse="header-nur-lesen"]'), PROFIL).toBeVisible();
+
+      /*
+       * Und `/portal/gruppe/radar` — die Adresse, an der diese Prüfung früher
+       * hing. Sie ist inzwischen gebaut (Phase 8), trägt das Schild aber
+       * weiterhin, und zwar jetzt als Aussage über eine fertige Seite: die
+       * Gruppenansicht ist lesend, auch wenn dort etwas zu sehen ist.
+       */
+      const radar = await page.goto('/portal/gruppe/radar');
+      expect(radar?.status()).toBe(200);
+      await expect(page.locator('[data-cse="noch-nicht"]')).toHaveCount(0);
       await expect(page.locator('[data-cse="header-nur-lesen"]')).toBeVisible();
+      /* Lesend heisst auch: kein Schreibweg im Inhalt (Invariante 10). */
+      await expect(page.locator('main form[method="post" i]')).toHaveCount(0);
     });
 });

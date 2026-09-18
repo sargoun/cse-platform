@@ -120,7 +120,28 @@ function Eintrag({ eintrag, kurz }: {
       </span>
     </>
   );
-  const klassen = `flex items-center gap-s2 rounded-md px-s2 py-[3px]
+  /*
+   * **`flex-wrap` — und ohne es stand im Monatsgitter der Titel auf 0px.**
+   *
+   * Gemessen am Schreibtisch (1440px, `abmessungen.spec.ts`): diese Seite lief
+   * 14px über den Rand. Der schuldige Kasten war `span.shrink-0 … tabular-nums`
+   * bei x=1388…1454 in einer Zelle, die bei 1407 endet, und direkt daneben
+   * `span.min-w-0 truncate` bei x=1462…1462 — der Titel, auf null gekürzt.
+   *
+   * Eine Zelle des Monatsgitters ist rund 147px breit. Die Bereichsmarke misst
+   * für sich schon 112px („Dienstleistung" ist ein Wort ohne Trennstelle), die
+   * Uhrzeit 66px, und die Uhrzeit trägt `shrink-0`, weil eine halb
+   * abgeschnittene Uhrzeit eine falsche Uhrzeit ist. 112 + 8 + 66 sind 186 in
+   * 147 — die Zeile KANN nicht einzeilig passen, und `min-w-0 truncate` am
+   * Titel hat genau das getan, was es verspricht: es hat den Titel geopfert.
+   *
+   * `flex-wrap` gibt jedem Teil eine Zeile, wo eine nicht reicht. Damit sinkt
+   * die Mindestbreite der Zeile auf die ihres breitesten KINDES (112px), und
+   * der Titel steht wieder da — die Sache, um die es in einem Kalender geht.
+   * Kein neuer Gestaltungswert: der Kasten trägt `min-h-[120px]`, er darf
+   * wachsen, und die Zelle bleibt bei höchstens drei Einträgen (DESIGN §5).
+   */
+  const klassen = `flex flex-wrap items-center gap-s2 rounded-md px-s2 py-[3px]
                    transition-colors duration-fast ease-brand hover:bg-surface-2
                    ${kurz === true ? '' : 'min-h-11'}`;
   return zeile.weg === null

@@ -4,6 +4,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
+import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { formatiereGeld } from '@/server/services/finanz/geld';
@@ -134,39 +135,78 @@ function Fall(
           seiner Zusammenfassung und im Diff der Prüfansicht.
         </p>
       ) : (
-        <table className="mt-s3 w-full border-collapse text-sm">
-          <caption className="sr-only">Geänderte Felder dieses Vorgangs</caption>
-          <thead>
-            <tr className="border-b border-line">
-              <th scope="col" className="px-s2 py-s2 text-left text-micro uppercase tracking-[0.08em] text-text-subtle">Feld</th>
-              <th scope="col" className="px-s2 py-s2 text-left text-micro uppercase tracking-[0.08em] text-text-subtle">Vorher</th>
-              <th scope="col" className="px-s2 py-s2 text-left text-micro uppercase tracking-[0.08em] text-text-subtle">Nachher</th>
-              <th scope="col" className="px-s2 py-s2 text-left text-micro uppercase tracking-[0.08em] text-text-subtle">Prüfung</th>
-            </tr>
-          </thead>
-          <tbody>
-            {fall.felder.map((f) => (
-              <tr key={f.id} className="border-b border-line" data-cse="stapel-feld"
-                  data-unsicher={f.unsicher ? 'ja' : 'nein'}>
-                <td className="px-s2 py-s2 text-text">{f.bezeichnung}</td>
-                <td className="px-s2 py-s2 text-text-muted">{f.wertVorher ?? '—'}</td>
-                <td className="px-s2 py-s2 text-text">{f.wertNachher ?? '—'}</td>
-                <td className="px-s2 py-s2">
-                  {f.unsicher ? (
+        /*
+         * **`DataTable` und keine eigene `<table>`** — dieselbe Bauart wie die
+         * Nachweistabelle der Prüfansicht (`../[id]/page.tsx`), und zwar aus
+         * einem gemessenen Grund.
+         *
+         * Hier stand eine handgeschriebene `<table className="w-full">`. Eine
+         * Tabelle wird nie schmaler als die Summe der Mindestbreiten ihrer
+         * Spalten — `width: 100%` ändert daran nichts. Am Telefon (390px) war
+         * sie 451px breit (x=49…500, der Kopf „Prüfung" allein bei
+         * x=386…500) und schob die ganze Seite 110px über den Rand
+         * (`abmessungen.spec.ts`).
+         *
+         * `DataTable` löst genau das, einmal für das ganze Haus (D-420):
+         * unter `md` ein Kartenstapel — „nie ein seitlicher Rollbalken auf
+         * einem Telefon" (DESIGN §5, §8) —, ab `md` die Tabelle in ihrem
+         * eigenen Rollbehälter. Ein `overflow-x-auto` um die Tabelle hätte
+         * die Seite ebenfalls gerettet und §8 verletzt.
+         *
+         * Die Anker `data-cse="stapel-feld"` und `data-unsicher` wandern auf
+         * die Feldzelle; sie sind die Diagnose dieser Zeile und gehen nicht
+         * verloren.
+         */
+        <div className="mt-s3">
+          <DataTable
+            beschriftung="Geänderte Felder dieses Vorgangs"
+            zeilen={fall.felder}
+            schluessel={(f) => f.id}
+            spalten={[
+              {
+                schluessel: 'feld',
+                kopf: 'Feld',
+                zelle: (f) => (
+                  <span className="text-text" data-cse="stapel-feld"
+                        data-unsicher={f.unsicher ? 'ja' : 'nein'}>
+                    {f.bezeichnung}
+                  </span>
+                ),
+              },
+              {
+                schluessel: 'vorher',
+                kopf: 'Vorher',
+                zelle: (f) => (f.wertVorher === null
+                  ? <span className="text-text-subtle">—</span>
+                  : <span className="text-text-muted">{f.wertVorher}</span>),
+              },
+              {
+                schluessel: 'nachher',
+                kopf: 'Nachher',
+                zelle: (f) => (f.wertNachher === null
+                  ? <span className="text-text-subtle">—</span>
+                  : <span className="text-text">{f.wertNachher}</span>),
+              },
+              {
+                schluessel: 'pruefung',
+                kopf: 'Prüfung',
+                zelle: (f) => (f.unsicher
+                  ? (
                     <span className="text-warning">
                       unsicher{f.grund === null ? '' : ` — ${f.grund}`}
                     </span>
-                  ) : (
+                  )
+                  : (
                     <span className="text-text-muted">
                       {f.konfidenz === null ? 'ohne Konfidenz' : `Konfidenz ${f.konfidenz}`}
                     </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  )),
+              },
+            ]}
+          />
+        </div>
       )}
+
     </li>
   );
 }

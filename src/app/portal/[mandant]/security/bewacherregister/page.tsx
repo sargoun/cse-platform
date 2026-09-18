@@ -15,8 +15,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '@/app/portal/rechte';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import {
-  BEWACHER_STATUS, BEWACHER_VORWARNUNG_TAGE, leseRegister, securityGebucht, STATUS_TEXT,
-  type BewacherStatus, type RegisterAusschnitt,
+  BEWACHER_STATUS, BEWACHER_VORWARNUNG_TAGE, bewacherregisterErreichbar, leseRegister,
+  STATUS_TEXT, type BewacherStatus, type RegisterAusschnitt,
 } from '@/server/services/security/bewacherregister';
 
 /**
@@ -46,6 +46,17 @@ import {
  * erreichbar, obwohl REALTIME Service kein Security gebucht hat — und ein
  * leeres Bewacherregister in einer Baugesellschaft ist eine Aussage, die
  * niemand treffen wollte.
+ *
+ * **Geprüft wird über `bewacherregisterErreichbar`, und nicht mehr über die
+ * halbe Frage.** Hier stand `securityGebucht` allein; das Recht kam aus dem
+ * Routenregister. Beides war richtig und stand doch an zwei Stellen — und
+ * `tests/e2e/verweise.spec.ts` fand, was daraus folgte:
+ * `[admin · reinigung] /portal/reinigung/security/bewacherregister → 404`. Das
+ * Stammdatenblatt zeigte den Verweis unter `personal.bewacher_verwalten`
+ * allein, die Reinigung hat Security nicht gebucht (`mandant.module =
+ * {reinigung}`), und der Knopf verriet die Existenz dessen, was er nicht
+ * öffnen kann (AUT-06, D-567). Die ganze Frage — Recht UND Buchung — stellt
+ * jetzt genau eine Funktion im Dienst, und beide Seiten rufen sie auf.
  */
 export const dynamic = 'force-dynamic';
 
@@ -89,9 +100,12 @@ export default async function Bewacherregister(
   const heute = await berlinHeute();
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
-      /* Erst das Modul, dann die Daten: eine Gesellschaft ohne Security hat
-         diese Seite nicht (D-377, AUT-06). */
-      if (!(await securityGebucht(kontext))) return null;
+      /* Erst die ganze Frage, dann die Daten: ohne gebuchtes Security-Gewerk
+         ODER ohne `personal.bewacher_verwalten` hat diese Gesellschaft diese
+         Seite nicht (D-377, AUT-06). Es ist DIESELBE Funktion, die das
+         Stammdatenblatt fragt, bevor es hierher verweist — deshalb kann der
+         Verweis nicht wieder an einem 404 hängen. */
+      if (!(await bewacherregisterErreichbar(kontext))) return null;
       return leseRegister(kontext, heute);
     })) as Promise<RegisterAusschnitt | null>);
 

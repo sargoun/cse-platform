@@ -111,7 +111,24 @@ export default async function Ausgabenliste(
       kategorien: readonly Kategorie[];
     }>);
 
-  const feld = 'min-h-11 rounded-md border border-line bg-surface-3 p-s3 text-sm text-text';
+  /*
+   * `max-w-full` — und ohne es hilft `flex-wrap` an der Filterzeile nichts.
+   *
+   * Gemessen am Telefon (390px): diese Seite lief 88px hinaus, in `security`
+   * 56px, in `bau` 53px. Der schuldige Kasten war jedes Mal ein
+   * Auswahlfeld. Ein `select` ist so breit wie seine LÄNGSTE Option
+   * („freigegeben — zur Buchung bereit", eine Kategoriebezeichnung mit
+   * „(unbestätigt)") und schrumpft nicht: es umbricht nicht, also ist seine
+   * Mindestbreite seine Breite. `flex-wrap` bricht die ZEILE um, und das
+   * nützt nichts, wenn schon ein EINZELNES Kind breiter ist als die Spalte —
+   * genau die Lehre aus D-594, nur eine Ebene tiefer am Formularfeld.
+   *
+   * Deshalb beides: `min-w-0` nimmt dem Flex-Element seine
+   * inhaltsgetriebene Mindestbreite (D-420), `max-w-full` bindet das Feld
+   * darin an seinen Kasten statt an seine längste Option.
+   */
+  const feld = 'min-h-11 max-w-full rounded-md border border-line bg-surface-3 '
+    + 'p-s3 text-sm text-text';
   const gefiltert = filter.jahr !== null || filter.status !== null
     || filter.kategorieId !== null || filter.nurWeiterberechenbar;
   const belegLuecken = daten.zeilen.filter((z) => z.belegPflichtVerletzt);
@@ -130,15 +147,15 @@ export default async function Ausgabenliste(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Ausgaben</h1>
-        <form method="get" className="flex flex-wrap items-end gap-s3">
-          <div>
+        <form method="get" className="flex min-w-0 flex-wrap items-end gap-s3">
+          <div className="min-w-0">
             <label className="block text-xs text-text-muted" htmlFor="jahr">Jahr</label>
             <input
               id="jahr" name="jahr" type="number" min="2000" max="2999" step="1"
               defaultValue={filter.jahr ?? ''} placeholder="alle" className={feld}
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="block text-xs text-text-muted" htmlFor="status">Zustand</label>
             <select id="status" name="status" defaultValue={filter.status ?? ''} className={feld}>
               <option value="">alle</option>
@@ -147,7 +164,7 @@ export default async function Ausgabenliste(
               ))}
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="block text-xs text-text-muted" htmlFor="kategorie">
               Kategorie
             </label>
@@ -163,7 +180,7 @@ export default async function Ausgabenliste(
               ))}
             </select>
           </div>
-          <label className="flex items-center gap-s2 text-sm text-text">
+          <label className="flex min-w-0 items-center gap-s2 text-sm text-text">
             <input
               type="checkbox" name="weiterberechenbar" value="ja"
               defaultChecked={filter.nurWeiterberechenbar}

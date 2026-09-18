@@ -107,13 +107,78 @@ test.describe('Gruppenansicht', () => {
     await expect(page.locator('main form')).toHaveCount(0);
   });
 
+  /**
+   * **Zwei Menschen heissen Yildiz — und genau daran ist dieser Fall gefallen.**
+   *
+   * Er zählte `[data-bereich]` in „der Yildiz-Zeile" und fand drei statt zwei.
+   * Das sah nach einem Defekt an der heikelsten Stelle aus, die diese Seite
+   * hat: eine Gesellschaft doppelt, oder eine, die sie nicht zeigen darf —
+   * D-09 und die Mandantengrenze.
+   *
+   * **Es war keiner.** In der Datenbank nachgesehen:
+   *
+   *     Fatima Yildiz  42f55c9d…  2 lebende anstellung-Zeilen  reinigung, security
+   *     Fatma  Yildiz  3a279ff1…  1 lebende anstellung-Zeile   reinigung
+   *
+   * Fatima hat unverändert ZWEI Beschäftigungen in zwei Gesellschaften, und
+   * die Seite zeigt sie in EINER Zeile mit zwei Marken — richtig, und die
+   * Abfrage kann es auch nicht anders (`array_agg(distinct m.slug)`).
+   *
+   * Die dritte Marke gehört einem ANDEREN Menschen: „Fatma Yildiz" ist die
+   * Personendublette, die der Seed absichtlich anlegt, damit
+   * `/personal/zusammenfuehren` überhaupt prüfbar ist — dieselbe Frau, zweimal
+   * angelegt, die Schreibweise aus dem Bewerbungsformular gegen die aus dem
+   * Vertrag (`seed/index.ts`). Sie ist der GEGENFALL zu D-09: D-09 ist ein
+   * Mensch mit zwei Beschäftigungen in einer Zeile, die Dublette sind zwei
+   * Zeilen für einen Menschen.
+   *
+   * **Der Fehler lag also im Zugriff, nicht in der Zahl.**
+   * `filter({ hasText: 'Yildiz' })` griff beide Zeilen und summierte ihre
+   * Marken. Solange es eine Yildiz gab, stimmte das zufällig. Die Zahl 2
+   * bleibt deshalb stehen — sie war richtig; gezeigt wird jetzt auf die Zeile,
+   * die gemeint ist.
+   *
+   * Beide Zeilen werden geprüft, und das ist der Punkt: dass die Plattform
+   * einen Menschen mit zwei Beschäftigungen und zwei Menschen mit demselben
+   * Nachnamen AUSEINANDERHÄLT, ist die Zusicherung aus D-09. Würde die Gruppe
+   * die beiden zusammenwerfen (oder Fatimas Zeile spalten), fällt jetzt genau
+   * eine dieser vier Zusicherungen — statt still im Summenfehler zu
+   * verschwinden.
+   */
   test('Personen: wer in zwei Gesellschaften arbeitet, steht mit beiden da (D-09)', async ({ page }) => {
     await alsKonto(page, KONTO.gruppe);
     await page.goto('/portal/gruppe/personen');
     const zaehler = page.locator('[data-cse="personen-zaehler"]');
     expect(Number(await zaehler.getAttribute('data-mehrfach'))).toBeGreaterThan(0);
-    const fatima = page.locator('[data-cse="tabelle"] tbody tr').filter({ hasText: 'Yildiz' });
-    await expect(fatima.locator('[data-bereich]')).toHaveCount(2);
+
+    const zeilen = page.locator('[data-cse="tabelle"] tbody tr');
+
+    /*
+     * Der D-09-Fall: EINE Zeile, ZWEI Gesellschaften — und zwar namentlich
+     * `reinigung` und `security`. Die Namen statt nur der Zahl: eine Zeile mit
+     * zwei Marken, von denen eine dem falschen Mandanten gehört, wäre die
+     * Grenzverletzung, die dieser Fall sucht, und käme auf dieselbe 2.
+     */
+    const fatima = zeilen.filter({
+      has: page.getByRole('link', { name: 'Yildiz, Fatima', exact: true }),
+    });
+    await expect(fatima, 'Fatima Yildiz steht nicht genau einmal da').toHaveCount(1);
+    const fatimaBereiche = await fatima.locator('[data-bereich]')
+      .evaluateAll((els) => els.map((e) => e.getAttribute('data-bereich')));
+    expect([...fatimaBereiche].sort()).toEqual(['reinigung', 'security']);
+
+    /*
+     * Die Dublette daneben: EINE Zeile, EINE Gesellschaft. Sie ist der Grund,
+     * aus dem dieser Fall über den vollen Namen greift und nicht über
+     * „Yildiz" — und die Prüfung, dass die Gruppe die zwei Menschen nicht
+     * zusammenzieht.
+     */
+    const fatma = zeilen.filter({
+      has: page.getByRole('link', { name: 'Yildiz, Fatma', exact: true }),
+    });
+    await expect(fatma, 'die Seed-Dublette fehlt oder steht doppelt').toHaveCount(1);
+    await expect(fatma.locator('[data-bereich="reinigung"]')).toHaveCount(1);
+    await expect(fatma.locator('[data-bereich]')).toHaveCount(1);
   });
 
   test('Finanzen, Protokoll, Dienstplan, Auslastung antworten — lesend', async ({ page }) => {
