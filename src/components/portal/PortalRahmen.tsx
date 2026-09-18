@@ -196,6 +196,26 @@ export function PortalRahmen({
             </span>
           )
         ) : (
+          /*
+           * **Der Titel der Spur gehoert in ein `truncate`, und das ist keine
+           * Kosmetik.**
+           *
+           * `min-width: auto` gilt fuer ein Flex-Element nur, solange sein
+           * `overflow` `visible` ist. `truncate` traegt `overflow: hidden` und
+           * nimmt dem Element damit die automatische Mindestbreite von selbst —
+           * deshalb war `portal-logo` zwei Zeilen weiter oben immer in Ordnung
+           * und die Spur nicht: dort steht der Titel in einem `truncate`-Span,
+           * hier stand er als nackter Text.
+           *
+           * Gemessen auf `/portal/[mandant]/buchhaltung/verfahrensdokumentation`
+           * bei 390 px: `a.flex min-h-11 min-w-11 items-center (134>60)` — der
+           * Inhalt brauchte 134 px in einem 60-px-Kasten, und die Seite wurde
+           * 403 px breit. Genau die 13 px, die die Suite gemeldet hat.
+           *
+           * `min-w-11` bleibt: 44 px ist das Beruehrungsziel (DESIGN §9, BFSG).
+           * Die Marke und das `‹` behalten ihre Groesse; was nachgibt, ist der
+           * Text — mit Auslassungspunkten, nicht auf null (D-609).
+           */
           <nav aria-label={b('pfad.label', 'Pfad')} data-cse="spur"
                className="flex min-w-0 items-center gap-s2">
             {wurzelOffen ? (
@@ -204,13 +224,13 @@ export function PortalRahmen({
                             transition-colors duration-fast ease-brand hover:text-text">
                 {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
                 <span aria-hidden="true">‹</span>
-                {wurzelTitel}
+                <span className="truncate">{wurzelTitel}</span>
               </a>
             ) : (
               <span data-cse="spur-ohne-ziel"
                     className="flex min-h-11 min-w-11 items-center gap-s2 text-sm text-text-muted">
                 {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
-                {wurzelTitel}
+                <span className="truncate">{wurzelTitel}</span>
               </span>
             )}
             <span aria-hidden="true" className="text-text-subtle">›</span>
