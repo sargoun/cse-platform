@@ -319,10 +319,18 @@ export default async function MeinLeistungsnachweis(
 
               <form
                 method="post"
-                action={
-                  `/api/mein/schichten/${zuordnungId}/leistungsnachweis/`
-                  + `${vorschau.kopf.id}/unterschrift`
-                }
+                /*
+                  Die Adresse steht in EINEM Stueck, und das ist keine
+                  Formatierungsfrage. `api-verdrahtung.test.ts` beweist, dass
+                  jede gebaute Route einen Aufrufer hat, indem es die Adresse
+                  als Muster im uebrigen Quelltext sucht — `[id]` wird dabei zu
+                  „irgendein Segment ohne Schraegstrich". Ueber zwei
+                  Zeichenketten und ein `+` verteilt, steht zwischen
+                  `leistungsnachweis/` und `unterschrift` ein Zeilenumbruch, und
+                  das Muster trifft nicht mehr. Die Route stand daraufhin als
+                  verwaist da, obwohl genau dieses Formular sie ruft.
+                */
+                action={`/api/mein/schichten/${zuordnungId}/leistungsnachweis/${vorschau.kopf.id}/unterschrift`}
                 className="flex max-w-prose flex-col gap-s4"
               >
                 <input
