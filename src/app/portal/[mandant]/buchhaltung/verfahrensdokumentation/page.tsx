@@ -167,14 +167,28 @@ export default async function Verfahrensdoku({ params }: { params: Promise<{ man
                        className="mb-s6 rounded-lg border border-line bg-surface p-s5">
                 <h3 className="text-h3 text-text">{a.nummer} {a.titel}</h3>
                 <p className="mb-s3 text-xs text-text-muted">Quelle: {QUELLE_LABEL[a.quelle]}</p>
+                {/*
+                  * `break-words`: dieser Text ist ERZEUGTE Dokumentation. Er
+                  * nennt Tabellen, Spalten, Funktionen und Hashes — Woerter
+                  * ohne Trennstelle, die kein Silbentrenner kennt.
+                  * `globals.css` gibt `overflow-wrap: anywhere` nur den
+                  * UEBERSCHRIFTEN (D-420); ein Absatz bekommt es nicht, und
+                  * das ist fuer gewoehnlichen Fliesstext auch richtig.
+                  *
+                  * Gemessen bei 390 px: `p.mb-s3 max-w-prose text-sm
+                  * text-text (354>292)` — die Zeile brauchte 354 px in einem
+                  * 292-px-Kasten, und die Seite wurde dadurch 13 px breiter
+                  * als das Telefon. Eine Verfahrensdokumentation, die man zum
+                  * Lesen seitwaerts schieben muss, erfuellt ihren Zweck nicht.
+                  */}
                 {a.absaetze.map((p, i) => (
-                  <p key={i} className="mb-s3 max-w-prose text-sm text-text">{p}</p>
+                  <p key={i} className="mb-s3 max-w-prose break-words text-sm text-text">{p}</p>
                 ))}
                 <Tabelle a={a} />
                 {(a.bestand ?? []).length > 0 ? (
                   <div data-cse="vd-bestand" className="mt-s3 max-w-prose text-sm text-text-muted">
                     <p className="text-xs">Bestand beim Abruf (nicht Teil des Hashs):</p>
-                    <ul className="list-disc pl-s5">
+                    <ul className="list-disc break-words pl-s5">
                       {(a.bestand ?? []).map((b, i) => <li key={i}>{b}</li>)}
                     </ul>
                   </div>
