@@ -83,7 +83,19 @@ export default async function Belegliste(
       zeilen: readonly BelegZeile[]; zaehler: BelegZaehler;
     }>);
 
-  const feld = 'min-h-11 rounded-md border border-line bg-surface-3 p-s3 text-sm text-text';
+  /*
+   * `max-w-full` und `min-w-0` — dieselbe Behandlung wie in `finanzen/ausgaben`
+   * (D-609). Ein `<select>` ist so breit wie seine LAENGSTE Option und
+   * schrumpft nicht, weil es nicht umbricht; `min-width: auto` am
+   * Flex-Element haelt diese Mindestbreite, BEVOR `flex-wrap` greift.
+   *
+   * Diese Seite war gruen — aber nur, weil ihre Optionstexte heute kurz sind
+   * („Rechnung", „Kassenbeleg"). Ein laengeres Wort oder die englische
+   * Fassung (D-592) haette sie ueber den Rand geschoben. Darauf zu warten,
+   * bis die Suite es meldet, waere die teurere Reihenfolge.
+   */
+  const feld = 'min-h-11 max-w-full rounded-md border border-line bg-surface-3 '
+    + 'p-s3 text-sm text-text';
   const gefiltert = filter.typ !== null || filter.quelle !== null || filter.jahr !== null;
 
   return (
@@ -99,8 +111,8 @@ export default async function Belegliste(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Belege</h1>
-        <form method="get" className="flex flex-wrap items-end gap-s3">
-          <div>
+        <form method="get" className="flex min-w-0 flex-wrap items-end gap-s3">
+          <div className="min-w-0">
             <label className="block text-xs text-text-muted" htmlFor="typ">Typ</label>
             <select id="typ" name="typ" defaultValue={filter.typ ?? ''} className={feld}>
               <option value="">alle</option>
@@ -109,7 +121,7 @@ export default async function Belegliste(
               ))}
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="block text-xs text-text-muted" htmlFor="quelle">Quelle</label>
             <select
               id="quelle" name="quelle" defaultValue={filter.quelle ?? ''} className={feld}
@@ -120,7 +132,7 @@ export default async function Belegliste(
               ))}
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="block text-xs text-text-muted" htmlFor="jahr">Jahr</label>
             <input
               id="jahr" name="jahr" type="number" min="2000" max="2999" step="1"

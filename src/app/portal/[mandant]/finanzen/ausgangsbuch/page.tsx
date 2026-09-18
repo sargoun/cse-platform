@@ -91,7 +91,14 @@ export default async function Ausgangsbuch(
       navigationsRechte={zugang.navigationsRechte}
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="text-h1 text-text">Rechnungsausgangsbuch</h1>
+        {/*
+          `min-w-0`: „Rechnungsausgangsbuch" ist ein Wort ohne Trennstelle
+          und steht in einer Flex-Zeile. Am Telefon bleibt es knapp unter der
+          Kante — dieselbe Lage wie `verfahrensdokumentation`, nur zwei
+          Zeichen kuerzer (D-609). Ohne `min-w-0` haelt das Flex-Element die
+          Mindestbreite des Wortes, bevor `overflow-wrap: anywhere` greift.
+        */}
+        <h1 className="min-w-0 text-h1 text-text">Rechnungsausgangsbuch</h1>
         <form method="get" className="flex items-center gap-s3">
           <label className="text-sm text-text" htmlFor="jahr">Jahr</label>
           <input
