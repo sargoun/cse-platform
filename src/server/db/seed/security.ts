@@ -43,6 +43,8 @@ import {
 } from '../../services/dienstplan/generator.js';
 import { montag, tagePlus } from '@/lib/datum/kalendertag';
 import { besetzeUndErfasse } from './zeit.js';
+import { alsPortalSitzung } from './sitzung.js';
+import { erzeugeVeranstaltungsschicht } from '../../services/security/eventbesetzung.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -178,4 +180,237 @@ export async function seedSecurity(
     zeiteintraege: lauf.erfasst,
     postenId, objektId: objekt.id,
   };
+}
+
+/* ===========================================================================
+ * Das Bewacherregister und der Eventdienst (SEC-03, SEC-08, LEG-04)
+ *
+ * **Warum das hier steht und nicht in einer eigenen Datei.** Beide haengen an
+ * derselben Belegschaft und demselben Objekt, die `seedSecurity` oben schon
+ * aufgebaut hat. Eine zweite Datei muesste Posten, Objekt und Anstellungen
+ * erneut suchen — und die zweite Suche erfaehrt nie, wenn die erste sich
+ * aendert (dieselbe Begruendung, aus der `postenId` zurueckgegeben wird).
+ *
+ * **Vier Zeilen waren null.** `bewacher_eintrag` und `veranstaltung` hatten im
+ * ganzen Seed keine einzige Zeile, und im Baum gab es keinen Anlegeweg. Die
+ * Seiten `/security/bewacherregister` und `/security/veranstaltungen/[id]`
+ * waren damit baubar, aber nicht belegbar: „Definition of done: seed data
+ * exercises it" war fuer sie nicht erfuellt.
+ * ======================================================================== */
+
+/** Was das Registerseed angelegt hat — nur fuer die Protokollzeile. */
+export interface RegisterErgebnis {
+  readonly eintraege: number;
+  readonly ohneEintrag: number;
+  readonly veranstaltungen: number;
+}
+
+/**
+ * Bewachereintraege fuer die Belegschaft der Sicherheit.
+ *
+ * **Die Zeilen zeigen die vier Lagen, die die Seite unterscheiden muss** —
+ * gueltig, im Vorwarnfenster, abgelaufen und „kein Eintrag erfasst". Die
+ * letzte ist keine Auslassung: genau sie ist die Luecke, die SEC-03 sichtbar
+ * machen soll, und eine Liste, in der alle einen Eintrag haben, prueft sie
+ * nicht.
+ *
+ * **Kein Format wird erfunden, nur erkennbar Erfundenes.** Welches Format eine
+ * Bewacher-ID hat, ist offen (O-40); die Nummern hier tragen deshalb das
+ * Praefix `SEED-` und sind als Demodaten erkennbar. Eine plausibel aussehende
+ * Behoerdennummer im Seed waere die schlechtere Wahl: irgendwann haelt sie
+ * jemand fuer echt.
+ *
+ * **Und keine Frist wird abgeleitet.** `naechste_pruefung_am` steht nur da, wo
+ * der Seed sie ausdruecklich setzt; in welchem Abstand das Register
+ * nachzupruefen ist, steht in der GewO-Durchfuehrung und nicht hier.
+ */
+async function seedBewacherRegister(
+  sql: Sql, mandantId: string, planerId: string, heute: string,
+): Promise<{ eintraege: number; ohneEintrag: number }> {
+  const personen = await sql<{ id: string; person_id: string }[]>`
+    select a.id, a.person_id
+      from anstellung a
+      join person p on p.id = a.person_id
+     where a.mandant_id = ${mandantId} and a.geloescht_am is null
+       and a.status = 'aktiv'
+     order by a.personalnummer`;
+  if (personen.length === 0) return { eintraege: 0, ohneEintrag: 0 };
+
+  /**
+   * Die Lagen in fester Reihenfolge, damit der Seed wiederholbar ist. Die
+   * LETZTE Person bekommt absichtlich KEINEN Eintrag — sie ist die Luecke.
+   */
+  const lagen: readonly {
+    readonly status: string;
+    readonly registriertSeit: number;
+    readonly gueltigBis: number | null;
+    readonly bemerkung: string | null;
+  }[] = [
+    // Gueltig und weit weg vom Ablauf.
+    { status: 'registriert', registriertSeit: -800, gueltigBis: 900, bemerkung: null },
+    // Im Vorwarnfenster: laeuft in 24 Tagen ab.
+    { status: 'registriert', registriertSeit: -1100, gueltigBis: 24,
+      bemerkung: 'Verlängerung beantragt' },
+    // ABGELAUFEN — SEC-04 ist eine harte Sperre, nicht eine Warnung.
+    { status: 'registriert', registriertSeit: -1500, gueltigBis: -12,
+      bemerkung: 'Verlängerung liegt der Behörde vor' },
+    // Beantragt, noch ohne Gueltigkeit: auch das sperrt die Einteilung.
+    { status: 'beantragt', registriertSeit: -20, gueltigBis: null,
+      bemerkung: 'Antrag beim Ordnungsamt eingegangen' },
+  ];
+
+  let eintraege = 0;
+  for (const [index, person] of personen.entries()) {
+    const lage = lagen[index];
+    // Ohne Lage bleibt die Person OHNE Eintrag — die Luecke, absichtlich.
+    if (lage === undefined) continue;
+    const [da] = await sql<{ id: string }[]>`
+      select id from bewacher_eintrag
+       where person_id = ${person.person_id} and erloschen_am is null limit 1`;
+    if (da !== undefined) continue;
+    await sql`
+      insert into bewacher_eintrag
+        (person_id, bewacher_id, status, registriert_seit, gueltig_bis,
+         letzte_pruefung_am, bemerkung, quelle, erstellt_von)
+      values (${person.person_id},
+              ${`SEED-${String(index + 1).padStart(6, '0')}`},
+              ${lage.status}::bewacher_status,
+              ${tagePlus(heute, lage.registriertSeit)}::date,
+              ${lage.gueltigBis === null ? null : tagePlus(heute, lage.gueltigBis)}::date,
+              ${tagePlus(heute, -180)}::date,
+              ${lage.bemerkung}, 'manuell', ${planerId})`;
+    eintraege += 1;
+  }
+  return { eintraege, ohneEintrag: Math.max(0, personen.length - lagen.length) };
+}
+
+/**
+ * Ein Eventdienst mit Schicht — und einer ohne Objekt.
+ *
+ * **Warum ZWEI.** Der erste haengt an einem Objekt und bekommt seine Schicht
+ * ueber den echten Dienst (`erzeugeVeranstaltungsschicht`), damit das
+ * Einzelblatt einen Besetzungsstand zeigt. Der zweite traegt den Ort NUR als
+ * Text — der Fall, den `VeranstaltungOhneObjekt` beschreibt: ein
+ * Veranstaltungsort existiert oft, bevor es eine Objektakte gibt, und aus
+ * Freitext laesst sich keine Schicht bauen (`einsatz.objekt_id` ist NOT NULL).
+ * Ohne diese zweite Zeile ist der Warnhinweis auf der Seite eine Behauptung.
+ *
+ * **Woher ein Eventauftrag kommt, ist offen** (O-703): die Seitenkarte fuehrt
+ * keine Route zum Anlegen, und ob er aus einer Auftragsleistung, aus dem
+ * Vertrieb oder handerfasst entsteht, ist nicht entschieden. Der Seed schreibt
+ * ihn deshalb handerfasst und OHNE `auftrag_leistung_id` — die Seite sagt das
+ * und erfindet keine Herkunft.
+ *
+ * **`soll_besetzung` traegt keine Dringlichkeit** (O-210): vier Wachen sind
+ * die vereinbarte Staerke, nicht die Mindeststaerke. `min_besetzung` bleibt
+ * auf dem Spaltenvorgabewert der Schicht.
+ */
+async function seedVeranstaltungen(
+  sql: Sql, mandantId: string, planerId: string, objektId: string, heute: string,
+): Promise<number> {
+  const [kunde] = await sql<{ id: string }[]>`
+    select kunde_id as id from objekt
+     where id = ${objektId} and mandant_id = ${mandantId} and kunde_id is not null`;
+  if (kunde === undefined) return 0;
+
+  const [leitung] = await sql<{ id: string }[]>`
+    select a.id from anstellung a
+     where a.mandant_id = ${mandantId} and a.status = 'aktiv' and a.geloescht_am is null
+     order by a.personalnummer limit 1`;
+
+  const [anweisung] = await sql<{ id: string }[]>`
+    select id from dienstanweisung
+     where mandant_id = ${mandantId} and objekt_id = ${objektId}
+       and archiviert_am is null limit 1`;
+
+  /** Beide liegen in der ZUKUNFT: ein Eventdienst wird im Voraus besetzt. */
+  const fenster = [
+    {
+      bezeichnung: 'Sommerfest Bezirksamt',
+      anlass: 'Mitarbeiterfest mit Aussenbewirtschaftung',
+      tag: tagePlus(heute, 21), beginn: '18:00', ende: '02:00',
+      besucher: 400, soll: 4, mitObjekt: true,
+    },
+    {
+      bezeichnung: 'Firmenlauf Tiergarten',
+      anlass: 'Streckensicherung',
+      tag: tagePlus(heute, 35), beginn: '08:00', ende: '14:00',
+      besucher: 1200, soll: 6, mitObjekt: false,
+    },
+  ] as const;
+
+  let angelegt = 0;
+  for (const v of fenster) {
+    const [da] = await sql<{ id: string }[]>`
+      select id from veranstaltung
+       where mandant_id = ${mandantId} and bezeichnung = ${v.bezeichnung}
+         and archiviert_am is null limit 1`;
+    if (da !== undefined) continue;
+    /*
+     * Beginn und Ende werden IN DER DATENBANK aus Berliner Ortszeit
+     * aufgeloest — nicht in Node zusammengesetzt (K-11). Das Ende liegt am
+     * Folgetag, wenn es vor dem Beginn liegt.
+     */
+    const endeTag = v.ende < v.beginn ? tagePlus(v.tag, 1) : v.tag;
+    const [neu] = await sql<{ id: string }[]>`
+      insert into veranstaltung
+        (mandant_id, objekt_id, veranstaltungsort_text, kunde_id, bezeichnung, anlass,
+         beginn, ende, erwartete_besucher, soll_besetzung, leitung_anstellung_id,
+         dienstanweisung_id, erstellt_von_art, erstellt_von)
+      values (${mandantId},
+              ${v.mitObjekt ? objektId : null},
+              ${v.mitObjekt ? null : 'Strasse des 17. Juni, 10557 Berlin'},
+              ${kunde.id}, ${v.bezeichnung}, ${v.anlass},
+              (${`${v.tag} ${v.beginn}`}::timestamp at time zone 'Europe/Berlin'),
+              (${`${endeTag} ${v.ende}`}::timestamp at time zone 'Europe/Berlin'),
+              ${v.besucher}, ${v.soll},
+              ${v.mitObjekt ? (leitung?.id ?? null) : null},
+              ${v.mitObjekt ? (anweisung?.id ?? null) : null},
+              'mensch', ${planerId})
+      returning id`;
+    if (neu === undefined) continue;
+    angelegt += 1;
+
+    /*
+     * Die Schicht entsteht ueber den ECHTEN Dienst — idempotent ueber
+     * `quell_schluessel`, mit derselben Ortszeitauflaesung, die der Generator
+     * benutzt. Ein `insert into einsatz` hier waere eine zweite Fassung
+     * derselben Rechnung.
+     */
+    if (v.mitObjekt) {
+      await alsPortalSitzung(sql, mandantId, planerId, async (kontext) =>
+        erzeugeVeranstaltungsschicht(kontext, neu.id));
+    }
+  }
+  return angelegt;
+}
+
+/**
+ * Register und Eventdienste — der Nachtrag zu `seedSecurity`.
+ *
+ * Eine eigene Funktion und kein Anhaengsel an `seedSecurity`: sie steigt
+ * einzeln aus, wenn Objekt oder Planer fehlen, und ein fehlendes Register
+ * soll nicht die Postenschichten verhindern.
+ */
+export async function seedBewacherUndEvents(
+  sql: Sql, ids: ReadonlyMap<string, string>, objektId: string | null,
+): Promise<RegisterErgebnis> {
+  const leer: RegisterErgebnis = { eintraege: 0, ohneEintrag: 0, veranstaltungen: 0 };
+  const mandantId = ids.get('security');
+  if (mandantId === undefined || objektId === null) return leer;
+
+  const [planer] = await sql<{ id: string }[]>`
+    select b.id from benutzer b
+     join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${mandantId}
+     join rolle r on r.id = bm.rolle_id
+    where r.schluessel in ('admin', 'leitung', 'super_admin') and b.status = 'aktiv'
+      and bm.entzogen_am is null
+    order by r.schluessel limit 1`;
+  if (planer === undefined) return leer;
+
+  const heute = await berlinHeute(sql as unknown as Abfrage);
+  const register = await seedBewacherRegister(sql, mandantId, planer.id, heute);
+  const veranstaltungen = await seedVeranstaltungen(
+    sql, mandantId, planer.id, objektId, heute);
+  return { ...register, veranstaltungen };
 }

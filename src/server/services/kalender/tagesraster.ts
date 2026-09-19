@@ -27,8 +27,19 @@ export function berlinerTag(iso: string): string {
  * verschwindet sie aus dem Tag, an dem sie endet (Invariante 2: Schichten
  * kreuzen Mitternacht). Ein mehrtägiger Termin ebenso.
  */
-export interface Tageszeile {
-  readonly zeile: KalenderZeile;
+/**
+ * **Generisch über der Zeile, mit `KalenderZeile` als Vorgabe.**
+ *
+ * Der Gruppenkalender (`gruppe/kalender.ts`) reicht Zeilen durch, die
+ * zusätzlich ihre Gesellschaft tragen — dieselbe Rechnung, ein breiterer
+ * Datensatz. Ohne den Typparameter käme aus dem Raster wieder die schmale
+ * Zeile heraus, und die Seite müsste den Bereich über eine zweite Karte
+ * nachschlagen: zwei Wahrheiten über dieselbe Zeile, und die Abschrift der
+ * DST-Rechnung wäre die Alternative gewesen. Bestehende Aufrufe ändern sich
+ * nicht — `Tageszeile` ohne Argument ist weiter `Tageszeile<KalenderZeile>`.
+ */
+export interface Tageszeile<Z extends KalenderZeile = KalenderZeile> {
+  readonly zeile: Z;
   /** Beginnt sie an DIESEM Tag? Sonst läuft sie nur hindurch. */
   readonly beginnt: boolean;
 }
@@ -50,10 +61,10 @@ export interface Rasterfenster {
   readonly bis: string;
 }
 
-export function nachTagen(
-  zeilen: readonly KalenderZeile[], fenster?: Rasterfenster,
-): ReadonlyMap<string, readonly Tageszeile[]> {
-  const karte = new Map<string, Tageszeile[]>();
+export function nachTagen<Z extends KalenderZeile>(
+  zeilen: readonly Z[], fenster?: Rasterfenster,
+): ReadonlyMap<string, readonly Tageszeile<Z>[]> {
+  const karte = new Map<string, Tageszeile<Z>[]>();
   for (const z of zeilen) {
     const ersterTag = berlinerTag(z.beginn);
     /*
@@ -105,7 +116,7 @@ export function nachTagen(
    *    heute keinen Beginn, also gehoert es nicht zwischen die Uhrzeiten.
    *  2 BEGINNT HEUTE -- nach der Uhr.
    */
-  const rang = (t: Tageszeile): number =>
+  const rang = (t: Tageszeile<Z>): number =>
     (t.zeile.ganztaegig ? 0 : t.beginnt ? 2 : 1);
   for (const [tag, liste] of karte) {
     karte.set(tag, [...liste].sort((a, b) => {

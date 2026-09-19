@@ -10,6 +10,7 @@ import {
   SETZBAR, VorgangFehler, setzeVorgangsstand,
   type SetzbarerStatus, type VorgangErgebnis,
 } from '@/server/services/radar/vorgang';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { alsAntwort } from '../../sicherheit/antwort';
 
 /**
@@ -21,6 +22,25 @@ import { alsAntwort } from '../../sicherheit/antwort';
  * Schnittstelle an, und eine Route, die so hiesse, wäre eine Behauptung.
  */
 export const dynamic = 'force-dynamic';
+
+/**
+ * Wohin eine ABGEWIESENE Handlung zurueckgeht — aus einem GESCHLOSSENEN Satz.
+ *
+ * **Der Befund, der das gebracht hat.** Diese Route leitete in allen
+ * Ausgaengen fest auf die Detailseite `/portal/{bereich}/radar/{id}` um. Die
+ * Unterseite `/radar/[id]/status` traegt aber ihr eigenes Formular und ihren
+ * eigenen Fehlerblock fuer `?fehler=grund` und `?fehler=mappe_recht` — den
+ * nichts je erreichte. Wer dort „Verwerfen" ohne ausreichenden Grund drueckte,
+ * landete auf der Detailseite, die davon nichts weiss, und der eingetippte
+ * Grund war weg. Dieselbe Aufteilung wie in `/api/freigaben/fenster`: Fehler
+ * zum Formular, Erfolg zum Ergebnis.
+ *
+ * **Und der Name wird aufgeloest, nicht eingesetzt.** Das Formular schickt
+ * `status`, nie einen Pfad — sonst waere das Feld eine offene Weiterleitung.
+ */
+const FORMULARSEITE: Readonly<Record<string, string>> = {
+  status: 'status',
+};
 
 function text(daten: FormData, feld: string): string | null {
   const wert = daten.get(feld);
@@ -39,7 +59,6 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   const daten = await anfrage.formData();
-  const mandant = (text(daten, 'mandant') ?? '').replace(/[^a-z0-9-]/gu, '');
   const ausschreibung = text(daten, 'ausschreibung') ?? '';
   const status = text(daten, 'status') ?? '';
   if (!UUID.test(ausschreibung)) {
@@ -48,7 +67,25 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!(SETZBAR as readonly string[]).includes(status)) {
     return NextResponse.json({ fehler: 'status_unbekannt' }, { status: 400 });
   }
-  const seite = `/portal/${mandant}/radar/${ausschreibung}`;
+
+  /*
+   * **Der Slug kommt aus der SITZUNG, nicht aus dem Rumpf** (Invariante 3) —
+   * wie in `/api/agenten/lauf` und `/api/radar/profil`. Ein verstecktes
+   * `mandant`-Feld bestimmte hier allein das Ziel der 303, waehrend gesetzt
+   * wurde, was `app.aktiver_mandant()` sagt: wer in einem zweiten Reiter den
+   * Bereich gewechselt hatte, landete nach einem richtigen Schreibvorgang auf
+   * der Bekanntmachung einer anderen Gesellschaft — also auf einem 404.
+   *
+   * Der Rollback nimmt die Zuweisung an dieser Variablen nicht zurueck, also
+   * hat auch der Fehlerzweig den Slug.
+   */
+  let slug = '';
+  const seite = (): string => `/portal/${slug}/radar/${ausschreibung}`;
+  /* Kam das Formular von der Unterseite, gehen Absagen DORTHIN zurueck — mit
+     der Eingabe im Blick und einem Satz dazu. */
+  const unterseite = FORMULARSEITE[String(daten.get('zurueck') ?? '')];
+  const formular = (): string => (unterseite === undefined
+    ? seite() : `${seite()}/${unterseite}`);
 
   let ergebnis: VorgangErgebnis;
   try {
@@ -58,6 +95,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           sitzung, { recht: 'radar.status_setzen', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
+        const [bereich] = await kontext.abfrage<{ slug: string }>(
+          `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
+        if (bereich === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
+        slug = bereich.slug;
         const profil = text(daten, 'profil');
         const bewertung = text(daten, 'bewertung');
         return setzeVorgangsstand(kontext, {
@@ -76,13 +117,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (fehler instanceof VorgangFehler
         && (fehler.code === 'grund' || fehler.code === 'mappe_recht')) {
       return NextResponse.redirect(
-        internesZiel(`${seite}?fehler=${fehler.code}`, seite, anfrage), 303);
+        internesZiel(`${formular()}?fehler=${fehler.code}`, formular(), anfrage), 303);
     }
     const antwort = alsAntwort(fehler);
     if (antwort !== null) return antwort;
     throw fehler;
   }
 
+  /* Der ERFOLG geht auf die Detailseite: dort steht der neue Stand im
+     Zusammenhang mit Punktzahl, Frist und Plattformstand. */
   return NextResponse.redirect(
-    internesZiel(`${seite}?vermerkt=${encodeURIComponent(ergebnis.status)}`, seite, anfrage), 303);
+    internesZiel(`${seite()}?vermerkt=${encodeURIComponent(ergebnis.status)}`,
+      seite(), anfrage), 303);
 }

@@ -48,7 +48,20 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const ids = daten.getAll('freigabe')
     .filter((w): w is string => typeof w === 'string')
     .filter((w) => UUID.test(w));
-  const seite = `/portal/${mandant}/freigaben`;
+  /**
+   * **Der Rueckweg ist eine Auswahl aus ZWEI festen Adressen, kein Feld.**
+   *
+   * Beide Bildschirme kreuzen an: der Posteingang in seiner Haekchenspalte und
+   * die Stapelmappe (`/freigaben/stapel`), die jeden Fall einzeln zeigt. Der
+   * Bericht gehoert dorthin zurueck, wo geklickt wurde — sonst verliert die
+   * Mappe ihre Auswahl und ihren Bericht zugleich. Ein `zurueck`-Feld mit
+   * freier Adresse waere dagegen eine offene Weiterleitung; hier entscheidet
+   * ein Schluessel zwischen zwei Adressen, die diese Datei kennt (D-504).
+   */
+  const ansicht = String(daten.get('ansicht') ?? '');
+  const seite = ansicht === 'stapel'
+    ? `/portal/${mandant}/freigaben/stapel`
+    : `/portal/${mandant}/freigaben`;
 
   try {
     const bericht = await (db().begin(async (tx: postgres.TransactionSql) =>

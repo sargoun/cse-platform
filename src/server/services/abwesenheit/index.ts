@@ -41,6 +41,15 @@ export interface AbwesenheitZeile {
   readonly antragId: string | null;
   readonly gemeldetAm: Date;
   readonly genehmigtAm: Date | null;
+  /**
+   * Der Zeitpunkt der Stornierung — `null`, solange nichts storniert ist.
+   *
+   * Die Spalte gab es, die Abfrage holte sie nicht: das Detailblatt zeigte
+   * damit einen Status `storniert` ohne den Zeitpunkt, an dem er entstand.
+   * Bei einer Zeile, die ausdruecklich nicht geloescht wird (Invariante 8),
+   * ist genau dieser Zeitpunkt die Auskunft.
+   */
+  readonly storniertAm: Date | null;
 }
 
 /** Der Grund — nur ueber die Definer-Funktion, nur mit eigenem Recht. */
@@ -94,7 +103,7 @@ const ZEILE = `
          a.von_halbtags, a.bis_halbtags,
          a.tage_angerechnet::text                        as tage_angerechnet,
          a.status::text                                  as status,
-         a.antrag_id, a.gemeldet_am, a.genehmigt_am
+         a.antrag_id, a.gemeldet_am, a.genehmigt_am, a.storniert_am
     from abwesenheit a
     join anstellung an on an.mandant_id = a.mandant_id and an.id = a.anstellung_id
     join person p on p.id = an.person_id`;
@@ -105,7 +114,7 @@ interface RohZeile {
   readonly von_halbtags: boolean; readonly bis_halbtags: boolean;
   readonly tage_angerechnet: string | null; readonly status: AbwesenheitStatus;
   readonly antrag_id: string | null; readonly gemeldet_am: Date;
-  readonly genehmigt_am: Date | null;
+  readonly genehmigt_am: Date | null; readonly storniert_am: Date | null;
 }
 
 function zeile(z: RohZeile): AbwesenheitZeile {
@@ -123,6 +132,7 @@ function zeile(z: RohZeile): AbwesenheitZeile {
     antragId: z.antrag_id,
     gemeldetAm: z.gemeldet_am,
     genehmigtAm: z.genehmigt_am,
+    storniertAm: z.storniert_am,
   };
 }
 

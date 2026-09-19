@@ -30,6 +30,11 @@ export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
   '0007': join(WURZEL, 'drizzle/0007_benutzer_auth.sql'),
   '0009': join(WURZEL, 'drizzle/0009_dokument.sql'),
   '0012': join(WURZEL, 'drizzle/0012_freigabe.sql'),
+  // Website-Redaktion: Seiten und Abschnitte (0014), Profil und Referenz
+  // (0015). Beide Dateien trugen bisher keinen Block — die vier Tabellen
+  // haben `geaendert_am`, aber keinen Ausloeser, der es setzt.
+  '0014': join(WURZEL, 'drizzle/0014_seite_abschnitt_medien.sql'),
+  '0015': join(WURZEL, 'drizzle/0015_profil_referenz.sql'),
   '0016': join(WURZEL, 'drizzle/0016_formular.sql'),
   '0017': join(WURZEL, 'drizzle/0017_lead.sql'),
   '0020': join(WURZEL, 'drizzle/0020_crm_identitaet.sql'),
@@ -98,6 +103,38 @@ export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
   '0136': join(WURZEL, 'drizzle/0136_freigabe_posteingang.sql'),
   '0139': join(WURZEL, 'drizzle/0139_definer_schnitt_und_archivlauf.sql'),
   '0147': join(WURZEL, 'drizzle/0147_vergabemappe.sql'),
+  '0175': join(WURZEL, 'drizzle/0175_akquise_loeschsperre.sql'),
+  '0176': join(WURZEL, 'drizzle/0176_betroffenenanfrage.sql'),
+  '0177': join(WURZEL, 'drizzle/0177_barrierebericht.sql'),
+  // Finanzen: Ausgaben (0180), das Versandprotokoll (0181) und die
+  // Jahressumme des § 48 EStG (0182).
+  '0180': join(WURZEL, 'drizzle/0180_ausgabe.sql'),
+  '0181': join(WURZEL, 'drizzle/0181_rechnung_versand.sql'),
+  '0182': join(WURZEL, 'drizzle/0182_bauleistung_jahressumme.sql'),
+  // Personal: die datierte Kondition einer Beschaeftigung (0192).
+  '0192': join(WURZEL, 'drizzle/0192_anstellung_kondition.sql'),
+  // Einstellungen (0200–0203). `0204` traegt keinen Block: seine beiden
+  // Tabellen liegen in `kern` und tragen ihre Sperren von Hand
+  // (NUR_UEBER_DEFINER); `0205` setzt eine CHECK-Bedingung, `0206` ein
+  // UPDATE auf `berechtigung`.
+  '0200': join(WURZEL, 'drizzle/0200_mandant_identitaet.sql'),
+  '0201': join(WURZEL, 'drizzle/0201_arbeitszeitmodell_tarif.sql'),
+  '0202': join(WURZEL, 'drizzle/0202_migration_lauf.sql'),
+  '0203': join(WURZEL, 'drizzle/0203_agent_richtlinie_recht.sql'),
+  // Bau: Abnahme (0211) und der Importkopf des Leistungsverzeichnisses
+  // (0212). `0214` traegt keinen Block: es legt nur eine Spalte auf der
+  // schon registrierten `lv_import_zeile` an.
+  '0211': join(WURZEL, 'drizzle/0211_abnahme.sql'),
+  '0212': join(WURZEL, 'drizzle/0212_lv_import.sql'),
+  // Datenschutz (0221/0222). `0220` traegt keinen Block: es legt keine
+  // Tabelle an, es ersetzt zwei Policies.
+  '0221': join(WURZEL, 'drizzle/0221_datenschutz_nachweis.sql'),
+  '0222': join(WURZEL, 'drizzle/0222_werbewiderspruch.sql'),
+  // Kern: Teams, Aufgaben (0230) und die Nachrichtenfaeden (0231).
+  '0230': join(WURZEL, 'drizzle/0230_kern_team_aufgabe.sql'),
+  '0231': join(WURZEL, 'drizzle/0231_nachricht_faden.sql'),
+  // Dienstplan: der Beleg der Veroeffentlichung (0265).
+  '0265': join(WURZEL, 'drizzle/0265_dienstplan_veroeffentlichung.sql'),
 };
 export const BEGINN = '-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern';
 export const ENDE = '-- >>> Ende des generierten Blocks';

@@ -180,7 +180,7 @@ export default async function Wachbuch(
                 {' · '}
                 {e.objekt}
                 {' · '}
-                {e.urheber}
+                {e.urheber ?? '—'}
                 {e.nachgetragen && ' · nachgetragen'}
                 {e.storniert && (
                   <span className="ml-s2 text-danger">Storniert: {e.stornoGrund}</span>

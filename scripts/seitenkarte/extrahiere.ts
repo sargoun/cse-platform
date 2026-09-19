@@ -143,6 +143,26 @@ export function zerlegeBewachung(roh: string): Bewachung {
     return { art: 'infrastruktur', datei };
   }
 
+  /**
+   * **„route handler" ist eine IMPLEMENTIERUNG, keine Bedingung.**
+   *
+   * Der Befund: `/.well-known/security.txt` trug in der Karte als
+   * Implementierung „route handler" — und landete unten im
+   * `sitzung`-Zweig, weil dieselbe Regex auf das Wort passt. Eine
+   * `.well-known`-Datei hinter einer Anmeldung erfuellt ihren Zweck nicht;
+   * ein Pruefwerkzeug, das sie abholt, hat keine Sitzung. `/llms.txt` kam nur
+   * deshalb richtig heraus, weil daneben `text/plain` stand und der
+   * Schraegstrich darin wie ein Dateiname aussah — also aus dem falschen
+   * Grund.
+   *
+   * Die Pruefung steht VOR der Rechtezerlegung, aber NACH der Dateipruefung
+   * oben: eine Zelle, die beides nennt („route handler, `text/plain`"), soll
+   * weiter den Dateinamen tragen.
+   */
+  if (/route handler/iu.test(text) && !marken.some((m) => SCHLUESSEL.test(m))) {
+    return { art: 'infrastruktur', datei: datei ?? 'route handler' };
+  }
+
   const rechte = marken.filter((m) => SCHLUESSEL.test(m) || m.startsWith('.'));
   // `S` steht fuer sich — die Zelle traegt dann oft gar keinen Schluessel.
   // Diese Pruefung muss VOR der naechsten stehen: sonst faellt das haeufigste

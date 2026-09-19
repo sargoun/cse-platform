@@ -1,0 +1,230 @@
+import { describe, expect, it } from 'vitest';
+import { NAVIGATION, GRUPPEN_NAVIGATION } from '@/server/registry/navigation';
+import { INTERNE_LEISTEN, tableiste } from '@/server/registry/tableiste';
+import {
+  BAUZUSTAND_TEXTE, bauzustandTexte, INTERN_BESCHRIFTUNGEN, INTERN_SPRACHEN,
+  internBeschriftungen, internSprache, internSprachwahl, istInternSprache,
+  SPRACH_HINWEIS, sprachHinweis,
+} from '@/lib/i18n/intern';
+import { PORTAL_EIGENNAME, PORTAL_SPRACHEN } from '@/lib/i18n/texte';
+
+/**
+ * Die Beschriftungen der internen Huelle — gegen die Register geprueft.
+ *
+ * **Warum dieser Test existiert.** `PortalRahmen` faellt fuer einen
+ * Schluessel, den die Karte nicht kennt, auf das deutsche Label des Registers
+ * zurueck. Das ist als Verhalten richtig — ein leerer Menuepunkt waere
+ * schlimmer — aber es macht die Luecke unsichtbar: der englische Bildschirm
+ * zeigt einen deutschen Punkt, niemand bekommt einen Fehler, und es sieht aus
+ * wie Absicht. Ein neuer Navigationspunkt muss deshalb hier auffallen, nicht
+ * am Bildschirm.
+ */
+
+/** Die Schluessel der Kopfzeile — sie stehen in `PortalRahmen`, nicht im Register. */
+const HUELLEN_SCHLUESSEL: readonly string[] = [
+  'sitzung.label', 'sitzung.bereich', 'sitzung.konto', 'sitzung.website',
+  'sitzung.abmelden', 'pfad.label', 'sprache.label',
+];
+
+function registerSchluessel(): readonly string[] {
+  const aus = new Set<string>(HUELLEN_SCHLUESSEL);
+  for (const e of NAVIGATION) aus.add(e.schluessel);
+  for (const e of GRUPPEN_NAVIGATION) aus.add(e.schluessel);
+  for (const l of INTERNE_LEISTEN) for (const z of tableiste(l).ziele) aus.add(z.schluessel);
+  return [...aus].sort();
+}
+
+describe('die Beschriftungen der internen Huelle', () => {
+  it('kennt jeden Schluessel der Register — in jeder der zwei Sprachen', () => {
+    const erwartet = registerSchluessel();
+    /* Der Gegen-Check: die Register sind nicht leer, sonst prueft das nichts. */
+    expect(erwartet.length).toBeGreaterThan(40);
+
+    for (const sprache of INTERN_SPRACHEN) {
+      const fehlend = erwartet.filter((s) => INTERN_BESCHRIFTUNGEN[sprache][s] === undefined);
+      expect(fehlend, `${sprache}: ohne Beschriftung`).toEqual([]);
+    }
+  });
+
+  it('traegt keinen Schluessel, den kein Register kennt', () => {
+    const erlaubt = new Set(registerSchluessel());
+    for (const sprache of INTERN_SPRACHEN) {
+      const ueberzaehlig = Object.keys(INTERN_BESCHRIFTUNGEN[sprache])
+        .filter((s) => !erlaubt.has(s));
+      expect(ueberzaehlig, `${sprache}: zeigt auf nichts`).toEqual([]);
+    }
+  });
+
+  it('haelt beide Sprachen auf derselben Schluesselmenge', () => {
+    expect(Object.keys(INTERN_BESCHRIFTUNGEN.en).sort())
+      .toEqual(Object.keys(INTERN_BESCHRIFTUNGEN.de).sort());
+  });
+
+  it('uebersetzt wirklich — Deutsch und Englisch stehen nicht ueberall gleich', () => {
+    const gleich = Object.keys(INTERN_BESCHRIFTUNGEN.de)
+      .filter((s) => INTERN_BESCHRIFTUNGEN.de[s] === INTERN_BESCHRIFTUNGEN.en[s]);
+    /*
+     * Einige stehen zu Recht gleich: Produktnamen und Fremdwoerter, die im
+     * Deutschen schon englisch sind. Mehr als eine Handvoll hiesse, dass
+     * jemand die deutsche Spalte kopiert hat.
+     */
+    expect(gleich.sort()).toEqual([
+      'bank', 'crm', 'datev', 'leads', 'radar', 'recruiting', 'security',
+      'sitzung.website',
+      /*
+       * `website` steht in beiden Spalten gleich, weil „Website" im Deutschen
+       * dasselbe Wort ist — der Duden fuehrt es, und „Netzauftritt" saehe in
+       * einem Menue aus wie ein Scherz. Dieselbe Begruendung wie bei `crm`
+       * und `sitzung.website`.
+       */
+      'website',
+    ]);
+  });
+
+  it('gibt jedem Label einen nicht-leeren Text', () => {
+    for (const sprache of INTERN_SPRACHEN) {
+      for (const [s, t] of Object.entries(INTERN_BESCHRIFTUNGEN[sprache])) {
+        expect(t.trim(), `${sprache}.${s}`).not.toBe('');
+      }
+    }
+  });
+});
+
+describe('die Abbildung der vier Portalsprachen auf die zwei internen', () => {
+  it('nimmt Englisch als Englisch', () => {
+    expect(internSprache('en')).toBe('en');
+  });
+
+  it('gibt ar und tr Deutsch, nicht Englisch (D-592)', () => {
+    expect(internSprache('ar')).toBe('de');
+    expect(internSprache('tr')).toBe('de');
+  });
+
+  it('gibt einer fehlenden Angabe Deutsch', () => {
+    expect(internSprache(null)).toBe('de');
+    expect(internSprache(undefined)).toBe('de');
+  });
+
+  it('bildet JEDE der vier Portalsprachen auf eine der zwei ab', () => {
+    for (const s of PORTAL_SPRACHEN) {
+      expect(istInternSprache(internSprache(s)), s).toBe(true);
+    }
+  });
+
+  it('liefert fuer jede Portalsprache eine vollstaendige Karte', () => {
+    for (const s of [...PORTAL_SPRACHEN, null]) {
+      expect(Object.keys(internBeschriftungen(s)).length)
+        .toBe(Object.keys(INTERN_BESCHRIFTUNGEN.de).length);
+    }
+  });
+});
+
+describe('die Sprachwahl des Umschalters', () => {
+  it('meldet eine Wahl, die der Umschalter nicht anbietet, als fremd', () => {
+    expect(internSprachwahl('tr')).toEqual({ aktiv: 'de', fremdeWahl: 'tr' });
+    expect(internSprachwahl('ar')).toEqual({ aktiv: 'de', fremdeWahl: 'ar' });
+  });
+
+  it('meldet die zwei angebotenen Sprachen nicht als fremd', () => {
+    expect(internSprachwahl('de')).toEqual({ aktiv: 'de', fremdeWahl: null });
+    expect(internSprachwahl('en')).toEqual({ aktiv: 'en', fremdeWahl: null });
+  });
+
+  it('meldet fuer ein Konto ohne Angabe Deutsch und keine fremde Wahl', () => {
+    expect(internSprachwahl(null)).toEqual({ aktiv: 'de', fremdeWahl: null });
+  });
+});
+
+/**
+ * Die Bauzustandsseite — die haeufigste Seite dieses Portals.
+ *
+ * Sie steht auf 136 der 434 Routen der Seitenkarte. Ein deutscher Absatz
+ * inmitten einer englischen Huelle waere genau dort am auffaelligsten.
+ */
+describe('die Texte der Bauzustandsseite', () => {
+  it('sagt in beiden Sprachen etwas, und nicht dasselbe', () => {
+    for (const s of INTERN_SPRACHEN) {
+      expect(BAUZUSTAND_TEXTE[s].titel.trim()).not.toBe('');
+      expect(BAUZUSTAND_TEXTE[s].warumKeinLeererBildschirm.trim()).not.toBe('');
+    }
+    expect(BAUZUSTAND_TEXTE.de.titel).not.toBe(BAUZUSTAND_TEXTE.en.titel);
+    expect(BAUZUSTAND_TEXTE.de.warumKeinLeererBildschirm)
+      .not.toBe(BAUZUSTAND_TEXTE.en.warumKeinLeererBildschirm);
+  });
+
+  it('nennt die Phase, wenn es eine gibt — und sagt sonst „spaeter", nicht „null"', () => {
+    for (const s of INTERN_SPRACHEN) {
+      const [, mitZahl] = BAUZUSTAND_TEXTE[s].satz(7);
+      expect(mitZahl).toContain('7');
+
+      const [, ohne] = BAUZUSTAND_TEXTE[s].satz(null);
+      /*
+       * Der Fall, der wirklich schiefgehen kann: eine Vorlage, die `phase`
+       * blind einsetzt, schreibt „in Phase null" auf den Bildschirm.
+       */
+      expect(ohne.toLowerCase()).not.toContain('null');
+      expect(ohne).not.toMatch(/\d/);
+    }
+  });
+
+  it('endet den Satz mit einem Punkt — der Pfad steht davor, nicht dahinter', () => {
+    for (const s of INTERN_SPRACHEN) {
+      for (const phase of [null, 3]) {
+        const [vor, nach] = BAUZUSTAND_TEXTE[s].satz(phase);
+        expect(vor.startsWith(' '), `${s}: der Pfad braucht Abstand`).toBe(true);
+        expect(nach.trimEnd().endsWith('.'), `${s}/${phase}`).toBe(true);
+      }
+    }
+  });
+
+  it('bildet die vier Portalsprachen auf die zwei Textsaetze ab', () => {
+    expect(bauzustandTexte('en')).toBe(BAUZUSTAND_TEXTE.en);
+    expect(bauzustandTexte('ar')).toBe(BAUZUSTAND_TEXTE.de);
+    expect(bauzustandTexte('tr')).toBe(BAUZUSTAND_TEXTE.de);
+    expect(bauzustandTexte(null)).toBe(BAUZUSTAND_TEXTE.de);
+  });
+});
+
+/**
+ * Der Hinweis fuer jemanden, dessen Portalsprache der Umschalter nicht
+ * anbietet.
+ *
+ * Die Spalte `sprache` ist EINE fuer beide Portale. Wer als Arbeiterin `ar`
+ * gewaehlt hat, ersetzt sie mit einem Klick im internen Umschalter — und ein
+ * Bildschirm, der das still tut, ist schlimmer als einer, der die Wahl gar
+ * nicht anboete.
+ */
+describe('der Hinweis auf eine fremde Sprachwahl', () => {
+  it('nennt die Sprache in ihrem EIGENEN Namen, nicht als Kuerzel', () => {
+    const text = sprachHinweis('ar', 'ar');
+    expect(text).toContain(PORTAL_EIGENNAME.ar);
+    expect(text).not.toMatch(/\bar\b/);
+  });
+
+  it('sagt, dass die Wahl auch das Mitarbeiterportal trifft', () => {
+    for (const fremd of ['ar', 'tr'] as const) {
+      /*
+       * Der Satz, auf den es ankommt: „ersetzt auch". Ohne ihn stuende dort
+       * nur, dass es diese Ansicht auf Deutsch gibt — und das beantwortet die
+       * Frage nicht, die jemand hat, bevor er klickt.
+       */
+      expect(sprachHinweis(fremd, fremd).toLowerCase()).toContain('ersetzt auch');
+      expect(sprachHinweis('en', fremd).toLowerCase()).toContain('also replaces');
+    }
+  });
+
+  it('erscheint nur dort, wo er gebraucht wird — internSprachwahl entscheidet', () => {
+    expect(internSprachwahl('de').fremdeWahl).toBeNull();
+    expect(internSprachwahl('en').fremdeWahl).toBeNull();
+    expect(internSprachwahl(null).fremdeWahl).toBeNull();
+    expect(internSprachwahl('ar').fremdeWahl).toBe('ar');
+    expect(internSprachwahl('tr').fremdeWahl).toBe('tr');
+  });
+
+  it('steht in beiden internen Sprachen bereit', () => {
+    for (const s of INTERN_SPRACHEN) {
+      expect(SPRACH_HINWEIS[s]('Türkçe').trim()).not.toBe('');
+    }
+    expect(SPRACH_HINWEIS.de('X')).not.toBe(SPRACH_HINWEIS.en('X'));
+  });
+});

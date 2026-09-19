@@ -72,7 +72,7 @@ export function Schrittkette({ zeilen }: { readonly zeilen: readonly SchrittZeil
           schluessel: 'status',
           kopf: 'Zustand',
           zelle: (s) => (
-            <span className="inline-flex items-center gap-s2">
+            <span className="inline-flex flex-wrap items-center gap-s2">
               <StatusPill zustand={PILLE[s.status] ?? 'Abgeschlossen'} />
               {s.injektionsverdacht
                 ? <span className="text-xs text-danger">Injektionsverdacht</span>

@@ -220,7 +220,7 @@ export default async function AgentBudget(
               schluessel: 'stopp',
               kopf: 'Zustand',
               zelle: (b) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={BUDGET_PILLE[b.status] ?? 'Aktiv'} />
                   {b.gestoppt_am === null
                     ? null

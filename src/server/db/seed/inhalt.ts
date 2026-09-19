@@ -151,11 +151,19 @@ export const SEITEN: readonly SeitenInhalt[] = [
       { art: 'hero', ueberschrift: 'Projekte', text: null },
       {
         art: 'text',
-        ueberschrift: 'Hier stehen bald Referenzen',
+        ueberschrift: 'Nur mit schriftlicher Zustimmung',
+        /*
+         * **Der Text ist die EINLEITUNG, nicht mehr die Entschuldigung.**
+         * Er lautete „Hier stehen bald Referenzen" — und die Referenzen gab es
+         * längst, auf den vier Gesellschaftsprofilen. Die Liste darunter kommt
+         * jetzt aus `referenz` (D-602); dieser Satz erklärt, warum sie kurz
+         * ist, und das gilt auf einer gefüllten Liste genauso.
+         */
         text:
-          'Projekte erscheinen an dieser Stelle, sobald der jeweilige Kunde der '
-          + 'Nennung schriftlich zugestimmt hat. Ohne diese Zustimmung wird kein '
-          + 'Projekt gezeigt — auch kein abgeschlossenes und auch kein gelungenes.',
+          'Wir zeigen ein Projekt erst, wenn der Kunde der Nennung schriftlich '
+          + 'zugestimmt hat. Ohne diese Zustimmung steht es hier nicht — auch kein '
+          + 'abgeschlossenes und auch kein gelungenes. Jedes Projekt führt zu der '
+          + 'Gesellschaft, die es ausgeführt hat.',
       },
     ],
   },
@@ -189,8 +197,11 @@ export const SEITEN: readonly SeitenInhalt[] = [
       { art: 'hero', ueberschrift: 'Aktuelles', text: null },
       {
         art: 'text',
-        ueberschrift: 'Noch keine Beiträge',
-        text: 'Sobald es etwas zu berichten gibt, steht es hier.',
+        ueberschrift: 'Aus den vier Gesellschaften',
+        /* Dieselbe Umkehr wie bei `/projekte` (D-602). */
+        text:
+          'Was die Gesellschaften der Gruppe berichten, steht hier zusammen — '
+          + 'jeder Beitrag führt zu der Gesellschaft, von der er stammt.',
       },
     ],
   },
@@ -600,6 +611,65 @@ export const SEITEN: readonly SeitenInhalt[] = [
           + 'Leistungsnachweise, Auswertung. Für externe Kunden bietet der '
           + 'Bereich dieselbe Arbeit an — Abläufe aufnehmen, digitalisieren und '
           + 'auswertbar machen.',
+      },
+    ],
+  },
+];
+
+/**
+ * Die LEISTUNGSSEITEN unter `/leistungen/<slug>` — vorläufiger
+ * Demonstrationsbestand (PUB-07, PUB-11).
+ *
+ * **Warum sie getrennt von `SEITEN` stehen.** `SEITEN` wird gegen
+ * `OEFFENTLICHE_ROUTEN` abgeglichen, und das ist die Liste der FESTEN Seiten;
+ * eine Leistungsseite ist dagegen Redaktion und entsteht als `seite`-Zeile,
+ * ohne dass im Code eine erlaubte Slugliste steht. Die Route
+ * `/leistungen/[slug]` liest jede solche Zeile, `sitemapEintraege` nimmt sie
+ * automatisch auf.
+ *
+ * **Warum es überhaupt eine gibt.** Ohne Zeile antwortet die Route für jeden
+ * Slug 404, und dann läuft auch der `Service`-Block aus `seiten-daten.ts` nie
+ * — fertig gemeldeter, zur Laufzeit ungesehener Code. Eine Zeile je Sprache
+ * ist das Minimum, das die Route wirklich ausführt.
+ *
+ * **Sie sagt selbst, dass sie vorläufig ist.** Der Text nennt O-652, und
+ * `mandant_id` bleibt NULL: solange niemand entschieden hat, WELCHE
+ * Gesellschaft eine Leistungsseite verantwortet, bleibt `Service.provider`
+ * weg (siehe `seitenService` in `services/inhalt/jsonld.ts`). Die
+ * Leistungsbeschreibung selbst ist nicht erfunden — sie steht wortgleich in
+ * der Liste auf `/leistungen` (D-473).
+ *
+ * // TODO(client, O-652): Welche Leistungen bekommen eine eigene Seite unter
+ * `/leistungen/<slug>`, und welche Gesellschaft verantwortet sie?
+ */
+export interface LeistungsSeite extends SeitenInhalt {
+  readonly titel: string;
+}
+
+export const LEISTUNGSSEITEN: readonly LeistungsSeite[] = [
+  {
+    pfad: '/leistungen/unterhaltsreinigung',
+    titel: 'Unterhaltsreinigung',
+    beschreibung:
+      'Wiederkehrende Reinigung nach vereinbartem Leistungsverzeichnis — '
+      + 'Berlin.',
+    abschnitte: [
+      {
+        art: 'hero',
+        ueberschrift: 'Unterhaltsreinigung',
+        text:
+          'Wiederkehrende Reinigung, damit Immobilie und Büroräume in einem '
+          + 'stets makellosen Zustand bleiben.',
+      },
+      {
+        art: 'text',
+        ueberschrift: 'Vorläufige Seite',
+        text:
+          'Diese Seite ist Demonstrationsbestand. Sie zeigt, wie eine '
+          + 'einzelne Leistung als eigene Seite aussieht — welche Leistungen '
+          + 'eine eigene Seite bekommen und welche Gesellschaft sie '
+          + 'verantwortet, ist noch nicht entschieden (offen O-652). Bis '
+          + 'dahin nennt die Seite keine Gesellschaft als Anbieter.',
       },
     ],
   },

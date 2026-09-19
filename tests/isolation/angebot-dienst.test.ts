@@ -6,6 +6,14 @@
  * passiert, wenn es NICHT funktioniert: eine gezogene Nummer, deren Versand
  * scheitert, darf keine Luecke hinterlassen, und ein zweiter Versuch, aus
  * demselben Angebot einen zweiten Auftrag zu machen, darf nicht gelingen.
+ *
+ * **Seit der Auftrennung sind Freigabe und Versand ZWEI Schritte.**
+ * `versendeAngebot` setzte beides in einem UPDATE; der Rechtekatalog fuehrt
+ * aber `angebot.preis_freigeben` (super_admin, leitung) und
+ * `angebot.versenden` (zusaetzlich admin) getrennt. Wo dieser Test den Weg
+ * eines Menschen geht, geht er ihn jetzt zweifach — `freigebenUndVersenden`
+ * unten. Wo er eine SPERRE prueft, ruft er den einzelnen Schritt, den die
+ * Sperre betrifft: sonst prueft die Zusicherung den falschen Riegel.
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
@@ -14,7 +22,8 @@ import { kalkuliere } from '../../src/server/services/kalkulation/index.js';
 import { PLATZHALTER_FREQUENZ, PLATZHALTER_TARIF }
   from '../../src/server/services/kalkulation/tarif.js';
 import {
-  AngebotFehler, legeAngebotAn, uebernimmKalkulation, versendeAngebot, wandleInAuftrag,
+  AngebotFehler, gibPreisFrei, legeAngebotAn, uebernimmKalkulation, versendeAngebot,
+  wandleInAuftrag,
 } from '../../src/server/services/angebot/index.js';
 import { bestaetigeKalkulation }
   from '../../src/server/services/kalkulation/bestaetigung.js';
@@ -120,6 +129,20 @@ async function bestaetige(angebotId: string): Promise<void> {
   }));
 }
 
+/**
+ * Der Weg eines Menschen im Portal: erst `/freigabe`, dann `/versand`.
+ *
+ * Beides mit `chef` — der traegt die Rolle `leitung` und haelt damit BEIDE
+ * Rechte. Im Betrieb sind es zwei Menschen, und genau dafuer gibt es die
+ * beiden Rechte; fuer die Kette hier genuegt einer, der sie beide gehen darf.
+ */
+async function freigebenUndVersenden(
+  db: ReturnType<typeof kontextAus>, angebotId: string,
+): Promise<{ readonly angebotsnummer: string; readonly versendetAm: Date }> {
+  await gibPreisFrei(db, angebotId, chef);
+  return versendeAngebot(db, angebotId, chef);
+}
+
 describe('(1) Vom Raumbuch zum versendeten Angebot', () => {
   /**
    * DAS Abnahmekriterium dieser Phase, und der Grund, aus dem es hier zwei
@@ -142,7 +165,7 @@ describe('(1) Vom Raumbuch zum versendeten Angebot', () => {
       const angebotId = await legeAngebotAn(db, { kundeId: k, titel: 'Platzhalter', objektId: o });
       await uebernimmKalkulation(db, angebotId, kalk,
         { objektId: o, turnusLabel: 'monatlich', tarif, frequenz });
-      return versendeAngebot(db, angebotId, chef);
+      return freigebenUndVersenden(db, angebotId);
     })).rejects.toThrow(/unbestaetigte Werte/u);
   });
 
@@ -167,7 +190,7 @@ describe('(1) Vom Raumbuch zum versendeten Angebot', () => {
                                 gemeinkosten_basis = 'lohn',
                                 gemeinkosten_bp = 1500, wagnis_gewinn_bp = 800
           where angebot_id = $1`, [angebotId]);
-      await expect(alsChef((db) => versendeAngebot(db, angebotId, chef)))
+      await expect(alsChef((db) => freigebenUndVersenden(db, angebotId)))
         .rejects.toThrow(/unbestaetigte Werte/u);
     });
 
@@ -188,7 +211,7 @@ describe('(1) Vom Raumbuch zum versendeten Angebot', () => {
       return { angebotId, positionen, netto: kalk.netto };
     });
     await bestaetige(angelegt.angebotId);
-    const versand = await alsChef((db) => versendeAngebot(db, angelegt.angebotId, chef));
+    const versand = await alsChef((db) => freigebenUndVersenden(db, angelegt.angebotId));
     const ergebnis = { ...angelegt, versand };
 
     expect(ergebnis.positionen).toBe(1);          // eine Belagsart, eine Zeile
@@ -355,11 +378,176 @@ describe('(1) Vom Raumbuch zum versendeten Angebot', () => {
           `insert into angebotsposition (mandant_id, angebot_id, position_nr, kurztext,
                                          menge, einheit, einzelpreis_cent, steuersatz_bp)
            values (app.aktiver_mandant(), $1, 1, 'Reinigung', 1, 'psch', 1000, 1900)`, [id]);
-        gezogen.push((await versendeAngebot(db, id, chef)).angebotsnummer);
+        gezogen.push((await freigebenUndVersenden(db, id)).angebotsnummer);
       }
       return gezogen;
     });
     expect(nummern).toEqual(['AN-2026-00001', 'AN-2026-00002']);
+  });
+});
+
+describe('(1b) Preisfreigabe und Versand sind ZWEI Vorgaenge', () => {
+  /** Ein Angebot mit einer Position und ohne Kalkulation — freigabefaehig. */
+  async function freigabefaehig(): Promise<string> {
+    const k = await kunde(f.reinigung);
+    return alsChef(async (db) => {
+      const id = await legeAngebotAn(db, { kundeId: k, titel: 'Zur Freigabe' });
+      await db.abfrage(
+        `insert into angebotsposition (mandant_id, angebot_id, position_nr, kurztext,
+                                       menge, einheit, einzelpreis_cent, steuersatz_bp)
+         values (app.aktiver_mandant(), $1, 1, 'Reinigung', 1, 'psch', 1000, 1900)`, [id]);
+      return id;
+    });
+  }
+
+  /**
+   * DER Befund, der die Auftrennung gebracht hat: ein Klick, zwei
+   * Entscheidungen. Ohne Freigabe geht nichts hinaus — und zwar mit einem
+   * Satz, der den fehlenden Arbeitsschritt nennt, nicht mit einem
+   * Bedingungsverstoss.
+   */
+  it('ohne Preisfreigabe geht kein Angebot hinaus', async () => {
+    const id = await freigabefaehig();
+    await expect(alsChef((db) => versendeAngebot(db, id, chef)))
+      .rejects.toThrow(/Ohne Preisfreigabe/u);
+  });
+
+  it('und der Grund heisst `ohne_freigabe`, nicht `kein_entwurf`', async () => {
+    const id = await freigabefaehig();
+    const fehler = await alsChef((db) => versendeAngebot(db, id, chef))
+      .then(() => null, (e: unknown) => e);
+    expect(fehler).toBeInstanceOf(AngebotFehler);
+    expect((fehler as AngebotFehler).grund).toBe('ohne_freigabe');
+  });
+
+  /**
+   * **Die Serveruhr, nicht das Formular** (Invariante 5). Der Ausloeser
+   * `kern.angebot_preisfreigabe_pruefen` stempelt `freigegeben_am`; ein Wert,
+   * den der Dienst mitgeschickt haette, wird ueberschrieben.
+   */
+  it('die Freigabe stempelt die SERVERZEIT und laesst versendet_* leer', async () => {
+    const id = await freigabefaehig();
+    const vorher = new Date();
+    await alsChef((db) => gibPreisFrei(db, id, chef));
+    const [z] = await sql.unsafe<{
+      freigegeben_am: Date; freigegeben_von: string; versendet_am: Date | null;
+      nummer: string | null; status: string;
+    }[]>(
+      `select freigegeben_am, freigegeben_von, versendet_am,
+              angebotsnummer as nummer, status::text as status
+         from angebot where id = $1`, [id]);
+    expect(z!.freigegeben_von).toBe(chef);
+    expect(z!.freigegeben_am.getTime()).toBeGreaterThanOrEqual(vorher.getTime() - 2000);
+    // Der Versand bleibt UNBERUEHRT — das ist der ganze Punkt.
+    expect(z!.versendet_am).toBeNull();
+    expect(z!.nummer).toBeNull();
+    expect(z!.status).toBe('entwurf');
+  });
+
+  /** Kein Entwurf mit Nummer (FIN-03) — auch nicht nach der Freigabe. */
+  it('ein freigegebener Entwurf traegt weiterhin KEINE Nummer', async () => {
+    const id = await freigabefaehig();
+    await alsChef((db) => gibPreisFrei(db, id, chef));
+    const [z] = await sql.unsafe<{ nummer: string | null }[]>(
+      `select angebotsnummer as nummer from angebot where id = $1`, [id]);
+    expect(z!.nummer).toBeNull();
+  });
+
+  /** Eine erteilte Freigabe ist unveraenderlich — O-732. */
+  it('eine zweite Freigabe wird abgewiesen', async () => {
+    const id = await freigabefaehig();
+    await alsChef((db) => gibPreisFrei(db, id, chef));
+    await expect(alsChef((db) => gibPreisFrei(db, id, chef)))
+      .rejects.toThrow(/bereits freigegeben/u);
+  });
+
+  it('und ein UPDATE an der Route vorbei ebenso — der Ausloeser haelt (O-732)', async () => {
+    const id = await freigabefaehig();
+    await alsChef((db) => gibPreisFrei(db, id, chef));
+    await expect(alsChef((db) => db.abfrage(
+      `update angebot set freigegeben_am = now() - interval '1 day' where id = $1`, [id])))
+      .rejects.toThrow(/unveraenderlich/u);
+  });
+
+  /**
+   * Die Freigabe ruht nicht auf Platzhaltern — EINEN Schritt frueher als der
+   * Versand. Sonst haette die Leitung einen Preis verantwortet, den die
+   * Datenbank nicht hinausliesse, und niemand saehe, warum.
+   */
+  it('keine Freigabe auf unbestaetigten Werten', async () => {
+    const k = await kunde(f.reinigung);
+    const o = await objektMitRaumbuch(f.reinigung, k);
+    await expect(alsChef(async (db) => {
+      const id = await legeAngebotAn(db, { kundeId: k, titel: 'Offen', objektId: o });
+      await db.abfrage(
+        `insert into angebotsposition (mandant_id, angebot_id, position_nr, kurztext,
+                                       menge, einheit, einzelpreis_cent, steuersatz_bp)
+         values (app.aktiver_mandant(), $1, 1, 'Reinigung', 1, 'psch', 1000, 1900)`, [id]);
+      await db.abfrage(
+        `insert into kalkulation (mandant_id, angebot_id, basis_objekt_id)
+         values (app.aktiver_mandant(), $1, $2)`, [id, o]);
+      return gibPreisFrei(db, id, chef);
+    })).rejects.toThrow(/unbestaetigte Werte/u);
+  });
+
+  /**
+   * **Die Rollenmengen fallen hier wirklich auseinander** — die einzige der
+   * neun Routen dieser Runde, bei der das so ist. `t_mandant` prueft im WITH
+   * CHECK `angebot.schreiben` (admin, leitung, super_admin), waehrend
+   * `angebot.preis_freigeben` nur leitung und super_admin halten. Eine
+   * Administration konnte `freigegeben_von` also an der Route vorbei setzen;
+   * 0295 bindet den Uebergang im Ausloeser.
+   */
+  it('eine Administration darf den Preis NICHT freigeben — auch nicht per UPDATE', async () => {
+    const id = await freigabefaehig();
+    const verwaltung = await konto();
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+      [verwaltung, f.reinigung, await rolleId('admin')]);
+
+    const alsAdmin = <T>(fn: (db: ReturnType<typeof kontextAus>) => Promise<T>) =>
+      alsApp({ scope: 'mandant', mandantId: f.reinigung, benutzerId: verwaltung,
+               portal: 'intern', readonly: false }, async (tx) => fn(kontextAus(tx)));
+
+    // Erst der Dienst — und dann der rohe Schreibweg daneben.
+    await expect(alsAdmin((db) => gibPreisFrei(db, id, verwaltung)))
+      .rejects.toThrow(/angebot.preis_freigeben/u);
+    await expect(alsAdmin((db) => db.abfrage(
+      `update angebot set freigegeben_von = $2, freigegeben_am = now() where id = $1`,
+      [id, verwaltung]))).rejects.toThrow(/angebot.preis_freigeben/u);
+
+    // Und die Zeile ist unberuehrt: kein halber Vorgang.
+    const [z] = await sql.unsafe<{ freigegeben_von: string | null }[]>(
+      `select freigegeben_von from angebot where id = $1`, [id]);
+    expect(z!.freigegeben_von).toBeNull();
+  });
+
+  /** Dieselbe Administration DARF versenden — sobald die Leitung freigegeben hat. */
+  it('dieselbe Administration darf versenden, sobald der Preis freigegeben ist', async () => {
+    const id = await freigabefaehig();
+    const verwaltung = await konto();
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+      [verwaltung, f.reinigung, await rolleId('admin')]);
+
+    await alsChef((db) => gibPreisFrei(db, id, chef));
+    const versand = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: verwaltung,
+        portal: 'intern', readonly: false },
+      (tx) => versendeAngebot(kontextAus(tx), id, verwaltung));
+    expect(versand.angebotsnummer).toMatch(/^AN-2026-/u);
+
+    /**
+     * Und die Zeile haelt BEIDE Menschen auseinander — das ist der Gewinn der
+     * Auftrennung: im Streit steht da, wer den Preis verantwortet hat und wer
+     * ihn hinausgeschickt hat.
+     */
+    const [z] = await sql.unsafe<{ freigeber: string; versender: string }[]>(
+      `select freigegeben_von as freigeber, versendet_von as versender
+         from angebot where id = $1`, [id]);
+    expect(z!.freigeber).toBe(chef);
+    expect(z!.versender).toBe(verwaltung);
+    expect(z!.freigeber).not.toBe(z!.versender);
   });
 });
 
@@ -368,7 +556,7 @@ describe('(2) Was der Dienst verweigert', () => {
     const k = await kunde(f.reinigung);
     await expect(alsChef(async (db) => {
       const id = await legeAngebotAn(db, { kundeId: k, titel: 'Leer' });
-      return versendeAngebot(db, id, chef);
+      return freigebenUndVersenden(db, id);
     })).rejects.toThrow(AngebotFehler);
   });
 
@@ -380,7 +568,12 @@ describe('(2) Was der Dienst verweigert', () => {
         `insert into angebotsposition (mandant_id, angebot_id, position_nr, kurztext,
                                        menge, einheit, einzelpreis_cent, steuersatz_bp)
          values (app.aktiver_mandant(), $1, 1, 'Reinigung', 1, 'psch', 1000, 1900)`, [id]);
-      await versendeAngebot(db, id, chef);
+      await freigebenUndVersenden(db, id);
+      /**
+       * Der ZWEITE Aufruf bleibt der rohe Versand. Mit dem Helfer schlug hier
+       * `gibPreisFrei` mit „bereits freigegeben" zu — richtig, aber ein
+       * anderer Riegel als der, den dieser Test benennt.
+       */
       return versendeAngebot(db, id, chef);
     })).rejects.toThrow(/nicht erneut versendet/u);
   });
@@ -401,7 +594,19 @@ describe('(2) Was der Dienst verweigert', () => {
         `insert into angebotsposition (mandant_id, angebot_id, position_nr, kurztext,
                                        menge, einheit, einzelpreis_cent, steuersatz_bp)
          values (app.aktiver_mandant(), $1, 1, 'Reinigung', 1, 'psch', 1000, 1900)`, [id]);
-      // Eine Kalkulation, die auf Platzhaltern steht — der Versand muss scheitern.
+      /**
+       * **Erst freigeben, DANN die Kalkulation kaputt machen** — und in dieser
+       * Reihenfolge, weil der Test sonst seine eigene Zusage verliert.
+       *
+       * Seit der Auftrennung weisen die Vorabpruefungen einen Versand ohne
+       * Freigabe und auf Platzhaltern ab, BEVOR `vergebeNummer` die
+       * Zaehlerzeile sperrt. Ein Versand, der dort scheitert, zieht keine
+       * Nummer — und ein Test, der nur das prueft, prueft nicht mehr, was er
+       * behauptet. Hier kommt der Versand deshalb bis zum UPDATE durch und
+       * faellt erst am Ausloeser `kern.angebot_versand_pruefen`: genau dann
+       * IST eine Nummer gezogen, und genau dann muss sie mit zurueckrollen.
+       */
+      await gibPreisFrei(db, id, chef);
       await db.abfrage(
         `insert into kalkulation (mandant_id, angebot_id, basis_objekt_id)
          values (app.aktiver_mandant(), $1, $2)`, [id, o]);
@@ -415,7 +620,7 @@ describe('(2) Was der Dienst verweigert', () => {
         `insert into angebotsposition (mandant_id, angebot_id, position_nr, kurztext,
                                        menge, einheit, einzelpreis_cent, steuersatz_bp)
          values (app.aktiver_mandant(), $1, 1, 'Reinigung', 1, 'psch', 1000, 1900)`, [id]);
-      return (await versendeAngebot(db, id, chef)).angebotsnummer;
+      return (await freigebenUndVersenden(db, id)).angebotsnummer;
     });
     expect(nummer).toBe('AN-2026-00001');
   });
@@ -429,7 +634,7 @@ describe('(3) Angebot → Auftrag (OPS-09) — in einer Handlung', () => {
         `insert into angebotsposition (mandant_id, angebot_id, position_nr, kurztext,
                                        menge, einheit, einzelpreis_cent, steuersatz_bp)
          values (app.aktiver_mandant(), $1, 1, 'Reinigung', 1, 'psch', 250000, 1900)`, [id]);
-      await versendeAngebot(db, id, chef);
+      await freigebenUndVersenden(db, id);
       return id;
     });
   }
@@ -501,7 +706,7 @@ describe('(4) Zwei Klicks auf „Angenommen“ ergeben EINEN Auftrag', () => {
         `insert into angebotsposition (mandant_id, angebot_id, position_nr, kurztext,
                                        menge, einheit, einzelpreis_cent, steuersatz_bp)
          values (app.aktiver_mandant(), $1, 1, 'Reinigung', 1, 'psch', 1000, 1900)`, [id]);
-      await versendeAngebot(db, id, chef);
+      await freigebenUndVersenden(db, id);
       return id;
     });
     return angebotId;
@@ -563,7 +768,7 @@ describe('(5) Ein abgelehntes Angebot wird nicht zum Auftrag', () => {
         `insert into angebotsposition (mandant_id, angebot_id, position_nr, kurztext,
                                        menge, einheit, einzelpreis_cent, steuersatz_bp)
          values (app.aktiver_mandant(), $1, 1, 'Reinigung', 1, 'psch', 1000, 1900)`, [id]);
-      await versendeAngebot(db, id, chef);
+      await freigebenUndVersenden(db, id);
       return id;
     });
     await sql.unsafe(
@@ -627,13 +832,13 @@ describe('(6) Die Werte bestaetigen — der Weg aus der Sperre (OPS-07)', () => 
 
   it('nach der Bestaetigung geht der Versand — vorher nicht', async () => {
     const { angebotId } = await angebotMitKalkulation();
-    await expect(alsChef((db) => versendeAngebot(db, angebotId, chef)))
+    await expect(alsChef((db) => freigebenUndVersenden(db, angebotId)))
       .rejects.toThrow(/unbestaetigte Werte/u);
 
     await alsChef((db) =>
       bestaetigeKalkulation(db, angebotId, { ...werte, benutzerId: chef }));
 
-    const versand = await alsChef((db) => versendeAngebot(db, angebotId, chef));
+    const versand = await alsChef((db) => freigebenUndVersenden(db, angebotId));
     expect(versand.angebotsnummer).toMatch(/^AN-2026-/u);
   });
 
@@ -709,11 +914,11 @@ describe('(6) Die Werte bestaetigen — der Weg aus der Sperre (OPS-07)', () => 
       bestaetigeKalkulation(db, eins.angebotId, { ...werte, benutzerId: chef }));
 
     // Das erste darf hinaus — es wurde bestaetigt.
-    await expect(alsChef((db) => versendeAngebot(db, eins.angebotId, chef)))
+    await expect(alsChef((db) => freigebenUndVersenden(db, eins.angebotId)))
       .resolves.toBeDefined();
 
     // Das zweite NICHT: niemand hat es angesehen.
-    await expect(alsChef((db) => versendeAngebot(db, zwei.angebotId, chef)))
+    await expect(alsChef((db) => freigebenUndVersenden(db, zwei.angebotId)))
       .rejects.toThrow(/unbestaetigte Werte/u);
   });
 
@@ -728,7 +933,7 @@ describe('(6) Die Werte bestaetigen — der Weg aus der Sperre (OPS-07)', () => 
     await alsChef((db) => bestaetigeKalkulation(db, angebotId, {
       ...werte, frequenzFaktor: null, leistungswerteBestaetigen: true, benutzerId: chef,
     }));
-    await expect(alsChef((db) => versendeAngebot(db, angebotId, chef)))
+    await expect(alsChef((db) => freigebenUndVersenden(db, angebotId)))
       .rejects.toThrow(/unbestaetigte Werte/u);
   });
 
@@ -749,7 +954,7 @@ describe('(6) Die Werte bestaetigen — der Weg aus der Sperre (OPS-07)', () => 
     await alsChef((db) => bestaetigeKalkulation(db, angebotId, {
       ...werte, frequenzFaktor: '1', leistungswerteBestaetigen: false, benutzerId: chef,
     }));
-    await expect(alsChef((db) => versendeAngebot(db, angebotId, chef)))
+    await expect(alsChef((db) => freigebenUndVersenden(db, angebotId)))
       .rejects.toThrow(/unbestaetigte Werte/u);
   });
 
@@ -776,7 +981,7 @@ describe('(6) Die Werte bestaetigen — der Weg aus der Sperre (OPS-07)', () => 
     const { angebotId } = await angebotMitKalkulation();
     await alsChef((db) =>
       bestaetigeKalkulation(db, angebotId, { ...werte, benutzerId: chef }));
-    await alsChef((db) => versendeAngebot(db, angebotId, chef));
+    await alsChef((db) => freigebenUndVersenden(db, angebotId));
 
     await expect(alsChef((db) => bestaetigeKalkulation(db, angebotId, {
       ...werte, stundensatzEuro: '99,00', benutzerId: chef,

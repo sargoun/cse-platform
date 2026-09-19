@@ -9,6 +9,8 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import { entscheideAntrag } from '@/server/services/abwesenheit/antrag';
+import { liesRumpf } from '../../rumpf';
+import { fehlerAufsFormular } from '../../formular-antwort';
 
 /**
  * `POST /api/antraege/[id]` — über einen Antrag entscheiden (EMP-10, NOT-01).
@@ -36,13 +38,17 @@ export async function POST(
   }
 
   const { id } = await kontextParam.params;
-  const daten = await anfrage.formData();
-  const roh = daten.get('entscheidung');
+  /* Siehe die Abwesenheitsroute: erst `rumpf.json` erlaubt dem Fehlerzweig,
+     ein Formular von einer Schnittstelle zu unterscheiden. */
+  const rumpf = await liesRumpf(anfrage).catch(() => null);
+  if (rumpf === null) {
+    return NextResponse.json({ fehler: 'unlesbarer_rumpf' }, { status: 400 });
+  }
+  const roh = rumpf.felder['entscheidung'];
   if (roh !== 'genehmigt' && roh !== 'abgelehnt') {
     return NextResponse.json({ fehler: 'unbekannte_entscheidung' }, { status: 400 });
   }
-  const kommentar = typeof daten.get('kommentar') === 'string'
-    ? (daten.get('kommentar') as string) : '';
+  const kommentar = rumpf.felder['kommentar'] ?? '';
 
   try {
     await db().begin(async (tx: postgres.TransactionSql) =>
@@ -78,17 +84,23 @@ export async function POST(
     const code = (fehler as { code?: string }).code;
     if (typeof status === 'number' && typeof code === 'string') {
       // Die fachlichen Fehler tragen ihre Meldung: „kein Urlaubsanspruch
-      // hinterlegt (O-18)" ist eine Auskunft und kein Serverfehler.
-      return NextResponse.json(
-        { fehler: code, meldung: (fehler as Error).message }, { status });
+      // hinterlegt (O-18)" ist eine Auskunft und kein Serverfehler — und eine
+      // Auskunft gehoert auf die Seite, nicht auf einen weissen Grund.
+      const meldung = (fehler as Error).message;
+      const aufsFormular = fehlerAufsFormular(anfrage, {
+        json: rumpf.json, zurueck: rumpf.felder['zurueck'], meldung,
+      });
+      if (aufsFormular !== null) return aufsFormular;
+      return NextResponse.json({ fehler: code, meldung }, { status });
     }
     throw fehler;
   }
 
-  const mandant = String(daten.get('mandant') ?? '');
+  const mandant = rumpf.felder['mandant'] ?? '';
+  if (rumpf.json) return NextResponse.json({ ergebnis: 'ok' }, { status: 200 });
   return NextResponse.redirect(
     internesZiel(
-      daten.get('zurueck') as string | null,
+      rumpf.felder['zurueck'] ?? null,
       `/portal/${mandant}/personal/antraege`, anfrage),
     303,
   );

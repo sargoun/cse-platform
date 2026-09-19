@@ -174,6 +174,32 @@ revoke delete, truncate on freigabe_snapshot from cse_app, cse_anon, cse_checkin
 
 -- >>> Ende des generierten Blocks
 
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0014)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+create trigger trg_seite_geaendert_am
+  before update on seite
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_abschnitt_geaendert_am
+  before update on abschnitt
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0015)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+create trigger trg_referenz_geaendert_am
+  before update on referenz
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_unternehmensprofil_geaendert_am
+  before update on unternehmensprofil
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
+
 -- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0016)
 -- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
 
@@ -2147,6 +2173,444 @@ create trigger trg_vergabemappe_kein_truncate
   before truncate on vergabemappe
   for each statement execute function kern.verhindere_loeschung();
 revoke delete, truncate on vergabemappe from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0175)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- akquise_ziel (archiv): §12. Eine recherchierte Firma, die jemand mit Grund verworfen hat, muss verworfen BLEIBEN — sonst findet dieselbe Recherche sie naechste Woche wieder, und der Vertrieb telefoniert ein zweites Mal hinterher. `archiviert_am` beendet sie.
+create trigger trg_akquise_ziel_kein_hard_delete
+  before delete on akquise_ziel
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_akquise_ziel_kein_truncate
+  before truncate on akquise_ziel
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on akquise_ziel from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- akquise_quelle (archiv): §12. Die Quelle traegt die Herkunft jeder Zeile, die ueber sie kam. Sie zu loeschen hiesse, bei hunderten Firmen nicht mehr sagen zu koennen, woher sie stammen — und genau das fragt eine Datenschutzpruefung als erstes. `aktiv = false` legt sie still.
+create trigger trg_akquise_quelle_kein_hard_delete
+  before delete on akquise_quelle
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_akquise_quelle_kein_truncate
+  before truncate on akquise_quelle
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on akquise_quelle from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0176)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- betroffenenanfrage (archiv): LEG-09, Art. 12 Abs. 3 DSGVO. Der Nachweis, DASS eine Anfrage einging und wann, ist genau das, was eine Aufsichtsbehoerde sehen will. Eine geloeschte Auskunftsanfrage ist von einer nie gestellten nicht zu unterscheiden — und die Beweislast liegt beim Verantwortlichen.
+create trigger trg_betroffenenanfrage_kein_hard_delete
+  before delete on betroffenenanfrage
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_betroffenenanfrage_kein_truncate
+  before truncate on betroffenenanfrage
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on betroffenenanfrage from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0177)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- barrierebericht (archiv): LEG-07, BFSG. Die Barrierefreiheitserklaerung muss den STAND nennen, und der Stand ist die Summe der gemeldeten und behobenen Barrieren. Eine geloeschte Meldung ist eine, die es nie gab — und genau danach fragt eine Marktueberwachungsbehoerde.
+create trigger trg_barrierebericht_kein_hard_delete
+  before delete on barrierebericht
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_barrierebericht_kein_truncate
+  before truncate on barrierebericht
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on barrierebericht from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0180)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- ausgabe_kategorie (archiv): ACC-01, FIN-14, §147 AO. An der Kategorie haengt die Kontierung jeder Ausgabe, die auf sie zeigt; sie zu loeschen macht jede Buchung darauf unlesbar. Aufgeloest wird ueber `archiviert_am`.
+create trigger trg_ausgabe_kategorie_kein_hard_delete
+  before delete on ausgabe_kategorie
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_ausgabe_kategorie_kein_truncate
+  before truncate on ausgabe_kategorie
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on ausgabe_kategorie from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- ausgabe (archiv): FIN-14, FIN-17, ACC-03, ACC-06, §147 AO. Die Ausgabe traegt den Vorsteuerabzug und den Aufwand einer Gesellschaft; eine weiterberechnete Ausgabe ist zudem die Quelle einer Rechnungszeile. Sie zu loeschen nimmt der Voranmeldung ihre Grundlage und liesse eine Rechnungszeile ohne Beleg zurueck. Zurueckgewiesen wird ueber `abgelehnt` mit Grund.
+create trigger trg_ausgabe_kein_hard_delete
+  before delete on ausgabe
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_ausgabe_kein_truncate
+  before truncate on ausgabe
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on ausgabe from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- ausgabe_steuer (append): FIN-14, ACC-08, §15 UStG, Invariante 1. Die Aufteilung nach Steuersaetzen IST der Vorsteuerabzug — ohne sie steht ein Bruttobetrag da, aus dem sich kein Satz mehr ableiten laesst. Sie zu loeschen aenderte die Voranmeldung ohne Spur.
+create trigger trg_ausgabe_steuer_kein_hard_delete
+  before delete on ausgabe_steuer
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_ausgabe_steuer_kein_truncate
+  before truncate on ausgabe_steuer
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on ausgabe_steuer from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0181)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- rechnung_versand (append): FIN-11, FIN-12, Invariante 7, LEG-08, §286 BGB. Die Zeile IST der Nachweis, dass ein Mensch den Versand freigegeben hat, und sie traegt den Zugang, ab dem der Verzug rechnet. Sie zu loeschen liesse eine Mahnung ohne Grundlage und eine Freigabe ohne Spur zurueck.
+create trigger trg_rechnung_versand_kein_hard_delete
+  before delete on rechnung_versand
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_rechnung_versand_kein_truncate
+  before truncate on rechnung_versand
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on rechnung_versand from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0182)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- bauleistung_jahressumme (append): FIN-10, LEG-06, §48 Abs. 2 EStG. Die Jahressumme ist der Nachweis, WARUM einbehalten oder nicht einbehalten wurde. Sie zu loeschen nimmt jeder Abzugsentscheidung dieses Jahres ihre Grundlage — und der Leistende haftet mit.
+create trigger trg_bauleistung_jahressumme_kein_hard_delete
+  before delete on bauleistung_jahressumme
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_bauleistung_jahressumme_kein_truncate
+  before truncate on bauleistung_jahressumme
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on bauleistung_jahressumme from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0192)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- anstellung_kondition (append): §6.15, LEG-02, ACC-12. Die datierte Kondition ist die Grundlage jeder Sollstunden- und Lohnkostenrechnung; eine geloeschte Zeile bewertet stillschweigend jeden abgerechneten Monat neu, in dem sie galt. Abgeloest wird sie von der naechsten datierten Zeile, geschlossen ueber `gilt_bis` — nie durch DELETE.
+create trigger trg_anstellung_kondition_kein_hard_delete
+  before delete on anstellung_kondition
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_anstellung_kondition_kein_truncate
+  before truncate on anstellung_kondition
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on anstellung_kondition from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+create trigger trg_anstellung_kondition_audit
+  after insert or update or delete on anstellung_kondition
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0200)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- mandant_identitaet (append): §6.2, TEN-07, LEG-01. Die 1:1-Zeile traegt die rechtlichen Fusszeilen, die auf jedem Angebot und jeder Rechnung dieser Entitaet stehen, und den Alternativtext jedes ausgelieferten Bildes (PUB-09, LEG-07). Sie entsteht mit dem Mandanten und endet nie: es gibt keinen Zustand „diese Gesellschaft hat kein Erscheinungsbild", nur Felder ohne Wert. Eine geloeschte Zeile machte TEN-07 wertlos und die Herkunft einer alten Fusszeile unbelegbar.
+create trigger trg_mandant_identitaet_kein_hard_delete
+  before delete on mandant_identitaet
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_mandant_identitaet_kein_truncate
+  before truncate on mandant_identitaet
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on mandant_identitaet from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_mandant_identitaet_geaendert_am
+  before update on mandant_identitaet
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_mandant_identitaet_audit
+  after insert or update or delete on mandant_identitaet
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0201)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- arbeitszeitmodell (archiv): EMP-04, TIM-06, LEG-02, O-18. Das Modell ist die Grundlage jeder Sollstunden- und Urlaubsrechnung; eine geloeschte Fassung bewertet stillschweigend jeden Monat neu, in dem sie galt, und der Zeitnachweis nach § 17 MiLoG stimmt danach mit keinem Papier mehr ueberein. Abgeloest wird sie von der naechsten datierten Zeile, geschlossen ueber `gueltig_bis`.
+create trigger trg_arbeitszeitmodell_kein_hard_delete
+  before delete on arbeitszeitmodell
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_arbeitszeitmodell_kein_truncate
+  before truncate on arbeitszeitmodell
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on arbeitszeitmodell from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- tarifvereinbarung (archiv): O-50, TIM-14, LEG-03. Die strengere Pausen- und Ruhezeitregel entscheidet, ob eine geplante Schicht rechtmaessig war. Wird die Zeile geloescht, prueft der Planer rueckwirkend gegen das Gesetz statt gegen den Tarif — und jeder frueher gemeldete Verstoss verschwindet, ohne dass sich eine Schicht geaendert hat. Abgeloest wird sie von der naechsten Fassung, geschlossen ueber `gilt_bis`.
+create trigger trg_tarifvereinbarung_kein_hard_delete
+  before delete on tarifvereinbarung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_tarifvereinbarung_kein_truncate
+  before truncate on tarifvereinbarung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on tarifvereinbarung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_arbeitszeitmodell_geaendert_am
+  before update on arbeitszeitmodell
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_tarifvereinbarung_geaendert_am
+  before update on tarifvereinbarung
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_arbeitszeitmodell_audit
+  after insert or update or delete on arbeitszeitmodell
+  for each row execute function kern.protokolliere_aenderung();
+create trigger trg_tarifvereinbarung_audit
+  after insert or update or delete on tarifvereinbarung
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0202)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- migration_lauf (archiv): ROADMAP Phase 10, LEG-01, ACC-06. Der Lauf ist der Nachweis, WOHER ein historischer Zeit- oder Buchungsdatensatz kommt — Datei, Pruefsumme, wer geprueft und wer uebernommen hat. Ohne ihn ist eine uebernommene Zeile eine Behauptung ueber die Vergangenheit. Verworfen wird ein Lauf ueber `status`, nie durch DELETE.
+create trigger trg_migration_lauf_kein_hard_delete
+  before delete on migration_lauf
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_migration_lauf_kein_truncate
+  before truncate on migration_lauf
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on migration_lauf from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- migration_zeile (append): ROADMAP Phase 10, LEG-01. Die Rohzeile belegt, was in der Quelldatei stand, als jemand die Uebernahme freigab. Wird sie geloescht, laesst sich ein uebernommener Zeitnachweis nach § 17 MiLoG nicht mehr gegen seine Quelle halten.
+create trigger trg_migration_zeile_kein_hard_delete
+  before delete on migration_zeile
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_migration_zeile_kein_truncate
+  before truncate on migration_zeile
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on migration_zeile from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_migration_lauf_geaendert_am
+  before update on migration_lauf
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_migration_lauf_audit
+  after insert or update or delete on migration_lauf
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0203)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- agent_richtlinie (archiv): AGT-03, APR-01, Invariante 7, SEC-A9. Die Zeile entscheidet, ob eine Nachricht ohne benannten Menschen hinausgeht. Sie zu loeschen ist fail-closed — und genau deshalb verfuehrerisch: der Bildschirm sagt danach „nicht hinterlegt", und niemand kann belegen, ob je etwas anderes dort stand. Abgeschaltet wird eine Richtlinie ueber `ist_aktiv`, nicht durch DELETE.
+create trigger trg_agent_richtlinie_kein_hard_delete
+  before delete on agent_richtlinie
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_agent_richtlinie_kein_truncate
+  before truncate on agent_richtlinie
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on agent_richtlinie from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_agent_richtlinie_geaendert_am
+  before update on agent_richtlinie
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_agent_richtlinie_audit
+  after insert or update or delete on agent_richtlinie
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0211)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- abnahme (archiv): BAU-01, OPS-11, LEG-01, FIN-08. Mit der Abnahme schlagen Gefahr, Gewaehrleistungsfrist und Faelligkeit um (§ 12 VOB/B), und ohne vorbehalt_vertragsstrafe verfaellt die Vertragsstrafe (§ 11 Abs. 4). Geloescht bliebe ein Projekt zurueck, das abgenommen ist, ohne dass jemand sagen koennte wann, von wem und unter welchem Vorbehalt. Beendet wird mit storniert_am und einem Ersatzprotokoll.
+create trigger trg_abnahme_kein_hard_delete
+  before delete on abnahme
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_abnahme_kein_truncate
+  before truncate on abnahme
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on abnahme from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- abnahme_mangel (append): BAU-01, OPS-11, NOT-01. Der bei der Abnahme aufgenommene Mangel mit seiner Beseitigungsfrist. Er steht im gesiegelten Protokoll des Kopfes; eine geloeschte Zeile ergaebe eine Maengelliste, die kuerzer ist als das Siegel darueber — und kein Fristablauf waere mehr nachweisbar.
+create trigger trg_abnahme_mangel_kein_hard_delete
+  before delete on abnahme_mangel
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_abnahme_mangel_kein_truncate
+  before truncate on abnahme_mangel
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on abnahme_mangel from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_abnahme_geaendert_am
+  before update on abnahme
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_abnahme_mangel_geaendert_am
+  before update on abnahme_mangel
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0212)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- lv_import (archiv): BAU-01, REQ-04, LEG-01. Der Importkopf dokumentiert, WIE das heutige Leistungsverzeichnis entstanden ist — in welchem Format, aus welcher Datei, von wem uebernommen. Er bleibt, auch wenn seine Zwischenzeilen geraeumt sind; sein Ende ist verworfen_am.
+create trigger trg_lv_import_kein_hard_delete
+  before delete on lv_import
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_lv_import_kein_truncate
+  before truncate on lv_import
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on lv_import from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_lv_import_geaendert_am
+  before update on lv_import
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0221)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- datenschutz_auskunft (append): LEG-09, Art. 15 DSGVO, SEC-A9. Das ausgehaendigte Artefakt mit seiner Pruefsumme. Streitig ist im Zweifel nicht DASS geantwortet wurde, sondern WAS drinstand — eine geloeschte Zeile ist von einer nie erteilten Auskunft nicht zu unterscheiden, und die Beweislast liegt beim Verantwortlichen.
+create trigger trg_datenschutz_auskunft_kein_hard_delete
+  before delete on datenschutz_auskunft
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_datenschutz_auskunft_kein_truncate
+  before truncate on datenschutz_auskunft
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on datenschutz_auskunft from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- berichtigung_feld (append): LEG-09, Art. 16 und Art. 19 DSGVO. Je Feld der gespeicherte Wert, der behauptete und die Entscheidung. Der gespeicherte Wert existiert nach der Berichtigung nur noch hier; ohne diese Zeile ist die Art.-19-Unterrichtung nicht belegbar und der alte Wert unwiederbringlich.
+create trigger trg_berichtigung_feld_kein_hard_delete
+  before delete on berichtigung_feld
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_berichtigung_feld_kein_truncate
+  before truncate on berichtigung_feld
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on berichtigung_feld from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- loeschentscheidung (append): LEG-09, Art. 17 DSGVO gegen LEG-01/LEG-02. Der Entscheidungsnachweis je Tabelle und Feld, den 04-SEITENKARTE §5.25 zusagt: geschuldet, ueberlagert oder offen, mit Fundstelle. Eine loeschbare Loeschentscheidung ist der Widerspruch in sich selbst.
+create trigger trg_loeschentscheidung_kein_hard_delete
+  before delete on loeschentscheidung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_loeschentscheidung_kein_truncate
+  before truncate on loeschentscheidung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on loeschentscheidung from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0222)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- werbewiderspruch_token (append): CRM-08, LEG-08, § 7 Abs. 3 Nr. 4 UWG. Der Abdruck des Pflichtlinks je Werbenachricht — der Beleg, DASS die Nachricht einen wirksamen Widerspruchsweg getragen hat. Geloescht bliebe eine Werbemail ohne nachweisbaren Widerspruchslink; abgelaufen oder zurueckgezogen wird der Token ueber widerrufen_am.
+create trigger trg_werbewiderspruch_token_kein_hard_delete
+  before delete on werbewiderspruch_token
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_werbewiderspruch_token_kein_truncate
+  before truncate on werbewiderspruch_token
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on werbewiderspruch_token from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- werbewiderspruch (append): CRM-08, LEG-08, § 7 UWG. Das Protokoll des Widerspruchs: Weg, Kanal, Zeitpunkt und ausloesende Nachricht. Es ist der Beweis, mit dem sich eine Abmahnung abwehren laesst — eine geloeschte Zeile nimmt dem Verantwortlichen genau diesen Beweis, und die Beweislast liegt bei ihm.
+create trigger trg_werbewiderspruch_kein_hard_delete
+  before delete on werbewiderspruch
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_werbewiderspruch_kein_truncate
+  before truncate on werbewiderspruch
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on werbewiderspruch from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0230)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- team (soft): §7.5. Ein aufgeloestes Team ist die Antwort auf die Frage, wer eine Aufgabe oder einen Termin damals bekommen hat. Geloescht waere es ein Verweis ins Leere in jeder Zeile, die darauf zeigt — und `aufgabe.zugewiesen_team_id` zeigt darauf. `geloescht_am` loest es auf.
+create trigger trg_team_kein_hard_delete
+  before delete on team
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_team_kein_truncate
+  before truncate on team
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on team from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- aufgabe (soft): OPS-11, SPEC §14. Eine Aufgabe ist die Aufzeichnung einer Pflicht: wer sie wann bekam, wer sie schloss, und mit welcher Begruendung sie abgebrochen wurde. Sie zu loeschen hiesse, den Nachweis zu entfernen, dass ein Waechterbefund je offen war. Beendet wird mit `status`, entfernt mit `geloescht_am`.
+create trigger trg_aufgabe_kein_hard_delete
+  before delete on aufgabe
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_aufgabe_kein_truncate
+  before truncate on aufgabe
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on aufgabe from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0231)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- nachricht (soft): § 7 UWG, LEG-08, CRM-08. Die ausgehende Nachricht IST der Nachweis, auf welcher Rechtsgrundlage jemand kontaktiert wurde — und bei einem Agentenentwurf zusaetzlich, wer ihn freigegeben hat. Eine geloeschte Zeile ist gegenueber einer Abmahnung kein Nachweis. Ein Faden wird mit `geschlossen_am` beendet, eine Zeile mit `geloescht_am` aus der Liste genommen.
+create trigger trg_nachricht_kein_hard_delete
+  before delete on nachricht
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_nachricht_kein_truncate
+  before truncate on nachricht
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on nachricht from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- nachricht_empfaenger (append): § 7 UWG. WEM etwas geschickt wurde, ist die Haelfte des Nachweises; die andere steht in `nachricht`. Eine Empfaengerzeile zu loeschen hiesse, die Werbemail zu behalten und den Empfaenger zu vergessen. Anfuegend, ausser `zugestellt_am` und `gelesen_am`.
+create trigger trg_nachricht_empfaenger_kein_hard_delete
+  before delete on nachricht_empfaenger
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_nachricht_empfaenger_kein_truncate
+  before truncate on nachricht_empfaenger
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on nachricht_empfaenger from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- nachricht_anhang (append): DOC-03, § 7 UWG. Ein Anhang ist der klassische Fehlversandweg; welche Datei mit welcher Nachricht hinausgegangen ist, muss belegbar bleiben. Die Datei selbst haengt an `dokument` und hat dort ihre eigene Aufbewahrung.
+create trigger trg_nachricht_anhang_kein_hard_delete
+  before delete on nachricht_anhang
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_nachricht_anhang_kein_truncate
+  before truncate on nachricht_anhang
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on nachricht_anhang from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0265)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- dienstplan_veroeffentlichung (append): TIM-01, NOT-01, LEG-03. Sie ist der Beleg, dass ein Zeitraum an einem Zeitpunkt bekanntgegeben wurde — im Streit ueber eine Schicht, von der jemand nichts gewusst haben will, genau die Zeile, die zaehlt. Es gibt nichts, was eine Bekanntgabe beendet: eine Aenderung ist eine zweite Zeile, nie ein Loeschen der ersten.
+create trigger trg_dienstplan_veroeffentlichung_kein_hard_delete
+  before delete on dienstplan_veroeffentlichung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_dienstplan_veroeffentlichung_kein_truncate
+  before truncate on dienstplan_veroeffentlichung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on dienstplan_veroeffentlichung from cse_app, cse_anon, cse_checkin, cse_job;
 
 
 

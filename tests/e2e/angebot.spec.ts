@@ -48,10 +48,28 @@ test.describe('(1) Phase-2-Abnahme: Formular bei 375 px → Lead mit Frist und B
       page.waitForResponse((r) => r.url().endsWith('/api/anfrage') && r.request().method() === 'POST'),
       page.click('button[type="submit"]'),
     ]);
-    expect(antwort.status(), await antwort.text()).toBe(200);
+    /*
+     * **303 und nicht 200.** Das Formular hat kein JavaScript; frueher
+     * antwortete die Route mit JSON, und der Besucher sah `{"ok":true,…}` auf
+     * weissem Grund — direkt nachdem er um ein Angebot gebeten hatte. Heute
+     * schickt sie ihn auf die Dankseite (D-599). 303 heisst: mit GET folgen,
+     * und ein Neuladen sendet die Anfrage nicht ein zweites Mal.
+     */
+    /*
+     * KEIN `await antwort.text()` in der Meldung: ein 303 hat keinen Koerper,
+     * und Playwright wirft „Response body is unavailable for redirect
+     * responses" — der Fall waere dann rot, ohne dass die Zusage verletzt ist.
+     */
+    expect(antwort.status()).toBe(303);
 
-    // "Binnen eines Neuladens": die Route antwortet JSON, die Übersicht liest
-    // frisch aus der Datenbank.
+    /* Und er kommt dort auch an — mit seiner Vorgangsnummer. */
+    await page.waitForURL(/\/angebot\/reinigung\/danke\?nr=/u);
+    await expect(page.locator('[data-cse="angebot-danke"]')).toBeVisible();
+    const nummer = page.locator('[data-cse="angebot-vorgangsnummer"]');
+    await expect(nummer).toBeVisible();
+    await expect(nummer).toContainText(/L-[A-Z0-9]+/u);
+
+    // "Binnen eines Neuladens": die Übersicht liest frisch aus der Datenbank.
     await page.goto('/dev/leads');
     const zeile = page.locator('[data-cse="lead-zeile"]', { hasText: firma });
     await expect(zeile).toHaveCount(1);
@@ -154,5 +172,55 @@ test.describe('das Formular ist barrierefrei — es ist der Kanal, auf dem Umsat
     // inzwischen eines (O-61 vorläufig beantwortet), also wird ein erfundener
     // Bereich geprüft.
     expect((await request.get('/angebot/gibtesnicht')).status()).toBe(404);
+  });
+});
+
+test.describe('(5) die Bestätigung nach der Anfrage (REQ-01, §2.3)', () => {
+  /**
+   * **Die Seite, die es lange nicht gab.** `/api/anfrage` antwortete mit JSON,
+   * das Formular hat kein JavaScript — also endete jede Anfrage auf einer
+   * weissen Seite mit `{"ok":true,...}`. Der wahrscheinlichste nächste Schritt
+   * eines Besuchers ist dann, es nochmal zu versuchen, und die SLA-Warteschlange
+   * füllt sich mit Doppeln (SEITENKARTE §2.3 nennt genau diesen Fall).
+   */
+  test('nennt die Vorgangsnummer und verspricht keine Frist', async ({ page }) => {
+    await page.goto('/angebot/reinigung/danke?nr=L-TESTNUMMER');
+    const kasten = page.locator('[data-cse="angebot-vorgangsnummer"]');
+    await expect(kasten).toBeVisible();
+    await expect(kasten).toContainText('L-TESTNUMMER');
+    /*
+     * KEINE Fristzusage. Wie schnell geantwortet wird, ist O-14 — eine Zusage
+     * des Mandanten, keine des Entwicklers, und auf einer Website ist sie eine
+     * Werbeaussage, an der man gemessen wird.
+     */
+    const text = await page.locator('[data-cse="angebot-danke"]').innerText();
+    expect(text).not.toMatch(/24 Stunden|48 Stunden|within \d+ hours|Werktag/u);
+  });
+
+  test('gibt es auch auf Englisch, unter demselben Pfad mit /en', async ({ page }) => {
+    const antwort = await page.goto('/en/angebot/reinigung/danke?nr=L-TESTNUMMER');
+    expect(antwort?.status()).toBe(200);
+    await expect(page.locator('[data-cse="angebot-danke"]'))
+      .toContainText('Your enquiry has arrived');
+  });
+
+  test('ein Bereich, den es nicht gibt, hat auch keine Dankseite', async ({ page }) => {
+    /*
+     * Sonst bestaetigte sie eine Anfrage, die nie moeglich war.
+     *
+     * **Der erste Entwurf nahm `operations` als Beispiel** — mit der Begruendung
+     * „hat kein veroeffentlichtes Formular (O-61)". Das stimmte nicht: alle
+     * VIER Bereiche haben eines, `angebot_operations` eingeschlossen. Der Fall
+     * war gruen gedacht und rot gemessen, und das Messen hatte recht. Er
+     * nimmt jetzt einen Bereich, den es wirklich nicht gibt.
+     */
+    const antwort = await page.goto('/angebot/gibtsnicht/danke?nr=L-X');
+    expect(antwort?.status()).toBe(404);
+  });
+
+  test('sie steht nicht im Suchmaschinenindex — sie trägt eine Vorgangsnummer', async ({ page }) => {
+    await page.goto('/angebot/reinigung/danke?nr=L-TESTNUMMER');
+    await expect(page.locator('meta[name="robots"]'))
+      .toHaveAttribute('content', /noindex/u);
   });
 });

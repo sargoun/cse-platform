@@ -4,8 +4,11 @@ import { Marke } from '@/components/marke/Marke';
 import { Glocke } from './Glocke';
 import { TabLeiste } from './TabLeiste';
 import { SeitenNavigation } from './SeitenNavigation';
-import { tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
+import { istInterneLeiste, tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
+import { Sprachumschalter } from './Sprachumschalter';
 import { NAVIGATION } from '@/server/registry/navigation';
+import { internBeschriftungen } from '@/lib/i18n/intern';
+import { gemerkteHuelle } from '@/app/portal/huellen-speicher';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
 /**
@@ -87,8 +90,20 @@ export function PortalRahmen({
   const wurzelTab = tabs.ziele.find((t) => t.pfad === '' && t.recht !== null);
   const wurzelOffen = wurzelTab === undefined || sichtbareTabs === undefined
     || sichtbareTabs[wurzelTab.schluessel] !== false;
+  /**
+   * Die Beschriftungen — uebergebene zuerst, sonst die der internen Huelle in
+   * der Sprache DIESER Anfrage (D-592).
+   *
+   * Das Mitarbeiterportal und das Kundenportal geben ihre Karte mit; sie
+   * sprechen vier Sprachen und haben eigene Schluessel. Alles andere ist das
+   * interne Portal, und dort holt der Rahmen die Karte selbst, statt sie sich
+   * von 176 Aufrufstellen reichen zu lassen — von denen eine sie vergessen
+   * wuerde, ohne dass jemand einen Fehler saehe.
+   */
+  const stand = gemerkteHuelle();
+  const karte = beschriftungen ?? internBeschriftungen(stand.sprache);
   const b = (schluessel: string, vorgabe: string): string =>
-    beschriftungen?.[schluessel] ?? vorgabe;
+    karte[schluessel] ?? vorgabe;
   /**
    * **Auf dem Telefon braucht jede Leiste ohne `Mehr` einen eigenen Ausgang.**
    *
@@ -181,6 +196,26 @@ export function PortalRahmen({
             </span>
           )
         ) : (
+          /*
+           * **Der Titel der Spur gehoert in ein `truncate`, und das ist keine
+           * Kosmetik.**
+           *
+           * `min-width: auto` gilt fuer ein Flex-Element nur, solange sein
+           * `overflow` `visible` ist. `truncate` traegt `overflow: hidden` und
+           * nimmt dem Element damit die automatische Mindestbreite von selbst —
+           * deshalb war `portal-logo` zwei Zeilen weiter oben immer in Ordnung
+           * und die Spur nicht: dort steht der Titel in einem `truncate`-Span,
+           * hier stand er als nackter Text.
+           *
+           * Gemessen auf `/portal/[mandant]/buchhaltung/verfahrensdokumentation`
+           * bei 390 px: `a.flex min-h-11 min-w-11 items-center (134>60)` — der
+           * Inhalt brauchte 134 px in einem 60-px-Kasten, und die Seite wurde
+           * 403 px breit. Genau die 13 px, die die Suite gemeldet hat.
+           *
+           * `min-w-11` bleibt: 44 px ist das Beruehrungsziel (DESIGN §9, BFSG).
+           * Die Marke und das `‹` behalten ihre Groesse; was nachgibt, ist der
+           * Text — mit Auslassungspunkten, nicht auf null (D-609).
+           */
           <nav aria-label={b('pfad.label', 'Pfad')} data-cse="spur"
                className="flex min-w-0 items-center gap-s2">
             {wurzelOffen ? (
@@ -189,13 +224,13 @@ export function PortalRahmen({
                             transition-colors duration-fast ease-brand hover:text-text">
                 {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
                 <span aria-hidden="true">‹</span>
-                {wurzelTitel}
+                <span className="truncate">{wurzelTitel}</span>
               </a>
             ) : (
               <span data-cse="spur-ohne-ziel"
                     className="flex min-h-11 min-w-11 items-center gap-s2 text-sm text-text-muted">
                 {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
-                {wurzelTitel}
+                <span className="truncate">{wurzelTitel}</span>
               </span>
             )}
             <span aria-hidden="true" className="text-text-subtle">›</span>
@@ -253,6 +288,15 @@ export function PortalRahmen({
              className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
             {b('sitzung.website', 'Website')}
           </a>
+          {/*
+            * Der Sprachumschalter — nur im internen Portal (D-592). Das
+            * Mitarbeiterportal spricht vier Sprachen und waehlt sie auf der
+            * Profilseite; zwei Umschalter mit verschiedenen Auswahlmengen auf
+            * einem Bildschirm waeren eine Falle, keine Hilfe.
+            */}
+          {istInterneLeiste(leiste) && (
+            <Sprachumschalter label={b('sprache.label', 'Sprache')} ort="kopfzeile" />
+          )}
           {/*
             * Ein FORMULAR, kein Verweis: eine Abmeldung aendert Zustand, und
             * ein GET dafuer laesst sich von einem fremden Bild-Tag ausloesen.
@@ -381,7 +425,7 @@ export function PortalRahmen({
             : (sichtbareTabs === undefined ? {} : { sichtbar: sichtbareTabs }))}
           bereich={bereich}
           label={titel}
-          {...(beschriftungen === undefined ? {} : { beschriftungen })}
+          beschriftungen={karte}
         />
         {/* `ueber-tableiste` unter `md`: die Tab-Leiste liegt fest am unteren Rand und
             verdeckte sonst die letzte Zeile jeder Liste. */}
@@ -410,7 +454,8 @@ export function PortalRahmen({
         {...(navigationsRechte === undefined ? {} : { navigationsRechte })}
         gruppenansicht={leiste === 'gruppe'}
         label={titel}
-        {...(beschriftungen === undefined ? {} : { beschriftungen })}
+        beschriftungen={karte}
+        intern={istInterneLeiste(leiste)}
       />
     </div>
   );

@@ -135,13 +135,51 @@ interface KundeVorgabe {
     readonly eadresse: string;
     readonly eadresseSchema: string;
   };
+  /**
+   * Die beiden EN-16931-Angaben, die auch ein PRIVATER Auftraggeber traegt —
+   * und ohne die aus einem festgeschriebenen Beleg keine XRechnung und kein
+   * ZUGFeRD entsteht.
+   *
+   * Der Grund, dass sie hier stehen: `fehlendePflichtfelder` meldet BT-10
+   * (Kaeuferreferenz, BR-DE-15) UNABHAENGIG davon, ob der Empfaenger ein
+   * oeffentlicher Auftraggeber ist — nur der Meldungstext wechselt. Ohne
+   * diese Zeilen antwortete `belegAusgabe` fuer JEDE Rechnung des
+   * Portalkunden `unvollstaendig`, die beiden Ausgaberouten waeren im ganzen
+   * Demobestand unerreichbar, und der aufwendigste Teil des Kundenportals
+   * liefe in keinem Durchlauf. „Seed data exercises it" (CLAUDE.md) waere
+   * nicht erfuellt.
+   *
+   * **Demowerte, wie die uebrigen Firmen auch.** Die Kaeuferreferenz eines
+   * privaten Auftraggebers ist SEINE Angabe (Bestell-, Kostenstellen- oder
+   * Objektkennung) — welche ein wirklicher Kunde fuehrt, ist O-22 und wird
+   * nicht geraten; hier steht eine erfundene Kennung in der Form einer
+   * echten. `EM` ist der EAS-Code fuer eine E-Mail-Adresse, die ueblichste
+   * elektronische Adresse ausserhalb des Behoerdenwegs.
+   */
+  readonly erechnung?: {
+    readonly kaeuferReferenz: string;
+    readonly eadresse: string;
+    readonly eadresseSchema: string;
+  };
 }
 
 const KUNDEN: readonly KundeVorgabe[] = [
+  /*
+   * Der Kunde MIT Portalzugang (`kunde.demo@example.test`). Er traegt als
+   * einziger private Auftraggeber die beiden e-Rechnungsangaben — damit im
+   * Demobestand wenigstens ein Beleg vorliegt, aus dem ZUGFeRD und XRechnung
+   * wirklich entstehen und den die Ausgaberouten des Kundenportals ausliefern
+   * koennen.
+   */
   { bereich: 'reinigung', firma: 'Berliner Hausverwaltung GmbH', rechtsform: 'GmbH',
     nummer: 'K-10001', name: 'Berliner Hausverwaltung GmbH',
     kontakt: ['Anna', 'Radtke', 'a.radtke@bhv-berlin.example'],
-    anschrift: ['Musterallee', '12', '10115', 'Berlin'] },
+    anschrift: ['Musterallee', '12', '10115', 'Berlin'],
+    erechnung: {
+      kaeuferReferenz: 'BHV-OBJ-10115',
+      eadresse: 'rechnungseingang@bhv-berlin.example',
+      eadresseSchema: 'EM',
+    } },
   { bereich: 'reinigung', firma: 'Charlottenburg Immobilien GmbH', rechtsform: 'GmbH',
     nummer: 'K-10002', name: 'Charlottenburg Immobilien GmbH',
     kontakt: ['Jens', 'Petrow', 'j.petrow@chb-immo.example'],
@@ -216,7 +254,7 @@ export const KUNDENZUGANG_NUMMER = 'K-10001';
 
 export async function seedOperations(
   sql: Sql, ids: ReadonlyMap<string, string>, kundenKontoId: string | null,
-): Promise<{ objekte: number; raeume: number }> {
+): Promise<{ objekte: number; raeume: number; belegschaftsdokumente: number }> {
   const heute = new Date().toISOString().slice(0, 10);
 
   // --- Kataloge je Bereich (nur Reinigung braucht sie heute) ---------------
@@ -292,7 +330,8 @@ export async function seedOperations(
                 ${k.anschrift[0]}, ${k.anschrift[1]}, ${k.anschrift[2]}, ${k.anschrift[3]},
                 ${k.behoerde !== undefined}, ${k.behoerde !== undefined},
                 ${k.behoerde?.leitwegId ?? null},
-                ${k.behoerde?.eadresse ?? null}, ${k.behoerde?.eadresseSchema ?? null},
+                ${k.behoerde?.eadresse ?? k.erechnung?.eadresse ?? null},
+                ${k.behoerde?.eadresseSchema ?? k.erechnung?.eadresseSchema ?? null},
                 'bestandskunde', 'Rahmenvertrag (Demodaten)', now(), 'aktiv')
         returning id`;
       kundeId = neu!.id;
@@ -335,6 +374,34 @@ export async function seedOperations(
            where id = ${kundeId}
              and (leitweg_id is null or elektronische_adresse is null)`;
       }
+      /*
+       * Dieselbe Nachtragslogik wie eine Zeile hoeher, fuer den privaten
+       * Auftraggeber mit Portalzugang: nur WAS FEHLT, eine von Hand gesetzte
+       * Angabe bleibt stehen.
+       */
+      if (k.erechnung !== undefined) {
+        await sql`
+          update kunde
+             set kaeufer_referenz = coalesce(kaeufer_referenz, ${k.erechnung.kaeuferReferenz}),
+                 elektronische_adresse =
+                   coalesce(elektronische_adresse, ${k.erechnung.eadresse}),
+                 elektronische_adresse_schema =
+                   coalesce(elektronische_adresse_schema, ${k.erechnung.eadresseSchema})
+           where id = ${kundeId}
+             and (kaeufer_referenz is null or elektronische_adresse is null
+                  or elektronische_adresse_schema is null)`;
+      }
+    }
+    if (k.erechnung !== undefined) {
+      /*
+       * `kaeufer_referenz` steht NICHT in der `insert`-Spaltenliste oben (die
+       * ist die der Anlage, und die Referenz ist eine Angabe des Kunden, die
+       * nachgereicht wird). Fuer den frisch angelegten Fall wird sie hier
+       * gesetzt — dieselbe Anweisung deckt beide Wege ab.
+       */
+      await sql`
+        update kunde set kaeufer_referenz = ${k.erechnung.kaeuferReferenz}
+         where id = ${kundeId} and kaeufer_referenz is null`;
     }
     kundenIds.set(k.nummer, kundeId);
 
@@ -375,6 +442,8 @@ export async function seedOperations(
   // --- Objekte und Raumbuecher ---------------------------------------------
   let objekte = 0;
   let raeume = 0;
+  /** Die der Belegschaft freigegebenen Unterlagen (EMP-11, DOC-04). */
+  let belegschaftsdokumente = 0;
   for (const o of OBJEKTE) {
     const mandant = ids.get(o.bereich);
     if (mandant === undefined) continue;
@@ -413,6 +482,99 @@ export async function seedOperations(
                 ${quelle}, ${i})`;
       raeume += 1;
     }
+
+    /**
+     * --- Der Ansprechpartner VOR ORT (EMP-02, OPS-01) ---------------------
+     *
+     * `objekt.ansprechpartner_id` blieb bisher leer, und damit zeigte
+     * `/portal/mein/objekte/[id]` genau das, was `app.mein_objekt_zugang`
+     * herausgibt: nichts. Eine Seite, deren Demodaten ihr Hauptfeld nie
+     * fuellen, ist eine, die niemand beim Ausprobieren pruefen kann.
+     *
+     * Die Telefonnummer stammt aus dem Bereich **030 23125 xx**, den die
+     * Bundesnetzagentur fuer Film und Demonstration reserviert hat — sie
+     * gehoert garantiert niemandem. Eine erfundene Nummer aus dem echten
+     * Nummernraum klingelte bei einem Menschen, der nichts damit zu tun hat.
+     */
+    if (kundeId !== null) {
+      await sql`
+        update objekt o set ansprechpartner_id = ap.id
+          from (select id from ansprechpartner
+                 where mandant_id = ${mandant} and kunde_id = ${kundeId}
+                   and archiviert_am is null and ausgeschieden_am is null
+                   and anonymisiert_am is null
+                 order by ist_hauptkontakt desc, nachname limit 1) ap
+         where o.id = ${objektId} and o.ansprechpartner_id is null`;
+      await sql`
+        update ansprechpartner set telefon = '+49 30 23125 174'
+         where id = (select ansprechpartner_id from objekt where id = ${objektId})
+           and telefon is null`;
+    }
+
+    /**
+     * --- Eine der Belegschaft freigegebene Unterlage (EMP-11, DOC-04) -----
+     *
+     * `sichtbar_fuer_mitarbeiter` ist `default false` und wird nur durch eine
+     * Handlung wahr. Ohne diese Zeile bleibt `/portal/mein/dokumente` in jeder
+     * Demodatenbank leer — und eine leere Liste beweist nicht, dass die
+     * Decke richtig sitzt, sondern nur, dass nichts da ist (K-18).
+     *
+     * **Kein Dateispeicher, und deshalb auch keine Datei.** `dokument` haelt
+     * die Metadaten, die Bytes liegen im privaten Bucket, und der ist nicht
+     * verbunden. Der Seed legt die Zeile an und behauptet keinen Abruf:
+     * `dokument_zugriff` entsteht beim ECHTEN Abruf ueber die signierte
+     * Adresse (CLAUDE.md, „No fake integrations").
+     */
+    const belegschaftsTitel = `Betriebsanweisung ${o.bezeichnung} (Demodaten)`;
+    const [dokDa] = await sql<{ id: string }[]>`
+      select id from dokument
+       where mandant_id = ${mandant} and titel = ${belegschaftsTitel}
+         and geloescht_am is null limit 1`;
+    if (dokDa === undefined) {
+      await sql`
+        insert into dokument
+          (mandant_id, kategorie, titel, beschreibung, objekt_id,
+           bucket, objekt_schluessel, mime_typ, mime_verifiziert, groesse_bytes,
+           exif_entfernt, sichtbar_fuer_kunde, sichtbar_fuer_mitarbeiter,
+           entstanden_am)
+        values (${mandant}, 'unternehmen', ${belegschaftsTitel},
+                'Aushang für die eingesetzten Kräfte: Zutritt, Meldewege, Notfallnummern.',
+                ${objektId},
+                'dokumente', ${`demo/betriebsanweisung/${o.nummer}.pdf`},
+                'application/pdf', true, 43008, true, false, true,
+                current_date)`;
+      belegschaftsdokumente += 1;
+    }
+  }
+
+  /**
+   * Und eine Unterlage OHNE Objektbezug je Gesellschaft.
+   *
+   * Sie prueft den anderen Weg derselben Seite: `dokument.objekt_id` ist
+   * nullbar, und die Liste liest ueber `left join objekt` — ein `join` liesse
+   * genau diese Zeile verschwinden, still und ohne Fehler.
+   */
+  for (const bereich of ['reinigung', 'security', 'bau'] as const) {
+    const mandant = ids.get(bereich);
+    if (mandant === undefined) continue;
+    const titel = 'Notfallnummern und Meldewege (Demodaten)';
+    const [da] = await sql<{ id: string }[]>`
+      select id from dokument
+       where mandant_id = ${mandant} and titel = ${titel}
+         and geloescht_am is null limit 1`;
+    if (da !== undefined) continue;
+    await sql`
+      insert into dokument
+        (mandant_id, kategorie, titel, beschreibung,
+         bucket, objekt_schluessel, mime_typ, mime_verifiziert, groesse_bytes,
+         exif_entfernt, sichtbar_fuer_kunde, sichtbar_fuer_mitarbeiter,
+         entstanden_am)
+      values (${mandant}, 'unternehmen', ${titel},
+              'Wen rufe ich wann an — Einsatzleitung, Notdienst, Polizei.',
+              'dokumente', ${`demo/notfallnummern/${bereich}.pdf`},
+              'application/pdf', true, 18432, true, false, true,
+              current_date)`;
+    belegschaftsdokumente += 1;
   }
 
   // --- Zwei Anfragen im Posteingang ---------------------------------------
@@ -498,5 +660,5 @@ export async function seedOperations(
     }
   }
 
-  return { objekte, raeume };
+  return { objekte, raeume, belegschaftsdokumente };
 }

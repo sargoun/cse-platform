@@ -827,20 +827,34 @@ export const NICHT_GEPRUEFT: readonly NichtGeprueft[] = [
   /**
    * **Die Pflichtfelder werden seit PR 52 geprueft** (Regel
    * `xrechnung.pflichtfelder` oben, und zwar SPERREND, wenn der Kunde eine
-   * XRechnung verlangt). Offen bleibt, was danach kommt: dass das erzeugte
-   * Dokument aufbewahrt wird und dass festgehalten ist, wann es auf welchem
-   * Weg eingeliefert wurde. Solange es `rechnung_dokument` und
-   * `rechnung_versand` nicht gibt, entsteht die XRechnung bei jedem Abruf neu
-   * aus dem Snapshot — inhaltlich dasselbe Dokument, aber ohne Beleg
-   * darueber, dass es je hinausgegangen ist.
+   * XRechnung verlangt). **Und der Einlieferungsweg wird seit `0181`
+   * protokolliert**: `rechnung_versand` haelt je Versand den Kanal, den
+   * Empfaenger, das Artefakt, den SHA-256 der Nutzlast und den Menschen, der
+   * ihn freigegeben hat — append-only bis auf den Zustand (K-12).
+   *
+   * Diesen Satz hier stehen zu lassen, nachdem die Tabelle da war, waere
+   * genau der Fehler, den `rechnung-pflichtfelder.test.ts` seit PR 49
+   * bewacht: der Bericht wird mit dem Snapshot EINGEFROREN, und eine falsche
+   * Angabe in einem unveraenderlichen Beleg ist teurer als eine fehlende.
+   *
+   * Offen bleibt zweierlei. Erstens die Zuordnung Beleg → versendete Fassung:
+   * `rechnung_dokument` gibt es nicht, `rechnung_versand.rechnung_dokument_id`
+   * steht ohne Elterntabelle, und damit ist der Nutzlast-Hash der einzige
+   * Bezug auf das Dokument, das hinausging. Das ZUGFeRD-PDF liegt im
+   * Belegarchiv (ACC-03, `jobs/belegarchiv.ts`) — als EIN Beleg an der
+   * Rechnung, nicht als die Fassung, die dieser Versand getragen hat.
+   * Zweitens ist elektronisch kein Weg verbunden: fuer E-Mail, Peppol, ZRE
+   * und OZG-RE laesst `fin.rechnung_versand_kanal_verbunden` allein
+   * `nicht_verbunden` zu (O-36, O-22).
    */
   { regel: 'FIN-11 — Aufbewahrung und Einlieferungsnachweis der XRechnung',
-    grund: 'Die Pflichtfelder werden geprueft (Regel xrechnung.pflichtfelder, PR 52). '
-      + 'Das erzeugte Dokument wird nicht aufbewahrt und der Einlieferungsweg '
-      + 'nicht protokolliert: rechnung_dokument und rechnung_versand gibt es '
-      + 'noch nicht (PR 53/54), und ueber welchen Weg eingeliefert wird, ist '
-      + 'offen (O-22).',
-    solangeOhne: ['rechnung_dokument', 'rechnung_versand'] },
+    grund: 'Die Pflichtfelder werden geprueft (Regel xrechnung.pflichtfelder, PR 52), '
+      + 'und der Einlieferungsweg wird seit 0181 in rechnung_versand protokolliert. '
+      + 'Offen bleibt die Zuordnung Beleg → versendete Fassung: rechnung_dokument '
+      + 'gibt es nicht, rechnung_versand.rechnung_dokument_id steht ohne '
+      + 'Elterntabelle. Und elektronisch ist kein Weg verbunden (O-36, O-22) — '
+      + 'zulaessig ist allein der Zustand nicht_verbunden.',
+    solangeOhne: ['rechnung_dokument'] },
   /*
    * Diese beiden standen bis PR 49 auf „kommt noch" — und blieben stehen,
    * nachdem PR 49 sie gebracht hatte. Der Bericht wird mit dem Snapshot

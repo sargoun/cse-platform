@@ -35,6 +35,18 @@ export const ENTSCHIEDEN: readonly EinwandStatus[] = [
   'anerkannt', 'teilweise_anerkannt', 'abgelehnt', 'zurueckgezogen',
 ];
 
+/**
+ * Die drei, die eine ENTSCHEIDUNG der Planung sind.
+ *
+ * `zurueckgezogen` steht ausdruecklich NICHT dabei: das zieht die betroffene
+ * Person selbst zurueck, und `in_pruefung` ist ein Zwischenstand. Nur diese
+ * drei loesen das Selbstentscheidungsverbot aus (EMP-07) — dieselbe Liste wie
+ * in `kern.zeit_einwand_status`.
+ */
+export const ENTSCHEIDUNG: readonly EinwandStatus[] = [
+  'anerkannt', 'teilweise_anerkannt', 'abgelehnt',
+];
+
 export interface EinwandEingabe {
   readonly anstellungId: string;
   /** NULL genau dann, wenn `art = 'eintrag_fehlt'` (§6.27). */
@@ -94,6 +106,34 @@ export class EinwandOhneBezugFehler extends Error {
   constructor() {
     super('Nur ein Einwand der Art „eintrag_fehlt" kommt ohne Zeiteintrag aus.');
     this.name = 'EinwandOhneBezugFehler';
+  }
+}
+
+/**
+ * Ueber den eigenen Einwand entscheidet man nicht (EMP-07).
+ *
+ * **Der Befund, der diese Klasse gebracht hat.** Der Ausloeser
+ * `kern.zeit_einwand_status` verbietet es und wirft mit `check_violation` —
+ * `entscheideEinwand` prueft es vorher NICHT, und die Route kennt in ihrer
+ * Fangkette nur „nicht gefunden", „bereits entschieden" und die
+ * Auth-Fehler. Der Klick endete damit in einem ungefangenen 500 statt in
+ * einer Meldung. Auf der Detailseite ist das der wahrscheinlichste Weg
+ * dorthin: dort hat die betroffene Person ihren eigenen Vorgang offen vor
+ * sich.
+ *
+ * Geprueft wird hier UND in der Datenbank. Die Datenbank ist die zweite
+ * Linie und bleibt es; was hier dazukommt, ist ein Satz statt eines
+ * Serverfehlers.
+ */
+export class EinwandEigenerFehler extends Error {
+  readonly code = 'eigener_einwand';
+  readonly status = 409;
+  constructor() {
+    super(
+      'Über den eigenen Einwand entscheidet man nicht (EMP-07). Die Aufzeichnung '
+      + 'behält ihren Beweiswert nur, wenn die betroffene Person sie nicht selbst '
+      + 'bewegt — die Entscheidung trifft die Planung.');
+    this.name = 'EinwandEigenerFehler';
   }
 }
 
@@ -198,6 +238,29 @@ export async function entscheideEinwand(
     throw new EinwandBereitsEntschiedenFehler(vorher.status);
   }
 
+  /*
+   * Die Selbstentscheidung VOR dem `update` (EMP-07).
+   *
+   * Dieselbe Bedingung wie `kern.zeit_einwand_status`, Zeichen fuer Zeichen:
+   * sie gilt fuer `anerkannt`, `teilweise_anerkannt` und `abgelehnt` — nicht
+   * fuer `in_pruefung` (das ist keine Entscheidung) und nicht fuer
+   * `zurueckgezogen` (das zieht die Person selbst zurueck, und genau das darf
+   * sie). Eine strengere Pruefung hier waere schlimmer als keine: sie naehme
+   * dem Menschen den einen Weg, den er hat.
+   */
+  if (ENTSCHEIDUNG.includes(eingabe.status)) {
+    const [selbst] = await kontext.abfrage<{ eigener: boolean }>(
+      `select exists (
+                select 1
+                  from zeit_einwand e
+                  join anstellung a on a.mandant_id = e.mandant_id
+                                   and a.id = e.anstellung_id
+                  join benutzer b on b.person_id = a.person_id
+                 where e.id = $1 and b.id = $2) as eigener`,
+      [eingabe.einwandId, eingabe.entschiedenVon]);
+    if (selbst?.eigener === true) throw new EinwandEigenerFehler();
+  }
+
   const zeilen = await kontext.schreibe<{ id: string }>(
     `update zeit_einwand
         set status = $2::einwand_status,
@@ -299,4 +362,224 @@ export async function listeEigeneEinwaende(
       order by e.betrifft_datum desc, e.eingereicht_am desc`,
   );
   return zeilen.map(abbilden);
+}
+
+/* ===========================================================================
+ * Das Blatt EINES Einwands — lesend (EMP-07, TIM-08, TIM-11)
+ * ======================================================================== */
+
+/**
+ * Der Zeiteintrag, um den es geht — **paarweise**.
+ *
+ * `zeiteintrag` traegt je zwei Werte, nicht je einen:
+ * `geraete_zeit_beginn`/`geraete_zeit_ende`,
+ * `zeitabweichung_beginn_sek`/`zeitabweichung_ende_sek`,
+ * `dauer_brutto_minuten`/`dauer_netto_minuten`. Ein `zeitabweichung_sek`
+ * gibt es NICHT — wer es so baut, zeigt eine Abweichung, die keine Spalte
+ * hat, und die Seite bleibt an dieser Stelle fuer immer leer.
+ *
+ * Die Abweichung ist GERAET MINUS SERVER (0034, D-134): eine negative Zahl
+ * heisst, die Telefonuhr lag HINTER der Serveruhr — das Geraet ging nach.
+ */
+export interface EinwandEintrag {
+  readonly id: string;
+  readonly beginnLokal: string;
+  readonly endeLokal: string | null;
+  readonly geraeteZeitBeginnLokal: string | null;
+  readonly geraeteZeitEndeLokal: string | null;
+  readonly abweichungBeginnSek: number | null;
+  readonly abweichungEndeSek: number | null;
+  readonly bruttoMinuten: number | null;
+  readonly nettoMinuten: number | null;
+  readonly pauseMinuten: number;
+  readonly status: string;
+  readonly objekt: string | null;
+  readonly storniert: boolean;
+  readonly ersetztDurchId: string | null;
+}
+
+/** Die Korrektur, die der Entscheidung gefolgt ist — oder eben keine. */
+export interface EinwandKorrektur {
+  readonly id: string;
+  readonly art: string;
+  readonly grundKategorie: string;
+  readonly begruendung: string;
+  readonly amLokal: string;
+  readonly durchVon: string | null;
+  readonly ersatzZeiteintragId: string | null;
+}
+
+export interface EinwandBlatt {
+  readonly id: string;
+  readonly anstellungId: string;
+  readonly personId: string;
+  readonly person: string;
+  readonly art: EinwandArt;
+  readonly status: EinwandStatus;
+  /** Berliner Kalendertag `JJJJ-MM-TT` (K-11). */
+  readonly betrifftDatum: string;
+  readonly begruendung: string;
+  /** Die ANGABE der Person, nie ein massgeblicher Zeitpunkt (Invariante 5). */
+  readonly behauptetBeginnLokal: string | null;
+  readonly behauptetEndeLokal: string | null;
+  readonly behauptetPauseMinuten: number | null;
+  readonly eingereichtLokal: string;
+  readonly eingereichtVon: string | null;
+  readonly entschiedenLokal: string | null;
+  readonly entschiedenVon: string | null;
+  readonly entscheidungBegruendung: string | null;
+  readonly eintrag: EinwandEintrag | null;
+  readonly korrektur: EinwandKorrektur | null;
+  /**
+   * Ist der angemeldete Mensch die betroffene Person?
+   *
+   * Dann darf er NICHT entscheiden (EMP-07), und die Seite zeigt statt des
+   * Formulars den Grund — kein Knopf, der im Ausloeser endet.
+   */
+  readonly eigener: boolean;
+}
+
+/**
+ * Ein Einwand — oder `null`, und das heisst nach aussen 404 und nie 403
+ * (AUT-06).
+ *
+ * **Drei Rechte, nicht eines.** Das Routenmanifest tort `…/einwaende/[id]` auf
+ * `zeit.einwand_entscheiden`. Die Policies fragen anderes: `zeit_einwand` ist
+ * fuer `cse_app` nur mit `zeit.lesen` lesbar, `zeiteintrag` ebenso, und die
+ * `zeiteintrag_korrektur` daneben mit `zeit.lesen`. Eine Sitzung, die das Tor
+ * passiert und `zeit.lesen` nicht haelt, bekommt null Zeilen — von aussen ein
+ * 404 ohne Grund. Die Seite verlangt `zeit.lesen` deshalb ausdruecklich mit.
+ */
+export async function leseEinwand(
+  kontext: LeseKontext, id: string,
+): Promise<EinwandBlatt | null> {
+  const [z] = await kontext.abfrage<{
+    id: string; anstellung_id: string; person_id: string; person: string;
+    art: EinwandArt; status: EinwandStatus; betrifft_datum: string;
+    begruendung: string;
+    behauptet_beginn_lokal: string | null; behauptet_ende_lokal: string | null;
+    behauptet_pause_minuten: number | null;
+    eingereicht_lokal: string; eingereicht_von: string | null;
+    entschieden_lokal: string | null; entschieden_von: string | null;
+    entscheidung_begruendung: string | null;
+    eigener: boolean;
+    e_id: string | null; e_beginn_lokal: string | null; e_ende_lokal: string | null;
+    e_geraete_beginn_lokal: string | null; e_geraete_ende_lokal: string | null;
+    e_abweichung_beginn_sek: number | null; e_abweichung_ende_sek: number | null;
+    e_brutto_minuten: number | null; e_netto_minuten: number | null;
+    e_pause_minuten: number | null; e_status: string | null; e_objekt: string | null;
+    e_storniert: boolean | null; e_ersetzt_durch_id: string | null;
+    k_id: string | null; k_art: string | null; k_grund: string | null;
+    k_begruendung: string | null; k_am_lokal: string | null; k_durch_von: string | null;
+    k_ersatz_id: string | null;
+  }>(
+    `select ew.id, ew.anstellung_id, a.person_id,
+            (p.vorname || ' ' || p.nachname) as person,
+            ew.art::text as art, ew.status::text as status,
+            to_char(ew.betrifft_datum, 'YYYY-MM-DD') as betrifft_datum,
+            ew.begruendung,
+            to_char((ew.behauptet_beginn at time zone 'Europe/Berlin'),
+                    'DD.MM.YYYY HH24:MI') as behauptet_beginn_lokal,
+            to_char((ew.behauptet_ende   at time zone 'Europe/Berlin'),
+                    'DD.MM.YYYY HH24:MI') as behauptet_ende_lokal,
+            ew.behauptet_pause_minuten,
+            to_char((ew.eingereicht_am at time zone 'Europe/Berlin'),
+                    'DD.MM.YYYY HH24:MI') as eingereicht_lokal,
+            eb.name as eingereicht_von,
+            to_char((ew.entschieden_am at time zone 'Europe/Berlin'),
+                    'DD.MM.YYYY HH24:MI') as entschieden_lokal,
+            db.name as entschieden_von,
+            ew.entscheidung_begruendung,
+            (a.person_id = app.aktuelle_person()) as eigener,
+            ze.id as e_id,
+            to_char((ze.beginn_zeitpunkt at time zone 'Europe/Berlin'),
+                    'DD.MM.YYYY HH24:MI') as e_beginn_lokal,
+            to_char((ze.ende_zeitpunkt   at time zone 'Europe/Berlin'),
+                    'DD.MM.YYYY HH24:MI') as e_ende_lokal,
+            to_char((ze.geraete_zeit_beginn at time zone 'Europe/Berlin'),
+                    'DD.MM.YYYY HH24:MI') as e_geraete_beginn_lokal,
+            to_char((ze.geraete_zeit_ende   at time zone 'Europe/Berlin'),
+                    'DD.MM.YYYY HH24:MI') as e_geraete_ende_lokal,
+            ze.zeitabweichung_beginn_sek as e_abweichung_beginn_sek,
+            ze.zeitabweichung_ende_sek   as e_abweichung_ende_sek,
+            ze.dauer_brutto_minuten      as e_brutto_minuten,
+            ze.dauer_netto_minuten       as e_netto_minuten,
+            ze.pause_minuten             as e_pause_minuten,
+            ze.status::text              as e_status,
+            zo.bezeichnung               as e_objekt,
+            (ze.storniert_am is not null) as e_storniert,
+            ze.ersetzt_durch_zeiteintrag_id as e_ersetzt_durch_id,
+            kr.id as k_id, kr.art::text as k_art,
+            kr.grund_kategorie::text as k_grund, kr.begruendung as k_begruendung,
+            to_char((kr.durchgefuehrt_am at time zone 'Europe/Berlin'),
+                    'DD.MM.YYYY HH24:MI') as k_am_lokal,
+            kb.name as k_durch_von,
+            kr.ersatz_zeiteintrag_id as k_ersatz_id
+       from zeit_einwand ew
+       join anstellung a on a.mandant_id = ew.mandant_id and a.id = ew.anstellung_id
+       join person p on p.id = a.person_id
+       left join benutzer eb on eb.id = ew.eingereicht_von_benutzer_id
+       left join benutzer db on db.id = ew.entschieden_von
+       left join zeiteintrag ze on ze.mandant_id = ew.mandant_id
+                               and ze.id = ew.zeiteintrag_id
+       left join objekt zo on zo.mandant_id = ze.mandant_id and zo.id = ze.objekt_id
+       left join lateral (
+              select k.* from zeiteintrag_korrektur k
+               where k.zeit_einwand_id = ew.id
+               order by k.durchgefuehrt_am desc
+               limit 1
+            ) kr on true
+       left join benutzer kb on kb.id = kr.durchgefuehrt_von
+      where ew.id = $1`,
+    [id],
+  );
+  if (z === undefined) return null;
+
+  return {
+    id: z.id,
+    anstellungId: z.anstellung_id,
+    personId: z.person_id,
+    person: z.person,
+    art: z.art,
+    status: z.status,
+    betrifftDatum: z.betrifft_datum,
+    begruendung: z.begruendung,
+    behauptetBeginnLokal: z.behauptet_beginn_lokal,
+    behauptetEndeLokal: z.behauptet_ende_lokal,
+    behauptetPauseMinuten: z.behauptet_pause_minuten === null
+      ? null : Number(z.behauptet_pause_minuten),
+    eingereichtLokal: z.eingereicht_lokal,
+    eingereichtVon: z.eingereicht_von,
+    entschiedenLokal: z.entschieden_lokal,
+    entschiedenVon: z.entschieden_von,
+    entscheidungBegruendung: z.entscheidung_begruendung,
+    eintrag: z.e_id === null ? null : {
+      id: z.e_id,
+      beginnLokal: z.e_beginn_lokal ?? '',
+      endeLokal: z.e_ende_lokal,
+      geraeteZeitBeginnLokal: z.e_geraete_beginn_lokal,
+      geraeteZeitEndeLokal: z.e_geraete_ende_lokal,
+      abweichungBeginnSek: z.e_abweichung_beginn_sek === null
+        ? null : Number(z.e_abweichung_beginn_sek),
+      abweichungEndeSek: z.e_abweichung_ende_sek === null
+        ? null : Number(z.e_abweichung_ende_sek),
+      bruttoMinuten: z.e_brutto_minuten === null ? null : Number(z.e_brutto_minuten),
+      nettoMinuten: z.e_netto_minuten === null ? null : Number(z.e_netto_minuten),
+      pauseMinuten: Number(z.e_pause_minuten ?? 0),
+      status: z.e_status ?? '',
+      objekt: z.e_objekt,
+      storniert: z.e_storniert === true,
+      ersetztDurchId: z.e_ersetzt_durch_id,
+    },
+    korrektur: z.k_id === null ? null : {
+      id: z.k_id,
+      art: z.k_art ?? '',
+      grundKategorie: z.k_grund ?? '',
+      begruendung: z.k_begruendung ?? '',
+      amLokal: z.k_am_lokal ?? '',
+      durchVon: z.k_durch_von,
+      ersatzZeiteintragId: z.k_ersatz_id,
+    },
+    eigener: z.eigener === true,
+  };
 }

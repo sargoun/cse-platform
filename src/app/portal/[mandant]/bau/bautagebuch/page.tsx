@@ -124,7 +124,7 @@ export default async function BautagebuchUeberProjekte(
               schluessel: 'status',
               kopf: 'Status',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={z.storniert ? 'Archiviert' : BAUTAG_PILLE[z.status] ?? 'Entwurf'} />
                   <span className="text-xs text-text-muted">
                     {z.storniert ? 'Storniert' : BAUTAG_STATUS_TEXT[z.status] ?? z.status}

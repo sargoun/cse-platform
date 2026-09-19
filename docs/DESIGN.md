@@ -501,6 +501,15 @@ compete for a slot.
 Inactive `--surface-3` + `--text-muted`; active white bg + `--ink` text.
 Horizontally scrollable on mobile, no wrap.
 
+**The same pill shape carries a navigation row**, not only a filter — the
+sub-tab bar under a company profile cover (§4, site map §2.2) is a row of
+links in exactly these values. Two differences, both required and neither
+cosmetic: the element is an `<a>`, because it changes the address and must
+survive a middle-click and a copied link; and the current one carries
+`aria-current="page"` rather than `aria-pressed`, because it marks where the
+reader **is**, not what they have switched on. Colour alone never marks it
+(§9) — `aria-current` is the second signal.
+
 ### Tables
 
 Header row `micro` uppercase `--text-subtle`, `1px solid --border` beneath.

@@ -159,11 +159,24 @@ test.describe('(5) das englische Formular ist englisch — Felder wie Knopf', ()
       ),
       page.click('button[type="submit"]'),
     ]);
-    const text = await antwort.text();
-    expect(antwort.status(), text).toBe(200);
-    expect(text).toContain('Thank you for your enquiry.');
+    /*
+     * **303 statt 200, und die Zusage ist dieselbe geblieben.**
+     *
+     * Frueher antwortete `/api/anfrage` mit JSON, und dieser Fall las den
+     * englischen Danksatz aus dem Koerper. Seit D-599 schickt die Route den
+     * Browser auf die Dankseite — das Formular hat kein JavaScript, und ein
+     * Besucher landete sonst auf `{"ok":true,…}`. Geprueft wird deshalb
+     * dasselbe an der neuen Stelle: die SEITE ist englisch, nicht der
+     * JSON-Text.
+     */
+    expect(antwort.status()).toBe(303);
+    await page.waitForURL(/\/en\/angebot\/reinigung\/danke\?nr=/u);
+
+    const seite = await page.locator('[data-cse="angebot-danke"]').innerText();
+    expect(seite).toContain('Your enquiry has arrived');
     // Und ausdruecklich NICHT die deutsche Fassung.
-    expect(text).not.toContain('Vielen Dank');
+    expect(seite).not.toContain('Vielen Dank');
+    expect(seite).not.toContain('Ihre Anfrage ist angekommen');
   });
 
   test('auch eine ABWEISUNG ist englisch — bis in die Feldmeldung', async ({ page }) => {
@@ -191,10 +204,22 @@ test.describe('(5) das englische Formular ist englisch — Felder wie Knopf', ()
       ),
       page.click('button[type="submit"]'),
     ]);
-    expect(antwort.status()).toBe(400);
-    const koerper = await antwort.json() as { felder: Record<string, string> };
-    expect(koerper.felder['anzahl_objekte'])
-      .toBe('Please tell us how many properties this concerns.');
+    /*
+     * **Auch die ABWEISUNG kommt jetzt als Seite zurueck** (D-599) — und sie
+     * traegt die FELDmeldungen mit, nicht nur den Sammelsatz. Der erste
+     * Entwurf der Weiche haengte nur „Bitte pruefen Sie Ihre Eingaben" an die
+     * Adresse; damit haette dieser Fall gruen sein koennen, waehrend der
+     * Besucher weniger erfaehrt als vorher. Ein Formular ohne JavaScript ist
+     * kein Grund, weniger zu sagen.
+     */
+    expect(antwort.status()).toBe(303);
+    await page.waitForURL(/\/en\/angebot\/reinigung\?/u);
+
+    /* Die Meldung steht AM FELD, mit `aria-invalid` — nicht in einem Sammelsatz. */
+    const feld = page.locator('#f_anzahl_objekte');
+    await expect(feld).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.locator('#f_anzahl_objekte_fehler'))
+      .toHaveText('Please tell us how many properties this concerns.');
   });
 });
 

@@ -103,7 +103,22 @@ export function mitSprache(pfad: string, sprache: Sprache): string {
  *
  * Gemeldet von der Copilot-Runde auf PR 16.
  */
-export const NUR_DEUTSCH: readonly string[] = ['/karriere'];
+export const NUR_DEUTSCH: readonly string[] = [
+  '/karriere',
+  /**
+   * `/werbewiderspruch` — deutsch, und das ist eine Entscheidung.
+   *
+   * Der Hinweis nach § 7 Abs. 3 Nr. 4 UWG ist DEUTSCHES Recht und entfaltet
+   * seine Wirkung im deutschen Wortlaut; dieselbe Begruendung, aus der
+   * Impressum und Datenschutz auf Deutsch verbindlich sind (D-84). Eine
+   * englische Fassung waere eine zweite Formulierung eines Rechtstextes, der
+   * noch nicht einmal auf Deutsch anwaltlich geprueft ist (O-34) — also zwei
+   * Ungeprueftes statt einem.
+   *
+   * Der Weg selbst bleibt fuer jeden benutzbar: er besteht aus einem Knopf.
+   */
+  '/werbewiderspruch',
+];
 
 /**
  * Gibt es diesen Inhaltspfad in dieser Sprache?

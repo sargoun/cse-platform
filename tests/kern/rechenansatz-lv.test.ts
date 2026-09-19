@@ -16,6 +16,7 @@ import {
   positionsBetragCent,
   vergleicheOz,
   zaehltInSumme,
+  zaehltPositionsartInSumme,
   type LvZeile,
 } from '../../src/server/services/bau/lv.js';
 
@@ -163,6 +164,28 @@ describe('was NICHT in die Summe geht, und was die Summe unvollständig macht', 
   it('ein Titel selbst trägt keinen Preis — nur seine Positionen', () => {
     expect(zaehltInSumme(zeile({ id: 't', oz: '1', art: 'titel' }))).toBe(false);
     expect(zaehltInSumme(zeile({ id: 'h', oz: '1.0', art: 'hinweistext' }))).toBe(false);
+  });
+
+  /**
+   * **Die Positionsdetailseite hat nur die Spalte, nicht die Zeile** — und
+   * hatte deshalb ihre eigene Kopie dieser Regel im Seitenkörper. Jetzt rufen
+   * beide dieselbe Funktion, und dieser Fall nagelt fest, dass sie DASSELBE
+   * sagen: eine offene Frage (O-155), die an zwei Stellen verschieden
+   * beantwortet wird, zeigt zwei Auftragssummen über denselben Vertrag.
+   */
+  it('`zaehltInSumme` und `zaehltPositionsartInSumme` sagen dasselbe — für jede Art', () => {
+    const arten = [
+      'unbestimmt', 'normalposition', 'bedarfsposition', 'alternativposition',
+      'zuschlagsposition', 'grundposition',
+    ] as const;
+    for (const positionsart of arten) {
+      expect(zaehltInSumme(zeile({ id: 'p', oz: '1.1', positionsart })),
+        positionsart).toBe(zaehltPositionsartInSumme(positionsart));
+    }
+    // Und die beiden, um die es in O-155 geht, zählen nicht.
+    expect(zaehltPositionsartInSumme('bedarfsposition')).toBe(false);
+    expect(zaehltPositionsartInSumme('alternativposition')).toBe(false);
+    expect(zaehltPositionsartInSumme('normalposition')).toBe(true);
   });
 
   it('ein nicht lesbarer Preis macht die Summe unvollständig, nicht null', () => {

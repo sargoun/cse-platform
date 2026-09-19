@@ -58,6 +58,9 @@ export default async function MeineSchicht(
   const anweisungen = ergebnis.daten.anweisungen;
   const offene = anweisungen.filter((a) => a.offen);
   const t = basis.texte;
+  const zielKnopf =
+    'inline-flex min-h-11 items-center justify-center rounded-md border '
+    + 'border-line-strong px-s5 py-s3 text-base text-text no-underline hover:bg-surface-2';
 
   return (
     <MeinRahmen basis={basis} titel={t.schichten} aktiverTab="schichten">
@@ -86,6 +89,50 @@ export default async function MeineSchicht(
           {daten.funktion !== null && <Feld label="Funktion">{daten.funktion}</Feld>}
         </Felder>
       </section>
+
+      {/*
+        Was AUF dieser Schicht dokumentiert wird (SEC-05, CLN-04, TIM-10,
+        BAU-07). Angeboten wird, wofuer die Schicht die Voraussetzung TRAEGT —
+        ein Wachbuch braucht ein Objekt, ein Bautagebuch eine Baustelle. Ein
+        Link, der auf eine Seite fuehrt, die „dazu gibt es hier nichts" sagt,
+        ist ein Link, den man einmal folgt und danach nicht mehr glaubt.
+      */}
+      <nav aria-label={t.weiteres} className="mt-s5 flex flex-wrap gap-s3">
+        <Link
+          href={`/portal/mein/schichten/${daten.zuordnungId}/fotos`}
+          data-cse="zu-fotos"
+          className={zielKnopf}
+        >
+          {t.fotos}
+        </Link>
+        {daten.objektId !== null && (
+          <>
+            <Link
+              href={`/portal/mein/schichten/${daten.zuordnungId}/wachbuch`}
+              data-cse="zum-wachbuch"
+              className={zielKnopf}
+            >
+              {t.wachbuch}
+            </Link>
+            <Link
+              href={`/portal/mein/schichten/${daten.zuordnungId}/leistungsnachweis`}
+              data-cse="zum-leistungsnachweis"
+              className={zielKnopf}
+            >
+              {t.leistungsnachweis}
+            </Link>
+          </>
+        )}
+        {daten.projektId !== null && (
+          <Link
+            href={`/portal/mein/schichten/${daten.zuordnungId}/bautagebuch`}
+            data-cse="zum-bautagebuch"
+            className={zielKnopf}
+          >
+            {t.bautagebuch}
+          </Link>
+        )}
+      </nav>
 
       {/*
         Die Dienstanweisung dieses Objekts — der Weg, den EMP-09 „vor der

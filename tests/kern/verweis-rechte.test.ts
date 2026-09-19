@@ -132,6 +132,20 @@ const OHNE_BEDINGUNG: Readonly<Record<string, string>> = {
     + 'per `app.hat_recht` prüft UND den eigenen Eintrag ausschliesst (EMP-07) — '
     + 'strenger als der blosse Rechtevergleich, für diese Vermessung aber unsichtbar, '
     + 'weil das Recht nicht in der Seite steht, sondern in der Hilfsfunktion.',
+  '[mandant]/personal/personen/[id]/stammdaten/page.tsx → /portal/[mandant]/security/bewacherregister':
+    'Bewacht über `bewacherregisterErreichbar()` (`services/security/bewacherregister.ts`), '
+    + 'das `personal.bewacher_verwalten` per `app.hat_recht` prüft UND zusätzlich verlangt, '
+    + 'dass die Gesellschaft das Gewerk Security gebucht hat (D-377) — dieselbe Lage wie bei '
+    + '`darfKorrigieren()` darüber: strenger als der blosse Rechtevergleich, für diese '
+    + 'Vermessung aber unsichtbar, weil das Recht nicht in der Seite steht, sondern im Dienst. '
+    + 'Der Eintrag ist nötig, WEIL der Rechtevergleich hier zu schwach war: '
+    + '`tests/e2e/verweise.spec.ts` fand `[admin · reinigung] '
+    + '/portal/reinigung/security/bewacherregister → 404`. Die `admin` HÄLT '
+    + '`personal.bewacher_verwalten` (nachgemessen), die Reinigung hat Security aber nicht '
+    + 'gebucht (`mandant.module = {reinigung}`), und die Zielseite gibt deshalb für jeden 404 '
+    + '— auch für die Super-Administration. Ein Wächter, der nur das Recht fragte, zeigte den '
+    + 'Verweis trotzdem. Diese Paarung bleibt gemessen, nur von der Prüfung, die sie gefunden '
+    + 'hat: dem Browserlauf durch das Portal.',
 };
 
 function befundeFuer(portal: typeof PORTALE[number]): readonly string[] {

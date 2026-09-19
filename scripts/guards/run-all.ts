@@ -220,6 +220,55 @@ function wacheRouteOhneDb(): void {
  * This is what makes the open register real rather than aspirational: a
  * question raised in code and not written down is a question nobody answers.
  */
+/**
+ * Guard — a `page.tsx` exports only what Next.js knows.
+ *
+ * **Why this is a guard and not a review note.** Next.js generates route types
+ * at BUILD time and refuses any additional export from a page module:
+ *
+ *   Property 'felderAus' is incompatible with index signature.
+ *   Type '(roh: string | string[] | undefined) => …' is not assignable to 'never'.
+ *
+ * `npx tsc --noEmit` does not see it — `.next/types` does not exist yet. The
+ * failure therefore appears in `pnpm build`, which in this project takes three
+ * minutes, and in the browser suite, which fails to start at all and reports
+ * „Timed out waiting from config.webServer" — a message that reads like a
+ * broken server and not like a misplaced helper function.
+ *
+ * It has happened: a parser for the field messages of the enquiry form sat in
+ * `angebot/[bereich]/page.tsx` because that is where it was used. The fix is
+ * always the same and always cheap — move it next to the page component, which
+ * is exactly why those files exist (`Angebot.tsx`, `Danke.tsx`, `Anfrage.tsx`).
+ * The expensive part is finding out.
+ */
+const PAGE_EXPORTE_ERLAUBT = new Set([
+  'default', 'metadata', 'generateMetadata', 'viewport', 'generateViewport',
+  'dynamic', 'dynamicParams', 'revalidate', 'fetchCache', 'runtime',
+  'preferredRegion', 'maxDuration', 'config', 'generateStaticParams',
+  'experimental_ppr',
+]);
+
+function wachePageExporte(): void {
+  for (const datei of mussLesen('src/app', ['.tsx', '.ts'])) {
+    if (!/\/page\.tsx?$/u.test(datei)) continue;
+    const inhalt = ohneKommentare(readFileSync(datei, 'utf8'));
+    inhalt.split('\n').forEach((zeile, i) => {
+      /*
+       * `export default` und `export type`/`export interface` sind harmlos:
+       * das eine ist erlaubt, das andere verschwindet beim Uebersetzen.
+       */
+      const treffer = /^\s*export\s+(?:async\s+)?(?:function|const|let|var|class)\s+(\w+)/u
+        .exec(zeile);
+      const name = treffer?.[1];
+      if (name !== undefined && !PAGE_EXPORTE_ERLAUBT.has(name)) {
+        melde('page-fremder-export', datei, i + 1,
+              `\`${name}\` — eine page.tsx exportiert nur, was Next.js kennt. `
+              + 'Der Bau schlaegt fehl, `tsc --noEmit` sieht es nicht.');
+      }
+    });
+  }
+}
+
 function wacheTodoClient(): void {
   const register = readFileSync(join(WURZEL, 'docs/DECISIONS.md'), 'utf8');
   const bekannt = new Set(
@@ -1140,6 +1189,7 @@ async function main(): Promise<void> {
   wacheGeldSpalte();
   wacheZeitstempel();
   wacheRouteOhneDb();
+  wachePageExporte();
   wacheTodoClient();
   wacheDatumZone();
   wacheBacktickImSql();

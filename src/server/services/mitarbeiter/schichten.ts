@@ -34,6 +34,17 @@ export interface EigeneSchicht {
   readonly mandantName: string;
   readonly objekt: string | null;
   readonly objektId: string | null;
+  /**
+   * Die Baustelle dieser Schicht — oder `null`, wenn es keine ist.
+   *
+   * Sie steht hier, weil das Bautagebuch ohne sie nicht adressierbar ist
+   * (BAU-07): `/portal/mein/schichten/[zuordnungId]/bautagebuch` braucht das
+   * Projekt, und es aus der Anfrage zu nehmen waere genau die Stelle, an der
+   * jemand ein fremdes einsetzt (K-02). Kein Kunde, kein Auftrag, kein Preis
+   * kommt damit mit — `einsatz.projekt_id` ist eine Zuordnung, keine
+   * kaufmaennische Angabe (EMP-13, K-05).
+   */
+  readonly projektId: string | null;
   /** Der Berliner Plantag, `JJJJ-MM-TT`. */
   readonly planDatum: string;
   /** `TT.MM.JJJJ HH:MM` in Berliner Ortszeit — fertig aus der Datenbank. */
@@ -50,6 +61,33 @@ export interface EigeneSchicht {
   /** `keine` · `dst_vor` · `dst_rueck` — die Nacht, die nicht 8 Stunden hat. */
   readonly zeitanomalie: string;
   readonly laeuftJetzt: boolean;
+  /**
+   * Ist die Schicht VORBEI? (`now() >= ende_zeitpunkt`)
+   *
+   * Sie steht hier, weil mit dieser Minute die Erfassung schliesst und die
+   * Seite das SAGEN muss. `app.ist_eingesetzt_auf_objekt` und
+   * `app.ist_eingesetzt_auf_projekt` verlangen `e.ende_zeitpunkt >= now()`
+   * (0004); danach greift keine der M1-Policies aus 0300/0303/0304 mehr. Ohne
+   * dieses Feld boten Wachbuch, Fotos, Leistungsnachweis und Bautagebuch
+   * weiter ein Formular an, das die Datenbank dann abweist — beim
+   * Leistungsnachweis mit einem nackten `422 kein_objekt`.
+   *
+   * Wie lange nach Schichtende noch erfasst werden darf, ist offen (O-740);
+   * bis zur Antwort ist die Grenze das Schichtende, und die Seite nennt sie.
+   */
+  readonly beendet: boolean;
+  /**
+   * Wurde die Einteilung AUS DEM PLAN GENOMMEN? (`entfernt_am is not null`)
+   *
+   * `findeEigeneSchicht` filtert bewusst NICHT auf `entfernt_am is null` — die
+   * Detailseite soll die entfernte Einteilung weiter zeigen (0300). Tragen
+   * soll sie aber nichts mehr: `einsatz_zuordnung.t_selbst_m1` verlangt
+   * `entfernt_am is null`, also endet jeder Schreibweg mit `404
+   * nicht_gefunden`. Eine Seite, die zum Ausfuellen einlaedt und den Menschen
+   * dann wie einen Fremden behandelt, ist schlechter als eine, die den Grund
+   * schreibt.
+   */
+  readonly entfernt: boolean;
 }
 
 /**
@@ -61,9 +99,10 @@ export interface EigeneSchicht {
  */
 export const SCHICHT_FELDER = [
   'zuordnungId', 'einsatzId', 'anstellungId', 'mandantSlug', 'mandantName',
-  'objekt', 'objektId', 'planDatum', 'beginnLokal', 'endeLokal', 'endetAmFolgetag',
+  'objekt', 'objektId', 'projektId',
+  'planDatum', 'beginnLokal', 'endeLokal', 'endetAmFolgetag',
   'pauseGeplantMinuten', 'dauerMinuten', 'funktion', 'status', 'einsatzStatus',
-  'zeitanomalie', 'laeuftJetzt',
+  'zeitanomalie', 'laeuftJetzt', 'beendet', 'entfernt',
 ] as const;
 
 interface SchichtRoh {
@@ -74,6 +113,7 @@ interface SchichtRoh {
   readonly mandant_name: string;
   readonly objekt: string | null;
   readonly objekt_id: string | null;
+  readonly projekt_id: string | null;
   readonly plan_datum: string;
   readonly beginn_lokal: string;
   readonly ende_lokal: string;
@@ -85,6 +125,8 @@ interface SchichtRoh {
   readonly einsatz_status: string;
   readonly zeitanomalie: string;
   readonly laeuft_jetzt: boolean;
+  readonly beendet: boolean;
+  readonly entfernt: boolean;
 }
 
 /**
@@ -101,6 +143,7 @@ const SPALTEN = `
   m.name                                        as mandant_name,
   o.bezeichnung                                 as objekt,
   e.objekt_id,
+  e.projekt_id,
   to_char(e.plan_datum, 'YYYY-MM-DD')           as plan_datum,
   to_char(z.beginn_zeitpunkt at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
                                                 as beginn_lokal,
@@ -117,7 +160,13 @@ const SPALTEN = `
   e.status::text                                as einsatz_status,
   e.zeitanomalie::text                          as zeitanomalie,
   (now() >= z.beginn_zeitpunkt and now() < z.ende_zeitpunkt)
-                                                as laeuft_jetzt`;
+                                                as laeuft_jetzt,
+  -- now() kommt aus der DATENBANK (Invariante 5) — dieselbe Uhr, die
+  -- app.ist_eingesetzt_auf_objekt benutzt. Aus dem Node-Prozess gerechnet
+  -- koennten Seite und Policy um Sekunden auseinanderliegen, und dann
+  -- verspraeche der Bildschirm ein Formular, das die Zeile schon abweist.
+  (now() >= z.ende_zeitpunkt)                   as beendet,
+  (z.entfernt_am is not null)                   as entfernt`;
 
 const QUELLE = `
   from einsatz_zuordnung z
@@ -141,6 +190,7 @@ function abbilden(z: SchichtRoh): EigeneSchicht {
     mandantName: z.mandant_name,
     objekt: z.objekt,
     objektId: z.objekt_id,
+    projektId: z.projekt_id,
     planDatum: z.plan_datum,
     beginnLokal: z.beginn_lokal,
     endeLokal: z.ende_lokal,
@@ -152,6 +202,8 @@ function abbilden(z: SchichtRoh): EigeneSchicht {
     einsatzStatus: z.einsatz_status,
     zeitanomalie: z.zeitanomalie,
     laeuftJetzt: z.laeuft_jetzt,
+    beendet: z.beendet,
+    entfernt: z.entfernt,
   };
 }
 
@@ -194,6 +246,35 @@ export async function findeEigeneSchicht(
   // Kein 403: eine fremde Zuordnung ist fuer diese Anmeldung nicht vorhanden
   // (AUT-06). Der Unterschied waere die Auskunft, dass es sie gibt.
   return z === undefined ? null : abbilden(z);
+}
+
+/**
+ * Die eigenen Schichten AUF EINEM OBJEKT — die kommenden zuerst (EMP-02,
+ * OPS-01).
+ *
+ * Sie steht hier und nicht in `mitarbeiter/objekte.ts`, weil sie DIESELBE
+ * Projektion benutzt wie Liste, Einzelansicht und „Heute": eine zweite Auswahl
+ * derselben Spalten waere die, die beim naechsten Feld zurueckbleibt — und die
+ * Objektseite zeigte dann eine Schicht anders als die Schichtliste, aus der
+ * man sie kennt.
+ *
+ * **Die Grenze ist ein Parameter mit Vorgabewert und keine Zahl im SQL.** Auf
+ * einem Objekt, auf dem jemand seit zwei Jahren arbeitet, sind es sonst
+ * hunderte Zeilen auf einem Telefon.
+ */
+export async function listeEigeneSchichtenAufObjekt(
+  kontext: LeseKontext, objektId: string, grenze = 20,
+): Promise<readonly EigeneSchicht[]> {
+  const roh = await kontext.abfrage<SchichtRoh>(
+    `select ${SPALTEN} ${QUELLE}
+      where ${LEBEND} and e.objekt_id = $1::uuid
+      order by (z.ende_zeitpunkt >= now()) desc,
+               case when z.ende_zeitpunkt >= now() then z.beginn_zeitpunkt end asc,
+               z.beginn_zeitpunkt desc
+      limit $2::int`,
+    [objektId, grenze],
+  );
+  return roh.map(abbilden);
 }
 
 /**

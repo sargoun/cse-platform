@@ -105,7 +105,7 @@ export default async function Wachbuchblatt(
           {' · '}
           {eintrag.objekt}
           {' · '}
-          {eintrag.urheber}
+          {eintrag.urheber ?? '—'}
         </p>
         <p className="m-0 mt-s2 text-sm tabular-nums text-text-muted">
           Serverzeit {eintrag.erfasstLokal}

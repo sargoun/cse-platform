@@ -44,6 +44,22 @@ export type LeistenSchluessel =
   | 'intern_global' | 'intern_admin' | 'intern_leitung'
   | 'mitarbeiter' | 'kunde' | 'gruppe';
 
+/**
+ * Die Leisten des INTERNEN Publikums — die vier, die die zweisprachige Huelle
+ * deckt (D-592).
+ *
+ * Sie steht hier und nicht in der Huelle, weil `LeistenSchluessel` hier steht:
+ * kommt eine funfte interne Leiste dazu, faellt der Compiler ueber diese
+ * Zeile, und nicht erst der Bildschirm ueber eine fehlende Uebersetzung.
+ */
+export const INTERNE_LEISTEN: readonly LeistenSchluessel[] = [
+  'intern_global', 'intern_admin', 'intern_leitung', 'gruppe',
+];
+
+export function istInterneLeiste(schluessel: LeistenSchluessel): boolean {
+  return INTERNE_LEISTEN.includes(schluessel);
+}
+
 export interface TabLeiste {
   readonly schluessel: LeistenSchluessel;
   readonly familie: Familie;
@@ -103,6 +119,32 @@ export const TABLEISTEN: readonly TabLeiste[] = [
   {
     schluessel: 'kunde',
     familie: 'kunde',
+    /*
+     * **Noch OHNE `Mehr` — und das ist eine offene Luecke, keine Ruhe.**
+     *
+     * Das Kundenportal fuehrt inzwischen ZEHN gebaute Listen samt Blaettern
+     * (19 Adressen) und diese Leiste vier plus Uebersicht; `angebote`,
+     * `objekte`, `projekte`, `zahlungen`, `dokumente` und `reklamationen`
+     * sind damit gebaut und aus KEINER Leiste erreichbar. Der Baum dafuer
+     * steht vollstaendig als `KUNDEN_NAVIGATION` in `registry/navigation.ts`
+     * — seit dem Kundenportal-Stapel mit allen elf Punkten. Einen Schritt
+     * weit helfen die Sprungkarten von `/portal/kunde` (dort von sechs auf
+     * zehn erweitert); eine Leiste ersetzen sie nicht.
+     *
+     * Was fehlt, liegt NICHT in diesem Register: `components/portal/
+     * TabLeiste.tsx` (`MehrZelle` kennt genau zwei Baeume),
+     * `components/portal/PortalRahmen.tsx` und `app/portal/zugang.ts` (die
+     * Rechtekarte wird fuer `kunde` aus `NAVIGATION` gebaut, und
+     * `zusatzRecht` wird dort gar nicht gefragt). Wuerde hier jetzt `MEHR`
+     * stehen, gaebe das Blatt den INTERNEN Baum unter `/portal/kunde` aus —
+     * `finanzen/rechnungen`, `qualitaet/reklamationen`, `bau/projekte` und
+     * weitere, allesamt 404, und jeder davon verriete die Existenz dessen,
+     * was er nicht zeigen darf (AUT-06). Die vier Aenderungen gehoeren
+     * zusammen eingespielt; bis dahin bleibt die Leiste, wie sie ist. Der
+     * ausformulierte Vorschlag fuer alle vier steht in der Warteschlange
+     * (`docs/architecture/routenbau/register/kundenportal.md`, „Sonstiges")
+     * und wartet auf eine Hand, die alle vier Dateien anfassen darf.
+     */
     ziele: [
       { schluessel: 'uebersicht', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', icon: 'uebersicht' },
       { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', icon: 'auftrag' },

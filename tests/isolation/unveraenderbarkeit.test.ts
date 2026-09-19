@@ -61,9 +61,36 @@ describe('(1) DELETE on audit_log fails at the database layer — for every role
     ).rejects.toThrow(/Hard delete auf public\.audit_log ist gesperrt/u);
   });
 
+  /**
+   * **Seit `0204` weist Postgres die schlichte Form schon vorher ab.**
+   * `kern.audit_kettenglied.audit_id` traegt einen Fremdschluessel auf
+   * `audit_log`, und `heap_truncate_check_FKs` laeuft VOR den
+   * `before truncate`-Ausloesern. Die schlichte Form scheitert deshalb an der
+   * Datenbank statt am Riegel — der Riegel ist damit nicht schwaecher,
+   * sondern doppelt; nur die Meldung gehoert jetzt jemand anderem.
+   *
+   * Der Fall wird deshalb FORTGESCHRIEBEN und nicht aufgeweicht. Seine Zusage
+   * ist „TRUNCATE kommt nicht durch, und der Ausloeser ist es, der haelt" —
+   * und die beiden Formen, die am Fremdschluessel vorbeikommen, beweisen
+   * genau das. Ohne sie bewiese diese Datei ab `0204` nur noch, dass es
+   * einen Fremdschluessel gibt: faellt der eines Tages, faellt mit ihm
+   * lautlos die ganze Zusage.
+   */
   it('TRUNCATE is a hard delete too, and fires no row trigger — so a statement trigger blocks it', async () => {
+    // Die schlichte Form: der Fremdschluessel aus 0204 faengt sie zuerst ab.
     await expect(
       alsRolle('', (tx) => tx.unsafe(`truncate audit_log`)),
+    ).rejects.toThrow(/cannot truncate a table referenced in a foreign key constraint/u);
+
+    // CASCADE nimmt das Kettenbuch mit und laeuft an der Pruefung vorbei —
+    // hier haelt der Ausloeser, und nur er.
+    await expect(
+      alsRolle('', (tx) => tx.unsafe(`truncate audit_log cascade`)),
+    ).rejects.toThrow(/Hard delete auf public\.audit_log ist gesperrt/u);
+
+    // Und dieselbe Luecke von Hand: beide Tabellen in EINER Anweisung.
+    await expect(
+      alsRolle('', (tx) => tx.unsafe(`truncate audit_log, kern.audit_kettenglied`)),
     ).rejects.toThrow(/Hard delete auf public\.audit_log ist gesperrt/u);
   });
 
@@ -142,8 +169,47 @@ describe('(2) a soft-deleted row leaves the finder and stays in the table', () =
      * ist die Sperrklinke: eine neue weiche Loeschung faellt auf, statt sich
      * einzuschleichen. `vergabemappe` traegt S4, weil sie der Beleg einer
      * Abgabe ist (D-492) — die Zeilen ihrer Pruefliste bewusst nicht.
+     *
+     * `team`, `aufgabe` und `nachricht` kamen mit `0230`/`0231` dazu. Die
+     * Sperrklinke soll AUFFALLEN lassen, nicht verbieten: sie darf wachsen,
+     * wenn das Neue richtig ist. Fuer diese drei ist es nachgemessen und
+     * nicht angenommen — jede traegt `geloescht_am` und `geloescht_von` (der
+     * Fall darunter prueft die Spalte gegen die Datenbank), und jede hat
+     * einen Grund, der zur weichen Loeschung passt: ein aufgeloestes `team`
+     * ist die Antwort darauf, wer eine Aufgabe damals bekam
+     * (`aufgabe.zugewiesen_team_id` zeigt darauf); eine `aufgabe` ist der
+     * Nachweis, dass ein Waechterbefund offen war; eine `nachricht` IST der
+     * Nachweis der Rechtsgrundlage, auf der jemand kontaktiert wurde (§7 UWG,
+     * LEG-08). Keine der drei darf verschwinden, und keine ist ein Archiv.
      */
-    expect(SOFT_DELETE).toEqual(['dokument', 'person', 'anstellung', 'vergabemappe']);
+    expect(SOFT_DELETE).toEqual([
+      'dokument', 'person', 'anstellung', 'vergabemappe', 'team', 'aufgabe', 'nachricht',
+    ]);
+    // Und der Finder greift auf jeder von ihnen — die Liste ist nicht bloss
+    // eine Behauptung ueber das Register.
+    for (const tabelle of SOFT_DELETE) {
+      expect(loeschPraedikat(tabelle), tabelle).toBe('geloescht_am is null');
+    }
+  });
+
+  /**
+   * Die Gegenprobe in der DATENBANK: eine Tabelle, die `art: 'soft'` traegt,
+   * aber kein `geloescht_am` hat, laesst jeden Finder auf eine unbekannte
+   * Spalte laufen — und zwar erst im Betrieb, an der ersten Liste, die sie
+   * anfasst. Der Fall darueber prueft das Register gegen sich selbst; dieser
+   * prueft es gegen das Schema.
+   */
+  it('jede als `soft` registrierte Tabelle traegt geloescht_am und geloescht_von', async () => {
+    const spalten = await sql.unsafe<{ table_name: string; column_name: string }[]>(
+      `select table_name, column_name from information_schema.columns
+        where table_schema = 'public' and table_name = any($1)
+          and column_name in ('geloescht_am', 'geloescht_von')`,
+      [SOFT_DELETE] as never[],
+    );
+    for (const tabelle of SOFT_DELETE) {
+      const hat = spalten.filter((s) => s.table_name === tabelle).map((s) => s.column_name).sort();
+      expect(hat, tabelle).toEqual(['geloescht_am', 'geloescht_von']);
+    }
   });
 
   it('an injected alias is refused rather than pasted into SQL', () => {

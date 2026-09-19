@@ -64,8 +64,45 @@ export async function angebotMetadaten(
  * Feldliste, und die englische Seite kann nicht gegen eine andere pruefen als
  * die, die sie gezeigt hat.
  */
+/**
+ * Die Feldmeldungen aus der Adresse — als JSON, weil die Feldnamen aus
+ * `formular_definition` kommen und nicht im Voraus bekannt sind.
+ *
+ * **Er steht HIER und nicht in `page.tsx`.** Aus einer `page.tsx` erlaubt
+ * Next.js nur die bekannten Exporte; ein zusaetzlicher schlaegt beim BAU fehl
+ * („Property 'felderAus' is incompatible with index signature") und nicht bei
+ * `npx tsc --noEmit` — die Routentypen entstehen erst dort. Derselbe Grund,
+ * aus dem `AngebotSeiteFuer` in dieser Datei steht.
+ *
+ * **Alles, was nicht passt, wird verworfen.** Der Wert steht in einer Adresse,
+ * die jeder bauen kann; was hier durchkommt, landet als Text auf der Seite.
+ * Deshalb: nur ein Objekt, nur Zeichenketten, und nur solche in vernuenftiger
+ * Laenge. Ein kaputter Parameter gibt `undefined` und keine halbe Anzeige.
+ */
+export function felderAus(
+  roh: string | string[] | undefined,
+): Readonly<Record<string, string>> | undefined {
+  if (typeof roh !== 'string' || roh === '') return undefined;
+  try {
+    const gelesen: unknown = JSON.parse(roh);
+    if (gelesen === null || typeof gelesen !== 'object' || Array.isArray(gelesen)) {
+      return undefined;
+    }
+    const sauber: Record<string, string> = {};
+    for (const [schluessel, wert] of Object.entries(gelesen)) {
+      if (typeof wert === 'string' && wert.length > 0 && wert.length <= 300) {
+        sauber[schluessel] = wert;
+      }
+    }
+    return Object.keys(sauber).length === 0 ? undefined : sauber;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function AngebotSeiteFuer(
-  bereich: string, sprache: Sprache = VORGABE_SPRACHE,
+  bereich: string, sprache: Sprache = VORGABE_SPRACHE, meldung?: string | undefined,
+  fehler?: Readonly<Record<string, string>> | undefined,
 ) {
   const formular = await ladeFormular(bereich);
   if (formular === null) notFound();
@@ -84,6 +121,8 @@ export async function AngebotSeiteFuer(
   return (
     <AnfrageFormular
       bereich={bereich} titel={titel} felder={felderAnzeige} sprache={sprache}
+      {...(meldung === undefined ? {} : { meldung })}
+      {...(fehler === undefined ? {} : { fehler })}
     />
   );
 }

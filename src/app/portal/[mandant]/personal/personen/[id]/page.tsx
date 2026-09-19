@@ -64,7 +64,8 @@ export default async function Personenblatt(
      (Copilot-Runde auf PR 16 / D-581). */
   const darf = await haeltRechte(
     sitzung, 'personal.zugang_verwalten', 'personal.nachweis_lesen',
-    'zeit.konto_lesen', 'personal.nachweis_verwalten');
+    'zeit.konto_lesen', 'personal.nachweis_verwalten',
+    'personal.stammdaten_lesen', 'personal.zusammenfuehren');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const heute = await berlinHeute();
@@ -134,6 +135,31 @@ export default async function Personenblatt(
             className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
           >
             Zugang und Anmeldecode
+          </Link>
+        )}
+        {/*
+          * „Stammdaten" verlangt `personal.stammdaten_lesen` (SEC-03, LEG-09),
+          * „Dubletten" `personal.zusammenfuehren`. Ohne das jeweilige Recht
+          * steht der Knopf nicht — er fuehrte auf 404 und verriete damit, was
+          * er nicht zeigen darf (AUT-06, D-581). Und ohne den Knopf waere die
+          * Stammdatenseite nur ueber die Adresszeile erreichbar.
+          */}
+        {darf['personal.stammdaten_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/personen/${id}/stammdaten`}
+            data-cse="person-stammdaten"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Stammdaten (Bewacherregister)
+          </Link>
+        )}
+        {darf['personal.zusammenfuehren'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/zusammenfuehren`}
+            data-cse="person-dubletten"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Dubletten zusammenführen
           </Link>
         )}
       </nav>

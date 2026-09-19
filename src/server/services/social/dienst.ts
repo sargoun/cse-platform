@@ -52,6 +52,8 @@ export class SocialFehler extends Error {
 
 export interface BeitragZeile {
   readonly id: string;
+  /** Der URL-Schluessel unter `/unternehmen/<bereich>/news/` (0170). */
+  readonly slug: string;
   readonly titel: string;
   readonly text: string;
   readonly art: string;
@@ -85,29 +87,72 @@ export interface BeitragKanalZeile {
   readonly versuche: number;
 }
 
-const FELDER = `b.id, b.titel, b.text, b.art::text as art, b.status::text as status,
+const FELDER = `b.id, b.slug, b.titel, b.text, b.art::text as art, b.status::text as status,
                 b.geplant_fuer as "geplantFuer", b.veroeffentlicht_am as "veroeffentlichtAm",
                 b.zurueckgezogen_am as "zurueckgezogenAm", b.freigabe_id as "freigabeId",
                 b.projekt_id as "projektId", b.referenz_id as "referenzId",
                 b.erstellt_am as "erstelltAm"`;
 
+/**
+ * Die Beitraege — gefiltert nach Stand und, wo gewuenscht, nach ART.
+ *
+ * **Warum der Artenfilter nachgereicht wurde.** `/website/news` zeigt, was auf
+ * `/unternehmen/<bereich>/news` erscheint, und das ist nicht alles: die Grenze
+ * zieht `NEUIGKEITS_ARTEN` (O-548). Ohne diesen Filter haette die
+ * Website-Redaktion dieselbe Liste wie `/social/posts` gesehen — vier
+ * Projektschauen darunter, die auf der Newsseite nie auftauchen. Eine Liste,
+ * die mehr zeigt, als die Seite dahinter fuehrt, ist keine Vorschau.
+ *
+ * `arten` ist absichtlich eine Liste und kein einzelner Wert: die Grenze steht
+ * in EINER Konstante, und die ist mehrelementig.
+ *
+ * **Und warum `mandant_id = app.aktiver_mandant()` hier im DIENST steht und
+ * nicht nur in der Policy.** `beitrag` traegt zwei erlaubende Lesepolicies:
+ * `t_beitrag_lesen` (aktiver Mandant + `social.lesen`) und
+ * `t_beitrag_oeffentlich` (`status = 'veroeffentlicht'`, ohne Mandanten-
+ * bedingung, weil die oeffentliche Seite ohne Sitzung laeuft). Erlaubende
+ * Policies werden ver-ODER-t; eine restriktive SELECT-Decke gibt es auf dieser
+ * Tabelle bewusst nicht (`p_beitrag_decke_*` gilt nur fuer INSERT/UPDATE,
+ * siehe 0163). Eine Abfrage ohne eigene Mandantenbedingung sah damit JEDE
+ * veroeffentlichte Neuigkeit ALLER vier Gesellschaften — gemessen, nicht
+ * vermutet. Invariante 3 sagt dazu den Satz, der hier gilt: RLS ist die
+ * zweite Linie, nie die einzige.
+ */
 export async function listeBeitraege(
-  kontext: LeseKontext, filter: { status?: BeitragStatus } = {},
+  kontext: LeseKontext,
+  filter: { status?: BeitragStatus; arten?: readonly string[] } = {},
 ): Promise<readonly BeitragZeile[]> {
   const status = filter.status ?? null;
+  const arten = filter.arten === undefined ? null : [...filter.arten];
   return kontext.abfrage<BeitragZeile>(
     `select ${FELDER}
        from beitrag b
-      where ($1::text is null or b.status::text = $1)
+      where b.mandant_id = app.aktiver_mandant()
+        and ($1::text is null or b.status::text = $1)
+        and ($2::text[] is null or b.art::text = any($2::text[]))
       order by coalesce(b.veroeffentlicht_am, b.geplant_fuer, b.erstellt_am) desc, b.id`,
-    [status]);
+    [status, arten]);
 }
 
+/**
+ * Ein Beitrag DIESER Gesellschaft — und nur ihrer.
+ *
+ * Die Mandantenbedingung steht aus demselben Grund hier wie in
+ * `listeBeitraege`: `t_beitrag_oeffentlich` liesse jede veroeffentlichte Zeile
+ * durch, gleich welcher Gesellschaft. Eine fremde Kennung ist damit wieder
+ * das, was sie sein muss — `null`, also 404 auf der Seite darueber (AUT-06).
+ *
+ * Der Lauf (`jobs/socialPlan.ts`) faellt nicht darunter: `alsJobSitzung`
+ * bindet `app.mandant_id` auf den Mandanten DES Beitrags, bevor er
+ * `veroeffentliche` ruft.
+ */
 export async function ladeBeitrag(
   kontext: LeseZugriff, id: string,
 ): Promise<BeitragZeile | null> {
   const [z] = await kontext.abfrage<BeitragZeile>(
-    `select ${FELDER} from beitrag b where b.id = $1::uuid`, [id]);
+    `select ${FELDER}
+       from beitrag b
+      where b.id = $1::uuid and b.mandant_id = app.aktiver_mandant()`, [id]);
   return z ?? null;
 }
 
@@ -784,6 +829,105 @@ export async function oeffentlicheBeitraege(
       order by b.veroeffentlicht_am desc
       limit $2::int`,
     [mandantId, grenze]);
+}
+
+/**
+ * Die vier Arten, nach denen `/beitraege` und `/news` sich unterscheiden
+ * (SOC-02, SEITENKARTE §2.2).
+ *
+ * **Warum es zwei Listen gibt und nicht eine.** Die Karte führt beide Adressen
+ * getrennt, und sie meinen Verschiedenes: `/news` ist das, was eine
+ * Gesellschaft ankündigt — eine Neuigkeit oder eine Aktualisierung, die Sorte
+ * Eintrag, die in eine Pressemitteilung gehört. `/beitraege` ist alles, was
+ * sie öffentlich geschrieben hat, Projektschauen eingeschlossen. Die Trennung
+ * steht deshalb an der ART, die `beitrag_art` ohnehin führt, und nicht an
+ * einer zweiten Spalte, die jemand pflegen müsste.
+ *
+ * // TODO(client, O-548): Zählt eine `projektschau` für den Kunden zu den
+ * // „Neuigkeiten"? Hier NICHT — sie hat ihre eigene Liste unter `/projekte`.
+ * // Wenn die Gruppe das anders sieht, ist es diese eine Zeile.
+ */
+export const NEUIGKEITS_ARTEN: readonly string[] = ['neuigkeit', 'aktualisierung'];
+
+/**
+ * Welches der beiden Segmente die KANONISCHE Adresse eines Beitrags traegt.
+ *
+ * **Warum das eine Funktion ist und nicht zweimal derselbe Vergleich.**
+ * `/unternehmen/<b>/news/<slug>` und `/unternehmen/<b>/beitraege/<slug>`
+ * liefern dieselbe Zeile — `oeffentlicherBeitragNachSlug` kennt keinen
+ * Artenfilter. Ohne EINE Regel erklaerte die Sitemap die eine Adresse zur
+ * kanonischen und die Seite die andere, und beide waeren indexierbar: genau
+ * die Doppelung, wegen der die kurzen Gesellschaftsadressen einmal geloescht
+ * worden sind (§2.2). Gefragt wird deshalb an einer Stelle, und Sitemap wie
+ * `generateMetadata` fragen dieselbe.
+ */
+export function beitragSegment(art: string): 'news' | 'beitraege' {
+  return NEUIGKEITS_ARTEN.includes(art) ? 'news' : 'beitraege';
+}
+
+/**
+ * Die Neuigkeiten EINER Gesellschaft — `/unternehmen/<bereich>/news`.
+ *
+ * Dieselben drei Bedingungen wie überall auf dem öffentlichen Weg:
+ * veröffentlicht, nicht zurückgezogen, dieser Mandant. Sie stehen hier UND in
+ * `t_beitrag_oeffentlich`; eine vergessene Bedingung im Code zeigt sonst einen
+ * Entwurf, den niemand freigegeben hat.
+ */
+export async function oeffentlicheNeuigkeiten(
+  kontext: LeseKontext, mandantId: string, grenze = 24,
+): Promise<readonly BeitragZeile[]> {
+  return kontext.abfrage<BeitragZeile>(
+    `select ${FELDER}
+       from beitrag b
+      where b.mandant_id = $1::uuid and b.status = 'veroeffentlicht'
+        and b.zurueckgezogen_am is null
+        and b.art::text = any($2::text[])
+      order by b.veroeffentlicht_am desc, b.id
+      limit $3::int`,
+    [mandantId, NEUIGKEITS_ARTEN, grenze]);
+}
+
+/** Ein einzelner Beitrag unter seiner kanonischen Adresse (SEITENKARTE §2.2). */
+export async function oeffentlicherBeitragNachSlug(
+  kontext: LeseKontext, mandantId: string, slug: string,
+): Promise<BeitragZeile | null> {
+  const [z] = await kontext.abfrage<BeitragZeile>(
+    `select ${FELDER}
+       from beitrag b
+      where b.mandant_id = $1::uuid and b.slug = $2
+        and b.status = 'veroeffentlicht' and b.zurueckgezogen_am is null`,
+    [mandantId, slug]);
+  return z ?? null;
+}
+
+/** Ein Beitrag MIT seiner Gesellschaft — für die Gruppenliste `/news`. */
+export interface BeitragMitBereich extends BeitragZeile {
+  readonly bereichSlug: string;
+  readonly bereichName: string;
+}
+
+/**
+ * Die Gruppenliste `/news` — über alle Gesellschaften, nach Datum.
+ *
+ * **Jeder Eintrag zeigt auf die Gesellschaftsadresse**, nicht auf sich selbst:
+ * §2.2 macht `/unternehmen/<bereich>/news/<slug>` zur kanonischen Adresse, und
+ * diese Liste setzt `rel=canonical` darauf. Deshalb reist der Bereichs-Slug
+ * mit, statt im Code nachgeschlagen zu werden.
+ */
+export async function neuigkeitenDerGruppe(
+  kontext: LeseKontext, grenze = 24,
+): Promise<readonly BeitragMitBereich[]> {
+  return kontext.abfrage<BeitragMitBereich>(
+    `select ${FELDER},
+            m.slug as "bereichSlug", m.name as "bereichName"
+       from beitrag b
+       join mandant m on m.id = b.mandant_id
+      where b.status = 'veroeffentlicht' and b.zurueckgezogen_am is null
+        and b.art::text = any($1::text[])
+        and m.archiviert_am is null
+      order by b.veroeffentlicht_am desc, b.id
+      limit $2::int`,
+    [NEUIGKEITS_ARTEN, grenze]);
 }
 
 export interface Quelle {

@@ -220,6 +220,19 @@ export async function schreibeEintrag(
     ['posten', eingabe.postenId],
     ['veranstaltung', eingabe.veranstaltungId],
     ['einsatz', eingabe.einsatzId],
+    /*
+     * Der Kontrollpunkt steht mit in dieser Liste, seit das Mitarbeiterportal
+     * ihn anbietet: er kommt aus dem FORMULAR, und was aus einer Anfrage
+     * kommt, wird gegen das Objekt der Schicht gehalten (K-02). Ohne die Zeile
+     * liesse sich ein Kontrollpunkt aus Haus B in den Praesenznachweis von
+     * Haus A schreiben — in eine Kette, die nach § 34a GewO nicht mehr
+     * korrigiert, sondern nur richtiggestellt werden kann.
+     *
+     * Im M1-Scope traegt `kontrollpunkt.t_selbst_m1` (0300) die Lesbarkeit;
+     * ohne sie faende diese Pruefung null Zeilen und wiese den EIGENEN
+     * Kontrollpunkt ab (AUT-05).
+     */
+    ['kontrollpunkt', eingabe.kontrollpunktId],
   ];
   for (const [tabelle, kennung] of AM_OBJEKT) {
     if (kennung == null) continue;
@@ -378,7 +391,15 @@ export interface EintragZeile {
   readonly objekt: string;
   /** Berliner Ortszeit, fertig aus der Datenbank (Invariante 2). */
   readonly erfasstLokal: string;
-  readonly urheber: string;
+  /**
+   * Wer den Eintrag geschrieben hat — oder `null`, wenn diese Anmeldung die
+   * `person`-Zeile nicht lesen darf.
+   *
+   * Im Mitarbeiterportal ist das der Regelfall und kein Fehler: die Wache
+   * sieht die Uebergabe der Vorschicht, aber nicht den Namen der Kollegin
+   * (EMP-13). Die Anzeige schreibt dafuer „—".
+   */
+  readonly urheber: string | null;
   readonly zeitabweichungSek: number | null;
   readonly nachgetragen: boolean;
   readonly polizeiInformiert: boolean;
@@ -400,7 +421,7 @@ interface RohEintrag {
   readonly objekt_id: string;
   readonly objekt: string;
   readonly erfasst_lokal: string;
-  readonly urheber: string;
+  readonly urheber: string | null;
   readonly zeitabweichung_sek: number | null;
   readonly nachgetragen: boolean;
   readonly polizei_informiert: boolean;
@@ -450,6 +471,25 @@ function ausEintrag(z: RohEintrag): EintragZeile {
   };
 }
 
+/**
+ * **`left join person` und nicht `join`** — sonst verschwindet im
+ * Mitarbeiterportal die ganze Zeile.
+ *
+ * `person.t_person_lesen` faellt dort auf den Einschub `exists (select 1 from
+ * anstellung …)` zurueck, und auf `anstellung` liegt die restriktive Decke
+ * `p_ma_ceiling` (`app.portal() <> 'mitarbeiter' or person_id =
+ * app.aktuelle_person()`). Sichtbar ist damit genau die EIGENE Anstellung —
+ * die `person`-Zeile der Kollegin der Vorschicht nicht. Mit einem INNER JOIN
+ * fiel deren Eintrag aus dem Ergebnis, und die Uebergabeseite zeigte „keine
+ * Eintraege", obwohl das Fenster offen war und vier Eintraege dastanden
+ * (gemessen im Personen-Scope: `w join person p` = 0, `w join objekt o` = 4).
+ * Das ist genau die Falschaussage, gegen die 0302 geschrieben wurde.
+ *
+ * Der LEFT JOIN ist zugleich die EMP-13-richtige Antwort: der Name der
+ * Kollegin gehoert nicht in das Portal der Wache. `urheber` ist deshalb
+ * `string | null` — „nicht offengelegt", und die Anzeige schreibt „—".
+ * Im internen Portal ist die Zeile lesbar und der Name steht wie bisher da.
+ */
 const FELDER = `
   w.id, w.jahr, w.laufnummer, w.art::text as art, w.betreff, w.eintragstext,
   w.objekt_id, o.bezeichnung as objekt,
@@ -467,7 +507,8 @@ const FELDER = `
   (select v.id from wachbuch_eintrag v
     where v.ersetzt_durch_id = w.id order by v.laufnummer limit 1) as ersetzt_id
   from wachbuch_eintrag w
-  join person p on p.id = w.person_id
+  -- LEFT JOIN und nicht JOIN: siehe die Begruendung ueber FELDER.
+  left join person p on p.id = w.person_id
   join objekt o on o.id = w.objekt_id and o.mandant_id = w.mandant_id
   left join kontrollpunkt k on k.id = w.kontrollpunkt_id and k.mandant_id = w.mandant_id`;
 

@@ -131,7 +131,7 @@ export default async function Angebotsliste(
               schluessel: 'status',
               kopf: 'Status',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={PILLE[z.status] ?? 'Entwurf'} />
                   {z.hat_auftrag ? (
                     <span className="text-xs text-text-muted">→ Auftrag</span>

@@ -63,7 +63,18 @@ export interface AusserhalbLvWarnung {
  */
 export async function ladeAusserhalbLv(
   kontext: LeseKontext,
-  filter: { readonly projektId?: string | null } = {},
+  filter: {
+    readonly projektId?: string | null;
+    /**
+     * Hoechstzahl der Warnungen — eine TECHNISCHE Grenze, keine fachliche.
+     * Ohne Projektfilter waechst diese Abfrage mit jedem Aufmassblatt und
+     * jedem Zeiteintrag des Mandanten; die Moduluebersicht zeigt einen
+     * Ausschnitt, und der Ausschnitt muss begrenzt sein, sonst laedt die
+     * Uebersicht die ganze Baugeschichte, um zwanzig Zeilen zu zeigen.
+     * Dass die Liste beschnitten ist, sagt die Oberflaeche.
+     */
+    readonly grenze?: number;
+  } = {},
 ): Promise<readonly AusserhalbLvWarnung[]> {
   return kontext.abfrage<AusserhalbLvWarnung>(
     `select 'aufmass' as quelle, z.id, z.projekt_id, p.bezeichnung as projekt,
@@ -107,8 +118,9 @@ export async function ladeAusserhalbLv(
                   and n.storniert_am is null)
        group by al.id, t.projekt_id, p.bezeichnung, al.bezeichnung, al.position_nr
 
-      order by quelle, position`,
-    [filter.projektId ?? null],
+      order by quelle, position
+      limit $2::int`,
+    [filter.projektId ?? null, filter.grenze ?? 200],
   );
 }
 

@@ -32,6 +32,11 @@ import { STUNDEN_FENSTER_FELDER, KONTO_ANSICHT_FELDER, URLAUB_ANSICHT_FELDER }
 import { ZEITEINTRAG_FELDER } from './zeiten.js';
 import { EIGENER_NACHWEIS_FELDER, EIGENE_NACHWEISLAGE_FELDER } from './nachweise.js';
 import { EIGENER_ANTRAG_FELDER, EIGENE_ABWESENHEIT_FELDER } from './antraege.js';
+import { SCHICHT_NACHWEIS_FELDER } from './nachweis-schicht.js';
+import { SCHICHT_MEDIUM_FELDER } from './medien.js';
+import { SCHICHT_KONTROLLPUNKT_FELDER } from './schichtbuch.js';
+import { MEIN_DOKUMENT_FELDER } from './dokumente.js';
+import { EIGENES_OBJEKT_FELDER, OBJEKT_ZUGANG_FELDER } from './objekte.js';
 
 /**
  * Jede Nutzlast, die das Mitarbeiterportal einer Seite gibt, mit ihrer
@@ -48,6 +53,28 @@ export const MITARBEITER_NUTZLASTEN: Readonly<Record<string, readonly string[]>>
   nachweislage: EIGENE_NACHWEISLAGE_FELDER,
   antrag: EIGENER_ANTRAG_FELDER,
   abwesenheit: EIGENE_ABWESENHEIT_FELDER,
+  /*
+   * Die Nutzlasten der vier Schichtseiten (0300–0304). Sie fehlten hier, und
+   * damit prueften WEDER die Wortprobe noch der Feldvergleich sie — still,
+   * denn nichts zaehlte die `*_FELDER`-Exporte auf. Genau dagegen ist diese
+   * Liste laut ihrem Kopfkommentar gebaut. `tests/kern/mitarbeiter.test.ts`
+   * haelt jetzt zusaetzlich jeden Export unter `services/mitarbeiter/` gegen
+   * diese Schluessel, damit sich die Luecke beim naechsten Dienst nicht
+   * wiederholt.
+   */
+  schichtNachweis: SCHICHT_NACHWEIS_FELDER,
+  schichtMedium: SCHICHT_MEDIUM_FELDER,
+  schichtKontrollpunkt: SCHICHT_KONTROLLPUNKT_FELDER,
+  /*
+   * Die Nutzlasten von `/portal/mein/dokumente` und `/portal/mein/objekte`
+   * (0360, 0361). `dokument` und `objekt` sind die zwei Tabellen, an denen im
+   * Mitarbeiterportal am meisten haengt, was dort NICHT hingehoert: `kunde_id`
+   * am Dokument, `zutritt_hinweis` und `bemerkung` am Objekt. Die erste Linie
+   * dagegen sind Policies und Spaltenrechte; diese Listen sind die zweite.
+   */
+  meinDokument: MEIN_DOKUMENT_FELDER,
+  eigenesObjekt: EIGENES_OBJEKT_FELDER,
+  objektZugang: OBJEKT_ZUGANG_FELDER,
 };
 
 /**

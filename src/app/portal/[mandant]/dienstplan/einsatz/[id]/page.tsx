@@ -213,7 +213,7 @@ export default async function Einsatzblatt({
       <nav aria-label="Zurück" className="mb-s4">
         <Link
           href={`/portal/${mandant}/dienstplan/woche?woche=${kopf.plan_datum}`}
-          className="inline-flex items-center gap-s2 text-sm text-text-muted hover:text-text"
+          className="inline-flex flex-wrap items-center gap-s2 text-sm text-text-muted hover:text-text"
         >
           <Icon name="pfeil-rechts" groesse="sm" className="rotate-180" />
           Zurück zum Dienstplan

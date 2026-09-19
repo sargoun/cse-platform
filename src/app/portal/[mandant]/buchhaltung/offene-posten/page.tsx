@@ -151,7 +151,7 @@ export default async function OffenePosten(
             { schluessel: 'faellig', kopf: 'Fällig', zelle: (z) => deutschesDatum(z.faelligAm) },
             { schluessel: 'alter', kopf: 'Alter',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={z.klasse === 'nicht_faellig' ? 'Offen' : z.klasse === 'bis30' ? 'Wartet' : 'Überfällig'} />
                   <span className="text-xs text-text-muted">{z.tage < 0 ? `in ${String(-z.tage)} Tagen` : `${String(z.tage)} Tage · ${KLASSE_LABEL[z.klasse]}`}</span>
                 </span>

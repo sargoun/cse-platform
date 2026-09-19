@@ -307,6 +307,49 @@ export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
   },
 };
 
+/**
+ * Die Dankseite `/angebot/[bereich]/danke` (§2.3, REQ-01).
+ *
+ * **Sie nennt die Vorgangsnummer**, und das ist kein Schmuck: sie ist das
+ * einzige, womit ein Anfragender bei einem Rueckruf auf seine Anfrage zeigen
+ * kann. Ohne sie heisst es „ich habe da mal was geschickt".
+ *
+ * **Und sie verspricht keine Frist.** Wie schnell geantwortet wird, ist die
+ * offene Frage O-14 — die Plattform kennt eine Frist je Formular, aber ob sie
+ * dem Kunden GENANNT werden soll, ist eine Zusage des Mandanten und keine des
+ * Entwicklers. Ein „wir melden uns binnen 24 Stunden" auf einer Website ist
+ * eine Werbeaussage, an der man gemessen wird.
+ */
+export interface DankTexte {
+  readonly titel: string;
+  readonly satz: string;
+  readonly nummerLabel: string;
+  readonly nummerHinweis: string;
+  readonly weiter: string;
+  readonly zurStartseite: string;
+}
+
+export const DANK_TEXTE: Readonly<Record<Sprache, DankTexte>> = {
+  de: {
+    titel: 'Ihre Anfrage ist angekommen',
+    satz: 'Vielen Dank. Wir haben Ihre Anfrage aufgenommen und sehen sie uns an. '
+      + 'Sobald wir sie durchgegangen sind, melden wir uns bei Ihnen.',
+    nummerLabel: 'Ihre Vorgangsnummer',
+    nummerHinweis: 'Bitte nennen Sie diese Nummer, wenn Sie sich auf die Anfrage beziehen.',
+    weiter: 'Noch eine Anfrage stellen',
+    zurStartseite: 'Zur Startseite',
+  },
+  en: {
+    titel: 'Your enquiry has arrived',
+    satz: 'Thank you. We have recorded your enquiry and are looking at it. '
+      + 'We will get in touch as soon as we have been through it.',
+    nummerLabel: 'Your reference number',
+    nummerHinweis: 'Please quote this number when referring to your enquiry.',
+    weiter: 'Send another enquiry',
+    zurStartseite: 'Back to the home page',
+  },
+};
+
 /** Die Bereichsauswahl `/angebot` (§2.3, REQ-01). */
 export interface AuswahlTexte {
   readonly titel: string;
@@ -506,6 +549,43 @@ export interface MeinTexte {
   readonly ungelesen: string;
   readonly gelesen: string;
   readonly oeffnen: string;
+  /**
+   * Die zweite Quelle desselben Bildschirms (EMP-11, NOT-03, 0350).
+   *
+   * `/portal/mein/nachrichten` zeigte bis 0350 ausschliesslich
+   * `benachrichtigung` — Waechter-, Ablauf- und Fristmeldungen. Eine interne
+   * Nachricht der Leitung steht in `nachricht`, einer ANDEREN Tabelle, und kam
+   * deshalb nie an. Die Seite fuehrt jetzt beides zusammen; damit die Kraft
+   * die zwei Arten auseinanderhaelt, traegt jede Zeile ihre Beschriftung.
+   */
+  readonly systemmeldung: string;
+  readonly nachrichtenFaden: string;
+  readonly verlauf: string;
+  readonly absender: string;
+  /** Eine Zeile, die ich selbst geschrieben habe — kein fremder Name davor. */
+  readonly ichSelbst: string;
+  readonly unbekannterAbsender: string;
+  readonly antworten: string;
+  readonly ihreAntwort: string;
+  readonly alsGelesenMarkieren: string;
+  readonly fadenGeschlossen: string;
+  /** Invariante 7: nichts verlaesst das System. Und das steht auf dem Schirm. */
+  readonly antwortNurImPortal: string;
+  /** Die Rueckmeldung nach einem POST — sie sagt, WAS geschehen ist. */
+  readonly gespeichert: string;
+  readonly antwortImVorgang: string;
+  /** Der Stempel traf null eigene Zeilen. „Gespeichert." waere hier unwahr. */
+  readonly schonGelesen: string;
+  /**
+   * Zwei offene Geschaeftsfragen, als SATZ auf dem Bildschirm (O-830, O-831).
+   *
+   * Nicht ein ausgegrauter Knopf und nicht ein weggelassener Absatz: wer eine
+   * Anlage erwartet und keine sieht, sucht sie — und wer schreiben will und
+   * keinen Knopf findet, haelt das Portal fuer kaputt.
+   */
+  readonly neuerFadenOffen: string;
+  readonly anlagen: string;
+  readonly anlagenNichtAbrufbar: string;
   readonly profil: string;
   readonly bereichWechseln: string;
   readonly konto: string;
@@ -514,6 +594,168 @@ export interface MeinTexte {
   /** Die Landmarken der Kopfzeile — ein Screenreader liest sie vor. */
   readonly sitzung: string;
   readonly pfad: string;
+
+  /**
+   * Die Seiten, die AUF der Schicht entstehen (SEC-05, CLN-04, TIM-10,
+   * BAU-07) — und der Antrag und die Nachricht im Einzelnen.
+   *
+   * Sie stehen hier und nicht als zweite Karte daneben, weil `MEIN_TEXTE` die
+   * einzige Stelle ist, die `tests/kern/mitarbeiter-sprachen.test.ts` auf
+   * Vollstaendigkeit prueft. Ein zweiter Datensatz waere ein zweiter, den
+   * niemand prueft — und die halbe Uebersetzung faellt genau dort an.
+   *
+   * **Was NICHT uebersetzt wird**: der Bestaetigungstext, unter dem der Kunde
+   * unterschreibt. Er ist die Erklaerung, an die die Gesellschaft gebunden
+   * ist, und bleibt deutsch (SEITENKARTE §12, 0066).
+   */
+  readonly zurueck: string;
+  readonly empfangenAm: string;
+  readonly zumDatensatz: string;
+  readonly eingereichtAm: string;
+  readonly entschiedenAm: string;
+  readonly entscheidung: string;
+  readonly zurueckgezogen: string;
+  readonly zurueckziehenHinweis: string;
+
+  readonly wachbuch: string;
+  readonly wachbuchNeu: string;
+  readonly uebergabe: string;
+  /**
+   * Das Uebergabefenster ist GAR NICHT eingestellt (`uebergabeFenster ===
+   * null`) — die offene Frage O-151 ist noch nicht beantwortet.
+   *
+   * Getrennt von `uebergabeAus`, weil `Schichtbuch.uebergabeFenster` die zwei
+   * Faelle mit Absicht unterscheidet: `null` heisst „nie eingerichtet",
+   * `00:00:00` heisst „eingestellt und abgeschaltet" (der Seed-Vorgabewert aus
+   * 0033). Ein Satz fuer beide behauptete auf jedem Seed-Bildschirm etwas,
+   * das dort nicht stimmt.
+   */
+  readonly uebergabeNichtEingestellt: string;
+  /** Das Fenster ist eingestellt und steht auf 0 — bewusst abgeschaltet. */
+  readonly uebergabeAus: string;
+  readonly art: string;
+  readonly betreff: string;
+  readonly eintragstext: string;
+  readonly kontrollpunkt: string;
+  readonly praesenz: string;
+  readonly polizei: string;
+  readonly nummer: string;
+  readonly erfasstAm: string;
+  readonly unveraenderlich: string;
+
+  readonly leistungsnachweis: string;
+  readonly leistungszeitraum: string;
+  readonly positionen: string;
+  readonly menge: string;
+  readonly einheit: string;
+  readonly entwurfAnlegen: string;
+  readonly vorlegen: string;
+  readonly unterschrift: string;
+  readonly unterzeichnerName: string;
+  readonly unterschreiben: string;
+  readonly unterschrieben: string;
+
+  readonly fotos: string;
+  readonly aufnahmeHinzufuegen: string;
+  readonly beschreibung: string;
+  readonly keineAufnahmen: string;
+  readonly ohneOrtsdaten: string;
+
+  readonly bautagebuch: string;
+  readonly mannstunden: string;
+  readonly gewerk: string;
+  readonly anzahlPersonen: string;
+  readonly geraet: string;
+  readonly lieferung: string;
+  readonly vorkommnis: string;
+  readonly bezeichnung: string;
+  readonly hinzufuegen: string;
+  readonly tagGeschlossen: string;
+  readonly abgleich: string;
+  /**
+   * Die vier Befunde des Mannstundenabgleichs — als SCHLUESSEL und nicht als
+   * fertiger Satz.
+   *
+   * `gleicheMannstundenAb` liefert in `text` einen deutschen Satz. Er gehoert
+   * dem internen Portal; auf einem Arbeiterbildschirm, der nach SPEC §10 auch
+   * arabisch und tuerkisch kann, waere er die einzige deutsche Zeile der
+   * Seite. Die Zahl steht daneben und kommt weiter aus dem Dienst — nur der
+   * Satz wird hier gewaehlt.
+   */
+  readonly abgleichDeckungsgleich: string;
+  readonly abgleichAbweichung: string;
+  readonly abgleichOhneAngabe: string;
+  readonly abgleichZeitNichtLesbar: string;
+  /** Beschriftung ueber der Wetterquelle — nicht „Status" (die Pille daneben). */
+  readonly wetterQuelle: string;
+  /**
+   * Die Schicht ist vorbei — erfasst wird nichts mehr.
+   *
+   * `app.ist_eingesetzt_auf_objekt`/`…_projekt` verlangen
+   * `ende_zeitpunkt >= now()`; mit der Minute des Schichtendes schliessen
+   * Wachbuch, Fotos, Leistungsnachweis und Bautagebuch. Bis O-740 beantwortet
+   * ist, ist das die Grenze — und sie steht auf dem Bildschirm, statt dass ein
+   * Formular scheitert.
+   */
+  readonly schichtBeendet: string;
+  /** Die Einteilung wurde aus dem Plan genommen (`entfernt_am`). */
+  readonly schichtEntfernt: string;
+  /**
+   * Der Nachweis ist vorgelegt, traegt aber keine Nummer.
+   *
+   * `legeVor` gibt diesen Fall als `nummerOffen` zurueck; ohne den Satz stuende
+   * das Blatt ohne Nummer da und niemand wuesste, ob das so gehoert (O-147).
+   */
+  readonly nummerOffen: string;
+  readonly offeneFrage: string;
+
+  /**
+   * Die eigenen Dokumente und die eigenen Objekte (EMP-02, EMP-11, DOC-03,
+   * DOC-04, OPS-01) — `/portal/mein/dokumente` und `/portal/mein/objekte`.
+   *
+   * **`dokumenteOffenerBezug` traegt eine offene Frage als SATZ.** „Die
+   * Dokumente, die diesen Menschen betreffen" und „die Dokumente, die der
+   * Belegschaft freigegeben sind" sind nicht dasselbe, und `dokument` traegt
+   * keine `person_id` (O-850). Wer eine Lohnabrechnung sucht und eine
+   * Betriebsanweisung findet, soll lesen koennen, warum — nicht raten.
+   *
+   * **`zutrittNurWaehrendEinteilung` ist keine Entschuldigung, sondern die
+   * Regel.** Ein Schluessel- oder Alarmcode gehoert dem, der dort eingeteilt
+   * IST, und nur, solange er es ist (`app.ist_eingesetzt_auf_objekt`, 0069,
+   * 0360). Der Satz steht da, wo der Hinweis stuende — sonst liest sich ein
+   * leeres Feld wie „ist nichts hinterlegt", und die Kraft steht vor der Tuer
+   * und sucht weiter.
+   */
+  readonly dokumente: string;
+  readonly keineDokumente: string;
+  readonly kategorie: string;
+  readonly alleKategorien: string;
+  readonly dateiOeffnen: string;
+  readonly signaturHinweis: string;
+  readonly gueltigMinuten: string;
+  readonly groesse: string;
+  readonly abgelegtAm: string;
+  readonly dokumenteOffenerBezug: string;
+  readonly abrufProtokolliert: string;
+  /** Die Liste ist an ihrer Obergrenze — und sagt es, statt still abzuschneiden. */
+  readonly listeGekuerzt: string;
+
+  readonly objekte: string;
+  readonly keineObjekte: string;
+  readonly objektnummer: string;
+  readonly anschrift: string;
+  readonly gebaeudetyp: string;
+  readonly etagen: string;
+  readonly zutritt: string;
+  readonly ansprechpartner: string;
+  readonly telefon: string;
+  readonly mobil: string;
+  readonly aktuellEingeteilt: string;
+  readonly nichtMehrEingeteilt: string;
+  readonly zutrittNurWaehrendEinteilung: string;
+  readonly keinZutrittHinterlegt: string;
+  readonly letzteSchicht: string;
+  readonly meineSchichtenHier: string;
 }
 
 export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
@@ -609,6 +851,27 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     ungelesen: 'ungelesen',
     gelesen: 'gelesen',
     oeffnen: 'Öffnen',
+    systemmeldung: 'Systemmeldung',
+    nachrichtenFaden: 'Nachricht',
+    verlauf: 'Verlauf',
+    absender: 'Von',
+    ichSelbst: 'Ich',
+    unbekannterAbsender: 'Unbekannt',
+    antworten: 'Antworten',
+    ihreAntwort: 'Ihre Antwort',
+    alsGelesenMarkieren: 'Als gelesen markieren',
+    fadenGeschlossen:
+      'Dieser Vorgang ist abgeschlossen. Er bleibt lesbar und nimmt keine Antwort mehr auf.',
+    antwortNurImPortal:
+      'Ihre Antwort bleibt im Portal. Sie geht nicht per E-Mail oder SMS hinaus.',
+    gespeichert: 'Gespeichert.',
+    antwortImVorgang: 'Ihre Antwort steht im Vorgang.',
+    schonGelesen: 'Für Sie war dieser Vorgang schon gelesen.',
+    neuerFadenOffen:
+      'Von sich aus eine Nachricht zu schreiben ist noch nicht eingerichtet — wen Sie dann anschreiben dürfen, ist eine offene Frage (O-830). Auf einen Vorgang zu antworten funktioniert.',
+    anlagen: 'Anlagen',
+    anlagenNichtAbrufbar:
+      'Die Dateien erhalten Sie auf dem bisherigen Weg; ob Anlagen im Portal zu öffnen sind, ist noch nicht entschieden (O-831).',
     profil: 'Profil',
     bereichWechseln: 'Bereich wechseln',
     konto: 'Konto',
@@ -616,6 +879,116 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abmelden: 'Abmelden',
     sitzung: 'Sitzung',
     pfad: 'Pfad',
+     zurueck: 'Zurück',
+    empfangenAm: 'Empfangen am',
+    zumDatensatz: 'Zum Vorgang',
+    eingereichtAm: 'Eingereicht am',
+    entschiedenAm: 'Entschieden am',
+    entscheidung: 'Entscheidung',
+    zurueckgezogen: 'Zurückgezogen',
+    zurueckziehenHinweis:
+      'Zurückziehen geht, solange niemand entschieden hat. Der Antrag bleibt lesbar.',
+    wachbuch: 'Wachbuch',
+    wachbuchNeu: 'Eintrag schreiben',
+    uebergabe: 'Übergabe',
+    uebergabeNichtEingestellt:
+      'Das Übergabefenster ist noch nicht eingestellt (offene Frage O-151). Bis dahin '
+      + 'stehen hier nur die eigenen Einträge.',
+    uebergabeAus:
+      'Das Übergabefenster ist eingestellt und steht auf null — die Einträge der '
+      + 'Vorschicht bleiben verdeckt. Hier stehen nur die eigenen Einträge.',
+    art: 'Art',
+    betreff: 'Betreff',
+    eintragstext: 'Was ist passiert?',
+    kontrollpunkt: 'Kontrollpunkt',
+    praesenz: 'Präsenz bestätigt',
+    polizei: 'Polizei informiert',
+    nummer: 'Nummer',
+    erfasstAm: 'Erfasst am',
+    unveraenderlich:
+      'Ein Eintrag bleibt stehen. Falsches wird richtiggestellt, nicht gelöscht.',
+    leistungsnachweis: 'Leistungsnachweis',
+    leistungszeitraum: 'Leistungszeitraum',
+    positionen: 'Positionen',
+    menge: 'Menge',
+    einheit: 'Einheit',
+    entwurfAnlegen: 'Nachweis anlegen',
+    vorlegen: 'Vorlegen',
+    unterschrift: 'Unterschrift',
+    unterzeichnerName: 'Name des Unterzeichners',
+    unterschreiben: 'Unterschreiben',
+    unterschrieben: 'Unterschrieben',
+    fotos: 'Fotos',
+    aufnahmeHinzufuegen: 'Aufnahme hinzufügen',
+    beschreibung: 'Beschreibung',
+    keineAufnahmen: 'Zu dieser Schicht ist noch keine Aufnahme abgelegt.',
+    ohneOrtsdaten: 'Ortsdaten werden vor dem Ablegen entfernt.',
+    bautagebuch: 'Bautagebuch',
+    mannstunden: 'Mannstunden',
+    gewerk: 'Gewerk',
+    anzahlPersonen: 'Personen',
+    geraet: 'Gerät',
+    lieferung: 'Lieferung',
+    vorkommnis: 'Vorkommnis',
+    bezeichnung: 'Bezeichnung',
+    hinzufuegen: 'Hinzufügen',
+    tagGeschlossen: 'Dieser Bautag ist geschlossen — es kommt nichts mehr hinzu.',
+    abgleich: 'Abgleich mit der Zeiterfassung',
+    abgleichDeckungsgleich: 'Die eigenen Stunden decken sich mit der Zeiterfassung dieses Tages.',
+    abgleichAbweichung: 'Bautagebuch und Zeiterfassung weichen voneinander ab.',
+    abgleichOhneAngabe: 'Für diesen Tag sind weder Mannstunden noch Zeiten erfasst.',
+    abgleichZeitNichtLesbar:
+      'Der Abgleich mit der Zeiterfassung ist diesem Zugang nicht möglich — es wird '
+      + 'deshalb kein Befund gezeigt.',
+    wetterQuelle: 'Wetterquelle',
+    schichtBeendet:
+      'Diese Schicht ist beendet. Erfasst wird hier nichts mehr; was fehlt, meldet '
+      + 'die Einsatzleitung nach.',
+    schichtEntfernt:
+      'Diese Einteilung wurde aus dem Plan genommen. Sie bleibt lesbar, aber es kann '
+      + 'nichts mehr dazu erfasst werden.',
+    nummerOffen:
+      'Dieser Nachweis hat noch keine Nummer — in dieser Gesellschaft ist kein '
+      + 'Nummernkreis dafür eingerichtet.',
+    offeneFrage: 'offen',
+
+    dokumente: 'Dokumente',
+    keineDokumente: 'Für Sie ist zurzeit kein Dokument freigegeben.',
+    kategorie: 'Kategorie',
+    alleKategorien: 'Alle',
+    dateiOeffnen: 'Datei öffnen',
+    signaturHinweis:
+      'Die Datei liegt in einem geschützten Speicher. Der Link wird bei jedem Öffnen '
+      + 'neu ausgestellt und verfällt danach.',
+    gueltigMinuten: 'Minuten gültig',
+    groesse: 'Größe',
+    abgelegtAm: 'Abgelegt am',
+    dokumenteOffenerBezug:
+      'Hier steht, was Ihre Gesellschaft der Belegschaft freigegeben hat. Unterlagen, '
+      + 'die nur Sie persönlich betreffen, sind noch nicht zugeordnet — offen (O-850).',
+    abrufProtokolliert: 'Jeder Abruf wird mit Ihrem Konto protokolliert.',
+    listeGekuerzt:
+      'Es werden nur die neuesten Einträge angezeigt. Grenzen Sie die Liste über die '
+      + 'Kategorie ein.',
+
+    objekte: 'Meine Objekte',
+    keineObjekte: 'Sie sind auf keinem Objekt eingeteilt.',
+    objektnummer: 'Objektnummer',
+    anschrift: 'Anschrift',
+    gebaeudetyp: 'Gebäudetyp',
+    etagen: 'Etagen',
+    zutritt: 'Zutritt',
+    ansprechpartner: 'Ansprechpartner vor Ort',
+    telefon: 'Telefon',
+    mobil: 'Mobil',
+    aktuellEingeteilt: 'Aktuell eingeteilt',
+    nichtMehrEingeteilt: 'Sie sind hier zurzeit nicht eingeteilt.',
+    zutrittNurWaehrendEinteilung:
+      'Zutrittsangaben und Ansprechpartner sehen Sie, solange Sie auf diesem Objekt '
+      + 'eingeteilt sind.',
+    keinZutrittHinterlegt: 'Für dieses Objekt ist kein Zutrittshinweis hinterlegt.',
+    letzteSchicht: 'Letzte Schicht',
+    meineSchichtenHier: 'Meine Schichten hier',
   },
   en: {
     heute: 'Today',
@@ -708,6 +1081,27 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     ungelesen: 'unread',
     gelesen: 'read',
     oeffnen: 'Open',
+    systemmeldung: 'System notice',
+    nachrichtenFaden: 'Message',
+    verlauf: 'History',
+    absender: 'From',
+    ichSelbst: 'Me',
+    unbekannterAbsender: 'Unknown',
+    antworten: 'Reply',
+    ihreAntwort: 'Your reply',
+    alsGelesenMarkieren: 'Mark as read',
+    fadenGeschlossen:
+      'This thread is closed. It stays readable and takes no further reply.',
+    antwortNurImPortal:
+      'Your reply stays in the portal. It is not sent by email or SMS.',
+    gespeichert: 'Saved.',
+    antwortImVorgang: 'Your reply is now part of the thread.',
+    schonGelesen: 'For you this thread was already read.',
+    neuerFadenOffen:
+      'Starting a message yourself is not set up yet — who you would be allowed to write to is an open question (O-830). Replying to a thread works.',
+    anlagen: 'Attachments',
+    anlagenNichtAbrufbar:
+      'You receive the files the way you did before; whether attachments can be opened in the portal has not been decided yet (O-831).',
     profil: 'Profile',
     bereichWechseln: 'Switch area',
     konto: 'Account',
@@ -715,6 +1109,114 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abmelden: 'Sign out',
     sitzung: 'Session',
     pfad: 'Path',
+     zurueck: 'Back',
+    empfangenAm: 'Received on',
+    zumDatensatz: 'Go to record',
+    eingereichtAm: 'Submitted on',
+    entschiedenAm: 'Decided on',
+    entscheidung: 'Decision',
+    zurueckgezogen: 'Withdrawn',
+    zurueckziehenHinweis:
+      'You can withdraw while nobody has decided. The request stays readable.',
+    wachbuch: 'Security log',
+    wachbuchNeu: 'Write an entry',
+    uebergabe: 'Handover',
+    uebergabeNichtEingestellt:
+      'The handover window has not been configured yet (open question O-151). Until then '
+      + 'only your own entries appear here.',
+    uebergabeAus:
+      'The handover window is configured and set to zero — the previous shift\u2019s entries '
+      + 'stay hidden. Only your own entries appear here.',
+    art: 'Type',
+    betreff: 'Subject',
+    eintragstext: 'What happened?',
+    kontrollpunkt: 'Checkpoint',
+    praesenz: 'Presence confirmed',
+    polizei: 'Police informed',
+    nummer: 'Number',
+    erfasstAm: 'Recorded on',
+    unveraenderlich:
+      'An entry stays. What is wrong is corrected alongside it, never deleted.',
+    leistungsnachweis: 'Proof of service',
+    leistungszeitraum: 'Service period',
+    positionen: 'Line items',
+    menge: 'Quantity',
+    einheit: 'Unit',
+    entwurfAnlegen: 'Create proof',
+    vorlegen: 'Submit',
+    unterschrift: 'Signature',
+    unterzeichnerName: 'Name of the signatory',
+    unterschreiben: 'Sign',
+    unterschrieben: 'Signed',
+    fotos: 'Photos',
+    aufnahmeHinzufuegen: 'Add a photo',
+    beschreibung: 'Description',
+    keineAufnahmen: 'No photo has been stored for this shift yet.',
+    ohneOrtsdaten: 'Location data is removed before storing.',
+    bautagebuch: 'Site diary',
+    mannstunden: 'Labour hours',
+    gewerk: 'Trade',
+    anzahlPersonen: 'People',
+    geraet: 'Equipment',
+    lieferung: 'Delivery',
+    vorkommnis: 'Incident',
+    bezeichnung: 'Designation',
+    hinzufuegen: 'Add',
+    tagGeschlossen: 'This site day is closed — nothing more is added.',
+    abgleich: 'Comparison with time tracking',
+    abgleichDeckungsgleich: 'Your own hours match this day\u2019s time tracking.',
+    abgleichAbweichung: 'The site diary and the time tracking differ.',
+    abgleichOhneAngabe: 'Neither man-hours nor times are recorded for this day.',
+    abgleichZeitNichtLesbar:
+      'This account cannot compare against time tracking — no finding is shown.',
+    wetterQuelle: 'Weather source',
+    schichtBeendet:
+      'This shift has ended. Nothing more is recorded here; anything missing is filed '
+      + 'by the dispatcher.',
+    schichtEntfernt:
+      'This assignment was removed from the plan. It stays readable, but nothing can '
+      + 'be recorded against it any more.',
+    nummerOffen:
+      'This record does not have a number yet — no number range is configured for it '
+      + 'in this company.',
+    offeneFrage: 'open',
+
+    dokumente: 'Documents',
+    keineDokumente: 'No document has been released to you at the moment.',
+    kategorie: 'Category',
+    alleKategorien: 'All',
+    dateiOeffnen: 'Open file',
+    signaturHinweis:
+      'The file sits in protected storage. The link is issued afresh each time you open '
+      + 'it and expires afterwards.',
+    gueltigMinuten: 'minutes valid',
+    groesse: 'Size',
+    abgelegtAm: 'Filed on',
+    dokumenteOffenerBezug:
+      'What you see here is what your company released to the workforce. Papers that '
+      + 'concern you personally are not linked yet — open (O-850).',
+    abrufProtokolliert: 'Every retrieval is logged against your account.',
+    listeGekuerzt:
+      'Only the most recent entries are shown. Narrow the list down by category.',
+
+    objekte: 'My sites',
+    keineObjekte: 'You are not assigned to any site.',
+    objektnummer: 'Site number',
+    anschrift: 'Address',
+    gebaeudetyp: 'Building type',
+    etagen: 'Floors',
+    zutritt: 'Access',
+    ansprechpartner: 'Contact on site',
+    telefon: 'Phone',
+    mobil: 'Mobile',
+    aktuellEingeteilt: 'Currently assigned',
+    nichtMehrEingeteilt: 'You are not assigned here at the moment.',
+    zutrittNurWaehrendEinteilung:
+      'Access details and the site contact are shown while you are assigned to this '
+      + 'site.',
+    keinZutrittHinterlegt: 'No access note is on file for this site.',
+    letzteSchicht: 'Last shift',
+    meineSchichtenHier: 'My shifts here',
   },
   ar: {
     heute: 'اليوم',
@@ -807,6 +1309,27 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     ungelesen: 'غير مقروءة',
     gelesen: 'مقروءة',
     oeffnen: 'فتح',
+    systemmeldung: 'إشعار من النظام',
+    nachrichtenFaden: 'رسالة',
+    verlauf: 'المسار',
+    absender: 'من',
+    ichSelbst: 'أنا',
+    unbekannterAbsender: 'غير معروف',
+    antworten: 'ردّ',
+    ihreAntwort: 'ردّك',
+    alsGelesenMarkieren: 'وضع علامة مقروء',
+    fadenGeschlossen:
+      'هذه المحادثة مغلقة. تبقى للقراءة ولا تقبل ردًّا جديدًا.',
+    antwortNurImPortal:
+      'ردّك يبقى داخل البوابة ولا يُرسل عبر البريد الإلكتروني أو الرسائل القصيرة.',
+    gespeichert: 'تم الحفظ.',
+    antwortImVorgang: 'ردّك صار ضمن المحادثة.',
+    schonGelesen: 'بالنسبة إلك هذه المحادثة كانت مقروءة أصلاً.',
+    neuerFadenOffen:
+      'إرسال رسالة من طرفك لسّا مش مفعّل — لمين بيحقّ لك تكتب سؤال مفتوح (O-830). الردّ على محادثة شغّال.',
+    anlagen: 'المرفقات',
+    anlagenNichtAbrufbar:
+      'بتوصلك الملفات بالطريقة المعتادة؛ وهل تنفتح المرفقات داخل البوابة لسّا ما تقرّر (O-831).',
     profil: 'الملف الشخصي',
     bereichWechseln: 'تبديل القسم',
     konto: 'الحساب',
@@ -814,6 +1337,104 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abmelden: 'تسجيل الخروج',
     sitzung: 'الجلسة',
     pfad: 'المسار',
+     zurueck: 'رجوع',
+    empfangenAm: 'تاريخ الاستلام',
+    zumDatensatz: 'إلى السجل',
+    eingereichtAm: 'تاريخ التقديم',
+    entschiedenAm: 'تاريخ القرار',
+    entscheidung: 'القرار',
+    zurueckgezogen: 'مسحوب',
+    zurueckziehenHinweis: 'يمكن سحب الطلب ما لم يُتخذ قرار بعد. ويبقى الطلب قابلاً للقراءة.',
+    wachbuch: 'دفتر الحراسة',
+    wachbuchNeu: 'كتابة قيد',
+    uebergabe: 'التسليم',
+    uebergabeNichtEingestellt:
+      'لم تُضبط فترة التسليم بعد (مسألة مفتوحة، O-151). حتى ذلك الحين تظهر هنا قيودك أنت فقط.',
+    uebergabeAus:
+      'فترة التسليم مضبوطة على صفر — تبقى قيود الوردية السابقة مخفية. تظهر هنا قيودك أنت فقط.',
+    art: 'النوع',
+    betreff: 'الموضوع',
+    eintragstext: 'ماذا حدث؟',
+    kontrollpunkt: 'نقطة التفتيش',
+    praesenz: 'تم تأكيد الحضور',
+    polizei: 'تم إبلاغ الشرطة',
+    nummer: 'الرقم',
+    erfasstAm: 'تاريخ التسجيل',
+    unveraenderlich: 'القيد يبقى. الخطأ يُصحَّح إلى جانبه ولا يُحذف.',
+    leistungsnachweis: 'إثبات الخدمة',
+    leistungszeitraum: 'فترة الخدمة',
+    positionen: 'البنود',
+    menge: 'الكمية',
+    einheit: 'الوحدة',
+    entwurfAnlegen: 'إنشاء الإثبات',
+    vorlegen: 'تقديم',
+    unterschrift: 'التوقيع',
+    unterzeichnerName: 'اسم الموقِّع',
+    unterschreiben: 'توقيع',
+    unterschrieben: 'موقَّع',
+    fotos: 'الصور',
+    aufnahmeHinzufuegen: 'إضافة صورة',
+    beschreibung: 'الوصف',
+    keineAufnahmen: 'لا توجد صورة محفوظة لهذه المناوبة بعد.',
+    ohneOrtsdaten: 'تُزال بيانات الموقع قبل الحفظ.',
+    bautagebuch: 'يوميات الموقع',
+    mannstunden: 'ساعات العمل',
+    gewerk: 'الحرفة',
+    anzahlPersonen: 'عدد الأشخاص',
+    geraet: 'المعدات',
+    lieferung: 'التوريد',
+    vorkommnis: 'حادثة',
+    bezeichnung: 'التسمية',
+    hinzufuegen: 'إضافة',
+    tagGeschlossen: 'أُغلق يوم الموقع هذا — لا يُضاف إليه شيء بعد الآن.',
+    abgleich: 'المقارنة مع تسجيل الوقت',
+    abgleichDeckungsgleich: 'ساعاتك تطابق تسجيل الوقت لهذا اليوم.',
+    abgleichAbweichung: 'يوجد فرق بين يومية الموقع وتسجيل الوقت.',
+    abgleichOhneAngabe: 'لم تُسجَّل لهذا اليوم ساعات عمل ولا أوقات.',
+    abgleichZeitNichtLesbar:
+      'لا يمكن لهذا الحساب المقارنة مع تسجيل الوقت — لذلك لا تُعرض أي نتيجة.',
+    wetterQuelle: 'مصدر بيانات الطقس',
+    schichtBeendet:
+      'انتهت هذه الوردية. لم يعد بالإمكان التسجيل هنا؛ وما ينقص تستدركه إدارة العمليات.',
+    schichtEntfernt:
+      'أُزيل هذا التكليف من الخطة. يبقى قابلاً للقراءة، لكن لا يمكن تسجيل أي شيء عليه بعد الآن.',
+    nummerOffen:
+      'لا يحمل هذا المحضر رقماً بعد — لا يوجد نطاق ترقيم مُعدّ له في هذه الشركة.',
+    offeneFrage: 'مفتوح',
+
+    dokumente: 'المستندات',
+    keineDokumente: 'لا يوجد حالياً أي مستند متاح لك.',
+    kategorie: 'الفئة',
+    alleKategorien: 'الكل',
+    dateiOeffnen: 'فتح الملف',
+    signaturHinweis:
+      'الملف محفوظ في مخزن محمي. يُصدر الرابط من جديد عند كل فتح ثم تنتهي صلاحيته.',
+    gueltigMinuten: 'دقيقة صلاحية',
+    groesse: 'الحجم',
+    abgelegtAm: 'تاريخ الحفظ',
+    dokumenteOffenerBezug:
+      'ما تراه هنا هو ما أتاحته شركتك للعاملين. أما الأوراق التي تخصّك شخصياً فلم تُربط '
+      + 'بعد — مفتوح (O-850).',
+    abrufProtokolliert: 'يُسجَّل كل استدعاء للملف باسم حسابك.',
+    listeGekuerzt: 'تُعرض أحدث المدخلات فقط. ضيّق القائمة حسب الفئة.',
+
+    objekte: 'مواقعي',
+    keineObjekte: 'لست مكلّفاً بأي موقع.',
+    objektnummer: 'رقم الموقع',
+    anschrift: 'العنوان',
+    gebaeudetyp: 'نوع المبنى',
+    etagen: 'الطوابق',
+    zutritt: 'الدخول',
+    ansprechpartner: 'جهة الاتصال في الموقع',
+    telefon: 'هاتف',
+    mobil: 'جوال',
+    aktuellEingeteilt: 'مكلّف حالياً',
+    nichtMehrEingeteilt: 'لست مكلّفاً بهذا الموقع في الوقت الحالي.',
+    zutrittNurWaehrendEinteilung:
+      'تظهر لك بيانات الدخول وجهة الاتصال ما دمت مكلّفاً بهذا الموقع.',
+    keinZutrittHinterlegt: 'لا توجد إرشادات دخول مسجّلة لهذا الموقع.',
+    letzteSchicht: 'آخر مناوبة',
+    meineSchichtenHier: 'مناوباتي هنا',
   },
   tr: {
     heute: 'Bugün',
@@ -906,6 +1527,27 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     ungelesen: 'okunmamış',
     gelesen: 'okunmuş',
     oeffnen: 'Aç',
+    systemmeldung: 'Sistem bildirimi',
+    nachrichtenFaden: 'Mesaj',
+    verlauf: 'Geçmiş',
+    absender: 'Gönderen',
+    ichSelbst: 'Ben',
+    unbekannterAbsender: 'Bilinmiyor',
+    antworten: 'Yanıtla',
+    ihreAntwort: 'Yanıtınız',
+    alsGelesenMarkieren: 'Okundu olarak işaretle',
+    fadenGeschlossen:
+      'Bu konu kapatıldı. Okunabilir kalır, yeni bir yanıt almaz.',
+    antwortNurImPortal:
+      'Yanıtınız portalda kalır. E-posta veya SMS ile gönderilmez.',
+    gespeichert: 'Kaydedildi.',
+    antwortImVorgang: 'Yanıtınız konunun içinde.',
+    schonGelesen: 'Sizin için bu konu zaten okunmuştu.',
+    neuerFadenOffen:
+      'Kendiniz mesaj başlatmak henüz açık değil — kime yazabileceğiniz açık bir soru (O-830). Bir konuya yanıt vermek çalışıyor.',
+    anlagen: 'Ekler',
+    anlagenNichtAbrufbar:
+      'Dosyaları eskisi gibi alırsınız; eklerin portalda açılıp açılamayacağı henüz kararlaştırılmadı (O-831).',
     profil: 'Profil',
     bereichWechseln: 'Alan değiştir',
     konto: 'Hesap',
@@ -913,6 +1555,113 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abmelden: 'Çıkış yap',
     sitzung: 'Oturum',
     pfad: 'Yol',
+     zurueck: 'Geri',
+    empfangenAm: 'Alındığı tarih',
+    zumDatensatz: 'Kayda git',
+    eingereichtAm: 'Verildiği tarih',
+    entschiedenAm: 'Karar tarihi',
+    entscheidung: 'Karar',
+    zurueckgezogen: 'Geri çekildi',
+    zurueckziehenHinweis:
+      'Kimse karar vermediği sürece geri çekebilirsiniz. Talep okunabilir kalır.',
+    wachbuch: 'Güvenlik defteri',
+    wachbuchNeu: 'Kayıt yaz',
+    uebergabe: 'Devir teslim',
+    uebergabeNichtEingestellt:
+      'Devir teslim penceresi henüz ayarlanmadı (açık soru O-151). O zamana kadar burada '
+      + 'yalnızca kendi kayıtlarınız görünür.',
+    uebergabeAus:
+      'Devir teslim penceresi ayarlı ve sıfırda — önceki vardiyanın kayıtları gizli kalır. '
+      + 'Burada yalnızca kendi kayıtlarınız görünür.',
+    art: 'Tür',
+    betreff: 'Konu',
+    eintragstext: 'Ne oldu?',
+    kontrollpunkt: 'Kontrol noktası',
+    praesenz: 'Mevcudiyet onaylandı',
+    polizei: 'Polis bilgilendirildi',
+    nummer: 'Numara',
+    erfasstAm: 'Kaydedildiği tarih',
+    unveraenderlich: 'Bir kayıt kalır. Yanlış olan yanında düzeltilir, silinmez.',
+    leistungsnachweis: 'Hizmet tutanağı',
+    leistungszeitraum: 'Hizmet dönemi',
+    positionen: 'Kalemler',
+    menge: 'Miktar',
+    einheit: 'Birim',
+    entwurfAnlegen: 'Tutanak oluştur',
+    vorlegen: 'Sun',
+    unterschrift: 'İmza',
+    unterzeichnerName: 'İmzalayanın adı',
+    unterschreiben: 'İmzala',
+    unterschrieben: 'İmzalandı',
+    fotos: 'Fotoğraflar',
+    aufnahmeHinzufuegen: 'Fotoğraf ekle',
+    beschreibung: 'Açıklama',
+    keineAufnahmen: 'Bu vardiya için henüz fotoğraf kaydedilmedi.',
+    ohneOrtsdaten: 'Konum verileri kaydetmeden önce kaldırılır.',
+    bautagebuch: 'Şantiye günlüğü',
+    mannstunden: 'Adam-saat',
+    gewerk: 'Meslek dalı',
+    anzahlPersonen: 'Kişi sayısı',
+    geraet: 'Ekipman',
+    lieferung: 'Teslimat',
+    vorkommnis: 'Olay',
+    bezeichnung: 'Tanım',
+    hinzufuegen: 'Ekle',
+    tagGeschlossen: 'Bu şantiye günü kapatıldı — artık hiçbir şey eklenmez.',
+    abgleich: 'Zaman kaydıyla karşılaştırma',
+    abgleichDeckungsgleich: 'Kendi saatleriniz bu günün zaman kaydıyla örtüşüyor.',
+    abgleichAbweichung: 'Şantiye günlüğü ile zaman kaydı birbirinden farklı.',
+    abgleichOhneAngabe: 'Bu gün için ne adam-saat ne de süre kaydedilmiş.',
+    abgleichZeitNichtLesbar:
+      'Bu hesap zaman kaydıyla karşılaştırma yapamıyor — bu nedenle bir bulgu gösterilmiyor.',
+    wetterQuelle: 'Hava durumu kaynağı',
+    schichtBeendet:
+      'Bu vardiya sona erdi. Burada artık kayıt yapılmaz; eksik kalanı operasyon '
+      + 'yönetimi sonradan bildirir.',
+    schichtEntfernt:
+      'Bu görevlendirme plandan çıkarıldı. Okunabilir kalır, ancak buna artık hiçbir '
+      + 'şey kaydedilemez.',
+    nummerOffen:
+      'Bu belgenin henüz bir numarası yok — bu şirkette bunun için bir numara aralığı '
+      + 'tanımlı değil.',
+    offeneFrage: 'açık',
+
+    dokumente: 'Belgeler',
+    keineDokumente: 'Şu anda size açılmış bir belge yok.',
+    kategorie: 'Kategori',
+    alleKategorien: 'Tümü',
+    dateiOeffnen: 'Dosyayı aç',
+    signaturHinweis:
+      'Dosya korumalı bir depoda durur. Bağlantı her açışta yeniden düzenlenir ve '
+      + 'ardından geçersiz olur.',
+    gueltigMinuten: 'dakika geçerli',
+    groesse: 'Boyut',
+    abgelegtAm: 'Kayıt tarihi',
+    dokumenteOffenerBezug:
+      'Burada gördüğünüz, şirketinizin çalışanlara açtığı belgelerdir. Yalnızca sizi '
+      + 'ilgilendiren evraklar henüz eşleştirilmedi — açık (O-850).',
+    abrufProtokolliert: 'Her dosya çağrısı hesabınıza kaydedilir.',
+    listeGekuerzt:
+      'Yalnızca en yeni kayıtlar gösterilir. Listeyi kategoriye göre daraltın.',
+
+    objekte: 'Nesnelerim',
+    keineObjekte: 'Hiçbir nesnede görevlendirilmiş değilsiniz.',
+    objektnummer: 'Nesne numarası',
+    anschrift: 'Adres',
+    gebaeudetyp: 'Bina türü',
+    etagen: 'Kat sayısı',
+    zutritt: 'Giriş',
+    ansprechpartner: 'Yerindeki yetkili',
+    telefon: 'Telefon',
+    mobil: 'Cep',
+    aktuellEingeteilt: 'Şu anda görevli',
+    nichtMehrEingeteilt: 'Şu anda burada görevli değilsiniz.',
+    zutrittNurWaehrendEinteilung:
+      'Giriş bilgilerini ve yerindeki yetkiliyi, bu nesnede görevli olduğunuz sürece '
+      + 'görürsünüz.',
+    keinZutrittHinterlegt: 'Bu nesne için kayıtlı bir giriş açıklaması yok.',
+    letzteSchicht: 'Son vardiya',
+    meineSchichtenHier: 'Buradaki vardiyalarım',
   },
 };
 
@@ -992,3 +1741,209 @@ Readonly<Record<PortalSprache, Readonly<Record<EinwandArtSchluessel, string>>>> 
     sonstiges: 'Başka bir şey',
   },
 };
+
+/**
+ * Die Arten eines Wachbucheintrags (SEC-05, `wachbuch_art`).
+ *
+ * Wie bei den Einwandarten: die SCHLUESSEL sind das Vokabular des Enums und
+ * reisen unuebersetzt in die Datenbank; uebersetzt wird nur, was auf dem
+ * Bildschirm steht (D-83). Die deutschen Bezeichnungen sind zeichengleich mit
+ * `ART_TEXT` in `server/services/security/wachbuch.ts` — sie stehen dort fuer
+ * das interne Portal und hier fuer die vier Sprachen der Wache.
+ *
+ * `schluessel` steht mit dabei, obwohl der Dienst die Art heute abweist: das
+ * Wort gehoert zum Enum, und ein Buch, in dem eine Art keinen Namen hat, waere
+ * beim Lesen alter Eintraege leer an genau dieser Stelle.
+ */
+export type WachbuchArtSchluessel =
+  'rundgang' | 'vorkommnis' | 'uebergabe' | 'schluessel' | 'alarm';
+
+export const WACHBUCH_ARTEN_I18N: readonly WachbuchArtSchluessel[] = [
+  'rundgang', 'vorkommnis', 'uebergabe', 'schluessel', 'alarm',
+];
+
+export const WACHBUCH_ART_TEXTE:
+Readonly<Record<PortalSprache, Readonly<Record<WachbuchArtSchluessel, string>>>> = {
+  de: {
+    rundgang: 'Rundgang',
+    vorkommnis: 'Vorkommnis',
+    uebergabe: 'Übergabe',
+    schluessel: 'Schlüssel',
+    alarm: 'Alarm',
+  },
+  en: {
+    rundgang: 'Patrol',
+    vorkommnis: 'Incident',
+    uebergabe: 'Handover',
+    schluessel: 'Key',
+    alarm: 'Alarm',
+  },
+  ar: {
+    rundgang: 'جولة تفتيش',
+    vorkommnis: 'حادثة',
+    uebergabe: 'تسليم',
+    schluessel: 'مفتاح',
+    alarm: 'إنذار',
+  },
+  tr: {
+    rundgang: 'Devriye',
+    vorkommnis: 'Olay',
+    uebergabe: 'Devir teslim',
+    schluessel: 'Anahtar',
+    alarm: 'Alarm',
+  },
+};
+
+/**
+ * Der Zustand eines Bautags und die Herkunft seiner Wetterangabe — in vier
+ * Sprachen (BAU-07, BAU-08, SPEC §10, EMP-12).
+ *
+ * **Warum sie hierher umgezogen sind.** Beide Karten standen als deutsche
+ * Literale in `app/portal/[mandant]/bau/bautagebuch-anzeige.ts`, also in der
+ * Anzeigehilfe des INTERNEN Portals. Die Bautagebuchseite des
+ * Mitarbeiterportals las sie von dort — und schrieb damit „Gegengezeichnet
+ * (Auftraggeber)" und „keine Quelle" auch auf einen Bildschirm, der gerade auf
+ * Arabisch oder Tuerkisch steht. Die Sprachwache sah das nicht, weil sie nur
+ * `MEIN_TEXTE` prueft.
+ *
+ * Dieselbe Bauart wie `WACHBUCH_ART_TEXTE`: die SCHLUESSEL sind das Vokabular
+ * der Datenbank (`bautagebuch_status`, `wetter_quelle`) und reisen
+ * unuebersetzt; uebersetzt wird nur, was auf dem Bildschirm steht (D-83). Das
+ * interne Portal nimmt die `de`-Spalte und liest damit wortgleich wie zuvor.
+ *
+ * `keine` bekommt den WOERTLICHEN Satz aus BAU-08 und keine Null: „0 °C" und
+ * „keine Angabe" sind zwei verschiedene Aussagen, und die erste ist im
+ * Bauprozess eine Falschangabe.
+ */
+export type BautagStatusSchluessel = 'entwurf' | 'abgeschlossen' | 'gegengezeichnet';
+
+export const BAUTAG_STATUS_TEXTE:
+Readonly<Record<PortalSprache, Readonly<Record<BautagStatusSchluessel, string>>>> = {
+  de: {
+    entwurf: 'Entwurf',
+    abgeschlossen: 'Abgeschlossen',
+    gegengezeichnet: 'Gegengezeichnet (Auftraggeber)',
+  },
+  en: {
+    entwurf: 'Draft',
+    abgeschlossen: 'Closed',
+    gegengezeichnet: 'Countersigned (client)',
+  },
+  ar: {
+    entwurf: 'مسودة',
+    abgeschlossen: 'مُغلق',
+    gegengezeichnet: 'موقَّع من صاحب العمل',
+  },
+  tr: {
+    entwurf: 'Taslak',
+    abgeschlossen: 'Kapatıldı',
+    gegengezeichnet: 'İşveren tarafından imzalandı',
+  },
+};
+
+export type WetterQuelleSchluessel = 'dwd' | 'manuell' | 'keine';
+
+export const WETTER_QUELLE_TEXTE:
+Readonly<Record<PortalSprache, Readonly<Record<WetterQuelleSchluessel, string>>>> = {
+  de: {
+    dwd: 'DWD Open Data',
+    manuell: 'manuell erfasst',
+    keine: 'keine Quelle',
+  },
+  en: {
+    dwd: 'DWD Open Data',
+    manuell: 'entered manually',
+    keine: 'no source',
+  },
+  ar: {
+    dwd: 'DWD Open Data',
+    manuell: 'أُدخل يدوياً',
+    keine: 'لا يوجد مصدر',
+  },
+  tr: {
+    dwd: 'DWD Open Data',
+    manuell: 'elle girildi',
+    keine: 'kaynak yok',
+  },
+};
+
+/**
+ * Die neun Dokumentkategorien (DOC-01, `dokument_kategorie`) — in vier
+ * Sprachen.
+ *
+ * Dieselbe Bauart wie `WACHBUCH_ART_TEXTE`: die SCHLUESSEL sind das Vokabular
+ * des Enums und reisen unuebersetzt in die Datenbank; uebersetzt wird nur, was
+ * auf dem Bildschirm steht (D-83).
+ *
+ * **Warum die Kategorie im Mitarbeiterportal ueberhaupt gross danebensteht.**
+ * Solange O-851 offen ist — welche Kategorien duerfen einer Belegschaft
+ * ueberhaupt freigegeben werden —, prueft die Datenbank nur die Freigabe, nicht
+ * die Kategorie. Die sichtbare Kategorie ist damit die Stelle, an der eine
+ * falsche Freigabe auffaellt: „Rechnung" auf einem Arbeiterbildschirm ist ein
+ * Befund, kein Etikett.
+ *
+ * `mitarbeiter` heisst hier **Personalunterlage** und nicht „Mitarbeiter": die
+ * Kategorie bezeichnet die UNTERLAGE, nicht den Menschen, und „Mitarbeiter"
+ * als Ueberschrift ueber einem Dokument liest sich wie eine Personalakte, die
+ * offen liegt.
+ */
+export const DOKUMENT_KATEGORIE_TEXTE:
+Readonly<Record<PortalSprache, Readonly<Record<string, string>>>> = {
+  de: {
+    kunde: 'Kundenunterlage',
+    vertrag: 'Vertrag',
+    angebot: 'Angebot',
+    rechnung: 'Rechnung',
+    beleg: 'Beleg',
+    mitarbeiter: 'Personalunterlage',
+    projekt: 'Projektunterlage',
+    buchhaltung: 'Buchhaltung',
+    unternehmen: 'Unternehmensunterlage',
+  },
+  en: {
+    kunde: 'Customer file',
+    vertrag: 'Contract',
+    angebot: 'Quotation',
+    rechnung: 'Invoice',
+    beleg: 'Receipt',
+    mitarbeiter: 'Personnel file',
+    projekt: 'Project file',
+    buchhaltung: 'Accounting',
+    unternehmen: 'Company file',
+  },
+  ar: {
+    kunde: 'ملف العميل',
+    vertrag: 'عقد',
+    angebot: 'عرض سعر',
+    rechnung: 'فاتورة',
+    beleg: 'إيصال',
+    mitarbeiter: 'ملف شؤون الموظفين',
+    projekt: 'ملف المشروع',
+    buchhaltung: 'المحاسبة',
+    unternehmen: 'ملف الشركة',
+  },
+  tr: {
+    kunde: 'Müşteri evrakı',
+    vertrag: 'Sözleşme',
+    angebot: 'Teklif',
+    rechnung: 'Fatura',
+    beleg: 'Belge',
+    mitarbeiter: 'Personel evrakı',
+    projekt: 'Proje evrakı',
+    buchhaltung: 'Muhasebe',
+    unternehmen: 'Şirket evrakı',
+  },
+};
+
+/**
+ * Das Label einer Kategorie — oder der SCHLUESSEL selbst.
+ *
+ * Kein Rueckfall auf „Sonstiges": eine unbekannte Kategorie ist eine, die das
+ * Enum erweitert hat, und dann soll auf dem Bildschirm ihr Name stehen und
+ * nicht ein Sammelbegriff, der sie verschwinden laesst.
+ */
+export function dokumentKategorieText(
+  sprache: PortalSprache, kategorie: string,
+): string {
+  return DOKUMENT_KATEGORIE_TEXTE[sprache][kategorie] ?? kategorie;
+}

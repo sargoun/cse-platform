@@ -149,17 +149,43 @@ describe('(6) jede Entscheidung ist nachvollziehbar', () => {
     ).rejects.toThrow(/freigabe_genehmigt_hat_menschen/u);
   });
 
-  it('eine Richtlinie mit auto_erlaubt fuer Angebote ist auf DATENBANKEBENE unmoeglich', async () => {
-    // Nicht nur im Code: ein Skript, das die Zeile direkt setzt, kommt auch
-    // nicht durch.
-    await expect(
-      sql.unsafe(
+  it('eine Richtlinie mit auto_erlaubt fuer eine Willenserklaerung ist auf DATENBANKEBENE unmoeglich',
+    async () => {
+      // Nicht nur im Code: ein Skript, das die Zeile direkt setzt, kommt auch
+      // nicht durch.
+      //
+      // **Der Riegel heisst seit 0290 anders — und deckt mehr ab.** `0012`
+      // sperrte allein das Angebot (`agent_richtlinie_kein_auto_angebot`,
+      // § 145 BGB). 0290 ersetzte ihn durch
+      // `agent_richtlinie_kein_auto_willenserklaerung` und nahm die zwei
+      // Erklaerungen dazu, die `server/agent/policy.ts` genauso hart sperrt:
+      // `nachtrag_einreichen` (§ 2 Abs. 6 VOB/B) und `behinderung_senden`
+      // (§ 6 Abs. 1 VOB/B). Die Liste dieses Falls WAECHST damit mit: das
+      // Angebot bleibt geprueft, und die beiden neuen stehen daneben. Der
+      // Name wird gegen beide Fassungen geprueft, damit hier nicht eine
+      // Umbenennung durchgeht, die den Riegel in Wahrheit entfernt hat.
+      for (const aktion of ['angebot_senden', 'nachtrag_einreichen', 'behinderung_senden']) {
+        await expect(
+          sql.unsafe(
+            `insert into agent_richtlinie (mandant_id, aktion, auto_erlaubt)
+             values ($1,$2,true)`,
+            [f.reinigung, aktion],
+          ),
+          aktion,
+        ).rejects.toThrow(/kein_auto_angebot|kein_auto_willenserklaerung/u);
+      }
+
+      // Und die Gegenprobe, damit der Riegel nicht einfach alles abweist:
+      // eine Aktion, die KEINE Willenserklaerung ist, darf die Zeile tragen.
+      // Ob sie ohne Menschen hinausgeht, entscheidet dann Invariante 7 an
+      // ihrer Stelle — nicht diese Bedingung.
+      const [z] = await sql.unsafe<{ auto_erlaubt: boolean }[]>(
         `insert into agent_richtlinie (mandant_id, aktion, auto_erlaubt)
-         values ($1,'angebot_senden',true)`,
+         values ($1,'social_veroeffentlichen',true) returning auto_erlaubt`,
         [f.reinigung],
-      ),
-    ).rejects.toThrow(/kein_auto_angebot/u);
-  });
+      );
+      expect(z!.auto_erlaubt).toBe(true);
+    });
 
   it('ohne Richtlinienzeile gibt es keine Erlaubnis — und der Default ist false', async () => {
     const [z] = await sql.unsafe<{ auto_erlaubt: boolean }[]>(

@@ -35,6 +35,14 @@ export interface Sitzung {
    * fail-closed `mitarbeiter`, which is deliberate and asserted below.
    */
   readonly portal?: 'intern' | 'mitarbeiter' | 'kunde';
+  /**
+   * The AAL of the session (AUT-02). Left unset it resolves to `aal1`, which
+   * is what a fresh login is — `aal2` means „the second factor was shown IN
+   * THIS session", and the helper never claims it on its own. A right with
+   * `berechtigung.erfordert_2fa` is false at `aal1`, so a test that wants to
+   * exercise such a right has to say so.
+   */
+  readonly aal?: 'aal1' | 'aal2';
 }
 
 export const sql = postgres(DB_URL, { max: 4, onnotice: () => {} });
@@ -66,6 +74,7 @@ export async function alsApp<T>(
     // membership's role. In the other three it is a constant of the scope and
     // app.portal() ignores this GUC entirely.
     await tx.unsafe(`select set_config('app.portal', $1, true)`, [sitzung.portal ?? '']);
+    await tx.unsafe(`select set_config('app.aal', $1, true)`, [sitzung.aal ?? 'aal1']);
     await tx.unsafe(`select set_config('app.akteur_typ', 'mensch', true)`);
     return fn(tx);
   }) as Promise<T>;
@@ -197,10 +206,18 @@ readonly (readonly [string, string, boolean, boolean, boolean, boolean, boolean]
  * Mandanten und steht deshalb ausdruecklich hier: ohne diese Wurzel tragen
  * sich Fehlversuche von Test zu Test weiter, bis eine Sperre in einem Test
  * zuschlaegt, der sie nicht ausloest.
+ *
+ * `kern.audit_kette` steht aus demselben Grund hier. Die Rekursion laeuft die
+ * Fremdschluessel VON den Wurzeln abwaerts: `kern.audit_kettenglied` haengt
+ * an `audit_log` und wird geleert, der KOPF der Kette haengt an nichts und
+ * wurde nie erreicht. Zurueck blieb `letzte_nr = N` mit `letzter_hash = H` —
+ * der naechste Test kettete ab `N+1` gegen `H`, waehrend die Pruefung bei
+ * `start_hash` beginnt, und „eine unveraenderte Kette ist geschlossen" haette
+ * je nach Reihenfolge der Tests einen Bruch gesehen.
  */
 const RESET_WURZELN = [
   ['public', 'audit_log'], ['public', 'anstellung'], ['public', 'person'], ['public', 'mandant'],
-  ['auth', 'users'], ['kern', 'anmeldeversuch'],
+  ['auth', 'users'], ['kern', 'anmeldeversuch'], ['kern', 'audit_kette'],
 ] as const;
 
 const LEEREN = `
@@ -242,10 +259,68 @@ begin
   end loop;
 end $$`;
 
+/**
+ * Der Rechtekatalog, wie ihn die Migration gesetzt hat — einmal gemerkt.
+ *
+ * **Warum das hier steht.** `berechtigung` ist eine PLATTFORM-Tabelle: sie
+ * entsteht in 0008 und wird von `seed()` nicht angefasst, weil sie zu keinem
+ * Mandanten gehoert. Ein Test, der eine ihrer Marken umlegt, aendert sie
+ * damit fuer JEDE Datei, die danach im selben Arbeiter laeuft.
+ *
+ * Genau das ist passiert. `berechtigung.test.ts` prueft AUT-02 mit
+ *
+ *     update berechtigung set erfordert_2fa = true
+ *      where schluessel = 'system.benutzer_verwalten'
+ *
+ * und stellt den Wert nicht zurueck. Danach faellt in
+ * `crm-kundenzugang.test.ts` der Fall „ohne zweiten Faktor nicht" um — aber
+ * mit der falschen Begruendung: `app.hat_recht` weist schon wegen
+ * `erfordert_2fa` ab (0007), also kommt die Funktion nie bis zu ihrer EIGENEN
+ * aal2-Pruefung, deren Meldung der Test erwartet. Ein Test, der allein
+ * gruen ist und in Gesellschaft rot, und dessen Fehlschlag auf eine ganz
+ * andere Datei zeigt: der teuerste Fehlalarm, den diese Suite kennt.
+ *
+ * Die Antwort ist keine Verabredung („bitte zuruecksetzen"), sondern eine
+ * Vorrichtung: `seed()` stellt die Marken jedes Mal wieder her. Gemerkt wird
+ * beim ERSTEN Aufruf — da hat noch kein Test etwas umgelegt.
+ */
+let katalogMarken: readonly { schluessel: string; zwei: boolean; global: boolean }[] | null = null;
+
 export async function seed(): Promise<Fixtur> {
+  katalogMarken ??= await sql.unsafe<{ schluessel: string; zwei: boolean; global: boolean }[]>(
+    `select schluessel, erfordert_2fa as zwei, nur_global as global from berechtigung`);
+  /*
+   * In eine lokale Konstante: die Verengung von `katalogMarken` haelt nicht ueber
+   * die Grenze der Rueckruffunktion hinweg — `tsc` sieht dort wieder `| null`.
+   */
+  const marken = katalogMarken;
+
   return sql.begin(async (tx) => {
     await tx.unsafe(`set local session_replication_role = replica`);
     await tx.unsafe(LEEREN);
+
+    /*
+     * Zuerst der Katalog: alles Weitere haengt an den Rechten, und eine
+     * umgelegte Marke aus einer frueheren Datei wuerde sonst durch diese
+     * Fixtur hindurch wirken.
+     */
+    if (marken.length > 0) {
+      /*
+       * Zwei Listen von SCHLUESSELN, keine Wahrheitswert-Reihung: postgres.js
+       * schickt ein `boolean[]` nicht als Reihung, und `unnest(…::boolean[])`
+       * endet in „cannot cast type boolean to boolean[]".
+       */
+      const mitZwei = marken.filter((m) => m.zwei).map((m) => m.schluessel);
+      const mitGlobal = marken.filter((m) => m.global).map((m) => m.schluessel);
+      await tx.unsafe(
+        `update berechtigung
+            set erfordert_2fa = (schluessel = any($1::text[])),
+                nur_global    = (schluessel = any($2::text[]))
+          where erfordert_2fa is distinct from (schluessel = any($1::text[]))
+             or nur_global    is distinct from (schluessel = any($2::text[]))`,
+        [mitZwei, mitGlobal] as never[],
+      );
+    }
 
     /**
      * **Die Wissenspartitionen der entfernten Gesellschaften gehen mit.**

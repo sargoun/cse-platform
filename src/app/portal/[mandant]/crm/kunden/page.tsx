@@ -130,7 +130,7 @@ export default async function Kundenliste(
               schluessel: 'grundlage',
               kopf: 'Werbung',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill
                     zustand={z.widerspruch
                       ? 'Abgelehnt'

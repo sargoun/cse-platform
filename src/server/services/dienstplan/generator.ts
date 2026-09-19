@@ -173,12 +173,27 @@ export async function materialisiereSerie(
   };
 }
 
-interface Feiertagsfenster {
+export interface Feiertagsfenster {
   readonly namen: ReadonlyMap<string, string>;
   readonly ids: ReadonlyMap<string, string>;
 }
 
-async function ladeFeiertage(
+/**
+ * Die gesetzlichen Feiertage eines Bundeslandes im Fenster.
+ *
+ * **Exportiert, weil eine Vorschau ohne sie luegt.** `planeVorkommnisse`
+ * verlangt die Feiertagskarte als Argument und entscheidet damit, welcher
+ * Termin ausfaellt (CLN-03, TIM-02). Wer eine leere Karte uebergibt — weil
+ * dieser Lader privat war —, zeigt auf der Seite Termine an Feiertagen, die
+ * der Generator unmittelbar danach ueberspringt: Vorschau und Ergebnis
+ * widersprechen sich, und zwar auf demselben Bildschirm.
+ *
+ * `feiertag` ist plattformweit lesbar (Policy `f_lesen` auf `cse_app`, `using
+ * (true)`), also braucht diese Abfrage kein eigenes Recht — sie traegt aber
+ * auch keinen Mandanten und darf deshalb nie mit einer Mandantenspalte
+ * verbunden werden.
+ */
+export async function ladeFeiertage(
   db: Abfrage, bundesland: string, von: string, bis: string,
 ): Promise<Feiertagsfenster> {
   const zeilen = (await db.unsafe(
@@ -386,22 +401,43 @@ export async function ladeSerien(
 /**
  * Die Ausnahmen einer Serie im Fenster.
  *
- * Sie kommen nach Traeger getrennt, weil sie in getrennten Tabellen liegen
- * (`turnus_ausnahme`, spaeter `posten_ausnahme`). Ein Traeger ohne
- * Ausnahmetabelle liefert eine leere Liste — nicht `null`, damit der Aufrufer
- * keinen Sonderfall braucht.
+ * Sie kommen nach Traeger getrennt, weil sie in getrennten Tabellen liegen:
+ * `turnus_ausnahme` fuer die Reinigung, `posten_ausnahme` fuer die Sicherheit
+ * (0069 §6.4). Ein Traeger ohne Ausnahmetabelle — eine Veranstaltung —
+ * liefert eine leere Liste, nicht `null`, damit der Aufrufer keinen
+ * Sonderfall braucht.
+ *
+ * **Der Befund, der `posten_ausnahme` hierhergebracht hat.** Diese Funktion
+ * begann mit `if (serie.turnusId === null) return []` und las ausschliesslich
+ * `turnus_ausnahme`. `posten_ausnahme` wurde im ganzen `src/`-Baum NIRGENDS
+ * gelesen — und `cse_app` darf hineinschreiben. Eine Einzeltermin-Ausnahme auf
+ * einer Sicherheitsserie entstand damit als Zeile und wirkte NIE: der
+ * Wachdienst fiel am 3. Oktober nicht aus, obwohl jemand ihn ausgetragen
+ * hatte, und niemand bekam eine Meldung. Genau die Sorte Fehler, die
+ * CLAUDE.md als „silent, expensive, late-discovered" beschreibt.
+ *
+ * `posten_ausnahme` traegt eine Spalte mehr: `ersatz_besetzung`, die vierte
+ * Ausnahmeart aus §8.2 — die Nacht laeuft, aber mit weniger Wachen. Sie kommt
+ * mit, statt still wegzufallen (siehe `besetzungMitAusnahme`, O-714).
  */
 export async function ladeAusnahmen(
   db: Abfrage, serie: SerienZeile, von: string, bis: string,
 ): Promise<readonly Ausnahme[]> {
-  if (serie.turnusId === null) return [];
+  const [tabelle, traegerSpalte, traegerId, staerke] = serie.turnusId !== null
+    ? ['turnus_ausnahme', 'turnus_id', serie.turnusId, 'null::smallint']
+    : serie.postenId !== null
+      ? ['posten_ausnahme', 'posten_id', serie.postenId, 'ersatz_besetzung']
+      : [null, null, null, null];
+  if (tabelle === null || traegerId === null) return [];
+
   const zeilen = (await db.unsafe(
     `select id, to_char(datum,'YYYY-MM-DD') as datum, art::text as art,
             to_char(ersatz_beginn_lokal, 'YYYY-MM-DD"T"HH24:MI') as ersatz_beginn_lokal,
-            dauer_minuten
-       from turnus_ausnahme
-      where mandant_id = $1 and turnus_id = $2 and datum between $3::date and $4::date`,
-    [serie.mandantId, serie.turnusId, von, bis],
+            dauer_minuten, ${staerke as string} as ersatz_besetzung
+       from ${tabelle}
+      where mandant_id = $1 and ${traegerSpalte as string} = $2
+        and datum between $3::date and $4::date`,
+    [serie.mandantId, traegerId, von, bis],
   )) as Record<string, unknown>[];
   return zeilen.map((z) => ({
     id: z['id'] as string,
@@ -409,6 +445,8 @@ export async function ladeAusnahmen(
     art: z['art'] as Ausnahme['art'],
     ersatzBeginnLokal: (z['ersatz_beginn_lokal'] as string | null),
     dauerMinuten: z['dauer_minuten'] === null ? null : Number(z['dauer_minuten']),
+    ersatzBesetzung: z['ersatz_besetzung'] === null || z['ersatz_besetzung'] === undefined
+      ? null : Number(z['ersatz_besetzung']),
   }));
 }
 

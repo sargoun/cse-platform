@@ -1,4 +1,5 @@
 import 'server-only';
+import { tagDeutsch } from '../../../../lib/datum/kalendertag.js';
 
 /**
  * §13b UStG — wann die Steuerschuld auf den Leistungsempfänger übergeht
@@ -92,8 +93,9 @@ export function reverseChargeLage(
   if (zeile === undefined) {
     return {
       greift: false, leistungsart: null, hinweis: null,
-      grund: `Für den ${stichtag} ist kein §13b-Status hinterlegt. Ohne Nachweis `
-        + 'wird die Umsatzsteuer ausgewiesen — die sichere Richtung: zu Unrecht '
+      grund: `Für den ${tagDeutsch(stichtag)} ist kein §13b-Status hinterlegt. `
+        + 'Ohne Nachweis wird die Umsatzsteuer ausgewiesen — die sichere '
+        + 'Richtung: zu Unrecht '
         + 'ausgewiesene Steuer wird geschuldet (§14c UStG) und ist korrigierbar, '
         + 'eine zu Unrecht verlagerte ist beim Empfänger ein Ausfall.',
     };
@@ -102,7 +104,7 @@ export function reverseChargeLage(
   if (!zeile.istBauleistender) {
     return {
       greift: false, leistungsart: null, hinweis: null,
-      grund: `Der Kunde ist am ${stichtag} ausdrücklich KEIN `
+      grund: `Der Kunde ist am ${tagDeutsch(stichtag)} ausdrücklich KEIN `
         + `${leistungsart === 'bau' ? 'Bauleistender' : 'Gebäudereiniger'} `
         + `(Grundlage: ${zeile.grundlage}).`,
     };
@@ -113,6 +115,7 @@ export function reverseChargeLage(
     leistungsart,
     hinweis: HINWEIS_13B,
     grund: `§13b Abs. 2 Nr. ${leistungsart === 'bau' ? '4' : '8'} UStG, `
-      + `Status gültig ab ${zeile.giltAb} (Grundlage: ${zeile.grundlage}).`,
+      + `Status gültig ab ${tagDeutsch(zeile.giltAb)} (Grundlage: `
+      + `${zeile.grundlage}).`,
   };
 }

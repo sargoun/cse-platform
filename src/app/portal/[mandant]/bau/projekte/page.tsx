@@ -88,11 +88,21 @@ export default async function Projektliste(
           spalten={[
             { schluessel: 'nummer', kopf: 'Nummer', zelle: (z) => z.nummer },
             {
+              /**
+               * Der Name führt auf das PROJEKT, nicht ins
+               * Leistungsverzeichnis.
+               *
+               * Er führte auf `…/[id]/lv`, weil es die Projektseite nicht gab
+               * — und damit sprang man von der Liste mitten in einen von
+               * sechs Vorgängen, ohne Vertragsgrundlage, Termine und
+               * Vertragssumme gesehen zu haben. Das LV ist von dort eine
+               * Karte weiter.
+               */
               schluessel: 'bezeichnung',
               kopf: 'Projekt',
               zelle: (z) => (
                 <Link
-                  href={`/portal/${mandant}/bau/projekte/${z.id}/lv`}
+                  href={`/portal/${mandant}/bau/projekte/${z.id}`}
                   className="text-text underline-offset-2 hover:text-brand hover:underline"
                 >
                   {z.bezeichnung}

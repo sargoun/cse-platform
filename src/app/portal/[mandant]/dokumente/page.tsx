@@ -7,6 +7,7 @@ import { DataTable } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
 import { SupabaseSpeicher } from '@/server/storage/adapter';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { haeltRechte } from '@/app/portal/rechte';
 import { mandantTor, MandantAntwort } from '../../unterseite';
 import { formatiereBytes, ilikeMuster, KATEGORIE, KATEGORIEN } from './darstellung';
 
@@ -50,6 +51,11 @@ export default async function Dokumente(
   const tor = await mandantTor(`/portal/${mandant}/dokumente`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+
+  /* AUT-06: „Ablegen" verlangt `dokument.schreiben`, diese Liste nur
+     `dokument.lesen`. Ein Knopf, dessen Ziel diese Sitzung nicht oeffnen darf,
+     verraet die Existenz dessen, was er nicht zeigen darf (D-581). */
+  const darf = await haeltRechte(zugang.sitzung, 'dokument.schreiben');
 
   const p = await searchParams;
   const q = text(p, 'q', 100);
@@ -95,7 +101,16 @@ export default async function Dokumente(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <h1 className="mb-s3 text-h1 text-text">Dokumente</h1>
+      <div className="mb-s3 flex flex-wrap items-baseline justify-between gap-s3">
+        <h1 className="m-0 text-h1 text-text">Dokumente</h1>
+        {darf['dokument.schreiben'] === true && (
+          <Link href={`/portal/${mandant}/dokumente/upload`}
+                data-cse="zum-upload"
+                className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2">
+            Dokument ablegen
+          </Link>
+        )}
+      </div>
       {speicher.verbunden ? null : (
         <p data-cse="speicher-nicht-verbunden"
            className="mb-s5 max-w-prose rounded-lg border border-line bg-surface-3 p-s4 text-sm text-text">
@@ -133,7 +148,7 @@ export default async function Dokumente(
       {zeilen.length === 0 ? (
         <p data-cse="dokumente-leer" className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           {q === '' && tag === '' && kategorie === ''
-            ? 'Noch kein Dokument in dieser Gesellschaft. Die Ablage (Hochladen mit MIME-Prüfung, Größenlimit und EXIF-Bereinigung, DOC-06) kommt mit dem verbundenen Speicher.'
+            ? 'Noch kein Dokument in dieser Gesellschaft. Ablegen geht über „Dokument ablegen" — der Dateityp wird dort aus den Bytes bestimmt, die Größe begrenzt und EXIF entfernt (DOC-06).'
             : 'Nichts gefunden in dieser Auswahl.'}
         </p>
       ) : (

@@ -13,8 +13,8 @@
 import postgres from 'postgres';
 import { importiere, type ImportSeite } from '../src/server/services/inhalt/import.js';
 import { OEFFENTLICHE_ROUTEN } from '../src/server/services/inhalt/routen.js';
-import { SEITEN } from '../src/server/db/seed/inhalt.js';
-import { SEITEN_EN } from '../src/server/db/seed/inhalt-en.js';
+import { LEISTUNGSSEITEN, SEITEN } from '../src/server/db/seed/inhalt.js';
+import { LEISTUNGSSEITEN_EN, SEITEN_EN } from '../src/server/db/seed/inhalt-en.js';
 import { TITEL_EN } from '../src/server/db/seed/routen-en.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
@@ -69,8 +69,40 @@ const deutscherTitel = (_pfad: string, deutsch: string): string => deutsch;
 const englischerTitel = (pfad: string, deutsch: string): string =>
   TITEL_EN[pfad] ?? deutsch;
 
-const seiten = bauen(SEITEN, deutscherTitel);
-const seitenEn = bauen(SEITEN_EN, englischerTitel);
+/**
+ * Die Leistungsdetailseiten — NEBEN `OEFFENTLICHE_ROUTEN`, nicht darin.
+ *
+ * `bauen()` laeuft ueber die Liste der FESTEN Seiten; eine Leistungsseite ist
+ * Redaktion und traegt ihren Titel selbst. In `OEFFENTLICHE_ROUTEN`
+ * aufgenommen waere sie eine Seite, deren Fehlen ein Test beanstandet — und
+ * damit eine Redaktionsentscheidung, die im Code steht (O-652).
+ */
+function leistungen(
+  quelle: readonly {
+    readonly pfad: string; readonly titel: string; readonly beschreibung: string;
+    readonly abschnitte: readonly {
+      readonly art: string; readonly ueberschrift: string | null;
+      readonly text: string | null; readonly daten?: Record<string, unknown>;
+    }[];
+  }[],
+): readonly ImportSeite[] {
+  return quelle.map((s) => ({
+    pfad: s.pfad,
+    titel: s.titel,
+    beschreibung: s.beschreibung,
+    abschnitte: s.abschnitte.map((a, i) => ({
+      art: a.art,
+      reihenfolge: i + 1,
+      ueberschrift: a.ueberschrift,
+      akzentWort: null,
+      text: a.text,
+      daten: a.daten,
+    })),
+  }));
+}
+
+const seiten = [...bauen(SEITEN, deutscherTitel), ...leistungen(LEISTUNGSSEITEN)];
+const seitenEn = [...bauen(SEITEN_EN, englischerTitel), ...leistungen(LEISTUNGSSEITEN_EN)];
 
 const treiber = { unsafe: (s: string, w?: readonly unknown[]) => sql.unsafe(s, (w ?? []) as never[]) };
 const de = await importiere(treiber, seiten, 'de');

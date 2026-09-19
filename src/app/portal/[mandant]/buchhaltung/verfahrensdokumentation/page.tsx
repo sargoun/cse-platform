@@ -81,7 +81,28 @@ export default async function Verfahrensdoku({ params }: { params: Promise<{ man
       navigationsRechte={zugang.navigationsRechte}
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="text-h1 text-text">Verfahrensdokumentation</h1>
+        {/*
+          * `min-w-0` an der Überschrift — und ohne es lief diese Seite am
+          * Telefon 13px über den Rand, in jeder der drei Gesellschaften
+          * identisch (`abmessungen.spec.ts`, 390px; `main` mass 403 bei 390
+          * Fensterbreite, und kein Kasten ragte hinaus).
+          *
+          * „Verfahrensdokumentation" ist EIN Wort ohne Trennstelle und als
+          * `text-h1` am Telefon (30px, DESIGN §2 mobil) rund 379px breit —
+          * die Inhaltsspalte hat 342. `globals.css` gibt jeder Überschrift
+          * dafür `overflow-wrap: anywhere` (D-420), und als BLOCK bricht sie
+          * damit auch: `datenschutz/verarbeitungsverzeichnis` trägt ein noch
+          * längeres Wort und ist in Ordnung.
+          *
+          * Hier steht die Überschrift aber in einer Flex-Zeile (Titel links,
+          * Verweis rechts), und ein Flex-Element hat von sich aus
+          * `min-width: auto`: seine Mindestbreite ist die Mindestbreite
+          * seines Inhalts, und die rechnet der Browser, BEVOR er umbricht.
+          * Die Korrektur von D-420 war richtig und eine Ebene zu hoch —
+          * dieselbe Lehre wie D-594. `min-w-0` nimmt die Mindestbreite, und
+          * dann greift `overflow-wrap: anywhere`.
+          */}
+        <h1 className="min-w-0 text-h1 text-text">Verfahrensdokumentation</h1>
         {darf['buchhaltung.lesen'] === true && (
           <Link href={`/portal/${mandant}/buchhaltung`} className={knopf}>Zur Buchhaltung</Link>
         )}
@@ -146,14 +167,28 @@ export default async function Verfahrensdoku({ params }: { params: Promise<{ man
                        className="mb-s6 rounded-lg border border-line bg-surface p-s5">
                 <h3 className="text-h3 text-text">{a.nummer} {a.titel}</h3>
                 <p className="mb-s3 text-xs text-text-muted">Quelle: {QUELLE_LABEL[a.quelle]}</p>
+                {/*
+                  * `break-words`: dieser Text ist ERZEUGTE Dokumentation. Er
+                  * nennt Tabellen, Spalten, Funktionen und Hashes — Woerter
+                  * ohne Trennstelle, die kein Silbentrenner kennt.
+                  * `globals.css` gibt `overflow-wrap: anywhere` nur den
+                  * UEBERSCHRIFTEN (D-420); ein Absatz bekommt es nicht, und
+                  * das ist fuer gewoehnlichen Fliesstext auch richtig.
+                  *
+                  * Gemessen bei 390 px: `p.mb-s3 max-w-prose text-sm
+                  * text-text (354>292)` — die Zeile brauchte 354 px in einem
+                  * 292-px-Kasten, und die Seite wurde dadurch 13 px breiter
+                  * als das Telefon. Eine Verfahrensdokumentation, die man zum
+                  * Lesen seitwaerts schieben muss, erfuellt ihren Zweck nicht.
+                  */}
                 {a.absaetze.map((p, i) => (
-                  <p key={i} className="mb-s3 max-w-prose text-sm text-text">{p}</p>
+                  <p key={i} className="mb-s3 max-w-prose break-words text-sm text-text">{p}</p>
                 ))}
                 <Tabelle a={a} />
                 {(a.bestand ?? []).length > 0 ? (
                   <div data-cse="vd-bestand" className="mt-s3 max-w-prose text-sm text-text-muted">
                     <p className="text-xs">Bestand beim Abruf (nicht Teil des Hashs):</p>
-                    <ul className="list-disc pl-s5">
+                    <ul className="list-disc break-words pl-s5">
                       {(a.bestand ?? []).map((b, i) => <li key={i}>{b}</li>)}
                     </ul>
                   </div>

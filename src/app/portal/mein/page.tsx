@@ -209,6 +209,15 @@ export default async function MeinPortal(
             ['/portal/mein/nachweise', t.nachweise],
             ['/portal/mein/dienstanweisungen', t.dienstanweisungen],
             ['/portal/mein/monatsnachweis', t.monatsnachweis],
+            /*
+             * Die zwei Seiten aus §7, die bis zuletzt auf die Auffangseite
+             * fuehrten: die eigenen Dokumente (EMP-11, DOC-03) und die eigenen
+             * Objekte samt Zutritt (EMP-02, OPS-01). Auch sie waeren ohne
+             * diese Zeile von NIRGENDS erreichbar — die Arbeiterleiste traegt
+             * fuenf Ziele und nicht mehr (SEITENKARTE §11.2).
+             */
+            ['/portal/mein/dokumente', t.dokumente],
+            ['/portal/mein/objekte', t.objekte],
           ] as const).map(([ziel, text]) => (
             <li key={ziel} className="border-b border-line last:border-b-0">
               <Link

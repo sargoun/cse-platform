@@ -141,7 +141,16 @@ describe('(3) eine fremde Benachrichtigung ist nicht da — auch nicht per id', 
     const a = await konto('nachricht@cse.test');
     await mitglied(a, f.reinigung, 'leitung');
     await sql.unsafe(
-      `insert into nachricht (mandant_id, betreff, text) values ($1,'Betreff','Text')`,
+      /*
+       * `koerper` und nicht `text`, `richtung` ausgeschrieben: `0231` hat die
+       * Spalte umbenannt (ein Spaltenname, der ein Typname ist, liest sich in
+       * jeder Abfrage wie eine Umwandlung) und `richtung` seinen Vorgabewert
+       * genommen — die Richtung ist die Entscheidung, an der das UWG-Tor
+       * haengt, und die trifft kein Default. Die Zusage dieses Tests ist die
+       * Mandantenbindung; sie steht unveraendert darunter.
+       */
+      `insert into nachricht (mandant_id, betreff, koerper, richtung)
+       values ($1,'Betreff','Text','intern')`,
       [f.security],
     );
     const gesehen = await alsApp(

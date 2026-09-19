@@ -27,8 +27,23 @@ export interface SocialErgebnis {
   readonly kanaele: number;
   readonly beitraege: number;
   readonly referenzen: number;
+  readonly galeriebilder: number;
   readonly uebersprungen: boolean;
 }
+
+/**
+ * Der Alternativtext je Gesellschaftsmotiv (WCAG, `medien_alt_text_check`).
+ *
+ * Er beschreibt, was auf dem Bild ZU SEHEN ist, und nicht, welchem Auftrag es
+ * gehört — es gehört keinem. `HERKUNFT.md` nennt die Motive; hier stehen sie
+ * in der Sprache der Seite.
+ */
+const GALERIE_ALT: Readonly<Record<string, string>> = {
+  reinigung: 'Heller Innenraum mit Betonwänden',
+  security: 'Fassade eines Bürohochhauses',
+  bau: 'Rohbau mit Gerüst',
+  operations: 'Arbeitsplatz mit Bildschirmen',
+};
 
 /** Ein Satz Beiträge je Gewerk — kein erfundener Kunde, kein erfundener Preis. */
 const TEXTE: Readonly<Record<string, readonly { titel: string; text: string; art: string }[]>> = {
@@ -151,6 +166,7 @@ export async function seedSocial(
   let kanaele = 0;
   let beitraege = 0;
   let referenzen = 0;
+  let galeriebilder = 0;
 
   for (const [slug, mandantId] of ids) {
     for (const [i, plattform] of PLATTFORMEN.entries()) {
@@ -169,7 +185,33 @@ export async function seedSocial(
     }
   }
 
-  if (!demodaten) return { kanaele, beitraege, referenzen, uebersprungen: true };
+  if (!demodaten) return { kanaele, beitraege, referenzen, galeriebilder, uebersprungen: true };
+
+  /*
+   * **Die Galerie bekommt genau das eine Motiv, das wirklich dort liegt.**
+   *
+   * `public/bilder/HERKUNFT.md` sagt es selbst: die fünf Dateien sind CC0 und
+   * ZWISCHENLÖSUNGEN — Stadtbild, Innenraum, Fassade, Baustelle, Büro, und
+   * ausdrücklich kein bestimmtes Objekt dieser Gruppe. Sie werden deshalb als
+   * `ist_platzhalter = true` eingetragen, und die Galerie zeigt das Schild
+   * „Platzhalterbild" darüber. Ein Bild einer fremden Fassade ohne dieses
+   * Schild wäre eine Behauptung über einen Auftrag, den es nicht gibt
+   * (DESIGN §4.1, O-13).
+   *
+   * Eine Zeile je Gesellschaft und nicht fünf: mehr echte Motive gibt es
+   * nicht, und dieselbe Datei viermal mit verschiedenen Rängen wäre eine
+   * Galerie, die Fülle vortäuscht.
+   */
+  for (const [slug, mandantId] of ids) {
+    const [m] = await sql<{ id: string }[]>`
+      insert into medien (mandant_id, pfad, alt_text, ist_platzhalter, quelle, galerie_rang)
+      select ${mandantId}, ${`/bilder/${slug}.jpg`}, ${GALERIE_ALT[slug] ?? 'Motiv der Gesellschaft'},
+             true, ${'CC0, siehe public/bilder/HERKUNFT.md — Zwischenlösung bis eigenes Material da ist (O-13)'}, 0
+       where not exists (select 1 from medien x
+                          where x.mandant_id = ${mandantId} and x.galerie_rang is not null)
+      returning id`;
+    if (m !== undefined) galeriebilder += 1;
+  }
 
   for (const [slug, mandantId] of ids) {
     const r = REFERENZEN[slug];
@@ -213,7 +255,7 @@ export async function seedSocial(
     }
   }
 
-  return { kanaele, beitraege, referenzen, uebersprungen: false };
+  return { kanaele, beitraege, referenzen, galeriebilder, uebersprungen: false };
 }
 
 interface Anlage {

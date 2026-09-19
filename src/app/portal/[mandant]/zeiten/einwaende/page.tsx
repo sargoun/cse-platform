@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -122,6 +123,21 @@ function Karte({ zeile, mandant, pfad }: {
       <p className="m-0 mt-s2 text-sm text-text-muted">
         {zeile.personName}
         {zeile.zeiteintragId === null && ' · zu einem Tag ohne Eintrag'}
+        {' · '}
+        {/*
+          Der Weg auf das Blatt — ohne ihn war die Detailseite gebaut, im
+          Routenregister eingetragen, mit Rechten bewacht und fuer niemanden
+          erreichbar. Sie traegt das, was auf der Karte nicht Platz hat: die
+          Aufzeichnung neben der Behauptung, Geraetezeit und Abweichung
+          paarweise, und die Antwort darauf, ob eine Korrektur gefolgt ist.
+        */}
+        <Link
+          href={`/portal/${mandant}/zeiten/einwaende/${zeile.id}`}
+          data-cse="zum-einwand"
+          className="text-text underline-offset-2 hover:text-brand hover:underline"
+        >
+          Blatt öffnen
+        </Link>
       </p>
 
       <p className="m-0 mt-s2 max-w-prose text-sm text-text">{zeile.begruendung}</p>

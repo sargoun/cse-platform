@@ -72,7 +72,8 @@ export default async function Dokumentblatt(
      von beiden. Wer das Dokument lesen, aber Kunde oder Objekt nicht oeffnen
      darf, bekam hinter dem Bezug ein 404; ein Verweis auf 404 verraet, was er
      nicht zeigen darf. Der Name bleibt als Text (Copilot-Runde auf PR 16 / D-581). */
-  const darf = await haeltRechte(zugang.sitzung, 'crm.lesen', 'objekt.lesen');
+  const darf = await haeltRechte(
+    zugang.sitzung, 'crm.lesen', 'objekt.lesen', 'dokument.kunde_freigeben');
 
   const [d] = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) => kontext.abfrage<Dokument>(
@@ -116,8 +117,29 @@ export default async function Dokumentblatt(
             <Feld label="Objekt" wert={d.objekt === null || d.objekt_id === null ? '—' : darf['objekt.lesen'] === true ? (
               <Link href={`/portal/${mandant}/objekte/${d.objekt_id}`} className="underline-offset-2 hover:underline">{d.objekt}</Link>) : d.objekt} />
             <Feld label="Schlagworte" wert={d.tags === null || d.tags.length === 0 ? '—' : d.tags.join(', ')} />
-            <Feld label="Sichtbar für" wert={[d.sichtbar_fuer_kunde ? 'Kunde' : null, d.sichtbar_fuer_mitarbeiter ? 'Beschäftigte' : null]
-              .filter((t) => t !== null).join(', ') || 'nur intern'} />
+            <Feld label="Sichtbar für" wert={(
+              <>
+                {[d.sichtbar_fuer_kunde ? 'Kunde' : null,
+                  d.sichtbar_fuer_mitarbeiter ? 'Beschäftigte' : null]
+                  .filter((t) => t !== null).join(', ') || 'nur intern'}
+                {/*
+                  * Der Weg zur Kundenfreigabe — sie ist ein eigener Vorgang mit
+                  * eigenem Recht (`dokument.kunde_freigeben`), und nicht
+                  * dasselbe wie `dokument.schreiben`. Ohne die Rechtepruefung
+                  * fuehrte der Verweis fuer eine Beschaeftigtenrolle auf 404
+                  * und verriete damit, was er nicht zeigen darf (AUT-06).
+                  */}
+                {darf['dokument.kunde_freigeben'] === true && (
+                  <Link
+                    href={`/portal/${mandant}/dokumente/${d.id}/kundenfreigabe`}
+                    data-cse="zur-kundenfreigabe"
+                    className="ml-s3 text-text underline underline-offset-2 hover:text-brand"
+                  >
+                    Kundenfreigabe →
+                  </Link>
+                )}
+              </>
+            )} />
             <Feld label="Abgelegt" wert={`${d.erstellt}${d.erstellt_von === null ? '' : ` von ${d.erstellt_von}`}`} />
           </dl>
         </section>

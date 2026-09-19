@@ -117,3 +117,16 @@ create policy t_medien_pflege on medien for all to cse_app
               and app.hat_recht('referenz.schreiben', app.aktiver_mandant()));
 
 grant select, insert, update on seite, abschnitt, medien to cse_app;
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0014)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+create trigger trg_seite_geaendert_am
+  before update on seite
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_abschnitt_geaendert_am
+  before update on abschnitt
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks

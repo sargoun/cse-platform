@@ -9,6 +9,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { ladePlanfenster, montag, tagePlus } from '../daten';
 import { berlinHeute } from '@/server/db/heute';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/dienstplan/woche` — TIM-01, TIM-04.
@@ -67,6 +68,15 @@ export default async function Wochenansicht({
    */
   const tagZiel = heute >= von && heute <= bis ? heute : von;
 
+  /*
+    Zwei weitere Blaetter des Moduls, und beide waren von hier unerreichbar:
+    `offene-schichten` (die Liste der Besetzungsluecken, gewerkeuebergreifend)
+    und `veroeffentlichung` (die Bekanntgabe eines Zeitraums). Ein Blatt, das
+    niemand findet, ist nicht gebaut. Getort werden sie einzeln — ein
+    Menuepunkt, der auf 404 fuehrt, ist schlechter als keiner (AUT-06).
+  */
+  const darf = await haeltRechte(sitzung, 'dienstplan.veroeffentlichen');
+
   return (
     <PortalRahmen
       titel="Dienstplan"
@@ -115,8 +125,20 @@ export default async function Wochenansicht({
         <Blatt mandant={mandant} ziel={`dienstplan/tag?tag=${tagZiel}`} text="Tagesansicht" />
         <Blatt mandant={mandant} ziel={`dienstplan/monat?monat=${von}`} text="Monatsansicht" />
         <Blatt mandant={mandant} ziel="dienstplan/serien" text="Serien" />
+        <Blatt
+          mandant={mandant}
+          ziel={`dienstplan/offene-schichten?von=${von}`}
+          text="Offene Schichten"
+        />
         {konflikteSichtbar && (
           <Blatt mandant={mandant} ziel="dienstplan/konflikte" text="Konflikte" />
+        )}
+        {darf['dienstplan.veroeffentlichen'] === true && (
+          <Blatt
+            mandant={mandant}
+            ziel={`dienstplan/veroeffentlichung?von=${von}&bis=${bis}`}
+            text="Veröffentlichen"
+          />
         )}
       </nav>
 

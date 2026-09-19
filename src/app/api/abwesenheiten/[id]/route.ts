@@ -8,6 +8,8 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
+import { liesRumpf } from '../../rumpf';
+import { fehlerAufsFormular } from '../../formular-antwort';
 import {
   genehmigeAbwesenheit, lehneAbwesenheitAb, storniereAbwesenheit,
 } from '@/server/services/abwesenheit/index';
@@ -38,12 +40,21 @@ export async function POST(
   }
 
   const { id } = await kontextParam.params;
-  const daten = await anfrage.formData();
-  const was = daten.get('entscheidung');
+  /*
+   * `liesRumpf` statt `anfrage.formData()`: die Route nimmt beide Formen
+   * entgegen, und erst `rumpf.json` erlaubt die Unterscheidung, die der
+   * Fehlerzweig braucht — ein Formular bekommt eine Seite zurueck, eine
+   * Schnittstelle ihren Status.
+   */
+  const rumpf = await liesRumpf(anfrage).catch(() => null);
+  if (rumpf === null) {
+    return NextResponse.json({ fehler: 'unlesbarer_rumpf' }, { status: 400 });
+  }
+  const was = rumpf.felder['entscheidung'];
   if (was !== 'genehmigt' && was !== 'abgelehnt' && was !== 'storniert') {
     return NextResponse.json({ fehler: 'unbekannte_entscheidung' }, { status: 400 });
   }
-  const grund = typeof daten.get('grund') === 'string' ? (daten.get('grund') as string) : '';
+  const grund = rumpf.felder['grund'] ?? '';
 
   try {
     await db().begin(async (tx: postgres.TransactionSql) =>
@@ -78,16 +89,27 @@ export async function POST(
     const status = (fehler as { status?: number }).status;
     const code = (fehler as { code?: string }).code;
     if (typeof status === 'number' && typeof code === 'string') {
-      return NextResponse.json(
-        { fehler: code, meldung: (fehler as Error).message }, { status });
+      const meldung = (fehler as Error).message;
+      /*
+       * **Ein fachlicher Fehler geht auf die Seite zurueck, die ihn ausloeste.**
+       * `GrundFehlt` ist eine Auskunft und kein Serverfehler; das Formular hat
+       * kein JavaScript, und ein `{"fehler":"…"}` auf weissem Grund hat den
+       * Menschen verloren. Die Seiten lesen `?meldung=` und sagen den Satz.
+       */
+      const aufsFormular = fehlerAufsFormular(anfrage, {
+        json: rumpf.json, zurueck: rumpf.felder['zurueck'], meldung,
+      });
+      if (aufsFormular !== null) return aufsFormular;
+      return NextResponse.json({ fehler: code, meldung }, { status });
     }
     throw fehler;
   }
 
-  const mandant = String(daten.get('mandant') ?? '');
+  const mandant = rumpf.felder['mandant'] ?? '';
+  if (rumpf.json) return NextResponse.json({ ergebnis: 'ok' }, { status: 200 });
   return NextResponse.redirect(
     internesZiel(
-      daten.get('zurueck') as string | null,
+      rumpf.felder['zurueck'] ?? null,
       `/portal/${mandant}/personal/abwesenheiten`, anfrage),
     303,
   );

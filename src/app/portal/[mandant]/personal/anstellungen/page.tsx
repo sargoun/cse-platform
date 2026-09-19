@@ -71,7 +71,7 @@ export default async function Anstellungsliste(
      verriet, was er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581). */
   const darf = await haeltRechte(
     sitzung, 'zeit.abwesenheit_lesen', 'zeit.antrag_entscheiden',
-    'zeit.konto_lesen', 'personal.nachweis_lesen');
+    'zeit.konto_lesen', 'personal.nachweis_lesen', 'personal.schreiben');
 
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => kontext.abfrage<Zeile>(
@@ -110,9 +110,22 @@ export default async function Anstellungsliste(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">Beschäftigungen</h1>
-        <p className="m-0 text-sm text-text-muted">
-          {zeilen.length === 1 ? '1 Beschäftigung' : `${String(zeilen.length)} Beschäftigungen`}
-        </p>
+        <div className="flex flex-wrap items-baseline gap-s4">
+          <p className="m-0 text-sm text-text-muted">
+            {zeilen.length === 1 ? '1 Beschäftigung' : `${String(zeilen.length)} Beschäftigungen`}
+          </p>
+          {/* AUT-06: Einstellen verlangt `personal.schreiben`, diese Liste nur
+              `personal.lesen` (D-581). */}
+          {darf['personal.schreiben'] === true && (
+            <Link
+              href={`/portal/${mandant}/personal/anstellungen/neu`}
+              data-cse="zum-einstellen"
+              className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
+            >
+              Einstellen
+            </Link>
+          )}
+        </div>
       </div>
 
       <nav className="mb-s5 flex flex-wrap gap-s2">

@@ -12,6 +12,7 @@ import { leisteFuer, tableiste, type LeistenSchluessel }
   from '@/server/registry/tableiste';
 import { istPortalSprache, type PortalSprache } from '@/lib/i18n/texte';
 import type { Sitzung } from '@/server/kontext/index';
+import { merkeHuelle } from './huellen-speicher';
 
 /**
  * Was jede Portalseite zuerst tut: Sitzung holen, Tor fragen, Antwort befolgen.
@@ -68,13 +69,22 @@ export interface PortalZugang {
   /** Ist das Modul dieser Seite in dieser Gesellschaft gar nicht gebucht? */
   readonly modulGesperrt: boolean;
   /**
-   * Die Sprache der Person (EMP-12) — nur im Mitarbeiterportal, sonst `null`.
+   * Die gewaehlte Sprache dieser Sitzung (EMP-12, D-592) — `null` heisst
+   * „keine Wahl getroffen", nicht „Deutsch".
    *
-   * Fuer die Huellen, die NICHT durch `MeinRahmen` gehen und trotzdem von
-   * einer Arbeiterin erreicht werden: das Konto und die noch nicht gebauten
-   * Ziele ihrer Leiste (`/portal/konto/profil`, `/portal/mein/nachrichten`).
-   * Ohne diese Angabe fielen Leiste, Spur und Kopfzeile dort ins Deutsche
-   * zurueck (D-419).
+   * **Jedes Portal, nicht mehr nur das der Arbeiterin.** Sie kam urspruenglich
+   * fuer die Huellen, die nicht durch `MeinRahmen` gehen und trotzdem von
+   * einer Arbeiterin erreicht werden (`/portal/konto/profil`,
+   * `/portal/mein/nachrichten`). Seit das interne Portal zweisprachig ist,
+   * liest sie auch dort — `internSprache()` bildet die vier Portalsprachen auf
+   * die zwei internen ab.
+   *
+   * **Woher der Wert kommt, ist eine Regel und keine Formalie.** Hat das Konto
+   * eine Person, gilt `person.sprache`; hat es keine — ein reines
+   * Verwaltungskonto —, gilt `benutzer.sprache`. Genau so steht es seit 0007
+   * im Kommentar der Spalte, und genau so schreibt `konto/sprache.ts`
+   * zurueck. Beide Seiten muessen dieselbe Spalte meinen, sonst speichert der
+   * Umschalter dorthin, wo niemand liest.
    */
   readonly sprache: PortalSprache | null;
   /** Die Adresse, fuer die dieses Tor gefragt wurde — der Rueckweg nach einem Wechsel. */
@@ -206,10 +216,17 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * `t_person_lesen`: die eigene Zeile darf jede Sitzung lesen. Faellt die
      * Abfrage leer aus, bleibt es bei Deutsch statt bei einem Fehler.
      */
-    const [sp] = sitzung.portal === 'mitarbeiter' && sitzung.personId !== null
+    const [sp] = sitzung.personId !== null
       ? await abfrage<{ sprache: string | null }>(
         `select sprache from person where id = $1`, [sitzung.personId])
-      : [];
+      /*
+       * Kein Mensch hinter dem Konto: dann ist `benutzer.sprache` die Quelle.
+       * Die eigene Zeile darf jede Sitzung lesen (`t_benutzer_lesen`,
+       * `id = app.aktueller_benutzer()`) — und nur die eigene, weshalb hier
+       * kein `where` auf eine fremde id moeglich waere.
+       */
+      : await abfrage<{ sprache: string | null }>(
+        `select sprache from benutzer where id = $1`, [sitzung.benutzerId]);
     const rohSprache = sp?.sprache ?? '';
     const sprache = istPortalSprache(rohSprache) ? rohSprache : null;
     /**
@@ -386,6 +403,14 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      */
     notFound();
   }
+
+  /*
+   * Die Sprache in den Anfragespeicher, damit `PortalRahmen` sie ohne
+   * Eigenschaft findet (D-592). NACH den Abbruechen: eine Seite, die auf 404
+   * faellt, rendert keine Huelle, und ein Wert im Kasten waere dort nur ein
+   * Rest der vorigen Zeile im Code.
+   */
+  merkeHuelle(befund.sprache, pfad);
 
   return {
     sitzung,

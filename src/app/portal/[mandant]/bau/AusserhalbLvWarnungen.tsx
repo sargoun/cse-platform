@@ -29,11 +29,22 @@ import {
  * Titel, nie die Grundlage.
  */
 export function AusserhalbLvWarnungen(
-  { warnungen, mandant, projektId, ueberschrift = 'Leistung außerhalb des Leistungsverzeichnisses' }: {
+  {
+    warnungen, mandant, projektId, beschnitten = false,
+    ueberschrift = 'Leistung außerhalb des Leistungsverzeichnisses',
+  }: {
     readonly warnungen: readonly AusserhalbLvWarnung[];
     readonly mandant: string;
     /** `null` in der projektübergreifenden Liste — das Ziel kommt dann je Zeile. */
     readonly projektId: string | null;
+    /**
+     * Wahr, wenn der Aufrufer eine GRENZE gesetzt hat und sie erreicht ist.
+     *
+     * Dann sagt der Satz „mindestens N" statt „N". Eine Zahl, die eine
+     * Obergrenze ist und wie eine Gesamtzahl klingt, ist schlimmer als keine:
+     * sie beruhigt über genau das, wovor die Warnung warnen soll.
+     */
+    readonly beschnitten?: boolean;
     readonly ueberschrift?: string;
   },
 ) {
@@ -43,11 +54,13 @@ export function AusserhalbLvWarnungen(
     <section className="mb-s6" data-cse="ausserhalb-lv">
       <h2 className="mb-s2 text-h3 text-text">{ueberschrift}</h2>
       <p className="m-0 mb-s3 max-w-prose text-sm text-text-muted">
-        {warnungen.length === 1
+        {warnungen.length === 1 && !beschnitten
           ? 'Eine Position ist erfasst, steht aber in keinem Leistungsverzeichnis dieses '
             + 'Projekts und hängt an keinem Nachtrag.'
-          : `${String(warnungen.length)} Positionen sind erfasst, stehen aber in keinem `
-            + 'Leistungsverzeichnis dieses Projekts und hängen an keinem Nachtrag.'}
+          : `${beschnitten ? 'Mindestens ' : ''}${String(warnungen.length)} Positionen `
+            + 'sind erfasst, stehen aber in keinem Leistungsverzeichnis dieses Projekts '
+            + 'und hängen an keinem Nachtrag.'}
+        {beschnitten && ' Gezeigt ist ein Ausschnitt; die vollständige Liste steht am Projekt.'}
         {' '}Ohne Nachtrag ist die Leistung nach § 2 Abs. 8 VOB/B im Zweifel
         unentgeltlich — und § 2 Abs. 6 Nr. 1 VOB/B verlangt die Ankündigung,
         bevor gebaut wird.

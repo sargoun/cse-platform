@@ -283,6 +283,24 @@ export default async function Rechnungsblatt(
       darfHerunterladen: ((await kontext.abfrage<{ darf: boolean }>(
         `select app.hat_recht('finanzen.herunterladen', app.aktiver_mandant()) as darf`,
       ))[0]?.darf) === true,
+      /*
+       * Die drei Uebergaenge haben seit PR 54.x eigene Bildschirme
+       * (`/festschreiben`, `/verwerfen`, `/versand`), und jeder oeffnet mit
+       * einem EIGENEN Recht. Sie stehen hier als Verweis und nur fuer den,
+       * der sie oeffnen darf — dasselbe Muster wie `darfHerunterladen`
+       * daneben (AUT-06, D-581). Die Formulare weiter unten bleiben, wo sie
+       * sind: eine Adresse zu entfernen, die funktioniert, nimmt niemandem
+       * einen Fehler ab.
+       */
+      darfFestschreiben: ((await kontext.abfrage<{ darf: boolean }>(
+        `select app.hat_recht('finanzen.festschreiben', app.aktiver_mandant()) as darf`,
+      ))[0]?.darf) === true,
+      darfVerwerfen: ((await kontext.abfrage<{ darf: boolean }>(
+        `select app.hat_recht('finanzen.entwurf_verwerfen', app.aktiver_mandant()) as darf`,
+      ))[0]?.darf) === true,
+      darfVersandLesen: ((await kontext.abfrage<{ darf: boolean }>(
+        `select app.hat_recht('versand.lesen', app.aktiver_mandant()) as darf`,
+      ))[0]?.darf) === true,
     }))) as Promise<{
       kopf: Kopf | null; positionen: readonly Pos[]; steuer: readonly Steuer[];
       abzuege: readonly Abzug[];
@@ -292,6 +310,9 @@ export default async function Rechnungsblatt(
       steuerfall: Awaited<ReturnType<typeof ermittleSteuerfall>>;
       darfStornieren: boolean;
       darfHerunterladen: boolean;
+      darfFestschreiben: boolean;
+      darfVerwerfen: boolean;
+      darfVersandLesen: boolean;
     }>);
 
   const k = daten.kopf;
@@ -366,6 +387,65 @@ export default async function Rechnungsblatt(
           >
             ZUGFeRD-PDF laden
           </a>
+        )}
+        {/*
+          * Die ZUGFeRD-Vorschau mit Pruefstand und Summenprobe — dieselbe
+          * Regel wie bei der XRechnung: das Blatt liegt hinter
+          * `finanzen.herunterladen`, und ein Entwurf hat keinen Schnappschuss.
+          */}
+        {k.status === 'festgeschrieben' && daten.darfHerunterladen && (
+          <Link
+            href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/zugferd`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            ZUGFeRD ansehen
+          </Link>
+        )}
+        {/*
+          * Das Einwegtor als eigener Bildschirm: er zeigt vorher in Zahlen,
+          * was gleich unumkehrbar wird, samt §14-Ampel und FIN-18. Nur bei
+          * einem Entwurf und nur mit `finanzen.festschreiben`.
+          */}
+        {entwurf && daten.darfFestschreiben && (
+          <Link
+            href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/festschreiben`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            Festschreiben prüfen
+          </Link>
+        )}
+        {entwurf && daten.darfVerwerfen && (
+          <Link
+            href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/verwerfen`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            Entwurf verwerfen
+          </Link>
+        )}
+        {/* Abschlaege: dieselbe Rechteschwelle wie diese Seite (`finanzen.lesen`). */}
+        {k.rechnungsart === 'schluss' && (
+          <Link
+            href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/abschlaege`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            Abschläge und Abzug
+          </Link>
+        )}
+        {k.status === 'festgeschrieben' && daten.darfStornieren && (
+          <Link
+            href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/storno`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            Stornieren
+          </Link>
+        )}
+        {k.status === 'festgeschrieben' && daten.darfVersandLesen && (
+          <Link
+            href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/versand`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            Versandprotokoll
+          </Link>
         )}
       </nav>
 

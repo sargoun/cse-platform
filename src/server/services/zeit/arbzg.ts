@@ -99,11 +99,21 @@ export interface ArbzgOptionen {
   readonly zehnStundenAusnahme?: boolean;
 }
 
-const ACHT_STUNDEN = 8 * 60;
-const ZEHN_STUNDEN = 10 * 60;
-const RUHEZEIT_MINUTEN = 11 * 60;
-const PAUSE_AB_6H = 30;
-const PAUSE_AB_9H = 45;
+/**
+ * Die gesetzlichen Grenzen — EXPORTIERT, weil ein zweiter Ort sie sonst
+ * abschreibt.
+ *
+ * `/portal/[mandant]/einstellungen/arbeitszeit` stellt eine hinterlegte
+ * Tarifregel neben das Gesetz, und eine Tarifregel darf nur STRENGER sein
+ * (O-50). Die Zahlen dort noch einmal zu schreiben hiesse: zwei Listen, von
+ * denen eine irgendwann nicht mehr stimmt — und die falsche saehe auf dem
+ * Bildschirm richtig aus. Sie stehen hier, weil hier gerechnet wird.
+ */
+export const ACHT_STUNDEN = 8 * 60;
+export const ZEHN_STUNDEN = 10 * 60;
+export const RUHEZEIT_MINUTEN = 11 * 60;
+export const PAUSE_AB_6H = 30;
+export const PAUSE_AB_9H = 45;
 
 function pruefePersonenSchluessel(schichten: readonly Schicht[]): string {
   const personen = new Set(schichten.map((s) => s.personId));

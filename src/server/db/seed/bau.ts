@@ -62,6 +62,11 @@ import {
 import {
   hefteMannstundenAn, heftePositionAn, legeBautagAn, schliesseBautag,
 } from '../../services/bau/bautagebuch.js';
+import {
+  behinderungNutzlast, erstelleBehinderung, findeBehinderung, zeigeWegfallAn,
+} from '../../services/bau/behinderung.js';
+import { protokolliereAbnahme } from '../../services/bau/abnahme.js';
+import { legeLvImportAn } from '../../services/bau/lv-import.js';
 import { hefteWetterAn } from '../../services/bau/wetter.js';
 import { wetterPort } from '../../versand/dwd.js';
 import { nutzlastHash } from '../../agent/policy.js';
@@ -79,6 +84,9 @@ export interface BauErgebnis {
   readonly aufmassZeilen: number;
   readonly nachtraege: number;
   readonly nachtragsnummer: string | null;
+  /** § 6 VOB/B: laufend, weggefallen und storniert — je eine (BAU-06). */
+  readonly behinderungen: number;
+  readonly behinderungenLaufend: number;
   readonly gewerke: number;
   readonly bautage: number;
   readonly mannstunden: number;
@@ -86,13 +94,24 @@ export interface BauErgebnis {
   /** Was `hefteWetterAn` geantwortet hat — wortwoertlich, nicht beschoenigt. */
   readonly wetterBefund: string;
   readonly wetterVerbunden: boolean;
+  /** § 12 Abs. 2 VOB/B: die Art der protokollierten Abnahme, oder `null`. */
+  readonly abnahmeArt: string | null;
+  /** § 12 Abs. 3: die im Protokoll aufgenommenen Maengel. */
+  readonly abnahmeMaengel: number;
+  /** Wurde die Vertragsstrafe vorbehalten (§ 11 Abs. 4)? */
+  readonly abnahmeStrafeVorbehalten: boolean;
+  /** Der wartende LV-Import: Zeilen insgesamt und die mit Fehlern. */
+  readonly lvImportZeilen: number;
+  readonly lvImportFehler: number;
 }
 
 const LEER: BauErgebnis = {
   projekte: 0, lvZeilen: 0, lvSumme: null, ausgenommen: 0,
   aufmassblaetter: 0, aufmassZeilen: 0, nachtraege: 0, nachtragsnummer: null,
-  gewerke: 0, bautage: 0, mannstunden: 0, tagespositionen: 0,
+  behinderungen: 0, behinderungenLaufend: 0, gewerke: 0, bautage: 0, mannstunden: 0, tagespositionen: 0,
   wetterBefund: 'nicht abgerufen', wetterVerbunden: false,
+  abnahmeArt: null, abnahmeMaengel: 0, abnahmeStrafeVorbehalten: false,
+  lvImportZeilen: 0, lvImportFehler: 0,
 };
 
 const PROJEKT = {
@@ -252,6 +271,65 @@ const NACHTRAG = {
   anordnungForm: 'muendlich',
   angeordnetVon: 'Charlottenburg Immobilien GmbH, Bauleitung vor Ort',
 } as const;
+
+/**
+ * Drei Behinderungen nach § 6 VOB/B — und zwar in DREI Zustaenden.
+ *
+ * **Die Uebersicht des Baumoduls fragt nach genau einem davon** („laufend,
+ * ohne dokumentierten Wegfall", BAU-06), und ein Bestand, in dem jede
+ * Behinderung denselben Zustand hat, prueft diesen Filter nie. Deshalb:
+ *
+ *  - `laufend` — angezeigt, kein Wegfall. Sie steht auf der Uebersicht und
+ *    hemmt die Bauzeit weiter, auch wenn auf der Baustelle wieder gearbeitet
+ *    wird: § 6 Abs. 3 VOB/B verlangt die ANZEIGE des Wegfalls, nicht das
+ *    Wiederaufnehmen der Arbeit.
+ *  - `weggefallen` — angezeigt UND mit dokumentiertem Wegfall. Sie steht
+ *    NICHT mehr auf der Uebersicht, und dass sie verschwindet, ist die Zusage,
+ *    die sich nur an ihr pruefen laesst.
+ *  - `entwurf` — erfasst, nicht angezeigt. Sie hemmt NICHTS: ein Entwurf ist
+ *    keine Anzeige, und die Uebersicht sagt das ausdruecklich.
+ */
+const BEHINDERUNGEN = [
+  {
+    art: 'laufend',
+    grundKategorie: 'risikobereich_ag',
+    ursache:
+      'Die Baugenehmigung für die Dachgaube liegt nicht vor; die Bauleitung des '
+      + 'Auftraggebers hat die Ausführung im Bereich Achse A–C bis zur Erteilung '
+      + 'untersagt.',
+    auswirkung:
+      'Der Trockenbau im Bereich Achse A–C kann nicht begonnen werden. Die Folgen '
+      + 'für den Fertigstellungstermin sind noch nicht abschließend bezifferbar.',
+    auswirkungTage: null,
+    versatz: -9,
+    empfaenger: 'Charlottenburg Immobilien GmbH, Bauleitung',
+    wegfallVersatz: null,
+  },
+  {
+    art: 'weggefallen',
+    grundKategorie: 'hoehere_gewalt',
+    ursache:
+      'Dauerfrost unter −5 °C über fünf Arbeitstage; Estricharbeiten sind bei '
+      + 'dieser Temperatur nicht ausführbar.',
+    auswirkung: 'Estrich- und Bodenbelagsarbeiten ruhen; Verzug fünf Arbeitstage.',
+    auswirkungTage: 5,
+    versatz: -30,
+    empfaenger: 'Charlottenburg Immobilien GmbH, Bauleitung',
+    wegfallVersatz: -23,
+  },
+  {
+    art: 'entwurf',
+    grundKategorie: 'risikobereich_ag',
+    ursache:
+      'Die vom Auftraggeber beauftragte Elektrofirma hat die Leerrohre in Achse D '
+      + 'nicht verlegt; die Ständerwand kann dort nicht geschlossen werden.',
+    auswirkung: 'Noch nicht bezifferbar — der Termin der Vorleistung ist offen.',
+    auswirkungTage: null,
+    versatz: -2,
+    empfaenger: 'Charlottenburg Immobilien GmbH, Bauleitung',
+    wegfallVersatz: null,
+  },
+] as const;
 
 /**
  * Der Gewerkekatalog — ZWEI Zeilen, beide als unbestaetigt gekennzeichnet.
@@ -721,6 +799,150 @@ export async function seedBau(
     }
 
     /* ------------------------------------------------------------------ */
+    /* 3b — die Behinderungen (§ 6 VOB/B, BAU-06)                          */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * **Angelegt wird ueber den Dienst, angezeigt wird von Hand — und das
+     * hat einen Grund, der nicht Bequemlichkeit ist.**
+     *
+     * `erstelleBehinderung` laeuft: es zieht die Nummer je Projekt, holt die
+     * Vorlage (`vob_b_6_1`, als Platzhalter gekennzeichnet) und setzt den
+     * Anzeigetext aus ihr zusammen. Der Uebergang „Entwurf → angezeigt"
+     * laeuft dagegen ueber `dokumentiereVersand`, und das verlangt ZWEI
+     * Dinge, die im Seed nicht da sind: eine Freigabe, deren Nutzlastabdruck
+     * genau diese Anzeige deckt (Invariante 7), und einen VERBUNDENEN
+     * Medienspeicher, in dem das erzeugte PDF archiviert wird. Ohne
+     * Zugangsdaten bricht es dort ab — wie beim Aufmass ohne Messfoto.
+     *
+     * Die Freigabe schreibt dieser Seed selbst (dieselbe Kette wie beim
+     * Nachtrag oben, mit `freigabe_snapshot` und echtem Kettenhash). Das PDF
+     * kann er nicht schreiben, also bleibt `versand_dokument_id` NULL — und
+     * die Oberflaeche zeigt genau das: eine dokumentierte Anzeige ohne
+     * archiviertes Schreiben. Ein selbst geschriebenes `dokument` mit
+     * erfundener Pruefsumme waere der vorgetaeuschte Beleg, den CLAUDE.md
+     * verbietet.
+     *
+     * Der Kanal ist `bauleiterprotokoll` — einer der vier MENSCHLICHEN
+     * Kanaele: hier wird dokumentiert, was ein Mensch getan hat, und kein
+     * Versand nachgebaut.
+     */
+    let behinderungen = 0;
+    let behinderungenLaufend = 0;
+    for (const b of BEHINDERUNGEN) {
+      const angelegt = await erstelleBehinderung(kontext, {
+        projektId: projekt.id,
+        vorlageSchluessel: 'vob_b_6_1',
+        grundKategorie: b.grundKategorie,
+        ursache: b.ursache,
+        beginnAm: tagePlus(bauwoche, b.versatz),
+        auswirkung: b.auswirkung,
+        auswirkungTage: b.auswirkungTage,
+        absender: 'REALTIME Service GmbH, Bauleitung',
+      });
+      behinderungen += 1;
+      if (b.art === 'entwurf') continue;
+
+      /**
+       * Die Nutzlast ist DIESELBE, die `dokumentiereVersand` binden wuerde —
+       * mit Text und Empfaenger (`behinderungNutzlast`). Eine Freigabe „fuer
+       * irgendetwas" waere hier zwar nie geprueft worden (der Seed ruft
+       * `gate()` nicht), aber sie stuende dann als Beleg in der Kette, der
+       * nichts deckt: der naechste Kettenpruefer haette einen Abdruck ohne
+       * Gegenstand.
+       */
+      const roh = await findeBehinderung(kontext, angelegt.id);
+      if (roh === null) continue;
+      const nutzlast = behinderungNutzlast(kontext.aktiverMandantId, {
+        behinderungId: angelegt.id,
+        nummer: angelegt.nummer,
+        projekt: `${auftragsnummer.formatiert} · ${PROJEKT.bezeichnung}`,
+        empfaenger: b.empfaenger,
+        versandart: 'bauleiterprotokoll',
+        anzeigetext: angelegt.anzeigetext,
+      });
+      const abdruck = nutzlastHash(nutzlast);
+
+      const [freigabe] = await kontext.schreibe<{ id: string }>(
+        `insert into freigabe (mandant_id, aktion, status, freigegeben_von, freigegeben_am,
+                               begruendung, erstellt_von)
+         values ($1, $2, 'genehmigt', $3, now(), $4, $3)
+         returning id`,
+        [kontext.aktiverMandantId, nutzlast.aktion, bauleitung.id,
+         'Behinderungsanzeige im Bautagesgespräch abgestimmt; Versand freigegeben.'],
+      );
+      if (freigabe === undefined) continue;
+
+      const [kette] = await kontext.schreibe<{
+        kette_nr: string; vorheriger_hash: string;
+      }>(`select * from app.freigabe_kette_ziehen($1::uuid)`, [kontext.aktiverMandantId]);
+      if (kette !== undefined) {
+        const bytes = Buffer.from(JSON.stringify(nutzlast.inhalt), 'utf8');
+        await kontext.schreibe(
+          `insert into freigabe_snapshot (mandant_id, freigabe_id, kette_nr, nutzlast,
+                                          nutzlast_hash, vorheriger_hash, hash,
+                                          entscheidung, entschieden_von)
+           values ($1, $2, $3::bigint, $4::jsonb, $5, $6, $7, 'genehmigt', $8)`,
+          [kontext.aktiverMandantId, freigabe.id, kette.kette_nr, nutzlast.inhalt,
+           abdruck, kette.vorheriger_hash,
+           berechneHash(bytes, kette.vorheriger_hash), bauleitung.id],
+        );
+      }
+
+      /**
+       * **`angezeigt_am` setzt der SERVER, nicht dieser Seed.**
+       *
+       * Der Ausloeser `kern.behinderung_versandzeit` (0081) ueberschreibt den
+       * Wert beim Uebergang mit `app.berlin_heute()` — Invariante 5: wann eine
+       * Anzeige hinausgegangen ist, weiss der Server und nicht der
+       * Schreibende. Deshalb steht hier `app.berlin_heute()` und kein
+       * ausgedachtes Datum: ein Parameter, den der Ausloeser verwirft, sieht
+       * im Code aus wie eine Angabe und ist keine.
+       *
+       * Die Folge fuer die Demodaten: die Anzeige traegt den Tag des
+       * Saatlaufs. Der BEGINN der Behinderung liegt davor (`beginn_am`), und
+       * genau dieser Abstand ist der, um den es in § 6 Abs. 1 VOB/B geht
+       * („unverzueglich") — er ist eine Rechtsfrage und keine Zahl, die dieser
+       * Seed festlegt.
+       */
+      await kontext.schreibe(
+        `update behinderung
+            set status = 'angezeigt',
+                angezeigt_am = app.berlin_heute(),
+                versandart = 'bauleiterprotokoll',
+                empfaenger = $2,
+                freigabe_id = $3::uuid,
+                freigegeben_am = now(),
+                freigegeben_von = $4::uuid,
+                geaendert_von = app.aktueller_benutzer()
+          where id = $1`,
+        [angelegt.id, b.empfaenger, freigabe.id, bauleitung.id],
+      );
+
+      if (b.wegfallVersatz === null) {
+        behinderungenLaufend += 1;
+        continue;
+      }
+      /**
+       * § 6 Abs. 3 VOB/B: der Wegfall ist ebenfalls anzuzeigen — und erst
+       * diese Anzeige beendet die Behinderung, nicht das Ende der Ursache.
+       *
+       * Die Wegfall-Anzeige traegt `heute` und nicht ein Datum aus der
+       * Vergangenheit: die ERSTE Anzeige hat der Ausloeser eben mit dem
+       * heutigen Berliner Tag gestempelt, und eine Wegfall-Anzeige, die davor
+       * datiert, waere eine Anzeige vor der Anzeige. Das ENDE der Ursache
+       * liegt dagegen in der Vergangenheit — das ist die Tatsache, die auf der
+       * Baustelle eingetreten ist, und sie ist von ihrer Anzeige zu
+       * unterscheiden.
+       */
+      await zeigeWegfallAn(kontext, {
+        id: angelegt.id,
+        endeAm: tagePlus(bauwoche, b.wegfallVersatz),
+        angezeigtAm: heute,
+      });
+    }
+
+    /* ------------------------------------------------------------------ */
     /* 4 — das Bautagebuch                                                 */
     /* ------------------------------------------------------------------ */
 
@@ -817,6 +1039,127 @@ export async function seedBau(
       if (tag.versatz === 0) await schliesseBautag(kontext, bautagId);
     }
 
+    /* ------------------------------------------------------------------ */
+    /* 6 — die Teilabnahme (§ 12 Abs. 2 VOB/B)                             */
+    /* ------------------------------------------------------------------ */
+    /**
+     * **Eine TEILABNAHME, und das ist eine Entscheidung.**
+     *
+     * Eine wirksame GESAMTabnahme schlaegt `projekt.status` auf `abgenommen`
+     * um (Ausloeser `kern.abnahme_projekt_status`, 0211) — das Demoprojekt
+     * waere damit fertig, und Nachtrag, Behinderung und Bautagebuch stuenden
+     * an einem abgenommenen Bau. Die Teilabnahme laesst den Status stehen
+     * (§ 12 Abs. 2: „in sich abgeschlossene Teile der Leistung"), zeigt aber
+     * genau die Kanten, um die es geht: den Leistungsumfang, die beiden
+     * Vorbehalte im Wortlaut, die Mängelliste mit Fristen — und dass
+     * `gewaehrleistung_bis` LEER bleibt, weil die Frist offen ist (O-154).
+     *
+     * `vorbehalt_vertragsstrafe` steht auf `true` und traegt seinen Wortlaut:
+     * nach § 11 Abs. 4 VOB/B verfaellt der Anspruch, wenn er bei der Abnahme
+     * nicht vorbehalten wird. Ein Demobestand, in dem er nie vorbehalten ist,
+     * zeigte diese Kante nie — und der Bericht ueber die verfallenen
+     * Ansprueche (Index `abnahme_strafe_idx`) haette nichts, wogegen er
+     * pruefen kann.
+     */
+    const teilabnahme = await protokolliereAbnahme(kontext, {
+      projektId: projekt.id,
+      art: 'teilabnahme',
+      // Berliner Kalendertag (K-11), nicht die Serverzeit: der Tag, an dem
+      // begangen wurde. `protokolliert_am` setzt der Server daneben.
+      abnahmeAm: tagePlus(bauwoche, 4),
+      leistungsumfang:
+        'Titel 1.2 Trockenbau, Bauabschnitt Nordseite (OZ 1.2.1 bis 1.2.8) — '
+        + 'Ständerwände, Vorsatzschalen und Dachschrägenbekleidung, '
+        + 'abgenommen zur Weiterarbeit der Folgegewerke.',
+      abgenommen: true,
+      verweigerungGrund: null,
+      vorbehaltVertragsstrafe: true,
+      vorbehaltMaengel: true,
+      vorbehaltText:
+        'Der Auftraggeber behält sich die Vertragsstrafe wegen Überschreitung der '
+        + 'Zwischenfrist für den Trockenbau ausdrücklich vor (§ 11 Abs. 4 VOB/B). '
+        + 'Die im Protokoll aufgeführten Mängel bleiben nach § 12 Abs. 3 VOB/B '
+        + 'vorbehalten; die Abnahme des Bauabschnitts wird dadurch nicht berührt.',
+      teilnehmer: [
+        'REALTIME Service GmbH, Bauleitung (Auftragnehmer)',
+        'Hausverwaltung Berliner Straße 42 GmbH, technische Leitung (Auftraggeber)',
+        'Architekturbüro Kranz, Bauleitung Örtlichkeit (Planer)',
+      ],
+      maengel: [
+        {
+          beschreibung:
+            'Anschlussfuge Dachschräge zu Giebelwand auf 6 m nicht dauerelastisch '
+            + 'geschlossen; Rissbildung sichtbar.',
+          fristAm: tagePlus(bauwoche, 18),
+          lvPositionId: nachOz.get('1.2.7') ?? null,
+        },
+        {
+          beschreibung:
+            'Zwei Revisionsklappen im Flur sitzen nicht fluchtend; Laibung nachzuarbeiten.',
+          fristAm: tagePlus(bauwoche, 25),
+          lvPositionId: nachOz.get('1.2.6') ?? null,
+        },
+      ],
+    });
+
+    const [abnahmeStand] = await kontext.abfrage<{
+      art: string; maengel: string; strafe: boolean;
+    }>(
+      `select a.art::text as art, a.vorbehalt_vertragsstrafe as strafe,
+              (select count(*) from abnahme_mangel m where m.abnahme_id = a.id) as maengel
+         from abnahme a where a.id = $1`,
+      [teilabnahme.id],
+    );
+
+    /* ------------------------------------------------------------------ */
+    /* 7 — der wartende LV-Import (BAU-01, O-41)                           */
+    /* ------------------------------------------------------------------ */
+    /**
+     * **Der Import bleibt in der Vorschau — uebernommen wird er NICHT.**
+     *
+     * Die Uebernahme legte eine NEUE Fassung des Leistungsverzeichnisses an,
+     * und die AKTUELLE Fassung waere danach diese Datei: vier Zeilen statt
+     * der geseedeten 23+. Genau das zeigt die Vorschau als „Positionen der
+     * aktuellen Fassung fehlen in dieser Datei" (offen, O-633) — und der
+     * Demobestand bleibt damit im Zustand, den die Seite
+     * `/lv/import?import=…` fuehrt: gelesen, verglichen, wartend.
+     *
+     * **Keine dieser Zeilen ist „maschinell gelesen".** Hier stand, jede
+     * Position waere bis zu ihrer Bestaetigung ungeprueft — das stimmt fuer
+     * CSV nicht: `CSV_QUELLE` setzt `konfidenz: null`, weil eine Spalte, die
+     * woertlich dasteht, kein Modell geraten hat. Damit greift weder
+     * `istUngeprueftMaschinell` noch das Hindernis in
+     * `kern.aufmass_vorlage_pruefen()` (0072), und der Bestaetigungsweg
+     * (`bestaetigeLvPosition`) trifft diese Positionen nicht. Die Sicherung
+     * beginnt bei einem EXTRAHIERENDEN Leser (PDF, Bild) — der ist noch
+     * nicht gebaut (O-41).
+     *
+     * Die vier Zeilen sind die vier Faelle, die die Vorschau unterscheidet:
+     * eine unveraenderte (1.1.2), eine geaenderte Menge (1.2.5), eine neue
+     * Position (1.2.13) und eine, die NICHT lesbar ist — „zwölf" ist keine
+     * Menge, und die Zeile steht mit ihrem Fehler da, statt still zu fehlen.
+     *
+     * Das Format ist `csv_semikolon`, das einzige implementierte. Welches
+     * Austauschformat die Gruppe wirklich bekommt, ist offen (O-41); die
+     * Auswahl in der Oberflaeche sagt das, und dieser Seed taeuscht kein
+     * GAEB vor, das niemand liest.
+     */
+    const importCsv = [
+      'OZ;Kurztext;Positionsart;Einheit;Menge;Einheitspreis',
+      '1.1.2;Fassadengerüst Hofseite, Lastklasse 3;Normalposition;m²;186,000;11,80',
+      '1.2.5;Abgehängte Unterdecke F30, Flur;Normalposition;m²;52,200;98,00',
+      '1.2.13;Schachtverkleidung F90 vor Abluftstrang;Normalposition;m²;18,400;142,50',
+      '1.3.4;Sockelleiste Eiche, gelackt;Normalposition;m;zwölf;9,40',
+    ].join('\n');
+
+    const lvImport = await legeLvImportAn(kontext, {
+      projektId: projekt.id,
+      dateiname: 'LV-Ausbau-DG-Fassung-2.csv',
+      format: 'csv_semikolon',
+      bezeichnung: 'Leistungsverzeichnis Ausbau — Fassung 2 (Nachtrag Schacht)',
+      inhalt: importCsv,
+    });
+
     return {
       projekte: 1,
       lvZeilen: gelesen.length,
@@ -826,12 +1169,19 @@ export async function seedBau(
       aufmassZeilen: zeilen.length,
       nachtraege,
       nachtragsnummer,
+      behinderungen,
+      behinderungenLaufend,
       gewerke: gewerkIds.size,
       bautage,
       mannstunden,
       tagespositionen,
       wetterBefund,
       wetterVerbunden: port.verbunden,
+      abnahmeArt: abnahmeStand?.art ?? null,
+      abnahmeMaengel: Number(abnahmeStand?.maengel ?? 0),
+      abnahmeStrafeVorbehalten: abnahmeStand?.strafe ?? false,
+      lvImportZeilen: lvImport.gueltig + lvImport.fehler,
+      lvImportFehler: lvImport.fehler,
     };
   }, { personId: bauleitung.person_id });
 }

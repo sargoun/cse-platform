@@ -5,6 +5,7 @@ import { withEingang } from '@/server/kontext/eingang';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { formularSchluessel } from '@/lib/formular/bereiche';
 import { Felder, FormularFehler } from '@/lib/formular/schema';
+import { istUebermittlung } from '@/lib/formular/uebermittlung';
 import { ipHash, nimmAn, pruefeRatenlimit, RatenlimitFehler, istBot }
   from '@/server/services/lead/annahme';
 import { bestaetige } from '@/server/services/lead/bestaetigung';
@@ -13,7 +14,7 @@ import { ladeHoch } from '@/server/services/dokument/upload';
 import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
 import { API_TEXTE } from '@/lib/i18n/texte';
 import { uebersetzeFeldmeldungen } from '@/lib/i18n/formular-en';
-import { SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
+import { mitSprache, SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
  * `POST /api/anfrage` — die oeffentliche Angebotsanfrage (REQ-01 … REQ-07).
@@ -73,9 +74,62 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
   const t = API_TEXTE[sprache];
 
   const bereich = String(formData.get('bereich') ?? '');
+
+  /**
+   * **Ein Browser bekommt eine Seite, ein Programm bekommt JSON.**
+   *
+   * Das Formular hat kein JavaScript und traegt deshalb `antwort=seite`. Ohne
+   * diese Weiche sah ein Besucher, dessen Eingabe die Pruefung nicht bestand,
+   * `{"ok":false,…}` auf weissem Grund — und zwar an genau der Stelle, an der
+   * er etwas kaufen wollte. Der Grund reist als TEXT in der Adresse zurueck
+   * zum Formular, wo `AnfrageFormular` ihn als `role="alert"` ausgibt.
+   *
+   * **Warum ein Feld und nicht der `Accept`-Header.** Der Header eines
+   * Formular-POST sieht je nach Browser verschieden aus; eine Weiche, die auf
+   * ihn hoert, faellt irgendwann auf die falsche Seite. Das Feld sagt es
+   * ausdruecklich — ein Programm schickt es nicht mit und bekommt JSON wie
+   * bisher.
+   *
+   * 303 und nicht 302: nach einem POST soll der Browser GET folgen, und ein
+   * Neuladen darf die Anfrage nicht ein zweites Mal senden.
+   */
+  const alsSeite = String(formData.get('antwort') ?? '') === 'seite';
+  const antworteFehler = (status: number, meldung: string,
+                          felder: Readonly<Record<string, string>> = {}): NextResponse => {
+    if (!alsSeite) return fehlerAntwort(status, meldung, felder);
+    /*
+     * Kennt die Plattform den Bereich nicht, fuehrt ein Ruecksprung auf
+     * `/angebot/<unbekannt>` selbst in ein 404. Dann lieber die Auswahlseite:
+     * sie zeigt die vier Bereiche, und der Besucher findet von dort zurueck.
+     */
+    const ziel = formularSchluessel(bereich) === undefined
+      ? '/angebot' : `/angebot/${bereich}`;
+    /*
+     * **Die FELDmeldungen reisen mit, nicht nur der Sammelsatz.**
+     *
+     * Der erste Entwurf dieser Weiche haengte nur `meldung` an die Adresse.
+     * Damit las ein Besucher „Bitte pruefen Sie Ihre Eingaben" und nicht, WELCHE
+     * — die JSON-Antwort davor hatte die Feldmeldungen einzeln getragen. Ein
+     * Formular ohne JavaScript ist kein Grund, weniger zu sagen als vorher;
+     * `AnfrageFormular` hat fuer genau das eine `fehler`-Eigenschaft, die jedes
+     * Feld mit `aria-invalid` markiert und die Meldung darunter setzt.
+     *
+     * JSON in der Adresse und nicht ein eigener Parameter je Feld: die
+     * Feldnamen kommen aus `formular_definition` und sind nicht im Voraus
+     * bekannt.
+     */
+    const parameter = new URLSearchParams({ meldung });
+    if (Object.keys(felder).length > 0) {
+      parameter.set('felder', JSON.stringify(felder));
+    }
+    return NextResponse.redirect(new URL(
+      `${mitSprache(ziel, sprache)}?${parameter.toString()}`, anfrage.url,
+    ), 303);
+  };
+
   const schluessel = formularSchluessel(bereich);
   if (schluessel === undefined) {
-    return fehlerAntwort(404, t.keinFormular);
+    return antworteFehler(404, t.keinFormular);
   }
 
   // 1 — Honigtopf. VOR jeder Datenbankberührung: ein Bot soll nicht einmal
@@ -88,13 +142,13 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
 
   const [formular] = await withOeffentlichLesen(schluessel);
   if (formular === undefined) {
-    return fehlerAntwort(404, t.keinFormular);
+    return antworteFehler(404, t.keinFormular);
   }
 
   const felderGeprueft = Felder.safeParse(formular.felder);
   if (!felderGeprueft.success) {
     // Eine kaputte Definition ist ein Fehler DES BETREIBERS, kein Eingabefehler.
-    return fehlerAntwort(500, t.nichtVerfuegbar);
+    return antworteFehler(500, t.nichtVerfuegbar);
   }
   const felder = felderGeprueft.data;
 
@@ -115,13 +169,24 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
   const dateiSchluessel = new Set(felder.filter((f) => f.typ === 'datei').map((f) => f.schluessel));
   const werte: Record<string, unknown> = {};
   for (const [name, wert] of formData.entries()) {
-    // `sprache` gehoert wie `bereich` und `website` zur UEBERMITTLUNG, nicht
-    // zum Formular: die Validierung kennt nur Felder der `formular_definition`
-    // und wies die Anfrage sonst als "unbekanntes Feld" ab — das eigene
-    // versteckte Feld haette jede Absendung gebrochen.
-    if (name === 'bereich' || name === 'website' || name === 'sprache'
-        || name.startsWith('utm_')
-        || name === 'landing_page' || dateiSchluessel.has(name)) continue;
+    /*
+     * **Diese Liste ist die Uebermittlung, nicht das Formular.** Die
+     * Validierung kennt nur Felder der `formular_definition` und weist alles
+     * andere als „unbekanntes Feld" ab.
+     *
+     * **Und genau das ist passiert.** `antwort` kam mit D-599 als verstecktes
+     * Feld dazu — die Weiche „Browser bekommt eine Seite" — und fehlte hier.
+     * Die Folge war nicht ein Randfall, sondern: JEDE Absendung des Formulars
+     * wurde abgewiesen, mit der Meldung „Bitte pruefen Sie die markierten
+     * Felder" und einem Feldnamen, den es nicht gibt. Der Kommentar darueber
+     * warnte woertlich davor („das eigene versteckte Feld haette jede
+     * Absendung gebrochen"), und die Zeile wurde trotzdem vergessen.
+     *
+     * Gefunden hat es der Browserlauf, nicht der Typpruefer: ein Feldname ist
+     * eine Zeichenkette, und eine vergessene Zeichenkette in einer Liste sieht
+     * aus wie nichts.
+     */
+    if (istUebermittlung(name) || dateiSchluessel.has(name)) continue;
     if (typeof wert === 'string') werte[name] = wert;
   }
 
@@ -132,18 +197,18 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
     const roh = formData.get(f.schluessel);
     if (!(roh instanceof File) || roh.size === 0) continue;
     if (roh.size > f.maxBytes) {
-      return fehlerAntwort(413, t.dateiZuGross, { [f.schluessel]: f.fehlermeldung });
+      return antworteFehler(413, t.dateiZuGross, { [f.schluessel]: f.fehlermeldung });
     }
     const bytes = new Uint8Array(await roh.arrayBuffer());
     try {
       const { mime } = pruefeUpload(bytes, roh.type);
       if (!f.mime.includes(mime)) {
-        return fehlerAntwort(415, t.dateityp,
+        return antworteFehler(415, t.dateityp,
           { [f.schluessel]: f.fehlermeldung });
       }
       datei = { bytes, name: roh.name, mime };
     } catch {
-      return fehlerAntwort(415, t.dateityp,
+      return antworteFehler(415, t.dateityp,
         { [f.schluessel]: f.fehlermeldung });
     }
   }
@@ -294,17 +359,43 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
         return angenommen;
       })) as Awaited<ReturnType<typeof nimmAn>>;
 
+    /*
+     * **Ein Browser bekommt eine Seite, ein Programm bekommt JSON.**
+     *
+     * Das Formular traegt `antwort=seite` und hat kein JavaScript. Ohne diese
+     * Weiche landete der Besucher auf `{"ok":true,…}` — direkt nachdem er um
+     * ein Angebot gebeten hat. Die Leadnummer reist in der Adresse mit, damit
+     * die Dankseite sie nennen kann: sie ist das einzige, womit er bei einem
+     * Rueckruf auf seine Anfrage zeigen kann.
+     *
+     * 303 und nicht 302: nach einem POST soll der Browser GET folgen, und ein
+     * Neuladen der Dankseite darf die Anfrage nicht ein zweites Mal senden.
+     */
+    if (String(formData.get('antwort') ?? '') === 'seite') {
+      /*
+       * **Die Sprache steht im PFAD, nicht in einem Parameter** (D-82): die
+       * englische Fassung liegt unter `/en/…`, und ein `?sprache=en` auf der
+       * deutschen Adresse waere eine zweite Wahrheit ueber dieselbe Seite.
+       * `mitSprache` ist dieselbe Funktion, die auch jeder Verweis benutzt.
+       */
+      return NextResponse.redirect(new URL(
+        `${mitSprache(`/angebot/${bereich}/danke`, sprache)}`
+        + `?nr=${encodeURIComponent(ergebnis.leadnummer)}`,
+        anfrage.url,
+      ), 303);
+    }
+
     return NextResponse.json({
       ok: true,
       meldung: t.dank,
       leadnummer: ergebnis.leadnummer,
     });
   } catch (fehler) {
-    if (fehler instanceof RatenlimitFehler) return fehlerAntwort(429, fehler.message);
+    if (fehler instanceof RatenlimitFehler) return antworteFehler(429, fehler.message);
     // Kein simulierter Erfolg: der Speicher ist nicht verbunden, und das steht
     // in der Antwort statt in einem Logfile.
     if (fehler instanceof NichtVerbundenFehler) {
-      return fehlerAntwort(503, t.uploadNichtVerbunden);
+      return antworteFehler(503, t.uploadNichtVerbunden);
     }
     if (fehler instanceof FormularFehler) {
       /**
@@ -318,9 +409,9 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
       const felder = sprache === 'de'
         ? fehler.felder
         : uebersetzeFeldmeldungen(schluessel, fehler.felder);
-      return fehlerAntwort(400, fehler.message, felder);
+      return antworteFehler(400, fehler.message, felder);
     }
-    return fehlerAntwort(500, t.nichtGespeichert);
+    return antworteFehler(500, t.nichtGespeichert);
   }
 }
 

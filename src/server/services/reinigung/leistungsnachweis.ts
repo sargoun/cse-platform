@@ -215,18 +215,60 @@ export async function findeNachweis(
   const [z] = await kontext.abfrage<KopfZeile>(
     `select ${KOPF_SPALTEN} ${KOPF_QUELLE} where l.id = $1::uuid`, [id],
   );
-  return z === undefined ? null : alsKopf(z);
+  if (z !== undefined) return alsKopf(z);
+  /**
+   * **Der Weg des Mitarbeiterportals** (0304, CLN-04, EMP-13).
+   *
+   * Die Abfrage oben verbindet den Kopf mit `kunde` als INNER JOIN — der
+   * Kundenname steht im Dokument und geht in den Abzug ein, ueber den die
+   * Pruefsumme laeuft. Fuer die Kraft auf der Schicht ist `kunde` aber nicht
+   * lesbar (`t_mandant` verlangt `crm.lesen`), und das soll auch so bleiben:
+   * sie bekommt keinen Kundenstamm (K-05). Der INNER JOIN macht daraus NULL
+   * ZEILEN — also `NachweisNichtGefunden` auf einen Nachweis, den sie gerade
+   * selbst angelegt hat (AUT-05).
+   *
+   * `app.leistungsnachweis_kopf_schicht` gibt genau die Kopffelder zurueck,
+   * die auf dem Unterschriftsblatt stehen, und prueft dabei dasselbe, was die
+   * Zeilenpolicy pruefen wuerde: Mitarbeiterportal, eigene Beschaeftigung,
+   * Einsatz auf DIESEM Objekt. „Ein anderes Recht, nicht kein Recht" (D-366).
+   *
+   * Der zweite Versuch laeuft NUR im Mitarbeiterportal: im internen Portal
+   * ist „null Zeilen" die richtige Antwort und soll keine zweite Frage nach
+   * sich ziehen.
+   */
+  if (kontext.portal !== 'mitarbeiter') return null;
+  const [d] = await kontext.abfrage<KopfZeile>(
+    `select id, nummer, status, objekt_id, objekt, revier_id, revier,
+            kunde_id, kunde, von, bis,
+            vorgelegt_lokal, gesperrt_lokal, storniert_lokal, abgelehnt_grund
+       from app.leistungsnachweis_kopf_schicht($1::uuid)`,
+    [id],
+  );
+  return d === undefined ? null : alsKopf(d);
 }
 
+/**
+ * Die Nachweise der Gesellschaft, gefiltert.
+ *
+ * **`status` nimmt einen Wert ODER mehrere.** Vorher war es genau einer, und
+ * die Frage „welche Nachweise sind noch nicht unterschrieben" — also `entwurf`
+ * UND `vorgelegt` — liess sich damit nur mit zwei Aufrufen stellen. Zwei
+ * Aufrufe heissen zwei `limit 200`, zwei Sortierungen und eine Liste, die in
+ * der Mitte springt. Ein Array-Parameter statt einer zweiten Abfrage.
+ */
 export async function listeNachweise(
-  kontext: LeseKontext, filter: { readonly status?: string | null } = {},
+  kontext: LeseKontext,
+  filter: { readonly status?: string | readonly string[] | null } = {},
 ): Promise<readonly NachweisKopf[]> {
+  const status = filter.status === undefined || filter.status === null
+    ? null
+    : (typeof filter.status === 'string' ? [filter.status] : [...filter.status]);
   const zeilen = await kontext.abfrage<KopfZeile>(
     `select ${KOPF_SPALTEN} ${KOPF_QUELLE}
-      where ($1::text is null or l.status::text = $1)
+      where ($1::text[] is null or l.status::text = any($1::text[]))
       order by l.leistungszeitraum_bis desc, l.erstellt_am desc
       limit 200`,
-    [filter.status ?? null],
+    [status === null || status.length === 0 ? null : status],
   );
   return zeilen.map(alsKopf);
 }

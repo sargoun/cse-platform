@@ -125,7 +125,7 @@ export default async function MonatszahlenSeite(
             zelle: (m) => <strong data-cse="monat-ergebnis" data-cent={m.ergebnisCent.toString()}>{geld(m.ergebnisCent)}</strong> },
           { schluessel: 'periode', kopf: 'Monat',
             zelle: (m) => (m.periode === null ? <span className="text-text-subtle">kein Buchungsmonat</span> : (
-              <span className="inline-flex items-center gap-s2">
+              <span className="inline-flex flex-wrap items-center gap-s2">
                 <StatusPill zustand={STATUS[m.periode.status] ?? 'Offen'} />
                 {m.periode.eingefroren === null ? null : (
                   <span className={`text-xs ${m.periode.abweichung ? 'text-warning' : 'text-text-muted'}`}

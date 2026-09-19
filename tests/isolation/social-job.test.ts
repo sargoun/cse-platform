@@ -167,14 +167,21 @@ describe('Der Planlauf läuft als JOB — nicht als Portalsitzung', () => {
   it('OHNE gebundenen Mandanten schliesst der Riegel — die Bindung trägt', async () => {
     /*
      * Genau der Zustand, in dem der Lauf vor dieser Runde gearbeitet hätte:
-     * richtige Rolle, keine Mandantensitzung. `app.freigabe_genehmigt` ist ein
-     * Definer, dessen Policy auf `freigabe` `mandant_id = app.aktiver_mandant()`
-     * verlangt — ohne ihn sieht er null Zeilen, und der Riegel schliesst.
+     * richtige Rolle, keine Mandantensitzung.
      *
-     * **Richtig herum, aber zur falschen Zeit:** der Beitrag HAT eine
-     * genehmigte Freigabe. Was fehlt, ist der Blick darauf. Diese Prüfung hält
-     * fest, dass das unterscheidbar ist — und dass `alsJobSitzung` je Beitrag
-     * kein Schmuck ist.
+     * **Der Riegel schliesst jetzt eine Stufe FRÜHER als vorher.** Bis zur
+     * Mandantengrenze in `ladeBeitrag` kam der Lauf bis zum Auslöser
+     * `app.beitrag_braucht_genehmigung`: `app.freigabe_genehmigt` ist ein
+     * Definer, dessen Policy auf `freigabe` `mandant_id =
+     * app.aktiver_mandant()` verlangt, sah ohne Bindung null Zeilen und warf
+     * „GENEHMIGTE Freigabe". Seit `ladeBeitrag` selbst nach
+     * `mandant_id = app.aktiver_mandant()` filtert (die Policy `j_beitrag`
+     * lässt `cse_job` sonst JEDE Zeile lesen), ist der Beitrag schon gar nicht
+     * mehr auffindbar — es wird nichts gelesen und nichts geschrieben.
+     *
+     * **Der Satz, den diese Prüfung hält, ist derselbe:** ohne gebundenen
+     * Mandanten geht nichts hinaus, und der Stand bleibt `geplant`.
+     * `alsJobSitzung` je Beitrag ist kein Schmuck.
      */
     const id = await legeFaelligAn(f.reinigung, 3);
     await expect(alsJobRolle(sql, async (db) => {
@@ -182,7 +189,7 @@ describe('Der Planlauf läuft als JOB — nicht als Portalsitzung', () => {
         abfrage: db.abfrage.bind(db), schreibe: db.abfrage.bind(db), benutzerId: null,
       };
       return veroeffentliche(zugriff, id, null);
-    })).rejects.toThrow(/GENEHMIGTEN Freigabe/u);
+    })).rejects.toThrow(/Diesen Beitrag gibt es nicht/u);
     expect(await status(id)).toBe('geplant');
   });
 

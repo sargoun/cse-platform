@@ -6,6 +6,18 @@
 --   create extension if not exists pg_cron;
 --   create extension if not exists pg_net;
 --   alter database postgres set cse.job_token = '<das Geheimnis aus JOB_TOKEN>';
+-- Akquise: Firmenrecherche je Gesellschaft (§12) — ohne verbundene Quelle ein protokollierter Leerlauf, kein stiller (je_mandant)
+select cron.unschedule('cse_akquise_recherche')
+  where exists (select 1 from cron.job where jobname = 'cse_akquise_recherche');
+select cron.schedule('cse_akquise_recherche', '10 5 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/akquise_recherche',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
 -- Deckt ein Basiszinssatz die kommende Jahreshälfte? (§ 247 BGB) (plattform)
 select cron.unschedule('cse_basiszinssatz_pruefen')
   where exists (select 1 from cron.job where jobname = 'cse_basiszinssatz_pruefen');

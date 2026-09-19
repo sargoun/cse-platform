@@ -225,3 +225,40 @@ export function dringlichkeitText(stufe: Dringlichkeit): string {
     default: return 'Ohne Frist';
   }
 }
+
+/**
+ * Warum eine Zeile NICHT in den Stapel darf — oder `null`, wenn sie darf
+ * (APR-03, APR-04).
+ *
+ * **Die Regel steht EINMAL.** Sie stand bis hierher zweimal: als Schleife in
+ * `entscheideStapel` (mit den Saetzen fuer den Bericht) und als Bedingung in
+ * der Haekchenspalte des Posteingangs. Mit dem eigenen Stapelbildschirm waere
+ * sie ein drittes Mal entstanden — und die dritte Fassung ist die, die den
+ * Fall „stapelfaehig, aber ein unsicheres Feld" vergisst. Genau der Fall
+ * hebelt APR-03 aus: „uncertain fields highlighted" hiesse nichts, wenn ein
+ * Sammelklick sie mitnaehme.
+ *
+ * Die Reihenfolge der beiden Pruefungen ist die des Dienstes: erst die
+ * Sperre, die der erzeugende Dienst gesetzt hat (sie traegt ihre eigene
+ * Begruendung), dann die unsicheren Felder.
+ */
+export interface StapelLage {
+  readonly stapelFaehig: boolean;
+  readonly unsichereFelder: number;
+  readonly stapelSperreGrund: string | null;
+}
+
+export function stapelGrund(lage: StapelLage): string | null {
+  if (!lage.stapelFaehig) {
+    return lage.stapelSperreGrund ?? 'Im Stapel nicht zugelassen — einzeln prüfen (APR-04)';
+  }
+  if (lage.unsichereFelder > 0) {
+    return `${String(lage.unsichereFelder)} unsichere(s) Feld(er) — einzeln prüfen (APR-03)`;
+  }
+  return null;
+}
+
+/** Die Kehrseite, fuer Filter und Zaehler: darf diese Zeile in den Stapel? */
+export function istStapelbar(lage: StapelLage): boolean {
+  return stapelGrund(lage) === null;
+}

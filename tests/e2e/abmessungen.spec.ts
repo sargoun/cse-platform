@@ -129,15 +129,37 @@ async function masse(page: Page) {
        * darueber hinaus. `getBoundingClientRect()` gibt den Kasten zurueck und
        * sieht davon nichts; `scrollWidth` des Elements sieht es.
        */
-      ueberlaufend: [...document.querySelectorAll<HTMLElement>('body *')]
-        .filter((e) => {
-          if (e.scrollWidth <= e.clientWidth + 1) return false;
-          const st = getComputedStyle(e);
-          return st.overflowX === 'visible' && st.display !== 'none';
-        })
-        .slice(0, 4)
-        .map((e) => `${e.tagName.toLowerCase()}.${e.className.toString().slice(0, 36)}`
-          + `(${String(e.scrollWidth)}>${String(e.clientWidth)})`),
+      ueberlaufend: (() => {
+        const alle = [...document.querySelectorAll<HTMLElement>('body *')]
+          .filter((e) => {
+            if (e.scrollWidth <= e.clientWidth + 1) return false;
+            const st = getComputedStyle(e);
+            return st.overflowX === 'visible' && st.display !== 'none';
+          });
+        /*
+         * **Die INNERSTEN zuerst, nicht die aeussersten.**
+         *
+         * `querySelectorAll` gibt Dokumentreihenfolge zurueck, also Vorfahren
+         * vor Kindern — und `.slice(0, 4)` behielt damit genau das falsche
+         * Ende. Auf `buchhaltung/verfahrensdokumentation` fuellten vier
+         * Vorfahren (`div.sicher-oben`, `a.spur-zurueck`, `div.flex flex-1`,
+         * `main`) die ganze Liste, und der Ort stand nicht dabei: ein
+         * Ueberlauf laeuft nach OBEN durch, jeder Vorfahr meldet ihn mit.
+         *
+         * Das hat zwei Runden gekostet — erst war die Ueberschrift verdaechtig,
+         * dann die Kopfzeile, und der eigentliche Ort kam erst zum Vorschein,
+         * als die davor behoben waren. Wer einen Vorfahren meldet, schickt
+         * den Nachfolger auf die Suche.
+         *
+         * Also: wer ein anderes gemeldetes Element ENTHAELT, faellt raus. Uebrig
+         * bleibt, was den Ueberlauf wirklich verursacht.
+         */
+        return alle
+          .filter((e) => !alle.some((x) => x !== e && e.contains(x)))
+          .slice(0, 4)
+          .map((e) => `${e.tagName.toLowerCase()}.${e.className.toString().slice(0, 36)}`
+            + `(${String(e.scrollWidth)}>${String(e.clientWidth)})`);
+      })(),
       textrand: { abstand: schmalste, wer },
     };
   });

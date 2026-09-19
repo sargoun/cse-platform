@@ -27,6 +27,7 @@ import { registrierePostenabgleich } from './postenabgleich.js';
 import { registriereMahnlauf } from './mahnlauf.js';
 import { registriereBasiszinssatzWaechter } from './basiszinssatz.js';
 import { registriereBelegarchiv } from './belegarchiv.js';
+import { registriereAkquise } from './akquise.js';
 import { registriereRadar } from './radar.js';
 import { registriereRadarWarnungen } from './radarWarnungen.js';
 import {
@@ -86,6 +87,7 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereSocialPlan(db);
     registriereBewerberLoeschung(db);
     registriereRadar(db);
+    registriereAkquise(db);
     geschehen = true;
   }
   return jobs();

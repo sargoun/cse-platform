@@ -1,4 +1,6 @@
 import { PortalRahmen } from './PortalRahmen';
+import { bauzustandTexte } from '@/lib/i18n/intern';
+import { gemerkteHuelle } from '@/app/portal/huellen-speicher';
 import type { LeistenSchluessel } from '@/server/registry/tableiste';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -52,6 +54,13 @@ export function NochNichtGebaut({
   titel, bereich, leiste, wurzel, sichtbareTabs, aktiverTab, phase, pfad, navigationsRechte,
   beschriftungen, nurLesen = false,
 }: NochNichtGebautProps) {
+  /*
+   * Die Sprache kommt aus dem Anfragespeicher, nicht aus einer Eigenschaft
+   * (D-592) — diese Seite steht an 136 Routen, und 136 Aufrufe um eine
+   * Eigenschaft zu ergaenzen hiesse, sie bei der 137. zu vergessen.
+   */
+  const t = bauzustandTexte(gemerkteHuelle().sprache);
+  const [vor, nach] = t.satz(phase);
   return (
     <PortalRahmen
       titel={titel}
@@ -64,19 +73,15 @@ export function NochNichtGebaut({
       {...(navigationsRechte === undefined ? {} : { navigationsRechte })}
       {...(beschriftungen === undefined ? {} : { beschriftungen })}
     >
-      <h1 className="mb-s4 text-h1 text-text">Dieses Modul wird noch gebaut</h1>
+      <h1 className="mb-s4 text-h1 text-text">{t.titel}</h1>
       <p data-cse="noch-nicht" className="max-w-[72ch] text-base text-text-muted">
         {/* `break-all`: ein Musterpfad wie `/portal/[mandant]/einstellungen/benutzer`
             hat keine Trennstelle, und ohne Umbruch schob er bei 375px die ganze
             Seite seitwaerts (WCAG 1.4.10). */}
-        <code className="break-all text-text">{pfad}</code> steht in der Seitenkarte und
-        ist Ihnen freigegeben — die Seite dahinter entsteht
-        {phase === null ? ' in einer späteren Phase' : ` in Phase ${phase}`}.
+        <code className="break-all text-text">{pfad}</code>{vor}{nach}
       </p>
       <p className="mt-s4 max-w-[72ch] text-sm text-text-subtle">
-        Hier steht bewusst kein leerer Bildschirm mit einer Überschrift: eine
-        leere Liste liest sich wie „es gibt nichts“, und das wäre eine Aussage
-        über Ihre Daten statt über den Bauzustand.
+        {t.warumKeinLeererBildschirm}
       </p>
     </PortalRahmen>
   );

@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
-import { Angebotsauswahl } from '../../angebot/Auswahl';
-import { auswahlMetadaten } from '../../angebot/page';
+import { Angebotsauswahl, auswahlMetadaten } from '../../angebot/Auswahl';
 
 export const dynamic = 'force-dynamic';
 

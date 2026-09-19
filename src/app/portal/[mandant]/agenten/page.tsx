@@ -69,7 +69,18 @@ export default async function AgentenZentrum(
 
   /* AUT-06: ein Knopf, dessen Ziel diese Sitzung nicht oeffnen darf,
      verraet die Existenz dessen, was er nicht zeigen darf. */
-  const darf = await haeltRechte(sitzung, 'agent.budget_verwalten');
+  /*
+   * `agent.aufgabe_starten` gehoert zum Verweis auf den Assistenten und nicht
+   * zu dieser Seite: die Seitenkarte bewacht `/agenten/assistent` damit, und
+   * ein Verweis auf eine Seite, die diese Sitzung nicht oeffnen darf, fuehrt
+   * auf 404 (AUT-06, D-567).
+   */
+  const darf = await haeltRechte(
+    sitzung, 'agent.budget_verwalten', 'agent.aufgabe_starten',
+    /* Das Tor der Richtlinienliste im Manifest — gefragt wird genau das
+       Recht, mit dem die Route bewacht ist, damit der Verweis nie auf ein
+       404 fuehrt (AUT-06). */
+    'agent.richtlinie_verwalten');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const { agenten, budget, modell } = await (db().begin(SCHNAPPSCHUSS,
@@ -154,14 +165,49 @@ export default async function AgentenZentrum(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Agenten</h1>
-        {darf['agent.budget_verwalten'] === true && (
+        <div className="flex flex-wrap gap-s3">
+          {/*
+            * **Der Assistent steht hier oben und nicht nur in der Kachelliste.**
+            * Er ist der eine Agent, den man BENUTZT statt ihn zu beobachten:
+            * er beantwortet Fragen aus den echten Daten und braucht dafuer
+            * kein Modell (AGT-07). Ihn zwischen drei Agenten zu verstecken,
+            * die ohne Anbieterzugang gar nicht laufen koennen, hiesse das
+            * einzige Stueck zu verbergen, das heute arbeitet.
+            */}
+          {darf['agent.aufgabe_starten'] === true && (
           <Link
-            href={`/portal/${mandant}/agenten/budget`}
-            className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
+            href={`/portal/${mandant}/agenten/assistent`}
+            data-cse="zum-assistenten"
+            className="min-h-11 rounded-md bg-brand px-s5 py-s3 text-sm font-semibold text-white hover:bg-brand-hover"
           >
-            Budget
+            Fragen stellen
           </Link>
-        )}
+          )}
+          {darf['agent.budget_verwalten'] === true && (
+            <Link
+              href={`/portal/${mandant}/agenten/budget`}
+              className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
+            >
+              Budget
+            </Link>
+          )}
+          {/*
+            * **Der Eingang zu den Richtlinien.** Die Liste war gebaut und von
+            * nirgendwo im Portal erreichbar — nur ihre eigene Detailseite
+            * verwies zurueck auf sie. Sie gehoert hierher: wer ueber das
+            * Einschalten eines Agenten nachdenkt, stellt als naechstes die
+            * Frage, was ohne einen Menschen hinausgehen darf (Invariante 7).
+            */}
+          {darf['agent.richtlinie_verwalten'] === true && (
+            <Link
+              href={`/portal/${mandant}/agenten/richtlinien`}
+              data-cse="zu-den-richtlinien"
+              className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
+            >
+              Was hinausgehen darf
+            </Link>
+          )}
+        </div>
       </div>
 
       {/*

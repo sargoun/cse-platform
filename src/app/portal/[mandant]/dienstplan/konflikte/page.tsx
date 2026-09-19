@@ -11,6 +11,7 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/dienstplan/konflikte` — der Konflikteingang (TIM-05,
@@ -137,6 +138,18 @@ export default async function Konflikteingang(
         order by k.blockiert desc, k.zeitraum_beginn`,
     ))) as Promise<readonly KonfliktZeile[]>);
 
+  /*
+    Welche Detailblaetter diese Sitzung oeffnen DARF.
+
+    Ein Menuepunkt, der auf 404 fuehrt, ist schlechter als keiner: er verraet
+    die Existenz dessen, was er nicht zeigen darf (AUT-06). `…/quittung`
+    haengt an `dienstplan.konflikt_quittieren`, `…/uebersteuern` an
+    `dienstplan.arbzg_uebersteuern`.
+  */
+  const darf = await haeltRechte(
+    sitzung, 'dienstplan.konflikt_quittieren', 'dienstplan.arbzg_uebersteuern',
+  );
+
   const sperren = zeilen.filter((z) => z.blockiert);
   const warnungen = zeilen.filter((z) => !z.blockiert);
 
@@ -178,7 +191,7 @@ export default async function Konflikteingang(
               </p>
               <ul className="m-0 list-none p-0">
                 {sperren.map((z) => (
-                  <Karte key={z.id} zeile={z} mandant={mandant} quittierbar={false} pfad={pfad} />
+                  <Karte key={z.id} zeile={z} mandant={mandant} quittierbar={false} pfad={pfad} darf={darf} />
                 ))}
               </ul>
             </section>
@@ -194,7 +207,7 @@ export default async function Konflikteingang(
               </p>
               <ul className="m-0 list-none p-0">
                 {warnungen.map((z) => (
-                  <Karte key={z.id} zeile={z} mandant={mandant} quittierbar pfad={pfad} />
+                  <Karte key={z.id} zeile={z} mandant={mandant} quittierbar pfad={pfad} darf={darf} />
                 ))}
               </ul>
             </section>
@@ -206,10 +219,11 @@ export default async function Konflikteingang(
 }
 
 function Karte({
-  zeile, mandant, quittierbar, pfad,
+  zeile, mandant, quittierbar, pfad, darf,
 }: {
   readonly zeile: KonfliktZeile; readonly mandant: string;
   readonly quittierbar: boolean; readonly pfad: string;
+  readonly darf: Readonly<Record<string, boolean>>;
 }) {
   return (
     <li
@@ -249,16 +263,47 @@ function Karte({
         </p>
       )}
 
-      {zeile.einsatz_id !== null && (
-        <p className="m-0 mt-s2 text-sm">
+      <p className="m-0 mt-s2 text-sm">
+        {zeile.einsatz_id !== null && (
           <Link
             href={`/portal/${mandant}/dienstplan/einsatz/${zeile.einsatz_id}`}
             className="text-text underline-offset-2 hover:text-brand hover:underline"
           >
             Zur Schicht
           </Link>
-        </p>
-      )}
+        )}
+        {/*
+          Die zwei Detailblaetter — das eine zeigt die Quittung als BELEG (wer,
+          wann, mit welcher Begruendung), das andere uebersteuert den
+          ArbZG-Befund dahinter. Zwei Aufzeichnungen, zwei Rechte; ohne diese
+          Verweise waren beide Seiten fuer niemanden erreichbar.
+        */}
+        {darf['dienstplan.konflikt_quittieren'] === true && (
+          <>
+            {zeile.einsatz_id !== null && ' · '}
+            <Link
+              href={`/portal/${mandant}/dienstplan/konflikte/${zeile.id}/quittung`}
+              data-cse="zur-quittung"
+              className="text-text underline-offset-2 hover:text-brand hover:underline"
+            >
+              {zeile.blockiert ? 'Blatt öffnen' : 'Quittung'}
+            </Link>
+          </>
+        )}
+        {zeile.art === 'arbzg' && !zeile.blockiert
+          && darf['dienstplan.arbzg_uebersteuern'] === true && (
+          <>
+            {' · '}
+            <Link
+              href={`/portal/${mandant}/dienstplan/konflikte/${zeile.id}/uebersteuern`}
+              data-cse="zum-uebersteuern"
+              className="text-text underline-offset-2 hover:text-brand hover:underline"
+            >
+              ArbZG-Befund übersteuern
+            </Link>
+          </>
+        )}
+      </p>
 
       {quittierbar ? (
         <form action="/api/konflikt" method="post" className="mt-s4 flex flex-wrap items-end gap-s3">

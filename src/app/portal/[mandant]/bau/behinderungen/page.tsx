@@ -128,7 +128,7 @@ export default async function BehinderungenUeberProjekte(
               schluessel: 'status',
               kopf: 'Status',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={BEHINDERUNG_PILLE[z.status] ?? 'Entwurf'} />
                   <span className="text-xs text-text-muted">
                     {BEHINDERUNG_STATUS_TEXT[z.status] ?? z.status}

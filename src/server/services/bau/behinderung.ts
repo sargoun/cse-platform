@@ -230,15 +230,32 @@ const B_SPALTEN = `
 
 export async function listeBehinderungen(
   kontext: LeseKontext,
-  filter: { readonly projektId?: string | null } = {},
+  filter: {
+    readonly projektId?: string | null;
+    /**
+     * Nur die LAUFENDEN: angezeigt (oder freigegeben und damit auf dem Weg
+     * zur Anzeige) und ohne dokumentierten Wegfall — die BAU-06-Ansicht.
+     *
+     * Der Wegfall ist der Punkt, an dem die Behinderung endet, und § 6 Abs. 3
+     * VOB/B verlangt, dass er ANGEZEIGT wird. Eine Behinderung ohne
+     * `wegfall_angezeigt_am` laeuft deshalb weiter, auch wenn `ende_am`
+     * schon eingetragen ist: das Ende ist die Tatsache, die Anzeige ist der
+     * Vorgang, und nur der zweite beendet die Fristwirkung.
+     */
+    readonly nurLaufend?: boolean;
+  } = {},
 ): Promise<readonly BehinderungZeile[]> {
   return kontext.abfrage<BehinderungZeile>(
     `select ${B_SPALTEN}
        from behinderung b
        join projekt p on p.id = b.projekt_id and p.mandant_id = b.mandant_id
       where ($1::uuid is null or b.projekt_id = $1::uuid)
+        and (not $2::boolean
+             or (b.status in ('freigegeben','angezeigt')
+                 and b.wegfall_angezeigt_am is null
+                 and b.storniert_am is null))
       order by b.beginn_am desc, b.nummer desc`,
-    [filter.projektId ?? null],
+    [filter.projektId ?? null, filter.nurLaufend === true],
   );
 }
 

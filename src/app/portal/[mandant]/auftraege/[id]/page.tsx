@@ -69,7 +69,17 @@ export default async function AuftragDetail(
    * (AUT-06, Copilot-Runde auf PR 16 / D-581). Ohne Recht steht der
    * blosse Name.
    */
-  const darf = await haeltRechte(sitzung, 'crm.lesen', 'objekt.lesen', 'angebot.lesen');
+  /**
+   * Die beiden neuen Nachbarseiten tragen EIGENE Rechte, nicht
+   * `auftrag.schreiben`: der Abschluss `auftrag.abschliessen` (er stellt nach
+   * D-366 die FIN-18-Warnung im Rechnungsweg scharf), die Kundenfreigabe
+   * `referenz.kundenfreigabe_erfassen` (sie entscheidet ueber eine
+   * Veroeffentlichung). Ohne diese Pruefung fuehrte jeder Verweis fuer manche
+   * Rollen auf 404 und verriete damit, was er nicht zeigen darf (AUT-06).
+   */
+  const darf = await haeltRechte(
+    sitzung, 'crm.lesen', 'objekt.lesen', 'angebot.lesen',
+    'auftrag.abschliessen', 'referenz.kundenfreigabe_erfassen');
 
   const [kopf] = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => kontext.abfrage<Kopf>(
@@ -163,6 +173,35 @@ export default async function AuftragDetail(
         <h1 className="m-0 text-h1 text-text">{kopf.bezeichnung}</h1>
         <StatusPill zustand={PILLE[kopf.status] ?? 'Geplant'} />
       </div>
+
+      {/*
+        * Die zwei Wege, die es von hier aus bisher nicht gab: der Abschluss
+        * (OPS-05, mit der FIN-18-Pruefliste davor) und die Kundenfreigabe
+        * (PRO-05, der Beleg fuer eine oeffentliche Referenz). Beide sind
+        * eigene Vorgaenge mit eigenem Recht, und beide stehen hier als Weg —
+        * nicht als Knopf: was sie tun, gehoert auf ihre Seite, mit dem, was
+        * dagegen spricht.
+        */}
+      <nav aria-label="Vorgänge" className="mb-s6 flex flex-wrap gap-s3">
+        {darf['auftrag.abschliessen'] === true && (
+          <Link
+            href={`/portal/${mandant}/auftraege/${id}/abschluss`}
+            data-cse="zum-abschluss"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+          >
+            {kopf.status === 'abgeschlossen' ? 'Abschluss ansehen' : 'Auftrag abschließen'}
+          </Link>
+        )}
+        {darf['referenz.kundenfreigabe_erfassen'] === true && (
+          <Link
+            href={`/portal/${mandant}/auftraege/${id}/kundenfreigabe`}
+            data-cse="zur-kundenfreigabe"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+          >
+            Kundenfreigabe (Referenz)
+          </Link>
+        )}
+      </nav>
 
       <dl
         data-cse="auftrag-felder"

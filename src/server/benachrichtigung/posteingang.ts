@@ -125,6 +125,35 @@ export async function ladePosteingang(
   return zeilen.map(ausZeile);
 }
 
+/**
+ * EINE Zeile — oder `null`, wenn sie diesem Konto nicht gehoert.
+ *
+ * **Dieselbe Auswahl wie `ladePosteingang`**, Spalte fuer Spalte, und darum
+ * steht sie hier und nicht in der Seite: zwei Fassungen derselben Frage laufen
+ * auseinander, sobald eine ein Feld dazubekommt — und die Einzelansicht zeigte
+ * dann etwas anderes als die Zeile, aus der man sie geoeffnet hat.
+ *
+ * **Sie STEMPELT NICHT.** Lesen ist ein GET, und `gelesen_am` setzt weiter nur
+ * `POST /api/benachrichtigungen/[id]/oeffnen` — sonst leerte ein Vorauslader
+ * den Posteingang von allein (D-504).
+ *
+ * `null` heisst „gibt es fuer diese Anmeldung nicht": `t_benachrichtigung_eigene`
+ * bindet jede Zeile an `empfaenger_id = app.aktueller_benutzer()`, und die
+ * Seite antwortet darauf 404 statt 403 (AUT-06).
+ */
+export async function findeEintrag(kontext: Leser, id: string): Promise<Eintrag | null> {
+  const [z] = await kontext.abfrage<Zeile>(
+    `select b.id, b.art, b.titel, b.text, b.ziel, b.objekt_typ, b.objekt_id,
+            b.gelesen_am, b.erstellt_am,
+            m.slug as mandant_slug, m.name as mandant_name
+       from benachrichtigung b
+       left join mandant m on m.id = b.mandant_id
+      where b.id = $1::uuid`,
+    [id],
+  );
+  return z === undefined ? null : ausZeile(z);
+}
+
 /** Wie viele ungelesene — die Zahl an der Glocke. */
 export async function zaehleUngelesen(kontext: Leser): Promise<number> {
   const [z] = await kontext.abfrage<{ n: string }>(

@@ -15,15 +15,21 @@
  *
  * **Der Dienst rechnet nichts und entscheidet keine Geschaeftsregel.** Er
  * prueft, bereinigt, legt ab und gibt zurueck, was in der Zeile stehen muss.
- * Geschrieben wird die Zeile von `app.offline_ereignis_annehmen`, weil dort
- * Mandant, Beschaeftigung und Mensch aus der Marke aufgeloest werden — nie aus
- * der Anfrage (K-08).
+ *
+ * **Die ZEILE schreibt er auf ZWEI Wegen, und sie sind nicht derselbe.** Fuer
+ * den Check-in mit der Marke schreibt sie `app.offline_ereignis_annehmen`,
+ * weil dort Mandant, Beschaeftigung und Mensch aus der Marke aufgeloest werden
+ * — nie aus der Anfrage (K-08). Fuer die ANGEMELDETE Kraft schreibt sie
+ * `legeSchichtMediumAb` unten, und dort gilt die umgekehrte Reihenfolge:
+ * ZEILE, dann Bucket, beides in EINER Transaktion (`verzoegerterSpeicher`).
+ * Die Begruendung steht bei der Funktion — kurz: die Sitzung hat eine
+ * Transaktion, die Marke nicht.
  */
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { entferneMetadaten } from '../../storage/exif.js';
 import { erkenneMime, MimeFehler } from '../../storage/mime.js';
 import { SIGNATUR_SEKUNDEN, type Bucket, type Speicher } from '../../storage/adapter.js';
-import type { LeseKontext } from '../../kontext/index.js';
+import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 
 /** Der eine private Bucket fuer Schichtmedien (07-INTEGRATIONEN §6.4). */
 export const MEDIEN_BUCKET: Bucket = 'einsatz-medien';
@@ -287,5 +293,112 @@ export async function signierteMedienAdresse(
     url: await speicher.signierteUrl(zeile.bucket, zeile.pfad, SIGNATUR_SEKUNDEN),
     gueltigBis: jetztSekunden + SIGNATUR_SEKUNDEN,
     mimeTyp: zeile.mimeTyp,
+  };
+}
+
+/**
+ * Schreibt die Zeile zu einem bereits abgelegten Objekt.
+ *
+ * `kunde_id` wird NICHT mitgeschickt: `kern.einsatz_medien_bezug_pruefen`
+ * (0041) leitet sie als Definer aus dem Elternteil ab und verwirft, was der
+ * Aufrufer schickt — sonst waere die Kundensichtbarkeit eine Eingabe.
+ * `zeiteintrag_id` ist eine GENERATED-Spalte und darf gar nicht gesetzt werden.
+ *
+ * Gibt die Kennung zurueck, unter der das Objekt im Bucket liegt — sie ist
+ * dieselbe, die der Aufrufer `legeMediumAb` gegeben hat, damit ein Scheitern
+ * hier das Objekt wieder entfernen kann.
+ */
+export async function legeSchichtMediumAb(
+  kontext: SchreibKontext,
+  eingabe: {
+    readonly einsatzId: string;
+    readonly medienId?: string;
+    readonly ablage: MedienAblage;
+  },
+): Promise<string> {
+  const id = eingabe.medienId ?? randomUUID();
+  await kontext.schreibe(
+    `insert into einsatz_medien
+       (id, mandant_id, bezug_tabelle, bezug_id, art, bucket, pfad, mime_typ,
+        groesse_bytes, sha256, exif_entfernt, aufgenommen_am_geraet, beschreibung,
+        erstellt_von_art, erstellt_von, erstellt_von_person_id)
+     values ($1::uuid, $2::uuid, 'einsatz', $3::uuid, $4::medien_art, $5, $6, $7,
+             $8::bigint, $9, true, $10::timestamptz, $11,
+             'mensch', app.aktueller_benutzer(), app.aktuelle_person())`,
+    [
+      id, kontext.aktiverMandantId, eingabe.einsatzId,
+      eingabe.ablage.art, eingabe.ablage.bucket, eingabe.ablage.pfad,
+      eingabe.ablage.mimeTyp, String(eingabe.ablage.groesseBytes), eingabe.ablage.sha256,
+      eingabe.ablage.aufgenommenAmGeraet, eingabe.ablage.beschreibung,
+    ],
+  );
+  return id;
+}
+
+/**
+ * Ein Speicher, der die Bytes ZURUECKHAELT, bis die Zeile steht.
+ *
+ * **Warum die Reihenfolge hier anders ist als im Check-in-Weg.** `zeit/medien.ts`
+ * legt erst ins Bucket und ueberlaesst die Zeile dem Aufrufer; scheitert die,
+ * muss er das Objekt wieder entfernen (`api/check-in/[token]/medien`). Das ist
+ * dort richtig, weil die Marke die Zeile in einer EIGENEN Transaktion schreibt
+ * (`app.offline_ereignis_annehmen`, K-08) — zwei Transaktionen lassen sich nicht
+ * gemeinsam zurueckrollen.
+ *
+ * Die angemeldete Sitzung hat eine. Also wird hier umgedreht:
+ *
+ *   Groesse → Typ → Metadaten entfernen → ZEILE → Bucket → commit.
+ *
+ * Scheitert das Bucket, rollt die Transaktion zurueck: keine Zeile, kein
+ * Objekt, nichts aufzuraeumen. Ist der Speicher gar nicht verbunden, wirft er
+ * beim Schreiben, und es entsteht ebenfalls KEINE Zeile — kein vorgetaeuschter
+ * Erfolg (CLAUDE.md). Uebrig bleibt genau ein Fenster: das Objekt liegt, und
+ * der Commit scheitert danach. Dafuer gibt es `job:medien_waisen`, und es ist
+ * um Groessenordnungen schmaler als „Bucket zuerst".
+ *
+ * Der Umweg ist KEINE Schein-Integration: geschrieben wird durch denselben
+ * echten Adapter, nur eine Anweisung spaeter.
+ */
+export interface VerzoegerterSpeicher extends Speicher {
+  /** Schreibt, was zurueckgehalten wurde. Ohne Aufnahme ein No-op. */
+  schreibeJetzt(): Promise<void>;
+}
+
+export function verzoegerterSpeicher(echt: Speicher): VerzoegerterSpeicher {
+  let gemerkt: { bucket: Bucket; schluessel: string; daten: Uint8Array } | null = null;
+  return {
+    /* Die Verbundenheit ist die des echten Adapters — der Puffer taeuscht sie nicht vor. */
+    verbunden: echt.verbunden,
+    lege: async (bucket, schluessel, daten) => {
+      gemerkt = { bucket, schluessel, daten };
+    },
+    /**
+     * Gelesen wird immer vom ECHTEN Speicher.
+     *
+     * Die gepufferten Bytes zurueckzugeben waere die Behauptung, das Objekt
+     * liege schon — und der Aufrufer bekaeme einen Erfolg, den es nicht gibt.
+     */
+    hole: async (bucket, schluessel) => echt.hole(bucket, schluessel),
+    /**
+     * Der Puffer LOESCHT NICHT — auch nicht durchgereicht.
+     *
+     * Er braucht es nicht: was er zurueckhaelt, ist noch nirgends. Und ein
+     * Loeschweg, der hier durchreichte, waere ein zweiter am Archiv vorbei
+     * (DOC-07, ACC-06): das Vergessen des Speichers geht ueber
+     * `dokument/loeschung.ts`, nach dem weichen Loeschen der Zeile, das die
+     * Datenbank fuer gesperrte und bebuchte Dokumente abweist.
+     */
+    entferne: async () => {
+      throw new Error(
+        'Der verzoegerte Speicher loescht nicht. Der einzige Loeschweg ist '
+        + 'server/services/dokument/loeschung.ts (DOC-07).',
+      );
+    },
+    signierteUrl: async (bucket, schluessel, sekunden) =>
+      echt.signierteUrl(bucket, schluessel, sekunden),
+    schreibeJetzt: async () => {
+      if (gemerkt === null) return;
+      await echt.lege(gemerkt.bucket, gemerkt.schluessel, gemerkt.daten);
+    },
   };
 }

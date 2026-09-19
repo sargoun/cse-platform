@@ -2,6 +2,7 @@ import { devFlaechenAn } from '../../lib/dev-flaechen.js';
 import { smsDienst } from '../auth/sms.js';
 import { SupabaseSpeicher } from '../storage/adapter.js';
 import { wetterPort } from '../versand/dwd.js';
+import { ALTSYSTEME, migrationPort } from '../integrationen/migration.js';
 
 /**
  * Das Register der Anbindungen — und ihr WAHRER Zustand (CLAUDE.md, „No fake
@@ -187,6 +188,28 @@ export function anbindungen(): readonly Anbindung[] {
           + 'Bildschirm nicht. Ob draussen ein Cron-Eintrag steht und wirklich ruft, '
           + 'beantwortet allein die Laufliste unter Einstellungen › Jobs.',
       offen: null,
+    },
+    {
+      /*
+       * **Die Uebernahme aus den Altsystemen ist eine Anbindung, und sie
+       * fehlte in dieser Liste.**
+       *
+       * `/einstellungen/import` und `/einstellungen/integrationen` nennen
+       * denselben Zustand; standen sie in zwei Listen, wuerde eines von
+       * beiden den Tag verpassen, an dem ein Parser dazukommt. Der Zustand
+       * kommt deshalb aus demselben Port, der eine Datei annehmen wuerde
+       * (`server/integrationen/migration.ts`) — nicht aus einer Zeile hier.
+       */
+      schluessel: 'altsystem', name: 'Aplano · Lexware · Excel (Übernahme)',
+      zweck: 'Historische Dienstpläne, Zeiten, Rechnungen und Listen übernehmen '
+        + '(ROADMAP Phase 10)',
+      stand: ALTSYSTEME.some((q) => migrationPort(q).verbunden)
+        ? 'verbunden' : 'nicht_verbunden',
+      hinweis: 'Ohne bekanntes Exportformat gibt es keinen Parser: der Übernahmeweg '
+        + 'lehnt jede Datei ab, statt einen Erfolg zu melden. Zeiten kämen als '
+        + 'historische Zeilen ohne Serveruhr-Anspruch, Rechnungen als Beleg ohne '
+        + 'Nummernkreis und ohne Hashkette.',
+      offen: 'O-128',
     },
     {
       schluessel: 'n8n', name: 'n8n',

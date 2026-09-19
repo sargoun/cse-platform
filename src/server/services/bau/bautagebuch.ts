@@ -975,13 +975,34 @@ export interface GewerkZeile {
   readonly istPlatzhalter: boolean;
 }
 
-/** Der Gewerkekatalog des Mandanten — heute leer (O-159). */
-export async function listeGewerke(kontext: LeseKontext): Promise<readonly GewerkZeile[]> {
+/**
+ * Der Gewerkekatalog EINER Gesellschaft — heute leer (O-159).
+ *
+ * **Der Mandant ist ein Parameter und keine Annahme.** Vorher stand hier kein
+ * Mandantenpraedikat; die Abfrage verliess sich ganz auf die RLS, und das trug
+ * im internen Portal (`t_mandant` bindet an `app.aktiver_mandant()`). Seit
+ * `gewerk.t_mitarbeiter_lesen` (0303) oeffnet die Tabelle im
+ * Mitarbeiterportal aber `mandant_id = any (app.sichtbare_mandanten())` — im
+ * Personen-Scope also die Gewerke ALLER Beschaeftigungen dieses Menschen. Die
+ * Auswahlliste auf der Bautagebuchseite mischte damit Bau und Reinigung, und
+ * wer auf einer Bau-Schicht ein Gewerk der Reinigung waehlte, lief in den
+ * Fremdschluessel `(mandant_id, gewerk_id)` — ein roher Datenbankfehler statt
+ * einer Meldung.
+ *
+ * Der Mandant kommt vom Aufrufer aus dem BEZUG der Schicht, nie aus der
+ * Anfrage (K-02). `null` heisst „was diese Sitzung ohnehin sieht" und ist der
+ * Weg des internen Portals, wo der aktive Mandant die Grenze schon zieht.
+ */
+export async function listeGewerke(
+  kontext: LeseKontext, mandantId: string | null = null,
+): Promise<readonly GewerkZeile[]> {
   return kontext.abfrage<GewerkZeile>(
     `select g.id, g.code, g.bezeichnung, g.ist_platzhalter as "istPlatzhalter"
        from gewerk g
       where g.archiviert_am is null
+        and ($1::uuid is null or g.mandant_id = $1::uuid)
       order by g.sortierung, g.code`,
+    [mandantId],
   );
 }
 

@@ -276,3 +276,113 @@ export async function lesePlattformen(kontext: LeseKontext): Promise<readonly Pl
     offeneBekanntmachungen: Number(z['offene']),
   }));
 }
+
+/* ------------------------------------------------------------------------- *
+ * Der Vorgang einer Gesellschaft zu einer Bekanntmachung — und seine Spur
+ * (RAD-07, REP-06).
+ * ------------------------------------------------------------------------- */
+
+export interface VorgangBlick {
+  readonly id: string;
+  readonly status: string;
+  readonly verworfenGrund: string | null;
+  readonly statusGeaendertAm: Date | null;
+  /** Der Name — `null` heisst: nicht gesetzt ODER nicht sichtbar (siehe unten). */
+  readonly statusGeaendertVon: string | null;
+  readonly fristSnapshot: Date | null;
+  readonly fristAbweichungSeit: Date | null;
+  readonly hatMappe: boolean;
+}
+
+/**
+ * Der Vorgang zu einer Bekanntmachung — oder `null`, wenn noch keiner
+ * eröffnet ist.
+ *
+ * **`null` ist der normale Anfangszustand.** Eine Bekanntmachung, die der
+ * Nachtlauf gefunden und bewertet hat, hat noch keinen Vorgang; er entsteht
+ * mit dem ersten Stand, den ein Mensch setzt (`setzeVorgangsstand` legt ihn
+ * an). Die Statusseite muss das von „verworfen" unterscheiden können.
+ */
+export async function leseVorgang(
+  kontext: LeseKontext, ausschreibungId: string,
+): Promise<VorgangBlick | null> {
+  const [z] = await kontext.abfrage<Record<string, unknown>>(
+    `select v.id, v.status::text as status, v.verworfen_grund, v.status_geaendert_am,
+            b.name as geaendert_von_name, v.frist_angebot_snapshot,
+            v.frist_abweichung_seit,
+            exists (select 1 from vergabemappe m
+                     where m.ausschreibung_vorgang_id = v.id
+                       and m.mandant_id = v.mandant_id
+                       and m.geloescht_am is null) as hat_mappe
+       from ausschreibung_vorgang v
+       left join benutzer b on b.id = v.status_geaendert_von
+      where v.ausschreibung_id = $1::uuid and v.geloescht_am is null`,
+    [ausschreibungId]);
+  if (z === undefined) return null;
+  return {
+    id: String(z['id']),
+    status: String(z['status']),
+    verworfenGrund: (z['verworfen_grund'] as string | null) ?? null,
+    statusGeaendertAm: (z['status_geaendert_am'] as Date | null) ?? null,
+    statusGeaendertVon: (z['geaendert_von_name'] as string | null) ?? null,
+    fristSnapshot: (z['frist_angebot_snapshot'] as Date | null) ?? null,
+    fristAbweichungSeit: (z['frist_abweichung_seit'] as Date | null) ?? null,
+    hatMappe: z['hat_mappe'] === true,
+  };
+}
+
+export interface StandEreignis {
+  readonly id: string;
+  readonly am: Date;
+  readonly status: string | null;
+  readonly mitGrund: boolean;
+  readonly akteurTyp: string;
+  /** `null` heisst: kein benannter Mensch ODER der Name ist nicht sichtbar. */
+  readonly akteurName: string | null;
+}
+
+/**
+ * Die Statushistorie — **aus dem `audit_log`, nicht aus
+ * `ausschreibung_vorgang`.**
+ *
+ * **Warum nicht aus der Tabelle.** `ausschreibung_vorgang` führt genau EINE
+ * Zeile je `(mandant_id, ausschreibung_id)` (`av_uk`), und
+ * `setzeVorgangsstand` schreibt per `on conflict … do update` in dieselbe
+ * Zeile: erhalten bleibt nur die LETZTE Änderung
+ * (`status_geaendert_am`/`_von`, `verworfen_grund`). Jeder Zwischenstand ist
+ * überschrieben. Wer „gefunden · geprüft · geboten · gewonnen" (REP-06) an
+ * seiner Quelle nachlesen will, liest deshalb hier — der Dienst füllt sie mit
+ * `app.protokolliere('radar.stand_gesetzt', …)`.
+ *
+ * **Und der GRUND steht nicht darin.** Das Protokoll hält `mitGrund` als
+ * Ja/Nein fest, nicht den Text — der stünde sonst ein zweites Mal in einer
+ * Tabelle, aus der nicht gelöscht wird. Der Wortlaut des geltenden
+ * Verwerfungsgrundes steht in `ausschreibung_vorgang.verworfen_grund`; ältere
+ * sind mit ihrem Stand überschrieben, und die Seite sagt das, statt eine
+ * Lücke als „ohne Grund" auszugeben.
+ */
+export async function leseStandHistorie(
+  kontext: LeseKontext, vorgangId: string,
+): Promise<readonly StandEreignis[]> {
+  const zeilen = await kontext.abfrage<Record<string, unknown>>(
+    `select a.id::text as id, a.erstellt_am, a.akteur_typ::text as akteur_typ,
+            a.nachher ->> 'status' as status,
+            (a.nachher -> 'mitGrund') = 'true'::jsonb as mit_grund,
+            b.name as akteur_name
+       from audit_log a
+       left join benutzer b on b.id = a.akteur_id
+      where a.aktion = 'radar.stand_gesetzt'
+        and a.objekt_typ = 'ausschreibung_vorgang'
+        and a.objekt_id = $1
+      order by a.erstellt_am desc, a.id desc
+      limit 50`,
+    [vorgangId]);
+  return zeilen.map((z) => ({
+    id: String(z['id']),
+    am: z['erstellt_am'] as Date,
+    status: (z['status'] as string | null) ?? null,
+    mitGrund: z['mit_grund'] === true,
+    akteurTyp: String(z['akteur_typ']),
+    akteurName: (z['akteur_name'] as string | null) ?? null,
+  }));
+}

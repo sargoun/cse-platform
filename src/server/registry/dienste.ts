@@ -71,6 +71,13 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
   { modul: 'freigabe', pfad: 'freigabe/fenster.platzhalter', schreibend: false },
   /**
+   * **Die LAGE eines Fensters (APR-05, APR-06)** — eine reine Funktion ueber
+   * vier Werten (Entscheidungsstand, Ausfuehrungsstand, Fensterspalte, Uhr),
+   * ohne Datenbank und ohne Schreibweg. Geschrieben wird in `freigabe/stapel`;
+   * `fenster.platzhalter` darueber haelt die zwei offenen Zahlen aus O-108.
+   */
+  { modul: 'freigabe', pfad: 'freigabe/fenster', schreibend: false },
+  /**
    * **Die Vergabemappe (PR 70, RAD-07, D-07).** `mappe` fuehrt die Pruefliste
    * unter `vergabe.schreiben`; `einreichung` bezeugt die Abgabe und traegt
    * deshalb ein eigenes Recht — wer Formblaetter abhakt, bezeugt damit nicht,
@@ -84,6 +91,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
   {
     modul: 'radar', pfad: 'radar/vorgang',
     schreibend: true, schreibRecht: 'radar.status_setzen',
+  },
+  /**
+   * **Das Suchprofil des Vergaberadars (RAD-04, RAD-05).** Stammdaten,
+   * CPV-Zeilen und Benachrichtigungsempfaenger — fuenf Schreibhandlungen
+   * hinter EINEM Recht, weil sie ein Profil betreffen. Punkte rechnet es
+   * keine: die Bewertung entsteht im Nachtlauf aus `radar/bewertung`.
+   */
+  {
+    modul: 'radar', pfad: 'radar/profil',
+    schreibend: true, schreibRecht: 'radar.profil_schreiben',
   },
   { modul: 'buchhaltung', pfad: 'buchhaltung/kontenrahmen', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/kontierung', schreibend: false },
@@ -254,14 +271,21 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'zeit.nacherfassung_pruefen',
   },
   /**
-   * Die Medienerfassung PRUEFT und LEGT AB — in den Bucket, nicht in die
-   * Datenbank. Die `einsatz_medien`-Zeile schreibt
-   * `app.offline_ereignis_annehmen`, weil dort Mandant, Beschaeftigung und
-   * Mensch aus der Marke aufgeloest werden. Was dieser Dienst tut, ist in der
-   * Gruppenansicht ungefaehrlich: er kann keine Zeile anlegen, und der Lesepfad
-   * gibt nur eine signierte Adresse zurueck, die RLS zuvor freigegeben hat.
+   * Die Medienerfassung PRUEFT, LEGT AB — und legt seit 0303 auch die ZEILE
+   * an. Der Satz, der frueher hier stand („er kann keine Zeile anlegen"),
+   * stimmt nicht mehr: `legeSchichtMediumAb` nimmt einen `SchreibKontext` und
+   * schreibt selbst in `einsatz_medien`. Der Weg ueber die Marke
+   * (`app.offline_ereignis_annehmen`) bleibt daneben bestehen.
+   *
+   * Das Recht ist `zeit.schreiben` — der Schluessel, den `t_mandant` auf
+   * `einsatz_medien` in seiner WITH-CHECK-Haelfte verlangt, also der Weg des
+   * BUEROS. Der Weg der Kraft laeuft ueber `t_selbst_schichtmedien` (0303) und
+   * traegt bewusst gar kein Recht (K-19, Selbstzugriff), genau wie bei
+   * `abwesenheit/antrag`, wo ebenfalls das staerkere Buerorecht hier steht.
+   * `zeit.schreiben` haengt an super_admin/admin/leitung und nicht an
+   * `mitarbeiter`; die Gruppenansichtsprobe bleibt damit gruen.
    */
-  { modul: 'zeit', pfad: 'zeit/medien', schreibend: false },
+  { modul: 'zeit', pfad: 'zeit/medien', schreibend: true, schreibRecht: 'zeit.schreiben' },
   /**
    * Der Monatsanteil RECHNET nur (§7.3): er liest die Sicht und verteilt die
    * Pause. Geteilt wird nichts — der Zeiteintrag bleibt eine Zeile.
@@ -416,6 +440,24 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'referenz', pfad: 'inhalt/nap', schreibend: false },
   { modul: 'referenz', pfad: 'inhalt/routen', schreibend: false },
   { modul: 'referenz', pfad: 'inhalt/referenz', schreibend: false },
+  // Die oeffentliche Galerie (0170): liest `medien` mit einem `galerie_rang`
+  // und nichts sonst. Lesend — kuratiert wird in der Website-Redaktion.
+  { modul: 'referenz', pfad: 'inhalt/galerie', schreibend: false },
+  // Die Website-Redaktion (§5.21): sie schreibt in seite, abschnitt, medien
+  // und referenz — alle vier Policies verlangen dasselbe Recht.
+  {
+    modul: 'referenz', pfad: 'inhalt/redaktion',
+    schreibend: true, schreibRecht: 'referenz.schreiben',
+  },
+  // Die Anfrageformulare (§5.21, REQ-01 … REQ-04). Eigener Dienst und nicht
+  // Teil von `inhalt/redaktion`: `formular_definition` haengt an
+  // `formular.schreiben` statt an `referenz.schreiben`, ist in ihren FELDERN
+  // nach dem Veroeffentlichen eingefroren und wird nie an ihrem Platz
+  // geaendert, sondern als Version + 1 angelegt.
+  {
+    modul: 'formular', pfad: 'inhalt/formular',
+    schreibend: true, schreibRecht: 'formular.schreiben',
+  },
   {
     modul: 'referenz', pfad: 'inhalt/import',
     schreibend: true, schreibRecht: 'referenz.schreiben',
@@ -441,6 +483,98 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'crm.kommunikation_versenden',
   },
   { modul: 'crm', pfad: 'lead/benachrichtigung', schreibend: false },
+  /*
+   * Kunde, Kontakt und Lead von Hand anlegen (CRM-01, CRM-03, CRM-07). Ein
+   * eigener Dienst und nicht ein Zweig in `lead/annahme`: die Annahme ist der
+   * ANONYME Weg mit Honigtopf, Ratenlimit und einem Prinzipal ohne Leserecht.
+   * Dieselbe Funktion fuer beides hiesse, dass jede Aenderung am einen Weg den
+   * anderen mitveraendert — und einer der beiden ist oeffentlich erreichbar.
+   */
+  {
+    modul: 'crm', pfad: 'crm/anlegen',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Die Zahlungskonditionen (CRM-01, FIN-15, K-05). Schreibrecht ist
+   * `crm.schreiben` — der Dienst verlangt ZUSAETZLICH `crm_entgelt.lesen`,
+   * weil die vier Spalten `cse_app` spaltenweise entzogen sind: wer sie nicht
+   * sehen darf, darf sie nicht blind ersetzen.
+   */
+  {
+    modul: 'crm', pfad: 'crm/kondition',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Der Rechtsgrundlagen-Block eines Ansprechpartners (CRM-03, CRM-08,
+   * LEG-08). Gelesen ueber die Definer aus 0247, geschrieben mit
+   * `crm.rechtsgrundlage_setzen` UND `crm.schreiben` (die WITH-CHECK-Klausel
+   * von `t_mandant` verlangt das zweite). Das Register fuehrt EIN Recht je
+   * Zeile; hier steht das engere.
+   */
+  {
+    modul: 'crm', pfad: 'crm/kontakt-grundlage',
+    schreibend: true, schreibRecht: 'crm.rechtsgrundlage_setzen',
+  },
+  /*
+   * Die Matrix des § 7 UWG (O-660). Rein — ohne Datenbank, ohne Uhr. Sie ist
+   * NICHT das Tor; das Tor ist `app.darf_kontaktiert_werden`. Laeuft deshalb
+   * auch in der Gruppenansicht.
+   */
+  { modul: 'crm', pfad: 'crm/uwg-matrix', schreibend: false },
+  /*
+   * Der Kundenzugang (AUT-01, DOC-04). `cse_app` hat auf `benutzer` nur
+   * SELECT; geschrieben wird ueber die vier SECURITY-DEFINER aus 0249, die
+   * `system.benutzer_verwalten` selbst noch einmal pruefen.
+   */
+  {
+    modul: 'crm', pfad: 'crm/kundenzugang',
+    schreibend: true, schreibRecht: 'system.benutzer_verwalten',
+  },
+  /*
+   * Wiedervorlagen (CRM-04). Schreibt in `lead_aktivitaet` und spiegelt nach
+   * `aufgabe` und `kalender_eintrag`, soweit `aufgabe.schreiben` und
+   * `kalender.schreiben` reichen — was fehlt, wird benannt (O-663).
+   */
+  {
+    modul: 'crm', pfad: 'crm/wiedervorlage',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Der Versandstand eines Kaeufers (FIN-11, LEG-05, 07-INTEGRATIONEN §12.1).
+   * Ein reines Praedikat: ein Pflichtkaeufer ohne Uebertragungsweg SPERRT, er
+   * faellt nicht auf E-Mail zurueck. Kein Kanal gilt hier als verbunden, ohne
+   * dass die Umgebung es sagt.
+   */
+  { modul: 'crm', pfad: 'crm/erechnung', schreibend: false },
+  /*
+   * Die Akquise (§12). Sie gehört zum Modul `crm` und nicht zu einem eigenen:
+   * ein recherchiertes Ziel ist eine Vorstufe des Leads, und wer Leads sehen
+   * darf, soll auch sehen, woher der nächste kommt. Ein eigener
+   * Rechteschlüssel hätte bedeutet, dass eine Vertriebsleitung ihre eigene
+   * Pipeline nur halb sieht.
+   *
+   * `bewertung`, `gewichte.platzhalter` und `entwurf` RECHNEN und FORMULIEREN,
+   * sie schreiben nichts — sie laufen deshalb auch in der Gruppenansicht.
+   * `quelle` schreibt die Laufprotokolle, `ziel` die Liste, `uebernahme` den
+   * Lead.
+   */
+  { modul: 'crm', pfad: 'akquise/bewertung', schreibend: false },
+  { modul: 'crm', pfad: 'akquise/gewichte.platzhalter', schreibend: false },
+  { modul: 'crm', pfad: 'akquise/entwurf', schreibend: false },
+  /*
+   * `quelle` liest nur. Der Lauf, der `akquise_lauf` schreibt, steht in
+   * `server/jobs/akquise.ts` — `cse_app` hat auf dieser Tabelle gar kein
+   * INSERT (0172). Eine Recherche ist ein Nachtlauf und kein Knopf.
+   */
+  { modul: 'crm', pfad: 'akquise/quelle', schreibend: false },
+  {
+    modul: 'crm', pfad: 'akquise/ziel',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  {
+    modul: 'crm', pfad: 'akquise/uebernahme',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
   // Kennzahlen. Sie ZÄHLEN — in der Gruppenansicht ist daran nichts
   // gefährlich, und schreiben können sie nicht.
   { modul: 'bericht', pfad: 'bericht/kacheln', schreibend: false },
@@ -649,11 +783,44 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'zeit', pfad: 'mitarbeiter/antraege', schreibend: false },
   { modul: 'zeit', pfad: 'mitarbeiter/felder', schreibend: false },
   /**
+   * Die vier Nachzuegler des Mitarbeiterportals (0300–0304). Ebenfalls
+   * LESEND — `tests/kern/mitarbeiter.test.ts` prueft das eigens („und KEINER
+   * davon schreibt"), und keine der vier Dateien nimmt einen `SchreibKontext`.
+   * Der Ablageweg fuer ein Schichtmedium liegt in `zeit/medien` und traegt
+   * dort sein Recht.
+   */
+  { modul: 'nachweis', pfad: 'mitarbeiter/nachweis-schicht', schreibend: false },
+  { modul: 'zeit', pfad: 'mitarbeiter/medien', schreibend: false },
+  { modul: 'dienstplan', pfad: 'mitarbeiter/schicht-zugang', schreibend: false },
+  { modul: 'wachbuch', pfad: 'mitarbeiter/schichtbuch', schreibend: false },
+  /**
    * PR 42 — die eigenen Dienstanweisungen. LESEND: der Schreibweg der
    * Bestaetigung liegt in `security/dienstanweisung` und steht dort mit
    * seinem Recht.
    */
   { modul: 'dienstanweisung', pfad: 'mitarbeiter/dienstanweisungen', schreibend: false },
+  /**
+   * **Unterlagen und Objekte der eigenen Einteilung (0360, 0361).** Ebenfalls
+   * LESEND. Die Abrufspur in `dokument_zugriff` schreibt die ROUTE
+   * `api/mein/dokumente/[id]/datei`, nicht der Dienst — damit bleibt die
+   * Zusage „kein Dienst unter `mitarbeiter/` schreibt" wahr.
+   * `mitarbeiter/objekte` liest den Zutrittshinweis ueber den Definer
+   * `app.mein_objekt_zugang` (0360), dessen Praedikat wortgleich
+   * `app.ist_eingesetzt_auf_objekt` ist — keine neue Sichtbarkeitsregel,
+   * sondern dieselbe in einer Funktion.
+   */
+  { modul: 'dokument', pfad: 'mitarbeiter/dokumente', schreibend: false },
+  { modul: 'objekt', pfad: 'mitarbeiter/objekte', schreibend: false },
+  /**
+   * **Der Posteingang der Kraft (0350, EMP-11).** Beide lesend: der Faden wird
+   * gelesen, geantwortet wird ueber `kern/nachricht` — den Fachdienst, der
+   * ohnehin unter `nachricht.versenden` schreibt. Ein vierter, im Portaldienst
+   * angelegter Schreibweg waere genau der, der an den drei bekannten
+   * vorbeifuehrt. `mitarbeiter/posteingang` beruehrt gar keine Datenbank: es
+   * mischt `benachrichtigung` und `nachricht` zu einer Liste.
+   */
+  { modul: 'nachricht', pfad: 'mitarbeiter/nachricht', schreibend: false },
+  { modul: 'nachricht', pfad: 'mitarbeiter/posteingang', schreibend: false },
 
   /**
    * Die Rechnung (PR 46). Der Kanonisierer und der Kettenlauf LESEN — der
@@ -765,6 +932,18 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
 
   /**
+   * Die steuerlichen Angaben eines KUNDEN (FIN-09, FIN-10, FIN-11, LEG-05,
+   * LEG-06): §13b als Zeitscheiben, §48b am LEISTUNGSDATUM, E-Rechnungsweg.
+   * Vier Vorgaenge, zwei Rechte — `erechnung` schreibt den Kundenstamm
+   * (`crm.schreiben`), die drei anderen sind Finanzangaben. Hier steht das
+   * strengere.
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/kunde-steuer',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
+
+  /**
    * PR 52 — die XRechnung (FIN-11).
    *
    * **Keiner dieser fuenf schreibt**, und das ist die ganze Aussage dieses
@@ -821,6 +1000,25 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'system', pfad: 'datenschutz/verzeichnis', schreibend: false },
   { modul: 'system', pfad: 'datenschutz/loeschkonzept', schreibend: false },
+  /*
+   * Die beiden oeffentlichen PFLICHTWEGE (LEG-09, LEG-07). Sie schreiben, und
+   * zwar ueber den EINGANGSPRINZIPAL — derselbe wie bei der Angebotsanfrage,
+   * mit `formular.schreiben` und ohne Leserecht. Das Register nennt deshalb
+   * `formular.schreiben` und nicht `datenschutz.*`: das waere das Recht des
+   * Bearbeitenden, nicht das des Eingangs.
+   *
+   * In der Gruppenansicht laufen sie nicht: `withEingang` bindet genau EINEN
+   * Mandanten, und den nennt das Formular. Eine Anfrage „an die Gruppe" gaebe
+   * es rechtlich ohnehin nicht — die vier sind eigene juristische Personen.
+   */
+  {
+    modul: 'formular', pfad: 'datenschutz/anfrage',
+    schreibend: true, schreibRecht: 'formular.schreiben',
+  },
+  {
+    modul: 'formular', pfad: 'datenschutz/barriere',
+    schreibend: true, schreibRecht: 'formular.schreiben',
+  },
   /*
    * Phase 10 — die Betriebsueberwachung (SPEC §14, D-540). Lesend: sie stellt
    * das Laufprotokoll neben den Zeitplan und loest nichts aus. Ein Lauf startet
@@ -936,7 +1134,7 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * bei `erteilen`. `diff-json` und `json` sind reine Umformungen.
    */
   /**
-   * Die Gruppenansicht (TEN-05, D-475) — vier Leser, kein Schreiber.
+   * Die Gruppenansicht (TEN-05, D-475) — sechs Leser, kein Schreiber.
    *
    * Modul `bericht`, weil sie genau das sind: Berichte ueber mehrere
    * Gesellschaften, gelesen im Gruppen-Scope, in dem keine Tabelle eine
@@ -948,6 +1146,18 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'bericht', pfad: 'gruppe/finanzen', schreibend: false },
   { modul: 'bericht', pfad: 'gruppe/offene-posten', schreibend: false },
   { modul: 'bericht', pfad: 'gruppe/auslastung', schreibend: false },
+  /**
+   * Die beiden Nachzuegler derselben Art (RAD-07/REP-06, CAL-01/CAL-02): die
+   * Vergabepipeline und der zusammengefuehrte Kalender ueber alle
+   * Gesellschaften. Beide nehmen einen `LeseKontext`, beide fragen je Bereich
+   * zuerst das Recht, damit eine fehlende Berechtigung nicht als Null
+   * erscheint. `gruppe/radar` rechnet ausdruecklich KEINE zweite Bewertung —
+   * keine Gruppenpunktzahl, kein Mittelwert; die Punktzahl bleibt die der
+   * Gesellschaft. Dazu gehoert 0370, das der Gruppenansicht die Bewerberdaten
+   * ENTZIEHT (`p_gruppe_kein_personenbezug`, restriktiv).
+   */
+  { modul: 'bericht', pfad: 'gruppe/radar', schreibend: false },
+  { modul: 'bericht', pfad: 'gruppe/kalender', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/diff-json', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/json', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/laden', schreibend: false },
@@ -1070,6 +1280,332 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibRecht: 'recruiting.stelle_schreiben',
   },
   /*
+   * Die Antwort an eine Bewerberin (REC-03). Dasselbe Muster wie oben: das
+   * Register nennt das Recht, unter dem in der Gruppenansicht geschrieben
+   * werden KOENNTE — `recruiting.bewerbung_bewerten`. Dass `legeVor` und
+   * `sende` zusaetzlich `recruiting.entscheiden` verlangen, steht an der
+   * Route: eine Absage IST die Entscheidung, aus Sicht der Empfaengerin.
+   */
+  {
+    modul: 'recruiting', pfad: 'recruiting/antwort', schreibend: true,
+    schreibRecht: 'recruiting.bewerbung_bewerten',
+  },
+  /* =====================================================================
+   * **Die Domaenenwelle (Routenbau, 117 offene Adressen).** Fuenfzehn
+   * Domaenen, nacheinander gebaut, gepruefet und behoben; die Eintraege lagen
+   * bis hierher in `docs/architecture/routenbau/register/<domaene>.md` und
+   * sind mit dieser Zeile dort geloescht. Sortiert ist nach Domaene, weil die
+   * Datei nach BAUWELLE geordnet ist und nicht alphabetisch — wer den Block
+   * spaeter liest, soll sehen, was zusammen entstanden ist.
+   * ===================================================================== */
+
+  /**
+   * **Aufgaben und Nachrichtenfaeden (OPS-11, EMP-11, 0230/0231).**
+   *
+   * `kern/aufgabe` schreibt vier Uebergaenge — anlegen, Stand setzen,
+   * erledigen, abbrechen — alle unter `aufgabe.schreiben`. Das ZUWEISEN
+   * verlangt zusaetzlich `aufgabe.zuweisen`, und das prueft die Route
+   * (`api/aufgaben`), nicht dieses Register: wer eine Aufgabe bearbeiten darf,
+   * darf sie nicht schon deswegen jemand anderem aufhalsen.
+   *
+   * `kern/nachricht` schreibt unter `nachricht.versenden`. Der Weg nach
+   * draussen (`sendeNachAussen`) laeuft zusaetzlich durch
+   * `kern.nachricht_sendetor()` und die Freigabekette (Invariante 7) — und
+   * heute gegen keinen verbundenen Versender (O-36), weshalb er wirft, statt
+   * einen Erfolg zu behaupten. Der Gelesen-Stempel (`markiereGelesen`) traegt
+   * bewusst KEIN Recht: `t_empfaenger_eigene_stempeln` (0231) bindet ihn an
+   * `app.aktueller_benutzer()` bzw. `app.aktuelle_person()`.
+   */
+  {
+    modul: 'aufgabe', pfad: 'kern/aufgabe',
+    schreibend: true, schreibRecht: 'aufgabe.schreiben',
+  },
+  {
+    modul: 'nachricht', pfad: 'kern/nachricht',
+    schreibend: true, schreibRecht: 'nachricht.versenden',
+  },
+  /*
+   * `inhalt/sicherheit-txt` ist reine Formatierung: eine Kontaktadresse
+   * hinein, RFC-9116-Text heraus, oder `null`. Kein Schreibpfad, keine
+   * Abfrage, kein Mandant — sie liest nicht einmal selbst, das tut der
+   * Handler.
+   */
+  { modul: 'inhalt', pfad: 'inhalt/sicherheit-txt', schreibend: false },
+
+  /**
+   * **Die Abnahme (§ 12 VOB/B, 0210/0211).**
+   *
+   * `bau.schreiben` und nicht `bau.aufmass_freigeben`: eine Abnahme ist keine
+   * Mengenfeststellung, sondern die Erklaerung der Vertragsparteien ueber
+   * Gefahruebergang, Fristbeginn und Vertragsstrafe. Die Seitenkarte gibt
+   * `…/projekte/[id]/abnahme` genau dieses Recht.
+   */
+  {
+    modul: 'bau', pfad: 'bau/abnahme',
+    schreibend: true, schreibRecht: 'bau.schreiben',
+  },
+  /**
+   * Der LV-Import (BAU-01, REQ-04, 0212) und die Uebersicht.
+   *
+   * `bau/lv-quelle` LIEST: der Parser nimmt Text hinein und gibt Zeilen
+   * heraus, ohne die Datenbank zu beruehren — damit ist er fuer sich testbar
+   * und in der Gruppenansicht unbedenklich. `bau/lv-import` schreibt Staging
+   * und Uebernahme und traegt `bau.schreiben`, dasselbe Recht wie die Route.
+   *
+   * `bau/uebersicht` LIEST: es zaehlt und filtert fuer die Moduluebersicht, es
+   * rechnet nichts.
+   */
+  { modul: 'bau', pfad: 'bau/lv-quelle', schreibend: false },
+  {
+    modul: 'bau', pfad: 'bau/lv-import',
+    schreibend: true, schreibRecht: 'bau.schreiben',
+  },
+  { modul: 'bau', pfad: 'bau/uebersicht', schreibend: false },
+
+  /**
+   * **Die vier Betroffenenrechte (0220–0229).** Auskunft, Berichtigung,
+   * Loeschentscheidung und Werbewiderspruch. `werbewiderspruch` traegt
+   * `datenschutz.auskunft_erstellen` wie die Auskunft: es ist derselbe
+   * Bearbeiterkreis, und ein eigener Schluessel stuende im Katalog nicht.
+   *
+   * Der anonyme Weg (`erfasseOhneToken`) haelt KEIN Benutzerrecht — er kann
+   * keines halten, weil niemand angemeldet ist. Er laeuft ueber
+   * `app.werbewiderspruch_formular`, und die Funktion prueft K-04,
+   * `app.ist_readonly()` und `formular.schreiben` SELBST, statt es dem
+   * Aufrufer zu glauben; dazu Ratenlimit und Honigtopf.
+   */
+  {
+    modul: 'datenschutz', pfad: 'datenschutz/auskunft',
+    schreibend: true, schreibRecht: 'datenschutz.auskunft_erstellen',
+  },
+  {
+    modul: 'datenschutz', pfad: 'datenschutz/berichtigung',
+    schreibend: true, schreibRecht: 'datenschutz.berichtigung_bearbeiten',
+  },
+  {
+    modul: 'datenschutz', pfad: 'datenschutz/loeschentscheidung',
+    schreibend: true, schreibRecht: 'datenschutz.loeschung_pruefen',
+  },
+  {
+    modul: 'datenschutz', pfad: 'datenschutz/werbewiderspruch',
+    schreibend: true, schreibRecht: 'datenschutz.auskunft_erstellen',
+  },
+
+  /*
+   * **Dienstplan, Phase „Bekanntgabe" (0265–0274)** — die Bekanntgabe selbst,
+   * der Konflikt-Einzelsatz hinter Quittung und Uebersteuerung, die eine
+   * Meldungsart (NOT-01) und die gewerkeuebergreifende Besetzungsluecke.
+   *
+   * `dienstplan/konflikt` schreibt ueber `app.arbzg_befund_quittieren` —
+   * `arbeitszeit_verstoss` gewaehrt `cse_app` kein UPDATE. Die Funktion prueft
+   * das SCHWAECHERE `dienstplan.arbzg_lesen`; das staerkere
+   * `dienstplan.arbzg_uebersteuern` setzt die Route durch, und deshalb steht
+   * es hier.
+   */
+  {
+    modul: 'dienstplan', pfad: 'dienstplan/veroeffentlichung',
+    schreibend: true, schreibRecht: 'dienstplan.veroeffentlichen',
+  },
+  {
+    modul: 'dienstplan', pfad: 'dienstplan/konflikt',
+    schreibend: true, schreibRecht: 'dienstplan.arbzg_uebersteuern',
+  },
+  /* Registriert nur die Art `dienstplan.plan_veroeffentlicht` (D-493). */
+  { modul: 'dienstplan', pfad: 'dienstplan/benachrichtigung', schreibend: false },
+  { modul: 'dienstplan', pfad: 'dienstplan/besetzungsluecke', schreibend: false },
+  /*
+   * `dienstplan/serienliste` haben ZWEI Domaenen gemeldet (dienstplan-zeit und
+   * reinigung-security-qualitaet), wortgleich und beide lesend. Ein Eintrag.
+   */
+  { modul: 'dienstplan', pfad: 'dienstplan/serienliste', schreibend: false },
+
+  /**
+   * **Die Einstellungen (0200–0209).**
+   *
+   * `agent/richtlinie` ist **das Ausgangs-Gate als DATEN** (AGT-03, APR-01,
+   * Invariante 7): es liest die acht AKTIONEN und setzt eine Zeile.
+   * Entschieden wird in `server/agent/policy.ts`, nicht hier — und fuer
+   * Angebot, Nachtrag und Behinderungsanzeige im Code, unabhaengig von jeder
+   * Zeile der Tabelle. Das Schreibrecht ist `agent.richtlinie_verwalten` und
+   * nicht `versand.freigeben`: wer die REGEL setzt, gibt damit nichts frei.
+   * Auch diesen Eintrag haben zwei Domaenen gemeldet (einstellungen und
+   * agenten-freigaben-radar), wortgleich. Ein Eintrag.
+   *
+   * `einstellung/vorlagen` traegt `bau.schreiben` und nicht das Recht seiner
+   * SEITE (`system.einstellung_verwalten`): geschrieben wird in
+   * `behinderung_vorlage`, und deren Policy verlangt genau dieses. Das
+   * Register nennt das Recht des SCHREIBWEGS, nicht das der Adresse.
+   *
+   * `audit/buendel` schreibt unter `system.audit_exportieren`;
+   * `app.audit_kette_fortschreiben` prueft zusaetzlich `app.ist_readonly`.
+   */
+  { modul: 'system', pfad: 'migration/uebernahme', schreibend: false },
+  {
+    modul: 'agent', pfad: 'agent/richtlinie',
+    schreibend: true, schreibRecht: 'agent.richtlinie_verwalten',
+  },
+  {
+    modul: 'system', pfad: 'audit/buendel',
+    schreibend: true, schreibRecht: 'system.audit_exportieren',
+  },
+  {
+    modul: 'system', pfad: 'mandant/identitaet',
+    schreibend: true, schreibRecht: 'system.identitaet_verwalten',
+  },
+  {
+    modul: 'system', pfad: 'einstellung/vorlagen',
+    schreibend: true, schreibRecht: 'bau.schreiben',
+  },
+  {
+    modul: 'stammdaten', pfad: 'zeit/arbeitszeitmodell',
+    schreibend: true, schreibRecht: 'stammdaten.verwalten',
+  },
+
+  /**
+   * **Das Kundenportal (AUT-01, CRM-06, 04-SEITENKARTE §8).** Zwoelf Dienste,
+   * alle LESEND — und das ist keine Momentaufnahme, sondern der Typ: jeder
+   * bekommt einen `KundenAbfrage` mit genau einer Methode (`abfrage`), und
+   * `kundePortal` reicht ihm einen `LeseKontext` ohne `schreibe`. Ein
+   * Schreibversuch aus einer Kundenseite ist damit ein Compilerfehler und
+   * keine Laufzeitentscheidung; ob ein Kundenzugang im Portal ueberhaupt
+   * schreiben darf, ist O-74.
+   *
+   * Kein `schreibRecht` an einer der zwoelf Zeilen — dann greift die erste
+   * Pruefung („jeder schreibende Dienst nennt sein Schreibrecht") gar nicht.
+   */
+  { modul: 'kundenportal', pfad: 'kundenportal/angebot', schreibend: false },
+  { modul: 'kundenportal', pfad: 'kundenportal/auftrag', schreibend: false },
+  { modul: 'kundenportal', pfad: 'kundenportal/basis', schreibend: false },
+  { modul: 'kundenportal', pfad: 'kundenportal/dokument', schreibend: false },
+  { modul: 'kundenportal', pfad: 'kundenportal/nachricht', schreibend: false },
+  { modul: 'kundenportal', pfad: 'kundenportal/nachweis', schreibend: false },
+  { modul: 'kundenportal', pfad: 'kundenportal/objekt', schreibend: false },
+  { modul: 'kundenportal', pfad: 'kundenportal/projekt', schreibend: false },
+  { modul: 'kundenportal', pfad: 'kundenportal/rechnung', schreibend: false },
+  { modul: 'kundenportal', pfad: 'kundenportal/reklamation', schreibend: false },
+  { modul: 'kundenportal', pfad: 'kundenportal/uebersicht', schreibend: false },
+  { modul: 'kundenportal', pfad: 'kundenportal/zahlung', schreibend: false },
+
+  /**
+   * **Reinigung, Security und Qualitaet (0285–0289).**
+   *
+   * `nachweis/register` und `security/bewacherregister` tragen `modul:
+   * 'personal'` wie ihre Geschwister weiter oben: ein Nachweis haengt am
+   * MENSCHEN und nicht am Gewerk. `security/bewacherregister` schreibt das
+   * Bewacherregister nach § 34a GewO und traegt deshalb
+   * `personal.bewacher_verwalten` und nicht `security.schreiben`.
+   */
+  {
+    modul: 'reinigung', pfad: 'reinigung/turnus',
+    schreibend: true, schreibRecht: 'reinigung.schreiben',
+  },
+  { modul: 'reinigung', pfad: 'reinigung/turnusvorschau', schreibend: false },
+  {
+    modul: 'reinigung', pfad: 'reinigung/sonderleistung',
+    schreibend: true, schreibRecht: 'reinigung.schreiben',
+  },
+  { modul: 'reinigung', pfad: 'reinigung/uebersicht', schreibend: false },
+  { modul: 'personal', pfad: 'nachweis/register', schreibend: false },
+  {
+    modul: 'personal', pfad: 'security/bewacherregister',
+    schreibend: true, schreibRecht: 'personal.bewacher_verwalten',
+  },
+  { modul: 'security', pfad: 'security/uebersicht', schreibend: false },
+  { modul: 'security', pfad: 'security/veranstaltung', schreibend: false },
+
+  /**
+   * **Die fuenf Stammdatenkataloge (SEITENKARTE §5.13, 0275–0279).**
+   * `katalog` ist das Gemeinsame der fuenf — Schluesselform, Pflichttexte,
+   * i18n auf genau de/en/ar/tr, `pflegbar`/`sperrgrund`, die Uebersetzer fuer
+   * 23505/42501 und die Stufenkollision aus 0276. Es rechnet nichts und
+   * schreibt nichts, deshalb `schreibend: false`.
+   *
+   * Die fuenf Fachdienste schreiben und nennen dafuer `stammdaten.verwalten`
+   * — dasselbe Recht, das die Routen und die WITH-CHECK-Policies verlangen.
+   * Modul ist `stammdaten` und nicht `reinigung`: abwesenheitsart, antragsart
+   * und qualifikation haengen am MENSCHEN, belagsart und reinigungsklasse sind
+   * in einer Gesellschaft ohne Reinigung einfach leer.
+   */
+  { modul: 'stammdaten', pfad: 'stammdaten/katalog', schreibend: false },
+  {
+    modul: 'stammdaten', pfad: 'stammdaten/abwesenheitsart',
+    schreibend: true, schreibRecht: 'stammdaten.verwalten',
+  },
+  {
+    modul: 'stammdaten', pfad: 'stammdaten/antragsart',
+    schreibend: true, schreibRecht: 'stammdaten.verwalten',
+  },
+  {
+    modul: 'stammdaten', pfad: 'stammdaten/belagsart',
+    schreibend: true, schreibRecht: 'stammdaten.verwalten',
+  },
+  {
+    modul: 'stammdaten', pfad: 'stammdaten/qualifikation',
+    schreibend: true, schreibRecht: 'stammdaten.verwalten',
+  },
+  {
+    modul: 'stammdaten', pfad: 'stammdaten/reinigungsklasse',
+    schreibend: true, schreibRecht: 'stammdaten.verwalten',
+  },
+
+  /**
+   * Der Leistungskatalog (OPS-06, CLN-05, 0295–0299). Schreibt Fassungen und
+   * Positionen; `katalog.schreiben` halten nur `admin` und `super_admin`,
+   * nicht `leitung` — die beiden Katalogseiten pruefen das mit `haeltRechte`,
+   * damit kein Knopf auf ein 404 fuehrt.
+   */
+  {
+    modul: 'katalog', pfad: 'katalog/index',
+    schreibend: true, schreibRecht: 'katalog.schreiben',
+  },
+  /**
+   * Der Auftragsabschluss (OPS-05, FIN-18). `auftrag.abschliessen` und NICHT
+   * `auftrag.schreiben`: der Abschluss stellt nach D-366 die FIN-18-Warnung im
+   * Rechnungsweg scharf. Seit 0296 setzt `kern.auftrag_uebergang_pruefen`
+   * dasselbe Recht als zweite Linie durch.
+   */
+  {
+    modul: 'auftrag', pfad: 'auftrag/abschluss',
+    schreibend: true, schreibRecht: 'auftrag.abschliessen',
+  },
+  /**
+   * Die Kundenfreigabe am Auftrag (PRO-05) — der BELEG, keine
+   * Veroeffentlichung. Modul `referenz`, weil hier ueber eine oeffentliche
+   * Nennung entschieden wird und nicht ueber den Auftrag.
+   */
+  {
+    modul: 'referenz', pfad: 'auftrag/kundenfreigabe',
+    schreibend: true, schreibRecht: 'referenz.kundenfreigabe_erfassen',
+  },
+  /**
+   * Der Schalter `sichtbar_fuer_kunde` (DOC-04). `dokument.kunde_freigeben`
+   * und ausdruecklich nicht `dokument.schreiben`: das haelt auch die Rolle
+   * `mitarbeiter` (0297 bindet es im Ausloeser).
+   */
+  {
+    modul: 'dokument', pfad: 'dokument/kundenfreigabe',
+    schreibend: true, schreibRecht: 'dokument.kunde_freigeben',
+  },
+  /**
+   * Der EINZELNE Raum (OPS-02, OPS-03) — neben dem Massenweg
+   * `raumbuch/import`. Hier passen Tor und Policy zusammen: `t_mandant` auf
+   * `raum` verlangt im WITH CHECK genau `objekt.schreiben`.
+   */
+  {
+    modul: 'objekt', pfad: 'raumbuch/raum',
+    schreibend: true, schreibRecht: 'objekt.schreiben',
+  },
+  /**
+   * Die Prozentumrechnung (Invariante 1) — eine REINE Funktion, kein
+   * Schreibweg. Sie entstand, weil dieselbe Umrechnung zweimal im Baum stand:
+   * in `kalkulation/bestaetigung.ts` fuer die Zuschlaege und in
+   * `auftrag/abschluss.ts` fuer den Sicherheitseinbehalt — mit zwei Regeln,
+   * zwei Grenzen und zwei Antworten auf ein mitgetipptes Prozentzeichen. Beide
+   * rufen jetzt hierher; Grenze und Fehlername bleiben beim Aufrufer.
+   */
+  { modul: 'finanzen', pfad: 'finanz/prozent', schreibend: false },
+
+  /*
    * **Der Feed-Zugang steht NICHT hier, und das ist kein Vergessen.**
    *
    * Er schreibt (`kalender_feed` anlegen und widerrufen), aber er gehoert dem
@@ -1085,6 +1621,121 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * nennt sein Recht —, gilt fuer Mandantenlogik. Sie hier aufzuweichen
    * hiesse, sie ueberall aufzuweichen.
    */
+  /**
+   * **Nachtrag: die neun, die zwei Domaenen als „bereits gefuehrt" meldeten.**
+   *
+   * Sie waren es nicht — keiner der neun stand im Register, und der Gegentest
+   * („das Register kennt jeden Dienst, der existiert") war darueber rot. Der
+   * Eintragende hat sie deshalb NICHT geraten, sondern stehen lassen und
+   * gemeldet: `schreibend` und `schreibRecht` folgen aus der Policy der
+   * geschriebenen Tabelle, und wer sie errät, errät eine Rechtezusage.
+   *
+   * Nachgesehen wurde in den Dateien selbst. Die sechs Finanzdienste nehmen
+   * ausschliesslich `Abfrage` (lesen) — kein `SchreibKontext`, kein `insert`,
+   * kein `update`. `finanz/versand` liest das Versandprotokoll; geschrieben
+   * wird `rechnung_versand` an anderer Stelle. Die drei Personaldienste
+   * schreiben, jeder unter dem Recht seiner Policy.
+   */
+  { modul: 'finanzen', pfad: 'finanz/ausgabe', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/beleg', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/kreisuebersicht', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/versand', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/vorabpruefung', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/zugferd/vorschau', schreibend: false },
+
+  /**
+   * `personal/stammdaten` schreibt `person` (Geburtsort, Staatsangehoerigkeit
+   * — Bewacherregister, §34a GewO). Die Policy `t_person_personalpflege`
+   * (0190) verlangt `personal.schreiben`; gelesen wird dagegen ueber
+   * `app.person_stammdaten_lesen` unter `personal.stammdaten_lesen`, und
+   * jeder Lesezugriff hinterlaesst eine Auditzeile.
+   */
+  {
+    modul: 'personal', pfad: 'personal/stammdaten',
+    schreibend: true, schreibRecht: 'personal.schreiben',
+  },
+
+  /**
+   * `personal/anstellung` schreibt `anstellung` und `anstellung_kondition`.
+   * Zwei Rechte treffen aufeinander: `personal.anstellung_beenden` fuer die
+   * Beendigung, `personal.entgelt_schreiben` fuer die datierte Kondition
+   * (0192). **Hier steht das strengere** — dieselbe Regel wie bei
+   * `finanz/kunde-steuer` weiter oben. Wer nur beenden darf, kommt an der
+   * Kondition ohnehin an der Policy nicht vorbei.
+   */
+  {
+    modul: 'personal', pfad: 'personal/anstellung',
+    schreibend: true, schreibRecht: 'personal.entgelt_schreiben',
+  },
+
+  /**
+   * `personal/dublette` fuehrt zwei Personenzeilen zusammen. Der Schreibweg
+   * ist ausschliesslich `app.person_zusammenfuehren` (0194), und die Funktion
+   * prueft selbst `personal.zusammenfuehren` (Zeile 221) — die Dublette kann
+   * bei einer SCHWESTERGESELLSCHAFT beschaeftigt sein, die die
+   * zusammenfuehrende Sitzung gar nicht sieht, deshalb ein Definer und keine
+   * Policy.
+   */
+  {
+    modul: 'personal', pfad: 'personal/dublette',
+    schreibend: true, schreibRecht: 'personal.zusammenfuehren',
+  },
+
+  /**
+   * **Der Reststapel des internen Portals (0365–0368).** Vier Dienste hinter
+   * vier Seiten, die es bis dahin nicht gab.
+   *
+   * `dokument/ablage` ist die Schwester von `dokument/upload` und
+   * `dokument/erzeugt`: `upload` traegt die Reihenfolge (Groesse, Magic
+   * Bytes, EXIF, Aufbewahrung, Speichern), `ablage` setzt sie in Zeilen um —
+   * `dokument` plus erste `dokument_version` mit ihrem SHA-256. Dieselbe
+   * Schranke wie bei beiden, und es ist die der Tabelle: `t_mandant` auf
+   * `dokument` und `t_version_schreiben` auf `dokument_version` verlangen im
+   * WITH CHECK genau `dokument.schreiben`.
+   */
+  {
+    modul: 'dokument', pfad: 'dokument/ablage',
+    schreibend: true, schreibRecht: 'dokument.schreiben',
+  },
+
+  /**
+   * **Einstellen (D-09, EMP-14).** Erst der Mensch, dann die Beschaeftigung —
+   * in EINER Transaktion, weil eine `person` ohne Beschaeftigung von dieser
+   * Gesellschaft aus unsichtbar ist. Setzt weder Stundensatz noch
+   * Wochenstunden (Spiegel der datierten Kondition, genau ein Schreiber,
+   * 0192) und legt keinen Portalzugang an. Das Recht steht seit 0367 auch in
+   * der Datenbank: `t_person_schreiben` und `t_anstellung_schreiben` (0004)
+   * pruefen `personal.schreiben` und liessen bis dahin jede interne Sitzung
+   * mit aktivem Bereich schreiben.
+   */
+  {
+    modul: 'personal', pfad: 'personal/einstellung',
+    schreibend: true, schreibRecht: 'personal.schreiben',
+  },
+
+  /**
+   * **Die Stapelmappe (APR-02, APR-04).** Rein LESEND: sie legt zu jedem
+   * offenen Vorgang seine geaenderten Felder daneben, damit ein Mensch
+   * verantworten kann, was er stapelweise genehmigt. Geschrieben wird in
+   * `freigabe/stapel`; auch die Ansichtszeile mit Kanal `stapel` entsteht
+   * dort, wo die Entscheidung faellt (APR-08).
+   */
+  { modul: 'freigabe', pfad: 'freigabe/stapel-mappe', schreibend: false },
+
+  /**
+   * **Die Freigabe zur Abrechnung (TIM-12, FIN-07, §7.3).** Schreibt ueber
+   * `app.zeit_zur_abrechnung_freigeben` (0366) und nicht mit einem `update`:
+   * das Recht gehoert in die Datenbank, nicht nur in die Route — die Funktion
+   * prueft `zeit.abrechnung_freigeben` selbst, und die schmale Policy
+   * `z_definer_abrechnungsfreigabe` laesst nur abgeschlossene, nicht
+   * stornierte, noch nicht freigegebene Zeilen zu. Der Schluessel steht im
+   * Katalog und haengt an keiner Rolle, solange O-39 offen ist; der Dienst ist
+   * damit gebaut und heute unerreichbar.
+   */
+  {
+    modul: 'zeit', pfad: 'zeit/abrechnungsfreigabe',
+    schreibend: true, schreibRecht: 'zeit.abrechnung_freigeben',
+  },
 ] as const;
 
 /**

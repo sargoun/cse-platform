@@ -2947,7 +2947,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 
 | # | Slug | Question |
 |---|---|---|
-| O-39 | `zeit-freigabeschritt` | Is there a professional release of recorded time before the Stundenkonto and billing at all, and who grants it? **Until answered, `zeit.abrechnung_freigeben` is not seeded and the screen does not ship.** |
+| O-39 | `zeit-freigabeschritt` | Is there a professional release of recorded time before the Stundenkonto and billing at all, and who grants it? **Until answered, `zeit.abrechnung_freigeben` is bound to no role** — it stands in the catalogue and `rolle_berechtigung` holds zero rows for it (measured, not assumed), so nobody can execute the step. The screen `/portal/[mandant]/zeiten/freigabe` and `0366` DO ship since the Routenbau wave and say the question is open on their face; the earlier wording "the screen does not ship" was true when this row was written and is no longer. See **O-861** for the unit and the withdrawal. |
 | O-93 | `zeit-checkin-kanal` | How does the check-in link reach the worker — SMS, e-mail, a QR code posted at the object, or a portal link — and who bears the SMS cost? |
 | O-162 | `zeit-milog-aufbewahrungsbeginn` | When does the two-year retention of §17 Abs. 1 MiLoG start — the day worked, the day the record was created, or a month/year end? |
 | O-163 | `zeit-dst-verguetung` | How are the two transition nights paid — by time actually worked (7 h / 9 h) or by planned shift length? |
@@ -3124,6 +3124,203 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-280 | **Ab welcher Abweichung gilt der Mannstundenabgleich als auffällig — und ist überhaupt eine Toleranz gewollt?** BAU-07 verlangt, dass die Mannstunden je Gewerk gegen `zeiteintrag` desselben Tages und derselben Baustelle gehalten werden und eine Abweichung **gemeldet** wird. Wie groß eine Differenz sein darf, bevor jemand ihr nachgeht, ist eine Entscheidung der Bauleitung und keine technische: eine Toleranz, die niemand beschlossen hat, verschweigt ab dem ersten Tag genau die Fälle, wegen derer der Abgleich existiert. Bis zur Antwort meldet `gleicheMannstundenAb` **jede** Differenz ab einer Minute und glättet keine; ein Schwellenwert wäre eine Zeile in genau dieser Funktion. | BAU-07, TIM-12, `bautagebuch_mannstunden`, `zeiteintrag` |
 | O-281 | **Zählen die Mannstunden im Bautagebuch die Anwesenheit auf der Baustelle (brutto) oder die Arbeitszeit ohne Pausen (netto)?** `bautagebuch_mannstunden.dauer_minuten` ist laut `03-GEWERKE.md` §7.13 eine *gemessene* Dauer und sagt nicht, ob die Pause darin steckt; `zeiteintrag` führt beides getrennt (`dauer_brutto_minuten`, `dauer_netto_minuten`). Solange die Frage offen ist, ist jeder Abgleich um die Pausenzeit einer Kolonne verschoben — bei acht Leuten und 30 Minuten sind das vier Mannstunden am Tag, also genau die Größenordnung, die der Abgleich finden soll. Verglichen wird derzeit gegen `dauer_netto_minuten`, und die Tagesseite sagt es sichtbar dazu. | BAU-07, TIM-12, `bautagebuch_mannstunden`, `zeiteintrag` |
 | O-282 | **Soll die Zeiterfassung das Gewerk mitführen, damit der Abgleich je Gewerk statt nur in der Tagessumme laufen kann?** `zeiteintrag` trägt `objekt_id`, `revier_id`, `posten_id` und `projekt_id`, aber kein `gewerk_id` — ein Abgleich je Gewerk ist damit heute unmöglich, und die Seite hält die Summe der eigenen Stunden gegen die Tagesnettozeit der Baustelle. Das ist ehrlich, aber gröber, als BAU-07 („Mannstunden per trade") nahelegt: eine Verschiebung zwischen zwei Gewerken desselben Tages fällt nicht auf. Die Antwort ist keine technische — sie entscheidet, ob die Kolonne beim Einstempeln ein Gewerk wählen muss. | BAU-07, TIM-12, `zeiteintrag`, `gewerk` |
+
+### Raised while building · die Domänenwelle (Routenbau, `O-600` … `O-872`)
+
+Die 117 offenen Adressen der Seitenkarte sind in fünfzehn Domänen gebaut worden
+(`docs/architecture/routenbau/`), und jede hat dabei Fragen aufgeworfen, die
+keine Vorgabe beantwortet. Die Nummernbereiche waren **vorher** je Domäne
+zugeteilt, damit zwei gleichzeitig laufende Agenten nicht dieselbe `O-NN` für
+zwei verschiedene Fragen vergeben — deshalb sind die Blöcke lückenhaft und die
+Lücken sind kein Versehen.
+
+Zwei Dinge, die diesen Block von den älteren unterscheidet und die beim
+Beantworten helfen:
+
+- **Jede Zeile sagt, was heute gilt.** Nicht „offen, also nichts gebaut",
+  sondern die Seite steht, die engste vertretbare Auslegung ist umgesetzt, und
+  die Nummer steht sichtbar auf dem Bildschirm daneben. Eine Antwort verschiebt
+  meist eine Bedingung, keine Architektur.
+- **Jede Zeile hat ihr `// TODO(client, O-NNN)` im Code.** Die Wache
+  `todo-client-nicht-im-register` liest diese Tabelle und fällt, solange die
+  Zeile fehlt; sie liest `^\|\s*(O-\d{1,3})\s*\|`, weshalb die Form der Zeile
+  Teil der Sache ist.
+
+**Finanzen**
+
+| # | Frage | Wirkt in |
+|---|---|---|
+| O-600 | **Soll der Rechnungsversand die erzeugte Datei archivieren — oder genuegt der Hash?** `rechnung_versand.rechnung_dokument_id` steht ohne Fremdschluessel, weil `rechnung_dokument` (05-FINANZEN §9.5) noch nicht existiert. Heute traegt `artefakt` + `nutzlast_sha256` den Nachweis, WELCHE Fassung hinausging; eine eigene Dokumentversion je Versand waere die Alternative. Solange die Tabelle fehlt, bleibt die Kennung ohne Riegel — nach demselben Verfahren wie `rechnungsposition_quelle.ausgabe_id` in 0107. | FIN-11, FIN-12, `drizzle/0181:86`, 05-FINANZEN §9.5 |
+| O-601 | **Welche Vorab-Pruefungen soll `/finanzen/pruefungen` ausser FIN-18 fuehren — und welche davon blockiert die Festschreibung, welche warnt nur?** Die Seitenkarte nennt „and the other pre-invoice checks", ohne sie aufzuzaehlen. Heute gefuehrt: FIN-18 (abgeschlossener Auftrag ohne erfasste Minute, warnt), „abgeschlossener Auftrag ohne Rechnung" (FIN-01/FIN-16, warnt) und „Entwurfszeile ohne wirksame Herkunft" (FIN-07, blockiert). Die Seite nennt die Luecke unter „Was diese Liste NOCH NICHT prueft", statt sie mit erfundenen Regeln zu fuellen. | FIN-18, FIN-07, FIN-01, `services/finanz/vorabpruefung.ts`, SEITENKARTE §5.14 |
+| O-602 | **Innerhalb welcher Frist nach Auftragsabschluss muss abgerechnet werden?** Ohne eine gesetzte Frist kann die Vorab-Liste keinen Auftrag als „ueberfaellig" zeigen. Eine hier erfundene waere eine Geschaeftsregel, die sich eine Liste selbst gibt — und sie erschiene jeder Buchhaltung als vereinbart. Bis zur Antwort setzt die Seite keine Frist und sagt das. | FIN-18, `services/finanz/vorabpruefung.ts` |
+| O-603 | **Welcher EU-gehostete Transaktionsmailer liefert den Rechnungsversand aus, und unter welchem Auftragsverarbeitungsvertrag?** Fortschreibung von O-36 auf `rechnung_versand`: ohne Antwort bleibt `versand.email.verbunden` false, der DB-Ausloeser `rechnung_versand_2_kanal_verbunden` laesst nur `status = nicht_verbunden` zu, es gibt keinen Sendeknopf, und die Rechnung wird von Hand versendet. Die Datei bleibt ueber `/api/finanzen/rechnungen/[id]/xrechnung.xml` und `/zugferd.pdf` abrufbar. | FIN-11, FIN-12, O-36, O-22, `services/finanz/versand.ts`, `drizzle/0181` |
+| O-604 | **Welches Recht oeffnet die Pflege der §48b-Freistellungsbescheinigung?** Drei Schluessel stehen nebeneinander: das Routenregister fuehrt fuer `/finanzen/eingangsrechnungen/[id]/steuer` `lesen: [abrechnung.freistellung_pflegen]` und `schreiben: []`, die Policy auf `eingangsrechnung` verlangt zum Lesen `eingang.lesen`, die auf `freistellungsbescheinigung` `finanzen.lesen` zum Lesen und `finanzen.schreiben` zum Schreiben. Bis zur Entscheidung ist die Seite lesend; ohne `finanzen.lesen` nennt sie den §48-Ausgang ausdruecklich „nicht bewertbar" statt „Einbehalt", weil eine durch RLS geleerte Bescheinigungsliste kein Ausgang ist. | FIN-10, LEG-06, AUT-06, `finanzen/eingangsrechnungen/[id]/steuer/page.tsx` |
+| O-605 | **Soll der §13b-Status der EIGENEN Gesellschaft als Leistungsempfaengerin als Zeitreihe gefuehrt werden — und wer pflegt ihn?** `mandant` traegt kein entsprechendes Feld; `kunde_bauleistender_status` beschreibt die Ausgangsseite. Bis zur Antwort zeigt das Steuerblatt den auf dem BELEG gespeicherten Stand und bewertet nicht tagesaktuell neu — eine Neubewertung alter Belege waere eine Aussage ueber die Vergangenheit, die niemand getroffen hat. | FIN-10, §13b UStG, `finanzen/eingangsrechnungen/[id]/steuer/page.tsx` |
+| O-606 | **Gehoert `ist_platzhalter` der Demo-Rechnungskreise auf `true` — und mit welcher Wirkung auf bereits festgeschriebene Belege?** Die drei `ausgangsrechnung`-Kreise heissen „Ausgangsrechnungen (DEMO — Maske unbestaetigt, O-134)" und tragen `ist_platzhalter = false`. Der Name behauptet den Schutz, die Spalte hebt ihn auf, und fuer Rechnungskreise sitzt der Platzhalterschutz ausschliesslich in `fin.rechnung_nummer_ziehen` und prueft genau diese Spalte. `/finanzen/nummernkreise` stellt beides nebeneinander und loest es nicht auf. | TEN-02, FIN-03, FIN-16, O-134, `services/finanz/kreisuebersicht.ts`, `db/seed/index.ts` |
+
+**Personal**
+
+| # | Frage | Wirkt in |
+|---|---|---|
+| O-610 | **Welcher Branchentarif gilt je Gesellschaft, welche Tarifgruppen fuehrt er — und wird die Gruppe in der Plattform gefuehrt oder nur im Lohnsystem?** Gebaeudereinigung (RTV), Sicherheitsgewerbe Berlin und Bau haben je eigene Tarifwerke mit eigenen Gruppen; CLAUDE.md nennt Tarifsaetze ausdruecklich als offene Regel, und diese Plattform rechnet keine Loehne (D-06). **Heute gebaut:** `anstellung_kondition.tarifgruppe` und der Spiegel `anstellung.tarifgruppe` als FREIES Textfeld, beide `cse_app` als SELECT entzogen (K-05) und nur ueber `app.entgelt_lesen` erreichbar; die Entgeltseite beschriftet das Feld sichtbar als „offen (O-610)" und zeigt keine Auswahlliste. Eine Auswahlliste waere eine Tarifentscheidung in einer Oberflaeche — sie saehe bestaetigt aus und ginge in jede Kalkulation ein. | K-05, D-06, 01-KERN §6.14/§6.15, `drizzle/0192`, O-136, O-18 |
+| O-611 | **Wie wird eine Personendublette zusammengefuehrt — welche Angaben gewinnen, welcher Zugang ueberlebt, und darf eine Gesellschaft ueber eine Beschaeftigung entscheiden, die sie nicht sieht?** Vier Fragen, eine Nummer, weil sie zusammen entschieden werden muessen: (a) welche Angaben bei Widerspruch uebernommen werden, (b) welcher Portalzugang ueberlebt, wenn beide Zeilen einen haben (`mitarbeiter_zugang` traegt `unique (person_id)` — das Umhaengen wirft 23505, und das ist der Regelfall einer Dublette), (c) ob eine Zusammenfuehrung zurueckgenommen werden kann, (d) ob eine Gesellschaft eine Dublette zusammenfuehren darf, deren zweite Beschaeftigung bei einer Schwestergesellschaft liegt und die sie deshalb gar nicht sehen kann. **Heute gebaut:** die engste Annahme. `app.person_zusammenfuehren` setzt NUR den Zeiger `person.zusammengefuehrt_in_person_id`, verlangt dass BEIDE Zeilen in der aktiven Gesellschaft beschaeftigt sind (und weist den Schwesterfall mit einem Satz ab, der O-611 nennt), haengt keine einzige Zeile um und schreibt eine Auditzeile mit beiden Kennungen und dem Grund. Aufgeloest wird ueber `app.person_kanonisch` und `app.person_identitaeten` — das zweite ist die Funktion, die eine Aggregation je MENSCH braucht (Invariante 9, ArbZG ueber Gesellschaftsgrenzen, K-06). Die Geschichte wird nicht umgeschrieben und kann es nicht: 50 Tabellen haben einen Fremdschluessel auf `person`, die Zeitdomaene traegt `person_id` in zusammengesetzten Fremdschluesseln ohne `on update cascade`, und `zeiteintrag`, `wachbuch_eintrag`, `da_kenntnisnahme`, `checkin_token`, `aufmass_signatur` und `leistungsnachweis_signatur` weisen jedes UPDATE ab. | D-09, LEG-09, Invariante 8, Invariante 9, 01-KERN §6.13, `drizzle/0194`, `services/personal/dublette.ts`, O-220 |
+| O-612 | **Welche Beendigungsgruende fuehrt die Gruppe — und muessen sie den Codes des Lohnsystems fuer die SV-Abmeldung entsprechen?** Eigenkuendigung, Kuendigung durch den Arbeitgeber, Befristungsablauf, Aufhebungsvertrag, Rente, Tod: die Liste ist lohn- und meldewirksam (die SV-Abmeldung traegt einen Abgabegrund), und eine erfundene Auswahl saehe wie eine abgestimmte aus. **Heute gebaut:** `anstellung.austritt_grund text` (01-KERN §6.14 fuehrt die Spalte namentlich, auch in den Grant-Listen von §11 — sie zu umgehen und den Grund ins `audit_log` zu schreiben waere die stillschweigende Wahl gegen das Datenmodell) als PFLICHTFELD in Worten, mit Beispielen im Platzhalter und dem sichtbaren Hinweis „offen (O-612)" an der Seite. Der Grund steht ausserdem im Protokoll: die Spalte sagt „warum ist diese Beschaeftigung beendet", das Protokoll sagt „wer hat das wann eingetragen". | D-09, K-14, R-08, 01-KERN §6.14, 05-API-KARTE §C.8, `drizzle/0191`, `services/personal/anstellung.ts` |
+| O-613 | **Soll die Genehmigung eines Tauschantrags die Umbesetzung im Dienstplan selbst ausfuehren — und wer verantwortet dann das SEC-04-Qualifikationstor?** `entscheideAntrag` behandelt heute nur den Abwesenheitszweig (`antragsart.erzeugt_abwesenheit`). Ein Tauschantrag (`antrag.tausch_partner_anstellung_id`, `antrag.einsatz_id`) wuerde auf `genehmigt` gesetzt, ohne dass im Dienstplan etwas geschieht — und 05-API-KARTE §C.8 verlangt fuer eine Tauschgenehmigung ausdruecklich dasselbe Qualifikationstor wie fuer das Besetzen („a swap approval passes the same SEC-04 gate as besetzen"). **Heute gebaut:** `/personal/antraege/[id]` zeigt fuer einen Tauschantrag KEINEN Genehmigen-Knopf, sondern den Satz, dass der Tausch im Dienstplan vollzogen wird, und benennt die offene Frage. Eine Genehmigung ohne Wirkung ist schlimmer als ein fehlender Knopf: der Antragsteller liest „genehmigt" und kommt nicht zur Schicht. | EMP-10, EMP-11, SEC-04, 05-API-KARTE §C.8, `services/abwesenheit/antrag.ts`, `personal/antraege/[id]` |
+| O-614 | **Verlangt der Zugriff auf Entgeltdaten eine zweite Anmeldestufe?** 05-API-KARTE fuehrt `…/anstellungen/[id]/entgelt` und `…/konditionen` als „sitzung+2fa"; das Routen-Manifest (`registry/routen.generiert.ts`) fuehrt dieselbe Route mit `aal2: false`. Zwei Dokumente, zwei Antworten — und es ist keine technische Frage, sondern eine ueber Zugangssicherheit: `personal.entgelt_lesen` ist fuer `admin` und `leitung` bindbar, eine 2FA-Pflicht traefe damit Konten, die nach AUT-02/K-15 heute auf `aal1` laufen (`leitung` hat keinen zweiten Faktor, und K-15 warnt ausdruecklich davor, eine `aal2`-Bedingung an einen Lesepfad zu haengen, von dem die Mitgliedschaftsaufloesung abhaengt). **Heute ausgeliefert:** der Stand des Manifests (`aal2: false`); das Recht und die Auditzeile tragen die Absicherung, und die Entgeltseite nennt die Abweichung sichtbar. | K-05, K-15, AUT-02, D-09 §6, 05-API-KARTE §C.8, `registry/routen.generiert.ts`, `drizzle/0193` |
+| O-615 | **Soll eine Wiedereinstellung einen zuvor von Hand entzogenen Portalzugang automatisch wiederherstellen, oder bleibt die Wiedererteilung eine ausdrückliche Handlung der Leitung?** `kern.bm_aus_anstellung` legt seit dieser Runde keine abgeleitete Mitgliedschaft mehr an, wenn für (benutzer_id, mandant_id) eine Zeile mit einem FREMDEN Entzugsgrund steht — ein Entzug, den jemand aus einem Grund verhängt hat, den die Datenbank nicht kennt, überlebt damit eine Datumsänderung und eine neue Beschäftigung. Das ist die sichere Richtung (ein fehlender Zugang wird gemeldet, ein unbemerkt wiederkommender nicht) und ausdrücklich eine Annahme. | K-14, AUT-08, `0191`, `kern.bm_aus_anstellung`, `benutzer_mandant.entzugsgrund` |
+| O-616 | **Was soll die Genehmigung einer kundeneigenen Antragsart bewirken, die keine Abwesenheit erzeugt — Stammdatenänderung, Schichtabgabe, unbezahlte Freistellung?** Der Katalog `antragsart` ist nach K-17 kundenpflegbar (0275 gibt `insert`), und O-142 nennt diese Arten namentlich als kommende. `entscheideAntrag` läuft nur in den Abwesenheitszweig, wenn `erzeugt_abwesenheit` UND eine Abwesenheitsart UND ein Zeitraum da sind; für alles andere legte eine „Genehmigung" nur den Status um. Bis zur Antwort zeigt die Antragsseite für solche Arten keinen Knopf, sondern den Satz, dass hier nichts geschähe. | K-17, EMP-10, O-142, `0074`, `0275`, `services/abwesenheit/antrag.ts` |
+| O-860 | **Darf die Einstellungsmaske einer Gesellschaft mehr sehen als die ZAHL gleichnamiger Menschen in der Gruppe — Name, Kennung, beschäftigende Gesellschaft — und darf sie eine bestehende `person` übernehmen, statt eine zweite anzulegen?** `person` trägt keinen Mandanten (D-09), ist aber nur dort lesbar, wo der Mensch beschäftigt ist: die Dublette bei einer Schwestergesellschaft ist unsichtbar, und ohne Gegenmassnahme erzeugt jede Einstellung genau sie. Ausgeliefert ist die engste Annahme: `app.person_dublettenpruefung` (0365) gibt `hier` und `fremd` als ZAHLEN zurück, nie einen Namen, nie eine Kennung, nie eine Gesellschaft — dieselbe Linie wie `app.arbzg_belastung`. Jede Probe schreibt eine Auditzeile; die Maske bittet um Rückfrage in der Personalstelle der Gruppe, statt zu blockieren (Einstellen muss möglich bleiben) oder zu verschweigen. Getrennte Verantwortliche nach Art. 4 Nr. 7 DSGVO. | D-09, EMP-14, LEG-09, Invariante 9, `drizzle/0365`, `services/personal/einstellung.ts`, `portal/[mandant]/personal/anstellungen/neu` |
+
+**Einstellungen**
+
+| # | Frage | Wirkt in |
+|---|---|---|
+| O-620 | **Welche Adresse ist die maßgebliche Quelle fuer Kartentext (PUB-03) und Profiltext (PRO-01) einer Gesellschaft — `unternehmensprofil` je Sprache oder `mandant_identitaet`?** 01-KERN §6.2 fuehrt `kurzbeschreibung` und `beschreibung` auf `mandant_identitaet`; `unternehmensprofil` fuehrt beide seit `0019` JE SPRACHE (der Spaltenkommentar in 0200 nennt irrtuemlich „0155 ff."), und D-82 verlangt genau das fuer den oeffentlichen Auftritt. 0200 legt die Spalten nach §6.2 an, markiert sie im Spaltenkommentar als zweiten Ort und laesst `/einstellungen/identitaet` sie NICHT pflegen — die Seite verweist auf die Website-Pflege, damit es nicht zwei Editoren fuer einen Text gibt. Seit dieser Runde traegt der UPDATE-Spaltengrant von 0200 die beiden Spalten auch nicht mehr: bis zur Antwort kann sie kein Pfad schreiben. | TEN-07, PUB-03, PRO-01, D-82, `mandant_identitaet`, `unternehmensprofil`, 0200 |
+| O-621 | **Soll `mandant_identitaet.rechnung_fuss` bei der Festschreibung in den kanonischen Rechnungs-Payload kopiert werden (K-12) — und wenn ja, als Abbildung auf `rechnung.fusstext` beim Anlegen oder als neues Feld im Payload?** Heute geschieht KEINES von beidem: `services/finanz/kanonisch.ts` kennt kein Mandanten-Fussfeld (Leistender, Z. 251-264), und `fusstext` ist die freie Spalte aus der Eingabe. Eine Aenderung der Fusszeile wirkt damit auf keine Rechnung — weder rueckwirkend (richtig) noch auf neue (falsch). Der Payload ist die Eingabe der Hashkette; ein neues Feld darin ist ein Eingriff mit eigenen Tests. `/einstellungen/identitaet` und `/einstellungen/vorlagen` sagen beides ausdruecklich, statt K-12 als erfuellt darzustellen. | K-12, FIN-06, DESIGN §11, `kanonisch.ts`, `mandant_identitaet`, 0200 |
+| O-622 | **Duerfen die bisher fail-closed gebauten `gate()`-Aufrufer ihre Richtlinie laden — also aus „immer Freigabe" ein „`auto_erlaubt` entscheidet" machen?** Drei Stellen uebergeben heute bewusst `null` und sagen es im Kommentar: `api/anfrage/route.ts:342`, `api/finanzen/mahnungen/route.ts:31`, `api/bau/behinderungen/[id]/versenden/route.ts:36`; dazu `services/bau/behinderung.ts:481` und `services/finanz/mahnung/index.ts:394`. `services/agent/richtlinie.ts` liefert mit `findeRichtlinie` den Lesepfad, benutzt ihn dort aber NICHT — das ist eine Invariante-7-Entscheidung mit eigenen Tests, keine Aufraeumung. Bis zur Antwort bleibt jede dieser fuenf Stellen fail-closed, und die Seite `/einstellungen/agent-richtlinien` sagt, welche Aktionen im Code gesperrt sind. | AGT-03, APR-01, Invariante 7, `server/agent/policy.ts`, `services/agent/richtlinie.ts` |
+| O-623 | **Wird die Hashkette ueber `audit_log` beim SCHREIBEN gezogen (01-KERN §9: `SELECT … FOR UPDATE` in `app.protokolliere`) oder nachtraeglich beim Bilden eines Beweismittels?** Umgesetzt ist das Zweite (0204): `kern.audit_kette` + `kern.audit_kettenglied` sind ein anfuegendes Kettenbuch NEBEN dem Protokoll, fortgeschrieben von `app.audit_kette_fortschreiben` unter `system.audit_exportieren` und nicht in der Gruppenansicht. Zwei Gruende, beide nachrechenbar: (a) `audit_log` hat heute fuer NIEMANDEN einen UPDATE-Grant und keine UPDATE-Policy; (b) eine Zeilensperre in `app.protokolliere` serialisiert jede schreibende Transaktion und erzeugt eine Sperrreihenfolge gegen `nummernkreis` und `freigabe_kette`. Die Folge, die die Antwort braucht: Zeilen seit dem letzten Buendel sind ungekettet, und das Manifest nennt die Zahl statt „revisionssicher" zu behaupten. Zu entscheiden ist ausserdem, welcher Nachtlauf die Kette regelmaessig fortschreibt und prueft (verwandt mit O-357). Hinweis fuer den Nachtlauf: die Ketten sind ueber `kern.audit_kette.start_hash` verbunden, und `app.audit_kette_pruefen` rechnet je Kette IN SICH nach — eine nachgetragene Vormonatszeile meldet deshalb keinen Bruch. | §6.12, §9.1, SEC-A9, LEG-01, FIN-06, O-357, 0204 |
+| O-625 | **Soll die Uebernahme aus den Altsystemen rueckwirkend eine Modulbuchung oder ein eigenes Recht bekommen?** 0202 bewacht `migration_lauf`/`migration_zeile` mit `system.einstellung_verwalten` (dem Recht der Route). Ein Lauf legt spaeter Zeiteintraege und Belege an — also Daten zweier Fachdomaenen unter einem Systemrecht. Verwandt mit dem Muster, das `/einstellungen/vorlagen` loest, indem es zusaetzlich `bau.schreiben` verlangt (seit dieser Runde von `tests/isolation/einstellungen-vorlagen.test.ts` festgehalten). Bis zur Antwort entsteht kein Lauf (O-128), also wirkt die Frage noch nicht. | ROADMAP Phase 10, O-128, AUT-05, 0202 |
+| O-626 | **Darf eine Fassung eines Arbeitszeitmodells rueckwirkend hinterlegt werden (Uebernahme von Altbestaenden), und ab welchem Datum ist ein Monat fuer neue Fassungen gesperrt — ab dem Zeitnachweis nach § 17 MiLoG, ab der Lohnabrechnung oder ab der Festschreibung?** `setzeArbeitszeitmodell` wies bis jetzt jede Fassung vor heute ab. Diese Regel hat niemand entschieden: `mahnstufe` kennt sie nicht, die Schwesterfunktion `setzeTarifvereinbarung` in derselben Datei kennt sie nicht (Tarife durften also rueckwirkend gelten, Modelle nicht), und sie machte genau den Fall unmoeglich, den `/einstellungen/import` vorbereitet — ein Mandant, der bei der Uebernahme sein seit 2020 geltendes Modell hinterlegen will. Die Sperre ist gestrichen; die Ablösung regelt jetzt allein `azm_kein_ueberlapp`, wie bei `mahnstufe`. Die Seite sagt ausdruecklich, dass ein Tag vor heute eine rueckwirkende Fassung anlegt und dass die Monatssperre offen ist. | EMP-04, TIM-06, § 17 MiLoG, O-18, `services/zeit/arbeitszeitmodell.ts`, 0201 |
+
+**Bau**
+
+| # | Frage | Wirkt in |
+|---|---|---|
+| O-630 | **An welchen Tagen wird ein Bautagebucheintrag erwartet — an jedem Kalendertag, an jedem Werktag oder nach Bauzeitenplan?** § 3 Abs. 3 VOB/B verlangt die Fuehrung, nicht eine Taktung. Die Moduluebersicht zeigt deshalb heute jeden Kalendertag der letzten sieben Tage ohne Eintrag und schreibt daneben, dass die Pflichttage offen sind (`tageOhneBautagebuch`, `bau/uebersicht.ts`); ein unterstellter Werktagskalender machte aus einem Samstag ohne Arbeit eine Luecke im Bauzeitnachweis und aus einem stillen Baustopp einen vollstaendigen Nachweis. | BAU-07, `/portal/[mandant]/bau` |
+| O-631 | **Uebernimmt der LV-Import die Einheitspreise des Auftraggebers als Vertragspreise, oder werden sie nach der Uebernahme kalkuliert und eingetragen?** Heute wandert der gelesene Preis mit in die neue Fassung (`uebernimmLvImport`), und zwar nur durch `app.lv_import_preis_lesen` — wer `bau.preis_lesen` nicht haelt, uebertraegt ihn nicht. Er wird dabei NICHT als unbestaetigt gefuehrt: die einzige implementierte Quelle ist CSV, und `CSV_QUELLE` setzt bewusst `konfidenz: null`, weil eine woertlich gelesene Spalte kein Modell geraten hat. Damit greifen `istUngeprueftMaschinell`, das Hindernis in `kern.aufmass_vorlage_pruefen()` (0072) und `bestaetigeLvPosition` fuer CSV-Positionen NICHT — diese Sicherung beginnt erst bei einem extrahierenden Leser (PDF, Bild, O-41). Kommt das LV als Ausschreibung ohne Preise, ist die Uebernahme des leeren Feldes richtig; kommt es als Auftrags-LV mit Preisen, ist der Preis Vertragsinhalt. Die Antwort entscheidet, ob die Vorschau eine Preisspalte fuehren darf und ob ein importierter Preis ohne menschliche Bestaetigung abrechenbar sein soll. | BAU-01, REQ-04, APR-03, `/portal/[mandant]/bau/projekte/[id]/lv/import` |
+| O-632 | **Soll das Steuerkennzeichen einer LV-Position (§ 13b UStG — bei Bauleistungen ist der Wechsel der Steuerschuld der Regelfall) in der Oberflaeche erscheinen, und hinter welchem Recht — `bau.preis_lesen` wie der Einheitspreis, oder einem eigenen?** 0071 entzieht `cse_app` das `select` auf `lv_position` und erteilt eine erschoepfende Spaltenliste OHNE `einheitspreis_cent` UND ohne `steuer_kennzeichen`; fuer den Preis gibt es den gepruegten Leser `app.lv_preis_lesen`, fuer das Kennzeichen keinen. Bis zur Antwort zeigt die Positionsseite die Spalte nicht und sagt das (sichtbar als „offen (O-632)"); ein geratenes Kennzeichen entschied darueber, wer die Umsatzsteuer schuldet. | BAU-01, UStG § 13b, `/portal/[mandant]/bau/projekte/[id]/lv/[ozId]` |
+| O-633 | **Soll eine Teildatei beim LV-Import das Leistungsverzeichnis FORTSCHREIBEN oder ERSETZEN — kommen die Positionen der aktuellen Fassung, die in der Datei fehlen, mit in die neue Fassung oder sind sie gestrichen?** Heute wird ersetzt: `uebernimmLvImport` baut die neue Fassung ausschliesslich aus den Zeilen der Datei, und `legeLvImportAn` vergleicht danach gegen diese Fassung. Eine Teillieferung des Auftraggebers macht damit aus einem LV mit 27 Positionen eine aktuelle Fassung mit drei. Das ist seit dem Pruefbefund nicht mehr still: die Vorschau zaehlt „Fehlen in der Datei" und listet die betroffenen OZ (`fehler_bericht.fehlendeOz`), und die alte Fassung bleibt vollstaendig lesbar. Welche Bedeutung eine Teildatei hat, entscheidet aber der Vertrag und nicht der Import — ein Nachtrags-LV liefert bewusst nur seine Positionen, ein korrigiertes Auftrags-LV bewusst alle. | BAU-01, REQ-04, `/portal/[mandant]/bau/projekte/[id]/lv/import` |
+
+**Datenschutz**
+
+| # | Frage |
+|---|---|
+| O-640 | Does a Werbewiderspruch apply per channel (e-mail blocked, post keeps running) or across all channels? Today it is blanket: the block sits in ONE column (`werbewiderspruch_am`, 0020), and `werbewiderspruch.kanal` only describes what triggered it. Note that `nachricht_kanal` (portal/email/sms, 0231) and the CRM channel list (email/telefon/sms/post/whatsapp, 0020) are two different vocabularies. |
+| O-641 | Does an advertising objection raised at one entity also bind the other three? Today it does not — the four are separate controllers, and `/werbewiderspruch` asks which one, exactly as `/datenschutz/anfrage` does. |
+| O-642 | Does the internal hourly rate (`anstellung.stundensatz_intern`, K-05) belong in an Art. 15 export, or is it the entity's costing data? The Art.-15 section for `anstellung` omits it today and says so. |
+| O-643 | Does the absence TYPE (`abwesenheit.abwesenheitsart_id` — health-adjacent, Art. 9) belong in an Art. 15 export, and behind which additional check? It is readable through `app.abwesenheit_grund_lesen` with its own right; the export lists dates and status only. |
+| O-644 | Who EXECUTES an erasure decision, and how? There is no anonymisation procedure (`app.person_anonymisieren` is described in 02-CRM-OPERATIONS.md and does not exist), no run that writes `anonymisiert_am`, and no tombstone path for an employee, a customer contact or a company. Until there is one, `M/datenschutz/[id]/loeschung` produces a documented PRE-NOTE, not a release — a signed release for an execution nobody performs is worse than none. |
+| O-645 | Should the one-click objection link expire, and after how long? § 7 Abs. 3 Nr. 4 UWG says "jederzeit", so `werbewiderspruch_token.gueltig_bis` is NULL today — the choice that is safe for the data subject, not a decided rule. |
+| O-646 | Which recipients under Art. 19 DSGVO exist per data class (payroll office, client, authority), and by which route are they informed? The platform holds no recipient list; `berichtigung_feld.art19_empfaenger` records whoever a human names. |
+| O-647 | How is a restriction under Art. 18 DSGVO implemented technically — a per-record restriction flag, or organisationally? The data model carries no "restricted" marker: there is no column that pauses processing without ending it, and a checkbox that blocks nothing would be the worse answer. **The same decision governs an Art. 21 objection raised by an employee or an applicant**: `widerspruch_am` exists only on `ansprechpartner` and `kunde` (the advertising side), so for those groups the objection is today decided by a human, implemented organisationally and recorded in the closing text of the request. `/datenschutz/[id]` says both on the screen. |
+| O-648 | Which of the employee branch's derived findings, access records and assignments belong in an Art. 15 export, and which are mechanics? Eleven tables carry `person_id` and are no section of their own today: `arbeitszeit_verstoss`, `planungs_konflikt`, `nachweis_warnung`, `da_pflicht` (derived from data already disclosed in full), `benutzer`, `checkin_token`, `offline_ereignis` (the mechanics of access), `einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`, `bewacher_eintrag`. They are NAMED in the delivered export as an open section rather than left out — the answer decides whether they become sections. (The erasure side of the same list is O-71.) |
+| O-649 | Who sends the confirmation of a tokenless advertising objection (`/werbewiderspruch`), and what does it say when the address is not in our records at all? A confirmation that says "removed" would disclose that the address was held; one that says nothing is not a confirmation. No outbound mail is connected today, and the page says so instead of claiming a send. |
+
+**Aufgaben, Nachrichten, öffentliche Seiten**
+
+| # | Frage | Wirkt in |
+|---|---|---|
+| O-650 | **Welche Rollen gibt es in einem Team — Leitung, Stellvertretung, Mitglied, Springer?** `team_mitglied.rolle` ist Freitext, weil niemand die Liste bestätigt hat. Ein Aufzählungstyp wäre eine erfundene Organisationsstruktur, und ein falscher Wert darin fällt erst auf, wenn ein Filter danach fragt und Teilmengen liefert. **Heute ehrlich gemacht:** die Spalte ist nullbar, der Seed setzt sie nicht, und keine Abfrage wertet sie aus — sie wird erfasst, nicht benutzt. Sobald die Liste steht, ist es ein Enum plus eine Migration. | CAL-02, OPS-11, `06-RADAR-KI-INHALT.md` §7.5, `drizzle/0230` |
+| O-651 | **Darf die Gruppenleitung Nachrichtenfäden der vier Gesellschaften lesen?** Zwei Dokumente sagen Gegenteiliges, und beide sind normativ. `0011` legte `t_nachricht_gruppe` an (Gruppenansicht mit `gruppe.nachricht.lesen`), der Schlüssel steht im Rechtekatalog, und die Tab-Leiste des Kundenportals verweist darauf. `06-RADAR-KI-INHALT.md` §1.4 führt `nachricht`, `nachricht_anhang` und `nachricht_empfaenger` dagegen in der Liste der Tabellen mit `p_gruppe_kein_personenbezug` — dort sieht die Gruppenansicht NULL Zeilen, weil TEN-05 ihr aggregierte Zahlen gibt und nicht den Vertragstext einer Schwestergesellschaft. **Heute gebaut: der Bestand bleibt.** `0231` setzt die restriktive Decke NICHT, weil sie eine vorhandene Policy und einen vorhandenen Katalogschlüssel still wirkungslos gemacht hätte („Do not break what works"), und sie auch nicht nachträglich, weil eine Entscheidung über den Zugriff einer Gesellschaft auf die Kommunikation einer anderen dem Auftraggeber gehört. `/portal/[mandant]/nachrichten` verlangt ohnehin genau einen aktiven Mandanten, und `/portal/gruppe/nachrichten` gibt es nicht — die Frage wirkt heute nur auf die Policy, nicht auf einen Bildschirm. | EMP-11, CRM-03, TEN-05, `06-RADAR-KI-INHALT.md` §1.4, `drizzle/0011`, `drizzle/0231` |
+| O-652 | **Welche Leistungen bekommen eine eigene Seite unter `/leistungen/<slug>`, und welche Gesellschaft verantwortet sie?** Zwei Fragen, und die zweite ist die teurere. (a) Welche Leistungen eine eigene Adresse tragen und wie sie heissen, ist Redaktion: `seite.pfad` erlaubt mehrsegmentige Pfade seit `0014`, es fehlten die ZEILEN, nicht die Spalten. (b) `Service.provider` braucht eine Gesellschaft, und die vorhandenen `seite`-Zeilen der Gruppenebene tragen alle `mandant_id = NULL`. `04-SEITENKARTE.md` §2.2 sagt, die Gruppenadresse trage nur, was `operations` gehört, und alles andere sei unter `/unternehmen/<bereich>/leistungen` kanonisch — eine Reinigungsleistung unter `/leistungen/` wäre damit entweder falsch zugeordnet oder eine zweite Fassung. **Heute ehrlich gemacht:** die Route ist vollständig gebaut (Slugprüfung, 404 statt leerer Seite, eigene Kanonik samt `hreflang`, englischer Zwilling), der `Service`-Block entsteht zentral in `seiten-daten.ts` — und `provider` bleibt WEG, solange die Zuordnung fehlt. Ein Block ohne `provider` ist gültiges Schema.org und sagt weniger; ein erfundener sähe vollständig aus und wäre eine falsche Aussage über die Firmenstruktur. **Bestand:** der Inhaltsimport legt je Sprache EINE als Demonstrationsbestand benannte Zeile an (`/leistungen/unterhaltsreinigung`, `mandant_id = NULL`, Abschnitt „Vorläufige Seite" mit Verweis auf diese Frage) — ohne sie liefe die ganze Kette nie, und fertig gemeldeter, zur Laufzeit ungesehener Code ist der schlechteste Zustand, den Code haben kann. Jede andere Adresse antwortet weiter 404. | PUB-01, PUB-07, PUB-11, `04-SEITENKARTE.md` §2.2, `services/inhalt/jsonld.ts`, `server/inhalt/seiten-daten.ts`, `db/seed/inhalt.ts` |
+
+**CRM**
+
+| # | Frage | Wirkt in |
+|---|---|---|
+| O-660 | **Soll `app.darf_kontaktiert_werden` auf die Matrix des § 7 UWG umgestellt werden — Werbung an `bestandskunde` nur mit festgestellter `aehnliche_leistung`, Werbung an `anfrage` gar nicht, und die Ausnahme des § 7 Abs. 3 UWG nur ueber die ELEKTRONISCHE Postadresse?** Das wirksame Tor prueft fuer `werbung` am Kontakt heute nur `rechtsgrundlage <> 'keine'`. 05-API-KARTE §C.7 ist strenger. Die Luecke ist gebaut, sichtbar und in BEIDE Richtungen nachpruefbar (`services/crm/uwg-matrix.ts`, `abweichungenVomTor`, `tests/kern/crm-uwg-matrix.test.ts`) — das Tor ist umgekehrt an anderen Stellen strenger als die Matrix, weil es die Firma hinter dem Kontakt mitfragt. Bis zur Antwort bleibt das Tor unveraendert (`tests/isolation/uwg.test.ts` schreibt seine heutige Bedeutung fest) und die Abweichung steht auf dem Kontaktblatt statt in einem Kommentar. Die Nummer erscheint auf dem Bildschirm. | § 7 Abs. 2 Nr. 2 und Abs. 3 UWG, `drizzle/0246`, `services/crm/uwg-matrix.ts`, `portal/[mandant]/crm/kontakte/[id]`, O-95 |
+| O-661 | **Traegt der Rechtsgrundlagen-Block eines Ansprechpartners `crm.lesen` (so `app.rechtsgrundlage_lesen`, 0020) oder das engere `crm.rechtsgrundlage_lesen` (so Katalog, 04-SEITENKARTE §5.25 und 0222)?** Die beiden Quellen widersprechen sich, und der Unterschied ist nicht akademisch: `crm.lesen` ist fuer `leitung` GEBUNDEN, `crm.rechtsgrundlage_lesen` nur BINDBAR — jede Leitung saehe im ersten Fall die Einstufung, die ihr `/datenschutz/widersprueche` vorenthaelt. Bis zur Antwort gilt in den neuen Lesern aus 0247 (`app.kontakt_rechtsgrundlage_liste`, `app.kontakt_rechtsgrundlage_blatt`) das ENGERE Recht, in der alten Einzelabfrage das weitere. Die Nummer erscheint auf dem Bildschirm. | LEG-08, `drizzle/0247`, `drizzle/0222`, `auth/katalog.generiert.ts`, `portal/[mandant]/crm/kontakte` |
+| O-662 | **Wird ein Kundenzugang nach dem Anschluss von Supabase Auth (O-501) ueber die Admin-API angelegt, und wer traegt den Auftragsverarbeitungsvertrag fuer die Konten externer Ansprechpartner?** Heute legen die SECURITY-DEFINER aus 0249 die Zeile in `benutzer` an (`cse_app` hat dort nur SELECT); ein Konto in `auth.users` entsteht dabei NICHT, und der Einladungslink wird EINMAL angezeigt statt versendet — es ist kein Postausgang verbunden. Ein Zugang ohne Anmeldemoeglichkeit waere schlimmer als keiner, deshalb weist der Dienst das benannt ab, statt es zu tun. | AUT-01, DOC-04, `drizzle/0249`, `services/crm/kundenzugang.ts`, O-501, Art. 28 DSGVO |
+| O-663 | **Soll eine Wiedervorlage immer zugleich eine `aufgabe` und einen `kalender_eintrag` erzeugen (so 04-SEITENKARTE §5.2), oder bleibt sie eine reine Vertriebsnotiz auf `lead_aktivitaet`?** Eine Wiedervorlage, die nur auf `lead_aktivitaet` steht, erscheint in `/portal/[mandant]/aufgaben` nicht — und niemand merkt es. Bis zur Antwort schreibt `legeWiedervorlageAn` in alle drei Tabellen, soweit `aufgabe.schreiben` und `kalender.schreiben` reichen, und die Oberflaeche sagt je Ziel BEIM NAMEN, was nicht entstanden ist; `erledige` und `verschiebe` fassen die gespiegelte Aufgabe mit an. Die Nummer erscheint in der Rueckmeldung des Endpunkts. | CRM-04, 04-SEITENKARTE §5.2, `drizzle/0250`, `services/crm/wiedervorlage.ts`, `tests/isolation/crm-wiedervorlage.test.ts` |
+
+**Kundenportal**
+
+| # | Frage | Wirkt in |
+|---|---|---|
+| O-670 | **Wird eine Portalnachricht dem Kunden sofort sichtbar, sobald sie angelegt ist — oder braucht sie eine ausdrückliche Freigabe?** `0255` öffnet den Kundenlesepfad auf `nachricht` über `t_kunde` und deckelt ihn mit `p_kunde_decke`. **Heute gilt:** sichtbar, sobald `kunde_id` gesetzt ist, `richtung <> 'intern'`, `geloescht_am is null` und eine Empfängerzeile auf einen Ansprechpartner dieses Kunden existiert. `gesendet_am is not null` steht bewusst NICHT in der Bedingung: für `kanal = 'portal'` geht nichts „hinaus" (`kern.nachricht_sendetor()` kehrt für diesen Kanal sofort zurück), und wäre der Zeitpunkt Bedingung, sähe der Kunde je nach Schreibpfad ALLES oder NICHTS. Offen ist die kaufmännische Frage: darf eine Sachbearbeiterin einen Text vorbereiten, den der Kunde noch nicht sieht — und wenn ja, woran erkennt die Datenbank ihn? | `drizzle/0255`, `services/kundenportal/nachricht.ts`, NOT-03, SPEC §22 `nachricht` |
+| O-671 | **Dürfen Anhänge einer Kundennachricht im Portal heruntergeladen werden — oder bleiben Anlagen dem Mailweg vorbehalten?** `dokument` trägt die Kundendecke `p_kunde_ceiling` auf `sichtbar_fuer_kunde`, aber KEINE permissive `t_kunde`; im Kunden-Scope liefert die Tabelle deshalb null Zeilen. Die Nachrichtenseite zeigt darum die ANZAHL der Anlagen und keinen Verweis — ein Knopf stünde vor einem 404. Dieselbe Frage stellt der Dokumentweg aus einer anderen Richtung (`services/dokument/kundenfreigabe.ts`, `drizzle/0297`), und sie gehört einmal beantwortet: bekommt `dokument` eine eng gefasste permissive `t_kunde` auf `sichtbar_fuer_kunde` (die Decke dafür steht bereits), oder nicht? | `drizzle/0255`, `drizzle/0297`, `services/kundenportal/nachricht.ts`, DOC-01, DOC-03 |
+| O-672 | **Soll dem Kunden das Valutadatum seiner eigenen Zahlung angezeigt werden — oder genügt „ausgeglichen am"?** `zahlung` trägt `p_intern_ceiling` und kein `t_kunde`; im Kunden-Scope liefert die Tabelle null Zeilen, und damit ist auch kein Valutadatum lesbar. `zahlung_zuordnung` führt `betrag_cent` und `art`, aber kein Datum — `erstellt_am` der Zuordnung wäre der BUCHUNGSzeitpunkt und nicht der Zahlungseingang, also eine Zahl, die aussieht wie eine Antwort und eine andere Frage beantwortet. **Heute gezeigt:** `offener_posten.ausgeglichen_am`, der Tag, an dem der Posten geschlossen wurde. Ein „bezahlt am" verlangte einen eng gefassten Kundenlesepfad auf die eigenen Zahlungseingänge. | `services/kundenportal/zahlung.ts`, `app/portal/kunde/zahlungen/page.tsx`, ACC-04, FIN-15 |
+| O-673 | **Sieht ein Kunde seinen eigenen Mahnstand im Portal — Stufe, Datum, Gebühr —, oder bleibt das Mahnwesen ein Vorgang per Post und Mail?** `offener_posten.letzte_mahnstufe` ist im Kunden-Scope lesbar, `mahnung` selbst nicht. Eine Stufe ohne das Schreiben dahinter ist eine Drohung ohne Text, deshalb zeigt die Zahlungsseite sie heute NICHT. Die Frage ist kaufmännisch und nicht technisch: das Mahnwesen ist ein Eskalationsweg, und ob er im Selbstbedienungsportal sichtbar wird, entscheidet die Geschäftsführung. | `services/kundenportal/zahlung.ts`, `app/portal/kunde/zahlungen/page.tsx`, ACC-04 |
+| O-674 | **Sieht der Auftraggeber seine eigenen Nachträge (VOB/B § 2) und die an ihn gerichteten Behinderungsanzeigen (VOB/B § 6) im Portal?** `nachtrag` und `behinderung` tragen BEIDE die restriktive `p_intern_decke` mit `app.portal() = 'intern'` und kein `t_kunde` (in `pg_policies` nachgesehen, nicht vermutet) — die Datenbank hat die Frage also schon entschieden, genauso wie beim Bautagebuch (`p_intern_einsatz_decke`). Die offene Frage ist deshalb nicht „anschliessen oder nicht", sondern „soll eine Migration die Decke öffnen": ein Nachtrag berührt Geld, eine Behinderungsanzeige ist eine empfangsbedürftige Erklärung — beides braucht eine Entscheidung, bevor eine Decke geöffnet wird. Die Kundenprojektseite zeigt darum heute nur Kopfdaten und die Aufmaße des Projekts. | `services/kundenportal/projekt.ts`, `app/portal/kunde/projekte/[id]/page.tsx`, BAU-02, BAU-03, VOB/B §§ 2, 6 |
+| O-840 | **Sieht ein Kundenzugang die Auftragssumme (`auftrag.auftragswert_netto_cent`) im Portal?** Sie steht im unterschriebenen Vertrag, ist also keine Neuigkeit — im Portal ist sie aber eine gepflegte Zahl neben den Rechnungen, und bei einem Rahmenvertrag mit Abrufen bedeutet sie etwas anderes als die Summe der Belege. Bis zur Antwort steht sie in KEINER Abfrage von `services/kundenportal/auftrag.ts`; die Auftragsseite nennt stattdessen die vereinbarten Leistungszeilen mit ihren Preisen (das IST der Vertragsinhalt, Position fuer Position) und verweist fuer das Berechnete auf „Rechnungen“. Dieselbe Zurueckhaltung wie bei `projekt.auftragssumme_netto_cent`, die `tests/kern/kundenportal.test.ts` namentlich fernhaelt. | `services/kundenportal/auftrag.ts`, `/portal/kunde/auftraege`, `/portal/kunde/auftraege/[id]`, `drizzle/0025`, OPS-05, CRM-06, 04-SEITENKARTE §8 |
+| O-842 | **Gilt ein versendetes Angebot nach Ablauf von `gueltig_bis` automatisch als `abgelaufen` — und wer stellt das fest, ein naechtlicher Lauf oder die Sachbearbeitung?** `angebot_status` fuehrt den Wert seit 0024, und es gibt heute keinen Lauf, der ihn setzt (in `src/server/jobs/` nachgesehen, nicht vermutet). Bis zur Antwort leitet das Kundenportal aus dem Datum KEINEN Zustand ab: es zeigt den gespeicherten `status` und daneben einen rein tatsaechlichen Satz („noch 12 Tage“ / „heute letzter Tag“ / „seit 3 Tagen abgelaufen“), dessen Tageszahl die Datenbank gegen `app.berlin_heute()` rechnet (K-11). Eine Ableitung in der Seite hiesse, dass im Portal ein anderer Zustand stuende als in der Datenbank. | `services/kundenportal/angebot.ts` (`bindefristText`), `/portal/kunde/angebote`, `/portal/kunde/angebote/[id]`, `drizzle/0024`, OPS-08, K-11 |
+| O-843 | **Wenn O-671 positiv beantwortet wird: wie wird ein KUNDENabruf einer Datei vermerkt?** DOC-03 und SEC-A6 verlangen, dass jede Datei nur ueber eine signierte Adresse herausgeht (`SIGNATUR_SEKUNDEN` = 15 Minuten) und dass der Abruf VOR der Adresse eine Zeile in `dokument_zugriff` hinterlaesst — Art. 15 DSGVO haengt daran. Aus dem Kunden-Scope geht das heute nicht: `t_dokument_zugriff_anlegen` (`drizzle/0139`) verlangt `mandant_id = app.aktiver_mandant()`, und der ist dort NULL (K-20); ausserdem ist der Scope `app.ist_readonly()` (gemessen, `tests/isolation/kundenportal-stapel.test.ts` Fall 21). Der Weg dafuer ist ein `security definer` wie in `drizzle/0266`/`0325`, NICHT eine gelockerte Policy — und er gehoert in DIESELBE Migration wie die Antwort auf O-671, sonst liefert das Portal Dateien aus, die niemand vermerkt hat. Bis dahin baut das Kundenportal keinen Abrufweg. | `drizzle/0139`, `drizzle/0009`, `drizzle/0297`, `services/kundenportal/dokument.ts`, `/portal/kunde/dokumente/[id]`, DOC-03, DOC-04, SEC-A6, O-671, O-736 |
+| O-844 | **Bekommt das versendete Angebot einen Schnappschuss wie die Rechnung (`rechnung_snapshot`, K-12)?** Ohne ihn gibt es im Kundenportal keinen Abzug, der nachweislich derselbe ist wie der versendete: das interne Angebots-PDF (`/portal/[mandant]/angebote/[id]/pdf`) entsteht aus den HEUTIGEN Stammdaten, zwei Abzuege desselben Angebots koennen sich also unterscheiden — bei einem Dokument, das ein Vertragsangebot IST, ist das kein Schoenheitsfehler. Bis zur Antwort bietet `/portal/kunde/angebote/[id]` keinen Dateiverweis an und sagt, warum; die Angaben selbst (Kopf, Texte, Positionen, Steuerzeilen je Satzgruppe, Summen) stehen vollstaendig auf dem Blatt. | `services/kundenportal/angebot.ts`, `/portal/kunde/angebote/[id]`, `drizzle/0024`, `services/finanz/xrechnung/*`, K-12, OPS-08, FIN-11 |
+
+**Website-Pflege**
+
+| # | Frage | Wirkt in |
+|---|---|---|
+| O-680 | Sollen die Anfrageformulare im Portal um eigene FELDER erweiterbar sein? Die englische Fassung eines Feldes lebt heute im Code (`lib/i18n/formular-en.ts`) und nicht in der Datenbank; ein im Portal angelegtes Feld stuende auf `/en/angebot` deutsch da (D-82, D-83). Dann braucht es eine Uebersetzungstabelle per Migration. Solange offen: die Feldliste ist in `/portal/[mandant]/website/formulare/[id]` LESBAR und nicht aenderbar; geaendert wird, was ohne zweite Quelle auskommt (Titel, Beschreibung, Zustaendigkeit, Zustand). | `src/server/services/inhalt/formular.ts` |
+| O-681 | Sollen Neuigkeiten zweisprachig gefuehrt werden? `seite` und `unternehmensprofil` tragen eine `sprache` und fuehren je Sprache eine eigene Zeile (D-82); `beitrag` hat keine Sprachspalte — `/en/unternehmen/<bereich>/news` zeigt deshalb den deutschen Wortlaut. Das ist der heutige Stand des Schemas, keine Entscheidung. | `src/app/portal/[mandant]/website/news/page.tsx` |
+| O-682 | Welches Recht traegt das Live-Stellen und Zurueckziehen eines Anfrageformulars? `formular.schreiben` haelt auch der zum Internet offene Annahmeprinzipal `formular_eingang`; wer ihn uebernaehme, koennte das lebende Formular einer Gesellschaft zurueckziehen (`/angebot/<bereich>` antwortet danach mit 404). Braucht die Redaktion ein eigenes Recht, wie `referenz.veroeffentlichen` es bei `seite` ist? Bis dahin fail-closed: `verweigereDienstkonto` weist jedes Dienstkonto ab. | `src/server/services/inhalt/formular.ts` |
+| O-683 | Soll `leitung` den oeffentlichen Auftritt pflegen duerfen? `referenz.schreiben` ist fuer sie heute nur `bindbar` und nicht `gebunden`; ohne Bindung sieht sie den Tab „Website" gar nicht und kommt auch nicht auf `/portal/<bereich>/website/news` — obwohl sie dieselben Beitraege unter Social Media bearbeitet (`social.lesen`/`social.schreiben` haelt sie gebunden). Eine Sprungzeile kann das nicht heilen: sie zeigt Rechte, sie vergibt keine. | `src/app/portal/[mandant]/website/spruenge.tsx` |
+
+**Stammdaten**
+
+| # | Frage | Wirkt in |
+|---|---|---|
+| O-690 | **Fuehrt jede Gesellschaft eigene Abwesenheitsarten, oder gilt der Katalog gruppenweit einheitlich — und muss der Lohnartenschluessel je Art in allen drei Rechtseinheiten derselbe sein?** Die Plattform kann beides: `abwesenheitsart` ist zweistufig (K-17), die Pflegeseite legt auf Wunsch eine mandanteigene Art an und `kern.katalog_schluessel_frei` (0276) verhindert, dass derselbe Schluessel auf beiden Stufen aktiv ist. Offen ist die organisatorische Haelfte: eine eigene Art je Gesellschaft heisst je Gesellschaft eine eigene Lohnzuordnung im ACC-12-Export. | EMP-05, ACC-12, `abwesenheitsart`, O-139 |
+| O-691 | **Wer pflegt in der Gruppe den PLATTFORM-Katalog (Abwesenheitsarten, Antragsarten, Qualifikationen), und braucht eine Aenderung daran eine zweite Zustimmung?** Plattformweite Katalogzeilen gelten fuer alle vier Gesellschaften; sie sind seit 0275 (abwesenheitsart, antragsart) und 0030 §6.16 (qualifikation) genau dem Super-Admin mit zweitem Faktor zugaenglich, und jede Aenderung steht im Pruefprotokoll. Ein Vier-Augen-Prinzip ist NICHT gebaut — `bezahlt` oder `blockiert_einsatz` wirken mit dem Speichern. | AUT-01, AUT-02, K-17, `abwesenheitsart`, `antragsart`, `qualifikation` |
+| O-692 | **Darf eine Belagsart-Fassung zwischen dem Beginn der laufenden Fassung und heute beginnen, wenn fuer diesen Zeitraum schon Kalkulationen gerechnet wurden — und wer gibt das frei?** Heute gilt: eine neue Fassung beginnt STRIKT NACH dem Beginn der laufenden; ein frueherer Beginn wird von `pruefeDatierung` abgewiesen und waere ohnehin unmoeglich, weil die laufende `gueltig_bis is null` traegt und `belagsart_zeitraum_eindeutig` jede Ueberschneidung mit ihrem Bereich `daterange(gueltig_ab, 'infinity')` ausschliesst. Unbewacht ist genau der Bereich DAZWISCHEN: ein Beginn nach dem Start der laufenden Fassung, aber vor `app.berlin_heute()`, wird angenommen und aendert rueckwirkend die Grundlage jeder Kalkulation aus dieser Zeit, ohne dass jemand zustimmt. Die strengere Variante — Beginn nie vor `app.berlin_heute()` — ist eine Zeile im Dienst. | OPS-03, O-17, `belagsart`, `kalkulation_position` |
+| O-693 | **Was geschieht mit Raeumen, die auf eine archivierte Reinigungsklasse zeigen — bleibt die Einstufung stehen oder muessen sie vor dem Archivieren umgestuft werden?** Heute bleibt sie stehen: `archiviert_am` gibt den Code frei (Teilindex `reinigungsklasse_code_uk`), `raum.reinigungsklasse_id` wird NICHT geleert, und die Pflegeseite nennt vor dem Archivieren die Zahl der betroffenen Raeume und Importzeilen. Die Alternative — Archivieren nur ohne haengende Raeume — waere eine Sperre, die ein Mensch heute nicht erwartet. | OPS-02, O-55, `reinigungsklasse`, `raum` |
+| O-694 | **Gibt es eine Hoechstlaenge fuer Belagsart- und Reinigungsklassen-Codes aus dem Kundenraumbuch — und wenn ja, welche?** Heute gilt: KEINE. `belagsart.code` und `reinigungsklasse.code` sind `text` ohne CHECK und ohne `varchar(n)`; die Dienste pruefen nur auf Vorhandensein und Randleerraum, weil der Code aus dem Raumbuch DES KUNDEN kommt und dort so aussieht, wie er dort aussieht. Eine vorher im Dienst gefuehrte Grenze von 20 Zeichen war erfunden (weder Tabelle noch SPEC/DESIGN/DECISIONS nannten sie) und haette eine echte Kundendatei mit einem laengeren Code abgewiesen; sie ist entfernt. | OPS-02, OPS-03, `belagsart`, `reinigungsklasse`, `raumbuch_import_zeile` |
+
+**Reinigung, Security, Qualität**
+
+| # | Frage | Wirkt in |
+|---|---|---|
+| O-700 | **Ist ein Ausfall eines Reinigungsturnus vom Pauschalbetrag abzuziehen und ein Zusatztermin zusaetzlich zu berechnen, oder gleicht die Pauschale beides aus?** (aus dem Bauschritt, unveraendert) `turnus_ausnahme.abrechnungsrelevant` bleibt `null` — UNBEANTWORTET, nicht „nein": ein vorausgewaehltes „nein" waere eine Vertragsaussage, die niemand getroffen hat. Das Feld im Formular fuehrt „offen — noch nicht entschieden (O-700)" als Vorgabe. | CLN-02, CLN-03, `services/reinigung/turnus.ts`, `api/reinigung/turnus/route.ts` |
+| O-701 | **Was geschieht mit den bereits erzeugten Schichten, wenn Regel, Beginn oder Dauer eines laufenden Turnus geaendert werden — werden kuenftige Schichten nachgezogen, bleibt der Bestand unveraendert, oder wird die Serie beendet und eine neue angelegt?** (aus dem Bauschritt, unveraendert) An den erzeugten Schichten haengen Check-in-Links, Leistungsnachweise und Rechnungen; eine still gewaehlte Variante veraenderte rueckwirkend bezahlte Schichten. Regel, Beginn und Dauer sind auf dem Turnusblatt deshalb NICHT aenderbar, sichtbar als „offen (O-701)"; fuer einen einzelnen Tag gibt es die Ausnahme. | CLN-02, TIM-02, `portal/[mandant]/reinigung/turnus/[id]/page.tsx` |
+| O-702 | **Pflegt die Seite „Sonderleistungen" die Katalogzeilen oder die einzelnen Abrufe je Objekt — oder beides, und wer pflegt dann den Leistungskatalog?** (aus dem Bauschritt, unveraendert) Die Seite fuehrt bis zur Antwort BEIDE Haelften getrennt und beschriftet, jede hinter dem Recht ihrer Tabelle (`leistungskatalog_position` → `katalog.schreiben`, `sonderleistung` → `reinigung.schreiben`). Der Registereintrag der Route fuehrt darum jetzt beide Schreibrechte. | CLN-05, OPS-06, `services/reinigung/sonderleistung.ts` |
+| O-703 | **Woher entsteht ein Veranstaltungsauftrag — aus einer Auftragsleistung, aus dem Vertrieb oder handerfasst von der Wachleitung, und wer darf ihn anlegen?** (aus dem Bauschritt, unveraendert) Es gibt weiterhin keine Route `/security/veranstaltungen/neu`; der Seed legt zwei Veranstaltungen an, eine davon mit Ort nur als Text. | SEC-08, `services/security/veranstaltung.ts`, SEITENKARTE §5.8 |
+| O-704 | **Wie wird eine falsch erfasste Qualitaetspruefung berichtigt — durch eine ersetzende Pruefung mit Verweis auf die alte (wie im Wachbuch), durch Archivieren mit Grund, oder ist eine Korrektur der Felder zulaessig?** (aus dem Bauschritt, unveraendert) Das Pruefblatt ist lesend; die Tabelle traegt keinen Korrekturweg. | OPS-11, `portal/[mandant]/qualitaet/pruefungen/[id]/page.tsx` |
+| O-705 | **Was folgt auf einen Mangel mit Frist — entsteht daraus automatisch eine Reklamation oder eine Aufgabe, und wer ist verantwortlich, wenn die Frist verstreicht?** (aus dem Bauschritt, unveraendert) Es entsteht heute NICHTS von selbst; die ueberfaellige Frist wird farbig UND im Text gezeigt, mehr nicht. | OPS-11, OPS-12, `portal/[mandant]/qualitaet/pruefungen/[id]/page.tsx`, `db/seed/reinigung.ts` |
+| O-706 | **Zeigt der Sicherheits-Modulkopf nur die Bewachernachweise oder alle Nachweise mit Frist?** Die Liste hiess „§ 34a-Nachweise mit Frist" und war auf nichts eingegrenzt: `leseRegister` kennt keinen Qualifikationsfilter und liefert jede Zeile der Gesellschaft. Die dafuer angelegte Konstante `BEWACHER_QUALIFIKATION = '34a'` wurde nirgends benutzt — und haette, benutzt, KEINE Katalogzeile getroffen: im plattformweiten Katalog heissen sie `34a_sachkunde`, `34a_unterrichtung` und `bewacherausweis`. Ein Filter darauf haette die Liste still geleert und „nichts abgelaufen" gemeldet. **Heute gebaut:** die Liste zeigt weiter ALLE Nachweise mit Frist — weil SEC-04 nicht an der Qualifikation haengt, sondern an `einsatzanforderung.zwingend` des jeweiligen Postens (`app.einsatz_qualifikation_erfuellt`), also auch eine abgelaufene Unterweisung sperren kann —, Ueberschrift und Kachel sagen das jetzt, der unbelegte Zusatz „N sperren die Einteilung" ist weg, und `BEWACHER_QUALIFIKATIONEN` traegt die drei echten Schluessel und MARKIERT die betroffenen Zeilen mit „§ 34a". Die Frage ist fachlich: soll der Modulkopf der Sicherheit auf die Bewacherqualifikationen verengt werden — mit dem Preis, dass eine abgelaufene, aber zwingend geforderte Erste-Hilfe- oder Unterweisungszeile dort nicht mehr auffaellt? | SEC-02, SEC-04, `services/security/uebersicht.ts`, `services/nachweis/register.ts`, `db/seed/qualifikation.ts` |
+| O-707 | **In welchem Vorlauf ist eine ablaufende Bewacher-Erlaubnis zu melden?** Die Kachel „Laeuft in 60 Tagen ab" rechnete gegen eine blanke `60` in der Seite. `bewacher_eintrag` traegt — anders als `qualifikation`, wo `warnung_tage` die Schwellen als Daten fuehrt und `lageVon` sie ausliest — KEINE Warnstufen, und O-40 deckt nur Format, Pflichtfelder und Meldeereignisse ab. Damit war die Zahl eine unentschiedene Geschaeftsregel im Code, in einem Register, das ueber die Einsetzbarkeit eines Menschen entscheidet. **Heute gebaut:** die Schwelle heisst `BEWACHER_VORWARNUNG_TAGE` und steht EINMAL im Dienst, ausdruecklich als Platzhalter; die Kachel nennt die Zahl UND kennzeichnet sie als offen, und darueber steht ein Hinweis, dass gegen einen Platzhalter gerechnet wird. Die Frage hat zwei Haelften: welcher Vorlauf gilt, und gehoert die Schwelle in den Eintrag (wie `qualifikation.warnung_tage`) oder gilt eine feste Frist fuer alle? Kommen Warnstufen in die Tabelle, tritt die Konstante ersatzlos zurueck. | SEC-03, LEG-04, O-40, `services/security/bewacherregister.ts` |
+| O-708 | **Laesst sich die Vertragszeile eines bereits erfassten Abrufs nachtraeglich zuordnen — und nach `abgerechnet` noch?** Die Rechnungsuebernahme verbindet `sonderleistung` per INNER JOIN mit `auftrag_leistung` (`finanz/abrechnungsart/einzelabruf.ts`); ein Abruf ohne `auftrag_leistung_id` ist damit strukturell nicht abrechenbar. Der einzige Anlegeweg setzte das Feld nie — weder hatte das Formular es, noch reichte der Handler etwas durch —, und dieselbe Seite meldete die so entstandenen Zeilen anschliessend selbst als „Ohne Vertragszeile". **Heute gebaut:** das Formular bietet die lebenden Vertragszeilen an (nach Objekt gruppiert, Rahmenzeilen ohne Objektbezug in eigener Gruppe), hinter `auftrag.lesen` mit „nicht geprueft"-Fall, und der Handler reicht sie durch. Die Angabe bleibt FREIWILLIG, weil ein Abruf oft vor dem Nachtrag entsteht, der die Zeile ueberhaupt erst schafft. Ein zweiter Vorgang „Vertragszeile zuordnen" ist bewusst NICHT gebaut: ob eine solche Nachtragung zulaessig ist, wer sie darf, und ob sie nach dem Stempel `abgerechnet` noch erlaubt sein soll, ist eine Vertrags- und Buchungsfrage — eine still gewaehlte Antwort schluege einen bereits abgerechneten Abruf einer anderen Vertragszeile zu. | CLN-05, OPS-06, FIN-07, `services/reinigung/sonderleistung.ts`, `finanz/abrechnungsart/einzelabruf.ts` |
+
+**Dienstplan und Zeit**
+
+| # | Frage | Wirkt in |
+|---|---|---|
+| O-710 | **Welcher Zeitraum wird veröffentlicht — die Kalenderwoche, der Kalendermonat oder ein frei gewähltes Fenster?** `dienstplan.veroeffentlichen` ist ein Recht auf eine HANDLUNG; `einsatz_status` kennt mit Absicht keinen Wert `veroeffentlicht` (K-17, drizzle/0028, 04-PLANUNG-ZEIT.md §224), und einen Ablauf zu modellieren, den die SPEC nicht beschreibt, wäre eine erfundene Geschäftsregel. **Heute gebaut:** `dienstplan_veroeffentlichung.umfang` trägt die drei Kandidaten `woche`/`monat`/`freier_zeitraum` als Platzhalter (`UMFAENGE`, eine Konstante); die Oberfläche gibt die kommende Woche in Berliner Wochengrenzen vor und nennt das ausdrücklich eine Oberflächenvorgabe. Die Datenbank begrenzt nur auf höchstens ein Jahr (`dv_zeitraum_begrenzt`). | TIM-01, NOT-01, K-17, `services/dienstplan/veroeffentlichung.ts`, `drizzle/0265` |
+| O-711 | **Wer wird bei einer Veröffentlichung benachrichtigt — jede im Zeitraum eingeteilte Person, oder auch Personen, deren Schicht gestrichen wurde?** Der zweite Fall tut am meisten weh: wer eine Schicht hatte und sie nicht mehr hat, erfährt heute nichts. **Heute gebaut:** benachrichtigt wird, wer im Fenster eine lebende Einteilung hat (`entfernt_am is null`, `status <> 'abgesagt'`); die Abgrenzung steht wörtlich in `umfang_daten` der Vorgangszeile, und die Vorschau zeigt je Person ihre Schichten in Europe/Berlin — genau die Nachricht, die sie bekäme. Wer keinen aktiven Zugang hat, wird als `ohne_zugang` GEZÄHLT und auf dem Bildschirm als „kein Zugang — nur telefonisch" geführt, solange der Planer noch anrufen kann. Der Definer (0266) prüft zusätzlich eine `anstellung` in der aktiven Gesellschaft — eine Schranke gegen beliebige Konten, keine Antwort auf diese Frage. | TIM-01, NOT-01, D-09, EMP-14, `services/dienstplan/veroeffentlichung.ts`, `drizzle/0266` |
+| O-712 | **Was bedeutet eine Änderung des Plans NACH der Veröffentlichung — eine neue Meldung an die Betroffenen, eine Sperre, oder gar nichts? Und sperren blockierende Konflikte im Fenster die Veröffentlichung?** **Heute gebaut:** nichts geschieht von selbst; eine zweite Bekanntgabe ist eine zweite Zeile, nie ein Überschreiben der ersten (`dienstplan_veroeffentlichung` kennt kein UPDATE und keine harte Löschung, Invariante 8). Blockierende Konflikte halten die Bekanntgabe NICHT auf — eine Sperre, die niemand bestellt hat, ließe die Disposition am Einsatztag stehen. Ihre Zahl steht in der Vorschau obenan und wird im Beleg mitgeschrieben: wer trotz drei Sperren veröffentlicht hat, ist damit nachweisbar. | TIM-01, NOT-01, O-166, Invariante 8, `services/dienstplan/veroeffentlichung.ts` |
+| O-713 | **Ist eine bekanntgegebene Schicht gegen stille Änderung geschützt, und wenn ja: wer darf sie danach noch ändern und unter welcher Protokollpflicht?** **Heute gebaut: nicht, und zwar nicht aus Versehen.** Es gibt keinen Zustand auf `einsatz`, keine neue Spalte und kein Einfrieren — `einsatz_status` kennt `veroeffentlicht` mit Absicht nicht (K-17). Der Vorgang ist ein Beleg neben dem Plan, kein Schloss darauf. Wird die Frage mit „geschützt" beantwortet, ist das eine Migration (Zustand oder Sperrspalte) plus eine Protokollpflicht, kein Zusatz in einer Route. | TIM-01, K-17, drizzle/0028, `drizzle/0265`, 04-PLANUNG-ZEIT.md §224 |
+| O-714 | **Darf eine Ausnahme mit reduzierter Stärke unter die Mindestbesetzung des Postens gehen, oder ist die Mindestbesetzung eine harte Untergrenze, die eine Ausnahme nicht senken kann?** `posten_ausnahme.ersatz_besetzung` ersetzt laut 0069 §6.4 die SOLLbesetzung; was aus der MINDESTbesetzung wird, steht dort nicht — und es ist keine Kleinigkeit: eine Nacht mit einer Wache statt zwei liegt unter dem Minimum eines Postens, der zwei verlangt, und ob das zulässig ist, entscheidet der Vertrag (SEC-01). **Heute gebaut:** `ersatz_besetzung` ersetzt die Sollstärke, und die Mindestbesetzung wird auf `min(min, ersatz)` MITGESENKT (`besetzungMitAusnahme`), damit keine Schicht entsteht, die per Konstruktion unterbesetzt gemeldet wird (`min > soll` wäre genau das) und die reduzierte Nacht in `/dienstplan/offene-schichten` nicht als Notfall erscheint, den niemand beheben kann. Die Gegenrichtung — Minimum stehen lassen und die Nacht dauerhaft rot melden — ist die andere denkbare Antwort, und sie gehört dem Kunden. | SEC-01, TIM-02, O-210, 0069 §6.4, `services/dienstplan/vorkommnisse.ts`, `tests/kern/dienstplan-ausnahme-staerke.test.ts` |
+| O-861 | **In welcher Einheit wird erfasste Zeit zur Abrechnung freigegeben — je Eintrag, je Woche, je Person, je Monat —, und lässt sich eine erteilte Freigabe zurücknehmen, solange nichts abgerechnet ist?** Hängt an O-39 (gibt es den Schritt überhaupt). Ausgeliefert ist die feinste Einheit — je EINTRAG, aus der sich jede gröbere bilden lässt — und KEINE Rücknahme: was freigegeben ist, kann in ein Stundenkonto geflossen sein, und ein stilles Zurückdrehen änderte eine Zahl, die ein Mensch schon in der Hand hatte (Invariante 8). Offen bleibt zusätzlich, ob eine Freigabe in einen bereits abgeschlossenen Stundenkonto-Monat zulässig ist; die Seite kennzeichnet diese Zeilen und sperrt sie nicht. | TIM-12, FIN-07, FIN-18, EMP-04, O-39, `drizzle/0366`, `services/zeit/abrechnungsfreigabe.ts`, `portal/[mandant]/zeiten/freigabe` |
+
+**Agenten, Freigaben, Radar**
+
+| # | Frage |
+|---|---|
+| O-720 | Should a search profile be archivable — and what then happens to the evaluations it produced: do they stay readable under the profile name, or disappear from the radar? |
+| O-721 | Against which edition of the official NUTS list are a search profile's region prefixes to be validated — and should a prefix that matches the form but designates no region be rejected, or only flagged? |
+
+**Vertrieb**
+
+| # | Frage | Wirkt in |
+|---|---|---|
+| O-730 | **Which of the order-closure findings BLOCK the closure, and which must only have been seen?** FIN-18 itself is decided (D-366/D-367: it warns, may be overridden with a logged reason of at least ten characters, and must bite before the invoice number is drawn). The other seven findings of the pre-closure checklist — time entries without release, released time never invoiced, signed Leistungsnachweise without an invoice, invoice drafts, Aufmasse without countersignature, Nachtraege without a decision, Leistungszeilen without billing configuration — have no stated bindingness anywhere. Until answered, **none blocks**, all warn, and the page says so in every row. Inventing a block would be worse than none: it would hold up work nobody wanted held up, and the way around it would become a habitual click. | `services/auftrag/abschluss.ts`, `drizzle/0299`, `/auftraege/[id]/abschluss`, FIN-18, D-366, D-367, O-20 |
+| O-731 | **Which Zeitwerte (minutes per unit) and which Standardeinzelpreise apply per Leistungskatalog position, and who releases them?** This is the position side of the same gap as O-17 (Leistungswerte per Belagsart) and additionally covers the time value and the standard price. The CHECK `lkp_kalkulierbar` does not allow a position without any of the three values, so „do not invent a value" cannot mean „leave it NULL": every position carries a clearly marked placeholder with `ist_platzhalter = true` (the column's default), the list shows the placeholder share per Fassung, and the confirm tick says explicitly „for THIS Fassung" — it does not answer O-17 or this row. | `services/katalog/index.ts`, `/leistungskatalog`, `/leistungskatalog/[id]`, OPS-06, CLN-05, O-17, O-16, O-37 |
+| O-732 | **May a granted Preisfreigabe be revoked while the offer has not yet been sent — and if so, by whom and under what logging duty?** The release became its own step when `versendeAngebot` was split (`angebot.preis_freigeben` vs `angebot.versenden`), and with it the question of taking it back. Until answered it is **immutable**: `kern.angebot_preisfreigabe_pruefen` rejects any change to `freigegeben_von`/`freigegeben_am` once set, and a different price needs a new offer version — the same shape as invariant 4. Allowing a revocation would be an invented rule; allowing it silently would be an invented rule without a trace. | `drizzle/0295`, `services/angebot/index.ts` (`gibPreisFrei`), `/angebote/[id]/freigabe`, invariant 4, invariant 7 |
+| O-734 | **Must a closed order be re-openable (Nachtrag, warranty case) — and what then happens to the FIN-18 warning the closure armed?** `pruefeZeiterfassung` reads `status = 'abgeschlossen' or abgeschlossen_am is not null` as the signal that arms the FIN-18 block in the invoice path (D-366). A silent re-opening would therefore disarm a warning somebody deliberately decided on, and leave no trace. Until answered the closure is **one-way**: `abgeschlossen_am` is immutable and the status cannot leave `abgeschlossen`; correction runs through a Nachtrag or a new order. | `drizzle/0296`, `services/auftrag/abschluss.ts`, `/auftraege/[id]/abschluss`, FIN-18, D-366, D-367 |
+| O-735 | **Is the customer's Referenzfreigabe time-limited (how long does the permission hold), and does a revocation work retroactively** — must already-published references be taken down, or only no new ones created? The order row keeps the proof either way: `freigabe_widerrufen_am` is the field that counts, and `auftrag_referenz_idx` reads it that way (`freigegeben_vom_kunden AND freigabe_widerrufen_am IS NULL`). Until answered, a revocation removes **no** `referenz` row — PRO-05 keeps the two acts apart, and `referenz` deliberately carries no foreign key to `auftrag`. A revocation is not a dead end either: `freigegeben_vom_kunden` stays `true` (the CHECK requires it), and a fresh customer statement clears `freigabe_widerrufen_am` and takes effect again — the customer may change their mind twice. The revocation reason goes to the audit log (`auftrag.kundenfreigabe_widerrufen`), never into `freigabe_text`: that column holds the customer's own wording and is the proof PRO-05 relies on. | `drizzle/0296`, `services/auftrag/kundenfreigabe.ts`, `/auftraege/[id]/kundenfreigabe`, PRO-05 |
+| O-736 | **Which document categories may EVER be released to a customer?** DOC-01 lists `mitarbeiter` and `buchhaltung` alongside the customer-facing ones; releasing a payslip or a bank statement to a customer must be impossible, not merely unusual. Today the database checks only the right (`dokument.kunde_freigeben`, `drizzle/0297`), so the release screen names the category prominently and the audit entry records it with every switch. A release without `kunde_id` is rejected outright. | `drizzle/0297`, `services/dokument/kundenfreigabe.ts`, `/dokumente/[id]/kundenfreigabe`, DOC-01, DOC-03, DOC-04, O-671 |
+| O-737 | **Does a later change to `raum.flaeche_qm` or `raum.belagsart_id` affect running offers and orders** — must the Kalkulation be recomputed and the customer informed — **or does it apply only to future calculations?** Both values feed every cleaning price (OPS-02, OPS-07) and every Revier target time, so one measurement moves numbers in several other places. Until answered the room sheet changes only the room, and it shows underneath **what hangs on it**: the Richtzeit this room contributes, its Reviere with their overrides, and its import history. Blocking the change would be wrong — a re-measured room is the truth, and the numbers beside it are what must follow. | `services/raumbuch/raum.ts`, `services/kalkulation/raumbuch.ts` (`ladeRaumRichtzeit`), `/objekte/[id]/raumbuch/[raumId]`, OPS-02, OPS-03, OPS-07 |
+
+**Mitarbeiterportal**
+
+| # | Frage | Wirkt in |
+|---|---|---|
+| O-740 | Bis wann NACH Schichtende darf eine Kraft noch zu dieser Schicht erfassen (Foto, Wachbucheintrag, Leistungsnachweis, Bautagebuch)? `app.eigene_einsatz_objekte`/`_projekte` verlangen heute `ende_zeitpunkt >= now()` (0004), also schliesst die Erfassung mit der Minute des Schichtendes; CLN-04 laesst den Kunden aber AM ENDE der Schicht unterschreiben. Bis zur Antwort gilt die enge Auslegung, und die vier Schichtseiten nennen den Grund auf dem Bildschirm statt ein Formular anzubieten, das scheitert. | `drizzle/0300_mitarbeiter_schicht_m1_lesen.sql:145` |
+| O-741 | Soll der Auftraggeber den Leistungsnachweis zusaetzlich handschriftlich auf dem Bildschirm zeichnen, oder gilt eine getippte Namensangabe mit Serverzeit und Pruefsumme als ausreichend? Heute wird der Name getippt und mit `zeitabweichung_sek` und dem Digest des Abzugs festgehalten (0066); eine Zeichenflaeche braeuchte JavaScript, und die Geraete sind alte Diensttelefone im Treppenhaus. | `src/app/api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift/route.ts:31` |
+| O-750 | **Welcher Bereichston (DESIGN §1, Kontrast nach DESIGN §9) gilt fuer eine fuenfte Gesellschaft — und darf ihr oeffentliches Profil freigeschaltet werden, bevor er eingetragen ist?** Seit 0336 entsteht die Identitaetszeile jeder Gesellschaft, auch ohne Eintrag in DESIGN §1; `identitaets_token` bleibt dann NULL, `platzhalter_medien` steht auf `true` und `oeffentlich_sichtbar` auf `false`. Eine Ersatzfarbe wird an keiner Stelle gewaehlt: `farbeVon()` gibt `null` zurueck und nicht Grau, und `/einstellungen/identitaet` nennt den Grund. Ein CHECK, der die Freischaltung ohne Token verbietet, ist bewusst NICHT gesetzt — das waere eine erfundene Geschaeftsregel. | TEN-07, TEN-08, DESIGN §1/§9, `drizzle/0336`, `services/mandant/identitaet.ts` |
+| O-830 | **Darf eine Mitarbeiterin im Portal von sich aus eine Nachricht schreiben — und an wen?** Antworten funktioniert vollstaendig (0350): wer angeschrieben wird, schreibt zurueck, und die Empfaenger ergeben sich aus dem Faden. Beim ERSTEN Brief gibt es diese Antwort nicht — sie waere eine Empfaengerliste, und die zusammenzustellen heisst zu entscheiden, wen eine Reinigungskraft erreichen darf: nur die Einsatzleitung des laufenden Einsatzes, jede Leitung ihrer Gesellschaft, die Verwaltung, jedes Konto? Das ist eine betriebliche Festlegung mit Folgen fuer die Erreichbarkeit der Leitung. Die Datenbank stuende bereit: `nachricht.versenden` ist an die Rolle `mitarbeiter` gebunden (0008), `eroeffneFaden` schreibt intern und im Portal. Heute gilt: kein Eroeffnen; die Seite sagt es als Satz an der Stelle, an der der Knopf staende (`EIGENER_FADEN_MOEGLICH = false`). | `services/mitarbeiter/nachricht.ts`, `/portal/mein/nachrichten`, `drizzle/0350`, `drizzle/0008`, EMP-11, K-19 |
+| O-831 | **Darf eine Mitarbeiterin die Anlage einer internen Nachricht im Portal oeffnen?** Die ANZAHL der Anlagen ist im Personen-Scope lesbar (`t_anhang_eigene`, 0231) und steht an jeder Fadenzeile — eine Nachricht mit Anlage, die aussieht wie eine ohne, waere die schlechtere Antwort. Die DATEI haengt an `dokument`, und dort gibt es fuer den Personen-Scope keinen permissiven Lesepfad; einen zu setzen ist eine Entscheidung ueber Anlagen und nicht ueber Policies. Dieselbe Frage stellt O-671 fuer das Kundenportal, sie gehoert aber je Portal beantwortet: ein Dienstplan-PDF an die Kraft ist etwas anderes als eine Kalkulation an den Kunden. Offen ist zusaetzlich, fuer welche `dokument.kategorie` das gelten soll (vgl. O-736). Heute gilt: Zahl ja, Datei nein (`ANLAGEN_ABRUFBAR = false`). | `services/mitarbeiter/nachricht.ts`, `/portal/mein/nachrichten/[id]`, `drizzle/0231`, `drizzle/0350`, O-671, O-736, DOC-01, DOC-03 |
+| O-850 | **What makes a document „concern THIS person"?** `/portal/mein/dokumente` promises the papers relevant to one human, but `dokument` carries `kunde_id`, `objekt_id` and `formular_eingang_id` — no `person_id`, no `anstellung_id` (`drizzle/0009`). Any person-scoped selection would therefore be guessed, and in the expensive direction: a payslip in the wrong colleague's portal. Until answered the page shows exactly what the RLS pair `p_ma_ceiling` + `t_person` releases — the documents the company released to its WORKFORCE — and says so on screen in all four languages. Answering it positively needs a column, a policy and a release step, not a query change. | `services/mitarbeiter/dokumente.ts`, `/portal/mein/dokumente`, `/portal/mein/dokumente/[id]`, `drizzle/0009`, EMP-11, DOC-03, DOC-04, D-06, O-851 |
+| O-851 | **Which of the nine document categories (DOC-01) may EVER be released to the workforce?** The database checks only the release flag `sichtbar_fuer_mitarbeiter`, never the category — a `rechnung` or a `mitarbeiter` document can be switched visible today. This is the staff-side twin of O-736 (customer side). Until answered nothing is blocked, and the category is shown prominently in the list and on the sheet, in the worker's language: the visible category is the place where a wrong release is noticed — by the worker and by the office. | `services/mitarbeiter/dokumente.ts`, `/portal/mein/dokumente`, `drizzle/0009`, DOC-01, DOC-04, O-736, O-850 |
+| O-852 | **How long does an object stay in `/portal/mein/objekte` after the last shift there?** Today: for ever — somebody who wants to look up the address of the week before last would otherwise not find it any more. What does NOT stay is the access note: it follows `app.ist_eingesetzt_auf_objekt` (`drizzle/0069`) and ends with the last shift that has not yet finished, the same boundary the shift pages use. A retention window on the list is a separate decision from the access window (O-211) and is not invented here. | `services/mitarbeiter/objekte.ts`, `/portal/mein/objekte`, `drizzle/0028` (`objekt.t_person`), `drizzle/0069`, EMP-02, OPS-01, O-211 |
+| O-853 | **Which contact details of the on-site Ansprechpartner may an assigned worker see — name and landline, or the mobile number as well, and does it hold outside the assigned hours?** 04-SEITENKARTE §7 says „contact" without naming a channel, and `ansprechpartner` is customer data the employee portal otherwise keeps out (EMP-13). Until answered the page shows name, landline and mobile — as `tel:` links, because a phone on a service phone is the point — and only while `app.mein_objekt_zugang` answers (`drizzle/0360`), i.e. only while the person is assigned. The e-mail address is deliberately NOT shown: a mail address is a channel, and channels to customer contacts hang on `rechtsgrundlage`/`einwilligung_kanaele` (§7 UWG). | `drizzle/0360`, `services/mitarbeiter/objekte.ts`, `/portal/mein/objekte/[id]`, EMP-02, EMP-13, OPS-01, K-05 |
+
+**Gruppenansicht**
+
+| # | Frage | Wirkt in |
+|---|---|---|
+| O-870 | **Wenn zwei Gesellschaften der Gruppe dieselbe Bekanntmachung hoch bewerten — wer bietet?** `/portal/gruppe/radar` macht den Sachverhalt zum ersten Mal sichtbar: die Reinigung sieht ihre Bewertung, die Security ihre, und keine von beiden sieht die andere. Ob dann eine allein bietet, beide getrennt, oder beide als Bietergemeinschaft, und wer das entscheidet, ist eine Regel des Hauses — vergaberechtlich ist sie nicht gleichgültig (§ 124 GWB, wettbewerbsbeschränkende Abreden zwischen verbundenen Unternehmen). Die Seite zählt „Mehrfach im Blick“, markiert die Zeile und schlägt nichts vor. | RAD-07, REP-06, TEN-05, `src/app/portal/gruppe/radar/page.tsx` |
+| O-871 | **Soll ein Termin einem Team gehören können?** `04-SEITENKARTE.md` §6 verspricht für `/portal/gruppe/kalender` einen Filter „nach Bereich, Team und Person“, und `06-RADAR-KI-INHALT.md` §7.3/§7.4 sehen dafür `kalender_eintrag.team_id` und eine Tabelle `kalender_teilnehmer` vor. Gebaut ist keines von beiden; Teambezug trägt heute nur die Schicht (`einsatz_zuordnung` → `team_mitglied`). Der Teamfilter ist deshalb vollständig gebaut und greift auf Schichten; die Seite sagt es („nur Schichten (O-871)“). Eine Spalte anzulegen, die kein Schreibweg füllt, wäre ein Filter, der immer leer antwortet. | CAL-02, `06-RADAR-KI-INHALT.md` §7.3/§7.5, `drizzle/0230` |
+| O-872 | **Welches Recht trägt den Personenblick im Gruppenkalender?** Heute: `gruppe.personal.lesen` (schaltet die Personenliste frei) zusammen mit `gruppe.dienstplan.lesen` (gibt die Schichten je Bereich frei) — genau die Kombination, die schon `/portal/gruppe/personen` und die ArbZG-Befunde auf `/portal/gruppe/dienstplan` trägt (D-09: das Gesetz zählt je Person über die Gesellschaften). Offen ist, ob dieser Blick ein eigenes Recht bekommen soll, weil er feiner ist als beide: er zeigt nicht nur DASS jemand in zwei Gesellschaften arbeitet, sondern WANN. Die Voreinstellung der Seite zeigt keinen Personenbezug; der Filter ist ein ausdrücklicher Suchweg, und ohne die Rechte erscheint er gar nicht. | CAL-02, D-09, TEN-05, `src/server/services/gruppe/kalender.ts` |
 
 ---
 
@@ -5184,6 +5381,8 @@ niemand ihn suchen.
 | O-512 | **Soll `/karriere` in die Sitemap — und soll es englisch werden?** Die Sitemap kommt aus der DATENBANK (`seite`-Zeilen, PUB-10), nicht aus `OEFFENTLICHE_ROUTEN`; sie meldet der Suchmaschine, welche Seiten es GIBT, und eine Route ohne veroeffentlichte `seite`-Zeile rendert 404. `/karriere/*` ist dagegen im Code gebaut (REC-03) und hat keine `seite`-Zeile — es steht damit weder in der Sitemap noch auf Englisch. Fuer eine Karriereseite ist das Erste eine echte Einbusse: wer eine Stelle sucht, sucht sie bei Google. Die Copilot-Runde auf PR 16 meldete es als Verstoss gegen den zweisprachigen Vertrag (D-82). **Zwei Fragen, die der Auftraggeber beantwortet:** (a) Sollen im Code gebaute oeffentliche Routen in die Sitemap aufgenommen werden — und wenn ja, welche, und wie erfaehrt die Sitemap von ihnen, ohne eine zweite Liste zu werden, die veraltet? (b) Soll `/karriere` uebersetzt werden, samt Stellendetail, Formular und Dankseite, oder bleibt der Karrierebereich deutsch (Berliner Baustellen, deutschsprachige Teams)? **Heute ehrlich gemacht:** `NUR_DEUTSCH` nennt den Baum, `gibtEsIn()` haelt den Sprachumschalter und `hreflang` davon ab, eine englische Fassung zu behaupten, die es nicht gibt (D-583), und `sprachpfade.test.ts` faellt, sobald jemand uebersetzt, ohne den Eintrag zu entfernen. | REC-03, PUB-10, D-82, D-583, `services/inhalt/sitemap.ts`, `lib/sprache.ts` |
 | O-511 | **Soll der Versand an fremde Plattformen einen Ausgangskorb mit Idempotenzschlüssel bekommen, bevor der erste Kanal verbunden wird?** `sendeKanaele` (`services/social/dienst.ts`) ruft den Adapter INNERHALB der Geschäftstransaktion und schreibt `beitrag_kanal` danach. Bricht die Transaktion nach dem Adapter, aber vor dem Commit ab (Prozessende, ein späterer Kanal wirft), steht der Beitrag draussen, die Zeile sieht aber unversandt aus — und der nächste Versuch schickt ihn noch einmal. `BeitragAuftrag` kennt keinen Idempotenzschlüssel, den eine Plattform prüfen könnte. Gemeldet hat das die Copilot-Runde auf PR 16. **Heute ohne Wirkung:** alle fünf Plattformen sind absichtlich unverbunden (O-10) und antworten `nicht_verbunden`, einem terminalen Zustand ohne Nebenwirkung. Die richtige Form ist ein Ausgangskorb (`beitrag_versand` mit `idempotenz_schluessel`, Zustellung ausserhalb der Geschäftstransaktion, Abgleich danach) — das ist ein eigener Schritt mit Schema, Lauf und Tests, keine Zeile in `sendeKanaele`. Er gehört zu dem Zeitpunkt, an dem O-10 beantwortet ist und der erste Adapter echt wird; vorher wäre er ein Korb ohne Empfänger. | SOC-07, O-10, D-572, `services/social/dienst.ts` |
 | O-509 | **Welche KI-Endpunkte deckt der Auftragsverarbeitungsvertrag ab?** Der Adapter zerlegt `OPENAI_BASE_URL` und lässt nur `https` und einen Wirt aus einer Liste durch; in der Liste steht heute `eu.api.openai.com`, der Endpunkt, den OpenAI für EU-Datenresidenz nennt. Ob der AV-Vertrag des Kunden genau diesen abdeckt, ob er weitere abdeckt (Azure OpenAI in einer EU-Region hat je Ressource einen eigenen Wirt) und ob Nullspeicherung vertraglich zugesagt ist, weiss der Kunde — nicht diese Datei. Bis zur Antwort kommt jeder andere Wirt als `RESIDENCY_BLOCKED` zurück; ergänzen lässt sich die Liste über `OPENAI_EU_HOSTS`, und diese Variable zu setzen ist eine Entscheidung, die in die Verfahrensdokumentation gehört. | D-04, §8, `versand/modell-openai.ts`, D-509 |
+| O-596 | **Welche Recherchequelle soll für die Akquise beauftragt werden — oder keine?** §12 der Auftragsbeschreibung wünscht einen Agenten, der selbstständig nach möglichen Auftraggebern sucht. Der naheliegende Weg — Firmenverzeichnisse und Portale automatisiert auslesen — ist ausgeschlossen: er verletzt deren Nutzungsbedingungen (CLAUDE.md, „Out of scope") und erzeugt nach **Art. 14 DSGVO** für jeden erfassten Ansprechpartner eine Informationspflicht binnen eines Monats. Eine Liste mit 5.000 Namen wäre also 5.000 Briefe, bevor überhaupt jemand angerufen wurde. **Heute gebaut:** die Schnittstelle (`services/akquise/quelle.ts`) mit vier Quellenarten — `manuell`, `register` (amtliches Handelsregister), `dienstleister` (Datenanbieter mit AV-Vertrag) und `vergabe_radar` (die Plattform hat ihn ohnehin). **Keine ist verbunden**, `KeinRechercheur` wirft, statt eine leere Liste zu geben, und ein Lauf ohne Quelle wird als `uebersprungen` MIT Grund protokolliert — nicht als „0 Treffer". `akquise_ziel` speichert ausserdem **keine Personendaten**; das erzwingt schon der Typ `Fund`, durch den ein Name gar nicht passt. Die Frage ist kaufmännisch und juristisch, nicht technisch: welche Quelle wird beauftragt, und deckt ihr Vertrag die Verwendung zur Ansprache? | §12, `services/akquise/quelle.ts`, `drizzle/0172`, Art. 14 DSGVO, O-34 |
+| O-548 | **Zählt eine Projektschau zu den „Neuigkeiten" einer Gesellschaft?** `04-SEITENKARTE.md` §2.2 führt `/unternehmen/<bereich>/beitraege` und `/unternehmen/<bereich>/news` als zwei Adressen, und `beitrag_art` (SOC-02) kennt vier Arten: `beitrag`, `projektschau`, `neuigkeit`, `aktualisierung`. Die Karte sagt nicht, welche Art in welcher Liste steht. **Heute gewählt:** `/news` zeigt `neuigkeit` und `aktualisierung` — das, was eine Gesellschaft ankündigt —, `/beitraege` zeigt alles Veröffentlichte, und eine `projektschau` hat mit `/projekte` ohnehin ihre eigene Liste. Die Trennung steht an EINER Konstante (`NEUIGKEITS_ARTEN`), nicht an einer zweiten Spalte, die jemand pflegen müsste; sie umzustellen ist eine Zeile. Die Frage ist redaktionell und nicht technisch: wenn die Gruppe eine Projektschau als Neuigkeit versteht, gehört sie in beide Listen. | SOC-02, SOC-05, PRO-04, SEITENKARTE §2.2, `services/social/dienst.ts` |
 | O-502 | **Welche Kostenarten gehören in die Projektmarge (REP-05)?** Heute: Lohn (freigegebene Zeiteinträge zum internen Stundensatz aus `anstellung.stundensatz_intern`) plus Fremdleistung (Eingangsrechnungen mit Projektbezug). Nicht enthalten: Material ohne Rechnungsbezug, Gerätestunden und ein Gemeinkostensatz — und ob es einen geben soll, ist die eigentliche Frage: ein Zuschlag je Gesellschaft, ein Satz je Gewerk, oder gar keiner (dann ist die Zahl ein Deckungsbeitrag und keine Marge, und sollte so heissen). Bis zur Antwort nennt die Seite die Zahl „Kosten (Näherung)" und sagt unter der Tabelle, was fehlt — eine Marge, die so tut, als wäre sie die Nachkalkulation, wird in ein Angebot übernommen. | REP-05, `bericht/kennzahlen.ts`, D-506 |
 
 ### Vier Befunde, die ausserhalb dieser Datei liegen
@@ -13318,4 +13517,863 @@ zur Kommentarliste. Was dort unter „suppressed" steht, ist nicht erledigt,
 sondern ungelesen — und in dieser Runde lag dort der grössere Teil.
 
 | Betrifft | LEG-09, SEC-A9, AUT-02, K-15, O-373, O-514, D-580, D-586, D-587, D-588, D-589, `api/datenschutz/*`, `services/datenschutz/verzeichnis.ts`, `registry/verarbeitungen.ts`, `tests/e2e/datenschutz-dokumente.spec.ts` |
+|---|---|
+
+---
+
+### D-602 · Die Gruppenlisten zeigen echte Zeilen, nicht „Hier stehen bald Referenzen"
+
+**Der Befund.** `/projekte` trug den Abschnitt „Hier stehen bald Referenzen",
+`/news` den Abschnitt „Noch keine Beiträge". Beides stimmte nicht: vier
+freigegebene Referenzen und sechzehn Beiträge standen auf den vier
+Gesellschaftsprofilen. Ein Besucher, der über die Gruppenseite kam, las also, es
+gebe nichts — zwei Klicks von dem entfernt, was es gab.
+
+Der Fehler ist nicht, dass die Texte falsch waren, als sie geschrieben wurden.
+Er ist, dass ein redaktioneller Platzhalter keinen Wecker stellt: er bleibt
+stehen, bis jemand zufällig hinsieht. Die Liste darunter kommt jetzt aus den
+Fachtabellen, und sie ist leer oder gefüllt, je nachdem wie die Wirklichkeit ist.
+
+**Jede Zeile führt zur KANONISCHEN Adresse bei ihrer Gesellschaft** —
+`/unternehmen/<bereich>/projekte/<slug>`. Die Gruppenliste ist eine Übersicht,
+kein zweiter Ort für denselben Text. Zwei Adressen für einen Inhalt wären zwei
+Einträge im Suchindex und eine Entscheidung, welcher der richtige ist, die
+niemand trifft. §2.2 der Seitenkarte legt die kanonische Adresse fest; diese
+Liste hält sich daran, statt sie zu verdoppeln.
+
+**Der redaktionelle Abschnitt bleibt — er wird zur Einleitung.** „Wir zeigen ein
+Projekt erst, wenn der Kunde der Nennung schriftlich zugestimmt hat" ist auf
+einer gefüllten Liste genauso wahr wie auf einer leeren, und es ist die Antwort
+auf die Frage, die ein Besucher vor einer kurzen Referenzliste stellt. Der
+Unterschied zum alten Text ist die Richtung: er erklärt jetzt, warum die Liste
+ist, wie sie ist, statt sich für ihr Fehlen zu entschuldigen.
+
+**Gelesen wird nur auf diesen beiden Pfaden.** Die Abfrage steht hinter
+`pfad === '/projekte'`; eine Abfrage auf jeder öffentlichen Seite wären dreizehn
+Abfragen für zwei Listen.
+
+**`<a>` statt `<Link>`, und das ist kein Rückschritt.** `typedRoutes` prüft
+`href` gegen die bekannten Routen und nimmt keine zur Laufzeit gebaute
+Zeichenkette an — `mitSprache()` gibt genau eine. Dieselbe Bauart wie in
+`Auswahl.tsx` und `ProfilTabs.tsx`; auf einer öffentlichen Seite ist der
+vollständige Seitenwechsel ohnehin richtig. Gefunden hat das der Next-Build, den
+`npx tsc --noEmit` nicht ersetzt: die Routentypen entstehen erst beim Bauen.
+
+### D-601 · Das CRM bekommt seine Schreibwege — und die Rechtsgrundlage steht in der Mitte
+
+**Der Befund.** Das CRM-Fundament stand seit Phase 4 vollständig: Kunden,
+Kontakte, Leads, Verlauf, und vor allem das UWG-Tor, das jede Werbenachricht an
+einen Kontakt ohne erfasste Rechtsgrundlage in der Datenbank selbst abweist.
+Benutzbar war davon nur die Leseseite. Weder ein Lead noch ein Kunde noch ein
+Kontakt liess sich im Portal anlegen; `crm/leads/neu` und `crm/kunden/neu` waren
+Platzhalterdateien, die „wird noch gebaut" sagten.
+
+Ein CRM, in dem man keinen Kunden anlegen kann, ist eine Liste.
+
+**Was gebaut wurde, ist gewöhnlich. Wo es steht, ist die Entscheidung.**
+
+Die Rechtsgrundlage ist kein Feld unter „Sonstiges". Aus ihr zieht
+`app.darf_kontaktiert_werden` seine Antwort, und die entscheidet, ob eine
+Werbenachricht hinausgeht oder abgewiesen wird (§7 UWG, LEG-08). Sie steht
+deshalb als eigener Kasten mitten im Formular, mit dem Satz daneben, was sie
+bewirkt — und nicht als letztes Pflichtfeld, das jemand wegklickt.
+
+**Die Vorgabe ist `keine`, und das ist der sichere Zweig.** Ein Kunde ohne
+Grundlage steht in der Liste, lässt sich bebuchen und berechnen — und bekommt
+keine Werbung. Wer die Grundlage kennt, trägt sie ein; wer sie nicht kennt, soll
+nicht raten. Der umgekehrte Vorgabewert („Bestandskunde", weil es meistens
+stimmt) wäre die bequeme Wahl und im Streitfall die teure.
+
+**Wer eine Grundlage angibt, muss ihre QUELLE nennen.** Der CHECK
+`kunde_grundlage_belegt` erzwingt es ohnehin; der Dienst sagt zusätzlich, warum:
+eine Einwilligung, von der niemand sagen kann, wann und wo sie erteilt wurde,
+ist in einer Abmahnung nichts wert.
+
+**Und eine Einwilligung ohne Kanäle wird abgewiesen.**
+`app.darf_kontaktiert_werden` prüft bei `rechtsgrundlage = 'einwilligung'`, ob
+der Kanal in `einwilligung_kanaele` steht — eine leere Liste heisst also: jeder
+elektronische Weg gesperrt. Technisch richtig, als Eingabe fast immer ein
+Versehen. Der Dienst weist es deshalb ab, statt es stillschweigend zu
+übernehmen: „eine Einwilligung in nichts" ist der Satz, den der Mensch davor
+liest.
+
+Der Isolationsfall prüft nicht, dass gespeichert wurde, sondern dass es **bis
+zum Tor durchschlägt**: ein frisch angelegter Kontakt ohne Grundlage ist
+nachweislich nicht anschreibbar, und einer mit Einwilligung für `email` ist es
+per Mail und nicht per Telefon.
+
+**Die Kundennummer ist kein Nummernkreis.** Dieselbe Begründung wie bei der
+Leadnummer (K-12): die lückenlose Kette gehört Rechnungen, wo eine Lücke ein
+GoBD-Befund ist. Ein Kunde ist kein Beleg, und ein abgebrochenes Formular darf
+eine Nummer verbrauchen. Sie entsteht in derselben Anweisung wie der `insert` —
+getrennt gerechnet bekämen zwei gleichzeitige Anlagen dieselbe Zahl, und die
+zweite fiele auf `kunde_nummer_uk` mit einem Fehler, den der Mensch davor nicht
+versteht. Und sie zählt **je Gesellschaft**: es sind vier Unternehmen, und ein
+plattformweiter Zähler verriete nebenbei, wie viele Kunden die Schwester hat.
+
+**Der Lead von Hand trägt KEINE Frist.** `sla_stunden` hängt an einem Formular
+und daran, was dem Anfragenden zugesagt wurde. Für einen Lead aus einem
+Telefonat eine zu erfinden hiesse, eine Geschäftsregel per Vorgabewert zu wählen
+(O-14) — und die REQ-06-Eskalation liefe dann auf einen Vorgang, für den niemand
+eine Frist versprochen hat. Der Bildschirm sagt das, statt die leere Spalte
+unerklärt zu lassen.
+
+**Seine erste Aktivität ist `intern`, nicht `ausgehend`.** Derselbe Grund wie in
+`annahme.ts`: `kern.setze_erste_reaktion()` stempelt auf die erste ausgehende
+Aktivität, und ein frisch eingetragener Lead wäre sonst in der Sekunde seiner
+Entstehung „beantwortet".
+
+**Ein Verlust trägt einen Grund — beide Verlustzustände.** `kein_bedarf` ist für
+die Auswertung genauso ein Verlust wie `verloren`, und eine Pipeline, in der die
+Hälfte der Verluste „ohne Grund" heisst, beantwortet keine einzige Frage.
+
+**Das Kontaktformular steht auf der Kundenseite, nicht auf einer eigenen
+Adresse.** Ein Ansprechpartner gehört zu einem Kunden; ihn auf einer leeren
+Seite anzulegen hiesse, den Kunden noch einmal auszuwählen — aus einer Liste, in
+der man gerade stand.
+
+### D-600 · Die zwei gesetzlichen Pflichtwege der Website — mit einem Empfänger
+
+**Der Befund.** `04-SEITENKARTE.md` §2.4 führt seit Phase 2 drei öffentliche
+Adressen, die das Gesetz verlangt: `/datenschutz/anfrage`,
+`/datenschutz/anfrage/danke` (Art. 15–21 DSGVO) und
+`/barrierefreiheit/feedback` (BFSG). Alle drei antworteten mit 404. Die
+Barrierefreiheitserklärung nannte ersatzweise eine E-Mail-Adresse; für die
+Betroffenenrechte gab es gar nichts.
+
+**Die Reihenfolge war die eigentliche Entscheidung: zuerst der Empfänger, dann
+das Formular.** Die Seitenkarte sagt es in einem Satz, der es wert ist,
+wiederholt zu werden:
+
+> Ein öffentliches Formular, das eine Pflicht nach Art. 12 Abs. 3 erzeugt und
+> keinen internen Empfänger hat, ist eine versäumte gesetzliche Frist mit einem
+> Zeitstempel darauf.
+
+Ein Formular, das in kein Postfach führt, ist schlechter als der 404: der 404
+verspricht nichts.
+
+**Zwei Tabellen und nicht eine.** Beide Formulare erzeugen eine Antwortpflicht,
+und sie sind trotzdem verschieden:
+
+| | `betroffenenanfrage` (0176) | `barrierebericht` (0177) |
+|---|---|---|
+| Grundlage | Art. 12 Abs. 3 DSGVO | BFSG / EU 2019/882 |
+| Frist | **ein Monat**, verlängerbar um zwei | keine gesetzliche |
+| Empfänger | `datenschutz.auskunft_erstellen` | `referenz.schreiben` — wer die Seite ändern kann |
+| Kontaktdaten | Name und E-Mail **Pflicht** (die Antwort muss ankommen) | **freiwillig** (siehe unten) |
+
+Sie zusammenzulegen hiesse, die Monatsfrist auf etwas anzuwenden, für das sie
+nicht gilt — und eine Barrieremeldung im Datenschutzpostfach liegen zu lassen,
+wo sie niemand beheben kann.
+
+**Die Monatsfrist ist ein MONAT und keine dreissig Tage.** Vom 31. Januar
+gerechnet ist das der 28. Februar; `+ interval '30 days'` gäbe den 2. März —
+zwei Tage nach der gesetzlichen Frist, und eine überschrittene Frist ist ein
+eigener Verstoss, unabhängig davon, wie die Anfrage am Ende beschieden wird.
+
+Der erste Entwurf schrieb sie als generierte Spalte, und Postgres wies ihn ab:
+„generation expression is not immutable". Zu Recht — `timestamptz + interval
+'1 month'` hängt an der Zeitzone, und welcher Kalendertag einen Monat später
+ist, ist in Berlin etwas anderes als in UTC. Sie wird deshalb von einem Auslöser
+gesetzt, der die Zone **ausschreibt**; über den Sommerzeitwechsel bleibt es bei
+derselben Ortszeit, weil „ein Monat später, 12 Uhr" für einen Juristen 12 Uhr
+Ortszeit heisst.
+
+**Das Auskunftsformular fragt absichtlich wenig.** Kein Geburtsdatum, keine
+Anschrift, keine Kundennummer. Der naheliegende Weg wäre, all das „zur
+Identitätsprüfung" zu verlangen — und das kehrt den Zweck um: ein
+Auskunftsersuchen ist der Moment, in dem jemand *weniger* von sich preisgeben
+will. Art. 12 Abs. 6 erlaubt die Nachfrage nur bei **begründeten Zweifeln**, also
+hinterher, im Einzelfall, von einem Menschen. Mehr Daten zu verlangen, als man
+herausgibt, wäre das Gegenteil von Datenschutz, und der Bildschirm sagt das.
+
+**Der Barrieremeldeweg verlangt gar keine Adresse.** Wer eine Antwort möchte,
+hinterlässt eine; wer nur sagen will „diese Tabelle ist mit dem Screenreader
+nicht lesbar", soll das können. Ein Pflichtfeld wäre eine Hürde vor dem Weg, der
+Hürden melden soll. In der internen Liste steht deshalb „anonym" und nicht ein
+leeres Feld — wer den Unterschied nicht kennt, hält die Lücke für einen
+Datenverlust.
+
+**Und dieses eine Formular hat KEINEN Honigtopf.** Die Angebotsanfrage hat einen,
+und das ist dort richtig. Hier wäre selbst ein unsichtbares Zusatzfeld ein
+Risiko: ein Screenreader-Nutzer, dessen Software es doch vorliest und ausfüllt,
+bekäme seine Barrieremeldung verworfen — ohne je zu erfahren warum. Aus demselben
+Grund gibt es kein Ratenlimit und kein Konto davor.
+
+**Beide schreiben über den Eingangsprinzipal**, der `formular.schreiben` hält und
+ausdrücklich kein Leserecht (0016). Eine Übernahme der öffentlichen Fläche
+liefert damit keinen Lesezugriff auf die Liste derer, die eine Auskunft verlangt
+haben — und das ist die Liste, die am meisten verrät.
+
+**Und die Bestätigung des Auskunftsformulars nennt die Frist**, anders als die
+der Angebotsanfrage. Dort ist die Antwortzeit eine Zusage des Unternehmens und
+deshalb eine Entscheidung des Mandanten (O-14, D-599); hier ist sie Gesetz, und
+die betroffene Person hat ein Recht darauf, sie zu kennen. Auch die mögliche
+Verlängerung steht dort — wer sie erst im Verlängerungsschreiben liest, hält sie
+für eine Ausrede.
+
+### D-599 · Ein Browser bekommt eine Seite, ein Programm bekommt JSON
+
+**Der Befund.** Das Angebotsformular hat kein JavaScript — bewusst: ein
+Formular, das ohne Skript nicht abschickt, schliesst genau die Besucher aus,
+für die das BFSG gilt. Es ist also ein reines `<form method="post">`, der
+Browser navigiert zur Zielroute und zeigt an, was zurückkommt. Zurück kam
+`{"ok":true,"leadnummer":"L-…"}`.
+
+Ein Besucher, der gerade um ein Angebot gebeten hatte, sah eine weisse Seite
+mit einer geschweiften Klammer. Das war der letzte Eindruck der Firma bei ihm,
+und der wahrscheinlichste nächste Schritt ist, es noch einmal zu versuchen —
+womit die REQ-05-Warteschlange sich mit Doppeln füllt. `04-SEITENKARTE.md` §2.3
+beschreibt genau diesen Ablauf; gebaut war er trotzdem so.
+
+**Die Weiche ist ein verstecktes Feld, kein Header.** Das Formular trägt
+`antwort=seite`; wer es schickt, bekommt einen `303` auf
+`/angebot/[bereich]/danke?nr=…`, wer es weglässt, bekommt JSON wie bisher. Der
+naheliegende Weg wäre `Accept: text/html` gewesen — aber der Header eines
+Formular-POST sieht je nach Browser verschieden aus, und eine Weiche, die auf
+ihn hört, fällt irgendwann auf die falsche Seite. Ein Feld sagt es ausdrücklich.
+
+Die Programme, die diese Route benutzen, ändern sich dadurch nicht: die vier
+API-Fälle in `tests/e2e/angebot.spec.ts` schicken das Feld nicht und prüfen
+weiterhin JSON — Statuscodes, Feldfehler, die „nicht verbunden"-Meldung des
+Belegspeichers.
+
+**`303`, nicht `302`.** Nach einem POST soll der Browser mit GET folgen, und
+ein Neuladen der Bestätigung darf die Anfrage nicht ein zweites Mal senden.
+
+**Auch der FEHLERweg geht zurück auf eine Seite.** Eine abgewiesene Eingabe
+zeigte dieselbe weisse JSON-Seite — an genau der Stelle, an der jemand etwas
+kaufen wollte. Sie führt jetzt zurück auf das Formular, mit dem Grund im
+Klartext als `role="alert"`. Der Text reist mit und nicht ein Schlüssel: die
+Meldungen entstehen in `formular_definition.felder`, und eine zweite Liste in
+der Oberfläche wäre eine, die ausein­anderläuft.
+
+**Die Dankseite liegt unter `[bereich]` und nicht daneben.** Ein statischer
+Ordner `/angebot/danke` würde vom dynamischen `[bereich]` überdeckt: die Adresse
+sähe aus wie ein Bereich namens „danke", der hat kein Formular, und die
+Bestätigung wäre ein 404 — nachdem der Lead schon geschrieben ist. §2.3 der
+Seitenkarte hat diesen Fall vorausgesehen und deshalb den ganzen Pfad dynamisch
+gemacht.
+
+**Was die Seite NICHT sagt: wann geantwortet wird.** Die Plattform kennt eine
+Frist je Formular (`formular_definition.sla_stunden`), aber ob sie dem Kunden
+genannt werden soll, ist eine Zusage des Mandanten und keine des Entwicklers
+(O-14). Ein „wir melden uns binnen 24 Stunden" auf einer Website ist eine
+Werbeaussage, an der man gemessen wird. Sie nennt stattdessen die
+Vorgangsnummer — das einzige, womit ein Anfragender bei einem Rückruf auf seine
+Anfrage zeigen kann — und trägt `robots: noindex`, weil eine Adresse mit einer
+Vorgangsnummer darin nicht in einen Suchindex gehört.
+
+### D-598 · Eine Absage nennt keinen Grund — und die Datenbank passt darauf auf
+
+**Der Auftrag.** Der Agent soll auf Bewerbungen antworten und senden. Gebaut
+ist die Kette: Entwurf → Freigabe durch einen Menschen → Versand. Die
+schwierige Entscheidung steckt nicht im Ablauf, sondern im Text.
+
+**§ 22 AGG kehrt die Beweislast um.** Wer Indizien für eine Benachteiligung
+vorträgt, zwingt den Arbeitgeber zum Gegenbeweis. Jede Begründung in einem
+Absageschreiben ist ein solches Indiz in spe:
+
+| Der höfliche Satz | Was ein Anwalt daraus macht |
+|---|---|
+| „Wir suchen jemanden mit mehr Berufserfahrung." | Altersindiz |
+| „Das Team passt fachlich besser zusammen." | Indiz für alles Übrige |
+| „Die Sprachkenntnisse reichen für dieses Objekt nicht." | Indiz ethnischer Herkunft |
+| „Wir haben uns für eine andere Bewerbung entschieden." | nichts |
+
+Deutsche Personalpraxis schreibt Absagen deshalb ohne Grund. Das ist kein
+Ausweichen: die Begründung wird sehr wohl festgehalten, nur eben **intern** in
+`einstellungsentscheidung.begruendung` — wo sie im Streitfall den sachlichen
+Grund *belegt*, statt ihn im Brief *angreifbar* zu machen. `entscheide()`
+verlangt sie deshalb weiterhin zwingend.
+
+**Warum ein Auslöser und nicht eine Ermahnung im Handbuch.** Der Text entsteht
+aus einer Vorlage, und die Vorlage nennt keinen Grund. Der gefährliche Weg ist
+der andere: jemand bearbeitet den Entwurf im Browser und ergänzt einen Satz —
+aus Höflichkeit, weil eine Absage ohne Grund unpersönlich wirkt. Genau diese
+Höflichkeit ist das Indiz.
+
+`kern.absage_ohne_grund` (0174) vergleicht deshalb **jedes 30-Zeichen-Fenster**
+der gespeicherten Begründung mit dem Antworttext und weist eine Übernahme ab.
+Nicht gegen eine Wortliste: eine Wortliste verbietet Wörter, und die Begründung
+kann jedes Wort enthalten. Die Grenze von 30 Zeichen ist bewusst — kürzere
+Übereinstimmungen sind Zufall („wir haben uns entschieden"), längere sind
+Übernahme. Ein einfaches `position(grund in text)` fände nur die wörtliche
+Vollkopie, und wer kopiert, kürzt meist.
+
+Der Riegel gilt **nur für die Absage**. Eine Einladung darf jeden Grund nennen;
+eine positive Begründung ist kein AGG-Indiz.
+
+**Eine Antwort an eine Bewerberin geht NICHT durch das UWG-Tor.** §7 UWG regelt
+Werbung. Eine Bewerbung ist eine Kontaktaufnahme *durch* die betroffene Person;
+die Antwort darauf ist vorvertragliche Kommunikation (Art. 6 Abs. 1 lit. b
+DSGVO). Sie durch `app.darf_kontaktiert_werden` zu schicken hiesse, eine Absage
+zu blockieren, weil kein Werbeeinverständnis vorliegt — und eine unbeantwortete
+Bewerbung ist kein Datenschutz, sondern Unhöflichkeit mit AGG-Risiko.
+
+**Gesendet wird nichts, und das steht überall dran.** Es ist kein Postausgang
+verbunden (O-501). Zwei Feinheiten, die beide aus demselben Grundsatz folgen:
+
+- `sende()` **schreibt** den Fehlgrund in `versand_fehler`, statt ihn zu werfen.
+  Ein geworfener Fehler rollt die Transaktion zurück, und dann steht in der
+  Datenbank nichts darüber, dass jemand es versucht hat. Der Personalbereich
+  sähe eine freigegebene Absage ohne jede Spur.
+- Auch der **Entwicklungsdienst** bekommt kein `gesendet_am`. Er nimmt jede Mail
+  an und verschickt keine — er ist der gefährlichere Fall, weil er nicht wirft.
+  Wer nur den Fehler fängt, schriebe hier „zugestellt", und die Bewerberin
+  wartete.
+
+**`freigegeben` heisst nicht `gesendet`.** Der Nachzug
+`app.antwort_folgt_freigabe` setzt den Stand und den Menschen, der entschieden
+hat; dort bleibt die Zeile stehen, bis wirklich etwas hinausgeht. Er zieht auch
+bei einer **Ablehnung** nach — dieselbe Begründung wie bei
+`app.stelle_folgt_freigabe` (0167): ein Ausführer läuft nur auf `genehmigt`, und
+ein abgelehnter Entwurf bliebe sonst auf ewig `wartet_auf_freigabe` stehen, wo
+ihn der eindeutige Index gegen jeden zweiten Versuch sperrt.
+
+**Der Antworttext geht bei der Löschung mit** (REC-07) — als einzige Ausnahme
+von Invariante 8. Er beginnt mit „Sehr geehrte Frau …", trägt also genau den
+Namen, um dessentwillen gelöscht wird. Ohne Kaskade: `jobs/bewerberLoeschung.ts`
+benennt jede abhängige Zeile einzeln, weil LEG-11 einen Nachweis verlangt, und
+eine Kaskade führt keinen.
+
+### D-595 · Die KI-Akquise sucht Firmen, keine Menschen — und sendet nichts
+
+**Der Auftrag.** §12 der Auftragsbeschreibung wünscht einen Agenten, der
+selbstständig nach möglichen Auftraggebern sucht, sie bewertet, eine Ansprache
+entwirft und sie hinausschickt. Der Kunde hat die Frage ausdrücklich gestellt:
+„Was ist das Problem, wenn wir es mit menschlicher Freigabe bauen?"
+
+**Die Antwort, so genau wie sie ist.** Die menschliche Freigabe löst das eine
+Problem und nicht das andere. Sie deckt §7 UWG ab — ein Mensch entscheidet, ob
+eine Nachricht hinausgeht, und die Plattform lässt ohne diese Entscheidung
+nichts durch (Invariante 7). Sie hilft aber **nicht** gegen Art. 14 DSGVO. Wer
+personenbezogene Daten nicht bei der betroffenen Person erhebt, muss sie binnen
+eines Monats informieren — unabhängig davon, ob er sie je anspricht. Eine
+Recherchedatenbank mit 5.000 Ansprechpartnern erzeugt also 5.000
+Informationspflichten in dem Moment, in dem sie entsteht, und keine Freigabe
+davor ändert daran etwas.
+
+**Was daraus folgt, ist kein Verzicht, sondern ein Zuschnitt.** Gebaut wurde
+die ganze Kette; sie speichert nur andere Daten als erwartet:
+
+| Glied | Gebaut | Begründung |
+|---|---|---|
+| Quellen | `akquise_quelle` mit vier Arten, **keine verbunden** | Portale auszulesen verstösst gegen deren Nutzungsbedingungen (CLAUDE.md „Out of scope"); legal sind das amtliche Register, ein Anbieter mit Vertrag und der eigene Vergaberadar (O-596) |
+| Recherche | `jobs/akquise.ts`, 05:10 UTC je Gesellschaft | Ein Lauf ohne Quelle wird als `uebersprungen` MIT Grund protokolliert — nicht als „0 Treffer" |
+| Firmen | `akquise_ziel`, **nur Firmendaten** | Art. 14 DSGVO: die Spalten für Name, Funktion und Durchwahl gibt es nicht. Auch der Typ `Fund` lässt keinen durch |
+| Bewertung | `akquise/bewertung.ts`, deterministisch | Invariante 6: kein Modell rechnet eine Zahl. Gewichte sind Platzhalter (O-15), und die Begründung sagt das in jedem Datensatz |
+| Entwurf | `akquise/entwurf.ts`, Vorlage | Entwerfen ist erlaubt; §7 UWG verbietet das *Zusenden*, nicht das *Schreiben*. Kein Preis im Text — den rechnet `kalkulation` |
+| Übernahme | `akquise/uebernahme.ts` → `lead` mit `quelle = 'akquise'` | Ein Mensch entscheidet. Der Lead entsteht **ohne Ansprechpartner** — `app.darf_kontaktiert_werden` lässt damit keine elektronische Werbung durch |
+| Versand | **nichts** | Es gibt keinen Zweig, der sendet. Der Weg nach draussen führt über `lead_aktivitaet` durch `kern.uwg_sendetor`, das gegen den lebenden Kontakt neu prüft |
+
+**Der Lead ohne Ansprechpartner ist das Kernstück, nicht die Lücke.** Er steht
+im Vertrieb, ist sichtbar, hat eine Punktzahl und eine Begründung — und ist
+nicht anschreibbar. Wer diese Firma ansprechen will, legt einen Kontakt an,
+nennt dessen Rechtsgrundlage und informiert ihn nach Art. 14. Damit steht die
+Pflicht dort, wo sie hingehört: bei den paar Firmen, die jemand wirklich
+ansprechen will, statt bei allen, die eine Recherche gefunden hat.
+
+**Welcher Weg überhaupt offen wäre**, steht im Entwurf jeder Firma im Klartext:
+
+- **E-Mail** — nach §7 Abs. 2 Nr. 2 UWG nur mit *vorheriger ausdrücklicher*
+  Einwilligung, auch im B2B. Eine recherchierte Firma hat keine. Dieser Weg ist
+  nicht „vorläufig zu", er ist zu.
+- **Telefon** an ein Unternehmen — §7 Abs. 2 Nr. 1 UWG verlangt nur die
+  *mutmassliche* Einwilligung, also einen sachlichen Zusammenhang. Bei einer
+  Hausverwaltung und einer Gebäudereinigung ist der denkbar; ob er im Einzelfall
+  trägt, ist eine Rechtsfrage (O-34).
+- **Brief** — fällt unter §7 Abs. 2 gar nicht. Rechtlich der unauffälligste Weg.
+
+**Und eine Stelle, an der die Plattform heute strenger ist als das Gesetz.**
+`app.darf_kontaktiert_werden` weist **jeden** Kanal ab, solange die
+Rechtsgrundlage `keine` ist — auch `post`. Das ist bewusst: eine Vorsichtsstellung
+bis zur anwaltlichen Prüfung der Ausgangsmatrix (O-34). Diese eine Zeile ist der
+Schalter zwischen „gar keine Kaltansprache" und „Kaltansprache per Brief ist
+zulässig", und sie umzulegen ist eine Entscheidung des Mandanten mit seinem
+Anwalt, keine des Entwicklers. Der Entwurfsbildschirm sagt genau das.
+
+**Was den Kunden das kostet.** Nichts von dem, was er wollte, ausser der
+Vorstellung, die Plattform könne eine Adressliste kaufen und loslegen. Sie kann
+suchen, bewerten, begründen, entwerfen und übergeben. Den letzten Schritt —
+einen Menschen ansprechen — macht ein Mensch, und er macht ihn mit der
+Information, warum er ihn machen darf.
+
+### D-592 · Das interne Portal spricht Deutsch und Englisch — und der Umschalter steht auf jeder Seite
+
+**Der Auftrag.** „Die interne Oberfläche zweisprachig (de/en), ein
+Sprachumschalter auf jeder Seite." Das Mitarbeiterportal sprach seit PR 20
+vier Sprachen (EMP-12); die Bildschirme der Verwaltung waren durchgehend
+deutsch.
+
+**Warum zwei Sprachen und nicht vier.** Die Arbeiterin am Objekt hat keine
+Wahl: sie muss ihre Schicht lesen können, also spricht ihr Portal `de`, `en`,
+`ar`, `tr`. Die internen Bildschirme sind eine andere Lage. Sie führen
+Buchhaltung, Vergabe und Personalakten; ihr Vokabular ist das des UStG, der
+VOB und der GoBD, und die Hälfte davon hat gar kein englisches Wort —
+`Aufmass`, `Nachtrag`, `Leistungsnachweis`. Vier Sprachen hiessen vier
+Übersetzungen dieser Begriffe, und drei davon wären eine Erfindung. Englisch
+kommt dazu, weil die Gruppe Steuerberatung, Entwicklung und Prüfer einkauft,
+die nicht alle Deutsch lesen.
+
+**`ar` und `tr` fallen auf Deutsch, nicht auf Englisch.** Wer als Person `tr`
+gewählt hat, hat das für das Mitarbeiterportal getan; über sein Englisch sagt
+die Wahl nichts. Ein internes Konto auf Englisch zu stellen, weil jemand
+Türkisch bevorzugt, wäre geraten. Deutsch ist die Sprache, in der diese
+Bildschirme rechtlich richtig sind; Englisch ist die, die jemand ausdrücklich
+wählt. `internSprache()` bildet das an einer Stelle ab, und ein Test fährt
+jede der vier Portalsprachen durch.
+
+**Eine Spalte, kein zweiter Speicher.** Die Wahl steht dort, wo sie schon
+stand: `person.sprache`, und für ein Konto ohne Mensch `benutzer.sprache` —
+genau die Regel, die seit 0007 im Spaltenkommentar steht und die
+`konto/sprache.ts` beim Schreiben befolgt. Das Tor (`portalZugang`) las sie
+bisher nur für `portal = 'mitarbeiter'`; jetzt liest es sie für jedes Portal,
+in derselben gebundenen Transaktion, unter `t_person_lesen` bzw.
+`t_benutzer_lesen`. Der Umschalter schreibt über `POST /api/konto/sprache` —
+die Route gab es bereits, samt Ursprungsvergleich, Selbstpflege-Policy und
+Spaltenrecht; sie bekommt hier keinen zweiten Weg daneben.
+
+**Warum die Sprache nicht als Eigenschaft durch die Hülle reist.**
+`PortalRahmen` steht an 176 Stellen. Sprache und Rückweg als
+Pflichteigenschaften anzuhängen hiesse, 176 Aufrufe zu ändern und bei jedem
+künftigen zu HOFFEN, dass jemand daran denkt. Vergisst es einer, fällt seine
+Seite still ins Deutsche zurück und der Umschalter wirft den Benutzer auf die
+Kontoseite — kein Fehler, keine rote Zeile, nur ein Bildschirm, der sich
+falsch benimmt. Stattdessen ein Anfragespeicher (`app/portal/huellen-speicher.ts`):
+das Tor schreibt hinein, die Hülle liest heraus. `cache()` von React und
+**keine Modulvariable** — eine Modulvariable lebt im Prozess, zwei Anfragen
+zweier Benutzer teilten sie sich, und wer zuletzt das Tor passierte, bestimmte
+die Sprache aller anderen und im schlimmsten Fall ihren Rückweg.
+
+**Der Rückweg.** Der Umschalter ist ein gewöhnliches `<form method="post">` —
+kein Skript, damit er auf einem alten Diensttelefon funktioniert — und trägt
+die aktuelle Adresse als `zurueck` mit. Ohne sie landete jeder Wechsel auf
+`/portal/konto/profil`; wer die Sprache auf der Auftragsliste wechselt, will
+die Auftragsliste behalten. Die Adresse füllt die Seite selbst, nicht der
+Browser, und die Route prüft sie zusätzlich gegen `internesZiel`.
+
+**Was übersetzt ist — und was noch nicht.** Übersetzt ist die HÜLLE: beide
+Navigationsregister (28 + 17 Punkte), die Tab-Leisten des internen Publikums,
+die Kopfzeile und — das war die stillste Lücke — das „Mehr"-Blatt unter
+768 px. Dessen Punkte lasen `n.label` direkt aus dem Register und seine vier
+Sitzungspunkte waren deutsche Literale; unter 768 px war das Portal damit
+einsprachig, also genau auf den Geräten, auf denen es am häufigsten geöffnet
+wird. Die Fliesstexte der einzelnen Module folgen; sie sind hier nicht
+behauptet, und der Browsertest behauptet sie ausdrücklich nicht.
+
+**Die Wache.** `tests/kern/intern-beschriftungen.test.ts` vergleicht die
+Schlüsselmenge der Karte gegen die Register: ein neuer Navigationspunkt ohne
+Übersetzung fällt dort auf, nicht am Bildschirm. Denn der Rückfall auf das
+deutsche Label des Registers ist als Verhalten richtig — ein leerer
+Menüpunkt wäre schlimmer — und macht die Lücke eben deshalb unsichtbar. Der
+Test fällt ausserdem, wenn ein Schlüssel auf nichts zeigt (Tippfehler), wenn
+die zwei Sprachen verschiedene Schlüsselmengen haben und wenn jemand die
+deutsche Spalte nach Englisch kopiert. Alle drei Sabotagen wurden gefahren,
+alle drei wurden gefangen. `INTERNE_LEISTEN` steht im Register neben
+`LeistenSchluessel`, damit eine fünfte interne Leiste den Compiler und nicht
+den Bildschirm trifft.
+
+| Betrifft | EMP-12, D-419, `lib/i18n/intern.ts`, `app/portal/huellen-speicher.ts`, `components/portal/Sprachumschalter.tsx`, `components/portal/PortalRahmen.tsx`, `components/portal/TabLeiste.tsx`, `server/registry/tableiste.ts`, `app/portal/zugang.ts` |
+|---|---|
+
+---
+
+### D-593 · Das Berechtigungsfenster zählte den falschen Kalendertag — zwei Stunden jede Nacht
+
+**Wie es auffiel.** Der Isolationslauf vor dem Push auf D-592 war rot:
+`tests/isolation/recruiting.test.ts` fiel in „die Frist zählt ab dem Berliner
+Heute — in einer Sitzung mit fremdem Datum". Der Fall reproduzierte sich auf
+`origin/main` (e22919d) ohne jede Änderung von mir; er hat mit der
+Zweisprachigkeit nichts zu tun.
+
+**Der Befund.** `benutzer_mandant.gueltig_ab` und `gueltig_bis` sind `date`.
+Sechs Funktionen — `app.hat_recht_fuer` (und damit `app.hat_recht`),
+`app.switcher_mandanten`, `app.darf_gruppenansicht`,
+`app.benutzer_mit_recht`, `app.kennwort_anmelden`,
+`app.kalender_feed_aufloesen` — verglichen sie gegen `current_date`. Das ist
+der Kalendertag der SITZUNGSZEITZONE, und die Verbindung läuft auf UTC
+(Supabase-Vorgabe). Im Sommer ist Berlin UTC+2. Zwischen 00:00 und 02:00
+Berliner Zeit galt deshalb jede Nacht:
+
+- eine Mitgliedschaft mit `gueltig_bis = gestern` ist noch gültig, weil
+  `current_date` noch auf gestern steht — **ein entzogener Zugang überlebt sein
+  Ende um bis zu zwei Stunden**;
+- eine Mitgliedschaft mit `gueltig_ab = heute` gilt noch nicht — wer zum
+  Monatsersten anfängt, ist um 00:30 ausgesperrt.
+
+Die zweite Richtung ist ärgerlich, die erste ist ein Loch. Beide sind still:
+AUT-06 beantwortet „kein Recht" und „gibt es nicht" gleich, also erscheint ein
+404 und sonst nichts.
+
+**Warum es so lange stand.** 0075 hat `app.berlin_heute()` eingeführt — und im
+Kommentar ausdrücklich auf die FINANZDOMÄNE bezogen: dort war die Begründung
+eine Rechnung, die um 00:30 auf den Vortag datiert und damit im falschen
+Voranmeldungsmonat landet. Dieselbe Uhr steht über den Berechtigungen; nur hat
+sie dort niemand abgelesen. Der Kommentar der Funktion sagt jetzt beides.
+
+**Warum CI es nicht fing.** Der Fall in `recruiting.test.ts` sucht sich eine
+Zone, deren Datum von Berlin abweicht, und nimmt die erste von zweien:
+`Etc/GMT-14` (vor Berlin) oder `Etc/GMT+12` (dahinter). Welche abweicht, hängt
+an der UTC-Stunde — vormittags die zurückliegende, nachmittags die
+vorausliegende. **Nur die zurückliegende fällt.** Der Fall war also zwölf
+Stunden am Tag rot und zwölf Stunden grün, und CI lief in der grünen Hälfte.
+Ein Fall, der sich seine Eingabe nach der Uhr sucht, prüft zu verschiedenen
+Zeiten Verschiedenes.
+
+**Die Behebung** (`0169_berechtigungsfenster_berlin.sql`). Dieselben sechs
+Funktionen, Wort für Wort wie sie in der Datenbank standen — abgeschrieben mit
+`pg_get_functiondef`, nicht von Hand, deshalb die Grossschreibung der
+Schlüsselwörter —, mit genau einer Änderung: `current_date` wird
+`app.berlin_heute()`. Alle vierzehn Vorkommen stehen an `bm.gueltig_ab` oder
+`bm.gueltig_bis`; ein anderes `current_date` steht in diesen Körpern nicht.
+Dazu die Vorgabe der Spalte selbst, die eine um 00:30 entstehende
+Mitgliedschaft auf gestern legte.
+
+**Die Wache** (`tests/isolation/berechtigungsfenster.test.ts`). Sie fährt
+**immer beide** Extremzonen plus Berlin und UTC und verlangt in allen vieren
+dieselbe Antwort — nicht „die Zone, die gerade abweicht". Damit hängt sie
+nicht mehr an der Uhr. Dazu ein struktureller Fall, der den Katalog fragt, ob
+irgendeine Funktion wieder `gueltig_*` gegen `current_date` prüft, mit
+Gegenprobe auf die sechs Namen, damit ein leerer Katalog ihn nicht grün macht.
+
+**Falsifiziert.** Mit entferntem 0169 fallen sechs der sieben Fälle, darunter
+„eine gestern beendete Mitgliedschaft gilt in keiner Zone" mit *expected true
+to be false* — das Loch, live. Mit 0169 sind beide Dateien grün,
+`recruiting.test.ts` eingeschlossen.
+
+| Betrifft | AUT-01, AUT-06, K-11/§1.8, Invariante 2, `0169_berechtigungsfenster_berlin.sql`, `tests/isolation/berechtigungsfenster.test.ts`, `tests/isolation/recruiting.test.ts` |
+|---|---|
+
+---
+
+### D-594 · Eine Pillenzeile, die nicht umbrechen darf, schiebt die ganze Seite hinaus
+
+**Der Befund.** Der Massenlauf am Telefon (`tests/e2e/abmessungen.spec.ts`,
+390px, 470 Routen) meldete zwei Seiten zu breit: `finanzen/ausgangsbuch` um
+23px, `finanzen/eingangsrechnungen` um 4px. Beide Male dieselbe Zelle — eine
+`StatusPill` und ein Wort daneben in
+`<span className="inline-flex items-center gap-s2">`.
+
+**Warum `min-w-0 break-words` am `<dd>` nicht genügt.** Der Kartenstapel unter
+`md` trägt beides schon, und zwar genau deshalb (D-420). Durch einen
+Flex-Container wirkt es nicht: ein Flex-Element hat von sich aus
+`min-width: auto`, also kann ein `inline-flex` ohne `flex-wrap` nicht unter die
+Summe seiner Kinder schrumpfen. Die Korrektur von damals war richtig und eine
+Ebene zu hoch.
+
+**Warum es so lange unsichtbar war.** Ohne Demodaten hat die Tabelle keine
+Zeilen, ohne Zeilen keine Pillen. Der Lauf ohne `CSE_DEV_FLAECHEN=1` misst
+dieselbe Seite und findet nichts — die Abdeckungszahl (461 statt 470 Seiten)
+sieht dabei fast gleich aus.
+
+**Alle neunundzwanzig, nicht die zwei.** Das Muster stand 29-mal im Baum. Zwei
+liefen über, weil ihr Text gerade lang genug war; die übrigen 27 warteten auf
+einen längeren Status, einen Ablehnungsgrund — oder auf die englische Fassung
+desselben Wortes, seit die Oberfläche zweisprachig ist (D-592). „Storniert"
+ist kürzer als „cancelled", und die Zelle hat keinen Puffer.
+
+**Die Wache** (`tests/kern/pillenzeile-umbricht.test.ts`) prüft GENAU die
+Zeichenkette, die dieses Haus für diese Zelle benutzt, und nicht jedes
+`inline-flex`: die Knöpfe und Filterpillen tragen dieselbe Anzeigeart, und ein
+umbrechender Knopf wäre kaputt, nicht gerettet. Ein Gegen-Check zählt die
+korrigierte Form (≥ 25 Dateien), damit die Wache in einem leeren Baum nicht
+grün ist. Sabotiert: eine Zeile zurückgedreht, die Wache fiel. Der
+vollständige Beweis bleibt der Massenlauf — er misst wirklich, statt
+Klassennamen zu lesen.
+
+**Der Sprachumschalter bekommt dasselbe, aus einem anderen Grund.** Im
+zugeklappten „Mehr"-Blatt ist der Kasten 17px breit — Chromium legt den Inhalt
+eines geschlossenen `<details>` trotzdem aus. Zwei Knöpfe, die nicht
+schrumpfen, standen dort bis x=465 in einem Kasten, der bei 390 endet. Das
+`overflow-x` des Blattes beschneidet sie, die Seite wächst also nicht; aber
+ein Kasten, der aus seinem Kasten hängt, ist kein Zustand, auf den man sich
+verlässt.
+
+| Betrifft | WCAG 1.4.10, DESIGN §8, D-420, D-592, `tests/kern/pillenzeile-umbricht.test.ts`, `tests/e2e/abmessungen.spec.ts`, 29 Portalseiten |
+|---|---|
+
+---
+
+### D-603 · `system.audit_sensitiv_lesen` trägt eine Zwei-Faktor-Pflicht — der Riegel war gebaut und nicht eingelegt
+
+**Damit ist O-624 beantwortet** — nicht als Kundenfrage, sondern aus der
+Vorgabe: `03-AUTH-BERECHTIGUNGEN.md` Z. 2342 verlangt die zweite Stufe für
+dieses Recht. In der lebenden Datenbank stand `erfordert_2fa = false` — und
+zwar für **jedes** Recht, weil der generierte Katalogblock in `0008` die Spalte
+gar nicht führt und sie damit auf ihrer Vorgabe liegen lässt.
+
+Der Riegel selbst existierte seit `0149`: `app.hat_recht_fuer` enthält
+`if v_recht.erfordert_2fa and p_aal <> 'aal2' then return false`. Er griff nur
+nie, weil ihn niemand scharf gestellt hatte. `0206` setzt die Spalte.
+
+**Die Pflicht sitzt an der Berechtigung, nicht in einem Handler**, weil die
+Werte auch über `app.audit_nutzlast_buendel` (`0204`) und
+`app.audit_nutzlast_lesen` (`0139`) erreichbar sind — ein Handler-Check hätte
+zwei Türen offen gelassen.
+
+Die Folge ist kein Fehler, sondern ein **redigiertes Bündel**: eine
+aal1-Sitzung bekommt Zeilen, Ketten und Manifest, aber keine `nutzlast.csv` —
+und das Manifest sagt, warum.
+
+| Betrifft | SEC-A9, AUT-02, LEG-09, Art. 9 DSGVO, `berechtigung`, `0206`, `0149`, O-624 |
+|---|---|
+
+---
+
+### D-607 · `oeffentlich_sichtbar` war auf dem prinzipallosen Renderpfad wirkungslos
+
+0200 stellte die enge Policy `mi_oeffentlich` neben die weite `t_mi_lesen`
+(`mandant_id = any(app.sichtbare_mandanten())`). Im Mandanten-Scope gibt
+`app.sichtbare_mandanten()` aber `array[aktiver_mandant]` zurück, **ohne nach einem
+Prinzipal zu fragen** (0004/0020). Eine Sitzung ohne Benutzer erfüllte damit immer
+die weite Policy und las die Identitätszeile der aktiven Gesellschaft samt
+`email_absender`, `email_signatur` und `domain` — auch wenn niemand sie freigegeben
+hatte. Die enge Policy daneben steuerte nichts.
+
+0335 zieht in `t_mi_lesen` den Konjunkt `app.aktueller_benutzer() is not null` ein.
+
+**`app.sichtbare_mandanten()` selbst bleibt unangetastet**, und das ist die
+eigentliche Entscheidung hier. Sie ist die Wurzel jeder Policy der Plattform; dass
+sie ohne Prinzipal im Mandanten-Scope nicht leer ist, betrifft potenziell jede
+Tabelle. Das ist eine eigene Prüfrunde mit einem Urteil je Tabelle — nichts, das man
+nebenbei mitändert, während man eine andere Policy repariert.
+
+### D-606 · Eine fünfte Gesellschaft ist eine Zeile, auch ohne Bereichston (TEN-08)
+
+`kern.mandant_identitaet_anlegen()` aus 0200 brach bis 0336 **jedes** `insert into
+mandant` mit unbekanntem Slug ab (`errcode 23514`), weil DESIGN §1 nur vier
+Bereichstöne führt. Damit war eine fünfte Gesellschaft eine Codeänderung — und der
+Isolationsfall heisst wörtlich „a fifth area is a row, not a code change (TEN-08)".
+
+Die Begründung der Migration stimmt: eine Ersatzfarbe zu wählen (etwa
+`area-operations` für einen Logistikbereich) wäre der verbotene Gestaltungswert, der
+neue Bereich sähe aus wie „Digital & KI", und niemand suchte den Grund in einem
+Trigger. Falsch war allein die Schlussfolgerung — aus „ich darf keine Farbe
+erfinden" folgt nicht „dann darf es die Gesellschaft nicht geben". Die Regel aus
+CLAUDE.md für genau diesen Fall lautet anders: Schnittstelle, klar bezeichneter
+Platzhalter, `TODO(client, O-NN)`, Registerzeile.
+
+Seit 0336 ist `identitaets_token` **NULLABLE**, und NULL heisst genau: für diesen
+Bereich steht in DESIGN §1 noch kein Ton. `mi_token` lässt unverändert nur die vier
+Namen durch, die Reihenfolge aus CLAUDE.md bleibt (erst DESIGN.md, dann Migration),
+und die Zeile entsteht sichtbar als Platzhalter. `farbeVon()` gibt `null` zurück und
+nicht Grau: keine Fläche ist ehrlicher als eine falsche. Offen bleibt O-750.
+
+### D-605 · Ein Name in Backticks INNERHALB einer Zeichenkette ist Prosa, kein Recht
+
+Die K-19-Wache liest jeden Quelltext nach `'<modul>.<wort>'` ab und verlangt für
+jeden Fund eine Katalogzeile. Mit der Domänenwelle meldete sie sechs Schlüssel
+auf einmal — und keiner davon war ein Recht:
+
+    comment on column nachricht.kunde_id is
+      'Denormalisiert aus `nachricht.kunde_id` (Auslöser, beide Richtungen).'
+
+Das ist eine **Spalte**, genannt in einem Satz. Wäre die Meldung berechtigt,
+müsste jemand eine Katalogzeile `nachricht.kunde_id` anlegen: ein Recht, das nie
+jemand prüft — genau der leere Eintrag, gegen den K-19 steht. Die Wache hätte
+sich selbst ins Gegenteil verkehrt.
+
+Dieses Projekt nennt Bezeichner in Fließtext mit Backticks, und die Wache sah
+darin ihr eigenes Suchmuster. Geschnitten wird deshalb genau das: was in einer
+Zeichenkette steht **und** darin von Backticks umschlossen ist.
+
+**Weshalb das nichts aufweicht.** Ein Schlüssel an seiner Verwendungsstelle steht
+nie so. Er steht als Argument von `hat_recht(…)` oder unter `recht:`, und dort
+findet ihn der zweite, stärkere Detektor, der an der STELLE erkennt statt am
+Modulnamen. Nachgemessen mit vier erfundenen Rechten in vier Schreibweisen: die
+drei echten Verwendungen wurden gemeldet, die Prosa nicht.
+
+Dazu zwei weitere Register derselben Form, die bisher fehlten: **Auditaktionen**
+(`app.protokolliere('radar.stand_gesetzt', …)`) und **Benachrichtigungsarten** im
+Vergleich (`if p_art is distinct from 'dienstplan.plan_veroeffentlicht'`). Die Art
+war nur in ihrer Schreibform ausgenommen; ein Definer, der sie erst PRÜFT und dann
+zustellt, schreibt sie in einem Vergleich — und der sah aus wie ein Recht. Dass
+das so lange gutging, lag daran, dass bis dahin niemand die Art gegen einen festen
+Wert geprüft hat.
+
+### D-604 · Der Übersteuerungsweg für ArbZG-Befunde setzt das stärkere Recht in der ROUTE durch, nicht in der Datenbank
+
+`arbeitszeit_verstoss` gewährt `cse_app` kein Tabellenrecht `UPDATE` — nur
+`SELECT`. Ein direktes `update` bricht deshalb **laut** ab (`permission
+denied`, also ein 500er) und nicht still mit null Zeilen. Das ist die gute
+Richtung, aber es beantwortet die Rechtefrage nicht.
+
+Der einzige Schreibweg ist `app.arbzg_befund_quittieren`, und diese
+Definer-Funktion prüft `dienstplan.arbzg_lesen` — also das **schwächere**
+Recht. `dienstplan.arbzg_uebersteuern`, auf das die Seitenkarte
+`…/uebersteuern` tort, setzt deshalb `POST /api/konflikt/uebersteuern` mit
+`authorize()` selbst durch. Die Datenbank ist hier ausdrücklich die zweite und
+schwächere Linie; verlassen darf sich darauf niemand.
+
+**Wer einen zweiten Aufrufer für `app.arbzg_befund_quittieren` baut, muss das
+Recht dort erneut prüfen.** Mittelfristig zieht eine Migration den Definer
+nach — bis dahin gilt dieser Satz.
+
+Zwei Dinge, die dazugehören und schon im Code stehen: (a) `uebersteuereBefund`
+liest den Erfolg nach, weil `app.arbzg_befund_quittieren` mit
+`where hinfaellig_am is null` aktualisiert und danach **bedingungslos**
+protokolliert; (b) `app.arbzg_befund_ueberholen` lässt `status = 'offen'`
+stehen — der Status allein ist also kein Ausdruck der Übersteuerbarkeit.
+
+| Betrifft | TIM-06, AUT-06, Invariante 3, `services/dienstplan/konflikt.ts`, `api/konflikt/uebersteuern/route.ts`, `0040` |
+|---|---|
+
+### D-608 · Die Gruppenansicht liest keine Bewerbung mehr
+
+Beim Bau von `/portal/gruppe/kalender` fiel auf, dass `0166` ein
+`t_bewerbung_gruppe` trägt: eine Gruppensitzung mit `gruppe.recruiting.lesen` las
+damit die vollen Bewerbungszeilen der Schwestergesellschaften — Name, E-Mail,
+Telefon, Anschreiben. Gefunden wurde es über den zentralen Kalender, dessen
+Quelle `gespraech` ihren Titel aus `bewerbung.name` bildet.
+
+`02-datenmodell/06-RADAR-KI-INHALT.md` §6.2 sagt das Gegenteil und begründet es
+zweifach: die vier Bereiche sind eigene Verantwortliche im Sinne der DSGVO — eine
+Bewerberin hat keine Beschäftigung und damit keine Rechtsgrundlage dafür, dass
+ihre Daten den anderen drei gezeigt werden —, und die Aufbewahrung läuft
+gegenläufig: REC-07/LEG-11 verlangt Löschung, Beschäftigtendaten dürfen nicht
+gelöscht werden.
+
+`gruppe.recruiting.lesen` bleibt im Katalog, aber für die STELLEN-Hälfte des
+Moduls: `t_stelle_gruppe` auf `stelle` (`0166`) ist die **einzige** Policy, die
+diesen Schlüssel noch benutzt — `stelle_veroeffentlichung` trägt entgegen der
+Registernotiz gar keine Gruppenpolicy, nur `t_stelle_veroeff_lesen` /
+`_schreiben` auf `app.aktiver_mandant()` (in `pg_policies` nachgesehen, nicht
+vermutet). Eine Stellenanzeige ist öffentlich, eine Bewerbung darauf ist es nicht —
+der Schlüssel taugt deshalb nicht als Unterscheidung, und genau darum steht die
+Trennung als POLICY da und nicht als Rechtevergabe, die jemand versehentlich
+weiter sät.
+
+`0370` nimmt die permissive Policy zurück und setzt `p_gruppe_kein_personenbezug`
+restriktiv auf alle sechs Bewerbertische (`bewerbung`, `kandidat`,
+`bewerbung_bewertung`, `einstellungsentscheidung`, `gespraech`,
+`bewerbung_antwort`) — die zweite Linie hält die Tür zu, falls jemand die erste je
+wieder anlegt. `for all`, nicht `for select`: eine halbe Decke ist die, die jemand
+findet.
+
+**Keine Portaldecke auf `bewerbung`.** Das öffentliche Bewerbungsformular schreibt
+über `t_bewerbung_eingang` als Prinzipal ohne internes Portal (REC-03, `0168`);
+eine Decke in der Bauart von `p_kandidat_decke` (`app.portal() = 'intern'`)
+schlösse den Eingang. Die Gruppendecke tut das nicht.
+
+**Was NICHT mitwandert:** `nachricht`, `nachricht_anhang` und
+`nachricht_empfaenger`. Das ist **O-651** — eine offene Frage an den Auftraggeber,
+die `0231` bewusst offen gelassen hat; sie hier zu entscheiden wäre dasselbe
+Vorgreifen in die andere Richtung.
+
+| Betrifft | TEN-05, SEC-A3, REC-07, `06-RADAR-KI-INHALT.md` §1.4/§6.2, `drizzle/0166`, `drizzle/0168`, `drizzle/0370` |
+|---|---|
+
+---
+
+### D-609 · Fünf Seiten liefen über den Rand — und viermal war es dieselbe Ursache eine Ebene tiefer
+
+**Der Befund.** `tests/e2e/abmessungen.spec.ts` meldete zehn Klagen am Telefon
+(390px) und eine am Schreibtisch (1440px), auf fünf verschiedenen Seiten:
+
+| Wo | Breite | Über den Rand | Der schuldige Kasten, wie ihn der Lauf nennt |
+|---|---|---|---|
+| `finanzen/ausgaben` | Telefon | 88 / 56 / 53px (reinigung / security / bau) | `select.min-h-11 …[138…425]` in `div.[138…425]`, `form.flex flex-wrap items-end gap-s3[24…478]` |
+| `freigaben/stapel` | Telefon | 110px | `table.mt-s3 w-full border-collapse text-sm[49…500]`, `th…[386…500]` |
+| `finanzen/nummernkreise` | Telefon | 26px (alle drei) | `span.inline-flex flex-col gap-s1[264…416]` — Spalte „Kettenlage" |
+| `buchhaltung/verfahrensdokumentation` | Telefon | 13px (alle drei) | kein Kasten; `main` mass 403 bei 390 Fensterbreite |
+| `gruppe/kalender` | Schreibtisch | 14px | `span.shrink-0 … tabular-nums[1388…1454]` in einer Zelle, die bei 1407 endet |
+
+**Die gemeinsame Ursache.** Ein Flex-Element hat von sich aus
+`min-width: auto`: es wird nie schmaler als die MINDESTBREITE seines Inhalts,
+und die rechnet der Browser, **bevor** er umbricht. D-420 hat das an `main`
+behoben, D-594 an der Pillenzeile in der Tabellenzelle. Diese fünf sitzen
+jeweils eine Ebene tiefer — an der Überschrift, am Auswahlfeld, an der
+Wertspalte, an der Kalenderzeile. „Die Korrektur war richtig und eine Ebene zu
+hoch" ist damit zum dritten Mal der Satz, der die Seite gerettet hat.
+
+**`flex-wrap` allein genügt nie.** Es bricht die ZEILE um und hilft nicht, wenn
+schon ein EINZELNES Kind breiter ist als die Spalte. Alle vier Fälle brauchten
+deshalb `min-w-0` (die Mindestbreite wegnehmen) **und** etwas, das den Inhalt
+danach wirklich passen lässt — `max-w-full`, `break-all`, `flex-wrap` oder den
+Kartenstapel.
+
+**Die fünf Korrekturen.**
+
+1. **`finanzen/ausgaben` — die Filterzeile.** Ein `<select>` ist so breit wie
+   seine längste Option („freigegeben — zur Buchung bereit", eine
+   Kategoriebezeichnung mit „(unbestätigt)") und schrumpft nicht: es umbricht
+   nicht, also ist seine Mindestbreite seine Breite. Das Formular, die vier
+   Feldkästen und das Ankreuzfeld tragen jetzt `min-w-0`, das Feld selbst
+   `max-w-full` — es folgt damit seinem Kasten statt seiner längsten Option.
+   Dass „alle drei Gesellschaften, drei verschiedene Zahlen" gemeldet wurde,
+   ist die Bestätigung: die Kategoriebezeichnungen sind je Gesellschaft
+   verschieden lang.
+
+2. **`freigaben/stapel` — die handgeschriebene Tabelle.** Eine `<table>` wird
+   nie schmaler als die Summe der Mindestbreiten ihrer Spalten; `w-full`
+   ändert daran nichts. Sie ist jetzt ein `DataTable` — dieselbe Bauart wie
+   die Nachweistabelle der Prüfansicht (`freigaben/[id]`), die mit denselben
+   Daten nie überlief: unter `md` ein Kartenstapel (DESIGN §5, §8 — „nie ein
+   seitlicher Rollbalken auf einem Telefon"), ab `md` die Tabelle in ihrem
+   eigenen Rollbehälter (D-420). Ein `overflow-x-auto` um die eigene Tabelle
+   hätte die Seite auch gerettet und §8 verletzt. Die Anker
+   `data-cse="stapel-feld"` und `data-unsicher` stehen jetzt an der Feldzelle.
+
+3. **`finanzen/nummernkreise` — der gekürzte Hash.** `kurz()` macht aus einem
+   SHA-256 ein 19-Zeichen-Wort ohne Trennstelle. Die Wertspalte des
+   Kartenstapels ist rund 74px breit; das `min-w-0 break-words` am `<dd>`
+   (D-420) wirkt durch den `inline-flex`-Behälter der Zelle hindurch **nicht**
+   (D-594). Die fünf Zellen tragen jetzt `flex min-w-0 flex-col` wie in
+   `freigaben/page.tsx`, die Hashzeilen und die Formatmaske `break-all` wie in
+   `freigaben/[id]` — ein Hash wird gelesen, nicht gesprochen (D-569).
+
+4. **`buchhaltung/verfahrensdokumentation` — die Überschrift.**
+   „Verfahrensdokumentation" ist ein Wort ohne Trennstelle und als `text-h1`
+   am Telefon (30px, DESIGN §2 mobil) rund 379px breit; die Inhaltsspalte hat
+   342. `globals.css` gibt jeder Überschrift dafür `overflow-wrap: anywhere`
+   (D-420), und als BLOCK bricht sie damit auch — `verarbeitungsverzeichnis`
+   trägt ein noch längeres Wort und ist in Ordnung. Hier steht sie aber in
+   einer Flex-Zeile (Titel links, Verweis rechts), und dort greift die
+   Mindestbreite vor dem Umbruch. `min-w-0` an der Überschrift. Passend dazu:
+   kein Kasten ragte hinaus, und die Zahl war in allen drei Gesellschaften
+   **identisch** — die Ursache ist also datenunabhängig, und eine
+   Überschrift ist das Einzige auf dieser Seite, das das ist.
+
+5. **`gruppe/kalender` — die Kalenderzeile.** Eine Zelle des Monatsgitters ist
+   rund 147px breit. Die Bereichsmarke misst für sich 112px
+   („Dienstleistung"), die Uhrzeit 66px, und die Uhrzeit trägt `shrink-0`,
+   weil eine halb abgeschnittene Uhrzeit eine falsche Uhrzeit ist. 112 + 8 +
+   66 in 147 geht einzeilig nicht — und `min-w-0 truncate` am Titel hat getan,
+   was es verspricht: der Lauf mass den Titel bei `[1462…1462]`, also **0px
+   breit**. Der Titel war nicht zu lang, er war weg. `flex-wrap` an der Zeile
+   gibt jedem Teil eine Zeile, wo eine nicht reicht; die Mindestbreite der
+   Zeile sinkt damit auf die ihres breitesten Kindes, und der Titel steht
+   wieder da. Der Kasten trägt `min-h-[120px]` und darf wachsen; bei
+   höchstens drei Einträgen je Zelle bleibt DESIGN §5 unberührt.
+
+**Kein neuer Gestaltungswert.** Ausschliesslich `min-w-0`, `max-w-full`,
+`flex-wrap`, `break-all` und die Abstände aus DESIGN.md.
+
+**Was offen bleibt.** Zwei Befunde des Laufs sind hier NICHT behoben, weil sie
+in anderen Dateien sitzen:
+
+- **Die Sprachumschalterknöpfe des zugeklappten „Mehr"-Blatts** stehen
+  weiterhin bei `x=349…407` in einem Kasten, der bei 390 endet. Das ist der
+  bekannte Zustand aus D-594: Chromium legt den Inhalt eines geschlossenen
+  `<details>` trotzdem aus, das `overflow-x` des Blattes beschneidet sie, und
+  die Seite wächst dadurch nicht. Sie tauchen in der Ausreisserliste jeder
+  internen Portalseite auf und sind nicht die Ursache der 13px.
+- **`finanzen/belege`** trägt dieselbe Filterzeile wie `finanzen/ausgaben` und
+  ist heute nur deshalb grün, weil seine Optionstexte kürzer sind
+  („Rechnung", „Kassenbeleg"). **`finanzen/ausgangsbuch`** trägt
+  „Rechnungsausgangsbuch" als Überschrift in derselben Flex-Zeile wie Fall 4 —
+  21 Zeichen statt 23, also knapp unter der Kante. Beide warten auf ein
+  längeres Wort oder die englische Fassung (D-592), genau wie die 27 Zellen in
+  D-594. Sie gehören in dieselbe Runde und wurden hier nur nicht angefasst,
+  weil parallel an ihnen gearbeitet wurde.
+- **Die Kopfzeile kürzt die Spur, statt sie zu brechen.** Der Lauf mass auf
+  `verfahrensdokumentation` `a.flex min-h-11 min-w-11 items-center (134>60)` —
+  der Weg zurück („‹ Buchhaltung") steht in einem 60px-Kasten, weil `min-w-11`
+  die Mindestbreite auf 44px setzt und der Inhalt 134 braucht. Die Seite wächst
+  davon nicht (der Text bleibt innerhalb der `nav`), aber ein Kasten, der aus
+  seinem Kasten hängt, ist kein Zustand, auf den man sich verlässt. Gehört zu
+  `PortalRahmen` und damit in eine eigene Runde.
+
+| Betrifft | WCAG 1.4.10, DESIGN §2, §5, §8, D-420, D-569, D-594, `tests/e2e/abmessungen.spec.ts`, 5 Portalseiten |
 |---|---|

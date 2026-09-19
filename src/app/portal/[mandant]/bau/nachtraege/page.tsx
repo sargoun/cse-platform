@@ -36,6 +36,12 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  */
 export const dynamic = 'force-dynamic';
 
+/**
+ * Wie viele BAU-05-Warnungen diese Liste hoechstens zeigt — eine TECHNISCHE
+ * Grenze. Die vollstaendige Liste je Projekt steht am Projekt.
+ */
+const WARNUNGEN_GRENZE = 100;
+
 export default async function NachtraegeUeberProjekte(
   { params, searchParams }: {
     params: Promise<{ mandant: string }>;
@@ -59,7 +65,12 @@ export default async function NachtraegeUeberProjekte(
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
       nachtraege: await listeNachtraege(kontext, { nurOffen }),
-      warnungen: await ladeAusserhalbLv(kontext),
+      /*
+       * Ohne Projektfilter waechst diese Abfrage mit jedem Aufmassblatt und
+       * jedem Zeiteintrag des Mandanten; die Grenze steht ausdruecklich hier,
+       * und der Block unten sagt, dass er einen Ausschnitt zeigt.
+       */
+      warnungen: await ladeAusserhalbLv(kontext, { grenze: WARNUNGEN_GRENZE }),
     })),
   ) as Promise<{
     nachtraege: readonly NachtragZeile[];
@@ -115,6 +126,7 @@ export default async function NachtraegeUeberProjekte(
         warnungen={daten.warnungen}
         mandant={mandant}
         projektId={null}
+        beschnitten={daten.warnungen.length >= WARNUNGEN_GRENZE}
       />
 
       {daten.nachtraege.length === 0 ? (
@@ -181,7 +193,7 @@ export default async function NachtraegeUeberProjekte(
               schluessel: 'status',
               kopf: 'Status',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill
                     zustand={z.ueberfaellig
                       ? 'Überfällig'

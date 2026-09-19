@@ -127,6 +127,17 @@ export default async function Freigaben(
               Prüfdauer
             </Link>
           )}
+          {/* Die Stapelmappe zeigt jeden Routinefall EINZELN, mit seinen
+              geänderten Feldern (APR-02). Sie verlangt
+              `freigabe.stapel_entscheiden` — wer es nicht hält, sähe hinter dem
+              Verweis ein 404 (AUT-06, D-581). */}
+          {darfStapel && (
+            <Link href={`/portal/${mandant}/freigaben/stapel`}
+                  data-cse="zur-stapelmappe"
+                  className="text-text underline underline-offset-2">
+              Stapelmappe
+            </Link>
+          )}
         </p>
         <p className="text-sm text-text-muted" data-cse="posteingang-zaehler" data-anzahl={String(eintraege.length)}>
           {eintraege.length === 0
@@ -263,7 +274,7 @@ export default async function Freigaben(
               schluessel: 'pruefung', kopf: 'Prüfung',
               zelle: (z) => (z.unsichereFelder > 0
                 ? (
-                  <span className="inline-flex items-center gap-s2">
+                  <span className="inline-flex flex-wrap items-center gap-s2">
                     <StatusPill zustand="Wartet" />
                     <span className="text-xs text-warning">
                       {String(z.unsichereFelder)} unsicher

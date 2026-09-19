@@ -16,6 +16,7 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungFuer } from '../kennung';
+import { MAX_SCHRITTE_PLATZHALTER } from '@/server/agent/limits.platzhalter';
 import { haeltRechte } from '../../../rechte';
 import {
   WERKZEUG_REGISTER, fuerAgent, untergrenze, type AgentKennung,
@@ -350,6 +351,26 @@ export default async function AgentDetail(
             <Button type="submit" variante="primary" data-cse="agent-starten">
               Lauf starten und vorlegen
             </Button>
+            {/*
+              * **Der Eingang zum Vorschaltblatt.** `/agenten/[agent]/start`
+              * wird im Manifest mit demselben `agent.aufgabe_starten` bewacht,
+              * das diesen Zweig überhaupt erst zeichnet — wer den Verweis
+              * sieht, darf die Seite öffnen (AUT-06). Ohne ihn war sie von
+              * nirgendwo im Portal erreichbar. Dort steht VOR dem Lauf, was
+              * dieser Knopf sofort auslöst: Auftrag, Vorgangsart, die
+              * Tatsachen mit ihren Werten, Modell samt Anbieter und der
+              * Budgetstand.
+              */}
+            <p className="mt-s3 text-sm">
+              <Link href={`/portal/${mandant}/agenten/${agent}/start`}
+                    data-cse="agent-zum-vorschaltblatt"
+                    className="text-brand underline underline-offset-2">
+                Erst ansehen, was in den Lauf eingeht
+              </Link>
+              <span className="text-text-muted">
+                {' '}— Auftrag, Tatsachen, Modell und Budget auf einem Blatt.
+              </span>
+            </p>
           </form>
         )}
       </section>
@@ -361,7 +382,11 @@ export default async function AgentDetail(
             <dt className="text-text-subtle">Schritte je Aufgabe</dt>
             <dd className="text-text">
               {kopf.max_schritte === null
-                ? '12 — Platzhalter (offene Frage O-196)'
+                /* Die Zahl kommt aus der Quelle, nicht aus dieser Zeile: `laufzeit.ts`
+                   benutzt `MAX_SCHRITTE_PLATZHALTER` als Rueckfall, wenn `max_schritte`
+                   leer ist. Stand hier die 12 als Literal, sagte der Bildschirm nach
+                   einer Aenderung des Platzhalters eine Grenze zu, die nicht gilt. */
+                ? `${String(MAX_SCHRITTE_PLATZHALTER)} — Platzhalter (offene Frage O-196)`
                 : String(kopf.max_schritte)}
             </dd>
           </div>
@@ -533,7 +558,7 @@ export default async function AgentDetail(
               schluessel: 'status',
               kopf: 'Zustand',
               zelle: (a) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={PILLE[a.status] ?? 'Wartet'} />
                   {a.budget_stopp
                     ? <span className="text-xs text-warning">Budget</span>

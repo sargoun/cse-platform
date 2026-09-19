@@ -251,7 +251,7 @@ export default async function Buchungen(
                 }
                 if (z.beleg_id === null) {
                   return (
-                    <span className="inline-flex items-center gap-s2">
+                    <span className="inline-flex flex-wrap items-center gap-s2">
                       <StatusPill zustand="Fehler" />
                       <span className="text-xs text-warning">nicht archiviert</span>
                     </span>

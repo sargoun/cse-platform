@@ -8,8 +8,10 @@ import { berlinHeute } from '@/server/db/heute';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { versucheRechenansatz } from '@/server/services/bau/rechenansatz';
-import { findeProjekt, ladeLvAuswahl, type LvAuswahlZeile, type ProjektZeile }
-  from '@/server/services/bau/lv';
+import {
+  findeProjekt, gruppiereLvAuswahl, ladeLvAuswahl,
+  type LvAuswahlZeile, type ProjektZeile,
+} from '@/server/services/bau/lv';
 import { AnmeldungNoetig } from '../../../../../../Anmeldung';
 import { portalZugang } from '../../../../../../zugang';
 import { slugTor } from '../../../../../../unterseite';
@@ -80,6 +82,7 @@ export default async function AufmassAufnehmen(
   // zwischen Mitternacht und 02:00 Berliner Zeit ist der UTC-Tag der gestrige.
   const heute = await berlinHeute();
   const gerechnet = probe.trim() === '' ? null : versucheRechenansatz(probe);
+  const gruppen = gruppiereLvAuswahl(daten.positionen);
 
   return (
     <PortalRahmen
@@ -253,10 +256,23 @@ export default async function AufmassAufnehmen(
                 className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
               >
                 <option value="">außerhalb des LV (BAU-05)</option>
-                {daten.positionen.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.oz} · {p.kurztext}{p.ungeprueft ? ' (ungeprüft)' : ''}
-                  </option>
+                {/*
+                  * Gruppiert nach Verzeichnis und Fassung: eine OZ des
+                  * Hauptauftrags und dieselbe OZ eines Nachtrags stehen sonst
+                  * als zwei gleich beschriftete Zeilen nebeneinander, und
+                  * welche gemeint war, entschied die Reihenfolge.
+                  * `ladeLvAuswahl` liefert je Verzeichnis nur die JUENGSTE
+                  * lebende Fassung — eine überholte Position ist keine
+                  * Buchungsstelle mehr.
+                  */}
+                {gruppen.map((g) => (
+                  <optgroup key={g.schluessel} label={g.beschriftung}>
+                    {g.zeilen.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.oz} · {p.kurztext}{p.ungeprueft ? ' (ungeprüft)' : ''}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>

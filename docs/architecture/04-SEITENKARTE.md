@@ -924,7 +924,19 @@ eventually two addresses on one invoice.
 | `/portal/[mandant]/crm/kontakte/[id]` | `crm.lesen` | `M1` | CRM-03, CRM-08, LEG-08 | 4 |
 | `/portal/[mandant]/crm/kontakte/[id]/rechtsgrundlage` — set, with evidence and date | `crm.rechtsgrundlage_setzen` | `M1` | CRM-08, LEG-08 | 4 |
 | `/portal/[mandant]/crm/wiedervorlagen` — follow-ups due | `crm.lesen` | `M1` | CRM-03, CRM-04 | 4 |
+| `/portal/[mandant]/crm/akquise` — researched companies, scored, not yet contacted | `crm.lesen` | `M1` | §12 | 4 |
+| `/portal/[mandant]/crm/akquise/[id]` — one company: score breakdown, outreach draft, hand-over to a lead | `crm.lesen` (+ `crm.schreiben` to act) | `M1` | §12, CRM-08, LEG-08 | 4 |
+| `/portal/[mandant]/crm/akquise/quellen` — research sources and the nightly run log | `crm.lesen` | `M1` | §12, O-596 | 4 |
 
+- **Akquise is a waiting room, not the pipeline.** A researched company is a guess: no
+  enquiry, no deadline, no legal basis to contact anyone. Putting those rows in
+  `/crm/leads` would flood the sales working list with guesses and run the REQ-06 SLA
+  escalation against companies that never asked for anything. They live in their own list
+  until a human hands one over, which creates a `lead` with `quelle = 'akquise'` and **no
+  Ansprechpartner** — so `app.darf_kontaktiert_werden` blocks every electronic message until
+  someone records a contact and its legal basis. `akquise_ziel` stores **company data only**:
+  Art. 14 GDPR would otherwise require informing every researched person within a month
+  (O-596, D-595).
 - **CRM-08 is a route-level gate, not a badge.** Every screen that can start an outbound
   message renders the send control **disabled with the reason shown** when the contact's
   legal basis does not cover the message class (§2.3), and `crm.kommunikation_versenden` plus
@@ -1844,11 +1856,21 @@ edited in their own mandant. Two editors never own one page.
 | `/portal/[mandant]/recruiting/stellen/neu` — the AI drafts, a human edits and approves | `recruiting.stelle_lesen` + `recruiting.stelle_schreiben` | `M1` | REC-02, APR-01, invariant 7 | 9 |
 | `/portal/[mandant]/recruiting/stellen/[id]/veroeffentlichung` — channels; „nicht verbunden" where no API exists | `recruiting.stelle_lesen` + `recruiting.stelle_veroeffentlichen` | `M1` | REC-09, D-02 | 9 |
 | `/portal/[mandant]/recruiting/bewerbungen` , `/[id]` | `recruiting.bewerbung_lesen` | `M1` | REC-03, REC-04 | 9 |
+| `/portal/[mandant]/recruiting/bewerbungen/[id]/antwort` — draft, approve and send the reply to the applicant | `recruiting.bewerbung_bewerten` (draft) + `recruiting.entscheiden` (approve) | `M1` | REC-03, § 22 AGG, invariant 7 | 9 |
 | `/portal/[mandant]/recruiting/kandidaten` , `/[id]` — the parsed CV record | `recruiting.bewerbung_lesen` | `M1` | REC-04, REC-05 | 9 |
 | `/portal/[mandant]/recruiting/kandidaten/[id]/bewertung` — ranked match with **visible criteria** | `recruiting.bewerbung_bewerten` | `M1` | REC-05, REC-08, LEG-12 | 9 |
 | `/portal/[mandant]/recruiting/kandidaten/[id]/entscheidung` — the hiring decision, by a human | `recruiting.entscheiden` | `M1` | REC-08, LEG-12 | 9 |
 | `/portal/[mandant]/recruiting/gespraeche` , `/[id]` — scheduling and question preparation | `recruiting.bewerbung_lesen` + `kalender.schreiben` | `M1` | REC-06, CAL-01 | 9 |
 | `/portal/[mandant]/recruiting/datenschutz` — retention clock and purge log | `recruiting.daten_loeschen` | `M1` | REC-07, LEG-11 | 9 |
+
+**A rejection letter states no reason.** § 22 AGG reverses the burden of proof: anyone who
+presents indicia of discrimination forces the employer to disprove it, and every reason given
+in a rejection is a future indicium — "we were looking for more experience" is an age
+indicium in a lawyer's hands. The reason does not disappear, it moves: it is recorded in
+`einstellungsentscheidung.begruendung`, where it *proves* the objective ground, instead of in
+the letter, where it *exposes* it. A database trigger (`kern.absage_ohne_grund`, 0174) rejects
+a reply text that has copied the internal reasoning — because the dangerous path is not the
+template but the person who adds a sentence out of politeness (D-598).
 
 Ranking is a suggestion with stated reasons; there is **no auto-reject control anywhere in
 this module** (REC-08, LEG-12, DSGVO Art. 22), and `recruiting.entscheiden` requires
@@ -1944,6 +1966,7 @@ the active mandant only**; platform rows are readable by `super_admin` alone, an
 | `/portal/[mandant]/datenschutz/[id]/berichtigung` — Art. 16 | `datenschutz.berichtigung_bearbeiten` | `M1` | LEG-09 | 7 |
 | `/portal/[mandant]/datenschutz/[id]/loeschung` — Art. 17 **against** the retention holds; produces a decision record, never a delete | `datenschutz.loeschung_pruefen` | `M1` | LEG-09, LEG-01, LEG-02 | 7 |
 | `/portal/[mandant]/datenschutz/verarbeitungsverzeichnis` — the Art. 30 register | `system.einstellung_lesen` | `M1` | LEG-09 | 7 |
+| `/portal/[mandant]/datenschutz/barrieren` — barriers reported through the BFSG channel, and what was done about them | `referenz.schreiben` | `M1` | LEG-07 | 7 |
 | `/portal/[mandant]/datenschutz/loeschkonzept` — the deletion concept, derived from the retention rules, the purge jobs and the `KEIN_HARD_DELETE` register: what is erased, when, by which run — and what is **not**, with its reason | `system.einstellung_lesen` | `M1` | LEG-09, LEG-01, LEG-02 | 10 |
 | `/portal/[mandant]/datenschutz/widersprueche` — the Werbewiderspruch log of §2.4 | `crm.rechtsgrundlage_lesen` | `M1` | CRM-08, LEG-08 | 4 |
 

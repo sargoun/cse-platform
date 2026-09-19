@@ -154,3 +154,22 @@ export function Leer({ text }: { readonly text: string }) {
     <p data-cse="leer" className="m-0 text-base text-text-muted">{text}</p>
   );
 }
+
+/**
+ * Der Satz, der sagt, WARUM hier nichts zu tun ist.
+ *
+ * Er ist ausdruecklich kein `Leer`: „keine Eintraege" und „diese Schicht ist
+ * beendet" sind zwei verschiedene Aussagen, und die erste an der Stelle der
+ * zweiten ist eine Falschauskunft — dieselbe, gegen die 0302 das
+ * Uebergabefenster ausformuliert hat (O-151). Ueberall dort, wo ein Formular
+ * WEGGELASSEN wird, steht dieser Satz an seiner Stelle.
+ */
+export function Hinweis(
+  { text, marke = 'hinweis' }: { readonly text: string; readonly marke?: string },
+) {
+  return (
+    <p data-cse={marke} className="m-0 mb-s4 max-w-prose text-base text-warning">
+      {text}
+    </p>
+  );
+}

@@ -512,3 +512,48 @@ export const SEITEN_EN: readonly SeitenInhalt[] = [
     ],
   },
 ];
+
+/**
+ * The English twin of `LEISTUNGSSEITEN` (D-82) — same path, own `seite` row.
+ *
+ * Provisional demonstration content, and it says so. Which services get a
+ * page of their own and which company is responsible for them is open
+ * (O-652); until that is answered `mandant_id` stays NULL and the `Service`
+ * block carries no `provider`.
+ *
+ * // TODO(client, O-652): Which services get their own page under
+ * `/leistungen/<slug>`, and which company is responsible for each?
+ */
+export const LEISTUNGSSEITEN_EN: readonly {
+  readonly pfad: string;
+  readonly titel: string;
+  readonly beschreibung: string;
+  readonly abschnitte: readonly {
+    readonly art: 'hero' | 'text' | 'markenkarten' | 'leistungen';
+    readonly ueberschrift: string | null;
+    readonly text: string | null;
+    readonly daten?: Record<string, unknown>;
+  }[];
+}[] = [
+  {
+    pfad: '/leistungen/unterhaltsreinigung',
+    titel: 'Routine cleaning',
+    beschreibung: 'Recurring cleaning to an agreed schedule of works — Berlin.',
+    abschnitte: [
+      {
+        art: 'hero',
+        ueberschrift: 'Routine cleaning',
+        text: 'Recurring cleaning to an agreed schedule of works.',
+      },
+      {
+        art: 'text',
+        ueberschrift: 'Provisional page',
+        text:
+          'This page is demonstration content. It shows what a single service '
+          + 'looks like as a page of its own — which services get one, and '
+          + 'which company is responsible for them, has not been decided yet '
+          + '(open question O-652). Until then the page names no provider.',
+      },
+    ],
+  },
+];
