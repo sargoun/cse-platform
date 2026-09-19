@@ -52,7 +52,7 @@ export default async function MeinZeiteintrag(
         <h1 className="m-0 text-h1 text-text">
           <span className="cse-zahl">{z.tag}</span>
         </h1>
-        <StatusPill
+        <StatusPill sprache={basis.sprache}
           zustand={
             z.storniert ? 'Archiviert'
               : z.gesperrt ? 'Abgeschlossen'

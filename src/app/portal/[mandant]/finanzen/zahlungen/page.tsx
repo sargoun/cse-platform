@@ -15,6 +15,8 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { ZAHLUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/zahlungen';
 
 /**
  * `/portal/[mandant]/finanzen/zahlungen` — was offen ist, und was eingegangen
@@ -46,14 +48,6 @@ interface ZahlungZeile {
   readonly verteilt_cent: string;
 }
 
-const MITTEL: Readonly<Record<string, string>> = {
-  ueberweisung: 'Überweisung',
-  lastschrift: 'Lastschrift',
-  bar: 'Barzahlung',
-  karte: 'Kartenzahlung',
-  verrechnung: 'Verrechnung',
-};
-
 export default async function Zahlungen(
   { params }: { params: Promise<{ mandant: string }> },
 ) {
@@ -75,6 +69,10 @@ export default async function Zahlungen(
    * D-581). Ohne das Recht steht die Nummer als blosser Text.
    */
   const darf = await haeltRechte(sitzung, 'finanzen.lesen');
+
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(ZAHLUNGEN_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
@@ -111,7 +109,7 @@ export default async function Zahlungen(
 
   return (
     <PortalRahmen
-      titel="Zahlungen"
+      titel={t.titel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -120,30 +118,30 @@ export default async function Zahlungen(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <h1 className="mb-s5 text-h1 text-text">Zahlungen</h1>
+      <h1 className="mb-s5 text-h1 text-text">{t.titel}</h1>
 
       <section aria-labelledby="forderungen-titel" className="mb-s7">
         <div className="mb-s3 flex flex-wrap items-baseline justify-between gap-s3">
-          <h2 id="forderungen-titel" className="text-h2 text-text">Offene Forderungen</h2>
+          <h2 id="forderungen-titel" className="text-h2 text-text">{t.offeneForderungen}</h2>
           <p className="text-sm text-text-muted">
-            Summe offen: <strong className="text-text">{formatiereGeld(cent(summeOffen))}</strong>
+            {t.summeOffen}{' '}
+            <strong className="text-text">{formatiereGeld(cent(summeOffen))}</strong>
           </p>
         </div>
 
         {forderungen.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Keine offene Forderung. Ein Posten entsteht mit dem Festschreiben
-            einer Rechnung — ein Entwurf fordert nichts.
+            {t.keineForderung}
           </p>
         ) : (
           <DataTable
-            beschriftung="Offene Forderungen mit Rechnungsnummer, Kunde, Betrag und Fälligkeit"
+            beschriftung={t.tabelleForderungen}
             zeilen={forderungen}
             schluessel={(p) => p.id}
             spalten={[
               {
                 schluessel: 'nummer',
-                kopf: 'Rechnung',
+                kopf: t.rechnung,
                 zelle: (p) => (p.rechnungId === null ? '—'
                   : darf['finanzen.lesen'] !== true ? (p.rechnungsnummer ?? '—') : (
                     <Link
@@ -154,27 +152,27 @@ export default async function Zahlungen(
                     </Link>
                   )),
               },
-              { schluessel: 'kunde', kopf: 'Kunde', zelle: (p) => p.kundeName ?? '—' },
+              { schluessel: 'kunde', kopf: g.kunde, zelle: (p) => p.kundeName ?? '—' },
               {
-                schluessel: 'betrag', kopf: 'Betrag', numerisch: true,
+                schluessel: 'betrag', kopf: g.betrag, numerisch: true,
                 zelle: (p) => formatiereGeld(p.betragCent),
               },
               {
-                schluessel: 'bezahlt', kopf: 'Bezahlt', numerisch: true,
+                schluessel: 'bezahlt', kopf: t.bezahlt, numerisch: true,
                 zelle: (p) => formatiereGeld(p.bezahltCent),
               },
               {
-                schluessel: 'offen', kopf: 'Offen', numerisch: true,
+                schluessel: 'offen', kopf: t.offen, numerisch: true,
                 zelle: (p) => <strong>{formatiereGeld(p.offenCent)}</strong>,
               },
               {
                 schluessel: 'faellig',
-                kopf: 'Fällig',
+                kopf: g.faellig,
                 zelle: (p) => (
                   <span className="inline-flex flex-wrap items-center gap-s2">
                     {p.faelligAm}
                     {p.ueberfaelligTage > 0 ? (
-                      <StatusPill zustand="Überfällig" />
+                      <StatusPill zustand="Überfällig" sprache={zugang.sprache} />
                     ) : null}
                   </span>
                 ),
@@ -186,35 +184,32 @@ export default async function Zahlungen(
 
       {guthaben.length === 0 ? null : (
         <section aria-labelledby="guthaben-titel" className="mb-s7">
-          <h2 id="guthaben-titel" className="mb-s3 text-h2 text-text">Guthaben der Kunden</h2>
+          <h2 id="guthaben-titel" className="mb-s3 text-h2 text-text">{t.guthabenTitel}</h2>
           <p className="mb-s3 max-w-prose text-sm text-text-muted">
-            Ein Guthaben entsteht aus einer Überzahlung oder aus einem Storno.
-            Es ist eine Verbindlichkeit: der Betrag steht dem Kunden zu, bis er
-            mit einer Rechnung verrechnet oder erstattet wird.
+            {t.guthabenErklaerung}
           </p>
           <DataTable
-            beschriftung="Guthaben der Kunden mit Betrag und Entstehungstag"
+            beschriftung={t.tabelleGuthaben}
             zeilen={guthaben}
             schluessel={(p) => p.id}
             spalten={[
-              { schluessel: 'kunde', kopf: 'Kunde', zelle: (p) => p.kundeName ?? '—' },
+              { schluessel: 'kunde', kopf: g.kunde, zelle: (p) => p.kundeName ?? '—' },
               {
-                schluessel: 'offen', kopf: 'Offen', numerisch: true,
+                schluessel: 'offen', kopf: t.offen, numerisch: true,
                 zelle: (p) => formatiereGeld(p.offenCent),
               },
-              { schluessel: 'seit', kopf: 'Seit', zelle: (p) => p.faelligAm },
+              { schluessel: 'seit', kopf: t.seit, zelle: (p) => p.faelligAm },
             ]}
           />
         </section>
       )}
 
       <section aria-labelledby="erfassen-titel" className="mb-s7">
-        <h2 id="erfassen-titel" className="mb-s3 text-h2 text-text">Zahlungseingang erfassen</h2>
+        <h2 id="erfassen-titel" className="mb-s3 text-h2 text-text">{t.erfassenTitel}</h2>
 
         {forderungen.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Es gibt keine offene Forderung, auf die sich eine Zahlung buchen
-            ließe.
+            {t.keineForderungZumBuchen}
           </p>
         ) : (
           <form
@@ -222,11 +217,11 @@ export default async function Zahlungen(
             action={`/api/finanzen/zahlungen?mandant=${mandant}`}
             className="max-w-prose rounded-lg border border-line bg-surface p-s5"
           >
-            <label className="block text-sm text-text" htmlFor="rechnungId">Rechnung</label>
+            <label className="block text-sm text-text" htmlFor="rechnungId">{t.rechnung}</label>
             <select id="rechnungId" name="rechnungId" required className={feld}>
               {forderungen.map((p) => (
                 <option key={p.id} value={p.rechnungId ?? ''}>
-                  {p.rechnungsnummer ?? '—'} · {p.kundeName ?? '—'} · offen{' '}
+                  {p.rechnungsnummer ?? '—'} · {p.kundeName ?? '—'} · {t.offen}{' '}
                   {formatiereGeld(p.offenCent)}
                 </option>
               ))}
@@ -235,7 +230,7 @@ export default async function Zahlungen(
             <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">
               <div>
                 <label className="block text-sm text-text" htmlFor="betrag">
-                  Betrag in Euro
+                  {t.betragInEuro}
                 </label>
                 <input
                   id="betrag" name="betrag" type="text" inputMode="decimal" required
@@ -244,7 +239,7 @@ export default async function Zahlungen(
               </div>
               <div>
                 <label className="block text-sm text-text" htmlFor="zahlungsdatum">
-                  Buchungstag
+                  {t.buchungstag}
                 </label>
                 <input
                   id="zahlungsdatum" name="zahlungsdatum" type="date" required className={feld}
@@ -253,13 +248,13 @@ export default async function Zahlungen(
             </div>
 
             <label className="mt-s4 block text-sm text-text" htmlFor="zahlungsmittel">
-              Zahlungsmittel
+              {t.zahlungsmittel}
             </label>
             <select id="zahlungsmittel" name="zahlungsmittel" required className={feld}>
-              <option value="ueberweisung">Überweisung</option>
-              <option value="lastschrift">Lastschrift</option>
-              <option value="karte">Kartenzahlung</option>
-              <option value="verrechnung">Verrechnung</option>
+              <option value="ueberweisung">{t.mittelNamen.ueberweisung}</option>
+              <option value="lastschrift">{t.mittelNamen.lastschrift}</option>
+              <option value="karte">{t.mittelNamen.karte}</option>
+              <option value="verrechnung">{t.mittelNamen.verrechnung}</option>
             </select>
             {/*
               * `bar` fehlt mit Absicht: eine Barzahlung verlangt eine Kasse
@@ -269,10 +264,10 @@ export default async function Zahlungen(
               */}
 
             <label className="mt-s4 block text-sm text-text" htmlFor="bankkontoId">
-              Eingegangen auf
+              {t.eingegangenAuf}
             </label>
             <select id="bankkontoId" name="bankkontoId" className={feld}>
-              <option value="">— ohne Kontobezug —</option>
+              <option value="">{t.ohneKontobezug}</option>
               {daten.konten.map((k) => (
                 <option key={k.id} value={k.id}>
                   {k.bezeichnung} · {formatiereIban(k.iban)}
@@ -281,41 +276,39 @@ export default async function Zahlungen(
             </select>
 
             <label className="mt-s4 block text-sm text-text" htmlFor="referenz">
-              Verwendungszweck oder Referenz
+              {t.verwendungszweck}
             </label>
             <input id="referenz" name="referenz" type="text" className={feld} />
 
             <p className="mt-s4 max-w-prose text-xs text-text-muted">
-              Kommt mehr an, als offen ist, wird der Überschuss NICHT auf die
-              Rechnung gebucht: er wird als Guthaben des Kunden geführt und
-              oben ausgewiesen.
+              {t.ueberzahlungHinweis}
             </p>
 
             <button
               type="submit"
               className="mt-s5 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover"
             >
-              Zahlung erfassen
+              {t.zahlungErfassen}
             </button>
           </form>
         )}
       </section>
 
       <section aria-labelledby="eingang-titel">
-        <h2 id="eingang-titel" className="mb-s3 text-h2 text-text">Erfasste Zahlungseingänge</h2>
+        <h2 id="eingang-titel" className="mb-s3 text-h2 text-text">{t.eingaengeTitel}</h2>
         {daten.zahlungen.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Noch keine Zahlung erfasst.
+            {t.keineZahlung}
           </p>
         ) : (
           <DataTable
-            beschriftung="Erfasste Zahlungseingänge mit Datum, Betrag, Zahlungsmittel und Zuordnung"
+            beschriftung={t.tabelleEingaenge}
             zeilen={daten.zahlungen}
             schluessel={(z) => z.id}
             spalten={[
               {
                 schluessel: 'datum',
-                kopf: 'Datum',
+                kopf: g.datum,
                 zelle: (z) => (
                   <Link
                     href={`/portal/${mandant}/finanzen/zahlungen/${z.id}`}
@@ -326,30 +319,31 @@ export default async function Zahlungen(
                 ),
               },
               {
-                schluessel: 'betrag', kopf: 'Betrag', numerisch: true,
+                schluessel: 'betrag', kopf: g.betrag, numerisch: true,
                 zelle: (z) => formatiereGeld(cent(BigInt(z.betrag_cent))),
               },
               {
-                schluessel: 'mittel', kopf: 'Mittel',
-                zelle: (z) => MITTEL[z.zahlungsmittel] ?? z.zahlungsmittel,
+                schluessel: 'mittel', kopf: t.mittel,
+                zelle: (z) => t.mittelNamen[z.zahlungsmittel as keyof typeof t.mittelNamen]
+                  ?? z.zahlungsmittel,
               },
               {
-                schluessel: 'referenz', kopf: 'Referenz',
+                schluessel: 'referenz', kopf: t.referenz,
                 zelle: (z) => z.referenz ?? <span className="text-text-subtle">—</span>,
               },
               {
                 schluessel: 'zustand',
-                kopf: 'Zustand',
+                kopf: g.zustand,
                 zelle: (z) => {
                   if (z.storniert_am !== null) {
-                    return <StatusPill zustand="Archiviert" />;
+                    return <StatusPill zustand="Archiviert" sprache={zugang.sprache} />;
                   }
                   const rest = BigInt(z.betrag_cent) - BigInt(z.verteilt_cent);
                   return rest === 0n
-                    ? <StatusPill zustand="Abgeschlossen" />
+                    ? <StatusPill zustand="Abgeschlossen" sprache={zugang.sprache} />
                     : (
                       <span className="text-sm text-warning">
-                        {formatiereGeld(cent(rest))} nicht zugeordnet
+                        {formatiereGeld(cent(rest))} {t.nichtZugeordnet}
                       </span>
                     );
                 },

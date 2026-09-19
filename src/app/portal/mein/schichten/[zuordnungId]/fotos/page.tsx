@@ -139,7 +139,7 @@ export default async function MeineSchichtfotos(
                 className="rounded-lg border border-line bg-surface p-s4"
               >
                 <div className="mb-s3 flex flex-wrap items-center gap-s3">
-                  <StatusPill zustand={medium.entfernt ? 'Archiviert' : 'Abgeschlossen'} />
+                  <StatusPill sprache={basis.sprache} zustand={medium.entfernt ? 'Archiviert' : 'Abgeschlossen'} />
                   <span className="text-sm text-text-muted">{medium.mimeTyp}</span>
                 </div>
                 {adresse !== null && (

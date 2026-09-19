@@ -114,7 +114,7 @@ export default async function MeineAntraege() {
                 >
                   <div className="mb-s3 flex flex-wrap items-center gap-s3">
                     <Gesellschaft slug={a.mandantSlug} name={a.mandantName} />
-                    <StatusPill zustand={antragPille(a.antrag.status)} />
+                    <StatusPill sprache={basis.sprache} zustand={antragPille(a.antrag.status)} />
                   </div>
                   <Felder>
                     <Feld label={t.antragArt}>{a.antrag.art}</Feld>
@@ -148,7 +148,7 @@ export default async function MeineAntraege() {
               >
                 <div className="mb-s3 flex flex-wrap items-center gap-s3">
                   <Gesellschaft slug={a.mandantSlug} name={a.mandantName} />
-                  <StatusPill zustand={abwesenheitPille(a.abwesenheit.status)} />
+                  <StatusPill sprache={basis.sprache} zustand={abwesenheitPille(a.abwesenheit.status)} />
                 </div>
                 <Felder>
                   <Feld label={t.von}>

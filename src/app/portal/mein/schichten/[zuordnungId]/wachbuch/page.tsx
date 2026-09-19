@@ -145,7 +145,7 @@ export default async function MeinWachbuch(
                   >
                     <div className="mb-s3 flex flex-wrap items-center gap-s3">
                       <span className="cse-zahl text-sm text-text-subtle">{e.nummer}</span>
-                      <StatusPill
+                      <StatusPill sprache={basis.sprache}
                         zustand={e.storniert ? 'Archiviert'
                           : e.art === 'alarm' ? 'Fehler' : 'Abgeschlossen'}
                       />

@@ -308,3 +308,25 @@ export function verwaltungTexte(
 ): VerwaltungTexte {
   return VERWALTUNG_TEXTE[internSprache(sprache as PortalSprache | null | undefined)];
 }
+
+/**
+ * Die Domaenentexte in der Sprache dieser Sitzung.
+ *
+ * **Warum ein Helfer und nicht je Datei eine `…Texte()`-Funktion.** Es
+ * entstehen Dutzende Texttabellen — je Teilflaeche eine. Eine eigene Fabrik
+ * je Tabelle waere Dutzende Male dieselben zwei Zeilen, und die Abbildung
+ * `ar`/`tr`/`null` → Deutsch (D-592) staende Dutzende Male da, um Dutzende
+ * Male falsch abgeschrieben werden zu koennen. So steht sie einmal.
+ *
+ * Aufgerufen wird er mit der ROHEN Sitzungssprache (`zugang.sprache`):
+ *
+ * ```ts
+ * const t = nachSprache(ZAHLUNGEN_TEXTE, zugang.sprache);
+ * ```
+ */
+export function nachSprache<T>(
+  tabelle: Readonly<Record<InternSprache, T>>,
+  sprache: PortalSprache | InternSprache | null | undefined,
+): T {
+  return tabelle[internSprache(sprache as PortalSprache | null | undefined)];
+}

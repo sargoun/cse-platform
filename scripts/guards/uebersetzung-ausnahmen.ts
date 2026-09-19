@@ -3,7 +3,17 @@
  *
  * **Jede Zeile hier ist eine Seite, deren sichtbare Woerter fest im
  * Seitenrumpf stehen** und die deshalb beim Sprachwechsel deutsch bleibt. Der
- * Stand am Tag des Einfrierens: 383 Dateien, 10439 Fundstellen.
+ * Stand am Tag des Einfrierens: 396 Dateien, 10664 Fundstellen.
+ *
+ * **Einmal ist die Liste gewachsen, und zwar hier.** Zwischen dem ersten und
+ * dem zweiten Einfrieren bekam die Wache eine zweite Sehschaerfe: eine
+ * `<StatusPill>` ohne `sprache` faellt auf Deutsch, und das sah sie vorher
+ * nicht. 13 Dateien kamen dadurch dazu — dreizehn Bildschirme des
+ * ARBEITERPORTALS, das als umgestellt galt und dessen Pillen trotzdem
+ * deutsch blieben, auch fuer eine Arbeiterin, die Arabisch eingestellt hat.
+ * Das ist der einzige Grund, aus dem diese Liste je wieder wachsen darf: die
+ * Wache sieht mehr, nicht der Baum wird schlechter. Und es ist das letzte
+ * Mal, dass es ohne eine solche Zeile hier passiert.
  *
  * **Die Liste darf schrumpfen, nie wachsen.** Wer eine Seite umstellt,
  * streicht ihre Zeile — und die Wache besteht darauf: ein Eintrag ohne feste
@@ -191,7 +201,6 @@ export const UEBERSETZUNG_AUSNAHMEN: readonly string[] = [
   'src/app/portal/[mandant]/finanzen/rechnungen/neu/page.tsx',
   'src/app/portal/[mandant]/finanzen/rechnungen/page.tsx',
   'src/app/portal/[mandant]/finanzen/zahlungen/[id]/page.tsx',
-  'src/app/portal/[mandant]/finanzen/zahlungen/page.tsx',
   'src/app/portal/[mandant]/freigaben/[id]/einspruch/page.tsx',
   'src/app/portal/[mandant]/freigaben/[id]/page.tsx',
   'src/app/portal/[mandant]/freigaben/[id]/rueckgaengig/page.tsx',
@@ -382,10 +391,6 @@ export const UEBERSETZUNG_AUSNAHMEN: readonly string[] = [
   'src/app/portal/kunde/reklamationen/[id]/page.tsx',
   'src/app/portal/kunde/reklamationen/page.tsx',
   'src/app/portal/kunde/zahlungen/page.tsx',
-  'src/app/portal/mein/monatsnachweis/page.tsx',
-  'src/app/portal/mein/objekte/[id]/page.tsx',
-  'src/app/portal/mein/objekte/page.tsx',
-  'src/app/portal/mein/schichten/[zuordnungId]/page.tsx',
   'src/app/portal/unterseite.tsx',
   'src/components/oeffentlich/Beitraege.tsx',
   'src/components/oeffentlich/Gesellschaften.tsx',

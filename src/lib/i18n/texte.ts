@@ -442,7 +442,22 @@ export interface MeinTexte {
   readonly urlaub: string;
   readonly antraege: string;
   readonly nachweise: string;
+  /** Die Rolle in der Schicht — `dienstplan_zuordnung.funktion`. */
+  readonly funktion: string;
   readonly monatsnachweis: string;
+  /**
+   * Das Blatt nach § 17 MiLoG.
+   *
+   * **Die Paragraphen bleiben unuebersetzt.** `§ 17 MiLoG` ist eine Fundstelle
+   * und kein Wort; sie in „Section 17 Minimum Wage Act" zu verwandeln, machte
+   * sie unauffindbar. Was uebersetzt wird, sind die Spalten und die Saetze,
+   * die erklaeren, was in ihnen steht.
+   */
+  readonly nachweisBlatt: Readonly<Record<
+    'titel' | 'abgeschlossen' | 'vorlaeufig' | 'gesperrt' | 'zeitenDesMonats'
+    | 'tag' | 'beginn' | 'ende' | 'pause' | 'anteilBrutto' | 'anteilNetto'
+    | 'summe' | 'erklaerung' | 'stundenkonto' | 'keinKonto' | 'abweichend'
+    | 'pruefsumme' | 'fussnote', string>>;
   readonly abwesenheit: string;
   /** Die Ueberschrift ueber den Zielen, die nicht in die Leiste passen. */
   readonly weiteres: string;
@@ -767,7 +782,31 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     urlaub: 'Urlaub',
     antraege: 'Anträge',
     nachweise: 'Nachweise',
+    funktion: 'Funktion',
     monatsnachweis: 'Monatsnachweis',
+    nachweisBlatt: {
+      titel: 'Stundennachweis § 17 MiLoG',
+      abgeschlossen: 'abgeschlossen und unveränderlich',
+      vorlaeufig: 'vorläufig — der Monat ist offen',
+      gesperrt: 'gesperrt, aber noch nicht geprägt',
+      zeitenDesMonats: 'Zeiten des Monats',
+      tag: 'Tag', beginn: 'Beginn', ende: 'Ende', pause: 'Pause',
+      anteilBrutto: 'Anteil brutto', anteilNetto: 'Anteil netto', summe: 'Summe',
+      erklaerung:
+        'Beginn und Ende sind die tatsächlichen Zeitpunkte des Eintrags in '
+        + 'Europe/Berlin. Eine Schicht über die Monatsgrenze steht in beiden '
+        + 'Monatsblättern mit ihren wahren Zeiten; nur der Anteil ist monatsabhängig.',
+      stundenkonto: 'Stundenkonto',
+      keinKonto: 'kein Konto geführt',
+      abweichend:
+        'abweichend, weil der Monat noch offen ist und nur freigegebene Zeiten '
+        + 'gebucht werden.',
+      pruefsumme: 'Prüfsumme:',
+      fussnote:
+        'Aufzeichnung nach § 17 Abs. 1 MiLoG. Zeitpunkte gespeichert in UTC, '
+        + 'dargestellt in Europe/Berlin. Kein Entgelt: diese Aufzeichnung führt '
+        + 'Minuten, bewertet wird sie in der Lohnabrechnung.',
+    },
     abwesenheit: 'Abwesenheit',
     weiteres: 'Weiteres',
     laufendeSchicht: 'Laufende Schicht',
@@ -998,7 +1037,31 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     urlaub: 'Leave',
     antraege: 'Requests',
     nachweise: 'Certificates',
+    funktion: 'Role',
     monatsnachweis: 'Monthly statement',
+    nachweisBlatt: {
+      titel: 'Record of hours, § 17 MiLoG',
+      abgeschlossen: 'closed and immutable',
+      vorlaeufig: 'provisional — the month is still open',
+      gesperrt: 'locked, but not yet sealed',
+      zeitenDesMonats: 'Times recorded this month',
+      tag: 'Day', beginn: 'Start', ende: 'End', pause: 'Break',
+      anteilBrutto: 'Share, gross', anteilNetto: 'Share, net', summe: 'Total',
+      erklaerung:
+        'Start and end are the actual instants of the entry, in Europe/Berlin. A '
+        + 'shift crossing the month boundary appears on both monthly sheets with '
+        + 'its true times; only the share depends on the month.',
+      stundenkonto: 'Hours account',
+      keinKonto: 'no account kept',
+      abweichend:
+        'differs, because the month is still open and only released times are '
+        + 'booked.',
+      pruefsumme: 'Checksum:',
+      fussnote:
+        'Record under § 17 (1) MiLoG. Instants stored in UTC, shown in '
+        + 'Europe/Berlin. Not pay: this record keeps minutes; they are valued in '
+        + 'payroll.',
+    },
     abwesenheit: 'Absence',
     weiteres: 'More',
     laufendeSchicht: 'Current shift',
@@ -1226,7 +1289,29 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     urlaub: 'الإجازة',
     antraege: 'الطلبات',
     nachweise: 'الشهادات',
+    funktion: 'الوظيفة',
     monatsnachweis: 'كشف الساعات الشهري',
+    nachweisBlatt: {
+      titel: 'سجل ساعات العمل § 17 MiLoG',
+      abgeschlossen: 'مُغلق وغير قابل للتعديل',
+      vorlaeufig: 'مبدئي — الشهر ما زال مفتوحاً',
+      gesperrt: 'مقفل، لكنه لم يُختم بعد',
+      zeitenDesMonats: 'أوقات هذا الشهر',
+      tag: 'اليوم', beginn: 'البداية', ende: 'النهاية', pause: 'الاستراحة',
+      anteilBrutto: 'الحصة الإجمالية', anteilNetto: 'الحصة الصافية', summe: 'المجموع',
+      erklaerung:
+        'البداية والنهاية هما الوقتان الفعليان للتسجيل بتوقيت Europe/Berlin. '
+        + 'المناوبة التي تعبر حدّ الشهر تظهر في كشفَي الشهرين بأوقاتها الحقيقية؛ '
+        + 'الحصة وحدها هي التي تتبع الشهر.',
+      stundenkonto: 'حساب الساعات',
+      keinKonto: 'لا يوجد حساب',
+      abweichend: 'مختلف، لأن الشهر ما زال مفتوحاً ولا تُحتسب إلا الأوقات المُعتمدة.',
+      pruefsumme: 'المجموع الرقابي:',
+      fussnote:
+        'سجل بموجب § 17 الفقرة 1 من MiLoG. الأوقات مخزّنة بتوقيت UTC ومعروضة '
+        + 'بتوقيت Europe/Berlin. هذا ليس أجراً: السجل يحفظ الدقائق، وتقييمها يتم '
+        + 'في كشف الرواتب.',
+    },
     abwesenheit: 'الغياب',
     weiteres: 'المزيد',
     laufendeSchicht: 'المناوبة الجارية',
@@ -1444,7 +1529,30 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     urlaub: 'İzin',
     antraege: 'Talepler',
     nachweise: 'Belgeler',
+    funktion: 'Görev',
     monatsnachweis: 'Aylık saat belgesi',
+    nachweisBlatt: {
+      titel: 'Çalışma saatleri kaydı § 17 MiLoG',
+      abgeschlossen: 'kapatıldı ve değiştirilemez',
+      vorlaeufig: 'geçici — ay henüz açık',
+      gesperrt: 'kilitli, ancak henüz mühürlenmedi',
+      zeitenDesMonats: 'Bu ayın saatleri',
+      tag: 'Gün', beginn: 'Başlangıç', ende: 'Bitiş', pause: 'Mola',
+      anteilBrutto: 'Pay, brüt', anteilNetto: 'Pay, net', summe: 'Toplam',
+      erklaerung:
+        'Başlangıç ve bitiş, kaydın Europe/Berlin saatindeki gerçek anlarıdır. Ay '
+        + 'sınırını aşan bir vardiya her iki ay belgesinde de gerçek saatleriyle '
+        + 'yer alır; yalnızca pay aya bağlıdır.',
+      stundenkonto: 'Saat hesabı',
+      keinKonto: 'hesap tutulmuyor',
+      abweichend:
+        'farklı, çünkü ay hâlâ açık ve yalnızca onaylanan saatler işleniyor.',
+      pruefsumme: 'Kontrol toplamı:',
+      fussnote:
+        '§ 17 fıkra 1 MiLoG uyarınca kayıt. Anlar UTC olarak saklanır, '
+        + 'Europe/Berlin olarak gösterilir. Ücret değildir: bu kayıt dakikaları '
+        + 'tutar, değerlendirmesi bordroda yapılır.',
+    },
     abwesenheit: 'Devamsızlık',
     weiteres: 'Diğer',
     laufendeSchicht: 'Devam eden vardiya',

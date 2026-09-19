@@ -76,7 +76,7 @@ export default async function MeineSchicht(
       </h1>
 
       <div className="mb-s5">
-        <SchichtKarte schicht={daten} texte={t} alsLink={false} />
+        <SchichtKarte schicht={daten} texte={t} sprache={basis.sprache} alsLink={false} />
       </div>
 
       <section className="rounded-lg border border-line bg-surface p-s4">
@@ -86,7 +86,7 @@ export default async function MeineSchicht(
             <span className="cse-zahl">{daten.pauseGeplantMinuten}</span> min
           </Feld>
           <Feld label={t.status}>{daten.status}</Feld>
-          {daten.funktion !== null && <Feld label="Funktion">{daten.funktion}</Feld>}
+          {daten.funktion !== null && <Feld label={t.funktion}>{daten.funktion}</Feld>}
         </Felder>
       </section>
 

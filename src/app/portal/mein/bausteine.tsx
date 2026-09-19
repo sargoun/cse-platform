@@ -5,7 +5,7 @@ import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
 import { stundenMinutenText } from '@/lib/datum/stunden';
 import type { BereichSchluessel } from '@/lib/design/theme';
-import type { MeinTexte } from '@/lib/i18n/texte';
+import type { MeinTexte, PortalSprache } from '@/lib/i18n/texte';
 import type { EigeneSchicht } from '@/server/services/mitarbeiter/schichten';
 
 /**
@@ -77,17 +77,25 @@ export function Felder({ children }: { readonly children: ReactNode }) {
  * sich `22:00 – 06:00` wie sechs Stunden rueckwaerts.
  */
 export function SchichtKarte({
-  schicht, texte, alsLink = true,
+  schicht, texte, sprache, alsLink = true,
 }: {
   readonly schicht: EigeneSchicht;
   readonly texte: MeinTexte;
+  /**
+   * **Die Sprache steht NEBEN den Texten, nicht in ihnen.** `MeinTexte` ist
+   * eine Tabelle fertiger Woerter und traegt nicht, aus welcher Sprache sie
+   * stammt — die Pille braucht aber den Schluessel selbst, weil ihr `zustand`
+   * deutsch bleiben muss (er waehlt die Farbe, DESIGN §5) und nur die
+   * Beschriftung wechselt.
+   */
+  readonly sprache: PortalSprache;
   readonly alsLink?: boolean;
 }) {
   const inhalt = (
     <>
       <div className="mb-s3 flex flex-wrap items-center gap-s3">
         <Gesellschaft slug={schicht.mandantSlug} name={schicht.mandantName} />
-        <StatusPill zustand={schichtPille(schicht)} />
+        <StatusPill zustand={schichtPille(schicht)} sprache={sprache} />
         {schicht.zeitanomalie !== 'keine' && (
           <span data-cse="zeitanomalie" className="text-sm text-warning">
             <Icon name="warnung" groesse="sm" className="inline-block align-[-2px]" />{' '}

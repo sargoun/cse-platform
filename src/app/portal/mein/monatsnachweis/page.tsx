@@ -114,6 +114,19 @@ export default async function Monatsnachweis({
 
   const { basis, daten } = ergebnis;
   const t = basis.texte;
+  /*
+   * TODO(client, O-886): Darf das Blatt, das die Arbeiterin abruft, in ihrer Sprache stehen — oder muss die Aufzeichnung nach § 17 MiLoG deutsch sein, um als Nachweis zu gelten?
+   *
+   * Gebaut ist die Lesehilfe: Spalten und Erklaerungen folgen
+   * `person.sprache`, die Fundstellen (`§ 17 MiLoG`) bleiben unuebersetzt, und
+   * der Pruefsummen-Hash bleibt derselbe — er haengt an den Daten, nicht an
+   * der Anzeige. Das folgt D-84 (Impressum/Datenschutz sind deutsch bindend,
+   * die englische Fassung sagt es dazu) und ist damit kein erfundener Weg,
+   * sondern der schon entschiedene. Sagt der Auftraggeber, das Blatt muesse
+   * deutsch bleiben, ist die Umkehr eine Zeile: `meinTexte('de')` statt
+   * `basis.texte`.
+   */
+  const b = t.nachweisBlatt;
   const n = daten.nachweis;
   const kontoIst = daten.konto?.istMinuten ?? null;
   const stimmtUeberein = kontoIst !== null && kontoIst === n.summeNettoMinuten;
@@ -188,16 +201,14 @@ export default async function Monatsnachweis({
       </header>
 
       <h1 style={{ margin: 0, fontSize: '12pt' }}>
-        Stundennachweis § 17 MiLoG — {String(monatNr).padStart(2, '0')}/{String(jahr)}
+        {b.titel} — {String(monatNr).padStart(2, '0')}/{String(jahr)}
       </h1>
       <p className="leise" style={{ marginTop: '2pt' }}>
         {basis.person.name}
         {daten.personalnummer === null ? '' : ` · ${daten.personalnummer}`}
         {' · '}
-        {n.quelle === 'artefakt'
-          ? 'abgeschlossen und unveränderlich'
-          : n.quelle === 'live' ? 'vorläufig — der Monat ist offen'
-            : 'gesperrt, aber noch nicht geprägt'}
+        {n.quelle === 'artefakt' ? b.abgeschlossen
+          : n.quelle === 'live' ? b.vorlaeufig : b.gesperrt}
       </p>
 
       {/* Ein eigener Rollbehaelter: der MiLoG-Nachweis hat sieben Spalten und
@@ -214,15 +225,15 @@ export default async function Monatsnachweis({
           * Rollbehaelter abgeschnitten — ein Satz, den man rollen musste,
           * um ihn zu Ende zu lesen (D-420).
           */}
-        <caption className="sr-only">Zeiten des Monats</caption>
+        <caption className="sr-only">{b.zeitenDesMonats}</caption>
         <thead>
           <tr>
-            <th scope="col">Tag</th>
-            <th scope="col">Beginn</th>
-            <th scope="col">Ende</th>
-            <th scope="col" className="zahl">Pause</th>
-            <th scope="col" className="zahl">Anteil brutto</th>
-            <th scope="col" className="zahl">Anteil netto</th>
+            <th scope="col">{b.tag}</th>
+            <th scope="col">{b.beginn}</th>
+            <th scope="col">{b.ende}</th>
+            <th scope="col" className="zahl">{b.pause}</th>
+            <th scope="col" className="zahl">{b.anteilBrutto}</th>
+            <th scope="col" className="zahl">{b.anteilNetto}</th>
           </tr>
         </thead>
         <tbody>
@@ -239,7 +250,7 @@ export default async function Monatsnachweis({
         </tbody>
         <tfoot>
           <tr>
-            <td colSpan={4}>Summe</td>
+            <td colSpan={4}>{b.summe}</td>
             <td className="zahl">{stundenMinutenText(n.summeBruttoMinuten)}</td>
             <td data-cse="nachweis-summe" className="zahl">
               {stundenMinutenText(n.summeNettoMinuten)}
@@ -249,33 +260,23 @@ export default async function Monatsnachweis({
       </table>
       </div>
       <p id="nachweis-erklaerung" className="leise" style={{ marginTop: MASSE_DRUCK['druck-zelle-y'] }}>
-        Beginn und Ende sind die tatsächlichen Zeitpunkte des Eintrags in
-        Europe/Berlin. Eine Schicht über die Monatsgrenze steht in beiden
-        Monatsblättern mit ihren wahren Zeiten; nur der Anteil ist
-        monatsabhängig.
+        {b.erklaerung}
       </p>
 
       {/* Die Gegenprobe steht AUF dem Blatt und nicht in einem Test. */}
       <p data-cse="konto-abgleich" style={{ marginTop: MASSE_DRUCK['druck-block'] }}>
-        Stundenkonto {String(monatNr).padStart(2, '0')}/{String(jahr)}:{' '}
+        {b.stundenkonto} {String(monatNr).padStart(2, '0')}/{String(jahr)}:{' '}
         <span data-cse="konto-ist" className="zahl">
-          {kontoIst === null ? 'kein Konto geführt' : stundenMinutenText(kontoIst)}
+          {kontoIst === null ? b.keinKonto : stundenMinutenText(kontoIst)}
         </span>
         {kontoIst !== null && !stimmtUeberein && (
-          <span className="leise">
-            {' '}— abweichend, weil der Monat noch offen ist und nur freigegebene
-            Zeiten gebucht werden.
-          </span>
+          <span className="leise">{' '}— {b.abweichend}</span>
         )}
       </p>
 
-      <p className="leise bruch">Prüfsumme: {n.hash}</p>
+      <p className="leise bruch">{b.pruefsumme} {n.hash}</p>
 
-      <footer className="fuss">
-        Aufzeichnung nach § 17 Abs. 1 MiLoG. Zeitpunkte gespeichert in UTC,
-        dargestellt in Europe/Berlin. Kein Entgelt: diese Aufzeichnung führt
-        Minuten, bewertet wird sie in der Lohnabrechnung.
-      </footer>
+      <footer className="fuss">{b.fussnote}</footer>
     </article>
   );
 }

@@ -28,7 +28,37 @@
  * eine ist.
  */
 import { readFileSync } from 'node:fs';
-import ts from 'typescript';
+import { createRequire } from 'node:module';
+import type * as TS from 'typescript';
+
+/**
+ * **Der Compiler wird erst geladen, wenn es etwas zu lesen gibt.**
+ *
+ * `wachen.test.ts` laesst die Wachen in einem Wegwerf-Baum laufen, der kein
+ * `node_modules` hat. Ein `import ts from 'typescript'` am Dateikopf wird beim
+ * LADEN ausgewertet — und riss damit den ganzen Wachenlauf mit, noch bevor die
+ * erste Wache lief: 36 von 37 Pruefstuecken fielen mit „Cannot find module
+ * 'typescript'" statt mit dem Befund, den sie pruefen sollten. Dort gibt es
+ * Drei Pruefstuecke schreiben aber `.tsx` unter `src/components/`, und dann
+ * WIRD geladen. Deshalb ist das Fehlen des Compilers hier kein Absturz,
+ * sondern eine Auskunft: `null`. Wer sie bekommt, entscheidet selbst — der
+ * Wegwerf-Baum ueberspringt die Wache, der ECHTE Baum meldet sie als Verstoss
+ * (`wacheSeiteOhneUebersetzung`). Ein stilles Ueberspringen im echten Baum
+ * waere der teure Fall: „alle sauber", ohne eine Zeile gelesen zu haben.
+ */
+let compiler: typeof TS | null = null;
+let gesucht = false;
+export function compilerOderNichts(): typeof TS | null {
+  if (!gesucht) {
+    gesucht = true;
+    try {
+      compiler = createRequire(import.meta.url)('typescript') as typeof TS;
+    } catch {
+      compiler = null;
+    }
+  }
+  return compiler;
+}
 
 /**
  * Attribut- und Feldnamen, deren Zeichenketten-Wert auf dem Bildschirm
@@ -42,7 +72,7 @@ import ts from 'typescript';
  */
 const SICHTBARE_NAMEN: ReadonlySet<string> = new Set([
   'titel', 'wurzelTitel', 'untertitel', 'kopf', 'beschriftung', 'beschreibung',
-  'label', 'aria-label', 'aria-description', 'alt', 'placeholder', 'zustand',
+  'label', 'aria-label', 'aria-description', 'alt', 'placeholder',
   'hinweis', 'legende', 'text', 'leerText', 'knopfText', 'titelText',
   'ueberschrift', 'meldung', 'fehler', 'erklaerung', 'zusammenfassung',
   'aktuell', 'zielTitel', 'frage', 'antwort', 'warnung', 'summary',
@@ -67,6 +97,19 @@ const SPRACHNEUTRAL: ReadonlySet<string> = new Set([
   /* Einheiten und Kuerzel: ein Zeichen, keine Sprache. */
   'min', 'max', 'Std', 'kg', 'km', 'qm', 'lfm', 'Stk', 'MiLoG', 'ct',
 ]);
+
+/**
+ * Bauteile, deren sichtbarer Text aus einem festen Wortschatz kommt und die
+ * ihn deshalb SELBST uebersetzen — sobald man ihnen die Sprache sagt.
+ *
+ * `StatusPill` ist der Fall, an dem sich das entschieden hat: sein `zustand`
+ * ist zugleich Schluessel (er waehlt die Farbe, DESIGN §5) und Beschriftung.
+ * Den Schluessel zu uebersetzen waere falsch — `zustand="Overdue"` haette
+ * keine Farbe. Also uebersetzt das Bauteil, und was hier geprueft wird, ist
+ * nur: hat es die Sprache bekommen? Ohne sie faellt es auf Deutsch, und das
+ * ist genau die Luecke, die diese Wache sichtbar halten soll.
+ */
+const SPRACHBEDUERFTIGE_BAUTEILE: ReadonlySet<string> = new Set(['StatusPill']);
 
 export interface Fundstelle {
   readonly datei: string;
@@ -97,10 +140,12 @@ function traegtSprache(roh: string): boolean {
  */
 export function festeZeichenketten(datei: string, quelle?: string): readonly Fundstelle[] {
   const inhalt = quelle ?? readFileSync(datei, 'utf8');
+  const ts = compilerOderNichts();
+  if (ts === null) return [];
   const baum = ts.createSourceFile(datei, inhalt, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const funde: Fundstelle[] = [];
 
-  const melde = (knoten: ts.Node, text: string): void => {
+  const melde = (knoten: TS.Node, text: string): void => {
     if (!traegtSprache(text)) return;
     const { line } = baum.getLineAndCharacterOfPosition(knoten.getStart(baum));
     funde.push({
@@ -109,7 +154,7 @@ export function festeZeichenketten(datei: string, quelle?: string): readonly Fun
     });
   };
 
-  const namenVon = (knoten: ts.Node): string | null => {
+  const namenVon = (knoten: TS.Node): string | null => {
     if (ts.isJsxAttribute(knoten)) return knoten.name.getText(baum);
     if (ts.isPropertyAssignment(knoten)) {
       const n = knoten.name;
@@ -119,7 +164,7 @@ export function festeZeichenketten(datei: string, quelle?: string): readonly Fun
     return null;
   };
 
-  const gehe = (knoten: ts.Node): void => {
+  const gehe = (knoten: TS.Node): void => {
     /* Sichtbarer Text zwischen zwei Elementen. */
     if (ts.isJsxText(knoten)) melde(knoten, knoten.text);
 
@@ -134,7 +179,7 @@ export function festeZeichenketten(datei: string, quelle?: string): readonly Fun
     const name = namenVon(knoten);
     if (name !== null && SICHTBARE_NAMEN.has(name)) {
       const wert = ts.isJsxAttribute(knoten) ? knoten.initializer
-        : (knoten as ts.PropertyAssignment).initializer;
+        : (knoten as TS.PropertyAssignment).initializer;
       if (wert !== undefined) {
         if (ts.isStringLiteral(wert) || ts.isNoSubstitutionTemplateLiteral(wert)) {
           melde(knoten, wert.text);
@@ -142,6 +187,23 @@ export function festeZeichenketten(datei: string, quelle?: string): readonly Fun
           && (ts.isStringLiteral(wert.expression)
             || ts.isNoSubstitutionTemplateLiteral(wert.expression))) {
           melde(knoten, wert.expression.text);
+        }
+      }
+    }
+
+    /* Ein Bauteil mit eigenem Wortschatz, dem die Sprache fehlt. */
+    if (ts.isJsxSelfClosingElement(knoten) || ts.isJsxOpeningElement(knoten)) {
+      const marke = knoten.tagName.getText(baum);
+      if (SPRACHBEDUERFTIGE_BAUTEILE.has(marke)) {
+        const hatSprache = knoten.attributes.properties.some(
+          (a) => ts.isJsxAttribute(a) && a.name.getText(baum) === 'sprache');
+        const hatStreuung = knoten.attributes.properties.some(ts.isJsxSpreadAttribute);
+        if (!hatSprache && !hatStreuung) {
+          const { line } = baum.getLineAndCharacterOfPosition(knoten.getStart(baum));
+          funde.push({
+            datei, zeile: line + 1,
+            text: `<${marke}> ohne \`sprache\` — faellt auf Deutsch`,
+          });
         }
       }
     }

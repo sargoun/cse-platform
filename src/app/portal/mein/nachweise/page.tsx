@@ -93,7 +93,7 @@ export default async function MeineNachweise() {
             >
               <div className="mb-s3 flex flex-wrap items-center gap-s3">
                 <span className="text-base text-text">{n.bezeichnung}</span>
-                <StatusPill zustand={pille(n.warnlage)} />
+                <StatusPill sprache={basis.sprache} zustand={pille(n.warnlage)} />
                 {n.warnlage !== 'gueltig' && (
                   <span data-cse="warnwort" className="text-base text-text">
                     <Icon name="warnung" groesse="sm" className="inline-block align-[-2px]" />{' '}

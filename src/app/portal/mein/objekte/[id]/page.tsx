@@ -112,13 +112,13 @@ export default async function MeinObjektBlatt(
         <Gesellschaft slug={o.mandantSlug} name={o.mandantName} />
         {o.aktuellEingeteilt && (
           <>
-            <StatusPill zustand="Aktiv" />
+            <StatusPill sprache={basis.sprache} zustand="Aktiv" />
             <span data-cse="eingeteilt" className="text-base text-text">
               {t.aktuellEingeteilt}
             </span>
           </>
         )}
-        {o.archiviert && <StatusPill zustand="Archiviert" />}
+        {o.archiviert && <StatusPill sprache={basis.sprache} zustand="Archiviert" />}
       </div>
 
       <h1 className="mb-s5 text-h1 text-text">{o.bezeichnung}</h1>
@@ -231,7 +231,7 @@ export default async function MeinObjektBlatt(
           <ul className="m-0 flex list-none flex-col gap-s3 p-0">
             {schichten.map((s) => (
               <li key={s.zuordnungId}>
-                <SchichtKarte schicht={s} texte={t} />
+                <SchichtKarte schicht={s} texte={t} sprache={basis.sprache} />
               </li>
             ))}
           </ul>

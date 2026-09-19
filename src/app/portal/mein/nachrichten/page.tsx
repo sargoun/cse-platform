@@ -169,7 +169,7 @@ export default async function MeineNachrichten() {
                   <span data-cse="eintrag-art" className="text-sm text-text-subtle">
                     {z.art === 'meldung' ? t.systemmeldung : t.nachrichtenFaden}
                   </span>
-                  <StatusPill
+                  <StatusPill sprache={basis.sprache}
                     zustand={z.geschlossen
                       ? 'Abgeschlossen'
                       : z.ungelesen > 0 ? 'Wartet' : 'Inaktiv'}

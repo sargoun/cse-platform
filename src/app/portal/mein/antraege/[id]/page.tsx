@@ -79,7 +79,7 @@ export default async function MeinAntrag(
 
       <div className="mb-s5 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{a.art}</h1>
-        <StatusPill zustand={antragPille(a.status)} />
+        <StatusPill sprache={basis.sprache} zustand={antragPille(a.status)} />
       </div>
 
       <section

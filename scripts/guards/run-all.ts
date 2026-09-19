@@ -9,7 +9,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
 import { pruefeXml } from './xml-wohlgeformt.js';
-import { festeZeichenketten } from './seite-ohne-uebersetzung.js';
+import { compilerOderNichts, festeZeichenketten } from './seite-ohne-uebersetzung.js';
 import { UEBERSETZUNG_AUSNAHMEN } from './uebersetzung-ausnahmen.js';
 
 const WURZEL = process.cwd();
@@ -1205,6 +1205,19 @@ function wacheInternerUrsprung(): void {
  * faellt in dieselbe Klasse.
  */
 function wacheSeiteOhneUebersetzung(): void {
+  /*
+   * Ohne den Compiler liest diese Wache nichts. Im Wegwerf-Baum ist das
+   * richtig; im echten Baum ist es der Ausfall, vor dem `dateien()` warnt —
+   * „alles sauber", ohne eine Zeile gelesen zu haben.
+   */
+  if (compilerOderNichts() === null) {
+    if (ECHTER_BAUM) {
+      melde('seite-ohne-uebersetzung', 'scripts/guards/seite-ohne-uebersetzung.ts', 1,
+        'TypeScript liess sich nicht laden — die Wache konnte nicht pruefen.');
+    }
+    return;
+  }
+
   const erlaubt = new Set(UEBERSETZUNG_AUSNAHMEN);
   const gesehen = new Set<string>();
   const wurzeln = ['src/app/portal', 'src/components'];
@@ -1237,7 +1250,14 @@ function wacheSeiteOhneUebersetzung(): void {
    * gemeldet. Beides waere falsch, also wird der Lauf hier festgestellt.
    */
   if (gelesen === 0) {
-    if (erlaubt.size > 0) {
+    /*
+     * Im Wegwerf-Baum von `wachen.test.ts` gibt es kein `src/app/portal` — und
+     * dort ist das richtig so, nicht ein Ausfall. Im ECHTEN Baum ist es einer:
+     * die Wache haette „alles sauber" gemeldet, ohne eine Datei gelesen zu
+     * haben, und der Abgleich unten haette alle 396 Eintraege als erledigt
+     * ausgewiesen.
+     */
+    if (ECHTER_BAUM) {
       melde('seite-ohne-uebersetzung', 'scripts/guards/uebersetzung-ausnahmen.ts', 1,
         'Keine einzige .tsx gelesen — die Wache lief ins Leere.');
     }
