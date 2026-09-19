@@ -10,7 +10,7 @@ import { kreise, type Kreis } from '@/server/services/finanz/kreisuebersicht';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
-import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { UEBERSICHT_TEXTE } from '@/lib/i18n/verwaltung/finanzen/uebersicht';
 
 /**
@@ -113,7 +113,6 @@ export default async function Nummernkreisblatt(
 
   /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
   const t = nachSprache(UEBERSICHT_TEXTE, zugang.sprache);
-  const g = verwaltungTexte(zugang.sprache);
 
   const alle = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) =>

@@ -173,7 +173,6 @@ export const UEBERSETZUNG_AUSNAHMEN: readonly string[] = [
   'src/app/portal/[mandant]/einstellungen/rollen/page.tsx',
   'src/app/portal/[mandant]/einstellungen/steuer/page.tsx',
   'src/app/portal/[mandant]/einstellungen/vorlagen/page.tsx',
-  'src/app/portal/[mandant]/finanzen/nummernkreise/page.tsx',
   'src/app/portal/[mandant]/finanzen/pruefungen/page.tsx',
   'src/app/portal/[mandant]/freigaben/[id]/einspruch/page.tsx',
   'src/app/portal/[mandant]/freigaben/[id]/page.tsx',
