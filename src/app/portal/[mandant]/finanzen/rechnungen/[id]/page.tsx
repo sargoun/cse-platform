@@ -17,6 +17,8 @@ import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { RECHNUNG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-akte';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]` — **Entwurfseditor ODER
@@ -40,6 +42,14 @@ const PILLE: Readonly<Record<string, PillZustand>> = {
   festgeschrieben: 'Abgeschlossen',
   verworfen: 'Archiviert',
 };
+
+/*
+ * Kennungen, keine Woerter. Der Name eines Rechts und der Code eines
+ * EN16931-Feldes lauten in beiden Sprachen gleich; sie stehen deshalb hier und
+ * nicht in der Texttabelle, wo eine zweite Spalte nur eine Erfindung waere.
+ */
+const RECHT_STORNIEREN = 'finanzen.stornieren';
+const BT_MENGENEINHEIT = 'BT-130';
 
 interface Kopf {
   readonly id: string;
@@ -135,6 +145,10 @@ export default async function Rechnungsblatt(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(RECHNUNG_AKTE_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
@@ -323,7 +337,7 @@ export default async function Rechnungsblatt(
 
   return (
     <PortalRahmen
-      titel={k.nummer ?? 'Rechnungsentwurf'}
+      titel={k.nummer ?? t.rechnungsentwurf}
       bereich={mandant as BereichSchluessel}
       nurLesen={!entwurf}
       leiste={zugang.leiste}
@@ -332,12 +346,12 @@ export default async function Rechnungsblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3 flex flex-wrap gap-s4">
+      <nav aria-label={g.zurueck} className="mb-s3 flex flex-wrap gap-s4">
         <Link
           href={`/portal/${mandant}/finanzen/rechnungen`}
           className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
         >
-          ← Alle Rechnungen
+          ← {t.alleRechnungen}
         </Link>
         {/*
           * Der §14-UStG-Vorabbericht (PR 47). Er steht auf einer EIGENEN
@@ -349,7 +363,7 @@ export default async function Rechnungsblatt(
           href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/pruefung`}
           className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
         >
-          §14-UStG-Prüfung ansehen
+          {t.pruefungAnsehen}
         </Link>
         {/*
           * Die XRechnung (PR 52). Auch sie auf einer eigenen Seite: sie zeigt
@@ -367,7 +381,7 @@ export default async function Rechnungsblatt(
             href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/xrechnung`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            XRechnung ansehen
+            {t.xrechnungAnsehen}
           </Link>
         )}
         {/*
@@ -385,7 +399,7 @@ export default async function Rechnungsblatt(
             data-cse="zugferd-laden"
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            ZUGFeRD-PDF laden
+            {t.zugferdPdfLaden}
           </a>
         )}
         {/*
@@ -398,7 +412,7 @@ export default async function Rechnungsblatt(
             href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/zugferd`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            ZUGFeRD ansehen
+            {t.zugferdAnsehen}
           </Link>
         )}
         {/*
@@ -411,7 +425,7 @@ export default async function Rechnungsblatt(
             href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/festschreiben`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            Festschreiben prüfen
+            {t.festschreibenPruefen}
           </Link>
         )}
         {entwurf && daten.darfVerwerfen && (
@@ -419,7 +433,7 @@ export default async function Rechnungsblatt(
             href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/verwerfen`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            Entwurf verwerfen
+            {t.entwurfVerwerfen}
           </Link>
         )}
         {/* Abschlaege: dieselbe Rechteschwelle wie diese Seite (`finanzen.lesen`). */}
@@ -428,7 +442,7 @@ export default async function Rechnungsblatt(
             href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/abschlaege`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            Abschläge und Abzug
+            {t.abschlaegeUndAbzug}
           </Link>
         )}
         {k.status === 'festgeschrieben' && daten.darfStornieren && (
@@ -436,7 +450,7 @@ export default async function Rechnungsblatt(
             href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/storno`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            Stornieren
+            {t.stornieren}
           </Link>
         )}
         {k.status === 'festgeschrieben' && daten.darfVersandLesen && (
@@ -444,84 +458,82 @@ export default async function Rechnungsblatt(
             href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/versand`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            Versandprotokoll
+            {t.versandprotokoll}
           </Link>
         )}
       </nav>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">
-          {k.nummer ?? 'Entwurf ohne Nummer'}
+          {k.nummer ?? t.entwurfOhneNummer}
         </h1>
-        <StatusPill zustand={PILLE[k.status] ?? 'Entwurf'} />
+        <StatusPill zustand={PILLE[k.status] ?? 'Entwurf'} sprache={zugang.sprache} />
       </div>
 
       <dl className="mb-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-3">
-        <div><dt className="text-xs text-text-muted">Kunde</dt>
+        <div><dt className="text-xs text-text-muted">{g.kunde}</dt>
           <dd className="text-sm text-text">{k.kunde}</dd></div>
-        <div><dt className="text-xs text-text-muted">Leistungsort</dt>
+        <div><dt className="text-xs text-text-muted">{t.leistungsort}</dt>
           <dd className="text-sm text-text">{k.objekt ?? '—'}</dd></div>
-        <div><dt className="text-xs text-text-muted">Leistungszeitraum</dt>
+        <div><dt className="text-xs text-text-muted">{t.leistungszeitraum}</dt>
           <dd className="text-sm text-text">
             {k.leistung_von ?? '—'} – {k.leistung_bis ?? '—'}
           </dd></div>
-        <div><dt className="text-xs text-text-muted">Rechnungsdatum</dt>
+        <div><dt className="text-xs text-text-muted">{t.rechnungsdatum}</dt>
           <dd className="text-sm text-text">{k.rechnungsdatum ?? '—'}</dd></div>
-        <div><dt className="text-xs text-text-muted">Zahlungsziel</dt>
+        <div><dt className="text-xs text-text-muted">{t.zahlungsziel}</dt>
           <dd className="text-sm text-text">
             {k.zahlungsziel_tage === null
-              ? <span className="text-warning">nicht hinterlegt (O-66)</span>
-              : `${String(k.zahlungsziel_tage)} Tage`}
+              ? <span className="text-warning">{t.zahlungszielFehlt}</span>
+              : `${String(k.zahlungsziel_tage)} ${t.tage}`}
           </dd></div>
-        <div><dt className="text-xs text-text-muted">Fällig</dt>
+        <div><dt className="text-xs text-text-muted">{g.faellig}</dt>
           <dd className="text-sm text-text">{k.faellig_am ?? '—'}</dd></div>
       </dl>
 
       {k.verworfen_grund === null ? null : (
         <p className="mb-s5 rounded-lg border border-line bg-surface-2 p-s4 text-sm text-text-muted">
-          Verworfen: {k.verworfen_grund}
+          {t.verworfenLabel} {k.verworfen_grund}
         </p>
       )}
       {k.storniert_durch === null ? null : (
         <p className="mb-s5 rounded-lg border border-line bg-surface-2 p-s4 text-sm text-text-muted">
-          Aufgehoben durch Stornorechnung {k.storniert_durch}
-          {k.ersetzt_durch === null ? '' : `, neu ausgestellt als ${k.ersetzt_durch}`}.
-          Dieser Beleg bleibt unverändert lesbar — korrigiert wird durch
-          Gegenbuchung, nie durch Änderung.
+          {t.aufgehobenDurch} {k.storniert_durch}
+          {k.ersetzt_durch === null ? '' : `${t.neuAusgestelltAls} ${k.ersetzt_durch}`}.
+          {' '}{t.stornoUnveraendert}
         </p>
       )}
 
-      <h2 className="mb-s3 text-h3 text-text">Positionen</h2>
+      <h2 className="mb-s3 text-h3 text-text">{t.positionen}</h2>
       {daten.positionen.length === 0 ? (
         <p className="mb-s5 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          Noch keine Position. Ohne Leistungsposition gibt es nichts abzurechnen
-          (§14 Abs. 4 Nr. 5 UStG).
+          {t.keinePosition}
         </p>
       ) : (
         <div className="mb-s5">
           <DataTable
-            beschriftung="Positionen der Rechnung mit Menge, Einzelpreis und Steuersatz"
+            beschriftung={t.tabellePositionen}
             zeilen={daten.positionen}
             schluessel={(p) => p.id}
             spalten={[
-              { schluessel: 'nr', kopf: 'Nr.', numerisch: true,
+              { schluessel: 'nr', kopf: t.nr, numerisch: true,
                 zelle: (p) => String(p.position_nr) },
-              { schluessel: 'bez', kopf: 'Bezeichnung', zelle: (p) => p.bezeichnung },
-              { schluessel: 'menge', kopf: 'Menge', numerisch: true,
+              { schluessel: 'bez', kopf: g.bezeichnung, zelle: (p) => p.bezeichnung },
+              { schluessel: 'menge', kopf: g.menge, numerisch: true,
                 zelle: (p) => p.menge === null ? '—'
                   : `${formatiereMenge(mengeAusPostgres(p.menge))} ${p.einheit ?? ''}` },
-              { schluessel: 'code', kopf: 'BT-130',
+              { schluessel: 'code', kopf: BT_MENGENEINHEIT,
                 zelle: (p) => p.unece_code ?? (
-                  <span className="text-warning" title="Unbestätigter Wert (O-174)">
-                    offen
+                  <span className="text-warning" title={t.unbestaetigterWert}>
+                    {t.codeOffen}
                   </span>
                 ) },
-              { schluessel: 'preis', kopf: 'Einzelpreis', numerisch: true,
+              { schluessel: 'preis', kopf: t.einzelpreis, numerisch: true,
                 zelle: (p) => p.einzelpreis_cent === null ? '—'
                   : formatiereGeld(cent(BigInt(p.einzelpreis_cent))) },
               { schluessel: 'satz', kopf: 'USt', numerisch: true,
                 zelle: (p) => `${(p.satz_bp / 100).toFixed(2).replace('.', ',')} %` },
-              { schluessel: 'netto', kopf: 'Netto', numerisch: true,
+              { schluessel: 'netto', kopf: t.netto, numerisch: true,
                 zelle: (p) => p.netto_cent === null ? '—'
                   : formatiereGeld(cent(BigInt(p.netto_cent))) },
             ]}
@@ -544,7 +556,7 @@ export default async function Rechnungsblatt(
         */}
       {daten.quellen.length === 0 ? null : (
         <>
-          <h2 className="mb-s3 text-h3 text-text">Herkunft der Positionen</h2>
+          <h2 className="mb-s3 text-h3 text-text">{t.herkunftTitel}</h2>
           <div className="mb-s5 rounded-lg border border-line bg-surface p-s5">
             {daten.positionen.map((p) => {
               const belege = daten.quellen.filter((q) => q.positionId === p.id);
@@ -553,7 +565,7 @@ export default async function Rechnungsblatt(
               return (
                 <section key={p.id} className="mb-s4 last:mb-0">
                   <h3 className="text-sm text-text">
-                    Position {p.position_nr} · {p.bezeichnung}
+                    {t.position} {p.position_nr} · {p.bezeichnung}
                   </h3>
                   <ul className="mt-s2">
                     {belege.map((q) => (
@@ -572,7 +584,7 @@ export default async function Rechnungsblatt(
                           )}
                           {q.mengeAnteil === null ? '' : ` · ${formatiereMenge(
                             mengeAusPostgres(q.mengeAnteil))} ${p.einheit ?? ''}`}
-                          {q.wirksam ? '' : ' · Anspruch erloschen'}
+                          {q.wirksam ? '' : ` · ${t.anspruchErloschen}`}
                         </span>
                         <span className="cse-zahl text-text">
                           {formatiereGeld(cent(q.anteilCent))}
@@ -588,10 +600,10 @@ export default async function Rechnungsblatt(
                     * draussen ist.
                     */}
                   <p className="mt-s2 text-xs text-text-muted">
-                    Summe der Belege: {formatiereGeld(cent(summe))}
+                    {t.summeDerBelege} {formatiereGeld(cent(summe))}
                     {p.netto_cent !== null && summe === BigInt(p.netto_cent)
-                      ? ' — stimmt mit der Position überein.'
-                      : ` — die Position trägt ${p.netto_cent === null ? '—'
+                      ? ` ${t.stimmtUeberein}`
+                      : ` ${t.positionTraegt} ${p.netto_cent === null ? '—'
                         : formatiereGeld(cent(BigInt(p.netto_cent)))}.`}
                   </p>
                 </section>
@@ -601,10 +613,10 @@ export default async function Rechnungsblatt(
         </>
       )}
 
-      <h2 className="mb-s3 text-h3 text-text">Umsatzsteuer je Steuergruppe</h2>
+      <h2 className="mb-s3 text-h3 text-text">{t.ustJeGruppe}</h2>
       <table className="mb-s5 w-full max-w-prose border-collapse text-sm">
         <caption className="sr-only">
-          Aufschlüsselung nach Steuersätzen (§14 Abs. 4 Nr. 8 UStG)
+          {t.ustAufschluesselung}
         </caption>
         <tbody>
           {daten.steuer.map((s) => (
@@ -621,21 +633,21 @@ export default async function Rechnungsblatt(
             </tr>
           ))}
           <tr className="border-b border-line">
-            <th scope="row" className="py-s2 text-left font-normal text-text-muted">Netto</th>
+            <th scope="row" className="py-s2 text-left font-normal text-text-muted">{t.netto}</th>
             <td className="cse-zahl py-s2 text-text" colSpan={2}>
               {formatiereGeld(cent(BigInt(k.netto_gesamt_cent)))}
             </td>
           </tr>
           <tr className="border-b border-line">
             <th scope="row" className="py-s2 text-left font-normal text-text-muted">
-              Umsatzsteuer
+              {t.umsatzsteuer}
             </th>
             <td className="cse-zahl py-s2 text-text" colSpan={2}>
               {formatiereGeld(cent(BigInt(k.steuer_gesamt_cent)))}
             </td>
           </tr>
           <tr>
-            <th scope="row" className="py-s2 text-left text-text">Brutto</th>
+            <th scope="row" className="py-s2 text-left text-text">{t.brutto}</th>
             <td className="cse-zahl py-s2 font-semibold text-text" colSpan={2}>
               {formatiereGeld(cent(BigInt(k.brutto_cent)))}
             </td>
@@ -655,21 +667,21 @@ export default async function Rechnungsblatt(
         */}
       {daten.abzuege.length > 0 && (
         <>
-          <h2 className="mb-s3 text-h3 text-text">Abgezogene Abschlagsrechnungen</h2>
+          <h2 className="mb-s3 text-h3 text-text">{t.abzuegeTitel}</h2>
           <div className="overflow-x-auto">
           <table
             data-cse="abzugstabelle"
             className="mb-s5 w-full max-w-prose border-collapse text-sm"
           >
             <caption className="sr-only">
-              Bereits gestellte Abschläge, je Beleg und Steuersatz (FIN-08)
+              {t.abzuegeBeschriftung}
             </caption>
             <thead>
               <tr className="border-b border-line-strong text-text-muted">
-                <th scope="col" className="py-s2 text-left font-normal">Beleg</th>
-                <th scope="col" className="py-s2 text-left font-normal">Steuersatz</th>
-                <th scope="col" className="py-s2 text-right font-normal">Netto</th>
-                <th scope="col" className="py-s2 text-right font-normal">Umsatzsteuer</th>
+                <th scope="col" className="py-s2 text-left font-normal">{t.beleg}</th>
+                <th scope="col" className="py-s2 text-left font-normal">{t.steuersatz}</th>
+                <th scope="col" className="py-s2 text-right font-normal">{t.netto}</th>
+                <th scope="col" className="py-s2 text-right font-normal">{t.umsatzsteuer}</th>
               </tr>
             </thead>
             <tbody>
@@ -677,7 +689,7 @@ export default async function Rechnungsblatt(
                 <tr key={`${a.nummer}-${a.gruppe}`} className="border-b border-line">
                   <th scope="row" className="py-s2 text-left font-normal text-text">
                     {a.nummer}
-                    {a.rechnungsdatum === null ? '' : ` vom ${a.rechnungsdatum}`}
+                    {a.rechnungsdatum === null ? '' : ` ${t.vom} ${a.rechnungsdatum}`}
                   </th>
                   <td className="py-s2 text-text-muted">
                     {a.gruppe}
@@ -693,7 +705,7 @@ export default async function Rechnungsblatt(
               ))}
               <tr>
                 <th scope="row" colSpan={2} className="py-s2 text-left text-text">
-                  Zahlbetrag
+                  {t.zahlbetrag}
                 </th>
                 <td
                   data-cse="zahlbetrag"
@@ -723,15 +735,15 @@ export default async function Rechnungsblatt(
           data-cse="steuerfall"
           className="mb-s5 max-w-prose rounded-md border border-line bg-surface p-s4"
         >
-          <h2 className="mb-s3 text-h3 text-text">Steuerfall</h2>
+          <h2 className="mb-s3 text-h3 text-text">{t.steuerfallTitel}</h2>
           {k.reverse_charge && (
             <p data-cse="reverse-charge" className="mb-s3 text-sm text-text">
               <strong className="text-text">§13b UStG:</strong>{' '}
-              {k.steuerhinweis ?? 'Steuerschuldnerschaft des Leistungsempfängers'}
+              {k.steuerhinweis ?? t.reverseChargeVorgabe}
               {k.reverse_charge_grundlage === null ? '' : (
                 k.reverse_charge_grundlage === 'bau'
-                  ? ' (§13b Abs. 2 Nr. 4 — Bauleistung)'
-                  : ' (§13b Abs. 2 Nr. 8 — Gebäudereinigung)'
+                  ? t.grundlageBau
+                  : t.grundlageReinigung
               )}
             </p>
           )}
@@ -741,19 +753,20 @@ export default async function Rechnungsblatt(
               {k.bauabzugsteuer_satz_bp === null
                 ? ''
                 : `${(k.bauabzugsteuer_satz_bp / 100).toFixed(2).replace('.', ',')} % `}
-              Bauabzugsteuer einbehalten —{' '}
-              {formatiereGeld(cent(BigInt(k.einbehalt_bauabzugsteuer_cent)))}. An die
-              Gesellschaft überwiesen werden{' '}
+              {t.bauabzugsteuerEinbehalten}{' '}
+              {formatiereGeld(cent(BigInt(k.einbehalt_bauabzugsteuer_cent)))}
+              {t.ueberwiesenWerden}{' '}
               {formatiereGeld(cent(BigInt(k.ueberweisungsbetrag_cent)))}.
               {k.freistellung_nummer === null
-                ? ' Es liegt keine am Leistungsdatum gültige Freistellungsbescheinigung vor.'
-                : ` Freistellungsbescheinigung ${k.freistellung_nummer}.`}
+                ? t.keineFreistellung
+                : ` ${t.freistellungNummer} ${k.freistellung_nummer}.`}
             </p>
           )}
           {!k.bauabzugsteuer_pflichtig && k.freistellung_nummer !== null && (
             <p className="text-sm text-text-muted">
-              <strong className="text-text">§48 EStG:</strong> kein Einbehalt —
-              Freistellungsbescheinigung {k.freistellung_nummer} gilt am Leistungsdatum.
+              <strong className="text-text">§48 EStG:</strong>{' '}
+              {t.keinEinbehaltFreistellung} {k.freistellung_nummer}{' '}
+              {t.giltAmLeistungsdatum}
             </p>
           )}
         </section>
@@ -783,7 +796,7 @@ export default async function Rechnungsblatt(
         >
           <input type="hidden" name="rechnungId" value={k.id} />
           <label htmlFor="steuerfall-grundlage" className="text-xs text-text-muted">
-            Art der Leistung (§13b Abs. 2 UStG)
+            {t.artDerLeistung}
           </label>
           <select
             id="steuerfall-grundlage"
@@ -792,23 +805,21 @@ export default async function Rechnungsblatt(
             defaultValue={k.reverse_charge_grundlage ?? ''}
             className={feld}
           >
-            <option value="">weder Bauleistung noch Gebäudereinigung</option>
-            <option value="bau">Bauleistung (§13b Abs. 2 Nr. 4)</option>
+            <option value="">{t.wederNoch}</option>
+            <option value="bau">{t.optionBau}</option>
             <option value="gebaeudereinigung">
-              Gebäudereinigungsleistung (§13b Abs. 2 Nr. 8)
+              {t.optionReinigung}
             </option>
           </select>
           <p className="mt-s3 text-sm text-text-muted">
-            Aus der Angabe folgt nicht automatisch eine Verlagerung: sie greift
-            nur, wenn für diesen Kunden am Leistungsdatum ein §13b-Status
-            hinterlegt ist. Ohne Nachweis wird die Umsatzsteuer ausgewiesen.
+            {t.steuerfallHinweis}
           </p>
           <button
             type="submit"
             data-cse="steuerfall-bestimmen"
             className="mt-s4 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
           >
-            Steuerfall bestimmen
+            {t.steuerfallBestimmen}
           </button>
         </form>
       )}
@@ -828,18 +839,14 @@ export default async function Rechnungsblatt(
         >
           <input type="hidden" name="rechnungId" value={k.id} />
           <p className="mb-s3 max-w-prose text-sm text-text-muted">
-            Zieht jeden festgeschriebenen Abschlag dieses Auftrags ab — je
-            Steuergruppe, in den Beträgen, die auf den Abschlagsrechnungen
-            stehen. Ohne diesen Schritt weist die Festschreibung den Beleg ab:
-            eine Schlussrechnung, die einen gestellten Abschlag nicht abzieht,
-            verlangt das Geld zweimal.
+            {t.abschlaegeErklaerung}
           </p>
           <button
             type="submit"
             data-cse="abschlaege-abziehen"
             className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
           >
-            Abschläge abziehen
+            {t.abschlaegeAbziehen}
           </button>
         </form>
       )}
@@ -857,7 +864,7 @@ export default async function Rechnungsblatt(
             */}
           {daten.leistungen.length === 0 ? null : (
             <>
-              <h2 className="mb-s3 text-h3 text-text">Zeile aus der Zeiterfassung</h2>
+              <h2 className="mb-s3 text-h3 text-text">{t.zeitzeileTitel}</h2>
               <form
                 method="post"
                 action={`/api/rechnungen?mandant=${mandant}`}
@@ -866,15 +873,13 @@ export default async function Rechnungsblatt(
                 <input type="hidden" name="aktion" value="aus-zeiten" />
                 <input type="hidden" name="rechnungId" value={k.id} />
                 <p className="max-w-prose text-sm text-text-muted">
-                  Nimmt jeden freigegebenen und noch nicht abgerechneten
-                  Zeiteintrag der gewählten Leistungszeile, bildet daraus
-                  <strong className="text-text"> eine</strong> Zeile und hängt
-                  jeden Eintrag als Beleg darunter. Die Menge wird genau einmal
-                  gerundet, am Ende.
+                  {t.zeitzeileTeil1}{' '}
+                  <strong className="text-text">{t.zeitzeileBetont}</strong>{' '}
+                  {t.zeitzeileTeil2}
                 </p>
 
                 <label className="mt-s4 block text-sm text-text" htmlFor="zeitLeistung">
-                  Leistungszeile des Auftrags
+                  {t.leistungszeile}
                 </label>
                 <select
                   id="zeitLeistung" name="auftragLeistungId" required className={feld}
@@ -889,7 +894,7 @@ export default async function Rechnungsblatt(
                 <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">
                   <div>
                     <label className="block text-sm text-text" htmlFor="zeitBezeichnung">
-                      Handelsübliche Bezeichnung
+                      {t.handelsuebliche}
                     </label>
                     <input
                       id="zeitBezeichnung" name="bezeichnung" type="text" required
@@ -898,7 +903,7 @@ export default async function Rechnungsblatt(
                   </div>
                   <div>
                     <label className="block text-sm text-text" htmlFor="stundensatzCent">
-                      Stundensatz (Cent)
+                      {t.stundensatzCent}
                     </label>
                     <input
                       id="stundensatzCent" name="stundensatzCent" type="number" step="1"
@@ -908,19 +913,19 @@ export default async function Rechnungsblatt(
                   </div>
                   <div>
                     <label className="block text-sm text-text" htmlFor="vonDatum">
-                      Von (Berliner Kalendertag)
+                      {t.vonBerlinerTag}
                     </label>
                     <input id="vonDatum" name="vonDatum" type="date" className={feld} />
                   </div>
                   <div>
                     <label className="block text-sm text-text" htmlFor="bisDatum">
-                      Bis (einschließlich)
+                      {t.bisEinschliesslich}
                     </label>
                     <input id="bisDatum" name="bisDatum" type="date" className={feld} />
                   </div>
                   <div>
                     <label className="block text-sm text-text" htmlFor="zeitSteuergruppe">
-                      Steuergruppe
+                      {t.steuergruppe}
                     </label>
                     <select
                       id="zeitSteuergruppe" name="steuergruppe" required className={feld}
@@ -936,13 +941,13 @@ export default async function Rechnungsblatt(
                   type="submit"
                   className="mt-s5 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
                 >
-                  Stunden übernehmen
+                  {t.stundenUebernehmen}
                 </button>
               </form>
             </>
           )}
 
-          <h2 className="mb-s3 text-h3 text-text">Position hinzufügen</h2>
+          <h2 className="mb-s3 text-h3 text-text">{t.positionHinzufuegen}</h2>
           <form
             method="post"
             action={`/api/rechnungen?mandant=${mandant}`}
@@ -952,7 +957,7 @@ export default async function Rechnungsblatt(
             <input type="hidden" name="rechnungId" value={k.id} />
 
             <label className="block text-sm text-text" htmlFor="bezeichnung">
-              Handelsübliche Bezeichnung
+              {t.handelsuebliche}
             </label>
             <input id="bezeichnung" name="bezeichnung" type="text" required className={feld} />
 
@@ -965,24 +970,24 @@ export default async function Rechnungsblatt(
                   * Gleitkommastelle, die diese Plattform nicht hat.
                   */}
                 <label className="block text-sm text-text" htmlFor="menge">
-                  Menge (Tausendstel)
+                  {t.mengeTausendstel}
                 </label>
                 <input id="menge" name="menge" type="number" step="1" required className={feld} />
                 <p className="mt-s1 text-xs text-text-muted">30870 = 30,870</p>
               </div>
               <div>
-                <label className="block text-sm text-text" htmlFor="einheit">Einheit</label>
+                <label className="block text-sm text-text" htmlFor="einheit">{g.einheit}</label>
                 <select id="einheit" name="einheit" required className={feld}>
                   {daten.einheiten.map((e) => (
                     <option key={e.schluessel} value={e.schluessel}>
-                      {e.bezeichnung}{e.ist_platzhalter ? ' — unbestätigter Wert' : ''}
+                      {e.bezeichnung}{e.ist_platzhalter ? t.unbestaetigterWertSuffix : ''}
                     </option>
                   ))}
                 </select>
               </div>
               <div>
                 <label className="block text-sm text-text" htmlFor="einzelpreisCent">
-                  Einzelpreis (Cent)
+                  {t.einzelpreisCent}
                 </label>
                 <input
                   id="einzelpreisCent" name="einzelpreisCent" type="number" step="1" required
@@ -992,7 +997,7 @@ export default async function Rechnungsblatt(
               </div>
               <div>
                 <label className="block text-sm text-text" htmlFor="steuergruppe">
-                  Steuergruppe
+                  {t.steuergruppe}
                 </label>
                 <select id="steuergruppe" name="steuergruppe" required className={feld}>
                   {daten.gruppen.map((g) => (
@@ -1010,19 +1015,19 @@ export default async function Rechnungsblatt(
               * jemand das ganze Formular ausgefuellt hat.
               */}
             <fieldset className="mt-s5 rounded-md border border-line p-s4">
-              <legend className="px-s2 text-sm text-text">Herkunft dieser Zeile</legend>
+              <legend className="px-s2 text-sm text-text">{t.herkunftDieserZeile}</legend>
               {daten.leistungen.length === 0 ? (
                 <input type="hidden" name="herkunft" value="manuell" />
               ) : (
                 <>
-                  <label className="block text-sm text-text" htmlFor="herkunft">Beleg</label>
+                  <label className="block text-sm text-text" htmlFor="herkunft">{t.beleg}</label>
                   <select id="herkunft" name="herkunft" defaultValue="vertrag" className={feld}>
-                    <option value="vertrag">Vertragsposition des Auftrags</option>
-                    <option value="manuell">Von Hand — mit Begründung</option>
+                    <option value="vertrag">{t.optionVertrag}</option>
+                    <option value="manuell">{t.optionManuell}</option>
                   </select>
 
                   <label className="mt-s4 block text-sm text-text" htmlFor="auftragLeistungId">
-                    Vertragsposition
+                    {t.vertragsposition}
                   </label>
                   <select id="auftragLeistungId" name="auftragLeistungId" className={feld}>
                     {daten.leistungen.map((l) => (
@@ -1035,7 +1040,7 @@ export default async function Rechnungsblatt(
               )}
 
               <label className="mt-s4 block text-sm text-text" htmlFor="herkunftNotiz">
-                Begründung, falls von Hand erfasst
+                {t.begruendungVonHand}
               </label>
               {/*
                 * `required` genau dann, wenn es KEINE andere Herkunft gibt:
@@ -1050,7 +1055,7 @@ export default async function Rechnungsblatt(
                 required={daten.leistungen.length === 0} className={feld}
               />
               <p className="mt-s1 text-xs text-text-muted">
-                Eine Zeile ohne Beleg entsteht nicht — auch nicht versehentlich.
+                {t.keineZeileOhneBeleg}
               </p>
             </fieldset>
 
@@ -1058,7 +1063,7 @@ export default async function Rechnungsblatt(
               type="submit"
               className="mt-s5 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
             >
-              Position hinzufügen
+              {t.positionHinzufuegen}
             </button>
           </form>
 
@@ -1069,12 +1074,11 @@ export default async function Rechnungsblatt(
               className="rounded-lg border border-line bg-surface p-s5"
             >
               <input type="hidden" name="rechnungId" value={k.id} />
-              <h2 className="text-h3 text-text">Festschreiben</h2>
+              <h2 className="text-h3 text-text">{t.festschreibenTitel}</h2>
               <p className="mt-s2 max-w-prose text-sm text-text-muted">
-                Vergibt die nächste Nummer aus dem Kreis dieser Gesellschaft und
-                schreibt den Kettensatz — in derselben Transaktion.
-                <strong className="text-text"> Danach ist der Beleg unveränderlich.</strong>
-                {' '}Eine Korrektur ist dann ein Storno mit Neuausstellung.
+                {t.festschreibenErklaerung}{' '}
+                <strong className="text-text">{t.danachUnveraenderlich}</strong>
+                {' '}{t.korrekturIstStorno}
               </p>
 
               {/*
@@ -1089,14 +1093,12 @@ export default async function Rechnungsblatt(
               {daten.fin18 === null ? null : (
                 <div className="mt-s4 max-w-prose rounded-md border border-warning bg-warning-soft p-s4 text-sm text-warning">
                   <p>
-                    <strong>Auftrag {daten.fin18.auftragsnummer}</strong> („
-                    {daten.fin18.bezeichnung}") ist abgeschlossen, aber es ist
-                    keine einzige Minute erfasst (FIN-18). Entweder fehlt die
-                    Zeiterfassung, oder diese Rechnung gehört zu einem anderen
-                    Auftrag.
+                    <strong>{t.fin18Auftrag} {daten.fin18.auftragsnummer}</strong>{' '}
+                    ({t.zitatAuf}{daten.fin18.bezeichnung}{t.zitatZu}){' '}
+                    {t.fin18Satz}
                   </p>
                   <label className="mt-s3 block" htmlFor="fin18Begruendung">
-                    Begründung, um trotzdem festzuschreiben (mind. zehn Zeichen)
+                    {t.fin18Begruendung10}
                   </label>
                   <input
                     id="fin18Begruendung" name="fin18Begruendung" type="text" minLength={10}
@@ -1110,7 +1112,7 @@ export default async function Rechnungsblatt(
                 disabled={daten.positionen.length === 0}
                 className="mt-s4 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Rechnung festschreiben
+                {t.rechnungFestschreiben}
               </button>
             </form>
 
@@ -1120,29 +1122,28 @@ export default async function Rechnungsblatt(
               className="rounded-lg border border-line bg-surface p-s5"
             >
               <input type="hidden" name="rechnungId" value={k.id} />
-              <h2 className="text-h3 text-text">Verwerfen</h2>
+              <h2 className="text-h3 text-text">{t.verwerfenTitel}</h2>
               <p className="mt-s2 max-w-prose text-sm text-text-muted">
-                Der Entwurf wird nicht gelöscht — er bleibt mit Grund stehen und
-                kostet keine Nummer.
+                {t.verwerfenErklaerungKurz}
               </p>
-              <label className="mt-s4 block text-sm text-text" htmlFor="grund">Grund</label>
+              <label className="mt-s4 block text-sm text-text" htmlFor="grund">{t.grund}</label>
               <input id="grund" name="grund" type="text" required className={feld} />
               <button
                 type="submit"
                 className="mt-s4 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
               >
-                Entwurf verwerfen
+                {t.entwurfVerwerfen}
               </button>
             </form>
           </div>
         </>
       ) : (
         <>
-          <h2 className="mb-s3 text-h3 text-text">Kettenbindung</h2>
+          <h2 className="mb-s3 text-h3 text-text">{t.kettenbindung}</h2>
           <p className="mb-s5 max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            {k.hash === null ? 'Kein Kettensatz — das darf nicht vorkommen.' : (
+            {k.hash === null ? t.keinKettensatz : (
               <>
-                Position {k.kette_position} der Kette,{' '}
+                {t.kettePositionVor} {k.kette_position} {t.kettePositionNach}{' '}
                 <code className="break-all text-xs text-text">{k.hash}</code>
               </>
             )}
@@ -1151,10 +1152,9 @@ export default async function Rechnungsblatt(
           {k.status === 'festgeschrieben' && k.storniert_durch === null
            && !daten.darfStornieren ? (
              <p className="max-w-prose text-sm text-text-muted">
-               Eine festgeschriebene Rechnung wird nicht geändert, sondern durch
-               eine Stornobuchung aufgehoben. Dieses Konto hält das Recht
-               <span className="text-text"> finanzen.stornieren </span>
-               nicht — wer es hält, ist noch offen (O-77).
+               {t.stornoRechtFehltVor}
+               <span className="text-text"> {RECHT_STORNIEREN} </span>
+               {t.stornoRechtFehltNach}
              </p>
            ) : null}
 
@@ -1166,29 +1166,27 @@ export default async function Rechnungsblatt(
               className="max-w-prose rounded-lg border border-line bg-surface p-s5"
             >
               <input type="hidden" name="rechnungId" value={k.id} />
-              <h2 className="text-h3 text-text">Korrigieren</h2>
+              <h2 className="text-h3 text-text">{t.korrigieren}</h2>
               <p className="mt-s2 text-sm text-text-muted">
-                Eine festgeschriebene Rechnung wird nicht geändert. Die
-                stornierende Buchung erzeugt einen eigenen Beleg mit eigener
-                Nummer; die Neuausstellung einen zweiten.
+                {t.korrigierenErklaerung}
               </p>
               <label className="mt-s4 block text-sm text-text" htmlFor="stornogrund">
-                Grund (mindestens zehn Zeichen, auditfähig)
+                {t.grundZehnZeichen}
               </label>
               <input
                 id="stornogrund" name="grund" type="text" required minLength={10}
                 className={feld}
               />
-              <label className="mt-s4 block text-sm text-text" htmlFor="form">Form</label>
+              <label className="mt-s4 block text-sm text-text" htmlFor="form">{t.form}</label>
               <select id="form" name="form" defaultValue="korrektur" className={feld}>
-                <option value="korrektur">Storno und Neuausstellung</option>
-                <option value="nur_storno">Nur Storno</option>
+                <option value="korrektur">{t.formKorrektur}</option>
+                <option value="nur_storno">{t.formNurStorno}</option>
               </select>
               <button
                 type="submit"
                 className="mt-s5 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
               >
-                Stornieren
+                {t.stornieren}
               </button>
             </form>
           ) : null}

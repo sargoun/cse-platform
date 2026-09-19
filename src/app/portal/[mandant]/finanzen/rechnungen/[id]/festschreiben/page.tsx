@@ -17,6 +17,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { RECHNUNG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-akte';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]/festschreiben` — **das
@@ -57,6 +59,12 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Festschreiben — Rechnung' };
 
+/*
+ * Eine Kennung, kein Wort: der Name der Datenbankfunktion lautet in beiden
+ * Sprachen gleich und wird deshalb nicht uebersetzt.
+ */
+const FN_NUMMER_ZIEHEN = 'fin.rechnung_nummer_ziehen';
+
 interface Kopf {
   readonly id: string;
   readonly nummer: string | null;
@@ -88,11 +96,13 @@ interface Steuerzeile {
 }
 
 function Befundliste(
-  { titel, befunde, ton, leerText, mandant }: {
+  { titel, befunde, ton, leerText, linkText, mandant }: {
     readonly titel: string;
     readonly befunde: PflichtfeldBericht['fehler'];
     readonly ton: 'fehler' | 'warnung';
     readonly leerText: string;
+    /* Die Beschriftung des Sprungziels — in der Sprache der Sitzung. */
+    readonly linkText: string;
     readonly mandant: string;
   },
 ) {
@@ -126,7 +136,7 @@ function Befundliste(
                     href={{ pathname: b.link }}
                     className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
                   >
-                    Dort beheben →
+                    {linkText}
                   </Link>
                 </p>
               )}
@@ -159,6 +169,10 @@ export default async function Festschreibeblatt(
    * und verriete, was er verbirgt (AUT-06, D-581).
    */
   const darf = await haeltRechte(sitzung, 'finanzen.lesen');
+
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(RECHNUNG_AKTE_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -258,7 +272,7 @@ export default async function Festschreibeblatt(
 
   return (
     <PortalRahmen
-      titel="Festschreiben"
+      titel={t.festschreibenTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -268,53 +282,51 @@ export default async function Festschreibeblatt(
       navigationsRechte={zugang.navigationsRechte}
     >
       {darf['finanzen.lesen'] === true ? (
-        <nav aria-label="Zurück" className="mb-s3">
+        <nav aria-label={g.zurueck} className="mb-s3">
           <Link
             href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            ← {k.nummer ?? 'Entwurf ohne Nummer'}
+            ← {k.nummer ?? t.entwurfOhneNummer}
           </Link>
         </nav>
       ) : null}
 
-      <h1 className="mb-s3 text-h1 text-text">Festschreiben — ein Weg, keine Rückkehr</h1>
+      <h1 className="mb-s3 text-h1 text-text">{t.festschreibenH1}</h1>
 
       {entwurf ? (
         <Hinweis art="warnung" cse="festschreiben-warnung" className="mb-s5">
           <p className="m-0 max-w-prose">
-            Mit dem Festschreiben zieht die Datenbank die nächste Nummer aus dem
-            lückenlosen Kreis dieser Gesellschaft und schreibt den Kettensatz —
-            in <strong>derselben</strong> Transaktion.{' '}
-            <strong className="text-text">Danach ist der Beleg unveränderlich.</strong>{' '}
-            Eine Korrektur ist dann ein Storno mit Neuausstellung, und beide
-            Belege bleiben für immer stehen.
+            {t.warnungTeil1}{' '}
+            <strong>{t.warnungBetont}</strong> {t.warnungTeil2}{' '}
+            <strong className="text-text">{t.danachUnveraenderlich}</strong>{' '}
+            {t.warnungTeil3}
           </p>
         </Hinweis>
       ) : (
         <Hinweis art="hinweis" cse="festschreiben-schon-fest" className="mb-s5">
           <p className="m-0 max-w-prose">
-            Dieser Beleg ist {k.status === 'verworfen' ? 'verworfen' : 'festgeschrieben'}
-            {k.nummer === null ? '' : ` und trägt die Nummer ${k.nummer}`}. Es gibt
-            hier nichts mehr festzuschreiben — die Zahlen unten sind die, mit
-            denen es geschehen ist.
+            {t.belegIst}{' '}
+            {k.status === 'verworfen' ? t.zustandVerworfen : t.zustandFestgeschrieben}
+            {k.nummer === null ? '' : ` ${t.undTraegtNummer} ${k.nummer}`}
+            {t.nichtsMehrFestzuschreiben}
           </p>
         </Hinweis>
       )}
 
-      <h2 className="mb-s3 text-h2 text-text">Was gleich unumkehrbar wird</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.wasUnumkehrbar}</h2>
 
       <dl className="mb-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-3">
         <div>
-          <dt className="text-xs text-text-muted">Empfänger</dt>
+          <dt className="text-xs text-text-muted">{t.empfaenger}</dt>
           <dd className="text-sm text-text">{k.kunde}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Rechnungsdatum</dt>
+          <dt className="text-xs text-text-muted">{t.rechnungsdatum}</dt>
           <dd className="text-sm text-text">{k.rechnungsdatum ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Leistungszeitraum</dt>
+          <dt className="text-xs text-text-muted">{t.leistungszeitraum}</dt>
           <dd className="text-sm text-text">
             {k.leistung_von === null && k.leistung_bis === null
               ? '—'
@@ -325,23 +337,21 @@ export default async function Festschreibeblatt(
 
       {daten.steuer.length === 0 ? (
         <p className="mb-s5 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          Keine Steuerzeile. Ohne Aufteilung je Steuersatzgruppe entsteht keine
-          Rechnung — die Umsatzsteuer wird je Gruppe gerechnet und niemals aus
-          einem Bruttobetrag zurück (Invariante 1).
+          {t.keineSteuerzeile}
         </p>
       ) : (
         <DataTable
-          beschriftung="Netto und Umsatzsteuer je Steuersatzgruppe"
+          beschriftung={t.tabelleSteuer}
           zeilen={daten.steuer}
           schluessel={(z) => `${z.gruppe}-${String(z.satz_bp)}`}
           spalten={[
-            { schluessel: 'gruppe', kopf: 'Steuersatzgruppe', zelle: (z) => z.gruppe },
+            { schluessel: 'gruppe', kopf: t.steuersatzgruppe, zelle: (z) => z.gruppe },
             {
-              schluessel: 'satz', kopf: 'Satz', numerisch: true,
+              schluessel: 'satz', kopf: t.satz, numerisch: true,
               zelle: (z) => `${(z.satz_bp / 100).toLocaleString('de-DE')} %`,
             },
             {
-              schluessel: 'netto', kopf: 'Netto', numerisch: true,
+              schluessel: 'netto', kopf: t.netto, numerisch: true,
               zelle: (z) => formatiereGeld(cent(BigInt(z.netto_cent))),
             },
             {
@@ -357,26 +367,26 @@ export default async function Festschreibeblatt(
         className="mb-s5 mt-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-2"
       >
         <div>
-          <dt className="text-xs text-text-muted">Netto gesamt</dt>
+          <dt className="text-xs text-text-muted">{t.nettoGesamt}</dt>
           <dd className="cse-zahl text-sm text-text">
             {formatiereGeld(cent(BigInt(k.netto_gesamt_cent)))}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Umsatzsteuer gesamt</dt>
+          <dt className="text-xs text-text-muted">{t.ustGesamt}</dt>
           <dd className="cse-zahl text-sm text-text">
             {formatiereGeld(cent(BigInt(k.steuer_gesamt_cent)))}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Brutto</dt>
+          <dt className="text-xs text-text-muted">{t.brutto}</dt>
           <dd className="cse-zahl text-sm text-text">
             {formatiereGeld(cent(BigInt(k.brutto_cent)))}
           </dd>
         </div>
         <div>
           <dt className="text-xs text-text-muted">
-            Abzug früherer Abschläge (FIN-08)
+            {t.abzugFrueherer}
           </dt>
           <dd className="cse-zahl text-sm text-text">
             {formatiereGeld(cent(BigInt(k.abzug_brutto_cent)))}
@@ -384,25 +394,25 @@ export default async function Festschreibeblatt(
         </div>
         <div>
           <dt className="text-xs text-text-muted">
-            Bauabzugsteuer §48 EStG
+            {t.bauabzugsteuer48}
             {k.bauabzugsteuer_satz_bp === null
               ? '' : ` (${String(k.bauabzugsteuer_satz_bp / 100)} %)`}
           </dt>
           <dd className="cse-zahl text-sm text-text">
             {k.bauabzugsteuer_pflichtig
               ? formatiereGeld(cent(BigInt(k.einbehalt_bauabzugsteuer_cent)))
-              : 'kein Einbehalt'}
+              : t.keinEinbehalt}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Zahlbetrag des Kunden</dt>
+          <dt className="text-xs text-text-muted">{t.zahlbetragKunde}</dt>
           <dd className="cse-zahl text-sm text-text">
             {formatiereGeld(cent(BigInt(k.zahlbetrag_cent)))}
           </dd>
         </div>
         <div className="sm:col-span-2">
           <dt className="text-xs text-text-muted">
-            Überweisungsbetrag an die Gesellschaft
+            {t.ueberweisungsbetrag}
           </dt>
           <dd className="cse-zahl text-base text-text">
             {formatiereGeld(cent(BigInt(k.ueberweisungsbetrag_cent)))}
@@ -410,21 +420,19 @@ export default async function Festschreibeblatt(
         </div>
         {k.reverse_charge ? (
           <div className="sm:col-span-2">
-            <dt className="text-xs text-text-muted">Steuerhinweis (§13b UStG)</dt>
+            <dt className="text-xs text-text-muted">{t.steuerhinweis13b}</dt>
             <dd className="max-w-prose text-sm text-text">{k.steuerhinweis ?? '—'}</dd>
           </div>
         ) : null}
       </dl>
 
-      <h2 className="mb-s3 text-h2 text-text">Der Nummernkreis, der die Nummer zieht</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.kreisTitel}</h2>
       {kreis === null ? (
         <Hinweis art="warnung" cse="festschreiben-kein-kreis" className="mb-s5">
           <p className="m-0 max-w-prose">
-            Für <strong>Ausgangsrechnungen</strong> ist in dieser Gesellschaft
-            kein offener Nummernkreis ohne Kontext eingerichtet. Ohne ihn
-            entsteht keine Nummer, und ohne Nummer keine Rechnung.{' '}
-            <code>fin.rechnung_nummer_ziehen</code> sucht genau diesen einen
-            Kreis — auch für eine Stornorechnung.
+            {t.keinKreisVor} <strong>{t.ausgangsrechnungen}</strong>{' '}
+            {t.keinKreisMitte}{' '}
+            <code>{FN_NUMMER_ZIEHEN}</code> {t.keinKreisNach}
           </p>
         </Hinweis>
       ) : (
@@ -437,17 +445,14 @@ export default async function Festschreibeblatt(
               : 'border-warning bg-warning-soft text-warning'}`}
         >
           <p className="m-0">
-            <strong className="text-text">{kreis.bezeichnung}</strong> · Maske{' '}
-            <code className="text-xs">{kreis.formatMaske}</code> · Rücksetzung{' '}
-            {kreis.zuruecksetzung ?? 'nicht festgelegt'} ·{' '}
-            {kreis.lueckenlos ? 'lückenlos' : 'nicht lückenlos'} · Zähler steht bei{' '}
+            <strong className="text-text">{kreis.bezeichnung}</strong> · {t.maske}{' '}
+            <code className="text-xs">{kreis.formatMaske}</code> · {t.ruecksetzung}{' '}
+            {kreis.zuruecksetzung ?? t.nichtFestgelegt} ·{' '}
+            {kreis.lueckenlos ? t.lueckenlos : t.nichtLueckenlos} · {t.zaehlerStehtBei}{' '}
             <span className="cse-zahl">{kreis.naechsteNummer}</span>
           </p>
           <p className="m-0 mt-s2 max-w-prose text-text-muted">
-            Die Nummer wird hier nicht angezeigt und nicht vorbelegt. Sie entsteht
-            in der Festschreibungstransaktion, unter Zeilensperre auf dem Zähler
-            — ein Entwurf, der eine Nummer hielte, wäre der Weg, auf dem Lücken
-            entstehen.
+            {t.nummerEntstehtSpaeter}
           </p>
           {kreis.vergabeGrund === null ? null : (
             <p className="m-0 mt-s2 max-w-prose">{kreis.vergabeGrund}</p>
@@ -456,18 +461,20 @@ export default async function Festschreibeblatt(
       )}
 
       <Befundliste
-        titel="Blockierend — §14 UStG"
+        titel={t.blockierendTitel}
         befunde={bericht.fehler}
         ton="fehler"
-        leerText="Keine blockierenden Befunde. Aus Sicht dieser Prüfung ist die Festschreibung möglich."
+        leerText={t.keineBlockierenden}
+        linkText={t.dortBeheben}
         mandant={mandant}
       />
 
       <Befundliste
-        titel="Warnungen — sie halten den Beleg nicht auf"
+        titel={t.warnungenTitel}
         befunde={bericht.warnungen}
         ton="warnung"
-        leerText="Keine Warnungen."
+        leerText={t.keineWarnungen}
+        linkText={t.dortBeheben}
         mandant={mandant}
       />
 
@@ -479,7 +486,7 @@ export default async function Festschreibeblatt(
               href={`/portal/${mandant}/finanzen/rechnungen/${id}/abschlaege`}
               className="text-sm underline underline-offset-2"
             >
-              Abschläge dieser Schlussrechnung ansehen →
+              {t.abschlaegeAnsehen}
             </Link>
           </p>
         </Hinweis>
@@ -500,22 +507,20 @@ export default async function Festschreibeblatt(
               className="mb-s5 rounded-md border border-warning bg-warning-soft p-s4 text-sm text-warning"
             >
               <p className="m-0 max-w-prose">
-                <strong>Auftrag {daten.fin18.auftragsnummer}</strong> („
-                {daten.fin18.bezeichnung}") ist abgeschlossen, aber es ist keine
-                einzige Minute erfasst (FIN-18). Entweder fehlt die Zeiterfassung,
-                oder diese Rechnung gehört zu einem anderen Auftrag.
+                <strong>{t.fin18Auftrag} {daten.fin18.auftragsnummer}</strong>{' '}
+                ({t.zitatAuf}{daten.fin18.bezeichnung}{t.zitatZu}){' '}
+                {t.fin18Satz}
               </p>
               <label className="mt-s3 block" htmlFor="fin18Begruendung">
-                Begründung, um trotzdem festzuschreiben (mindestens{' '}
-                {FIN18_BEGRUENDUNG_MINDESTLAENGE} Zeichen)
+                {t.fin18BegruendungMin}{' '}
+                {FIN18_BEGRUENDUNG_MINDESTLAENGE} {t.zeichenKlammer}
               </label>
               <input
                 id="fin18Begruendung" name="fin18Begruendung" type="text"
                 minLength={FIN18_BEGRUENDUNG_MINDESTLAENGE} className={feld}
               />
               <p className="m-0 mt-s2 text-xs">
-                Sie wird protokolliert und mit dem Snapshot unveränderlich — ein
-                Vermerk, den man später noch ändern kann, ist keiner.
+                {t.fin18Protokolliert}
               </p>
             </div>
           )}
@@ -526,14 +531,13 @@ export default async function Festschreibeblatt(
               className="mb-s4 max-w-prose text-sm text-warning"
             >
               {keinePositionen
-                ? 'Dieser Entwurf hat keine Position. Eine Rechnung ohne Leistung entsteht nicht.'
+                ? t.gesperrtKeinePosition
                 : blockierend
-                  ? `Die Festschreibung ist blockiert: ${String(bericht.fehler.length)} `
-                    + 'Pflichtangabe(n) fehlen. Sie stehen alle oben — nicht nur die erste.'
+                  ? `${t.gesperrtBlockiertVor} ${String(bericht.fehler.length)} `
+                    + t.gesperrtBlockiertNach
                   : abschlagSperrt
-                    ? 'Ein früherer Abschlag ist noch nicht abgezogen (FIN-08).'
-                    : 'In diesem Nummernkreis wird nicht festgeschrieben — der Grund '
-                      + 'steht oben.'}
+                    ? t.gesperrtAbschlag
+                    : t.gesperrtKreis}
             </p>
           )}
 
@@ -554,16 +558,14 @@ export default async function Festschreibeblatt(
               className="min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover"
               data-cse="festschreiben-knopf"
             >
-              Rechnung festschreiben
+              {t.rechnungFestschreiben}
             </button>
           ) : null}
         </form>
       )}
 
       <p className="mt-s5 max-w-prose text-xs text-text-muted">
-        Regelwerk {bericht.regelwerkVersion}. Der vollständige §14-Befund wird
-        beim Festschreiben in den Snapshot eingefroren — damit später
-        nachvollziehbar bleibt, welche Regeln auf diesen Beleg angewandt wurden.
+        {t.regelwerk} {bericht.regelwerkVersion}{t.regelwerkHinweis}
       </p>
     </PortalRahmen>
   );

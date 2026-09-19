@@ -12,6 +12,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { RECHNUNG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-akte';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]/storno` — die **stornierende
@@ -45,6 +47,15 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Storno — Rechnung' };
 
 const STORNO_MINDESTLAENGE = 10;
+
+/*
+ * Kennungen, keine Woerter. Rechtename und Tabellenname lauten in beiden
+ * Sprachen gleich; sie stehen deshalb hier und nicht in der Texttabelle, wo
+ * eine zweite Spalte nur eine Erfindung waere.
+ */
+const RECHT_STORNIEREN = 'finanzen.stornieren';
+const RECHT_ENTWURF_VERWERFEN = 'finanzen.entwurf_verwerfen';
+const TABELLE_BEZIEHUNG = 'rechnung_beziehung';
 
 interface Kopf {
   readonly id: string;
@@ -87,12 +98,6 @@ interface Pos {
   readonly netto_cent: string | null;
 }
 
-const POSITIONSART_TEXT: Readonly<Record<string, string>> = {
-  leistung: 'Leistung',
-  textzeile: 'Textzeile',
-  zwischensumme: 'Zwischensumme',
-};
-
 export default async function Stornoblatt(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
@@ -116,6 +121,10 @@ export default async function Stornoblatt(
    */
   const darf = await haeltRechte(
     sitzung, 'finanzen.lesen', 'finanzen.entwurf_verwerfen');
+
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(RECHNUNG_AKTE_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -188,7 +197,7 @@ export default async function Stornoblatt(
 
   return (
     <PortalRahmen
-      titel="Storno"
+      titel={t.stornoTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -198,42 +207,39 @@ export default async function Stornoblatt(
       navigationsRechte={zugang.navigationsRechte}
     >
       {darf['finanzen.lesen'] === true ? (
-        <nav aria-label="Zurück" className="mb-s3">
+        <nav aria-label={g.zurueck} className="mb-s3">
           <Link
             href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            ← {k.nummer ?? 'Entwurf ohne Nummer'}
+            ← {k.nummer ?? t.entwurfOhneNummer}
           </Link>
         </nav>
       ) : null}
 
-      <h1 className="mb-s3 text-h1 text-text">Stornieren — ein zweiter Beleg, kein Eingriff</h1>
+      <h1 className="mb-s3 text-h1 text-text">{t.stornoH1}</h1>
 
       <Hinweis art="warnung" cse="storno-erklaerung" className="mb-s5">
         <p className="m-0 max-w-prose">
-          An dieser Rechnung wird <strong>nichts geändert</strong>. Es entsteht
-          ein zweiter Beleg mit gespiegelten Beträgen, eigener Nummer aus
-          demselben Kreis und eigenem Kettenglied. Beide Belege bleiben für
-          immer stehen und verweisen aufeinander — das ist die einzige
-          rechtmässige Korrektur (Invariante 4, LEG-01).
+          {t.stornoErklaerungVor} <strong>{t.nichtsGeaendert}</strong>
+          {t.stornoErklaerungNach}
         </p>
       </Hinweis>
 
       <dl className="mb-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-3">
         <div>
-          <dt className="text-xs text-text-muted">Kunde</dt>
+          <dt className="text-xs text-text-muted">{g.kunde}</dt>
           <dd className="text-sm text-text">{k.kunde}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Rechnungsdatum</dt>
+          <dt className="text-xs text-text-muted">{t.rechnungsdatum}</dt>
           <dd className="text-sm text-text">{k.rechnungsdatum ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Kettenbindung</dt>
+          <dt className="text-xs text-text-muted">{t.kettenbindung}</dt>
           <dd className="font-mono text-xs text-text-muted" data-cse="storno-kette">
             {k.hash === null
-              ? 'kein Kettensatz'
+              ? t.keinKettensatzKurz
               : `#${String(k.kette_position)} · ${k.hash.slice(0, 16)}`}
           </dd>
         </div>
@@ -242,11 +248,14 @@ export default async function Stornoblatt(
       {schonStorniert ? (
         <Hinweis art="hinweis" cse="storno-schon-storniert" className="mb-s5">
           <p className="m-0 max-w-prose">
-            Diese Rechnung ist durch <strong>{k.storniert_durch}</strong> aufgehoben.
-            {k.storno_grund === null ? '' : ` Grund: „${k.storno_grund}".`}
+            {t.schonStorniertVor} <strong>{k.storniert_durch}</strong>
+            {t.schonStorniertNach}
+            {k.storno_grund === null
+              ? ''
+              : ` ${t.grundIst} ${t.zitatAuf}${k.storno_grund}${t.zitatZu}.`}
             {k.ersetzt_durch === null
               ? ''
-              : ` Ersetzt wurde sie durch ${k.ersetzt_durch}.`}
+              : ` ${t.ersetztWurdeSieDurch} ${k.ersetzt_durch}.`}
           </p>
           {darf['finanzen.lesen'] === true && k.storniert_durch_id !== null ? (
             <p className="m-0 mt-s2">
@@ -254,7 +263,7 @@ export default async function Stornoblatt(
                 href={`/portal/${mandant}/finanzen/rechnungen/${k.storniert_durch_id}`}
                 className="text-sm underline underline-offset-2"
               >
-                Zum Stornobeleg →
+                {t.zumStornobeleg}
               </Link>
             </p>
           ) : null}
@@ -264,10 +273,11 @@ export default async function Stornoblatt(
       {istSelbstStorno ? (
         <Hinweis art="hinweis" cse="storno-ist-storno" className="mb-s5">
           <p className="m-0 max-w-prose">
-            Dieser Beleg IST eine stornierende Buchung
-            {k.storniert_beleg === null ? '' : ` und hebt ${k.storniert_beleg} auf`}.
-            Ein Storno wird nicht selbst storniert — eine erneute Korrektur ist
-            eine neue Rechnung.
+            {t.istStornoVor}
+            {k.storniert_beleg === null
+              ? ''
+              : ` ${t.hebtAufVor} ${k.storniert_beleg}${t.hebtAufNach}`}
+            {t.istStornoNach}
           </p>
           {darf['finanzen.lesen'] === true && k.storniert_beleg_id !== null ? (
             <p className="m-0 mt-s2">
@@ -275,7 +285,7 @@ export default async function Stornoblatt(
                 href={`/portal/${mandant}/finanzen/rechnungen/${k.storniert_beleg_id}`}
                 className="text-sm underline underline-offset-2"
               >
-                Zum aufgehobenen Beleg →
+                {t.zumAufgehobenenBeleg}
               </Link>
             </p>
           ) : null}
@@ -285,10 +295,7 @@ export default async function Stornoblatt(
       {!festgeschrieben ? (
         <Hinweis art="hinweis" cse="storno-nicht-festgeschrieben" className="mb-s5">
           <p className="m-0 max-w-prose">
-            {k.status === 'entwurf'
-              ? 'Dieser Beleg ist ein Entwurf. Ein Entwurf wird verworfen, nicht '
-                + 'storniert — er hat keine Nummer und keine rechtliche Existenz.'
-              : 'Dieser Entwurf ist verworfen. Es gibt nichts aufzuheben.'}
+            {k.status === 'entwurf' ? t.istEntwurf : t.istVerworfen}
           </p>
           {k.status === 'entwurf' ? (
             <p className="m-0 mt-s2 text-sm">
@@ -297,12 +304,12 @@ export default async function Stornoblatt(
                   href={`/portal/${mandant}/finanzen/rechnungen/${id}/verwerfen`}
                   className="underline underline-offset-2"
                 >
-                  Zur Verwerfen-Seite →
+                  {t.zurVerwerfenSeite}
                 </Link>
               ) : (
                 <span className="text-text-muted">
-                  Verworfen wird er von jemandem mit{' '}
-                  <code className="text-text">finanzen.entwurf_verwerfen</code>.
+                  {t.verworfenVonJemandemMit}{' '}
+                  <code className="text-text">{RECHT_ENTWURF_VERWERFEN}</code>.
                 </span>
               )}
             </p>
@@ -310,46 +317,48 @@ export default async function Stornoblatt(
         </Hinweis>
       ) : null}
 
-      <h2 className="mb-s3 text-h2 text-text">Die Gegenrechnung, Position für Position</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.gegenrechnungTitel}</h2>
       {daten.positionen.length === 0 ? (
         <p className="mb-s5 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          Dieser Beleg hat keine Position.
+          {t.keinePositionen}
         </p>
       ) : (
         <DataTable
-          beschriftung="Die Positionen des Stornos — gespiegelte Mengen und Beträge"
+          beschriftung={t.tabelleStorno}
           zeilen={daten.positionen}
           schluessel={(p) => p.id}
           spalten={[
             {
-              schluessel: 'nr', kopf: 'Nr.', numerisch: true,
+              schluessel: 'nr', kopf: t.nr, numerisch: true,
               zelle: (p) => p.position_nr,
             },
-            { schluessel: 'bezeichnung', kopf: 'Bezeichnung', zelle: (p) => p.bezeichnung },
+            { schluessel: 'bezeichnung', kopf: g.bezeichnung, zelle: (p) => p.bezeichnung },
             {
-              schluessel: 'art', kopf: 'Art',
+              schluessel: 'art', kopf: g.art,
               zelle: (p) => (
                 <span className="inline-flex flex-col gap-s1">
                   <span className="text-sm text-text">
-                    {POSITIONSART_TEXT[p.positionsart] ?? p.positionsart}
+                    {t.positionsartNamen[
+                      p.positionsart as keyof typeof t.positionsartNamen]
+                      ?? p.positionsart}
                   </span>
                   {p.positionsart === 'leistung' ? null : (
                     <span className="text-xs text-warning">
-                      wird nicht übernommen
+                      {t.wirdNichtUebernommen}
                     </span>
                   )}
                 </span>
               ),
             },
             {
-              schluessel: 'menge', kopf: 'Menge im Storno', numerisch: true,
+              schluessel: 'menge', kopf: t.mengeImStorno, numerisch: true,
               zelle: (p) => (p.positionsart !== 'leistung' || p.menge === null
                 ? '—'
                 : `${formatiereMenge(milliMenge(-mengeAusPostgres(p.menge)))}${
                   p.einheit === null ? '' : ` ${p.einheit}`}`),
             },
             {
-              schluessel: 'netto', kopf: 'Netto im Storno', numerisch: true,
+              schluessel: 'netto', kopf: t.nettoImStorno, numerisch: true,
               zelle: (p) => (p.positionsart !== 'leistung' || p.netto_cent === null
                 ? '—'
                 : formatiereGeld(negiere(cent(BigInt(p.netto_cent))))),
@@ -360,12 +369,7 @@ export default async function Stornoblatt(
       {daten.positionen.some((p) => p.positionsart !== 'leistung') ? (
         <p className="mt-s3 max-w-prose text-xs text-text-muted"
            data-cse="storno-nicht-gespiegelt">
-          Nur <strong>Leistungszeilen</strong> werden gespiegelt.
-          Textzeilen und Zwischensummen stehen oben mit dem Vermerk „wird nicht
-          übernommen" und ohne Zahl: eine negierte Zwischensumme wäre eine
-          Summe über Zeilen, die der Stornobeleg gar nicht führt. Die
-          Kopfsummen darunter sind die des Originals, negiert — sie rechnen
-          nicht über die Zeilen dieser Tabelle.
+          {t.nurVor} <strong>{t.leistungszeilen}</strong> {t.nichtGespiegeltNach}
         </p>
       ) : null}
 
@@ -374,19 +378,19 @@ export default async function Stornoblatt(
         className="mb-s5 mt-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-3"
       >
         <div>
-          <dt className="text-xs text-text-muted">Netto im Storno</dt>
+          <dt className="text-xs text-text-muted">{t.nettoImStorno}</dt>
           <dd className="cse-zahl text-sm text-text">
             {formatiereGeld(negiere(cent(BigInt(k.netto_gesamt_cent))))}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">USt im Storno</dt>
+          <dt className="text-xs text-text-muted">{t.ustImStorno}</dt>
           <dd className="cse-zahl text-sm text-text">
             {formatiereGeld(negiere(cent(BigInt(k.steuer_gesamt_cent))))}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Brutto im Storno</dt>
+          <dt className="text-xs text-text-muted">{t.bruttoImStorno}</dt>
           <dd className="cse-zahl text-sm text-text">
             {formatiereGeld(negiere(cent(BigInt(k.brutto_cent))))}
           </dd>
@@ -402,29 +406,26 @@ export default async function Stornoblatt(
         >
           <input type="hidden" name="rechnungId" value={k.id} />
           <label className="block text-sm text-text" htmlFor="stornogrund">
-            Grund (mindestens {STORNO_MINDESTLAENGE} Zeichen, auditfähig)
+            {t.grundMindestensVor} {STORNO_MINDESTLAENGE} {t.zeichenAuditfaehig}
           </label>
           <input
             id="stornogrund" name="grund" type="text" required
             minLength={STORNO_MINDESTLAENGE} className={feld}
           />
           <p className="m-0 mt-s2 max-w-prose text-xs text-text-muted">
-            Er wird in <code>rechnung_beziehung</code> festgehalten und steht
-            danach auf beiden Belegen. „Fehler" ist keine Begründung — der Grund
-            muss den Vorgang benennen.
+            {t.grundWirdIn} <code>{TABELLE_BEZIEHUNG}</code> {t.grundFestgehalten}
           </p>
 
-          <label className="mt-s4 block text-sm text-text" htmlFor="form">Form</label>
+          <label className="mt-s4 block text-sm text-text" htmlFor="form">{t.form}</label>
           <select id="form" name="form" defaultValue="nur_storno" className={feld}>
-            <option value="nur_storno">Nur Storno — die Rechnung wird aufgehoben</option>
+            <option value="nur_storno">{t.formNurStornoLang}</option>
             <option value="korrektur">
-              Storno und Neuausstellung — es entsteht zusätzlich ein neuer Entwurf
+              {t.formKorrekturLang}
             </option>
           </select>
           <p className="m-0 mt-s2 max-w-prose text-xs text-text-muted">
-            Die Neuausstellung übernimmt die Positionen und beansprucht die
-            Quellen des Originals neu. Sie ist ein <strong>Entwurf</strong> — sie
-            wird nicht automatisch festgeschrieben und hält keine Nummer.
+            {t.neuausstellungVor} <strong>{t.entwurf}</strong>{' '}
+            {t.neuausstellungNach}
           </p>
 
           <button
@@ -432,15 +433,13 @@ export default async function Stornoblatt(
             className="mt-s5 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
             data-cse="storno-knopf"
           >
-            Stornieren
+            {t.stornieren}
           </button>
         </form>
       ) : null}
 
       <p className="mt-s5 max-w-prose text-xs text-text-muted">
-        Der Storno zieht seine eigene Nummer aus demselben Kreis und hängt sich
-        an dieselbe Hashkette. Wer darf stornieren, ist noch offen (O-77) — bis
-        dahin gilt die Katalogvorgabe für <code>finanzen.stornieren</code>.
+        {t.stornoFussVor} <code>{RECHT_STORNIEREN}</code>.
       </p>
     </PortalRahmen>
   );
