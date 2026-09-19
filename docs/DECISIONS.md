@@ -14272,6 +14272,63 @@ Vorgreifen in die andere Richtung.
 
 ---
 
+### D-610 · Was dem Super-Admin gehört — und was dem Admin der Gesellschaft bleibt
+
+**Die Frage kam vom Mandanten, und sie kam als Beobachtung:** „تغيير حسابات
+السوشيال ميديا … برأيي لازم تكون عند السوبر ادمن بس … او تعيين مفتاح لل AI".
+
+**Der Befund dazu.** Heute tragen **genau zwei** Rechte `nur_global`:
+`system.mandant_verwalten` und `system.zwei_faktor_zuruecksetzen`
+(`drizzle/0008`). Alles andere — Zugangsdaten für Instagram und LinkedIn, der
+Schlüssel des Sprachmodells, die Bilder der Website — ist heute ein Recht des
+Admins EINER Gesellschaft. Und eine globale Einstellungsfläche gibt es nicht:
+`/portal/gruppe` liest ausschliesslich (Invariante 10).
+
+**Entschieden: geteilt, entlang der Frage „wer trägt den Schaden".**
+
+| Gehört dem Super-Admin (`nur_global`) | Bleibt beim Admin der Gesellschaft |
+|---|---|
+| Zugangsdaten der sozialen Kanäle | Beiträge, Planung, Freigabe |
+| Schlüssel und Region des Sprachmodells | Agentenrichtlinien je Gesellschaft |
+| Anlegen und Einladen von Verwaltungskonten | Mitarbeiter- und Kundenzugänge |
+| Zugangsdaten jeder externen Anbindung | Alles, was Inhalt ist |
+| | Bilder, Nachrichten, Referenzen, Leistungen, Seiten der Website |
+
+**Warum die Bilder NICHT hochwandern**, obwohl sie in derselben Frage
+standen: sie sind der tägliche Inhalt der Reinigungs- und der Bauabteilung.
+Wandern sie zum Super-Admin, wird jede neue Referenzaufnahme zu einer
+Rückfrage bei einem einzelnen Menschen — und die Website veraltet, weil das
+Ändern zu teuer geworden ist. Ein Schlüssel ist etwas anderes: er kostet
+Geld, wenn er abfliesst, und er gilt für die ganze Gruppe.
+
+**Die Trennlinie in einem Satz:** was bei Missbrauch die GRUPPE trifft, gehört
+nach oben; was eine Gesellschaft allein trifft, bleibt unten.
+
+---
+
+### D-611 · O-39 ist beantwortet: die Woche wird freigegeben, bevor sie abgerechnet wird
+
+**Die Frage** (O-39) lautete: Gibt es den Schritt „Zeit zur Abrechnung
+freigeben" als eigenen menschlichen Akt — oder nimmt sich eine
+festgeschriebene Rechnung die Zeilen direkt?
+
+**Die Antwort des Mandanten: ja, ein Mensch gibt frei, wöchentlich, vor der
+Fakturierung.** In seinen Worten: die Stunden gehen an den zuständigen Admin,
+der bestätigt, korrigiert oder ablehnt.
+
+**Was das öffnet.** `/portal/[mandant]/zeiten/freigabe` ist seit PR 50 fertig
+gebaut und antwortete mit 404, weil `zeit.abrechnung_freigeben` an keine Rolle
+gebunden war (AUT-06). Die Antwort ist deshalb **eine Rechtebindung und kein
+Umbau** — genau so, wie die Seite es vorgesehen hatte.
+
+**Was schon vorher nicht offen war:** `freigegeben_am` steht seit 0034 im
+Schema und hat zwei gebaute Leser — das Stundenkonto nimmt nur Freigegebenes
+(EMP-04), und die Rechnungsstellung wählt `freigegeben_am is not null and
+abgerechnet_am is null` (FIN-07). Die Kette war vollständig; ihr fehlte der
+menschliche Anfang.
+
+---
+
 ### D-609 · Fünf Seiten liefen über den Rand — und viermal war es dieselbe Ursache eine Ebene tiefer
 
 **Der Befund.** `tests/e2e/abmessungen.spec.ts` meldete zehn Klagen am Telefon

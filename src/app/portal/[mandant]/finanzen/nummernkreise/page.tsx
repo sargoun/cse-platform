@@ -10,6 +10,8 @@ import { kreise, type Kreis } from '@/server/services/finanz/kreisuebersicht';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { UEBERSICHT_TEXTE } from '@/lib/i18n/verwaltung/finanzen/uebersicht';
 
 /**
  * `/portal/[mandant]/finanzen/nummernkreise` — die Nummernkreise einer
@@ -48,10 +50,18 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Nummernkreise — Finanzen' };
 
-const ZURUECKSETZUNG_TEXT: Readonly<Record<string, string>> = {
-  nie: 'nie — fortlaufend über Jahre',
-  jaehrlich: 'jährlich — am 1. Januar zurück auf 1',
-};
+/*
+ * Spalten-, Funktions- und Rechtenamen lauten in beiden Sprachen gleich und
+ * stehen deshalb hier und nicht in der Texttabelle (siehe deren Kopf).
+ */
+const FN_NUMMER_ZIEHEN = 'fin.rechnung_nummer_ziehen';
+const SPALTE_IST_PLATZHALTER = 'ist_platzhalter';
+const SPALTE_GESCHLOSSEN_AM = 'geschlossen_am';
+const SPALTE_GENESIS_HASH = 'genesis_hash';
+const SPALTE_LETZTER_HASH = 'letzter_hash';
+const SPALTE_VORGAENGER = 'vorgaenger_nummernkreis_id';
+const RECHT_VERWALTEN = 'nummernkreis.verwalten';
+const WERT_TRUE = 'true';
 
 /**
  * Ein Hash, gekürzt auf 12 Zeichen, Auslassung, die letzten 6 — lesbar, und
@@ -101,6 +111,10 @@ export default async function Nummernkreisblatt(
   const darf = await haeltRechte(
     zugang.sitzung, 'finanzen.lesen', 'nummernkreis.verwalten');
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(UEBERSICHT_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+
   const alle = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) =>
       kreise(kontext))) as Promise<readonly Kreis[]>);
@@ -110,7 +124,7 @@ export default async function Nummernkreisblatt(
 
   return (
     <PortalRahmen
-      titel="Nummernkreise"
+      titel={t.nummernkreiseTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen
       leiste={zugang.leiste}
@@ -119,27 +133,21 @@ export default async function Nummernkreisblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <h1 className="mb-s3 text-h1 text-text">Nummernkreise</h1>
+      <h1 className="mb-s3 text-h1 text-text">{t.nummernkreiseUeberschrift}</h1>
 
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
-        Jede Gesellschaft nummeriert für sich (TEN-02). Die Nummer wird beim
-        Festschreiben gezogen — unter Zeilensperre auf dem Zähler, in derselben
-        Transaktion, die den Kettensatz schreibt. Deshalb gibt es keine Lücke:
-        wer abbricht, zieht keine Nummer, und wer eine zieht, schreibt fest.
+        {t.nummernkreiseEinleitung}
       </p>
 
       {platzhalter.length > 0 ? (
         <Hinweis art="warnung" cse="nummernkreise-platzhalter" className="mb-s5">
           <p className="m-0 max-w-prose">
             {platzhalter.length === 1
-              ? 'Ein Kreis ist ein Platzhalter.'
-              : `${String(platzhalter.length)} Kreise sind Platzhalter.`}{' '}
-            Maske und Rücksetzungsregel sind unbestätigt (O-134) — offen ist, ob
-            es einen Kreis je Gesellschaft oder je Gesellschaft und Belegart
-            gibt, ob die Nummer über Jahre weiterläuft oder am 1. Januar
-            zurückspringt, und wie die Maske genau lautet.{' '}
-            <strong>In einem Platzhalterkreis wird nicht festgeschrieben</strong>{' '}
-            — eine Nummer daraus wäre eine erfundene.
+              ? t.einPlatzhalter
+              : `${String(platzhalter.length)} ${t.platzhalterNach}`}{' '}
+            {t.platzhalterErklaerung}{' '}
+            <strong>{t.nichtFestgeschrieben}</strong>{' '}
+            {t.erfundeneNummer}
           </p>
         </Hinweis>
       ) : null}
@@ -149,18 +157,12 @@ export default async function Nummernkreisblatt(
           <p className="m-0 max-w-prose">
             <strong>
               {widersprueche.length === 1
-                ? 'Ein Kreis behauptet in seiner Bezeichnung eine unbestätigte Maske, '
-                  + 'trägt aber ist_platzhalter = false.'
-                : `${String(widersprueche.length)} Kreise behaupten in ihrer `
-                  + 'Bezeichnung eine unbestätigte Maske, tragen aber '
-                  + 'ist_platzhalter = false.'}
+                ? t.einWiderspruch
+                : `${String(widersprueche.length)} ${t.widersprucheNach}`}
             </strong>{' '}
-            Damit greift der Platzhalterschutz nicht: für Rechnungs- und
-            Gutschriftenkreise sitzt er ausschliesslich in{' '}
-            <code>fin.rechnung_nummer_ziehen</code>, und die prüft genau diese
-            Spalte. Ob die Spalte auf <code>true</code> gehört, ist eine
-            Datenentscheidung mit Wirkung auf bereits festgeschriebene Belege —
-            sie wird hier benannt und nicht getroffen (O-606).
+            {t.widerspruchMitte}{' '}
+            <code>{FN_NUMMER_ZIEHEN}</code>{t.widerspruchNachSpalte}{' '}
+            <code>{WERT_TRUE}</code> {t.widerspruchSchluss}
           </p>
         </Hinweis>
       ) : null}
@@ -168,21 +170,18 @@ export default async function Nummernkreisblatt(
       {alle.length === 0 ? (
         <Hinweis art="hinweis" cse="nummernkreise-leer">
           <p className="m-0 max-w-prose">
-            Für diese Gesellschaft ist kein Nummernkreis eingerichtet. Ohne
-            Kreis entsteht keine Nummer und damit keine Rechnung, kein Angebot
-            und kein Leistungsnachweis. Wer einen Kreis eröffnet, ist offen
-            (O-352) — es gibt hier deshalb keinen Knopf dafür.
+            {t.keinNummernkreis}
           </p>
         </Hinweis>
       ) : (
         <DataTable
-          beschriftung="Nummernkreise mit Maske, Zähler, Kettenlage und Zustand"
+          beschriftung={t.tabelleKreise}
           zeilen={alle}
           schluessel={(k) => k.id}
           spalten={[
             {
               schluessel: 'bezeichnung',
-              kopf: 'Kreis',
+              kopf: t.kreisKopf,
               zelle: (k) => (
                 <span className="flex min-w-0 flex-col gap-s1">
                   <span className="text-text">{k.bezeichnung}</span>
@@ -191,84 +190,82 @@ export default async function Nummernkreisblatt(
               ),
             },
             {
-              schluessel: 'jahr', kopf: 'Jahr', numerisch: true,
-              zelle: (k) => (k.jahr === 0 ? 'fortlaufend' : k.jahr),
+              schluessel: 'jahr', kopf: t.jahr, numerisch: true,
+              zelle: (k) => (k.jahr === 0 ? t.fortlaufend : k.jahr),
             },
             {
               schluessel: 'maske',
-              kopf: 'Maske und Rücksetzung',
+              kopf: t.maskeKopf,
               zelle: (k) => (
                 <span className="flex min-w-0 flex-col gap-s1">
                   <code className="break-all text-xs text-text">{k.formatMaske}</code>
                   <span className="text-xs text-text-muted">
                     {k.zuruecksetzung === null
-                      ? 'Rücksetzung nicht festgelegt'
-                      : ZURUECKSETZUNG_TEXT[k.zuruecksetzung] ?? k.zuruecksetzung}
-                    {k.lueckenlos ? ' · lückenlos' : ' · nicht lückenlos'}
+                      ? t.ruecksetzungOffen
+                      : t.zuruecksetzung[k.zuruecksetzung]}
+                    {k.lueckenlos ? t.lueckenlos : t.nichtLueckenlos}
                   </span>
                 </span>
               ),
             },
             {
               schluessel: 'zaehler',
-              kopf: 'Nächste Nummer (Ansicht)',
+              kopf: t.naechsteNummerKopf,
               numerisch: true,
               zelle: (k) => (
                 <span className="flex min-w-0 flex-col gap-s1 text-right">
                   <span className="cse-zahl text-text">{k.naechsteNummerFormatiert}</span>
                   <span className="cse-zahl text-xs text-text-muted">
-                    Zähler {k.naechsteNummer}
+                    {`${t.zaehler} ${String(k.naechsteNummer)}`}
                   </span>
                 </span>
               ),
             },
             {
               schluessel: 'kette',
-              kopf: 'Kettenlage',
+              kopf: t.kettenlageKopf,
               zelle: (k) => (
                 <span className="flex min-w-0 flex-col gap-s1">
                   <span className="break-all font-mono text-xs text-text-muted">
-                    Genesis {kurz(k.genesisHash)}
+                    {`${t.genesisWort} ${kurz(k.genesisHash)}`}
                   </span>
                   <span className="break-all font-mono text-xs text-text-muted">
-                    Letzter {kurz(k.letzterHash)}
+                    {`${t.letzterWort} ${kurz(k.letzterHash)}`}
                   </span>
                   <span className="text-xs text-text-muted">
-                    {k.kettenlaenge} Glied(er)
+                    {`${String(k.kettenlaenge)} ${t.glieder}`}
                     {k.vorgaengerBezeichnung === null
                       ? ''
-                      : ` · Vorgänger: ${k.vorgaengerBezeichnung}`}
+                      : `${t.vorgaengerZusatz}${k.vorgaengerBezeichnung}`}
                   </span>
                 </span>
               ),
             },
             {
               schluessel: 'offen',
-              kopf: 'Geöffnet / geschlossen',
+              kopf: t.geoeffnetKopf,
               zelle: (k) => (
                 <span className="text-xs text-text-muted">
                   {k.geoeffnetAm}
                   {k.geschlossenAm === null
-                    ? ' · offen'
-                    : ` · geschlossen ${k.geschlossenAm}`}
+                    ? t.offenZusatz
+                    : `${t.geschlossenZusatz}${k.geschlossenAm}`}
                 </span>
               ),
             },
             {
               schluessel: 'zustand',
-              kopf: 'Vergabe',
+              kopf: t.vergabeKopf,
               zelle: (k) => (
                 <span className="flex min-w-0 flex-col gap-s1">
                   <span className="inline-flex flex-wrap items-center gap-s2">
                     {k.istPlatzhalter
-                      ? <StatusPill zustand="Entwurf" />
+                      ? <StatusPill zustand="Entwurf" sprache={zugang.sprache} />
                       : k.geschlossenAm !== null
-                        ? <StatusPill zustand="Archiviert" />
-                        : <StatusPill zustand="Aktiv" />}
+                        ? <StatusPill zustand="Archiviert" sprache={zugang.sprache} />
+                        : <StatusPill zustand="Aktiv" sprache={zugang.sprache} />}
                     <span className="text-xs text-text-muted">
-                      {k.zugDurchDefiner
-                        ? 'Zug in der Datenbank (Definer)'
-                        : 'Zug in der Anwendung'}
+                      {k.zugDurchDefiner ? t.zugDefiner : t.zugAnwendung}
                     </span>
                   </span>
                   {k.vergabeGrund === null ? null : (
@@ -278,8 +275,8 @@ export default async function Nummernkreisblatt(
                   )}
                   {widerspruechlich(k) ? (
                     <span className="max-w-prose text-xs text-warning">
-                      Bezeichnung und <code>ist_platzhalter</code> widersprechen
-                      sich (O-606).
+                      {t.widerspruchZeileVor} <code>{SPALTE_IST_PLATZHALTER}</code>{' '}
+                      {t.widerspruchZeileNach}
                     </span>
                   ) : null}
                 </span>
@@ -291,50 +288,41 @@ export default async function Nummernkreisblatt(
 
       <section aria-labelledby="jahreswechsel-titel" className="mt-s7">
         <h2 id="jahreswechsel-titel" className="mb-s3 text-h2 text-text">
-          Der Jahreswechsel — beschrieben, nicht auslösbar
+          {t.jahreswechselTitel}
         </h2>
         <div
           className="rounded-lg border border-line bg-surface-2 p-s5 text-sm text-text"
           data-cse="nummernkreise-jahreswechsel"
         >
           <p className="m-0 max-w-prose">
-            Ein Kreis mit jährlicher Rücksetzung wird nicht einfach
-            weitergezählt. Der Vorgang hat drei Schritte, und sie gehören in
-            eine Transaktion:
+            {t.jahreswechselEinleitung}
           </p>
           <ol className="mt-s3 max-w-prose list-decimal space-y-s2 pl-s5">
             <li>
-              Den Vorgängerkreis <strong>schliessen</strong> (
-              <code>geschlossen_am</code>). Danach vergibt er keine Nummer mehr.
+              {t.schrittSchliessenVor} <strong>{t.schrittSchliessenWort}</strong> (
+              <code>{SPALTE_GESCHLOSSEN_AM}</code>{t.schrittSchliessenNach}
             </li>
             <li>
-              Den Nachfolger eröffnen und seinen <code>genesis_hash</code> auf
-              den <code>letzter_hash</code> des Vorgängers setzen — damit reisst
-              die Kette am Jahreswechsel nicht.
+              {t.schrittNachfolgerVor} <code>{SPALTE_GENESIS_HASH}</code>{' '}
+              {t.schrittNachfolgerMitte} <code>{SPALTE_LETZTER_HASH}</code>{' '}
+              {t.schrittNachfolgerNach}
             </li>
             <li>
-              Den Vorgänger eintragen (
-              <code>vorgaenger_nummernkreis_id</code>), damit die Prüfung den
-              Übergang nachrechnen kann (§5.7 Schritt 3b).
+              {t.schrittVorgaengerVor}
+              <code>{SPALTE_VORGAENGER}</code>{t.schrittVorgaengerNach}
             </li>
           </ol>
           <p className="m-0 mt-s3 max-w-prose text-warning">
-            <strong>Es gibt hier keinen Knopf dafür (O-352).</strong> Wer{' '}
-            <code>nummernkreis.verwalten</code> in den drei Gesellschaften hält
-            und wer den Jahreswechsel ausführt, ist nicht entschieden — und ein
-            Knopf würde die Rolle erfinden, die ihn auslöst.{' '}
-            {darf['nummernkreis.verwalten'] === true
-              ? 'Dieses Konto hält nummernkreis.verwalten.'
-              : 'Diesem Konto fehlt nummernkreis.verwalten.'}{' '}
-            Auch mit dem Recht gibt es den Vorgang noch nicht.
+            <strong>{t.keinKnopfDafuer}</strong> {t.keinKnopfWer}{' '}
+            <code>{RECHT_VERWALTEN}</code> {t.keinKnopfNach}{' '}
+            {darf['nummernkreis.verwalten'] === true ? t.rechtGehalten : t.rechtFehlt}{' '}
+            {t.auchMitRecht}
           </p>
         </div>
       </section>
 
       <p className="mt-s5 max-w-prose text-xs text-text-muted">
-        Der Zähler ist hier Ansicht. Er wird ausschliesslich beim Festschreiben
-        fortgezählt, unter Zeilensperre — jede andere Stelle wäre eine zweite,
-        und zwei Stellen vergeben irgendwann dieselbe Nummer.
+        {t.zaehlerFussnote}
         {darf['finanzen.lesen'] === true ? (
           <>
             {' '}
@@ -342,7 +330,7 @@ export default async function Nummernkreisblatt(
               href={`/portal/${mandant}/finanzen/ausgangsbuch`}
               className="underline underline-offset-2"
             >
-              Zum Rechnungsausgangsbuch →
+              {t.zumAusgangsbuch}
             </Link>
           </>
         ) : null}

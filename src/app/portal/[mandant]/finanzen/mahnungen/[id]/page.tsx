@@ -14,6 +14,8 @@ import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { MAHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/mahnungen';
 
 /**
  * `/portal/[mandant]/finanzen/mahnungen/[id]` — eine Mahnung, ihre Positionen
@@ -57,6 +59,10 @@ export default async function MahnungDetail(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(MAHNUNGEN_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+
   const vorgang = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => findeMahnung(kontext, id)))
     ) as Awaited<ReturnType<typeof findeMahnung>>;
@@ -70,7 +76,7 @@ export default async function MahnungDetail(
 
   return (
     <PortalRahmen
-      titel={`Mahnung ${kopf.nummer ?? 'Entwurf'}`}
+      titel={`${t.mahnung} ${kopf.nummer ?? t.entwurf}`}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -84,7 +90,7 @@ export default async function MahnungDetail(
           href={`/portal/${mandant}/finanzen/mahnungen`}
           className="text-text-muted underline-offset-2 hover:text-brand hover:underline"
         >
-          ← Alle Mahnungen
+          ← {t.alleMahnungen}
         </Link>
       </p>
 
@@ -92,7 +98,7 @@ export default async function MahnungDetail(
         <h1 className="text-h1 text-text">
           {kopf.bezeichnung} {kopf.nummer ?? ''}
         </h1>
-        <StatusPill zustand={PILLE[kopf.status]} />
+        <StatusPill zustand={PILLE[kopf.status]} sprache={zugang.sprache} />
       </div>
 
       {typeof hinweis === 'string' && hinweis !== '' ? (
@@ -106,74 +112,74 @@ export default async function MahnungDetail(
 
       <dl className="mb-s7 grid grid-cols-1 gap-s4 sm:grid-cols-2">
         <div>
-          <dt className="text-xs text-text-muted">Kunde</dt>
+          <dt className="text-xs text-text-muted">{g.kunde}</dt>
           <dd className="text-sm text-text">{kopf.kundeName}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Stufe</dt>
+          <dt className="text-xs text-text-muted">{t.stufe}</dt>
           <dd className="text-sm text-text">{String(kopf.stufe)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Mahndatum</dt>
+          <dt className="text-xs text-text-muted">{t.mahndatum}</dt>
           <dd className="text-sm text-text">{kopf.mahndatum}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Zahlbar bis</dt>
+          <dt className="text-xs text-text-muted">{t.zahlbarBis}</dt>
           <dd className="text-sm text-text">{kopf.zahlbarBis}</dd>
         </div>
       </dl>
 
       <section aria-labelledby="positionen-titel" className="mb-s7">
         <h2 id="positionen-titel" className="mb-s3 text-h2 text-text">
-          Geforderte Positionen
+          {t.positionenTitel}
         </h2>
         <DataTable
-          beschriftung="Positionen der Mahnung mit Rechnung, Betrag, Verzugsbeginn, Tagen, Satz und Zins"
+          beschriftung={t.tabellePositionen}
           zeilen={[...positionen]}
           schluessel={(p) => `${p.rechnungsnummer ?? '—'}:${p.faelligAm}`}
           spalten={[
             {
-              schluessel: 'rechnung', kopf: 'Rechnung',
+              schluessel: 'rechnung', kopf: t.rechnung,
               zelle: (p) => p.rechnungsnummer ?? '—',
             },
-            { schluessel: 'faellig', kopf: 'Fällig', zelle: (p) => p.faelligAm },
+            { schluessel: 'faellig', kopf: g.faellig, zelle: (p) => p.faelligAm },
             {
-              schluessel: 'offen', kopf: 'Offen', numerisch: true,
+              schluessel: 'offen', kopf: t.offen, numerisch: true,
               zelle: (p) => formatiereGeld(p.offenCent),
             },
             {
-              schluessel: 'verzug', kopf: 'Verzug ab',
+              schluessel: 'verzug', kopf: t.verzugAb,
               zelle: (p) => p.verzugsbeginnAm ?? '—',
             },
             {
-              schluessel: 'tage', kopf: 'Tage', numerisch: true,
+              schluessel: 'tage', kopf: t.tage, numerisch: true,
               zelle: (p) => String(p.verzugstage),
             },
             {
-              schluessel: 'satz', kopf: 'Satz (bp)', numerisch: true,
+              schluessel: 'satz', kopf: t.satzBp, numerisch: true,
               zelle: (p) => String(p.zinsBp),
             },
             {
-              schluessel: 'zins', kopf: 'Zins', numerisch: true,
+              schluessel: 'zins', kopf: t.zins, numerisch: true,
               zelle: (p) => formatiereGeld(p.zinsCent),
             },
           ]}
         />
         <dl className="mt-s4 max-w-sm text-sm">
           <div className="flex justify-between border-t border-line py-s2">
-            <dt className="text-text-muted">Forderung</dt>
+            <dt className="text-text-muted">{t.forderung}</dt>
             <dd className="text-text">{formatiereGeld(kopf.forderungCent)}</dd>
           </div>
           <div className="flex justify-between py-s2">
-            <dt className="text-text-muted">Mahngebühr</dt>
+            <dt className="text-text-muted">{t.mahngebuehr}</dt>
             <dd className="text-text">{formatiereGeld(kopf.gebuehrCent)}</dd>
           </div>
           <div className="flex justify-between py-s2">
-            <dt className="text-text-muted">Verzugszinsen</dt>
+            <dt className="text-text-muted">{t.verzugszinsen}</dt>
             <dd className="text-text">{formatiereGeld(kopf.zinsenCent)}</dd>
           </div>
           <div className="flex justify-between border-t border-line py-s2">
-            <dt className="text-text">Gesamtbetrag</dt>
+            <dt className="text-text">{t.gesamtbetrag}</dt>
             <dd className="text-text"><strong>{formatiereGeld(kopf.gesamtCent)}</strong></dd>
           </div>
         </dl>
@@ -181,7 +187,7 @@ export default async function MahnungDetail(
 
       {kopf.verworfenGrund === null ? null : (
         <p className="mb-s7 max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          Verworfen: {kopf.verworfenGrund}
+          {t.verworfen}: {kopf.verworfenGrund}
         </p>
       )}
 
@@ -191,24 +197,22 @@ export default async function MahnungDetail(
             aria-labelledby="freigeben-titel"
             className="rounded-lg border border-line bg-surface p-s5"
           >
-            <h2 id="freigeben-titel" className="text-h2 text-text">Freigeben</h2>
+            <h2 id="freigeben-titel" className="text-h2 text-text">{g.freigeben}</h2>
             <p className="mt-s2 max-w-prose text-xs text-text-muted">
-              Die Freigabe hält fest, wer genau diese Beträge genehmigt hat.
-              Erst mit ihr zieht die Datenbank die Nummer — ein Entwurf trägt
-              keine.
+              {t.freigabeErklaerung}
             </p>
             <form method="post" action={`/api/finanzen/mahnungen?mandant=${mandant}`}>
               <input type="hidden" name="aktion" value="freigeben" />
               <input type="hidden" name="mahnungId" value={kopf.id} />
               <label className="block text-sm text-text" htmlFor="begruendung">
-                Begründung
+                {t.begruendung}
               </label>
               <input
                 id="begruendung" name="begruendung" type="text" required
                 minLength={5} className={feld}
-                placeholder="Zahlungserinnerung nach Rücksprache freigegeben"
+                placeholder={t.freigabePlatzhalter}
               />
-              <button type="submit" className={knopf}>Freigeben</button>
+              <button type="submit" className={knopf}>{g.freigeben}</button>
             </form>
           </section>
 
@@ -216,20 +220,19 @@ export default async function MahnungDetail(
             aria-labelledby="verwerfen-titel"
             className="rounded-lg border border-line bg-surface p-s5"
           >
-            <h2 id="verwerfen-titel" className="text-h2 text-text">Verwerfen</h2>
+            <h2 id="verwerfen-titel" className="text-h2 text-text">{t.verwerfen}</h2>
             <p className="mt-s2 max-w-prose text-xs text-text-muted">
-              Der Entwurf bleibt mit seinem Grund stehen — gelöscht wird
-              nichts (Invariante 8).
+              {t.verwerfenErklaerung}
             </p>
             <form method="post" action={`/api/finanzen/mahnungen?mandant=${mandant}`}>
               <input type="hidden" name="aktion" value="verwerfen" />
               <input type="hidden" name="mahnungId" value={kopf.id} />
-              <label className="block text-sm text-text" htmlFor="grund">Grund</label>
+              <label className="block text-sm text-text" htmlFor="grund">{t.grund}</label>
               <input
                 id="grund" name="grund" type="text" required minLength={5} className={feld}
-                placeholder="Kunde hat nachweislich am Vortag gezahlt"
+                placeholder={t.verwerfenPlatzhalter}
               />
-              <button type="submit" className={knopf}>Verwerfen</button>
+              <button type="submit" className={knopf}>{t.verwerfen}</button>
             </form>
           </section>
         </div>
@@ -240,30 +243,27 @@ export default async function MahnungDetail(
           aria-labelledby="versand-titel"
           className="max-w-prose rounded-lg border border-line bg-surface p-s5"
         >
-          <h2 id="versand-titel" className="text-h2 text-text">Versand dokumentieren</h2>
+          <h2 id="versand-titel" className="text-h2 text-text">{t.versandTitel}</h2>
           <p className="mt-s2 text-xs text-text-muted">
-            Es gibt keinen automatischen Versand: die Mahnung geht als Brief,
-            Einschreiben oder durch Boten hinaus, und hier wird festgehalten,
-            dass sie hinausgegangen ist. Erst danach läuft der Verzug — und
-            erst dann ist die nächste Stufe möglich.
+            {t.versandErklaerung}
           </p>
           <form method="post" action={`/api/finanzen/mahnungen?mandant=${mandant}`}>
             <input type="hidden" name="aktion" value="versenden" />
             <input type="hidden" name="mahnungId" value={kopf.id} />
-            <label className="block text-sm text-text" htmlFor="versandart">Weg</label>
+            <label className="block text-sm text-text" htmlFor="versandart">{t.weg}</label>
             <select id="versandart" name="versandart" required className={feld}>
-              <option value="brief">Brief</option>
-              <option value="einschreiben">Einschreiben</option>
-              <option value="bote">Bote</option>
+              <option value="brief">{t.versandarten.brief}</option>
+              <option value="einschreiben">{t.versandarten.einschreiben}</option>
+              <option value="bote">{t.versandarten.bote}</option>
             </select>
             <label className="mt-s4 block text-sm text-text" htmlFor="empfaenger">
-              Empfänger
+              {t.empfaenger}
             </label>
             <input
               id="empfaenger" name="empfaenger" type="text" required className={feld}
               placeholder={kopf.kundeName}
             />
-            <button type="submit" className={knopf}>Versand dokumentieren</button>
+            <button type="submit" className={knopf}>{t.versandTitel}</button>
           </form>
         </section>
       ) : null}

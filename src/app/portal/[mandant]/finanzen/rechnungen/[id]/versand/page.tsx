@@ -17,6 +17,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { RECHNUNG_AUSGABE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-ausgabe';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]/versand` — das Versandprotokoll
@@ -60,12 +62,16 @@ const STATUS_PILLE: Readonly<Record<VersandStatus, PillZustand>> = {
   nicht_verbunden: 'Inaktiv',
 };
 
-const STATUS_TEXT: Readonly<Record<VersandStatus, string>> = {
-  freigegeben: 'freigegeben — noch nicht gesendet',
-  gesendet: 'gesendet',
-  fehlgeschlagen: 'fehlgeschlagen',
-  nicht_verbunden: 'nicht verbunden — es wurde nichts gesendet',
-};
+/*
+ * Kennungen, keine Woerter. Rechtename, Dateipfad und Spaltenname lauten in
+ * beiden Sprachen gleich; sie stehen deshalb hier und nicht in der
+ * Texttabelle, wo eine zweite Spalte nur eine Erfindung waere.
+ */
+const POLICY_DATEI = 'server/agent/policy.ts';
+const ERECHNUNG_DIENST = 'services/crm/erechnung.ts';
+const RECHT_HERUNTERLADEN = 'finanzen.herunterladen';
+const RECHT_VERSAND_FREIGEBEN = 'versand.freigeben';
+const SPALTE_NUTZLAST_HASH = 'nutzlast_sha256';
 
 interface Kopf {
   readonly id: string;
@@ -95,6 +101,10 @@ export default async function Versandblatt(
    */
   const darf = await haeltRechte(
     sitzung, 'finanzen.lesen', 'finanzen.herunterladen', 'versand.freigeben');
+
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(RECHNUNG_AUSGABE_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -137,15 +147,15 @@ export default async function Versandblatt(
   const erzeugnisse = [
     {
       schluessel: 'xrechnung',
-      titel: 'XRechnung (UBL, EN 16931)',
-      zweck: 'für öffentliche Auftraggeber',
+      titel: t.xrechnungTitel,
+      zweck: t.xrechnungZweck,
       seite: `/portal/${mandant}/finanzen/rechnungen/${id}/xrechnung`,
       datei: `/api/finanzen/rechnungen/${id}/xrechnung.xml`,
     },
     {
       schluessel: 'zugferd',
-      titel: 'ZUGFeRD (PDF/A-3 mit CII)',
-      zweck: 'für gewerbliche Kunden, die eine PDF erwarten',
+      titel: t.zugferdTitel,
+      zweck: t.zugferdZweck,
       seite: `/portal/${mandant}/finanzen/rechnungen/${id}/zugferd`,
       datei: `/api/finanzen/rechnungen/${id}/zugferd.pdf`,
     },
@@ -153,7 +163,7 @@ export default async function Versandblatt(
 
   return (
     <PortalRahmen
-      titel="Versand"
+      titel={t.versand}
       bereich={mandant as BereichSchluessel}
       nurLesen
       leiste={zugang.leiste}
@@ -163,67 +173,62 @@ export default async function Versandblatt(
       navigationsRechte={zugang.navigationsRechte}
     >
       {darf['finanzen.lesen'] === true ? (
-        <nav aria-label="Zurück" className="mb-s3">
+        <nav aria-label={g.zurueck} className="mb-s3">
           <Link
             href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            ← {k.nummer ?? 'Entwurf ohne Nummer'}
+            ← {k.nummer ?? t.entwurfOhneNummer}
           </Link>
         </nav>
       ) : null}
 
-      <h1 className="mb-s3 text-h1 text-text">Versand</h1>
+      <h1 className="mb-s3 text-h1 text-text">{t.versand}</h1>
 
       {!verbunden ? (
         <Hinweis art="warnung" cse="versand-nicht-verbunden" className="mb-s5">
           <p className="m-0 max-w-prose">
-            <strong>Versand nicht verbunden (O-36) — die Datei lässt sich
-            herunterladen und von Hand versenden.</strong> Es ist nicht
-            entschieden, welcher EU-gehostete Transaktionsmailer unter welchem
-            Auftragsverarbeitungsvertrag ausliefert, und kein
-            Peppol-Zugangspunkt ist eingerichtet (O-22). Es gibt deshalb keinen
-            Sendeknopf — und keinen vorgetäuschten Erfolg: ein Protokolleintrag
-            „gesendet" ohne Versand ist die Auskunft, dass eine Rechnung draussen
-            sei, die es nicht ist.
+            <strong>{t.nichtVerbundenStrong}</strong>
+            {t.nichtVerbundenText}
           </p>
         </Hinweis>
       ) : (
         <Hinweis art="hinweis" cse="versand-verbunden" className="mb-s5">
           <p className="m-0 max-w-prose">
-            Mindestens ein Kanal ist verbunden. Gesendet wird trotzdem nur nach
-            menschlicher Zustimmung: es entsteht eine Freigabe, und erst sie
-            erlaubt den Versand (Invariante 7,{' '}
-            <code>server/agent/policy.ts</code>). Automatisch verlässt nichts
-            das Haus.
+            {t.verbundenVor}
+            <code>{POLICY_DATEI}</code>
+            {t.verbundenNach}
           </p>
         </Hinweis>
       )}
 
-      <h2 className="mb-s3 text-h2 text-text">Die Wege und ihr Zustand</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.wegeTitel}</h2>
       <DataTable
-        beschriftung="Übertragungswege und ob sie verbunden sind"
+        beschriftung={t.tabelleWege}
         zeilen={daten.wege}
         schluessel={(w) => w.kanal}
         spalten={[
-          { schluessel: 'kanal', kopf: 'Kanal', zelle: (w) => w.text },
+          { schluessel: 'kanal', kopf: t.kanal, zelle: (w) => w.text },
           {
             schluessel: 'zustand',
-            kopf: 'Zustand',
+            kopf: g.zustand,
             zelle: (w) => (
               <span className="inline-flex flex-wrap items-center gap-s2">
-                <StatusPill zustand={w.verbunden ? 'Aktiv' : 'Inaktiv'} />
+                <StatusPill
+                  zustand={w.verbunden ? 'Aktiv' : 'Inaktiv'}
+                  sprache={zugang.sprache}
+                />
                 <span className="text-xs text-text-muted">
-                  {w.verbunden ? 'verbunden' : 'nicht verbunden'}
+                  {w.verbunden ? t.verbunden : g.nichtVerbunden}
                 </span>
               </span>
             ),
           },
           {
-            schluessel: 'grund', kopf: 'Warum',
+            schluessel: 'grund', kopf: t.warum,
             zelle: (w) => (
               <span className="max-w-prose text-xs text-text-muted">
-                {w.grund ?? 'Zugangsdaten hinterlegt.'}
+                {w.grund ?? t.zugangsdatenHinterlegt}
               </span>
             ),
           },
@@ -231,57 +236,55 @@ export default async function Versandblatt(
       />
 
       <p className="mb-s7 mt-s3 max-w-prose text-xs text-text-muted">
-        Kundenportal und Post stehen nicht in dieser Liste: das Portal zeigt das
-        Dokument, und Papier kuvertiert ein Mensch. Beides ist kein
-        elektronischer Versand durch die Plattform und braucht keine Verbindung.
+        {t.portalUndPost}
       </p>
 
-      <h2 className="mb-s3 text-h2 text-text">Was der Empfänger erwartet</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.empfaengerTitel}</h2>
       {daten.empfaenger === null ? (
         <p className="mb-s7 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          Diese Rechnung hat keinen lesbaren Kunden.
+          {t.keinLesbarerKunde}
         </p>
       ) : (
         <>
           <dl className="mb-s3 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-2">
             <div>
-              <dt className="text-xs text-text-muted">Kunde</dt>
+              <dt className="text-xs text-text-muted">{g.kunde}</dt>
               <dd className="text-sm text-text">{daten.empfaenger.kundeName}</dd>
             </div>
             <div>
-              <dt className="text-xs text-text-muted">XRechnung verlangt</dt>
+              <dt className="text-xs text-text-muted">{t.xrechnungVerlangt}</dt>
               <dd className="text-sm text-text">
                 {daten.empfaenger.xrechnungPflicht
                  || daten.empfaenger.istOeffentlicherAuftraggeber
-                  ? 'ja'
-                  : 'nein'}
+                  ? t.ja
+                  : t.nein}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-text-muted">Leitweg-ID (BT-10)</dt>
+              <dt className="text-xs text-text-muted">{t.leitwegId}</dt>
               <dd className="cse-zahl text-sm text-text">
                 {daten.empfaenger.leitwegId ?? '—'}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-text-muted">Elektronische Adresse</dt>
+              <dt className="text-xs text-text-muted">{t.elektronischeAdresse}</dt>
               <dd className="cse-zahl text-sm text-text">
                 {daten.empfaenger.elektronischeAdresse ?? '—'}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-text-muted">Verabredeter Weg</dt>
+              <dt className="text-xs text-text-muted">{t.verabredeterWeg}</dt>
               <dd className="text-sm text-text">
                 {daten.empfaenger.uebertragungsweg === null
-                  ? <span className="text-text-muted">nicht verabredet</span>
+                  ? <span className="text-text-muted">{t.nichtVerabredet}</span>
                   : WEG_TEXT[daten.empfaenger.uebertragungsweg]}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-text-muted">Verabredetes Format</dt>
+              <dt className="text-xs text-text-muted">{t.verabredetesFormat}</dt>
               <dd className="text-sm text-text">
                 {daten.empfaenger.rechnungsformat === null
-                  ? <span className="text-text-muted">nicht verabredet</span>
+                  ? <span className="text-text-muted">{t.nichtVerabredet}</span>
                   : FORMAT_TEXT[daten.empfaenger.rechnungsformat]}
               </dd>
             </div>
@@ -304,15 +307,10 @@ export default async function Versandblatt(
                   : daten.empfaenger.lage.art === 'bereit'
                     ? 'Abgeschlossen'
                     : 'Wartet'}
+                sprache={zugang.sprache}
               />
               <strong className="text-text">
-                {daten.empfaenger.lage.art === 'gesperrt'
-                  ? 'Versand gesperrt'
-                  : daten.empfaenger.lage.art === 'nicht_verbunden'
-                    ? 'Weg verabredet, Hafen nicht verbunden'
-                    : daten.empfaenger.lage.art === 'offen'
-                      ? 'Kein Zustellweg verabredet'
-                      : 'Zustellweg steht'}
+                {t.lageNamen[daten.empfaenger.lage.art]}
               </strong>
             </p>
             <p className="m-0 mt-s3 max-w-prose">{daten.empfaenger.lage.text}</p>
@@ -330,31 +328,25 @@ export default async function Versandblatt(
               </ul>
             )}
             <p className="m-0 mt-s3 max-w-prose text-xs text-text-muted">
-              Bewertet von <code>services/crm/erechnung.ts</code> — derselben
-              Stelle, die den Kundenstamm bewertet. Ein Käufer mit
-              XRechnungspflicht ohne hinterlegten Weg{' '}
-              <strong>blockiert</strong> den Versand, statt auf einen Kanal
-              zurückzufallen (07-INTEGRATIONEN §12.1). Zwei Formulierungen
-              derselben Regel wären eine zu viel.
+              {t.bewertetVonVor}
+              <code>{ERECHNUNG_DIENST}</code>
+              {t.bewertetVonMitte}
+              <strong>{t.blockiert}</strong>
+              {t.bewertetVonNach}
             </p>
           </div>
         </>
       )}
 
-      <h2 className="mb-s3 text-h2 text-text">Die Erzeugnisse</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.erzeugnisseTitel}</h2>
       {!festgeschrieben || !k.hat_snapshot ? (
         <Hinweis art="hinweis" cse="versand-kein-snapshot" className="mb-s7">
           <p className="m-0 max-w-prose">
             {k.status === 'entwurf'
-              ? 'Dieser Beleg ist ein Entwurf. XRechnung und ZUGFeRD entstehen erst '
-                + 'bei der Festschreibung, weil sie die Nummer und den Zeitpunkt '
-                + 'tragen — und weil sie aus dem Snapshot gerendert werden, nie aus '
-                + 'den heutigen Stammdaten (K-12).'
+              ? t.entwurfKeinDokument
               : k.status === 'verworfen'
-                ? 'Dieser Entwurf ist verworfen. Es gibt kein Dokument zu versenden.'
-                : 'Zu diesem Beleg gibt es keinen Snapshot. Ohne ihn entstünde das '
-                  + 'Dokument aus den heutigen Stammdaten — also ein zweites Dokument '
-                  + 'zu derselben Nummer (K-12). Das ist ein Prüfauftrag.'}
+                ? t.verworfenKeinDokument
+                : t.keinSnapshot}
           </p>
         </Hinweis>
       ) : (
@@ -372,15 +364,17 @@ export default async function Versandblatt(
                   <span className="text-xs text-text-muted">{e.zweck}</span>
                 </p>
                 <p className="m-0 mt-s2 max-w-prose text-xs text-text-muted">
-                  Prüfstand: {stand.text}
-                  {stand.regelwerk === null ? '' : ` Regelwerk: ${stand.regelwerk}.`}
+                  {t.pruefstand}: {stand.text}
+                  {stand.regelwerk === null
+                    ? ''
+                    : ` ${t.regelwerk}: ${stand.regelwerk}.`}
                 </p>
                 <p className="m-0 mt-s3 flex flex-wrap items-center gap-s3">
                   <Link
                     href={e.seite}
                     className="text-sm text-text underline underline-offset-2 hover:text-brand"
                   >
-                    Vorschau und Prüfstand →
+                    {t.vorschauUndPruefstand}
                   </Link>
                   {darf['finanzen.herunterladen'] === true ? (
                     <a
@@ -388,12 +382,13 @@ export default async function Versandblatt(
                       className="inline-flex min-h-[44px] items-center rounded-md border border-line-strong px-s4 text-sm text-text hover:bg-surface-2"
                       data-cse="versand-herunterladen"
                     >
-                      Datei herunterladen
+                      {t.dateiHerunterladen}
                     </a>
                   ) : (
                     <span className="text-xs text-text-muted">
-                      Diesem Konto fehlt <strong>finanzen.herunterladen</strong> —
-                      die Datei bleibt zu.
+                      {t.diesemKontoFehlt}
+                      <strong>{RECHT_HERUNTERLADEN}</strong>
+                      {t.dateiBleibtZu}
                     </span>
                   )}
                 </p>
@@ -401,34 +396,27 @@ export default async function Versandblatt(
             ))}
           </ul>
           <p className="mb-s7 max-w-prose text-xs text-text-muted">
-            Ein PDF für den Postweg ist dasselbe ZUGFeRD-Dokument: es ist ein
-            gültiges PDF/A-3 und lässt sich drucken. Ein zweiter PDF-Erzeuger
-            daneben wäre eine zweite Fassung derselben Rechnung.
+            {t.pdfPostweg}
           </p>
         </>
       )}
 
-      <h2 className="mb-s3 text-h2 text-text">Das Protokoll</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.protokollTitel}</h2>
       {daten.protokoll.length === 0 ? (
         <Hinweis art="hinweis" cse="versand-protokoll-leer">
           <p className="m-0 max-w-prose">
-            Kein Versand protokolliert. Das heisst: diese Rechnung ist über die
-            Plattform nicht hinausgegangen — nicht, dass der Kunde sie nicht
-            hat. Wurde sie von Hand versendet, steht das hier nicht, und dieser
-            Unterschied ist wichtig: §286 BGB rechnet ab ZUGANG, und einen
-            Zugang, den niemand festgestellt hat, darf kein Mahnlauf
-            unterstellen.
+            {t.keinVersandProtokolliert}
           </p>
         </Hinweis>
       ) : (
         <DataTable
-          beschriftung="Freigegebene Versandvorgänge dieser Rechnung"
+          beschriftung={t.tabelleProtokoll}
           zeilen={daten.protokoll}
           schluessel={(v) => v.id}
           spalten={[
             {
               schluessel: 'kanal',
-              kopf: 'Kanal und Erzeugnis',
+              kopf: t.kanalUndErzeugnis,
               zelle: (v) => (
                 <span className="inline-flex flex-col gap-s1">
                   <span className="text-text">{v.kanalText}</span>
@@ -438,7 +426,7 @@ export default async function Versandblatt(
             },
             {
               schluessel: 'empfaenger',
-              kopf: 'Empfänger (eingefroren)',
+              kopf: t.empfaengerEingefroren,
               zelle: (v) => (
                 <span className="inline-flex flex-col gap-s1">
                   <span className="text-text">{v.empfaenger}</span>
@@ -447,7 +435,7 @@ export default async function Versandblatt(
                   )}
                   {v.leitwegId === null ? null : (
                     <span className="cse-zahl text-xs text-text-muted">
-                      Leitweg {v.leitwegId}
+                      {t.leitweg} {v.leitwegId}
                     </span>
                   )}
                 </span>
@@ -455,30 +443,30 @@ export default async function Versandblatt(
             },
             {
               schluessel: 'freigabe',
-              kopf: 'Freigegeben',
+              kopf: t.freigegeben,
               zelle: (v) => (
                 <span className="inline-flex flex-col gap-s1">
                   <span className="text-text">{v.freigegebenAm}</span>
                   <span className="text-xs text-text-muted">
-                    {v.freigegebenVon ?? 'Konto ohne Namen'}
+                    {v.freigegebenVon ?? t.kontoOhneNamen}
                   </span>
                 </span>
               ),
             },
             {
               schluessel: 'zustand',
-              kopf: 'Zustand',
+              kopf: g.zustand,
               zelle: (v) => (
                 <span className="inline-flex flex-col gap-s1">
                   <span className="inline-flex flex-wrap items-center gap-s2">
-                    <StatusPill zustand={STATUS_PILLE[v.status]} />
+                    <StatusPill zustand={STATUS_PILLE[v.status]} sprache={zugang.sprache} />
                     <span className="text-xs text-text-muted">
-                      {STATUS_TEXT[v.status]}
+                      {t.statusTexte[v.status]}
                     </span>
                   </span>
                   {v.gesendetAm === null ? null : (
                     <span className="text-xs text-text-muted">
-                      gesendet {v.gesendetAm}
+                      {t.gesendet} {v.gesendetAm}
                     </span>
                   )}
                   {v.fehlertext === null ? null : (
@@ -496,10 +484,10 @@ export default async function Versandblatt(
             },
             {
               schluessel: 'zugang',
-              kopf: 'Zugang (§286 BGB)',
+              kopf: t.zugangTitel,
               zelle: (v) => (v.zugangAm === null ? (
                 <span className="text-xs text-text-muted">
-                  nicht festgestellt — kein Verzugsbeginn
+                  {t.zugangNichtFestgestellt}
                 </span>
               ) : (
                 <span className="inline-flex flex-col gap-s1">
@@ -512,7 +500,7 @@ export default async function Versandblatt(
             },
             {
               schluessel: 'hash',
-              kopf: 'Welche Fassung',
+              kopf: t.welcheFassung,
               zelle: (v) => (
                 <span
                   className="break-all font-mono text-xs text-text-muted"
@@ -528,19 +516,16 @@ export default async function Versandblatt(
 
       {festgeschrieben && verbunden && darf['versand.freigeben'] !== true ? (
         <p className="mt-s5 max-w-prose text-sm text-text-muted">
-          Diesem Konto fehlt <strong>versand.freigeben</strong>. Es sieht das
-          Protokoll, gibt aber keinen Versand frei — und ein Knopf, der in ein
-          403 führt, verrät nur, was er nicht zeigt.
+          {t.diesemKontoFehlt}
+          <strong>{RECHT_VERSAND_FREIGEBEN}</strong>
+          {t.versandFreigebenFehltNach}
         </p>
       ) : null}
 
       <p className="mt-s5 max-w-prose text-xs text-text-muted">
-        Der Versandstand ist ein Kind der Rechnung und keine Spalte darauf
-        (K-12): an einem festgeschriebenen Beleg ändert sich nichts, am Versand
-        dauernd. <code>nutzlast_sha256</code> belegt, welche Fassung hinausging
-        — weil das Dokument aus dem Snapshot mit dem Festschreibungszeitpunkt
-        gerendert wird, ergibt derselbe Beleg bei jedem Abruf byte-gleich
-        dieselbe Datei (Invariante 5, K-11), und der Hash ist damit nachprüfbar.
+        {t.versandstandFussVor}
+        <code>{SPALTE_NUTZLAST_HASH}</code>
+        {t.versandstandFussNach}
       </p>
     </PortalRahmen>
   );

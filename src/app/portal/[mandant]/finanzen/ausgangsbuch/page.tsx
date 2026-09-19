@@ -14,6 +14,8 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { UEBERSICHT_TEXTE } from '@/lib/i18n/verwaltung/finanzen/uebersicht';
 
 /**
  * `/portal/[mandant]/finanzen/ausgangsbuch` — die Folge der ausgestellten
@@ -33,11 +35,6 @@ import { haeltRechte } from '@/app/portal/rechte';
  * Auslassung: sie haben keine Nummer und keine rechtliche Existenz.
  */
 export const dynamic = 'force-dynamic';
-
-const ART: Readonly<Record<string, string>> = {
-  standard: 'Rechnung', abschlag: 'Abschlag', anzahlung: 'Anzahlung',
-  schluss: 'Schlussrechnung', storno: 'Storno',
-};
 
 export default async function Ausgangsbuch(
   { params, searchParams }: {
@@ -65,6 +62,10 @@ export default async function Ausgangsbuch(
    */
   const darf = await haeltRechte(sitzung, 'finanzen.lesen');
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(UEBERSICHT_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+
   const jahrRoh = typeof suche['jahr'] === 'string' ? suche['jahr'] : null;
   const jahr = jahrRoh !== null && /^\d{4}$/u.test(jahrRoh) ? Number(jahrRoh) : null;
 
@@ -81,7 +82,7 @@ export default async function Ausgangsbuch(
 
   return (
     <PortalRahmen
-      titel="Rechnungsausgangsbuch"
+      titel={t.ausgangsbuchTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -98,28 +99,27 @@ export default async function Ausgangsbuch(
           Zeichen kuerzer (D-609). Ohne `min-w-0` haelt das Flex-Element die
           Mindestbreite des Wortes, bevor `overflow-wrap: anywhere` greift.
         */}
-        <h1 className="min-w-0 text-h1 text-text">Rechnungsausgangsbuch</h1>
+        <h1 className="min-w-0 text-h1 text-text">{t.ausgangsbuchUeberschrift}</h1>
         <form method="get" className="flex items-center gap-s3">
-          <label className="text-sm text-text" htmlFor="jahr">Jahr</label>
+          <label className="text-sm text-text" htmlFor="jahr">{t.jahr}</label>
           <input
             id="jahr" name="jahr" type="number" min="2000" max="2999" step="1"
-            defaultValue={jahr ?? ''} placeholder="alle" className={feld}
+            defaultValue={jahr ?? ''} placeholder={t.jahrAlle} className={feld}
           />
           <button
             type="submit"
             className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
           >
-            Anzeigen
+            {t.anzeigen}
           </button>
         </form>
       </div>
 
       <section aria-labelledby="abstimmung-titel" className="mb-s7">
-        <h2 id="abstimmung-titel" className="mb-s3 text-h2 text-text">Abstimmung</h2>
+        <h2 id="abstimmung-titel" className="mb-s3 text-h2 text-text">{t.abstimmung}</h2>
         {daten.abstimmung.kreise.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Für diesen Zeitraum ist keine Rechnung ausgestellt. Entwürfe stehen
-            hier nicht — sie haben keine Nummer.
+            {t.keineRechnungImZeitraum}
           </p>
         ) : (
           <div
@@ -134,15 +134,16 @@ export default async function Ausgangsbuch(
               {daten.abstimmung.kreise.map((k) => (
                 <li key={k.nummernkreis}>
                   <strong className="text-text">{k.nummernkreis}</strong>:{' '}
-                  {k.anzahl} Belege, Nummern {k.ersteNummer}–{k.letzteNummer},{' '}
-                  Summe {formatiereGeld(k.summeBuchCent)}
+                  {`${String(k.anzahl)} ${t.belegeWort}, ${t.nummernWort} `
+                    + `${String(k.ersteNummer)}–${String(k.letzteNummer)}, `
+                    + `${t.summeKlein} ${formatiereGeld(k.summeBuchCent)}`}
                   {k.summeBuchCent === k.summeBelegeCent
-                    ? ' — Buch und Belege stimmen überein'
-                    : ` — ABWEICHUNG: die Belege ergeben ${formatiereGeld(k.summeBelegeCent)}`}
-                  {k.luecken.length === 0 ? '' : ` · Lücke bei ${k.luecken.join(', ')}`}
+                    ? ` ${t.buchUndBelegeStimmen}`
+                    : ` ${t.abweichungVor} ${formatiereGeld(k.summeBelegeCent)}`}
+                  {k.luecken.length === 0 ? '' : ` ${t.lueckeBei} ${k.luecken.join(', ')}`}
                   {k.ohneKettenglied === 0
                     ? ''
-                    : ` · ${k.ohneKettenglied} Beleg(e) ohne Kettenglied`}
+                    : ` · ${String(k.ohneKettenglied)} ${t.ohneKettenglied}`}
                 </li>
               ))}
             </ul>
@@ -152,13 +153,13 @@ export default async function Ausgangsbuch(
 
       {daten.zeilen.length === 0 ? null : (
         <DataTable
-          beschriftung="Ausgestellte Rechnungen je Nummernkreis, nach laufender Nummer"
+          beschriftung={t.tabelleAusgangsbuch}
           zeilen={daten.zeilen}
           schluessel={(z) => z.rechnungId}
           spalten={[
             {
               schluessel: 'nummer',
-              kopf: 'Nummer',
+              kopf: g.nummer,
               zelle: (z) => (darf['finanzen.lesen'] !== true ? z.nummer : (
                 <Link
                   href={`/portal/${mandant}/finanzen/rechnungen/${z.rechnungId}`}
@@ -168,31 +169,32 @@ export default async function Ausgangsbuch(
                 </Link>
               )),
             },
-            { schluessel: 'datum', kopf: 'Datum', zelle: (z) => z.rechnungsdatum },
+            { schluessel: 'datum', kopf: g.datum, zelle: (z) => z.rechnungsdatum },
             {
-              schluessel: 'kunde', kopf: 'Kunde (wie auf dem Beleg)',
+              schluessel: 'kunde', kopf: t.kundeWieBeleg,
               zelle: (z) => z.kundeName ?? <span className="text-text-subtle">—</span>,
             },
             {
-              schluessel: 'art', kopf: 'Art',
-              zelle: (z) => ART[z.rechnungsart] ?? z.rechnungsart,
+              schluessel: 'art', kopf: g.art,
+              zelle: (z) => t.artNamen[z.rechnungsart as keyof typeof t.artNamen]
+                ?? z.rechnungsart,
             },
             {
-              schluessel: 'netto', kopf: 'Netto', numerisch: true,
+              schluessel: 'netto', kopf: t.nettoKopf, numerisch: true,
               zelle: (z) => formatiereGeld(z.nettoCent),
             },
             {
-              schluessel: 'steuer', kopf: 'USt', numerisch: true,
+              schluessel: 'steuer', kopf: t.ustKopf, numerisch: true,
               zelle: (z) => formatiereGeld(z.steuerCent),
             },
             {
-              schluessel: 'brutto', kopf: 'Brutto', numerisch: true,
+              schluessel: 'brutto', kopf: t.bruttoKopf, numerisch: true,
               zelle: (z) => formatiereGeld(z.bruttoCent),
             },
             {
-              schluessel: 'kette', kopf: 'Kette',
+              schluessel: 'kette', kopf: t.ketteKopf,
               zelle: (z) => (z.hash === null
-                ? <StatusPill zustand="Fehler" />
+                ? <StatusPill zustand="Fehler" sprache={zugang.sprache} />
                 : (
                   <span className="font-mono text-xs text-text-muted">
                     #{z.kettePosition} · {z.hash.slice(0, 8)}
@@ -201,13 +203,19 @@ export default async function Ausgangsbuch(
             },
             {
               schluessel: 'hinweis',
-              kopf: 'Hinweis',
+              kopf: t.hinweisKopf,
               zelle: (z) => (
                 <span className="inline-flex flex-wrap items-center gap-s2">
-                  {z.storniert ? <StatusPill zustand="Archiviert" /> : null}
-                  {z.luecke ? <StatusPill zustand="Fehler" /> : null}
-                  {z.storniert ? <span className="text-xs text-text-muted">storniert</span> : null}
-                  {z.luecke ? <span className="text-xs text-warning">Lücke davor</span> : null}
+                  {z.storniert
+                    ? <StatusPill zustand="Archiviert" sprache={zugang.sprache} />
+                    : null}
+                  {z.luecke ? <StatusPill zustand="Fehler" sprache={zugang.sprache} /> : null}
+                  {z.storniert
+                    ? <span className="text-xs text-text-muted">{t.storniertKlein}</span>
+                    : null}
+                  {z.luecke
+                    ? <span className="text-xs text-warning">{t.lueckeDavor}</span>
+                    : null}
                 </span>
               ),
             },
@@ -216,11 +224,9 @@ export default async function Ausgangsbuch(
       )}
 
       <p className="mt-s5 max-w-prose text-xs text-text-muted">
-        Der Kundenname stammt aus dem eingefrorenen Beleg, nicht aus dem
-        Stammsatz (K-12): wird ein Kunde umbenannt oder anonymisiert, zeigt das
-        Buch weiter, was auf der Rechnung stand. Summe {formatiereGeld(cent(
-          daten.zeilen.reduce((s, z) => s + z.bruttoCent, 0n)))} über{' '}
-        {daten.zeilen.length} Belege.
+        {`${t.ausgangsbuchFussnote} ${t.summeKlein} `
+          + `${formatiereGeld(cent(daten.zeilen.reduce((s, z) => s + z.bruttoCent, 0n)))} `
+          + `${t.ueber} ${String(daten.zeilen.length)} ${t.belegeWort}.`}
       </p>
     </PortalRahmen>
   );

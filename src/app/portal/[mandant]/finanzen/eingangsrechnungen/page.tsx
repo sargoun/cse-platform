@@ -13,6 +13,8 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { EINGANGSRECHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/eingangsrechnungen';
 
 /**
  * `/portal/[mandant]/finanzen/eingangsrechnungen` — was hereinkommt (FIN-14,
@@ -35,14 +37,6 @@ const PILLE: Readonly<Record<string, PillZustand>> = {
   freigegeben: 'Bereit',
   gebucht: 'Abgeschlossen',
   abgelehnt: 'Abgelehnt',
-};
-
-const ZUSTAND: Readonly<Record<string, string>> = {
-  eingegangen: 'eingegangen',
-  in_pruefung: 'in Prüfung',
-  freigegeben: 'freigegeben',
-  gebucht: 'gebucht',
-  abgelehnt: 'abgelehnt',
 };
 
 /** `DD.MM.YYYY` oder `YYYY-MM-DD` → `YYYY-MM`; die Zeile traegt das Datum in der Anzeigeform. */
@@ -73,6 +67,10 @@ export default async function Eingangsrechnungen(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(EINGANGSRECHNUNGEN_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+
   const alle = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) =>
       eingangsrechnungen(kontext))) as ReturnType<typeof eingangsrechnungen>);
@@ -80,7 +78,7 @@ export default async function Eingangsrechnungen(
 
   return (
     <PortalRahmen
-      titel="Eingangsrechnungen"
+      titel={t.titel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -90,63 +88,65 @@ export default async function Eingangsrechnungen(
       navigationsRechte={zugang.navigationsRechte}
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="text-h1 text-text">Eingangsrechnungen</h1>
+        <h1 className="text-h1 text-text">{t.titel}</h1>
         {monat === null ? null : (
           <p data-cse="monat-filter" className="text-sm text-text-muted">
-            Rechnungsdatum im Monat <strong>{monat.slice(5, 7)}/{monat.slice(0, 4)}</strong>{' '}
-            <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen`} className="underline underline-offset-2">alle zeigen</Link>
+            {t.rechnungsdatumImMonat}{' '}
+            <strong>{monat.slice(5, 7)}/{monat.slice(0, 4)}</strong>{' '}
+            <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen`} className="underline underline-offset-2">{t.alleZeigen}</Link>
           </p>
         )}
         <Link
           href={`/portal/${mandant}/finanzen/eingangsrechnungen/neu`}
           className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
         >
-          Rechnung erfassen
+          {t.rechnungErfassen}
         </Link>
       </div>
 
       {zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          Noch keine Eingangsrechnung erfasst. Jede braucht ihr Dokument — ohne
-          Beleg wird nichts gebucht (ACC-03).
+          {t.keineEingangsrechnung}
         </p>
       ) : (
         <DataTable
-          beschriftung="Eingangsrechnungen mit Belegnummer, Lieferant, Betrag und Zustand"
+          beschriftung={t.tabelleListe}
           zeilen={zeilen}
           schluessel={(z) => z.id}
           spalten={[
             {
               schluessel: 'beleg',
-              kopf: 'Beleg',
+              kopf: t.beleg,
               zelle: (z) => (
                 <Link
                   href={`/portal/${mandant}/finanzen/eingangsrechnungen/${z.id}`}
                   className="text-text underline-offset-2 hover:text-brand hover:underline"
                 >
                   {z.interneBelegnummer
-                    ?? <span className="text-text-subtle">ohne — noch nicht gebucht</span>}
+                    ?? <span className="text-text-subtle">{t.ohneNochNichtGebucht}</span>}
                 </Link>
               ),
             },
-            { schluessel: 'lieferant', kopf: 'Lieferant', zelle: (z) => z.lieferant ?? '—' },
+            { schluessel: 'lieferant', kopf: t.lieferant, zelle: (z) => z.lieferant ?? '—' },
             {
-              schluessel: 'nummer', kopf: 'Nr. des Lieferanten',
+              schluessel: 'nummer', kopf: t.nrDesLieferanten,
               zelle: (z) => z.rechnungsnummerLieferant ?? '—',
             },
             {
-              schluessel: 'brutto', kopf: 'Brutto', numerisch: true,
+              schluessel: 'brutto', kopf: t.brutto, numerisch: true,
               zelle: (z) => (z.bruttoCent === null ? '—' : formatiereGeld(z.bruttoCent)),
             },
-            { schluessel: 'faellig', kopf: 'Fällig', zelle: (z) => z.faelligAm ?? '—' },
+            { schluessel: 'faellig', kopf: g.faellig, zelle: (z) => z.faelligAm ?? '—' },
             {
               schluessel: 'zustand',
-              kopf: 'Zustand',
+              kopf: g.zustand,
               zelle: (z) => (
                 <span className="inline-flex flex-wrap items-center gap-s2">
-                  <StatusPill zustand={PILLE[z.status] ?? 'Entwurf'} />
+                  <StatusPill zustand={PILLE[z.status] ?? 'Entwurf'} sprache={zugang.sprache} />
                   <span className="text-xs text-text-muted">
-                    {z.abgelehntGrund ?? ZUSTAND[z.status] ?? z.status}
+                    {z.abgelehntGrund
+                      ?? t.zustandKurz[z.status as keyof typeof t.zustandKurz]
+                      ?? z.status}
                   </span>
                 </span>
               ),

@@ -20,6 +20,10 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import {
+  RECHNUNG_AUSGABE_TEXTE, type RechnungAusgabeTexte,
+} from '@/lib/i18n/verwaltung/finanzen/rechnung-ausgabe';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]/zugferd` — die PDF/A-3-Vorschau
@@ -53,6 +57,9 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'ZUGFeRD — Rechnung' };
 
+/* Ein Befehl, kein Wort — er lautet in beiden Sprachen gleich. */
+const BEFEHL_COMPLIANCE = 'pnpm test:compliance';
+
 interface Kopf {
   readonly id: string;
   readonly nummer: string | null;
@@ -66,7 +73,12 @@ type Lage =
   | { readonly art: 'unvollstaendig'; readonly fehlend: readonly FehlendesFeld[] }
   | { readonly art: 'nicht_moeglich'; readonly meldung: string };
 
-function Zustand({ art, text, regelwerk }: ReturnType<typeof pruefstand>) {
+function Zustand(
+  /* `t` steht daneben, weil `text` und `regelwerk` aus dem Dienst kommen und
+     die Ueberschrift nicht. */
+  { art, text, regelwerk, t }:
+  ReturnType<typeof pruefstand> & { readonly t: RechnungAusgabeTexte },
+) {
   /*
    * Drei Zustände, drei Töne — und „in CI validiert" ist NICHT grün im Sinne
    * von „diese Rechnung ist geprüft". Der Satz daneben sagt, worauf sich die
@@ -79,14 +91,15 @@ function Zustand({ art, text, regelwerk }: ReturnType<typeof pruefstand>) {
       data-cse="zugferd-pruefstand"
       data-art={art}
     >
-      <h2 className="mb-s2 text-h3 text-text">Prüfstand</h2>
+      <h2 className="mb-s2 text-h3 text-text">{t.pruefstand}</h2>
       <p className={`m-0 max-w-prose text-sm ${ton}`}>{text}</p>
       <p className="m-0 mt-s2 max-w-prose text-xs text-text-muted">
-        Geprüft wird das PDF/A-3 mit veraPDF im Bau (<code>pnpm test:compliance</code>),
-        nicht beim Aufruf. Die Aussage gilt dem Erzeuger, nicht diesem Beleg.
+        {t.veraPdfVor}
+        <code>{BEFEHL_COMPLIANCE}</code>
+        {t.veraPdfNach}
       </p>
       {regelwerk === null ? null : (
-        <p className="m-0 mt-s2 text-xs text-text-muted">Regelwerk: {regelwerk}</p>
+        <p className="m-0 mt-s2 text-xs text-text-muted">{t.regelwerk}: {regelwerk}</p>
       )}
     </section>
   );
@@ -110,6 +123,10 @@ export default async function ZugferdBlatt(
    */
   const darf = await haeltRechte(sitzung, 'finanzen.lesen');
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(RECHNUNG_AUSGABE_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
       const [kopf] = await kontext.abfrage<Kopf>(
@@ -124,7 +141,7 @@ export default async function ZugferdBlatt(
       try {
         const v = await zugferdVorschau(kontext, id);
         lage = v === null
-          ? { art: 'nicht_moeglich', meldung: 'Diese Rechnung ist nicht lesbar.' }
+          ? { art: 'nicht_moeglich', meldung: t.nichtLesbar }
           : { art: 'ok', v };
       } catch (fehler) {
         if (fehler instanceof XRechnungUnvollstaendigFehler) {
@@ -158,42 +175,42 @@ export default async function ZugferdBlatt(
       navigationsRechte={zugang.navigationsRechte}
     >
       {darf['finanzen.lesen'] === true ? (
-        <nav aria-label="Zurück" className="mb-s3">
+        <nav aria-label={g.zurueck} className="mb-s3">
           <Link
             href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            ← {k.nummer ?? 'Entwurf ohne Nummer'}
+            ← {k.nummer ?? t.entwurfOhneNummer}
           </Link>
         </nav>
       ) : null}
 
-      <h1 className="mb-s3 text-h1 text-text">ZUGFeRD 2.x (PDF/A-3 mit CII)</h1>
+      <h1 className="mb-s3 text-h1 text-text">{t.zugferdH1}</h1>
 
       <dl className="mb-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-3">
         <div>
-          <dt className="text-xs text-text-muted">Empfänger</dt>
+          <dt className="text-xs text-text-muted">{t.empfaenger}</dt>
           <dd className="text-sm text-text">{k.kunde}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Profil</dt>
+          <dt className="text-xs text-text-muted">{t.profil}</dt>
           <dd className="text-sm text-text" data-cse="zugferd-profil">{CII_GUIDELINE}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Eingebettete Datei</dt>
+          <dt className="text-xs text-text-muted">{t.eingebetteteDatei}</dt>
           <dd className="text-sm text-text" data-cse="zugferd-dateiname">{CII_DATEINAME}</dd>
         </div>
       </dl>
 
-      <Zustand {...stand} />
+      <Zustand {...stand} t={t} />
 
       {probe !== null && !probe.ok ? (
         <Hinweis art="warnung" cse="zugferd-summenprobe" className="mb-s5">
           <p className="m-0 max-w-prose">
-            <strong>Die Summenprobe geht nicht auf.</strong> Abweichung bei:{' '}
-            {probe.abweichungen.join(', ')}. Ein Dokument, dessen eingebettete
-            Summen von den Kopfsummen des Belegs abweichen, wird beim Empfänger
-            abgewiesen — und zwar nachdem er es eingelesen hat.
+            <strong>{t.summenprobeFehlgeschlagen}</strong>{' '}
+            {t.abweichungBei}
+            {probe.abweichungen.join(', ')}
+            {t.summenprobeErklaerung}
           </p>
         </Hinweis>
       ) : null}
@@ -201,12 +218,12 @@ export default async function ZugferdBlatt(
       {lage.art === 'unvollstaendig' ? (
         <section className="mb-s5" data-cse="zugferd-fehlend">
           <h2 className="mb-s3 text-h3 text-text">
-            Es entsteht kein Dokument — {String(lage.fehlend.length)} Pflichtangabe(n) fehlen
+            {t.keinDokumentVor}
+            {String(lage.fehlend.length)}
+            {t.pflichtangabenFehlen}
           </h2>
           <p className="mb-s3 max-w-prose text-sm text-text-muted">
-            Ein PDF ohne die eingebettete Rechnung wäre ein ZUGFeRD-Dokument,
-            das keines ist. Es entsteht deshalb gar nicht erst — hier steht die
-            ganze Liste, nicht das erste fehlende Feld.
+            {t.pdfOhneRechnung}
           </p>
           <ul className="m-0 list-none space-y-s3 p-0">
             {lage.fehlend.map((f) => (
@@ -216,7 +233,10 @@ export default async function ZugferdBlatt(
                   <span className="text-xs text-text-muted">{f.regel}</span>
                 </p>
                 <p className="m-0 mt-s2 max-w-prose text-sm text-text">{f.text}</p>
-                <p className="m-0 mt-s2 text-xs text-text-muted">Zu pflegen unter {f.feld}</p>
+                <p className="m-0 mt-s2 text-xs text-text-muted">
+                  {t.zuPflegenUnter}
+                  {f.feld}
+                </p>
               </li>
             ))}
           </ul>
@@ -228,9 +248,7 @@ export default async function ZugferdBlatt(
         >
           <p className="m-0 max-w-prose text-sm text-warning">{lage.meldung}</p>
           <p className="m-0 mt-s2 max-w-prose text-xs text-warning">
-            Das PDF wird aus dem Snapshot gerendert, nie aus den heutigen
-            Stammdaten (K-12) — sonst entstünde ein zweites Dokument zu
-            derselben Nummer.
+            {t.ausSnapshotGerendert}
           </p>
         </section>
       ) : (
@@ -241,52 +259,52 @@ export default async function ZugferdBlatt(
               className="inline-flex min-h-[44px] items-center rounded-md bg-brand px-s4 text-base text-white"
               data-cse="zugferd-herunterladen"
             >
-              ZUGFeRD-PDF herunterladen
+              {t.zugferdHerunterladen}
             </a>
           </p>
 
-          <h2 className="mb-s3 text-h3 text-text">Summenprobe</h2>
+          <h2 className="mb-s3 text-h3 text-text">{t.summenprobe}</h2>
           <dl
             data-cse="zugferd-summen"
             data-ok={String(probe?.ok ?? false)}
             className="mb-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-2"
           >
             <div>
-              <dt className="text-xs text-text-muted">Zeilensumme (BT-106)</dt>
+              <dt className="text-xs text-text-muted">{t.zeilensumme}</dt>
               <dd className="cse-zahl text-sm text-text">
                 {formatiereGeld(lage.v.summen.zeilen)}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-text-muted">Nachlass / Zuschlag</dt>
+              <dt className="text-xs text-text-muted">{t.nachlassZuschlag}</dt>
               <dd className="cse-zahl text-sm text-text">
                 −{formatiereGeld(lage.v.summen.nachlass)} / +
                 {formatiereGeld(lage.v.summen.zuschlag)}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-text-muted">Netto (BT-109) · Beleg</dt>
+              <dt className="text-xs text-text-muted">{t.nettoBeleg}</dt>
               <dd className="cse-zahl text-sm text-text">
                 {formatiereGeld(lage.v.summen.netto)} ·{' '}
                 {formatiereGeld(lage.v.belegNettoCent)}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-text-muted">USt (BT-110) · Beleg</dt>
+              <dt className="text-xs text-text-muted">{t.ustBeleg}</dt>
               <dd className="cse-zahl text-sm text-text">
                 {formatiereGeld(lage.v.summen.steuer)} ·{' '}
                 {formatiereGeld(lage.v.belegSteuerCent)}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-text-muted">Brutto (BT-112) · Beleg</dt>
+              <dt className="text-xs text-text-muted">{t.bruttoBeleg}</dt>
               <dd className="cse-zahl text-sm text-text">
                 {formatiereGeld(lage.v.summen.brutto)} ·{' '}
                 {formatiereGeld(lage.v.belegBruttoCent)}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-text-muted">Zahlbetrag (BT-115) · Beleg</dt>
+              <dt className="text-xs text-text-muted">{t.zahlbetragBeleg}</dt>
               <dd className="cse-zahl text-sm text-text">
                 {formatiereGeld(lage.v.summen.zahlbetrag)} ·{' '}
                 {formatiereGeld(lage.v.belegZahlbetragCent)}
@@ -294,7 +312,7 @@ export default async function ZugferdBlatt(
             </div>
             <div className="sm:col-span-2">
               <dt className="text-xs text-text-muted">
-                Bereits gezahlt (Abzug früherer Abschläge, BT-113)
+                {t.bereitsGezahlt}
               </dt>
               <dd className="cse-zahl text-sm text-text">
                 {formatiereGeld(lage.v.summen.gezahlt)}
@@ -303,15 +321,15 @@ export default async function ZugferdBlatt(
           </dl>
 
           <p className="mb-s5 max-w-prose text-xs text-text-muted">
-            Snapshot-Gestalt {lage.v.schemaVersion}, festgeschrieben{' '}
-            {lage.v.festgeschriebenAm}. Das PDF trägt diesen Zeitpunkt als
-            Erzeugungsdatum — deshalb ergibt derselbe Beleg bei jedem Abruf
-            byte-gleich dieselbe Datei, und ihr SHA-256 taugt als Nachweis
-            (Invariante 5, K-11).
+            {t.snapshotGestalt}
+            {lage.v.schemaVersion}
+            {t.festgeschriebenAm}
+            {lage.v.festgeschriebenAm}
+            {t.byteGleich}
           </p>
 
           <h2 className="mb-s3 text-h3 text-text" id="cii-titel">
-            Eingebettete Rechnung ({CII_DATEINAME})
+            {t.eingebetteteRechnung} ({CII_DATEINAME})
           </h2>
           {/*
             * `tabIndex` und `role` sind hier kein Beiwerk (DESIGN §9,

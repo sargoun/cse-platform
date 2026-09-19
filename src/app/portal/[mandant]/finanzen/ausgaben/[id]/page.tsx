@@ -17,6 +17,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { BELEGE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/belege';
 
 /**
  * `/portal/[mandant]/finanzen/ausgaben/[id]` — eine Ausgabe im Detail
@@ -52,6 +54,11 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Ausgabe — Finanzen' };
 
+/*
+ * Die PILLE bildet den Zustand auf das FESTE Pillenvokabular aus DESIGN §5 ab.
+ * Sie bleibt deutsch und bleibt hier: der Wert ist ein Schluessel, der die
+ * Farbe waehlt — die Pille uebersetzt ihre Beschriftung selbst.
+ */
 const PILLE: Readonly<Record<AusgabeStatus, PillZustand>> = {
   erfasst: 'Entwurf',
   freigegeben: 'Bereit',
@@ -59,28 +66,24 @@ const PILLE: Readonly<Record<AusgabeStatus, PillZustand>> = {
   abgelehnt: 'Abgelehnt',
 };
 
-const ZUSTAND: Readonly<Record<AusgabeStatus, string>> = {
-  erfasst: 'erfasst — noch nicht freigegeben',
-  freigegeben: 'freigegeben — zur Buchung bereit',
-  gebucht: 'gebucht — unveränderlich',
-  abgelehnt: 'abgelehnt',
-};
-
-const ZAHLUNGSMITTEL_TEXT: Readonly<Record<string, string>> = {
-  ueberweisung: 'Überweisung',
-  lastschrift: 'Lastschrift',
-  bar: 'bar (aus der Kasse)',
-  karte: 'Karte',
-  verrechnung: 'Verrechnung',
-};
-
-/** Die Zustandsfolge, ausgeschrieben — dieselbe wie `fin.ausgabe_uebergang`. */
-const FOLGE: readonly { readonly von: AusgabeStatus; readonly nach: string }[] = [
-  { von: 'erfasst', nach: 'freigegeben · abgelehnt' },
-  { von: 'freigegeben', nach: 'gebucht · abgelehnt' },
-  { von: 'gebucht', nach: 'nichts mehr — korrigiert wird durch eine Gegenbuchung' },
-  { von: 'abgelehnt', nach: 'nichts mehr — eine abgelehnte Ausgabe wird neu erfasst' },
+/**
+ * Die Zustandsfolge in ihrer Reihenfolge — dieselbe wie
+ * `fin.ausgabe_uebergang`. Wohin ein Zustand fuehrt, steht ausgeschrieben in
+ * der Texttabelle (`t.folge`); hier stehen nur die Schluessel.
+ */
+const FOLGE: readonly AusgabeStatus[] = [
+  'erfasst', 'freigegeben', 'gebucht', 'abgelehnt',
 ];
+
+/*
+ * Rechte-, Ereignis-, Index- und Ausloesernamen lauten in beiden Sprachen
+ * gleich und stehen deshalb hier und nicht in der Texttabelle (siehe den Kopf
+ * von `i18n/verwaltung/finanzen/belege.ts`).
+ */
+const RECHT_ERSTATTUNG_LESEN = 'personal.erstattung_lesen';
+const EREIGNIS_ERSTATTUNG_GELESEN = 'ausgabe.erstattung_gelesen';
+const INDEX_QUELLE_AUSGABE_UK = 'quelle_ausgabe_uk';
+const AUSLOESER_AUSGABE_UEBERGANG = 'fin.ausgabe_uebergang';
 
 export default async function Ausgabenblatt(
   { params }: { params: Promise<{ mandant: string; id: string }> },
@@ -91,6 +94,10 @@ export default async function Ausgabenblatt(
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
   const { sitzung } = zugang;
+
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(BELEGE_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
 
   /*
    * Drei Nachbarrechte: die Erstattung (`personal.erstattung_lesen`), die
@@ -140,7 +147,7 @@ export default async function Ausgabenblatt(
 
   return (
     <PortalRahmen
-      titel="Ausgabe"
+      titel={t.ausgabeTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen
       leiste={zugang.leiste}
@@ -149,64 +156,66 @@ export default async function Ausgabenblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
+      <nav aria-label={g.zurueck} className="mb-s3">
         <Link
           href={`/portal/${mandant}/finanzen/ausgaben`}
           className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
         >
-          ← Ausgaben
+          ← {t.ausgabenTitel}
         </Link>
       </nav>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">{a.bezeichnung}</h1>
         <span className="inline-flex flex-wrap items-center gap-s2">
-          <StatusPill zustand={PILLE[a.status]} />
-          <span className="text-xs text-text-muted">{ZUSTAND[a.status]}</span>
+          <StatusPill zustand={PILLE[a.status]} sprache={zugang.sprache} />
+          <span className="text-xs text-text-muted">{t.zustandBlatt[a.status]}</span>
         </span>
       </div>
 
       <dl className="mb-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-3">
         <div>
-          <dt className="text-xs text-text-muted">Ausgabedatum</dt>
+          <dt className="text-xs text-text-muted">{t.ausgabedatum}</dt>
           <dd className="text-sm text-text">{a.ausgabedatum}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Kategorie</dt>
+          <dt className="text-xs text-text-muted">{t.kategorie}</dt>
           <dd className="text-sm text-text">
             {a.kategorie}
             {a.kategorieIstPlatzhalter
-              ? <span className="text-warning"> — unbestätigt (O-05)</span>
+              ? <span className="text-warning">{t.unbestaetigtStrich}</span>
               : null}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Bezahlt mit</dt>
+          <dt className="text-xs text-text-muted">{t.bezahltMit}</dt>
           <dd className="text-sm text-text">
-            {ZAHLUNGSMITTEL_TEXT[a.zahlungsmittel] ?? a.zahlungsmittel}
+            {t.zahlungsmittelBlatt[
+              a.zahlungsmittel as keyof typeof t.zahlungsmittelBlatt]
+              ?? a.zahlungsmittel}
             {a.kasse === null ? '' : ` · ${a.kasse}`}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Netto</dt>
+          <dt className="text-xs text-text-muted">{t.netto}</dt>
           <dd className="cse-zahl text-sm text-text">{formatiereGeld(a.nettoCent)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Umsatzsteuer</dt>
+          <dt className="text-xs text-text-muted">{t.umsatzsteuer}</dt>
           <dd className="cse-zahl text-sm text-text">{formatiereGeld(a.steuerCent)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Brutto</dt>
+          <dt className="text-xs text-text-muted">{t.brutto}</dt>
           <dd className="cse-zahl text-base text-text">{formatiereGeld(a.bruttoCent)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Weiterberechenbar</dt>
+          <dt className="text-xs text-text-muted">{t.weiterberechenbar}</dt>
           <dd className="text-sm text-text">
-            {a.weiterberechenbar ? 'ja (FIN-07)' : 'nein'}
+            {a.weiterberechenbar ? t.jaFin07 : t.nein}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Auftrag</dt>
+          <dt className="text-xs text-text-muted">{t.auftrag}</dt>
           <dd className="text-sm text-text">
             {a.auftragId === null || a.auftragsnummer === null
               ? <span className="text-text-subtle">—</span>
@@ -223,14 +232,14 @@ export default async function Ausgabenblatt(
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Beleg</dt>
+          <dt className="text-xs text-text-muted">{t.beleg}</dt>
           <dd className="text-sm text-text">
             {a.belegId === null
               ? (
                 <span className={a.belegPflichtVerletzt ? 'text-warning' : 'text-text-subtle'}>
                   {a.belegPflichtVerletzt
-                    ? 'fehlt — das darf es in diesem Zustand nicht geben'
-                    : 'noch keiner'}
+                    ? t.belegFehltInDiesemZustand
+                    : t.nochKeiner}
                 </span>
               )
               : (
@@ -238,7 +247,7 @@ export default async function Ausgabenblatt(
                   href={`/portal/${mandant}/finanzen/belege/${a.belegId}`}
                   className="text-text underline-offset-2 hover:text-brand hover:underline"
                 >
-                  {a.belegnummer ?? 'Beleg ohne Nummer'}
+                  {a.belegnummer ?? t.belegOhneNummer}
                 </Link>
               )}
           </dd>
@@ -248,9 +257,8 @@ export default async function Ausgabenblatt(
       {a.status === 'abgelehnt' ? (
         <Hinweis art="hinweis" cse="ausgabe-abgelehnt" className="mb-s5">
           <p className="m-0 max-w-prose">
-            Zurückgewiesen. Grund: „{a.abgelehntGrund ?? '—'}". Die Zeile bleibt
-            stehen (Invariante 8) — es gibt hier keine Löschung, auch keinen
-            ausgegrauten Knopf dafür.
+            {t.zurueckgewiesenVor} {t.zitatAuf}{a.abgelehntGrund ?? '—'}{t.zitatZu}
+            {t.zurueckgewiesenNach}
           </p>
         </Hinweis>
       ) : null}
@@ -258,9 +266,8 @@ export default async function Ausgabenblatt(
       {a.belegId === null && a.status === 'erfasst' ? (
         <Hinweis art="warnung" cse="ausgabe-beleg-fehlt" className="mb-s5">
           <p className="m-0 max-w-prose">
-            <strong>Ohne Beleg keine Freigabe.</strong> Die Datenbank verlangt
-            ihn vor dem Übergang nach <em>freigegeben</em> — „keine Buchung ohne
-            Beleg" ist erzwungen und nicht behauptet (ACC-03).
+            <strong>{t.ohneBelegKeineFreigabe}</strong> {t.ohneBelegErzwungenVor}{' '}
+            <em>{t.freigegebenWort}</em> {t.ohneBelegErzwungenNach}
           </p>
           <p className="m-0 mt-s2 max-w-prose">
             {EIGENBELEG_PLATZHALTER.herkunft}
@@ -268,9 +275,7 @@ export default async function Ausgabenblatt(
         </Hinweis>
       ) : null}
 
-      <h2 className="mb-s3 text-h2 text-text">
-        Die Steuer je Steuersatzgruppe — nie ein Mischsatz
-      </h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.steuerJeGruppeTitel}</h2>
       {steuer === null || steuer.zeilen.length === 0 ? (
         <Hinweis
           art={a.status === 'gebucht' ? 'warnung' : 'hinweis'}
@@ -278,41 +283,35 @@ export default async function Ausgabenblatt(
           className="mb-s5"
         >
           <p className="m-0 max-w-prose">
-            {a.status === 'gebucht'
-              ? 'Diese gebuchte Ausgabe hat keine Aufteilung je Steuersatzgruppe. Das '
-                + 'kann als Daten nicht entstehen — die Datenbank verlangt sie vor dem '
-                + 'Buchen. Steht es hier, ist die Zeile älter als die Regel.'
-              : 'Noch keine Aufteilung erfasst. Sie darf während der Erfassung '
-                + 'nachkommen; vor dem Buchen muss sie zum Kopf passen, und das prüft '
-                + 'die Datenbank am Ende der Transaktion.'}
+            {a.status === 'gebucht' ? t.gebuchtOhneAufteilung : t.nochKeineAufteilung}
           </p>
           <p className="m-0 mt-s2 max-w-prose">
-            Aus dem Bruttobetrag wird hier <strong>kein</strong> Satz
-            zurückgerechnet: ein Mischsatz steht auf keinem Beleg (Invariante 1).
+            {t.keinSatzZurueckgerechnetVor} <strong>{t.keinBetont}</strong>{' '}
+            {t.keinSatzZurueckgerechnetNach}
           </p>
         </Hinweis>
       ) : (
         <>
           <DataTable
-            beschriftung="Aufteilung dieser Ausgabe je Steuersatzgruppe"
+            beschriftung={t.tabelleSteuerzeilen}
             zeilen={steuer.zeilen}
             schluessel={(z) => z.steuersatzGruppeId}
             spalten={[
-              { schluessel: 'gruppe', kopf: 'Steuersatzgruppe', zelle: (z) => z.gruppe },
+              { schluessel: 'gruppe', kopf: t.steuersatzgruppe, zelle: (z) => z.gruppe },
               {
-                schluessel: 'satz', kopf: 'Satz', numerisch: true,
+                schluessel: 'satz', kopf: t.satz, numerisch: true,
                 zelle: (z) => `${(z.satzBp / 100).toLocaleString('de-DE')} %`,
               },
               {
-                schluessel: 'kategorie', kopf: 'EN-16931-Kategorie',
+                schluessel: 'kategorie', kopf: t.en16931Kategorie,
                 zelle: (z) => z.kategorie,
               },
               {
-                schluessel: 'netto', kopf: 'Netto', numerisch: true,
+                schluessel: 'netto', kopf: t.netto, numerisch: true,
                 zelle: (z) => formatiereGeld(z.nettoCent),
               },
               {
-                schluessel: 'steuer', kopf: 'USt', numerisch: true,
+                schluessel: 'steuer', kopf: t.ust, numerisch: true,
                 zelle: (z) => formatiereGeld(z.steuerCent),
               },
             ]}
@@ -326,19 +325,16 @@ export default async function Ausgabenblatt(
                 : 'border-warning bg-warning-soft text-warning'}`}
           >
             <p className="m-0 max-w-prose">
-              Zeilensumme {formatiereGeld(steuer.nettoCent)} netto /{' '}
-              {formatiereGeld(steuer.steuerCent)} Steuer · Kopf{' '}
+              {t.zeilensumme} {formatiereGeld(steuer.nettoCent)} {t.nettoSchraeg}{' '}
+              {formatiereGeld(steuer.steuerCent)} {t.steuerKopf}{' '}
               {formatiereGeld(a.nettoCent)} / {formatiereGeld(a.steuerCent)}
-              {steuer.stimmtMitKopf
-                ? ' — sie stimmen überein.'
-                : ' — sie weichen ab. Vor dem Buchen weist die Datenbank das ab; '
-                  + 'der Kopf oder die Zeilen sind zu korrigieren.'}
+              {steuer.stimmtMitKopf ? t.stimmenUeberein : t.weichenAb}
             </p>
           </div>
         </>
       )}
 
-      <h2 className="mb-s3 text-h2 text-text">Erstattung an eine Beschäftigte</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.erstattungTitel}</h2>
       <div
         data-cse="ausgabe-erstattung"
         data-ist-erstattung={String(a.istErstattung)}
@@ -347,75 +343,72 @@ export default async function Ausgabenblatt(
         {daten.erstattung === null ? (
           <p className="m-0 max-w-prose text-text-muted">
             {darf['personal.erstattung_lesen'] === true
-              ? 'Diese Ausgabe ist keine Auslagenerstattung — sie hängt an keiner '
-                + 'Anstellung.'
-              : 'Keine Angabe. Das heisst zweierlei, und die Seite unterscheidet es '
-                + 'nicht: die Ausgabe ist keine Erstattung, ODER diesem Konto fehlt '
-                + 'personal.erstattung_lesen. Ein unterscheidbarer Hinweis wäre genau '
-                + 'die Auskunft, die das Recht verweigert (AUT-06).'}
+              ? t.keineErstattung
+              : `${t.keineAngabeErstattungVor}${RECHT_ERSTATTUNG_LESEN}`
+                + `${t.keineAngabeErstattungNach}`}
           </p>
         ) : (
           <>
             <p className="m-0 max-w-prose text-text">
-              Erstattet an Anstellung{' '}
-              <strong>{daten.erstattung.personalnummer ?? 'ohne Personalnummer'}</strong>.
+              {t.erstattetAnAnstellung}{' '}
+              <strong>{daten.erstattung.personalnummer ?? t.ohnePersonalnummer}</strong>.
             </p>
             <p className="m-0 mt-s2 max-w-prose text-xs text-text-muted">
-              Eine Erstattung ist ein Kostensatz und hängt deshalb an der
-              ANSTELLUNG, nie an der Person (D-09, Invariante 9). Dieser
-              Lesezugriff steht im Protokoll —{' '}
-              <code>ausgabe.erstattung_gelesen</code>, mit Konto und Zeitpunkt.
+              {t.erstattungAnAnstellungVor}{' '}
+              <code>{EREIGNIS_ERSTATTUNG_GELESEN}</code>
+              {t.erstattungAnAnstellungNach}
             </p>
           </>
         )}
       </div>
 
-      <h2 className="mb-s3 text-h2 text-text">Weiterberechnung (FIN-07)</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.weiterberechnungTitel}</h2>
       {daten.weiter.length === 0 ? (
         <p className="mb-s5 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           {a.weiterberechenbar
-            ? 'Noch nicht weiterberechnet. Diese Ausgabe darf als Materialzeile auf '
-              + 'einer Rechnung erscheinen — genau einmal: der Teilindex '
-              + 'quelle_ausgabe_uk lässt eine zweite wirksame Zeile nicht zu.'
-            : 'Diese Ausgabe ist nicht als weiterberechenbar gekennzeichnet und '
-              + 'erscheint auf keiner Rechnung.'}
+            ? `${t.nochNichtWeiterberechnetVor}${INDEX_QUELLE_AUSGABE_UK}`
+              + `${t.nochNichtWeiterberechnetNach}`
+            : t.nichtWeiterberechenbar}
         </p>
       ) : (
         <DataTable
-          beschriftung="Rechnungszeilen, die diese Ausgabe weiterberechnen"
+          beschriftung={t.tabelleWeiterberechnung}
           zeilen={daten.weiter}
           schluessel={(w) => `${w.rechnungId}-${String(w.positionNr)}`}
           spalten={[
             {
               schluessel: 'rechnung',
-              kopf: 'Rechnung',
+              kopf: t.rechnung,
               zelle: (w) => (darf['finanzen.lesen'] === true ? (
                 <Link
                   href={`/portal/${mandant}/finanzen/rechnungen/${w.rechnungId}`}
                   className="text-text underline-offset-2 hover:text-brand hover:underline"
                 >
-                  {w.rechnungNummer ?? 'Entwurf ohne Nummer'}
+                  {w.rechnungNummer ?? t.entwurfOhneNummer}
                 </Link>
-              ) : (w.rechnungNummer ?? 'Entwurf ohne Nummer')),
+              ) : (w.rechnungNummer ?? t.entwurfOhneNummer)),
             },
             {
-              schluessel: 'position', kopf: 'Position', numerisch: true,
+              schluessel: 'position', kopf: t.position, numerisch: true,
               zelle: (w) => w.positionNr,
             },
             {
-              schluessel: 'bezeichnung', kopf: 'Zeile',
+              schluessel: 'bezeichnung', kopf: t.zeile,
               zelle: (w) => w.positionBezeichnung,
             },
             {
               schluessel: 'wirksam',
-              kopf: 'Wirksam',
+              kopf: t.wirksam,
               zelle: (w) => (
                 <span className="inline-flex flex-wrap items-center gap-s2">
-                  <StatusPill zustand={w.wirksam ? 'Aktiv' : 'Archiviert'} />
+                  <StatusPill
+                    zustand={w.wirksam ? 'Aktiv' : 'Archiviert'}
+                    sprache={zugang.sprache}
+                  />
                   <span className="text-xs text-text-muted">
                     {w.wirksam
-                      ? `berechnet · ${w.rechnungStatus}`
-                      : 'unwirksam — aus einem Storno übernommen'}
+                      ? `${t.berechnet} · ${w.rechnungStatus}`
+                      : t.unwirksamAusStorno}
                   </span>
                 </span>
               ),
@@ -424,29 +417,29 @@ export default async function Ausgabenblatt(
         />
       )}
 
-      <h2 className="mb-s3 mt-s7 text-h2 text-text">Der Zustandsverlauf</h2>
+      <h2 className="mb-s3 mt-s7 text-h2 text-text">{t.zustandsverlauf}</h2>
       <div className="rounded-lg border border-line bg-surface-2 p-s5 text-sm">
         <ul className="m-0 list-none space-y-s2 p-0">
-          {FOLGE.map((f) => (
+          {FOLGE.map((von) => (
             <li
-              key={f.von}
+              key={von}
               className={`flex flex-wrap items-baseline gap-s3 ${
-                f.von === a.status ? 'text-text' : 'text-text-muted'}`}
+                von === a.status ? 'text-text' : 'text-text-muted'}`}
             >
-              <StatusPill zustand={PILLE[f.von]} />
-              <span className="text-xs">→ {f.nach}</span>
-              {f.von === a.status ? (
-                <span className="text-xs font-semibold">hier</span>
+              <StatusPill zustand={PILLE[von]} sprache={zugang.sprache} />
+              <span className="text-xs">→ {t.folge[von]}</span>
+              {von === a.status ? (
+                <span className="text-xs font-semibold">{t.hier}</span>
               ) : null}
             </li>
           ))}
         </ul>
         <p className="m-0 mt-s3 max-w-prose text-xs text-text-muted">
-          Der Übergang wird in der Datenbank erzwungen
-          (<code>fin.ausgabe_uebergang</code>), nicht in der Oberfläche
-          angeboten. <strong>Gelöscht wird nichts</strong> (Invariante 8);
-          zurückgewiesen wird mit Grund, und ab <em>gebucht</em> ist die Zeile
-          unveränderlich — korrigiert wird durch eine Gegenbuchung.
+          {t.uebergangErzwungenVor}
+          <code>{AUSLOESER_AUSGABE_UEBERGANG}</code>
+          {t.uebergangErzwungenMitte}{' '}
+          <strong>{t.geloeschtWirdNichts}</strong> {t.uebergangErzwungenNach}{' '}
+          <em>{t.gebuchtWort}</em> {t.abGebucht}
         </p>
       </div>
     </PortalRahmen>

@@ -9,11 +9,13 @@ import { KpiStat } from '@/components/ui/KpiStat';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { formatiereGeld } from '@/server/services/finanz/geld';
 import {
-  BELEG_QUELLEN, BELEG_TYPEN, QUELLE_TEXT, TYP_TEXT, belegZaehler, belege,
+  BELEG_QUELLEN, BELEG_TYPEN, belegZaehler, belege,
   istBelegQuelle, istBelegTyp, type BelegZaehler, type BelegZeile,
 } from '@/server/services/finanz/beleg';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { BELEGE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/belege';
 
 /**
  * `/portal/[mandant]/finanzen/belege` — das GoBD-Belegarchiv einer
@@ -53,6 +55,12 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Belege — Finanzen' };
 
+/*
+ * Der Spaltenname lautet in beiden Sprachen gleich und steht deshalb hier und
+ * nicht in der Texttabelle (siehe den Kopf von `i18n/verwaltung/finanzen/belege.ts`).
+ */
+const SPALTE_AUFBEWAHRUNG_BIS = 'aufbewahrung_bis';
+
 export default async function Belegliste(
   { params, searchParams }: {
     params: Promise<{ mandant: string }>;
@@ -74,6 +82,10 @@ export default async function Belegliste(
   const tor = await mandantTor(`/portal/${mandant}/finanzen/belege`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(BELEGE_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => ({
@@ -100,7 +112,7 @@ export default async function Belegliste(
 
   return (
     <PortalRahmen
-      titel="Belege"
+      titel={t.titel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -110,61 +122,63 @@ export default async function Belegliste(
       navigationsRechte={zugang.navigationsRechte}
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="text-h1 text-text">Belege</h1>
+        <h1 className="text-h1 text-text">{t.titel}</h1>
         <form method="get" className="flex min-w-0 flex-wrap items-end gap-s3">
           <div className="min-w-0">
-            <label className="block text-xs text-text-muted" htmlFor="typ">Typ</label>
+            <label className="block text-xs text-text-muted" htmlFor="typ">{t.typ}</label>
             <select id="typ" name="typ" defaultValue={filter.typ ?? ''} className={feld}>
-              <option value="">alle</option>
-              {BELEG_TYPEN.map((t) => (
-                <option key={t} value={t}>{TYP_TEXT[t]}</option>
+              <option value="">{t.alle}</option>
+              {BELEG_TYPEN.map((bt) => (
+                <option key={bt} value={bt}>{t.typNamen[bt]}</option>
               ))}
             </select>
           </div>
           <div className="min-w-0">
-            <label className="block text-xs text-text-muted" htmlFor="quelle">Quelle</label>
+            <label className="block text-xs text-text-muted" htmlFor="quelle">
+              {t.quelle}
+            </label>
             <select
               id="quelle" name="quelle" defaultValue={filter.quelle ?? ''} className={feld}
             >
-              <option value="">alle</option>
-              {BELEG_QUELLEN.map((q) => (
-                <option key={q} value={q}>{QUELLE_TEXT[q]}</option>
+              <option value="">{t.alle}</option>
+              {BELEG_QUELLEN.map((bq) => (
+                <option key={bq} value={bq}>{t.quelleNamen[bq]}</option>
               ))}
             </select>
           </div>
           <div className="min-w-0">
-            <label className="block text-xs text-text-muted" htmlFor="jahr">Jahr</label>
+            <label className="block text-xs text-text-muted" htmlFor="jahr">{t.jahr}</label>
             <input
               id="jahr" name="jahr" type="number" min="2000" max="2999" step="1"
-              defaultValue={filter.jahr ?? ''} placeholder="alle" className={feld}
+              defaultValue={filter.jahr ?? ''} placeholder={t.alle} className={feld}
             />
           </div>
           <button
             type="submit"
             className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
           >
-            Anzeigen
+            {t.anzeigen}
           </button>
           {gefiltert ? (
             <Link
               href={`/portal/${mandant}/finanzen/belege`}
               className="text-sm text-text-muted underline underline-offset-2 hover:text-text"
             >
-              zurücksetzen
+              {g.zuruecksetzen}
             </Link>
           ) : null}
         </form>
       </div>
 
       <div className="mb-s5 grid grid-cols-1 gap-s4 sm:grid-cols-3">
-        <KpiStat label="Belege im Archiv" wert={String(daten.zaehler.gesamt)} icon="dokument" />
+        <KpiStat label={t.belegeImArchiv} wert={String(daten.zaehler.gesamt)} icon="dokument" />
         <KpiStat
-          label="mit Löschsperre"
+          label={t.mitLoeschsperre}
           wert={String(daten.zaehler.mitLoeschsperre)}
           icon="schloss"
         />
         <KpiStat
-          label="Frist offen (O-46)"
+          label={t.fristOffen}
           wert={String(daten.zaehler.ohneFrist)}
           ton={daten.zaehler.ohneFrist > 0 ? 'warning' : 'muted'}
           icon="uhr"
@@ -173,9 +187,9 @@ export default async function Belegliste(
 
       {daten.zaehler.jeTyp.length === 0 ? null : (
         <p className="mb-s5 max-w-prose text-sm text-text-muted" data-cse="belege-je-typ">
-          Je Typ:{' '}
+          {t.jeTyp}{' '}
           {daten.zaehler.jeTyp
-            .map((t) => `${TYP_TEXT[t.typ] ?? t.typ} ${String(t.anzahl)}`)
+            .map((jt) => `${t.typNamen[jt.typ] ?? jt.typ} ${String(jt.anzahl)}`)
             .join(' · ')}
         </p>
       )}
@@ -184,14 +198,9 @@ export default async function Belegliste(
         <Hinweis art="warnung" cse="belege-frist-offen" className="mb-s5">
           <p className="m-0 max-w-prose">
             {daten.zaehler.ohneFrist === 1
-              ? 'Ein Beleg trägt keine Aufbewahrungsfrist.'
-              : `${String(daten.zaehler.ohneFrist)} Belege tragen keine `
-                + 'Aufbewahrungsfrist.'}{' '}
-            Für ihre Klasse ist nicht entschieden, wie lange aufbewahrt wird
-            (O-46). Sie bleiben gesperrt — ausgesondert wird nichts, wofür keine
-            Frist feststeht. §147 AO nennt zehn Jahre für Buchungsbelege und
-            sechs für Handelsbriefe; welche Klasse welche Frist trägt, bestätigt
-            der Mandant.
+              ? t.einBelegOhneFrist
+              : `${String(daten.zaehler.ohneFrist)}${t.belegeOhneFrist}`}{' '}
+            {t.fristOffenErklaerung}
           </p>
         </Hinweis>
       ) : null}
@@ -199,60 +208,54 @@ export default async function Belegliste(
       {daten.zeilen.length === 0 ? (
         <Hinweis art="hinweis" cse="belege-leer">
           <p className="m-0 max-w-prose">
-            {gefiltert
-              ? 'Kein Beleg passt zu diesem Filter.'
-              : 'Es liegt kein Beleg im Archiv. Belege entstehen mit einer '
-                + 'Eingangsrechnung, einer Ausgabe oder einer festgeschriebenen '
-                + 'Ausgangsrechnung — und sie brauchen einen VERBUNDENEN '
-                + 'Objektspeicher: ohne ihn legt auch der Demo-Datenbestand keinen '
-                + 'an, weil ein Beleg ohne Datei kein Beleg ist (ACC-03).'}
+            {gefiltert ? t.keinBelegZumFilter : t.keinBelegImArchiv}
           </p>
         </Hinweis>
       ) : (
         <DataTable
-          beschriftung="Buchungsbelege mit Typ, Quelle, Datum, Betrag und Aufbewahrung"
+          beschriftung={t.tabelleListe}
           zeilen={daten.zeilen}
           schluessel={(z) => z.id}
           spalten={[
             {
               schluessel: 'nummer',
-              kopf: 'Belegnummer',
+              kopf: t.belegnummer,
               zelle: (z) => (
                 <Link
                   href={`/portal/${mandant}/finanzen/belege/${z.id}`}
                   className="text-text underline-offset-2 hover:text-brand hover:underline"
                 >
                   {z.belegnummer
-                    ?? <span className="text-text-subtle">ohne Nummer</span>}
+                    ?? <span className="text-text-subtle">{t.ohneNummer}</span>}
                 </Link>
               ),
             },
-            { schluessel: 'typ', kopf: 'Typ', zelle: (z) => TYP_TEXT[z.typ] ?? z.typ },
+            { schluessel: 'typ', kopf: t.typ, zelle: (z) => t.typNamen[z.typ] ?? z.typ },
             {
-              schluessel: 'quelle', kopf: 'Quelle',
-              zelle: (z) => QUELLE_TEXT[z.quelle] ?? z.quelle,
+              schluessel: 'quelle', kopf: t.quelle,
+              zelle: (z) => t.quelleNamen[z.quelle] ?? z.quelle,
             },
             {
-              schluessel: 'datum', kopf: 'Belegdatum',
+              schluessel: 'datum', kopf: t.belegdatum,
               zelle: (z) => z.belegdatum ?? <span className="text-text-subtle">—</span>,
             },
             {
-              schluessel: 'brutto', kopf: 'Brutto', numerisch: true,
+              schluessel: 'brutto', kopf: t.brutto, numerisch: true,
               zelle: (z) => (z.bruttoCent === null ? '—' : formatiereGeld(z.bruttoCent)),
             },
             {
-              schluessel: 'seiten', kopf: 'Seiten', numerisch: true,
+              schluessel: 'seiten', kopf: t.seiten, numerisch: true,
               zelle: (z) => z.seiten ?? '—',
             },
             {
-              schluessel: 'eingang', kopf: 'Eingegangen',
+              schluessel: 'eingang', kopf: t.eingegangen,
               zelle: (z) => (
                 <span className="text-xs text-text-muted">{z.eingegangenAm}</span>
               ),
             },
             {
               schluessel: 'aufbewahrung',
-              kopf: 'Aufbewahrung',
+              kopf: t.aufbewahrung,
               zelle: (z) => (
                 <span className="inline-flex flex-col gap-s1">
                   <span className="inline-flex flex-wrap items-center gap-s2">
@@ -264,18 +267,22 @@ export default async function Belegliste(
                       * die Farbe die Bedeutung nicht allein tragen darf (§9).
                       */}
                     {z.loeschsperre
-                      ? <StatusPill zustand="Archiviert" />
-                      : <StatusPill zustand="Inaktiv" />}
+                      ? <StatusPill zustand="Archiviert" sprache={zugang.sprache} />
+                      : <StatusPill zustand="Inaktiv" sprache={zugang.sprache} />}
                     <span className="text-xs text-text-muted">
-                      {z.loeschsperre ? 'Löschsperre' : 'keine Sperre'}
+                      {z.loeschsperre ? t.loeschsperre : t.keineSperre}
                       {' · '}
                       {z.aufbewahrungKlasse}
                     </span>
                   </span>
                   <span className="text-xs">
                     {z.fristOffen
-                      ? <span className="text-warning">Frist offen (O-46)</span>
-                      : <span className="text-text-muted">bis {z.aufbewahrungBis}</span>}
+                      ? <span className="text-warning">{t.fristOffen}</span>
+                      : (
+                        <span className="text-text-muted">
+                          {t.bisZum} {z.aufbewahrungBis}
+                        </span>
+                      )}
                   </span>
                 </span>
               ),
@@ -285,11 +292,9 @@ export default async function Belegliste(
       )}
 
       <p className="mt-s5 max-w-prose text-xs text-text-muted">
-        Die Datei selbst ist hier nicht verlinkt. Sie wird auf der Belegseite
-        über eine kurzlebige signierte URL ausgeliefert, und zwar erst nach der
-        Rechteentscheidung (DOC-03, SEC-A6). Gelöscht wird kein Beleg
-        (Invariante 8) — was ausscheidet, scheidet über
-        <code> aufbewahrung_bis</code> und die Löschsperre aus.
+        {t.listeFussnoteVor}{' '}
+        <code>{SPALTE_AUFBEWAHRUNG_BIS}</code>{' '}
+        {t.listeFussnoteNach}
       </p>
     </PortalRahmen>
   );

@@ -9,6 +9,8 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { EINGANGSRECHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/eingangsrechnungen';
 
 /**
  * `/portal/[mandant]/finanzen/eingangsrechnungen/neu` — erfassen (FIN-14,
@@ -78,6 +80,10 @@ export default async function NeueEingangsrechnung(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(EINGANGSRECHNUNGEN_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+
   const vonRoh = typeof suche['von'] === 'string' && UUID.test(suche['von']) ? suche['von'] : null;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -100,7 +106,7 @@ export default async function NeueEingangsrechnung(
           const erste = zeilen[0] ?? {};
           return {
             freigabeId: z.id,
-            titel: z.titel ?? 'Vorschlag',
+            titel: z.titel ?? t.vorschlag,
             lieferantId: typeof p['lieferantId'] === 'string' ? p['lieferantId'] : '',
             rechnungsnummer: typeof p['rechnungsnummer'] === 'string' ? p['rechnungsnummer'] : '',
             rechnungsdatum: typeof p['rechnungsdatum'] === 'string' ? p['rechnungsdatum'] : '',
@@ -148,7 +154,7 @@ export default async function NeueEingangsrechnung(
 
   return (
     <PortalRahmen
-      titel="Eingangsrechnung erfassen"
+      titel={t.erfassenTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -157,16 +163,16 @@ export default async function NeueEingangsrechnung(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
+      <nav aria-label={g.zurueck} className="mb-s3">
         <Link
           href={`/portal/${mandant}/finanzen/eingangsrechnungen`}
           className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
         >
-          ← Eingangsrechnungen
+          ← {t.titel}
         </Link>
       </nav>
 
-      <h1 className="mb-s5 text-h1 text-text">Eingangsrechnung erfassen</h1>
+      <h1 className="mb-s5 text-h1 text-text">{t.erfassenTitel}</h1>
 
       {/*
         * **Der E-Rechnungs-Weg zuerst** (ACC-05, PR 63): XRechnung (XML) oder
@@ -184,15 +190,12 @@ export default async function NeueEingangsrechnung(
         className="mb-s6 max-w-prose rounded-lg border border-line bg-surface-2 p-s5"
       >
         <input type="hidden" name="aktion" value="erechnung" />
-        <h2 className="text-h3 text-text">E-Rechnung einlesen</h2>
+        <h2 className="text-h3 text-text">{t.erechnungTitel}</h2>
         <p className="mt-s2 text-sm text-text-muted">
-          XRechnung (XML) oder ZUGFeRD (PDF mit eingebetteter Rechnung). Die Werte
-          gehen als Vorschlag in die Freigaben — mit Quelle und Prüfung je Feld; erst
-          die Freigabe erzeugt die Eingangsrechnung. Gescannte PDF ohne Datensatz werden
-          nicht erkannt (kein OCR-Anbieter, O-135) — dafür das Formular darunter.
+          {t.erechnungErklaerung}
         </p>
         <label className="mt-s3 block text-sm text-text" htmlFor="erechnung">
-          Datei (XML oder PDF)
+          {t.erechnungDatei}
         </label>
         <input
           id="erechnung" name="datei" type="file" required
@@ -202,15 +205,14 @@ export default async function NeueEingangsrechnung(
           type="submit" data-cse="erechnung-einlesen"
           className="mt-s4 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover"
         >
-          Einlesen und vorschlagen
+          {t.erechnungKnopf}
         </button>
       </form>
 
       {v !== null ? (
         <p data-cse="vorbelegung-hinweis"
            className="mb-s5 max-w-prose rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
-          Vorbelegt aus dem Vorschlag <strong className="text-text">{v.titel}</strong>. Prüfen,
-          anpassen, erfassen — der Beleg des Vorschlags wird übernommen.
+          {t.vorbelegtVor} <strong className="text-text">{v.titel}</strong>{t.vorbelegtNach}
         </p>
       ) : null}
 
@@ -226,8 +228,7 @@ export default async function NeueEingangsrechnung(
 
       {daten.lieferanten.length === 0 ? (
         <p className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
-          Für diese Gesellschaft ist noch kein Lieferant angelegt. Ohne
-          Lieferant lässt sich eine Rechnung weder prüfen noch zuordnen.
+          {t.keinLieferantAngelegt}
         </p>
       ) : null}
 
@@ -238,42 +239,41 @@ export default async function NeueEingangsrechnung(
         className="max-w-prose rounded-lg border border-line bg-surface p-s5"
       >
         <fieldset className="border-0 p-0">
-          <legend className="text-sm font-semibold text-text">Der Beleg (ACC-03)</legend>
+          <legend className="text-sm font-semibold text-text">{t.belegLegende}</legend>
 
           <label className="mt-s3 block text-sm text-text" htmlFor="datei">
-            PDF hochladen
+            {t.pdfHochladen}
           </label>
           <input
             id="datei" name="datei" type="file" accept="application/pdf" className={feld}
           />
 
           <label className="mt-s4 block text-sm text-text" htmlFor="belegId">
-            … oder einen bereits abgelegten Beleg wählen
+            {t.belegWaehlen}
           </label>
           <select id="belegId" name="belegId" className={feld} defaultValue={v?.belegId ?? ''}>
-            <option value="">— keiner —</option>
+            <option value="">{g.keineAuswahl}</option>
             {v !== null && v.belegId !== '' && !daten.belege.some((b) => b.id === v.belegId) ? (
-              <option value={v.belegId}>Beleg des Vorschlags</option>
+              <option value={v.belegId}>{t.belegDesVorschlags}</option>
             ) : null}
             {daten.belege.map((b) => (
               <option key={b.id} value={b.id}>{b.bezeichnung}</option>
             ))}
           </select>
           <p className="mt-s1 text-xs text-text-muted">
-            Eines von beidem ist Pflicht. Ohne Dokument entsteht keine
-            Eingangsrechnung.
+            {t.einesVonBeidem}
           </p>
         </fieldset>
 
         <hr className="my-s5 border-line" />
 
-        <label className="block text-sm text-text" htmlFor="lieferantId">Lieferant</label>
+        <label className="block text-sm text-text" htmlFor="lieferantId">{t.lieferant}</label>
         <select id="lieferantId" name="lieferantId" required className={feld}
                 defaultValue={v?.lieferantId ?? ''}>
           {/* Ein Vorschlag OHNE Zuordnung waehlt keinen Lieferanten vor: die Maske
               behauptet nicht den ersten der Liste, sie fragt. */}
           {v !== null && v.lieferantId === '' ? (
-            <option value="">Bitte wählen — im Stamm nicht eindeutig gefunden</option>
+            <option value="">{t.bitteWaehlen}</option>
           ) : null}
           {daten.lieferanten.map((l) => (
             <option key={l.id} value={l.id}>{l.name}</option>
@@ -283,28 +283,28 @@ export default async function NeueEingangsrechnung(
         <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">
           <div>
             <label className="block text-sm text-text" htmlFor="rechnungsnummer">
-              Rechnungsnummer des Lieferanten
+              {t.rechnungsnummerLieferant}
             </label>
             <input id="rechnungsnummer" name="rechnungsnummer" type="text" required
               defaultValue={v?.rechnungsnummer ?? ''} className={feld} />
           </div>
           <div>
             <label className="block text-sm text-text" htmlFor="rechnungsdatum">
-              Rechnungsdatum
+              {t.rechnungsdatum}
             </label>
             <input id="rechnungsdatum" name="rechnungsdatum" type="date" required
               defaultValue={v?.rechnungsdatum ?? ''} className={feld} />
           </div>
           <div>
             <label className="block text-sm text-text" htmlFor="leistungsdatum">
-              Leistungsdatum
+              {t.leistungsdatum}
             </label>
             <input id="leistungsdatum" name="leistungsdatum" type="date"
               defaultValue={v?.leistungsdatum ?? ''} className={feld} />
           </div>
           <div>
             <label className="block text-sm text-text" htmlFor="faelligAm">
-              Fällig am
+              {t.faelligAm}
             </label>
             <input id="faelligAm" name="faelligAm" type="date"
               defaultValue={v?.faelligAm ?? ''} className={feld} />
@@ -313,19 +313,19 @@ export default async function NeueEingangsrechnung(
 
         <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-3">
           <div>
-            <label className="block text-sm text-text" htmlFor="netto">Netto in Euro</label>
+            <label className="block text-sm text-text" htmlFor="netto">{t.nettoInEuro}</label>
             <input id="netto" name="netto" type="text" inputMode="decimal" required
               placeholder="1000,00" defaultValue={v?.netto ?? ''} className={feld} />
           </div>
           <div>
             <label className="block text-sm text-text" htmlFor="steuer">
-              Umsatzsteuer in Euro
+              {t.umsatzsteuerInEuro}
             </label>
             <input id="steuer" name="steuer" type="text" inputMode="decimal" required
               placeholder="190,00" defaultValue={v?.steuer ?? ''} className={feld} />
           </div>
           <div>
-            <label className="block text-sm text-text" htmlFor="steuergruppe">Steuersatz</label>
+            <label className="block text-sm text-text" htmlFor="steuergruppe">{t.steuersatz}</label>
             {/*
               * Die Schlüssel kommen aus `steuersatz_gruppe` und werden hier
               * NICHT erfunden: `ust_0_13b_bau` und `ust_0_13b_reinigung` sind
@@ -335,23 +335,23 @@ export default async function NeueEingangsrechnung(
               */}
             <select id="steuergruppe" name="steuergruppe" required className={feld}
                     defaultValue={v?.steuergruppe ?? ''}>
-              {daten.gruppen.map((g) => (
-                <option key={g.schluessel} value={g.schluessel}>{g.bezeichnung}</option>
+              {daten.gruppen.map((gruppe) => (
+                <option key={gruppe.schluessel} value={gruppe.schluessel}>
+                  {gruppe.bezeichnung}
+                </option>
               ))}
             </select>
           </div>
         </div>
         <p className="mt-s1 max-w-prose text-xs text-text-muted">
-          Das Brutto wird aus Netto + Steuer gerechnet, nicht eingegeben — ein
-          eingetipptes Brutto, das nicht aufgeht, ist ein Beleg, der sich nicht
-          buchen lässt.
+          {t.bruttoHinweis}
         </p>
 
         <button
           type="submit"
           className="mt-s5 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover"
         >
-          Erfassen
+          {t.erfassen}
         </button>
       </form>
     </PortalRahmen>

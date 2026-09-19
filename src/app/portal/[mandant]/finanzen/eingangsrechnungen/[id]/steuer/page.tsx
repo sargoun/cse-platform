@@ -19,6 +19,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { EINGANGSRECHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/eingangsrechnungen';
 
 /**
  * `/portal/[mandant]/finanzen/eingangsrechnungen/[id]/steuer` — die
@@ -56,10 +58,20 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Steuerliche Lage — Eingangsrechnung' };
 
-const ART_TEXT: Readonly<Record<string, string>> = {
-  bau: 'Bauleistung (§13b Abs. 2 Nr. 4 UStG)',
-  gebaeudereinigung: 'Gebäudereinigung (§13b Abs. 2 Nr. 8 UStG)',
-};
+/*
+ * Kennungen, keine Woerter. Rechte-, Tabellen-, Spalten-, Einstellungs- und
+ * Dateinamen lauten in beiden Sprachen gleich; sie stehen deshalb hier und
+ * nicht in der Texttabelle, wo eine zweite Spalte nur eine Erfindung waere.
+ */
+const RECHT_EINGANG_LESEN = 'eingang.lesen';
+const RECHT_FREISTELLUNG_PFLEGEN = 'abrechnung.freistellung_pflegen';
+const RECHT_FINANZEN_LESEN = 'finanzen.lesen';
+const RECHT_FINANZEN_SCHREIBEN = 'finanzen.schreiben';
+const TABELLE_FREISTELLUNG = 'freistellungsbescheinigung';
+const TABELLE_MANDANT = 'mandant';
+const SPALTE_KUNDE_STATUS = 'kunde_bauleistender_status';
+const EINSTELLUNG_SATZ = 'finanzen.bauabzugsteuer_satz_bp';
+const DIENST_ABZUG = 'services/finanz/estg48/abzug.ts';
 
 interface Kopf {
   readonly id: string;
@@ -120,6 +132,10 @@ export default async function Steuerblatt(
    */
   const darf = await haeltRechte(
     sitzung, 'eingang.lesen', 'finanzen.lesen', 'finanzen.schreiben');
+
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(EINGANGSRECHNUNGEN_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -247,7 +263,7 @@ export default async function Steuerblatt(
     if (darf['eingang.lesen'] !== true) {
       return (
         <PortalRahmen
-          titel="Steuerliche Lage"
+          titel={t.steuerlicheLage}
           bereich={mandant as BereichSchluessel}
           nurLesen
           leiste={zugang.leiste}
@@ -256,14 +272,13 @@ export default async function Steuerblatt(
           sichtbareTabs={zugang.sichtbareTabs}
           navigationsRechte={zugang.navigationsRechte}
         >
-          <h1 className="mb-s3 text-h1 text-text">Steuerliche Lage</h1>
+          <h1 className="mb-s3 text-h1 text-text">{t.steuerlicheLage}</h1>
           <Hinweis art="warnung" cse="steuer-kein-leserecht">
             <p className="m-0 max-w-prose">
-              Diesem Konto fehlt <strong>eingang.lesen</strong>. Diese Route
-              öffnet mit <strong>abrechnung.freistellung_pflegen</strong>, die
-              Rechnung selbst liegt aber hinter dem Eingangsrecht — beide Mengen
-              sind nicht deckungsgleich, und welche gelten soll, ist offen
-              (O-604).
+              {t.diesemKontoFehlt} <strong>{RECHT_EINGANG_LESEN}</strong>
+              {t.keinLeserechtSteuerMitte}{' '}
+              <strong>{RECHT_FREISTELLUNG_PFLEGEN}</strong>
+              {t.keinLeserechtSteuerNach}
             </p>
           </Hinweis>
         </PortalRahmen>
@@ -344,7 +359,7 @@ export default async function Steuerblatt(
 
   return (
     <PortalRahmen
-      titel="Steuerliche Lage"
+      titel={t.steuerlicheLage}
       bereich={mandant as BereichSchluessel}
       nurLesen
       leiste={zugang.leiste}
@@ -353,51 +368,46 @@ export default async function Steuerblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
+      <nav aria-label={g.zurueck} className="mb-s3">
         <Link
           href={`/portal/${mandant}/finanzen/eingangsrechnungen/${id}`}
           className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
         >
-          ← {k.interne_belegnummer ?? k.rechnungsnummer_lieferant ?? 'Eingangsrechnung'}
+          ← {k.interne_belegnummer ?? k.rechnungsnummer_lieferant ?? t.eingangsrechnung}
         </Link>
       </nav>
 
-      <h1 className="mb-s3 text-h1 text-text">§13b UStG und §48 EStG</h1>
+      <h1 className="mb-s3 text-h1 text-text">{t.steuerH1}</h1>
 
       <dl
         data-cse="steuer-stichtag"
         className="mb-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line-strong bg-surface p-s5 sm:grid-cols-3"
       >
         <div>
-          <dt className="text-xs text-text-muted">Lieferant</dt>
+          <dt className="text-xs text-text-muted">{t.lieferant}</dt>
           <dd className="text-sm text-text">{k.lieferant ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">USt-IdNr. des Lieferanten</dt>
+          <dt className="text-xs text-text-muted">{t.ustIdLieferant}</dt>
           <dd className="cse-zahl text-sm text-text">{k.lieferant_ust_id ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Geprüft gegen</dt>
+          <dt className="text-xs text-text-muted">{t.geprueftGegen}</dt>
           <dd className="text-sm text-text">
-            {k.stichtag ?? <span className="text-warning">kein Datum — nichts prüfbar</span>}
+            {k.stichtag ?? <span className="text-warning">{t.keinDatumPruefbar}</span>}
           </dd>
         </div>
         <div className="sm:col-span-3">
-          <dt className="text-xs text-text-muted">Welches Datum das ist</dt>
+          <dt className="text-xs text-text-muted">{t.welchesDatum}</dt>
           <dd className="max-w-prose text-xs text-text-muted">
-            <code>{STICHTAG_QUELLE}</code> — also das Ende des
-            Leistungszeitraums, sonst das Leistungsdatum, sonst das
-            Rechnungsdatum. Der Gesetzeswortlaut des §48 EStG knüpft an die
-            ZAHLUNG an, SPEC FIN-10 an das Leistungsdatum; welches gilt, ist
-            offen (O-176). Die Entscheidung unten ist gegen den genannten Tag
-            getroffen und gegen keinen anderen.
+            <code>{STICHTAG_QUELLE}</code> {t.stichtagErklaerung}
           </dd>
         </div>
       </dl>
 
       <section aria-labelledby="ustg13b-titel" className="mb-s7">
         <h2 id="ustg13b-titel" className="mb-s3 text-h2 text-text">
-          §13b UStG — Steuerschuldnerschaft des Leistungsempfängers
+          {t.titel13b}
         </h2>
         <div
           data-cse="steuer-13b"
@@ -408,42 +418,40 @@ export default async function Steuerblatt(
               : 'border-line bg-surface text-text-muted'}`}
         >
           <p className="m-0 flex flex-wrap items-center gap-s3">
-            <StatusPill zustand={k.reverse_charge ? 'Abgeschlossen' : 'Inaktiv'} />
+            <StatusPill
+              zustand={k.reverse_charge ? 'Abgeschlossen' : 'Inaktiv'}
+              sprache={zugang.sprache}
+            />
             <span className="text-text">
-              {k.reverse_charge ? 'greift' : 'greift nicht'}
+              {k.reverse_charge ? t.greift : t.greiftNicht}
             </span>
           </p>
           <p className="m-0 mt-s3 max-w-prose">
             {k.reverse_charge
-              ? `Grundlage: ${ART_TEXT[k.reverse_charge_grundlage ?? ''] ?? 'nicht benannt'}. `
-                + 'Die Umsatzsteuer schuldet diese Gesellschaft als '
-                + 'Leistungsempfängerin; der Lieferant weist keine aus.'
-              : 'Diese Rechnung trägt keine Verlagerung der Steuerschuld. Ohne '
-                + 'hinterlegten Nachweis wird die Umsatzsteuer ausgewiesen — die '
-                + 'sichere Richtung: zu Unrecht ausgewiesene Steuer wird geschuldet '
-                + '(§14c UStG) und ist korrigierbar, eine zu Unrecht verlagerte ist '
-                + 'beim Empfänger ein Ausfall.'}
+              ? `${t.grundlageVor} ${t.artText[
+                (k.reverse_charge_grundlage ?? '') as keyof typeof t.artText]
+                ?? t.nichtBenannt}. ${t.grundlageNach}`
+              : t.keineVerlagerung}
           </p>
           {k.reverse_charge ? (
             <p className="m-0 mt-s3 max-w-prose">
-              Der feste Hinweistext auf dem Beleg lautet:{' '}
-              <strong className="text-text">„{HINWEIS_13B}"</strong>
+              {t.hinweistextLautet}{' '}
+              <strong className="text-text">
+                {t.zitatAuf}{HINWEIS_13B}{t.zitatZu}
+              </strong>
             </p>
           ) : null}
           <p className="m-0 mt-s3 max-w-prose text-xs text-text-muted">
-            Der §13b-Status der EIGENEN Gesellschaft als Leistungsempfängerin
-            ist nirgends als Zeitreihe hinterlegt — <code>mandant</code> trägt
-            kein entsprechendes Feld, und <code>kunde_bauleistender_status</code>
-            beschreibt die Ausgangsseite. Was hier steht, ist deshalb der auf dem
-            BELEG gespeicherte Stand und keine tagesaktuelle Neubewertung
-            (O-605).
+            {t.status13bVor} <code>{TABELLE_MANDANT}</code>{' '}
+            {t.status13bMitte} <code>{SPALTE_KUNDE_STATUS}</code>{' '}
+            {t.status13bNach}
           </p>
         </div>
       </section>
 
       <section aria-labelledby="estg48-titel" className="mb-s7">
         <h2 id="estg48-titel" className="mb-s3 text-h2 text-text">
-          §48 EStG — Bauabzugsteuer, drei Ausgänge
+          {t.titel48}
         </h2>
 
         <div
@@ -458,65 +466,54 @@ export default async function Steuerblatt(
           <p className="m-0 text-text">
             <strong>
               {ausgang === 'nicht_bewertbar'
-                ? 'Nicht bewertbar — finanzen.lesen fehlt'
+                ? `${t.ausgangNichtBewertbarVor} ${RECHT_FINANZEN_LESEN} `
+                  + t.ausgangNichtBewertbarNach
                 : ausgang === 'kein_satz'
-                  ? 'Nicht gerechnet — kein Satz hinterlegt'
+                  ? t.ausgangKeinSatz
                   : ausgang === 'keine_bauleistung'
-                    ? 'Angewandt: §48 EStG greift nicht'
+                    ? t.ausgangKeineBauleistung
                     : ausgang === 'bescheinigung'
-                      ? 'Angewandt: Ausgang 1 — gültige Freistellungsbescheinigung'
+                      ? t.ausgangBescheinigung
                       : ausgang === 'bagatelle'
-                        ? 'Angewandt: Ausgang 2 — Jahressumme unter der Bagatellgrenze'
-                        : 'Angewandt: Ausgang 3 — es wird einbehalten'}
+                        ? t.ausgangBagatelle
+                        : t.ausgangEinbehalt}
             </strong>
           </p>
           <p className="m-0 mt-s3 max-w-prose">
             {ausgang === 'nicht_bewertbar'
-              ? 'Diesem Konto fehlt finanzen.lesen. Die Policy auf '
-                + 'freistellungsbescheinigung verlangt genau dieses Recht, die '
-                + 'Bescheinigungen dieses Lieferanten sind hier also unsichtbar — '
-                + 'und eine leere Liste hiesse „keine Bescheinigung", während sie '
-                + '„nicht sichtbar" bedeutet. Aus einer durch RLS geleerten Liste '
-                + 'wird hier kein Ausgang bestimmt und kein Einbehalt gerechnet '
-                + '(O-604). Wer entscheidet, braucht das Leserecht.'
+              ? `${t.diesemKontoFehlt} ${RECHT_FINANZEN_LESEN}`
+                + `${t.nichtBewertbarMitte} ${TABELLE_FREISTELLUNG} `
+                + t.nichtBewertbarNach
               : ausgang === 'kein_satz'
-                ? 'Auf diesem Beleg steht kein Abzugssatz, und die Einstellung '
-                  + 'finanzen.bauabzugsteuer_satz_bp ist nicht belegt. Beides fehlt — '
-                  + 'also wird nichts gerechnet. 15 % wären hier eine Zahl aus dem '
-                  + 'Nichts, auch wenn sie im Gesetz stehen: der Satz ist eine '
-                  + 'datierte Einstellung, damit eine Änderung nicht jede '
-                  + 'historische Rechnung neu bewertet.'
+                ? `${t.keinSatzVor} ${EINSTELLUNG_SATZ} ${t.keinSatzNach}`
                 : lage === null
-                  ? 'Ohne Stichtag oder ohne Betrag lässt sich nichts entscheiden — '
-                    + 'und geraten wird hier nichts.'
+                  ? t.ohneStichtag
                   : lage.grund}
           </p>
           {lage === null ? null : (
             <dl className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-3">
               <div>
-                <dt className="text-xs text-text-muted">Grundlage (brutto)</dt>
+                <dt className="text-xs text-text-muted">{t.grundlageBrutto}</dt>
                 <dd className="cse-zahl text-sm text-text">
                   {formatiereGeld(lage.grundlageCent)}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-text-muted">Satz</dt>
+                <dt className="text-xs text-text-muted">{t.satz}</dt>
                 <dd className="cse-zahl text-sm text-text">
                   {satzBp === null
-                    ? <span className="text-warning">kein Satz hinterlegt</span>
+                    ? <span className="text-warning">{t.keinSatzHinterlegt}</span>
                     : `${(satzBp / 100).toLocaleString('de-DE')} %`}
                 </dd>
                 <dd className="mt-s1 text-xs text-text-muted">
                   {k.bauabzugsteuer_satz_bp === null
-                    ? 'Aus der datierten Einstellung finanzen.bauabzugsteuer_satz_bp '
-                      + '— auf dem Beleg selbst steht keiner.'
-                    : 'Der auf dem BELEG gespeicherte Satz. Er gilt, auch wenn die '
-                      + 'Einstellung heute eine andere nennt: gebucht wurde nach dem '
-                      + 'Beleg.'}
+                    ? `${t.satzAusEinstellungVor} ${EINSTELLUNG_SATZ} `
+                      + t.satzAusEinstellungNach
+                    : t.satzVomBeleg}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-text-muted">Einbehalt</dt>
+                <dt className="text-xs text-text-muted">{t.einbehalt}</dt>
                 <dd className="cse-zahl text-sm text-text" data-cse="steuer-einbehalt">
                   {formatiereGeld(lage.einbehaltCent)}
                 </dd>
@@ -529,11 +526,10 @@ export default async function Steuerblatt(
           {k.bauabzugsteuer_cent === null || lage === null
             || cent(BigInt(k.bauabzugsteuer_cent)) === lage.einbehaltCent ? null : (
               <p className="m-0 mt-s4 max-w-prose text-warning">
-                Auf dem Beleg steht ein Einbehalt von{' '}
-                {formatiereGeld(cent(BigInt(k.bauabzugsteuer_cent)))}, die heutige
-                Prüfung ergibt {formatiereGeld(lage.einbehaltCent)}. Gebucht wurde
-                nach dem Beleg; die Abweichung ist ein Prüfauftrag, keine
-                Korrektur.
+                {t.abweichungVor}{' '}
+                {formatiereGeld(cent(BigInt(k.bauabzugsteuer_cent)))}
+                {t.abweichungMitte} {formatiereGeld(lage.einbehaltCent)}
+                {t.abweichungNach}
               </p>
             )}
         </div>
@@ -542,34 +538,32 @@ export default async function Steuerblatt(
           <p className="m-0 max-w-prose">
             <strong>
               {grenze === null
-                ? 'Keine Bagatellgrenze angewandt (O-21) — es wird einbehalten.'
-                : `Bagatellgrenze: ${formatiereGeld(cent(grenze))}.`}
+                ? t.keineBagatellgrenze
+                : `${t.bagatellgrenzeVor} ${formatiereGeld(cent(grenze))}.`}
             </strong>{' '}
-            {BAGATELLGRENZE_PLATZHALTER.herkunft} Fundstelle:{' '}
+            {BAGATELLGRENZE_PLATZHALTER.herkunft} {t.fundstelle}{' '}
             {BAGATELLGRENZE_PLATZHALTER.fundstelle}.
           </p>
         </Hinweis>
 
         <h3 className="mb-s3 text-h3 text-text">
-          Die Jahressumme dieses Leistenden — der zweite Ausgang
+          {t.jahressummeTitel}
         </h3>
         {k.lieferant_id === null ? (
           <p className="mb-s3 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Ohne zugeordneten Lieferanten gibt es keine Jahressumme. §48 Abs. 2
-            EStG misst je Leistungsempfänger und Leistendem.
+            {t.ohneLieferantKeineSumme}
           </p>
         ) : daten.jahressumme === null ? (
           <p className="mb-s3 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Für {k.stichtag?.slice(0, 4) ?? 'dieses Jahr'} ist noch keine
-            Gegenleistung an diesen Leistenden erfasst. Die Summe entsteht beim
-            Übergang einer Eingangsrechnung nach <strong>freigegeben</strong> —
-            also VOR der Abzugsentscheidung und nicht danach.
+            {t.fuerJahrVor} {k.stichtag?.slice(0, 4) ?? t.diesesJahr}{' '}
+            {t.fuerJahrNach} <strong>{t.zustandKurz.freigegeben}</strong>{' '}
+            {t.vorAbzugsentscheidung}
           </p>
         ) : (
           <dl className="mb-s3 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-2">
             <div>
               <dt className="text-xs text-text-muted">
-                Bereits erbrachte Gegenleistung {daten.jahressumme.jahr}
+                {t.bereitsErbracht} {daten.jahressumme.jahr}
               </dt>
               <dd className="cse-zahl text-sm text-text" data-cse="steuer-jahressumme">
                 {formatiereGeld(jahressummeCent)}
@@ -577,28 +571,26 @@ export default async function Steuerblatt(
             </div>
             <div>
               <dt className="text-xs text-text-muted">
-                Erwartete Jahresgegenleistung (§48 Abs. 1)
+                {t.erwarteteJahresgegenleistung}
               </dt>
               <dd className="cse-zahl text-sm text-text">
                 {daten.jahressumme.prognoseCent === null
-                  ? <span className="text-text-subtle">nicht eingetragen</span>
+                  ? <span className="text-text-subtle">{t.nichtEingetragen}</span>
                   : formatiereGeld(cent(BigInt(daten.jahressumme.prognoseCent)))}
               </dd>
             </div>
             {daten.jahressumme.prognoseGrundlage === null ? null : (
               <div className="sm:col-span-2">
-                <dt className="text-xs text-text-muted">Grundlage der Erwartung</dt>
+                <dt className="text-xs text-text-muted">{t.grundlageErwartung}</dt>
                 <dd className="max-w-prose text-sm text-text">
                   {daten.jahressumme.prognoseGrundlage}
                 </dd>
               </div>
             )}
             <div className="sm:col-span-2">
-              <dt className="text-xs text-text-muted">Fortgeschrieben</dt>
+              <dt className="text-xs text-text-muted">{t.fortgeschrieben}</dt>
               <dd className="text-xs text-text-muted">
-                {daten.jahressumme.letzteAktualisierung} · Die Prognose trägt ein
-                Mensch ein und wird nie abgeleitet — eine geschätzte Prognose wäre
-                eine, die die Plattform behauptet und niemand verantwortet.
+                {daten.jahressumme.letzteAktualisierung} {t.prognoseErklaerung}
               </dd>
             </div>
           </dl>
@@ -607,73 +599,73 @@ export default async function Steuerblatt(
 
       <section aria-labelledby="fsb-titel">
         <h2 id="fsb-titel" className="mb-s3 text-h2 text-text">
-          Freistellungsbescheinigungen nach §48b EStG
+          {t.fsbTitel}
         </h2>
         {darf['finanzen.lesen'] !== true ? (
           <Hinweis art="warnung" cse="steuer-fsb-kein-recht">
             <p className="m-0 max-w-prose">
-              Diesem Konto fehlt <strong>finanzen.lesen</strong> — und genau das
-              verlangt die Policy auf <code>freistellungsbescheinigung</code>.
-              Die Bescheinigungen bleiben deshalb ungezeigt; das ist kein leerer
-              Bestand, sondern ein fehlendes Recht (O-604).
+              {t.diesemKontoFehlt} <strong>{RECHT_FINANZEN_LESEN}</strong>{' '}
+              {t.fsbKeinRechtMitte} <code>{TABELLE_FREISTELLUNG}</code>
+              {t.fsbKeinRechtNach}
             </p>
           </Hinweis>
         ) : daten.bescheinigungen.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Für diesen Lieferanten ist keine Freistellungsbescheinigung
-            hinterlegt. Ohne sie wird einbehalten — das ist Ausgang 3 und kein
-            Versäumnis der Seite.
+            {t.keineFsbHinterlegt}
           </p>
         ) : (
           <DataTable
-            beschriftung="Freistellungsbescheinigungen dieses Lieferanten mit Gültigkeit und Widerruf"
+            beschriftung={t.tabelleFsb}
             zeilen={daten.bescheinigungen}
             schluessel={(b) => b.id}
             spalten={[
-              { schluessel: 'nummer', kopf: 'Nummer', zelle: (b) => b.nummer },
-              { schluessel: 'finanzamt', kopf: 'Finanzamt', zelle: (b) => b.finanzamt },
+              { schluessel: 'nummer', kopf: g.nummer, zelle: (b) => b.nummer },
+              { schluessel: 'finanzamt', kopf: t.finanzamt, zelle: (b) => b.finanzamt },
               {
-                schluessel: 'gueltig', kopf: 'Gültig',
+                schluessel: 'gueltig', kopf: t.gueltig,
                 zelle: (b) => `${b.gueltigVon} – ${b.gueltigBis}`,
               },
               {
-                schluessel: 'umfang', kopf: 'Umfang',
+                schluessel: 'umfang', kopf: t.umfang,
                 zelle: (b) => (b.umfang === 'unbeschraenkt'
-                  ? 'unbeschränkt'
-                  : 'auftragsbezogen'),
+                  ? t.unbeschraenkt
+                  : t.auftragsbezogen),
               },
               {
                 schluessel: 'befund',
-                kopf: `Am ${k.stichtag ?? '—'}`,
+                kopf: `${t.amStichtag} ${k.stichtag ?? '—'}`,
                 zelle: (b) => {
                   const gilt = k.stichtag !== null
                     && giltAm(b, k.stichtag, k.auftrag_id);
                   return (
                     <span className="inline-flex flex-wrap items-center gap-s2">
-                      <StatusPill zustand={gilt ? 'Abgeschlossen' : 'Inaktiv'} />
+                      <StatusPill
+                        zustand={gilt ? 'Abgeschlossen' : 'Inaktiv'}
+                        sprache={zugang.sprache}
+                      />
                       <span className="text-xs text-text-muted">
                         {b.widerrufenAm !== null
-                          ? `widerrufen am ${b.widerrufenAm}`
+                          ? `${t.widerrufenAm} ${b.widerrufenAm}`
                           : gilt
-                            ? 'gilt'
+                            ? t.gilt
                             : b.umfang === 'auftragsbezogen' && b.auftragId !== k.auftrag_id
-                              ? 'gilt für einen anderen Auftrag'
-                              : 'gilt am Stichtag nicht'}
+                              ? t.giltAndererAuftrag
+                              : t.giltNicht}
                       </span>
                     </span>
                   );
                 },
               },
               {
-                schluessel: 'dokument', kopf: 'Beleg',
+                schluessel: 'dokument', kopf: t.beleg,
                 zelle: (b) => (b.dokumentId === null
-                  ? <span className="text-text-subtle">kein Dokument</span>
+                  ? <span className="text-text-subtle">{t.keinDokument}</span>
                   : (
                     <a
                       href={`/api/dokumente/${b.dokumentId}/datei`}
                       className="text-text underline-offset-2 hover:text-brand hover:underline"
                     >
-                      öffnen
+                      {g.oeffnen}
                     </a>
                   )),
               },
@@ -683,25 +675,20 @@ export default async function Steuerblatt(
 
         <Hinweis art="warnung" cse="steuer-pflege-offen" className="mt-s5">
           <p className="m-0 max-w-prose">
-            <strong>Hochladen, Gültigkeit setzen und Widerruf sind hier nicht
-            möglich (O-604).</strong> Für diese Route ist im Register kein
-            Schreibrecht eingetragen; die Policy auf{' '}
-            <code>freistellungsbescheinigung</code> verlangt zum Schreiben{' '}
-            <code>finanzen.schreiben</code>, während die Route mit{' '}
-            <code>abrechnung.freistellung_pflegen</code> öffnet. Welcher
-            Schlüssel gelten soll, ist eine Entscheidung am Rechtemodell — und
-            eine Maske, die auf eine Policy trifft, die sie abweist, ist
-            schlechter als keine.
+            <strong>{t.pflegeOffenBetont}</strong> {t.pflegeOffenVor}{' '}
+            <code>{TABELLE_FREISTELLUNG}</code> {t.pflegeOffenZwei}{' '}
+            <code>{RECHT_FINANZEN_SCHREIBEN}</code>{t.pflegeOffenDrei}{' '}
+            <code>{RECHT_FREISTELLUNG_PFLEGEN}</code>{t.pflegeOffenNach}
           </p>
         </Hinweis>
       </section>
 
       <p className="mt-s7 max-w-prose text-xs text-text-muted">
-        Der Einbehaltbetrag kommt aus <code>services/finanz/estg48/abzug.ts</code>{' '}
-        und nie aus einem Modell (Invariante 6). Geprüft
+        {t.schlussVor} <code>{DIENST_ABZUG}</code>{' '}
+        {t.schlussNach}
         {k.freistellung_geprueft_am === null
-          ? ' wurde die Bescheinigung auf dem Beleg nicht vermerkt.'
-          : ` wurde die Bescheinigung laut Beleg am ${k.freistellung_geprueft_am}.`}
+          ? t.geprueftNichtVermerkt
+          : `${t.geprueftAm} ${k.freistellung_geprueft_am}.`}
       </p>
     </PortalRahmen>
   );

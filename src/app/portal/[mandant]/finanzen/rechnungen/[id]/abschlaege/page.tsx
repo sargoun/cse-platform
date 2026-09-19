@@ -20,6 +20,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { RECHNUNG_AUSGABE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-ausgabe';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]/abschlaege` — die früheren
@@ -94,6 +96,10 @@ export default async function Abschlagsblatt(
      Stand, aber kein Knopf (AUT-06, D-581). */
   const darf = await haeltRechte(sitzung, 'finanzen.schreiben');
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(RECHNUNG_AUSGABE_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
       const [kopf] = await kontext.abfrage<Kopf>(
@@ -144,11 +150,11 @@ export default async function Abschlagsblatt(
           `select id::text as id, bezeichnung, satz_bp from steuersatz_gruppe
             where id = any($1::uuid[])`, [[...karte.keys()]]);
         for (const [gruppeId, summe] of karte) {
-          const g = bezeichnungen.find((b) => b.id === gruppeId);
+          const gruppe = bezeichnungen.find((b) => b.id === gruppeId);
           gruppen.push({
             gruppeId,
-            gruppe: g?.bezeichnung ?? 'unbekannte Steuersatzgruppe',
-            satzBp: g?.satz_bp ?? 0,
+            gruppe: gruppe?.bezeichnung ?? t.unbekannteSteuergruppe,
+            satzBp: gruppe?.satz_bp ?? 0,
             netto: summe.netto,
             steuer: summe.steuer,
           });
@@ -193,7 +199,7 @@ export default async function Abschlagsblatt(
 
   return (
     <PortalRahmen
-      titel="Abschläge und ihr Abzug"
+      titel={t.abschlaegeTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -202,32 +208,32 @@ export default async function Abschlagsblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
+      <nav aria-label={g.zurueck} className="mb-s3">
         <Link
           href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
           className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
         >
-          ← {k.nummer ?? 'Entwurf ohne Nummer'}
+          ← {k.nummer ?? t.entwurfOhneNummer}
         </Link>
       </nav>
 
-      <h1 className="mb-s3 text-h1 text-text">Abschläge und ihr Abzug</h1>
+      <h1 className="mb-s3 text-h1 text-text">{t.abschlaegeTitel}</h1>
 
       <dl className="mb-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-3">
         <div>
-          <dt className="text-xs text-text-muted">Kunde</dt>
+          <dt className="text-xs text-text-muted">{g.kunde}</dt>
           <dd className="text-sm text-text">{k.kunde}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Auftrag</dt>
+          <dt className="text-xs text-text-muted">{t.auftrag}</dt>
           <dd className="text-sm text-text">
-            {k.auftragsnummer ?? <span className="text-text-subtle">kein Auftrag</span>}
+            {k.auftragsnummer ?? <span className="text-text-subtle">{t.keinAuftrag}</span>}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Rechnungsart</dt>
+          <dt className="text-xs text-text-muted">{t.rechnungsart}</dt>
           <dd className="text-sm text-text">
-            {istSchluss ? 'Schlussrechnung' : k.rechnungsart}
+            {istSchluss ? t.schlussrechnung : k.rechnungsart}
           </dd>
         </div>
       </dl>
@@ -236,9 +242,7 @@ export default async function Abschlagsblatt(
         <Hinweis art="warnung" cse="abschlaege-offen" className="mb-s5">
           <p className="m-0 max-w-prose">{daten.offen}</p>
           <p className="m-0 mt-s2 max-w-prose text-text">
-            Solange ein Abschlag offen ist, wird diese Schlussrechnung nicht
-            festgeschrieben (FIN-08) — sonst verlangte sie den Auftragswert ein
-            zweites Mal ein.
+            {t.offenErklaerung}
           </p>
         </Hinweis>
       )}
@@ -249,24 +253,19 @@ export default async function Abschlagsblatt(
         </Hinweis>
       )}
 
-      <h2 className="mb-s3 text-h2 text-text">Die Abschläge dieses Auftrags</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.abschlaegeDesAuftrags}</h2>
       {daten.stand.length === 0 ? (
         <p className="mb-s5 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          {k.auftrag_id === null
-            ? 'Diese Rechnung hängt an keinem Auftrag. Welche Abschläge zu ihr '
-              + 'gehören, lässt sich damit nicht beantworten — und geraten wird hier '
-              + 'nichts.'
-            : 'Zu diesem Auftrag ist kein festgeschriebener Abschlag und keine '
-              + 'Anzahlung ausgestellt. Es gibt nichts abzuziehen.'}
+          {k.auftrag_id === null ? t.keinAuftragText : t.keinAbschlagText}
         </p>
       ) : (
         <DataTable
-          beschriftung="Frühere Abschläge und Anzahlungen dieses Auftrags"
+          beschriftung={t.tabelleAbschlaege}
           zeilen={daten.stand}
           schluessel={(a) => a.rechnungId}
           spalten={[
             {
-              schluessel: 'nummer', kopf: 'Nummer',
+              schluessel: 'nummer', kopf: g.nummer,
               /* Der Verweis ist immer sicher: diese Route oeffnet laut Register
                  mit `finanzen.lesen`, und genau das verlangt das Ziel. */
               zelle: (a) => (
@@ -278,24 +277,26 @@ export default async function Abschlagsblatt(
                 </Link>
               ),
             },
-            { schluessel: 'datum', kopf: 'Datum', zelle: (a) => a.rechnungsdatum },
+            { schluessel: 'datum', kopf: g.datum, zelle: (a) => a.rechnungsdatum },
             {
-              schluessel: 'brutto', kopf: 'Brutto', numerisch: true,
+              schluessel: 'brutto', kopf: t.brutto, numerisch: true,
               zelle: (a) => formatiereGeld(a.bruttoCent),
             },
             {
-              schluessel: 'zustand', kopf: 'Zustand',
+              schluessel: 'zustand', kopf: g.zustand,
               zelle: (a) => (
                 <span className="inline-flex flex-wrap items-center gap-s2">
-                  {a.storniert ? <StatusPill zustand="Archiviert" /> : null}
+                  {a.storniert
+                    ? <StatusPill zustand="Archiviert" sprache={zugang.sprache} />
+                    : null}
                   <span className="text-xs text-text-muted">
                     {a.storniert
-                      ? 'storniert — der Abzug hält an'
+                      ? t.storniertAbzugHaeltAn
                       : a.verrechnetVon === null
-                        ? 'noch nicht abgezogen'
+                        ? t.nochNichtAbgezogen
                         : a.verrechnetVon === k.id
-                          ? 'wird hier abgezogen'
-                          : 'wird von einer anderen Schlussrechnung abgezogen'}
+                          ? t.wirdHierAbgezogen
+                          : t.wirdAnderswoAbgezogen}
                   </span>
                 </span>
               ),
@@ -305,38 +306,35 @@ export default async function Abschlagsblatt(
       )}
 
       <h2 className="mb-s3 mt-s7 text-h2 text-text">
-        Der Abzug je Steuersatzgruppe
+        {t.abzugJeSteuergruppe}
       </h2>
       {daten.gruppen.length === 0 ? (
         <p className="mb-s5 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          Kein Abzug. {daten.fehler === null
-            ? 'Es gibt keinen abzuziehenden Abschlag.'
-            : 'Der Abzug ist nicht berechenbar — der Grund steht oben.'}
+          {t.keinAbzug}
+          {daten.fehler === null ? t.keinAbzugWeilKeiner : t.keinAbzugWeilFehler}
         </p>
       ) : (
         <>
           <p className="mb-s3 max-w-prose text-sm text-text-muted">
-            Die Aufteilung kommt aus den Steuerzeilen der abgezogenen Belege und
-            wird summiert, nicht gerundet. Ein aus dem Brutto zurückgerechneter
-            Mischsatz stünde auf keinem der beiden Belege (Invariante 1).
+            {t.aufteilungErklaerung}
           </p>
           <DataTable
-            beschriftung="Abzug je Steuersatzgruppe"
+            beschriftung={t.tabelleAbzug}
             zeilen={daten.gruppen}
-            schluessel={(g) => g.gruppeId}
+            schluessel={(z) => z.gruppeId}
             spalten={[
-              { schluessel: 'gruppe', kopf: 'Steuersatzgruppe', zelle: (g) => g.gruppe },
+              { schluessel: 'gruppe', kopf: t.steuersatzgruppe, zelle: (z) => z.gruppe },
               {
-                schluessel: 'satz', kopf: 'Satz', numerisch: true,
-                zelle: (g) => `${(g.satzBp / 100).toLocaleString('de-DE')} %`,
+                schluessel: 'satz', kopf: t.satz, numerisch: true,
+                zelle: (z) => `${(z.satzBp / 100).toLocaleString('de-DE')} %`,
               },
               {
-                schluessel: 'netto', kopf: 'Netto', numerisch: true,
-                zelle: (g) => formatiereGeld(g.netto),
+                schluessel: 'netto', kopf: t.netto, numerisch: true,
+                zelle: (z) => formatiereGeld(z.netto),
               },
               {
-                schluessel: 'steuer', kopf: 'USt', numerisch: true,
-                zelle: (g) => formatiereGeld(g.steuer),
+                schluessel: 'steuer', kopf: t.ust, numerisch: true,
+                zelle: (z) => formatiereGeld(z.steuer),
               },
             ]}
           />
@@ -348,14 +346,14 @@ export default async function Abschlagsblatt(
         className="mb-s5 mt-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-2"
       >
         <div>
-          <dt className="text-xs text-text-muted">Brutto dieser Rechnung</dt>
+          <dt className="text-xs text-text-muted">{t.bruttoDieserRechnung}</dt>
           <dd className="cse-zahl text-sm text-text">
             {formatiereGeld(cent(BigInt(k.brutto_cent)))}
           </dd>
         </div>
         <div>
           <dt className="text-xs text-text-muted">
-            Verrechnungssumme (berechnet)
+            {t.verrechnungssumme}
           </dt>
           <dd className="cse-zahl text-sm text-text">
             {daten.verrechnung === null
@@ -365,26 +363,26 @@ export default async function Abschlagsblatt(
         </div>
         <div>
           <dt className="text-xs text-text-muted">
-            Abzug, wie er auf dem Beleg steht
+            {t.abzugAufDemBeleg}
           </dt>
           <dd className="cse-zahl text-sm text-text">
             {formatiereGeld(cent(BigInt(k.abzug_brutto_cent)))}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Zahlbetrag des Kunden</dt>
+          <dt className="text-xs text-text-muted">{t.zahlbetragKunde}</dt>
           <dd className="cse-zahl text-sm text-text">
             {formatiereGeld(cent(BigInt(k.zahlbetrag_cent)))}
           </dd>
         </div>
         <div className="sm:col-span-2">
           <dt className="text-xs text-text-muted">
-            Sicherheitseinbehalt (VOB/B §17)
+            {t.sicherheitseinbehalt}
           </dt>
           <dd className="cse-zahl text-sm text-text" data-cse="abschlaege-einbehalt">
             {formatiereGeld(einbehalt)}
             {BEDINGUNGEN_PLATZHALTER.istPlatzhalter
-              ? <span className="text-warning"> — offen (O-20)</span>
+              ? <span className="text-warning">{t.offenO20}</span>
               : null}
           </dd>
           <dd className="mt-s2 max-w-prose text-xs text-warning">
@@ -403,28 +401,26 @@ export default async function Abschlagsblatt(
           {k.auftrag_einbehalt_bp === null && k.auftrag_einbehalt_cent === null ? null : (
             <dd className="mt-s2 max-w-prose text-xs text-text-muted"
                 data-cse="abschlaege-einbehalt-auftrag">
-              Im Auftrag hinterlegt:{' '}
+              {t.imAuftragHinterlegt}
               {k.auftrag_einbehalt_bp !== null && k.auftrag_einbehalt_cent !== null
                 ? `${(k.auftrag_einbehalt_bp / 100).toLocaleString('de-DE')} % `
-                  + `bzw. ${formatiereGeld(cent(BigInt(k.auftrag_einbehalt_cent)))}`
+                  + `${t.bzw} ${formatiereGeld(cent(BigInt(k.auftrag_einbehalt_cent)))}`
                 : k.auftrag_einbehalt_bp === null
                   ? formatiereGeld(cent(BigInt(k.auftrag_einbehalt_cent ?? '0')))
                   : `${(k.auftrag_einbehalt_bp / 100).toLocaleString('de-DE')} %`}
-              . Abgezogen wird davon nichts, solange die Regel dazu offen ist.
+              {t.nichtsAbgezogenSolangeOffen}
               {k.auftrag_einbehalt_bp !== null && k.auftrag_einbehalt_cent !== null ? (
                 <span className="mt-s1 block text-warning">
-                  Es stehen <strong>zwei</strong> Angaben im Auftrag — ein
-                  Prozentsatz und ein Betrag. Welche gilt, wenn sie sich
-                  widersprechen, ist nicht entschieden: es steht in derselben
-                  offenen Frage wie die Einbehaltsregel selbst (O-20). Beide
-                  werden deshalb gezeigt und keine verschwiegen.
+                  {t.zweiAngabenVor}
+                  <strong>{t.zweiBetont}</strong>
+                  {t.zweiAngabenNach}
                 </span>
               ) : null}
             </dd>
           )}
         </div>
         <div className="sm:col-span-2">
-          <dt className="text-xs text-text-muted">Verbleibender Zahlbetrag</dt>
+          <dt className="text-xs text-text-muted">{t.verbleibenderZahlbetrag}</dt>
           <dd className="cse-zahl text-base text-text">
             {formatiereGeld(verbleibend)}
           </dd>
@@ -435,11 +431,7 @@ export default async function Abschlagsblatt(
         && daten.verrechnung.abzugBruttoCent !== cent(BigInt(k.abzug_brutto_cent)) ? (
           <Hinweis art="warnung" cse="abschlaege-abweichung" className="mb-s5">
             <p className="m-0 max-w-prose">
-              Der berechnete Abzug und der Abzug auf dem Beleg weichen ab. Auf
-              einem Entwurf heisst das: der Abzug ist noch nicht geschrieben. Auf
-              einem festgeschriebenen Beleg heisst es, dass sich die Abschläge
-              danach verändert haben — und dann gilt der Beleg, nicht die
-              Rechnung von heute.
+              {t.abweichungErklaerung}
             </p>
           </Hinweis>
         ) : null}
@@ -454,29 +446,33 @@ export default async function Abschlagsblatt(
            data-cse="abschlaege-formular"
          >
            <input type="hidden" name="rechnungId" value={k.id} />
-           <h2 className="m-0 text-h3 text-text">Abzug an den Entwurf schreiben</h2>
+           <h2 className="m-0 text-h3 text-text">{t.abzugSchreibenTitel}</h2>
            <p className="mt-s2 max-w-prose text-sm text-text-muted">
-             Es entstehen die Bezugszeilen und der Kopfbetrag —{' '}
-             {formatiereGeld(daten.verrechnung.abzugBruttoCent)} aus{' '}
-             {daten.verrechnung.nummern.join(', ')}. Nur an einem Entwurf: nach
-             dem Festschreiben ist der Beleg unveränderlich.
+             {t.abzugSchreibenVor}
+             {formatiereGeld(daten.verrechnung.abzugBruttoCent)}
+             {t.abzugSchreibenAus}
+             {daten.verrechnung.nummern.join(', ')}
+             {t.abzugSchreibenNach}
            </p>
            <button
              type="submit"
              className="mt-s4 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
              data-cse="abschlaege-knopf"
            >
-             Abzug schreiben
+             {t.abzugSchreiben}
            </button>
          </form>
        ) : null}
 
       {istSchluss ? null : (
         <p className="max-w-prose text-sm text-text-muted">
-          Abschläge werden nur von einer <strong>Schlussrechnung</strong>{' '}
-          abgezogen. Diese Rechnung ist eine der Art „{k.rechnungsart}"; die
-          Liste oben zeigt den Stand des Auftrags, aber es gibt hier nichts zu
-          verrechnen.
+          {t.nurSchlussVor}
+          <strong>{t.schlussrechnung}</strong>
+          {t.nurSchlussMitte}
+          {t.zitatAuf}
+          {k.rechnungsart}
+          {t.zitatZu}
+          {t.nurSchlussNach}
         </p>
       )}
     </PortalRahmen>
