@@ -259,6 +259,70 @@ Nach D-610 gehört die Eingabe dieser Daten zum Super-Admin.
 
 ---
 
+## 2b. Offene Prüfbefunde der finanzen-Fächerung (NICHT behoben)
+
+Sieben Prüfagenten haben die Umstellung gegen die harten Regeln gehalten.
+Sieben Befunde sind in `5d8b34b` behoben (das führende Leerzeichen, sechs
+ersetzte Fachbegriffe, eine Wortlaut-Drift). **Diese hier stehen noch offen:**
+
+### 2b.1 `Beleg` heisst auf demselben englischen Bildschirm zweierlei
+
+`src/lib/i18n/verwaltung/finanzen/eingangsrechnungen.ts` — in **acht**
+Schlüsseln steht korrekt „Beleg (supporting document)", in **zwölf** ist der
+Begriff stillschweigend zu blossem „document" geworden:
+
+Zeilen **658** (`tabelleListe`), **691** (`bruttoHinweis`), **700**
+(`interneBelegnummer`), **736** (`buchenErklaerung`), **849**
+(`hinweistextLautet`), **876** (`keinSatzVor`), **889**
+(`satzAusEinstellungNach`), **890** (`satzVomBeleg` — die deutsche Fassung
+betont dort gerade BELEG in Grossbuchstaben), **893** (`abweichungVor`),
+**895** (`abweichungNach`), **957** (`geprueftNichtVermerkt`), **959**
+(`geprueftAm`).
+
+**Warum das zählt:** auf `steuer/page.tsx` und `[id]/page.tsx` stehen beide
+Formen nebeneinander für dasselbe Papier. Der englische Leser kann nicht
+wissen, dass „Beleg" und „the document" dieselbe Sache sind.
+
+**Fix:** die zwölf auf `Beleg` + Glosse vereinheitlichen. Rein mechanisch.
+
+### 2b.2 `Festschreibung` und `Storno` fallen an einigen Stellen ganz weg
+
+`rechnung-akte.ts` schreibt an manchen Stellen korrekt „Festschreibung
+(finalisation)" (:833) und „festgeschrieben (finalised)" (:875), an anderen
+nur noch die Glosse:
+
+- **Festschreibung** fehlt: :838 (`fin18Begruendung10`), :928
+  (`fin18BegruendungMin`), :877 (`nichtsMehrFestzuschreiben`), :944
+  (`gesperrtKreis`), :1013 (`neuausstellungNach`)
+- **Storno** fehlt: :854 (`korrigierenErklaerung`) und :977 (`istEntwurf`) —
+  der zweite steht auf `storno/page.tsx`, also auf der Seite, **deren einziger
+  Zweck der Unterschied zwischen Verwerfen und Storno ist**.
+
+### 2b.3 Zwei kleine deutsche Wortlaut-Driften
+
+Beim Wandern des Textes hat sich der DEUTSCHE Wortlaut mitgeändert — erlaubt
+war nur Umziehen:
+
+- `eingangsrechnungen/neu/page.tsx:255` — `{g.keineAuswahl}` rendert jetzt
+  „— keine Auswahl —" statt vorher „— keiner —".
+- `eingangsrechnungen/[id]/steuer/page.tsx:668` — `{g.oeffnen}` rendert jetzt
+  „Öffnen" statt vorher kleingeschrieben „öffnen".
+
+Beide sind geteilte Werte aus `basis.ts`. Entweder die Seite bekommt ein
+eigenes Paar (so gelöst für `verbunden` in `rechnung-ausgabe.ts`), oder es
+wird eine bewusste zentrale Entscheidung für Satzanfang-Grossschreibung —
+dann aber für ALLE Schwesterseiten gleich.
+
+### 2b.4 Noch nicht gelaufen: `pnpm typecheck` über die Fächerung
+
+Die Arbeit der Agenten ist mit der Sperrklinke, `eslint` und den Wachen
+geprüft — **nicht mit dem Compiler**. `tsc --noEmit` dauert ~7 min und war
+beim Ende des Budgets nicht mehr drin.
+
+**Erster Befehl der nächsten Sitzung:** `pnpm typecheck`.
+
+---
+
 ## 3. Die Oberfläche — `docs/DESIGN-PLAN.md`
 
 Der Mandant hat es so gesagt: „حاسس المنصة كتير معقدة وكلشي داخل ببعضو".
