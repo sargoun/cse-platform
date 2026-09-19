@@ -148,7 +148,7 @@ export default async function MeinPortal(
         </h2>
         {daten.schicht === null
           ? <Leer text={t.keineSchicht} />
-          : <SchichtKarte schicht={daten.schicht} texte={t} />}
+          : <SchichtKarte schicht={daten.schicht} texte={t} sprache={basis.sprache} />}
         <Link
           href="/portal/mein/schichten"
           className="inline-flex min-h-11 items-center text-base text-text underline"

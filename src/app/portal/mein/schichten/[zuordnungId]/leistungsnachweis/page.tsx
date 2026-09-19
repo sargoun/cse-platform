@@ -156,7 +156,7 @@ export default async function MeinLeistungsnachweis(
                     className="rounded-lg border border-line bg-surface p-s4"
                   >
                     <div className="mb-s3 flex flex-wrap items-center gap-s3">
-                      <StatusPill zustand={nachweisPille(n)} />
+                      <StatusPill sprache={basis.sprache} zustand={nachweisPille(n)} />
                       {n.nummer !== null && (
                         <span className="cse-zahl text-sm text-text-subtle">{n.nummer}</span>
                       )}

@@ -19,6 +19,10 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import {
+  RECHNUNG_AUSGABE_TEXTE, type RechnungAusgabeTexte,
+} from '@/lib/i18n/verwaltung/finanzen/rechnung-ausgabe';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]/xrechnung` — Vorschau und
@@ -52,7 +56,12 @@ type Lage =
   | { readonly art: 'unvollstaendig'; readonly fehlend: readonly FehlendesFeld[] }
   | { readonly art: 'nicht_moeglich'; readonly meldung: string };
 
-function Zustand({ art, text, regelwerk }: ReturnType<typeof pruefstand>) {
+function Zustand(
+  /* `t` steht daneben, weil `text` und `regelwerk` aus dem Dienst kommen und
+     die Ueberschrift nicht. */
+  { art, text, regelwerk, t }:
+  ReturnType<typeof pruefstand> & { readonly t: RechnungAusgabeTexte },
+) {
   /*
    * Drei Zustände, drei Töne — und „in CI validiert" ist NICHT grün im Sinne
    * von „diese Rechnung ist geprüft". Der Satz daneben sagt, worauf sich die
@@ -65,10 +74,10 @@ function Zustand({ art, text, regelwerk }: ReturnType<typeof pruefstand>) {
       data-cse="xrechnung-pruefstand"
       data-art={art}
     >
-      <h2 className="mb-s2 text-h3 text-text">Prüfstand</h2>
+      <h2 className="mb-s2 text-h3 text-text">{t.pruefstand}</h2>
       <p className={`m-0 max-w-prose text-sm ${ton}`}>{text}</p>
       {regelwerk === null ? null : (
-        <p className="m-0 mt-s2 text-xs text-text-muted">Regelwerk: {regelwerk}</p>
+        <p className="m-0 mt-s2 text-xs text-text-muted">{t.regelwerk}: {regelwerk}</p>
       )}
     </section>
   );
@@ -98,6 +107,10 @@ export default async function XRechnungBlatt(
    */
   const darf = await haeltRechte(sitzung, 'finanzen.lesen');
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(RECHNUNG_AUSGABE_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
       const [kopf] = await kontext.abfrage<Kopf>(
@@ -113,7 +126,7 @@ export default async function XRechnungBlatt(
       try {
         const ergebnis = await ublZurRechnung(kontext, id);
         lage = ergebnis === null
-          ? { art: 'nicht_moeglich', meldung: 'Diese Rechnung ist nicht lesbar.' }
+          ? { art: 'nicht_moeglich', meldung: t.nichtLesbar }
           : { art: 'ok', xml: ergebnis.xml };
       } catch (fehler) {
         if (fehler instanceof XRechnungUnvollstaendigFehler) {
@@ -146,45 +159,46 @@ export default async function XRechnungBlatt(
       navigationsRechte={zugang.navigationsRechte}
     >
       {darf['finanzen.lesen'] === true ? (
-        <nav aria-label="Zurück" className="mb-s3">
+        <nav aria-label={g.zurueck} className="mb-s3">
           <Link
             href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            ← {k.nummer ?? 'Entwurf ohne Nummer'}
+            ← {k.nummer ?? t.entwurfOhneNummer}
           </Link>
         </nav>
       ) : null}
 
-      <h1 className="mb-s3 text-h1 text-text">XRechnung (UBL, EN 16931)</h1>
+      <h1 className="mb-s3 text-h1 text-text">{t.xrechnungTitel}</h1>
 
       <dl className="mb-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-3">
         <div>
-          <dt className="text-xs text-text-muted">Empfänger</dt>
+          <dt className="text-xs text-text-muted">{t.empfaenger}</dt>
           <dd className="text-sm text-text">{k.kunde}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">XRechnung verlangt</dt>
-          <dd className="text-sm text-text">{k.ist_pflicht ? 'ja' : 'nein'}</dd>
+          <dt className="text-xs text-text-muted">{t.xrechnungVerlangt}</dt>
+          <dd className="text-sm text-text">{k.ist_pflicht ? t.ja : t.nein}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Leitweg-ID (BT-10)</dt>
+          <dt className="text-xs text-text-muted">{t.leitwegId}</dt>
           <dd className="cse-zahl text-sm text-text" data-cse="leitweg-id">
             {k.leitweg_id ?? '—'}
           </dd>
         </div>
       </dl>
 
-      <Zustand {...stand} />
+      <Zustand {...stand} t={t} />
 
       {lage.art === 'unvollstaendig' ? (
         <section className="mb-s5" data-cse="xrechnung-fehlend">
           <h2 className="mb-s3 text-h3 text-text">
-            Es entsteht kein Dokument — {String(lage.fehlend.length)} Pflichtangabe(n) fehlen
+            {t.keinDokumentVor}
+            {String(lage.fehlend.length)}
+            {t.pflichtangabenFehlen}
           </h2>
           <p className="mb-s3 max-w-prose text-sm text-text-muted">
-            Ein Dokument mit Lücken sieht aus wie ein vollständiges und wird beim
-            Empfänger abgewiesen. Es entsteht deshalb gar nicht erst.
+            {t.dokumentMitLuecken}
           </p>
           <ul className="m-0 list-none space-y-s3 p-0">
             {lage.fehlend.map((f) => (
@@ -194,7 +208,10 @@ export default async function XRechnungBlatt(
                   <span className="text-xs text-text-muted">{f.regel}</span>
                 </p>
                 <p className="m-0 mt-s2 max-w-prose text-sm text-text">{f.text}</p>
-                <p className="m-0 mt-s2 text-xs text-text-muted">Zu pflegen unter {f.feld}</p>
+                <p className="m-0 mt-s2 text-xs text-text-muted">
+                  {t.zuPflegenUnter}
+                  {f.feld}
+                </p>
               </li>
             ))}
           </ul>
@@ -214,10 +231,10 @@ export default async function XRechnungBlatt(
               className="inline-flex min-h-[44px] items-center rounded-md bg-brand px-s4 text-base text-white"
               data-cse="xrechnung-herunterladen"
             >
-              XRechnung herunterladen
+              {t.xrechnungHerunterladen}
             </a>
           </p>
-          <h2 className="mb-s3 text-h3 text-text" id="vorschau-titel">Vorschau</h2>
+          <h2 className="mb-s3 text-h3 text-text" id="vorschau-titel">{t.vorschau}</h2>
           {/*
             * **`tabIndex` und `role` sind hier kein Beiwerk** (DESIGN §9,
             * BFSG/LEG-07). Ein Kasten, der rollt, muss mit der Tastatur

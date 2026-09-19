@@ -11,6 +11,8 @@ import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { RECHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnungen';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/neu` — der Entwurf entsteht.
@@ -54,6 +56,10 @@ export default async function NeueRechnung(
    */
   const darf = await haeltRechte(sitzung, 'finanzen.lesen');
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(RECHNUNGEN_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
       kunden: await kontext.abfrage<Auswahl>(
@@ -74,7 +80,7 @@ export default async function NeueRechnung(
 
   return (
     <PortalRahmen
-      titel="Neue Rechnung"
+      titel={t.neuTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -84,16 +90,16 @@ export default async function NeueRechnung(
       navigationsRechte={zugang.navigationsRechte}
     >
       {darf['finanzen.lesen'] === true ? (
-        <nav aria-label="Zurück" className="mb-s3">
+        <nav aria-label={g.zurueck} className="mb-s3">
           <Link
             href={`/portal/${mandant}/finanzen/rechnungen`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            ← Alle Rechnungen
+            ← {t.alleRechnungen}
           </Link>
         </nav>
       ) : null}
-      <h1 className="mb-s5 text-h1 text-text">Neue Rechnung</h1>
+      <h1 className="mb-s5 text-h1 text-text">{t.neuTitel}</h1>
 
       {/*
         * Der Zustand des Nummernkreises steht VOR dem Formular und nicht nach
@@ -102,21 +108,19 @@ export default async function NeueRechnung(
         */}
       {daten.kreis === null ? (
         <p className="mb-s5 rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
-          Diese Gesellschaft hat keinen offenen Rechnungsnummernkreis. Ein
-          Entwurf lässt sich anlegen, festschreiben aber nicht — die Nummer
-          käme aus keinem Kreis (O-01, O-134).
+          {t.keinNummernkreis}
         </p>
       ) : daten.kreis.ist_platzhalter ? (
         <p className="mb-s5 rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
-          Unbestätigter Wert: der Kreis „{daten.kreis.bezeichnung}" führt die
-          Maske <code>{daten.kreis.format_maske}</code> als Platzhalter. Bis
-          jemand sie bestätigt, wird keine Nummer daraus vergeben (O-134).
+          {t.platzhalterVor}{daten.kreis.bezeichnung}{t.platzhalterMitte}{' '}
+          <code>{daten.kreis.format_maske}</code>{' '}
+          {t.platzhalterEnde}
         </p>
       ) : null}
 
       {daten.kunden.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          Ohne Kunden keine Rechnung. Zuerst einen Kunden anlegen.
+          {t.ohneKunden}
         </p>
       ) : (
         <form
@@ -126,7 +130,7 @@ export default async function NeueRechnung(
         >
           <input type="hidden" name="aktion" value="anlegen" />
 
-          <label className="block text-sm text-text" htmlFor="kundeId">Kunde</label>
+          <label className="block text-sm text-text" htmlFor="kundeId">{g.kunde}</label>
           <select id="kundeId" name="kundeId" required className={feld}>
             {daten.kunden.map((k) => (
               <option key={k.id} value={k.id}>{k.name}</option>
@@ -134,10 +138,10 @@ export default async function NeueRechnung(
           </select>
 
           <label className="mt-s4 block text-sm text-text" htmlFor="objektId">
-            Leistungsort (Objekt)
+            {t.leistungsort}
           </label>
           <select id="objektId" name="objektId" className={feld}>
-            <option value="">— ohne festen Ort —</option>
+            <option value="">{t.ohneFestenOrt}</option>
             {daten.objekte.map((o) => (
               <option key={o.id} value={o.id}>{o.name}</option>
             ))}
@@ -146,28 +150,27 @@ export default async function NeueRechnung(
           <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">
             <div>
               <label className="block text-sm text-text" htmlFor="leistungVon">
-                Leistung von
+                {t.leistungVon}
               </label>
               <input id="leistungVon" name="leistungVon" type="date" className={feld} />
             </div>
             <div>
               <label className="block text-sm text-text" htmlFor="leistungBis">
-                Leistung bis
+                {t.leistungBis}
               </label>
               <input id="leistungBis" name="leistungBis" type="date" className={feld} />
             </div>
           </div>
 
           <label className="mt-s4 block text-sm text-text" htmlFor="zahlungszielTage">
-            Zahlungsziel (Tage)
+            {t.zahlungsziel}
           </label>
           <input
             id="zahlungszielTage" name="zahlungszielTage" type="number" min="0" step="1"
             className={feld}
           />
           <p className="mt-s1 text-xs text-text-muted">
-            Leer lassen: dann wird die Kundenkondition oder die Einstellung der
-            Gesellschaft genommen. Es gibt keinen Vorgabewert (O-66).
+            {t.zahlungszielHinweis}
           </p>
 
           {/*
@@ -182,10 +185,10 @@ export default async function NeueRechnung(
             * niemand vereinbart hat — und sie stünde unveränderlich im Beleg.
             */}
           <label className="mt-s4 block text-sm text-text" htmlFor="zahlungsmittelCode">
-            Zahlungsart
+            {t.zahlungsart}
           </label>
           <select id="zahlungsmittelCode" name="zahlungsmittelCode" className={feld}>
-            <option value="">— nicht angegeben —</option>
+            <option value="">{t.nichtAngegeben}</option>
             {ZAHLUNGSMITTEL.map((z) => (
               <option key={z.code} value={z.code}>
                 {z.bezeichnung} ({z.code})
@@ -193,13 +196,11 @@ export default async function NeueRechnung(
             ))}
           </select>
           <p className="mt-s1 text-xs text-text-muted">
-            UNTDID 4461. Für einen Kunden mit XRechnungspflicht ist die Angabe
-            verpflichtend (BR-DE-1); ohne sie lässt sich der Beleg nicht
-            festschreiben.
+            {t.zahlungsartHinweis}
           </p>
 
           <label className="mt-s4 block text-sm text-text" htmlFor="kopftext">
-            Kopftext
+            {t.kopftext}
           </label>
           <textarea id="kopftext" name="kopftext" rows={3} className={feld} />
 
@@ -207,7 +208,7 @@ export default async function NeueRechnung(
             type="submit"
             className="mt-s5 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover"
           >
-            Entwurf anlegen
+            {t.entwurfAnlegen}
           </button>
         </form>
       )}

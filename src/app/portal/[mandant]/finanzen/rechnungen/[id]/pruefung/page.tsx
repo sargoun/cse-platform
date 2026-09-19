@@ -12,6 +12,8 @@ import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../kennung';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { RECHNUNG_AUSGABE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-ausgabe';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]/pruefung` — der
@@ -46,11 +48,14 @@ interface Kopf {
 }
 
 function Liste(
-  { titel, befunde, ton, leerText }: {
+  { titel, befunde, ton, leerText, dortBeheben }: {
     titel: string;
     befunde: PflichtfeldBericht['fehler'];
     ton: 'fehler' | 'warnung';
     leerText: string;
+    /* Die Beschriftung des Verweises — sie kommt aus der Texttabelle des
+       Aufrufers, damit dieses Bauteil kein eigenes Wort traegt. */
+    dortBeheben: string;
   },
 ) {
   return (
@@ -83,7 +88,7 @@ function Liste(
                     href={{ pathname: b.link }}
                     className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
                   >
-                    Dort beheben →
+                    {dortBeheben}
                   </Link>
                 </p>
               )}
@@ -110,6 +115,10 @@ export default async function Pruefblatt(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(RECHNUNG_AUSGABE_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
       const [kopf] = await kontext.abfrage<Kopf>(
@@ -129,7 +138,7 @@ export default async function Pruefblatt(
 
   return (
     <PortalRahmen
-      titel="§14-UStG-Prüfung"
+      titel={t.pruefungTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen
       leiste={zugang.leiste}
@@ -138,78 +147,75 @@ export default async function Pruefblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
+      <nav aria-label={g.zurueck} className="mb-s3">
         <Link
           href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
           className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
         >
-          ← {k.nummer ?? 'Entwurf ohne Nummer'}
+          ← {k.nummer ?? t.entwurfOhneNummer}
         </Link>
       </nav>
 
-      <h1 className="mb-s3 text-h1 text-text">Pflichtangaben nach §14 UStG</h1>
+      <h1 className="mb-s3 text-h1 text-text">{t.pruefungH1}</h1>
 
       <p className="mb-s5 max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text">
         {festgeschrieben
-          ? 'Dieser Beleg ist festgeschrieben. Der Bericht unten ist die heutige '
-            + 'Sicht auf die gedruckten Angaben; der Befund, mit dem festgeschrieben '
-            + 'wurde, steht unveränderlich im Snapshot.'
+          ? t.festgeschriebenSicht
           : blockierend
-            ? `Die Festschreibung ist blockiert: ${String(bericht.fehler.length)} `
-              + 'Pflichtangabe(n) fehlen. Alle fehlenden Felder stehen unten — nicht '
-              + 'nur das erste.'
-            : 'Alle geprüften Pflichtangaben liegen vor. Die Festschreibung ist '
-              + 'aus Sicht dieser Prüfung möglich.'}
+            ? `${t.blockiertVor}${String(bericht.fehler.length)}${t.blockiertNach}`
+            : t.allesDa}
       </p>
 
       <Liste
-        titel="Blockierend"
+        titel={t.blockierend}
         befunde={bericht.fehler}
         ton="fehler"
-        leerText="Keine blockierenden Befunde."
+        leerText={t.keineBlockierenden}
+        dortBeheben={t.dortBeheben}
       />
 
       <Liste
-        titel="Warnungen — sie halten den Beleg nicht auf"
+        titel={t.warnungenTitel}
         befunde={bericht.warnungen}
         ton="warnung"
-        leerText="Keine Warnungen."
+        leerText={t.keineWarnungen}
+        dortBeheben={t.dortBeheben}
       />
 
-      <h2 className="mb-s3 text-h3 text-text">Kleinbetragsrechnung (§33 UStDV)</h2>
+      <h2 className="mb-s3 text-h3 text-text">{t.kleinbetragTitel}</h2>
       <dl className="mb-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-3">
         <div>
-          <dt className="text-xs text-text-muted">Erleichterung</dt>
+          <dt className="text-xs text-text-muted">{t.erleichterung}</dt>
           <dd className="text-sm text-text">
-            {bericht.kleinbetrag.greift ? 'greift' : 'greift nicht'}
+            {bericht.kleinbetrag.greift ? t.greift : t.greiftNicht}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Grenze</dt>
+          <dt className="text-xs text-text-muted">{t.grenze}</dt>
           <dd className="text-sm text-text">
             {bericht.kleinbetrag.grenzeBruttoCent === null
               ? '—'
               : formatiereGeld(bericht.kleinbetrag.grenzeBruttoCent)}
             {bericht.kleinbetrag.istPlatzhalter ? (
-              <span className="text-warning"> — unbestätigter Wert (O-175)</span>
+              <span className="text-warning">{t.unbestaetigterWertO175}</span>
             ) : null}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Brutto dieses Belegs</dt>
+          <dt className="text-xs text-text-muted">{t.bruttoDiesesBelegs}</dt>
           <dd className="cse-zahl text-sm text-text">
             {formatiereGeld(cent(BigInt(k.brutto_cent)))}
           </dd>
         </div>
         <div className="sm:col-span-3">
-          <dt className="text-xs text-text-muted">Begründung</dt>
+          <dt className="text-xs text-text-muted">{t.begruendung}</dt>
           <dd className="max-w-prose text-sm text-text-muted">
             {bericht.kleinbetrag.grund}
           </dd>
         </div>
       </dl>
 
-      <h2 className="mb-s3 text-h3 text-text">Was diese Prüfung noch nicht prüft</h2>
+      <h2 className="mb-s3 text-h3 text-text">{t.nochNichtGeprueft}</h2>
       <ul className="mb-s5 m-0 list-none space-y-s2 p-0">
         {bericht.nichtGeprueft.map((n) => (
           <li key={n.regel} className="rounded-lg border border-line bg-surface-2 p-s4">
@@ -220,9 +226,8 @@ export default async function Pruefblatt(
       </ul>
 
       <p className="max-w-prose text-xs text-text-muted">
-        Regelwerk {bericht.regelwerkVersion}. Der vollständige Befund wird beim
-        Festschreiben in den Snapshot eingefroren — damit später nachvollziehbar
-        bleibt, welche Regeln auf diesen Beleg angewandt wurden.
+        {t.regelwerk} {bericht.regelwerkVersion}
+        {t.regelwerkFussNach}
       </p>
     </PortalRahmen>
   );

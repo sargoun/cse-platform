@@ -146,6 +146,30 @@ function ohneSqlRegister(inhalt: string): string {
       /\binsert\s+into\s+(?:public\.)?plattform_einstellung(?:[^';]|'(?:[^']|'')*')*;/giu,
       'insert into plattform_einstellung _;')
     /**
+     * (4b) Derselbe Schluessel, aber als BENANNTE KONSTANTE.
+     *
+     * Der Fall entstand bei der Zweisprachigkeit und wird wiederkommen: ein
+     * uebersetzter Satz kann keinen technischen Namen fest eingebaut tragen,
+     * also wandert er aus der Prosa in eine Konstante und wird in den Satz
+     * eingesetzt — aus
+     * „Kein Satz hinterlegt: `finanzen.bauabzugsteuer_satz_bp` fehlt"
+     * wird `${t.keinSatzVor} ${EINSTELLUNG_SATZ} ${t.keinSatzNach}`.
+     *
+     * In der Prosa war der Schluessel von `ohneProsaInZeichenketten` gedeckt
+     * (er stand in Gegenstrichen INNERHALB einer Zeichenkette). Als blosses
+     * Literal ist er ungedeckt — und meldete sich prompt als unregistriertes
+     * Recht, obwohl er ein Einstellungsschluessel ist wie in (4).
+     *
+     * **Nur der Name der Konstante entscheidet, und nur ein GROSS
+     * geschriebener.** `EINSTELLUNG_SATZ` ist eine Aussage des Schreibenden
+     * darueber, in welches Register der Wert gehoert. Ein Recht heisst in
+     * denselben Dateien `RECHT_FINANZEN_LESEN` und bleibt gedeckt-frei, also
+     * weiter geprueft — ein Tippfehler DORT wird nach wie vor laut.
+     */
+    .replace(
+      /\b(?:const|let|var)\s+EINSTELLUNG_[A-Z0-9_]*\s*(?::[^=\n]+)?=\s*['"`][a-z_.]+['"`]/gu,
+      "const EINSTELLUNG_X = '_'")
+    /**
      * (5) Das FUENFTE Register: die Benachrichtigungsarten.
      *
      * `benachrichtigung.art` traegt `<modul>.<ereignis>` — die Tabelle

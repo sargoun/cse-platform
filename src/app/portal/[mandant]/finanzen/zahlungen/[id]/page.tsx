@@ -14,6 +14,9 @@ import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { MAHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/mahnungen';
+import { ZAHLUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/zahlungen';
 
 /**
  * `/portal/[mandant]/finanzen/zahlungen/[id]` — eine Zahlung und wohin sie
@@ -53,25 +56,6 @@ interface ZuordnungZeile {
   readonly posten_art: string;
 }
 
-const ART: Readonly<Record<string, string>> = {
-  zahlung: 'Zahlung',
-  skonto: 'Skonto (§17 UStG)',
-  gebuehr: 'Bankgebühr',
-  differenz: 'Abgeschriebene Differenz',
-  mahngebuehr: 'Mahngebühr',
-  zins: 'Verzugszinsen',
-  bauabzugsteuer_einbehalt: 'Einbehalt §48 EStG',
-  ueberzahlung: 'Überzahlung — als Guthaben geführt',
-};
-
-const MITTEL: Readonly<Record<string, string>> = {
-  ueberweisung: 'Überweisung',
-  lastschrift: 'Lastschrift',
-  bar: 'Barzahlung',
-  karte: 'Kartenzahlung',
-  verrechnung: 'Verrechnung',
-};
-
 export default async function ZahlungDetail(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
@@ -85,6 +69,16 @@ export default async function ZahlungDetail(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(MAHNUNGEN_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+  /*
+   * Die Wörter, die dieser Beleg mit der Zahlungsliste teilt — vor allem die
+   * fünf Zahlungsmittel —, kommen aus DEREN Tabelle. Zweimal dieselbe
+   * `lastschrift` wäre zweimal die Gelegenheit, sie nur einmal zu ändern.
+   */
+  const tz = nachSprache(ZAHLUNGEN_TEXTE, zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
@@ -121,7 +115,7 @@ export default async function ZahlungDetail(
 
   return (
     <PortalRahmen
-      titel={`Zahlung vom ${kopf.zahlungsdatum}`}
+      titel={`${t.zahlung} ${t.vom} ${kopf.zahlungsdatum}`}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -130,84 +124,90 @@ export default async function ZahlungDetail(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
+      <nav aria-label={g.zurueck} className="mb-s3">
         <Link
           href={`/portal/${mandant}/finanzen/zahlungen`}
           className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
         >
-          ← Zahlungen
+          ← {tz.titel}
         </Link>
       </nav>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">
-          {formatiereGeld(cent(BigInt(kopf.betrag_cent)))} vom {kopf.zahlungsdatum}
+          {formatiereGeld(cent(BigInt(kopf.betrag_cent)))} {t.vom} {kopf.zahlungsdatum}
         </h1>
-        {kopf.storniert_am === null ? null : <StatusPill zustand="Archiviert" />}
+        {kopf.storniert_am === null ? null
+          : <StatusPill zustand="Archiviert" sprache={zugang.sprache} />}
       </div>
 
       {kopf.storniert_am === null ? null : (
         <p className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
-          Storniert am {kopf.storniert_am}: {kopf.storno_grund}. Die betroffenen
-          Forderungen sind dadurch wieder offen.
+          {t.storniertAmVor} {kopf.storniert_am}: {kopf.storno_grund}
+          {t.storniertAmNach}
         </p>
       )}
 
       <dl className="mb-s7 grid max-w-prose grid-cols-1 gap-s3 rounded-lg border border-line bg-surface p-s5 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-text-muted">Zahlungsmittel</dt>
-          <dd className="text-text">{MITTEL[kopf.zahlungsmittel] ?? kopf.zahlungsmittel}</dd>
+          <dt className="text-text-muted">{tz.zahlungsmittel}</dt>
+          <dd className="text-text">
+            {tz.mittelNamen[kopf.zahlungsmittel as keyof typeof tz.mittelNamen]
+              ?? kopf.zahlungsmittel}
+          </dd>
         </div>
         <div>
-          <dt className="text-text-muted">Wertstellung</dt>
+          <dt className="text-text-muted">{t.wertstellung}</dt>
           <dd className="text-text">{kopf.valuta ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-text-muted">Konto</dt>
+          <dt className="text-text-muted">{t.konto}</dt>
           <dd className="text-text">
             {kopf.konto === null ? '—' : `${kopf.konto} · ${formatiereIban(kopf.iban ?? '')}`}
           </dd>
         </div>
         <div>
-          <dt className="text-text-muted">Referenz</dt>
+          <dt className="text-text-muted">{tz.referenz}</dt>
           <dd className="text-text">{kopf.referenz ?? '—'}</dd>
         </div>
       </dl>
 
       <section aria-labelledby="zuordnung-titel" className="mb-s7">
-        <h2 id="zuordnung-titel" className="mb-s3 text-h2 text-text">Wohin sie gebucht wurde</h2>
+        <h2 id="zuordnung-titel" className="mb-s3 text-h2 text-text">{t.zuordnungTitel}</h2>
         {daten.zeilen.length === 0 ? (
           <p className="rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
-            Diese Zahlung ist keiner Forderung zugeordnet. Das Geld ist da und
-            steht in keiner Rechnung.
+            {t.keineZuordnung}
           </p>
         ) : (
           <>
             <DataTable
-              beschriftung="Zuordnungen dieser Zahlung mit Art, Betrag und Beleg"
+              beschriftung={t.tabelleZuordnung}
               zeilen={daten.zeilen}
               schluessel={(z) => z.id}
               spalten={[
-                { schluessel: 'art', kopf: 'Art', zelle: (z) => ART[z.art] ?? z.art },
                 {
-                  schluessel: 'beleg', kopf: 'Beleg',
-                  zelle: (z) => z.rechnungsnummer
-                    ?? (z.posten_art === 'debitor_guthaben' ? 'Guthaben des Kunden' : '—'),
+                  schluessel: 'art', kopf: g.art,
+                  zelle: (z) => t.zuordnungsarten[z.art as keyof typeof t.zuordnungsarten]
+                    ?? z.art,
                 },
                 {
-                  schluessel: 'betrag', kopf: 'Betrag', numerisch: true,
+                  schluessel: 'beleg', kopf: t.beleg,
+                  zelle: (z) => z.rechnungsnummer
+                    ?? (z.posten_art === 'debitor_guthaben' ? t.guthabenDesKunden : '—'),
+                },
+                {
+                  schluessel: 'betrag', kopf: g.betrag, numerisch: true,
                   zelle: (z) => formatiereGeld(cent(BigInt(z.betrag_cent))),
                 },
                 {
-                  schluessel: 'notiz', kopf: 'Begründung',
+                  schluessel: 'notiz', kopf: t.begruendung,
                   zelle: (z) => z.notiz ?? <span className="text-text-subtle">—</span>,
                 },
               ]}
             />
             {rest === 0n ? null : (
               <p className="mt-s3 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
-                {formatiereGeld(cent(rest))} dieser Zahlung sind keiner
-                Forderung zugeordnet.
+                {formatiereGeld(cent(rest))} {t.restOhneForderung}
               </p>
             )}
           </>
@@ -216,7 +216,7 @@ export default async function ZahlungDetail(
 
       {kopf.storniert_am !== null ? null : (
         <section aria-labelledby="storno-titel">
-          <h2 id="storno-titel" className="mb-s3 text-h2 text-text">Zahlung stornieren</h2>
+          <h2 id="storno-titel" className="mb-s3 text-h2 text-text">{t.stornoTitel}</h2>
           <form
             method="post"
             action={`/api/finanzen/zahlungen?mandant=${mandant}`}
@@ -225,22 +225,20 @@ export default async function ZahlungDetail(
             <input type="hidden" name="aktion" value="stornieren" />
             <input type="hidden" name="zahlungId" value={kopf.id} />
             <label className="block text-sm text-text" htmlFor="grund">
-              Grund — er steht später allein in den Büchern
+              {t.stornoGrundLabel}
             </label>
             <input
               id="grund" name="grund" type="text" required minLength={5}
-              placeholder="Lastschrift vom Kunden zurückgegeben" className={feld}
+              placeholder={t.stornoPlatzhalter} className={feld}
             />
             <p className="mt-s2 max-w-prose text-xs text-text-muted">
-              Die Zahlung wird nicht gelöscht (Invariante 8). Sie bleibt mit
-              ihrem Grund stehen, und die Forderungen, die sie geschlossen hat,
-              sind danach wieder offen.
+              {t.stornoErklaerung}
             </p>
             <button
               type="submit"
               className="mt-s5 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
             >
-              Stornieren
+              {t.stornieren}
             </button>
           </form>
         </section>

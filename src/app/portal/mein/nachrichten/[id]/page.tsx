@@ -108,7 +108,7 @@ export default async function MeineNachricht(
           <span data-cse="eintrag-art" className="text-sm text-text-subtle">
             {t.systemmeldung}
           </span>
-          <StatusPill zustand={e.gelesenAm === null ? 'Wartet' : 'Inaktiv'} />
+          <StatusPill sprache={basis.sprache} zustand={e.gelesenAm === null ? 'Wartet' : 'Inaktiv'} />
         </div>
 
         <section
@@ -184,7 +184,7 @@ export default async function MeineNachricht(
         <span data-cse="eintrag-art" className="text-sm text-text-subtle">
           {t.nachrichtenFaden}
         </span>
-        <StatusPill
+        <StatusPill sprache={basis.sprache}
           zustand={f.geschlossen ? 'Abgeschlossen' : f.ungelesen > 0 ? 'Wartet' : 'Inaktiv'}
         />
       </div>

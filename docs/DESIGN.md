@@ -423,14 +423,39 @@ screen, and the one control that matters here is the download.
 `--r-full`, `4px 12px`, `xs` 500, `-soft` background, solid semantic text.
 Fixed vocabulary:
 
-| State | Colour |
-|---|---|
-| In Arbeit · Aktiv · Bereit | success |
-| Geplant · In Prüfung · Entwurf | info |
-| Angebot · Offen · Wartet | warning |
-| Nur Lesen | warning |
-| Überfällig · Abgelehnt · Fehler | danger |
-| Abgeschlossen · Archiviert · Inaktiv | muted on `--surface-3` |
+| State (de) | State (en) | Colour |
+|---|---|---|
+| In Arbeit | In progress | success |
+| Aktiv | Active | success |
+| Bereit | Ready | success |
+| Geplant | Scheduled | info |
+| In Prüfung | Under review | info |
+| Entwurf | Draft | info |
+| Angebot | Quoted | warning |
+| Offen | Open | warning |
+| Wartet | Waiting | warning |
+| Nur Lesen | Read only | warning |
+| Überfällig | Overdue | danger |
+| Abgelehnt | Rejected | danger |
+| Fehler | Error | danger |
+| Abgeschlossen | Closed | muted on `--surface-3` |
+| Archiviert | Archived | muted on `--surface-3` |
+| Inaktiv | Inactive | muted on `--surface-3` |
+
+**The German column is the KEY, the English one is only the label.** A pill is
+addressed in code by its German state — `zustand="Überfällig"` — and the type
+makes an unlisted one unrepresentable. The English column is what a reader
+sees when the session runs in English; it never becomes an identifier, and a
+screen can never reach a colour by writing `zustand="Overdue"`. Two spellings
+of one state would be two states in every `Record` in the codebase, and the
+second one would quietly have no colour.
+
+**These sixteen are labels, not terms of art** — unlike `Mandant`,
+`Leistungsnachweis` or `Aufmass`, which stay German in both languages because
+they carry legal meaning (VOB, GoBD, UStG). `Überfällig` carries none: it is
+the word on a coloured dot, and a reader who cannot read German needs it in
+a language they can read, because §9 says colour is never the only signal —
+and a signal in an unreadable language is colour alone.
 
 **`Inaktiv` is muted and not `danger`, and that distinction is the whole
 point.** An agent that is switched off is not broken and not overdue — it is

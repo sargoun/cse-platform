@@ -14,6 +14,8 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { EINGANGSRECHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/eingangsrechnungen';
 
 /**
  * `/portal/[mandant]/finanzen/eingangsrechnungen/[id]` — der Beleg und sein
@@ -100,6 +102,10 @@ export default async function EingangsrechnungDetail(
     sitzung, 'freigabe.entscheiden', 'eingang.freigeben',
     'abrechnung.freistellung_pflegen');
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(EINGANGSRECHNUNGEN_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
       kopf: (await kontext.abfrage<Kopf>(
@@ -151,7 +157,7 @@ export default async function EingangsrechnungDetail(
 
   return (
     <PortalRahmen
-      titel={kopf.interne_belegnummer ?? 'Eingangsrechnung'}
+      titel={kopf.interne_belegnummer ?? t.eingangsrechnung}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -160,12 +166,12 @@ export default async function EingangsrechnungDetail(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3 flex flex-wrap gap-s4">
+      <nav aria-label={g.zurueck} className="mb-s3 flex flex-wrap gap-s4">
         <Link
           href={`/portal/${mandant}/finanzen/eingangsrechnungen`}
           className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
         >
-          ← Eingangsrechnungen
+          ← {t.titel}
         </Link>
         {/*
           * Der Freigabebildschirm zeigt die vier Angaben, die der
@@ -178,7 +184,7 @@ export default async function EingangsrechnungDetail(
             href={`/portal/${mandant}/finanzen/eingangsrechnungen/${kopf.id}/freigabe`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            Freigabe ansehen
+            {t.freigabeAnsehen}
           </Link>
         ) : null}
         {/*
@@ -192,56 +198,56 @@ export default async function EingangsrechnungDetail(
             href={`/portal/${mandant}/finanzen/eingangsrechnungen/${kopf.id}/steuer`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            Steuerliche Lage
+            {t.steuerlicheLage}
           </Link>
         ) : null}
       </nav>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">
-          {kopf.lieferant ?? 'Ohne Lieferant'} ·{' '}
-          {kopf.rechnungsnummer_lieferant ?? 'ohne Nummer'}
+          {kopf.lieferant ?? t.ohneLieferant} ·{' '}
+          {kopf.rechnungsnummer_lieferant ?? t.ohneNummer}
         </h1>
-        <StatusPill zustand={PILLE[kopf.status] ?? 'Entwurf'} />
+        <StatusPill zustand={PILLE[kopf.status] ?? 'Entwurf'} sprache={zugang.sprache} />
       </div>
 
       {kopf.abgelehnt_grund === null ? null : (
         <p className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
-          Abgelehnt: {kopf.abgelehnt_grund}
+          {t.abgelehntMit} {kopf.abgelehnt_grund}
         </p>
       )}
 
       <dl className="mb-s7 grid max-w-prose grid-cols-1 gap-s3 rounded-lg border border-line bg-surface p-s5 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-text-muted">Interne Belegnummer</dt>
+          <dt className="text-text-muted">{t.interneBelegnummer}</dt>
           <dd className="text-text" data-cse="belegnummer">
             {kopf.interne_belegnummer
-              ?? <span className="text-text-subtle">entsteht beim Buchen</span>}
+              ?? <span className="text-text-subtle">{t.entstehtBeimBuchen}</span>}
           </dd>
         </div>
         <div>
-          <dt className="text-text-muted">Rechnungsdatum</dt>
+          <dt className="text-text-muted">{t.rechnungsdatum}</dt>
           <dd className="text-text">{kopf.rechnungsdatum ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-text-muted">Leistungsdatum</dt>
+          <dt className="text-text-muted">{t.leistungsdatum}</dt>
           <dd className="text-text">{kopf.leistungsdatum ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-text-muted">Fällig</dt>
+          <dt className="text-text-muted">{g.faellig}</dt>
           <dd className="text-text">{kopf.faellig_am ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-text-muted">Brutto</dt>
+          <dt className="text-text-muted">{t.brutto}</dt>
           <dd className="text-text">
             {kopf.brutto_cent === null ? '—' : formatiereGeld(cent(BigInt(kopf.brutto_cent)))}
           </dd>
         </div>
         <div>
-          <dt className="text-text-muted">Offen an den Lieferanten</dt>
+          <dt className="text-text-muted">{t.offenAnLieferanten}</dt>
           <dd className="text-text">
             {kopf.offen_cent === null
-              ? <span className="text-text-subtle">noch kein Posten — nicht gebucht</span>
+              ? <span className="text-text-subtle">{t.nochKeinPosten}</span>
               : formatiereGeld(cent(BigInt(kopf.offen_cent)))}
           </dd>
         </div>
@@ -249,26 +255,25 @@ export default async function EingangsrechnungDetail(
 
       <section aria-labelledby="steuer-titel" className="mb-s7">
         <h2 id="steuer-titel" className="mb-s3 text-h2 text-text">
-          Entgelt je Steuersatz (§15 UStG)
+          {t.entgeltJeSteuersatz}
         </h2>
         {daten.steuer.length === 0 ? (
           <p className="rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
-            Keine Aufteilung erfasst. Ohne sie wird nicht gebucht — ein Brutto
-            mit einem Mischsatz ergibt keinen Vorsteuerabzug.
+            {t.keineAufteilung}
           </p>
         ) : (
           <DataTable
-            beschriftung="Entgelt und Steuer je Steuersatzgruppe"
+            beschriftung={t.tabelleSteuerzeilen}
             zeilen={daten.steuer}
             schluessel={(s) => s.id}
             spalten={[
-              { schluessel: 'gruppe', kopf: 'Steuersatz', zelle: (s) => s.bezeichnung },
+              { schluessel: 'gruppe', kopf: t.steuersatz, zelle: (s) => s.bezeichnung },
               {
-                schluessel: 'netto', kopf: 'Netto', numerisch: true,
+                schluessel: 'netto', kopf: t.netto, numerisch: true,
                 zelle: (s) => formatiereGeld(cent(BigInt(s.netto_cent))),
               },
               {
-                schluessel: 'steuer', kopf: 'Steuer', numerisch: true,
+                schluessel: 'steuer', kopf: t.steuer, numerisch: true,
                 zelle: (s) => formatiereGeld(cent(BigInt(s.steuer_cent))),
               },
             ]}
@@ -279,32 +284,31 @@ export default async function EingangsrechnungDetail(
       {daten.herkunft.length > 0 ? (
         <section aria-labelledby="herkunft-titel" className="mb-s7" data-cse="herkunft-erechnung">
           <h2 id="herkunft-titel" className="mb-s3 text-h2 text-text">
-            Aus einer E-Rechnung übernommen
+            {t.herkunftTitel}
           </h2>
           <p className="mb-s4 max-w-prose text-sm text-text-muted">
-            Jeder Wert nennt das Element der Datei, aus dem er stammt, und die Prüfung,
-            die er bestanden hat.
+            {t.herkunftErklaerung}
             {darf['freigabe.entscheiden'] === true ? (
               <>
-                {' '}Entschieden wurde in{' '}
+                {' '}{t.entschiedenWurdeIn}{' '}
                 <Link href={`/portal/${mandant}/freigaben/${daten.herkunft[0]!.freigabe_id}`}
                       className="underline underline-offset-2">
-                  der Freigabe
+                  {t.derFreigabe}
                 </Link>.
               </>
             ) : null}
           </p>
           <DataTable
-            beschriftung="Extrahierte Felder mit Quelle und Konfidenz"
+            beschriftung={t.tabelleHerkunft}
             zeilen={daten.herkunft}
             schluessel={(h) => h.id}
             spalten={[
-              { schluessel: 'feld', kopf: 'Feld', zelle: (h) => h.bezeichnung },
-              { schluessel: 'wert', kopf: 'Wert',
+              { schluessel: 'feld', kopf: t.feld, zelle: (h) => h.bezeichnung },
+              { schluessel: 'wert', kopf: t.wert,
                 zelle: (h) => h.wert_nachher ?? <span className="text-text-subtle">—</span> },
-              { schluessel: 'konfidenz', kopf: 'Konfidenz', numerisch: true,
+              { schluessel: 'konfidenz', kopf: t.konfidenz, numerisch: true,
                 zelle: (h) => h.konfidenz ?? '—' },
-              { schluessel: 'quelle', kopf: 'Quelle',
+              { schluessel: 'quelle', kopf: t.quelle,
                 zelle: (h) => (
                   <span className="flex min-w-0 flex-col text-xs text-text-muted">
                     <span className="break-all font-mono">{h.quelle_zelle ?? '—'}</span>
@@ -317,18 +321,15 @@ export default async function EingangsrechnungDetail(
       ) : null}
 
       <section aria-labelledby="weg-titel">
-        <h2 id="weg-titel" className="mb-s3 text-h2 text-text">Der nächste Schritt</h2>
+        <h2 id="weg-titel" className="mb-s3 text-h2 text-text">{t.naechsterSchritt}</h2>
 
         {kopf.status === 'gebucht' ? (
           <p className="max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Gebucht unter {kopf.interne_belegnummer}. Eine gebuchte Rechnung
-            wird nicht mehr umgestellt — korrigiert wird durch eine
-            Gegenbuchung.
+            {t.gebuchtUnter} {kopf.interne_belegnummer}{t.gebuchtErklaerung}
           </p>
         ) : kopf.status === 'abgelehnt' ? (
           <p className="max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Abgelehnt. Eine abgelehnte Rechnung wird neu erfasst, nicht
-            wiederbelebt — und sie blockiert die Neuerfassung nicht.
+            {t.abgelehntErklaerung}
           </p>
         ) : (
           <div className="flex max-w-prose flex-col gap-s5">
@@ -338,10 +339,9 @@ export default async function EingangsrechnungDetail(
                 <input type="hidden" name="aktion" value="pruefen" />
                 <input type="hidden" name="id" value={kopf.id} />
                 <p className="mb-s3 text-sm text-text-muted">
-                  In die Prüfung geben. Ab hier ist der Lieferant gesetzt und
-                  der Beleg zugeordnet.
+                  {t.pruefenErklaerung}
                 </p>
-                <button type="submit" className={knopf}>In Prüfung geben</button>
+                <button type="submit" className={knopf}>{t.inPruefungGeben}</button>
               </form>
             ) : null}
 
@@ -351,18 +351,16 @@ export default async function EingangsrechnungDetail(
                 <input type="hidden" name="aktion" value="freigeben" />
                 <input type="hidden" name="id" value={kopf.id} />
                 <label className="block text-sm text-text" htmlFor="begruendung">
-                  Grund der Freigabe
+                  {t.grundDerFreigabe}
                 </label>
                 <input
                   id="begruendung" name="begruendung" type="text" minLength={5}
-                  placeholder="Sachlich und rechnerisch geprüft" className={feld}
+                  placeholder={t.begruendungPlatzhalter} className={feld}
                 />
                 <p className="mt-s2 max-w-prose text-xs text-text-muted">
-                  Die Freigabe friert ein, worüber entschieden wurde: Lieferant,
-                  Nummer, Datum und Betrag. Wer die Rechnung danach ändert, hat
-                  für das, was er bucht, keine Freigabe mehr (K-13).
+                  {t.freigabeFriertEin}
                 </p>
-                <button type="submit" className={`mt-s4 ${knopf}`}>Freigeben</button>
+                <button type="submit" className={`mt-s4 ${knopf}`}>{g.freigeben}</button>
               </form>
             ) : null}
 
@@ -372,11 +370,9 @@ export default async function EingangsrechnungDetail(
                 <input type="hidden" name="aktion" value="buchen" />
                 <input type="hidden" name="id" value={kopf.id} />
                 <p className="mb-s3 text-sm text-text-muted">
-                  Buchen zieht die interne Belegnummer und öffnet die
-                  Verbindlichkeit gegenüber dem Lieferanten. Danach ist der
-                  Beleg unveränderlich.
+                  {t.buchenErklaerung}
                 </p>
-                <button type="submit" className={knopf}>Buchen</button>
+                <button type="submit" className={knopf}>{t.buchen}</button>
               </form>
             ) : null}
 
@@ -385,17 +381,16 @@ export default async function EingangsrechnungDetail(
               <input type="hidden" name="aktion" value="ablehnen" />
               <input type="hidden" name="id" value={kopf.id} />
               <label className="block text-sm text-text" htmlFor="grund">
-                Zurückweisen — mit Grund
+                {t.zurueckweisenMitGrund}
               </label>
               <input
                 id="grund" name="grund" type="text" minLength={5}
-                placeholder="Leistung wurde nie erbracht" className={feld}
+                placeholder={t.zurueckweisenPlatzhalter} className={feld}
               />
               <p className="mt-s2 max-w-prose text-xs text-text-muted">
-                Die Zeile bleibt stehen (Invariante 8). Der Grund ist das, was
-                später allein dasteht.
+                {t.zeileBleibtStehen}
               </p>
-              <button type="submit" className={`mt-s4 ${knopfStill}`}>Zurückweisen</button>
+              <button type="submit" className={`mt-s4 ${knopfStill}`}>{t.zurueckweisen}</button>
             </form>
           </div>
         )}

@@ -104,7 +104,7 @@ export default async function MeineSchichten({
               <ul className="m-0 flex list-none flex-col gap-s3 p-0">
                 {schichten.map((s) => (
                   <li key={s.zuordnungId}>
-                    <SchichtKarte schicht={s} texte={t} />
+                    <SchichtKarte schicht={s} texte={t} sprache={basis.sprache} />
                   </li>
                 ))}
               </ul>

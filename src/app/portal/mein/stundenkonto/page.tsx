@@ -140,7 +140,7 @@ export default async function MeinStundenkonto({
             >
               <div className="mb-s3 flex flex-wrap items-center gap-s3">
                 <Gesellschaft slug={a.mandantSlug} name={a.mandantName} />
-                <StatusPill
+                <StatusPill sprache={basis.sprache}
                   zustand={
                     a.konto.status === 'gesperrt' ? 'Abgeschlossen'
                       : a.konto.status === 'vorlaeufig' ? 'In Prüfung' : 'Offen'

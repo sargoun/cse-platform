@@ -15,6 +15,8 @@ import {
 } from '@/server/services/finanz/ausgabe';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { BELEGE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/belege';
 
 /**
  * `/portal/[mandant]/finanzen/ausgaben` — die Ausgaben einer Gesellschaft
@@ -49,6 +51,11 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Ausgaben — Finanzen' };
 
+/*
+ * Die PILLE bildet den Zustand auf das FESTE Pillenvokabular aus DESIGN §5 ab.
+ * Sie bleibt deutsch und bleibt hier: der Wert ist ein Schluessel, der die
+ * Farbe waehlt — die Pille uebersetzt ihre Beschriftung selbst.
+ */
 const PILLE: Readonly<Record<AusgabeStatus, PillZustand>> = {
   erfasst: 'Entwurf',
   freigegeben: 'Bereit',
@@ -56,20 +63,12 @@ const PILLE: Readonly<Record<AusgabeStatus, PillZustand>> = {
   abgelehnt: 'Abgelehnt',
 };
 
-const ZUSTAND: Readonly<Record<AusgabeStatus, string>> = {
-  erfasst: 'erfasst — noch nicht freigegeben',
-  freigegeben: 'freigegeben — zur Buchung bereit',
-  gebucht: 'gebucht',
-  abgelehnt: 'abgelehnt',
-};
-
-const ZAHLUNGSMITTEL_TEXT: Readonly<Record<string, string>> = {
-  ueberweisung: 'Überweisung',
-  lastschrift: 'Lastschrift',
-  bar: 'bar (Kasse)',
-  karte: 'Karte',
-  verrechnung: 'Verrechnung',
-};
+/*
+ * Der Rechtename lautet in beiden Sprachen gleich und steht deshalb hier und
+ * nicht in der Texttabelle (siehe den Kopf von
+ * `i18n/verwaltung/finanzen/belege.ts`).
+ */
+const RECHT_ERSTATTUNG_LESEN = 'personal.erstattung_lesen';
 
 export default async function Ausgabenliste(
   { params, searchParams }: {
@@ -99,6 +98,10 @@ export default async function Ausgabenliste(
   const tor = await mandantTor(`/portal/${mandant}/finanzen/ausgaben`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(BELEGE_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => ({
@@ -136,7 +139,7 @@ export default async function Ausgabenliste(
 
   return (
     <PortalRahmen
-      titel="Ausgaben"
+      titel={t.ausgabenTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -146,36 +149,38 @@ export default async function Ausgabenliste(
       navigationsRechte={zugang.navigationsRechte}
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="text-h1 text-text">Ausgaben</h1>
+        <h1 className="text-h1 text-text">{t.ausgabenTitel}</h1>
         <form method="get" className="flex min-w-0 flex-wrap items-end gap-s3">
           <div className="min-w-0">
-            <label className="block text-xs text-text-muted" htmlFor="jahr">Jahr</label>
+            <label className="block text-xs text-text-muted" htmlFor="jahr">{t.jahr}</label>
             <input
               id="jahr" name="jahr" type="number" min="2000" max="2999" step="1"
-              defaultValue={filter.jahr ?? ''} placeholder="alle" className={feld}
+              defaultValue={filter.jahr ?? ''} placeholder={t.alle} className={feld}
             />
           </div>
           <div className="min-w-0">
-            <label className="block text-xs text-text-muted" htmlFor="status">Zustand</label>
+            <label className="block text-xs text-text-muted" htmlFor="status">
+              {g.zustand}
+            </label>
             <select id="status" name="status" defaultValue={filter.status ?? ''} className={feld}>
-              <option value="">alle</option>
+              <option value="">{t.alle}</option>
               {AUSGABE_STATUS.map((s) => (
-                <option key={s} value={s}>{ZUSTAND[s]}</option>
+                <option key={s} value={s}>{t.zustandListe[s]}</option>
               ))}
             </select>
           </div>
           <div className="min-w-0">
             <label className="block text-xs text-text-muted" htmlFor="kategorie">
-              Kategorie
+              {t.kategorie}
             </label>
             <select
               id="kategorie" name="kategorie"
               defaultValue={filter.kategorieId ?? ''} className={feld}
             >
-              <option value="">alle</option>
+              <option value="">{t.alle}</option>
               {daten.kategorien.map((k) => (
                 <option key={k.id} value={k.id}>
-                  {k.bezeichnung}{k.istPlatzhalter ? ' (unbestätigt)' : ''}
+                  {k.bezeichnung}{k.istPlatzhalter ? t.unbestaetigtKlammer : ''}
                 </option>
               ))}
             </select>
@@ -185,34 +190,34 @@ export default async function Ausgabenliste(
               type="checkbox" name="weiterberechenbar" value="ja"
               defaultChecked={filter.nurWeiterberechenbar}
             />
-            nur weiterberechenbar
+            {t.nurWeiterberechenbar}
           </label>
           <button
             type="submit"
             className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
           >
-            Anzeigen
+            {t.anzeigen}
           </button>
           {gefiltert ? (
             <Link
               href={`/portal/${mandant}/finanzen/ausgaben`}
               className="text-sm text-text-muted underline underline-offset-2 hover:text-text"
             >
-              zurücksetzen
+              {g.zuruecksetzen}
             </Link>
           ) : null}
         </form>
       </div>
 
       <div className="mb-s5 grid grid-cols-1 gap-s4 sm:grid-cols-3">
-        <KpiStat label="Ausgaben" wert={String(daten.summe.anzahl)} icon="euro" />
+        <KpiStat label={t.ausgabenTitel} wert={String(daten.summe.anzahl)} icon="euro" />
         <KpiStat
-          label="Netto"
+          label={t.netto}
           wert={formatiereGeld(daten.summe.nettoCent)}
           icon="euro"
         />
         <KpiStat
-          label="Brutto"
+          label={t.brutto}
           wert={formatiereGeld(daten.summe.bruttoCent)}
           icon="euro"
         />
@@ -223,25 +228,22 @@ export default async function Ausgabenliste(
           data-cse="ausgaben-summen-je-status"
           className="mb-s5 rounded-lg border border-line bg-surface p-s5 text-sm"
         >
-          <h2 className="mb-s3 text-h3 text-text">Summen je Zustand</h2>
+          <h2 className="mb-s3 text-h3 text-text">{t.summenJeZustand}</h2>
           <ul className="m-0 flex flex-col gap-s2 p-0">
             {daten.summe.jeStatus.map((s) => (
               <li key={s.status} className="flex flex-wrap items-baseline gap-s3">
-                <StatusPill zustand={PILLE[s.status]} />
-                <span className="text-xs text-text-muted">{ZUSTAND[s.status]}</span>
+                <StatusPill zustand={PILLE[s.status]} sprache={zugang.sprache} />
+                <span className="text-xs text-text-muted">{t.zustandListe[s.status]}</span>
                 <span className="cse-zahl text-text">
-                  {s.anzahl} · Netto {formatiereGeld(s.nettoCent)} · USt{' '}
-                  {formatiereGeld(s.steuerCent)} · Brutto{' '}
+                  {s.anzahl} · {t.netto} {formatiereGeld(s.nettoCent)} · {t.ust}{' '}
+                  {formatiereGeld(s.steuerCent)} · {t.brutto}{' '}
                   {formatiereGeld(s.bruttoCent)}
                 </span>
               </li>
             ))}
           </ul>
           <p className="m-0 mt-s3 max-w-prose text-xs text-text-muted">
-            Gezählt wird in der Datenbank, unter derselben Policy wie die Liste:
-            was diese Sitzung nicht sehen darf, zählt für sie auch nicht mit.
-            Eine Summe über eine gekürzte Liste wäre die Zahl, an der später
-            jemand eine Abweichung sucht.
+            {t.gezaehltInDatenbank}
           </p>
         </div>
       )}
@@ -250,38 +252,29 @@ export default async function Ausgabenliste(
         <Hinweis art="warnung" cse="ausgaben-ohne-beleg" className="mb-s5">
           <p className="m-0 max-w-prose">
             {belegLuecken.length === 1
-              ? 'Eine freigegebene oder gebuchte Ausgabe trägt keinen Beleg.'
-              : `${String(belegLuecken.length)} freigegebene oder gebuchte Ausgaben `
-                + 'tragen keinen Beleg.'}{' '}
-            Das kann als Daten nicht entstehen — die Datenbank verlangt vor der
-            Freigabe einen Beleg (ACC-03). Steht es hier, ist die Zeile älter
-            als die Regel oder beschädigt; beides gehört gemeldet.
+              ? t.einAusgabeOhneBeleg
+              : `${String(belegLuecken.length)}${t.ausgabenOhneBeleg}`}{' '}
+            {t.ohneBelegErklaerung}
           </p>
         </Hinweis>
       ) : null}
 
       <Hinweis art="warnung" cse="ausgaben-eigenbeleg" className="mb-s5">
         <p className="m-0 max-w-prose">
-          <strong>Belegfrei buchen ist nicht vorgesehen (O-185).</strong>{' '}
+          <strong>{t.belegfreiNichtVorgesehen}</strong>{' '}
           {EIGENBELEG_PLATZHALTER.herkunft}
         </p>
         <p className="m-0 mt-s2 max-w-prose">
-          Ob eine elektronische Registrierkasse mit TSE nach §146a AO im
-          Einsatz ist oder ausschliesslich eine offene Ladenkasse mit
-          Kassenbuch, ist ebenfalls offen (O-186). Eine Barausgabe verlangt hier
-          deshalb eine Kasse und trägt keine TSE-Angaben — die Plattform
-          behauptet keine Sicherungseinrichtung, die sie nicht hat.
+          {t.tseOffen}
         </p>
       </Hinweis>
 
       {platzhalterKategorien.length > 0 ? (
         <Hinweis art="hinweis" cse="ausgaben-kategorie-platzhalter" className="mb-s5">
           <p className="m-0 max-w-prose">
-            Einige Zeilen hängen an einer <strong>unbestätigten Kategorie</strong>{' '}
-            (O-05). Welche Aufwandskategorien der Steuerberater erwartet und wie
-            sie auf SKR-Konten abbilden, ist nicht entschieden — bis dahin
-            entsteht aus einer solchen Kategorie eine Buchung OHNE Konto und mit
-            Prüfhinweis, nie eine auf ein geratenes Konto.
+            {t.kategoriePlatzhalterVor}{' '}
+            <strong>{t.kategoriePlatzhalterBetont}</strong>{' '}
+            {t.kategoriePlatzhalterNach}
           </p>
         </Hinweis>
       ) : null}
@@ -289,22 +282,17 @@ export default async function Ausgabenliste(
       {daten.zeilen.length === 0 ? (
         <Hinweis art="hinweis" cse="ausgaben-leer">
           <p className="m-0 max-w-prose">
-            {gefiltert
-              ? 'Keine Ausgabe passt zu diesem Filter.'
-              : 'Es ist keine Ausgabe erfasst. Eine Ausgabe ist der Aufwand dieser '
-                + 'Gesellschaft, der keine Lieferantenrechnung ist — Barkasse, '
-                + 'Tankbeleg, Material für einen Auftrag, eine Auslagenerstattung. '
-                + 'Sie braucht vor der Freigabe ihren Beleg (ACC-03).'}
+            {gefiltert ? t.keineAusgabeZumFilter : t.keineAusgabeErfasst}
           </p>
         </Hinweis>
       ) : (
         <DataTable
-          beschriftung="Ausgaben mit Datum, Kategorie, Betrag, Beleg und Zustand"
+          beschriftung={t.tabelleAusgaben}
           zeilen={daten.zeilen}
           schluessel={(z) => z.id}
           spalten={[
             {
-              schluessel: 'datum', kopf: 'Datum',
+              schluessel: 'datum', kopf: g.datum,
               zelle: (z) => (
                 <Link
                   href={`/portal/${mandant}/finanzen/ausgaben/${z.id}`}
@@ -316,49 +304,52 @@ export default async function Ausgabenliste(
             },
             {
               schluessel: 'kategorie',
-              kopf: 'Kategorie',
+              kopf: t.kategorie,
               zelle: (z) => (
                 <span className="inline-flex flex-col gap-s1">
                   <span className="text-text">{z.kategorie}</span>
                   {z.kategorieIstPlatzhalter ? (
-                    <span className="text-xs text-warning">unbestätigt (O-05)</span>
+                    <span className="text-xs text-warning">{t.unbestaetigtO05}</span>
                   ) : null}
                 </span>
               ),
             },
             {
               schluessel: 'bezeichnung',
-              kopf: 'Bezeichnung',
+              kopf: g.bezeichnung,
               zelle: (z) => (
                 <span className="inline-flex flex-col gap-s1">
                   <span className="text-text">{z.bezeichnung}</span>
                   <span className="text-xs text-text-muted">
-                    {ZAHLUNGSMITTEL_TEXT[z.zahlungsmittel] ?? z.zahlungsmittel}
+                    {t.zahlungsmittelListe[
+                      z.zahlungsmittel as keyof typeof t.zahlungsmittelListe]
+                      ?? z.zahlungsmittel}
                     {z.kasse === null ? '' : ` · ${z.kasse}`}
-                    {z.auftragsnummer === null ? '' : ` · Auftrag ${z.auftragsnummer}`}
+                    {z.auftragsnummer === null
+                      ? '' : ` · ${t.auftrag} ${z.auftragsnummer}`}
                   </span>
                 </span>
               ),
             },
             {
-              schluessel: 'netto', kopf: 'Netto', numerisch: true,
+              schluessel: 'netto', kopf: t.netto, numerisch: true,
               zelle: (z) => formatiereGeld(z.nettoCent),
             },
             {
-              schluessel: 'steuer', kopf: 'USt', numerisch: true,
+              schluessel: 'steuer', kopf: t.ust, numerisch: true,
               zelle: (z) => formatiereGeld(z.steuerCent),
             },
             {
-              schluessel: 'brutto', kopf: 'Brutto', numerisch: true,
+              schluessel: 'brutto', kopf: t.brutto, numerisch: true,
               zelle: (z) => formatiereGeld(z.bruttoCent),
             },
             {
               schluessel: 'beleg',
-              kopf: 'Beleg',
+              kopf: t.beleg,
               zelle: (z) => (z.belegId === null
                 ? (
                   <span className={z.belegPflichtVerletzt ? 'text-warning' : 'text-text-subtle'}>
-                    {z.belegPflichtVerletzt ? 'fehlt — darf nicht sein' : 'noch keiner'}
+                    {z.belegPflichtVerletzt ? t.belegFehltDarfNichtSein : t.nochKeiner}
                   </span>
                 )
                 : (
@@ -366,24 +357,24 @@ export default async function Ausgabenliste(
                     href={`/portal/${mandant}/finanzen/belege/${z.belegId}`}
                     className="text-text underline-offset-2 hover:text-brand hover:underline"
                   >
-                    {z.belegnummer ?? 'ohne Nummer'}
+                    {z.belegnummer ?? t.ohneNummer}
                   </Link>
                 )),
             },
             {
               schluessel: 'zustand',
-              kopf: 'Zustand',
+              kopf: g.zustand,
               zelle: (z) => (
                 <span className="inline-flex flex-col gap-s1">
                   <span className="inline-flex flex-wrap items-center gap-s2">
-                    <StatusPill zustand={PILLE[z.status]} />
+                    <StatusPill zustand={PILLE[z.status]} sprache={zugang.sprache} />
                     <span className="text-xs text-text-muted">
-                      {z.abgelehntGrund ?? ZUSTAND[z.status]}
+                      {z.abgelehntGrund ?? t.zustandListe[z.status]}
                     </span>
                   </span>
                   <span className="text-xs text-text-muted">
-                    {z.weiterberechenbar ? 'weiterberechenbar' : 'nicht weiterberechenbar'}
-                    {z.istErstattung ? ' · Erstattung' : ''}
+                    {z.weiterberechenbar ? t.weiterberechenbarJa : t.weiterberechenbarNein}
+                    {z.istErstattung ? t.erstattungSuffix : ''}
                   </span>
                 </span>
               ),
@@ -393,12 +384,9 @@ export default async function Ausgabenliste(
       )}
 
       <p className="mt-s5 max-w-prose text-xs text-text-muted">
-        Gelöscht wird keine Ausgabe (Invariante 8). Zurückgewiesen wird mit
-        Grund, und eine gebuchte Ausgabe ist unveränderlich — korrigiert wird
-        durch eine Gegenbuchung. Wer welche Erstattung bekommen hat, steht nicht
-        in dieser Liste: die Spalte liegt hinter einem eigenen Recht
-        (<code>personal.erstattung_lesen</code>), und der Zugriff darauf wird
-        protokolliert.
+        {t.ausgabenFussnoteVor}
+        <code>{RECHT_ERSTATTUNG_LESEN}</code>
+        {t.ausgabenFussnoteNach}
       </p>
     </PortalRahmen>
   );

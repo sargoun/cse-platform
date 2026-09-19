@@ -103,7 +103,7 @@ export default async function MeineZeiten({
       schluessel: 'status',
       kopf: t.status,
       zelle: (z) => (
-        <StatusPill
+        <StatusPill sprache={basis.sprache}
           zustand={
             z.storniert ? 'Archiviert'
               : z.gesperrt ? 'Abgeschlossen'

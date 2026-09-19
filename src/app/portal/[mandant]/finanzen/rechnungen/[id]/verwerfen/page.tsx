@@ -12,6 +12,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { RECHNUNG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-akte';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]/verwerfen` — der Entwurf wird
@@ -56,16 +58,12 @@ interface Kopf {
   readonly verworfen_grund: string | null;
 }
 
-const TYP_TEXT: Readonly<Record<string, string>> = {
-  zeiteintrag: 'Zeiteintrag',
-  aufmass: 'Aufmass',
-  vertrag: 'Vertragsleistung',
-  material: 'Material (Ausgabe)',
-  leistungsnachweis: 'Leistungsnachweis',
-  nachtrag: 'Nachtrag',
-  sonderleistung: 'Sonderleistung',
-  manuell: 'von Hand',
-};
+/*
+ * Kennungen, keine Woerter: der Pfad und der Name eines Rechts lauten in
+ * beiden Sprachen gleich und werden deshalb nicht uebersetzt.
+ */
+const PFAD_STORNO = '/storno';
+const RECHT_STORNIEREN = 'finanzen.stornieren';
 
 export default async function Verwerfenblatt(
   { params }: { params: Promise<{ mandant: string; id: string }> },
@@ -84,6 +82,10 @@ export default async function Verwerfenblatt(
      ein Verweis gezeigt wird — ohne das Recht führte er auf 404 und verriete,
      was er verbergen soll (AUT-06, D-581). */
   const darf = await haeltRechte(sitzung, 'finanzen.lesen', 'finanzen.stornieren');
+
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(RECHNUNG_AKTE_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -125,7 +127,7 @@ export default async function Verwerfenblatt(
 
   return (
     <PortalRahmen
-      titel="Entwurf verwerfen"
+      titel={t.entwurfVerwerfen}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -135,37 +137,35 @@ export default async function Verwerfenblatt(
       navigationsRechte={zugang.navigationsRechte}
     >
       {darf['finanzen.lesen'] === true ? (
-        <nav aria-label="Zurück" className="mb-s3">
+        <nav aria-label={g.zurueck} className="mb-s3">
           <Link
             href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
             className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
           >
-            ← {k.nummer ?? 'Entwurf ohne Nummer'}
+            ← {k.nummer ?? t.entwurfOhneNummer}
           </Link>
         </nav>
       ) : null}
 
-      <h1 className="mb-s3 text-h1 text-text">Entwurf verwerfen</h1>
+      <h1 className="mb-s3 text-h1 text-text">{t.entwurfVerwerfen}</h1>
 
       <Hinweis art="hinweis" cse="verwerfen-erklaerung" className="mb-s5">
         <p className="m-0 max-w-prose">
-          Der Entwurf wechselt von <strong>Entwurf</strong> nach{' '}
-          <strong>verworfen</strong>. Die Zeile bleibt stehen —{' '}
-          <strong className="text-text">es wird nichts gelöscht</strong>{' '}
-          (Invariante 8). Und weil ein Entwurf nie eine Nummer hält, entsteht
-          keine Lücke im Nummernkreis: der Zähler wird erst beim Festschreiben
-          berührt.
+          {t.wechseltVon} <strong>{t.entwurf}</strong> {t.nachWort}{' '}
+          <strong>{t.verworfen}</strong>{t.zeileBleibt}{' '}
+          <strong className="text-text">{t.nichtsGeloescht}</strong>{' '}
+          {t.keineLuecke}
         </p>
       </Hinweis>
 
-      <h2 className="mb-s3 text-h2 text-text">Der Entwurf in Kurzform</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.entwurfKurzform}</h2>
       <dl className="mb-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-3">
         <div>
-          <dt className="text-xs text-text-muted">Kunde</dt>
+          <dt className="text-xs text-text-muted">{g.kunde}</dt>
           <dd className="text-sm text-text">{k.kunde}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Leistungszeitraum</dt>
+          <dt className="text-xs text-text-muted">{t.leistungszeitraum}</dt>
           <dd className="text-sm text-text">
             {k.leistung_von === null && k.leistung_bis === null
               ? '—'
@@ -173,60 +173,57 @@ export default async function Verwerfenblatt(
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Rechnungsdatum</dt>
+          <dt className="text-xs text-text-muted">{t.rechnungsdatum}</dt>
           <dd className="text-sm text-text">{k.rechnungsdatum ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Netto</dt>
+          <dt className="text-xs text-text-muted">{t.netto}</dt>
           <dd className="cse-zahl text-sm text-text">
             {formatiereGeld(cent(BigInt(k.netto_gesamt_cent)))}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Brutto</dt>
+          <dt className="text-xs text-text-muted">{t.brutto}</dt>
           <dd className="cse-zahl text-sm text-text">
             {formatiereGeld(cent(BigInt(k.brutto_cent)))}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Positionen</dt>
+          <dt className="text-xs text-text-muted">{t.positionen}</dt>
           <dd className="cse-zahl text-sm text-text">{k.positionen}</dd>
         </div>
       </dl>
 
-      <h2 className="mb-s3 text-h2 text-text">Was durch das Verwerfen wieder frei wird</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.wasWiederFrei}</h2>
       {freiwerdend.length === 0 ? (
         <p className="mb-s5 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          Keine Quelle ist an diesem Entwurf gebunden. Es wird also keine
-          Leistung wieder abrechenbar — entweder stehen die Positionen „von
-          Hand", oder der Entwurf hat noch keine.
+          {t.keineQuelle}
         </p>
       ) : (
         <>
           <p className="mb-s3 max-w-prose text-sm text-text-muted">
-            Diese Quellen sind heute als abgerechnet markiert. Nach dem
-            Verwerfen sind sie wieder abrechenbar und erscheinen bei der
-            nächsten Rechnung zu diesem Auftrag erneut.
+            {t.quellenErklaerung}
           </p>
           <DataTable
-            beschriftung="Quellen, die durch das Verwerfen wieder abrechenbar werden"
+            beschriftung={t.tabelleQuellen}
             zeilen={freiwerdend}
             schluessel={(q) => q.id}
             spalten={[
               {
-                schluessel: 'position', kopf: 'Position', numerisch: true,
+                schluessel: 'position', kopf: t.position, numerisch: true,
                 zelle: (q) => q.positionNr,
               },
               {
-                schluessel: 'typ', kopf: 'Herkunft',
-                zelle: (q) => TYP_TEXT[q.typ] ?? q.typ,
+                schluessel: 'typ', kopf: t.herkunft,
+                zelle: (q) => t.herkunftNamen[q.typ as keyof typeof t.herkunftNamen]
+                  ?? q.typ,
               },
               {
-                schluessel: 'bezeichnung', kopf: 'Beleg',
+                schluessel: 'bezeichnung', kopf: t.beleg,
                 zelle: (q) => q.bezeichnung,
               },
               {
-                schluessel: 'anteil', kopf: 'Anteil', numerisch: true,
+                schluessel: 'anteil', kopf: t.anteil, numerisch: true,
                 zelle: (q) => formatiereGeld(q.anteilCent),
               },
             ]}
@@ -243,34 +240,30 @@ export default async function Verwerfenblatt(
         >
           <input type="hidden" name="rechnungId" value={k.id} />
           <label className="block text-sm text-text" htmlFor="grund">
-            Grund (Pflicht)
+            {t.grundPflicht}
           </label>
           <input id="grund" name="grund" type="text" required minLength={3} className={feld} />
           <p className="m-0 mt-s2 max-w-prose text-xs text-text-muted">
-            Der Grund wird mitgeschrieben. Er ist der Satz, den eine
-            Betriebsprüfung liest, wenn sie nach dem Entwurf fragt, zu dem keine
-            Rechnung entstanden ist. Nach dem Verwerfen ist der Entwurf nur noch
-            lesbar und nicht wiederbelebbar.
+            {t.grundErklaerung}
           </p>
           <button
             type="submit"
             className="mt-s4 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
             data-cse="verwerfen-knopf"
           >
-            Entwurf verwerfen
+            {t.entwurfVerwerfen}
           </button>
         </form>
       ) : (
         <Hinweis art="hinweis" cse="verwerfen-nicht-moeglich" className="mt-s5">
           <p className="m-0 max-w-prose">
             {k.status === 'verworfen'
-              ? `Dieser Entwurf ist am ${k.verworfen_am ?? 'unbekannten Datum'} `
-                + `von ${k.verworfen_von ?? 'einem Konto ohne Namen'} verworfen `
-                + `worden. Grund: „${k.verworfen_grund ?? '—'}". Die Zeile bleibt `
-                + 'stehen; wiederbeleben lässt sie sich nicht.'
-              : 'Dieser Beleg ist festgeschrieben. Ein festgeschriebener Beleg wird '
-                + 'nicht verworfen, sondern durch eine Stornobuchung aufgehoben — '
-                + 'das ist der einzige Weg zu einer Korrektur (Invariante 4).'}
+              ? `${t.verworfenAm} ${k.verworfen_am ?? t.unbekanntesDatum} `
+                + `${t.verworfenVon} ${k.verworfen_von ?? t.kontoOhneNamen}`
+                + `${t.verworfenWorden} ${t.grundIst} `
+                + `${t.zitatAuf}${k.verworfen_grund ?? '—'}${t.zitatZu}. `
+                + t.zeileBleibtStehen
+              : t.istFestgeschrieben}
           </p>
           {k.status === 'festgeschrieben' && darf['finanzen.stornieren'] === true ? (
             <p className="m-0 mt-s2">
@@ -278,15 +271,13 @@ export default async function Verwerfenblatt(
                 href={`/portal/${mandant}/finanzen/rechnungen/${id}/storno`}
                 className="text-sm underline underline-offset-2"
               >
-                Zur Stornoseite →
+                {t.zurStornoseite}
               </Link>
             </p>
           ) : k.status === 'festgeschrieben' ? (
             <p className="m-0 mt-s2 text-sm text-text-muted">
-              Der Storno läuft über <code>/storno</code> und verlangt{' '}
-              <code>finanzen.stornieren</code>. Dieses Konto hält das Recht
-              nicht — deshalb steht hier der Weg als Satz und nicht als Verweis:
-              ein Verweis auf 404 verrät, was er verbergen soll (AUT-06).
+              {t.stornoLaeuftUeber} <code>{PFAD_STORNO}</code> {t.undVerlangt}{' '}
+              <code>{RECHT_STORNIEREN}</code>{t.rechtFehltErklaerung}
             </p>
           ) : null}
         </Hinweis>

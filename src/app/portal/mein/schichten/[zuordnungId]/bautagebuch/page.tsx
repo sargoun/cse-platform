@@ -189,7 +189,7 @@ export default async function MeinBautagebuch(
               data-cse="bautag"
             >
               <div className="mb-s3 flex flex-wrap items-center gap-s3">
-                <StatusPill zustand={BAUTAG_PILLE[tag.status] ?? 'Entwurf'} />
+                <StatusPill sprache={basis.sprache} zustand={BAUTAG_PILLE[tag.status] ?? 'Entwurf'} />
                 <span className="text-sm text-text-muted">
                   {bautagStatus[tag.status as BautagStatusSchluessel] ?? tag.status}
                 </span>
@@ -234,7 +234,7 @@ export default async function MeinBautagebuch(
                     className="rounded-lg border border-line bg-surface p-s4"
                   >
                     <div className="mb-s3 flex flex-wrap items-center gap-s3">
-                      <StatusPill zustand={m.storniert ? 'Archiviert' : 'Abgeschlossen'} />
+                      <StatusPill sprache={basis.sprache} zustand={m.storniert ? 'Archiviert' : 'Abgeschlossen'} />
                       <span className="text-sm text-text-muted">
                         {m.gewerk_code} · {m.gewerk}
                       </span>
@@ -338,7 +338,7 @@ export default async function MeinBautagebuch(
                     className="rounded-lg border border-line bg-surface p-s4"
                   >
                     <div className="mb-s3 flex flex-wrap items-center gap-s3">
-                      <StatusPill zustand={q.storniert ? 'Archiviert' : 'Abgeschlossen'} />
+                      <StatusPill sprache={basis.sprache} zustand={q.storniert ? 'Archiviert' : 'Abgeschlossen'} />
                       <span className="text-sm text-text-muted">
                         {artText[q.art] ?? POSITION_ART_TEXT[q.art]}
                       </span>

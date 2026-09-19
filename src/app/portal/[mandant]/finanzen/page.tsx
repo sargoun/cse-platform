@@ -9,6 +9,8 @@ import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import type { IconName } from '@/lib/design/icons';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../unterseite';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { UEBERSICHT_TEXTE, type KartenZiel } from '@/lib/i18n/verwaltung/finanzen/uebersicht';
 
 /**
  * `/portal/[mandant]/finanzen` — die Finanzuebersicht dieser Gesellschaft
@@ -50,35 +52,23 @@ interface Kennzahlen {
 }
 
 interface Karte {
-  readonly pfad: string;
-  readonly titel: string;
-  readonly text: string;
+  /* Der Pfad ist zugleich der Schluessel der Texttabelle (`KartenZiel`). */
+  readonly pfad: KartenZiel;
   readonly icon: IconName;
 }
 
 const KARTEN: readonly Karte[] = [
-  { pfad: 'finanzen/rechnungen', titel: 'Rechnungen', icon: 'rechnung',
-    text: 'Entwürfe, Festgeschriebenes, Stornos — jede Nummer lückenlos aus dem eigenen Kreis.' },
-  { pfad: 'finanzen/zahlungen', titel: 'Zahlungen und offene Posten', icon: 'euro',
-    text: 'Was Kunden schulden, was eingegangen ist, was überfällig wird.' },
-  { pfad: 'finanzen/eingangsrechnungen', titel: 'Eingangsrechnungen', icon: 'dokument',
-    text: 'Lieferantenrechnungen: erfasst, geprüft, freigegeben, gebucht.' },
-  { pfad: 'finanzen/mahnungen', titel: 'Mahnwesen', icon: 'warnung',
-    text: 'Stufen, Gebühren, Vorschläge — versendet wird nichts ohne Freigabe.' },
-  { pfad: 'finanzen/ausgangsbuch', titel: 'Rechnungsausgangsbuch', icon: 'export',
-    text: 'Je Nummernkreis, lückenlos, mit dem Stand der Hash-Kette.' },
-  { pfad: 'finanzen/ausgaben', titel: 'Ausgaben', icon: 'euro',
-    text: 'Barkasse, Tankbeleg, Material, Auslagenerstattung — der Aufwand, der keine Lieferantenrechnung ist.' },
-  { pfad: 'finanzen/belege', titel: 'Belege', icon: 'dokument',
-    text: 'Das GoBD-Belegarchiv: Typ, Quelle, Aufbewahrungsklasse — die Datei erst nach der Rechteentscheidung.' },
-  { pfad: 'finanzen/pruefungen', titel: 'Vorab-Prüfungen', icon: 'qualitaet',
-    text: 'Vor der Rechnungsstellung: abgeschlossener Auftrag ohne erfasste Zeit, Entwurfszeile ohne Herkunft.' },
-  { pfad: 'finanzen/nummernkreise', titel: 'Nummernkreise', icon: 'buch',
-    text: 'Maske, Rücksetzung, Kettenlage — der Zähler ist Ansicht und kein Eingabefeld.' },
-  { pfad: 'finanzen/hashkette', titel: 'Hashkette', icon: 'schloss',
-    text: 'Der nächtliche Prüfbericht je Nummernkreis, und das Nachrechnen auf Wunsch.' },
-  { pfad: 'buchhaltung/archiv', titel: 'GoBD-Archiv', icon: 'schloss',
-    text: 'Rechnungen und Belege, zehn Jahre, nicht löschbar — mit Aufbewahrungsregeln und Prüfbündel.' },
+  { pfad: 'finanzen/rechnungen', icon: 'rechnung' },
+  { pfad: 'finanzen/zahlungen', icon: 'euro' },
+  { pfad: 'finanzen/eingangsrechnungen', icon: 'dokument' },
+  { pfad: 'finanzen/mahnungen', icon: 'warnung' },
+  { pfad: 'finanzen/ausgangsbuch', icon: 'export' },
+  { pfad: 'finanzen/ausgaben', icon: 'euro' },
+  { pfad: 'finanzen/belege', icon: 'dokument' },
+  { pfad: 'finanzen/pruefungen', icon: 'qualitaet' },
+  { pfad: 'finanzen/nummernkreise', icon: 'buch' },
+  { pfad: 'finanzen/hashkette', icon: 'schloss' },
+  { pfad: 'buchhaltung/archiv', icon: 'schloss' },
 ];
 
 export default async function Finanzuebersicht(
@@ -88,6 +78,9 @@ export default async function Finanzuebersicht(
   const tor = await mandantTor(`/portal/${mandant}/finanzen`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang, mandantId } = tor;
+
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(UEBERSICHT_TEXTE, zugang.sprache);
 
   const kartenRechte = [...new Set(KARTEN.flatMap((k) => {
     const route = findeRoute(`/portal/${mandant}/${k.pfad}`);
@@ -143,7 +136,7 @@ export default async function Finanzuebersicht(
 
   return (
     <PortalRahmen
-      titel="Finanzen"
+      titel={t.finanzen}
       bereich={mandant as BereichSchluessel}
       nurLesen
       leiste={zugang.leiste}
@@ -152,17 +145,17 @@ export default async function Finanzuebersicht(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <h1 className="mb-s5 text-h1 text-text">Finanzen {String(z.jahr)}</h1>
+      <h1 className="mb-s5 text-h1 text-text">{`${t.finanzen} ${String(z.jahr)}`}</h1>
 
       <div data-cse="finanzen-kacheln" className="mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 xl:grid-cols-4">
         {gehalten.has(RECHTE.rechnungen) ? (
           <>
             <a href={`${basis}/rechnungen`} className="group block rounded-lg" data-cse="kachel" data-kachel="fakturiert">
-              <KpiStat label={`Fakturiert ${String(z.jahr)} netto · ${String(z.festgeschrieben_jahr)} Rechnungen`}
+              <KpiStat label={`${t.fakturiert} ${String(z.jahr)} ${t.netto} · ${String(z.festgeschrieben_jahr)} ${t.rechnungenZahl}`}
                        wert={geld(z.fakturiert_netto_cent)} ton="success" icon="rechnung" interaktiv />
             </a>
             <a href={`${basis}/rechnungen`} className="group block rounded-lg" data-cse="kachel" data-kachel="entwuerfe">
-              <KpiStat label="Rechnungsentwürfe" wert={String(z.entwuerfe)}
+              <KpiStat label={t.rechnungsentwuerfe} wert={String(z.entwuerfe)}
                        ton={z.entwuerfe > 0 ? 'info' : 'muted'} icon="stift" interaktiv />
             </a>
           </>
@@ -170,11 +163,11 @@ export default async function Finanzuebersicht(
         {gehalten.has(RECHTE.posten) ? (
           <>
             <a href={`${basis}/zahlungen`} className="group block rounded-lg" data-cse="kachel" data-kachel="forderungen">
-              <KpiStat label="Offene Forderungen" wert={geld(z.forderungen_offen_cent)}
+              <KpiStat label={t.offeneForderungen} wert={geld(z.forderungen_offen_cent)}
                        ton={BigInt(z.forderungen_offen_cent) > 0n ? 'warning' : 'muted'} icon="euro" interaktiv />
             </a>
             <a href={`${basis}/zahlungen`} className="group block rounded-lg" data-cse="kachel" data-kachel="ueberfaellig">
-              <KpiStat label={`Überfällig · ${String(z.posten_ueberfaellig)} Posten`} wert={geld(z.forderungen_ueberfaellig_cent)}
+              <KpiStat label={`${t.ueberfaellig} · ${String(z.posten_ueberfaellig)} ${t.posten}`} wert={geld(z.forderungen_ueberfaellig_cent)}
                        ton={z.posten_ueberfaellig > 0 ? 'danger' : 'muted'} icon="warnung" interaktiv />
             </a>
           </>
@@ -182,30 +175,27 @@ export default async function Finanzuebersicht(
         {gehalten.has(RECHTE.eingang) ? (
           <>
             <a href={`${basis}/eingangsrechnungen`} className="group block rounded-lg" data-cse="kachel" data-kachel="eingang-offen">
-              <KpiStat label={`Eingangsrechnungen zu prüfen · ${String(z.eingang_offen)}`} wert={geld(z.eingang_offen_brutto_cent)}
+              <KpiStat label={`${t.eingangsrechnungenZuPruefen} · ${String(z.eingang_offen)}`} wert={geld(z.eingang_offen_brutto_cent)}
                        ton={z.eingang_offen > 0 ? 'info' : 'muted'} icon="dokument" interaktiv />
             </a>
             <a href={`${basis}/eingangsrechnungen`} className="group block rounded-lg" data-cse="kachel" data-kachel="eingang-jahr">
-              <KpiStat label={`Eingang ${String(z.jahr)} netto (freigegeben, gebucht)`} wert={geld(z.eingang_jahr_netto_cent)}
+              <KpiStat label={`${t.eingang} ${String(z.jahr)} ${t.netto} ${t.freigegebenGebucht}`} wert={geld(z.eingang_jahr_netto_cent)}
                        ton="muted" icon="export" interaktiv />
             </a>
           </>
         ) : null}
         {gehalten.has(RECHTE.mahnungen) ? (
           <a href={`${basis}/mahnungen`} className="group block rounded-lg" data-cse="kachel" data-kachel="mahnungen">
-            <KpiStat label="Mahnungen in Arbeit" wert={String(z.mahnungen_offen)}
+            <KpiStat label={t.mahnungenInArbeit} wert={String(z.mahnungen_offen)}
                      ton={z.mahnungen_offen > 0 ? 'warning' : 'muted'} icon="warnung" interaktiv />
           </a>
         ) : null}
       </div>
       <p className="mb-s6 max-w-[72ch] text-sm text-text-subtle">
-        Fakturiert zählt festgeschriebene Rechnungen nach Rechnungsdatum, netto; Eingang
-        freigegebene und gebuchte Eingangsrechnungen. Das ist keine Gewinn-und-Verlust-Rechnung
-        — den Jahresabschluss erstellt der Steuerberater aus dem DATEV-Export. Eine Kachel,
-        deren Recht Sie nicht halten, fehlt hier — sie zeigt keine Null.
+        {t.kachelFussnote}
       </p>
 
-      <h2 className="mb-s3 text-h2 text-text">Bereiche</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.bereiche}</h2>
       <ul data-cse="finanzen-karten" className="grid grid-cols-1 gap-s4 md:grid-cols-2">
         {sichtbar.map((k) => (
           <li key={k.pfad}>
@@ -214,8 +204,8 @@ export default async function Finanzuebersicht(
               <div className="mb-s3 flex h-10 w-10 items-center justify-center rounded-md bg-surface-3 text-text">
                 <Icon name={k.icon} />
               </div>
-              <h3 className="text-h3 text-text">{k.titel}</h3>
-              <p className="mt-s2 text-sm text-text-muted">{k.text}</p>
+              <h3 className="text-h3 text-text">{t.karten[k.pfad].titel}</h3>
+              <p className="mt-s2 text-sm text-text-muted">{t.karten[k.pfad].text}</p>
             </a>
           </li>
         ))}

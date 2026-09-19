@@ -3322,6 +3322,12 @@ Beantworten helfen:
 | O-871 | **Soll ein Termin einem Team gehören können?** `04-SEITENKARTE.md` §6 verspricht für `/portal/gruppe/kalender` einen Filter „nach Bereich, Team und Person“, und `06-RADAR-KI-INHALT.md` §7.3/§7.4 sehen dafür `kalender_eintrag.team_id` und eine Tabelle `kalender_teilnehmer` vor. Gebaut ist keines von beiden; Teambezug trägt heute nur die Schicht (`einsatz_zuordnung` → `team_mitglied`). Der Teamfilter ist deshalb vollständig gebaut und greift auf Schichten; die Seite sagt es („nur Schichten (O-871)“). Eine Spalte anzulegen, die kein Schreibweg füllt, wäre ein Filter, der immer leer antwortet. | CAL-02, `06-RADAR-KI-INHALT.md` §7.3/§7.5, `drizzle/0230` |
 | O-872 | **Welches Recht trägt den Personenblick im Gruppenkalender?** Heute: `gruppe.personal.lesen` (schaltet die Personenliste frei) zusammen mit `gruppe.dienstplan.lesen` (gibt die Schichten je Bereich frei) — genau die Kombination, die schon `/portal/gruppe/personen` und die ArbZG-Befunde auf `/portal/gruppe/dienstplan` trägt (D-09: das Gesetz zählt je Person über die Gesellschaften). Offen ist, ob dieser Blick ein eigenes Recht bekommen soll, weil er feiner ist als beide: er zeigt nicht nur DASS jemand in zwei Gesellschaften arbeitet, sondern WANN. Die Voreinstellung der Seite zeigt keinen Personenbezug; der Filter ist ein ausdrücklicher Suchweg, und ohne die Rechte erscheint er gar nicht. | CAL-02, D-09, TEN-05, `src/server/services/gruppe/kalender.ts` |
 
+### Raised while building · die Verwaltung zweisprachig (`O-886`)
+
+| Nr. | Frage | Bezug |
+|---|---|---|
+| O-886 | **Darf der Stundennachweis nach § 17 MiLoG in der Sprache der Arbeiterin stehen — oder muss er deutsch sein, um als Aufzeichnung zu gelten?** § 17 Abs. 1 MiLoG verlangt vom Arbeitgeber die Aufzeichnung von Beginn, Ende und Dauer; eine Sprache nennt das Gesetz nicht, und die Aufzeichnung, die der Prüfung standhalten muss, ist die im System — nicht das Blatt, das die Arbeiterin abruft. Gebaut ist deshalb die **Lesehilfe**: Spalten und erklärende Sätze folgen `person.sprache` (de/en/ar/tr), die Fundstellen (`§ 17 MiLoG`, `§ 17 Abs. 1 MiLoG`) bleiben unübersetzt, und der Prüfsummen-Hash bleibt unverändert — er hängt an den Daten, nicht an der Anzeige. Das folgt **D-84** (Impressum und Datenschutz sind deutsch bindend, die englische Fassung sagt es dazu) und ist damit kein erfundener Weg, sondern der schon entschiedene. Sagt der Auftraggeber, das Blatt müsse deutsch bleiben, ist die Umkehr **eine Zeile**: `meinTexte('de')` statt `basis.texte`. | § 17 MiLoG, D-84, EMP-12, SPEC §10, `src/app/portal/mein/monatsnachweis/page.tsx` |
+
 ---
 
 O-02 has been answered — see **D-11**. O-03 has been answered — see **D-09**; the
@@ -14263,6 +14269,63 @@ Vorgreifen in die andere Richtung.
 
 | Betrifft | TEN-05, SEC-A3, REC-07, `06-RADAR-KI-INHALT.md` §1.4/§6.2, `drizzle/0166`, `drizzle/0168`, `drizzle/0370` |
 |---|---|
+
+---
+
+### D-610 · Was dem Super-Admin gehört — und was dem Admin der Gesellschaft bleibt
+
+**Die Frage kam vom Mandanten, und sie kam als Beobachtung:** „تغيير حسابات
+السوشيال ميديا … برأيي لازم تكون عند السوبر ادمن بس … او تعيين مفتاح لل AI".
+
+**Der Befund dazu.** Heute tragen **genau zwei** Rechte `nur_global`:
+`system.mandant_verwalten` und `system.zwei_faktor_zuruecksetzen`
+(`drizzle/0008`). Alles andere — Zugangsdaten für Instagram und LinkedIn, der
+Schlüssel des Sprachmodells, die Bilder der Website — ist heute ein Recht des
+Admins EINER Gesellschaft. Und eine globale Einstellungsfläche gibt es nicht:
+`/portal/gruppe` liest ausschliesslich (Invariante 10).
+
+**Entschieden: geteilt, entlang der Frage „wer trägt den Schaden".**
+
+| Gehört dem Super-Admin (`nur_global`) | Bleibt beim Admin der Gesellschaft |
+|---|---|
+| Zugangsdaten der sozialen Kanäle | Beiträge, Planung, Freigabe |
+| Schlüssel und Region des Sprachmodells | Agentenrichtlinien je Gesellschaft |
+| Anlegen und Einladen von Verwaltungskonten | Mitarbeiter- und Kundenzugänge |
+| Zugangsdaten jeder externen Anbindung | Alles, was Inhalt ist |
+| | Bilder, Nachrichten, Referenzen, Leistungen, Seiten der Website |
+
+**Warum die Bilder NICHT hochwandern**, obwohl sie in derselben Frage
+standen: sie sind der tägliche Inhalt der Reinigungs- und der Bauabteilung.
+Wandern sie zum Super-Admin, wird jede neue Referenzaufnahme zu einer
+Rückfrage bei einem einzelnen Menschen — und die Website veraltet, weil das
+Ändern zu teuer geworden ist. Ein Schlüssel ist etwas anderes: er kostet
+Geld, wenn er abfliesst, und er gilt für die ganze Gruppe.
+
+**Die Trennlinie in einem Satz:** was bei Missbrauch die GRUPPE trifft, gehört
+nach oben; was eine Gesellschaft allein trifft, bleibt unten.
+
+---
+
+### D-611 · O-39 ist beantwortet: die Woche wird freigegeben, bevor sie abgerechnet wird
+
+**Die Frage** (O-39) lautete: Gibt es den Schritt „Zeit zur Abrechnung
+freigeben" als eigenen menschlichen Akt — oder nimmt sich eine
+festgeschriebene Rechnung die Zeilen direkt?
+
+**Die Antwort des Mandanten: ja, ein Mensch gibt frei, wöchentlich, vor der
+Fakturierung.** In seinen Worten: die Stunden gehen an den zuständigen Admin,
+der bestätigt, korrigiert oder ablehnt.
+
+**Was das öffnet.** `/portal/[mandant]/zeiten/freigabe` ist seit PR 50 fertig
+gebaut und antwortete mit 404, weil `zeit.abrechnung_freigeben` an keine Rolle
+gebunden war (AUT-06). Die Antwort ist deshalb **eine Rechtebindung und kein
+Umbau** — genau so, wie die Seite es vorgesehen hatte.
+
+**Was schon vorher nicht offen war:** `freigegeben_am` steht seit 0034 im
+Schema und hat zwei gebaute Leser — das Stundenkonto nimmt nur Freigegebenes
+(EMP-04), und die Rechnungsstellung wählt `freigegeben_am is not null and
+abgerechnet_am is null` (FIN-07). Die Kette war vollständig; ihr fehlte der
+menschliche Anfang.
 
 ---
 

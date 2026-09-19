@@ -6,6 +6,8 @@ import {
   BereichMarke, GruppenAntwort, GruppenHinweis, GruppenRahmen, gruppenLesen, gruppenTor, KeinRecht,
   type Suchparameter,
 } from '../tor';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { UEBERSICHT_TEXTE } from '@/lib/i18n/verwaltung/finanzen/uebersicht';
 
 /**
  * `/portal/gruppe/finanzen` — Umsatz, Aufwand und Saldo je Gesellschaft und
@@ -33,6 +35,9 @@ export default async function GruppenFinanzen({ searchParams }: { searchParams: 
   const tor = await gruppenTor('/portal/gruppe/finanzen');
   if (tor.art !== 'ok') return <GruppenAntwort tor={tor} />;
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(UEBERSICHT_TEXTE, tor.zugang.sprache);
+
   const daten = await gruppenLesen(tor.zugang, async (kontext) => {
     const [h] = await kontext.abfrage<{ jahr: number }>(
       `select extract(year from (now() at time zone 'Europe/Berlin'))::int as jahr`);
@@ -43,20 +48,20 @@ export default async function GruppenFinanzen({ searchParams }: { searchParams: 
   const { jahr, laufend, bereiche, summe } = daten;
 
   const monatsSpalten = [
-    { schluessel: 'monat', kopf: 'Monat', zelle: (z: MonatsZeile) => z.label },
+    { schluessel: 'monat', kopf: t.monatKopf, zelle: (z: MonatsZeile) => z.label },
     ...bereiche.map((b, i) => ({
       schluessel: b.slug, kopf: b.name, numerisch: true,
       zelle: (z: MonatsZeile) => <Betrag wert={z.werte[i] ?? null} />,
     })),
-    { schluessel: 'summe', kopf: 'Gruppe', numerisch: true,
+    { schluessel: 'summe', kopf: t.gruppeKopf, numerisch: true,
       zelle: (z: MonatsZeile) => <strong>{formatiereGeld(z.summe)}</strong> },
   ];
 
   return (
-    <GruppenRahmen zugang={tor.zugang} titel="Finanzen" aktiverTab="finanzen">
+    <GruppenRahmen zugang={tor.zugang} titel={t.finanzen} aktiverTab="finanzen">
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="m-0 text-h1 text-text">Finanzen {String(jahr)}</h1>
-        <nav aria-label="Geschäftsjahr" className="flex gap-s2 text-sm">
+        <h1 className="m-0 text-h1 text-text">{`${t.finanzen} ${String(jahr)}`}</h1>
+        <nav aria-label={t.geschaeftsjahr} className="flex gap-s2 text-sm">
           <a href={`/portal/gruppe/finanzen?jahr=${String(jahr - 1)}`}
              className="min-h-11 rounded-md border border-line px-s4 py-s3 text-text hover:bg-surface-2">
             ‹ {String(jahr - 1)}
@@ -72,79 +77,80 @@ export default async function GruppenFinanzen({ searchParams }: { searchParams: 
 
       <div data-cse="finanzen-summen"
            className="mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 xl:grid-cols-5">
-        <KpiStat label="Fakturiert netto" wert={formatiereGeld(summe.fakturiertCent)} ton="success" icon="rechnung" />
-        <KpiStat label="Eingangsrechnungen netto" wert={formatiereGeld(summe.eingangCent)} ton="info" icon="euro" />
-        <KpiStat label="Saldo aus Rechnungen"
+        <KpiStat label={t.fakturiertNetto} wert={formatiereGeld(summe.fakturiertCent)} ton="success" icon="rechnung" />
+        <KpiStat label={t.eingangsrechnungenNetto} wert={formatiereGeld(summe.eingangCent)} ton="info" icon="euro" />
+        <KpiStat label={t.saldoAusRechnungen}
                  wert={summe.saldoCent === null ? '—' : formatiereGeld(summe.saldoCent)}
                  ton={summe.saldoCent !== null && summe.saldoCent < 0n ? 'danger' : 'muted'} icon="uebersicht" />
-        <KpiStat label="Forderungen offen" wert={formatiereGeld(summe.forderungenOffenCent)}
+        <KpiStat label={t.forderungenOffen} wert={formatiereGeld(summe.forderungenOffenCent)}
                  ton={summe.forderungenOffenCent > 0n ? 'warning' : 'muted'} icon="warnung" />
-        <KpiStat label="Verbindlichkeiten offen" wert={formatiereGeld(summe.verbindlichkeitenOffenCent)}
+        <KpiStat label={t.verbindlichkeitenOffen} wert={formatiereGeld(summe.verbindlichkeitenOffenCent)}
                  ton="muted" icon="dokument" />
       </div>
 
-      <h2 className="mb-s3 text-h2 text-text">Je Gesellschaft</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.jeGesellschaft}</h2>
       <div data-cse="finanzen-bereiche">
         <DataTable
-          beschriftung={`Finanzen ${String(jahr)} je Gesellschaft`}
+          beschriftung={`${t.finanzen} ${String(jahr)} ${t.tabelleGesellschaften}`}
           zeilen={bereiche}
           schluessel={(b) => b.slug}
           spalten={[
-            { schluessel: 'bereich', kopf: 'Gesellschaft',
+            { schluessel: 'bereich', kopf: t.gesellschaftKopf,
               zelle: (b) => <BereichMarke slug={b.slug} name={b.name} /> },
-            { schluessel: 'fakturiert', kopf: 'Fakturiert netto', numerisch: true,
+            { schluessel: 'fakturiert', kopf: t.fakturiertNetto, numerisch: true,
               zelle: (b) => <Betrag wert={b.fakturiertCent} /> },
-            { schluessel: 'rechnungen', kopf: 'Rechnungen', numerisch: true,
+            { schluessel: 'rechnungen', kopf: t.rechnungenKopf, numerisch: true,
               zelle: (b) => (b.rechnungen === null ? <KeinRecht /> : b.rechnungen) },
-            { schluessel: 'eingang', kopf: 'Eingang netto', numerisch: true,
+            { schluessel: 'eingang', kopf: t.eingangNettoKopf, numerisch: true,
               zelle: (b) => <Betrag wert={b.eingangCent} /> },
-            { schluessel: 'eingangsrechnungen', kopf: 'Belege', numerisch: true,
+            { schluessel: 'eingangsrechnungen', kopf: t.belegeKopf, numerisch: true,
               zelle: (b) => (b.eingangsrechnungen === null ? <KeinRecht /> : b.eingangsrechnungen) },
-            { schluessel: 'saldo', kopf: 'Saldo', numerisch: true,
+            { schluessel: 'saldo', kopf: t.saldoKopf, numerisch: true,
               zelle: (b) => <Betrag wert={b.saldoCent} /> },
-            { schluessel: 'forderungen', kopf: 'Forderungen offen', numerisch: true,
+            { schluessel: 'forderungen', kopf: t.forderungenOffen, numerisch: true,
               zelle: (b) => <Betrag wert={b.forderungenOffenCent} /> },
-            { schluessel: 'verbindlichkeiten', kopf: 'Verbindlichkeiten offen', numerisch: true,
+            { schluessel: 'verbindlichkeiten', kopf: t.verbindlichkeitenOffen, numerisch: true,
               zelle: (b) => <Betrag wert={b.verbindlichkeitenOffenCent} /> },
           ]}
         />
       </div>
-      <GruppenHinweis text="Saldo = fakturierte Ausgangsrechnungen − freigegebene und gebuchte Eingangsrechnungen, jeweils netto nach Rechnungsdatum. Das ist keine Gewinn-und-Verlust-Rechnung: Personal, Abschreibungen, Abgrenzungen und Steuern fehlen; den Jahresabschluss erstellt der Steuerberater aus dem DATEV-Export." />
+      <GruppenHinweis text={t.saldoHinweis} />
 
-      <h2 className="mb-s3 mt-s6 text-h2 text-text">Fakturiert je Monat</h2>
+      <h2 className="mb-s3 mt-s6 text-h2 text-text">{t.fakturiertJeMonat}</h2>
       <div data-cse="finanzen-monate-fakturiert">
-        <DataTable beschriftung={`Fakturiert ${String(jahr)} je Monat und Gesellschaft`}
+        <DataTable beschriftung={`${t.fakturiert} ${String(jahr)} ${t.tabelleFakturiertMonate}`}
                    zeilen={daten.fakturiertJeMonat} schluessel={(z) => String(z.monat)}
                    spalten={monatsSpalten} />
       </div>
 
-      <h2 className="mb-s3 mt-s6 text-h2 text-text">Eingangsrechnungen je Monat</h2>
+      <h2 className="mb-s3 mt-s6 text-h2 text-text">{t.eingangJeMonat}</h2>
       <div data-cse="finanzen-monate-eingang">
-        <DataTable beschriftung={`Eingangsrechnungen ${String(jahr)} je Monat und Gesellschaft`}
-                   zeilen={daten.eingangJeMonat} schluessel={(z) => String(z.monat)}
-                   spalten={monatsSpalten} />
+        <DataTable
+          beschriftung={`${t.eingangsrechnungenWort} ${String(jahr)} ${t.tabelleEingangMonate}`}
+          zeilen={daten.eingangJeMonat} schluessel={(z) => String(z.monat)}
+          spalten={monatsSpalten} />
       </div>
 
-      <h2 className="mb-s3 mt-s6 text-h2 text-text">Ergebnis je Monat (BWA-artig)</h2>
+      <h2 className="mb-s3 mt-s6 text-h2 text-text">{t.ergebnisJeMonat}</h2>
       <div data-cse="finanzen-monate-ergebnis">
         <DataTable
-          beschriftung={`Ergebnis ${String(jahr)} je Monat — Erlöse minus Aufwand, Summe der Gesellschaften`}
+          beschriftung={`${t.ergebnisKopf} ${String(jahr)} ${t.tabelleErgebnisMonate}`}
           zeilen={daten.fakturiertJeMonat.map((z, i) => ({
             monat: z.monat, label: z.label,
             erloese: z.summe, aufwand: daten.eingangJeMonat[i]?.summe ?? (0n as Cent),
           }))}
           schluessel={(z) => String(z.monat)}
           spalten={[
-            { schluessel: 'monat', kopf: 'Monat', zelle: (z) => z.label },
-            { schluessel: 'erloese', kopf: 'Erlöse netto', numerisch: true, zelle: (z) => formatiereGeld(z.erloese) },
-            { schluessel: 'aufwand', kopf: 'Aufwand netto', numerisch: true, zelle: (z) => formatiereGeld(z.aufwand) },
-            { schluessel: 'ergebnis', kopf: 'Ergebnis', numerisch: true,
+            { schluessel: 'monat', kopf: t.monatKopf, zelle: (z) => z.label },
+            { schluessel: 'erloese', kopf: t.erloeseNettoKopf, numerisch: true, zelle: (z) => formatiereGeld(z.erloese) },
+            { schluessel: 'aufwand', kopf: t.aufwandNettoKopf, numerisch: true, zelle: (z) => formatiereGeld(z.aufwand) },
+            { schluessel: 'ergebnis', kopf: t.ergebnisKopf, numerisch: true,
               zelle: (z) => <strong data-cse="gruppe-monat-ergebnis" data-monat={String(z.monat)}
                                     data-cent={(z.erloese - z.aufwand).toString()}><Betrag wert={(z.erloese - z.aufwand) as Cent} /></strong> },
           ]}
         />
       </div>
-      <GruppenHinweis text="BWA-artig, keine Betriebswirtschaftliche Auswertung: Erlöse und Aufwand aus den Belegen nach Rechnungsdatum, je Gesellschaft dieselbe Rechnung wie unter Buchhaltung › Monatszahlen; die Gruppe ist die Summe der Gesellschaften." />
+      <GruppenHinweis text={t.bwaHinweis} />
     </GruppenRahmen>
   );
 }

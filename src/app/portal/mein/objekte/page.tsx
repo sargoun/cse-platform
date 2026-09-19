@@ -71,13 +71,13 @@ export default async function MeineObjekte() {
                     */}
                   {o.aktuellEingeteilt && (
                     <>
-                      <StatusPill zustand="Aktiv" />
+                      <StatusPill sprache={basis.sprache} zustand="Aktiv" />
                       <span data-cse="eingeteilt" className="text-sm text-text">
                         {t.aktuellEingeteilt}
                       </span>
                     </>
                   )}
-                  {o.archiviert && <StatusPill zustand="Archiviert" />}
+                  {o.archiviert && <StatusPill sprache={basis.sprache} zustand="Archiviert" />}
                 </div>
 
                 <p className="m-0 text-base text-text">{o.bezeichnung}</p>

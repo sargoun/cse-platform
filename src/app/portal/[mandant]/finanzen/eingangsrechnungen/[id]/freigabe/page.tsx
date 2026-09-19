@@ -12,6 +12,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { EINGANGSRECHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/eingangsrechnungen';
 
 /**
  * `/portal/[mandant]/finanzen/eingangsrechnungen/[id]/freigabe` — die Freigabe
@@ -53,13 +55,13 @@ const PILLE: Readonly<Record<string, PillZustand>> = {
   abgelehnt: 'Abgelehnt',
 };
 
-const ZUSTAND: Readonly<Record<string, string>> = {
-  eingegangen: 'eingegangen — noch nicht in der Prüfung',
-  in_pruefung: 'in Prüfung',
-  freigegeben: 'freigegeben — zur Buchung bereit',
-  gebucht: 'gebucht',
-  abgelehnt: 'abgelehnt',
-};
+/*
+ * Kennungen, keine Woerter. Die Rechtenamen lauten in beiden Sprachen gleich;
+ * sie stehen deshalb hier und nicht in der Texttabelle, wo eine zweite Spalte
+ * nur eine Erfindung waere.
+ */
+const RECHT_EINGANG_LESEN = 'eingang.lesen';
+const RECHT_ENTSCHEIDEN = 'freigabe.entscheiden';
 
 interface Kopf {
   readonly id: string;
@@ -121,6 +123,10 @@ export default async function Freigabeblatt(
      */
     'abrechnung.freistellung_pflegen');
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(EINGANGSRECHNUNGEN_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
       kopf: (await kontext.abfrage<Kopf>(
@@ -164,7 +170,7 @@ export default async function Freigabeblatt(
     if (darf['eingang.lesen'] !== true) {
       return (
         <PortalRahmen
-          titel="Freigabe"
+          titel={t.freigabe}
           bereich={mandant as BereichSchluessel}
           nurLesen
           leiste={zugang.leiste}
@@ -173,13 +179,11 @@ export default async function Freigabeblatt(
           sichtbareTabs={zugang.sichtbareTabs}
           navigationsRechte={zugang.navigationsRechte}
         >
-          <h1 className="mb-s3 text-h1 text-text">Freigabe</h1>
+          <h1 className="mb-s3 text-h1 text-text">{t.freigabe}</h1>
           <Hinweis art="warnung" cse="freigabe-kein-leserecht">
             <p className="m-0 max-w-prose">
-              Diesem Konto fehlt <strong>eingang.lesen</strong>. Es darf
-              freigeben, aber nicht sehen, was es freigibt — und eine Freigabe
-              ohne Einsicht ist keine. Die beiden Rechte gehören zusammen;
-              wer sie vergibt, entscheidet die Rollenverwaltung.
+              {t.diesemKontoFehlt} <strong>{RECHT_EINGANG_LESEN}</strong>
+              {t.keinLeserechtFreigabe}
             </p>
           </Hinweis>
         </PortalRahmen>
@@ -211,7 +215,7 @@ export default async function Freigabeblatt(
 
   return (
     <PortalRahmen
-      titel="Freigabe"
+      titel={t.freigabe}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -220,50 +224,48 @@ export default async function Freigabeblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
+      <nav aria-label={g.zurueck} className="mb-s3">
         <Link
           href={`/portal/${mandant}/finanzen/eingangsrechnungen/${id}`}
           className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
         >
-          ← {k.interne_belegnummer ?? k.rechnungsnummer_lieferant ?? 'Eingangsrechnung'}
+          ← {k.interne_belegnummer ?? k.rechnungsnummer_lieferant ?? t.eingangsrechnung}
         </Link>
       </nav>
 
-      <h1 className="mb-s3 text-h1 text-text">Freigabe zur Buchung</h1>
+      <h1 className="mb-s3 text-h1 text-text">{t.freigabeZurBuchung}</h1>
 
       <Hinweis art="hinweis" cse="freigabe-was-passiert" className="mb-s5">
         <p className="m-0 max-w-prose">
-          Die Freigabe erlaubt die <strong>Buchung</strong> — sie ist keine
-          Zahlungsanweisung. Es entsteht ein Freigabesatz in der Freigabekette
-          (K-13) und ein Zustandswechsel; <strong>nichts verlässt dabei das
-          System</strong> (Invariante 7). Gezahlt wird später, über die
-          Zahlungsseite, und von einem Menschen.
+          {t.wasPassiertVor} <strong>{t.wasPassiertBuchung}</strong>{' '}
+          {t.wasPassiertMitte} <strong>{t.wasPassiertBetont}</strong>{' '}
+          {t.wasPassiertNach}
         </p>
       </Hinweis>
 
       <h2 className="mb-s3 text-h2 text-text">
-        Worüber entschieden wird — genau diese vier Angaben friert der Freigabesatz ein
+        {t.vierAngabenTitel}
       </h2>
       <dl
         data-cse="freigabe-nutzlast"
         className="mb-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line-strong bg-surface p-s5 sm:grid-cols-2"
       >
         <div>
-          <dt className="text-xs text-text-muted">Lieferant</dt>
+          <dt className="text-xs text-text-muted">{t.lieferant}</dt>
           <dd className="text-base text-text">
-            {k.lieferant ?? <span className="text-text-subtle">kein Lieferant zugeordnet</span>}
+            {k.lieferant ?? <span className="text-text-subtle">{t.keinLieferantZugeordnet}</span>}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Rechnungsnummer des Lieferanten</dt>
+          <dt className="text-xs text-text-muted">{t.rechnungsnummerLieferant}</dt>
           <dd className="text-base text-text">{k.rechnungsnummer_lieferant ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Rechnungsdatum</dt>
+          <dt className="text-xs text-text-muted">{t.rechnungsdatum}</dt>
           <dd className="text-base text-text">{k.rechnungsdatum ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Bruttobetrag</dt>
+          <dt className="text-xs text-text-muted">{t.bruttobetrag}</dt>
           <dd className="cse-zahl text-h3 text-text" data-cse="freigabe-brutto">
             {brutto === null ? '—' : formatiereGeld(brutto)}
           </dd>
@@ -272,18 +274,18 @@ export default async function Freigabeblatt(
 
       <dl className="mb-s5 grid grid-cols-1 gap-s4 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-3">
         <div>
-          <dt className="text-xs text-text-muted">Zustand</dt>
+          <dt className="text-xs text-text-muted">{g.zustand}</dt>
           <dd className="text-sm text-text">
             <span className="inline-flex flex-wrap items-center gap-s2">
-              <StatusPill zustand={PILLE[k.status] ?? 'Entwurf'} />
+              <StatusPill zustand={PILLE[k.status] ?? 'Entwurf'} sprache={zugang.sprache} />
               <span className="text-xs text-text-muted">
-                {ZUSTAND[k.status] ?? k.status}
+                {t.zustandLang[k.status as keyof typeof t.zustandLang] ?? k.status}
               </span>
             </span>
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Netto / USt</dt>
+          <dt className="text-xs text-text-muted">{t.nettoUst}</dt>
           <dd className="cse-zahl text-sm text-text">
             {k.netto_cent === null ? '—' : formatiereGeld(cent(BigInt(k.netto_cent)))}
             {' / '}
@@ -291,20 +293,20 @@ export default async function Freigabeblatt(
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Fällig</dt>
+          <dt className="text-xs text-text-muted">{g.faellig}</dt>
           <dd className="text-sm text-text">{k.faellig_am ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">Beleg</dt>
+          <dt className="text-xs text-text-muted">{t.beleg}</dt>
           <dd className="text-sm text-text">
             {k.beleg_id === null
-              ? <span className="text-warning">kein Beleg — ohne ihn wird nicht gebucht (ACC-03)</span>
+              ? <span className="text-warning">{t.keinBeleg}</span>
               : (
                 <Link
                   href={`/portal/${mandant}/finanzen/belege/${k.beleg_id}`}
                   className="text-text underline-offset-2 hover:text-brand hover:underline"
                 >
-                  {k.belegnummer ?? 'Beleg ohne Nummer'}
+                  {k.belegnummer ?? t.belegOhneNummer}
                 </Link>
               )}
           </dd>
@@ -312,17 +314,17 @@ export default async function Freigabeblatt(
         <div>
           <dt className="text-xs text-text-muted">§13b UStG</dt>
           <dd className="text-sm text-text">
-            {k.reverse_charge ? 'Reverse Charge greift' : 'greift nicht'}
+            {k.reverse_charge ? t.reverseChargeGreift : t.greiftNicht}
           </dd>
         </div>
         <div>
           <dt className="text-xs text-text-muted">§48 EStG</dt>
           <dd className="text-sm text-text">
             {k.bauabzugsteuer_pflichtig
-              ? `Einbehalt ${k.bauabzugsteuer_cent === null
-                ? 'noch nicht gerechnet'
+              ? `${t.einbehalt} ${k.bauabzugsteuer_cent === null
+                ? t.nochNichtGerechnet
                 : formatiereGeld(cent(BigInt(k.bauabzugsteuer_cent)))}`
-              : 'kein Einbehalt'}
+              : t.keinEinbehalt}
             {darf['abrechnung.freistellung_pflegen'] === true ? (
               <>
                 {' · '}
@@ -330,7 +332,7 @@ export default async function Freigabeblatt(
                   href={`/portal/${mandant}/finanzen/eingangsrechnungen/${id}/steuer`}
                   className="underline underline-offset-2"
                 >
-                  steuerliche Lage
+                  {t.steuerlicheLageKlein}
                 </Link>
               </>
             ) : null}
@@ -338,7 +340,7 @@ export default async function Freigabeblatt(
         </div>
       </dl>
 
-      <h2 className="mb-s3 text-h2 text-text">Die Vier-Augen-Lage</h2>
+      <h2 className="mb-s3 text-h2 text-text">{t.vierAugenTitel}</h2>
       <div
         data-cse="freigabe-vier-augen"
         data-konfiguriert={String(daten.grenze !== null)}
@@ -349,41 +351,35 @@ export default async function Freigabeblatt(
       >
         <p className="m-0 max-w-prose">
           {daten.grenze === null
-            ? 'Kein Vier-Augen-Zwang konfiguriert (O-183). Diese Gesellschaft hat '
-              + 'keinen Betrag hinterlegt, ab dem eine zweite Person freigeben muss '
-              + '— und die Plattform erfindet keinen. Das heisst NICHT, dass keine '
-              + 'Grenze gelten soll; es heisst, dass niemand sie gesetzt hat.'
-            : `Ab ${formatiereGeld(daten.grenze)} gibt eine zweite Person frei: `
-              + 'wer erfasst hat, gibt nicht frei.'}
+            ? t.keinVierAugen
+            : `${t.abGrenzeVor} ${formatiereGeld(daten.grenze)} ${t.abGrenzeNach}`}
         </p>
         <p className="m-0 mt-s3 max-w-prose">
-          Erfasst hat{' '}
+          {t.erfasstHat}{' '}
           <strong className="text-text">
-            {k.erfasst_von ?? 'ein Konto ohne Namen'}
+            {k.erfasst_von ?? t.kontoOhneNamen}
           </strong>
-          {k.selbst_erfasst ? ' — das ist dieses Konto.' : ' — nicht dieses Konto.'}
+          {k.selbst_erfasst ? t.istDiesesKonto : t.nichtDiesesKonto}
         </p>
         <p className="m-0 mt-s2 max-w-prose">
           {vierAugenSperrt
-            ? 'Diese Sitzung darf deshalb NICHT freigeben: sie hat selbst erfasst, '
-              + 'und der Betrag liegt über der Grenze.'
+            ? t.vierAugenSperrtSatz
             : daten.grenze === null
-              ? 'Es gibt darum keine Sperre — mangels Regel, nicht mangels Grund.'
-              : 'Diese Sitzung darf freigeben.'}
+              ? t.keineSperre
+              : t.darfFreigeben}
         </p>
       </div>
 
       {k.status === 'freigegeben' || k.status === 'gebucht' ? (
         <Hinweis art="hinweis" cse="freigabe-schon-erteilt" className="mb-s5">
           <p className="m-0 max-w-prose">
-            Freigegeben{k.freigegeben_am === null ? '' : ` am ${k.freigegeben_am}`}
-            {k.freigegeben_von === null ? '' : ` von ${k.freigegeben_von}`}.
+            {t.freigegebenWort}
+            {k.freigegeben_am === null ? '' : `${t.amDatum}${k.freigegeben_am}`}
+            {k.freigegeben_von === null ? '' : `${t.vonPerson}${k.freigegeben_von}`}.
             {k.freigabe_begruendung === null
               ? ''
-              : ` Begründung: „${k.freigabe_begruendung}".`}
-            {k.status === 'gebucht'
-              ? ' Die Rechnung ist gebucht; korrigiert wird durch eine Gegenbuchung.'
-              : ''}
+              : `${t.begruendungIst}${t.zitatAuf}${k.freigabe_begruendung}${t.zitatZu}.`}
+            {k.status === 'gebucht' ? t.istGebucht : ''}
           </p>
         </Hinweis>
       ) : null}
@@ -391,9 +387,8 @@ export default async function Freigabeblatt(
       {k.status === 'abgelehnt' ? (
         <Hinweis art="hinweis" cse="freigabe-abgelehnt" className="mb-s5">
           <p className="m-0 max-w-prose">
-            Zurückgewiesen. Grund: „{k.abgelehnt_grund ?? '—'}". Die Zeile bleibt
-            stehen (Invariante 8); eine abgelehnte Rechnung wird neu erfasst,
-            nicht wiederbelebt.
+            {t.zurueckgewiesenGrund}{t.zitatAuf}{k.abgelehnt_grund ?? '—'}{t.zitatZu}
+            {t.zurueckgewiesenNach}
           </p>
         </Hinweis>
       ) : null}
@@ -401,15 +396,14 @@ export default async function Freigabeblatt(
       {k.status === 'eingegangen' ? (
         <Hinweis art="hinweis" cse="freigabe-noch-nicht-pruefbar" className="mb-s5">
           <p className="m-0 max-w-prose">
-            Diese Rechnung ist noch nicht in der Prüfung. Freigegeben wird aus
-            dem Zustand <strong>in Prüfung</strong> — dort ist der Lieferant
-            gesetzt und der Beleg zugeordnet.
+            {t.nochNichtPruefbarVor}{' '}
+            <strong>{t.zustandLang.in_pruefung}</strong> {t.nochNichtPruefbarNach}
           </p>
           {darf['eingang.schreiben'] === true ? (
             <form method="post" action={ziel} className="mt-s3">
               <input type="hidden" name="aktion" value="pruefen" />
               <input type="hidden" name="id" value={k.id} />
-              <button type="submit" className={knopfStill}>In Prüfung geben</button>
+              <button type="submit" className={knopfStill}>{t.inPruefungGeben}</button>
             </form>
           ) : null}
         </Hinweis>
@@ -424,27 +418,22 @@ export default async function Freigabeblatt(
           >
             <input type="hidden" name="aktion" value="freigeben" />
             <input type="hidden" name="id" value={k.id} />
-            <h3 className="m-0 text-h3 text-text">Freigeben</h3>
+            <h3 className="m-0 text-h3 text-text">{g.freigeben}</h3>
             <label className="mt-s4 block text-sm text-text" htmlFor="begruendung">
-              Begründung (mindestens fünf Zeichen)
+              {t.begruendungFuenf}
             </label>
             <input
               id="begruendung" name="begruendung" type="text" required minLength={5}
-              placeholder="Sachlich und rechnerisch geprüft" className={feld}
+              placeholder={t.begruendungPlatzhalter} className={feld}
             />
             <p className="m-0 mt-s2 max-w-prose text-xs text-text-muted">
-              Sie steht im Freigabesatz, zusammen mit den vier Angaben oben. Wer
-              die Rechnung danach ändert, hat für das, was er bucht, keine
-              Freigabe mehr (K-13).
+              {t.begruendungImSatz}
             </p>
             {freigabeMoeglich ? null : (
               <p className="m-0 mt-s3 max-w-prose text-sm text-warning">
                 {vierAugenSperrt
-                  ? 'Gesperrt: diese Sitzung hat die Rechnung selbst erfasst, und der '
-                    + 'Betrag liegt über der Vier-Augen-Grenze dieser Gesellschaft.'
-                  : 'Diesem Konto fehlt freigabe.entscheiden — ohne dieses Recht '
-                    + 'entsteht kein Satz in der Freigabekette, und ohne ihn keine '
-                    + 'Freigabe.'}
+                  ? t.gesperrtVierAugen
+                  : `${t.diesemKontoFehlt} ${RECHT_ENTSCHEIDEN}${t.rechtEntscheidenFehlt}`}
               </p>
             )}
             <button
@@ -452,7 +441,7 @@ export default async function Freigabeblatt(
               className={`mt-s4 ${knopf} disabled:cursor-not-allowed disabled:opacity-40`}
               data-cse="freigabe-knopf"
             >
-              Zur Buchung freigeben
+              {t.zurBuchungFreigeben}
             </button>
           </form>
 
@@ -464,20 +453,19 @@ export default async function Freigabeblatt(
             >
               <input type="hidden" name="aktion" value="ablehnen" />
               <input type="hidden" name="id" value={k.id} />
-              <h3 className="m-0 text-h3 text-text">Zurückweisen</h3>
+              <h3 className="m-0 text-h3 text-text">{t.zurueckweisen}</h3>
               <label className="mt-s4 block text-sm text-text" htmlFor="grund">
-                Grund (mindestens fünf Zeichen)
+                {t.grundFuenf}
               </label>
               <input
                 id="grund" name="grund" type="text" required minLength={5}
-                placeholder="Leistung wurde nie erbracht" className={feld}
+                placeholder={t.zurueckweisenPlatzhalter} className={feld}
               />
               <p className="m-0 mt-s2 max-w-prose text-xs text-text-muted">
-                Die Zeile bleibt stehen (Invariante 8). Der Grund ist das, was
-                später allein dasteht.
+                {t.zeileBleibtStehen}
               </p>
               <button type="submit" className={`mt-s4 ${knopfStill}`}>
-                Zurückweisen
+                {t.zurueckweisen}
               </button>
             </form>
           ) : null}

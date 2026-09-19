@@ -87,9 +87,29 @@ describe('(6) Arabisch setzt `dir="rtl"` — und sonst niemand', () => {
   });
 });
 
+/**
+ * Die Texttabelle flach, mit gepunkteten Schluesseln.
+ *
+ * `MeinTexte` traegt seit dem MiLoG-Blatt auch GRUPPEN — `nachweisBlatt.tag`,
+ * `nachweisBlatt.fussnote`. Ohne diese Abflachung prueften die Zusagen unten
+ * die Gruppe als Ganzes: `texte.nachweisBlatt` ist nicht leer und ist in jeder
+ * Sprache verschieden, sobald EIN Wort darin verschieden ist. Achtzehn
+ * Eintraege waeren damit genau dort ungeprueft, wo die Uebersetzung am
+ * meisten zaehlt — auf dem Blatt, das die Arbeiterin abruft, weil es ihre
+ * Stunden sind.
+ */
+function flach(wert: unknown, praefix = ''): Readonly<Record<string, string>> {
+  if (typeof wert === 'string') return { [praefix]: wert };
+  const raus: Record<string, string> = {};
+  for (const [k, v] of Object.entries(wert as Record<string, unknown>)) {
+    Object.assign(raus, flach(v, praefix === '' ? k : `${praefix}.${k}`));
+  }
+  return raus;
+}
+
 describe('keine halbe Uebersetzung', () => {
-  const deutsch = MEIN_TEXTE.de;
-  const schluessel = Object.keys(deutsch) as (keyof typeof deutsch)[];
+  const deutsch = flach(MEIN_TEXTE.de);
+  const schluessel = Object.keys(deutsch);
 
   it('es gibt ueberhaupt Schluessel zu pruefen', () => {
     // Ohne diese Zusage bestuende jede Schleife unten ueber der leeren Menge.
@@ -98,10 +118,10 @@ describe('keine halbe Uebersetzung', () => {
 
   it('jede Sprache traegt JEDEN Schluessel, und keiner ist leer', () => {
     for (const s of PORTAL_SPRACHEN) {
-      const texte = meinTexte(s);
+      const texte = flach(meinTexte(s));
       expect(Object.keys(texte).sort(), s).toEqual([...schluessel].sort());
       for (const k of schluessel) {
-        expect(texte[k].trim(), `${s}.${String(k)}`).not.toBe('');
+        expect(texte[k]?.trim(), `${s}.${k}`).not.toBe('');
       }
     }
   });
@@ -114,7 +134,7 @@ describe('keine halbe Uebersetzung', () => {
      * einzelne Eintrag verlangt, sondern die grosse Mehrheit.
      */
     for (const s of PORTAL_SPRACHEN.filter((x) => x !== 'de')) {
-      const texte = meinTexte(s);
+      const texte = flach(meinTexte(s));
       const gleich = schluessel.filter((k) => texte[k] === deutsch[k]);
       expect(gleich.length / schluessel.length, `${s}: ${gleich.join(', ')}`)
         .toBeLessThan(0.15);
