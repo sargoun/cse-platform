@@ -14,6 +14,8 @@ import {
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { UEBERSICHT_TEXTE } from '@/lib/i18n/verwaltung/finanzen/uebersicht';
 
 /**
  * `/portal/[mandant]/finanzen/pruefungen` — die Vorab-Liste vor der
@@ -43,6 +45,18 @@ import { haeltRechte } from '@/app/portal/rechte';
 export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Vorab-Prüfungen — Finanzen' };
+
+/*
+ * Funktions-, Sicht- und Rechtenamen lauten in beiden Sprachen gleich und
+ * stehen deshalb hier und nicht in der Texttabelle (siehe deren Kopf).
+ */
+const FN_AUFTRAEGE_OHNE_ZEIT = 'fin.auftraege_ohne_zeit()';
+const SICHT_ZEITEINTRAG_AUFTRAG = 'zeiteintrag_auftrag';
+const SICHT_INVOKER = 'security_invoker';
+const RECHT_ZEIT_LESEN = 'zeit.lesen';
+const FN_ERFASSTE_MINUTEN = 'fin.auftrag_erfasste_minuten()';
+const RECHT_FESTSCHREIBEN = 'finanzen.festschreiben';
+const RECHT_FINANZEN_LESEN = 'finanzen.lesen';
 
 const REGEL_FILTER: readonly Regel[] = [
   'entwurf_ohne_quelle', 'fin18_keine_zeit', 'auftrag_ohne_rechnung',
@@ -75,6 +89,10 @@ export default async function Pruefungsblatt(
    */
   const darf = await haeltRechte(zugang.sitzung, 'auftrag.lesen');
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(UEBERSICHT_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+
   const befund = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) =>
       offenePruefungen(kontext))) as Promise<Vorabbefund>);
@@ -85,7 +103,7 @@ export default async function Pruefungsblatt(
 
   return (
     <PortalRahmen
-      titel="Vorab-Prüfungen"
+      titel={t.pruefungenTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen
       leiste={zugang.leiste}
@@ -95,15 +113,15 @@ export default async function Pruefungsblatt(
       navigationsRechte={zugang.navigationsRechte}
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="text-h1 text-text">Vor der Rechnungsstellung</h1>
+        <h1 className="text-h1 text-text">{t.pruefungenUeberschrift}</h1>
         {regelFilter === null ? null : (
           <p className="text-sm text-text-muted" data-cse="pruefungen-filter">
-            Gefiltert auf <strong>{regelText(regelFilter).kurz}</strong>{' '}
+            {t.gefiltertAuf} <strong>{regelText(regelFilter).kurz}</strong>{' '}
             <Link
               href={`/portal/${mandant}/finanzen/pruefungen`}
               className="underline underline-offset-2"
             >
-              alle zeigen
+              {t.alleZeigen}
             </Link>
           </p>
         )}
@@ -111,7 +129,7 @@ export default async function Pruefungsblatt(
 
       <div className="mb-s5 grid grid-cols-1 gap-s4 sm:grid-cols-3">
         {REGEL_FILTER.map((r) => {
-          const t = regelText(r);
+          const rt = regelText(r);
           const anzahl = befund.jeRegel[r];
           return (
             <Link
@@ -122,10 +140,10 @@ export default async function Pruefungsblatt(
               data-regel={r}
             >
               <KpiStat
-                label={t.kurz}
+                label={rt.kurz}
                 wert={String(anzahl)}
-                ton={anzahl === 0 ? 'muted' : t.stufe === 'fehler' ? 'danger' : 'warning'}
-                icon={t.stufe === 'fehler' ? 'fehler' : 'warnung'}
+                ton={anzahl === 0 ? 'muted' : rt.stufe === 'fehler' ? 'danger' : 'warning'}
+                icon={rt.stufe === 'fehler' ? 'fehler' : 'warnung'}
                 interaktiv
               />
             </Link>
@@ -136,38 +154,37 @@ export default async function Pruefungsblatt(
       {befund.gesamt === 0 ? (
         <Hinweis art="erfolg" cse="pruefungen-leer" className="mb-s5">
           <p className="m-0 max-w-prose">
-            Kein Befund. Kein abgeschlossener Auftrag ohne erfasste Minute, kein
-            abgeschlossener Auftrag ohne Rechnung, keine Entwurfszeile ohne
-            Herkunft. Das heisst nicht, dass alles geprüft ist — welche weiteren
-            Vorab-Prüfungen diese Liste führen soll, ist offen (O-601), und sie
-            steht unten.
+            {t.keinBefund}
           </p>
         </Hinweis>
       ) : (
         <DataTable
-          beschriftung="Befunde vor der Rechnungsstellung, mit Regel und Sprungziel"
+          beschriftung={t.tabellePruefungen}
           zeilen={zeilen}
           schluessel={(b) => `${b.regel}-${b.zielId}-${b.zusatz ?? ''}`}
           spalten={[
             {
               schluessel: 'regel',
-              kopf: 'Regel',
+              kopf: t.regelKopf,
               zelle: (b) => {
-                const t = regelText(b.regel);
+                const rt = regelText(b.regel);
                 return (
                   <span className="inline-flex flex-col gap-s1">
                     <span className="inline-flex flex-wrap items-center gap-s2">
-                      <StatusPill zustand={t.stufe === 'fehler' ? 'Fehler' : 'Wartet'} />
-                      <span className="text-xs text-text-muted">{t.fundstelle}</span>
+                      <StatusPill
+                        zustand={rt.stufe === 'fehler' ? 'Fehler' : 'Wartet'}
+                        sprache={zugang.sprache}
+                      />
+                      <span className="text-xs text-text-muted">{rt.fundstelle}</span>
                     </span>
-                    <span className="text-xs text-text">{t.kurz}</span>
+                    <span className="text-xs text-text">{rt.kurz}</span>
                   </span>
                 );
               },
             },
             {
               schluessel: 'nummer',
-              kopf: 'Auftrag / Beleg',
+              kopf: t.auftragBelegKopf,
               /*
                * Zwei Ziele, zwei Rechte: der Auftrag hinter `auftrag.lesen`,
                * der Rechnungsentwurf hinter `finanzen.lesen` — und das hält
@@ -190,7 +207,7 @@ export default async function Pruefungsblatt(
               ) : b.nummer),
             },
             {
-              schluessel: 'bezeichnung', kopf: 'Bezeichnung',
+              schluessel: 'bezeichnung', kopf: g.bezeichnung,
               zelle: (b) => (
                 <span className="inline-flex flex-col gap-s1">
                   <span className="text-text">{b.bezeichnung}</span>
@@ -201,11 +218,11 @@ export default async function Pruefungsblatt(
               ),
             },
             {
-              schluessel: 'kunde', kopf: 'Kunde',
+              schluessel: 'kunde', kopf: g.kunde,
               zelle: (b) => b.kunde ?? <span className="text-text-subtle">—</span>,
             },
             {
-              schluessel: 'datum', kopf: 'Datum',
+              schluessel: 'datum', kopf: g.datum,
               zelle: (b) => b.datum ?? <span className="text-text-subtle">—</span>,
             },
           ]}
@@ -214,7 +231,7 @@ export default async function Pruefungsblatt(
 
       <section aria-labelledby="regeln-titel" className="mt-s7">
         <h2 id="regeln-titel" className="mb-s3 text-h2 text-text">
-          Was diese Liste prüft — und warum
+          {t.regelnTitel}
         </h2>
         <ul className="m-0 list-none space-y-s3 p-0">
           {REGELN.map((r) => (
@@ -228,9 +245,7 @@ export default async function Pruefungsblatt(
                 </span>
                 <span className="text-xs text-text-muted">{r.fundstelle}</span>
                 <span className="text-xs text-text-muted">
-                  {r.stufe === 'fehler'
-                    ? 'hält die Festschreibung an'
-                    : 'warnt, hält nicht an'}
+                  {r.stufe === 'fehler' ? t.haeltAn : t.warntNur}
                 </span>
               </p>
               <p className="m-0 mt-s2 max-w-prose text-sm text-text">{r.text}</p>
@@ -241,12 +256,10 @@ export default async function Pruefungsblatt(
 
       <section aria-labelledby="offen-titel" className="mt-s7">
         <h2 id="offen-titel" className="mb-s3 text-h2 text-text">
-          Was diese Liste NOCH NICHT prüft
+          {t.nochNichtGeprueftTitel}
         </h2>
         <p className="mb-s3 max-w-prose text-sm text-text-muted">
-          Eine Prüfliste, die ihre eigenen Grenzen verschweigt, wird für
-          vollständig gehalten. Deshalb stehen sie hier — als benannte offene
-          Fragen und nicht als leere Rubrik.
+          {t.grenzenEinleitung}
         </p>
         <ul className="m-0 list-none space-y-s2 p-0">
           {NICHT_GEPRUEFT.map((n) => (
@@ -259,18 +272,14 @@ export default async function Pruefungsblatt(
       </section>
 
       <p className="mt-s7 max-w-prose text-xs text-text-muted">
-        Die FIN-18-Menge kommt aus <code>fin.auftraege_ohne_zeit()</code> und
-        nicht aus der Sicht <code>zeiteintrag_auftrag</code>: die läuft mit
-        <code> security_invoker</code>, und eine Buchhaltung ohne{' '}
-        <code>zeit.lesen</code> bekäme dort überall null Minuten — also bei jedem
-        Auftrag eine Warnung. Eine Warnung, die immer kommt, wird nach dem
-        dritten Mal ungelesen weggeklickt. Sie kommt auch nicht aus{' '}
-        <code>fin.auftrag_erfasste_minuten()</code>: die verlangt{' '}
-        <code>finanzen.festschreiben</code>, während diese Route mit{' '}
-        <code>finanzen.lesen</code> öffnet — die Liste brach damit genau dann,
-        wenn der erste abgeschlossene Auftrag im Bestand stand. Die
-        Minutenzahl selbst bleibt hinter dem Festschreiberecht; hier steht nur
-        ja oder nein.
+        {t.fin18MengeVor} <code>{FN_AUFTRAEGE_OHNE_ZEIT}</code>{' '}
+        {t.fin18MengeNachFunktion} <code>{SICHT_ZEITEINTRAG_AUFTRAG}</code>
+        {t.fin18MengeNachSicht}
+        <code> {SICHT_INVOKER}</code>{t.fin18MengeNachInvoker}{' '}
+        <code>{RECHT_ZEIT_LESEN}</code> {t.fin18MengeNachRecht}{' '}
+        <code>{FN_ERFASSTE_MINUTEN}</code>{t.fin18MengeNachMinuten}{' '}
+        <code>{RECHT_FESTSCHREIBEN}</code>{t.fin18MengeNachFestschreiben}{' '}
+        <code>{RECHT_FINANZEN_LESEN}</code> {t.fin18MengeSchluss}
       </p>
     </PortalRahmen>
   );

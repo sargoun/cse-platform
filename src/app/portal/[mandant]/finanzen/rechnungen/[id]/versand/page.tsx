@@ -219,7 +219,7 @@ export default async function Versandblatt(
                   sprache={zugang.sprache}
                 />
                 <span className="text-xs text-text-muted">
-                  {w.verbunden ? t.verbunden : g.nichtVerbunden}
+                  {w.verbunden ? t.verbunden : t.nichtVerbunden}
                 </span>
               </span>
             ),

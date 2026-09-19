@@ -798,7 +798,7 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       + 'invoices. Without this step the Festschreibung rejects the document: a '
       + 'final invoice that fails to deduct an interim invoice already issued '
       + 'demands the money twice.',
-    abschlaegeAbziehen: 'Deduct interim invoices',
+    abschlaegeAbziehen: 'Deduct Abschlagsrechnungen',
 
     zeitzeileTitel: 'Line from the time recording',
     zeitzeileTeil1:
@@ -899,7 +899,7 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
 
     kreisTitel: 'The Nummernkreis that will draw the number',
     keinKreisVor: 'For',
-    ausgangsrechnungen: 'outgoing invoices',
+    ausgangsrechnungen: 'Ausgangsrechnungen (outgoing invoices)',
     keinKreisMitte:
       'no open Nummernkreis (number range) without a context is set up in this '
       + 'company. Without one no number comes into being, and without a number '
@@ -923,7 +923,8 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       + 'is possible.',
     warnungenTitel: 'Warnings — they do not hold the document up',
     keineWarnungen: 'No warnings.',
-    abschlaegeAnsehen: 'View the interim invoices of this final invoice →',
+    abschlaegeAnsehen:
+      'View the Abschlagsrechnungen of this Schlussrechnung (final invoice) →',
 
     fin18BegruendungMin: 'Reason for finalising nonetheless (at least',
     zeichenKlammer: 'characters)',

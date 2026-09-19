@@ -748,7 +748,7 @@ const EN: UebersichtTexte = {
   anzeigen: 'Show',
   abstimmung: 'Reconciliation',
   keineRechnungImZeitraum:
-    'No invoice was issued for this period. Drafts do not stand here — they '
+    'No invoice was issued for this period. Drafts do not appear here — they '
     + 'have no number.',
   belegeWort: 'Belege',
   nummernWort: 'numbers',
@@ -861,7 +861,7 @@ const EN: UebersichtTexte = {
     'Not recomputed. The live check reads every link and recomputes every hash '
     + '— that costs with the volume and therefore does not run on every page '
     + 'view, only on "Recompute now". It stores nothing: a checker that writes '
-    + 'bears witness no longer.',
+    + 'no longer bears witness.',
   tabelleLive: 'Finding per Nummernkreis from the live check',
   gepruefteGlieder: 'Links checked',
   rechnungWort: 'Invoice',
@@ -898,7 +898,8 @@ const EN: UebersichtTexte = {
   widerspruchMitte:
     'The placeholder protection therefore does not bite: for invoice and '
     + 'Gutschrift (credit note) Nummernkreise it sits solely in',
-  widerspruchNachSpalte: ', and that checks exactly this column. Whether the column belongs on',
+  widerspruchNachSpalte:
+    ', and that checks exactly this column. Whether the column ought to read',
   widerspruchSchluss:
     'is a data decision with effect on Belege already finalised '
     + '(festgeschrieben) — it is named here and not taken (O-606).',
@@ -982,7 +983,7 @@ const EN: UebersichtTexte = {
   fin18MengeVor: 'The FIN-18 set comes from',
   fin18MengeNachFunktion: 'and not from the view',
   fin18MengeNachSicht: ': that runs with',
-  fin18MengeNachInvoker: ', and an accounting account without',
+  fin18MengeNachInvoker: ', and an accounting user without',
   fin18MengeNachRecht:
     'would get zero minutes everywhere there — that is, a warning on every '
     + 'Auftrag. A warning that always comes is clicked away unread after the '

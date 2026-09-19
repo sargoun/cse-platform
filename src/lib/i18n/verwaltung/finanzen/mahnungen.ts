@@ -276,7 +276,7 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
     freigabeErklaerung:
       'The approval records who approved exactly these amounts. Only with it '
       + 'does the database draw the number — a draft carries none.',
-    freigabePlatzhalter: 'Reminder approved after consultation',
+    freigabePlatzhalter: 'Zahlungserinnerung approved after consultation',
     verwerfen: 'Discard',
     verwerfenErklaerung:
       'The draft stays on record with its reason — nothing is deleted '

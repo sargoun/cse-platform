@@ -948,7 +948,7 @@ const EN: EingangsrechnungenTexte = {
   pflegeOffenVor:
     'No write right is entered in the register for this route; the policy on',
   pflegeOffenZwei: 'requires',
-  pflegeOffenDrei: 'to write, while the route opens with',
+  pflegeOffenDrei: ' to write, while the route opens with',
   pflegeOffenNach:
     '. Which key is to apply is a decision about the rights model — and a form '
     + 'that runs into a policy rejecting it is worse than no form at all.',

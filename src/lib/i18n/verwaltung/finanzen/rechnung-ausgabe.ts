@@ -140,7 +140,17 @@ export interface RechnungAusgabeTexte {
   readonly wegeTitel: string;
   readonly tabelleWege: string;
   readonly kanal: string;
+  /**
+   * **Klein geschrieben, und das ist kein Flüchtigkeitsfehler.** Der Wert
+   * steht in einer Tabellenzelle neben `nichtVerbunden` — als Aussage über
+   * einen Weg, nicht als Schild. `basis.nichtVerbunden` ist gross, weil es
+   * dort ein Schild IST; hier stünde „Verbunden" / „Nicht verbunden" mitten
+   * im Satz. Der Altstand schrieb beides klein, und beim Wandern des Textes
+   * ist der deutsche Wortlaut gewachsen — Text durfte umziehen, nicht sich
+   * ändern.
+   */
   readonly verbunden: string;
+  readonly nichtVerbunden: string;
   readonly warum: string;
   readonly zugangsdatenHinterlegt: string;
   readonly portalUndPost: string;
@@ -363,7 +373,8 @@ const DE: RechnungAusgabeTexte = {
   wegeTitel: 'Die Wege und ihr Zustand',
   tabelleWege: 'Übertragungswege und ob sie verbunden sind',
   kanal: 'Kanal',
-  verbunden: 'Verbunden',
+  verbunden: 'verbunden',
+  nichtVerbunden: 'nicht verbunden',
   warum: 'Warum',
   zugangsdatenHinterlegt: 'Zugangsdaten hinterlegt.',
   portalUndPost:
@@ -638,7 +649,8 @@ const EN: RechnungAusgabeTexte = {
   wegeTitel: 'The channels and their state',
   tabelleWege: 'Transmission channels and whether they are connected',
   kanal: 'Channel',
-  verbunden: 'Connected',
+  verbunden: 'connected',
+  nichtVerbunden: 'not connected',
   warum: 'Why',
   zugangsdatenHinterlegt: 'Credentials are configured.',
   portalUndPost:
