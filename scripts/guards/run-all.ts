@@ -9,6 +9,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
 import { pruefeXml } from './xml-wohlgeformt.js';
+import { festeZeichenketten } from './seite-ohne-uebersetzung.js';
+import { UEBERSETZUNG_AUSNAHMEN } from './uebersetzung-ausnahmen.js';
 
 const WURZEL = process.cwd();
 
@@ -1185,6 +1187,71 @@ function wacheInternerUrsprung(): void {
   }
 }
 
+/**
+ * Die Sperrklinke gegen die deutsche Verdrahtung (D-419, D-592).
+ *
+ * **Warum sie VOR der Umstellung steht.** 383 Dateien unter `portal/` und
+ * `components/` tragen ihre sichtbaren Woerter als Zeichenketten im Rumpf;
+ * deshalb wurde beim Sprachwechsel auf Englisch die Seitenleiste englisch und
+ * der Seiteninhalt blieb deutsch. Die Umstellung dauert laenger als eine
+ * Sitzung. Ohne diese Wache waechst der Rueckstand waehrend der Arbeit weiter
+ * — und wird nie kleiner.
+ *
+ * **Sie meldet in BEIDE Richtungen.** Eine Datei mit fester Zeichenkette, die
+ * nicht in der Liste steht, ist eine neue Verdrahtung. Ein Listeneintrag ohne
+ * feste Zeichenkette ist eine erledigte Seite, die noch drinsteht — und wer
+ * ihn nicht streicht, nimmt der Wache genau dort die Schaerfe, wo sie eben
+ * erst gewonnen wurde. Ein Eintrag auf eine Datei, die es nicht mehr gibt,
+ * faellt in dieselbe Klasse.
+ */
+function wacheSeiteOhneUebersetzung(): void {
+  const erlaubt = new Set(UEBERSETZUNG_AUSNAHMEN);
+  const gesehen = new Set<string>();
+  const wurzeln = ['src/app/portal', 'src/components'];
+  let gelesen = 0;
+
+  for (const wurzel of wurzeln) {
+    /* `dateien` setzt die Wurzel selbst davor — ein absoluter Pfad hier
+       ergaebe `<WURZEL>/<WURZEL>/src/...`, und der `catch` darin schluckt
+       das lautlos. Genau dagegen steht die Zaehlung unten. */
+    for (const datei of dateien(wurzel, ['.tsx'])) {
+      gelesen += 1;
+      const rel = relative(WURZEL, datei).replace(/\\/gu, '/');
+      const funde = festeZeichenketten(datei);
+      if (funde.length > 0) {
+        gesehen.add(rel);
+        if (!erlaubt.has(rel)) {
+          const f = funde[0];
+          melde('seite-ohne-uebersetzung', datei, f?.zeile ?? 1,
+            `${funde.length} fest verdrahtete Beschriftung(en), z. B. „${f?.text ?? ''}" `
+            + '— Text nach src/lib/i18n/verwaltung/ holen');
+        }
+      }
+    }
+  }
+
+  /*
+   * Eine leere Liste sieht aus wie ein sauberer Baum (siehe `dateien`). Diese
+   * Wache haette dann „alles sauber" gemeldet, ohne eine Datei gelesen zu
+   * haben — und der Abgleich unten haette alle 383 Eintraege als erledigt
+   * gemeldet. Beides waere falsch, also wird der Lauf hier festgestellt.
+   */
+  if (gelesen === 0) {
+    if (erlaubt.size > 0) {
+      melde('seite-ohne-uebersetzung', 'scripts/guards/uebersetzung-ausnahmen.ts', 1,
+        'Keine einzige .tsx gelesen — die Wache lief ins Leere.');
+    }
+    return;
+  }
+
+  for (const rel of erlaubt) {
+    if (gesehen.has(rel)) continue;
+    melde('seite-ohne-uebersetzung', 'scripts/guards/uebersetzung-ausnahmen.ts', 1,
+      `„${rel}" hat keine feste Beschriftung mehr (oder existiert nicht mehr) `
+      + '— die Zeile gehoert aus der Ausnahmeliste gestrichen.');
+  }
+}
+
 async function main(): Promise<void> {
   wacheGeldSpalte();
   wacheZeitstempel();
@@ -1203,6 +1270,7 @@ async function main(): Promise<void> {
   wacheSvgWohlgeformt();
   wacheKonformitaetsauftrag();
   wacheInternerUrsprung();
+  wacheSeiteOhneUebersetzung();
   await wacheKonfigAdressen();
 
   if (befunde.length > 0) {
