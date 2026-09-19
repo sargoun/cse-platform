@@ -313,13 +313,42 @@ eigenes Paar (so gelöst für `verbunden` in `rechnung-ausgabe.ts`), oder es
 wird eine bewusste zentrale Entscheidung für Satzanfang-Grossschreibung —
 dann aber für ALLE Schwesterseiten gleich.
 
-### 2b.4 Noch nicht gelaufen: `pnpm typecheck` über die Fächerung
+### 2b.4 ERLEDIGT — der Compiler ist gelaufen, in der CI
 
-Die Arbeit der Agenten ist mit der Sperrklinke, `eslint` und den Wachen
-geprüft — **nicht mit dem Compiler**. `tsc --noEmit` dauert ~7 min und war
-beim Ende des Budgets nicht mehr drin.
+Hier stand, `pnpm typecheck` sei über die Fächerung nicht gelaufen und
+gehöre als erster Befehl in die nächste Sitzung. **Das stimmt nicht mehr,
+und es stimmte auch schon beim Schreiben nur halb.**
 
-**Erster Befehl der nächsten Sitzung:** `pnpm typecheck`.
+Der CI-Auftrag `pruefung` (`.github/workflows/ci.yml`) fährt der Reihe nach
+`pnpm guards` · `annahmen --check` · `katalog:check` · `seitenkarte --check` ·
+`eslint .` · **Typecheck** · Einheitstests. Er ist auf `1bc62e6` in 8 Minuten
+**grün** durchgelaufen — der Compiler hat die Arbeit der Agenten also gesehen
+und nichts gefunden.
+
+Was dabei rot WAR und behoben wurde, steht in §2b.5.
+
+### 2b.5 Der eine rote Test — behoben, aber merkenswert
+
+Von 3630 Zusagen fiel genau eine: `tests/kern/katalog.test.ts`, die K-19-Wache.
+
+**Die Ursache ist eine Folge der Übersetzung und wird wiederkommen.** Ein
+übersetzter Satz kann keinen technischen Namen fest eingebaut tragen. Also
+wandert der Name aus der Prosa in eine Konstante und wird eingesetzt:
+
+    „Kein Satz hinterlegt: `finanzen.bauabzugsteuer_satz_bp` fehlt"
+    →  `${t.keinSatzVor} ${EINSTELLUNG_SATZ} ${t.keinSatzNach}`
+
+In der Prosa war der Schlüssel gedeckt (`ohneProsaInZeichenketten` maskiert
+einen Namen in Gegenstrichen INNERHALB einer Zeichenkette). Als blosses
+Literal ist er ungedeckt — und der Katalogtest meldete ihn als
+unregistriertes Recht, obwohl er ein Plattform-EINSTELLUNGSSCHLÜSSEL ist.
+
+Behoben mit Regel (4b) in `scripts/katalog/benutzung.ts`: eine GROSS
+geschriebene Konstante `EINSTELLUNG_*` gilt als Einstellung, nicht als Recht.
+`RECHT_*` bleibt ungedeckt und wird weiter geprüft.
+
+**Wer weiter übersetzt, wird diesem Muster wieder begegnen** — überall dort,
+wo ein technischer Name in einem erklärenden Satz steht.
 
 ---
 
