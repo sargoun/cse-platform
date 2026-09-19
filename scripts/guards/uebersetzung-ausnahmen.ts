@@ -198,8 +198,6 @@ export const UEBERSETZUNG_AUSNAHMEN: readonly string[] = [
   'src/app/portal/[mandant]/finanzen/rechnungen/[id]/verwerfen/page.tsx',
   'src/app/portal/[mandant]/finanzen/rechnungen/[id]/xrechnung/page.tsx',
   'src/app/portal/[mandant]/finanzen/rechnungen/[id]/zugferd/page.tsx',
-  'src/app/portal/[mandant]/finanzen/rechnungen/neu/page.tsx',
-  'src/app/portal/[mandant]/finanzen/rechnungen/page.tsx',
   'src/app/portal/[mandant]/finanzen/zahlungen/[id]/page.tsx',
   'src/app/portal/[mandant]/freigaben/[id]/einspruch/page.tsx',
   'src/app/portal/[mandant]/freigaben/[id]/page.tsx',

@@ -13,6 +13,8 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '../../../rechte';
+import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { RECHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnungen';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen` — das Rechnungsausgangsbuch
@@ -36,14 +38,6 @@ const PILLE: Readonly<Record<string, PillZustand>> = {
   // „Abgeschlossen" und nicht „Festgeschrieben": das Wort fehlt DESIGN §5.
   festgeschrieben: 'Abgeschlossen',
   verworfen: 'Archiviert',
-};
-
-const ART: Readonly<Record<string, string>> = {
-  standard: 'Rechnung',
-  abschlag: 'Abschlag',
-  anzahlung: 'Anzahlung',
-  schluss: 'Schlussrechnung',
-  storno: 'Storno',
 };
 
 interface Zeile {
@@ -82,6 +76,10 @@ export default async function Rechnungsliste(
   const darf = await haeltRechte(sitzung, 'finanzen.schreiben');
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
+  const t = nachSprache(RECHNUNGEN_TEXTE, zugang.sprache);
+  const g = verwaltungTexte(zugang.sprache);
+
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => kontext.abfrage<Zeile>(
       /**
@@ -106,7 +104,7 @@ export default async function Rechnungsliste(
 
   return (
     <PortalRahmen
-      titel="Rechnungen"
+      titel={t.titel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -116,11 +114,11 @@ export default async function Rechnungsliste(
       navigationsRechte={zugang.navigationsRechte}
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="text-h1 text-text">Rechnungen</h1>
+        <h1 className="text-h1 text-text">{t.titel}</h1>
         {monat === null ? null : (
           <p data-cse="monat-filter" className="text-sm text-text-muted">
-            Rechnungsdatum im Monat <strong>{monat.slice(5, 7)}/{monat.slice(0, 4)}</strong>{' '}
-            <Link href={`/portal/${mandant}/finanzen/rechnungen`} className="underline underline-offset-2">alle zeigen</Link>
+            {t.monatFilter} <strong>{monat.slice(5, 7)}/{monat.slice(0, 4)}</strong>{' '}
+            <Link href={`/portal/${mandant}/finanzen/rechnungen`} className="underline underline-offset-2">{t.alleZeigen}</Link>
           </p>
         )}
         {darf['finanzen.schreiben'] === true && (
@@ -128,62 +126,65 @@ export default async function Rechnungsliste(
             href={`/portal/${mandant}/finanzen/rechnungen/neu`}
             className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
           >
-            Neuer Entwurf
+            {t.neuerEntwurf}
           </Link>
         )}
       </div>
 
       {zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          Noch keine Rechnung. Ein Entwurf trägt keine Nummer — die entsteht
-          erst beim Festschreiben, und deshalb hinterlässt ein verworfener
-          Entwurf auch keine Lücke.
+          {t.keineRechnung}
         </p>
       ) : (
         <DataTable
-          beschriftung="Rechnungen dieser Gesellschaft mit Nummer, Kunde, Betrag und Zustand"
+          beschriftung={t.tabelle}
           zeilen={zeilen}
           schluessel={(z) => z.id}
           spalten={[
             {
               schluessel: 'nummer',
-              kopf: 'Nummer',
+              kopf: g.nummer,
               zelle: (z) => (
                 <Link
                   href={`/portal/${mandant}/finanzen/rechnungen/${z.id}`}
                   className="text-text underline-offset-2 hover:text-brand hover:underline"
                 >
-                  {z.nummer ?? <span className="text-text-subtle">ohne — Entwurf</span>}
+                  {z.nummer ?? <span className="text-text-subtle">{t.ohneNummer}</span>}
                 </Link>
               ),
             },
-            { schluessel: 'art', kopf: 'Art', zelle: (z) => ART[z.rechnungsart] ?? z.rechnungsart },
-            { schluessel: 'kunde', kopf: 'Kunde', zelle: (z) => z.kunde },
+            {
+              schluessel: 'art',
+              kopf: g.art,
+              zelle: (z) => t.artNamen[z.rechnungsart as keyof typeof t.artNamen]
+                ?? z.rechnungsart,
+            },
+            { schluessel: 'kunde', kopf: g.kunde, zelle: (z) => z.kunde },
             {
               schluessel: 'brutto',
-              kopf: 'Brutto',
+              kopf: t.brutto,
               numerisch: true,
               zelle: (z) => formatiereGeld(cent(BigInt(z.brutto_cent))),
             },
             {
               schluessel: 'datum',
-              kopf: 'Datum',
+              kopf: g.datum,
               zelle: (z) => z.rechnungsdatum ?? <span className="text-text-subtle">—</span>,
             },
             {
               schluessel: 'faellig',
-              kopf: 'Fällig',
+              kopf: g.faellig,
               zelle: (z) => z.faellig_am ?? <span className="text-text-subtle">—</span>,
             },
             {
               schluessel: 'status',
-              kopf: 'Zustand',
+              kopf: g.zustand,
               zelle: (z) => (
                 <span className="inline-flex flex-wrap items-center gap-s2">
-                  <StatusPill zustand={PILLE[z.status] ?? 'Entwurf'} />
+                  <StatusPill zustand={PILLE[z.status] ?? 'Entwurf'} sprache={zugang.sprache} />
                   {z.storniert_durch === null ? null : (
                     <span className="text-xs text-text-muted">
-                      aufgehoben durch {z.storniert_durch}
+                      {t.aufgehobenDurch} {z.storniert_durch}
                     </span>
                   )}
                 </span>
