@@ -110,7 +110,22 @@ export default defineConfig({
      * (frischer Container, erster Lauf nach `pnpm install`) braucht deutlich
      * länger als ein warmer, und ein Zeitlimit, das genau bis zum Messwert
      * reicht, fällt beim nächsten Route-Zuwachs wieder.
+     *
+     * **Und genau das ist eingetreten — 19.09.2026.** Der Bau misst jetzt
+     * **599 s**: eine Sekunde unter dem Limit. Die Suite lief nicht mehr
+     * durch, sondern meldete „Timed out waiting 600000ms from
+     * config.webServer" und führte KEINE einzige Prüfung aus. Das sieht aus
+     * wie ein kaputter Server und ist eine zu knappe Zahl.
+     *
+     * Der Grund ist kein Defekt: zwischen den beiden Messungen sind 826
+     * Dateien und 174 000 Zeilen dazugekommen, und die Seitenkarte führt 439
+     * Adressen. 193 s → 599 s ist der Preis dafür.
+     *
+     * Deshalb wieder derselbe Faktor wie damals (193 → 600, gut dreifach):
+     * 599 → 1 800. Wer die Zahl das nächste Mal anfasst, misst vorher und
+     * schreibt den Messwert hierher — ein Limit ohne Messung ist geraten, und
+     * ein geratenes Limit kostet einen ganzen Lauf.
      */
-    timeout: 600_000,
+    timeout: 1_800_000,
   },
 });
