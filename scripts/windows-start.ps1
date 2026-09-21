@@ -155,23 +155,55 @@ if ($DatenBehalten) {
   }
 
   Hinweis 'warte auf die Datenbank ...'
+  # ---------------------------------------------------------------------
+  # `pg_isready` LUEGT waehrend der Erstinitialisierung -- und das ist kein
+  # Fehler des Werkzeugs, sondern die Bauart des Abbilds.
+  #
+  # Der Einstiegspunkt von `postgres:16` faehrt fuer `initdb` und die
+  # Init-Skripte einen VORUEBERGEHENDEN Server hoch. Der horcht mit
+  # `listen_addresses=''` ausschliesslich auf dem Unix-Socket. Danach faehrt
+  # der Einstiegspunkt ihn wieder HERUNTER und startet den echten.
+  #
+  # `pg_isready` spricht ueber genau diesen Socket und meldet in diesem
+  # Fenster Erfolg. Wer dann zuschlaegt, trifft die Luecke zwischen beiden
+  # Servern und bekommt:
+  #
+  #   psql: error: connection to server on socket
+  #   "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory
+  #
+  # Gemeldet von einem frischen Windows-Rechner, abgebrochen bei
+  # 'ArbZG-Fensterschluessel (K-06)' -- dem ersten Befehl nach dieser
+  # Schleife. Das Skript lief also richtig; die Frage war falsch.
+  #
+  # ZWEI Aenderungen, und beide zaehlen:
+  #   1. Ueber TCP statt ueber den Socket. Der voruebergehende Server horcht
+  #      GAR NICHT auf TCP -- ein Treffer ueber 127.0.0.1 kann deshalb nur
+  #      der echte sein. Das ist der eigentliche Riegel.
+  #   2. Mit einer ABFRAGE statt mit `pg_isready`. Wer `select 1` beantwortet,
+  #      beantwortet auch das naechste `alter database`.
+  # ---------------------------------------------------------------------
   $bereit = $false
-  foreach ($versuch in 1..30) {
+  foreach ($versuch in 1..60) {
     Start-Sleep -Seconds 1
-    docker exec $Behaelter pg_isready -U postgres 2>$null | Out-Null
+    docker exec $Behaelter psql -h 127.0.0.1 -U postgres -tAc 'select 1' 2>$null | Out-Null
     if ($LASTEXITCODE -eq 0) { $bereit = $true; break }
   }
   if (-not $bereit) {
-    Write-Host '  Die Datenbank antwortet nach 30 Sekunden nicht.' -ForegroundColor Red
+    Write-Host '  Die Datenbank antwortet nach 60 Sekunden nicht.' -ForegroundColor Red
+    Write-Host '  Was der Behaelter selbst sagt:' -ForegroundColor Red
+    docker logs --tail 30 $Behaelter
     exit 1
   }
-  Hinweis 'bereit.'
+  Hinweis 'bereit -- und zwar der echte Server, nicht der Init-Server.'
 
   # MUSS vor dem Seed gesetzt sein: `alter database ... set` wirkt erst fuer NEUE
   # Verbindungen. Danach gesetzt, kommt der Schluessel fuer diesen Seed zu
   # spaet, und der Besetzungslauf endet mit 0 Einteilungen.
   Schritt 'ArbZG-Fensterschluessel (K-06)' {
-    docker exec $Behaelter psql -U postgres -c "alter database postgres set cse.fenster_schluessel = '$FensterKey'" | Out-Null
+    # `-h 127.0.0.1` aus demselben Grund wie in der Schleife darueber: ueber
+    # TCP kann nur der echte Server antworten.
+    docker exec $Behaelter psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 `
+      -c "alter database postgres set cse.fenster_schluessel = '$FensterKey'" | Out-Null
   }
 }
 

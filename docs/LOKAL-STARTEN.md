@@ -57,10 +57,23 @@ pnpm install
 docker rm -f cse-db
 docker run -d --name cse-db -e POSTGRES_USER=postgres -e POSTGRES_HOST_AUTH_METHOD=trust `
   -p 5433:5432 pgvector/pgvector:pg16
-Start-Sleep -Seconds 6
+
+# Warten, bis der ECHTE Server antwortet — und zwar ueber TCP.
+# Hier stand `Start-Sleep -Seconds 6`, und das ist ein Muenzwurf: das Abbild
+# faehrt fuer `initdb` erst einen VORUEBERGEHENDEN Server hoch, der nur auf
+# dem Unix-Socket horcht, und faehrt ihn danach wieder herunter. Wer in die
+# Luecke zwischen beiden trifft, bekommt
+#   „connection to server on socket .../.s.PGSQL.5432 failed: No such file or directory"
+# Der voruebergehende Server horcht GAR NICHT auf TCP — ein Treffer ueber
+# 127.0.0.1 kann deshalb nur der echte sein.
+foreach ($i in 1..60) {
+  Start-Sleep -Seconds 1
+  docker exec cse-db psql -h 127.0.0.1 -U postgres -tAc 'select 1' 2>$null | Out-Null
+  if ($LASTEXITCODE -eq 0) { break }
+}
 
 # K-06-Schluessel — siehe Abschnitt 3. OHNE DIESE ZEILE bleibt der Seed unvollstaendig.
-docker exec cse-db psql -U postgres -c `
+docker exec cse-db psql -h 127.0.0.1 -U postgres -c `
   "alter database postgres set cse.fenster_schluessel = 'VEVTVC1LRVktTklDSFQtRlVFUi1QUk9EVUtUSU9O'"
 
 pnpm db:migrate
@@ -83,9 +96,16 @@ pnpm install
 docker rm -f cse-db 2>/dev/null || true
 docker run -d --name cse-db -e POSTGRES_USER=postgres -e POSTGRES_HOST_AUTH_METHOD=trust \
   -p 5433:5432 pgvector/pgvector:pg16
-sleep 6
 
-docker exec cse-db psql -U postgres -c \
+# Warten, bis der ECHTE Server antwortet — ueber TCP, nicht ueber den Socket.
+# Begruendung siehe die PowerShell-Fassung darueber: `sleep 6` ist ein
+# Muenzwurf gegen den voruebergehenden initdb-Server.
+for i in $(seq 60); do
+  docker exec cse-db psql -h 127.0.0.1 -U postgres -tAc 'select 1' >/dev/null 2>&1 && break
+  sleep 1
+done
+
+docker exec cse-db psql -h 127.0.0.1 -U postgres -c \
   "alter database postgres set cse.fenster_schluessel = 'VEVTVC1LRVktTklDSFQtRlVFUi1QUk9EVUtUSU9O'"
 
 pnpm db:migrate && pnpm db:seed && pnpm content:import
@@ -197,6 +217,7 @@ gewechselt.
 |---|---|---|
 | `listen EADDRINUSE: address already in use :::3001` | Eine frueher gestartete Instanz haelt den Port. | PowerShell: `Get-NetTCPConnection -LocalPort 3001 -State Listen \| ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }` · bash: `kill $(lsof -ti tcp:3001)` |
 | Seite kommt **ohne Gestaltung** (Times New Roman, blaue unterstrichene Verweise, kein Menue) | Ein zweiter Next-Server hat `.next` ueberschrieben — siehe Abschnitt 5. | Alle laufenden Server beenden, dann `pnpm build` und `pnpm start` erneut. |
+| `psql: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory` — meist beim Schritt **ArbZG-Fensterschluessel (K-06)** | **Nicht** Ihr Rechner, und der Behaelter laeuft. Das Postgres-Abbild faehrt fuer `initdb` einen **voruebergehenden** Server hoch, der nur auf dem Unix-Socket horcht, und faehrt ihn danach wieder herunter. `pg_isready` meldet in diesem Fenster Erfolg — der naechste Befehl trifft dann die Luecke zwischen beiden Servern. | Behoben: `windows-start.ps1` und die Handfassungen oben warten jetzt ueber **TCP** (`psql -h 127.0.0.1 -tAc 'select 1'`). Der voruebergehende Server horcht gar nicht auf TCP, ein Treffer kann also nur der echte sein. Bei einem alten Stand des Skripts: `docker rm -f cse-db` und erneut starten. |
 | `unrecognized configuration parameter "cse.fenster_schluessel"` | Abschnitt 3. | Einstellung setzen, dann `pnpm db:seed` erneut. |
 | `/` antwortet mit 404 | `content:import` fehlt. | `pnpm content:import` |
 | `Ignored build scripts: esbuild@…` | pnpm fuehrt Installationsskripte nicht ungefragt aus. | Folgenlos fuer die Demo. |
