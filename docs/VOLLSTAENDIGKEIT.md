@@ -116,8 +116,8 @@ unbenutzt.
 
 | Nr | Was | Beleg | Grad | Stand |
 |---|---|---|---|---|
-| V-049 | **Eine Schicht zusagen oder absagen.** Der Zustand `zugesagt` wird im ganzen Baum **von niemandem** geschrieben | `src/app/portal/mein/schichten/[zuordnungId]/page.tsx:100`; Gegenprobe: der einzige `UPDATE` auf `einsatz_zuordnung.status` ist `dienstplan/einteilung.ts:757` (`abgesagt`, durch das Büro) | blockiert | offen |
-| V-050 | **Folge von V-049:** die Besetzungswarnung zählt Zusagen (`waechter/benachrichtigung.ts:62`) und meldet darum für **jede** Schicht null; der Pillenzweig „Bereit" (`bausteine.tsx:155`) ist unerreichbar | siehe V-049 | blockiert | offen |
+| V-049 | **Eine Schicht zusagen oder absagen.** Der Zustand `zugesagt` wird im ganzen Baum **von niemandem** geschrieben | `src/app/portal/mein/schichten/[zuordnungId]/page.tsx:100`; Gegenprobe: der einzige `UPDATE` auf `einsatz_zuordnung.status` ist `dienstplan/einteilung.ts:757` (`abgesagt`, durch das Büro) | blockiert | **erledigt** — D-622, `drizzle/0374`, `api/mein/schicht`, Baustein `Zusagefeld` in vier Sprachen |
+| V-050 | **Folge von V-049:** die Besetzungswarnung zählt Zusagen (`waechter/benachrichtigung.ts:62`) und meldet darum für **jede** Schicht null; der Pillenzweig „Bereit" (`bausteine.tsx:155`) ist unerreichbar | siehe V-049 | blockiert | **erledigt** — geprueft an der ZAHL, nicht am Spaltenwert (`tests/isolation/schicht-zusage.test.ts` §5) |
 | V-051 | **Die Entscheidung über den eigenen Einwand erreicht die Mitarbeiterin nirgends** — weder Begründung noch Meldung | `src/app/portal/mein/zeiten/[id]/einwand/page.tsx:181` | blockiert | offen |
 | V-052 | **Den eigenen Einwand zurückziehen.** Der Dienst erlaubt es ausdrücklich, es gibt keinen Weg dorthin | `src/server/services/zeit/einwand.ts:41`, `src/app/api/zeit/einwand/entscheidung/route.ts:39` | behindert | offen |
 | V-053 | **Einen anderen Monat ansehen.** „Meine Zeiten" liest `?monat=`, kein Bedienelement erzeugt den Parameter | `src/app/portal/mein/zeiten/page.tsx:47` | blockiert | offen |

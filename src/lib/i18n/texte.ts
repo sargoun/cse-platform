@@ -695,6 +695,24 @@ export interface MeinTexte {
   readonly unterschreiben: string;
   readonly unterschrieben: string;
 
+  /* ── Zusagen und Absagen (V-049, D-622) ─────────────────────────────── */
+  readonly zusagen: string;
+  readonly absagen: string;
+  readonly zusageFrage: string;
+  readonly absageGrund: string;
+  readonly absageGrundHinweis: string;
+  readonly zugesagtHinweis: string;
+  readonly abgesagtHinweis: string;
+  readonly absageEndgueltig: string;
+  readonly antwortZugesagt: string;
+  readonly antwortAbgesagt: string;
+  readonly antwortSchonZugesagt: string;
+  readonly antwortSchonAbgesagt: string;
+  readonly antwortVorbei: string;
+  readonly antwortNichtMoeglich: string;
+  readonly antwortGrundFehlt: string;
+  readonly antwortUnbekannt: string;
+
   readonly fotos: string;
   readonly aufnahmeHinzufuegen: string;
   readonly beschreibung: string;
@@ -998,6 +1016,26 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     unterzeichnerName: 'Name des Unterzeichners',
     unterschreiben: 'Unterschreiben',
     unterschrieben: 'Unterschrieben',
+    zusagen: 'Zusagen',
+    absagen: 'Absagen',
+    zusageFrage: 'Können Sie diese Schicht übernehmen?',
+    absageGrund: 'Warum können Sie nicht?',
+    absageGrundHinweis:
+      'Ein Grund ist nötig. Die Disposition muss unterscheiden können zwischen '
+      + '„krank" und „Bus verpasst" — das eine besetzt sie nach, das andere ruft sie an.',
+    zugesagtHinweis: 'Sie haben zugesagt. Das Büro sieht es.',
+    abgesagtHinweis: 'Sie haben abgesagt. Das Büro sieht es und besetzt nach.',
+    absageEndgueltig:
+      'Eine Absage lässt sich hier nicht zurücknehmen — das Büro hat den Platz '
+      + 'möglicherweise schon neu besetzt. Rufen Sie an, wenn es sich geändert hat.',
+    antwortZugesagt: 'Zugesagt.',
+    antwortAbgesagt: 'Abgesagt. Das Büro ist unterrichtet.',
+    antwortSchonZugesagt: 'Sie hatten schon zugesagt — es bleibt dabei.',
+    antwortSchonAbgesagt: 'Sie hatten schon abgesagt — es bleibt dabei.',
+    antwortVorbei: 'Diese Schicht ist vorbei.',
+    antwortNichtMoeglich: 'In diesem Stand geht das nicht mehr. Bitte im Büro melden.',
+    antwortGrundFehlt: 'Bitte schreiben Sie dazu, warum.',
+    antwortUnbekannt: 'Diese Schicht gibt es nicht.',
     fotos: 'Fotos',
     aufnahmeHinzufuegen: 'Aufnahme hinzufügen',
     beschreibung: 'Beschreibung',
@@ -1268,6 +1306,26 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     unterzeichnerName: 'Name of the signatory',
     unterschreiben: 'Sign',
     unterschrieben: 'Signed',
+    zusagen: 'Accept',
+    absagen: 'Decline',
+    zusageFrage: 'Can you take this shift?',
+    absageGrund: 'Why can you not?',
+    absageGrundHinweis:
+      'A reason is required. Scheduling has to tell "off sick" from "missed the bus" — '
+      + 'one they re-staff, the other they call you about.',
+    zugesagtHinweis: 'You have accepted. The office can see it.',
+    abgesagtHinweis: 'You have declined. The office can see it and will re-staff.',
+    absageEndgueltig:
+      'A decline cannot be taken back here — the office may already have filled the '
+      + 'place. Call them if something has changed.',
+    antwortZugesagt: 'Accepted.',
+    antwortAbgesagt: 'Declined. The office has been told.',
+    antwortSchonZugesagt: 'You had already accepted — it stands.',
+    antwortSchonAbgesagt: 'You had already declined — it stands.',
+    antwortVorbei: 'This shift is over.',
+    antwortNichtMoeglich: 'That is no longer possible at this stage. Please contact the office.',
+    antwortGrundFehlt: 'Please write why.',
+    antwortUnbekannt: 'There is no such shift.',
     fotos: 'Photos',
     aufnahmeHinzufuegen: 'Add a photo',
     beschreibung: 'Description',
@@ -1530,6 +1588,26 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     unterzeichnerName: 'اسم الموقِّع',
     unterschreiben: 'توقيع',
     unterschrieben: 'موقَّع',
+    zusagen: 'أوافق',
+    absagen: 'أعتذر',
+    zusageFrage: 'هل يمكنك تولّي هذه المناوبة؟',
+    absageGrund: 'لماذا لا تستطيع؟',
+    absageGrundHinweis:
+      'السبب مطلوب. على قسم التوزيع أن يفرّق بين «مريض» و«فاتني الباص» — '
+      + 'الأول يجد بديلاً، والثاني يتّصل بك.',
+    zugesagtHinweis: 'وافقت. المكتب يرى ذلك.',
+    abgesagtHinweis: 'اعتذرت. المكتب يرى ذلك ويضع بديلاً.',
+    absageEndgueltig:
+      'لا يمكن سحب الاعتذار من هنا — ربما يكون المكتب قد ملأ المكان. '
+      + 'اتّصل بهم إن تغيّر شيء.',
+    antwortZugesagt: 'تمّت الموافقة.',
+    antwortAbgesagt: 'تمّ الاعتذار. أُبلغ المكتب.',
+    antwortSchonZugesagt: 'كنت قد وافقت — تبقى الموافقة.',
+    antwortSchonAbgesagt: 'كنت قد اعتذرت — يبقى الاعتذار.',
+    antwortVorbei: 'هذه المناوبة انتهت.',
+    antwortNichtMoeglich: 'لم يعد ذلك ممكناً في هذه الحالة. راجع المكتب.',
+    antwortGrundFehlt: 'اكتب السبب من فضلك.',
+    antwortUnbekannt: 'لا توجد مناوبة بهذا الرقم.',
     fotos: 'الصور',
     aufnahmeHinzufuegen: 'إضافة صورة',
     beschreibung: 'الوصف',
@@ -1790,6 +1868,26 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     unterzeichnerName: 'İmzalayanın adı',
     unterschreiben: 'İmzala',
     unterschrieben: 'İmzalandı',
+    zusagen: 'Kabul et',
+    absagen: 'Reddet',
+    zusageFrage: 'Bu vardiyayı üstlenebilir misiniz?',
+    absageGrund: 'Neden üstlenemiyorsunuz?',
+    absageGrundHinweis:
+      'Bir gerekçe gerekli. Planlama, „hastayım" ile „otobüsü kaçırdım" arasını '
+      + 'ayırabilmeli — biri için yerinize birini bulur, diğeri için sizi arar.',
+    zugesagtHinweis: 'Kabul ettiniz. Ofis bunu görüyor.',
+    abgesagtHinweis: 'Reddettiniz. Ofis bunu görüyor ve yerinize birini bulacak.',
+    absageEndgueltig:
+      'Bir ret buradan geri alınamaz — ofis yeri çoktan doldurmuş olabilir. '
+      + 'Bir şey değiştiyse arayın.',
+    antwortZugesagt: 'Kabul edildi.',
+    antwortAbgesagt: 'Reddedildi. Ofise bildirildi.',
+    antwortSchonZugesagt: 'Zaten kabul etmiştiniz — öyle kalıyor.',
+    antwortSchonAbgesagt: 'Zaten reddetmiştiniz — öyle kalıyor.',
+    antwortVorbei: 'Bu vardiya bitti.',
+    antwortNichtMoeglich: 'Bu aşamada artık mümkün değil. Lütfen ofisle görüşün.',
+    antwortGrundFehlt: 'Lütfen nedenini yazın.',
+    antwortUnbekannt: 'Böyle bir vardiya yok.',
     fotos: 'Fotoğraflar',
     aufnahmeHinzufuegen: 'Fotoğraf ekle',
     beschreibung: 'Açıklama',

@@ -3404,6 +3404,74 @@ Regeln machen es zu einem Register statt zu einer Erinnerung:
 Widerlegte Beobachtungen stehen in §9 des Registers, nicht im Papierkorb —
 damit sie nicht in drei Monaten erneut als Befund auftauchen.
 
+
+### D-622 — Die Kraft antwortet auf ihre Einteilung; eine Absage gilt
+
+**Der Befund, der das gebracht hat.** `zuordnung_status` kennt seit
+`drizzle/0028` den Wert `zugesagt`. **Siebzehn Stellen lesen ihn** — die
+Besetzungslücke, der Nachtwächter, der Kalender, die Gruppensicht, die
+Agentenwerkzeuge, das Arbeiterportal. **Keine einzige schrieb ihn.** Der
+einzige `UPDATE` auf `einsatz_zuordnung.status` war `sageZuordnungAb` — das
+Büro.
+
+Das war keine fehlende Bequemlichkeit, sondern eine **falsche Zahl an einer
+Stelle, an der sie weh tut**: `besetzungsluecke.ts` und der Wächter
+`dienstplan.morgen_unbesetzt` zählen ausdrücklich Zusagen und nicht
+Einteilungen („Gezählt werden ZUSAGEN, nicht Einteilungen"). Ohne Schreiber
+meldete die Besetzungswarnung für **jede** Schicht null Zusagen — sie warnte
+immer, also warnte sie nie.
+
+**Die Entscheidung des Auftraggebers: eine Absage lässt sich nicht
+zurücknehmen.** Vorgelegt wurden drei Wege; gewählt ist der erste, und die
+Begründung ist betrieblich, nicht technisch:
+
+> Sagt eine Kraft ab, besetzt das Büro den Platz nach. Nähme sie die Absage
+> zwei Stunden später mit einem Knopfdruck zurück, stünden **vier** Menschen
+> auf einer Schicht für drei — und einer wird vor Ort weggeschickt. Der Weg
+> zurück läuft über das Büro, das als einziges weiß, ob der Platz noch frei
+> ist.
+
+Daraus folgen die Zustandsübergänge: `zusagen` nur aus `geplant`; `absagen`
+aus `geplant` **und** aus `zugesagt` (wer zusagt und dann krank wird, muss
+absagen können). `ersetzt` und `nicht_erschienen` sind Feststellungen des
+Büros und keine Zustände, aus denen die Kraft handelt.
+
+**Die Absage der Kraft setzt `entfernt_am` NICHT — die des Büros schon.**
+`sageZuordnungAb` setzt beides und verbrennt damit die Check-in-Marken; das
+ist richtig für das Büro, das entscheidet, wer im Plan steht. Die Kraft
+entscheidet das nicht: ihre Absage ist ein **Signal**. Die Zeile bleibt im
+Plan, `besetzt_anzahl` bleibt unverändert (der Zähler zählt `entfernt_am is
+null`, gleich welchen Status), und die Lücke erscheint genau dort, wo sie
+hingehört — in der Zahl der **Zusagen**, die gegen `min_besetzung` gehalten
+wird.
+
+**Kein Recht, und das ist die Entscheidung.** `dienstplan.schreiben` ist das
+Recht, den Plan zu **machen**; wer es einer Reinigungskraft gäbe, gäbe ihr den
+Plan. Gemessen an `pg_policy` hat das Arbeiterportal über `cse_app` auch gar
+keinen Schreibweg auf `einsatz_zuordnung`: `t_selbst_m1` gibt nur `r`,
+`t_mandant` verlangt das Schreibrecht, `p_ma_decke` deckelt restriktiv auf die
+eigene Anstellung. Der Weg läuft deshalb über `app.schicht_zusagen` /
+`app.schicht_absagen` (`drizzle/0374`) — `SECURITY DEFINER`, und geprüft
+werden **Portal** (K-04) und **Personenzugehörigkeit**, nicht ein Modulrecht
+(K-19). Dasselbe Muster wie die Stempeluhr aus `0373`.
+
+**Der Grund einer Absage ist Pflicht** — nicht aus Bürokratie: die Disposition
+muss um 05:40 zwischen „krank" und „Bus verpasst" unterscheiden können; das
+eine besetzt sie nach, das andere ruft sie an. `ez_absage_begruendet` erzwingt
+ihn ohnehin; die Prüfung in der Funktion sorgt dafür, dass der Mensch davor
+einen Satz liest und keinen Constraint-Namen.
+
+**Zwei Rechte musste `cse_definer` dazubekommen, und das zweite ist die
+Lektion.** `update` auf `einsatz_zuordnung` war erwartbar. Dass der Auslöser
+`kern.einsatz_besetzung_zaehlen` als `SECURITY INVOKER` läuft und damit
+**`einsatz` unter demselben Benutzer** schreibt, war es nicht — der Fehler
+(„permission denied for table einsatz") fiel erst in der Isolationssuite, nach
+dem erfolgreichen `UPDATE`. Eine Definer-Funktion braucht Rechte nicht nur auf
+die Tabelle, die sie nennt, sondern auf alles, was ihre Auslöser anfassen.
+Das Recht auf `einsatz` ist deshalb **spaltenweise** vergeben
+(`grant update (besetzt_anzahl)`): ein blankes `grant update` hätte jeder
+künftigen Definer-Funktion still den ganzen Dienstplan geöffnet.
+
 ---
 
 O-02 has been answered — see **D-11**. O-03 has been answered — see **D-09**; the

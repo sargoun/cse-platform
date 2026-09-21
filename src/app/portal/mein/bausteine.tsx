@@ -305,3 +305,98 @@ function StempelKnopf({
     </form>
   );
 }
+
+/**
+ * Zusagen und Absagen — die Antwort der Kraft auf ihre Einteilung
+ * (V-049, V-050, D-622, EMP-02).
+ *
+ * **Der Befund, der diesen Baustein gebracht hat.** `zuordnung_status` kennt
+ * `zugesagt` seit 0028, siebzehn Stellen LESEN den Wert — und es gab keinen
+ * Knopf, der ihn setzt. Der Pillenzweig „Bereit" in `schichtPille` oben war
+ * damit unerreichbarer Code, und die Besetzungswarnung, die ausdrücklich
+ * ZUSAGEN zählt, meldete für jede Schicht null.
+ *
+ * **Zwei Formulare, nicht eines mit einem Umschalter.** Die Absage braucht
+ * einen Grund, die Zusage nicht. Ein gemeinsames Formular müsste den
+ * Grund-Zwang mit JavaScript ein- und ausschalten — und dieser Bildschirm
+ * muss im Treppenhaus funktionieren, auf einem alten Telefon, ohne Skript.
+ *
+ * **`min-h-16` wie bei der Stempeluhr.** DESIGN §9 nennt 44px als
+ * MINDESTmass; das hier sind Knöpfe, die jemand mit Handschuhen im
+ * Halbdunkel trifft.
+ *
+ * **Die Absage steht optisch UNTER der Zusage und ist nie die auffälligste
+ * Fläche.** Sie ist der seltenere Fall und die einzige Handlung hier, die
+ * sich nicht zurücknehmen lässt (D-622) — der Satz darüber sagt das, bevor
+ * jemand drückt, nicht danach.
+ */
+export function Zusagefeld({
+  schicht, texte,
+}: {
+  readonly schicht: EigeneSchicht;
+  readonly texte: MeinTexte;
+}) {
+  /*
+   * Aus dem Plan genommen oder vorbei: keine Handlung mehr. Ein Formular
+   * anzubieten, das die Datenbank danach abweist, ist schlechter als keines —
+   * `t_selbst_m1` verlangt `entfernt_am is null`, und beide Funktionen aus
+   * 0374 weisen eine beendete Schicht ab.
+   */
+  if (schicht.entfernt || schicht.beendet) return null;
+
+  const feld = 'w-full rounded-md border border-line bg-surface px-s3 py-s2 '
+    + 'text-base text-text';
+
+  if (schicht.status === 'abgesagt') {
+    return (
+      <section data-cse="zusage-abgesagt"
+               className="mt-s4 rounded-lg border border-line bg-surface-2 p-s4">
+        <p className="m-0 text-base text-text">{texte.abgesagtHinweis}</p>
+        <p className="m-0 mt-s2 text-sm text-text-muted">{texte.absageEndgueltig}</p>
+      </section>
+    );
+  }
+
+  if (schicht.status !== 'geplant' && schicht.status !== 'zugesagt') return null;
+
+  const zugesagt = schicht.status === 'zugesagt';
+  return (
+    <section data-cse="zusagefeld" data-status={schicht.status}
+             className="mt-s4 rounded-lg border border-line bg-surface p-s4">
+      {zugesagt ? (
+        <p className="m-0 mb-s4 text-base text-text" data-cse="zusage-bestaetigt">
+          {texte.zugesagtHinweis}
+        </p>
+      ) : (
+        <>
+          <h2 className="mb-s4 mt-0 text-h3 text-text">{texte.zusageFrage}</h2>
+          <form action="/api/mein/schicht" method="post"
+                data-cse="schicht-zusagen" className="m-0 mb-s5">
+            <input type="hidden" name="zuordnung" value={schicht.zuordnungId} />
+            <input type="hidden" name="aktion" value="zusagen" />
+            <Button type="submit" variante="primary"
+                    className="min-h-16 w-full text-h3">
+              {texte.zusagen}
+            </Button>
+          </form>
+        </>
+      )}
+
+      <form action="/api/mein/schicht" method="post"
+            data-cse="schicht-absagen" className="m-0 flex flex-col gap-s3">
+        <input type="hidden" name="zuordnung" value={schicht.zuordnungId} />
+        <input type="hidden" name="aktion" value="absagen" />
+        <label className="flex flex-col gap-s2 text-base text-text">
+          {texte.absageGrund}
+          <textarea name="grund" rows={2} required className={feld}
+                    data-cse="absage-grund" />
+          <span className="text-sm text-text-muted">{texte.absageGrundHinweis}</span>
+        </label>
+        <p className="m-0 text-sm text-text-muted">{texte.absageEndgueltig}</p>
+        <Button type="submit" variante="secondary" className="min-h-16 w-full">
+          {texte.absagen}
+        </Button>
+      </form>
+    </section>
+  );
+}

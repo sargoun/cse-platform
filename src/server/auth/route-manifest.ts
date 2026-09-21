@@ -1447,6 +1447,34 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'prueft. Der Schreibvorgang muendet in `app.checkin_verbrauchen` (K-08).',
   },
   {
+    /**
+     * Die eigene Einteilung zusagen oder absagen (V-049, D-622, Migration 0374).
+     *
+     * **Kein Recht, und das ist die Entscheidung — aus demselben Grund wie
+     * bei der Stempeluhr darueber.** `dienstplan.schreiben` ist das Recht,
+     * den Plan zu MACHEN. Wer es einer Reinigungskraft gaebe, gaebe ihr den
+     * Plan. Auf die eigene Einteilung zu antworten ist Selbstzugriff und kein
+     * Modulrecht (K-19).
+     *
+     * Die Wache ist die Sitzung, der Ursprungsvergleich, der aus der
+     * EINTEILUNG serverseitig aufgeloeste Mandant (K-02) — und vor allem
+     * `app.schicht_zusagen` / `app.schicht_absagen` (0374) selbst, die auf
+     * `app.portal() = 'mitarbeiter'` (K-04) und auf der
+     * Personenzugehoerigkeit der Einteilung bestehen. Beides kann diese Route
+     * nicht umgehen (Invariante 3).
+     */
+    pfad: 'api/mein/schicht',
+    recht: null,
+    grund:
+      'EMP-02, V-049, D-622. Auf die EIGENE Einteilung zu antworten ist Selbstzugriff und '
+      + 'kein Modulrecht (K-19); `dienstplan.schreiben` gehoert dem Buero, das den Plan '
+      + 'macht. Die Wache ist die Sitzung, der Ursprungsvergleich, der aus der Einteilung '
+      + 'serverseitig aufgeloeste Mandant (K-02) und `app.schicht_zusagen` / '
+      + '`app.schicht_absagen` (0374), die Portal UND Personenzugehoerigkeit selbst pruefen. '
+      + 'Das Arbeiterportal hat auf `einsatz_zuordnung` ueber `cse_app` keinen Schreibweg: '
+      + '`t_selbst_m1` gibt nur `r`.',
+  },
+  {
     pfad: 'api/mein/antraege/[id]/zurueckziehen',
     recht: null,
     grund:

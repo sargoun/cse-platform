@@ -176,6 +176,24 @@ describe('(2) es gibt keinen Weg, der einen Zeiteintrag aendert (EMP-07)', () =>
     'api/mein/dokumente/[id]/datei',
     /* Die Antwort im eigenen Faden (0350, EMP-11). */
     'api/mein/nachrichten/[id]',
+    /*
+     * **Die Antwort auf die eigene Einteilung (V-049, D-622, Migration 0374)
+     * — die fuenfzehnte Schreibroute, und hier steht, warum sie eine sein darf.**
+     *
+     * Sie schreibt `einsatz_zuordnung.status`, und das Arbeiterportal hat auf
+     * diese Tabelle ueber `cse_app` gar keinen Schreibweg: `t_selbst_m1` gibt
+     * nur `r`, `t_mandant` verlangt `dienstplan.schreiben`, `p_ma_decke`
+     * deckelt restriktiv auf die eigene Anstellung. Dieselbe Aufloesung wie
+     * bei der Stempeluhr darunter: der Schreibweg laeuft ueber
+     * `cse_definer` (`app.schicht_zusagen` / `app.schicht_absagen`), und die
+     * Funktionen pruefen PORTAL und PERSONENZUGEHOERIGKEIT statt eines
+     * Rechts. `dienstplan.schreiben` ist das Recht, den Plan zu MACHEN — wer
+     * es einer Reinigungskraft gaebe, gaebe ihr den Plan.
+     *
+     * Der Fall „KEINE Route unter `api/mein/` schreibt einen Zeiteintrag"
+     * bleibt unberuehrt: hier wird keiner geschrieben.
+     */
+    'api/mein/schicht',
     'api/mein/schichten/[zuordnungId]/bautagebuch/mannstunden',
     'api/mein/schichten/[zuordnungId]/bautagebuch/position',
     'api/mein/schichten/[zuordnungId]/fotos',

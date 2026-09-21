@@ -7,7 +7,26 @@ import {
 } from '@/server/services/mitarbeiter/dienstanweisungen';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
-import { Feld, Felder, SchichtKarte } from '../../bausteine';
+import { Feld, Felder, SchichtKarte, Zusagefeld } from '../../bausteine';
+import type { MeinTexte } from '@/lib/i18n/texte';
+
+/**
+ * Die acht Ausgaenge von `POST /api/mein/schicht`, beschriftet.
+ *
+ * Ein `Record` und kein `switch` im JSX: eine Antwort, die hier fehlt, ist
+ * damit ein Tippfehler und keine stille leere Zeile — und `?antwort=` kommt
+ * aus der Adresszeile, also aus der Hand eines beliebigen Menschen.
+ */
+const ANTWORT_TEXT: Readonly<Record<string, (t: MeinTexte) => string>> = {
+  zugesagt: (t) => t.antwortZugesagt,
+  abgesagt: (t) => t.antwortAbgesagt,
+  schon_zugesagt: (t) => t.antwortSchonZugesagt,
+  schon_abgesagt: (t) => t.antwortSchonAbgesagt,
+  vorbei: (t) => t.antwortVorbei,
+  nicht_moeglich: (t) => t.antwortNichtMoeglich,
+  grund_fehlt: (t) => t.antwortGrundFehlt,
+  unbekannt: (t) => t.antwortUnbekannt,
+};
 
 /**
  * `/portal/mein/schichten/[zuordnungId]` — die einzelne Schicht (EMP-02).
@@ -31,9 +50,14 @@ interface Blatt {
 }
 
 export default async function MeineSchicht(
-  { params }: { params: Promise<{ zuordnungId: string }> },
+  { params, searchParams }: {
+    params: Promise<{ zuordnungId: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { zuordnungId } = await params;
+  const suche = await searchParams;
+  const antwort = typeof suche['antwort'] === 'string' ? suche['antwort'] : null;
   const ergebnis = await meinPortal<Blatt | null>(
     `/portal/mein/schichten/${zuordnungId}`,
     async (kontext, teil) => {
@@ -79,6 +103,26 @@ export default async function MeineSchicht(
         <SchichtKarte schicht={daten} texte={t} sprache={basis.sprache} alsLink={false} />
       </div>
 
+      {/*
+        **Die Antwort auf den letzten Knopfdruck** (V-049). Sie kommt als
+        `?antwort=` von `POST /api/mein/schicht` zurueck — nicht als JSON und
+        nicht als Fehlerseite: von acht moeglichen Ausgaengen ist keiner ein
+        Programmfehler, und „Sie hatten schon zugesagt" gehoert in einen Satz,
+        nicht in ein rotes Fenster.
+      */}
+      {antwort !== null && ANTWORT_TEXT[antwort] !== undefined && (
+        <p
+          data-cse="schicht-antwort"
+          data-antwort={antwort}
+          className={`mb-s4 rounded-lg border p-s4 text-base ${
+            antwort === 'zugesagt' || antwort === 'abgesagt'
+              ? 'border-success bg-success-soft text-text'
+              : 'border-warning bg-warning-soft text-text'}`}
+        >
+          {ANTWORT_TEXT[antwort]!(t)}
+        </p>
+      )}
+
       <section className="rounded-lg border border-line bg-surface p-s4">
         <Felder>
           <Feld label={t.gesellschaft}>{daten.mandantName}</Feld>
@@ -89,6 +133,8 @@ export default async function MeineSchicht(
           {daten.funktion !== null && <Feld label={t.funktion}>{daten.funktion}</Feld>}
         </Felder>
       </section>
+
+      <Zusagefeld schicht={daten} texte={t} />
 
       {/*
         Was AUF dieser Schicht dokumentiert wird (SEC-05, CLN-04, TIM-10,
