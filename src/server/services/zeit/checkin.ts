@@ -350,3 +350,57 @@ export async function widerrufeCheckin(
     `select app.checkin_widerrufen($1::uuid, $2) as ok`, [tokenId, grund]);
   return z?.ok === true;
 }
+
+/**
+ * Ein- oder ausstempeln AUS DER SITZUNG — die zweite Tuer zur selben Uhr
+ * (D-618, O-93, Migration 0373).
+ *
+ * **Warum das hier steht und nicht in `services/mitarbeiter/`.** Die Dienste
+ * des Arbeiterportals lesen ausnahmslos; seine drei Schreibwege — Einwand,
+ * Antrag, Abwesenheitsmeldung — liegen alle im FACHdienst ihrer Domaene, und
+ * `tests/kern/mitarbeiter.test.ts` besteht darauf: „Ein vierter, im
+ * Portaldienst angelegter waere genau der, der an ihnen vorbeifuehrt."
+ * Stempeln ist Zeiterfassung, also gehoert es hierher — neben `gibCheckinAus`
+ * und `loeseCheckinEin`.
+ *
+ * **Die Sitzung ersetzt die ZUSTELLUNG der Marke, nicht die Marke.**
+ * `app.checkin_aus_der_sitzung` stellt sie serverseitig aus und loest sie im
+ * selben Vorgang ein; `app.checkin_verbrauchen` bleibt der einzige Schreiber
+ * von `zeiteintrag` (K-08). Geprueft wird in der DATENBANK: Portal
+ * (`mitarbeiter`, K-04) und Personenzugehoerigkeit der Einteilung.
+ *
+ * **`geraeteZeit` ist Dokumentation, nie Grundlage** (Invariante 5). Sie
+ * landet in `zeiteintrag.geraete_zeit_*`, die Datenbank leitet
+ * `zeitabweichung_sek` ab, und die abgerechnete Dauer bleibt die Differenz
+ * zweier Serverinstants.
+ */
+export type StempelErgebnis =
+  | { readonly art: 'eingecheckt'; readonly objekt: string | null }
+  | { readonly art: 'ausgecheckt'; readonly objekt: string | null }
+  | { readonly art: 'abgelehnt' };
+
+export async function stempleAusDerSitzung(
+  kontext: SchreibKontext,
+  eingabe: {
+    readonly zuordnungId: string;
+    readonly zweck: TokenZweck;
+    readonly geraeteZeit?: Date | null;
+    readonly ip?: string | null;
+    readonly userAgent?: string | null;
+  },
+): Promise<StempelErgebnis> {
+  const [z] = await kontext.schreibe<{
+    ergebnis: string; zeiteintrag_id: string | null; objekt: string | null;
+  }>(
+    `select ergebnis, zeiteintrag_id, objekt
+       from app.checkin_aus_der_sitzung($1::uuid, $2::token_zweck, $3::timestamptz,
+                                        $4::inet, $5, null)`,
+    [eingabe.zuordnungId, eingabe.zweck,
+      eingabe.geraeteZeit?.toISOString() ?? null,
+      eingabe.ip ?? null, eingabe.userAgent ?? null]);
+
+  if (z === undefined || z.ergebnis === 'abgelehnt') return { art: 'abgelehnt' };
+  return z.ergebnis === 'eingecheckt'
+    ? { art: 'eingecheckt', objekt: z.objekt }
+    : { art: 'ausgecheckt', objekt: z.objekt };
+}

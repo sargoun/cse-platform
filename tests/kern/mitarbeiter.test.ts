@@ -182,6 +182,26 @@ describe('(2) es gibt keinen Weg, der einen Zeiteintrag aendert (EMP-07)', () =>
     'api/mein/schichten/[zuordnungId]/leistungsnachweis',
     'api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift',
     'api/mein/schichten/[zuordnungId]/wachbuch',
+    /*
+     * **Die Stempeluhr (D-618, O-93, Migration 0373) — und sie ist der
+     * Grenzfall, den diese Liste festhalten soll.**
+     *
+     * Sie schreibt einen `zeiteintrag`, und genau das verbietet EMP-07 dem
+     * Portal. Der Widerspruch loest sich an der Stelle auf, die der Kommentar
+     * zu `p_ma_kein_update` (0052) schon nennt: verboten ist das AENDERN ueber
+     * `cse_app`; der Check-in schreibt seit jeher ueber `cse_definer` (K-08),
+     * und diese Route ruft mit `app.checkin_aus_der_sitzung` genau denselben
+     * Weg wie der Token-Link — sie muendet in `app.checkin_verbrauchen`, den
+     * einen Schreiber.
+     *
+     * Der Fall darunter („KEINE Route unter `api/mein/` schreibt einen
+     * Zeiteintrag") bleibt deshalb gruen: er sucht nach `insert into
+     * zeiteintrag` IM PORTALCODE, und den gibt es hier nicht.
+     *
+     * Was diese Zeile kostet, ist der Grund, aus dem sie hier steht: wer eine
+     * vierzehnte Schreibroute dazunimmt, muss sie benennen und begruenden.
+     */
+    'api/mein/stempeluhr',
   ];
 
   it('jede Schreibroute des Portals steht namentlich in der Liste', () => {

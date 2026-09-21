@@ -509,6 +509,19 @@ export interface MeinTexte {
    * dafuer gebaut ist: als Nachricht (`services/zeit/korrektur.ts`). Dieser
    * Satz sagt, DASS korrigiert wurde, und wohin man fuer das Warum sieht.
    */
+  /**
+   * Die Stempeluhr im Portal (D-618, O-93).
+   *
+   * **`laeuftSeit` traegt den Zaehler, nicht die Dauer.** Was dort steht, ist
+   * Anzeige: der Nullpunkt kommt aus der Serveruhr, und die abgerechnete
+   * Dauer entsteht beim Ausstempeln in der Datenbank aus zwei UTC-Instants
+   * (Invariante 2 und 5). Deshalb sagt `serverUhrHinweis` es auch laut — wer
+   * eine Minute Unterschied zur eigenen Uhr sieht, soll wissen, welche zaehlt.
+   */
+  readonly stempeluhr: Readonly<Record<
+    'titel' | 'beginnen' | 'beenden' | 'laeuftSeit' | 'seit' | 'keineSchichtJetzt'
+    | 'serverUhrHinweis' | 'eingecheckt' | 'ausgecheckt' | 'abgelehnt'
+    | 'schonOffen', string>>;
   readonly korrigiertHinweis: string;
   readonly korrigiertFassung: string;
   readonly einwandMelden: string;
@@ -858,6 +871,20 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinBearbeiten:
       'Zeiten lassen sich hier nicht ändern. Wenn etwas nicht stimmt, melden Sie '
       + 'einen Einwand — die Planung entscheidet darüber.',
+    stempeluhr: {
+      titel: 'Arbeitszeit',
+      beginnen: 'Arbeit beginnen',
+      beenden: 'Arbeit beenden',
+      laeuftSeit: 'Läuft',
+      seit: 'seit',
+      keineSchichtJetzt: 'Gerade läuft keine Schicht, in die Sie einstempeln können. '
+        + 'Der Knopf erscheint, sobald Ihre Schicht beginnt.',
+      serverUhrHinweis: 'Gezählt wird die Zeit des Servers, nicht die Ihres Geräts.',
+      eingecheckt: 'Eingestempelt. Die Zeit läuft.',
+      ausgecheckt: 'Ausgestempelt. Ihre Stunden gehen an die Leitung.',
+      abgelehnt: 'Das hat nicht geklappt. Prüfen Sie, ob Ihre Schicht schon begonnen hat.',
+      schonOffen: 'Sie sind bereits eingestempelt.',
+    },
     korrigiertHinweis: 'Dieser Eintrag wurde korrigiert. Den Grund hat Ihnen die Leitung als Nachricht geschickt — sie steht in Ihrem Posteingang.',
     korrigiertFassung: 'Fassung',
     einwandMelden: 'Einwand melden',
@@ -1114,6 +1141,20 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinBearbeiten:
       'Time records cannot be edited here. If something is wrong, raise an '
       + 'objection — the planning team decides on it.',
+    stempeluhr: {
+      titel: 'Working time',
+      beginnen: 'Start work',
+      beenden: 'End work',
+      laeuftSeit: 'Running',
+      seit: 'since',
+      keineSchichtJetzt: 'No shift is running that you could clock into right now. '
+        + 'The button appears once your shift starts.',
+      serverUhrHinweis: 'The server clock is counted, not your device clock.',
+      eingecheckt: 'Clocked in. The time is running.',
+      ausgecheckt: 'Clocked out. Your hours go to management.',
+      abgelehnt: 'That did not work. Check whether your shift has already started.',
+      schonOffen: 'You are already clocked in.',
+    },
     korrigiertHinweis: 'This entry was corrected. Management sent you the reason as a message — it is in your inbox.',
     korrigiertFassung: 'Version',
     einwandMelden: 'Raise an objection',
@@ -1366,6 +1407,20 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinBearbeiten:
       'لا يمكن تعديل سجلات الوقت هنا. إذا كان هناك خطأ، قدّم اعتراضاً — قسم التخطيط '
       + 'هو من يبتّ فيه.',
+    stempeluhr: {
+      titel: 'وقت العمل',
+      beginnen: 'ابدأ العمل',
+      beenden: 'أنهِ العمل',
+      laeuftSeit: 'جارٍ',
+      seit: 'منذ',
+      keineSchichtJetzt: 'لا توجد مناوبة جارية يمكنك تسجيل الدخول إليها الآن. '
+        + 'يظهر الزرّ فور بدء مناوبتك.',
+      serverUhrHinweis: 'المحتسَب هو وقت الخادم، لا وقت جهازك.',
+      eingecheckt: 'تم تسجيل البدء. الوقت يجري.',
+      ausgecheckt: 'تم تسجيل الانتهاء. ساعاتك تذهب إلى الإدارة.',
+      abgelehnt: 'لم ينجح ذلك. تحقّق ممّا إذا كانت مناوبتك قد بدأت.',
+      schonOffen: 'أنت مسجَّل البدء أصلاً.',
+    },
     korrigiertHinweis: 'تم تصحيح هذا السجلّ. أرسلت لك الإدارة السبب في رسالة — تجدها في صندوق الوارد.',
     korrigiertFassung: 'النسخة',
     einwandMelden: 'تقديم اعتراض',
@@ -1609,6 +1664,20 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinBearbeiten:
       'Zaman kayıtları burada değiştirilemez. Bir yanlışlık varsa itiraz bildirin — '
       + 'kararı planlama birimi verir.',
+    stempeluhr: {
+      titel: 'Çalışma saati',
+      beginnen: 'İşe başla',
+      beenden: 'İşi bitir',
+      laeuftSeit: 'Sürüyor',
+      seit: 'başlangıç',
+      keineSchichtJetzt: 'Şu anda giriş yapabileceğiniz bir vardiya yok. '
+        + 'Vardiyanız başlar başlamaz düğme görünür.',
+      serverUhrHinweis: 'Cihazınızın saati değil, sunucunun saati sayılır.',
+      eingecheckt: 'Giriş yapıldı. Süre işliyor.',
+      ausgecheckt: 'Çıkış yapıldı. Saatleriniz yönetime gidiyor.',
+      abgelehnt: 'Bu işe yaramadı. Vardiyanızın başlayıp başlamadığını kontrol edin.',
+      schonOffen: 'Zaten giriş yapmış durumdasınız.',
+    },
     korrigiertHinweis: 'Bu kayıt düzeltildi. Yönetim size nedenini mesaj olarak gönderdi — gelen kutunuzda.',
     korrigiertFassung: 'Sürüm',
     einwandMelden: 'İtiraz bildir',

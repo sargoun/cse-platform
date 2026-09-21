@@ -792,6 +792,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'dienstplan', pfad: 'mitarbeiter/schichten', schreibend: false },
   { modul: 'zeit', pfad: 'mitarbeiter/stunden', schreibend: false },
   { modul: 'zeit', pfad: 'mitarbeiter/zeiten', schreibend: false },
+  /**
+   * Was die Oberflaeche wissen muss, um den richtigen Stempelknopf zu zeigen
+   * (D-618) — LESEND, wie jeder Dienst dieses Portals. Der Stempel selbst
+   * steht in `zeit/checkin`.
+   */
+  { modul: 'zeit', pfad: 'mitarbeiter/stempeluhr', schreibend: false },
   { modul: 'nachweis', pfad: 'mitarbeiter/nachweise', schreibend: false },
   { modul: 'zeit', pfad: 'mitarbeiter/antraege', schreibend: false },
   { modul: 'zeit', pfad: 'mitarbeiter/felder', schreibend: false },

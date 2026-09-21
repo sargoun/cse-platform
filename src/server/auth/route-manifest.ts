@@ -1406,6 +1406,36 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'zeit.abwesenheit_melden',
   },
   {
+    /**
+     * Die eigene Zeit stempeln (D-618, O-93, TIM-07, Migration 0373).
+     *
+     * **Kein Recht, und das ist die Entscheidung.** `zeit.checkin_verwalten`
+     * ist das Recht der PLANUNG, Marken fuer FREMDE auszugeben; eine
+     * Reinigungskraft haelt es nicht und soll es nicht halten. Die eigene
+     * Zeit zu stempeln ist Selbstzugriff und kein Modulrecht (K-19).
+     *
+     * Die Wache ist die Sitzung, der Ursprungsvergleich, der aus der
+     * EINTEILUNG serverseitig aufgeloeste Mandant (K-02) — und vor allem
+     * `app.checkin_aus_der_sitzung` (0373) selbst, die auf `app.portal() =
+     * 'mitarbeiter'` (K-04) und auf der Personenzugehoerigkeit der Einteilung
+     * besteht. Beides kann diese Route nicht umgehen (Invariante 3).
+     *
+     * Geschrieben wird am Ende ueber `app.checkin_verbrauchen`, den einen
+     * Schreiber des Check-in-Pfades (K-08) — EMP-07 bleibt unberuehrt, weil
+     * `p_ma_kein_update` das AENDERN ueber `cse_app` verbietet und der
+     * Check-in seit jeher ueber `cse_definer` schreibt.
+     */
+    pfad: 'api/mein/stempeluhr',
+    recht: null,
+    grund:
+      'TIM-07, EMP-01, D-618. Die EIGENE Zeit zu stempeln ist Selbstzugriff und kein '
+      + 'Modulrecht (K-19); `zeit.checkin_verwalten` gehoert der Planung, die Marken fuer '
+      + 'FREMDE ausgibt. Die Wache ist die Sitzung, der Ursprungsvergleich, der aus der '
+      + 'Einteilung serverseitig aufgeloeste Mandant (K-02) und '
+      + '`app.checkin_aus_der_sitzung` (0373), die Portal UND Personenzugehoerigkeit selbst '
+      + 'prueft. Der Schreibvorgang muendet in `app.checkin_verbrauchen` (K-08).',
+  },
+  {
     pfad: 'api/mein/antraege/[id]/zurueckziehen',
     recht: null,
     grund:

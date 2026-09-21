@@ -7,6 +7,9 @@ import { stundenMinutenText } from '@/lib/datum/stunden';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import type { MeinTexte, PortalSprache } from '@/lib/i18n/texte';
 import type { EigeneSchicht } from '@/server/services/mitarbeiter/schichten';
+import type { OffenerEintrag } from '@/server/services/mitarbeiter/stempeluhr';
+import { Button } from '@/components/ui/Button';
+import { Laufzeit } from './Laufzeit';
 
 /**
  * Die wiederkehrenden Bausteine der Arbeiterseiten.
@@ -179,5 +182,126 @@ export function Hinweis(
     <p data-cse={marke} className="m-0 mb-s4 max-w-prose text-base text-warning">
       {text}
     </p>
+  );
+}
+
+/**
+ * Die Stempeluhr auf „Heute" — ein Knopf, und er sagt, was er tut
+ * (D-618, O-93, TIM-07, Invariante 5, DESIGN §5).
+ *
+ * **Drei Zustaende, und nur einer davon zeigt einen Knopf, der nichts tut.**
+ *
+ *   laeuft         -> „Arbeit beenden" + Zaehler
+ *   Schicht offen  -> „Arbeit beginnen"
+ *   sonst          -> ein Satz, warum gerade kein Knopf dasteht
+ *
+ * Der dritte Fall ist der wichtige. Ein ausgegrauter Knopf sagt „nicht
+ * jetzt" und laesst offen, ob es an der Anmeldung, am Recht oder am Zustand
+ * liegt; der Mensch drueckt und lernt nichts. Der Satz sagt stattdessen, was
+ * der Fall IST und wann sich das aendert — dieselbe Entscheidung wie beim
+ * `Offen`-Baustein weiter oben.
+ *
+ * **Ein gewoehnliches Formular, kein Skript.** Der Knopf funktioniert ohne
+ * JavaScript: im Treppenhaus, auf einem alten Telefon, bei schlechtem Netz.
+ * Genau dafuer ist die Stempeluhr gebaut. Der Zaehler daneben ist ein
+ * Client-Baustein und darf ausfallen — dann steht dort die Startzeit.
+ *
+ * **Die Geraetezeit wandert in ein verstecktes Feld**, das ein winziges
+ * Skript fuellt. Sie dokumentiert die Abweichung (Invariante 5) und
+ * entscheidet nichts; fehlt sie, gilt der Stempel trotzdem.
+ */
+export function StempelUhr({
+  offen, schicht, texte, meldung,
+}: {
+  readonly offen: OffenerEintrag | null;
+  readonly schicht: EigeneSchicht | null;
+  readonly texte: MeinTexte;
+  readonly meldung: string | null;
+}) {
+  const u = texte.stempeluhr;
+  /*
+   * Gestempelt werden kann nur in eine Schicht, die JETZT laeuft und nicht
+   * aus dem Plan genommen wurde. `ct_fenster_ableiten` (0035) laesst eine
+   * Toleranz von ±1 h zu; der Knopf richtet sich nach `laeuftJetzt`, und die
+   * Datenbank bleibt die Instanz, die das Fenster wirklich durchsetzt.
+   */
+  const stempelbar = schicht !== null && schicht.laeuftJetzt
+    && !schicht.beendet && !schicht.entfernt;
+
+  const SAETZE: Readonly<Record<string, string>> = {
+    eingecheckt: u.eingecheckt, ausgecheckt: u.ausgecheckt,
+    abgelehnt: u.abgelehnt, schon_offen: u.schonOffen,
+  };
+  const satz = meldung === null ? null : SAETZE[meldung] ?? null;
+
+  return (
+    <section data-cse="stempeluhr"
+             className="mb-s5 flex flex-col gap-s3 rounded-lg border border-line
+                        bg-surface p-s4">
+      <h2 className="m-0 text-h3 text-text">{u.titel}</h2>
+
+      {satz !== null && (
+        <p data-cse="stempel-meldung" className="m-0 text-base text-text-muted">{satz}</p>
+      )}
+
+      {offen !== null ? (
+        <>
+          <Laufzeit beginnIso={offen.beginnIso} serverIso={offen.serverIso}
+                    label={u.laeuftSeit} />
+          <p className="m-0 text-sm text-text-muted">
+            {u.seit} <span className="cse-zahl">{offen.beginnLokal}</span>
+            {offen.objekt === null ? '' : ` · ${offen.objekt}`}
+          </p>
+          {offen.zuordnungId !== null && (
+            <StempelKnopf zuordnungId={offen.zuordnungId} zweck="checkout"
+                          text={u.beenden} />
+          )}
+        </>
+      ) : stempelbar ? (
+        <StempelKnopf zuordnungId={schicht.zuordnungId} zweck="checkin"
+                      text={u.beginnen} />
+      ) : (
+        <p data-cse="stempel-keine-schicht" className="m-0 text-base text-text-muted">
+          {u.keineSchichtJetzt}
+        </p>
+      )}
+
+      <p className="m-0 text-sm text-text-subtle">{u.serverUhrHinweis}</p>
+    </section>
+  );
+}
+
+/**
+ * Der Knopf selbst — ein Formular mit einem Ziel und einem Feld.
+ *
+ * `min-h-16` statt der ueblichen 44px: DESIGN §9 nennt 44 als MINDESTmass,
+ * und dies ist der eine Knopf, den jemand mit Handschuhen im Halbdunkel
+ * trifft. Dieselbe Ueberlegung steht hinter dem einen Hauptknopf der
+ * Token-Stempeluhr.
+ */
+function StempelKnopf({
+  zuordnungId, zweck, text,
+}: {
+  readonly zuordnungId: string;
+  readonly zweck: 'checkin' | 'checkout';
+  readonly text: string;
+}) {
+  return (
+    <form action="/api/mein/stempeluhr" method="post"
+          data-cse={`stempeln-${zweck}`} className="m-0">
+      <input type="hidden" name="zuordnung" value={zuordnungId} />
+      <input type="hidden" name="zweck" value={zweck} />
+      {/*
+        * Die Geraetezeit — dokumentiert die Abweichung (Invariante 5) und
+        * entscheidet nichts. Ohne JavaScript bleibt das Feld leer, und der
+        * Stempel gilt genauso: die Erfassung darf nicht daran haengen, dass
+        * ein Skript geladen hat.
+        */}
+      <input type="hidden" name="geraete_zeit" data-cse="geraete-zeit" />
+      <Button type="submit" variante={zweck === 'checkin' ? 'primary' : 'secondary'}
+              className="min-h-16 w-full text-h3">
+        {text}
+      </Button>
+    </form>
   );
 }
