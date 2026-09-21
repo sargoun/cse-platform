@@ -77,26 +77,54 @@ export default async function Login({ searchParams }: {
       unterzeile="Mit Ihrer geschäftlichen E-Mail-Adresse und Ihrem Kennwort."
       fuss={
         <>
-          <a href="/auth/passwort-vergessen" data-cse="zu-passwort-vergessen"
-             className="inline-flex min-h-11 items-center underline underline-offset-4
-                        hover:text-text">
-            Kennwort vergessen
+          {/*
+            * **Der zweite Eingang ist eine KARTE, kein Nebensatz.**
+            *
+            * Er stand hier als Fliesstext mit einem unterstrichenen Wort
+            * darin — und ist doch der Weg fuer die groesste Gruppe von
+            * Menschen, die diese Plattform benutzt: die Kraefte im Einsatz.
+            * Wer um 05:30 im Treppenhaus steht, liest keinen Nebensatz; er
+            * sucht eine Flaeche, die er treffen kann.
+            *
+            * Die Karte ist absichtlich NICHT rot: die Hauptaktion dieser
+            * Seite ist das Anmelden im Formular darueber, und §5 laesst
+            * genau eine.
+            */}
+          <a href="/auth/mitarbeiter" data-cse="zu-mitarbeiter"
+             className="flex min-h-16 items-center gap-s4 rounded-lg border border-line
+                        bg-surface-2 p-s4 no-underline transition-all duration-base
+                        ease-brand hover:-translate-y-px hover:border-line-strong">
+            <span aria-hidden="true"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center
+                             rounded-full border border-line-strong text-h3
+                             leading-none text-text-muted">
+              ☏
+            </span>
+            <span className="flex min-w-0 flex-col">
+              <span className="text-base font-semibold text-text">
+                Anmeldung für Mitarbeitende
+              </span>
+              <span className="text-sm text-text-muted">
+                Mit Mobilnummer und Einmalcode — kein Kennwort nötig.
+              </span>
+            </span>
+            <span aria-hidden="true" className="ml-auto shrink-0 text-text-subtle">→</span>
           </a>
-          <p>
-            Sie arbeiten im Einsatz und haben kein Kennwort?{' '}
-            <a href="/auth/mitarbeiter" data-cse="zu-mitarbeiter"
-               className="underline underline-offset-4 hover:text-text">
-              Anmeldung für Mitarbeitende
-            </a>{' '}
-            — mit Mobilnummer und Einmalcode.
-          </p>
-          {devFlaechenAn() && (
-            <p>
-              <a href="/dev/anmelden" className="underline underline-offset-4 hover:text-text">
-                Entwicklungsanmeldung — Konto wählen
+
+          <div className="flex flex-wrap items-center gap-x-s5 gap-y-s2">
+            <a href="/auth/passwort-vergessen" data-cse="zu-passwort-vergessen"
+               className="inline-flex min-h-11 items-center underline underline-offset-4
+                          hover:text-text">
+              Kennwort vergessen
+            </a>
+            {devFlaechenAn() && (
+              <a href="/dev/anmelden"
+                 className="inline-flex min-h-11 items-center underline underline-offset-4
+                            hover:text-text">
+                Entwicklungsanmeldung
               </a>
-            </p>
-          )}
+            )}
+          </div>
         </>
       }
     >

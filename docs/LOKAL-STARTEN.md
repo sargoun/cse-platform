@@ -66,9 +66,12 @@ docker run -d --name cse-db -e POSTGRES_USER=postgres -e POSTGRES_HOST_AUTH_METH
 #   „connection to server on socket .../.s.PGSQL.5432 failed: No such file or directory"
 # Der voruebergehende Server horcht GAR NICHT auf TCP — ein Treffer ueber
 # 127.0.0.1 kann deshalb nur der echte sein.
+# Die Umleitung steht INNERHALB des Behaelters: sonst macht Windows
+# PowerShell aus „the database system is starting up" einen terminierenden
+# Fehler — und das ist genau die Meldung, auf die diese Schleife wartet.
 foreach ($i in 1..60) {
   Start-Sleep -Seconds 1
-  docker exec cse-db psql -h 127.0.0.1 -U postgres -tAc 'select 1' 2>$null | Out-Null
+  docker exec cse-db sh -c 'psql -h 127.0.0.1 -U postgres -tAc "select 1" >/dev/null 2>&1'
   if ($LASTEXITCODE -eq 0) { break }
 }
 

@@ -283,7 +283,23 @@ export function PortalRahmen({
         <nav
           aria-label={b('sitzung.label', 'Sitzung')}
           data-cse="sitzungsnavigation"
-          className="hidden items-center gap-s4 sm:flex"
+          /*
+           * **Gruppiert, nicht aufgereiht.**
+           *
+           * Hier standen fuenf gleich aussehende graue Woerter in einer
+           * Reihe — „Bereich wechseln · Konto · Website · Deutsch English ·
+           * Abmelden". Alles gleich gewichtet heisst: nichts gewichtet. Das
+           * Auge muss jedes Wort einzeln lesen, um den Ausgang zu finden.
+           *
+           * Jetzt sind es drei Gruppen mit einer Haarlinie dazwischen:
+           * WOHIN (Bereich, Konto, Website) · WIE (Sprache) · RAUS
+           * (Abmelden). Die Abmeldung steht hinter der zweiten Linie, weil
+           * sie die einzige Handlung hier ist, die die Sitzung beendet.
+           *
+           * `gap-s3` statt `gap-s4`: die Trennlinien uebernehmen die
+           * Gliederung, die vorher der Abstand allein leisten musste.
+           */
+          className="hidden items-center gap-s3 sm:flex"
         >
           {/*
             * Auch im Mitarbeiterportal: ein Konto kann in einer Gesellschaft
@@ -292,17 +308,25 @@ export function PortalRahmen({
             * Beschriftung folgt der Sprache der Person (D-419).
             */}
           <a href="/auth/bereich"
-             className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
+             className="flex min-h-11 items-center rounded-md px-s2 text-sm text-text-muted
+                        transition-colors duration-fast ease-brand hover:bg-surface-2
+                        hover:text-text">
             {b('sitzung.bereich', 'Bereich wechseln')}
           </a>
           <a href="/portal/konto"
-             className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
+             className="flex min-h-11 items-center rounded-md px-s2 text-sm text-text-muted
+                        transition-colors duration-fast ease-brand hover:bg-surface-2
+                        hover:text-text">
             {b('sitzung.konto', 'Konto')}
           </a>
           <a href="/"
-             className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
+             className="flex min-h-11 items-center rounded-md px-s2 text-sm text-text-muted
+                        transition-colors duration-fast ease-brand hover:bg-surface-2
+                        hover:text-text">
             {b('sitzung.website', 'Website')}
           </a>
+          {/* Die erste Haarlinie: hierhinter endet „wohin". */}
+          <span aria-hidden="true" className="h-5 w-px shrink-0 bg-line" />
           {/*
             * Der Sprachumschalter — nur im internen Portal (D-592). Das
             * Mitarbeiterportal spricht vier Sprachen und waehlt sie auf der
@@ -316,10 +340,13 @@ export function PortalRahmen({
             * Ein FORMULAR, kein Verweis: eine Abmeldung aendert Zustand, und
             * ein GET dafuer laesst sich von einem fremden Bild-Tag ausloesen.
             */}
-          <form method="post" action="/api/abmelden">
+          {/* Die zweite Haarlinie: dahinter steht nur noch der Ausgang. */}
+          <span aria-hidden="true" className="h-5 w-px shrink-0 bg-line" />
+          <form method="post" action="/api/abmelden" className="m-0">
             <button type="submit"
-                    className="flex min-h-11 items-center text-sm text-text-muted
-                               hover:text-text">
+                    className="flex min-h-11 items-center rounded-md px-s2 text-sm
+                               text-text-muted transition-colors duration-fast ease-brand
+                               hover:bg-danger-soft hover:text-danger">
               {b('sitzung.abmelden', 'Abmelden')}
             </button>
           </form>

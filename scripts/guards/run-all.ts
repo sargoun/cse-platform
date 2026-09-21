@@ -612,6 +612,21 @@ function wacheTailwindFarben(): void {
   const schatten = new Set(Object.keys(extend['boxShadow'] ?? {}));
 
   /**
+   * **`bg-` traegt nicht nur Farben, sondern auch Hintergrundbilder.**
+   *
+   * DESIGN §5 „Standalone pages" hat `bg-wash-brand` gebracht — den einen
+   * Lichthauch hinter einer alleinstehenden Flaeche. Er steht in
+   * `backgroundImage`, nicht in `colors`, und die Wache meldete ihn als
+   * „keine Farbe im Thema". Das war eine Falschmeldung der teuersten Sorte:
+   * die Klasse ist gueltig, Tailwind erzeugt sie, und wer die Wache ein paar
+   * Mal irrtuemlich rot sieht, faengt an, sie zu umgehen.
+   *
+   * Geprueft wird trotzdem — nur gegen die RICHTIGE Tabelle: ein
+   * `bg-wash-irgendwas`, das im Thema nicht steht, faellt weiter durch.
+   */
+  const hintergrundbilder = new Set(Object.keys(extend['backgroundImage'] ?? {}));
+
+  /**
    * Präfixe, deren Rest eine FARBE sein muss. `text-` und `border-` stehen
    * nicht dabei: `text-sm` ist eine Schriftgrösse und `border-t` eine Seite,
    * beide völlig gültig — sie werden unten gesondert behandelt.
@@ -736,6 +751,7 @@ function wacheTailwindFarben(): void {
         }
         if (!FARBPRAEFIX.includes(praefix)) continue;
         if (farben.has(rest)) continue;
+        if (praefix === 'bg' && hintergrundbilder.has(rest)) continue;
         melde('tailwind-farbe', datei, i + 1,
           `\`${praefix}-${rest}\` — keine Farbe im Thema.`);
       }

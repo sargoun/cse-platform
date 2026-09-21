@@ -695,6 +695,69 @@ written, the component existed and was typed to nine paths in one portal: it
 stood on 2 of 309 admin pages, 2 of 27 worker pages and 0 of 26 group pages.
 **D-613.**
 
+
+### Standalone pages — sign-in, choosers, decisions
+
+Three kinds of screen stand alone: **sign-in** (`/auth/*`), a **chooser**
+(pick an account, pick an area) and a **decision** (confirm before something
+changes). They share one problem the rest of the platform does not have:
+there is no navigation, no sidebar, no table — so if the page does not build
+its own centre of gravity, the content floats in the top-left of a black
+rectangle and reads as unfinished.
+
+Measured on a 1080p screen, the area-switch sheet used **9 %** of the viewport
+and left the rest empty.
+
+**The frame.**
+
+| Property | Value |
+|---|---|
+| Page | `min-h-dvh`, flex column, **centred on both axes** at `≥640px`; top-aligned below that so the keyboard does not push the panel off-screen |
+| Gutter | `--s6`; `--s5` below `640px` |
+| Panel width | `max-w-form` (608px) for forms · `max-w-[44rem]` for choosers with rows |
+| Panel | `--surface` bg, `1px solid --border`, `--r-xl`, padding `--s6` |
+| Lockup | brand mark `marke-lg` + wordmark, above the panel, `--s5` below it |
+| Ambient | one radial brand wash behind the panel (below) |
+
+**The ambient wash.** §3 says elevation on dark comes from borders, not
+shadow — that rule is about *stacking*. A standalone page has nothing to stack
+against, so it gets one wash instead: a single radial gradient in `--red-soft`,
+behind everything, `pointer-events: none`, `aria-hidden`. It never moves, never
+animates, and there is exactly one per page.
+
+```css
+--wash-brand: radial-gradient(
+  60rem 40rem at 50% -10%,
+  rgba(227, 6, 19, 0.10) 0%,
+  rgba(227, 6, 19, 0.04) 35%,
+  transparent 70%
+);
+```
+
+Reason: a flat `--ink` field behind a single card reads as a page that failed
+to load. The wash costs nothing, carries the brand, and gives the eye a top.
+
+**Chooser rows.** A list where every row is an action — accounts, areas,
+entities.
+
+| Property | Value |
+|---|---|
+| Row | `--surface-2` bg, `1px solid --border`, `--r-lg`, padding `--s4`, min-height `64px` |
+| Hover | border → `--border-strong`, `translateY(-1px)`, 200ms |
+| Identity | area hue as a `3px` left bar (`AreaBadge`), never as a fill |
+| Action | the **whole row** is the button. No trailing button per row. |
+| Type | name `base`/600, meta `sm`/`--text-muted` |
+
+> **No primary button in a chooser.** §5 says one primary per view, and a
+> chooser has *no* primary: every row is equally the point. Nine red buttons
+> in a column do not make nine primaries — they make none, and the eye has
+> nowhere to rest. The row itself is the target, which is also the larger
+> touch area (§9).
+
+**Decision pages** — "you are in A, switch to B?" — show **both sides**, each
+with its identity hue, and an arrow between them. A sentence alone makes the
+reader reconstruct what they are leaving; two labelled chips do not.
+
 ---
 
 ## 6. Business-area switcher

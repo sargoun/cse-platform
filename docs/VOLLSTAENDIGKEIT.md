@@ -8,7 +8,7 @@ dokumentierte Begründung für das Fehlen?* Sechs Befunde wurden so **widerlegt*
 und stehen deshalb nicht in der Liste — sie sind bewusste, begründete
 Auslassungen (§ 9).
 
-**136 bestätigte Befunde:** 75 *blockiert* · 59 *behindert* · 2 *Schönheit*.
+**136 bestätigte Befunde** aus dem Suchlauf: 75 *blockiert* · 59 *behindert* · 2 *Schönheit*. Dazu **fünf nachgetragene** (§ 8a), die beim Bauen auffielen.
 
 Ein Befund ist keine Meinung. Jeder trägt Datei und Zeile, und jeder wurde mit
 einer Gegenprobe belegt — meist ein `grep`, der zeigt, dass der gesuchte
@@ -233,6 +233,21 @@ V-006 Lieferant · V-007 Bankkonto · V-011 Ausgabe · V-090 § 48 EStG ·
 V-091 Postenausgleich · V-027 DATEV · V-084 Mahnung erledigt
 
 **R6 — Der Rest**, in Registerreihenfolge.
+
+---
+
+## 8a. Nachgetragen: gefunden, während anderes gebaut wurde
+
+Diese Befunde standen in keinem Suchlauf. Sie sind beim Bauen aufgefallen und
+stehen hier, weil ein Befund ohne Nummer ein Befund ist, den niemand wiederfindet.
+
+| Nr | Was | Beleg | Grad | Stand |
+|---|---|---|---|---|
+| V-103 | **Der Stichtag war der UTC-Tag, nicht der Berliner.** `benutzer_mandant.gueltig_ab` wird mit `app.berlin_heute()` gestempelt, `app.ist_mitglied` prüfte gegen `CURRENT_DATE` in einer UTC-Sitzung. Zwischen 00:00 und 02:00 Berliner Zeit ist damit **jede neu angelegte Mitgliedschaft für bis zu zwei Stunden unwirksam** — wer in diesem Fenster eine Leitung einlädt, legt ein Konto an, das sich anmelden kann und nichts sieht. Dieselbe Vorgabe stand in `app.katalog_positionen` und `app.leistungswerte_lesen`, wo ein **Preis** daran hängt. | Aufgefallen, weil der Seed um 23:23 UTC mit „Der Verantwortliche gehoert nicht zu dieser Gesellschaft" abbrach — derselbe Seed war Stunden zuvor durchgelaufen | blockiert | **erledigt** — `drizzle/0375`, plus eine Sperrklinke: `tests/isolation/stichtag-berlin.test.ts` §3 verlangt, dass **keine** Funktion in `app`/`kern` mehr auf `CURRENT_DATE` vorgibt |
+| V-104 | **Neun rote Knöpfe auf einem Bildschirm.** `/dev/anmelden` gab jeder Kontozeile einen `primary`-Knopf. DESIGN §5: „one primary button per view" — Rot ist knapp, und ein Bildschirm mit neun roten Knöpfen hat **gar keine** Hauptaktion. | `src/app/dev/anmelden/page.tsx` | Schönheit | **erledigt** — die ganze Zeile ist der Knopf (DESIGN §5 „Chooser rows") |
+| V-105 | **Das Wechselblatt belegte 9 % des Bildschirms.** Eine Überschrift, ein Satz, ein Knopf — der Rest schwarz. Und es liess den Leser rekonstruieren, was er verlässt: der Bereichswechsel ist die Handlung, die eine Rechnung in die falsche GmbH legt. | `src/components/portal/Wechselblatt.tsx` | behindert | **erledigt** — zeigt jetzt **beide** Seiten mit ihrem Zeichen und ihrer Identitätsfarbe, mit einem Pfeil dazwischen |
+| V-106 | **Sieben gleich aussehende graue Wörter in der Kopfzeile.** „Bereich wechseln · Konto · Website · Deutsch English · Abmelden" — alles gleich gewichtet heisst nichts gewichtet; nichts sagte, dass zwei davon eine Wahl sind. | `src/components/portal/PortalRahmen.tsx` | behindert | **erledigt** — drei Gruppen mit Haarlinie (wohin · wie · raus), Sprache als Schiene, Abmelden in `danger-soft` |
+| V-107 | **Der Windows-Start brach zweimal an PowerShell ab**, nicht an der Datenbank: erst am Init-Server des Postgres-Abbilds, dann daran, dass PowerShell 5.1 jede stderr-Zeile eines nativen Befehls zu einem terminierenden Fehler macht. | `scripts/windows-start.ps1` | blockiert | **erledigt** — Warten über TCP, Umleitung **im** Behälter, `Continue` für die Dauer der Schleife |
 
 ---
 

@@ -28,7 +28,13 @@ import { portalZugang, type PortalZugang } from '../zugang';
  */
 export type GruppenTor =
   | { readonly art: 'anmeldung' }
-  | { readonly art: 'wechsel'; readonly aktuellerName: string | null; readonly pfad: string }
+  | {
+    readonly art: 'wechsel';
+    readonly aktuellerName: string | null;
+    /** Der Slug des aktuellen Bereichs — fuer sein Zeichen (DESIGN §5). */
+    readonly aktuellerSlug: string | null;
+    readonly pfad: string;
+  }
   | { readonly art: 'ok'; readonly zugang: PortalZugang };
 
 interface Vorentscheid {
@@ -58,7 +64,7 @@ export async function gruppenTor(pfad: string): Promise<GruppenTor> {
   // 404 und nicht 403: eine Absage, die sich von "gibt es nicht"
   // unterscheidet, ist eine Auskunft ueber das, was es gibt (AUT-06).
   if (!darf) notFound();
-  return { art: 'wechsel', aktuellerName, pfad };
+  return { art: 'wechsel', aktuellerName, aktuellerSlug: zugang.mandantSlug, pfad };
 }
 
 /** Die Antwort auf ein Tor, das nicht `ok` sagt. */
@@ -67,6 +73,7 @@ export function GruppenAntwort({ tor }: { readonly tor: Exclude<GruppenTor, { ar
   return (
     <Wechselblatt
       aktuell={tor.aktuellerName}
+      aktuellSlug={tor.aktuellerSlug}
       zielTitel="Gruppenübersicht"
       zielSlug={null}
       zurueck={tor.pfad}

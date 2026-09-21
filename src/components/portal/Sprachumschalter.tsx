@@ -50,7 +50,22 @@ export function Sprachumschalter(
        * Kasten, der aus seinem Kasten haengt, ist kein Zustand, auf den man
        * sich verlassen will, und der Massenlauf zaehlt ihn zu Recht auf.
        */
-      className="flex flex-wrap items-center gap-s2"
+      /*
+       * **Eine Schiene, zwei Schalter** (DESIGN §5 „Filter pills").
+       *
+       * Hier standen zwei nackte Woerter nebeneinander — „Deutsch English" —
+       * in derselben Groesse und fast derselben Farbe wie die vier
+       * Sitzungspunkte daneben. Gemessen an der Kopfzeile ergab das SIEBEN
+       * gleich aussehende graue Woerter in einer Reihe: nichts sagte, dass
+       * zwei davon zusammengehoeren und eine Wahl sind.
+       *
+       * Die Schiene macht die Gruppe sichtbar, bevor man liest. Der aktive
+       * Schalter traegt die Flaeche, nicht nur die Textfarbe — Farbe allein
+       * ist nach DESIGN §9 nie das einzige Signal, und `aria-current` sagt
+       * es zusaetzlich.
+       */
+      className="flex flex-wrap items-center gap-s1 rounded-full border border-line
+                 bg-surface-3 p-s1"
       {...(fremdeWahl === null ? {} : { title: sprachHinweis(stand.sprache, fremdeWahl) })}
     >
       {stand.pfad !== null && <input type="hidden" name="zurueck" value={stand.pfad} />}
@@ -85,11 +100,12 @@ export function Sprachumschalter(
            * Hover. Die aktive Sprache steht in der vollen Textfarbe — das ist
            * der einzige Unterschied, und er ist derselbe wie beim aktiven Tab.
            */
-          className={`flex min-h-11 items-center text-sm ${
-            s === aktiv && fremdeWahl === null
-              ? 'cursor-default text-text'
-              : 'cursor-pointer text-text-muted hover:text-text'
-          }`}
+          className={`flex min-h-8 items-center rounded-full px-s3 text-sm
+                       transition-colors duration-fast ease-brand ${
+    s === aktiv && fremdeWahl === null
+      ? 'cursor-default bg-surface font-semibold text-text'
+      : 'cursor-pointer text-text-muted hover:bg-surface-2 hover:text-text'
+  }`}
         >
           {INTERN_EIGENNAME[s]}
         </button>

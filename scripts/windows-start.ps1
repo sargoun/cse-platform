@@ -182,12 +182,40 @@ if ($DatenBehalten) {
   #   2. Mit einer ABFRAGE statt mit `pg_isready`. Wer `select 1` beantwortet,
   #      beantwortet auch das naechste `alter database`.
   # ---------------------------------------------------------------------
+  #
+  # NACHTRAG, gemeldet am zweiten Anlauf. Die Schleife war richtig, und sie
+  # starb trotzdem -- an PowerShell, nicht an der Datenbank:
+  #
+  #   psql: error: connection to server at "127.0.0.1", port 5432 failed:
+  #   FATAL:  the database system is starting up
+  #   + CategoryInfo : NotSpecified: (...) [], RemoteException
+  #   + FullyQualifiedErrorId : NativeCommandError
+  #
+  # "the database system is starting up" IST die erwartete Antwort im ersten
+  # Versuch -- genau darauf wartet die Schleife. Windows PowerShell 5.1 macht
+  # aber aus JEDER stderr-Zeile eines nativen Befehls einen ErrorRecord,
+  # sobald sie umgeleitet wird, und mit `$ErrorActionPreference = 'Stop'`
+  # (oben, mit gutem Grund gesetzt) ist dieser Record TERMINIEREND. Das
+  # Skript brach also im ersten Schleifendurchlauf ab, mit der Meldung, auf
+  # die es gerade wartete.
+  #
+  # ZWEI Aenderungen, und beide sind noetig:
+  #   1. Die Umleitung wandert IN den Behaelter (`sh -c '... 2>&1'`). Damit
+  #      schreibt `docker` auf der Windows-Seite gar nichts nach stderr, und
+  #      es entsteht kein Record, den PowerShell deuten koennte.
+  #   2. Fuer die Dauer der Schleife gilt `Continue` statt `Stop` -- ein
+  #      fehlgeschlagener Versuch ist hier der Normalfall, nicht der Abbruch.
+  #      Danach wird die alte Einstellung zurueckgesetzt; sie schuetzt die
+  #      Schritte danach weiter.
   $bereit = $false
+  $fehlerVorher = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
   foreach ($versuch in 1..60) {
     Start-Sleep -Seconds 1
-    docker exec $Behaelter psql -h 127.0.0.1 -U postgres -tAc 'select 1' 2>$null | Out-Null
+    docker exec $Behaelter sh -c 'psql -h 127.0.0.1 -U postgres -tAc "select 1" >/dev/null 2>&1'
     if ($LASTEXITCODE -eq 0) { $bereit = $true; break }
   }
+  $ErrorActionPreference = $fehlerVorher
   if (-not $bereit) {
     Write-Host '  Die Datenbank antwortet nach 60 Sekunden nicht.' -ForegroundColor Red
     Write-Host '  Was der Behaelter selbst sagt:' -ForegroundColor Red

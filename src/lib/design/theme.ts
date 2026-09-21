@@ -169,6 +169,23 @@ export const SCHATTEN = {
   'shadow-pop': '0 12px 32px rgba(0,0,0,0.55)',
 } as const;
 
+/**
+ * §5 „Standalone pages" — der eine Lichthauch hinter einer alleinstehenden
+ * Flaeche (Anmeldung, Auswahl, Entscheidung).
+ *
+ * Er steht hier und nicht nur in `globals.css`, weil `tests/design/tokens.test.ts`
+ * beide Seiten gegeneinander haelt: ein Wert nur im Stylesheet waere ein
+ * Waisenkind, das beim naechsten Umbau still verschwindet.
+ *
+ * Kein Schatten und keine Farbe, sondern ein VERLAUF — deshalb eine eigene
+ * Tabelle. Tailwind nimmt ihn ueber `backgroundImage`, nicht ueber `colors`.
+ */
+const VERLAUF = {
+  'wash-brand':
+    'radial-gradient(60rem 40rem at 50% -10%, '
+    + 'rgba(227, 6, 19, 0.10) 0%, rgba(227, 6, 19, 0.04) 35%, transparent 70%)',
+} as const;
+
 /** §7 Motion. */
 export const BEWEGUNG = {
   ease: 'cubic-bezier(0.22, 1, 0.36, 1)',
@@ -200,10 +217,24 @@ export const ALLE_TOKENS: Readonly<Record<string, string>> = {
   ...ABSTAND,
   ...RADIUS,
   ...SCHATTEN,
+  ...VERLAUF,
   ...BILD,
   ...BEWEGUNG,
   ...SCHRIFT,
 };
 
 export type BereichSchluessel = keyof typeof FARBEN_BEREICH;
+
+/**
+ * Ist dieser Slug einer der vier Bereiche?
+ *
+ * Eine Waechterfunktion und keine Umtypisierung: der Slug kommt aus der
+ * Adresse oder aus der Datenbank, also von aussen. `as BereichSchluessel`
+ * darauf ist eine Behauptung — diese Zeile ist eine Pruefung, und der
+ * Aufrufer entscheidet, was bei `false` passiert (meist: Gruppenzeichen
+ * statt Bereichszeichen, nie ein Absturz).
+ */
+export function istBereich(wert: string | null | undefined): wert is BereichSchluessel {
+  return typeof wert === 'string' && Object.hasOwn(FARBEN_BEREICH, wert);
+}
 export type SemantikTon = 'success' | 'warning' | 'danger' | 'info' | 'muted';

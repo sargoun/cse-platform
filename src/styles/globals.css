@@ -76,6 +76,22 @@
   --bild-overlay: linear-gradient(180deg, rgba(8,8,10,0.15) 0%, rgba(8,8,10,0.55) 55%, rgba(8,8,10,0.92) 100%);
   --shadow-pop: 0 12px 32px rgba(0,0,0,0.55);
 
+  /*
+   * §5 „Standalone pages" — der EINE Lichthauch hinter einer alleinstehenden
+   * Flaeche (Anmeldung, Auswahl, Entscheidung).
+   *
+   * §3 sagt, Erhebung kommt auf Dunkel aus Raendern und nicht aus Schatten —
+   * und diese Regel gilt dem STAPELN. Eine Seite, die nichts hat, worauf sie
+   * sich stapeln koennte, bekommt stattdessen diesen einen Hauch: ein
+   * radialer Verlauf in der Markenfarbe, hinter allem, ohne Ereignisse, ohne
+   * Bewegung, genau EINER je Seite.
+   *
+   * Der Grund ist gemessen: ein glattes `--ink`-Feld hinter einer einzelnen
+   * Karte liest sich wie eine Seite, die nicht fertig geladen hat. Das
+   * Wechselblatt belegte 9 % des Bildschirms, der Rest war schwarz.
+   */
+  --wash-brand: radial-gradient(60rem 40rem at 50% -10%, rgba(227, 6, 19, 0.10) 0%, rgba(227, 6, 19, 0.04) 35%, transparent 70%);
+
   /* §7 Motion */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --fast: 150ms;
