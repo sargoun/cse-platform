@@ -139,6 +139,7 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
     berichte: 'Berichte',
     protokoll: 'Protokoll',
     radar: 'Radar',
+    datenschutz: 'Datenschutz',
     mehr: 'Mehr',
     'sitzung.label': 'Sitzung',
     'sitzung.bereich': 'Bereich wechseln',
@@ -220,6 +221,12 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
     berichte: 'Reports',
     protokoll: 'Audit log',
     radar: 'Radar',
+    /*
+     * `Datenschutz` bleibt stehen: es ist der Titel des Postfachs nach
+     * Art. 12–22 DSGVO und der Name, unter dem das Haus die Akte fuehrt.
+     * „Data protection" waere naeher am Wort und weiter vom Vorgang.
+     */
+    datenschutz: 'Datenschutz (data protection)',
     mehr: 'More',
     'sitzung.label': 'Session',
     'sitzung.bereich': 'Switch area',

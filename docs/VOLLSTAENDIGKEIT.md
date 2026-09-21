@@ -88,19 +88,19 @@ unbenutzt.
 
 | Nr | Was | Beleg | Grad | Stand |
 |---|---|---|---|---|
-| V-028 | **Ausschreibungsradar — acht Seiten** | `src/server/registry/navigation.ts:488` | blockiert | offen |
-| V-029 | **Berichtsmodul — Index plus REP-01…REP-06** | `src/app/portal/[mandant]/berichte/page.tsx:37` | blockiert | offen |
-| V-030 | **Datenschutz-Posteingang** | `src/server/registry/navigation.ts:72` — in keiner Navigation und keiner Sprungkarte | blockiert | offen |
+| V-028 | **Ausschreibungsradar — acht Seiten** | `src/server/registry/navigation.ts:488` | blockiert | **erledigt** — Sidebar-Punkt `radar`, Gruppe „aussen" |
+| V-029 | **Berichtsmodul — Index plus REP-01…REP-06** | `src/app/portal/[mandant]/berichte/page.tsx:37` | blockiert | **erledigt** — Sidebar-Punkt `berichte` |
+| V-030 | **Datenschutz-Posteingang** | `src/server/registry/navigation.ts:72` — in keiner Navigation und keiner Sprungkarte | blockiert | **erledigt** — Sidebar-Punkt `datenschutz`, am Recht des Posteingangs |
 | V-031 | **Datenschutz-Akte: Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art. 17)** | `src/app/portal/[mandant]/datenschutz/page.tsx:116` — kein Auslöser | blockiert | offen |
 | V-032 | **Gemeldete Barrieren (BFSG-Meldeweg)** | `src/app/portal/[mandant]/datenschutz/barrieren/page.tsx:15` — das öffentliche Formular schreibt hinein, niemand liest | blockiert | offen |
 | V-033 | **Ausgabe der Check-in-Marken** | `src/app/portal/[mandant]/zeiten/checkin-links/page.tsx:259` | blockiert | offen |
 | V-034 | **Nacherfassung** | `src/app/portal/[mandant]/zeiten/page.tsx:167` — und die Wächtermeldung zeigt auf `zeit/nacherfassung` statt `zeiten/nacherfassung` (`src/server/services/waechter/benachrichtigung.ts:50`) | blockiert | offen |
-| V-035 | **Maske „Neuer Kunde"** | `src/app/portal/[mandant]/crm/kunden/page.tsx:114` — fertig, kein Knopf | blockiert | offen |
-| V-036 | **Maske „Neuer Lead"** | `src/app/portal/[mandant]/crm/leads/page.tsx:127` — fertig, kein Knopf | blockiert | offen |
+| V-035 | **Maske „Neuer Kunde"** | `src/app/portal/[mandant]/crm/kunden/page.tsx:114` — fertig, kein Knopf | blockiert | **erledigt** — Knopf und Leerzustand-Verweis, zweisprachig |
+| V-036 | **Maske „Neuer Lead"** | `src/app/portal/[mandant]/crm/leads/page.tsx:127` — fertig, kein Knopf | blockiert | **erledigt** — Knopf und Leerzustand-Verweis, zweisprachig |
 | V-037 | **Antwort an eine Bewerberin (Zusage/Absage, § 22 AGG)** | `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/antwort/page.tsx:61` — kein eingehender Verweis | blockiert | offen |
 | V-038 | **Eigene Kontoseite** | `src/app/portal/konto/[[...rest]]/page.tsx:139` — nur über die Arbeiter-Leiste am Telefon; die Kontowurzel führt drei **gebaute** Seiten unter „Noch nicht gebaut" | blockiert | offen |
 | V-039 | **`/portal/konto/sicherheit`** (Kennwort, zweiter Faktor, aktive Sitzungen) | `src/server/registry/routen.generiert.ts:451` — existiert nicht, und kein Verweis führt auf die Ersatzseiten | blockiert | offen |
-| V-040 | **Kalender und Kalender-Feed** | `src/server/registry/navigation.ts:505` — verweisen nur aufeinander | blockiert | offen |
+| V-040 | **Kalender und Kalender-Feed** | `src/server/registry/navigation.ts:505` — verweisen nur aufeinander | blockiert | **erledigt** — Sidebar-Punkt `kalender`, Gruppe „heute" |
 | V-041 | **Buchhaltungs-Index** | `src/app/portal/[mandant]/buchhaltung/page.tsx:106` — geschlossene Insel | blockiert | offen |
 | V-042 | **Finanzen-Index** | `src/server/registry/tableiste.ts:81` — nur in der Telefon-Leiste, und dort nur für Rollen, die weder `admin` noch `leitung` sind | blockiert | offen |
 | V-043 | **Navigationsbaum des Kundenportals** | `src/server/registry/navigation.ts:560` — vollständig gebaut, von keiner Komponente gerendert: sechs fertige Kundenbereiche in keiner Leiste | behindert | offen |

@@ -10,6 +10,9 @@ import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '../../../rechte';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { CRM_WEGE_TEXTE } from '@/lib/i18n/verwaltung/crm';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -89,6 +92,13 @@ export default async function Leadliste(
 
   const offen = zeilen.filter((z) => !['gewonnen', 'verloren', 'kein_bedarf'].includes(z.status));
 
+  /*
+   * V-036: die Maske „Neuer Lead" war gebaut und von nirgends verlinkt — der
+   * Weg fuer die Anfrage, die am Telefon oder auf einer Messe kam.
+   */
+  const darf = await haeltRechte(sitzung, 'crm.schreiben');
+  const tCrm = nachSprache(CRM_WEGE_TEXTE, zugang.sprache);
+
   return (
     <PortalRahmen
       titel="Leads"
@@ -105,12 +115,33 @@ export default async function Leadliste(
         <p className="m-0 text-sm text-text-muted">
           {`${String(offen.length)} offen von ${String(zeilen.length)}`}
         </p>
+        {darf['crm.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/crm/leads/neu`}
+            data-cse="lead-neu"
+            className="ml-auto inline-flex min-h-11 items-center rounded-md bg-brand
+                       px-s4 text-sm text-white hover:bg-brand-hover"
+          >
+            {tCrm.neuerLead}
+          </Link>
+        )}
       </div>
 
       {zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Kein Lead im Posteingang. Anfragen aus dem Angebotsformular der
           Website landen hier.
+          {darf['crm.schreiben'] === true && (
+            <>
+              {' '}
+              <Link
+                href={`/portal/${mandant}/crm/leads/neu`}
+                className="text-brand underline-offset-2 hover:underline"
+              >
+                {tCrm.erstenLeadAnlegen}
+              </Link>
+            </>
+          )}
         </p>
       ) : (
         <DataTable

@@ -9,6 +9,9 @@ import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '../../../rechte';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { CRM_WEGE_TEXTE } from '@/lib/i18n/verwaltung/crm';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -79,6 +82,14 @@ export default async function Kundenliste(
         order by k.name`,
     ))) as Promise<readonly KundeZeile[]>);
 
+  /*
+   * V-035: die Maske „Neuer Kunde" war gebaut und von nirgends verlinkt. Das
+   * Recht ist `crm.schreiben` — dasselbe, das die Zielseite verlangt; ein
+   * Pfeil auf eine 404 verriete, was er nicht zeigen darf (AUT-06, D-581).
+   */
+  const darf = await haeltRechte(sitzung, 'crm.schreiben');
+  const tCrm = nachSprache(CRM_WEGE_TEXTE, zugang.sprache);
+
   return (
     <PortalRahmen
       titel="Kunden"
@@ -95,11 +106,32 @@ export default async function Kundenliste(
         <p className="m-0 text-sm text-text-muted">
           {zeilen.length === 1 ? '1 Kunde' : `${String(zeilen.length)} Kunden`}
         </p>
+        {darf['crm.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/crm/kunden/neu`}
+            data-cse="kunde-neu"
+            className="ml-auto inline-flex min-h-11 items-center rounded-md bg-brand
+                       px-s4 text-sm text-white hover:bg-brand-hover"
+          >
+            {tCrm.neuerKunde}
+          </Link>
+        )}
       </div>
 
       {zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Noch kein Kunde erfasst.
+          {darf['crm.schreiben'] === true && (
+            <>
+              {' '}
+              <Link
+                href={`/portal/${mandant}/crm/kunden/neu`}
+                className="text-brand underline-offset-2 hover:underline"
+              >
+                {tCrm.erstenKundenAnlegen}
+              </Link>
+            </>
+          )}
         </p>
       ) : (
         <DataTable

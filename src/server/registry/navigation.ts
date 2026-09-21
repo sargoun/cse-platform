@@ -418,6 +418,31 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Menüpunkte gegen das Manifest hielt — derselbe Vergleich, der bei Social
    * (D-573) und Recruiting (D-574) je einen Befund brachte.
    */
+  /**
+   * **Vier Eintraege, die vier gebaute Flaechen aus dem Nichts holen**
+   * (V-028, V-029, V-030, V-040).
+   *
+   * Gemessen, nicht vermutet: das Ausschreibungsradar fuehrt ACHT Seiten, das
+   * Berichtsmodul sieben, der Datenschutz-Posteingang sechs, der Kalender
+   * zwei. Einundzwanzig fertige, getestete Bildschirme — und aus dem Portal
+   * heraus fuehrte zu keinem davon ein Weg. Wer die Adresse nicht auswendig
+   * kannte, fand sie nie.
+   *
+   * **Gebaut und unerreichbar ist teurer als nicht gebaut**, denn niemand
+   * sucht danach: eine fehlende Flaeche faellt beim ersten Versuch auf, eine
+   * unsichtbare nie.
+   *
+   * Die Rechte sind aus `routen.generiert.ts` abgelesen, nicht geraten:
+   * `radar.lesen` (Z. 281), `bericht.lesen` (Z. 344),
+   * `datenschutz.auskunft_erstellen` (Z. 372), `kalender.lesen` (Z. 276).
+   * Der Datenschutz steht am RECHT SEINES POSTEINGANGS und nicht am
+   * schwaecheren `system.einstellung_lesen` des Verarbeitungsverzeichnisses:
+   * sonst saehe die Verwaltung den Punkt und die Seite dahinter 404 (AUT-06).
+   */
+  { schluessel: 'radar', label: 'Radar', pfad: 'radar', recht: 'radar.lesen', icon: 'ausschreibung', gruppe: 'aussen' },
+  { schluessel: 'kalender', label: 'Kalender', pfad: 'kalender', recht: 'kalender.lesen', icon: 'kalender', gruppe: 'heute' },
+  { schluessel: 'berichte', label: 'Berichte', pfad: 'berichte', recht: 'bericht.lesen', icon: 'uebersicht', gruppe: 'werkzeuge' },
+  { schluessel: 'datenschutz', label: 'Datenschutz', pfad: 'datenschutz', recht: 'datenschutz.auskunft_erstellen', icon: 'schloss', gruppe: 'werkzeuge' },
   { schluessel: 'einstellungen', label: 'Einstellungen', pfad: 'einstellungen', recht: 'system.mandant_lesen', icon: 'einstellungen', gruppe: 'werkzeuge' },
 ] as const;
 

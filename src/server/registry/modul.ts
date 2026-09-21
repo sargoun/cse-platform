@@ -106,6 +106,29 @@ export const QUERSCHNITT: ReadonlySet<string> = new Set([
   // sucht, haengt am Gewerk; DASS sie sucht, nicht. An ein Gewerk gebunden
   // haette CSE Operations kein Recruiting, obwohl dort die Verwaltung sitzt.
   'recruiting',
+  /*
+   * `radar`, `kalender` und `datenschutz` — die drei Module, die mit ihren
+   * Sidebar-Punkten kamen (V-028, V-030, V-040).
+   *
+   * Alle drei aus DERSELBEN Begruendung, und keine davon ist Bequemlichkeit:
+   *
+   *  - `radar`: eine Ausschreibung wird nach CPV-Code und Region gefunden,
+   *    nicht nach Gewerk. Das Suchprofil einer Gesellschaft entscheidet, WAS
+   *    sie sieht; DASS sie suchen darf, entscheidet kein Gewerk. An
+   *    `reinigung` gebunden saehe die Security keine einzige Bekanntmachung.
+   *  - `kalender`: ein Termin ist ein Termin. CAL-01 haengt an keiner
+   *    Leistung.
+   *  - `datenschutz`: Art. 12–22 DSGVO gelten fuer jeden Verantwortlichen.
+   *    Ein Auskunftsersuchen an eine Gesellschaft ohne gebuchtes Gewerk ist
+   *    trotzdem in einem Monat zu beantworten — und CSE Operations, die gar
+   *    kein Gewerk fuehrt, ist genau die, bei der die Verwaltung sitzt.
+   *
+   * `modulAktiv` gaebe fuer alle drei heute schon ueber den Rueckfall
+   * „unbekanntes Modul bleibt offen" dieselbe Antwort. Diese Zeilen machen
+   * sie absichtlich — und `tests/kern/modul.test.ts` besteht darauf, dass
+   * jedes Navigationsrecht in genau einer der beiden Tabellen steht.
+   */
+  'radar', 'kalender', 'datenschutz',
 ]);
 
 /** Der Modulname eines Rechteschluessels — dieselbe Regel wie 0008. */
