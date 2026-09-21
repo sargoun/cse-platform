@@ -3,6 +3,7 @@ import type postgres from 'postgres';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withPersonScope, type LeseKontext } from '@/server/kontext/index';
+import type { Route } from 'next';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import {
   meinBeschriftungen, meinTexte, PORTAL_BCP47, PORTAL_RICHTUNG,
@@ -97,11 +98,22 @@ export async function meinPortal<T>(
  * `PortalRahmen` und bleiben unveraendert.
  */
 export function MeinRahmen({
-  basis, titel, aktiverTab, children,
+  basis, titel, aktiverTab, zurueck, children,
 }: {
   readonly basis: MeinBasis;
   readonly titel: string;
   readonly aktiverTab: string;
+  /**
+   * Der Weg eine Ebene hinauf — durchgereicht an `PortalRahmen`
+   * (DESIGN §5 „The way back", D-613).
+   *
+   * **Dreizehn Unterseiten dieses Portals haben ihn schon** — als
+   * handgebauten `← {t.zeiten}` im Seitenrumpf, mit eigenen Klassen. Diese
+   * Durchreiche ist die Stelle, an der sie zusammenlaufen: derselbe Pfeil,
+   * dieselbe Stelle, ein `aria-label` in allen vier Sprachen. Wer sie
+   * uebergibt, setzt keinen zweiten daneben.
+   */
+  readonly zurueck?: { readonly ziel: Route; readonly text: string };
   readonly children: ReactNode;
 }) {
   return (
@@ -113,6 +125,7 @@ export function MeinRahmen({
     >
       <PortalRahmen
         titel={titel}
+        {...(zurueck === undefined ? {} : { zurueck })}
         /*
          * `Heute` ist die Wurzel dieses Portals, und `titel` ist der Name der
          * Seite, auf der man steht. Auf `/portal/mein/schichten` stand in der

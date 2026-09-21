@@ -4,6 +4,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withKundeScope, KeinKundenzugangFehler, type LeseKontext }
   from '@/server/kontext/index';
 import { rechtepruefer } from '@/server/auth/zugang';
+import type { Route } from 'next';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { portalZugang, type PortalZugang } from '../zugang';
 
@@ -131,16 +132,26 @@ export async function kundePortal<T>(
  * der Gruppenansicht).
  */
 export function KundenRahmen({
-  basis, titel, aktiverTab, children,
+  basis, titel, aktiverTab, zurueck, children,
 }: {
   readonly basis: KundenBasis;
   readonly titel: string;
   readonly aktiverTab: string;
+  /**
+   * Der Weg eine Ebene hinauf — durchgereicht an `PortalRahmen`
+   * (DESIGN §5 „The way back", D-613).
+   *
+   * Die neun Kundenseiten, die ihn heute selbst setzen, bleiben unveraendert:
+   * sie rendern `<Zurueck>` im Seitenrumpf. Wer ihn hier uebergibt, bekommt
+   * ihn an derselben Stelle wie in jedem anderen Portal.
+   */
+  readonly zurueck?: { readonly ziel: Route; readonly text: string };
   readonly children: ReactNode;
 }) {
   return (
     <PortalRahmen
       titel={titel}
+      {...(zurueck === undefined ? {} : { zurueck })}
       /*
        * `Übersicht` ist die Wurzel dieses Portals, und `titel` ist der Name
        * der Seite. Mit beidem liest sich die Kopfzeile als Weg:

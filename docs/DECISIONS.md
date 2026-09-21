@@ -14368,14 +14368,23 @@ nicht trifft, hat sie nicht getroffen: ohne Bindung antwortet die Seite einer
 Admin-Optionen öffnen eine neue Seite ohne Rückweg", und „alles wirkt
 versteckt".
 
-Gemessen am 21.09.:
+Gemessen am 21.09. — und die Zahl musste **viermal** korrigiert werden, was
+zur Entscheidung gehört:
 
-| Fläche | Seiten | mit `Zurueck` |
-|---|---|---|
-| `portal/[mandant]` | 309 | **2** |
-| `portal/mein` | 27 | **2** |
-| `portal/gruppe` | 26 | **0** |
-| `portal/kunde` | 20 | 9 |
+| Fläche | Detailseiten | mit Rückweg | **ohne** |
+|---|---|---|---|
+| `portal/[mandant]` | 278 | 84 | **194** |
+| `portal/gruppe` | 26 | 0 | **26** |
+| `portal/mein` | 26 | 13 | **13** |
+| `portal/kunde` | 20 | 8 | **12** |
+| **gesamt** | **350** | **105** | **245** |
+
+Die drei Fehlmessungen davor: `grep "Zurueck"` zählte das Wort in Kommentaren
+mit (`zurückziehen`); `<Zurueck` sah nur die Komponente und nicht den
+handgebauten `← {t.zeiten}`; und `<Link` je Seitendatei sah keine Hülle. Jede
+Fassung war zu hoch, und jede hätte zu Arbeit geführt, die schon getan war —
+im Arbeiterportal standen die Rückwege bereits auf 13 von 13 Unterseiten, und
+ein automatischer Lauf hätte sie verdoppelt.
 
 **Die Ursache war kein fehlender Entwurf.** Die Komponente stand seit langem
 in `src/app/portal/kunde/bausteine.tsx:197` — sauber gebaut, mit
@@ -14403,6 +14412,13 @@ gelaufen ist — `tsc --noEmit` sieht die Routentypen nicht.
 
 307 Verwaltungsseiten standen ohne Rückweg da — und 142 von ihnen liegen drei
 Ebenen oder tiefer, während die Navigation nur auf 26 Wurzeln führt.
+
+**Der eigentliche Befund ist nicht die Zahl, sondern die Uneinheitlichkeit.**
+Es gibt DREI Bauarten für dieselbe Sache: die Komponente `<Zurueck>` (nur im
+Kundenportal), einen handgebauten `← {t.zeiten}` mit eigenen Klassen
+(Arbeiterportal und Teile der Verwaltung), und auf 245 Seiten gar nichts.
+Drei Bauarten heissen drei Stellen, an denen eine Änderung hängenbleibt —
+genau das, was DESIGN §12 mit „no component invented ad hoc" meint.
 
 **Entschieden: der Rückweg gehört nach `DESIGN.md` §5 und nach
 `src/components/portal/`, nicht neben die Seiten eines Portals.**

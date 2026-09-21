@@ -40,68 +40,59 @@ awk '/^export const NAVIGATION/,/^\];/' src/server/registry/navigation.ts \
 
 ## 1. Die Befunde
 
-### 1.1 🔴 Der Rückweg fehlt — auf 307 von 309 Verwaltungsseiten
+### 1.1 🔴 Der Rückweg fehlt auf 245 von 350 Detailseiten
 
-**Der härteste Befund, und der mit dem besten Verhältnis von Aufwand zu
-Wirkung.**
+**Diese Zahl ist die vierte, die hier stand.** Die drei davor waren zu hoch,
+und wie sie zustande kamen, gehört zum Befund — sonst wird sie beim nächsten
+Mal wieder falsch gezählt.
 
-Gezählt werden **Detailseiten**: Seiten, über denen es eine Elternseite gibt —
-also genau die, die eine Liste hat, in die man zurückgehört.
+| Messung | Muster | Ergebnis | Fehler |
+|---|---|---|---|
+| 1. | `grep -c "Zurueck"` | 15 von 350 | zählte auch das Wort in Kommentaren (`zurückziehen`) |
+| 2. | `<Zurueck` (die Komponente) | 8 von 350 | sah nur die Komponente, nicht den handgebauten Verweis |
+| 3. | `<Link` je Seitendatei | — | sah keine Hülle (`AuthSchale`, `PortalRahmen`) |
+| **4.** | **`<Zurueck` ODER `← {…}`** | **105 von 350** | — |
 
-| Fläche | Detailseiten | davon mit Weg zurück |
-|---|---|---|
-| `portal/[mandant]` | 278 | **3** |
-| `portal/gruppe` | 26 | **0** |
-| `portal/mein` (Arbeiter) | 26 | **4** |
-| `portal/kunde` | 20 | 8 |
-| **gesamt** | **350** | **15** |
+**Die belastbare Zahl:**
 
-**Es gibt einen Weg HINAUS — aber keinen Weg HINAUF.** Das ist der Kern des
-Befunds, und er wurde erst beim dritten Messen sauber:
+```bash
+# Detailseite = eine Seite, ueber der eine Elternseite steht
+# Rueckweg    = die Komponente <Zurueck> ODER ein handgebauter Pfeil-Verweis
+```
+
+| Fläche | Detailseiten | mit Rückweg | **ohne** |
+|---|---|---|---|
+| `portal/[mandant]` | 278 | 84 | **194** |
+| `portal/gruppe` | 26 | 0 | **26** |
+| `portal/mein` (Arbeiter) | 26 | 13 | **13** |
+| `portal/kunde` | 20 | 8 | **12** |
+| **gesamt** | **350** | **105** | **245** |
+
+**Der Befund ist also kleiner als zuerst behauptet — und in einem Punkt
+schlimmer:** es gibt **drei** Bauarten für dieselbe Sache. Die Komponente
+`<Zurueck>` (nur im Kundenportal), ein handgebauter `← {t.zeiten}` mit
+eigenen Klassen (Arbeiterportal und Teile der Verwaltung), und auf 245 Seiten
+gar nichts. Drei Bauarten heissen drei Stellen, an denen eine Änderung
+hängenbleibt — genau der Grund, aus dem DESIGN §12 „no component invented ad
+hoc" sagt.
+
+**`portal/gruppe` hat auf keiner einzigen Seite einen** — 26 von 26.
+
+### 1.1a Es gibt einen Weg HINAUS, aber keinen HINAUF
 
 `PortalRahmen` rendert eine Spur `‹ Wurzel › Seite`, deren erster Teil auf die
-**Portalwurzel** verweist (`PortalRahmen.tsx:178`). 283 der 309 Seiten rendern
-diesen Rahmen, 117 davon übergeben `wurzelTitel` und bekommen die Spur. Der
-Kommentar daneben hält fest, dass „wie komme ich hier weg" schon **zweimal**
-gefragt wurde — die Spur ist die Antwort darauf gewesen.
+**Portalwurzel** verweist (`PortalRahmen.tsx:178`). 283 der 309
+`[mandant]`-Seiten rendern diesen Rahmen, 117 übergeben `wurzelTitel` und
+bekommen die Spur. Der Kommentar daneben hält fest, dass „wie komme ich hier
+weg" schon **zweimal** gefragt wurde.
 
 **Sie führt aber immer ganz nach oben.** Wer auf
-`/personal/anstellungen/[id]/entgelt` steht (Tiefe 4), landet damit auf
-`/portal/[mandant]` — nicht auf der Anstellung und nicht auf der Liste. Der
-Weg zurück zu der Liste, aus der man kam, existiert auf **keiner** Ebene.
+`/personal/anstellungen/[id]/entgelt` steht (Tiefe 4), landet auf
+`/portal/[mandant]` — nicht auf der Anstellung, nicht auf der Liste. Genau das
+beschreibt Beobachtung 4: „öffnet eine neue Seite, und es gibt kein Zurück zur
+**vorherigen**".
 
-Genau das beschreibt Beobachtung 4: „öffnet eine neue Seite, und es gibt kein
-Zurück zur **vorherigen**".
-
-**Die Komponente dafür existiert bereits** — `src/app/portal/kunde/bausteine.tsx:197`,
-sauber gebaut, mit `aria-label="Zurück"` und einem Pfeil an immer derselben
-Stelle. Sie ist nur **nicht benutzbar ausserhalb des Kundenportals**, weil ihr
-`ziel` auf neun feste Kundenpfade typisiert ist:
-
-```ts
-{ ziel: '/portal/kunde/nachrichten' | '/portal/kunde/reklamationen' | … }
-```
-
-**Und dieser Typ war kein Versehen — das kam erst beim Bauen heraus.** Die
-Plattform fährt `typedRoutes: true` (`next.config.ts:7`): `Link` nimmt kein
-beliebiges `string`, sondern nur einen Pfad, den Next als Route kennt. Die
-Aufzählung war die Antwort darauf mit den Mitteln einer Datei, die neun Ziele
-kennt.
-
-Ein erster Versuch, sie durch `string` zu ersetzen, lief durch
-`pnpm typecheck` **ohne eine einzige Meldung** und brach dann in `pnpm build`:
-
-```
-./src/components/portal/Zurueck.tsx:54:9
-Type error: Type 'string' is not assignable to type 'UrlObject | RouteImpl<string>'.
-```
-
-Genau die Lücke, vor der `ENTWICKLUNGSPLAN.md` §0 warnt: *`tsc --noEmit` sieht
-KEINE Next-Routentypen — die erscheinen erst in `pnpm build`.* Richtig ist
-`Route` aus `next`, wie es `components/ui/Zustandsseite.tsx:68` schon tut:
-dieselbe Zusage, ohne die Liste.
-
-**Dazu kommt die Verschachtelung:**
+Dazu die Verschachtelung:
 
 | Tiefe unter `/portal/[mandant]/` | Seiten |
 |---|---|
@@ -112,9 +103,23 @@ dieselbe Zusage, ohne die Liste.
 | 5 | 9 |
 | 6 | 1 |
 
-**142 Seiten liegen drei Ebenen oder tiefer.** Die Navigation führt auf die
-26 Wurzeln; alles darunter wird durch Klicken erreicht — und ohne Rückweg
-wieder verlassen. Das ist die mechanische Ursache von „alles wirkt versteckt".
+**142 Seiten liegen drei Ebenen oder tiefer**, während die Navigation auf 26
+Wurzeln führt.
+
+### 1.1b Was dagegen schon steht
+
+Damit die Reparatur nicht doppelt baut:
+
+- `src/components/portal/Zurueck.tsx` — die Komponente der Plattform, mit
+  `aria-label` in allen vier Portalsprachen. `ziel` ist `Route` aus `next`
+  (nicht `string`: `typedRoutes: true`, und `tsc --noEmit` sieht das nicht —
+  nur `pnpm build`).
+- `PortalRahmen`, `MeinRahmen`, `KundenRahmen` und `GruppenRahmen` nehmen
+  `zurueck={{ziel, text}}` und rendern es **an einer Stelle**: zuerst im
+  `main`, vor jeder Überschrift.
+
+Es fehlt also nur noch, es auf den 245 Seiten zu setzen — und die 105
+handgebauten auf dieselbe Bauart zu ziehen.
 
 ### 1.2 ✅ BEHOBEN — die Mitarbeiter-Anmeldung umging die gemeinsame Hülle
 

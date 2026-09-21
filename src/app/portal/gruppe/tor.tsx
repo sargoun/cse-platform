@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { bindeAnfrage, withGroupScope, type LeseKontext } from '@/server/kontext/index';
+import type { Route } from 'next';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import { AreaBadge } from '@/components/ui/AreaBadge';
@@ -176,15 +177,25 @@ export function KeinRecht() {
 }
 
 /** Der Rahmen jeder Gruppenseite: neutraler Streifen, `NUR LESEN`, Gruppenleiste. */
-export function GruppenRahmen({ zugang, titel, aktiverTab, children }: {
+export function GruppenRahmen({ zugang, titel, aktiverTab, zurueck, children }: {
   readonly zugang: PortalZugang;
   readonly titel: string;
   readonly aktiverTab: string;
+  /**
+   * Der Weg eine Ebene hinauf — durchgereicht an `PortalRahmen`
+   * (DESIGN §5 „The way back", D-613).
+   *
+   * Er steht hier als Durchreiche und nicht als eigener Baustein, damit der
+   * Pfeil in jedem Portal an derselben Stelle sitzt: zuerst im `main`, vor
+   * jeder Ueberschrift.
+   */
+  readonly zurueck?: { readonly ziel: Route; readonly text: string };
   readonly children: ReactNode;
 }) {
   return (
     <PortalRahmen
       titel={titel}
+      {...(zurueck === undefined ? {} : { zurueck })}
       wurzelTitel="Gruppenübersicht"
       bereich={null}
       nurLesen
