@@ -1902,6 +1902,7 @@ the back door into the cost base that the module ceiling closes elsewhere.
 | `/portal/[mandant]/einstellungen/mandant` — name, legal form, address, register court, HRB, Geschäftsführer, tax number, bank details, invoice footer | `system.mandant_lesen` / `system.mandant_verwalten` | `M1` | TEN-01, TEN-02, DESIGN §11 | 1 |
 | `/portal/[mandant]/einstellungen/identitaet` — logo, identity hue, cover | `system.identitaet_verwalten` | `M1` | TEN-07, D-10, D-11 | 1 |
 | `/portal/[mandant]/einstellungen/benutzer` , `/[id]` — users of this mandant, invitations, session list, 2FA state | `system.benutzer_lesen` / `system.benutzer_verwalten` | `M1` | AUT-01, AUT-02, AUT-08 | 1 |
+| `/portal/[mandant]/einstellungen/benutzer/einladen` — invite an administration account (creates the account, issues a one-time invitation link; the link is displayed, never sent — no mail provider is connected, O-501) | `system.verwaltungskonto_erstellen` | `M1` | AUT-04, D-610 | 1 |
 | `/portal/[mandant]/einstellungen/rollen` , `/[rolle]` — the permission matrix, editable per mandant | `system.rolle_lesen` / `system.rolle_verwalten` (**write requires `aal2`**, K-15) | `M1` | AUT-03, AUT-05 | 1 |
 | `/portal/[mandant]/einstellungen/module` — which modules an admin holds in this mandant | `system.module_zuweisen` (**`aal2`**) | `M1` | AUT-01, AUT-03, TEN-08 | 1 |
 | `/portal/[mandant]/einstellungen/steuer` — tax-rate groups and this entity's own tax identity (§5.3) | `buchhaltung_konfiguration.verwalten` | `M1` | LEG-05, FIN-09 | 6 |

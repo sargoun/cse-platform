@@ -2334,6 +2334,7 @@ own modules' share** of the same set. §21 asks each to qualify its "only" accor
 | `system.identitaet_verwalten` | ✔ | ○ | — | — | — | logo, hue, address (TEN-07) |
 | `system.benutzer_lesen` | ✔ | ✔ | ✔ | — | — | only accounts attached to the active mandant |
 | `system.benutzer_verwalten` | ✔ | ✔ | ○ | — | — | invite, edit, deactivate |
+| `system.verwaltungskonto_erstellen` | ✔ | — | — | — | — | `nur_global` — **D-610**. Inviting an account that will hold an INTERNAL role (`admin`, `leitung`) is the one invitation whose misuse reaches the whole group, so it rises to the super-admin. The action is `erstellen`, not `einladen`: §7.2's vocabulary is closed and `einladen` is not in it — the invitation is how the account is created, not a second kind of act. `system.benutzer_verwalten` stays with the Gesellschaft and still covers what it always covered: employee and customer access, editing and deactivating. The line is D-610's: what harms the GROUP rises, what harms one Gesellschaft stays |
 | `system.rolle_lesen` | ✔ | ○ | ○ | — | — | the permission editor, read |
 | `system.rolle_verwalten` | ✔ | ○ | — | — | — | **write path requires `aal2` (K-15)**; default open to `admin` pending O-76 |
 | `system.module_zuweisen` | ✔ | ○ | — | — | — | pending O-76 — an admin widening their own module set is the risk |

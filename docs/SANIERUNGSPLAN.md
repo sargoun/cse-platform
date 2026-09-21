@@ -208,9 +208,9 @@ Alle am Code nachgemessen, mit Datei und Zeile:
 
 | | Befund | Beleg |
 |---|---|---|
-| **A** | Kein Weg, ein Verwaltungskonto anzulegen | `insert into benutzer` nur in `seed/index.ts:391,468,542,1475` |
+| ~~**A**~~ | ✅ **ERLEDIGT** — Verwaltungskonten lassen sich einladen | siehe §1.5a |
 | **B** | Stempeluhr vom Arbeiterportal unerreichbar | `grep -rn "check-in" src/app/portal/mein/` → 0 |
-| **C** | Korrektur erreicht die Mitarbeiterin nicht | `services/zeit/korrektur.ts` (282 Z.) → 0× `nachricht` |
+| ~~**C**~~ | ✅ **ERLEDIGT** — Korrektur erreicht die Mitarbeiterin jetzt | siehe §1.5c |
 | **D** | Keine globale Super-Admin-Fläche | `nurGlobal: true` nur in `katalog.generiert.ts:219,227` |
 | **E** | Schlüssel des Sprachmodells nur aus der Umgebung | `versand/modell-openai.ts:99` |
 
@@ -235,6 +235,90 @@ Token, auf den das Arbeiterportal verweisen könnte. Und O-93 (derselbe Dienst,
 Z. ~218) fragt den Mandanten, ob der **Portal-Link** überhaupt der richtige
 Weg ist — neben SMS, E-Mail und QR-Code am Objekt. B zu bauen, ohne O-93 zu
 beantworten, hiesse die Frage an der Entwicklung zu entscheiden.
+
+### 1.5a ✅ ERLEDIGT — ein Verwaltungskonto lässt sich einladen
+
+**Der schwerste Befund, und am Ende der kleinste Bau** — weil die
+Annahmehälfte die ganze Zeit fertig dastand:
+
+```
+kern.kennwort_token, zweck 'einladung'            0155   ✔ war da
+/auth/einladung/[token] -> /auth/passwort-neu            ✔ war da
+0249 benutzt genau diese Kette fuer den KUNDEN          ✔ war da
+die absendende Haelfte fuer interne Konten              ✘ fehlte
+```
+
+Gebaut: `drizzle/0372` (Definer-Funktion + Policy),
+`services/system/verwaltungskonto.ts`, `POST /api/system/verwaltungskonto`
+und die Seite `/[mandant]/einstellungen/benutzer/einladen` — **zweisprachig**,
+weil die Sperrklinke für eine NEUE Seite nichts anderes zulässt.
+
+**Nur der Super-Admin (D-610).** Das neue Recht
+`system.verwaltungskonto_erstellen` ist `nur_global`: `app.hat_recht` wertet
+dafür ausschliesslich `benutzer.globale_rolle_id` aus (0169), sodass auch ein
+Admin **in seiner eigenen Gesellschaft** `false` bekommt. Genau dieser Fall
+ist der Test, der die Entscheidung trägt — ohne ihn wäre D-610 eine
+Behauptung in einem Dokument.
+
+**Drei Sperren, die beim Bauen aufgefallen sind:**
+
+1. **`einladen` ist kein erlaubtes Verb.** §7.2 führt ein geschlossenes
+   Aktionsvokabular, und `berechtigung_aktion` kennt es nicht. Der Schlüssel
+   heisst deshalb `…_erstellen` — die Einladung IST das Anlegen, nicht eine
+   zweite Art von Akt. Die Wache hat das vor dem ersten Seed gemeldet (K-19).
+2. **Eine Definer-Funktion darf nicht jede Rolle vergeben.** `0249` sagt den
+   Grund: *„Eine Definer-Funktion, die jede Rolle vergeben koennte, waere ein
+   Weg zu `admin` ohne Rechtepruefung."* Die neue Policy
+   `d_bm_verwaltungsrolle` lässt deshalb nur `admin` und `leitung` zu — auf
+   Policy-Ebene, nicht nur in der Funktion.
+3. **Der Rückweg hängt am Recht seines ZIELS.**
+   `tests/kern/verweis-rechte.test.ts` hat gemeldet, dass die Seite auf die
+   Benutzerliste zeigt, ohne deren `system.benutzer_lesen` zu prüfen. In der
+   Praxis hält ein Super-Admin beides — „in der Praxis" ist keine Prüfung.
+
+**Offen und benannt: O-887.** Ein `super_admin` ist über diesen Weg **nicht**
+einladbar, und heute entsteht er ausschliesslich im Seed. Das ist ein
+operatives Risiko (geht das einzige Konto verloren, ist die Plattform nicht
+mehr verwaltbar) — aber eine Einladung, die Super-Admins erzeugen kann, ist
+ein Weg zur vollen Gruppenmacht. Ob es ihn geben soll und unter welcher
+zweiten Bedingung, entscheidet der Mandant (K-17). Die Frage steht im
+Register, im Migrationskopf und **auf dem Bildschirm**.
+
+### 1.5c ✅ ERLEDIGT — die Korrektur erreicht die Mitarbeiterin
+
+`korrigiereZeiteintrag` schreibt jetzt zusaetzlich eine Nachricht an den
+Menschen, dessen Stunden sich geaendert haben — **in SEINER Sprache**
+(`person.sprache`, 0165), über die interne Schiene `kern.nachricht` (0350).
+
+**Was uebersetzt wird und was nicht.** Der Rahmen ist in allen vier
+Portalsprachen hinterlegt (`src/lib/i18n/zeitkorrektur.ts`): Betreff, Art,
+Grund, und der Satz, der auf den Einwandsweg zeigt. **Die Begruendung bleibt
+woertlich.** Sie ist der Wortlaut eines Menschen, steht in
+Anfuehrungszeichen und kann in einem Streit ueber Lohn zitiert werden — sie
+maschinell zu uebertragen hiesse, ihm Worte zuzuschreiben, die er nicht
+gesagt hat. `Storno` und `Objekt` bleiben deutsch mit Erklaerung.
+
+**In DERSELBEN Transaktion wie die Korrektur.** Eine Korrektur, deren
+Nachricht scheitert, waere wieder genau der behobene Zustand — nur mit dem
+guten Gewissen, es versucht zu haben. Entweder beides oder keines. Fehlt der
+Rolle `nachricht.versenden`, scheitert sie mit einem Satz, der das sagt,
+statt mit „new row violates row-level security" (das zeigte auf die
+Zeiterfassung und verschwieg die Ursache).
+
+**Auf der Seite der Mitarbeiterin steht, DASS korrigiert wurde — nicht
+warum.** Und das ist kein Rueckstand, sondern eine bestehende Entscheidung:
+`p_ma_decke` (`drizzle/0036:403`) sperrt `zeiteintrag_korrektur` fuer das
+Arbeiterportal ausdruecklich — *„Der Arbeitnehmer sieht seine STUNDEN; die
+Spur darueber bekommt er auf Auskunft, nicht als Bildschirm."* Diese Decke
+bleibt. Gezeigt wird die **Fassungsnummer des Eintrags selbst** (`> 1` heisst
+korrigiert), die ohnehin auf seiner Zeile steht — kein Grund, kein Name, kein
+Betrag. Zusammen mit der Nachricht ist die Schleife geschlossen, ohne die
+Decke anzuheben.
+
+Geprüft in `tests/isolation/zeit-korrektur-nachricht.test.ts`: dass sie
+entsteht, beim richtigen Menschen landet, in seiner Sprache steht, die
+Begründung wörtlich durchkommt, und dass ein entzogenes Recht die Korrektur
+**mit Grund** scheitern lässt statt stumm durchzugehen.
 
 ### 1.6 🟡 Wortlaut-Befunde der `finanzen`-Umstellung
 

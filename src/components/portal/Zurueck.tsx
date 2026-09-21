@@ -1,5 +1,4 @@
-import type { Route } from 'next';
-import Link from 'next/link';
+import Link, { type LinkProps } from 'next/link';
 import { rueckwegLabel } from '@/lib/i18n/rueckweg';
 
 /**
@@ -40,10 +39,27 @@ export interface ZurueckProps {
    *
    * Die Vorfassung in `kunde/bausteine.tsx` loeste dasselbe Problem mit einer
    * Aufzaehlung ihrer neun Pfade. Das war kein Versehen, sondern dieselbe
-   * Anforderung mit den Mitteln einer Datei, die nur neun Ziele kennt;
-   * `Route` ist dieselbe Zusage, ohne die Liste.
+   * Anforderung mit den Mitteln einer Datei, die nur neun Ziele kennt.
+   *
+   * **`string`, und die eine Umtypisierung steht unten in dieser Datei.**
+   *
+   * Die Plattform faehrt `typedRoutes: true`, und das ist gut so — aber es
+   * traegt hier nicht: eine Portalseite baut ihr Ziel aus dem Mandanten
+   * zusammen (`/portal/${mandant}/einstellungen/benutzer`), und `${mandant}`
+   * ist zur Uebersetzungszeit unbekannt. Next kann diesen Pfad also gar nicht
+   * gegen seine Routenliste pruefen; was uebrig bliebe, waere eine Zusage,
+   * die nichts zusichert.
+   *
+   * Drei Wege standen zur Wahl, und der dritte ist der ehrlichste:
+   *   1. `Route` — lehnt jedes zusammengesetzte Ziel ab (gemessen: der Bau
+   *      brach an genau dieser Zeile).
+   *   2. Alle VIER Huellen generisch durchreichen — viel Maschinerie fuer
+   *      eine Pruefung, die `${mandant}` ohnehin nicht sieht.
+   *   3. `string` hier, EINE benannte Umtypisierung an der Stelle, an der der
+   *      Wert auf `Link` trifft. Eine Stelle statt 350, und sie sagt, was sie
+   *      tut.
    */
-  readonly ziel: Route;
+  readonly ziel: string;
   /** Was dort steht, aus Sicht des Ziels: „Alle Anstellungen", nicht „Zurueck". */
   readonly text: string;
   /**
@@ -65,8 +81,9 @@ export function Zurueck({ ziel, text, sprache }: ZurueckProps) {
         * faellt an einem Schreibtisch niemandem auf und entscheidet auf einem
         * Telefon darueber, ob der Daumen trifft.
         */}
+      {/* Die eine Umtypisierung — siehe `ziel` oben. */}
       <Link
-        href={ziel}
+        href={ziel as LinkProps<string>['href']}
         className="inline-flex min-h-11 items-center gap-s1 text-sm text-text-muted
                    underline hover:text-text focus-visible:text-text"
       >

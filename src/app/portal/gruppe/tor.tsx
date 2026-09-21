@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { bindeAnfrage, withGroupScope, type LeseKontext } from '@/server/kontext/index';
-import type { Route } from 'next';
+import type { ZurueckProps } from '@/components/portal/Zurueck';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import { AreaBadge } from '@/components/ui/AreaBadge';
@@ -189,7 +189,7 @@ export function GruppenRahmen({ zugang, titel, aktiverTab, zurueck, children }: 
    * Pfeil in jedem Portal an derselben Stelle sitzt: zuerst im `main`, vor
    * jeder Ueberschrift.
    */
-  readonly zurueck?: { readonly ziel: Route; readonly text: string };
+  readonly zurueck?: ZurueckProps;
   readonly children: ReactNode;
 }) {
   return (

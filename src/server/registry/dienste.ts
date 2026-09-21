@@ -530,6 +530,19 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'crm', pfad: 'crm/kundenzugang',
     schreibend: true, schreibRecht: 'system.benutzer_verwalten',
   },
+  /**
+   * **Die Einladung eines Verwaltungskontos (AUT-04, D-610, 0372).** Die
+   * Schwester von `crm/kundenzugang` — dieselbe Kette aus
+   * `kern.kennwort_token`, derselbe einmalige Klartext, dieselbe
+   * Definer-Funktion, die das Recht noch einmal prueft. Der Unterschied ist
+   * das Recht: `system.verwaltungskonto_erstellen` ist `nur_global` und
+   * damit dem Super-Admin vorbehalten, waehrend `system.benutzer_verwalten`
+   * bei der Gesellschaft bleibt.
+   */
+  {
+    modul: 'system', pfad: 'system/verwaltungskonto',
+    schreibend: true, schreibRecht: 'system.verwaltungskonto_erstellen',
+  },
   /*
    * Wiedervorlagen (CRM-04). Schreibt in `lead_aktivitaet` und spiegelt nach
    * `aufgabe` und `kalender_eintrag`, soweit `aufgabe.schreiben` und

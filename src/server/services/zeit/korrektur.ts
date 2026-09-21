@@ -27,6 +27,18 @@
  * Spur beginnt, wenn der Datensatz geschlossen ist.
  */
 import type { SchreibKontext } from '../../kontext/index.js';
+import { istPortalSprache, type PortalSprache } from '../../../lib/i18n/texte.js';
+import { korrekturNachricht } from '../../../lib/i18n/zeitkorrektur.js';
+import { eroeffneFaden } from '../kern/nachricht.js';
+
+export class KeinNachrichtenRechtFehler extends Error {
+  constructor() {
+    super('Diese Gesellschaft hat der korrigierenden Rolle `nachricht.versenden` '
+      + 'entzogen. Eine Korrektur ohne Nachricht an die Mitarbeiterin gibt es nicht '
+      + '(TIM-11) — entweder das Recht binden oder nicht korrigieren.');
+    this.name = 'KeinNachrichtenRechtFehler';
+  }
+}
 
 export type KorrekturArt =
   | 'zeit_korrektur' | 'pause_korrektur' | 'zuordnung_korrektur'
@@ -240,6 +252,14 @@ export async function korrigiereZeiteintrag(
   );
   if (korrektur === undefined) throw new Error('Die Korrekturzeile wurde nicht geschrieben.');
 
+  await meldeDerMitarbeiterin(kontext, {
+    personId: alt.person_id,
+    zeiteintragId: neueFassungId ?? alt.id,
+    art: eingabe.art,
+    grundKategorie: eingabe.grundKategorie,
+    begruendung: eingabe.begruendung,
+  });
+
   return {
     korrekturId: korrektur.id,
     neueFassungId: neueFassungId ?? alt.id,
@@ -279,4 +299,84 @@ export async function leseKorrekturSpur(
     durchgefuehrtVon: z.durchgefuehrt_von,
     durchgefuehrtAm: z.durchgefuehrt_am,
   }));
+}
+
+/**
+ * Sagt der Mitarbeiterin, dass ihre Zeit korrigiert wurde — und warum.
+ *
+ * **Der Befund, der das ausgeloest hat.** `/portal/[mandant]/zeiten/[id]/korrektur`
+ * verlangt Art, Grund und Begruendung als PFLICHTFELDER. Der Dienst schrieb sie
+ * sauber in `zeiteintrag_korrektur` — und schwieg. Der Mensch, dessen Stunden
+ * sich aenderten, erfuhr davon nur, wenn er zufaellig nachsah. Der Mandant hat
+ * es woertlich verlangt: „التعديل مع رسالة للموظف بتكون ليعرف ليش هيك صار."
+ *
+ * **In DERSELBEN Transaktion wie die Korrektur, und das ist die Entscheidung.**
+ * Eine Korrektur, deren Nachricht scheitert, waere wieder genau der Zustand,
+ * den dieser Code behebt — nur diesmal mit dem guten Gewissen, es versucht zu
+ * haben. Entweder beides oder keines.
+ *
+ * **Das Recht wird VORHER geprueft, damit der Fehlschlag lesbar ist.**
+ * `nachricht.versenden` haelt per Vorgabe jede Rolle, die auch korrigieren
+ * darf (0008); eine Gesellschaft kann es ihr aber entziehen. Ohne diese
+ * Pruefung meldete die Policy „new row violates row-level security" — ein
+ * Satz, der auf die Zeiterfassung zeigt und die Ursache verschweigt.
+ *
+ * **`richtung = intern`, `kanal = portal`** (ueber `eroeffneFaden`): das
+ * verlaesst die Plattform nicht und beruehrt Invariante 7 nicht. Was nach
+ * draussen geht, laeuft ueber `sendeNachAussen` und die Freigabekette.
+ */
+async function meldeDerMitarbeiterin(
+  kontext: SchreibKontext,
+  eingabe: {
+    readonly personId: string | null;
+    readonly zeiteintragId: string;
+    readonly art: KorrekturArt;
+    readonly grundKategorie: KorrekturGrund;
+    readonly begruendung: string;
+  },
+): Promise<void> {
+  /* Ohne Menschen gibt es niemanden zu benachrichtigen. Die Spalte ist
+     `not null` im Normalfall; die Zeile hier ist der Guertel dazu. */
+  if (eingabe.personId === null) return;
+
+  /**
+   * Sprache und Tag in EINER Abfrage — und den Tag aus der DATENBANK.
+   *
+   * `(beginn_zeitpunkt at time zone 'Europe/Berlin')::date` ist Invariante 2:
+   * eine Schicht, die um 23:30 UTC beginnt, gehoert in Berlin zum FOLGETAG,
+   * und ein in JavaScript gebildetes Datum haette genau an den Naechten
+   * gelogen, um die es bei Korrekturen am haeufigsten geht.
+   */
+  const [z] = await kontext.abfrage<{ sprache: string | null; tag: string }>(
+    `select p.sprache,
+            to_char((e.beginn_zeitpunkt at time zone 'Europe/Berlin')::date,
+                    'DD.MM.YYYY') as tag
+       from zeiteintrag e
+       join person p on p.id = e.person_id
+      where e.id = $1`,
+    [eingabe.zeiteintragId],
+  );
+  if (z === undefined) return;
+
+  const [recht] = await kontext.abfrage<{ hat: boolean }>(
+    `select app.hat_recht('nachricht.versenden', app.aktiver_mandant()) as hat`);
+  if (recht?.hat !== true) throw new KeinNachrichtenRechtFehler();
+
+  const sprache: PortalSprache =
+    typeof z.sprache === 'string' && istPortalSprache(z.sprache) ? z.sprache : 'de';
+
+  const { betreff, koerper } = korrekturNachricht(sprache, {
+    art: eingabe.art,
+    grund: eingabe.grundKategorie,
+    begruendung: eingabe.begruendung,
+    datum: z.tag,
+  });
+
+  await eroeffneFaden(kontext, {
+    betreff,
+    koerper,
+    empfaenger: [{ typ: 'person', id: eingabe.personId, art: 'an' }],
+    bezugTyp: 'zeiteintrag',
+    bezugId: eingabe.zeiteintragId,
+  });
 }

@@ -4,7 +4,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withKundeScope, KeinKundenzugangFehler, type LeseKontext }
   from '@/server/kontext/index';
 import { rechtepruefer } from '@/server/auth/zugang';
-import type { Route } from 'next';
+import type { ZurueckProps } from '@/components/portal/Zurueck';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { portalZugang, type PortalZugang } from '../zugang';
 
@@ -145,7 +145,7 @@ export function KundenRahmen({
    * sie rendern `<Zurueck>` im Seitenrumpf. Wer ihn hier uebergibt, bekommt
    * ihn an derselben Stelle wie in jedem anderen Portal.
    */
-  readonly zurueck?: { readonly ziel: Route; readonly text: string };
+  readonly zurueck?: ZurueckProps;
   readonly children: ReactNode;
 }) {
   return (

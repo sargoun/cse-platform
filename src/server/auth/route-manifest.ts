@@ -491,6 +491,23 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /*
+     * AUT-04/D-610. Ein Verwaltungskonto einladen — die absendende Haelfte,
+     * die bis 0372 fehlte: die einzige Stelle, die in `benutzer` schrieb, war
+     * der SEED.
+     *
+     * **`system.verwaltungskonto_erstellen` ist `nur_global`** — auch ein
+     * Admin seiner eigenen Gesellschaft bekommt hier 404, weil `app.hat_recht`
+     * fuer ein `nur_global`-Recht nur die globale Rolle auswertet (0169). Das
+     * ist D-610: was bei Missbrauch die GRUPPE trifft, gehoert nach oben.
+     *
+     * Die Pruefung steht zweifach — hier und in
+     * `app.verwaltungskonto_einladen` (0372), die zusaetzlich `aal2` verlangt.
+     */
+    pfad: 'api/system/verwaltungskonto',
+    recht: 'system.verwaltungskonto_erstellen',
+  },
+  {
+    /*
      * CRM-08/LEG-08. Die Rechtsgrundlage eines Ansprechpartners. Der Dienst
      * verlangt zusaetzlich `crm.schreiben`: die WITH-CHECK-Klausel von
      * `t_mandant` auf `ansprechpartner` gibt sonst „new row violates row-level

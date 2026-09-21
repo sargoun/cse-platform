@@ -2,8 +2,7 @@ import { StatusPill } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
 import { Marke } from '@/components/marke/Marke';
 import { Glocke } from './Glocke';
-import type { Route } from 'next';
-import { Zurueck } from './Zurueck';
+import { Zurueck, type ZurueckProps } from './Zurueck';
 import { TabLeiste } from './TabLeiste';
 import { SeitenNavigation } from './SeitenNavigation';
 import { istInterneLeiste, tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
@@ -74,7 +73,7 @@ export interface PortalRahmenProps {
    * Stelle sitzt: zuerst im `main`, vor jeder Ueberschrift. Gemessen trugen
    * ihn 15 von 350 Detailseiten, und keine zwei an derselben Stelle.
    */
-  readonly zurueck?: { readonly ziel: Route; readonly text: string };
+  readonly zurueck?: ZurueckProps;
   readonly children: React.ReactNode;
 }
 

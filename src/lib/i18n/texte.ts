@@ -499,6 +499,18 @@ export interface MeinTexte {
   readonly tage: string;
 
   readonly keinBearbeiten: string;
+  /**
+   * Der Hinweis auf einer Zeile, deren Fassung `> 1` ist — sie wurde
+   * korrigiert.
+   *
+   * **Er nennt den Grund NICHT, und das ist Absicht.** `zeiteintrag_korrektur`
+   * traegt Art, Grund und Begruendung, und `p_ma_decke` (0036:403) sperrt die
+   * Tabelle fuer dieses Portal ausdruecklich. Der Grund kommt auf dem Weg, der
+   * dafuer gebaut ist: als Nachricht (`services/zeit/korrektur.ts`). Dieser
+   * Satz sagt, DASS korrigiert wurde, und wohin man fuer das Warum sieht.
+   */
+  readonly korrigiertHinweis: string;
+  readonly korrigiertFassung: string;
   readonly einwandMelden: string;
   readonly einwandArt: string;
   readonly einwandBegruendung: string;
@@ -846,6 +858,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinBearbeiten:
       'Zeiten lassen sich hier nicht ändern. Wenn etwas nicht stimmt, melden Sie '
       + 'einen Einwand — die Planung entscheidet darüber.',
+    korrigiertHinweis: 'Dieser Eintrag wurde korrigiert. Den Grund hat Ihnen die Leitung als Nachricht geschickt — sie steht in Ihrem Posteingang.',
+    korrigiertFassung: 'Fassung',
     einwandMelden: 'Einwand melden',
     einwandArt: 'Art des Einwands',
     einwandBegruendung: 'Was stimmt nicht?',
@@ -1100,6 +1114,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinBearbeiten:
       'Time records cannot be edited here. If something is wrong, raise an '
       + 'objection — the planning team decides on it.',
+    korrigiertHinweis: 'This entry was corrected. Management sent you the reason as a message — it is in your inbox.',
+    korrigiertFassung: 'Version',
     einwandMelden: 'Raise an objection',
     einwandArt: 'Type of objection',
     einwandBegruendung: 'What is wrong?',
@@ -1350,6 +1366,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinBearbeiten:
       'لا يمكن تعديل سجلات الوقت هنا. إذا كان هناك خطأ، قدّم اعتراضاً — قسم التخطيط '
       + 'هو من يبتّ فيه.',
+    korrigiertHinweis: 'تم تصحيح هذا السجلّ. أرسلت لك الإدارة السبب في رسالة — تجدها في صندوق الوارد.',
+    korrigiertFassung: 'النسخة',
     einwandMelden: 'تقديم اعتراض',
     einwandArt: 'نوع الاعتراض',
     einwandBegruendung: 'ما الخطأ؟',
@@ -1591,6 +1609,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinBearbeiten:
       'Zaman kayıtları burada değiştirilemez. Bir yanlışlık varsa itiraz bildirin — '
       + 'kararı planlama birimi verir.',
+    korrigiertHinweis: 'Bu kayıt düzeltildi. Yönetim size nedenini mesaj olarak gönderdi — gelen kutunuzda.',
+    korrigiertFassung: 'Sürüm',
     einwandMelden: 'İtiraz bildir',
     einwandArt: 'İtiraz türü',
     einwandBegruendung: 'Ne yanlış?',

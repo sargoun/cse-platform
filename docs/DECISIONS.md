@@ -3326,6 +3326,7 @@ Beantworten helfen:
 
 | Nr. | Frage | Bezug |
 |---|---|---|
+| O-887 | **Darf ein Super-Admin einen zweiten Super-Admin einladen — und wenn ja, unter welcher zusätzlichen Bedingung?** `0372` baut den Weg, ein Verwaltungskonto einzuladen (D-610), und lässt dabei ausdrücklich nur `admin` und `leitung` zu — auf Funktions- UND auf Policy-Ebene (`d_bm_verwaltungsrolle`). Heute entsteht ein `super_admin` deshalb **ausschliesslich im Seed**, und das ist ein operatives Risiko, das benannt gehört: geht das einzige Konto verloren, ist die Plattform nicht mehr verwaltbar. Eine Einladung, die Super-Admins erzeugen kann, ist andererseits ein Weg zur vollen Gruppenmacht — ob es ihn geben soll, und ob er ein Vier-Augen-Prinzip oder die Bestätigung durch einen zweiten bestehenden Super-Admin verlangt, ist eine Entscheidung des Mandanten und keine des Codes (K-17). | D-610, AUT-02, AUT-04, K-17, `drizzle/0372`, `services/system/verwaltungskonto.ts` |
 | O-886 | **Darf der Stundennachweis nach § 17 MiLoG in der Sprache der Arbeiterin stehen — oder muss er deutsch sein, um als Aufzeichnung zu gelten?** § 17 Abs. 1 MiLoG verlangt vom Arbeitgeber die Aufzeichnung von Beginn, Ende und Dauer; eine Sprache nennt das Gesetz nicht, und die Aufzeichnung, die der Prüfung standhalten muss, ist die im System — nicht das Blatt, das die Arbeiterin abruft. Gebaut ist deshalb die **Lesehilfe**: Spalten und erklärende Sätze folgen `person.sprache` (de/en/ar/tr), die Fundstellen (`§ 17 MiLoG`, `§ 17 Abs. 1 MiLoG`) bleiben unübersetzt, und der Prüfsummen-Hash bleibt unverändert — er hängt an den Daten, nicht an der Anzeige. Das folgt **D-84** (Impressum und Datenschutz sind deutsch bindend, die englische Fassung sagt es dazu) und ist damit kein erfundener Weg, sondern der schon entschiedene. Sagt der Auftraggeber, das Blatt müsse deutsch bleiben, ist die Umkehr **eine Zeile**: `meinTexte('de')` statt `basis.texte`. | § 17 MiLoG, D-84, EMP-12, SPEC §10, `src/app/portal/mein/monatsnachweis/page.tsx` |
 
 ---
@@ -14457,6 +14458,116 @@ Entscheidung in einem Dokument und verfällt in dem Tempo, in dem Seiten
 dazukommen — genau so, wie sie beim ersten Mal verfallen ist.
 
 ---
+### D-614 · Eine Korrektur der Arbeitszeit geht nie ohne Nachricht hinaus
+
+**Der Mandant hat es wörtlich verlangt:** „التعديل مع رسالة للموظف بتكون
+ليعرف ليش هيك صار" — die Änderung mit einer Nachricht an den Mitarbeiter,
+damit er weiss, warum das so geschah.
+
+**Der Befund dazu.** `/portal/[mandant]/zeiten/[id]/korrektur` verlangt Art,
+Grund und Begründung als Pflichtfelder — sorgfältig gebaut. Der Dienst
+schrieb sie sauber in `zeiteintrag_korrektur` und **schwieg**: 282 Zeilen
+ohne eine einzige Erwähnung von `nachricht`. Wer seine Stunden nicht zufällig
+nachsah, erfuhr von der Änderung nie.
+
+**Entschieden: die Nachricht gehört in dieselbe Transaktion wie die
+Korrektur.** Nicht daneben, nicht als Nachlauf, nicht als Auftrag an einen
+Job. Eine Korrektur, deren Nachricht scheitert, wäre wieder genau der
+Zustand, den diese Entscheidung behebt — nur diesmal mit dem guten Gewissen,
+es versucht zu haben.
+
+**Die Sprache ist die der Mitarbeiterin** (`person.sprache`, 0165), nicht die
+des Planers. Die Korrektur ändert eine Zahl, aus der am Monatsende Geld wird;
+ein deutscher Satz an eine Reinigungskraft, die Arabisch eingestellt hat, ist
+derselbe Fall wie die Statuspille ohne `sprache`: formal zugestellt,
+tatsächlich nicht angekommen.
+
+**Die Begründung wird NICHT übersetzt.** Sie steht wörtlich, in
+Anführungszeichen. Sie ist der Wortlaut eines Menschen und kann in einem
+Streit über Lohn zitiert werden; sie maschinell zu übertragen hiesse, ihm
+Worte zuzuschreiben, die er nicht gesagt hat. Übersetzt wird der RAHMEN,
+nicht die Aussage — und `Storno` und `Objekt` bleiben auch darin deutsch mit
+Erklärung.
+
+**Was ausdrücklich NICHT geändert wurde: die K-04-Decke.** `p_ma_decke`
+(`drizzle/0036:403`) sperrt `zeiteintrag_korrektur` für das Arbeiterportal,
+mit einer Begründung, die im Code steht: *„Der Arbeitnehmer sieht seine
+STUNDEN; die Spur darüber bekommt er auf Auskunft, nicht als Bildschirm."*
+Es wäre bequem gewesen, sie für diesen Wunsch anzuheben — und falsch: der
+Mandant wollte, dass die Mitarbeiterin den Grund ERFÄHRT, nicht dass das
+Portal zum Auskunftsersuchen wird. Die Nachricht liefert den Grund; die Seite
+zeigt nur die **Fassungsnummer** (`> 1` heisst korrigiert), die ohnehin auf
+der eigenen Zeile steht. Kein Grund, kein Name, kein Betrag. Die Schleife ist
+geschlossen, die Decke steht.
+
+**Und wenn das Recht fehlt, scheitert es laut.** `nachricht.versenden` hält
+per Vorgabe jede Rolle, die korrigieren darf; eine Gesellschaft kann es
+entziehen. Dann bricht die Korrektur ab mit einem Satz, der das sagt — statt
+mit „new row violates row-level security", das auf die Zeiterfassung zeigt
+und die Ursache verschweigt.
+
+---
+
+### D-615 · Das Einladen eines Verwaltungskontos steigt auf — und bleibt eng
+
+**D-610 hat die Linie gezogen**, diese Entscheidung setzt sie um und
+beantwortet die drei Fragen, die beim Bauen aufkamen.
+
+**Der Befund.** Die einzige Stelle, die in `benutzer` schrieb, war der SEED
+(Zeilen 391, 468, 542, 1475). Keine Einladungsroute, kein Formular, keine
+API — ein neuer Admin liess sich nur durch einen erneuten Seed-Lauf
+einsetzen, auf einer Produktionsdatenbank also gar nicht. Und das Schema
+erwartete die Einladung die ganze Zeit: `benutzer.status` steht auf
+`'eingeladen'`, ein Zustand, den nichts erzeugen konnte.
+
+**Entschieden 1: ein eigenes Recht, `nur_global`.**
+`system.verwaltungskonto_erstellen` statt des vorhandenen
+`system.benutzer_verwalten`. Letzteres bleibt bei der Gesellschaft und deckt
+weiter, was es immer deckte — Mitarbeiter- und Kundenzugänge, Bearbeiten,
+Deaktivieren. Ein Konto mit INTERNER Rolle ist etwas anderes: es sieht
+Personal, Zeiten und Finanzen, und wer solche Konten anlegen darf, kann sich
+die Gruppe erschliessen. Das ist genau D-610s Satz: was bei Missbrauch die
+GRUPPE trifft, gehört nach oben.
+
+Die Wirkung ist mechanisch und nicht nur gemeint: `app.hat_recht` wertet für
+ein `nur_global`-Recht ausschliesslich `benutzer.globale_rolle_id` aus
+(0169). Ein Admin bekommt `false` **auch in seiner eigenen Gesellschaft** —
+und genau dieser Fall ist der Test, der die Entscheidung trägt.
+
+**Entschieden 2: das Verb ist `erstellen`, nicht `einladen`.** §7.2 führt ein
+geschlossenes Aktionsvokabular, und `berechtigung_aktion` kennt `einladen`
+nicht. Die Wache hat das gemeldet, bevor der erste Seed lief (K-19). Die
+Einladung IST das Anlegen — sie zu einem zweiten Verb zu machen hiesse, das
+Vokabular für eine Formulierung zu erweitern.
+
+**Entschieden 3: die Rollenliste steht ZWEIMAL, und das ist Absicht.** Die
+Funktion prüft `admin`/`leitung`, damit der Fehlschlag einen lesbaren Satz
+bekommt; die Policy `d_bm_verwaltungsrolle` prüft dasselbe, damit die Sperre
+auch dann hält, wenn später eine zweite Definer-Funktion auf dieselbe Tabelle
+schreibt. 0249 sagt den Grund in einem Satz, der hier wörtlich gilt: *„Eine
+Definer-Funktion, die jede Rolle vergeben koennte, waere ein Weg zu `admin`
+ohne Rechtepruefung."*
+
+**Was ausdrücklich NICHT entschieden wurde: O-887.** Ein `super_admin` ist
+über diesen Weg nicht einladbar, und damit entsteht er weiterhin nur im Seed.
+Das ist ein benanntes operatives Risiko — geht das einzige Konto verloren,
+ist die Plattform nicht mehr verwaltbar. Es hier still zu schliessen wäre
+bequem und falsch: eine Einladung, die Super-Admins erzeugen kann, ist ein
+Weg zur vollen Gruppenmacht, und ob sie ein Vier-Augen-Prinzip verlangt, ist
+eine Entscheidung des Mandanten (K-17). Die Frage steht im Register, im
+Migrationskopf **und auf dem Bildschirm** — wer dort eine zweite
+Super-Administration sucht, soll erfahren, dass die Frage offen IST, und
+nicht, dass der Knopf fehlt.
+
+**Kein vorgetäuschter Versand.** Es ist kein Mailanbieter verbunden (O-501),
+also steht der Einladungslink genau einmal auf dem Bildschirm und wird von
+Hand übergeben — dasselbe Muster wie beim Kundenzugang und beim
+Mitarbeiter-Anmeldecode (D-487). Der Klartext geht über einen fünf Minuten
+lebenden `httpOnly`-Keks, nie über die Adresse: ein Token in der URL steht in
+jedem Zugriffsprotokoll.
+
+---
+
 
 ### D-609 · Fünf Seiten liefen über den Rand — und viermal war es dieselbe Ursache eine Ebene tiefer
 

@@ -163,9 +163,9 @@ nachgemessen, Pfad und Zeile in der Tabelle unten.
 
 | | Befund | Stand |
 |---|---|---|
-| §2.1 | kein Weg, ein Verwaltungskonto anzulegen | offen |
+| §2.1 | kein Weg, ein Verwaltungskonto anzulegen | ✅ **erledigt** (`0372`, D-615) |
 | §2.2 | Stempeluhr vom Arbeiterportal unerreichbar | offen — **hängt an O-93, siehe unten** |
-| §2.3 | Korrektur erreicht die Mitarbeiterin nicht | offen |
+| §2.3 | Korrektur erreicht die Mitarbeiterin nicht | ✅ **erledigt** (D-614) |
 | §2.4 | `zeiten/freigabe` durch fehlende Rechtebindung zu | ✅ **erledigt** (`9cb3c84`) |
 | §2.5 | Super-Admin: nur zwei Rechte `nur_global` | offen |
 | §2.6 | Schlüssel des Sprachmodells nur in der Umgebung | offen |

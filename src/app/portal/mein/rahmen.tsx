@@ -3,7 +3,7 @@ import type postgres from 'postgres';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withPersonScope, type LeseKontext } from '@/server/kontext/index';
-import type { Route } from 'next';
+import type { ZurueckProps } from '@/components/portal/Zurueck';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import {
   meinBeschriftungen, meinTexte, PORTAL_BCP47, PORTAL_RICHTUNG,
@@ -113,7 +113,7 @@ export function MeinRahmen({
    * dieselbe Stelle, ein `aria-label` in allen vier Sprachen. Wer sie
    * uebergibt, setzt keinen zweiten daneben.
    */
-  readonly zurueck?: { readonly ziel: Route; readonly text: string };
+  readonly zurueck?: ZurueckProps;
   readonly children: ReactNode;
 }) {
   return (
