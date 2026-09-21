@@ -75,6 +75,10 @@ web_modules/
 # dotenv environment variable files
 .env
 .env.*
+# Die Vorlage ist die AUSNAHME und gehoert ins Repository: sie enthaelt keinen
+# Schluessel, sondern die Liste der Schluessel. Ohne sie weiss niemand, was zu
+# setzen ist — und genau das war die Luecke.
+!.env.example
 !.env.example
 
 # parcel-bundler cache (https://parceljs.org/)

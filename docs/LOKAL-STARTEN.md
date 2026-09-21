@@ -117,6 +117,20 @@ Danach: <http://localhost:3001> (oeffentliche Website) und
 
 ---
 
+## 1b. Schlüssel und Anbindungen
+
+Was hier steht, bringt die Demo zum Laufen. **Welche Schlüssel es sonst gibt,
+wo sie hingehören und was ohne sie passiert**, steht in einem eigenen Blatt —
+in zwei Sprachen, weil es auch der Betreiber lesen können muss:
+
+- `docs/EINRICHTEN-DE.md`
+- `docs/EINRICHTEN-AR.md`
+
+Die vollständige Liste der Umgebungsvariablen liegt als `.env.example` im
+Projektordner. Anfangen: `cp .env.example .env.local`.
+
+---
+
 ## 1a. Wer sich wie anmeldet
 
 **Verwaltung, Leitung, Kunde — `/auth/login`**, Kennwort fuer alle:
