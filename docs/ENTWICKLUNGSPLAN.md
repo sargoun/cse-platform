@@ -18,9 +18,13 @@ Verwandte Blätter, die NICHT hier wiederholt werden:
 
 | | |
 |---|---|
-| Branch | `claude/i18n-verwaltung-zweisprachig` |
-| Pull Request | **#19** |
-| Letzter gemergter Stand | PR #18 → `main` (`a3b58da`) |
+| Branch | `claude/i18n-verwaltung-zweisprachig-fl57f2` |
+| Pull Request | — (keiner offen; erst auf Ansage) |
+| Letzter gemergter Stand | **PR #19 → `main` (`5b14baf`)**, gemergt am 19.09. |
+
+**Korrektur zum Stand vom 19.09.:** dieses Blatt sagte, #19 sei offen und #18
+der letzte gemergte. Beides ist ueberholt — #19 ist gemergt, `main` steht auf
+dem Merge-Commit, und die Arbeit laeuft auf einem frischen Zweig davon.
 
 **Vor jedem Push:** `pnpm guards · typecheck · eslint · test · test:isolation · test:e2e`
 (`tsc --noEmit` dauert ~7 min und sieht KEINE Next-Routentypen — die erscheinen
@@ -66,7 +70,9 @@ src/app/portal/[mandant]/finanzen/zahlungen/page.tsx   ← die umgestellte Seite
 
 ### Was noch offen ist
 
-**Stand: 372 Dateien in der Liste** (Start: 396).
+**Stand: 349 Dateien in der Liste** (Start: 396).
+
+*(Hier stand 372. Gemessen sind es 349 — `grep -c "^  '" scripts/guards/uebersetzung-ausnahmen.ts`.)*
 
 | Fläche | offen |
 |---|---|
@@ -77,7 +83,7 @@ src/app/portal/[mandant]/finanzen/zahlungen/page.tsx   ← die umgestellte Seite
 | `src/components/**` | ~13 |
 
 **Reihenfolge** (nach Nutzung, nicht nach Grösse):
-1. `finanzen` — **teilweise erledigt, siehe §1.1**
+1. ~~`finanzen`~~ — **erledigt, siehe §1.1**
 2. `crm` · `angebote` · `auftraege`
 3. `dienstplan` · `zeiten` · `personal`
 4. **`portal/kunde`** — der AUFTRAGGEBER sieht sie; ein halb deutscher
@@ -85,7 +91,33 @@ src/app/portal/[mandant]/finanzen/zahlungen/page.tsx   ← die umgestellte Seite
 5. `portal/gruppe` · `portal/konto`
 6. der Rest von `[mandant]`
 
-### 1.1 `finanzen` — unfertiger Zwischenstand IM BAUM
+### 1.1 `finanzen` — ERLEDIGT (dieses Blatt sagte etwas anderes)
+
+**Gemessen am 21.09., nicht vermutet:**
+
+```
+pnpm uebersetzung:pruefen 'src/app/portal/[mandant]/finanzen'
+  → "Fertig — nichts mehr fest verdrahtet."
+grep -c finanzen scripts/guards/uebersetzung-ausnahmen.ts
+  → 0
+```
+
+Gegenprobe, damit die Leere nicht die des Werkzeugs ist: derselbe Befehl auf
+`src/app/portal/kunde` meldet **383 Fundstellen**. Das Werkzeug sieht also,
+und bei `finanzen` sieht es nichts.
+
+**„Fertig" heisst hier: nichts mehr fest verdrahtet — nicht: fehlerfrei.**
+Die Wache prüft, ob eine Seite ihre Wörter aus einer Texttabelle nimmt. Ob im
+englischen Text der richtige Fachbegriff steht, kann sie nicht sehen — und
+genau dort liegen **§2b.1 bis §2b.3 weiterhin offen** (zwölf Stellen
+„Beleg" → „document", fehlende `Festschreibung`/`Storno`, zwei deutsche
+Wortlaut-Driften). Sie sind rein mechanisch und brauchen keine Entscheidung.
+
+Die Tabelle unten beschreibt den Stand vom 19.09. und ist **ueberholt**; sie
+bleibt stehen, weil sie zeigt, in welcher Reihenfolge die sieben Teilflaechen
+entstanden sind. Der naechste, der hier anfaengt, faengt NICHT hier an.
+
+<details><summary>Der Stand vom 19.09. (historisch)</summary>
 
 Sieben Teilflächen wurden parallel umgestellt. **Zwei sind fertig und
 gemergt**, **fünf waren mitten in der Arbeit**, als das Budget endete:
@@ -100,10 +132,11 @@ gemergt**, **fünf waren mitten in der Arbeit**, als das Budget endete:
 | `belege` + `ausgaben` | `finanzen/belege.ts` | ⚠️ **halb** |
 | `uebersicht` (finanzen/, ausgangsbuch, hashkette, nummernkreise, pruefungen, gruppe/finanzen) | `finanzen/uebersicht.ts` | ⚠️ **halb** |
 
-**Wie man dort weitermacht:** `pnpm uebersetzung:pruefen 'src/app/portal/[mandant]/finanzen'`
-listet Datei und Zeile. Die halben Seiten sind **weiterhin in der
-Ausnahmeliste** — der Baum ist also in sich stimmig, die Wache ist grün, und
-niemand hält sie irrtümlich für fertig. Jede Seite zu Ende führen, dann
+</details>
+
+**Wo es jetzt weitergeht:** `portal/kunde` (383 Fundstellen, der AUFTRAGGEBER
+sieht diesen Bildschirm), dann `crm` · `angebote` · `auftraege`.
+`pnpm uebersetzung:pruefen <pfad>` listet Datei und Zeile, danach
 `pnpm uebersetzung:streichen`.
 
 **Harte Regeln bei jeder Umstellung:**
@@ -122,10 +155,35 @@ niemand hält sie irrtümlich für fertig. Jede Seite zu Ende führen, dann
 
 ---
 
-## 2. Befunde aus der Befragung des Mandanten (19.09.) — ALLE UNGELÖST
+## 2. Befunde aus der Befragung des Mandanten (19.09.)
 
-Der Mandant hat vier Fragen gestellt. Die Antworten stehen unten; **gebaut ist
-davon noch nichts.** Jeder Befund ist am Code verifiziert, nicht vermutet.
+Der Mandant hat vier Fragen gestellt. Die Antworten stehen unten. Jeder Befund
+ist am Code verifiziert, nicht vermutet — und am 21.09. noch einmal
+nachgemessen, Pfad und Zeile in der Tabelle unten.
+
+| | Befund | Stand |
+|---|---|---|
+| §2.1 | kein Weg, ein Verwaltungskonto anzulegen | offen |
+| §2.2 | Stempeluhr vom Arbeiterportal unerreichbar | offen — **hängt an O-93, siehe unten** |
+| §2.3 | Korrektur erreicht die Mitarbeiterin nicht | offen |
+| §2.4 | `zeiten/freigabe` durch fehlende Rechtebindung zu | ✅ **erledigt** (`9cb3c84`) |
+| §2.5 | Super-Admin: nur zwei Rechte `nur_global` | offen |
+| §2.6 | Schlüssel des Sprachmodells nur in der Umgebung | offen |
+| §2.7 | soziale Kanäle ohne Zugangsdaten | keine Bringschuld der Entwicklung |
+
+**Die Nachmessung am 21.09., Befund für Befund:**
+
+- §2.1 — `insert into benutzer` steht ausschliesslich in
+  `src/server/db/seed/index.ts`, Zeilen **391, 468, 542, 1475**. Kein
+  Anwendungspfad.
+- §2.2 — `grep -rn "check-in" src/app/portal/mein/ src/server/auth/registry/`
+  liefert **null** Treffer.
+- §2.3 — `src/server/services/zeit/korrektur.ts` (282 Zeilen) enthält **keine**
+  Erwähnung von `nachricht`.
+- §2.5 — `nurGlobal: true` steht in `katalog.generiert.ts` in genau zwei
+  Zeilen: **219** und **227**.
+- §2.6 — `src/server/versand/modell-openai.ts:99` liest
+  `process.env['OPENAI_API_KEY']` und sonst nichts.
 
 ### 2.1 🔴 Es gibt KEINEN Weg, ein Verwaltungskonto anzulegen
 
@@ -168,6 +226,34 @@ darf ihren Zeiteintrag NICHT selbst schreiben (EMP-07, `p_ma_kein_update`) —
 das ist Absicht und bleibt. Gezeigt wird der Weg zur MARKE, nicht ein neuer
 Schreibweg.
 
+> **NACHTRAG 21.09. — das ist kein Verweis, und dieses Blatt unterschätzt es.**
+>
+> `src/server/services/zeit/checkin.ts:209` sagt es unmissverständlich: die
+> Marke wird **einmal im Klartext zurückgegeben, danach existiert sie
+> nirgends mehr** — weder in der Datenbank noch im Protokoll noch im Audit.
+> Gespeichert ist nur `sha256(marke)` in `checkin_token.token_hash`.
+>
+> **Es gibt also keinen bestehenden Token, auf den das Arbeiterportal
+> verweisen könnte.** Ein „Knopf zur Stempeluhr" setzt voraus, dass die
+> angemeldete Mitarbeiterin sich für ihre eigene Schicht eine Marke ausgeben
+> lässt — und `gibCheckinAus` hängt heute an `zeit.checkin_verwalten`
+> (`super_admin` / `admin` / `leitung`), also an der PLANUNG.
+>
+> Und genau diese Frage ist offen und gehört dem Mandanten. Im selben Dienst,
+> Zeile ~218:
+>
+> ```
+> // TODO(client, O-93): Wie erreicht der Check-in-Link den Mitarbeitenden —
+> SMS, E-Mail, aushängender QR-Code am Objekt oder Portal-Link, wer ist der
+> SMS-Anbieter (EU-Verarbeitung, AVV), und wer trägt die Kosten?
+> ```
+>
+> **„Portal-Link" ist eine der vier genannten Antworten auf O-93.** §2.2 zu
+> bauen hiesse also, O-93 an der Entwicklung zu entscheiden — und das ist der
+> Fall, den die Arbeitsregel Nr. 1 ausdrücklich verbietet. Der Weg dahin:
+> **erst O-93 beantworten lassen, dann bauen.** Solange das nicht geschehen
+> ist, gehört §2.2 NICHT an Platz 3 der Reihenfolge.
+
 ### 2.3 🔴 Eine Korrektur erreicht die Mitarbeiterin nicht
 
 `/portal/[mandant]/zeiten/[id]/korrektur` verlangt Art, Grund und Begründung —
@@ -185,28 +271,52 @@ schiene `kern.nachricht` aus `drizzle/0350` existiert), und auf ihrer
 Zeitseite die Begründung sichtbar. Der Einwandsweg
 (`/portal/mein/zeiten/[id]/einwand`) existiert schon und bleibt.
 
-### 2.4 🟡 `zeiten/freigabe` ist gebaut und durch eine fehlende Rechtebindung zu
+### 2.4 ✅ ERLEDIGT — `zeiten/freigabe` ist erreichbar (`9cb3c84`)
 
-**O-39 ist jetzt beantwortet — siehe D-611:** ein Mensch gibt wöchentlich
-frei, bevor abgerechnet wird.
+**O-39 ist beantwortet (D-611), `leitung` entschieden (D-612).** Die Seite
+`/portal/[mandant]/zeiten/freigabe` ist seit PR 50 fertig und antwortete 404,
+weil `zeit.abrechnung_freigeben` an keine Rolle gebunden war. Es war eine
+Rechtebindung und kein Umbau — genau wie hier vorhergesagt.
 
-Die Seite `/portal/[mandant]/zeiten/freigabe` ist seit PR 50 fertig und
-antwortet 404, weil `zeit.abrechnung_freigeben` an keine Rolle gebunden ist
-(`drizzle/0366`, `katalog.generiert.ts`: `gebunden: []`).
+**Was dabei anders war als in diesem Blatt vorhergesagt.** Hier stand, es
+brauche „eine neue Migration, nächste freie Nummer **0371**". Das stimmt nur
+zur Hälfte. Die Quelle des Katalogs ist **nicht** die Migration, sondern ein
+Markdown-Tabellenfeld:
 
-**Zu bauen — es ist eine Rechtebindung, kein Umbau:**
-1. Neue Migration (nächste freie Nummer ist **`0371`**), Muster wie
-   `drizzle/0008` Zeile 330 ff.:
-   `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)`
-   für `super_admin` und `admin`.
-   **`leitung` bewusst NICHT**: die Freigabe zur ABRECHNUNG ist ein
-   kaufmännischer Akt, nicht ein Schichtakt.
-2. `pnpm katalog` (schreibt `src/server/auth/katalog.generiert.ts` neu).
-3. Isolationstest: mit Recht 200, ohne Recht 404 (AUT-06).
+```
+scripts/katalog/extrahiere.ts:17
+  QUELLE = docs/architecture/03-AUTH-BERECHTIGUNGEN.md     ← §12, Zeile 2490
+pnpm katalog
+  → schreibt src/server/auth/katalog.generiert.ts NEU
+  → schreibt den Seed-Block IN drizzle/0008 neu (nicht in eine neue Datei)
+```
 
-Was schon lange fertig ist und nur auf diesen Anfang wartet: `freigegeben_am`
-(`drizzle/0034`) hat zwei Leser — Stundenkonto (EMP-04) und Rechnungsstellung
-(FIN-07, `freigegeben_am is not null and abgerechnet_am is null`).
+Die Glyphenzeile steht jetzt auf `✔ | ✔ | ○ | — | —`
+(`super_admin | admin | leitung | mitarbeiter | kunde`).
+
+**0371 gibt es trotzdem — und das ist der Punkt, den man leicht übersieht:**
+der erzeugte Block in `0008` erreicht nur eine Datenbank, die `0008` noch vor
+sich hat. Jede bereits gewanderte Datenbank sähe die Änderung nie. Zwei Wege,
+ein Ziel — der Generator für die leere, `0371` für die gefüllte Datenbank.
+`0371` prüft sich am Ende selbst: schreibt sie nicht genau zwei Zeilen, bricht
+sie ab, statt still zu gelingen.
+
+**Was die Wache gefunden hat, das die Planung nicht gesehen hatte:**
+`drizzle/0034:72` trug einen `// TODO(client, O-39)`, und
+`todo-client-nicht-im-register` meldete ihn in dem Moment, in dem O-39 aus dem
+Register verschwand. Genau dafür steht sie da.
+
+**Geprüft** (Block 5 in `tests/isolation/zeit-abrechnungsfreigabe.test.ts`):
+hält `admin` das Recht wirklich, hält `leitung` es wirklich NICHT, und kann
+eine Gesellschaft es ihrer `leitung` trotzdem erteilen. Die Blöcke 1–4 banden
+das Recht **eigens** und wären auch dann grün geblieben, wenn `0371` nie
+geschrieben worden wäre — dieser Unterschied ist der ganze Befund.
+
+**Noch offen an derselben Stelle: O-861** — in welcher Einheit wird
+freigegeben (je Eintrag, Woche, Person, Monat), und ist eine erteilte Freigabe
+zurücknehmbar? Ausgeliefert ist die feinste Einheit (je Eintrag) und keine
+Rücknahme. Der sichtbare Hinweis auf der Seite nennt jetzt nur noch diese
+Frage.
 
 ### 2.5 🟡 Super-Admin: heute tragen ZWEI Rechte `nur_global`
 
@@ -394,25 +504,74 @@ Weiterhin offen und wichtig:
 ## 5. Wie man hier weitermacht — konkret
 
 ```bash
-git fetch origin && git checkout claude/i18n-verwaltung-zweisprachig
+git fetch origin && git checkout claude/i18n-verwaltung-zweisprachig-fl57f2
 pnpm install
-pnpm db:migrate && pnpm db:seed
-pnpm uebersetzung:pruefen 'src/app/portal/[mandant]/finanzen'   # was ist halb?
+pnpm uebersetzung:pruefen 'src/app/portal/kunde'   # die naechste Flaeche
 ```
 
-**Vorschlag für die erste Sitzung, in dieser Reihenfolge:**
+**Die Datenbank steht nicht von selbst — das hat 20 Minuten gekostet und
+steht hier, damit es sie nicht noch einmal kostet.** Es gibt **keine `.env`**
+im Baum, auf einem frischen Container läuft **kein Postgres**, und
+`pnpm db:migrate` sagt dann nur „DATABASE_URL fehlt", was wie ein
+Konfigurationsfehler aussieht und keiner ist:
 
-1. `finanzen` zu Ende führen (§1.1) — der Zwischenstand liegt im Baum und
-   wird sonst zur Altlast.
-2. **§2.4** — die Rechtebindung. Eine Migration, ein `pnpm katalog`, ein Test;
-   sie öffnet einen fertig gebauten Bildschirm.
-3. **§2.2** — der Weg zur Stempeluhr. Der Mitarbeiter kann heute nicht
-   anfangen zu arbeiten, ohne dass ihm jemand einen Link schickt.
-4. **§2.3** — die Nachricht bei der Korrektur.
-5. **§2.1** — die Einladung eines Verwaltungskontos.
-6. **§2.5/2.6** — die Super-Admin-Fläche.
-7. `docs/DESIGN-PLAN.md`.
-8. Die übrigen ~370 Seiten der Zweisprachigkeit, Teilfläche für Teilfläche.
+```bash
+# 1. pgvector MUSS da sein, sonst stirbt Migration 0151 (AGT-06)
+apt-get install -y postgresql-16-pgvector
+
+# 2. Der Server. Das Projektskript startet ihn selbst, wenn keiner laeuft,
+#    und legt die Testdatenbank an (Fingerabdruck ueber drizzle/*.sql —
+#    es baut nur neu, wenn sich wirklich etwas geaendert hat).
+bash scripts/test-db.sh up
+
+# 3. Die Entwicklungsdatenbank. Der Fensterschluessel (K-06) MUSS gesetzt
+#    sein, sonst bleibt der Seed unvollstaendig — siehe docs/LOKAL-STARTEN.md.
+export DATABASE_URL="postgres://postgres:postgres@127.0.0.1:55432/postgres"
+export TEST_DATABASE_URL="postgres://postgres:postgres@127.0.0.1:55432/cse_test"
+psql "$DATABASE_URL" -c "alter database postgres set cse.fenster_schluessel \
+  = 'VEVTVC1LRVktTklDSFQtRlVFUi1QUk9EVUtUSU9O'"
+pnpm db:migrate && pnpm db:seed
+```
+
+**`pnpm db:migrate` ist NICHT der Weg zur Testdatenbank.** Sie führt ein
+eigenes Register; `db:migrate` fängt dort bei `0001` an und stirbt an
+`relation "mandant" already exists`. Für sie ist `scripts/test-db.sh up`
+zuständig, und zwar immer.
+
+**Stand 21.09. — die ersten zwei Punkte sind weg:**
+
+1. ~~`finanzen` zu Ende führen~~ — war **schon fertig**, siehe §1.1.
+2. ~~**§2.4** — die Rechtebindung~~ — erledigt in `9cb3c84`.
+
+**Die Reihenfolge ab hier, und warum sie von der alten abweicht:**
+
+1. **§2.3** — die Nachricht bei der Korrektur. **Neu an Platz 1**, weil sie
+   die einzige der verbliebenen ist, die **weder eine offene Frage noch eine
+   Rechteentscheidung** berührt: die Schiene `kern.nachricht` steht seit
+   `drizzle/0350`, `/portal/mein/nachrichten` ist gebaut, und
+   `services/zeit/korrektur.ts` muss nur senden, was es ohnehin schon weiss.
+2. **§2.1** — die Einladung eines Verwaltungskontos. Durch D-610 entschieden
+   (Super-Admin), und zwei fertige Vorbilder im Baum: Mitarbeiterzugang
+   (`/personal/personen/[id]/zugang`) und Kundenzugang
+   (`/crm/kunden/[id]/zugang`, `drizzle/0249`). Das Schema wartet darauf:
+   `benutzer.status` hat den Vorgabewert `'eingeladen'`.
+3. **§2.5/2.6** — die Super-Admin-Fläche. Grösser als die beiden davor
+   (eigene Wurzel `/portal/system/…`, Tab-Leiste, Navigation, Manifest,
+   verschlüsselte Ablage) und deshalb nicht der Anfang.
+4. **§2.2** — der Weg zur Stempeluhr. **Nach hinten gerückt, nicht
+   vergessen**: er setzt eine Antwort auf **O-93** voraus (siehe den Nachtrag
+   in §2.2). Ohne sie hiesse Bauen, eine offene Frage des Mandanten an der
+   Entwicklung zu entscheiden.
+5. `docs/DESIGN-PLAN.md`.
+6. Die übrigen 349 Seiten der Zweisprachigkeit — **`portal/kunde` zuerst**
+   (383 Fundstellen; den Bildschirm sieht der Auftraggeber).
+
+**Was der Mandant entscheiden muss, damit es weitergeht:**
+- **O-93** — ist der Portal-Link ein zulässiger Weg zur Check-in-Marke?
+  (blockiert §2.2)
+- **O-861** — Einheit und Rücknahme der Abrechnungsfreigabe (blockiert
+  nichts, läuft mit)
+- **O-886**, **O-06**, **O-34** — wie in §4.
 
 **Und die Regel, die über allem steht:** keine Geschäftsregel erfinden. Wo die
 Vorgabe offen ist, kommt ein Platzhalter hinter eine Schnittstelle, eine
