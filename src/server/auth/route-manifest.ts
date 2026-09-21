@@ -450,6 +450,17 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /*
+     * OPS-01/V-001/V-020. Anlegen ODER aendern ODER archivieren — welches,
+     * entscheidet das Feld `aktion`. Eine Route fuer alle drei, weil alle drei
+     * `objekt.schreiben` verlangen und aus Formularen derselben Flaeche
+     * entstehen; drei Routen waeren drei Stellen, an denen dieses Recht steht,
+     * und die dritte ist die, die beim naechsten Umbau vergessen wird.
+     */
+    pfad: 'api/objekt',
+    recht: 'objekt.schreiben',
+  },
+  {
+    /*
      * CRM-02/CRM-07. Anlegen ODER den Stand aendern. Ein Verlust traegt einen
      * Grund — beide Verlustzustaende, `verloren` wie `kein_bedarf`: eine
      * Pipeline, in der die Haelfte der Verluste „ohne Grund" heisst,

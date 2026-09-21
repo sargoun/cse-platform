@@ -8,6 +8,9 @@ import { StatusPill } from '@/components/ui/StatusPill';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
+import { haeltRechte } from '../../../rechte';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { OBJEKTE_TEXTE } from '@/lib/i18n/verwaltung/objekte';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -77,6 +80,8 @@ export default async function ObjektDetail(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+  const darf = await haeltRechte(sitzung, 'objekt.schreiben');
+  const tObjekt = nachSprache(OBJEKTE_TEXTE, zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -146,6 +151,17 @@ export default async function ObjektDetail(
       <div className="mb-s5 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{kopf.bezeichnung}</h1>
         <StatusPill zustand={kopf.archiviert ? 'Archiviert' : 'Aktiv'} />
+        {darf['objekt.schreiben'] === true && !kopf.archiviert && (
+          <Link
+            href={`/portal/${mandant}/objekte/${id}/bearbeiten`}
+            data-cse="objekt-bearbeiten"
+            className="ml-auto inline-flex min-h-11 items-center rounded-md
+                       border border-line-strong px-s4 text-sm text-text
+                       hover:bg-surface-2"
+          >
+            {tObjekt.bearbeiten}
+          </Link>
+        )}
       </div>
 
       <dl className="m-0 mb-s6 grid grid-cols-1 gap-s5 sm:grid-cols-2 lg:grid-cols-3">

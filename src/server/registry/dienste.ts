@@ -830,6 +830,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'dokument', pfad: 'mitarbeiter/dokumente', schreibend: false },
   { modul: 'objekt', pfad: 'mitarbeiter/objekte', schreibend: false },
+  /*
+   * Objekt anlegen, aendern, archivieren (OPS-01, V-001, V-020). Bis PR dieses
+   * Registereintrags entstand JEDE Objektzeile im Seed — die Plattform konnte
+   * Objekte zeigen und bebuchen, aber kein einziges erfassen. Schreibrecht ist
+   * `objekt.schreiben`, dasselbe, das die Policy `t_mandant` im `with check`
+   * verlangt: eine Stelle, zwei Zusagen, dieselbe Antwort.
+   */
+  {
+    modul: 'objekt', pfad: 'objekt/anlegen',
+    schreibend: true, schreibRecht: 'objekt.schreiben',
+  },
   /**
    * **Der Posteingang der Kraft (0350, EMP-11).** Beide lesend: der Faden wird
    * gelesen, geantwortet wird ueber `kern/nachricht` — den Fachdienst, der

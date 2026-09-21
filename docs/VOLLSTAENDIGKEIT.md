@@ -40,7 +40,7 @@ mitgegeben haben. Ein echter Betrieb kann nicht anfangen.
 
 | Nr | Was | Beleg | Grad | Stand |
 |---|---|---|---|---|
-| V-001 | **Objekt** (Gebäude/Gelände) | `src/app/portal/[mandant]/objekte/neu/page.tsx:21` ist ein ausdrücklicher Platzhalter; `insert into objekt` nur in `src/server/db/seed/operations.ts:459` | blockiert | offen |
+| V-001 | **Objekt** (Gebäude/Gelände) | `src/app/portal/[mandant]/objekte/neu/page.tsx:21` ist ein ausdrücklicher Platzhalter; `insert into objekt` nur in `src/server/db/seed/operations.ts:459` | blockiert | **erledigt** — D-619, `services/objekt/anlegen.ts`, `api/objekt`, Knopf auf der Liste |
 | V-002 | **Revier** (Reinigungsfläche) | `src/app/portal/[mandant]/reinigung/reviere/neu/page.tsx:25` Platzhalter; `src/server/services/reinigung/revier.ts:42` nennt „anlegen" und „archivieren" als Lösung — beide gibt es nicht | blockiert | offen |
 | V-003 | **Bauprojekt** | `src/server/db/seed/bau.ts:564`; `src/app/api/auftrag/route.ts:126` kennt keinen Anlegezweig — zwanzig gebaute Projektseiten sind für neue Vorhaben unerreichbar | blockiert | offen |
 | V-004 | **Veranstaltung** (Security) | `src/server/db/seed/security.ts:356` — der dritte Einsatz-Ursprung ist tot | blockiert | offen |
@@ -68,7 +68,7 @@ Angelegt und danach in Stein. Kein Tippfehler ist korrigierbar.
 | V-017 | **Kundenstammdaten** | `src/server/services/crm/anlegen.ts:77` — kein schreibender Änderungsdienst | blockiert | offen |
 | V-018 | **Kunde archivieren** | `drizzle/0020_crm_identitaet.sql:176` — Spalte da, nichts schreibt sie | behindert | offen |
 | V-019 | **Ansprechpartner korrigieren / als ausgeschieden markieren** | `drizzle/0020_crm_identitaet.sql:261` — nur die Rechtsgrundlage ist änderbar | behindert | offen |
-| V-020 | **Objekt bearbeiten oder archivieren** | `src/app/portal/[mandant]/objekte/[id]/page.tsx:148` zeigt „Archiviert" an — nichts kann den Zustand erzeugen | blockiert | offen |
+| V-020 | **Objekt bearbeiten oder archivieren** | `src/app/portal/[mandant]/objekte/[id]/page.tsx:148` zeigt „Archiviert" an — nichts kann den Zustand erzeugen | blockiert | **erledigt** — D-619/D-620, `objekte/[id]/bearbeiten` |
 | V-021 | **Planungsserie ändern, beenden, archivieren** | `src/server/services/dienstplan/serie.ts:226` | blockiert | offen |
 | V-022 | **Verwaltungskonto entziehen oder deaktivieren** | `src/app/portal/[mandant]/einstellungen/benutzer/[id]/page.tsx:32` — einladen ja, zurücknehmen nie | blockiert | offen |
 | V-023 | **Rollen und Rechte pflegen** | `src/app/portal/[mandant]/einstellungen/rollen/[rolle]/page.tsx:135` zeigt „Abweichung dieser Gesellschaft" — keine Oberfläche erzeugt sie | behindert | offen |

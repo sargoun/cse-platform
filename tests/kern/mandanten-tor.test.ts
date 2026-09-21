@@ -83,7 +83,6 @@ describe('jede Mandantsseite hat überhaupt ein Slug-Tor', () => {
   'berichte/projekte/page.tsx',
   'berichte/umsatz/page.tsx',
   'finanzen/mahnungen/vorschlaege/page.tsx',
-  'objekte/neu/page.tsx',
   'recruiting/bedarf/page.tsx',
   'recruiting/bewerbungen/[id]/antwort/page.tsx',
   'recruiting/bewerbungen/[id]/page.tsx',

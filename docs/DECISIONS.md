@@ -3328,6 +3328,81 @@ Beantworten helfen:
 |---|---|---|
 | ~~O-887~~ **beantwortet — D-617** | **Darf ein Super-Admin einen zweiten Super-Admin einladen?** **Nein — gar nicht in der Anwendung.** Der Mandant: der Super-Admin soll nur über die UMGEBUNG entstehen. Das löst beide Hälften der Frage: das Konto lässt sich jederzeit wiederherstellen (kein operatives Risiko mehr), aber nur von dem, der die Bereitstellung kontrolliert — es entsteht kein Weg, der über eine Anmeldung führt, und damit keiner, den eine gekaperte Sitzung nehmen kann. `0372` lässt `super_admin` weiterhin nicht zu, auf Funktions- UND Policy-Ebene. | D-617, D-610, AUT-02, `drizzle/0372` |
 | O-886 | **Darf der Stundennachweis nach § 17 MiLoG in der Sprache der Arbeiterin stehen — oder muss er deutsch sein, um als Aufzeichnung zu gelten?** § 17 Abs. 1 MiLoG verlangt vom Arbeitgeber die Aufzeichnung von Beginn, Ende und Dauer; eine Sprache nennt das Gesetz nicht, und die Aufzeichnung, die der Prüfung standhalten muss, ist die im System — nicht das Blatt, das die Arbeiterin abruft. Gebaut ist deshalb die **Lesehilfe**: Spalten und erklärende Sätze folgen `person.sprache` (de/en/ar/tr), die Fundstellen (`§ 17 MiLoG`, `§ 17 Abs. 1 MiLoG`) bleiben unübersetzt, und der Prüfsummen-Hash bleibt unverändert — er hängt an den Daten, nicht an der Anzeige. Das folgt **D-84** (Impressum und Datenschutz sind deutsch bindend, die englische Fassung sagt es dazu) und ist damit kein erfundener Weg, sondern der schon entschiedene. Sagt der Auftraggeber, das Blatt müsse deutsch bleiben, ist die Umkehr **eine Zeile**: `meinTexte('de')` statt `basis.texte`. | § 17 MiLoG, D-84, EMP-12, SPEC §10, `src/app/portal/mein/monatsnachweis/page.tsx` |
+| O-888 | **Kodiert die Tausenderstelle der Objektnummer die Gesellschaft?** Der Bestand legt es nahe: die Reinigung führt `OBJ-1001 … OBJ-1003`, SSE Security `OBJ-2001`, REALTIME Bau `OBJ-3001` (`src/server/db/seed/operations.ts`). Ist das eine Hausregel oder ein Zufall der Demo-Daten? **Die Plattform erfindet dazu nichts**: `legeObjektAn` zählt aus dem Bestand DIESER Gesellschaft weiter und übernimmt damit von selbst, was dort schon gilt — ohne die Regel je auszusprechen. Nur der allererste Fall, eine Gesellschaft ohne ein einziges Objekt, hat keinen Bestand; dort steht `OBJ-1001` als **klar bezeichneter Platzhalter**. Das Feld ist im Formular von Hand überschreibbar, damit niemand an der Vorgabe hängenbleibt. Sagt der Auftraggeber eine Maske zu, ist die Änderung **eine Zeile** im Dienst. | OPS-01, V-001, `src/server/services/objekt/anlegen.ts` |
+
+
+### D-619 — Ein Objekt entsteht in der Anwendung, nicht im Seed
+
+**Der Befund.** Bis hierher war `insert into objekt` an **genau einer** Stelle
+im Baum zu finden: `src/server/db/seed/operations.ts:459`. Die Plattform konnte
+Objekte zeigen, filtern, bebuchen, kalkulieren und in Dienstpläne einteilen —
+aber kein einziges erfassen. `/portal/[mandant]/objekte/neu` war ein Platzhalter
+mit einer ehrlichen Begründung (ohne die Datei hätte Next.js die Nachbarroute
+`[id]` gegriffen und `neu` in ein `$1::uuid` gereicht: **500** statt „noch nicht
+da"). Die Begründung stimmte; die Lücke blieb.
+
+**Die Entscheidung.** Ein Dienst `objekt/anlegen` mit drei Funktionen —
+anlegen, ändern, archivieren — und **eine** Route `POST /api/objekt`, die
+zwischen ihnen über das Feld `aktion` unterscheidet. Drei Routen wären drei
+Stellen, an denen `objekt.schreiben` steht, und die dritte ist die, die beim
+nächsten Umbau vergessen wird.
+
+**Drei Festlegungen, die keine Erfindung sind.**
+
+1. **Die Anschrift ist Pflicht.** Nicht aus Formularstrenge: `strasse`, `plz`
+   und `ort` sind seit `drizzle/0021` `NOT NULL`, und der Grund steht dort wie
+   hier — eine Schicht, die auf ein Objekt ohne Anschrift eingeteilt wird,
+   schickt jemanden an keinen Ort.
+2. **Der Kunde ist freiwillig.** `kunde_id` ist seit je nullbar, mit
+   ausdrücklicher Begründung in der Migration: ein Objekt ist ein ORT, die
+   kaufmännische Beziehung hängt am Auftrag. Ein Pflichtfeld hier zwänge den
+   Erfasser, sich einen Kunden auszudenken — und eine erfundene Zuordnung ist
+   schlimmer als keine.
+3. **Die Nummer wird im `insert` gebildet**, wie die Kundennummer in
+   `crm/anlegen.ts`. Liefen Zählen und Einfügen getrennt, bekämen zwei
+   gleichzeitige Anlagen dieselbe Zahl, und die zweite fiele auf
+   `objekt_nummer_uk` — mit einem Fehler, den der Mensch davor nicht versteht.
+   Die Prüfung dafür ist nicht „sie ist eindeutig", sondern „sie ist es auch
+   unter Gleichzeitigkeit" (`tests/isolation/objekt-anlegen.test.ts` §1).
+
+**Die Objektnummer ist nicht änderbar.** Sie steht auf Schlüsselschildern, in
+Dienstanweisungen und auf jedem unterschriebenen Leistungsnachweis. Sie
+nachträglich zu ändern machte all diese Papiere still falsch — und zwar ohne
+Spur, weil kein Beleg die alte Nummer mitführt. Das Formular bietet sie deshalb
+nur beim Anlegen an.
+
+### D-620 — Archiviert wird, gelöscht nicht — und nicht unter laufenden Einsätzen
+
+Invariante 8 nennt Finanzen, Zeiterfassung und Audit. Ein Objekt steht in
+keiner der drei Domänen, und trotzdem gilt hier dieselbe Regel: an einem Objekt
+hängen Leistungsnachweise, Wachbücher und Zeiteinträge, und ein `delete` machte
+aus jedem davon eine Zeile ohne Ort.
+
+**Die Nummer wird beim Archivieren frei.** `objekt_nummer_uk` ist ein
+Teilindex (`where archiviert_am is null`), also darf dieselbe Nummer danach neu
+vergeben werden. Das ist beabsichtigt und keine Nachlässigkeit: ein verkauftes
+Gebäude gibt seine Nummer ab, und das Schlüsselschild, das noch existiert,
+gehört zum archivierten Objekt — auffindbar, nur nicht mehr in den Listen.
+
+**Ein Objekt mit Einsätzen in der Zukunft wird nicht archiviert.** Der Dienst
+zählt sie und weist ab, mit der Zahl im Satz. Sonst verschwände der Ort unter
+den Füßen einer Kraft, die morgen früh dorthin fährt — und die Plattform hätte
+ihr das ohne ein Wort angetan.
+
+### D-621 — Das Vollständigkeitsregister ist ein Register, keine Liste
+
+`docs/VOLLSTAENDIGKEIT.md` führt 136 belegte Lücken unter Nummern `V-NNN`. Drei
+Regeln machen es zu einem Register statt zu einer Erinnerung:
+
+1. **Eine Nummer wird nie wiederverwendet.**
+2. **Erledigtes wird nicht gelöscht, sondern umgestellt** — mit dem Commit
+   daneben. Ein Register, aus dem man Zeilen entfernt, ist nach drei Wochen eine
+   Liste der Dinge, an die sich jemand erinnert hat.
+3. **Jede Zeile trägt Datei und Zeile.** Ein Befund ohne Fundstelle ist eine
+   Meinung, und Meinungen altern schlechter als Code.
+
+Widerlegte Beobachtungen stehen in §9 des Registers, nicht im Papierkorb —
+damit sie nicht in drei Monaten erneut als Befund auftauchen.
 
 ---
 

@@ -1035,6 +1035,7 @@ in the public tenders the Radar module exists to win.
 | `/portal/[mandant]/objekte` — list + map | `objekt.lesen` | `M1` | OPS-01 | 4 |
 | `/portal/[mandant]/objekte/neu` | `objekt.schreiben` | `M1` | OPS-01 | 4 |
 | `/portal/[mandant]/objekte/[id]` — tabs: Übersicht · Raumbuch · Reviere · Posten · Dienstanweisungen · Schlüssel · Aufträge · Einsätze · Dokumente · Qualität (each tab rendered only where its module is enabled and its `lesen` right held) | `objekt.lesen` | `M1` | OPS-01, OPS-11 | 4 |
+| `/portal/[mandant]/objekte/[id]/bearbeiten` — edit address, Kunde, access notes; archive. The **Objektnummer is not editable**: it is printed on key tags, Dienstanweisungen and every signed Leistungsnachweis | `objekt.schreiben` | `M1` | OPS-01 | 4 |
 | `/portal/[mandant]/objekte/[id]/raumbuch` — rooms with m², floor type, cleaning class | `objekt.lesen` | `M1` | OPS-02 | 4 |
 | `/portal/[mandant]/objekte/[id]/raumbuch/[raumId]` | `objekt.schreiben` | `M1` | OPS-02, OPS-03 | 4 |
 | `/portal/[mandant]/objekte/[id]/raumbuch/import` — Excel/CSV, **preview before commit** | `objekt_import.schreiben` | `M1` | OPS-04, DOC-06 | 4 |
