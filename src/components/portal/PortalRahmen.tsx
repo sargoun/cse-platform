@@ -2,6 +2,8 @@ import { StatusPill } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
 import { Marke } from '@/components/marke/Marke';
 import { Glocke } from './Glocke';
+import type { Route } from 'next';
+import { Zurueck } from './Zurueck';
 import { TabLeiste } from './TabLeiste';
 import { SeitenNavigation } from './SeitenNavigation';
 import { istInterneLeiste, tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
@@ -59,12 +61,26 @@ export interface PortalRahmenProps {
    * Registers.
    */
   readonly beschriftungen?: Readonly<Record<string, string>>;
+  /**
+   * Der Weg eine Ebene HINAUF — auf jede Seite, ueber der eine Liste steht
+   * (DESIGN §5 „The way back", D-613).
+   *
+   * **Nicht dasselbe wie die Spur.** `wurzelTitel` fuehrt auf die
+   * PORTALWURZEL; wer auf `personal/anstellungen/[id]/entgelt` steht, landet
+   * damit ganz oben und nicht bei der Anstellung. Dieser Verweis fuehrt dahin,
+   * wo der Datensatz wohnt — die Liste, aus der die Seite kommt.
+   *
+   * Er steht hier und nicht in jeder Seite, damit er ueberall an derselben
+   * Stelle sitzt: zuerst im `main`, vor jeder Ueberschrift. Gemessen trugen
+   * ihn 15 von 350 Detailseiten, und keine zwei an derselben Stelle.
+   */
+  readonly zurueck?: { readonly ziel: Route; readonly text: string };
   readonly children: React.ReactNode;
 }
 
 export function PortalRahmen({
   titel, wurzelTitel, bereich, nurLesen, leiste, wurzel, aktiverTab, sichtbareTabs,
-  navigationsRechte, beschriftungen, children,
+  navigationsRechte, beschriftungen, zurueck, children,
 }: PortalRahmenProps) {
   const tabs = tableiste(leiste);
   /**
@@ -443,7 +459,13 @@ export function PortalRahmen({
           * so breit wie das Fenster; was wirklich breiter ist (das Raster,
           * eine Tabelle ab `md`), rollt in seinem eigenen Behaelter (D-420).
           */}
-        <main className="ueber-tableiste sicher-seiten min-w-0 flex-1 p-s5">{children}</main>
+        <main className="ueber-tableiste sicher-seiten min-w-0 flex-1 p-s5">
+          {zurueck !== undefined && (
+            <Zurueck ziel={zurueck.ziel} text={zurueck.text}
+                     sprache={beschriftungen?.['sitzung.sprache'] ?? null} />
+          )}
+          {children}
+        </main>
       </div>
 
       <TabLeiste

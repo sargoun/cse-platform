@@ -45,14 +45,35 @@ awk '/^export const NAVIGATION/,/^\];/' src/server/registry/navigation.ts \
 **Der härteste Befund, und der mit dem besten Verhältnis von Aufwand zu
 Wirkung.**
 
-| Fläche | Seiten | davon mit `Zurueck` |
-|---|---|---|
-| `portal/[mandant]` | 309 | **2** |
-| `portal/mein` (Arbeiter) | 27 | **2** |
-| `portal/kunde` | 20 | 9 |
-| `portal/gruppe` | 26 | 0 |
+Gezählt werden **Detailseiten**: Seiten, über denen es eine Elternseite gibt —
+also genau die, die eine Liste hat, in die man zurückgehört.
 
-**Die Komponente existiert bereits** — `src/app/portal/kunde/bausteine.tsx:197`,
+| Fläche | Detailseiten | davon mit Weg zurück |
+|---|---|---|
+| `portal/[mandant]` | 278 | **3** |
+| `portal/gruppe` | 26 | **0** |
+| `portal/mein` (Arbeiter) | 26 | **4** |
+| `portal/kunde` | 20 | 8 |
+| **gesamt** | **350** | **15** |
+
+**Es gibt einen Weg HINAUS — aber keinen Weg HINAUF.** Das ist der Kern des
+Befunds, und er wurde erst beim dritten Messen sauber:
+
+`PortalRahmen` rendert eine Spur `‹ Wurzel › Seite`, deren erster Teil auf die
+**Portalwurzel** verweist (`PortalRahmen.tsx:178`). 283 der 309 Seiten rendern
+diesen Rahmen, 117 davon übergeben `wurzelTitel` und bekommen die Spur. Der
+Kommentar daneben hält fest, dass „wie komme ich hier weg" schon **zweimal**
+gefragt wurde — die Spur ist die Antwort darauf gewesen.
+
+**Sie führt aber immer ganz nach oben.** Wer auf
+`/personal/anstellungen/[id]/entgelt` steht (Tiefe 4), landet damit auf
+`/portal/[mandant]` — nicht auf der Anstellung und nicht auf der Liste. Der
+Weg zurück zu der Liste, aus der man kam, existiert auf **keiner** Ebene.
+
+Genau das beschreibt Beobachtung 4: „öffnet eine neue Seite, und es gibt kein
+Zurück zur **vorherigen**".
+
+**Die Komponente dafür existiert bereits** — `src/app/portal/kunde/bausteine.tsx:197`,
 sauber gebaut, mit `aria-label="Zurück"` und einem Pfeil an immer derselben
 Stelle. Sie ist nur **nicht benutzbar ausserhalb des Kundenportals**, weil ihr
 `ziel` auf neun feste Kundenpfade typisiert ist:
@@ -61,8 +82,24 @@ Stelle. Sie ist nur **nicht benutzbar ausserhalb des Kundenportals**, weil ihr
 { ziel: '/portal/kunde/nachrichten' | '/portal/kunde/reklamationen' | … }
 ```
 
-Das ist der ganze Grund, warum 307 Seiten ohne Rückweg dastehen: nicht ein
-fehlender Entwurf, sondern ein Typ, der ihn einsperrt.
+**Und dieser Typ war kein Versehen — das kam erst beim Bauen heraus.** Die
+Plattform fährt `typedRoutes: true` (`next.config.ts:7`): `Link` nimmt kein
+beliebiges `string`, sondern nur einen Pfad, den Next als Route kennt. Die
+Aufzählung war die Antwort darauf mit den Mitteln einer Datei, die neun Ziele
+kennt.
+
+Ein erster Versuch, sie durch `string` zu ersetzen, lief durch
+`pnpm typecheck` **ohne eine einzige Meldung** und brach dann in `pnpm build`:
+
+```
+./src/components/portal/Zurueck.tsx:54:9
+Type error: Type 'string' is not assignable to type 'UrlObject | RouteImpl<string>'.
+```
+
+Genau die Lücke, vor der `ENTWICKLUNGSPLAN.md` §0 warnt: *`tsc --noEmit` sieht
+KEINE Next-Routentypen — die erscheinen erst in `pnpm build`.* Richtig ist
+`Route` aus `next`, wie es `components/ui/Zustandsseite.tsx:68` schon tut:
+dieselbe Zusage, ohne die Liste.
 
 **Dazu kommt die Verschachtelung:**
 
@@ -79,26 +116,45 @@ fehlender Entwurf, sondern ein Typ, der ihn einsperrt.
 26 Wurzeln; alles darunter wird durch Klicken erreicht — und ohne Rückweg
 wieder verlassen. Das ist die mechanische Ursache von „alles wirkt versteckt".
 
-### 1.2 🔴 Die Anmeldeseiten haben keinen einzigen Verweis
+### 1.2 ✅ BEHOBEN — die Mitarbeiter-Anmeldung umging die gemeinsame Hülle
 
-Gemessen als Anzahl `<Link>` bzw. `href` je Datei:
+**Hier stand zuerst etwas Falsches, und wie es falsch war, ist lehrreich.**
 
-| Seite | Verweise |
-|---|---|
-| `/auth/login` | **0** |
-| `/auth/mitarbeiter/code` | **0** |
-| `/auth/kein-zugriff` | **0** |
-| `/auth/zwei-faktor/einrichten` | **0** |
-| `/auth/zwei-faktor/wiederherstellung` | **0** |
-| `/auth/einladung/[token]` | 0 (Weiterleitung, korrekt so) |
+Gemessen wurde „Verweise je Datei" mit `grep -c "<Link"`. Danach hätten neun
+von zwölf Anmeldeseiten keinen Weg hinaus. **Zwei Messfehler steckten darin:**
 
-`/auth/mitarbeiter/code` ist genau der Bildschirm aus Beobachtung 3. Wer dort
-landet und den Code nicht hat, kommt **nur über die Zurück-Taste des Browsers
-oder eine neue Adresse** wieder heraus. Auf einem Telefon im Treppenhaus ist
-das keine Kleinigkeit.
+1. Die `/auth`-Seiten benutzen `<a href>`, nicht Next-`<Link>` — und
+   `/auth/mitarbeiter/code` einen Formularknopf. Beides zählte das Muster nicht.
+2. **Der wichtigere:** neun der zwölf Seiten rendern durch `AuthSchale`
+   (`src/app/auth/AuthSchale.tsx:29`), und die trägt den Rückweg
+   — `← CSE Gruppe` — **seit jeher an erster Stelle**. Eine Messung je
+   Seitendatei kann eine Hülle nicht sehen.
 
-`/auth/kein-zugriff` ohne Verweis ist der schwerere Fall: es ist die Seite,
-auf der jemand landet, dem etwas fehlt — und sie lässt ihn dort stehen.
+**Der echte Befund ist kleiner und genauer — und er ist genau der, den der
+Mandant gemeldet hat.** Von den zwölf Seiten benutzen vier `AuthSchale` nicht:
+
+| Seite | Hülle | Weg hinaus |
+|---|---|---|
+| `/auth/bereich` | eigen | ✅ eigene Fussnavigation (`Website`, `Abmelden`) |
+| `/auth/einladung/[token]` | keine | ✅ reine Weiterleitung, korrekt ohne |
+| **`/auth/mitarbeiter`** | keine | ❌ **keiner** |
+| **`/auth/mitarbeiter/code`** | keine | nur „Andere Nummer" — raus aus dem Vorgang: keiner |
+
+**Die Verwaltung hatte ihren Rückweg, die Arbeiterin nicht.** Beide
+Mitarbeiterseiten rendern ein nacktes `<main>` mit denselben Klassen, die
+`AuthSchale` setzt — eine Kopie der Hülle ohne ihren Kopf. Deshalb fehlten
+ihnen auch der Schrittzähler („Schritt 1 von 2"), den der Kommentar in
+`AuthSchale` ausdrücklich begründet: *wer weiss, dass noch ein Schritt kommt,
+bricht beim zweiten nicht ab.*
+
+**Behoben:** beide Seiten rendern jetzt durch `AuthSchale` und haben damit
+Rückweg und Schrittzähler. Keine neue Komponente, kein neuer Wert — die
+Hülle, die es gab, jetzt auch dort.
+
+**Was daraus für den Rest dieses Blattes folgt:** die Zahl in §1.1 wurde
+danach auf demselben Weg gegengeprüft — `PortalShell` und `PortalRahmen`
+tragen **keinen** Rückweg zur Liste (`PortalRahmen.tsx:287` führt auf die
+öffentliche Website, nicht in die Liste). Die 2 von 309 stehen.
 
 ### 1.3 🟡 51 flache Navigationseinträge, ohne jede Gruppierung
 

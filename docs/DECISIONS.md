@@ -14362,6 +14362,86 @@ nicht trifft, hat sie nicht getroffen: ohne Bindung antwortet die Seite einer
 
 ---
 
+### D-613 · Der Rückweg ist eine Regel der Plattform, kein Baustein eines Portals
+
+**Der Befund kam vom Mandanten und war mechanisch nachweisbar:** „viele
+Admin-Optionen öffnen eine neue Seite ohne Rückweg", und „alles wirkt
+versteckt".
+
+Gemessen am 21.09.:
+
+| Fläche | Seiten | mit `Zurueck` |
+|---|---|---|
+| `portal/[mandant]` | 309 | **2** |
+| `portal/mein` | 27 | **2** |
+| `portal/gruppe` | 26 | **0** |
+| `portal/kunde` | 20 | 9 |
+
+**Die Ursache war kein fehlender Entwurf.** Die Komponente stand seit langem
+in `src/app/portal/kunde/bausteine.tsx:197` — sauber gebaut, mit
+`aria-label`, Pfeil an fester Stelle, Tokens aus dem Thema. Sie war nur
+**unbenutzbar ausserhalb ihres Portals**, weil ihr `ziel` auf neun feste
+Kundenpfade typisiert war:
+
+```ts
+ziel: '/portal/kunde/nachrichten' | '/portal/kunde/reklamationen' | …
+```
+
+**Diese Enge sah nach einem Versehen aus und war keines.** Die Plattform
+fährt `typedRoutes: true` (`next.config.ts:7`) — `Link` nimmt nur einen Pfad,
+den Next als Route kennt, und die Aufzählung war die Antwort darauf mit den
+Mitteln einer Datei, die neun Ziele kennt. Der Versuch, sie schlicht durch
+`string` zu ersetzen, kam durch `pnpm typecheck` ohne eine Meldung und brach
+in `pnpm build` (`Type 'string' is not assignable to type 'UrlObject |
+RouteImpl<string>'`). Richtig ist `Route` aus `next`, wie
+`components/ui/Zustandsseite.tsx:68` es schon tut: dieselbe Zusage ohne die
+Liste.
+
+**Die Lehre gehoert zur Entscheidung**, weil sie sich wiederholen wird: wer
+an einem `href` etwas lockert, hat es erst bewiesen, wenn `pnpm build`
+gelaufen ist — `tsc --noEmit` sieht die Routentypen nicht.
+
+307 Verwaltungsseiten standen ohne Rückweg da — und 142 von ihnen liegen drei
+Ebenen oder tiefer, während die Navigation nur auf 26 Wurzeln führt.
+
+**Entschieden: der Rückweg gehört nach `DESIGN.md` §5 und nach
+`src/components/portal/`, nicht neben die Seiten eines Portals.**
+
+**Warum die Liste und nie `history.back()`.** Zwei Menschen erreichen
+`personal/anstellungen/[id]` auf verschiedenen Wegen; das Einzige, was sie
+teilen, ist der Ort, an dem der Datensatz **wohnt**. Ein Rückweg, der vom
+Anreiseweg abhängt, schickt denselben Knopf an zwei Ziele, und keines davon
+ist vorhersagbar. Dazu kommt das Praktische: nach einem Formular-POST fragt
+die Verlaufstaste neu, nach einer Weiterleitung landet sie zwei Seiten zu
+hoch, und in einem auf den Startbildschirm gelegten Fenster gibt es sie gar
+nicht.
+
+**Auf `/auth` trägt ihn die Hülle, nicht die Seite — und genau daran lag
+der gemeldete Fehler.** `AuthSchale` rendert `← CSE Gruppe` als erstes
+Element; neun von zwölf Anmeldeseiten haben den Rückweg dadurch immer gehabt.
+**Die beiden Mitarbeiterseiten hatten ihn nicht**, weil sie ein eigenes
+`<main>` mit denselben Klassen rendern — eine Kopie der Hülle ohne ihren
+Kopf. Die Verwaltung kam zurück, die Arbeiterin nicht.
+
+Mit ihnen fehlte auch der Schrittzähler, den `AuthSchale` ausdrücklich
+begründet: wer weiss, dass noch ein Schritt kommt, bricht beim zweiten nicht
+ab. Beide Seiten rendern jetzt durch die Hülle.
+
+**Eine Randnotiz zur Messung, weil sie sich wiederholen wird.** Der erste
+Befund lautete „neun von zwölf Anmeldeseiten ohne Weg hinaus" und war falsch:
+gezählt wurde `<Link>` je Seitendatei, während `/auth` `<a href>` benutzt —
+und vor allem, während eine Hülle nicht in der Datei steht, die sie umgibt.
+**Wer Abdeckung zählt, muss die Hülle mitzählen.** Für `portal/[mandant]`
+wurde das danach gegengeprüft: `PortalShell` und `PortalRahmen` tragen keinen
+Rückweg zur Liste, die 2 von 309 stehen.
+
+**Und eine Wache dazu**, nach dem Muster der `seite-ohne-uebersetzung`-Klinke:
+eine neue Detailseite ohne Rückweg ist ein roter Build. Ohne sie steht diese
+Entscheidung in einem Dokument und verfällt in dem Tempo, in dem Seiten
+dazukommen — genau so, wie sie beim ersten Mal verfallen ist.
+
+---
+
 ### D-609 · Fünf Seiten liefen über den Rand — und viermal war es dieselbe Ursache eine Ebene tiefer
 
 **Der Befund.** `tests/e2e/abmessungen.spec.ts` meldete zehn Klagen am Telefon

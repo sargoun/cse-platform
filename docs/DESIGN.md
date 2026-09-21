@@ -655,6 +655,46 @@ testable half of this rule.
 3px left bar in the **current area's identity hue**. Icons `18px`, label `sm`.
 Collapsible to `64px`. Mobile: bottom tab bar with the five main destinations.
 
+### The way back
+
+**Every page below a portal root carries one back link, in the same place, as
+the first element inside `<main>`.**
+
+| Property | Value |
+|---|---|
+| Mark | `←` then the label, one text node |
+| Type | `sm`, `--text-muted`, underlined; hover `--text` |
+| Spacing | `mb-s4` below it, nothing above |
+| Semantics | `<nav aria-label="Zurück">` wrapping one `<a>` |
+| Target | the **list the page came from**, never `history.back()` |
+| Touch target | the whole row, min `44px` tall (§9) |
+
+**Why a link and not the browser's back button.** The browser's back is a
+history step, not a place: after a form post it re-asks, after a redirect it
+lands two pages up, and on a phone in a saved-to-homescreen window there is
+no chrome to press. A link to the list is the same destination every time, and
+it survives being opened in a new tab — which is how a dispatcher opens six
+objects at once.
+
+**Why the list and never `history.back()`.** Two people reach
+`personal/anstellungen/[id]` from different places; the one thing they share is
+where the record *lives*. A back that depends on how you arrived sends the
+same button to two destinations, and neither is predictable.
+
+**On `/auth`, the shell carries it, not the page.** `AuthSchale` renders
+`← CSE Gruppe` as its first element, so every screen built on it has the way
+back for free. A sign-in page that renders its own `<main>` is therefore not a
+style choice but a **missing back link** — which is exactly how the employee
+sign-in lost one: it copied the shell's classes without its head. Build every
+`/auth` screen on `AuthSchale`; the two exceptions are `/auth/bereich`, which
+carries its own footer navigation, and `/auth/einladung/[token]`, which is a
+bare redirect.
+
+**Measured, this is a rule about 350 pages, not a detail.** When it was
+written, the component existed and was typed to nine paths in one portal: it
+stood on 2 of 309 admin pages, 2 of 27 worker pages and 0 of 26 group pages.
+**D-613.**
+
 ---
 
 ## 6. Business-area switcher

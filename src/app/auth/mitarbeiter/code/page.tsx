@@ -4,6 +4,7 @@ import type postgres from 'postgres';
 import { devFlaechenAn } from '@/lib/dev-flaechen';
 import { db } from '@/server/db/pool';
 import { Button } from '@/components/ui/Button';
+import { AuthSchale } from '../../AuthSchale';
 import { FormField } from '@/components/ui/FormField';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { codeEinloesen } from '@/server/auth/mitarbeiter-anmeldung';
@@ -153,15 +154,20 @@ export default async function CodeEingabe({ searchParams }: Props) {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-form flex-col gap-s5 p-s6">
-      <h1 className="text-h1 text-text">Code eingeben</h1>
-      <p className="max-w-[60ch] text-base text-text-muted" data-cse="code-hinweis">
-        {ohneZustellung
-          ? 'Es wurde keine SMS versendet — es ist kein Gateway verbunden (O-82). Geben Sie den '
-            + 'sechsstelligen Code ein, den Ihnen Ihre Einsatzleitung genannt hat. Er gilt zehn Minuten.'
-          : 'Falls Ihre Nummer hinterlegt ist, haben wir einen sechsstelligen Code geschickt. '
-            + 'Er gilt zehn Minuten.'}
-      </p>
+    <AuthSchale
+      titel="Code eingeben"
+      schritt={2}
+      schritte={2}
+      unterzeile={
+        <span data-cse="code-hinweis">
+          {ohneZustellung
+            ? 'Es wurde keine SMS versendet — es ist kein Gateway verbunden (O-82). Geben Sie den '
+              + 'sechsstelligen Code ein, den Ihnen Ihre Einsatzleitung genannt hat. Er gilt zehn Minuten.'
+            : 'Falls Ihre Nummer hinterlegt ist, haben wir einen sechsstelligen Code geschickt. '
+              + 'Er gilt zehn Minuten.'}
+        </span>
+      }
+    >
 
       {fehler !== null && (
         <Hinweis art="warnung" cse="code-fehler" className="max-w-[60ch]">
@@ -223,6 +229,6 @@ export default async function CodeEingabe({ searchParams }: Props) {
           Andere Nummer oder neuen Code
         </Button>
       </form>
-    </main>
+    </AuthSchale>
   );
 }
