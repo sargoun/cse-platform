@@ -150,13 +150,13 @@ export default async function VerwaltungskontoEinladen(
       </form>
 
       {/*
-        * O-887 steht auf dem Bildschirm und nicht nur in DECISIONS.md: wer
-        * hier eine zweite Super-Administration sucht, soll erfahren, dass die
-        * Frage offen IST — und nicht, dass der Knopf fehlt.
+        * **Der Satz bleibt, die Frage ist beantwortet (D-617).** Wer hier eine
+        * zweite Super-Administration sucht, soll erfahren, dass sie ueber die
+        * UMGEBUNG entsteht — und nicht, dass ein Knopf fehlt. Ein fehlender
+        * Knopf laedt zum Suchen ein; ein Satz beendet die Suche.
         */}
       <p data-cse="vk-o887" className="mt-s5 max-w-[68ch] text-sm text-text-subtle">
         {t.superAdminOffen}
-        {/* TODO(client, O-887): Darf ein Super-Admin einen zweiten Super-Admin einladen, und unter welcher zusaetzlichen Bedingung? */}
       </p>
     </PortalRahmen>
   );

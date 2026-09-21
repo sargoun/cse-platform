@@ -85,9 +85,11 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
     keinVersand: 'Nicht verbunden: es ist kein Mailanbieter hinterlegt (O-501). '
       + 'Der Link wird deshalb angezeigt und nicht versendet.',
     superAdminOffen:
-      'Eine zweite Super-Administration lässt sich hier nicht einladen. Ob und unter '
-      + 'welcher zusätzlichen Bedingung das gehen soll, ist offen (O-887); heute '
-      + 'entsteht sie nur beim Einrichten der Plattform.',
+      'Eine zweite Super-Administration lässt sich hier nicht einladen — und auch '
+      + 'sonst nirgends in der Anwendung. Sie entsteht ausschliesslich über die '
+      + 'Umgebung der Bereitstellung (D-617): so lässt sie sich jederzeit '
+      + 'wiederherstellen, aber nur von dem, der den Server kontrolliert — und keine '
+      + 'gekaperte Anmeldung kann diesen Weg nehmen.',
   },
   en: {
     titel: 'Invite an administration account',
@@ -130,8 +132,9 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
     keinVersand: 'Not connected: no mail provider is configured (O-501). The link is '
       + 'therefore displayed, not sent.',
     superAdminOffen:
-      'A second super administration cannot be invited here. Whether that should be '
-      + 'possible, and under what additional condition, is open (O-887); today it is '
-      + 'created only when the platform is set up.',
+      'A second super administration cannot be invited here — nor anywhere else in '
+      + 'the application. It is created solely through the deployment environment '
+      + '(D-617): that way it can be restored at any time, but only by whoever '
+      + 'controls the server — and no hijacked session can take that path.',
   },
 };

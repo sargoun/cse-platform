@@ -857,13 +857,16 @@ of that assignment and enqueues re-issue by trigger, so a token can never outliv
 it was minted for.
 
 ```ts
-// TODO(client): O-93 `zeit-checkin-kanal` — how does the check-in link reach the worker —
-// SMS, e-mail, a QR code posted at the object, or a portal link — and who carries the SMS
-// cost? The dispatch adapter records which channel it used in `checkin_token.ausgabe_kanal`,
-// validated against the adapters actually registered; an unregistered adapter renders
-// "nicht verbunden" and sends nothing. Answer it together with O-82 `auth-sms-anbieter`,
-// which names the provider: the channel and the provider are two halves of one decision and
-// must not be answered twice under two numbers (§17).
+// O-93 `zeit-checkin-kanal` is ANSWERED — D-618: two doors to the same clock. The token
+// link stays exactly as it is for everyone WITHOUT a session (QR code at the Objekt, a link
+// from planning, a shared device). A signed-in worker clocks in from the portal, because the
+// session is the stronger proof: a token is a bearer credential — forwardable,
+// photographable, readable over a shoulder — while a session is bound to an account created
+// from phone number and one-time code (EMP-01). What the session replaces is the DELIVERY of
+// the mark, not the mark. `checkin_token.ausgabe_kanal` then carries `portal`.
+//
+// O-82 `auth-sms-anbieter` stays open, and that is no longer a blocker: SMS is now the
+// exception path, not the daily one.
 ```
 
 ---

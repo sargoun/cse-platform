@@ -2948,7 +2948,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | # | Slug | Question |
 |---|---|---|
 | ~~O-39~~ **answered — D-611** | `zeit-freigabeschritt` | Is there a professional release of recorded time before the Stundenkonto and billing at all, and who grants it? **Yes — a human releases weekly, before invoicing; the responsible Admin confirms, corrects or rejects.** `drizzle/0371` binds `zeit.abrechnung_freigeben` to `super_admin` and `admin`, and makes it grantable per Gesellschaft for `leitung` (D-612). Before that the key stood in the catalogue with zero rows in `rolle_berechtigung` (measured, not assumed) and nobody could execute the step; the screen `/portal/[mandant]/zeiten/freigabe` and `0366` shipped anyway and said so on their face. See **O-861**, still open, for the unit and the withdrawal. |
-| O-93 | `zeit-checkin-kanal` | How does the check-in link reach the worker — SMS, e-mail, a QR code posted at the object, or a portal link — and who bears the SMS cost? |
+| ~~O-93~~ **beantwortet — D-618** | `zeit-checkin-kanal` | How does the check-in link reach the worker? **For a signed-in worker it does not have to.** The token link stays exactly as it is, for everyone WITHOUT a session (QR code at the Objekt, a link from planning, a shared device). A signed-in worker clocks in from the portal: the session is the stronger proof — a token is a bearer credential that can be forwarded, photographed and read over a shoulder, while a session is bound to an account created from phone number and one-time code (EMP-01). What the session replaces is the DELIVERY of the mark, not the mark: the portal issues and redeems it server-side in one step, so `app.checkin_verbrauchen` stays the single writer (K-08, EMP-07 untouched). The SMS cost question falls away for the daily path. | D-618, EMP-01, EMP-07, K-08, O-82, `services/zeit/checkin.ts` |
 | O-162 | `zeit-milog-aufbewahrungsbeginn` | When does the two-year retention of §17 Abs. 1 MiLoG start — the day worked, the day the record was created, or a month/year end? |
 | O-163 | `zeit-dst-verguetung` | How are the two transition nights paid — by time actually worked (7 h / 9 h) or by planned shift length? |
 | O-164 | `zeit-checkout-toleranz` | How long after the shift ends does the check-out link stay valid, and what happens when someone works substantially longer than planned? |
@@ -3326,7 +3326,7 @@ Beantworten helfen:
 
 | Nr. | Frage | Bezug |
 |---|---|---|
-| O-887 | **Darf ein Super-Admin einen zweiten Super-Admin einladen — und wenn ja, unter welcher zusätzlichen Bedingung?** `0372` baut den Weg, ein Verwaltungskonto einzuladen (D-610), und lässt dabei ausdrücklich nur `admin` und `leitung` zu — auf Funktions- UND auf Policy-Ebene (`d_bm_verwaltungsrolle`). Heute entsteht ein `super_admin` deshalb **ausschliesslich im Seed**, und das ist ein operatives Risiko, das benannt gehört: geht das einzige Konto verloren, ist die Plattform nicht mehr verwaltbar. Eine Einladung, die Super-Admins erzeugen kann, ist andererseits ein Weg zur vollen Gruppenmacht — ob es ihn geben soll, und ob er ein Vier-Augen-Prinzip oder die Bestätigung durch einen zweiten bestehenden Super-Admin verlangt, ist eine Entscheidung des Mandanten und keine des Codes (K-17). | D-610, AUT-02, AUT-04, K-17, `drizzle/0372`, `services/system/verwaltungskonto.ts` |
+| ~~O-887~~ **beantwortet — D-617** | **Darf ein Super-Admin einen zweiten Super-Admin einladen?** **Nein — gar nicht in der Anwendung.** Der Mandant: der Super-Admin soll nur über die UMGEBUNG entstehen. Das löst beide Hälften der Frage: das Konto lässt sich jederzeit wiederherstellen (kein operatives Risiko mehr), aber nur von dem, der die Bereitstellung kontrolliert — es entsteht kein Weg, der über eine Anmeldung führt, und damit keiner, den eine gekaperte Sitzung nehmen kann. `0372` lässt `super_admin` weiterhin nicht zu, auf Funktions- UND Policy-Ebene. | D-617, D-610, AUT-02, `drizzle/0372` |
 | O-886 | **Darf der Stundennachweis nach § 17 MiLoG in der Sprache der Arbeiterin stehen — oder muss er deutsch sein, um als Aufzeichnung zu gelten?** § 17 Abs. 1 MiLoG verlangt vom Arbeitgeber die Aufzeichnung von Beginn, Ende und Dauer; eine Sprache nennt das Gesetz nicht, und die Aufzeichnung, die der Prüfung standhalten muss, ist die im System — nicht das Blatt, das die Arbeiterin abruft. Gebaut ist deshalb die **Lesehilfe**: Spalten und erklärende Sätze folgen `person.sprache` (de/en/ar/tr), die Fundstellen (`§ 17 MiLoG`, `§ 17 Abs. 1 MiLoG`) bleiben unübersetzt, und der Prüfsummen-Hash bleibt unverändert — er hängt an den Daten, nicht an der Anzeige. Das folgt **D-84** (Impressum und Datenschutz sind deutsch bindend, die englische Fassung sagt es dazu) und ist damit kein erfundener Weg, sondern der schon entschiedene. Sagt der Auftraggeber, das Blatt müsse deutsch bleiben, ist die Umkehr **eine Zeile**: `meinTexte('de')` statt `basis.texte`. | § 17 MiLoG, D-84, EMP-12, SPEC §10, `src/app/portal/mein/monatsnachweis/page.tsx` |
 
 ---
@@ -14565,6 +14565,146 @@ Hand übergeben — dasselbe Muster wie beim Kundenzugang und beim
 Mitarbeiter-Anmeldecode (D-487). Der Klartext geht über einen fünf Minuten
 lebenden `httpOnly`-Keks, nie über die Adresse: ein Token in der URL steht in
 jedem Zugriffsprotokoll.
+
+---
+
+### D-616 · Die Gesellschaftsleiste bekommt sieben Gruppen
+
+**Der Mandant:** „حاسس المنصة كتير معقدة وكلشي داخل ببعضو" — und, konkreter:
+„die Admins können keinen neuen Mitarbeiter einstellen."
+
+**Der zweite Satz war der aufschlussreichere.**
+`/personal/anstellungen/neu` existiert und legt Person UND Anstellung an
+(`services/personal/einstellung.ts:329`, mit Dublettenprüfung über
+Gesellschaftsgrenzen, `app.person_dublettenpruefung`, D-09). Nicht die
+Funktion fehlte, sondern der Weg: sie liegt auf Tiefe 3 und stand in keinem
+der 32 Navigationseinträge. **Hätte man den Befund für bare Münze genommen,
+wäre eine zweite Einstellungsmaske entstanden statt eines Menüpunkts** — und
+danach gäbe es zwei Wege, einen Menschen einzustellen, von denen einer
+gepflegt wird.
+
+**Die mechanische Ursache war ein fehlendes Feld.** `NaviEintrag` trug
+`schluessel · label · pfad · recht · icon` und nichts, was Punkte gruppiert.
+`DESIGN-PLAN.md` §4 nennt die sieben Gruppen seit langem; gebaut waren sie
+nie:
+
+> Heute · Kunden & Aufträge · Einsatz · Personal · Geld · Aussenauftritt ·
+> Werkzeuge
+
+**Die Namen sind Arbeitsbegriffe der Gewerke, keine Modulnamen.** „Geld" steht
+über dem Rechnungskreis, weil danach gesucht wird — „Abrechnung" wäre
+richtiger und würde seltener gefunden.
+
+**Gruppiert wird nur die Gesellschaftsleiste.** Die Gruppen- und die
+Kundenleiste haben 18 und 11 Punkte; eine Überschrift über zwei Punkten
+gliedert nichts. Dass sie flach BLEIBEN, ist damit eine Entscheidung und kein
+Rückstand — und ein Testfall hält sie fest.
+
+**Gefiltert wird vorher, gruppiert danach.** Eine Gruppe, von der nach der
+Rechteprüfung nichts übrig bleibt, fällt ganz weg: eine Überschrift ohne
+Punkte verriete genau das, was der Filter verbirgt (AUT-06).
+
+**Das Präfix heisst `leiste.` und nicht `gruppe.` — das hat die Wache
+entschieden.** `gruppe` IST ein Modul (§7.4), und der Rechte-Scanner liest
+jedes `'<modul>.<wort>'` als Rechteschlüssel; `'gruppe.heute'` meldete K-19
+prompt als „Schlüssel ohne Katalogzeile". Dieselbe Falle umgehen die
+Hüllenschlüssel seit langem (`sitzung.label`, `pfad.label`, `sprache.label`).
+
+**Und eine Wache dazu**, nach dem Muster der Übersetzungsklinke: ein neuer
+Eintrag ohne Gruppe fällt wortlos ans Ende der Leiste, und das sieht aus wie
+eine Entscheidung. `tests/kern/navigation-gruppen.test.ts` besteht deshalb
+darauf, dass jeder Eintrag eine Gruppe trägt, dass sie aus dem geschlossenen
+Satz kommt, dass keine Gruppe leer ist und dass beide Sprachen eine
+Beschriftung haben.
+
+---
+
+### D-617 · Ein Super-Admin entsteht nur aus der Umgebung — O-887 ist beantwortet
+
+**Die Frage** (O-887) lautete: darf ein Super-Admin einen zweiten Super-Admin
+einladen, und unter welcher zusätzlichen Bedingung?
+
+**Die Antwort des Mandanten: gar nicht in der Anwendung.** „السوبر ادمن لازم
+يكون مأمن انا بشوف منخليه يولد بال ENV بس" — der Super-Admin muss gesichert
+sein; er soll nur über die Umgebung entstehen.
+
+**Das ist die stärkere Antwort, und sie löst beide Hälften des Problems.**
+O-887 hatte zwei Seiten, die einander widersprachen:
+
+- **Das operative Risiko:** entsteht ein `super_admin` nur im Seed, ist die
+  Plattform nach dem Verlust des einzigen Kontos nicht mehr verwaltbar.
+- **Das Sicherheitsrisiko:** eine Einladung, die Super-Admins erzeugen kann,
+  ist ein Weg zur vollen Gruppenmacht — erreichbar über eine gekaperte
+  Sitzung, ein vergessenes Gerät, einen Fehler in der Rechteprüfung.
+
+Ein Einladungsweg mit Vier-Augen-Prinzip hätte das erste gelöst und das
+zweite nur verkleinert. **Die Umgebung löst beide:** das Konto lässt sich
+jederzeit neu herstellen — aber nur von dem, der die Bereitstellung
+kontrolliert, und der hat ohnehin Zugriff auf die Datenbank. Es entsteht kein
+Weg, der über eine ANMELDUNG führt, und damit keiner, den eine gekaperte
+Sitzung nehmen kann.
+
+**Daraus folgt für die Umsetzung:**
+
+1. `app.verwaltungskonto_einladen` (0372) lässt `super_admin` weiterhin nicht
+   zu — auf Funktions- UND Policy-Ebene (`d_bm_verwaltungsrolle`). Das bleibt
+   wie es ist; O-887 bestätigt es, statt es zu öffnen.
+2. Der Weg über die Umgebung ist **kein Bildschirm und keine Route**. Er ist
+   ein Vorgang der Bereitstellung, und er gehört damit dorthin, wo `pnpm
+   db:migrate` und `pnpm db:seed` schon stehen.
+3. Er ist **wiederholbar und nicht additiv**: derselbe Aufruf mit derselben
+   Adresse stellt dasselbe Konto wieder her, statt ein zweites anzulegen.
+4. Der zweite Faktor bleibt Pflicht (AUT-02): `0007` lässt ein Konto mit
+   globaler Rolle nicht aktiv werden, solange kein `auth.mfa_factors`-Satz
+   dazu steht. Ein aus der Umgebung erzeugtes Konto ist damit **eingeladen**,
+   nicht angemeldet — die Umgebung erzeugt einen Anspruch, keine Sitzung.
+
+---
+
+### D-618 · Zwei Türen zu derselben Uhr — O-93 ist beantwortet
+
+**Die Frage** (O-93) lautete: wie erreicht der Check-in-Link den
+Mitarbeitenden — SMS, E-Mail, ein QR-Code am Objekt oder ein Portal-Link?
+
+**Der Mandant hat die Entscheidung übergeben** („انت شوف افضل واذكى جواب
+وطبقه") — mit der Vorgabe, dass es richtig sein muss. Die Antwort liegt im
+schon Gebauten, nicht in einer neuen Zustellung.
+
+**Der Befund, der die Frage auflöst.** Die Marke wird EINMAL im Klartext
+zurückgegeben und danach nirgends gespeichert (`services/zeit/checkin.ts:209`;
+in der Datenbank steht nur `sha256`). Es gibt deshalb keinen bestehenden
+Token, auf den ein Portal verweisen könnte — die Frage „wie kommt der Link zur
+Arbeiterin" stellt sich für eine ANGEMELDETE Arbeiterin aber gar nicht.
+
+**Entschieden: die Marke behält ihren Weg, und die Sitzung wird ein zweiter.**
+
+| Tür | Für wen | Beweis |
+|---|---|---|
+| Token-Link (bestehend, unverändert) | wer KEINE Sitzung hat — QR am Objekt, Link der Planung, geteiltes Gerät | der Besitz der Marke |
+| Portal (neu) | wer im Arbeiterportal angemeldet ist | die Sitzung |
+
+**Warum die Sitzung der stärkere Beweis ist.** Ein Token ist ein
+Inhaberpapier: wer ihn hat, ist wer. Er lässt sich weiterleiten,
+abfotografieren und über die Schulter lesen. Eine Sitzung ist an ein Konto
+gebunden, das über Telefonnummer und Einmalcode entstanden ist (EMP-01).
+**Von einer angemeldeten Arbeiterin zusätzlich einen Token zu verlangen, den
+sie sich im selben Browser besorgt, fügt keine Sicherheit hinzu und hält sie
+von der Arbeit ab** — und genau das war der gemeldete Zustand: „der
+Mitarbeiter meldet sich an und findet keinen Knopf «Arbeit beginnen»."
+
+**Was NICHT passiert: ein zweiter Schreibweg.** EMP-07 (`p_ma_kein_update`,
+0052) verbietet dem Arbeiterportal das ÄNDERN von `zeiteintrag` über
+`cse_app`. Der Kommentar dort sagt, warum INSERT nicht mitverboten ist: *„der
+Check-in schreibt ueber `cse_definer` (K-08) und nicht ueber `cse_app`."* Die
+neue Tür läuft über denselben Definer und mündet in denselben einzigen
+Schreiber (`app.checkin_verbrauchen`). Die Marke bleibt dabei die Einheit der
+Aufzeichnung — das Portal stellt sie serverseitig aus und löst sie im selben
+Vorgang ein. **Was die Sitzung ersetzt, ist die ZUSTELLUNG der Marke, nicht
+die Marke.**
+
+**Und die Kostenfrage aus O-93 entfällt damit für den Normalfall.** SMS
+bleibt eine Option für den, der kein Portal offen hat (O-82: es ist ohnehin
+kein Gateway verbunden); der tägliche Weg kostet nichts.
 
 ---
 

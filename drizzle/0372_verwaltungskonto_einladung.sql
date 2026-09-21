@@ -34,14 +34,20 @@
 -- bekommt immer `kunde`; hier waehlt der Einladende `admin` oder `leitung`.
 -- Die Auswahl ist eng, und zwar mit Absicht (siehe Unterschied 3).
 --
--- **Unterschied 3: `super_admin` ist NICHT einladbar — und das ist eine offene
--- Frage, keine Entscheidung dieser Migration.** Heute entsteht ein
--- Super-Admin ausschliesslich im Seed. Diese Funktion aendert daran nichts:
--- eine Einladung, die Super-Admins erzeugen kann, ist ein Weg zur vollen
--- Gruppenmacht, und ob es ihn geben soll — und unter welcher zweiten
--- Bedingung (Vier-Augen? zweiter bestehender Super-Admin?) — ist eine
--- Entscheidung des Mandanten und keine des Codes (K-17).
--- // TODO(client, O-887): Darf ein Super-Admin einen zweiten Super-Admin einladen, und wenn ja unter welcher zusaetzlichen Bedingung (Bestaetigung durch einen zweiten bestehenden Super-Admin, Vier-Augen-Prinzip)? Heute entsteht ein Super-Admin nur im Seed, und der Verlust des einzigen Kontos macht die Plattform unverwaltbar.
+-- **Unterschied 3: `super_admin` ist NICHT einladbar — und seit D-617 ist das
+-- die ANTWORT, nicht mehr die offene Frage.** O-887 fragte, ob ein
+-- Super-Admin einen zweiten einladen darf. Der Mandant hat entschieden: gar
+-- nicht in der Anwendung, sondern ausschliesslich ueber die UMGEBUNG.
+--
+-- Das loest beide Haelften, die einander widersprachen. Das operative Risiko
+-- (der Verlust des einzigen Kontos macht die Plattform unverwaltbar) faellt
+-- weg, weil sich das Konto jederzeit wiederherstellen laesst. Das
+-- Sicherheitsrisiko faellt weg, weil der Weg NICHT ueber eine Anmeldung
+-- fuehrt: wer ihn gehen will, kontrolliert die Bereitstellung und hat ohnehin
+-- Zugriff auf die Datenbank. Eine gekaperte Sitzung kann ihn nicht nehmen.
+--
+-- Diese Funktion bleibt deshalb genau so, wie sie war — D-617 bestaetigt die
+-- Sperre, statt sie zu oeffnen.
 --
 -- **Der Klartext des Tokens entsteht ausserhalb** und wird nie gespeichert —
 -- dieselbe Regel wie bei 0249 und bei der Check-in-Marke: die Datenbank sieht
@@ -104,7 +110,7 @@ end $$;
  * Definer-Funktion, die jede Rolle vergeben koennte, waere ein Weg zu `admin`
  * ohne Rechtepruefung."
  *
- * `super_admin` ist damit auch auf Policy-Ebene ausgeschlossen (O-887) — und
+ * `super_admin` ist damit auch auf Policy-Ebene ausgeschlossen (D-617) — und
  * `benutzer.globale_rolle_id` bleibt ohnehin durch
  * `d_benutzer_einladung_anlegen` (0249) auf `null` festgenagelt.
  */
@@ -122,7 +128,7 @@ create policy d_bm_verwaltungsrolle on public.benutzer_mandant
 comment on policy d_bm_verwaltungsrolle on public.benutzer_mandant is
   'Die Mitgliedschaft eines Verwaltungskontos (0372) — ausschliesslich die '
   'globalen Rollen `admin` und `leitung`. `super_admin` bleibt aussen vor '
-  '(O-887), Mitarbeiter- und Kundenrollen haben eigene Wege.';
+  '(D-617), Mitarbeiter- und Kundenrollen haben eigene Wege.';
 
 -- ---------------------------------------------------------------------------
 -- 3. Der Vorgang
@@ -197,7 +203,7 @@ begin
   end if;
   /*
    * **Die enge Rollenliste ist die Sicherung, nicht die Bequemlichkeit.**
-   * `super_admin` fehlt hier bewusst (O-887 im Kopf), und `mitarbeiter` und
+   * `super_admin` fehlt hier bewusst (D-617 im Kopf), und `mitarbeiter` und
    * `kunde` gehoeren nicht hierher: fuer sie gibt es eigene, gebaute Wege
    * (`/personal/personen/[id]/zugang`, `/crm/kunden/[id]/zugang`), die mehr
    * tun als ein Konto anzulegen — sie binden es an einen Menschen bzw. einen
@@ -208,7 +214,7 @@ begin
   if v_rolle not in ('admin', 'leitung') then
     return query select false, 'Ueber diesen Weg werden nur `admin` und `leitung` '
                         'eingeladen. Mitarbeiter- und Kundenzugaenge haben eigene '
-                        'Wege; ein Super-Admin entsteht heute nur im Seed (O-887).'::text,
+                        'Wege; ein Super-Admin entsteht nur ueber die Umgebung (D-617).'::text,
                         null::uuid, false;
     return;
   end if;
@@ -299,5 +305,5 @@ grant execute on function app.verwaltungskonto_einladen(uuid, text, text, text, 
 comment on function app.verwaltungskonto_einladen(uuid, text, text, text, text) is
   'D-610/AUT-04: Konto, Mitgliedschaft (admin oder leitung) und Einladungstoken '
   'in EINEM Vorgang. Prueft system.verwaltungskonto_erstellen (nur_global — nur '
-  'der Super-Admin) und aal2. super_admin ist nicht einladbar (O-887). Der '
+  'der Super-Admin) und aal2. super_admin ist nicht einladbar (D-617). Der '
   'Klartext des Tokens entsteht ausserhalb und wird nie gespeichert.';

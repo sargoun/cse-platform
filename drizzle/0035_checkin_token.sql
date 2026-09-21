@@ -68,9 +68,11 @@ create table checkin_token (
    * registrierten Adapter, nie gegen eine erfundene Liste. Ein nicht
    * verbundener Kanal zeigt in der Oberflaeche „nicht verbunden" und sendet
    * nichts (CLAUDE.md: keine Schein-Integrationen).
-   * // TODO(client, O-93): Wie erreicht der Check-in-Link den Mitarbeitenden —
-   * SMS, E-Mail, aushaengender QR-Code am Objekt oder Portal-Link, wer ist der
-   * SMS-Anbieter (EU-Verarbeitung, AVV), und wer traegt die Kosten?
+   * **O-93 ist beantwortet — D-618.** Der Token-Link bleibt fuer jeden OHNE
+   * Sitzung (QR am Objekt, Link der Planung); wer im Arbeiterportal
+   * angemeldet ist, stempelt ueber die Sitzung, und diese Spalte traegt dann
+   * `portal`. `sms` bleibt eine Option fuer den Ausnahmefall und ist ohnehin
+   * unverbunden (O-82).
    */
   ausgabe_kanal text not null default 'unverbunden',
   ausgegeben_am timestamptz,

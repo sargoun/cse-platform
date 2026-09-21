@@ -216,9 +216,17 @@ export async function loeseCheckinEin(
  * Der Kanal ist ein Adapter, kein Schema-Fakt. Solange keiner verbunden ist,
  * steht `unverbunden` auf der Zeile und die Oberflaeche sagt das — sie
  * simuliert keinen Versand.
- * // TODO(client, O-93): Wie erreicht der Check-in-Link den Mitarbeitenden —
- * SMS, E-Mail, aushaengender QR-Code am Objekt oder Portal-Link, wer ist der
- * SMS-Anbieter (EU-Verarbeitung, AVV), und wer traegt die Kosten?
+ * **O-93 ist beantwortet — D-618: zwei Tueren zu derselben Uhr.** Der
+ * Token-Link bleibt genau, wie er ist, fuer jeden OHNE Sitzung: QR am Objekt,
+ * Link der Planung, geteiltes Geraet. Wer im Arbeiterportal angemeldet ist,
+ * stempelt ueber die Sitzung — sie ist der staerkere Beweis. Ein Token ist
+ * ein Inhaberpapier: weiterleitbar, abfotografierbar, ueber die Schulter
+ * lesbar. Eine Sitzung haengt an einem Konto aus Telefonnummer und
+ * Einmalcode (EMP-01). Was die Sitzung ersetzt, ist die ZUSTELLUNG der Marke,
+ * nicht die Marke.
+ *
+ * Der Kanal `sms` bleibt damit eine Option fuer den Ausnahmefall (und ist
+ * ohnehin unverbunden, O-82); der taegliche Weg kostet nichts.
  */
 export async function gibCheckinAus(
   kontext: SchreibKontext,
