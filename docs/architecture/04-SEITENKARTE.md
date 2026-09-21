@@ -1302,7 +1302,7 @@ mandant B; `arbeitszeit_verstoss` has no INSERT policy for `cse_app` at all.
 | `/portal/[mandant]/zeiten/einwaende` , `/[id]` — objection inbox; the employee raises, the planner decides | `zeit.einwand_entscheiden` | `M1` | EMP-07, TIM-11 | 5 |
 | `/portal/[mandant]/zeiten/nacherfassung` — offline claims awaiting a human decision | `zeit.nacherfassung_pruefen` | `M1` | TIM-09, TIM-11 | 5 |
 | `/portal/[mandant]/zeiten/checkin-links` — issue, re-issue, revoke; who has a link, who used it | `zeit.checkin_verwalten` | `M1` | TIM-07 | 5 |
-| `/portal/[mandant]/zeiten/freigabe` — release worked time for billing — **blocked on O-39** | `zeit.abrechnung_freigeben` (blocked on O-39) | `M1` | TIM-12, FIN-07, FIN-18 | 6 |
+| `/portal/[mandant]/zeiten/freigabe` — release worked time for billing (weekly, before invoicing — D-611) | `zeit.abrechnung_freigeben` | `M1` | TIM-12, FIN-07, FIN-18 | 6 |
 | `/portal/[mandant]/zeiten/milog` — §17 MiLoG record; start, end, duration; two-year retention view; export | `zeit.exportieren` | `M1` | TIM-13, LEG-02, ACC-12 | 5 |
 
 **`/zeiten/freigabe` and its right are blocked on O-39, and the row says so rather than

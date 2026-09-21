@@ -158,10 +158,11 @@ export default async function Zeitliste({
           <Sprung ziel={`${pfad}/milog`} text="MiLoG" icon="dokument" />
         )}
         {/* Die Freigabe zur Abrechnung haengt an `zeit.abrechnung_freigeben` —
-            nicht geseedet und an keine Rolle gebunden, solange O-39 offen ist
-            (03-AUTH §12.4). Der Verweis erscheint deshalb heute fuer niemanden,
-            und das ist richtig: ein Knopf auf eine 404 verraet, was er nicht
-            zeigen darf (AUT-06, D-581). */}
+            seit D-611/0371 an `super_admin` und `admin` gebunden, fuer
+            `leitung` je Gesellschaft anlegbar (D-612, 03-AUTH §12.4). Die
+            Bedingung bleibt trotzdem stehen und wird es: ein Knopf auf eine
+            404 verraet, was er nicht zeigen darf (AUT-06, D-581) — und fuer
+            eine `leitung` ohne die Bindung ist genau das der Fall. */}
         {darf['zeit.abrechnung_freigeben'] === true && (
           <Sprung ziel={`${pfad}/freigabe`} text="Freigabe" icon="freigabe" />
         )}

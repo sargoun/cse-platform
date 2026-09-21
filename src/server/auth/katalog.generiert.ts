@@ -236,7 +236,7 @@ export const KATALOG: readonly KatalogEintrag[] = [
   { schluessel: "wissen.vertraulich_lesen", modul: "wissen", objekt: "vertraulich", aktion: "lesen", gebunden: ["super_admin"], bindbar: ["admin","leitung"], nurGlobal: false },
   { schluessel: "zahlung.lesen", modul: "zahlung", objekt: "zahlung", aktion: "lesen", gebunden: ["super_admin","admin","leitung","kunde"], bindbar: [], nurGlobal: false },
   { schluessel: "zahlung.schreiben", modul: "zahlung", objekt: "zahlung", aktion: "schreiben", gebunden: ["super_admin","admin"], bindbar: ["leitung"], nurGlobal: false },
-  { schluessel: "zeit.abrechnung_freigeben", modul: "zeit", objekt: "abrechnung", aktion: "freigeben", gebunden: [], bindbar: [], nurGlobal: false },
+  { schluessel: "zeit.abrechnung_freigeben", modul: "zeit", objekt: "abrechnung", aktion: "freigeben", gebunden: ["super_admin","admin"], bindbar: ["leitung"], nurGlobal: false },
   { schluessel: "zeit.abwesenheit_genehmigen", modul: "zeit", objekt: "abwesenheit", aktion: "genehmigen", gebunden: ["super_admin","admin","leitung"], bindbar: [], nurGlobal: false },
   { schluessel: "zeit.abwesenheit_grund_lesen", modul: "zeit", objekt: "abwesenheit_grund", aktion: "lesen", gebunden: ["super_admin","admin"], bindbar: ["leitung"], nurGlobal: false },
   { schluessel: "zeit.abwesenheit_lesen", modul: "zeit", objekt: "abwesenheit", aktion: "lesen", gebunden: ["super_admin","admin","leitung"], bindbar: [], nurGlobal: false },

@@ -69,9 +69,11 @@ create type erfassungs_art as enum
  * und kein Wert dieses Typs: ein Teilindex auf `status = 'freigegeben'` traefe
  * null Zeilen, wenn der Kunde „kein Freigabeschritt" antwortet, und die
  * Abrechnungsabfrage lieferte still null Stunden statt zu scheitern (§3.3).
- * // TODO(client, O-39): Gibt es vor Stundenkonto und Abrechnung eine
- * fachliche Freigabe der Zeiten, und wer erteilt sie — Objektleitung, Planung
- * oder Buchhaltung?
+ * **O-39 ist beantwortet (D-611)** und die Wahl von damals hat gehalten: ja,
+ * es gibt den Freigabeschritt, ein Mensch erteilt ihn woechentlich vor der
+ * Fakturierung — und weil das Tor eine SPALTE ist und kein Wert dieses Typs,
+ * hat die Antwort an diesem Enum nichts geaendert. Gebunden wird das Recht in
+ * `0371`; was offen bleibt, ist die EINHEIT der Freigabe (O-861, siehe 0366).
  */
 create type zeiteintrag_status as enum
   ('laufend','abgeschlossen','offen_nacherfassung','storniert');

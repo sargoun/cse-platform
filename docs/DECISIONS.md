@@ -2947,7 +2947,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 
 | # | Slug | Question |
 |---|---|---|
-| O-39 | `zeit-freigabeschritt` | Is there a professional release of recorded time before the Stundenkonto and billing at all, and who grants it? **Until answered, `zeit.abrechnung_freigeben` is bound to no role** — it stands in the catalogue and `rolle_berechtigung` holds zero rows for it (measured, not assumed), so nobody can execute the step. The screen `/portal/[mandant]/zeiten/freigabe` and `0366` DO ship since the Routenbau wave and say the question is open on their face; the earlier wording "the screen does not ship" was true when this row was written and is no longer. See **O-861** for the unit and the withdrawal. |
+| ~~O-39~~ **answered — D-611** | `zeit-freigabeschritt` | Is there a professional release of recorded time before the Stundenkonto and billing at all, and who grants it? **Yes — a human releases weekly, before invoicing; the responsible Admin confirms, corrects or rejects.** `drizzle/0371` binds `zeit.abrechnung_freigeben` to `super_admin` and `admin`, and makes it grantable per Gesellschaft for `leitung` (D-612). Before that the key stood in the catalogue with zero rows in `rolle_berechtigung` (measured, not assumed) and nobody could execute the step; the screen `/portal/[mandant]/zeiten/freigabe` and `0366` shipped anyway and said so on their face. See **O-861**, still open, for the unit and the withdrawal. |
 | O-93 | `zeit-checkin-kanal` | How does the check-in link reach the worker — SMS, e-mail, a QR code posted at the object, or a portal link — and who bears the SMS cost? |
 | O-162 | `zeit-milog-aufbewahrungsbeginn` | When does the two-year retention of §17 Abs. 1 MiLoG start — the day worked, the day the record was created, or a month/year end? |
 | O-163 | `zeit-dst-verguetung` | How are the two transition nights paid — by time actually worked (7 h / 9 h) or by planned shift length? |
@@ -14326,6 +14326,39 @@ Schema und hat zwei gebaute Leser — das Stundenkonto nimmt nur Freigegebenes
 (EMP-04), und die Rechnungsstellung wählt `freigegeben_am is not null and
 abgerechnet_am is null` (FIN-07). Die Kette war vollständig; ihr fehlte der
 menschliche Anfang.
+
+---
+
+### D-612 · `leitung` bekommt die Abrechnungsfreigabe anlegbar, nicht vorgegeben
+
+**Die Frage stellte sich beim Umsetzen von D-611** und ist keine Ableitung
+daraus: D-611 sagt, WER freigibt („die Stunden gehen an den zuständigen
+Admin"), und beantwortet damit nicht, ob eine Objekt- oder Bereichsleitung es
+AUCH dürfen soll. Der Entwicklungsplan schlug vor, `leitung` ganz
+auszuschließen. Der Mandant hat den Mittelweg gewählt.
+
+**Entschieden: `gebunden` für `super_admin` und `admin`, `bindbar` für
+`leitung`.** In der Matrix (§12.4) heißt das `✔ | ✔ | ○ | — | —` — dieselbe
+Form, die `zeit.exportieren` und `zahlung.schreiben` schon tragen.
+
+**Warum nicht vorgegeben.** Die Freigabe zur Abrechnung ist ein
+kaufmännischer Akt und kein Schichtakt: was hier freigegeben wird, fließt in
+das Stundenkonto (EMP-04) und in eine Rechnung (FIN-07) — beides trägt die
+Gesellschaft, nicht die Schicht. Eine Vorgabe für alle vier Gesellschaften
+wäre eine Entscheidung, die keine von ihnen getroffen hat.
+
+**Warum nicht ausgeschlossen.** In der Gebäudereinigung und im Objektschutz
+ist die Objektleitung oft die einzige Person, die weiß, ob eine Schicht so
+gelaufen ist, wie sie dasteht. Ihr das Recht bauartbedingt zu verwehren
+hieße, die Freigabe zu einer Unterschrift ohne Kenntnis zu machen — und
+Sichtbarkeit ist genau das, was D-611 mit dem wöchentlichen Takt sichern
+will.
+
+**Der Unterschied zu einer erfundenen Regel:** `○` erfindet nichts, sondern
+verlegt die Entscheidung dorthin, wo sie hingehört — in die
+Rechte-Oberfläche jeder Gesellschaft, ausdrücklich und sichtbar. Wer sie
+nicht trifft, hat sie nicht getroffen: ohne Bindung antwortet die Seite einer
+`leitung` weiterhin mit 404 (AUT-06).
 
 ---
 

@@ -10,7 +10,13 @@
  * Beim Landen eines Moduls werden seine Zeilen hier gestrichen. Ergänzt wird
  * nur mit einer Begründung im Pull Request.
  *
- * 198 von 242 Schlüsseln.
+ * 197 von 242 Schlüsseln.
+ *
+ * D-611 streicht `zeit.abrechnung_freigeben`. Der Schlüssel stand hier,
+ * obwohl VIERZEHN Fundstellen ihn prüfen — die Liste kennt nur eine
+ * Richtung (ein unbenutzter Schlüssel, der fehlt, bricht den Build; ein
+ * benutzter, der bleibt, fällt niemandem auf). Er kam hierher, als O-39 ihn
+ * an keine Rolle band, und „nicht gebunden“ ist eben nicht „nicht benutzt“.
  *
  * Die Zahl stieg mit PR 17, weil der Extraktor bis dahin jede §12-Zeile
  * übersprang, die ZWEI Schlüssel nennt (`crm.lesen` / `crm.schreiben`). 19
@@ -212,7 +218,6 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "wissen.vertraulich_lesen",
   "zahlung.lesen",
   "zahlung.schreiben",
-  "zeit.abrechnung_freigeben",
   "zeit.abwesenheit_genehmigen",
   "zeit.abwesenheit_grund_lesen",
   "zeit.abwesenheit_lesen",

@@ -1729,8 +1729,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * prueft `zeit.abrechnung_freigeben` selbst, und die schmale Policy
    * `z_definer_abrechnungsfreigabe` laesst nur abgeschlossene, nicht
    * stornierte, noch nicht freigegebene Zeilen zu. Der Schluessel steht im
-   * Katalog und haengt an keiner Rolle, solange O-39 offen ist; der Dienst ist
-   * damit gebaut und heute unerreichbar.
+   * Katalog und haengt seit D-611/0371 an `super_admin` und `admin`; fuer
+   * `leitung` ist er je Gesellschaft anlegbar (D-612).
    */
   {
     modul: 'zeit', pfad: 'zeit/abrechnungsfreigabe',

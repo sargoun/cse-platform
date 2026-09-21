@@ -1199,9 +1199,11 @@ had** rather than widening it further — `dokument.buendel_export` → `dokumen
 (`export` is a noun), `crm.kommunikation_senden` → `crm.kommunikation_versenden`,
 `nachricht.senden` → `nachricht.versenden`, and `zeit.freigeben_zur_abrechnung` →
 `zeit.abrechnung_freigeben`, which additionally did not **parse**: its last underscore-delimited
-token was `abrechnung`, so no reading of the grammar reached an `aktion`. The respelling keeps its
+token was `abrechnung`, so no reading of the grammar reached an `aktion`. The respelling kept its
 *not seeded* marker and its O-39 block (§12.4) — a key that cannot be written and a key that is
-deliberately unbound are different states, and only the second is intended.
+deliberately unbound are different states, and only the second was intended. **D-611 has since
+answered O-39 and §12.4 carries the binding**; the distinction is what made that answer a one-row
+migration instead of a rebuild.
 
 Two of the fifteen deserve their reason in writing:
 
@@ -1259,8 +1261,9 @@ anywhere in the platform — must have a row in §12 or §14.2.
 
 Assertion 2 is why a key blocked on an open question is marked *not seeded* rather than seeded with
 no binding: a row nobody reads is indistinguishable from a row somebody forgot to wire up.
-Assertion 3 runs on the marked-*not seeded* rows too — `zeit.abrechnung_freigeben` is unbound
-because O-39 is open, not because it is unwritable.
+Assertion 3 runs on the marked-*not seeded* rows too — `zeit.abrechnung_freigeben` was unbound
+because O-39 was open, not because it is unwritable. D-611 answered it and `drizzle/0371` bound the
+key; the row it leaves behind is the proof that the marker meant what it said.
 
 ### 7.3 Effective right resolution
 
@@ -2487,7 +2490,7 @@ is false for everyone (K-19).
 | `zeit.konto_lesen` | ✔ | ✔ | ✔ | S | — | EMP-04, per employment (EMP-15) |
 | `zeit.konto_abschliessen` | ✔ | ✔ | ✔ | — | — | monthly lock, one-way like an invoice |
 | `zeit.konto_korrigieren` | ✔ | ○ | ○ | — | — | flows into the next month, never backwards |
-| `zeit.abrechnung_freigeben` | — | — | — | — | — | **Not seeded, no default binding — blocked on O-39** (`zeit-freigabeschritt`, `02-datenmodell/04-PLANUNG-ZEIT.md` §1.3). TIM-12 names the outcome, not the step: whether a separate release-to-billing act exists at all is a client decision, and seeding a right for a workflow step nobody has confirmed would make the placeholder load-bearing (K-17). `04-SEITENKARTE.md`'s `/portal/[mandant]/zeiten/freigabe` carries the same marker. On a yes, the key joins `04-PLANUNG-ZEIT` §1.3's enumerated list in the same PR |
+| `zeit.abrechnung_freigeben` | ✔ | ✔ | ○ | — | — | **O-39 is answered — D-611.** TIM-12 names the outcome; the client confirmed the step: a human releases weekly, before invoicing. `leitung` is `○` and not `✔` by D-612 — releasing to billing is a commercial act, not a shift act, so each Gesellschaft grants it deliberately or not at all. `04-PLANUNG-ZEIT` §1.3 carries the key on its enumerated list |
 | `zeit.exportieren` | ✔ | ✔ | ○ | — | — | ACC-12 payroll export |
 
 **Three `dienstplan` keys sit on tables this document does not own**, and the reconciliation runs the
@@ -3138,7 +3141,7 @@ DECISIONS.md imposes when it reconciles all Phase 0 documents at once.
 | O-92 | `auth-aufbewahrung-telemetrie` | Retention for auth events and the DSGVO deletion concept for `audit_log` — confirm 30 days for `anmeldeversuch` and the GoBD period for permission changes | §10, §11.2 |
 | O-06 (existing) | `betriebsrat` | Is there a Betriebsrat? §87 BetrVG governs login metadata, check-in audit trails, geolocation (LEG-10) and the APR-08 review-duration measurement. The switches that gate the four monitoring features are **`mandant_einstellung` keys**, never `mandant` columns (K-21, §5.3, §12.1) | §5.3, §11.2, §14.2 |
 | O-01 (existing) | `operations-rechtstraeger` | Is CSE Operations a legal entity or a department? `mandant.ist_rechtseinheit` decides whether a fifth area gets a number circle | §7.3 |
-| O-39 (`02-datenmodell/04-PLANUNG-ZEIT.md`) | `zeit-freigabeschritt` | Does a separate "release worked time to billing" step exist at all, or does finalisation consume time entries directly? Referenced, not owned, here: until it is answered `zeit.abrechnung_freigeben` is **not seeded** and has no default binding, because seeding a right for a step nobody has confirmed would make the placeholder load-bearing (K-17) | §12.4 |
+| ~~O-39~~ **answered — D-611** (`02-datenmodell/04-PLANUNG-ZEIT.md`) | `zeit-freigabeschritt` | Does a separate "release worked time to billing" step exist at all? **Yes:** a human releases weekly, before invoicing. Referenced, not owned, here. `zeit.abrechnung_freigeben` is bound to `super_admin` and `admin` by `drizzle/0371`; `leitung` is grantable per Gesellschaft rather than by default (D-612), because releasing to billing is a commercial act and not a shift act. **O-861 remains open** — the unit of release and whether it can be retracted | §12.4 |
 
 ---
 

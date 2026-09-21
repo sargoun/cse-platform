@@ -8,8 +8,8 @@
  * ein gruenes Feld.
  *
  * **Freigegeben wird hier mit Ansage.** Auf das Konto flieszt nur Zeit, die
- * jemand freigegeben hat (§ 7.3) — den Bildschirm dafuer baut PR 47
- * (`zeiten/freigabe`, Phase 6, O-39). Bis dahin setzt dieser Seed die Freigabe
+ * jemand freigegeben hat (§ 7.3) — den Bildschirm dafuer gibt es seit PR 50
+ * (`zeiten/freigabe`), erreichbar seit D-611/0371. Der Seed setzt die Freigabe
  * fuer ABGESCHLOSSENE Eintraege, die mindestens zwei Tage zurueckliegen, und
  * sagt genau das: es ist eine Demo-Annahme ueber die Vergangenheit, keine
  * Abkuerzung um ein Tor herum. Was juenger ist, bleibt offen — und zeigt damit

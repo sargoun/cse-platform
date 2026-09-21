@@ -798,12 +798,13 @@ export const ROUTEN: readonly RouteEintrag[] = [
     /**
      * Erfasste Zeit zur Abrechnung freigeben (TIM-12, FIN-07, FIN-18).
      *
-     * **`zeit.abrechnung_freigeben` ist nicht geseedet und an keine Rolle
-     * gebunden** (03-AUTH §12.4, O-39): diese Route ist gebaut, geprueft und
-     * fuer jede heutige Sitzung unerreichbar. Das ist der gewollte Zustand —
-     * die Antwort des Mandanten oeffnet sie mit einer Rechtebindung statt mit
-     * einem Umbau. Die Pruefung steht dreifach: hier, in
-     * `app.zeit_zur_abrechnung_freigeben` (0366) und im Manifest der Seite.
+     * **`zeit.abrechnung_freigeben` ist seit D-611/0371 gebunden** — an
+     * `super_admin` und `admin`, fuer `leitung` je Gesellschaft anlegbar
+     * (D-612, 03-AUTH §12.4). Bis dahin war die Route gebaut, geprueft und
+     * fuer jede Sitzung unerreichbar; die Antwort des Mandanten hat sie mit
+     * einer Rechtebindung geoeffnet und nicht mit einem Umbau. Die Pruefung
+     * steht weiterhin dreifach: hier, in `app.zeit_zur_abrechnung_freigeben`
+     * (0366) und im Manifest der Seite.
      */
     pfad: 'api/zeit/abrechnungsfreigabe',
     recht: 'zeit.abrechnung_freigeben',

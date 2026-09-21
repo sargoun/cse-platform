@@ -811,6 +811,8 @@ select r.id, b.id, null, true from (values
   ('kunde', 'zahlung.lesen'),
   ('super_admin', 'zahlung.schreiben'),
   ('admin', 'zahlung.schreiben'),
+  ('super_admin', 'zeit.abrechnung_freigeben'),
+  ('admin', 'zeit.abrechnung_freigeben'),
   ('super_admin', 'zeit.abwesenheit_genehmigen'),
   ('admin', 'zeit.abwesenheit_genehmigen'),
   ('leitung', 'zeit.abwesenheit_genehmigen'),

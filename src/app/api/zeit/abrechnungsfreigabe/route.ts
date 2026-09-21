@@ -13,12 +13,13 @@ import { alsAntwort } from '../../sicherheit/antwort';
  * `POST /api/zeit/abrechnungsfreigabe` — erfasste Zeit zur Abrechnung freigeben
  * (TIM-12, FIN-07, FIN-18, §3.3/§7.3).
  *
- * **Auf O-39 blockiert, und trotzdem vollständig.** `zeit.abrechnung_freigeben`
- * ist nicht geseedet und an keine Rolle gebunden (03-AUTH §12.4), solange der
- * Mandant nicht gesagt hat, ob es diesen Schritt überhaupt gibt. `authorize`
- * antwortet damit heute für JEDE Sitzung mit „kein Recht" — und das ist der
- * gewollte Zustand: der Weg ist gebaut und geprüft, das Tor ist zu, und die
- * Antwort öffnet es mit einer Bindung statt mit einem Umbau.
+ * **War auf O-39 blockiert, und schon damals vollständig.**
+ * `zeit.abrechnung_freigeben` war nicht geseedet und an keine Rolle gebunden
+ * (03-AUTH §12.4), solange der Mandant nicht gesagt hatte, ob es diesen
+ * Schritt überhaupt gibt — `authorize` antwortete damit für JEDE Sitzung mit
+ * „kein Recht". **D-611 hat geantwortet**, und `0371` hat das Tor mit einer
+ * Bindung geöffnet statt mit einem Umbau: `super_admin` und `admin` halten
+ * das Recht, `leitung` je Gesellschaft nach eigener Entscheidung (D-612).
  *
  * Die Rechteprüfung steht dreifach: hier, in `app.zeit_zur_abrechnung_freigeben`
  * (0366) und im Manifest der Seite. Das ist kein Überfluss — eine Route, die
