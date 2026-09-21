@@ -163,11 +163,20 @@ tragen **keinen** Rückweg zur Liste (`PortalRahmen.tsx:287` führt auf die
 
 ### 1.3 🟡 51 flache Navigationseinträge, ohne jede Gruppierung
 
+```bash
+# Die Grenzen zaehlen mit, sonst zaehlt man zwei Listen als eine:
+sed -n '37,423p' src/server/registry/navigation.ts | grep -c "schluessel:"
 ```
-NAVIGATION          51 Einträge
-GRUPPEN_NAVIGATION  19
-KUNDEN_NAVIGATION   11
+
 ```
+NAVIGATION          32 Einträge   (Zeilen 37–423)
+GRUPPEN_NAVIGATION  18            (424–475)
+KUNDEN_NAVIGATION   11            (525–559)
+```
+
+*(Hier stand 51. Das war NAVIGATION **plus** GRUPPEN\_NAVIGATION: der
+Zaehlbefehl lief ueber die Listengrenze hinaus. `DESIGN-PLAN.md` §4 nennt
+seit jeher 32, und diese Zahl stimmt.)*
 
 Der Typ `NaviEintrag` (`src/server/registry/navigation.ts:19`) führt
 `schluessel · label · pfad · recht · zusatzRecht · icon` — **kein Feld für

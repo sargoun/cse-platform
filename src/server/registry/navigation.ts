@@ -16,6 +16,28 @@
  */
 import type { IconName } from '@/lib/design/icons';
 
+/**
+ * Die sieben Gruppen der Gesellschaftsleiste (DESIGN-PLAN §4, D-616).
+ *
+ * **Der Befund war mechanisch, nicht geschmacklich.** 32 flache Eintraege
+ * ohne Gruppenfeld — der Mandant fand Seiten nicht, die es laengst gibt,
+ * allen voran `/personal/anstellungen/neu`, mit dem sich sehr wohl ein neuer
+ * Mitarbeiter einstellen laesst. „Die Admins koennen keinen Mitarbeiter
+ * einstellen" war deshalb kein fehlender Bau, sondern ein fehlender Weg.
+ *
+ * **Die Namen sind Arbeitsbegriffe der Gewerke, keine Modulnamen.** „Geld"
+ * steht ueber dem Rechnungskreis, weil danach gesucht wird; „Abrechnung"
+ * waere richtiger und wuerde seltener gefunden.
+ *
+ * Die Reihenfolge IST die Anzeigereihenfolge — sie laeuft vom Haeufigsten
+ * zum Seltensten, und `werkzeuge` steht bewusst am Ende und nicht hinter
+ * einem Menue: selten heisst nicht versteckt.
+ */
+export const NAVI_GRUPPEN = [
+  'heute', 'kunden', 'einsatz', 'personal', 'geld', 'aussen', 'werkzeuge',
+] as const;
+export type NaviGruppe = (typeof NAVI_GRUPPEN)[number];
+
 export interface NaviEintrag {
   readonly schluessel: string;
   /** Deutsches Label. Die Sidebar ist intern; Arbeiterportale übersetzen. */
@@ -32,12 +54,25 @@ export interface NaviEintrag {
   readonly zusatzRecht?: string;
   /** Das Icon aus dem geschlossenen Satz (DESIGN §5). */
   readonly icon: IconName;
+  /**
+   * Die Gruppe der Gesellschaftsleiste — Pflicht fuer `NAVIGATION`, leer fuer
+   * die Gruppen- und Kundenleiste.
+   *
+   * **Warum die beiden anderen Listen sie nicht tragen.** Sie haben 18 und 11
+   * Eintraege; eine Gliederung dort waere eine Ueberschrift ueber zwei
+   * Punkten. Gruppiert wird, wo gesucht wird.
+   *
+   * `tests/kern/navigation-gruppen.test.ts` besteht darauf, dass JEDER
+   * `NAVIGATION`-Eintrag eine traegt — sonst faellt ein neuer Punkt
+   * wortlos ans Ende der Leiste, und das sieht aus wie eine Entscheidung.
+   */
+  readonly gruppe?: NaviGruppe;
 }
 
 export const NAVIGATION: readonly NaviEintrag[] = [
-  { schluessel: 'dashboard', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', icon: 'uebersicht' },
-  { schluessel: 'crm', label: 'CRM', pfad: 'crm', recht: 'crm.lesen', icon: 'crm' },
-  { schluessel: 'objekte', label: 'Objekte', pfad: 'objekte', recht: 'objekt.lesen', icon: 'objekt' },
+  { schluessel: 'dashboard', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', icon: 'uebersicht', gruppe: 'heute' },
+  { schluessel: 'crm', label: 'CRM', pfad: 'crm', recht: 'crm.lesen', icon: 'crm', gruppe: 'kunden' },
+  { schluessel: 'objekte', label: 'Objekte', pfad: 'objekte', recht: 'objekt.lesen', icon: 'objekt', gruppe: 'kunden' },
   /**
    * `dienstplan/woche`, nicht `dienstplan`.
    *
@@ -47,11 +82,11 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * jeder Benutzer als erstes trifft: die Sidebar. Die Tab-Leiste zeigte
    * laengst auf `woche`; hier stand die zweite, falsche Fassung.
    */
-  { schluessel: 'dienstplan', label: 'Dienstplan', pfad: 'dienstplan/woche', recht: 'dienstplan.lesen', icon: 'dienstplan' },
-  { schluessel: 'zeiten', label: 'Zeiten', pfad: 'zeiten', recht: 'zeit.lesen', icon: 'zeit' },
+  { schluessel: 'dienstplan', label: 'Dienstplan', pfad: 'dienstplan/woche', recht: 'dienstplan.lesen', icon: 'dienstplan', gruppe: 'einsatz' },
+  { schluessel: 'zeiten', label: 'Zeiten', pfad: 'zeiten', recht: 'zeit.lesen', icon: 'zeit', gruppe: 'einsatz' },
   // `personal/anstellungen`: den nackten Pfad kennt die Seitenkarte nicht.
-  { schluessel: 'personal', label: 'Personal', pfad: 'personal/anstellungen', recht: 'personal.lesen', icon: 'personal' },
-  { schluessel: 'angebote', label: 'Angebote', pfad: 'angebote', recht: 'angebot.lesen', icon: 'angebot' },
+  { schluessel: 'personal', label: 'Personal', pfad: 'personal/anstellungen', recht: 'personal.lesen', icon: 'personal', gruppe: 'personal' },
+  { schluessel: 'angebote', label: 'Angebote', pfad: 'angebote', recht: 'angebot.lesen', icon: 'angebot', gruppe: 'kunden' },
   /**
    * `leistungskatalog` (OPS-06, CLN-05) — er fehlte, und ohne diesen Eintrag
    * waeren beide Katalogseiten gebaut und aus keinem Menue erreichbar.
@@ -68,8 +103,8 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * unique auf `(mandant_id, schluessel)`), und eine Gruppenansicht darueber
    * waere eine Liste aus vier Katalogen, die einander nicht entsprechen.
    */
-  { schluessel: 'leistungskatalog', label: 'Leistungskatalog', pfad: 'leistungskatalog', recht: 'katalog.lesen', icon: 'buch' },
-  { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', icon: 'auftrag' },
+  { schluessel: 'leistungskatalog', label: 'Leistungskatalog', pfad: 'leistungskatalog', recht: 'katalog.lesen', icon: 'buch', gruppe: 'kunden' },
+  { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', icon: 'auftrag', gruppe: 'kunden' },
   /**
    * `aufgaben` — die offene Pflicht (OPS-11, DSH-01, SPEC §14).
    *
@@ -84,10 +119,10 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * fuehrt in §6 keine `/portal/gruppe/aufgaben`, und ein Punkt auf eine
    * Seite, die es nicht gibt, ist der Fehler aus D-561.
    */
-  { schluessel: 'aufgaben', label: 'Aufgaben', pfad: 'aufgaben', recht: 'aufgabe.lesen', icon: 'ok' },
+  { schluessel: 'aufgaben', label: 'Aufgaben', pfad: 'aufgaben', recht: 'aufgabe.lesen', icon: 'ok', gruppe: 'heute' },
   // `finanzen/rechnungen`: die Rechnungen liegen unter `finanzen`, und `rechnungen`
   // allein gibt es als Route nicht — der Punkt fuehrte auf einen 404.
-  { schluessel: 'rechnungen', label: 'Rechnungen', pfad: 'finanzen/rechnungen', recht: 'finanzen.lesen', icon: 'rechnung' },
+  { schluessel: 'rechnungen', label: 'Rechnungen', pfad: 'finanzen/rechnungen', recht: 'finanzen.lesen', icon: 'rechnung', gruppe: 'geld' },
   /**
    * `finanzen/zahlungen` — offene Forderungen, Guthaben und erfasste
    * Eingaenge (FIN-14). Eigenes Recht: wer Rechnungen schreiben darf, darf
@@ -97,19 +132,19 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * zusammen offen haben, ist genau die Frage, fuer die es sie gibt
    * (Invariante 10 — lesend, ohne Erfassungsformular).
    */
-  { schluessel: 'zahlungen', label: 'Zahlungen', pfad: 'finanzen/zahlungen', recht: 'zahlung.lesen', icon: 'euro' },
+  { schluessel: 'zahlungen', label: 'Zahlungen', pfad: 'finanzen/zahlungen', recht: 'zahlung.lesen', icon: 'euro', gruppe: 'geld' },
   /**
    * `finanzen/eingangsrechnungen` — die Kreditorenseite (FIN-14, ACC-05).
    * Modul `eingang`: wer fakturiert, prueft nicht schon deswegen
    * Lieferantenrechnungen.
    */
-  { schluessel: 'eingangsrechnungen', label: 'Eingangsrechnungen', pfad: 'finanzen/eingangsrechnungen', recht: 'eingang.lesen', icon: 'eingang' },
+  { schluessel: 'eingangsrechnungen', label: 'Eingangsrechnungen', pfad: 'finanzen/eingangsrechnungen', recht: 'eingang.lesen', icon: 'eingang', gruppe: 'geld' },
   /**
    * `finanzen/ausgangsbuch` — die Folge der ausgestellten Rechnungen (FIN-16).
    * Recht `nummernkreis.lesen` und nicht `finanzen.lesen`: das Buch ist die
    * Sicht auf den KREIS, und wer es liest, prueft die Lueckenlosigkeit.
    */
-  { schluessel: 'ausgangsbuch', label: 'Ausgangsbuch', pfad: 'finanzen/ausgangsbuch', recht: 'nummernkreis.lesen', icon: 'buch' },
+  { schluessel: 'ausgangsbuch', label: 'Ausgangsbuch', pfad: 'finanzen/ausgangsbuch', recht: 'nummernkreis.lesen', icon: 'buch', gruppe: 'geld' },
   /**
    * `finanzen/mahnungen` — die Mahnungen (FIN-15). Eigenes Recht
    * `mahnung.lesen`: eine Mahnung ist eine Aussage ueber die Zahlungsmoral
@@ -119,7 +154,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Leitungsfrage — ohne Freigabeknopf, denn dafuer braucht es genau einen
    * aktiven Mandanten (Invariante 10).
    */
-  { schluessel: 'mahnungen', label: 'Mahnungen', pfad: 'finanzen/mahnungen', recht: 'mahnung.lesen', icon: 'warnung' },
+  { schluessel: 'mahnungen', label: 'Mahnungen', pfad: 'finanzen/mahnungen', recht: 'mahnung.lesen', icon: 'warnung', gruppe: 'geld' },
   /**
    * `buchhaltung/buchungen` — das Hauptbuch mit seinen Belegen (ACC-01,
    * ACC-03).
@@ -133,7 +168,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * eine Liste ueber alle vier waere keine Buchhaltung, sondern eine
    * Vermischung — auch lesend.
    */
-  { schluessel: 'buchungen', label: 'Buchungen', pfad: 'buchhaltung/buchungen', recht: 'buchhaltung.lesen', icon: 'buch' },
+  { schluessel: 'buchungen', label: 'Buchungen', pfad: 'buchhaltung/buchungen', recht: 'buchhaltung.lesen', icon: 'buch', gruppe: 'geld' },
   /**
    * `buchhaltung/datev` — die erzeugten Buchungsstapel (ACC-02).
    *
@@ -149,9 +184,9 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * gemeldet hat. Das EINLESEN verlangt zusaetzlich `zahlung.schreiben` —
    * es legt Zahlungen an —, und das prueft die Route, nicht der Menuepunkt.
    */
-  { schluessel: 'bank', label: 'Bank', pfad: 'buchhaltung/bank', recht: 'buchhaltung.lesen', icon: 'bank' },
-  { schluessel: 'datev', label: 'DATEV', pfad: 'buchhaltung/datev', recht: 'buchhaltung.exportieren', icon: 'export' },
-  { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', icon: 'dokument' },
+  { schluessel: 'bank', label: 'Bank', pfad: 'buchhaltung/bank', recht: 'buchhaltung.lesen', icon: 'bank', gruppe: 'geld' },
+  { schluessel: 'datev', label: 'DATEV', pfad: 'buchhaltung/datev', recht: 'buchhaltung.exportieren', icon: 'export', gruppe: 'geld' },
+  { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', icon: 'dokument', gruppe: 'werkzeuge' },
   /**
    * `nachrichten` — der Fadenposteingang (EMP-11, CRM-03, SEITENKARTE §5.17).
    *
@@ -166,7 +201,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * die Seitenkarte fuehrt keine `/portal/gruppe/nachrichten`. Der Widerspruch
    * ist gemeldet und nicht entschieden: O-651.
    */
-  { schluessel: 'nachrichten', label: 'Nachrichten', pfad: 'nachrichten', recht: 'nachricht.lesen', icon: 'mail' },
+  { schluessel: 'nachrichten', label: 'Nachrichten', pfad: 'nachrichten', recht: 'nachricht.lesen', icon: 'mail', gruppe: 'heute' },
   /**
    * `agenten` — das Agenten-Zentrum (AGT-01, SPEC §22).
    *
@@ -177,7 +212,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Gruppenansicht auf einen 404 — derselbe Befund wie damals bei
    * `dienstplan`.
    */
-  { schluessel: 'agenten', label: 'Agenten', pfad: 'agenten', recht: 'agent.lesen', icon: 'ki' },
+  { schluessel: 'agenten', label: 'Agenten', pfad: 'agenten', recht: 'agent.lesen', icon: 'ki', gruppe: 'werkzeuge' },
   /**
    * `freigaben` — der Posteingang der Freigaben (APR-01, PR 62).
    *
@@ -185,7 +220,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * (`/portal/gruppe/freigaben`, Phase 8), der in die Gesellschaft verweist —
    * entschieden wird nur mit genau einem aktiven Mandanten (Invariante 10).
    */
-  { schluessel: 'freigaben', label: 'Freigaben', pfad: 'freigaben', recht: 'freigabe.lesen', icon: 'freigabe' },
+  { schluessel: 'freigaben', label: 'Freigaben', pfad: 'freigaben', recht: 'freigabe.lesen', icon: 'freigabe', gruppe: 'heute' },
   /**
    * `social` — das Social Media Center (SOC-01, PR 78).
    *
@@ -217,7 +252,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Social-Uebersicht ueber alle vier Gesellschaften bekommen? Die Daten
    * lassen es zu; die Seitenkarte fuehrt sie in §6 nicht.
    */
-  { schluessel: 'social', label: 'Social Media', pfad: 'social', recht: 'social.lesen', icon: 'social' },
+  { schluessel: 'social', label: 'Social Media', pfad: 'social', recht: 'social.lesen', icon: 'social', gruppe: 'aussen' },
   /**
    * `website` — die Pflege des oeffentlichen Auftritts (PUB-07, PRO-01 … PRO-05).
    *
@@ -260,7 +295,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Modulwurzel gibt es nicht, und ein Menuepunkt auf eine Seite, die es nicht
    * gibt, ist der sichtbarste 404 im ganzen Portal.
    */
-  { schluessel: 'website', label: 'Website', pfad: 'website/seiten', recht: 'referenz.schreiben', icon: 'dokument' },
+  { schluessel: 'website', label: 'Website', pfad: 'website/seiten', recht: 'referenz.schreiben', icon: 'dokument', gruppe: 'aussen' },
   /**
    * `recruiting` — Stellen, Bewerbungen, Kandidaten (REC-01 … REC-09, PR 79).
    *
@@ -282,7 +317,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * `/portal/gruppe/recruiting`, und ein Punkt auf eine Seite, die es nicht
    * gibt, ist genau der Fehler aus D-561.
    */
-  { schluessel: 'recruiting', label: 'Recruiting', pfad: 'recruiting', recht: 'recruiting.bewerbung_lesen', icon: 'person' },
+  { schluessel: 'recruiting', label: 'Recruiting', pfad: 'recruiting', recht: 'recruiting.bewerbung_lesen', icon: 'person', gruppe: 'personal' },
   /**
    * `bau`, nicht mehr `bau/projekte`: die Modulübersicht der Seitenkarte
    * (§5.9, Zeile 1) ist gebaut und trägt die drei Punkte, auf die sie zeigt —
@@ -290,7 +325,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * des Bautagebuchs (BAU-07). Der Punkt zeigte bewusst auf die Projektliste,
    * solange die Übersicht leer gewesen wäre; jetzt wäre der Umweg die Lücke.
    */
-  { schluessel: 'bau', label: 'Bau', pfad: 'bau', recht: 'bau.lesen', icon: 'aufmass' },
+  { schluessel: 'bau', label: 'Bau', pfad: 'bau', recht: 'bau.lesen', icon: 'aufmass', gruppe: 'einsatz' },
   /**
    * `security`, nicht mehr `security/posten`: die Modulübersicht (§5.8,
    * Zeile 1) ist gebaut. Sie trägt drei Kacheln — unterbesetzte Posten,
@@ -311,7 +346,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Gruppenleitung liest keine Vorkommnismeldungen einer anderen
    * Gesellschaft.
    */
-  { schluessel: 'security', label: 'Security', pfad: 'security', recht: 'security.lesen', icon: 'security' },
+  { schluessel: 'security', label: 'Security', pfad: 'security', recht: 'security.lesen', icon: 'security', gruppe: 'einsatz' },
   /**
    * `reinigung`, nicht mehr `reinigung/reviere`: die Modulübersicht (§5.7,
    * Zeile 1) ist gebaut und hat einen Inhalt — Reviere, Schichten heute,
@@ -324,14 +359,14 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * einem Gebäude — der Satz führt seit DESIGN §5 ein eigenes Bild, und der
    * Eintrag benutzte es längst.
    */
-  { schluessel: 'reinigung', label: 'Reinigung', pfad: 'reinigung', recht: 'reinigung.lesen', icon: 'reinigung' },
+  { schluessel: 'reinigung', label: 'Reinigung', pfad: 'reinigung', recht: 'reinigung.lesen', icon: 'reinigung', gruppe: 'einsatz' },
   /**
    * Qualität steht NEBEN den Gewerken, nicht darin: eine Beanstandung über
    * einen Wachmann ist dieselbe Zeile wie eine über eine Reinigungsrunde
    * (04-SEITENKARTE.md §5.6). `warnung` als Icon, weil der Punkt im Alltag
    * genau dafür angeklickt wird — die offenen Fälle.
    */
-  { schluessel: 'qualitaet', label: 'Qualität', pfad: 'qualitaet/reklamationen', recht: 'qualitaet.lesen', icon: 'qualitaet' },
+  { schluessel: 'qualitaet', label: 'Qualität', pfad: 'qualitaet/reklamationen', recht: 'qualitaet.lesen', icon: 'qualitaet', gruppe: 'einsatz' },
   /**
    * PR 42 — die beiden Security-Register bekommen eigene Punkte.
    *
@@ -358,8 +393,8 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * die Anweisung, die gelesen und bestaetigt wird, `schloss` fuer den
    * Schluessel. Ein eigenes zu zeichnen hiesse zuerst DESIGN.md zu aendern.
    */
-  { schluessel: 'dienstanweisungen', label: 'Dienstanweisungen', pfad: 'security/dienstanweisungen', recht: 'dienstanweisung.lesen', icon: 'dokument' },
-  { schluessel: 'schluessel', label: 'Schlüssel', pfad: 'security/schluessel', recht: 'schluessel.lesen', icon: 'schloss' },
+  { schluessel: 'dienstanweisungen', label: 'Dienstanweisungen', pfad: 'security/dienstanweisungen', recht: 'dienstanweisung.lesen', icon: 'dokument', gruppe: 'einsatz' },
+  { schluessel: 'schluessel', label: 'Schlüssel', pfad: 'security/schluessel', recht: 'schluessel.lesen', icon: 'schloss', gruppe: 'einsatz' },
   /**
    * **`system.mandant_lesen` und nicht `system.einstellung_lesen`.**
    *
@@ -383,7 +418,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Menüpunkte gegen das Manifest hielt — derselbe Vergleich, der bei Social
    * (D-573) und Recruiting (D-574) je einen Befund brachte.
    */
-  { schluessel: 'einstellungen', label: 'Einstellungen', pfad: 'einstellungen', recht: 'system.mandant_lesen', icon: 'einstellungen' },
+  { schluessel: 'einstellungen', label: 'Einstellungen', pfad: 'einstellungen', recht: 'system.mandant_lesen', icon: 'einstellungen', gruppe: 'werkzeuge' },
 ] as const;
 
 /** Die Punkte, die in der Gruppenansicht überhaupt erscheinen dürfen. */

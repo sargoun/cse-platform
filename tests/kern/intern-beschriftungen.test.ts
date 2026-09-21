@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NAVIGATION, GRUPPEN_NAVIGATION } from '@/server/registry/navigation';
+import { NAVIGATION, GRUPPEN_NAVIGATION, NAVI_GRUPPEN } from '@/server/registry/navigation';
 import { INTERNE_LEISTEN, tableiste } from '@/server/registry/tableiste';
 import {
   BAUZUSTAND_TEXTE, bauzustandTexte, INTERN_BESCHRIFTUNGEN, INTERN_SPRACHEN,
@@ -28,6 +28,11 @@ const HUELLEN_SCHLUESSEL: readonly string[] = [
 
 function registerSchluessel(): readonly string[] {
   const aus = new Set<string>(HUELLEN_SCHLUESSEL);
+  /* Die sieben Gruppen der Leiste (D-616) — sie sind Ueberschriften auf dem
+     Bildschirm und fallen damit unter dieselbe Regel wie die Punkte: ein
+     deutscher Gruppenname auf dem englischen Bildschirm sieht aus wie eine
+     Entscheidung und ist eine Luecke. */
+  for (const g of NAVI_GRUPPEN) aus.add(`leiste.${g}`);
   for (const e of NAVIGATION) aus.add(e.schluessel);
   for (const e of GRUPPEN_NAVIGATION) aus.add(e.schluessel);
   for (const l of INTERNE_LEISTEN) for (const z of tableiste(l).ziele) aus.add(z.schluessel);
