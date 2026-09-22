@@ -1968,6 +1968,7 @@ the active mandant only**; platform rows are readable by `super_admin` alone, an
 | Path | Right | Scope | SPEC | Phase |
 |---|---|---|---|---|
 | `/portal/[mandant]/datenschutz` — data-subject request inbox with the Art. 12(3) one-month clock | `datenschutz.auskunft_erstellen` | `M1` | LEG-09 | 7 |
+| `/portal/[mandant]/datenschutz/aufnehmen` — record a request that arrived by letter, telephone, email or in person (Art. 12(1) names all three forms). The receipt instant is an **entry**, not the clock: the Art. 12(3) deadline runs from the postmark, not from the day someone typed it in — and never from a moment in the future | `datenschutz.auskunft_erstellen` | `M1` | LEG-09 | 7 |
 | `/portal/[mandant]/datenschutz/[id]` — the request, its subject match and its deadline | `datenschutz.auskunft_erstellen` | `M1` | LEG-09 | 7 |
 | `/portal/[mandant]/datenschutz/[id]/auskunft` — assemble the Art. 15 export for a person, an applicant or a customer contact | `datenschutz.auskunft_erstellen` | `M1` | LEG-09 | 7 |
 | `/portal/[mandant]/datenschutz/[id]/berichtigung` — Art. 16 | `datenschutz.berichtigung_bearbeiten` | `M1` | LEG-09 | 7 |

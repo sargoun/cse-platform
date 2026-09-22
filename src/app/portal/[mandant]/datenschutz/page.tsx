@@ -97,6 +97,30 @@ export default async function Anfragen(
       </div>
 
       {/*
+        * **Der Weg für den Brief und den Anruf** (V-031, Art. 12 Abs. 1).
+        *
+        * Diese Liste hatte genau eine Quelle: das öffentliche Formular. Art. 12
+        * Abs. 1 kennt diese Beschränkung nicht — der Antrag geht „schriftlich
+        * oder in anderer Form", der mündliche ausdrücklich eingeschlossen. Ein
+        * Brief löste damit dieselbe Monatsfrist aus wie das Formular und hatte
+        * in der Plattform, die diese Frist überwacht, keinen Platz.
+        *
+        * Der Knopf steht am Recht dieser Liste (`datenschutz.auskunft_erstellen`,
+        * §5.25) — wer den Vorgang führen darf, nimmt den Brief auf, der ihn
+        * auslöst.
+        */}
+      {darf['datenschutz.auskunft_erstellen'] === true && (
+        <Link
+          href={`/portal/${mandant}/datenschutz/aufnehmen`}
+          data-cse="anfrage-aufnehmen"
+          className="mb-s5 inline-flex min-h-11 items-center rounded-md bg-brand
+                     px-s4 text-sm font-semibold text-white hover:bg-brand-hover"
+        >
+          Anfrage aufnehmen
+        </Link>
+      )}
+
+      {/*
         * **Der Eingang zu den gemeldeten Barrieren** (V-032, LEG-07, BFSG).
         *
         * Das öffentliche Meldeformular schreibt seit je hinein — und NIEMAND

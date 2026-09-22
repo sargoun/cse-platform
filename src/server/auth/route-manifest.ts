@@ -557,6 +557,21 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /*
+     * V-031, Art. 12 Abs. 1. Eine Anfrage protokollieren, die NICHT durch das
+     * oeffentliche Formular kam — Brief, Anruf, E-Mail, persoenlich.
+     *
+     * **Dasselbe Recht wie /bearbeiten, und das ist kein Versehen.** Wer den
+     * Vorgang fuehren darf, nimmt den Brief auf, der ihn ausloest; ein eigenes
+     * Recht braeuchten genau die Menschen zusaetzlich, die die Arbeit ohnehin
+     * tun (K-19). Vom oeffentlichen Eingang daneben trennt sie die Policy
+     * `t_betroffenenanfrage_aufnahme` (0378): dieser Weg kann `eingangsweg =
+     * formular` nicht schreiben, und der oeffentliche Prinzipal nichts anderes.
+     */
+    pfad: 'api/datenschutz/aufnehmen',
+    recht: 'datenschutz.auskunft_erstellen',
+  },
+  {
+    /*
      * LEG-07. Eine gemeldete Barriere abschliessen. `referenz.schreiben`, weil
      * behoben wird, wer die Seite aendern kann — der Meldeweg daneben verlangt
      * gar kein Recht, und das ist die Richtung: melden darf jeder.

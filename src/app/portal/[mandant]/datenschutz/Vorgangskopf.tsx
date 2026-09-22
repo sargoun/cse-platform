@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
 import {
-  ART_TEXT, ZUORDNUNG_TEXT, type AnfrageZeile, type Zuordnung,
+  ART_TEXT, WEG_TEXT, ZUORDNUNG_TEXT, type AnfrageZeile, type Zuordnung,
 } from '@/server/services/datenschutz/anfrage';
 
 /**
@@ -137,7 +137,22 @@ export function Vorgangskopf({ mandant, z, zuordnung, aktiv, darf }: {
           {z.name}
           <span className="block text-xs text-text-muted">{z.email}</span>
         </Feld>
-        <Feld kopf="Eingegangen">{BERLIN.format(new Date(z.eingegangenAm))}</Feld>
+        {/*
+          * **Der Eingang nennt seinen WEG** (V-031, Art. 12 Abs. 1).
+          *
+          * Solange das öffentliche Formular die einzige Quelle war, war der
+          * Weg selbstverständlich und musste nirgends stehen. Seit das Büro
+          * Brief, Anruf und E-Mail aufnehmen kann, ist er die Angabe, an der
+          * die Frist hängt: beim Formular ist der Eingang gemessen, sonst
+          * protokolliert — und wer ihn protokolliert hat, steht daneben.
+          */}
+        <Feld kopf="Eingegangen">
+          {BERLIN.format(new Date(z.eingegangenAm))}
+          <span className="block text-xs text-text-muted" data-cse="eingangsweg">
+            {WEG_TEXT[z.eingangsweg]}
+            {z.erfasstVon === null ? null : ` · aufgenommen von ${z.erfasstVon}`}
+          </span>
+        </Feld>
         <Feld kopf="Frist (Art. 12 Abs. 3)"><Fristanzeige z={z} /></Feld>
         <Feld kopf="Zuordnung">
           {zuordnung.art === 'keine' ? (
