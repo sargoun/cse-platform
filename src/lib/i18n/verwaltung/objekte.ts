@@ -20,6 +20,12 @@
 import type { InternSprache } from '../intern.js';
 
 export interface ObjekteTexte {
+  /* ── Die Reiter des Objektblatts (V-044, SEITENKARTE §5.4) ─────────── */
+  readonly reiter: Readonly<Record<string, string>>;
+  readonly reiterLeer: string;
+  readonly reiterAlle: string;
+  readonly einsaetzeFenster: string;
+
   /* ── Überschriften ─────────────────────────────────────────────────── */
   readonly neuTitel: string;
   readonly bearbeitenTitel: string;
@@ -76,6 +82,22 @@ export interface ObjekteTexte {
 
 export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
   de: {
+    reiter: {
+      uebersicht: 'Übersicht',
+      raumbuch: 'Raumbuch',
+      reviere: 'Reviere',
+      posten: 'Posten',
+      dienstanweisungen: 'Dienstanweisungen',
+      schluessel: 'Schlüssel',
+      auftraege: 'Aufträge',
+      einsaetze: 'Einsätze',
+      dokumente: 'Dokumente',
+      qualitaet: 'Qualität',
+    },
+    reiterLeer: 'Zu diesem Objekt ist hier nichts erfasst.',
+    reiterAlle: 'Alle anzeigen',
+    einsaetzeFenster: 'Die letzten dreißig Tage und alles Kommende — die '
+      + 'vollständige Reihe steht im Dienstplan.',
     neuTitel: 'Neues Objekt',
     bearbeitenTitel: 'Objekt bearbeiten',
     alleObjekte: 'Alle Objekte',
@@ -147,6 +169,22 @@ export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
     keinSchreibrechtAendern: 'Zum Ändern fehlt Ihnen',
   },
   en: {
+    reiter: {
+      uebersicht: 'Overview',
+      raumbuch: 'Raumbuch (room book)',
+      reviere: 'Reviere (cleaning districts)',
+      posten: 'Posten (guard posts)',
+      dienstanweisungen: 'Dienstanweisungen (standing orders)',
+      schluessel: 'Keys',
+      auftraege: 'Aufträge (orders)',
+      einsaetze: 'Einsätze (shifts)',
+      dokumente: 'Documents',
+      qualitaet: 'Quality',
+    },
+    reiterLeer: 'Nothing is recorded here for this Objekt (site).',
+    reiterAlle: 'Show all',
+    einsaetzeFenster: 'The last thirty days and everything ahead — the full '
+      + 'series is in the Dienstplan (roster).',
     neuTitel: 'New Objekt',
     bearbeitenTitel: 'Edit Objekt',
     alleObjekte: 'All Objekte',

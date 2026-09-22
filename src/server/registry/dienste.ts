@@ -954,6 +954,13 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'objekt.schreiben',
   },
   /**
+   * V-044 — was an einem Objekt haengt: Reviere, Posten,
+   * Dienstanweisungen, Schluessel, Auftraege, Einsaetze, Dokumente,
+   * Pruefungen. Rein lesend; jede Unterabfrage laeuft unter der Policy
+   * IHRER Tabelle, und der Reiter darueber unter dem Recht seines Moduls.
+   */
+  { modul: 'objekt', pfad: 'objekt/umfeld', schreibend: false },
+  /**
    * **Der Posteingang der Kraft (0350, EMP-11).** Beide lesend: der Faden wird
    * gelesen, geantwortet wird ueber `kern/nachricht` — den Fachdienst, der
    * ohnehin unter `nachricht.versenden` schreibt. Ein vierter, im Portaldienst
