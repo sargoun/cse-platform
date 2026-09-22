@@ -4,6 +4,11 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { haeltRechte } from '@/app/portal/rechte';
+import { KontoHandlungen } from '../KontoHandlungen';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { ZUGANG_TEXTE } from '@/lib/i18n/verwaltung/einstellungen/zugang';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { kennungOder404 } from '../../../../kennung';
@@ -71,7 +76,10 @@ function Feld({ label, wert }: { readonly label: string; readonly wert: React.Re
 }
 
 export default async function Benutzerblatt(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
@@ -80,6 +88,12 @@ export default async function Benutzerblatt(
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang, mandantId } = tor;
   const selbst = id.toLowerCase() === zugang.sitzung.benutzerId.toLowerCase();
+  const darf = await haeltRechte(
+    zugang.sitzung, 'system.benutzer_verwalten', 'system.sitzung_widerrufen');
+  const suche = await searchParams;
+  const stand = typeof suche['konto'] === 'string' ? suche['konto'] : null;
+  const anzahl = typeof suche['anzahl'] === 'string' ? suche['anzahl'] : null;
+  const tZugang = nachSprache(ZUGANG_TEXTE, zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -127,7 +141,13 @@ export default async function Benutzerblatt(
       titel={kopf.name}
       wurzelTitel="Benutzer"
       bereich={mandant as BereichSchluessel}
-      nurLesen
+      /*
+       * **Das Blatt ist nicht mehr nur lesend** (V-022, V-074, V-075, V-076).
+       * Die Marke stand hier, solange es nichts zu tun gab; neben vier
+       * Knöpfen wäre sie eine Aussage, die das Blatt selbst widerlegt. Die
+       * Gruppenansicht bleibt lesend — dort greift Invariante 10.
+       */
+      nurLesen={zugang.sitzung.ansicht === 'gruppe'}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
       aktiverTab="mehr"
@@ -135,6 +155,18 @@ export default async function Benutzerblatt(
       navigationsRechte={zugang.navigationsRechte}
     >
       <h1 className="mb-s5 text-h1 text-text">{kopf.name}</h1>
+
+      {stand === null ? null : (
+        <Hinweis
+          art={stand.endsWith('_unveraendert') ? 'hinweis' : 'erfolg'}
+          cse="konto-stand"
+          className="mb-s5 max-w-prose"
+        >
+          {tZugang.meldung[stand] ?? stand}
+          {anzahl === null ? null : ` (${anzahl})`}
+        </Hinweis>
+      )}
+
       <section className="mb-s6 rounded-lg border border-line bg-surface p-s5">
         <h2 className="mb-s4 text-h3 text-text">Konto</h2>
         <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-s5 gap-y-s3">
@@ -169,6 +201,16 @@ export default async function Benutzerblatt(
           ]}
         />
       </div>
+
+      <KontoHandlungen
+        mandant={mandant}
+        benutzerId={kopf.id}
+        status={kopf.status}
+        selbst={selbst}
+        darfVerwalten={darf['system.benutzer_verwalten'] === true}
+        darfWiderrufen={darf['system.sitzung_widerrufen'] === true}
+        t={tZugang}
+      />
 
       <h2 className="mb-s3 text-h2 text-text">Sitzungen</h2>
       {!selbst ? (

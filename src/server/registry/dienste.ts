@@ -228,6 +228,21 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * (K-19, §12.4 Selbstzugriff).
    */
   { modul: 'system', pfad: 'konto/sitzungen', schreibend: false },
+  /**
+   * V-022, V-074, V-075, V-076 — ein Konto zuruecknehmen.
+   *
+   * **Das Schreibrecht ist `system.benutzer_verwalten` und deckt drei der
+   * vier Handlungen.** Der Sitzungswiderruf haengt am kleineren
+   * `system.sitzung_widerrufen` (bindbar bis `leitung`): er nimmt ein
+   * Plaetzchen aus dem Verkehr, keinen Menschen aus dem Betrieb. Beide
+   * Rechte prueft die Datenbank je Funktion selbst (`drizzle/0379`) —
+   * das Register nennt hier das groessere, weil es das ist, an dem die
+   * Route haengt.
+   */
+  {
+    modul: 'system', pfad: 'konto/verwaltung',
+    schreibend: true, schreibRecht: 'system.benutzer_verwalten',
+  },
   { modul: 'zeit', pfad: 'zeit/dauer', schreibend: false },
   /**
    * **Was ein `datetime-local`-Feld schickt, wird hier zum Instant.**

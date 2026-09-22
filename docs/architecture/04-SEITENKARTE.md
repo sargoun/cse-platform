@@ -1358,6 +1358,7 @@ and `zeiteintrag` attaches to the `auftrag` directly (TIM-12), which is why
 | `/portal/[mandant]/personal/nachweise` — certificate register with 60/30/7-day expiry escalation | `personal.nachweis_lesen` | `M1` | SEC-02, EMP-08, LEG-04 | 5 |
 | `/portal/[mandant]/personal/nachweise/[id]` | `personal.nachweis_verwalten` | `M1` | SEC-02, SEC-03, SEC-04 | 5 |
 | `/portal/[mandant]/personal/abwesenheiten` , `/[id]` — calendar + list | `zeit.abwesenheit_lesen` | `M1` | EMP-05, EMP-10 | 5 |
+| `/portal/[mandant]/personal/abwesenheiten/erfassen` — record an absence reported by phone or in person. The service behind it is the one the worker's own path uses; what differs is who fills it in, and `erstellt_von` says so. Status is **erfasst** (noted), never `beantragt`: nobody decides about an illness | `zeit.abwesenheit_melden` | `M1` | EMP-05, EMP-09 | 5 |
 | `/portal/[mandant]/personal/antraege` , `/[id]` — leave, swap and sickness inbox; approve or decline | `zeit.antrag_entscheiden` | `M1` | EMP-10, NOT-01 | 5 |
 | `/portal/[mandant]/personal/stundenkonten` — target versus actual per employment, monthly lock state | `zeit.konto_lesen` | `M1` | EMP-04, EMP-15, REP-04 | 5 |
 | `/portal/[mandant]/personal/stundenkonten/[anstellungId]` — balance, carry-forward, month history | `zeit.konto_lesen` | `M1` | EMP-04, EMP-15 | 5 |

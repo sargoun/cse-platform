@@ -552,6 +552,36 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'crm.schreiben',
   },
   {
+    /*
+     * V-022, V-074, V-075, V-076. Ein fremdes Konto entsperren, entziehen,
+     * wiedergeben oder seine Anmeldungen widerrufen.
+     *
+     * **Das Manifest nennt das GROESSERE der zwei Rechte.** Drei der vier
+     * Handlungen verlangen `system.benutzer_verwalten`; der Sitzungswiderruf
+     * verlangt `system.sitzung_widerrufen`, das bis `leitung` bindbar ist.
+     * Welches im Einzelfall gilt, entscheidet die Route je Handlung — ein
+     * festes Recht waere entweder zu eng (eine `leitung` kaeme nicht an den
+     * Widerruf, fuer den sie gebunden ist) oder zu weit (der Zugangsentzug
+     * hinge am kleineren Recht). Die vier Funktionen in `0379` fragen ihr
+     * Recht ein zweites Mal, gegen den aktiven Mandanten.
+     */
+    pfad: 'api/konto/verwaltung',
+    recht: 'system.benutzer_verwalten',
+  },
+  {
+    /*
+     * V-025, EMP-09. Die Krankmeldung am Telefon um 05:40.
+     *
+     * `zeit.abwesenheit_melden` ist DASSELBE Recht wie auf dem Weg der
+     * Arbeiterin — die INSERT-Policy auf `abwesenheit` (0073) verlangt es von
+     * beiden, und `admin` wie `leitung` halten es seit je. Was hier anders
+     * ist, ist nicht das Recht, sondern WESSEN Anstellung eingetragen wird:
+     * der zusammengesetzte Fremdschluessel haelt sie im Mandanten.
+     */
+    pfad: 'api/personal/abwesenheit',
+    recht: 'zeit.abwesenheit_melden',
+  },
+  {
     pfad: 'api/datenschutz/bearbeiten',
     recht: 'datenschutz.auskunft_erstellen',
   },
