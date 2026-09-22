@@ -667,6 +667,7 @@ interface AusgabeKopfRoh {
   readonly id: string;
   readonly mandant_id: string;
   readonly status: string;
+  readonly kategorie_id: string;
   readonly bezeichnung: string;
   readonly ausgabedatum: string;
   readonly zahlungsmittel: string;
@@ -698,17 +699,19 @@ interface AusgabeKopfRoh {
  * Dienstes.**
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * `app.konto_aufloesen` (0126) kennt in seiner Stufenleiter **keinen Zweig
- * für `aufwand_kategorie`**: `0180` hat die Sperre `km_typ_hat_eltern`
- * aufgehoben und `konto_mapping.ausgabe_kategorie_id` samt Fremdschlüssel
- * gesetzt, den Auflöser aber nicht erweitert. Eine hinterlegte Zuordnung
- * bekäme `stufe = null` und fiele aus der Kandidatenmenge (V-126).
+ * **Seit 0383 findet der Auflöser die Zuordnung** (V-126): seine
+ * Stufenleiter kannte den Typ `aufwand_kategorie` nicht, obwohl `0180` die
+ * Sperre aufgehoben und `konto_mapping.ausgabe_kategorie_id` gesetzt hatte —
+ * eine hinterlegte Zeile bekam `stufe = null` und fiel aus der
+ * Kandidatenmenge. Eintragbar und unauffindbar.
  *
- * `kontiere` wirft deshalb nicht, sondern gibt `konto: null` mit Hinweis
- * zurück: die Zeile entsteht, steht in der Arbeitsliste und blockiert den
- * Monatsabschluss (D-425). **Das ist die richtige Richtung** — eine Ausgabe,
- * die wegen einer fehlenden Zuordnung gar nicht erst gebucht wird, fehlt in
- * der Buchführung, und das merkt niemand. Eine Zeile ohne Konto merkt jeder.
+ * **Offen bleibt trotzdem, WELCHES Konto** (O-05): solange niemand eine
+ * Zuordnung eingetragen hat, gibt es keine zu finden. `kontiere` wirft
+ * deshalb nicht, sondern gibt `konto: null` mit Hinweis zurück: die Zeile
+ * entsteht, steht in der Arbeitsliste und blockiert den Monatsabschluss
+ * (D-425). **Das ist die richtige Richtung** — eine Ausgabe, die wegen einer
+ * fehlenden Zuordnung gar nicht erst gebucht wird, fehlt in der Buchführung,
+ * und das merkt niemand. Eine Zeile ohne Konto merkt jeder.
  *
  * Dasselbe gilt für das Geldkonto bei allem, was nicht bar ist: die
  * Zuordnung verlangt ein Bank- oder Kassenkonto (0126), und die
@@ -718,7 +721,7 @@ export async function bucheAusgabe(
   db: Abfrage, ausgabeId: string,
 ): Promise<BuchungErgebnis> {
   const [kopf] = await db.abfrage<AusgabeKopfRoh>(
-    `select a.id, a.mandant_id, a.status::text as status, a.bezeichnung,
+    `select a.id, a.mandant_id, a.status::text as status, a.kategorie_id, a.bezeichnung,
             a.ausgabedatum::text as ausgabedatum, a.zahlungsmittel::text as zahlungsmittel,
             a.kasse_id, a.beleg_id,
             a.netto_cent::text, a.steuer_cent::text, a.brutto_cent::text
@@ -773,6 +776,13 @@ export async function bucheAusgabe(
     const aufwand = await kontiere(db, {
       mandantId: kopf.mandant_id, typ: 'aufwand_kategorie', datum,
       steuersatzGruppeId: g.steuersatz_gruppe_id,
+      /*
+       * **Die Kategorie steht auf der Ausgabe, und seit 0383 findet der
+       * Auflöser sie auch** (V-126). Vorher kannte seine Stufenleiter den
+       * Typ `aufwand_kategorie` nicht: eine hinterlegte Zuordnung war
+       * eintragbar und unauffindbar.
+       */
+      ausgabeKategorieId: kopf.kategorie_id,
     });
     zeilen.push({
       konto: aufwand.konto,

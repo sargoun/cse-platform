@@ -313,6 +313,54 @@ describe('§4 das Buchen — Zustand und Buchungssatz in einer Transaktion', () 
       .rejects.toBeInstanceOf(AusgabeFehler);
   });
 
+  /**
+   * ═════════════════════════════════════════════════════════════════════════
+   * **Und mit hinterlegter Zuordnung steht das Konto auch da** (V-126, 0383).
+   * ═════════════════════════════════════════════════════════════════════════
+   *
+   * `0180` hatte die Sperre `km_typ_hat_eltern` aufgehoben und
+   * `konto_mapping.ausgabe_kategorie_id` samt Fremdschlüssel gesetzt — die
+   * Stufenleiter in `app.konto_aufloesen` kannte den Typ
+   * `aufwand_kategorie` trotzdem nicht. Eine Zuordnung war damit
+   * **eintragbar und unauffindbar**: `/buchhaltung/konten` führte sie als
+   * „Aufwandskonto (Kategorie)", und gebucht wurde trotzdem ohne Konto.
+   *
+   * Diese Prüfung ist die Gegenprobe zu der darüber: dort fehlt die
+   * Zuordnung und die Zeile steht mit Hinweis in der Arbeitsliste, hier
+   * steht sie da und das Konto steht auf der Zeile.
+   */
+  it('mit hinterlegter Kontenzuordnung steht das Aufwandskonto auf der Zeile', async () => {
+    await sql.unsafe(
+      `insert into datev_konfiguration (mandant_id, kontenrahmen,
+                                        erstellt_von_art, erstellt_von)
+       values ($1, 'skr03', 'mensch', $2)
+       on conflict (mandant_id) do update set kontenrahmen = 'skr03'`,
+      [f.reinigung, buchhaltung]);
+    await sql.unsafe(
+      `insert into konto_mapping
+         (mandant_id, kontenrahmen, schluessel_typ, ausgabe_kategorie_id,
+          konto, gueltig_von, ist_platzhalter, erstellt_von_art, erstellt_von)
+       values ($1, 'skr03', 'aufwand_kategorie', $2, '4530', '2020-01-01', false,
+               'mensch', $3)`,
+      [f.reinigung, kategorieId, buchhaltung]);
+
+    const id = await erfasse({ mitBeleg: true });
+    await imKontext(buchhaltung, async (k) => {
+      await gibAusgabeFrei(k, id);
+      return bucheAusgabe(k, id);
+    });
+
+    const zeilen = await sql.unsafe<{ konto: string | null; soll_haben: string }[]>(
+      `select konto, soll_haben::text as soll_haben from buchungssatz
+        where ausgabe_id = $1 and herkunft = 'ausgabe' and soll_haben = 'soll'
+        order by umsatz_cent desc`, [id]);
+    expect(zeilen.length, 'Aufwand und Vorsteuer je Gruppe').toBeGreaterThan(0);
+    expect(
+      zeilen.some((z) => z.konto === '4530'),
+      'die hinterlegte Zuordnung wird gefunden — vor 0383 blieb sie unsichtbar',
+    ).toBe(true);
+  });
+
   /** Ab `gebucht` ist die Zeile unveränderlich (ACC-06, GoBD). */
   it('eine gebuchte Ausgabe lässt sich nicht mehr ablehnen', async () => {
     const id = await erfasse({ mitBeleg: true });

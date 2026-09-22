@@ -31,6 +31,16 @@ export interface KontoFrage {
   readonly lieferantId?: string | null;
   readonly bankkontoId?: string | null;
   readonly kasseId?: string | null;
+  /**
+   * Die Aufwandskategorie einer Ausgabe (V-126, 0383).
+   *
+   * Sie kam spät: `0180` setzte `konto_mapping.ausgabe_kategorie_id`, und die
+   * Stufenleiter in `app.konto_aufloesen` kannte den Typ trotzdem nicht —
+   * eine hinterlegte Zuordnung war eintragbar und unauffindbar. `null` ist
+   * weiterhin gültig und trifft dann die Stufen ohne Kategorie: die
+   * Eingangsrechnung trägt keine.
+   */
+  readonly ausgabeKategorieId?: string | null;
 }
 
 export interface Kontierung {
@@ -66,7 +76,7 @@ export async function kontiere(db: Abfrage, frage: KontoFrage): Promise<Kontieru
     `select (t).konto, (t).gegenkonto, (t).bu_schluessel, (t).mapping_id,
             (t).ist_platzhalter, (t).pruefhinweis
        from (select app.konto_aufloesen($1, $2::konto_schluessel_typ, $3::date,
-                                        $4, $5, $6, $7, $8, $9, $10) as t) s`,
+                                        $4, $5, $6, $7, $8, $9, $10, $11) as t) s`,
     [frage.mandantId, frage.typ, frage.datum,
       frage.leistungskatalogPositionId ?? null,
       frage.erloeskontoSchluessel ?? null,
@@ -74,7 +84,8 @@ export async function kontiere(db: Abfrage, frage: KontoFrage): Promise<Kontieru
       frage.kundeId ?? null,
       frage.lieferantId ?? null,
       frage.bankkontoId ?? null,
-      frage.kasseId ?? null]);
+      frage.kasseId ?? null,
+      frage.ausgabeKategorieId ?? null]);
 
   if (zeile === undefined) {
     return {
