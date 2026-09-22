@@ -10,8 +10,10 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { GeldFehler, parseGeld } from '@/server/services/finanz/geld';
 import {
-  ZahlungFehler, storniereZahlung, verbucheZahlungseingang, type Zahlungsart,
+  ZahlungFehler, bucheBauabzug, gleicheAus, legeBankkontoAn, storniereZahlung,
+  verbucheZahlungseingang, type Zahlungsart,
 } from '@/server/services/finanz/zahlung/index';
+import { IbanFehler } from '@/server/services/finanz/zahlung/iban';
 
 /**
  * `POST /api/finanzen/zahlungen` — einen Zahlungseingang erfassen (FIN-14,
@@ -36,9 +38,11 @@ export const dynamic = 'force-dynamic';
 const MITTEL: ReadonlySet<string> = new Set(
   ['ueberweisung', 'lastschrift', 'bar', 'karte', 'verrechnung']);
 
-function zurueck(anfrage: NextRequest, hinweis?: string): NextResponse {
+function zurueck(
+  anfrage: NextRequest, hinweis?: string, seite = 'zahlungen',
+): NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-  const url = new URL(`/portal/${slug}/finanzen/zahlungen`, erwarteterUrsprung(anfrage));
+  const url = new URL(`/portal/${slug}/finanzen/${seite}`, erwarteterUrsprung(anfrage));
   if (hinweis !== undefined) url.searchParams.set('hinweis', hinweis);
   return NextResponse.redirect(url, 303);
 }
@@ -68,6 +72,68 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           { recht: 'zahlung.schreiben', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
+
+        /*
+         * **Drei Dienste, die es seit je gibt und die niemand rief** (V-007,
+         * V-090, V-091). Sie stehen hier und nicht in drei eigenen Routen,
+         * weil alle drei an DEMSELBEN Recht haengen — `zahlung.schreiben`,
+         * das das Tor oben schon geprueft hat. Drei Tore mit demselben
+         * Praedikat waeren drei Stellen, an denen es auseinanderliefe.
+         */
+        if (aktion === 'bankkonto') {
+          const bezeichnung = text('bezeichnung');
+          const iban = text('iban');
+          const kontoinhaber = text('kontoinhaber');
+          if (bezeichnung === null || iban === null || kontoinhaber === null) {
+            return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
+          }
+          await legeBankkontoAn(kontext, {
+            bezeichnung, iban, kontoinhaber,
+            bic: text('bic'),
+            istStandard: daten.get('ist_standard') === 'ja',
+          });
+          return zurueck(anfrage, 'bankkonto', 'bankkonten');
+        }
+
+        if (aktion === 'bauabzug') {
+          /*
+           * V-090, § 48 EStG. Ohne diesen Weg bliebe auf jeder Rechnung eines
+           * bauabzugspflichtigen Kunden genau der Einbehalt offen — 15 % der
+           * Summe, dauerhaft, in jeder Altersliste und in jedem Mahnlauf.
+           * Der Kunde hat ihn ans Finanzamt abgefuehrt und schuldet ihn nicht.
+           */
+          const rechnungId = text('rechnungId');
+          if (rechnungId === null) {
+            return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
+          }
+          await bucheBauabzug(kontext, rechnungId);
+          return zurueck(anfrage, 'bauabzug');
+        }
+
+        if (aktion === 'ausgleichen') {
+          /*
+           * V-091, §7.4. Ein Guthaben gegen eine Forderung — ohne dass eine
+           * Zahlung erfunden wird. Der Betrag kommt als Geldbetrag herein und
+           * geht durch `parseGeld`: Invariante 1, ganze Cent, nie Gleitkomma.
+           */
+          const sollPostenId = text('sollPostenId');
+          const habenPostenId = text('habenPostenId');
+          const betragRoh = text('ausgleichBetrag');
+          const grund = text('grund');
+          if (sollPostenId === null || habenPostenId === null
+              || betragRoh === null || grund === null) {
+            return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
+          }
+          if (sollPostenId === habenPostenId) {
+            return NextResponse.json({ fehler: 'derselbe_posten' }, { status: 400 });
+          }
+          await gleicheAus(kontext, {
+            sollPostenId, habenPostenId,
+            betragCent: parseGeld(betragRoh),
+            grund,
+          });
+          return zurueck(anfrage, 'ausgeglichen');
+        }
 
         if (aktion === 'stornieren') {
           const zahlungId = text('zahlungId');
@@ -126,6 +192,15 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     }
     if (fehler instanceof GeldFehler) {
       return NextResponse.json({ fehler: 'ungueltig', felder: ['betrag'] }, { status: 400 });
+    }
+    /*
+     * `ibanGeprueft` wirft einen `IbanFehler` — eine falsche Pruefziffer ist
+     * die haeufigste Eingabe beim Anlegen eines Bankkontos und kein
+     * Serverfehler.
+     */
+    if (fehler instanceof IbanFehler) {
+      return NextResponse.json(
+        { fehler: `iban_${fehler.grund}`, meldung: fehler.message }, { status: 400 });
     }
     if (fehler instanceof ZahlungFehler) {
       return NextResponse.json(

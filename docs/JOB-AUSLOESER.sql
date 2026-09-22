@@ -233,3 +233,15 @@ select cron.schedule('cse_social_plan', '*/5 * * * *', $cse$
     body    := '{}'::jsonb
   );
 $cse$);
+
+-- Urlaubskonten des laufenden Jahres öffnen (EMP-05, § 3 BUrlG) (uebergreifend)
+select cron.unschedule('cse_urlaubskonten_jahr')
+  where exists (select 1 from cron.job where jobname = 'cse_urlaubskonten_jahr');
+select cron.schedule('cse_urlaubskonten_jahr', '45 0 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/urlaubskonten_jahr',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);

@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe('der Bootstrap verdrahtet ALLE Jobs', () => {
-  it('registriert die neunzehn Jobs, die es gibt', () => {
+  it('registriert die zwanzig Jobs, die es gibt', () => {
     const schluessel = alleJobs(db).map((j) => j.schluessel).sort();
     expect(schluessel).toEqual([
       'akquise_recherche', 'basiszinssatz_pruefen', 'belegarchiv_ausgangsrechnung',
@@ -58,7 +58,7 @@ describe('der Bootstrap verdrahtet ALLE Jobs', () => {
       'mahnvorschlaege_erzeugen',
       'morgen_unbesetzt', 'nachtrag_ueberfaellig', 'nachweis_warnungen',
       'offene_posten_abgleichen', 'radar_einlesen', 'radar_warnungen',
-      'schicht_ohne_zeiteintrag', 'social_plan',
+      'schicht_ohne_zeiteintrag', 'social_plan', 'urlaubskonten_jahr',
     ]);
   });
 

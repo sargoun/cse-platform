@@ -117,6 +117,17 @@ export function registriereKontenRollover(db: JobVerbindung): JobDefinition {
               if (z.vortrag !== null && Number(z.vortrag) !== 0) mitVortrag += 1;
             }
           }
+        }, {
+          /*
+           * **`nurLesen: false` — dieser Lauf SCHREIBT** (V-119).
+           *
+           * `alsJobSitzung` setzt `app.readonly` sonst auf `on`, und die
+           * Policy `j_konto_anlegen` (0380) verlangt `not app.ist_readonly()`.
+           * Ohne diese Zeile scheitert der Lauf sichtbar — was besser ist,
+           * als still nichts zu tun, und genau deshalb steht die Bedingung
+           * in der Policy.
+           */
+          nurLesen: false,
         });
       }
 

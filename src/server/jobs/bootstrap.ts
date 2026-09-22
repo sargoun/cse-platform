@@ -38,6 +38,7 @@ import { registriereFreigabeFenster } from './freigabeFenster.js';
 import { registriereSocialPlan } from './socialPlan.js';
 import { registriereBewerberLoeschung } from './bewerberLoeschung.js';
 import { registriereKontenRollover } from './kontenRollover.js';
+import { registriereUrlaubskontenJahr } from './urlaubskontenJahr.js';
 
 /*
  * Methodensyntax, nicht Eigenschaftssyntax — wie ueberall sonst im Baum
@@ -88,6 +89,7 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereSocialPlan(db);
     registriereBewerberLoeschung(db);
     registriereKontenRollover(db);
+    registriereUrlaubskontenJahr(db);
     registriereRadar(db);
     registriereAkquise(db);
     geschehen = true;

@@ -152,6 +152,21 @@ export default async function Abwesenheitsliste({
             Stundenkonten
           </Link>
         )}
+        {/*
+          * **Der Weg zu den Urlaubskonten** (V-117, V-118). Er steht neben
+          * den Stundenkonten, weil er dieselbe Frage beantwortet, eine
+          * Tabelle weiter: wie viel steht dieser Person zu. Am Recht der
+          * KONTEN, nicht dem dieser Liste — sonst führte er auf 404 (AUT-06).
+          */}
+        {darf['zeit.konto_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/urlaubskonten`}
+            data-cse="zu-den-urlaubskonten"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Urlaubskonten
+          </Link>
+        )}
         {darf['personal.nachweis_lesen'] === true && (
           <Link
             href={`/portal/${mandant}/personal/nachweise`}

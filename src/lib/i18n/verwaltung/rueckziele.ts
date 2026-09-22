@@ -113,6 +113,13 @@ const SEGMENTE: Readonly<Record<string, Readonly<Record<InternSprache, string>>>
     de: 'Leistungsnachweise', en: 'Leistungsnachweise (countersigned records)',
   },
   lv: { de: 'Leistungsverzeichnis', en: 'Leistungsverzeichnis (bill of quantities)' },
+  /*
+   * `Lieferanten` bleibt auch im englischen Text stehen (V-006): im
+   * Rechnungswesen ist der Begriff an den Kreditor gebunden, und
+   * `lieferantennummer` und `kreditorennummer` sind zwei verschiedene
+   * Dinge — „suppliers" fuer beides verwischt genau das.
+   */
+  lieferanten: { de: 'Lieferanten', en: 'Lieferanten' },
   mahnungen: { de: 'Mahnungen', en: 'Dunning' },
   mappe: { de: 'Vergabemappe', en: 'Vergabemappe (tender folder)' },
   nachrichten: { de: 'Nachrichten', en: 'Messages' },

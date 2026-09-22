@@ -46,6 +46,26 @@ export interface ZahlungenTexte {
   readonly referenz: string;
   readonly nichtZugeordnet: string;
 
+  /* ── § 48 EStG und der Postenausgleich (V-090, V-091) ─────────────── */
+  readonly bauabzugTitel: string;
+  readonly bauabzugErklaerung: string;
+  readonly bauabzugBuchen: string;
+  readonly bauabzugKeine: string;
+  readonly bauabzugGebucht: string;
+  readonly einbehalt: string;
+
+  readonly ausgleichTitel: string;
+  readonly ausgleichErklaerung: string;
+  readonly ausgleichForderung: string;
+  readonly ausgleichGuthaben: string;
+  readonly ausgleichGrund: string;
+  readonly ausgleichGrundBeispiel: string;
+  readonly ausgleichBuchen: string;
+  readonly ausgleichNichtsZuTun: string;
+  readonly ausgeglichen: string;
+
+  readonly zuDenBankkonten: string;
+
   /** Die Zahlungsmittel — `zahlungsmittel`-Enum aus 0121. */
   readonly mittelNamen: Readonly<Record<
     'ueberweisung' | 'lastschrift' | 'bar' | 'karte' | 'verrechnung', string>>;
@@ -63,6 +83,38 @@ export const ZAHLUNGEN_TEXTE: Readonly<Record<InternSprache, ZahlungenTexte>> = 
     rechnung: 'Rechnung',
     bezahlt: 'Bezahlt',
     offen: 'Offen',
+
+    bauabzugTitel: 'Einbehalt nach § 48 EStG',
+    bauabzugErklaerung:
+      'Bei einer Bauleistung behält der Leistungsempfänger 15 % ein und führt '
+      + 'sie ans Finanzamt ab — er schuldet sie nicht mehr. Ohne diese Buchung '
+      + 'bliebe genau dieser Betrag dauerhaft offen: in jeder Altersliste und '
+      + 'in jedem Mahnlauf. Gebucht wird er erst hier und nicht beim '
+      + 'Festschreiben, denn ob der Kunde ihn tatsächlich einbehält, zeigt sich '
+      + 'erst am Zahlungseingang.',
+    bauabzugBuchen: 'Einbehalt buchen',
+    bauabzugKeine:
+      'Keine offene Forderung weist einen Einbehalt nach § 48 EStG aus.',
+    bauabzugGebucht: 'Der Einbehalt ist gebucht.',
+    einbehalt: 'Einbehalt',
+
+    ausgleichTitel: 'Posten gegen Posten ausgleichen',
+    ausgleichErklaerung:
+      'Ein Guthaben gegen eine Forderung — ohne dass eine Zahlung erfunden '
+      + 'wird. Der Fall: ein Kunde hat überzahlt oder eine Rechnung wurde '
+      + 'storniert, und der Betrag soll die nächste Forderung decken. Beide '
+      + 'Posten bleiben stehen; was entsteht, ist die Verbindung zwischen ihnen.',
+    ausgleichForderung: 'Forderung (Soll)',
+    ausgleichGuthaben: 'Guthaben (Haben)',
+    ausgleichGrund: 'Grund',
+    ausgleichGrundBeispiel: 'z. B. Überzahlung aus R-2026-00012 verrechnet',
+    ausgleichBuchen: 'Ausgleich buchen',
+    ausgleichNichtsZuTun:
+      'Für einen Ausgleich braucht es beides: eine offene Forderung und ein '
+      + 'Guthaben.',
+    ausgeglichen: 'Der Ausgleich ist gebucht.',
+
+    zuDenBankkonten: 'Bankkonten',
 
     guthabenTitel: 'Guthaben der Kunden',
     guthabenErklaerung:
@@ -111,6 +163,34 @@ export const ZAHLUNGEN_TEXTE: Readonly<Record<InternSprache, ZahlungenTexte>> = 
     rechnung: 'Invoice',
     bezahlt: 'Paid',
     offen: 'Open',
+
+    bauabzugTitel: 'Withholding under § 48 EStG',
+    bauabzugErklaerung:
+      'For construction work the recipient withholds 15 % and pays it to the '
+      + 'tax office — they no longer owe it. Without this booking exactly that '
+      + 'amount would stay open forever: in every ageing list and every dunning '
+      + 'run. It is booked here and not at finalisation, because whether the '
+      + 'customer actually withholds it only shows at the incoming payment.',
+    bauabzugBuchen: 'Book the withholding',
+    bauabzugKeine: 'No open receivable shows a withholding under § 48 EStG.',
+    bauabzugGebucht: 'The withholding has been booked.',
+    einbehalt: 'Withholding',
+
+    ausgleichTitel: 'Offset item against item',
+    ausgleichErklaerung:
+      'A credit against a receivable — without inventing a payment. The case: a '
+      + 'customer overpaid or an invoice was reversed, and the amount should '
+      + 'cover the next receivable. Both items remain; what is created is the '
+      + 'link between them.',
+    ausgleichForderung: 'Receivable (debit)',
+    ausgleichGuthaben: 'Credit',
+    ausgleichGrund: 'Reason',
+    ausgleichGrundBeispiel: 'e.g. overpayment from R-2026-00012 applied',
+    ausgleichBuchen: 'Book the offset',
+    ausgleichNichtsZuTun: 'An offset needs both: an open receivable and a credit.',
+    ausgeglichen: 'The offset has been booked.',
+
+    zuDenBankkonten: 'Bank accounts',
 
     guthabenTitel: 'Customer credit balances',
     guthabenErklaerung:

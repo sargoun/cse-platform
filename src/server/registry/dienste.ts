@@ -229,6 +229,18 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'system', pfad: 'konto/sitzungen', schreibend: false },
   /**
+   * V-006 — die Kreditorenstammdaten.
+   *
+   * `eingang.schreiben` ist dasselbe Recht wie fuer die
+   * Eingangsrechnung selbst: wer Rechnungen erfasst, legt den
+   * Lieferanten an, von dem sie kommen. Ein eigenes Recht braeuchten
+   * genau dieselben Menschen zusaetzlich (K-19).
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/lieferant',
+    schreibend: true, schreibRecht: 'eingang.schreiben',
+  },
+  /**
    * V-022, V-074, V-075, V-076 — ein Konto zuruecknehmen.
    *
    * **Das Schreibrecht ist `system.benutzer_verwalten` und deckt drei der

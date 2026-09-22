@@ -582,6 +582,32 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'zeit.abwesenheit_melden',
   },
   {
+    /*
+     * V-006, FIN-14, ACC-05. Lieferantenstammdaten anlegen, aendern, sperren,
+     * archivieren.
+     *
+     * **Eine Route fuer vier Handlungen, weil es EIN Recht ist.**
+     * `eingang.schreiben` deckt alle vier, und `t_mandant` auf `lieferant`
+     * (0123) prueft es bei jeder. Anders als bei `api/konto/verwaltung`, wo
+     * die Handlungen tatsaechlich an zwei verschiedenen Rechten haengen.
+     */
+    pfad: 'api/finanzen/lieferanten',
+    recht: 'eingang.schreiben',
+  },
+  {
+    /*
+     * V-117, V-118, EMP-05. Den Urlaubsanspruch aus dem Arbeitsvertrag
+     * nachtragen — und das Konto anlegen, falls der Nachtlauf noch nicht
+     * durch war.
+     *
+     * `zeit.schreiben` und nicht `zeit.konto_abschliessen`: der Anspruch ist
+     * eine Stammangabe, kein Abschluss. Wer ihn eintraegt, entscheidet nichts
+     * ueber einen Monat — er schreibt auf, was im Vertrag steht.
+     */
+    pfad: 'api/personal/urlaubsanspruch',
+    recht: 'zeit.schreiben',
+  },
+  {
     pfad: 'api/datenschutz/bearbeiten',
     recht: 'datenschutz.auskunft_erstellen',
   },

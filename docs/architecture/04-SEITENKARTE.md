@@ -1361,6 +1361,7 @@ and `zeiteintrag` attaches to the `auftrag` directly (TIM-12), which is why
 | `/portal/[mandant]/personal/abwesenheiten/erfassen` — record an absence reported by phone or in person. The service behind it is the one the worker's own path uses; what differs is who fills it in, and `erstellt_von` says so. Status is **erfasst** (noted), never `beantragt`: nobody decides about an illness | `zeit.abwesenheit_melden` | `M1` | EMP-05, EMP-09 | 5 |
 | `/portal/[mandant]/personal/antraege` , `/[id]` — leave, swap and sickness inbox; approve or decline | `zeit.antrag_entscheiden` | `M1` | EMP-10, NOT-01 | 5 |
 | `/portal/[mandant]/personal/stundenkonten` — target versus actual per employment, monthly lock state | `zeit.konto_lesen` | `M1` | EMP-04, EMP-15, REP-04 | 5 |
+| `/portal/[mandant]/personal/urlaubskonten` — holiday entitlement per Anstellung and year. The platform does **not** derive it: § 3 BUrlG's twenty working days are the statutory minimum, almost never the agreed figure, and a derived number would become the basis of a remaining entitlement nobody promised (O-18). “not recorded” and “0 days” are shown as two different statements | `zeit.konto_lesen` (write: `zeit.schreiben`) | `M1` | EMP-05 | 9 |
 | `/portal/[mandant]/personal/stundenkonten/[anstellungId]` — balance, carry-forward, month history | `zeit.konto_lesen` | `M1` | EMP-04, EMP-15 | 5 |
 | `/portal/[mandant]/personal/stundenkonten/abschluss` — lock a month (§5.12.2) | `zeit.konto_abschliessen` | `M1` | EMP-04, LEG-01 | 5 |
 | `/portal/[mandant]/personal/zusammenfuehren` — merge two `person` rows that are one human | `personal.zusammenfuehren` | `M1` | D-09, LEG-09 | 5 |
@@ -1464,6 +1465,7 @@ requirement it has no way to create. An earlier draft had no such route at all.
 | `/portal/[mandant]/finanzen/rechnungen/[id]/zugferd` — PDF/A-3 preview | `finanzen.herunterladen` | `M1` | FIN-12 | 6 |
 | `/portal/[mandant]/finanzen/ausgangsbuch` — per number circle, gapless, hash-chain state | `nummernkreis.lesen` | `M1` | FIN-16, FIN-06, TEN-02, LEG-01 | 6 |
 | `/portal/[mandant]/finanzen/hashkette` — the nightly verification report | `finanzen.lesen` | `M1` | FIN-06, LEG-01 | 6 |
+| `/portal/[mandant]/finanzen/lieferanten` , `/neu` , `/[id]` — accounts-payable master data. Every incoming invoice requires one; the table carried policy, grant, number index, IBAN check and the § 48 EStG date since `0123` and had no creator at all. The bank details are **not** shown on the sheet: they are withheld from the application column by column and readable only through the logged `app.lieferant_konditionen` | `eingang.lesen` (write: `eingang.schreiben`) | `M1` | FIN-14, ACC-05, ACC-07 | 8 |
 | `/portal/[mandant]/finanzen/eingangsrechnungen` , `/neu` — upload; the OCR proposal appears in Freigaben | `eingang.lesen` / `eingang.schreiben` | `M1` | FIN-14, ACC-05, DOC-06 | 6 |
 | `/portal/[mandant]/finanzen/eingangsrechnungen/[id]` — extracted fields with source and confidence | `eingang.lesen` | `M1` | ACC-05, APR-03 | 6 |
 | `/portal/[mandant]/finanzen/eingangsrechnungen/[id]/steuer` — the supplier's §48b certificate, validated at the service date | `abrechnung.freistellung_pflegen` | `M1` | FIN-10, LEG-06 | 6 |
@@ -1471,6 +1473,7 @@ requirement it has no way to create. An earlier draft had no such route at all.
 | `/portal/[mandant]/finanzen/belege` , `/[id]` | `eingang.lesen` | `M1` | FIN-14, ACC-03 | 6 |
 | `/portal/[mandant]/finanzen/ausgaben` , `/[id]` | `eingang.lesen` | `M1` | FIN-14, FIN-17 | 6 |
 | `/portal/[mandant]/finanzen/zahlungen` , `/[id]` | `zahlung.lesen` | `M1` | FIN-14, ACC-04 | 6 |
+| `/portal/[mandant]/finanzen/bankkonten` — the Gesellschaft's own bank accounts. One of them is frozen into every finalised invoice as BT-85, so the IBAN is checked on its check digits and not only its shape. `legeBankkontoAn` existed since `0121` with no caller but tests — “received on” knew only what the seed had created | `zahlung.lesen` (write: `zahlung.schreiben`) | `M1` | FIN-15, ACC-04 | 8 |
 | `/portal/[mandant]/finanzen/mahnungen` , `/[id]` — escalation level, fee, interest | `mahnung.lesen` | `M1` | FIN-15 | 6 |
 | `/portal/[mandant]/finanzen/mahnungen/vorschlaege` — agent-proposed dunning awaiting approval | `mahnung.freigeben` | `M1` | FIN-15, APR-01, AGT-03 | 8 |
 | `/portal/[mandant]/finanzen/nummernkreise` — number circles; counters read-only | `nummernkreis.lesen` / `nummernkreis.verwalten` | `M1` | TEN-02, FIN-03, FIN-16 | 6 |
