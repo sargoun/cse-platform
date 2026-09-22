@@ -77,10 +77,6 @@ const OHNE_AUFRUFER: Readonly<Record<string, string>> = {
     'V-115 — der Token des Werbewiderspruchs (§ 7 UWG, Art. 21 DSGVO) wird '
     + 'von nichts ausgegeben. Der Widerspruchsweg existiert, der Schluessel '
     + 'dazu entsteht nirgends.',
-  loescheDokument:
-    'V-116 — die GoBD-Loeschung eines Dokuments hat ausser dem Test keinen '
-    + 'Aufrufer: weder Oberflaeche noch Aufbewahrungslauf ruft sie, und das '
-    + 'Loeschkonzept sagt zu, dass abgelaufene Dokumente verschwinden.',
 };
 
 interface Fund { readonly name: string; readonly datei: string }

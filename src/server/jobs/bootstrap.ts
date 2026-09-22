@@ -37,6 +37,7 @@ import { registriereNachtragWache } from './nachtragWache.js';
 import { registriereFreigabeFenster } from './freigabeFenster.js';
 import { registriereSocialPlan } from './socialPlan.js';
 import { registriereBewerberLoeschung } from './bewerberLoeschung.js';
+import { registriereDokumentAufbewahrung } from './dokumentAufbewahrung.js';
 import { registriereKontenRollover } from './kontenRollover.js';
 import { registriereUrlaubskontenJahr } from './urlaubskontenJahr.js';
 
@@ -88,6 +89,7 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereFreigabeFenster(db);
     registriereSocialPlan(db);
     registriereBewerberLoeschung(db);
+    registriereDokumentAufbewahrung(db);
     registriereKontenRollover(db);
     registriereUrlaubskontenJahr(db);
     registriereRadar(db);

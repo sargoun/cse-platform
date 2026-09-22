@@ -54,6 +54,18 @@ select cron.schedule('cse_bewerber_loeschung', '0 4 * * *', $cse$
   );
 $cse$);
 
+-- Dokumente nach Ablauf der Aufbewahrungsfrist löschen (DOC-07, LEG-01) (je_mandant)
+select cron.unschedule('cse_dokument_aufbewahrung')
+  where exists (select 1 from cron.job where jobname = 'cse_dokument_aufbewahrung');
+select cron.schedule('cse_dokument_aufbewahrung', '10 5 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/dokument_aufbewahrung',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
 -- Dienstplan aus den Serien materialisieren (acht Wochen) (je_mandant)
 select cron.unschedule('cse_einsaetze_generieren')
   where exists (select 1 from cron.job where jobname = 'cse_einsaetze_generieren');
