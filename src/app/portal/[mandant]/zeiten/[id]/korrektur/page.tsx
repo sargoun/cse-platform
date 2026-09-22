@@ -81,8 +81,18 @@ const FEHLER_TEXT: Readonly<Record<string, string>> = {
   nicht_selbst:
     'Das ist Ihr eigener Zeiteintrag. Niemand korrigiert die eigene Aufzeichnung '
     + '(EMP-07): Sie melden eine Abweichung, eine andere Person entscheidet darüber.',
+  /*
+   * V-065: seit die Gegenbuchung entsteht, ist der gesperrte Monat NICHT mehr
+   * der haeufigste Grund fuer diese Abweisung — er hat seinen eigenen Text.
+   */
+  kein_kontorecht:
+    'Der Monat dieses Eintrags ist abgeschlossen. Eine Korrektur daran verschiebt '
+    + 'Minuten auf dem Stundenkonto in den nächsten offenen Monat, und das verlangt '
+    + 'zusätzlich das Recht zeit.konto_korrigieren (§12.2). Wer es hält, kann die '
+    + 'Korrektur ausführen — es ist bewusst ein zweites Recht: eine Zeit '
+    + 'richtigstellen und ein Konto bewegen sind zwei Entscheidungen.',
   nicht_zulaessig:
-    'Die Datenbank hat die Korrektur abgewiesen. Der häufigste Grund ist ein bereits '
+    'Die Datenbank hat die Korrektur abgewiesen. Ein möglicher Grund ist ein bereits '
     + 'gesperrter Monat: dort braucht die Differenz eine Gegenbuchung, sonst käme sie '
     + 'nirgends an (§12.2).',
   nicht_gefunden: 'Diesen Zeiteintrag gibt es in dieser Gesellschaft nicht.',

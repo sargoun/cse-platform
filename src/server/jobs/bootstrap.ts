@@ -37,6 +37,7 @@ import { registriereNachtragWache } from './nachtragWache.js';
 import { registriereFreigabeFenster } from './freigabeFenster.js';
 import { registriereSocialPlan } from './socialPlan.js';
 import { registriereBewerberLoeschung } from './bewerberLoeschung.js';
+import { registriereKontenRollover } from './kontenRollover.js';
 
 /*
  * Methodensyntax, nicht Eigenschaftssyntax — wie ueberall sonst im Baum
@@ -86,6 +87,7 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereFreigabeFenster(db);
     registriereSocialPlan(db);
     registriereBewerberLoeschung(db);
+    registriereKontenRollover(db);
     registriereRadar(db);
     registriereAkquise(db);
     geschehen = true;

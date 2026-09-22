@@ -80,7 +80,22 @@ export default async function Zeitliste({
   /* AUT-06: der MiLoG-Nachweis haengt an `zeit.exportieren`, und eine
      `leitung` haelt es nicht. Ein Knopf dorthin verriete die Seite, die
      er nicht zeigen darf. */
-  const darf = await haeltRechte(sitzung, 'zeit.exportieren', 'zeit.abrechnung_freigeben');
+  /*
+   * V-033, V-034, V-048: zwei gebaute Schaltstellen standen in keiner Leiste.
+   *
+   * `/zeiten/checkin-links` gibt die Marken aus, mit denen eine Kraft OHNE
+   * Portalkonto ueberhaupt stempeln kann (TIM-07, EMP-01);
+   * `/zeiten/nacherfassung` entscheidet ueber Offline-Ansprueche (TIM-09).
+   * Beide waren nur ueber die getippte Adresse erreichbar — bezahlt, gebaut,
+   * unbenutzt.
+   *
+   * Jeder Punkt haengt am Recht SEINES ZIELS und nicht an `zeit.lesen`
+   * (AUT-06, D-581): ein Knopf auf eine 404 verraet, was er nicht zeigen
+   * darf.
+   */
+  const darf = await haeltRechte(
+    sitzung, 'zeit.exportieren', 'zeit.abrechnung_freigeben',
+    'zeit.checkin_verwalten', 'zeit.nacherfassung_pruefen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const frage = await searchParams;
@@ -154,6 +169,12 @@ export default async function Zeitliste({
         <Sprung ziel={`${pfad}/live`} text="Aktuell im Einsatz" icon="uhr" />
         <Sprung ziel={`${pfad}/korrekturen`} text="Korrekturen" icon="stift" />
         <Sprung ziel={`${pfad}/einwaende`} text="Einwände" icon="warnung" />
+        {darf['zeit.checkin_verwalten'] === true && (
+          <Sprung ziel={`${pfad}/checkin-links`} text="Check-in-Links" icon="schloss" />
+        )}
+        {darf['zeit.nacherfassung_pruefen'] === true && (
+          <Sprung ziel={`${pfad}/nacherfassung`} text="Nacherfassung" icon="stift" />
+        )}
         {darf['zeit.exportieren'] === true && (
           <Sprung ziel={`${pfad}/milog`} text="MiLoG" icon="dokument" />
         )}

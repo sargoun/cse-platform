@@ -117,7 +117,8 @@ export default async function Einwandblatt(
   // Invariante 10: kein Schreibweg ohne genau einen aktiven Mandanten.
   if (sitzung.aktiverMandantId === null) notFound();
 
-  const darf = await haeltRechte(sitzung, 'zeit.lesen', 'zeit.korrigieren');
+  const darf = await haeltRechte(
+    sitzung, 'zeit.lesen', 'zeit.korrigieren', 'zeit.nacherfassung_pruefen');
   /* Ohne `zeit.lesen` traefe die Policy null Zeilen — dann ist 404 die
      ehrliche Antwort und nicht ein leeres Blatt (AUT-06). */
   if (darf['zeit.lesen'] !== true) notFound();
@@ -452,6 +453,38 @@ export default async function Einwandblatt(
                 >
                   Korrektur schreiben
                 </Link>
+              </p>
+            )}
+
+            {/*
+              * **Der Fall OHNE Zeiteintrag** (V-067).
+              *
+              * `art = 'eintrag_fehlt'` heisst: es gibt keinen Eintrag, den man
+              * korrigieren könnte (§6.27 lässt `zeiteintrag_id` dann NULL).
+              * Der Abschnitt hier sagte trotzdem „anerkannt, aber keine
+              * Korrektur" und bot nichts an — eine anerkannte Meldung, die
+              * ins Leere führt, sieht aus wie erledigt und ist es nicht.
+              *
+              * Der Weg ist die freie Nacherfassung (V-066), mit der Person
+              * vorbelegt und dem Einwand im Anhang. Die ZEITEN bleiben leer:
+              * eine vorbelegte Behauptung wäre von einer Entscheidung nicht
+              * mehr zu unterscheiden (§1.8).
+              */}
+            {darf['zeit.nacherfassung_pruefen'] === true && e.eintrag === null && (
+              <p className="m-0 mt-s3 text-sm">
+                <Link
+                  href={{
+                    pathname: `/portal/${mandant}/zeiten/nacherfassung`,
+                    query: { anstellung: e.anstellungId, einwand: e.id },
+                  }}
+                  data-cse="zur-nacherfassung"
+                  className="text-warning underline"
+                >
+                  Zeit nacherfassen
+                </Link>
+                {' — '}
+                zu dieser Meldung gibt es keinen Eintrag, der sich korrigieren
+                liesse; er muss erst entstehen.
               </p>
             )}
           </div>

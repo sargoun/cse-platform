@@ -1325,6 +1325,37 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Eine Arbeitszeit NACHERFASSEN, zu der es kein Geraetereignis gibt
+     * (V-066, V-067, TIM-09).
+     *
+     * `zeit.nacherfassung_pruefen` — dasselbe Recht wie die Seite, auf der
+     * dieser Weg steht, und dasselbe, das die Uebernahme eines
+     * Offline-Anspruchs verlangt. Der Unterschied zu `api/zeit/offline` ist
+     * der, auf den es im Streit ankommt: dort hat eine MASCHINE eine Zeit
+     * behauptet, hier ein MENSCH.
+     */
+    pfad: 'api/zeit/nacherfassung',
+    recht: 'zeit.nacherfassung_pruefen',
+  },
+  {
+    /**
+     * Einen LAUFENDEN Zeiteintrag schliessen oder stornieren (V-064, TIM-11).
+     *
+     * `zeit.korrigieren` und nicht `zeit.schreiben`: es ist derselbe Vorgang
+     * wie die Korrektur eines abgeschlossenen Eintrags, nur eine Phase
+     * frueher — und er setzt die Arbeitszeit eines ANDEREN Menschen fest.
+     *
+     * Was hier entsteht, ist keine Stempelzeit, sondern eine Behauptung der
+     * Verwaltung (Invariante 5). Sie wird als solche gespeichert:
+     * `quelle_ende = 'planer_entscheidung'`, `nacherfasst = true`,
+     * `behauptet_ende` gesetzt — erzwungen von `z_quelle_ende_belegt` und
+     * `z_anspruch_je_ereignis`.
+     */
+    pfad: 'api/zeit/laufend',
+    recht: 'zeit.korrigieren',
+  },
+  {
+    /**
      * Eine Veranstaltung anlegen, aendern oder archivieren (V-004, SEC-08).
      *
      * `security.schreiben` — dasselbe Recht, das die RLS von `veranstaltung`

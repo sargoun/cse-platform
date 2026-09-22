@@ -11,7 +11,8 @@ import { withTenant } from '@/server/kontext/index';
 import { berlinFormularZeitpunkt } from '@/lib/datum/formularzeit';
 import { herkunft } from '@/app/auth/mitarbeiter/anmeldung';
 import {
-  KeinAktuellerEintragFehler, korrigiereZeiteintrag, LaufenderEintragFehler,
+  KeinAktuellerEintragFehler, KeinKontorechtFehler, korrigiereZeiteintrag,
+  LaufenderEintragFehler,
   type KorrekturArt, type KorrekturErgebnis, type KorrekturGrund,
 } from '@/server/services/zeit/korrektur';
 
@@ -187,6 +188,15 @@ function fehlerschluessel(
 ): { readonly wort: string; readonly status: number } | null {
   if (fehler instanceof KeinAktuellerEintragFehler) return { wort: 'nicht_aktuell', status: 409 };
   if (fehler instanceof LaufenderEintragFehler) return { wort: 'laeuft_noch', status: 409 };
+  /*
+   * V-065: ein gesperrter Monat verlangt eine Gegenbuchung, und die verlangt
+   * `zeit.konto_korrigieren`. Ohne diese Zeile faellt der Fall in einen 500
+   * mit `new row violates row-level security policy` — richtig abgewiesen,
+   * aber unlesbar.
+   */
+  if (fehler instanceof KeinKontorechtFehler) {
+    return { wort: 'kein_kontorecht', status: 403 };
+  }
   if (fehler instanceof NichtGefundenFehler) return { wort: 'nicht_gefunden', status: 404 };
   if (fehler instanceof NichtAngemeldetFehler) return { wort: 'keine_sitzung', status: 401 };
   if (fehler instanceof ZweiterFaktorFehler) return { wort: 'zweiter_faktor', status: 403 };

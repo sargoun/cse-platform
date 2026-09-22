@@ -254,9 +254,19 @@ describe('(1) ein gesperrter Monat aendert sich nicht mehr', () => {
     await rechtBinden('zeit.konto_korrigieren');
 
     /**
-     * April wird gar nicht erst angelegt. „Der Folgemonat" waere die falsche
-     * Regel: gemeint ist der erste OFFENE (§12.2), und der ist hier der Mai.
+     * **Der April wird MIT GESPERRT, und genau das ist der Punkt** (V-008).
+     *
+     * Seit der Abschluss den Saldo weitertraegt, entsteht der Folgemonat beim
+     * Sperren von selbst — sonst haette der Vortrag kein Ziel. „Der
+     * Folgemonat" bleibt trotzdem die falsche Regel: gemeint ist der erste
+     * OFFENE (§12.2). Um das zu zeigen, wird der April hier ebenfalls
+     * geschlossen; die Korrektur muss ihn dann UEBERSPRINGEN und im Mai
+     * landen.
      */
+    await alsApp(sitzung(b), async (tx) => schliesseMonatAb(
+      kontextAus(tx, f.reinigung, b.planer),
+      { anstellungId: f.fatimaReinigung, jahr: 2026, monat: 4 }));
+
     const mai = await alsApp(sitzung(b), async (tx) => eroeffneKonto(
       kontextAus(tx, f.reinigung, b.planer),
       { anstellungId: f.fatimaReinigung, jahr: 2026, monat: 5 }));
@@ -303,13 +313,22 @@ describe('(1) ein gesperrter Monat aendert sich nicht mehr', () => {
     expect(bewegungen[0]?.korrekturFuerStundenkontoId).toBe(kontoId);
   });
 
-  it('ohne Gegenbuchung entsteht die Korrektur gar nicht', async () => {
+  it('ohne `zeit.konto_korrigieren` entsteht die Korrektur gar nicht', async () => {
     const { b, zeiteintragId } = await maerzSperren();
     /**
      * Der Fall, den `z_monat_sperren` erst moeglich macht: ohne den
      * Sperrstempel auf dem Zeiteintrag griffe `zk_sperre_ausgleich` nie, und
      * diese Korrektur ginge geraeuschlos durch — mit einer Differenz, die
      * nirgends ankommt.
+     *
+     * **Seit V-065 schreibt der Dienst die Gegenbuchung selbst** — aber nur,
+     * wer sie schreiben DARF, kommt durch. `zeit.korrigieren` (eine Zeit
+     * richtigstellen) und `zeit.konto_korrigieren` (Minuten auf einem Konto
+     * verschieben) sind zwei Entscheidungen; die Policy `t_mandant_buchen`
+     * trennt sie seit je, und die Rolle `leitung` haelt hier nur die erste.
+     *
+     * Geprueft wird deshalb die ABSAGE, und zwar als lesbarer Satz statt als
+     * `new row violates row-level security policy`.
      */
     await expect(alsApp(sitzung(b), async (tx) => korrigiereZeiteintrag(
       kontextAus(tx, f.reinigung, b.planer),
@@ -318,7 +337,38 @@ describe('(1) ein gesperrter Monat aendert sich nicht mehr', () => {
         begruendung: 'Ohne Ausgleich.', durchgefuehrtVon: b.planer,
         endeZeitpunkt: new Date('2026-03-05T15:00:00Z'),
       },
-    ))).rejects.toThrow(/gesperrt/iu);
+    ))).rejects.toThrow(/zeit\.konto_korrigieren/u);
+  });
+
+  it('MIT `zeit.konto_korrigieren` entsteht sie — samt Gegenbuchung (V-065)', async () => {
+    const { b, kontoId, zeiteintragId } = await maerzSperren();
+    await rechtBinden('zeit.konto_korrigieren');
+
+    const ergebnis = await alsApp(sitzung(b), async (tx) => korrigiereZeiteintrag(
+      kontextAus(tx, f.reinigung, b.planer),
+      {
+        zeiteintragId, art: 'zeit_korrektur', grundKategorie: 'einwand_mitarbeiter',
+        begruendung: 'Schicht ging eine Stunde laenger.', durchgefuehrtVon: b.planer,
+        endeZeitpunkt: new Date('2026-03-05T15:00:00Z'),
+      },
+    ));
+    expect(ergebnis.neueFassungId).not.toBe(zeiteintragId);
+
+    /*
+     * Die Gegenbuchung traegt +60 Minuten und zeigt auf den GESPERRTEN Monat
+     * zurueck — „die Differenz ist angekommen" ist damit beweisbar und nicht
+     * nur plausibel.
+     */
+    const [bewegung] = await sql.unsafe<{
+      minuten: number; korrektur_fuer_stundenkonto_id: string | null;
+    }[]>(
+      `select b.minuten, b.korrektur_fuer_stundenkonto_id
+         from stundenkonto_bewegung b
+         join stundenkonto k on k.id = b.stundenkonto_id
+        where k.anstellung_id = $1 and b.art = 'korrektur'
+        order by b.erstellt_am desc limit 1`, [f.fatimaReinigung]);
+    expect(Number(bewegung!.minuten)).toBe(60);
+    expect(bewegung!.korrektur_fuer_stundenkonto_id).toBe(kontoId);
   });
 
   it('ohne `zeit.konto_korrigieren` gibt es keine Korrekturbuchung', async () => {

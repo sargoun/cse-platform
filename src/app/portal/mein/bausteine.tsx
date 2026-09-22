@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import Link from 'next/link';
+import Link, { type LinkProps } from 'next/link';
 import { AreaBadge } from '@/components/ui/AreaBadge';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
@@ -398,5 +398,140 @@ export function Zusagefeld({
         </Button>
       </form>
     </section>
+  );
+}
+
+/**
+ * Der Monatswechsler (V-053, EMP-03).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Der Befund: drei Seiten lasen `?monat=`, eine erzeugte ihn.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `/portal/mein/zeiten` und `/portal/mein/monatsnachweis` werteten den
+ * Parameter aus und boten kein Bedienelement, das ihn setzt — wer den
+ * vorigen Monat sehen wollte, musste die Adresszeile tippen. Auf einem
+ * Telefon ist das kein Umweg, sondern eine verschlossene Tür. Und genau
+ * dieser Blick ist der, um den es geht: **die Abrechnung des LETZTEN Monats
+ * prüft man, wenn der Lohn da ist** — also im nächsten.
+ *
+ * `/portal/mein/stundenkonto` hatte zwei nackte Pfeile mit einer Zahl
+ * daneben. Sie stehen jetzt hier, einmal, mit drei Verbesserungen:
+ *
+ *  1. **Beschriftet und übersetzt.** „← 2026-08" sagt nicht, was passiert,
+ *     und auf Arabisch läuft die Schrift von rechts nach links — derselbe
+ *     Pfeil zeigt dort in die andere Richtung. Die Wörter kommen deshalb aus
+ *     `MEIN_TEXTE` (vier Sprachen), die Pfeile sind `aria-hidden`, und die
+ *     Leserichtung übernimmt das Schriftsystem.
+ *  2. **44 px hoch** (DESIGN §8) — ein Textlink misst 20 und wird mit dem
+ *     Daumen nicht getroffen.
+ *  3. **Nicht in die leere Zukunft.** Vorwärts geht es höchstens bis zum
+ *     laufenden Monat. Diese drei Seiten zeigen ERFASSTE Zeit; ein Monat, der
+ *     noch nicht begonnen hat, ist immer leer, und ein Pfeil, der endlos in
+ *     leere Bildschirme führt, ist kein Weg, sondern eine Falle. Wer die
+ *     kommenden Schichten sehen will, steht auf `/portal/mein/schichten` —
+ *     dafür ist jene Seite da.
+ *
+ * **Der laufende Monat hat einen eigenen Weg zurück.** Wer sechs Monate
+ * zurückgeblättert hat, kommt sonst nur durch sechsmal Tippen wieder an; der
+ * Knopf erscheint genau dann, wenn man nicht schon dort steht.
+ */
+export function Monatswechsler({
+  pfad, monat, heute, texte, zusatz, sprache,
+}: {
+  /** Die Adresse OHNE Abfrage, z. B. `/portal/mein/zeiten`. */
+  readonly pfad: string;
+  /** Der angezeigte Monat als `JJJJ-MM-TT` — nur Jahr und Monat zählen. */
+  readonly monat: string;
+  /** Der heutige Berliner Tag — die Grenze nach vorn. */
+  readonly heute: string;
+  readonly texte: MeinTexte;
+  /**
+   * Weitere Abfrageparameter, die MITWANDERN muessen.
+   *
+   * Der Monatsnachweis traegt `?anstellung=` — wer zwei Beschaeftigungen hat
+   * (D-09) und einen Monat zurueckblaettert, landete sonst wieder bei der
+   * ERSTEN. Ein Wechsler, der eine andere Auswahl still zuruecksetzt, ist
+   * schlimmer als keiner.
+   */
+  readonly zusatz?: Readonly<Record<string, string>> | undefined;
+  /** `dir`/`lang` fuer ein Blatt, das nicht in der Huelle steckt. */
+  readonly sprache?: string | undefined;
+}) {
+  const jetzt = heute.slice(0, 7);
+  const gezeigt = monat.slice(0, 7);
+  const verschiebe = (um: number): string => {
+    const jahr = Number(gezeigt.slice(0, 4));
+    const m = Number(gezeigt.slice(5, 7));
+    const gesamt = jahr * 12 + (m - 1) + um;
+    return `${String(Math.floor(gesamt / 12)).padStart(4, '0')}-${
+      String((gesamt % 12) + 1).padStart(2, '0')}`;
+  };
+  const anzeige = (jjjjMm: string): string => `${jjjjMm.slice(5, 7)}/${jjjjMm.slice(0, 4)}`;
+
+  const vorher = verschiebe(-1);
+  const spaeter = verschiebe(1);
+  /* Vorwaerts nur, solange das Ziel nicht IN der Zukunft liegt. */
+  const darfVor = spaeter <= jetzt;
+
+  const knopf = 'inline-flex min-h-11 items-center gap-s2 rounded-md border border-line '
+    + 'px-s4 text-sm text-text hover:bg-surface-2';
+
+  /* `?monat=` zuerst, damit die Adresse lesbar bleibt; der Rest haengt an. */
+  const ziel = (jjjjMm: string | null): LinkProps<string>['href'] => {
+    const teile = [
+      ...(jjjjMm === null ? [] : [`monat=${jjjjMm}-01`]),
+      ...Object.entries(zusatz ?? {}).map(
+        ([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`),
+    ];
+    const roh = teile.length === 0 ? pfad : `${pfad}?${teile.join('&')}`;
+    /*
+     * Die eine Umtypisierung — dieselbe wie in `components/portal/Zurueck.tsx`.
+     * `typedRoutes` kennt keine zur Laufzeit gebaute Adresse; geprueft ist
+     * sie trotzdem, nur eine Ebene hoeher: `pfad` kommt aus dem Rumpf der
+     * Seite, die ihn selbst traegt.
+     */
+    return roh as LinkProps<string>['href'];
+  };
+
+  return (
+    <nav aria-label={texte.monat} data-cse="monatswechsler"
+         {...(sprache === undefined
+           ? {} : { lang: sprache, dir: sprache === 'ar' ? 'rtl' as const : 'ltr' as const })}
+         className="mb-s5 flex flex-wrap items-center gap-s3">
+      <Link href={ziel(vorher)} data-cse="monat-zurueck" className={knopf}>
+        <span aria-hidden="true">←</span>
+        {texte.monatVorher}
+        <span className="cse-zahl text-text-muted">{anzeige(vorher)}</span>
+      </Link>
+
+      {darfVor ? (
+        <Link href={ziel(spaeter)} data-cse="monat-vor" className={knopf}>
+          <span className="cse-zahl text-text-muted">{anzeige(spaeter)}</span>
+          {texte.monatSpaeter}
+          <span aria-hidden="true">→</span>
+        </Link>
+      ) : (
+        /*
+         * Kein Verweis, aber auch kein Loch: eine Schaltflaeche, die
+         * verschwindet, laesst den Daumen ins Leere tippen. `aria-disabled`
+         * statt `disabled`, weil das hier kein Formularelement ist.
+         */
+        <span data-cse="monat-vor-gesperrt" aria-disabled="true"
+              className="inline-flex min-h-11 items-center gap-s2 rounded-md border
+                         border-line px-s4 text-sm text-text-subtle opacity-50">
+          <span className="cse-zahl">{anzeige(spaeter)}</span>
+          {texte.monatSpaeter}
+          <span aria-hidden="true">→</span>
+        </span>
+      )}
+
+      {gezeigt !== jetzt && (
+        <Link href={ziel(null)} data-cse="monat-heute" className={knopf}>
+          {texte.monatHeute}
+          <span className="cse-zahl text-text-muted">{anzeige(jetzt)}</span>
+        </Link>
+      )}
+    </nav>
   );
 }

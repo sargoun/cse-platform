@@ -9,7 +9,7 @@ import {
 } from '@/server/services/mitarbeiter/zeiten';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../rahmen';
-import { Gesellschaft, Leer } from '../bausteine';
+import { Gesellschaft, Leer, Monatswechsler } from '../bausteine';
 
 /**
  * `/portal/mein/zeiten` — die eigene Aufzeichnung, LESEND (EMP-03, EMP-07,
@@ -127,6 +127,9 @@ export default async function MeineZeiten({
           </span>
         </p>
       </div>
+
+      <Monatswechsler pfad="/portal/mein/zeiten" monat={grenzen.von}
+                      heute={heute} texte={t} />
 
       {/* EMP-07 als Satz auf dem Bildschirm, nicht nur als fehlender Knopf. */}
       <p data-cse="kein-bearbeiten" className="mb-s5 max-w-prose text-base text-text-muted">

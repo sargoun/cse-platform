@@ -120,6 +120,29 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Seite, die es nicht gibt, ist der Fehler aus D-561.
    */
   { schluessel: 'aufgaben', label: 'Aufgaben', pfad: 'aufgaben', recht: 'aufgabe.lesen', icon: 'ok', gruppe: 'heute' },
+  /**
+   * `finanzen` und `buchhaltung` — die beiden INDEXSEITEN (V-041, V-042).
+   *
+   * **Sie waren geschlossene Inseln.** Beide Seiten sind vollstaendige
+   * Verteiler: `/finanzen` verweist auf elf Unterseiten, `/buchhaltung` auf
+   * zwoelf. In der Sidebar standen davon nur acht; die uebrigen — Ausgaben,
+   * Belege, Hashkette, Nummernkreise, Pruefungen, Archiv, Jahrespaket,
+   * Konten, Lohnexport, Monatszahlen, offene Posten, Perioden,
+   * Verfahrensdokumentation, Z3-Export — waren aus dem Portal heraus mit
+   * KEINEM Klick erreichbar. Vierzehn gebaute Seiten hinter einer Adresse,
+   * die man auswendig kennen musste.
+   *
+   * **Zwei Punkte statt vierzehn.** Eine Leiste mit zweiundzwanzig
+   * Geldpunkten waere unbenutzbar; die beiden Verteiler sind gebaut, geprueft
+   * und tun genau das. Sie stehen deshalb ganz OBEN in der Gruppe „Geld" —
+   * wer nicht weiss, wo etwas liegt, faengt beim Verteiler an.
+   *
+   * Die Rechte sind die der Zielseiten (`finanzen.lesen`,
+   * `buchhaltung.lesen`), wie ueberall in dieser Liste: ein Punkt auf einen
+   * 404 verraet, was er nicht zeigen darf (AUT-06, D-581).
+   */
+  { schluessel: 'finanzen', label: 'Finanzen', pfad: 'finanzen', recht: 'finanzen.lesen', icon: 'euro', gruppe: 'geld' },
+  { schluessel: 'buchhaltung', label: 'Buchhaltung', pfad: 'buchhaltung', recht: 'buchhaltung.lesen', icon: 'buch', gruppe: 'geld' },
   // `finanzen/rechnungen`: die Rechnungen liegen unter `finanzen`, und `rechnungen`
   // allein gibt es als Route nicht — der Punkt fuehrte auf einen 404.
   { schluessel: 'rechnungen', label: 'Rechnungen', pfad: 'finanzen/rechnungen', recht: 'finanzen.lesen', icon: 'rechnung', gruppe: 'geld' },

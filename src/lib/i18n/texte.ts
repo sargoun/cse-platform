@@ -485,6 +485,18 @@ export interface MeinTexte {
   readonly saldo: string;
   readonly vortrag: string;
   readonly monat: string;
+  /**
+   * Die drei Woerter des Monatswechslers (V-053).
+   *
+   * **Warum sie hier stehen und nicht als Pfeile auskommen.** Ein blosses
+   * `←` und `→` ueber einer Tabelle sagt nicht, was sich aendert — und auf
+   * Arabisch laeuft die Schrift von rechts nach links, sodass derselbe Pfeil
+   * das Gegenteil bedeutet. Die Beschriftung nennt deshalb den Monat, die
+   * Pfeile sind `aria-hidden` und die Richtung uebernimmt das Schriftsystem.
+   */
+  readonly monatVorher: string;
+  readonly monatSpaeter: string;
+  readonly monatHeute: string;
   readonly gesperrt: string;
   readonly offen: string;
   readonly vorlaeufig: string;
@@ -527,6 +539,17 @@ export interface MeinTexte {
   readonly einwandMelden: string;
   readonly einwandArt: string;
   readonly einwandBegruendung: string;
+  /**
+   * Die Woerter der ENTSCHEIDUNG (V-051, EMP-07).
+   *
+   * Ohne sie war „Meine Meldungen" eine Liste dessen, was man geschrieben
+   * hat — und nie dessen, was daraus wurde.
+   */
+  readonly einwandEntscheidung: string;
+  readonly einwandEntschiedenAm: string;
+  readonly einwandOhneBegruendung: string;
+  readonly einwandWartet: string;
+  readonly einwandEingereichtAm: string;
   readonly serverZeit: string;
   readonly geraeteZeit: string;
   readonly abweichung: string;
@@ -873,6 +896,9 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     saldo: 'Saldo',
     vortrag: 'Vortrag',
     monat: 'Monat',
+    monatVorher: 'Voriger Monat',
+    monatSpaeter: 'Nächster Monat',
+    monatHeute: 'Aktueller Monat',
     gesperrt: 'Abgeschlossen',
     offen: 'Offen',
     vorlaeufig: 'Vorläufig',
@@ -908,6 +934,12 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     einwandMelden: 'Einwand melden',
     einwandArt: 'Art des Einwands',
     einwandBegruendung: 'Was stimmt nicht?',
+    einwandEntscheidung: 'Entscheidung',
+    einwandEntschiedenAm: 'Entschieden am',
+    einwandOhneBegruendung: 'Ohne Begründung eingetragen — fragen Sie die Planung.',
+    einwandWartet: 'Ihre Meldung liegt bei der Planung. Sobald entschieden ist, '
+      + 'steht die Begründung hier und Sie bekommen eine Nachricht.',
+    einwandEingereichtAm: 'Gemeldet am',
     serverZeit: 'Serverzeit',
     geraeteZeit: 'Gerätezeit',
     abweichung: 'Abweichung',
@@ -1164,6 +1196,9 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     saldo: 'Balance',
     vortrag: 'Carried forward',
     monat: 'Month',
+    monatVorher: 'Previous month',
+    monatSpaeter: 'Next month',
+    monatHeute: 'Current month',
     gesperrt: 'Closed',
     offen: 'Open',
     vorlaeufig: 'Provisional',
@@ -1198,6 +1233,12 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     einwandMelden: 'Raise an objection',
     einwandArt: 'Type of objection',
     einwandBegruendung: 'What is wrong?',
+    einwandEntscheidung: 'Decision',
+    einwandEntschiedenAm: 'Decided on',
+    einwandOhneBegruendung: 'Recorded without a reason — ask the planners.',
+    einwandWartet: 'Your report is with the planners. Once it is decided, the '
+      + 'reason appears here and you get a message.',
+    einwandEingereichtAm: 'Reported on',
     serverZeit: 'Server time',
     geraeteZeit: 'Device time',
     abweichung: 'Deviation',
@@ -1450,6 +1491,9 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     saldo: 'الرصيد',
     vortrag: 'المرحّل',
     monat: 'الشهر',
+    monatVorher: 'الشهر السابق',
+    monatSpaeter: 'الشهر التالي',
+    monatHeute: 'الشهر الحالي',
     gesperrt: 'مُقفل',
     offen: 'مفتوح',
     vorlaeufig: 'مبدئي',
@@ -1484,6 +1528,12 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     einwandMelden: 'تقديم اعتراض',
     einwandArt: 'نوع الاعتراض',
     einwandBegruendung: 'ما الخطأ؟',
+    einwandEntscheidung: 'القرار',
+    einwandEntschiedenAm: 'تاريخ القرار',
+    einwandOhneBegruendung: 'سُجّل دون تعليل — اسأل قسم التخطيط.',
+    einwandWartet: 'بلاغك لدى قسم التخطيط. عند صدور القرار سيظهر التعليل هنا '
+      + 'وستصلك رسالة.',
+    einwandEingereichtAm: 'تاريخ البلاغ',
     serverZeit: 'وقت الخادم',
     geraeteZeit: 'وقت الجهاز',
     abweichung: 'الفارق',
@@ -1727,6 +1777,9 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     saldo: 'Bakiye',
     vortrag: 'Devir',
     monat: 'Ay',
+    monatVorher: 'Önceki ay',
+    monatSpaeter: 'Sonraki ay',
+    monatHeute: 'Bu ay',
     gesperrt: 'Kapatıldı',
     offen: 'Açık',
     vorlaeufig: 'Geçici',
@@ -1761,6 +1814,12 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     einwandMelden: 'İtiraz bildir',
     einwandArt: 'İtiraz türü',
     einwandBegruendung: 'Ne yanlış?',
+    einwandEntscheidung: 'Karar',
+    einwandEntschiedenAm: 'Karar tarihi',
+    einwandOhneBegruendung: 'Gerekçesiz kaydedildi — planlamaya sorun.',
+    einwandWartet: 'Bildiriminiz planlamada. Karar verildiğinde gerekçe burada '
+      + 'görünür ve size bir mesaj gelir.',
+    einwandEingereichtAm: 'Bildirim tarihi',
     serverZeit: 'Sunucu saati',
     geraeteZeit: 'Cihaz saati',
     abweichung: 'Sapma',
@@ -2034,6 +2093,66 @@ Readonly<Record<PortalSprache, Readonly<Record<EinwandArtSchluessel, string>>>> 
     pause_falsch: 'Mola süresi yanlış',
     zuordnung_falsch: 'Yanlış nesne veya yanlış vardiya',
     sonstiges: 'Başka bir şey',
+  },
+};
+
+/**
+ * Der ZUSTAND eines Einwands, in vier Sprachen (V-051, EMP-07, TIM-11).
+ *
+ * **Der Befund: die Entscheidung erreichte die Meldende nirgends.** Auf
+ * `/portal/mein/zeiten/[id]/einwand` stand unter „Meine Meldungen" der rohe
+ * Enum-Wert — `teilweise_anerkannt` — und weder wann entschieden wurde noch
+ * mit welcher Begründung. Beides lag in `zeit_einwand` und wurde von
+ * `listeEigeneEinwaende` sogar geladen; nur gezeigt wurde es nicht. Eine
+ * Person, die einen falschen Lohn meldet, las damit ein Wort ihrer
+ * Datenbank und erfuhr nie, warum.
+ *
+ * **Wie bei den Einwandarten: die SCHLUESSEL sind das Vokabular des Enums**
+ * (`einwand_status`) und reisen unübersetzt in die Datenbank; übersetzt wird
+ * nur, was auf dem Bildschirm steht (D-83).
+ *
+ * **`zurueckgezogen` steht mit dabei, obwohl die Planung es nie setzt.** Es
+ * ist der eine Zustand, den die betroffene Person selbst herstellt — und ein
+ * Zustandswort, das für genau ihren Fall fehlt, wäre die Lücke an der
+ * teuersten Stelle.
+ */
+export type EinwandStatusSchluessel =
+  'offen' | 'in_pruefung' | 'anerkannt' | 'teilweise_anerkannt'
+  | 'abgelehnt' | 'zurueckgezogen';
+
+export const EINWAND_STATUS_TEXTE:
+Readonly<Record<PortalSprache, Readonly<Record<EinwandStatusSchluessel, string>>>> = {
+  de: {
+    offen: 'Offen — noch nicht angesehen',
+    in_pruefung: 'In Prüfung',
+    anerkannt: 'Anerkannt',
+    teilweise_anerkannt: 'Teilweise anerkannt',
+    abgelehnt: 'Abgelehnt',
+    zurueckgezogen: 'Von Ihnen zurückgezogen',
+  },
+  en: {
+    offen: 'Open — not yet reviewed',
+    in_pruefung: 'Under review',
+    anerkannt: 'Accepted',
+    teilweise_anerkannt: 'Partly accepted',
+    abgelehnt: 'Rejected',
+    zurueckgezogen: 'Withdrawn by you',
+  },
+  ar: {
+    offen: 'مفتوح — لم يُنظر فيه بعد',
+    in_pruefung: 'قيد المراجعة',
+    anerkannt: 'مقبول',
+    teilweise_anerkannt: 'مقبول جزئياً',
+    abgelehnt: 'مرفوض',
+    zurueckgezogen: 'سحبته بنفسك',
+  },
+  tr: {
+    offen: 'Açık — henüz incelenmedi',
+    in_pruefung: 'İnceleniyor',
+    anerkannt: 'Kabul edildi',
+    teilweise_anerkannt: 'Kısmen kabul edildi',
+    abgelehnt: 'Reddedildi',
+    zurueckgezogen: 'Tarafınızdan geri çekildi',
   },
 };
 

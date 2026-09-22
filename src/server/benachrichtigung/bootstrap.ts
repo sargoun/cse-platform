@@ -5,6 +5,7 @@ import { registriereDienstplanArten } from '../services/dienstplan/benachrichtig
 import { registriereLeadArten } from '../services/lead/benachrichtigung.js';
 import { registriereNachweisArten } from '../services/nachweis/benachrichtigung.js';
 import { registriereRadarArten } from '../services/radar/benachrichtigung.js';
+import { registriereZeitArten } from '../services/zeit/benachrichtigung.js';
 import { registriereAgentArten } from '../agent/benachrichtigung.js';
 
 /**
@@ -32,6 +33,7 @@ export function alleArten(): readonly ArtDefinition[] {
   registriereLeadArten();
   registriereNachweisArten();
   registriereRadarArten();
+  registriereZeitArten();
   registriereAgentArten();
   return arten();
 }
@@ -52,6 +54,7 @@ export const MODUL_TITEL: Readonly<Record<string, string>> = {
   dienstplan: 'Dienstplan',
   personal: 'Personal',
   radar: 'Vergaberadar',
+  zeit: 'Zeiterfassung',
 };
 
 export function modulVon(schluessel: string): string {

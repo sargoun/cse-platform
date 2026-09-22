@@ -14,6 +14,8 @@ import { berlinAnzeige } from '@/server/services/zeit/dauer';
 import { haeltRechte } from '@/app/portal/rechte';
 import { ABLEHNUNG_GRUENDE, offeneAnsprueche, type OfflineWartend }
   from '@/server/services/zeit/offline';
+import { BEGRUENDUNG_MINDESTLAENGE } from '@/server/services/zeit/nacherfassung';
+import { Hinweis } from '@/components/ui/Hinweis';
 
 /**
  * `/portal/[mandant]/zeiten/nacherfassung` — was ein Telefon ohne Netz
@@ -109,9 +111,30 @@ export default async function Nacherfassung({
    * Liste aus einer Nur-Lese-Transaktion zeigte einen Anspruch, den ein
    * anderer Bildschirm in derselben Sekunde schon übernommen hat.
    */
-  const zeilen = await (db().begin(async (tx: postgres.TransactionSql) =>
-    withTenant(tx, sitzung, (kontext) => offeneAnsprueche(kontext)),
-  ) as Promise<readonly OfflineWartend[]>);
+  const daten = await (db().begin(async (tx: postgres.TransactionSql) =>
+    withTenant(tx, sitzung, async (kontext) => ({
+      zeilen: await offeneAnsprueche(kontext),
+      /*
+       * Die Beschaeftigungen dieser Gesellschaft — fuer die freie
+       * Nacherfassung (V-066). Nur aktive: eine Zeit fuer jemanden
+       * einzutragen, der hier nicht mehr arbeitet, ist ein eigener Vorgang
+       * und keine Zeile in einer Auswahlliste.
+       */
+      anstellungen: await kontext.abfrage<{ id: string; name: string }>(
+        `select a.id, (p.nachname || ', ' || p.vorname) as name
+           from anstellung a join person p on p.id = a.person_id
+          where a.geloescht_am is null and a.status = 'aktiv'
+          order by p.nachname, p.vorname
+          limit 500`),
+    })),
+  ) as Promise<{
+    zeilen: readonly OfflineWartend[];
+    anstellungen: readonly { id: string; name: string }[];
+  }>);
+  const { zeilen, anstellungen } = daten;
+  const meldung = typeof frage['meldung'] === 'string' ? frage['meldung'] : null;
+  const vorgabeAnstellung = typeof frage['anstellung'] === 'string' ? frage['anstellung'] : null;
+  const vorgabeEinwand = typeof frage['einwand'] === 'string' ? frage['einwand'] : null;
 
   const eingabe = 'mt-s1 w-full rounded-md border border-line bg-surface px-s3 py-s2 text-base text-text';
   const beschriftung = 'text-micro uppercase tracking-[0.08em] text-text-subtle';
@@ -155,6 +178,108 @@ export default async function Nacherfassung({
           </Link>
         </nav>
       )}
+
+      {/*
+        * ═══════════════════════════════════════════════════════════════════
+        * **Nacherfassen OHNE Anspruch** (V-066, V-067).
+        * ═══════════════════════════════════════════════════════════════════
+        *
+        * Die Liste darunter zeigt, was ein Telefon ohne Netz behauptet hat.
+        * Zwei Stellen der Plattform verlangen aber genau das Gegenteil: die
+        * Wächtermeldung „Kein Zeiteintrag" bei einer Schicht, zu der niemand
+        * gestempelt hat, und ein anerkannter Einwand der Art „Eintrag fehlt
+        * ganz" (§6.27). In beiden Fällen gibt es kein Gerätereignis — und
+        * bis hierher keinen Weg.
+        *
+        * **Zugeklappt, und das ist die Rangfolge.** Was WARTET, steht oben:
+        * ein Anspruch in der Schlange hat eine Frist, ein freier Eintrag
+        * nicht. Wer aus einem Einwand kommt, bekommt das Formular mit der
+        * Person vorbelegt — die ZEITEN bleiben leer, aus demselben Grund wie
+        * bei den Ansprüchen: eine vorbelegte Behauptung wäre von einer
+        * Entscheidung nicht mehr zu unterscheiden.
+        */}
+      <details className="mb-s5 rounded-lg border border-line bg-surface p-s4"
+               data-cse="frei-nacherfassen"
+               {...(vorgabeAnstellung === null ? {} : { open: true })}>
+        <summary className="min-h-11 cursor-pointer list-none text-base text-text
+                            underline underline-offset-2">
+          Zeit ohne Anspruch nacherfassen
+        </summary>
+
+        <p className="mt-s3 max-w-prose text-sm text-text-muted">
+          Für eine Schicht, zu der niemand gestempelt hat — etwa nach der
+          Meldung „Kein Zeiteintrag" oder nach einem anerkannten Einwand
+          „Eintrag fehlt ganz". Was hier entsteht, trägt dauerhaft den Vermerk
+          <strong className="text-text"> nacherfasst</strong> und die Quelle
+          <strong className="text-text"> Entscheidung der Planung</strong>:
+          eine eingetragene Zeit bleibt von einer gestempelten unterscheidbar
+          (Invariante 5).
+        </p>
+
+        {meldung !== null && (
+          <Hinweis art="warnung" cse="nacherfassung-meldung" className="mt-s4 max-w-prose">
+            {meldung}
+          </Hinweis>
+        )}
+
+        <form method="post" action="/api/zeit/nacherfassung"
+              data-cse="nacherfassung-formular"
+              className="mt-s4 flex max-w-form flex-col gap-s4">
+          <input type="hidden" name="zurueck" value={pfad} />
+          {vorgabeEinwand !== null && (
+            <input type="hidden" name="einwand" value={vorgabeEinwand} />
+          )}
+
+          <label className="block">
+            <span className={beschriftung}>Beschäftigung</span>
+            <select name="anstellung" required className={eingabe}
+                    data-cse="nacherfassung-anstellung"
+                    {...(vorgabeAnstellung === null
+                      ? { defaultValue: '' } : { defaultValue: vorgabeAnstellung })}>
+              <option value="" disabled>Person wählen</option>
+              {anstellungen.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid grid-cols-1 gap-s4 sm:grid-cols-2">
+            <label className="block">
+              <span className={beschriftung}>Beginn (Berliner Zeit)</span>
+              <input type="datetime-local" name="beginn" required className={eingabe}
+                     data-cse="nacherfassung-beginn" />
+            </label>
+            <label className="block">
+              <span className={beschriftung}>Ende (leer = läuft noch)</span>
+              <input type="datetime-local" name="ende" className={eingabe} />
+            </label>
+            <label className="block">
+              <span className={beschriftung}>Pause in Minuten</span>
+              <input type="number" name="pause" min={0} step={1} defaultValue="0"
+                     className={eingabe} />
+            </label>
+          </div>
+
+          <label className="block">
+            <span className={beschriftung}>Begründung</span>
+            <textarea name="begruendung" required rows={2}
+                      minLength={BEGRUENDUNG_MINDESTLAENGE}
+                      className={eingabe}
+                      placeholder="z. B. Einwand vom 11.03. anerkannt, Zeiten laut Objektleitung"
+                      data-cse="nacherfassung-begruendung" />
+            <span className="mt-s1 block text-xs text-text-muted">
+              Mindestens {BEGRUENDUNG_MINDESTLAENGE} Zeichen. Sie steht dauerhaft am
+              Eintrag — im Lohnstreit ist sie das, was die Zahl trägt.
+            </span>
+          </label>
+
+          <div>
+            <Button type="submit" variante="secondary" data-cse="nacherfassung-speichern">
+              Zeit nacherfassen
+            </Button>
+          </div>
+        </form>
+      </details>
 
       {erledigt !== null && (
         <p

@@ -305,10 +305,28 @@ export interface KontoEroeffnung {
 /**
  * Legt das Konto eines Monats an — idempotent.
  *
- * Ein zweiter Aufruf gibt das vorhandene zurueck, statt ein zweites Konto zu
- * erzeugen. Die Eindeutigkeit `(anstellung_id, jahr, monat)` haelt das auch
- * unter Nebenlaeufigkeit, wo eine Vorabpruefung es nicht taete — zwei
- * gleichzeitige Rollover saehen beide kein Konto.
+ * Ein zweiter Aufruf erzeugt kein zweites Konto. Die Eindeutigkeit
+ * `(anstellung_id, jahr, monat)` haelt das auch unter Nebenlaeufigkeit, wo
+ * eine Vorabpruefung es nicht taete — zwei gleichzeitige Rollover saehen
+ * beide kein Konto.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Was ein zweiter Aufruf mit ANGABEN tut — und warum das so sein muss.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Die erste Fassung hatte `on conflict do nothing`, und das erzeugte einen
+ * stillen Datenverlust, sobald es den Rollover wirklich gab (V-008): der
+ * Nachtlauf legt das Konto des Monats mit `soll_minuten = 0` an — die
+ * Sollzeit ist offen (O-18) —, und der spaetere Aufruf MIT einer Sollzeit
+ * lief ins Leere. Der Monat behielt 0, der Saldo war um die ganze Sollzeit
+ * falsch, und nichts wurde rot. Gefunden hat es `stundenkonto.test.ts` §3,
+ * die den Vortrag ueber zwoelf Monate auf die Minute nachrechnet.
+ *
+ * Nachgeschrieben wird deshalb — aber nur, was der Aufrufer AUSDRUECKLICH
+ * mitgibt (`!== undefined`) und nur, solange der Monat OFFEN ist. Ein
+ * weggelassenes Feld laesst den Bestand in Ruhe, statt ihn auf die Vorgabe 0
+ * zurueckzusetzen; ein gesperrter Monat bleibt unberuehrt, weil dort ein
+ * gepraegter § 17-Nachweis daranhaengt.
  */
 export async function eroeffneKonto(
   kontext: SchreibKontext, eingabe: KontoEroeffnung,
@@ -318,10 +336,18 @@ export async function eroeffneKonto(
        (mandant_id, anstellung_id, jahr, monat, soll_minuten, saldo_vortrag_minuten,
         erstellt_von)
      values ($1, $2, $3, $4, $5, $6, $7)
-     on conflict (anstellung_id, jahr, monat) do nothing`,
+     on conflict (anstellung_id, jahr, monat) do update
+        set soll_minuten =
+              case when $8::boolean and stundenkonto.status <> 'gesperrt'
+                   then excluded.soll_minuten else stundenkonto.soll_minuten end,
+            saldo_vortrag_minuten =
+              case when $9::boolean and stundenkonto.status <> 'gesperrt'
+                   then excluded.saldo_vortrag_minuten
+                   else stundenkonto.saldo_vortrag_minuten end`,
     [
       kontext.aktiverMandantId, eingabe.anstellungId, eingabe.jahr, eingabe.monat,
       eingabe.sollMinuten ?? 0, eingabe.saldoVortragMinuten ?? 0, kontext.benutzerId,
+      eingabe.sollMinuten !== undefined, eingabe.saldoVortragMinuten !== undefined,
     ],
   );
   const konto = await findeKonto(kontext, eingabe.anstellungId, eingabe.jahr, eingabe.monat);
@@ -580,6 +606,12 @@ export interface AbschlussErgebnis {
   readonly gebucht: number;
   /** Der Digest des gepraegten Artefakts, oder `null` bei einem leeren Monat. */
   readonly nachweisHash: string | null;
+  /**
+   * Ist der Saldo in den Folgemonat gewandert? `false` heisst: der Folgemonat
+   * ist selbst schon gesperrt — dann geht die Zahl ueber `bucheKorrektur` in
+   * den ersten OFFENEN Monat und nicht rueckwirkend in einen geschlossenen.
+   */
+  readonly vortragGesetzt: boolean;
 }
 
 /**
@@ -648,6 +680,20 @@ export async function schliesseMonatAb(
   const danach = await findeKonto(kontext, eingabe.anstellungId, eingabe.jahr, eingabe.monat);
   if (danach === null) throw new KontoFehltFehler(eingabe.jahr, eingabe.monat);
 
+  /*
+   * **Und jetzt wandert der Saldo weiter** (V-008). Ohne diese Zeilen bliebe
+   * er im gesperrten Monat stehen, und die Summe ueber zwoelf Monate ergaebe
+   * nicht das Jahr, sondern zwoelfmal den Monat. Ein gesperrter Folgemonat
+   * wird dabei nicht angefasst — dort haengt ein gepraegter Nachweis.
+   */
+  const naechster = folgemonat(eingabe.jahr, eingabe.monat);
+  const vortragGesetzt = await uebertrageSaldo(kontext, {
+    anstellungId: eingabe.anstellungId,
+    jahr: naechster.jahr,
+    monat: naechster.monat,
+    vortragMinuten: danach.saldoMinuten,
+  });
+
   return {
     kontoId: danach.id,
     istMinuten: danach.istMinuten,
@@ -655,7 +701,71 @@ export async function schliesseMonatAb(
     saldoMinuten: danach.saldoMinuten,
     gebucht: buchung.gebucht,
     nachweisHash,
+    vortragGesetzt,
   };
+}
+
+/**
+ * Der VORTRAG in den Folgemonat (V-008, EMP-04, §12.2).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Der Befund: der Saldo blieb stehen, wo er entstanden ist.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `stundenkonto.saldo_vortrag_minuten` trägt seit je den Kommentar „Der
+ * Vortrag aus dem Vormonat. Setzt `job:konten_rollover` beim Sperren." Den
+ * Lauf gab es nicht, und `schliesseMonatAb` schrieb den Vortrag nicht. Ein
+ * gesperrter März mit +7:30 h Guthaben übergab dem April **null** — das
+ * Guthaben existierte nur noch im Blatt des Märzes, und die Summe über zwölf
+ * Monate ergab nicht das Jahr, sondern zwölfmal den Monat.
+ *
+ * **Idempotent, aber NICHT blind.** `eroeffneKonto` hat `on conflict do
+ * nothing`: gibt es den Folgemonat schon — und den gibt es nach dem
+ * Monatslauf fast immer —, bliebe der Vortrag bei 0. Deshalb legt diese
+ * Funktion an ODER schreibt den Wert nach.
+ *
+ * **Ein GESPERRTER Folgemonat wird nicht angefasst.** Wer im Mai den März
+ * nachträglich abschliesst, während der April schon zu ist, darf den April
+ * nicht rückwirkend verschieben — dort hängt ein geprägter § 17-Nachweis
+ * daran. Die Zahl geht dann über den gewöhnlichen Weg als Korrektur in den
+ * ersten offenen Monat (`bucheKorrektur`), und diese Funktion meldet
+ * `false`.
+ */
+export async function uebertrageSaldo(
+  kontext: SchreibKontext,
+  eingabe: {
+    readonly anstellungId: string;
+    readonly jahr: number;
+    readonly monat: number;
+    readonly vortragMinuten: number;
+  },
+): Promise<boolean> {
+  const vorhanden = await findeKonto(
+    kontext, eingabe.anstellungId, eingabe.jahr, eingabe.monat);
+
+  if (vorhanden === null) {
+    await eroeffneKonto(kontext, {
+      anstellungId: eingabe.anstellungId,
+      jahr: eingabe.jahr,
+      monat: eingabe.monat,
+      saldoVortragMinuten: eingabe.vortragMinuten,
+    });
+    return true;
+  }
+  if (vorhanden.status === 'gesperrt') return false;
+
+  await kontext.schreibe(
+    `update stundenkonto
+        set saldo_vortrag_minuten = $2, geaendert_am = now(), geaendert_von = $3
+      where id = $1 and status <> 'gesperrt'`,
+    [vorhanden.id, eingabe.vortragMinuten, kontext.benutzerId],
+  );
+  return true;
+}
+
+/** Der Monat NACH diesem — mit dem Jahreswechsel, den ein `+ 1` vergisst. */
+export function folgemonat(jahr: number, monat: number): { jahr: number; monat: number } {
+  return monat === 12 ? { jahr: jahr + 1, monat: 1 } : { jahr, monat: monat + 1 };
 }
 
 export interface Drift {

@@ -102,6 +102,18 @@ select cron.schedule('cse_konflikte_erkennen', '45 2 * * *', $cse$
   );
 $cse$);
 
+-- Stundenkonten des laufenden Monats öffnen und Vortrag setzen (EMP-04) (uebergreifend)
+select cron.unschedule('cse_konten_rollover')
+  where exists (select 1 from cron.job where jobname = 'cse_konten_rollover');
+select cron.schedule('cse_konten_rollover', '30 0 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/konten_rollover',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
 -- SLA-Fristen offener Leads prüfen und eskalieren (je_mandant)
 select cron.unschedule('cse_lead_sla_eskalation')
   where exists (select 1 from cron.job where jobname = 'cse_lead_sla_eskalation');

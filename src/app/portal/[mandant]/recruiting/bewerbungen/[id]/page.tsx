@@ -103,6 +103,31 @@ export default async function Bewerbungsblatt(
                   Entscheiden
                 </Link>
               )}
+              {/*
+                * **Die Antwort an die Bewerberin** (V-037, REC-03, § 22 AGG).
+                *
+                * Die Seite ist seit je gebaut — Entwurf, Freigabe, Versand
+                * über `server/agent/policy.ts` (Invariante 7) — und KEIN
+                * Verweis führte hin. Eine Absage, die nie hinausgeht, ist
+                * genau der Fall, aus dem § 22 AGG eine Beweislastumkehr
+                * macht: die Bewerberin hört nichts, und das Unternehmen kann
+                * nicht zeigen, WAS es geantwortet hat.
+                *
+                * Das Register verlangt für die Seite BEIDE Rechte
+                * (`recruiting.bewerbung_bewerten` UND
+                * `recruiting.entscheiden`) — der Verweis prüft deshalb
+                * beide, sonst zeigte er auf eine 404 (AUT-06, D-581).
+                */}
+              {darf['recruiting.entscheiden'] === true
+                && darf['recruiting.bewerbung_bewerten'] === true && (
+                <Link
+                  href={`/portal/${mandant}/recruiting/bewerbungen/${id}/antwort`}
+                  data-cse="zur-antwort"
+                  className={KNOPF}
+                >
+                  Antwort schreiben
+                </Link>
+              )}
             </nav>
 
             <dl className="mb-s6 grid max-w-prose grid-cols-1 gap-s2 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-s5">

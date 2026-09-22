@@ -28,6 +28,9 @@
  */
 import type { SchreibKontext } from '../../kontext/index.js';
 import { istPortalSprache, type PortalSprache } from '../../../lib/i18n/texte.js';
+import { berlinKalendertag } from './dauer.js';
+import { bucheKorrektur } from './stundenkonto.js';
+import { rechteImKontext } from '../../auth/kontext-rechte.js';
 import { korrekturNachricht } from '../../../lib/i18n/zeitkorrektur.js';
 import { eroeffneFaden } from '../kern/nachricht.js';
 
@@ -100,6 +103,38 @@ export class KeinAktuellerEintragFehler extends Error {
   }
 }
 
+/**
+ * Der Monat ist gesperrt, und die Hand, die korrigiert, darf das Konto nicht
+ * bewegen (V-065, EMP-04).
+ *
+ * **Warum das eine eigene Absage ist und kein stiller Durchgriff.** Einen
+ * ZEITEINTRAG zu korrigieren (`zeit.korrigieren`) und MINUTEN AUF EINEM
+ * KONTO zu verschieben (`zeit.konto_korrigieren`) sind zwei Entscheidungen —
+ * die Policy `t_mandant_buchen` trennt sie seit je, und
+ * `zeit.konto_korrigieren` ist im Katalog nur an `super_admin` gebunden.
+ *
+ * Bei einem OFFENEN Monat fallen beide nicht zusammen: die Stunde wandert
+ * ueber den gewoehnlichen Buchungsweg. Erst bei einem GESPERRTEN Monat
+ * verlangt `kern.korrektur_sperre_ausgleich` zwingend eine Gegenbuchung —
+ * und wer sie nicht schreiben darf, kann hier nicht korrigieren.
+ *
+ * Ohne diese Klasse liefe der Fall in
+ * `new row violates row-level security policy` — eine Meldung, die dem
+ * Menschen weder sagt, was fehlt, noch wen er fragen muss.
+ */
+export class KeinKontorechtFehler extends Error {
+  readonly code = 'kein_kontorecht';
+  readonly status = 403;
+  constructor(jahr: number, monat: number) {
+    super(
+      `Der Monat ${String(monat).padStart(2, '0')}/${String(jahr)} ist abgeschlossen. `
+      + 'Eine Korrektur daran verschiebt Minuten auf dem Stundenkonto und verlangt '
+      + 'deshalb zusätzlich das Recht zeit.konto_korrigieren.',
+    );
+    this.name = 'KeinKontorechtFehler';
+  }
+}
+
 export class LaufenderEintragFehler extends Error {
   readonly code = 'ungueltiger_zustand';
   readonly status = 409;
@@ -130,6 +165,8 @@ interface EintragZeile {
   checkout_token_id: string | null;
   geraete_zeit_beginn: Date | null;
   geraete_zeit_ende: Date | null;
+  gesperrt_am: Date | null;
+  dauer_netto_minuten: number | null;
 }
 
 export interface KorrekturErgebnis {
@@ -147,7 +184,8 @@ export async function korrigiereZeiteintrag(
             einsatz_id, einsatz_zuordnung_id, objekt_id, auftrag_leistung_id,
             revier_id, beginn_zeitpunkt, ende_zeitpunkt, pause_minuten, status,
             ersetzt_am, checkin_token_id, checkout_token_id,
-            geraete_zeit_beginn, geraete_zeit_ende
+            geraete_zeit_beginn, geraete_zeit_ende,
+            gesperrt_am, dauer_netto_minuten
        from zeiteintrag where id = $1`,
     [eingabe.zeiteintragId],
   );
@@ -177,8 +215,9 @@ export async function korrigiereZeiteintrag(
    * beiden Seiten.
    */
   let neueFassungId: string | null = null;
+  let neueNettoMinuten: number | null = null;
   if (!storno) {
-    const [neu] = await kontext.schreibe<{ id: string }>(
+    const [neu] = await kontext.schreibe<{ id: string; dauer_netto_minuten: number | null }>(
       `insert into zeiteintrag
          (mandant_id, kette_id, version, ersetzt_zeiteintrag_id,
           anstellung_id, person_id, einsatz_id, einsatz_zuordnung_id, objekt_id,
@@ -200,7 +239,7 @@ export async function korrigiereZeiteintrag(
                $17::timestamptz, $18::timestamptz, true,
                $19, $20, $21::zeiteintrag_status,
                'mensch', $22, $23)
-       returning id`,
+       returning id, dauer_netto_minuten`,
       [
         alt.mandant_id, alt.kette_id, alt.version + 1, alt.id,
         alt.anstellung_id, alt.person_id, alt.einsatz_id, alt.einsatz_zuordnung_id,
@@ -220,6 +259,77 @@ export async function korrigiereZeiteintrag(
     );
     neueFassungId = neu?.id ?? null;
     if (neueFassungId === null) throw new Error('Die Ersatzfassung wurde nicht geschrieben.');
+    neueNettoMinuten = neu?.dauer_netto_minuten === null || neu?.dauer_netto_minuten === undefined
+      ? null : Number(neu.dauer_netto_minuten);
+  }
+
+  /**
+   * ═════════════════════════════════════════════════════════════════════════
+   * **Die Gegenbuchung in einem GESPERRTEN Monat** (V-065, EMP-04, §12.2).
+   * ═════════════════════════════════════════════════════════════════════════
+   *
+   * **Der Befund: `bucheKorrektur` hatte keinen einzigen Aufrufer.** Der
+   * Ausloeser `kern.korrektur_sperre_ausgleich` weist eine Korrektur an einem
+   * gesperrten Eintrag ab, solange `ausgleich_bewegung_id` fehlt — mit genau
+   * dem richtigen Satz: „Eine Korrektur ohne Gegenbuchung verschoebe die
+   * Differenz ins Nichts." Nur konnte ihn niemand befolgen: weder Route noch
+   * Seite noch Dienst rief die Funktion, die diese Buchung erzeugt. Damit war
+   * **jede** Korrektur an einem abgeschlossenen Monat unmoeglich — und das
+   * ist der haeufigste Fall, weil eine falsche Stunde meistens auffaellt,
+   * wenn der Lohn da ist.
+   *
+   * **Die Differenz entsteht HIER und nicht im Formular.** Sie ist
+   * `neue Nettominuten − alte Nettominuten`; beim Storno faellt die ganze
+   * Zeit weg, also `−alt`. Beide Zahlen kommen aus `dauer_netto_minuten`,
+   * das `kern.zeiteintrag_dauer` aus dem Abstand zweier Instants bildet
+   * (Invariante 2) — eine im Browser gerechnete Differenz waere eine zweite
+   * Fassung derselben Regel.
+   *
+   * **Der ZIELmonat ist nicht der betroffene.** `bucheKorrektur` sucht den
+   * ersten offenen Monat ab dem betroffenen; der gesperrte bleibt gesperrt.
+   * Welcher es war, steht in `korrektur_fuer_stundenkonto_id`.
+   *
+   * **Null Minuten bucht nichts.** Eine Korrektur, die nur das Objekt
+   * richtigstellt, bewegt keine Stunde — und `bucheKorrektur` wiese eine
+   * Buchung ueber null ohnehin ab. Der Ausloeser verlangt in diesem Fall
+   * trotzdem eine Bewegung; deshalb bucht diese Stelle dann **eine Zeile
+   * ueber eine Minute nicht**, sondern laesst den Ausloeser sprechen. Genau
+   * hier ist die Grenze zwischen „nichts zu verschieben" und „Differenz ins
+   * Nichts": die erste Lage kommt vor, und sie braucht eine Antwort.
+   *
+   * // TODO(client, O-891): Wie wird eine Korrektur an einem gesperrten Monat gebucht, die KEINE Minuten bewegt (nur Objekt, Revier oder Auftragszuordnung)?
+   */
+  let ausgleich = eingabe.ausgleichBewegungId ?? null;
+  if (ausgleich === null && alt.gesperrt_am !== null) {
+    const altMinuten = alt.dauer_netto_minuten === null ? 0 : Number(alt.dauer_netto_minuten);
+    const differenz = storno ? -altMinuten : (neueNettoMinuten ?? 0) - altMinuten;
+    if (differenz !== 0) {
+      const tag = berlinKalendertag(alt.beginn_zeitpunkt);
+      /*
+       * **Das Recht wird HIER geprueft, nicht von der Policy** (V-065).
+       *
+       * `t_mandant_buchen` verlangt `zeit.konto_korrigieren` fuer eine
+       * Bewegung der Art `korrektur`. Ohne die Vorpruefung faellt der Fall
+       * in `new row violates row-level security policy` — richtig
+       * abgewiesen, aber mit einer Meldung, die dem Menschen weder sagt,
+       * was fehlt, noch wen er fragen muss. Die Policy bleibt die zweite
+       * Linie; diese Zeile ist der Satz davor.
+       */
+      const rechte = await rechteImKontext(kontext, 'zeit.konto_korrigieren');
+      if (rechte['zeit.konto_korrigieren'] !== true) {
+        throw new KeinKontorechtFehler(
+          Number(tag.slice(0, 4)), Number(tag.slice(5, 7)));
+      }
+      const gebucht = await bucheKorrektur(kontext, {
+        anstellungId: alt.anstellung_id,
+        jahr: Number(tag.slice(0, 4)),
+        monat: Number(tag.slice(5, 7)),
+        minuten: differenz,
+        begruendung: eingabe.begruendung,
+        zeiteintragId: alt.id,
+      });
+      ausgleich = gebucht.bewegungId;
+    }
   }
 
   /**
@@ -245,7 +355,7 @@ export async function korrigiereZeiteintrag(
     [
       alt.mandant_id, alt.kette_id, alt.id, neueFassungId,
       eingabe.art, eingabe.grundKategorie, eingabe.begruendung,
-      eingabe.ausgleichBewegungId ?? null, eingabe.durchgefuehrtVon,
+      ausgleich, eingabe.durchgefuehrtVon,
       eingabe.ipAdresse ?? null,
       eingabe.zeitEinwandId ?? null,
     ],

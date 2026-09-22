@@ -80,7 +80,9 @@ export default async function AgentenZentrum(
     /* Das Tor der Richtlinienliste im Manifest — gefragt wird genau das
        Recht, mit dem die Route bewacht ist, damit der Verweis nie auf ein
        404 fuehrt (AUT-06). */
-    'agent.richtlinie_verwalten');
+    'agent.richtlinie_verwalten',
+    /* Das Tor der Wissensquellen (AGT-06) — dasselbe Spiel. */
+    'agent.werkzeug_verbinden');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const { agenten, budget, modell } = await (db().begin(SCHNAPPSCHUSS,
@@ -205,6 +207,21 @@ export default async function AgentenZentrum(
               className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
             >
               Was hinausgehen darf
+            </Link>
+          )}
+          {/*
+            * **Der Eingang zu den Wissensquellen** (V-046, AGT-06). Dieselbe
+            * Lücke wie bei den Richtlinien: gebaut, geprüft, von nirgendwo
+            * erreichbar. Und dieselbe Nachbarschaft — wer wissen will, was
+            * ein Agent ANTWORTET, fragt als nächstes, woher er es hat.
+            */}
+          {darf['agent.werkzeug_verbinden'] === true && (
+            <Link
+              href={`/portal/${mandant}/agenten/wissen`}
+              data-cse="zum-wissen"
+              className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
+            >
+              Woher das Wissen kommt
             </Link>
           )}
         </div>

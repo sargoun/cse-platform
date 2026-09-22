@@ -48,13 +48,14 @@ afterEach(() => {
 });
 
 describe('der Bootstrap verdrahtet ALLE Jobs', () => {
-  it('registriert die achtzehn Jobs, die es gibt', () => {
+  it('registriert die neunzehn Jobs, die es gibt', () => {
     const schluessel = alleJobs(db).map((j) => j.schluessel).sort();
     expect(schluessel).toEqual([
       'akquise_recherche', 'basiszinssatz_pruefen', 'belegarchiv_ausgangsrechnung',
       'bewerber_loeschung',
       'einsaetze_generieren', 'freigabe_fenster', 'kette_pruefen',
-      'konflikte_erkennen', 'lead_sla_eskalation', 'mahnvorschlaege_erzeugen',
+      'konflikte_erkennen', 'konten_rollover', 'lead_sla_eskalation',
+      'mahnvorschlaege_erzeugen',
       'morgen_unbesetzt', 'nachtrag_ueberfaellig', 'nachweis_warnungen',
       'offene_posten_abgleichen', 'radar_einlesen', 'radar_warnungen',
       'schicht_ohne_zeiteintrag', 'social_plan',

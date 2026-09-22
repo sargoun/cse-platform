@@ -7,6 +7,7 @@ import { leseKonten, type Stundenkonto } from '@/server/services/zeit/stundenkon
 import { leseEigeneAnstellungen } from '@/server/services/mitarbeiter/person';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { meinPortal } from '../rahmen';
+import { Monatswechsler } from '../bausteine';
 
 /**
  * `/portal/mein/monatsnachweis` — der Stundennachweis eines Monats, je
@@ -194,6 +195,28 @@ export default async function Monatsnachweis({
       >
         {t.monatsnachweis} · {t.drucken}
       </p>
+
+      {/*
+        * Der Monatswechsler (V-053) — auf dem Bildschirm, nie auf dem Papier.
+        *
+        * Der Nachweis ist das Blatt, das man beim Lohnstreit vorlegt; ein
+        * Bedienelement darauf waere bestenfalls sinnlos und schlimmstenfalls
+        * eine zweite Aussage neben der Aufzeichnung. `cse-nicht-drucken` ist
+        * dieselbe Klasse, die die Kopfzeile darueber verschwinden laesst.
+        *
+        * Die gewaehlte BESCHAEFTIGUNG wandert mit: wer zwei hat (D-09) und
+        * einen Monat zurueckblaettert, landete sonst wieder bei der ersten.
+        */}
+      <div className="cse-nicht-drucken">
+        <Monatswechsler
+          pfad="/portal/mein/monatsnachweis"
+          monat={monatsErster}
+          heute={heute}
+          texte={t}
+          sprache={basis.sprache}
+          zusatz={{ anstellung: daten.anstellungId }}
+        />
+      </div>
 
       <header>
         <p style={{ margin: 0, fontSize: '14pt', fontWeight: 600 }}>{daten.mandantName}</p>

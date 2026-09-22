@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { EINWAND_ARTEN, EINWAND_ART_TEXTE } from '@/lib/i18n/texte';
+import {
+  EINWAND_ARTEN, EINWAND_ART_TEXTE, EINWAND_STATUS_TEXTE, PORTAL_BCP47,
+  type EinwandStatusSchluessel,
+} from '@/lib/i18n/texte';
 import {
   findeEigenenZeiteintrag, type EigenerZeiteintrag,
 } from '@/server/services/mitarbeiter/zeiten';
@@ -59,6 +62,19 @@ export default async function EinwandFormular(
   if (z === null) notFound();
   const t = basis.texte;
   const arten = EINWAND_ART_TEXTE[basis.sprache];
+  const statusWort = EINWAND_STATUS_TEXTE[basis.sprache];
+  /*
+   * Das Datum in der Zeitzone, die zaehlt (Invariante 2), und im Kalender der
+   * gewaehlten Sprache. `Intl` faellt fuer `ar` auf den gregorianischen
+   * Kalender zurueck, wenn die Umgebung keinen anderen kennt — was hier
+   * richtig ist: ein Entscheidungsdatum ist eine AKTENANGABE und muss mit der
+   * Akte uebereinstimmen.
+   */
+  const tagFormat = new Intl.DateTimeFormat(PORTAL_BCP47[basis.sprache], {
+    timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const tagText = (wert: Date | null): string =>
+    wert === null ? '—' : tagFormat.format(wert);
   const zuDiesem = daten.eigene.filter((e) => e.zeiteintragId === z.id);
   const eingabe =
     'min-h-11 w-full rounded-md border border-line-strong bg-surface px-s3 py-s2 '
@@ -171,19 +187,63 @@ export default async function EinwandFormular(
         </button>
       </form>
 
+      {/*
+        * **Was aus der Meldung wurde** (V-051, EMP-07).
+        *
+        * Vorher stand hier der rohe Enum-Wert — `teilweise_anerkannt` — und
+        * sonst nichts. Wann entschieden wurde und mit welcher Begruendung
+        * lag in `zeit_einwand`, wurde von `listeEigeneEinwaende` geladen und
+        * nie gezeigt. Eine Person, die einen falschen Lohn meldet, las damit
+        * ein Wort ihrer Datenbank und erfuhr nie, warum.
+        *
+        * Die Begruendung steht in der Sprache, in der die Planung sie
+        * geschrieben hat, und wird NICHT uebersetzt: sie ist eine Aussage
+        * eines Menschen ueber einen Einzelfall, keine Beschriftung. Was
+        * uebersetzt wird, sind die Woerter darum herum.
+        */}
       <section className="mt-s6">
         <h2 className="mb-s3 text-h3 text-text">{t.meineMeldungen}</h2>
         {zuDiesem.length === 0 ? <Leer text={t.keineEintraege} /> : (
           <ul data-cse="eigene-einwaende" className="m-0 flex list-none flex-col gap-s3 p-0">
-            {zuDiesem.map((e) => (
-              <li key={e.id} className="rounded-lg border border-line bg-surface p-s4">
-                <Felder>
-                  <Feld label={t.status}>{e.status}</Feld>
-                  <Feld label={t.einwandArt}>{arten[e.art]}</Feld>
-                  <Feld label={t.einwandBegruendung}>{e.begruendung}</Feld>
-                </Felder>
-              </li>
-            ))}
+            {zuDiesem.map((e) => {
+              const entschieden = e.entschiedenAm !== null;
+              return (
+                <li key={e.id} data-cse="einwand-zeile"
+                    className="rounded-lg border border-line bg-surface p-s4">
+                  <Felder>
+                    <Feld label={t.status}>
+                      <span data-cse="einwand-status">
+                        {statusWort[e.status as EinwandStatusSchluessel] ?? e.status}
+                      </span>
+                    </Feld>
+                    <Feld label={t.einwandArt}>{arten[e.art]}</Feld>
+                    <Feld label={t.einwandEingereichtAm}>
+                      <span className="cse-zahl">{tagText(e.eingereichtAm)}</span>
+                    </Feld>
+                    <Feld label={t.einwandBegruendung}>{e.begruendung}</Feld>
+                  </Felder>
+
+                  {entschieden ? (
+                    <div data-cse="einwand-entscheidung"
+                         className="mt-s4 border-t border-line pt-s4">
+                      <Felder>
+                        <Feld label={t.einwandEntschiedenAm}>
+                          <span className="cse-zahl">{tagText(e.entschiedenAm)}</span>
+                        </Feld>
+                        <Feld label={t.einwandEntscheidung}>
+                          {e.entscheidungBegruendung ?? t.einwandOhneBegruendung}
+                        </Feld>
+                      </Felder>
+                    </div>
+                  ) : (
+                    <p data-cse="einwand-wartet"
+                       className="m-0 mt-s4 border-t border-line pt-s4 text-sm text-text-muted">
+                      {t.einwandWartet}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

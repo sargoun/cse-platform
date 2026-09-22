@@ -47,7 +47,14 @@ function schichtOhneZeit(): ArtDefinition {
         + 'vor. Entweder nacherfassen (die Abweichung wird dabei festgehalten) oder die '
         + 'Zuordnung richtigstellen, wenn die Schicht nicht gearbeitet wurde.';
     },
-    ziel: (k) => ziel(k.mandantSlug, '/zeit/nacherfassung'),
+    /*
+     * **`/zeiten/`, nicht `/zeit/`** (V-034). Der Modulpfad heisst `zeiten`;
+     * `/portal/<slug>/zeit/nacherfassung` gibt es im Routenregister nicht,
+     * und die Meldung fuehrte damit jede Nacht auf eine 404. Eine Warnung,
+     * deren einziger Verweis ins Leere zeigt, ist schlimmer als keine: sie
+     * sieht aus wie eine, der jemand nachgegangen ist.
+     */
+    ziel: (k) => ziel(k.mandantSlug, '/zeiten/nacherfassung'),
     kanaeleVorgabe: ['app'],
     sammelbar: false,
   });
@@ -64,7 +71,20 @@ function morgenUnbesetzt(): ArtDefinition {
       + (typeof k.daten['objekt'] === 'string' ? ` (${String(k.daten['objekt'])})` : '')
       + `, Beginn ${String(k.daten['beginn'] ?? '')}. Gezählt werden ZUSAGEN, nicht `
       + 'Einteilungen — wer eingeteilt ist und nicht zugesagt hat, steht morgen nicht da.',
-    ziel: (k) => ziel(k.mandantSlug, '/dienstplan'),
+    /*
+     * **`/dienstplan/tag`, nicht `/dienstplan`** (V-034, zweiter Fund).
+     *
+     * Ein blosses `/portal/<slug>/dienstplan` gibt es nicht: das Modul hat
+     * keine Wurzelseite, sondern vier Ansichten (`woche`, `monat`, `tag`,
+     * `serien`). Der Verweis fuehrte auf eine 404.
+     *
+     * Von den vieren ist `tag` die richtige: die Meldung sagt „morgen sind
+     * drei von fuenf Plaetzen zugesagt", und die Tagesansicht ist die
+     * Disposition — dort wird nachbesetzt. Die Wochenansicht waere die
+     * Uebersicht und verlangte einen zweiten Klick an genau der Stelle, an
+     * der jemand um sechs Uhr morgens schnell sein muss.
+     */
+    ziel: (k) => ziel(k.mandantSlug, '/dienstplan/tag'),
     kanaeleVorgabe: ['app', 'email'],
     sammelbar: false,
   });

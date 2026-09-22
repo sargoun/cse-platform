@@ -229,6 +229,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * `social/planeingabe` re-exportiert weiter.
    */
   { modul: 'zeit', pfad: 'zeit/formulareingabe', schreibend: false },
+  /**
+   * V-051 — die Artdefinition der Meldung „Ihre Zeitmeldung wurde …".
+   *
+   * `schreibend: false`: die Datei baut Titel, Text und Ziel und schreibt
+   * nichts. Die Zustellung macht `app.einwand_entscheidung_melden` (0377),
+   * aufgerufen aus `zeit/einwand`.
+   */
+  { modul: 'zeit', pfad: 'zeit/benachrichtigung', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/spalten', schreibend: false },
   /**
    * Der Check-in SCHREIBT — die Marke und den Zeiteintrag. Sein Recht ist
@@ -246,6 +254,27 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * Gruppenansicht laeuft sie nicht: Invariante 10, und ohne genau einen
    * aktiven Mandanten waere jede `WITH CHECK` ohnehin falsch.
    */
+  /**
+   * V-064 — was die Verwaltung mit einem LAUFENDEN Eintrag darf.
+   *
+   * `zeit.korrigieren` wie bei `zeit/korrektur` daneben: es ist derselbe
+   * Vorgang in einer frueheren Phase. Wer Zeiten nur ERFASST
+   * (`zeit.schreiben`), setzt damit noch keine fremde Arbeitszeit fest.
+   */
+  {
+    modul: 'zeit', pfad: 'zeit/laufender-eintrag',
+    schreibend: true, schreibRecht: 'zeit.korrigieren',
+  },
+  /**
+   * V-066/V-067 — eine Arbeitszeit eintragen, zu der es KEIN Geraetereignis
+   * gibt. `zeit.nacherfassung_pruefen` ist die Entscheidung (TIM-09); den
+   * Schreibzugriff verlangt die Policy `t_mandant` ohnehin als
+   * `zeit.schreiben`.
+   */
+  {
+    modul: 'zeit', pfad: 'zeit/nacherfassung',
+    schreibend: true, schreibRecht: 'zeit.nacherfassung_pruefen',
+  },
   {
     modul: 'zeit', pfad: 'zeit/korrektur',
     schreibend: true, schreibRecht: 'zeit.korrigieren',

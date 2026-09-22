@@ -106,23 +106,30 @@ export default async function Veranstaltungen(
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-s3">
                   {/*
-                    * Das Besetzungsbrett dahinter verlangt laut Manifest
-                    * `dienstplan.schreiben`; diese Liste nur `security.lesen`.
-                    * Ohne das Schreibrecht führte der Zeilentitel auf 404 und
-                    * verriete, was er nicht zeigen darf (AUT-06; Copilot-Runde
-                    * auf PR 16 / D-581) — dann steht die Bezeichnung als Text.
+                    * **Der Titel führt auf das BLATT, nicht ins Besetzungsbrett**
+                    * (V-045).
+                    *
+                    * Er führte auf `…/besetzung`, weil dort die Handlung sitzt
+                    * — und sprang damit an der Detailseite vorbei, die es seit
+                    * je gibt: Kopf, Ort, Dienstanweisung, Nachweislage je
+                    * eingeteilter Person. Wer keine `dienstplan.schreiben`
+                    * hielt, sah stattdessen gar keinen Verweis und kam nie
+                    * irgendwohin.
+                    *
+                    * Das Blatt verlangt dasselbe Recht wie diese Liste
+                    * (`security.lesen`, Register §5.8) — der Verweis steht
+                    * also immer. Das Besetzungsbrett ist von dort eine Karte
+                    * weiter und bekommt daneben seinen eigenen Weg, an seinem
+                    * eigenen Recht (AUT-06, D-581).
                     */}
-                  {darf['dienstplan.schreiben'] === true ? (
-                    <Link
-                      href={`/portal/${mandant}/security/veranstaltungen/${v.id}/besetzung`}
-                      className="text-base text-text underline-offset-2
-                                 hover:text-brand hover:underline"
-                    >
-                      {v.bezeichnung}
-                    </Link>
-                  ) : (
-                    <span className="text-base text-text">{v.bezeichnung}</span>
-                  )}
+                  <Link
+                    href={`/portal/${mandant}/security/veranstaltungen/${v.id}`}
+                    data-cse="veranstaltung-blatt"
+                    className="text-base text-text underline-offset-2
+                               hover:text-brand hover:underline"
+                  >
+                    {v.bezeichnung}
+                  </Link>
                   <span className="text-sm tabular-nums text-text-muted">
                     {v.beginnLokal} – {v.endeLokal}
                   </span>
@@ -138,11 +145,22 @@ export default async function Veranstaltungen(
                     </span>
                   )}
                 </p>
-                <p className="m-0 mt-s2 text-sm tabular-nums">
+                <p className="m-0 mt-s2 flex flex-wrap items-center gap-s3
+                              text-sm tabular-nums">
                   <span className={offen > 0 ? 'text-warning' : 'text-success'}>
                     {v.besetzt} von {v.sollBesetzung} besetzt
                     {offen > 0 && ` · ${offen} offen`}
                   </span>
+                  {darf['dienstplan.schreiben'] === true && (
+                    <Link
+                      href={`/portal/${mandant}/security/veranstaltungen/${v.id}/besetzung`}
+                      data-cse="veranstaltung-besetzung"
+                      className="text-text-muted underline underline-offset-2
+                                 hover:text-text"
+                    >
+                      Besetzung →
+                    </Link>
+                  )}
                 </p>
               </li>
             );

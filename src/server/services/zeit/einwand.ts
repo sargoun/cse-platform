@@ -22,6 +22,9 @@
  *    `mandantDerAnstellung` serverseitig aufloest (K-02, Invariante 3).
  */
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
+import { erzeuge } from '../../benachrichtigung/registry.js';
+import { registriereZeitArten } from './benachrichtigung.js';
+import { ART_EINWAND_ENTSCHIEDEN } from './benachrichtigung.js';
 
 export type EinwandArt =
   'eintrag_fehlt' | 'zeit_falsch' | 'pause_falsch' | 'zuordnung_falsch' | 'sonstiges';
@@ -282,6 +285,68 @@ export async function entscheideEinwand(
   // Recht `zeit.einwand_entscheiden` fehlt. Von aussen dieselbe Antwort wie
   // „gibt es nicht" (AUT-06).
   if (zeilen.length === 0) throw new EinwandNichtGefundenFehler(eingabe.einwandId);
+
+  /*
+   * ═════════════════════════════════════════════════════════════════════════
+   * **Und jetzt erfaehrt es die Person** (V-051, NOT-01).
+   * ═════════════════════════════════════════════════════════════════════════
+   *
+   * Bis hierher setzte diese Funktion Zustand, Zeitpunkt und Begruendung —
+   * und danach passierte nichts. Die betroffene Person erfuhr es nur, wenn
+   * sie von sich aus dieselbe Seite noch einmal oeffnete. Bei einer Meldung
+   * ueber falsch erfasste ARBEITSZEIT ist das die eine Stelle, an der
+   * Schweigen teuer ist.
+   *
+   * **`in_pruefung` meldet sich NICHT.** Das ist keine Entscheidung, sondern
+   * die Auskunft, dass jemand hinsieht; 0377 liefert dafuer ohnehin NULL,
+   * weil `entschieden_am` dabei ungesetzt bleibt. Eine Meldung „es wurde
+   * entschieden", waehrend geprueft wird, waere falsch.
+   *
+   * **`zurueckgezogen` meldet sich auch nicht** — das tut die Person selbst,
+   * und niemand muss sich selbst mitteilen, was er gerade getan hat.
+   *
+   * **Die Zustellung schreibt `cse_app` nicht selbst.** `benachrichtigung`
+   * hat fuer diese Rolle keine INSERT-Policy, mit Absicht: wer dem
+   * Posteingang eines anderen Menschen etwas hinzufuegen kann, kann ihm
+   * alles hinzufuegen. Migration 0377 stellt dafuer
+   * `app.einwand_entscheidung_melden` bereit — Empfaenger abgeleitet, Art
+   * festgeschrieben, Ziel auf `/portal/mein/` begrenzt.
+   *
+   * **Ein Mensch ohne Zugang bekommt nichts, und das bricht nichts ab.** Die
+   * Funktion liefert dann NULL (D-09). Die Entscheidung gilt trotzdem; sie
+   * ist die Aufzeichnung, die Meldung ist ihr Weg. Beides zu verbinden
+   * hiesse, eine Entscheidung daran scheitern zu lassen, dass die Kraft kein
+   * Telefon hat.
+   */
+  if (!ENTSCHEIDUNG.includes(eingabe.status)) return;
+
+  const [kopf] = await kontext.abfrage<{
+    mandant_id: string; zeiteintrag_id: string | null; betrifft_datum: string;
+  }>(
+    `select mandant_id, zeiteintrag_id,
+            to_char(betrifft_datum, 'DD.MM.YYYY') as betrifft_datum
+       from zeit_einwand where id = $1`,
+    [eingabe.einwandId],
+  );
+  if (kopf === undefined) return;
+
+  registriereZeitArten();
+  const meldung = erzeuge(ART_EINWAND_ENTSCHIEDEN, {
+    mandantId: kopf.mandant_id,
+    objektTyp: 'zeit_einwand',
+    objektId: eingabe.einwandId,
+    daten: {
+      status: eingabe.status,
+      betrifftDatum: kopf.betrifft_datum,
+      begruendung: eingabe.begruendung ?? '',
+      zeiteintragId: kopf.zeiteintrag_id ?? '',
+    },
+  });
+
+  await kontext.schreibe(
+    `select app.einwand_entscheidung_melden($1::uuid, $2, $3, $4)`,
+    [eingabe.einwandId, meldung.titel, meldung.text, meldung.ziel],
+  );
 }
 
 const SPALTEN = `

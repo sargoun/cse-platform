@@ -226,3 +226,73 @@ describe('(6) eine halb registrierte Gruppe wird vervollstaendigt, nicht verdopp
     }))).toThrow(ArtFehler);
   });
 });
+
+/**
+ * (7) **Jedes Ziel führt auf eine Adresse, die es WIRKLICH gibt** (V-034,
+ * NOT-03).
+ *
+ * **Der Befund.** `dienstplan.schicht_ohne_zeiteintrag` zeigte auf
+ * `/portal/<slug>/zeit/nacherfassung`. Das Modul heisst `zeiten`; die Adresse
+ * gab es nicht. Die Warnung lief jede Nacht, landete im Posteingang und führte
+ * auf eine 404 — und eine Meldung, deren einziger Verweis ins Leere zeigt, ist
+ * schlimmer als keine: sie sieht aus wie eine, der jemand nachgegangen ist.
+ *
+ * NOT-03 verlangt „a link to the thing". Geprüft wurde bis hierher nur, dass
+ * ein Ziel NICHT LEER ist — nicht, dass es existiert. Diese Prüfung schliesst
+ * die Lücke für ALLE registrierten Arten auf einmal.
+ */
+describe('(7) jedes Benachrichtigungsziel ist eine Route, die das Register kennt', () => {
+  it('kein Ziel zeigt auf eine Adresse ausserhalb des Routenregisters', async () => {
+    const { alleArten } = await import('../../src/server/benachrichtigung/bootstrap.js');
+    const { ROUTEN } = await import('../../src/server/registry/routen.js');
+    const { leereArten } = await import('../../src/server/benachrichtigung/registry.js');
+
+    leereArten();
+    const arten = alleArten();
+    expect(arten.length).toBeGreaterThan(0);
+
+    /*
+     * Das Register fuehrt MUSTER (`/portal/[mandant]/zeiten`); ein Ziel ist
+     * eine konkrete Adresse. Verglichen wird deshalb Segment fuer Segment,
+     * wobei ein `[…]`-Segment auf alles passt — dieselbe Bauart wie in
+     * `rueckweg.test.ts`.
+     */
+    const muster = ROUTEN.map((r) => r.pfad.split('/').filter((t) => t !== ''));
+    const passt = (adresse: string): boolean => {
+      const teile = adresse.split('?')[0]?.split('/').filter((t) => t !== '') ?? [];
+      return muster.some((m) => m.length === teile.length
+        && m.every((seg, i) => seg.startsWith('[') || seg === teile[i]));
+    };
+
+    const kontext = {
+      mandantId: '00000000-0000-0000-0000-000000000001',
+      mandantSlug: 'reinigung',
+      objektTyp: 'pruefung',
+      objektId: '00000000-0000-0000-0000-000000000002',
+      daten: {
+        /* Was ein Zielaufloeser lesen koennte — je mehr, desto echter das Ziel. */
+        id: 'a1b2c3d4-0000-0000-0000-000000000000',
+        zeiteintragId: 'a1b2c3d4-0000-0000-0000-000000000000',
+        einwandId: 'a1b2c3d4-0000-0000-0000-000000000000',
+        profilId: 'a1b2c3d4-0000-0000-0000-000000000000',
+        vorgangId: 'a1b2c3d4-0000-0000-0000-000000000000',
+        agentId: 'a1b2c3d4-0000-0000-0000-000000000000',
+        leadId: 'a1b2c3d4-0000-0000-0000-000000000000',
+        nachtragId: 'a1b2c3d4-0000-0000-0000-000000000000',
+        projektId: 'a1b2c3d4-0000-0000-0000-000000000000',
+        freigabeId: 'a1b2c3d4-0000-0000-0000-000000000000',
+        personId: 'a1b2c3d4-0000-0000-0000-000000000000',
+        nachweisId: 'a1b2c3d4-0000-0000-0000-000000000000',
+        rechnungId: 'a1b2c3d4-0000-0000-0000-000000000000',
+      },
+    };
+
+    const tot: string[] = [];
+    for (const art of arten) {
+      const adresse = art.ziel(kontext);
+      if (adresse === null || adresse === '') continue;
+      if (!passt(adresse)) tot.push(`${art.schluessel} → ${adresse}`);
+    }
+    expect(tot).toEqual([]);
+  });
+});

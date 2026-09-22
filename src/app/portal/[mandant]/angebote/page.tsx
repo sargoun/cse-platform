@@ -10,6 +10,7 @@ import { formatiereGeld, cent } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { portalZugang } from '../../zugang';
 import { slugTor } from '../../unterseite';
+import { haeltRechte } from '../../rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -56,6 +57,8 @@ export default async function Angebotsliste(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  const darf = await haeltRechte(sitzung, 'angebot.schreiben');
+
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => kontext.abfrage<AngebotZeile>(
 
@@ -78,17 +81,53 @@ export default async function Angebotsliste(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="text-h1 text-text">Angebote</h1>
-        <p className="m-0 text-sm text-text-muted">
-          {zeilen.length === 1 ? '1 Angebot' : `${String(zeilen.length)} Angebote`}
-        </p>
+      <div className="mb-s5 flex flex-wrap items-center justify-between gap-s3">
+        <div className="flex flex-wrap items-baseline gap-s3">
+          <h1 className="m-0 text-h1 text-text">Angebote</h1>
+          <p className="m-0 text-sm text-text-muted">
+            {zeilen.length === 1 ? '1 Angebot' : `${String(zeilen.length)} Angebote`}
+          </p>
+        </div>
+        {/*
+          * **Der zweite Weg zu einem Angebot** (V-047).
+          *
+          * Der einzige Weg führte über das Raumbuch eines Objekts — richtig
+          * für die Reinigung, wo die Kalkulation aus Flächen entsteht, und
+          * für Sicherheit und Bau unbrauchbar: dort gibt es kein Raumbuch.
+          * `/angebote/neu` ist seit je gebaut und stand in keiner Leiste.
+          *
+          * Das Recht ist `angebot.schreiben` — dasselbe, das die Route im
+          * Register trägt (AUT-06, D-581).
+          */}
+        {darf['angebot.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/angebote/neu`}
+            data-cse="angebot-neu"
+            className="inline-flex min-h-11 items-center rounded-md bg-brand px-s4
+                       text-sm font-semibold text-white hover:bg-brand-hover"
+          >
+            Neues Angebot
+          </Link>
+        )}
       </div>
 
       {zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Noch kein Angebot. Ein Reinigungsangebot entsteht aus dem Raumbuch
-          eines Objekts — dort steht der Knopf.
+          eines Objekts — dort steht der Knopf; für Sicherheit und Bau führt der
+          Weg über
+          {darf['angebot.schreiben'] === true ? (
+            <>
+              {' '}
+              <Link
+                href={`/portal/${mandant}/angebote/neu`}
+                className="underline underline-offset-2 hover:text-text"
+              >
+                Neues Angebot
+              </Link>
+              .
+            </>
+          ) : ' „Neues Angebot" — dafür fehlt Ihnen angebot.schreiben.'}
         </p>
       ) : (
         <DataTable

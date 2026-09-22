@@ -8,7 +8,7 @@ import {
 } from '@/server/services/mitarbeiter/stunden';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../rahmen';
-import { Feld, Felder, Gesellschaft, Leer } from '../bausteine';
+import { Feld, Felder, Gesellschaft, Leer, Monatswechsler } from '../bausteine';
 
 /**
  * `/portal/mein/stundenkonto` — ein Konto je Beschaeftigung (EMP-04, EMP-15).
@@ -82,22 +82,12 @@ export default async function MeinStundenkonto({
         </p>
       </div>
 
-      <nav aria-label={t.monat} className="mb-s5 flex flex-wrap gap-s4">
-        <Link
-          href={`/portal/mein/stundenkonto?monat=${verschiebe(jahr, monat, -1)}-01`}
-          data-cse="monat-zurueck"
-          className="min-h-11 text-base text-text underline"
-        >
-          ← <span className="cse-zahl">{verschiebe(jahr, monat, -1)}</span>
-        </Link>
-        <Link
-          href={`/portal/mein/stundenkonto?monat=${verschiebe(jahr, monat, 1)}-01`}
-          data-cse="monat-vor"
-          className="min-h-11 text-base text-text underline"
-        >
-          <span className="cse-zahl">{verschiebe(jahr, monat, 1)}</span> →
-        </Link>
-      </nav>
+      <Monatswechsler
+        pfad="/portal/mein/stundenkonto"
+        monat={`${verschiebe(jahr, monat, 0)}-01`}
+        heute={heute}
+        texte={t}
+      />
 
       {/* EMP-15, erste Haelfte: die zusammengezaehlte Zahl. */}
       <section data-cse="kombiniert" className="mb-s6 grid gap-s4 sm:grid-cols-3">
