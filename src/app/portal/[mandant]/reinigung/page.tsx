@@ -14,6 +14,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { mandantTor, MandantAntwort } from '../../unterseite';
 import { ladeReinigungKopf, type ReinigungKopf } from '@/server/services/reinigung/uebersicht';
 import { lesbareRegel } from '@/lib/datum/regeltext';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/reinigung` — der Modulkopf der Gebäudereinigung
@@ -204,7 +205,7 @@ export default async function ReinigungKopfSeite(
         {kopf.offeneNachweise === null ? (
           <Hinweis art="hinweis" cse="nachweise-ungeprueft" className="max-w-prose">
             <strong>Nicht geprüft.</strong> Leistungsnachweise liegen hinter dem
-            Recht <code>nachweis.lesen</code>, das dieses Konto hier nicht hält.
+            Recht <Recht schluessel="nachweis.lesen" />, das dieses Konto hier nicht hält.
           </Hinweis>
         ) : kopf.offeneNachweise.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
@@ -257,7 +258,7 @@ export default async function ReinigungKopfSeite(
         {kopf.stehendeSerien === null && (
           <Hinweis art="hinweis" cse="serien-ungeprueft" className="mb-s4 max-w-prose">
             <strong>Der Generatorstand ist nicht geprüft.</strong> Er steht in
-            der Planungsserie, und die liegt hinter <code>dienstplan.lesen</code>.
+            der Planungsserie, und die liegt hinter <Recht schluessel="dienstplan.lesen" />.
             Die Regeln selbst stehen unten — ob daraus Schichten entstanden
             sind, sagt diese Ansicht nicht.
           </Hinweis>

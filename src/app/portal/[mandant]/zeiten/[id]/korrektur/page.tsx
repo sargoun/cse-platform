@@ -15,6 +15,7 @@ import { stundenAusMinuten } from '@/lib/datum/stunden';
 import { darfKorrigieren, ladeZeiteintrag } from '../../daten';
 import { istKennung, kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/zeiten/[id]/korrektur` — wer korrigiert, wann und
@@ -329,7 +330,7 @@ export default async function Korrekturblatt({
             >
               <strong className="text-text">Die angegebene Meldung ist nicht
               einsehbar.</strong> Sie gehört einer anderen Gesellschaft, es gibt sie
-              nicht, oder dieser Sitzung fehlt <code>zeit.lesen</code>. Die Korrektur
+              nicht, oder dieser Sitzung fehlt <Recht schluessel="zeit.lesen" />. Die Korrektur
               entsteht <strong>ohne</strong> Verknüpfung — sie wird nicht stillschweigend
               angehängt.
             </p>

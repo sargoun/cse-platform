@@ -160,7 +160,7 @@ export default async function Radar(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="radar"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >

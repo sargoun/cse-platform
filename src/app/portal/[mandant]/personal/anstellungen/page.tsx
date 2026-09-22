@@ -105,6 +105,7 @@ export default async function Anstellungsliste(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
+      aktiverTab="personal"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >

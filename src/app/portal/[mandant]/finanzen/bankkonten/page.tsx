@@ -13,6 +13,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { BANKKONTEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/bankkonten';
 import { bankkonten } from '@/server/services/finanz/zahlung/index';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/finanzen/bankkonten` — die Konten dieser Gesellschaft
@@ -123,7 +124,7 @@ export default async function Bankkonten(
       {darf[RECHT] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
           {t.keinSchreibrecht}{' '}
-          <code className="font-mono">{RECHT}</code>.
+          <Recht schluessel={RECHT} sprache={zugang.sprache} />.
         </Hinweis>
       ) : (
         <Card>

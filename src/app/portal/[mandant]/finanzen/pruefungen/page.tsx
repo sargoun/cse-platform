@@ -16,6 +16,7 @@ import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
 import { UEBERSICHT_TEXTE } from '@/lib/i18n/verwaltung/finanzen/uebersicht';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/finanzen/pruefungen` — die Vorab-Liste vor der
@@ -276,10 +277,10 @@ export default async function Pruefungsblatt(
         {t.fin18MengeNachFunktion} <code>{SICHT_ZEITEINTRAG_AUFTRAG}</code>
         {t.fin18MengeNachSicht}
         <code> {SICHT_INVOKER}</code>{t.fin18MengeNachInvoker}{' '}
-        <code>{RECHT_ZEIT_LESEN}</code> {t.fin18MengeNachRecht}{' '}
+        <Recht schluessel={RECHT_ZEIT_LESEN} sprache={zugang.sprache} /> {t.fin18MengeNachRecht}{' '}
         <code>{FN_ERFASSTE_MINUTEN}</code>{t.fin18MengeNachMinuten}{' '}
-        <code>{RECHT_FESTSCHREIBEN}</code>{t.fin18MengeNachFestschreiben}{' '}
-        <code>{RECHT_FINANZEN_LESEN}</code> {t.fin18MengeSchluss}
+        <Recht schluessel={RECHT_FESTSCHREIBEN} sprache={zugang.sprache} />{t.fin18MengeNachFestschreiben}{' '}
+        <Recht schluessel={RECHT_FINANZEN_LESEN} sprache={zugang.sprache} /> {t.fin18MengeSchluss}
       </p>
     </PortalRahmen>
   );

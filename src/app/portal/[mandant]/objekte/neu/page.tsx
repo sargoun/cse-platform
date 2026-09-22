@@ -9,6 +9,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { OBJEKTE_TEXTE } from '@/lib/i18n/verwaltung/objekte';
 import { ObjektFormular, type KundeAuswahl } from '../ObjektFormular';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/objekte/neu` — ein Objekt anlegen (OPS-01, V-001).
@@ -107,7 +108,7 @@ export default async function ObjektNeu(
       {darf['objekt.schreiben'] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
           {t.keinSchreibrechtAnlegen}{' '}
-          <code className="font-mono">{RECHT}</code>.
+          <Recht schluessel={RECHT} sprache={zugang.sprache} />.
         </Hinweis>
       ) : (
         <ObjektFormular zurueck={pfad} kunden={kunden} t={t} />

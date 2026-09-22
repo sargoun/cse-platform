@@ -241,7 +241,7 @@ export default async function Beitrag(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="social"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >

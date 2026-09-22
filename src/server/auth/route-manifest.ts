@@ -608,6 +608,19 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'zeit.schreiben',
   },
   {
+    /*
+     * V-120, D-04. Ein Sprachmodell freigeben — der Weg, den
+     * `docs/EINRICHTEN-*.md` §9 bis hierher als handgeschriebene
+     * SQL-Anweisung beschreiben musste.
+     *
+     * `system.einstellung_verwalten`, dasselbe Recht wie fuer die uebrigen
+     * Plattformeinstellungen. Der ZEUGE kommt nicht aus dem Formular: den
+     * setzt `trg_modell_register_zeuge` (0381) auf den, der schreibt.
+     */
+    pfad: 'api/system/modelle',
+    recht: 'system.einstellung_verwalten',
+  },
+  {
     pfad: 'api/datenschutz/bearbeiten',
     recht: 'datenschutz.auskunft_erstellen',
   },

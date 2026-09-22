@@ -7,6 +7,7 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { internSprache } from '@/lib/i18n/intern';
 import { AUFNAHME_TEXTE } from '@/lib/i18n/verwaltung/datenschutz';
 import { AufnahmeFormular } from '../AufnahmeFormular';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/datenschutz/aufnehmen` — eine Betroffenenanfrage
@@ -52,7 +53,7 @@ export default async function AnfrageAufnehmen(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="datenschutz"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
       zurueck={{ ziel: `/portal/${mandant}/datenschutz`, text: t.modul }}
@@ -67,7 +68,7 @@ export default async function AnfrageAufnehmen(
       {darf[RECHT] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
           {t.keinSchreibrecht}{' '}
-          <code className="font-mono">{RECHT}</code>.
+          <Recht schluessel={RECHT} sprache={zugang.sprache} />.
         </Hinweis>
       ) : (
         <AufnahmeFormular mandant={mandant}

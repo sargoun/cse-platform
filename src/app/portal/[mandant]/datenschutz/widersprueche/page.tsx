@@ -13,6 +13,7 @@ import {
   ART_TEXT, ART_WIRKUNG, QUELLE_TEXT, liste, protokoll,
   type ProtokollZeile, type WiderspruchZeile,
 } from '@/server/services/datenschutz/werbewiderspruch';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/datenschutz/widersprueche` — das Nachweisblatt zu § 7 UWG
@@ -188,7 +189,7 @@ export default async function Widerspruechseite(
       nurLesen
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="datenschutz"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -212,7 +213,7 @@ export default async function Widerspruechseite(
         <Hinweis art="warnung" cse="widerspruch-kein-recht" className="mb-s5 max-w-prose">
           <strong className="block">Die Kontaktspalten sind nicht lesbar.</strong>
           Für die Liste braucht es
-          {' '}<code className="font-mono">crm.rechtsgrundlage_lesen</code>: die
+          {' '}<Recht schluessel="crm.rechtsgrundlage_lesen" />: die
           Spalten von <code className="font-mono">ansprechpartner</code> sind der
           Anwendung entzogen (K-05) und kommen über eine Definer-Funktion, die
           dieses Recht prüft und jeden Abruf protokolliert.

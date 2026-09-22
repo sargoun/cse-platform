@@ -13,6 +13,7 @@ import {
 } from '@/server/services/datenschutz/loeschentscheidung';
 import { ladeVorgang } from '../../vorgang';
 import { BERLIN_TAG, Vorgangskopf } from '../../Vorgangskopf';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/datenschutz/[id]/loeschung` — Art. 17 DSGVO **gegen** die
@@ -90,7 +91,7 @@ export default async function Loeschungsseite(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="datenschutz"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -340,7 +341,7 @@ export default async function Loeschungsseite(
       {!darfSchreiben && (
         <p className="text-sm text-text-muted" data-cse="loeschung-kein-recht">
           Entschieden wird von einer Sitzung mit
-          {' '}<code className="font-mono">datenschutz.loeschung_pruefen</code>.
+          {' '}<Recht schluessel="datenschutz.loeschung_pruefen" />.
           Sie sehen diese Seite, weil Sie eine der anderen Zuständigkeiten haben.
         </p>
       )}

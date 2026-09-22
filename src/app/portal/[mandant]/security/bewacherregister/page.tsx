@@ -18,6 +18,7 @@ import {
   BEWACHER_STATUS, BEWACHER_VORWARNUNG_TAGE, bewacherregisterErreichbar, leseRegister,
   STATUS_TEXT, type BewacherStatus, type RegisterAusschnitt,
 } from '@/server/services/security/bewacherregister';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/security/bewacherregister` — § 34a GewO, handerfasst
@@ -133,7 +134,7 @@ export default async function Bewacherregister(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="security"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
       {...(darf['security.lesen'] === true
@@ -186,8 +187,8 @@ export default async function Bewacherregister(
       {daten.geprueft['personal.nachweis_lesen'] !== true && (
         <Hinweis art="hinweis" cse="register-lesepfad" className="mb-s5 max-w-prose">
           <strong>Der Lesepfad hängt an einem anderen Recht als diese Seite.</strong>{' '}
-          Die Route verlangt <code>personal.bewacher_verwalten</code>, die
-          Lesepolitik der Tabelle verlangt <code>personal.nachweis_lesen</code>.
+          Die Route verlangt <Recht schluessel="personal.bewacher_verwalten" />, die
+          Lesepolitik der Tabelle verlangt <Recht schluessel="personal.nachweis_lesen" />.
           Dieses Konto hält das zweite nicht — erfasste Einträge bleiben deshalb
           unsichtbar, und die Spalten unten stehen leer. Das ist nicht dasselbe
           wie „kein Eintrag erfasst".

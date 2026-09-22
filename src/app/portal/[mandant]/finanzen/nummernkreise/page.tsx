@@ -12,6 +12,7 @@ import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { UEBERSICHT_TEXTE } from '@/lib/i18n/verwaltung/finanzen/uebersicht';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/finanzen/nummernkreise` — die Nummernkreise einer
@@ -313,7 +314,7 @@ export default async function Nummernkreisblatt(
           </ol>
           <p className="m-0 mt-s3 max-w-prose text-warning">
             <strong>{t.keinKnopfDafuer}</strong> {t.keinKnopfWer}{' '}
-            <code>{RECHT_VERWALTEN}</code> {t.keinKnopfNach}{' '}
+            <Recht schluessel={RECHT_VERWALTEN} sprache={zugang.sprache} /> {t.keinKnopfNach}{' '}
             {darf['nummernkreis.verwalten'] === true ? t.rechtGehalten : t.rechtFehlt}{' '}
             {t.auchMitRecht}
           </p>

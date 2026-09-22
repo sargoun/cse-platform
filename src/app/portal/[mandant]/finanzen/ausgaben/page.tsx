@@ -17,6 +17,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
 import { BELEGE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/belege';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/finanzen/ausgaben` — die Ausgaben einer Gesellschaft
@@ -144,7 +145,7 @@ export default async function Ausgabenliste(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="eingangsrechnungen"
+      aktiverTab="finanzen"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -385,7 +386,7 @@ export default async function Ausgabenliste(
 
       <p className="mt-s5 max-w-prose text-xs text-text-muted">
         {t.ausgabenFussnoteVor}
-        <code>{RECHT_ERSTATTUNG_LESEN}</code>
+        <Recht schluessel={RECHT_ERSTATTUNG_LESEN} sprache={zugang.sprache} />
         {t.ausgabenFussnoteNach}
       </p>
     </PortalRahmen>

@@ -16,6 +16,7 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/crm/kontakte` — alle Ansprechpartner dieser Gesellschaft,
@@ -199,7 +200,7 @@ export default async function Kontaktliste(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="crm"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -256,7 +257,7 @@ export default async function Kontaktliste(
       ) : (
         <Hinweis art="hinweis" cse="kontakte-grundlage-verdeckt" className="mb-s5 max-w-prose">
           <strong>Die Einstufung nach § 7 UWG ist Ihnen nicht sichtbar.</strong> Dafür
-          fehlt <code className="text-text">crm.rechtsgrundlage_lesen</code>. Das heisst
+          fehlt <Recht schluessel="crm.rechtsgrundlage_lesen" />. Das heisst
           nicht, dass keine hinterlegt ist — die Spalte und die Filter danach fehlen
           deshalb ganz, statt leer zu erscheinen. Die Antwort des Sendetores steht
           weiterhin in der letzten Spalte.

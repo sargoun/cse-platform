@@ -7,6 +7,7 @@ import { AuditBuendelFehler, MAX_ZEILEN, zaehleAuditZeilen }
   from '@/server/services/audit/buendel';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/einstellungen/protokoll/export` — das Beweismittelbuendel
@@ -128,7 +129,7 @@ export default async function ProtokollExport(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="einstellungen"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -150,7 +151,7 @@ export default async function ProtokollExport(
       {sensitiv ? null : (
         <Hinweis art="warnung" cse="export-redigiert" className="mb-s5 max-w-[72ch]">
           <strong>Das Bündel wird redigiert.</strong> Die Vorher/Nachher-Werte hängen an
-          einem eigenen Recht (<code>system.audit_sensitiv_lesen</code>) — sie können
+          einem eigenen Recht (<Recht schluessel="system.audit_sensitiv_lesen" />) — sie können
           Löhne, Geburtsdaten und Gesundheitsangaben tragen. Ihre Sitzung hält es nicht
           — entweder fehlt das Recht, oder der zweite Faktor wurde in dieser Anmeldung
           nicht vorgezeigt (das Recht verlangt ihn). Das Manifest trägt diesen Grund

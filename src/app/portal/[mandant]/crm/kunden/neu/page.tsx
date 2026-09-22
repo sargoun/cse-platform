@@ -6,6 +6,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/crm/kunden/neu` — einen Kunden anlegen (CRM-01, OPS-01).
@@ -50,7 +51,7 @@ export default async function KundeNeu(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="crm"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -72,7 +73,7 @@ export default async function KundeNeu(
 
       {darf['crm.schreiben'] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
-          Zum Anlegen fehlt Ihnen <code className="font-mono">crm.schreiben</code>.
+          Zum Anlegen fehlt Ihnen <Recht schluessel="crm.schreiben" />.
         </Hinweis>
       ) : (
         <form method="post" action="/api/crm/kunde" data-cse="kunde-formular"

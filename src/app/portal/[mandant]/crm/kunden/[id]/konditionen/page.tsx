@@ -17,6 +17,7 @@ import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { Unternavigation } from '../Unternavigation';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/crm/kunden/[id]/konditionen` — Debitorennummer,
@@ -131,7 +132,7 @@ export default async function Konditionen(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="crm"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
       zurueck={{ ziel: `/portal/${mandant}/crm/kunden`, text: 'Alle Kunden' }}
@@ -155,7 +156,7 @@ export default async function Konditionen(
           <strong>Die Konditionen sind Ihnen nicht sichtbar.</strong> Diese vier
           Angaben sind der Anwendung spaltenweise entzogen (K-05) und kommen
           ausschliesslich über <code className="text-text">app.zahlungskondition_lesen</code>
-          {' '}— und die verlangt <code className="text-text">crm_entgelt.lesen</code>. Das
+          {' '}— und die verlangt <Recht schluessel="crm_entgelt.lesen" />. Das
           heisst nicht, dass keine hinterlegt sind.
         </Hinweis>
       ) : (
@@ -246,8 +247,8 @@ export default async function Konditionen(
       {!darfSchreiben ? (
         <Hinweis art="hinweis" cse="kondition-nur-lesen" className="max-w-prose">
           <strong>Hier ist nur Anzeige.</strong> Zum Ändern fehlt
-          <code className="text-text"> crm.schreiben</code>. Das Lesen der Konditionen
-          (<code className="text-text">crm_entgelt.lesen</code>) und das Ändern des
+          <Recht schluessel="crm.schreiben" />. Das Lesen der Konditionen
+          (<Recht schluessel="crm_entgelt.lesen" />) und das Ändern des
           Kundenstamms sind getrennte Rechte — wer eine Zahl sehen darf, darf sie nicht
           schon setzen.
         </Hinweis>

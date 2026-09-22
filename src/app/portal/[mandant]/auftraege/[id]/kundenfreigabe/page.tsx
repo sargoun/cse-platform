@@ -14,6 +14,7 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { FELD, FEHLERTEXT, PLATZHALTER_WORTLAUT } from './daten';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/auftraege/[id]/kundenfreigabe` — die schriftliche
@@ -314,7 +315,7 @@ export default async function Kundenfreigabe(
             )}
             {!stand.darf_dokument_lesen && (
               <li>
-                Ihnen fehlt <code className="text-text">dokument.lesen</code>; ob
+                Ihnen fehlt <Recht schluessel="dokument.lesen" />; ob
                 ein Schreiben hinterlegt ist, lässt sich von hier aus nicht
                 sehen — und das heißt nicht, dass keines da ist.
               </li>
@@ -403,7 +404,7 @@ export default async function Kundenfreigabe(
         ) : (
           <p className="mt-s3 mb-0 text-text-muted">
             Ob es schon eine öffentliche Referenz gibt, ist Ihnen nicht sichtbar —
-            dafür fehlt <code className="text-text">referenz.lesen</code>.
+            dafür fehlt <Recht schluessel="referenz.lesen" />.
           </p>
         )}
       </Hinweis>

@@ -17,6 +17,7 @@ import {
   FREIGABE_HOECHSTZAHL, ladeFreigabeliste, summeMinuten, type Freigabeliste,
 } from '@/server/services/zeit/abrechnungsfreigabe';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/zeiten/freigabe` — erfasste Zeit zur Abrechnung
@@ -180,7 +181,7 @@ export default async function Abrechnungsfreigabe({
       <Hinweis art="hinweis" cse="o861-offen" className="mb-s5 max-w-prose">
         <strong>Offen: O-861 — in welcher Einheit wird freigegeben?</strong> Dass ein
         Mensch wöchentlich freigibt, bevor abgerechnet wird, ist entschieden (D-611) —
-        <code>zeit.abrechnung_freigeben</code> ist seither an <code>super_admin</code> und
+        <Recht schluessel="zeit.abrechnung_freigeben" /> ist seither an <code>super_admin</code> und
         <code>admin</code> gebunden und für <code>leitung</code> je Gesellschaft
         anlegbar (D-612). Offen bleibt die <strong>Einheit</strong> (je Eintrag, je Woche,
         je Person, je Monat) und ob eine erteilte Freigabe zurücknehmbar ist;

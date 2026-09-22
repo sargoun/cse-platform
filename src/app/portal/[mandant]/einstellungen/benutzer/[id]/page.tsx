@@ -150,7 +150,7 @@ export default async function Benutzerblatt(
       nurLesen={zugang.sitzung.ansicht === 'gruppe'}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="einstellungen"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >

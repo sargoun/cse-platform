@@ -11,6 +11,7 @@ import { type SocialStatistik, statistik } from '@/server/services/social/dienst
 import { PLATTFORM_NAME } from '@/server/services/social/port';
 import { STATUS_TEXT, type BeitragStatus } from '@/server/services/social/weg';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/social/statistik` — **was diese Plattform weiss, und was
@@ -66,7 +67,7 @@ export default async function Statistik(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="social"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -89,7 +90,7 @@ export default async function Statistik(
         <Hinweis art="hinweis" cse="statistik-pruefdauer-verdeckt" className="mb-s5 max-w-prose">
           <strong>Die Prüfdauer steht hier nicht.</strong> Wie schnell jemand entscheidet,
           ist eine Aussage über einen Menschen und trägt deshalb ein eigenes Recht
-          (<code>freigabe.pruefdauer_lesen</code>). Wer es hält, findet die Verteilung —
+          (<Recht schluessel="freigabe.pruefdauer_lesen" />). Wer es hält, findet die Verteilung —
           mit den Hinweisen auf Durchwinken — unter „Freigaben · Prüfdauer" (APR-08).
         </Hinweis>
       ) : null}

@@ -18,6 +18,7 @@ import {
   PFLEGBARE_STATUS, SONDERLEISTUNG_STATUS, STATUS_TEXT,
   type AbrufAuswahl, type AbrufZeile, type KatalogAusschnitt, type SonderleistungStatus,
 } from '@/server/services/reinigung/sonderleistung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/reinigung/sonderleistungen` — Glas, Sonderreinigung,
@@ -236,9 +237,9 @@ export default async function Sonderleistungen(
         {!daten.katalog.geprueft ? (
           <Hinweis art="hinweis" cse="katalog-ungeprueft" className="max-w-prose">
             <strong>Nicht geprüft.</strong> Der Leistungskatalog liegt hinter dem
-            Recht <code>katalog.lesen</code>, das dieses Konto hier nicht hält.
+            Recht <Recht schluessel="katalog.lesen" />, das dieses Konto hier nicht hält.
             Das ist nicht dasselbe wie ein leerer Katalog — die Abrufe unten sind
-            davon unberührt, weil sie auf <code>reinigung.lesen</code> laufen.
+            davon unberührt, weil sie auf <Recht schluessel="reinigung.lesen" /> laufen.
           </Hinweis>
         ) : daten.katalog.zeilen.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
@@ -523,20 +524,20 @@ export default async function Sonderleistungen(
 
           {daten.auswahl.geprueft['objekt.lesen'] !== true && (
             <Hinweis art="warnung" cse="abruf-kein-objektrecht" className="mb-s4 max-w-prose">
-              <strong>Die Objektauswahl ist leer, weil <code>objekt.lesen</code> fehlt.</strong>{' '}
+              <strong>Die Objektauswahl ist leer, weil <Recht schluessel="objekt.lesen" /> fehlt.</strong>{' '}
               Ein Abruf hängt zwingend an einem Objekt und an dessen Kunden.
             </Hinweis>
           )}
           {daten.auswahl.geprueft['katalog.lesen'] !== true && (
             <Hinweis art="warnung" cse="abruf-kein-katalogrecht" className="mb-s4 max-w-prose">
-              <strong>Die Katalogauswahl ist leer, weil <code>katalog.lesen</code> fehlt.</strong>{' '}
+              <strong>Die Katalogauswahl ist leer, weil <Recht schluessel="katalog.lesen" /> fehlt.</strong>{' '}
               Ein Abruf hängt zwingend an einer Katalogposition.
             </Hinweis>
           )}
           {daten.auswahl.geprueft['auftrag.lesen'] !== true ? (
             <Hinweis art="warnung" cse="abruf-kein-auftragsrecht" className="mb-s4 max-w-prose">
               <strong>Die Vertragszeilen sind nicht geprüft, weil{' '}
-              <code>auftrag.lesen</code> fehlt.</strong>{' '}
+              <Recht schluessel="auftrag.lesen" /> fehlt.</strong>{' '}
               Die Auswahl bleibt deshalb leer — das heisst <em>nicht</em>, dass
               es keine Vertragszeilen gibt. Ein hier ohne Vertragszeile erfasster
               Abruf ist nicht abrechenbar: die Rechnungsübernahme verbindet

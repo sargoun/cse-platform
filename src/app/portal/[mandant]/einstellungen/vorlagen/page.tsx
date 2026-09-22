@@ -12,6 +12,7 @@ import {
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/einstellungen/vorlagen` — jede Vorlage dieser
@@ -82,7 +83,7 @@ export default async function Vorlagen(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="einstellungen"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -159,8 +160,8 @@ export default async function Vorlagen(
           <Hinweis art="warnung" cse="behinderung-kein-recht" className="max-w-[72ch]">
             <strong>Diese Liste ist nicht leer — sie ist nicht sichtbar.</strong> Die
             Vorlagen der Behinderungsanzeige gehören dem Bau und verlangen
-            <code> bau.lesen</code>; Ihre Sitzung hält das Recht dieser Seite
-            (<code>system.einstellung_verwalten</code>), aber nicht das des Gewerks.
+            <Recht schluessel="bau.lesen" />; Ihre Sitzung hält das Recht dieser Seite
+            (<Recht schluessel="system.einstellung_verwalten" />), aber nicht das des Gewerks.
             Ohne diesen Satz stünde hier „keine Vorlage hinterlegt", und das wäre die
             falsche Auskunft.
           </Hinweis>
@@ -225,7 +226,7 @@ export default async function Vorlagen(
         ) : (
           <Hinweis art="warnung" cse="mahntext-kein-recht" className="max-w-[72ch]">
             <strong>Nicht sichtbar, nicht leer.</strong> Die Mahnstufen verlangen
-            <code> mahnung.lesen</code>; Ihre Sitzung hält es nicht.
+            <Recht schluessel="mahnung.lesen" />; Ihre Sitzung hält es nicht.
           </Hinweis>
         )}
       </section>
@@ -374,7 +375,7 @@ export default async function Vorlagen(
         </section>
       ) : (
         <Hinweis art="hinweis" cse="vorlage-kein-schreibrecht" className="max-w-[72ch]">
-          Pflegen kann die Behinderungsvorlage, wer <code>bau.schreiben</code> hält — das
+          Pflegen kann die Behinderungsvorlage, wer <Recht schluessel="bau.schreiben" /> hält — das
           Recht dieser Seite genügt dafür nicht. Eine Erklärung nach § 6 VOB/B ist eine
           Bau-Entscheidung, keine Verwaltungsangelegenheit.
         </Hinweis>

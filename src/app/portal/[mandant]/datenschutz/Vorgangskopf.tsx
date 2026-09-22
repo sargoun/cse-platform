@@ -4,6 +4,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import {
   ART_TEXT, WEG_TEXT, ZUORDNUNG_TEXT, type AnfrageZeile, type Zuordnung,
 } from '@/server/services/datenschutz/anfrage';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * Der Kopf der vier Vorgangsseiten — EINMAL gebaut, nicht viermal.
@@ -118,7 +119,7 @@ export function Vorgangskopf({ mandant, z, zuordnung, aktiv, darf }: {
       {darf['datenschutz.auskunft_erstellen'] === true ? null : (
         <p className="mb-s3 text-sm text-text-subtle" data-cse="ohne-posteingang">
           Der gemeinsame Posteingang verlangt
-          {' '}<code className="font-mono">datenschutz.auskunft_erstellen</code>.
+          {' '}<Recht schluessel="datenschutz.auskunft_erstellen" />.
           Dieser Vorgang ist über seine Adresse erreichbar.
         </p>
       )}

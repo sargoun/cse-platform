@@ -79,7 +79,7 @@ export default async function Verarbeitungsverzeichnisseite(
       nurLesen
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="datenschutz"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >

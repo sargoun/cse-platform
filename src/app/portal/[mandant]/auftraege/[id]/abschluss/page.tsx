@@ -15,6 +15,7 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { FELD, FEHLERTEXT, type AbschlussKopf } from './daten';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/auftraege/[id]/abschluss` — OPS-05, und die
@@ -180,7 +181,7 @@ export default async function Abschluss(
               + 'Prüfpunkten trägt eine Zahl.'}{' '}
           Die Zahlen kommen aus einer Datenbankfunktion mit eigenem Recht — nicht
           aus direkten Zählungen. Eine Rolle ohne{' '}
-          <code className="text-text">zeit.lesen</code> hätte sonst „nichts offen"
+          <Recht schluessel="zeit.lesen" /> hätte sonst „nichts offen"
           gelesen, obwohl sie nichts sehen konnte (AUT-05).
         </p>
 

@@ -19,6 +19,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '../../../../rechte';
 import { kennungOder404 } from '../../../../kennung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/radar/profile/[id]` — ein Suchprofil bearbeiten
@@ -153,7 +154,7 @@ export default async function ProfilBearbeiten(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="radar"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -485,7 +486,7 @@ export default async function ProfilBearbeiten(
         {!namenSichtbar ? (
           <Hinweis art="hinweis" cse="profil-empfaenger-unsichtbar" className="mb-s3">
             <strong>Die Empfänger sind hier nicht sichtbar</strong> — dafür braucht es das
-            Recht <code className="text-xs">system.benutzer_lesen</code>. Das heisst nicht,
+            Recht <Recht schluessel="system.benutzer_lesen" />. Das heisst nicht,
             dass keine eingetragen sind.
           </Hinweis>
         ) : null}

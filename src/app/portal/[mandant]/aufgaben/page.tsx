@@ -15,6 +15,7 @@ import {
 } from '@/server/services/kern/aufgabe';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../unterseite';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/aufgaben` — die offene Pflicht (OPS-11, DSH-01, SPEC §14).
@@ -178,7 +179,7 @@ export default async function Aufgabenliste(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="aufgaben"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -233,7 +234,7 @@ export default async function Aufgabenliste(
         <h2 id="neue-aufgabe" className="text-h2 text-text">Neue Aufgabe</h2>
         {!darfSchreiben ? (
           <p data-cse="anlegen-fehlt" className="mt-s3 max-w-prose text-sm text-text-muted">
-            Zum Anlegen fehlt das Recht <code>aufgabe.schreiben</code>. Die
+            Zum Anlegen fehlt das Recht <Recht schluessel="aufgabe.schreiben" />. Die
             Liste bleibt sichtbar — wer eine Aufgabe sieht, soll wissen, was
             offen ist.
           </p>

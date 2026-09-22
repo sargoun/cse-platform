@@ -12,6 +12,7 @@ import {
   VeranstaltungFormular,
   type KundeAuswahl, type LeistungAuswahl, type LeitungAuswahl, type ObjektAuswahl,
 } from '../../VeranstaltungFormular';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/security/veranstaltungen/neu` — eine Veranstaltung
@@ -125,13 +126,13 @@ export default async function VeranstaltungNeu(
       {darf['security.schreiben'] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
           {t.keinSchreibrechtAnlegen}{' '}
-          <code className="font-mono">{RECHT_SCHREIBEN}</code>.
+          <Recht schluessel={RECHT_SCHREIBEN} sprache={zugang.sprache} />.
         </Hinweis>
       ) : daten.kunden.length === 0 ? (
         <Hinweis art="warnung" cse="veranstaltung-ohne-kunde" className="max-w-prose">
           {darf['crm.lesen'] === true ? t.keinKunde : t.keinSchreibrechtAnlegen}{' '}
           {darf['crm.lesen'] !== true && (
-            <code className="font-mono">{RECHT_CRM}</code>
+            <Recht schluessel={RECHT_CRM} sprache={zugang.sprache} />
           )}
         </Hinweis>
       ) : (
@@ -139,7 +140,7 @@ export default async function VeranstaltungNeu(
           {darf['objekt.lesen'] !== true && (
             <Hinweis art="hinweis" cse="ohne-objektrecht" className="mb-s5 max-w-prose">
               {t.ortErklaerung}{' '}
-              <code className="font-mono">{RECHT_OBJEKT}</code>
+              <Recht schluessel={RECHT_OBJEKT} sprache={zugang.sprache} />
             </Hinweis>
           )}
           <VeranstaltungFormular

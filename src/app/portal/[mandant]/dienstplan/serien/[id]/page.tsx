@@ -14,6 +14,9 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { Nutzlastblatt } from '@/components/ui/Nutzlastblatt';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { NUTZLAST_TEXTE } from '@/lib/i18n/verwaltung/nutzlast';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
 import {
   ausnahmeLeserecht, ausnahmeSchreibrecht, leseAusnahmen, leseSerie, leseSerienEinsaetze,
@@ -24,6 +27,7 @@ import { MAX_DAUER_MINUTEN } from '@/server/services/dienstplan/vorkommnisse';
 import {
   ANOMALIE_TEXT, AUSNAHME_TEXT, Feld, QUELLE_TEXT,
 } from './Bausteine';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/dienstplan/serien/[id]` — das Blatt einer Serie
@@ -116,6 +120,7 @@ export default async function Serienblatt(
   const darfAusnahmeAnlegen = schreibrecht !== null
     && darf['dienstplan.schreiben'] === true && darf[schreibrecht] === true;
   const istPosten = blatt.postenId !== null;
+  const tNutzlast = nachSprache(NUTZLAST_TEXTE, zugang.sprache);
 
   return (
     <PortalRahmen
@@ -243,16 +248,26 @@ export default async function Serienblatt(
             nicht gelaufen ist.
           </p>
         )}
+        {/*
+          * **Die Meldung des Laufs als BLATT, nicht als JSON.** Hier stand
+          * `JSON.stringify(...)` in einem `code`-Element: `{"uebersprungen":3,
+          * "grund":"kein_posten"}`. Was der Lauf übersprungen hat, gehört
+          * einer Objektleitung gesagt und nicht einem Entwickler (§8.4) —
+          * und wer es nicht liest, sucht den Fehler bei sich.
+          */}
         {Object.keys(blatt.letzteMeldung).length > 0 && (
-          <p
-            data-cse="letzte-meldung"
-            className="m-0 mt-s4 max-w-prose text-sm text-text-muted"
-          >
-            Letzte Meldung des Laufs:{' '}
-            <code className="text-xs">{JSON.stringify(blatt.letzteMeldung)}</code>{' '}
-            — was der Lauf übersprungen hat, steht hier und wird nicht
-            verschluckt (§8.4).
-          </p>
+          <div className="mt-s4 max-w-prose">
+            <p className="m-0 mb-s2 text-sm text-text-muted">
+              Letzte Meldung des Laufs — was er übersprungen hat, steht hier und
+              wird nicht verschluckt (§8.4).
+            </p>
+            <Nutzlastblatt
+              nutzlast={blatt.letzteMeldung}
+              sprache={zugang.sprache ?? 'de'}
+              texte={tNutzlast}
+              cse="letzte-meldung"
+            />
+          </div>
         )}
       </section>
 
@@ -432,8 +447,8 @@ export default async function Serienblatt(
         ) : !darfAusnahmeAnlegen ? (
           <p className="mt-s5 max-w-prose rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
             Zum Anlegen einer Ausnahme fehlt ein Recht: verlangt werden{' '}
-            <code className="text-xs">dienstplan.schreiben</code> und{' '}
-            <code className="text-xs">{schreibrecht}</code> — das zweite, weil die
+            <Recht schluessel="dienstplan.schreiben" sprache={zugang.sprache} /> und{' '}
+            <Recht schluessel={schreibrecht} sprache={zugang.sprache} /> — das zweite, weil die
             Ausnahmetabelle dem Gewerk gehört und nicht dem Dienstplan.
           </p>
         ) : (

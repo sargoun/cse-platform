@@ -21,6 +21,7 @@ import { haeltRechte } from '../../../rechte';
 import {
   WERKZEUG_REGISTER, fuerAgent, untergrenze, type AgentKennung,
 } from '@/server/agent/tools/register-werkzeuge';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/agenten/[agent]` — was dieser Agent tut, was er darf und
@@ -478,7 +479,7 @@ export default async function AgentDetail(
       {!darfRichtlinien ? (
         <p className="mb-s6 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Die Versandrichtlinien sind hier nicht sichtbar — dafür braucht es
-          das Recht <code>versand.lesen</code>. Das heisst nicht, dass keine
+          das Recht <Recht schluessel="versand.lesen" />. Das heisst nicht, dass keine
           hinterlegt sind.
         </p>
       ) : richtlinien.length === 0 ? (

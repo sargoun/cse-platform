@@ -15,6 +15,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Unternavigation } from './Unternavigation';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/crm/kunden/[id]` — ein Kunde, seine Kontakte, seine
@@ -173,7 +174,7 @@ export default async function KundeDetail(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="crm"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
       zurueck={{ ziel: `/portal/${mandant}/crm/kunden`, text: 'Alle Kunden' }}
@@ -376,7 +377,7 @@ export default async function KundeDetail(
         {!darfObjekt ? (
           <p data-cse="objekte-verdeckt" className="text-sm text-text-muted">
             Die Objekte dieses Kunden sind Ihnen nicht sichtbar — dafür fehlt
-            <code className="text-text"> objekt.lesen</code>. Das heißt nicht,
+            <Recht schluessel="objekt.lesen" />. Das heißt nicht,
             dass es keine gibt.
           </p>
         ) : objekte.length === 0 ? (
@@ -403,7 +404,7 @@ export default async function KundeDetail(
         {!darfAuftrag ? (
           <p data-cse="auftraege-verdeckt" className="text-sm text-text-muted">
             Die Aufträge dieses Kunden sind Ihnen nicht sichtbar — dafür fehlt
-            <code className="text-text"> auftrag.lesen</code>. Das heißt nicht,
+            <Recht schluessel="auftrag.lesen" />. Das heißt nicht,
             dass es keine gibt.
           </p>
         ) : auftraege.length === 0 ? (

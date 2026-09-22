@@ -21,6 +21,7 @@ import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
 import { EINGANGSRECHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/eingangsrechnungen';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/finanzen/eingangsrechnungen/[id]/steuer` — die
@@ -677,8 +678,8 @@ export default async function Steuerblatt(
           <p className="m-0 max-w-prose">
             <strong>{t.pflegeOffenBetont}</strong> {t.pflegeOffenVor}{' '}
             <code>{TABELLE_FREISTELLUNG}</code> {t.pflegeOffenZwei}{' '}
-            <code>{RECHT_FINANZEN_SCHREIBEN}</code>{t.pflegeOffenDrei}{' '}
-            <code>{RECHT_FREISTELLUNG_PFLEGEN}</code>{t.pflegeOffenNach}
+            <Recht schluessel={RECHT_FINANZEN_SCHREIBEN} sprache={zugang.sprache} />{t.pflegeOffenDrei}{' '}
+            <Recht schluessel={RECHT_FREISTELLUNG_PFLEGEN} sprache={zugang.sprache} />{t.pflegeOffenNach}
           </p>
         </Hinweis>
       </section>

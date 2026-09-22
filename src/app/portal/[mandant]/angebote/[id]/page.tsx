@@ -16,6 +16,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinKalendertag } from '@/server/services/zeit/dauer';
 import { kennungOder404 } from '../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/angebote/[id]` — ein Angebot, seine Positionen und die
@@ -249,7 +250,7 @@ export default async function AngebotDetail(
           className="mb-s5 rounded-md border border-line bg-surface-2 p-s4 text-sm text-text-muted"
         >
           <strong>Der Kalkulationsstand ist Ihnen nicht sichtbar.</strong> Ihnen
-          fehlt <code className="text-text">kalkulation.lesen</code>; die
+          fehlt <Recht schluessel="kalkulation.lesen" />; die
           Datenbank antwortet deshalb mit nichts, und das heißt hier
           ausdrücklich nicht „alles bestätigt“. Der Versand bleibt gesperrt,
           weil sich seine Voraussetzung von hier aus nicht prüfen lässt.
@@ -263,7 +264,7 @@ export default async function AngebotDetail(
         >
           <strong>Der Preis ist nicht freigegeben.</strong> Das ist ein eigener
           Vorgang mit eigenem Recht (
-          <code className="text-text">angebot.preis_freigeben</code>) und
+          <Recht schluessel="angebot.preis_freigeben" />) und
           deshalb nicht derselbe Klick wie der Versand: der Vertrieb schickt
           hinaus, die Leitung verantwortet den Preis.{' '}
           {darfNachbar['angebot.preis_freigeben'] === true ? (
@@ -463,7 +464,7 @@ export default async function AngebotDetail(
         {kopf.darf_auftrag_lesen ? null : (
           <p data-cse="auftrag-verdeckt" className="m-0 text-sm text-text-muted">
             Ob aus diesem Angebot bereits ein Auftrag entstanden ist, ist Ihnen
-            nicht sichtbar — dafür fehlt <code className="text-text">auftrag.lesen</code>.
+            nicht sichtbar — dafür fehlt <Recht schluessel="auftrag.lesen" />.
             Deshalb steht hier auch kein Knopf, der einen zweiten anlegen würde.
           </p>
         )}

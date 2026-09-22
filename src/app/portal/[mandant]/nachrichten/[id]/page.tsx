@@ -12,6 +12,7 @@ import { ladeFaden, versandwege, type Faden } from '@/server/services/kern/nachr
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../../unterseite';
 import { kennungOder404 } from '../../../kennung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/nachrichten/[id]` — EIN Faden in Zeitfolge (EMP-11,
@@ -134,7 +135,7 @@ export default async function FadenSeite(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="nachrichten"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
       zurueck={{ ziel: `/portal/${mandant}/nachrichten`, text: 'Alle Nachrichten' }}
@@ -317,7 +318,7 @@ export default async function FadenSeite(
         </section>
       ) : (
         <p data-cse="antworten-fehlt" className="mt-s5 text-sm text-text-muted">
-          Zum Antworten fehlt das Recht <code>nachricht.versenden</code>.
+          Zum Antworten fehlt das Recht <Recht schluessel="nachricht.versenden" />.
         </p>
       )}
     </PortalRahmen>

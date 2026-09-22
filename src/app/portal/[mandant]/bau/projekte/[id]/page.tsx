@@ -19,6 +19,7 @@ import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]` — das Bauprojekt (OPS-05, REP-05,
@@ -392,7 +393,7 @@ export default async function ProjektDetail(
             data-cse="preis-gesperrt"
           >
             Auftragssumme und Sicherheitseinbehalt sind für Ihre Rolle nicht
-            lesbar (Recht <code>bau.preis_lesen</code>). Sie fehlen hier, statt
+            lesbar (Recht <Recht schluessel="bau.preis_lesen" />). Sie fehlen hier, statt
             als 0 € zu erscheinen: die Vertragssumme des Kunden gehört nicht in
             jede Ansicht, und eine Null wäre eine Angabe — eine falsche.
           </p>
@@ -400,7 +401,7 @@ export default async function ProjektDetail(
 
         {p.darf_preis_lesen && !p.darf_kalkulation_lesen && (
           <p className="mt-s3 text-sm text-text-muted">
-            Der Deckungsbeitrag braucht zusätzlich <code>kalkulation.lesen</code>
+            Der Deckungsbeitrag braucht zusätzlich <Recht schluessel="kalkulation.lesen" />
             {' '}— die eigene Kostenseite ist ein anderes Recht als die
             Vertragssumme des Kunden.
           </p>

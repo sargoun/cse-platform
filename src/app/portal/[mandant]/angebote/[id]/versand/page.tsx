@@ -13,6 +13,7 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { FEHLERTEXT, type VersandKopf } from './daten';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/angebote/[id]/versand` — das eine Tor, durch das ein
@@ -249,7 +250,7 @@ export default async function Versand(
             <strong>1 · Unbestätigte Kalkulationswerte.</strong>{' '}
             {sichtFehlt ? (
               <>
-                Ihnen fehlt <code className="text-text">kalkulation.lesen</code>;
+                Ihnen fehlt <Recht schluessel="kalkulation.lesen" />;
                 die Datenbank antwortet mit nichts, und das heißt nicht „alles
                 bestätigt". Der Versand bleibt gesperrt, weil sich seine
                 Voraussetzung von hier aus nicht prüfen lässt (AUT-05).
@@ -279,7 +280,7 @@ export default async function Versand(
           <Hinweis art="warnung" cse="sperre-freigabe" className="mt-s3">
             <strong>2 · Keine Preisfreigabe.</strong> Den Preis hat niemand
             verantwortet. Das ist ein eigener Vorgang mit eigenem Recht{' '}
-            (<code className="text-text">angebot.preis_freigeben</code>) — und
+            (<Recht schluessel="angebot.preis_freigeben" />) — und
             genau deshalb nicht dieser Klick.{' '}
             {darf['angebot.preis_freigeben'] === true ? (
               <Link

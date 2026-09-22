@@ -24,6 +24,7 @@ import { MAX_DAUER_MINUTEN } from '@/server/services/dienstplan/vorkommnisse';
 import {
   turnusVorschau, type VorschauTermin,
 } from '@/server/services/reinigung/turnusvorschau';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/reinigung/turnus/neu` — eine Regel bauen und VORHER
@@ -254,7 +255,7 @@ export default async function TurnusNeu(
 
       {!darfPlanen && (
         <Hinweis art="warnung" cse="turnus-kein-dienstplanrecht" className="mb-s5 max-w-prose">
-          <strong>Anlegen ist hier nicht möglich — es fehlt <code>dienstplan.schreiben</code>.</strong>{' '}
+          <strong>Anlegen ist hier nicht möglich — es fehlt <Recht schluessel="dienstplan.schreiben" />.</strong>{' '}
           Ein Turnus ohne Planungsserie erzeugt keine Schicht, und die Serie
           sowie die Schichten liegen hinter dem Schreibrecht des Dienstplans.
           Die Anwendung legt deshalb auch den Turnus nicht an, statt ihn ohne
@@ -265,7 +266,7 @@ export default async function TurnusNeu(
 
       {daten.rechte['katalog.lesen'] !== true && (
         <Hinweis art="warnung" cse="turnus-kein-katalogrecht" className="mb-s5 max-w-prose">
-          <strong>Die Leistungsauswahl ist leer, weil <code>katalog.lesen</code> fehlt.</strong>{' '}
+          <strong>Die Leistungsauswahl ist leer, weil <Recht schluessel="katalog.lesen" /> fehlt.</strong>{' '}
           Ein Turnus hängt zwingend an einer Katalogposition — ohne Leserecht auf
           den Leistungskatalog lässt sich keine auswählen. Das ist kein leerer
           Katalog.
@@ -303,7 +304,7 @@ export default async function TurnusNeu(
           )}
           {daten.rechte['objekt.lesen'] !== true && (
             <span className="mt-s1 block text-xs text-warning">
-              Ohne <code>objekt.lesen</code> lässt sich nicht prüfen, ob am Objekt
+              Ohne <Recht schluessel="objekt.lesen" /> lässt sich nicht prüfen, ob am Objekt
               ein Kunde hängt. Der Generator überspringt Objekte ohne Kunden und
               meldet es — die Zahl der erzeugten Schichten wäre dann 0.
             </span>
@@ -624,7 +625,9 @@ export default async function TurnusNeu(
                 <input type="hidden" name="gueltig_bis" value={gueltigBis ?? ''} />
                 <input type="hidden" name="feiertage" value={feiertage} />
                 <p className="m-0 mb-s4 max-w-prose text-sm text-text-muted">
-                  Angelegt wird genau die Regel <code className="text-text">{rrule}</code> mit
+                  Angelegt wird genau die Regel
+                  {' „'}{rrule === null ? '' : lesbareRegel(rrule)}{'“ '}
+                  (<code className="text-xs text-text-muted">{rrule}</code>) mit
                   Beginn <span className="tabular-nums">{beginn}</span> und Solldauer{' '}
                   {stundenAusMinuten(dauer)}. Der Generator läuft unmittelbar
                   danach; die Serienliste meldet die Zahl der erzeugten Schichten

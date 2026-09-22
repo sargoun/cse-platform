@@ -7,6 +7,7 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { LIEFERANTEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/lieferanten';
 import { LieferantFormular } from '../LieferantFormular';
 import { LIEFERANT_FEHLER } from '../fehler';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/finanzen/lieferanten/neu` — einen Lieferanten anlegen
@@ -62,7 +63,7 @@ export default async function LieferantNeu(
       {darf[RECHT] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
           {t.keinSchreibrecht}{' '}
-          <code className="font-mono">{RECHT}</code>.
+          <Recht schluessel={RECHT} sprache={zugang.sprache} />.
         </Hinweis>
       ) : (
         <LieferantFormular

@@ -19,6 +19,7 @@ import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../kennung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/lv` — das Leistungsverzeichnis als
@@ -202,7 +203,7 @@ export default async function LeistungsverzeichnisSeite(
             <p className="mt-s3 text-sm text-warning">
               Für mindestens eine Position ist kein Einheitspreis lesbar. Die
               Summe bleibt deshalb offen — sie wäre sonst zu niedrig, ohne dass
-              man es ihr ansieht (Recht <code>bau.preis_lesen</code>).
+              man es ihr ansieht (Recht <Recht schluessel="bau.preis_lesen" />).
             </p>
           )}
           {ausgenommen > 0 && (

@@ -20,6 +20,7 @@ import { leseFensterKopf, type FensterKopf } from '../fenster-daten';
 import {
   FEHLER_TEXT, RISIKO_LABEL, STATUS_LABEL, STATUS_PILL, VORGANG_LABEL, zeitpunkt,
 } from '../../darstellung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/freigaben/[id]/einspruch` — widersprechen, bevor
@@ -223,7 +224,7 @@ export default async function Einspruch(
               (<code className="text-xs">
                 {f.erforderlichesRecht ?? 'freigabe.entscheiden'}
               </code>). Die eigene Befugnis
-              {' '}<code className="text-xs">freigabe.einspruch_erheben</code> genügt dafür
+              {' '}<Recht schluessel="freigabe.einspruch_erheben" /> genügt dafür
               nicht — ein Knopf, den die Datenbank abweist, hätte gar nicht erst dastehen
               dürfen (offene Frage O-367).
             </>

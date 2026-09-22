@@ -14,6 +14,7 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { OBJEKTE_TEXTE } from '@/lib/i18n/verwaltung/objekte';
 import { ObjektFormular, type KundeAuswahl, type ObjektWerte }
   from '../../ObjektFormular';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/objekte/[id]/bearbeiten` — ein Objekt ändern oder
@@ -164,7 +165,7 @@ export default async function ObjektBearbeiten(
       {darf['objekt.schreiben'] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
           {t.keinSchreibrechtAendern}{' '}
-          <code className="font-mono">{RECHT}</code>.
+          <Recht schluessel={RECHT} sprache={zugang.sprache} />.
         </Hinweis>
       ) : o.archiviert ? null : (
         <>

@@ -16,6 +16,7 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import {
   findeVeranstaltung, type VeranstaltungBlatt,
 } from '@/server/services/security/veranstaltung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/security/veranstaltungen/[id]` — ein Eventdienst und sein
@@ -88,7 +89,7 @@ export default async function VeranstaltungBlattSeite(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="security"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
       zurueck={{ ziel: `/portal/${mandant}/security/veranstaltungen`, text: 'Alle Veranstaltungen' }}
@@ -220,7 +221,7 @@ export default async function VeranstaltungBlattSeite(
           ) : (
             <p className="m-0 mt-s2 text-sm text-text-muted">
               Eine Dienstanweisung ist zugeordnet. Ihr Inhalt liegt hinter{' '}
-              <code>dienstanweisung.lesen</code>.
+              <Recht schluessel="dienstanweisung.lesen" />.
             </p>
           )}
         </Card>
@@ -252,7 +253,7 @@ export default async function VeranstaltungBlattSeite(
         {schichten === null ? (
           <Hinweis art="hinweis" cse="besetzung-ungeprueft" className="max-w-prose">
             <strong>Nicht geprüft.</strong> Schichten und Einteilungen liegen hinter
-            dem Recht <code>dienstplan.lesen</code>, das dieses Konto hier nicht
+            dem Recht <Recht schluessel="dienstplan.lesen" />, das dieses Konto hier nicht
             hält. Das ist etwas anderes als „unbesetzt" — und der Unterschied ist
             an dieser Stelle der zwischen „niemand kommt" und „ich darf es nicht
             sehen".
@@ -374,7 +375,7 @@ export default async function VeranstaltungBlattSeite(
           && schichten.length > 0 && (
           <Hinweis art="hinweis" cse="event-nachweis-ungeprueft" className="mt-s4 max-w-prose">
             <strong>Die § 34a-Lage ist nicht geprüft.</strong> Nachweise hängen am
-            Menschen und liegen hinter <code>personal.nachweis_lesen</code>. Dass
+            Menschen und liegen hinter <Recht schluessel="personal.nachweis_lesen" />. Dass
             hier keine Sperre steht, heisst nicht, dass keine besteht.
           </Hinweis>
         )}

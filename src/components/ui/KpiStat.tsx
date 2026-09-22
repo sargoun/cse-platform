@@ -26,9 +26,18 @@ export interface KpiStatProps {
   readonly icon?: IconName | ReactNode;
   readonly delta?: { readonly richtung: 'auf' | 'ab'; readonly text: string };
   /**
-   * Die Kachel ist ein Weg (DSH-04) — dann zeigt sie es wie jede
-   * interaktive Karte (DESIGN §5): Rand auf `--border-strong`, 2px hoch,
-   * 200ms. `group-hover`, weil der Verweis das Elternelement ist.
+   * Die Kachel ist ein Weg (DSH-04) — dann zeigt sie es **im RUHEZUSTAND**
+   * und nicht erst beim Darüberfahren (DESIGN §5).
+   *
+   * **Der Befund, der diese Zeile geändert hat** (Nutzerbericht, zwei
+   * Bilder): „Neue Anfragen" öffnet eine Seite, „Vorgänge" tut nichts — und
+   * die beiden Kacheln waren Pixel für Pixel gleich. Dieselbe Fläche,
+   * derselbe Rand, kein Unterschied, bevor man klickt. Die Hover-Regel gab
+   * es schon; sie antwortet nur zu spät, und auf einem Telefon nie.
+   *
+   * Der Ruhezustand trägt deshalb einen `pfeil-rechts` in der Ecke: eine
+   * FORM und keine Farbe (§9), aus dem geschlossenen Satz, ohne neues
+   * Zeichen. Das Anheben beim Darüberfahren bleibt, wie es war.
    */
   readonly interaktiv?: boolean;
 }
@@ -45,8 +54,24 @@ export function KpiStat({
           : '',
       ].join(' ')}
     >
-      <div className={`mb-s4 flex h-10 w-10 items-center justify-center rounded-md ${TINT[ton]}`}>
-        {typeof icon === 'string' ? <Icon name={icon as IconName} /> : (icon ?? <Icon name="info" />)}
+      <div className="mb-s4 flex items-start justify-between gap-s3">
+        <div className={`flex h-10 w-10 items-center justify-center rounded-md ${TINT[ton]}`}>
+          {typeof icon === 'string' ? <Icon name={icon as IconName} /> : (icon ?? <Icon name="info" />)}
+        </div>
+        {/*
+          * **Der Pfeil steht nur, wenn die Kachel wirklich ein Weg ist.**
+          * Sein Fehlen ist die andere Hälfte des Signals — und die ist nur
+          * lesbar, solange das Vorhandensein verlässlich ist. `aria-hidden`,
+          * weil der Verweis darum herum schon seinen Namen trägt (DESIGN §5).
+          */}
+        {interaktiv && (
+          <Icon
+            name="pfeil-rechts"
+            groesse="sm"
+            className="shrink-0 text-text-subtle"
+            data-cse="kachel-weg"
+          />
+        )}
       </div>
       <div className="text-micro uppercase tracking-[0.08em] text-text-muted">{label}</div>
       {/* `cse-zahl`: der Wert ist eine Zahl mit Einheit und darf in einem

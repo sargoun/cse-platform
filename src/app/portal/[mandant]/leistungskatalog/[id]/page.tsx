@@ -18,6 +18,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../kennung';
 import { FEHLERTEXT, PILLE } from '../daten';
 import { PositionsFelder } from './PositionsFelder';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/leistungskatalog/[id]` — eine Fassung mit ihrem
@@ -91,7 +92,7 @@ export default async function Katalogfassung(
       nurLesen={archiviert || zugang.sitzung.ansicht === 'gruppe'}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="leistungskatalog"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
       zurueck={{ ziel: `/portal/${mandant}/leistungskatalog`, text: 'Alle Fassungen' }}
@@ -464,7 +465,7 @@ export default async function Katalogfassung(
       ) : archiviert ? null : (
         <p data-cse="nur-lesen" className="mt-s6 text-sm text-text-muted">
           Sie sehen diese Fassung, ändern sie aber nicht: dafür verlangt die
-          Plattform <code className="text-text">katalog.schreiben</code>.
+          Plattform <Recht schluessel="katalog.schreiben" />.
         </p>
       )}
     </PortalRahmen>

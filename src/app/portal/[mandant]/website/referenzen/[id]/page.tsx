@@ -18,6 +18,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { WebsiteSpruenge } from '../../spruenge';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/website/referenzen/[id]` — eine Referenz bearbeiten
@@ -171,8 +172,8 @@ export default async function WebsiteReferenz(
         <Hinweis art="warnung" cse="ohne-schreibrecht" className="mb-s5 max-w-prose">
           <strong className="block">Diese Seite ist hier nur lesbar.</strong>
           Eine Änderung an einer Referenz verlangt{' '}
-          <code className="font-mono">referenz.schreiben</code> UND{' '}
-          <code className="font-mono">referenz.kundenfreigabe_erfassen</code> — das
+          <Recht schluessel="referenz.schreiben" /> UND{' '}
+          <Recht schluessel="referenz.kundenfreigabe_erfassen" /> — das
           zweite steht in der Policy <code className="font-mono">t_referenz_pflege</code>{' '}
           für jeden Schreibvorgang auf dieser Tabelle, nicht nur für das Häkchen.
           Formulare, die nichts ändern, stehen deshalb hier nicht.
@@ -360,7 +361,7 @@ export default async function WebsiteReferenz(
           <h2 className="mb-s3 mt-0 text-h3 text-text">Veröffentlichung</h2>
           <p className="mb-s4 mt-0 max-w-prose text-sm text-text-muted">
             Auf die Website stellen ist eine eigene Entscheidung mit einem eigenen Recht
-            (<code className="font-mono">referenz.veroeffentlichen</code>). Die
+            (<Recht schluessel="referenz.veroeffentlichen" />). Die
             ausführliche Fassung zeigt vorher, was öffentlich würde.
           </p>
           <Link href={`/portal/${mandant}/website/referenzen/${referenzId}/veroeffentlichen`}
@@ -372,7 +373,7 @@ export default async function WebsiteReferenz(
       ) : (
         <p className="max-w-prose text-xs text-text-subtle">
           Auf die Website stellen darf, wer{' '}
-          <code className="font-mono">referenz.veroeffentlichen</code> hält — heute nur
+          <Recht schluessel="referenz.veroeffentlichen" /> hält — heute nur
           die Super-Administration. Diese Sitzung pflegt die Angaben; die Entscheidung
           fällt anderswo.
         </p>

@@ -18,6 +18,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { RISIKO_LABEL, VORGANG_LABEL, zeitpunkt } from '../darstellung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/freigaben/stapel` — Routinevorgänge zusammen genehmigen,
@@ -319,7 +320,7 @@ export default async function Stapelmappe({
 
       {!mappe.darfStapel && (
         <Hinweis art="warnung" cse="stapel-kein-recht" className="mb-s5 max-w-prose">
-          Dieses Konto hält <code>freigabe.stapel_entscheiden</code> nicht. Die Mappe
+          Dieses Konto hält <Recht schluessel="freigabe.stapel_entscheiden" /> nicht. Die Mappe
           bleibt lesbar; entschieden wird dann einzeln in der Prüfansicht. Wer die
           Befugnis halten soll, ist offen (O-367).
         </Hinweis>

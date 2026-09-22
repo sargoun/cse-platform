@@ -17,6 +17,7 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
 import {
   listeTurnusse, type TurnusListe, type TurnusZeile,
 } from '@/server/services/reinigung/turnus';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/reinigung/turnus` — die Reinigungsturnusse (CLN-02,
@@ -203,7 +204,7 @@ export default async function TurnusListe(
           <strong>Ob eine Serie besteht, Generatorstand und Schichtzahl sind
           nicht geprüft.</strong> Alle drei stehen in der Planungsserie und in
           den Schichten, und die liegen hinter dem Recht
-          {' '}<code>dienstplan.lesen</code>. Die Regeln selbst stehen unten
+          {' '}<Recht schluessel="dienstplan.lesen" />. Die Regeln selbst stehen unten
           vollständig — ob daraus Schichten entstanden sind, sagt diese Ansicht
           nicht. Eine Null wäre hier eine Entwarnung und „ohne Serie" ein
           Fehlalarm; beides hat niemand geprüft.

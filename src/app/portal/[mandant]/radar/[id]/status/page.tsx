@@ -18,6 +18,7 @@ import {
   type RadarZeile, type StandEreignis, type VorgangBlick,
 } from '../../daten';
 import { fristKlasse, fristText, istKnapp } from '../../frist';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/radar/[id]/status` — die Übergangssteuerung (RAD-06,
@@ -162,7 +163,7 @@ export default async function Standseite(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="radar"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -284,7 +285,7 @@ export default async function Standseite(
                 {gesperrt ? (
                   <span className="mt-s1 block text-xs text-warning"
                         data-cse="status-ziel-gesperrt">
-                    Dafür fehlt das Recht <code>vergabe.schreiben</code> — die Mappe anzulegen
+                    Dafür fehlt das Recht <Recht schluessel="vergabe.schreiben" /> — die Mappe anzulegen
                     ist eine eigene Befugnis. Die beiden anderen Stände bleiben möglich.
                   </span>
                 ) : null}
@@ -342,7 +343,7 @@ export default async function Standseite(
         <strong>„Eingereicht" ist hier nicht setzbar</strong> — und einen Knopf „jetzt
         einreichen" gibt es nirgends (D-07): keine der deutschen Vergabeplattformen bietet
         dafür eine Schnittstelle an, die Abgabe läuft von Hand. Festgehalten wird sie
-        unter dem eigenen Recht <code className="text-xs">vergabe.einreichung_erfassen</code>
+        unter dem eigenen Recht <Recht schluessel="vergabe.einreichung_erfassen" />
         {' '}als Nachweis — wer, wann, wo.
         {darf['vergabe.einreichung_erfassen'] === true && vorgang !== null
           && vorgang.hatMappe ? (

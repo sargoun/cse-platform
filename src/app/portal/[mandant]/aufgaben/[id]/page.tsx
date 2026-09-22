@@ -15,6 +15,7 @@ import {
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../../unterseite';
 import { kennungOder404 } from '../../../kennung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/aufgaben/[id]` — eine Aufgabe, ihre Herkunft und ihr
@@ -126,7 +127,7 @@ export default async function AufgabeSeite(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="aufgaben"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
       zurueck={{ ziel: `/portal/${mandant}/aufgaben`, text: 'Alle Aufgaben' }}
@@ -307,7 +308,7 @@ export default async function AufgabeSeite(
               </form>
             ) : (
               <p data-cse="zuweisen-fehlt" className="m-0 text-sm text-text-muted">
-                Zum Zuweisen fehlt das Recht <code>aufgabe.zuweisen</code>.
+                Zum Zuweisen fehlt das Recht <Recht schluessel="aufgabe.zuweisen" />.
                 Angezeigt wird der Stand trotzdem — wer eine Aufgabe sieht, soll
                 wissen, wer sie hält.
               </p>

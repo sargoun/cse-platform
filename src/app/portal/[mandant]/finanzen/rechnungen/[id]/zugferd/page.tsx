@@ -332,6 +332,18 @@ export default async function ZugferdBlatt(
             {t.eingebetteteRechnung} ({CII_DATEINAME})
           </h2>
           {/*
+            * **Ein Satz sagt, WAS der Kasten ist.** Ohne ihn steht auf dem
+            * Bildschirm einer Buchhalterin unkommentiert Quelltext, und sie
+            * fragt sich, ob sie etwas damit tun muss. Sie muss nicht: die
+            * Datei liest die Software des Empfaengers. Weglassen laesst er
+            * sich trotzdem nicht — im Streit ist genau das der Beleg, was
+            * versendet wurde.
+            */}
+          <p className="mb-s3 max-w-prose text-sm text-text-muted"
+             data-cse="quelltext-erklaerung">
+            {t.vorschauErklaerung}
+          </p>
+          {/*
             * `tabIndex` und `role` sind hier kein Beiwerk (DESIGN §9,
             * BFSG/LEG-07): ein Kasten, der rollt, muss mit der Tastatur
             * erreichbar sein — sonst kommt eine Person ohne Maus an die

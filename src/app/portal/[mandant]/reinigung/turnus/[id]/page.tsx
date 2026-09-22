@@ -23,6 +23,7 @@ import {
   type AusnahmeZeile, type TurnusBlatt, type TurnusEinsatzZeile,
 } from '@/server/services/reinigung/turnus';
 import type { VorschauTermin } from '@/server/services/reinigung/turnusvorschau';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/reinigung/turnus/[id]` — eine Regel und was aus ihr
@@ -559,7 +560,7 @@ export default async function TurnusBlattSeite(
         {einsaetze === null ? (
           <Hinweis art="hinweis" cse="einsaetze-ungeprueft" className="max-w-prose">
             <strong>Nicht geprüft.</strong> Die Schichten liegen hinter dem Recht
-            <code> dienstplan.lesen</code>, das dieses Konto hier nicht hält. Eine
+            <Recht schluessel="dienstplan.lesen" />, das dieses Konto hier nicht hält. Eine
             leere Liste hiesse „keine Schicht" und wäre an dieser Stelle falsch.
           </Hinweis>
         ) : einsaetze.length === 0 ? (

@@ -25,6 +25,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Unternavigation } from '../Unternavigation';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/crm/kunden/[id]/steuer` — die steuerlichen Angaben eines
@@ -171,7 +172,7 @@ export default async function Steuer(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="crm"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
       zurueck={{ ziel: `/portal/${mandant}/crm/kunden`, text: 'Alle Kunden' }}
@@ -452,8 +453,8 @@ export default async function Steuer(
         {!blatt.rechte.finanzenLesen ? (
           <Hinweis art="warnung" cse="steuer-13b-verdeckt" className="mt-s3 max-w-prose">
             <strong>Die §13b-Zeitscheiben sind Ihnen nicht sichtbar.</strong> Dafür
-            fehlt <code className="text-text">finanzen.lesen</code> — das Tor dieser
-            Route (<code className="text-text">abrechnung.lesen</code>) deckt die
+            fehlt <Recht schluessel="finanzen.lesen" /> — das Tor dieser
+            Route (<Recht schluessel="abrechnung.lesen" />) deckt die
             Tabelle nicht. <strong>Das heisst NICHT, dass kein Status hinterlegt
             ist.</strong> Eine leere Liste hier wäre die Aussage „Umsatzsteuer
             ausweisen", und die wäre möglicherweise falsch.
@@ -618,7 +619,7 @@ export default async function Steuer(
             ) : (
               <p className="mt-s4 max-w-prose text-xs text-text-muted">
                 Zum Eintragen einer Zeitscheibe fehlt
-                <code className="text-text"> finanzen.schreiben</code>.
+                <Recht schluessel="finanzen.schreiben" />.
               </p>
             )}
           </>
@@ -634,7 +635,7 @@ export default async function Steuer(
         {!blatt.rechte.finanzenLesen ? (
           <Hinweis art="warnung" cse="steuer-48b-verdeckt" className="mt-s3 max-w-prose">
             <strong>Die Freistellungsbescheinigungen sind Ihnen nicht sichtbar.</strong>{' '}
-            Dafür fehlt <code className="text-text">finanzen.lesen</code>. Eine leere
+            Dafür fehlt <Recht schluessel="finanzen.lesen" />. Eine leere
             Liste hier hiesse „15 % Bauabzugsteuer einbehalten" — und das wäre
             möglicherweise falsch.
           </Hinweis>

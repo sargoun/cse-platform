@@ -236,6 +236,18 @@ export default async function XRechnungBlatt(
           </p>
           <h2 className="mb-s3 text-h3 text-text" id="vorschau-titel">{t.vorschau}</h2>
           {/*
+            * **Ein Satz sagt, WAS der Kasten ist.** Ohne ihn steht auf dem
+            * Bildschirm einer Buchhalterin unkommentiert Quelltext, und sie
+            * fragt sich, ob sie etwas damit tun muss. Sie muss nicht: die
+            * Datei liest die Software des Empfaengers. Weglassen laesst er
+            * sich trotzdem nicht — im Streit ist genau das der Beleg, was
+            * versendet wurde.
+            */}
+          <p className="mb-s3 max-w-prose text-sm text-text-muted"
+             data-cse="quelltext-erklaerung">
+            {t.vorschauErklaerung}
+          </p>
+          {/*
             * **`tabIndex` und `role` sind hier kein Beiwerk** (DESIGN §9,
             * BFSG/LEG-07). Ein Kasten, der rollt, muss mit der Tastatur
             * erreichbar sein — sonst kommt eine Person ohne Maus an die

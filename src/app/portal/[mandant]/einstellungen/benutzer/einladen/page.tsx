@@ -74,7 +74,7 @@ export default async function VerwaltungskontoEinladen(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="einstellungen"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
       {...(darf['system.benutzer_lesen'] === true

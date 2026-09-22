@@ -127,7 +127,7 @@ export default async function Belegblatt(
       nurLesen
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="eingangsrechnungen"
+      aktiverTab="finanzen"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >

@@ -13,6 +13,7 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { alsProzent, FEHLERTEXT, type Kopf, type SteuerZeile } from './daten';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/angebote/[id]/freigabe` — die Preisfreigabe (OPS-08).
@@ -158,8 +159,8 @@ export default async function Preisfreigabe(
       <p className="mb-s5 max-w-[72ch] text-base text-text-muted">
         Die Freigabe verantwortet den <strong>Preis</strong> — nicht den Versand.
         Das sind zwei Entscheidungen mit zwei Rechten: wer freigibt, hält{' '}
-        <code className="text-text">angebot.preis_freigeben</code>, wer versendet,{' '}
-        <code className="text-text">angebot.versenden</code>. Erst beides, dann
+        <Recht schluessel="angebot.preis_freigeben" />, wer versendet,{' '}
+        <Recht schluessel="angebot.versenden" />. Erst beides, dann
         geht das Angebot hinaus.
       </p>
 
@@ -250,7 +251,7 @@ export default async function Preisfreigabe(
         {sichtFehlt ? (
           <Hinweis art="warnung" cse="kalkulation-verdeckt">
             <strong>Der Kalkulationsstand ist Ihnen nicht sichtbar.</strong> Ihnen
-            fehlt <code className="text-text">kalkulation.lesen</code>; die
+            fehlt <Recht schluessel="kalkulation.lesen" />; die
             Datenbank antwortet deshalb mit nichts, und das heißt hier
             ausdrücklich <em>nicht</em> „alles bestätigt". Die Freigabe bleibt
             gesperrt, weil sich ihre Voraussetzung von hier aus nicht prüfen lässt.

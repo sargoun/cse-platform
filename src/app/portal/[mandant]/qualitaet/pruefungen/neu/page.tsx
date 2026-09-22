@@ -12,6 +12,7 @@ import {
   ladePruefungAuswahl, PRUEFERGEBNISSE, ERGEBNIS_TEXT,
   type PruefungAuswahl,
 } from '@/server/services/reinigung/qualitaet';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/qualitaet/pruefungen/neu` — eine Prüfung erfassen
@@ -156,7 +157,7 @@ export default async function PruefungNeu(
 
       {auswahl.geprueft['objekt.lesen'] !== true && (
         <Hinweis art="warnung" cse="pruefung-kein-objektrecht" className="mb-s5 max-w-prose">
-          <strong>Die Objektauswahl ist leer, weil <code>objekt.lesen</code> fehlt.</strong>{' '}
+          <strong>Die Objektauswahl ist leer, weil <Recht schluessel="objekt.lesen" /> fehlt.</strong>{' '}
           Eine Prüfung braucht zwingend ein Objekt (oder ein Projekt) als Bezug —
           <code> qp_ein_anker</code> lässt nichts anderes zu.
         </Hinweis>
@@ -165,7 +166,7 @@ export default async function PruefungNeu(
       {auswahl.geprueft['reinigung.lesen'] !== true && (
         <Hinweis art="hinweis" cse="pruefung-kein-revierrecht" className="mb-s5 max-w-prose">
           <strong>Reviere und Revierräume sind nicht wählbar, weil{' '}
-          <code>reinigung.lesen</code> fehlt.</strong>{' '}
+          <Recht schluessel="reinigung.lesen" /> fehlt.</strong>{' '}
           Qualität ist ein Querschnittsmodul: eine Prüferin der Sicherheit hält
           das Recht der Reinigung nicht. Die Prüfung lässt sich trotzdem am
           Objekt erfassen — nur ohne Revierbezug.

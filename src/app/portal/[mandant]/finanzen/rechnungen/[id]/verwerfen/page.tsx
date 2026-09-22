@@ -14,6 +14,7 @@ import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
 import { RECHNUNG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-akte';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]/verwerfen` — der Entwurf wird
@@ -277,7 +278,7 @@ export default async function Verwerfenblatt(
           ) : k.status === 'festgeschrieben' ? (
             <p className="m-0 mt-s2 text-sm text-text-muted">
               {t.stornoLaeuftUeber} <code>{PFAD_STORNO}</code> {t.undVerlangt}{' '}
-              <code>{RECHT_STORNIEREN}</code>{t.rechtFehltErklaerung}
+              <Recht schluessel={RECHT_STORNIEREN} sprache={zugang.sprache} />{t.rechtFehltErklaerung}
             </p>
           ) : null}
         </Hinweis>

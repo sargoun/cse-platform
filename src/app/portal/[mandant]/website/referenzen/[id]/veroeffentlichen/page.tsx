@@ -14,6 +14,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../../kennung';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { WebsiteSpruenge } from '../../../spruenge';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/website/referenzen/[id]/veroeffentlichen` — die
@@ -245,7 +246,7 @@ export default async function ReferenzVeroeffentlichen(
               </Link>
             ) : 'Bearbeitungsseite'}
             {' '}— und dort verlangt sie{' '}
-            <code className="font-mono">referenz.kundenfreigabe_erfassen</code>. Hier
+            <Recht schluessel="referenz.kundenfreigabe_erfassen" />. Hier
             steht deshalb kein Knopf: die Policy wiese ihn ab, und ein Knopf, der still
             nichts tut, lässt den Menschen den Fehler bei sich suchen.
           </Hinweis>

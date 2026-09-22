@@ -229,6 +229,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'system', pfad: 'konto/sitzungen', schreibend: false },
   /**
+   * V-120 — das Modellregister.
+   *
+   * Die Zeile ist eine RECHTSAUSSAGE und kein Schalter: sie bezeugt, dass
+   * ein Mensch hingesehen hat. Deshalb aal2 in der Policy (0381) und
+   * deshalb setzt die Datenbank den Zeugen, statt ihn abzufragen.
+   */
+  {
+    modul: 'system', pfad: 'system/modellregister',
+    schreibend: true, schreibRecht: 'system.einstellung_verwalten',
+  },
+  /**
    * V-006 — die Kreditorenstammdaten.
    *
    * `eingang.schreiben` ist dasselbe Recht wie fuer die

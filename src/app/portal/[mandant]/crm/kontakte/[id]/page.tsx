@@ -22,6 +22,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/crm/kontakte/[id]` — das Blatt eines Ansprechpartners
@@ -214,7 +215,7 @@ export default async function Kontaktblatt(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="crm"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
       zurueck={{ ziel: `/portal/${mandant}/crm/kontakte`, text: 'Alle Ansprechpartner' }}
@@ -302,8 +303,8 @@ export default async function Kontaktblatt(
         {stand === null ? (
           <Hinweis art="hinweis" cse="grundlage-verdeckt" className="mt-s3 max-w-prose">
             <strong>Der Nachweis ist Ihnen nicht sichtbar.</strong> Dafür fehlt
-            <code className="text-text"> crm.rechtsgrundlage_lesen</code> — ein
-            eigenes Recht neben <code className="text-text">crm.lesen</code>, mit dem
+            <Recht schluessel="crm.rechtsgrundlage_lesen" /> — ein
+            eigenes Recht neben <Recht schluessel="crm.lesen" />, mit dem
             die Seitenkarte auch den Werbewiderspruchs-Katalog bewacht. Das heisst
             nicht, dass keine Grundlage hinterlegt ist. Die Antwort des Sendetores
             steht darunter und ist von diesem Recht unabhängig.
@@ -530,7 +531,7 @@ export default async function Kontaktblatt(
           <p className="mt-s3 max-w-prose text-xs text-text-muted"
              data-cse="verlauf-akteur-hinweis">
             Die Namen der Handelnden sind Ihnen nicht sichtbar — dafür fehlt
-            <code className="text-text"> system.benutzer_lesen</code>. Ein „—" in der
+            <Recht schluessel="system.benutzer_lesen" />. Ein „—" in der
             Spalte „Wer" heisst deshalb hier nicht, dass niemand gehandelt hat.
           </p>
         )}
@@ -541,7 +542,7 @@ export default async function Kontaktblatt(
         {darf['crm.schreiben'] !== true ? (
           <p className="mt-s3 max-w-prose text-sm text-text-muted"
              data-cse="wv-kein-schreibrecht">
-            Eine Wiedervorlage legt an, wer <code className="text-text">crm.schreiben</code>{' '}
+            Eine Wiedervorlage legt an, wer <Recht schluessel="crm.schreiben" />{' '}
             hält.
           </p>
         ) : kopf.kunde_id === null ? (
@@ -634,7 +635,7 @@ export default async function Kontaktblatt(
             Datenschutz · Widersprüche
           </Link>{' '}
           und hängt am selben Recht wie dieser Nachweisblock
-          (<code className="text-text">crm.rechtsgrundlage_lesen</code>). Der Verweis
+          (<Recht schluessel="crm.rechtsgrundlage_lesen" />). Der Verweis
           erscheint deshalb nur, wenn Sie es halten — er führt nie auf ein 404.
         </p>
       ) : null}

@@ -24,6 +24,7 @@ import { slugTor } from '../../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../../kennung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/lv/[ozId]` — eine LV-Position im
@@ -226,7 +227,7 @@ export default async function LvPositionSeite(
         {!p.darf_preis_lesen && (
           <p className="mt-s3 text-sm text-warning">
             Einheitspreis und Betrag sind für Ihre Rolle nicht lesbar (Recht{' '}
-            <code>bau.preis_lesen</code>). Es steht hier deshalb „nicht lesbar" und
+            <Recht schluessel="bau.preis_lesen" />). Es steht hier deshalb „nicht lesbar" und
             keine 0 € — eine Null wäre eine Angabe, und sie wäre falsch.
           </p>
         )}
@@ -507,7 +508,7 @@ export default async function LvPositionSeite(
                   </form>
                 ) : (
                   <p className="mt-s4 text-sm text-text-muted">
-                    Bestätigen darf, wer <code>bau.schreiben</code> hält. Die Kraft
+                    Bestätigen darf, wer <Recht schluessel="bau.schreiben" /> hält. Die Kraft
                     auf der Baustelle bestätigt keine Vertragsposition — das ist
                     die Bauleitung.
                   </p>

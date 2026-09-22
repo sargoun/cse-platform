@@ -106,6 +106,7 @@ export default async function Nachweisblatt({
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
+      aktiverTab="personal"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >

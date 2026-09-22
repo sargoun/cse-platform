@@ -152,7 +152,7 @@ export default async function Ausgabenblatt(
       nurLesen
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="eingangsrechnungen"
+      aktiverTab="finanzen"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >

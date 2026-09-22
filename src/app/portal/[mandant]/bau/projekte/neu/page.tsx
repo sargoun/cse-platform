@@ -12,6 +12,7 @@ import { auftraegeOhneProjekt } from '@/server/services/bau/projekt';
 import {
   ProjektFormular, type AuftragAuswahl, type BauleitungAuswahl,
 } from '../../ProjektFormular';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/bau/projekte/neu` — ein Bauvorhaben anlegen
@@ -108,7 +109,7 @@ export default async function ProjektNeu(
       {darf['bau.schreiben'] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
           {t.keinSchreibrechtAnlegen}{' '}
-          <code className="font-mono">{RECHT_SCHREIBEN}</code>.
+          <Recht schluessel={RECHT_SCHREIBEN} sprache={zugang.sprache} />.
         </Hinweis>
       ) : daten.auftraege.length === 0 ? (
         <Hinweis art="warnung" cse="projekt-ohne-auftrag" className="max-w-prose">

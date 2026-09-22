@@ -9,6 +9,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { REVIER_TEXTE } from '@/lib/i18n/verwaltung/reinigung';
 import { RevierFormular, type ObjektAuswahl } from '../../RevierFormular';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/reinigung/reviere/neu` — ein Revier zuschneiden
@@ -103,13 +104,13 @@ export default async function RevierNeu(
       {darf['reinigung.schreiben'] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
           {t.keinSchreibrechtAnlegen}{' '}
-          <code className="font-mono">{RECHT_SCHREIBEN}</code>.
+          <Recht schluessel={RECHT_SCHREIBEN} sprache={zugang.sprache} />.
         </Hinweis>
       ) : objekte.length === 0 ? (
         <Hinweis art="warnung" cse="revier-ohne-objekt" className="max-w-prose">
           {darf['objekt.lesen'] === true ? t.keinObjekt : t.objektPflicht}{' '}
           {darf['objekt.lesen'] !== true && (
-            <code className="font-mono">{RECHT_OBJEKT}</code>
+            <Recht schluessel={RECHT_OBJEKT} sprache={zugang.sprache} />
           )}
         </Hinweis>
       ) : (

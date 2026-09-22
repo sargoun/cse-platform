@@ -376,3 +376,55 @@ Startseite mit zwei grossen Feldern („Ich habe ein Kennwort" / „Ich arbeite 
 Einsatz"). Das wäre **eine Seite mehr**, kein Umbau — die zwei Formulare
 dahinter bleiben, weil sie verschiedene Dinge prüfen. Heute macht `/auth/login`
 dasselbe mit einem Satz im Fuss.
+
+---
+
+## 10. Wenn nichts geht — Fehlermeldungen und was sie heissen
+
+Die Tabelle liest die Meldung, **wie sie auf dem Schirm steht**. Sie müssen
+die Meldung selbst nicht verstehen.
+
+### Beim Starten
+
+| Was Sie sehen | Was es heisst | Was Sie tun |
+|---|---|---|
+| `ECONNREFUSED ... 5433` | Die Datenbank läuft nicht | Docker Desktop starten, dann `docker start cse-db` |
+| `EADDRINUSE ... 3001` | Der Hafen ist belegt — oft von einem Server von vorhin | `PORT=3002` in `.env.local`, oder den alten Server beenden |
+| `Cannot find module` | Die Pakete fehlen | `pnpm install` |
+| `extension "vector" is not available` | Das Abbild war `postgres:16` statt `pgvector/pgvector:pg16` | Container löschen, aus dem richtigen Abbild neu anlegen |
+| `relation "..." does not exist` | Die Tabellen fehlen, oder die Migration brach in der Mitte ab | `pnpm db:migrate` — und die letzte Zeile lesen |
+| Weisse Seite, keine Meldung | Der Server ist noch nicht oben | Warten, bis `Ready in ...` im Terminal steht |
+
+### Beim Anmelden
+
+| Lage | Häufigster Grund | Abhilfe |
+|---|---|---|
+| Das Kennwort wird nicht angenommen | Die Demodaten fehlen | `pnpm db:seed` |
+| Es kommt kein SMS-Code | Richtig so — es ist kein SMS-Anbieter verbunden (O-82) | Im Demobetrieb steht der Code **auf dem Schirm** |
+| „Nicht berechtigt" nach dem Anmelden | Das Konto hat in dieser Gesellschaft keine Rolle | Ein anderes Konto — §9 |
+
+### Beim Anbinden eines Dienstes
+
+**Nie raten.** Die Seite sagt den Grund im Klartext:
+
+```
+/portal/<gesellschaft>/einstellungen/integrationen
+```
+
+Der KI-Adapter kennt **genau diese sechs** Gründe:
+
+| Grund | Was er genau abdeckt | Abhilfe |
+|---|---|---|
+| `NOT_CONNECTED` | **Entweder** der Schlüssel ist leer **oder** der Riegel `CSE_KI_MODELL=nicht_verbunden` steht noch | Beides prüfen — der Riegel wird am häufigsten übersehen und **gewinnt gegen einen gültigen Schlüssel** |
+| `RESIDENCY_BLOCKED` | Residenz nicht `eu`, oder `OPENAI_BASE_URL` leer / nicht https / mit Zugangsdaten / mit Query / Wirt nicht in der Liste | `OPENAI_DATA_RESIDENCY=eu`, `OPENAI_BASE_URL=https://eu.api.openai.com/v1` |
+| `AUTH_FAILED` | Der Schlüssel steht, OpenAI weist ihn ab | Falsch oder widerrufen — einen neuen erzeugen |
+| `RATE_LIMITED` | Das Kontingent bei OpenAI ist erschöpft | Warten oder das Limit im Konto anheben |
+| `TIMEOUT` | Keine Antwort in der gesetzten Zeit | Meist vorübergehend |
+| `INVALID_RESPONSE` | Die Antwort passt nicht zum erwarteten Schema | Wird protokolliert und **nicht verwendet** — auf so einer Antwort wird kein Wert gebaut |
+
+### Nach jeder Änderung an `.env.local`
+
+**Den Server neu starten.** Die Datei wird nur beim Start gelesen: `Ctrl+C`,
+dann `pnpm dev`.
+
+In Vercel: **neu bereitstellen.** Die Variablen werden beim Bauen gelesen.

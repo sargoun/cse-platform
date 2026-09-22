@@ -15,6 +15,7 @@ import { LIEFERANTEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/lieferanten';
 import { leseLieferant, type LieferantZeile } from '@/server/services/finanz/lieferant';
 import { LieferantFormular } from '../LieferantFormular';
 import { LIEFERANT_FEHLER } from '../fehler';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/finanzen/lieferanten/[id]` — ein Lieferant: Stammdaten
@@ -114,7 +115,7 @@ export default async function LieferantBlatt(
       {darf[RECHT] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
           {t.keinSchreibrecht}{' '}
-          <code className="font-mono">{RECHT}</code>.
+          <Recht schluessel={RECHT} sprache={zugang.sprache} />.
         </Hinweis>
       ) : zeile.archiviert ? (
         <Hinweis art="hinweis" cse="lieferant-archiviert" className="max-w-prose">

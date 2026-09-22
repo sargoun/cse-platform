@@ -347,6 +347,22 @@ One primary button per view.
 Hover on interactive cards: border → `--border-strong`, `translateY(-2px)`,
 200ms. No shadow.
 
+**An interactive card says so AT REST, not only on hover.** This rule exists
+because of a user report with two screenshots: a KPI card labelled *Neue
+Anfragen* opens a page when clicked, one labelled *Vorgänge* does nothing, and
+the two were pixel-identical — same surface, same border, no cursor change
+until the pointer was already on them. A card that leads somewhere must be
+distinguishable from one that does not **before** the reader tries it; hover
+is an answer that arrives too late, and on a touch screen it never arrives.
+
+The resting signal is a **`pfeil-rechts` glyph in the top-right corner**, at
+`icon-sm`, in `--text-subtle`. A glyph and not a colour, because §9 forbids
+colour as the only signal; the arrow is already in the closed icon set, so no
+new asset. On hover it inherits the card's transition and moves with it.
+
+Non-interactive cards carry no arrow — the absence is the other half of the
+signal, and it is only readable if the presence is consistent.
+
 ### Icons
 
 One set, drawn in the repo, no icon dependency. `24×24` viewBox, stroke
@@ -417,6 +433,28 @@ forty lines — enough to recognise the document and see that the totals are
 where they belong, short enough that the page still scrolls as a page. A
 preview that grows with its content pushes every control below it off the
 screen, and the one control that matters here is the download.
+
+### Machine words in a sentence
+
+A sentence addressed to a person never carries a machine word raw. Three
+things kept appearing in body copy and are now each rendered, never printed:
+
+| What | Component | Reads as |
+|---|---|---|
+| A permission key | `<Recht schluessel="kalkulation.lesen" />` | „Kalkulationen lesen“ / “read costings” |
+| A stored payload | `<Nutzlastblatt nutzlast={…} />` | a definition list — labels, Berlin timestamps, shortened ids |
+| A generated letter or mail | `<pre class="font-sans …">` | the letter, in the page's own face |
+
+Monospace is a claim: *this is machine text, copy it exactly.* It is right
+for the **Source preview** above (UBL, ZUGFeRD, DATEV — text a person really
+does hand to a machine) and wrong for everything a person only has to
+understand. „Ihnen fehlt `kalkulation.lesen`“ tells the reader that something
+is missing but not **what**, so they cannot even ask for it; a VOB letter set
+in monospace reads like a log file, not like the letter it is.
+
+The machine word does not disappear — it moves to `title` and a `data-`
+attribute. Administration grants a permission by its exact key, and the
+browser runs must not hang on a word that changes with the language.
 
 ### Status pills
 

@@ -12,6 +12,7 @@ import {
   AbwesenheitAufnahmeFormular,
   type AnstellungAuswahl, type ArtAuswahl,
 } from '../AufnahmeFormular';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/personal/abwesenheiten/erfassen` — die Krankmeldung am
@@ -134,7 +135,7 @@ export default async function AbwesenheitErfassen(
       {darf[RECHT] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
           {t.keinSchreibrecht}{' '}
-          <code className="font-mono">{RECHT}</code>.
+          <Recht schluessel={RECHT} sprache={zugang.sprache} />.
         </Hinweis>
       ) : daten.anstellungen.length === 0 ? (
         <Hinweis art="warnung" cse="keine-anstellung" className="max-w-prose">

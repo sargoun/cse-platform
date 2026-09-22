@@ -16,6 +16,7 @@ import { liste as loeschungen } from '@/server/services/datenschutz/loeschentsch
 import { stand, ART_WIRKUNG, type Stand } from '@/server/services/datenschutz/werbewiderspruch';
 import { ladeVorgang } from '../vorgang';
 import { BERLIN, Vorgangskopf } from '../Vorgangskopf';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/datenschutz/[id]` — die AKTE eines Betroffenenvorgangs
@@ -95,7 +96,7 @@ export default async function Vorgangsakte(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="datenschutz"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -149,7 +150,7 @@ export default async function Vorgangsakte(
 
         {darf['datenschutz.auskunft_erstellen'] !== true ? (
           <Hinweis art="hinweis" cse="zuordnung-kein-recht" className="max-w-prose">
-            Die Zuordnung setzt, wer <code className="font-mono">datenschutz.auskunft_erstellen</code>
+            Die Zuordnung setzt, wer <Recht schluessel="datenschutz.auskunft_erstellen" />
             {' '}hält. Sie sehen den Vorgang, weil Sie eine der anderen beiden
             Zuständigkeiten haben.
           </Hinweis>
@@ -472,7 +473,7 @@ export default async function Vorgangsakte(
         ) : darf['datenschutz.auskunft_erstellen'] !== true ? (
           <p className="text-sm text-text-muted">
             Abgeschlossen wird der Vorgang von einer Sitzung mit
-            {' '}<code className="font-mono">datenschutz.auskunft_erstellen</code>.
+            {' '}<Recht schluessel="datenschutz.auskunft_erstellen" />.
           </p>
         ) : (
           <form method="post" action="/api/datenschutz/bearbeiten"

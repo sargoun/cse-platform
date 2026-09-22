@@ -13,6 +13,7 @@ import {
 } from '@/server/services/datenschutz/berichtigung';
 import { ladeVorgang } from '../../vorgang';
 import { BERLIN, Vorgangskopf } from '../../Vorgangskopf';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/datenschutz/[id]/berichtigung` — Art. 16 und Art. 19 DSGVO
@@ -88,7 +89,7 @@ export default async function Berichtigungsseite(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="datenschutz"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -360,7 +361,7 @@ export default async function Berichtigungsseite(
       {!darfSchreiben && (
         <p className="text-sm text-text-muted" data-cse="berichtigung-kein-recht">
           Aufgenommen und entschieden wird von einer Sitzung mit
-          {' '}<code className="font-mono">datenschutz.berichtigung_bearbeiten</code>.
+          {' '}<Recht schluessel="datenschutz.berichtigung_bearbeiten" />.
           Sie sehen diese Seite, weil Sie eine der anderen Zuständigkeiten haben.
         </p>
       )}

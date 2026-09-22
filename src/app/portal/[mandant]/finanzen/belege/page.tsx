@@ -117,7 +117,7 @@ export default async function Belegliste(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="eingangsrechnungen"
+      aktiverTab="finanzen"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >

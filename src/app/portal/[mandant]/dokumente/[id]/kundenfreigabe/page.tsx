@@ -88,7 +88,7 @@ export default async function Dokumentfreigabe(
       nurLesen={nurLesen}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="dokumente"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
       {...(darf['dokument.lesen'] === true

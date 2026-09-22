@@ -14,6 +14,7 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { URLAUBSKONTEN_TEXTE } from '@/lib/i18n/verwaltung/urlaubskonten';
 import { formatiereMenge } from '@/server/services/finanz/menge';
 import { leseUrlaubskonten } from '@/server/services/zeit/urlaubskonto';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/personal/urlaubskonten` — der Urlaubsanspruch je
@@ -160,7 +161,7 @@ export default async function Urlaubskonten(
       {darf[RECHT] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
           {t.keinSchreibrecht}{' '}
-          <code className="font-mono">{RECHT}</code>.
+          <Recht schluessel={RECHT} sprache={zugang.sprache} />.
         </Hinweis>
       ) : (
         <Card>
