@@ -495,6 +495,20 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'crm.schreiben',
   },
   /*
+   * Kunde und Ansprechpartner AENDERN (V-017, V-018, V-019). Eigene Datei und
+   * nicht ein Zweig in `crm/anlegen`: sie fasst vier Spalten mit Absicht NICHT
+   * an — `debitorennummer`, `zahlungsziel_tage`, `mahnsperre_bis`,
+   * `mahnsperre_grund`. `cse_app` darf sie schreiben, aber nicht LESEN (K-05);
+   * ein Formular, das den ganzen Datensatz zurueckschreibt, ueberschriebe sie
+   * mit null — eine geloeschte Mahnsperre ist eine Mahnung an einen Kunden,
+   * mit dem gerade verhandelt wird. Wer sie aendern will, geht ueber
+   * `crm/kondition` und braucht `crm_entgelt.lesen` dazu.
+   */
+  {
+    modul: 'crm', pfad: 'crm/aendern',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
    * Die Zahlungskonditionen (CRM-01, FIN-15, K-05). Schreibrecht ist
    * `crm.schreiben` — der Dienst verlangt ZUSAETZLICH `crm_entgelt.lesen`,
    * weil die vier Spalten `cse_app` spaltenweise entzogen sind: wer sie nicht

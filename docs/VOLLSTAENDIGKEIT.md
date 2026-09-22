@@ -65,9 +65,9 @@ Angelegt und danach in Stein. Kein Tippfehler ist korrigierbar.
 
 | Nr | Was | Beleg | Grad | Stand |
 |---|---|---|---|---|
-| V-017 | **Kundenstammdaten** | `src/server/services/crm/anlegen.ts:77` — kein schreibender Änderungsdienst | blockiert | offen |
-| V-018 | **Kunde archivieren** | `drizzle/0020_crm_identitaet.sql:176` — Spalte da, nichts schreibt sie | behindert | offen |
-| V-019 | **Ansprechpartner korrigieren / als ausgeschieden markieren** | `drizzle/0020_crm_identitaet.sql:261` — nur die Rechtsgrundlage ist änderbar | behindert | offen |
+| V-017 | **Kundenstammdaten** | `src/server/services/crm/anlegen.ts:77` — kein schreibender Änderungsdienst | blockiert | **erledigt** — `services/crm/aendern.ts`, `api/crm/kunde` (`aktion=kunde_aendern`) |
+| V-018 | **Kunde archivieren** | `drizzle/0020_crm_identitaet.sql:176` — Spalte da, nichts schreibt sie | behindert | **erledigt** — `archiviereKunde`, weist bei laufenden Aufträgen ab |
+| V-019 | **Ansprechpartner korrigieren / als ausgeschieden markieren** | `drizzle/0020_crm_identitaet.sql:261` — nur die Rechtsgrundlage ist änderbar | behindert | **erledigt** — `aendereKontakt` + `scheideKontaktAus` |
 | V-020 | **Objekt bearbeiten oder archivieren** | `src/app/portal/[mandant]/objekte/[id]/page.tsx:148` zeigt „Archiviert" an — nichts kann den Zustand erzeugen | blockiert | **erledigt** — D-619/D-620, `objekte/[id]/bearbeiten` |
 | V-021 | **Planungsserie ändern, beenden, archivieren** | `src/server/services/dienstplan/serie.ts:226` | blockiert | offen |
 | V-022 | **Verwaltungskonto entziehen oder deaktivieren** | `src/app/portal/[mandant]/einstellungen/benutzer/[id]/page.tsx:32` — einladen ja, zurücknehmen nie | blockiert | offen |
@@ -172,7 +172,7 @@ dafür erscheinen nie.
 | V-084 | `mahnung.status = 'erledigt'` hat keinen Erzeuger, obwohl der Übergang ausdrücklich erlaubt ist | `drizzle/0130_pruefbefunde_finanzen.sql:475` | behindert | offen |
 | V-085 | `angebot.status = 'abgelaufen'` hat keinen Erzeuger — der Lauf, für den `gueltig_bis` und ein eigener Teilindex gebaut wurden, fehlt | `drizzle/0024_angebot.sql:119` | behindert | offen |
 | V-086 | `formular_eingang.status`: erzeugt wird ausschließlich `verarbeitet` — **`neu`, `spam`, `verworfen` nie** | `src/server/services/lead/annahme.ts:210` | behindert | offen |
-| V-087 | `kunde.status = 'gesperrt'` ist die **UWG-Werbesperre** und lässt sich nirgends setzen; `inaktiv` ebenfalls nicht | `drizzle/0020_crm_identitaet.sql:173` | behindert | offen |
+| V-087 | `kunde.status = 'gesperrt'` ist die **UWG-Werbesperre** und lässt sich nirgends setzen; `inaktiv` ebenfalls nicht | `drizzle/0020_crm_identitaet.sql:173` | behindert | **erledigt** — `setzeKundeStatus`, eigener Weg statt Auswahlfeld |
 | V-088 | `betroffenenanfrage.status = 'identitaet_offen'` hat keinen Erzeuger, obwohl zwei Oberflächen ihn beschriften | `drizzle/0176_betroffenenanfrage.sql:49` | behindert | offen |
 | V-089 | Der in der Migration benannte nächtliche Statuslauf **„gültig → abgelaufen"** für Nachweise existiert nicht | `drizzle/0030_nachweis_qualifikation.sql:595` | behindert | offen |
 
@@ -251,6 +251,8 @@ stehen hier, weil ein Befund ohne Nummer ein Befund ist, den niemand wiederfinde
 
 | V-108 | **Von 311 Verwaltungsseiten trugen ZWEI einen Rückweg.** Der Mandant hat es selbst gefunden: er klickte in der Beschäftigungsliste auf eine Person und stand auf einem Blatt ohne Ausgang; er öffnete das Stundenkonto und fand keinen Weg zurück. | `find "src/app/portal/[mandant]" -name page.tsx \| wc -l` → 311; mit Rückweg → 2 | blockiert | **erledigt** — der Rückweg wird jetzt aus der ADRESSE abgeleitet (`server/registry/rueckweg.ts`), vom Tor gegen die Rechte seines Ziels geprüft (AUT-06) und von der Hülle gezeichnet. **256 Seiten** haben ihn damit, 54 sind Modulwurzeln und sollen keinen haben. 11 Prüfungen in `tests/kern/rueckweg.test.ts` |
 | V-109 | **Die Bedienfelder zeigten die Bordmittel des Browsers.** `<select>` mit Systempfeil (84 Dateien), `<input type="date">` mit einem Kalendersymbol, das auf dunklem Grund **schwarz auf schwarz** steht und damit unsichtbar ist (55 Dateien), Häkchen im Systemblau. DESIGN §5 „Forms" beschrieb das Feld seit jeher — nirgends stand es als Regel. | `grep -rl 'type="date"' src/app` → 55 · `grep -rl '<select' src/app` → 84 | behindert | **erledigt** — Grundregel in `globals.css`, `:where()` mit Spezifität null: greift überall, überschreibt nichts |
+
+| V-110 | **Wer ausgeschieden ist, blieb erreichbar.** `app.darf_kontaktiert_werden` prüft Widerspruch, Werbewiderspruch, Archivierung, Anonymisierung, den Einwilligungskanal und die ganze Kundenseite — aber **nicht**, ob die Person das Unternehmen verlassen hat. Eine Einwilligung gehört der Person, nicht dem Stuhl; und vertragliche Post an eine ausgeschiedene Person liest ihr Nachfolger (Art. 5 Abs. 1 lit. d DSGVO). | `grep -n ausgeschieden_am` → nur die Spalte in `drizzle/0020`, in keiner Bedingung. Gefunden, weil ein Test es behauptete und nachmass | blockiert | **erledigt** — `drizzle/0376`, beide Zweige |
 
 ---
 
