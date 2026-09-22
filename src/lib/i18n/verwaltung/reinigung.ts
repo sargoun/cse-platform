@@ -23,6 +23,8 @@ import type { InternSprache } from '../intern.js';
 
 export interface RevierTexte {
   /* ── Überschriften und Wege ────────────────────────────────────────── */
+  /** Der Name des Moduls in der Spur — dasselbe Wort wie in der Leiste. */
+  readonly modul: string;
   readonly neuTitel: string;
   readonly bearbeitenTitel: string;
   readonly alleReviere: string;
@@ -71,6 +73,7 @@ export interface RevierTexte {
 
 export const REVIER_TEXTE: Readonly<Record<InternSprache, RevierTexte>> = {
   de: {
+    modul: 'Reinigung',
     neuTitel: 'Neues Revier',
     bearbeitenTitel: 'Revier bearbeiten',
     alleReviere: 'Alle Reviere',
@@ -139,6 +142,7 @@ export const REVIER_TEXTE: Readonly<Record<InternSprache, RevierTexte>> = {
     keinSchreibrechtAendern: 'Zum Ändern fehlt Ihnen',
   },
   en: {
+    modul: 'Cleaning',
     neuTitel: 'New Revier',
     bearbeitenTitel: 'Edit Revier',
     alleReviere: 'All Reviere',

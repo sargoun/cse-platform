@@ -10,6 +10,7 @@ import { listeProjekte, type ProjektZeile } from '@/server/services/bau/lv';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '../../../rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -58,6 +59,13 @@ export default async function Projektliste(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /*
+   * Der Knopf haengt an `bau.schreiben` — demselben Recht, das Route und RLS
+   * verlangen. Wer ein Projekt nicht anlegen darf, soll auch nicht auf eine
+   * Seite geschickt werden, die ihm das sagt.
+   */
+  const darf = await haeltRechte(sitzung, 'bau.schreiben');
+
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => listeProjekte(kontext)),
   ) as Promise<readonly ProjektZeile[]>);
@@ -73,12 +81,35 @@ export default async function Projektliste(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <h1 className="mb-s5 text-h1 text-text">Bauprojekte</h1>
+      <div className="mb-s5 flex flex-wrap items-center justify-between gap-s3">
+        <h1 className="m-0 text-h1 text-text">Bauprojekte</h1>
+        {darf['bau.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/bau/projekte/neu`}
+            data-cse="projekt-neu"
+            className="inline-flex min-h-11 items-center rounded-md bg-brand px-s4
+                       text-sm font-semibold text-white hover:bg-brand-hover"
+          >
+            Neues Bauvorhaben
+          </Link>
+        )}
+      </div>
 
       {zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Kein Bauprojekt angelegt. Ein Projekt entsteht aus einem Auftrag —
           es ist dessen bauliche Erweiterung, kein zweiter Vorgang daneben.
+          {darf['bau.schreiben'] === true && (
+            <>
+              {' '}
+              <Link
+                href={`/portal/${mandant}/bau/projekte/neu`}
+                className="underline underline-offset-2 hover:text-text"
+              >
+                Das erste anlegen.
+              </Link>
+            </>
+          )}
         </p>
       ) : (
         <DataTable

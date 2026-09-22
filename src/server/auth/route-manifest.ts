@@ -1325,6 +1325,38 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Eine Veranstaltung anlegen, aendern oder archivieren (V-004, SEC-08).
+     *
+     * `security.schreiben` — dasselbe Recht, das die RLS von `veranstaltung`
+     * verlangt. Die BESETZUNG derselben Veranstaltung liegt dagegen hinter
+     * `dienstplan.schreiben` (Seitenkarte §5.8): wer das Event erfasst, teilt
+     * damit noch niemanden ein.
+     *
+     * Woher ein Veranstaltungsauftrag ueberhaupt entsteht, ist offen (O-703);
+     * diese Adresse baut den Weg, der am wenigsten erfindet — handerfasst,
+     * mit optionaler Verbindung zu einer Auftragsleistung.
+     */
+    pfad: 'api/security/veranstaltungen',
+    recht: 'security.schreiben',
+  },
+  {
+    /**
+     * Ein Bauvorhaben anlegen, aendern oder archivieren (V-003, OPS-05).
+     *
+     * `bau.schreiben` und nicht `bau.aufmass_erfassen`: ein Vorhaben ANLEGEN
+     * ist die Handlung der Bauleitung, ein Aufmass aufnehmen die der Kraft
+     * vor Ort. Beides zu vermischen gaebe jeder Kraft, die ein Blatt
+     * aufnehmen darf, auch das Recht, ein Projekt zu archivieren.
+     *
+     * Der AUFTRAG wird gewaehlt, nie erfunden: `projekt_auftrag_uk` laesst
+     * genau ein Projekt je Auftrag zu, und Kunde, Objekt und Nummer liest der
+     * Dienst aus dessen Zeile statt aus dem Formular.
+     */
+    pfad: 'api/bau/projekte',
+    recht: 'bau.schreiben',
+  },
+  {
+    /**
      * Eine Reinigungszone anlegen, aendern oder archivieren (V-002, CLN-01).
      *
      * `reinigung.schreiben` — dasselbe Recht, das die RLS von `revier`

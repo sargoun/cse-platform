@@ -704,6 +704,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * `bau.aufmass_freigeben` — geprueft an der Route, weil sie ein zweiter
    * Vorgang ist und nicht ein zweites Schreibrecht desselben.
    */
+  /**
+   * V-003 — das Bauprojekt selbst. `bau.schreiben` und nicht
+   * `bau.aufmass_erfassen`: ein Vorhaben ANLEGEN ist die Handlung der
+   * Bauleitung, ein Aufmass aufnehmen die der Kraft vor Ort.
+   */
+  {
+    modul: 'bau', pfad: 'bau/projekt',
+    schreibend: true, schreibRecht: 'bau.schreiben',
+  },
   { modul: 'bau', pfad: 'bau/rechenansatz', schreibend: false },
   { modul: 'bau', pfad: 'bau/lv', schreibend: false },
   {
@@ -1556,6 +1565,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
   { modul: 'security', pfad: 'security/uebersicht', schreibend: false },
   { modul: 'security', pfad: 'security/veranstaltung', schreibend: false },
+  /**
+   * V-004 — die Veranstaltung ANLEGEN. Eigene Zeile und eigene Datei, weil
+   * `security/veranstaltung` daneben als lesend gefuehrt ist und es bleiben
+   * soll: eine Schreibfunktion darin machte die Registerzeile still falsch.
+   */
+  {
+    modul: 'security', pfad: 'security/veranstaltung-anlegen',
+    schreibend: true, schreibRecht: 'security.schreiben',
+  },
 
   /**
    * **Die fuenf Stammdatenkataloge (SEITENKARTE §5.13, 0275–0279).**

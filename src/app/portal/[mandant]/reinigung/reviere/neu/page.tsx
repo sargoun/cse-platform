@@ -6,7 +6,6 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
-import { INTERN_BESCHRIFTUNGEN, internSprache } from '@/lib/i18n/intern';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { REVIER_TEXTE } from '@/lib/i18n/verwaltung/reinigung';
 import { RevierFormular, type ObjektAuswahl } from '../../RevierFormular';
@@ -81,7 +80,7 @@ export default async function RevierNeu(
   return (
     <PortalRahmen
       titel={t.neuTitel}
-      wurzelTitel={INTERN_BESCHRIFTUNGEN[internSprache(zugang.sprache)].reinigung}
+      wurzelTitel={t.modul}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}

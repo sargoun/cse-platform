@@ -38,7 +38,7 @@ export default async function Veranstaltungen(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
-  const darf = await haeltRechte(sitzung, 'dienstplan.schreiben');
+  const darf = await haeltRechte(sitzung, 'dienstplan.schreiben', 'security.schreiben');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const heute = await berlinHeute();
@@ -59,7 +59,19 @@ export default async function Veranstaltungen(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <h1 className="mb-s2 text-h1 text-text">Veranstaltungen</h1>
+      <div className="mb-s2 flex flex-wrap items-center justify-between gap-s3">
+        <h1 className="m-0 text-h1 text-text">Veranstaltungen</h1>
+        {darf['security.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/security/veranstaltungen/neu`}
+            data-cse="veranstaltung-neu"
+            className="inline-flex min-h-11 items-center rounded-md bg-brand px-s4
+                       text-sm font-semibold text-white hover:bg-brand-hover"
+          >
+            Neue Veranstaltung
+          </Link>
+        )}
+      </div>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Kurzfristige Eventdienste. Die Besetzung läuft über dieselben Prüfungen
         wie jede andere Einteilung — § 34a-Nachweis, Bewacherregister und
@@ -69,6 +81,17 @@ export default async function Veranstaltungen(
       {zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Keine anstehende Veranstaltung.
+          {darf['security.schreiben'] === true && (
+            <>
+              {' '}
+              <Link
+                href={`/portal/${mandant}/security/veranstaltungen/neu`}
+                className="underline underline-offset-2 hover:text-text"
+              >
+                Die erste erfassen.
+              </Link>
+            </>
+          )}
         </p>
       ) : (
         <ul className="m-0 list-none p-0">
