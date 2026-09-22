@@ -13,6 +13,8 @@ import { leisteFuer, tableiste, type LeistenSchluessel }
 import { istPortalSprache, type PortalSprache } from '@/lib/i18n/texte';
 import type { Sitzung } from '@/server/kontext/index';
 import { merkeHuelle } from './huellen-speicher';
+import { rueckwegFuer, rueckwegRechte, type RueckwegZiel }
+  from '@/server/registry/rueckweg';
 
 /**
  * Was jede Portalseite zuerst tut: Sitzung holen, Tor fragen, Antwort befolgen.
@@ -100,6 +102,15 @@ export interface PortalZugang {
    * Wechselblatt; die Seite selbst rendert nichts von ihrem Inhalt.
    */
   readonly wechselZiel: WechselZiel | null;
+  /**
+   * Der Weg zurueck — abgeleitet aus der Adresse, geprueft gegen die Rechte
+   * seines Ziels (DESIGN §5 „The way back", D-613, V-108).
+   *
+   * `null` heisst „hier gehoert keiner hin" ODER „das Ziel darf diese Sitzung
+   * nicht oeffnen". Die Huelle unterscheidet beides nicht und soll es auch
+   * nicht: in beiden Faellen steht kein Pfeil da.
+   */
+  readonly rueckweg: RueckwegZiel | null;
 }
 
 export interface WechselZiel {
@@ -117,6 +128,7 @@ interface Befund {
   readonly modulGesperrt: boolean;
   readonly sprache: PortalSprache | null;
   readonly wechselZiel: WechselZiel | null;
+  readonly rueckweg: RueckwegZiel | null;
 }
 
 /**
@@ -196,7 +208,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
         return {
           entscheidung: { art: 'erlaubt' }, rolle: null, mandanten, sichtbareTabs: {},
           navigationsRechte: {}, mandantSlug: null, modulGesperrt: false, sprache: null,
-          wechselZiel: { slug: zielSlug, name: z.name ?? zielSlug },
+          wechselZiel: { slug: zielSlug, name: z.name ?? zielSlug }, rueckweg: null,
         } satisfies Befund;
       }
     }
@@ -207,6 +219,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
       return {
         entscheidung, rolle: null, mandanten, sichtbareTabs: {}, navigationsRechte: {},
         mandantSlug: null, modulGesperrt: false, sprache: null, wechselZiel: null,
+        rueckweg: null,
       } satisfies Befund;
     }
 
@@ -255,6 +268,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * zweite Rundreise auf jedem Seitenaufruf, und ausserhalb dieser
      * gebundenen Transaktion antwortete `app.hat_recht` ohnehin `false`.
      */
+    const rueckweg = rueckwegFuer(pfad);
     const gefragt = [...new Set([
       ...ziele.map((z) => z.recht).filter((r): r is string => r !== null),
       ...NAVIGATION.map((n) => n.recht),
@@ -267,6 +281,20 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
        * dazukaeme, waere es leer, und niemand saehe warum.
        */
       ...GRUPPEN_NAVIGATION.map((n) => n.recht),
+      /*
+       * **Und die Rechte des RUECKWEGZIELS** (AUT-06, D-613, V-108).
+       *
+       * Der Rueckweg wird aus der Adresse abgeleitet (`rueckwegFuer`), nicht
+       * je Seite geschrieben. Sein Ziel ist aber eine echte Seite mit einem
+       * echten Recht — ein Pfeil darauf, den der Benutzer nicht oeffnen darf,
+       * fuehrt auf einen 404 und verraet damit, dass es sie gibt.
+       *
+       * Gefragt wird HIER und nicht in der Huelle: das Tor haelt die Sitzung
+       * und die gebundene Transaktion, die Huelle keines von beiden. Und es
+       * kostet nichts — die Schluessel wandern in dieselbe Rundreise, die
+       * ohnehin laeuft.
+       */
+      ...(rueckweg === null ? [] : rueckwegRechte(rueckweg.muster)),
     ])];
     const gehalten = await pruefer.hatRechte(gefragt, sitzung.aktiverMandantId);
     /**
@@ -351,6 +379,15 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * ungebuchtes Modul, um die Seite unerreichbar zu machen. Dieselbe
      * Semantik, nur eine Frage frueher.
      */
+    /*
+     * Der Rueckweg gilt nur, wenn ALLE Leserechte seines Ziels gehalten
+     * werden UND das Modul gebucht ist — dieselbe UND-Verknuepfung wie beim
+     * Menuepunkt. Faellt eines, gibt es keinen Pfeil; eine Seite ohne
+     * Rueckweg ist unbequem, ein Pfeil auf einen 404 ist eine Auskunft.
+     */
+    const rueckwegErlaubt = rueckweg !== null
+      && rueckwegRechte(rueckweg.muster).every((r) => gehalten.has(r) && frei(r));
+
     const route = findeRoute(pfad);
     const bewachung = route?.bewachung;
     const modulGesperrt = bewachung !== undefined && bewachung.art === 'recht'
@@ -358,6 +395,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     return {
       entscheidung, rolle, mandanten, sichtbareTabs, navigationsRechte,
       mandantSlug: m?.slug ?? null, modulGesperrt, sprache, wechselZiel: null,
+      rueckweg: rueckwegErlaubt ? rueckweg : null,
     } satisfies Befund;
   }) as Promise<Befund>);
 
@@ -410,7 +448,9 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
    * faellt, rendert keine Huelle, und ein Wert im Kasten waere dort nur ein
    * Rest der vorigen Zeile im Code.
    */
-  merkeHuelle(befund.sprache, pfad);
+  merkeHuelle(befund.sprache, pfad, befund.rueckweg === null ? null : {
+    ziel: befund.rueckweg.ziel, segment: befund.rueckweg.segment,
+  });
 
   return {
     sitzung,
@@ -419,6 +459,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     gruppenMandanten: befund.mandanten,
     sichtbareTabs: befund.sichtbareTabs,
     navigationsRechte: befund.navigationsRechte,
+    rueckweg: befund.rueckweg,
     mandantSlug: befund.mandantSlug,
     modulGesperrt: befund.modulGesperrt,
     sprache: befund.sprache,

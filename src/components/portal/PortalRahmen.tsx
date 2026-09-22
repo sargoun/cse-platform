@@ -1,6 +1,7 @@
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
 import { Marke } from '@/components/marke/Marke';
+import { rueckzielName } from '@/lib/i18n/verwaltung/rueckziele';
 import { Glocke } from './Glocke';
 import { Zurueck, type ZurueckProps } from './Zurueck';
 import { TabLeiste } from './TabLeiste';
@@ -8,7 +9,7 @@ import { SeitenNavigation } from './SeitenNavigation';
 import { istInterneLeiste, tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
 import { Sprachumschalter } from './Sprachumschalter';
 import { NAVIGATION } from '@/server/registry/navigation';
-import { internBeschriftungen } from '@/lib/i18n/intern';
+import { internBeschriftungen, internSprache } from '@/lib/i18n/intern';
 import { gemerkteHuelle } from '@/app/portal/huellen-speicher';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -117,6 +118,7 @@ export function PortalRahmen({
    */
   const stand = gemerkteHuelle();
   const karte = beschriftungen ?? internBeschriftungen(stand.sprache);
+  const abgeleitet = stand.rueckweg;
   const b = (schluessel: string, vorgabe: string): string =>
     karte[schluessel] ?? vorgabe;
   /**
@@ -486,8 +488,31 @@ export function PortalRahmen({
           * eine Tabelle ab `md`), rollt in seinem eigenen Behaelter (D-420).
           */}
         <main className="ueber-tableiste sicher-seiten min-w-0 flex-1 p-s5">
-          {zurueck !== undefined && (
+          {/*
+            * **Der Rueckweg — abgeleitet, wenn die Seite keinen nennt**
+            * (DESIGN §5 „The way back", D-613, V-108).
+            *
+            * Gemessen am 22.09.2026: von 311 Seiten unter `/portal/[mandant]`
+            * trugen ZWEI einen. Der Mandant hat es selbst gefunden — er
+            * klickte in der Beschaeftigungsliste auf eine Person und stand
+            * auf einem Blatt ohne Ausgang.
+            *
+            * 283 Dateien zu aendern waere einmalig richtig und beim naechsten
+            * neuen Bildschirm wieder falsch. Das Tor leitet den Rueckweg
+            * deshalb aus der ADRESSE ab (`rueckwegFuer`), prueft ihn gegen
+            * die Rechte seines Ziels (AUT-06) und legt ihn in den
+            * Anfragespeicher; hier wird er nur noch gezeichnet.
+            *
+            * **Eine Seite, die es besser weiss, gewinnt.** `zurueck` als
+            * Eigenschaft schlaegt die Ableitung — etwa dort, wo das Ziel
+            * nicht der Vorfahr in der Adresse ist.
+            */}
+          {zurueck !== undefined ? (
             <Zurueck ziel={zurueck.ziel} text={zurueck.text}
+                     sprache={beschriftungen?.['sitzung.sprache'] ?? null} />
+          ) : abgeleitet !== null && (
+            <Zurueck ziel={abgeleitet.ziel}
+                     text={rueckzielName(abgeleitet.segment, internSprache(stand.sprache))}
                      sprache={beschriftungen?.['sitzung.sprache'] ?? null} />
           )}
           {children}

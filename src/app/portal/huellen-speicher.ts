@@ -37,15 +37,31 @@ import type { PortalSprache } from '@/lib/i18n/texte';
 export interface HuellenStand {
   sprache: PortalSprache | null;
   pfad: string | null;
+  /**
+   * Der Weg zurueck — abgeleitet aus der Adresse, vom Tor gegen die Rechte
+   * seines Ziels geprueft (DESIGN §5 „The way back", D-613, V-108).
+   *
+   * **Aus demselben Grund hier und nicht als Eigenschaft** wie Sprache und
+   * Pfad darueber: `PortalRahmen` steht an 176 Stellen. Ihn anzuhaengen
+   * hiesse, 176 Aufrufe zu aendern und bei jedem kuenftigen zu HOFFEN, dass
+   * jemand daran denkt — und wer es vergisst, baut wieder eine Seite ohne
+   * Ausgang. Gemessen war das der Zustand: 311 Seiten, zwei mit Rueckweg.
+   */
+  rueckweg: { ziel: string; segment: string } | null;
 }
 
-const kasten = cache((): HuellenStand => ({ sprache: null, pfad: null }));
+const kasten = cache((): HuellenStand => ({ sprache: null, pfad: null, rueckweg: null }));
 
 /** Vom Tor aufgerufen, sobald die Sitzung aufgeloest ist. */
-export function merkeHuelle(sprache: PortalSprache | null, pfad: string | null): void {
+export function merkeHuelle(
+  sprache: PortalSprache | null,
+  pfad: string | null,
+  rueckweg: HuellenStand['rueckweg'] = null,
+): void {
   const k = kasten();
   k.sprache = sprache;
   k.pfad = pfad;
+  k.rueckweg = rueckweg;
 }
 
 /** Von der Huelle aufgerufen, beim Rendern der Kopfzeile und der Leisten. */
