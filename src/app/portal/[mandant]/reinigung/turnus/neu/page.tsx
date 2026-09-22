@@ -235,16 +235,8 @@ export default async function TurnusNeu(
       aktiverTab="reinigung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/reinigung/turnus`, text: 'Alle Turnusse' }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/reinigung/turnus`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Alle Turnusse
-        </Link>
-      </nav>
-
       <h1 className="mb-s2 text-h1 text-text">Turnus anlegen</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Erst die Regel, dann die Vorschau, dann das Anlegen. Der Knopf, der

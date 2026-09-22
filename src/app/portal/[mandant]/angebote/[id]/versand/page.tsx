@@ -138,18 +138,10 @@ export default async function Versand(
       aktiverTab="angebote"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['angebot.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/angebote/${id}`, text: 'Zum Angebot' } }
+        : {})}
     >
-      {darf['angebot.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/angebote/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← Zum Angebot
-          </Link>
-        </nav>
-      )}
-
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">Versand</h1>
         <StatusPill zustand={versendet ? 'Angebot' : versandMoeglich ? 'Bereit' : 'Wartet'} />

@@ -136,22 +136,14 @@ export default async function Bewacherregister(
       aktiverTab="mehr"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['security.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/security`, text: 'Sicherheit' } }
+        : {})}
     >
       {/* Auch der RUECKWEG steht unter dem Recht seines Ziels: der Modulkopf
           verlangt `security.lesen`, diese Route nur
           `personal.bewacher_verwalten`. Ohne das erste fuehrte „← Sicherheit"
           auf ein 404 (AUT-06). */}
-      {darf['security.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s4">
-          <Link
-            href={`/portal/${mandant}/security`}
-            className="text-sm text-text-muted underline hover:text-text"
-          >
-            ← Sicherheit
-          </Link>
-        </nav>
-      )}
-
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">Bewacherregister</h1>
         <p className="m-0 text-sm tabular-nums text-text-muted">Stichtag {daten.stichtag}</p>

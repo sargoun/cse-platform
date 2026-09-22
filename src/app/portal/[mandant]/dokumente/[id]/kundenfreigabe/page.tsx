@@ -91,18 +91,10 @@ export default async function Dokumentfreigabe(
       aktiverTab="mehr"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['dokument.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/dokumente/${id}`, text: stand.titel } }
+        : {})}
     >
-      {darf['dokument.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/dokumente/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← {stand.titel}
-          </Link>
-        </nav>
-      )}
-
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">Kundenfreigabe</h1>
         <StatusPill zustand={stand.sichtbar_fuer_kunde ? 'Aktiv' : 'Inaktiv'} />

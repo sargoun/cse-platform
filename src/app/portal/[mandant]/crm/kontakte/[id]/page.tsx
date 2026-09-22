@@ -217,16 +217,8 @@ export default async function Kontaktblatt(
       aktiverTab="dashboard"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/crm/kontakte`, text: 'Alle Ansprechpartner' }}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/crm/kontakte`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Alle Ansprechpartner
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-center justify-between gap-s3">
         <div className="flex flex-wrap items-center gap-s3">
           <h1 className="m-0 text-h1 text-text">{kopf.name}</h1>

@@ -100,27 +100,22 @@ export function Vorgangskopf({ mandant, z, zuordnung, aktiv, darf }: {
   return (
     <>
       {/*
-        * **Der Rücklink führt nur dorthin, wo die Sitzung auch hindarf.**
+        * **Der Rückweg steht nicht mehr hier, sondern in der Hülle** (D-613).
         *
-        * Das Tor des Posteingangs verlangt `datenschutz.auskunft_erstellen`
-        * (Register, §5.25) und antwortet sonst mit 404. Wer seit 0220 als
-        * Träger von `berichtigung_bearbeiten` den VORGANG lesen darf, wurde
-        * von diesem Link also auf eine 404 geschickt — ein Menüpunkt, der auf
-        * 404 führt, ist schlechter als keiner (AUT-06).
+        * Er wurde aus der Adresse abgeleitet, gegen die Rechte seines ZIELS
+        * geprüft und einmal gezeichnet — oben im `main`, wo er auf jeder
+        * Portalseite steht. Zwei Rückwege untereinander waren die Folge davon,
+        * dass diese Datei ihren eigenen behielt.
         *
-        * Das ist die halbe Reparatur: dass der Posteingang selbst für diese
-        * Zuständigkeit nicht erreichbar ist, steht im Register und nicht hier.
+        * **Was bleibt, ist die Auskunft für den Fall ohne Rückweg.** Das Tor
+        * des Posteingangs verlangt `datenschutz.auskunft_erstellen` (Register,
+        * §5.25) und antwortet sonst mit 404; wer als Träger von
+        * `berichtigung_bearbeiten` den VORGANG lesen darf, sieht deshalb keinen
+        * Pfeil — ein Menüpunkt, der auf 404 führt, ist schlechter als keiner
+        * (AUT-06). Ohne diesen Satz sähe er stattdessen ein Blatt ohne Ausgang
+        * und wüsste nicht, warum.
         */}
-      {darf['datenschutz.auskunft_erstellen'] === true ? (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/datenschutz`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← Alle Betroffenenanfragen
-          </Link>
-        </nav>
-      ) : (
+      {darf['datenschutz.auskunft_erstellen'] === true ? null : (
         <p className="mb-s3 text-sm text-text-subtle" data-cse="ohne-posteingang">
           Der gemeinsame Posteingang verlangt
           {' '}<code className="font-mono">datenschutz.auskunft_erstellen</code>.

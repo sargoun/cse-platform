@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ROUTEN } from '../../src/server/registry/routen';
 import { rueckwegFuer, rueckwegRechte } from '../../src/server/registry/rueckweg';
@@ -141,5 +142,57 @@ describe('(5) die Rechte des Ziels sind abfragbar (AUT-06)', () => {
       for (const s of rueckwegRechte(z.muster)) if (!schluessel.has(s)) fremd.push(s);
     }
     expect(fremd).toEqual([]);
+  });
+});
+
+/**
+ * (6) **Genau EIN Rückweg je Seite** — die Sperrklinke gegen das Doppelte.
+ *
+ * Der Umbau auf die Ableitung hatte eine Folge, die zuerst niemand sah: 46
+ * Seiten trugen ihren Rückweg weiterhin SELBST, im Inhalt, als
+ * `<nav aria-label="Zurück">`. Die Hülle zeichnete daneben den abgeleiteten —
+ * und auf jeder dieser Seiten standen plötzlich zwei Pfeile untereinander,
+ * die dasselbe sagten. Ein doppelter Ausgang ist schlimmer als ein fehlender:
+ * er lässt den Leser prüfen, ob die beiden dasselbe Ziel haben.
+ *
+ * Die Behebung war, sie alle in die Eigenschaft `zurueck` zu heben. Diese
+ * Prüfung hält das fest: **`aria-label="Zurück"` gehört genau einer Datei** —
+ * `components/portal/Zurueck.tsx`. Wer es woanders schreibt, baut den zweiten
+ * Pfeil wieder ein.
+ */
+describe('(6) der Rückweg steht genau einmal — in der Hülle', () => {
+  it('keine Portalseite zeichnet ihren eigenen Rückweg', async () => {
+    const { readFileSync, readdirSync, statSync } = await import('node:fs');
+    const { join } = await import('node:path');
+
+    const alle: string[] = [];
+    const gehe = (verzeichnis: string): void => {
+      for (const eintrag of readdirSync(verzeichnis)) {
+        const voll = join(verzeichnis, eintrag);
+        if (statSync(voll).isDirectory()) gehe(voll);
+        else if (voll.endsWith('.tsx')) alle.push(voll);
+      }
+    };
+    gehe('src/app/portal');
+
+    /*
+     * Gesucht wird das ZUGAENGLICHKEITS-Etikett, nicht das Wort „Zurueck":
+     * ein Knopf „Zurueck zur Liste" mitten im Inhalt ist etwas anderes als
+     * ein zweiter Ausgang oben. `Zurueck.tsx` selbst traegt es zu Recht, und
+     * es liegt nicht unter `src/app/`.
+     */
+    const traeger = alle.filter((d) => readFileSync(d, 'utf8').includes('aria-label="Zurück"'));
+    expect(traeger).toEqual([]);
+  });
+
+  it('die Hülle zieht den Rückweg aus der Eigenschaft ODER aus der Ableitung', () => {
+    const quelle = readFileSync('src/components/portal/PortalRahmen.tsx', 'utf8');
+    /*
+     * Die Reihenfolge ist die Aussage: `zurueck` schlaegt die Ableitung. Eine
+     * Huelle, die BEIDE zeichnete, waere derselbe doppelte Pfeil — nur an
+     * einer Stelle statt an 46.
+     */
+    expect(quelle).toMatch(/zurueck !== undefined \?\s*\(?\s*<Zurueck/u);
+    expect(quelle).toMatch(/:\s*abgeleitet !== null &&\s*\(?\s*<Zurueck/u);
   });
 });

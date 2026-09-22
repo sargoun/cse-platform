@@ -159,16 +159,8 @@ export default async function Sonderleistungen(
       aktiverTab="reinigung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/reinigung`, text: 'Reinigung' }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/reinigung`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Reinigung
-        </Link>
-      </nav>
-
       <h1 className="mb-s2 text-h1 text-text">Sonderleistungen</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Glasreinigung, Sonderreinigung, Warenräumung — Leistungen, die einzeln

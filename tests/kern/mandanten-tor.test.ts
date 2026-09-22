@@ -99,7 +99,6 @@ describe('jede Mandantsseite hat überhaupt ein Slug-Tor', () => {
   'recruiting/stellen/[id]/veroeffentlichung/page.tsx',
   'recruiting/stellen/neu/page.tsx',
   'recruiting/stellen/page.tsx',
-  'reinigung/reviere/neu/page.tsx',
 ];
 
   it('und wo nicht, reicht sie an eine Hülle weiter, die eines hat', () => {

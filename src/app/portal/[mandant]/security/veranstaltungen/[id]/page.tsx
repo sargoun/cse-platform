@@ -91,16 +91,8 @@ export default async function VeranstaltungBlattSeite(
       aktiverTab="mehr"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/security/veranstaltungen`, text: 'Alle Veranstaltungen' }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/security/veranstaltungen`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Alle Veranstaltungen
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{kopf.bezeichnung}</h1>
         <div className="flex flex-wrap items-baseline gap-s3">

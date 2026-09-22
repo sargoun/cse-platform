@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -126,6 +125,9 @@ export default async function KalkulationSeite(
       aktiverTab="angebote"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['angebot.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/angebote/${id}`, text: 'Zum Angebot' } }
+        : {})}
     >
       {/*
         * Das Angebot dahinter öffnet mit `angebot.lesen` (Manifest); diese
@@ -133,17 +135,6 @@ export default async function KalkulationSeite(
         * entziehbar — ohne das erste führte „Zum Angebot" auf 404 und verriet
         * damit, was es nicht zeigen darf (AUT-06, D-581).
         */}
-      {darf['angebot.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/angebote/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← Zum Angebot
-          </Link>
-        </nav>
-      )}
-
       <h1 className="mb-s4 text-h1 text-text">Kalkulation</h1>
 
       {kopf.kalkulation_id === null ? (

@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
@@ -133,16 +132,8 @@ export default async function Kundenzugang(
       aktiverTab="dashboard"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/crm/kunden`, text: 'Alle Kunden' }}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/crm/kunden`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Alle Kunden
-        </Link>
-      </nav>
-
       <h1 className="mb-s3 text-h1 text-text">{kopf.name}</h1>
       <Unternavigation mandant={mandant} kundeId={id} aktiv="zugang" rechte={darf} />
 

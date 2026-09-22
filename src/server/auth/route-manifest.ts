@@ -1325,6 +1325,23 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Eine Reinigungszone anlegen, aendern oder archivieren (V-002, CLN-01).
+     *
+     * `reinigung.schreiben` — dasselbe Recht, das die RLS von `revier`
+     * verlangt und das `dienste.ts` fuer `reinigung/revier` fuehrt. Ohne
+     * diese Adresse konnte KEINE neue Flaeche entstehen: der Turnus haengt am
+     * Revier, der Einsatz am Turnus, der Nachweis am Einsatz.
+     *
+     * Das OBJEKT einer bestehenden Zone laesst sich hier nicht umhaengen; der
+     * Dienst nimmt das Feld beim Aendern gar nicht erst entgegen. Eine Zone
+     * mit Raeumen eines fremden Gebaeudes waere eine Flaeche an einer Adresse,
+     * an der sie nicht liegt.
+     */
+    pfad: 'api/reinigung/reviere',
+    recht: 'reinigung.schreiben',
+  },
+  {
+    /**
      * Den Turnus eines Reviers anlegen, aendern oder stilllegen (CLN-02).
      *
      * `reinigung.schreiben` — dasselbe Recht, das der Handler mit

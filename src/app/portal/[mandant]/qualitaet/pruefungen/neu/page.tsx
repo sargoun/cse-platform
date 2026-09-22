@@ -125,16 +125,8 @@ export default async function PruefungNeu(
       aktiverTab="qualitaet"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/qualitaet/pruefungen`, text: 'Alle Prüfungen' }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/qualitaet/pruefungen`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Alle Prüfungen
-        </Link>
-      </nav>
-
       <h1 className="mb-s2 text-h1 text-text">Prüfung erfassen</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Bezug, Verfahren, Prüfer — dann die Befunde. Nummer und Prüfzeitpunkt

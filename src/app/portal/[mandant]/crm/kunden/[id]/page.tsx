@@ -176,16 +176,8 @@ export default async function KundeDetail(
       aktiverTab="dashboard"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/crm/kunden`, text: 'Alle Kunden' }}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/crm/kunden`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Alle Kunden
-        </Link>
-      </nav>
-
       <Unternavigation
         mandant={mandant}
         kundeId={id}

@@ -85,16 +85,8 @@ export default async function ReklamationsBlatt({
       aktiverTab="qualitaet"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/qualitaet/reklamationen`, text: 'Alle Reklamationen' }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/qualitaet/reklamationen`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Alle Reklamationen
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{zeile.nummer}</h1>
         <StatusPill zustand={PILLE[zeile.status] ?? 'Offen'} />

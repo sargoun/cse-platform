@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -82,17 +81,10 @@ export default async function AuftragAssistent(
       aktiverTab="auftraege"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['auftrag.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/auftraege`, text: 'Alle Aufträge' } }
+        : {})}
     >
-      {darf['auftrag.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/auftraege`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← Alle Aufträge
-          </Link>
-        </nav>
-      )}
       <h1 className="mb-s5 text-h1 text-text">Neuer Auftrag</h1>
 
       {daten.kunden.length === 0 ? (

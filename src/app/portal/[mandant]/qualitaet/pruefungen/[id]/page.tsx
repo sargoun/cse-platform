@@ -115,16 +115,8 @@ export default async function PruefungBlatt(
       aktiverTab="qualitaet"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/qualitaet/pruefungen`, text: 'Alle Prüfungen' }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/qualitaet/pruefungen`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Alle Prüfungen
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{q.nummer}</h1>
         <div className="flex flex-wrap items-baseline gap-s3">

@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -115,6 +114,9 @@ export default async function RaumbuchImport(
       aktiverTab="objekte"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['objekt.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/objekte/${id}/raumbuch`, text: 'Raumbuch' } }
+        : {})}
     >
       {/*
         * Das Raumbuch dahinter öffnet mit `objekt.lesen` (Manifest); diese
@@ -122,16 +124,6 @@ export default async function RaumbuchImport(
         * ohne das erste führte „← Raumbuch" auf 404 und verriet damit, was es
         * nicht zeigen darf (AUT-06; Copilot-Runde auf PR 16 / D-581).
         */}
-      {darf['objekt.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/objekte/${id}/raumbuch`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← Raumbuch
-          </Link>
-        </nav>
-      )}
       <h1 className="mb-s5 text-h1 text-text">Raumbuch importieren</h1>
 
       {kopf === null ? (

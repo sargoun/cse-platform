@@ -137,16 +137,8 @@ export default async function FadenSeite(
       aktiverTab="mehr"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/nachrichten`, text: 'Alle Nachrichten' }}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/nachrichten`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Alle Nachrichten
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{faden.betreff ?? 'Ohne Betreff'}</h1>
         {faden.geschlossenAm !== null && <StatusPill zustand="Abgeschlossen" />}

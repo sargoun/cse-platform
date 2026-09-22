@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -129,16 +128,8 @@ export default async function LeadDetail(
       aktiverTab="dashboard"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/crm/leads`, text: 'Alle Leads' }}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/crm/leads`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Alle Leads
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{kopf.betreff ?? 'Anfrage'}</h1>
         <StatusPill zustand={STATUS_PILLE[kopf.status] ?? 'Offen'} />

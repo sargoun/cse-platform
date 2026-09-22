@@ -170,16 +170,8 @@ export default async function AngebotDetail(
       aktiverTab="angebote"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/angebote`, text: 'Alle Angebote' }}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/angebote`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Alle Angebote
-        </Link>
-      </nav>
-
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{kopf.titel}</h1>
         <StatusPill zustand={PILLE[kopf.status] ?? 'Entwurf'} />

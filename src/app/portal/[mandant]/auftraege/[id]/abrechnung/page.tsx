@@ -117,6 +117,9 @@ export default async function AuftragAbrechnung(
       aktiverTab="auftraege"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['auftrag.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/auftraege/${id}`, text: `${daten.kopf.auftragsnummer} · ${daten.kopf.bezeichnung}` } }
+        : {})}
     >
       {/*
         * Der Auftrag dahinter öffnet mit `auftrag.lesen` (Manifest); diese
@@ -124,16 +127,6 @@ export default async function AuftragAbrechnung(
         * auf 404 und verriet damit, was er nicht zeigen darf (AUT-06, D-581).
         * Nummer und Bezeichnung stehen in der Überschrift darunter ohnehin.
         */}
-      {darf['auftrag.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/auftraege/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← {daten.kopf.auftragsnummer} · {daten.kopf.bezeichnung}
-          </Link>
-        </nav>
-      )}
       <h1 className="mb-s2 text-h1 text-text">Abrechnung</h1>
       <p className="mb-s5 text-sm text-text-muted">{daten.kopf.kunde}</p>
 

@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
@@ -66,18 +65,10 @@ export default async function NachweisAnlegen({
       aktiverTab="reinigung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['nachweis.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/reinigung/leistungsnachweise`, text: 'Alle Leistungsnachweise' } }
+        : {})}
     >
-      {darf['nachweis.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s4">
-          <Link
-            href={`/portal/${mandant}/reinigung/leistungsnachweise`}
-            className="text-sm text-text-muted underline hover:text-text"
-          >
-            ← Alle Leistungsnachweise
-          </Link>
-        </nav>
-      )}
-
       <h1 className="mb-s3 text-h1 text-text">Neuer Leistungsnachweis</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Bürofallback. Der Nachweis entsteht als Entwurf und trägt noch keine

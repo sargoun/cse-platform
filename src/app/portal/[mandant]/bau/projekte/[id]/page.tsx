@@ -250,16 +250,8 @@ export default async function ProjektDetail(
       aktiverTab="bau"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/bau/projekte`, text: 'Bauprojekte' }}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/bau/projekte`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Bauprojekte
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-start justify-between gap-s3">
         <div>
           <h1 className="m-0 text-h1 text-text">

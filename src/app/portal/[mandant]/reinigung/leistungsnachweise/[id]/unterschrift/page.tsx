@@ -87,18 +87,10 @@ export default async function Unterschriftsblatt({
       aktiverTab="reinigung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['nachweis.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/reinigung/leistungsnachweise/${id}`, text: 'Zum Nachweis' } }
+        : {})}
     >
-      {darf['nachweis.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s4">
-          <Link
-            href={`/portal/${mandant}/reinigung/leistungsnachweise/${id}`}
-            className="text-sm text-text-muted underline hover:text-text"
-          >
-            ← Zum Nachweis
-          </Link>
-        </nav>
-      )}
-
       <h1 className="mb-s3 text-h1 text-text">
         Leistungsnachweis {vorschau.kopf.nummer ?? ''}
       </h1>

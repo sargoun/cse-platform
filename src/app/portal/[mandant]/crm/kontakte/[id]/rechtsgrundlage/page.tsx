@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -148,16 +147,8 @@ export default async function Rechtsgrundlage(
       aktiverTab="dashboard"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: alsRoute(blatt), text: kopf.name }}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={alsRoute(blatt)}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {kopf.name}
-        </Link>
-      </nav>
-
       <h1 className="mb-s2 text-h1 text-text">Rechtsgrundlage — {kopf.name}</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         {kopf.kunde_id === null ? null : <>Kunde: {kopf.kunde_name ?? '—'}. </>}

@@ -1139,6 +1139,7 @@ any other service.
 | `/portal/[mandant]/security` — posts staffed today, expiring certificates, open incidents | `security.lesen` | `M1` | SEC-01, SEC-02, SEC-05 | 5 |
 | `/portal/[mandant]/security/posten` , `/neu` , `/[id]` — required qualifications, minimum staffing, 24/7 coverage grid | `security.lesen` / `security.schreiben` | `M1` | SEC-01, SEC-04, TIM-04 | 5 |
 | `/portal/[mandant]/security/veranstaltungen` , `/[id]` — event jobs | `security.lesen` | `M1` | SEC-08 | 5 |
+| `/portal/[mandant]/security/veranstaltungen/neu` — place, window and required headcount; the place is an `objekt` **or** free text, never neither | `security.lesen` / `security.schreiben` | `M1` | SEC-08 | 5 |
 | `/portal/[mandant]/security/veranstaltungen/[id]/besetzung` — short-notice staffing board | `dienstplan.schreiben` | `M1` | SEC-08, SEC-04, TIM-05 | 5 |
 | `/portal/[mandant]/security/wachbuch` — journal across objects; filter by object, type, date | `wachbuch.lesen` | `M1` | SEC-05, LEG-01 | 5 |
 | `/portal/[mandant]/security/wachbuch/neu` — Streife · Vorfall · Übergabe · Schlüssel · Alarm | `wachbuch.schreiben` | `M1` | SEC-05 | 5 |
@@ -1180,6 +1181,7 @@ still unsubmitted", not "which of project 14's".
 |---|---|---|---|---|
 | `/portal/[mandant]/bau` — module overview | `bau.lesen` | `M1` | BAU-04, BAU-06, BAU-07 | 5 |
 | `/portal/[mandant]/bau/projekte` , `/[id]` — the `auftrag` with its `projekt` extension | `bau.lesen` | `M1` | OPS-05, REP-05 | 5 |
+| `/portal/[mandant]/bau/projekte/neu` — a `projekt` is an extension of an `auftrag`: the order is picked, never invented | `bau.lesen` / `bau.schreiben` | `M1` | OPS-05, BAU-01 | 5 |
 | `/portal/[mandant]/bau/projekte/[id]/lv` — hierarchical OZ tree | `bau.lesen` | `M1` | BAU-01 | 5 |
 | `/portal/[mandant]/bau/projekte/[id]/lv/[ozId]` | `bau.lesen` | `M1` | BAU-01, BAU-05 | 5 |
 | `/portal/[mandant]/bau/projekte/[id]/lv/import` — preview before commit, same pattern as OPS-04 | `bau.schreiben` | `M1` | BAU-01, REQ-04, OPS-04 | 5 |

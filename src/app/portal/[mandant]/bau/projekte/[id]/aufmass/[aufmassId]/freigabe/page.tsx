@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -129,18 +128,10 @@ export default async function AufmassFreigabe(
       aktiverTab="bau"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['bau.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/bau/projekte/${id}/aufmass/${aufmassId}`, text: 'Aufmaßblatt' } }
+        : {})}
     >
-      {darf['bau.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/bau/projekte/${id}/aufmass/${aufmassId}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← Aufmaßblatt
-          </Link>
-        </nav>
-      )}
-
       <div className="mb-s5 flex flex-wrap items-start justify-between gap-s3">
         <div>
           <h1 className="m-0 text-h1 text-text">

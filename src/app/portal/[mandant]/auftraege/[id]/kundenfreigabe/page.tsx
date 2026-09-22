@@ -107,18 +107,10 @@ export default async function Kundenfreigabe(
       aktiverTab="auftraege"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['auftrag.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/auftraege/${id}`, text: stand.auftragsnummer } }
+        : {})}
     >
-      {darf['auftrag.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/auftraege/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← {stand.auftragsnummer}
-          </Link>
-        </nav>
-      )}
-
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">Kundenfreigabe</h1>
         <StatusPill

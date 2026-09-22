@@ -5,7 +5,6 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { StatusPill } from '@/components/ui/StatusPill';
-import { Icon } from '@/components/ui/Icon';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
@@ -209,17 +208,18 @@ export default async function Einsatzblatt({
       aktiverTab="dienstplan"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      /*
+       * **Der Rückweg trägt die WOCHE mit** — und deshalb steht er hier und
+       * nicht in der Ableitung (D-613). Der Vorfahr dieser Adresse wäre
+       * `/dienstplan`; wer aus der Woche des 14. Mai in eine Schicht klickt,
+       * will aber in genau diese Woche zurück, nicht in die laufende. Eine
+       * Hülle, die das erriete, erfände eine Regel.
+       */
+      zurueck={{
+        ziel: `/portal/${mandant}/dienstplan/woche?woche=${kopf.plan_datum}`,
+        text: 'Zurück zum Dienstplan',
+      }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/dienstplan/woche?woche=${kopf.plan_datum}`}
-          className="inline-flex flex-wrap items-center gap-s2 text-sm text-text-muted hover:text-text"
-        >
-          <Icon name="pfeil-rechts" groesse="sm" className="rotate-180" />
-          Zurück zum Dienstplan
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{kopf.objekt}</h1>
         <StatusPill zustand={statusPille(kopf.status)} />

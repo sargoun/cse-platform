@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -160,18 +159,10 @@ export default async function AbnahmeSeite(
       aktiverTab="bau"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['bau.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/bau/projekte/${id}`, text: `Projekt ${p.nummer}` } }
+        : {})}
     >
-      {darf['bau.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/bau/projekte/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← Projekt {p.nummer}
-          </Link>
-        </nav>
-      )}
-
       <h1 className="mb-s2 text-h1 text-text">Abnahme</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         {p.nummer} · {p.bezeichnung} · {p.kunde} ·{' '}

@@ -133,18 +133,10 @@ export default async function LvImportSeite(
       aktiverTab="bau"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['bau.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/bau/projekte/${id}/lv`, text: 'Leistungsverzeichnis' } }
+        : {})}
     >
-      {darf['bau.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/bau/projekte/${id}/lv`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← Leistungsverzeichnis
-          </Link>
-        </nav>
-      )}
-
       <h1 className="mb-s2 text-h1 text-text">Leistungsverzeichnis importieren</h1>
       <p className="mb-s5 text-sm text-text-muted">
         {daten.projekt.nummer} · {daten.projekt.bezeichnung} · {daten.projekt.kunde}

@@ -148,15 +148,8 @@ export default async function Raumbuch(
       aktiverTab="objekte"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/objekte/${id}`, text: objekt.bezeichnung }}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/objekte/${id}`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {objekt.bezeichnung}
-        </Link>
-      </nav>
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">Raumbuch</h1>
         {/*
