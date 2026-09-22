@@ -171,7 +171,7 @@ export default async function Dienstanweisung(
               >
                 <input type="hidden" name="mandant" value={mandant} />
                 <input type="hidden" name="fassung" value={f.id} />
-                <Button type="submit" variante="primary">Fassung freigeben</Button>
+                <Button type="submit" variante="secondary">Fassung freigeben</Button>
               </form>
             )}
           </li>

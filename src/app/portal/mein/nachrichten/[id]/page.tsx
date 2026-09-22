@@ -286,7 +286,7 @@ export default async function MeineNachricht(
             className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3
                        text-base text-text"
           />
-          <Button type="submit" variante="primary" data-cse="faden-antworten"
+          <Button type="submit" variante="secondary" data-cse="faden-antworten"
                   className="mt-s4">
             {t.antworten}
           </Button>

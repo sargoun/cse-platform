@@ -297,7 +297,7 @@ export default async function AufmassAufnehmen(
         </label>
 
         <div className="mt-s5 flex flex-wrap items-center gap-s3">
-          <Button type="submit" variante="primary">Aufmaß speichern</Button>
+          <Button type="submit" variante="secondary">Aufmaß speichern</Button>
           {darf['bau.lesen'] === true && (
             <Link
               href={`/portal/${mandant}/bau/projekte/${id}/aufmass`}

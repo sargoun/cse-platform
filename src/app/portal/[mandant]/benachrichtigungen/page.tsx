@@ -223,7 +223,7 @@ export default async function Benachrichtigungen(
                   * dafür wäre eine offene Weiterleitung (D-504).
                   */}
                 <form method="post" action={`/api/benachrichtigungen/${e.id}/oeffnen`}>
-                  <Button type="submit" variante="primary" data-cse="oeffnen">
+                  <Button type="submit" variante="secondary" data-cse="oeffnen">
                     Ansehen
                   </Button>
                 </form>

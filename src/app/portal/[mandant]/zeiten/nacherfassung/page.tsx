@@ -331,10 +331,10 @@ export default async function Nacherfassung({
                 </div>
 
                 <div className="flex flex-wrap gap-s3">
-                  <Button type="submit" name="aktion" value="uebernehmen" variante="primary">
+                  <Button type="submit" name="aktion" value="uebernehmen" variante="secondary">
                     Übernehmen
                   </Button>
-                  <Button type="submit" name="aktion" value="ablehnen" variante="secondary">
+                  <Button type="submit" name="aktion" value="ablehnen" variante="ghost">
                     Ablehnen
                   </Button>
                 </div>

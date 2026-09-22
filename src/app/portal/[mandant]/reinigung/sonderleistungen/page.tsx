@@ -696,7 +696,7 @@ export default async function Sonderleistungen(
             <div>
               <Button
                 type="submit"
-                variante="primary"
+                variante="secondary"
                 data-cse="abruf-erfassen"
                 disabled={!kannErfassen}
               >

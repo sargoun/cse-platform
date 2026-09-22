@@ -399,10 +399,10 @@ export default async function Vergabemappe(
                          className="min-h-11 rounded-md border border-line bg-surface-3 px-s4 py-s3 text-base text-text" />
                 </label>
                 <div className="flex flex-wrap gap-s2">
-                  <Button type="submit" name="stand" value="geprueft" variante="primary" data-cse="position-geprueft">
+                  <Button type="submit" name="stand" value="geprueft" variante="secondary" data-cse="position-geprueft">
                     Geprüft
                   </Button>
-                  <Button type="submit" name="stand" value="nicht_zutreffend" variante="secondary" data-cse="position-nicht-zutreffend">
+                  <Button type="submit" name="stand" value="nicht_zutreffend" variante="ghost" data-cse="position-nicht-zutreffend">
                     Gilt nicht
                   </Button>
                   <Button type="submit" name="stand" value="offen" variante="secondary" data-cse="position-offen">
@@ -568,12 +568,12 @@ export default async function Vergabemappe(
                   </label>
                 </div>
                 <div className="flex flex-wrap gap-s2">
-                  <Button type="submit" name="ausgang" value="zuschlag" variante="primary"
+                  <Button type="submit" name="ausgang" value="zuschlag" variante="secondary"
                           data-cse="ausgang-zuschlag">
                     Zuschlag
                   </Button>
                   <Button type="submit" name="ausgang" value="nicht_beruecksichtigt"
-                          variante="secondary" data-cse="ausgang-abgelehnt">
+                          variante="ghost" data-cse="ausgang-abgelehnt">
                     Nicht berücksichtigt
                   </Button>
                   <Button type="submit" name="ausgang" value="verfahren_aufgehoben"

@@ -262,7 +262,7 @@ export default async function CheckinLinks(
                     <input type="hidden" name="zuordnung" value={z.zuordnungId} />
                     <input type="hidden" name="zweck" value="checkin" />
                     <input type="hidden" name="zurueck" value={pfad} />
-                    <Button type="submit" variante="primary" data-cse="marke-ausgeben">
+                    <Button type="submit" variante="secondary" data-cse="marke-ausgeben">
                       {z.tokenId === null ? 'Link ausgeben' : 'Neuen Link ausgeben'}
                     </Button>
                   </form>

@@ -39,8 +39,22 @@ export function Zustandsseite({
 }) {
   return (
     <main data-cse={cse}
-          className="mx-auto flex min-h-[60vh] w-full max-w-form flex-col
-                     justify-center gap-s5 px-s6 py-s9">
+          className="relative mx-auto flex min-h-[60vh] w-full max-w-form flex-col
+                     justify-center gap-s5 px-s5 py-s9 sm:px-s6">
+      {/*
+        * Der eine Lichthauch (DESIGN §5 „Standalone pages"). Eine
+        * Zustandsseite hat definitionsgemaess keine Navigation — sie ist der
+        * Bildschirm, den jemand sieht, WEIL er sich verlaufen hat. Ein glattes
+        * schwarzes Feld liest sich dann wie eine Seite, die auch noch nicht
+        * geladen hat: zweimal dieselbe Auskunft, und beide Male die falsche.
+        *
+        * `absolute` und nicht `fixed`: diese Flaeche steht im Dokumentfluss
+        * einer Seite, die eine Kopfzeile haben KANN (im Portal hat sie eine).
+        * Ein `fixed` Hauch legte sich dort ueber den ganzen Bildschirm statt
+        * nur hinter die Meldung.
+        */}
+      <div aria-hidden="true"
+           className="pointer-events-none absolute inset-0 -z-10 bg-wash-brand" />
       {code === undefined ? null : (
         <p data-cse="zustand-code"
            className="text-micro uppercase tracking-[0.08em] text-text-subtle">

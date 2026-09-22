@@ -760,6 +760,71 @@ function wacheTailwindFarben(): void {
 }
 
 /**
+ * Wache — **kein roter Knopf in einer Schleife** (DESIGN §5).
+ *
+ * „One primary button per view", und der Grund steht daneben: Rot ist knapp,
+ * und ein Bildschirm mit neun roten Knoepfen hat GAR KEINE Hauptaktion. Ein
+ * `variante="primary"` INNERHALB einer `.map()`-Schleife ist nie einer —
+ * es ist einer je Zeile, also so viele, wie die Liste lang ist.
+ *
+ * **Gemessen, als diese Wache entstand: dreizehn Stellen.** Zwoelf rote
+ * „Schliessen" in der Periodenliste, eines je Monat. Ein rotes „Link
+ * ausgeben" je Einteilung. Ein rotes „Ansehen" je Benachrichtigung. Keine
+ * davon ist falsch gebaut — sie sind nur alle gleich laut, und das Auge
+ * findet keinen Halt.
+ *
+ * **Warum eine Klammerbilanz und kein `grep`.** Der erste Anlauf zaehlte
+ * `.map(` und suchte das Ende an einer Zeile, die auf `))}` endet. Das fand
+ * 33 Stellen, von denen 20 laengst ausserhalb der Schleife lagen — eine
+ * Wache, die zu zwei Dritteln irrt, wird umgangen. Diese hier faehrt die
+ * Klammern mit und kennt Zeichenketten, also auch die Klammer in einem Text.
+ *
+ * Die Behebung ist nie „das Rot wegnehmen", sondern die Frage: was ist hier
+ * die eine Handlung? Traegt die Zeile ein JA/NEIN-Paar, faellt das NEIN auf
+ * `ghost` — sonst stehen zwei gleich aussehende Knoepfe nebeneinander.
+ */
+function wacheRoterKnopfInSchleife(): void {
+  for (const datei of mussLesen('src', ['.tsx'])) {
+    const inhalt = readFileSync(datei, 'utf8');
+    if (!inhalt.includes('variante="primary"')) continue;
+
+    /** Jede `.map(`-Klammer mit ihrem ECHTEN Ende. */
+    const spannen: readonly (readonly [number, number])[] = [
+      ...inhalt.matchAll(/\.map\(/gu),
+    ].map((m) => {
+      let j = (m.index ?? 0) + m[0].length - 1;
+      let tiefe = 0;
+      let zeichenkette: string | null = null;
+      let flucht = false;
+      const start = j;
+      for (; j < inhalt.length; j += 1) {
+        const c = inhalt[j] ?? '';
+        if (zeichenkette !== null) {
+          if (flucht) flucht = false;
+          else if (c === '\\') flucht = true;
+          else if (c === zeichenkette) zeichenkette = null;
+          continue;
+        }
+        if (c === "'" || c === '"' || c === '`') { zeichenkette = c; continue; }
+        if (c === '(') tiefe += 1;
+        else if (c === ')') { tiefe -= 1; if (tiefe === 0) break; }
+      }
+      return [start, j] as const;
+    });
+
+    for (const m of inhalt.matchAll(/variante="primary"/gu)) {
+      const i = m.index ?? 0;
+      const drin = spannen.some(([a, b]) => a < i && i < b);
+      if (!drin) continue;
+      const zeile = inhalt.slice(0, i).split('\n').length;
+      melde('roter-knopf-in-schleife', datei, zeile,
+        'variante="primary" steht in einer .map()-Schleife — das ist ein roter '
+        + 'Knopf JE ZEILE. DESIGN §5: einer je Bildschirm.');
+    }
+  }
+}
+
+/**
  * Alles läuft in `main()`, und `main()` wird ohne Top-Level-`await` gestartet.
  *
  * Die Wachen werden in `tests/kern/wachen.test.ts` in einem Wegwerf-Baum
@@ -1307,6 +1372,7 @@ async function main(): Promise<void> {
   wacheKonformitaetsauftrag();
   wacheInternerUrsprung();
   wacheSeiteOhneUebersetzung();
+  wacheRoterKnopfInSchleife();
   await wacheKonfigAdressen();
 
   if (befunde.length > 0) {
