@@ -2463,6 +2463,26 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * V-014, EMP-01, EMP-14, AUT-08. Den Telefonzugang einrichten, die
+     * Anmeldenummer umschreiben, sperren, entsperren.
+     *
+     * **Dasselbe Recht wie die Codeausstellung daneben**, und das ist hier
+     * richtig: es ist dieselbe Personalstelle, die die Nummer entgegennimmt
+     * und den verlorenen Zugang anhaelt. `t_zugang_anlegen` und
+     * `t_zugang_aendern` (0113/0384) pruefen den Mandanten und die
+     * Beschaeftigung ein zweites Mal.
+     *
+     * **Das Sperren braucht ausdruecklich keinen zweiten Schluessel.** Ein
+     * verlorenes Diensttelefon wird gemeldet, waehrend jemand im Treppenhaus
+     * steht; eine Sperre, die auf ein zweites Augenpaar wartet, kommt zu
+     * spaet. Ob umgekehrt das UMSCHREIBEN vier Augen braucht, ist offen
+     * (O-86) und wird nicht erfunden.
+     */
+    pfad: 'api/personal/zugang',
+    recht: 'personal.zugang_verwalten',
+  },
+  {
+    /**
      * Einstellen (D-09, EMP-14, §5.12) — `personal.schreiben`, dasselbe Recht
      * wie `…/anstellungen/[id]/vertrag`.
      *

@@ -285,7 +285,16 @@ const ORTE: readonly OrtDefinition[] = [
     titel: 'Mitarbeiterzugang',
     fuer: ['person'],
     recht: null,
-    sperre: { art: 'keine' },
+    /*
+     * Bis `0384` stand hier `keine` — die Tabelle trug weder Loeschsperre noch
+     * Protokoll, und eine Zeile liess sich still entfernen. Seit `0384` ist sie
+     * `archiv`: beendet wird mit `gesperrt_am`, nie durch Loeschen. Eine
+     * geloeschte Zeile naehme den Anker jeder Anmeldung dieses Menschen mit und
+     * gaebe seine Nummer fuer einen zweiten Menschen frei, als waere sie nie
+     * vergeben gewesen.
+     */
+    sperre: { art: 'unveraenderlich',
+              fundstelle: 'Nur Sperren: der Zugang ist der Anker jeder Anmeldung (0113, 0384)' },
     sql: `select count(*)::int as zeilen, max(erstellt_am) as anker
             from mitarbeiter_zugang where person_id = $1::uuid`,
   },

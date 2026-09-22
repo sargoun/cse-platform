@@ -208,7 +208,6 @@ export const UEBERSETZUNG_AUSNAHMEN: readonly string[] = [
   'src/app/portal/[mandant]/personal/nachweise/page.tsx',
   'src/app/portal/[mandant]/personal/personen/[id]/page.tsx',
   'src/app/portal/[mandant]/personal/personen/[id]/stammdaten/page.tsx',
-  'src/app/portal/[mandant]/personal/personen/[id]/zugang/page.tsx',
   'src/app/portal/[mandant]/personal/personen/page.tsx',
   'src/app/portal/[mandant]/personal/stundenkonten/[anstellungId]/page.tsx',
   'src/app/portal/[mandant]/personal/stundenkonten/abschluss/page.tsx',

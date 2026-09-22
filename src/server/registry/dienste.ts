@@ -1192,6 +1192,13 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'personal', pfad: 'personal/zugangscode',
     schreibend: true, schreibRecht: 'personal.zugang_verwalten',
   },
+  /* V-014 — den Zugang selbst einrichten, umschreiben, sperren, entsperren.
+     Fuenf Migrationen bauten um diese Zeile herum; angelegt hat sie bis
+     dahin nur der Seed. */
+  {
+    modul: 'personal', pfad: 'personal/zugang',
+    schreibend: true, schreibRecht: 'personal.zugang_verwalten',
+  },
   {
     modul: 'dokument', pfad: 'dokument/aufbewahrung',
     schreibend: true, schreibRecht: 'dokument.aufbewahrung_verwalten',

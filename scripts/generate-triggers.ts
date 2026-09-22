@@ -135,6 +135,13 @@ export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
   '0231': join(WURZEL, 'drizzle/0231_nachricht_faden.sql'),
   // Dienstplan: der Beleg der Veroeffentlichung (0265).
   '0265': join(WURZEL, 'drizzle/0265_dienstplan_veroeffentlichung.sql'),
+  // Personal: `mitarbeiter_zugang` traegt ihre beiden Ausloeser NACHTRAEGLICH
+  // (0384) und nicht in `0113`, die sie anlegt. Der Block gehoert an die
+  // Migration, die ihn AUSFUEHRT — `0113` ist laengst angewandt, und eine
+  // Datei nachtraeglich zu ergaenzen hiesse, dass ihn genau die Datenbanken
+  // nicht bekommen, die ihn brauchen. Neue Datenbanken bekommen ihn mit
+  // `0384` ebenso; die Reihenfolge stimmt, weil die Tabelle aus `0113` stammt.
+  '0384': join(WURZEL, 'drizzle/0384_der_zugang_laesst_sich_einrichten.sql'),
 };
 export const BEGINN = '-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern';
 export const ENDE = '-- >>> Ende des generierten Blocks';

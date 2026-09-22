@@ -65,6 +65,21 @@ export interface Loeschsperre {
  */
 export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
   {
+    tabelle: 'mitarbeiter_zugang',
+    art: 'archiv',
+    migration: '0384',
+    grund:
+      'EMP-14, AUT-08, Invariante 8. Der Zugang ist die Antwort auf die Frage, '
+      + 'WER sich unter dieser Nummer angemeldet hat — `letzter_login_am` haengt '
+      + 'daran, und die Zeile ist der Anker jeder Anmeldung dieses Menschen. '
+      + '`0113` sagt es selbst: „Austritt ist KEIN Loeschgrund ... sein Zugang '
+      + 'gehoert gesperrt, nicht entfernt." Beendet wird mit `gesperrt_am`, nie '
+      + 'durch Loeschen; eine geloeschte Zeile naehme das Protokoll mit, das seit '
+      + '`0384` an ihr haengt, und gaebe die Nummer fuer einen zweiten Menschen '
+      + 'frei, als waere sie nie vergeben gewesen. `geloescht_am` gibt es hier '
+      + 'nicht, und das ist der Punkt: eine Loeschspalte waere die Einladung.',
+  },
+  {
     tabelle: 'agent_aufgabe',
     art: 'archiv',
     migration: '0128',
@@ -2291,6 +2306,31 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
   { tabelle: 'tarifvereinbarung', migration: '0201' },
   { tabelle: 'migration_lauf', migration: '0202' },
   { tabelle: 'agent_richtlinie', migration: '0203' },
+  /**
+   * `mitarbeiter_zugang` (0384, nachgetragen zu 0113) — AUT-08.
+   *
+   * **Die Tabelle stand hier nicht, und `0113` glaubte, sie stuende.** Ihr
+   * Kommentar begruendet das fehlende Spaltenrecht auf
+   * `erstellt_von`/`geaendert_von` mit „die schreibt der Audit-Trigger";
+   * einen Ausloeser trug sie nie. Damit fehlte das Protokoll auf dem
+   * Schreibweg, auf dem es am meisten zaehlt: wer die Mobilnummer eines
+   * Mitarbeiterzugangs umschreibt, empfaengt ab dem naechsten Code dessen
+   * Anmeldungen — eine Kontouebernahme ohne gebrochenes Kennwort. SPEC
+   * AUT-08 verlangt jedes Anmeldeereignis im Protokoll.
+   *
+   * **Die Nummer landet damit in `vorher`/`nachher`, und das ist gewollt** —
+   * dieselbe Abwaegung wie bei `person` in `0005`: die Werte werden
+   * geschrieben, der LESEWEG ist verengt (`vorher`/`nachher` fehlen im
+   * Spaltenrecht von `cse_app`). Ein Protokoll ohne die alte Nummer
+   * beantwortete die eine Frage nicht, fuer die es da ist.
+   *
+   * `mitarbeiter_einmalcode` steht ausdruecklich NICHT dabei: sie traegt den
+   * Hash eines lebenden Geheimnisses, und ein Auditeintrag je Code legte ihn
+   * ein zweites Mal ab — in einer Tabelle, die laenger lebt als der Code.
+   * Ausgestellt und eingeloest wird ohnehin ueber `app.protokolliere` von
+   * Hand protokolliert (0143).
+   */
+  { tabelle: 'mitarbeiter_zugang', migration: '0384' },
 ] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
@@ -2522,6 +2562,14 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   { tabelle: 'abnahme', migration: '0211' },
   { tabelle: 'abnahme_mangel', migration: '0211' },
   { tabelle: 'lv_import', migration: '0212' },
+
+  /**
+   * `mitarbeiter_zugang` (0384, nachgetragen zu 0113). Die Spalte steht seit
+   * `0113` da und blieb NULL: kein Ausloeser setzte sie, und der einzige
+   * Schreibweg war der Seed. Ein Zugang, dessen Nummer umgeschrieben wurde,
+   * sah danach aus wie einer, den nie jemand angefasst hat.
+   */
+  { tabelle: 'mitarbeiter_zugang', migration: '0384' },
 ] as const;
 
 /** Every migration that carries a generated block, in order. */

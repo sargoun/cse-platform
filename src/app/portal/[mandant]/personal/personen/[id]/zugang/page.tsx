@@ -9,10 +9,13 @@ import { devFlaechenAn } from '@/lib/dev-flaechen';
 import { smsDienst } from '@/server/auth/sms';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { ZUGANG_TEXTE } from '@/lib/i18n/verwaltung/personal-zugang';
 import {
-  GRUND_TEXT, ZUGANGSCODE_COOKIE, leseZugangsstand,
-  type Zugangsstand, type ZugangscodeGrund,
+  ZUGANGSCODE_COOKIE, leseZugangsstand, type Zugangsstand,
 } from '@/server/services/personal/zugangscode';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { lesePerson, type PersonZeile } from '../../daten';
@@ -22,26 +25,39 @@ import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/personal/personen/[id]/zugang` — der Zugang einer
- * Mitarbeiterin: Mobilnummer, SMS-Stand, und der Anmeldecode aus der Hand
- * der Einsatzleitung, solange kein Gateway verbunden ist (EMP-01, O-82,
- * D-487).
+ * Mitarbeiterin: die Anmeldenummer einrichten, umschreiben, sperren und
+ * entsperren, der Stand daneben, und der Anmeldecode aus der Hand der
+ * Einsatzleitung, solange kein Gateway verbunden ist (V-014, EMP-01, EMP-14,
+ * O-82, D-487, D-488).
+ *
+ * **Was hier bis V-014 fehlte.** Die Seite zeigte den Stand und stellte
+ * Codes aus — und sagte bei fehlendem Zugang: „die Super-Administration
+ * trägt die Nummer an der Person ein." Die konnte das nicht. `person.telefon`
+ * ist ein Feld der Personalakte; angemeldet wird mit
+ * `mitarbeiter_zugang.telefon_e164`, und für diese Spalte gab es keinen
+ * Schreibweg ausser dem Seed. Beide Nummern stehen deshalb jetzt getrennt
+ * und mit dem Unterschied daneben.
  *
  * Der Code wird einmal gezeigt — aus einem kurzlebigen Keks, den die Route
- * setzt; nie aus der Adresse. Wer ihn sieht, nennt ihn der Person; die
- * Person gibt ihn unter /auth/mitarbeiter mit ihrer Nummer ein.
+ * setzt; nie aus der Adresse.
  */
 export const dynamic = 'force-dynamic';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+const RECHT = 'personal.zugang_verwalten';
+const FELD = 'min-h-11 w-full rounded-md border border-line bg-surface px-s3 py-s2 '
+  + 'text-sm text-text';
 
-function maskiert(telefon: string | null): string {
-  if (telefon === null || telefon.length < 4) return '—';
+function maskiert(telefon: string | null, leer: string): string {
+  if (telefon === null || telefon.length < 4) return leer;
   return `${telefon.slice(0, 4)} … ${telefon.slice(-3)}`;
 }
 
 const BERLIN = new Intl.DateTimeFormat('de-DE', {
   timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
 });
+
+type Texte = (typeof ZUGANG_TEXTE)['de'];
 
 /**
  * Was der Anmeldung im Weg steht — in der Reihenfolge, in der es auffaellt.
@@ -50,26 +66,11 @@ const BERLIN = new Intl.DateTimeFormat('de-DE', {
  * naechsten Schritt; „geht nicht" allein hat dem Nutzer schon einmal einen
  * Vormittag gekostet (D-488).
  */
-function hindernis(stand: Zugangsstand): { readonly art: 'warnung'; readonly text: string } | null {
-  if (!stand.hatZugang) {
-    return { art: 'warnung', text:
-      'Für diese Person ist keine Mobilnummer als Zugang hinterlegt. Ohne Zugang gibt es keinen Code — '
-      + 'die Super-Administration trägt die Nummer an der Person ein.' };
-  }
-  if (stand.gesperrt) {
-    return { art: 'warnung', text: 'Der Zugang ist gesperrt. Ein Code würde nicht ausgestellt.' };
-  }
-  if (!stand.hatKonto) {
-    return { art: 'warnung', text:
-      'Diese Person hat keinen aktiven Portalzugang (Benutzerkonto). Ein Code würde angenommen und '
-      + 'verbraucht, die Anmeldung scheitert trotzdem — und am Telefon sähe es aus wie ein falscher Code. '
-      + 'Erst das Konto anlegen oder entsperren, dann den Code ausstellen.' };
-  }
-  if (stand.offeneCodes >= 3) {
-    return { art: 'warnung', text:
-      'Es sind drei Codes offen — mehr nimmt die Bremse nicht an (Schutz gegen Raten). Warten Sie, bis '
-      + 'einer abläuft (zehn Minuten), oder lassen Sie einen einlösen.' };
-  }
+function hindernis(stand: Zugangsstand, t: Texte): string | null {
+  if (!stand.hatZugang) return t.hindernisKeinZugang;
+  if (stand.gesperrt) return t.hindernisGesperrt;
+  if (!stand.hatKonto) return t.hindernisKeinKonto;
+  if (stand.offeneCodes >= 3) return t.hindernisBremse;
   return null;
 }
 
@@ -82,18 +83,22 @@ export default async function Zugang(
   const { mandant, id } = await params;
   kennungOder404(id);
   if (!UUID.test(id)) notFound();
-  const tor = await mandantTor(`/portal/${mandant}/personal/personen/${id}/zugang`, mandant);
+  const pfad = `/portal/${mandant}/personal/personen/${id}/zugang`;
+  const tor = await mandantTor(pfad, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+  const t = nachSprache(ZUGANG_TEXTE, zugang.sprache);
   /* AUT-06: das Personenblatt `…/personen/[id]` verlangt laut Manifest
      `personal.lesen`, diese Seite `personal.zugang_verwalten` — wer nur das
      zweite hält, bekam hinter „Zur Person" ein 404. Ein Verweis auf 404
      verrät, was er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581). */
-  const darf = await haeltRechte(zugang.sitzung, 'personal.lesen');
+  const darf = await haeltRechte(zugang.sitzung, 'personal.lesen', RECHT);
   const suche = await searchParams;
-  const grundRoh = typeof suche['grund'] === 'string' ? suche['grund'] : null;
-  const grund = (['keine_anstellung', 'kein_zugang', 'gesperrt', 'bremse'] as const)
-    .find((g) => g === grundRoh) ?? null;
+  const einWert = (name: string): string | null =>
+    typeof suche[name] === 'string' ? suche[name] : null;
+  const grund = einWert('grund');
+  const fehler = einWert('fehler');
+  const erledigt = einWert('erledigt') !== null;
 
   const heute = await berlinHeute();
   const gelesen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -104,16 +109,26 @@ export default async function Zugang(
   const person = gelesen.person;
   if (person === null) notFound();
   const stand = gelesen.stand;
-  const sperre = hindernis(stand);
+  const sperre = hindernis(stand, t);
 
   const sms = smsDienst(devFlaechenAn());
   const code = (await cookies()).get(ZUGANGSCODE_COOKIE)?.value ?? null;
   const knopf = 'inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2';
+  const darfSchreiben = darf[RECHT] === true;
+
+  /** Die drei Felder, die jedes Formular dieser Seite an die Route reicht. */
+  const verdeckt = (aktion: string) => (
+    <>
+      <input type="hidden" name="aktion" value={aktion} />
+      <input type="hidden" name="person" value={id} />
+      <input type="hidden" name="zurueck" value={pfad} />
+    </>
+  );
 
   return (
     <PortalRahmen
-      titel="Zugang"
-      wurzelTitel="Personal"
+      titel={t.titel}
+      wurzelTitel={t.modul}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -122,58 +137,95 @@ export default async function Zugang(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="text-h1 text-text">Zugang — {person.name}</h1>
+      <div className="mb-s2 flex flex-wrap items-baseline justify-between gap-s3">
+        <h1 className="text-h1 text-text">{t.titel} — {person.name}</h1>
         {darf['personal.lesen'] === true && (
-          <Link href={`/portal/${mandant}/personal/personen/${id}`} className={knopf}>Zur Person</Link>
+          <Link href={`/portal/${mandant}/personal/personen/${id}`} className={knopf}>
+            {t.zurPerson}
+          </Link>
         )}
       </div>
+      <p className="mb-s5 max-w-prose text-sm text-text-muted">{t.untertitel}</p>
+
+      {erledigt ? (
+        <Hinweis art="erfolg" cse="zugang-erledigt" className="mb-s5 max-w-prose">
+          {t.erledigt}
+        </Hinweis>
+      ) : null}
+      {fehler !== null ? (
+        <Hinweis art="warnung" cse="zugang-fehler" className="mb-s5 max-w-prose">
+          {t.fehler[fehler] ?? fehler}
+        </Hinweis>
+      ) : null}
 
       <dl data-cse="zugang-stand" className="mb-s5 grid max-w-prose grid-cols-1 gap-s2 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-s5">
-        <dt className="text-text-muted">Mobilnummer</dt>
-        <dd className="text-text tabular-nums">{maskiert(person.telefon)}</dd>
-        <dt className="text-text-muted">Anmeldung</dt>
-        <dd className="text-text">Mobilnummer + sechsstelliger Einmalcode, zehn Minuten gültig — kein Kennwort (EMP-01)</dd>
-        <dt className="text-text-muted">SMS-Versand</dt>
-        <dd className="text-text" data-cse="zugang-sms">{sms.verbunden ? sms.name : 'nicht verbunden (O-82)'}</dd>
-        <dt className="text-text-muted">Zugang</dt>
+        <dt className="text-text-muted">{t.anmeldenummer}</dt>
+        <dd className="text-text" data-cse="zugang-anmeldenummer">
+          <span className="tabular-nums">{stand.telefonMaskiert ?? t.leer}</span>
+          <span className="mt-s1 block text-xs text-text-muted">
+            {t.anmeldenummerErklaerung}
+          </span>
+        </dd>
+        <dt className="text-text-muted">{t.akteTelefon}</dt>
+        <dd className="text-text" data-cse="zugang-akte-telefon">
+          <span className="tabular-nums">{maskiert(person.telefon, t.leer)}</span>
+          <span className="mt-s1 block text-xs text-text-muted">
+            {t.akteTelefonErklaerung}
+          </span>
+        </dd>
+        <dt className="text-text-muted">{t.anmeldung}</dt>
+        <dd className="text-text">{t.anmeldungErklaerung}</dd>
+        <dt className="text-text-muted">{t.smsVersand}</dt>
+        <dd className="text-text" data-cse="zugang-sms">
+          {sms.verbunden ? sms.name : t.smsNichtVerbunden}
+        </dd>
+        <dt className="text-text-muted">{t.zugang}</dt>
         <dd className="text-text" data-cse="zugang-vorhanden">
-          {!stand.hatZugang ? 'keiner hinterlegt' : stand.gesperrt ? 'gesperrt' : 'eingerichtet'}
+          {!stand.hatZugang ? t.zugangKeiner
+            : stand.gesperrt ? t.zugangGesperrt : t.zugangEingerichtet}
         </dd>
-        <dt className="text-text-muted">Portalzugang (Konto)</dt>
+        {stand.gesperrt ? (
+          <>
+            <dt className="text-text-muted">{t.gesperrtSeit}</dt>
+            <dd className="text-text" data-cse="zugang-gesperrt-seit">
+              {stand.gesperrtAm === null ? t.leer : BERLIN.format(stand.gesperrtAm)}
+            </dd>
+            <dt className="text-text-muted">{t.sperrgrund}</dt>
+            <dd className="text-text" data-cse="zugang-sperrgrund">
+              {stand.sperrgrund ?? t.leer}
+            </dd>
+          </>
+        ) : null}
+        <dt className="text-text-muted">{t.konto}</dt>
         <dd className="text-text" data-cse="zugang-konto">
-          {stand.hatKonto ? 'aktiv' : 'keines — die Anmeldung käme auch mit richtigem Code nicht durch'}
+          {stand.hatKonto ? t.kontoAktiv : t.kontoKeines}
         </dd>
-        <dt className="text-text-muted">Offene Codes</dt>
+        <dt className="text-text-muted">{t.offeneCodes}</dt>
         <dd className="text-text tabular-nums" data-cse="zugang-offene-codes">
-          {stand.offeneCodes} von 3
+          {stand.offeneCodes} {t.vonDrei}
         </dd>
-        <dt className="text-text-muted">Letzte Anmeldung</dt>
+        <dt className="text-text-muted">{t.letzteAnmeldung}</dt>
         <dd className="text-text" data-cse="zugang-letzte-anmeldung">
-          {stand.letzteAnmeldung === null ? 'noch keine' : BERLIN.format(stand.letzteAnmeldung)}
+          {stand.letzteAnmeldung === null ? t.nochKeine : BERLIN.format(stand.letzteAnmeldung)}
         </dd>
       </dl>
 
       {sperre !== null ? (
-        <Hinweis art={sperre.art} cse="zugang-hindernis" className="mb-s5 max-w-prose">
-          <strong>Die Anmeldung geht so nicht durch.</strong> {sperre.text}
+        <Hinweis art="warnung" cse="zugang-hindernis" className="mb-s5 max-w-prose">
+          <strong>{t.gehtNichtDurch}</strong> {sperre}
         </Hinweis>
       ) : null}
 
       {code !== null ? (
         <Hinweis art="erfolg" cse="zugang-code" className="mb-s5 max-w-prose">
-          <strong>Anmeldecode ausgestellt.</strong> Nennen Sie der Person diesen Code — er gilt zehn Minuten
-          und genau einmal:{' '}
+          <strong>{t.codeAusgestellt}</strong> {t.codeNennen}{' '}
           <code data-cse="zugang-code-wert" className="rounded-md bg-surface-3 px-s2 py-s1 font-mono text-base tracking-widest">{code}</code>
-          <span className="mt-s2 block text-xs">
-            Die Person meldet sich unter <span className="font-mono">/auth/mitarbeiter</span> mit ihrer
-            Mobilnummer an und gibt den Code ein. Die Ausstellung steht im Protokoll.
-          </span>
+          <span className="mt-s2 block text-xs">{t.codeWeg}</span>
         </Hinweis>
       ) : null}
       {grund !== null ? (
         <Hinweis art="warnung" cse="zugang-abgewiesen" className="mb-s5 max-w-prose">
-          <strong>Kein Code ausgestellt.</strong> {GRUND_TEXT[grund as ZugangscodeGrund]}
+          <strong>{t.codeKeiner}</strong> {t.codeGrund[grund] ?? grund}
         </Hinweis>
       ) : null}
 
@@ -182,22 +234,103 @@ export default async function Zugang(
         <input type="hidden" name="mandant" value={mandant} />
         <input type="hidden" name="person" value={id} />
         <p className="text-sm text-text">
-          {sms.verbunden
-            ? 'Der Code geht normalerweise per SMS. Hier stellen Sie ihn zusätzlich aus, wenn die SMS nicht ankommt.'
-            : 'Solange kein SMS-Gateway verbunden ist (O-82), stellt die Einsatzleitung den Code hier aus und nennt ihn der Person — derselbe Code, dieselbe Frist, dieselbe Bremse (drei offene Codes).'}
+          {sms.verbunden ? t.codeFormularMitSms : t.codeFormularOhneSms}
         </p>
         <div>
           <Button type="submit" variante="primary" data-cse="zugang-code-ausstellen"
-                  disabled={!stand.hatZugang || stand.gesperrt || stand.offeneCodes >= 3}>
-            Anmeldecode ausstellen
+                  disabled={!darfSchreiben || !stand.hatZugang || stand.gesperrt
+                            || stand.offeneCodes >= 3}>
+            {t.codeAusstellen}
           </Button>
         </div>
       </form>
 
-      <p className="max-w-prose text-xs text-text-muted">
-        Ein Ersetzen der Mobilnummer und das Sperren des Zugangs (Vier-Augen, O-86) sind hier noch nicht
-        gebaut; bis dahin ändert die Super-Administration die Nummer an der Person.
-      </p>
+      {!darfSchreiben ? (
+        <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
+          {t.keinSchreibrecht} <Recht schluessel={RECHT} sprache={zugang.sprache} />.
+        </Hinweis>
+      ) : !stand.hatZugang ? (
+        <Card>
+          <form method="post" action="/api/personal/zugang" data-cse="zugang-einrichten"
+                className="flex max-w-[60ch] flex-col gap-s4">
+            {verdeckt('einrichten')}
+            <h2 className="m-0 text-h2 text-text">{t.einrichtenTitel}</h2>
+            <p className="m-0 text-sm text-text-muted">{t.einrichtenErklaerung}</p>
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.nummer}
+              <input type="tel" name="telefon" required maxLength={32} className={FELD}
+                     placeholder={t.nummerBeispiel} data-cse="zugang-nummer-neu" />
+              <span className="text-xs text-text-muted">{t.nummerErklaerung}</span>
+            </label>
+            <div>
+              <Button type="submit" variante="primary" data-cse="zugang-einrichten-knopf">
+                {t.einrichten}
+              </Button>
+            </div>
+          </form>
+        </Card>
+      ) : (
+        <div className="flex flex-col gap-s5">
+          <Card>
+            <form method="post" action="/api/personal/zugang" data-cse="zugang-nummer-aendern"
+                  className="flex max-w-[60ch] flex-col gap-s4">
+              {verdeckt('nummer_aendern')}
+              <h2 className="m-0 text-h2 text-text">{t.aendernTitel}</h2>
+              <p className="m-0 text-sm text-text-muted">{t.aendernErklaerung}</p>
+              <Hinweis art="warnung" cse="zugang-aendern-warnung" className="max-w-prose">
+                {t.aendernWarnung}
+              </Hinweis>
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                {t.nummer}
+                <input type="tel" name="telefon" required maxLength={32} className={FELD}
+                       placeholder={t.nummerBeispiel} data-cse="zugang-nummer-aendern-feld" />
+                <span className="text-xs text-text-muted">{t.nummerErklaerung}</span>
+              </label>
+              <div>
+                <Button type="submit" variante="secondary" data-cse="zugang-aendern-knopf">
+                  {t.aendern}
+                </Button>
+              </div>
+            </form>
+          </Card>
+
+          {stand.gesperrt ? (
+            <Card>
+              <form method="post" action="/api/personal/zugang" data-cse="zugang-entsperren"
+                    className="flex max-w-[60ch] flex-col gap-s4">
+                {verdeckt('entsperren')}
+                <h2 className="m-0 text-h2 text-text">{t.entsperrenTitel}</h2>
+                <p className="m-0 text-sm text-text-muted">{t.entsperrenErklaerung}</p>
+                <div>
+                  <Button type="submit" variante="primary" data-cse="zugang-entsperren-knopf">
+                    {t.entsperren}
+                  </Button>
+                </div>
+              </form>
+            </Card>
+          ) : (
+            <Card>
+              <form method="post" action="/api/personal/zugang" data-cse="zugang-sperren"
+                    className="flex max-w-[60ch] flex-col gap-s4">
+                {verdeckt('sperren')}
+                <h2 className="m-0 text-h2 text-text">{t.sperrenTitel}</h2>
+                <p className="m-0 text-sm text-text-muted">{t.sperrenErklaerung}</p>
+                <label className="flex flex-col gap-s2 text-sm text-text">
+                  {t.sperrgrundFeld}
+                  <input type="text" name="grund" required minLength={3} maxLength={200}
+                         className={FELD} placeholder={t.sperrgrundBeispiel}
+                         data-cse="zugang-sperrgrund" />
+                </label>
+                <div>
+                  <Button type="submit" variante="danger" data-cse="zugang-sperren-knopf">
+                    {t.sperren}
+                  </Button>
+                </div>
+              </form>
+            </Card>
+          )}
+        </div>
+      )}
     </PortalRahmen>
   );
 }

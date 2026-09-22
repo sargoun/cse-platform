@@ -2615,3 +2615,25 @@ revoke delete, truncate on dienstplan_veroeffentlichung from cse_app, cse_anon, 
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0384)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- mitarbeiter_zugang (archiv): EMP-14, AUT-08, Invariante 8. Der Zugang ist die Antwort auf die Frage, WER sich unter dieser Nummer angemeldet hat — `letzter_login_am` haengt daran, und die Zeile ist der Anker jeder Anmeldung dieses Menschen. `0113` sagt es selbst: „Austritt ist KEIN Loeschgrund ... sein Zugang gehoert gesperrt, nicht entfernt." Beendet wird mit `gesperrt_am`, nie durch Loeschen; eine geloeschte Zeile naehme das Protokoll mit, das seit `0384` an ihr haengt, und gaebe die Nummer fuer einen zweiten Menschen frei, als waere sie nie vergeben gewesen. `geloescht_am` gibt es hier nicht, und das ist der Punkt: eine Loeschspalte waere die Einladung.
+create trigger trg_mitarbeiter_zugang_kein_hard_delete
+  before delete on mitarbeiter_zugang
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_mitarbeiter_zugang_kein_truncate
+  before truncate on mitarbeiter_zugang
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on mitarbeiter_zugang from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_mitarbeiter_zugang_geaendert_am
+  before update on mitarbeiter_zugang
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_mitarbeiter_zugang_audit
+  after insert or update or delete on mitarbeiter_zugang
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
