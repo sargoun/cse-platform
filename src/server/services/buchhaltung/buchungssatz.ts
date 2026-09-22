@@ -658,3 +658,209 @@ export async function bucheEingangsrechnung(
     grund: null,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Die Ausgabe (V-011, FIN-14, FIN-17, ACC-01)
+// ---------------------------------------------------------------------------
+
+interface AusgabeKopfRoh {
+  readonly id: string;
+  readonly mandant_id: string;
+  readonly status: string;
+  readonly bezeichnung: string;
+  readonly ausgabedatum: string;
+  readonly zahlungsmittel: string;
+  readonly kasse_id: string | null;
+  readonly beleg_id: string | null;
+  readonly netto_cent: string;
+  readonly steuer_cent: string;
+  readonly brutto_cent: string;
+}
+
+/**
+ * Der automatische Buchungssatz zur gebuchten Ausgabe (V-011, ACC-01).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Dieselbe Reihenfolge wie überall: erst der Zustand, dann die Buchung.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ *   je Steuergruppe:  SOLL  Nettobetrag   (Aufwandskonto)
+ *   je Steuergruppe:  SOLL  Steuerbetrag  (Vorsteuerkonto, wenn > 0)
+ *   Geldkonto         HABEN Bruttobetrag
+ *
+ * Beides in DERSELBEN Transaktion wie der Zustandswechsel. Ein Nachlauf
+ * hinterliesse gebuchte Ausgaben, die in keiner Buchhaltung stehen — und
+ * niemand merkt, wenn ein Nachlauf nicht mehr läuft (dieselbe Lehre wie 0131
+ * auf der Kreditorenseite).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Das Aufwandskonto bleibt heute offen — und das ist kein Mangel dieses
+ * Dienstes.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `app.konto_aufloesen` (0126) kennt in seiner Stufenleiter **keinen Zweig
+ * für `aufwand_kategorie`**: `0180` hat die Sperre `km_typ_hat_eltern`
+ * aufgehoben und `konto_mapping.ausgabe_kategorie_id` samt Fremdschlüssel
+ * gesetzt, den Auflöser aber nicht erweitert. Eine hinterlegte Zuordnung
+ * bekäme `stufe = null` und fiele aus der Kandidatenmenge (V-126).
+ *
+ * `kontiere` wirft deshalb nicht, sondern gibt `konto: null` mit Hinweis
+ * zurück: die Zeile entsteht, steht in der Arbeitsliste und blockiert den
+ * Monatsabschluss (D-425). **Das ist die richtige Richtung** — eine Ausgabe,
+ * die wegen einer fehlenden Zuordnung gar nicht erst gebucht wird, fehlt in
+ * der Buchführung, und das merkt niemand. Eine Zeile ohne Konto merkt jeder.
+ *
+ * Dasselbe gilt für das Geldkonto bei allem, was nicht bar ist: die
+ * Zuordnung verlangt ein Bank- oder Kassenkonto (0126), und die
+ * Ausgabenzeile nennt nur bei `bar` eine Kasse.
+ */
+export async function bucheAusgabe(
+  db: Abfrage, ausgabeId: string,
+): Promise<BuchungErgebnis> {
+  const [kopf] = await db.abfrage<AusgabeKopfRoh>(
+    `select a.id, a.mandant_id, a.status::text as status, a.bezeichnung,
+            a.ausgabedatum::text as ausgabedatum, a.zahlungsmittel::text as zahlungsmittel,
+            a.kasse_id, a.beleg_id,
+            a.netto_cent::text, a.steuer_cent::text, a.brutto_cent::text
+       from ausgabe a
+      where a.id = $1
+      for update of a`,
+    [ausgabeId]);
+
+  if (kopf === undefined) {
+    throw new BuchungFehler(`Ausgabe ${ausgabeId} nicht gefunden`, 'nicht_gefunden');
+  }
+  if (kopf.status !== 'gebucht') {
+    throw new BuchungFehler(
+      `Ausgabe ${ausgabeId} ist ${kopf.status} — gebucht wird eine gebuchte Ausgabe.`,
+      'kein_beleg');
+  }
+
+  /* Zweimal buchen ist keine zweite Buchung, sondern eine doppelte. */
+  const [schon] = await db.abfrage<{ readonly buchung_id: string }>(
+    `select buchung_id from buchungssatz
+      where mandant_id = $1 and ausgabe_id = $2 and herkunft = 'ausgabe'
+      limit 1`,
+    [kopf.mandant_id, ausgabeId]);
+  if (schon !== undefined) {
+    return {
+      gebucht: false, buchungId: schon.buchung_id, zeilen: 0, offeneKontierungen: 0,
+      grund: 'schon_gebucht',
+    };
+  }
+
+  const datum = kopf.ausgabedatum;
+  const periode = await sicherePeriode(db, kopf.mandant_id, datum);
+
+  const gruppen = await db.abfrage<EingangSteuerRoh>(
+    `select steuersatz_gruppe_id, satz_bp, netto_cent::text, steuer_cent::text
+       from ausgabe_steuer
+      where mandant_id = $1 and ausgabe_id = $2
+      order by satz_bp desc`,
+    [kopf.mandant_id, ausgabeId]);
+
+  if (gruppen.length === 0) {
+    throw new BuchungFehler(
+      `Ausgabe ${ausgabeId} trägt keine Steuerzeile — ohne Steueraufteilung lässt `
+      + 'sich der Vorsteuerabzug nicht kontieren (§ 15 UStG).', 'kein_beleg');
+  }
+
+  const zeilen: Zeile[] = [];
+
+  /* 1. Der Aufwand je Steuergruppe. */
+  for (const g of gruppen) {
+    if (BigInt(g.netto_cent) === 0n) continue;
+    const aufwand = await kontiere(db, {
+      mandantId: kopf.mandant_id, typ: 'aufwand_kategorie', datum,
+      steuersatzGruppeId: g.steuersatz_gruppe_id,
+    });
+    zeilen.push({
+      konto: aufwand.konto,
+      gegenkonto: aufwand.gegenkonto,
+      buSchluessel: aufwand.buSchluessel,
+      sollHaben: 'soll',
+      betrag: cent(BigInt(g.netto_cent)),
+      steuersatzGruppeId: g.steuersatz_gruppe_id,
+      hinweis: aufwand.pruefhinweis,
+    });
+  }
+
+  /* 2. Die Vorsteuer je Gruppe — sie steht auf dem Beleg, nicht hier. */
+  for (const g of gruppen) {
+    if (BigInt(g.steuer_cent) === 0n) continue;
+    const vorsteuer = await kontiere(db, {
+      mandantId: kopf.mandant_id, typ: 'steuer_gruppe', datum,
+      steuersatzGruppeId: g.steuersatz_gruppe_id,
+    });
+    zeilen.push({
+      konto: vorsteuer.konto,
+      gegenkonto: vorsteuer.gegenkonto,
+      buSchluessel: vorsteuer.buSchluessel,
+      sollHaben: 'soll',
+      betrag: cent(BigInt(g.steuer_cent)),
+      steuersatzGruppeId: g.steuersatz_gruppe_id,
+      hinweis: vorsteuer.pruefhinweis,
+    });
+  }
+
+  /*
+   * 3. Die Gegenseite: das Geldkonto, der ganze Bruttobetrag.
+   *
+   * **Nur `bar` nennt eine Kasse.** Für Überweisung, Lastschrift, Karte und
+   * Verrechnung steht auf der Ausgabenzeile kein Geldkonto — sie sagt, WOMIT
+   * gezahlt wurde, nicht VON WELCHEM Konto. Die Zuordnung verlangt aber ein
+   * Bank- oder Kassenkonto (0126), also bleibt sie offen und die Zeile steht
+   * in der Arbeitsliste. Ein erfundenes Bankkonto wäre hier die schlimmere
+   * Antwort: es sähe gebucht aus.
+   */
+  const geld = await kontiere(db, {
+    mandantId: kopf.mandant_id, typ: 'geldkonto', datum,
+    kasseId: kopf.kasse_id,
+  });
+  zeilen.push({
+    konto: geld.konto,
+    gegenkonto: geld.gegenkonto,
+    buSchluessel: null,
+    sollHaben: 'haben',
+    betrag: cent(BigInt(kopf.brutto_cent)),
+    steuersatzGruppeId: null,
+    hinweis: geld.pruefhinweis ?? (kopf.kasse_id === null
+      ? `Kein Geldkonto zugeordnet: „${kopf.zahlungsmittel}" nennt keine Kasse und `
+        + 'kein Bankkonto.'
+      : null),
+  });
+
+  const soll = zeilen.filter((z) => z.sollHaben === 'soll').reduce((s, z) => s + z.betrag, 0n);
+  const haben = zeilen.filter((z) => z.sollHaben === 'haben').reduce((s, z) => s + z.betrag, 0n);
+  if (soll !== haben) {
+    throw new BuchungFehler(
+      `Ausgabe ${kopf.bezeichnung}: Netto plus Steuer ergeben ${String(soll)} Cent, `
+      + `der Bruttobetrag ist ${String(haben)} Cent — die Buchung ginge nicht auf.`,
+      'kein_beleg');
+  }
+
+  const [neu] = await db.abfrage<{ readonly buchung_id: string }>(
+    'select gen_random_uuid() as buchung_id');
+  const buchungId = neu?.buchung_id ?? null;
+  if (buchungId === null) throw new BuchungFehler('Keine buchung_id erhalten', 'kein_beleg');
+
+  const text = `Ausgabe ${kopf.bezeichnung}`.trim();
+  for (const z of zeilen) {
+    await db.abfrage(
+      `select app.buchungssatz_schreiben($1, $2, $3::date, $4, $5::bigint,
+                                         $6::soll_haben, $7, $8, $9, $10, $11, $12,
+                                         'ausgabe'::buchung_herkunft, $13, $14,
+                                         'dienst:buchhaltung-ausgabe', $15)`,
+      [kopf.mandant_id, buchungId, datum, periode.id, z.betrag.toString(), z.sollHaben,
+        z.konto, z.gegenkonto, z.buSchluessel, z.steuersatzGruppeId, text,
+        null, ausgabeId, z.hinweis, kopf.beleg_id]);
+  }
+
+  return {
+    gebucht: true,
+    buchungId,
+    zeilen: zeilen.length,
+    offeneKontierungen: zeilen.filter((z) => z.konto === null).length,
+    grund: null,
+  };
+}

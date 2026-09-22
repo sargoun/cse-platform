@@ -252,6 +252,18 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'eingang.schreiben',
   },
   /**
+   * V-011 — der Schreibweg der Ausgabe.
+   *
+   * `eingang.schreiben` ist das kleinere der zwei Rechte: erfassen ist
+   * Belegarbeit. Freigeben, ablehnen und buchen verlangen
+   * `eingang.freigeben`, und die Route prueft das je Handlung — wer eine
+   * Quittung eintippen darf, gibt sie nicht schon deshalb frei.
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/ausgabe-schreiben',
+    schreibend: true, schreibRecht: 'eingang.schreiben',
+  },
+  /**
    * V-022, V-074, V-075, V-076 — ein Konto zuruecknehmen.
    *
    * **Das Schreibrecht ist `system.benutzer_verwalten` und deckt drei der

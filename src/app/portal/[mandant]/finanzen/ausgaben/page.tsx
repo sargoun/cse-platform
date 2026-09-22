@@ -18,6 +18,8 @@ import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
 import { BELEGE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/belege';
 import { Recht } from '@/components/ui/Recht';
+import { haeltRechte } from '@/app/portal/rechte';
+import { AUSGABE_ERFASSEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/ausgabe-erfassen';
 
 /**
  * `/portal/[mandant]/finanzen/ausgaben` — die Ausgaben einer Gesellschaft
@@ -103,6 +105,14 @@ export default async function Ausgabenliste(
   /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
   const t = nachSprache(BELEGE_TEXTE, zugang.sprache);
   const g = verwaltungTexte(zugang.sprache);
+  const e = nachSprache(AUSGABE_ERFASSEN_TEXTE, zugang.sprache);
+
+  /*
+   * Das Recht der Erfassungsseite — VOR dem Rendern (AUT-06). Diese Liste
+   * oeffnet mit `eingang.lesen`; erfassen verlangt `eingang.schreiben`, und
+   * ein Knopf, den jeder sieht, fuehrte fuer den Rest auf 404.
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'eingang.schreiben');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => ({
@@ -150,7 +160,25 @@ export default async function Ausgabenliste(
       navigationsRechte={zugang.navigationsRechte}
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="text-h1 text-text">{t.ausgabenTitel}</h1>
+        <span className="flex flex-wrap items-baseline gap-s4">
+          <h1 className="m-0 text-h1 text-text">{t.ausgabenTitel}</h1>
+          {/*
+            * **Der Weg zur Erfassung — bis V-011 gab es ihn nicht**, und
+            * dahinter auch keine Seite: `0180` baute die ganze
+            * Zustandsmaschine, und schreiben konnte sie niemand.
+            */}
+          {darf['eingang.schreiben'] === true ? (
+            <Link
+              href={`/portal/${mandant}/finanzen/ausgaben/erfassen`}
+              data-cse="zur-erfassung"
+              className="inline-flex min-h-11 items-center rounded-md border
+                         border-line-strong px-s4 text-sm text-text no-underline
+                         hover:bg-surface-2"
+            >
+              {e.titel}
+            </Link>
+          ) : null}
+        </span>
         <form method="get" className="flex min-w-0 flex-wrap items-end gap-s3">
           <div className="min-w-0">
             <label className="block text-xs text-text-muted" htmlFor="jahr">{t.jahr}</label>

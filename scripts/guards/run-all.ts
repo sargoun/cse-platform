@@ -796,15 +796,45 @@ function wacheRoterKnopfInSchleife(): void {
       let tiefe = 0;
       let zeichenkette: string | null = null;
       let flucht = false;
+      /** `block` fuer `/* … *\/`, `zeile` fuer `// …` bis zum Zeilenende. */
+      let kommentar: 'block' | 'zeile' | null = null;
       const start = j;
       for (; j < inhalt.length; j += 1) {
         const c = inhalt[j] ?? '';
+        /*
+         * **Kommentare werden MITGEFAHREN, nicht vorher entfernt.**
+         *
+         * Zweimal hat diese Wache an derselben Stelle falschen Alarm
+         * geschlagen: ein gewoehnliches `"` in einem deutschen Satz INNERHALB
+         * eines Kommentars („82,50") eroeffnete hier eine Zeichenkette, die
+         * nie wieder zuging — und von da an zaehlte die Klammerbilanz
+         * irrefuehrend weiter. Der Knopf am Ende der Datei lag dann
+         * scheinbar in einer `.map()`, die hundertsechzig Zeilen frueher
+         * geschlossen hatte.
+         *
+         * Vorher zu entfernen ginge nicht: `ohneKommentare` ersetzt einen
+         * Blockkommentar durch EIN Leerzeichen, und damit stimmt die
+         * Zeilennummer im Befund nicht mehr. Die Meldung zeigte dann auf
+         * eine fremde Zeile — und eine Wache, der man die Stelle nicht
+         * glaubt, wird umgangen (derselbe Grund, aus dem hier ueberhaupt
+         * eine Klammerbilanz steht und kein `grep`).
+         */
+        if (kommentar === 'block') {
+          if (c === '*' && inhalt[j + 1] === '/') { kommentar = null; j += 1; }
+          continue;
+        }
+        if (kommentar === 'zeile') {
+          if (c === '\n') kommentar = null;
+          continue;
+        }
         if (zeichenkette !== null) {
           if (flucht) flucht = false;
           else if (c === '\\') flucht = true;
           else if (c === zeichenkette) zeichenkette = null;
           continue;
         }
+        if (c === '/' && inhalt[j + 1] === '*') { kommentar = 'block'; j += 1; continue; }
+        if (c === '/' && inhalt[j + 1] === '/') { kommentar = 'zeile'; j += 1; continue; }
         if (c === "'" || c === '"' || c === '`') { zeichenkette = c; continue; }
         if (c === '(') tiefe += 1;
         else if (c === ')') { tiefe -= 1; if (tiefe === 0) break; }

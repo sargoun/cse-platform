@@ -491,3 +491,42 @@ export async function weiterberechnungen(
     wirksam: z.wirksam,
   }));
 }
+
+/**
+ * Die Steuersatzgruppen, die eine Ausgabe heute tragen kann (V-011).
+ *
+ * **Nur die gültigen.** `gueltig_bis is null` — eine abgelaufene Gruppe steht
+ * auf alten Belegen und gehört nicht in ein Formular für einen neuen: der
+ * Satz von 2020 auf eine Quittung von heute zu schreiben, wäre eine
+ * Behauptung über eine Steuer, die so nicht entstanden ist.
+ */
+export interface Steuergruppe {
+  readonly schluessel: string;
+  readonly bezeichnung: string;
+  readonly satzBp: number;
+}
+
+export async function steuergruppen(db: Abfrage): Promise<readonly Steuergruppe[]> {
+  const zeilen = await db.abfrage<{
+    schluessel: string; bezeichnung: string; satz_bp: number;
+  }>(
+    `select schluessel, bezeichnung, satz_bp from steuersatz_gruppe
+      where gueltig_bis is null order by satz_bp desc, schluessel`);
+  return zeilen.map((z) => ({
+    schluessel: z.schluessel, bezeichnung: z.bezeichnung, satzBp: z.satz_bp,
+  }));
+}
+
+/** Die Kassen dieser Gesellschaft — für `zahlungsmittel = 'bar'` (GoBD). */
+export interface KasseZeile {
+  readonly id: string;
+  readonly bezeichnung: string;
+}
+
+export async function kassen(db: Abfrage): Promise<readonly KasseZeile[]> {
+  const zeilen = await db.abfrage<{ id: string; bezeichnung: string }>(
+    `select id, bezeichnung from kasse
+      where mandant_id = app.aktiver_mandant() and archiviert_am is null
+      order by bezeichnung`);
+  return zeilen.map((z) => ({ id: z.id, bezeichnung: z.bezeichnung }));
+}

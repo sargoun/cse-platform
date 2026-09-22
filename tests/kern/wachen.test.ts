@@ -203,6 +203,83 @@ describe('the merge guards fail the branch that breaks an invariant', () => {
     expect(ausgabe).not.toContain('border-bottom');
   });
 
+/**
+ * **Die Wache gegen den roten Knopf je Zeile — und der Fehler IN IHR.**
+ *
+ * V-127. Sie faehrt die Klammern einer `.map()`-Spanne mit und kannte
+ * Zeichenketten — aber keine KOMMENTARE. Ein gewoehnliches `"` in einem
+ * deutschen Satz innerhalb eines Kommentars eroeffnete damit eine
+ * Zeichenkette, die nie wieder zuging; von da an zaehlte die Klammerbilanz
+ * irrefuehrend weiter, und ein Knopf hundertsechzig Zeilen spaeter lag
+ * scheinbar in einer Schleife, die laengst geschlossen war.
+ *
+ * Zweimal gemeldet, zweimal von Hand umgangen (typografische
+ * Anfuehrungszeichen statt gerader) — genau der Weg, auf dem eine Wache
+ * stirbt: nicht durch Abschalten, sondern durch Gewoehnung an ihren
+ * Fehlalarm. Deshalb stehen hier beide Richtungen.
+ */
+describe('(3i) der rote Knopf je Zeile — und kein Fehlalarm aus einem Kommentar', () => {
+  const RAHMEN = (koerper: string): string => `
+export function Blatt({ zeilen }: { readonly zeilen: readonly string[] }) {
+  return (<div>${koerper}</div>);
+}
+`;
+
+  it('ein `variante="primary"` in einer `.map()` faellt', () => {
+    const { code, ausgabe } = guardsMit({
+      'src/app/x/page.tsx': RAHMEN(`
+      {zeilen.map((z) => (<Button variante="primary">{z}</Button>))}`),
+    });
+    expect(code).not.toBe(0);
+    expect(ausgabe).toContain('roter-knopf-in-schleife');
+  });
+
+  /**
+   * Dieselbe Datei, der Knopf AUSSERHALB der Schleife — und davor ein
+   * Kommentar mit einem geraden Anfuehrungszeichen. Vor V-127 meldete die
+   * Wache hier; sie hatte die Klammerbilanz an dem `"` verloren.
+   */
+  it('ein gerades Anfuehrungszeichen IM KOMMENTAR ist kein Fehlalarm', () => {
+    const { code, ausgabe } = guardsMit({
+      'src/app/x/page.tsx': RAHMEN(`
+      {zeilen.map((z) => (
+        <span>
+          {/* der Betrag steht als "82,50" auf dem Bon — nicht als 82.50 */}
+          {z}
+        </span>
+      ))}
+      <Button variante="primary">Speichern</Button>`),
+    });
+    /*
+     * Geprüft wird DIESE Wache und nicht der Ausgangscode: derselbe
+     * Wegwerfbaum läuft durch alle Wachen, und eine feste deutsche
+     * Beschriftung in einer Seite lässt zu Recht die Übersetzungswache
+     * anschlagen. Ein `code === 0` hätte hier also gar nichts über den
+     * roten Knopf gesagt.
+     */
+    expect(ausgabe).not.toContain('roter-knopf-in-schleife');
+    expect(code, 'nur zur Sicht: eine andere Wache darf reden').toBeDefined();
+  });
+
+  /** Und ein `//`-Kommentar mit einem Apostroph darin ebenso wenig. */
+  it('ein Apostroph in einem Zeilenkommentar auch nicht', () => {
+    const { code, ausgabe } = guardsMit({
+      'src/app/x/page.tsx': RAHMEN(`
+      {zeilen.map((z) => (
+        <span>
+          {
+            // der Kunde's Name steht hier nicht
+            z
+          }
+        </span>
+      ))}
+      <Button variante="primary">Speichern</Button>`),
+    });
+    expect(ausgabe).not.toContain('roter-knopf-in-schleife');
+    expect(code, 'nur zur Sicht: eine andere Wache darf reden').toBeDefined();
+  });
+});
+
 describe('(6) the database region is pinned to the EU (D-04)', () => {
   it('supabase/config.toml names eu-central-1', () => {
     expect(lies('supabase/config.toml')).toMatch(/region\s*=\s*"eu-central-1"/u);

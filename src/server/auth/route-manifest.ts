@@ -596,6 +596,22 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /*
+     * V-011, FIN-14, FIN-17, ACC-01, ACC-03. Eine Ausgabe erfassen,
+     * freigeben, ablehnen oder buchen.
+     *
+     * **Das Manifest nennt das KLEINERE der zwei Rechte**, weil es das ist,
+     * mit dem man die Route ueberhaupt betritt: erfassen ist Belegarbeit
+     * (`eingang.schreiben`). Freigeben, ablehnen und buchen sind
+     * Entscheidungen ueber Geld und verlangen `eingang.freigeben` — die
+     * Route prueft das je Handlung. Ein gemeinsames Recht hiesse: wer eine
+     * Quittung eintippen darf, gibt sie auch frei, und genau diese Trennung
+     * ist das Vieraugenprinzip.
+     */
+    pfad: 'api/finanzen/ausgaben',
+    recht: 'eingang.schreiben',
+  },
+  {
+    /*
      * V-117, V-118, EMP-05. Den Urlaubsanspruch aus dem Arbeitsvertrag
      * nachtragen — und das Konto anlegen, falls der Nachtlauf noch nicht
      * durch war.

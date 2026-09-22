@@ -17,8 +17,11 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
-import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { BELEGE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/belege';
+import { AUSGABE_ERFASSEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/ausgabe-erfassen';
+import { Button } from '@/components/ui/Button';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/finanzen/ausgaben/[id]` — eine Ausgabe im Detail
@@ -90,14 +93,15 @@ export default async function Ausgabenblatt(
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
-  const tor = await mandantTor(`/portal/${mandant}/finanzen/ausgaben/${id}`, mandant);
+  const pfad = `/portal/${mandant}/finanzen/ausgaben/${id}`;
+  const tor = await mandantTor(pfad, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
   const { sitzung } = zugang;
 
   /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
   const t = nachSprache(BELEGE_TEXTE, zugang.sprache);
-  const g = verwaltungTexte(zugang.sprache);
+  const e = nachSprache(AUSGABE_ERFASSEN_TEXTE, zugang.sprache);
 
   /*
    * Drei Nachbarrechte: die Erstattung (`personal.erstattung_lesen`), die
@@ -106,7 +110,8 @@ export default async function Ausgabenblatt(
    * ohne sie steht Text statt eines Verweises (AUT-06, D-581).
    */
   const darf = await haeltRechte(
-    sitzung, 'personal.erstattung_lesen', 'finanzen.lesen', 'auftrag.lesen');
+    sitzung, 'personal.erstattung_lesen', 'finanzen.lesen', 'auftrag.lesen',
+    'eingang.freigeben', 'buchhaltung.schreiben');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -155,16 +160,15 @@ export default async function Ausgabenblatt(
       aktiverTab="finanzen"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      /*
+       * Der Rückweg steht in der EIGENSCHAFT und nicht als eigenes `<nav>`
+       * im Inhalt (V-111). Hier stand beides untereinander: der abgeleitete
+       * Pfeil der Hülle und ein zweiter mit demselben Ziel. Zwei Ausgänge,
+       * die dasselbe sagen, lassen den Leser prüfen, ob sie es wirklich tun
+       * — ein doppelter Ausgang ist schlechter als ein fehlender.
+       */
+      zurueck={{ ziel: `/portal/${mandant}/finanzen/ausgaben`, text: t.ausgabenTitel }}
     >
-      <nav aria-label={g.zurueck} className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/finanzen/ausgaben`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {t.ausgabenTitel}
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">{a.bezeichnung}</h1>
         <span className="inline-flex flex-wrap items-center gap-s2">
@@ -415,6 +419,100 @@ export default async function Ausgabenblatt(
             },
           ]}
         />
+      )}
+
+      {/*
+        * ═══════════════════════════════════════════════════════════════════
+        * **Die Entscheidung — sie fehlte ganz** (V-011).
+        * ═══════════════════════════════════════════════════════════════════
+        *
+        * `0180` baut vier Zustände und ihren Übergangsauslöser; zwei Seiten
+        * zeigten sie. Nur bewegen konnte sie niemand: eine Ausgabe stand auf
+        * „erfasst" und blieb dort, weil zwischen Tabelle und Oberfläche kein
+        * Dienst stand.
+        *
+        * Freigeben, ablehnen und buchen sind Entscheidungen über Geld und
+        * hängen deshalb an `eingang.freigeben` — nicht an dem Recht, mit dem
+        * man erfasst. Wer eine Quittung eintippt, gibt sie nicht schon
+        * deshalb frei; das ist die Trennung, die das Vieraugenprinzip
+        * ausmacht.
+        */}
+      <h2 className="mb-s3 mt-s7 text-h2 text-text">{e.entscheidung}</h2>
+      <p className="mb-s4 max-w-prose text-sm text-text-muted">
+        {e.entscheidungErklaerung}
+      </p>
+
+      {a.status === 'gebucht' || a.status === 'abgelehnt' ? (
+        <Hinweis art="hinweis" cse="ausgabe-entschieden" className="mb-s5 max-w-prose">
+          {e.entschieden}
+        </Hinweis>
+      ) : darf['eingang.freigeben'] !== true ? (
+        <Hinweis art="hinweis" cse="kein-entscheidungsrecht" className="mb-s5 max-w-prose">
+          {e.keinEntscheidungsrecht}{' '}
+          <Recht schluessel="eingang.freigeben" sprache={zugang.sprache} />.
+        </Hinweis>
+      ) : (
+        <div className="mb-s5 flex flex-col gap-s4 rounded-lg border border-line
+                        bg-surface p-s5">
+          {a.status === 'erfasst' ? (
+            <form method="post" action="/api/finanzen/ausgaben"
+                  data-cse="ausgabe-freigeben-form">
+              <input type="hidden" name="aktion" value="freigeben" />
+              <input type="hidden" name="id" value={a.id} />
+              <input type="hidden" name="zurueck" value={pfad} />
+              <input type="hidden" name="fehlerweg" value={pfad} />
+              <Button type="submit" variante="primary" data-cse="ausgabe-freigeben">
+                {e.freigeben}
+              </Button>
+              <span className="ml-s3 text-xs text-text-muted">{e.freigebenErklaerung}</span>
+            </form>
+          ) : darf['buchhaltung.schreiben'] !== true ? (
+            /*
+             * **Kein Knopf, der in eine rohe Ausnahme führt** (V-128, AUT-06).
+             * Buchen schreibt ins Hauptbuch: die Periode wird angelegt und als
+             * `cse_app` zurückgelesen, und dafür verlangt 0127
+             * `buchhaltung.lesen`/`.schreiben`. Ohne das Recht kam der Mensch
+             * bis zum Klick und bekam dann „Die Periode liess sich weder
+             * anlegen noch lesen" — ein 500, der „mein Fehler" sagt, wo „dir
+             * fehlt ein Recht" die Wahrheit ist.
+             */
+            <p className="m-0 text-sm text-text-muted" data-cse="kein-buchungsrecht">
+              {e.keinBuchungsrecht}{' '}
+              <Recht schluessel="buchhaltung.schreiben" sprache={zugang.sprache} />.
+            </p>
+          ) : (
+            <form method="post" action="/api/finanzen/ausgaben"
+                  data-cse="ausgabe-buchen-form">
+              <input type="hidden" name="aktion" value="buchen" />
+              <input type="hidden" name="id" value={a.id} />
+              <input type="hidden" name="zurueck" value={pfad} />
+              <input type="hidden" name="fehlerweg" value={pfad} />
+              <Button type="submit" variante="primary" data-cse="ausgabe-buchen">
+                {e.buchen}
+              </Button>
+              <span className="ml-s3 text-xs text-text-muted">{e.buchenErklaerung}</span>
+            </form>
+          )}
+
+          <form method="post" action="/api/finanzen/ausgaben"
+                data-cse="ausgabe-ablehnen-form"
+                className="flex flex-wrap items-end gap-s3 border-t border-line pt-s4">
+            <input type="hidden" name="aktion" value="ablehnen" />
+            <input type="hidden" name="id" value={a.id} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <input type="hidden" name="fehlerweg" value={pfad} />
+            <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+              {e.ablehnenGrund}
+              <input type="text" name="grund" required minLength={3} maxLength={500}
+                     className="min-h-11 w-full rounded-md border border-line bg-surface
+                                px-s3 py-s2 text-sm text-text"
+                     data-cse="ausgabe-ablehnen-grund" />
+            </label>
+            <Button type="submit" variante="secondary" data-cse="ausgabe-ablehnen">
+              {e.ablehnen}
+            </Button>
+          </form>
+        </div>
       )}
 
       <h2 className="mb-s3 mt-s7 text-h2 text-text">{t.zustandsverlauf}</h2>
