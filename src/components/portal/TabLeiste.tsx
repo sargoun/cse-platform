@@ -1,5 +1,7 @@
 import { tabZiel, type TabZiel } from '@/server/registry/tableiste';
-import { GRUPPEN_NAVIGATION, NAVIGATION } from '@/server/registry/navigation';
+import {
+  GRUPPEN_NAVIGATION, KUNDEN_NAVIGATION, NAVIGATION,
+} from '@/server/registry/navigation';
 import { Icon } from '@/components/ui/Icon';
 import { Sprachumschalter } from './Sprachumschalter';
 
@@ -42,6 +44,16 @@ export interface TabLeisteProps {
   readonly navigationsRechte?: Readonly<Record<string, boolean>>;
   readonly gruppenansicht?: boolean;
   /**
+   * Welcher der DREI Baeume hinter `Mehr` steht (V-043).
+   *
+   * `gruppenansicht` allein konnte das nicht sagen: das Kundenportal ist
+   * weder Gruppe noch intern, bekam deshalb `NAVIGATION` — und ein
+   * Kundenkonto mit `objekt.lesen` sah dort interne Punkte, die unter
+   * `/portal/kunde` auf 404 fuehren. Ein 404 aus einem Menuepunkt verraet
+   * die Existenz dessen, was er nicht zeigen darf (AUT-06).
+   */
+  readonly kundenansicht?: boolean;
+  /**
    * Uebersetzte Beschriftungen je Tab-Schluessel (D-419).
    *
    * Das Register traegt deutsche Labels; das Mitarbeiterportal spricht vier
@@ -65,10 +77,13 @@ export interface TabLeisteProps {
  * ausgegraut: ein Menuepunkt, der auf 404 fuehrt, verraet die Existenz
  * dessen, was er nicht zeigen darf (AUT-06).
  */
-function MehrZelle({ wurzel, rechte, gruppenansicht, beschriftungen, intern }: {
+function MehrZelle({
+  wurzel, rechte, gruppenansicht, kundenansicht, beschriftungen, intern,
+}: {
   readonly wurzel: string;
   readonly rechte: Readonly<Record<string, boolean>>;
   readonly gruppenansicht: boolean;
+  readonly kundenansicht: boolean;
   /**
    * Die Karte der Huelle — dieselbe wie oben in der Leiste.
    *
@@ -101,7 +116,9 @@ function MehrZelle({ wurzel, rechte, gruppenansicht, beschriftungen, intern }: {
    * ausdruecklich erlaubt ist, erscheint hier nicht (AUT-06). Ein fehlender
    * Schluessel blendet aus, statt aufzudecken.
    */
-  const punkte = (gruppenansicht ? GRUPPEN_NAVIGATION : NAVIGATION)
+  const punkte = (gruppenansicht ? GRUPPEN_NAVIGATION
+    : kundenansicht ? KUNDEN_NAVIGATION
+    : NAVIGATION)
     .filter((n) => rechte[n.schluessel] === true);
 
   return (
@@ -200,7 +217,7 @@ function MehrZelle({ wurzel, rechte, gruppenansicht, beschriftungen, intern }: {
 
 export function TabLeiste({
   ziele, aktiv, wurzel, label, sichtbar, navigationsRechte, gruppenansicht = false,
-  beschriftungen, intern = false,
+  kundenansicht = false, beschriftungen, intern = false,
 }: TabLeisteProps) {
   const gezeigt = ziele.filter((z) => sichtbar?.[z.schluessel] !== false);
   return (
@@ -224,6 +241,7 @@ export function TabLeiste({
               wurzel={wurzel}
               rechte={navigationsRechte}
               gruppenansicht={gruppenansicht}
+              kundenansicht={kundenansicht}
               intern={intern}
               {...(beschriftungen === undefined ? {} : { beschriftungen })}
             />

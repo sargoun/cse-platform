@@ -136,13 +136,45 @@ async function KontoWurzel() {
         der Wechsel wird protokolliert.
       </p>
 
-      <h2 className="mb-s3 mt-s6 text-h3 text-text">Noch nicht gebaut</h2>
-      <p className="max-w-[72ch] text-base text-text-muted">
-        Profil, Passwort und zweite Stufe, Benachrichtigungen und der
-        Kalender-Feed sind eigene Seiten unter dieser Adresse. Sie stehen in der
-        Seitenkarte und entstehen in ihren Phasen; bis dahin steht hier kein
-        Formular, das nichts speichert.
-      </p>
+      {/*
+        * ═══════════════════════════════════════════════════════════════════
+        * **Hier stand „Noch nicht gebaut" — und drei der vier Seiten gab es**
+        * (V-038).
+        * ═══════════════════════════════════════════════════════════════════
+        *
+        * `profil`, `benachrichtigungen` und `kalender-feed` sind seit ihren
+        * Phasen fertig; `sicherheit` kam mit V-039 dazu. Der Absatz behauptete
+        * das Gegenteil, und er war der EINZIGE Text an dieser Stelle: wer über
+        * die Kontowurzel kam, las, es gebe nichts, und ging.
+        *
+        * Das ist die teuerste Sorte Lücke, weil sie aktiv in die Irre führt —
+        * anders als ein fehlender Verweis, den man wenigstens suchen kann.
+        */}
+      <h2 className="mb-s3 mt-s6 text-h3 text-text">Ihr Konto</h2>
+      <ul className="m-0 flex max-w-[72ch] list-none flex-col gap-s3 p-0"
+          data-cse="konto-seiten">
+        {[
+          { ziel: '/portal/konto/profil', titel: 'Profil',
+            text: 'Name, Anmeldung und die Sprache der Oberfläche (de · en · ar · tr).' },
+          { ziel: '/portal/konto/sicherheit', titel: 'Sicherheit',
+            text: 'Kennwort, zweite Stufe, Wiederherstellungscodes — und die Liste '
+              + 'Ihrer aktiven Anmeldungen, jede einzeln beendbar.' },
+          { ziel: '/portal/konto/benachrichtigungen', titel: 'Benachrichtigungen',
+            text: 'Je Art: was in den Posteingang kommt und was zusätzlich hinausgeht. '
+              + 'Der Posteingang selbst lässt sich nicht abschalten — er ist das '
+              + 'Protokoll dessen, was Ihnen mitgeteilt wurde.' },
+          { ziel: '/portal/konto/kalender-feed', titel: 'Kalender-Feed',
+            text: 'Die persönliche iCal-Adresse: einmal anzeigen, erneuern, widerrufen.' },
+        ].map((e) => (
+          <li key={e.ziel} className="rounded-lg border border-line bg-surface p-s4">
+            <a href={e.ziel} data-cse="konto-seite"
+               className="text-base text-text underline underline-offset-4">
+              {e.titel}
+            </a>
+            <p className="m-0 mt-s1 text-sm text-text-muted">{e.text}</p>
+          </li>
+        ))}
+      </ul>
     </PortalRahmen>
   );
 }

@@ -218,6 +218,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'objekt_import', pfad: 'raumbuch/import',
     schreibend: true, schreibRecht: 'objekt_import.schreiben',
   },
+  /**
+   * V-039 — die eigenen Anmeldungen sehen und beenden.
+   *
+   * **Kein Schreibrecht, und das ist kein Loch.** Die Policy
+   * `t_sitzung_eigene_schreiben` deckelt das UPDATE auf `benutzer_id =
+   * app.aktueller_benutzer()`; ein Rechteschluessel fuer „die eigene
+   * Anmeldung beenden" waere einer, den jede Rolle hielte — also keiner
+   * (K-19, §12.4 Selbstzugriff).
+   */
+  { modul: 'system', pfad: 'konto/sitzungen', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/dauer', schreibend: false },
   /**
    * **Was ein `datetime-local`-Feld schickt, wird hier zum Instant.**

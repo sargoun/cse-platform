@@ -5,7 +5,9 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { pruefeZugang, rechtepruefer, PORTAL_START } from '@/server/auth/zugang';
 import { bindeAnfrage, gruppenMandanten, rolleImMandanten } from '@/server/kontext/index';
-import { GRUPPEN_NAVIGATION, NAVIGATION } from '@/server/registry/navigation';
+import {
+  GRUPPEN_NAVIGATION, KUNDEN_NAVIGATION, NAVIGATION,
+} from '@/server/registry/navigation';
 import { modulAktiv, type Modulbuchung } from '@/server/registry/modul';
 import { familie, findeRoute } from '@/server/registry/routen';
 import { leisteFuer, tableiste, type LeistenSchluessel }
@@ -282,6 +284,18 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
        */
       ...GRUPPEN_NAVIGATION.map((n) => n.recht),
       /*
+       * **Und die Rechte des KUNDENbaums** (V-043).
+       *
+       * Er war der dritte, den niemand fragte — und die Folge war dieselbe
+       * wie bei den Gruppenrechten: jeder Punkt `undefined`, also
+       * unsichtbar. `zusatzRecht` kommt mit, weil zwei Kundenrouten ZWEI
+       * Leserechte verlangen (`rechnungen`, `nachweise`) und `pruefeZugang`
+       * sie mit UND verknuepft; ein Punkt, der nur das erste prueft, fuehrte
+       * auf 404 (AUT-06, D-581).
+       */
+      ...KUNDEN_NAVIGATION.flatMap(
+        (n) => (n.zusatzRecht === undefined ? [n.recht] : [n.recht, n.zusatzRecht])),
+      /*
        * **Und die Rechte des RUECKWEGZIELS** (AUT-06, D-613, V-108).
        *
        * Der Rueckweg wird aus der Adresse abgeleitet (`rueckwegFuer`), nicht
@@ -354,8 +368,20 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * deshalb die Liste, die zu ihr gehoert — und nicht beide in eine Karte.
      */
     const navigationsRechte: Record<string, boolean> = {};
-    for (const n of sitzung.ansicht === 'gruppe' ? GRUPPEN_NAVIGATION : NAVIGATION) {
-      navigationsRechte[n.schluessel] = gehalten.has(n.recht) && frei(n.recht);
+    /*
+     * DREI Baeume, nicht zwei (V-043). Eine Sitzung gehoert zu genau einem:
+     * Gruppenansicht, Kundenportal oder internes Portal. Beide anderen in
+     * dieselbe Karte zu legen waere ein Punkt, der in der falschen Leiste
+     * auftaucht.
+     */
+    const baum = sitzung.ansicht === 'gruppe' ? GRUPPEN_NAVIGATION
+      : sitzung.portal === 'kunde' ? KUNDEN_NAVIGATION
+      : NAVIGATION;
+    for (const n of baum) {
+      navigationsRechte[n.schluessel] = gehalten.has(n.recht) && frei(n.recht)
+        /* Beide Rechte, wo die Route beide verlangt — UND, nicht ODER. */
+        && (n.zusatzRecht === undefined
+          || (gehalten.has(n.zusatzRecht) && frei(n.zusatzRecht)));
     }
 
     /**

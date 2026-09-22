@@ -120,30 +120,26 @@ export const TABLEISTEN: readonly TabLeiste[] = [
     schluessel: 'kunde',
     familie: 'kunde',
     /*
-     * **Noch OHNE `Mehr` — und das ist eine offene Luecke, keine Ruhe.**
+     * **Das `Mehr`-Blatt traegt jetzt den KUNDENbaum** (V-043).
      *
-     * Das Kundenportal fuehrt inzwischen ZEHN gebaute Listen samt Blaettern
-     * (19 Adressen) und diese Leiste vier plus Uebersicht; `angebote`,
-     * `objekte`, `projekte`, `zahlungen`, `dokumente` und `reklamationen`
-     * sind damit gebaut und aus KEINER Leiste erreichbar. Der Baum dafuer
-     * steht vollstaendig als `KUNDEN_NAVIGATION` in `registry/navigation.ts`
-     * — seit dem Kundenportal-Stapel mit allen elf Punkten. Einen Schritt
-     * weit helfen die Sprungkarten von `/portal/kunde` (dort von sechs auf
-     * zehn erweitert); eine Leiste ersetzen sie nicht.
+     * Bis hierher stand hier eine Warteschlangennotiz: der Baum sei gebaut,
+     * die drei Stellen, die ihn lesen muessten, kennten ihn nicht, und alle
+     * gehoerten zusammen eingespielt. Genau das ist geschehen —
+     * `PortalRahmen` (Schiene), `TabLeiste` (`MehrZelle`) und
+     * `app/portal/zugang.ts` (Rechtekarte samt `zusatzRecht`) lesen den
+     * dritten Baum.
      *
-     * Was fehlt, liegt NICHT in diesem Register: `components/portal/
-     * TabLeiste.tsx` (`MehrZelle` kennt genau zwei Baeume),
-     * `components/portal/PortalRahmen.tsx` und `app/portal/zugang.ts` (die
-     * Rechtekarte wird fuer `kunde` aus `NAVIGATION` gebaut, und
-     * `zusatzRecht` wird dort gar nicht gefragt). Wuerde hier jetzt `MEHR`
-     * stehen, gaebe das Blatt den INTERNEN Baum unter `/portal/kunde` aus —
-     * `finanzen/rechnungen`, `qualitaet/reklamationen`, `bau/projekte` und
-     * weitere, allesamt 404, und jeder davon verriete die Existenz dessen,
-     * was er nicht zeigen darf (AUT-06). Die vier Aenderungen gehoeren
-     * zusammen eingespielt; bis dahin bleibt die Leiste, wie sie ist. Der
-     * ausformulierte Vorschlag fuer alle vier steht in der Warteschlange
-     * (`docs/architecture/routenbau/register/kundenportal.md`, „Sonstiges")
-     * und wartet auf eine Hand, die alle vier Dateien anfassen darf.
+     * **Und die Luecke war schlimmer als beschrieben.** `kunde` steht NICHT
+     * in `OHNE_MEHR` — das Blatt gab es also, und es gab den INTERNEN Baum
+     * unter `/portal/kunde` aus. Ein Kundenkonto mit `objekt.lesen` sah dort
+     * Punkte, die auf 404 fuehren, und jeder davon verriet die Existenz
+     * dessen, was er nicht zeigen darf (AUT-06). Das ist mit derselben
+     * Aenderung weg: die Rechtekarte wird fuer `kunde` aus
+     * `KUNDEN_NAVIGATION` gebaut, interne Schluessel stehen nicht mehr
+     * darin, und `=== true` blendet sie aus.
+     *
+     * Die Leiste selbst bleibt bei fuenf Zielen: sie ist die Auswahl fuer den
+     * Daumen, der Baum ist die Vollstaendigkeit.
      */
     ziele: [
       { schluessel: 'uebersicht', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', icon: 'uebersicht' },

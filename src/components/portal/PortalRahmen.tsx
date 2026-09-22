@@ -8,7 +8,7 @@ import { TabLeiste } from './TabLeiste';
 import { SeitenNavigation } from './SeitenNavigation';
 import { istInterneLeiste, tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
 import { Sprachumschalter } from './Sprachumschalter';
-import { NAVIGATION } from '@/server/registry/navigation';
+import { KUNDEN_NAVIGATION, NAVIGATION } from '@/server/registry/navigation';
 import { internBeschriftungen, internSprache } from '@/lib/i18n/intern';
 import { gemerkteHuelle } from '@/app/portal/huellen-speicher';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -456,15 +456,32 @@ export function PortalRahmen({
           * (`registry/tableiste.ts`). Genau diese fuenf stehen hier, mit den
           * `gruppe.*`-Rechten, die `sichtbareTabs` ohnehin schon bewertet hat.
           */}
+        {/*
+          * **Und die KUNDIN bekommt ihren eigenen Baum** (V-043).
+          *
+          * Die Kundenleiste fuehrt fuenf Ziele; gebaut sind zehn Listen mit
+          * ihren Blaettern. `angebote`, `objekte`, `projekte`, `zahlungen`,
+          * `dokumente` und `reklamationen` waren damit fertig und aus keiner
+          * Leiste erreichbar — von `/portal/kunde/rechnungen/[id]` kam man
+          * ohne Adresszeile nicht einmal zu den Zahlungen.
+          *
+          * `KUNDEN_NAVIGATION` lag seit dem Kundenportal-Stapel bereit und
+          * wurde von NICHTS gerendert. Der Kommentar dort nannte die drei
+          * Stellen, die den dritten Baum lesen lernen muessen — Schiene,
+          * `Mehr`-Blatt und Rechtekarte — und sagte, sie gehoerten zusammen
+          * eingespielt. Genau das geschieht hier.
+          */}
         <SeitenNavigation
           ziele={leiste === 'intern_global' || leiste === 'intern_admin'
             || leiste === 'intern_leitung'
             ? NAVIGATION
-            : tabs.ziele}
+            : leiste === 'kunde'
+              ? KUNDEN_NAVIGATION
+              : tabs.ziele}
           wurzel={wurzel}
           {...(aktiverTab === undefined ? {} : { aktiv: aktiverTab })}
           {...(leiste === 'intern_global' || leiste === 'intern_admin'
-            || leiste === 'intern_leitung'
+            || leiste === 'intern_leitung' || leiste === 'kunde'
             ? (navigationsRechte === undefined ? {} : { sichtbar: navigationsRechte })
             : (sichtbareTabs === undefined ? {} : { sichtbar: sichtbareTabs }))}
           bereich={bereich}
@@ -526,6 +543,7 @@ export function PortalRahmen({
         {...(sichtbareTabs === undefined ? {} : { sichtbar: sichtbareTabs })}
         {...(navigationsRechte === undefined ? {} : { navigationsRechte })}
         gruppenansicht={leiste === 'gruppe'}
+        kundenansicht={leiste === 'kunde'}
         label={titel}
         beschriftungen={karte}
         intern={istInterneLeiste(leiste)}

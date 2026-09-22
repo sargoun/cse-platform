@@ -596,14 +596,20 @@ export const GRUPPEN_NAVIGATION: readonly NaviEintrag[] = [
  * `auftraege` steht darin, weil es schon in der Tableiste steht — der Punkt
  * wird also nicht schlechter, er wandert nur.
  *
- * **Dieser Baum wird heute von NICHTS gerendert, und das ist Absicht.** Das
- * Blatt hinter `Mehr` (`components/portal/TabLeiste.tsx`), die Schiene
- * (`components/portal/PortalRahmen.tsx`) und die Rechtekarte
- * (`app/portal/zugang.ts`) kennen genau zwei Baeume; sie muessen den dritten
- * erst lesen lernen. Bis dahin traegt die Kundenleiste KEIN `Mehr` — ein
- * `Mehr`, das den INTERNEN Baum unter `/portal/kunde` ausgibt, waere ein
- * Blatt voller 404 und verriete die Existenz dessen, was es nicht zeigen
- * darf (AUT-06). Die drei Aenderungen gehoeren zusammen eingespielt.
+ * **Alle drei Stellen lesen ihn jetzt** (V-043). Hier stand, der Baum werde
+ * von nichts gerendert und die drei Aenderungen gehoerten zusammen
+ * eingespielt — Schiene (`components/portal/PortalRahmen.tsx`),
+ * `Mehr`-Blatt (`components/portal/TabLeiste.tsx`) und Rechtekarte
+ * (`app/portal/zugang.ts`). Genau so ist es geschehen.
+ *
+ * **Und die Lage war schlimmer als der alte Satz.** Er sagte, die
+ * Kundenleiste trage KEIN `Mehr` — `OHNE_MEHR` fuehrt aber nur
+ * `mitarbeiter` und `gruppe`. Das Blatt gab es also, und es gab den
+ * INTERNEN Baum unter `/portal/kunde` aus: ein Kundenkonto mit
+ * `objekt.lesen` sah Punkte, die dort auf 404 fuehren, und jeder verriet
+ * die Existenz dessen, was er nicht zeigen darf (AUT-06). Dieselbe
+ * Aenderung raeumt das mit weg — die Rechtekarte wird fuer `kunde` aus
+ * DIESEM Baum gebaut, interne Schluessel stehen nicht mehr darin.
  */
 export const KUNDEN_NAVIGATION: readonly NaviEintrag[] = [
   { schluessel: 'uebersicht', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', icon: 'uebersicht' },

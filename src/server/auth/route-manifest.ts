@@ -742,6 +742,20 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'crm.schreiben',
   },
   {
+    pfad: 'api/konto/sitzung',
+    recht: null,
+    grund:
+      'AUT-05, V-039. Eine EIGENE Anmeldung beenden. Wie bei `api/konto/sprache` fuehrt '
+      + 'der Rechtekatalog dafuer keinen Schluessel, und §12.4 markiert den Zugriff auf '
+      + 'das eigene Konto als Selbstzugriff (S). Einen Schluessel zu erfinden, den man '
+      + 'anschliessend jeder Rolle bindet, pruefte nichts und behauptete zu pruefen '
+      + '(K-19). `system.sitzung_widerrufen` ist etwas anderes: das Recht, FREMDE '
+      + 'Sitzungen zu beenden (V-076). Bewacht wird der Weg durch die Sitzung, den '
+      + 'Ursprungsvergleich und `t_sitzung_eigene_schreiben`, die ausschliesslich Zeilen '
+      + 'mit `benutzer_id = app.aktueller_benutzer()` zulaesst — die Kennung kommt aus '
+      + 'der Datenbanksitzung und nie aus einem Feld der Anfrage (K-02).',
+  },
+  {
     pfad: 'api/konto/sprache',
     recht: null,
     grund:
