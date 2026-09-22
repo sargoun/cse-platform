@@ -56,6 +56,7 @@ export type KartenZiel =
   | 'finanzen/rechnungen'
   | 'finanzen/zahlungen'
   | 'finanzen/eingangsrechnungen'
+  | 'finanzen/lieferanten'
   | 'finanzen/mahnungen'
   | 'finanzen/ausgangsbuch'
   | 'finanzen/ausgaben'
@@ -351,6 +352,12 @@ const DE: UebersichtTexte = {
       titel: 'Ausgaben',
       text: 'Barkasse, Tankbeleg, Material, Auslagenerstattung — der Aufwand, '
         + 'der keine Lieferantenrechnung ist.',
+    },
+    'finanzen/lieferanten': {
+      titel: 'Lieferanten',
+      text: 'Kreditoren und Nachunternehmen: Nummer, Steuerangaben, '
+        + '§-13b-Umkehr und §-48-Freistellung — die Stammdaten, gegen die jede '
+        + 'Eingangsrechnung läuft.',
     },
     'finanzen/belege': {
       titel: 'Belege',
@@ -715,6 +722,12 @@ const EN: UebersichtTexte = {
       titel: 'Expenses',
       text: 'Petty cash, fuel receipt, materials, reimbursed outlays — the '
         + 'costs that are not a supplier invoice.',
+    },
+    'finanzen/lieferanten': {
+      titel: 'Lieferanten (suppliers)',
+      text: 'Creditors and subcontractors: number, tax details, § 13b reverse '
+        + 'charge and § 48 exemption — the master data every incoming invoice '
+        + 'is checked against.',
     },
     'finanzen/belege': {
       titel: 'Belege (source documents)',

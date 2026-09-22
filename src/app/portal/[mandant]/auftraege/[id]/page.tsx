@@ -79,7 +79,8 @@ export default async function AuftragDetail(
    */
   const darf = await haeltRechte(
     sitzung, 'crm.lesen', 'objekt.lesen', 'angebot.lesen',
-    'auftrag.abschliessen', 'referenz.kundenfreigabe_erfassen');
+    'auftrag.abschliessen', 'referenz.kundenfreigabe_erfassen',
+    'abrechnung.schreiben');
 
   const [kopf] = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => kontext.abfrage<Kopf>(
@@ -191,6 +192,24 @@ export default async function AuftragDetail(
             className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
           >
             Kundenfreigabe (Referenz)
+          </Link>
+        )}
+        {/*
+          * **Der dritte Weg — und er fehlte ganz** (V-125).
+          * `…/auftraege/[id]/abrechnung` war gebaut, bewacht und im Manifest
+          * geführt und von keiner Seite aus erreichbar. Er beantwortet die
+          * Frage, WIE dieser Auftrag abgerechnet wird (eine der fünf Arten,
+          * FIN-16) — eine Frage, die man am Auftrag stellt und sonst
+          * nirgends. `abrechnung.schreiben` ist das Recht der Zielseite; das
+          * Auftragsblatt selbst trägt nur `auftrag.lesen`.
+          */}
+        {darf['abrechnung.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/auftraege/${id}/abrechnung`}
+            data-cse="zur-abrechnung"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+          >
+            Abrechnung
           </Link>
         )}
       </nav>

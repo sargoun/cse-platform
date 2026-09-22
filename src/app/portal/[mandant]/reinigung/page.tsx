@@ -133,6 +133,29 @@ export default async function ReinigungKopfSeite(
         />
       </div>
 
+      {/*
+        * ═══════════════════════════════════════════════════════════════════
+        * **Die Sprungzeile — und warum sie neu ist** (V-125).
+        * ═══════════════════════════════════════════════════════════════════
+        *
+        * `/reinigung/sonderleistungen` war gebaut, bewacht und im Manifest
+        * geführt — und **von keiner Seite aus erreichbar**. Glas-, Sonder- und
+        * Grundreinigung sind das, was neben dem Turnus separat beauftragt und
+        * separat abgerechnet wird; ohne Eingang gibt es sie für den Betrieb
+        * nicht. Sie steht unter demselben `reinigung.lesen` wie dieses Blatt,
+        * also braucht der Verweis keinen eigenen Wächter (AUT-06).
+        */}
+      <p className="mb-s6 flex flex-wrap gap-s4 text-sm">
+        <Link
+          href={`/portal/${mandant}/reinigung/sonderleistungen`}
+          data-cse="zu-sonderleistungen"
+          className="inline-flex min-h-11 items-center rounded-md border border-line-strong
+                     px-s4 py-s2 text-text no-underline hover:bg-surface-2"
+        >
+          Sonderleistungen
+        </Link>
+      </p>
+
       {/* --- Liste 1: die Schichten des Berliner Kalendertages -------------- */}
       <section className="mb-s6" data-cse="reinigung-heute">
         <div className="mb-s4 flex flex-wrap items-baseline justify-between gap-s3">

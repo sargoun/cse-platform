@@ -61,6 +61,13 @@ const KARTEN: readonly Karte[] = [
   { pfad: 'finanzen/rechnungen', icon: 'rechnung' },
   { pfad: 'finanzen/zahlungen', icon: 'euro' },
   { pfad: 'finanzen/eingangsrechnungen', icon: 'dokument' },
+  /*
+   * **Die Lieferantenstammdaten — sie standen hier nicht** (V-125, ein
+   * Befund in eigener Sache: die Seite entstand zwei Änderungen zuvor und
+   * bekam keinen Eingang). Ohne sie ist jede Eingangsrechnung ohne
+   * Gegenüber, und § 13b und § 48 hängen an genau diesen Zeilen.
+   */
+  { pfad: 'finanzen/lieferanten', icon: 'gruppe' },
   { pfad: 'finanzen/mahnungen', icon: 'warnung' },
   { pfad: 'finanzen/ausgangsbuch', icon: 'export' },
   { pfad: 'finanzen/ausgaben', icon: 'euro' },
