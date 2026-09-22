@@ -4,6 +4,10 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Button } from '@/components/ui/Button';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { NACHWEIS_ERFASSEN_TEXTE } from '@/lib/i18n/verwaltung/personal-nachweis';
 import { DataTable } from '@/components/ui/DataTable';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
@@ -67,6 +71,7 @@ export default async function Nachweisblatt({
      auf 404 verrät, was er nicht zeigen darf (Copilot-Runde auf PR 16 /
      D-581). */
   const darf = await haeltRechte(sitzung, 'personal.nachweis_lesen');
+  const t = nachSprache(NACHWEIS_ERFASSEN_TEXTE, zugang.sprache);
 
   const heute = await berlinHeute();
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -271,6 +276,71 @@ export default async function Nachweisblatt({
           abgetippt — nicht die Behörde bestätigt.
         </p>
       </div>
+
+      {/*
+        * ═══════════════════════════════════════════════════════════════════
+        * **Die Prüfung — sie fehlte ganz** (V-010).
+        * ═══════════════════════════════════════════════════════════════════
+        *
+        * `0030` baut `geprueft_von`, `geprueft_am`, `widerrufen_am` und
+        * `widerruf_grund`, und der CHECK verlangt bei einem Widerruf einen
+        * Grund. Geschrieben hat die vier Spalten nichts.
+        *
+        * **Kein eigener Rechtewächter hier.** Dieses Blatt öffnet laut
+        * Manifest mit `personal.nachweis_verwalten`; wer es sieht, hält es.
+        * Eine zweite Prüfung wäre keine zusätzliche Sicherheit, sondern eine
+        * zweite Stelle, an der dieselbe Aussage irgendwann auseinanderläuft.
+        */}
+      <h2 className="mb-s3 mt-s7 text-h2 text-text">{t.pruefung}</h2>
+      <p className="mb-s4 max-w-prose text-sm text-text-muted">
+        {t.pruefungErklaerung}
+      </p>
+
+      {kopf.widerrufenAm !== null ? (
+        <Hinweis art="hinweis" cse="nachweis-widerrufen" className="max-w-prose">
+          {t.widerrufenAm} {berlinAnzeige(kopf.widerrufenAm)}
+        </Hinweis>
+      ) : (
+        <div className="flex flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+          {kopf.geprueftAm === null ? (
+            <form method="post" action="/api/personal/nachweise"
+                  data-cse="nachweis-bestaetigen-form">
+              <input type="hidden" name="aktion" value="bestaetigen" />
+              <input type="hidden" name="id" value={kopf.nachweisId} />
+              <input type="hidden" name="zurueck" value={pfad} />
+              <input type="hidden" name="fehlerweg" value={pfad} />
+              <Button type="submit" variante="primary" data-cse="nachweis-bestaetigen">
+                {t.bestaetigen}
+              </Button>
+            </form>
+          ) : (
+            <p className="m-0 text-sm text-text-muted" data-cse="nachweis-bestaetigt">
+              {t.bestaetigt} <span className="tabular-nums">
+                {berlinAnzeige(kopf.geprueftAm)}
+              </span>
+            </p>
+          )}
+
+          <form method="post" action="/api/personal/nachweise"
+                data-cse="nachweis-widerrufen-form"
+                className="flex flex-wrap items-end gap-s3 border-t border-line pt-s4">
+            <input type="hidden" name="aktion" value="widerrufen" />
+            <input type="hidden" name="id" value={kopf.nachweisId} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <input type="hidden" name="fehlerweg" value={pfad} />
+            <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+              {t.widerrufGrund}
+              <input type="text" name="grund" required minLength={3} maxLength={500}
+                     className="min-h-11 w-full rounded-md border border-line bg-surface
+                                px-s3 py-s2 text-sm text-text"
+                     data-cse="nachweis-widerruf-grund" />
+            </label>
+            <Button type="submit" variante="secondary" data-cse="nachweis-widerrufen">
+              {t.widerrufen}
+            </Button>
+          </form>
+        </div>
+      )}
     </PortalRahmen>
   );
 }

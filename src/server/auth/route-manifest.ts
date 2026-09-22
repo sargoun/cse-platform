@@ -583,6 +583,19 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /*
+     * V-010, SEC-02, SEC-03, EMP-08, § 34a GewO. Die Sachkunde, das
+     * Führungszeugnis, der Erste-Hilfe-Kurs — aufnehmen, bestätigen,
+     * widerrufen.
+     *
+     * Ein Recht für alle drei: es ist dieselbe Personalstelle, die die
+     * Urkunde in der Hand hält. `n_schreiben` und `n_aendern` (0030) pruefen
+     * es ein zweites Mal, gegen den aktiven Mandanten.
+     */
+    pfad: 'api/personal/nachweise',
+    recht: 'personal.nachweis_verwalten',
+  },
+  {
+    /*
      * V-006, FIN-14, ACC-05. Lieferantenstammdaten anlegen, aendern, sperren,
      * archivieren.
      *

@@ -45,6 +45,15 @@ export interface RegisterZeile {
   readonly stufen: readonly number[];
   readonly dokumentId: string | null;
   readonly widerrufenAm: Date | null;
+  /**
+   * Wann ein Mensch die Urkunde gesehen hat (V-010).
+   *
+   * `null` heisst „noch niemand", nicht „nicht nötig": eine Sachkunde, die
+   * jemand abgetippt und niemand geprüft hat, ist genau der Fall, den eine
+   * Aufsicht als erstes fragt. Der NAME steht bewusst nicht hier — er ist ein
+   * Personendatum und gehört zum Einzelblatt, nicht in eine Registerliste.
+   */
+  readonly geprueftAm: Date | null;
 }
 
 interface RegisterRoh {
@@ -65,6 +74,7 @@ interface RegisterRoh {
   stufen: number[];
   dokument_id: string | null;
   widerrufen_am: Date | null;
+  geprueft_am: Date | null;
 }
 
 function alsZeile(z: RegisterRoh): RegisterZeile {
@@ -86,6 +96,7 @@ function alsZeile(z: RegisterRoh): RegisterZeile {
     stufen: (z.stufen ?? []).map(Number),
     dokumentId: z.dokument_id,
     widerrufenAm: z.widerrufen_am,
+    geprueftAm: z.geprueft_am,
   };
 }
 
@@ -127,7 +138,7 @@ const SPALTEN = `
          to_char(n.gueltig_bis, 'YYYY-MM-DD') as gueltig_bis,
          n.status::text                       as status,
          q.blockiert_einsatz, q.laeuft_ab, q.warnung_tage as stufen,
-         n.dokument_id, n.widerrufen_am,
+         n.dokument_id, n.widerrufen_am, n.geprueft_am,
          case when n.gueltig_bis is null then null
               else (n.gueltig_bis - $1::date) end::int as rest_tage,
          (select array_agg(w.stufe_tage order by w.stufe_tage desc)

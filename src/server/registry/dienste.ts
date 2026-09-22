@@ -961,6 +961,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'objekt', pfad: 'objekt/umfeld', schreibend: false },
   /**
+   * V-010 — den Qualifikationsnachweis aufnehmen, bestaetigen,
+   * widerrufen. Er haengt am MENSCHEN (Invariante 9); das Modul ist
+   * trotzdem `personal`, weil das Recht dort liegt.
+   */
+  {
+    modul: 'personal', pfad: 'nachweis/aufnahme',
+    schreibend: true, schreibRecht: 'personal.nachweis_verwalten',
+  },
+  /**
    * **Der Posteingang der Kraft (0350, EMP-11).** Beide lesend: der Faden wird
    * gelesen, geantwortet wird ueber `kern/nachricht` — den Fachdienst, der
    * ohnehin unter `nachricht.versenden` schreibt. Ein vierter, im Portaldienst
