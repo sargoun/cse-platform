@@ -42,16 +42,19 @@ function dateien(ordner: string): string[] {
 interface Anweisung { readonly datei: string; readonly zeile: number; readonly text: string }
 
 /** Zeichenketten an Datenbankaufrufen — mit `${…}` zu Parametern gemacht. */
-function anweisungen(): Anweisung[] {
+function anweisungen(
+  wurzeln: readonly string[] = [WURZEL],
+  verben: RegExp = /^\s*(select|with|insert|update|delete)\b/iu,
+): Anweisung[] {
   const aus: Anweisung[] = [];
   const muster = /(\.(?:abfrage|schreibe|unsafe)(?:<[^>()]*>)?\(\s*|\bsql(?:<[^>()]*>)?)`((?:[^`\\]|\\.)*)`/gsu;
   const platzhalter = /\$\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/gu;
-  for (const datei of dateien(WURZEL)) {
+  for (const datei of wurzeln.flatMap((w) => dateien(w))) {
     const quelle = readFileSync(datei, 'utf8');
     for (const m of quelle.matchAll(muster)) {
       const tag = (m[1] ?? '').startsWith('sql');
       const roh = m[2] ?? '';
-      if (!/^\s*(select|with|insert|update|delete)\b/iu.test(roh)) continue;
+      if (!verben.test(roh)) continue;
       /*
        * Im `sql`-Tag ist jedes `${…}` ein PARAMETER — daraus werden $1, $2, …
        * In einer gewöhnlichen Zeichenkette ist `${…}` Text, der erst zur
@@ -106,6 +109,49 @@ describe('SQL im Quelltext gegen das Schema', () => {
  * Suche nicht mehr findet), nicht bei jeder gelöschten Abfrage.
  */
 const GEPRUEFT_MINDESTENS = 1900;
+
+/**
+ * **Die zweite Hälfte: darf `cse_app` das überhaupt lesen?**
+ *
+ * Gefunden im selben Durchlauf: `/objekte/[id]/bearbeiten` las
+ * `objekt.zutritt_hinweis` und `objekt.bemerkung` direkt — beide sind `cse_app`
+ * als SPALTE entzogen (0021, K-05), und die Seite endete für jeden Aufruf mit
+ * „permission denied for table objekt". `PREPARE` prüft keine Rechte; ein
+ * `EXPLAIN (GENERIC_PLAN)` unter `set role cse_app` tut es — ohne auszuführen
+ * und ohne Parameterwerte.
+ *
+ * **Nur lesende Anweisungen, und nur dort, wo `cse_app` liest:** Seiten und
+ * Routen, Dienste, der öffentliche Leser, die Agenten. Schreibende Dienste
+ * laufen teils als `cse_job` (Nachtläufe) oder hinter Definer-Funktionen; für
+ * sie wäre `cse_app` die falsche Rolle, und ein Treffer wäre keiner.
+ */
+describe('SQL im Quelltext gegen die Spaltenrechte von cse_app', () => {
+  it('keine lesende Anweisung greift auf eine Spalte zu, die cse_app entzogen ist', async () => {
+    const lesend = anweisungen(
+      ['app', join('server', 'services'), join('server', 'inhalt'), join('server', 'agent')]
+        .map((t) => join(WURZEL, t)),
+      /^\s*(select|with)\b/iu,
+    );
+    const fehler: string[] = [];
+    let geprueft = 0;
+    for (const a of lesend) {
+      try {
+        await sql.begin(async (tx) => {
+          await tx.unsafe('set local role cse_app');
+          await tx.unsafe(`explain (generic_plan) ${a.text}`);
+        });
+        geprueft += 1;
+      } catch (e: unknown) {
+        if ((e as { code?: string }).code === '42501') {
+          fehler.push(`${a.datei}:${String(a.zeile)} — ${(e as Error).message}`);
+        }
+      }
+    }
+    expect(fehler, fehler.join('\n')).toEqual([]);
+    /* Gemessen beim Einführen: rund 1100 lesende Anweisungen liessen sich so prüfen. */
+    expect(geprueft).toBeGreaterThan(1000);
+  });
+});
 
 /**
  * Tabellen, die es in der Testdatenbank mit Absicht NICHT gibt — je mit Grund.

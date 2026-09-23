@@ -96,12 +96,23 @@ export default async function ObjektBearbeiten(
 
   const geladen = await db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
+      /*
+       * `zutritt_hinweis` und `bemerkung` sind `cse_app` als SPALTE entzogen
+       * (0021, K-05): wo der Schluessel liegt, steht nicht in jeder Abfrage.
+       * Hier standen sie direkt im `select`, und die Seite endete fuer jeden
+       * Aufruf mit „permission denied for table objekt" — gefunden vom
+       * Durchlauf durch den Produktionsbau. Gelesen werden sie ueber den
+       * K-05-Leser `app.objekt_notiz_lesen`, der Portal, Bereich und
+       * `objekt.lesen` selbst prueft.
+       */
       const [objekt] = await kontext.abfrage<ObjektZeile>(
-        `select id, objektnummer, bezeichnung, strasse, hausnummer, adresszusatz,
-                plz, ort, land, kunde_id, gebaeudetyp, etagen_anzahl,
-                zutritt_hinweis, bemerkung,
-                (archiviert_am is not null) as archiviert
-           from objekt where id = $1::uuid`,
+        `select o.id, o.objektnummer, o.bezeichnung, o.strasse, o.hausnummer,
+                o.adresszusatz, o.plz, o.ort, o.land, o.kunde_id, o.gebaeudetyp,
+                o.etagen_anzahl, n.zutritt_hinweis, n.bemerkung,
+                (o.archiviert_am is not null) as archiviert
+           from objekt o
+           left join lateral app.objekt_notiz_lesen(o.id) n on true
+          where o.id = $1::uuid`,
         [id],
       );
       const kunden = await kontext.abfrage<KundeAuswahl>(
