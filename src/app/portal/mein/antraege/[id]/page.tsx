@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import {
   findeEigenenAntrag, type EigenerAntrag,
 } from '@/server/services/mitarbeiter/antraege';
+import { artInSprache } from '@/server/services/abwesenheit/antrag';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
 import { Feld, Felder, Gesellschaft } from '../../bausteine';
@@ -56,6 +57,14 @@ export default async function MeinAntrag(
 
   const { basis, daten } = ergebnis;
   const a = daten.antrag;
+  /*
+   * Die Art in der Sprache DIESES Menschen (V-062).
+   *
+   * `antragsart.bezeichnung_i18n` liegt seit `0074` da; hier stand die
+   * deutsche Bezeichnung — „Urlaubsantrag" auf einem Bildschirm, den jemand
+   * auf Arabisch eingestellt hat, weil er kein Deutsch liest.
+   */
+  const artName = artInSprache(a, basis.sprache);
   const t = basis.texte;
 
   /*
@@ -78,7 +87,7 @@ export default async function MeinAntrag(
       </Link>
 
       <div className="mb-s5 flex flex-wrap items-center gap-s3">
-        <h1 className="m-0 text-h1 text-text">{a.art}</h1>
+        <h1 className="m-0 text-h1 text-text">{artName}</h1>
         <StatusPill sprache={basis.sprache} zustand={antragPille(a.status)} />
       </div>
 
@@ -91,7 +100,7 @@ export default async function MeinAntrag(
           <Feld label={t.gesellschaft}>
             <Gesellschaft slug={daten.mandantSlug} name={daten.mandantName} />
           </Feld>
-          <Feld label={t.antragArt}>{a.art}</Feld>
+          <Feld label={t.antragArt}>{artName}</Feld>
           <Feld label={t.von}>
             <span className="cse-zahl">{a.vonDatum ?? '—'}</span>
           </Feld>

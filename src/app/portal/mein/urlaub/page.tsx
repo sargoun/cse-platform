@@ -3,7 +3,8 @@ import { formatiereMenge } from '@/server/services/finanz/menge';
 import { leseUrlaub, type UrlaubAnsicht } from '@/server/services/mitarbeiter/stunden';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../rahmen';
-import { Feld, Felder, Gesellschaft, Leer } from '../bausteine';
+import Link from 'next/link';
+import { Feld, Felder, Gesellschaft, Jahreswechsler, Leer } from '../bausteine';
 
 /**
  * `/portal/mein/urlaub` — Anspruch und verbrauchte Tage, je Beschaeftigung
@@ -63,6 +64,33 @@ export default async function MeinUrlaub({
           <span data-cse="urlaubsjahr" className="cse-zahl">{String(jahr)}</span>
         </p>
       </div>
+
+      {/*
+        * **Zwei Wege, die es hier nicht gab** (V-054).
+        *
+        * Die Seite las `?jahr=` und bot nichts an, das ihn setzt — wer den
+        * Resturlaub des Vorjahres sehen wollte, musste die Adresszeile tippen.
+        * Und sie zeigte den Anspruch, ohne zu sagen, wie man ihn nimmt: der
+        * Urlaubsantrag liegt zwei Ebenen weiter unter „Anträge", also genau
+        * dort, wo niemand sucht, der auf sein Urlaubskonto schaut.
+        */}
+      <Jahreswechsler
+        pfad="/portal/mein/urlaub"
+        jahr={jahr}
+        heute={heute}
+        texte={t}
+        sprache={basis.sprache}
+      />
+
+      <p className="mb-s5">
+        <Link
+          href="/portal/mein/antraege/neu"
+          data-cse="zum-urlaubsantrag"
+          className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s4 text-base text-text hover:bg-surface-2"
+        >
+          {t.antragNeu}
+        </Link>
+      </p>
 
       {daten.length === 0 ? <Leer text={t.keineEintraege} /> : (
         <ul data-cse="urlaubskonten" className="m-0 flex list-none flex-col gap-s4 p-0">

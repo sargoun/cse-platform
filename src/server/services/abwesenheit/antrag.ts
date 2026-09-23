@@ -35,6 +35,15 @@ export interface AntragZeile {
   readonly anstellungId: string;
   readonly personName: string;
   readonly art: string;
+  /**
+   * Dieselbe Bezeichnung in den Sprachen, die `antragsart` führt (V-062).
+   *
+   * Leer, solange niemand übersetzt hat — dann gilt `art`. Die WAHL trifft
+   * die Oberfläche, weil dieselbe Zeile im Arbeiterportal (vier Sprachen,
+   * SPEC §10) und im Genehmigungsposteingang der Verwaltung (zwei) steht,
+   * und die beiden Leser nicht dieselbe Sprache sprechen.
+   */
+  readonly artI18n: Readonly<Record<string, string>>;
   readonly artSchluessel: string;
   readonly status: AntragStatus;
   readonly vonDatum: string | null;
@@ -97,10 +106,31 @@ export class UrlaubskontoFehlt extends Error {
   }
 }
 
+/**
+ * Die eine Zeilenabfrage des Antrags.
+ *
+ * **`art_i18n` wird NICHT hier in einer Sprache ausgewählt** (V-062).
+ * `antragsart.bezeichnung_i18n` liegt seit `0074` da; das Arbeiterportal
+ * spricht vier Sprachen (SPEC §10) und zeigte die deutsche `bezeichnung` —
+ * „Urlaubsantrag" auf einem Bildschirm, den jemand auf Arabisch eingestellt
+ * hat, weil er kein Deutsch liest.
+ *
+ * Ausgewählt wird erst bei der Anzeige: DIESE Abfrage bedient auch den
+ * Genehmigungsposteingang der Verwaltung, und der spricht eine andere Sprache
+ * als die antragstellende Person. Ein `->> $1` hier hiesse eine Sprache je
+ * Abfrage, also entweder zwei Abfragen oder die falsche Sprache auf einer der
+ * beiden Seiten.
+ *
+ * (Kein Backtick in den SQL-Kommentaren darunter: die Anweisung steht in
+ * einem Template-Literal, und ein Backtick darin beendet es.)
+ */
 const ZEILE = `
   select a.id, a.anstellung_id,
          (p.vorname || ' ' || p.nachname)          as person_name,
          art.bezeichnung                           as art,
+         -- Die Uebersetzungen der Art als GANZE Karte, nicht in einer Sprache
+         -- ausgewaehlt (V-062, Erklaerung darueber im Kommentar zu ZEILE).
+         art.bezeichnung_i18n                      as art_i18n,
          art.schluessel                            as art_schluessel,
          a.status::text                            as status,
          to_char(a.von_datum, 'YYYY-MM-DD')        as von_datum,
@@ -120,6 +150,7 @@ const ZEILE = `
 interface RohZeile {
   readonly id: string; readonly anstellung_id: string; readonly person_name: string;
   readonly art: string; readonly art_schluessel: string; readonly status: AntragStatus;
+  readonly art_i18n: Readonly<Record<string, string>> | null;
   readonly von_datum: string | null; readonly bis_datum: string | null;
   readonly nachricht: string | null; readonly eingereicht_am: Date;
   readonly entschieden_am: Date | null; readonly entscheidung_kommentar: string | null;
@@ -131,12 +162,33 @@ interface RohZeile {
   readonly storniert_am: Date | null;
 }
 
+/**
+ * Die Bezeichnung der Antragsart in DIESER Sprache — oder die deutsche
+ * (V-062).
+ *
+ * **Warum ein Rückfall auf Deutsch und keine Lücke.** `bezeichnung_i18n` ist
+ * gepflegt, nicht erzeugt: eine Art, die jemand heute anlegt, hat morgen noch
+ * keine türkische Fassung. Ein leeres Feld wäre schlimmer als ein deutsches
+ * Wort — der Mensch sähe nicht, worum es geht, und könnte auch niemanden
+ * danach fragen.
+ *
+ * Eine Zeichenkette aus Leerzeichen zählt als nicht übersetzt: sie steht in
+ * gepflegten Katalogen häufiger da, als man denkt.
+ */
+export function artInSprache(
+  zeile: Pick<AntragZeile, 'art' | 'artI18n'>, sprache: string,
+): string {
+  const uebersetzt = zeile.artI18n[sprache];
+  return uebersetzt !== undefined && uebersetzt.trim() !== '' ? uebersetzt : zeile.art;
+}
+
 function zeile(z: RohZeile): AntragZeile {
   return {
     id: z.id,
     anstellungId: z.anstellung_id,
     personName: z.person_name,
     art: z.art,
+    artI18n: z.art_i18n ?? {},
     artSchluessel: z.art_schluessel,
     status: z.status,
     vonDatum: z.von_datum,

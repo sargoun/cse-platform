@@ -497,6 +497,12 @@ export interface MeinTexte {
   readonly monatVorher: string;
   readonly monatSpaeter: string;
   readonly monatHeute: string;
+
+  /* ── Der Jahreswechsler auf dem Urlaubskonto (V-054) ────────────────── */
+  readonly jahr: string;
+  readonly jahrVorher: string;
+  readonly jahrSpaeter: string;
+  readonly jahrHeute: string;
   readonly gesperrt: string;
   readonly offen: string;
   readonly vorlaeufig: string;
@@ -585,6 +591,12 @@ export interface MeinTexte {
   readonly abgelaufen: string;
   readonly laeuftAb: string;
   readonly sperrtEinteilung: string;
+
+  /* ── Was nach einem gesperrten Nachweis zu tun ist (V-061) ──────────── */
+  readonly nachweisWasTun: string;
+  readonly nachweisWasTunText: string;
+  readonly nachweisKeinUpload: string;
+  readonly nachweisZuNachrichten: string;
   readonly registerBewacher: string;
   readonly nichtVerbunden: string;
 
@@ -945,6 +957,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     monatVorher: 'Voriger Monat',
     monatSpaeter: 'Nächster Monat',
     monatHeute: 'Aktueller Monat',
+    jahr: 'Jahr',
+    jahrVorher: 'Voriges Jahr',
+    jahrSpaeter: 'Nächstes Jahr',
+    jahrHeute: 'Aktuelles Jahr',
     gesperrt: 'Abgeschlossen',
     offen: 'Offen',
     vorlaeufig: 'Vorläufig',
@@ -1014,6 +1030,15 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelaufen: 'Abgelaufen',
     laeuftAb: 'Läuft ab',
     sperrtEinteilung: 'Ohne diesen Nachweis darf Sie niemand einteilen.',
+    nachweisWasTun: 'Was jetzt zu tun ist',
+    nachweisWasTunText:
+      'Bringen oder senden Sie den neuen Nachweis an das Büro Ihrer Gesellschaft. '
+      + 'Dort wird er eingetragen; danach steht er hier. Bis dahin bleibt die '
+      + 'Einteilung gesperrt.',
+    nachweisKeinUpload:
+      'Hochladen geht hier nicht — das Portal hat keine Ablage für Nachweise, und '
+      + 'ein Feld, das nichts speichert, wäre schlimmer als keines.',
+    nachweisZuNachrichten: 'Zu den Nachrichten',
     registerBewacher: 'Bewacherregister',
     nichtVerbunden: 'nicht verbunden',
     keineEintraege: 'Keine Einträge.',
@@ -1277,6 +1302,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     monatVorher: 'Previous month',
     monatSpaeter: 'Next month',
     monatHeute: 'Current month',
+    jahr: 'Year',
+    jahrVorher: 'Previous year',
+    jahrSpaeter: 'Next year',
+    jahrHeute: 'Current year',
     gesperrt: 'Closed',
     offen: 'Open',
     vorlaeufig: 'Provisional',
@@ -1345,6 +1374,15 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelaufen: 'Expired',
     laeuftAb: 'Expiring',
     sperrtEinteilung: 'Without this certificate nobody may schedule you.',
+    nachweisWasTun: 'What to do now',
+    nachweisWasTunText:
+      'Bring or send the new certificate to the office of your company. It is '
+      + 'entered there; after that it appears here. Until then you cannot be '
+      + 'scheduled.',
+    nachweisKeinUpload:
+      'Uploading is not possible here — the portal has no store for certificates, '
+      + 'and a field that saves nothing would be worse than none.',
+    nachweisZuNachrichten: 'To the messages',
     registerBewacher: 'Guard register',
     nichtVerbunden: 'not connected',
     keineEintraege: 'No entries.',
@@ -1604,6 +1642,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     monatVorher: 'الشهر السابق',
     monatSpaeter: 'الشهر التالي',
     monatHeute: 'الشهر الحالي',
+    jahr: 'السنة',
+    jahrVorher: 'السنة السابقة',
+    jahrSpaeter: 'السنة التالية',
+    jahrHeute: 'السنة الحالية',
     gesperrt: 'مُقفل',
     offen: 'مفتوح',
     vorlaeufig: 'مبدئي',
@@ -1672,6 +1714,14 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelaufen: 'منتهية',
     laeuftAb: 'توشك على الانتهاء',
     sperrtEinteilung: 'بدون هذه الشهادة لا يجوز لأحد جدولتك.',
+    nachweisWasTun: 'ما الذي يجب فعله الآن',
+    nachweisWasTunText:
+      'أحضر الشهادة الجديدة إلى مكتب شركتك أو أرسلها إليه. يتم تسجيلها هناك، وبعد '
+      + 'ذلك تظهر هنا. حتى ذلك الحين يبقى إدراجك في الجدول متوقفاً.',
+    nachweisKeinUpload:
+      'الرفع غير ممكن هنا — لا يوجد في البوابة مكان لحفظ الشهادات، وحقل لا يحفظ '
+      + 'شيئاً أسوأ من عدم وجوده.',
+    nachweisZuNachrichten: 'إلى الرسائل',
     registerBewacher: 'سجل الحراسة',
     nichtVerbunden: 'غير متصل',
     keineEintraege: 'لا توجد إدخالات.',
@@ -1918,6 +1968,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     monatVorher: 'Önceki ay',
     monatSpaeter: 'Sonraki ay',
     monatHeute: 'Bu ay',
+    jahr: 'Yıl',
+    jahrVorher: 'Önceki yıl',
+    jahrSpaeter: 'Sonraki yıl',
+    jahrHeute: 'Bu yıl',
     gesperrt: 'Kapatıldı',
     offen: 'Açık',
     vorlaeufig: 'Geçici',
@@ -1986,6 +2040,14 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelaufen: 'Süresi doldu',
     laeuftAb: 'Süresi doluyor',
     sperrtEinteilung: 'Bu belge olmadan kimse sizi vardiyaya yazamaz.',
+    nachweisWasTun: 'Şimdi ne yapmalı',
+    nachweisWasTunText:
+      'Yeni belgeyi şirketinizin bürosuna getirin veya gönderin. Belge orada '
+      + 'kaydedilir, sonra burada görünür. O zamana kadar vardiyaya yazılamazsınız.',
+    nachweisKeinUpload:
+      'Buradan yükleme yapılamaz — portalda belgeler için bir depo yok ve hiçbir şey '
+      + 'kaydetmeyen bir alan, hiç olmamasından kötüdür.',
+    nachweisZuNachrichten: 'Mesajlara',
     registerBewacher: 'Güvenlik sicili',
     nichtVerbunden: 'bağlı değil',
     keineEintraege: 'Kayıt yok.',

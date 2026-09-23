@@ -4,6 +4,7 @@ import {
   listeEigeneAbwesenheiten, listeEigeneAntraege,
   type EigeneAbwesenheit, type EigenerAntrag,
 } from '@/server/services/mitarbeiter/antraege';
+import { artInSprache } from '@/server/services/abwesenheit/antrag';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../rahmen';
 import { Feld, Felder, Gesellschaft, Leer } from '../bausteine';
@@ -117,7 +118,9 @@ export default async function MeineAntraege() {
                     <StatusPill sprache={basis.sprache} zustand={antragPille(a.antrag.status)} />
                   </div>
                   <Felder>
-                    <Feld label={t.antragArt}>{a.antrag.art}</Feld>
+                    <Feld label={t.antragArt}>
+                      {artInSprache(a.antrag, basis.sprache)}
+                    </Feld>
                     <Feld label={t.von}>
                       <span className="cse-zahl">{a.antrag.vonDatum ?? '—'}</span>
                     </Feld>

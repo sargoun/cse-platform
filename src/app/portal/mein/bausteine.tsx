@@ -535,3 +535,87 @@ export function Monatswechsler({
     </nav>
   );
 }
+
+
+/**
+ * Der Jahreswechsler auf dem Urlaubskonto (V-054, EMP-05, EMP-15).
+ *
+ * **Derselbe Befund wie beim Monatswechsler, ein Jahr grösser.**
+ * `/portal/mein/urlaub` liest `?jahr=` und bot kein Bedienelement, das ihn
+ * setzt: wer den Resturlaub des Vorjahres sehen wollte — die häufigste Frage
+ * überhaupt, weil ein Übertrag im Frühjahr verfällt —, musste die Adresszeile
+ * tippen. Auf einem Telefon ist das keine Mühe, sondern eine verschlossene
+ * Tür.
+ *
+ * **Nicht in die leere Zukunft, aber EIN Jahr weit.** Anders als beim Monat:
+ * ein Urlaubsanspruch für das kommende Jahr wird im Herbst geplant, und die
+ * Zeile dafür steht, sobald jemand sie angelegt hat. Zwei Jahre voraus wären
+ * zwei leere Bildschirme.
+ *
+ * **Beschriftet und übersetzt**, 44 px hoch, Pfeile `aria-hidden` — dieselben
+ * drei Gründe wie beim Monatswechsler, und derselbe Grund, warum beide hier
+ * stehen und nicht je einmal in jeder Seite.
+ */
+export function Jahreswechsler({
+  pfad, jahr, heute, texte, sprache,
+}: {
+  /** Die Adresse OHNE Abfrage, z. B. `/portal/mein/urlaub`. */
+  readonly pfad: string;
+  /** Das gezeigte Jahr. */
+  readonly jahr: number;
+  /** Der heutige Berliner Tag als `JJJJ-MM-TT` — die Grenze nach vorn. */
+  readonly heute: string;
+  readonly texte: MeinTexte;
+  readonly sprache?: string | undefined;
+}) {
+  const jetzt = Number(heute.slice(0, 4));
+  const vorher = jahr - 1;
+  const spaeter = jahr + 1;
+  /* Ein Jahr voraus, nicht mehr: der Anspruch des übernächsten Jahres steht
+   * nirgends, und ein Pfeil in leere Bildschirme ist kein Weg. */
+  const darfVor = spaeter <= jetzt + 1;
+
+  const knopf = 'inline-flex min-h-11 items-center gap-s2 rounded-md border border-line '
+    + 'px-s4 text-sm text-text hover:bg-surface-2';
+  const ziel = (j: number | null): LinkProps<string>['href'] => {
+    const roh = j === null ? pfad : `${pfad}?jahr=${String(j)}`;
+    /* Dieselbe Umtypisierung und dieselbe Begründung wie im Monatswechsler. */
+    return roh as LinkProps<string>['href'];
+  };
+
+  return (
+    <nav aria-label={texte.jahr} data-cse="jahreswechsler"
+         {...(sprache === undefined
+           ? {} : { lang: sprache, dir: sprache === 'ar' ? 'rtl' as const : 'ltr' as const })}
+         className="mb-s5 flex flex-wrap items-center gap-s3">
+      <Link href={ziel(vorher)} data-cse="jahr-zurueck" className={knopf}>
+        <span aria-hidden="true">←</span>
+        {texte.jahrVorher}
+        <span className="cse-zahl text-text-muted">{String(vorher)}</span>
+      </Link>
+
+      {darfVor ? (
+        <Link href={ziel(spaeter)} data-cse="jahr-vor" className={knopf}>
+          <span className="cse-zahl text-text-muted">{String(spaeter)}</span>
+          {texte.jahrSpaeter}
+          <span aria-hidden="true">→</span>
+        </Link>
+      ) : (
+        <span data-cse="jahr-vor-gesperrt" aria-disabled="true"
+              className="inline-flex min-h-11 items-center gap-s2 rounded-md border
+                         border-line px-s4 text-sm text-text-subtle opacity-50">
+          <span className="cse-zahl">{String(spaeter)}</span>
+          {texte.jahrSpaeter}
+          <span aria-hidden="true">→</span>
+        </span>
+      )}
+
+      {jahr !== jetzt && (
+        <Link href={ziel(null)} data-cse="jahr-heute" className={knopf}>
+          {texte.jahrHeute}
+          <span className="cse-zahl text-text-muted">{String(jetzt)}</span>
+        </Link>
+      )}
+    </nav>
+  );
+}

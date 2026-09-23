@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { KpiStat } from '@/components/ui/KpiStat';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
@@ -7,7 +8,7 @@ import {
 } from '@/server/services/mitarbeiter/nachweise';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../rahmen';
-import { Feld, Felder, Leer } from '../bausteine';
+import { Feld, Felder, Gesellschaft, Leer } from '../bausteine';
 
 /**
  * `/portal/mein/nachweise` — eigene Nachweise mit persoenlicher Ablaufwarnung
@@ -54,6 +55,12 @@ export default async function MeineNachweise() {
 
   const { basis, daten } = ergebnis;
   const t = basis.texte;
+  /*
+   * Die Gesellschaften dieses Menschen — das Büro, das den Nachweis einträgt
+   * (V-061, D-09). Zwei Beschäftigungen heissen zwei Büros, und keines von
+   * beiden ist „das" Büro; deshalb stehen beide da, nicht das erste.
+   */
+  const gesellschaften = basis.anstellungen;
   const wortZu: Readonly<Record<Warnlage, string>> = {
     gueltig: t.status,
     laeuft_ab: t.laeuftAb,
@@ -78,6 +85,47 @@ export default async function MeineNachweise() {
             ton="danger"
           />
           <p className="mt-s3 max-w-prose text-base text-text">{t.sperrtEinteilung}</p>
+
+          {/*
+            * **Der nächste Schritt** (V-061).
+            *
+            * Die Seite nannte die Sperre und hörte dort auf: kein Weg, kein
+            * Ansprechpartner, kein Satz darüber, was zu tun ist. Wer liest,
+            * dass ihn niemand mehr einteilen darf, und nichts findet, hält das
+            * Portal für kaputt — oder ruft irgendwo an.
+            *
+            * **Kein „Nachweis hochladen".** Es gibt keine Ablage für Dateien
+            * (O-12/O-13: kein Medienspeicher verbunden), und ein Feld, das
+            * nichts speichert, wäre schlimmer als keines. Der Weg, den es
+            * WIRKLICH gibt, steht da: das Büro der Gesellschaft trägt den
+            * Nachweis ein, und die Antwort kommt in den Posteingang.
+            */}
+          <div
+            data-cse="nachweis-was-tun"
+            className="mt-s4 rounded-lg border border-line bg-surface p-s4"
+          >
+            <h2 className="m-0 text-h3 text-text">{t.nachweisWasTun}</h2>
+            <p className="mt-s2 m-0 max-w-prose text-base text-text">
+              {t.nachweisWasTunText}
+            </p>
+            {gesellschaften.length === 0 ? null : (
+              <p className="mt-s2 m-0 flex flex-wrap gap-s2 text-base text-text">
+                {gesellschaften.map((a) => (
+                  <Gesellschaft key={a.mandantId} slug={a.mandantSlug} name={a.mandantName} />
+                ))}
+              </p>
+            )}
+            <p className="mt-s2 m-0 max-w-prose text-sm text-text-muted">
+              {t.nachweisKeinUpload}
+            </p>
+            <Link
+              href="/portal/mein/nachrichten"
+              data-cse="zu-nachrichten"
+              className="mt-s3 inline-flex min-h-11 items-center rounded-md border border-line-strong px-s4 text-base text-text"
+            >
+              {t.nachweisZuNachrichten}
+            </Link>
+          </div>
         </section>
       )}
 
