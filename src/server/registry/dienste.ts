@@ -639,6 +639,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'crm', pfad: 'crm/aendern',
     schreibend: true, schreibRecht: 'crm.schreiben',
   },
+  /**
+   * Die Nachricht an einen Kontakt (V-101, CRM-08, D-621) — der erste
+   * Aufrufer von `sendeNachAussen`. `crm.kommunikation_versenden` stand seit
+   * 0008 im Katalog und wurde bis hierher von keiner Route benutzt. Der Dienst
+   * schreibt die benannte Freigabe des Verfassers und — sobald ein Versender
+   * verbunden ist — die Nachricht; ohne Versender schreibt er NICHTS.
+   */
+  {
+    modul: 'crm', pfad: 'crm/nachricht-an-kontakt',
+    schreibend: true, schreibRecht: 'crm.kommunikation_versenden',
+  },
   /*
    * Die Zahlungskonditionen (CRM-01, FIN-15, K-05). Schreibrecht ist
    * `crm.schreiben` — der Dienst verlangt ZUSAETZLICH `crm_entgelt.lesen`,

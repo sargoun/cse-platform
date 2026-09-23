@@ -15055,3 +15055,62 @@ Dienst weniger statt mehr: sie fügt Zeilen hinzu, statt welche zu ändern.
 
 | Betrifft | OPS-08, FIN-07, Invariante 4, Invariante 8, AUT-06, `drizzle/0024`, `drizzle/0392`, `src/server/services/angebot/entwurf.ts`, V-005, V-130, O-900 |
 |---|---|
+
+### D-621 · Eine Nachricht an einen Kontakt geht durch das UWG-Tor und die Freigabe des Verfassers — V-101
+
+**Der Befund** (V-101): `sendeNachAussen` (`services/kern/nachricht.ts`) war
+gebaut und geprüft — Kanal, Zweck, Kontakt, das UWG-Tor in der Datenbank, der
+Pflichthinweis nach § 7 Abs. 3 Nr. 4 UWG —, und keine Route rief es. Das
+Kontaktblatt sagte es selbst: „Es gibt hier keinen Sendeknopf. Der Endpunkt
+`POST /api/crm/nachrichten` ist nicht gebaut." Das Recht dazu,
+`crm.kommunikation_versenden`, stand seit `0008` im Katalog und wurde von
+keiner einzigen Route benutzt.
+
+**Der Mandant hat die Entscheidung übergeben** („والاسئلة المفتوحة جاوب انت
+عنهن بذكاء بدالي"). Offen war nur die Reihenfolge — wer die Freigabe erteilt
+und wann. Die Antwort steht wieder im schon Entschiedenen.
+
+**Die Entscheidung: fünf Schritte, in dieser Reihenfolge, im Dienst
+`services/crm/nachricht-an-kontakt.ts` und nirgends sonst.**
+
+1. **Das UWG-Tor zuerst** (`app.darf_kontaktiert_werden`). Ein Kontakt ohne
+   Rechtsgrundlage für diesen Kanal und diesen Zweck ist ein „nein", das kein
+   Anbieter und keine Freigabe aufhebt (LEG-08). Käme „nicht verbunden"
+   zuerst, hielte man die Werbemail für einen Konfigurationsfehler — und
+   schickte sie ab, sobald der Anbieter da ist.
+2. **Dann der Versender.** Ist keiner verbunden (O-36), wird NICHTS
+   geschrieben — keine Freigabe, keine Nachricht, kein Widerspruchsschlüssel.
+   Eine Zeile „gesendet" ohne Versand wäre eine falsche Behauptung in genau
+   dem Nachweis, den eine Abmahnung liest. Die Seite stellt den Knopf gar
+   nicht erst scharf und sagt „Versand: nicht verbunden (O-36)".
+3. **Dann die benannte Freigabe des Verfassers** (Invariante 7) über
+   `erteileFreigabe`, mit dem Abdruck genau dieses Textes
+   (`policy.nutzlastHash`). Wer danach ein Wort ändert, hat für das, was
+   hinausginge, keine Freigabe mehr.
+4. **Dann `gate()`** — dieselbe eine Entscheidung wie überall.
+5. **Dann `sendeNachAussen`**, das Werbung selbst mit dem Pflichthinweis
+   versieht und den Widerspruchsschlüssel vermerkt (V-092).
+
+Schritte 3–5 laufen in der Transaktion der Anfrage: scheitert der Versand,
+nimmt er die Freigabe mit. Eine Freigabe für eine Nachricht, die es nicht
+gibt, wäre ein Glied in der Kette, das nichts bezeugt.
+
+**Der Verfasser gibt selbst frei — kein Vier-Augen-Zwang, und das ist
+entschieden, nicht vergessen.** `0123` hat die Frage beantwortet: vier Augen
+sind eine Einstellung, kein CHECK; in einem Büro aus zwei Menschen sperrte
+`freigegeben_von <> erstellt_von` jede Aussendung ohne Ausweg.
+`crm.kommunikation_versenden` und `freigabe.entscheiden` sind im Katalog an
+dieselben drei Rollen gebunden (super_admin, admin, leitung): wer schreiben
+darf, darf benannt freigeben. Eine Nachricht, die ein AGENT entwirft, bleibt
+davon unberührt — sie wartet wie bisher im Freigabe-Posteingang auf einen
+Menschen.
+
+**Formularweg** (D-562): Rücksprung auf das Kontaktblatt mit `?fehler=` oder
+`?gesendet=1` und dem Anker `#senden`. Eine JSON-Antwort wäre eine weisse
+Seite, und der geschriebene Text wäre weg.
+
+**Was damit NICHT entschieden ist:** welcher Versender (O-36, O-603). Bis zur
+Antwort bleibt der Knopf stumm, und kein Weg täuscht einen Versand vor.
+
+| Betrifft | CRM-08, LEG-08, Invariante 7, O-36, D-562, `drizzle/0008`, `drizzle/0123`, `src/server/services/crm/nachricht-an-kontakt.ts`, `src/app/api/crm/nachrichten/route.ts`, V-092, V-101 |
+|---|---|

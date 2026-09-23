@@ -500,6 +500,20 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'crm.schreiben',
   },
   {
+    /**
+     * Die Nachricht an einen Kontakt (V-101, CRM-08, D-621).
+     *
+     * Das Kontaktblatt nannte diesen Endpunkt seit je als „nicht gebaut".
+     * `crm.kommunikation_versenden` statt `crm.schreiben`: hier soll etwas das
+     * Haus VERLASSEN (Invariante 7), und das Recht dazu ist ein anderes als
+     * das, einen Kontakt zu pflegen. Im Katalog an super_admin, admin und
+     * leitung gebunden — dieselben drei, die `freigabe.entscheiden` halten,
+     * sodass wer schreibt auch benannt freigeben kann.
+     */
+    pfad: 'api/crm/nachrichten',
+    recht: 'crm.kommunikation_versenden',
+  },
+  {
     /*
      * OPS-01/V-001/V-020. Anlegen ODER aendern ODER archivieren — welches,
      * entscheidet das Feld `aktion`. Eine Route fuer alle drei, weil alle drei

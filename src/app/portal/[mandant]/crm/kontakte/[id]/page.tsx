@@ -23,6 +23,7 @@ import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import { Recht } from '@/components/ui/Recht';
+import { kanalVerbunden } from '@/server/services/crm/nachricht-an-kontakt';
 
 /**
  * `/portal/[mandant]/crm/kontakte/[id]` — das Blatt eines Ansprechpartners
@@ -74,6 +75,26 @@ const GRUNDLAGE_TEXT: Readonly<Record<string, string>> = {
   keine: 'keine',
 };
 
+/**
+ * Die Rückmeldungen von `POST /api/crm/nachrichten` (V-101, D-562).
+ *
+ * Jede nennt, was NICHT geschehen ist — bei einer Aussendung ist das die
+ * Auskunft, die zählt. „Nicht gesendet" allein liesse offen, ob etwas halb
+ * geschrieben liegt.
+ */
+const SENDE_FEHLER: Readonly<Record<string, string>> = {
+  keine_grundlage: 'Für diesen Kanal und diesen Zweck ist keine Rechtsgrundlage '
+    + 'aufgezeichnet (§ 7 UWG). Das ist ein hartes Tor — auch eine Freigabe hebt es '
+    + 'nicht auf. Es wurde nichts geschrieben.',
+  nicht_verbunden: 'Für diesen Kanal ist kein Versender verbunden (O-36). Es wurde '
+    + 'nichts geschrieben und nichts gesendet.',
+  kein_text: 'Eine Nachricht ohne Text ist keine.',
+  kein_kontakt: 'Diesen Kontakt gibt es hier nicht.',
+  freigabe: 'Die Freigabe passte nicht zu dem, was hinausgehen sollte. Es wurde '
+    + 'nichts gesendet.',
+  ungueltig: 'Kanal oder Zweck fehlt.',
+};
+
 const KANAL_TEXT: Readonly<Record<string, string>> = {
   email: 'E-Mail', telefon: 'Telefon', sms: 'SMS', post: 'Post', whatsapp: 'WhatsApp',
 };
@@ -110,7 +131,9 @@ interface VerlaufZeile {
 export default async function Kontaktblatt(
   { params, searchParams }: {
     params: Promise<{ mandant: string; id: string }>;
-    searchParams: Promise<{ meldung?: string; erfolg?: string }>;
+    searchParams: Promise<{
+      meldung?: string; erfolg?: string; fehler?: string; gesendet?: string;
+    }>;
   },
 ) {
   const { mandant, id } = await params;
@@ -134,7 +157,9 @@ export default async function Kontaktblatt(
    */
   const darf = await haeltRechte(sitzung,
     'crm.rechtsgrundlage_setzen', 'crm.rechtsgrundlage_lesen', 'system.benutzer_lesen',
-    'crm.schreiben', 'aufgabe.schreiben', 'kalender.schreiben', 'dokument.lesen');
+    'crm.schreiben', 'aufgabe.schreiben', 'kalender.schreiben', 'dokument.lesen',
+    /* V-101: das Recht des Sendewegs — seit 0008 im Katalog, bis hierher ungenutzt. */
+    'crm.kommunikation_versenden');
 
   const darfNamen = darf['system.benutzer_lesen'] === true;
 
@@ -535,14 +560,93 @@ export default async function Kontaktblatt(
             }]),
           ]}
         />
-        <p className="mt-s3 max-w-prose text-xs text-text-muted">
-          <strong>Es gibt hier keinen Sendeknopf.</strong> Der Endpunkt für eine
-          Ausgangsnachricht (<code className="text-text">POST /api/crm/nachrichten</code>,
-          CRM-08) ist nicht gebaut. Ein Knopf, der nichts tut, verspricht einen Weg,
-          den es nicht gibt. Und nichts verlässt das System ohne menschliche Freigabe
-          durch <code className="text-text">server/agent/policy.ts</code>.
-        </p>
       </section>
+
+      {/*
+        * **Eine Nachricht an diesen Kontakt** (V-101, CRM-08, D-621).
+        *
+        * Hier stand: „Es gibt hier keinen Sendeknopf. Der Endpunkt … ist nicht
+        * gebaut." Jetzt ist er gebaut — und die Seite sagt VORHER, ob etwas
+        * hinausgehen kann, statt es nach dem Klick zu melden. Ohne verbundenen
+        * Versender (O-36) ist der Knopf nicht scharf und der Grund steht
+        * daneben: ein Knopf, der nichts tut, verspräche einen Weg, den es noch
+        * nicht gibt.
+        *
+        * Wer auf „Senden" drückt, gibt die Nachricht BENANNT frei — die
+        * Freigabe trägt den Abdruck genau dieses Textes (Invariante 7). Werbung
+        * bekommt den Pflichthinweis nach § 7 Abs. 3 Nr. 4 UWG vom Dienst
+        * angehängt; niemand muss daran denken.
+        */}
+      {darf['crm.kommunikation_versenden'] === true && (
+        <section aria-labelledby="senden" className="mb-s7" id="senden">
+          <h2 id="senden-titel" className="text-h2 text-text">Nachricht senden</h2>
+          {typeof suche.fehler === 'string' && suche.fehler !== '' ? (
+            <Hinweis art="warnung" cse="senden-fehler" className="mt-s3 max-w-prose">
+              {SENDE_FEHLER[suche.fehler] ?? 'Die Nachricht wurde nicht gesendet.'}
+            </Hinweis>
+          ) : null}
+          {suche.gesendet === '1' ? (
+            <Hinweis art="erfolg" cse="senden-ok" className="mt-s3 max-w-prose">
+              Gesendet — mit Ihrer Freigabe in der Kette.
+            </Hinweis>
+          ) : null}
+          {!kanalVerbunden('email') && !kanalVerbunden('sms') ? (
+            <Hinweis art="hinweis" cse="senden-nicht-verbunden" className="mt-s3 max-w-prose">
+              <strong>Versand: nicht verbunden.</strong> Es ist weder ein E-Mail- noch ein
+              SMS-Anbieter hinterlegt (O-36). Die Nachricht lässt sich schreiben, aber
+              nicht absenden — hinausgehen wird erst etwas, wenn ein Anbieter mit
+              Auftragsverarbeitungsvertrag in der EU eingerichtet ist. Bis dahin wird
+              nichts geschrieben, was wie ein Versand aussähe.
+            </Hinweis>
+          ) : null}
+          <form method="post" action="/api/crm/nachrichten" data-cse="senden-formular"
+                className="mt-s4 flex max-w-prose flex-col gap-s3">
+            <input type="hidden" name="ansprechpartner" value={id} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <div className="grid gap-s3 sm:grid-cols-2">
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                Kanal
+                <select name="kanal" defaultValue="email" className={FELD}>
+                  <option value="email">
+                    E-Mail{kanalVerbunden('email') ? '' : ' (nicht verbunden)'}
+                  </option>
+                  <option value="sms">
+                    SMS{kanalVerbunden('sms') ? '' : ' (nicht verbunden)'}
+                  </option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                Zweck
+                <select name="zweck" defaultValue="vertraglich" className={FELD}>
+                  <option value="vertraglich">vertraglich</option>
+                  <option value="transaktional">transaktional</option>
+                  <option value="werbung">Werbung (nur mit Rechtsgrundlage)</option>
+                </select>
+              </label>
+            </div>
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              Betreff
+              <input name="betreff" className={FELD} />
+            </label>
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              Text
+              <textarea name="text" rows={6} required className={FELD} />
+            </label>
+            <p className="m-0 text-xs text-text-muted">
+              Mit dem Absenden geben Sie die Nachricht benannt frei; der Abdruck genau
+              dieses Textes steht danach in der Freigabekette. Bei Werbung hängt die
+              Plattform den Hinweis auf das Widerspruchsrecht selbst an (§ 7 Abs. 3
+              Nr. 4 UWG).
+            </p>
+            <div>
+              <button type="submit" className={knopf} data-cse="senden-knopf"
+                      disabled={!kanalVerbunden('email') && !kanalVerbunden('sms')}>
+                Senden
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
 
       <section aria-labelledby="verlauf">
         <h2 id="verlauf" className="text-h2 text-text">Verlauf</h2>
