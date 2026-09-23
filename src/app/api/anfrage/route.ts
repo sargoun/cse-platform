@@ -17,7 +17,7 @@ import { pruefeUpload } from '@/server/storage/mime';
 import { ladeHoch } from '@/server/services/dokument/upload';
 import { NichtVerbundenFehler } from '@/server/storage/adapter';
 import { waehleSpeicher } from '@/server/storage/waehle';
-import { API_TEXTE } from '@/lib/i18n/texte';
+import { API_TEXTE, formularSammelmeldung } from '@/lib/i18n/texte';
 import { uebersetzeFeldmeldungen } from '@/lib/i18n/formular-en';
 import { mitSprache, SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
@@ -137,11 +137,31 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
     return antworteFehler(404, t.keinFormular);
   }
 
-  // 1 — Honigtopf. VOR jeder Datenbankberührung: ein Bot soll nicht einmal
-  // eine Abfrage kosten.
+  /*
+   * 1 — Honigtopf. VOR jeder Datenbankberührung: ein Bot soll nicht einmal
+   * eine Abfrage kosten. Die Antwort ist dieselbe wie bei Erfolg — wer
+   * erfährt, dass er erkannt wurde, probiert das nächste Feld.
+   *
+   * **„Dieselbe" heisst: dieselbe FORM (V-157).** Hier stand nur das JSON —
+   * auch für ein Formular mit `antwort=seite`, bei dem der Erfolg per 303 auf
+   * die Dankseite führt. Ein Mensch, dessen Passwortverwalter das versteckte
+   * Feld füllte (der falsch positive Fall, den `annahme.ts` ausdrücklich
+   * nennt), sah eine weisse Seite mit `{"ok":true,…}` statt der zugesagten
+   * Dankseite; und ein Bot erkannte am ANDEREN Antworttyp, dass er erkannt
+   * war — genau das, was dieser Zweig verhindern soll.
+   *
+   * Die Dankseite bekommt KEINE Vorgangsnummer: es gibt keinen Vorgang, und
+   * eine erfundene Nummer wäre eine, auf die sich ein Mensch am Telefon
+   * beruft und die niemand findet. Die Seite kennt diesen Fall schon — sie
+   * zeigt den Nummernblock nur, wenn eine Nummer da ist. Ob ein solcher
+   * Treffer aufbewahrt werden soll, bleibt O-905.
+   */
   if (istBot(formData.get('website') as string | null ?? undefined)) {
-    // Dieselbe Antwort wie bei Erfolg. Wer erfährt, dass er erkannt wurde,
-    // probiert das nächste Feld.
+    if (alsSeite) {
+      return NextResponse.redirect(new URL(
+        mitSprache(`/angebot/${bereich}/danke`, sprache), anfrage.url,
+      ), 303);
+    }
     return NextResponse.json({ ok: true, meldung: t.dank });
   }
 
@@ -412,7 +432,9 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
       leadnummer: ergebnis.leadnummer,
     });
   } catch (fehler) {
-    if (fehler instanceof RatenlimitFehler) return antworteFehler(429, fehler.message);
+    // Der Satz kommt aus `API_TEXTE` und nicht aus dem Dienst: der Dienst
+    // spricht deutsch, auch zu `/en/angebot/<bereich>` (V-157).
+    if (fehler instanceof RatenlimitFehler) return antworteFehler(429, t.zuVieleAnfragen);
     // Kein simulierter Erfolg: der Speicher ist nicht verbunden, und das steht
     // in der Antwort statt in einem Logfile.
     if (fehler instanceof NichtVerbundenFehler) {
@@ -430,7 +452,13 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
       const felder = sprache === 'de'
         ? fehler.felder
         : uebersetzeFeldmeldungen(schluessel, fehler.felder);
-      return antworteFehler(400, fehler.message, felder);
+      /*
+       * Und der Sammelsatz darüber ebenso (V-157). Die Feldmeldungen wurden
+       * seit D-83 übersetzt, der Satz im `role="alert"` nicht — auf der
+       * englischen Seite stand „Bitte prüfen Sie die markierten Felder." über
+       * englischen Feldern.
+       */
+      return antworteFehler(400, formularSammelmeldung(sprache, fehler), felder);
     }
     return antworteFehler(500, t.nichtGespeichert);
   }

@@ -5,8 +5,8 @@
  * **Sie ist ein BELEG, keine Veroeffentlichung.** PRO-05 trennt zwei
  * Handlungen, und die Trennung ist der ganze Punkt: hier wird festgehalten,
  * dass der Kunde schriftlich zugestimmt hat; die oeffentliche `referenz`-Zeile
- * legt danach ein Mensch unter `/website/referenzen` an und kopiert dabei nur,
- * was freigegeben ist. Eine automatische Uebernahme waere eine
+ * legt danach ein Mensch unter `/website/referenzen/neu` an (V-154 — der Weg
+ * fehlte bis dahin) und kopiert dabei nur, was freigegeben ist. Eine automatische Uebernahme waere eine
  * Veroeffentlichung, die niemand entschieden hat (Invariante 7).
  *
  * **Drei Angaben sind PFLICHT, sobald die Freigabe gilt** — nicht aus
@@ -47,6 +47,16 @@ export interface Freigabestand {
   readonly objekt: string | null;
   readonly freigegeben: boolean;
   readonly freigabe_am: string | null;
+  /**
+   * Derselbe Zeitpunkt als Berliner KALENDERTAG `YYYY-MM-DD` (V-154) — die
+   * Form, die ein `<input type="date">` als Vorgabe braucht.
+   *
+   * Die Referenz, die aus diesem Auftrag angelegt wird, schlägt ihn als Datum
+   * ihrer eigenen Kundenfreigabe vor. Aus `freigabe_am` (`DD.MM.YYYY HH24:MI`)
+   * zurückgeschnitten wäre er eine zweite Umrechnung derselben Uhrzeit — und
+   * die zweite ist die, die um Mitternacht einen Tag daneben liegt.
+   */
+  readonly freigabe_tag: string | null;
   readonly freigabe_text: string | null;
   readonly freigabe_dokument_id: string | null;
   readonly freigabe_dokument: string | null;
@@ -77,6 +87,22 @@ export interface Freigabestand {
 }
 
 /**
+ * Gilt die Freigabe HEUTE — erteilt UND nicht widerrufen?
+ *
+ * `freigegeben_vom_kunden` allein sagt das nicht: nach einem Widerruf bleibt
+ * es auf `true` stehen (der CHECK verlangt es, solange die drei
+ * Pflichtangaben da sind). Die Seite am Auftrag rechnet das seit je so; mit
+ * der Referenzanlage aus dem Auftrag (V-154) fragen es zwei weitere Seiten,
+ * und eine davon hätte sonst eine widerrufene Freigabe als Vorschlag in eine
+ * neue Referenz getragen.
+ */
+export function freigabeGilt(
+  stand: Pick<Freigabestand, 'freigegeben' | 'widerrufen_am'>,
+): boolean {
+  return stand.freigegeben && stand.widerrufen_am === null;
+}
+
+/**
  * Der Name eines Ansprechpartners — aus den Spalten, die es gibt.
  *
  * `ansprechpartner` traegt `anrede`, `titel`, `vorname`, `nachname` und
@@ -95,6 +121,8 @@ export async function ladeFreigabestand(
             a.freigegeben_vom_kunden as freigegeben,
             to_char(a.freigabe_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
               as freigabe_am,
+            to_char(a.freigabe_am at time zone 'Europe/Berlin', 'YYYY-MM-DD')
+              as freigabe_tag,
             a.freigabe_text, a.freigabe_dokument_id,
             d.titel as freigabe_dokument,
             a.freigabe_durch_ansprechpartner_id as ansprechpartner_id,

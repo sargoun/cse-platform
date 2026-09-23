@@ -3,6 +3,7 @@ import { shellTexte } from '@/lib/i18n/texte';
 import { GesellschaftsWahl } from './GesellschaftsWahl';
 import { Logo, Marke } from '@/components/marke/Marke';
 import { EIGENNAME, SPRACHEN, gibtEsIn, mitSprache, type Sprache } from '@/lib/sprache';
+import { gruppenVerweise } from '@/lib/oeffentliche-navigation';
 import { berlinKalendertag } from '@/server/services/zeit/dauer';
 import type { OeffentlicheMarke } from '@/server/services/mandant/markenbild';
 
@@ -92,6 +93,17 @@ export function OeffentlicheShell(
   OeffentlicheShellProps,
 ) {
   const t = shellTexte(sprache);
+  /*
+   * **Über uns, Aktuelles, Karriere** (V-155, D-649). Gebaut, befüllt, in der
+   * Sitemap — und von keiner Seite aus verlinkt. Die Kopfzeile bleibt bei
+   * vier Punkten (DESIGN §5, D-417); die drei stehen im Telefonmenü nach den
+   * vier und im Fuss als eigenes `nav` über dem Rechtlichen. `/karriere` gibt
+   * es nur deutsch: von
+   * einer englischen Seite führt der Verweis dorthin und sagt es
+   * (`verweisIn`), statt auf `/en/karriere` ins 404 zu zeigen.
+   */
+  const gruppe = gruppenVerweise(sprache);
+  const istOffen = (ziel: string): boolean => pfad === ziel || pfad.startsWith(`${ziel}/`);
   /*
    * **Das Jahr in BERLINER Zeit, nicht in der des Servers** (Invariante 2).
    *
@@ -277,6 +289,28 @@ export function OeffentlicheShell(
                     className="flex min-h-11 items-center py-s3 text-base text-text"
                   >
                     {t.navigation[schluessel]}
+                  </a>
+                </li>
+              ))}
+              {/*
+                * Die drei Seiten der Gruppe (V-155) — nach den vier, in
+                * derselben Form. Sie gehören zu den Seiten, nicht zur
+                * Handlung, und stehen deshalb VOR „Angebot anfragen".
+                */}
+              {gruppe.map((v) => (
+                <li key={v.schluessel} className="border-b border-line">
+                  <a
+                    href={v.href}
+                    hrefLang={v.sprache === sprache ? undefined : v.sprache}
+                    aria-current={istOffen(v.pfad) ? 'page' : undefined}
+                    data-cse="menue-gruppe"
+                    data-ziel={v.pfad}
+                    className="flex min-h-11 items-center gap-s2 py-s3 text-base text-text"
+                  >
+                    {t.gruppe[v.schluessel]}
+                    {v.sprache !== sprache && (
+                      <span className="text-sm text-text-muted">{t.aufDeutsch}</span>
+                    )}
                   </a>
                 </li>
               ))}
@@ -489,7 +523,8 @@ export function OeffentlicheShell(
         <div className="mx-auto max-w-content px-s5 py-s7">
           {/*
             * Drei Spalten ab `md`: die Marke mit ihrem Satz, die vier
-            * Gesellschaften mit ihren Anschriften, das Rechtliche. Darunter
+            * Gesellschaften mit ihren Anschriften, die Gruppe (Über uns,
+            * Aktuelles, Karriere — V-155) über dem Rechtlichen. Darunter
             * die Zeile mit Jahr und Hinweis. Vorher standen vier Anschriften
             * als lose Zeilen am linken Rand — kein Bild, keine Ordnung.
             *
@@ -535,7 +570,40 @@ export function OeffentlicheShell(
             </div>
 
             <div className="min-w-0">
+              {/*
+                * **Die Gruppe** (V-155, D-649, DESIGN §5 Navigation). Dieselbe
+                * Spalte wie das Rechtliche und kein vierter Rasterplatz: die
+                * drei Verweise sind kurz, und eine vierte Spalte hätte die
+                * Anschriften daneben ab `md` in eine Breite gedrückt, in der
+                * jede NAP-Zeile umbricht. Eigene Beschriftung, eigenes `nav` —
+                * zwei gleich benannte Landmarken wären für einen Screenreader
+                * nicht zu unterscheiden.
+                */}
               <h2 className="mb-s3 text-micro uppercase tracking-[0.08em] text-text-subtle">
+                {t.gruppeNav}
+              </h2>
+              <nav aria-label={t.gruppeNav}>
+                <ul className="m-0 flex list-none flex-col gap-s1 p-0">
+                  {gruppe.map((v) => (
+                    <li key={v.schluessel}>
+                      <a
+                        href={v.href}
+                        hrefLang={v.sprache === sprache ? undefined : v.sprache}
+                        aria-current={istOffen(v.pfad) ? 'page' : undefined}
+                        data-cse="fuss-gruppe"
+                        data-ziel={v.pfad}
+                        className="flex min-h-11 items-center gap-s2 text-sm text-text-muted transition-colors duration-fast ease-brand hover:text-text"
+                      >
+                        {t.gruppe[v.schluessel]}
+                        {v.sprache !== sprache && (
+                          <span className="text-xs text-text-subtle">{t.aufDeutsch}</span>
+                        )}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+              <h2 className="mb-s3 mt-s4 text-micro uppercase tracking-[0.08em] text-text-subtle">
                 {t.rechtlichesNav}
               </h2>
               <nav aria-label={t.rechtlichesNav}>

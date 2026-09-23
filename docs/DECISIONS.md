@@ -3338,6 +3338,7 @@ Beantworten helfen:
 | O-895 | **Darf ein Mensch seine eigene Abwesenheit noch zurücknehmen, wenn ihre Tage bereits in einen Lohnexport oder einen abgeschlossenen Stundenkonto-Monat geflossen sind?** `abwesenheit` trägt keine Spalte, die das sagt — weder ein `exportiert_am` noch einen Bezug auf den Lauf. Ausgeliefert ist deshalb, was die Zustandsmaschine seit `0073` sagt und was `antrag.t_selbst_zurueckziehen` (0301) für den Antrag schon entschieden hat: **unentschieden heisst rücknehmbar** — `t_selbst_zurueckziehen` auf `abwesenheit` (0386) lässt `erfasst` und `beantragt` heran, `genehmigt` nicht. Der wahrscheinliche Konfliktfall ist die Krankmeldung: sie steht dauerhaft auf `erfasst` (sie wird nicht genehmigt, sondern zur Kenntnis genommen), und ihre Tage buchen über `abwesenheit_urlaubskonto` und die Sollzeitgutschrift weiter. Eine Rücknahme nach dem Lohnlauf dreht damit eine Zahl zurück, die ein Mensch schon in der Hand hatte — dieselbe Frage wie bei O-861 für die Zeitfreigabe, und dieselbe Antwort ist keine Selbstverständlichkeit. Zwei Wege sind denkbar: (a) eine Sperrspalte auf `abwesenheit`, die der Lohnexport setzt und die die Policy mitliest; (b) die Rücknahme bleibt offen und die Korrektur läuft über die Personalstelle, die den Export kennt. **Erfunden wird keiner von beiden.** | EMP-10, EMP-04, O-861, Invariante 8, `drizzle/0073`, `drizzle/0386`, `services/abwesenheit/index.ts` |
 | O-894 | **Darf eine Rechnung, ein Buchungsbeleg, ein Vertrag oder eine Buchhaltungsunterlage nach Ablauf der zehn Jahre gelöscht werden — oder bleibt die Aufbewahrung dauerhaft?** Die vier GoBD-Klassen tragen in `dokument_aufbewahrung` eine ENTSCHIEDENE Frist (10 Jahre, § 147 AO, § 14b UStG, § 257 HGB) **und in derselben Zeile `loeschsperre = true`** (0009:275). `kern.setze_aufbewahrung` schreibt die Sperre beim Anlegen fest, und lösen lässt sie sich nie (D-49). Eine Rechnung ist damit nicht zehn Jahre unlöschbar, sondern **dauerhaft** — während `08-PR-PLAN.md` PR 64 als Zusage „for the full ten years" führt und Art. 5 Abs. 1 lit. e DSGVO eine Obergrenze verlangt, nicht nur eine Untergrenze. Drei Antworten sind denkbar: (a) die Sperre läuft mit der Frist ab, und der Aufbewahrungslauf nimmt die vier Klassen mit; (b) sie bleibt, und das Konzept sagt „dauerhaft" statt „zehn Jahre"; (c) sie bleibt, aber ein Mensch kann je Dokument einzeln freigeben, mit Grund und Protokoll. **Die Plattform erfindet keine davon**: der Lauf `dokument_aufbewahrung` (V-116) erreicht heute nur `angebot` und `kunde` — die beiden Klassen ohne Sperre —, und das Löschkonzept nennt genau diese zwei, statt eine Reichweite zu behaupten, die die Tabelle nicht hergibt. | DOC-07, LEG-01, V-116, D-49, `drizzle/0009`, `drizzle/0141`, `drizzle/0382`, `src/server/jobs/dokumentAufbewahrung.ts` |
 | O-906 | **Gilt für Rechnungen und Buchungsbelege seit dem 1. Januar 2025 die Aufbewahrungsfrist von ACHT statt zehn Jahren?** Das Vierte Bürokratieentlastungsgesetz (BEG IV) hat die Frist für Buchungsbelege in § 147 Abs. 3 AO, § 257 Abs. 4 HGB und § 14b Abs. 1 UStG auf acht Jahre verkürzt; Bücher, Inventare, Jahresabschlüsse und Lageberichte bleiben bei zehn. Die Plattform führt in `dokument_aufbewahrung` für `rechnung` und `beleg` weiter **zehn** Jahre und zeigt das auf der Ablageseite als „§ 147 AO, § 14b UStG — 10 Jahre“. **Nicht geändert, mit Absicht:** eine zu LANGE Frist kostet nichts, was sich nicht nachholen liesse — eine zu KURZE ist ein Beleg, der fehlt, wenn die Betriebsprüfung kommt, und gelöscht ist gelöscht. Und die Übergangsregel (für welche Belege die kürzere Frist schon gilt) ist eine Frage an den Steuerberater, keine Zahl, die die Plattform setzt. Hängt mit O-894 zusammen: solange die Sperre dauerhaft ist, ändert die kürzere Frist heute nichts am Löschen — sie ändert die Aussage auf dem Bildschirm und im Löschkonzept. | DOC-07, LEG-01, O-894, V-116, `drizzle/0009`, `src/app/portal/[mandant]/dokumente/upload/page.tsx` |
+| O-913 | **Deckt die Kundenfreigabe am Auftrag die öffentliche Referenz — oder braucht die Referenz eine eigene Zustimmung des Kunden zu Titel, Beschreibung und Bild?** PRO-05 trennt den Beleg (am Auftrag: Ansprechpartner, Schreiben, Wortlaut) von der Veröffentlichung (die `referenz`-Zeile mit eigener Freigabe, Datum und Beleg). Seit V-154 lässt sich eine Referenz aus einem Auftrag mit GELTENDER Freigabe anlegen: übernommen werden Titel und Kundenname, und das Blatt der neuen Referenz SCHLÄGT Datum und Beleg der Auftragsfreigabe vor — der Haken „Der Kunde hat schriftlich zugestimmt" bleibt leer, gespeichert wird durch einen Menschen. Offen ist die Rechtsfrage dahinter: erlaubt ein Satz wie „Sie dürfen uns als Referenz nennen" auch die Beschreibung, das Bild und die Namensform, die die Redaktion wählt, oder muss der Kunde die Referenz in ihrer veröffentlichten Fassung gesehen haben? Und gilt eine am Auftrag erteilte Freigabe für mehrere Referenzen aus demselben Auftrag? **Ausgeliefert ist die vorsichtige Lesart:** keine automatische Übernahme, kein vorgesetzter Haken; die Referenz bleibt Entwurf, bis ein Mensch ihre eigene Freigabe einträgt, und veröffentlicht wird mit eigenem Recht. Wer die Übernahme automatisieren will, braucht dafür eine anwaltliche Aussage — nicht eine Zeile Code. Hängt mit O-735 (Widerruf) zusammen. | PRO-05, O-735, V-154, D-648, `services/inhalt/redaktion.ts` (`legeReferenzAn`), `src/app/portal/[mandant]/website/referenzen/{neu,[id]}/page.tsx` |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
 | O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
@@ -15544,4 +15545,196 @@ weitergetragen wird (REQ-07, zweiter Halbsatz). Das hängt an der Kette
 Lead → Angebot → Auftrag, die eigens behoben wird.
 
 | Betrifft | REQ-01…07, CRM-02, CRM-03, D-61, D-83, D-599, V-137, `drizzle/0396`, `src/server/services/lead/{annahme,einsendung,eskalation,sla}.ts`, `src/lib/formular/herkunft.ts`, `src/app/api/{anfrage,lead,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx` |
+|---|---|
+
+### D-648 · Eine Referenz lässt sich anlegen — als Entwurf, ohne Freigabe, frei oder aus einem Auftrag (V-154)
+
+**Der Befund** (V-154; PRO-05, PRO-02): kein Dienst und keine Route schrieb
+ein `insert into referenz` — nur der Seed. Die Kundenfreigabe am Auftrag und
+ihr Hinweistext versprachen „die öffentliche Referenz legt danach ein Mensch
+unter `/website/referenzen` an", und dort gab es Bearbeiten, Kundenfreigabe
+und Veröffentlichen einer BESTEHENDEN Zeile; der Leerzustand der Liste hatte
+keinen Knopf. Eine echte Gesellschaft brachte damit kein einziges Projekt auf
+ihr Profil, auf `/projekte` oder in die Sitemap.
+
+**Die Entscheidung.**
+
+1. **`legeReferenzAn` in `services/inhalt/redaktion.ts`** legt einen ENTWURF
+   an: `status = 'entwurf'`, `freigegeben_vom_kunden = false`, Mandant aus
+   der Sitzung (`app.aktiver_mandant()`, Invariante 3). Veröffentlichen und
+   Kundenfreigabe bleiben eigene Handlungen mit eigenem Beleg und eigenem
+   Recht — eine Anlage, die beides mitbrächte, wäre ein Kundenname auf der
+   Website, über den niemand einzeln entschieden hat.
+2. **Dasselbe Recht wie beim Ändern.** Die Route trägt `referenz.schreiben`;
+   `t_referenz_pflege` verlangt für das `insert` ebenso
+   `referenz.kundenfreigabe_erfassen`, und der Dienst prüft es vorher, damit
+   ein Mensch einen Satz liest und keinen 500. Keine Migration: Grant und
+   Policy für `insert` bestehen seit 0015, der Slug-Auslöser seit 0170.
+3. **Der Slug** kommt, wenn keiner mitgegeben wird, aus `app.slug_aus_titel`
+   — derselben Funktion wie `trg_referenz_slug` — und wird VOR dem Schreiben
+   auf Eindeutigkeit geprüft, auch gegen gelöschte Zeilen (Invariante 8).
+   Titel, Slug-Form und Jahr prüft `pruefeKopffelder`, dieselbe Stelle wie
+   beim Ändern: zwei abgeschriebene Prüfungen laufen auseinander.
+4. **Die Kennung entsteht im Dienst, nicht über `returning`** — eine Rolle,
+   der ein Override das Lesen entzieht, bekäme sonst nach gelungener Anlage
+   einen Fehler und legte ein zweites Mal an.
+5. **Die Oberfläche.** „Neue Referenz" auf der Liste (auch im Leerzustand)
+   und `/portal/[mandant]/website/referenzen/neu` (Seitenkarte §5.21, jetzt
+   mit `/neu`). Nach dem Anlegen führt die Route auf das Blatt der neuen
+   Zeile (`WebsiteWeiter` in `api/website/gemeinsam.ts`), weil dort der
+   nächste Schritt steht; Fehler kommen als `?fehler=<grund>` auf das
+   Formular zurück, zweisprachig (`verwaltung/website-referenz.ts`).
+6. **Aus dem Auftrag.** Auf der Kundenfreigabe eines Auftrags mit GELTENDER
+   Freigabe (`freigabeGilt`: erteilt und nicht widerrufen) steht „Referenz aus
+   diesem Auftrag anlegen" → `/neu?auftrag=<id>`. Vorbelegt werden Titel und
+   Kundenname, sonst nichts. Das Blatt der neuen Referenz schlägt danach
+   Datum (Berliner Kalendertag, `freigabe_tag`) und Beleg der
+   Auftragsfreigabe VOR; der Haken bleibt leer. Ob die Auftragsfreigabe die
+   Referenz in ihrer veröffentlichten Fassung deckt, ist eine Rechtsfrage:
+   **O-913**. `referenz` bekommt keinen Fremdschlüssel auf `auftrag` — die
+   öffentliche Zeile bleibt eine Neuschöpfung (PRO-05).
+7. **Der letzte Schritt desselben Wegs antwortet mit einer Seite.**
+   `api/website/referenzen` (Veröffentlichen/Zurückziehen) gab bei einer
+   Abweisung `{"fehler": grund}` zurück — erreichbar, wenn die Freigabe in
+   einem zweiten Fenster zurückgenommen wurde. Jetzt geht der Grund auf die
+   Seite zurück (`grundAufsFormular`, D-599), und Liste wie
+   Veröffentlichungsblatt nennen den Satz.
+
+| Betrifft | PRO-02, PRO-05, O-735, O-913, V-154, `src/server/services/inhalt/redaktion.ts`, `src/server/services/auftrag/kundenfreigabe.ts`, `src/app/api/website/{gemeinsam.ts,referenz/route.ts,referenzen/route.ts}`, `src/app/portal/[mandant]/website/referenzen/{page.tsx,neu/page.tsx,[id]/page.tsx,[id]/veroeffentlichen/page.tsx}`, `src/app/portal/[mandant]/auftraege/[id]/kundenfreigabe/page.tsx`, `src/lib/i18n/verwaltung/website-referenz.ts`, `docs/architecture/04-SEITENKARTE.md` |
+|---|---|
+
+### D-649 · Über uns, Aktuelles und Karriere stehen im Fuss und im Telefonmenü — nicht in der Kopfzeile (V-155)
+
+**Der Befund** (V-155; PUB-01, REC-03): `/ueber-uns` und `/news` (auch unter
+`/en`) waren gebaut, befüllt und in der Sitemap, `/karriere` war das
+öffentliche Recruiting-Portal — und keine Seite verlinkte sie. Die Kopfzeile
+führt vier Punkte, das Telefonmenü dieselben vier, der Fuss Gesellschaften
+und Rechtliches. SEITENKARTE §11.4 nannte „Über uns" und „News" in der
+Kopfzeile; DESIGN §5 hatte die Kopfzeile auf vier Punkte gekürzt (D-417),
+ohne einen anderen Ort zu nennen.
+
+**Die Entscheidung.**
+
+1. **Die Kopfzeile bleibt bei vier Punkten.** D-417 hat gemessen, dass mehr
+   Punkte die `lg`-Stufe sprengen; das gilt weiter.
+2. **Drei Verweise der GRUPPE** (`lib/oeffentliche-navigation.ts`): im
+   Telefonmenü direkt nach den vier, vor den Gesellschaften und „Angebot
+   anfragen"; im Fuss als eigenes `nav` „Die Gruppe" über dem Rechtlichen,
+   in derselben Spalte (eine vierte Spalte hätte die Anschriften umbrechen
+   lassen). Beschriftungen in `SHELL_TEXTE` (de/en); „Aktuelles" heisst die
+   Seite auf Deutsch selbst.
+3. **Eine nur deutsche Seite wird von einer englischen aus trotzdem verlinkt**
+   — auf ihre deutsche Adresse, mit `hrefLang="de"` und dem Hinweis „(in
+   German)" (`verweisIn` in `lib/sprache.ts`). Der Sprachumschalter lässt
+   eine fehlende Sprache weg (D-583), weil er „dieselbe Seite in einer
+   anderen Sprache" meint; ein Fussverweis meint „wo sind die Stellen", und
+   die Antwort ist die deutsche Karriereseite. `/en/karriere` wäre ein 404.
+4. **DESIGN §5 und SEITENKARTE §11.4 nennen den Ort jetzt.**
+
+| Betrifft | PUB-01, REC-03, D-417, D-583, O-512, V-155, `src/components/oeffentlich/OeffentlicheShell.tsx`, `src/lib/oeffentliche-navigation.ts`, `src/lib/sprache.ts`, `src/lib/i18n/texte.ts`, `docs/DESIGN.md` §5, `docs/architecture/04-SEITENKARTE.md` §11.4 |
+|---|---|
+
+### D-650 · Die englischen Pflichtformulare sind geroutet, und die Pflichtwege sind verlinkt (V-156)
+
+**Der Befund** (V-156; D-82, D-83, PUB-09, LEG-07, LEG-09): `Anfrage.tsx`
+(Betroffenenanfrage) und `Feedback.tsx` (Barrieremeldung) trugen vollständige
+englische Texte, ihre Routen leiteten mit `mitSprache(…, 'en')` zurück — aber
+`/en/datenschutz/anfrage`, `…/danke` und `/en/barrierefreiheit/feedback` gab
+es nicht. Weil die Pfade nicht in `NUR_DEUTSCH` standen, bot die Sprachwahl
+auf den deutschen Formularen `/en/…` an: 404. Die englische
+Widerspruchsseite verwies fest auf `/en/datenschutz/anfrage`: 404.
+`sprachpfade.test.ts` verglich nur das erste Pfadsegment und liess beides
+durch. Keine Seite verlinkte das BFSG-Meldeformular (die Erklärung nannte nur
+eine E-Mail-Adresse), und die Betroffenenanfrage war nur über den
+Werbewiderspruch erreichbar. Dazu reichten beide Routen den deutschen Satz
+des Dienstes auch an die englische Seite.
+
+**Die Entscheidung.**
+
+1. **Drei englische Seiten**, die die vorhandenen Komponenten mit
+   `sprache='en'` rendern — derselbe Schreibweg, dieselben Felder (D-83).
+2. **Die Prüfung vergleicht den vollen Pfad.** Jede deutsche Seite hat eine
+   englische Datei desselben Musters, wird über `/en/[seite]` ausgeliefert
+   oder steht in `NUR_DEUTSCH`; und keine englische Seite ohne deutsche.
+3. **Die Erklärung zur Barrierefreiheit führt zuerst auf das Formular**, dann
+   auf E-Mail und Telefon. „Kein Meldeweg hinterlegt" war mit dem Formular
+   falsch; der Satz sagt jetzt, dass nur eine Adresse fehlt.
+4. **Unter der Datenschutzerklärung stehen die zwei Pflichtwege**
+   (`Betroffenenwege`, dieselbe Bauart wie die Pflichtangaben unter dem
+   Impressum): Betroffenenanfrage und Werbewiderspruch. Der Erklärungstext
+   selbst bleibt redaktionell und unverändert. Art. 12 Abs. 2 DSGVO verlangt,
+   die Ausübung zu erleichtern.
+5. **Die Meldungen der Pflichtformulare sprechen die Sprache der Seite** —
+   übersetzt über den GRUND des Dienstfehlers (`pflichtwegMeldung`), nicht
+   über den deutschen Wortlaut.
+6. **`/werbewiderspruch` bleibt in `NUR_DEUTSCH`** (O-34, unverändert); von
+   englischen Seiten führt der Verweis dorthin mit „(in German)".
+
+| Betrifft | D-82, D-83, D-583, D-600, PUB-09, LEG-07, LEG-09, O-34, V-156, `src/app/(public)/en/{datenschutz/anfrage,datenschutz/anfrage/danke,barrierefreiheit/feedback}/page.tsx`, `src/app/(public)/barrierefreiheit/Erklaerung.tsx`, `src/app/(public)/OeffentlicheSeite.tsx`, `src/components/oeffentlich/Betroffenenwege.tsx`, `src/app/api/{datenschutz/anfrage,barrierefreiheit/meldung}/route.ts`, `src/lib/i18n/texte.ts`, `tests/kern/sprachpfade.test.ts` |
+|---|---|
+
+### D-651 · Der Honigtopf antwortet in der Form des Erfolgs, und die englische Anfrage bekommt englische Sammelsätze (V-157)
+
+**Der Befund** (V-157; REQ-01, D-82, D-83, D-599): das Angebotsformular
+schickt `antwort=seite`; Erfolg und Fehler gehen per 303 auf Seiten. Der
+Honigtopf-Zweig antwortete aber VOR dieser Weiche mit JSON. Ein falsch
+positiver Treffer (Passwortverwalter im versteckten Feld) sah eine weisse
+Seite statt der Dankseite, die `lead/annahme.ts` zusagt, und ein Bot erkannte
+am anderen Antworttyp, dass er erkannt war. Auf `/en/angebot/<bereich>`
+standen der deutsche Sammelsatz („Bitte prüfen Sie die markierten Felder.")
+und die deutsche Ratenlimitmeldung über englischen Feldmeldungen.
+
+**Die Entscheidung.**
+
+1. **Ein Honigtopf-Treffer mit `antwort=seite` bekommt 303 auf die Dankseite
+   seiner Sprache** — OHNE Vorgangsnummer. Es gibt keinen Vorgang; eine
+   erfundene Nummer wäre eine, auf die sich ein Mensch am Telefon beruft und
+   die niemand findet. Die Dankseite zeigt den Nummernblock ohnehin nur mit
+   Nummer. Ein Programm bekommt weiter JSON. Ob ein Treffer aufbewahrt wird,
+   bleibt O-905.
+2. **Die Sammelsätze stehen in `API_TEXTE`** (`pruefen`,
+   `datenschutzBestaetigen`, `zuVieleAnfragen`). Welcher gilt, sagen die
+   FELDER des `FormularFehler` (`datenschutz_hinweis` darunter → Bestätigung
+   fehlt), nicht ein Abgleich auf den deutschen Wortlaut; auf Deutsch bleibt
+   der Satz des Dienstes.
+
+| Betrifft | REQ-01, D-82, D-83, D-599, O-905, V-157, `src/app/api/anfrage/route.ts`, `src/lib/i18n/texte.ts` (`API_TEXTE`, `formularSammelmeldung`) |
+|---|---|
+
+### D-652 · Nach Einteilen, Absagen und Bewerben kommt eine Seite mit einem Satz — kein JSON (V-158)
+
+**Der Befund** (V-158; D-599, REC-03): `POST /api/einsaetze/[id]/absagen`
+und `…/besetzen` werden nur von HTML-Formularen aufgerufen und antworteten
+auf Fachfehler mit `{"fehler": code}`, den Satz des Dienstes verwarfen sie.
+Das Absagefeld verlangte `required`, der Dienst drei Zeichen — „ok" endete als
+`{"fehler":"ungueltige_eingabe"}`; ein Doppelklick auf „Einteilen" als
+`{"fehler":"ungueltiger_zustand"}`. Die öffentliche Bewerbung antwortete auf
+jeden Fehler mit JSON; `name@firma` liess der Browser durch, der Dienst nicht.
+Dazu las das Schichtblatt `?fehler=` gar nicht — auch nicht den, den
+`api/dienstplan/einsatz` bei einer abgewiesenen Schicht-Absage schon schickte.
+
+**Die Entscheidung.**
+
+1. **Die Einteilungsrouten schicken den GRUND zurück** (`?fehler=<grund>`,
+   `grundAufsFormular` in `api/formular-antwort.ts`), nicht den Satz: drei
+   der Dienstsätze tragen eine Kennung, alle sind deutsch, und das
+   Schichtblatt spricht zwei Sprachen. `api/einsaetze/fehler.ts` bildet jede
+   Fehlerklasse auf einen Grund ab; unbekannte Fachfehler werden
+   `abgewiesen`. Ohne `zurueck` bleibt es beim JSON, jetzt mit Satz.
+2. **Das Schichtblatt liest `?fehler=`** und nennt den Satz aus
+   `SCHICHT_TEXTE.fehler` in der Sprache der Sitzung — für alle drei
+   Formulare der Seite; ein unbekannter Grund bekommt einen allgemeinen
+   Satz, nie den rohen Schlüssel.
+3. **Das Absagefeld verlangt drei Zeichen** (`minLength={3}`, wie der
+   Dienst), und die beiden Einteilungsformulare stehen nur, wo
+   `dienstplan.schreiben` da ist — die Route verlangt es.
+4. **Die Bewerbung folgt D-599:** das Formular trägt `antwort=seite`, die
+   Route leitet mit dem Grund auf die Formularseite zurück (eine geschlossene
+   Stelle auf die Liste, weil ihr Blatt 404 antwortet), dort steht der Satz
+   als `role="alert"`. Die Eingaben reisen NICHT in die Adresse (Name,
+   E-Mail, Nachricht gehören in kein Zugriffsprotokoll); deshalb trägt das
+   E-Mail-Feld die Regel des Dienstes als `pattern`, abgeleitet aus
+   `BEWERBUNG_EMAIL` und nicht abgeschrieben.
+
+| Betrifft | D-599, REC-03, TIM-05, R-08, V-158, `src/app/api/einsaetze/{fehler.ts,[id]/absagen/route.ts,[id]/besetzen/route.ts}`, `src/app/api/formular-antwort.ts`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/lib/i18n/verwaltung/dienstplan-schicht.ts`, `src/app/api/karriere/bewerbung/route.ts`, `src/app/(public)/karriere/{Formular.tsx,meldung.ts,page.tsx,initiativbewerbung/page.tsx,[stelle]/bewerbung/page.tsx}`, `src/server/services/recruiting/dienst.ts` |
 |---|---|

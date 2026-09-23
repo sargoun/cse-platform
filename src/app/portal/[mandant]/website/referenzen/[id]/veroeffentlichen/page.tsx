@@ -15,6 +15,8 @@ import { kennungOder404 } from '../../../../../kennung';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { WebsiteSpruenge } from '../../../spruenge';
 import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { WEBSITE_REFERENZ_TEXTE } from '@/lib/i18n/verwaltung/website-referenz';
 
 /**
  * `/portal/[mandant]/website/referenzen/[id]/veroeffentlichen` — die
@@ -48,9 +50,15 @@ const BERLIN_TAG = new Intl.DateTimeFormat('de-DE', {
 });
 
 export default async function ReferenzVeroeffentlichen(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
+  // V-154: eine abgewiesene Statusänderung kommt als Grund zurück, nicht als JSON.
+  const rohFehler = (await searchParams)['fehler'];
+  const abgewiesen = typeof rohFehler === 'string' ? rohFehler : null;
   const referenzId = kennungOder404(id);
   const pfad = `/portal/${mandant}/website/referenzen/${referenzId}/veroeffentlichen`;
   const tor = await mandantTor(pfad, mandant);
@@ -62,6 +70,7 @@ export default async function ReferenzVeroeffentlichen(
     'referenz.schreiben');
   const nurLesen = zugang.sitzung.ansicht === 'gruppe';
   const darfSchalten = darf['referenz.veroeffentlichen'] === true && !nurLesen;
+  const t = nachSprache(WEBSITE_REFERENZ_TEXTE, zugang.sprache);
 
   const r = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) => ladeReferenzZurPflege(kontext, referenzId))
@@ -95,6 +104,13 @@ export default async function ReferenzVeroeffentlichen(
         </h1>
         <StatusPill zustand={draussen ? 'Aktiv' : 'Entwurf'} />
       </div>
+
+      {abgewiesen !== null && (
+        <Hinweis art="warnung" cse="referenz-status-fehler" className="mb-s5 max-w-prose">
+          <strong className="block">{t.statusNichtGesetzt}</strong>
+          {t.statusFehler[abgewiesen] ?? t.statusFehlerSonst}
+        </Hinweis>
+      )}
 
       {/* ── Was öffentlich würde ────────────────────────────────────────── */}
       <Card className="mb-s5">

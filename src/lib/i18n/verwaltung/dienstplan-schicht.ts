@@ -52,6 +52,14 @@ export interface SchichtTexte {
   readonly abgesagt: string;
   readonly abgesagtAm: string;
 
+  /**
+   * Die Überschrift über einem abgewiesenen Formular auf dem Schichtblatt
+   * (V-158) — und der Satz für einen Grund, den die Tabelle nicht kennt. Nie
+   * der rohe Grund: `ungueltiger_zustand` ist kein Satz.
+   */
+  readonly nichtGespeichert: string;
+  readonly fehlerSonst: string;
+
   readonly fehler: Readonly<Record<string, string>>;
 }
 
@@ -117,7 +125,29 @@ export const SCHICHT_TEXTE: Readonly<Record<InternSprache, SchichtTexte>> = {
     abgesagt: 'Abgesagt',
     abgesagtAm: 'Abgesagt am',
 
+    nichtGespeichert: 'Nichts wurde gespeichert.',
+    fehlerSonst:
+      'Der Vorgang wurde abgewiesen. Laden Sie die Seite neu — sie zeigt den aktuellen '
+      + 'Stand der Schicht.',
+
     fehler: {
+      /* V-158: die Fachfehler der Einteilung, vorher als rohes JSON. */
+      keine_auswahl:
+        'Welche Einteilung gemeint war, ist nicht angekommen. Laden Sie die Seite neu '
+        + 'und versuchen Sie es noch einmal.',
+      einteilung_weg:
+        'Diese Einteilung steht nicht mehr auf der Schicht — sie wurde vermutlich schon '
+        + 'abgesagt. Die Besetzung unten zeigt den aktuellen Stand.',
+      bereits_eingeteilt:
+        'Diese Beschäftigung steht schon auf der Schicht — vermutlich wurde doppelt '
+        + 'geklickt, oder die Seite war nicht mehr aktuell. Die Besetzung unten zeigt den '
+        + 'Stand.',
+      anstellung_weg:
+        'Diese Beschäftigung gibt es in dieser Gesellschaft nicht (mehr) — sie ist beendet '
+        + 'oder gehört zu einer anderen Gesellschaft.',
+      kein_arbzg_recht:
+        'Eingeteilt wird nur nach der Arbeitszeitprüfung, und dafür fehlt Ihnen das Recht. '
+        + 'Ein ungeprüfter Plan ist nicht dasselbe wie ein geprüfter ohne Befund.',
       unvollstaendig: 'Es fehlt eine Angabe — Objekt, Tag, Beginn und Ende sind Pflicht.',
       zeitfenster:
         'Das Zeitfenster geht so nicht: Das Ende muss nach dem Beginn liegen (oder der '
@@ -205,7 +235,25 @@ export const SCHICHT_TEXTE: Readonly<Record<InternSprache, SchichtTexte>> = {
     abgesagt: 'Called off',
     abgesagtAm: 'Called off on',
 
+    nichtGespeichert: 'Nothing was saved.',
+    fehlerSonst:
+      'The action was refused. Reload the page — it shows the current state of the shift.',
+
     fehler: {
+      keine_auswahl:
+        'Which assignment was meant did not arrive. Reload the page and try again.',
+      einteilung_weg:
+        'This assignment is no longer on the shift — it was probably called off already. '
+        + 'The staffing list below shows the current state.',
+      bereits_eingeteilt:
+        'This Anstellung (employment) is already on the shift — probably a double click, '
+        + 'or the page was out of date. The staffing list below shows the current state.',
+      anstellung_weg:
+        'This Anstellung (employment) does not exist (any more) in this Gesellschaft — it '
+        + 'has ended or belongs to another legal entity.',
+      kein_arbzg_recht:
+        'Nobody is assigned without the working-hours (ArbZG) check, and you lack the right '
+        + 'for it. An unchecked plan is not the same as a checked one without findings.',
       unvollstaendig: 'Something is missing — site, day, start and end are required.',
       zeitfenster:
         'The time window does not work: the end must be after the start (or tick “ends '

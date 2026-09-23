@@ -1,12 +1,12 @@
 import { type NextRequest, type NextResponse } from 'next/server';
 import {
-  RedaktionFehler, aendereReferenz, erfasseKundenfreigabe, slugVorschlag,
+  RedaktionFehler, aendereReferenz, erfasseKundenfreigabe, legeReferenzAn, slugVorschlag,
 } from '@/server/services/inhalt/redaktion';
 import { UUID, fuehreWebsiteAus, leerZuNull, zahlOderNull } from '../gemeinsam';
 
 /**
- * `POST /api/website/referenz` — die Felder und die Kundenfreigabe EINER
- * Referenz (PRO-05).
+ * `POST /api/website/referenz` — eine Referenz anlegen, ihre Felder und ihre
+ * Kundenfreigabe (PRO-05, V-154).
  *
  * **Zwei Rechte, UND-verknüpft, und das ist keine Doppelung.** Die Route und
  * die Seite tragen `referenz.schreiben` (Manifest, Seitenkarte); die Policy
@@ -32,6 +32,33 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     recht: 'referenz.schreiben',
     handle: async (kontext, rumpf) => {
       const handlung = rumpf.felder['handlung'] ?? '';
+
+      /*
+       * **Anlegen (V-154)** — die Handlung, die es nicht gab. Sie hat noch
+       * keine Kennung, deshalb steht sie VOR der Prüfung darunter.
+       *
+       * Danach geht es auf das Blatt der neuen Zeile und nicht zurück aufs
+       * Formular: dort steht der nächste Schritt (die Kundenfreigabe). Kam
+       * die Anlage von einem Auftrag mit Kundenfreigabe, reist dessen Kennung
+       * mit — das Blatt schlägt dann Datum und Beleg aus dem Auftrag vor. Es
+       * SCHLÄGT VOR: gespeichert wird die Freigabe erst, wenn ein Mensch es
+       * dort tut (Invariante 7, PRO-05).
+       */
+      if (handlung === 'anlegen') {
+        const neu = await legeReferenzAn(kontext, {
+          titel: rumpf.felder['titel'] ?? '',
+          slug: leerZuNull(rumpf.felder['slug']),
+          kundeName: leerZuNull(rumpf.felder['kundeName']),
+          beschreibung: leerZuNull(rumpf.felder['beschreibung']),
+          jahr: zahlOderNull(rumpf.felder['jahr']),
+        });
+        const auftrag = rumpf.felder['auftrag'] ?? '';
+        const mitAuftrag = UUID.test(auftrag) ? `&auftrag=${auftrag}` : '';
+        return {
+          weiter: `/portal/${neu.bereich}/website/referenzen/${neu.id}?angelegt=1${mitAuftrag}`,
+        };
+      }
+
       const id = rumpf.felder['id'] ?? '';
       if (!UUID.test(id)) {
         throw new RedaktionFehler('Diese Referenz gibt es hier nicht.', 'nicht_gefunden');

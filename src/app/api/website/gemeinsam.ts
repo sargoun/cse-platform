@@ -40,15 +40,32 @@ import { liesRumpf as liesRumpfIntern, type Rumpf } from '../rumpf';
 
 export { UUID, liesRumpf, type Rumpf } from '../rumpf';
 
+/**
+ * Eine Handlung, die NICHT auf ihre Seite zurückführt, sondern weiter — auf
+ * das Blatt dessen, was sie eben angelegt hat (V-154).
+ *
+ * Nach „Neue Referenz" ist der nächste Schritt immer derselbe: die
+ * Kundenfreigabe eintragen, und die steht auf dem Blatt der neuen Zeile. Ein
+ * Rücksprung auf das leere Anlegeformular liesse den Menschen raten, ob etwas
+ * entstanden ist — und beim zweiten Klick entstünde es zweimal.
+ *
+ * Das Ziel läuft wie `zurueck` durch `internesZiel` (D-560).
+ */
+export interface WebsiteWeiter {
+  readonly weiter: string;
+}
+
 export interface WebsiteLauf {
   /** Der Rechteschlüssel — oder die Regel, die ihn aus dem Rumpf ableitet. */
   readonly recht: string | ((rumpf: Rumpf) => string);
   /**
    * Die Handlung. Was sie zurückgibt, wird an `zurueck` angehängt — als
    * Abfrageteil, etwa `gespeichert=1` oder `neu=<id>`. `null` heisst: nur
-   * zurück.
+   * zurück. `{ weiter }` heisst: auf eine ANDERE Seite dieser Anwendung.
    */
-  readonly handle: (kontext: SchreibKontext, rumpf: Rumpf) => Promise<string | null>;
+  readonly handle: (
+    kontext: SchreibKontext, rumpf: Rumpf,
+  ) => Promise<string | null | WebsiteWeiter>;
 }
 
 /** Wohin es geht, wenn `zurueck` nicht in diese Anwendung zeigt (D-560). */
@@ -81,11 +98,13 @@ export async function fuehreWebsiteAus(
         await authorize(sitzung, { recht, schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)));
         return lauf.handle(kontext, rumpf);
-      }))) as string | null;
+      }))) as string | null | WebsiteWeiter;
 
     if (rumpf.json) return NextResponse.json({ ergebnis }, { status: 200 });
-    const ziel = ergebnis === null || zurueck === ''
-      ? zurueck : mitAbfrage(zurueck, ergebnis);
+    const ziel = ergebnis !== null && typeof ergebnis === 'object'
+      ? ergebnis.weiter
+      : ergebnis === null || zurueck === ''
+        ? zurueck : mitAbfrage(zurueck, ergebnis);
     return NextResponse.redirect(internesZiel(ziel, HEIMWEG, anfrage), 303);
   } catch (fehler: unknown) {
     if (fehler instanceof RedaktionFehler) {

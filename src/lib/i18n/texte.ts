@@ -54,6 +54,21 @@ export interface ShellTexte {
    */
   readonly anmelden: string;
   readonly navigation: Readonly<Record<'unternehmen' | 'leistungen' | 'projekte' | 'kontakt', string>>;
+  /**
+   * Die drei Seiten der GRUPPE, die nicht in die Kopfzeile passen (V-155,
+   * D-649): „Über uns", „Aktuelles" und „Karriere". Sie waren gebaut, befüllt
+   * und in der Sitemap — und von keiner Seite aus verlinkt. DESIGN §5 hält
+   * die Kopfzeile bei vier Punkten; ihr Ort ist der Fuss und das Menü.
+   */
+  readonly gruppeNav: string;
+  readonly gruppe: Readonly<Record<'ueberUns' | 'news' | 'karriere', string>>;
+  /**
+   * Der Hinweis an einem Verweis, der in eine ANDERE Sprache führt — heute
+   * nur `/karriere` von einer englischen Seite aus (`verweisIn`, NUR_DEUTSCH).
+   * Leer, wo er nie gebraucht wird: von einer deutschen Seite führt jeder
+   * Verweis auf Deutsch.
+   */
+  readonly aufDeutsch: string;
   readonly rechtlich: Readonly<Record<'impressum' | 'datenschutz' | 'barrierefreiheit', string>>;
   /**
    * Der Hinweis auf der englischen Fassung.
@@ -92,6 +107,13 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
       projekte: 'Projekte',
       kontakt: 'Kontakt',
     },
+    gruppeNav: 'Die Gruppe',
+    gruppe: {
+      ueberUns: 'Über uns',
+      news: 'Aktuelles',
+      karriere: 'Karriere',
+    },
+    aufDeutsch: '',
     rechtlich: {
       impressum: 'Impressum',
       datenschutz: 'Datenschutz',
@@ -121,6 +143,13 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
       projekte: 'Projects',
       kontakt: 'Contact',
     },
+    gruppeNav: 'The group',
+    gruppe: {
+      ueberUns: 'About us',
+      news: 'News',
+      karriere: 'Careers',
+    },
+    aufDeutsch: '(in German)',
     rechtlich: {
       impressum: 'Legal notice',
       datenschutz: 'Privacy',
@@ -162,6 +191,15 @@ export interface BarriereTexte {
   readonly offenText: string;
   readonly meldenTitel: string;
   readonly meldenText: string;
+  /**
+   * Der Verweis auf das Meldeformular (V-156). Es gibt `/barrierefreiheit/feedback`
+   * seit D-600, und die Erklärung nannte unter „Barriere melden" nur eine
+   * E-Mail-Adresse — der Pflichtweg war von keiner Seite aus verlinkt.
+   */
+  readonly meldenFormular: string;
+  readonly meldenFormularHinweis: string;
+  /** Die Zeile vor E-Mail und Telefon: der zweite Weg, nicht der einzige. */
+  readonly meldenAndererWeg: string;
   readonly keinMeldeweg: string;
   readonly telefon: string;
   readonly metaBeschreibung: string;
@@ -194,7 +232,14 @@ export const BARRIERE_TEXTE: Readonly<Record<Sprache, BarriereTexte>> = {
     meldenText:
       'Wenn Ihnen eine Barriere auffällt, melden Sie sie bitte — auch formlos. Wir '
       + 'antworten und beheben, was wir beheben können.',
-    keinMeldeweg: 'Ein Meldeweg ist derzeit nicht hinterlegt.',
+    meldenFormular: 'Zum Meldeformular',
+    meldenFormularHinweis:
+      'Ohne Anmeldung und ohne JavaScript. Eine E-Mail-Adresse ist freiwillig — nur, '
+      + 'wenn Sie eine Antwort möchten.',
+    meldenAndererWeg: 'Oder direkt:',
+    keinMeldeweg:
+      'Eine E-Mail-Adresse für Meldungen ist derzeit nicht hinterlegt — das Formular '
+      + 'nimmt Ihre Meldung trotzdem an.',
     telefon: 'Telefon',
     metaBeschreibung: 'Erklärung zur Barrierefreiheit dieser Website.',
   },
@@ -224,9 +269,112 @@ export const BARRIERE_TEXTE: Readonly<Record<Sprache, BarriereTexte>> = {
     meldenText:
       'If you come across a barrier, please tell us — informally is fine. We will '
       + 'reply and fix what we can fix.',
-    keinMeldeweg: 'No reporting channel is on file at the moment.',
+    meldenFormular: 'To the reporting form',
+    meldenFormularHinweis:
+      'No sign-in and no JavaScript needed. An e-mail address is optional — only if you '
+      + 'would like a reply.',
+    meldenAndererWeg: 'Or directly:',
+    keinMeldeweg:
+      'No e-mail address for reports is on file at the moment — the form still accepts '
+      + 'your report.',
     telefon: 'Phone',
     metaBeschreibung: 'Accessibility statement for this website.',
+  },
+};
+
+/**
+ * Die Meldungen der zwei öffentlichen Pflichtformulare — englisch (V-156).
+ *
+ * **Der Befund.** Mit den englischen Routen (`/en/datenschutz/anfrage`,
+ * `/en/barrierefreiheit/feedback`) kam ein zweiter Fehler ans Licht: die
+ * Dienste (`services/datenschutz/{anfrage,barriere}.ts`) sprechen deutsch, und
+ * die Routen reichten `fehler.message` unverändert zurück. Eine englische
+ * Seite hätte „Bitte prüfen Sie die E-Mail-Adresse" als `role="alert"`
+ * gezeigt — genau dem Menschen, der die englische Fassung geöffnet hat, weil
+ * er kein Deutsch liest.
+ *
+ * **Übersetzt wird über den GRUND, nicht über den Satz.** Die Dienste tragen
+ * je Fehler einen festen Schlüssel (`grund`); ein Abgleich auf den deutschen
+ * Wortlaut bräche beim ersten Komma, das jemand ändert. Ein unbekannter Grund
+ * bekommt einen allgemeinen englischen Satz — nie den deutschen.
+ */
+const PFLICHTWEG_FEHLER_EN: Readonly<Record<'anfrage' | 'barriere',
+  Readonly<Record<string, string>>>> = {
+  anfrage: {
+    name_fehlt: 'Please give your name.',
+    email_ungueltig: 'Please check the e-mail address — our reply goes to it.',
+    art_fehlt: 'Please choose what you would like us to do.',
+    nicht_gespeichert: 'Your request could not be saved. Please try again.',
+    sonst: 'Your request could not be accepted. Please check your entries.',
+  },
+  barriere: {
+    ohne_beschreibung: 'Please describe briefly what did not work.',
+    email_ungueltig: 'Please check the e-mail address — or leave the field empty.',
+    nicht_gespeichert: 'Your report could not be saved. Please try again.',
+    sonst: 'Your report could not be accepted. Please check your entries.',
+  },
+};
+
+/**
+ * Der Satz für die Seite eines Pflichtformulars — deutsch aus dem Dienst,
+ * englisch aus der Tabelle oben.
+ */
+export function pflichtwegMeldung(
+  weg: 'anfrage' | 'barriere', sprache: Sprache, grund: string, deutsch: string,
+): string {
+  if (sprache === 'de') return deutsch;
+  const tabelle = PFLICHTWEG_FEHLER_EN[weg];
+  return tabelle[grund] ?? tabelle['sonst'] ?? '';
+}
+
+/**
+ * Die zwei Pflichtwege unter der Datenschutzerklärung (V-156, D-650, LEG-09).
+ *
+ * **Der Befund.** `/datenschutz/anfrage` (Auskunft, Berichtigung, Löschung —
+ * mit laufender Monatsfrist in einem internen Eingang) war von genau EINER
+ * Seite aus verlinkt: vom Werbewiderspruch. Die Datenschutzerklärung zählte
+ * die Rechte auf und schickte den Leser an „die oben angegebene
+ * Kontaktadresse". Art. 12 Abs. 2 DSGVO verlangt, die Ausübung zu
+ * ERLEICHTERN; ein Formular, das es gibt und das niemand findet, erleichtert
+ * nichts.
+ *
+ * Der Erklärungstext selbst ist redaktioneller Inhalt (`seite`/`abschnitt`)
+ * und bleibt, wie er ist — die Wege hängen darunter, aus dem Code, wie die
+ * Pflichtangaben unter dem Impressum (dieselbe Bauart, `OeffentlicheSeite`).
+ */
+export interface BetroffenenwegeTexte {
+  readonly ueberschrift: string;
+  readonly text: string;
+  readonly anfrage: string;
+  readonly anfrageHinweis: string;
+  readonly werbewiderspruch: string;
+  readonly werbewiderspruchHinweis: string;
+  /** Der Hinweis an einem Verweis, der auf eine NUR deutsche Seite führt. */
+  readonly aufDeutsch: string;
+}
+
+export const BETROFFENENWEGE_TEXTE: Readonly<Record<Sprache, BetroffenenwegeTexte>> = {
+  de: {
+    ueberschrift: 'Ihre Rechte ausüben',
+    text:
+      'Zwei Formulare, ohne Anmeldung und ohne JavaScript. Was Sie dort absenden, landet '
+      + 'mit Datum im Eingang der Gesellschaft, die Sie wählen — und wird dort bearbeitet.',
+    anfrage: 'Auskunft, Berichtigung, Löschung beantragen',
+    anfrageHinweis: 'Art. 15 bis 21 DSGVO — wir antworten innerhalb eines Monats.',
+    werbewiderspruch: 'Werbung widersprechen',
+    werbewiderspruchHinweis: 'Ohne Angabe von Gründen, ein Knopf genügt.',
+    aufDeutsch: '',
+  },
+  en: {
+    ueberschrift: 'Exercising your rights',
+    text:
+      'Two forms, no sign-in and no JavaScript needed. What you send there reaches the '
+      + 'inbox of the company you choose, with a date — and is handled there.',
+    anfrage: 'Request access, rectification or erasure',
+    anfrageHinweis: 'Art. 15 to 21 GDPR — we reply within one month.',
+    werbewiderspruch: 'Object to advertising',
+    werbewiderspruchHinweis: 'No reason needed, one button is enough.',
+    aufDeutsch: '(in German)',
   },
 };
 
@@ -278,6 +426,18 @@ export interface ApiTexte {
   readonly nichtGespeichert: string;
   /** Kein simulierter Erfolg: der Speicher ist nicht verbunden, und das steht da. */
   readonly uploadNichtVerbunden: string;
+  /**
+   * Die drei Sammelsätze über dem Formular (V-157).
+   *
+   * Sie kamen bisher als `fehler.message` aus `lead/annahme.ts` — deutsch, auch
+   * auf `/en/angebot/<bereich>`: dort stand über englischen Feldmeldungen
+   * „Bitte prüfen Sie die markierten Felder." im `role="alert"`, und nach dem
+   * Ratenlimit „Zu viele Anfragen von dieser Verbindung…". Die Feldmeldungen
+   * wurden seit D-83 übersetzt, der Satz darüber nicht.
+   */
+  readonly pruefen: string;
+  readonly datenschutzBestaetigen: string;
+  readonly zuVieleAnfragen: string;
 }
 
 export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
@@ -292,6 +452,11 @@ export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
     uploadNichtVerbunden:
       'Der Datei-Upload ist derzeit nicht verfügbar. Bitte senden Sie die Anfrage '
       + 'ohne Leistungsverzeichnis — wir melden uns und holen die Datei nach.',
+    pruefen: 'Bitte prüfen Sie die markierten Felder.',
+    datenschutzBestaetigen:
+      'Bitte bestätigen Sie, dass Sie die Datenschutzhinweise gelesen haben.',
+    zuVieleAnfragen:
+      'Zu viele Anfragen von dieser Verbindung. Bitte versuchen Sie es später erneut.',
   },
   en: {
     unlesbar: 'The request could not be read.',
@@ -304,8 +469,32 @@ export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
     uploadNichtVerbunden:
       'File upload is currently unavailable. Please send the enquiry without the bill '
       + 'of quantities — we will get in touch and collect the file afterwards.',
+    pruefen: 'Please check the highlighted fields.',
+    datenschutzBestaetigen: 'Please confirm that you have read the privacy notice.',
+    zuVieleAnfragen:
+      'Too many enquiries from this connection. Please try again later.',
   },
 };
+
+/**
+ * Der Sammelsatz über einem abgewiesenen Anfrageformular (V-157).
+ *
+ * **Warum über die Ursache und nicht über `fehler.message`.** `FormularFehler`
+ * trägt keinen Schlüssel, nur einen deutschen Satz und die Feldmeldungen.
+ * Welche der zwei Ursachen vorliegt, sagen die FELDER: ist
+ * `datenschutz_hinweis` darunter, fehlt die Bestätigung
+ * (`lead/annahme.ts`), sonst hat die Prüfung gegen die Formularversion
+ * etwas gefunden. Auf Deutsch bleibt es beim Satz des Dienstes — er ist der
+ * genauere, und er IST deutsch.
+ */
+export function formularSammelmeldung(
+  sprache: Sprache,
+  fehler: { readonly message: string; readonly felder: Readonly<Record<string, string>> },
+): string {
+  if (sprache === 'de') return fehler.message;
+  const t = API_TEXTE[sprache];
+  return 'datenschutz_hinweis' in fehler.felder ? t.datenschutzBestaetigen : t.pruefen;
+}
 
 /**
  * Die Dankseite `/angebot/[bereich]/danke` (§2.3, REQ-01).

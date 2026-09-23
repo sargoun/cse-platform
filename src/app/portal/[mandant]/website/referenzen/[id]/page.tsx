@@ -19,6 +19,12 @@ import { kennungOder404 } from '../../../../kennung';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { WebsiteSpruenge } from '../../spruenge';
 import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { WEBSITE_REFERENZ_TEXTE } from '@/lib/i18n/verwaltung/website-referenz';
+import { istUuid } from '@/lib/uuid';
+import {
+  freigabeGilt, ladeFreigabestand, type Freigabestand,
+} from '@/server/services/auftrag/kundenfreigabe';
 
 /**
  * `/portal/[mandant]/website/referenzen/[id]` — eine Referenz bearbeiten
@@ -38,10 +44,12 @@ import { Recht } from '@/components/ui/Recht';
  * sähe Formulare, die nichts ändern — deshalb stehen die Knöpfe nur, wo beide
  * Rechte da sind, und der Satz daneben sagt, welches fehlt.
  *
- * **Die Quelle ist heute diese Zeile und nicht der Auftrag.** Später soll eine
- * Referenz aus abgeschlossenen `auftrag`-Zeilen mit Kundenfreigabe entstehen
- * (TODO am Ende von `services/inhalt/referenz.ts`, O-13). Bis dahin ist das
- * hier Handarbeit, und diese Seite tut nicht so, als käme sie aus dem Auftrag.
+ * **Die Quelle ist diese Zeile und nicht der Auftrag.** Angelegt wird sie
+ * unter `…/referenzen/neu` (V-154) — frei oder von der Kundenfreigabe eines
+ * Auftrags aus. Im zweiten Fall bringt die Adresse `?auftrag=<id>` mit, und
+ * der Freigabeblock unten schlägt Datum und Beleg aus dem Auftrag VOR; der
+ * Haken bleibt leer, gespeichert wird erst durch einen Menschen (O-913).
+ * `referenz` bekommt dadurch keinen Fremdschlüssel auf `auftrag`.
  */
 export const dynamic = 'force-dynamic';
 
@@ -104,27 +112,43 @@ export default async function WebsiteReferenz(
 
   const darf = await haeltRechte(
     zugang.sitzung, 'referenz.schreiben', 'referenz.kundenfreigabe_erfassen',
-    'referenz.veroeffentlichen');
+    'referenz.veroeffentlichen', 'auftrag.lesen');
   const nurLesen = zugang.sitzung.ansicht === 'gruppe';
   const schreibt = darf['referenz.schreiben'] === true
     && darf['referenz.kundenfreigabe_erfassen'] === true && !nurLesen;
+  const t = nachSprache(WEBSITE_REFERENZ_TEXTE, zugang.sprache);
+
+  const suche = await searchParams;
+  /*
+   * **Aus einem Auftrag angelegt (V-154).** Die Route hängt die Kennung des
+   * Auftrags an, von dessen Kundenfreigabe die Anlage ausging. Gelesen wird
+   * er nur mit `auftrag.lesen` — und nur eine GELTENDE Freigabe wird zum
+   * Vorschlag. Ein Vorschlag ist kein Eintrag: gespeichert wird die Freigabe
+   * erst, wenn ein Mensch unten den Haken setzt und speichert (PRO-05).
+   */
+  const auftragId = istUuid(suche['auftrag']) && darf['auftrag.lesen'] === true
+    ? suche['auftrag'] : null;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => ({
       referenz: await ladeReferenzZurPflege(kontext, referenzId),
       bilder: await bilderZurWahl(kontext),
+      auftrag: auftragId === null ? null : await ladeFreigabestand(kontext, auftragId),
     }))) as Promise<{
       referenz: ReferenzDetail | null; bilder: readonly GaleriePflegeZeile[];
+      auftrag: Freigabestand | null;
     }>);
 
   // 404 und nicht 403 (AUT-06).
   if (daten.referenz === null) notFound();
   const r = daten.referenz;
 
-  const suche = await searchParams;
   const abgewiesen = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const gespeichert = typeof suche['gespeichert'] === 'string'
     ? suche['gespeichert'] : null;
+  const angelegt = suche['angelegt'] === '1';
+  const vorschlag = !r.freigegeben && daten.auftrag !== null && freigabeGilt(daten.auftrag)
+    ? daten.auftrag : null;
 
   const oeffentlich = `/unternehmen/${mandant}/projekte/${r.slug}`;
   const draussen = r.status === 'veroeffentlicht';
@@ -161,6 +185,12 @@ export default async function WebsiteReferenz(
       {gespeichert === null ? null : (
         <Hinweis art="erfolg" cse="referenz-gespeichert" className="mb-s5 max-w-prose">
           Gespeichert.
+        </Hinweis>
+      )}
+      {angelegt && (
+        <Hinweis art="erfolg" cse="referenz-angelegt" className="mb-s5 max-w-prose">
+          <strong className="block">{t.angelegtTitel}</strong>
+          {t.angelegtText}
         </Hinweis>
       )}
       {!schreibt && !nurLesen && (
@@ -320,13 +350,27 @@ export default async function WebsiteReferenz(
           </div>
         </dl>
 
+        {schreibt && vorschlag !== null && (
+          <Hinweis art="hinweis" cse="freigabe-vorschlag" className="mb-s4 max-w-prose">
+            <strong className="block">{t.vorschlagTitel(vorschlag.auftragsnummer)}</strong>
+            {t.vorschlagText}
+          </Hinweis>
+        )}
         {schreibt && (
           <form method="post" action="/api/website/referenz"
                 className="flex max-w-prose flex-col gap-s4" data-cse="freigabe-formular">
             <input type="hidden" name="handlung" value="freigabe" />
             <input type="hidden" name="id" value={r.id} />
-            <input type="hidden" name="zurueck" value={pfad} />
+            {/* Mit Vorschlag reist der Auftrag im Rückweg mit: eine abgewiesene
+                Freigabe (etwa ohne Beleg) soll den Vorschlag nicht verlieren. */}
+            <input type="hidden" name="zurueck"
+                   value={vorschlag === null ? pfad : `${pfad}?auftrag=${vorschlag.auftrag_id}`} />
 
+            {/*
+              * Der Haken bleibt auch mit Vorschlag LEER: Datum und Beleg aus
+              * dem Auftrag sind eine Hilfe beim Tippen, die Aussage „der Kunde
+              * hat zugestimmt" trifft der Mensch selbst (O-913).
+              */}
             <label className="flex min-h-11 items-center gap-s3 text-sm text-text">
               <input type="checkbox" name="freigegeben" value="1"
                      defaultChecked={r.freigegeben}
@@ -334,13 +378,16 @@ export default async function WebsiteReferenz(
               <span>Der Kunde hat schriftlich zugestimmt.</span>
             </label>
             <FormField label="Datum der Zustimmung" name="freigabeAm" type="date"
-                       defaultValue={berlinTag(r.freigabeAm)} />
+                       defaultValue={vorschlag?.freigabe_tag ?? berlinTag(r.freigabeAm)} />
             <div className="flex flex-col gap-s2">
               <label htmlFor="freigabeBeleg" className="text-xs text-text-muted">
                 Beleg — woraus geht die Zustimmung hervor?
               </label>
               <textarea id="freigabeBeleg" name="freigabeBeleg" rows={3} className={FELD}
-                        defaultValue={r.freigabeBeleg ?? ''} />
+                        defaultValue={vorschlag === null
+                          ? (r.freigabeBeleg ?? '')
+                          : t.belegAusAuftrag(vorschlag.auftragsnummer,
+                            vorschlag.ansprechpartner, vorschlag.freigabe_dokument)} />
             </div>
             <Button type="submit" variante="secondary" className="self-start"
                     data-cse="freigabe-speichern">

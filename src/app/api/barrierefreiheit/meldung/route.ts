@@ -4,6 +4,7 @@ import { db } from '@/server/db/pool';
 import { withEingang } from '@/server/kontext/eingang';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { mitSprache, SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
+import { pflichtwegMeldung } from '@/lib/i18n/texte';
 import { BarriereFehler, melde } from '@/server/services/datenschutz/barriere';
 
 /**
@@ -66,7 +67,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         email: String(daten.get('email') ?? '') || undefined,
       })));
   } catch (f) {
-    if (f instanceof BarriereFehler) return fehler(f.status, f.message);
+    // Der Dienst spricht deutsch; die englische Seite bekommt den Satz zum
+    // GRUND (V-156), nicht den deutschen Wortlaut.
+    if (f instanceof BarriereFehler) {
+      return fehler(f.status, pflichtwegMeldung('barriere', sprache, f.grund, f.message));
+    }
     throw f;
   }
 

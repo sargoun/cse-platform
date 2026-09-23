@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { LeseKontext, SchreibKontext } from '@/server/kontext';
 import { type LeistungEintrag, leistungenAus } from './jsonld';
 
@@ -820,14 +821,19 @@ function istKalendertag(tag: string): boolean {
  * Durchnummeriert wird NICHT: `app.slug_fuellen` tut es beim Anlegen auch
  * nicht, und eine Adresse, die sich selbst zu `…-2` macht, ist eine Adresse,
  * die niemand gewählt hat. Stattdessen sagt der Grund, was los ist.
+ *
+ * `id = null` heisst: die Referenz entsteht gerade (`legeReferenzAn`, V-154)
+ * — dann zählt JEDE Zeile mit diesem Slug, denn es gibt noch keine eigene,
+ * die sich selbst im Weg stehen könnte.
  */
 async function pruefeSlugFrei(
-  kontext: LeseKontext, id: string, slug: string,
+  kontext: LeseKontext, id: string | null, slug: string,
 ): Promise<void> {
   const [z] = await kontext.abfrage<{ vergeben: boolean; geloescht: boolean }>(
     `select true as vergeben, (r.geloescht_am is not null) as geloescht
        from referenz r
-      where r.mandant_id = app.aktiver_mandant() and r.slug = $2 and r.id <> $1::uuid
+      where r.mandant_id = app.aktiver_mandant() and r.slug = $2
+        and ($1::uuid is null or r.id <> $1::uuid)
       limit 1`,
     [id, slug]);
   if (z === undefined) return;
@@ -873,6 +879,32 @@ async function pruefeFreigaberecht(kontext: LeseKontext): Promise<void> {
 }
 
 /**
+ * Titel, Slug und Jahr — die drei Felder, die Anlegen UND Ändern prüfen.
+ *
+ * Sie standen nur in `aendereReferenz`. Mit `legeReferenzAn` (V-154) gibt es
+ * einen zweiten Schreibweg, und zwei abgeschriebene Prüfungen laufen beim
+ * ersten neuen Grund auseinander: dann nimmt das Anlegen einen Slug an, den
+ * das Ändern danach abweist, und die Referenz lässt sich nicht mehr speichern.
+ * Die Tabelle hält dieselben Grenzen (`referenz_slug_form`, `jahr between
+ * 1990 and 2100`); hier stehen sie, damit ein Mensch einen Satz liest und
+ * keinen 500.
+ */
+function pruefeKopffelder(titel: string, slug: string, jahr: number | null): void {
+  if (titel === '') {
+    throw new RedaktionFehler('Eine Referenz ohne Titel hat keine Überschrift.', 'titel_fehlt');
+  }
+  if (!SLUG_FORM.test(slug)) {
+    throw new RedaktionFehler(
+      'Der Slug besteht aus Kleinbuchstaben, Ziffern und einzelnen Bindestrichen — '
+      + 'er ist Teil der öffentlichen Adresse.', 'slug_form');
+  }
+  if (jahr !== null && (!Number.isInteger(jahr) || jahr < 1990 || jahr > 2100)) {
+    throw new RedaktionFehler(
+      'Das Jahr liegt zwischen 1990 und 2100 — oder es bleibt leer.', 'jahr_ungueltig');
+  }
+}
+
+/**
  * Ändert die Felder einer Referenz — **ohne** die Kundenfreigabe.
  *
  * Die Freigabe hat ihre eigene Funktion (`erfasseKundenfreigabe`) und ihren
@@ -895,19 +927,7 @@ export async function aendereReferenz(
   await pruefeFreigaberecht(kontext);
   const titel = felder.titel.trim();
   const slug = felder.slug.trim().toLowerCase();
-  if (titel === '') {
-    throw new RedaktionFehler('Eine Referenz ohne Titel hat keine Überschrift.', 'titel_fehlt');
-  }
-  if (!SLUG_FORM.test(slug)) {
-    throw new RedaktionFehler(
-      'Der Slug besteht aus Kleinbuchstaben, Ziffern und einzelnen Bindestrichen — '
-      + 'er ist Teil der öffentlichen Adresse.', 'slug_form');
-  }
-  if (felder.jahr !== null
-      && (!Number.isInteger(felder.jahr) || felder.jahr < 1990 || felder.jahr > 2100)) {
-    throw new RedaktionFehler(
-      'Das Jahr liegt zwischen 1990 und 2100 — oder es bleibt leer.', 'jahr_ungueltig');
-  }
+  pruefeKopffelder(titel, slug, felder.jahr);
   if (!Number.isInteger(felder.sortierung) || felder.sortierung < 0) {
     throw new RedaktionFehler(
       'Die Sortierung ist eine ganze Zahl ab null.', 'sortierung_ungueltig');
@@ -947,6 +967,99 @@ export async function aendereReferenz(
       + '(referenz.kundenfreigabe_erfassen — das verlangt t_referenz_pflege für JEDEN '
       + 'Schreibvorgang auf dieser Tabelle).', 'nicht_geaendert');
   }
+}
+
+/** Was ein Mensch beim Anlegen einer Referenz angibt — mehr nicht. */
+export interface NeueReferenz {
+  readonly titel: string;
+  /** `null` oder leer: aus dem Titel, mit derselben Funktion wie `trg_referenz_slug`. */
+  readonly slug: string | null;
+  readonly kundeName: string | null;
+  readonly beschreibung: string | null;
+  readonly jahr: number | null;
+}
+
+export interface AngelegteReferenz {
+  readonly id: string;
+  readonly slug: string;
+  /**
+   * Der Slug der Gesellschaft, in der sie entstand — aus der SITZUNG
+   * (`app.aktiver_mandant()`), nicht aus einer Adresse (Invariante 3). Die
+   * Route braucht ihn für den Weg auf das Blatt der neuen Zeile.
+   */
+  readonly bereich: string;
+}
+
+/**
+ * Legt eine Referenz an — als ENTWURF und OHNE Kundenfreigabe (PRO-05, V-154).
+ *
+ * **Der Befund.** Die Kundenfreigabe am Auftrag sagte „die öffentliche
+ * Referenz legt danach ein Mensch unter `/website/referenzen` an", und dort
+ * gab es nur Bearbeiten, Freigabe erfassen und Veröffentlichen einer
+ * BESTEHENDEN Zeile. Kein Dienst und keine Route schrieb ein `insert into
+ * referenz`; eine echte Gesellschaft brachte kein einziges Projekt auf ihr
+ * Profil, auf `/projekte` oder in die Sitemap — nur der Seed hatte welche.
+ *
+ * **Was sie NICHT tut, ist der Punkt.** Sie setzt weder
+ * `freigegeben_vom_kunden` noch `status = 'veroeffentlicht'`: beides bleibt auf
+ * dem Wert, den 0015 bewusst ohne `default true` gewählt hat. Eine frisch
+ * angelegte Referenz ist damit unsichtbar (`t_referenz_oeffentlich`), bis ein
+ * Mensch die Zustimmung des Kunden mit Datum und Beleg einträgt
+ * (`erfasseKundenfreigabe`) und ein anderer Mensch mit eigenem Recht
+ * veröffentlicht (`setzeReferenzStatus`). Drei Handlungen, drei Stellen — eine
+ * Anlage, die die Freigabe gleich mitbrächte, wäre ein Kundenname auf der
+ * Website, über den niemand einzeln entschieden hat.
+ *
+ * **Das Recht ist dasselbe wie beim Ändern.** `t_referenz_pflege` verlangt in
+ * ihrer `with check` für JEDEN Schreibvorgang
+ * `referenz.kundenfreigabe_erfassen` — auch für das `insert`. Ohne die
+ * Vorprüfung käme 42501 als 500 zurück.
+ *
+ * **Die Kennung entsteht hier und nicht über `returning`.** `insert …
+ * returning` verlangt, dass die neue Zeile auch die LESE-Policy besteht
+ * (`referenz.lesen`); eine Rolle, der ein Override das Lesen entzieht und das
+ * Freigaberecht lässt, legte sonst an und bekäme trotzdem einen Fehler — die
+ * Zeile stünde da, der Mensch hielte sie für nicht angelegt und legte sie ein
+ * zweites Mal an. Dieselbe Bauart wie `lead/annahme.ts`.
+ *
+ * **Der Slug wird geprüft, BEVOR geschrieben wird** (`pruefeSlugFrei`):
+ * `referenz_slug_uk` weist eine Kollision ohnehin ab, aber als 23505 — und
+ * zwei Referenzen „Büroreinigung Mitte" sind kein konstruierter Fall.
+ */
+export async function legeReferenzAn(
+  kontext: SchreibKontext, felder: NeueReferenz,
+): Promise<AngelegteReferenz> {
+  await pruefeFreigaberecht(kontext);
+  const titel = felder.titel.trim();
+  const roh = (felder.slug ?? '').trim().toLowerCase();
+  const slug = roh === '' ? await slugVorschlag(kontext, titel) : roh;
+  pruefeKopffelder(titel, slug, felder.jahr);
+  await pruefeSlugFrei(kontext, null, slug);
+
+  const id = randomUUID();
+  await kontext.schreibe(
+    `insert into referenz (id, mandant_id, titel, slug, kunde_name, beschreibung, jahr,
+                           freigegeben_vom_kunden, status)
+     values ($1::uuid, app.aktiver_mandant(), $2, $3, $4, $5, $6::int,
+             false, 'entwurf'::seite_status)`,
+    [id, titel, slug, leerZuNull(felder.kundeName), leerZuNull(felder.beschreibung),
+     felder.jahr]);
+
+  const [m] = await kontext.abfrage<{ slug: string }>(
+    `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
+  if (m === undefined) {
+    // Ohne aktiven Mandanten gäbe es keinen SchreibKontext; das hier ist die
+    // zweite Linie, nicht ein erwarteter Fall.
+    throw new RedaktionFehler(
+      'Die Gesellschaft dieser Sitzung ist nicht lesbar.', 'nicht_angelegt');
+  }
+  return { id, slug, bereich: m.slug };
+}
+
+/** Leer bleibt leer — ein leeres `<p>` auf der öffentlichen Seite ist eine Lücke. */
+function leerZuNull(wert: string | null): string | null {
+  const t = (wert ?? '').trim();
+  return t === '' ? null : t;
 }
 
 /**

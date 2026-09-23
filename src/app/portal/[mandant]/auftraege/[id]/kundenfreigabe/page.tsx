@@ -4,8 +4,10 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import {
-  ladeFreigabestand, listeAnsprechpartner, listeKundendokumente,
+  freigabeGilt, ladeFreigabestand, listeAnsprechpartner, listeKundendokumente,
 } from '@/server/services/auftrag/kundenfreigabe';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { WEBSITE_REFERENZ_TEXTE } from '@/lib/i18n/verwaltung/website-referenz';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
@@ -84,7 +86,8 @@ export default async function Kundenfreigabe(
   const { stand, ansprechpartner, dokumente } = daten;
 
   const widerrufen = stand.widerrufen_am !== null;
-  const gilt = stand.freigegeben && !widerrufen;
+  const gilt = freigabeGilt(stand);
+  const tReferenz = nachSprache(WEBSITE_REFERENZ_TEXTE, zugang.sprache);
   /**
    * Erfassen darf, wer KEINE GELTENDE Freigabe vor sich hat — nicht: wer keine
    * Freigabe vor sich hat.
@@ -381,6 +384,24 @@ export default async function Kundenfreigabe(
         entscheidet dabei, <em>was</em> öffentlich wird — übernommen werden nur
         Titel, Bereich, Stadt, Beschreibung und freigegebene Fotos, nie
         Auftragswert, Ansprechpartner oder Vertragsinhalte.
+        {/*
+          * **Der Weg dorthin (V-154).** Dieser Absatz versprach die Anlage,
+          * und es gab sie nicht. Jetzt führt er hin — nur bei einer GELTENDEN
+          * Freigabe, nur mit `referenz.schreiben` (das Tor der Zielseite) und
+          * nicht in der Gruppenansicht. Vorbelegt werden dort Titel und
+          * Kundenname; die Freigabe der Referenz trägt ein Mensch selbst ein.
+          */}
+        {gilt && darf['referenz.schreiben'] === true && sitzung.ansicht !== 'gruppe' && (
+          <p className="mt-s3 mb-0">
+            <Link
+              href={`/portal/${mandant}/website/referenzen/neu?auftrag=${id}`}
+              data-cse="referenz-aus-auftrag"
+              className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2"
+            >
+              {tReferenz.ausAuftragAnlegen}
+            </Link>
+          </p>
+        )}
         {stand.darf_referenz_lesen ? (
           <p className="mt-s3 mb-0">
             Es {Number(stand.referenz_gleichnamig) === 1 ? 'gibt' : 'gibt'}{' '}

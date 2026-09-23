@@ -5,6 +5,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { StatusPill } from '@/components/ui/StatusPill';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
@@ -137,6 +138,17 @@ export default async function Einsatzblatt({
    */
   const rohFunktion = typeof frage['funktion'] === 'string' ? frage['funktion'] : '';
   const funktion = rohFunktion.trim().slice(0, 80);
+  /**
+   * Der Grund einer Abweisung — aus den drei Formularen dieser Seite
+   * (Einteilung absagen, Einteilen, Schicht absagen; V-158).
+   *
+   * Die Routen schickten `?fehler=` hierher (die Schicht-Absage) bzw.
+   * antworteten mit rohem JSON (die beiden Einteilungsrouten) — und diese
+   * Seite las keines von beiden. Nachgeschlagen wird in `SCHICHT_TEXTE.fehler`,
+   * in der Sprache der Sitzung; ein unbekannter Grund bekommt einen
+   * allgemeinen Satz und erscheint nie roh.
+   */
+  const abgewiesen = typeof frage['fehler'] === 'string' ? frage['fehler'] : null;
 
   const daten = await db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -262,6 +274,13 @@ export default async function Einsatzblatt({
         <StatusPill zustand={statusPille(kopf.status)} />
       </div>
 
+      {abgewiesen !== null && (
+        <Hinweis art="warnung" cse="einsatz-fehler" className="mb-s5 max-w-prose">
+          <strong className="block">{t.nichtGespeichert}</strong>
+          <span role="alert">{t.fehler[abgewiesen] ?? t.fehlerSonst}</span>
+        </Hinweis>
+      )}
+
       <dl className="m-0 grid gap-s4 sm:grid-cols-2 lg:grid-cols-3">
         <Feld beschriftung="Tag" wert={beschriftung(kopf.plan_datum)} />
         <Feld
@@ -365,26 +384,36 @@ export default async function Einsatzblatt({
                   Absagen mit Grund, in derselben Zeile. Die Zeile bleibt danach
                   stehen (Invariante 8) — sie wandert nur aus der Besetzung
                   heraus, und die ausgegebenen Check-in-Marken verfallen.
+
+                  V-158: `minLength={3}` — der Dienst verlangt drei Zeichen
+                  (GRUND_MINDESTLAENGE), das Feld verlangte nur `required`, und
+                  „ok" endete als rohes JSON. Und das Formular steht nur, wo
+                  `dienstplan.schreiben` da ist: die Route verlangt es, und ein
+                  Knopf, dessen Route abweist, verrät mehr, als er hilft.
                 */}
-                <form
-                  action={`/api/einsaetze/${kopf.id}/absagen`}
-                  method="post"
-                  className="flex flex-wrap items-center gap-s2"
-                >
-                  <input type="hidden" name="zuordnung" value={b.id} />
-                  <input type="hidden" name="mandant" value={mandant} />
-                  <input type="hidden" name="zurueck" value={pfad} />
-                  <label>
-                    <span className="sr-only">Grund der Absage</span>
-                    <input
-                      name="grund"
-                      required
-                      placeholder="Grund"
-                      className="min-h-11 rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
-                    />
-                  </label>
-                  <Button type="submit" variante="ghost">Absagen</Button>
-                </form>
+                {darf['dienstplan.schreiben'] === true && (
+                  <form
+                    action={`/api/einsaetze/${kopf.id}/absagen`}
+                    method="post"
+                    className="flex flex-wrap items-center gap-s2"
+                  >
+                    <input type="hidden" name="zuordnung" value={b.id} />
+                    <input type="hidden" name="mandant" value={mandant} />
+                    <input type="hidden" name="zurueck" value={pfad} />
+                    <label>
+                      <span className="sr-only">Grund der Absage</span>
+                      <input
+                        name="grund"
+                        required
+                        minLength={3}
+                        maxLength={300}
+                        placeholder="Grund"
+                        className="min-h-11 rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
+                      />
+                    </label>
+                    <Button type="submit" variante="ghost">Absagen</Button>
+                  </form>
+                )}
               </span>
             </li>
           ))}
@@ -406,7 +435,7 @@ export default async function Einsatzblatt({
               Keine weitere aktive Beschäftigung in dieser Gesellschaft, die
               nicht schon eingeteilt wäre.
             </p>
-          ) : (
+          ) : darf['dienstplan.schreiben'] !== true ? null : (
             <form
               action={`/api/einsaetze/${kopf.id}/besetzen`}
               method="post"
@@ -456,6 +485,7 @@ export default async function Einsatzblatt({
               funktion={funktion}
               name={kandidaten.find((k) => k.id === pruefling)?.name ?? 'die Beschäftigung'}
               darfNachweise={darf['personal.nachweis_lesen'] === true}
+              darfEinteilen={darf['dienstplan.schreiben'] === true}
             />
           )}
         </section>
@@ -563,6 +593,7 @@ const REGEL_TEXT: Readonly<Record<string, string>> = {
  */
 function Pruefblatt({
   vorschau, einsatzId, anstellungId, mandant, pfad, funktion, name, darfNachweise,
+  darfEinteilen,
 }: {
   readonly vorschau: Vorschau;
   readonly einsatzId: string;
@@ -573,6 +604,11 @@ function Pruefblatt({
   readonly name: string;
   /** Haelt die Sitzung `personal.nachweis_lesen`? Sonst gibt es den Weg ins Register nicht (AUT-06). */
   readonly darfNachweise: boolean;
+  /**
+   * Haelt sie `dienstplan.schreiben`? Sonst steht die Vorschau ohne Knopf da
+   * — die Route wiese ihn ab (V-158).
+   */
+  readonly darfEinteilen: boolean;
 }) {
   const gesperrt = vorschau.qualifikationsfehler !== null;
   const befunde: readonly ArbzgBefund[] = vorschau.arbzg ?? [];
@@ -748,7 +784,7 @@ function Pruefblatt({
         </ul>
       )}
 
-      {!gesperrt && (
+      {!gesperrt && darfEinteilen && (
         <form
           action={`/api/einsaetze/${einsatzId}/besetzen`}
           method="post"

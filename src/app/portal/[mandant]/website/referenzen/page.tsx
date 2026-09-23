@@ -10,6 +10,9 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { listeReferenzen, type ReferenzPflegeZeile } from '@/server/services/inhalt/redaktion';
 import { haeltRechte } from '@/app/portal/rechte';
+import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { WEBSITE_REFERENZ_TEXTE } from '@/lib/i18n/verwaltung/website-referenz';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { WebsiteSpruenge } from '../spruenge';
 
@@ -36,9 +39,15 @@ const BERLIN = new Intl.DateTimeFormat('de-DE', {
 });
 
 export default async function WebsiteReferenzen(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  // V-154: eine abgewiesene Statusänderung kommt als Grund zurück, nicht als JSON.
+  const rohFehler = (await searchParams)['fehler'];
+  const abgewiesen = typeof rohFehler === 'string' ? rohFehler : null;
   const tor = await mandantTor(`/portal/${mandant}/website/referenzen`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
@@ -52,7 +61,9 @@ export default async function WebsiteReferenzen(
    * nicht" die Wahrheit ist.
    */
   const darf = await haeltRechte(
-    zugang.sitzung, 'referenz.schreiben', 'referenz.veroeffentlichen');
+    zugang.sitzung, 'referenz.schreiben', 'referenz.veroeffentlichen',
+    'referenz.kundenfreigabe_erfassen');
+  const t = nachSprache(WEBSITE_REFERENZ_TEXTE, zugang.sprache);
 
   const referenzen = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -61,6 +72,25 @@ export default async function WebsiteReferenzen(
 
   const nurLesen = zugang.sitzung.ansicht === 'gruppe';
   const zurueck = `/portal/${mandant}/website/referenzen`;
+  /*
+   * **Der Weg, der fehlte (V-154).** Die Kundenfreigabe am Auftrag sagte „die
+   * öffentliche Referenz legt danach ein Mensch hier an" — und hier gab es
+   * keinen Knopf, auch nicht im Leerzustand. Er steht nur, wo BEIDE Rechte
+   * da sind: `t_referenz_pflege` verlangt für das `insert` ebenso
+   * `referenz.kundenfreigabe_erfassen` wie für jedes `update`, und ein Knopf,
+   * dessen Formular abgewiesen wird, ist ein Fehlerbericht mit Verzögerung.
+   */
+  const darfAnlegen = !nurLesen && darf['referenz.schreiben'] === true
+    && darf['referenz.kundenfreigabe_erfassen'] === true;
+  const anlegenKnopf = darfAnlegen ? (
+    <Link
+      href={`/portal/${mandant}/website/referenzen/neu`}
+      data-cse="referenz-neu"
+      className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2"
+    >
+      {t.neueReferenz}
+    </Link>
+  ) : null;
 
   return (
     <PortalRahmen
@@ -76,16 +106,37 @@ export default async function WebsiteReferenzen(
     >
       <WebsiteSpruenge mandant={mandant} zweig="referenzen"
                        sitzung={zugang.sitzung} />
-      <h1 className="mb-s4 text-h1 text-text">Referenzen</h1>
+      <div className="mb-s4 flex flex-wrap items-baseline justify-between gap-s3">
+        <h1 className="m-0 text-h1 text-text">Referenzen</h1>
+        {referenzen.length > 0 && anlegenKnopf}
+      </div>
       <p className="mb-s5 max-w-[72ch] text-base text-text-muted">
         Ein Projekt geht nur mit schriftlicher Zustimmung des Kunden auf die
         Website. Ohne sie bleibt es hier stehen — auch als Entwurf ist es kein
         Versehen, sondern der Normalfall.
       </p>
+      {abgewiesen !== null && (
+        <Hinweis art="warnung" cse="referenz-status-fehler" className="mb-s5 max-w-prose">
+          <strong className="block">{t.statusNichtGesetzt}</strong>
+          {t.statusFehler[abgewiesen] ?? t.statusFehlerSonst}
+        </Hinweis>
+      )}
+      {!nurLesen && darf['referenz.schreiben'] === true && !darfAnlegen && (
+        <p className="mb-s5 max-w-[72ch] text-sm text-text-muted" data-cse="anlegen-verlangt">
+          {t.anlegenVerlangt}{' '}
+          <Recht schluessel="referenz.kundenfreigabe_erfassen" sprache={zugang.sprache} />.
+        </p>
+      )}
 
       {referenzen.length === 0 ? (
         <Hinweis art="hinweis" cse="keine-referenzen">
-          Für diese Gesellschaft ist noch kein Projekt erfasst.
+          <strong className="block">Für diese Gesellschaft ist noch kein Projekt erfasst.</strong>
+          {darfAnlegen && (
+            <>
+              <span className="mb-s4 mt-s2 block">{t.leerWeg}</span>
+              {anlegenKnopf}
+            </>
+          )}
         </Hinweis>
       ) : (
         <DataTable

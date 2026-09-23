@@ -3,7 +3,7 @@
  *
  * Quelle: docs/architecture/04-SEITENKARTE.md, die Routentabellen selbst.
  *
- * 456 Routen. Phase 1: 26 · Phase 2: 48 · Phase 3: 30 · Phase 4: 60 · Phase 5: 129 · Phase 6: 43 · Phase 7: 31 · Phase 8: 36 · Phase 9: 49 · Phase 10: 4.
+ * 457 Routen. Phase 1: 26 · Phase 2: 49 · Phase 3: 30 · Phase 4: 60 · Phase 5: 129 · Phase 6: 43 · Phase 7: 31 · Phase 8: 36 · Phase 9: 49 · Phase 10: 4.
  *
  * Die Rollenprobe (tests/isolation/rollen.test.ts) läuft über DIESE Liste.
  * Eine neue Zeile in der Karte ist damit automatisch geprüft; eine Route ohne
@@ -331,6 +331,7 @@ export const ROUTEN: readonly RoutenEintrag[] = [
   { pfad: "/portal/[mandant]/website/leistungen/[id]", beschreibung: "", bewachung: {"art":"recht","lesen":["referenz.schreiben"],"schreiben":[],"aal2":false}, scope: "M1", spec: ["PRO-02","PUB-07","OPS-06"], phase: 2, abschnitt: "5.21 Social Media Center and website content (SOC-01…SOC-08, PUB-07, PRO-01…PRO-05)", zeile: 1839 },
   { pfad: "/portal/[mandant]/website/referenzen", beschreibung: "created from an  whose customer release is on file", bewachung: {"art":"recht","lesen":["referenz.schreiben"],"schreiben":[],"aal2":false}, scope: "M1", spec: ["PRO-05"], phase: 2, abschnitt: "5.21 Social Media Center and website content (SOC-01…SOC-08, PUB-07, PRO-01…PRO-05)", zeile: 1840 },
   { pfad: "/portal/[mandant]/website/referenzen/[id]", beschreibung: "created from an  whose customer release is on file", bewachung: {"art":"recht","lesen":["referenz.schreiben"],"schreiben":[],"aal2":false}, scope: "M1", spec: ["PRO-05"], phase: 2, abschnitt: "5.21 Social Media Center and website content (SOC-01…SOC-08, PUB-07, PRO-01…PRO-05)", zeile: 1840 },
+  { pfad: "/portal/[mandant]/website/referenzen/neu", beschreibung: "created from an  whose customer release is on file", bewachung: {"art":"recht","lesen":["referenz.schreiben"],"schreiben":[],"aal2":false}, scope: "M1", spec: ["PRO-05"], phase: 2, abschnitt: "5.21 Social Media Center and website content (SOC-01…SOC-08, PUB-07, PRO-01…PRO-05)", zeile: 1840 },
   { pfad: "/portal/[mandant]/website/referenzen/[id]/veroeffentlichen", beschreibung: "", bewachung: {"art":"recht","lesen":["referenz.veroeffentlichen"],"schreiben":[],"aal2":false}, scope: "M1", spec: ["PRO-05","PUB-07"], phase: 2, abschnitt: "5.21 Social Media Center and website content (SOC-01…SOC-08, PUB-07, PRO-01…PRO-05)", zeile: 1841 },
   { pfad: "/portal/[mandant]/website/news", beschreibung: "", bewachung: {"art":"recht","lesen":["referenz.schreiben"],"schreiben":[],"aal2":false}, scope: "M1", spec: ["PRO-02","SOC-05"], phase: 2, abschnitt: "5.21 Social Media Center and website content (SOC-01…SOC-08, PUB-07, PRO-01…PRO-05)", zeile: 1842 },
   { pfad: "/portal/[mandant]/website/news/[id]", beschreibung: "", bewachung: {"art":"recht","lesen":["referenz.schreiben"],"schreiben":[],"aal2":false}, scope: "M1", spec: ["PRO-02","SOC-05"], phase: 2, abschnitt: "5.21 Social Media Center and website content (SOC-01…SOC-08, PUB-07, PRO-01…PRO-05)", zeile: 1842 },

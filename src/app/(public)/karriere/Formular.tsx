@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { EMAIL_MUSTER } from './meldung';
 
 /**
  * Das Bewerbungsformular — einmal geschrieben, an zwei Stellen benutzt
@@ -16,11 +17,16 @@ import Link from 'next/link';
  * glaubt, sie sei angekommen. Das steht als Satz auf der Seite, nicht als
  * Fussnote — und `// TODO(client, O-375)` hält fest, was fehlt.
  */
-export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche }: {
+export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche, meldung }: {
   readonly stelleId: string | null;
   readonly aufbewahrungTage: number;
   /** Nur bei der Initiativbewerbung: der Bereich ist dort eine Wahl. */
   readonly bereiche?: readonly { readonly slug: string; readonly name: string }[];
+  /**
+   * Der Satz zu einer Abweisung (`?fehler=` → `bewerbungsMeldung`, V-158) —
+   * über dem Formular, als `role="alert"`, wie beim Angebotsformular (D-599).
+   */
+  readonly meldung?: string | undefined;
 }) {
   const eingabe = 'mt-s1 w-full rounded-md border border-line bg-surface px-s4 py-s3 '
     + 'text-base text-text';
@@ -33,6 +39,18 @@ export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche }: {
       data-cse="bewerbungsformular"
       className="flex max-w-form flex-col gap-s4"
     >
+      {meldung !== undefined && (
+        <p role="alert" data-cse="bewerbung-meldung"
+           className="m-0 rounded-md border border-danger bg-danger-soft p-s4 text-base text-text">
+          {meldung}
+        </p>
+      )}
+      {/*
+        * **Ein Browser bekommt eine Seite, kein JSON** (D-599, V-158). Das
+        * Feld sagt es der Route ausdrücklich; ein Programm schickt es nicht
+        * mit und bekommt JSON wie bisher.
+        */}
+      <input type="hidden" name="antwort" value="seite" />
       {stelleId !== null && <input type="hidden" name="stelle" value={stelleId} />}
       {/*
         * Der Honigtopf — dieselbe Idee wie beim Angebotsformular: ein Feld,
@@ -62,7 +80,15 @@ export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche }: {
       </div>
       <div>
         <label className={beschriftung} htmlFor="email">E-Mail</label>
+        {/*
+          * `pattern` aus der Regel des Dienstes (V-158): `type="email"` allein
+          * nimmt `name@firma` an, der Dienst nicht — und eine Abweisung NACH
+          * dem Absenden kostet die Nachricht, weil sie nicht in eine Adresse
+          * zurückreist. `title` ist der Satz, den der Browser dann zeigt.
+          */}
         <input id="email" name="email" type="email" required autoComplete="email"
+               pattern={EMAIL_MUSTER}
+               title="Eine E-Mail-Adresse mit Punkt nach dem @, etwa name@firma.de"
                className={eingabe} />
       </div>
       <div>
