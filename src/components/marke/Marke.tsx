@@ -44,7 +44,7 @@ export function Marke({ art, groesse = 'md', className = '', bild = null }: {
   readonly groesse?: MarkeGroesse;
   readonly className?: string;
   /**
-   * Der hochgeladene Avatar der Gesellschaft (V-100, D-622, DESIGN §1
+   * Der hochgeladene Avatar der Gesellschaft (V-100, D-628, DESIGN §1
    * „Uploaded brand images"). Er ersetzt das vorläufige Zeichen an derselben
    * Stelle und in derselben Grösse — rund, wie DESIGN §6 den Avatar
    * beschreibt. `alt=""`: neben dem Namen ist er Schmuck, genau wie das
@@ -143,7 +143,7 @@ export function Logo({ art, name, groesse = 'md', href, className = '', nurZeich
 
 /**
  * Ein hochgeladenes LOGO — die Wortbildmarke der Gesellschaft (V-100,
- * D-622, DESIGN §1 „Uploaded brand images").
+ * D-628, DESIGN §1 „Uploaded brand images").
  *
  * Es ersetzt das Lockup aus Zeichen und Name, nicht nur das Zeichen: ein
  * Logo trägt den Namen meist selbst. Die Höhe ist die Grösse des Zeichens

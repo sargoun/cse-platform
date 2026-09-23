@@ -61,7 +61,7 @@ function nutzlast(fusszeile: string | null): Record<string, unknown> {
 }
 
 describe('§1 die Fusszeile steht IN der Nutzlast', () => {
-  it('v3 trägt sie unter `leistender.fusszeile`', () => {
+  it('v3 und v4 tragen sie unter `leistender.fusszeile`', () => {
     const o = nutzlast(FUSS);
     expect(o['schema']).toBe(SCHEMA_VERSION);
     expect((o['leistender'] as Record<string, unknown>)['fusszeile']).toBe(FUSS);
@@ -78,8 +78,8 @@ describe('§1 die Fusszeile steht IN der Nutzlast', () => {
     expect(leistender['fusszeile']).toBeNull();
   });
 
-  it('die Gestalt ist v3 — und v2 ist die Fassung davor', () => {
-    expect(SCHEMA_VERSION).toBe('cse.rechnung.v3');
+  it('die Gestalt ist v4 (V-132, Logo) — v3 und v2 sind die Fassungen davor', () => {
+    expect(SCHEMA_VERSION).toBe('cse.rechnung.v4');
     expect(SCHEMA_VERSION_V2).toBe('cse.rechnung.v2');
     expect(SCHEMA_VERSION_V1).toBe('cse.rechnung.v1');
   });
@@ -113,6 +113,8 @@ describe('§3 der Leser nimmt v2 UND v3 — und v1 weiterhin nicht', () => {
     const o = nutzlast(FUSS);
     o['schema'] = SCHEMA_VERSION_V2;
     delete (o['leistender'] as Record<string, unknown>)['fusszeile'];
+    /* Und das Logo aus v4 (V-132) — eine v2-Zeile trägt es ebenso wenig. */
+    delete (o['leistender'] as Record<string, unknown>)['logo'];
     const gelesen = leseNutzlast(JSON.stringify(o));
     expect(gelesen.leistender.fusszeile).toBeNull();
     /* Und alles andere ist unberührt da. */

@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0393 — Logo, Avatar und Titelbild lassen sich setzen (V-100, D-622,
+-- 0393 — Logo, Avatar und Titelbild lassen sich setzen (V-100, D-628,
 --        01-KERN §6.2, TEN-07, PUB-09, PUB-14, PRO-01, LEG-07)
 -- ===========================================================================
 -- **Der Befund.** 0200 legte fuenf Bildspalten an und gab `cse_app` bewusst
@@ -44,7 +44,7 @@ alter table mandant_identitaet add constraint mi_bildpfad_eigen check (
          ~ ('^' || mandant_id::text || '/cover/[0-9a-f]{64}\.(png|jpg)$')));
 
 comment on constraint mi_bildpfad_eigen on mandant_identitaet is
-  'V-100, D-622: ein Bildpfad zeigt nur in den eigenen Ordner des Mandanten im '
+  'V-100, D-628: ein Bildpfad zeigt nur in den eigenen Ordner des Mandanten im '
   'Behaelter marke, im Schluesselformat des Dienstes (Inhalt als Name). Avatar '
   'und Titelbild ohne SVG.';
 

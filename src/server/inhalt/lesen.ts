@@ -59,7 +59,7 @@ export interface BereichZeile {
   readonly angabenBestaetigt: boolean;
   /**
    * Logo, Avatar und Titelbild — nur aus einer VERÖFFENTLICHTEN Identität
-   * (V-100, D-622). Jedes Feld ist `null`, solange nichts hochgeladen oder
+   * (V-100, D-628). Jedes Feld ist `null`, solange nichts hochgeladen oder
    * nichts freigegeben ist; die Website zeigt dann das vorläufige Zeichen
    * aus DESIGN §1 und die Motivtafel, wie bisher.
    */

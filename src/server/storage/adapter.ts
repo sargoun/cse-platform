@@ -31,7 +31,7 @@ export class NichtVerbundenFehler extends Error {
  * ist ein Datenschutzvorfall, kein Bequemlichkeitsgewinn.
  */
 /*
- * `marke` (V-100, D-622) traegt Logo, Avatar und Titelbild einer
+ * `marke` (V-100, D-628) traegt Logo, Avatar und Titelbild einer
  * Gesellschaft — Material, das auf der Website steht, und trotzdem ein
  * PRIVATER Behaelter: ausgeliefert wird es ueber `/api/marke/…`, und die
  * Route gibt ein Bild nur heraus, wenn die Identitaet veroeffentlicht ist

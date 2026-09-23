@@ -10,7 +10,7 @@ import {
 
 /**
  * **Eine Nachricht an einen Kontakt — durch das UWG-Tor und die
- * Freigabekette** (V-101, CRM-08, Invariante 7, D-621).
+ * Freigabekette** (V-101, CRM-08, Invariante 7, D-627).
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * **Der Befund.**

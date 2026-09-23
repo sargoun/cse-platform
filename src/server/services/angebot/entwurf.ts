@@ -5,7 +5,7 @@ import { mengeAusEingabe, preisAusEingabe } from './von-hand.js';
 
 /**
  * **Ein Angebotsentwurf lässt sich berichtigen und zurückziehen** (V-130,
- * D-620, OPS-08).
+ * D-626, OPS-08).
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * **Der Befund.**

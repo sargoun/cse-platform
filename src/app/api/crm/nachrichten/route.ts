@@ -13,7 +13,7 @@ import { RechtsgrundlageFehlt, FreigabeErforderlich } from '@/server/agent/polic
 
 /**
  * `POST /api/crm/nachrichten` — eine Nachricht an einen Kontakt (V-101,
- * CRM-08, Invariante 7, D-621).
+ * CRM-08, Invariante 7, D-627).
  *
  * Der Endpunkt, den das Kontaktblatt seit je als „nicht gebaut" benannte.
  * Der Handler bleibt dünn: prüfen, den Dienst rufen, zurück. Die Reihenfolge

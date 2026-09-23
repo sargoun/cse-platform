@@ -7,9 +7,10 @@ import {
   MarkenbildFehler, eigenesMarkenbild, entferneMarkenbild, oeffentlichesMarkenbild,
   setzeMarkenbild, type MarkenbildEingabe,
 } from '../../src/server/services/mandant/markenbild.js';
+import { JPEG_CMYK, JPEG_RGB } from '../kern/hilfen/bild.js';
 
 /**
- * **Logo, Avatar und Titelbild gegen echtes Postgres** (V-100, D-622, 0393).
+ * **Logo, Avatar und Titelbild gegen echtes Postgres** (V-100, D-628, 0393).
  *
  * Geprüft wird, was nur hier zu prüfen ist:
  *
@@ -212,6 +213,24 @@ describe('§2 bei jedem „nein" bleiben Zeile und Speicher unberührt', () => {
       .toBe('typ');
     const z = await zeile();
     expect([z.avatar_pfad, z.cover_pfad, z.logo_hell_pfad]).toEqual([null, null, null]);
+  });
+
+  it('ein CMYK-JPEG ist kein Logo für Papier — für dunkle Flächen schon (V-132)', async () => {
+    /*
+     * Das Papierlogo landet auf der Rechnung, und die ist ein PDF/A-3 mit
+     * sRGB-Profil: DeviceCMYK darf dort nicht hinein. Das Logo für dunkle
+     * Flächen erreicht nie Papier und bleibt davon unberührt.
+     */
+    const speicher = new LokalerSpeicher();
+    expect(await grund(speicher, { art: 'logo_druck', daten: JPEG_CMYK, alt: 'x' })).toBe('typ');
+    expect(await grund(speicher, { art: 'logo_hell', daten: JPEG_CMYK, alt: 'x' })).toBe('typ');
+    const [z] = await sql.unsafe<{ d: string | null; h: string | null }[]>(
+      `select logo_druck_pfad as d, logo_hell_pfad as h from mandant_identitaet
+        where mandant_id = $1`, [f.reinigung]);
+    expect([z!.d, z!.h]).toEqual([null, null]);
+    expect(await grund(speicher, { art: 'logo_dunkel', daten: JPEG_CMYK, alt: 'x' })).toBeNull();
+    /* Und ein RGB-JPEG ist als Drucklogo in Ordnung. */
+    expect(await grund(speicher, { art: 'logo_druck', daten: JPEG_RGB, alt: 'x' })).toBeNull();
   });
 
   it('ohne „Identität verwalten": kein stiller Erfolg — die Leitung liest, schreibt aber nicht', async () => {

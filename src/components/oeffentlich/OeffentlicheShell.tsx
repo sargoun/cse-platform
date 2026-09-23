@@ -29,7 +29,7 @@ export interface ShellBereich {
   readonly nap: string;
   /**
    * Logo, Avatar und Titelbild aus einer VERÖFFENTLICHTEN Identität (V-100,
-   * D-622) — jedes Feld `null`, solange keines da ist. Dann bleibt es beim
+   * D-628) — jedes Feld `null`, solange keines da ist. Dann bleibt es beim
    * vorläufigen Zeichen und der Motivtafel.
    */
   readonly marke: OeffentlicheMarke;

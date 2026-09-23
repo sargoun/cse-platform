@@ -8,7 +8,7 @@ import {
 
 /**
  * **Eine Nachricht an einen Kontakt — und bei jedem „nein" entsteht NICHTS**
- * (V-101, CRM-08, Invariante 7, D-621) — gegen echtes Postgres.
+ * (V-101, CRM-08, Invariante 7, D-627) — gegen echtes Postgres.
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * **Warum diese Datei vor allem Abwesenheit prüft.**

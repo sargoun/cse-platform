@@ -13,7 +13,7 @@ import {
 
 /**
  * `GET /api/marke/[mandant]/[art]/[version]` — ein Logo, Avatar oder
- * Titelbild ausliefern (V-100, D-622, PUB-09, PUB-14, PRO-01).
+ * Titelbild ausliefern (V-100, D-628, PUB-09, PUB-14, PRO-01).
  *
  * **Der Behälter ist privat; diese Route ist die Tür, und sie hat zwei
  * Schlösser.**

@@ -222,7 +222,7 @@ export async function legeAngebotVonHandAn(
    * fertig aus.
    *
    * **Das war einmal das einzige Argument, und es ist es nicht mehr** (O-900
-   * → D-620, V-130). Als diese Datei entstand, liess sich eine
+   * → D-626, V-130). Als diese Datei entstand, liess sich eine
    * Angebotsposition nicht mehr ändern und nicht entfernen; eine halbe
    * Fassung blieb für immer stehen. Seit `0392` trägt ein ENTWURF beides —
    * `services/angebot/entwurf.ts` berichtigt und entfernt, und der ganze

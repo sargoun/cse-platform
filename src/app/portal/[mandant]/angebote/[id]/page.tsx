@@ -199,7 +199,7 @@ export default async function AngebotDetail(
   const steuerSumme = steuer.reduce((s, z) => s + BigInt(z.steuer_cent), 0n);
   /**
    * **Berichtigt wird nur ein ENTWURF, und nur mit dem Schreibrecht**
-   * (V-130, D-620).
+   * (V-130, D-626).
    *
    * Drei Bedingungen, und jede für sich: nach dem Versand weist
    * `ap_unveraenderlich` (0024) jeden Schreibversuch ab; ein zurückgezogener
@@ -408,7 +408,7 @@ export default async function AngebotDetail(
             zelle: (z) => `${(z.steuersatz_bp / 100).toLocaleString('de-DE')} %`,
           },
           /*
-           * **Die Bearbeiten-Spalte gibt es nur am ENTWURF** (V-130, D-620).
+           * **Die Bearbeiten-Spalte gibt es nur am ENTWURF** (V-130, D-626).
            *
            * Nach dem Versand weist `ap_unveraenderlich` (0024) jeden
            * Schreibversuch ab; eine Spalte, deren Knöpfe immer in einen
@@ -572,7 +572,7 @@ export default async function AngebotDetail(
           ) : null}
 
         {/*
-          * **Den ganzen Entwurf zurückziehen** (V-130, D-620).
+          * **Den ganzen Entwurf zurückziehen** (V-130, D-626).
           *
           * Er verlässt die Arbeitsliste, nicht die Datenbank: `status` sagt
           * WARUM er weg ist, `archiviert_am` nimmt ihn aus den Listen, die

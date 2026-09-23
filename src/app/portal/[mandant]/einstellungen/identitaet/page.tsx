@@ -11,6 +11,7 @@ import {
   MARKENBILD_ARTEN, MARKENBILD_TITEL, markenbildAdresse, type MarkenbildArt,
 } from '@/server/services/mandant/markenbild';
 import { waehleSpeicher } from '@/server/storage/waehle';
+import { waehleRechnungsLogo } from '@/server/services/finanz/rechnungslogo';
 import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
@@ -26,7 +27,7 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
  * Eintrag in `docs/DESIGN.md`, dann eine Migration, die den `CHECK`
  * erweitert (01-KERN §6.2, CLAUDE.md).
  *
- * **Logo, Avatar und Titelbild werden hier hochgeladen** (V-100, D-622):
+ * **Logo, Avatar und Titelbild werden hier hochgeladen** (V-100, D-628):
  * `POST /api/einstellungen/identitaet/bild` legt die Datei im privaten
  * Behaelter `marke` ab, `/api/marke/…` liefert sie aus. Ist kein Speicher
  * verbunden, sind die Felder gesperrt und die Seite sagt es — ein Knopf, der
@@ -70,9 +71,10 @@ function Abschnitt({ titel, kinder }: { readonly titel: string; readonly kinder:
 
 /** Wofür jedes Bild da ist — in einem Satz, damit niemand das falsche Logo lädt. */
 const MARKENBILD_ZWECK: Readonly<Record<MarkenbildArt, string>> = {
-  logo_hell: 'Für helle Flächen: Briefe und Angebotsblatt, wenn kein Drucklogo da ist.',
+  logo_hell: 'Für helle Flächen: Angebotsblatt und Rechnung, wenn kein Drucklogo da ist.',
   logo_dunkel: 'Für dunkle Flächen: die Website ist dunkel — Profilseite und Kopfbild.',
-  logo_druck: 'Für das gedruckte Angebot (DESIGN §11).',
+  logo_druck: 'Für Papier: Angebotsblatt und Rechnung (DESIGN §11). Auf die Rechnung '
+    + 'kommt es nur als PNG oder JPEG — ein SVG erreicht das PDF/A nicht.',
   avatar: 'Rund, anstelle des vorläufigen Zeichens: Karten, Fuss, Gesellschaftswahl.',
   cover: 'Das Foto der Gesellschaftskarte und des Kopfbilds der Profilseite.',
 };
@@ -196,6 +198,23 @@ export default async function IdentitaetSeite(
           Logovarianten teilen sich einen. Ein Bild erscheint auf der Website erst, wenn
           die Identität öffentlich sichtbar ist.
         </p>
+        {/*
+          * Was die NÄCHSTE Rechnung druckt (V-132) — dieselbe Wahl, die die
+          * Festschreibung trifft, und nicht eine zweite Regel daneben. Ein
+          * SVG-Logo ist auf der Website und dem Angebot richtig und erreicht
+          * die Rechnung trotzdem nicht; das soll hier stehen und nicht erst
+          * auffallen, wenn die erste Rechnung ohne Logo hinausgeht.
+          */}
+        {(identitaet.logoDruckPfad !== null || identitaet.logoHellPfad !== null)
+          && waehleRechnungsLogo(identitaet.mandantId, identitaet.logoDruckPfad,
+            identitaet.logoHellPfad) === null ? (
+            <Hinweis art="warnung" cse="identitaet-rechnungslogo" className="mt-s4 max-w-[72ch]">
+              <strong>Die Rechnung druckt derzeit kein Logo.</strong> Drucklogo und helles
+              Logo liegen nur als SVG vor; eine Rechnung ist ein PDF/A-3 und nimmt ein Logo
+              nur als PNG oder JPEG auf. Laden Sie das Drucklogo als PNG hoch; die Website
+              zeigt ohnehin das Logo für dunkle Flächen und bleibt, wie sie ist.
+            </Hinweis>
+          ) : null}
         {!speicherVerbunden ? (
           <Hinweis art="warnung" cse="identitaet-speicher" className="mt-s4 max-w-[72ch]">
             <strong>Speicher: nicht verbunden.</strong> Ohne Dateispeicher wird nichts
@@ -352,7 +371,9 @@ export default async function IdentitaetSeite(
         <strong>Die Rechnungs-Fusszeile wird in die Rechnung kopiert, nicht verlinkt
         (K-12).</strong> Bei der Festschreibung geht sie in den kanonischen
         Rechnungs-Payload (V-099) — eine spätere Änderung hier wirkt auf jede NEUE
-        Rechnung und auf keine festgeschriebene. Die Brief-Fusszeile steht unter jedem
+        Rechnung und auf keine festgeschriebene. Dasselbe gilt für das Logo auf der
+        Rechnung (V-132): festgehalten wird, welche Datei es war, und ein neues Logo
+        ändert keine festgeschriebene Rechnung. Die Brief-Fusszeile steht unter jedem
         Mahnbrief und gehört zu dem, was eine Freigabe bindet; die Angebots-Fusszeile
         steht auf dem Angebotsblatt.
       </Hinweis>

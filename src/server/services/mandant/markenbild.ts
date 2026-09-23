@@ -5,10 +5,11 @@ import type { Speicher } from '../../storage/adapter.js';
 import { erkenneMime } from '../../storage/mime.js';
 import { entferneMetadaten } from '../../storage/exif.js';
 import { istSvg, pruefeSvg, SvgFehler } from '../../storage/svg.js';
+import { istCmykJpeg } from '../../storage/raster.js';
 
 /**
  * **Logo, Avatar und Titelbild einer Gesellschaft** (V-100, TEN-07, PUB-09,
- * PUB-14, PRO-01, LEG-07, DESIGN §1/§4/§6, D-622).
+ * PUB-14, PRO-01, LEG-07, DESIGN §1/§4/§6, D-628).
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * **Der Befund.**
@@ -21,7 +22,7 @@ import { istSvg, pruefeSvg, SvgFehler } from '../../storage/svg.js';
  * ist auf ihrer eigenen Website eine Gesellschaft mit einem Platzhalter.
  *
  * ═══════════════════════════════════════════════════════════════════════════
- * **Die Entscheidungen, und je ein Grund** (D-622).
+ * **Die Entscheidungen, und je ein Grund** (D-628).
  * ═══════════════════════════════════════════════════════════════════════════
  *
  *  1. **Ein PRIVATER Behälter `marke`** — kein öffentlicher, auch nicht für
@@ -177,6 +178,18 @@ export async function setzeMarkenbild(
     throw new MarkenbildFehler('typ', e.art.startsWith('logo_')
       ? 'Ein Logo als SVG, PNG oder JPEG — erkannt am Inhalt, nicht am Dateinamen.'
       : 'Avatar und Titelbild als PNG oder JPEG — erkannt am Inhalt, nicht am Dateinamen.');
+  }
+  /*
+   * Ein Logo für Papier landet auf der Rechnung, und die ist ein PDF/A-3 mit
+   * sRGB-Profil — ein CMYK-JPEG darf dort nicht hinein (V-132, `raster.ts`).
+   * Hier abgewiesen, mit dem Satz, der sagt, was stattdessen geht; auf der
+   * Rechnung fiele es erst beim Erzeugen auf.
+   */
+  if ((e.art === 'logo_druck' || e.art === 'logo_hell') && mime === 'image/jpeg'
+      && istCmykJpeg(e.daten)) {
+    throw new MarkenbildFehler('typ',
+      'Dieses JPEG ist in CMYK angelegt. Ein Logo für Papier steht auf der Rechnung '
+      + '(PDF/A-3 mit sRGB) und muss deshalb RGB sein — am besten als PNG.');
   }
   if (mime === 'image/svg+xml') {
     try {

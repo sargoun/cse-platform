@@ -45,7 +45,7 @@ export const SICHERHEITSKOEPFE: readonly { readonly key: string; readonly value:
 ];
 
 /**
- * **Die Auslieferung der Markenbilder (V-100, D-622) — eine zweite, strengere
+ * **Die Auslieferung der Markenbilder (V-100, D-628) — eine zweite, strengere
  * Regel für genau einen Pfad.**
  *
  * Ein Logo darf ein SVG sein, und ein SVG ist ein Dokument mit

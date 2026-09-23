@@ -224,7 +224,7 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'angebot.schreiben',
   },
   /**
-   * Die Berichtigung eines ENTWURFS (V-130, D-620) — dasselbe Recht wie das
+   * Die Berichtigung eines ENTWURFS (V-130, D-626) — dasselbe Recht wie das
    * Anlegen und aus demselben Grund: ein Blatt ohne Nummer, das ausser dem
    * Haus niemand gesehen hat. Die Trennlinie zu `angebot.versenden` ist
    * `versendet_am`, und `ap_unveraenderlich` (0024) haelt sie in der
@@ -640,7 +640,7 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'crm.schreiben',
   },
   /**
-   * Die Nachricht an einen Kontakt (V-101, CRM-08, D-621) — der erste
+   * Die Nachricht an einen Kontakt (V-101, CRM-08, D-627) — der erste
    * Aufrufer von `sendeNachAussen`. `crm.kommunikation_versenden` stand seit
    * 0008 im Katalog und wurde bis hierher von keiner Route benutzt. Der Dienst
    * schreibt die benannte Freigabe des Verfassers und — sobald ein Versender
@@ -1713,7 +1713,7 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'system.identitaet_verwalten',
   },
   /*
-   * V-100, D-622: Logo, Avatar und Titelbild — dasselbe Recht wie die
+   * V-100, D-628: Logo, Avatar und Titelbild — dasselbe Recht wie die
    * uebrige Identitaet. Die Pfadspalten bekamen ihr Spaltenrecht erst mit
    * diesem Dienst (0393).
    */

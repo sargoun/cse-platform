@@ -12,6 +12,8 @@ import {
 } from '@/server/services/finanz/xrechnung/dienst';
 import { SnapshotZuAltFehler } from '@/server/services/finanz/xrechnung/aus-snapshot';
 import { XRechnungUnvollstaendigFehler } from '@/server/services/finanz/xrechnung/index';
+import { RechnungslogoFehler } from '@/server/services/finanz/zugferd/pdfa3';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
 
 /**
  * `GET /api/kunde/rechnungen/[id]/zugferd.pdf` — der eigene Beleg als ZUGFeRD
@@ -143,6 +145,18 @@ export async function GET(
       return NextResponse.json(
         { fehler: 'kein_snapshot', meldung: fehler.message }, { status: 409 },
       );
+    }
+    /*
+     * Das festgeschriebene Logo ist gerade nicht zu haben (V-132). Der Kunde
+     * bekommt den Zustand, nicht den Speicherschlüssel — der ist ein Detail
+     * des Hauses; die interne Route nennt ihn.
+     */
+    if (fehler instanceof NichtVerbundenFehler || fehler instanceof RechnungslogoFehler) {
+      return NextResponse.json({
+        fehler: 'voruebergehend_nicht_erzeugbar',
+        meldung: 'Das PDF dieser Rechnung lässt sich gerade nicht erzeugen. Die Rechnung '
+          + 'selbst ist unverändert; bitte versuchen Sie es später noch einmal.',
+      }, { status: 409 });
     }
     throw fehler;
   }

@@ -308,7 +308,7 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
-     * Die Berichtigung eines ENTWURFS (V-130, D-620): eine Position ändern
+     * Die Berichtigung eines ENTWURFS (V-130, D-626): eine Position ändern
      * oder entfernen, den ganzen Entwurf zurückziehen.
      *
      * `angebot.schreiben` und nicht `angebot.versenden`, aus demselben Grund
@@ -501,7 +501,7 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
-     * Die Nachricht an einen Kontakt (V-101, CRM-08, D-621).
+     * Die Nachricht an einen Kontakt (V-101, CRM-08, D-627).
      *
      * Das Kontaktblatt nannte diesen Endpunkt seit je als „nicht gebaut".
      * `crm.kommunikation_versenden` statt `crm.schreiben`: hier soll etwas das
@@ -2223,7 +2223,7 @@ export const ROUTEN: readonly RouteEintrag[] = [
   {
     /**
      * Logo, Avatar und Titelbild setzen oder die Zuordnung wegnehmen (V-100,
-     * D-622). Dasselbe Recht wie die uebrige Identitaet: wer das
+     * D-628). Dasselbe Recht wie die uebrige Identitaet: wer das
      * Erscheinungsbild pflegt, pflegt auch seine Bilder.
      */
     pfad: 'api/einstellungen/identitaet/bild',
@@ -2233,7 +2233,7 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/marke/[mandant]/[art]/[version]',
     recht: null,
     grund:
-      'V-100, D-622, PUB-09, PUB-14, PRO-01. Logo, Avatar und Titelbild stehen auf der '
+      'V-100, D-628, PUB-09, PUB-14, PRO-01. Logo, Avatar und Titelbild stehen auf der '
       + 'öffentlichen Website — hinter einer Anmeldung sähe sie niemand. Offen ist die Route '
       + 'trotzdem nur für eine VERÖFFENTLICHTE Identität (`oeffentlich_sichtbar`, gelesen über '
       + 'die Projektions-View); sonst nur für eine Sitzung in genau dieser Gesellschaft, und '

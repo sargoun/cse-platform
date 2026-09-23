@@ -17,7 +17,7 @@
 -- Entwurf ohne Nummer, den ausser dem Haus niemand gesehen hat.
 --
 -- ═══════════════════════════════════════════════════════════════════════════
--- **Die Entscheidung (O-900 → D-620): die Trennlinie ist `versendet_am`.**
+-- **Die Entscheidung (O-900 → D-626): die Trennlinie ist `versendet_am`.**
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 -- Ein Angebot, das das Haus VERLASSEN hat, bleibt unveränderlich; eine
@@ -48,7 +48,7 @@ alter table angebotsposition
   add column entfernt_von uuid references benutzer(id);
 
 comment on column angebotsposition.entfernt_am is
-  'V-130/D-620: aus dem Entwurf genommen, NICHT geloescht (Invariante 8). '
+  'V-130/D-626: aus dem Entwurf genommen, NICHT geloescht (Invariante 8). '
   'Nach dem Versand unmoeglich — ap_unveraenderlich weist es ab.';
 
 /**

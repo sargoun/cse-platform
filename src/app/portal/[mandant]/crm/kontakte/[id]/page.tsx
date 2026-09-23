@@ -563,7 +563,7 @@ export default async function Kontaktblatt(
       </section>
 
       {/*
-        * **Eine Nachricht an diesen Kontakt** (V-101, CRM-08, D-621).
+        * **Eine Nachricht an diesen Kontakt** (V-101, CRM-08, D-627).
         *
         * Hier stand: „Es gibt hier keinen Sendeknopf. Der Endpunkt … ist nicht
         * gebaut." Jetzt ist er gebaut — und die Seite sagt VORHER, ob etwas

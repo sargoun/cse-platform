@@ -15,7 +15,7 @@ import {
 
 /**
  * `POST /api/einstellungen/identitaet/bild` — Logo, Avatar oder Titelbild
- * setzen oder die Zuordnung wegnehmen (V-100, D-622).
+ * setzen oder die Zuordnung wegnehmen (V-100, D-628).
  *
  * Dasselbe Recht wie die übrige Identität (`system.identitaet_verwalten`),
  * derselbe Rücksprung mit `?hinweis=` — ein Formular bekommt eine Seite mit

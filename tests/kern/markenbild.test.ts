@@ -6,7 +6,7 @@ import {
 } from '@/server/services/mandant/markenbild';
 
 /**
- * V-100, D-622 — was sich ohne Datenbank über Logo, Avatar und Titelbild
+ * V-100, D-628 — was sich ohne Datenbank über Logo, Avatar und Titelbild
  * sagen lässt: welche Datei ein Bild ist, wie sie heisst und unter welcher
  * Adresse sie ausgeliefert wird.
  */

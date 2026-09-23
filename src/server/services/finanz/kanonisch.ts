@@ -1,5 +1,5 @@
 /**
- * Der EINE Kanonisierer — `cse.rechnung.v2`, RFC 8785 (JCS).
+ * Der EINE Kanonisierer — `cse.rechnung.v4`, RFC 8785 (JCS).
  *
  * `05-FINANZEN.md` §5.3. Diese Datei erzeugt die Bytes, die gehasht werden.
  * Es gibt sie genau einmal, und das ist keine Stilfrage: die Kette wird in
@@ -61,7 +61,7 @@ import { mengeNachPostgres, type MilliMenge } from './menge.js';
  * Nutzlast nie neu. Eine v1-Zeile bleibt damit byte-gleich und verifiziert
  * weiter — sie traegt ihre Gestalt in `schema_version` bei sich.
  */
-export const SCHEMA_VERSION = 'cse.rechnung.v3' as const;
+export const SCHEMA_VERSION = 'cse.rechnung.v4' as const;
 
 /** Die Gestalt, mit der bis PR 52 festgeschrieben wurde. Nur noch zum Lesen. */
 export const SCHEMA_VERSION_V1 = 'cse.rechnung.v1' as const;
@@ -85,6 +85,14 @@ export const SCHEMA_VERSION_V1 = 'cse.rechnung.v1' as const;
  * Wer v2 einmal wie v1 behandelt, erzwingt Stornos, die niemand braucht.
  */
 export const SCHEMA_VERSION_V2 = 'cse.rechnung.v2' as const;
+
+/**
+ * Die Gestalt vor V-132 — **weiterhin vollwertig lesbar**, aus demselben
+ * Grund wie v2: v3 → v4 fügt ein Feld HINZU (`leistender.logo`). Eine
+ * v3-Rechnung wurde festgeschrieben, bevor ein Logo sie erreichen konnte; der
+ * Leser liefert dafür `null`, und ihre Kette bleibt heil.
+ */
+export const SCHEMA_VERSION_V3 = 'cse.rechnung.v3' as const;
 
 export class KanonisierungsFehler extends Error {
   constructor(nachricht: string) {
@@ -299,6 +307,33 @@ export interface Leistender {
    * liefert dafuer `null`.
    */
   readonly fusszeile: string | null;
+  /**
+   * Das Drucklogo der Gesellschaft — **festgehalten, nicht verwiesen** (K-12,
+   * V-132, DESIGN §11 „each entity prints its own logo").
+   *
+   * Festgehalten wird der SCHLÜSSEL und die PRÜFSUMME der Datei im Behälter
+   * `marke`. Beides zusammen ist so gut wie eine Kopie: der Schlüssel IST der
+   * Inhalt (`<mandant>/<art>/<sha256>.<endung>`, `mi_bildpfad_eigen`), ein
+   * neues Logo bekommt einen neuen Schlüssel, und nichts in diesem Behälter
+   * wird je überschrieben oder gelöscht. Eine spätere Pflege der Identität
+   * ändert diese Rechnung deshalb nicht — und weil die Prüfsumme in der
+   * Nutzlast steht, geht sie in die Hashkette ein.
+   *
+   * Nur Raster (PNG, JPEG): ein SVG-Logo lässt sich in PDF/A-3 nicht ohne
+   * Umrechnung einbetten, und eine Umrechnung wäre eine zweite Datei, die
+   * niemand geprüft hat. `null` heisst: kein Rasterlogo hinterlegt, als die
+   * Rechnung festgeschrieben wurde.
+   *
+   * Neu in `cse.rechnung.v4`; eine v2/v3-Zeile trägt es nicht.
+   */
+  readonly logo: RechnungsLogo | null;
+}
+
+/** Siehe `Leistender.logo`. */
+export interface RechnungsLogo {
+  readonly schluessel: string;
+  readonly sha256: string;
+  readonly mime: 'image/png' | 'image/jpeg';
 }
 
 export interface Empfaenger {
@@ -531,6 +566,12 @@ export function baueNutzlast(r: RechnungVollstaendig): KanonischerWert {
       eadresse_schema: r.leistender.eadresseSchema,
       /* K-12: KOPIERT, nicht verwiesen — neu in v3 (V-099). */
       fusszeile: r.leistender.fusszeile,
+      /* K-12: Schlüssel und Prüfsumme des Drucklogos — neu in v4 (V-132). */
+      logo: r.leistender.logo === null ? null : {
+        schluessel: r.leistender.logo.schluessel,
+        sha256: r.leistender.logo.sha256,
+        mime: r.leistender.logo.mime,
+      },
     },
     empfaenger: {
       id: r.empfaenger.id,

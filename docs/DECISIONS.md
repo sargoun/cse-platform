@@ -3334,7 +3334,7 @@ Beantworten helfen:
 | O-903 | **Hemmt eine Rückfrage nach Art. 12 Abs. 6 DSGVO die Monatsfrist des Art. 12 Abs. 3?** Die Verordnung sagt es NICHT. Absatz 3 lässt den Monat mit dem Eingang des Antrags laufen; Absatz 6 erlaubt bei begründeten Zweifeln die Nachfrage nach zusätzlichen Angaben zur Identität — ob die Frist währenddessen ruht, steht in keinem der beiden, und die Ansichten in Literatur und Aufsichtspraxis gehen auseinander. **Ausgeliefert ist die vorsichtige Lesart: die Frist läuft weiter** (`0388` rührt `frist_am` nicht an), und die Anfrage bleibt in der Fälligkeitsliste sichtbar. Die andere Lesart wäre bequemer und im Streitfall die riskantere: eine still angehaltene Frist ist eine Rechtsauffassung, die sich als Spaltenwert tarnt, und wenn die Aufsicht sie nicht teilt, war die Auskunft verspätet, ohne dass es jemand gemerkt hat. Wer anders entscheidet, braucht dafür eine anwaltliche Aussage — nicht eine Zeile Code. | LEG-08, Art. 12 Abs. 3 und 6 DSGVO, `drizzle/0388`, `services/datenschutz/anfrage.ts`, V-088 |
 | O-902 | **Schliesst ein bezahlter offener Posten seine Mahnung von selbst — und was gilt bei Teilzahlung, Storno und den Mahngebühren?** `mahnung_position` zeigt auf `offener_posten`, ein Nachtlauf könnte den Zustand also nachziehen; `offene_posten_abgleichen` läuft ohnehin jede Nacht. Drei Fragen stehen davor und keine hat eine Antwort im Haus: reicht eine TEILzahlung (der Kunde zahlt die Rechnung, nicht die Mahngebühr — ist die Mahnung dann erledigt?), was geschieht mit einer Mahnung, deren Rechnung nachträglich storniert wurde, und zählen Verzugszinsen und Gebühr zur offenen Forderung, die den Abschluss auslöst? Ausgeliefert ist deshalb die HANDLUNG eines Menschen: `versendet → erledigt` auf dem Mahnungsblatt, unter `mahnung.schreiben` — wer Mahnläufe führt, soll auch abhaken können, und er sieht dabei den Betrag. **Ein Automatismus, der bei Teilzahlung falsch schliesst, ist schlimmer als keiner:** eine geschlossene Mahnung wird nicht weiterverfolgt. | FIN-15, `drizzle/0125`, `drizzle/0130`, `services/finanz/mahnung/index.ts`, V-084 |
 | O-901 | **Darf die betroffene Person ihren eigenen Zeit-Einwand selbst zurückziehen — oder bleibt das die Feststellung der Planung?** Zwei Stellen im Haus sagten das Gegenteil voneinander. `drizzle/0052` gibt der Person ausdrücklich NUR `t_selbst_einreichen` (INSERT) und begründet das fehlende UPDATE: „einen eingereichten Einwand zurueckzuziehen ist eine Entscheidung der Planung …, nicht ein zweiter Griff des Menschen in seinen eigenen Vorgang". `services/zeit/einwand.ts` schrieb daneben, `zurueckgezogen` ziehe „die betroffene Person selbst" zurück — und keine Oberfläche tat beides. Ausgeliefert ist, was die Datenbank heute erlaubt: die Planung vermerkt den Rückzug, mit Begründung, und das ist etwas anderes als eine Ablehnung (die eine Entscheidung GEGEN die Person wäre). Für den anderen Weg spricht, dass „zurückziehen" im Wortsinn dem gehört, der eingereicht hat, und dass der Aufwand für die Planung entfällt; dagegen spricht der Beweiswert der Aufzeichnung, denselben Grund, aus dem EMP-07 die Entscheidung über den eigenen Vorgang verbietet. **Eine Policy, die das ändert, ist eine Migration und keine Oberfläche** — deshalb wird sie nicht nebenbei geschrieben. | EMP-07, 01-KERN §6.27, `drizzle/0052`, `services/zeit/einwand.ts`, V-052 |
-| ~~O-900~~ | **BEANTWORTET → D-620.** Wie wird ein Angebotsentwurf berichtigt oder verworfen? **Die Trennlinie ist `versendet_am`** — dieselbe, die `angebot_nummer_bei_versand` in derselben Tabelle schon zieht und die Invariante 4 für die Rechnung längst setzt: ohne Nummer frei änderbar, mit Nummer unveränderlich. Eine Position eines Entwurfs lässt sich berichtigen und entfernen (`entfernt_am`, nie gelöscht — Invariante 8), der ganze Entwurf zurückziehen. Ein VERSENDETES Angebot bleibt unverändert unveränderlich; dort ist eine Änderung weiterhin eine neue Version mit Rückverweis. Die strengere Lesart — neue Version auch am Entwurf — bleibt erreichbar und kostet einen Dienst weniger. | OPS-08, FIN-07, Invariante 4, Invariante 8, `drizzle/0392`, D-620, V-130 |
+| ~~O-900~~ | **BEANTWORTET → D-626.** Wie wird ein Angebotsentwurf berichtigt oder verworfen? **Die Trennlinie ist `versendet_am`** — dieselbe, die `angebot_nummer_bei_versand` in derselben Tabelle schon zieht und die Invariante 4 für die Rechnung längst setzt: ohne Nummer frei änderbar, mit Nummer unveränderlich. Eine Position eines Entwurfs lässt sich berichtigen und entfernen (`entfernt_am`, nie gelöscht — Invariante 8), der ganze Entwurf zurückziehen. Ein VERSENDETES Angebot bleibt unverändert unveränderlich; dort ist eine Änderung weiterhin eine neue Version mit Rückverweis. Die strengere Lesart — neue Version auch am Entwurf — bleibt erreichbar und kostet einen Dienst weniger. | OPS-08, FIN-07, Invariante 4, Invariante 8, `drizzle/0392`, D-626, V-130 |
 | O-895 | **Darf ein Mensch seine eigene Abwesenheit noch zurücknehmen, wenn ihre Tage bereits in einen Lohnexport oder einen abgeschlossenen Stundenkonto-Monat geflossen sind?** `abwesenheit` trägt keine Spalte, die das sagt — weder ein `exportiert_am` noch einen Bezug auf den Lauf. Ausgeliefert ist deshalb, was die Zustandsmaschine seit `0073` sagt und was `antrag.t_selbst_zurueckziehen` (0301) für den Antrag schon entschieden hat: **unentschieden heisst rücknehmbar** — `t_selbst_zurueckziehen` auf `abwesenheit` (0386) lässt `erfasst` und `beantragt` heran, `genehmigt` nicht. Der wahrscheinliche Konfliktfall ist die Krankmeldung: sie steht dauerhaft auf `erfasst` (sie wird nicht genehmigt, sondern zur Kenntnis genommen), und ihre Tage buchen über `abwesenheit_urlaubskonto` und die Sollzeitgutschrift weiter. Eine Rücknahme nach dem Lohnlauf dreht damit eine Zahl zurück, die ein Mensch schon in der Hand hatte — dieselbe Frage wie bei O-861 für die Zeitfreigabe, und dieselbe Antwort ist keine Selbstverständlichkeit. Zwei Wege sind denkbar: (a) eine Sperrspalte auf `abwesenheit`, die der Lohnexport setzt und die die Policy mitliest; (b) die Rücknahme bleibt offen und die Korrektur läuft über die Personalstelle, die den Export kennt. **Erfunden wird keiner von beiden.** | EMP-10, EMP-04, O-861, Invariante 8, `drizzle/0073`, `drizzle/0386`, `services/abwesenheit/index.ts` |
 | O-894 | **Darf eine Rechnung, ein Buchungsbeleg, ein Vertrag oder eine Buchhaltungsunterlage nach Ablauf der zehn Jahre gelöscht werden — oder bleibt die Aufbewahrung dauerhaft?** Die vier GoBD-Klassen tragen in `dokument_aufbewahrung` eine ENTSCHIEDENE Frist (10 Jahre, § 147 AO, § 14b UStG, § 257 HGB) **und in derselben Zeile `loeschsperre = true`** (0009:275). `kern.setze_aufbewahrung` schreibt die Sperre beim Anlegen fest, und lösen lässt sie sich nie (D-49). Eine Rechnung ist damit nicht zehn Jahre unlöschbar, sondern **dauerhaft** — während `08-PR-PLAN.md` PR 64 als Zusage „for the full ten years" führt und Art. 5 Abs. 1 lit. e DSGVO eine Obergrenze verlangt, nicht nur eine Untergrenze. Drei Antworten sind denkbar: (a) die Sperre läuft mit der Frist ab, und der Aufbewahrungslauf nimmt die vier Klassen mit; (b) sie bleibt, und das Konzept sagt „dauerhaft" statt „zehn Jahre"; (c) sie bleibt, aber ein Mensch kann je Dokument einzeln freigeben, mit Grund und Protokoll. **Die Plattform erfindet keine davon**: der Lauf `dokument_aufbewahrung` (V-116) erreicht heute nur `angebot` und `kunde` — die beiden Klassen ohne Sperre —, und das Löschkonzept nennt genau diese zwei, statt eine Reichweite zu behaupten, die die Tabelle nicht hergibt. | DOC-07, LEG-01, V-116, D-49, `drizzle/0009`, `drizzle/0141`, `drizzle/0382`, `src/server/jobs/dokumentAufbewahrung.ts` |
 | O-906 | **Gilt für Rechnungen und Buchungsbelege seit dem 1. Januar 2025 die Aufbewahrungsfrist von ACHT statt zehn Jahren?** Das Vierte Bürokratieentlastungsgesetz (BEG IV) hat die Frist für Buchungsbelege in § 147 Abs. 3 AO, § 257 Abs. 4 HGB und § 14b Abs. 1 UStG auf acht Jahre verkürzt; Bücher, Inventare, Jahresabschlüsse und Lageberichte bleiben bei zehn. Die Plattform führt in `dokument_aufbewahrung` für `rechnung` und `beleg` weiter **zehn** Jahre und zeigt das auf der Ablageseite als „§ 147 AO, § 14b UStG — 10 Jahre“. **Nicht geändert, mit Absicht:** eine zu LANGE Frist kostet nichts, was sich nicht nachholen liesse — eine zu KURZE ist ein Beleg, der fehlt, wenn die Betriebsprüfung kommt, und gelöscht ist gelöscht. Und die Übergangsregel (für welche Belege die kürzere Frist schon gilt) ist eine Frage an den Steuerberater, keine Zahl, die die Plattform setzt. Hängt mit O-894 zusammen: solange die Sperre dauerhaft ist, ändert die kürzere Frist heute nichts am Löschen — sie ändert die Aussage auf dem Bildschirm und im Löschkonzept. | DOC-07, LEG-01, O-894, V-116, `drizzle/0009`, `src/app/portal/[mandant]/dokumente/upload/page.tsx` |
@@ -14981,7 +14981,9 @@ in anderen Dateien sitzen:
 
 ---
 
-### D-620 · Ein Angebotsentwurf lässt sich berichtigen — O-900 ist beantwortet
+### D-626 · Ein Angebotsentwurf lässt sich berichtigen — O-900 ist beantwortet
+
+_Nummer berichtigt am 2026-09-23: diese Entscheidung stand zuerst als D-620 da — eine Nummer, die schon vergeben war (die ältere D-620 betrifft das Archivieren von Objekten). Die ältere behält ihre Nummer, weil auf sie schon länger verwiesen wird. In einer Datenbank, auf die `0392` bereits angewendet ist, trägt der Spaltenkommentar noch die alte Nummer; eine angewendete Migration wird nicht nachträglich umgeschrieben._
 
 **Die Frage** (O-900) lautete: wie wird ein Angebotsentwurf berichtigt oder
 verworfen — als neue Version oder als Rückzug?
@@ -15057,7 +15059,9 @@ Dienst weniger statt mehr: sie fügt Zeilen hinzu, statt welche zu ändern.
 | Betrifft | OPS-08, FIN-07, Invariante 4, Invariante 8, AUT-06, `drizzle/0024`, `drizzle/0392`, `src/server/services/angebot/entwurf.ts`, V-005, V-130, O-900 |
 |---|---|
 
-### D-621 · Eine Nachricht an einen Kontakt geht durch das UWG-Tor und die Freigabe des Verfassers — V-101
+### D-627 · Eine Nachricht an einen Kontakt geht durch das UWG-Tor und die Freigabe des Verfassers — V-101
+
+_Nummer berichtigt am 2026-09-23: diese Entscheidung stand zuerst als D-621 da — eine Nummer, die schon vergeben war (die ältere D-621 betrifft das Vollständigkeitsregister). Die ältere behält ihre Nummer, weil auf sie schon länger verwiesen wird._
 
 **Der Befund** (V-101): `sendeNachAussen` (`services/kern/nachricht.ts`) war
 gebaut und geprüft — Kanal, Zweck, Kontakt, das UWG-Tor in der Datenbank, der
@@ -15184,7 +15188,9 @@ weiterhin ab, statt mit Fragezeichen hinauszugehen.
 | Betrifft | DOC-03, SEC-A6, ACC-03, TIM-10, CLAUDE.md „No fake integrations", Datenresidenz, `src/server/storage/ordner.ts`, `src/server/storage/waehle.ts`, `src/app/api/speicher/[bucket]/[...schluessel]/route.ts`, `scripts/windows-start.ps1`, V-131 |
 |---|---|
 
-### D-622 · Logo, Avatar und Titelbild — ein privater Behälter, eine Tür, der Inhalt als Name (V-100)
+### D-628 · Logo, Avatar und Titelbild — ein privater Behälter, eine Tür, der Inhalt als Name (V-100)
+
+_Nummer berichtigt am 2026-09-23: diese Entscheidung stand zuerst als D-622 da — eine Nummer, die schon vergeben war (die ältere D-622 betrifft Zusage und Absage einer Schicht). Die ältere behält ihre Nummer, weil auf sie schon länger verwiesen wird. In einer Datenbank, auf die `0393` bereits angewendet ist, trägt der Spaltenkommentar noch die alte Nummer; eine angewendete Migration wird nicht nachträglich umgeschrieben._
 
 **Der Befund** (V-100): `mandant_identitaet` trägt seit 0200 fünf Bildspalten
 — Logo für helle und dunkle Flächen, Drucklogo, Avatar, Titelbild —, und keine
@@ -15308,4 +15314,61 @@ auf genau das, was die Bewertung liest, und das Schreibrecht auf genau die
 zwei Spalten, die sie schreibt.
 
 | Betrifft | SEC-04, TIM-05, 03-GEWERKE §9.2/§9.4, K-01, K-11, `drizzle/0028`, `drizzle/0031`, `drizzle/0394`, V-129 |
+|---|---|
+
+### D-625 · Die Rechnung druckt ihr Logo — festgehalten wie die Fusszeile, geprüft wie ein Beleg (V-132)
+
+**Der Befund** (V-132): DESIGN §11 verlangt „each entity prints its own
+logo", das Angebotsblatt tut es seit V-100, die ZUGFeRD-Rechnung druckte den
+Namen. Ein Logo dort ist ein K-12-Fall: läse das PDF es aus der lebenden
+Identität, änderte ein neues Logo rückwirkend jede alte Rechnung, und die
+Kette meldete weiter „intakt".
+
+**Der Mandant hat die Entscheidung übergeben** („والاسئلة المفتوحة جاوب انت
+عنهن بذكاء بدالي"). Keine Rechts- oder Geldfrage: welches Bild oben links
+steht, ändert keinen Betrag und keine Pflichtangabe nach § 14 UStG.
+
+**Die Entscheidung.**
+
+1. **`cse.rechnung.v4`**: `leistender.logo = { schluessel, sha256, mime } | null`,
+   bei der Festschreibung kopiert. Nicht die Bytes: der Schlüssel im
+   Behälter `marke` IST der Inhalt (`<mandant>/<art>/<sha256>.<endung>`,
+   D-628), dort wird nichts überschrieben oder gelöscht, und die Prüfsumme
+   steht in der Nutzlast — also in der Hashkette. Das ist so gut wie eine
+   Kopie, ohne jede Rechnung um ein Bild zu vergrössern.
+2. **v2 und v3 bleiben vollwertig lesbar**, mit `logo: null` — sie
+   entstanden, bevor ein Logo die Rechnung erreichen konnte. Der Leser ist
+   dabei **strenger** als bei der Fusszeile: eine v4-Zeile ohne das Feld ist
+   beschädigt, eine v3-Zeile mit dem Feld ebenso; Schlüssel, Prüfsumme,
+   Ordner des Leistenden und Typ müssen zueinander passen.
+3. **Welches Logo:** das Drucklogo, sonst das für helle Flächen (DESIGN §4,
+   dieselbe Wahl wie das Angebotsblatt), nie das für dunkle Flächen. **Nur
+   Raster** (PNG, JPEG): ein SVG liesse sich in PDF/A-3 nur umgerechnet
+   einbetten, und die Umrechnung wäre ein zweites Bild, das niemand gesehen
+   hat. Liegen beide Papierlogos nur als SVG vor, druckt die Rechnung den
+   Namen wie bisher — und die Identitätsseite sagt das, bevor die erste
+   Rechnung ohne Logo hinausgeht.
+4. **Das Blatt entsteht nur mit genau diesen Bytes.** `baueZugferdPdf`
+   prüft die SHA-256 der übergebenen Datei gegen die Nutzlast; fehlen sie,
+   weichen sie ab, oder kommen Bytes ohne Logo in der Nutzlast, entsteht
+   kein Blatt (`RechnungslogoFehler`, 409 mit Satz; beim Kunden ohne den
+   Speicherschlüssel). Ein Blatt, das heute ohne und morgen mit Logo aus
+   demselben Snapshot käme, wären zwei Dokumente zu einer Nummer. Eine
+   Rechnung OHNE Logo braucht keinen Speicher und entsteht wie bisher.
+5. **Grösse und Lage**: oben links über dem Namen, wie im Angebot; Höhe
+   `marke-xl` (56 CSS-px = 42 pt), Breite folgt der Datei, höchstens der
+   Satzspiegel; `object-contain` — nie beschnitten, nie verzerrt. Der übrige
+   Kopf rückt um Logo, `--druck-block` und eine Zeile nach unten.
+6. **CMYK-JPEG wird abgewiesen** — beim Hochladen eines Papierlogos mit
+   einem Satz, und beim Erzeugen noch einmal: ein PDF/A-3 mit sRGB-Profil
+   darf kein DeviceCMYK enthalten (ISO 19005-3, 6.2.4.3).
+
+**Geprüft**: veraPDF nimmt die Rechnung ohne Logo, mit PNG **mit
+Alphakanal** (`/SMask`) und mit JPEG je als PDF/A-3B an
+(`tests/compliance/zugferd/verapdf.test.ts`, lokal 0 verletzte Regeln);
+`tests/kern/rechnung-logo.test.ts` hält Nutzlast, Wahl, Leser, Blatt und
+die Farbkomponenten fest; dieselbe Rechnung zweimal ergibt dieselben Bytes,
+auch mit Logo.
+
+| Betrifft | FIN-12, K-12, DESIGN §4/§11, V-099, V-100, V-132, D-628, `src/server/services/finanz/rechnungslogo.ts`, `src/server/services/finanz/zugferd/pdfa3.ts`, `src/server/storage/raster.ts` |
 |---|---|

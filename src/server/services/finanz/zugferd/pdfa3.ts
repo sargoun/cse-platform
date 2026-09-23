@@ -1,16 +1,18 @@
 import 'server-only';
 import { maskiere } from '../xrechnung/xml.js';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   AFRelationship, PDFDocument, PDFHexString, PDFName, PDFRawStream, PDFString,
-  rgb, type PDFFont, type PDFPage,
+  rgb, type PDFFont, type PDFImage, type PDFPage,
 } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import type { RechnungVollstaendig } from '../kanonisch.js';
 import { formatiereGeld } from '../geld.js';
 import { CII_DATEINAME, baueCii } from './cii.js';
 import { PROFIL_BESCHREIBUNG, sRgbProfil } from './icc.js';
+import { istCmykJpeg } from '../../../storage/raster.js';
 
 /**
  * ZUGFeRD 2.x — die Rechnung als PDF/A-3 mit eingebetteter CII (FIN-12, PR 53).
@@ -49,6 +51,16 @@ const RAND = 56.69;
 const SATZ = 10;      // DESIGN §11: 10pt Grundschrift
 const ZEILE = 14;
 
+/**
+ * Das Logo im Briefkopf (V-132): Höhe `marke-xl` aus DESIGN §4 — 56 CSS-Pixel,
+ * dieselbe Höhe wie im Kopf des Angebotsblatts. Ein CSS-Pixel ist 0,75 pt
+ * (CSS 2.1, 96 px = 72 pt), also 42 pt. Die Breite folgt der Datei und ist
+ * höchstens der Satzspiegel (`max-w-full` im `MarkenLogo`).
+ */
+const LOGO_HOEHE = 56 * 0.75;
+/** `--druck-block` (DESIGN §11): der Abstand zwischen Logo und Namen. */
+const DRUCK_BLOCK = 12;
+
 /** DESIGN §11 — die Druckfarben, und keine Bildschirmfarbe darf hier hinein. */
 const PAPIER = rgb(1, 1, 1);
 const TINTE = rgb(0x11 / 255, 0x11 / 255, 0x11 / 255);
@@ -61,6 +73,20 @@ export class PdfFehler extends Error {
   constructor(nachricht: string) {
     super(nachricht);
     this.name = 'PdfFehler';
+  }
+}
+
+/**
+ * Das festgeschriebene Logo ist nicht zu haben oder nicht dasselbe (V-132).
+ *
+ * Eigene Klasse, weil die Antwort eine andere ist als bei einer fehlenden
+ * Schrift: das ist kein Defekt des Servers, sondern ein Zustand des
+ * Speichers, und der Satz sagt, welcher.
+ */
+export class RechnungslogoFehler extends PdfFehler {
+  constructor(nachricht: string) {
+    super(nachricht);
+    this.name = 'RechnungslogoFehler';
   }
 }
 
@@ -200,9 +226,33 @@ function xmp(r: RechnungVollstaendig, erzeugtAm: string): string {
 <?xpacket end="w"?>`;
 }
 
-/** Der Kopf: Absender, Empfänger, die roten Linie und die Eckdaten. */
-function zeichneKopf(seite: PDFPage, r: RechnungVollstaendig, z: Zeug): number {
-  let y = SEITE.hoehe - RAND;
+/**
+ * Das Logo oben links, und wie weit es den übrigen Kopf nach unten schiebt.
+ *
+ * `object-contain` wie auf dem Schirm: nie beschnitten, nie verzerrt. Ist die
+ * Datei breiter als der Satzspiegel, wird sie als Ganzes kleiner — die Höhe
+ * gibt nach, nicht das Seitenverhältnis.
+ */
+function zeichneLogo(seite: PDFPage, bild: PDFImage | null): number {
+  if (bild === null) return 0;
+  const satzspiegel = SEITE.breite - 2 * RAND;
+  const massstab = Math.min(LOGO_HOEHE / bild.height, satzspiegel / bild.width);
+  const breite = bild.width * massstab;
+  const hoehe = bild.height * massstab;
+  seite.drawImage(bild, {
+    x: RAND, y: SEITE.hoehe - RAND - hoehe, width: breite, height: hoehe,
+  });
+  /* Die Grundlinie des Namens sitzt einen Block unter dem Logo, plus die
+     Oberlänge der 14-pt-Zeile — sonst berührte der Name das Bild. */
+  return hoehe + DRUCK_BLOCK + 14;
+}
+
+/** Der Kopf: Logo, Absender, Empfänger, die rote Linie und die Eckdaten. */
+function zeichneKopf(
+  seite: PDFPage, r: RechnungVollstaendig, z: Zeug, logo: PDFImage | null,
+): number {
+  const versatz = zeichneLogo(seite, logo);
+  let y = SEITE.hoehe - RAND - versatz;
 
   zeile(seite, r.leistender.name, RAND, y, z.fett, 14);
   y -= 6;
@@ -229,7 +279,7 @@ function zeichneKopf(seite: PDFPage, r: RechnungVollstaendig, z: Zeug): number {
   }
 
   const rechterRand = SEITE.breite - RAND;
-  let yr = SEITE.hoehe - RAND - ZEILE * 3;
+  let yr = SEITE.hoehe - RAND - versatz - ZEILE * 3;
   for (const [k, v] of [
     ['Rechnungsnummer', r.nummer],
     ['Rechnungsdatum', r.rechnungsdatum],
@@ -361,6 +411,50 @@ export interface PdfOptionen {
    * „irgendwann einmal erzeugt".
    */
   readonly erzeugtAm: Date;
+  /**
+   * Die Bytes des Logos, das die Nutzlast nennt (`r.leistender.logo`, V-132) —
+   * geholt vom Aufrufer, geprüft HIER.
+   *
+   * Das Blatt entsteht nur mit genau dem Bild, dessen Prüfsumme in der
+   * Hashkette steht. Fehlen die Bytes oder weichen sie ab, entsteht KEIN
+   * Blatt: eine Rechnung, die heute ohne Logo und morgen mit Logo aus
+   * demselben Snapshot kommt, wären zwei Dokumente zu einer Nummer — genau
+   * das, wogegen der Snapshot gebaut ist (K-12).
+   */
+  readonly logo?: Uint8Array;
+}
+
+/** Das Logo der Nutzlast, geprüft und eingebettet — oder `null`, wenn sie keines nennt. */
+async function bettetLogoEin(
+  doc: PDFDocument, r: RechnungVollstaendig, bytes: Uint8Array | undefined,
+): Promise<PDFImage | null> {
+  const logo = r.leistender.logo;
+  if (logo === null) {
+    if (bytes !== undefined) {
+      throw new RechnungslogoFehler(
+        'Logo-Bytes übergeben, aber die Nutzlast nennt kein Logo. Das Blatt zeigt nur, '
+        + 'was festgeschrieben wurde.');
+    }
+    return null;
+  }
+  if (bytes === undefined) {
+    throw new RechnungslogoFehler(
+      `Diese Rechnung wurde mit Logo festgeschrieben (${logo.schluessel}), die Bytes `
+      + 'fehlen. Ohne sie entstünde ein anderes Blatt als das festgeschriebene.');
+  }
+  const summe = createHash('sha256').update(bytes).digest('hex');
+  if (summe !== logo.sha256) {
+    throw new RechnungslogoFehler(
+      `Das Logo im Speicher ist nicht das festgeschriebene (SHA-256 ${summe}, `
+      + `erwartet ${logo.sha256}). Das Blatt entsteht nicht.`);
+  }
+  if (logo.mime === 'image/png') return doc.embedPng(bytes);
+  if (istCmykJpeg(bytes)) {
+    throw new RechnungslogoFehler(
+      'Das Logo ist ein CMYK-JPEG. Ein PDF/A-3 mit sRGB-Profil darf kein DeviceCMYK '
+      + 'enthalten (ISO 19005-3, 6.2.4.3); die Rechnung wäre mit diesem Logo kein PDF/A.');
+  }
+  return doc.embedJpg(bytes);
 }
 
 /**
@@ -384,11 +478,13 @@ export async function baueZugferdPdf(
     fett: await doc.embedFont(schrift('NotoSans-Bold.ttf'), { subset: true }),
   };
 
+  const logo = await bettetLogoEin(doc, r, optionen.logo);
+
   const seite = doc.addPage([SEITE.breite, SEITE.hoehe]);
   seite.drawRectangle({
     x: 0, y: 0, width: SEITE.breite, height: SEITE.hoehe, color: PAPIER,
   });
-  const nachKopf = zeichneKopf(seite, r, z);
+  const nachKopf = zeichneKopf(seite, r, z, logo);
   const nachPositionen = zeichnePositionen(seite, r, z, nachKopf);
   zeichneSummen(seite, r, z, nachPositionen);
   zeichneFuss(seite, r, z);

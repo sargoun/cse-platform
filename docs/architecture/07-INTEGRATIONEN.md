@@ -1018,7 +1018,7 @@ Buckets are the ones the data model already fixes, and **no public bucket exists
 `CHECK (bucket IN ('dokumente','archiv'))`) plus `einsatz-medien` for check-in, Aufmaß and Wachbuch
 photos (`02-datenmodell/04-PLANUNG-ZEIT.md` §medien). The earlier draft's `bewerbungen`, `exporte`
 and `oeffentlich_web` buckets are dropped: applicant files are `dokument` rows with a retention rule,
-and there is no swept scratch bucket at all. **`marke`** (V-100, D-622) holds logo, avatar and
+and there is no swept scratch bucket at all. **`marke`** (V-100, D-628) holds logo, avatar and
 cover of each company — material that appears on the website and still lives in a PRIVATE bucket:
 `/api/marke/<mandant>/<art>/<version>` serves it only for a published identity or a session in
 that company, keyed by content (`<mandant>/<art>/<sha256>.<ext>`, enforced by `mi_bildpfad_eigen`).

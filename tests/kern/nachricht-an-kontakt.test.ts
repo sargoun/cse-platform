@@ -1,6 +1,6 @@
 /**
  * Die Nutzlast einer Kontaktnachricht bindet GENAU den Text, der hinausgeht
- * (V-101, Invariante 7, D-621).
+ * (V-101, Invariante 7, D-627).
  *
  * Die Freigabe des Verfassers trägt `policy.nutzlastHash` über diese Nutzlast;
  * `gate()` vergleicht beim Versand denselben Abdruck. Ändert sich zwischen

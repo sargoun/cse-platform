@@ -31,6 +31,7 @@ import { addiere, cent, negiere, type Cent } from './geld.js';
 import { mengeAusPostgres, mengeNachPostgres, milliMenge, type MilliMenge } from './menge.js';
 import { berechneSteuer, type SteuerZeile } from './steuer/satz.js';
 import { zahlungsmittelCode } from './zahlungsmittel.js';
+import { waehleRechnungsLogo } from './rechnungslogo.js';
 import {
   buildKanonischePayload, SCHEMA_VERSION,
   type Position, type Quelle, type RechnungVollstaendig, type Steuerzeile, type Zuschlag,
@@ -821,6 +822,9 @@ interface KopfZeile {
   readonly m_geschaeftsfuehrer: string | null;
   /** `mandant_identitaet.rechnung_fuss` — beim Festschreiben KOPIERT (K-12, V-099). */
   readonly m_fusszeile: string | null;
+  /** Die beiden Logos, die auf Papier dürfen — gewählt von `waehleRechnungsLogo` (V-132). */
+  readonly m_logo_druck_pfad: string | null;
+  readonly m_logo_hell_pfad: string | null;
   readonly k_id: string;
   readonly k_name: string;
   readonly k_anschrift: string;
@@ -893,6 +897,7 @@ const KOPF_SQL = `
          m.handelsregister_gericht as m_gericht, m.handelsregister_nummer as m_hrb,
          nullif(array_to_string(m.geschaeftsfuehrer, ', '), '') as m_geschaeftsfuehrer,
          mi.rechnung_fuss as m_fusszeile,
+         mi.logo_druck_pfad as m_logo_druck_pfad, mi.logo_hell_pfad as m_logo_hell_pfad,
          k.id::text as k_id,
          coalesce(nullif(k.rechnung_name, ''), k.name) as k_name,
          case when k.rechnungsadresse_abweichend
@@ -1121,6 +1126,9 @@ export async function ladeRechnungVollstaendig(
       /* K-12: in die Nutzlast KOPIERT, damit eine spaetere Pflege kein
          festgeschriebenes Dokument rueckwirkend aendert (V-099). */
       fusszeile: kopf.m_fusszeile,
+      /* K-12: Schlüssel und Prüfsumme des Logos, nicht der Verweis auf die
+         Identität — ein späteres Logo ändert diese Rechnung nicht (V-132). */
+      logo: waehleRechnungsLogo(kopf.mandant_id, kopf.m_logo_druck_pfad, kopf.m_logo_hell_pfad),
     },
     empfaenger: {
       id: kopf.k_id,

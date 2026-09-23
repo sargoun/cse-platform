@@ -1,6 +1,6 @@
 /**
  * **Ein SVG-Logo — nur wenn es ein Bild ist und kein Programm** (V-100,
- * D-622, O-12, SEC-A6).
+ * D-628, O-12, SEC-A6).
  *
  * 01-KERN §6.2 nennt SVG für die drei Logovarianten, und ein Logo liegt fast
  * immer als SVG vor. Eine SVG-Datei ist aber ein XML-Dokument, das Skripte,

@@ -14,7 +14,7 @@ import { FARBEN_BEREICH, type BereichSchluessel } from '../../../lib/design/them
  * Kontrast niemand geprueft hat (DESIGN §9).
  *
  * **Bilder setzt nicht diese Datei, sondern `markenbild.ts`** (V-100,
- * D-622): eine Datei ist etwas anderes als ein Textfeld — sie wird am Inhalt
+ * D-628): eine Datei ist etwas anderes als ein Textfeld — sie wird am Inhalt
  * erkannt, von Metadaten befreit, im privaten Behaelter `marke` abgelegt und
  * unter ihrem Inhalt benannt. Hier bleiben die Alternativtexte, weil sie Text
  * sind und vor dem Bild da sein koennen.

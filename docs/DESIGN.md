@@ -101,7 +101,7 @@ the name may collapse to `sr-only` while the mark stays.
 Component: `src/components/marke/Marke.tsx` (`Marke`, `Logo`, `MarkenLogo`).
 The favicon `src/app/icon.svg` is the `gruppe` mark.
 
-**Uploaded brand images (V-100, D-622).** Once a company uploads its own files
+**Uploaded brand images (V-100, D-628).** Once a company uploads its own files
 under *Einstellungen › Identität*, they replace the provisional mark — in the
 same places, at the same sizes, with the same clear space. Nothing about the
 layout changes when a logo arrives, and nothing is shown until the company's

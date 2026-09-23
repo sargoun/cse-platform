@@ -10,7 +10,7 @@ import {
 
 /**
  * **Ein Angebotsentwurf lässt sich berichtigen und zurückziehen** — gegen
- * echtes Postgres (V-130, D-620, OPS-08, Invariante 8).
+ * echtes Postgres (V-130, D-626, OPS-08, Invariante 8).
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * **Der Befund.**

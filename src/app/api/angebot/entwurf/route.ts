@@ -13,7 +13,7 @@ import { HandAngebotFehler } from '@/server/services/angebot/von-hand';
 
 /**
  * `POST /api/angebot/entwurf` — eine Position berichtigen, entfernen oder den
- * ganzen Entwurf zurückziehen (V-130, D-620).
+ * ganzen Entwurf zurückziehen (V-130, D-626).
  *
  * **Eine eigene Adresse und nicht ein viertes `aktion=` auf `api/angebot`.**
  * Dieselbe Begründung wie bei `von-hand` und `freigabe`: das Manifest führt
