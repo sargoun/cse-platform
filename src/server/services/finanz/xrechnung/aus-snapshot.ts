@@ -25,7 +25,8 @@ import type {
   Abzug, Anschrift, Bauabzugsteuer, Empfaenger, Kontakt, Leistender, Leistungsort,
   Position, Quelle, RechnungVollstaendig, Steuerzeile, Zahlungsangaben, Zuschlag,
 } from '../kanonisch.js';
-import { SCHEMA_VERSION, SCHEMA_VERSION_V1 } from '../kanonisch.js';
+import { SCHEMA_VERSION, SCHEMA_VERSION_V1, SCHEMA_VERSION_V2 }
+  from '../kanonisch.js';
 import { mengeAusPostgres, type MilliMenge } from '../menge.js';
 
 export class SnapshotFehler extends Error {
@@ -80,6 +81,29 @@ function feld(o: Objekt, name: string, pfad: string): unknown {
     );
   }
   return o[name];
+}
+
+/**
+ * Ein Feld, das es in ÄLTEREN Gestalten noch nicht gab.
+ *
+ * `feld()` wirft, wenn ein Schlüssel fehlt, und das ist richtig: §5.3
+ * schreibt jeden Nullwert AUS, ein fehlendes Feld ist damit eine beschädigte
+ * Zeile. Für ein Feld, das erst in einer späteren Gestalt dazugekommen ist,
+ * gilt das nicht — sein Fehlen in einer v2-Zeile ist deren Zustand, nicht
+ * ihr Schaden.
+ *
+ * Deshalb eine eigene Funktion und nicht ein `?? null` in `feld()`: so bleibt
+ * an jeder Aufrufstelle sichtbar, dass hier bewusst toleriert wird, und die
+ * strenge Regel gilt überall sonst unverändert.
+ */
+function neuerFeldwert(o: Objekt, name: string, pfad: string): string | null {
+  if (!(name in o)) return null;
+  const w = o[name];
+  if (w === null) return null;
+  if (typeof w !== 'string') {
+    throw new SnapshotFehler(`${pfad}.${name}: Zeichenkette oder null erwartet`);
+  }
+  return w;
 }
 
 function text(o: Objekt, name: string, pfad: string): string {
@@ -191,6 +215,9 @@ function leseLeistender(wert: unknown): Leistender {
     geschaeftsfuehrer: textOderNull(o, 'geschaeftsfuehrer', p),
     eadresse: textOderNull(o, 'eadresse', p),
     eadresseSchema: textOderNull(o, 'eadresse_schema', p),
+    /* Neu in v3 (V-099). Eine v2-Zeile trägt sie nicht — das ist kein
+       Schaden, sondern ihr Zustand. */
+    fusszeile: neuerFeldwert(o, 'fusszeile', p),
   };
 }
 
@@ -363,10 +390,21 @@ export function leseNutzlast(bytes: Uint8Array | string): RechnungVollstaendig {
   const o = objekt(geparst, '$');
   const version = text(o, 'schema', '$');
   if (version === SCHEMA_VERSION_V1) throw new SnapshotZuAltFehler(version);
-  if (version !== SCHEMA_VERSION) {
+  /*
+   * **v2 UND v3 sind beide gültig** (V-099), und das ist kein Nachlassen der
+   * Strenge: v3 fügt ein Feld HINZU (`leistender.fusszeile`). Eine v2-Zeile
+   * hat es nicht, weil sie entstand, bevor die Fusszeile überhaupt ein
+   * Dokument erreichte — sie liest sich vollständig, und ihre Kette bleibt
+   * heil.
+   *
+   * v1 ist der andere Fall: dort fehlen Strasse, Ort, PLZ und Ländercode
+   * einzeln, und aus einer Zeile liessen sie sich nur raten. Deshalb steht
+   * v1 weiterhin als Fehler da und v2 nicht.
+   */
+  if (version !== SCHEMA_VERSION && version !== SCHEMA_VERSION_V2) {
     throw new SnapshotFehler(
       `Unbekannte Gestalt ${JSON.stringify(version)}. Bekannt sind `
-      + `${SCHEMA_VERSION_V1} (zu alt) und ${SCHEMA_VERSION}.`,
+      + `${SCHEMA_VERSION_V1} (zu alt), ${SCHEMA_VERSION_V2} und ${SCHEMA_VERSION}.`,
     );
   }
 

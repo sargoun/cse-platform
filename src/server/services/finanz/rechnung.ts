@@ -819,6 +819,8 @@ interface KopfZeile {
   readonly m_gericht: string | null;
   readonly m_hrb: string | null;
   readonly m_geschaeftsfuehrer: string | null;
+  /** `mandant_identitaet.rechnung_fuss` — beim Festschreiben KOPIERT (K-12, V-099). */
+  readonly m_fusszeile: string | null;
   readonly k_id: string;
   readonly k_name: string;
   readonly k_anschrift: string;
@@ -890,6 +892,7 @@ const KOPF_SQL = `
          m.steuernummer as m_steuernummer, m.ust_id as m_ust_id,
          m.handelsregister_gericht as m_gericht, m.handelsregister_nummer as m_hrb,
          nullif(array_to_string(m.geschaeftsfuehrer, ', '), '') as m_geschaeftsfuehrer,
+         mi.rechnung_fuss as m_fusszeile,
          k.id::text as k_id,
          coalesce(nullif(k.rechnung_name, ''), k.name) as k_name,
          case when k.rechnungsadresse_abweichend
@@ -919,6 +922,11 @@ const KOPF_SQL = `
          o.adresszusatz as o_zusatz, o.plz as o_plz, o.ort as o_ort, o.land as o_land
     from rechnung r
     join mandant m on m.id = r.mandant_id
+    -- LINKS verbunden (V-099): die Identitaetszeile entsteht mit dem Mandanten
+    -- (Ausloeser in 0200) und sollte immer da sein — aber eine Rechnung, die
+    -- wegen einer fehlenden Fusszeile gar nicht festschreibbar waere, ist der
+    -- teurere Fehler. Fehlt sie, traegt die Nutzlast dort null.
+    left join mandant_identitaet mi on mi.mandant_id = r.mandant_id
     join kunde k on k.mandant_id = r.mandant_id and k.id = r.kunde_id
     left join objekt o on o.mandant_id = r.mandant_id and o.id = r.objekt_id
    where r.id = $1`;
@@ -1110,6 +1118,9 @@ export async function ladeRechnungVollstaendig(
       geschaeftsfuehrer: kopf.m_geschaeftsfuehrer,
       eadresse: kopf.verkaeufer_eadresse,
       eadresseSchema: kopf.verkaeufer_eadresse_schema,
+      /* K-12: in die Nutzlast KOPIERT, damit eine spaetere Pflege kein
+         festgeschriebenes Dokument rueckwirkend aendert (V-099). */
+      fusszeile: kopf.m_fusszeile,
     },
     empfaenger: {
       id: kopf.k_id,

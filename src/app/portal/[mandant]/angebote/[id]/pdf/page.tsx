@@ -53,6 +53,15 @@ interface Kopf {
   readonly m_telefon: string | null;
   readonly m_email: string | null;
   readonly m_web: string | null;
+  /**
+   * `mandant_identitaet.angebot_fuss` — die stehende Fusszeile der
+   * Gesellschaft (V-099, K-12).
+   *
+   * Sie ist etwas anderes als `angebot.schlusstext`: der steht auf DIESEM
+   * Angebot und wird je Vorgang geschrieben; diese Zeile steht unter jedem
+   * Angebot dieser Gesellschaft. Beide zusammen ergeben das Blatt.
+   */
+  readonly m_angebot_fuss: string | null;
   readonly m_gericht: string | null;
   readonly m_hrb: string | null;
   readonly m_gf: string | null;
@@ -114,10 +123,21 @@ export default async function Angebotsdokument(
                 m.handelsregister_gericht as m_gericht, m.handelsregister_nummer as m_hrb,
                 m.geschaeftsfuehrer as m_gf, m.ust_id as m_ustid,
                 m.steuernummer as m_steuernummer,
-                m.iban as m_iban, m.bic as m_bic, m.bank as m_bank
+                m.iban as m_iban, m.bic as m_bic, m.bank as m_bank,
+                mi.angebot_fuss as m_angebot_fuss
            from angebot a
            join kunde k on k.id = a.kunde_id
            join mandant m on m.id = a.mandant_id
+           -- LINKS verbunden und nicht innen (V-099). Die Identitaetszeile
+           -- entsteht mit dem Mandanten (Ausloeser in 0200) und sollte immer
+           -- da sein — aber ein Angebot, das wegen einer fehlenden Fusszeile
+           -- gar kein Blatt ergibt, waere der teurere Fehler. Fehlt sie,
+           -- steht die Fusszeile eben nicht da.
+           --
+           -- KEIN Backtick in diesem Kommentar: er steht in einem
+           -- Template-Literal, und ein Backtick beendet es (vierter Fall
+           -- dieser Art im Projekt; wacheBacktickImSql prueft darauf).
+           left join mandant_identitaet mi on mi.mandant_id = a.mandant_id
            left join ansprechpartner ap on ap.id = a.ansprechpartner_id
            left join objekt o on o.id = a.objekt_id
           where a.id = $1`, [id]);
@@ -284,6 +304,25 @@ export default async function Angebotsdokument(
       {kopf.schlusstext === null ? null : <p>{kopf.schlusstext}</p>}
 
       <footer className="fuss">
+        {/*
+          * **Die stehende Fusszeile der Gesellschaft** (V-099, K-12).
+          *
+          * Sie war pflegbar unter Einstellungen › Identitaet und erreichte
+          * kein einziges Dokument: `angebot_fuss` kam im ganzen Baum nur in
+          * der Anzeige derselben Einstellungsseite vor. Wer dort etwas
+          * eintrug, sah es genau dort wieder — und nirgends sonst.
+          *
+          * Sie steht VOR den Pflichtangaben und nicht dazwischen: darunter
+          * kommen Firmierung, Registergericht und Steuernummern, und die sind
+          * gesetzlich gefordert (§ 35a GmbHG). Ein freier Text mitten darin
+          * liesse sie wie eine Auswahl aussehen.
+          */}
+        {kopf.m_angebot_fuss === null || kopf.m_angebot_fuss.trim() === '' ? null : (
+          <p data-cse="angebot-fusszeile"
+             style={{ margin: '0 0 4pt 0', whiteSpace: 'pre-line' }}>
+            {kopf.m_angebot_fuss}
+          </p>
+        )}
         <p style={{ margin: 0 }}>
           {[kopf.m_firma,
             `${kopf.m_strasse ?? ''}, ${kopf.m_plz ?? ''} ${kopf.m_ort ?? ''}`,

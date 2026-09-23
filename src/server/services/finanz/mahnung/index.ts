@@ -88,6 +88,15 @@ export interface MahnungZeile {
   readonly versendetAm: string | null;
   readonly verworfenGrund: string | null;
   readonly stufensprungGrund: string | null;
+  /**
+   * `mandant_identitaet.brief_fuss` — die stehende Briefzeile der
+   * Gesellschaft (V-099, K-12).
+   *
+   * Sie war pflegbar unter Einstellungen › Identität und erreichte **kein
+   * einziges Dokument**: der Spaltenname kam im ganzen Baum nur in der
+   * Anzeige derselben Einstellungsseite vor.
+   */
+  readonly briefFuss: string | null;
 }
 
 export interface MahnungPositionZeile {
@@ -106,10 +115,16 @@ const KOPF_SQL = `
          m.mahndatum::text as mahndatum, m.zahlbar_bis::text as zahlbar_bis,
          m.forderung_cent::text, m.gebuehr_cent::text, m.zinsen_cent::text,
          m.gesamt_cent::text, m.versendet_am::text as versendet_am,
-         m.verworfen_grund, m.stufensprung_grund
+         m.verworfen_grund, m.stufensprung_grund,
+         mi.brief_fuss
     from mahnung m
     join kunde k on k.id = m.kunde_id and k.mandant_id = m.mandant_id
-    join mahnstufe ms on ms.id = m.mahnstufe_id and ms.mandant_id = m.mandant_id`;
+    join mahnstufe ms on ms.id = m.mahnstufe_id and ms.mandant_id = m.mandant_id
+    -- LINKS verbunden (V-099): die Identitaetszeile entsteht mit dem Mandanten
+    -- (Ausloeser in 0200) und sollte immer da sein — aber eine Mahnung, die
+    -- wegen einer fehlenden Fusszeile gar nicht entsteht, waere der teurere
+    -- Fehler. Fehlt sie, steht die Fusszeile eben nicht da.
+    left join mandant_identitaet mi on mi.mandant_id = m.mandant_id`;
 
 interface KopfRoh {
   id: string; nummer: string | null; kunde_id: string; kunde_name: string;
@@ -117,6 +132,7 @@ interface KopfRoh {
   zahlbar_bis: string; forderung_cent: string; gebuehr_cent: string;
   zinsen_cent: string; gesamt_cent: string; versendet_am: string | null;
   verworfen_grund: string | null; stufensprung_grund: string | null;
+  brief_fuss: string | null;
 }
 
 function zuZeile(r: KopfRoh): MahnungZeile {
@@ -130,6 +146,7 @@ function zuZeile(r: KopfRoh): MahnungZeile {
     gesamtCent: cent(BigInt(r.gesamt_cent)),
     versendetAm: r.versendet_am, verworfenGrund: r.verworfen_grund,
     stufensprungGrund: r.stufensprung_grund,
+    briefFuss: r.brief_fuss,
   };
 }
 
@@ -280,6 +297,22 @@ export function mahnungNutzlast(
         zinsBp: p.zinsBp,
         zinsCent: String(p.zinsCent),
       })),
+      /**
+       * **Die Fusszeile gehört in die Nutzlast, nicht nur in den Brief**
+       * (V-099, Invariante 7).
+       *
+       * Sie ist stehender Text der Gesellschaft und keine Aussage über
+       * diesen Vorgang — man könnte sie also für Briefkopf halten und
+       * weglassen. Der Hash über die Nutzlast ist aber genau das, was eine
+       * Freigabe an einen INHALT bindet: liegt sie draussen, geht Text
+       * hinaus, den niemand gesehen hat, und die Freigabe bliebe trotzdem
+       * gültig.
+       *
+       * Der Preis ist gewollt: wer die Fusszeile ändert, während eine
+       * Mahnung auf Freigabe wartet, muss sie neu freigeben lassen. Genau so
+       * soll es sein — der Brief ist danach ein anderer.
+       */
+      briefFuss: kopf.briefFuss ?? '',
     },
   };
 }
@@ -358,6 +391,19 @@ export function mahnungstext(
   zeilen.push(`Gesamtbetrag:   ${formatiereGeld(kopf.gesamtCent)}`);
   zeilen.push('');
   zeilen.push(`Wir bitten um Ausgleich bis zum ${kopf.zahlbarBis}.`);
+  /*
+   * **Die stehende Briefzeile der Gesellschaft** (V-099, K-12).
+   *
+   * Sie steht am Ende und durch eine Trennlinie abgesetzt: darüber steht,
+   * was DIESEN Vorgang betrifft, darunter, was unter jedem Brief dieser
+   * Gesellschaft steht. Wer beides ineinanderlaufen liesse, machte aus einer
+   * stehenden Angabe eine Aussage über diesen Fall.
+   */
+  if (kopf.briefFuss !== null && kopf.briefFuss.trim() !== '') {
+    zeilen.push('');
+    zeilen.push('—');
+    zeilen.push(kopf.briefFuss.trim());
+  }
   return zeilen.join('\n');
 }
 

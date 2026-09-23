@@ -330,6 +330,19 @@ function zeichneFuss(seite: PDFPage, r: RechnungVollstaendig, z: Zeug): void {
     r.leistender.ustid === null ? null : `USt-IdNr. ${r.leistender.ustid}`,
     r.leistender.steuernummer === null ? null : `Steuernummer ${r.leistender.steuernummer}`]
       .filter((t): t is string => t !== null).join(' · '),
+    /**
+     * **Die stehende Fusszeile der Gesellschaft** (V-099, K-12).
+     *
+     * Sie kommt aus dem SNAPSHOT (`r.leistender.fusszeile`) und nicht aus
+     * `mandant_identitaet` — dieselbe Regel wie fuer jede andere Angabe auf
+     * diesem Blatt. Wer sie ein Jahr spaeter pflegt, aendert damit nicht,
+     * was auf einer festgeschriebenen Rechnung steht.
+     *
+     * Eine v2-Rechnung traegt sie nicht; dann faellt die Zeile weg.
+     * Mehrzeilige Fusszeilen werden in ihre Zeilen zerlegt, damit sie nicht
+     * als ein langer Strich ueber den Rand laufen.
+     */
+    ...(r.leistender.fusszeile ?? '').split('\n').map((t) => t.trim()),
   ];
   let y = RAND;
   for (const t of [...zeilen].reverse()) {
