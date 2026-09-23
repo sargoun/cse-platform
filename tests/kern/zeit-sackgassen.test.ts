@@ -112,3 +112,68 @@ describe('(4) das Zeiteintragsblatt zeigt, was es weiss (V-071)', () => {
     expect(readFileSync(BLATT, 'utf8')).toContain('zeit-gesperrt-hinweis');
   });
 });
+
+describe('(5) „Zurückgezogen" ist erreichbar (V-052)', () => {
+  const LISTE = 'src/app/portal/[mandant]/zeiten/einwaende/page.tsx';
+  const BLATT = 'src/app/portal/[mandant]/zeiten/einwaende/[id]/page.tsx';
+
+  it('beide Formulare bieten den Zustand an', () => {
+    /*
+     * Er steht seit `0052` im Aufzählungstyp, die Route lässt ihn seit je zu
+     * (`ZULAESSIG`), der Auslöser ebenfalls — und KEIN Formular schickte ihn.
+     * Der häufigste Fall dahinter ist banal: die Arbeiterin meldet sich und
+     * sagt, sie habe den Plan falsch gelesen. Das als „abgelehnt" zu buchen
+     * wäre eine Entscheidung GEGEN sie, und die stünde für immer in ihrer
+     * Akte.
+     */
+    for (const datei of [LISTE, BLATT]) {
+      expect(readFileSync(datei, 'utf8')).toContain('value="zurueckgezogen"');
+    }
+  });
+
+  it('die Route kennt genau die fünf Zustände, die die Formulare anbieten', () => {
+    const route = readFileSync('src/app/api/zeit/einwand/entscheidung/route.ts', 'utf8');
+    for (const zustand of [
+      'in_pruefung', 'anerkannt', 'teilweise_anerkannt', 'abgelehnt', 'zurueckgezogen',
+    ]) {
+      expect(route).toContain(`'${zustand}'`);
+      expect(readFileSync(BLATT, 'utf8')).toContain(`value="${zustand}"`);
+    }
+  });
+
+  it('und eine Abweisung führt zurück auf die Seite, nicht in ein Datenfeld', () => {
+    /*
+     * Die Route liest ausschliesslich `formData`; jede 400 war deshalb eine
+     * weisse Seite mit `{"fehler":"begruendung_zu_kurz"}` — und mit dem
+     * getippten Text verloren (D-562).
+     */
+    const route = readFileSync('src/app/api/zeit/einwand/entscheidung/route.ts', 'utf8');
+    expect(route).toContain('function zurueck(');
+    expect(route).not.toContain("NextResponse.json({ fehler: 'begruendung_zu_kurz'");
+    for (const datei of [LISTE, BLATT]) {
+      const quelle = readFileSync(datei, 'utf8');
+      expect(quelle).toContain('einwand-fehler');
+      expect(quelle).toContain('FEHLERTEXT');
+    }
+  });
+
+  it('der Dienst behauptet nicht mehr, die Person ziehe selbst zurück', async () => {
+    /*
+     * Der Kommentar widersprach der Migration, die ihn baut: `0052` gibt der
+     * betroffenen Person ausdrücklich NUR `t_selbst_einreichen` (INSERT). Ein
+     * Kommentar, der das Gegenteil der Policy behauptet, ist schlimmer als
+     * keiner — er lässt eine Oberfläche bauen, die an einer Regel scheitert,
+     * die niemand gesucht hätte. Offen ist die Frage trotzdem (O-901).
+     */
+    const quelle = readFileSync('src/server/services/zeit/einwand.ts', 'utf8');
+    expect(quelle).toContain('O-901');
+    expect(quelle).not.toContain('das zieht die betroffene Person selbst zurueck');
+
+    const { ENTSCHIEDEN, ENTSCHEIDUNG } = await import(
+      '../../src/server/services/zeit/einwand.js');
+    // Die Mengen selbst bleiben, wie sie waren: `zurueckgezogen` schliesst
+    // ab, löst aber das Selbstentscheidungsverbot nicht aus.
+    expect(ENTSCHIEDEN).toContain('zurueckgezogen');
+    expect(ENTSCHEIDUNG).not.toContain('zurueckgezogen');
+  });
+});

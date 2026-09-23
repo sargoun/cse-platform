@@ -41,10 +41,23 @@ export const ENTSCHIEDEN: readonly EinwandStatus[] = [
 /**
  * Die drei, die eine ENTSCHEIDUNG der Planung sind.
  *
- * `zurueckgezogen` steht ausdruecklich NICHT dabei: das zieht die betroffene
- * Person selbst zurueck, und `in_pruefung` ist ein Zwischenstand. Nur diese
- * drei loesen das Selbstentscheidungsverbot aus (EMP-07) — dieselbe Liste wie
- * in `kern.zeit_einwand_status`.
+ * Nur sie loesen das Selbstentscheidungsverbot aus (EMP-07) — dieselbe Liste
+ * wie in `kern.zeit_einwand_status`. `in_pruefung` ist ein Zwischenstand, und
+ * `zurueckgezogen` ist keine Entscheidung UEBER den Einwand, sondern die
+ * Feststellung, dass er keine mehr braucht.
+ *
+ * **Richtigstellung (V-052).** Hier stand, `zurueckgezogen` ziehe „die
+ * betroffene Person selbst" zurueck. Das stimmte nicht und widersprach der
+ * Migration, die es baut: `0052` gibt der betroffenen Person ausdrücklich NUR
+ * `t_selbst_einreichen` (INSERT) und kein UPDATE-Gegenstueck, mit der
+ * Begruendung, einen eingereichten Einwand zurueckzuziehen sei „eine
+ * Entscheidung der Planung … nicht ein zweiter Griff des Menschen in seinen
+ * eigenen Vorgang". Ein Kommentar, der das Gegenteil der Policy behauptet,
+ * ist schlimmer als keiner: er laesst eine Oberflaeche bauen, die an einer
+ * Regel scheitert, die niemand gesucht haette.
+ *
+ * Ob es so bleiben soll, ist offen — siehe **O-901**. Erfunden wird hier
+ * nichts; gebaut ist der Weg, den die Datenbank heute erlaubt.
  */
 export const ENTSCHEIDUNG: readonly EinwandStatus[] = [
   'anerkannt', 'teilweise_anerkannt', 'abgelehnt',

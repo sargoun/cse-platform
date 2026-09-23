@@ -50,10 +50,39 @@ const STATUS_TEXT: Readonly<Record<string, string>> = {
   in_pruefung: 'In Prüfung',
 };
 
+
+/**
+ * Die Sätze zu den Gründen, mit denen `api/zeit/einwand/entscheidung`
+ * zurückkommt (V-052, D-562).
+ *
+ * Vorher antwortete die Route auf jede Abweisung mit JSON — eine weisse Seite
+ * mit einem Datenfeld für einen Menschen, der gerade „Entscheiden" gedrückt
+ * hat, und mit dem getippten Text verloren.
+ */
+const FEHLERTEXT: Readonly<Record<string, string>> = {
+  kein_einwand: 'Es war kein Einwand benannt.',
+  unbekannter_status: 'Diesen Zustand gibt es nicht.',
+  begruendung_zu_kurz:
+    'Eine Entscheidung braucht eine Begründung von mindestens zehn Zeichen. Im '
+    + 'Streit steht sonst da, dass jemand etwas weggeklickt hat.',
+  nicht_gefunden: 'Diesen Einwand gibt es in dieser Gesellschaft nicht.',
+  bereits_entschieden:
+    'Über diesen Einwand ist bereits entschieden. Ein neuer Sachverhalt ist ein '
+    + 'neuer Einwand.',
+  eigener_einwand:
+    'Über den eigenen Einwand entscheidet man nicht (EMP-07) — die Aufzeichnung '
+    + 'behält ihren Beweiswert nur, wenn die betroffene Person sie nicht selbst bewegt.',
+};
+
 export default async function Einwandeingang(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  const suche = await searchParams;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const pfad = `/portal/${mandant}/zeiten/einwaende`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -86,6 +115,16 @@ export default async function Einwandeingang(
           {zeilen.length === 0 ? 'nichts offen' : `${String(zeilen.length)} offen`}
         </span>
       </div>
+
+      {fehler === null ? null : (
+        <p
+          data-cse="einwand-fehler"
+          className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-warning"
+        >
+          <strong>Nichts wurde entschieden.</strong>{' '}
+          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+        </p>
+      )}
 
       {zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
@@ -164,11 +203,17 @@ function Karte({ zeile, mandant, pfad }: {
         <input type="hidden" name="zurueck" value={pfad} />
         <label className="flex-1">
           <span className="mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted">
-            Begründung (mindestens 10 Zeichen)
+            Begründung (mindestens 10 Zeichen — außer bei „In Prüfung" und
+            „Zurückgezogen")
           </span>
+          {/*
+            * Kein `required`: die Route verlangt die Begründung nur für die
+            * drei ENTSCHEIDUNGEN. Ein Pflichtfeld für alle fünf zwänge dazu,
+            * einen Satz zu erfinden, wo es nichts zu begründen gibt — und das
+            * Einzelblatt daneben hält es schon so.
+            */}
           <input
             name="begruendung"
-            required
             minLength={10}
             className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
             placeholder="Was wurde geprüft, und was folgt daraus?"
@@ -183,9 +228,14 @@ function Karte({ zeile, mandant, pfad }: {
             defaultValue="anerkannt"
             className="min-h-11 rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
           >
+            <option value="in_pruefung">In Prüfung (noch keine Entscheidung)</option>
             <option value="anerkannt">Anerkannt</option>
             <option value="teilweise_anerkannt">Teilweise anerkannt</option>
             <option value="abgelehnt">Abgelehnt</option>
+            {/* Siehe die Begründung auf dem Einzelblatt (V-052, O-901). */}
+            <option value="zurueckgezogen">
+              Zurückgezogen (die Person hat den Einwand zurückgenommen)
+            </option>
           </select>
         </label>
         <Button type="submit" variante="secondary">Entscheiden</Button>

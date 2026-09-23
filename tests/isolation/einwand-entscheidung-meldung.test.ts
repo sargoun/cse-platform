@@ -185,13 +185,32 @@ describe('§2 wann sie SCHWEIGT', () => {
     expect(meldungen).toEqual([]);
   });
 
-  it('meldet NICHTS, wenn die Person den Vorgang selbst zurückzieht', async () => {
+  it('meldet NICHTS beim Rückzug — das ist keine Entscheidung ÜBER den Einwand', async () => {
+    /*
+     * **Richtiggestellt (V-052).** Hier stand „wenn die Person den Vorgang
+     * selbst zurückzieht" — und der Aufruf darunter tat etwas anderes: es ist
+     * die PLANUNG, die `zurueckgezogen` setzt. `0052` gibt der betroffenen
+     * Person ausdrücklich nur `t_selbst_einreichen` (INSERT) und kein
+     * UPDATE-Gegenstück; ob sie den Rückzug auch selbst erklären darf, ist
+     * offen (O-901).
+     *
+     * Dass hier NICHTS gemeldet wird, bleibt richtig: der Rückzug geht auf
+     * die Person zurück, die den Einwand erhoben hat — ihr mitzuteilen, was
+     * sie selbst gesagt hat, wäre Lärm.
+     */
     const id = await einwand();
     await als(planer, f.reinigung, (tx) => entscheideEinwand(kontextAus(tx, planer), {
       einwandId: id, status: 'zurueckgezogen', entschiedenVon: planer,
+      begruendung: 'Arbeiterin hat am Telefon zurückgezogen — Plan falsch gelesen.',
     }));
     const meldungen = (await meldungenAn(jonasKonto)).filter((m) => m.objekt_id === id);
     expect(meldungen).toEqual([]);
+    // Und der Zustand steht wirklich auf „zurückgezogen", nicht auf „abgelehnt":
+    // eine Ablehnung wäre eine Entscheidung GEGEN die Person und stünde für
+    // immer in ihrer Akte.
+    const [zeile] = await sql.unsafe<{ status: string }[]>(
+      `select status::text as status from zeit_einwand where id = $1`, [id]);
+    expect(zeile!.status).toBe('zurueckgezogen');
   });
 });
 
