@@ -405,6 +405,8 @@ export async function seedDatenschutz(
         await tx`select set_config('app.portal', 'intern', true)`;
         await tx`select set_config('app.readonly', 'off', true)`;
         await tx`select set_config('app.benutzer_id', ${bearbeiter}, true)`;
+        /* Ein vollständig angemeldeter Mensch (V-136, siehe seed/sitzung.ts). */
+        await tx`select set_config('app.aal', 'aal2', true)`;
         await tx`select app.widerspruch_verarbeitung_setzen(
                    ${ziele.ansprechpartnerId}::uuid, null,
                    'Am Telefon erklärt und im Vorgang festgehalten; die Grundlage fällt damit auf „keine".')`;

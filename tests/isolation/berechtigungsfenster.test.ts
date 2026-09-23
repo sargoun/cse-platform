@@ -87,7 +87,7 @@ describe('§1 kein Gueltigkeitsfenster haengt mehr an der Sitzungszeitzone', () 
     expect(treffer.map((t) => t.name)).toEqual([]);
   });
 
-  it('…und die sechs, die es betraf, fragen wirklich app.berlin_heute()', async () => {
+  it('…und die sieben, die es betraf, fragen wirklich app.berlin_heute()', async () => {
     /*
      * Der Gegen-Check zu §1: ein leerer Katalog — eine Datenbank ohne diese
      * Funktionen — machte den Fall oben gruen, ohne irgendetwas zu beweisen.
@@ -101,6 +101,8 @@ describe('§1 kein Gueltigkeitsfenster haengt mehr an der Sitzungszeitzone', () 
     expect(treffer.map((t) => t.name)).toEqual([
       'app.benutzer_mit_recht',
       'app.darf_gruppenansicht',
+      /* V-136 (0395): die 2FA-Pflicht der Rolle — dasselbe Fenster. */
+      'app.faktor_pflicht',
       'app.hat_recht_fuer',
       'app.kalender_feed_aufloesen',
       'app.kennwort_anmelden',

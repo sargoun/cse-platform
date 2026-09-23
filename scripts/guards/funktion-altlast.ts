@@ -47,7 +47,6 @@ export const FUNKTION_ALTLAST: ReadonlySet<string> = new Set([
   '0169:app.benutzer_mit_recht',
   '0169:app.darf_gruppenansicht',
   '0149:app.hat_recht',
-  '0169:app.hat_recht_fuer',
   '0069:app.ist_eingesetzt_auf_objekt',
   '0375:app.ist_mitglied',
   '0169:app.kalender_feed_aufloesen',

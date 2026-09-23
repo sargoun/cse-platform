@@ -15435,3 +15435,44 @@ setzt keine Oberfläche `skonto_bp` an einer Ausgangsrechnung.
 
 | Betrifft | FIN-12, § 14 Abs. 4/5 UStG, § 14a Abs. 5 UStG, § 48 EStG, DESIGN §11, V-134, `src/server/services/finanz/zugferd/blatt-inhalt.ts`, `src/server/services/finanz/zugferd/blatt.ts`, `src/server/services/finanz/zugferd/pdfa3.ts` |
 |---|---|
+
+### D-630 · Die 2FA-Pflicht der Rolle gilt in der Datenbank, und die Pforte leitet auf den Faktor-Schritt (V-136)
+
+**Der Befund** (V-136, AUT-02): der zweite Faktor war für `admin` und
+`super_admin` eine Weiterleitung nach dem Kennwort, keine Pflicht. Eine
+`aal1`-Sitzung hielt alle Rechte der Rolle.
+
+**Die Entscheidung.**
+
+1. **In der Datenbank, nicht nur im Tor.** `app.hat_recht_fuer` gewährt über
+   eine Rolle mit `erfordert_2fa` nichts ohne `aal2` (0395). Damit greift die
+   Pflicht an jeder Policy, jeder API und jedem Dienst, auch an einem Weg,
+   den das Tor eines Tages vergisst (Invariante 3: RLS ist die zweite Linie).
+2. **Die Pforte leitet auf den Faktor-Schritt, nicht auf 404.** Für die drei
+   Routen mit eigenem `aal2`-Wächter bleibt es bei 404 (AUT-06). Für die
+   Pflicht aus der Rolle ist die Weiterleitung richtig: sie fällt für jede
+   Adresse gleich aus und verrät deshalb nichts über die Seite. Ohne
+   eingerichteten Faktor geht es auf „einrichten“, sonst auf „prüfen“, jeweils
+   mit Rückweg.
+3. **K-15 bleibt.** Kein `aal2`-Gate auf dem Lesen von `benutzer_mandant`;
+   `leitung`, `mitarbeiter` und `kunde` verlangen keinen Faktor und sind
+   nicht berührt. Hintergrundläufe binden keinen Benutzer und fragen mit dem
+   Vorgabewert `aal2`.
+4. **Harness, Seed und Entwicklungszugang stellen eine VOLLSTÄNDIGE Anmeldung
+   dar** (`aal2`). Der Harness stand auf `aal1`, und 984 Prüfungen stützten
+   sich unbemerkt darauf, dass ein Admin dort alles darf. Wer den halben
+   Zustand prüft, sagt `aal: 'aal1'`.
+5. **Vorführbetrieb:** die Konten aus dem Seed tragen einen Platzhalter-Faktor
+   ohne Geheimnis. Mit `CSE_DEV_FLAECHEN` nennt die Code-Seite deshalb den
+   Weg, der funktioniert (`/dev/anmelden`, dort mit beiden Stufen), statt eine
+   Seite zu zeigen, an der jeder Code scheitert.
+
+**Zwei Meldungen, eine Abweisung.** `app.kundenzugang_ausstellen` und
+`app.verwaltungskonto_einladen` fragen das Recht vor der Stufe. Bei `aal1`
+weist seit 0395 schon die Rechtefrage ab. Abgewiesen wird in beiden Fällen,
+und im Portal kommt eine `aal1`-Sitzung wegen Punkt 2 gar nicht bis zu diesen
+Formularen. Die Reihenfolge der Sätze zu tauschen, hieße, beide Funktionen
+vollständig neu zu schreiben; das ist den Unterschied nicht wert.
+
+| Betrifft | AUT-02, AUT-06, D-33, K-15, V-136, `drizzle/0395`, `src/app/portal/zugang.ts`, `src/app/auth/zwei-faktor/pruefen/page.tsx`, `tests/isolation/harness.ts`, `tests/isolation/eigene-datenbank.ts`, `src/server/db/seed/sitzung.ts` |
+|---|---|

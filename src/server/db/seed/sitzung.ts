@@ -51,6 +51,14 @@ export async function alsPortalSitzung<T>(
     await setze('app.portal', 'intern');
     await setze('app.readonly', 'off');
     await setze('app.akteur_typ', 'mensch');
+    /*
+     * Die Sitzung eines Menschen, der sich VOLLSTÄNDIG angemeldet hat — mit
+     * zweitem Faktor, wo seine Rolle ihn verlangt (AUT-02). Seit V-136 gewährt
+     * eine Rolle mit `erfordert_2fa` ohne `aal2` nichts mehr (0395); ohne
+     * diese Zeile stünde der Seed als Admin mit halber Anmeldung da und
+     * bekäme kein einziges Recht. Dieselbe Stufe wie `kontext/dev.ts`.
+     */
+    await setze('app.aal', 'aal2');
     const abfrage = async <R,>(s: string, w: readonly unknown[] = []) =>
       (await tx.unsafe(s, w as never[])) as readonly R[];
     return fn({

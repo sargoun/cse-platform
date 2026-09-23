@@ -82,6 +82,8 @@ async function entscheide(pfad: string, s: Sitzung | null): Promise<Entscheidung
       ...(s?.personId == null ? {} : { personId: s.personId }),
       ...(s?.benutzerId === undefined ? {} : { benutzerId: s.benutzerId }),
       ...(s?.portal === undefined ? {} : { portal: s.portal }),
+      /* Dieselbe Stufe wie die Sitzung, die das Tor prüft (V-136). */
+      ...(s === null ? {} : { aal: s.aal }),
     },
     async (tx) => pruefeZugang(pfad, s, rechtepruefer(
       async <T,>(q: string, w: readonly unknown[] = []) =>

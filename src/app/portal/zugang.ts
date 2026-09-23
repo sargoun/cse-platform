@@ -4,6 +4,7 @@ import type postgres from 'postgres';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { pruefeZugang, rechtepruefer, PORTAL_START } from '@/server/auth/zugang';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import { bindeAnfrage, gruppenMandanten, rolleImMandanten } from '@/server/kontext/index';
 import {
   GRUPPEN_NAVIGATION, KUNDEN_NAVIGATION, NAVIGATION,
@@ -131,6 +132,8 @@ interface Befund {
   readonly sprache: PortalSprache | null;
   readonly wechselZiel: WechselZiel | null;
   readonly rueckweg: RueckwegZiel | null;
+  /** Gesetzt, wenn die Rolle den zweiten Faktor verlangt und er fehlt (V-136). */
+  readonly faktorSchritt?: 'pruefen' | 'einrichten';
 }
 
 /**
@@ -167,6 +170,34 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
       (await tx.unsafe(q, w as never[])) as readonly T[];
 
     await bindeAnfrage(tx, sitzung);
+    /**
+     * **Erst der zweite Faktor, dann alles andere** (AUT-02, V-136).
+     *
+     * Die Anmeldung leitet ein Konto mit `admin` oder `super_admin` nach dem
+     * Kennwort auf den Faktor-Schritt — aber eine Weiterleitung ist keine
+     * Pflicht: wer statt dessen eine Portaladresse aufrief, arbeitete bis
+     * V-136 mit `aal1` und allen Rechten seiner Rolle. Die Datenbank gewährt
+     * einer solchen Rolle ohne `aal2` jetzt nichts mehr (0395); hier bekommt
+     * der Mensch dazu die richtige Antwort: den Faktor-Schritt mit Rückweg,
+     * nicht ein 404 auf jeder Seite. Eine Auskunft über die Seite ist das
+     * nicht — die Antwort ist für jede Adresse dieselbe.
+     *
+     * Nur für `aal1`: eine `aal2`-Sitzung spart sich die Frage, und `leitung`,
+     * `mitarbeiter` und `kunde` verlangen keinen Faktor (K-15).
+     */
+    if (sitzung.aal !== 'aal2') {
+      const [f] = await abfrage<{ pflicht: boolean; faktor: boolean }>(
+        `select app.faktor_pflicht() as pflicht,
+                app.hat_zweiten_faktor(app.aktueller_benutzer()) as faktor`);
+      if (f?.pflicht === true) {
+        return {
+          entscheidung: { art: 'zweiter_faktor' }, rolle: null, mandanten: [],
+          sichtbareTabs: {}, navigationsRechte: {}, mandantSlug: null, modulGesperrt: false,
+          sprache: null, wechselZiel: null, rueckweg: null,
+          faktorSchritt: f.faktor ? 'pruefen' : 'einrichten',
+        } satisfies Befund;
+      }
+    }
     /**
      * Im Gruppen-Scope IST `app.mandant_ids` die sichtbare Menge
      * (`0004_rls_baseline.sql`). Sie muss also stehen, BEVOR das Tor fragt —
@@ -426,6 +457,10 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
   }) as Promise<Befund>);
 
   const { entscheidung } = befund;
+  if (befund.faktorSchritt !== undefined) {
+    redirect(alsRoute(
+      `/auth/zwei-faktor/${befund.faktorSchritt}?weiter=${encodeURIComponent(pfad)}`));
+  }
   /**
    * **Ein nicht gebuchtes Modul sieht aus wie eine Seite, die es nicht gibt**
    * — und fuer diese Gesellschaft ist es das auch (D-377, AUT-06).

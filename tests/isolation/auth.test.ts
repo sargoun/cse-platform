@@ -148,6 +148,65 @@ describe('(1) ein admin ohne zweiten Faktor wird an der API abgewiesen, nicht in
   });
 });
 
+describe('(1b) die Pflicht der ROLLE gilt, nicht nur die des Rechts (V-136, 0395)', () => {
+  /*
+   * Der Befund: `admin` und `super_admin` tragen `erfordert_2fa`, aber
+   * `app.hat_recht_fuer` wertete nur das Flag des RECHTS aus. Nach dem
+   * Kennwort genügte eine Portaladresse statt des Faktor-Schritts, und die
+   * aal1-Sitzung hielt alle Rechte der Rolle. Geprüft wird die Funktion, auf
+   * der jede Policy, jede API und die Portal-Pforte stehen.
+   */
+  async function recht(benutzer: string, schluessel: string, mandant: string | null,
+    aal: 'aal1' | 'aal2'): Promise<boolean> {
+    const [z] = await sql.unsafe<{ ok: boolean }[]>(
+      `select app.hat_recht_fuer($1::uuid, $2, $3::uuid, $4) as ok`,
+      [benutzer, schluessel, mandant, aal]);
+    return z!.ok;
+  }
+
+  it('admin im Bereich: ohne aal2 kein Recht, mit aal2 alle Rechte der Rolle', async () => {
+    const admin = await konto({ email: 'admin-rb@cse.test', faktor: true });
+    await mitgliedschaft(admin, f.reinigung, 'admin');
+    expect(await recht(admin, 'crm.lesen', f.reinigung, 'aal1')).toBe(false);
+    expect(await recht(admin, 'finanzen.lesen', f.reinigung, 'aal1')).toBe(false);
+    expect(await recht(admin, 'crm.lesen', f.reinigung, 'aal2')).toBe(true);
+  });
+
+  it('super_admin: der globale Zweig verlangt aal2 ebenso', async () => {
+    const sa = await konto({ email: 'sa-rb@cse.test', rolle: 'super_admin', faktor: true });
+    expect(await recht(sa, 'crm.lesen', f.reinigung, 'aal1')).toBe(false);
+    expect(await recht(sa, 'crm.lesen', f.reinigung, 'aal2')).toBe(true);
+  });
+
+  it('leitung verlangt keinen Faktor — und behält mit aal1 ihre Rechte (K-15)', async () => {
+    const leitung = await konto({ email: 'leitung-rb@cse.test' });
+    await mitgliedschaft(leitung, f.reinigung, 'leitung');
+    expect(await recht(leitung, 'crm.lesen', f.reinigung, 'aal1')).toBe(true);
+  });
+
+  it('admin in einem Bereich, leitung in einem anderen: dort gilt die leitung', async () => {
+    const beides = await konto({ email: 'beides-rb@cse.test', faktor: true });
+    await mitgliedschaft(beides, f.reinigung, 'admin');
+    await mitgliedschaft(beides, f.security, 'leitung');
+    expect(await recht(beides, 'crm.lesen', f.reinigung, 'aal1')).toBe(false);
+    expect(await recht(beides, 'crm.lesen', f.security, 'aal1')).toBe(true);
+  });
+
+  it('app.faktor_pflicht sagt es der Portal-Pforte — für admin ja, für leitung nein', async () => {
+    const admin = await konto({ email: 'admin-fp@cse.test', faktor: true });
+    await mitgliedschaft(admin, f.reinigung, 'admin');
+    const leitung = await konto({ email: 'leitung-fp@cse.test' });
+    await mitgliedschaft(leitung, f.reinigung, 'leitung');
+    for (const [wer, erwartet] of [[admin, true], [leitung, false]] as const) {
+      const pflicht = await alsApp(
+        { scope: 'mandant', mandantId: f.reinigung, benutzerId: wer, portal: 'intern',
+          readonly: true },
+        async (tx) => (await tx.unsafe<{ p: boolean }[]>(`select app.faktor_pflicht() as p`))[0]!.p);
+      expect(pflicht).toBe(erwartet);
+    }
+  });
+});
+
 describe('(2) ein fremder Datensatz antwortet 404 — byte-gleich mit einem fehlenden', () => {
   const akteur: Akteur = {
     benutzerId: 'b', personId: null, aktiverMandantId: null,

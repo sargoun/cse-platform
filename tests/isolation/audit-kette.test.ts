@@ -55,7 +55,7 @@ async function binde(rolle: string, recht: string, mandant: string): Promise<voi
     [await rolleId(rolle), recht, mandant] as never[]);
 }
 
-async function konto(mandant: string): Promise<string> {
+async function konto(mandant: string, rolle = 'admin'): Promise<string> {
   const email = `kette-${zufall()}@cse.test`;
   const [u] = await sql.unsafe<{ id: string }[]>(
     `insert into auth.users (email) values ($1) returning id`, [email]);
@@ -64,8 +64,20 @@ async function konto(mandant: string): Promise<string> {
     [u!.id, email] as never[]);
   await sql.unsafe(
     `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
-    [u!.id, mandant, await rolleId('admin')] as never[]);
+    [u!.id, mandant, await rolleId(rolle)] as never[]);
   return u!.id;
+}
+
+/**
+ * Ein Konto, das den halben Zustand wirklich HABEN kann (V-136): eine Rolle
+ * ohne eigene 2FA-Pflicht, mit beiden Audit-Rechten. Ein Admin hält seit
+ * 0395 bei aal1 gar nichts — an ihm liesse sich nicht mehr zeigen, dass
+ * gerade das Recht mit `erfordert_2fa` fehlt und das Bündel trotzdem bleibt.
+ */
+async function leitungMitAuditrechten(mandant: string): Promise<string> {
+  await binde('leitung', 'system.audit_exportieren', mandant);
+  await binde('leitung', 'system.audit_sensitiv_lesen', mandant);
+  return konto(mandant, 'leitung');
 }
 
 /** Eine Protokollzeile in diesem Bereich — ueber den einzigen Schreibweg. */
@@ -383,10 +395,10 @@ describe('app.audit_nutzlast_buendel', () => {
   it('in einer aal1-Sitzung kommt NICHTS — das Recht verlangt den zweiten Faktor',
     async () => {
       await protokolliere(f.reinigung, 'probe.aal');
-      const benutzer = await konto(f.reinigung);
+      const benutzer = await leitungMitAuditrechten(f.reinigung);
       const befund = await alsApp(
         { scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,
-          portal: 'intern', readonly: false },
+          portal: 'intern', readonly: false, aal: 'aal1' },
         async (tx) => {
           const [r] = await tx.unsafe(
             `select app.hat_recht('system.audit_exportieren') as export,
@@ -570,12 +582,12 @@ describe('erstelleAuditBuendel — das Manifest ueber dem echten Bestand', () =>
   it('ein redigiertes Buendel fuehrt nur protokoll.csv — und sagt den Grund',
     async () => {
       await protokolliere(f.reinigung, 'probe.redigiert');
-      const benutzer = await konto(f.reinigung);
+      const benutzer = await leitungMitAuditrechten(f.reinigung);
       const tag = await heute();
       /* `aal1`: das Recht der Werte verlangt den zweiten Faktor (0206). */
       const b = await alsApp(
         { scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,
-          portal: 'intern', readonly: false },
+          portal: 'intern', readonly: false, aal: 'aal1' },
         (tx) => erstelleAuditBuendel(
           kontextAus(tx, f.reinigung, benutzer), { von: tag, bis: tag }),
       );

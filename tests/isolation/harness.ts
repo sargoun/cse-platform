@@ -36,11 +36,17 @@ export interface Sitzung {
    */
   readonly portal?: 'intern' | 'mitarbeiter' | 'kunde';
   /**
-   * The AAL of the session (AUT-02). Left unset it resolves to `aal1`, which
-   * is what a fresh login is — `aal2` means „the second factor was shown IN
-   * THIS session", and the helper never claims it on its own. A right with
-   * `berechtigung.erfordert_2fa` is false at `aal1`, so a test that wants to
-   * exercise such a right has to say so.
+   * The AAL of the session (AUT-02). Left unset it resolves to `aal2`: the
+   * helper stands for a person who has COMPLETED the login, with the second
+   * factor where the role demands it — the same level the seed session
+   * (`seed/sitzung.ts`) and the development login (`kontext/dev.ts`) bind.
+   *
+   * It used to resolve to `aal1`, and 984 tests quietly relied on an admin
+   * holding every right of the role at `aal1`. That was the hole V-136
+   * closed: since 0395 a role with `erfordert_2fa` grants nothing without
+   * `aal2`. A test of the half-finished login — a right with
+   * `berechtigung.erfordert_2fa`, or a 2FA role without its factor — says
+   * `aal: 'aal1'` explicitly.
    */
   readonly aal?: 'aal1' | 'aal2';
 }
@@ -74,7 +80,7 @@ export async function alsApp<T>(
     // membership's role. In the other three it is a constant of the scope and
     // app.portal() ignores this GUC entirely.
     await tx.unsafe(`select set_config('app.portal', $1, true)`, [sitzung.portal ?? '']);
-    await tx.unsafe(`select set_config('app.aal', $1, true)`, [sitzung.aal ?? 'aal1']);
+    await tx.unsafe(`select set_config('app.aal', $1, true)`, [sitzung.aal ?? 'aal2']);
     await tx.unsafe(`select set_config('app.akteur_typ', 'mensch', true)`);
     return fn(tx);
   }) as Promise<T>;

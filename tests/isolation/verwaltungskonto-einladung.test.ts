@@ -108,7 +108,10 @@ describe('(1) D-610 — nur der Super-Admin laedt ein', () => {
   });
 
   it('ohne zweiten Faktor gar nicht (AUT-02)', async () => {
-    await expect(einladen(chef, 'admin', 'aal1')).rejects.toThrow(/zweitem Faktor|aal2|privilege/iu);
+    /* Seit V-136 (0395) gewährt super_admin ohne aal2 nichts — die Rechtefrage
+       weist dann schon vor der Stufenprüfung ab. Beides ist AUT-02. */
+    await expect(einladen(chef, 'admin', 'aal1'))
+      .rejects.toThrow(/zweitem Faktor|aal2|privilege|verwaltungskonto_erstellen fehlt/iu);
   });
 });
 
