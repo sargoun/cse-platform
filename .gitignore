@@ -175,3 +175,6 @@ next-env.d.ts
 # zu suchen hat (genau so ist `anmeldeweg-diag.mjs` in ad5ecee gelandet).
 *-diag.mjs
 *-diag.ts
+
+# Vorfuehrspeicher (V-131, D-623) -- Dateien und HMAC-Geheimnis dieses Rechners
+.speicher/

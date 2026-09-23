@@ -15114,3 +15114,71 @@ Antwort bleibt der Knopf stumm, und kein Weg täuscht einen Versand vor.
 
 | Betrifft | CRM-08, LEG-08, Invariante 7, O-36, D-562, `drizzle/0008`, `drizzle/0123`, `src/server/services/crm/nachricht-an-kontakt.ts`, `src/app/api/crm/nachrichten/route.ts`, V-092, V-101 |
 |---|---|
+
+### D-623 · Ein Vorführspeicher im Ordner — damit Dateien auf dem Vorführrechner funktionieren, ohne etwas vorzutäuschen (V-131)
+
+**Der Befund** (V-131): Ohne `SUPABASE_URL` lehnt `SupabaseSpeicher` jede
+Ablage ab — richtig so. Auf dem Vorführrechner hiess das aber: jeder Beleg,
+jede E-Rechnung, jedes Baustellenfoto, jede Vergabeunterlage, jeder
+DATEV-Stapel endete bei „nicht verbunden" — gezeigt werden konnte nur der
+Satz, warum es nicht geht. Dazu stand die Wahl des
+Speichers an **37 Stellen** als `new SupabaseSpeicher()` — ein zweiter
+Speicher hätte 37 Änderungen gebraucht.
+
+**Der Mandant hat die Entscheidung übergeben** („والاسئلة المفتوحة جاوب انت
+عنهن بذكاء بدالي") mit der Vorgabe, dass bei der Vorführung alles
+funktioniert.
+
+**Die Entscheidung.**
+
+1. **`waehleSpeicher()` entscheidet an EINER Stelle** (`server/storage/waehle.ts`):
+   Supabase, wenn verbunden — immer, auch wenn daneben ein Ordner eingetragen
+   ist; sonst der Vorführordner, wenn er eingetragen UND erlaubt ist; sonst
+   Supabase, nicht verbunden, wie bisher.
+2. **Der Vorführordner (`OrdnerSpeicher`) ist kein Vortäuschen.** Die Datei
+   liegt danach wirklich auf der Platte, sie lässt sich wirklich abrufen, und
+   sie ist nach einem Neustart noch da. Das unterscheidet ihn vom
+   verbotenen Fall („never simulate a successful external call"): es gibt
+   keinen externen Aufruf, der simuliert würde.
+3. **Drei Schranken halten ihn aus jedem Deployment:** `CSE_SPEICHER_ORDNER`
+   muss ausdrücklich gesetzt sein; `devFlaechenAn()` muss gelten — dieselbe
+   Schranke wie beim Entwicklungs-SMS-Dienst und der Entwicklungssitzung; und
+   auf Vercel (`VERCEL` gesetzt) gibt es ihn nie — ein flüchtiges
+   Dateisystem in einer ungewählten Region widerspräche der Datenresidenz.
+4. **Privat und signiert wie der echte** (DOC-03, SEC-A6). Der Ordner liegt
+   nicht unter `public/`. `signierteUrl` gibt `/api/speicher/…` mit Ablauf
+   (15 Minuten) und HMAC zurück; das Geheimnis wird einmal zufällig erzeugt
+   und liegt nur für den Eigentümer lesbar im Ordner. Kein Schlüssel führt
+   aus dem Ordner (`..`, absolute Pfade, fremde Behälter werden abgewiesen).
+   Die Auslieferung bestimmt den Typ aus dem Inhalt und setzt `nosniff` und
+   eine CSP ohne Skriptquelle.
+5. **Der Bildschirm sagt, was er ist.** Einstellungen › Integrationen führt
+   ihn als „Entwicklung" mit dem Namen „Vorführspeicher (Ordner auf diesem
+   Rechner)", nicht als „verbunden".
+
+**Eine Folge, die gewollt ist:** eine signierte Adresse kann jetzt relativ
+sein. Die vier Routen, die auf sie weiterleiten, lösen sie gegen den eigenen
+Ursprung auf (`new URL(url, erwarteterUrsprung(anfrage))`); eine absolute
+Supabase-Adresse bleibt davon unberührt. Ein fest eingetragenes `localhost`
+hätte jedes Telefon im WLAN ausgesperrt.
+
+**Das Windows-Startskript** setzt `CSE_SPEICHER_ORDNER` auf `.speicher` im
+Projekt (von git ignoriert) und wechselt selbst in die Projektwurzel.
+
+**Der Seed nutzt ihn, und sagt, was er getan hat.** Mit Speicher bekommen die
+Belegschaftsunterlagen ein Blatt, das sich als DEMODATEN ausweist (`demoPdf`),
+und die Behinderungsanzeigen gehen über den echten `dokumentiereVersand` —
+dieselbe Prüfung, dasselbe archivierte Schreiben wie über den Knopf. Ohne
+Speicher bleibt alles wie bisher.
+
+**Ein Fehler, den erst dieser Weg zeigte.** Der Seedtext „Dauerfrost unter
+−5 °C" trägt ein echtes Minuszeichen (U+2212), wie Word es setzt. Der
+PDF-Schreiber zählte es als nicht darstellbar, und `dokumentiereVersand` brach
+ab — über den Knopf genauso wie im Seed. `nachWinAnsi` bildet jetzt eine
+geschlossene Liste GLEICHBEDEUTENDER Zeichen ab (Minus, Bindestriche, schmale
+und feste Leerzeichen) und zählt weiter alles, was eine andere Bedeutung
+hätte — ein Name in arabischer oder kyrillischer Schrift bricht die Anzeige
+weiterhin ab, statt mit Fragezeichen hinauszugehen.
+
+| Betrifft | DOC-03, SEC-A6, ACC-03, TIM-10, CLAUDE.md „No fake integrations", Datenresidenz, `src/server/storage/ordner.ts`, `src/server/storage/waehle.ts`, `src/app/api/speicher/[bucket]/[...schluessel]/route.ts`, `scripts/windows-start.ps1`, V-131 |
+|---|---|

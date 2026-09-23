@@ -7,7 +7,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { Button } from '@/components/ui/Button';
 import { Recht } from '@/components/ui/Recht';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
@@ -143,7 +143,7 @@ export default async function Dokumentblatt(
          left join benutzer b on b.id = d.erstellt_von
         where d.id = $1 and d.geloescht_am is null`, [id]))) as Promise<readonly Dokument[]>);
   if (d === undefined) notFound();
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
 
   return (
     <PortalRahmen

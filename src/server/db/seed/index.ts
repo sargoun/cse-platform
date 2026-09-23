@@ -42,7 +42,7 @@ import { seedKern } from './kern.js';
 import { seedDatenschutz } from './datenschutz.js';
 import { seedCrm } from './crm.js';
 import { devFlaechenAn } from '../../../lib/dev-flaechen.js';
-import { SupabaseSpeicher } from '../../storage/adapter.js';
+import { waehleSpeicher } from '../../storage/waehle.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 if (url === undefined || url === '') {
@@ -1554,13 +1554,21 @@ async function main(): Promise<void> {
    */
   const [kundenKonto] = await sql<{ id: string }[]>`
     select id from benutzer where email = 'kunde.demo@example.test' limit 1`;
-  const ops = await seedOperations(sql, ids, kundenKonto?.id ?? null);
+  /*
+   * Der Dateispeicher, einmal gewaehlt fuer den ganzen Lauf (V-131, D-623):
+   * Supabase, wenn verbunden, sonst der Vorfuehrordner, sonst keiner.
+   */
+  const dateiSpeicher = waehleSpeicher();
+  const verbundenerSpeicher = dateiSpeicher.verbunden ? dateiSpeicher : null;
+  const ops = await seedOperations(sql, ids, kundenKonto?.id ?? null, verbundenerSpeicher);
   process.stdout.write(
     `  ${String(ops.objekte)} Objekte, ${String(ops.raeume)} Raeume, `
     + 'Belagsarten und Reinigungsklassen (Leistungswerte: Platzhalter, O-17)\n'
     + `  ${String(ops.belegschaftsdokumente)} der Belegschaft freigegebene `
-    + 'Unterlagen (EMP-11, DOC-04) — Metadaten ohne Datei, der Bucket ist nicht '
-    + 'verbunden\n',
+    + 'Unterlagen (EMP-11, DOC-04) — '
+    + (verbundenerSpeicher === null
+      ? 'Metadaten ohne Datei, der Bucket ist nicht verbunden\n'
+      : `${String(ops.mitDatei)} Dateien als DEMODATEN beschriftet im Speicher\n`),
   );
 
   /**
@@ -1754,7 +1762,7 @@ async function main(): Promise<void> {
    * Der Auftrag entsteht hier direkt, denn ein Bauauftrag kommt aus dem LV des
    * Auftraggebers und nicht aus der Reinigungskalkulation.
    */
-  const bau = await seedBau(sql, ids);
+  const bau = await seedBau(sql, ids, verbundenerSpeicher);
   if (bau.projekte === 0) {
     // Zweiter Lauf: das Bauprojekt steht. Ein eingereichter Nachtrag laesst
     // sich nicht zurueckziehen und ein abgeschlossener Bautag nicht aendern.
@@ -1771,7 +1779,9 @@ async function main(): Promise<void> {
     process.stdout.write(
       `  ${String(bau.behinderungen)} Behinderungen nach \u00a7 6 VOB/B, davon `
       + `${String(bau.behinderungenLaufend)} laufend ohne angezeigten Wegfall (BAU-06) `
-      + '\u2014 Versandbeleg fehlt: Medienspeicher nicht verbunden\n',
+      + (bau.behinderungenMitBeleg > 0
+        ? `\u2014 ${String(bau.behinderungenMitBeleg)} ueber dokumentiereVersand mit archiviertem Schreiben\n`
+        : '\u2014 Versandbeleg fehlt: Medienspeicher nicht verbunden\n'),
     );
     process.stdout.write(
       `  ${String(bau.bautage)} Bautage mit ${String(bau.mannstunden)} Mannstundenzeilen `
@@ -1818,8 +1828,7 @@ async function main(): Promise<void> {
    * Eine E-Rechnung im Posteingang (PR 63) — nur, wenn der Objektspeicher
    * verbunden ist; sonst sagt der Seed das und legt nichts an (ACC-03).
    */
-  const speicher = new SupabaseSpeicher();
-  const eingang = await seedEingang(sql, ids, speicher.verbunden ? speicher : null);
+  const eingang = await seedEingang(sql, ids, verbundenerSpeicher);
   process.stdout.write(
     eingang.status === 'angelegt'
       ? `  E-Rechnung im Freigabe-Posteingang: 1 Vorschlag (UBL, ${String(eingang.unsichereFelder)} unsichere Felder) — PR 63\n`

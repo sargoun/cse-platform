@@ -1129,6 +1129,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'zeit.lesen',
   },
   {
+    pfad: 'api/speicher/[bucket]/[...schluessel]',
+    recht: null,
+    grund:
+      'V-131, D-623. Die Auslieferung des Vorführspeichers — offen wie eine signierte '
+      + 'Supabase-Adresse offen ist: wer sie hat, hat sie von einer Route bekommen, die '
+      + 'Sitzung, Recht und Mandant geprüft und den Abruf vermerkt hat. Die Route selbst '
+      + 'prüft Ablauf und HMAC der Adresse (15 Minuten, DOC-03) und antwortet 404, wenn '
+      + 'kein Vorführordner aktiv ist — also in jedem Deployment.',
+  },
+  {
     /**
      * Ueber eine nachgereichte Behauptung entscheiden (TIM-09).
      *

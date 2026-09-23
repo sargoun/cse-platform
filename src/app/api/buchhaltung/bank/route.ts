@@ -7,7 +7,7 @@ import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { MAX_BYTES, pruefeGroesse } from '@/server/storage/mime';
 import { CamtFehler } from '@/server/services/finanz/bank/camt';
 import { ImportFehler, importiereAuszug }
@@ -86,7 +86,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           { recht: 'zahlung.schreiben', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
-        return importiereAuszug(kontext, new SupabaseSpeicher(), bytes, new Date());
+        return importiereAuszug(kontext, waehleSpeicher(), bytes, new Date());
       }));
 
     return NextResponse.json(ergebnis);

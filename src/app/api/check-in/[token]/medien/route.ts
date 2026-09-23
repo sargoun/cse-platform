@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/server/db/pool';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import {
   legeMediumAb, MedienFehler, MEDIEN_MAX_BYTES, pruefeMedienGroesse,
 } from '@/server/services/zeit/medien';
@@ -138,7 +139,7 @@ export async function POST(
   }
 
   const daten = new Uint8Array(await datei.arrayBuffer());
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
   const medienId = randomUUID();
   const clientEreignisId = (() => {
     const roh = formular.get('client_ereignis_id');

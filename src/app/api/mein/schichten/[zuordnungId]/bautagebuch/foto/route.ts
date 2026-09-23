@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import {
   legeMediumAb, MedienFehler, MEDIEN_MAX_BYTES, pruefeMedienGroesse, verzoegerterSpeicher,
 } from '@/server/services/zeit/medien';
@@ -69,7 +70,7 @@ export async function POST(
     return fehlerAntwort('ungueltige_eingabe', 'Es wurde keine Datei übertragen.', 422);
   }
 
-  const speicher = verzoegerterSpeicher(new SupabaseSpeicher());
+  const speicher = verzoegerterSpeicher(waehleSpeicher());
   const medienId = randomUUID();
   const roh = daten.get('beschreibung');
   const beschreibung = typeof roh === 'string' && roh.trim() !== '' ? roh.trim() : null;

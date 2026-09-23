@@ -49,6 +49,12 @@ param(
 # unten `Schritt`.
 $ErrorActionPreference = 'Stop'
 
+# Immer aus der Projektwurzel, egal von wo das Skript gestartet wurde. Ein
+# Aufruf aus `scripts\` (`.\windows-start.ps1`) liess `pnpm` sonst im falschen
+# Ordner suchen -- genau so wurde es auf dem ersten Windows-Rechner versucht.
+$Wurzel = Split-Path -Parent $PSScriptRoot
+Set-Location $Wurzel
+
 $DatenbankUrl = 'postgres://postgres@localhost:5433/postgres'
 $Behaelter    = 'cse-db'
 # Base64 von `TEST-KEY-NICHT-FUER-PRODUKTION`. Gehoert in keine echte
@@ -94,6 +100,17 @@ $env:DATABASE_URL     = $DatenbankUrl
 $env:CSE_DEV_FLAECHEN = '1'
 $env:PORT             = "$Port"
 
+# -- Der Vorfuehrspeicher (V-131, D-623) ------------------------------------
+# Ohne Supabase-Zugang lehnte die Plattform jede Datei ab: Belege,
+# Baustellenfotos, Unterlagen, Logos -- ueberall "nicht verbunden". Auf dem
+# Vorfuehrrechner liegen sie jetzt in einem Ordner neben dem Projekt
+# (`.speicher`, von git ignoriert) und kommen nur ueber ablaufende, signierte
+# Adressen heraus. Einstellungen > Integrationen nennt ihn "Entwicklung", nicht
+# "verbunden". Ist SUPABASE_URL gesetzt, gewinnt Supabase.
+if (-not $env:CSE_SPEICHER_ORDNER) {
+  $env:CSE_SPEICHER_ORDNER = Join-Path $Wurzel '.speicher'
+}
+
 # -- Speicher fuer den Bau --------------------------------------------------
 # Gemeldet von einem frischen Windows-Rechner, nach einer Stunde Laufzeit:
 # Abhaengigkeiten, Datenbank, 391 Migrationen, Seed und Texte liefen durch --
@@ -121,6 +138,7 @@ Hinweis "DATABASE_URL     = $env:DATABASE_URL"
 Hinweis "CSE_DEV_FLAECHEN = $env:CSE_DEV_FLAECHEN  (Demodaten, Code auf dem Bildschirm, Kekse ohne Secure)"
 Hinweis "PORT             = $env:PORT"
 Hinweis "NODE_OPTIONS     = $env:NODE_OPTIONS  (Speicher fuer den Bau)"
+Hinweis "CSE_SPEICHER_ORDNER = $env:CSE_SPEICHER_ORDNER  (Dateien der Vorfuehrung)"
 
 # -- Einen laufenden Server ZUERST beenden ---------------------------------
 # Das ist der Schritt, dessen Fehlen das Protokoll oben erzeugt hat.

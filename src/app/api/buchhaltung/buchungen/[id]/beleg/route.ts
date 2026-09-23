@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import { erwarteterUrsprung } from '@/server/auth/ursprung';
 import { NextResponse, type NextRequest } from 'next/server';
 import { istUuid } from '@/lib/uuid';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
@@ -7,9 +8,8 @@ import { withTenant } from '@/server/kontext/index';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { authorize } from '@/server/auth/authorize';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
-import {
-  NichtVerbundenFehler, SIGNATUR_SEKUNDEN, SupabaseSpeicher, type Bucket,
-} from '@/server/storage/adapter';
+import { NichtVerbundenFehler, SIGNATUR_SEKUNDEN, type Bucket } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 
 /**
  * `GET /api/buchhaltung/buchungen/[id]/beleg` — das archivierte Dokument zu
@@ -39,7 +39,7 @@ interface OrtRoh {
 }
 
 export async function GET(
-  _anfrage: NextRequest,
+  anfrage: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
@@ -96,11 +96,13 @@ export async function GET(
     return NextResponse.json({ fehler: 'geloescht' }, { status: 410 });
   }
 
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
   try {
     const url = await speicher.signierteUrl(
       ort.bucket as Bucket, ort.objekt_schluessel, SIGNATUR_SEKUNDEN);
-    return NextResponse.redirect(url, 302);
+    /* Eine relative Adresse (Vorführspeicher, V-131) wird gegen den eigenen
+       Ursprung aufgelöst; eine absolute (Supabase) bleibt, wie sie ist. */
+    return NextResponse.redirect(new URL(url, erwarteterUrsprung(anfrage)), 302);
   } catch (fehler) {
     if (fehler instanceof NichtVerbundenFehler) {
       return NextResponse.json(

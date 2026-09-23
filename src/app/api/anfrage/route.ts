@@ -11,7 +11,8 @@ import { ipHash, nimmAn, pruefeRatenlimit, RatenlimitFehler, istBot }
 import { bestaetige } from '@/server/services/lead/bestaetigung';
 import { pruefeUpload } from '@/server/storage/mime';
 import { ladeHoch } from '@/server/services/dokument/upload';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { API_TEXTE } from '@/lib/i18n/texte';
 import { uebersetzeFeldmeldungen } from '@/lib/i18n/formular-en';
 import { mitSprache, SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
@@ -276,7 +277,7 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
               daten: datei.bytes,
               behaupteterTyp: datei.mime,
             },
-            new SupabaseSpeicher(),
+            waehleSpeicher(),
             jahr,
           );
           /**

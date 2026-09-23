@@ -63,8 +63,10 @@ import {
   hefteMannstundenAn, heftePositionAn, legeBautagAn, schliesseBautag,
 } from '../../services/bau/bautagebuch.js';
 import {
-  behinderungNutzlast, erstelleBehinderung, findeBehinderung, zeigeWegfallAn,
+  behinderungNutzlast, dokumentiereVersand, erstelleBehinderung, findeBehinderung,
+  zeigeWegfallAn,
 } from '../../services/bau/behinderung.js';
+import type { Speicher } from '../../storage/adapter.js';
 import { protokolliereAbnahme } from '../../services/bau/abnahme.js';
 import { legeLvImportAn } from '../../services/bau/lv-import.js';
 import { hefteWetterAn } from '../../services/bau/wetter.js';
@@ -87,6 +89,11 @@ export interface BauErgebnis {
   /** § 6 VOB/B: laufend, weggefallen und storniert — je eine (BAU-06). */
   readonly behinderungen: number;
   readonly behinderungenLaufend: number;
+  /**
+   * Wie viele Anzeigen über `dokumentiereVersand` gingen und damit ein
+   * archiviertes Schreiben tragen — nur mit Speicher (V-131), sonst 0.
+   */
+  readonly behinderungenMitBeleg: number;
   readonly gewerke: number;
   readonly bautage: number;
   readonly mannstunden: number;
@@ -108,7 +115,7 @@ export interface BauErgebnis {
 const LEER: BauErgebnis = {
   projekte: 0, lvZeilen: 0, lvSumme: null, ausgenommen: 0,
   aufmassblaetter: 0, aufmassZeilen: 0, nachtraege: 0, nachtragsnummer: null,
-  behinderungen: 0, behinderungenLaufend: 0, gewerke: 0, bautage: 0, mannstunden: 0, tagespositionen: 0,
+  behinderungen: 0, behinderungenLaufend: 0, behinderungenMitBeleg: 0, gewerke: 0, bautage: 0, mannstunden: 0, tagespositionen: 0,
   wetterBefund: 'nicht abgerufen', wetterVerbunden: false,
   abnahmeArt: null, abnahmeMaengel: 0, abnahmeStrafeVorbehalten: false,
   lvImportZeilen: 0, lvImportFehler: 0,
@@ -458,6 +465,8 @@ async function berlinInstant(
 
 export async function seedBau(
   sql: Sql, ids: ReadonlyMap<string, string>,
+  /** Der Dateispeicher, WENN einer verbunden ist (V-131) — sonst `null`. */
+  speicher: Speicher | null = null,
 ): Promise<BauErgebnis> {
   const mandantId = ids.get('bau');
   if (mandantId === undefined) throw new Error('Bereich bau fehlt');
@@ -816,10 +825,12 @@ export async function seedBau(
      * Zugangsdaten bricht es dort ab — wie beim Aufmass ohne Messfoto.
      *
      * Die Freigabe schreibt dieser Seed selbst (dieselbe Kette wie beim
-     * Nachtrag oben, mit `freigabe_snapshot` und echtem Kettenhash). Das PDF
-     * kann er nicht schreiben, also bleibt `versand_dokument_id` NULL — und
-     * die Oberflaeche zeigt genau das: eine dokumentierte Anzeige ohne
-     * archiviertes Schreiben. Ein selbst geschriebenes `dokument` mit
+     * Nachtrag oben, mit `freigabe_snapshot` und echtem Kettenhash). Ist ein
+     * Speicher verbunden (V-131), laeuft danach `dokumentiereVersand` selbst
+     * und archiviert das Schreiben. Ohne ihn kann der Seed das PDF nicht
+     * ablegen, also bleibt `versand_dokument_id` NULL — und die Oberflaeche
+     * zeigt genau das: eine dokumentierte Anzeige ohne archiviertes
+     * Schreiben. Ein selbst geschriebenes `dokument` mit
      * erfundener Pruefsumme waere der vorgetaeuschte Beleg, den CLAUDE.md
      * verbietet.
      *
@@ -829,6 +840,7 @@ export async function seedBau(
      */
     let behinderungen = 0;
     let behinderungenLaufend = 0;
+    let behinderungenMitBeleg = 0;
     for (const b of BEHINDERUNGEN) {
       const angelegt = await erstelleBehinderung(kontext, {
         projektId: projekt.id,
@@ -905,19 +917,36 @@ export async function seedBau(
        * („unverzueglich") — er ist eine Rechtsfrage und keine Zahl, die dieser
        * Seed festlegt.
        */
-      await kontext.schreibe(
-        `update behinderung
-            set status = 'angezeigt',
-                angezeigt_am = app.berlin_heute(),
-                versandart = 'bauleiterprotokoll',
-                empfaenger = $2,
-                freigabe_id = $3::uuid,
-                freigegeben_am = now(),
-                freigegeben_von = $4::uuid,
-                geaendert_von = app.aktueller_benutzer()
-          where id = $1`,
-        [angelegt.id, b.empfaenger, freigabe.id, bauleitung.id],
-      );
+      /*
+       * **Mit Speicher: der echte Weg** (V-131, D-623). `dokumentiereVersand`
+       * prueft die eben geschriebene Freigabe gegen DIESE Anzeige (`gate()`),
+       * erzeugt das Schreiben als PDF und archiviert es — genau das, was der
+       * Knopf auf der Behinderungsseite tut. Ohne Speicher bleibt es beim
+       * Uebergang von Hand darunter und bei `versand_dokument_id = NULL`.
+       */
+      if (speicher !== null) {
+        await dokumentiereVersand(kontext, {
+          id: angelegt.id,
+          versandart: 'bauleiterprotokoll',
+          empfaenger: b.empfaenger,
+          freigabeId: freigabe.id,
+        }, speicher, null);
+        behinderungenMitBeleg += 1;
+      } else {
+        await kontext.schreibe(
+          `update behinderung
+              set status = 'angezeigt',
+                  angezeigt_am = app.berlin_heute(),
+                  versandart = 'bauleiterprotokoll',
+                  empfaenger = $2,
+                  freigabe_id = $3::uuid,
+                  freigegeben_am = now(),
+                  freigegeben_von = $4::uuid,
+                  geaendert_von = app.aktueller_benutzer()
+            where id = $1`,
+          [angelegt.id, b.empfaenger, freigabe.id, bauleitung.id],
+        );
+      }
 
       if (b.wegfallVersatz === null) {
         behinderungenLaufend += 1;
@@ -1171,6 +1200,7 @@ export async function seedBau(
       nachtragsnummer,
       behinderungen,
       behinderungenLaufend,
+      behinderungenMitBeleg,
       gewerke: gewerkIds.size,
       bautage,
       mannstunden,

@@ -6,7 +6,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { DataTable } from '@/components/ui/DataTable';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { ERLAUBTE_MIME, MAX_BYTES } from '@/server/storage/mime';
 import { TAG_HOECHSTZAHL } from '@/server/services/dokument/ablage';
 import { liesAufbewahrung, type AufbewahrungZeile }
@@ -97,7 +97,7 @@ export default async function DokumentHochladen({
       regeln: readonly AufbewahrungZeile[];
     };
 
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
   const feld = 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 '
     + 'text-sm text-text';
   const grenzeMb = Math.trunc(MAX_BYTES / (1024 * 1024));

@@ -6,7 +6,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '@/app/portal/rechte';
 import { mandantTor, MandantAntwort } from '../../unterseite';
@@ -82,7 +82,7 @@ export default async function Dokumente(
         limit 300`,
       [kategorie, tag, q, ilikeMuster(q)]))) as Promise<readonly Zeile[]>);
 
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
   const basis = `/portal/${mandant}/dokumente`;
   const filterLink = (k: string): string => `${basis}?kategorie=${k}${q === '' ? '' : `&q=${encodeURIComponent(q)}`}`;
   const pille = (aktiv: boolean): string => [

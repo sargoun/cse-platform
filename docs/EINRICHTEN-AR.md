@@ -486,7 +486,7 @@ values
 
 | الربط | المتغيّرات | من أين | بدونه |
 |---|---|---|---|
-| **Supabase Storage** | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase ← Settings ← API | لا يمكن رفع أي مستند ولا استرجاعه |
+| **Supabase Storage** | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase ← Settings ← API | لا يمكن رفع أي مستند ولا استرجاعه — على **جهاز العرض** فقط يتولى `CSE_SPEICHER_ORDNER` ذلك (مجلد على هذا الجهاز، فقط مع `CSE_DEV_FLAECHEN=1`، وأبداً ليس على Vercel؛ D-623) |
 | **المهام الليلية** | `JOB_TOKEN` | أنشئه بنفسك: `openssl rand -base64 32`، وضع القيمة نفسها في Supabase ← Database ← **Cron** | لا يعمل أي حارس: لا تحذير نقص تغطية، ولا تحذير انتهاء صلاحية، ولا مقترحات إنذار |
 | **الطقس (DWD)** | `DWD_OPENDATA_BASE` | مجاني، **بلا تسجيل** — <https://opendata.dwd.de> | يبقى دفتر البناء اليومي بلا سطر الطقس (VOB/B) |
 

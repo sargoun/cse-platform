@@ -10,7 +10,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
@@ -76,7 +76,7 @@ export default async function Dokumentfreigabe(
 
   if (daten === null) notFound();
   const { stand, zugriffe } = daten;
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
   const nurLesen = zugang.sitzung.ansicht === 'gruppe';
   const ohneKunde = stand.kunde_id === null;
 

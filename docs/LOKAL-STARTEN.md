@@ -45,6 +45,22 @@ vorher selbst:
 $env:NODE_OPTIONS = "--max-old-space-size=6144"
 ```
 
+**Dateien.** Das Skript setzt `CSE_SPEICHER_ORDNER` auf den Ordner `.speicher`
+im Projekt (von git ignoriert), wenn nichts anderes gesetzt ist. Ohne ihn — und
+ohne Supabase-Zugang — lehnt die Plattform jede Datei ab: Belege,
+Baustellenfotos, Unterlagen, Logos enden bei „nicht verbunden". Mit ihm liegen
+sie wirklich im Ordner und kommen nur über ablaufende, signierte Adressen
+heraus. Einstellungen › Integrationen nennt ihn „Entwicklung", nicht
+„verbunden"; auf Vercel und ohne `CSE_DEV_FLAECHEN=1` gibt es ihn nicht, und
+ist `SUPABASE_URL` gesetzt, gewinnt Supabase (D-623). Von Hand:
+
+```powershell
+$env:CSE_SPEICHER_ORDNER = "$PWD\.speicher"
+```
+
+Das Skript wechselt ausserdem selbst in die Projektwurzel — es lässt sich also
+auch aus `scripts\` heraus starten.
+
 Am Ende nennt er die Adresse fuer das Telefon und die Konten zum Anmelden.
 
 ---
@@ -55,6 +71,8 @@ Derselbe Weg von Hand, Windows (PowerShell):
 $env:DATABASE_URL   = "postgres://postgres@localhost:5433/postgres"
 $env:CSE_DEV_FLAECHEN = "1"
 $env:PORT           = "3001"
+$env:CSE_SPEICHER_ORDNER = "$PWD\.speicher"
+$env:NODE_OPTIONS   = "--max-old-space-size=6144"
 
 # Alten Build und Cache verwerfen — sie tragen geloeschte Routen
 Remove-Item -Recurse -Force .next, node_modules\.cache -ErrorAction SilentlyContinue
@@ -103,6 +121,7 @@ macOS/Linux (bash) — dieselbe Reihenfolge:
 ```bash
 export DATABASE_URL="postgres://postgres@localhost:5433/postgres"
 export CSE_DEV_FLAECHEN=1 PORT=3001
+export CSE_SPEICHER_ORDNER="$PWD/.speicher" NODE_OPTIONS="--max-old-space-size=6144"
 
 rm -rf .next node_modules/.cache
 pnpm install

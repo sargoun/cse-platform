@@ -7,7 +7,7 @@ import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { ExportFehler, erzeugeDatevExport }
   from '@/server/services/buchhaltung/datev/export';
 
@@ -78,7 +78,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         );
 
         return erzeugeDatevExport(
-          kontext, new SupabaseSpeicher(), von, bis,
+          kontext, waehleSpeicher(), von, bis,
           new Date(), sitzung.benutzerId);
       }));
 

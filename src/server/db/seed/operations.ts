@@ -17,6 +17,8 @@
  * wiederholen — eine zweite Stelle, an der dieselbe Regel steht.
  */
 import type postgres from 'postgres';
+import type { Speicher } from '../../storage/adapter.js';
+import { demoPdf } from './demo-pdf.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -254,7 +256,29 @@ export const KUNDENZUGANG_NUMMER = 'K-10001';
 
 export async function seedOperations(
   sql: Sql, ids: ReadonlyMap<string, string>, kundenKontoId: string | null,
-): Promise<{ objekte: number; raeume: number; belegschaftsdokumente: number }> {
+  /**
+   * Der Dateispeicher, WENN einer verbunden ist (V-131) — sonst `null`, und
+   * die Unterlagen bleiben Metadaten ohne Datei, wie bisher.
+   */
+  speicher: Speicher | null = null,
+): Promise<{
+  objekte: number; raeume: number; belegschaftsdokumente: number; mitDatei: number;
+}> {
+  let mitDatei = 0;
+  /**
+   * Die Datei hinter einer Demounterlage — geschrieben bei JEDEM Lauf, auch
+   * wenn die Zeile schon steht: ein Ordner, der nach dem ersten Lauf geleert
+   * wurde, soll beim zweiten wieder passen.
+   */
+  const legeDatei = async (
+    schluessel: string, titel: string, beschreibung: string,
+  ): Promise<number | null> => {
+    if (speicher === null) return null;
+    const bytes = await demoPdf(titel, [beschreibung]);
+    await speicher.lege('dokumente', schluessel, bytes);
+    mitDatei += 1;
+    return bytes.length;
+  };
   const heute = new Date().toISOString().slice(0, 10);
 
   // --- Kataloge je Bereich (nur Reinigung braucht sie heute) ---------------
@@ -519,13 +543,20 @@ export async function seedOperations(
      * Demodatenbank leer — und eine leere Liste beweist nicht, dass die
      * Decke richtig sitzt, sondern nur, dass nichts da ist (K-18).
      *
-     * **Kein Dateispeicher, und deshalb auch keine Datei.** `dokument` haelt
-     * die Metadaten, die Bytes liegen im privaten Bucket, und der ist nicht
-     * verbunden. Der Seed legt die Zeile an und behauptet keinen Abruf:
-     * `dokument_zugriff` entsteht beim ECHTEN Abruf ueber die signierte
-     * Adresse (CLAUDE.md, „No fake integrations").
+     * **Eine Datei nur, wenn ein Speicher da ist.** `dokument` haelt die
+     * Metadaten, die Bytes liegen im privaten Bucket. Ohne Speicher legt der
+     * Seed die Zeile an und nichts sonst; mit dem Vorfuehrspeicher (V-131)
+     * liegt ein als DEMODATEN beschriftetes Blatt dahinter (`demoPdf`). Einen
+     * Abruf behauptet er in keinem Fall: `dokument_zugriff` entsteht beim
+     * ECHTEN Abruf ueber die signierte Adresse (CLAUDE.md, „No fake
+     * integrations").
      */
     const belegschaftsTitel = `Betriebsanweisung ${o.bezeichnung} (Demodaten)`;
+    const belegschaftsText =
+      'Aushang für die eingesetzten Kräfte: Zutritt, Meldewege, Notfallnummern.';
+    const belegschaftsSchluessel = `demo/betriebsanweisung/${o.nummer}.pdf`;
+    const belegschaftsGroesse = await legeDatei(
+      belegschaftsSchluessel, belegschaftsTitel, belegschaftsText);
     const [dokDa] = await sql<{ id: string }[]>`
       select id from dokument
        where mandant_id = ${mandant} and titel = ${belegschaftsTitel}
@@ -538,10 +569,10 @@ export async function seedOperations(
            exif_entfernt, sichtbar_fuer_kunde, sichtbar_fuer_mitarbeiter,
            entstanden_am)
         values (${mandant}, 'unternehmen', ${belegschaftsTitel},
-                'Aushang für die eingesetzten Kräfte: Zutritt, Meldewege, Notfallnummern.',
+                ${belegschaftsText},
                 ${objektId},
-                'dokumente', ${`demo/betriebsanweisung/${o.nummer}.pdf`},
-                'application/pdf', true, 43008, true, false, true,
+                'dokumente', ${belegschaftsSchluessel},
+                'application/pdf', true, ${belegschaftsGroesse ?? 43008}, true, false, true,
                 current_date)`;
       belegschaftsdokumente += 1;
     }
@@ -558,6 +589,9 @@ export async function seedOperations(
     const mandant = ids.get(bereich);
     if (mandant === undefined) continue;
     const titel = 'Notfallnummern und Meldewege (Demodaten)';
+    const text = 'Wen rufe ich wann an — Einsatzleitung, Notdienst, Polizei.';
+    const schluessel = `demo/notfallnummern/${bereich}.pdf`;
+    const groesse = await legeDatei(schluessel, titel, text);
     const [da] = await sql<{ id: string }[]>`
       select id from dokument
        where mandant_id = ${mandant} and titel = ${titel}
@@ -570,9 +604,9 @@ export async function seedOperations(
          exif_entfernt, sichtbar_fuer_kunde, sichtbar_fuer_mitarbeiter,
          entstanden_am)
       values (${mandant}, 'unternehmen', ${titel},
-              'Wen rufe ich wann an — Einsatzleitung, Notdienst, Polizei.',
-              'dokumente', ${`demo/notfallnummern/${bereich}.pdf`},
-              'application/pdf', true, 18432, true, false, true,
+              ${text},
+              'dokumente', ${schluessel},
+              'application/pdf', true, ${groesse ?? 18432}, true, false, true,
               current_date)`;
     belegschaftsdokumente += 1;
   }
@@ -660,5 +694,5 @@ export async function seedOperations(
     }
   }
 
-  return { objekte, raeume, belegschaftsdokumente };
+  return { objekte, raeume, belegschaftsdokumente, mitDatei };
 }

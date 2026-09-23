@@ -202,7 +202,7 @@ perfekter Anbindung.
 
 | Anbindung | Variablen | Woher | Ohne sie |
 |---|---|---|---|
-| **Supabase Storage** | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API | Kein Dokument lässt sich hochladen oder abrufen |
+| **Supabase Storage** | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API | Kein Dokument lässt sich hochladen oder abrufen — auf einem **Vorführrechner** übernimmt `CSE_SPEICHER_ORDNER` (ein Ordner auf diesem Rechner, nur mit `CSE_DEV_FLAECHEN=1`, nie auf Vercel; D-623) |
 | **Nachtläufe** | `JOB_TOKEN` | Selbst erzeugen: `openssl rand -base64 32`, denselben Wert in Supabase → Database → **Cron** hinterlegen | Kein Wächter läuft: keine Besetzungswarnung, keine Ablaufwarnung, keine Mahnvorschläge |
 | **Wetter (DWD)** | `DWD_OPENDATA_BASE` | Kostenlos, **keine Anmeldung** — <https://opendata.dwd.de> | Das Bautagebuch bleibt ohne Wetterzeile (VOB/B) |
 

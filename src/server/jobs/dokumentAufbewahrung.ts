@@ -1,6 +1,7 @@
 import { registriere, type JobDefinition } from './registry.js';
 import { alsJobSitzung, type JobAbfrage, type JobVerbindung } from './sitzung.js';
-import { SupabaseSpeicher, NichtVerbundenFehler } from '../storage/adapter.js';
+import { NichtVerbundenFehler } from '../storage/adapter.js';
+import { waehleSpeicher } from '../storage/waehle.js';
 import type { Speicher } from '../storage/adapter.js';
 import { loescheDokument, LoeschungFehler } from '../services/dokument/loeschung.js';
 import type { SchreibKontext } from '../kontext/index.js';
@@ -109,7 +110,7 @@ const STAPEL = 500;
 export function registriereDokumentAufbewahrung(
   sql: JobVerbindung,
   /** Einspritzbar, damit der Test ohne Supabase läuft. */
-  speicherFuer: () => Speicher = () => new SupabaseSpeicher(),
+  speicherFuer: () => Speicher = () => waehleSpeicher(),
 ): JobDefinition {
   return registriere({
     schluessel: 'dokument_aufbewahrung',

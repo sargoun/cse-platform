@@ -8,7 +8,7 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant } from '@/server/kontext/index';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { istUuid } from '@/lib/uuid';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { LoeschungFehler, loescheDokument } from '@/server/services/dokument/loeschung';
 import { alsAntwort } from '../../sicherheit/antwort';
 
@@ -78,7 +78,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const blatt = (): string => `/portal/${slug}/dokumente/${dokumentId}`;
   const liste = (): string => `/portal/${slug}/dokumente`;
 
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
 
   try {
     await db().begin(async (tx: postgres.TransactionSql) =>

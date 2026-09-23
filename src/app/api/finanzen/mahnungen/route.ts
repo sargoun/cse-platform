@@ -8,7 +8,8 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { FreigabeErforderlich, RechtsgrundlageFehlt } from '@/server/agent/policy';
 import { ermittleVorschlaege, legeMahnentwurfAn }
   from '@/server/services/finanz/mahnung/lauf';
@@ -76,7 +77,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return typeof wert === 'string' && wert.trim() !== '' ? wert.trim() : null;
   };
   const aktion = text('aktion') ?? '';
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
 
   try {
     return await (db().begin(async (tx: postgres.TransactionSql) =>

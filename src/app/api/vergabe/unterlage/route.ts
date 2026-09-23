@@ -7,7 +7,8 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
-import { NichtVerbundenFehler, SupabaseSpeicher, type Bucket } from '@/server/storage/adapter';
+import { NichtVerbundenFehler, type Bucket } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { ladeHoch } from '@/server/services/dokument/upload';
 import { alsAntwort } from '../../sicherheit/antwort';
 
@@ -113,7 +114,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           dateiname: datei.name,
           daten: new Uint8Array(await datei.arrayBuffer()),
           ...(datei.type === '' ? {} : { behaupteterTyp: datei.type }),
-        }, new SupabaseSpeicher(), jetzt[0]?.jahr ?? new Date().getUTCFullYear());
+        }, waehleSpeicher(), jetzt[0]?.jahr ?? new Date().getUTCFullYear());
         waise.wert = { bucket: hoch.bucket, pfad: hoch.objektSchluessel };
 
         await kontext.schreibe(
@@ -146,7 +147,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   } catch (fehler) {
     if (waise.wert !== null) {
       try {
-        await new SupabaseSpeicher().entferne(waise.wert.bucket, waise.wert.pfad);
+        await waehleSpeicher().entferne(waise.wert.bucket, waise.wert.pfad);
       } catch { /* Bleibt eine Waise — der Waisenlauf findet sie; der erste Fehler zählt. */ }
     }
     if (fehler instanceof NichtVerbundenFehler) return zurueck('speicher');

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import {
   legeMediumAb, legeSchichtMediumAb, MedienFehler, MEDIEN_MAX_BYTES,
   pruefeMedienGroesse, verzoegerterSpeicher,
@@ -78,7 +79,7 @@ export async function POST(
    * steht — und wenn er dann wirft (nicht verbunden, Netz weg), nimmt die
    * Transaktion die Zeile wieder mit.
    */
-  const speicher = verzoegerterSpeicher(new SupabaseSpeicher());
+  const speicher = verzoegerterSpeicher(waehleSpeicher());
   const medienId = randomUUID();
   const beschreibung = typeof daten.get('beschreibung') === 'string'
     ? (daten.get('beschreibung') as string).trim() : '';

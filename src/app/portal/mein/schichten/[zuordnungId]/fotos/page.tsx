@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { StatusPill } from '@/components/ui/StatusPill';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { signierteMedienAdresse } from '@/server/services/zeit/medien';
 import { findeEigeneSchicht, type EigeneSchicht }
   from '@/server/services/mitarbeiter/schichten';
@@ -56,7 +56,7 @@ export default async function MeineSchichtfotos(
   { params }: { params: Promise<{ zuordnungId: string }> },
 ) {
   const { zuordnungId } = await params;
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
 
   const ergebnis = await meinPortal<Blatt | null>(
     `/portal/mein/schichten/${zuordnungId}/fotos`,

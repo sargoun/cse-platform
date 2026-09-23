@@ -22,7 +22,8 @@
  */
 import { registriere, type JobDefinition } from './registry.js';
 import { alsJobSitzung, type JobAbfrage, type JobVerbindung } from './sitzung.js';
-import { SupabaseSpeicher, NichtVerbundenFehler } from '../storage/adapter.js';
+import { NichtVerbundenFehler } from '../storage/adapter.js';
+import { waehleSpeicher } from '../storage/waehle.js';
 import type { Speicher } from '../storage/adapter.js';
 import { archiviereRechnungsbeleg, offeneArchivierungen, type ArchivKontext }
   from '../services/buchhaltung/belegarchiv.js';
@@ -43,7 +44,7 @@ export interface ArchivlaufBefund {
 export function registriereBelegarchiv(
   sql: JobVerbindung,
   /** Einspritzbar, damit der Test ohne Supabase laeuft. */
-  speicherFuer: () => Speicher = () => new SupabaseSpeicher(),
+  speicherFuer: () => Speicher = () => waehleSpeicher(),
 ): JobDefinition {
   return registriere({
     schluessel: 'belegarchiv_ausgangsrechnung',

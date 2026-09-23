@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { dokumentKategorieText } from '@/lib/i18n/texte';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import {
   findeEigenesDokument, groesseText, SIGNATUR_MINUTEN, type MeinDokument,
 } from '@/server/services/mitarbeiter/dokumente';
@@ -48,7 +48,7 @@ export default async function MeinDokumentBlatt(
 ) {
   const { id } = await params;
   kennungOder404(id);
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
 
   const ergebnis = await meinPortal<MeinDokument | null>(
     `/portal/mein/dokumente/${id}`,
