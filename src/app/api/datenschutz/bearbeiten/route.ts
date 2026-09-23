@@ -7,7 +7,8 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import {
-  AnfrageFehler, entscheide, verlaengere,
+  AnfrageFehler, entscheide, fordereIdentitaetsnachweis, identitaetGeklaert,
+  verlaengere,
 } from '@/server/services/datenschutz/anfrage';
 
 /**
@@ -36,7 +37,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const handlung = String(daten.get('handlung') ?? '');
   const text = String(daten.get('entscheidung') ?? '');
 
-  if (!['beantwortet', 'abgelehnt', 'verlaengern'].includes(handlung)) {
+  if (!['beantwortet', 'abgelehnt', 'verlaengern',
+    /* V-088, Art. 12 Abs. 6 — die Rückfrage und ihr Ende. */
+    'identitaet_anfordern', 'identitaet_geklaert'].includes(handlung)) {
     return NextResponse.json({ fehler: 'unbekannte_handlung' }, { status: 400 });
   }
 
@@ -56,6 +59,19 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           { recht: 'datenschutz.auskunft_erstellen', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
+        if (handlung === 'identitaet_anfordern') {
+          /*
+           * Der Grund kommt im selben Feld wie bei der Verlängerung und der
+           * Entscheidung — alle drei sagen „warum", und alle drei stehen
+           * später allein da, wenn eine Aufsicht fragt.
+           */
+          await fordereIdentitaetsnachweis(kontext, id, text);
+          return;
+        }
+        if (handlung === 'identitaet_geklaert') {
+          await identitaetGeklaert(kontext, id);
+          return;
+        }
         if (handlung === 'verlaengern') {
           /*
            * Der Grund der VERLAENGERUNG ist derselbe Text wie der der

@@ -151,6 +151,15 @@ export interface AnfrageZeile {
   readonly fristAm: Date;
   readonly verlaengertBis: Date | null;
   readonly verlaengertGrund: string | null;
+  /**
+   * Die Rückfrage nach der Identität (V-088, Art. 12 Abs. 6).
+   *
+   * Sie bleibt stehen, auch wenn die Identität später geklärt ist: sie ist
+   * der Beleg dafür, dass nachgefragt wurde, und verschwindet nicht mit der
+   * Antwort.
+   */
+  readonly identitaetAngefordertAm: Date | null;
+  readonly identitaetGrund: string | null;
   readonly beantwortetAm: Date | null;
   readonly entscheidung: string | null;
   /** Tage bis zur wirksamen Frist — negativ heisst überfällig. */
@@ -171,6 +180,8 @@ const FELDER = `id, art::text as art, status::text as status, name, email, nachr
                 rolle_angabe as "rolleAngabe", eingegangen_am as "eingegangenAm",
                 frist_am as "fristAm", verlaengert_bis as "verlaengertBis",
                 verlaengert_grund as "verlaengertGrund",
+                identitaet_angefordert_am as "identitaetAngefordertAm",
+                identitaet_grund as "identitaetGrund",
                 beantwortet_am as "beantwortetAm", entscheidung,
                 eingangsweg::text as eingangsweg,
                 (select b.name from benutzer b
@@ -232,6 +243,87 @@ export async function entscheide(
     throw new AnfrageFehler(
       'Diese Anfrage gibt es nicht — oder sie ist bereits entschieden.',
       'nicht_gefunden', 404);
+  }
+}
+
+/**
+ * **Zusätzliche Angaben zur Identität anfordern** (V-088, Art. 12 Abs. 6).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Der Befund.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `identitaet_offen` steht seit `0176` im Aufzählungstyp, der Fristindex
+ * zählt ihn zu den offenen Zuständen, zwei Oberflächen beschriften ihn — und
+ * **kein Weg setzte ihn**. Wer an der Identität zweifelte, hatte die Wahl
+ * zwischen „in Bearbeitung" (was nicht stimmt) und „abgelehnt" (was zu früh
+ * wäre).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Ohne Grund geschieht nichts — und das ist nicht Förmlichkeit.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Art. 12 Abs. 6 erlaubt die Nachfrage NUR „bei begründeten Zweifeln an der
+ * Identität". Wer nachfragt, verarbeitet dafür weitere Daten — eine
+ * Ausweiskopie ist mehr, als das Auskunftsersuchen selbst enthält — und muss
+ * belegen können, worauf sich die Zweifel stützten. `0388` hält beides
+ * zusammen, in derselben Form wie bei der Fristverlängerung.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Die FRIST läuft weiter** (O-903).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Art. 12 Abs. 3 lässt den Monat mit dem EINGANG laufen; ob eine Rückfrage
+ * nach Absatz 6 ihn hemmt, sagt die Verordnung nicht, und die Ansichten gehen
+ * auseinander. Sie hier still anzuhalten wäre eine Rechtsauffassung, die sich
+ * als Spaltenwert tarnt. Die Anfrage bleibt also in der Fälligkeitsliste —
+ * sichtbar, und damit im Blick.
+ */
+export async function fordereIdentitaetsnachweis(
+  kontext: SchreibKontext, id: string, grund: string,
+): Promise<void> {
+  if (grund.trim() === '') {
+    throw new AnfrageFehler(
+      'Art. 12 Abs. 6 erlaubt die Nachfrage nur bei BEGRÜNDETEN Zweifeln. Worauf '
+      + 'stützen sie sich? Der Satz steht später allein da, wenn eine Aufsicht '
+      + 'fragt, warum eine Ausweiskopie verlangt wurde.', 'ohne_begruendung');
+  }
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update betroffenenanfrage
+        set status = 'identitaet_offen',
+            identitaet_angefordert_am = now(),
+            identitaet_grund = $2
+      where mandant_id = app.aktiver_mandant() and id = $1::uuid
+        and status in ('neu', 'in_bearbeitung')
+      returning id`,
+    [id, grund.trim()]);
+  if (zeilen[0] === undefined) {
+    throw new AnfrageFehler(
+      'Diese Anfrage gibt es nicht — oder sie ist bereits entschieden, und dann '
+      + 'wird nicht mehr nach der Identität gefragt.',
+      'nicht_gefunden', 404);
+  }
+}
+
+/**
+ * **Die Identität ist geklärt** (V-088).
+ *
+ * Der Vermerk BLEIBT stehen: er ist der Beleg dafür, dass nachgefragt wurde,
+ * und verschwindet nicht mit der Antwort. Nur der Zustand geht zurück auf
+ * „in Bearbeitung" — die Anfrage ist wieder eine gewöhnliche.
+ */
+export async function identitaetGeklaert(
+  kontext: SchreibKontext, id: string,
+): Promise<void> {
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update betroffenenanfrage
+        set status = 'in_bearbeitung'
+      where mandant_id = app.aktiver_mandant() and id = $1::uuid
+        and status = 'identitaet_offen'
+      returning id`, [id]);
+  if (zeilen[0] === undefined) {
+    throw new AnfrageFehler(
+      'Bei dieser Anfrage ist die Identität nicht offen.', 'nicht_gefunden', 404);
   }
 }
 

@@ -135,6 +135,24 @@ export default async function Vorgangsakte(
             </dd>
           </div>
         </dl>
+
+        {/*
+          * **Der Vermerk der Rückfrage** (V-088, Art. 12 Abs. 6).
+          *
+          * Er bleibt stehen, auch wenn die Identität später geklärt ist: er
+          * ist der Beleg dafür, dass nachgefragt wurde — und worauf sich die
+          * Zweifel stützten. Wer eine Ausweiskopie verlangt hat, muss das
+          * begründen können, und zwar später, wenn niemand sich mehr erinnert.
+          */}
+        {z.identitaetAngefordertAm === null ? null : (
+          <p
+            data-cse="identitaet-vermerk"
+            className="mt-s4 max-w-prose rounded-lg border border-line bg-surface-2 p-s4 text-sm text-text"
+          >
+            <strong>Identität nachgefragt</strong> am{' '}
+            {BERLIN.format(z.identitaetAngefordertAm)} — {z.identitaetGrund}
+          </p>
+        )}
       </section>
 
       <section aria-labelledby="zuordnung" className="mb-s7">
@@ -501,11 +519,50 @@ export default async function Vorgangsakte(
                   Frist verlängern
                 </Button>
               )}
+              {/*
+                * **Die Rückfrage nach der Identität** (V-088, Art. 12 Abs. 6).
+                *
+                * `identitaet_offen` steht seit `0176` im Aufzählungstyp, der
+                * Fristindex zählt ihn zu den offenen Zuständen, diese Seite
+                * beschriftet ihn — und kein Weg setzte ihn. Wer zweifelte,
+                * hatte die Wahl zwischen „in Bearbeitung" (was nicht stimmt)
+                * und „abgelehnt" (was zu früh wäre).
+                */}
+              {z.status === 'identitaet_offen' ? (
+                /*
+                 * `formNoValidate` ist hier KEINE Bequemlichkeit. Das
+                 * Textfeld darüber ist `required`, weil eine Entscheidung
+                 * und eine Fristverlängerung ohne Grund nicht gelten — die
+                 * Rücknahme des Zweifels braucht aber keinen: der Grund der
+                 * Nachfrage steht bereits in der Akte. Ohne dieses Attribut
+                 * verlangte der Browser einen Satz, den niemand schreiben
+                 * kann, und der Knopf wäre wieder unerreichbar.
+                 */
+                <Button type="submit" name="handlung" value="identitaet_geklaert"
+                        data-cse="identitaet-geklaert" formNoValidate
+                        variante="ghost">
+                  Identität geklärt
+                </Button>
+              ) : (
+                <Button type="submit" name="handlung" value="identitaet_anfordern"
+                        data-cse="identitaet-anfordern" variante="ghost">
+                  Identität nachfragen
+                </Button>
+              )}
             </div>
             <p className="m-0 text-xs text-text-muted">
               Art. 12 Abs. 3 Satz 3 erlaubt die Verlängerung um zwei Monate — nur
               einmal, nur mit Grund, und die betroffene Person muss ihn binnen
               eines Monats erfahren. Der Text oben ist dieser Grund.
+            </p>
+            <p className="m-0 text-xs text-text-muted">
+              Art. 12 Abs. 6 erlaubt die Nachfrage nach der Identität nur bei
+              BEGRÜNDETEN Zweifeln — der Text oben ist auch hier der Grund, und
+              er steht später allein da, wenn eine Aufsicht fragt, warum eine
+              Ausweiskopie verlangt wurde. <strong>Die Monatsfrist läuft
+              weiter:</strong> ob eine Rückfrage sie hemmt, sagt die Verordnung
+              nicht, und die Ansichten gehen auseinander (O-903). Die Anfrage
+              bleibt deshalb in der Fälligkeitsliste.
             </p>
           </form>
         )}
