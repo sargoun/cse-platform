@@ -15476,3 +15476,72 @@ vollständig neu zu schreiben; das ist den Unterschied nicht wert.
 
 | Betrifft | AUT-02, AUT-06, D-33, K-15, V-136, `drizzle/0395`, `src/app/portal/zugang.ts`, `src/app/auth/zwei-faktor/pruefen/page.tsx`, `tests/isolation/harness.ts`, `tests/isolation/eigene-datenbank.ts`, `src/server/db/seed/sitzung.ts` |
 |---|---|
+
+### D-631 · Eine Web-Anfrage kommt vollständig beim Menschen an: Einsendung, Kontakt, Meldung, erste Reaktion, Herkunft (V-137)
+
+**Der Befund** (V-137; REQ-01…07, CRM-02/03): die Annahme legte Lead,
+Eingang und Frist an, aber auf dem Weg zum Menschen ging fast alles
+verloren. Die Einsendung (m², Frequenz, Kräfte, Gewerk, Name, E-Mail,
+Telefon) lag nur in `formular_eingang.daten`, das keine Portalseite las. Das
+hochgeladene LV hatte keinen Bezug zum Eingang. Niemand wurde über eine neue
+Anfrage benachrichtigt. Die erste Reaktion ließ sich nicht erfassen: die
+SLA-Uhr steht erst bei einer AUSGEHENDEN Aktivität (0017), das Leadblatt
+schrieb jede Aktivität als `intern`, und das UWG-Tor (0020) verlangt für
+ausgehend per E-Mail oder Telefon einen Ansprechpartner, den ein Web-Lead nie
+hatte. Deshalb eskalierte jede Web-Anfrage stündlich ohne Ende, auch nach
+„gewonnen“, mit roher UUID und UTC-Zeit im Verlauf. UTM kam nie an, und als
+Referrer stand die eigene Formularseite in jedem Lead.
+
+**Die Entscheidung.**
+
+1. **Der Anfragende wird Ansprechpartner, mit der Grundlage `anfrage`.**
+   `app.lead_kontakt_aus_anfrage` (0396) legt ihn in der Annahme-Transaktion
+   an. Gibt es im Mandanten schon einen nicht anonymisierten Kontakt mit
+   derselben E-Mail, verknüpft sie diesen: ein Mensch, ein Kontakt, und ein
+   Widerspruch gilt für ihn. Das freiwillige Werbe-Häkchen begründet KEINE
+   Einwilligung, weil es keinen Kanal nennt (0020). Es bleibt in der
+   Einsendung sichtbar; über Werbung entscheidet ein Mensch.
+2. **Die erste Reaktion ist eine ausgehende Aktivität an diesen Kontakt.**
+   Das Leadblatt fragt die Richtung ab. Ein ausgehender Anruf oder eine
+   ausgehende E-Mail geht mit Zweck `vertraglich`, Kanal und Ansprechpartner
+   durch das unveränderte UWG-Tor; `kern.setze_erste_reaktion` hält dann die
+   Uhr an. Ohne Kontakt kommt eine Meldung statt einer stillen Zeile.
+3. **Eskaliert werden nur offene Leads** (`neu`, `in_bearbeitung`). Der
+   Verlauf nennt die Stufe und die Frist in Berliner Zeit, keine Kennung.
+   Die Meldung geht als Benachrichtigung `crm.lead_sla_ueberschritten` an den
+   Besitzer bzw. an die Eskalation des Formulars.
+4. **Die neue Anfrage wird gemeldet.** `crm.neuer_lead` geht an den Besitzer
+   (`app.lead_eingang_melden`, 0396). Nur für einen Lead, der in derselben
+   Transaktion angenommen wurde, und nur mit einem Ziel, das auf genau diesen
+   Lead zeigt. Der Eingangs-Prinzipal kann so weder eine alte noch eine
+   fremde Meldung auslösen.
+5. **Das Leadblatt zeigt die Einsendung** mit den Beschriftungen der
+   Formularversion, deutschen Zahlen und Daten und Ja/Nein statt `true`, dazu
+   Ansprechpartner (mailto/tel), LV (`dokument.formular_eingang_id`, jetzt
+   gesetzt), Herkunft, Besitzer und Priorität. Priorität und Besitzer lassen
+   sich setzen; Besitzer kann nur jemand werden, der in diesem Bereich
+   arbeitet.
+6. **Herkunft ohne Speicher im Browser.** D-61 schließt Cookies und
+   `localStorage` aus. Eine Kampagnenzuordnung ist nicht „unbedingt
+   erforderlich“ (§ 25 Abs. 2 TDDDG), und es gibt kein Banner, das eine
+   Einwilligung einholen könnte. Die Formularseite liest deshalb ihren
+   EIGENEN Aufruf: die `utm_*`-Parameter und den `Referer`, aber nur einen
+   fremden. Von außen ist die Formularseite der Einstieg, von einer eigenen
+   Seite ist es diese vorige Seite. Die Bereichsauswahl reicht die Herkunft
+   an ihre Links weiter. Das Formular trägt sie als versteckte Felder, und
+   die Annahme prüft sie erneut: nur fremde http(s)-Adressen ohne
+   Zugangsdaten, nur eigene Pfade (kein `//fremd`), keine Steuerzeichen,
+   Längengrenzen. **Die Grenze, bewusst:** wer über mehrere Seiten zum
+   Formular klickt, kommt mit der vorigen Seite als Einstieg und ohne die
+   Kampagnenparameter der ersten Seite an. Das zu ändern bräuchte Speicher
+   im Browser und damit eine Einwilligung; die Seite hat keine.
+7. **Fehler auf dem Leadblatt kommen an.** `/api/crm/lead` schickt Schlüssel
+   und Satz; die Seite zeigt den übersetzten Schlüssel, sonst den Satz, und
+   nie einen rohen Schlüssel.
+
+**Nicht Teil dieser Entscheidung:** dass die Herkunft bis zum Auftrag
+weitergetragen wird (REQ-07, zweiter Halbsatz). Das hängt an der Kette
+Lead → Angebot → Auftrag, die eigens behoben wird.
+
+| Betrifft | REQ-01…07, CRM-02, CRM-03, D-61, D-83, D-599, V-137, `drizzle/0396`, `src/server/services/lead/{annahme,einsendung,eskalation,sla}.ts`, `src/lib/formular/herkunft.ts`, `src/app/api/{anfrage,lead,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx` |
+|---|---|

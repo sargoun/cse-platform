@@ -614,6 +614,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'crm.kommunikation_versenden',
   },
   { modul: 'crm', pfad: 'lead/benachrichtigung', schreibend: false },
+  /* V-137: eine Einsendung, gegen die Felder ihrer Version lesbar gemacht — rein. */
+  { modul: 'crm', pfad: 'lead/einsendung', schreibend: false },
   /*
    * Kunde, Kontakt und Lead von Hand anlegen (CRM-01, CRM-03, CRM-07). Ein
    * eigener Dienst und nicht ein Zweig in `lead/annahme`: die Annahme ist der

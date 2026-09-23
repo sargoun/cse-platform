@@ -6,7 +6,8 @@ import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
-import { CrmFehler, legeLeadAn, setzeLeadStatus } from '@/server/services/crm/anlegen';
+import { CrmFehler, legeLeadAn, setzeLeadPflege, setzeLeadStatus }
+  from '@/server/services/crm/anlegen';
 
 /**
  * `POST /api/crm/lead` — einen Lead anlegen oder seinen Stand ändern (CRM-02,
@@ -53,6 +54,15 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
 
+        /* Priorität und Besitzer (V-137, CRM-02). */
+        if (wert('was') === 'pflege') {
+          await setzeLeadPflege(kontext, String(daten.get('id') ?? ''), {
+            prioritaet: wert('prioritaet'),
+            besitzerBenutzerId: wert('besitzerBenutzerId'),
+          });
+          return zurueck;
+        }
+
         const status = wert('status');
         if (status !== undefined) {
           await setzeLeadStatus(kontext, String(daten.get('id') ?? ''), status,
@@ -74,7 +84,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (fehler instanceof CrmFehler) {
       const trenner = zurueck.includes('?') ? '&' : '?';
       return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`,
+        // Schlüssel UND Satz: die Seite übersetzt den Schlüssel, der Satz
+        // bleibt der Rückfall für Seiten, die nur `meldung` lesen.
+        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`
+          + `&fehler=${encodeURIComponent(fehler.grund)}`,
         '/portal', anfrage), 303);
     }
     throw fehler;

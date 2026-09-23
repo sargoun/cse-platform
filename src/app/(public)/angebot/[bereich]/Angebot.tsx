@@ -2,11 +2,11 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import type postgres from 'postgres';
 import { AnfrageFormular } from '@/components/oeffentlich/AnfrageFormular';
-import { formularSchluessel } from '@/lib/formular/bereiche';
+import { angebotPfad, formularSchluessel } from '@/lib/formular/bereiche';
 import { Felder } from '@/lib/formular/schema';
 import { db } from '@/server/db/pool';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
-import { basisAusAnfrage } from '@/server/inhalt/seiten-daten';
+import { basisAusAnfrage, herkunftDerAnfrage } from '@/server/inhalt/seiten-daten';
 import { uebersetzeFelder, uebersetzeTitel } from '@/lib/i18n/formular-en';
 import { alternativen, mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
@@ -44,7 +44,7 @@ export async function angebotMetadaten(
   const formular = await ladeFormular(bereich);
   if (formular === null) return { title: sprache === 'en' ? 'Not found' : 'Nicht gefunden' };
   const basis = await basisAusAnfrage();
-  const pfad = `/angebot/${bereich}`;
+  const pfad = angebotPfad(bereich);
   const schluessel = formularSchluessel(bereich) ?? '';
   return {
     title: sprache === 'en' ? uebersetzeTitel(schluessel, formular.titel) : formular.titel,
@@ -103,6 +103,7 @@ export function felderAus(
 export async function AngebotSeiteFuer(
   bereich: string, sprache: Sprache = VORGABE_SPRACHE, meldung?: string | undefined,
   fehler?: Readonly<Record<string, string>> | undefined,
+  suche: Readonly<Record<string, string | string[] | undefined>> = {},
 ) {
   const formular = await ladeFormular(bereich);
   if (formular === null) notFound();
@@ -118,9 +119,14 @@ export async function AngebotSeiteFuer(
   const titel = sprache === 'en'
     ? uebersetzeTitel(schluessel, formular.titel) : formular.titel;
 
+  // Die Herkunft DIESES Aufrufs (REQ-07, D-631) — der `Referer` des spaeteren
+  // POST ist immer diese Seite und sagt nichts.
+  const herkunft = await herkunftDerAnfrage(suche, mitSprache(angebotPfad(bereich), sprache));
+
   return (
     <AnfrageFormular
       bereich={bereich} titel={titel} felder={felderAnzeige} sprache={sprache}
+      herkunft={herkunft}
       {...(meldung === undefined ? {} : { meldung })}
       {...(fehler === undefined ? {} : { fehler })}
     />

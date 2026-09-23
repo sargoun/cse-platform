@@ -18,6 +18,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { eingabeSchema, fehlerAbbilden, FormularFehler, type FormularFeld }
   from '../../../lib/formular/schema.js';
 import { slaFrist } from './sla.js';
+import { ART_NEUER_LEAD, registriereLeadArten } from './benachrichtigung.js';
+import { erzeuge } from '../../benachrichtigung/registry.js';
 
 export interface Abfrage {
   unsafe(sql: string, werte?: readonly unknown[]): Promise<readonly unknown[]>;
@@ -52,6 +54,13 @@ export interface Einsendung {
   readonly userAgent?: string | undefined;
   /** Die geprüfte LV-Datei, falls eine kam (REQ-04). */
   readonly datei?: { readonly dokumentId: string; readonly dateiname: string } | undefined;
+  /**
+   * Die Kennung des Eingangs, wenn der Aufrufer sie schon braucht (V-137):
+   * das hochgeladene Leistungsverzeichnis entsteht VOR dem Eingang und soll
+   * ihn als Bezug tragen (`dokument.formular_eingang_id`). Fehlt sie, entsteht
+   * sie hier — wie bisher.
+   */
+  readonly eingangId?: string | undefined;
 }
 
 export interface AnnahmeErgebnis {
@@ -195,7 +204,7 @@ export async function nimmAn(
    * Ein `RETURNING` haette ihn gezwungen, Leserechte zu bekommen, und damit
    * waere die ganze Trennung hinfaellig gewesen.
    */
-  const eingangId = randomUUID();
+  const eingangId = einsendung.eingangId ?? randomUUID();
   const leadId = randomUUID();
 
   /**
@@ -280,6 +289,48 @@ export async function nimmAn(
     ],
   );
 
+  /**
+   * **Der Anfragende wird Ansprechpartner** (V-137, 0396). Ohne ihn liess sich
+   * die erste Reaktion nie belegen: eine ausgehende E-Mail oder ein Anruf
+   * verlangt am UWG-Tor einen Kontakt, und die SLA-Uhr stand deshalb nie.
+   * Gesucht und angelegt wird in der Datenbank — der Eingangs-Prinzipal darf
+   * Kontakte nicht lesen, und das soll so bleiben.
+   */
+  const text = (w: unknown): string | null =>
+    typeof w === 'string' && w.trim() !== '' ? w.trim() : null;
+  await db.unsafe(
+    `select app.lead_kontakt_aus_anfrage($1::uuid, $2, $3, $4, $5)`,
+    [leadId, text(werte['name']), text(werte['email']), text(werte['telefon']),
+      `Webformular ${formular.schluessel}, Eingang ${eingangId}`],
+  );
+
+  /**
+   * **Und der Besitzer erfährt es** (V-137, REQ-05, NOT-01). Die Art stand seit
+   * PR 18 im Register und entstand nur im Seed; `cse_app` darf keine
+   * Benachrichtigung anlegen. `app.lead_eingang_melden` legt genau diese eine
+   * an — für diesen Lead, an seinen Besitzer, den hier niemand wählt.
+   */
+  registriereLeadArten();
+  const [m] = (await db.unsafe(
+    `select slug from mandant where id = $1::uuid`, [formular.mandantId],
+  )) as { slug: string }[];
+  if (m !== undefined) {
+    const meldung = erzeuge(ART_NEUER_LEAD, {
+      mandantId: formular.mandantId,
+      mandantSlug: m.slug,
+      objektTyp: 'lead',
+      objektId: leadId,
+      daten: {
+        betreff, firma,
+        slaFrist: frist === null ? null : berlinFormat(frist),
+      },
+    });
+    await db.unsafe(
+      `select app.lead_eingang_melden($1::uuid, $2, $3, $4)`,
+      [leadId, meldung.titel, meldung.text, meldung.ziel],
+    );
+  }
+
   return {
     eingangId,
     leadId,
@@ -287,6 +338,14 @@ export async function nimmAn(
     slaFristAm: frist,
     besitzerBenutzerId: formular.standardBesitzerBenutzerId,
   };
+}
+
+/** `2026-09-24T08:00:00Z` → `24.09.2026, 10:00` — Berliner Wanduhr (Invariante 2). */
+export function berlinFormat(zeitpunkt: Date): string {
+  return new Intl.DateTimeFormat('de-DE', {
+    timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).format(zeitpunkt);
 }
 
 /**

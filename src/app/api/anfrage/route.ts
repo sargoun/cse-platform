@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import type postgres from 'postgres';
 import { db } from '@/server/db/pool';
@@ -6,6 +7,9 @@ import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { formularSchluessel } from '@/lib/formular/bereiche';
 import { Felder, FormularFehler } from '@/lib/formular/schema';
 import { istUebermittlung } from '@/lib/formular/uebermittlung';
+import {
+  eigenerPfad, fremdeAdresse, utmAus, UTM_SCHLUESSEL,
+} from '@/lib/formular/herkunft';
 import { ipHash, nimmAn, pruefeRatenlimit, RatenlimitFehler, istBot }
   from '@/server/services/lead/annahme';
 import { bestaetige } from '@/server/services/lead/bestaetigung';
@@ -153,17 +157,25 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
   }
   const felder = felderGeprueft.data;
 
-  // 2 — die Attribution (REQ-07), aus dem Formular und dem Referer-Kopf.
+  /*
+   * 2 — die Attribution (REQ-07), aus den versteckten Feldern des Formulars.
+   *
+   * **Nicht aus dem `Referer` dieses POST.** Der ist immer die eigene
+   * Formularseite — genau das stand vorher als „Herkunft" in jedem Lead. Die
+   * Formularseite hat ihre eigene Herkunft beim Öffnen festgehalten (D-631);
+   * hier wird sie nur noch einmal geprüft, denn die Felder kann jeder setzen.
+   */
   const s = (name: string): string | undefined => {
     const w = formData.get(name);
     return typeof w === 'string' && w !== '' ? w : undefined;
   };
+  const utm = utmAus(Object.fromEntries(UTM_SCHLUESSEL.map((k) => [k, s(k)])));
   const attribution = {
-    utmQuelle: s('utm_source'), utmMedium: s('utm_medium'),
-    utmKampagne: s('utm_campaign'), utmBegriff: s('utm_term'),
-    utmInhalt: s('utm_content'),
-    referrer: anfrage.headers.get('referer') ?? undefined,
-    landingPage: s('landing_page'),
+    utmQuelle: utm.utm_source, utmMedium: utm.utm_medium,
+    utmKampagne: utm.utm_campaign, utmBegriff: utm.utm_term,
+    utmInhalt: utm.utm_content,
+    referrer: fremdeAdresse(s('referrer_extern'), anfrage.headers.get('host')),
+    landingPage: eigenerPfad(s('landing_page')),
   };
 
   // 3 — die Werte. Dateifelder gehören nicht in `daten`.
@@ -254,6 +266,13 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
          * eine Rueckfrage und den Anfragenden das Vertrauen — und niemand
          * merkt, dass die Datei nie ankam.
          */
+        /*
+         * Die Kennung des Eingangs entsteht VOR der Datei (V-137): das
+         * Leistungsverzeichnis soll ihn als Bezug tragen
+         * (`dokument.formular_eingang_id`), sonst liegt es als Dokument ohne
+         * Herkunft im Archiv und das Leadblatt findet es nicht.
+         */
+        const eingangId = randomUUID();
         let dokumentId: string | null = null;
         if (datei !== null) {
           /**
@@ -297,13 +316,13 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
           await kontext.schreibe(
             `insert into dokument (id, mandant_id, kategorie, titel, mime_typ,
                                    mime_verifiziert, groesse_bytes, bucket,
-                                   objekt_schluessel, exif_entfernt)
-             values ($1, $2, 'angebot', $3, $4, true, $5, $6, $7, $8)`,
+                                   objekt_schluessel, exif_entfernt, formular_eingang_id)
+             values ($1, $2, 'angebot', $3, $4, true, $5, $6, $7, $8, $9)`,
             [
               hoch.dokumentId, formular.mandant_id,
               `Leistungsverzeichnis ${datei.name}`, hoch.mimeTyp,
               hoch.groesseBytes, hoch.bucket, hoch.objektSchluessel,
-              hoch.exifEntfernt,
+              hoch.exifEntfernt, eingangId,
             ],
           );
           await kontext.schreibe(
@@ -333,6 +352,7 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
             werte, attribution,
             ...(hash === undefined ? {} : { ip: hash }),
             userAgent: anfrage.headers.get('user-agent') ?? undefined,
+            eingangId,
             ...(datei === null || dokumentId === null
               ? {}
               : { datei: { dokumentId, dateiname: datei.name } }),

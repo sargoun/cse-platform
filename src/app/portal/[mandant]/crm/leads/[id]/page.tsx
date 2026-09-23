@@ -16,6 +16,8 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { Recht } from '@/components/ui/Recht';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { LEAD_TEXTE } from '@/lib/i18n/verwaltung/crm-lead';
+import { Felder } from '@/lib/formular/schema';
+import { einsendungLesbar, type EinsendungsZeile } from '@/server/services/lead/einsendung';
 
 /**
  * `/portal/[mandant]/crm/leads/[id]` — eine Anfrage, ihr Verlauf und ihr
@@ -68,8 +70,33 @@ interface Kopf {
   readonly erste_reaktion: string | null;
   readonly naechste_aktion_text: string | null;
   readonly naechste_aktion_am: string | null;
+  /** Dasselbe Datum zum LESEN (TT.MM.JJJJ) — das obere ist der Wert des Datumsfelds. */
+  readonly naechste_aktion_anzeige: string | null;
   readonly besitzer: string | null;
+  readonly besitzer_benutzer_id: string;
   readonly kunde_id: string | null;
+  readonly ansprechpartner_id: string | null;
+  readonly formular_eingang_id: string | null;
+  readonly utm_quelle: string | null;
+  readonly utm_medium: string | null;
+  readonly utm_kampagne: string | null;
+  readonly referrer: string | null;
+}
+
+interface Kontakt {
+  readonly id: string;
+  readonly vorname: string | null;
+  readonly nachname: string;
+  readonly email: string | null;
+  readonly telefon: string | null;
+  readonly kunde_id: string | null;
+}
+
+interface Eingang {
+  readonly daten: Readonly<Record<string, unknown>>;
+  readonly felder: unknown;
+  readonly landing_page: string | null;
+  readonly eingegangen: string;
 }
 
 interface AktivitaetZeile {
@@ -99,12 +126,21 @@ export default async function LeadDetail(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
-  const darf = await haeltRechte(sitzung, 'crm.schreiben', 'system.benutzer_lesen');
+  const darf = await haeltRechte(sitzung, 'crm.schreiben', 'system.benutzer_lesen',
+    'formular.lesen', 'dokument.lesen');
   const darfSchreiben = darf['crm.schreiben'] === true;
   const darfNamen = darf['system.benutzer_lesen'] === true;
+  const darfFormular = darf['formular.lesen'] === true;
+  const darfDokument = darf['dokument.lesen'] === true;
   const t = nachSprache(LEAD_TEXTE, zugang.sprache);
   const suche = await searchParams;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  /*
+   * `?meldung=` trägt den SATZ, `?fehler=` einen Schlüssel (V-137). Die Route
+   * `/api/crm/lead` schickte immer `meldung`, die Seite las nur `fehler` —
+   * jede Abweisung beim Setzen des Stands verschwand still.
+   */
+  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   const pfad = `/portal/${mandant}/crm/leads/${id}`;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -121,7 +157,11 @@ export default async function LeadDetail(
                 l.naechste_aktion_text,
                 to_char(l.naechste_aktion_am at time zone 'Europe/Berlin', 'YYYY-MM-DD')
                   as naechste_aktion_am,
-                b.name as besitzer, l.kunde_id
+                to_char(l.naechste_aktion_am at time zone 'Europe/Berlin', 'DD.MM.YYYY')
+                  as naechste_aktion_anzeige,
+                b.name as besitzer, l.besitzer_benutzer_id::text as besitzer_benutzer_id,
+                l.kunde_id, l.ansprechpartner_id, l.formular_eingang_id,
+                l.utm_quelle, l.utm_medium, l.utm_kampagne, l.referrer
            from lead l
            left join benutzer b on b.id = l.besitzer_benutzer_id
           where l.id = $1`, [id]);
@@ -152,14 +192,50 @@ export default async function LeadDetail(
               and not b.ist_dienstkonto
             order by b.name limit 200`)
         : [];
-      return { kopf, verlauf, benutzer };
+      /*
+       * **Der Mensch hinter der Anfrage** (V-137). Die Annahme legt ihn seit
+       * 0396 als Ansprechpartner an; ohne ihn liess sich keine ausgehende
+       * Reaktion belegen. Nur die frei lesbaren Spalten — der
+       * Rechtsgrundlage-Block ist `cse_app` entzogen (0020).
+       */
+      const [kontakt] = kopf.ansprechpartner_id === null ? [] : await kontext.abfrage<Kontakt>(
+        `select id, vorname, nachname, email, telefon, kunde_id
+           from ansprechpartner where id = $1`, [kopf.ansprechpartner_id]);
+
+      /*
+       * **Die Einsendung, gegen die Felder IHRER Version** (V-137, REQ-02 …
+       * REQ-04). Nur mit `formular.lesen` — die Policy auf `formular_eingang`
+       * verlangt es ohnehin, und die Seite sagt, was fehlt, statt leer zu
+       * bleiben.
+       */
+      const [eingang] = !darfFormular || kopf.formular_eingang_id === null ? []
+        : await kontext.abfrage<Eingang>(
+          `select e.daten, d.felder, e.landing_page,
+                  to_char(e.eingegangen_am at time zone 'Europe/Berlin', 'DD.MM.YYYY, HH24:MI')
+                    as eingegangen
+             from formular_eingang e
+             join formular_definition d on d.id = e.formular_definition_id
+            where e.id = $1`, [kopf.formular_eingang_id]);
+      const lv = !darfDokument || kopf.formular_eingang_id === null ? []
+        : await kontext.abfrage<{ id: string; titel: string }>(
+          `select id, titel from dokument
+            where formular_eingang_id = $1 and mandant_id = app.aktiver_mandant()
+            order by erstellt_am`, [kopf.formular_eingang_id]);
+      return { kopf, verlauf, benutzer, kontakt: kontakt ?? null, eingang: eingang ?? null, lv };
     })) as Promise<{
       kopf: Kopf; verlauf: readonly AktivitaetZeile[];
       benutzer: readonly { id: string; name: string }[];
+      kontakt: Kontakt | null; eingang: Eingang | null;
+      lv: readonly { id: string; titel: string }[];
     } | null>);
 
   if (daten === null) notFound();
-  const { kopf, verlauf, benutzer } = daten;
+  const { kopf, verlauf, benutzer, kontakt, eingang, lv } = daten;
+  const felder = eingang === null ? null : Felder.safeParse(eingang.felder);
+  const einsendung: readonly EinsendungsZeile[] = eingang === null ? []
+    : einsendungLesbar(felder?.success === true ? felder.data : [], eingang.daten);
+  const utm = [kopf.utm_quelle, kopf.utm_medium, kopf.utm_kampagne]
+    .filter((w): w is string => w !== null && w !== '').join(' · ');
 
   return (
     <PortalRahmen
@@ -180,28 +256,40 @@ export default async function LeadDetail(
 
       <dl className="m-0 mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Nummer</dt>
+          <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">{t.nummer}</dt>
           <dd className="m-0 mt-s1 text-sm text-text">{kopf.leadnummer}</dd>
         </div>
         <div>
-          <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Firma</dt>
+          <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">{t.firma}</dt>
           <dd className="m-0 mt-s1 text-sm text-text">{kopf.firma_name ?? '—'}</dd>
         </div>
         <div>
           <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">
-            Erste Reaktion
+            {t.ersteReaktion}
           </dt>
-          <dd className="m-0 mt-s1 text-sm text-text">
+          <dd className="m-0 mt-s1 text-sm text-text" data-cse="lead-erste-reaktion">
             {kopf.erste_reaktion ?? (
               <span className="text-warning">
-                {kopf.frist === null ? 'offen' : `offen — Frist ${kopf.frist}`}
+                {kopf.frist === null ? t.offen : t.offenFrist(kopf.frist)}
               </span>
             )}
           </dd>
         </div>
         <div>
+          <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">{t.besitzer}</dt>
+          <dd className="m-0 mt-s1 text-sm text-text" data-cse="lead-besitzer">
+            {kopf.besitzer ?? t.niemand}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">{t.prioritaet}</dt>
+          <dd className="m-0 mt-s1 text-sm text-text" data-cse="lead-prioritaet">
+            {t.prioritaetWerte[kopf.prioritaet] ?? kopf.prioritaet}
+          </dd>
+        </div>
+        <div>
           <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">
-            Geschätzter Wert
+            {t.geschaetzterWert}
           </dt>
           <dd className="m-0 mt-s1 cse-zahl text-sm text-text">
             {kopf.wert === null ? '—' : formatiereGeld(cent(BigInt(kopf.wert)))}
@@ -215,6 +303,115 @@ export default async function LeadDetail(
         </p>
       )}
 
+      {/*
+        **Wer angefragt hat, und wie man ihn erreicht** (V-137). Bis hierher
+        stand auf diesem Blatt weder E-Mail noch Telefon: die Annahme übernahm
+        nur Firma und Nachricht, und niemand konnte zurückrufen.
+      */}
+      <section aria-labelledby="kontakt" className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5"
+               data-cse="lead-kontakt">
+        <h2 id="kontakt" className="m-0 text-h3 text-text">{t.kontaktTitel}</h2>
+        {kontakt === null ? (
+          <p className="m-0 mt-s2 text-sm text-warning">{t.kontaktKeiner}</p>
+        ) : (
+          <dl className="m-0 mt-s3 grid grid-cols-1 gap-s2 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-s4">
+            <dt className="text-text-muted">{t.kontaktTitel}</dt>
+            <dd className="m-0 text-text">
+              {[kontakt.vorname, kontakt.nachname].filter((x) => x !== null && x !== '').join(' ')}
+            </dd>
+            {kontakt.email === null ? null : (
+              <>
+                <dt className="text-text-muted">E-Mail</dt>
+                <dd className="m-0 text-text">
+                  <a href={`mailto:${kontakt.email}`} className="underline underline-offset-4"
+                     data-cse="lead-kontakt-email">{kontakt.email}</a>
+                </dd>
+              </>
+            )}
+            {kontakt.telefon === null ? null : (
+              <>
+                <dt className="text-text-muted">Telefon</dt>
+                <dd className="m-0 text-text">
+                  <a href={`tel:${kontakt.telefon.replace(/[^+0-9]/gu, '')}`}
+                     className="underline underline-offset-4"
+                     data-cse="lead-kontakt-telefon">{kontakt.telefon}</a>
+                </dd>
+              </>
+            )}
+          </dl>
+        )}
+      </section>
+
+      {kopf.formular_eingang_id === null ? null : (
+        <section aria-labelledby="einsendung" className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5"
+                 data-cse="lead-einsendung">
+          <h2 id="einsendung" className="m-0 text-h3 text-text">{t.einsendungTitel}</h2>
+          {!darfFormular ? (
+            <p className="m-0 mt-s2 text-sm text-text-muted">
+              {t.einsendungOhneRecht} <Recht schluessel="formular.lesen" sprache={zugang.sprache} />.
+            </p>
+          ) : eingang === null ? null : (
+            <>
+              <p className="m-0 mt-s2 text-sm text-text-muted">
+                {t.einsendungErklaerung(eingang.eingegangen)}
+              </p>
+              <dl className="m-0 mt-s3 grid grid-cols-1 gap-s2 text-sm sm:grid-cols-[minmax(0,14rem)_1fr] sm:gap-x-s4">
+                {einsendung.map((z) => (
+                  <div key={z.schluessel} className="contents" data-cse="einsendung-feld"
+                       data-feld={z.schluessel}>
+                    <dt className="text-text-muted">{z.label}</dt>
+                    <dd className={`m-0 text-text ${z.art === 'mehrzeilig' ? 'whitespace-pre-line' : ''}`}>
+                      {z.art === 'email' ? (
+                        <a href={`mailto:${z.wert}`} className="underline underline-offset-4">{z.wert}</a>
+                      ) : z.art === 'telefon' ? (
+                        <a href={`tel:${z.wert.replace(/[^+0-9]/gu, '')}`}
+                           className="underline underline-offset-4">{z.wert}</a>
+                      ) : z.wert}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </>
+          )}
+
+          <h3 className="m-0 mt-s5 text-base text-text">{t.lvTitel}</h3>
+          {!darfDokument ? (
+            <p className="m-0 mt-s2 text-sm text-text-muted">
+              {t.lvOhneRecht} <Recht schluessel="dokument.lesen" sprache={zugang.sprache} />.
+            </p>
+          ) : lv.length === 0 ? (
+            <p className="m-0 mt-s2 text-sm text-text-muted">—</p>
+          ) : (
+            <ul className="m-0 mt-s2 list-none p-0 text-sm">
+              {lv.map((d) => (
+                <li key={d.id}>
+                  <a href={`/portal/${mandant}/dokumente/${d.id}`} data-cse="lead-lv"
+                     className="underline underline-offset-4">{d.titel}</a>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <h3 className="m-0 mt-s5 text-base text-text">{t.herkunftTitel}</h3>
+          {utm === '' && kopf.referrer === null && (eingang?.landing_page ?? null) === null ? (
+            <p className="m-0 mt-s2 text-sm text-text-muted">{t.herkunftKeine}</p>
+          ) : (
+            <dl className="m-0 mt-s2 grid grid-cols-1 gap-s2 text-sm sm:grid-cols-[minmax(0,14rem)_1fr] sm:gap-x-s4"
+                data-cse="lead-herkunft">
+              {utm === '' ? null : (
+                <><dt className="text-text-muted">{t.herkunftUtm}</dt><dd className="m-0 break-all text-text">{utm}</dd></>
+              )}
+              {kopf.referrer === null ? null : (
+                <><dt className="text-text-muted">{t.herkunftReferrer}</dt><dd className="m-0 break-all text-text">{kopf.referrer}</dd></>
+              )}
+              {(eingang?.landing_page ?? null) === null ? null : (
+                <><dt className="text-text-muted">{t.herkunftEinstieg}</dt><dd className="m-0 break-all text-text">{eingang?.landing_page}</dd></>
+              )}
+            </dl>
+          )}
+        </section>
+      )}
+
       <section aria-labelledby="naechster" className="mb-s7">
         <h2 id="naechster" className="text-h2 text-text">Nächster Schritt</h2>
         {kopf.naechste_aktion_text === null ? (
@@ -225,16 +422,75 @@ export default async function LeadDetail(
         ) : (
           <p data-cse="naechster-schritt" className="text-sm text-text">
             {kopf.naechste_aktion_text}
-            {kopf.naechste_aktion_am === null ? null : (
-              <span className="ml-s2 text-text-muted">({kopf.naechste_aktion_am})</span>
+            {kopf.naechste_aktion_anzeige === null ? null : (
+              <span className="ml-s2 text-text-muted">({kopf.naechste_aktion_anzeige})</span>
             )}
           </p>
         )}
 
-        {fehler !== null && (
+        {/* Der Schlüssel gewinnt, weil er übersetzt ist; der Satz der Route
+            ist deutsch und nur der Rückfall. Ein unbekannter Schlüssel ist nie
+            selbst der Text — `unbekannte_prioritaet` sagt niemandem etwas. */}
+        {(fehler !== null || meldung !== null) && (
           <Hinweis art="warnung" cse="lead-fehler" className="mt-s4 max-w-prose">
-            {t.fehler[fehler] ?? fehler}
+            {(fehler === null ? undefined : t.fehler[fehler]) ?? meldung ?? t.nichtGespeichert}
           </Hinweis>
+        )}
+
+        {/*
+          **Priorität und Besitzer** (V-137, CRM-02). Beides stand in der
+          Tabelle und ließ sich nirgends setzen: die Priorität blieb für immer
+          „normal", und wer eine Anfrage übernahm, stand nicht daran.
+        */}
+        {darfSchreiben && (
+          <form method="post" action="/api/crm/lead" data-cse="lead-pflege-formular"
+                className="mt-s4 flex max-w-prose flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+            <input type="hidden" name="was" value="pflege" />
+            <input type="hidden" name="id" value={id} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <h3 className="m-0 text-base text-text">{t.pflegeTitel}</h3>
+            <p className="m-0 text-sm text-text-muted">{t.pflegeErklaerung}</p>
+            <div className="flex flex-wrap gap-s4">
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                {t.prioritaet}
+                <select name="prioritaet" defaultValue={kopf.prioritaet} className={CRM_FELD}
+                        data-cse="lead-pflege-prioritaet">
+                  {['niedrig', 'normal', 'hoch'].map((w) => (
+                    <option key={w} value={w}>{t.prioritaetWerte[w] ?? w}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                {t.besitzer}
+                {darfNamen ? (
+                  <select name="besitzerBenutzerId" defaultValue={kopf.besitzer_benutzer_id}
+                          className={CRM_FELD} data-cse="lead-pflege-besitzer">
+                    {benutzer.some((b) => b.id === kopf.besitzer_benutzer_id) ? null : (
+                      <option value={kopf.besitzer_benutzer_id}>{kopf.besitzer ?? t.niemand}</option>
+                    )}
+                    {benutzer.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-s3">
+                      <input type="checkbox" name="besitzerBenutzerId" value={sitzung.benutzerId}
+                             className="min-h-5 min-w-5" data-cse="lead-pflege-mir" />
+                      {t.wvMirSelbst}
+                    </span>
+                    <span className="text-xs text-text-muted">{t.pflegeBesitzerOhneNamensrecht}</span>
+                  </>
+                )}
+              </label>
+            </div>
+            <div>
+              <button type="submit" data-cse="lead-pflege-speichern"
+                      className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 text-sm text-text hover:bg-surface-2">
+                {t.pflegeSpeichern}
+              </button>
+            </div>
+          </form>
         )}
 
         {/*
@@ -349,67 +605,66 @@ export default async function LeadDetail(
           </form>
         )}
 
-        <form
-          method="post"
-          action={`/api/lead?mandant=${mandant}`}
-          className="mt-s4 max-w-prose rounded-lg border border-line bg-surface p-s5"
-        >
-          <input type="hidden" name="leadId" value={id} />
-
-          <label className="block text-sm text-text" htmlFor="typ">Art</label>
-          <select
-            id="typ"
-            name="typ"
-            defaultValue="notiz"
-            className="mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text"
+        {darfSchreiben && (
+          <form
+            method="post"
+            action={`/api/lead?mandant=${mandant}`}
+            data-cse="lead-aktivitaet-formular"
+            className="mt-s4 flex max-w-prose flex-col gap-s4 rounded-lg border border-line bg-surface p-s5"
           >
-            <option value="notiz">Notiz</option>
-            <option value="anruf">Anruf</option>
-            <option value="email">E-Mail</option>
-            <option value="termin">Termin</option>
-            <option value="aufgabe">Aufgabe</option>
-          </select>
+            <input type="hidden" name="leadId" value={id} />
+            <h3 className="m-0 text-base text-text">{t.aktivitaetTitel}</h3>
+            <div className="flex flex-wrap gap-s4">
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                {t.aktivitaetArt}
+                <select name="typ" defaultValue="notiz" className={CRM_FELD} data-cse="lead-aktivitaet-typ">
+                  {['notiz', 'anruf', 'email', 'termin', 'aufgabe'].map((w) => (
+                    <option key={w} value={w}>{t.aktivitaetArten[w] ?? w}</option>
+                  ))}
+                </select>
+              </label>
+              {/*
+                **Die Richtung** (V-137). Anruf und E-Mail wurden fest als
+                „intern" gespeichert — die SLA-Uhr stoppt aber nur an einer
+                AUSGEHENDEN Aktivität (0017). Niemand konnte die erste Reaktion
+                belegen, und jede Webanfrage eskalierte stündlich weiter.
+              */}
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                {t.richtung}
+                <select name="richtung" defaultValue="intern" className={CRM_FELD}
+                        data-cse="lead-aktivitaet-richtung">
+                  {['intern', 'ausgehend', 'eingehend'].map((w) => (
+                    <option key={w} value={w}>{t.richtungWerte[w] ?? w}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <p className="m-0 text-xs text-text-muted">{t.richtungErklaerung}</p>
 
-          <label className="mt-s4 block text-sm text-text" htmlFor="inhalt">
-            Was ist passiert?
-          </label>
-          <textarea
-            id="inhalt"
-            name="inhalt"
-            rows={3}
-            className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text"
-          />
-
-          <label className="mt-s4 block text-sm text-text" htmlFor="naechsteAktion">
-            Nächster Schritt
-          </label>
-          <input
-            id="naechsteAktion"
-            name="naechsteAktion"
-            type="text"
-            defaultValue={kopf.naechste_aktion_text ?? ''}
-            className="mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text"
-          />
-
-          <label className="mt-s4 block text-sm text-text" htmlFor="naechsteAktionAm">
-            Wann
-          </label>
-          <input
-            id="naechsteAktionAm"
-            name="naechsteAktionAm"
-            type="date"
-            defaultValue={kopf.naechste_aktion_am ?? ''}
-            className="mt-s2 min-h-11 rounded-md border border-line bg-surface-3 p-s3 text-sm text-text"
-          />
-
-          <button
-            type="submit"
-            data-cse="lead-notieren"
-            className="mt-s4 inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm text-white hover:bg-brand-hover"
-          >
-            Festhalten
-          </button>
-        </form>
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.wasPassiert}
+              <textarea name="inhalt" rows={3} className={CRM_FELD} data-cse="lead-aktivitaet-inhalt" />
+            </label>
+            <div className="flex flex-wrap gap-s4">
+              <label className="flex min-w-0 flex-[2] flex-col gap-s2 text-sm text-text">
+                {t.naechsterSchritt}
+                <input name="naechsteAktion" type="text" defaultValue={kopf.naechste_aktion_text ?? ''}
+                       className={CRM_FELD} />
+              </label>
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                {t.wann}
+                <input name="naechsteAktionAm" type="date" defaultValue={kopf.naechste_aktion_am ?? ''}
+                       className={CRM_FELD} />
+              </label>
+            </div>
+            <div>
+              <button type="submit" data-cse="lead-notieren"
+                      className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm text-white hover:bg-brand-hover">
+                {t.festhalten}
+              </button>
+            </div>
+          </form>
+        )}
       </section>
 
       <section aria-labelledby="verlauf">

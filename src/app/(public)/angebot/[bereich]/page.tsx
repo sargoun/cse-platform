@@ -36,5 +36,5 @@ export default async function AnfrageSeite(
    */
   const suche = await searchParams;
   const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : undefined;
-  return AngebotSeiteFuer(bereich, undefined, meldung, felderAus(suche['felder']));
+  return AngebotSeiteFuer(bereich, undefined, meldung, felderAus(suche['felder']), suche);
 }

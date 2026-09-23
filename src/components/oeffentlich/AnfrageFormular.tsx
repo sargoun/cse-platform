@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/Button';
 import type { FormularFeld } from '@/lib/formular/schema';
+import { UTM_SCHLUESSEL, type Herkunft } from '@/lib/formular/herkunft';
 import { ANFRAGE_TEXTE } from '@/lib/i18n/texte';
 import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
@@ -27,6 +28,8 @@ export interface AnfrageFormularProps {
   readonly felder: readonly FormularFeld[];
   readonly fehler?: Readonly<Record<string, string>> | undefined;
   readonly meldung?: string | undefined;
+  /** Woher der Besuch kam (REQ-07) — gelesen von der Seite, nicht vom POST. */
+  readonly herkunft?: Herkunft | undefined;
 }
 
 function Feld({ f, fehler, t }: {
@@ -141,7 +144,9 @@ function Feld({ f, fehler, t }: {
 }
 
 export function AnfrageFormular(
-  { bereich, titel, felder, fehler, meldung, sprache = VORGABE_SPRACHE }: AnfrageFormularProps,
+  {
+    bereich, titel, felder, fehler, meldung, herkunft, sprache = VORGABE_SPRACHE,
+  }: AnfrageFormularProps,
 ) {
   const sortiert = [...felder].sort((a, b) => a.sortierung - b.sortierung);
   const t = ANFRAGE_TEXTE[sprache];
@@ -201,6 +206,25 @@ export function AnfrageFormular(
           * Programme mit JSON — sie schicken das Feld nicht mit.
           */}
         <input type="hidden" name="antwort" value="seite" />
+        {/**
+          * **Die Herkunft des Besuchs (REQ-07), festgehalten beim ÖFFNEN.**
+          *
+          * Die Annahme las vorher den `Referer` des Absendens — und der ist
+          * immer diese Formularseite. In jedem Lead stand also die eigene
+          * Adresse als Herkunft, und die Kampagnenparameter kamen gar nicht
+          * an, weil kein Feld sie trug. Ohne Cookie (D-61): die Seite liest
+          * ihren eigenen Aufruf, und das Formular reicht es weiter (D-631).
+          */}
+        {herkunft !== undefined && UTM_SCHLUESSEL.map((k) => {
+          const w = herkunft.utm[k];
+          return w === undefined ? null : <input key={k} type="hidden" name={k} value={w} />;
+        })}
+        {herkunft?.landingPage !== undefined && (
+          <input type="hidden" name="landing_page" value={herkunft.landingPage} />
+        )}
+        {herkunft?.referrerExtern !== undefined && (
+          <input type="hidden" name="referrer_extern" value={herkunft.referrerExtern} />
+        )}
 
         {/**
           * Der Honigtopf.

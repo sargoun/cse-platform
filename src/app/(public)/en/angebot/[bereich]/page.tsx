@@ -28,5 +28,5 @@ export default async function EnglishEnquiry(
    */
   const suche = await searchParams;
   const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : undefined;
-  return AngebotSeiteFuer(bereich, 'en', meldung, felderAus(suche['felder']));
+  return AngebotSeiteFuer(bereich, 'en', meldung, felderAus(suche['felder']), suche);
 }

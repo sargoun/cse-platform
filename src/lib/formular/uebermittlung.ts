@@ -34,6 +34,11 @@ export const UEBERMITTLUNGSFELDER: ReadonlySet<string> = new Set([
   'antwort',
   /** Die Herkunft des Besuchs (REQ-07). */
   'landing_page',
+  /**
+   * Die FREMDE Seite, von der der Besuch kam (REQ-07, D-631). Nicht der
+   * `Referer` des Absendens — der ist immer die eigene Formularseite.
+   */
+  'referrer_extern',
 ]);
 
 /**

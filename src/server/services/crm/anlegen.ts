@@ -310,3 +310,76 @@ export async function setzeLeadStatus(
     throw new CrmFehler('Diesen Lead gibt es nicht.', 'nicht_gefunden', 404);
   }
 }
+
+export interface LeadPflege {
+  readonly prioritaet?: string | undefined;
+  readonly besitzerBenutzerId?: string | undefined;
+}
+
+/**
+ * Priorität und Besitzer eines Leads setzen (V-137, CRM-02).
+ *
+ * Beides stand seit 0017 in der Tabelle und liess sich nirgends setzen: die
+ * Priorität blieb für immer „normal", und wer eine Anfrage übernahm, stand
+ * nicht daran — die Meldung bei neuer Anfrage und bei überschrittener
+ * Reaktionszeit ging weiter an den Vorgabebesitzer des Formulars.
+ *
+ * **Ein Besitzer arbeitet in diesem Bereich.** Geprüft gegen eine GÜLTIGE
+ * Mitgliedschaft (dasselbe Fenster wie überall, 0169) und ein aktives Konto;
+ * ein Dienstkonto besitzt keine Anfrage. Sonst ginge die nächste Meldung an
+ * jemanden, der den Lead nicht einmal öffnen darf.
+ */
+export async function setzeLeadPflege(
+  kontext: SchreibKontext, id: string, pflege: LeadPflege,
+): Promise<void> {
+  const prioritaet = leer(pflege.prioritaet);
+  if (prioritaet !== null && !['niedrig', 'normal', 'hoch'].includes(prioritaet)) {
+    throw new CrmFehler('Diese Priorität gibt es nicht.', 'unbekannte_prioritaet');
+  }
+  const gewuenscht = leer(pflege.besitzerBenutzerId);
+  const [jetzt] = gewuenscht === null ? [] : await kontext.abfrage<{ besitzer: string }>(
+    `select besitzer_benutzer_id::text as besitzer from lead
+      where mandant_id = app.aktiver_mandant() and id = $1::uuid`, [id]);
+  /* Ein unveränderter Besitzer ist keine Änderung und wird nicht neu geprüft. */
+  const besitzer = gewuenscht !== null && gewuenscht !== jetzt?.besitzer ? gewuenscht : null;
+  if (besitzer !== null) {
+    /*
+     * Eine gültige Mitgliedschaft in DIESEM Bereich — oder eine aktive
+     * globale Rolle, die in jedem Bereich gilt (TEN-08): der Vorgabebesitzer
+     * der Formulare im Seed ist die Super-Administration, ohne Mitgliedszeile.
+     */
+    const [mitglied] = await kontext.abfrage<{ ok: boolean }>(
+      `select exists (
+         select 1 from benutzer b
+          where b.id = $1::uuid
+            and b.status = 'aktiv' and b.deaktiviert_am is null
+            and not b.ist_dienstkonto
+            and (b.globale_rolle_id is not null
+                 or exists (select 1 from benutzer_mandant bm
+                             where bm.benutzer_id = b.id
+                               and bm.mandant_id = app.aktiver_mandant()
+                               and bm.entzogen_am is null
+                               and bm.gueltig_ab <= app.berlin_heute()
+                               and (bm.gueltig_bis is null
+                                    or bm.gueltig_bis >= app.berlin_heute())))) as ok`,
+      [besitzer]);
+    if (mitglied?.ok !== true) {
+      throw new CrmFehler('Dieser Mensch arbeitet nicht in diesem Bereich.',
+        'unbekannter_besitzer');
+    }
+  }
+  if (prioritaet === null && besitzer === null) return;
+
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update lead
+        set prioritaet = coalesce($2::lead_prioritaet, prioritaet),
+            besitzer_benutzer_id = coalesce($3::uuid, besitzer_benutzer_id),
+            geaendert_am = now(), geaendert_von = app.aktueller_benutzer()
+      where mandant_id = app.aktiver_mandant() and id = $1::uuid
+        and archiviert_am is null
+      returning id`,
+    [id, prioritaet, besitzer]);
+  if (zeilen[0] === undefined) {
+    throw new CrmFehler('Diesen Lead gibt es nicht.', 'nicht_gefunden', 404);
+  }
+}

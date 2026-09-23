@@ -61,7 +61,7 @@ describe('die Übermittlungsfelder des Anfrageformulars', () => {
     ).toEqual([]);
   });
 
-  it('nennt die vier, die es heute gibt', () => {
+  it('nennt die sechs, die es heute gibt', () => {
     /*
      * Eine Pruefsumme und keine Doppelung: waechst die Liste, faellt dieser
      * Fall und jemand liest den Kommentar darueber. Waechst sie um ein Feld,
@@ -69,7 +69,7 @@ describe('die Übermittlungsfelder des Anfrageformulars', () => {
      * Sekunde Arbeit.
      */
     expect([...UEBERMITTLUNGSFELDER].sort()).toEqual([
-      'antwort', 'bereich', 'landing_page', 'sprache', 'website',
+      'antwort', 'bereich', 'landing_page', 'referrer_extern', 'sprache', 'website',
     ]);
   });
 
