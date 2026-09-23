@@ -83,11 +83,13 @@ describe('(1) DSH-04: jede Kachel zeigt die Zahl, die hinter ihrem Link steht', 
   it('es gibt überhaupt Kacheln zu prüfen', () => {
     // Ohne diese Zusage bestünde alles Folgende auf einer leeren Liste.
     // Zwölf seit Phase 5: `schichten_unbesetzt`, `konflikte_offen`,
-    // `antraege_offen`, `abwesend_heute` und `nachweise_abgelaufen` kommen dazu. Die Zahl steht hier
+    // `antraege_offen`, `abwesend_heute` und `nachweise_abgelaufen` kommen dazu;
+    // die dreizehnte ist `aktuell_im_einsatz` (V-072) — DSH-05 nennt sie
+    // namentlich, und sie stand auf keinem Dashboard. Die Zahl steht hier
     // und nicht im Einheitstest allein, weil DIESE Datei jede Kachel gegen die
     // echte Datenbank stellt — eine Kachel, die sich hier nicht mitzählt, wird
     // nie gegen ihre Liste geprüft.
-    expect(alle.length).toBe(12);
+    expect(alle.length).toBe(13);
   });
 
   it.each([['reinigung'], ['security'], ['bau'], ['operations']])(

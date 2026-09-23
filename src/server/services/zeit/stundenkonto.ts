@@ -210,6 +210,16 @@ export interface KontoFilter {
   readonly personId?: string;
   readonly jahr?: number;
   readonly monat?: number;
+  /**
+   * Nur die Konten DIESER Gesellschaft (V-073).
+   *
+   * Für den nächtlichen Abgleich, der unter `cse_job` läuft: dort greift
+   * `t_job … using (true)` (0060), die RLS grenzt also NICHT ein. Ein
+   * `je_mandant`-Lauf ohne diesen Filter meldete in jedem Durchgang die
+   * Abweichungen aller Gesellschaften — N-mal dieselbe, und jede unter dem
+   * falschen Namen.
+   */
+  readonly mandantId?: string;
 }
 
 /**
@@ -768,6 +778,18 @@ export function folgemonat(jahr: number, monat: number): { jahr: number; monat: 
   return monat === 12 ? { jahr: jahr + 1, monat: 1 } : { jahr, monat: monat + 1 };
 }
 
+/**
+ * Nur die ABFRAGE — der kleinste Kontext, der für den Abgleich reicht.
+ *
+ * `LeseKontext` verlangt Scope, Portal, Benutzer und Mandantenliste; ein
+ * Nachtlauf hat davon nichts und soll es auch nicht erfinden (V-073). Ein
+ * `LeseKontext` erfüllt diese Form ohnehin, der bestehende Aufruf aus der
+ * Oberfläche ändert sich also nicht.
+ */
+export interface NurAbfrage {
+  abfrage<T>(anweisung: string, werte?: readonly unknown[]): Promise<readonly T[]>;
+}
+
 export interface Drift {
   readonly kontoId: string;
   readonly anstellungId: string;
@@ -794,7 +816,7 @@ export interface Drift {
  * schreibt.
  */
 export async function pruefeAbgleich(
-  kontext: LeseKontext, filter: KontoFilter = {},
+  kontext: NurAbfrage, filter: KontoFilter = {},
 ): Promise<readonly Drift[]> {
   const werte: unknown[] = [];
   const wo: string[] = [];
@@ -805,6 +827,10 @@ export async function pruefeAbgleich(
   if (filter.jahr !== undefined) {
     werte.push(filter.jahr);
     wo.push(`k.jahr = $${String(werte.length)}`);
+  }
+  if (filter.mandantId !== undefined) {
+    werte.push(filter.mandantId);
+    wo.push(`k.mandant_id = $${String(werte.length)}::uuid`);
   }
   const zeilen = await kontext.abfrage<{
     id: string; anstellung_id: string; jahr: number; monat: number;

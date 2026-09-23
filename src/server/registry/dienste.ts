@@ -364,7 +364,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * „Aktuell im Einsatz" ZAEHLT nur (DSH-05) — in der Gruppenansicht ist
    * daran nichts gefaehrlich, und schreiben kann es nicht.
    */
-  { modul: 'zeit', pfad: 'zeit/live', schreibend: false },
+  /*
+   * `zeit/live` ist am 23.09.2026 ENTFALLEN (V-072).
+   *
+   * Der Dienst bildete `zeiteintrag_offen` ein drittes Mal ab — die Sicht
+   * selbst ist die eine Wahrheit, `/zeiten/live` liest sie ueber
+   * `ladeLaufende`, und die Dashboard-Kachel liest sie ueber das
+   * Kennzahlenregister, das SQL nimmt und keine Funktion. Gebaut war er fuer
+   * genau diese Kachel und von ihr nie aufrufbar; einen Aufrufer hatte er in
+   * zwei Jahren nicht. Was bleibt, ist eine Frage mit einer Antwort statt
+   * dreier Wege zu ihr.
+   */
   /**
    * Die Offline-Warteschlange (TIM-09). Sie SCHREIBT — die nachgereichte
    * Behauptung und, wenn ein Mensch entscheidet, den Zeiteintrag samt

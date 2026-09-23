@@ -246,6 +246,18 @@ select cron.schedule('cse_social_plan', '*/5 * * * *', $cse$
   );
 $cse$);
 
+-- Nächtlicher Abgleich Stundenkonto ↔ Journal (EMP-04, §12.2) (je_mandant)
+select cron.unschedule('cse_stundenkonto_abgleich')
+  where exists (select 1 from cron.job where jobname = 'cse_stundenkonto_abgleich');
+select cron.schedule('cse_stundenkonto_abgleich', '40 3 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/stundenkonto_abgleich',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
 -- Urlaubskonten des laufenden Jahres öffnen (EMP-05, § 3 BUrlG) (uebergreifend)
 select cron.unschedule('cse_urlaubskonten_jahr')
   where exists (select 1 from cron.job where jobname = 'cse_urlaubskonten_jahr');

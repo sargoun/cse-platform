@@ -357,5 +357,43 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
           order by n.gueltig_bis`,
       ziel: (k) => kennzahlPfad(k, 'personal/nachweise', ''),
     }),
+
+    /**
+     * **„Aktuell im Einsatz" — die Kachel, die DSH-05 namentlich verlangt**
+     * (V-072, TIM-08).
+     *
+     * Die Sicht `zeiteintrag_offen` steht seit `0034` da, `/zeiten/live`
+     * liest sie, `services/zeit/live.ts` bildet sie ein zweites Mal ab — und
+     * auf dem Dashboard stand sie nirgends. Wer wissen wollte, wer gerade
+     * arbeitet, musste in den Zeitbereich wechseln und dort einen Sprung
+     * finden.
+     *
+     * **Dieselbe SICHT wie die Liste dahinter**, nicht dieselbe Bedingung
+     * abgeschrieben. Eine Zahl, die aus einer anderen Bedingung entsteht als
+     * die Zeilen, die sie zählt, driftet — und eine Kachel, die etwas anderes
+     * sagt als die Liste, ist schlimmer als keine, weil danach niemand mehr
+     * einer Zahl auf diesem Bildschirm glaubt (DSH-04).
+     *
+     * `info` und nicht `warning`: dass jemand im Einsatz ist, ist der
+     * Normalfall. Eine vergessene Abmeldung fällt in der Liste auf, wo die
+     * Dauer steht — nicht an der Farbe einer Kachel.
+     */
+    registriereKachel({
+      schluessel: 'aktuell_im_einsatz',
+      label: 'Aktuell im Einsatz',
+      modul: 'zeit',
+      recht: 'zeit.lesen',
+      ton: 'info',
+      icon: 'uhr',
+      zaehlung:
+        `select count(*)::int as wert from zeiteintrag_offen
+          where mandant_id = any($1)`,
+      zeilen:
+        `select id, person_id, anstellung_id, objekt_id, beginn_zeitpunkt
+           from zeiteintrag_offen
+          where mandant_id = any($1)
+          order by beginn_zeitpunkt`,
+      ziel: (k) => kennzahlPfad(k, 'zeiten/live', ''),
+    }),
   ];
 }

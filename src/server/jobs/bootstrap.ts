@@ -23,6 +23,7 @@ import { registriereKonfliktDetektor } from './konflikteErkennen.js';
 import { registriereLeadSlaJob } from './lead-sla.js';
 import { registriereNachweisWarnungen } from './nachweisWarnungen.js';
 import { registriereKettenpruefer } from './kettenpruefer.js';
+import { registriereStundenkontoAbgleich } from './stundenkontoAbgleich.js';
 import { registrierePostenabgleich } from './postenabgleich.js';
 import { registriereMahnlauf } from './mahnlauf.js';
 import { registriereBasiszinssatzWaechter } from './basiszinssatz.js';
@@ -78,6 +79,7 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereLeadSlaJob(db);
     registriereNachweisWarnungen(db);
     registriereKettenpruefer(db);
+    registriereStundenkontoAbgleich(db);
     registrierePostenabgleich(db);
     registriereMahnlauf(db);
     registriereBasiszinssatzWaechter(db);

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   istMerkmal, MERKMALE, MERKMAL_TEXT,
@@ -175,5 +175,48 @@ describe('(5) „Zurückgezogen" ist erreichbar (V-052)', () => {
     // ab, löst aber das Selbstentscheidungsverbot nicht aus.
     expect(ENTSCHIEDEN).toContain('zurueckgezogen');
     expect(ENTSCHEIDUNG).not.toContain('zurueckgezogen');
+  });
+});
+
+describe('(6) „Aktuell im Einsatz" steht auf dem Dashboard (V-072)', () => {
+  it('die Kachel ist registriert und führt auf die Liste', async () => {
+    /*
+     * DSH-05 nennt sie namentlich, die Sicht `zeiteintrag_offen` steht seit
+     * `0034` da, `/zeiten/live` liest sie — und auf dem Dashboard stand sie
+     * nirgends. Wer wissen wollte, wer gerade arbeitet, musste in den
+     * Zeitbereich wechseln und dort einen Sprung finden.
+     */
+    const { registriereBerichtKacheln } = await import(
+      '../../src/server/services/bericht/kacheln.js');
+    const kacheln = registriereBerichtKacheln();
+    const live = kacheln.find((k) => k.schluessel === 'aktuell_im_einsatz');
+    expect(live).toBeDefined();
+    expect(live!.recht).toBe('zeit.lesen');
+    expect(live!.ziel({ mandantId: 'm', mandantSlug: 'reinigung', mandantIds: ['m'] }))
+      .toBe('/portal/reinigung/zeiten/live');
+  });
+
+  it('Zahl und Zeilen lesen DIESELBE Sicht', () => {
+    /*
+     * Eine Zahl, die aus einer anderen Bedingung entsteht als die Zeilen, die
+     * sie zählt, driftet — und eine Kachel, die etwas anderes sagt als die
+     * Liste, ist schlimmer als keine, weil danach niemand mehr einer Zahl auf
+     * diesem Bildschirm glaubt (DSH-04).
+     */
+    const quelle = readFileSync('src/server/services/bericht/kacheln.ts', 'utf8');
+    const stelle = quelle.slice(quelle.indexOf("schluessel: 'aktuell_im_einsatz'"));
+    const block = stelle.slice(0, stelle.indexOf('ziel:'));
+    expect((block.match(/zeiteintrag_offen/gu) ?? []).length).toBe(2);
+  });
+
+  it('und der dritte Weg zu derselben Frage ist entfallen', () => {
+    /*
+     * `services/zeit/live.ts` bildete die Sicht ein drittes Mal ab, war für
+     * genau diese Kachel gebaut und von ihr nie aufrufbar — das Register
+     * nimmt SQL und keine Funktion. Einen Aufrufer hatte er nie.
+     */
+    expect(existsSync('src/server/services/zeit/live.ts')).toBe(false);
+    const register = readFileSync('src/server/registry/dienste.ts', 'utf8');
+    expect(register).not.toMatch(/pfad: 'zeit\/live'/u);
   });
 });
