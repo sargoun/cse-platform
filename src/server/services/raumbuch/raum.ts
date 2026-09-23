@@ -35,7 +35,11 @@ export class RaumFehler extends Error {
   constructor(nachricht: string, readonly grund:
     | 'nicht_gefunden' | 'archiviert' | 'flaeche_unlesbar' | 'flaeche_null'
     | 'nummer_belegt' | 'bezeichnung_belegt' | 'ohne_kennung'
-    | 'fremde_belagsart' | 'fremde_klasse') {
+    | 'fremde_belagsart' | 'fremde_klasse'
+    /** Ein archiviertes Objekt bekommt keine neuen Raeume (V-012). */
+    | 'objekt_archiviert'
+    /** Die Policy hat den INSERT abgewiesen — `objekt.schreiben` fehlt. */
+    | 'kein_recht') {
     super(nachricht);
     this.name = 'RaumFehler';
   }
@@ -272,6 +276,90 @@ function alsRaumFehler(fehler: unknown): never {
     }
   }
   throw fehler as Error;
+}
+
+/**
+ * **Einen einzelnen Raum anlegen** (V-012, OPS-02, OPS-03).
+ *
+ * **Der Befund.** `speichereRaum` ändert nur Vorhandenes, `archiviereRaum`
+ * legt still — ANGELEGT wurde ein Raum ausschliesslich im Dateiimport
+ * (`raumbuch/import.ts`) und im Seed. Für den Anbau, das neue WC oder den
+ * Raum, den die Datei vergessen hat, musste man eine CSV-Datei bauen, um
+ * eine Zeile zu ergänzen.
+ *
+ * **Dieselben Regeln wie beim Ändern, aus derselben Quelle.** Nummer ODER
+ * Bezeichnung, Fläche > 0, deutsche Zahl — und die Eindeutigkeitsverstösse
+ * kommen über `alsRaumFehler` als Satz statt als Fremdschlüsselcode. Ein
+ * zweiter Regelsatz für dasselbe Formular wäre die zweite Wahrheit, und sie
+ * würde beim ersten Unterschied gewinnen, ohne dass es jemand merkt.
+ *
+ * **`quell_schluessel` bleibt leer.** Er ist der stabile Schlüssel des
+ * IMPORTEURS. Einen zu erfinden hiesse, dass der nächste Import diesen Raum
+ * für seinen hält und ihn überschreibt; ohne ihn greift `raum_natuerlich_uk`
+ * über (Objekt, Etage, Nummer) — genau der Schlüssel, den ein Mensch tippt.
+ *
+ * **Das Objekt wird zuerst gelesen, und zwar wegen des ARCHIVS.** Die RLS
+ * verhindert einen Raum in einer fremden Gesellschaft, aber nicht einen in
+ * einem stillgelegten Objekt: dessen Fremdschlüssel besteht weiter. Ein Raum
+ * dort wäre in keiner Liste sichtbar und in keiner Kalkulation — angelegt und
+ * unauffindbar.
+ */
+export async function legeRaumAn(
+  db: Abfrage, objektId: string, eingabe: RaumEingabe,
+): Promise<string> {
+  const [objekt] = await db.abfrage<{ id: string; archiviert_am: Date | null }>(
+    `select id, archiviert_am from objekt
+      where id = $1 and mandant_id = app.aktiver_mandant()`, [objektId]);
+  if (objekt === undefined) {
+    throw new RaumFehler(
+      'Dieses Objekt gibt es in dieser Gesellschaft nicht', 'nicht_gefunden');
+  }
+  if (objekt.archiviert_am !== null) {
+    throw new RaumFehler(
+      'Dieses Objekt ist archiviert und bekommt keine neuen Räume — ein wieder '
+      + 'genutztes Objekt ist eine neue Zeile.', 'objekt_archiviert');
+  }
+
+  const nummer = leer(eingabe.raumnummer);
+  const bezeichnung = leer(eingabe.bezeichnung);
+  /* Dieselbe Begründung wie in `speichereRaum`: ein Raum ohne beides steht in
+   * der Liste als „ohne Nummer / —" und ist von jedem anderen solchen Raum
+   * nicht zu unterscheiden. */
+  if (nummer === null && bezeichnung === null) {
+    throw new RaumFehler(
+      'Ein Raum braucht eine Nummer oder eine Bezeichnung — sonst ist er in der Liste '
+      + 'von jedem anderen unbenannten Raum nicht zu unterscheiden', 'ohne_kennung');
+  }
+
+  const qm = flaeche(leer(eingabe.flaecheQm), 'Fläche', true);
+  const glas = flaeche(leer(eingabe.fensterFlaecheQm), 'Fensterfläche', false);
+
+  let neu: { id: string } | undefined;
+  try {
+    [neu] = await db.abfrage<{ id: string }>(
+      `insert into raum (mandant_id, objekt_id, raumnummer, bezeichnung, etage,
+                         nutzungsart, flaeche_qm, fenster_flaeche_qm,
+                         belagsart_id, reinigungsklasse_id, sortierung)
+       values (app.aktiver_mandant(), $1, $2, $3, $4, $5, $6::numeric, $7::numeric,
+               $8, $9, $10)
+       returning id`,
+      [objektId, nummer, bezeichnung, leer(eingabe.etage), leer(eingabe.nutzungsart),
+       qm, glas, leer(eingabe.belagsartId), leer(eingabe.reinigungsklasseId),
+       eingabe.sortierung ?? 0]);
+  } catch (fehler) {
+    alsRaumFehler(fehler);
+  }
+  /*
+   * Ein von der RLS abgewiesener INSERT WIRFT — diese Zeile fängt den anderen
+   * Fall: eine Anweisung, die nichts zurückgibt. Sie soll nicht als „angelegt"
+   * durchgehen und die Seite auf ein Blatt führen, das es nicht gibt.
+   */
+  if (neu === undefined) {
+    throw new RaumFehler(
+      'Der Raum wurde nicht angelegt — fehlt objekt.schreiben in dieser Gesellschaft?',
+      'kein_recht');
+  }
+  return neu.id;
 }
 
 export async function speichereRaum(

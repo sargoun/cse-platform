@@ -158,15 +158,36 @@ export default async function Raumbuch(
           * das erste führte „Aus Datei importieren" auf 404 und verriet damit,
           * was es nicht zeigen darf (AUT-06; Copilot-Runde auf PR 16 / D-581).
           */}
-        {darf['objekt_import.schreiben'] === true && (
-          <Link
-            href={`/portal/${mandant}/objekte/${id}/raumbuch/import`}
-            data-cse="zum-import"
-            className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
-          >
-            Aus Datei importieren
-          </Link>
-        )}
+        <div className="flex flex-wrap gap-s3">
+          {/*
+            * **Der Weg zu EINEM Raum** (V-012).
+            *
+            * Ein Raum entstand bisher nur aus einer Datei. Für den Anbau, das
+            * neue WC oder den Raum, den der Import vergessen hat, musste man
+            * eine Tabelle bauen, um eine Zeile zu ergänzen.
+            *
+            * Das Recht ist `objekt.schreiben` — dasselbe, das die Seite
+            * dahinter im Manifest trägt (AUT-06, D-581).
+            */}
+          {darf['objekt.schreiben'] === true && (
+            <Link
+              href={`/portal/${mandant}/objekte/${id}/raumbuch/neu`}
+              data-cse="zum-neuen-raum"
+              className="inline-flex min-h-11 items-center rounded-md bg-brand px-s4 text-sm font-semibold text-white hover:bg-brand-hover"
+            >
+              Neuer Raum
+            </Link>
+          )}
+          {darf['objekt_import.schreiben'] === true && (
+            <Link
+              href={`/portal/${mandant}/objekte/${id}/raumbuch/import`}
+              data-cse="zum-import"
+              className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+            >
+              Aus Datei importieren
+            </Link>
+          )}
+        </div>
       </div>
 
       {raeume.length === 0 ? (

@@ -1038,6 +1038,7 @@ in the public tenders the Radar module exists to win.
 | `/portal/[mandant]/objekte/[id]/bearbeiten` — edit address, Kunde, access notes; archive. The **Objektnummer is not editable**: it is printed on key tags, Dienstanweisungen and every signed Leistungsnachweis | `objekt.schreiben` | `M1` | OPS-01 | 4 |
 | `/portal/[mandant]/objekte/[id]/raumbuch` — rooms with m², floor type, cleaning class | `objekt.lesen` | `M1` | OPS-02 | 4 |
 | `/portal/[mandant]/objekte/[id]/raumbuch/[raumId]` | `objekt.schreiben` | `M1` | OPS-02, OPS-03 | 4 |
+| `/portal/[mandant]/objekte/[id]/raumbuch/neu` — **one** room by hand; the file import stays the way in for a whole building | `objekt.schreiben` | `M1` | OPS-02, OPS-03 | 4 |
 | `/portal/[mandant]/objekte/[id]/raumbuch/import` — Excel/CSV, **preview before commit** | `objekt_import.schreiben` | `M1` | OPS-04, DOC-06 | 4 |
 
 The import is a two-step route by design: the upload parses into a staged diff — new rooms,

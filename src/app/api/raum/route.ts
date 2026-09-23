@@ -1,6 +1,8 @@
 import { type NextRequest, type NextResponse } from 'next/server';
 import { fuehreUebergangAus, grundAus, UUID } from '../uebergang';
-import { archiviereRaum, RaumFehler, speichereRaum } from '@/server/services/raumbuch/raum';
+import {
+  archiviereRaum, legeRaumAn, RaumFehler, speichereRaum,
+} from '@/server/services/raumbuch/raum';
 
 /**
  * `POST /api/raum` — ein einzelner Raum im Raumbuch (OPS-02, OPS-03).
@@ -26,12 +28,40 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     handle: async (kontext, rumpf) => {
       const objektId = rumpf.felder['objektId'] ?? '';
       const raumId = rumpf.felder['raumId'] ?? '';
+      const aktion = rumpf.felder['aktion'] ?? '';
+      const db = { abfrage: kontext.abfrage.bind(kontext) };
+
+      /*
+       * **Anlegen braucht KEINE `raumId`** — deshalb steht dieser Zweig vor
+       * der gemeinsamen Prüfung und nicht dahinter. Das Recht ist dasselbe
+       * (`objekt.schreiben`, oben im Gerüst und noch einmal in `t_mandant`
+       * auf `raum`): wer eine Fläche ändern darf, darf eine Zeile ergänzen —
+       * beides verschiebt denselben Preis (V-012).
+       */
+      if (aktion === 'anlegen') {
+        if (!UUID.test(objektId)) {
+          throw new RaumFehler('Objekt nicht benannt', 'nicht_gefunden');
+        }
+        const sortierungNeu = Number.parseInt(rumpf.felder['sortierung'] ?? '0', 10);
+        const neuerRaum = await legeRaumAn(db, objektId, {
+          raumnummer: rumpf.felder['raumnummer'] ?? null,
+          bezeichnung: rumpf.felder['bezeichnung'] ?? null,
+          etage: rumpf.felder['etage'] ?? null,
+          nutzungsart: rumpf.felder['nutzungsart'] ?? null,
+          flaecheQm: rumpf.felder['flaecheQm'] ?? '',
+          fensterFlaecheQm: rumpf.felder['fensterFlaecheQm'] ?? null,
+          belagsartId: rumpf.felder['belagsartId'] ?? null,
+          reinigungsklasseId: rumpf.felder['reinigungsklasseId'] ?? null,
+          sortierung: Number.isFinite(sortierungNeu) ? sortierungNeu : 0,
+        });
+        return { objektId, raumId: neuerRaum, archiviert: false };
+      }
+
       if (!UUID.test(objektId) || !UUID.test(raumId)) {
         throw new RaumFehler('Objekt oder Raum nicht benannt', 'nicht_gefunden');
       }
-      const db = { abfrage: kontext.abfrage.bind(kontext) };
 
-      if ((rumpf.felder['aktion'] ?? '') === 'archivieren') {
+      if (aktion === 'archivieren') {
         await archiviereRaum(db, objektId, raumId);
         return { objektId, raumId, archiviert: true };
       }
