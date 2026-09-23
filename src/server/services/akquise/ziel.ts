@@ -36,6 +36,14 @@ export interface Ziel {
   readonly leadId: string | null;
   readonly quelleBezeichnung: string | null;
   readonly gefundenAm: Date;
+  /**
+   * Wer die Firma wann angesehen hat (V-080).
+   *
+   * `markiereGeprueft` stempelt beides seit je; gelesen hat es niemand, weil
+   * es niemand herausgab — und weil kein Formular die Handlung auslöste.
+   */
+  readonly angesehenAm: Date | null;
+  readonly angesehenVon: string | null;
 }
 
 export class AkquiseFehler extends Error {
@@ -49,7 +57,10 @@ export class AkquiseFehler extends Error {
 const FELDER = `z.id, z.firmenname, z.branche, z.strasse, z.plz, z.ort, z.website,
                 z.allgemeine_email, z.telefon, z.punktzahl, z.punktzahl_begruendung,
                 z.passender_bereich, z.bedarf_vermutung, z.status, z.verworfen_grund,
-                z.lead_id, z.gefunden_am, q.bezeichnung as quelle_bezeichnung`;
+                z.lead_id, z.gefunden_am, q.bezeichnung as quelle_bezeichnung,
+                z.angesehen_am,
+                (select b.name from benutzer b where b.id = z.angesehen_von)
+                  as angesehen_von_name`;
 
 interface Zeile {
   id: string; firmenname: string; branche: string | null; strasse: string | null;
@@ -59,6 +70,7 @@ interface Zeile {
   passender_bereich: string | null; bedarf_vermutung: string | null;
   status: ZielStatus; verworfen_grund: string | null; lead_id: string | null;
   gefunden_am: Date; quelle_bezeichnung: string | null;
+  angesehen_am: Date | null; angesehen_von_name: string | null;
 }
 
 function zuZiel(z: Zeile): Ziel {
@@ -72,6 +84,9 @@ function zuZiel(z: Zeile): Ziel {
     passenderBereich: z.passender_bereich, bedarfVermutung: z.bedarf_vermutung,
     status: z.status, verworfenGrund: z.verworfen_grund, leadId: z.lead_id,
     quelleBezeichnung: z.quelle_bezeichnung, gefundenAm: z.gefunden_am,
+    angesehenAm: z.angesehen_am,
+    /* `null` heisst hier auch: der Name ist für diese Sitzung nicht lesbar. */
+    angesehenVon: z.angesehen_von_name,
   };
 }
 
@@ -185,7 +200,30 @@ export async function nimmAuf(
     : { id: z.id, zustand: 'neu' };
 }
 
-/** Als angesehen stempeln — wer hat die Firma wann geprüft. */
+/**
+ * **Als angesehen stempeln** — wer hat die Firma wann geprüft (V-080).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Warum das ein KNOPF ist und kein Seitenaufruf.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Der naheliegende Weg wäre, beim Öffnen des Blattes zu stempeln — „angesehen
+ * heisst angesehen". Er wäre falsch: ein Seitenaufruf ist ein GET, und ein
+ * GET, der schreibt, wird von jedem Vorschau-Abruf, jedem Linkprüfer und
+ * jedem zweiten Reiter ausgelöst. Der Stempel sagt dann nicht „ein Mensch hat
+ * entschieden", sondern „irgendetwas hat diese Adresse geholt".
+ *
+ * Gestempelt wird deshalb, wenn jemand es SAGT. Der Zustand `geprueft`
+ * bedeutet damit, was er soll: jemand hat sich die Firma angesehen und sie
+ * bewusst weder übernommen noch verworfen — sie bleibt in der Liste, aber
+ * nicht mehr unter „neu".
+ *
+ * **`status` geht nur aus `neu` heraus** (`case when status = 'neu'`): ein
+ * übernommenes oder verworfenes Ziel fällt nicht auf `geprueft` zurück, wenn
+ * es noch einmal jemand ansieht. Der Zeitstempel wird trotzdem erneuert — er
+ * sagt, wann zuletzt jemand hingesehen hat, und das ist auch dann eine
+ * Auskunft.
+ */
 export async function markiereGeprueft(
   db: Abfrage, mandantId: string, id: string, benutzerId: string,
 ): Promise<void> {

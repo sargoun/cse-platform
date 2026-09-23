@@ -70,7 +70,28 @@ export interface AnnahmeErgebnis {
  * nicht vor, und ein Formularausfueller-Bot fuellt es aus. Es ersetzt kein
  * CAPTCHA — es kostet nur niemanden etwas, und ein CAPTCHA kostet genau die
  * Menschen etwas, fuer die BFSG gilt.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Warum ein Treffer NICHT aufgezeichnet wird** (V-086, O-905).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `formular_eingang_status` fuehrt `neu`, `spam` und `verworfen`, und keiner
+ * der drei hat einen Erzeuger. Der naheliegende Griff waere, hier eine Zeile
+ * mit `status = 'spam'` zu schreiben — und er waere falsch: die Pruefung in
+ * `api/anfrage` steht VOR jeder Datenbankberuehrung, ausdruecklich, damit ein
+ * Bot nicht einmal eine Abfrage kostet. Eine Aufzeichnung machte daraus einen
+ * Verstaerker: ein Ansturm, der heute nichts kostet, schriebe dann je Treffer
+ * eine Zeile. Fuer das Ratenlimit gilt dasselbe doppelt — sein Zweck IST das
+ * Begrenzen von Schreibvorgaengen.
+ *
+ * **Der Preis steht trotzdem, und er wird nicht verschwiegen:** ein falsch
+ * positiver Treffer (Passwortverwalter, Browser-Autofill in einem versteckten
+ * Feld) verschwindet spurlos, und der Absender bekommt dieselbe Dankseite wie
+ * bei Erfolg. Ob das so bleibt, ist eine Abwaegung zwischen einer verlorenen
+ * Anfrage und einer Angriffsflaeche — sie steht als O-905 beim Auftraggeber
+ * und wird hier nicht nebenbei entschieden.
  */
+// TODO(client, O-905): Soll eine als automatisiert abgewiesene Einsendung aufbewahrt werden — oder nur gezaehlt, oder gar nicht?
 export function istBot(honigtopf: string | undefined): boolean {
   return honigtopf !== undefined && honigtopf.trim() !== '';
 }
