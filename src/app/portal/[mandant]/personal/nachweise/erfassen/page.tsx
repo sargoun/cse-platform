@@ -87,7 +87,11 @@ export default async function NachweisErfassen(
            from person p
            join anstellung a on a.person_id = p.id
           where a.mandant_id = app.aktiver_mandant()
-            and (a.ausgeschieden_am is null or a.ausgeschieden_am >= current_date)
+            -- Die Spalte heisst austritt (0002). Hier stand ausgeschieden_am,
+            -- das es auf anstellung nicht gibt: die Seite endete fuer JEDEN
+            -- Aufruf mit 500 — gefunden vom Durchlauf gegen den Produktionsbau.
+            and a.geloescht_am is null
+            and (a.austritt is null or a.austritt >= current_date)
           order by text limit 500`),
       qualifikationen: await kontext.abfrage<QualiAuswahl>(
         `select id, bezeichnung as text, erfordert_dokument, laeuft_ab,
