@@ -1,5 +1,8 @@
 import 'server-only';
 import { anbindungen } from '@/server/registry/integrationen';
+import {
+  mitPflichthinweis, neuerToken, vermerkeToken,
+} from '@/server/services/datenschutz/werbewiderspruch';
 import type { LeseKontext, SchreibKontext } from '@/server/kontext';
 
 /**
@@ -528,6 +531,36 @@ async function erbeEmpfaenger(
  *
  * `rechtsgrundlage` steht nicht in den Parametern: sie wird vom Auslöser
  * gezogen (0231). Ein Aufrufer, der sie mitgäbe, könnte sie erfinden.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Werbung trägt den Pflichthinweis — und zwar HIER** (V-092, V-115).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * § 7 Abs. 3 Nr. 4 UWG verlangt den Hinweis auf das jederzeitige
+ * Widerspruchsrecht **bei jeder Verwendung** der Adresse. `gibTokenAus` war
+ * gebaut, geprüft und hatte im ganzen Baum keinen Aufrufer: der ganze
+ * Widerspruchsweg stand, und der Schlüssel dazu entstand nirgends. Solange
+ * kein Versender verbunden ist, fällt das nicht auf — in der Sekunde, in der
+ * einer verbunden wird, ginge eine Werbemail ohne den vorgeschriebenen
+ * Hinweis hinaus.
+ *
+ * Der Hinweis wird deshalb an DIESER Stelle angehängt und nicht vom Aufrufer
+ * erwartet: es gibt genau einen Weg nach draussen (Invariante 7), und ein
+ * Aufrufer, der ihn vergisst, wäre eine Abmahnung.
+ *
+ * **Die Reihenfolge ist zwingend.** `werbewiderspruch_token.nachricht_id`
+ * trägt einen Fremdschlüssel auf `nachricht`; der Vermerk kann die Nachricht
+ * also erst nennen, wenn es sie gibt. Der Klartext entsteht vorher (er gehört
+ * in den TEXT), die Nachricht wird mit dem fertigen Text geschrieben, dann
+ * folgt der Vermerk. Eine ausgehende Nachricht wird nicht nachträglich
+ * umgeschrieben.
+ *
+ * **`kunde_id` bleibt leer.** Der Widerspruch bindet den Menschen, der die
+ * Nachricht bekommen hat. Ihn aus einem Klick auf die ganze Firma
+ * auszudehnen hiesse, Kolleginnen stummzuschalten, die nie widersprochen
+ * haben — das ist eine Entscheidung, die niemand getroffen hat. Die Spalte
+ * steht bereit (§2.4), und sie zu setzen ist eine Zeile, sobald jemand es
+ * will.
  */
 export async function sendeNachAussen(
   kontext: SchreibKontext,
@@ -544,8 +577,19 @@ export async function sendeNachAussen(
 ): Promise<string> {
   const weg = versandwege().find((w) => w.kanal === eingabe.kanal);
   if (weg === undefined || !weg.verbunden) {
+    /*
+     * ZUERST, damit kein Token verbrannt wird für einen Versand, den es nicht
+     * gibt: ein ausgegebener und nie zugestellter Widerspruchslink wäre ein
+     * Schlüssel, den niemand hat und der trotzdem gilt.
+     */
     throw new VersandNichtVerbundenFehler(eingabe.kanal, weg?.hinweis ?? '');
   }
+  /* istanbul ignore next — erreichbar, sobald ein Versender verbunden ist. */
+  const marke = eingabe.zweck === 'werbung' ? neuerToken() : null;
+  /* istanbul ignore next — erreichbar, sobald ein Versender verbunden ist. */
+  const koerper = marke === null
+    ? eingabe.koerper
+    : mitPflichthinweis(eingabe.koerper, marke.klartext);
   /* istanbul ignore next — erreichbar, sobald ein Versender verbunden ist. */
   const [z] = await kontext.schreibe<{ id: string }>(
     `insert into nachricht
@@ -556,11 +600,26 @@ export async function sendeNachAussen(
              app.aktueller_benutzer(), $4, $5::kommunikationszweck, $6, $7,
              app.aktueller_benutzer())
      returning id`,
-    [eingabe.betreff ?? null, eingabe.koerper, eingabe.kanal,
+    [eingabe.betreff ?? null, koerper, eingabe.kanal,
      eingabe.ansprechpartnerId, eingabe.zweck, eingabe.freigabeId ?? null,
      eingabe.threadId ?? null],
   );
+  /* istanbul ignore next — erreichbar, sobald ein Versender verbunden ist. */
   if (z === undefined) throw new Error('Nachricht konnte nicht angelegt werden');
+  /* istanbul ignore next — erreichbar, sobald ein Versender verbunden ist. */
+  if (marke !== null) {
+    await vermerkeToken(
+      kontext,
+      {
+        ansprechpartnerId: eingabe.ansprechpartnerId,
+        /* Siehe oben: der Widerspruch bindet den Menschen, nicht die Firma. */
+        kundeId: null,
+        kanal: eingabe.kanal,
+        nachrichtId: z.id,
+      },
+      marke.hash);
+  }
+  /* istanbul ignore next — erreichbar, sobald ein Versender verbunden ist. */
   await schreibeEmpfaenger(kontext, z.id, [
     { typ: 'ansprechpartner', id: eingabe.ansprechpartnerId, art: 'an' },
   ]);

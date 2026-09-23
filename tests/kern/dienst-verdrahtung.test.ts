@@ -72,11 +72,16 @@ const OHNE_AUFRUFER: Readonly<Record<string, string>> = {
     + 'Route dafuer waere ein Weg, ueber den sich die halbe Website von aussen '
     + 'ueberschreiben liesse.',
 
-  /* ── Offene Befunde: gebaut, kein Ausloeser ───────────────────────────── */
-  gibTokenAus:
-    'V-115 — der Token des Werbewiderspruchs (§ 7 UWG, Art. 21 DSGVO) wird '
-    + 'von nichts ausgegeben. Der Widerspruchsweg existiert, der Schluessel '
-    + 'dazu entsteht nirgends.',
+  /*
+   * ── Offene Befunde: gebaut, kein Ausloeser ─────────────────────────────
+   *
+   * Zur Zeit KEINE. `gibTokenAus` stand hier bis V-092/V-115: der Token des
+   * Werbewiderspruchs (§ 7 Abs. 3 Nr. 4 UWG) wurde von nichts ausgegeben,
+   * waehrend der ganze Widerspruchsweg daneben stand. `sendeNachAussen`
+   * haengt den Pflichthinweis jetzt an jede Werbenachricht und vermerkt den
+   * Token — die Ausnahme ist damit weg, und die Liste ist genau darum eine,
+   * die nur schrumpfen darf.
+   */
 };
 
 interface Fund { readonly name: string; readonly datei: string }
