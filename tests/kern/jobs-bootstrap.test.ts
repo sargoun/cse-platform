@@ -48,15 +48,24 @@ afterEach(() => {
 });
 
 describe('der Bootstrap verdrahtet ALLE Jobs', () => {
-  it('registriert die zweiundzwanzig Jobs, die es gibt', () => {
+  it('registriert die vierundzwanzig Jobs, die es gibt', () => {
     const schluessel = alleJobs(db).map((j) => j.schluessel).sort();
     expect(schluessel).toEqual([
-      'akquise_recherche', 'basiszinssatz_pruefen', 'belegarchiv_ausgangsrechnung',
+      'akquise_recherche',
+      /*
+       * `angebot_ablauf` und `nachweis_ablauf` kamen mit V-085/V-089 dazu.
+       * Beide Zustände beschreiben etwas, das der Kalender auslöst — `0024`
+       * legte für den ersten eigens einen Teilindex an, `0030` schrieb den
+       * zweiten wörtlich in eine Policy. Gesetzt hat sie nie jemand.
+       */
+      'angebot_ablauf',
+      'basiszinssatz_pruefen', 'belegarchiv_ausgangsrechnung',
       'bewerber_loeschung', 'dokument_aufbewahrung',
       'einsaetze_generieren', 'freigabe_fenster', 'kette_pruefen',
       'konflikte_erkennen', 'konten_rollover', 'lead_sla_eskalation',
       'mahnvorschlaege_erzeugen',
-      'morgen_unbesetzt', 'nachtrag_ueberfaellig', 'nachweis_warnungen',
+      'morgen_unbesetzt', 'nachtrag_ueberfaellig', 'nachweis_ablauf',
+      'nachweis_warnungen',
       'offene_posten_abgleichen', 'radar_einlesen', 'radar_warnungen',
       'schicht_ohne_zeiteintrag', 'social_plan',
       /*

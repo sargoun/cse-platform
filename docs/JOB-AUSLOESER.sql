@@ -18,6 +18,18 @@ select cron.schedule('cse_akquise_recherche', '10 5 * * *', $cse$
   );
 $cse$);
 
+-- Versendete Angebote nach Fristablauf auf „abgelaufen" setzen (OPS-08) (uebergreifend)
+select cron.unschedule('cse_angebot_ablauf')
+  where exists (select 1 from cron.job where jobname = 'cse_angebot_ablauf');
+select cron.schedule('cse_angebot_ablauf', '10 2 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/angebot_ablauf',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
 -- Deckt ein Basiszinssatz die kommende Jahreshälfte? (§ 247 BGB) (plattform)
 select cron.unschedule('cse_basiszinssatz_pruefen')
   where exists (select 1 from cron.job where jobname = 'cse_basiszinssatz_pruefen');
@@ -168,6 +180,18 @@ select cron.unschedule('cse_nachtrag_ueberfaellig')
 select cron.schedule('cse_nachtrag_ueberfaellig', '0 * * * *', $cse$
   select net.http_post(
     url     := 'https://basis-einsetzen.invalid/api/jobs/nachtrag_ueberfaellig',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
+-- Nachweise nach Fristablauf auf „abgelaufen" setzen (§12.3, EMP-08) (uebergreifend)
+select cron.unschedule('cse_nachweis_ablauf')
+  where exists (select 1 from cron.job where jobname = 'cse_nachweis_ablauf');
+select cron.schedule('cse_nachweis_ablauf', '10 2 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/nachweis_ablauf',
     headers := jsonb_build_object('content-type', 'application/json',
                                   'x-job-token', current_setting('cse.job_token')),
     body    := '{}'::jsonb

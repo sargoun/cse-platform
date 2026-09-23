@@ -119,11 +119,25 @@ export async function alsJobSitzung<T>(
 export async function alsJobRolle<T>(
   sql: JobVerbindung,
   fn: (db: JobAbfrage) => Promise<T>,
+  optionen: BinderOptionen = {},
 ): Promise<T> {
   return sql.begin(async (tx) => {
     await tx.unsafe(`set local role cse_job`);
     await tx.unsafe(`select set_config('app.akteur_typ', 'system', true)`);
-    await tx.unsafe(`select set_config('app.readonly', 'on', true)`);
+    /*
+     * `nurLesen: false` gibt es hier seit V-085/V-089: zwei Statusläufe
+     * ziehen einen Zustand nach, der aus dem Kalender folgt, und tun das
+     * über Mandantengrenzen hinweg (`nachweis` hängt am MENSCHEN und trägt
+     * kein `mandant_id`; das Angebot wird je Gesellschaft geschrieben, aber
+     * aus EINEM Lauf gefunden).
+     *
+     * Die Vorgabe bleibt `true`. Wer schreibt, sagt es am Aufrufort — und
+     * daneben steht, WAS er schreibt. Das Spaltenrecht in der Datenbank ist
+     * die eigentliche Grenze; dieser Schalter ist die Ehrlichkeit der
+     * Sitzung darüber.
+     */
+    await tx.unsafe(`select set_config('app.readonly', $1, true)`,
+      [(optionen.nurLesen ?? true) ? 'on' : 'off']);
     return fn({
       abfrage: async <R,>(anweisung: string, werte: readonly unknown[] = []) =>
         (await tx.unsafe(anweisung, werte)) as readonly R[],
