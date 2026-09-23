@@ -363,6 +363,21 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Der Auftrag laeuft, ruht oder ist storniert (V-081, OPS-05).
+     *
+     * **`auftrag.schreiben` und ausdruecklich NICHT `auftrag.abschliessen`.**
+     * Pausieren und Stornieren sind Auftragspflege; der Abschluss stellt nach
+     * D-366 die FIN-18-Warnung im Rechnungsweg scharf und traegt deshalb sein
+     * eigenes Recht (0296). `abgeschlossen` ist hier gar nicht waehlbar.
+     *
+     * Die zweite Linie ist der Ausloeser `kern.auftrag_status_pruefen` (0389)
+     * mit der Tabelle der erlaubten Wege; `storniert` ist dort einwegig.
+     */
+    pfad: 'api/auftrag/status',
+    recht: 'auftrag.schreiben',
+  },
+  {
+    /**
      * Die Kundenfreigabe zur Nennung als Referenz (0296).
      * `referenz.kundenfreigabe_erfassen` und nicht `auftrag.schreiben`: was
      * hier festgehalten wird, ist die Erklaerung des KUNDEN, mit seinem Namen

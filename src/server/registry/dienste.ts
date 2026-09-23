@@ -1268,6 +1268,18 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'system', pfad: 'system/rollenrecht',
     schreibend: true, schreibRecht: 'system.rolle_verwalten',
   },
+  /**
+   * V-081 — der Auftrag laeuft, ruht oder ist storniert.
+   *
+   * `auftrag.schreiben` und ausdruecklich nicht `auftrag.abschliessen`:
+   * Pausieren und Stornieren sind Auftragspflege, der Abschluss stellt nach
+   * D-366 die FIN-18-Warnung scharf und traegt sein eigenes Recht (0296).
+   * `abgeschlossen` ist ueber diesen Dienst gar nicht erreichbar.
+   */
+  {
+    modul: 'auftrag', pfad: 'auftrag/status',
+    schreibend: true, schreibRecht: 'auftrag.schreiben',
+  },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/dienst', schreibend: false },
