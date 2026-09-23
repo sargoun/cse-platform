@@ -56,6 +56,19 @@ interface Kopf {
   readonly revier: string | null;
   readonly feiertag: string | null;
   readonly storno_grund: string | null;
+  /**
+   * Die Mischung gegen den Schnappschuss (V-129, D-624, §9.4): `null`
+   * unbesetzt, `true` erfüllt, `false` falsch gemischt. Sie MELDET — gesperrt
+   * wird je Zuordnung.
+   */
+  readonly anforderung_erfuellt: boolean | null;
+  /** Die Anforderungen des Schnappschusses, lesbar — `[]`, wenn keine galt. */
+  readonly anforderungen: readonly {
+    readonly bezeichnung: string; readonly geltung: string; readonly mindestanzahl: number;
+    readonly zwingend: boolean;
+  }[];
+  /** Hat die Schicht begonnen? Dann ist der Schnappschuss eingefroren. */
+  readonly begonnen: boolean;
 }
 
 interface Kandidat {
@@ -138,7 +151,22 @@ export default async function Einsatzblatt({
                 e.soll_besetzung::int as soll, e.besetzt_anzahl::int as besetzt,
                 o.bezeichnung as objekt, o.id as objekt_id,
                 k.name as kunde, r.bezeichnung as revier,
-                f.bezeichnung as feiertag, e.storno_grund
+                f.bezeichnung as feiertag, e.storno_grund,
+                e.anforderung_erfuellt,
+                (e.beginn_zeitpunkt <= now()) as begonnen,
+                -- V-129: die Anforderungen aus dem SCHNAPPSCHUSS, nicht aus
+                -- dem Katalog von heute. Kein Backtick in diesem Kommentar.
+                coalesce((select jsonb_agg(jsonb_build_object(
+                                   'bezeichnung', coalesce(q.bezeichnung, 'Qualifikation'),
+                                   'geltung', a->>'geltung',
+                                   'mindestanzahl', coalesce((a->>'mindestanzahl')::int, 1),
+                                   'zwingend', coalesce((a->>'zwingend')::boolean, true))
+                                 order by q.bezeichnung)
+                            from jsonb_array_elements(
+                                   case when jsonb_typeof(e.anforderung_snapshot) = 'array'
+                                        then e.anforderung_snapshot else '[]'::jsonb end) a
+                            left join qualifikation q on q.id = (a->>'qualifikation_id')::uuid),
+                         '[]'::jsonb) as anforderungen
            from einsatz e
            join objekt o on o.mandant_id = e.mandant_id and o.id = e.objekt_id
            left join kunde  k on k.mandant_id = e.mandant_id and k.id = e.kunde_id
@@ -248,7 +276,43 @@ export default async function Einsatzblatt({
           wert={`${String(kopf.besetzt)} von ${String(kopf.soll)}`}
           hinweis={kopf.besetzt < kopf.soll ? 'unterbesetzt' : null}
         />
+        <Feld
+          beschriftung="Qualifikationsmischung"
+          wert={kopf.anforderungen.length === 0
+            ? 'keine Anforderung hinterlegt'
+            : kopf.anforderung_erfuellt === null ? 'nicht bewertet — niemand eingeteilt'
+              : kopf.anforderung_erfuellt ? 'erfüllt' : 'nicht erfüllt'}
+          hinweis={kopf.anforderung_erfuellt === false ? 'falsch gemischt' : null}
+        />
       </dl>
+
+      {/*
+        * V-129, D-624: was diese Schicht verlangt — aus ihrem Schnappschuss.
+        * Ab Beginn eingefroren: ein später geänderter Katalog macht eine
+        * vergangene Schicht nicht rückwirkend falsch besetzt (0028).
+        */}
+      {kopf.anforderungen.length > 0 && (
+        <section data-cse="einsatz-anforderungen" className="mt-s5">
+          <h2 className="mb-s2 text-sm uppercase tracking-[0.08em] text-text-muted">
+            Anforderungen dieser Schicht
+          </h2>
+          <ul className="m-0 flex list-none flex-col gap-s1 p-0 text-sm text-text">
+            {kopf.anforderungen.map((a) => (
+              <li key={`${a.bezeichnung}-${a.geltung}`}>
+                {a.bezeichnung} — {a.geltung === 'jeder'
+                  ? 'jede eingeteilte Kraft'
+                  : `mindestens ${String(a.mindestanzahl)}`}
+                {a.zwingend ? '' : ' (Warnung, keine Sperre)'}
+              </li>
+            ))}
+          </ul>
+          <p className="mb-0 mt-s2 text-xs text-text-subtle">
+            {kopf.begonnen
+              ? 'Stand zum Beginn der Schicht — eingefroren.'
+              : 'Folgt dem Anforderungskatalog bis zum Beginn der Schicht; ab dann eingefroren.'}
+          </p>
+        </section>
+      )}
 
       {kopf.zeitanomalie !== 'keine' && (
         <p

@@ -15245,3 +15245,62 @@ Antwort.
 
 | Betrifft | TEN-07, PUB-09, PUB-14, PRO-01, LEG-07, DOC-03, TIM-10, DESIGN §1/§11, 01-KERN §6.2, 07-INTEGRATIONEN §6.4, `drizzle/0393`, `src/server/services/mandant/markenbild.ts`, `src/server/storage/svg.ts`, `src/app/api/einstellungen/identitaet/bild/route.ts`, `src/app/api/marke/[mandant]/[art]/[version]/route.ts`, O-12, O-13, V-100 |
 |---|---|
+
+### D-624 · Die Schicht hält fest, was DAMALS verlangt war — der Schnappschuss wird geschrieben, nicht gestrichen (V-129)
+
+**Der Befund** (V-129): `einsatz.anforderung_snapshot` und
+`einsatz.anforderung_erfuellt` standen seit 0028 in der Tabelle, mit einer
+Begründung („SEC-04 wird an dem gemessen, was DAMALS verlangt war — ein
+später geänderter Anforderungskatalog darf eine vergangene Schicht nicht
+rückwirkend rechtswidrig machen"), und niemand schrieb sie. Das Register
+nannte zwei ehrliche Auswege: den Schnappschuss füllen oder die Spalten
+streichen und den Kommentar richtigstellen — „eine Entscheidung über
+Rückwirkung".
+
+**Der Mandant hat die Entscheidung übergeben** („والاسئلة المفتوحة جاوب انت
+عنهن بذكاء بدالي").
+
+**Die Entscheidung: einlösen.** Streichen hiesse, eine Zusage aufzugeben, die
+03-GEWERKE §9.2/§9.4 trägt und die eine Aufsichtsbehörde bei einer
+Bewachungsschicht zuerst fragt: was war verlangt, und war die Besetzung
+danach richtig gemischt?
+
+1. **Beim Anlegen** jeder Schicht — Generator, Einzelschicht,
+   Eventbesetzung, Seed, rohes INSERT — schreibt ein BEFORE-Auslöser die
+   aufgelöste Anforderungsmenge (`kern.anforderung_aufloesen`: derselbe
+   Filter wie `app.qualifikationsanforderung`, vier Bereiche additiv,
+   `gueltig_ab` gegen den Berliner Tag des Beginns, K-11).
+2. **Bis zum Beginn folgt er dem Katalog**: bei jeder Besetzungsänderung
+   wird neu aufgelöst. Das ist genau die Menge, die das harte Tor je
+   Zuordnung in diesem Moment live prüft — Schnappschuss und Tor laufen nicht
+   auseinander, solange die Schicht in der Zukunft liegt.
+3. **Ab dem Beginn ist er eingefroren.** Ein später verschärfter Katalog
+   macht eine vergangene Schicht nicht rückwirkend falsch besetzt — das
+   Versprechen aus 0028, wörtlich.
+4. **`anforderung_erfuellt` wird gegen den Schnappschuss bewertet** (§9.4):
+   `jeder` — jede lebende Zuordnung hält den Nachweis am Schichttag;
+   `mindestens_einer` — mindestens `mindestanzahl` davon; mit
+   Registerpflicht zählt nur, wer eine lebende Eintragung hat. `NULL`,
+   solange niemand eingeteilt ist: unbesetzt ist nicht falsch gemischt.
+5. **Die Bewertung meldet, sie sperrt nicht.** Gesperrt wird weiter je
+   Zuordnung (0031), und `ea_geltung_zwischenstand` bleibt: eine harte
+   Anforderung kann weiter nur `jeder` sein. Eine Sperre auf Schichtebene
+   (die verzögerte Prüfung aus §9.4) erzwänge eine Reihenfolge beim
+   Einteilen — erst die Ersthelferin, dann die übrigen — und diese Regel zu
+   erfinden ist nicht Sache dieser Entscheidung.
+6. **Der Bestand** bekommt den Katalog vom Tag der Migration — für eine
+   vergangene Schicht gibt es kein besseres „damals" mehr, und die
+   Spaltenkommentare sagen es.
+
+**Sichtbar** auf dem Schichtblatt (`/dienstplan/einsatz/[id]`): das Feld
+„Qualifikationsmischung" (erfüllt / nicht erfüllt / nicht bewertet / keine
+Anforderung hinterlegt) und die Liste „Anforderungen dieser Schicht" mit dem
+Satz, ob sie noch dem Katalog folgt oder eingefroren ist.
+
+**Eigentum** (K-01): alle vier neuen Funktionen gehören `cse_definer`, setzen
+`search_path`, geben PUBLIC kein EXECUTE; `cse_definer` bekommt Spaltenrechte
+auf genau das, was die Bewertung liest, und das Schreibrecht auf genau die
+zwei Spalten, die sie schreibt.
+
+| Betrifft | SEC-04, TIM-05, 03-GEWERKE §9.2/§9.4, K-01, K-11, `drizzle/0028`, `drizzle/0031`, `drizzle/0394`, V-129 |
+|---|---|
