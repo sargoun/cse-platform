@@ -10,6 +10,8 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import { kennungOder404 } from '../../../../kennung';
+import { MarkenLogo } from '@/components/marke/Marke';
+import { markenbildAdresse } from '@/server/services/mandant/markenbild';
 
 /**
  * `/portal/[mandant]/angebote/[id]/pdf` — das Angebotsdokument (OPS-08).
@@ -62,6 +64,14 @@ interface Kopf {
    * Angebot dieser Gesellschaft. Beide zusammen ergeben das Blatt.
    */
   readonly m_angebot_fuss: string | null;
+  /**
+   * Das Logo des Blatts (V-100, DESIGN §11 „each entity prints its own
+   * logo"): das Drucklogo, sonst das für helle Flächen — Papier ist hell.
+   * Das für dunkle Flächen nie: es verschwände auf Weiss.
+   */
+  readonly m_logo_druck_pfad: string | null;
+  readonly m_logo_hell_pfad: string | null;
+  readonly m_logo_alt: string | null;
   readonly m_gericht: string | null;
   readonly m_hrb: string | null;
   readonly m_gf: string | null;
@@ -124,7 +134,9 @@ export default async function Angebotsdokument(
                 m.geschaeftsfuehrer as m_gf, m.ust_id as m_ustid,
                 m.steuernummer as m_steuernummer,
                 m.iban as m_iban, m.bic as m_bic, m.bank as m_bank,
-                mi.angebot_fuss as m_angebot_fuss
+                mi.angebot_fuss as m_angebot_fuss,
+                mi.logo_druck_pfad as m_logo_druck_pfad,
+                mi.logo_hell_pfad as m_logo_hell_pfad, mi.logo_alt as m_logo_alt
            from angebot a
            join kunde k on k.id = a.kunde_id
            join mandant m on m.id = a.mandant_id
@@ -203,6 +215,14 @@ export default async function Angebotsdokument(
       `}</style>
 
       <header>
+        {kopf.m_logo_druck_pfad !== null || kopf.m_logo_hell_pfad !== null ? (
+          <MarkenLogo groesse="xl" bild={{
+            adresse: kopf.m_logo_druck_pfad !== null
+              ? markenbildAdresse(sitzung.aktiverMandantId, 'logo_druck', kopf.m_logo_druck_pfad)
+              : markenbildAdresse(sitzung.aktiverMandantId, 'logo_hell', kopf.m_logo_hell_pfad ?? ''),
+            alt: kopf.m_logo_alt ?? kopf.m_firma,
+          }} />
+        ) : null}
         <p style={{ margin: 0, fontSize: '14pt', fontWeight: 600 }}>{kopf.m_firma}</p>
         <hr className="kopflinie" />
       </header>

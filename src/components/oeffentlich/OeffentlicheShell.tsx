@@ -4,6 +4,7 @@ import { GesellschaftsWahl } from './GesellschaftsWahl';
 import { Logo, Marke } from '@/components/marke/Marke';
 import { EIGENNAME, SPRACHEN, gibtEsIn, mitSprache, type Sprache } from '@/lib/sprache';
 import { berlinKalendertag } from '@/server/services/zeit/dauer';
+import type { OeffentlicheMarke } from '@/server/services/mandant/markenbild';
 
 /**
  * Die oeffentliche Shell — Kopf 72px, Fussbereich, Markenavatar-Reihe (PUB-14).
@@ -26,6 +27,12 @@ export interface ShellBereich {
    * Unternehmen. Ein Literal im Fussbereich war genau dieser zweite Eintrag.
    */
   readonly nap: string;
+  /**
+   * Logo, Avatar und Titelbild aus einer VERÖFFENTLICHTEN Identität (V-100,
+   * D-622) — jedes Feld `null`, solange keines da ist. Dann bleibt es beim
+   * vorläufigen Zeichen und der Motivtafel.
+   */
+  readonly marke: OeffentlicheMarke;
 }
 
 /** §5 TMG und LEG-07: von jeder Seite aus erreichbar, nicht nur von der Startseite. */
@@ -501,7 +508,7 @@ export function OeffentlicheShell(
                         aria-current={b.slug === aktiv ? 'page' : undefined}
                         className="flex min-h-11 items-center gap-s2 text-sm text-text-muted transition-colors duration-fast ease-brand hover:text-text"
                       >
-                        <Marke art={b.bereich} groesse="sm" />
+                        <Marke art={b.bereich} groesse="sm" bild={b.marke.avatar} />
                         <span className="truncate">{b.name}</span>
                       </a>
                     </li>

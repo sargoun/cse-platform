@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { Marke, type MarkeArt } from '@/components/marke/Marke';
+import { Marke, MarkenLogo, type MarkeArt } from '@/components/marke/Marke';
 import { KARTEN_GRADIENT } from './MarkenKarte';
 import { shellTexte } from '@/lib/i18n/texte';
 import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
@@ -24,7 +24,17 @@ export interface HeroProps {
    * Die Zeile ueber der Ueberschrift — Zeichen und Name der Gesellschaft
    * oder der Gruppe. Fehlt sie, steht die Ueberschrift allein (Unterseiten).
    */
-  readonly marke?: { readonly art: MarkeArt; readonly name: string } | null;
+  readonly marke?: {
+    readonly art: MarkeArt;
+    readonly name: string;
+    /** Der hochgeladene Avatar statt des vorläufigen Zeichens (V-100). */
+    readonly avatar?: { readonly adresse: string } | null;
+    /**
+     * Das Logo für DUNKLE Flächen (V-100, DESIGN §1): der Hero liegt auf dem
+     * Verlauf aus §4.4. Das helle Logo steht hier nie — es verschwände darauf.
+     */
+    readonly logo?: { readonly adresse: string; readonly alt: string } | null;
+  } | null;
   /**
    * Die Handlungen unter dem Text: der rote Knopf und ein Ghost-Verweis
    * (DESIGN §5 Buttons). Nur die Startseite und die Gesellschaftsseiten
@@ -72,8 +82,14 @@ export function Hero({
           */}
         {marke !== null && (
           <p data-cse="hero-marke" className="m-0 flex items-center gap-s2 text-sm font-semibold text-white/85">
-            <Marke art={marke.art} groesse="md" />
-            <span>{marke.name}</span>
+            {marke.logo !== null && marke.logo !== undefined ? (
+              <MarkenLogo bild={marke.logo} groesse="lg" />
+            ) : (
+              <>
+                <Marke art={marke.art} groesse="md" bild={marke.avatar ?? null} />
+                <span>{marke.name}</span>
+              </>
+            )}
           </p>
         )}
         <h1 className="text-display text-white">

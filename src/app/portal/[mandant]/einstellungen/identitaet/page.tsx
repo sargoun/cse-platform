@@ -7,6 +7,11 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { farbeVon, ladeIdentitaet, type Identitaet }
   from '@/server/services/mandant/identitaet';
+import {
+  MARKENBILD_ARTEN, MARKENBILD_TITEL, markenbildAdresse, type MarkenbildArt,
+} from '@/server/services/mandant/markenbild';
+import { waehleSpeicher } from '@/server/storage/waehle';
+import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 
@@ -21,11 +26,11 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
  * Eintrag in `docs/DESIGN.md`, dann eine Migration, die den `CHECK`
  * erweitert (01-KERN §6.2, CLAUDE.md).
  *
- * **Es gibt keinen Hochladeknopf, weil es keinen Hochladeweg gibt.**
- * `BUCKETS` in `server/storage/adapter.ts` kennt keinen Marken-Bucket, und
- * unter `src/app/api/medien` liegt kein POST. Die Seite sagt das an der
- * Stelle, an der der Knopf stuende — ein Knopf, der nichts tut, laesst
- * jemanden glauben, das Logo sei hinterlegt (O-12).
+ * **Logo, Avatar und Titelbild werden hier hochgeladen** (V-100, D-622):
+ * `POST /api/einstellungen/identitaet/bild` legt die Datei im privaten
+ * Behaelter `marke` ab, `/api/marke/…` liefert sie aus. Ist kein Speicher
+ * verbunden, sind die Felder gesperrt und die Seite sagt es — ein Knopf, der
+ * nichts tut, liesse jemanden glauben, das Logo sei hinterlegt.
  *
  * **Alternativtexte sind pflegbar, auch ohne Bild.** Sie sind Text, sie sind
  * nach PUB-09/LEG-07 (BFSG, WCAG 2.1 AA) Pflicht, und sie koennen vor dem
@@ -61,6 +66,29 @@ function Abschnitt({ titel, kinder }: { readonly titel: string; readonly kinder:
       <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-s5 gap-y-s3">{kinder}</dl>
     </section>
   );
+}
+
+/** Wofür jedes Bild da ist — in einem Satz, damit niemand das falsche Logo lädt. */
+const MARKENBILD_ZWECK: Readonly<Record<MarkenbildArt, string>> = {
+  logo_hell: 'Für helle Flächen: Briefe und Angebotsblatt, wenn kein Drucklogo da ist.',
+  logo_dunkel: 'Für dunkle Flächen: die Website ist dunkel — Profilseite und Kopfbild.',
+  logo_druck: 'Für das gedruckte Angebot (DESIGN §11).',
+  avatar: 'Rund, anstelle des vorläufigen Zeichens: Karten, Fuss, Gesellschaftswahl.',
+  cover: 'Das Foto der Gesellschaftskarte und des Kopfbilds der Profilseite.',
+};
+
+function pfadVon(i: Identitaet, art: MarkenbildArt): string | null {
+  switch (art) {
+    case 'logo_hell': return i.logoHellPfad;
+    case 'logo_dunkel': return i.logoDunkelPfad;
+    case 'logo_druck': return i.logoDruckPfad;
+    case 'avatar': return i.avatarPfad;
+    case 'cover': return i.coverPfad;
+  }
+}
+
+function altVon(i: Identitaet, art: MarkenbildArt): string | null {
+  return art === 'avatar' ? i.avatarAlt : art === 'cover' ? i.coverAlt : i.logoAlt;
 }
 
 export default async function IdentitaetSeite(
@@ -110,6 +138,14 @@ export default async function IdentitaetSeite(
   }
 
   const farbe = farbeVon(identitaet.identitaetsToken);
+  /*
+   * AUT-06: die Formulare nur mit dem Recht, das ihre Route verlangt. Die
+   * Seite oeffnet mit `system.mandant_lesen`; wer nur liest, bekaeme sonst
+   * Felder, deren Speichern abgewiesen wird.
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'system.identitaet_verwalten');
+  const darfPflegen = darf['system.identitaet_verwalten'] === true;
+  const speicherVerbunden = waehleSpeicher().verbunden;
   const ohneBild = [identitaet.logoHellPfad, identitaet.logoDunkelPfad,
     identitaet.logoDruckPfad, identitaet.avatarPfad, identitaet.coverPfad]
     .filter((p) => p === null).length;
@@ -150,14 +186,81 @@ export default async function IdentitaetSeite(
         </Hinweis>
       ) : null}
 
-      <Hinweis art="hinweis" cse="identitaet-upload" className="mb-s7 max-w-[72ch]">
-        <strong>Hochgeladen wird hier nichts — noch nicht.</strong> Für Logo, Avatar und
-        Titelbild gibt es keinen Speicherort und keinen Annahmeweg: der Objektspeicher
-        führt die Behälter <code>dokumente</code>, <code>archiv</code> und
-        <code> einsatz-medien</code>, keinen für Markenmaterial. Deshalb steht hier kein
-        Knopf, der nichts tut. Die Alternativtexte sind trotzdem pflegbar — sie sind
-        Pflicht (PUB-09, LEG-07) und können vor dem Bild da sein.
-      </Hinweis>
+      <section id="bilder" aria-labelledby="bilder-titel"
+               className="mb-s7 rounded-lg border border-line bg-surface p-s5">
+        <h2 id="bilder-titel" className="text-h2 text-text">Logo, Avatar und Titelbild</h2>
+        <p className="mt-s2 max-w-[72ch] text-sm text-text-muted">
+          Logos als SVG, PNG oder JPEG, Avatar und Titelbild als PNG oder JPEG — erkannt am
+          Inhalt, nicht am Dateinamen. Ortsangaben und Kameradaten werden vor dem Ablegen
+          entfernt. Jedes Bild braucht einen Alternativtext (PUB-09, LEG-07); die drei
+          Logovarianten teilen sich einen. Ein Bild erscheint auf der Website erst, wenn
+          die Identität öffentlich sichtbar ist.
+        </p>
+        {!speicherVerbunden ? (
+          <Hinweis art="warnung" cse="identitaet-speicher" className="mt-s4 max-w-[72ch]">
+            <strong>Speicher: nicht verbunden.</strong> Ohne Dateispeicher wird nichts
+            abgelegt (Einstellungen › Integrationen) — die Felder unten sind deshalb
+            gesperrt, statt eine Ablage vorzutäuschen.
+          </Hinweis>
+        ) : null}
+        <ul className="m-0 mt-s5 grid list-none grid-cols-1 gap-s4 p-0 md:grid-cols-2">
+          {MARKENBILD_ARTEN.map((art) => {
+            const pfad = pfadVon(identitaet, art);
+            return (
+              <li key={art} data-cse="markenbild" data-art={art}
+                  className="rounded-md border border-line bg-surface-2 p-s4">
+                <h3 className="text-h3 text-text">{MARKENBILD_TITEL[art]}</h3>
+                <p className="mt-s1 text-xs text-text-muted">{MARKENBILD_ZWECK[art]}</p>
+                <div className="mt-s3 flex min-h-s9 items-center justify-center rounded-md border border-line bg-surface-3 p-s3">
+                  {pfad === null ? (
+                    <span className="text-sm text-text-subtle">nicht hinterlegt</span>
+                  ) : (
+                    // Kein next/image: die Vorschau einer unveröffentlichten Identität
+                    // kommt nur mit Sitzung, und der Optimierer hat keine.
+                    <img src={markenbildAdresse(identitaet.mandantId, art, pfad)}
+                         alt={altVon(identitaet, art) ?? ''}
+                         className="max-h-s9 max-w-full object-contain" />
+                  )}
+                </div>
+                {darfPflegen ? (
+                  <form method="post" encType="multipart/form-data"
+                        action={`/api/einstellungen/identitaet/bild?mandant=${mandant}`}
+                        className="mt-s3">
+                    <input type="hidden" name="art" value={art} />
+                    <input type="hidden" name="aktion" value="setzen" />
+                    <label className="block text-sm text-text" htmlFor={`datei-${art}`}>Datei</label>
+                    <input id={`datei-${art}`} name="datei" type="file" required
+                           accept={art.startsWith('logo') ? 'image/svg+xml,image/png,image/jpeg' : 'image/png,image/jpeg'}
+                           disabled={!speicherVerbunden}
+                           className="mt-s2 block w-full text-sm text-text" />
+                    <label className="mt-s3 block text-sm text-text" htmlFor={`alt-${art}`}>
+                      Alternativtext
+                    </label>
+                    <input id={`alt-${art}`} name="alt" type="text" className={feld}
+                           defaultValue={altVon(identitaet, art) ?? ''}
+                           disabled={!speicherVerbunden} />
+                    <button type="submit" disabled={!speicherVerbunden}
+                            className="mt-s3 min-h-11 rounded-md border border-line bg-surface px-s4 text-sm font-semibold text-text hover:bg-surface-3 disabled:opacity-50">
+                      {pfad === null ? 'Hochladen' : 'Ersetzen'}
+                    </button>
+                  </form>
+                ) : null}
+                {darfPflegen && pfad !== null ? (
+                  <form method="post" action={`/api/einstellungen/identitaet/bild?mandant=${mandant}`}
+                        className="mt-s2">
+                    <input type="hidden" name="art" value={art} />
+                    <input type="hidden" name="aktion" value="entfernen" />
+                    <button type="submit"
+                            className="min-h-11 text-sm text-text-muted underline hover:text-text">
+                      Zuordnung entfernen
+                    </button>
+                  </form>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      </section>
 
       <div className="mb-s7 grid grid-cols-1 gap-s4 lg:grid-cols-2">
         <Abschnitt titel="Bereich" kinder={<>
@@ -213,14 +316,19 @@ export default async function IdentitaetSeite(
                 hinweis="offen (O-08): eigene Domains je Bereich oder Pfade unter einer Gruppendomain" />
         </>} />
 
+        {/*
+          * Der Speicherschlüssel steht hier nicht mehr (V-100): er ist eine
+          * Prüfsumme und sagt einem Menschen nichts. Das Bild selbst steht im
+          * Abschnitt darüber.
+          */}
         <Abschnitt titel="Bilder und Alternativtexte" kinder={<>
-          <Feld label="Logo hell" wert={identitaet.logoHellPfad} />
-          <Feld label="Logo dunkel" wert={identitaet.logoDunkelPfad} />
-          <Feld label="Logo Druck" wert={identitaet.logoDruckPfad} />
+          <Feld label="Logo hell" wert={identitaet.logoHellPfad === null ? null : 'hinterlegt'} />
+          <Feld label="Logo dunkel" wert={identitaet.logoDunkelPfad === null ? null : 'hinterlegt'} />
+          <Feld label="Logo Druck" wert={identitaet.logoDruckPfad === null ? null : 'hinterlegt'} />
           <Feld label="Alternativtext Logo" wert={identitaet.logoAlt} />
-          <Feld label="Avatar" wert={identitaet.avatarPfad} />
+          <Feld label="Avatar" wert={identitaet.avatarPfad === null ? null : 'hinterlegt'} />
           <Feld label="Alternativtext Avatar" wert={identitaet.avatarAlt} />
-          <Feld label="Titelbild" wert={identitaet.coverPfad} />
+          <Feld label="Titelbild" wert={identitaet.coverPfad === null ? null : 'hinterlegt'} />
           <Feld label="Alternativtext Titelbild" wert={identitaet.coverAlt} />
         </>} />
 
@@ -241,106 +349,112 @@ export default async function IdentitaetSeite(
       </div>
 
       <Hinweis art="hinweis" cse="identitaet-k12" className="mb-s7 max-w-[72ch]">
-        <strong>Die Rechnungs-Fusszeile gehört in die Rechnung kopiert, nicht
-        verlinkt (K-12)</strong> — eine spätere Änderung darf eine festgeschriebene
-        Rechnung nicht verändern und die Hashkette nicht stillschweigend entwerten.
-        <strong> Dieses Kopieren ist noch nicht gebaut:</strong> der kanonische
-        Rechnungs-Payload führt kein Feld für die Fusszeile der Gesellschaft; was heute
-        auf einer Rechnung steht, kommt aus dem freien Fusstext der Rechnung selbst. Bis
-        dahin wirkt eine Änderung hier auf keine bestehende und auf keine neue Rechnung.
+        <strong>Die Rechnungs-Fusszeile wird in die Rechnung kopiert, nicht verlinkt
+        (K-12).</strong> Bei der Festschreibung geht sie in den kanonischen
+        Rechnungs-Payload (V-099) — eine spätere Änderung hier wirkt auf jede NEUE
+        Rechnung und auf keine festgeschriebene. Die Brief-Fusszeile steht unter jedem
+        Mahnbrief und gehört zu dem, was eine Freigabe bindet; die Angebots-Fusszeile
+        steht auf dem Angebotsblatt.
       </Hinweis>
 
-      <section aria-labelledby="pflegen-titel"
-               className="max-w-prose rounded-lg border border-line bg-surface p-s5">
-        <h2 id="pflegen-titel" className="text-h2 text-text">Identität pflegen</h2>
-        <p className="mt-s2 text-xs text-text-muted">
-          {ohneBild === 0
-            ? 'Alle Bildpfade sind hinterlegt.'
-            : `${String(ohneBild)} von 5 Bildpfaden sind nicht hinterlegt — sie kommen `
-              + 'mit O-12/O-13, nicht über dieses Formular.'}{' '}
-          Kartentext und Profiltext werden hier nicht gepflegt: sie stehen je Sprache
-          unter Website › Unternehmensprofil (D-82), und zwei Editoren auf einem Text
-          wären ein Defekt.
-        </p>
-        <form method="post" action={`/api/einstellungen/identitaet?mandant=${mandant}`}>
-          <label className="mt-s4 block text-sm text-text" htmlFor="kurzname">Kurzname</label>
-          <input id="kurzname" name="kurzname" type="text" required className={feld}
-                 defaultValue={identitaet.kurzname} />
-
-          <label className="mt-s4 block text-sm text-text" htmlFor="claim">Claim</label>
-          <input id="claim" name="claim" type="text" className={feld}
-                 defaultValue={identitaet.claim ?? ''} />
-
-          <label className="mt-s4 block text-sm text-text" htmlFor="logoAlt">
-            Alternativtext Logo
-          </label>
-          <input id="logoAlt" name="logoAlt" type="text" className={feld}
-                 defaultValue={identitaet.logoAlt ?? ''} />
-
-          <label className="mt-s4 block text-sm text-text" htmlFor="avatarAlt">
-            Alternativtext Avatar
-          </label>
-          <input id="avatarAlt" name="avatarAlt" type="text" className={feld}
-                 defaultValue={identitaet.avatarAlt ?? ''} />
-
-          <label className="mt-s4 block text-sm text-text" htmlFor="coverAlt">
-            Alternativtext Titelbild
-          </label>
-          <input id="coverAlt" name="coverAlt" type="text" className={feld}
-                 defaultValue={identitaet.coverAlt ?? ''} />
-
-          <label className="mt-s4 block text-sm text-text" htmlFor="briefFuss">
-            Fusszeile Brief
-          </label>
-          <textarea id="briefFuss" name="briefFuss" rows={3} className={feld}
-                    defaultValue={identitaet.briefFuss ?? ''} />
-
-          <label className="mt-s4 block text-sm text-text" htmlFor="rechnungFuss">
-            Fusszeile Rechnung
-          </label>
-          <textarea id="rechnungFuss" name="rechnungFuss" rows={3} className={feld}
-                    defaultValue={identitaet.rechnungFuss ?? ''} />
-
-          <label className="mt-s4 block text-sm text-text" htmlFor="angebotFuss">
-            Fusszeile Angebot
-          </label>
-          <textarea id="angebotFuss" name="angebotFuss" rows={3} className={feld}
-                    defaultValue={identitaet.angebotFuss ?? ''} />
-
-          <label className="mt-s4 block text-sm text-text" htmlFor="emailAbsender">
-            E-Mail-Absender
-          </label>
-          <input id="emailAbsender" name="emailAbsender" type="text" className={feld}
-                 defaultValue={identitaet.emailAbsender ?? ''} />
+      {darfPflegen ? (
+        <section aria-labelledby="pflegen-titel"
+                 className="max-w-prose rounded-lg border border-line bg-surface p-s5">
+          <h2 id="pflegen-titel" className="text-h2 text-text">Identität pflegen</h2>
           <p className="mt-s2 text-xs text-text-muted">
-            Ein Absender hier verschickt noch nichts: ein EU-gehosteter
-            Transaktionsmailer ist nicht gewählt (O-36), also geht nichts hinaus. Die
-            Adresse steht trotzdem auf Angeboten und Briefen.
+            {ohneBild === 0
+              ? 'Alle Bildpfade sind hinterlegt.'
+              : `${String(ohneBild)} von 5 Bildern sind nicht hinterlegt — sie werden im `
+                + 'Abschnitt „Logo, Avatar und Titelbild" hochgeladen.'}{' '}
+            Kartentext und Profiltext werden hier nicht gepflegt: sie stehen je Sprache
+            unter Website › Unternehmensprofil (D-82), und zwei Editoren auf einem Text
+            wären ein Defekt.
           </p>
+          <form method="post" action={`/api/einstellungen/identitaet?mandant=${mandant}`}>
+            <label className="mt-s4 block text-sm text-text" htmlFor="kurzname">Kurzname</label>
+            <input id="kurzname" name="kurzname" type="text" required className={feld}
+                   defaultValue={identitaet.kurzname} />
 
-          <label className="mt-s4 block text-sm text-text" htmlFor="emailSignatur">
-            E-Mail-Signatur
-          </label>
-          <textarea id="emailSignatur" name="emailSignatur" rows={3} className={feld}
-                    defaultValue={identitaet.emailSignatur ?? ''} />
+            <label className="mt-s4 block text-sm text-text" htmlFor="claim">Claim</label>
+            <input id="claim" name="claim" type="text" className={feld}
+                   defaultValue={identitaet.claim ?? ''} />
 
-          <label className="mt-s4 flex min-h-11 items-center gap-s3 text-sm text-text">
-            <input type="checkbox" name="oeffentlichSichtbar" value="ja"
-                   defaultChecked={identitaet.oeffentlichSichtbar} />
-            Öffentlich sichtbar (Startseite und Profilseite)
-          </label>
-          <p className="text-xs text-text-muted">
-            Ein öffentlich sichtbares Profil braucht für jedes ausgelieferte Bild einen
-            Alternativtext — sonst wird gespeichert abgewiesen, und zwar mit dem Namen
-            des fehlenden Feldes.
-          </p>
+            <label className="mt-s4 block text-sm text-text" htmlFor="logoAlt">
+              Alternativtext Logo
+            </label>
+            <input id="logoAlt" name="logoAlt" type="text" className={feld}
+                   defaultValue={identitaet.logoAlt ?? ''} />
 
-          <button type="submit"
-                  className="mt-s5 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover">
-            Identität speichern
-          </button>
-        </form>
-      </section>
+            <label className="mt-s4 block text-sm text-text" htmlFor="avatarAlt">
+              Alternativtext Avatar
+            </label>
+            <input id="avatarAlt" name="avatarAlt" type="text" className={feld}
+                   defaultValue={identitaet.avatarAlt ?? ''} />
+
+            <label className="mt-s4 block text-sm text-text" htmlFor="coverAlt">
+              Alternativtext Titelbild
+            </label>
+            <input id="coverAlt" name="coverAlt" type="text" className={feld}
+                   defaultValue={identitaet.coverAlt ?? ''} />
+
+            <label className="mt-s4 block text-sm text-text" htmlFor="briefFuss">
+              Fusszeile Brief
+            </label>
+            <textarea id="briefFuss" name="briefFuss" rows={3} className={feld}
+                      defaultValue={identitaet.briefFuss ?? ''} />
+
+            <label className="mt-s4 block text-sm text-text" htmlFor="rechnungFuss">
+              Fusszeile Rechnung
+            </label>
+            <textarea id="rechnungFuss" name="rechnungFuss" rows={3} className={feld}
+                      defaultValue={identitaet.rechnungFuss ?? ''} />
+
+            <label className="mt-s4 block text-sm text-text" htmlFor="angebotFuss">
+              Fusszeile Angebot
+            </label>
+            <textarea id="angebotFuss" name="angebotFuss" rows={3} className={feld}
+                      defaultValue={identitaet.angebotFuss ?? ''} />
+
+            <label className="mt-s4 block text-sm text-text" htmlFor="emailAbsender">
+              E-Mail-Absender
+            </label>
+            <input id="emailAbsender" name="emailAbsender" type="text" className={feld}
+                   defaultValue={identitaet.emailAbsender ?? ''} />
+            <p className="mt-s2 text-xs text-text-muted">
+              Ein Absender hier verschickt noch nichts: ein EU-gehosteter
+              Transaktionsmailer ist nicht gewählt (O-36), also geht nichts hinaus. Die
+              Adresse steht trotzdem auf Angeboten und Briefen.
+            </p>
+
+            <label className="mt-s4 block text-sm text-text" htmlFor="emailSignatur">
+              E-Mail-Signatur
+            </label>
+            <textarea id="emailSignatur" name="emailSignatur" rows={3} className={feld}
+                      defaultValue={identitaet.emailSignatur ?? ''} />
+
+            <label className="mt-s4 flex min-h-11 items-center gap-s3 text-sm text-text">
+              <input type="checkbox" name="oeffentlichSichtbar" value="ja"
+                     defaultChecked={identitaet.oeffentlichSichtbar} />
+              Öffentlich sichtbar (Startseite und Profilseite)
+            </label>
+            <p className="text-xs text-text-muted">
+              Ein öffentlich sichtbares Profil braucht für jedes ausgelieferte Bild einen
+              Alternativtext — sonst wird gespeichert abgewiesen, und zwar mit dem Namen
+              des fehlenden Feldes.
+            </p>
+
+            <button type="submit"
+                    className="mt-s5 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover">
+              Identität speichern
+            </button>
+          </form>
+        </section>
+      ) : (
+        <p data-cse="identitaet-nur-lesen" className="max-w-prose text-sm text-text-muted">
+          Gepflegt wird die Identität mit dem Recht „Identität verwalten“ — diese Sitzung
+          liest nur.
+        </p>
+      )}
     </PortalRahmen>
   );
 }

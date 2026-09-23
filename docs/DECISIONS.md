@@ -15182,3 +15182,66 @@ weiterhin ab, statt mit Fragezeichen hinauszugehen.
 
 | Betrifft | DOC-03, SEC-A6, ACC-03, TIM-10, CLAUDE.md „No fake integrations", Datenresidenz, `src/server/storage/ordner.ts`, `src/server/storage/waehle.ts`, `src/app/api/speicher/[bucket]/[...schluessel]/route.ts`, `scripts/windows-start.ps1`, V-131 |
 |---|---|
+
+### D-622 · Logo, Avatar und Titelbild — ein privater Behälter, eine Tür, der Inhalt als Name (V-100)
+
+**Der Befund** (V-100): `mandant_identitaet` trägt seit 0200 fünf Bildspalten
+— Logo für helle und dunkle Flächen, Drucklogo, Avatar, Titelbild —, und keine
+liess sich setzen: kein Behälter, kein Annahmeweg, kein Spaltenrecht (0200 sagte
+selbst: „der Bildupload bringt die Pfadspalten mit"). Der Bildschirm sagte es
+ehrlich; die Website zeigte trotzdem jeder Gesellschaft ein Platzhalterzeichen.
+
+**Der Mandant hat die Entscheidung übergeben** („والاسئلة المفتوحة جاوب انت
+عنهن بذكاء بدالي"). O-12 (die offiziellen Logodateien) und O-13 (echte
+Fotografie) bleiben offen — sie fragen, WELCHE Dateien, nicht OB es einen Weg
+für sie gibt.
+
+**Die Entscheidungen.**
+
+1. **Ein privater Behälter `marke`, kein öffentlicher.** Der Stack sagt
+   „private buckets, signed URLs only", und 07-INTEGRATIONEN §6.4 hat den
+   früheren `oeffentlich_web` ausdrücklich gestrichen. Ausgeliefert wird über
+   `GET /api/marke/<mandant>/<art>/<version>` — nur für eine VERÖFFENTLICHTE
+   Identität (gelesen über die Projektions-View, die Bedingung steht im SQL
+   und nicht nur in der Policy, weil der Renderer ein angemeldeter
+   Dienstprinzipal ist) oder für eine Sitzung in genau dieser Gesellschaft
+   (Vorschau). Sonst 404, nie 403 (AUT-06).
+2. **Der Inhalt ist der Name** (`<mandant>/<art>/<sha256>.<svg|png|jpg>`),
+   in der Datenbank festgehalten von `mi_bildpfad_eigen` (0393): ein Pfad
+   zeigt nur in den eigenen Ordner. Ein neues Logo überschreibt kein altes
+   Objekt, die Adresse trägt die Version im Pfad und darf deshalb unbegrenzt
+   zwischengespeichert werden. „Entfernen" nimmt die Zuordnung weg, nicht die
+   Datei.
+3. **Logos als SVG, PNG oder JPEG; Avatar und Titelbild als PNG oder JPEG.**
+   01-KERN §6.2 nennt SVG für Logos. Ein SVG ist aber ein Dokument mit
+   Skriptfähigkeit: `storage/svg.ts` weist ab, was ein Bild nicht braucht
+   (Skript, Ereignisattribute, eingebettetes HTML, Verweise nach draussen,
+   Entitäten), und die Auslieferung setzt eine CSP mit `sandbox`. Raster wird
+   von Metadaten befreit (`exif.ts`) — ein Titelbild mit GPS-Daten ist die
+   stille Preisgabe, die TIM-10 für Schichtfotos verhindert.
+4. **Der Alternativtext ist Teil des Hochladens** (PUB-09, LEG-07, BFSG). Die
+   drei Logos teilen einen (0200); ist er schon gesetzt, trägt er das nächste.
+5. **Welches Logo wohin — nach der Fläche, nicht nach Geschmack.** Die
+   Website ist dark-first (DESIGN §1): dort steht das Logo für DUNKLE Flächen
+   (Kopfbild der Profilseite, Kopf der Profilunterseiten). Papier ist hell:
+   das gedruckte Angebot trägt das Drucklogo, sonst das für helle Flächen
+   (DESIGN §11 „each entity prints its own logo" — bis hierher druckte es nur
+   den Namen). Der Avatar ersetzt das vorläufige Zeichen überall, wo es auf
+   der Website steht, in derselben Grösse. Das Titelbild steht an der Stelle
+   der Motivtafel auf Karte und Kopfbild. Die Tabelle steht in DESIGN §1.
+6. **`platzhalter_medien` bleibt unberührt.** Es ist eine Tatsache über die
+   Fotografie der vier Bereiche (O-13), nicht über ein einzelnes Bild.
+7. **Kein stiller Erfolg ohne Recht.** Lesen darf jede Rolle des Bereichs,
+   schreiben nur `system.identitaet_verwalten`. Der Dienst prüft das
+   `returning` des UPDATE — sonst ginge es mit Protokollzeile und abgelegter
+   Datei weiter für eine Änderung, die RLS verworfen hat.
+
+**Was NICHT dazugehört:** die Rechnungs-PDF. Sie ist ein K-12-Dokument; ein
+Logo darin müsste in den kanonischen Payload wie die Fusszeile (V-099), und
+eine Bildeinbettung in PDF/A-3 ist ein eigener Schritt mit veraPDF-Prüfung.
+Sie trägt bis dahin weiter den Namen der Gesellschaft — aufgenommen als V-132
+im Vollständigkeitsregister, nicht als offene Frage: es fehlt Arbeit, keine
+Antwort.
+
+| Betrifft | TEN-07, PUB-09, PUB-14, PRO-01, LEG-07, DOC-03, TIM-10, DESIGN §1/§11, 01-KERN §6.2, 07-INTEGRATIONEN §6.4, `drizzle/0393`, `src/server/services/mandant/markenbild.ts`, `src/server/storage/svg.ts`, `src/app/api/einstellungen/identitaet/bild/route.ts`, `src/app/api/marke/[mandant]/[art]/[version]/route.ts`, O-12, O-13, V-100 |
+|---|---|

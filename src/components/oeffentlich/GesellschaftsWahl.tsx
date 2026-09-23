@@ -52,7 +52,7 @@ export function GesellschaftsWahl(
           * auf jeder der fuenf Seiten dasselbe sagt; der Firmenname sagt
           * etwas.
           */}
-        {hier === null ? null : <BereichsAvatar bereich={hier.bereich} aktiv />}
+        {hier === null ? null : <BereichsAvatar bereich={hier.bereich} aktiv bild={hier.marke.avatar} />}
         <span className="max-w-[16ch] truncate">{hier?.name ?? beschriftung}</span>
         {/*
           * Das Zeichen ist DEKORATION und traegt deshalb `aria-hidden`: der
@@ -78,7 +78,8 @@ export function GesellschaftsWahl(
                 className="flex min-h-11 items-center gap-s2 rounded-sm px-s2 text-sm
                            text-text-muted hover:bg-surface-3 hover:text-text"
               >
-                <BereichsAvatar bereich={b.bereich} aktiv={b.slug === aktiv} />
+                <BereichsAvatar bereich={b.bereich} aktiv={b.slug === aktiv}
+                                bild={b.marke.avatar} />
                 {b.name}
               </a>
             </li>

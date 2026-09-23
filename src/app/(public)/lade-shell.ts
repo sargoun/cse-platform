@@ -34,5 +34,6 @@ export function shellBereiche(zeilen: readonly BereichZeile[]): readonly ShellBe
         firma: z.firma, strasse: z.strasse, plz: z.plz, ort: z.ort,
         land: z.land, telefon: z.telefon, email: z.email,
       }).einzeilig,
+      marke: z.marke,
     }));
 }

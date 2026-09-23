@@ -1712,6 +1712,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'system', pfad: 'mandant/identitaet',
     schreibend: true, schreibRecht: 'system.identitaet_verwalten',
   },
+  /*
+   * V-100, D-622: Logo, Avatar und Titelbild — dasselbe Recht wie die
+   * uebrige Identitaet. Die Pfadspalten bekamen ihr Spaltenrecht erst mit
+   * diesem Dienst (0393).
+   */
+  {
+    modul: 'system', pfad: 'mandant/markenbild',
+    schreibend: true, schreibRecht: 'system.identitaet_verwalten',
+  },
   {
     modul: 'system', pfad: 'einstellung/vorlagen',
     schreibend: true, schreibRecht: 'bau.schreiben',

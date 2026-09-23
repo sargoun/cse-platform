@@ -48,9 +48,12 @@ export function AreaBadge({
 export function BereichsAvatar({
   bereich,
   aktiv = false,
+  bild = null,
 }: {
   readonly bereich: BereichSchluessel;
   readonly aktiv?: boolean;
+  /** Der hochgeladene Avatar, wenn die Gesellschaft einen veröffentlicht hat (V-100). */
+  readonly bild?: { readonly adresse: string } | null;
 }) {
   /*
    * Das Zeichen der Gesellschaft (DESIGN §1 Marks) statt einer Initiale im
@@ -65,7 +68,7 @@ export function BereichsAvatar({
       className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
       style={aktiv ? { outline: '2px solid var(--red)', outlineOffset: '2px', borderRadius: '6px' } : {}}
     >
-      <Marke art={bereich} groesse="md" />
+      <Marke art={bereich} groesse="md" bild={bild} />
     </span>
   );
 }

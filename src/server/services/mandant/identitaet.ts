@@ -13,12 +13,11 @@ import { FARBEN_BEREICH, type BereichSchluessel } from '../../../lib/design/them
  * Farbe entsteht, die nicht in `docs/DESIGN.md` steht — und damit eine, deren
  * Kontrast niemand geprueft hat (DESIGN §9).
  *
- * **Bilder werden hier nicht hochgeladen, und das steht auch so auf dem
- * Bildschirm.** `BUCKETS` in `server/storage/adapter.ts` kennt `dokumente`,
- * `archiv` und `einsatz-medien` — keinen Marken-Bucket —, und unter
- * `src/app/api/medien` liegt kein POST. Ein Knopf, der nichts tut, ist
- * schlimmer als kein Knopf: er laesst jemanden glauben, das Logo sei
- * hinterlegt.
+ * **Bilder setzt nicht diese Datei, sondern `markenbild.ts`** (V-100,
+ * D-622): eine Datei ist etwas anderes als ein Textfeld — sie wird am Inhalt
+ * erkannt, von Metadaten befreit, im privaten Behaelter `marke` abgelegt und
+ * unter ihrem Inhalt benannt. Hier bleiben die Alternativtexte, weil sie Text
+ * sind und vor dem Bild da sein koennen.
  *
  * **Ein fuenfter Bereich hat noch keine Farbe — und trotzdem eine Zeile.**
  * TEN-08 sagt zu, dass eine fuenfte Gesellschaft eine Datenbankzeile ist und
@@ -30,12 +29,11 @@ import { FARBEN_BEREICH, type BereichSchluessel } from '../../../lib/design/them
  * sagt es hin.
  * // TODO(client, O-750): Welcher Bereichston (DESIGN §1, Kontrast nach §9) gilt fuer eine fuenfte Gesellschaft, und darf ihr Profil oeffentlich gehen, bevor er eingetragen ist?
  *
- * **K-12 ist eine Zusage, die noch nicht eingelöst ist.** `rechnung_fuss`
- * gehoert bei der Festschreibung in den kanonischen Payload KOPIERT, damit
- * eine spaetere Aenderung keine festgeschriebene Rechnung veraendert. Der
- * kanonische Payload kennt heute kein Mandanten-Fussfeld
- * (`services/finanz/kanonisch.ts`); `rechnung.fusstext` ist die freie Spalte
- * aus der Eingabe. Diese Datei sagt es, statt das Gegenteil zu behaupten.
+ * **K-12 ist eingeloest (V-099).** `rechnung_fuss` wird bei der
+ * Festschreibung in den kanonischen Payload KOPIERT (`cse.rechnung.v3`,
+ * `Leistender.fusszeile`), `brief_fuss` steht im Mahnbrief und in der
+ * Nutzlast seiner Freigabe, `angebot_fuss` auf dem Angebotsblatt. Eine
+ * spaetere Aenderung hier wirkt auf keine festgeschriebene Rechnung.
  */
 
 export type IdentitaetsToken =
@@ -227,9 +225,10 @@ export interface IdentitaetEingabe {
  *    DESIGN.md-Eintrag, dann eine Migration, die `mi_token` erweitert
  *    (O-750). Ein Farbwaehler an dieser Stelle waere genau der Weg, auf dem
  *    eine ungepruefte Farbe in die Oberflaeche kaeme.
- *  - `logo_*_pfad`, `avatar_pfad`, `cover_pfad` — es gibt keinen
- *    Hochladeweg. Die Alternativtexte schon: sie sind Text, sie sind nach
- *    PUB-09/LEG-07 Pflicht, und sie koennen vor dem Bild da sein.
+ *  - `logo_*_pfad`, `avatar_pfad`, `cover_pfad` — die setzt
+ *    `markenbild.ts` mit der Datei zusammen (V-100). Die Alternativtexte
+ *    stehen trotzdem hier: sie sind Text, sie sind nach PUB-09/LEG-07
+ *    Pflicht, und sie koennen vor dem Bild da sein.
  *  - `kurzbeschreibung`, `beschreibung` — sie stehen je Sprache in
  *    `unternehmensprofil` (D-82), und das ist der maßgebliche Ort. Zwei
  *    Editoren auf einem Text waeren ein Defekt.

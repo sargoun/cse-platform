@@ -119,7 +119,8 @@ export function Gesellschaften({ bereiche, sprache }: {
           return (
             <div key={b.id} data-cse="gesellschaft" data-slug={b.slug}>
               <h3 className="mb-s2 flex items-center gap-s2 text-h3 text-text">
-                {markeFuer(b.slug) === null ? null : <Marke art={markeFuer(b.slug)!} groesse="sm" />}
+                {markeFuer(b.slug) === null ? null
+                  : <Marke art={markeFuer(b.slug)!} groesse="sm" bild={b.marke.avatar} />}
                 {b.firma}
                 {leer(b.rechtsform) !== null && !b.firma.includes(b.rechtsform!)
                   ? ` (${b.rechtsform!})` : ''}

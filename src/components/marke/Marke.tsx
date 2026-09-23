@@ -39,12 +39,36 @@ const GLYPH: Record<BereichSchluessel, string> = {
   operations: 'M8 8h8M8 16h8M8 8v8M16 8v8M8 8m-1.8 0a1.8 1.8 0 1 0 3.6 0 1.8 1.8 0 1 0-3.6 0M16 8m-1.8 0a1.8 1.8 0 1 0 3.6 0 1.8 1.8 0 1 0-3.6 0M8 16m-1.8 0a1.8 1.8 0 1 0 3.6 0 1.8 1.8 0 1 0-3.6 0M16 16m-1.8 0a1.8 1.8 0 1 0 3.6 0 1.8 1.8 0 1 0-3.6 0',
 };
 
-export function Marke({ art, groesse = 'md', className = '' }: {
+export function Marke({ art, groesse = 'md', className = '', bild = null }: {
   readonly art: MarkeArt;
   readonly groesse?: MarkeGroesse;
   readonly className?: string;
+  /**
+   * Der hochgeladene Avatar der Gesellschaft (V-100, D-622, DESIGN §1
+   * „Uploaded brand images"). Er ersetzt das vorläufige Zeichen an derselben
+   * Stelle und in derselben Grösse — rund, wie DESIGN §6 den Avatar
+   * beschreibt. `alt=""`: neben dem Namen ist er Schmuck, genau wie das
+   * Zeichen.
+   */
+  readonly bild?: { readonly adresse: string } | null;
 }) {
   const px = PX[groesse];
+  if (bild !== null) {
+    return (
+      // Kein next/image: 24–56 px, und die Adresse ist schon die endgültige.
+      <img
+        src={bild.adresse}
+        alt=""
+        aria-hidden="true"
+        data-cse="marke"
+        data-art={art}
+        data-quelle="hochgeladen"
+        width={px}
+        height={px}
+        className={`shrink-0 rounded-full object-cover ${className}`}
+      />
+    );
+  }
   return (
     <svg
       aria-hidden="true"
@@ -115,4 +139,33 @@ export function Logo({ art, name, groesse = 'md', href, className = '', nurZeich
     );
   }
   return <span data-cse="logo" data-art={art} className={klassen}>{inhalt}</span>;
+}
+
+/**
+ * Ein hochgeladenes LOGO — die Wortbildmarke der Gesellschaft (V-100,
+ * D-622, DESIGN §1 „Uploaded brand images").
+ *
+ * Es ersetzt das Lockup aus Zeichen und Name, nicht nur das Zeichen: ein
+ * Logo trägt den Namen meist selbst. Die Höhe ist die Grösse des Zeichens
+ * (DESIGN §1, `marke-sm` … `marke-xl`), die Breite folgt der Datei — ein Logo
+ * wird nie gestreckt und nie beschnitten. Der Name bleibt für Screenreader
+ * im Alternativtext, den `mi_alt_text` für eine veröffentlichte Identität
+ * verlangt.
+ */
+export function MarkenLogo({ bild, groesse = 'md', className = '' }: {
+  readonly bild: { readonly adresse: string; readonly alt: string };
+  readonly groesse?: MarkeGroesse;
+  readonly className?: string;
+}) {
+  const px = PX[groesse];
+  return (
+    <img
+      src={bild.adresse}
+      alt={bild.alt}
+      data-cse="marken-logo"
+      height={px}
+      className={`w-auto max-w-full shrink-0 object-contain ${className}`}
+      style={{ height: px }}
+    />
+  );
 }

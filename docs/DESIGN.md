@@ -98,8 +98,27 @@ comes from `mandant.name` or `plattform_einstellung`, never from the component.
 Clear space around the lockup is at least the tile's radius. On a phone header
 the name may collapse to `sr-only` while the mark stays.
 
-Component: `src/components/marke/Marke.tsx` (`Marke`, `Logo`). The favicon
-`src/app/icon.svg` is the `gruppe` mark.
+Component: `src/components/marke/Marke.tsx` (`Marke`, `Logo`, `MarkenLogo`).
+The favicon `src/app/icon.svg` is the `gruppe` mark.
+
+**Uploaded brand images (V-100, D-622).** Once a company uploads its own files
+under *Einstellungen › Identität*, they replace the provisional mark — in the
+same places, at the same sizes, with the same clear space. Nothing about the
+layout changes when a logo arrives, and nothing is shown until the company's
+identity is published (`oeffentlich_sichtbar`).
+
+| Image | Replaces | Size | Shape |
+|---|---|---|---|
+| Avatar | the mark tile wherever that company's mark appears on the public site — card, footer, company picker, imprint, hero | the mark's size token (`marke-sm` … `marke-xl`) | circle, `object-cover` |
+| Logo for dark surfaces | the lockup on the company hero (it sits on the §4.4 gradient) and next to the name in the profile header — the site is dark-first | height = `marke-lg` on the hero, `marke-sm` in the header; width follows the file | `object-contain`, never cropped or stretched |
+| Logo for light surfaces | the letterhead of a printed offer when no print logo exists — paper is light | `marke-xl` height | as above |
+| Logo for print | the letterhead of a printed offer (§11) | `marke-xl` height | as above |
+| Cover | the photograph of the company card (§4.4) and of the company hero (§4.5) | the card's and the hero's aspect ratios | `object-cover`; the gradient stays mandatory |
+
+The light-surface logo never appears on a dark surface, and the dark-surface
+logo never on paper — each would disappear. A missing logo falls back to the
+avatar or the provisional mark plus the name, never to the other logo. A cover
+never replaces an image an editor assigned to one specific section.
 
 ### Semantic
 

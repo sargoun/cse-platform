@@ -8,30 +8,28 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
-import { IdentitaetFehler, setzeIdentitaet }
-  from '@/server/services/mandant/identitaet';
+import { waehleSpeicher } from '@/server/storage/waehle';
+import {
+  MarkenbildFehler, entferneMarkenbild, istMarkenbildArt, setzeMarkenbild,
+} from '@/server/services/mandant/markenbild';
 
 /**
- * `POST /api/einstellungen/identitaet` — das Erscheinungsbild einer
- * Gesellschaft pflegen (TEN-07, PUB-09, LEG-07, DESIGN §11).
+ * `POST /api/einstellungen/identitaet/bild` — Logo, Avatar oder Titelbild
+ * setzen oder die Zuordnung wegnehmen (V-100, D-622).
  *
- * Der Handler bleibt duenn: pruefen, den Dienst rufen, antworten. Welche
- * Felder ueberhaupt pflegbar sind, entscheidet nicht er, sondern
- * `setzeIdentitaet` — Farbe (Token, DESIGN §1), Bildpfade (die setzt
- * `/api/einstellungen/identitaet/bild` mit der Datei, V-100) und Profiltexte
- * (je Sprache in `unternehmensprofil`, D-82) sind bewusst nicht dabei.
- *
- * `system.identitaet_verwalten` und nicht `system.mandant_verwalten`: das
- * Erscheinungsbild ist nicht die Firmierung. Wer das Logo pflegt, aendert
- * damit keine Registernummer — und umgekehrt.
+ * Dasselbe Recht wie die übrige Identität (`system.identitaet_verwalten`),
+ * derselbe Rücksprung mit `?hinweis=` — ein Formular bekommt eine Seite mit
+ * einem Satz, keine JSON-Antwort. Der Handler prüft, ruft den Dienst und
+ * antwortet; welche Datei angenommen wird, entscheidet `setzeMarkenbild`.
  */
 export const dynamic = 'force-dynamic';
 
-function zurueck(anfrage: NextRequest, hinweis?: string): NextResponse {
+function zurueck(anfrage: NextRequest, hinweis: string): NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
   const url = new URL(
     `/portal/${slug}/einstellungen/identitaet`, erwarteterUrsprung(anfrage));
-  if (hinweis !== undefined) url.searchParams.set('hinweis', hinweis);
+  url.searchParams.set('hinweis', hinweis);
+  url.hash = 'bilder';
   return NextResponse.redirect(url, 303);
 }
 
@@ -45,15 +43,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   const daten = await anfrage.formData();
-  const text = (name: string): string | null => {
-    const wert = daten.get(name);
-    return typeof wert === 'string' && wert.trim() !== '' ? wert.trim() : null;
-  };
-
-  const kurzname = text('kurzname');
-  if (kurzname === null) {
-    return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
+  const art = String(daten.get('art') ?? '');
+  const aktion = String(daten.get('aktion') ?? 'setzen');
+  if (!istMarkenbildArt(art) || (aktion !== 'setzen' && aktion !== 'entfernen')) {
+    return zurueck(anfrage, 'Diese Bildart oder Handlung gibt es nicht.');
   }
+  const datei = daten.get('datei');
+  const alt = daten.get('alt');
 
   try {
     return await (db().begin(async (tx: postgres.TransactionSql) =>
@@ -63,26 +59,24 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           { recht: 'system.identitaet_verwalten', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
-        await setzeIdentitaet(kontext, {
-          kurzname,
-          claim: text('claim'),
-          logoAlt: text('logoAlt'),
-          avatarAlt: text('avatarAlt'),
-          coverAlt: text('coverAlt'),
-          briefFuss: text('briefFuss'),
-          rechnungFuss: text('rechnungFuss'),
-          angebotFuss: text('angebotFuss'),
-          emailAbsender: text('emailAbsender'),
-          emailSignatur: text('emailSignatur'),
-          oeffentlichSichtbar: text('oeffentlichSichtbar') === 'ja',
+        if (aktion === 'entfernen') {
+          await entferneMarkenbild(kontext, art);
+          return zurueck(anfrage,
+            'Die Zuordnung ist entfernt. Die Datei selbst bleibt abgelegt — nichts wird gelöscht.');
+        }
+        if (!(datei instanceof File)) {
+          throw new MarkenbildFehler('leer', 'Es wurde keine Datei mitgeschickt.');
+        }
+        await setzeMarkenbild(kontext, waehleSpeicher(), {
+          art,
+          daten: new Uint8Array(await datei.arrayBuffer()),
+          alt: typeof alt === 'string' ? alt : null,
         });
-        return zurueck(anfrage,
-          'Die Identität ist gespeichert. Auf bereits festgeschriebene Rechnungen '
-          + 'wirkt eine geänderte Fusszeile nie (K-12).');
+        return zurueck(anfrage, 'Das Bild ist gespeichert.');
       }))) as NextResponse;
   } catch (fehler: unknown) {
     /* Der Aufrufer ist ein Formular, also bekommt er eine SEITE mit dem Satz. */
-    if (fehler instanceof IdentitaetFehler) return zurueck(anfrage, fehler.message);
+    if (fehler instanceof MarkenbildFehler) return zurueck(anfrage, fehler.message);
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }

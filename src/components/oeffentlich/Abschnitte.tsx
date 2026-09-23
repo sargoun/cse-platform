@@ -90,15 +90,46 @@ function Leistungen({ a }: { readonly a: Abschnitt }) {
   );
 }
 
+/** Die Gesellschaft einer Profilseite (`/unternehmen/[slug]`, auch unter `/en`) — sonst keine. */
+function gesellschaftDerSeite(
+  pfad: string, bereiche: readonly ShellBereich[],
+): ShellBereich | undefined {
+  const ohne = pfad.replace(/^\/en(?=\/|$)/u, '') || '/';
+  const slug = /^\/unternehmen\/([a-z-]+)$/u.exec(ohne)?.[1];
+  return slug === undefined ? undefined : bereiche.find((x) => x.slug === slug);
+}
+
 /** Auf `/` das Gruppenzeichen, auf `/unternehmen/[slug]` das der Gesellschaft — sonst keines. */
 function heldenMarke(
   pfad: string, bereiche: readonly ShellBereich[], gruppeName: string,
-): { readonly art: MarkeArt; readonly name: string } | null {
+): {
+  readonly art: MarkeArt; readonly name: string;
+  readonly avatar: { readonly adresse: string } | null;
+  readonly logo: { readonly adresse: string; readonly alt: string } | null;
+} | null {
   const ohne = pfad.replace(/^\/en(?=\/|$)/u, '') || '/';
-  if (ohne === '/') return gruppeName === '' ? null : { art: 'gruppe', name: gruppeName };
-  const slug = /^\/unternehmen\/([a-z-]+)$/u.exec(ohne)?.[1];
-  const b = slug === undefined ? undefined : bereiche.find((x) => x.slug === slug);
-  return b === undefined ? null : { art: b.bereich, name: b.name };
+  if (ohne === '/') {
+    return gruppeName === '' ? null
+      : { art: 'gruppe', name: gruppeName, avatar: null, logo: null };
+  }
+  const b = gesellschaftDerSeite(pfad, bereiche);
+  return b === undefined ? null : {
+    art: b.bereich, name: b.name,
+    /* V-100: der Hero liegt auf dem Verlauf — also das Logo für DUNKLE Flächen. */
+    avatar: b.marke.avatar, logo: b.marke.logoDunkel,
+  };
+}
+
+/**
+ * Das Titelbild einer Gesellschaft als Bildwahl — oder `null` (V-100).
+ *
+ * Es steht an der Stelle der Motivtafel, nicht an der Stelle eines Mediums,
+ * das jemand DIESEM Abschnitt zugeordnet hat: je spezifischer die Zuordnung,
+ * desto eher gewinnt sie (siehe `bildVon`).
+ */
+function titelbild(b: ShellBereich | undefined) {
+  const cover = b?.marke.cover ?? null;
+  return cover === null ? null : { pfad: cover.adresse, alt: cover.alt, platzhalter: false };
 }
 
 /** Der rote Knopf und der Ghost-Verweis — nur dort, wo eine Seite zu etwas fuehrt. */
@@ -160,7 +191,10 @@ export function Abschnitte(
                 ueberschrift={a.ueberschrift ?? seite.titel}
                 akzentWort={a.akzentWort}
                 text={a.text}
-                bild={bildVon(a, motivFuerPfad(seite.pfad))}
+                bild={a.medium === null
+                  ? titelbild(gesellschaftDerSeite(seite.pfad, bereiche))
+                    ?? bildVon(a, motivFuerPfad(seite.pfad))
+                  : bildVon(a, motivFuerPfad(seite.pfad))}
                 sprache={sprache}
                 marke={heldenMarke(seite.pfad, bereiche, gruppeName)}
                 aufrufe={heldenAufrufe(seite.pfad, sprache)}
@@ -179,7 +213,8 @@ export function Abschnitte(
                     titel={b.name}
                     anspruch={ansprueche[b.slug] ?? ''}
                     href={mitSprache(`/unternehmen/${b.slug}`, sprache)}
-                    bild={bildFuerMotiv(motivFuerBereich(b.bereich))}
+                    bild={titelbild(b) ?? bildFuerMotiv(motivFuerBereich(b.bereich))}
+                    avatar={b.marke.avatar}
                     sprache={sprache}
                   />
                 ))}
