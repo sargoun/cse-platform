@@ -28,6 +28,17 @@ export interface Sitzung {
   readonly aal: 'aal1' | 'aal2';
   readonly portal: Portal;
   readonly sitzungId: string;
+  /**
+   * Die Adresse, von der die ANFRAGE kam — nicht Teil der Sitzungszeile,
+   * sondern der Anfrage, in der sie gelesen wurde (`aktuelleSitzung`).
+   *
+   * SEC-A9 verlangt je Protokolleintrag die IP. `app.protokolliere` liest sie
+   * seit 0004 aus `app.ip`, und bis V-163 setzte keine Bindung diese GUC:
+   * jede Zeile trug `ip = NULL`, und die Spalte `ip` im Revisionsexport war
+   * immer leer. Freiwillig, weil Hintergrundlaeufe und Tests eine Sitzung
+   * ohne Anfrage bauen; dort bleibt die Spalte ehrlich leer.
+   */
+  readonly ip?: string | null;
 }
 
 /** Der schmale Treiberausschnitt — die Schicht bindet keinen Treiber. */
@@ -72,6 +83,13 @@ async function bindeSitzung(
   await setze('app.readonly', readonly ? 'on' : 'off');
   await setze('app.sitzung_id', sitzung.sitzungId);
   await setze('app.akteur_typ', 'mensch');
+  /*
+   * SEC-A9 (V-163): die Adresse fuer das Protokoll, und KEIN Agent. Eine
+   * Bindung ist ein Mensch an der Tastatur; handelt in derselben Transaktion
+   * spaeter ein Agent, setzt `alsAgent` beides um und danach zurueck.
+   */
+  await setze('app.ip', sitzung.ip ?? '');
+  await setze('app.agent_id', '');
 }
 
 /**
@@ -316,6 +334,55 @@ export async function withKundeScope<T>(
 
   await tx.unsafe(`select set_config('app.mandant_ids', $1, true)`, [mandantIds.join(',')]);
   return fn(basis(tx, kunde, mandantIds));
+}
+
+/**
+ * **Was ein Agentenlauf schreibt, steht als AGENT im Protokoll** (SEC-A9,
+ * V-163, D-657).
+ *
+ * SEC-A9 unterscheidet drei Akteure — Mensch, Agent, System —, und
+ * `audit_log` traegt dafuer seit 0003 `akteur_typ` und `agent_id`.
+ * `app.protokolliere` liest beides aus der Transaktion (`app.akteur_typ`,
+ * seit 0415 auch `app.agent_id`). Bis V-163 setzte kein Weg `agent`: was ein
+ * Lauf anlegte, stand als `mensch` mit der Kennung dessen, der den Knopf
+ * gedrueckt hatte.
+ *
+ * **Umgestellt fuer die Dauer von `fn`, danach zurueck.** Der Lauf haengt in
+ * der Transaktion seines Aufrufers (Aufgabe, Entwurf und Freigabe entstehen
+ * zusammen oder gar nicht); was der Aufrufer danach schreibt, schreibt wieder
+ * er. `akteur_id` bleibt der angemeldete Mensch: er hat den Lauf ausgeloest,
+ * und das Protokoll soll beides sagen — wer handelte und in wessen Auftrag.
+ *
+ * **Die Rueckstellung nach einem Wurf ist ein Versuch, keine Pflicht.** Ist
+ * die Transaktion abgebrochen, schlaegt jede weitere Anweisung fehl — und
+ * ein Fehler beim Zuruecksetzen verdeckte den eigentlichen. Die GUCs sind
+ * transaktionslokal und enden dann ohnehin mit ihr.
+ */
+export async function alsAgent<T>(
+  kontext: LeseKontext, agentId: string, fn: () => Promise<T>,
+): Promise<T> {
+  const [vorher] = await kontext.abfrage<{ typ: string | null; agent: string | null }>(
+    `select current_setting('app.akteur_typ', true) as typ,
+            current_setting('app.agent_id', true) as agent`);
+  const setze = async (typ: string, agent: string): Promise<void> => {
+    await kontext.abfrage(
+      `select set_config('app.akteur_typ', $1, true), set_config('app.agent_id', $2, true)`,
+      [typ, agent]);
+  };
+  await setze('agent', agentId);
+  let ergebnis: T;
+  try {
+    ergebnis = await fn();
+  } catch (fehler) {
+    try {
+      await setze(vorher?.typ ?? '', vorher?.agent ?? '');
+    } catch {
+      /* Abgebrochene Transaktion: die GUCs enden mit ihr (siehe oben). */
+    }
+    throw fehler;
+  }
+  await setze(vorher?.typ ?? '', vorher?.agent ?? '');
+  return ergebnis;
 }
 
 export { KeinAktiverMandantFehler, KeinKundenzugangFehler, KeinePersonFehler };

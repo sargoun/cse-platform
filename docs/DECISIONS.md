@@ -15580,3 +15580,55 @@ im Betrieb, die übrigen 37 hatten ihn nur noch nicht.
 
 | Betrifft | AUT-06, AUT-02, V-128, V-162, `src/server/auth/antwort.ts`, 37 Routen unter `src/app/api/**` (Liste in V-162), `tests/kern/autorisierung-uebersetzt.test.ts` |
 |---|---|
+
+### D-657 · Das Prüfprotokoll trägt die IP der Anfrage und den handelnden Agenten (V-163)
+
+**Der Befund** (V-163, SEC-A9): `audit_log` hat seit 0003 `akteur_typ`,
+`agent_id` und `ip`; `app.protokolliere` (0004) ist der einzige Schreiber.
+Keine Sitzungsbindung setzte `app.ip` — jede Zeile trug `ip = NULL`, die
+Spalte im GoBD-/Revisionsexport war immer leer. `agent_id` schrieb niemand,
+und kein Weg setzte `akteur_typ = 'agent'`.
+
+**Die Entscheidung.**
+
+1. **Die IP reist mit der Sitzung, nicht mit der Sitzungszeile.**
+   `aktuelleSitzung()` liest sie aus der Anfrage (`anfrageAdresse`: erster
+   Eintrag aus `x-forwarded-for`, sonst `x-real-ip`, nur was `isIP` als
+   Adresse erkennt — dieselbe Regel wie am Einmalcode und an der Freigabe),
+   `bindeSitzung` setzt `app.ip`. Damit tragen alle Wege sie, die über
+   `withTenant`, `bindeAnfrage`, `bindePersoenlich`, `withGroupScope` oder
+   `withPersonScope` binden. Ohne Anfrage (Hintergrundlauf, Test) bleibt die
+   Spalte leer statt erfunden.
+2. **Ein kaputter Wert wird NULL, nicht ein Abbruch** (0415).
+   `app.protokolliere` castet nur, was `pg_input_is_valid` für `inet` hält.
+   Vorher hätte ein unbrauchbarer Wert in `app.ip` jede protokollierende
+   Transaktion abgebrochen, auch ein Festschreiben. Kein Ausnahmeblock: der
+   wäre eine Untertransaktion je Protokollzeile im heißesten Pfad (0204).
+3. **Was ein Agentenlauf schreibt, schreibt der Agent.** `alsAgent`
+   (`server/kontext`) setzt `app.akteur_typ = 'agent'` und `app.agent_id` für
+   die Dauer des Laufs und stellt danach zurück; der Orchestrator legt es um
+   alles nach dem Anlegen der Aufgabe (die Aufgabe selbst ist der Auftrag des
+   Menschen). `akteur_id` bleibt der angemeldete Mensch — in wessen Auftrag.
+   `app.protokolliere` schreibt `agent_id` nur zu `akteur_typ = 'agent'`; eine
+   Menschenzeile mit Agentenkennung wäre eine Aussage, die niemand traf.
+   Heute schreibt ein Demolauf selbst keine Protokollzeile (Freigabe und
+   Artefakt tragen keinen Auslöser); die Prüfung misst deshalb den Zustand
+   der Transaktion AM Anlegen der Freigabe — genau den liest jeder
+   protokollierende Auslöser.
+4. **Die öffentliche Formularannahme schreibt keine IP.** Dort handelt der
+   Dienstprinzipal `formular_eingang` für einen anonymen Besucher, und dessen
+   rohe Adresse wird nirgends gespeichert (02-CRM-OPERATIONS,
+   `formular_eingang.ip_hash`: „The raw IP is never stored"). Das Protokoll
+   macht davon keine Ausnahme; SEC-A9 meint den angemeldeten Akteur.
+5. **Die Protokollseiten nennen bei einer Agentenzeile den Agenten**, nicht
+   den auslösenden Menschen (Gesellschaft und Gruppe).
+6. **Der Eigentümer von `app.protokolliere` bleibt `postgres`** (Altlast nach
+   D-300). `cse_definer` bekäme sonst ein INSERT auf `audit_log` — den
+   Schreibpfad für jede Definer-Funktion, den 0204 bewusst verweigert.
+
+**Offen, und nicht hier zu entscheiden:** wie lange die IP im Protokoll
+stehen darf. Das ist eine Lösch- und Aufbewahrungsregel und gehört zu O-92;
+der Marker steht in 0415.
+
+| Betrifft | SEC-A9, LEG-09, O-92, D-300, V-163, `drizzle/0415`, `src/server/auth/adresse.ts`, `src/server/auth/anfrage-sitzung.ts`, `src/server/kontext/index.ts`, `src/server/agent/orchestrator.ts`, `src/app/portal/[mandant]/einstellungen/protokoll/page.tsx`, `src/app/portal/gruppe/protokoll/page.tsx`, `tests/isolation/pruefprotokoll-ip-agent.test.ts`, `tests/kern/anfrage-adresse.test.ts` |
+|---|---|
