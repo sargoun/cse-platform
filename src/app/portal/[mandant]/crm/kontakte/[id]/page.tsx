@@ -136,8 +136,26 @@ export default async function Kontaktblatt(
     'crm.rechtsgrundlage_setzen', 'crm.rechtsgrundlage_lesen', 'system.benutzer_lesen',
     'crm.schreiben', 'aufgabe.schreiben', 'kalender.schreiben', 'dokument.lesen');
 
+  const darfNamen = darf['system.benutzer_lesen'] === true;
+
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
+      /*
+       * **Die Auswahl der Zustaendigen nur mit `system.benutzer_lesen`**
+       * (V-079). Eine Liste, die Namen nennt, IST die Auskunft — AUT-06 gilt
+       * auch fuer ein `<select>`. Ohne das Recht bleibt „mir selbst
+       * zuweisen", und dafuer braucht es keinen fremden Namen.
+       */
+      const zustaendige = darfNamen
+        ? await kontext.abfrage<{ id: string; name: string }>(
+          `select distinct b.id, b.name
+             from benutzer b
+             join benutzer_mandant bm on bm.benutzer_id = b.id
+            where bm.mandant_id = app.aktiver_mandant()
+              and b.status = 'aktiv' and b.deaktiviert_am is null
+              and not b.ist_dienstkonto
+            order by b.name limit 200`)
+        : [];
       const [kopf] = await kontext.abfrage<Kopf>(
         `select ap.id, ap.anrede, ap.titel,
                 btrim(coalesce(ap.vorname, '') || ' ' || ap.nachname) as name,
@@ -179,14 +197,15 @@ export default async function Kontaktblatt(
           order by la.geschehen_am desc
           limit 50`, [id]);
 
-      return { kopf, stand, kundenLage, antworten, verlauf };
+      return { kopf, stand, kundenLage, antworten, verlauf, zustaendige };
     })) as Promise<{
       kopf: Kopf; stand: GrundlageStand | null; kundenLage: KundenLage | null;
       antworten: readonly TorAntwort[]; verlauf: readonly VerlaufZeile[];
+      zustaendige: readonly { id: string; name: string }[];
     } | null>);
 
   if (daten === null) notFound();
-  const { kopf, stand, kundenLage, antworten, verlauf } = daten;
+  const { kopf, stand, kundenLage, antworten, verlauf, zustaendige } = daten;
 
   /*
    * `abmeldezeileGerendert = null` — NICHT `true`.
@@ -609,6 +628,39 @@ export default async function Kontaktblatt(
                 Zeitpunkt gespeichert (Invariante 2). Eine Frist bestimmt ein Mensch —
                 <code className="text-text"> geschehen_am</code> bleibt die Serverzeit.
               </span>
+
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                Zuständig
+                {/*
+                  **V-079** — die Route liest `zustaendigBenutzerId` seit je,
+                  und kein Formular schickte es. Eine Wiedervorlage ohne
+                  Zuständigen steht in der Liste mit „niemand zugewiesen" und
+                  wartet auf niemanden.
+                */}
+                {darfNamen ? (
+                  <select name="zustaendigBenutzerId" defaultValue="" className={FELD}
+                          data-cse="wv-zustaendig">
+                    <option value="">niemandem zugewiesen</option>
+                    {zustaendige.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-s3">
+                      <input type="checkbox" name="zustaendigBenutzerId"
+                             value={sitzung.benutzerId} className="min-h-5 min-w-5"
+                             data-cse="wv-mir" />
+                      Mir selbst zuweisen
+                    </span>
+                    <span className="text-xs text-text-muted">
+                      Andere Menschen stehen hier nicht zur Wahl — dafür fehlt
+                      `system.benutzer_lesen`. Eine Auswahlliste, die Namen nennt, wäre
+                      selbst die Auskunft.
+                    </span>
+                  </>
+                )}
+              </label>
 
               <label className="flex flex-col gap-s2 text-sm text-text">
                 Notiz (optional)

@@ -11,6 +11,11 @@ import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { LEAD_TEXTE } from '@/lib/i18n/verwaltung/crm-lead';
 
 /**
  * `/portal/[mandant]/crm/leads/[id]` — eine Anfrage, ihr Verlauf und ihr
@@ -27,6 +32,14 @@ import { kennungOder404 } from '../../../../kennung';
  * liegen — genau so verliert man sie.
  */
 export const dynamic = 'force-dynamic';
+
+/** Die sechs Werte von `lead_status` (0017) — in der Reihenfolge des Vorgangs. */
+const STAENDE: readonly string[] = [
+  'neu', 'in_bearbeitung', 'angebot', 'gewonnen', 'verloren', 'kein_bedarf',
+];
+
+const CRM_FELD = 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 '
+  + 'text-sm text-text';
 
 const STATUS_PILLE: Readonly<Record<string, PillZustand>> = {
   neu: 'Offen', in_bearbeitung: 'In Arbeit', qualifiziert: 'Bereit',
@@ -70,7 +83,10 @@ interface AktivitaetZeile {
 }
 
 export default async function LeadDetail(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
@@ -82,6 +98,14 @@ export default async function LeadDetail(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  const darf = await haeltRechte(sitzung, 'crm.schreiben', 'system.benutzer_lesen');
+  const darfSchreiben = darf['crm.schreiben'] === true;
+  const darfNamen = darf['system.benutzer_lesen'] === true;
+  const t = nachSprache(LEAD_TEXTE, zugang.sprache);
+  const suche = await searchParams;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const pfad = `/portal/${mandant}/crm/leads/${id}`;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -112,11 +136,30 @@ export default async function LeadDetail(
            left join benutzer b on b.id = a.benutzer_id
           where a.lead_id = $1
           order by a.geschehen_am desc`, [id]);
-      return { kopf, verlauf };
-    })) as Promise<{ kopf: Kopf; verlauf: readonly AktivitaetZeile[] } | null>);
+      /*
+       * **Die Auswahl der Zuständigen nur mit `system.benutzer_lesen`**
+       * (V-079). Eine Liste, die Namen nennt, IST die Auskunft — AUT-06 gilt
+       * auch für ein `<select>`. Ohne das Recht bleibt „mir selbst zuweisen",
+       * und dafür braucht es keinen fremden Namen.
+       */
+      const benutzer = darfNamen
+        ? await kontext.abfrage<{ id: string; name: string }>(
+          `select distinct b.id, b.name
+             from benutzer b
+             join benutzer_mandant bm on bm.benutzer_id = b.id
+            where bm.mandant_id = app.aktiver_mandant()
+              and b.status = 'aktiv' and b.deaktiviert_am is null
+              and not b.ist_dienstkonto
+            order by b.name limit 200`)
+        : [];
+      return { kopf, verlauf, benutzer };
+    })) as Promise<{
+      kopf: Kopf; verlauf: readonly AktivitaetZeile[];
+      benutzer: readonly { id: string; name: string }[];
+    } | null>);
 
   if (daten === null) notFound();
-  const { kopf, verlauf } = daten;
+  const { kopf, verlauf, benutzer } = daten;
 
   return (
     <PortalRahmen
@@ -186,6 +229,124 @@ export default async function LeadDetail(
               <span className="ml-s2 text-text-muted">({kopf.naechste_aktion_am})</span>
             )}
           </p>
+        )}
+
+        {fehler !== null && (
+          <Hinweis art="warnung" cse="lead-fehler" className="mt-s4 max-w-prose">
+            {t.fehler[fehler] ?? fehler}
+          </Hinweis>
+        )}
+
+        {/*
+          **Der Stand liess sich nirgends setzen** (V-077). `setzeLeadStatus`
+          steht seit `crm/anlegen.ts` da, `POST /api/crm/lead` nimmt `status`
+          entgegen — und kein Formular schickte ihn. Eine Anfrage, die niemand
+          weiterstellt, bleibt fuer immer „neu", und die Auswertung nach
+          gewonnen/verloren zaehlt eine leere Menge.
+        */}
+        {darfSchreiben ? (
+          <form method="post" action="/api/crm/lead" data-cse="lead-stand-formular"
+                className="mt-s4 flex max-w-prose flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+            <input type="hidden" name="id" value={id} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <h3 className="m-0 text-base text-text">{t.standTitel}</h3>
+            <p className="m-0 text-sm text-text-muted">{t.standErklaerung}</p>
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.stand}
+              <select name="status" defaultValue={kopf.status} className={CRM_FELD}
+                      data-cse="lead-stand">
+                {STAENDE.map((w) => (
+                  <option key={w} value={w}>{t.standWerte[w] ?? w}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.verlustGrund}
+              <input name="grund" maxLength={300} className={CRM_FELD} data-cse="lead-grund" />
+              <span className="text-xs text-text-muted">{t.verlustGrundErklaerung}</span>
+            </label>
+            <div>
+              <button type="submit" data-cse="lead-stand-speichern"
+                      className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm text-white hover:bg-brand-hover">
+                {t.standSpeichern}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <Hinweis art="hinweis" cse="lead-kein-recht" className="mt-s4 max-w-prose">
+            {t.keinSchreibrecht} <Recht schluessel="crm.schreiben" sprache={zugang.sprache} />.
+          </Hinweis>
+        )}
+
+        {/*
+          **Eine Wiedervorlage liess sich niemandem zuweisen** (V-079). Die
+          Route liest `zustaendigBenutzerId` und `leadId` — und das einzige
+          Anlegeformular stand auf dem Kontaktblatt und schickte weder das eine
+          noch das andere. Eine Wiedervorlage ohne Zustaendigen steht in der
+          Liste mit „niemand zugewiesen" und wartet auf niemanden.
+        */}
+        {darfSchreiben && (
+          <form method="post" action="/api/crm/wiedervorlage" data-cse="lead-wv-formular"
+                className="mt-s4 flex max-w-prose flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+            <input type="hidden" name="was" value="anlegen" />
+            <input type="hidden" name="leadId" value={id} />
+            {kopf.kunde_id !== null && (
+              <input type="hidden" name="kundeId" value={kopf.kunde_id} />
+            )}
+            <input type="hidden" name="zurueck" value={pfad} />
+            <h3 className="m-0 text-base text-text">{t.wvTitel}</h3>
+            <p className="m-0 text-sm text-text-muted">{t.wvErklaerung}</p>
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.wvBetreff}
+              <input name="betreff" required maxLength={200} className={CRM_FELD}
+                     defaultValue={kopf.betreff ?? ''} data-cse="lead-wv-betreff" />
+            </label>
+            <div className="flex flex-wrap gap-s4">
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                {t.wvFaellig}
+                <input type="datetime-local" name="faelligAm" required className={CRM_FELD}
+                       data-cse="lead-wv-faellig" />
+              </label>
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                {t.wvErinnerung} <span className="text-text-muted">{t.freiwillig}</span>
+                <input type="datetime-local" name="erinnerungAm" className={CRM_FELD}
+                       data-cse="lead-wv-erinnerung" />
+              </label>
+            </div>
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.wvZustaendig}
+              {darfNamen ? (
+                <select name="zustaendigBenutzerId" defaultValue="" className={CRM_FELD}
+                        data-cse="lead-wv-zustaendig">
+                  <option value="">{t.wvNiemand}</option>
+                  {benutzer.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <>
+                  <span className="flex items-center gap-s3">
+                    <input type="checkbox" name="zustaendigBenutzerId"
+                           value={sitzung.benutzerId} className="min-h-5 min-w-5"
+                           data-cse="lead-wv-mir" />
+                    {t.wvMirSelbst}
+                  </span>
+                  <span className="text-xs text-text-muted">{t.wvOhneNamensrecht}</span>
+                </>
+              )}
+            </label>
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.wvNotiz} <span className="text-text-muted">{t.freiwillig}</span>
+              <textarea name="notiz" rows={2} maxLength={500} className={CRM_FELD}
+                        data-cse="lead-wv-notiz" />
+            </label>
+            <div>
+              <button type="submit" data-cse="lead-wv-anlegen"
+                      className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 text-sm text-text hover:bg-surface-2">
+                {t.wvAnlegen}
+              </button>
+            </div>
+          </form>
         )}
 
         <form
