@@ -94,10 +94,33 @@ $env:DATABASE_URL     = $DatenbankUrl
 $env:CSE_DEV_FLAECHEN = '1'
 $env:PORT             = "$Port"
 
+# -- Speicher fuer den Bau --------------------------------------------------
+# Gemeldet von einem frischen Windows-Rechner, nach einer Stunde Laufzeit:
+# Abhaengigkeiten, Datenbank, 391 Migrationen, Seed und Texte liefen durch --
+# und `pnpm build` starb im letzten Schritt mit
+#
+#   FATAL ERROR: Ineffective mark-compacts near heap limit
+#   Allocation failed - JavaScript heap out of memory
+#   [...] Mark-Compact 2037.7 (2050.7) MB
+#
+# Node gibt einem Prozess von sich aus rund 2 GB. `next build` prueft dabei die
+# Typen des GANZEN Projekts, und das braucht mehr: `tsc --noEmit` ueber
+# denselben Baum belegt gemessen rund 3,3 GB. Der Bau scheiterte also nicht an
+# einem Fehler im Code, sondern an einer Grenze, die niemand gesetzt hatte.
+#
+# 6144 MB ist eine OBERGRENZE, keine Reservierung: V8 nimmt nur, was es
+# braucht, und hat damit fast das Doppelte des Gemessenen als Luft -- ohne einen
+# Rechner mit 8 GB zu ueberfordern. Hat jemand NODE_OPTIONS schon mit einer
+# eigenen Grenze gesetzt, gewinnt seine.
+if (-not ("$env:NODE_OPTIONS" -match 'max-old-space-size')) {
+  $env:NODE_OPTIONS = ("$env:NODE_OPTIONS --max-old-space-size=6144").Trim()
+}
+
 Titel 'Umgebung'
 Hinweis "DATABASE_URL     = $env:DATABASE_URL"
 Hinweis "CSE_DEV_FLAECHEN = $env:CSE_DEV_FLAECHEN  (Demodaten, Code auf dem Bildschirm, Kekse ohne Secure)"
 Hinweis "PORT             = $env:PORT"
+Hinweis "NODE_OPTIONS     = $env:NODE_OPTIONS  (Speicher fuer den Bau)"
 
 # -- Einen laufenden Server ZUERST beenden ---------------------------------
 # Das ist der Schritt, dessen Fehlen das Protokoll oben erzeugt hat.

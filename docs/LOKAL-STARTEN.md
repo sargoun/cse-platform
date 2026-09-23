@@ -34,6 +34,17 @@ kann:
 
 Schalter: `-Port 3002` · `-DatenBehalten` · `-OhneBau`.
 
+**Speicher.** Das Skript setzt `NODE_OPTIONS=--max-old-space-size=6144`, wenn
+nichts anderes gesetzt ist. Ohne das stirbt `pnpm build` auf einem frischen
+Rechner im letzten Schritt mit `JavaScript heap out of memory` — Node gibt
+einem Prozess von sich aus rund 2 GB, und die Typprüfung des ganzen Projekts
+braucht gemessen rund 3,3 GB. Wer die Befehle von Hand ausführt, setzt es
+vorher selbst:
+
+```powershell
+$env:NODE_OPTIONS = "--max-old-space-size=6144"
+```
+
 Am Ende nennt er die Adresse fuer das Telefon und die Konten zum Anmelden.
 
 ---
