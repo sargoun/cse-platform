@@ -13,6 +13,14 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { berlinHeute } from '@/server/db/heute';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
+import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { BUDGET_TEXTE } from '@/lib/i18n/verwaltung/agent-budget';
 
 /**
  * `/portal/[mandant]/agenten/budget` — Obergrenze, Verbrauch, Reservierung
@@ -37,6 +45,10 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  * sähe aus wie eine Entscheidung.
  */
 export const dynamic = 'force-dynamic';
+
+const RECHT_BUDGET = 'agent.budget_verwalten';
+const FELD = 'min-h-11 w-full rounded-md border border-line bg-surface px-s3 py-s2 '
+  + 'text-sm text-text';
 
 const BUDGET_PILLE: Readonly<Record<string, PillZustand>> = {
   aktiv: 'Aktiv',
@@ -75,7 +87,10 @@ function anteilProzent(verbrauchMikrocent: bigint, budgetCent: bigint): number {
 }
 
 export default async function AgentBudget(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
   const zugang = await portalZugang(`/portal/${mandant}/agenten/budget`);
@@ -87,7 +102,7 @@ export default async function AgentBudget(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
-  const { budgets, offen } = await (db().begin(SCHNAPPSCHUSS,
+  const { budgets, offen, agenten } = await (db().begin(SCHNAPPSCHUSS,
     async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => {
       const budgets = await kontext.abfrage<BudgetZeile>(
         `select b.id, b.geltungsbereich::text as bereich, ag.name as agent,
@@ -117,9 +132,26 @@ export default async function AgentBudget(
           where r.freigegeben_am is null
           order by r.verfaellt_am`);
 
-      return { budgets, offen };
-    }))) as { budgets: readonly BudgetZeile[]; offen: readonly Offen[] };
+      /* Fuer die Auswahl im Formular — nur die, die es in dieser
+         Gesellschaft ueberhaupt gibt. */
+      const agenten = await kontext.abfrage<{ id: string; name: string }>(
+        `select id, name from agent order by name`);
 
+      return { budgets, offen, agenten };
+    }))) as { budgets: readonly BudgetZeile[]; offen: readonly Offen[];
+      agenten: readonly { id: string; name: string }[] };
+
+  /* Der laufende Monat kommt aus der DATENBANK, nicht aus dem Node-Prozess
+     (Invariante 2): am Ersten um 00:30 Berliner Zeit ist der UTC-Monat noch
+     der alte, und das Formular schlüge den falschen Monat vor. */
+  const heuteBerlin = await berlinHeute();
+  const jahrJetzt = Number(heuteBerlin.slice(0, 4));
+  const monatJetzt = Number(heuteBerlin.slice(5, 7));
+  const suche = await searchParams;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const gesetzt = suche['gesetzt'] !== undefined;
+  const darf = await haeltRechte(sitzung, RECHT_BUDGET);
+  const t = nachSprache(BUDGET_TEXTE, zugang.sprache);
   const gestoppt = budgets.filter((b) => b.status === 'gestoppt');
 
   return (
@@ -266,11 +298,93 @@ export default async function AgentBudget(
         />
       )}
 
-      <p className="mt-s5 text-xs text-text-subtle">
-        Warnschwelle: nicht hinterlegt (offene Frage O-195). AGT-05 nennt eine
-        Obergrenze und einen harten Stopp; ab welchem Anteil vorher gewarnt
-        wird, ist eine Finanzregel und wird nicht erfunden.
-      </p>
+      {/*
+        **Die Obergrenze setzen** (V-015). Bis dahin las diese Seite
+        `agent_budget` und zeigte sie sauber an — angelegt hat eine Zeile nur
+        der Seed, mit `budget_cent is null`. Das heisst „kein Budget
+        entschieden", und darauf antwortet `app.agent_budget_pruefen` mit
+        `budget_fehlt`: es lief kein einziger Agent.
+      */}
+      <h2 className="mb-s2 mt-s6 text-h2 text-text">{t.titel}</h2>
+      <p className="mb-s4 max-w-prose text-sm text-text-muted">{t.erklaerung}</p>
+
+      {gesetzt && fehler === null && (
+        <Hinweis art="erfolg" cse="budget-gesetzt" className="mb-s4 max-w-prose">
+          {t.gesetzt}
+        </Hinweis>
+      )}
+      {fehler !== null && (
+        <Hinweis art="warnung" cse="budget-fehler" className="mb-s4 max-w-prose">
+          {t.fehler[fehler] ?? fehler}
+        </Hinweis>
+      )}
+
+      {darf[RECHT_BUDGET] !== true ? (
+        <Hinweis art="hinweis" cse="budget-kein-recht" className="max-w-prose">
+          {t.keinSchreibrecht} <Recht schluessel={RECHT_BUDGET} sprache={zugang.sprache} />.
+          {' '}{t.warumRecht}
+        </Hinweis>
+      ) : (
+        <Card>
+          <form method="post" action="/api/agenten/budget" data-cse="budget-formular"
+                className="flex max-w-[60ch] flex-col gap-s5">
+            <input type="hidden" name="mandant" value={mandant} />
+            <p className="m-0 text-sm text-text-muted">{t.warumRecht}</p>
+
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.geltung}
+              <select name="agent" className={FELD} defaultValue="" data-cse="budget-agent">
+                <option value="">{t.fuerMandant}</option>
+                {agenten.map((a) => (
+                  <option key={a.id} value={a.id}>{t.fuerAgent}: {a.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <div className="flex flex-wrap gap-s4">
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                {t.jahr}
+                <input type="number" name="jahr" min={2000} max={2100} required
+                       defaultValue={jahrJetzt} className={FELD} data-cse="budget-jahr" />
+              </label>
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                {t.monat}
+                <input type="number" name="monat" min={1} max={12} required
+                       defaultValue={monatJetzt} className={FELD} data-cse="budget-monat" />
+              </label>
+            </div>
+
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.betrag}
+              <input name="budget" required inputMode="decimal" maxLength={20}
+                     className={FELD} data-cse="budget-betrag" />
+              <span className="text-xs text-text-muted">{t.betragErklaerung}</span>
+            </label>
+
+            <label className="flex items-start gap-s3 text-sm text-text">
+              <input type="checkbox" name="stopp" value="1" defaultChecked
+                     className="mt-s1 min-h-5 min-w-5" data-cse="budget-stopp" />
+              <span>
+                {t.stopp}
+                <span className="mt-s1 block text-xs text-text-muted">{t.stoppErklaerung}</span>
+              </span>
+            </label>
+
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.warnschwelle} <span className="text-text-muted">{t.freiwillig}</span>
+              <input type="number" name="warnschwelle" min={1} max={100}
+                     className={FELD} data-cse="budget-warnschwelle" />
+              <span className="text-xs text-text-muted">{t.warnschwelleErklaerung}</span>
+            </label>
+
+            <div>
+              <Button type="submit" variante="primary" data-cse="budget-speichern">
+                {t.speichern}
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
     </PortalRahmen>
   );
 }

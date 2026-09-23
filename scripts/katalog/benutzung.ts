@@ -97,7 +97,7 @@ function ohneRegisterKennungen(inhalt: string): string {
  * `app.rechte_mandanten('gruppe.…')` findet `AUFRUF` weiterhin, und ein
  * Tippfehler dort bricht den Build wie zuvor.
  */
-function ohneSqlRegister(inhalt: string): string {
+export function ohneSqlRegister(inhalt: string): string {
   return inhalt
     // (1) Betriebseinstellungen: `app.einstellung(<mandant>, '<schluessel>')`
     //     und die einargumentige Form. Eigentümer: 01-KERN §6.30.
@@ -169,6 +169,31 @@ function ohneSqlRegister(inhalt: string): string {
     .replace(
       /\b(?:const|let|var)\s+EINSTELLUNG_[A-Z0-9_]*\s*(?::[^=\n]+)?=\s*['"`][a-z_.]+['"`]/gu,
       "const EINSTELLUNG_X = '_'")
+    /**
+     * (4c) Das SECHSTE Register: die Auditaktionen als benannte Konstante.
+     *
+     * Derselbe Fall wie (4b) und aus demselben Grund. Filter (2) schneidet
+     * `app.protokolliere('zeit.eingestempelt', …)` heraus — und deckt damit
+     * nur die Aktionen, die als LITERAL im Aufruf stehen. Sobald ein Dienst
+     * mehr als eine Aktion schreibt, wandert der Aufruf in einen Helfer und
+     * der Name in einen Parameter:
+     *
+     *     protokolliere(kontext, id, AUDIT_BEENDET, { … })
+     *
+     * Der Name steht dann nirgends mehr innerhalb von `app.protokolliere(`,
+     * und die Aktion meldete sich als unregistriertes Recht — obwohl sie nie
+     * eines war. Genau so ist es bei `services/dienstplan/serie-pflege.ts`
+     * passiert.
+     *
+     * **Nur der Name der Konstante entscheidet, und nur ein GROSS
+     * geschriebener.** `AUDIT_BEENDET` ist eine Aussage des Schreibenden
+     * darueber, in welches Register der Wert gehoert. Ein Recht heisst in
+     * denselben Dateien `RECHT_…` und bleibt ungedeckt, also weiter geprueft
+     * — ein Tippfehler DORT wird nach wie vor laut.
+     */
+    .replace(
+      /\b(?:const|let|var)\s+AUDIT_[A-Z0-9_]*\s*(?::[^=\n]+)?=\s*['"`][a-z_.]+['"`]/gu,
+      "const AUDIT_X = '_'")
     /**
      * (5) Das FUENFTE Register: die Benachrichtigungsarten.
      *

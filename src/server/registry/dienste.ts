@@ -1205,6 +1205,18 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'dienstplan', pfad: 'dienstplan/einzelschicht',
     schreibend: true, schreibRecht: 'dienstplan.schreiben',
   },
+  /* V-021 — eine Serie aendern, beenden, archivieren. `archiviert_am` stand
+     seit 0028 da und wurde nie geschrieben. */
+  {
+    modul: 'dienstplan', pfad: 'dienstplan/serie-pflege',
+    schreibend: true, schreibRecht: 'dienstplan.schreiben',
+  },
+  /* V-015 — die eine Zahl, ohne die kein Agent laeuft. Eigenes Recht, weil
+     sich sonst begrenzt, wer seine Grenze selbst verstellt (AGT-05). */
+  {
+    modul: 'agent', pfad: 'agent/budget-pflege',
+    schreibend: true, schreibRecht: 'agent.budget_verwalten',
+  },
   {
     modul: 'dokument', pfad: 'dokument/aufbewahrung',
     schreibend: true, schreibRecht: 'dokument.aufbewahrung_verwalten',

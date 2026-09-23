@@ -2345,6 +2345,34 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * V-021, TIM-02, TIM-03. Eine Serie AENDERN, BEENDEN oder ARCHIVIEREN.
+     *
+     * Dasselbe Rechtepaar wie bei den Ausnahmen daneben und aus demselben
+     * Grund: die Route gehoert dem Dienstplan, die Schreibpolicy der Tabelle
+     * fragt das Gewerk (`turnus` → `reinigung.schreiben` (0029), `posten` →
+     * `security.schreiben` (0069)). `horizont` und `archivieren` schreiben
+     * nur auf `planungsserie` und brauchen nur `dienstplan.schreiben` — das
+     * Ausfuehrungsprotokoll des Generators gehoert dem Dienstplan.
+     */
+    pfad: 'api/dienstplan/serien/[id]',
+    recht: 'dienstplan.schreiben',
+  },
+  {
+    /**
+     * V-015, AGT-05. Die Obergrenze eines Monats setzen.
+     *
+     * **`agent.budget_verwalten` und ausdruecklich NICHT
+     * `agent.aufgabe_starten`.** Das zweite haelt auch eine `leitung`; wer
+     * damit auch die Obergrenze setzen duerfte, verstellte seine eigene
+     * Grenze, und AGT-05 haette keine. `0385` zieht die Schreibpolicy auf
+     * `agent_budget` auf dasselbe Recht nach — die Route prueft es, damit
+     * der Mensch einen Satz bekommt statt „null Zeilen betroffen".
+     */
+    pfad: 'api/agenten/budget',
+    recht: 'agent.budget_verwalten',
+  },
+  {
+    /**
      * Einen Zeitraum bekanntgeben (TIM-01, NOT-01). Geschrieben wird ueber
      * `app.dienstplan_veroeffentlichung_anlegen` (0266) — `cse_app` haelt auf
      * `benachrichtigung` kein Tabellenrecht INSERT. Die Leserechte
