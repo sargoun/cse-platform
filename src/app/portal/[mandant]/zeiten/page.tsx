@@ -316,12 +316,47 @@ export default async function Zeitliste({
         )}
       </form>
 
+      {/*
+        * **Ein Merkmal, das heute keine Zeile trifft — und warum das so
+        * bleibt** (V-083).
+        *
+        * `zeiteintrag_status` führt `offen_nacherfassung` seit `0034`, und
+        * NICHTS im Baum schreibt den Wert. Das ist kein Versehen: er wäre der
+        * ehrliche Zustand für „von der Planung gesetzt, aber noch nicht
+        * bestätigt" — nur beschreibt kein Dokument, wer ihn wieder wegnimmt
+        * und was bis dahin gilt (zählt die Stunde ins Stundenkonto? steht sie
+        * im Monatsnachweis? darf sie abgerechnet werden?). Ein Eintrag in
+        * einem Zustand, aus dem kein Weg herausführt, ist schlimmer als
+        * keiner, und die Frage steht als O-890 beim Auftraggeber.
+        *
+        * Das Merkmal BLEIBT in der Liste: der Satz der Merkmale ist der Satz
+        * der Zustände, und eines herauszunehmen hiesse, die Auswahl bei der
+        * Antwort wieder zu ändern und bis dahin zu verschweigen, dass es den
+        * Zustand gibt. Was fehlte, war der Satz daneben — eine leere Liste
+        * sagt nicht, ob niemand gearbeitet hat oder ob dieser Zustand gar
+        * nicht entstehen kann.
+        */}
+      {filter.merkmal === 'offen_nacherfassung' ? (
+        <p data-cse="merkmal-ohne-erzeuger"
+           className="mb-s4 max-w-prose rounded-lg border border-line bg-surface-2 p-s4 text-sm text-text">
+          <strong>Diesen Zustand erzeugt heute nichts.</strong> Ob eine von der
+          Verwaltung gesetzte Zeit gegengezeichnet werden muss, bevor sie abrechenbar
+          ist, ist offen (O-890) — bis zur Antwort schliesst die Verwaltung nach
+          „Abgeschlossen", und die gesetzte Zeit bleibt als solche erkennbar. Wer
+          nachgetragene Einträge sucht, filtert nach{' '}
+          <strong>{MERKMAL_TEXT['nacherfasst']}</strong>.
+        </p>
+      ) : null}
+
       {zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Für diese Woche ist nichts erfasst
-          {filter.personId !== null || filter.objektId !== null || filter.merkmal !== null
-            ? ' — jedenfalls nichts, das dem Filter entspricht.'
-            : '. Das heißt: niemand hat gestempelt — nicht, dass niemand gearbeitet hätte.'}
+          {filter.merkmal === 'offen_nacherfassung'
+            ? ' — und nach diesem Merkmal wird auch in keiner anderen Woche etwas stehen,'
+              + ' solange O-890 offen ist.'
+            : filter.personId !== null || filter.objektId !== null || filter.merkmal !== null
+              ? ' — jedenfalls nichts, das dem Filter entspricht.'
+              : '. Das heißt: niemand hat gestempelt — nicht, dass niemand gearbeitet hätte.'}
         </p>
       ) : (
         <DataTable
