@@ -23,7 +23,7 @@
  */
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { PDFDocument, PDFName, PDFRawStream, PDFDict } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFRawStream, type PDFDict } from 'pdf-lib';
 import {
   SCHEMA_VERSION, SCHEMA_VERSION_V2, SCHEMA_VERSION_V3, buildKanonischePayload,
   type RechnungsLogo, type RechnungVollstaendig,

@@ -1173,6 +1173,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * sie liest nichts und schreibt nichts.
    */
   { modul: 'finanzen', pfad: 'finanz/zahlungsmittel', schreibend: false },
+  /*
+   * V-132, D-625: welches Logo eine Rechnung druckt — eine reine Wahl aus zwei
+   * Pfaden und die Prüfung des Schlüssels; sie liest und schreibt nichts.
+   */
+  { modul: 'finanzen', pfad: 'finanz/rechnungslogo', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/index', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/xml', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xml-lesen', schreibend: false },
