@@ -147,6 +147,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'buchhaltung', pfad: 'buchhaltung/datev/export',
     schreibend: true, schreibRecht: 'buchhaltung.exportieren',
   },
+  /**
+   * Der Vermerk am Stapel (V-027) — dasselbe Recht wie beim Erzeugen. Er
+   * SENDET nichts: es gibt keinen DATEV-Endpunkt (O-05); wer die Datei dem
+   * Steuerbuero gibt, ist ein Mensch, und was hier entsteht, ist sein Vermerk
+   * darueber.
+   */
+  {
+    modul: 'buchhaltung', pfad: 'buchhaltung/datev/stapel',
+    schreibend: true, schreibRecht: 'buchhaltung.exportieren',
+  },
   { modul: 'finanzen', pfad: 'finanz/geld', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/steuer/satz', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/hash-chain', schreibend: false },

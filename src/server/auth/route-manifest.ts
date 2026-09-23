@@ -2204,6 +2204,22 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Der VERMERK am Buchungsstapel (V-027): übergeben oder verworfen.
+     *
+     * `buchhaltung.exportieren` — dasselbe Recht, das den Stapel erzeugt und
+     * das `t_mandant` auf `datev_export` im WITH CHECK verlangt. Wer eine
+     * Datei erzeugen darf, vermerkt auch, was aus ihr geworden ist; ein
+     * eigenes Recht trennte zwei Hälften desselben Vorgangs.
+     *
+     * **Sie sendet nichts.** Es gibt keinen DATEV-Endpunkt und keine
+     * Zugangsdaten (O-05). Was hier entsteht, ist der Vermerk eines Menschen
+     * über etwas, das er selbst getan hat.
+     */
+    pfad: 'api/buchhaltung/datev/[id]/stand',
+    recht: 'buchhaltung.exportieren',
+  },
+  {
+    /**
      * Der Abruf einer Datei aus der Ablage (DOC-03, SEC-A6, D-478).
      *
      * `dokument.lesen` im aktiven Mandanten; die Route vermerkt den Abruf

@@ -62,6 +62,25 @@ function offeneParameter(k: VertragAbrechnung): readonly string[] {
     .map((p) => p.schluessel);
 }
 
+/**
+ * Die Sätze zu den Gründen, mit denen `api/abrechnung` zurückkommt (V-024).
+ *
+ * Sie stehen hier, weil sie hier gelesen werden. Vorher antwortete die Route
+ * mit `{"fehler":"keine_abrechnungsart"}` als JSON — eine weisse Seite mit
+ * einem Datenfeld für einen Menschen, der auf einen Knopf gedrückt hat.
+ */
+const FEHLERTEXT: Readonly<Record<string, string>> = {
+  unvollstaendig: 'Es fehlt eine Pflichtangabe.',
+  ungueltig: 'Ein Betrag oder eine Frist war keine gültige Zahl.',
+  keine_abrechnungsart:
+    'Diese Abrechnungsart gibt es nicht mehr, oder sie endet bereits an oder vor dem '
+    + 'genannten Tag.',
+  offener_parameter:
+    'Der gewählten Art fehlt ein Parameter, der im Vertrag stehen muss. Nichts wurde '
+    + 'gespeichert und nichts geraten (O-04).',
+  unbekannte_art: 'Für diese Abrechnungsart ist keine Umsetzung registriert.',
+};
+
 function betragDerArt(k: VertragAbrechnung): string {
   if (k.pauschaleNettoCent !== null) {
     return `${formatiereGeld(k.pauschaleNettoCent)} je Monat`;
@@ -72,9 +91,14 @@ function betragDerArt(k: VertragAbrechnung): string {
 }
 
 export default async function AuftragAbrechnung(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
+  const suche = await searchParams;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/auftraege/${id}/abrechnung`);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -129,6 +153,16 @@ export default async function AuftragAbrechnung(
         */}
       <h1 className="mb-s2 text-h1 text-text">Abrechnung</h1>
       <p className="mb-s5 text-sm text-text-muted">{daten.kopf.kunde}</p>
+
+      {fehler === null ? null : (
+        <p
+          data-cse="abrechnung-fehler"
+          className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-warning"
+        >
+          <strong>Nichts wurde gespeichert.</strong>{' '}
+          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+        </p>
+      )}
 
       {daten.konfigurationen.length === 0 ? (
         <p className="max-w-prose rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-warning">
@@ -210,6 +244,53 @@ export default async function AuftragAbrechnung(
                     registriert. Der Auftrag lässt sich nicht berechnen.
                   </p>
                 ) : null}
+
+                {/*
+                  * **Eine laufende Konfiguration beenden** (V-024).
+                  *
+                  * `aktion=beenden` steht seit je in `api/abrechnung` und
+                  * `beendeKonfiguration` im Dienst — nur schickte kein
+                  * Formular sie je. Eine Abrechnungsart, die einmal gilt,
+                  * galt damit für immer: die Reihe konnte nur wachsen, und
+                  * der Preisstand von 2024 stand neben dem von 2026 ohne Ende.
+                  *
+                  * **Sie wird nicht gelöscht, sondern datiert beendet.** Eine
+                  * festgeschriebene Rechnung muss nachrechenbar bleiben; die
+                  * Reihe ist die Antwort auf „nach welcher Regel ist das
+                  * entstanden".
+                  */}
+                {k.gueltigBis !== null ? null : (
+                  <form
+                    method="post"
+                    action={`/api/abrechnung?mandant=${mandant}`}
+                    data-cse="abrechnung-beenden"
+                    className="mt-s4 flex flex-wrap items-end gap-s3 border-t border-line pt-s4"
+                  >
+                    <input type="hidden" name="aktion" value="beenden" />
+                    <input type="hidden" name="auftragId" value={id} />
+                    <input type="hidden" name="konfigurationId" value={k.id} />
+                    <div className="min-w-[14ch] flex-1">
+                      <label className="block text-sm text-text" htmlFor={`bis-${k.id}`}>
+                        Gilt letztmals am
+                      </label>
+                      <input
+                        id={`bis-${k.id}`} name="gueltigBis" type="date" required
+                        min={k.gueltigAb} className={FELD}
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
+                    >
+                      Beenden
+                    </button>
+                    <p className="w-full text-xs text-text-muted">
+                      Der Tag zählt mit. Ab dem Folgetag greift die nächste
+                      Konfiguration — gibt es keine, lässt sich der Auftrag
+                      danach nicht mehr berechnen.
+                    </p>
+                  </form>
+                )}
               </li>
             );
           })}
