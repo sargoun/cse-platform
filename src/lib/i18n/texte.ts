@@ -714,6 +714,17 @@ export interface MeinTexte {
   readonly gemeldetAm: string;
   readonly storniertAm: string;
   readonly halbeTage: string;
+  /**
+   * Zwei offene Leistungsnachweise auf einer Schicht (V-058, CLN-04).
+   *
+   * Bis dahin war das eine Sackgasse: die Seite zeigte das Unterschriftsblatt
+   * nur bei GENAU EINEM offenen Nachweis — und darunter, bei zweien, das
+   * ANLEGEFORMULAR. Jeder Klick ein dritter. Jetzt wählt der Mensch, der die
+   * Schicht gearbeitet hat.
+   */
+  readonly mehrereOffen: string;
+  readonly mehrereOffenHinweis: string;
+  readonly diesenUnterschreiben: string;
 
   readonly wachbuch: string;
   readonly wachbuchNeu: string;
@@ -1077,6 +1088,12 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     gemeldetAm: 'Gemeldet am',
     storniertAm: 'Zurückgenommen am',
     halbeTage: 'Halbe Tage',
+    mehrereOffen: 'Mehrere offene Nachweise',
+    mehrereOffenHinweis:
+      'Auf dieser Schicht sind mehrere Nachweise offen. Welcher jetzt unterschrieben wird, '
+      + 'kann der Bildschirm nicht wissen — Sie waren da. Wählen Sie ihn aus. Ein weiterer '
+      + 'Nachweis lässt sich hier nicht anlegen, solange mehrere offen sind.',
+    diesenUnterschreiben: 'Diesen unterschreiben',
     zurueckziehenHinweis:
       'Zurückziehen geht, solange niemand entschieden hat. Der Antrag bleibt lesbar.',
     wachbuch: 'Wachbuch',
@@ -1402,6 +1419,12 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     gemeldetAm: 'Reported on',
     storniertAm: 'Withdrawn on',
     halbeTage: 'Half days',
+    mehrereOffen: 'Several open records',
+    mehrereOffenHinweis:
+      'Several records are open on this shift. Which one is being signed now is not '
+      + 'something the screen can know — you were there. Pick it. No further record can be '
+      + 'created here while several are open.',
+    diesenUnterschreiben: 'Sign this one',
     zurueckziehenHinweis:
       'You can withdraw while nobody has decided. The request stays readable.',
     wachbuch: 'Security log',
@@ -1720,6 +1743,11 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     gemeldetAm: 'أُبلغ في',
     storniertAm: 'سُحب في',
     halbeTage: 'أنصاف الأيام',
+    mehrereOffen: 'عدة إثباتات مفتوحة',
+    mehrereOffenHinweis:
+      'على هذه الوردية أكثر من إثبات مفتوح. الشاشة ما بتعرف أي واحد بدّو يتوقّع الآن — إنت كنت '
+      + 'هناك. اختار الواحد الصحيح. ما بينفع تنشئ إثبات جديد هون طالما في أكتر من واحد مفتوح.',
+    diesenUnterschreiben: 'وقّع هذا',
     zurueckziehenHinweis: 'يمكن سحب الطلب ما لم يُتخذ قرار بعد. ويبقى الطلب قابلاً للقراءة.',
     wachbuch: 'دفتر الحراسة',
     wachbuchNeu: 'كتابة قيد',
@@ -2031,6 +2059,11 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     gemeldetAm: 'Bildirim tarihi',
     storniertAm: 'Geri çekilme tarihi',
     halbeTage: 'Yarım günler',
+    mehrereOffen: 'Birden fazla açık kayıt',
+    mehrereOffenHinweis:
+      'Bu vardiyada birden fazla kayıt açık. Şimdi hangisinin imzalanacağını ekran bilemez — '
+      + 'oradaydınız. Siz seçin. Birden fazlası açıkken burada yeni kayıt oluşturulamaz.',
+    diesenUnterschreiben: 'Bunu imzala',
     zurueckziehenHinweis:
       'Kimse karar vermediği sürece geri çekebilirsiniz. Talep okunabilir kalır.',
     wachbuch: 'Güvenlik defteri',
