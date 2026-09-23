@@ -265,6 +265,32 @@ export default async function Unterschriftsblatt({
         </p>
 
         <div className="mt-s5 flex flex-wrap gap-s3">
+          {/*
+            * **Nachgetragen** (V-078, TIM-09).
+            *
+            * `leistungsnachweis_signatur.nachgetragen` steht seit `0066` da
+            * und wurde nie geschrieben. Der Fall ist alltäglich: das Tablet
+            * ist leer, der Kunde quittiert auf Papier, und die Aufnahme
+            * geschieht am Abend im Büro. Ohne diesen Vermerk sähe die
+            * Unterschrift aus, als wäre sie um 18:40 am Objekt geleistet
+            * worden.
+            *
+            * Keine Uhrabweichung — die misst die Gerätezeit daneben.
+            */}
+          <label className="mb-s4 flex min-h-11 items-start gap-s3 text-sm text-text">
+            <input type="checkbox" name="nachgetragen" value="1" className="mt-s1"
+                   data-cse="unterschrift-nachgetragen" />
+            <span>
+              Nachgetragen
+              <span className="mt-s1 block text-xs text-text-muted">
+                Die Unterschrift wurde früher geleistet — auf Papier oder auf
+                einem anderen Gerät — und wird jetzt erst erfasst. Die Zeit
+                bleibt die des Servers; dieses Häkchen sagt nur, dass sie nicht
+                die Zeit der Unterschrift ist.
+              </span>
+            </span>
+          </label>
+
           <Button type="submit" variante="primary" disabled={!bereit}>
             Unterschreiben
           </Button>

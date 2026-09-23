@@ -196,6 +196,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           prueferExternName: prueferAnstellungId === null ? externName : null,
           mitKunde: daten.get('mit_kunde') === 'ja',
           geraeteZeit,
+          /* V-078: die Prüfung ist früher geschehen und wird jetzt erfasst. */
+          nachgetragen: daten.get('nachgetragen') === '1',
           bemerkung: text(daten, 'bemerkung'),
           positionen,
         });

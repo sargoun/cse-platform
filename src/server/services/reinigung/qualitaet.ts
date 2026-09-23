@@ -167,6 +167,17 @@ export interface PruefungEingabe {
   readonly prueferExternName?: string | null;
   readonly mitKunde?: boolean;
   readonly geraeteZeit?: Date | null;
+  /**
+   * Die Prüfung ist früher geschehen und wird jetzt erst erfasst (V-078,
+   * TIM-09).
+   *
+   * **Keine Uhrabweichung.** Die misst `zeitabweichung_sek` aus der
+   * Gerätezeit daneben; dies ist die Aussage eines Menschen über den VORGANG.
+   * Zwei Dinge in einer Spalte hiessen, dass sich eine um 09:00 begangene und
+   * um 17:00 getippte Prüfung nicht mehr von einer um 17:00 begangenen
+   * unterscheiden lässt.
+   */
+  readonly nachgetragen?: boolean;
   readonly bemerkung?: string | null;
   readonly positionen: readonly {
     readonly kriterium: string;
@@ -238,10 +249,10 @@ export async function erfassePruefung(
   const [kopf] = await kontext.schreibe<{ id: string }>(
     `insert into qualitaetspruefung
        (mandant_id, nummer, objekt_id, revier_id, kunde_id, pruefverfahren_id,
-        geraete_zeit, pruefer_anstellung_id, pruefer_extern_name, mit_kunde,
+        geraete_zeit, nachgetragen, pruefer_anstellung_id, pruefer_extern_name, mit_kunde,
         punkte, max_punkte, bestanden, bemerkung, erstellt_von)
      values (app.aktiver_mandant(), $1, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
-             $6::timestamptz, $7::uuid, $8, $9,
+             $6::timestamptz, $14::boolean, $7::uuid, $8, $9,
              $10::numeric, $11::numeric, $12::boolean, $13, app.aktueller_benutzer())
      returning id`,
     [
@@ -253,6 +264,7 @@ export async function erfassePruefung(
       // NULL, solange O-29 offen ist — nicht `false`.
       urteil === 'unbestimmt' ? null : urteil === 'bestanden',
       eingabe.bemerkung ?? null,
+      eingabe.nachgetragen === true,
     ],
   );
 

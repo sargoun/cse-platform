@@ -294,6 +294,32 @@ export default async function PruefungNeu(
               <input type="checkbox" name="mit_kunde" value="ja" />
               Der Kunde war bei der Prüfung anwesend
             </label>
+            {/*
+              * **Nachgetragen** (V-078, TIM-09).
+              *
+              * `qualitaetspruefung.nachgetragen` steht seit `0068` da, und
+              * ZWEI Seiten zeigen den Vermerk an — geschrieben hat ihn nie
+              * jemand: weder der Dienst noch die Route kannten das Feld. Was
+              * dort stand, war der Vorgabewert der Spalte.
+              *
+              * **Keine Uhrabweichung.** Die misst `zeitabweichung_sek` aus
+              * der Gerätezeit daneben. Zwei Dinge in einer Spalte hiessen,
+              * dass sich eine um 09:00 begangene und um 17:00 getippte
+              * Prüfung nicht mehr von einer um 17:00 begangenen unterscheiden
+              * lässt.
+              */}
+            <label className="flex min-h-11 items-start gap-s3 text-sm text-text">
+              <input type="checkbox" name="nachgetragen" value="1" className="mt-s1"
+                     data-cse="pruefung-nachgetragen" />
+              <span>
+                Nachgetragen
+                <span className="mt-s1 block text-xs text-text-muted">
+                  Die Prüfung ist früher begangen worden und wird jetzt erst
+                  erfasst. Die Zeit bleibt die des Servers; dieses Häkchen sagt
+                  nur, dass sie nicht die Zeit der Begehung ist.
+                </span>
+              </span>
+            </label>
             <label className="block">
               <span className="mb-s1 block text-sm text-text">Bemerkung (optional)</span>
               <textarea name="bemerkung" rows={3} maxLength={2000}

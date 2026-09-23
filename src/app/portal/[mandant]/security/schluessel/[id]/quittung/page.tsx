@@ -275,6 +275,32 @@ export default async function Quittung(
           />
         </label>
 
+        {/*
+          * **Nachgetragen** (V-078, TIM-09).
+          *
+          * `schluessel_ereignis.nachgetragen` steht seit `0070` da, der
+          * Dienst nimmt es entgegen, die Route reicht es durch — geschickt
+          * hat es nie ein Formular. Eine Schlüsselübergabe am Tor um 05:50
+          * wird selten am Tor getippt; wer sie um 14:00 einträgt, soll das
+          * sagen können, ohne die Uhrzeit zu fälschen.
+          *
+          * **Keine Uhrabweichung:** die misst die Gerätezeit daneben. Dieses
+          * Häkchen ist die Aussage eines Menschen über den Vorgang, nicht über
+          * sein Telefon.
+          */}
+        <label className="mb-s5 flex min-h-11 items-start gap-s3 text-sm text-text">
+          <input type="checkbox" name="nachgetragen" value="1" className="mt-s1"
+                 data-cse="quittung-nachgetragen" />
+          <span>
+            Nachgetragen
+            <span className="mt-s1 block text-xs text-text-muted">
+              Der Vorgang ist früher geschehen und wird jetzt erst eingetippt.
+              Die Zeit der Quittung bleibt die des Servers; dieses Häkchen sagt
+              nur, dass sie nicht die Zeit der Übergabe ist.
+            </span>
+          </span>
+        </label>
+
         <Button type="submit" variante="primary">Quittung schreiben</Button>
       </form>
     </PortalRahmen>

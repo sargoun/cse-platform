@@ -764,6 +764,10 @@ export interface MeinTexte {
   readonly kontrollpunkt: string;
   readonly praesenz: string;
   readonly polizei: string;
+
+  /* ── Nachgetragen: später getippt, nicht später geschehen (V-078) ────── */
+  readonly nachgetragen: string;
+  readonly nachgetragenHinweis: string;
   readonly nummer: string;
   readonly erfasstAm: string;
   readonly unveraenderlich: string;
@@ -1144,6 +1148,11 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     kontrollpunkt: 'Kontrollpunkt',
     praesenz: 'Präsenz bestätigt',
     polizei: 'Polizei informiert',
+    nachgetragen: 'Nachgetragen',
+    nachgetragenHinweis:
+      'Der Vorgang ist früher geschehen und wird jetzt erst eingetippt — etwa aus '
+      + 'dem Buch am Objekt nach der Schicht. Die Zeit des Eintrags bleibt die des '
+      + 'Servers; dieses Häkchen sagt nur, dass sie nicht die Zeit des Vorgangs ist.',
     nummer: 'Nummer',
     erfasstAm: 'Erfasst am',
     unveraenderlich:
@@ -1492,6 +1501,11 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     kontrollpunkt: 'Checkpoint',
     praesenz: 'Presence confirmed',
     polizei: 'Police informed',
+    nachgetragen: 'Entered later',
+    nachgetragenHinweis:
+      'The event happened earlier and is only being typed in now — for example from '
+      + 'the logbook on site after the shift. The entry keeps the server’s time; this '
+      + 'checkbox only says that it is not the time of the event.',
     nummer: 'Number',
     erfasstAm: 'Recorded on',
     unveraenderlich:
@@ -1827,6 +1841,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     kontrollpunkt: 'نقطة التفتيش',
     praesenz: 'تم تأكيد الحضور',
     polizei: 'تم إبلاغ الشرطة',
+    nachgetragen: 'مُدرج لاحقاً',
+    nachgetragenHinweis:
+      'الحدث وقع سابقاً ويُكتب الآن فقط — مثلاً من الدفتر في الموقع بعد الوردية. '
+      + 'يبقى وقت القيد هو وقت الخادم؛ هذه العلامة تقول فقط إنه ليس وقت الحدث.',
     nummer: 'الرقم',
     erfasstAm: 'تاريخ التسجيل',
     unveraenderlich: 'القيد يبقى. الخطأ يُصحَّح إلى جانبه ولا يُحذف.',
@@ -2162,6 +2180,11 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     kontrollpunkt: 'Kontrol noktası',
     praesenz: 'Mevcudiyet onaylandı',
     polizei: 'Polis bilgilendirildi',
+    nachgetragen: 'Sonradan girildi',
+    nachgetragenHinweis:
+      'Olay daha önce gerçekleşti ve şimdi giriliyor — örneğin vardiyadan sonra '
+      + 'sahadaki defterden. Kaydın saati sunucunun saati olarak kalır; bu kutucuk '
+      + 'yalnızca bunun olayın saati olmadığını söyler.',
     nummer: 'Numara',
     erfasstAm: 'Kaydedildiği tarih',
     unveraenderlich: 'Bir kayıt kalır. Yanlış olan yanında düzeltilir, silinmez.',

@@ -257,6 +257,35 @@ export default async function MeinWachbuch(
               </label>
 
               {/*
+                * **Nachgetragen** (V-078, TIM-09).
+                *
+                * `wachbuch_eintrag.nachgetragen` steht seit `0070` da, der
+                * Dienst nimmt es entgegen, die Route reicht es durch, und
+                * ZWEI Seiten zeigen „· nachgetragen" an — geschickt hat es
+                * nie ein Formular. Was auf dem Bildschirm stand, war also nie
+                * die Aussage eines Menschen, sondern der Vorgabewert der
+                * Spalte.
+                *
+                * **Das ist KEINE Uhrabweichung**, und die Spalte sagt das
+                * ausdrücklich: „wer beides in eine Spalte legt, kann eine um
+                * 14:00 verfasste und um 22:00 uebertragene Seite nicht mehr
+                * von einer um 22:00 verfassten unterscheiden". Die Abweichung
+                * misst die Gerätezeit; DIESES Häkchen ist die Aussage der
+                * Wache, dass der Vorgang früher geschehen ist — aus dem Buch
+                * am Objekt, nach der Schicht getippt.
+                */}
+              <label className="flex min-h-11 items-start gap-s3 text-base text-text">
+                <input type="checkbox" name="nachgetragen" value="1" className="mt-s1"
+                       data-cse="wachbuch-nachgetragen" />
+                <span>
+                  {t.nachgetragen}
+                  <span className="mt-s1 block text-sm text-text-muted">
+                    {t.nachgetragenHinweis}
+                  </span>
+                </span>
+              </label>
+
+              {/*
                 Die Geraetezeit als BEHAUPTUNG (TIM-08). Sie ist versteckt, weil
                 sie niemand tippt — und sie ist NICHT massgeblich: `erfasst_am`
                 stempelt die Datenbank mit `now()` (Invariante 5), und die
