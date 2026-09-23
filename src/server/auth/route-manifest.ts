@@ -2089,6 +2089,23 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Ein Dokument samt Datei entfernen (V-026, DOC-07, LEG-01).
+     *
+     * **`dokument.archivieren` und nicht `dokument.schreiben`.** Wer ablegen
+     * darf, raeumt damit nicht auf: das eine legt etwas hinzu, das andere
+     * nimmt etwas fort, und in einem Archiv ist das nicht dieselbe Handlung.
+     * Der Katalog trennt sie seit `0008`; gefragt hat bis hierher niemand
+     * danach.
+     *
+     * Was bleiben MUSS, entscheidet nicht diese Route: `kern.dokument_
+     * loeschsperre` (0009) und `fin.dokument_haengt_an_buchung` (0132) stehen
+     * vor der Zeile und gelten fuer jeden Weg.
+     */
+    pfad: 'api/dokumente/loeschen',
+    recht: 'dokument.archivieren',
+  },
+  {
+    /**
      * Eine Richtlinie des Ausgangs-Gates setzen (AGT-03, APR-01,
      * Invariante 7).
      *

@@ -51,6 +51,27 @@ function istRestriktion(fehler: unknown): fehler is Error & { code: string } {
   return fehler instanceof Error && (fehler as { code?: unknown }).code === '23001';
 }
 
+/**
+ * **Eine von der Policy abgewiesene Zeile — und warum das ein zweiter Fall ist.**
+ *
+ * Fehlt das RECHT, faellt die Zeile aus dem `using` der Schreibpolicy: das
+ * `update` trifft null Zeilen, und unten wird daraus `nicht_gefunden`. Ist die
+ * Bindung dagegen NUR-LESEND (Gruppenansicht, Invariante 10), faellt sie am
+ * `with check` — und das WIRFT. Bis V-026 kam diese Meldung roh beim Aufrufer
+ * an: „new row violates row-level security policy", also ein 500er dort, wo
+ * „hier wird nicht geschrieben" die Wahrheit ist.
+ *
+ * Gezaehlt wird sie als `gesperrt` und nicht als eigener Grund: fuer den
+ * Aufrufer ist beides dasselbe — die Zeile bleibt, und die Datei wird nicht
+ * angefasst. Der Nachtlauf zaehlt sie damit als „zurueckgehalten", und das
+ * stimmt: zwischen Finden und Loeschen hat sich die Lage geaendert.
+ */
+function istPolicy(fehler: unknown): boolean {
+  if (!(fehler instanceof Error)) return false;
+  if ((fehler as { code?: unknown }).code === '42501') return true;
+  return /row[- ]level security/iu.test(fehler.message);
+}
+
 export async function loescheDokument(
   kontext: SchreibKontext, speicher: Speicher, e: DokumentLoeschen,
 ): Promise<Geloescht> {
@@ -67,6 +88,12 @@ export async function loescheDokument(
       [e.dokumentId, grund]);
   } catch (fehler: unknown) {
     if (istRestriktion(fehler)) throw new LoeschungFehler(fehler.message, 'gesperrt');
+    if (istPolicy(fehler)) {
+      throw new LoeschungFehler(
+        'Diese Sitzung darf das Dokument nicht löschen — in der Gruppenansicht wird '
+        + 'gar nicht geschrieben (Invariante 10). Es wurde nichts angefasst.',
+        'gesperrt');
+    }
     throw fehler;
   }
   const ort = zeilen[0];

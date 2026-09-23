@@ -5,6 +5,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { SupabaseSpeicher } from '@/server/storage/adapter';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '@/app/portal/rechte';
@@ -111,6 +112,19 @@ export default async function Dokumente(
           </Link>
         )}
       </div>
+      {/*
+        * Die Rückmeldung nach einer Löschung (V-026). Sie steht HIER und
+        * nicht auf dem Blatt: das Blatt liest `geloescht_am is null` und wäre
+        * danach ein 404 — die letzte Antwort auf eine geglückte Handlung darf
+        * keine Fehlerseite sein.
+        */}
+      {p['geloescht'] === '1' ? (
+        <Hinweis art="erfolg" cse="dokument-geloescht" className="mb-s5 max-w-prose">
+          <strong>Gelöscht.</strong> Die Datei ist aus der Ablage entfernt; die Zeile
+          bleibt mit Zeitpunkt, Person und Grund erhalten (Invariante 8) und taucht in
+          dieser Liste nicht mehr auf.
+        </Hinweis>
+      ) : null}
       {speicher.verbunden ? null : (
         <p data-cse="speicher-nicht-verbunden"
            className="mb-s5 max-w-prose rounded-lg border border-line bg-surface-3 p-s4 text-sm text-text">
