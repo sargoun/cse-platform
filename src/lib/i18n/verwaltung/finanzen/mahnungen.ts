@@ -82,6 +82,11 @@ export interface MahnungenTexte {
   readonly verwerfenPlatzhalter: string;
   readonly versandTitel: string;
   readonly versandErklaerung: string;
+
+  /* ── Abschliessen (V-084) ────────────────────────────────────────────── */
+  readonly erledigenTitel: string;
+  readonly erledigenErklaerung: string;
+  readonly erledigenKnopf: string;
   readonly weg: string;
   readonly empfaenger: string;
 
@@ -180,6 +185,13 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
       + '(Invariante 8).',
     verwerfenPlatzhalter: 'Kunde hat nachweislich am Vortag gezahlt',
     versandTitel: 'Versand dokumentieren',
+    erledigenTitel: 'Erledigt',
+    erledigenErklaerung:
+      'Die Sache ist beigelegt — bezahlt, verrechnet oder auf anderem Weg. Die '
+      + 'Mahnung bleibt vollständig stehen; nur ihr Zustand sagt es. Ob ein '
+      + 'bezahlter offener Posten seine Mahnung von selbst schliesst, ist offen '
+      + '(O-902) — bis dahin setzt es ein Mensch, und er sieht dabei den Betrag.',
+    erledigenKnopf: 'Als erledigt vermerken',
     versandErklaerung:
       'Es gibt keinen automatischen Versand: die Mahnung geht als Brief, '
       + 'Einschreiben oder durch Boten hinaus, und hier wird festgehalten, '
@@ -283,6 +295,13 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
       + '(Invariant 8).',
     verwerfenPlatzhalter: 'Customer demonstrably paid the day before',
     versandTitel: 'Record dispatch',
+    erledigenTitel: 'Settled',
+    erledigenErklaerung:
+      'The matter is closed — paid, offset, or settled some other way. The Mahnung '
+      + '(dunning letter) stays on file in full; only its state says so. Whether a '
+      + 'paid open item closes its Mahnung by itself is open (O-902) — until then a '
+      + 'human sets it, and sees the amount while doing so.',
+    erledigenKnopf: 'Mark as settled',
     versandErklaerung:
       'There is no automatic dispatch: the Mahnung goes out as a letter, as '
       + 'Einschreiben (registered post) or by courier, and what is recorded '

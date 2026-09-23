@@ -11,6 +11,7 @@ import {
 } from '@/server/services/crm/anlegen';
 import {
   aendereKontakt, aendereKunde, archiviereKunde, scheideKontaktAus,
+  setzeHauptkontakt,
   setzeKundeStatus, type KundeStatus,
 } from '@/server/services/crm/aendern';
 
@@ -134,6 +135,23 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           const id = wert('id');
           if (id === undefined) throw new CrmFehler('Kein Kontakt angegeben.', 'id_fehlt');
           await scheideKontaktAus(kontext, id);
+          return zurueck;
+        }
+
+        /*
+         * **Der Hauptkontakt** (V-097) — eine Eigenschaft des KUNDEN, nicht
+         * des Kontakts, und deshalb mit BEIDEN Kennungen. Es kann nur einer
+         * sein (`ansprechpartner_hauptkontakt_uk`); der Dienst löscht deshalb
+         * zuerst den alten und setzt dann den neuen, in derselben
+         * Transaktion.
+         */
+        if (aktion === 'hauptkontakt') {
+          const id = wert('id');
+          const kunde = wert('kundeId');
+          if (id === undefined || kunde === undefined) {
+            throw new CrmFehler('Kunde oder Kontakt fehlt.', 'id_fehlt');
+          }
+          await setzeHauptkontakt(kontext, kunde, id);
           return zurueck;
         }
 

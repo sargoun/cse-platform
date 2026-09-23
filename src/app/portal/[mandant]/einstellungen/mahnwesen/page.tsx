@@ -225,6 +225,39 @@ export default async function Mahnwesen(
             id="aufschlag" name="aufschlag" type="number" min={0} step={1} className={feld}
           />
 
+          {/*
+            * **Die Folgeaktion** (V-098).
+            *
+            * `bestaetigeStufe` nimmt sie seit je entgegen und
+            * `mahn_folgeaktion` kennt die vier Werte seit `0125` — das
+            * Formular schickte keine, also stand jede Stufe auf „keine". Die
+            * Liste zeigte die Spalte trotzdem an, und was dort stand, war
+            * nicht das, was jemand entschieden hatte, sondern der
+            * Vorgabewert der Spalte.
+            *
+            * **Welche Aktion zu welcher Stufe gehört, entscheidet ein Mensch
+            * und nicht dieses Formular.** Ein Vorgabewert ausser „keine" wäre
+            * eine erfundene Eskalationsregel — und die drei anderen sind
+            * ernst: ein Lieferstopp trifft den laufenden Auftrag, ein
+            * Mahnbescheid ist ein gerichtliches Verfahren.
+            */}
+          <label className="mt-s4 block text-sm text-text" htmlFor="folgeaktion">
+            Folgeaktion dieser Stufe
+          </label>
+          <select id="folgeaktion" name="folgeaktion" required className={feld}
+                  defaultValue="keine">
+            <option value="keine">keine</option>
+            <option value="lieferstopp">Lieferstopp</option>
+            <option value="inkasso">Inkasso</option>
+            <option value="mahnbescheid">Mahnbescheid</option>
+          </select>
+          <p className="mt-s2 text-xs text-text-muted">
+            Die Plattform LÖST sie nicht aus — sie hält fest, was auf dieser
+            Stufe vereinbart ist. Ein Lieferstopp trifft den laufenden Auftrag,
+            ein Mahnbescheid ist ein gerichtliches Verfahren; beides tut ein
+            Mensch.
+          </p>
+
           <label className="mt-s4 block text-sm text-text" htmlFor="gueltigAb">
             Gültig ab
           </label>

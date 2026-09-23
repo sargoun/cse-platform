@@ -249,12 +249,42 @@ export default async function Kontaktblatt(
             <StatusPill zustand="Archiviert" />
           )}
         </div>
-        {darf['crm.rechtsgrundlage_setzen'] === true ? (
-          <Link href={alsRoute(`${pfad}/rechtsgrundlage`)} className={knopf}
-                data-cse="kontakt-grundlage-aendern">
-            Rechtsgrundlage ändern
-          </Link>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-s3">
+          {/*
+            * **Den Hauptkontakt bestimmen** (V-097).
+            *
+            * `ist_hauptkontakt` steht seit `0020` da, ein partieller
+            * eindeutiger Index hält genau einen je Kunde, diese Seite zeigte
+            * das Etikett an — gesetzt wurde die Spalte NUR beim Anlegen des
+            * allerersten Kontakts. Wer den Hauptkontakt wechseln wollte, weil
+            * die Objektleiterin gewechselt hat, konnte es nicht; das Etikett
+            * blieb auf einem Menschen stehen, der das Haus verlassen hat.
+            *
+            * Kein Knopf bei einem ausgeschiedenen Kontakt und keiner bei dem,
+            * der es schon IST: eine Handlung ohne Wirkung ist eine, die
+            * jemand für kaputt hält.
+            */}
+          {darf['crm.schreiben'] === true
+            && kopf.kunde_id !== null
+            && kopf.ausgeschieden_am === null
+            && !kopf.ist_hauptkontakt ? (
+              <form method="post" action={`/api/crm/kunde?mandant=${mandant}`} className="m-0">
+                <input type="hidden" name="aktion" value="hauptkontakt" />
+                <input type="hidden" name="id" value={kopf.id} />
+                <input type="hidden" name="kundeId" value={kopf.kunde_id} />
+                <input type="hidden" name="zurueck" value={pfad} />
+                <button type="submit" className={knopf} data-cse="zum-hauptkontakt">
+                  Zum Hauptkontakt machen
+                </button>
+              </form>
+            ) : null}
+          {darf['crm.rechtsgrundlage_setzen'] === true ? (
+            <Link href={alsRoute(`${pfad}/rechtsgrundlage`)} className={knopf}
+                  data-cse="kontakt-grundlage-aendern">
+              Rechtsgrundlage ändern
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       {typeof suche.meldung === 'string' && suche.meldung !== '' ? (

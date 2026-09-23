@@ -267,6 +267,31 @@ export default async function MahnungDetail(
           </form>
         </section>
       ) : null}
+
+      {/*
+        * **Abschliessen** (V-084).
+        *
+        * `mahn_status` kennt `erledigt` seit `0125`, beide Zustandsauslöser
+        * lassen `versendet → erledigt` ausdrücklich zu — geschrieben hat ihn
+        * nie jemand. Jede jemals versendete Mahnung stand für immer als offen
+        * da, und ob eine Sache erledigt war, wusste nur, wer das Bankkonto
+        * danebenlegte.
+        */}
+      {kopf.status === 'versendet' ? (
+        <section
+          aria-labelledby="erledigt-titel"
+          data-cse="mahnung-erledigen"
+          className="mt-s5 max-w-prose rounded-lg border border-line bg-surface p-s5"
+        >
+          <h2 id="erledigt-titel" className="text-h2 text-text">{t.erledigenTitel}</h2>
+          <p className="mt-s2 text-xs text-text-muted">{t.erledigenErklaerung}</p>
+          <form method="post" action={`/api/finanzen/mahnungen?mandant=${mandant}`}>
+            <input type="hidden" name="aktion" value="erledigen" />
+            <input type="hidden" name="mahnungId" value={kopf.id} />
+            <button type="submit" className={knopf}>{t.erledigenKnopf}</button>
+          </form>
+        </section>
+      ) : null}
     </PortalRahmen>
   );
 }

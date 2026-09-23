@@ -261,3 +261,82 @@ export async function scheideKontaktAus(
       'kontakt_unbekannt', 404);
   }
 }
+
+/**
+ * **Den Hauptkontakt eines Kunden bestimmen** (V-097, CRM-02).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Der Befund.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `ansprechpartner.ist_hauptkontakt` steht seit `0020` da, ein partieller
+ * eindeutiger Index (`ansprechpartner_hauptkontakt_uk`) hält genau einen je
+ * Kunde, das Kundenblatt zeigt das Etikett an — und gesetzt wurde die Spalte
+ * NUR beim Anlegen des allerersten Kontakts. Wer den Hauptkontakt wechseln
+ * wollte, weil die Objektleiterin gewechselt hat, konnte es nicht; das
+ * Etikett blieb auf einem Menschen stehen, der das Haus verlassen hat.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Warum das nicht in `aendereKontakt` gehört.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Der Kopf jener Funktion sagt es und behält recht: der Hauptkontakt ist eine
+ * Eigenschaft des KUNDEN, nicht des Kontakts. Es kann nur einer sein, und ein
+ * Formular je Kontakt kann das nicht sicherstellen — zwei Menschen, die
+ * gleichzeitig ihr eigenes Häkchen setzen, ergäben zwei Hauptkontakte oder,
+ * mit dem Index, eine Fehlermeldung an der falschen Stelle.
+ *
+ * **Deshalb zuerst LÖSCHEN, dann setzen, in einer Anweisungsfolge.** Der
+ * Index ist nicht aufgeschoben (`deferrable` steht nicht dabei): setzte man
+ * erst den neuen, fiele die Eindeutigkeit, solange der alte noch steht. Beide
+ * Anweisungen laufen in DERSELBEN Transaktion — der Aufrufer ist ein
+ * `SchreibKontext`, und der ist eine.
+ */
+export async function setzeHauptkontakt(
+  kontext: SchreibKontext, kundeId: string, ansprechpartnerId: string,
+): Promise<void> {
+  /*
+   * Erst prüfen, DANN löschen: sonst stünde der Kunde nach einem Tippfehler
+   * ohne Hauptkontakt da, und die Fehlermeldung erklärte nicht, dass der alte
+   * dabei verlorenging.
+   */
+  const [ziel] = await kontext.abfrage<{ id: string }>(
+    `select id from ansprechpartner
+      where id = $1::uuid and kunde_id = $2::uuid
+        and mandant_id = app.aktiver_mandant()
+        and archiviert_am is null and ausgeschieden_am is null`,
+    [ansprechpartnerId, kundeId]);
+  if (ziel === undefined) {
+    throw new CrmFehler(
+      'Dieser Ansprechpartner gehört nicht zu diesem Kunden, oder er ist ausgeschieden.',
+      'kontakt_unbekannt', 404);
+  }
+
+  await kontext.schreibe(
+    `update ansprechpartner
+        set ist_hauptkontakt = false,
+            geaendert_am = now(), geaendert_von = app.aktueller_benutzer()
+      where kunde_id = $1::uuid and mandant_id = app.aktiver_mandant()
+        and ist_hauptkontakt and archiviert_am is null and id <> $2::uuid`,
+    [kundeId, ansprechpartnerId]);
+
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update ansprechpartner
+        set ist_hauptkontakt = true,
+            geaendert_am = now(), geaendert_von = app.aktueller_benutzer()
+      where id = $1::uuid and kunde_id = $2::uuid
+        and mandant_id = app.aktiver_mandant()
+        and archiviert_am is null and ausgeschieden_am is null
+     returning id`,
+    [ansprechpartnerId, kundeId]);
+  /*
+   * Ein von RLS abgewiesenes UPDATE gibt null Zeilen zurück und wirft nicht.
+   * Ohne diese Zeile meldete die Seite „gesetzt", und der Kunde stünde danach
+   * ganz OHNE Hauptkontakt da — das Löschen darüber hätte gegriffen.
+   */
+  if (zeilen[0] === undefined) {
+    throw new CrmFehler(
+      'Der Hauptkontakt wurde nicht gesetzt — fehlt crm.schreiben in dieser Gesellschaft?',
+      'abgewiesen', 403);
+  }
+}

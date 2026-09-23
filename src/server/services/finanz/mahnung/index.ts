@@ -61,7 +61,9 @@ export class MahnungFehler extends Error {
     readonly grund:
       | 'nicht_gefunden' | 'kein_entwurf' | 'nicht_freigegeben'
       | 'schon_versendet' | 'ohne_position' | 'ohne_grund'
-      | 'zeichen_nicht_darstellbar',
+      | 'zeichen_nicht_darstellbar'
+      /** Erledigt wird nur, was versendet wurde (V-084). */
+      | 'nicht_versendet',
     nachricht: string,
   ) {
     super(nachricht);
@@ -197,6 +199,46 @@ export async function verwirf(
     throw new MahnungFehler(
       'kein_entwurf',
       'Nur ein Entwurf wird verworfen — eine freigegebene Mahnung trägt eine Nummer.');
+  }
+}
+
+/**
+ * **Eine versendete Mahnung abschliessen** (V-084, FIN-15).
+ *
+ * `mahn_status` kennt `erledigt` seit `0125`, und beide Zustandsauslöser
+ * (`0125:508`, `0130:476`) lassen `versendet → erledigt` ausdrücklich zu —
+ * **geschrieben hat ihn nie jemand.** Jede jemals versendete Mahnung stand
+ * für immer als offen da; die Mahnliste wuchs, und ob eine Sache erledigt
+ * war, wusste nur, wer das Bankkonto danebenlegte.
+ *
+ * **Was `erledigt` NICHT ist.** Kein Widerruf und keine Korrektur: der Brief
+ * ist heraus, die Nummer gezogen, der Auslöser `fin.mahnung_unveraenderlich`
+ * friert ab `versendet` alles ein ausser dem Zustand. `erledigt` sagt nur,
+ * dass diese Mahnung ihren Zweck erfüllt hat — bezahlt, verrechnet, oder auf
+ * anderem Weg beigelegt.
+ *
+ * **Ob ein bezahlter offener Posten seine Mahnung von selbst schliesst, ist
+ * offen (O-902)** und wird hier nicht entschieden. `mahnung_position` zeigt
+ * auf `offener_posten`, ein Nachtlauf könnte es also — aber ob eine
+ * Teilzahlung reicht, ob Gebühren und Zinsen mitzählen und was mit einer
+ * Mahnung geschieht, deren Rechnung storniert wurde, steht nirgends. Bis
+ * dahin setzt es ein Mensch, und er sieht dabei den Betrag.
+ */
+export async function erledige(
+  kontext: SchreibKontext, id: string,
+): Promise<void> {
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update mahnung
+        set status = 'erledigt',
+            geaendert_am = now(), geaendert_von_art = 'mensch',
+            geaendert_von = app.aktueller_benutzer()
+      where id = $1::uuid and status = 'versendet'
+      returning id`, [id]);
+  if (zeilen.length === 0) {
+    throw new MahnungFehler(
+      'nicht_versendet',
+      'Erledigt wird nur, was versendet wurde. Ein Entwurf wird verworfen, und eine '
+      + 'bereits erledigte Mahnung bleibt es.');
   }
 }
 
