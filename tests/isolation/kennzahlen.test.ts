@@ -89,7 +89,10 @@ describe('(1) DSH-04: jede Kachel zeigt die Zahl, die hinter ihrem Link steht', 
     // und nicht im Einheitstest allein, weil DIESE Datei jede Kachel gegen die
     // echte Datenbank stellt — eine Kachel, die sich hier nicht mitzählt, wird
     // nie gegen ihre Liste geprüft.
-    expect(alle.length).toBe(13);
+    // Achtzehn seit V-150 (DSH-01): `auftraege_aktiv`, `projekte_in_arbeit`,
+    // `angebote_offen`, `forderungen_offen` und `aufgaben_offen` — Module,
+    // die gebaut waren und auf keiner Übersicht eine Zahl hatten.
+    expect(alle.length).toBe(18);
   });
 
   it.each([['reinigung'], ['security'], ['bau'], ['operations']])(

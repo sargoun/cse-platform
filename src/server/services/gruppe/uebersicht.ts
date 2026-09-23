@@ -1,5 +1,7 @@
 import type { LeseKontext } from '../../kontext/index.js';
 import { cent, type Cent } from '../finanz/geld.js';
+import { ANGEBOT_OFFEN, AUFTRAG_AKTIV, PROJEKT_IN_ARBEIT } from '../bericht/mengen.js';
+import { OFFENE_ZUSTAENDE } from '../kern/aufgabe.js';
 
 /**
  * Die Gruppenuebersicht: eine Kennzahlenzeile je Gesellschaft (TEN-05, DSH-01).
@@ -25,6 +27,17 @@ export const UEBERSICHT_RECHTE = {
   fakturiert: 'gruppe.finanzen.lesen',
   forderungen: 'gruppe.zahlung.lesen',
   freigaben: 'gruppe.freigabe.lesen',
+  /*
+   * V-150 (DSH-01): aktive Projekte, „aktuell im Einsatz" und anstehende
+   * Aufgaben fehlten. „Letzte Aktivität" fehlt weiter: `lead_aktivitaet`
+   * kennt keinen Gruppenleseweg (0017), und ihn zu öffnen hiesse,
+   * Gesprächsnotizen aller Gesellschaften in der Gruppe lesbar zu machen.
+   */
+  // TODO(client, O-910): Darf die Gruppenansicht CRM-Aktivitäten (Notizen,
+  // Anrufe, Termine mit Inhalt) aller Gesellschaften lesen — mit welchem Recht?
+  projekte: 'gruppe.bau.lesen',
+  einsatz: 'gruppe.zeit.lesen',
+  aufgaben: 'gruppe.aufgabe.lesen',
 } as const;
 
 export interface BereichKennzahlen {
@@ -41,6 +54,12 @@ export interface BereichKennzahlen {
   /** Offene Debitorenposten — was Kunden schulden. */
   readonly forderungenOffenCent: Cent | null;
   readonly freigabenOffen: number | null;
+  /** Bauprojekte im Stand `in_arbeit` (`mengen.ts`). */
+  readonly projekteInArbeit: number | null;
+  /** Offene Zeiteinträge — wer gerade eingestempelt ist (DSH-05, `zeiteintrag_offen`). */
+  readonly imEinsatz: number | null;
+  /** Aufgaben in einem Stand aus `OFFENE_ZUSTAENDE` (`kern/aufgabe.ts`), nicht gelöscht. */
+  readonly aufgabenOffen: number | null;
 }
 
 export interface GruppenSumme {
@@ -93,6 +112,9 @@ interface Roh {
   readonly fakturiert_jahr_cent: string;
   readonly forderungen_offen_cent: string;
   readonly freigaben_offen: number;
+  readonly projekte_in_arbeit: number;
+  readonly im_einsatz: number;
+  readonly aufgaben_offen: number;
 }
 
 export async function gruppenUebersicht(kontext: LeseKontext): Promise<GruppenUebersicht> {
@@ -105,11 +127,11 @@ export async function gruppenUebersicht(kontext: LeseKontext): Promise<GruppenUe
   const roh = await kontext.abfrage<Roh>(
     `select m.id as mandant_id, m.slug, m.name,
             (select count(*) from auftrag a
-              where a.mandant_id = m.id and a.status = 'aktiv' and a.archiviert_am is null)::int
+              where a.mandant_id = m.id and a.status::text = $3 and a.archiviert_am is null)::int
               as auftraege_aktiv,
             (select count(*) from angebot g
               where g.mandant_id = m.id and g.archiviert_am is null
-                and g.status in ('entwurf', 'in_pruefung', 'versendet'))::int as angebote_offen,
+                and g.status::text = any($1::text[]))::int as angebote_offen,
             (select count(*) from lead l
               where l.mandant_id = m.id and l.status = 'neu' and l.archiviert_am is null)::int
               as leads_neu,
@@ -128,9 +150,24 @@ export async function gruppenUebersicht(kontext: LeseKontext): Promise<GruppenUe
               as forderungen_offen_cent,
             (select count(*) from freigabe f
               where f.mandant_id = m.id and f.status = 'offen' and f.vorgang_typ is not null)::int
-              as freigaben_offen
+              as freigaben_offen,
+            (select count(*) from projekt p
+              where p.mandant_id = m.id and p.archiviert_am is null
+                and p.status::text = $2)::int as projekte_in_arbeit,
+            (select count(*) from zeiteintrag_offen z where z.mandant_id = m.id)::int
+              as im_einsatz,
+            (select count(*) from aufgabe t
+              where t.mandant_id = m.id and t.geloescht_am is null
+                and t.status::text = any($4::text[]))::int as aufgaben_offen
        from mandant m
       order by m.sortierung, m.slug`,
+    /*
+     * Die Mengen aus `mengen.ts` als PARAMETER — dieselben Werte, mit denen
+     * die Listen dahinter filtern (`/gruppe/angebote?status=offen`,
+     * `/gruppe/projekte?status=in_arbeit`, `/gruppe/aufgaben`). Zwei
+     * Schreibweisen derselben Menge wären zwei Zahlen (DSH-04).
+     */
+    [ANGEBOT_OFFEN, PROJEKT_IN_ARBEIT, AUFTRAG_AKTIV, OFFENE_ZUSTAENDE],
   );
 
   const bereiche: BereichKennzahlen[] = roh.map((z) => {
@@ -149,6 +186,9 @@ export async function gruppenUebersicht(kontext: LeseKontext): Promise<GruppenUe
       forderungenOffenCent: darf(UEBERSICHT_RECHTE.forderungen)
         ? cent(BigInt(z.forderungen_offen_cent)) : null,
       freigabenOffen: darf(UEBERSICHT_RECHTE.freigaben) ? z.freigaben_offen : null,
+      projekteInArbeit: darf(UEBERSICHT_RECHTE.projekte) ? z.projekte_in_arbeit : null,
+      imEinsatz: darf(UEBERSICHT_RECHTE.einsatz) ? z.im_einsatz : null,
+      aufgabenOffen: darf(UEBERSICHT_RECHTE.aufgaben) ? z.aufgaben_offen : null,
     };
   });
 

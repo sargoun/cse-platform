@@ -6,7 +6,11 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
-import { listeProjekte, type ProjektZeile } from '@/server/services/bau/lv';
+import { listeProjekte, type ProjektListenZeile } from '@/server/services/bau/lv';
+import { Listenfilter } from '@/components/portal/Listenfilter';
+import { projektStatusAus } from '@/server/services/bericht/mengen';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KENNZAHL_TEXTE } from '@/lib/i18n/verwaltung/kennzahlen';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
@@ -45,9 +49,14 @@ const GRUNDLAGE_TEXT: Readonly<Record<string, string>> = {
 };
 
 export default async function Projektliste(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  /* Der Stand aus der Kachel „Bauprojekte in Arbeit" (V-150, DSH-04). */
+  const status = projektStatusAus((await searchParams)['status']);
   const pfad = `/portal/${mandant}/bau/projekte`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -67,8 +76,9 @@ export default async function Projektliste(
   const darf = await haeltRechte(sitzung, 'bau.schreiben');
 
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, sitzung, async (kontext) => listeProjekte(kontext)),
-  ) as Promise<readonly ProjektZeile[]>);
+    withTenant(tx, sitzung, async (kontext) => listeProjekte(kontext, { status })),
+  ) as Promise<readonly ProjektListenZeile[]>);
+  const tk = nachSprache(KENNZAHL_TEXTE, zugang.sprache);
 
   return (
     <PortalRahmen
@@ -95,7 +105,17 @@ export default async function Projektliste(
         )}
       </div>
 
-      {zeilen.length === 0 ? (
+      {status === null ? null : (
+        <Listenfilter sprache={zugang.sprache}
+                      beschreibung={tk.projektStatus[status] ?? tk.keinTreffer}
+                      alleZiel={pfad} />
+      )}
+
+      {zeilen.length === 0 && status !== null ? (
+        <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
+          {tk.keinTreffer}
+        </p>
+      ) : zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Kein Bauprojekt angelegt. Ein Projekt entsteht aus einem Auftrag —
           es ist dessen bauliche Erweiterung, kein zweiter Vorgang daneben.
@@ -140,7 +160,7 @@ export default async function Projektliste(
                 </Link>
               ),
             },
-            { schluessel: 'kunde', kopf: 'Kunde', zelle: (z) => z.kunde },
+            { schluessel: 'kunde', kopf: 'Kunde', zelle: (z) => z.kunde ?? '—' },
             { schluessel: 'art', kopf: 'Gewerk', zelle: (z) => ART_TEXT[z.art] ?? z.art },
             {
               schluessel: 'grundlage',

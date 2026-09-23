@@ -927,6 +927,7 @@ eventually two addresses on one invoice.
 | `/portal/[mandant]/crm/kontakte/[id]` | `crm.lesen` | `M1` | CRM-03, CRM-08, LEG-08 | 4 |
 | `/portal/[mandant]/crm/kontakte/[id]/rechtsgrundlage` — set, with evidence and date | `crm.rechtsgrundlage_setzen` | `M1` | CRM-08, LEG-08 | 4 |
 | `/portal/[mandant]/crm/wiedervorlagen` — follow-ups due | `crm.lesen` | `M1` | CRM-03, CRM-04 | 4 |
+| `/portal/[mandant]/crm/aktivitaet` — activity of the last seven days, the list behind the dashboard figure (V-149) | `crm.lesen` | `M1` | CRM-03, DSH-04 | 4 |
 | `/portal/[mandant]/crm/akquise` — researched companies, scored, not yet contacted | `crm.lesen` | `M1` | §12 | 4 |
 | `/portal/[mandant]/crm/akquise/[id]` — one company: score breakdown, outreach draft, hand-over to a lead | `crm.lesen` (+ `crm.schreiben` to act) | `M1` | §12, CRM-08, LEG-08 | 4 |
 | `/portal/[mandant]/crm/akquise/quellen` — research sources and the nightly run log | `crm.lesen` | `M1` | §12, O-596 | 4 |
@@ -2047,6 +2048,8 @@ user the action exists here, and it does not.
 | `/portal/gruppe/kunden` — customer history across all four areas (CRM-06) | `gruppe.crm.lesen` | `GRP` | CRM-06, CRM-01 | 4 |
 | `/portal/gruppe/leads` — pipeline across areas | `gruppe.crm.lesen` | `GRP` | CRM-01, REP-02 | 4 |
 | `/portal/gruppe/auftraege` — orders across areas | `gruppe.auftrag.lesen` | `GRP` | OPS-05, DSH-01 | 4 |
+| `/portal/gruppe/angebote` — offers across areas, the list behind the overview figure (V-149) | `gruppe.angebot.lesen` | `GRP` | OPS-08, DSH-01, DSH-04 | 4 |
+| `/portal/gruppe/aufgaben` — open tasks across areas, the list behind the overview figure (V-150) | `gruppe.aufgabe.lesen` | `GRP` | OPS-11, DSH-01, DSH-04 | 4 |
 | `/portal/gruppe/projekte` — projects across areas | `gruppe.bau.lesen` | `GRP` | OPS-05, REP-05 | 4 |
 | `/portal/gruppe/objekte` — objects across areas, one map | `gruppe.objekt.lesen` | `GRP` | OPS-01 | 4 |
 | `/portal/gruppe/personen` — people and their employments per entity; certificate expiry; **identity only** | `gruppe.personal.lesen` | `GRP` | D-09, EMP-14, SEC-02, SEC-03, LEG-04 | 3 |

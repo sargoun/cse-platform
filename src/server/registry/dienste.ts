@@ -765,6 +765,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
   // gefährlich, und schreiben können sie nicht.
   { modul: 'bericht', pfad: 'bericht/kacheln', schreibend: false },
   { modul: 'bericht', pfad: 'bericht/dashboard', schreibend: false },
+  /*
+   * Die Mengen hinter den Kennzahlen (V-149, V-150): Statuslisten, die eine
+   * Kachel, ihre Liste und die Gruppenübersicht teilen. Rein, ohne Datenbank.
+   */
+  { modul: 'bericht', pfad: 'bericht/mengen', schreibend: false },
   /**
    * Nachweise und Qualifikationen (PR 31, SEC-02/03/04, LEG-04, EMP-08).
    *
@@ -1428,6 +1433,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'bericht', pfad: 'gruppe/finanzen', schreibend: false },
   { modul: 'bericht', pfad: 'gruppe/offene-posten', schreibend: false },
   { modul: 'bericht', pfad: 'gruppe/auslastung', schreibend: false },
+  /* V-150 (DSH-01): die Liste hinter „Offene Aufgaben" der Gruppenübersicht. */
+  { modul: 'bericht', pfad: 'gruppe/aufgaben', schreibend: false },
   /**
    * Die beiden Nachzuegler derselben Art (RAD-07/REP-06, CAL-01/CAL-02): die
    * Vergabepipeline und der zusammengefuehrte Kalender ueber alle

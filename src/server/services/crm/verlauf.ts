@@ -65,6 +65,9 @@ export interface VerlaufEintrag {
   readonly leadnummer: string | null;
   readonly ansprechpartnerId: string | null;
   readonly ansprechpartner: string | null;
+  /** Der Kunde — NULL ohne Bezug oder ohne Leserecht auf ihn. */
+  readonly kundeId: string | null;
+  readonly kunde: string | null;
 }
 
 interface Roh {
@@ -86,6 +89,8 @@ interface Roh {
   readonly leadnummer: string | null;
   readonly ansprechpartner_id: string | null;
   readonly ansprechpartner: string | null;
+  readonly kunde_id: string | null;
+  readonly kunde: string | null;
 }
 
 const alsEintrag = (z: Roh): VerlaufEintrag => ({
@@ -94,6 +99,7 @@ const alsEintrag = (z: Roh): VerlaufEintrag => ({
   wer: z.wer, grundlage: z.grundlage, zustellung: z.zustellung, faellig: z.faellig,
   erledigt: z.erledigt, leadId: z.lead_id, leadnummer: z.leadnummer,
   ansprechpartnerId: z.ansprechpartner_id, ansprechpartner: z.ansprechpartner,
+  kundeId: z.kunde_id, kunde: z.kunde,
 });
 
 /*
@@ -119,12 +125,20 @@ const AKTIVITAET_SPALTEN = `
   la.lead_id, l.leadnummer,
   la.ansprechpartner_id,
   case when ap.id is null then null
-       else btrim(coalesce(ap.vorname, '') || ' ' || ap.nachname) end as ansprechpartner`;
+       else btrim(coalesce(ap.vorname, '') || ' ' || ap.nachname) end as ansprechpartner,
+  kd.id as kunde_id, kd.name as kunde`;
 
+/*
+ * Der Kunde der Zeile — am Kunden selbst, sonst über den Lead. `kd.id` und
+ * nicht `la.kunde_id`: ist der Kunde nicht lesbar, soll kein Verweis entstehen,
+ * der auf ein 404 führt (AUT-06).
+ */
 const AKTIVITAET_QUELLE = `
   from lead_aktivitaet la
   left join lead l on l.mandant_id = la.mandant_id and l.id = la.lead_id
   left join ansprechpartner ap on ap.mandant_id = la.mandant_id and ap.id = la.ansprechpartner_id
+  left join kunde kd on kd.mandant_id = la.mandant_id
+                    and kd.id = coalesce(la.kunde_id, l.kunde_id)
   left join benutzer b on b.id = la.benutzer_id`;
 
 /*
@@ -147,12 +161,15 @@ const NACHRICHT_SPALTEN = `
   null::uuid as lead_id, null::text as leadnummer,
   ap.id as ansprechpartner_id,
   case when ap.id is null then null
-       else btrim(coalesce(ap.vorname, '') || ' ' || ap.nachname) end as ansprechpartner`;
+       else btrim(coalesce(ap.vorname, '') || ' ' || ap.nachname) end as ansprechpartner,
+  kd.id as kunde_id, kd.name as kunde`;
 
 const NACHRICHT_QUELLE = `
   from nachricht n
   left join ansprechpartner ap
     on ap.mandant_id = n.mandant_id and ap.id = n.rechtsgrundlage_kontakt_id
+  left join kunde kd on kd.mandant_id = n.mandant_id
+                    and kd.id = coalesce(n.kunde_id, ap.kunde_id)
   left join benutzer b on b.id = n.absender_benutzer_id`;
 
 /**
@@ -169,7 +186,7 @@ export async function leseKundenVerlauf(
   const zeilen = await kontext.abfrage<Roh>(
     `select quelle, id, art, richtung, kanal, zweck, betreff, inhalt, zeitpunkt, wer,
             grundlage, zustellung, faellig, erledigt, lead_id, leadnummer,
-            ansprechpartner_id, ansprechpartner
+            ansprechpartner_id, ansprechpartner, kunde_id, kunde
        from (
          select ${AKTIVITAET_SPALTEN} ${AKTIVITAET_QUELLE}
           where la.mandant_id = app.aktiver_mandant()
@@ -211,7 +228,7 @@ export async function leseKontaktVerlauf(
   const zeilen = await kontext.abfrage<Roh>(
     `select quelle, id, art, richtung, kanal, zweck, betreff, inhalt, zeitpunkt, wer,
             grundlage, zustellung, faellig, erledigt, lead_id, leadnummer,
-            ansprechpartner_id, ansprechpartner
+            ansprechpartner_id, ansprechpartner, kunde_id, kunde
        from (
          select ${AKTIVITAET_SPALTEN} ${AKTIVITAET_QUELLE}
           where la.mandant_id = app.aktiver_mandant()
@@ -229,6 +246,34 @@ export async function leseKontaktVerlauf(
       order by sortier desc, id
       limit $2::int`,
     [ansprechpartnerId, grenze]);
+  return zeilen.map(alsEintrag);
+}
+
+/** Wie weit die Aktivitätsliste zurückreicht — dieselbe Frist wie die Kachel. */
+export const AKTIVITAET_TAGE = 7;
+/** Die Obergrenze der Liste; darüber sagt die Seite, dass sie kürzt. */
+export const AKTIVITAET_GRENZE = 500;
+
+/**
+ * Die Aktivitäten der letzten sieben Tage — die Liste hinter der Kachel
+ * „Aktivität (7 Tage)" (V-149, DSH-04).
+ *
+ * **Dieselbe Tabelle, dieselbe Frist wie die Kachel** (`bericht/kacheln.ts`,
+ * `letzte_aktivitaet`): `lead_aktivitaet`, `geschehen_am > now() - 7 Tage`,
+ * und keine Nachrichten — die zählt die Kachel nicht, und eine Liste, die
+ * mehr zeigt als die Zahl, ist dieselbe tote Zahl andersherum. Die Kachel
+ * führte auf die Kundenliste, auf der keine einzige Aktivität steht.
+ */
+export async function leseAktivitaeten(
+  kontext: LeseKontext, grenze: number = AKTIVITAET_GRENZE,
+): Promise<readonly VerlaufEintrag[]> {
+  const zeilen = await kontext.abfrage<Roh>(
+    `select ${AKTIVITAET_SPALTEN} ${AKTIVITAET_QUELLE}
+      where la.mandant_id = app.aktiver_mandant()
+        and la.geschehen_am > now() - make_interval(days => $1::int)
+      order by la.geschehen_am desc, la.id
+      limit $2::int`,
+    [AKTIVITAET_TAGE, grenze]);
   return zeilen.map(alsEintrag);
 }
 

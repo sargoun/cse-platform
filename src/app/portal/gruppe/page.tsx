@@ -5,6 +5,9 @@ import { gruppenUebersicht, type BereichKennzahlen } from '@/server/services/gru
 import {
   BereichMarke, GruppenAntwort, GruppenRahmen, gruppenLesen, gruppenTor, KeinRecht,
 } from './tor';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KENNZAHL_TEXTE } from '@/lib/i18n/verwaltung/kennzahlen';
+import { AUFTRAG_AKTIV, PROJEKT_IN_ARBEIT } from '@/server/services/bericht/mengen';
 
 /**
  * `/portal/gruppe` — die Gruppenuebersicht, LESEND (TEN-05, DSH-01, Invariante 10).
@@ -39,7 +42,14 @@ export default async function Gruppenuebersicht() {
     gruppenUebersicht(kontext));
   const n = bereiche.length;
   const anteil = (k: number): string => (k === n ? '' : ` · ${String(k)} von ${String(n)} Bereichen`);
-  const liste = (pfad: string, b: BereichKennzahlen): string => `/portal/gruppe/${pfad}?bereich=${b.slug}`;
+  /*
+   * `&`, wenn die Liste schon einen Filter trägt (V-149/V-150): die Zahl
+   * „Aufträge aktiv" führt auf `auftraege?status=aktiv&bereich=…`, nicht auf
+   * alle Aufträge des Bereichs.
+   */
+  const liste = (pfad: string, b: BereichKennzahlen): string =>
+    `/portal/gruppe/${pfad}${pfad.includes('?') ? '&' : '?'}bereich=${b.slug}`;
+  const tk = nachSprache(KENNZAHL_TEXTE, tor.zugang.sprache);
 
   return (
     <GruppenRahmen zugang={tor.zugang} titel="Gruppenübersicht" aktiverTab="uebersicht">
@@ -80,11 +90,36 @@ export default async function Gruppenuebersicht() {
             },
             {
               schluessel: 'auftraege', kopf: 'Aufträge aktiv', numerisch: true,
-              zelle: (b) => <Zahl wert={b.auftraegeAktiv} ziel={liste('auftraege', b)} />,
+              zelle: (b) => (
+                <Zahl wert={b.auftraegeAktiv} ziel={liste(`auftraege?status=${AUFTRAG_AKTIV}`, b)} />
+              ),
             },
             {
               schluessel: 'angebote', kopf: 'Angebote offen', numerisch: true,
-              zelle: (b) => (b.angeboteOffen === null ? <KeinRecht /> : b.angeboteOffen),
+              /*
+               * V-149 (DSH-04): hier stand eine nackte Zahl — die Liste
+               * dahinter gab es nicht. Jetzt `/gruppe/angebote`, mit derselben
+               * Menge (`ANGEBOT_OFFEN`).
+               */
+              zelle: (b) => <Zahl wert={b.angeboteOffen} ziel={liste('angebote?status=offen', b)} />,
+            },
+            {
+              schluessel: 'projekte', kopf: tk.gruppeProjekte, numerisch: true,
+              zelle: (b) => (
+                <Zahl wert={b.projekteInArbeit}
+                      ziel={liste(`projekte?status=${PROJEKT_IN_ARBEIT}`, b)} />
+              ),
+            },
+            {
+              schluessel: 'aufgaben', kopf: tk.gruppeAufgaben, numerisch: true,
+              zelle: (b) => <Zahl wert={b.aufgabenOffen} ziel={liste('aufgaben', b)} />,
+            },
+            {
+              schluessel: 'einsatz', kopf: tk.gruppeImEinsatz, numerisch: true,
+              zelle: (b) => (
+                <Zahl wert={b.imEinsatz}
+                      ziel={`/portal/gruppe/auslastung?bereich=${b.slug}#im-einsatz`} />
+              ),
             },
             {
               schluessel: 'leads', kopf: 'Neue Anfragen', numerisch: true,

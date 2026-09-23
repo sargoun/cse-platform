@@ -222,3 +222,60 @@ export async function gruppenArbzgBefunde(
     || a.name.localeCompare(b.name, 'de'));
   return befunde;
 }
+
+/* ------------------------------------------------------ Aktuell im Einsatz */
+
+/** Eine offene Zeile — wer gerade eingestempelt ist, in welcher Gesellschaft. */
+export interface ImEinsatzZeile {
+  readonly id: string;
+  readonly slug: string;
+  readonly bereichName: string;
+  /** NULL, wo die Person in diesem Bereich nicht lesbar ist — nie ein Leerstring. */
+  readonly person: string | null;
+  readonly objekt: string | null;
+  /** Beginn in Berliner Ortszeit, `TT.MM.JJJJ HH:MM` (Invariante 2). */
+  readonly seit: string;
+}
+
+interface ImEinsatzRoh {
+  readonly id: string;
+  readonly slug: string;
+  readonly bereich_name: string;
+  readonly person: string | null;
+  readonly objekt: string | null;
+  readonly seit: string;
+}
+
+/**
+ * „Aktuell im Einsatz" über alle Gesellschaften (DSH-05, V-150, D-644).
+ *
+ * **Dieselbe Sicht wie die Kachel des Bereichs** (`zeiteintrag_offen`, 0034)
+ * — `security_invoker`, also mit der Gruppen-Policy auf `zeiteintrag`
+ * (`gruppe.zeit.lesen`). Person und Objekt kommen per LEFT JOIN: fehlt dort
+ * das Leserecht, bleibt die Zeile stehen und zeigt einen Strich. Ein innerer
+ * Join liesse sie verschwinden, und die Zahl in der Gruppenübersicht zählte
+ * sie trotzdem (DSH-04).
+ */
+export async function gruppeImEinsatz(
+  kontext: LeseKontext, mandantIds: readonly string[],
+): Promise<readonly ImEinsatzZeile[]> {
+  const zeilen = await kontext.abfrage<ImEinsatzRoh>(
+    `select z.id, m.slug, m.name as bereich_name,
+            case when p.id is null then null
+                 else btrim(coalesce(p.vorname, '') || ' ' || p.nachname) end as person,
+            o.bezeichnung as objekt,
+            to_char(z.beginn_zeitpunkt at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
+              as seit
+       from zeiteintrag_offen z
+       join mandant m on m.id = z.mandant_id
+       left join person p on p.id = z.person_id
+       left join objekt o on o.id = z.objekt_id
+      where z.mandant_id = any($1::uuid[])
+      order by z.beginn_zeitpunkt, m.sortierung
+      limit 500`,
+    [mandantIds]);
+  return zeilen.map((z) => ({
+    id: z.id, slug: z.slug, bereichName: z.bereich_name, person: z.person,
+    objekt: z.objekt, seit: z.seit,
+  }));
+}

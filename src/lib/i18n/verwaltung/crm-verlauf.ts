@@ -20,7 +20,12 @@ export interface VerlaufTexte {
   readonly leer: string;
   readonly beschriftungKunde: string;
   readonly beschriftungKontakt: string;
+  readonly beschriftungListe: string;
   readonly jungste: (n: number) => string;
+
+  /* V-149 — die Liste hinter der Kachel „Aktivität (7 Tage)". */
+  readonly aktivitaetTitel: string;
+  readonly aktivitaetErklaerung: (tage: number) => string;
 
   readonly spalteWann: string;
   readonly spalteWas: string;
@@ -82,7 +87,14 @@ export const VERLAUF_TEXTE: Readonly<Record<InternSprache, VerlaufTexte>> = {
     leer: 'Noch nichts festgehalten.',
     beschriftungKunde: 'Kommunikation mit diesem Kunden, neueste zuerst',
     beschriftungKontakt: 'Kommunikation mit diesem Ansprechpartner, neueste zuerst',
+    beschriftungListe: 'Aktivitäten dieser Gesellschaft, neueste zuerst',
     jungste: (n) => `Die jüngsten ${String(n)} Einträge.`,
+
+    aktivitaetTitel: 'Aktivität',
+    aktivitaetErklaerung: (tage) =>
+      `Was in den letzten ${String(tage)} Tagen festgehalten wurde — Notizen, Anrufe, E-Mails, `
+      + 'Termine und Wiedervorlagen an Leads, Kunden und Ansprechpartnern, die neuesten zuerst. '
+      + 'Dieselbe Menge zählt die Kachel „Aktivität" der Übersicht.',
 
     spalteWann: 'Wann',
     spalteWas: 'Was',
@@ -186,7 +198,14 @@ export const VERLAUF_TEXTE: Readonly<Record<InternSprache, VerlaufTexte>> = {
     leer: 'Nothing recorded yet.',
     beschriftungKunde: 'Communication with this customer, newest first',
     beschriftungKontakt: 'Communication with this contact, newest first',
+    beschriftungListe: 'Activities of this company, newest first',
     jungste: (n) => `The ${String(n)} most recent entries.`,
+
+    aktivitaetTitel: 'Activity',
+    aktivitaetErklaerung: (tage) =>
+      `What was recorded in the last ${String(tage)} days — notes, calls, e-mails, appointments `
+      + 'and Wiedervorlagen (follow-ups) on Leads, customers and contacts, newest first. The '
+      + '"Activity" tile on the overview counts the same set.',
 
     spalteWann: 'When',
     spalteWas: 'What',

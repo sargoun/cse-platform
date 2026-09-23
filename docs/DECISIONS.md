@@ -3338,6 +3338,7 @@ Beantworten helfen:
 | O-895 | **Darf ein Mensch seine eigene Abwesenheit noch zurücknehmen, wenn ihre Tage bereits in einen Lohnexport oder einen abgeschlossenen Stundenkonto-Monat geflossen sind?** `abwesenheit` trägt keine Spalte, die das sagt — weder ein `exportiert_am` noch einen Bezug auf den Lauf. Ausgeliefert ist deshalb, was die Zustandsmaschine seit `0073` sagt und was `antrag.t_selbst_zurueckziehen` (0301) für den Antrag schon entschieden hat: **unentschieden heisst rücknehmbar** — `t_selbst_zurueckziehen` auf `abwesenheit` (0386) lässt `erfasst` und `beantragt` heran, `genehmigt` nicht. Der wahrscheinliche Konfliktfall ist die Krankmeldung: sie steht dauerhaft auf `erfasst` (sie wird nicht genehmigt, sondern zur Kenntnis genommen), und ihre Tage buchen über `abwesenheit_urlaubskonto` und die Sollzeitgutschrift weiter. Eine Rücknahme nach dem Lohnlauf dreht damit eine Zahl zurück, die ein Mensch schon in der Hand hatte — dieselbe Frage wie bei O-861 für die Zeitfreigabe, und dieselbe Antwort ist keine Selbstverständlichkeit. Zwei Wege sind denkbar: (a) eine Sperrspalte auf `abwesenheit`, die der Lohnexport setzt und die die Policy mitliest; (b) die Rücknahme bleibt offen und die Korrektur läuft über die Personalstelle, die den Export kennt. **Erfunden wird keiner von beiden.** | EMP-10, EMP-04, O-861, Invariante 8, `drizzle/0073`, `drizzle/0386`, `services/abwesenheit/index.ts` |
 | O-894 | **Darf eine Rechnung, ein Buchungsbeleg, ein Vertrag oder eine Buchhaltungsunterlage nach Ablauf der zehn Jahre gelöscht werden — oder bleibt die Aufbewahrung dauerhaft?** Die vier GoBD-Klassen tragen in `dokument_aufbewahrung` eine ENTSCHIEDENE Frist (10 Jahre, § 147 AO, § 14b UStG, § 257 HGB) **und in derselben Zeile `loeschsperre = true`** (0009:275). `kern.setze_aufbewahrung` schreibt die Sperre beim Anlegen fest, und lösen lässt sie sich nie (D-49). Eine Rechnung ist damit nicht zehn Jahre unlöschbar, sondern **dauerhaft** — während `08-PR-PLAN.md` PR 64 als Zusage „for the full ten years" führt und Art. 5 Abs. 1 lit. e DSGVO eine Obergrenze verlangt, nicht nur eine Untergrenze. Drei Antworten sind denkbar: (a) die Sperre läuft mit der Frist ab, und der Aufbewahrungslauf nimmt die vier Klassen mit; (b) sie bleibt, und das Konzept sagt „dauerhaft" statt „zehn Jahre"; (c) sie bleibt, aber ein Mensch kann je Dokument einzeln freigeben, mit Grund und Protokoll. **Die Plattform erfindet keine davon**: der Lauf `dokument_aufbewahrung` (V-116) erreicht heute nur `angebot` und `kunde` — die beiden Klassen ohne Sperre —, und das Löschkonzept nennt genau diese zwei, statt eine Reichweite zu behaupten, die die Tabelle nicht hergibt. | DOC-07, LEG-01, V-116, D-49, `drizzle/0009`, `drizzle/0141`, `drizzle/0382`, `src/server/jobs/dokumentAufbewahrung.ts` |
 | O-906 | **Gilt für Rechnungen und Buchungsbelege seit dem 1. Januar 2025 die Aufbewahrungsfrist von ACHT statt zehn Jahren?** Das Vierte Bürokratieentlastungsgesetz (BEG IV) hat die Frist für Buchungsbelege in § 147 Abs. 3 AO, § 257 Abs. 4 HGB und § 14b Abs. 1 UStG auf acht Jahre verkürzt; Bücher, Inventare, Jahresabschlüsse und Lageberichte bleiben bei zehn. Die Plattform führt in `dokument_aufbewahrung` für `rechnung` und `beleg` weiter **zehn** Jahre und zeigt das auf der Ablageseite als „§ 147 AO, § 14b UStG — 10 Jahre“. **Nicht geändert, mit Absicht:** eine zu LANGE Frist kostet nichts, was sich nicht nachholen liesse — eine zu KURZE ist ein Beleg, der fehlt, wenn die Betriebsprüfung kommt, und gelöscht ist gelöscht. Und die Übergangsregel (für welche Belege die kürzere Frist schon gilt) ist eine Frage an den Steuerberater, keine Zahl, die die Plattform setzt. Hängt mit O-894 zusammen: solange die Sperre dauerhaft ist, ändert die kürzere Frist heute nichts am Löschen — sie ändert die Aussage auf dem Bildschirm und im Löschkonzept. | DOC-07, LEG-01, O-894, V-116, `drizzle/0009`, `src/app/portal/[mandant]/dokumente/upload/page.tsx` |
+| O-910 | **Darf die Gruppenansicht die CRM-Aktivitäten aller Gesellschaften lesen — Notizen, Anrufe, Termine, mit Inhalt?** DSH-01 nennt für die Gruppenübersicht „letzte Aktivität“. `lead_aktivitaet` kennt seit `0017` **keinen Gruppenleseweg**: `t_aktivitaet_lesen` bindet an den aktiven Mandanten, eine `t_gruppe`-Policy wie auf `lead` oder `kunde` gibt es nicht — und das ist die einzige CRM-Tabelle, in der der WORTLAUT eines Gesprächs steht (`betreff`, `inhalt`). Eine Zahl allein ließe sich über eine Definer-Funktion zählen, ohne den Inhalt zu öffnen; sie wäre aber eine tote Zahl (DSH-04), denn die Liste dahinter müsste genau diese Zeilen zeigen. Drei Wege: (a) `t_gruppe` auf `lead_aktivitaet` mit `gruppe.crm.lesen` — dieselbe Reichweite wie für Leads und Kunden, also auch jede Gesprächsnotiz der anderen Gesellschaften; (b) ein eigenes Recht (etwa `gruppe.crm.aktivitaet_lesen`), das keine Rolle per Vorgabe hält; (c) so lassen — die Aktivität bleibt im Bereich. **Ausgeliefert ist (c):** die Kachel „Aktivität (7 Tage)“ führt im Bereich auf `/crm/aktivitaet` (V-149), in der Gruppe auf die Übersicht; die Gruppenübersicht hat keine Spalte dafür. Wer Gesprächsinhalte gesellschaftsübergreifend lesbar macht, entscheidet über eine Weitergabe personenbezogener Gesprächsinhalte zwischen rechtlich getrennten Gesellschaften — eine Datenschutzfrage an die Geschäftsführung, keine, die eine Spalte nebenbei beantwortet. | DSH-01, DSH-04, CRM-03, TEN-05, `drizzle/0017`, `services/gruppe/uebersicht.ts`, V-150, D-644 |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
 | O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
@@ -15689,4 +15690,95 @@ Seiten ankommen (`?bewertet=1`, `?entschieden=1` auf dem Bewerbungsblatt,
 `?angelegt=1` auf dem Stellenblatt) — das sind keine Fehler-Rückwege.
 
 | Betrifft | D-562, D-599, V-101, V-137, V-148, REC-02, REC-05, REC-08, REC-09, `src/app/api/crm/kunde/route.ts`, `src/app/portal/[mandant]/crm/kunden/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/{rueckmeldung.tsx,kandidaten/[id]/bewertung,kandidaten/[id]/entscheidung,stellen/neu,stellen/[id]/veroeffentlichung}`, `src/lib/i18n/verwaltung/{crm-kunde,recruiting-rueckmeldung}.ts` |
+|---|---|
+
+### D-643 · Jede Übersichtszahl führt zu ihren Zeilen — Wiedervorlagen, Aktivität, Angebote der Gruppe (V-149)
+
+**Der Befund** (V-149, DSH-04 „no dead numbers"): drei Zahlen führten nicht
+zu der Menge, die sie zählen. (a) „Offene Wiedervorlagen" zählt alle
+Zuständigen, `/crm/wiedervorlagen` öffnet in der Vorgabe „nur meine" — die
+CRM-Übersicht hatte das mit `?wer=alle` schon behoben, das Kachelregister
+nicht. (b) „Aktivität (7 Tage)" zählt `lead_aktivitaet` und führte auf die
+Kundenliste, auf der keine Aktivität steht. (c) „Angebote offen" in der
+Gruppenübersicht war eine nackte Zahl; `/portal/gruppe/angebote` gab es nicht.
+
+**Die Entscheidung.**
+
+1. **Die Wiedervorlagen-Kachel trägt `?wer=alle`.** Dieselbe Lösung wie auf
+   der CRM-Übersicht; die Liste liest genau diesen Parameter.
+2. **Eine eigene Aktivitätsliste, keine umgebogene Kundenliste.**
+   `/portal/[mandant]/crm/aktivitaet` (`crm.lesen`) zeigt über
+   `leseAktivitaeten` dieselbe Tabelle mit derselben Frist
+   (`AKTIVITAET_TAGE = 7`) — und bewusst KEINE Nachrichten: die zählt die
+   Kachel nicht, und eine Liste, die mehr zeigt als die Zahl, ist dieselbe
+   tote Zahl andersherum. Dargestellt mit dem Verlaufsbauteil aus V-147,
+   je Zeile mit Verweis auf Lead oder Kunde (nur, wenn lesbar). In der
+   Gruppe gibt es keine solche Liste (O-910); dort bleibt das Ziel die
+   Übersicht.
+3. **`/portal/gruppe/angebote`** (`gruppe.angebot.lesen`, `t_gruppe` auf
+   `angebot`) — lesend, mit Bereichs- und Standfilter. Die Zelle der
+   Übersicht führt mit `?status=offen&bereich=…` dorthin.
+4. **Eine Menge, ein Ort** (`services/bericht/mengen.ts`): welche Stände
+   „offen", „aktiv", „in Arbeit" heissen, steht einmal. Kachel, Liste und
+   Gruppenübersicht bauen ihr Prädikat daraus; die Übersicht bekommt die
+   Werte als Parameter statt als zweite Schreibweise im SQL. Filter aus der
+   Adresse werden nur gegen die Werteliste angenommen, nie als Text.
+
+**Nicht Teil dieser Entscheidung:** welche Stände „offen" heissen — das
+folgt den Aufzählungen selbst (0024, 0025, 0071) und ist keine neue Regel.
+
+| Betrifft | DSH-04, CRM-03, CRM-04, OPS-08, V-147, V-149, `src/server/services/bericht/{kacheln,mengen}.ts`, `src/server/services/crm/verlauf.ts`, `src/app/portal/[mandant]/crm/aktivitaet/page.tsx`, `src/app/portal/gruppe/{page,angebote/page,tor}.tsx`, `docs/architecture/04-SEITENKARTE.md` |
+|---|---|
+
+### D-644 · Die gebauten Module haben ihre Kachel, und die Gruppenübersicht zählt Projekte, Einsatz und Aufgaben (V-150)
+
+**Der Befund** (V-150, DSH-01, DSH-03): das Kachelregister trug 13 Kacheln
+und begründete das Fehlen der übrigen mit „Modul noch nicht gemergt".
+Aufträge, Angebote, Bauprojekte, Forderungen und Aufgaben waren längst
+gebaut — die Übersicht jeder Gesellschaft zeigte trotzdem keine einzige
+Auftrags-, Projekt-, Angebots- oder Finanzzahl. Der Gruppenübersicht fehlten
+aktive Projekte, „aktuell im Einsatz", anstehende Aufgaben und letzte
+Aktivität.
+
+**Die Entscheidung.**
+
+1. **Fünf neue Kacheln, jede mit dem Recht ihres Moduls und einer Liste,
+   die GENAU ihre Menge zeigt:** `auftraege_aktiv` (`auftrag.lesen` →
+   `auftraege?status=aktiv`), `projekte_in_arbeit` (`bau.lesen` →
+   `bau/projekte?status=in_arbeit`), `angebote_offen` (`angebot.lesen` →
+   `angebote?status=offen`), `forderungen_offen` (`buchhaltung.lesen` →
+   `buchhaltung/offene-posten?art=debitor`, dieselbe Bedingung wie
+   `postenListe`) und `aufgaben_offen` (`aufgabe.lesen` → `aufgaben`,
+   `OFFENE_ZUSTAENDE` aus `kern/aufgabe.ts`). Die drei Listen, die bisher
+   keinen Filter kannten, lesen jetzt `?status=` gegen die Werteliste und
+   sagen es in einer Zeile über der Liste („Gefiltert: … · Alle anzeigen",
+   DESIGN §Filter line).
+2. **Der Kunde kommt in diesen Listen per LEFT JOIN.** Die Kachel zählt die
+   Hauptzeile allein; ein innerer Join auf `kunde` liess ein Projekt ohne
+   `crm.lesen` aus der Liste fallen, das die Kachel zählte. Die Zelle zeigt
+   dann einen Strich.
+3. **Umsatz, Aufwand und Ergebnis werden keine Kacheln.** Das Register zählt
+   Zeilen; Geld steht auf `/finanzen` (Bereich) und `/gruppe/finanzen`
+   (Gruppe, mit Aufwand je Bereich) — D-479, keine GuV. Benachrichtigungen
+   bleiben in der Glocke.
+4. **Die Gruppenübersicht bekommt drei Spalten:** „Bauprojekte in Arbeit"
+   (`gruppe.bau.lesen` → `/gruppe/projekte?status=in_arbeit`), „Offene
+   Aufgaben" (`gruppe.aufgabe.lesen` → neue Seite `/gruppe/aufgaben`, über
+   `t_aufgabe_gruppe` aus 0230) und „Im Einsatz" (`gruppe.zeit.lesen` →
+   `/gruppe/auslastung?bereich=…#im-einsatz`, ein neuer Abschnitt aus
+   `zeiteintrag_offen`). Wie jede Zelle dort: `null` und ein Strich, wo das
+   Recht in DIESEM Bereich fehlt — nie die 0 der Policy.
+5. **„Letzte Aktivität" bekommt die Gruppe nicht.** `lead_aktivitaet` hat
+   keinen Gruppenleseweg, und einen zu öffnen hiesse, Gesprächsinhalte aller
+   Gesellschaften in der Gruppe lesbar zu machen. Das ist O-910 und wird
+   nicht nebenbei entschieden.
+6. **Eine Ausnahme in `tests/kern/verweis-rechte.test.ts`:** der Verweis
+   „Im Einsatz" auf `/gruppe/auslastung` ist über `gruppenUebersicht()`
+   bewacht (die Zelle ist ohne `gruppe.zeit.lesen` im Bereich `null`,
+   `Zahl` rendert dann keinen Verweis). Für die statische Vermessung ist das
+   unsichtbar, weil das Recht im Dienst steht — dieselbe Lage wie die zwei
+   bestehenden Einträge. `tests/isolation/kennzahlen-listen.test.ts` hält die
+   `null`-Zelle fest.
+
+| Betrifft | DSH-01, DSH-03, DSH-04, DSH-05, OPS-05, OPS-08, OPS-11, FIN-15, TEN-05, D-479, O-910, V-150, `src/server/services/bericht/{kacheln,mengen}.ts`, `src/server/services/gruppe/{uebersicht,auslastung,aufgaben}.ts`, `src/server/services/bau/lv.ts`, `src/app/portal/[mandant]/{page,auftraege/page,angebote/page,bau/projekte/page}.tsx`, `src/app/portal/gruppe/{page,aufgaben/page,auslastung/page,auftraege/page,projekte/page}.tsx`, `src/components/portal/Listenfilter.tsx`, `src/lib/i18n/verwaltung/kennzahlen.ts`, `docs/DESIGN.md`, `tests/kern/verweis-rechte.test.ts` |
 |---|---|

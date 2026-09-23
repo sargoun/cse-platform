@@ -146,6 +146,16 @@ const OHNE_BEDINGUNG: Readonly<Record<string, string>> = {
     + '— auch für die Super-Administration. Ein Wächter, der nur das Recht fragte, zeigte den '
     + 'Verweis trotzdem. Diese Paarung bleibt gemessen, nur von der Prüfung, die sie gefunden '
     + 'hat: dem Browserlauf durch das Portal.',
+  'gruppe/page.tsx → /portal/gruppe/auslastung':
+    'Bewacht über `gruppenUebersicht()` (`services/gruppe/uebersicht.ts`, V-150, D-644): '
+    + 'die Zelle „Im Einsatz" ist `null`, wo die Sitzung `gruppe.zeit.lesen` in DIESEM Bereich '
+    + 'nicht hält (`UEBERSICHT_RECHTE.einsatz`, gefragt mit `app.hat_recht` je Bereich), und '
+    + '`Zahl` rendert dann `KeinRecht` statt eines Verweises. Das ist strenger als der blosse '
+    + 'Rechtevergleich (je Bereich statt irgendwo), für diese Vermessung aber unsichtbar, weil '
+    + 'das Recht im Dienst steht und nicht in der Seite. Die übrigen Zellen derselben Tabelle '
+    + 'laufen über dieselbe Bedingung; sie tauchen hier nur deshalb nicht auf, weil ihr Ziel '
+    + 'über `liste()` zusammengesetzt wird. `tests/isolation/kennzahlen-listen.test.ts` hält '
+    + 'fest, dass die Zelle ohne das Recht `null` ist.',
 };
 
 function befundeFuer(portal: typeof PORTALE[number]): readonly string[] {

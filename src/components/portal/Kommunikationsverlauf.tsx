@@ -64,8 +64,12 @@ export function Kommunikationsverlauf({
   readonly eintraege: readonly VerlaufEintrag[];
   readonly sprache: PortalSprache | null;
   readonly mandant: string;
-  /** Auf dem Kundenblatt steht der Ansprechpartner als Bezug, auf dem Kontaktblatt nicht. */
-  readonly blatt: 'kunde' | 'kontakt';
+  /**
+   * Wo die Liste steht. Auf dem Kundenblatt ist der Bezug Lead und
+   * Ansprechpartner, auf dem Kontaktblatt nur der Lead, in der
+   * Aktivitätsliste (`/crm/aktivitaet`) auch der Kunde.
+   */
+  readonly blatt: 'kunde' | 'kontakt' | 'liste';
   readonly darfNamen: boolean;
   readonly darfNachrichten: boolean;
   readonly grenze: number;
@@ -78,7 +82,8 @@ export function Kommunikationsverlauf({
         <p className="mt-s3 text-sm text-text-muted" data-cse="verlauf-leer">{t.leer}</p>
       ) : (
         <DataTable
-          beschriftung={blatt === 'kunde' ? t.beschriftungKunde : t.beschriftungKontakt}
+          beschriftung={blatt === 'kunde' ? t.beschriftungKunde
+            : blatt === 'kontakt' ? t.beschriftungKontakt : t.beschriftungListe}
           zeilen={eintraege}
           schluessel={(e) => `${e.quelle}-${e.id}`}
           spalten={[
@@ -113,11 +118,17 @@ export function Kommunikationsverlauf({
                     {e.ansprechpartner}
                   </Link>
                 );
-              if (lead === null && kontakt === null) {
+              const kunde = blatt !== 'liste' || e.kundeId === null || e.kunde === null ? null : (
+                <Link href={`/portal/${mandant}/crm/kunden/${e.kundeId}`} className={VERWEIS}>
+                  {e.kunde}
+                </Link>
+              );
+              if (lead === null && kontakt === null && kunde === null) {
                 return <span className="text-text-subtle">{t.unbekannt}</span>;
               }
               return (
                 <span className="flex flex-col gap-s1 text-sm">
+                  {kunde}
                   {lead}
                   {kontakt}
                 </span>

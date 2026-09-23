@@ -2,6 +2,10 @@ import Link from 'next/link';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import { Listenfilter } from '@/components/portal/Listenfilter';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KENNZAHL_TEXTE } from '@/lib/i18n/verwaltung/kennzahlen';
+import { auftragStatusAus } from '@/server/services/bericht/mengen';
 import {
   bereichAus, BereichFilter, BereichMarke, GruppenAntwort, GruppenHinweis, GruppenRahmen,
   gruppenLesen, gruppenTor, ladeBereiche, LeereListe, mandantIdsFuer, type Suchparameter,
@@ -37,6 +41,15 @@ export default async function GruppenAuftraege({ searchParams }: { searchParams:
   const tor = await gruppenTor('/portal/gruppe/auftraege');
   if (tor.art !== 'ok') return <GruppenAntwort tor={tor} />;
 
+  /*
+   * **Der Stand aus der Gruppenübersicht** (V-150, DSH-04): „Aufträge aktiv"
+   * zählt `status = 'aktiv'` und führt mit `?status=aktiv` hierher. Ohne den
+   * Filter zeigte die Liste alle nicht archivierten — eine andere Menge als
+   * die Zahl davor.
+   */
+  const status = auftragStatusAus((await searchParams)['status']);
+  const tk = nachSprache(KENNZAHL_TEXTE, tor.zugang.sprache);
+
   const { bereiche, aktiv, zeilen } = await gruppenLesen(tor.zugang, async (kontext) => {
     const bereiche = await ladeBereiche(kontext);
     const aktiv = await bereichAus(searchParams, bereiche);
@@ -50,9 +63,10 @@ export default async function GruppenAuftraege({ searchParams }: { searchParams:
          left join kunde k on k.id = a.kunde_id
          left join objekt o on o.id = a.objekt_id
         where a.archiviert_am is null and a.mandant_id = any($1::uuid[])
+          and ($2::text is null or a.status::text = $2)
         order by a.start_datum desc nulls last, m.sortierung, a.auftragsnummer
         limit 500`,
-      [mandantIdsFuer(kontext, aktiv)],
+      [mandantIdsFuer(kontext, aktiv), status],
     );
     return { bereiche, aktiv, zeilen };
   });
@@ -60,7 +74,15 @@ export default async function GruppenAuftraege({ searchParams }: { searchParams:
   return (
     <GruppenRahmen zugang={tor.zugang} titel="Aufträge" aktiverTab="auftraege">
       <h1 className="mb-s5 text-h1 text-text">Aufträge</h1>
-      <BereichFilter bereiche={bereiche} aktiv={aktiv} basis="/portal/gruppe/auftraege" />
+      <BereichFilter bereiche={bereiche} aktiv={aktiv}
+                     basis={status === null
+                       ? '/portal/gruppe/auftraege' : `/portal/gruppe/auftraege?status=${status}`} />
+      {status === null ? null : (
+        <Listenfilter sprache={tor.zugang.sprache}
+                      beschreibung={tk.auftragStatus[status] ?? tk.keinTreffer}
+                      alleZiel={aktiv === null
+                        ? '/portal/gruppe/auftraege' : `/portal/gruppe/auftraege?bereich=${aktiv.slug}`} />
+      )}
       {zeilen.length === 0 ? (
         <LeereListe text="Kein Auftrag in dieser Auswahl." />
       ) : (

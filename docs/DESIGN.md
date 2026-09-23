@@ -592,6 +592,19 @@ survive a middle-click and a copied link; and the current one carries
 reader **is**, not what they have switched on. Colour alone never marks it
 (§9) — `aria-current` is the second signal.
 
+### Filter line
+
+A list that opens **already filtered** — from a dashboard figure (DSH-04) or a
+month selection — says so in one line above the list: `text-sm` in
+`--text-muted`, the filter value in `<strong>` with `--text`, then ` · ` and
+an `<a>` back to the unfiltered list („Alle anzeigen" / "Show all"),
+underlined with a 2px offset, `--text` on hover; `--s5` below. It is a
+sentence, not a pill: it states what the reader is looking at, it does not
+switch anything on. Without it a filtered list looks like the whole list, and
+a figure of fourteen reads as "all there are". Component:
+`components/portal/Listenfilter.tsx` (`data-cse="listen-filter"`); the month
+filters of the invoice lists (`monat-filter`) have the same form.
+
 ### Tables
 
 Header row `micro` uppercase `--text-subtle`, `1px solid --border` beneath.

@@ -12,6 +12,8 @@ import { portalZugang } from '../zugang';
 import { slugTor } from '../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KENNZAHL_TEXTE } from '@/lib/i18n/verwaltung/kennzahlen';
 
 /**
  * `/portal/[mandant]` — das rollenaufgeloeste Dashboard (DSH-01, DSH-03).
@@ -112,9 +114,14 @@ export default async function MandantDashboard(
 
   if (daten === null) notFound();
 
+  /*
+   * Der Name in der Sprache der Sitzung (V-150, D-592). Das Register trägt
+   * den deutschen; fehlt ein Eintrag, bleibt er stehen — nie der Schlüssel.
+   */
+  const tk = nachSprache(KENNZAHL_TEXTE, zugang.sprache);
   const anzeige: readonly KachelAnzeige[] = daten.werte.map((w) => ({
     schluessel: w.kachel.schluessel,
-    label: w.kachel.label,
+    label: tk.kacheln[w.kachel.schluessel] ?? w.kachel.label,
     wert: w.wert,
     ton: w.kachel.ton,
     icon: w.kachel.icon,
