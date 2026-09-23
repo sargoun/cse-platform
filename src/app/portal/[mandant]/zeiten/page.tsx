@@ -12,7 +12,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import type { IconName } from '@/lib/design/icons';
 import { berlinHeute } from '@/server/db/heute';
-import { montag, tagePlus } from '@/lib/datum/kalendertag';
+import { monatVerschieben, montag, tagePlus } from '@/lib/datum/kalendertag';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
 import { haeltRechte } from '../../rechte';
 import {
@@ -101,9 +101,30 @@ export default async function Zeitliste({
   const frage = await searchParams;
   const heute = await berlinHeute();
   const rohWoche = einzeln(frage['woche']);
+  /**
+   * **Ein MONAT statt einer Woche** (V-070).
+   *
+   * Der Monatsabschluss meldet „3 Zeiteinträge sind nicht freigegeben" und
+   * konnte auf nichts zeigen: diese Liste kannte nur Wochen, und ein Verweis
+   * auf die erste Woche des Monats zeigte einen Teil der drei und behauptete,
+   * es seien alle. Mit `?monat=` spannt das Fenster über den ganzen Monat;
+   * die Wochennavigation weicht dann einem Weg zurück in die Wochenansicht.
+   *
+   * Der Wert wird auf `JJJJ-MM` gezwungen, bevor er ein Datum wird: was aus
+   * der Adresszeile kommt, ist eine Behauptung und keine Angabe.
+   */
+  const rohMonat = einzeln(frage['monat']);
+  const monat = rohMonat !== null && /^\d{4}-\d{2}$/u.test(rohMonat) ? rohMonat : null;
   const anker = rohWoche !== null && /^\d{4}-\d{2}-\d{2}$/u.test(rohWoche) ? rohWoche : heute;
-  const von = montag(anker);
-  const bis = tagePlus(von, 6);
+  const von = monat === null ? montag(anker) : `${monat}-01`;
+  /*
+   * Der letzte Tag des Monats: der Tag vor dem Ersten des Folgemonats — in
+   * Kalenderarithmetik und nicht mit einer Tabelle „30 Tage hat September",
+   * damit der Februar im Schaltjahr stimmt.
+   */
+  const bis = monat === null
+    ? tagePlus(von, 6)
+    : tagePlus(monatVerschieben(`${monat}-01`, 1), -1);
 
   /**
    * Ein unbekannter Wert wird VERWORFEN, nicht durchgereicht: `person=';--`
@@ -131,7 +152,10 @@ export default async function Zeitliste({
   const mitFilter = (aenderung: Readonly<Record<string, string | null>>): string => {
     const p = new URLSearchParams();
     const basis: Record<string, string | null> = {
-      woche: von,
+      /* Im Monatsfenster wandert `monat` mit, sonst `woche` — nie beide: zwei
+         Fensterangaben in einer Adresse wären zwei Antworten auf dieselbe
+         Frage, und welche gilt, entschiede die Reihenfolge im Rumpf. */
+      ...(monat === null ? { woche: von } : { monat }),
       person: filter.personId,
       objekt: filter.objektId,
       merkmal: filter.merkmal,
@@ -161,10 +185,33 @@ export default async function Zeitliste({
         </p>
       </div>
 
-      <nav aria-label="Woche wechseln" className="mb-s4 flex flex-wrap items-center gap-s2">
-        <Sprung ziel={mitFilter({ woche: tagePlus(von, -7) })} text="← Vorige Woche" />
-        <Sprung ziel={mitFilter({ woche: montag(heute) })} text="Diese Woche" />
-        <Sprung ziel={mitFilter({ woche: tagePlus(von, 7) })} text="Nächste Woche →" />
+      <nav aria-label={monat === null ? 'Woche wechseln' : 'Monat wechseln'}
+           className="mb-s4 flex flex-wrap items-center gap-s2">
+        {monat === null ? (
+          <>
+            <Sprung ziel={mitFilter({ woche: tagePlus(von, -7) })} text="← Vorige Woche" />
+            <Sprung ziel={mitFilter({ woche: montag(heute) })} text="Diese Woche" />
+            <Sprung ziel={mitFilter({ woche: tagePlus(von, 7) })} text="Nächste Woche →" />
+          </>
+        ) : (
+          <>
+            {/* Im Monatsfenster (V-070) blättert man Monate, nicht Wochen —
+                und findet zurück in die Wochenansicht, die der Regelfall
+                dieser Seite ist. */}
+            <Sprung
+              ziel={mitFilter({ monat: monatVerschieben(`${monat}-01`, -1).slice(0, 7) })}
+              text="← Voriger Monat"
+            />
+            <Sprung
+              ziel={mitFilter({ monat: monatVerschieben(`${monat}-01`, 1).slice(0, 7) })}
+              text="Nächster Monat →"
+            />
+            <Sprung
+              ziel={mitFilter({ monat: null, woche: montag(von) })}
+              text="Zur Wochenansicht"
+            />
+          </>
+        )}
         <span className="grow" />
         <Sprung ziel={`${pfad}/live`} text="Aktuell im Einsatz" icon="uhr" />
         <Sprung ziel={`${pfad}/korrekturen`} text="Korrekturen" icon="stift" />

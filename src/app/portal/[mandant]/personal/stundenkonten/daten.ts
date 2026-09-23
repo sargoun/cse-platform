@@ -31,12 +31,15 @@ export interface KontoZeile {
   readonly gesperrtAm: Date | null;
   /** Zeiteintraege des Monats, die noch niemand freigegeben hat. */
   readonly offeneZeiten: number;
+  /** Die Person hinter der Beschaeftigung — der Filter der Zeitliste (V-070). */
+  readonly personId: string;
   /** Erfasste Eintraege des Monats insgesamt — auch die freigegebenen. */
   readonly zeiten: number;
 }
 
 interface ZeileRoh {
   anstellung_id: string;
+  person_id: string;
   name: string;
   personalnummer: string | null;
   anstellung_status: string;
@@ -55,6 +58,7 @@ interface ZeileRoh {
 function alsZeile(z: ZeileRoh): KontoZeile {
   return {
     anstellungId: z.anstellung_id,
+    personId: z.person_id,
     name: z.name,
     personalnummer: z.personalnummer,
     anstellungStatus: z.anstellung_status,
@@ -80,6 +84,12 @@ function alsZeile(z: ZeileRoh): KontoZeile {
  */
 const LISTE = `
   select a.id                                   as anstellung_id,
+         -- Der MENSCH, nicht die Beschaeftigung: die Zeitliste filtert ueber
+         -- person_id (V-070). Bei zwei Beschaeftigungen derselben Person zeigt
+         -- der Verweis beide Reihen — richtig, denn das Arbeitszeitgesetz
+         -- rechnet ueber die Person (D-09). Kein Backtick in diesem Kommentar:
+         -- die Anweisung steht in einem Template-Literal.
+         p.id                                    as person_id,
          (p.vorname || ' ' || p.nachname)        as name,
          a.personalnummer,
          a.status::text                          as anstellung_status,
