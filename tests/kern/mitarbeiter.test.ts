@@ -162,6 +162,8 @@ describe('(2) es gibt keinen Weg, der einen Zeiteintrag aendert (EMP-07)', () =>
    */
   const MEINE_SCHREIBROUTEN: readonly string[] = [
     'api/mein/abwesenheit',
+    /* V-056 — die eigene Ruecknahme, in derselben Form wie beim Antrag (0386). */
+    'api/mein/abwesenheit/[id]/zurueckziehen',
     'api/mein/antraege',
     'api/mein/antraege/[id]/zurueckziehen',
     'api/mein/dienstanweisungen/[id]/kenntnisnahme',

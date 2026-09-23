@@ -105,6 +105,51 @@ export default async function NeueAbwesenheit() {
             </div>
           </div>
 
+          {/*
+            **Halbe Randtage** (V-057). Die Spalten `von_halbtags`/`bis_halbtags`,
+            die Rechnung in `rechneTage` (je halber Randtag minus 0,5) und der
+            Lohnexport standen seit 0073; die Route las beide Felder — und kein
+            Formular schickte sie. Wer einen halben Tag krank war, meldete einen
+            ganzen, und die Sollzeitgutschrift im Stundenkonto war um einen
+            halben Tag falsch (EMP-04).
+          */}
+          <fieldset className="m-0 flex flex-col gap-s3 border-0 p-0">
+            <legend className="mb-s1 p-0 text-base text-text">{t.halberTagBeginn}</legend>
+            <label className="flex items-start gap-s3 text-base text-text">
+              <input type="checkbox" name="von_halbtags" value="ja"
+                     className="mt-s1 min-h-6 min-w-6" data-cse="abw-von-halb" />
+              <span>{t.halberTagBeginn}</span>
+            </label>
+            <label className="flex items-start gap-s3 text-base text-text">
+              <input type="checkbox" name="bis_halbtags" value="ja"
+                     className="mt-s1 min-h-6 min-w-6" data-cse="abw-bis-halb" />
+              <span>{t.halberTagEnde}</span>
+            </label>
+            <p className="m-0 text-sm text-text-muted">{t.halberTagHinweis}</p>
+          </fieldset>
+
+          {/*
+            **Die AU-Bescheinigung** (§ 5 EFZG). `au_bescheinigung_vorliegt` und
+            `au_bis` stehen seit 0073 in der Tabelle und wurden von der Route
+            gelesen — geschickt hat sie niemand. Ohne sie steht in der Akte bei
+            jeder Krankmeldung „keine Bescheinigung", auch wenn sie auf dem
+            Tisch der Personalstelle liegt.
+          */}
+          <fieldset className="m-0 flex flex-col gap-s3 border-0 p-0">
+            <legend className="mb-s1 p-0 text-base text-text">{t.auVorliegt}</legend>
+            <label className="flex items-start gap-s3 text-base text-text">
+              <input type="checkbox" name="au_vorliegt" value="ja"
+                     className="mt-s1 min-h-6 min-w-6" data-cse="abw-au-vorliegt" />
+              <span>{t.auVorliegt}</span>
+            </label>
+            <div className="flex flex-col gap-s2">
+              <label htmlFor="abw-au-bis" className="text-base text-text">{t.auBis}</label>
+              <input id="abw-au-bis" name="au_bis" type="date" className={eingabe}
+                     data-cse="abw-au-bis" />
+            </div>
+            <p className="m-0 text-sm text-text-muted">{t.auHinweis}</p>
+          </fieldset>
+
           <div className="flex flex-col gap-s2">
             <label htmlFor="abw-bemerkung" className="text-base text-text">
               {t.nachricht}

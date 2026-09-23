@@ -1682,6 +1682,18 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + '`t_selbst_m1` gibt nur `r`.',
   },
   {
+    pfad: 'api/mein/abwesenheit/[id]/zurueckziehen',
+    recht: null,
+    grund:
+      'V-056, EMP-10, SEITENKARTE §7. Die EIGENE Abwesenheit zuruecknehmen ist Selbstzugriff '
+      + 'und kein Modulrecht (K-19) — dieselbe Begruendung wie beim Antrag daneben. Die '
+      + 'Wache ist die Sitzung, der Ursprungsvergleich, der aus der Beschaeftigung '
+      + 'serverseitig aufgeloeste Mandant (K-02) und die Policy `t_selbst_zurueckziehen` '
+      + '(0386), deren USING nur erfasst/beantragt und deren WITH CHECK nur storniert '
+      + 'zulaesst — eine Selbstgenehmigung ist damit nicht formulierbar, und eine schon '
+      + 'entschiedene Abwesenheit bleibt der Planung.',
+  },
+  {
     pfad: 'api/mein/antraege/[id]/zurueckziehen',
     recht: null,
     grund:

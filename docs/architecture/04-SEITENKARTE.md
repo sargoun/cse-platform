@@ -2160,6 +2160,7 @@ tr with `dir="rtl"` for Arabic (DESIGN §8, EMP-12).
 | `/portal/mein/antraege` , `/[id]` — leave, swap and sickness requests with status | `S` | `PER` | EMP-10, NOT-03 | 5 |
 | `/portal/mein/antraege/neu` — leave request or shift swap | `S` | `PER→M1` | EMP-10 | 5 |
 | `/portal/mein/abwesenheit/neu` — sickness or absence report | `zeit.abwesenheit_melden` | `PER→M1` | EMP-10 | 5 |
+| `/portal/mein/abwesenheit/[id]` — one own absence, with self-withdrawal while undecided (V-056) | `S` | `PER` | EMP-10 | 5 |
 | `/portal/mein/nachweise` — my certificates with personal expiry warnings | `S` | `PER` (person-level, D-09) | EMP-08, SEC-02, SEC-03 | 5 |
 | `/portal/mein/dienstanweisungen` , `/[id]` — read and acknowledge from the phone | `S` | `PER` / `PER→M1` | EMP-09, SEC-06 | 5 |
 | `/portal/mein/dokumente` , `/[id]` — documents relevant to me, via signed URLs | `S` | `PER` | EMP-11, DOC-03, DOC-04 | 3 |

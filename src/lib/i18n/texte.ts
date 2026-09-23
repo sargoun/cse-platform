@@ -563,6 +563,21 @@ export interface MeinTexte {
   readonly zurueckziehen: string;
   readonly abwesenheitMelden: string;
   readonly abwesenheitArt: string;
+  /**
+   * Halbe Tage und die AU-Bescheinigung (V-057, EMP-10, § 5 EFZG).
+   *
+   * Die Spalten, die Regel (`rechneTage` zieht je halbem Randtag 0,5 ab) und
+   * der Lohnexport standen seit `0073`; die Route las alle vier Felder —
+   * **und kein Formular schickte sie.** Wer einen halben Tag krank war,
+   * meldete einen ganzen, und die Sollzeitgutschrift im Stundenkonto war um
+   * einen halben Tag falsch (EMP-04).
+   */
+  readonly halberTagBeginn: string;
+  readonly halberTagEnde: string;
+  readonly halberTagHinweis: string;
+  readonly auVorliegt: string;
+  readonly auBis: string;
+  readonly auHinweis: string;
   readonly absenden: string;
 
   readonly gueltigBis: string;
@@ -679,6 +694,26 @@ export interface MeinTexte {
   readonly entscheidung: string;
   readonly zurueckgezogen: string;
   readonly zurueckziehenHinweis: string;
+  /**
+   * Die eigene Abwesenheit (V-056, EMP-10).
+   *
+   * `abwesenheitRuecknahmeHinweis` sagt AUSDRÜCKLICH, was die Rücknahme NICHT
+   * kann: eine schon entschiedene Abwesenheit bleibt der Personalstelle. Ein
+   * Knopf, der still nichts tut, ist schlimmer als keiner.
+   *
+   * `abwesenheitArtVerdeckt` erklärt, warum die ART hier nicht steht:
+   * `abwesenheitsart_id`, `au_*` und `bemerkung` gibt `abwesenheit` der
+   * Anwendungsrolle gar nicht zu lesen (0073, Art. 9 DSGVO) — auch nicht für
+   * die eigene Zeile. Ohne den Satz sieht die Lücke aus wie ein Fehler.
+   */
+  readonly abwesenheitBlatt: string;
+  readonly abwesenheitRuecknahme: string;
+  readonly abwesenheitRuecknahmeHinweis: string;
+  readonly abwesenheitNichtRuecknehmbar: string;
+  readonly abwesenheitArtVerdeckt: string;
+  readonly gemeldetAm: string;
+  readonly storniertAm: string;
+  readonly halbeTage: string;
 
   readonly wachbuch: string;
   readonly wachbuchNeu: string;
@@ -952,6 +987,16 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     zurueckziehen: 'Zurückziehen',
     abwesenheitMelden: 'Abwesenheit melden',
     abwesenheitArt: 'Art der Abwesenheit',
+    halberTagBeginn: 'Erster Tag nur halb',
+    halberTagEnde: 'Letzter Tag nur halb',
+    halberTagHinweis:
+      'Wenn Sie am ersten oder letzten Tag noch bzw. schon gearbeitet haben. '
+      + 'Ein halber Tag zählt als 0,5.',
+    auVorliegt: 'Arbeitsunfähigkeitsbescheinigung liegt vor',
+    auBis: 'Bescheinigung gültig bis',
+    auHinweis:
+      'Nur ankreuzen, wenn Sie die Bescheinigung schon abgegeben haben. Ohne sie bleibt '
+      + 'die Meldung gültig — die Personalstelle fragt nach.',
     absenden: 'Absenden',
     gueltigBis: 'Gültig bis',
     unbefristet: 'unbefristet',
@@ -1016,6 +1061,22 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     entschiedenAm: 'Entschieden am',
     entscheidung: 'Entscheidung',
     zurueckgezogen: 'Zurückgezogen',
+    abwesenheitBlatt: 'Meine Abwesenheit',
+    abwesenheitRuecknahme: 'Abwesenheit zurücknehmen',
+    abwesenheitRuecknahmeHinweis:
+      'Solange niemand darüber entschieden hat, können Sie eine Abwesenheit selbst '
+      + 'zurücknehmen — zum Beispiel, wenn Sie sich im Datum vertan haben. Die Zeile bleibt '
+      + 'lesbar, mit Meldung und Rücknahme.',
+    abwesenheitNichtRuecknehmbar:
+      'Diese Abwesenheit ist entschieden oder schon zurückgenommen. Eine Änderung nimmt '
+      + 'jetzt die Personalstelle vor.',
+    abwesenheitArtVerdeckt:
+      'Die Art der Abwesenheit steht hier nicht: Gesundheitsdaten sind eng geführt, und die '
+      + 'Datenbank gibt sie dem Portal auch für die eigene Zeile nicht heraus. Die '
+      + 'Personalstelle nennt sie Ihnen.',
+    gemeldetAm: 'Gemeldet am',
+    storniertAm: 'Zurückgenommen am',
+    halbeTage: 'Halbe Tage',
     zurueckziehenHinweis:
       'Zurückziehen geht, solange niemand entschieden hat. Der Antrag bleibt lesbar.',
     wachbuch: 'Wachbuch',
@@ -1251,6 +1312,16 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     zurueckziehen: 'Withdraw',
     abwesenheitMelden: 'Report an absence',
     abwesenheitArt: 'Type of absence',
+    halberTagBeginn: 'First day only half',
+    halberTagEnde: 'Last day only half',
+    halberTagHinweis:
+      'If you still worked on the first day, or already worked again on the last. '
+      + 'Half a day counts as 0.5.',
+    auVorliegt: 'Medical certificate has been handed in',
+    auBis: 'Certificate valid until',
+    auHinweis:
+      'Only tick this if you have already handed the certificate in. Without it the report '
+      + 'still stands — the personnel office will ask.',
     absenden: 'Submit',
     gueltigBis: 'Valid until',
     unbefristet: 'no expiry',
@@ -1315,6 +1386,22 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     entschiedenAm: 'Decided on',
     entscheidung: 'Decision',
     zurueckgezogen: 'Withdrawn',
+    abwesenheitBlatt: 'My absence',
+    abwesenheitRuecknahme: 'Withdraw absence',
+    abwesenheitRuecknahmeHinweis:
+      'As long as nobody has decided on it, you can withdraw an absence yourself — for '
+      + 'example if you got the date wrong. The record stays readable, with the report and '
+      + 'the withdrawal.',
+    abwesenheitNichtRuecknehmbar:
+      'This absence has been decided on, or already withdrawn. Any change is now made by '
+      + 'the personnel office.',
+    abwesenheitArtVerdeckt:
+      'The type of absence is not shown here: health data is kept narrow, and the database '
+      + 'does not hand it to the portal even for your own record. The personnel office will '
+      + 'tell you.',
+    gemeldetAm: 'Reported on',
+    storniertAm: 'Withdrawn on',
+    halbeTage: 'Half days',
     zurueckziehenHinweis:
       'You can withdraw while nobody has decided. The request stays readable.',
     wachbuch: 'Security log',
@@ -1546,6 +1633,16 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     zurueckziehen: 'سحب الطلب',
     abwesenheitMelden: 'الإبلاغ عن غياب',
     abwesenheitArt: 'نوع الغياب',
+    halberTagBeginn: 'اليوم الأول نصف يوم فقط',
+    halberTagEnde: 'اليوم الأخير نصف يوم فقط',
+    halberTagHinweis:
+      'إذا كنت قد عملت في اليوم الأول، أو عدت للعمل في اليوم الأخير. '
+      + 'نصف اليوم يُحتسب 0,5.',
+    auVorliegt: 'تم تسليم التقرير الطبي',
+    auBis: 'التقرير الطبي صالح حتى',
+    auHinweis:
+      'ضع علامة فقط إذا كنت قد سلّمت التقرير فعلاً. بدونه يبقى البلاغ ساري المفعول — '
+      + 'قسم شؤون الموظفين سيسأل عنه.',
     absenden: 'إرسال',
     gueltigBis: 'صالحة حتى',
     unbefristet: 'بدون تاريخ انتهاء',
@@ -1610,6 +1707,19 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     entschiedenAm: 'تاريخ القرار',
     entscheidung: 'القرار',
     zurueckgezogen: 'مسحوب',
+    abwesenheitBlatt: 'غيابي',
+    abwesenheitRuecknahme: 'سحب بلاغ الغياب',
+    abwesenheitRuecknahmeHinweis:
+      'ما دام لم يتّخذ أحد قراراً بشأنه، يمكنك سحب بلاغ الغياب بنفسك — مثلاً إذا أخطأت في '
+      + 'التاريخ. يبقى السجل قابلاً للقراءة، مع البلاغ والسحب.',
+    abwesenheitNichtRuecknehmbar:
+      'تم البتّ في هذا الغياب أو سُحب من قبل. أي تعديل الآن يجريه قسم شؤون الموظفين.',
+    abwesenheitArtVerdeckt:
+      'نوع الغياب غير معروض هنا: البيانات الصحية محدودة التداول، وقاعدة البيانات لا تمنحها '
+      + 'للبوابة حتى لسجلك أنت. قسم شؤون الموظفين سيخبرك به.',
+    gemeldetAm: 'أُبلغ في',
+    storniertAm: 'سُحب في',
+    halbeTage: 'أنصاف الأيام',
     zurueckziehenHinweis: 'يمكن سحب الطلب ما لم يُتخذ قرار بعد. ويبقى الطلب قابلاً للقراءة.',
     wachbuch: 'دفتر الحراسة',
     wachbuchNeu: 'كتابة قيد',
@@ -1832,6 +1942,16 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     zurueckziehen: 'Geri çek',
     abwesenheitMelden: 'Devamsızlık bildir',
     abwesenheitArt: 'Devamsızlık türü',
+    halberTagBeginn: 'İlk gün yalnızca yarım',
+    halberTagEnde: 'Son gün yalnızca yarım',
+    halberTagHinweis:
+      'İlk gün hâlâ çalıştıysanız ya da son gün tekrar çalıştıysanız. '
+      + 'Yarım gün 0,5 sayılır.',
+    auVorliegt: 'İş göremezlik raporu teslim edildi',
+    auBis: 'Rapor şu tarihe kadar geçerli',
+    auHinweis:
+      'Yalnızca raporu gerçekten teslim ettiyseniz işaretleyin. Rapor olmadan da bildirim '
+      + 'geçerlidir — personel birimi soracaktır.',
     absenden: 'Gönder',
     gueltigBis: 'Geçerlilik',
     unbefristet: 'süresiz',
@@ -1896,6 +2016,21 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     entschiedenAm: 'Karar tarihi',
     entscheidung: 'Karar',
     zurueckgezogen: 'Geri çekildi',
+    abwesenheitBlatt: 'Devamsızlığım',
+    abwesenheitRuecknahme: 'Devamsızlık bildirimini geri çek',
+    abwesenheitRuecknahmeHinweis:
+      'Henüz kimse karar vermediği sürece devamsızlığı kendiniz geri çekebilirsiniz — '
+      + 'örneğin tarihi yanlış girdiyseniz. Kayıt okunabilir kalır; bildirim ve geri çekme '
+      + 'birlikte görünür.',
+    abwesenheitNichtRuecknehmbar:
+      'Bu devamsızlık karara bağlandı ya da zaten geri çekildi. Değişikliği artık personel '
+      + 'birimi yapar.',
+    abwesenheitArtVerdeckt:
+      'Devamsızlığın türü burada gösterilmez: sağlık verileri dar tutulur ve veritabanı '
+      + 'bunu kendi kaydınız için bile portala vermez. Personel birimi size söyleyecektir.',
+    gemeldetAm: 'Bildirim tarihi',
+    storniertAm: 'Geri çekilme tarihi',
+    halbeTage: 'Yarım günler',
     zurueckziehenHinweis:
       'Kimse karar vermediği sürece geri çekebilirsiniz. Talep okunabilir kalır.',
     wachbuch: 'Güvenlik defteri',

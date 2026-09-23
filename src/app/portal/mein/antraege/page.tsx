@@ -144,23 +144,36 @@ export default async function MeineAntraege() {
                 key={a.abwesenheit.id}
                 data-cse="abwesenheit"
                 data-mandant={a.mandantSlug}
-                className="rounded-lg border border-line bg-surface p-s4"
+                className="rounded-lg border border-line bg-surface"
               >
-                <div className="mb-s3 flex flex-wrap items-center gap-s3">
-                  <Gesellschaft slug={a.mandantSlug} name={a.mandantName} />
-                  <StatusPill sprache={basis.sprache} zustand={abwesenheitPille(a.abwesenheit.status)} />
-                </div>
-                <Felder>
-                  <Feld label={t.von}>
-                    <span className="cse-zahl">{a.abwesenheit.von}</span>
-                  </Feld>
-                  <Feld label={t.bis}>
-                    <span className="cse-zahl">{a.abwesenheit.bis}</span>
-                  </Feld>
-                  <Feld label={t.tage}>
-                    <span className="cse-zahl">{a.abwesenheit.tageAngerechnet ?? '—'}</span>
-                  </Feld>
-                </Felder>
+                {/*
+                  **Die Kachel ist der Weg** (V-056). Bis dahin war sie eine
+                  Anzeige ohne Ziel: der Mensch sah seine Krankmeldung mit dem
+                  falschen Datum und hatte nichts, worauf er tippen konnte.
+                  Die ganze Zeile ist der Verweis (DESIGN §5 „Chooser rows"),
+                  nicht ein kleiner Link darin — auf einem Diensttelefon mit
+                  Handschuhen zählt die Fläche.
+                */}
+                <Link
+                  href={`/portal/mein/abwesenheit/${a.abwesenheit.id}`}
+                  className="block p-s4 no-underline hover:bg-surface-2"
+                >
+                  <div className="mb-s3 flex flex-wrap items-center gap-s3">
+                    <Gesellschaft slug={a.mandantSlug} name={a.mandantName} />
+                    <StatusPill sprache={basis.sprache} zustand={abwesenheitPille(a.abwesenheit.status)} />
+                  </div>
+                  <Felder>
+                    <Feld label={t.von}>
+                      <span className="cse-zahl">{a.abwesenheit.von}</span>
+                    </Feld>
+                    <Feld label={t.bis}>
+                      <span className="cse-zahl">{a.abwesenheit.bis}</span>
+                    </Feld>
+                    <Feld label={t.tage}>
+                      <span className="cse-zahl">{a.abwesenheit.tageAngerechnet ?? '—'}</span>
+                    </Feld>
+                  </Felder>
+                </Link>
               </li>
             ))}
           </ul>
