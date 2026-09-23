@@ -75,7 +75,6 @@ describe('jede Mandantsseite hat überhaupt ein Slug-Tor', () => {
   const OHNE_EIGENES_TOR: readonly string[] = [
   '[...rest]/page.tsx',
   'agenten/[agent]/aufgaben/page.tsx',
-  'angebote/neu/page.tsx',
   'berichte/attribution/page.tsx',
   'berichte/auftraege/page.tsx',
   'berichte/mitarbeiter/page.tsx',

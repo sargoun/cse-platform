@@ -203,6 +203,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'angebot.versenden',
   },
   /**
+   * Das Angebot VON HAND (V-005) — `angebot.schreiben` und nicht
+   * `angebot.versenden`: hier entsteht ein Entwurf ohne Nummer, und er
+   * verlaesst das Haus nicht. Zwei von drei Gesellschaften hatten bis dahin
+   * gar keinen Entstehungsweg: die Kalkulation rechnet aus Flaechen, und ein
+   * Raumbuch gibt es in der Sicherheit und im Bau nicht.
+   */
+  {
+    modul: 'angebot', pfad: 'angebot/von-hand',
+    schreibend: true, schreibRecht: 'angebot.schreiben',
+  },
+  /**
    * Der Tabellenleser liest nur; der Import SCHREIBT — und zwar zweimal
    * verschieden: die Vorschau legt Zwischenzeilen an, die Uebernahme aendert
    * das lebende Raumbuch. Beide tragen dasselbe Recht, weil beide eine Datei

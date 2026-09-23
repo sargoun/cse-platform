@@ -285,6 +285,29 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Ein Angebot VON HAND — der Weg, der nicht durch ein Raumbuch führt
+     * (V-005, SEC-01, BAU-01).
+     *
+     * `angebot.schreiben` und nicht `angebot.versenden`: hier entsteht ein
+     * ENTWURF ohne Nummer, und er verlässt das Haus nicht. Der Versand bleibt
+     * mit seinem eigenen Schlüssel auf `api/angebot`, die Preisfreigabe auf
+     * `api/angebot/freigabe` — drei verschieden schwere Handlungen, drei
+     * Adressen, drei Rechte.
+     *
+     * **Warum nicht ein viertes `aktion=` auf `api/angebot`.** Das Manifest
+     * führt EIN Recht je Pfad. Ein weiterer Zweig in einem Handler, der nach
+     * aussen `angebot.versenden` heisst, machte aus dem Schreibrecht eine
+     * Angabe, die die Aufzählungsprobe nicht mehr sehen kann — dieselbe
+     * Begründung wie bei `api/angebot/freigabe`.
+     *
+     * `t_mandant` auf `angebot` und `angebotsposition` (0024) verlangt
+     * `angebot.schreiben` bei jedem Schreibvorgang ein zweites Mal.
+     */
+    pfad: 'api/angebot/von-hand',
+    recht: 'angebot.schreiben',
+  },
+  {
+    /**
      * Hochladen UND uebernehmen tragen dasselbe Recht: die Vorschau legt
      * bereits Zwischenzeilen an, und wer eine Datei in den Mandanten schiebt,
      * schreibt — auch wenn das lebende Raumbuch erst der zweite Schritt
