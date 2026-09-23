@@ -21,6 +21,7 @@ import { jobs, type JobDefinition } from './registry.js';
 import { registriereEinsatzGenerator } from './einsaetzeGenerieren.js';
 import { registriereKonfliktDetektor } from './konflikteErkennen.js';
 import { registriereLeadSlaJob } from './lead-sla.js';
+import { registriereWiedervorlageErinnerung } from './wiedervorlageErinnerung.js';
 import { registriereNachweisWarnungen } from './nachweisWarnungen.js';
 import { registriereKettenpruefer } from './kettenpruefer.js';
 import { registriereStundenkontoAbgleich } from './stundenkontoAbgleich.js';
@@ -80,6 +81,8 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereEinsatzGenerator(db);
     registriereKonfliktDetektor(db);
     registriereLeadSlaJob(db);
+    /* V-146 — die Erinnerung, die im Wiedervorlageformular verlangt wird (CRM-04). */
+    registriereWiedervorlageErinnerung(db);
     registriereNachweisWarnungen(db);
     registriereKettenpruefer(db);
     registriereStundenkontoAbgleich(db);

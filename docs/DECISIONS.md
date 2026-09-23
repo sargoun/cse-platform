@@ -15545,3 +15545,50 @@ Lead → Angebot → Auftrag, die eigens behoben wird.
 
 | Betrifft | REQ-01…07, CRM-02, CRM-03, D-61, D-83, D-599, V-137, `drizzle/0396`, `src/server/services/lead/{annahme,einsendung,eskalation,sla}.ts`, `src/lib/formular/herkunft.ts`, `src/app/api/{anfrage,lead,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx` |
 |---|---|
+
+### D-640 · Die Wiedervorlage erinnert: ein Lauf je Mandant, alle fünfzehn Minuten, an den Zuständigen (V-146)
+
+**Der Befund** (V-146, CRM-04): Lead- und Kontaktblatt bieten das Feld
+„Erinnerung“ an, `legeWiedervorlageAn` schreibt `lead_aktivitaet.erinnerung_am`,
+`verschiebe` führt es mit. Gelesen hat den Wert nichts: kein Lauf, keine
+Benachrichtigungsart, kein Kalenderalarm. Wer eine Erinnerung eintrug, bekam
+keine; die Wiedervorlage erschien nur, wenn jemand von sich aus die Liste
+öffnete.
+
+**Die Entscheidung.**
+
+1. **Der Weg ist der Posteingang** (NOT-01). Die Art
+   `crm.wiedervorlage_erinnerung` (`services/crm/benachrichtigung.ts`) führt
+   auf `/crm/wiedervorlagen`, wo sich die Wiedervorlage erledigen und
+   verschieben lässt. Sie ist **nie sammelbar**: eine Erinnerung in der
+   Tageszusammenfassung käme nach dem Termin. Vorgabekanäle wie bei den
+   anderen Vertriebsarten (`app`, `email`); die E-Mail wirkt erst, wenn ein
+   Versender verbunden ist (O-36). Der Text ist deutsch wie jede Meldung an
+   die Verwaltung.
+2. **Empfänger ist der Zuständige, sonst wer die Wiedervorlage angelegt hat.**
+   Hat dieser Mensch kein aktives Konto, wird der Anspruch zurückgegeben
+   (`erinnert_am` wieder NULL), dieselbe Regel wie beim Nachtrag: ein wieder
+   aktiviertes Konto bekommt die Erinnerung noch. Steht gar kein Mensch an der
+   Zeile, bleibt der Anspruch stehen, und die Zahl steht im Laufbericht
+   (`ohneEmpfaenger`); da kann sich nichts mehr ändern.
+3. **Alle fünfzehn Minuten, je Mandant** (`wiedervorlage_erinnerung`,
+   `*/15 * * * *`). Das Formular nimmt eine Uhrzeit auf die Minute; ein
+   stündlicher Lauf brächte „08:05“ um 09:00. Die Auswahl ist ein einziges
+   `update … set erinnert_am = now() … returning` auf einem Teilindex, der
+   Anspruch und Zustellung liegen in einer Transaktion: zwei Läufe stellen
+   nie doppelt zu, und ein Fehler rollt den Anspruch mit zurück.
+4. **Verschieben macht die Erinnerung neu.** `verschiebe` setzt `erinnert_am`
+   zurück; die mitgewanderte Erinnerung wird zum neuen Termin zugestellt.
+5. **Die Rolle ist eng** (0405). Der Lauf fährt als `cse_job` mit gebundenem
+   Mandanten (`alsJobSitzung`) und hat auf `lead_aktivitaet` nur die Spalten,
+   die er wählt und zurückgibt, und `update` auf genau `erinnert_am`.
+   `inhalt` und `rechtsgrundlage_snapshot` bleiben ihm entzogen. Die Policies
+   hängen an `app.aktiver_mandant()`, nicht an `using (true)`.
+
+**Nicht Teil dieser Entscheidung:** ein Alarm (`VALARM`) im gespiegelten
+Kalendereintrag. Der Posteingang ist der eine Weg; zwei Erinnerungen an
+denselben Termin auf zwei Wegen wären eine zu viel, und welche davon gilt,
+wäre wieder eine Frage.
+
+| Betrifft | CRM-04, NOT-01, NOT-03, D-378, D-493, V-146, `drizzle/0405`, `src/server/jobs/wiedervorlageErinnerung.ts`, `src/server/services/crm/{benachrichtigung,wiedervorlage}.ts`, `src/server/benachrichtigung/bootstrap.ts`, `src/server/jobs/bootstrap.ts`, `docs/JOB-AUSLOESER.sql` |
+|---|---|

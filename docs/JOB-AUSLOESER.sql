@@ -305,3 +305,15 @@ select cron.schedule('cse_urlaubskonten_jahr', '45 0 * * *', $cse$
     body    := '{}'::jsonb
   );
 $cse$);
+
+-- Erinnerungen an Wiedervorlagen zustellen (CRM-04) (je_mandant)
+select cron.unschedule('cse_wiedervorlage_erinnerung')
+  where exists (select 1 from cron.job where jobname = 'cse_wiedervorlage_erinnerung');
+select cron.schedule('cse_wiedervorlage_erinnerung', '*/15 * * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/wiedervorlage_erinnerung',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);

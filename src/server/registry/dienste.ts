@@ -711,6 +711,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'crm.schreiben',
   },
   /*
+   * Die Art der Wiedervorlage-Erinnerung (V-146, CRM-04). Definiert nur Titel,
+   * Text und Ziel; zugestellt wird im Lauf `wiedervorlage_erinnerung` als
+   * `cse_job` — kein Recht aus dem Katalog, weil hier kein Mensch handelt.
+   */
+  { modul: 'crm', pfad: 'crm/benachrichtigung', schreibend: false },
+  /*
    * Der Versandstand eines Kaeufers (FIN-11, LEG-05, 07-INTEGRATIONEN §12.1).
    * Ein reines Praedikat: ein Pflichtkaeufer ohne Uebertragungsweg SPERRT, er
    * faellt nicht auf E-Mail zurueck. Kein Kanal gilt hier als verbunden, ohne

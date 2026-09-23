@@ -415,7 +415,11 @@ export async function verschiebe(
             erinnerung_am = case
               when erinnerung_am is null then null
               else ($2::timestamp at time zone 'Europe/Berlin')
-                   - (faellig_am - erinnerung_am) end
+                   - (faellig_am - erinnerung_am) end,
+            -- V-146: die gewanderte Erinnerung ist eine NEUE. Ohne diese
+            -- Zeile galte sie als schon zugestellt, weil die alte es war —
+            -- und die Verschiebung brachte keine Erinnerung mehr.
+            erinnert_am = null
       where mandant_id = app.aktiver_mandant() and id = $1::uuid
         and erledigt_am is null`,
     [id, neuFaellig]);
