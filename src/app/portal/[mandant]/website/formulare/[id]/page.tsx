@@ -230,6 +230,7 @@ export default async function WebsiteFormular(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/website/formulare`, text: 'Formulare' }}
       titel={`${f.schluessel} · Version ${String(f.version)}`}
       wurzelTitel="Website"
       bereich={mandant as BereichSchluessel}
@@ -242,12 +243,6 @@ export default async function WebsiteFormular(
     >
       <WebsiteSpruenge mandant={mandant} zweig="formulare"
                        sitzung={zugang.sitzung} />
-      <p className="mb-s3 text-sm">
-        <Link href={`/portal/${mandant}/website/formulare`}
-              className="text-text-muted underline-offset-2 hover:underline">
-          ← Formulare
-        </Link>
-      </p>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 min-w-0 text-h1 text-text">{f.titel}</h1>

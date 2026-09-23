@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { BAUTAG_PILLE } from '@/app/portal/[mandant]/bau/bautagebuch-anzeige';
@@ -161,13 +160,9 @@ export default async function MeinBautagebuch(
     : schicht.beendet ? t.schichtBeendet : null;
 
   return (
-    <MeinRahmen basis={basis} titel={t.bautagebuch} aktiverTab="schichten">
-      <Link
-        href={`/portal/mein/schichten/${zuordnungId}`}
-        className="mb-s4 inline-block min-h-11 text-base text-text underline"
-      >
-        ← {t.schichten}
-      </Link>
+    <MeinRahmen basis={basis} titel={t.bautagebuch} aktiverTab="schichten"
+      zurueck={{ ziel: `/portal/mein/schichten/${zuordnungId}`, text: t.schichten }}
+    >
 
       <h1 className="mb-s2 text-h1 text-text">{t.bautagebuch}</h1>
       <p className="mb-s5 text-base text-text-muted">

@@ -75,6 +75,7 @@ export default async function Schluessel(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/security/schluessel`, text: 'Schlüssel' }}
       titel={schluessel.bezeichnung}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -84,12 +85,6 @@ export default async function Schluessel(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <Link
-        href={`/portal/${mandant}/security/schluessel`}
-        className="mb-s4 inline-block min-h-11 text-sm text-text underline"
-      >
-        ← Schlüssel
-      </Link>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{schluessel.bezeichnung}</h1>

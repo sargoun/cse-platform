@@ -104,6 +104,7 @@ export default async function WebsiteNeuigkeit(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/website/news`, text: 'Neuigkeiten' }}
       titel={b.titel}
       wurzelTitel="Website"
       bereich={mandant as BereichSchluessel}
@@ -116,12 +117,6 @@ export default async function WebsiteNeuigkeit(
     >
       <WebsiteSpruenge mandant={mandant} zweig="news"
                        sitzung={zugang.sitzung} />
-      <p className="mb-s3 text-sm">
-        <Link href={`/portal/${mandant}/website/news`}
-              className="text-text-muted underline-offset-2 hover:underline">
-          ← Neuigkeiten
-        </Link>
-      </p>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 min-w-0 text-h1 text-text hyphens-auto">{b.titel}</h1>

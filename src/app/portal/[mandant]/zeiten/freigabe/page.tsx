@@ -137,6 +137,7 @@ export default async function Abrechnungsfreigabe({
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `${pfad}?${mitFilter({ woche: tagePlus(von, -7) })}`, text: 'Vorwoche' }}
       titel="Freigabe zur Abrechnung"
       wurzelTitel="Zeiterfassung"
       bereich={mandant as BereichSchluessel}
@@ -257,8 +258,6 @@ export default async function Abrechnungsfreigabe({
       </form>
 
       <nav aria-label="Woche" className="mb-s5 flex flex-wrap gap-s3 text-sm">
-        <a href={`${pfad}?${mitFilter({ woche: tagePlus(von, -7) })}`}
-           className="text-text underline underline-offset-2">← Vorwoche</a>
         <a href={`${pfad}?${mitFilter({ woche: montag(heute) })}`}
            className="text-text underline underline-offset-2">Diese Woche</a>
         <a href={`${pfad}?${mitFilter({ woche: tagePlus(von, 7) })}`}

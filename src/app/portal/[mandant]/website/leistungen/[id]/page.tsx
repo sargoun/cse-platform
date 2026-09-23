@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
@@ -99,6 +98,7 @@ export default async function WebsiteLeistungsAbschnitt(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/website/leistungen`, text: 'Leistungen' }}
       titel={`Leistungen — ${SPRACHE_TEXT[a.sprache] ?? a.sprache}`}
       wurzelTitel="Website"
       bereich={mandant as BereichSchluessel}
@@ -111,12 +111,6 @@ export default async function WebsiteLeistungsAbschnitt(
     >
       <WebsiteSpruenge mandant={mandant} zweig="leistungen"
                        sitzung={zugang.sitzung} />
-      <p className="mb-s3 text-sm">
-        <Link href={`/portal/${mandant}/website/leistungen`}
-              className="text-text-muted underline-offset-2 hover:underline">
-          ← Leistungen
-        </Link>
-      </p>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">

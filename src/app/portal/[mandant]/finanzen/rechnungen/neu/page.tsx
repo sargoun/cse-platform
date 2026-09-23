@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -80,6 +79,12 @@ export default async function NeueRechnung(
 
   return (
     <PortalRahmen
+      /* Auch der RUECKWEG steht unter dem Recht seines Ziels (AUT-06):
+         ein Pfeil auf eine Seite, die der Benutzer nicht oeffnen darf,
+         fuehrt auf ein 404 — und verraet damit, dass es sie gibt. */
+      {...(darf['finanzen.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/finanzen/rechnungen`, text: t.alleRechnungen } }
+        : {})}
       titel={t.neuTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -89,16 +94,6 @@ export default async function NeueRechnung(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      {darf['finanzen.lesen'] === true ? (
-        <nav aria-label={g.zurueck} className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/finanzen/rechnungen`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← {t.alleRechnungen}
-          </Link>
-        </nav>
-      ) : null}
       <h1 className="mb-s5 text-h1 text-text">{t.neuTitel}</h1>
 
       {/*

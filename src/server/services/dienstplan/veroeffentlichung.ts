@@ -85,6 +85,15 @@ export interface VorschauZeile {
   readonly fenster: readonly string[];
   /** Hat dieser Mensch einen aktiven Zugang? Ohne ihn erreicht ihn keine Meldung (D-09). */
   readonly hatZugang: boolean;
+  /**
+   * `person.sprache` — die Sprache, in der SEINE Meldung entsteht (V-102).
+   *
+   * Sie steht auf der Vorschauzeile und nicht in einer zweiten Abfrage, weil
+   * die Zeile ohnehin schon `join person` traegt: eine Meldung je Mensch
+   * heisst eine Sprache je Mensch, und zwei Abfragen koennten auseinander
+   * laufen.
+   */
+  readonly sprache: string | null;
 }
 
 export interface Vorschau {
@@ -152,6 +161,7 @@ interface RohPerson {
   schichten: number;
   fenster: readonly string[];
   hat_zugang: boolean;
+  sprache: string | null;
 }
 
 /**
@@ -234,6 +244,7 @@ export async function vorschau(
      )
      select ei.person_id,
             (p.vorname || ' ' || p.nachname) as person,
+            p.sprache,
             count(*)::int as schichten,
             array_agg(ei.zeile order by ei.beginn_zeitpunkt) as fenster,
             exists (select 1 from benutzer b
@@ -241,7 +252,7 @@ export async function vorschau(
                        and b.deaktiviert_am is null) as hat_zugang
        from eingeteilt ei
        join person p on p.id = ei.person_id
-      group by ei.person_id, p.vorname, p.nachname
+      group by ei.person_id, p.vorname, p.nachname, p.sprache
       order by p.nachname, p.vorname`,
     [von, bis],
   );
@@ -259,6 +270,7 @@ export async function vorschau(
       schichten: Number(p.schichten),
       fenster: p.fenster,
       hatZugang: p.hat_zugang === true,
+      sprache: p.sprache,
     })),
     ohneZugang: personen.filter((p) => p.hat_zugang !== true).length,
   };
@@ -358,7 +370,16 @@ export async function veroeffentliche(
       mandantId: kontext.aktiverMandantId,
       objektTyp: 'dienstplan_veroeffentlichung',
       objektId: '',
+      /* Die Sprache der EMPFAENGERIN (V-102, O-889) — je Zeile eine andere:
+         eine Kolonne aus vier Laendern bekommt vier Fassungen derselben
+         Bekanntgabe, und jede liest ihre. */
+      sprache: p.sprache,
       daten: {
+        /* Beide Tage EINZELN: die Fügung („bis") ist ein deutsches Wort und
+           gehört in die Sprachtabelle, nicht in den Wert. `zeitraum` bleibt
+           daneben stehen — als Rückfall und für den Beleg. */
+        von: deutschesDatum(eingabe.von),
+        bis: deutschesDatum(eingabe.bis),
         zeitraum,
         schichten: p.schichten,
         gesellschaft: g?.name ?? '',

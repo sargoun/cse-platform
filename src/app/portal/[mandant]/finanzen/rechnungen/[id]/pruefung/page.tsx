@@ -12,7 +12,7 @@ import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../kennung';
-import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { RECHNUNG_AUSGABE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-ausgabe';
 
 /**
@@ -117,7 +117,6 @@ export default async function Pruefblatt(
 
   /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
   const t = nachSprache(RECHNUNG_AUSGABE_TEXTE, zugang.sprache);
-  const g = verwaltungTexte(zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -138,6 +137,7 @@ export default async function Pruefblatt(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/finanzen/rechnungen/${id}`, text: k.nummer ?? t.entwurfOhneNummer }}
       titel={t.pruefungTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen
@@ -147,14 +147,6 @@ export default async function Pruefblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label={g.zurueck} className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {k.nummer ?? t.entwurfOhneNummer}
-        </Link>
-      </nav>
 
       <h1 className="mb-s3 text-h1 text-text">{t.pruefungH1}</h1>
 

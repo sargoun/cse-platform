@@ -335,10 +335,23 @@ export async function entscheideEinwand(
 
   const [kopf] = await kontext.abfrage<{
     mandant_id: string; zeiteintrag_id: string | null; betrifft_datum: string;
+    sprache: string | null;
   }>(
-    `select mandant_id, zeiteintrag_id,
-            to_char(betrifft_datum, 'DD.MM.YYYY') as betrifft_datum
-       from zeit_einwand where id = $1`,
+    /*
+     * Die Sprache der Empfaengerin steht an der Person, nicht am Einwand
+     * (V-102, O-889). Beide Verbuende sind LINKS: die Sprache ist ein
+     * Zusatz, kein Filter. Ein innerer Verbund liesse die Meldung ausfallen,
+     * sobald eine Policy `anstellung` oder `person` ausblendet — und eine
+     * Entscheidung ueber die eigene Arbeitszeit, von der niemand erfaehrt,
+     * ist genau der Befund, den V-051 geschlossen hat.
+     */
+    `select e.mandant_id, e.zeiteintrag_id,
+            to_char(e.betrifft_datum, 'DD.MM.YYYY') as betrifft_datum,
+            p.sprache
+       from zeit_einwand e
+       left join anstellung a on a.mandant_id = e.mandant_id and a.id = e.anstellung_id
+       left join person     p on p.id = a.person_id
+      where e.id = $1`,
     [eingabe.einwandId],
   );
   if (kopf === undefined) return;
@@ -346,6 +359,7 @@ export async function entscheideEinwand(
   registriereZeitArten();
   const meldung = erzeuge(ART_EINWAND_ENTSCHIEDEN, {
     mandantId: kopf.mandant_id,
+    sprache: kopf.sprache,
     objektTyp: 'zeit_einwand',
     objektId: eingabe.einwandId,
     daten: {

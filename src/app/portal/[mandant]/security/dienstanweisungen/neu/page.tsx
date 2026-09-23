@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -91,6 +90,7 @@ export default async function DienstanweisungNeu(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/security/dienstanweisungen`, text: 'Dienstanweisungen' }}
       titel="Dienstanweisung"
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -100,12 +100,6 @@ export default async function DienstanweisungNeu(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <Link
-        href={`/portal/${mandant}/security/dienstanweisungen`}
-        className="mb-s4 inline-block min-h-11 text-sm text-text underline"
-      >
-        ← Dienstanweisungen
-      </Link>
       <h1 className="mb-s2 text-h1 text-text">Dienstanweisung anlegen</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Der Kopf bleibt, der Text wird versioniert. Eine Änderung ist später

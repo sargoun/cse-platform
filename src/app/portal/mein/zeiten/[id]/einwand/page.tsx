@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   EINWAND_ARTEN, EINWAND_ART_TEXTE, EINWAND_STATUS_TEXTE, PORTAL_BCP47,
@@ -81,13 +80,9 @@ export default async function EinwandFormular(
     + 'text-base text-text';
 
   return (
-    <MeinRahmen basis={basis} titel={t.einwandMelden} aktiverTab="stunden">
-      <Link
-        href={`/portal/mein/zeiten/${z.id}`}
-        className="mb-s4 inline-block min-h-11 text-base text-text underline"
-      >
-        ← {t.zeiten}
-      </Link>
+    <MeinRahmen basis={basis} titel={t.einwandMelden} aktiverTab="stunden"
+      zurueck={{ ziel: `/portal/mein/zeiten/${z.id}`, text: t.zeiten }}
+    >
 
       <h1 className="mb-s4 text-h1 text-text">{t.einwandMelden}</h1>
 

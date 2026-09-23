@@ -40,13 +40,9 @@ export default async function MeinZeiteintrag(
   const t = basis.texte;
 
   return (
-    <MeinRahmen basis={basis} titel={t.zeiten} aktiverTab="stunden">
-      <Link
-        href="/portal/mein/zeiten"
-        className="mb-s4 inline-block min-h-11 text-base text-text underline"
-      >
-        ← {t.zeiten}
-      </Link>
+    <MeinRahmen basis={basis} titel={t.zeiten} aktiverTab="stunden"
+      zurueck={{ ziel: "/portal/mein/zeiten", text: t.zeiten }}
+    >
 
       {/*
         * **Dass korrigiert wurde, steht hier — warum, steht in der Nachricht.**

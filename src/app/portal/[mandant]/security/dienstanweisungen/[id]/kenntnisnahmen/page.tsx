@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -73,6 +72,7 @@ export default async function Kenntnisnahmen(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/security/dienstanweisungen/${id}`, text: kopf.titel }}
       titel="Kenntnisnahmen"
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -82,12 +82,6 @@ export default async function Kenntnisnahmen(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <Link
-        href={`/portal/${mandant}/security/dienstanweisungen/${id}`}
-        className="mb-s4 inline-block min-h-11 text-sm text-text underline"
-      >
-        ← {kopf.titel}
-      </Link>
 
       <h1 className="mb-s2 text-h1 text-text">Kenntnisnahmen</h1>
       <p className="mb-s5 text-sm text-text-muted">

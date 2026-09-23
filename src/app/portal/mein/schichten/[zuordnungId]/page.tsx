@@ -87,13 +87,9 @@ export default async function MeineSchicht(
     + 'border-line-strong px-s5 py-s3 text-base text-text no-underline hover:bg-surface-2';
 
   return (
-    <MeinRahmen basis={basis} titel={t.schichten} aktiverTab="schichten">
-      <Link
-        href="/portal/mein/schichten"
-        className="mb-s4 inline-block min-h-11 text-base text-text underline"
-      >
-        ← {t.schichten}
-      </Link>
+    <MeinRahmen basis={basis} titel={t.schichten} aktiverTab="schichten"
+      zurueck={{ ziel: "/portal/mein/schichten", text: t.schichten }}
+    >
 
       <h1 className="mb-s5 text-h1 text-text">
         <span className="cse-zahl">{daten.planDatum}</span>

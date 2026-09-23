@@ -63,13 +63,9 @@ export default async function MeinDokumentBlatt(
   const t = basis.texte;
 
   return (
-    <MeinRahmen basis={basis} titel={d.titel} aktiverTab="heute">
-      <Link
-        href="/portal/mein/dokumente"
-        className="mb-s4 inline-flex min-h-11 items-center text-base text-text underline"
-      >
-        ← {t.dokumente}
-      </Link>
+    <MeinRahmen basis={basis} titel={d.titel} aktiverTab="heute"
+      zurueck={{ ziel: "/portal/mein/dokumente", text: t.dokumente }}
+    >
 
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <Gesellschaft slug={d.mandantSlug} name={d.mandantName} />

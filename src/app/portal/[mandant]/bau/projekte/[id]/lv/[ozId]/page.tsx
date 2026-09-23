@@ -145,6 +145,7 @@ export default async function LvPositionSeite(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/bau/projekte/${id}/lv`, text: `${p.lv_bezeichnung} · Fassung ${String(p.lv_fassung)}` }}
       titel={`LV-Position ${p.oz}`}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -155,12 +156,6 @@ export default async function LvPositionSeite(
       navigationsRechte={zugang.navigationsRechte}
     >
       <nav aria-label="Pfad im Leistungsverzeichnis" className="mb-s3 text-sm text-text-muted">
-        <Link
-          href={`/portal/${mandant}/bau/projekte/${id}/lv`}
-          className="underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {p.lv_bezeichnung} · Fassung {String(p.lv_fassung)}
-        </Link>
         {daten.ahnen.map((a) => (
           <span key={a.id}>
             {' · '}

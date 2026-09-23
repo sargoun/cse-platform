@@ -17,7 +17,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
-import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { RECHNUNG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-akte';
 
 /**
@@ -172,7 +172,6 @@ export default async function Festschreibeblatt(
 
   /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
   const t = nachSprache(RECHNUNG_AKTE_TEXTE, zugang.sprache);
-  const g = verwaltungTexte(zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -272,6 +271,12 @@ export default async function Festschreibeblatt(
 
   return (
     <PortalRahmen
+      /* Auch der RUECKWEG steht unter dem Recht seines Ziels (AUT-06):
+         ein Pfeil auf eine Seite, die der Benutzer nicht oeffnen darf,
+         fuehrt auf ein 404 — und verraet damit, dass es sie gibt. */
+      {...(darf['finanzen.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/finanzen/rechnungen/${id}`, text: k.nummer ?? t.entwurfOhneNummer } }
+        : {})}
       titel={t.festschreibenTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -281,16 +286,6 @@ export default async function Festschreibeblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      {darf['finanzen.lesen'] === true ? (
-        <nav aria-label={g.zurueck} className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← {k.nummer ?? t.entwurfOhneNummer}
-          </Link>
-        </nav>
-      ) : null}
 
       <h1 className="mb-s3 text-h1 text-text">{t.festschreibenH1}</h1>
 

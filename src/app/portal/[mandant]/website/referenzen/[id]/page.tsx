@@ -131,6 +131,7 @@ export default async function WebsiteReferenz(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/website/referenzen`, text: 'Referenzen' }}
       titel={r.titel}
       wurzelTitel="Website"
       bereich={mandant as BereichSchluessel}
@@ -143,12 +144,6 @@ export default async function WebsiteReferenz(
     >
       <WebsiteSpruenge mandant={mandant} zweig="referenzen"
                        sitzung={zugang.sitzung} />
-      <p className="mb-s3 text-sm">
-        <Link href={`/portal/${mandant}/website/referenzen`}
-              className="text-text-muted underline-offset-2 hover:underline">
-          ← Referenzen
-        </Link>
-      </p>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 min-w-0 text-h1 text-text">{r.titel}</h1>

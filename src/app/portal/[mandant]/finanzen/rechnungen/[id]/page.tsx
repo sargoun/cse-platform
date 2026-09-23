@@ -337,6 +337,7 @@ export default async function Rechnungsblatt(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/finanzen/rechnungen`, text: t.alleRechnungen }}
       titel={k.nummer ?? t.rechnungsentwurf}
       bereich={mandant as BereichSchluessel}
       nurLesen={!entwurf}
@@ -347,12 +348,6 @@ export default async function Rechnungsblatt(
       navigationsRechte={zugang.navigationsRechte}
     >
       <nav aria-label={g.zurueck} className="mb-s3 flex flex-wrap gap-s4">
-        <Link
-          href={`/portal/${mandant}/finanzen/rechnungen`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {t.alleRechnungen}
-        </Link>
         {/*
           * Der §14-UStG-Vorabbericht (PR 47). Er steht auf einer EIGENEN
           * Seite und nicht als Kasten hier: er nennt jedes fehlende Feld auf

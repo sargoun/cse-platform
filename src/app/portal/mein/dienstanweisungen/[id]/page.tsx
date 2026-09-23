@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { Geraetezeit } from '../../Geraetezeit';
 import { notFound } from 'next/navigation';
 import {
@@ -50,13 +49,9 @@ export default async function MeineDienstanweisung(
   const t = basis.texte;
 
   return (
-    <MeinRahmen basis={basis} titel={daten.titel} aktiverTab="heute">
-      <Link
-        href="/portal/mein/dienstanweisungen"
-        className="mb-s4 inline-block min-h-11 text-base text-text underline"
-      >
-        ← {t.dienstanweisungen}
-      </Link>
+    <MeinRahmen basis={basis} titel={daten.titel} aktiverTab="heute"
+      zurueck={{ ziel: "/portal/mein/dienstanweisungen", text: t.dienstanweisungen }}
+    >
 
       <div className="mb-s3 flex flex-wrap items-center gap-s3">
         <Gesellschaft slug={daten.mandantSlug} name={daten.mandantName} />

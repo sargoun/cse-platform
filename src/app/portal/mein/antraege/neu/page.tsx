@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import {
   leseAbwesenheitsarten, leseAntragsarten,
   type AbwesenheitsartWahl, type AntragsartWahl,
@@ -47,13 +46,9 @@ export default async function NeuerAntrag() {
     + 'text-base text-text';
 
   return (
-    <MeinRahmen basis={basis} titel={t.antragNeu} aktiverTab="heute">
-      <Link
-        href="/portal/mein/antraege"
-        className="mb-s4 inline-block min-h-11 text-base text-text underline"
-      >
-        ← {t.antraege}
-      </Link>
+    <MeinRahmen basis={basis} titel={t.antragNeu} aktiverTab="heute"
+      zurueck={{ ziel: "/portal/mein/antraege", text: t.antraege }}
+    >
       <h1 className="mb-s5 text-h1 text-text">{t.antragNeu}</h1>
 
       {basis.anstellungen.length === 0 ? <Leer text={t.keineEintraege} /> : (

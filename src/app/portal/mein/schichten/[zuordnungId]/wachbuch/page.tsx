@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { Geraetezeit } from '../../../Geraetezeit';
 import { notFound } from 'next/navigation';
 import { StatusPill } from '@/components/ui/StatusPill';
@@ -100,13 +99,9 @@ export default async function MeinWachbuch(
     + 'text-base text-text';
 
   return (
-    <MeinRahmen basis={basis} titel={t.wachbuch} aktiverTab="schichten">
-      <Link
-        href={`/portal/mein/schichten/${zuordnungId}`}
-        className="mb-s4 inline-block min-h-11 text-base text-text underline"
-      >
-        ← {t.schichten}
-      </Link>
+    <MeinRahmen basis={basis} titel={t.wachbuch} aktiverTab="schichten"
+      zurueck={{ ziel: `/portal/mein/schichten/${zuordnungId}`, text: t.schichten }}
+    >
 
       <h1 className="mb-s2 text-h1 text-text">{t.wachbuch}</h1>
       <p className="mb-s5 text-base text-text-muted">

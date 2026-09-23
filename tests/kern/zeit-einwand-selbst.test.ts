@@ -60,9 +60,17 @@ function kontextMit(lage: {
      * Zusicherung unten haelt fest, dass die Meldung nicht wieder
      * verschwindet.
      */
-    if (sql.includes('select mandant_id, zeiteintrag_id')) {
+    /*
+     * Seit V-102 holt derselbe Kopf auch `person.sprache` — die Meldung
+     * entsteht in der Sprache der Empfaengerin (O-889). Erkannt wird die
+     * Abfrage deshalb an `from zeit_einwand` und nicht an ihrer Spaltenliste:
+     * ein Stellvertreter, der den Wortlaut nachspricht, faellt bei jeder
+     * zusaetzlichen Spalte um und hat dabei nichts geprueft.
+     */
+    if (sql.includes('from zeit_einwand')) {
       return [{
         mandant_id: 'm-1', zeiteintrag_id: 'z-1', betrifft_datum: '11.03.2026',
+        sprache: 'de',
       }] as unknown as readonly T[];
     }
     if (sql.includes('app.einwand_entscheidung_melden')) {

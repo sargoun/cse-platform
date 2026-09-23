@@ -249,3 +249,80 @@ describe('§3 was die Definer-Funktion NICHT darf (0377)', () => {
     expect(r!.id).toBeNull();
   });
 });
+
+describe('§4 die Meldung steht in der Sprache der Empfängerin (V-102, O-889)', () => {
+  /**
+   * **Was hier gegen die Datenbank geprüft wird und nicht gegen TypeScript.**
+   * Dass die Artdefinition in vier Sprachen antwortet, steht in
+   * `tests/kern/benachrichtigung-sprachen.test.ts`. Hier steht die Frage
+   * davor: kommt `person.sprache` überhaupt bis zu ihr? Der Weg führt über
+   * zwei Verbünde (`zeit_einwand → anstellung → person`), und beide sind
+   * LINKS gesetzt — ein innerer Verbund liesse die Meldung ausfallen, sobald
+   * eine Policy eine der beiden Zeilen ausblendet, und eine Entscheidung
+   * über die eigene Arbeitszeit, von der niemand erfährt, ist genau der
+   * Befund, den V-051 geschlossen hat.
+   *
+   * Geprüft wird am GESPEICHERTEN Text — dem, der im Posteingang steht.
+   */
+  async function mitSprache<T>(sprache: string, fn: () => Promise<T>): Promise<T> {
+    const [vorher] = await sql.unsafe<{ sprache: string }[]>(
+      `select sprache from person where id = $1`, [f.jonas]);
+    await sql.unsafe(`update person set sprache = $2 where id = $1`, [f.jonas, sprache]);
+    try { return await fn(); } finally {
+      await sql.unsafe(`update person set sprache = $2 where id = $1`,
+        [f.jonas, vorher!.sprache]);
+    }
+  }
+
+  it('arabisch für Jonas, wenn seine Zeile arabisch sagt', async () => {
+    const [m] = await mitSprache('ar', async () => {
+      const id = await einwand();
+      await als(planer, f.reinigung, (tx) => entscheideEinwand(kontextAus(tx, planer), {
+        einwandId: id, status: 'abgelehnt', entschiedenVon: planer,
+        begruendung: 'Die Pause steht so im Dienstplan.',
+      }));
+      return (await meldungenAn(jonasKonto)).filter((x) => x.objekt_id === id);
+    });
+
+    expect(m).toBeDefined();
+    expect(m!.titel, 'arabische Schrift im Titel').toMatch(/[؀-ۿ]/u);
+    expect(m!.text).toMatch(/[؀-ۿ]/u);
+    expect(m!.titel).not.toContain('Ihre Zeitmeldung');
+    // Die Begründung der Planung bleibt WÖRTLICH stehen — sie ist die Aussage
+    // eines Menschen über einen Einzelfall, keine Beschriftung.
+    expect(m!.text).toContain('Die Pause steht so im Dienstplan.');
+    // Und das Datum bleibt das Datum.
+    expect(m!.text).toContain('11.03.2026');
+  });
+
+  it('türkisch, und der Zustand steht übersetzt im Titel', async () => {
+    const [m] = await mitSprache('tr', async () => {
+      const id = await einwand();
+      await als(planer, f.reinigung, (tx) => entscheideEinwand(kontextAus(tx, planer), {
+        einwandId: id, status: 'teilweise_anerkannt', entschiedenVon: planer,
+        begruendung: 'Yarısı kabul edildi.',
+      }));
+      return (await meldungenAn(jonasKonto)).filter((x) => x.objekt_id === id);
+    });
+    expect(m!.titel).toContain('kısmen kabul edildi');
+  });
+
+  it('deutsch bleibt deutsch — der Regelfall ändert sich nicht', async () => {
+    /*
+     * Die Gegenprobe. Eine Übersetzungsrunde, die den bestehenden Text
+     * nebenbei verschiebt, bricht jede Erwartung, die irgendwo sonst an ihm
+     * hängt — und im Posteingang stünden dann zwei Fassungen derselben
+     * Meldung nebeneinander.
+     */
+    const [m] = await mitSprache('de', async () => {
+      const id = await einwand();
+      await als(planer, f.reinigung, (tx) => entscheideEinwand(kontextAus(tx, planer), {
+        einwandId: id, status: 'anerkannt', entschiedenVon: planer,
+        begruendung: 'Stimmt, die Pause war kürzer.',
+      }));
+      return (await meldungenAn(jonasKonto)).filter((x) => x.objekt_id === id);
+    });
+    expect(m!.titel).toBe('Ihre Zeitmeldung wurde anerkannt');
+    expect(m!.text).toContain('Ihre Meldung zum 11.03.2026 wurde anerkannt.');
+  });
+});

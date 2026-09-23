@@ -1,5 +1,7 @@
 import 'server-only';
 import { sicherRegistriert, type ArtDefinition } from '../../benachrichtigung/registry.js';
+import { setze, texteFuer, type EinwandTexte }
+  from '../../../lib/i18n/benachrichtigung.js';
 
 /**
  * Die Meldung, mit der eine Entscheidung über einen Zeit-Einwand bei der
@@ -37,45 +39,52 @@ const ZEIT = 'zeit';
 export const ART_EINWAND_ENTSCHIEDEN = `${ZEIT}.einwand_entschieden`;
 
 /**
- * Die Zustandswörter DER MELDUNG — deutsch, weil eine Benachrichtigung heute
- * in einer Sprache entsteht.
+ * **Die Meldung steht in der Sprache der Empfängerin** (V-102, O-889).
  *
- * // TODO(client, O-889): Soll eine Benachrichtigung in der Sprache der Empfängerin entstehen (person.sprache) oder in der Sprache der Gesellschaft, die sie versendet?
+ * Die Frage war gestellt und offen: die Sprache der Empfängerin oder die der
+ * Gesellschaft, die sendet? **Ausgeliefert ist die Sprache der Empfängerin.**
+ * Das Arbeiterportal steht in vier Sprachen, weil die Menschen dort nicht alle
+ * Deutsch lesen — und diese Meldung sagt jemandem, wie über seine ARBEITSZEIT
+ * entschieden wurde. Wer sie nicht lesen kann, widerspricht nicht.
  *
- * Die Oberfläche des Arbeiterportals steht in vier Sprachen
- * (`EINWAND_STATUS_TEXTE`); der Posteingang trägt dagegen GESPEICHERTEN Text,
- * und der ist in dem Moment festgelegt, in dem er entsteht. Beides an dieser
- * Stelle zusammenzuführen hiesse, die Sprache der Empfängerin in einen Dienst
- * zu reichen, der sie sonst nicht kennt — und eine Meldung, deren Sprache
- * sich später ändert, gibt es nicht: was zugestellt ist, ist zugestellt.
- * Solange die Frage offen ist, steht hier Deutsch, und die Seite daneben
- * übersetzt.
+ * `person.sprache` kommt vom Erzeuger herein (`einwand.ts`); fehlt sie, gilt
+ * Deutsch. Was zugestellt ist, bleibt, wie es zugestellt wurde: ändert der
+ * Mensch später seine Sprache, ändert sich die Meldung nicht.
+ *
+ * Das Zustandswort der MELDUNG ist nicht dasselbe wie das der Seite
+ * (`EINWAND_STATUS_TEXTE`): dort steht eine Beschriftung, hier ein Satzteil.
  */
-const ZUSTAND_WORT: Readonly<Record<string, string>> = {
-  anerkannt: 'anerkannt',
-  teilweise_anerkannt: 'teilweise anerkannt',
-  abgelehnt: 'abgelehnt',
-};
+function zustandWort(t: EinwandTexte, status: string): string {
+  if (status === 'anerkannt') return t.anerkannt;
+  if (status === 'teilweise_anerkannt') return t.teilweise;
+  if (status === 'abgelehnt') return t.abgelehnt;
+  return t.entschieden;
+}
 
 function einwandEntschieden(): ArtDefinition {
   return ({
     schluessel: ART_EINWAND_ENTSCHIEDEN,
     titel: (k) => {
-      const zustand = String(k.daten['status'] ?? '');
-      return `Ihre Zeitmeldung wurde ${ZUSTAND_WORT[zustand] ?? 'entschieden'}`;
+      const t = texteFuer(k.sprache).einwand;
+      return setze(t.titel, {
+        zustand: zustandWort(t, String(k.daten['status'] ?? '')),
+      });
     },
     text: (k) => {
-      const zustand = String(k.daten['status'] ?? '');
+      const t = texteFuer(k.sprache).einwand;
       const datum = k.daten['betrifftDatum'];
       const grund = k.daten['begruendung'];
-      return 'Ihre Meldung'
-        + (typeof datum === 'string' && datum !== '' ? ` zum ${datum}` : '')
-        + ` wurde ${ZUSTAND_WORT[zustand] ?? 'entschieden'}.`
+      return setze(t.text, {
+        zum: typeof datum === 'string' && datum !== ''
+          ? setze(t.zum, { datum }) : '',
+        zustand: zustandWort(t, String(k.daten['status'] ?? '')),
+      })
+        /* Die Begründung eines Menschen über einen Einzelfall — nicht
+           übersetzt, weil sie keine Beschriftung ist. */
         + (typeof grund === 'string' && grund.trim() !== ''
-          ? ` Begründung: ${grund.trim()}`
-          : ' Eine Begründung wurde nicht eingetragen.')
-        + ' Ändert sich dadurch Ihre erfasste Zeit, steht die neue Fassung in'
-        + ' „Meine Zeiten"; die alte bleibt daneben stehen.';
+          ? setze(t.mitGrund, { grund: grund.trim() })
+          : t.ohneGrund)
+        + t.nachsatz;
     },
     /*
      * Der eigene Vorgang, wenn es einen Zeiteintrag gibt — sonst die Liste.

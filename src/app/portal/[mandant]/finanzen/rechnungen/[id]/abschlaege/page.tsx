@@ -199,6 +199,7 @@ export default async function Abschlagsblatt(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/finanzen/rechnungen/${id}`, text: k.nummer ?? t.entwurfOhneNummer }}
       titel={t.abschlaegeTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -208,14 +209,6 @@ export default async function Abschlagsblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label={g.zurueck} className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {k.nummer ?? t.entwurfOhneNummer}
-        </Link>
-      </nav>
 
       <h1 className="mb-s3 text-h1 text-text">{t.abschlaegeTitel}</h1>
 

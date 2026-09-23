@@ -1,6 +1,5 @@
 import type postgres from 'postgres';
 import { Geraetezeit } from '@/app/portal/mein/Geraetezeit';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -115,6 +114,7 @@ export default async function Quittung(
 
   return (
     <PortalRahmen
+      {...(darf['schluessel.lesen'] === true ? { zurueck: { ziel: `/portal/${mandant}/security/schluessel/${id}`, text: schluessel.bezeichnung } } : {})}
       titel="Schlüsselquittung"
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -131,14 +131,6 @@ export default async function Quittung(
         * und verriete, was er nicht zeigen darf (AUT-06; Copilot-Runde auf
         * PR 16 / D-581).
         */}
-      {darf['schluessel.lesen'] === true && (
-        <Link
-          href={`/portal/${mandant}/security/schluessel/${id}`}
-          className="mb-s4 inline-block min-h-11 text-sm text-text underline"
-        >
-          ← {schluessel.bezeichnung}
-        </Link>
-      )}
 
       <h1 className="mb-s2 text-h1 text-text">Schlüsselquittung</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">

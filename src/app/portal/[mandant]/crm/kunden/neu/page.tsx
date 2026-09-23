@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -46,6 +45,7 @@ export default async function KundeNeu(
 
   return (
     <PortalRahmen
+      {...(darf['crm.lesen'] === true ? { zurueck: { ziel: `/portal/${mandant}/crm/kunden`, text: 'Kunden' } } : {})}
       titel="Neuer Kunde"
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -55,14 +55,6 @@ export default async function KundeNeu(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      {darf['crm.lesen'] === true && (
-        <p className="mb-s3 text-sm">
-          <Link href={`/portal/${mandant}/crm/kunden`}
-                className="text-text-muted underline-offset-2 hover:underline">
-            ← Kunden
-          </Link>
-        </p>
-      )}
       <h1 className="mb-s5 mt-0 text-h1 text-text">Neuer Kunde</h1>
 
       {meldung !== null && (

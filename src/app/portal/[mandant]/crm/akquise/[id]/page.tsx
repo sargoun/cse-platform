@@ -109,6 +109,7 @@ export default async function Akquiseziel(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/crm/akquise`, text: 'Akquise' }}
       titel={ziel.firmenname}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -118,12 +119,6 @@ export default async function Akquiseziel(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <p className="mb-s3 text-sm">
-        <Link href={`/portal/${mandant}/crm/akquise`}
-              className="text-text-muted underline-offset-2 hover:underline">
-          ← Akquise
-        </Link>
-      </p>
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{ziel.firmenname}</h1>
         <StatusPill zustand={ziel.status === 'uebernommen' ? 'Abgeschlossen'

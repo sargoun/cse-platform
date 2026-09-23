@@ -75,6 +75,7 @@ export default async function ReferenzVeroeffentlichen(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/website/referenzen/${referenzId}`, text: r.titel }}
       titel="Veröffentlichen"
       wurzelTitel="Website"
       bereich={mandant as BereichSchluessel}
@@ -87,12 +88,6 @@ export default async function ReferenzVeroeffentlichen(
     >
       <WebsiteSpruenge mandant={mandant} zweig="referenzen"
                        sitzung={zugang.sitzung} />
-      <p className="mb-s3 text-sm">
-        <Link href={`/portal/${mandant}/website/referenzen/${referenzId}`}
-              className="text-text-muted underline-offset-2 hover:underline">
-          ← {r.titel}
-        </Link>
-      </p>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 min-w-0 text-h1 text-text">

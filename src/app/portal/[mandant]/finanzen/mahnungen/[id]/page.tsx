@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -76,6 +75,7 @@ export default async function MahnungDetail(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/finanzen/mahnungen`, text: t.alleMahnungen }}
       titel={`${t.mahnung} ${kopf.nummer ?? t.entwurf}`}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -85,14 +85,6 @@ export default async function MahnungDetail(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <p className="mb-s3 text-sm">
-        <Link
-          href={`/portal/${mandant}/finanzen/mahnungen`}
-          className="text-text-muted underline-offset-2 hover:text-brand hover:underline"
-        >
-          ← {t.alleMahnungen}
-        </Link>
-      </p>
 
       <div className="mb-s5 flex flex-wrap items-baseline gap-s3">
         <h1 className="text-h1 text-text">

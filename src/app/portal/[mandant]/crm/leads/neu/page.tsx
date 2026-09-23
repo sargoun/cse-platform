@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
@@ -61,6 +60,7 @@ export default async function LeadNeu(
 
   return (
     <PortalRahmen
+      {...(darf['crm.lesen'] === true ? { zurueck: { ziel: `/portal/${mandant}/crm/leads`, text: 'Leads' } } : {})}
       titel="Neuer Lead"
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -70,14 +70,6 @@ export default async function LeadNeu(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      {darf['crm.lesen'] === true && (
-        <p className="mb-s3 text-sm">
-          <Link href={`/portal/${mandant}/crm/leads`}
-                className="text-text-muted underline-offset-2 hover:underline">
-            ← Leads
-          </Link>
-        </p>
-      )}
       <h1 className="mb-s5 mt-0 text-h1 text-text">Neuer Lead</h1>
 
       {meldung !== null && (

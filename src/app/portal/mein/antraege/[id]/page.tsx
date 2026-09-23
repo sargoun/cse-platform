@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
@@ -78,13 +77,9 @@ export default async function MeinAntrag(
   });
 
   return (
-    <MeinRahmen basis={basis} titel={t.antraege} aktiverTab="heute">
-      <Link
-        href="/portal/mein/antraege"
-        className="mb-s4 inline-block min-h-11 text-base text-text underline"
-      >
-        ← {t.antraege}
-      </Link>
+    <MeinRahmen basis={basis} titel={t.antraege} aktiverTab="heute"
+      zurueck={{ ziel: "/portal/mein/antraege", text: t.antraege }}
+    >
 
       <div className="mb-s5 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{artName}</h1>

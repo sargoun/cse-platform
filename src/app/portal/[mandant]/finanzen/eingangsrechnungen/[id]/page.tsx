@@ -157,6 +157,7 @@ export default async function EingangsrechnungDetail(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/finanzen/eingangsrechnungen`, text: t.titel }}
       titel={kopf.interne_belegnummer ?? t.eingangsrechnung}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -167,12 +168,6 @@ export default async function EingangsrechnungDetail(
       navigationsRechte={zugang.navigationsRechte}
     >
       <nav aria-label={g.zurueck} className="mb-s3 flex flex-wrap gap-s4">
-        <Link
-          href={`/portal/${mandant}/finanzen/eingangsrechnungen`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {t.titel}
-        </Link>
         {/*
           * Der Freigabebildschirm zeigt die vier Angaben, die der
           * Freigabesatz einfriert, und die Vier-Augen-Lage im Klartext. Er

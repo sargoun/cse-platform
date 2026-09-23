@@ -198,6 +198,12 @@ export default async function Stornoblatt(
 
   return (
     <PortalRahmen
+      /* Auch der RUECKWEG steht unter dem Recht seines Ziels (AUT-06):
+         ein Pfeil auf eine Seite, die der Benutzer nicht oeffnen darf,
+         fuehrt auf ein 404 — und verraet damit, dass es sie gibt. */
+      {...(darf['finanzen.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/finanzen/rechnungen/${id}`, text: k.nummer ?? t.entwurfOhneNummer } }
+        : {})}
       titel={t.stornoTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -207,16 +213,6 @@ export default async function Stornoblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      {darf['finanzen.lesen'] === true ? (
-        <nav aria-label={g.zurueck} className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← {k.nummer ?? t.entwurfOhneNummer}
-          </Link>
-        </nav>
-      ) : null}
 
       <h1 className="mb-s3 text-h1 text-text">{t.stornoH1}</h1>
 

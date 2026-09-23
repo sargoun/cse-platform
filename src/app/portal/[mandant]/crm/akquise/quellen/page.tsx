@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -91,6 +90,7 @@ export default async function Akquisequellen(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/crm/akquise`, text: 'Akquise' }}
       titel="Recherchequellen"
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -100,12 +100,6 @@ export default async function Akquisequellen(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <p className="mb-s3 text-sm">
-        <Link href={`/portal/${mandant}/crm/akquise`}
-              className="text-text-muted underline-offset-2 hover:underline">
-          ← Akquise
-        </Link>
-      </p>
       <h1 className="mb-s5 mt-0 text-h1 text-text">Recherchequellen</h1>
 
       <Hinweis art={verbundene === 0 ? 'warnung' : 'hinweis'} cse="quellen-stand"

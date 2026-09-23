@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -115,6 +114,7 @@ export default async function ZahlungDetail(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/finanzen/zahlungen`, text: tz.titel }}
       titel={`${t.zahlung} ${t.vom} ${kopf.zahlungsdatum}`}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -124,14 +124,6 @@ export default async function ZahlungDetail(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label={g.zurueck} className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/finanzen/zahlungen`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {tz.titel}
-        </Link>
-      </nav>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">

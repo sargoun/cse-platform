@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -20,7 +19,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
-import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import {
   RECHNUNG_AUSGABE_TEXTE, type RechnungAusgabeTexte,
 } from '@/lib/i18n/verwaltung/finanzen/rechnung-ausgabe';
@@ -125,7 +124,6 @@ export default async function ZugferdBlatt(
 
   /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
   const t = nachSprache(RECHNUNG_AUSGABE_TEXTE, zugang.sprache);
-  const g = verwaltungTexte(zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -165,6 +163,12 @@ export default async function ZugferdBlatt(
 
   return (
     <PortalRahmen
+      /* Auch der RUECKWEG steht unter dem Recht seines Ziels (AUT-06):
+         ein Pfeil auf eine Seite, die der Benutzer nicht oeffnen darf,
+         fuehrt auf ein 404 — und verraet damit, dass es sie gibt. */
+      {...(darf['finanzen.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/finanzen/rechnungen/${id}`, text: k.nummer ?? t.entwurfOhneNummer } }
+        : {})}
       titel="ZUGFeRD"
       bereich={mandant as BereichSchluessel}
       nurLesen
@@ -174,16 +178,6 @@ export default async function ZugferdBlatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      {darf['finanzen.lesen'] === true ? (
-        <nav aria-label={g.zurueck} className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← {k.nummer ?? t.entwurfOhneNummer}
-          </Link>
-        </nav>
-      ) : null}
 
       <h1 className="mb-s3 text-h1 text-text">{t.zugferdH1}</h1>
 
