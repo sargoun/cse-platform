@@ -21,6 +21,8 @@ import {
 } from '@/components/portal/Kommunikationsverlauf';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { VERLAUF_TEXTE } from '@/lib/i18n/verwaltung/crm-verlauf';
+import { KUNDE_RUECKMELDUNG } from '@/lib/i18n/verwaltung/crm-kunde';
+import { Hinweis } from '@/components/ui/Hinweis';
 import {
   leseKundenVerlauf, VERLAUF_GRENZE, type VerlaufEintrag,
 } from '@/server/services/crm/verlauf';
@@ -98,6 +100,16 @@ export default async function KundeDetail(
   /* Die Rückmeldung von `POST /api/crm/notiz` (V-147) — Schlüssel, nie Satz. */
   const notizGrund = typeof suche['notiz'] === 'string' ? suche['notiz'] : null;
   const notiert = suche['notiert'] === '1';
+  /*
+   * **Die Abweisung des Kontaktformulars** (V-148, D-562). `POST
+   * /api/crm/kunde` leitet einen `CrmFehler` mit `?meldung=` (Satz) und
+   * `?grund=` (Schlüssel) hierher zurück — und dieses Blatt nahm bis hierher
+   * gar keine Suchparameter an. Wer „Bestandskunde" wählte und nicht sagte,
+   * woher sie stammt, bekam keinen Kontakt und keinen Satz.
+   */
+  const meldung = typeof suche['meldung'] === 'string' && suche['meldung'] !== ''
+    ? suche['meldung'] : null;
+  const meldungGrund = typeof suche['grund'] === 'string' ? suche['grund'] : null;
   const zugang = await portalZugang(`/portal/${mandant}/crm/kunden/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -123,6 +135,7 @@ export default async function KundeDetail(
     'crm_entgelt.lesen', 'abrechnung.lesen', 'system.benutzer_verwalten',
     'system.benutzer_lesen', 'nachricht.lesen');
   const tv = nachSprache(VERLAUF_TEXTE, zugang.sprache);
+  const tk = nachSprache(KUNDE_RUECKMELDUNG, zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -228,6 +241,13 @@ export default async function KundeDetail(
         ) : null}
       </div>
 
+      {meldung === null ? null : (
+        <Hinweis art="warnung" cse="kunde-meldung" className="mb-s5 max-w-prose">
+          <strong>{tk.nichtGespeichert}</strong>{' '}
+          {(meldungGrund === null ? undefined : tk.kontaktFehler[meldungGrund]) ?? meldung}
+        </Hinweis>
+      )}
+
       <dl className="m-0 mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Nummer</dt>
@@ -321,7 +341,7 @@ export default async function KundeDetail(
           * einer Liste, in der man gerade stand.
           */}
         {darfSchreiben && (
-          <details className="mt-s5" data-cse="kontakt-anlegen">
+          <details className="mt-s5" data-cse="kontakt-anlegen" open={meldung !== null}>
             <summary className="cursor-pointer text-sm text-brand">
               Ansprechpartner hinzufügen
             </summary>

@@ -15647,3 +15647,46 @@ Leadbezug, den er lesen könnte.
 
 | Betrifft | CRM-03, CRM-08, LEG-08, O-36, V-101, V-137, V-147, `src/server/services/crm/verlauf.ts`, `src/components/portal/Kommunikationsverlauf.tsx`, `src/lib/i18n/verwaltung/crm-verlauf.ts`, `src/app/api/crm/notiz/route.ts`, `src/app/portal/[mandant]/crm/{kunden,kontakte}/[id]/page.tsx` |
 |---|---|
+
+### D-642 · Ein abgewiesenes Formular sagt es auf der Seite, von der es kam — Kundenblatt und vier Recruiting-Seiten (V-148)
+
+**Der Befund** (V-148, D-562): drei Muster derselben Lücke — eine Route
+leitet eine Abweisung mit Grund zurück, die Seite liest ihn nicht.
+(1) `/crm/kunden/[id]` nahm keine Suchparameter an; `POST /api/crm/kunde`
+schickte `?meldung=`. Wer „Bestandskunde“ oder „Einwilligung“ wählte und nicht
+sagte, woher sie stammt bzw. für welchen Kanal, bekam keinen Kontakt und
+keinen Satz. (2) Das Leadblatt las `?meldung=` bereits (V-137) — dieser Teil
+war widerlegt. (3) Bewertung, Entscheidung, neue Stelle und Veröffentlichung
+schicken `zurueck` auf sich selbst, `fuehreRecruitingAus` hängt
+`?fehler=<grund>` an, und keine der vier nahm Suchparameter an: ein
+Bewertungskriterium ohne Begründung wurde abgewiesen, alle Eingaben waren
+weg, kein Satz.
+
+**Die Entscheidung.**
+
+1. **Das Kundenblatt liest Satz und Schlüssel.** Die Kundenroute schickt
+   zusätzlich `?grund=` (nicht `?fehler=`: das Kontaktblatt liest diesen
+   Namen für den Sendeweg, V-101). Das Blatt zeigt über dem Kopf einen
+   Hinweis mit dem übersetzten Satz, sonst dem deutschen Satz der Route —
+   nie den Schlüssel — und öffnet das Kontaktformular wieder.
+2. **Die vier Recruiting-Seiten lesen `?fehler=`** über ein gemeinsames
+   Bauteil (`recruiting/rueckmeldung.tsx`). Je Seite eine eigene Satztabelle
+   in de und en: derselbe Schlüssel meint auf zwei Seiten Verschiedenes
+   (`unvollstaendig`). Ein unbekannter Grund fällt auf „Der Vorgang wurde
+   abgewiesen.“ zurück. Ein Test hält fest, dass jeder Grund, den die
+   jeweilige Route und ihr Dienst werfen können, einen Satz hat.
+3. **Die Veröffentlichung liest auch ihren Erfolg** (`?gesendet=1`) — und
+   „nicht verbunden“, den ehrlichen Normalfall jeder Börse, als Satz:
+   vermerkt, nichts hinausgegangen (O-374, D-02).
+4. **Die Eingaben kommen nicht zurück, und das steht da.** Sie über die
+   Adresse zurückzugeben hieße, Begründungen einer Bewerberbewertung (AGG)
+   und Stellentexte in Adresszeilen und Zugriffsprotokolle zu schreiben. Die
+   langen Formulare (Bewertung, neue Stelle) sagen deshalb ausdrücklich, dass
+   die Eingaben neu einzutragen sind; der Satz sagt, was zu ändern ist.
+
+**Nicht Teil dieser Entscheidung:** die Erfolgsmeldungen, die auf anderen
+Seiten ankommen (`?bewertet=1`, `?entschieden=1` auf dem Bewerbungsblatt,
+`?angelegt=1` auf dem Stellenblatt) — das sind keine Fehler-Rückwege.
+
+| Betrifft | D-562, D-599, V-101, V-137, V-148, REC-02, REC-05, REC-08, REC-09, `src/app/api/crm/kunde/route.ts`, `src/app/portal/[mandant]/crm/kunden/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/{rueckmeldung.tsx,kandidaten/[id]/bewertung,kandidaten/[id]/entscheidung,stellen/neu,stellen/[id]/veroeffentlichung}`, `src/lib/i18n/verwaltung/{crm-kunde,recruiting-rueckmeldung}.ts` |
+|---|---|

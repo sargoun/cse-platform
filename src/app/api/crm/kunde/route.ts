@@ -200,8 +200,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   } catch (fehler) {
     if (fehler instanceof CrmFehler) {
       const trenner = zurueck.includes('?') ? '&' : '?';
+      /*
+       * Satz UND Schlüssel (V-148): das Kundenblatt übersetzt den Schlüssel,
+       * der Satz bleibt der Rückfall für Blätter, die nur `meldung` lesen.
+       * `grund` und nicht `fehler`: das Kontaktblatt liest `fehler` für den
+       * Sendeweg (V-101) — ein gescheiterter Hauptkontakt ist keine Nachricht,
+       * die nicht hinausging.
+       */
       return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`,
+        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`
+          + `&grund=${encodeURIComponent(fehler.grund)}`,
         '/portal', anfrage), 303);
     }
     throw fehler;

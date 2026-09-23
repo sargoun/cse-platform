@@ -9,6 +9,7 @@ import { kennungOder404 } from '../../../../../kennung';
 import { RecruitingSeite, leseImMandanten } from '../../../rahmen';
 import { FELD, KNOPF } from '../../../felder';
 import { BEWERBUNG_TEXT } from '../../../marken';
+import { grundAus, RecruitingRueckmeldung } from '../../../rueckmeldung';
 
 /**
  * `/portal/[mandant]/recruiting/kandidaten/[id]/entscheidung` — die
@@ -36,10 +37,15 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Entscheidung — Recruiting' };
 
 export default async function Entscheidung(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
+  /* V-148: die Abweisung kommt als `?fehler=` auf DIESE Seite zurück. */
+  const grund = grundAus(await searchParams);
   return (
     <RecruitingSeite
       mandant={mandant}
@@ -75,6 +81,9 @@ export default async function Entscheidung(
             <p className="mb-s5 text-sm text-text-muted">
               {b.name} · {b.stelleTitel ?? 'Initiativbewerbung'}
             </p>
+
+            <RecruitingRueckmeldung sprache={zugang.sprache} seite="entscheidung"
+                                    grund={grund} />
 
             {schonEntschieden ? (
               <Hinweis art="hinweis" cse="schon-entschieden" className="max-w-prose">
