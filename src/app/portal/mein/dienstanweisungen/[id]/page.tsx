@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Geraetezeit } from '../../Geraetezeit';
 import { notFound } from 'next/navigation';
 import {
   findeEigeneDienstanweisung, type EigeneDienstanweisung,
@@ -119,9 +120,21 @@ export default async function MeineDienstanweisung(
           <input type="hidden" name="zurueck" value="/portal/mein/dienstanweisungen" />
           {/*
             EIN Tipp — und der Knopf ist so breit wie die Spalte und 44 px hoch
-            (DESIGN §8). Die Zeit dieser Bestätigung stempelt der Server; das
-            Formular schickt keine mit.
+            (DESIGN §8).
           */}
+          {/*
+            * **Die Gerätezeit fehlte hier ganz** (V-060).
+            *
+            * `bestaetigeKenntnisnahme` nimmt sie seit je entgegen und legt
+            * sie in `geraete_zeit` ab; dieses Formular schickte keine, und
+            * darunter stand als Begründung „die Zeit stempelt der Server".
+            * Das stimmt — und ist nicht der Punkt: die Serverzeit IST
+            * massgeblich, und die Gerätezeit steht daneben, damit eine
+            * Abweichung auffällt. Eine Kenntnisnahme, die ein Telefon mit
+            * falsch gestellter Uhr um Mitternacht absendet, sieht sonst aus
+            * wie jede andere.
+            */}
+          <Geraetezeit marke="geraetezeit" />
           <button
             type="submit"
             className="inline-flex min-h-11 w-full items-center justify-center rounded-md

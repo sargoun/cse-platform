@@ -44,8 +44,21 @@ import { aufDerSchicht, dienstFehlerAntwort, zurueckZu } from '../../bruecke';
  */
 export const dynamic = 'force-dynamic';
 
-/** So viele Positionszeilen bietet das Formular an. */
-const ZEILEN = 3;
+/**
+ * Die Obergrenze der Positionszeilen — HIER und nicht nur in der Seite
+ * (V-059).
+ *
+ * Vorher stand hier die feste Zahl 3, und dieselbe Zahl noch einmal in der
+ * Seite. Ein Leistungsnachweis mit vier Positionen war damit nicht
+ * erfassbar: kein Knopf „Zeile hinzufügen", und die vierte Zeile wäre auch
+ * angekommen und stillschweigend übergangen worden.
+ *
+ * Ein Formular ist das, was ANKOMMT, nicht das, was ausgeliefert wurde —
+ * deshalb steht die Schranke auch hier. Ohne sie wäre `zeilen=100000` eine
+ * Schleife, die niemand bestellt hat.
+ */
+const ZEILEN_MAX = 20;
+const ZEILEN_VORGABE = 3;
 const MENGE = /^\d{1,9}([.,]\d{1,3})?$/u;
 
 function textOder(daten: FormData, feld: string): string | null {
@@ -60,8 +73,12 @@ export async function POST(
   const { zuordnungId } = await kontext.params;
   const daten = await anfrage.formData();
 
+  const anzahlRoh = Number(textOder(daten, 'zeilen') ?? '');
+  const anzahl = Number.isInteger(anzahlRoh) && anzahlRoh > 0
+    ? Math.min(anzahlRoh, ZEILEN_MAX) : ZEILEN_VORGABE;
+
   const positionen: PositionEingabe[] = [];
-  for (let i = 0; i < ZEILEN; i += 1) {
+  for (let i = 0; i < anzahl; i += 1) {
     const bezeichnung = textOder(daten, `bezeichnung_${String(i)}`);
     if (bezeichnung === null) continue;
     const mengeRoh = textOder(daten, `menge_${String(i)}`) ?? '1';

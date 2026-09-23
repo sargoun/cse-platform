@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import { Geraetezeit } from '@/app/portal/mein/Geraetezeit';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
@@ -174,6 +175,15 @@ export default async function Quittung(
           type="hidden" name="zurueck"
           value={`/portal/${mandant}/security/schluessel/${id}`}
         />
+
+        {/*
+          * Die Gerätezeit (V-060, TIM-08). `api/sicherheit/schluessel/[id]/quittung`
+          * nimmt sie seit je entgegen — dieses Formular schickte keine, und die
+          * Abweichung stand damit auf jeder Quittung auf „—". Massgeblich ist
+          * `erfasst_am` aus der Serveruhr; diese Zahl steht daneben, damit eine
+          * falsch gehende Uhr auffällt statt unsichtbar zu bleiben.
+          */}
+        <Geraetezeit marke="geraetezeit" />
 
         <label className="mb-s4 block">
           <span className={feld}>Vorgang</span>

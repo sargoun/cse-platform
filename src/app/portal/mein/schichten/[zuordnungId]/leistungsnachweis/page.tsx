@@ -70,6 +70,11 @@ function nachweisPille(n: SchichtNachweis): PillZustand {
   }
 }
 
+/** Drei Zeilen stehen ohne Zutun da, höchstens zwanzig sind erreichbar (V-059). */
+const ZEILEN_VORGABE = 3;
+const ZEILEN_MAX = 20;
+const ZEILEN_SCHRITT = 3;
+
 export default async function MeinLeistungsnachweis(
   { params, searchParams }: {
     params: Promise<{ zuordnungId: string }>;
@@ -84,6 +89,22 @@ export default async function MeinLeistungsnachweis(
    * keinen Fehler — sie fällt einfach aus der Wahl (AUT-06).
    */
   const gewaehlt = typeof suche['nachweis'] === 'string' ? suche['nachweis'] : null;
+  /*
+   * **Wie viele Positionszeilen das Formular zeigt** (V-059).
+   *
+   * Es waren genau drei, fest verdrahtet in Seite UND Route, und es gab
+   * keinen Knopf „Zeile hinzufügen". Ein Leistungsnachweis mit vier
+   * Positionen liess sich damit nicht erfassen — bei einer Grundreinigung mit
+   * Glas, Sanitär, Boden und Sonderfläche ist das der Regelfall und nicht die
+   * Ausnahme.
+   *
+   * Der Wert wird hier gezwungen und in der Route ein zweites Mal begrenzt:
+   * ein Formular ist das, was ankommt.
+   */
+  const zeilenRoh = Number(typeof suche['zeilen'] === 'string' ? suche['zeilen'] : '');
+  const zeilenZahl = Number.isInteger(zeilenRoh) && zeilenRoh > 0
+    ? Math.min(zeilenRoh, ZEILEN_MAX) : ZEILEN_VORGABE;
+  const mehrZeilen = Math.min(zeilenZahl + ZEILEN_SCHRITT, ZEILEN_MAX);
 
   const ergebnis = await meinPortal<Blatt | null>(
     `/portal/mein/schichten/${zuordnungId}/leistungsnachweis`,
@@ -163,7 +184,7 @@ export default async function MeinLeistungsnachweis(
   const eingabe =
     'min-h-11 w-full rounded-md border border-line-strong bg-surface px-s3 py-s2 '
     + 'text-base text-text';
-  const ZEILEN = [0, 1, 2];
+  const ZEILEN = Array.from({ length: zeilenZahl }, (_, i) => i);
 
   return (
     <MeinRahmen basis={basis} titel={t.leistungsnachweis} aktiverTab="schichten">
@@ -276,6 +297,7 @@ export default async function MeinLeistungsnachweis(
                   name="zurueck"
                   value={`/portal/mein/schichten/${zuordnungId}/leistungsnachweis`}
                 />
+                <input type="hidden" name="zeilen" value={String(zeilenZahl)} />
                 {ZEILEN.map((i) => (
                   <fieldset
                     key={i}
@@ -319,6 +341,23 @@ export default async function MeinLeistungsnachweis(
                     </div>
                   </fieldset>
                 ))}
+                {/*
+                  * **Mehr Zeilen** (V-059) — ohne Javascript, also über die
+                  * Adresse. Der Satz daneben sagt, dass Getipptes dabei
+                  * verloren geht: ein Verweis, der still löscht, ist eine
+                  * Falle, und auf einem Diensttelefon tippt man langsam.
+                  */}
+                {zeilenZahl < ZEILEN_MAX ? (
+                  <p className="m-0 text-sm text-text-muted">
+                    <Link
+                      href={`/portal/mein/schichten/${zuordnungId}/leistungsnachweis?zeilen=${String(mehrZeilen)}`}
+                      data-cse="mehr-zeilen"
+                      className="underline underline-offset-2"
+                    >
+                      {t.mehrZeilen}
+                    </Link>{' — '}{t.mehrZeilenHinweis}
+                  </p>
+                ) : null}
                 <button
                   type="submit"
                   className="inline-flex min-h-11 items-center justify-center rounded-md bg-brand

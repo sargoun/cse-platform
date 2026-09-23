@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Geraetezeit } from '../../../Geraetezeit';
 import { notFound } from 'next/navigation';
 import { StatusPill } from '@/components/ui/StatusPill';
 import {
@@ -263,7 +264,7 @@ export default async function MeinWachbuch(
                 Ohne JavaScript bleibt das Feld leer; dann steht in der Zeile
                 keine Geraetezeit — richtig, denn behauptet hat niemand etwas.
               */}
-              <input type="hidden" name="geraete_zeit" value="" data-cse="geraetezeit" />
+              <Geraetezeit marke="geraetezeit" />
 
               <button
                 type="submit"

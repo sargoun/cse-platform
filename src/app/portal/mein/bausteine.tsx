@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Geraetezeit } from './Geraetezeit';
 import Link, { type LinkProps } from 'next/link';
 import { AreaBadge } from '@/components/ui/AreaBadge';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
@@ -297,7 +298,7 @@ function StempelKnopf({
         * Stempel gilt genauso: die Erfassung darf nicht daran haengen, dass
         * ein Skript geladen hat.
         */}
-      <input type="hidden" name="geraete_zeit" data-cse="geraete-zeit" />
+      <Geraetezeit />
       <Button type="submit" variante={zweck === 'checkin' ? 'primary' : 'secondary'}
               className="min-h-16 w-full text-h3">
         {text}

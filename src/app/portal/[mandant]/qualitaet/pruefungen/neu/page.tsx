@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import { Geraetezeit } from '@/app/portal/mein/Geraetezeit';
 import Link from 'next/link';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -185,7 +186,7 @@ export default async function PruefungNeu(
           und das ist in Ordnung: maßgeblich ist ohnehin die Serverzeit, und
           eine hier erfundene Gerätezeit wäre schlimmer als keine.
         */}
-        <input type="hidden" name="geraete_zeit" value="" />
+        <Geraetezeit marke="geraetezeit" />
 
         {/* ---- Schritt 1: der Bezug ---------------------------------------- */}
         <fieldset className="m-0 rounded-lg border border-line bg-surface p-s5">

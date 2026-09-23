@@ -592,6 +592,10 @@ export interface MeinTexte {
   readonly laeuftAb: string;
   readonly sperrtEinteilung: string;
 
+  /* ── Mehr Positionszeilen im Leistungsnachweis (V-059) ──────────────── */
+  readonly mehrZeilen: string;
+  readonly mehrZeilenHinweis: string;
+
   /* ── Was nach einem gesperrten Nachweis zu tun ist (V-061) ──────────── */
   readonly nachweisWasTun: string;
   readonly nachweisWasTunText: string;
@@ -1030,6 +1034,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelaufen: 'Abgelaufen',
     laeuftAb: 'Läuft ab',
     sperrtEinteilung: 'Ohne diesen Nachweis darf Sie niemand einteilen.',
+    mehrZeilen: 'Mehr Zeilen',
+    mehrZeilenHinweis:
+      'Lädt das Blatt mit drei weiteren Zeilen neu. Getipptes geht dabei verloren — '
+      + 'bitte vor dem Ausfüllen.',
     nachweisWasTun: 'Was jetzt zu tun ist',
     nachweisWasTunText:
       'Bringen oder senden Sie den neuen Nachweis an das Büro Ihrer Gesellschaft. '
@@ -1374,6 +1382,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelaufen: 'Expired',
     laeuftAb: 'Expiring',
     sperrtEinteilung: 'Without this certificate nobody may schedule you.',
+    mehrZeilen: 'More rows',
+    mehrZeilenHinweis:
+      'Reloads the sheet with three more rows. Anything typed is lost — so do this '
+      + 'before filling it in.',
     nachweisWasTun: 'What to do now',
     nachweisWasTunText:
       'Bring or send the new certificate to the office of your company. It is '
@@ -1714,6 +1726,9 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelaufen: 'منتهية',
     laeuftAb: 'توشك على الانتهاء',
     sperrtEinteilung: 'بدون هذه الشهادة لا يجوز لأحد جدولتك.',
+    mehrZeilen: 'صفوف إضافية',
+    mehrZeilenHinweis:
+      'يعيد تحميل الورقة بثلاثة صفوف إضافية. ما كُتب يضيع عندها — لذلك قبل التعبئة.',
     nachweisWasTun: 'ما الذي يجب فعله الآن',
     nachweisWasTunText:
       'أحضر الشهادة الجديدة إلى مكتب شركتك أو أرسلها إليه. يتم تسجيلها هناك، وبعد '
@@ -2040,6 +2055,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelaufen: 'Süresi doldu',
     laeuftAb: 'Süresi doluyor',
     sperrtEinteilung: 'Bu belge olmadan kimse sizi vardiyaya yazamaz.',
+    mehrZeilen: 'Daha fazla satır',
+    mehrZeilenHinweis:
+      'Sayfayı üç satır daha ekleyerek yeniden yükler. Yazılanlar kaybolur — bu '
+      + 'yüzden doldurmadan önce yapın.',
     nachweisWasTun: 'Şimdi ne yapmalı',
     nachweisWasTunText:
       'Yeni belgeyi şirketinizin bürosuna getirin veya gönderin. Belge orada '

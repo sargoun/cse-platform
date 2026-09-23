@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Geraetezeit } from '@/app/portal/mein/Geraetezeit';
 import { notFound } from 'next/navigation';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
@@ -218,7 +219,7 @@ export default async function Unterschriftsblatt({
           Die Behauptung des Geräts. Sie bleibt leer, wenn kein Skript läuft —
           und das ist in Ordnung: maßgeblich ist ohnehin die Serverzeit.
         */}
-        <input type="hidden" name="geraete_zeit" value="" />
+        <Geraetezeit marke="geraetezeit" />
 
         <p className="mb-s4 max-w-prose text-base text-text">
           {vorschau.bestaetigungstext}
