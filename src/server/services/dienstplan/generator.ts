@@ -12,8 +12,16 @@
  *    null`. Der Schluessel nennt die urspruengliche Identitaet des
  *    Vorkommnisses, nicht seinen aktuellen Termin — deshalb ueberlebt er auch
  *    eine Verschiebung (§8.3).
- * 2. **Die Vergangenheit wird nicht angefasst.** `where einsatz.beginn_zeitpunkt
- *    > now()`. Ein Dienstplan von gestern ist ein Beleg, kein Entwurf.
+ * 2. **Die Vergangenheit wird nicht angefasst** — weder geändert noch neu
+ *    angelegt. `where einsatz.beginn_zeitpunkt > now()` am Update und
+ *    `where anfang.zeitpunkt > now()` am Insert. Ein Dienstplan von gestern
+ *    ist ein Beleg, kein Entwurf; und eine Schicht, die um 22 Uhr für
+ *    „heute 06:00" neu entsteht, kann niemand mehr besetzen — sie stünde als
+ *    unbesetzt im Plan und daneben die, die gerade läuft. Der Insert-Wächter
+ *    fehlte bis V-135: wer abends den Beginn eines Turnus änderte oder
+ *    tagsüber eine Serie anlegte, bekam genau diese Schicht. Allein der Seed
+ *    legt Vergangenes an, und er sagt es ausdrücklich
+ *    (`Lauflage.vergangenheitAnlegen`).
  * 3. **Was schon gearbeitet wurde, erst recht nicht.** Sobald ein
  *    `zeiteintrag` an der Schicht haengt, bleibt sie, wie sie ist — auch wenn
  *    die Serie sich geaendert hat. Gefragt wird ueber
@@ -64,6 +72,13 @@ export interface Lauflage {
   /** Der Tag, ab dem materialisiert wird — **Berliner** Kalendertag, vom Server. */
   readonly heute: string;
   readonly laufId: string | null;
+  /**
+   * Auch Schichten anlegen, deren Beginn schon vorbei ist — **nur der Seed**
+   * (V-135). Er baut drei Wochen Vergangenheit auf, an denen Zeiteinträge
+   * und Nachweise der Vorführung hängen. Ein Lauf im Betrieb, der Nachtlauf
+   * wie jede Pflege einer Serie, legt nie eine Schicht in die Vergangenheit.
+   */
+  readonly vergangenheitAnlegen?: true;
 }
 
 export interface SerienBericht {
@@ -146,7 +161,7 @@ export async function materialisiereSerie(
   for (const e of einsaetze) {
     const zeilen = (await db.unsafe(
       upsertText(),
-      werte(serie, e, feiertage.ids, lage.laufId),
+      werte(serie, e, feiertage.ids, lage),
     )) as EinsatzZeile[];
     if (zeilen.length === 0) {
       // Der `where`-Wachtposten hat zugeschlagen: die Schicht liegt in der
@@ -242,6 +257,8 @@ function upsertText(): string {
            $18, $19, $20, $21,
            'system', 'geplant'
       from anfang, ende
+     -- V-135: nichts NEU anlegen, was schon begonnen hat (ausser im Seed).
+     where $22::boolean or anfang.zeitpunkt > now()
     on conflict (mandant_id, quell_schluessel) where storniert_am is null
     do update set
         plan_datum        = excluded.plan_datum,
@@ -262,7 +279,7 @@ function upsertText(): string {
 
 function werte(
   serie: SerienZeile, e: GeplanterEinsatz, feiertagIds: ReadonlyMap<string, string>,
-  laufId: string | null,
+  lage: Lauflage,
 ): readonly unknown[] {
   return [
     serie.mandantId, serie.planungsserieId, serie.quelle,
@@ -271,7 +288,8 @@ function werte(
     e.planDatum, e.beginnLokal, serie.zeitzone, e.endeLokal, e.endetAmFolgetag,
     e.quellSchluessel, e.sollBesetzung, e.minBesetzung,
     e.feiertagDatum === null ? null : (feiertagIds.get(e.feiertagDatum) ?? null),
-    laufId,
+    lage.laufId,
+    lage.vergangenheitAnlegen === true,
   ];
 }
 

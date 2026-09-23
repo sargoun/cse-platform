@@ -54,3 +54,38 @@ export function prozentInBasispunkteOderGrund(
   if (bp > hoechstens) return { art: 'ausserhalb', bp };
   return { art: 'ok', bp };
 }
+
+/**
+ * Ein Satz in Basispunkten als deutscher Prozenttext — `1900` → „19,0 %".
+ *
+ * **Gerechnet wird in GANZEN Zahlen, nicht mit `bp / 100`** (K-16). Der
+ * naheliegende Weg waere `(bp / 100).toLocaleString('de-DE', …)`; er teilt
+ * eine ganze Zahl in eine Gleitkommazahl und laesst die Rundung eine
+ * Bibliothek entscheiden. `satz_bp` und `rabatt_bp` sind Basispunkte, weil
+ * 19 % als `0.19` eine Zahl ist, die sich binaer nicht darstellen laesst —
+ * diese Funktion zerlegt sie stattdessen in Ganzes und Rest und setzt den
+ * Text zusammen. Das Ergebnis ist bei jedem Wert exakt, und es gibt keine
+ * Stelle, an der eine Gleitkommazahl entsteht.
+ *
+ * (Nebenbei nimmt das der Zeitzonenwache ihren Treffer:
+ * `toLocaleString('de-DE', { … })` ist Zeichen fuer Zeichen derselbe Aufruf,
+ * mit dem jemand ein Datum ohne Zone formatiert — und die Wache meldet im
+ * Zweifel, was richtig ist.)
+ *
+ * **Zwei Nachkommastellen, die zweite nur wenn sie etwas sagt.** Die Saetze
+ * des UStG sind 19, 7 und 0; ein Rabatt von 2,5 % ist gaengig, und „2 %"
+ * waere dann falsch. `19,00 %` auf jedem Beleg behauptete dagegen mehr
+ * Genauigkeit, als die Zahl hat.
+ *
+ * Komma und nicht Punkt: ein Dezimalpunkt auf einer deutschen Rechnung ist
+ * ein Zahlendreher in Zeitlupe.
+ */
+export function prozentText(bp: number): string {
+  const negativ = bp < 0;
+  const abs = Math.abs(Math.trunc(bp));
+  const ganz = Math.trunc(abs / 100);
+  const rest = abs % 100;
+  /* `25` bleibt „25", `50` wird „5", `0` wird „0" — nie „,00" und nie „,5 0". */
+  const nach = rest % 10 === 0 ? String(rest / 10) : String(rest).padStart(2, '0');
+  return `${negativ ? '-' : ''}${String(ganz)},${nach} %`;
+}

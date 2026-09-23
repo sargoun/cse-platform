@@ -2,6 +2,7 @@ import type { Position, RechnungVollstaendig } from '../kanonisch.js';
 import { formatiereGeld, negiere, type Cent } from '../geld.js';
 import { formatiereMenge, type MilliMenge } from '../menge.js';
 import { tagDeutsch } from '../../../../lib/datum/kalendertag.js';
+import { prozentText } from '../prozent.js';
 
 /**
  * **Was auf dem Rechnungsblatt steht** — getrennt davon, WIE es gezeichnet
@@ -85,13 +86,11 @@ const TITEL: Readonly<Record<string, string>> = {
   storno: 'Stornorechnung',
 };
 
-/** `1900` → `19 %`, `250` → `2,5 %` — Basispunkte, ohne Gleitkomma. */
-export function prozent(bp: number): string {
-  const ganz = Math.trunc(bp / 100);
-  const rest = Math.abs(bp % 100);
-  const nachkomma = rest === 0 ? '' : `,${String(rest).padStart(2, '0').replace(/0$/u, '')}`;
-  return `${String(ganz)}${nachkomma}${NBSP}%`;
-}
+/**
+ * Derselbe Prozenttext wie im Kundenportal (`1900` → „19,0 %") — ein Beleg,
+ * eine Schreibweise, gleich ob man ihn auf der Seite oder im PDF liest.
+ */
+const prozent = prozentText;
 
 const geld = (c: Cent): string => formatiereGeld(c);
 

@@ -159,6 +159,9 @@ export async function seedSecurity(
 
   const berichte = await generiereEinsaetze(sql as unknown as Abfrage, mandantId, {
     heute: anker, laufId: null,
+    /* Vom Anker aus, und der liegt drei Wochen zurück: nur der Seed legt
+       Vergangenes an (V-135) — daran hängen Zeiteinträge und Nachweise. */
+    vergangenheitAnlegen: true,
   });
   const einsaetze = berichte.reduce((a, b) => a + b.erzeugt + b.aktualisiert, 0);
 

@@ -15414,6 +15414,21 @@ das Blatt sie zeigt.
    der Tabelle kommen aus `lib/design/theme.ts`. Die alte Fassung hatte ein
    eigenes Grau (`#555`) und 7-pt-Fusszeilen, beides nicht aus DESIGN.md.
 
+8. **Ein Prozenttext für einen Beleg.** Das Blatt schreibt Sätze mit
+   `prozentText` (jetzt in `finanz/prozent.ts`), derselben Funktion, mit der
+   das Kundenportal dieselbe Rechnung zeigt: „19,0 %“ hier wie dort. Ein
+   eigener Formatierer daneben (die erste Fassung schrieb „19 %“) wären zwei
+   Schreibweisen für einen Beleg.
+9. **Umbrochen wird nur an gewöhnlichen Leerzeichen.** `\s` träfe auch das
+   geschützte Leerzeichen, und „1.000,00 €“ bräche vor dem Zeichen um
+   (DESIGN §5).
+10. **Archivierte Blätter behalten ihre Fassung.** Das Belegarchiv (§ 147 AO,
+    `buchhaltung/belegarchiv.ts`) hat für jede festgeschriebene Rechnung das
+    Blatt abgelegt, das damals entstand. Ein neuer Abruf baut mit dieser
+    Vorlage — mit denselben Angaben aus derselben Nutzlast, nur vollständig
+    und mehrseitig gesetzt. Das ist genau die Trennung, die `belegarchiv.ts`
+    vorsieht: der Nachweis ist das Archiv, nicht der Nachbau.
+
 **Nicht geändert**: die eingebettete CII und die XRechnung. Sie waren schon
 vollständig. Skonto steht auf dem Blatt, sobald eine Rechnung es trägt; heute
 setzt keine Oberfläche `skonto_bp` an einer Ausgangsrechnung.

@@ -115,7 +115,9 @@ export function umbrechen(text: string, f: PDFFont, groesse: number, breite: num
   const zeilen: string[] = [];
   for (const absatz of text.split(/\r?\n/u)) {
     let aktuell = '';
-    for (const wort of absatz.split(/\s+/u).filter((w) => w !== '')) {
+    /* Nur an gewöhnlichen Leerzeichen: `\s` träfe auch das geschützte, und
+       „1.000,00 €" bräche dann vor dem Zeichen um (DESIGN §5). */
+    for (const wort of absatz.split(/[ \t]+/u).filter((w) => w !== '')) {
       const probe = aktuell === '' ? wort : `${aktuell} ${wort}`;
       if (f.widthOfTextAtSize(druckbar(probe, f), groesse) <= breite) {
         aktuell = probe;

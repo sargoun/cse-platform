@@ -5,6 +5,9 @@ import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index
 import {
   SeriePflegeFehler, aendereSerienlauf, aendereTurnus, archiviereSerie, beendeSerie,
 } from '../../src/server/services/dienstplan/serie-pflege.js';
+import {
+  ladeAusnahmen, ladeSerien, materialisiereSerie,
+} from '../../src/server/services/dienstplan/generator.js';
 
 /**
  * **Eine Planungsserie ändern, beenden, archivieren** (V-021, TIM-02, TIM-03).
@@ -218,16 +221,37 @@ describe('§2 die Regel — sie liegt auf dem Turnus, nicht auf der Serie', () =
   it('ein neuer Beginn schreibt die künftigen Schichten um', async () => {
     const { serie, turnus } = await turnusserie(f.reinigung, admin);
     await imKontext((k) => aendereSerienlauf(k, serie, { horizontTage: 14 }));
+    /*
+     * **Der Zeitpunkt der Änderung wird festgehalten, nicht angenommen.** Die
+     * Probeserie ist eine Nachtschicht ab 22:00, und `aendereTurnus` schreibt
+     * mit Absicht nur um, was noch nicht begonnen hat (`beginn_zeitpunkt >
+     * now()`): eine laufende Schicht hat eine Kraft vor Ort. Die erste Fassung
+     * verlangte, dass JEDE lebende Schicht danach um 06:00 beginnt — und war
+     * damit zwischen 22:00 und 06:00 Berliner Zeit rot, weil die Schicht dieser
+     * Nacht gerade lief. Geprüft wird jetzt genau die Aussage des Dienstes.
+     */
+    const [stand] = await sql.unsafe<{ jetzt: string }[]>(
+      `select clock_timestamp()::text as jetzt`);
     await imKontext((k) => aendereTurnus(k, serie, { beginnLokal: '06:00' }));
 
     const [t] = await sql.unsafe<{ beginn: string }[]>(
       `select to_char(dtstart_lokal, 'HH24:MI') as beginn from turnus where id = $1`, [turnus]);
     expect(t?.beginn).toBe('06:00');
-    const [e] = await sql.unsafe<{ anzahl: number }[]>(
-      `select count(*)::int as anzahl from einsatz
-        where planungsserie_id = $1 and storniert_am is null
-          and to_char(beginn_lokal, 'HH24:MI') <> '06:00'`, [serie]);
-    expect(e?.anzahl).toBe(0);
+    const [e] = await sql.unsafe<{ alt: number; neu: number; begonnen_alt: number }[]>(
+      `select count(*) filter (where beginn_zeitpunkt > $2::timestamptz
+                                 and to_char(beginn_lokal, 'HH24:MI') <> '06:00')::int as alt,
+              count(*) filter (where beginn_zeitpunkt > $2::timestamptz
+                                 and to_char(beginn_lokal, 'HH24:MI') = '06:00')::int as neu,
+              count(*) filter (where beginn_zeitpunkt <= $2::timestamptz
+                                 and to_char(beginn_lokal, 'HH24:MI') = '06:00')::int
+                as begonnen_alt
+         from einsatz
+        where planungsserie_id = $1 and storniert_am is null`, [serie, stand!.jetzt]);
+    /* Keine künftige Schicht mehr zur alten Zeit, und es gibt künftige zur neuen … */
+    expect(e?.alt).toBe(0);
+    expect(e?.neu).toBeGreaterThan(0);
+    /* … und eine Schicht, die schon begonnen hatte, wurde nicht umgeschrieben. */
+    expect(e?.begonnen_alt).toBe(0);
   });
 
   it('eine Dauer ausserhalb von 15 Minuten bis knapp 24 Stunden wird abgewiesen', async () => {
@@ -455,5 +479,49 @@ describe('§7 die Ausnahme ist keine Pflege — SeriePflegeFehler trägt den Gru
       .catch((x: unknown) => x);
     expect(fehler).toBeInstanceOf(SeriePflegeFehler);
     expect((fehler as SeriePflegeFehler).grund).toBe('unvollstaendig');
+  });
+});
+
+describe('§7 was schon begonnen hat, entsteht nicht neu (V-135)', () => {
+  /*
+   * Der Generator legte bis V-135 jedes Vorkommnis seines Fensters an — auch
+   * eines, dessen Beginn schon vorbei war. Das Fenster beginnt beim Berliner
+   * HEUTE, also entstand abends die Schicht von heute früh: nie besetzbar,
+   * als unbesetzt im Plan. Geprüft wird mit einem Lauf ab GESTERN, damit die
+   * Aussage zu jeder Uhrzeit gilt und nicht nur nach 22 Uhr.
+   */
+  async function laufAbGestern(serie: string, vergangenheit: boolean) {
+    const [t] = await sql.unsafe<{ gestern: string; bis: string }[]>(
+      `select to_char((now() at time zone 'Europe/Berlin')::date - 1, 'YYYY-MM-DD') as gestern,
+              to_char((now() at time zone 'Europe/Berlin')::date + 30, 'YYYY-MM-DD') as bis`);
+    const serien = await ladeSerien(sql, f.reinigung, t!.gestern, t!.bis);
+    const zeile = serien.find((x) => x.planungsserieId === serie);
+    expect(zeile, 'die Serie muss im Planungsbedarf stehen').toBeDefined();
+    const ausnahmen = await ladeAusnahmen(sql, zeile!, t!.gestern, t!.bis);
+    return materialisiereSerie(sql, zeile!, ausnahmen, vergangenheit
+      ? { heute: t!.gestern, laufId: null, vergangenheitAnlegen: true }
+      : { heute: t!.gestern, laufId: null });
+  }
+
+  async function begonnene(serie: string): Promise<number> {
+    const [z] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from einsatz
+        where planungsserie_id = $1 and storniert_am is null
+          and beginn_zeitpunkt <= now()`, [serie]);
+    return z?.n ?? 0;
+  }
+
+  it('ein Lauf im Betrieb legt keine Schicht an, die schon begonnen hat — und sagt es', async () => {
+    const { serie } = await turnusserie(f.reinigung, admin);
+    const bericht = await laufAbGestern(serie, false);
+    expect(await begonnene(serie)).toBe(0);
+    expect(bericht.erzeugt).toBeGreaterThan(0);
+    expect(bericht.uebersprungen.map((u) => u.grund)).toContain('vergangen_oder_gearbeitet');
+  });
+
+  it('nur der Seed legt Vergangenes an, und nur weil er es ausdrücklich verlangt', async () => {
+    const { serie } = await turnusserie(f.reinigung, admin);
+    await laufAbGestern(serie, true);
+    expect(await begonnene(serie)).toBeGreaterThan(0);
   });
 });

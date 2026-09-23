@@ -16,8 +16,9 @@ import fontkit from '@pdf-lib/fontkit';
 import { cent, formatiereGeld } from '../../src/server/services/finanz/geld.js';
 import { milliMenge } from '../../src/server/services/finanz/menge.js';
 import {
-  blattInhalt, einheitAnzeige, prozent,
+  blattInhalt, einheitAnzeige,
 } from '../../src/server/services/finanz/zugferd/blatt-inhalt.js';
+import { prozentText } from '../../src/server/services/finanz/prozent.js';
 import { umbrechen } from '../../src/server/services/finanz/zugferd/blatt.js';
 import { baueZugferdPdf } from '../../src/server/services/finanz/zugferd/pdfa3.js';
 import { beispielRechnung, position } from './hilfen/rechnung-beispiel.js';
@@ -43,10 +44,14 @@ describe('§1 Zahlen und Daten, wie man sie auf Deutsch liest', () => {
   });
 
   it.each([
-    [1900, `19${NBSP}%`], [700, `7${NBSP}%`], [0, `0${NBSP}%`],
-    [250, `2,5${NBSP}%`], [705, `7,05${NBSP}%`],
-  ])('prozent(%i) = %s — aus Basispunkten, ohne Gleitkomma', (bp, text) => {
-    expect(prozent(bp)).toBe(text);
+    [1900, '19,0 %'], [700, '7,0 %'], [0, '0,0 %'],
+    [250, '2,5 %'], [705, '7,05 %'], [-50, '-0,5 %'],
+  ])('prozentText(%i) = %s — derselbe Text wie im Kundenportal, ohne Gleitkomma', (bp, text) => {
+    expect(prozentText(bp)).toBe(text);
+  });
+
+  it('das Blatt schreibt den Satz wie die Seite des Kundenportals', () => {
+    expect(blattInhalt(r).positionen[0]!.ust).toBe(prozentText(1900));
   });
 
   it('Hochzahlen an Flächen und Rauminhalt, sonst bleibt die Einheit, wie sie ist', () => {
@@ -73,7 +78,7 @@ describe('§2 nichts wird gekürzt, und jede Positionsart erscheint', () => {
     };
     expect(blattInhalt({ ...r, positionen: [p] }).positionen[0]!.unterzeilen).toEqual([
       'inkl. Glasflächen', 'Leistungszeitraum 03.08.2026 – 07.08.2026',
-      `Rabatt 5${NBSP}%`, `Einzelpreis je 100${NBSP}m²`,
+      'Rabatt 5,0 %', `Einzelpreis je 100${NBSP}m²`,
     ]);
   });
 
@@ -104,9 +109,9 @@ describe('§3 die Pflichtangaben, die in der Nutzlast stehen, stehen auf dem Bla
         steuerCent: cent(0n), befreiungsgrundCode: 'vatex-eu-132',
         befreiungsgrundText: 'Steuerfrei nach § 4 Nr. 12 UStG' },
     ] });
-    expect(i.summen.map((z) => z.text)).toContain(`Umsatzsteuer 0${NBSP}% auf 50,00${NBSP}€`);
+    expect(i.summen.map((z) => z.text)).toContain(`Umsatzsteuer 0,0 % auf 50,00${NBSP}€`);
     expect(i.summenHinweise).toContain(
-      `0${NBSP}% auf 50,00${NBSP}€: Steuerfrei nach § 4 Nr. 12 UStG`);
+      `0,0 % auf 50,00${NBSP}€: Steuerfrei nach § 4 Nr. 12 UStG`);
   });
 
   it('§ 14 Abs. 5 UStG: die Abschläge mit Steuer, der Abzug und der ZAHLbetrag', () => {
@@ -134,7 +139,7 @@ describe('§3 die Pflichtangaben, die in der Nutzlast stehen, stehen auf dem Bla
       ueberweisungsbetragCent: cent(r.zahlbetragCent - 17_850n),
     });
     const texte = i.summen.map((z) => `${z.text}|${z.betrag}`);
-    expect(texte).toContain(`Einbehalt Bauabzugsteuer nach § 48 EStG (15${NBSP}% von `
+    expect(texte).toContain(`Einbehalt Bauabzugsteuer nach § 48 EStG (15,0 % von `
       + `${formatiereGeld(r.bruttoCent)})|-178,50${NBSP}€`);
     expect(texte).toContain(
       `Überweisungsbetrag|${formatiereGeld(cent(r.zahlbetragCent - 17_850n))}`);
@@ -175,7 +180,7 @@ describe('§3 die Pflichtangaben, die in der Nutzlast stehen, stehen auf dem Bla
         gruppeSatzBp: 1900, gruppeKategorie: 'S' },
     ] });
     const texte = i.summen.map((z) => `${z.text}|${z.betrag}`);
-    expect(texte).toContain(`Nachlass: Treuerabatt (3${NBSP}% von 1.000,00${NBSP}€)|`
+    expect(texte).toContain(`Nachlass: Treuerabatt (3,0 % von 1.000,00${NBSP}€)|`
       + `-30,00${NBSP}€`);
     expect(texte).toContain(`Zuschlag: Nachtzuschlag|20,00${NBSP}€`);
   });
@@ -195,7 +200,7 @@ describe('§4 das Blatt rechnet nicht — jeder Betrag kommt aus der Nutzlast', 
     expect(texte).toContain(`Gesamtbetrag|${formatiereGeld(r.bruttoCent)}`);
     for (const s of r.steuerzeilen) {
       expect(texte).toContain(
-        `Umsatzsteuer ${prozent(s.satzBp)} auf ${formatiereGeld(s.nettoCent)}|`
+        `Umsatzsteuer ${prozentText(s.satzBp)} auf ${formatiereGeld(s.nettoCent)}|`
         + formatiereGeld(s.steuerCent));
     }
   });
@@ -239,6 +244,14 @@ describe('§6 Zeilenumbruch und Zeichenvorrat', () => {
     expect(zeilen.length).toBeGreaterThan(3);
     for (const z of zeilen) expect(f.widthOfTextAtSize(z, 10)).toBeLessThanOrEqual(120);
     expect(zeilen.join('')).toContain('zweiter Absatz');
+  });
+
+  it('ein geschütztes Leerzeichen trennt nie — „1.000,00 €" bleibt auf einer Zeile', async () => {
+    const f = await schrift();
+    const betrag = `1.000,00${NBSP}€`;
+    const zeilen = umbrechen(`Umsatzsteuer auf ${betrag}`, f, 10, f.widthOfTextAtSize('Umsatzsteuer auf 1.000,00', 10));
+    expect(zeilen.some((z) => z.includes(betrag))).toBe(true);
+    expect(zeilen.every((z) => z !== '€' && !z.startsWith('€'))).toBe(true);
   });
 
   it('ein Name ausserhalb der Schrift macht das Blatt nicht kaputt', async () => {
