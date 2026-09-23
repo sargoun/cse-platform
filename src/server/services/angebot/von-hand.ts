@@ -219,13 +219,19 @@ export async function legeAngebotVonHandAn(
   /*
    * **Erst alles prüfen, dann schreiben.** Ein Angebot mit zwei von drei
    * Zeilen und einer Fehlermeldung wäre schlimmer als gar keines: es sähe
-   * fertig aus. Und weil eine Angebotsposition sich nicht mehr löschen lässt
-   * (`0024`, `revoke delete`), bliebe die halbe Fassung für immer stehen.
+   * fertig aus.
    *
-   * // TODO(client, O-900): Wie wird ein Angebotsentwurf berichtigt oder
-   * verworfen — als neue Version mit Rückverweis, oder als Rückzug, der ihn
-   * aus der Arbeitsliste nimmt? Bis dahin gilt: was hier entsteht, bleibt
-   * stehen, und deshalb entsteht es erst, wenn alles geprüft ist.
+   * **Das war einmal das einzige Argument, und es ist es nicht mehr** (O-900
+   * → D-620, V-130). Als diese Datei entstand, liess sich eine
+   * Angebotsposition nicht mehr ändern und nicht entfernen; eine halbe
+   * Fassung blieb für immer stehen. Seit `0392` trägt ein ENTWURF beides —
+   * `services/angebot/entwurf.ts` berichtigt und entfernt, und der ganze
+   * Entwurf lässt sich zurückziehen.
+   *
+   * Die Reihenfolge bleibt trotzdem: eine Fehlermeldung, nach der man
+   * aufräumen muss, ist eine schlechtere Fehlermeldung als eine, nach der
+   * nichts entstanden ist. Was jetzt anders ist: sie ist eine Bequemlichkeit
+   * und keine Notwendigkeit mehr.
    */
   const [kunde] = await kontext.abfrage<{ id: string }>(
     `select id from kunde

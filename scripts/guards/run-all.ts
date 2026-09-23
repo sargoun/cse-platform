@@ -11,6 +11,7 @@ import { join, relative } from 'node:path';
 import { pruefeXml } from './xml-wohlgeformt.js';
 import { compilerOderNichts, festeZeichenketten } from './seite-ohne-uebersetzung.js';
 import { UEBERSETZUNG_AUSNAHMEN } from './uebersetzung-ausnahmen.js';
+import { FUNKTION_ALTLAST } from './funktion-altlast.js';
 
 const WURZEL = process.cwd();
 
@@ -1100,6 +1101,87 @@ function wacheMigrationsnummer(): void {
 }
 
 
+
+/**
+ * **`create or replace function` darf keine spätere Schicht verschlucken.**
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Der Ausfall, gegen den das geschrieben ist — er ist wirklich passiert.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `kern.angebot_versand_pruefen` wurde in `0024` angelegt (Platzhalterwerte)
+ * und in `0295` ERSETZT, um Invariante 7 hineinzulegen: ohne benannten
+ * Menschen verlässt nichts das Haus. `0392` brauchte zwei weitere Prüfungen
+ * darin, ging von der 0024-Fassung aus — und löschte damit die Preisfreigabe.
+ *
+ * Danach fiel der Versand ohne Freigabe nur noch am CHECK
+ * `angebot_freigabe_vor_versand` auf, mit „violates check constraint" statt
+ * dem Satz über den fehlenden Arbeitsschritt; und ein Versand aus
+ * `status = 'in_pruefung'` wäre am CHECK ganz vorbeigelaufen, weil dessen
+ * erster Zweig diesen Status erlaubt. `0295` sagt das an genau dieser Stelle
+ * selbst — im Kommentar, den der Ersetzende nicht mehr sah.
+ *
+ * **`create or replace` kennt keine halbe Fassung.** Wer eine Funktion
+ * ersetzt, ersetzt sie GANZ; was in einer späteren Migration dazukam, ist weg,
+ * ohne dass Postgres, TypeScript oder ein Linter etwas dazu sagt. Gefunden hat
+ * es eine Isolationsprüfung — nach der Migration, nach dem Typecheck, nach dem
+ * Lint.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Was diese Wache verlangt.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Definiert mehr als eine Migration dieselbe Funktion, muss die NEUESTE die
+ * Nummern aller älteren irgendwo in ihrem Text nennen. Das ist keine Formalie:
+ * wer sie nennt, hat sie gelesen. Ein Kommentar wie „0024 legte sie an, 0295
+ * fügte die Freigabe hinzu" kostet eine Zeile und ist die einzige Stelle, an
+ * der ein Mensch merkt, dass da noch etwas war.
+ *
+ * **Sie prüft NICHT, ob der Inhalt vollständig ist** — das kann sie nicht.
+ * Sie erzwingt den Blick, nicht das Ergebnis.
+ */
+function wacheFunktionMehrfachErsetzt(): void {
+  const verzeichnis = join(WURZEL, 'drizzle');
+  if (!existsSync(verzeichnis)) return;
+  const dateien = readdirSync(verzeichnis).filter((d) => d.endsWith('.sql')).sort();
+
+  /** Funktionsname → Migrationsnummern, in Reihenfolge. */
+  const jeFunktion = new Map<string, string[]>();
+  const inhalt = new Map<string, string>();
+  for (const name of dateien) {
+    const nummer = /^(\d{4})_/u.exec(name)?.[1];
+    if (nummer === undefined) continue;
+    const text = readFileSync(join(verzeichnis, name), 'utf8');
+    inhalt.set(nummer, text);
+    /* `create [or replace] function <schema>.<name>(` — ohne Rücksicht auf
+       Zeilenumbrüche zwischen Name und Klammer. */
+    const muster = /create\s+(?:or\s+replace\s+)?function\s+([a-z_]+\.[a-z_0-9]+)\s*\(/giu;
+    const gesehen = new Set<string>();
+    for (const treffer of text.matchAll(muster)) {
+      const fn = treffer[1]!.toLowerCase();
+      if (gesehen.has(fn)) continue;
+      gesehen.add(fn);
+      jeFunktion.set(fn, [...(jeFunktion.get(fn) ?? []), nummer]);
+    }
+  }
+
+  for (const [fn, nummern] of jeFunktion) {
+    if (nummern.length < 2) continue;
+    const neueste = nummern[nummern.length - 1]!;
+    const aeltere = nummern.slice(0, -1);
+    const text = inhalt.get(neueste) ?? '';
+    const ungenannt = aeltere.filter((n) => !text.includes(n));
+    if (ungenannt.length === 0) continue;
+    if (FUNKTION_ALTLAST.has(`${neueste}:${fn}`)) continue;
+    const datei = dateien.find((d) => d.startsWith(`${neueste}_`)) ?? neueste;
+    melde('funktion-mehrfach-ersetzt', `drizzle/${datei}`, 1,
+      `\`${fn}\` wird auch in ${ungenannt.map((n) => `${n}`).join(', ')} definiert, und `
+      + 'diese Migration nennt sie nicht. `create or replace` ersetzt die Funktion GANZ — '
+      + 'was dort dazukam, ist danach weg, ohne dass jemand etwas sagt. Die aeltere '
+      + 'Fassung lesen und ihre Nummer im Kommentar nennen.');
+  }
+}
+
 /**
  * Jede SVG unter `public/` ist wohlgeformtes XML.
  *
@@ -1398,6 +1480,7 @@ async function main(): Promise<void> {
   wacheAnzeigeZeitzone();
   wacheValidator();
   wacheMigrationsnummer();
+  wacheFunktionMehrfachErsetzt();
   wacheSvgWohlgeformt();
   wacheKonformitaetsauftrag();
   wacheInternerUrsprung();

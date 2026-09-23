@@ -224,6 +224,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'angebot.schreiben',
   },
   /**
+   * Die Berichtigung eines ENTWURFS (V-130, D-620) — dasselbe Recht wie das
+   * Anlegen und aus demselben Grund: ein Blatt ohne Nummer, das ausser dem
+   * Haus niemand gesehen hat. Die Trennlinie zu `angebot.versenden` ist
+   * `versendet_am`, und `ap_unveraenderlich` (0024) haelt sie in der
+   * Datenbank.
+   */
+  {
+    modul: 'angebot', pfad: 'angebot/entwurf',
+    schreibend: true, schreibRecht: 'angebot.schreiben',
+  },
+  /**
    * Der Tabellenleser liest nur; der Import SCHREIBT — und zwar zweimal
    * verschieden: die Vorschau legt Zwischenzeilen an, die Uebernahme aendert
    * das lebende Raumbuch. Beide tragen dasselbe Recht, weil beide eine Datei

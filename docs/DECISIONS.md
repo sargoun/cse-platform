@@ -3334,7 +3334,7 @@ Beantworten helfen:
 | O-903 | **Hemmt eine Rückfrage nach Art. 12 Abs. 6 DSGVO die Monatsfrist des Art. 12 Abs. 3?** Die Verordnung sagt es NICHT. Absatz 3 lässt den Monat mit dem Eingang des Antrags laufen; Absatz 6 erlaubt bei begründeten Zweifeln die Nachfrage nach zusätzlichen Angaben zur Identität — ob die Frist währenddessen ruht, steht in keinem der beiden, und die Ansichten in Literatur und Aufsichtspraxis gehen auseinander. **Ausgeliefert ist die vorsichtige Lesart: die Frist läuft weiter** (`0388` rührt `frist_am` nicht an), und die Anfrage bleibt in der Fälligkeitsliste sichtbar. Die andere Lesart wäre bequemer und im Streitfall die riskantere: eine still angehaltene Frist ist eine Rechtsauffassung, die sich als Spaltenwert tarnt, und wenn die Aufsicht sie nicht teilt, war die Auskunft verspätet, ohne dass es jemand gemerkt hat. Wer anders entscheidet, braucht dafür eine anwaltliche Aussage — nicht eine Zeile Code. | LEG-08, Art. 12 Abs. 3 und 6 DSGVO, `drizzle/0388`, `services/datenschutz/anfrage.ts`, V-088 |
 | O-902 | **Schliesst ein bezahlter offener Posten seine Mahnung von selbst — und was gilt bei Teilzahlung, Storno und den Mahngebühren?** `mahnung_position` zeigt auf `offener_posten`, ein Nachtlauf könnte den Zustand also nachziehen; `offene_posten_abgleichen` läuft ohnehin jede Nacht. Drei Fragen stehen davor und keine hat eine Antwort im Haus: reicht eine TEILzahlung (der Kunde zahlt die Rechnung, nicht die Mahngebühr — ist die Mahnung dann erledigt?), was geschieht mit einer Mahnung, deren Rechnung nachträglich storniert wurde, und zählen Verzugszinsen und Gebühr zur offenen Forderung, die den Abschluss auslöst? Ausgeliefert ist deshalb die HANDLUNG eines Menschen: `versendet → erledigt` auf dem Mahnungsblatt, unter `mahnung.schreiben` — wer Mahnläufe führt, soll auch abhaken können, und er sieht dabei den Betrag. **Ein Automatismus, der bei Teilzahlung falsch schliesst, ist schlimmer als keiner:** eine geschlossene Mahnung wird nicht weiterverfolgt. | FIN-15, `drizzle/0125`, `drizzle/0130`, `services/finanz/mahnung/index.ts`, V-084 |
 | O-901 | **Darf die betroffene Person ihren eigenen Zeit-Einwand selbst zurückziehen — oder bleibt das die Feststellung der Planung?** Zwei Stellen im Haus sagten das Gegenteil voneinander. `drizzle/0052` gibt der Person ausdrücklich NUR `t_selbst_einreichen` (INSERT) und begründet das fehlende UPDATE: „einen eingereichten Einwand zurueckzuziehen ist eine Entscheidung der Planung …, nicht ein zweiter Griff des Menschen in seinen eigenen Vorgang". `services/zeit/einwand.ts` schrieb daneben, `zurueckgezogen` ziehe „die betroffene Person selbst" zurück — und keine Oberfläche tat beides. Ausgeliefert ist, was die Datenbank heute erlaubt: die Planung vermerkt den Rückzug, mit Begründung, und das ist etwas anderes als eine Ablehnung (die eine Entscheidung GEGEN die Person wäre). Für den anderen Weg spricht, dass „zurückziehen" im Wortsinn dem gehört, der eingereicht hat, und dass der Aufwand für die Planung entfällt; dagegen spricht der Beweiswert der Aufzeichnung, denselben Grund, aus dem EMP-07 die Entscheidung über den eigenen Vorgang verbietet. **Eine Policy, die das ändert, ist eine Migration und keine Oberfläche** — deshalb wird sie nicht nebenbei geschrieben. | EMP-07, 01-KERN §6.27, `drizzle/0052`, `services/zeit/einwand.ts`, V-052 |
-| O-900 | **Wie wird ein Angebotsentwurf berichtigt oder verworfen — als neue Version oder als Rückzug?** Eine `angebotsposition` lässt sich nicht löschen (`0024:529`, `revoke delete`) und hat keine Archivspalte; das einzige `update` im Projekt setzt den Einzelpreis nach einer bestätigten Kalkulation (`services/kalkulation/bestaetigung.ts:360`). Der Kopf trägt `archiviert_am` und den Zustand `zurueckgezogen`, und **beide schreibt kein Dienst**. Für ein VERSENDETES Angebot ist das richtig und gewollt: es ist ein abgegebenes Vertragsangebot, und eine Änderung ist eine neue Version mit Rückverweis — `ersetzt_angebot_id` und `angebot_nachfolger_uk` liegen dafür bereit. Für einen ENTWURF ohne Nummer, den niemand ausser dem Haus gesehen hat, ist es heute dieselbe Härte: ein Tippfehler bleibt dauerhaft in der Angebotsliste stehen. Zwei Wege sind denkbar: (a) jede Korrektur erzeugt eine neue Version, auch am Entwurf — lückenlos nachvollziehbar, aber die Liste füllt sich mit Fassungen, die nie jemand gesehen hat; (b) ein Entwurf ohne Nummer lässt sich zurückziehen (`zurueckgezogen` oder `archiviert_am`) und verschwindet aus der Arbeitsliste, ohne gelöscht zu werden. **Was hier zählt, ist nicht die Bequemlichkeit, sondern was ein Prüfer später sehen soll** — deshalb wird es nicht nebenbei gewählt. | OPS-08, FIN-07, Invariante 4, Invariante 8, `drizzle/0024`, V-005, V-130 |
+| ~~O-900~~ | **BEANTWORTET → D-620.** Wie wird ein Angebotsentwurf berichtigt oder verworfen? **Die Trennlinie ist `versendet_am`** — dieselbe, die `angebot_nummer_bei_versand` in derselben Tabelle schon zieht und die Invariante 4 für die Rechnung längst setzt: ohne Nummer frei änderbar, mit Nummer unveränderlich. Eine Position eines Entwurfs lässt sich berichtigen und entfernen (`entfernt_am`, nie gelöscht — Invariante 8), der ganze Entwurf zurückziehen. Ein VERSENDETES Angebot bleibt unverändert unveränderlich; dort ist eine Änderung weiterhin eine neue Version mit Rückverweis. Die strengere Lesart — neue Version auch am Entwurf — bleibt erreichbar und kostet einen Dienst weniger. | OPS-08, FIN-07, Invariante 4, Invariante 8, `drizzle/0392`, D-620, V-130 |
 | O-895 | **Darf ein Mensch seine eigene Abwesenheit noch zurücknehmen, wenn ihre Tage bereits in einen Lohnexport oder einen abgeschlossenen Stundenkonto-Monat geflossen sind?** `abwesenheit` trägt keine Spalte, die das sagt — weder ein `exportiert_am` noch einen Bezug auf den Lauf. Ausgeliefert ist deshalb, was die Zustandsmaschine seit `0073` sagt und was `antrag.t_selbst_zurueckziehen` (0301) für den Antrag schon entschieden hat: **unentschieden heisst rücknehmbar** — `t_selbst_zurueckziehen` auf `abwesenheit` (0386) lässt `erfasst` und `beantragt` heran, `genehmigt` nicht. Der wahrscheinliche Konfliktfall ist die Krankmeldung: sie steht dauerhaft auf `erfasst` (sie wird nicht genehmigt, sondern zur Kenntnis genommen), und ihre Tage buchen über `abwesenheit_urlaubskonto` und die Sollzeitgutschrift weiter. Eine Rücknahme nach dem Lohnlauf dreht damit eine Zahl zurück, die ein Mensch schon in der Hand hatte — dieselbe Frage wie bei O-861 für die Zeitfreigabe, und dieselbe Antwort ist keine Selbstverständlichkeit. Zwei Wege sind denkbar: (a) eine Sperrspalte auf `abwesenheit`, die der Lohnexport setzt und die die Policy mitliest; (b) die Rücknahme bleibt offen und die Korrektur läuft über die Personalstelle, die den Export kennt. **Erfunden wird keiner von beiden.** | EMP-10, EMP-04, O-861, Invariante 8, `drizzle/0073`, `drizzle/0386`, `services/abwesenheit/index.ts` |
 | O-894 | **Darf eine Rechnung, ein Buchungsbeleg, ein Vertrag oder eine Buchhaltungsunterlage nach Ablauf der zehn Jahre gelöscht werden — oder bleibt die Aufbewahrung dauerhaft?** Die vier GoBD-Klassen tragen in `dokument_aufbewahrung` eine ENTSCHIEDENE Frist (10 Jahre, § 147 AO, § 14b UStG, § 257 HGB) **und in derselben Zeile `loeschsperre = true`** (0009:275). `kern.setze_aufbewahrung` schreibt die Sperre beim Anlegen fest, und lösen lässt sie sich nie (D-49). Eine Rechnung ist damit nicht zehn Jahre unlöschbar, sondern **dauerhaft** — während `08-PR-PLAN.md` PR 64 als Zusage „for the full ten years" führt und Art. 5 Abs. 1 lit. e DSGVO eine Obergrenze verlangt, nicht nur eine Untergrenze. Drei Antworten sind denkbar: (a) die Sperre läuft mit der Frist ab, und der Aufbewahrungslauf nimmt die vier Klassen mit; (b) sie bleibt, und das Konzept sagt „dauerhaft" statt „zehn Jahre"; (c) sie bleibt, aber ein Mensch kann je Dokument einzeln freigeben, mit Grund und Protokoll. **Die Plattform erfindet keine davon**: der Lauf `dokument_aufbewahrung` (V-116) erreicht heute nur `angebot` und `kunde` — die beiden Klassen ohne Sperre —, und das Löschkonzept nennt genau diese zwei, statt eine Reichweite zu behaupten, die die Tabelle nicht hergibt. | DOC-07, LEG-01, V-116, D-49, `drizzle/0009`, `drizzle/0141`, `drizzle/0382`, `src/server/jobs/dokumentAufbewahrung.ts` |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
@@ -14976,4 +14976,82 @@ in anderen Dateien sitzen:
   `PortalRahmen` und damit in eine eigene Runde.
 
 | Betrifft | WCAG 1.4.10, DESIGN §2, §5, §8, D-420, D-569, D-594, `tests/e2e/abmessungen.spec.ts`, 5 Portalseiten |
+|---|---|
+
+---
+
+### D-620 · Ein Angebotsentwurf lässt sich berichtigen — O-900 ist beantwortet
+
+**Die Frage** (O-900) lautete: wie wird ein Angebotsentwurf berichtigt oder
+verworfen — als neue Version oder als Rückzug?
+
+**Der Mandant hat die Entscheidung übergeben** („والاسئلة المفتوحة جاوب انت
+عنهن بذكاء بدالي") — mit der Vorgabe, dass die Plattform vollständig und
+widerspruchsfrei sein muss. Die Antwort steht im schon Entschiedenen, nicht in
+einer neuen Regel.
+
+**Der Befund.** `angebotsposition` trägt `revoke delete` (`0024:529`) und
+hatte keine Archivspalte; das einzige `update` im ganzen Projekt setzte den
+Einzelpreis nach einer bestätigten Kalkulation. Der Kopf stand genauso da:
+`archiviert_am` schrieb niemand, und `zurueckgezogen` stand seit `0024:27` im
+Aufzählungstyp, ohne dass ein Dienst ihn je setzte. **Ein Tippfehler in einem
+Entwurf stand damit dauerhaft in der Angebotsliste** — in einem Blatt ohne
+Nummer, das ausser dem Haus niemand gesehen hat.
+
+**Die Entscheidung: die Trennlinie ist `versendet_am`.**
+
+Ein Angebot, das das Haus VERLASSEN hat, bleibt unveränderlich; eine Änderung
+ist eine neue Version mit Rückverweis (`ersetzt_angebot_id`,
+`angebot_nachfolger_uk` lagen dafür bereit und werden nicht angefasst). Für
+den ENTWURF gilt, was Invariante 4 für die Rechnung längst sagt: ohne Nummer
+frei änderbar, mit Nummer unveränderlich.
+
+**Warum das keine erfundene Geschäftsregel ist.** Die Plattform hat diese
+Unterscheidung schon getroffen, und zwar in derselben Tabelle:
+`angebot_nummer_bei_versand` verlangt `(angebotsnummer is null) =
+(versendet_am is null)` — Nummer und Versand sind dasselbe Ereignis. Die
+Härte auf den Entwurf auszudehnen war kein Entschluss, sondern eine Lücke:
+niemand hat je entschieden, dass ein ungesehener Entwurf so behandelt wird wie
+ein abgegebenes Vertragsangebot.
+
+**Was ein Prüfer sieht, bleibt vollständig.** Gelöscht wird nichts
+(Invariante 8): eine entfernte Position behält ihre Zeile und trägt
+`entfernt_am` und `entfernt_von`; ein zurückgezogener Entwurf verschwindet aus
+der Arbeitsliste, nicht aus der Datenbank. Wer später fragt, was dastand,
+bekommt eine Antwort.
+
+**Drei Riegel, die dabei entstanden sind — jeder gegen einen Weg, der beim
+Kunden endet:**
+
+1. **Die letzte Leistungsposition bleibt.** Ein Angebot ohne Leistung wäre ein
+   Blatt mit Briefkopf, Nummer und Bindefrist und nichts darin. Der Dienst
+   weist das Entfernen ab, und die Datenbank weist den Versand eines solchen
+   Angebots ab — ein Zustand, aus dem der einzige Ausweg ein Fehler ist,
+   gehört gar nicht erst erzeugt.
+2. **Ein zurückgezogener Entwurf geht nicht mehr hinaus.** `status` und
+   `versendet_am` sind getrennte Spalten, und `angebot_rueckzug_ehrlich`
+   erlaubt `zurueckgezogen` für ein unversendetes Angebot ausdrücklich — sie
+   kann die Gegenrichtung nicht auch noch abdecken.
+3. **Der Rückzug wird nicht wiederbelebt** (`angebot_05_rueckzug`). Er ist
+   eine Entscheidung, kein Zwischenstand; wer das Blatt doch will, legt ein
+   neues an.
+
+**Und zwei Summen, die sonst still falsch geworden wären:**
+`kern.aktualisiere_angebot_summen` und `kern.angebot_versand_festschreiben`
+zählen nur noch lebende Positionen. Ohne das erste zeigte der Bildschirm eine
+Summe, die sich aus den sichtbaren Zeilen nicht nachrechnen lässt; ohne das
+zweite wiese `angebot_steuer` dem Kunden Umsatzsteuer auf eine Leistung aus,
+die im Angebot gar nicht mehr steht — eingefroren, wo sie niemand nachrechnet.
+
+**Kein zweites Augenpaar vor dem Rückzug**, und das ist kein Versehen: ein
+Entwurf ohne Nummer hat das Haus nie verlassen, es gibt keinen Empfänger, der
+sich darauf verlassen hätte, und der Vermerk bleibt stehen. Das VERSENDETE
+Angebot ist der andere Fall — dort verlangt `angebot_rueckzug_ehrlich` eine
+Freigabe.
+
+**Die strengere Lesart bleibt erreichbar.** Sagt der Auftraggeber, auch am
+Entwurf müsse jede Korrektur eine neue Version erzeugen, kostet das einen
+Dienst weniger statt mehr: sie fügt Zeilen hinzu, statt welche zu ändern.
+
+| Betrifft | OPS-08, FIN-07, Invariante 4, Invariante 8, AUT-06, `drizzle/0024`, `drizzle/0392`, `src/server/services/angebot/entwurf.ts`, V-005, V-130, O-900 |
 |---|---|

@@ -308,6 +308,19 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Die Berichtigung eines ENTWURFS (V-130, D-620): eine Position ändern
+     * oder entfernen, den ganzen Entwurf zurückziehen.
+     *
+     * `angebot.schreiben` und nicht `angebot.versenden`, aus demselben Grund
+     * wie bei `von-hand`: hier verlässt nichts das Haus. Die Trennlinie ist
+     * `versendet_am`, und `ap_unveraenderlich` (0024) hält sie in der
+     * Datenbank — was danach kommt, ist eine neue Version mit Rückverweis.
+     */
+    pfad: 'api/angebot/entwurf',
+    recht: 'angebot.schreiben',
+  },
+  {
+    /**
      * Hochladen UND uebernehmen tragen dasselbe Recht: die Vorschau legt
      * bereits Zwischenzeilen an, und wer eine Datei in den Mandanten schiebt,
      * schreibt — auch wenn das lebende Raumbuch erst der zweite Schritt

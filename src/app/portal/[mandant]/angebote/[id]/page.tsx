@@ -6,6 +6,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
 import { AnmeldungNoetig } from '../../../Anmeldung';
@@ -28,6 +29,29 @@ import { Recht } from '@/components/ui/Recht';
  * eine Handlung, die jemand entschieden hat.
  */
 export const dynamic = 'force-dynamic';
+
+/**
+ * Die Rückmeldungen der Berichtigung (V-130, D-562).
+ *
+ * Der Schlüssel kommt als `?fehler=` zurück, weil der Weg ein FORMULAR ist:
+ * eine JSON-Antwort wäre eine weisse Seite mit einem Fehlerobjekt darauf, und
+ * der getippte Text wäre weg.
+ */
+const FEHLER_TEXT: Readonly<Record<string, string>> = {
+  nicht_gefunden: 'Diese Position gibt es nicht — oder sie ist bereits entfernt.',
+  schon_versendet: 'Dieses Angebot ist versendet und damit unveränderlich. '
+    + 'Eine Änderung ist eine neue Version mit Rückverweis auf diese.',
+  schon_zurueckgezogen: 'Dieser Entwurf ist bereits zurückgezogen.',
+  letzte_position: 'Das ist die letzte Leistungsposition. Ein Angebot ohne Leistung '
+    + 'ist keines — entweder eine andere Position anlegen oder den ganzen Entwurf '
+    + 'zurückziehen.',
+  kein_text: 'Eine Position ohne Kurztext ist keine Position.',
+  keine_menge: 'Das ist keine Menge. Höchstens drei Nachkommastellen, kein '
+    + 'Tausenderpunkt — „10,5" oder „10.5".',
+  kein_betrag: 'Das ist kein Betrag in deutscher Schreibweise. Punkt trennt die '
+    + 'Tausender, Komma die Cent — „1.250,00".',
+  abgewiesen: 'Die Änderung wurde abgewiesen.',
+};
 
 const PILLE: Readonly<Record<string, PillZustand>> = {
   entwurf: 'Entwurf', in_pruefung: 'In Prüfung', versendet: 'Angebot',
@@ -56,6 +80,7 @@ interface Kopf {
    * unten bleibt deshalb gesperrt, solange den Preis niemand verantwortet hat.
    */
   readonly freigegeben_am: string | null;
+  readonly archiviert_am: string | null;
   readonly freigegeben_von: string | null;
   readonly auftragsnummer: string | null;
   readonly kalkulation_offen: boolean;
@@ -95,9 +120,15 @@ interface SteuerZeile {
 }
 
 export default async function AngebotDetail(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
+  const suche = await searchParams;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const gespeichert = suche['gespeichert'] === '1';
   kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/angebote/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -115,7 +146,9 @@ export default async function AngebotDetail(
    * er nicht zeigen darf (AUT-06, D-581).
    */
   const darfNachbar = await haeltRechte(
-    sitzung, 'angebot.preis_freigeben', 'angebot.versenden', 'angebot.annahme_erfassen');
+    sitzung, 'angebot.preis_freigeben', 'angebot.versenden', 'angebot.annahme_erfassen',
+    /* V-130: die Berichtigung eines Entwurfs — dasselbe Recht wie das Anlegen. */
+    'angebot.schreiben');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -128,6 +161,8 @@ export default async function AngebotDetail(
                   as versendet_am,
                 to_char(a.freigegeben_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
                   as freigegeben_am,
+                to_char(a.archiviert_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
+                  as archiviert_am,
                 fb.name as freigegeben_von,
                 (select t.auftragsnummer from auftrag t where t.angebot_id = a.id)
                   as auftragsnummer,
@@ -147,7 +182,9 @@ export default async function AngebotDetail(
         `select id, position_nr, typ::text as typ, kurztext, langtext,
                 menge::text, einheit, einzelpreis_cent::text, gesamtpreis_cent::text,
                 steuersatz_bp
-           from angebotsposition where angebot_id = $1 order by position_nr`, [id]);
+           from angebotsposition
+          where angebot_id = $1 and entfernt_am is null
+          order by position_nr`, [id]);
       const steuer = await kontext.abfrage<SteuerZeile>(
         `select steuersatz_bp, netto_cent::text, steuer_cent::text
            from angebot_steuer where angebot_id = $1 order by steuersatz_bp`, [id]);
@@ -160,6 +197,22 @@ export default async function AngebotDetail(
   const { kopf, positionen, steuer } = daten;
   const versendet = kopf.versendet_am !== null;
   const steuerSumme = steuer.reduce((s, z) => s + BigInt(z.steuer_cent), 0n);
+  /**
+   * **Berichtigt wird nur ein ENTWURF, und nur mit dem Schreibrecht**
+   * (V-130, D-620).
+   *
+   * Drei Bedingungen, und jede für sich: nach dem Versand weist
+   * `ap_unveraenderlich` (0024) jeden Schreibversuch ab; ein zurückgezogener
+   * Entwurf wird nicht wiederbelebt (`angebot_05_rueckzug`); und ohne
+   * `angebot.schreiben` fiele die Route in `authorize`. Die Oberfläche zeigt
+   * deshalb gar nichts an, statt einen Knopf hinzustellen, der in einen
+   * Fehler läuft.
+   */
+  const bearbeitbar = !versendet && kopf.status !== 'zurueckgezogen'
+    && darfNachbar['angebot.schreiben'] === true;
+  const pfad = `/portal/${mandant}/angebote/${id}`;
+  const feld = 'min-h-11 rounded-md border border-line bg-surface px-s3 py-s2 '
+    + 'text-sm text-text';
 
   return (
     <PortalRahmen
@@ -177,6 +230,25 @@ export default async function AngebotDetail(
         <h1 className="m-0 text-h1 text-text">{kopf.titel}</h1>
         <StatusPill zustand={PILLE[kopf.status] ?? 'Entwurf'} />
       </div>
+
+      {fehler !== null && (
+        <Hinweis art="warnung" cse="entwurf-fehler" className="mb-s5 max-w-prose">
+          {FEHLER_TEXT[fehler] ?? 'Die Änderung wurde abgewiesen.'}
+        </Hinweis>
+      )}
+      {gespeichert && fehler === null && (
+        <Hinweis art="erfolg" cse="entwurf-gespeichert" className="mb-s5 max-w-prose">
+          Gespeichert.
+        </Hinweis>
+      )}
+      {kopf.status === 'zurueckgezogen' && (
+        <Hinweis art="hinweis" cse="entwurf-zurueckgezogen" className="mb-s5 max-w-prose">
+          <strong>Dieser Entwurf ist zurückgezogen</strong>
+          {kopf.archiviert_am === null ? '' : ` — am ${kopf.archiviert_am}`}. Er steht
+          nicht mehr in der Arbeitsliste und geht nicht mehr hinaus. Gelöscht ist er
+          nicht: was einmal dastand, bleibt nachlesbar (Invariante 8).
+        </Hinweis>
+      )}
 
       <dl className="m-0 mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
@@ -335,6 +407,85 @@ export default async function AngebotDetail(
             numerisch: true,
             zelle: (z) => `${(z.steuersatz_bp / 100).toLocaleString('de-DE')} %`,
           },
+          /*
+           * **Die Bearbeiten-Spalte gibt es nur am ENTWURF** (V-130, D-620).
+           *
+           * Nach dem Versand weist `ap_unveraenderlich` (0024) jeden
+           * Schreibversuch ab; eine Spalte, deren Knöpfe immer in einen
+           * Fehler laufen, ist schlechter als keine. Und ohne
+           * `angebot.schreiben` steht sie ebenfalls nicht da — ein
+           * abgeblendeter Knopf verrät dasselbe wie ein offener, er ist nur
+           * höflicher dabei (AUT-06).
+           */
+          ...(bearbeitbar ? [{
+            schluessel: 'handlung',
+            kopf: '',
+            zelle: (z: PositionZeile) => (
+              <details data-cse="position-bearbeiten" data-position={z.id}>
+                <summary className="cursor-pointer text-sm text-brand">Berichtigen</summary>
+                <form method="post" action="/api/angebot/entwurf"
+                      className="mt-s3 flex w-72 flex-col gap-s2">
+                  <input type="hidden" name="was" value="berichtigen" />
+                  <input type="hidden" name="position" value={z.id} />
+                  <input type="hidden" name="zurueck" value={pfad} />
+                  <label className="text-xs text-text-muted" htmlFor={`kt-${z.id}`}>
+                    Kurztext
+                  </label>
+                  <input id={`kt-${z.id}`} name="kurztext" type="text" required
+                         defaultValue={z.kurztext} className={feld} />
+                  <label className="text-xs text-text-muted" htmlFor={`lt-${z.id}`}>
+                    Langtext
+                  </label>
+                  <textarea id={`lt-${z.id}`} name="langtext" rows={2}
+                            defaultValue={z.langtext ?? ''} className={feld} />
+                  {/*
+                    * Menge, Einheit und Preis nur bei einer Position, die
+                    * welche HAT: `ap_text_ohne_preis` weist eine Textzeile
+                    * mit Preis ab, und ein Feld, das die Datenbank ohnehin
+                    * zurückweist, ist eine Einladung zu einem Fehler.
+                    */}
+                  {z.typ === 'text' || z.typ === 'zwischensumme' ? null : (
+                    <>
+                      <label className="text-xs text-text-muted" htmlFor={`mg-${z.id}`}>
+                        Menge (leer = unverändert)
+                      </label>
+                      <input id={`mg-${z.id}`} name="menge" type="text" inputMode="decimal"
+                             placeholder={z.menge === null ? '' : z.menge} className={feld} />
+                      <label className="text-xs text-text-muted" htmlFor={`eh-${z.id}`}>
+                        Einheit
+                      </label>
+                      <input id={`eh-${z.id}`} name="einheit" type="text"
+                             defaultValue={z.einheit ?? ''} className={feld} />
+                      <label className="text-xs text-text-muted" htmlFor={`pr-${z.id}`}>
+                        Einzelpreis in Euro (leer = unverändert)
+                      </label>
+                      <input id={`pr-${z.id}`} name="preis" type="text" inputMode="decimal"
+                             placeholder="1.250,00" className={feld} />
+                    </>
+                  )}
+                  <button type="submit" data-cse="position-speichern"
+                          className="min-h-11 rounded-md bg-brand px-s4 py-s2 text-sm
+                                     font-semibold text-white hover:bg-brand-hover">
+                    Speichern
+                  </button>
+                </form>
+                {/*
+                  * Ein EIGENES Formular: „Entfernen" ist keine Variante des
+                  * Speicherns, und ein zweiter Knopf im selben Formular
+                  * schickte die halb getippten Felder mit.
+                  */}
+                <form method="post" action="/api/angebot/entwurf" className="mt-s2">
+                  <input type="hidden" name="was" value="entfernen" />
+                  <input type="hidden" name="position" value={z.id} />
+                  <input type="hidden" name="zurueck" value={pfad} />
+                  <button type="submit" data-cse="position-entfernen"
+                          className="min-h-11 text-sm text-danger underline underline-offset-2">
+                    Position entfernen
+                  </button>
+                </form>
+              </details>
+            ),
+          }] : []),
         ]}
       />
 
@@ -409,14 +560,43 @@ export default async function AngebotDetail(
           * der kurze Weg fuer den Fall, dass alles steht — beide laufen durch
           * denselben Dienst.
           */}
-        {!versendet && darfNachbar['angebot.versenden'] === true ? (
-          <Link
-            href={`/portal/${mandant}/angebote/${id}/versand`}
-            data-cse="zum-versand"
-            className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
-          >
-            Versand vorbereiten
-          </Link>
+        {!versendet && kopf.status !== 'zurueckgezogen'
+          && darfNachbar['angebot.versenden'] === true ? (
+            <Link
+              href={`/portal/${mandant}/angebote/${id}/versand`}
+              data-cse="zum-versand"
+              className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+            >
+              Versand vorbereiten
+            </Link>
+          ) : null}
+
+        {/*
+          * **Den ganzen Entwurf zurückziehen** (V-130, D-620).
+          *
+          * Er verlässt die Arbeitsliste, nicht die Datenbank: `status` sagt
+          * WARUM er weg ist, `archiviert_am` nimmt ihn aus den Listen, die
+          * darauf filtern. Gelöscht wird nichts (Invariante 8).
+          *
+          * Kein zweites Augenpaar davor, und das ist kein Versehen: ein
+          * Entwurf ohne Nummer hat das Haus nie verlassen, es gibt keinen
+          * Empfänger, der sich darauf verlassen hätte, und der Vermerk bleibt
+          * für jeden Prüfer stehen. Das VERSENDETE Angebot ist der andere
+          * Fall — dort verlangt `angebot_rueckzug_ehrlich` eine Freigabe.
+          */}
+        {bearbeitbar ? (
+          <form method="post" action="/api/angebot/entwurf">
+            <input type="hidden" name="was" value="zurueckziehen" />
+            <input type="hidden" name="angebot" value={id} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <button
+              type="submit"
+              data-cse="entwurf-zurueckziehen"
+              className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-danger hover:bg-surface-2"
+            >
+              Entwurf zurückziehen
+            </button>
+          </form>
         ) : null}
 
         {versendet && kopf.auftragsnummer === null
