@@ -4,6 +4,7 @@ import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
+import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant } from '@/server/kontext/index';
 import {
@@ -83,6 +84,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (fehler instanceof NachrichtFehler) return zurueck(fehler.grund);
     if (fehler instanceof RechtsgrundlageFehlt) return zurueck('keine_grundlage');
     if (fehler instanceof FreigabeErforderlich) return zurueck('freigabe');
+    const autorisierung = autorisierungsAntwort(fehler);
+    if (autorisierung !== null) return autorisierung;
     throw fehler;
   }
 

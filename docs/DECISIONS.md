@@ -15545,3 +15545,38 @@ Lead → Angebot → Auftrag, die eigens behoben wird.
 
 | Betrifft | REQ-01…07, CRM-02, CRM-03, D-61, D-83, D-599, V-137, `drizzle/0396`, `src/server/services/lead/{annahme,einsendung,eskalation,sla}.ts`, `src/lib/formular/herkunft.ts`, `src/app/api/{anfrage,lead,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx` |
 |---|---|
+
+### D-656 · Ein fehlendes Recht ist auf jeder schreibenden Route ein 404 — nie ein 500 (V-162)
+
+**Der Befund** (V-162, AUT-06): `authorize` wirft `NichtGefundenFehler` (Recht
+fehlt, fremder Mandant, Schreiben ohne genau einen aktiven Mandanten),
+`ZweiterFaktorFehler` und `NichtAngemeldetFehler`. `server/auth/antwort.ts`
+übersetzt sie, und die Gerüste (`uebergang.ts`, `*/gemeinsam.ts`,
+`sicherheit/antwort.ts`) benutzen den Übersetzer. 37 Routen mit eigenem
+`try`/`catch` fingen nur ihre Fachklasse und warfen den Rest weiter — ein
+fehlendes Recht wurde dort ein **500**. `website/referenzen` hatte den Fall
+im Betrieb, die übrigen 37 hatten ihn nur noch nicht.
+
+**Die Entscheidung.**
+
+1. **Derselbe Übersetzer, an derselben Stelle.** Jede der 37 Routen ruft
+   `autorisierungsAntwort(fehler)` unmittelbar vor ihrem `throw fehler`. Die
+   Fachfehler behalten ihren Weg (zurück aufs Formular, mit Grund); nur, was
+   bisher ungefangen hinausflog, wird jetzt 404, 403 oder 401. Ein
+   Programmfehler bleibt ein Wurf und damit ein roter Lauf.
+2. **Die Antwort ist die der übrigen Routen, byte-gleich.** Ein fehlendes
+   Recht sieht auf allen schreibenden Routen gleich aus — auch dort, wo ein
+   Browserformular absendet. Eine eigene Browserseite nur für diese 37 wäre
+   eine zweite Antwort auf dieselbe Frage und damit genau die Unterscheidung,
+   die AUT-06 nicht will. Der Fall ist im Portal selten: jeder Knopf steht
+   hinter derselben Rechtefrage (`haeltRechte`), und ein POST ohne Knopf
+   kommt nicht von einem Menschen, der eine Seite erwartet.
+3. **Eine Sperrklinke statt einer Liste.** `tests/kern/autorisierung-uebersetzt.test.ts`
+   liest jede `route.ts`: wer `authorize` ruft (selbst oder in einem Gerüst
+   eine Ebene tief), muss den Wurf übersetzen — mit `autorisierungsAntwort`,
+   `instanceof NichtGefundenFehler` oder der `status`/`code`-Weiche. Die 38.
+   Route ist damit automatisch dabei; die Prüfung zeigt ihr Nein an drei
+   erfundenen Beispielen.
+
+| Betrifft | AUT-06, AUT-02, V-128, V-162, `src/server/auth/antwort.ts`, 37 Routen unter `src/app/api/**` (Liste in V-162), `tests/kern/autorisierung-uebersetzt.test.ts` |
+|---|---|
