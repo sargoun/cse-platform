@@ -1471,6 +1471,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'finanzen', pfad: 'finanz/zugferd/cii', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/zugferd/icc', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/zugferd/pdfa3', schreibend: false },
+  /*
+   * V-134, D-629: das Rechnungsblatt — was darauf steht (aus der Nutzlast,
+   * formatiert, nie gerechnet) und wie es gesetzt wird. Beide lesen nichts.
+   */
+  { modul: 'finanzen', pfad: 'finanz/zugferd/blatt-inhalt', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/zugferd/blatt', schreibend: false },
   /**
    * **Die Berichte (PR 79, REP-01…REP-07) — alle vier lesend, ausnahmslos.**
    *

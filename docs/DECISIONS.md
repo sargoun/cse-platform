@@ -15372,3 +15372,51 @@ auch mit Logo.
 
 | Betrifft | FIN-12, K-12, DESIGN §4/§11, V-099, V-100, V-132, D-628, `src/server/services/finanz/rechnungslogo.ts`, `src/server/services/finanz/zugferd/pdfa3.ts`, `src/server/storage/raster.ts` |
 |---|---|
+
+### D-629 · Das Rechnungsblatt druckt die Nutzlast — vollständig, mehrseitig, und ohne selbst zu rechnen (V-134)
+
+**Der Befund** (V-134): das Blatt der ZUGFeRD-Rechnung war eine Seite mit
+gekürzter Bezeichnung und englisch formatierter Menge. Es liess den Hinweis
+auf die Steuerschuldnerschaft des Leistungsempfängers weg, die Abschläge, den
+Zahlbetrag und den Einbehalt nach § 48 EStG. Die eingebettete XML war
+vollständig, das Blatt, das ein Mensch liest, nicht.
+
+**Der Mandant hat die Entscheidung übergeben.** Es ist keine Rechts- oder
+Geldfrage: welche Angaben auf eine Rechnung gehören, steht in § 14 UStG, und
+jede davon ist schon ein Feld der Nutzlast. Entschieden wird hier nur, wie
+das Blatt sie zeigt.
+
+1. **Das Blatt rechnet nicht.** Jeder Betrag ist ein Feld der Nutzlast,
+   formatiert, nie addiert. Ein Blatt, das eine Summe selbst bildet, kann
+   eine andere Zahl zeigen als die eingebettete XML, und dann gäbe es zu
+   einer Nummer zwei Beträge. Deshalb stehen die Abschläge je als Zeile mit
+   Netto und Steuer, und der Abzug als EIN Betrag aus `abzug_brutto_cent`.
+2. **Jeder Hinweis kommt aus der Nutzlast**: `steuerhinweis` aus
+   `steuerfall.ts`, Befreiungsgründe, `hinweise`, Kopf- und Schlusstext. Das
+   Blatt formuliert keinen Rechtshinweis selbst.
+3. **Zahl- und Überweisungsbetrag erscheinen nur, wenn sie vom Gesamtbetrag
+   abweichen.** Bei einer gewöhnlichen Rechnung ist der Gesamtbetrag der
+   Betrag, und eine zweite Zeile mit derselben Zahl wäre Rauschen.
+4. **Mehrseitig**, mit wiederholtem Tabellenkopf, festem Fuss auf jeder
+   Seite (DESIGN §11) und „Seite x von y“. Summen- und Zahlungsblock werden
+   nicht zwischen zwei Seiten geteilt.
+5. **Deutsche Formate**: Menge `30,87 m²`, Daten `11.09.2026`, Prozent aus
+   Basispunkten ohne Gleitkomma (`2,5 %`, vorher „3 %“). Eine Preisbasis
+   ungleich 1 steht als eigene Zeile („Einzelpreis je 100 m²“), weil die
+   Spalte zu schmal ist, um es daneben zu sagen.
+6. **Zeichen ausserhalb der eingebetteten Schrift werden `?`.** Ein Verweis
+   auf `.notdef` ist in PDF/A-3 unzulässig (ISO 19005-3, 6.2.11.8). Die
+   eingebettete XML trägt den Namen unverändert, und bei einer E-Rechnung
+   ist sie das Massgebliche. Eine zweite Schrift (Arabisch, CJK) wäre die
+   vollständige Lösung. Solange kein Kunde mit einem solchen Namen fakturiert
+   wird, ist sie nicht gebaut.
+7. **Werte aus DESIGN §11**: Papier, Text, leiser Text, Linien und die Masse
+   der Tabelle kommen aus `lib/design/theme.ts`. Die alte Fassung hatte ein
+   eigenes Grau (`#555`) und 7-pt-Fusszeilen, beides nicht aus DESIGN.md.
+
+**Nicht geändert**: die eingebettete CII und die XRechnung. Sie waren schon
+vollständig. Skonto steht auf dem Blatt, sobald eine Rechnung es trägt; heute
+setzt keine Oberfläche `skonto_bp` an einer Ausgangsrechnung.
+
+| Betrifft | FIN-12, § 14 Abs. 4/5 UStG, § 14a Abs. 5 UStG, § 48 EStG, DESIGN §11, V-134, `src/server/services/finanz/zugferd/blatt-inhalt.ts`, `src/server/services/finanz/zugferd/blatt.ts`, `src/server/services/finanz/zugferd/pdfa3.ts` |
+|---|---|

@@ -57,10 +57,23 @@ describe('veraPDF — der Prüfer, gegen den die Archive prüfen', () => {
       mime: endung === 'png' ? 'image/png' : 'image/jpeg',
     } } };
   };
+  /*
+   * Und das Blatt aus V-134: mehrseitig (Tabellenkopf und Fuss auf jeder
+   * Seite, gesperrte Kopfzeile über `Tc`), und mit einem Namen ausserhalb
+   * der eingebetteten Schrift — ein `.notdef` darin verletzte 6.2.11.8.
+   */
+  const r = beispielRechnung();
+  const mehrseitig: RechnungVollstaendig = { ...r, positionen: Array.from({ length: 60 },
+    (_, n) => ({ ...r.positionen[0]!, nr: n + 1,
+      beschreibung: n % 5 === 0 ? 'Turnus wöchentlich, Montag und Donnerstag' : null })) };
+  const fremd: RechnungVollstaendig = {
+    ...r, empfaenger: { ...r.empfaenger, name: 'شركة البناء 北京' } };
   it.runIf(bereit).each([
     ['rechnung.pdf', beispielRechnung(), undefined],
     ['rechnung-logo-png.pdf', mit(png, 'png'), png],
     ['rechnung-logo-jpg.pdf', mit(JPEG_RGB, 'jpg'), JPEG_RGB],
+    ['rechnung-mehrseitig.pdf', mehrseitig, undefined],
+    ['rechnung-fremde-schrift.pdf', fremd, undefined],
   ] as const)('nimmt %s als PDF/A-3B an', async (name, rechnung, logo) => {
     const ziel = process.env['VERAPDF_AUSGABE']
       ?? mkdtempSync(join(tmpdir(), 'cse-zugferd-'));
