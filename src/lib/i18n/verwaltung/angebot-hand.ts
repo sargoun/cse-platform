@@ -169,6 +169,13 @@ const DE: AngebotHandTexte = {
       + 'in dieser Gesellschaft.',
     kontakt_fremd: 'Dieser Ansprechpartner gehört nicht zum gewählten Kunden.',
     abgewiesen: 'Die Datenbank hat den Vorgang abgewiesen — fehlt angebot.schreiben?',
+    lead_unbekannt: 'Diese Anfrage ist in dieser Gesellschaft nicht erreichbar.',
+    lead_ohne_kunde:
+      'Die Anfrage hat noch keinen Kunden. Übernehmen Sie sie auf dem Leadblatt als '
+      + 'Kunden oder ordnen Sie einen bestehenden zu.',
+    lead_kunde_abweichend:
+      'Die Anfrage gehört einem anderen Kunden als dem gewählten. Ein Angebot für einen '
+      + 'anderen Kunden zählte im Herkunftsbericht für die falsche Anfrage.',
   },
 };
 
@@ -267,6 +274,13 @@ const EN: AngebotHandTexte = {
       + '(company).',
     kontakt_fremd: 'This contact person does not belong to the chosen customer.',
     abgewiesen: 'The database refused the operation — is angebot.schreiben missing?',
+    lead_unbekannt: 'This enquiry (Lead) is not reachable in this Mandant (company).',
+    lead_ohne_kunde:
+      'The enquiry has no customer yet. Take it over as a customer on the Lead page, or '
+      + 'assign an existing one.',
+    lead_kunde_abweichend:
+      'The enquiry belongs to a different customer than the one chosen. An offer for another '
+      + 'customer would count for the wrong enquiry in the origin report.',
   },
 };
 

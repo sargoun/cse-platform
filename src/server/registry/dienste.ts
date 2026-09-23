@@ -628,6 +628,25 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'crm.schreiben',
   },
   /*
+   * Die Kette Lead → Angebot → Auftrag (V-138, CRM-05, D-632): den Kunden
+   * einer Anfrage setzen (schreibt `kunde`, `lead`, `ansprechpartner`) und
+   * die Kette für Lead- und Kundenblatt lesen. Die Prüfung, ob ein Angebot
+   * oder Auftrag an einem Lead hängen darf, liest nur.
+   */
+  {
+    modul: 'crm', pfad: 'crm/lead-kette',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Ein Treffer des Vergaberadars wird zum Lead (V-139, CRM-07, D-633). Das
+   * Schreibrecht ist das des Leads; die Bekanntmachung liest der Dienst unter
+   * `radar.lesen`, und an ihrem Vorgang ändert er nichts.
+   */
+  {
+    modul: 'crm', pfad: 'crm/lead-radar',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
    * Kunde und Ansprechpartner AENDERN (V-017, V-018, V-019). Eigene Datei und
    * nicht ein Zweig in `crm/anlegen`: sie fasst vier Spalten mit Absicht NICHT
    * an — `debitorennummer`, `zahlungsziel_tage`, `mahnsperre_bis`,

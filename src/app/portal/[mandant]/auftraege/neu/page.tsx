@@ -9,6 +9,10 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '../../../rechte';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
+import { istKennung } from '@/server/services/crm/lead-kette';
 
 /**
  * `/portal/[mandant]/auftraege/neu` — der Auftragsassistent (OPS-10).
@@ -26,13 +30,30 @@ import { haeltRechte } from '../../../rechte';
 export const dynamic = 'force-dynamic';
 
 interface Auswahl { readonly id: string; readonly name: string }
+interface AnfrageAuswahl {
+  readonly id: string; readonly leadnummer: string; readonly betreff: string;
+  readonly kunde_id: string | null;
+}
 interface ObjektAuswahl { readonly id: string; readonly name: string;
   readonly kunde_id: string | null }
 
 export default async function AuftragAssistent(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  const suche = await searchParams;
+  /*
+   * **Aus einer Anfrage, ohne Angebot** (V-138, CRM-05, REP-03): `?lead=`
+   * kommt vom Leadblatt. Der Kunde steht dann fest, und der Auftrag trägt
+   * den Bezug — sonst zählte der Herkunftsbericht einen Auftrag, der am
+   * Telefon nach einer Web-Anfrage entstand, bei keinem Kanal.
+   */
+  const leadRoh = typeof suche['lead'] === 'string' ? suche['lead'] : '';
+  const leadParam = istKennung(leadRoh) ? leadRoh : null;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const zugang = await portalZugang(`/portal/${mandant}/auftraege/neu`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -63,10 +84,20 @@ export default async function AuftragAssistent(
            join benutzer_mandant bm on bm.benutzer_id = b.id
           where bm.mandant_id = app.aktiver_mandant() and b.status = 'aktiv'
           order by b.name`),
+      lead: leadParam === null ? null : (await kontext.abfrage<AnfrageAuswahl>(
+        `select l.id::text as id, l.leadnummer, l.betreff, l.kunde_id::text as kunde_id
+           from lead l
+          where l.id = $1::uuid and l.mandant_id = app.aktiver_mandant()
+            and l.archiviert_am is null`, [leadParam]))[0] ?? null,
     }))) as Promise<{
       kunden: readonly Auswahl[]; objekte: readonly ObjektAuswahl[];
-      leitungen: readonly Auswahl[];
+      leitungen: readonly Auswahl[]; lead: AnfrageAuswahl | null;
     }>);
+  const kt = nachSprache(KETTE_TEXTE, zugang.sprache);
+  /* Gebunden wird nur an einen Kunden, den die Maske auch anbietet (nicht archiviert). */
+  const anfrageKunde = daten.lead === null || daten.lead.kunde_id === null ? null
+    : daten.kunden.find((kd) => kd.id === daten.lead?.kunde_id) ?? null;
+  const anfrage = anfrageKunde === null ? null : daten.lead;
 
   const feld = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
@@ -87,6 +118,26 @@ export default async function AuftragAssistent(
     >
       <h1 className="mb-s5 text-h1 text-text">Neuer Auftrag</h1>
 
+      {fehler !== null ? (
+        <Hinweis art="warnung" cse="auftrag-neu-fehler" className="mb-s5 max-w-prose">
+          {kt.maskeFehler[fehler] ?? kt.fehler[fehler] ?? kt.nichtAngelegt}
+        </Hinweis>
+      ) : null}
+      {anfrage !== null ? (
+        <Hinweis art="hinweis" cse="auftrag-aus-anfrage" className="mb-s5 max-w-prose">
+          <strong className="block">{kt.zurAnfrageVorbelegt(anfrage.leadnummer, anfrage.betreff)}</strong>
+          {kt.kundeAusAnfrage}
+        </Hinweis>
+      ) : daten.lead !== null ? (
+        <Hinweis art="warnung" cse="auftrag-anfrage-ohne-kunde" className="mb-s5 max-w-prose">
+          {kt.anfrageOhneKunde}
+        </Hinweis>
+      ) : leadParam !== null ? (
+        <Hinweis art="warnung" cse="auftrag-anfrage-unbekannt" className="mb-s5 max-w-prose">
+          {kt.anfrageUnbekannt}
+        </Hinweis>
+      ) : null}
+
       {daten.kunden.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Ohne Kunden kein Auftrag. Zuerst einen Kunden anlegen.
@@ -97,12 +148,25 @@ export default async function AuftragAssistent(
           action={`/api/auftrag?mandant=${mandant}`}
           className="max-w-prose rounded-lg border border-line bg-surface p-s5"
         >
-          <label className="block text-sm text-text" htmlFor="kundeId">Kunde</label>
-          <select id="kundeId" name="kundeId" required className={feld}>
-            {daten.kunden.map((k) => (
-              <option key={k.id} value={k.id}>{k.name}</option>
-            ))}
-          </select>
+          {anfrage !== null && anfrageKunde !== null ? (
+            <>
+              <p className="m-0 block text-sm text-text">{kt.kunde}</p>
+              <input type="hidden" name="leadId" value={anfrage.id} data-cse="auftrag-lead" />
+              <input type="hidden" name="kundeId" value={anfrageKunde.id} />
+              <span className={`${feld} block`} data-cse="auftrag-kunde-fest">
+                {anfrageKunde.name}
+              </span>
+            </>
+          ) : (
+            <>
+              <label className="block text-sm text-text" htmlFor="kundeId">Kunde</label>
+              <select id="kundeId" name="kundeId" required className={feld}>
+                {daten.kunden.map((k) => (
+                  <option key={k.id} value={k.id}>{k.name}</option>
+                ))}
+              </select>
+            </>
+          )}
 
           <label className="mt-s4 block text-sm text-text" htmlFor="objektId">
             Ort (Objekt)
@@ -117,7 +181,8 @@ export default async function AuftragAssistent(
           <label className="mt-s4 block text-sm text-text" htmlFor="bezeichnung">
             Bezeichnung
           </label>
-          <input id="bezeichnung" name="bezeichnung" type="text" required className={feld} />
+          <input id="bezeichnung" name="bezeichnung" type="text" required className={feld}
+                 defaultValue={anfrage?.betreff ?? ''} />
 
           <label className="mt-s4 block text-sm text-text" htmlFor="art">Art</label>
           <select id="art" name="art" defaultValue="rahmenvertrag" className={feld}>

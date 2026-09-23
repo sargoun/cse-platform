@@ -15545,3 +15545,158 @@ Lead → Angebot → Auftrag, die eigens behoben wird.
 
 | Betrifft | REQ-01…07, CRM-02, CRM-03, D-61, D-83, D-599, V-137, `drizzle/0396`, `src/server/services/lead/{annahme,einsendung,eskalation,sla}.ts`, `src/lib/formular/herkunft.ts`, `src/app/api/{anfrage,lead,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx` |
 |---|---|
+
+### D-632 · Die Kette Lead → Angebot → Auftrag trägt die Herkunft bis in den Bericht (V-138)
+
+**Der Befund** (V-138; CRM-05, REQ-07 zweiter Halbsatz, REP-03):
+`angebot.lead_id` (0024) und `auftrag.lead_id` (0025) standen mit
+Fremdschlüssel und Index da, und kein Weg schrieb sie — weder
+`legeAngebotAn` noch die Maske „Neues Angebot", das Raumbuch, der direkte
+Weg `/api/auftrag` oder der Seed. `wandleInAuftrag` reichte ein NULL weiter.
+`lead.kunde_id` und `lead.ansprechpartner_id` ließen sich nach der Anlage
+nicht mehr setzen und hatten, wie `empfehlung_von_kunde_id` und
+`ausschreibung_id`, seit 0017 keinen Fremdschlüssel. Das Leadblatt zeigte
+nichts von dem, was aus der Anfrage wurde; das Kundenblatt hatte die Reiter
+Angebote, Rechnungen, Dokumente und Kommunikation der Seitenkarte (§5.2)
+nicht, und seine Auftragszeilen führten nirgends hin. Der Herkunftsbericht
+zählt Aufträge über `auftrag.lead_id` und zeigte deshalb für jeden Kanal
+„0 Aufträge, 0,00 €" — auch in der Demo.
+
+**Die Entscheidung.**
+
+1. **Der Lead bekommt seinen Kunden auf dem Leadblatt**, auf zwei Wegen:
+   „Als Kunde übernehmen" (legt ihn über `legeKundeAn` an, mit Kundennummer
+   und Firmenidentität, D-634) und „Einem bestehenden Kunden zuordnen". Eine
+   NEUE Anfrage steht danach auf `in_bearbeitung`; ein Stand, den ein Mensch
+   gesetzt hat, bleibt. Der Anfragende wandert mit, wenn er noch keinem
+   Kunden gehört — sonst wäre er nicht Ansprechpartner des Angebots
+   (`angebot_ansprechpartner_fk`). Führt der Kunde schon einen Kontakt mit
+   derselben E-Mail, zeigt der Lead auf DEN (ein Mensch, ein Kontakt, wie
+   D-631).
+2. **Die Rechtsgrundlage eines übernommenen Kunden ist `keine`.** Die
+   Antwort auf die Anfrage (Zweck `vertraglich`) hängt am Werbetor nicht an
+   der Grundlage des Kunden und bleibt offen. Ob der Kunde Werbung bekommen
+   darf, ist eine Feststellung mit Quelle und Datum, die ein Mensch trifft;
+   ob `anfrage` überhaupt Werbung trägt, ist O-660. Folge, bewusst: das Tor
+   wird für den mitgewanderten Kontakt strenger, nie lockerer.
+3. **Ein Angebot oder Auftrag hängt nur an einem Lead DESSELBEN Kunden in
+   derselben Gesellschaft.** Ein Lead ohne Kunden wird nicht nebenbei dem
+   Kunden des Angebots zugeordnet — das wäre eine Zuordnung, die niemand
+   getroffen hat. Geprüft im Dienst (`pruefeLeadBindung`, ein Satz statt
+   eines Codes) und in der Datenbank (`kern.lead_bezug_stimmt`, 0400).
+   Hängt ein Vorgang am Lead, wechselt dessen Kunde nicht mehr
+   (`kern.lead_kunde_bleibt`) — auch für eine Rolle, die die Angebote gar
+   nicht sehen darf.
+4. **Der Stand des Leads folgt der Kette, nur vorwärts.** Ein versendetes
+   Angebot stellt einen OFFENEN Lead (`neu`, `in_bearbeitung`) auf
+   `angebot`; ein Auftrag stellt jeden noch nicht gewonnenen Lead auf
+   `gewonnen` und stempelt `konvertiert_am`, auch einen, den jemand
+   verloren gegeben hatte — der unterschriebene Auftrag ist die spätere und
+   stärkere Tatsache; der Verlustgrund bleibt stehen. Eine Ablehnung stellt
+   NICHTS zurück: eine Anfrage kann ein zweites Angebot bekommen, und ein
+   Verlust trägt einen Grund, den ein Mensch schreibt. Jede Nachführung
+   schreibt eine Systemzeile in den Verlauf.
+5. **Die Nachführung läuft als Definer-Auslöser, nicht im Dienst.**
+   Versenden (`angebot.versenden`) und Annehmen (`angebot.annahme_erfassen`)
+   sind nicht `crm.schreiben`; als `cse_app` geschrieben hätte die
+   Nachführung den Versand einer solchen Rolle abgebrochen. `cse_definer`
+   darf an `lead` genau `status` und `konvertiert_am` schreiben, im aktiven
+   Mandanten, und in `lead_aktivitaet` nur interne Systemzeilen.
+6. **Drei Wege tragen die Anfrage:** die Maske „Neues Angebot" und das
+   Raumbuch mit `?lead=` (der Kunde steht dann fest), und „Auftrag direkt
+   anlegen" für den Auftrag ohne Angebot. `wandleInAuftrag` reicht sie
+   weiter. Angebots- und Auftragsblatt nennen die Anfrage (mit
+   `crm.lesen`).
+7. **Lead- und Kundenblatt zeigen die Kette**, je Stufe nur mit dem Recht
+   ihrer Zielseite (AUT-06): Angebote, Aufträge, Rechnungen; am Kunden
+   zusätzlich Anfragen, Dokumente und den Verlauf der Kommunikation.
+8. **Formulare bekommen ihre Seite zurück** (D-599): das Raumbuch und
+   `/api/auftrag` antworteten auf Abweisungen mit JSON; jetzt kehren sie
+   mit Schlüssel auf ihre Maske zurück.
+9. **Der Seed geht die ganze Kette über die echten Dienste:** Empfehlung →
+   Angebot mit Anfrage → Versand → Auftrag. Der Herkunftsbericht zeigt
+   damit schon in der Demo einen Kanal mit Auftrag.
+
+**Nicht Teil dieser Entscheidung:** ein bestehendes Angebot oder einen
+bestehenden Auftrag nachträglich einer Anfrage zuzuordnen. Versendete
+Angebote sind unveränderlich; für Entwürfe und Aufträge aus der Zeit vor
+0400 gibt es keinen Weg, und die Plattform ist nicht in Betrieb — ein
+Nachtragsweg wäre eine Fläche ohne Fall.
+
+| Betrifft | CRM-05, REQ-07, REP-03, 04-SEITENKARTE §5.2, AUT-06, D-599, D-631, O-660, V-138, `drizzle/0400`, `src/server/services/crm/lead-kette.ts`, `src/server/services/angebot/{index,von-hand}.ts`, `src/app/api/{angebot,angebot/von-hand,auftrag,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/{leads,kunden}/[id]/page.tsx`, `src/app/portal/[mandant]/{angebote,auftraege}/{neu,[id]}/page.tsx`, `src/app/portal/[mandant]/objekte/[id]/raumbuch/page.tsx`, `src/server/db/seed/vertrieb.ts` |
+|---|---|
+
+### D-633 · Vergaberadar und Empfehlung werden Leadquellen mit Erzeuger (V-139)
+
+**Der Befund** (V-139, CRM-07): CRM-07 nennt vier Leadquellen. `lead_quelle`
+kannte sie seit 0017, der CHECK `lead_herkunft_stimmig` verlangte für
+`vergabe_radar` eine `ausschreibung_id` und für `empfehlung` einen
+empfehlenden Kunden — und keine Zeile Code schrieb eines davon. Ein
+Radartreffer ließ sich nicht übernehmen, die Maske „Neuer Lead" kannte keine
+Empfehlung, und der Herkunftsbericht beschriftete zwei Werte, die nie
+entstanden. Übernommene Akquiseziele (0171) standen im Bericht unter
+„Manuell erfasst".
+
+**Die Entscheidung.**
+
+1. **Die Empfehlung ist eine Angabe der Maske „Neuer Lead"**: wer einen
+   empfehlenden Kunden wählt, erfasst eine Empfehlung. Kein zweites Feld
+   „Herkunft" daneben — ohne Javascript könnten die beiden einander
+   widersprechen. Der Empfehlende ist ein Kunde DIESER Gesellschaft; ein
+   Kunde, der sich selbst empfiehlt, ist ein Bestandskunde mit neuem Bedarf
+   und wird abgewiesen, sonst zählte der Kanal „Empfehlung" Anfragen, die
+   keine sind.
+2. **Ein Radartreffer wird auf der Bekanntmachung übernommen**, unter
+   `crm.schreiben` (der Lead) und `radar.lesen` (die Bekanntmachung).
+   Betreff und Beschreibung (gekürzt auf 2.000 Zeichen, mit Quellkennung)
+   kommen aus der Bekanntmachung, der Auftraggeber auch — fehlt er, nennt
+   ihn der Mensch; erfunden wird keiner. Der geschätzte Wert wandert nur in
+   Euro: eine Fremdwährung wird nicht umgerechnet (O-47), und ein Betrag
+   ohne Währung ist kein Euro-Betrag. Der Besitzer ist, wer übernimmt.
+3. **Einmal je Gesellschaft.** `lead_ausschreibung_uk` (0400) hält den
+   gleichzeitigen zweiten Klick; eine andere Gesellschaft darf dieselbe
+   Bekanntmachung übernehmen, sie bietet selbst. Der Vorgang des Radars
+   (Stand, Mappe) bleibt unberührt: er führt die Vergabe, der Lead den
+   Vertrieb.
+4. **Der Bericht nennt die Akquise beim Namen**, bereichsweise und in der
+   Gruppe.
+5. **Seed:** ein Radar-Lead im Bau über denselben Dienst, eine Empfehlung in
+   der Reinigung (D-632 Punkt 9).
+
+| Betrifft | CRM-07, REP-03, RAD-07, O-47, D-07, V-139, `drizzle/0400`, `src/server/services/crm/{anlegen,lead-radar}.ts`, `src/server/services/bericht/{kennzahlen,gruppe}.ts`, `src/app/api/crm/lead/route.ts`, `src/app/portal/[mandant]/crm/leads/neu/page.tsx`, `src/app/portal/[mandant]/radar/[id]/page.tsx`, `src/app/portal/gruppe/leads/page.tsx`, `src/server/db/seed/radar.ts` |
+|---|---|
+
+### D-634 · Ein Kunde findet seine Firma über die USt-IdNr. (V-140)
+
+**Der Befund** (V-140, CRM-06): die Gruppenliste erkennt denselben Kunden in
+mehreren Gesellschaften allein an `kunde.firma_id`. `app.firma_aufloesen`
+(0020) ist laut Migration die EINZIGE Stelle, an der eine `firma` entsteht,
+und hatte in der Anwendung keinen Aufrufer. Jeder im Portal angelegte Kunde
+blieb ohne Firma, auch mit USt-IdNr.; „auch in" war für echte Daten leer.
+
+**Die Entscheidung.**
+
+1. **Die Identität ist die USt-IdNr., nicht der Name.** `legeKundeAn` löst
+   für Firma und Behörde MIT USt-IdNr. über `app.firma_aufloesen` auf und
+   schreibt `firma_id` mit. Ohne Nummer entsteht keine Firma: zwei „Muster
+   GmbH" in Berlin sind zwei Unternehmen, und eine Zusammenführung über den
+   Namen legte die Historie des einen in die des anderen. Eine
+   Privatperson ist keine Firma.
+2. **Nachgetragen, nicht getauscht.** `aendereKunde` verbindet einen Kunden
+   ohne Firma, sobald seine USt-IdNr. eingetragen wird. Trägt er schon
+   eine, bleibt sie — an derselben Firma können Kunden anderer
+   Gesellschaften hängen, und eine berichtigte Nummer ist eine Frage der
+   Zusammenführung (`firma.zusammengefuehrt_in_firma_id`), nicht eines
+   stillen Umhängens.
+3. **Der Bestand wird nachgeholt** (0401) — mit derselben Regel wortgleich
+   in SQL, weil die Funktion eine Sitzung mit `crm.schreiben` verlangt und
+   eine Migration keine hat. Nicht angefasst: Privatkunden, archivierte und
+   anonymisierte Kunden (eine Anonymisierung bekommt nachträglich keine
+   Identität), Kunden mit Firma.
+4. **Kein Dublettenhinweis nach Namen in der Maske.** `app.firma_kandidaten`
+   gibt nur Kennungen und eine Ähnlichkeit heraus — eine Anzeige daraus
+   bräuchte den Namen einer Firma, die möglicherweise nur eine andere
+   Gesellschaft kennt. Das wäre die Auskunft, die die Funktion verweigert.
+
+| Betrifft | CRM-06, TEN-02, V-140, `drizzle/0020` (`app.firma_aufloesen`), `drizzle/0401`, `src/server/services/crm/{anlegen,aendern}.ts`, `src/app/portal/gruppe/kunden/page.tsx` |
+|---|---|

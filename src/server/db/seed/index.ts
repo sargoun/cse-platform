@@ -35,7 +35,7 @@ import { seedSocial } from './social.js';
 import { seedRecruiting } from './recruiting.js';
 import { seedAkquise } from './akquise.js';
 import { seedBerichtsdaten } from './berichtsdaten.js';
-import { seedRadar } from './radar.js';
+import { seedRadar, seedRadarLead } from './radar.js';
 import { DEMO_KENNWORT, seedZugangsdaten } from './zugang.js';
 import { seedBenachrichtigungen } from './benachrichtigung.js';
 import { seedKern } from './kern.js';
@@ -1744,7 +1744,8 @@ async function main(): Promise<void> {
     process.stdout.write(
       `  ${String(vertrieb.angebote)} Angebote mit ${String(vertrieb.positionen)} `
       + `Positionen aus der Kalkulation (${vertrieb.angebotsnummer ?? 'ohne Nummer'} `
-      + `versendet → Auftrag ${vertrieb.auftragsnummer ?? '—'}, `
+      + `versendet → Auftrag ${vertrieb.auftragsnummer ?? '—'} `
+      + `aus Anfrage ${vertrieb.anfrage ?? '—'}, `
       + `${String(vertrieb.entwuerfe)} Entwurf ohne Nummer — den sieht der Kunde nicht)\n`,
     );
     if (vertrieb.offeneFragen.length > 0) {
@@ -1816,6 +1817,14 @@ async function main(): Promise<void> {
     + `${String(radar.empfaenger)} Benachrichtigungsempfaenger OHNE Punktschwelle — `
     + `Fristwarnungen laufen, Treffermeldungen erst mit einer Schwelle (O-15)\n`,
   );
+  /*
+   * Und eine Bekanntmachung als Lead (V-139, CRM-07) — über den Dienst, den
+   * auch der Knopf auf `/radar/[id]` ruft.
+   */
+  const radarLead = await seedRadarLead(sql, ids);
+  process.stdout.write(radarLead === null
+    ? '  Radar-Lead: bereits vorhanden oder keine Bauleitung\n'
+    : `  Radar-Lead ${radarLead} im Bau (Herkunft Vergaberadar, Bekanntmachung demo-2026-0003)\n`);
 
   const frei = await seedFreigaben(sql, ids);
   process.stdout.write(

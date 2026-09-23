@@ -39,7 +39,7 @@
  * heute. Sie hat ihren eigenen Weg und behält ihn.
  */
 import type { SchreibKontext } from '../../kontext/index.js';
-import { CrmFehler, type KundeTyp } from './anlegen.js';
+import { CrmFehler, firmaFuer, type KundeTyp } from './anlegen.js';
 
 export type KundeStatus = 'aktiv' | 'inaktiv' | 'gesperrt';
 
@@ -85,7 +85,7 @@ export async function aendereKunde(
     throw new CrmFehler('Bitte wählen Sie eine Art.', 'typ_fehlt');
   }
 
-  const zeilen = await kontext.schreibe<{ id: string }>(
+  const zeilen = await kontext.schreibe<{ id: string; firma_id: string | null }>(
     `update kunde
         set name = $2, typ = $3::kunde_typ,
             ist_oeffentlicher_auftraggeber = ($3::kunde_typ = 'behoerde'),
@@ -96,17 +96,37 @@ export async function aendereKunde(
             notiz = $15,
             geaendert_am = now(), geaendert_von = app.aktueller_benutzer()
       where id = $1::uuid and archiviert_am is null
-     returning id`,
+     returning id, firma_id::text as firma_id`,
     [eingabe.id, name, eingabe.typ, leer(eingabe.rechtsform), leer(eingabe.ustId),
       leer(eingabe.steuernummer), leer(eingabe.strasse), leer(eingabe.hausnummer),
       leer(eingabe.plz), leer(eingabe.ort), leer(eingabe.land),
       leer(eingabe.emailZentral), leer(eingabe.telefonZentral),
       leer(eingabe.webseite), leer(eingabe.notiz)],
   );
-  if (zeilen[0] === undefined) {
+  const z = zeilen[0];
+  if (z === undefined) {
     throw new CrmFehler(
       'Diesen Kunden gibt es nicht mehr, oder er ist bereits archiviert.',
       'kunde_unbekannt', 404);
+  }
+
+  /*
+   * **Die Firma wird nachgetragen, nicht getauscht** (V-140, CRM-06, D-634).
+   * Wer die USt-IdNr. nachreicht, verbindet den Kunden mit seiner Firma —
+   * dieselbe Regel wie beim Anlegen (`firmaFuer`). Trägt der Kunde schon eine
+   * Firma, bleibt sie: ein anderer Kunde einer anderen Gesellschaft kann an
+   * derselben hängen, und eine berichtigte Nummer ist dann eine Frage der
+   * Zusammenführung (`firma.zusammengefuehrt_in_firma_id`), nicht eines
+   * stillen Umhängens.
+   */
+  if (z.firma_id === null) {
+    const firmaId = await firmaFuer(kontext, eingabe.typ, name, leer(eingabe.ustId));
+    if (firmaId !== null) {
+      await kontext.schreibe(
+        `update kunde set firma_id = $2::uuid
+          where id = $1::uuid and firma_id is null and archiviert_am is null`,
+        [eingabe.id, firmaId]);
+    }
   }
 }
 

@@ -54,6 +54,7 @@ import {
   gibPreisFrei, legeAngebotAn, uebernimmKalkulation, versendeAngebot, wandleInAuftrag,
 } from '../../services/angebot/index.js';
 import { erfasseKundenfreigabe } from '../../services/auftrag/kundenfreigabe.js';
+import { legeLeadAn } from '../../services/crm/anlegen.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -80,11 +81,13 @@ export interface VertriebErgebnis {
   readonly zurFreigabe: number;
   /** Ein Kundendokument mit `kunde_id` — die Pflichtangabe der Kundenfreigabe. */
   readonly kundendokument: string | null;
+  /** Die Anfrage, aus der Angebot und Auftrag kommen (V-138) — ihre Leadnummer. */
+  readonly anfrage: string | null;
 }
 
 const LEER: VertriebErgebnis = {
   angebote: 0, positionen: 0, angebotsnummer: null, auftragsnummer: null,
-  entwuerfe: 0, offeneFragen: [], zurFreigabe: 0, kundendokument: null,
+  entwuerfe: 0, offeneFragen: [], zurFreigabe: 0, kundendokument: null, anfrage: null,
 };
 
 /**
@@ -297,11 +300,44 @@ export async function seedVertrieb(
     });
     if (kalkulation.zeilen.length === 0) return LEER;
 
+    /**
+     * **Die Anfrage, aus der dieses Angebot kommt** (V-138, V-139, CRM-05,
+     * CRM-07, REP-03).
+     *
+     * Bis hierher verknüpfte der Seed keinen einzigen Auftrag mit einem Lead,
+     * und der Herkunftsbericht zeigte schon in der Demo für jeden Kanal null
+     * Aufträge. Jetzt geht die ganze Kette durch die echten Dienste: eine
+     * Empfehlung eines anderen Kunden → Angebot mit `lead_id` → Versand
+     * (der Lead folgt auf „Angebot abgegeben") → Auftrag (der Lead folgt auf
+     * „gewonnen", 0400).
+     *
+     * **Eine Empfehlung und kein Webformular:** ein Web-Lead verlangt einen
+     * echten Formulareingang (`lead_herkunft_stimmig`), und einen zu
+     * erfinden hiesse, eine Anfrage zu behaupten, die niemand gestellt hat
+     * (siehe `operations.ts`). Die Empfehlung braucht nur einen zweiten
+     * Kunden — gibt es keinen, bleibt es eine Erfassung von Hand.
+     */
+    const [empfehler] = await db.abfrage<{ id: string }>(
+      `select id::text as id from kunde
+        where mandant_id = app.aktiver_mandant() and id <> $1::uuid
+          and archiviert_am is null
+        order by kundennummer limit 1`, [objekt.kunde_id]);
+    const anfrage = await legeLeadAn(kontext, {
+      betreff: 'Unterhaltsreinigung Bürohaus Kurfürstendamm',
+      kundeId: objekt.kunde_id,
+      bedarf: 'Demodaten: Empfehlung einer Bestandskundin — Büroflächen, fünfmal wöchentlich.',
+      besitzerBenutzerId: freigeber.id,
+      ...(empfehler === undefined
+        ? { quelle: 'manuell' as const }
+        : { quelle: 'empfehlung' as const, empfehlungVonKundeId: empfehler.id }),
+    });
+
     const angebotId = await legeAngebotAn(db, {
       kundeId: objekt.kunde_id,
       titel: VERSENDET.titel,
       objektId: objekt.id,
       einleitungstext: VERSENDET.einleitung,
+      leadId: anfrage.id,
       /**
        * `gueltigBis` bleibt LEER.
        *
@@ -510,6 +546,7 @@ export async function seedVertrieb(
       offeneFragen: kalkulation.offeneFragen,
       zurFreigabe: 1,
       kundendokument: freigabeErfasst ? KUNDENSCHREIBEN.titel : null,
+      anfrage: anfrage.leadnummer,
     };
   });
 

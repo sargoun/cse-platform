@@ -12,6 +12,8 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { leseRadarZeile, type RadarZeile } from '../daten';
 import { kennungOder404 } from '../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
 
 /**
  * `/portal/[mandant]/radar/[id]` — eine Bekanntmachung (RAD-03, RAD-05,
@@ -80,10 +82,19 @@ export default async function Bekanntmachung(
   const tor = await mandantTor(`/portal/${mandant}/radar/${id}`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
-  const darf = await haeltRechte(zugang.sitzung, 'radar.plattform_verwalten');
+  const darf = await haeltRechte(zugang.sitzung, 'radar.plattform_verwalten',
+    'crm.schreiben', 'crm.lesen');
   const suche = await searchParams;
   const vermerkt = typeof suche['vermerkt'] === 'string' ? suche['vermerkt'] : null;
-  const abgewiesen = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerRoh = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const k = nachSprache(KETTE_TEXTE, zugang.sprache);
+  /*
+   * Eine Abweisung der Lead-Übernahme (V-139) kommt mit ihrem eigenen
+   * Schlüssel zurück und steht bei der Übernahme — nicht als „Nicht
+   * geändert" über dem Stand der Bekanntmachung, den sie nicht berührt.
+   */
+  const leadFehler = fehlerRoh === null ? null : (k.fehler[fehlerRoh] ?? null);
+  const abgewiesen = leadFehler === null ? fehlerRoh : null;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -129,7 +140,16 @@ export default async function Bekanntmachung(
            join ausschreibung_vorgang v
              on v.id = m.ausschreibung_vorgang_id and v.mandant_id = m.mandant_id
           where v.ausschreibung_id = $1::uuid and m.geloescht_am is null`, [id]);
+      /*
+       * Ist die Bekanntmachung in DIESER Gesellschaft schon ein Lead (V-139)?
+       * Die Policy auf `lead` verlangt `crm.lesen`; ohne das Recht bleibt die
+       * Antwort leer, und die Übernahme weist den zweiten Versuch mit Satz ab.
+       */
+      const [lead] = await kontext.abfrage<{ id: string; leadnummer: string }>(
+        `select id::text as id, leadnummer from lead
+          where ausschreibung_id = $1::uuid and mandant_id = app.aktiver_mandant()`, [id]);
       return {
+        lead: lead ?? null,
         mappe: mp === undefined ? null
           : { id: mp.id, status: mp.status, offen: Number(mp.offen) },
         darfStatus: r?.darf === true,
@@ -154,6 +174,7 @@ export default async function Bekanntmachung(
         } satisfies Detail,
       };
     })) as Promise<{
+      lead: { id: string; leadnummer: string } | null;
       mappe: { id: string; status: string; offen: number } | null;
       darfStatus: boolean; darfMappe: boolean; zeilen: readonly RadarZeile[]; detail: Detail;
     } | null>);
@@ -329,6 +350,51 @@ export default async function Bekanntmachung(
           „woher stammt dieses Feld" die erste Frage (RAD-03).
         </p>
       </section>
+
+      {/*
+        **Als Lead übernehmen** (V-139, CRM-07). Der Radar war eine der vier
+        Leadquellen der Spezifikation und hatte keinen Weg in den Vertrieb:
+        die Auswertung beschriftete „Vergaberadar", und der Wert konnte nie
+        entstehen. Die Übernahme ändert am Vorgang der Bekanntmachung nichts.
+      */}
+      {daten.lead !== null && darf['crm.lesen'] === true ? (
+        <Hinweis art="hinweis" cse="radar-lead-vorhanden" className="mb-s6 max-w-prose">
+          {k.radarSchon(daten.lead.leadnummer)}{' '}
+          <Link href={`/portal/${mandant}/crm/leads/${daten.lead.id}`}
+                className="underline underline-offset-4" data-cse="radar-zum-lead">
+            {k.zumLead}
+          </Link>
+        </Hinweis>
+      ) : darf['crm.schreiben'] === true ? (
+        <section className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5"
+                 data-cse="radar-lead">
+          <h2 className="mb-s2 text-h2 text-text">{k.radarTitel}</h2>
+          <p className="mb-s3 text-sm text-text-muted">{k.radarErklaerung}</p>
+          {leadFehler === null ? null : (
+            <Hinweis art="warnung" cse="radar-lead-fehler" className="mb-s3">
+              {leadFehler}
+            </Hinweis>
+          )}
+          <form method="post" action="/api/crm/lead" data-cse="radar-lead-formular"
+                className="flex flex-col gap-s3">
+            <input type="hidden" name="was" value="aus_radar" />
+            <input type="hidden" name="ausschreibungId" value={id} />
+            <input type="hidden" name="zurueck" value={`/portal/${mandant}/radar/${id}`} />
+            <label className="flex flex-col gap-s2 text-xs text-text-muted">
+              {k.auftraggeber}
+              <input type="text" name="auftraggeber" maxLength={300}
+                     defaultValue={kopf.vergabestelle ?? ''}
+                     className="min-h-11 rounded-md border border-line bg-surface-3 px-s4 py-s3 text-base text-text"
+                     data-cse="radar-lead-auftraggeber" />
+            </label>
+            <div>
+              <Button type="submit" variante="secondary" data-cse="radar-lead-uebernehmen">
+                {k.radarUebernehmen}
+              </Button>
+            </div>
+          </form>
+        </section>
+      ) : null}
 
       {daten.mappe !== null ? (
         <section className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5"

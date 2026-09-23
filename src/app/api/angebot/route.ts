@@ -78,6 +78,11 @@ interface Koerper {
   readonly art?: string | undefined;
   readonly startDatum?: string | undefined;
   /**
+   * Die Anfrage, auf die das Angebot aus dem Raumbuch antwortet (V-138,
+   * CRM-05). Optional; `legeAngebotAn` prueft Gesellschaft und Kunden.
+   */
+  readonly leadId?: string | undefined;
+  /**
    * Wohin ein FORMULAR nach einem abgewiesenen Uebergang zurueckkehrt.
    *
    * Ohne dieses Feld beantwortete die Route jeden `AngebotFehler` mit
@@ -102,6 +107,7 @@ async function koerperAus(anfrage: NextRequest): Promise<Koerper> {
     aktion: text('aktion'), objektId: text('objektId'), kundeId: text('kundeId'),
     titel: text('titel'), turnus: text('turnus'), angebotId: text('angebotId'),
     art: text('art'), startDatum: text('startDatum'), zurueck: text('zurueck'),
+    leadId: text('leadId'),
   };
 }
 
@@ -190,7 +196,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           });
           if (kalk.zeilen.length === 0) return { art: 'leer' as const };
 
-          const angebotId = await legeAngebotAn(dbSchicht, { kundeId, titel, objektId });
+          const angebotId = await legeAngebotAn(dbSchicht, {
+            kundeId, titel, objektId,
+            ...(koerper.leadId === undefined ? {} : { leadId: koerper.leadId }),
+          });
           await uebernimmKalkulation(dbSchicht, angebotId, kalk,
             { objektId, turnusLabel: turnus, tarif, frequenz });
           return { art: 'angelegt' as const, angebotId };

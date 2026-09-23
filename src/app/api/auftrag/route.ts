@@ -9,6 +9,7 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import { vergebeNummer, NummernkreisFehler } from '@/server/services/finanz/nummernkreis';
+import { pruefeLeadBindung, type LeadBindungGrund } from '@/server/services/crm/lead-kette';
 
 /**
  * `POST /api/auftrag` — der Auftragsassistent (OPS-10).
@@ -55,6 +56,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   };
 
   const kundeId = text('kundeId');
+  /*
+   * Die Anfrage, aus der dieser Auftrag direkt entsteht — ohne Angebot
+   * (V-138, CRM-05, REP-03). Ein Auftrag am Telefon nach einer Web-Anfrage
+   * ist ein Auftrag aus DIESEM Kanal; ohne das Feld zählte ihn der
+   * Herkunftsbericht nirgends.
+   */
+  const leadId = text('leadId');
   const bezeichnung = text('bezeichnung');
   const art = text('art');
   const startDatum = text('startDatum');
@@ -86,17 +94,28 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     ausserhalb.push('wochenstundenSoll');
   }
 
+  /*
+   * **Ein Formular bekommt seine Maske zurück, kein JSON** (D-599). Der
+   * Assistent schickt ein Formular; eine Abweisung endete bis hierher auf
+   * einer weissen Seite mit `{"fehler":"keine_zahl"}`. Jetzt führt sie auf
+   * `/auftraege/neu` mit dem Schlüssel, und die Maske sagt den Satz — mit der
+   * Anfrage, falls der Auftrag aus einer kam (V-138).
+   */
+  const slug = (anfrage.nextUrl.searchParams.get('mandant') ?? '').replace(/[^a-z0-9-]/gu, '');
+  const zurMaske = (grund: string): NextResponse => {
+    const ziel = new URL(slug === '' ? '/portal' : `/portal/${slug}/auftraege/neu`,
+      erwarteterUrsprung(anfrage));
+    if (leadId !== null) ziel.searchParams.set('lead', leadId);
+    ziel.searchParams.set('fehler', grund);
+    return NextResponse.redirect(ziel, 303);
+  };
+
   if (kundeId === null || bezeichnung === null || art === null || startDatum === null
       || !ARTEN.has(art)) {
-    return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
+    return zurMaske('unvollstaendig');
   }
-  if (ungueltig.length > 0) {
-    return NextResponse.json({ fehler: 'keine_zahl', felder: ungueltig }, { status: 400 });
-  }
-  if (ausserhalb.length > 0) {
-    return NextResponse.json({ fehler: 'ausserhalb_bereich', felder: ausserhalb },
-      { status: 400 });
-  }
+  if (ungueltig.length > 0) return zurMaske('keine_zahl');
+  if (ausserhalb.length > 0) return zurMaske('ausserhalb_bereich');
 
   try {
     const ergebnis = await (db().begin(async (tx: postgres.TransactionSql) =>
@@ -115,6 +134,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
 
+        /*
+         * VOR der Nummer: eine abgewiesene Anfrage soll keine Auftragsnummer
+         * verbrauchen. Der Auslöser `kern.lead_bezug_stimmt` (0400) prüft
+         * dieselbe Frage noch einmal.
+         */
+        if (leadId !== null) {
+          const bindung = await pruefeLeadBindung(kontext, leadId, kundeId);
+          if (!bindung.ok) return { art: 'lead' as const, grund: bindung.grund };
+        }
+
         const nummer = await vergebeNummer(
           { unsafe: async (s: string, w: readonly unknown[] = []) =>
               (await tx.unsafe(s, w as never[])) as readonly unknown[] },
@@ -126,25 +155,29 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           `insert into auftrag (mandant_id, auftragsnummer, kunde_id, objekt_id, art,
                                 bezeichnung, beschreibung, verantwortlich_benutzer_id,
                                 start_datum, laufzeit_bis, personalbedarf_anzahl,
-                                wochenstunden_soll, ausstattung_hinweis)
+                                wochenstunden_soll, ausstattung_hinweis, lead_id)
            values (app.aktiver_mandant(), $1, $2, $3, $4::auftrag_art, $5, $6, $7,
-                   $8::date, $9::date, $10, $11::numeric, $12)
+                   $8::date, $9::date, $10, $11::numeric, $12, $13::uuid)
            returning id`,
           [nummer.formatiert, kundeId, text('objektId'), art, bezeichnung,
            text('beschreibung'), verantwortlich, startDatum, text('laufzeitBis'),
            personalVorab, stunden === null ? null : stunden.toFixed(3),
-           text('ausstattungHinweis')],
+           text('ausstattungHinweis'), leadId],
         );
         if (neu === undefined) return null;
-        return neu.id;
-      })) as Promise<string | null>);
+        return { art: 'angelegt' as const, id: neu.id };
+      })) as Promise<
+        | { art: 'angelegt'; id: string }
+        | { art: 'lead'; grund: LeadBindungGrund }
+        | null>);
 
     if (ergebnis === null) {
       return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
     }
-    const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
+    /* Die Anfrage bleibt in der Adresse, damit der zweite Versuch nicht ohne sie beginnt. */
+    if (ergebnis.art === 'lead') return zurMaske(ergebnis.grund);
     return NextResponse.redirect(
-      new URL(`/portal/${slug}/auftraege/${ergebnis}`, erwarteterUrsprung(anfrage)), 303);
+      new URL(`/portal/${slug}/auftraege/${ergebnis.id}`, erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
     if (fehler instanceof NichtAngemeldetFehler) {
       return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
@@ -155,9 +188,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
     }
-    if (fehler instanceof NummernkreisFehler) {
-      return NextResponse.json({ fehler: fehler.grund, text: fehler.message }, { status: 409 });
-    }
+    if (fehler instanceof NummernkreisFehler) return zurMaske(fehler.grund);
     throw fehler;
   }
 }

@@ -1,5 +1,7 @@
 import type postgres from 'postgres';
 import { bewerteLauf } from '../../services/radar/lauf.js';
+import { uebernimmAusschreibungAlsLead } from '../../services/crm/lead-radar.js';
+import { alsPortalSitzung } from './sitzung.js';
 
 /**
  * Demodaten für den Vergaberadar (RAD-01 … RAD-09, D-490).
@@ -433,4 +435,40 @@ async function seedEmpfaenger(
     angelegt += ergebnis.length;
   }
   return angelegt;
+}
+
+/**
+ * **Eine Bekanntmachung wird zum Lead** (V-139, CRM-07, D-633).
+ *
+ * CRM-07 nennt den Vergaberadar als Leadquelle, und die Auswertung
+ * beschriftete „Vergaberadar" — im Seed entstand nie ein solcher Lead, und
+ * der Weg dorthin hatte keinen Knopf. Hier geht er über den ECHTEN Dienst,
+ * in einer Portalsitzung der Bauleitung: dieselbe Prüfung auf `radar.lesen`,
+ * dieselbe Policy auf `lead`, dieselbe Sperre gegen die zweite Übernahme.
+ *
+ * Der Bau, weil die Bekanntmachung „Rückbau und Innenausbau" dort hingehört.
+ * Wiederholbar: steht der Lead schon, geschieht nichts.
+ */
+export async function seedRadarLead(
+  sql: postgres.Sql<Record<string, unknown>>, mandanten: ReadonlyMap<string, string>,
+): Promise<string | null> {
+  const mandantId = mandanten.get('bau');
+  if (mandantId === undefined) return null;
+  const [a] = await sql<{ id: string }[]>`
+    select id from ausschreibung where quell_id = 'demo-2026-0003' limit 1`;
+  if (a === undefined) return null;
+  const [schon] = await sql<{ id: string }[]>`
+    select id from lead where mandant_id = ${mandantId} and ausschreibung_id = ${a.id}`;
+  if (schon !== undefined) return null;
+  const [wer] = await sql<{ id: string }[]>`
+    select b.id from benutzer b
+      join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${mandantId}
+      join rolle r on r.id = bm.rolle_id
+     where r.schluessel in ('admin', 'leitung') and b.status = 'aktiv'
+       and bm.entzogen_am is null and not b.ist_dienstkonto
+     order by (r.schluessel = 'leitung') desc, b.email limit 1`;
+  if (wer === undefined) return null;
+  const neu = await alsPortalSitzung(sql, mandantId, wer.id, (kontext) =>
+    uebernimmAusschreibungAlsLead(kontext, a.id, { besitzerBenutzerId: wer.id }));
+  return neu.leadnummer;
 }

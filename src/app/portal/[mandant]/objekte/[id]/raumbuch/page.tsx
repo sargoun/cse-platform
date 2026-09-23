@@ -19,6 +19,10 @@ import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
+import { istKennung } from '@/server/services/crm/lead-kette';
 
 /**
  * `/portal/[mandant]/objekte/[id]/raumbuch` — OPS-02 und das
@@ -76,6 +80,14 @@ export default async function Raumbuch(
   // auch keine Fehlerseite: er faellt auf den Vorgabewert zurueck, und die
   // Auswahl darunter zeigt, womit tatsaechlich gerechnet wurde.
   const turnus = PLATZHALTER_TURNUSSE.includes(gewuenscht) ? gewuenscht : '1_pro_monat';
+  /*
+   * **Aus einer Anfrage** (V-138, CRM-05): `?lead=` kommt vom Leadblatt und
+   * geht mit dem Angebot hinaus, damit der Auftrag daraus seine Herkunft
+   * trägt. Geprüft wird die Anfrage im Dienst (`legeAngebotAn`).
+   */
+  const leadRoh = typeof suche['lead'] === 'string' ? suche['lead'] : '';
+  const leadParam = istKennung(leadRoh) ? leadRoh : null;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
 
   const pfad = `/portal/${mandant}/objekte/${id}/raumbuch`;
   const zugang = await portalZugang(pfad);
@@ -130,6 +142,7 @@ export default async function Raumbuch(
 
   if (daten === null) notFound();
   const { objekt, raeume, grundlage } = daten;
+  const kt = nachSprache(KETTE_TEXTE, zugang.sprache);
 
   const kalkulation = kalkuliere({
     posten: grundlage.posten,
@@ -273,6 +286,11 @@ export default async function Raumbuch(
 
       <section aria-labelledby="kalkulation" className="mt-s7">
         <h2 id="kalkulation" className="text-h2 text-text">Kalkulation</h2>
+        {fehler === null ? null : (
+          <Hinweis art="warnung" cse="raumbuch-angebot-fehler" className="my-s4 max-w-prose">
+            {kt.maskeFehler[fehler] ?? kt.fehler[fehler] ?? kt.nichtAngelegt}
+          </Hinweis>
+        )}
         <p className="text-sm text-text-muted">
           Σ (m² ÷ Leistungswert) × Frequenzfaktor — gerechnet, nicht geschätzt.
         </p>
@@ -281,7 +299,10 @@ export default async function Raumbuch(
           {PLATZHALTER_TURNUSSE.map((t) => (
             <Link
               key={t}
-              href={{ pathname: pfad, query: { turnus: t } }}
+              href={{
+                pathname: pfad,
+                query: leadParam === null ? { turnus: t } : { turnus: t, lead: leadParam },
+              }}
               aria-current={t === turnus ? 'true' : undefined}
               className={[
                 'inline-flex min-h-11 items-center rounded-full px-s4 text-xs',
@@ -437,6 +458,22 @@ export default async function Raumbuch(
                 <input type="hidden" name="objektId" value={id} />
                 <input type="hidden" name="kundeId" value={objekt.kunde_id} />
                 <input type="hidden" name="turnus" value={turnus} />
+                {/*
+                  * Wohin eine Abweisung zurückführt: auf DIESE Seite mit
+                  * Schlüssel, nicht auf ein JSON (D-599).
+                  */}
+                <input type="hidden" name="zurueck"
+                       value={`${pfad}?turnus=${turnus}${leadParam === null ? '' : `&lead=${leadParam}`}`} />
+                {leadParam === null ? null : (
+                  <>
+                    <input type="hidden" name="leadId" value={leadParam}
+                           data-cse="raumbuch-angebot-lead" />
+                    <p className="m-0 mb-s3 text-sm text-text-muted"
+                       data-cse="raumbuch-angebot-anfrage">
+                      {kt.raumbuchAnfrage}
+                    </p>
+                  </>
+                )}
                 <input
                   type="hidden"
                   name="titel"

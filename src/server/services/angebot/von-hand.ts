@@ -3,6 +3,9 @@ import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { parseGeld, type Cent } from '../finanz/geld.js';
 import { mengeNachPostgres, milliMenge, type MilliMenge } from '../finanz/menge.js';
 import { legeAngebotAn } from './index.js';
+import {
+  LEAD_BINDUNG_SATZ, pruefeLeadBindung, type LeadBindungGrund,
+} from '../crm/lead-kette.js';
 
 /**
  * **Ein Angebot von Hand — für Sicherheit und Bau** (V-005, SEC-01, BAU-01,
@@ -52,7 +55,7 @@ export class HandAngebotFehler extends Error {
     nachricht: string,
     readonly grund: 'unvollstaendig' | 'keine_position' | 'kein_betrag' | 'keine_menge'
       | 'unbekannter_steuersatz' | 'unbekannte_einheit' | 'kein_kunde' | 'kontakt_fremd'
-      | 'zeile_ohne_text' | 'abgewiesen',
+      | 'zeile_ohne_text' | 'abgewiesen' | LeadBindungGrund,
     readonly status = 400,
   ) {
     super(nachricht);
@@ -176,6 +179,11 @@ export interface HandAngebot {
   readonly ansprechpartnerId?: string | null;
   readonly gueltigBis?: string | null;
   readonly einleitungstext?: string | null;
+  /**
+   * Die Anfrage, auf die das Angebot antwortet (V-138, CRM-05). Sie muss in
+   * dieser Gesellschaft stehen und DEMSELBEN Kunden gehören.
+   */
+  readonly leadId?: string | null;
   /** Das Datum, zu dem der Steuersatz aufgelöst wird — der Berliner Heute-Tag. */
   readonly stichtag: string;
   readonly positionen: readonly HandPosition[];
@@ -265,6 +273,19 @@ export async function legeAngebotVonHandAn(
     }
   }
 
+  /*
+   * Die Anfrage gehört zu DIESEM Kunden (V-138) — vor dem ersten Schreiben,
+   * damit der Satz ankommt und nicht ein halbes Angebot.
+   */
+  const leadId = e.leadId === null || e.leadId === undefined || e.leadId === ''
+    ? null : e.leadId;
+  if (leadId !== null) {
+    const bindung = await pruefeLeadBindung(kontext, leadId, e.kundeId);
+    if (!bindung.ok) {
+      throw new HandAngebotFehler(LEAD_BINDUNG_SATZ[bindung.grund], bindung.grund);
+    }
+  }
+
   const saetze = new Map(
     (await steuersaetzeAm(kontext, e.stichtag)).map((s) => [s.schluessel, s]));
   const bekannteEinheiten = new Set(
@@ -303,6 +324,7 @@ export async function legeAngebotVonHandAn(
       ? {} : { gueltigBis: e.gueltigBis }),
     ...(e.einleitungstext === null || e.einleitungstext === undefined
       || e.einleitungstext.trim() === '' ? {} : { einleitungstext: e.einleitungstext.trim() }),
+    ...(leadId === null ? {} : { leadId }),
   });
 
   let nr = 0;

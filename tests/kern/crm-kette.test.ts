@@ -1,0 +1,172 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import {
+  BEDARF_HOECHSTENS, leadAusBekanntmachung, type Bekanntmachung,
+} from '../../src/server/services/crm/lead-radar.js';
+import { CrmFehler } from '../../src/server/services/crm/anlegen.js';
+import { istKennung, LEAD_BINDUNG_SATZ } from '../../src/server/services/crm/lead-kette.js';
+import {
+  ANGEBOT_PILLE, AUFTRAG_PILLE, LEAD_PILLE, RECHNUNG_PILLE,
+} from '../../src/lib/vorgang-pille.js';
+import { KETTE_TEXTE } from '../../src/lib/i18n/verwaltung/crm-kette.js';
+import { ANGEBOT_HAND_TEXTE } from '../../src/lib/i18n/verwaltung/angebot-hand.js';
+
+/**
+ * Die Kette Lead → Angebot → Auftrag, ohne Datenbank (V-138, V-139,
+ * CRM-05, CRM-07, D-632, D-633).
+ *
+ * Was hier steht, sind die Regeln, die keine Datenbank brauchen: welche
+ * Felder ein Radartreffer an seinen Lead gibt, und dass jede Stufe der Kette
+ * für jeden Zustand ein Wort hat — auf Deutsch UND auf Englisch. Ein
+ * Zustand ohne Wort landete sonst als roher Schlüssel auf dem Bildschirm.
+ * Die Datenbankseite der Kette prüft `tests/isolation/crm-kette.test.ts`.
+ */
+
+const BASIS: Bekanntmachung = {
+  titel: '  Rückbau und Innenausbau eines Verwaltungsgebäudes ',
+  beschreibung: 'Entkernung, Trockenbau, Estrich.',
+  vergabestelleName: 'Berliner Immobilienmanagement GmbH',
+  vergabestelleOrt: 'Berlin',
+  quellId: 'demo-2026-0003',
+  wertCent: 1_940_000_00n,
+  waehrung: 'EUR',
+};
+
+describe('leadAusBekanntmachung — was eine Bekanntmachung an ihren Lead gibt', () => {
+  it('Titel, Vergabestelle, Beschreibung mit Quelle, Wert in Euro', () => {
+    const l = leadAusBekanntmachung(BASIS);
+    expect(l.betreff).toBe('Rückbau und Innenausbau eines Verwaltungsgebäudes');
+    expect(l.firmaName).toBe('Berliner Immobilienmanagement GmbH');
+    expect(l.bedarf).toBe('Entkernung, Trockenbau, Estrich.\n\nBekanntmachung demo-2026-0003, Berlin.');
+    expect(l.geschaetzterWertCent).toBe(1_940_000_00n);
+  });
+
+  it('der Mensch darf den Auftraggeber nennen — er gewinnt über die Bekanntmachung', () => {
+    expect(leadAusBekanntmachung(BASIS, '  BIM Berlin ').firmaName).toBe('BIM Berlin');
+    expect(leadAusBekanntmachung(BASIS, '   ').firmaName)
+      .toBe('Berliner Immobilienmanagement GmbH');
+  });
+
+  it('ohne Vergabestelle und ohne Eingabe gibt es keinen Lead — keinen erfundenen Namen', () => {
+    expect(() => leadAusBekanntmachung({ ...BASIS, vergabestelleName: null }))
+      .toThrow(CrmFehler);
+    try {
+      leadAusBekanntmachung({ ...BASIS, vergabestelleName: ' ' });
+    } catch (e) {
+      expect((e as CrmFehler).grund).toBe('ohne_auftraggeber');
+    }
+  });
+
+  it('ein Wert in Fremdwährung wandert NICHT — umgerechnet wird nie (O-47)', () => {
+    expect(leadAusBekanntmachung({ ...BASIS, waehrung: 'CHF' }).geschaetzterWertCent).toBeNull();
+  });
+
+  it('ein Wert ohne Währung ist kein Euro-Betrag', () => {
+    expect(leadAusBekanntmachung({ ...BASIS, waehrung: null }).geschaetzterWertCent).toBeNull();
+  });
+
+  it('ohne Wert bleibt der Wert leer — nicht null Euro', () => {
+    expect(leadAusBekanntmachung({ ...BASIS, wertCent: null }).geschaetzterWertCent).toBeNull();
+  });
+
+  it('eine lange Beschreibung wird gekürzt und sagt es, die Quelle bleibt', () => {
+    const l = leadAusBekanntmachung({ ...BASIS, beschreibung: 'x'.repeat(BEDARF_HOECHSTENS + 50) });
+    expect(l.bedarf.startsWith('x'.repeat(BEDARF_HOECHSTENS))).toBe(true);
+    expect(l.bedarf).toContain('…');
+    expect(l.bedarf.endsWith('Bekanntmachung demo-2026-0003, Berlin.')).toBe(true);
+  });
+
+  it('ohne Titel kein Lead', () => {
+    expect(() => leadAusBekanntmachung({ ...BASIS, titel: '  ' })).toThrow(CrmFehler);
+  });
+});
+
+describe('istKennung — nur eine Kennung geht an die Datenbank', () => {
+  it('nimmt eine UUID, weist alles andere ab', () => {
+    expect(istKennung('0b6f3c1e-2a4d-4e8f-9a1b-3c5d7e9f1a2b')).toBe(true);
+    expect(istKennung('0b6f3c1e')).toBe(false);
+    expect(istKennung("'; drop table lead; --")).toBe(false);
+    expect(istKennung(undefined)).toBe(false);
+    expect(istKennung(null)).toBe(false);
+  });
+});
+
+/** Die Werte eines Enum-Typs, wie die Migrationen sie anlegen und erweitern. */
+function enumWerte(typ: string): readonly string[] {
+  const verzeichnis = fileURLToPath(new URL('../../drizzle', import.meta.url));
+  const werte: string[] = [];
+  for (const datei of readdirSync(verzeichnis).filter((d) => d.endsWith('.sql')).sort()) {
+    const text = readFileSync(join(verzeichnis, datei), 'utf8');
+    const anlage = new RegExp(`create type ${typ}\\s+as enum\\s*\\(([^)]*)\\)`, 'u').exec(text);
+    if (anlage !== null) {
+      for (const m of (anlage[1] ?? '').matchAll(/'([^']+)'/gu)) werte.push(m[1] ?? '');
+    }
+    for (const m of text.matchAll(new RegExp(`alter type ${typ} add value (?:if not exists )?'([^']+)'`, 'gu'))) {
+      werte.push(m[1] ?? '');
+    }
+  }
+  return werte;
+}
+
+describe('jede Stufe der Kette hat für jeden Zustand ein Wort', () => {
+  it('die Enum-Werte werden überhaupt gefunden', () => {
+    expect(enumWerte('lead_quelle')).toEqual(
+      ['webformular', 'vergabe_radar', 'manuell', 'empfehlung', 'akquise']);
+    expect(enumWerte('lead_status').length).toBe(6);
+    expect(enumWerte('angebot_status').length).toBeGreaterThanOrEqual(7);
+  });
+
+  it.each([
+    ['lead_status', LEAD_PILLE],
+    ['angebot_status', ANGEBOT_PILLE],
+    ['auftrag_status', AUFTRAG_PILLE],
+    ['rechnung_status', RECHNUNG_PILLE],
+  ] as const)('%s → Pille', (typ, pille) => {
+    expect(enumWerte(typ).filter((w) => pille[w] === undefined)).toEqual([]);
+  });
+
+  it.each(['de', 'en'] as const)('jede Leadquelle hat eine Beschriftung (%s)', (sprache) => {
+    const t = KETTE_TEXTE[sprache];
+    expect(enumWerte('lead_quelle').filter((w) => t.quelleWerte[w] === undefined)).toEqual([]);
+    expect(enumWerte('dokument_kategorie').filter((w) => t.kategorieWerte[w] === undefined))
+      .toEqual([]);
+    expect(enumWerte('aktivitaet_typ').filter((w) => t.typWerte[w] === undefined)).toEqual([]);
+    expect(enumWerte('aktivitaet_richtung').filter((w) => t.richtungWerte[w] === undefined))
+      .toEqual([]);
+    expect(enumWerte('kunde_typ').filter((w) => t.artWerte[w] === undefined)).toEqual([]);
+  });
+
+  it('beide Sprachen kennen dieselben Fehlerschlüssel — keiner fällt auf einen rohen Schlüssel', () => {
+    expect(Object.keys(KETTE_TEXTE.en.fehler).sort())
+      .toEqual(Object.keys(KETTE_TEXTE.de.fehler).sort());
+    expect(Object.keys(KETTE_TEXTE.en.maskeFehler).sort())
+      .toEqual(Object.keys(KETTE_TEXTE.de.maskeFehler).sort());
+  });
+
+  it('jede Abweisung von /api/auftrag hat einen Satz in der Maske', () => {
+    /*
+     * Die Route schickt diese Schlüssel an `/auftraege/neu` zurück (D-599);
+     * die Nummernkreisgründe stehen in `NummernkreisFehler`.
+     */
+    const route = readFileSync(fileURLToPath(
+      new URL('../../src/app/api/auftrag/route.ts', import.meta.url)), 'utf8');
+    const schluessel = [...route.matchAll(/zurMaske\('([a-z_]+)'\)/gu)].map((m) => m[1] ?? '');
+    expect(schluessel.length).toBeGreaterThanOrEqual(3);
+    const nummernkreis = ['kein_kreis', 'platzhalter', 'geschlossen', 'definer_kreis',
+      'maske_ungueltig'];
+    for (const s of [...schluessel, ...nummernkreis]) {
+      expect(KETTE_TEXTE.de.maskeFehler[s], s).toBeDefined();
+    }
+  });
+
+  it('jeder Grund der Lead-Bindung hat einen Satz — im Dienst, auf dem Blatt und in der Maske', () => {
+    for (const grund of Object.keys(LEAD_BINDUNG_SATZ)) {
+      expect(KETTE_TEXTE.de.fehler[grund], grund).toBeDefined();
+      expect(KETTE_TEXTE.en.fehler[grund], grund).toBeDefined();
+      expect(ANGEBOT_HAND_TEXTE.de.fehler[grund], grund).toBeDefined();
+      expect(ANGEBOT_HAND_TEXTE.en.fehler[grund], grund).toBeDefined();
+    }
+  });
+});

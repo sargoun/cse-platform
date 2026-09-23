@@ -84,6 +84,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const kunde = feld('kunde');
   const objekt = feld('objekt');
   const kontakt = feld('kontakt');
+  /* Die Anfrage, auf die das Angebot antwortet (V-138) — geprüft im Dienst. */
+  const lead = feld('lead');
 
   let angebotId: string;
   try {
@@ -109,6 +111,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           titel: feld('titel'),
           objektId: UUID.test(objekt) ? objekt : null,
           ansprechpartnerId: UUID.test(kontakt) ? kontakt : null,
+          leadId: lead === '' ? null : lead,
           gueltigBis: feld('gueltigBis'),
           einleitungstext: feld('einleitung'),
           /*
