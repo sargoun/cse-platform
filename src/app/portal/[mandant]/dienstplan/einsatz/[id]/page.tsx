@@ -17,6 +17,8 @@ import { pruefeEinteilung, type Vorschau } from '@/server/services/dienstplan/ei
 import type { ArbzgBefund } from '@/server/services/zeit/arbzg';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { SCHICHT_TEXTE } from '@/lib/i18n/verwaltung/dienstplan-schicht';
 
 /**
  * `/portal/[mandant]/dienstplan/einsatz/[id]` — die einzelne Schicht.
@@ -98,7 +100,14 @@ export default async function Einsatzblatt({
      Sperre im Pruefblatt sah, bekam hinter „Nachweisregister oeffnen" ein 404.
      Ein Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf
      PR 16 / D-581). */
-  const darf = await haeltRechte(sitzung, 'personal.nachweis_lesen');
+  const darf = await haeltRechte(sitzung, 'personal.nachweis_lesen', 'dienstplan.schreiben');
+  /*
+   * Nur die Absage unten spricht beide Sprachen (V-013). Der uebrige Rumpf
+   * dieser Seite ist deutsch fest verdrahtet und steht dafuer in der
+   * Ausnahmeliste der Uebersetzungswache; ein neuer Block laesst sich nicht
+   * dorthin nachtragen, ohne die Sperrklinke rueckwaerts zu drehen.
+   */
+  const t = nachSprache(SCHICHT_TEXTE, zugang.sprache);
 
   const frage = await searchParams;
   const rohPruefling = typeof frage['pruefe'] === 'string' ? frage['pruefe'] : null;
@@ -394,6 +403,42 @@ export default async function Einsatzblatt({
         „keine Verstöße" wäre eine Aussage, die niemand geprüft hat, und genau
         die Sorte stiller Falschauskunft, gegen die K-06 geschrieben ist.
       */}
+      {/*
+        **Die Schicht absagen** (V-013). Bis dahin setzte `storniert` nur der
+        Generator, wenn die Serie das Vorkommnis nicht mehr wollte — eine von
+        Hand geplante Schicht liess sich nie wieder abstellen, und die Absage
+        einer Serienschicht ging nur ueber das Aendern der Serie.
+
+        Der Knopf steht NUR, solange die Schicht lebt: fuer eine schon
+        abgesagte gibt es oben den Grund, und ein zweiter Knopf daneben waere
+        ein Weg, der auf 409 fuehrt.
+      */}
+      {kopf.storno_grund === null && darf['dienstplan.schreiben'] === true && (
+        <section data-cse="schicht-absagen"
+                 className="mt-s6 rounded-lg border border-line bg-surface p-s5">
+          <h3 className="mb-s2 mt-0 text-base text-text">{t.absagenTitel}</h3>
+          <p className="mb-s4 max-w-prose text-sm text-text-muted">{t.absagenErklaerung}</p>
+          <form method="post" action="/api/dienstplan/einsatz"
+                className="flex flex-wrap items-end gap-s3">
+            <input type="hidden" name="aktion" value="absagen" />
+            <input type="hidden" name="einsatz" value={kopf.id} />
+            <input type="hidden" name="mandant" value={mandant} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <input type="hidden" name="fehlerweg" value={pfad} />
+            <label className="flex min-w-[24ch] flex-1 flex-col gap-s2 text-sm text-text">
+              {t.absageGrund}
+              <input name="grund" required minLength={3} maxLength={300}
+                     placeholder={t.absageGrundBeispiel}
+                     className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
+                     data-cse="schicht-absage-grund" />
+            </label>
+            <Button type="submit" variante="danger" data-cse="schicht-absage-knopf">
+              {t.absagen}
+            </Button>
+          </form>
+        </section>
+      )}
+
       <p className="mt-s6 text-micro text-text-subtle">
         Herkunft: {kopf.quelle} · Schlüssel <code className="tabular-nums">{kopf.quell_schluessel}</code>
       </p>

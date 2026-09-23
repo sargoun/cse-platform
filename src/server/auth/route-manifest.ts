@@ -2483,6 +2483,21 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * V-013, TIM-01, TIM-04. Eine EINZELNE Schicht anlegen oder absagen.
+     *
+     * `dienstplan.schreiben` fuer beides — es ist dieselbe Disposition, die
+     * eine Sonderreinigung ansetzt und sie wieder absagt. `t_mandant` auf
+     * `einsatz` (0028) prueft den Schluessel bei jedem Schreibvorgang ein
+     * zweites Mal.
+     *
+     * Nicht zu verwechseln mit `api/einsaetze/[id]/absagen`: dort sagt EINE
+     * Eingeteilte ihre Zuordnung ab, hier faellt die ganze Schicht aus.
+     */
+    pfad: 'api/dienstplan/einsatz',
+    recht: 'dienstplan.schreiben',
+  },
+  {
+    /**
      * Einstellen (D-09, EMP-14, §5.12) — `personal.schreiben`, dasselbe Recht
      * wie `…/anstellungen/[id]/vertrag`.
      *

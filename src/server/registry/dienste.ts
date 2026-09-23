@@ -1199,6 +1199,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'personal', pfad: 'personal/zugang',
     schreibend: true, schreibRecht: 'personal.zugang_verwalten',
   },
+  /* V-013 — die einzelne Schicht: `einsatz.quelle = 'manuell'` stand seit
+     0028 im Vokabular, angelegt hat so eine Zeile nie jemand. */
+  {
+    modul: 'dienstplan', pfad: 'dienstplan/einzelschicht',
+    schreibend: true, schreibRecht: 'dienstplan.schreiben',
+  },
   {
     modul: 'dokument', pfad: 'dokument/aufbewahrung',
     schreibend: true, schreibRecht: 'dokument.aufbewahrung_verwalten',

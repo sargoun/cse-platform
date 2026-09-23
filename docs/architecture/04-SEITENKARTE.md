@@ -1231,6 +1231,7 @@ LV position, and creates a task for the project manager.
 | `/portal/[mandant]/dienstplan/monat` | `dienstplan.lesen` | `M1` | TIM-01 | 5 |
 | `/portal/[mandant]/dienstplan/tag` — dispatch view | `dienstplan.lesen` | `M1` | TIM-01, TIM-04, DSH-05 | 5 |
 | `/portal/[mandant]/dienstplan/serien` , `/neu` , `/[id]` — RRULE builder, single-occurrence overrides | `dienstplan.lesen` / `dienstplan.schreiben` | `M1` | TIM-02, TIM-03, CLN-02 | 5 |
+| `/portal/[mandant]/dienstplan/einsatz/neu` — one single shift, no series (V-013) | `dienstplan.lesen` (write: `dienstplan.schreiben`) | `M1` | TIM-01, TIM-04 | 5 |
 | `/portal/[mandant]/dienstplan/einsatz/[id]` — assignment detail: qualification check, ArbZG panel, conflicts | `dienstplan.lesen`; the ArbZG panel additionally `dienstplan.arbzg_pruefen` (K-06) | `M1` | TIM-05, TIM-06, TIM-14, SEC-04, LEG-03, LEG-04 | 5 |
 | `/portal/[mandant]/dienstplan/konflikte` — conflict inbox | `dienstplan.lesen` + `dienstplan.arbzg_lesen` | `M1` | TIM-05, TIM-06, TIM-14, SEC-04 | 5 |
 | `/portal/[mandant]/dienstplan/konflikte/[id]/quittung` — acknowledge a conflict | `dienstplan.konflikt_quittieren` | `M1` | TIM-05 | 5 |
