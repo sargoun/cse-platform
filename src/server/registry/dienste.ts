@@ -1256,6 +1256,18 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'dokument', pfad: 'dokument/loeschung',
     schreibend: true, schreibRecht: 'dokument.archivieren',
   },
+  /**
+   * V-023 — die Abweichung dieser Gesellschaft an der Rechtematrix.
+   *
+   * `system.rolle_verwalten` und nicht `system.rolle_lesen`: wer die Matrix
+   * ansehen darf, verstellt sie damit nicht. Das Lesen ist bis `leitung`
+   * bindbar, das Verwalten nur bis `admin` — und der zweite Faktor ist
+   * Pflicht, weil `p_rb_aal2` (0008) restriktiv darauf besteht.
+   */
+  {
+    modul: 'system', pfad: 'system/rollenrecht',
+    schreibend: true, schreibRecht: 'system.rolle_verwalten',
+  },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/dienst', schreibend: false },

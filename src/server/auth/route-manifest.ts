@@ -2071,6 +2071,24 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Eine Abweichung dieser Gesellschaft an der Rechtematrix setzen (V-023,
+     * AUT-03).
+     *
+     * **`system.rolle_verwalten` und ausdruecklich `erfordert2fa`.** Die
+     * restriktive Policy `p_rb_aal2` (0008) weist eine `aal1`-Sitzung ab —
+     * mit „new row violates row-level security policy", also einem 500er an
+     * einer Stelle, an der „zeig den zweiten Faktor" die Wahrheit ist. Der
+     * Handler sagt denselben Satz vorher und verstaendlich (AUT-02, K-15).
+     *
+     * **`system.rolle_lesen` reicht NICHT.** Wer die Matrix ansehen darf,
+     * verstellt sie damit nicht — `rolle_lesen` ist bis `leitung` bindbar,
+     * `rolle_verwalten` nur bis `admin`.
+     */
+    pfad: 'api/einstellungen/rollenrecht',
+    recht: 'system.rolle_verwalten',
+  },
+  {
+    /**
      * Eine Richtlinie des Ausgangs-Gates setzen (AGT-03, APR-01,
      * Invariante 7).
      *
