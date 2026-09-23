@@ -15150,8 +15150,8 @@ funktioniert.
    (15 Minuten) und HMAC zurück; das Geheimnis wird einmal zufällig erzeugt
    und liegt nur für den Eigentümer lesbar im Ordner. Kein Schlüssel führt
    aus dem Ordner (`..`, absolute Pfade, fremde Behälter werden abgewiesen).
-   Die Auslieferung bestimmt den Typ aus dem Inhalt und setzt `nosniff` und
-   eine CSP ohne Skriptquelle.
+   Die Auslieferung bestimmt den Typ aus dem Inhalt und setzt `nosniff`; was
+   sich nicht anzeigen lässt, kommt als Anhang.
 5. **Der Bildschirm sagt, was er ist.** Einstellungen › Integrationen führt
    ihn als „Entwicklung" mit dem Namen „Vorführspeicher (Ordner auf diesem
    Rechner)", nicht als „verbunden".
@@ -15216,7 +15216,11 @@ für sie gibt.
    01-KERN §6.2 nennt SVG für Logos. Ein SVG ist aber ein Dokument mit
    Skriptfähigkeit: `storage/svg.ts` weist ab, was ein Bild nicht braucht
    (Skript, Ereignisattribute, eingebettetes HTML, Verweise nach draussen,
-   Entitäten), und die Auslieferung setzt eine CSP mit `sandbox`. Raster wird
+   Entitäten), und die Auslieferung trägt eine CSP mit `sandbox` und ohne
+   Skriptquelle — gesetzt über eine eigene Regel in `next.config.ts`
+   (`MARKENBILD_KOEPFE`), weil die Live-Prüfung gegen den Produktionsbau
+   zeigte, dass die allgemeine Regel einen in der Route gesetzten Kopf
+   überschreibt. Raster wird
    von Metadaten befreit (`exif.ts`) — ein Titelbild mit GPS-Daten ist die
    stille Preisgabe, die TIM-10 für Schichtfotos verhindert.
 4. **Der Alternativtext ist Teil des Hochladens** (PUB-09, LEG-07, BFSG). Die

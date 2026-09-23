@@ -16,8 +16,8 @@ import { waehleSpeicher } from '@/server/storage/waehle';
  * Deployment —, gibt es die Route nicht: 404.
  *
  * **Der Typ kommt aus dem Inhalt**, nie aus dem Namen (`erkenneMime`), und
- * die Antwort darf nichts ausführen: `nosniff`, eine CSP ohne Skript, und
- * `sandbox`. Eine hochgeladene Datei wird angezeigt, nicht gestartet.
+ * die Antwort traegt `nosniff`; was nicht angezeigt werden kann, kommt als
+ * Anhang. Eine hochgeladene Datei wird angezeigt, nicht gestartet.
  */
 export const dynamic = 'force-dynamic';
 
@@ -73,15 +73,13 @@ export async function GET(
       'cache-control': 'private, no-store',
       'x-content-type-options': 'nosniff',
       /*
-       * Für ein PDF nur `frame-ancestors`: der PDF-Betrachter des Browsers
-       * ist ein eingebettetes Modul, und `sandbox` oder ein `default-src
-       * 'none'` (das `object-src` mitsperrt) liessen ihn nicht starten — ein
-       * Beleg, der sich nicht öffnen lässt, ist keiner. Das ist dieselbe
-       * Auslieferung wie bei einer signierten Supabase-Adresse.
+       * Keine eigene Content-Security-Policy: die allgemeine Regel aus
+       * `next.config.ts` (`frame-ancestors 'none'`) ueberschreibt, was eine
+       * Route hier setzt — gefunden in der Live-Pruefung (V-100). Was dieser
+       * Behaelter ausliefert, fuehrt ohnehin nichts aus: PDF, Rasterbilder,
+       * Video; XML und Office-Dateien kommen als Anhang. Ein SVG nimmt die
+       * Ablage gar nicht erst an (`ERLAUBTE_MIME`).
        */
-      'content-security-policy': mime === 'application/pdf'
-        ? "frame-ancestors 'none'"
-        : "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox; frame-ancestors 'none'",
     },
   });
 }

@@ -34,9 +34,10 @@ import {
  *
  * **Der Typ kommt aus dem Schlüssel**, den nur `setzeMarkenbild` bildet und
  * den `mi_bildpfad_eigen` (0393) auf `svg|png|jpg` festlegt — also aus dem
- * Inhalt, den der Dienst beim Hochladen geprüft hat. Ein SVG bekommt eine
- * CSP ohne jede Skriptquelle und mit `sandbox`: auch wer die Adresse direkt
- * öffnet, bekommt ein Bild und kein Dokument.
+ * Inhalt, den der Dienst beim Hochladen geprüft hat. Jede Antwort hier
+ * bekommt eine CSP ohne jede Skriptquelle und mit `sandbox`
+ * (`MARKENBILD_KOEPFE` in `next.config.ts`): auch wer die Adresse eines SVG
+ * direkt öffnet, bekommt ein Bild und kein Dokument.
  */
 export const dynamic = 'force-dynamic';
 
@@ -97,8 +98,12 @@ export async function GET(
         ? 'private, no-store'
         : aktuell ? 'public, max-age=31536000, immutable' : 'public, max-age=300',
       'x-content-type-options': 'nosniff',
-      'content-security-policy':
-        "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox; frame-ancestors 'none'",
+      /*
+       * Die Content-Security-Policy mit `sandbox` steht NICHT hier: die
+       * allgemeine Regel aus `next.config.ts` ueberschrieb sie (gefunden in
+       * der Live-Pruefung). Sie kommt aus `MARKENBILD_KOEPFE` ueber eine
+       * zweite Regel fuer genau diesen Pfad.
+       */
     },
   });
 }

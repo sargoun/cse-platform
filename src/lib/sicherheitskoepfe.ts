@@ -43,3 +43,28 @@ export const SICHERHEITSKOEPFE: readonly { readonly key: string; readonly value:
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'geolocation=(self), camera=(self), microphone=(), payment=()' },
 ];
+
+/**
+ * **Die Auslieferung der Markenbilder (V-100, D-622) — eine zweite, strengere
+ * Regel für genau einen Pfad.**
+ *
+ * Ein Logo darf ein SVG sein, und ein SVG ist ein Dokument mit
+ * Skriptfähigkeit. `storage/svg.ts` weist beim Hochladen ab, was ein Bild
+ * nicht braucht; diese Richtlinie ist die zweite Linie für den Fall, dass
+ * jemand die Adresse DIREKT öffnet: keine Quelle für Skripte, `sandbox`,
+ * kein Einbetten.
+ *
+ * **Warum hier und nicht in der Route.** Die Route setzte denselben Kopf
+ * selbst — und die Live-Prüfung gegen den Produktionsbau zeigte, dass die
+ * Regel `/(.*)` aus `next.config.ts` ihn überschreibt: ausgeliefert wurde nur
+ * `frame-ancestors 'none'`. Eine Richtlinie, die im Code steht und nicht auf
+ * dem Draht, ist keine. Next.js lässt bei zwei passenden Regeln die spätere
+ * gewinnen; diese steht deshalb nach der allgemeinen.
+ */
+export const MARKENBILD_KOEPFE: readonly { readonly key: string; readonly value: string }[] = [
+  {
+    key: 'Content-Security-Policy',
+    value: "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox; "
+      + "frame-ancestors 'none'",
+  },
+];

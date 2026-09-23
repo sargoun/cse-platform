@@ -384,12 +384,22 @@ export function OeffentlicheShell(
           * `min-h-11` sind 44px: DESIGN §8 nennt das Tap-Ziel nicht als
           * Richtwert, sondern als Untergrenze.
           */}
+        {/*
+          * **Kein eigener Aussenabstand neben `gap-s5`** (gemessen am
+          * Produktionsbau, 1280px): roter Knopf, „Anmelden" und Sprachwahl
+          * trugen zusaetzlich `ml-s4`/`ml-s3`/`ml-s4` — 44px doppelter
+          * Abstand. Bei 1280px fehlten der Zeile damit 34px: „Angebot
+          * anfragen" brach zweizeilig um, und der Auftrittsname wurde
+          * gekuerzt, obwohl D-417 zusagt, dass beides ab `xl` nicht geschieht.
+          * Der Abstand kommt jetzt allein aus `gap`, und `whitespace-nowrap`
+          * haelt die Knopftexte einzeilig.
+          */}
         <a
           href={mitSprache('/angebot', sprache)}
           data-cse="angebot-anfragen"
-          className="ml-auto hidden min-h-11 items-center rounded-sm bg-brand px-s4
-                     text-sm font-semibold text-white transition-colors duration-fast ease-brand
-                     hover:bg-brand-hover lg:ml-s4 lg:flex"
+          className="ml-auto hidden min-h-11 shrink-0 items-center whitespace-nowrap rounded-sm
+                     bg-brand px-s4 text-sm font-semibold text-white transition-colors
+                     duration-fast ease-brand hover:bg-brand-hover lg:ml-0 lg:flex"
         >
           {t.angebotAnfragen}
         </a>
@@ -398,9 +408,9 @@ export function OeffentlicheShell(
           <a
             href={anmeldePfad}
             data-cse="anmelden"
-            className="ml-s3 hidden min-h-11 items-center rounded-sm border border-line
-                       px-s4 text-sm text-text transition-colors duration-fast ease-brand
-                       hover:bg-surface-2 xl:flex"
+            className="hidden min-h-11 shrink-0 items-center whitespace-nowrap rounded-sm border
+                       border-line px-s4 text-sm text-text transition-colors duration-fast
+                       ease-brand hover:bg-surface-2 xl:flex"
           >
             {t.anmelden}
           </a>
@@ -431,7 +441,7 @@ export function OeffentlicheShell(
         <nav
           aria-label={t.sprachwahl}
           data-cse="sprachwahl"
-          className="ml-s4 hidden items-center gap-s2 xl:flex"
+          className="hidden shrink-0 items-center gap-s2 xl:flex"
         >
           {/*
             * Nur Sprachen, in denen es diese Seite gibt: `/karriere` ist
