@@ -306,6 +306,92 @@ describe('(3) B10: eine einseitige Feststellung ist keine Gegenzeichnung', () =>
     expect(k!.gesperrt).not.toBeNull();
   });
 
+  /**
+   * **V-093 — bis hierher gab es keinen Weg zu diesem Zustand.**
+   *
+   * Die drei Prüfungen darüber setzen die Unterschrift mit rohem SQL. Der
+   * DIENST konnte sie nicht erzeugen: `gegenzeichne` schrieb
+   * `rolle = 'auftraggeber'` fest verdrahtet in den INSERT, und
+   * `ankuendigung_am` hatte überhaupt keinen Schreiber. Das Blatt trug den
+   * Hinweis „Ein einseitiges Aufmaß setzt die angekündigte Feststellung
+   * voraus" — und blieb darauf liegen, bis es verjährte.
+   */
+  it('der DIENST stellt einseitig fest — mit Ankuendigung in derselben Anweisung', async () => {
+    const bau = await baueProjekt(f.bau);
+    const blatt = await baueBlatt(bau, { erhebungsart: 'einseitig', ankuendigung: null });
+    await baueFoto(bau, blatt.id);
+
+    const ergebnis = await alsApp(
+      {
+        scope: 'mandant', mandantId: f.bau, benutzerId: bau.benutzer,
+        portal: 'intern', readonly: false,
+      },
+      async (tx) => gegenzeichne(kontextAus(tx, f.bau, bau.benutzer), {
+        aufmassId: blatt.id, unterzeichnerName: 'Herr Kruse',
+        rolle: 'auftragnehmer', ankuendigungAm: '2026-09-01',
+        anstellungId: bau.anstellung,
+      }),
+    ) as { status: string };
+    expect(ergebnis.status).toBe('einseitig_festgestellt');
+
+    const [k] = await sql.unsafe<{ status: string; ank: string | null }[]>(
+      `select status::text as status, ankuendigung_am::text as ank
+         from aufmass where id = $1`, [blatt.id]);
+    expect(k!.status).toBe('einseitig_festgestellt');
+    expect(k!.ank).toBe('2026-09-01');
+
+    /* Die Zeile trägt die Rolle — sie heisst NICHT „gegengezeichnet" (B10). */
+    const [sig] = await sql.unsafe<{ rolle: string; anstellung: string | null }[]>(
+      `select rolle::text as rolle, anstellung_id::text as anstellung
+         from aufmass_signatur where aufmass_id = $1`, [blatt.id]);
+    expect(sig!.rolle).toBe('auftragnehmer');
+    /* `as_auftragnehmer_hat_anstellung` (0072): der Auftraggeber hat keine
+       Beschäftigung bei uns (D-09), der Auftragnehmer schon. */
+    expect(sig!.anstellung).toBe(bau.anstellung);
+  });
+
+  it('der Dienst weist die einseitige Feststellung OHNE Ankuendigung ab — mit einem Satz',
+    async () => {
+      const bau = await baueProjekt(f.bau);
+      const blatt = await baueBlatt(bau, { erhebungsart: 'einseitig', ankuendigung: null });
+      await baueFoto(bau, blatt.id);
+
+      await expect(alsApp(
+        {
+          scope: 'mandant', mandantId: f.bau, benutzerId: bau.benutzer,
+          portal: 'intern', readonly: false,
+        },
+        async (tx) => gegenzeichne(kontextAus(tx, f.bau, bau.benutzer), {
+          aufmassId: blatt.id, unterzeichnerName: 'Herr Kruse',
+          rolle: 'auftragnehmer', anstellungId: bau.anstellung,
+        }),
+      )).rejects.toThrow(/Ankündigung|angekündigte/u);
+    });
+
+  /**
+   * **Eine einseitige Feststellung ist eine andere TATSACHE, nicht ein
+   * anderer Unterzeichner.** Auf einem gemeinsam angelegten Blatt wäre sie
+   * eine Behauptung über eine Teilnahme, die es nicht gab — der Auslöser täte
+   * ohnehin nichts, aber lautlos.
+   */
+  it('auf einem GEMEINSAMEN Blatt weist der Dienst die Auftragnehmerrolle ab', async () => {
+    const bau = await baueProjekt(f.bau);
+    const blatt = await baueBlatt(bau, { erhebungsart: 'gemeinsam' });
+    await baueFoto(bau, blatt.id);
+
+    await expect(alsApp(
+      {
+        scope: 'mandant', mandantId: f.bau, benutzerId: bau.benutzer,
+        portal: 'intern', readonly: false,
+      },
+      async (tx) => gegenzeichne(kontextAus(tx, f.bau, bau.benutzer), {
+        aufmassId: blatt.id, unterzeichnerName: 'Herr Kruse',
+        rolle: 'auftragnehmer', ankuendigungAm: '2026-09-01',
+        anstellungId: bau.anstellung,
+      }),
+    )).rejects.toThrow(/gemeinsame Feststellung/u);
+  });
+
   it('ohne Ankuendigung bleibt es liegen — § 14 Abs. 2 VOB/B', async () => {
     const bau = await baueProjekt(f.bau);
     const blatt = await baueBlatt(bau, { erhebungsart: 'einseitig', ankuendigung: null });

@@ -334,6 +334,67 @@ describe('(3) Σ revier_raum.sollzeit_minuten = revier.sollzeit_minuten', () => 
 
 // ---------------------------------------------------------------------------
 
+/**
+ * **V-094 — die Gegenzeichnung des Auftragnehmers war unerreichbar.**
+ *
+ * `signiere` kennt beide Rollen, `leistungsnachweis_signatur` sieht sie mit
+ * `lns_auftragnehmer_hat_anstellung` eigens vor, die Kundenansicht zeigt sie
+ * an — und das einzige Unterschriftsformular schickte
+ * `<input type="hidden" name="rolle" value="auftraggeber" />`. Die
+ * Unterschrift der eigenen Objektleitung konnte nie entstehen.
+ */
+describe('(1a) V-094: beide Rollen unterschreiben, je genau einmal', () => {
+  it('der Auftragnehmer zeichnet gegen — mit Beschaeftigung, wie 0066 es verlangt', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const nachweis = await baueVorgelegtenNachweis(bau);
+
+    await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+        const vorschau = await bereiteUnterschriftVor(kontext, nachweis);
+        return signiere(kontext, {
+          nachweisId: nachweis,
+          rolle: 'auftragnehmer',
+          anstellungId: f.jonasReinigung,
+          unterzeichnerName: 'Herr Kruse',
+          unterzeichnerFunktion: 'Objektleitung',
+          bestaetigtePruefsumme: vorschau.pruefsumme,
+        });
+      },
+    );
+
+    const [z] = await sql.unsafe<{ rolle: string; anstellung: string | null }[]>(
+      `select rolle::text as rolle, anstellung_id::text as anstellung
+         from leistungsnachweis_signatur where leistungsnachweis_id = $1`, [nachweis]);
+    expect(z!.rolle).toBe('auftragnehmer');
+    /* `lns_auftragnehmer_hat_anstellung`: der Auftraggeber hat keine
+       Beschaeftigung bei uns (D-09), der Auftragnehmer schon. */
+    expect(z!.anstellung).toBe(f.jonasReinigung);
+  });
+
+  it('eine Auftragnehmerunterschrift OHNE Beschaeftigung weist die Datenbank ab', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const nachweis = await baueVorgelegtenNachweis(bau);
+
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+        const vorschau = await bereiteUnterschriftVor(kontext, nachweis);
+        return signiere(kontext, {
+          nachweisId: nachweis,
+          rolle: 'auftragnehmer',
+          unterzeichnerName: 'Herr Kruse',
+          bestaetigtePruefsumme: vorschau.pruefsumme,
+        });
+      },
+    )).rejects.toThrow(/lns_auftragnehmer_hat_anstellung/u);
+  });
+});
+
 describe('(1) die Unterschrift friert den Schnappschuss ein', () => {
   it('speichert Name, SERVERZEIT, Ort und die Positionen wie angezeigt', async () => {
     const bau = await baueRevier(f.reinigung);
