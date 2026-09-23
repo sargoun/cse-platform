@@ -26,7 +26,7 @@ import type postgres from 'postgres';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
-  ProfilFehler, entferneCpv, entferneEmpfaenger, leseProfil, schreibeProfil,
+  ProfilFehler, entferneCpv, entferneEmpfaenger, legeProfilAn, leseProfil, schreibeProfil,
   setzeCpv, setzeEmpfaenger,
 } from '../../src/server/services/radar/profil.js';
 import { cent, type Cent } from '../../src/server/services/finanz/geld.js';
@@ -546,5 +546,156 @@ describe('(8) doppelte NUTS-Präfixe nach dem Grossschreiben', () => {
       ...STAND, nutsPraefixe: ['DE3'],
     }));
     expect(await version()).toBe(nach);
+  });
+});
+
+/**
+ * **Ein Profil anlegen** (V-016).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Der Befund.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Alles oben ändert ein Profil, das schon da ist. Angelegt wurde ein Profil
+ * nirgends ausser im Seed: die Übersichtsseite sagte „Kein Profil angelegt.
+ * Ohne Profil bewertet der Lauf nichts" — und bot keinen Weg zu einem.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Warum `ist_aktiv = false` die eigentliche Zusage ist.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Die Spalte steht auf `default true`. Ein frisch angelegtes, leeres und
+ * aktives Profil bekäme in der nächsten Nacht für JEDE Bekanntmachung in Euro
+ * das volle Wertkriterium — `bewerteWert` sagt „Der Auftragswert liegt im
+ * Rahmen des Profils", wenn das Profil keine Grenzen führt — und dasselbe gilt
+ * für die Frist. Die Rangfolge am Morgen wäre eine, der jemand glaubt und die
+ * nichts aussagt. Deshalb steht hier ein ausdrückliches `false`, und deshalb
+ * steht darauf eine Prüfung: ein späteres „aufgeräumt, die Datenbank hat ja
+ * einen Vorgabewert" fällt hier auf.
+ */
+describe('(9) ein Profil anlegen', () => {
+  it('legt es an — mit Namen, in DIESER Gesellschaft, und ABGESCHALTET', async () => {
+    const id = await alsWer(benutzer, (k) => legeProfilAn(k, 'Winterdienst Spandau'));
+    const [z] = await sql.unsafe<{
+      name: string; mandant_id: string; ist_aktiv: boolean; ist_platzhalter: boolean;
+      version: number; erstellt_von: string | null;
+    }[]>(
+      `select name, mandant_id, ist_aktiv, ist_platzhalter, version, erstellt_von
+         from radar_profil where id = $1`, [id]);
+    expect(z?.name).toBe('Winterdienst Spandau');
+    /* Der Mandant kommt aus der SITZUNG, nie aus einem Parameter (Invariante 3). */
+    expect(z?.mandant_id).toBe(f.reinigung);
+    expect(z?.ist_aktiv, 'ein leeres Profil bewertet sonst alles').toBe(false);
+    /* O-98: die CPV-Listen der Gewerke sind unbestätigt, also ist es ein Platzhalter. */
+    expect(z?.ist_platzhalter).toBe(true);
+    expect(z?.version).toBe(1);
+    expect(z?.erstellt_von).toBe(benutzer);
+  });
+
+  it('schneidet den Namen zu und weist einen leeren ab', async () => {
+    const id = await alsWer(benutzer, (k) => legeProfilAn(k, '  Glasreinigung  '));
+    const [z] = await sql.unsafe<{ name: string }[]>(
+      `select name from radar_profil where id = $1`, [id]);
+    expect(z?.name).toBe('Glasreinigung');
+
+    await expect(alsWer(benutzer, (k) => legeProfilAn(k, '   ')))
+      .rejects.toThrow(ProfilFehler);
+    await expect(alsWer(benutzer, (k) => legeProfilAn(k, 'x'.repeat(121))))
+      .rejects.toThrow(/bis 120 Zeichen/u);
+  });
+
+  it('das neue Profil ist danach lesbar und leer — und genau das zeigt das Blatt', async () => {
+    const id = await alsWer(benutzer, (k) => legeProfilAn(k, 'Hausmeisterdienste'));
+    const blick = await alsWer(benutzer, (k) => leseProfil(k, id));
+    expect(blick).not.toBeNull();
+    expect(blick!.istAktiv).toBe(false);
+    expect(blick!.cpv).toHaveLength(0);
+    expect(blick!.nutsPraefixe).toHaveLength(0);
+    expect(blick!.positivKeywords).toHaveLength(0);
+    /* Die gesperrten Felder stehen auf ihren Vorgabewerten — O-15, O-47, O-191. */
+    expect(blick!.skalaMax).toBe(100);
+    expect(blick!.waehrung).toBe('EUR');
+    expect(blick!.negativWirkung).toBe('abzug');
+    expect(blick!.benachrichtigungAbPunkte).toBeNull();
+  });
+
+  it('und lässt sich mit dem vorhandenen Weg einschalten', async () => {
+    /*
+     * Der Beweis, dass „abgeschaltet" keine Sackgasse ist: derselbe
+     * Stammdatenweg, den das Profilblatt benutzt, schaltet es ein — und zählt
+     * dabei die Fassung hoch, wie jede andere Änderung auch.
+     */
+    const id = await alsWer(benutzer, (k) => legeProfilAn(k, 'Objektschutz Mitte'));
+    await alsWer(benutzer, (k) => schreibeProfil(k, id, {
+      name: 'Objektschutz Mitte',
+      nutsPraefixe: ['DE300'], positivKeywords: ['Objektschutz'], negativKeywords: [],
+      wertMinCent: null, wertMaxCent: null, fristMinTage: null,
+      oberhalbSchwellenwert: null, istAktiv: true,
+    }));
+    const [z] = await sql.unsafe<{ ist_aktiv: boolean; version: number }[]>(
+      `select ist_aktiv, version from radar_profil where id = $1`, [id]);
+    expect(z?.ist_aktiv).toBe(true);
+    expect(z?.version).toBe(2);
+  });
+
+  it('schreibt eine Protokollzeile mit dem Namen', async () => {
+    const id = await alsWer(benutzer, (k) => legeProfilAn(k, 'Fassadenreinigung'));
+    const [z] = await sql.unsafe<{
+      objekt_id: string; nachher: Record<string, unknown> | null;
+    }[]>(
+      `select objekt_id, nachher from audit_log
+        where aktion = 'radar.profil_angelegt' and mandant_id = $1
+        order by id desc limit 1`, [f.reinigung]);
+    expect(z?.objekt_id).toBe(id);
+    expect(z?.nachher?.['name']).toBe('Fassadenreinigung');
+    expect(z?.nachher?.['istAktiv']).toBe(false);
+  });
+
+  it('ohne `radar.profil_schreiben` entsteht KEINE Zeile — und der Fehler ist ein Satz',
+    async () => {
+      /*
+       * **Ein von der Policy abgewiesener INSERT WIRFT** (anders als ein
+       * UPDATE, das null Zeilen gibt). Ohne den Fang im Dienst bekäme ein
+       * Mensch „new row violates row-level security policy" als 500er, wo
+       * „dir fehlt dieses Recht" die Wahrheit ist.
+       */
+      const ohne = await konto(f.reinigung, ['objekt']);
+      await expect(alsWer(ohne, (k) => legeProfilAn(k, 'Heimlich')))
+        .rejects.toThrow(ProfilFehler);
+      const [z] = await sql.unsafe<{ n: string }[]>(
+        `select count(*)::text as n from radar_profil where name = 'Heimlich'`);
+      expect(z?.n).toBe('0');
+    });
+
+  it('in der Gruppenansicht entsteht nichts (Invariante 10)', async () => {
+    /*
+     * **Hier WIRFT es, und das ist der Unterschied zum Ändern.** Ein UPDATE,
+     * das die Policy abweist, gibt null Zeilen — ein INSERT wirft. Die Prüfung
+     * oben in (3) erwartet deshalb `toHaveLength(0)`, diese hier eine
+     * Ausnahme; wer beide über einen Kamm schert, baut sich an einer der
+     * beiden Stellen einen stillen Fehler.
+     */
+    await expect(alsApp(
+      { scope: 'gruppe', mandantIds: [f.reinigung, f.bau], benutzerId: benutzer,
+        readonly: true },
+      (tx) => tx.unsafe(
+        `insert into radar_profil (mandant_id, name) values ($1, 'Gruppenprofil')`,
+        [f.reinigung] as never[]),
+    )).rejects.toThrow(/row-level security/u);
+    const [z] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from radar_profil where name = 'Gruppenprofil'`);
+    expect(z?.n).toBe('0');
+  });
+
+  it('zwei Profile derselben Gesellschaft dürfen gleich heissen — und sind zwei', async () => {
+    /*
+     * `radar_profil` führt KEINE Eindeutigkeit über den Namen, und hier wird
+     * auch keine erfunden: sie wäre eine Regel, die niemand aufgestellt hat.
+     * Festgehalten wird, was tatsächlich geschieht, damit ein späteres
+     * `unique` eine bewusste Entscheidung ist und keine stille.
+     */
+    const a = await alsWer(benutzer, (k) => legeProfilAn(k, 'Doppelt'));
+    const b = await alsWer(benutzer, (k) => legeProfilAn(k, 'Doppelt'));
+    expect(a).not.toBe(b);
   });
 });

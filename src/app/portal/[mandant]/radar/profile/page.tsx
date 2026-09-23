@@ -4,6 +4,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Button } from '@/components/ui/Button';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import {
@@ -30,6 +31,19 @@ import { haeltRechte } from '@/app/portal/rechte';
  * die CPV-Zeilen und die Empfänger eines Profils ändert, soll dabei sehen,
  * was gesperrt ist und warum. Ein Sammelformular über drei Profile hätte die
  * offenen Fragen (O-15, O-98, O-191, O-47) einmal in eine Fussnote gedrängt.
+ *
+ * **ANGELEGT wird hier** (V-016), und zwar nur der Name. Bis dahin sagte
+ * diese Seite „Kein Profil angelegt. Ohne Profil bewertet der Lauf nichts"
+ * — und bot keinen Weg zu einem; der einzige Weg zu einem Profil war der
+ * Seed. Das Formular fragt nach EINEM Feld, weil alles andere auf dem
+ * Profilblatt steht, wo neben jedem gesperrten Feld sein Grund steht. Zwei
+ * Formulare mit denselben Feldern wären zwei Orte, an denen diese Sätze zu
+ * pflegen wären.
+ *
+ * **Und das neue Profil ist abgeschaltet.** Ein leeres, aktives Profil bekäme
+ * in der nächsten Nacht für jede Bekanntmachung in Euro das volle Wert- und
+ * Fristkriterium (`bewertung.ts`) — die Rangfolge am Morgen wäre eine, der
+ * jemand glaubt und die nichts aussagt.
  */
 export const dynamic = 'force-dynamic';
 
@@ -37,10 +51,22 @@ const WIRKUNG: Readonly<Record<string, string>> = {
   positiv: 'zählt', abzug: 'zieht ab', ausschluss: 'schliesst aus',
 };
 
+/** Was die Route beim Anlegen abweisen kann — als Satz, nicht als Code. */
+const FEHLER_TEXT: Readonly<Record<string, string>> = {
+  name: 'Ein Profil braucht einen Namen (bis 120 Zeichen).',
+  gesperrt: 'Das Profil wurde nicht angelegt. Fehlt `radar.profil_schreiben` in dieser '
+    + 'Gesellschaft? In der Gruppenansicht entsteht ausserdem nichts — sie ist lesend.',
+};
+
 export default async function Profile(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  const suche = await searchParams;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const tor = await mandantTor(`/portal/${mandant}/radar/profile`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
@@ -94,12 +120,54 @@ export default async function Profile(
         Richtung, weil ein Ausschluss still verwirft, was nie ein Mensch gesehen hat).
       </Hinweis>
 
+      {fehler !== null ? (
+        <Hinweis art="warnung" cse="radar-profil-fehler" className="mb-s5 max-w-prose">
+          <strong>Nicht angelegt.</strong>{' '}
+          {FEHLER_TEXT[fehler] ?? 'Die Eingabe wurde abgewiesen.'}
+        </Hinweis>
+      ) : null}
+
+      {/*
+        * **Ein Profil anlegen** (V-016).
+        *
+        * Ein Feld, und mehr nicht: was das Profil suchen soll — CPV, Region,
+        * Stichwörter, Wertgrenzen — steht auf seinem eigenen Blatt, und dort
+        * steht neben jedem gesperrten Feld sein Grund (O-15, O-47, O-98,
+        * O-191, O-721). Dieselben Felder ein zweites Mal hier hiesse, diese
+        * Sätze an zwei Orten zu pflegen.
+        */}
+      <section aria-labelledby="neues-profil" className="mb-s6 max-w-prose">
+        <h2 id="neues-profil" className="mb-s3 text-h2 text-text">Profil anlegen</h2>
+        <form method="post" action="/api/radar/profil" data-cse="radar-profil-anlegen"
+              className="flex flex-col gap-s3 rounded-lg border border-line bg-surface p-s5">
+          <input type="hidden" name="was" value="anlegen" />
+          <label className="flex flex-col gap-s2 text-sm text-text">
+            Name des Profils
+            <input name="name" required maxLength={120}
+                   data-cse="radar-profil-neu-name"
+                   placeholder="z. B. Unterhaltsreinigung Berlin, Landesbehörden"
+                   className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s4 py-s3 text-base text-text" />
+          </label>
+          <div>
+            <Button type="submit" variante="primary">Anlegen</Button>
+          </div>
+          <p className="m-0 text-xs text-text-muted">
+            Das Profil entsteht <strong>abgeschaltet</strong> und trägt nur diesen Namen.
+            Das ist Absicht: ein Profil ohne CPV-Codes, Region und Wertgrenzen bekäme für
+            jede Bekanntmachung in Euro das volle Wert- und Fristkriterium — der nächste
+            Nachtlauf schriebe eine Rangfolge, die nichts aussagt, und jemand läse sie am
+            Morgen. Eingeschaltet wird auf dem Profilblatt, wenn dort steht, wonach gesucht
+            werden soll.
+          </p>
+        </form>
+      </section>
+
       {profile.length === 0 ? (
         <Hinweis art="hinweis" cse="radar-profile-leer" className="max-w-prose">
           <strong>Kein Profil angelegt.</strong> Ohne Profil bewertet der Lauf nichts, und die
-          Radarliste bleibt leer. Ein Profil braucht die CPV-Codes dieses Gewerks — und die sind
-          gegen die amtliche CPV-Liste zu bestätigen (offene Frage O-98), bevor sie hier als
-          bestätigt gelten.
+          Radarliste bleibt leer. Das Formular darüber legt eines an; die CPV-Codes dieses
+          Gewerks kommen danach auf dem Profilblatt dazu — und sie sind gegen die amtliche
+          CPV-Liste zu bestätigen (offene Frage O-98), bevor sie hier als bestätigt gelten.
         </Hinweis>
       ) : (
         <ul data-cse="radar-profile-liste" className="flex flex-col gap-s4">

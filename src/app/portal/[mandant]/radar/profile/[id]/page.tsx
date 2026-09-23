@@ -87,6 +87,16 @@ const VERMERKT_TEXT: Readonly<Record<string, string>> = {
   empfaenger_hinzu: 'Der Empfänger ist eingetragen — ohne Schwelle, also ohne '
     + 'Treffermeldung, bis O-15 beantwortet ist.',
   empfaenger_weg: 'Der Empfänger ist entfernt.',
+  /*
+   * Die Umleitung nach dem Anlegen (V-016) landet HIER, auf dem Blatt des
+   * neuen Profils — und der Satz sagt, was als Nächstes fehlt. Ein „Gespeichert."
+   * an dieser Stelle wäre die Unwahrheit: gespeichert ist ein Name, gesucht
+   * wird damit noch nichts.
+   */
+  anlegen: 'Das Profil ist angelegt — und ABGESCHALTET. Trage zuerst ein, was es '
+    + 'suchen soll (CPV, Region, Stichwörter); ein Profil ohne diese Angaben '
+    + 'bewertet sonst jede Bekanntmachung mit dem vollen Wert- und Fristkriterium. '
+    + 'Zum Einschalten unten „aktiv" auf ja setzen und speichern.',
 };
 
 /**
