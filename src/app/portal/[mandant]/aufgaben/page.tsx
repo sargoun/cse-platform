@@ -10,12 +10,25 @@ import { Button } from '@/components/ui/Button';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import {
-  fristlage, istBezugTyp, istOffen, listeAufgaben, zaehleJeZustand,
-  type AufgabeFilter, type AufgabeZeile, type Fristlage,
+  bezugskandidaten, fristlage, istBezugTyp, istOffen, listeAufgaben, zaehleJeZustand,
+  type AufgabeFilter, type AufgabeZeile, type Bezugskandidat, type Fristlage,
 } from '@/server/services/kern/aufgabe';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../unterseite';
 import { Recht } from '@/components/ui/Recht';
+
+/**
+ * Die sechs Bezugsarten mit einer Detailseite, in der Reihenfolge, in der ein
+ * Mensch sie sucht — und mit denselben Schlüsseln wie `AUFLOESER` im Dienst.
+ */
+const BEZUGSGRUPPEN: readonly (readonly [string, string])[] = [
+  ['auftrag', 'Auftrag'],
+  ['objekt', 'Objekt'],
+  ['kunde', 'Kunde'],
+  ['lead', 'Lead'],
+  ['angebot', 'Angebot'],
+  ['rechnung', 'Rechnung'],
+];
 
 /**
  * `/portal/[mandant]/aufgaben` — die offene Pflicht (OPS-11, DSH-01, SPEC §14).
@@ -123,7 +136,7 @@ export default async function Aufgabenliste(
     ...(bezugTyp === undefined ? {} : { bezugTyp }),
   };
 
-  const { zeilen, jeZustand, darfSchreiben } = await (db().begin(
+  const { zeilen, jeZustand, darfSchreiben, kandidaten } = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
       withTenant(tx, zugang.sitzung, async (kontext) => {
         /*
@@ -135,16 +148,23 @@ export default async function Aufgabenliste(
          */
         const [recht] = await kontext.abfrage<{ schreiben: boolean }>(
           `select app.hat_recht('aufgabe.schreiben', app.aktiver_mandant()) as schreiben`);
+        const darf = recht?.schreiben === true;
         return {
           zeilen: await listeAufgaben(kontext, filter),
           jeZustand: await zaehleJeZustand(kontext, filter),
-          darfSchreiben: recht?.schreiben === true,
+          darfSchreiben: darf,
+          /*
+           * Nur für das Anlegeformular — ein reines Lesekonto sieht es nicht
+           * und braucht die sechs Abfragen deshalb auch nicht (V-096).
+           */
+          kandidaten: darf ? await bezugskandidaten(kontext) : [],
         };
       }),
   ) as Promise<{
     zeilen: readonly AufgabeZeile[];
     jeZustand: Readonly<Record<string, number>>;
     darfSchreiben: boolean;
+    kandidaten: readonly Bezugskandidat[];
   }>);
 
   const offenGesamt = (jeZustand['offen'] ?? 0) + (jeZustand['in_arbeit'] ?? 0)
@@ -283,6 +303,51 @@ export default async function Aufgabenliste(
               />
             </span>
           </div>
+
+          {/*
+            * **Woran hängt diese Aufgabe?** (V-096)
+            *
+            * `aufgabe` trägt fünf Bezugsfelder, die Route nimmt alle fünf
+            * entgegen, `loeseBezugAuf` löst sechs Arten auf, und die
+            * Detailseite zeigt den Verweis — **dieses Formular schickte
+            * keines davon**. Jede von Hand angelegte Aufgabe stand damit frei
+            * in der Luft: „Rechnung prüfen" — welche?
+            *
+            * Angeboten wird genau das, was zurückführt: die sechs Arten mit
+            * einer Detailseite. Ein Bezug, dem man nicht folgen kann, ist
+            * eine Notiz mit Kennung.
+            */}
+          {kandidaten.length === 0 ? null : (
+            <>
+              <label className="mt-s4 block text-sm text-text" htmlFor="bezug">
+                Woran hängt sie? (freiwillig)
+              </label>
+              <select
+                id="bezug" name="bezug" defaultValue=""
+                data-cse="aufgabe-bezug"
+                className="mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text"
+              >
+                <option value="">ohne Bezug</option>
+                {BEZUGSGRUPPEN.map(([typ, beschriftung]) => {
+                  const dieser = kandidaten.filter((k) => k.typ === typ);
+                  return dieser.length === 0 ? null : (
+                    <optgroup key={typ} label={beschriftung}>
+                      {dieser.map((k) => (
+                        <option key={`${k.typ}:${k.id}`} value={`${k.typ}:${k.id}`}>
+                          {k.titel}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
+              </select>
+              <p className="mt-s2 m-0 text-xs text-text-muted">
+                Der Bezug macht aus „Rechnung prüfen" eine Aufgabe, von der aus man zu
+                der Rechnung kommt — und er sammelt die Aufgaben eines Vorgangs auf
+                dessen Blatt. Was hier fehlt, sieht diese Sitzung nicht.
+              </p>
+            </>
+          )}
 
           <Button type="submit" variante="primary" data-cse="aufgabe-anlegen"
                   className="mt-s4">

@@ -116,6 +116,100 @@ export interface Bezug {
   readonly pfad: string | null;
 }
 
+/** Ein waehlbarer Bezug fuer das Anlegeformular (V-096). */
+export interface Bezugskandidat {
+  readonly typ: string;
+  readonly id: string;
+  readonly titel: string;
+}
+
+/**
+ * **Was sich an eine Aufgabe haengen laesst** (V-096).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Der Befund.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `aufgabe` traegt fuenf Bezugsfelder — `auftrag_id`, `objekt_id`, `lead_id`
+ * und das polymorphe Paar `bezug_typ`/`bezug_id` —, die Route nimmt alle
+ * fuenf entgegen, `loeseBezugAuf` loest sechs Arten auf, und die Detailseite
+ * zeigt den Verweis. **Das Anlegeformular schickte keines davon.** Jede von
+ * Hand angelegte Aufgabe stand damit frei in der Luft: „Rechnung pruefen" —
+ * welche?
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Angeboten wird genau das, was zurueckfuehrt.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `bezug_typ` hat sechsundzwanzig Werte; `AUFLOESER` kennt die sechs, die
+ * eine Detailseite haben. Einen siebten anzubieten hiesse, eine Aufgabe an
+ * etwas zu haengen, das die Aufgabenseite danach nur als Wort zeigen kann —
+ * ein Bezug, dem man nicht folgen kann, ist eine Notiz mit Kennung.
+ *
+ * **Die RLS entscheidet, was ein Mensch waehlen kann.** Jede Abfrage laeuft
+ * unter der Sitzung; wer `crm.lesen` nicht haelt, bekommt keine Kunden zur
+ * Auswahl — und braucht dafuer keine zweite Rechtepruefung hier, die von der
+ * ersten abweichen koennte.
+ */
+export async function bezugskandidaten(
+  kontext: LeseKontext,
+): Promise<readonly Bezugskandidat[]> {
+  /*
+   * Eine Abfrage je Art und ein Deckel je Art: eine Auswahlliste, die alle
+   * Rechnungen eines Jahres traegt, ist keine Auswahl mehr. Sortiert wird
+   * nach dem, was zuletzt bewegt wurde — die Aufgabe entsteht fast immer zu
+   * etwas, das gerade auf dem Tisch liegt.
+   */
+  const je = 50;
+  const gruppen: readonly { readonly typ: string; readonly sql: string }[] = [
+    { typ: 'auftrag',
+      sql: `select id, auftragsnummer || ' — ' || bezeichnung as titel
+              from auftrag where archiviert_am is null
+                and status not in ('abgeschlossen', 'storniert')
+             order by erstellt_am desc limit ${String(je)}` },
+    { typ: 'objekt',
+      sql: `select id, bezeichnung as titel from objekt
+             where archiviert_am is null order by bezeichnung limit ${String(je)}` },
+    { typ: 'kunde',
+      sql: `select id, kundennummer || ' — ' || name as titel from kunde
+             where archiviert_am is null order by name limit ${String(je)}` },
+    { typ: 'lead',
+      sql: `select id, leadnummer || coalesce(' — ' || betreff, '') as titel
+              from lead order by erstellt_am desc limit ${String(je)}` },
+    { typ: 'angebot',
+      sql: `select id, angebotsnummer || ' — ' || titel as titel from angebot
+             where archiviert_am is null order by erstellt_am desc limit ${String(je)}` },
+    { typ: 'rechnung',
+      /*
+       * Der Kundenname kommt ueber den Join und nicht aus einer Spalte auf
+       * `rechnung`: die Tabelle fuehrt keine — der Empfaenger steht im
+       * eingefrorenen Schnappschuss der Festschreibung, und den fuer eine
+       * Auswahlliste aufzuschlagen waere teuer und fuer einen Entwurf leer.
+       */
+      sql: `select r.id, coalesce(r.nummer, 'Entwurf') || ' — ' || k.name as titel
+              from rechnung r join kunde k on k.id = r.kunde_id
+             order by r.erstellt_am desc limit ${String(je)}` },
+  ];
+
+  const alle: Bezugskandidat[] = [];
+  for (const g of gruppen) {
+    /*
+     * Ein fehlendes Recht gibt null Zeilen (RLS), keinen Fehler — die Gruppe
+     * fehlt dann in der Auswahl, und das ist die richtige Antwort. Ein
+     * `catch` faengt trotzdem: eine Tabelle, die eine Sitzung gar nicht
+     * SELECTen darf, wirft `42501`, und dann soll die halbe Auswahl stehen
+     * und nicht die ganze Seite fallen.
+     */
+    try {
+      const zeilen = await kontext.abfrage<{ id: string; titel: string }>(g.sql);
+      for (const z of zeilen) alle.push({ typ: g.typ, id: z.id, titel: z.titel });
+    } catch {
+      continue;
+    }
+  }
+  return alle;
+}
+
 /**
  * Loest einen polymorphen Bezug auf seinen Namen auf.
  *
