@@ -25,7 +25,7 @@ import { registriereNachweisWarnungen } from './nachweisWarnungen.js';
 import { registriereKettenpruefer } from './kettenpruefer.js';
 import { registriereStundenkontoAbgleich } from './stundenkontoAbgleich.js';
 import {
-  registriereAngebotAblauf, registriereNachweisAblauf,
+  registriereAngebotAblauf, registriereEinsatzAbschluss, registriereNachweisAblauf,
 } from './statuslaeufe.js';
 import { registrierePostenabgleich } from './postenabgleich.js';
 import { registriereMahnlauf } from './mahnlauf.js';
@@ -85,6 +85,8 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereStundenkontoAbgleich(db);
     registriereAngebotAblauf(db);
     registriereNachweisAblauf(db);
+    /* V-082 — der Schwanz des Einsatzstatus: die Uhr, die der Ausloeser nicht sieht. */
+    registriereEinsatzAbschluss(db);
     registrierePostenabgleich(db);
     registriereMahnlauf(db);
     registriereBasiszinssatzWaechter(db);

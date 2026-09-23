@@ -111,3 +111,79 @@ export function registriereNachweisAblauf(sql: JobVerbindung): JobDefinition {
       }, { nurLesen: false }),
   });
 }
+
+/**
+ * **Der Schwanz des Einsatzstatus** (V-082, TIM-01).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Was der Auslöser NICHT sehen kann.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `kern.einsatz_status_ableiten` (`0390`) zieht den Zustand einer Schicht bei
+ * jedem Stempeln, Beenden, Stornieren und Nacherfassen nach — und das deckt
+ * alles ab, was ein Mensch tut. Es deckt eines NICHT ab: die Uhr.
+ *
+ * Wer um 11:00 aus einer Schicht bis 14:00 aussteigt, lässt eine Schicht
+ * zurück, die keinen offenen Eintrag mehr hat und deren Ende noch bevorsteht.
+ * Sie steht auf `laufend` — richtig in dieser Minute — und danach stempelt
+ * niemand mehr, also feuert auch kein Auslöser mehr. Um 14:01 wäre sie
+ * `abgeschlossen`, und niemand sagt es ihr.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Der Lauf rechnet NICHTS Eigenes.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Er ruft dieselbe Ableitung, die der Auslöser ruft — für die Schichten,
+ * deren Ende gerade vorbeigegangen ist. Eine zweite Formulierung derselben
+ * Regel wäre eine zweite Wahrheit, und `04-PLANUNG-ZEIT.md` sagt an dieser
+ * Tabelle selbst, was daraus wird: „two sources of truth would drift within
+ * one sprint".
+ *
+ * **Stündlich und nicht nächtlich.** Eine Schicht, die um 14:00 endet, soll
+ * um 15:00 abgeschlossen dastehen und nicht am nächsten Morgen: die
+ * Disposition liest diese Liste im Lauf des Tages.
+ *
+ * **Ein Fenster von zwei Tagen.** Der Lauf ist stündlich; er rollt nicht die
+ * halbe Vergangenheit auf, sondern nur, was seit dem letzten Lauf fällig
+ * geworden sein kann — mit reichlich Rand für einen ausgefallenen Lauf.
+ * Dieselbe Überlegung wie bei `schicht_ohne_zeiteintrag` (sieben Tage dort,
+ * weil die Meldung sonst ausbliebe; hier genügt weniger, weil ein verpasster
+ * Lauf nur eine Anzeige verzögert).
+ */
+export function registriereEinsatzAbschluss(sql: JobVerbindung): JobDefinition {
+  return registriere({
+    schluessel: 'einsatz_abschluss',
+    bezeichnung: 'Beendete Schichten auf „abgeschlossen" nachziehen (V-082, TIM-01)',
+    /* Zur Viertelstunde: nicht mit `schicht_ohne_zeiteintrag` (:30) kollidieren. */
+    zeitplan: '15 * * * *',
+    bereich: 'uebergreifend',
+    versuche: 2,
+    ausfuehren: async (): Promise<Record<string, unknown>> =>
+      alsJobRolle(sql, async (db) => {
+        /*
+         * Gesucht wird nach dem, was die Ableitung ÄNDERN würde: eine Schicht,
+         * die vorbei ist, auf `laufend` oder `geplant` steht und mindestens
+         * einen nicht stornierten Eintrag ohne offenes Ende trägt. Die
+         * Ableitung selbst entscheidet danach noch einmal — sie ist die eine
+         * Stelle, an der die Regel steht.
+         */
+        const kandidaten = await db.abfrage<{ id: string }>(
+          `select e.id
+             from einsatz e
+            where e.status in ('geplant', 'laufend')
+              and e.storniert_am is null
+              and e.ende_zeitpunkt < now()
+              and e.ende_zeitpunkt > now() - interval '2 days'
+              and exists (select 1 from zeiteintrag z
+                           where z.einsatz_id = e.id
+                             and z.storniert_am is null
+                             and z.status <> 'storniert')
+            order by e.ende_zeitpunkt
+            limit 2000`);
+        for (const k of kandidaten) {
+          await db.abfrage(`select kern.einsatz_status_ableiten($1::uuid)`, [k.id]);
+        }
+        return { geprueft: kandidaten.length };
+      }, { nurLesen: false }),
+  });
+}

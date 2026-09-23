@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe('der Bootstrap verdrahtet ALLE Jobs', () => {
-  it('registriert die vierundzwanzig Jobs, die es gibt', () => {
+  it('registriert die fünfundzwanzig Jobs, die es gibt', () => {
     const schluessel = alleJobs(db).map((j) => j.schluessel).sort();
     expect(schluessel).toEqual([
       'akquise_recherche',
@@ -61,7 +61,17 @@ describe('der Bootstrap verdrahtet ALLE Jobs', () => {
       'angebot_ablauf',
       'basiszinssatz_pruefen', 'belegarchiv_ausgangsrechnung',
       'bewerber_loeschung', 'dokument_aufbewahrung',
-      'einsaetze_generieren', 'freigabe_fenster', 'kette_pruefen',
+      /*
+       * `einsatz_abschluss` kam mit V-082 dazu und ist der einzige Lauf der
+       * drei, der stuendlich geht: er schliesst das eine Fenster, das der
+       * Ausloeser `kern.einsatz_status_ableiten` (0390) nicht sehen kann —
+       * die Uhr, die ueber das Schichtende laeuft, nachdem der letzte Mensch
+       * schon ausgestempelt hat. Er rechnet nichts Eigenes, er ruft dieselbe
+       * Ableitung.
+       */
+      'einsaetze_generieren',
+      'einsatz_abschluss',
+      'freigabe_fenster', 'kette_pruefen',
       'konflikte_erkennen', 'konten_rollover', 'lead_sla_eskalation',
       'mahnvorschlaege_erzeugen',
       'morgen_unbesetzt', 'nachtrag_ueberfaellig', 'nachweis_ablauf',

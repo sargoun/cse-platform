@@ -90,6 +90,18 @@ select cron.schedule('cse_einsaetze_generieren', '15 2 * * *', $cse$
   );
 $cse$);
 
+-- Beendete Schichten auf „abgeschlossen" nachziehen (V-082, TIM-01) (uebergreifend)
+select cron.unschedule('cse_einsatz_abschluss')
+  where exists (select 1 from cron.job where jobname = 'cse_einsatz_abschluss');
+select cron.schedule('cse_einsatz_abschluss', '15 * * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/einsatz_abschluss',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
 -- Abgelaufene Einspruchsfenster freigeben (APR-05) (uebergreifend)
 select cron.unschedule('cse_freigabe_fenster')
   where exists (select 1 from cron.job where jobname = 'cse_freigabe_fenster');
