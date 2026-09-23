@@ -817,6 +817,18 @@ export interface MeinTexte {
   readonly vorkommnis: string;
   readonly bezeichnung: string;
   readonly hinzufuegen: string;
+  /**
+   * Die Korrektur der EIGENEN Mannstundenzeile (V-063) — Storno und Ersatz in
+   * EINEM Schritt. Die Zeile verschwindet nicht; sie steht durchgestrichen
+   * neben ihrer Richtigstellung (LEG-01).
+   */
+  readonly korrigieren: string;
+  readonly korrekturGrund: string;
+  readonly stornierenUndErsetzen: string;
+  readonly korrekturHinweis: string;
+  /** Das Tagesfoto am Bautag (V-063). */
+  readonly tagesfotoHinzufuegen: string;
+  readonly tagesfotoHinweis: string;
   readonly tagGeschlossen: string;
   readonly abgleich: string;
   /**
@@ -1202,6 +1214,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     vorkommnis: 'Vorkommnis',
     bezeichnung: 'Bezeichnung',
     hinzufuegen: 'Hinzufügen',
+    korrigieren: 'Korrigieren',
+    korrekturGrund: 'Grund der Korrektur',
+    stornierenUndErsetzen: 'Stornieren und ersetzen',
+    korrekturHinweis: 'Die falsche Zeile verschwindet nicht — sie bleibt durchgestrichen '
+      + 'neben der neuen stehen. So sieht jeder, was zuerst dastand.',
+    tagesfotoHinzufuegen: 'Foto hinzufügen',
+    tagesfotoHinweis: 'Ortsdaten werden vor dem Ablegen aus dem Bild entfernt.',
     tagGeschlossen: 'Dieser Bautag ist geschlossen — es kommt nichts mehr hinzu.',
     abgleich: 'Abgleich mit der Zeiterfassung',
     abgleichDeckungsgleich: 'Die eigenen Stunden decken sich mit der Zeiterfassung dieses Tages.',
@@ -1555,6 +1574,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     vorkommnis: 'Incident',
     bezeichnung: 'Designation',
     hinzufuegen: 'Add',
+    korrigieren: 'Correct',
+    korrekturGrund: 'Reason for the correction',
+    stornierenUndErsetzen: 'Cancel and replace',
+    korrekturHinweis: 'The wrong line does not disappear — it stays crossed out next '
+      + 'to the new one. Everyone can see what was there first.',
+    tagesfotoHinzufuegen: 'Add photo',
+    tagesfotoHinweis: 'Location data is removed from the image before it is stored.',
     tagGeschlossen: 'This site day is closed — nothing more is added.',
     abgleich: 'Comparison with time tracking',
     abgleichDeckungsgleich: 'Your own hours match this day\u2019s time tracking.',
@@ -1893,6 +1919,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     vorkommnis: 'حادثة',
     bezeichnung: 'التسمية',
     hinzufuegen: 'إضافة',
+    korrigieren: 'تصحيح',
+    korrekturGrund: 'سبب التصحيح',
+    stornierenUndErsetzen: 'إلغاء واستبدال',
+    korrekturHinweis: 'السطر الخاطئ لا يختفي — يبقى مشطوباً بجانب السطر الجديد، '
+      + 'فيرى الجميع ما كان مكتوباً أولاً.',
+    tagesfotoHinzufuegen: 'إضافة صورة',
+    tagesfotoHinweis: 'تُزال بيانات الموقع من الصورة قبل حفظها.',
     tagGeschlossen: 'أُغلق يوم الموقع هذا — لا يُضاف إليه شيء بعد الآن.',
     abgleich: 'المقارنة مع تسجيل الوقت',
     abgleichDeckungsgleich: 'ساعاتك تطابق تسجيل الوقت لهذا اليوم.',
@@ -2233,6 +2266,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     vorkommnis: 'Olay',
     bezeichnung: 'Tanım',
     hinzufuegen: 'Ekle',
+    korrigieren: 'Düzelt',
+    korrekturGrund: 'Düzeltme nedeni',
+    stornierenUndErsetzen: 'İptal et ve değiştir',
+    korrekturHinweis: 'Yanlış satır kaybolmaz — yenisinin yanında üstü çizili olarak '
+      + 'kalır. Böylece önce ne yazdığını herkes görür.',
+    tagesfotoHinzufuegen: 'Fotoğraf ekle',
+    tagesfotoHinweis: 'Konum bilgileri kaydedilmeden önce fotoğraftan silinir.',
     tagGeschlossen: 'Bu şantiye günü kapatıldı — artık hiçbir şey eklenmez.',
     abgleich: 'Zaman kaydıyla karşılaştırma',
     abgleichDeckungsgleich: 'Kendi saatleriniz bu günün zaman kaydıyla örtüşüyor.',

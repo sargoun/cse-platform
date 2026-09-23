@@ -124,6 +124,19 @@ export default async function MeinBautagebuch(
   const knopf =
     'inline-flex min-h-11 items-center justify-center rounded-md bg-brand px-s5 py-s3 '
     + 'text-base font-semibold text-white hover:bg-brand-hover';
+  /*
+   * Der ZWEITE Knopf — für alles, was je Zeile steht (V-063).
+   *
+   * Die Wache `roter-knopf-in-schleife` erkennt `variante="primary"`, nicht
+   * eine Klasse `bg-brand` in einer Konstante. Die Regel gilt trotzdem:
+   * DESIGN §5, Rot ist knapp — ein roter Korrekturknopf unter jeder
+   * Mannstundenzeile hätte den eigentlichen Knopf der Seite, das Anfügen,
+   * zu einem von vielen gemacht. Dieselben Klassen wie `Button` sekundär.
+   */
+  const knopfZwei =
+    'inline-flex min-h-11 items-center justify-center rounded-md border '
+    + 'border-line-strong bg-transparent px-s5 py-s3 text-base text-text '
+    + 'hover:bg-surface-2';
   const offen = tag === null || (tag.status === 'entwurf' && !tag.storniert);
   const artText: Readonly<Record<string, string>> = {
     geraet: t.geraet, lieferung: t.lieferung, vorkommnis: t.vorkommnis,
@@ -249,6 +262,78 @@ export default async function MeinBautagebuch(
                         <Feld label={t.entscheidung}>{m.storno_grund ?? '—'}</Feld>
                       )}
                     </Felder>
+                    {/*
+                      * **Die Korrektur der EIGENEN Zeile** (V-063, LEG-01).
+                      *
+                      * `t_selbst_m1_storno` (0303) erlaubt sie seit je — nur
+                      * an der eigenen, lebenden Zeile und nur als Storno MIT
+                      * Ersatz. Der Knopf steht genau dort und sonst nirgends:
+                      * an einer fremden Zeile liefe er in die Policy und
+                      * endete in einer Meldung, die niemand versteht.
+                      *
+                      * Gewerk und Personen kommen vorbelegt; wer sich nur in
+                      * den Minuten vertippt hat, ändert genau diese eine Zahl.
+                      */}
+                    {offen && m.eigene && !m.storniert && gewerke.length > 0 && (
+                      <details data-cse="mannstunden-korrigieren" data-zeile={m.id}
+                               className="mt-s3">
+                        <summary className="min-h-11 cursor-pointer text-base text-brand">
+                          {t.korrigieren}
+                        </summary>
+                        <form
+                          method="post"
+                          action={`/api/mein/schichten/${zuordnungId}/bautagebuch/korrektur`}
+                          className="mt-s3 flex flex-col gap-s3"
+                        >
+                          <input type="hidden" name="zeile" value={m.id} />
+                          <input type="hidden" name="zurueck"
+                                 value={`/portal/mein/schichten/${zuordnungId}/bautagebuch`} />
+                          <label htmlFor={`kg-${m.id}`} className="text-base text-text">
+                            {t.korrekturGrund} <span aria-hidden="true">*</span>
+                            <span className="sr-only">{t.pflichtfeld}</span>
+                          </label>
+                          <input id={`kg-${m.id}`} name="grund" required className={eingabe} />
+                          <label htmlFor={`kw-${m.id}`} className="text-base text-text">
+                            {t.gewerk}
+                          </label>
+                          <select id={`kw-${m.id}`} name="gewerk" required
+                                  defaultValue={m.gewerk_id} className={eingabe}>
+                            {gewerke.map((g) => (
+                              <option key={g.id} value={g.id}>{g.code} · {g.bezeichnung}</option>
+                            ))}
+                          </select>
+                          <div className="grid gap-s3 sm:grid-cols-2">
+                            <div className="flex flex-col gap-s2">
+                              <label htmlFor={`kp-${m.id}`} className="text-base text-text">
+                                {t.anzahlPersonen}
+                              </label>
+                              <input id={`kp-${m.id}`} name="personen" type="number" min="1"
+                                     step="1" required defaultValue={m.anzahl_personen}
+                                     className={eingabe} />
+                            </div>
+                            <div className="flex flex-col gap-s2">
+                              <label htmlFor={`km-${m.id}`} className="text-base text-text">
+                                {t.dauer} (min)
+                              </label>
+                              <input id={`km-${m.id}`} name="minuten" type="number" min="0"
+                                     max="1440" step="1" required
+                                     defaultValue={m.dauer_minuten} className={eingabe} />
+                            </div>
+                          </div>
+                          <label htmlFor={`kt-${m.id}`} className="text-base text-text">
+                            {t.bezeichnung}
+                          </label>
+                          <input id={`kt-${m.id}`} name="taetigkeit"
+                                 defaultValue={m.taetigkeit ?? ''} className={eingabe} />
+                          <p className="m-0 max-w-prose text-sm text-text-muted">
+                            {t.korrekturHinweis}
+                          </p>
+                          <button type="submit" className={knopfZwei}>
+                            {t.stornierenUndErsetzen}
+                          </button>
+                        </form>
+                      </details>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -406,18 +491,58 @@ export default async function MeinBautagebuch(
             )}
           </section>
 
-          {fotos.length > 0 && (
+          {/*
+            * **Die Tagesfotos — und jetzt auch der Weg, eines anzuhängen**
+            * (V-063, BAU-07, TIM-10).
+            *
+            * Die Liste stand hier seit je, und die Fotos konnten von hier aus
+            * nie entstehen. `t_selbst_schichtmedien` (0303) nennt
+            * `bezug_tabelle = 'bautagebuch'` ausdrücklich; es fehlte nur das
+            * Formular. Die Kraft auf der Baustelle, die das Telefon in der Hand
+            * hat, war die einzige, die kein Foto anhängen konnte.
+            *
+            * Ein echtes multipart-Formular ohne JavaScript, dasselbe wie auf
+            * der Fotoseite der Schicht: `capture="environment"` öffnet am
+            * Telefon direkt die Rückkamera.
+            */}
+          {(fotos.length > 0 || offen) && (
             <section className="mb-s6" data-cse="tagesfotos">
               <h2 className="mb-s3 text-h2 text-text">{t.fotos}</h2>
-              <ul className="m-0 flex list-none flex-col gap-s2 p-0">
-                {fotos.map((f) => (
-                  <li key={f.id} className="text-base text-text">
-                    <span className="cse-zahl">{f.erfasst_lokal}</span>
-                    {' · '}
-                    {f.beschreibung ?? f.mime_typ}
-                  </li>
-                ))}
-              </ul>
+              {fotos.length > 0 && (
+                <ul className="m-0 mb-s4 flex list-none flex-col gap-s2 p-0">
+                  {fotos.map((f) => (
+                    <li key={f.id} className="text-base text-text">
+                      <span className="cse-zahl">{f.erfasst_lokal}</span>
+                      {' · '}
+                      {f.beschreibung ?? f.mime_typ}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {offen && (
+                <form
+                  method="post"
+                  encType="multipart/form-data"
+                  action={`/api/mein/schichten/${zuordnungId}/bautagebuch/foto`}
+                  data-cse="tagesfoto-formular"
+                  className="flex max-w-prose flex-col gap-s3"
+                >
+                  <input type="hidden" name="zurueck"
+                         value={`/portal/mein/schichten/${zuordnungId}/bautagebuch`} />
+                  <label htmlFor="tf-datei" className="text-base text-text">
+                    {t.tagesfotoHinzufuegen} <span aria-hidden="true">*</span>
+                    <span className="sr-only">{t.pflichtfeld}</span>
+                  </label>
+                  <input id="tf-datei" name="datei" type="file" required
+                         accept="image/*" capture="environment" className={eingabe} />
+                  <label htmlFor="tf-text" className="text-base text-text">
+                    {t.beschreibung}
+                  </label>
+                  <input id="tf-text" name="beschreibung" className={eingabe} />
+                  <p className="m-0 text-sm text-text-muted">{t.tagesfotoHinweis}</p>
+                  <button type="submit" className={knopf}>{t.tagesfotoHinzufuegen}</button>
+                </form>
+              )}
             </section>
           )}
 

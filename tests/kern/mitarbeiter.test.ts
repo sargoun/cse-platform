@@ -196,6 +196,22 @@ describe('(2) es gibt keinen Weg, der einen Zeiteintrag aendert (EMP-07)', () =>
      * bleibt unberuehrt: hier wird keiner geschrieben.
      */
     'api/mein/schicht',
+    /*
+     * **Zwei Wege am eigenen Bautag (V-063) — und keiner schreibt einen
+     * Zeiteintrag.**
+     *
+     * `korrektur` storniert die EIGENE Mannstundenzeile und setzt einen Ersatz
+     * daneben; `t_selbst_m1_storno` (0303) lässt genau diesen einen Übergang
+     * zu und sonst nichts. `foto` hängt eine Aufnahme an den Bautag;
+     * `t_selbst_schichtmedien` (0303) nennt `bezug_tabelle = 'bautagebuch'`
+     * ausdrücklich. Beide Policies standen seit 0303 da — die Routen fehlten.
+     *
+     * `bautagebuch_mannstunden` ist eine Tagebuchzeile und keine Arbeitszeit:
+     * der Abgleich GEGEN die Zeiterfassung liest sie, er schreibt nicht
+     * zurück. EMP-07 bleibt damit unberührt.
+     */
+    'api/mein/schichten/[zuordnungId]/bautagebuch/foto',
+    'api/mein/schichten/[zuordnungId]/bautagebuch/korrektur',
     'api/mein/schichten/[zuordnungId]/bautagebuch/mannstunden',
     'api/mein/schichten/[zuordnungId]/bautagebuch/position',
     'api/mein/schichten/[zuordnungId]/fotos',

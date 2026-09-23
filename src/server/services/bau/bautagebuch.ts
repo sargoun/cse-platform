@@ -1128,6 +1128,18 @@ export interface MannstundenZeile {
   readonly storno_grund: string | null;
   readonly ersetzt_durch_id: string | null;
   readonly ersetzt_id: string | null;
+  /**
+   * Hat DIESE Sitzung die Zeile erfasst? (V-063)
+   *
+   * Das Arbeiterportal bietet die Korrektur nur an der eigenen Zeile an —
+   * `t_selbst_m1_storno` (0303) lässt ohnehin nichts anderes durch. Ein Knopf
+   * an einer fremden Zeile liefe in die Policy und endete in einer Meldung,
+   * die niemand versteht.
+   *
+   * `coalesce(…, false)`: eine Verwaltungssitzung ohne Person hat
+   * `app.aktuelle_person() = NULL`, und `NULL = x` ist NULL, nicht falsch.
+   */
+  readonly eigene: boolean;
 }
 
 /**
@@ -1154,7 +1166,8 @@ export async function leseMannstunden(
               as erfasst_lokal,
             (m.storniert_am is not null) as storniert, m.storno_grund, m.ersetzt_durch_id,
             (select v.id from bautagebuch_mannstunden v
-              where v.ersetzt_durch_id = m.id order by v.erstellt_am limit 1) as ersetzt_id
+              where v.ersetzt_durch_id = m.id order by v.erstellt_am limit 1) as ersetzt_id,
+            coalesce(m.erstellt_von_person_id = app.aktuelle_person(), false) as eigene
        from bautagebuch_mannstunden m
        join gewerk g on g.id = m.gewerk_id and g.mandant_id = m.mandant_id
        left join firma f on f.id = m.nachunternehmer_firma_id

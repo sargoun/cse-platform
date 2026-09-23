@@ -1787,6 +1787,25 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'Gegenzeichnung bleiben `bau.schreiben` und damit der Bauleitung.',
   },
   {
+    pfad: 'api/mein/schichten/[zuordnungId]/bautagebuch/korrektur',
+    recht: null,
+    grund:
+      'V-063, BAU-07, LEG-01. Die EIGENE Mannstundenzeile stornieren und ersetzen: '
+      + '`bautagebuch_mannstunden.t_selbst_m1_storno` (0303) laesst nur die eigene, '
+      + 'lebende Zeile zu und nur den Uebergang auf storniert MIT Ersatz '
+      + '(`ersetzt_durch_id is not null`). Ein Fachrecht davor waere eines, das die '
+      + 'Kolonne gar nicht halten soll — die Grenze ist die Person, nicht die Rolle.',
+  },
+  {
+    pfad: 'api/mein/schichten/[zuordnungId]/bautagebuch/foto',
+    recht: null,
+    grund:
+      'V-063, BAU-07, TIM-10. Ein Tagesfoto am Bautag der eigenen Schicht: '
+      + '`einsatz_medien.t_selbst_schichtmedien` (0303) nennt '
+      + '`bezug_tabelle = bautagebuch` ausdruecklich und bindet an '
+      + '`app.aktuelle_person()`. Der Tag kommt aus der SCHICHT, nie aus der Anfrage.',
+  },
+  {
     /**
      * Die Wachbuchseite von der eigenen Schicht (SEC-05, § 34a GewO).
      *

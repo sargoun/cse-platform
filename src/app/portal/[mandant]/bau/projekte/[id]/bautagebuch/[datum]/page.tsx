@@ -11,7 +11,7 @@ import {
   WETTER_NICHT_VERFUEGBAR, WETTER_QUELLENHINWEIS, leseWetterAnzeige, type WetterAnzeige,
 } from '@/server/services/bau/wetter';
 import {
-  HERKUNFT_TEXT, POSITION_ART_TEXT, alsStunden, findeBautagZuDatum, gleicheMannstundenAb,
+  HERKUNFT_TEXT, POSITION_ARTEN, POSITION_ART_TEXT, alsStunden, findeBautagZuDatum, gleicheMannstundenAb,
   istKalendertag, leseMannstunden, lesePositionen, leseTagesfotos, listeGewerke,
   type BautagKopfZeile, type GewerkZeile, type MannstundenAbgleich, type MannstundenZeile,
   type PositionZeile, type TagesfotoZeile,
@@ -273,6 +273,11 @@ export default async function Bautag(
                   <th scope="col" className={`${KOPFZELLE} text-right`}>Minuten</th>
                   <th scope="col" className={`${KOPFZELLE} text-right`}>Mannstunden</th>
                   <th scope="col" className={KOPFZELLE}>Spur</th>
+                  {offen && (
+                    <th scope="col" className={KOPFZELLE}>
+                      <span className="sr-only">Korrektur</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -308,6 +313,97 @@ export default async function Bautag(
                         <span className="text-text-subtle">—</span>
                       )}
                     </td>
+                    {/*
+                      * **Die Korrektur — sie hat gefehlt** (V-095).
+                      *
+                      * Der Weg war vollständig gebaut: `korrigiereMannstunden`
+                      * im Dienst, `korrektur_mannstunden` in der Route, und
+                      * `storniert_am`/`storno_grund`/`ersetzt_durch_id` seit
+                      * `0082` in der Tabelle. Der Satz über der Tabelle
+                      * erklärte die Regel sogar — und es gab kein Formular
+                      * dafür. Eine falsche Mannstundenzeile stand damit
+                      * dauerhaft im Bautagebuch, also in dem Dokument, das im
+                      * Streit über den Bauablauf zählt.
+                      *
+                      * **Ein Formular, das BEIDES trägt** (Storno und Ersatz)
+                      * und nicht zwei: `korrigiereZeile` schreibt sie in EINER
+                      * Transaktion und setzt `ersetzt_durch_id`. Zwei Knöpfe
+                      * liessen einen Zustand zu, in dem storniert ist und
+                      * nichts an die Stelle getreten — und die Tagessumme wäre
+                      * still zu klein.
+                      */}
+                    {offen && (
+                      <td className="px-s4 py-s3 text-xs">
+                        {m.storniert ? (
+                          <span className="text-text-subtle">—</span>
+                        ) : (
+                          <details data-cse="mannstunden-korrigieren" data-zeile={m.id}>
+                            <summary className="cursor-pointer text-brand">Korrigieren</summary>
+                            <form action="/api/bau/bautagebuch" method="post"
+                                  className="mt-s3 flex w-72 flex-col gap-s2">
+                              <Bezug />
+                              <input type="hidden" name="vorgang"
+                                     value="korrektur_mannstunden" />
+                              <input type="hidden" name="zeile" value={m.id} />
+                              <label className={BESCHRIFTUNG} htmlFor={`g-${m.id}`}>
+                                Grund des Stornos
+                              </label>
+                              <input id={`g-${m.id}`} name="grund" required className={FELD}
+                                     placeholder="Gewerk verwechselt" />
+                              <label className={BESCHRIFTUNG} htmlFor={`gw-${m.id}`}>Gewerk</label>
+                              <select id={`gw-${m.id}`} name="gewerk" required
+                                      defaultValue={m.gewerk_id} className={FELD}>
+                                {daten.gewerke.map((g) => (
+                                  <option key={g.id} value={g.id}>
+                                    {g.code} · {g.bezeichnung}
+                                  </option>
+                                ))}
+                              </select>
+                              <label className={BESCHRIFTUNG} htmlFor={`hk-${m.id}`}>
+                                Herkunft
+                              </label>
+                              <select id={`hk-${m.id}`} name="herkunft"
+                                      defaultValue={m.herkunft} className={FELD}>
+                                <option value="eigen">eigene Kräfte</option>
+                                <option value="nachunternehmer">Nachunternehmer</option>
+                              </select>
+                              <label className={BESCHRIFTUNG} htmlFor={`nu-${m.id}`}>
+                                Nachunternehmer (Name)
+                              </label>
+                              <input id={`nu-${m.id}`} name="nachunternehmer"
+                                     defaultValue={m.nachunternehmer ?? ''} className={FELD} />
+                              <label className={BESCHRIFTUNG} htmlFor={`pe-${m.id}`}>
+                                Personen
+                              </label>
+                              <input id={`pe-${m.id}`} type="number" name="personen" min="1"
+                                     required defaultValue={m.anzahl_personen}
+                                     className={FELD} />
+                              <label className={BESCHRIFTUNG} htmlFor={`mi-${m.id}`}>
+                                Dauer in Minuten
+                              </label>
+                              <input id={`mi-${m.id}`} type="number" name="minuten" min="0"
+                                     max="1440" required defaultValue={m.dauer_minuten}
+                                     className={FELD} />
+                              <label className={BESCHRIFTUNG} htmlFor={`ta-${m.id}`}>
+                                Tätigkeit
+                              </label>
+                              <input id={`ta-${m.id}`} name="taetigkeit"
+                                     defaultValue={m.taetigkeit ?? ''} className={FELD} />
+                              <label className={BESCHRIFTUNG} htmlFor={`be-${m.id}`}>
+                                Bereich
+                              </label>
+                              <input id={`be-${m.id}`} name="bereich"
+                                     defaultValue={m.bereich ?? ''} className={FELD} />
+                              {/* Sekundär: ein roter Knopf JE ZEILE wäre ein
+                                  roter Knopf zu viel (DESIGN §5). */}
+                              <Button type="submit" variante="secondary">
+                                Stornieren und ersetzen
+                              </Button>
+                            </form>
+                          </details>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -484,6 +580,11 @@ export default async function Bautag(
                   <th scope="col" className={KOPFZELLE}>Lieferschein</th>
                   <th scope="col" className={KOPFZELLE}>Zeitpunkt</th>
                   <th scope="col" className={KOPFZELLE}>Spur</th>
+                  {offen && (
+                    <th scope="col" className={KOPFZELLE}>
+                      <span className="sr-only">Korrektur</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -523,6 +624,66 @@ export default async function Bautag(
                         <span className="text-text-subtle">—</span>
                       )}
                     </td>
+                    {/* Dieselbe Korrektur wie bei den Mannstunden (V-095):
+                        stornieren und ersetzen in EINER Anweisung. */}
+                    {offen && (
+                      <td className="px-s4 py-s3 text-xs">
+                        {q.storniert ? (
+                          <span className="text-text-subtle">—</span>
+                        ) : (
+                          <details data-cse="position-korrigieren" data-zeile={q.id}>
+                            <summary className="cursor-pointer text-brand">Korrigieren</summary>
+                            <form action="/api/bau/bautagebuch" method="post"
+                                  className="mt-s3 flex w-72 flex-col gap-s2">
+                              <Bezug />
+                              <input type="hidden" name="vorgang" value="korrektur_position" />
+                              <input type="hidden" name="zeile" value={q.id} />
+                              <label className={BESCHRIFTUNG} htmlFor={`pg-${q.id}`}>
+                                Grund des Stornos
+                              </label>
+                              <input id={`pg-${q.id}`} name="grund" required className={FELD}
+                                     placeholder="Menge falsch abgelesen" />
+                              <label className={BESCHRIFTUNG} htmlFor={`pa-${q.id}`}>Art</label>
+                              <select id={`pa-${q.id}`} name="art" defaultValue={q.art}
+                                      className={FELD}>
+                                {POSITION_ARTEN.map((a) => (
+                                  <option key={a} value={a}>{POSITION_ART_TEXT[a]}</option>
+                                ))}
+                              </select>
+                              <label className={BESCHRIFTUNG} htmlFor={`pb-${q.id}`}>
+                                Bezeichnung
+                              </label>
+                              <input id={`pb-${q.id}`} name="bezeichnung" required
+                                     defaultValue={q.bezeichnung} className={FELD} />
+                              <label className={BESCHRIFTUNG} htmlFor={`pd-${q.id}`}>
+                                Beschreibung
+                              </label>
+                              <input id={`pd-${q.id}`} name="beschreibung"
+                                     defaultValue={q.beschreibung ?? ''} className={FELD} />
+                              <label className={BESCHRIFTUNG} htmlFor={`pm-${q.id}`}>Menge</label>
+                              <input id={`pm-${q.id}`} name="menge" inputMode="decimal"
+                                     defaultValue={q.menge ?? ''} className={FELD} />
+                              <label className={BESCHRIFTUNG} htmlFor={`pe-e-${q.id}`}>
+                                Einheit
+                              </label>
+                              <input id={`pe-e-${q.id}`} name="einheit"
+                                     defaultValue={q.einheit ?? ''} className={FELD} />
+                              <label className={BESCHRIFTUNG} htmlFor={`pl-${q.id}`}>
+                                Lieferschein
+                              </label>
+                              <input id={`pl-${q.id}`} name="lieferschein"
+                                     defaultValue={q.lieferschein_nummer ?? ''}
+                                     className={FELD} />
+                              {/* Sekundär: ein roter Knopf JE ZEILE wäre ein
+                                  roter Knopf zu viel (DESIGN §5). */}
+                              <Button type="submit" variante="secondary">
+                                Stornieren und ersetzen
+                              </Button>
+                            </form>
+                          </details>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
