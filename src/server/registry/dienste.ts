@@ -717,6 +717,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'crm', pfad: 'crm/benachrichtigung', schreibend: false },
   /*
+   * Der Kommunikationsverlauf (V-147, CRM-03). Liest Aktivitäten und
+   * Nachrichten eines Kunden oder Kontakts; `halteFest` schreibt eine
+   * Aktivität am Kunden oder Kontakt — ausgehend durch das UWG-Tor (0020).
+   */
+  {
+    modul: 'crm', pfad: 'crm/verlauf',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
    * Der Versandstand eines Kaeufers (FIN-11, LEG-05, 07-INTEGRATIONEN §12.1).
    * Ein reines Praedikat: ein Pflichtkaeufer ohne Uebertragungsweg SPERRT, er
    * faellt nicht auf E-Mail zurueck. Kein Kanal gilt hier als verbunden, ohne

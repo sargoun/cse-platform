@@ -15592,3 +15592,58 @@ wäre wieder eine Frage.
 
 | Betrifft | CRM-04, NOT-01, NOT-03, D-378, D-493, V-146, `drizzle/0405`, `src/server/jobs/wiedervorlageErinnerung.ts`, `src/server/services/crm/{benachrichtigung,wiedervorlage}.ts`, `src/server/benachrichtigung/bootstrap.ts`, `src/server/jobs/bootstrap.ts`, `docs/JOB-AUSLOESER.sql` |
 |---|---|
+
+### D-641 · Der Kommunikationsverlauf am Kunden und am Kontakt: Aktivitäten und Nachrichten in einer Liste, Notizen auch ohne Lead (V-147)
+
+**Der Befund** (V-147, CRM-03, 04-SEITENKARTE Reiter „Kommunikation“): das
+Kundenblatt zeigte gar keinen Verlauf, obwohl `0017` eigens
+`lead_aktivitaet_kunde_idx` anlegte; Wiedervorlagen am Kunden und
+Kundenportal-Nachrichten erschienen nirgends. Das Kontaktblatt las nur
+`lead_aktivitaet` und zeigte rohe Werte (`ausgehend · email`). Was über
+„Nachricht senden“ hinausgeht, steht aber in `nachricht` — sobald ein Versender
+verbunden ist, fehlte jede versendete Nachricht genau in dem Verlauf, der sie
+belegen soll. Eine Notiz ließ sich nur an einen Lead hängen.
+
+**Die Entscheidung.**
+
+1. **Eine Liste aus beiden Quellen** (`services/crm/verlauf.ts`), neueste
+   zuerst, die jüngsten 50. Am **Kunden**: Aktivitäten am Kunden, an seinen
+   Leads und an seinen Ansprechpartnern; Nachrichten mit seinem `kunde_id`,
+   mit einem seiner Kontakte als Rechtsgrundlage-Kontakt oder als Empfänger.
+   Am **Kontakt**: seine Aktivitäten und jede Nachricht an ihn oder auf seiner
+   Grundlage. Ein Bauteil für beide Blätter (`Kommunikationsverlauf`), damit
+   die zwei Fassungen nicht wieder auseinanderlaufen.
+2. **Der Beleg steht dabei.** Bei allem, was hinausging, die Rechtsgrundlage
+   IM MOMENT DES SENDENS (`rechtsgrundlage_snapshot`,
+   `nachricht.rechtsgrundlage`), nicht der heutige Stand; bei Nachrichten der
+   Zustellstand — `ausstehend` heißt auf dem Bildschirm „nicht versendet“
+   (O-36). Keine rohen Aufzählungswerte, de und en.
+3. **Die Rechte entscheidet die Datenbank.** `lead_aktivitaet` hinter
+   `crm.lesen`, `nachricht` hinter `nachricht.lesen`. Fehlt das zweite oder
+   `system.benutzer_lesen`, sagt das Blatt, was fehlt, statt eine kürzere
+   Liste als die ganze auszugeben.
+4. **Festhalten am Kunden und am Kontakt** über eine eigene Route
+   `POST /api/crm/notiz` (nicht `/api/lead`, die dem Leadblatt gehört und den
+   nächsten Schritt am Lead setzt). Art Notiz/Anruf/E-Mail/Termin, Richtung,
+   und bei ein- und ausgehend der **Zweck, den der Mensch wählt**
+   (vertraglich/transaktional/Werbung, Vorgabe vertraglich). Eine Notiz
+   bleibt immer intern. Ein ausgehender Anruf oder eine ausgehende E-Mail
+   verlangt einen Ansprechpartner; ob er kontaktiert werden durfte, prüft das
+   unveränderte UWG-Tor der Datenbank (0020) gegen den lebenden Kontakt —
+   sagt es Nein, wird nichts festgehalten, und das Blatt nennt den Grund.
+   Angelegt, nie geändert; `geschehen_am` setzt der Server.
+5. **Ein Kontakt ohne Kunden hat hier keinen Weg**: eine Aktivität hängt an
+   einem Lead oder an einem Kunden (`lead_aktivitaet_hat_bezug`). Das
+   Kontaktblatt sagt das und verweist auf das Leadblatt, statt ein Formular
+   anzubieten, das immer scheitert.
+6. **Die Rückmeldung trägt einen eigenen Namen** (`?notiz=<grund>`,
+   `?notiert=1`): das Kontaktblatt liest `fehler` für den Sendeweg und
+   `meldung` für seine übrigen Formulare. Jeder Grund des Dienstes hat einen
+   Satz in beiden Sprachen (geprüft).
+
+**Nicht Teil dieser Entscheidung:** der Verlauf auf dem Leadblatt (V-137) —
+er liest weiter nur die Aktivitäten des Leads. Nachrichten tragen keinen
+Leadbezug, den er lesen könnte.
+
+| Betrifft | CRM-03, CRM-08, LEG-08, O-36, V-101, V-137, V-147, `src/server/services/crm/verlauf.ts`, `src/components/portal/Kommunikationsverlauf.tsx`, `src/lib/i18n/verwaltung/crm-verlauf.ts`, `src/app/api/crm/notiz/route.ts`, `src/app/portal/[mandant]/crm/{kunden,kontakte}/[id]/page.tsx` |
+|---|---|

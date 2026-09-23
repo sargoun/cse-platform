@@ -16,6 +16,14 @@ import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Unternavigation } from './Unternavigation';
 import { Recht } from '@/components/ui/Recht';
+import {
+  Kommunikationsverlauf, NotizFormular, NotizRueckmeldung,
+} from '@/components/portal/Kommunikationsverlauf';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { VERLAUF_TEXTE } from '@/lib/i18n/verwaltung/crm-verlauf';
+import {
+  leseKundenVerlauf, VERLAUF_GRENZE, type VerlaufEintrag,
+} from '@/server/services/crm/verlauf';
 
 /**
  * `/portal/[mandant]/crm/kunden/[id]` — ein Kunde, seine Kontakte, seine
@@ -79,10 +87,17 @@ const AUFTRAG_PILLE: Readonly<Record<string, PillZustand>> = {
 };
 
 export default async function KundeDetail(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
+  const suche = await searchParams;
+  /* Die Rückmeldung von `POST /api/crm/notiz` (V-147) — Schlüssel, nie Satz. */
+  const notizGrund = typeof suche['notiz'] === 'string' ? suche['notiz'] : null;
+  const notiert = suche['notiert'] === '1';
   const zugang = await portalZugang(`/portal/${mandant}/crm/kunden/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -97,8 +112,17 @@ export default async function KundeDetail(
    * Unternavigation keinen Reiter zeigt, hinter dem ein 404 steht (AUT-06).
    * Dieselbe eine Abfrage fuer alle drei Schluessel (`app/portal/rechte.ts`).
    */
+  /*
+   * Dazu die zwei Rechte, die der Kommunikationsverlauf NICHT verlangt, aber
+   * braucht (V-147): Namen der Handelnden stehen in `benutzer`
+   * (`system.benutzer_lesen`), Nachrichten hinter `nachricht.lesen`. Fehlt
+   * eines, sagt der Verlauf, was fehlt — statt eine kürzere Liste als die
+   * ganze auszugeben. Eine Abfrage für alle fünf.
+   */
   const unterrechte = await haeltRechte(sitzung,
-    'crm_entgelt.lesen', 'abrechnung.lesen', 'system.benutzer_verwalten');
+    'crm_entgelt.lesen', 'abrechnung.lesen', 'system.benutzer_verwalten',
+    'system.benutzer_lesen', 'nachricht.lesen');
+  const tv = nachSprache(VERLAUF_TEXTE, zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -153,15 +177,26 @@ export default async function KundeDetail(
                 auftragswert_netto_cent::text as wert
            from auftrag where kunde_id = $1 order by start_datum desc`, [id]);
 
-      return { kopf, kontakte, objekte, auftraege, rechte };
+      /*
+       * **Der Reiter „Kommunikation" (CRM-03, 04-SEITENKARTE, V-147).** Das
+       * Blatt zeigte bis hierher keinen Verlauf, obwohl `0017` eigens
+       * `lead_aktivitaet_kunde_idx` dafür anlegte. Gelesen werden
+       * Aktivitäten am Kunden, an seinen Leads und an seinen
+       * Ansprechpartnern, und die Nachrichten an sie — eine Liste, nach der
+       * Zeit.
+       */
+      const verlauf = await leseKundenVerlauf(kontext, id);
+
+      return { kopf, kontakte, objekte, auftraege, rechte, verlauf };
     })) as Promise<{
       kopf: Kopf; kontakte: readonly KontaktZeile[];
       objekte: readonly ObjektZeile[]; auftraege: readonly AuftragZeile[];
       rechte: { objekt: boolean; auftrag: boolean; schreiben: boolean } | undefined;
+      verlauf: readonly VerlaufEintrag[];
     } | null>);
 
   if (daten === null) notFound();
-  const { kopf, kontakte, objekte, auftraege } = daten;
+  const { kopf, kontakte, objekte, auftraege, verlauf } = daten;
   // Fehlt die Zeile, ist die engste Annahme die sichere: nichts behaupten.
   const darfObjekt = daten.rechte?.objekt === true;
   const darfAuftrag = daten.rechte?.auftrag === true;
@@ -430,6 +465,31 @@ export default async function KundeDetail(
             ]}
           />
         )}
+      </section>
+
+      <section aria-labelledby="kommunikation-titel" id="kommunikation" className="mt-s7"
+               data-cse="kunde-kommunikation">
+        <h2 id="kommunikation-titel" className="text-h2 text-text">{tv.titel}</h2>
+        <p className="mt-s2 max-w-prose text-sm text-text-muted">{tv.erklaerungKunde}</p>
+        <NotizRueckmeldung sprache={zugang.sprache} grund={notizGrund} notiert={notiert} />
+        <Kommunikationsverlauf
+          eintraege={verlauf}
+          sprache={zugang.sprache}
+          mandant={mandant}
+          blatt="kunde"
+          darfNamen={unterrechte['system.benutzer_lesen'] === true}
+          darfNachrichten={unterrechte['nachricht.lesen'] === true}
+          grenze={VERLAUF_GRENZE}
+        />
+        {darfSchreiben ? (
+          <NotizFormular
+            sprache={zugang.sprache}
+            zurueck={`/portal/${mandant}/crm/kunden/${id}`}
+            kundeId={id}
+            ansprechpartnerId={null}
+            kontakte={kontakte.map((k) => ({ id: k.id, name: k.name }))}
+          />
+        ) : null}
       </section>
     </PortalRahmen>
   );
