@@ -14,6 +14,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { FEHLERTEXT, type VersandKopf } from './daten';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/angebote/[id]/versand` — das eine Tor, durch das ein
@@ -151,7 +152,7 @@ export default async function Versand(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="versand-fehler" className="mb-s5">
           <strong>Das Angebot ist nicht hinausgegangen.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 

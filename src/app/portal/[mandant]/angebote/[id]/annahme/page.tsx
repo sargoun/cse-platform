@@ -13,6 +13,7 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { FELD, FEHLERTEXT, type AnnahmeKopf, type Auswahl } from './daten';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/angebote/[id]/annahme` — was der Kunde entschieden hat
@@ -143,7 +144,7 @@ export default async function Annahme(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="annahme-fehler" className="mb-s5">
           <strong>Nichts wurde erfasst.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 

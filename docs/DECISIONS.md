@@ -16743,3 +16743,35 @@ V-154 baute, wich an sieben Stellen von dem ab, was er versprach.
 
 | Betrifft | PRO-05, D-537, D-648, O-735, O-913, O-914, V-154, V-161, `drizzle/0410_referenz_herkunft.sql`, `src/server/services/auftrag/kundenfreigabe.ts`, `src/server/services/inhalt/{redaktion.ts,referenz.ts}`, `src/app/api/website/{gemeinsam.ts,referenz/route.ts}`, `src/app/portal/[mandant]/website/referenzen/{page.tsx,neu/page.tsx,[id]/page.tsx,[id]/veroeffentlichen/page.tsx}`, `src/app/portal/[mandant]/auftraege/[id]/kundenfreigabe/page.tsx`, `src/lib/i18n/verwaltung/website-referenz.ts`, `scripts/guards/uebersetzung-ausnahmen.ts`, `src/server/db/seed/{referenzauftrag.ts,index.ts}`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/referenz-anlegen.test.ts`, `tests/kern/referenz-anlegen-weg.test.ts` |
 |---|---|
+
+### D-728 · Ein Schlüssel aus der Adresse wird überall nur als eigener Eintrag nachgeschlagen (V-234)
+
+**Der Befund** (V-234; gefunden bei der Prüfung von V-159): die Seiten lesen
+den Grund einer Abweisung aus `?fehler=` bzw. `?grund=` und schlagen ihn in
+einem gewöhnlichen Objektliteral nach, `TABELLE[fehler] ?? Rückfall`. Ein
+Objektliteral erbt von `Object.prototype`. `?fehler=__proto__` findet deshalb
+`Object.prototype`, `?fehler=toString` eine Funktion. Beides ist nicht
+`undefined`, also greift der Rückfall nicht, und React weigert sich, ein
+Objekt oder eine Funktion als Kind zu zeigen: die Seite antwortet mit 500.
+V-159 hat das für die Karriereseiten und die sechs Seiten der
+Website-Gruppe behoben. Dasselbe Muster stand in 45 weiteren Dateien —
+jede Portalseite mit `?fehler=`, darunter das Leadblatt aus V-137.
+
+**Die Entscheidung.**
+
+1. **Eine Stelle, ein Weg:** `eigenerEintrag(tabelle, schluessel)` aus
+   `src/lib/nachschlagen.ts` (V-159) ersetzt jedes `TABELLE[fehler]` und
+   `TABELLE[grund]` — 51 Stellen in 45 Dateien, mechanisch und ohne
+   Verhaltensänderung für bekannte Schlüssel.
+2. **Eine Prüfung über den ganzen Quellbaum**, nicht über eine Liste:
+   `tests/kern/nachschlagen.test.ts` liest `src/app`, `src/components` und
+   `src/lib` und schlägt fehl, sobald außerhalb eines Kommentars wieder ein
+   `[fehler]` oder `[grund]` nachgeschlagen wird. Eine Liste schützt nur, was
+   jemand hineinschreibt.
+3. **Nicht Teil dieser Entscheidung:** dass einige Seiten einen UNBEKANNTEN
+   Schlüssel als Text zeigen (`?? fehler`). Das zeigt einen rohen Schlüssel,
+   bricht aber nichts; es gehört zu den rohen Schlüsseln der Verwaltung
+   (Befund 68), die eigens behoben werden.
+
+| Betrifft | D-599, D-653, V-137, V-159, V-234, `src/lib/nachschlagen.ts`, `tests/kern/nachschlagen.test.ts`, 45 Seiten unter `src/app/portal` und `src/components/portal` |
+|---|---|

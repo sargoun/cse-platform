@@ -20,6 +20,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { Recht } from '@/components/ui/Recht';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/angebote/[id]` — ein Angebot, seine Positionen und die
@@ -247,7 +248,7 @@ export default async function AngebotDetail(
 
       {fehler !== null && (
         <Hinweis art="warnung" cse="entwurf-fehler" className="mb-s5 max-w-prose">
-          {FEHLER_TEXT[fehler] ?? 'Die Änderung wurde abgewiesen.'}
+          {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Änderung wurde abgewiesen.'}
         </Hinweis>
       )}
       {gespeichert && fehler === null && (

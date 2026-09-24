@@ -10,7 +10,8 @@
  * Nachschlagen stand in den Portalseiten, die diese Gruppe angelegt oder
  * geändert hat.
  */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { eigenerEintrag } from '../../src/lib/nachschlagen.js';
 import { pflichtwegMeldung } from '../../src/lib/i18n/texte.js';
@@ -88,5 +89,47 @@ describe('die Seiten schlagen den Grund aus der Adresse nur als eigenen Eintrag 
       expect(quelle, seite).not.toMatch(
         /\b(?:t\.fehler|t\.statusFehler|FEHLER|BEWERBUNG_MELDUNG)\[(?:abgewiesen|grund)\]\s*\?\?/u);
     }
+  });
+});
+
+/**
+ * **Überall, nicht nur in einer Liste von Seiten** (V-234, D-728).
+ *
+ * Die Liste oben nannte die sechs Seiten, die eine Gruppe angefasst hatte.
+ * Dasselbe Nachschlagen stand in 45 weiteren Dateien — jede Portalseite mit
+ * `?fehler=`: `/portal/…/angebote/…?fehler=__proto__` antwortete ebenso mit
+ * einer Fehlerseite. Eine Liste schützt, was jemand hineinschreibt; diese
+ * Prüfung liest den ganzen Quellbaum.
+ */
+describe('kein Quelltext schlägt einen Grund aus der Adresse im Prototyp nach', () => {
+  function dateien(wurzel: string): string[] {
+    const aus: string[] = [];
+    for (const e of readdirSync(wurzel, { withFileTypes: true })) {
+      const pfad = join(wurzel, e.name);
+      if (e.isDirectory()) aus.push(...dateien(pfad));
+      else if (/\.(ts|tsx)$/u.test(e.name)) aus.push(pfad);
+    }
+    return aus;
+  }
+  const BAUM = ['src/app', 'src/components', 'src/lib'].flatMap(dateien);
+
+  it('liest einen echten Baum', () => {
+    expect(BAUM.length).toBeGreaterThan(300);
+  });
+
+  it('`TABELLE[fehler]` und `TABELLE[grund]` stehen nirgends ausserhalb von Kommentaren', () => {
+    const verstoesse: string[] = [];
+    for (const datei of BAUM) {
+      readFileSync(datei, 'utf8').split('\n').forEach((zeile, i) => {
+        const code = zeile.trim();
+        if (code.startsWith('*') || code.startsWith('//') || code.startsWith('/*')) return;
+        if (/[\w\]]\[(?:fehler|grund)\]/u.test(code)) verstoesse.push(`${datei}:${String(i + 1)}`);
+      });
+    }
+    expect(
+      verstoesse,
+      'Ein Schlüssel aus der Adresse findet über `[]` auch `__proto__` und `toString` — '
+      + 'die Seite antwortet dann mit 500. `eigenerEintrag(tabelle, schluessel)` nehmen.',
+    ).toEqual([]);
   });
 });

@@ -14,6 +14,7 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
 import { istKennung } from '@/server/services/crm/lead-kette';
 import { vorbelegt } from '@/lib/formular/maske';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/auftraege/neu` — der Auftragsassistent (OPS-10).
@@ -145,7 +146,7 @@ export default async function AuftragAssistent(
 
       {fehler !== null ? (
         <Hinweis art="warnung" cse="auftrag-neu-fehler" className="mb-s5 max-w-prose">
-          {kt.maskeFehler[fehler] ?? kt.fehler[fehler] ?? kt.nichtAngelegt}
+          {eigenerEintrag(kt.maskeFehler, fehler) ?? eigenerEintrag(kt.fehler, fehler) ?? kt.nichtAngelegt}
         </Hinweis>
       ) : null}
       {anfrage !== null ? (

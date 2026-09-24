@@ -20,6 +20,7 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '../../../../rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/radar/profile/[id]` — ein Suchprofil bearbeiten
@@ -196,7 +197,7 @@ export default async function ProfilBearbeiten(
       {fehler !== null ? (
         <Hinweis art="warnung" cse="profil-fehler" className="mb-s5 max-w-prose">
           <strong>Nicht gespeichert.</strong>{' '}
-          {FEHLER_TEXT[fehler] ?? 'Die Eingabe wurde abgewiesen.'}
+          {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Eingabe wurde abgewiesen.'}
         </Hinweis>
       ) : null}
       {vermerkt !== null ? (

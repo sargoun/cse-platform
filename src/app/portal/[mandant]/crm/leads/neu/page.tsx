@@ -11,6 +11,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { Recht } from '@/components/ui/Recht';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/crm/leads/neu` — einen Lead von Hand anlegen (CRM-07).
@@ -79,7 +80,7 @@ export default async function LeadNeu(
       {(meldung !== null || fehler !== null) && (
         <Hinweis art="warnung" cse="lead-meldung" className="mb-s5 max-w-prose">
           {/* Der übersetzte Schlüssel gewinnt; der Satz der Route ist der Rückfall. */}
-          {(fehler === null ? undefined : k.fehler[fehler]) ?? meldung ?? k.nichtAngelegt}
+          {(fehler === null ? undefined : eigenerEintrag(k.fehler, fehler)) ?? meldung ?? k.nichtAngelegt}
         </Hinweis>
       )}
 

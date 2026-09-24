@@ -8,6 +8,7 @@ import {
 } from '@/server/auth/kennwort-anmeldung';
 import { db } from '@/server/db/pool';
 import { AuthFehler, AuthSchale } from '../AuthSchale';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/auth/passwort-neu` — das neue Kennwort setzen, mit dem Token aus der Mail.
@@ -110,8 +111,8 @@ export default async function PasswortNeu({ searchParams }: {
         </>
       }
     >
-      {fehler !== null && (TEXTE[fehler] ?? '') !== '' && (
-        <AuthFehler cse="kennwort-fehler">{TEXTE[fehler]}</AuthFehler>
+      {fehler !== null && (eigenerEintrag(TEXTE, fehler) ?? '') !== '' && (
+        <AuthFehler cse="kennwort-fehler">{eigenerEintrag(TEXTE, fehler)}</AuthFehler>
       )}
 
       <form action={setzen} data-cse="passwort-neu" className="flex flex-col gap-s4">

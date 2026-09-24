@@ -17,6 +17,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/auftraege/[id]/abrechnung` — wie DIESER Auftrag
@@ -160,7 +161,7 @@ export default async function AuftragAbrechnung(
           className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-warning"
         >
           <strong>Nichts wurde gespeichert.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </p>
       )}
 

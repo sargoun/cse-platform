@@ -7,6 +7,7 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { VERLAUF_TEXTE, type VerlaufTexte } from '@/lib/i18n/verwaltung/crm-verlauf';
 import type { PortalSprache } from '@/lib/i18n/texte';
 import type { VerlaufEintrag } from '@/server/services/crm/verlauf';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * Der Kommunikationsverlauf — EIN Bauteil für Kunden- und Kontaktblatt
@@ -290,7 +291,7 @@ export function NotizRueckmeldung({ sprache, grund, notiert }: {
   if (grund !== null) {
     return (
       <Hinweis art="warnung" cse="notiz-fehler" className="mt-s4 max-w-prose">
-        <strong>{t.nichtGespeichert}</strong> {t.notizFehler[grund] ?? ''}
+        <strong>{t.nichtGespeichert}</strong> {eigenerEintrag(t.notizFehler, grund) ?? ''}
       </Hinweis>
     );
   }

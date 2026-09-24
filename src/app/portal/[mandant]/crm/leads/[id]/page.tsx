@@ -26,6 +26,7 @@ import { leseLeadKette, type LeadKette } from '@/server/services/crm/lead-kette'
 import {
   LEAD_ZWECK_REGEL, leseLeadKontaktWahl, type KontaktWahlZeile,
 } from '@/server/services/crm/lead-kontakt';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/crm/leads/[id]` — eine Anfrage, ihr Verlauf und ihr
@@ -276,9 +277,9 @@ export default async function LeadDetail(
    * Eine Abweisung steht dort, wo sie entstand: am Ansprechpartner, an der
    * Kette — und nur sonst beim nächsten Schritt.
    */
-  const kontaktFehler = fehler === null ? null : (t.kontaktFehler[fehler] ?? null);
+  const kontaktFehler = fehler === null ? null : (eigenerEintrag(t.kontaktFehler, fehler) ?? null);
   const ketteFehler = fehler === null || kontaktFehler !== null ? null
-    : (k.fehler[fehler] ?? null);
+    : (eigenerEintrag(k.fehler, fehler) ?? null);
   /* Mit welchem Zweck ein ausgehender Kontakt dieser Anfrage durch das Tor geht (O-907). */
   const zweck = LEAD_ZWECK_REGEL.zweckAusgehend(kopf.quelle);
   const felder = eingang === null ? null : Felder.safeParse(eingang.felder);
@@ -883,7 +884,7 @@ export default async function LeadDetail(
             selbst der Text — `unbekannte_prioritaet` sagt niemandem etwas. */}
         {(fehler !== null || meldung !== null) && ketteFehler === null && kontaktFehler === null && (
           <Hinweis art="warnung" cse="lead-fehler" className="mt-s4 max-w-prose">
-            {(fehler === null ? undefined : t.fehler[fehler]) ?? meldung ?? t.nichtGespeichert}
+            {(fehler === null ? undefined : eigenerEintrag(t.fehler, fehler)) ?? meldung ?? t.nichtGespeichert}
           </Hinweis>
         )}
 

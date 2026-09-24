@@ -15,6 +15,8 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
 import { istKennung } from '@/server/services/crm/lead-kette';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 
 /**
  * `/portal/[mandant]/angebote/neu` — ein Angebot von Hand (V-005, SEC-01,
@@ -202,7 +204,7 @@ export default async function NeuesAngebot(
 
       {fehler !== null ? (
         <Hinweis art="warnung" cse="angebot-hand-fehler" className="mb-s5 max-w-prose">
-          {t.fehler[fehler] ?? kt.nichtAngelegt}
+          {eigenerEintrag(t.fehler, fehler) ?? kt.nichtAngelegt}
         </Hinweis>
       ) : null}
 
@@ -422,8 +424,8 @@ export default async function NeuesAngebot(
 
               {zeilenZahl < ZEILEN_MAX ? (
                 <p className="mt-s4 max-w-prose text-xs text-text-muted">
-                  <Link href={`/portal/${mandant}/angebote/neu?zeilen=${String(mehr)}`
-                    + `${anfrage === null ? '' : `&lead=${anfrage.id}`}`}
+                  <Link href={alsRoute(`/portal/${mandant}/angebote/neu?zeilen=${String(mehr)}`
+                    + `${anfrage === null ? '' : `&lead=${anfrage.id}`}`)}
                         className="underline underline-offset-2 hover:text-text"
                         data-cse="mehr-zeilen">
                     {t.mehrZeilen}

@@ -11,6 +11,7 @@ import { type BeitragZeile, ladeBeitrag } from '@/server/services/social/dienst'
 import { STATUS_TEXT, naechsterStatus } from '@/server/services/social/weg';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { kennungOder404 } from '../../../../../kennung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/social/posts/[id]/planung` — einen freigegebenen Beitrag
@@ -93,7 +94,7 @@ export default async function Planung(
 
       {fehler !== null ? (
         <Hinweis art="warnung" cse="planung-fehler" className="mb-s5 max-w-prose">
-          {FEHLER[fehler] ?? 'Die Planung wurde abgewiesen.'}
+          {eigenerEintrag(FEHLER, fehler) ?? 'Die Planung wurde abgewiesen.'}
         </Hinweis>
       ) : null}
 

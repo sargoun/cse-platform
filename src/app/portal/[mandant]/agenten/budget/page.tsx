@@ -21,6 +21,7 @@ import { Recht } from '@/components/ui/Recht';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { BUDGET_TEXTE } from '@/lib/i18n/verwaltung/agent-budget';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/agenten/budget` — Obergrenze, Verbrauch, Reservierung
@@ -315,7 +316,7 @@ export default async function AgentBudget(
       )}
       {fehler !== null && (
         <Hinweis art="warnung" cse="budget-fehler" className="mb-s4 max-w-prose">
-          {t.fehler[fehler] ?? fehler}
+          {eigenerEintrag(t.fehler, fehler) ?? fehler}
         </Hinweis>
       )}
 

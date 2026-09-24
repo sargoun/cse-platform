@@ -18,6 +18,7 @@ import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../../kennung';
 import { FELD, FEHLERTEXT, deutscheAnzeige } from './daten';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/objekte/[id]/raumbuch/[raumId]` — ein Raum als
@@ -123,7 +124,7 @@ export default async function Raumblatt(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="raum-fehler" className="mb-s5">
           <strong>Nichts wurde gespeichert.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 

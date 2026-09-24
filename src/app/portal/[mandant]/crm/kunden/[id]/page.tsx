@@ -24,7 +24,6 @@ import { leseKundeVorgaenge, type KundeVorgaenge } from '@/server/services/crm/l
 import {
   Kommunikationsverlauf, NotizFormular, NotizKeinRecht, NotizRueckmeldung,
 } from '@/components/portal/Kommunikationsverlauf';
-import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { VERLAUF_TEXTE } from '@/lib/i18n/verwaltung/crm-verlauf';
 import { KUNDE_RUECKMELDUNG } from '@/lib/i18n/verwaltung/crm-kunde';
 import { Hinweis } from '@/components/ui/Hinweis';

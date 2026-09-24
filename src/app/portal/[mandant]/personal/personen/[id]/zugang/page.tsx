@@ -22,6 +22,7 @@ import { lesePerson, type PersonZeile } from '../../daten';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/personal/personen/[id]/zugang` — der Zugang einer
@@ -154,7 +155,7 @@ export default async function Zugang(
       ) : null}
       {fehler !== null ? (
         <Hinweis art="warnung" cse="zugang-fehler" className="mb-s5 max-w-prose">
-          {t.fehler[fehler] ?? fehler}
+          {eigenerEintrag(t.fehler, fehler) ?? fehler}
         </Hinweis>
       ) : null}
 
@@ -225,7 +226,7 @@ export default async function Zugang(
       ) : null}
       {grund !== null ? (
         <Hinweis art="warnung" cse="zugang-abgewiesen" className="mb-s5 max-w-prose">
-          <strong>{t.codeKeiner}</strong> {t.codeGrund[grund] ?? grund}
+          <strong>{t.codeKeiner}</strong> {eigenerEintrag(t.codeGrund, grund) ?? grund}
         </Hinweis>
       ) : null}
 

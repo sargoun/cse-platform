@@ -4,6 +4,7 @@ import {
   RECRUITING_RUECKMELDUNG, type RecruitingRueckmeldungTexte,
 } from '@/lib/i18n/verwaltung/recruiting-rueckmeldung';
 import type { PortalSprache } from '@/lib/i18n/texte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * Die Rückmeldung einer Recruiting-Seite auf ihr eigenes Formular
@@ -52,7 +53,7 @@ export function RecruitingRueckmeldung({ sprache, seite, grund, eingabenErneut =
   return (
     <Hinweis art="warnung" cse="recruiting-rueckmeldung" className="mb-s5 max-w-prose">
       <strong>{vermerkt ? t.nichtVeroeffentlicht : t.nichtGespeichert}</strong>{' '}
-      {t[seite][grund] ?? t.abgewiesen}
+      {eigenerEintrag(t[seite], grund) ?? t.abgewiesen}
       {eingabenErneut ? <span className="mt-s2 block">{t.eingabenErneut}</span> : null}
     </Hinweis>
   );

@@ -12,6 +12,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import { listeOffeneEinwaende, type EinwandZeile } from '@/server/services/zeit/einwand';
 import { berlinAnzeige } from '@/server/services/zeit/dauer';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/zeiten/einwaende` — der Eingang der Planung (EMP-07).
@@ -122,7 +123,7 @@ export default async function Einwandeingang(
           className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-warning"
         >
           <strong>Nichts wurde entschieden.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </p>
       )}
 

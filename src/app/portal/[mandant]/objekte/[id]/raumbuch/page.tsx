@@ -23,6 +23,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
 import { istKennung } from '@/server/services/crm/lead-kette';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/objekte/[id]/raumbuch` — OPS-02 und das
@@ -288,7 +289,7 @@ export default async function Raumbuch(
         <h2 id="kalkulation" className="text-h2 text-text">Kalkulation</h2>
         {fehler === null ? null : (
           <Hinweis art="warnung" cse="raumbuch-angebot-fehler" className="my-s4 max-w-prose">
-            {kt.maskeFehler[fehler] ?? kt.fehler[fehler] ?? kt.nichtAngelegt}
+            {eigenerEintrag(kt.maskeFehler, fehler) ?? eigenerEintrag(kt.fehler, fehler) ?? kt.nichtAngelegt}
           </Hinweis>
         )}
         <p className="text-sm text-text-muted">
