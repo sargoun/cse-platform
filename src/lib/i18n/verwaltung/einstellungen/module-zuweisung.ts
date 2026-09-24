@@ -111,7 +111,7 @@ export const MODUL_ZUWEISUNG_TEXTE: Readonly<Record<InternSprache, ModulZuweisun
     abschnitt: 'Module der Administration',
     erklaerung:
       'Eine Administration hält die Rechte ihrer Rolle — hier eingeschränkt auf die '
-      + 'gewählten Module dieser Gesellschaft (AUT-01). Was nicht gewählt ist, gilt '
+      + 'gewählten Module dieser Gesellschaft. Was nicht gewählt ist, gilt '
       + 'nicht, auch nicht Einstellungen und Benutzer („System und Benutzer") oder die '
       + 'Übersicht („Berichte und Übersicht"). Die Änderung gilt mit der nächsten Seite.',
     umfang: 'Umfang',
@@ -148,7 +148,7 @@ export const MODUL_ZUWEISUNG_TEXTE: Readonly<Record<InternSprache, ModulZuweisun
     abschnitt: 'Modules of this administrator',
     erklaerung:
       'An administrator holds the rights of the role — restricted here to the modules '
-      + 'chosen for this Gesellschaft (AUT-01). Whatever is not chosen does not apply, '
+      + 'chosen for this Gesellschaft. Whatever is not chosen does not apply, '
       + 'including settings and users ("System and users") and the overview ("Reports '
       + 'and overview"). The change applies from the next page on.',
     umfang: 'Scope',

@@ -58,8 +58,8 @@ export const BEREICHSWECHSEL_TEXTE: Readonly<Record<InternSprache, Bereichswechs
     aktuell: 'Ihr aktueller Bereich',
     hierhin: 'Hierhin wechseln',
     gruppeZeile: (anzahl) => (anzahl === 1
-      ? 'Eine Gesellschaft — nur lesen (Invariante 10)'
-      : `${ZAHL.format(anzahl)} Gesellschaften zusammen — nur lesen (Invariante 10)`),
+      ? 'Eine Gesellschaft — nur lesen'
+      : `${ZAHL.format(anzahl)} Gesellschaften zusammen — nur lesen`),
     zurueckOhneWechsel: 'Zurück ohne Wechsel',
     website: 'Website',
     zurWebsite: 'Zur Website',
@@ -82,8 +82,8 @@ export const BEREICHSWECHSEL_TEXTE: Readonly<Record<InternSprache, Bereichswechs
     aktuell: 'Your current area',
     hierhin: 'Switch here',
     gruppeZeile: (anzahl) => (anzahl === 1
-      ? 'One Gesellschaft — read only (invariant 10)'
-      : `${ZAHL.format(anzahl)} Gesellschaften together — read only (invariant 10)`),
+      ? 'One Gesellschaft — read only'
+      : `${ZAHL.format(anzahl)} Gesellschaften together — read only`),
     zurueckOhneWechsel: 'Back without switching',
     website: 'Website',
     zurWebsite: 'To the website',

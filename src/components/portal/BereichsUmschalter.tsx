@@ -73,6 +73,13 @@ export function BereichsUmschalter({
     ...bereiche.map((b) => b.id),
     ...(gruppeSichtbar ? [null] : []),
   ];
+  /*
+   * Wo der Fokus beim Öffnen steht — als ZAHL (V-169). `zeilen` entsteht bei
+   * jedem Rendern neu; als Abhängigkeit meldete es den globalen ⌘K-Listener
+   * bei jedem Rendern ab und wieder an. Die Zahl ändert sich nur, wenn sich
+   * der aktive Bereich oder die Liste wirklich ändert.
+   */
+  const startFokus = Math.max(0, zeilen.indexOf(aktiv));
 
   const schliessen = useCallback(() => {
     setOffen(false);
@@ -86,12 +93,12 @@ export function BereichsUmschalter({
       if (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         setOffen((o) => !o);
-        setFokus(Math.max(0, zeilen.indexOf(aktiv)));
+        setFokus(startFokus);
       }
     }
     window.addEventListener('keydown', beiTaste);
     return () => { window.removeEventListener('keydown', beiTaste); };
-  }, [aktiv, zeilen]);
+  }, [startFokus]);
 
   useEffect(() => {
     if (!offen) return undefined;
@@ -154,7 +161,7 @@ export function BereichsUmschalter({
         aria-haspopup="menu"
         aria-expanded={offen}
         aria-controls={offen ? menuId : undefined}
-        onClick={() => { setOffen((o) => !o); setFokus(Math.max(0, zeilen.indexOf(aktiv))); }}
+        onClick={() => { setOffen((o) => !o); setFokus(startFokus); }}
         aria-label={`${texte.ausloeser}: ${name}`}
         className="flex h-11 min-w-11 max-w-full items-center gap-s2 rounded-md px-s2
                    hover:bg-surface-2"

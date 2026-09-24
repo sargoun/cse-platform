@@ -22,6 +22,8 @@ import {
   ausloeserName, BEREICHSWECHSEL_TEXTE, gewerkText, unterzeile, zaehlerText,
 } from '../../src/lib/i18n/verwaltung/bereichswechsel.js';
 import { kopfWechsel } from '../../src/components/portal/kopf-wechsel.js';
+import { MODUL_ZUWEISUNG_TEXTE }
+  from '../../src/lib/i18n/verwaltung/einstellungen/module-zuweisung.js';
 
 const karte = (e: Partial<Record<ZaehlerSchluessel, number>>): Map<ZaehlerSchluessel, number> =>
   new Map(Object.entries(e) as [ZaehlerSchluessel, number][]);
@@ -383,5 +385,56 @@ describe('(5) Zaehler nur fuer interne Sitzungen', () => {
       /const intern = istInterneLeiste\(leisteFuer\(sitzung\.portal, sitzung\.ansicht, rolle\)\);\s*const umschalter = await umschalterStand\(\{ abfrage \}, \{ gruppe: intern, zaehler: intern \}\);/u);
     expect(quelle('src/app/portal/konto/konto.ts')).toMatch(
       /const intern = istInterneLeiste\(leiste\);[\s\S]{0,260}\{ gruppe: intern, zaehler: intern \}\);/u);
+  });
+});
+
+/**
+ * **Was der Mensch liest, nennt keine Kennung des Entwurfs** (V-169, D-663).
+ *
+ * Die Gruppenzeile der Bereichswahl endete auf „(Invariante 10)" bzw.
+ * „(invariant 10)", die Erklärung der Modulzuweisung auf „(AUT-01)". Das
+ * sind Verweise für die, die den Code lesen — auf dem Bildschirm sagen sie
+ * niemandem etwas. Geprüft über jede Zeichenkette beider Tabellen, auch die
+ * erzeugten.
+ */
+describe('(6) Texte ohne Entwicklerbezug, ⌘K ohne Neuanmeldung je Rendern', () => {
+  const ENTWURF = /Invariante|invariant|\b(?:AUT|TEN|SEC|EMP|DSH|[DKOV])-\d+\b/u;
+
+  function zeichenketten(wert: unknown): string[] {
+    if (typeof wert === 'string') return [wert];
+    if (typeof wert === 'function') {
+      return [1, 3].map((n) => String((wert as (n: number) => unknown)(n)));
+    }
+    if (wert !== null && typeof wert === 'object') {
+      return Object.values(wert as Record<string, unknown>).flatMap(zeichenketten);
+    }
+    return [];
+  }
+
+  it.each(['de', 'en'] as const)('Bereichswechsel und Modulzuweisung (%s)', (sprache) => {
+    const texte = [
+      ...zeichenketten(BEREICHSWECHSEL_TEXTE[sprache]),
+      ...zeichenketten(MODUL_ZUWEISUNG_TEXTE[sprache]),
+    ];
+    expect(texte.length).toBeGreaterThan(30);
+    expect(texte.filter((t) => ENTWURF.test(t))).toEqual([]);
+  });
+
+  it('die Gruppenzeile sagt „nur lesen" weiter — nur ohne Kennung', () => {
+    expect(BEREICHSWECHSEL_TEXTE.de.gruppeZeile(3)).toBe('3 Gesellschaften zusammen — nur lesen');
+    expect(BEREICHSWECHSEL_TEXTE.en.gruppeZeile(1)).toBe('One Gesellschaft — read only');
+  });
+
+  /**
+   * `zeilen` entsteht bei jedem Rendern neu. Als Abhängigkeit des globalen
+   * ⌘K-Listeners meldete es ihn bei jedem Rendern ab und wieder an. Jetzt
+   * hängt er an einer Zahl, die sich nur mit dem aktiven Bereich ändert.
+   */
+  it('der ⌘K-Listener hängt an einer Zahl, nicht an einer je Rendern neuen Liste', () => {
+    const umschalter = quelle('src/components/portal/BereichsUmschalter.tsx');
+    expect(umschalter).toMatch(/const startFokus = Math\.max\(0, zeilen\.indexOf\(aktiv\)\);/u);
+    expect(umschalter).toMatch(
+      /window\.addEventListener\('keydown', beiTaste\);[\s\S]{0,120}\}, \[startFokus\]\);/u);
+    expect(umschalter).not.toMatch(/\[aktiv, zeilen\]/u);
   });
 });

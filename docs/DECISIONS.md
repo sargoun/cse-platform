@@ -17216,3 +17216,45 @@ beim Zeichnen) und gab einen unbekannten `?konto=`-Wert roh aus.
 
 | Betrifft | AUT-01, AUT-04, 03-AUTH §12.1, D-610, D-653, D-658, V-164, V-168, `drizzle/0419`, `src/server/db/seed/{zeit,reinigung,security,eingang,konto}.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/[id]/page.tsx`, `tests/isolation/mitgliedschaft-module.test.ts` §2, §4, `tests/kern/nachschlagen.test.ts` |
 |---|---|
+
+### D-663 · Die Texte des Bereichswechsels und der Modulzuweisung nennen keine Entwurfskennung, und ⌘K meldet sich nicht je Rendern neu an (V-169)
+
+**Der Befund** (V-169, Prüfung von V-164/V-165): Die Gruppenzeile der
+Bereichswahl endete auf „(Invariante 10)“ bzw. „(invariant 10)“, die
+Erklärung der Modulzuweisung auf „(AUT-01)“ — Verweise für die, die den Code
+lesen, auf dem Bildschirm ohne Bedeutung. Im `BereichsUmschalter` hing der
+globale ⌘K-Listener an `[aktiv, zeilen]`; `zeilen` entsteht bei jedem
+Rendern neu, der Listener wurde also bei jedem Rendern ab- und wieder
+angemeldet.
+
+**Die Entscheidung.**
+
+1. **Was der Mensch liest, nennt keine Kennung des Entwurfs** — keine
+   Invariante, keine SPEC-, D-, K-, O- oder V-Nummer — in den Texttabellen
+   dieser Gruppe (`bereichswechsel.ts`, `module-zuweisung.ts`). Die
+   Aussage bleibt („nur lesen“, „eingeschränkt auf die gewählten Module“),
+   nur der Verweis fällt. Eine Prüfung läuft über jede Zeichenkette beider
+   Tabellen in beiden Sprachen, auch über die erzeugten.
+2. **Der ⌘K-Listener hängt an einer Zahl** (`startFokus`, die Stelle des
+   aktiven Bereichs in der Liste), nicht an der je Rendern neuen Liste. Er
+   wird nur neu angemeldet, wenn sich diese Stelle ändert.
+3. **Nicht Teil dieser Entscheidung, bewusst:**
+   - Andere, ältere Seiten tragen dieselbe Sorte Verweis im Text (etwa
+     `portal/gruppe/freigaben`, die Kundenfreigabe eines Dokuments: „(Invariante
+     10)“). Sie gehören nicht zu den Befunden dieser Gruppe.
+   - Benutzerliste und Benutzerblatt bleiben deutsch bis auf die
+     Modulzuweisung (V-164), die zweisprachig ist. Beide Seiten stehen in der
+     eingefrorenen Ausnahmeliste der Übersetzungswache
+     (`scripts/guards/uebersetzung-ausnahmen.ts`). Nur die Spaltenköpfe
+     „Rolle“ und „Module“ umzustellen, ergäbe eine andere Mischung — die Zelle
+     „Rolle“ zeigt die deutsche Rollenbezeichnung aus der Datenbank, daneben
+     stehen ein Dutzend weitere deutsche Köpfe. Die Abhilfe ist, beide Seiten
+     ganz auf die Verwaltungstexte umzustellen und aus der Liste zu
+     streichen.
+   - `/auth/bereich` spricht de/en. Eine Kraft mit zwei Anstellungen und
+     Arabisch oder Türkisch landet dort weiter auf Deutsch — vor V-165 sprach
+     die Seite nur Deutsch, es ist also kein Rückschritt. Arabisch verlangt
+     außerdem die Schreibrichtung von rechts; die Seite setzt heute keine.
+
+| Betrifft | DESIGN §6, D-659, D-658, V-164, V-165, V-169, `src/lib/i18n/verwaltung/bereichswechsel.ts`, `src/lib/i18n/verwaltung/einstellungen/module-zuweisung.ts`, `src/components/portal/BereichsUmschalter.tsx`, `tests/kern/bereichswechsel.test.ts` §6 |
+|---|---|
