@@ -15727,3 +15727,61 @@ das einzige `update auftrag` betraf Zustand, Abschluss und Kundenfreigabe.
 
 | Betrifft | OPS-05, OPS-09, OPS-10, O-734, Invariante 1, 3, 10, V-173, `src/server/services/auftrag/{aendern,angaben}.ts`, `src/server/services/angebot/index.ts`, `src/app/api/auftrag/{route.ts,aendern/route.ts}`, `src/app/api/angebot/entscheidung/route.ts`, `src/app/portal/[mandant]/auftraege/{neu,[id],[id]/bearbeiten}/page.tsx`, `src/app/portal/[mandant]/angebote/[id]/annahme/page.tsx`, `src/lib/i18n/verwaltung/auftrag.ts`, `docs/architecture/04-SEITENKARTE.md` |
 |---|---|
+
+### D-668 · Material und Gerät gehen in die Kalkulation — erfasst, nie vorbelegt, und die Gemeinkostenbasis wirkt (V-174)
+
+**Der Befund** (V-174, OPS-07): OPS-07 verlangt die Kostenblöcke „labour +
+material + equipment + overhead + risk/profit". Das Schema trug sie seit 0023
+(`kostenart` 'material'/'geraet', `summe_material_cent`/`summe_geraet_cent`),
+aber `kalkuliere` kannte nur Lohn → Gemeinkosten → Wagnis/Gewinn, und kein Weg
+legte eine Material- oder Gerätezeile an. Ein Reinigungsangebot enthielt nie
+Reinigungsmittel oder Maschinen und war systematisch zu niedrig. Die wählbare
+Gemeinkostenbasis `selbstkosten`/`je_kostenart` wurde gespeichert und dann
+doch auf den Lohn gerechnet.
+
+**Die Entscheidung.**
+
+1. **Die Höhe wird nie vorbelegt.** Material und Gerät sind die Summe der
+   Zeilen, die ein Mensch auf der Kalkulationsseite erfasst: Menge ×
+   Einzelpreis, über `multipliziereMitMenge` (halb aufwärts, eine
+   Rundungsstelle). Menge über `mengeAusEingabe`, Preis über `parseGeld`;
+   beides nie negativ.
+2. **Einzelkosten gehen IMMER in den Preis.** Die Basis entscheidet nur,
+   worauf der Gemeinkostenzuschlag rechnet: `lohn` auf den Lohn,
+   `selbstkosten` auf Lohn + Material + Gerät (so steht es auch in der
+   Auswahl). Wagnis und Gewinn rechnen weiter auf die Summe davor
+   (Einzelkosten + Gemeinkosten). Welche Basis gruppenweit gilt, bleibt O-16.
+3. **`je_kostenart` wird abgewiesen** (`basis_offen`), nicht still wie `lohn`
+   gerechnet: sie braucht einen Zuschlag je Kostenart, und diese Sätze sind
+   offen — `// TODO(client, O-16)` am Dienst, die Auswahl zeigt die Option
+   sichtbar, aber nicht wählbar.
+4. **Im Angebot** stecken Material und Gerät wie Gemeinkosten, Wagnis und
+   Gewinn anteilig im Preis der Leistungszeilen (`verteileNetto`, größter
+   Rest) — dieselbe offene Frage O-208, ob Zuschläge eigene Positionen wären.
+   Ohne eine Lohnzeile, die sie tragen könnte, wird abgewiesen (`ohne_lohn`).
+5. **Nach jeder Kostenzeile wird neu gerechnet** — mit den Tarifzahlen, die
+   der Kopf trägt, über dieselbe Funktion wie beim ersten Mal
+   (`rechneKalkulationNeu` → `kalkuliere`). Die Kalkulationssumme und
+   `angebot.netto_cent` nennen danach denselben Betrag.
+6. **Nichts wird gelöscht** (Invariante 8): berichtigt wird die Zeile selbst;
+   eine Zeile, die nicht mehr gelten soll, bekommt die Menge 0 und bleibt als
+   Beleg. Jede Änderung steht mit Vorher/Nachher im Protokoll
+   (`kalkulation.kostenposition`).
+7. **Gesperrt** nach dem Versand (festgeschrieben) UND nach der
+   Preisfreigabe: eine Kostenzeile änderte den freigegebenen Preis, und „ein
+   anderer Preis braucht eine neue Angebotsversion" (O-732).
+8. **Die Zuschlagszeilen tragen ihren eigenen Bezug** (Gemeinkosten: den
+   Betrag nach der Basis; Wagnis/Gewinn: Einzelkosten + Gemeinkosten) und ihre
+   Nummer hinter der höchsten vorhandenen — vorher trugen beide den Lohn, und
+   eine Materialzeile vor der Bestätigung hätte `kp_position_uk` verletzt.
+9. **Die Kalkulationsseite** zeigt die fünf Blöcke aus den Summen der
+   Datenbank (sie rechnet nichts), den Rechenweg nur noch für Lohnzeilen und
+   einen eigenen Abschnitt „Material und Gerät" mit Anlegen und Berichtigen.
+
+**Nicht Teil dieser Entscheidung:** eine Kalkulation für Angebote von Hand
+(Security, Bau, `angebot/von-hand.ts`) — sie tragen ihren Preis je Position
+selbst; ebenso `kalkulation.selbstkosten_cent`, dessen Zusammensetzung O-16
+ist.
+
+| Betrifft | OPS-07, O-16, O-208, O-732, Invariante 1, 6, 8, V-174, `src/server/services/kalkulation/{index,bestaetigung,kostenposition}.ts`, `src/app/api/kalkulation/route.ts`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/lib/i18n/verwaltung/kalkulation.ts` |
+|---|---|

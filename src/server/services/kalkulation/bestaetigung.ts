@@ -14,9 +14,9 @@
  * gruppenweit gilt, bleibt offen (O-16) — und wird es so lange, bis der
  * Mandant es beantwortet, statt dass eine Vorgabe im Code es fuer ihn tut.
  */
-import { addiere, basisPunkte, parseGeld, type Cent } from '../finanz/geld.js';
+import { addiere, basisPunkte, NULL_CENT, parseGeld, type Cent } from '../finanz/geld.js';
 import type { MilliMenge } from '../finanz/menge.js';
-import { kalkuliere, verteileNetto } from './index.js';
+import { kalkuliere, verteileNetto, type GemeinkostenBasis } from './index.js';
 import type { Flaechenposten } from './richtzeit.js';
 import { prozentInBasispunkteOderGrund } from '../finanz/prozent';
 
@@ -25,7 +25,13 @@ export interface Abfrage {
 }
 
 export type KalkulationFehlerGrund =
-  | 'nicht_gefunden' | 'eingefroren' | 'unvollstaendig' | 'keine_zahl';
+  | 'nicht_gefunden' | 'eingefroren' | 'unvollstaendig' | 'keine_zahl'
+  /** `je_kostenart` braucht Saetze je Kostenart, die niemand genannt hat (O-16). */
+  | 'basis_offen'
+  /** Der Preis ist freigegeben — ein anderer ist eine neue Version (O-732, V-174). */
+  | 'preis_freigegeben'
+  /** Material/Geraet ohne eine Lohnzeile, die den Betrag tragen koennte (V-174). */
+  | 'ohne_lohn';
 
 export class KalkulationFehler extends Error {
   constructor(
@@ -178,6 +184,20 @@ export async function bestaetigeKalkulation(
       `Unbekannte Gemeinkostenbasis: ${eingabe.gemeinkostenBasis}`, 'unvollstaendig',
       'gemeinkostenBasis');
   }
+  /*
+   * `je_kostenart` wurde gespeichert und dann doch auf den Lohn gerechnet —
+   * eine gewaehlte Basis, die nichts bewirkte (V-174). Sie braucht einen
+   * Zuschlag JE Kostenart, und die Saetze sind offen.
+   * // TODO(client, O-16): Welche Gemeinkostensaetze gelten je Kostenart
+   * (Lohn, Material, Geraet), wenn getrennt zugeschlagen wird? Bis zur
+   * Antwort wird diese Basis abgewiesen, nie still wie `lohn` gerechnet.
+   */
+  if (eingabe.gemeinkostenBasis === 'je_kostenart') {
+    throw new KalkulationFehler(
+      'Gemeinkosten je Kostenart brauchen Saetze je Kostenart — sie sind offen (O-16)',
+      'basis_offen', 'gemeinkostenBasis');
+  }
+  const basis = eingabe.gemeinkostenBasis as GemeinkostenBasis;
   if (eingabe.stundensatzEuro === null || eingabe.gemeinkostenProzent === null
       || eingabe.wagnisGewinnProzent === null) {
     throw new KalkulationFehler(
@@ -259,13 +279,14 @@ export async function bestaetigeKalkulation(
    * hat, ist die gefaehrlichste Sorte: er sieht geprueft aus.
    */
   await rechneKalkulationNeu(db, kopf.id, angebotId,
-    { stundensatz: satz, gemeinkostenBp: gk, wagnisGewinnBp: wg }, frequenzMilli);
+    { stundensatz: satz, gemeinkostenBp: gk, wagnisGewinnBp: wg }, frequenzMilli,
+    { basis, bestaetigt: true });
 
   return { bestaetigt: true };
 }
 
 /** Die Tarifzahlen, mit denen neu gerechnet wird. */
-interface BestaetigterTarif {
+export interface BestaetigterTarif {
   readonly stundensatz: Cent;
   readonly gemeinkostenBp: number;
   readonly wagnisGewinnBp: number;
@@ -296,10 +317,18 @@ interface GespeicherteZeile {
  * Gerufen wird `kalkuliere` — dieselbe Funktion wie beim ersten Mal, mit
  * denselben Tests. Eine zweite Rechenfassung hier waere eine zweite Wahrheit
  * ueber den Preis.
+ *
+ * **Material und Geraet rechnen mit** (V-174): ihre Summen kommen aus den
+ * erfassten Positionen dieser Kalkulation, und die Gemeinkosten rechnen auf
+ * die Basis, die der Kopf nennt. Gerufen wird das von der Bestaetigung
+ * (`bestaetigt: true`) und von jeder Aenderung einer Kostenzeile
+ * (`kostenposition.ts`, `bestaetigt: false` — die Werte koennen noch
+ * Platzhalter sein, und dann steht das auch nicht in den Operanden).
  */
-async function rechneKalkulationNeu(
+export async function rechneKalkulationNeu(
   db: Abfrage, kalkulationId: string, angebotId: string,
   tarif: BestaetigterTarif, frequenzMilli: bigint | null,
+  optionen: { readonly basis: GemeinkostenBasis; readonly bestaetigt: boolean },
 ): Promise<void> {
   const zeilen = await db.abfrage<GespeicherteZeile>(
     `select p.id, p.position_nr, p.bezeichnung, p.belagsart_id,
@@ -310,7 +339,23 @@ async function rechneKalkulationNeu(
        from kalkulation_position p
       where p.kalkulation_id = $1 and p.kostenart = 'lohn'
       order by p.position_nr`, [kalkulationId]);
-  if (zeilen.length === 0) return;
+  if (zeilen.length === 0) {
+    /*
+     * Ohne Lohnzeile gibt es nichts neu zu rechnen — aber eine erfasste
+     * Material- oder Geraetezeile haette dann keine Leistungszeile, die sie im
+     * Angebot traegt, und stuende nur in der Kalkulation (V-174). Das wird
+     * genannt, nicht verschluckt.
+     */
+    const [einzel] = await db.abfrage<{ summe: string }>(
+      `select coalesce(sum(betrag_cent), 0)::text as summe from kalkulation_position
+        where kalkulation_id = $1 and kostenart in ('material', 'geraet')`, [kalkulationId]);
+    if (einzel !== undefined && BigInt(einzel.summe) > 0n) {
+      throw new KalkulationFehler(
+        'Material und Geraet brauchen eine Leistungszeile mit Lohn, die sie im Angebot '
+        + 'traegt — diese Kalkulation hat keine', 'ohne_lohn');
+    }
+    return;
+  }
 
   const posten: Flaechenposten[] = [];
   for (const z of zeilen) {
@@ -337,8 +382,24 @@ async function rechneKalkulationNeu(
       'Ohne Frequenzfaktor laesst sich die Kalkulation nicht rechnen', 'unvollstaendig');
   }
 
+  /*
+   * Die erfassten Einzelkosten — Summe je Kostenart, in der Datenbank
+   * addiert (bigint), nie in einer Gleitkommazahl.
+   */
+  const summen = await db.abfrage<{ kostenart: string; summe: string }>(
+    `select kostenart::text as kostenart, coalesce(sum(betrag_cent), 0)::text as summe
+       from kalkulation_position
+      where kalkulation_id = $1 and kostenart in ('material', 'geraet')
+      group by kostenart`, [kalkulationId]);
+  const summeVon = (art: string): Cent => {
+    const z = summen.find((s) => s.kostenart === art);
+    return z === undefined ? NULL_CENT : BigInt(z.summe) as Cent;
+  };
+
   const neu = kalkuliere({
     posten,
+    einzelkosten: { material: summeVon('material'), geraet: summeVon('geraet') },
+    gemeinkostenBasis: optionen.basis,
     frequenz: { faktor: faktor as MilliMenge, istPlatzhalter: frequenzMilli === null,
                 offeneFragen: frequenzMilli === null ? ['O-56'] : [] },
     tarif: {
@@ -354,6 +415,11 @@ async function rechneKalkulationNeu(
     },
   });
 
+  if ((neu.lohnkosten as bigint) === 0n && (neu.netto as bigint) !== 0n) {
+    throw new KalkulationFehler(
+      'Material und Geraet brauchen eine Leistungszeile mit Lohn, die sie im Angebot '
+      + 'traegt — diese Kalkulation hat keine', 'ohne_lohn');
+  }
   const preise = verteileNetto(neu.zeilen, neu.netto);
 
   for (const [i, z] of zeilen.entries()) {
@@ -380,7 +446,7 @@ async function rechneKalkulationNeu(
          stundensatz_cent: String(tarif.stundensatz),
          lohnkosten_cent: String(zeile.lohnkosten),
          nettoanteil_cent: String(preis),
-         nachgerechnet_am_bestaetigt: true,
+         ...(optionen.bestaetigt ? { nachgerechnet_am_bestaetigt: true } : {}),
        }]);
 
     await db.abfrage(
@@ -400,10 +466,17 @@ async function rechneKalkulationNeu(
    * Dieselbe Kalkulation nennt dann zwei Betraege, und beide sehen richtig
    * aus. Gemeinkosten und Wagnis/Gewinn bekommen deshalb je eine Zeile.
    */
-  const zuschlaege: readonly (readonly [string, Cent, string, number])[] = [
-    ['gemeinkosten', neu.gemeinkosten, 'Gemeinkosten', tarif.gemeinkostenBp],
+  /*
+   * Jeder Zuschlag traegt SEINEN Bezug (V-174): die Gemeinkosten den Betrag,
+   * auf den sie nach der gewaehlten Basis rechnen, Wagnis und Gewinn die
+   * Summe davor (Einzelkosten + Gemeinkosten). Vorher trugen beide den Lohn —
+   * fuer Wagnis und Gewinn war das schon ohne Material falsch.
+   */
+  const zuschlaege: readonly (readonly [string, Cent, string, number, Cent])[] = [
+    ['gemeinkosten', neu.gemeinkosten, 'Gemeinkosten', tarif.gemeinkostenBp,
+     neu.gemeinkostenBezug],
     ['wagnis_gewinn', addiere(neu.wagnis, neu.gewinn), 'Wagnis und Gewinn',
-     tarif.wagnisGewinnBp],
+     tarif.wagnisGewinnBp, neu.vorZuschlag],
   ];
   /**
    * Geaendert wird eine vorhandene Zuschlagszeile, angelegt nur die fehlende.
@@ -415,8 +488,16 @@ async function rechneKalkulationNeu(
    * ein Preis entstand, und ein Beleg verschwindet nicht, weil sich der Preis
    * geaendert hat.
    */
-  let nr = zeilen.length;
-  for (const [art, betrag, bezeichnung, bp] of zuschlaege) {
+  /*
+   * Die naechste freie Nummer ist die hinter der HOECHSTEN, nicht hinter der
+   * Zahl der Lohnzeilen: eine Material- oder Geraetezeile kann schon dort
+   * stehen, und `kp_position_uk` wiese die zweite Nummer ab (V-174).
+   */
+  const [hoechste] = await db.abfrage<{ nr: number }>(
+    `select coalesce(max(position_nr), 0)::int as nr from kalkulation_position
+      where kalkulation_id = $1`, [kalkulationId]);
+  let nr = hoechste?.nr ?? zeilen.length;
+  for (const [art, betrag, bezeichnung, bp, bezugsbetrag] of zuschlaege) {
     const [vorhanden] = await db.abfrage<{ id: string }>(
       `select id from kalkulation_position
         where kalkulation_id = $1 and kostenart = $2::kostenart
@@ -428,9 +509,10 @@ async function rechneKalkulationNeu(
             set betrag_cent = $2, satz_bp = $3, basis_bezugsbetrag_cent = $4,
                 operanden = operanden || $5::jsonb
           where id = $1`,
-        [vorhanden.id, String(betrag), bp, String(neu.lohnkosten),
-         { basis_cent: String(neu.lohnkosten), satz_bp: String(bp),
-           betrag_cent: String(betrag) }]);
+        [vorhanden.id, String(betrag), bp, String(bezugsbetrag),
+         { basis_cent: String(bezugsbetrag), satz_bp: String(bp),
+           betrag_cent: String(betrag),
+           ...(art === 'gemeinkosten' ? { gemeinkosten_basis: optionen.basis } : {}) }]);
       continue;
     }
 
@@ -446,10 +528,11 @@ async function rechneKalkulationNeu(
        values (app.aktiver_mandant(), $1, $2, $3::kostenart, $4,
                1, 'psch', $5, $6, $7, $8, $9::jsonb, $10, $2)`,
       [kalkulationId, nr, art, bezeichnung, String(betrag), bp,
-       String(neu.lohnkosten),
+       String(bezugsbetrag),
        `${bezeichnung} = Bezugsbetrag × ${(bp / 100).toFixed(2)} %`,
-       { basis_cent: String(neu.lohnkosten), satz_bp: String(bp),
-         betrag_cent: String(betrag) },
+       { basis_cent: String(bezugsbetrag), satz_bp: String(bp),
+         betrag_cent: String(betrag),
+         ...(art === 'gemeinkosten' ? { gemeinkosten_basis: optionen.basis } : {}) },
        `${bezeichnung} auf der bestaetigten Grundlage — siehe Kalkulationskopf`]);
   }
 }
