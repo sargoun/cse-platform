@@ -261,7 +261,9 @@ describe('withDevAdmin — der Kontext der Entwicklungsflaechen', () => {
       withDevAdmin(tx, mandantId, (kontext) =>
         dashboard(kontext,
           { mandantId, mandantSlug: 'reinigung', mandantIds: kontext.mandantIds },
-          () => true))));
+          // Keine Buchung filtert (V-151): hier geht es um die Bindung des
+          // Super-Admins, nicht um die Module der Gesellschaft.
+          () => true, { module: [], gepflegt: false }))));
 
     expect(werte.length).toBe(alle.length);
     /**

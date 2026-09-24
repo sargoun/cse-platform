@@ -15782,3 +15782,51 @@ Aktivität.
 
 | Betrifft | DSH-01, DSH-03, DSH-04, DSH-05, OPS-05, OPS-08, OPS-11, FIN-15, TEN-05, D-479, O-910, V-150, `src/server/services/bericht/{kacheln,mengen}.ts`, `src/server/services/gruppe/{uebersicht,auslastung,aufgaben}.ts`, `src/server/services/bau/lv.ts`, `src/app/portal/[mandant]/{page,auftraege/page,angebote/page,bau/projekte/page}.tsx`, `src/app/portal/gruppe/{page,aufgaben/page,auslastung/page,auftraege/page,projekte/page}.tsx`, `src/components/portal/Listenfilter.tsx`, `src/lib/i18n/verwaltung/kennzahlen.ts`, `docs/DESIGN.md`, `tests/kern/verweis-rechte.test.ts` |
 |---|---|
+
+### D-645 · Eine Kachel erscheint nur, wenn sich ihr Ziel öffnet — Recht, Zielrechte und Modulbuchung (V-151)
+
+**Der Befund** (V-151, DSH-04, AUT-06, D-377; Nachprüfung von V-150): die
+neue Kachel „Bauprojekte in Arbeit“ (`bau.lesen`) erschien bei Leitung und
+Administration in JEDER Gesellschaft — beide halten `bau.lesen` global
+(0008) —, und in der Reinigung, der Security und bei Operations führte sie auf
+`/bau/projekte?status=in_arbeit`: ein 404, weil die Pforte eine Seite eines
+nicht gebuchten Gewerks so beantwortet. Das Dashboard filterte nur nach dem
+Recht der Kachel; `Kachel.modul` las niemand, `app.hat_recht` schneidet nur
+mit `benutzer_mandant.module`, nicht mit `mandant.module`, und kein Test
+fragte, ob sich das Ziel einer sichtbaren Kachel öffnet. Dieselbe Lücke in
+kleiner: „Offene Forderungen“ hing an `buchhaltung.lesen`, `offener_posten`
+liest aber nur, wer `zahlung.lesen` hält (0121) — eine Rolle ohne das zweite
+sah „0“, eine Aussage über das Recht statt über die Forderungen. Und
+„Offene Konflikte“ (`dienstplan.arbzg_lesen`) führt auf eine Seite, die
+zusätzlich `dienstplan.lesen` verlangt.
+
+**Die Entscheidung.**
+
+1. **Die Kachel fragt, was die Pforte fragen wird.** `kachelErreichbar`
+   (`services/bericht/dashboard.ts`) verlangt das Recht der Kachel und ihre
+   `zusatzRechte`, die Buchung ihres Moduls und ihrer Rechte (`modulAktiv`),
+   eine Zielroute im Manifest, die in dieser Gesellschaft nicht gesperrt ist,
+   und JEDES Leserecht dieser Route. Fällt eines, erscheint die Kachel nicht —
+   nicht ausgegraut (AUT-06).
+2. **Eine Regel, eine Funktion.** Ob eine Route am Modul scheitert, sagt
+   `routeGesperrt` (`registry/routen.ts`); die Pforte (`app/portal/zugang.ts`)
+   und die Übersicht rufen beide genau diese Funktion. Die Regel stand vorher
+   nur in der Pforte, und die Übersicht wusste nichts von ihr.
+3. **Die Buchung ist ein Pflichtargument von `dashboard()`.**
+   `bereichsDashboard` liest Buchung und Rechte in derselben gebundenen
+   Transaktion wie die Zahlen, in einer Rundreise (`kachelRechte`). Die
+   Entwicklungsfläche `/dev/dashboard`, deren Ziele `/dev/kennzahl/…` sind und
+   sich immer öffnen, sagt ausdrücklich „keine Buchung“
+   (`gepflegt: false`) — derselbe Wert, den eine Gesellschaft ohne gepflegte
+   Liste hat (0103).
+4. **`zusatzRechte` für die Rechte der gezählten Tabelle.** „Offene
+   Forderungen“ trägt `zahlung.lesen`; Recht und Modul der Kachel bleiben
+   `buchhaltung`, weil ihr Ziel die Liste der Buchhaltung ist.
+
+**Nicht Teil dieser Entscheidung:** ein zweiter Faktor, den ein Ziel verlangt
+(`aal2`). Keine Kachel führt heute auf eine solche Route; der Test in
+`tests/kern/kennzahlen-erreichbar.test.ts` schlägt an dem Tag an, an dem eine
+dazukommt, statt dass die Übersicht die Stufe der Sitzung raten müsste.
+
+| Betrifft | DSH-03, DSH-04, AUT-06, D-377, D-644, V-150, V-151, `src/server/services/bericht/{dashboard,kacheln}.ts`, `src/server/registry/{kennzahlen,routen}.ts`, `src/app/portal/zugang.ts`, `src/app/portal/[mandant]/page.tsx`, `src/app/dev/dashboard/page.tsx`, `tests/kern/kennzahlen-erreichbar.test.ts`, `tests/isolation/kennzahlen-listen.test.ts` |
+|---|---|

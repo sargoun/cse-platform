@@ -42,10 +42,23 @@ export interface Kachel {
   readonly schluessel: string;
   /** Deutsch. Das interne Portal ist deutsch (CLAUDE.md). */
   readonly label: string;
-  /** Das Modul, aus dem sie kommt — und ohne das sie nicht erscheint. */
+  /**
+   * Das Modul, aus dem sie kommt — und ohne das sie nicht erscheint.
+   *
+   * Ausgewertet gegen die Buchung der Gesellschaft (`modulAktiv`, D-377) in
+   * `services/bericht/dashboard.ts` (V-151): eine Bau-Kachel in einer
+   * Gesellschaft ohne Bau führte auf einen 404.
+   */
   readonly modul: string;
   /** Der Rechteschluessel, ohne den die Kachel nicht gerendert wird. */
   readonly recht: string;
+  /**
+   * Weitere Rechte, ohne die die Zahl eine Aussage über das RECHT wäre und
+   * nicht über die Daten — die Policy der gezählten Tabelle verlangt sie
+   * (V-151). Ohne sie antwortete RLS mit 0, und die Kachel zeigte „0 offene
+   * Forderungen" für eine Rolle, die sie nur nicht lesen darf.
+   */
+  readonly zusatzRechte?: readonly string[];
   readonly ton: Ton;
   /**
    * Das Icon der Kachel (DESIGN §5: die KPI-Kachel traegt eine 40×40-Flaeche
@@ -125,9 +138,14 @@ export function leereKacheln(): void { REGISTER.clear(); }
  * Gefiltert wird nach RECHT, nicht nach Rolle: die Rolle ist eine Abkürzung,
  * das Recht ist die Aussage. Was jemand nicht darf, erscheint gar nicht —
  * eine ausgegraute Kachel verriete die Existenz der Zahl (AUT-06).
+ *
+ * Das ist die ERSTE Hälfte der Frage. Ob das Ziel sich öffnet — seine
+ * Rechte, die Buchung der Gesellschaft — fragt `kachelErreichbar` in
+ * `services/bericht/dashboard.ts` (V-151); dort wird das Dashboard gebaut.
  */
 export function sichtbareKacheln(
   hatRecht: (recht: string) => boolean,
 ): readonly Kachel[] {
-  return kacheln().filter((k) => hatRecht(k.recht));
+  return kacheln().filter(
+    (k) => hatRecht(k.recht) && (k.zusatzRechte ?? []).every(hatRecht));
 }

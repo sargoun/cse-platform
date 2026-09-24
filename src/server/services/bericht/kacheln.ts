@@ -448,6 +448,13 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
         `auftraege?status=${AUFTRAG_AKTIV}`),
     }),
 
+    /**
+     * Die erste Kachel, die an ein GEWERK gebunden ist (`bau`, D-377).
+     * `bau.lesen` halten Leitung und Administration global, also in jeder
+     * Gesellschaft; erscheinen darf sie trotzdem nur, wo Bau gebucht ist —
+     * sonst führte sie auf `/bau/projekte`, das die Pforte dort mit 404
+     * beantwortet. Das entscheidet `kachelErreichbar` (V-151, D-645).
+     */
     registriereKachel({
       schluessel: 'projekte_in_arbeit',
       icon: 'aufmass',
@@ -500,6 +507,12 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
      * `postenListe`): `ausgeglichen_am is null and offen_cent > 0`. Eine
      * Rechnung „offen" nach ihrem Status zu zählen hiesse, eine Teilzahlung
      * zu übersehen — der Posten weiss es, der Rechnungsstatus nicht.
+     *
+     * **Und `zahlung.lesen` dazu** (V-151): `offener_posten` liest nur, wer
+     * es hält (0121, `t_mandant_lesen`). Mit `buchhaltung.lesen` allein
+     * zeigte die Kachel „0" — eine Aussage über das Recht, nicht über die
+     * Forderungen. Die Liste dahinter verlangt `buchhaltung.lesen`, und das
+     * fragt `kachelErreichbar` am Ziel.
      */
     registriereKachel({
       schluessel: 'forderungen_offen',
@@ -507,6 +520,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
       label: 'Offene Forderungen',
       modul: 'buchhaltung',
       recht: 'buchhaltung.lesen',
+      zusatzRechte: ['zahlung.lesen'],
       ton: 'warning',
       zaehlung:
         `select count(*)::int as wert from offener_posten

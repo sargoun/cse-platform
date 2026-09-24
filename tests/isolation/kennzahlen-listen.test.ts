@@ -17,6 +17,8 @@
  *  (3) Die Gruppenübersicht zählt Projekte, „im Einsatz" und offene Aufgaben
  *      je Bereich so, wie `gruppeImEinsatz` und `gruppenAufgaben` sie listen —
  *      und ohne Recht steht `null`.
+ *  (4) Die Übersicht eines Bereichs zeigt eine Kachel nur, wenn sich ihr Ziel
+ *      öffnet — Buchung und Rechte aus der Datenbank (V-151, D-645).
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
@@ -24,7 +26,7 @@ import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import { withGroupScope, type LeseKontext, type Sitzung } from '../../src/server/kontext/index.js';
 import { leereKacheln, type Kachel } from '../../src/server/registry/kennzahlen.js';
 import { registriereBerichtKacheln } from '../../src/server/services/bericht/kacheln.js';
-import { kachelWert } from '../../src/server/services/bericht/dashboard.js';
+import { bereichsDashboard, kachelWert } from '../../src/server/services/bericht/dashboard.js';
 import { leseAktivitaeten } from '../../src/server/services/crm/verlauf.js';
 import { listeProjekte } from '../../src/server/services/bau/lv.js';
 import { gruppeImEinsatz } from '../../src/server/services/gruppe/auslastung.js';
@@ -364,5 +366,68 @@ describe('(3) die Gruppenübersicht: Projekte in Arbeit und „aktuell im Einsat
     // Ohne `gruppe.aufgabe.lesen`: Strich in der Zelle, keine Zeile in der Liste.
     expect(je.get('reinigung')?.aufgabenOffen).toBeNull();
     expect(aufgaben).toEqual([]);
+  });
+});
+
+describe('(4) V-151 — eine Kachel erscheint nur, wenn sich ihr Ziel öffnet', () => {
+  const kx = (slug: string, id: string) => ({ mandantId: id, mandantSlug: slug, mandantIds: [id] });
+  const schluessel = (werte: readonly { kachel: Kachel }[]): readonly string[] =>
+    werte.map((w) => w.kachel.schluessel);
+
+  it('„Bauprojekte in Arbeit": dieselbe Leitung, in der Reinigung nicht, im Bau schon', async () => {
+    // Die Buchung wie im Seed (`seed/index.ts`): die Reinigung reinigt, der Bau baut.
+    await sql.unsafe(
+      `update mandant set module = '{reinigung}', module_gepflegt = true where id = $1`,
+      [f.reinigung]);
+    await sql.unsafe(
+      `update mandant set module = '{bau}', module_gepflegt = true where id = $1`, [f.bau]);
+    await projekt(f.bau, await kunde(f.bau, 'Wohnungsbau Lichtenberg'), 'in_arbeit');
+
+    // `verantwortlich` ist Leitung in jeder Gesellschaft (beforeEach).
+    const { recht, reinigung } = await alsBereich(verantwortlich, f.reinigung, async (k) => ({
+      recht: (await k.abfrage<{ ok: boolean }>(
+        `select app.hat_recht('bau.lesen', $1::uuid) as ok`, [f.reinigung]))[0]?.ok,
+      reinigung: await bereichsDashboard(k, kx('reinigung', f.reinigung)),
+    }));
+    // DAS war der Befund: das Recht ist da (global) — das Modul nicht.
+    expect(recht).toBe(true);
+    expect(schluessel(reinigung)).not.toContain('projekte_in_arbeit');
+    expect(schluessel(reinigung)).toContain('auftraege_aktiv');
+
+    const bau = await alsBereich(verantwortlich, f.bau,
+      (k) => bereichsDashboard(k, kx('bau', f.bau)));
+    const kachelBau = bau.find((w) => w.kachel.schluessel === 'projekte_in_arbeit');
+    expect(kachelBau?.wert).toBe(1);
+    expect(kachelBau?.ziel).toBe('/portal/bau/bau/projekte?status=in_arbeit');
+  });
+
+  it('ohne gepflegte Buchung filtert nichts — „nicht eingetragen" ist kein „nicht gebucht"', async () => {
+    await sql.unsafe(
+      `update mandant set module = '{}', module_gepflegt = false where id = $1`, [f.reinigung]);
+    const reinigung = await alsBereich(verantwortlich, f.reinigung,
+      (k) => bereichsDashboard(k, kx('reinigung', f.reinigung)));
+    expect(schluessel(reinigung)).toContain('projekte_in_arbeit');
+  });
+
+  it('„Offene Forderungen" nur mit `zahlung.lesen` — sonst zählte RLS 0', async () => {
+    const nurBuchhaltung = await mitRechten(f.reinigung, ['buchhaltung.lesen']);
+    const beide = await mitRechten(f.reinigung, ['buchhaltung.lesen', 'zahlung.lesen']);
+    const ohne = await alsBereich(nurBuchhaltung, f.reinigung,
+      (k) => bereichsDashboard(k, kx('reinigung', f.reinigung)));
+    const mit = await alsBereich(beide, f.reinigung,
+      (k) => bereichsDashboard(k, kx('reinigung', f.reinigung)));
+    expect(schluessel(ohne)).toEqual([]);
+    expect(schluessel(mit)).toEqual(['forderungen_offen']);
+  });
+
+  it('„Offene Konflikte" nur, wenn die Seite dahinter sich öffnet (`dienstplan.lesen`)', async () => {
+    const nurKonflikte = await mitRechten(f.security, ['dienstplan.arbzg_lesen']);
+    const beide = await mitRechten(f.security, ['dienstplan.arbzg_lesen', 'dienstplan.lesen']);
+    const ohne = await alsBereich(nurKonflikte, f.security,
+      (k) => bereichsDashboard(k, kx('security', f.security)));
+    const mit = await alsBereich(beide, f.security,
+      (k) => bereichsDashboard(k, kx('security', f.security)));
+    expect(schluessel(ohne)).not.toContain('konflikte_offen');
+    expect(schluessel(mit)).toContain('konflikte_offen');
   });
 });
