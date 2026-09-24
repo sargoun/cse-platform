@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { anfrageAdresse } from '@/server/auth/adresse';
 import { db } from '@/server/db/pool';
 import {
   KeinBenutzerkontoFuerMediumFehler, nimmClaimAn,
@@ -106,13 +107,6 @@ function ereignisAus(roh: RohEreignis): OfflineEreignis | null {
   };
 }
 
-/** Die erste Adresse aus `x-forwarded-for` — die des Geraets, nicht die des Proxys. */
-function ipAus(anfrage: NextRequest): string | null {
-  const kopf = anfrage.headers.get('x-forwarded-for');
-  const erste = kopf?.split(',')[0]?.trim();
-  return erste === undefined || erste === '' ? null : erste;
-}
-
 export async function POST(
   anfrage: NextRequest,
   kontext: { params: Promise<{ token: string }> },
@@ -160,7 +154,7 @@ export async function POST(
         token,
         ereignisse,
         rohJeEreignis: rohTexte,
-        ip: ipAus(anfrage),
+        ip: anfrageAdresse(anfrage.headers),
         userAgent: anfrage.headers.get('user-agent'),
       })) as Promise<Awaited<ReturnType<typeof nimmClaimAn>>>);
 

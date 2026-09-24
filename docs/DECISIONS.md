@@ -16834,7 +16834,8 @@ und kein Weg setzte `akteur_typ = 'agent'`.
    Spalte leer statt erfunden. *(Berichtigt in D-661: drei Wege OHNE Sitzung
    — Sperre der Bremse, Kennwort und zweiter Faktor per Token — blieben bis
    V-167 trotz bekannter Adresse leer; sie binden sie jetzt mit
-   `bindeHerkunft`.)*
+   `bindeHerkunft`. Der Check-in mit der Marke und der Einmalcode der Kraft
+   folgten erst mit V-235, D-729.)*
 2. **Ein kaputter Wert wird NULL, nicht ein Abbruch** (0415).
    `app.protokolliere` castet nur, was `pg_input_is_valid` für `inet` hält.
    Vorher hätte ein unbrauchbarer Wert in `app.ip` jede protokollierende
@@ -17156,7 +17157,10 @@ zweiten Faktor, 0155). `app.protokolliere` liest die Adresse aus `app.ip`
    anders läse, gäbe eine zweite Antwort auf dieselbe Frage.
 7. **D-657 Nr. 1 gilt damit wörtlich:** ohne IP bleiben nur Läufe ohne
    Anfrage (Hintergrund, Test). O-92 (wie lange die IP stehen darf) bleibt
-   offen und gilt für diese Zeilen genauso.
+   offen und gilt für diese Zeilen genauso. *(Berichtigt in D-729: das war
+   nicht wahr. Der Check-in mit der Marke — Einlösen, Nachreichung,
+   Aufnahme als `cse_checkin` — und der Einmalcode der Kraft schrieben
+   weiter ohne Adresse, obwohl sie vorlag; seit V-235 binden auch sie.)*
 
 | Betrifft | SEC-A9, AUT-01, AUT-02, AUT-07, D-300, D-657, O-92, V-163, V-167, `src/server/kontext/index.ts`, `src/server/auth/kennwort-anmeldung.ts`, `src/server/auth/adresse.ts`, `src/app/auth/passwort-neu/page.tsx`, `src/app/auth/zwei-faktor/einrichten/page.tsx`, `tests/isolation/pruefprotokoll-ip-agent.test.ts` §3, `tests/isolation/anmeldung-kennwort.test.ts` |
 |---|---|
@@ -17257,4 +17261,66 @@ angemeldet.
      außerdem die Schreibrichtung von rechts; die Seite setzt heute keine.
 
 | Betrifft | DESIGN §6, D-659, D-658, V-164, V-165, V-169, `src/lib/i18n/verwaltung/bereichswechsel.ts`, `src/lib/i18n/verwaltung/einstellungen/module-zuweisung.ts`, `src/components/portal/BereichsUmschalter.tsx`, `tests/kern/bereichswechsel.test.ts` §6 |
+|---|---|
+
+### D-729 · Auch der Check-in und der Einmalcode tragen die Adresse der Anfrage ins Prüfprotokoll (V-235)
+
+**Der Befund** (V-235, Prüfung von V-167; SEC-A9): D-661 Nr. 7 sagte, ohne
+IP blieben nur Läufe ohne Anfrage. Zwei Familien von Wegen MIT Anfrage
+schrieben aber weiter `ip = NULL`:
+
+- **Der Check-in mit der Marke.** `/api/check-in/[token]`,
+  `…/offline` und `…/medien` lesen die Adresse und reichen sie als `p_ip`
+  an `app.checkin_verbrauchen` bzw. `app.offline_ereignis_annehmen`. Dort
+  landet sie in `checkin_token.ip_adresse`, an der Bremse und im
+  `nachher`-JSON von `zeit.eingestempelt` — aber nicht in der Spalte `ip`:
+  `app.protokolliere` liest `app.ip` (0415), und `withCheckin` setzte als
+  einzige GUC die Rolle. Betroffen waren `zeiteintrag.insert`/`.update`
+  (Auslöser aus 0034), `zeit.eingestempelt`/`zeit.ausgestempelt` (0035)
+  und `zeit.offline_empfangen` (0090).
+- **Der Einmalcode der Kraft.** `app.zugang_code_einloesen` (0114) setzt
+  `mitarbeiter_zugang.letzter_login_am`; der Auslöser der Tabelle (0384)
+  schreibt `mitarbeiter_zugang.update` — vor jeder Sitzung, ohne Adresse,
+  obwohl `/auth/mitarbeiter/code` sie mit `herkunft()` schon liest.
+
+Kein Test deckte einen dieser Wege ab.
+
+**Die Entscheidung.**
+
+1. **`withCheckin` bindet die Herkunft, und sie ist Pflicht.** Die
+   Signatur ist `withCheckin(tx, ip, fn)`; vor dem Rollenwechsel setzt
+   `bindeHerkunft` `app.ip`, transaktionslokal. Das ist keine Sitzung —
+   kein Konto, kein Mandant, kein Portal —, die Marke bleibt die einzige
+   Berechtigung (K-08). `loeseCheckinEin` und `nimmClaimAn` nehmen
+   `ip: string | null` als Pflichtangabe, wie die Dienste aus D-661 Nr. 2.
+   `markePraesentierbar` liest nur und bindet ausdrücklich keine Adresse.
+2. **`codeEinloesen` bindet sie selbst**, ebenfalls als Pflichtangabe,
+   und erst, nachdem Nummer und Code überhaupt die Form haben — eine
+   Eingabe, die gar nicht zur Datenbank geht, bindet nichts.
+3. **Eine Lesart.** Die drei Check-in-Routen nehmen `anfrageAdresse`
+   (D-661 Nr. 6) statt einer eigenen Kopie ohne Prüfung. Nebenbei: ein
+   Kopf, der keine Adresse ist, lief bisher roh in den `inet`-Parameter,
+   an dem Postgres ihn mit `invalid input syntax` abweist, und der Dienst
+   reichte den Fehler an die Route durch; jetzt wird er `null`, bevor er
+   die Datenbank erreicht. Die Stempeluhr aus
+   der Sitzung reicht `sitzung.ip` durch — dieselbe Adresse, die
+   `withTenant` für das Protokoll bindet.
+4. **In der Anwendung, nicht in den Funktionen** — aus demselben Grund
+   wie D-661 Nr. 4: ein Mechanismus für alle Wege ohne Sitzung, und keine
+   Definer-Funktion, die `app.ip` für ihre eigenen Zeilen umsetzt. Wer
+   `app.checkin_verbrauchen` am Anwendungsweg vorbei aufruft, bekommt die
+   Adresse weiter nur in `checkin_token` — das ist kein Weg der Plattform.
+5. **Was jetzt ohne Adresse bleibt, ist nachgezählt**, nicht behauptet:
+   alle Transaktionen unter `src/app`, die keine Sitzung binden. Die
+   Anmeldung und ihre Tokens binden seit D-661, Check-in und Einmalcode
+   seit hier. Die öffentlichen Formulare (`withEingang`) speichern die
+   rohe Adresse bewusst nirgends (D-657 Nr. 4). Der Kalenderabruf per
+   Token liest nur. Abmelden, „Kennwort vergessen“ und das Anfordern
+   eines Einmalcodes schreiben keine Protokollzeile. Ohne Adresse bleiben
+   damit die Läufe ohne Anfrage eines Menschen (Nachtläufe, auch wenn der
+   Zeitplaner sie per HTTP anstößt; Seed; Test) und die Formularannahme.
+   Ein neuer Weg ohne Sitzung muss die Herkunft selbst binden; das sagt
+   der Kommentar an `bindeHerkunft`.
+
+| Betrifft | SEC-A9, K-08, D-657, D-661, O-92, V-167, V-235, `src/server/kontext/checkin.ts`, `src/server/kontext/index.ts` (`bindeHerkunft`), `src/server/services/zeit/checkin.ts`, `src/server/services/zeit/offline.ts`, `src/server/auth/mitarbeiter-anmeldung.ts`, `src/app/api/check-in/[token]/{route,offline/route,medien/route}.ts`, `src/app/api/mein/stempeluhr/route.ts`, `src/app/auth/mitarbeiter/code/page.tsx`, `docs/architecture/03-AUTH-BERECHTIGUNGEN.md` (Check-in-Prinzipal), `tests/isolation/pruefprotokoll-ip-agent.test.ts` §4, `tests/kern/mitarbeiter-anmeldung.test.ts` |
 |---|---|

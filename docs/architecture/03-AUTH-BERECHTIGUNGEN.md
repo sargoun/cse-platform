@@ -735,9 +735,13 @@ own rows.
 | Reachable data | per rights and ceiling | nothing. No list endpoint, no navigation, no second record |
 | DB role | `cse_app` | `cse_checkin`, holding `EXECUTE` on `app.checkin_verbrauchen` and `app.offline_ereignis_annehmen` and nothing else (K-01, K-08) |
 
-The check-in path has no session, so it has no GUCs, so every K-03 policy evaluates false for it —
-which is exactly why it does no table access of its own. It calls one function, which derives
-`mandant_id`, `anstellung_id` and `person_id` from the token's assignment (K-08):
+The check-in path has no session, so it has no session GUCs, so every K-03 policy evaluates false
+for it — which is exactly why it does no table access of its own. It calls one function, which
+derives `mandant_id`, `anstellung_id` and `person_id` from the token's assignment (K-08):
+
+> **The one GUC it does set is `app.ip`** (V-235, D-729): the request's address, bound by
+> `withCheckin` before the role switch, so that `app.protokolliere` writes it into every audit row
+> of the check-in. It is not a session — no account, no mandant, no portal — and no policy reads it.
 
 ```sql
 app.checkin_verbrauchen(p_token_hash text, p_geraete_zeit timestamptz,

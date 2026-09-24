@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHash, randomInt } from 'node:crypto';
 import { normalisiereTelefon } from '../../lib/telefon.js';
+import { bindeHerkunft } from '../kontext/index.js';
 import { type SmsDienst } from './sms.js';
 
 /**
@@ -140,12 +141,21 @@ export async function codeEinloesen(
   tx: Abfrage,
   rohesTelefon: string,
   rohEingabe: string,
+  /**
+   * Die Adresse der Anfrage (`herkunft`) — PFLICHT, `null` heisst: keine
+   * bekannt. `app.zugang_code_einloesen` setzt `mitarbeiter_zugang.letzter_login_am`,
+   * und der Ausloeser dort schreibt eine Protokollzeile; bis V-235 trug sie
+   * `ip = NULL`, weil dieser Weg vor jeder Sitzung laeuft und nichts `app.ip`
+   * band (SEC-A9, D-729).
+   */
+  ip: string | null,
 ): Promise<string | null> {
   const telefon = normalisiereTelefon(rohesTelefon);
   if (telefon === null) return null;
   const code = nurZiffern(rohEingabe);
   if (!/^[0-9]{6}$/u.test(code)) return null;
 
+  await bindeHerkunft(tx, ip);
   const zeilen = (await tx.unsafe(
     `select app.zugang_code_einloesen($1, $2) as person_id`,
     [telefon, codeHash(code)],

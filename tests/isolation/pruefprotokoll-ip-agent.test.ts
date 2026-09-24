@@ -13,6 +13,7 @@
  * bewiesen, dass die Datenbank liest, was man ihr gibt, und nicht, dass die
  * Anwendung es ihr gibt.
  */
+import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { schliessen, seed, sql, type Fixtur } from './harness.js';
@@ -25,6 +26,12 @@ import {
   richteFaktorMitTokenEin,
 } from '../../src/server/auth/kennwort-anmeldung.js';
 import { codeFuer, schritt } from '../../src/lib/totp.js';
+import {
+  gibCheckinAus, loeseCheckinEin, stempleAusDerSitzung,
+} from '../../src/server/services/zeit/checkin.js';
+import { nimmClaimAn } from '../../src/server/services/zeit/offline.js';
+import { codeAnfordern, codeEinloesen } from '../../src/server/auth/mitarbeiter-anmeldung.js';
+import type { SmsDienst } from '../../src/server/auth/sms.js';
 
 let f: Fixtur;
 let benutzer = '';
@@ -332,5 +339,188 @@ describe('(3) Wege ohne Sitzung: Sperre, Kennwort und zweiter Faktor per Token',
     expect(await ohneSitzung((tx) =>
       loeseKennwortTokenEin(tx, token, 'ganz-neues-kennwort-2026', null))).not.toBeNull();
     expect((await zeileZu('auth.kennwort_gesetzt', k.id)).ip).toBeNull();
+  });
+});
+
+/**
+ * **Der Check-in traegt die Adresse auch** (V-235, D-729).
+ *
+ * Die Kraft im Treppenhaus hat keine Sitzung: die Marke loest
+ * `app.checkin_verbrauchen` bzw. `app.offline_ereignis_annehmen` als
+ * `cse_checkin` ein, und beide bekamen die Adresse nur als `p_ip` — fuer
+ * `checkin_token.ip_adresse` und die Bremse. `app.protokolliere` liest sie
+ * aber aus `app.ip`, und `withCheckin` setzte keine GUC: jede Protokollzeile
+ * eines Check-ins (`zeiteintrag.insert`, `zeit.eingestempelt`,
+ * `zeit.offline_empfangen`) trug `ip = NULL`. Dasselbe beim Einmalcode der
+ * Kraft (`mitarbeiter_zugang.update` aus `app.zugang_code_einloesen`).
+ *
+ * Geprueft ueber die ECHTEN Dienste, in einer Transaktion ohne jede Bindung —
+ * genau wie die Routen sie oeffnen (`db().begin(...)`). Und zum Vergleich die
+ * Stempeluhr aus der Sitzung (0373), die ueber `withTenant` bindet.
+ */
+describe('(4) der Check-in: Marke, Nachreichung, Stempeluhr, Einmalcode', () => {
+  const zufall = (): string => Math.random().toString(36).slice(2, 10);
+  const konten: Record<string, string> = {};
+
+  /** Eine Zeile zu genau diesem Objekt — nicht irgendeine mit derselben Aktion. */
+  async function zeileZu(aktion: string, objekt: string): Promise<Zeile> {
+    const [z] = await sql.unsafe<Zeile[]>(
+      `select akteur_typ::text as akteur_typ, akteur_id::text as akteur_id,
+              agent_id::text as agent_id, host(ip) as ip
+         from audit_log where aktion = $1 and objekt_id = $2 order by id desc limit 1`,
+      [aktion, objekt]);
+    expect(z, `keine Protokollzeile ${aktion} fuer ${objekt}`).toBeDefined();
+    return z!;
+  }
+
+  /** Ohne Sitzungsbindung — der Ausweis ist die Marke oder der Code. */
+  async function ohneSitzung<T>(fn: (tx: Transaktion) => Promise<T>): Promise<T> {
+    return sql.begin(async (tx: postgres.TransactionSql) =>
+      fn(tx as unknown as Transaktion)) as Promise<T>;
+  }
+
+  /**
+   * Eine Schicht, die JETZT laeuft — Beginn vor zehn Minuten, damit das
+   * Markenfenster (±1 h, 0035) sicher offen ist.
+   */
+  async function zuordnungJetzt(anstellung: string, person: string): Promise<string> {
+    const [k] = await sql.unsafe<{ id: string }[]>(
+      `insert into kunde (mandant_id, kundennummer, name)
+       values ($1, $2, 'Herkunft-Testkunde') returning id`, [f.reinigung, `K-${zufall()}`]);
+    const [o] = await sql.unsafe<{ id: string }[]>(
+      `insert into objekt (mandant_id, kunde_id, objektnummer, bezeichnung, strasse, plz, ort)
+       values ($1, $2, $3, 'Herkunft Nord', 'Teststr. 5', '10115', 'Berlin') returning id`,
+      [f.reinigung, k!.id, `O-${zufall()}`]);
+    const [e] = await sql.unsafe<{ id: string }[]>(
+      `insert into einsatz (mandant_id, quelle, quell_schluessel, plan_datum,
+                            beginn_zeitpunkt, ende_zeitpunkt, zeitzone,
+                            beginn_lokal, ende_lokal, endet_am_folgetag,
+                            objekt_id, kunde_id, soll_besetzung, min_besetzung,
+                            erstellt_von_art, status)
+       values ($1, 'manuell', $2, (now() at time zone 'Europe/Berlin')::date,
+               now() - interval '10 minutes', now() + interval '7 hours',
+               'Europe/Berlin', '08:00', '16:00', false,
+               $3, $4, 1, 1, 'system', 'geplant')
+       returning id`,
+      [f.reinigung, `herkunft:${zufall()}`, o!.id, k!.id] as never[]);
+    const [z] = await sql.unsafe<{ id: string }[]>(
+      `insert into einsatz_zuordnung (mandant_id, einsatz_id, anstellung_id, person_id,
+                                      beginn_zeitpunkt, ende_zeitpunkt, erstellt_von_art)
+       select $1, $2, $3, $4, beginn_zeitpunkt, ende_zeitpunkt, 'system'
+         from einsatz where id = $2
+       returning id`,
+      [f.reinigung, e!.id, anstellung, person] as never[]);
+    return z!.id;
+  }
+
+  /** Die Marke gibt die Planung aus — ueber den echten Dienst. */
+  async function marke(zuordnung: string, zweck: 'checkin' | 'checkout'): Promise<string> {
+    return sql.begin(async (tx: postgres.TransactionSql) =>
+      withTenant(tx, sitzung(null), (k) => gibCheckinAus(k, zuordnung, zweck))) as Promise<string>;
+  }
+
+  beforeAll(async () => {
+    /* Ohne Konto faellt der Check-in mit „kein Benutzerkonto" (0035). */
+    for (const [name, person] of [['jonas', f.jonas], ['fatima', f.fatima]] as const) {
+      const email = `herkunft-${name}-${zufall()}@test.invalid`;
+      const [u] = await sql.unsafe<{ id: string }[]>(
+        `insert into auth.users (email) values ($1) returning id`, [email]);
+      await sql.unsafe(
+        `insert into benutzer (id, email, name, status, person_id)
+         values ($1, $2, $2, 'aktiv', $3)`, [u!.id, email, person]);
+      konten[name] = u!.id;
+    }
+  });
+
+  it('die Marke: Ein- und Ausstempeln tragen die Adresse der Anfrage', async () => {
+    const z = await zuordnungJetzt(f.jonasReinigung, f.jonas);
+
+    const ein = await ohneSitzung(async (tx) => loeseCheckinEin(tx, {
+      token: await marke(z, 'checkin'), ip: '198.51.100.71', userAgent: 'vitest',
+    }));
+    expect(ein.ergebnis).toBe('eingecheckt');
+    for (const aktion of ['zeiteintrag.insert', 'zeit.eingestempelt']) {
+      const zeile = await zeileZu(aktion, ein.zeiteintragId);
+      expect(zeile.ip, aktion).toBe('198.51.100.71');
+      /* Wer die Marke einloest, ist nicht angemeldet: kein Mensch, kein Agent. */
+      expect(zeile.akteur_id, aktion).toBeNull();
+      expect(zeile.agent_id, aktion).toBeNull();
+    }
+    /* Dieselbe Adresse steht wie bisher an der Marke selbst. */
+    const [t] = await sql.unsafe<{ ip: string | null }[]>(
+      `select host(ip_adresse) as ip from checkin_token
+        where eingeloest_zeiteintrag_id = $1`, [ein.zeiteintragId]);
+    expect(t?.ip).toBe('198.51.100.71');
+
+    const aus = await ohneSitzung(async (tx) => loeseCheckinEin(tx, {
+      token: await marke(z, 'checkout'), ip: '2001:db8::71', userAgent: 'vitest',
+    }));
+    expect(aus.ergebnis).toBe('ausgecheckt');
+    expect((await zeileZu('zeit.ausgestempelt', aus.zeiteintragId)).ip).toBe('2001:db8::71');
+    expect((await zeileZu('zeiteintrag.update', aus.zeiteintragId)).ip).toBe('2001:db8::71');
+  });
+
+  it('die Nachreichung aus dem Funkloch traegt sie', async () => {
+    const z = await zuordnungJetzt(f.jonasReinigung, f.jonas);
+    const token = await marke(z, 'checkin');
+    const [angenommen] = await ohneSitzung((tx) => nimmClaimAn(tx, {
+      token,
+      ereignisse: [{
+        clientEreignisId: randomUUID(), art: 'checkin',
+        behaupteteZeit: new Date(Date.now() - 5 * 60_000),
+      }],
+      ip: '203.0.113.72',
+      userAgent: 'vitest',
+    }));
+    expect(angenommen).toBeDefined();
+    const zeile = await zeileZu('zeit.offline_empfangen', angenommen!.vorgangId);
+    expect(zeile.ip).toBe('203.0.113.72');
+    expect(zeile.akteur_id).toBeNull();
+  });
+
+  it('die Stempeluhr aus der Sitzung traegt sie ueber withTenant', async () => {
+    const z = await zuordnungJetzt(f.fatimaReinigung, f.fatima);
+    const kraft: Sitzung = {
+      benutzerId: konten['fatima']!, personId: f.fatima, aktiverMandantId: f.reinigung,
+      ansicht: 'mandant', aal: 'aal1', portal: 'mitarbeiter',
+      sitzungId: '00000000-0000-4000-8000-000000000235', ip: '192.0.2.73',
+    };
+    const r = await sql.begin(async (tx: postgres.TransactionSql) =>
+      withTenant(tx, kraft, (k) => stempleAusDerSitzung(k, {
+        zuordnungId: z, zweck: 'checkin', ip: kraft.ip ?? null, userAgent: 'vitest',
+      }))) as Awaited<ReturnType<typeof stempleAusDerSitzung>>;
+    expect(r.art).toBe('eingecheckt');
+
+    expect((await zeileZu('zeit.checkin_aus_sitzung', z)).ip).toBe('192.0.2.73');
+    const [e] = await sql.unsafe<{ id: string }[]>(
+      `select id::text as id from zeiteintrag where einsatz_zuordnung_id = $1`, [z]);
+    const zeile = await zeileZu('zeiteintrag.insert', e!.id);
+    expect(zeile.ip).toBe('192.0.2.73');
+    expect(zeile.akteur_id, 'hier handelt die angemeldete Kraft').toBe(konten['fatima']);
+  });
+
+  it('der Einmalcode der Kraft traegt sie', async () => {
+    const telefon = `+4917012${String(Math.floor(Math.random() * 90_000) + 10_000)}`;
+    const [p] = await sql.unsafe<{ id: string }[]>(
+      `insert into person (vorname, nachname, telefon)
+       values ('Herkunft', 'Code', $1) returning id`, [telefon]);
+    const [zugang] = await sql.unsafe<{ id: string }[]>(
+      `insert into mitarbeiter_zugang (person_id, telefon_e164) values ($1, $2) returning id`,
+      [p!.id, telefon]);
+    /* Ein Dienst, der den Code zeigt statt sendet — wie die Entwicklungsflaeche. */
+    const zeigend: SmsDienst = {
+      verbunden: false, zeigtCode: true, name: 'Pruefung',
+      sende: () => Promise.resolve(),
+    };
+    const anforderung = await ohneSitzung((tx) =>
+      codeAnfordern(tx, telefon, zeigend, '198.51.100.74'));
+    expect(anforderung.codeFuerEntwicklung).not.toBeNull();
+
+    const person = await ohneSitzung((tx) =>
+      codeEinloesen(tx, telefon, anforderung.codeFuerEntwicklung!, '198.51.100.74'));
+    expect(person).toBe(p!.id);
+    const zeile = await zeileZu('mitarbeiter_zugang.update', zugang!.id);
+    expect(zeile.ip).toBe('198.51.100.74');
+    expect(zeile.akteur_id).toBeNull();
   });
 });

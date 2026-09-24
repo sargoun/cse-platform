@@ -107,14 +107,30 @@ export async function bindeAnfrage(tx: Transaktion, sitzung: Sitzung): Promise<v
 
 /**
  * **Die Herkunft einer Anfrage OHNE Sitzung** — nur `app.ip` (SEC-A9, V-167,
- * D-661).
+ * D-661; Check-in: V-235, D-729).
  *
- * Drei Wege schreiben ins Prüfprotokoll, bevor es eine Sitzung gibt: die
- * Anmeldung (`auth.konto_gesperrt` aus der Bremse), das Kennwort über einen
- * Token (`auth.kennwort_gesetzt`) und der zweite Faktor einer Einladung
- * (`auth.zweiter_faktor_eingerichtet`). Keiner geht durch `bindeSitzung` —
- * es gibt niemanden zu binden —, und bis V-167 trugen ihre Zeilen deshalb
- * `ip = NULL`, obwohl die Adresse der Anfrage bekannt war.
+ * Zwei Familien von Wegen schreiben ins Prüfprotokoll, ohne dass es eine
+ * Sitzung gibt, und keiner geht durch `bindeSitzung` — es gibt niemanden zu
+ * binden:
+ *
+ *  - die Anmeldung und ihre Tokens: `auth.konto_gesperrt` aus der Bremse,
+ *    `auth.kennwort_gesetzt` (Kennwort über einen Token) und
+ *    `auth.zweiter_faktor_eingerichtet` (zweiter Faktor einer Einladung) —
+ *    die Dienste in `server/auth/kennwort-anmeldung.ts` binden selbst —, dazu
+ *    der Einmalcode der Kraft (`mitarbeiter_zugang.update` aus
+ *    `app.zugang_code_einloesen`), den `codeEinloesen` bindet;
+ *  - der Check-in mit der Marke als `cse_checkin`: `zeiteintrag.insert` und
+ *    `zeit.eingestempelt`/`zeit.ausgestempelt` aus `app.checkin_verbrauchen`,
+ *    `zeit.offline_empfangen` aus `app.offline_ereignis_annehmen` (Nachreichung
+ *    und Aufnahme) — hier bindet `withCheckin` (`kontext/checkin.ts`).
+ *
+ * Bis V-167 bzw. V-235 trugen ihre Zeilen `ip = NULL`, obwohl die Adresse der
+ * Anfrage bekannt war. Ohne Adresse bleiben seitdem die Läufe ohne Anfrage
+ * eines Menschen (Nachtläufe, Seed, Test) und die öffentliche
+ * Formularannahme, die die rohe Adresse bewusst nirgends speichert (D-657
+ * Nr. 4) — nachgezählt über alle Transaktionen ohne Sitzungsbindung unter
+ * `src/app` (D-729 Nr. 5). **Ein neuer Weg ohne Sitzung, der protokolliert,
+ * bindet die Herkunft selbst.**
  *
  * Gesetzt wird NUR die Adresse, transaktionslokal. Kein Konto, kein Portal,
  * keine Rolle: wer hier handelt, ist noch nicht angemeldet, und eine
