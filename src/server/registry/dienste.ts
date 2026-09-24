@@ -1309,8 +1309,10 @@ export const DIENSTE: readonly DienstEintrag[] = [
   /**
    * V-165 — was der Bereichsumschalter ueber eine Anmeldung weiss (TEN-06,
    * TEN-10, DESIGN §6). Lesend: `app.umschalter_bereiche`,
-   * `app.darf_gruppenansicht` und `app.mandant_kennzahlen` (0417) — nur
-   * Anzahlen, nur mit dem Leserecht des Betrachters je Bereich.
+   * `app.darf_gruppenansicht` und `app.mandant_kennzahlen` (0417, 0418) —
+   * nur Anzahlen, nur fuer interne Sitzungen (`zaehltFuer`) und nur, wo der
+   * Betrachter im jeweiligen Bereich intern arbeitet und das Leserecht haelt
+   * (V-166, D-660).
    */
   { modul: 'system', pfad: 'mandant/umschalter', schreibend: false },
   /**

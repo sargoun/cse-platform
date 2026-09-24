@@ -98,12 +98,13 @@ export async function leseKonto(sitzung: Parameters<typeof bindeAnfrage>[1]): Pr
      * wurde — mit den Gewerken dazu. Die Kontoseiten gehen nicht durch das
      * Tor; ohne diesen Stand zeigte ihre Kopfzeile jedem Konto „Bereich
      * wechseln", auch dem mit einem einzigen Bereich. Zaehler und Gruppenrecht
-     * nur fuer die internen Leisten, wie im Tor.
+     * nur fuer die internen Leisten, wie im Tor (D-660).
      */
+    const intern = istInterneLeiste(leiste);
     const umschalter = await umschalterStand({
       abfrage: async <T,>(q: string, w: readonly unknown[] = []) =>
         (await tx.unsafe(q, w as never[])) as unknown as readonly T[],
-    }, { mitUmschalter: istInterneLeiste(leiste) });
+    }, { gruppe: intern, zaehler: intern });
     const bereiche = umschalter.bereiche.map((e) => ({
       slug: e.slug, name: e.name, ist_standard: e.istStandard,
     }));

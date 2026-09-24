@@ -15,7 +15,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  waehleZaehler, type UmschalterEintrag, type ZaehlerSchluessel,
+  umschalterStand, waehleZaehler, zaehltFuer,
+  type Abfrage, type UmschalterEintrag, type ZaehlerSchluessel,
 } from '../../src/server/services/mandant/umschalter.js';
 import {
   ausloeserName, BEREICHSWECHSEL_TEXTE, gewerkText, unterzeile, zaehlerText,
@@ -276,7 +277,9 @@ describe('(4) wo die Regel gilt: Rahmen, Blatt, Tor, Kontoseiten, Bereichswahl',
 
   it('die Bereichswahl zeigt Zaehler und die NUR-LESEN-Pille am Gruppeneintrag', () => {
     const wahl = quelle('src/app/auth/bereich/page.tsx');
-    expect(wahl).toMatch(/umschalterStand\(\{ abfrage \}\)/u);
+    /* Zaehler nur fuer eine interne Sitzung (D-660) — das Kundenportal verweist auch hierher. */
+    expect(wahl).toMatch(
+      /umschalterStand\(\{ abfrage \}, \{\s*gruppe: true, zaehler: zaehltFuer\(sitzung\),\s*\}\)/u);
     expect(wahl).toMatch(/data-cse="bereich-zaehler"/u);
     expect(wahl).toMatch(/data-cse="gruppe-nur-lesen"[\s\S]{0,120}StatusPill zustand="Nur Lesen"/u);
     expect(wahl).not.toMatch(/Alle vier Gesellschaften/u);
@@ -287,5 +290,98 @@ describe('(4) wo die Regel gilt: Rahmen, Blatt, Tor, Kontoseiten, Bereichswahl',
     expect(huelle).toMatch(/method="post" action="\/api\/sitzung\/mandant"/u);
     expect(huelle).toMatch(/requestSubmit\(\)/u);
     expect(huelle).not.toMatch(/router\.push|location\.href|fetch\(/u);
+  });
+});
+
+/**
+ * **Zaehler nur fuer interne Sitzungen** (V-166, D-660).
+ *
+ * Die Bereichswahl liess die Angabe weg, und „mit Zaehlern" war die Vorgabe.
+ * Ein Kundenkonto mit zwei Gesellschaften sah dort den Auftragsbestand jeder
+ * Gesellschaft ueber alle Kunden. Jetzt ist die Frage Pflicht, und die
+ * Antwort kommt aus EINER Regel (`zaehltFuer`). Die Datenbank prueft je
+ * Bereich noch einmal (0418, `tests/isolation/bereichswechsel.test.ts` §5).
+ */
+describe('(5) Zaehler nur fuer interne Sitzungen', () => {
+  it.each([
+    ['intern', 'mandant', true],
+    ['intern', 'gruppe', true],
+    ['kunde', 'mandant', false],
+    ['kunde', 'kunde', false],
+    ['mitarbeiter', 'mandant', false],
+    ['mitarbeiter', 'person', false],
+  ] as const)('Portal %s, Ansicht %s → %s', (portal, ansicht, erwartet) => {
+    expect(zaehltFuer({ portal, ansicht })).toBe(erwartet);
+  });
+
+  /** Eine Abfrage, die mitschreibt, welche Funktion gefragt wurde. */
+  function mitschrift(): { k: Abfrage; gefragt: string[] } {
+    const gefragt: string[] = [];
+    const k: Abfrage = {
+      abfrage: <T,>(sql: string): Promise<readonly T[]> => {
+        gefragt.push(/app\.([a-z_]+)\(/u.exec(sql)?.[1] ?? sql);
+        if (sql.includes('umschalter_bereiche')) {
+          return Promise.resolve([
+            { id: 'm1', slug: 'reinigung', name: 'CSE Dienstleistungen GmbH', ist_standard: true,
+              gewerke: ['reinigung'] },
+            { id: 'm3', slug: 'bau', name: 'REALTIME Service GmbH', ist_standard: false,
+              gewerke: ['bau'] },
+          ] as unknown as readonly T[]);
+        }
+        if (sql.includes('darf_gruppenansicht')) {
+          return Promise.resolve([{ ok: true }] as unknown as readonly T[]);
+        }
+        return Promise.resolve([
+          { mandant_id: 'm1', schluessel: 'auftraege_aktiv', wert: 57 },
+        ] as unknown as readonly T[]);
+      },
+    };
+    return { k, gefragt };
+  }
+
+  it('ohne Zaehlerfrage wird app.mandant_kennzahlen gar nicht gerufen', async () => {
+    const { k, gefragt } = mitschrift();
+    const stand = await umschalterStand(k, { gruppe: true, zaehler: false });
+    expect(gefragt).toEqual(['umschalter_bereiche', 'darf_gruppenansicht']);
+    expect(stand.gruppe).toBe(true);
+    expect(stand.bereiche.every((b) => b.zaehler === null)).toBe(true);
+  });
+
+  it('weder Gruppe noch Zaehler: nur die Bereiche', async () => {
+    const { k, gefragt } = mitschrift();
+    const stand = await umschalterStand(k, { gruppe: false, zaehler: false });
+    expect(gefragt).toEqual(['umschalter_bereiche']);
+    expect(stand).toEqual({
+      gruppe: false,
+      bereiche: [
+        expect.objectContaining({ slug: 'reinigung', zaehler: null }),
+        expect.objectContaining({ slug: 'bau', zaehler: null }),
+      ],
+    });
+  });
+
+  it('mit Zaehlerfrage: die Zahl steht in ihrer Zeile', async () => {
+    const { k, gefragt } = mitschrift();
+    const stand = await umschalterStand(k, { gruppe: false, zaehler: true });
+    expect(gefragt).toEqual(['umschalter_bereiche', 'mandant_kennzahlen']);
+    expect(stand.gruppe).toBe(false);
+    expect(stand.bereiche.find((b) => b.slug === 'reinigung')?.zaehler)
+      .toEqual({ schluessel: 'auftraege_aktiv', wert: 57 });
+  });
+
+  it('kein Aufrufer fragt die Zaehler fest verdrahtet — die Antwort kommt aus der Sitzung', () => {
+    for (const datei of [
+      'src/app/portal/zugang.ts',
+      'src/app/portal/konto/konto.ts',
+      'src/app/auth/bereich/page.tsx',
+    ]) {
+      const text = quelle(datei);
+      expect(text, datei).toMatch(/umschalterStand\(/u);
+      expect(text, datei).not.toMatch(/zaehler:\s*true/u);
+    }
+    expect(quelle('src/app/portal/zugang.ts')).toMatch(
+      /const intern = istInterneLeiste\(leisteFuer\(sitzung\.portal, sitzung\.ansicht, rolle\)\);\s*const umschalter = await umschalterStand\(\{ abfrage \}, \{ gruppe: intern, zaehler: intern \}\);/u);
+    expect(quelle('src/app/portal/konto/konto.ts')).toMatch(
+      /const intern = istInterneLeiste\(leiste\);[\s\S]{0,260}\{ gruppe: intern, zaehler: intern \}\);/u);
   });
 });

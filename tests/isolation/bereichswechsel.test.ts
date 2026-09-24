@@ -12,7 +12,7 @@ import type postgres from 'postgres';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { eigeneDatenbank } from './eigene-datenbank.js';
 import type { Sitzung } from './harness.js';
-import { umschalterStand, type UmschalterStand }
+import { umschalterStand, zaehltFuer, type StandFragen, type UmschalterStand }
   from '../../src/server/services/mandant/umschalter.js';
 
 const { alsApp, sql, baueAuf } = eigeneDatenbank('cse_bereichswechsel');
@@ -40,11 +40,18 @@ async function kennzahlen(s: Sitzung): Promise<readonly Kennzahl[]> {
       order by m.slug, k.schluessel`)) as unknown as Kennzahl[]);
 }
 
-async function stand(s: Sitzung): Promise<UmschalterStand> {
+/**
+ * Der Stand, wie ihn ein Aufrufer liest. Vorgabe hier: alles fragen — so
+ * misst die Datei, was die DATENBANK hergibt; welche Sitzung die Zaehler
+ * ueberhaupt fragt, prueft §5 und `tests/kern/bereichswechsel.test.ts`.
+ */
+async function stand(
+  s: Sitzung, fragen: StandFragen = { gruppe: true, zaehler: true },
+): Promise<UmschalterStand> {
   return alsApp(s, (tx) => umschalterStand({
     abfrage: async <T,>(q: string, w: readonly unknown[] = []) =>
       (await tx.unsafe(q, w as never[])) as unknown as readonly T[],
-  }));
+  }, fragen));
 }
 
 async function direkt(slug: string, schluessel: string): Promise<number> {
@@ -217,18 +224,25 @@ describe('(3) der Stand des Umschalters: Gewerke und die Wahl des Zaehlers', () 
  * Gegenprobe, dass ohne die eigenen tatsaechlich etwas fehlt.
  */
 describe('(4) die eigenen Policies tragen die Funktionen allein', () => {
+  /* Seit 0418 liest die Zaehlung auch `rolle` und `benutzer` — das Portal je Bereich. */
   const BREIT = [
     ['auftrag', 'd_auftrag_lesen'],
     ['projekt', 'd_projekt_kennzahlen'],
     ['mandant', 'd_feed_mandant'],
     ['benutzer_mandant', 'd_bm_lesen'],
     ['benutzer_mandant', 'd_feed_mitgliedschaft'],
+    ['rolle', 'd_feed_rolle'],
+    ['rolle', 'd_rolle_freigabe'],
+    ['benutzer', 'd_feed_benutzer'],
+    ['benutzer', 'd_benutzer_anmeldung'],
   ] as const;
   const EIGEN = [
     ['auftrag', 'd_umschalter_auftrag'],
     ['projekt', 'd_umschalter_projekt'],
     ['mandant', 'd_umschalter_mandant'],
     ['benutzer_mandant', 'd_umschalter_mitgliedschaft'],
+    ['rolle', 'd_umschalter_rolle'],
+    ['benutzer', 'd_umschalter_benutzer'],
   ] as const;
 
   interface Bild { readonly kennzahlen: string; readonly bereiche: string }
@@ -292,11 +306,178 @@ describe('(4) die eigenen Policies tragen die Funktionen allein', () => {
        order by tablename`;
     expect(zeilen.map((z) => [z.tabelle, z.name, z.befehl, z.rollen])).toEqual([
       ['auftrag', 'd_umschalter_auftrag', 'SELECT', 'cse_definer'],
+      ['benutzer', 'd_umschalter_benutzer', 'SELECT', 'cse_definer'],
       ['benutzer_mandant', 'd_umschalter_mitgliedschaft', 'SELECT', 'cse_definer'],
       ['mandant', 'd_umschalter_mandant', 'SELECT', 'cse_definer'],
       ['projekt', 'd_umschalter_projekt', 'SELECT', 'cse_definer'],
+      ['rolle', 'd_umschalter_rolle', 'SELECT', 'cse_definer'],
     ]);
     /* Einmal je Anweisung gefragt (InitPlan), nicht je Zeile — 01-KERN §1.3. */
     for (const z of zeilen) expect(z.bedingung, z.name).toMatch(/\(\s*SELECT app\./u);
+  });
+});
+
+/**
+ * **Ein Kundenkonto zaehlt nicht** (V-166, D-660, 0418).
+ *
+ * Die Rolle `kunde` haelt `auftrag.lesen` und `bau.lesen` plattformweit
+ * (0008). Auf die eigenen Zeilen beschraenkt sie allein die RLS
+ * (`p_kunde_decke`, `p_portal_decke`), und die Definer-Zaehlung sieht diese
+ * Decke nicht. Bis 0418 stand deshalb auf der Bereichswahl eines Kunden mit
+ * zwei Gesellschaften der Bestand jeder Gesellschaft ueber ALLE Kunden.
+ *
+ * Gemessen wird beides: die Seite fragt fuer diese Sitzung keine Zaehler
+ * (`zaehltFuer`), und die Datenbank gibt ihr auch dann keine, wenn ein
+ * Aufrufer es doch versucht.
+ */
+describe('(5) ein Kundenkonto in zwei Gesellschaften sieht keine Zaehler', () => {
+  const email = 'kunde-zwei@test.invalid';
+
+  beforeAll(async () => {
+    const [u] = await sql<{ id: string }[]>`
+      insert into auth.users (email) values (${email}) returning id`;
+    await sql`
+      insert into benutzer (id, email, name, status)
+      values (${u!.id}, ${email}, 'Kunde in zwei Gesellschaften', 'aktiv')`;
+    /* Wie 0249 es fuer ein bestehendes Kundenkonto tut: je Gesellschaft eine Mitgliedschaft
+       mit der Rolle kunde und ein Kundenzugang. In der Reinigung ein Kunde OHNE Auftrag. */
+    for (const slug of ['reinigung', 'bau'] as const) {
+      await sql`
+        insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, ist_standard)
+        values (${u!.id}, ${ids.get(slug)!},
+                (select id from rolle where schluessel = 'kunde' and mandant_id is null),
+                ${slug === 'reinigung'})`;
+      const [k] = await sql<{ id: string }[]>`
+        select k.id from kunde k
+         where k.mandant_id = ${ids.get(slug)!} and k.archiviert_am is null
+           and (${slug} = 'bau' or not exists (
+                 select 1 from auftrag a where a.kunde_id = k.id and a.mandant_id = k.mandant_id))
+         order by k.id limit 1`;
+      expect(k, `Seed-Kunde in ${slug} fehlt`).toBeDefined();
+      await sql`
+        insert into kunde_zugang (mandant_id, kunde_id, benutzer_id)
+        values (${ids.get(slug)!}, ${k!.id}, ${u!.id})`;
+    }
+    konten.set(email, u!.id);
+  });
+
+  const kunde = (): Sitzung => sitzung(email, { portal: 'kunde', aal: 'aal1' });
+
+  it('die Seite fragt fuer das Kundenportal keine Zaehler (zaehltFuer)', () => {
+    expect(zaehltFuer({ portal: 'kunde', ansicht: 'mandant' })).toBe(false);
+    expect(zaehltFuer({ portal: 'kunde', ansicht: 'kunde' })).toBe(false);
+  });
+
+  it('der Stand der Bereichswahl: zwei Bereiche, keine Zahl, kein Gruppeneintrag', async () => {
+    const u = await stand(kunde(), { gruppe: true, zaehler: false });
+    expect(u.bereiche.map((b) => b.slug).sort()).toEqual(['bau', 'reinigung']);
+    expect(u.bereiche.every((b) => b.zaehler === null)).toBe(true);
+    expect(u.gruppe, 'ein Kundenkonto betritt die Gruppenansicht nie').toBe(false);
+  });
+
+  it('die zweite Linie: fragt ein Aufrufer trotzdem, liefert die Datenbank nichts (0418)', async () => {
+    expect(await kennzahlen(kunde())).toEqual([]);
+    const u = await stand(kunde(), { gruppe: true, zaehler: true });
+    expect(u.bereiche.every((b) => b.zaehler === null)).toBe(true);
+  });
+
+  /**
+   * **Die Gegenprobe: die Zahl WAERE eine Auskunft gewesen.** Die RLS zeigt
+   * diesem Konto in der Reinigung null laufende Auftraege; die Gesellschaft
+   * hat mehr. Genau diese Differenz stand bis 0418 auf seinem Bildschirm.
+   */
+  it('Gegenprobe: was der Kunde sehen darf, ist weniger als der Bestand', async () => {
+    const eigene = await alsApp(kunde(), async (tx) => (await tx.unsafe(
+      `select count(*)::int as n from auftrag where status = 'aktiv' and archiviert_am is null`,
+    )) as unknown as { n: number }[]);
+    expect(eigene[0]!.n).toBe(0);
+    expect(await direkt('reinigung', 'auftraege_aktiv')).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * **Das Portal zaehlt je Bereich, nicht je Sitzung** (0418).
+ *
+ * Wer in einer Gesellschaft intern arbeitet und in einer anderen nicht, steht
+ * mit einer internen Sitzung im Portal — der Umschalter fragt also Zaehler.
+ * Fuer den zweiten Bereich zeigt ihm die RLS nur seine eigenen Vorgaenge; die
+ * Zahl dort waere dieselbe Auskunft wie in §5. Die Anwendungswege verhindern
+ * das Mischen von kunde und intern (0249, 0372); die Datenbank verlaesst sich
+ * nicht darauf. Die Mischung aus intern und mitarbeiter ist dagegen der
+ * Normalfall eines Menschen mit zwei Anstellungen (D-09).
+ */
+describe('(6) ein Bereich ohne interne Rolle bekommt keinen Zaehler', () => {
+  it('intern in der Reinigung, Kunde bei REALTIME: nur die Reinigung zaehlt', async () => {
+    const email = 'gemischt@test.invalid';
+    const [u] = await sql<{ id: string }[]>`
+      insert into auth.users (email) values (${email}) returning id`;
+    await sql`insert into auth.mfa_factors (user_id) values (${u!.id})`;
+    await sql`
+      insert into benutzer (id, email, name, status)
+      values (${u!.id}, ${email}, 'Gemischtes Konto', 'aktiv')`;
+    for (const [slug, rolle] of [['reinigung', 'admin'], ['bau', 'kunde']] as const) {
+      await sql`
+        insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+        values (${u!.id}, ${ids.get(slug)!},
+                (select id from rolle where schluessel = ${rolle} and mandant_id is null))`;
+    }
+    konten.set(email, u!.id);
+
+    const s = sitzung(email);
+    const zeilen = await kennzahlen(s);
+    expect(zeilen.map((z) => `${z.slug}:${z.schluessel}`)).toEqual(['reinigung:auftraege_aktiv']);
+    /* Das Leserecht allein haette gereicht: der Kunde haelt bau.lesen bei REALTIME. */
+    const recht = await alsApp(s, async (tx) => (await tx.unsafe(
+      `select app.hat_recht('bau.lesen', $1::uuid) as ok`, [ids.get('bau')!],
+    )) as unknown as { ok: boolean }[]);
+    expect(recht[0]!.ok).toBe(true);
+
+    const u2 = await stand(s);
+    expect(u2.bereiche.find((b) => b.slug === 'bau')!.zaehler).toBeNull();
+    expect(u2.bereiche.find((b) => b.slug === 'reinigung')!.zaehler?.schluessel)
+      .toBe('auftraege_aktiv');
+  });
+
+  /**
+   * Eine Mitarbeiterin, der eine Gesellschaft `auftrag.lesen` fuer ihre Rolle
+   * gibt (Zuschnitt je Gesellschaft, AUT-03): das Recht bejaht
+   * `app.hat_recht`, das Portal bleibt `mitarbeiter`. Gezaehlt wird nicht.
+   * In einer zurueckgerollten Transaktion, damit der Zuschnitt keine andere
+   * Pruefung dieser Datei beruehrt.
+   */
+  it('eine Rolle im Mitarbeiterportal zaehlt auch mit Leserecht nicht', async () => {
+    class Zurueck extends Error {
+      constructor(readonly ergebnis: { recht: boolean; zeilen: string }) { super('zurueck'); }
+    }
+    let ergebnis: { recht: boolean; zeilen: string } | null = null;
+    try {
+      await sql.begin(async (tx: postgres.TransactionSql) => {
+        await tx.unsafe(
+          `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+           values ((select id from rolle where schluessel = 'mitarbeiter' and mandant_id is null),
+                   (select id from berechtigung where schluessel = 'auftrag.lesen'),
+                   $1::uuid, true)`, [ids.get('security')!]);
+        await tx.unsafe(`set local role cse_app`);
+        for (const [schluessel, wert] of [
+          ['app.scope', 'mandant'], ['app.mandant_id', ids.get('security')!],
+          ['app.mandant_ids', ids.get('security')!], ['app.person_id', ''],
+          ['app.benutzer_id', konten.get('fatima.yildiz@cse-gruppe.de')!],
+          ['app.readonly', 'on'], ['app.portal', 'mitarbeiter'], ['app.akteur_typ', 'mensch'],
+          ['app.aal', 'aal1'],
+        ] as const) {
+          await tx.unsafe(`select set_config($1, $2, true)`, [schluessel, wert]);
+        }
+        const [r] = (await tx.unsafe(`select app.hat_recht('auftrag.lesen', $1::uuid) as ok`,
+          [ids.get('security')!])) as unknown as { ok: boolean }[];
+        const [z] = (await tx.unsafe(
+          `select coalesce(string_agg(schluessel, ','), '') as t from app.mandant_kennzahlen()`,
+        )) as unknown as { t: string }[];
+        throw new Zurueck({ recht: r!.ok, zeilen: z!.t });
+      });
+    } catch (fehler) {
+      if (!(fehler instanceof Zurueck)) throw fehler;
+      ergebnis = fehler.ergebnis;
+    }
+    expect(ergebnis).toEqual({ recht: true, zeilen: '' });
   });
 });

@@ -10,7 +10,9 @@ import { internSprache } from '@/lib/i18n/intern';
 import type { PortalSprache } from '@/lib/i18n/texte';
 import { BEREICHSWECHSEL_TEXTE, unterzeile } from '@/lib/i18n/verwaltung/bereichswechsel';
 import { leseEigeneSprache } from '@/server/konto/sprache';
-import { umschalterStand, type UmschalterEintrag } from '@/server/services/mandant/umschalter';
+import {
+  umschalterStand, zaehltFuer, type UmschalterEintrag,
+} from '@/server/services/mandant/umschalter';
 
 /**
  * `/auth/bereich` — die Bereichswahl (03-AUTH §4.4, SEITENKARTE §11.3).
@@ -25,8 +27,9 @@ import { umschalterStand, type UmschalterEintrag } from '@/server/services/manda
  * Hinweis auf die Reihenfolge, nie eine Wahl.
  *
  * **Jede Zeile traegt ihren Live-Zaehler** (TEN-10, V-165): „Reinigung · 24
- * laufende Auftraege" — aus `app.mandant_kennzahlen()` (0417), nur wo dieser
- * Mensch das Leserecht im jeweiligen Bereich haelt. Der Gruppeneintrag traegt
+ * laufende Auftraege" — aus `app.mandant_kennzahlen()` (0417, 0418), nur fuer
+ * eine interne Sitzung und nur, wo dieser Mensch im jeweiligen Bereich intern
+ * arbeitet und das Leserecht haelt (D-660). Der Gruppeneintrag traegt
  * sichtbar `NUR LESEN` (DESIGN §6 Regel 3) und nennt die WIRKLICHE Zahl der
  * Gesellschaften, nicht „vier".
  */
@@ -53,8 +56,17 @@ async function wahl(sitzung: Parameters<typeof bindeAnfrage>[1]): Promise<Wahl> 
      * `app.mandant_kennzahlen()` — alle `security definer`, alle auf
      * `switcher_mandanten()` beschraenkt, und dieselben wie in der Kopfzeile
      * jeder Portalseite.
+     *
+     * **Die Zaehler nur fuer eine interne Sitzung** (D-660). Diese Seite
+     * erreicht auch das Kundenportal: seine Kopfzeile verweist bei zwei
+     * Bereichen hierher. Ohne diese Angabe sah ein Kundenkonto hier den
+     * Auftragsbestand jeder Gesellschaft ueber alle Kunden. Der
+     * Gruppeneintrag wird fuer jede Sitzung gefragt, wie vor V-165: ob sie
+     * ihn betreten darf, sagt `app.darf_gruppenansicht()`, nicht ihr Portal.
      */
-    const stand = await umschalterStand({ abfrage });
+    const stand = await umschalterStand({ abfrage }, {
+      gruppe: true, zaehler: zaehltFuer(sitzung),
+    });
     const sprache = await leseEigeneSprache({
       abfrage, personId: sitzung.personId, benutzerId: sitzung.benutzerId,
     });

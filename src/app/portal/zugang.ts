@@ -269,11 +269,10 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * Verweis auf die Bereichswahl ebenso; beides fragt er hier ab und nicht
      * selbst — die Bindung steht nur hier. Zaehler und Gruppenrecht nur fuer
      * die internen Leisten: das Mitarbeiter- und das Kundenportal tragen
-     * keinen Umschalter, nur den Verweis.
+     * keinen Umschalter, nur den Verweis (D-659 Nr. 4, D-660).
      */
-    const umschalter = await umschalterStand({ abfrage }, {
-      mitUmschalter: istInterneLeiste(leisteFuer(sitzung.portal, sitzung.ansicht, rolle)),
-    });
+    const intern = istInterneLeiste(leisteFuer(sitzung.portal, sitzung.ansicht, rolle));
+    const umschalter = await umschalterStand({ abfrage }, { gruppe: intern, zaehler: intern });
     /*
      * Die Sprache der Person — in DERSELBEN gebundenen Transaktion, unter
      * `t_person_lesen`: die eigene Zeile darf jede Sitzung lesen. Faellt die
