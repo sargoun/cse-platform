@@ -14,6 +14,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { KATEGORIE } from '../darstellung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/dokumente/aufbewahrung` — die Aufbewahrungsregeln je
@@ -99,7 +100,7 @@ export default async function Aufbewahrung(
       ) : null}
       {fehler !== null ? (
         <Hinweis art="warnung" cse="aufbewahrung-fehler" className="mb-s5 max-w-prose">
-          <strong>Nicht gesetzt.</strong> {meldung ?? FEHLER_TEXT[fehler] ?? 'Die Regel wurde abgewiesen.'}
+          <strong>Nicht gesetzt.</strong> {meldung ?? eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Regel wurde abgewiesen.'}
         </Hinweis>
       ) : null}
 

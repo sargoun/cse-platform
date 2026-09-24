@@ -86,6 +86,8 @@ export const AUFTRAG_TEXTE: Readonly<Record<InternSprache, AuftragTexte>> = {
         'Der Wert dieses Auftrags kommt aus dem Angebot und wird hier nicht geändert — eine '
         + 'Änderung des Vertragswerts ist ein Nachtrag.',
       nicht_gefunden: 'Diesen Auftrag gibt es nicht — oder diese Sitzung darf ihn nicht ändern.',
+      nicht_angelegt:
+        'Die Datenbank hat den Auftrag nicht angenommen. Ihre Eingaben stehen noch da.',
     },
 
     wert: 'Auftragswert netto (€)',
@@ -165,6 +167,7 @@ export const AUFTRAG_TEXTE: Readonly<Record<InternSprache, AuftragTexte>> = {
         'The value of this order comes from the offer and is not changed here — a change of '
         + 'the contract value is a Nachtrag (change order).',
       nicht_gefunden: 'This order does not exist — or this session may not change it.',
+      nicht_angelegt: 'The database did not accept the order. Your entries are still there.',
     },
 
     wert: 'Order value, net (€)',

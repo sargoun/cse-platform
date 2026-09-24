@@ -16,6 +16,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { FELD, FEHLERTEXT, type AbschlussKopf } from './daten';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/auftraege/[id]/abschluss` — OPS-05, und die
@@ -136,7 +137,7 @@ export default async function Abschluss(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="abschluss-fehler" className="mb-s5">
           <strong>Der Auftrag ist nicht abgeschlossen.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 

@@ -79,13 +79,33 @@ export async function Barrierefreiheit(
         <p className="text-base text-text">{t.offenText}</p>
       </section>
 
+      {/*
+        * **Das Formular zuerst, die E-Mail danach** (V-156, D-650).
+        *
+        * Der Meldeweg `/barrierefreiheit/feedback` existiert seit D-600 — und
+        * hier, wo ihn jeder sucht, stand nur eine E-Mail-Adresse. Das BFSG
+        * verlangt einen Meldeweg, die Seite hatte zwei und zeigte einen. Das
+        * Formular geht ohne Anmeldung, ohne Skript und ohne Pflicht-E-Mail;
+        * es legt die Meldung mit Frist in einen internen Eingang, eine Mail
+        * nicht. Ist keine Adresse hinterlegt, sagt die Zeile darunter das —
+        * und nicht mehr „kein Meldeweg", denn es gibt einen.
+        */}
       <section className="flex flex-col gap-s2">
         <h2 className="text-h2 text-text">{t.meldenTitel}</h2>
         <p className="text-base text-text-muted">{t.meldenText}</p>
+        <p className="m-0 flex flex-col gap-s2">
+          <a href={mitSprache('/barrierefreiheit/feedback', sprache)}
+             data-cse="zum-meldeformular"
+             className="min-h-11 self-start rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2">
+            {t.meldenFormular}
+          </a>
+          <span className="text-sm text-text-muted">{t.meldenFormularHinweis}</span>
+        </p>
         {kontakt === undefined ? (
           <p className="text-base text-text">{t.keinMeldeweg}</p>
         ) : (
           <p className="text-base text-text">
+            <span className="text-text-muted">{t.meldenAndererWeg}</span>{' '}
             <a className="underline" href={`mailto:${kontakt.email ?? ''}`}>
               {kontakt.email}
             </a>

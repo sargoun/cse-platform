@@ -11,6 +11,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { leseMappe, type MappenBlick } from './daten';
 import { kennungOder404 } from '../../../../kennung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/radar/[id]/mappe` — die Vergabemappe (RAD-07, D-07).
@@ -185,7 +186,7 @@ export default async function Vergabemappe(
       {fehler !== null ? (
         <Hinweis art="warnung" cse="mappe-fehler" className="mb-s5 max-w-prose">
           <strong>Nicht geändert.</strong>{' '}
-          {FEHLER_TEXT[fehler] ?? 'Die Handlung wurde abgewiesen.'}
+          {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Handlung wurde abgewiesen.'}
         </Hinweis>
       ) : null}
 

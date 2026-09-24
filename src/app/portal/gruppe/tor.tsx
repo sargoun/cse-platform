@@ -146,7 +146,9 @@ export function BereichFilter({ bereiche, aktiv, basis }: {
         Alle Bereiche
       </a>
       {bereiche.map((b) => (
-        <a key={b.slug} href={`${basis}?bereich=${b.slug}`}
+        /* `&`, wenn die Basis schon einen Filter trägt (V-149: `?status=offen`)
+           — sonst entstünde `?status=offen?bereich=…`, und beide gingen verloren. */
+        <a key={b.slug} href={`${basis}${basis.includes('?') ? '&' : '?'}bereich=${b.slug}`}
            aria-current={aktiv?.slug === b.slug ? 'page' : undefined}
            data-bereich={b.slug}
            className={pille(aktiv?.slug === b.slug)}>

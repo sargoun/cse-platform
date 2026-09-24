@@ -17,6 +17,8 @@
 import type { InternSprache } from '../intern.js';
 
 export interface CrmWegeTexte {
+  /** Der Name des Bereichs in Brotkrumen und Rückwegen (V-149). */
+  readonly crm: string;
   readonly neuerKunde: string;
   readonly neuerLead: string;
   readonly erstenKundenAnlegen: string;
@@ -26,6 +28,7 @@ export interface CrmWegeTexte {
 
 export const CRM_WEGE_TEXTE: Readonly<Record<InternSprache, CrmWegeTexte>> = {
   de: {
+    crm: 'Vertrieb (CRM)',
     neuerKunde: 'Neuer Kunde',
     neuerLead: 'Neuer Lead',
     erstenKundenAnlegen: 'Den ersten Kunden anlegen.',
@@ -35,6 +38,7 @@ export const CRM_WEGE_TEXTE: Readonly<Record<InternSprache, CrmWegeTexte>> = {
       + 'angelegt wird er, wenn die Anfrage am Telefon oder auf einer Messe kam.',
   },
   en: {
+    crm: 'Sales (CRM)',
     neuerKunde: 'New Kunde',
     neuerLead: 'New Lead',
     erstenKundenAnlegen: 'Create the first Kunde (customer).',

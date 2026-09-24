@@ -8,6 +8,7 @@ import { LIEFERANTEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/lieferanten';
 import { LieferantFormular } from '../LieferantFormular';
 import { LIEFERANT_FEHLER } from '../fehler';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/finanzen/lieferanten/neu` — einen Lieferanten anlegen
@@ -56,7 +57,7 @@ export default async function LieferantNeu(
 
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="lieferant-fehler" className="mb-s5 max-w-prose">
-          {meldungen[fehler] ?? fehler}
+          {eigenerEintrag(meldungen, fehler) ?? fehler}
         </Hinweis>
       )}
 

@@ -14,6 +14,8 @@ import type { InternSprache } from '../intern.js';
 export interface KalkulationTexte {
   readonly nichtBestaetigt: string;
   readonly fehler: Readonly<Record<string, string>>;
+  /** Für einen Schlüssel, den die Tabelle nicht kennt — nie der Schlüssel selbst. */
+  readonly fehlerSonst: string;
   /** Der Name des Feldes, das die Abweisung ausgelöst hat. */
   readonly feld: Readonly<Record<string, string>>;
   readonly imFeld: (feld: string) => string;
@@ -46,6 +48,7 @@ export interface KalkulationTexte {
 export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>> = {
   de: {
     nichtBestaetigt: 'Nichts bestätigt, nichts neu gerechnet.',
+    fehlerSonst: 'Die Eingabe wurde abgewiesen. Bitte prüfen Sie die Angaben.',
     fehler: {
       keine_zahl:
         'Ein Wert ist keine gültige Zahl oder liegt außerhalb des Bereichs — Beträge in Euro '
@@ -133,6 +136,7 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
   },
   en: {
     nichtBestaetigt: 'Nothing was confirmed and nothing recalculated.',
+    fehlerSonst: 'The entry was rejected. Please check the values.',
     fehler: {
       keine_zahl:
         'A value is not a valid number or is out of range — amounts in euro (e.g. 29,00), '

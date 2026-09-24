@@ -21,6 +21,7 @@ import {
   FEHLER_TEXT, STATUS_LABEL, STATUS_PILL, VORGANG_LABEL, ausfuehrungText, zeitpunkt,
 } from '../../darstellung';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/freigaben/[id]/rueckgaengig` — die Ausführung
@@ -132,7 +133,7 @@ export default async function Rueckgaengig(
       {fehler !== null ? (
         <Hinweis art="warnung" cse="ruecknahme-abgewiesen" className="mb-s5 max-w-prose">
           <strong>Nicht zurückgenommen.</strong>{' '}
-          {FEHLER_TEXT[fehler] ?? 'Die Handlung wurde abgewiesen.'}
+          {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Handlung wurde abgewiesen.'}
         </Hinweis>
       ) : null}
 

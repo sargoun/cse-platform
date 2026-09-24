@@ -10,6 +10,7 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { OBJEKTE_TEXTE } from '@/lib/i18n/verwaltung/objekte';
 import { ObjektFormular, type KundeAuswahl } from '../ObjektFormular';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/objekte/neu` — ein Objekt anlegen (OPS-01, V-001).
@@ -74,7 +75,7 @@ export default async function ObjektNeu(
    */
   const grund = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const roh = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
-  const meldung = (grund === null ? undefined : t.fehler[grund]) ?? roh;
+  const meldung = eigenerEintrag(t.fehler, grund) ?? roh;
 
   /*
    * Die Kundenliste kommt aus derselben Gesellschaft und nur ungesperrt: ein

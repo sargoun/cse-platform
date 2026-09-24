@@ -592,6 +592,19 @@ survive a middle-click and a copied link; and the current one carries
 reader **is**, not what they have switched on. Colour alone never marks it
 (§9) — `aria-current` is the second signal.
 
+### Filter line
+
+A list that opens **already filtered** — from a dashboard figure (DSH-04) or a
+month selection — says so in one line above the list: `text-sm` in
+`--text-muted`, the filter value in `<strong>` with `--text`, then ` · ` and
+an `<a>` back to the unfiltered list („Alle anzeigen" / "Show all"),
+underlined with a 2px offset, `--text` on hover; `--s5` below. It is a
+sentence, not a pill: it states what the reader is looking at, it does not
+switch anything on. Without it a filtered list looks like the whole list, and
+a figure of fourteen reads as "all there are". Component:
+`components/portal/Listenfilter.tsx` (`data-cse="listen-filter"`); the month
+filters of the invoice lists (`monat-filter`) have the same form.
+
 ### Tables
 
 Header row `micro` uppercase `--text-subtle`, `1px solid --border` beneath.
@@ -707,6 +720,20 @@ wordmark rendered as *CSE Gr…*. Nothing looked broken — `text-overflow` is
 tidy, and the 375px overflow test stayed green precisely BECAUSE the name was
 being cut. **The wordmark is never truncated at `360px` or wider**; that is the
 testable half of this rule.
+
+**The four header links are not the whole site — the group pages live in the
+footer and the overlay menu.** *Über uns*, *Aktuelles* (`/news`) and *Karriere*
+are built, filled and in the sitemap, and with four header links and nowhere
+else to go they were reachable only by typing the address (V-155). They do not
+join the header row — five to seven links break the `lg` tier measured above.
+Instead they stand (1) in the overlay menu directly after the four links, same
+row style, before the companies and *Angebot anfragen*; and (2) in the footer as
+their own `nav` headed *Die Gruppe* / *The group*, stacked above *Rechtliches*
+in the third column, same link style as the legal trio (`min-h-11`, `sm`,
+`--text-muted`). A page that exists only in German (`/karriere`, `NUR_DEUTSCH`)
+is linked from an English page to its German address with `hreflang="de"` and
+the visible suffix *(in German)* — never to an `/en/…` address that 404s.
+**D-649.**
 
 **Portal sidebar:** width `248px`, `--surface`. Active item: `--surface-2` bg +
 3px left bar in the **current area's identity hue**. Icons `18px`, label `sm`.

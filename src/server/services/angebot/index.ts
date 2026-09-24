@@ -23,6 +23,9 @@ import { formatiereMenge, mengeNachPostgres, type MilliMenge } from '../finanz/m
 import { alsStundenText, stundenNachPostgres } from '../kalkulation/richtzeit.js';
 import type { Frequenz, Tarif } from '../kalkulation/tarif.js';
 import { verteileNetto, type Kalkulation } from '../kalkulation/index.js';
+import {
+  LEAD_BINDUNG_SATZ, pruefeLeadBindung, type LeadBindungGrund,
+} from '../crm/lead-kette.js';
 
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -39,7 +42,9 @@ export class AngebotFehler extends Error {
     /** Eine zweite Preisfreigabe auf derselben Zeile (O-732). */
     | 'schon_freigegeben'
     /** Eine Entscheidung auf einem Angebot, das keine tragen kann. */
-    | 'nicht_entscheidbar') {
+    | 'nicht_entscheidbar'
+    /** Der Lead gehört nicht zu diesem Angebot (V-138, `pruefeLeadBindung`). */
+    | LeadBindungGrund) {
     super(nachricht);
     this.name = 'AngebotFehler';
   }
@@ -65,6 +70,14 @@ export interface AngebotAnlegen {
   readonly ansprechpartnerId?: string;
   readonly gueltigBis?: string;
   readonly einleitungstext?: string;
+  /**
+   * Die Anfrage, auf die dieses Angebot antwortet (V-138, CRM-05, REP-03).
+   *
+   * Bis hierher schrieb KEIN Weg `angebot.lead_id`. `wandleInAuftrag` reicht
+   * sie an den Auftrag weiter, und der Herkunftsbericht zählt über den
+   * Auftrag — ohne dieses Feld zeigte er für jeden Kanal null Aufträge.
+   */
+  readonly leadId?: string;
 }
 
 /**
@@ -80,13 +93,26 @@ export const REGELSATZ_BP = 1900;
 export async function legeAngebotAn(
   db: Abfrage, eingabe: AngebotAnlegen,
 ): Promise<string> {
+  /*
+   * Der Lead wird VOR dem Schreiben geprüft — dieselbe Frage stellt der
+   * Auslöser `kern.lead_bezug_stimmt` (0400) noch einmal, für jeden Weg, der
+   * an diesem Dienst vorbeischreibt. Hier steht sie, damit der Mensch einen
+   * Satz bekommt und keinen `23514`.
+   */
+  if (eingabe.leadId !== undefined) {
+    const bindung = await pruefeLeadBindung(db, eingabe.leadId, eingabe.kundeId);
+    if (!bindung.ok) {
+      throw new AngebotFehler(LEAD_BINDUNG_SATZ[bindung.grund], bindung.grund);
+    }
+  }
   const [zeile] = await db.abfrage<{ id: string }>(
     `insert into angebot (mandant_id, kunde_id, objekt_id, ansprechpartner_id,
-                          titel, einleitungstext, gueltig_bis)
-     values (app.aktiver_mandant(), $1, $2, $3, $4, $5, $6::date)
+                          titel, einleitungstext, gueltig_bis, lead_id)
+     values (app.aktiver_mandant(), $1, $2, $3, $4, $5, $6::date, $7::uuid)
      returning id`,
     [eingabe.kundeId, eingabe.objektId ?? null, eingabe.ansprechpartnerId ?? null,
-     eingabe.titel, eingabe.einleitungstext ?? null, eingabe.gueltigBis ?? null],
+     eingabe.titel, eingabe.einleitungstext ?? null, eingabe.gueltigBis ?? null,
+     eingabe.leadId ?? null],
   );
   if (zeile === undefined) {
     throw new AngebotFehler('Das Angebot wurde nicht angelegt', 'nicht_gefunden');

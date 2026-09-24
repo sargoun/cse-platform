@@ -8,8 +8,10 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
-import { vergebeNummer, NummernkreisFehler } from '@/server/services/finanz/nummernkreis';
-import { pruefeAuftragsangaben, pruefeAuftragsbezug } from '@/server/services/auftrag/angaben';
+import { NummernkreisFehler } from '@/server/services/finanz/nummernkreis';
+import { pruefeAuftragsangaben } from '@/server/services/auftrag/angaben';
+import { legeAuftragDirektAn, type DirektAuftragsart } from '@/server/services/auftrag/direkt';
+import { maskeMitEingaben } from '@/lib/formular/maske';
 
 /**
  * `POST /api/auftrag` — der Auftragsassistent (OPS-10).
@@ -33,10 +35,19 @@ import { pruefeAuftragsangaben, pruefeAuftragsbezug } from '@/server/services/au
  * **Der Bereich kommt aus der SITZUNG** (Invariante 3), nicht aus
  * `?mandant=`: wer in einem zweiten Reiter die Gesellschaft gewechselt hatte,
  * legte den Auftrag richtig an und landete danach auf einem 404.
+ *
+ * **Die Maske kommt mit allem zurück, was eingegeben war** (V-143, D-637) —
+ * auch mit der Anfrage (V-138) und dem Wert (V-173).
  */
 export const dynamic = 'force-dynamic';
 
-const ARTEN = new Set(['einzelauftrag', 'rahmenvertrag', 'dauerauftrag', 'projekt']);
+const ARTEN: readonly DirektAuftragsart[] = [
+  'einzelauftrag', 'rahmenvertrag', 'dauerauftrag', 'projekt',
+];
+
+function istArt(wert: string | null): wert is DirektAuftragsart {
+  return wert !== null && (ARTEN as readonly string[]).includes(wert);
+}
 
 type Ergebnis =
   | { readonly art: 'abgewiesen'; readonly grund: string }
@@ -58,12 +69,17 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   };
 
   const kundeId = text('kundeId');
+  /*
+   * Die Anfrage, aus der dieser Auftrag direkt entsteht — ohne Angebot
+   * (V-138, CRM-05, REP-03). Ein Auftrag am Telefon nach einer Web-Anfrage
+   * ist ein Auftrag aus DIESEM Kanal; ohne das Feld zählte ihn der
+   * Herkunftsbericht nirgends.
+   */
+  const leadId = text('leadId');
   const bezeichnung = text('bezeichnung');
   const art = text('art');
   const startDatum = text('startDatum');
   const verantwortlich = text('verantwortlichBenutzerId') ?? sitzung.benutzerId;
-  const pflichtFehlt = kundeId === null || bezeichnung === null || art === null
-    || startDatum === null || !ARTEN.has(art);
 
   /*
    * Die Zahlen werden VOR der Transaktion geprüft — rein, ohne Datenbank —,
@@ -82,17 +98,25 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   });
 
   /*
-   * Gelesen in der Transaktion und nach AUSSEN gereicht — auch der
-   * Fehlerzweig braucht ihn, und ein Rollback nimmt die Zuweisung nicht
-   * zurück (dasselbe Muster wie `api/radar/profil`).
+   * Der Bereich wird in der Transaktion gelesen und nach AUSSEN gereicht —
+   * auch der Fehlerzweig braucht ihn, und ein Rollback nimmt die Zuweisung
+   * nicht zurück (dasselbe Muster wie `api/radar/profil`).
+   *
+   * **Ein Formular bekommt seine Maske zurück, kein JSON** (D-599): mit dem
+   * Schlüssel, der Anfrage, falls der Auftrag aus einer kam (V-138), und seit
+   * V-143 mit allem, was eingegeben war — wer sich bei den Wochenstunden
+   * vertippt, fängt nicht mit zehn leeren Feldern von vorn an.
    */
   let slug = '';
-  const zurMaske = (grund: string): NextResponse => {
-    const ziel = new URL(slug === '' ? '/portal' : `/portal/${slug}/auftraege/neu`,
-      erwarteterUrsprung(anfrage));
-    ziel.searchParams.set('fehler', grund);
-    return NextResponse.redirect(ziel, 303);
-  };
+  const zurMaske = (grund: string): NextResponse => NextResponse.redirect(new URL(
+    maskeMitEingaben(slug === '' ? '/portal' : `/portal/${slug}/auftraege/neu`, grund, {
+      lead: leadId, kundeId, objektId: text('objektId'), bezeichnung, art,
+      verantwortlichBenutzerId: text('verantwortlichBenutzerId'), startDatum,
+      laufzeitBis: text('laufzeitBis'), personalbedarfAnzahl: text('personalbedarfAnzahl'),
+      wochenstundenSoll: text('wochenstundenSoll'),
+      auftragswertNetto: text('auftragswertNetto'),
+      ausstattungHinweis: text('ausstattungHinweis'), beschreibung: text('beschreibung'),
+    }), erwarteterUrsprung(anfrage)), 303);
 
   try {
     const ergebnis = await (db().begin(async (tx: postgres.TransactionSql) =>
@@ -115,37 +139,34 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         if (bereich === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
         slug = bereich.slug;
 
-        if (pflichtFehlt) return { art: 'abgewiesen', grund: 'unvollstaendig' };
+        if (kundeId === null || bezeichnung === null || startDatum === null || !istArt(art)) {
+          return { art: 'abgewiesen', grund: 'unvollstaendig' };
+        }
         if (!angaben.ok) return { art: 'abgewiesen', grund: angaben.grund };
-        /* VOR der Nummer: eine Abweisung verbraucht keine Auftragsnummer. */
-        const bezug = await pruefeAuftragsbezug(kontext, {
-          kundeId, objektId: text('objektId'), verantwortlichBenutzerId: verantwortlich,
-          startDatum: startDatum ?? '', laufzeitBis: text('laufzeitBis'),
-        });
-        if (bezug !== null) return { art: 'abgewiesen', grund: bezug };
 
-        const nummer = await vergebeNummer(
+        /*
+         * Bezug und Anfrage prüfen, Nummer ziehen, anlegen — im Dienst (V-143),
+         * damit es sich gegen eine echte Datenbank prüfen lässt: eine
+         * Abweisung verbraucht KEINE Auftragsnummer.
+         */
+        const neu = await legeAuftragDirektAn(
+          kontext,
           { unsafe: async (s: string, w: readonly unknown[] = []) =>
               (await tx.unsafe(s, w as never[])) as readonly unknown[] },
-          { kreisTyp: 'auftrag' },
-        );
-
-        const [neu] = await kontext.abfrage<{ id: string }>(
-          `insert into auftrag (mandant_id, auftragsnummer, kunde_id, objekt_id, art,
-                                bezeichnung, beschreibung, verantwortlich_benutzer_id,
-                                start_datum, laufzeit_bis, personalbedarf_anzahl,
-                                wochenstunden_soll, ausstattung_hinweis,
-                                auftragswert_netto_cent)
-           values (app.aktiver_mandant(), $1, $2, $3, $4::auftrag_art, $5, $6, $7,
-                   $8::date, $9::date, $10, $11::numeric, $12, $13::bigint)
-           returning id`,
-          [nummer.formatiert, kundeId, text('objektId'), art, bezeichnung,
-           text('beschreibung'), verantwortlich, startDatum, text('laufzeitBis'),
-           angaben.werte.personalbedarf, angaben.werte.wochenstunden,
-           text('ausstattungHinweis'),
-           angaben.werte.wertCent === null ? null : String(angaben.werte.wertCent)],
-        );
-        if (neu === undefined) throw new NichtGefundenFehler('Auftrag nicht angelegt');
+          {
+            kundeId, objektId: text('objektId'), art, bezeichnung,
+            beschreibung: text('beschreibung'), verantwortlichBenutzerId: verantwortlich,
+            startDatum, laufzeitBis: text('laufzeitBis'),
+            personalbedarfAnzahl: angaben.werte.personalbedarf,
+            wochenstundenSoll: angaben.werte.wochenstunden,
+            ausstattungHinweis: text('ausstattungHinweis'), leadId,
+            auftragswertNettoCent: angaben.werte.wertCent,
+          });
+        /* Die Anfrage bleibt in der Adresse, damit der zweite Versuch nicht ohne sie beginnt. */
+        if (neu.art === 'bezug' || neu.art === 'lead') {
+          return { art: 'abgewiesen', grund: neu.grund };
+        }
+        if (neu.art === 'nicht_angelegt') return { art: 'abgewiesen', grund: 'nicht_angelegt' };
         return { art: 'angelegt', id: neu.id };
       })) as Promise<Ergebnis>);
 
@@ -153,6 +174,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(
       new URL(`/portal/${slug}/auftraege/${ergebnis.id}`, erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
+    /*
+     * **Die Antworten des TORS bleiben JSON** — wie auf jeder Route dieser
+     * Anwendung (`uebergang.ts`, `autorisierungsAntwort`, D-637): ohne
+     * Sitzung, ohne zweiten Faktor, ohne Recht gibt es keine Maske, auf die
+     * man zurückkehren könnte; die Maske selbst stünde hinter demselben Tor.
+     * Zurück auf die Maske geht alles, was die EINGABE oder den Vorgang
+     * betrifft.
+     */
     if (fehler instanceof NichtAngemeldetFehler) {
       return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
     }

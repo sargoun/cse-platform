@@ -58,6 +58,12 @@ export default async function DashboardSeite(
         // Der Super-Admin sieht alles; die rollenbezogene Filterung kommt mit
         // PR 19, wo es echte Sitzungen gibt.
         () => true,
+        /*
+         * Keine Buchung filtert hier (V-151): die Ziele dieser Fläche sind
+         * `/dev/kennzahl/…` und öffnen sich für jede Kachel. Die Portal-
+         * übersicht fragt die Buchung der Gesellschaft (`bereichsDashboard`).
+         */
+        { module: [], gepflegt: false },
       ));
 
     return {

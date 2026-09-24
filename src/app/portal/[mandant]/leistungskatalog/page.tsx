@@ -13,6 +13,7 @@ import { mandantTor, MandantAntwort } from '../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { FELD, FEHLERTEXT, PILLE } from './daten';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/leistungskatalog` — die Katalogfassungen dieser
@@ -95,7 +96,7 @@ export default async function Leistungskatalog(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="katalog-fehler" className="mb-s5">
           <strong>Nichts wurde gespeichert.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 

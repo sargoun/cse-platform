@@ -15,6 +15,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { KATEGORIE, KATEGORIEN } from '../darstellung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/dokumente/upload` — eine Datei ablegen (DOC-01, DOC-03,
@@ -135,7 +136,7 @@ export default async function DokumentHochladen({
       {fehler !== '' && (
         <Hinweis art="warnung" cse="upload-fehler" className="mb-s5 max-w-prose">
           <strong>Nichts abgelegt.</strong>{' '}
-          {meldung !== '' ? meldung : FEHLER_TEXT[fehler] ?? 'Die Ablage ist nicht erfolgt.'}
+          {meldung !== '' ? meldung : eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Ablage ist nicht erfolgt.'}
         </Hinweis>
       )}
 

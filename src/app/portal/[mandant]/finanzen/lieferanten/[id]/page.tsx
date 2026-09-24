@@ -16,6 +16,7 @@ import { leseLieferant, type LieferantZeile } from '@/server/services/finanz/lie
 import { LieferantFormular } from '../LieferantFormular';
 import { LIEFERANT_FEHLER } from '../fehler';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/finanzen/lieferanten/[id]` — ein Lieferant: Stammdaten
@@ -97,7 +98,7 @@ export default async function LieferantBlatt(
 
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="lieferant-fehler" className="mb-s5 max-w-prose">
-          {meldungen[fehler] ?? fehler}
+          {eigenerEintrag(meldungen, fehler) ?? fehler}
         </Hinweis>
       )}
 

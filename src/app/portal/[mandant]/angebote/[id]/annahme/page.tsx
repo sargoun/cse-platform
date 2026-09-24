@@ -15,6 +15,7 @@ import { kennungOder404 } from '../../../../kennung';
 import { FELD, FEHLERTEXT, type AnnahmeKopf, type Auswahl } from './daten';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/angebote/[id]/annahme` — was der Kunde entschieden hat
@@ -145,8 +146,8 @@ export default async function Annahme(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="annahme-fehler" className="mb-s5">
           <strong>Nichts wurde erfasst.</strong>{' '}
-          {FEHLERTEXT[fehler]
-            ?? nachSprache(AUFTRAG_TEXTE, zugang.sprache).fehler[fehler]
+          {eigenerEintrag(FEHLERTEXT, fehler)
+            ?? eigenerEintrag(nachSprache(AUFTRAG_TEXTE, zugang.sprache).fehler, fehler)
             ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}

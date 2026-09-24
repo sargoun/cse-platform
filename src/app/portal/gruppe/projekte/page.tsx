@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { Listenfilter } from '@/components/portal/Listenfilter';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KENNZAHL_TEXTE } from '@/lib/i18n/verwaltung/kennzahlen';
+import { projektStatusAus } from '@/server/services/bericht/mengen';
 import {
   bereichAus, BereichFilter, BereichMarke, GruppenAntwort, GruppenHinweis, GruppenRahmen,
   gruppenLesen, gruppenTor, ladeBereiche, LeereListe, mandantIdsFuer, type Suchparameter,
@@ -38,6 +42,14 @@ export default async function GruppenProjekte({ searchParams }: { searchParams: 
   const tor = await gruppenTor('/portal/gruppe/projekte');
   if (tor.art !== 'ok') return <GruppenAntwort tor={tor} />;
 
+  /*
+   * **Der Stand aus der Gruppenübersicht** (V-150, DSH-04): die Spalte
+   * „Bauprojekte in Arbeit" führt mit `?status=in_arbeit` hierher. Ohne den
+   * Filter zeigte die Liste alle Stände, und die Zahl stand hier nirgends.
+   */
+  const status = projektStatusAus((await searchParams)['status']);
+  const tk = nachSprache(KENNZAHL_TEXTE, tor.zugang.sprache);
+
   const { bereiche, aktiv, zeilen } = await gruppenLesen(tor.zugang, async (kontext) => {
     const bereiche = await ladeBereiche(kontext);
     const aktiv = await bereichAus(searchParams, bereiche);
@@ -49,9 +61,10 @@ export default async function GruppenProjekte({ searchParams }: { searchParams: 
          join mandant m on m.id = p.mandant_id
          left join kunde k on k.id = p.kunde_id
         where p.archiviert_am is null and p.mandant_id = any($1::uuid[])
+          and ($2::text is null or p.status::text = $2)
         order by p.soll_ende nulls last, m.sortierung, p.nummer
         limit 500`,
-      [mandantIdsFuer(kontext, aktiv)],
+      [mandantIdsFuer(kontext, aktiv), status],
     );
     return { bereiche, aktiv, zeilen };
   });
@@ -59,7 +72,15 @@ export default async function GruppenProjekte({ searchParams }: { searchParams: 
   return (
     <GruppenRahmen zugang={tor.zugang} titel="Projekte" aktiverTab="uebersicht">
       <h1 className="mb-s5 text-h1 text-text">Projekte</h1>
-      <BereichFilter bereiche={bereiche} aktiv={aktiv} basis="/portal/gruppe/projekte" />
+      <BereichFilter bereiche={bereiche} aktiv={aktiv}
+                     basis={status === null
+                       ? '/portal/gruppe/projekte' : `/portal/gruppe/projekte?status=${status}`} />
+      {status === null ? null : (
+        <Listenfilter sprache={tor.zugang.sprache}
+                      beschreibung={tk.projektStatus[status] ?? tk.keinTreffer}
+                      alleZiel={aktiv === null
+                        ? '/portal/gruppe/projekte' : `/portal/gruppe/projekte?bereich=${aktiv.slug}`} />
+      )}
       {zeilen.length === 0 ? (
         <LeereListe text="Kein Projekt in dieser Auswahl." />
       ) : (

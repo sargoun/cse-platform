@@ -16,6 +16,7 @@ import { PFLEGE_GESPERRT } from '@/server/services/auftrag/aendern';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/auftraege/[id]/bearbeiten` — Stammdaten eines Auftrags
@@ -137,7 +138,7 @@ export default async function AuftragBearbeiten(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="auftrag-pflege-fehler" className="mb-s5 max-w-prose">
           <strong className="block">{t.nichtGespeichert}</strong>
-          {t.fehler[fehler] ?? null}
+          {eigenerEintrag(t.fehler, fehler) ?? null}
         </Hinweis>
       )}
 

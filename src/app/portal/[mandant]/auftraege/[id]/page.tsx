@@ -20,6 +20,8 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../kennung';
 import { haeltRechte } from '../../../rechte';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
 
 /**
  * `/portal/[mandant]/auftraege/[id]` — ein Auftrag mit dem, was OPS-10
@@ -78,6 +80,13 @@ interface Kopf {
   readonly wert: string | null;
   readonly angebotsnummer: string | null;
   readonly angebot_id: string | null;
+  /**
+   * Die Anfrage, aus der der Auftrag kam (V-138, REQ-07): der Bezug, über
+   * den der Herkunftsbericht zählt. Die Nummer liest nur, wer `crm.lesen`
+   * hält (Policy auf `lead`).
+   */
+  readonly lead_id: string | null;
+  readonly leadnummer: string | null;
   readonly freigegeben: boolean;
   /** Warum der Auftrag ruht oder storniert wurde (V-081). */
   readonly status_grund: string | null;
@@ -144,6 +153,8 @@ export default async function AuftragDetail(
               a.ausstattung_hinweis as ausstattung,
               a.auftragswert_netto_cent::text as wert,
               ang.angebotsnummer, a.angebot_id,
+              a.lead_id::text as lead_id,
+              (select l.leadnummer from lead l where l.id = a.lead_id) as leadnummer,
               a.freigegeben_vom_kunden as freigegeben,
               a.status_grund,
               to_char(a.status_geaendert_am at time zone 'Europe/Berlin',
@@ -208,6 +219,18 @@ export default async function AuftragDetail(
           {kopf.angebotsnummer}
         </Link>
       ) : kopf.angebotsnummer],
+    ...(kopf.lead_id === null || kopf.leadnummer === null
+      || darf['crm.lesen'] !== true ? [] : [[
+      nachSprache(KETTE_TEXTE, zugang.sprache).anfrage,
+      <Link
+        key="anfrage"
+        href={`/portal/${mandant}/crm/leads/${kopf.lead_id}`}
+        data-cse="auftrag-anfrage"
+        className="text-text underline-offset-2 hover:text-brand hover:underline"
+      >
+        {kopf.leadnummer}
+      </Link>,
+    ] as const]),
   ];
 
   return (

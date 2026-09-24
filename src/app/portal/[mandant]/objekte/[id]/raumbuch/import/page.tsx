@@ -16,6 +16,7 @@ import { kennungOder404 } from '../../../../../kennung';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { RAUMBUCH_IMPORT_TEXTE } from '@/lib/i18n/verwaltung/raumbuch-import';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/objekte/[id]/raumbuch/import` — hochladen und VORSCHAU
@@ -116,7 +117,7 @@ export default async function RaumbuchImport(
   const t = nachSprache(RAUMBUCH_IMPORT_TEXTE, zugang.sprache);
   const fehlerText = fehler === null ? null
     : fehler === 'feldzahl' && fehlerZeile !== null ? t.feldzahlInZeile(fehlerZeile)
-      : t.fehler[fehler] ?? t.fehler['format'] ?? null;
+      : eigenerEintrag(t.fehler, fehler) ?? eigenerEintrag(t.fehler, 'format') ?? null;
 
   return (
     <PortalRahmen

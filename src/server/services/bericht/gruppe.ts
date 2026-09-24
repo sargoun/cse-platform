@@ -322,6 +322,7 @@ export async function attributionJeBereich(
                          when 'webformular' then 'Website (ohne UTM)'
                          when 'vergabe_radar' then 'Vergaberadar'
                          when 'empfehlung' then 'Empfehlung'
+                         when 'akquise' then 'Akquise'
                          else 'Manuell erfasst'
                        end) as kanal
          from lead l

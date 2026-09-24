@@ -13,6 +13,7 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { formatiereBytes, KATEGORIE } from '../darstellung';
 import { kennungOder404 } from '../../../kennung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/dokumente/[id]` — die Metadaten eines Dokuments
@@ -164,7 +165,7 @@ export default async function Dokumentblatt(
       {fehler !== null ? (
         <Hinweis art="warnung" cse="dokument-loeschfehler" className="mb-s5 max-w-prose">
           <strong>Nicht gelöscht.</strong>{' '}
-          {FEHLER_TEXT[fehler] ?? 'Die Löschung wurde abgewiesen.'}
+          {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Löschung wurde abgewiesen.'}
         </Hinweis>
       ) : null}
 

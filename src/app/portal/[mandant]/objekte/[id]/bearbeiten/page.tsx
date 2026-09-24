@@ -15,6 +15,7 @@ import { OBJEKTE_TEXTE } from '@/lib/i18n/verwaltung/objekte';
 import { ObjektFormular, type KundeAuswahl, type ObjektWerte }
   from '../../ObjektFormular';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/objekte/[id]/bearbeiten` — ein Objekt ändern oder
@@ -100,7 +101,7 @@ export default async function ObjektBearbeiten(
    */
   const grund = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const satz = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
-  const meldung = (grund === null ? undefined : t.fehler[grund]) ?? satz;
+  const meldung = eigenerEintrag(t.fehler, grund) ?? satz;
 
   const geladen = await db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {

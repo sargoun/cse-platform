@@ -17,6 +17,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KALKULATION_TEXTE } from '@/lib/i18n/verwaltung/kalkulation';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/angebote/[id]/kalkulation` — der Rechenweg, und der
@@ -173,7 +174,7 @@ export default async function KalkulationSeite(
     || kopf.frequenz_offen;
   const eingefroren = kopf.kalkulation_status === 'festgeschrieben' || kopf.versendet;
   const tk = nachSprache(KALKULATION_TEXTE, zugang.sprache);
-  const feldName = fehlerFeld === null ? undefined : tk.feld[fehlerFeld];
+  const feldName = eigenerEintrag(tk.feld, fehlerFeld);
   /* Material und Gerät sind änderbar, solange weder festgeschrieben noch freigegeben. */
   const kostenOffen = !eingefroren && !kopf.freigegeben;
   const basisVorgabe = kopf.gemeinkosten_basis === 'selbstkosten' ? 'selbstkosten' : 'lohn';
@@ -217,7 +218,7 @@ export default async function KalkulationSeite(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="kalkulation-fehler" className="mb-s5 max-w-prose">
           <strong className="block">{tk.nichtBestaetigt}</strong>
-          {tk.fehler[fehler] ?? tk.fehler['unvollstaendig']}
+          {eigenerEintrag(tk.fehler, fehler) ?? tk.fehlerSonst}
           {feldName === undefined ? null : <> {tk.imFeld(feldName)}</>}
         </Hinweis>
       )}
