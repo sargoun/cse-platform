@@ -12,7 +12,9 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
-import { PFLEGE_GESPERRT } from '@/server/services/auftrag/aendern';
+import {
+  PFLEGE_GESPERRT, WERT_AENDERUNG_FRAGE, wertAenderungsweg,
+} from '@/server/services/auftrag/aendern';
 import { waehlbareLeitungen, type LeitungsWahl } from '@/server/services/auftrag/angaben';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
@@ -30,8 +32,9 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * **Was hier fehlt, fehlt mit Absicht:** Nummer, Kunde, Art, Start und Objekt.
  * Sie tragen Rechnungen, Einsätze und Leistungsnachweise; ein anderer
  * Vertragspartner oder Ort ist ein anderer Auftrag. Der Wert eines Auftrags
- * aus einem Angebot steht nur zum Lesen da — er ist `angebot.netto_cent`, und
- * eine Änderung des Vertragswerts ist ein Nachtrag.
+ * aus einem Angebot steht nur zum Lesen da — er ist `angebot.netto_cent`.
+ * Darunter steht, auf welchem Weg er sich ändert: im Bau ein Nachtrag, sonst
+ * ist das offen (O-921, `wertAenderungsweg`, V-239).
  *
  * Zahlen erscheinen in deutscher Schreibweise und gehen so zurück: der
  * Dienst liest sie mit demselben Leser wie der Assistent.
@@ -95,8 +98,13 @@ export default async function AuftragBearbeiten(
           where a.id = $1::uuid and a.archiviert_am is null`, [id]);
       // Dieselbe Frage wie Dienst und Auslöser (V-177): wer HEUTE Mitglied ist.
       const leitungen = await waehlbareLeitungen(kontext);
-      return { kopf, leitungen };
-    })) as Promise<{ kopf: Kopf | undefined; leitungen: readonly LeitungsWahl[] }>);
+      // Die gebuchten Gewerke entscheiden, ob es einen Nachtrag gibt (V-239).
+      const [m] = await kontext.abfrage<{ module: readonly string[] | null }>(
+        `select module from mandant where id = app.aktiver_mandant()`);
+      return { kopf, leitungen, module: m?.module ?? [] };
+    })) as Promise<{
+      kopf: Kopf | undefined; leitungen: readonly LeitungsWahl[]; module: readonly string[];
+    }>);
 
   if (geladen.kopf === undefined) notFound();
   const k = geladen.kopf;
@@ -199,8 +207,10 @@ export default async function AuftragBearbeiten(
                 <p className="mt-s2 text-sm tabular-nums text-text" data-cse="auftrag-wert-fest">
                   {k.wert === null ? '—' : formatiereGeld(cent(BigInt(k.wert)))}
                 </p>
-                <p className="mt-s1 text-xs text-text-muted">
-                  {t.wertAusAngebot(k.angebotsnummer ?? '—')}
+                <p className="mt-s1 text-xs text-text-muted" data-cse="auftrag-wert-weg">
+                  {t.wertAusAngebot(k.angebotsnummer ?? '—')}{' '}
+                  {wertAenderungsweg(geladen.module) === 'nachtrag'
+                    ? t.wertWegNachtrag : t.wertWegOffen(WERT_AENDERUNG_FRAGE)}
                 </p>
               </>
             )}

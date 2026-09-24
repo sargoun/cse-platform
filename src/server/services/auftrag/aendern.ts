@@ -28,9 +28,11 @@ import {
  *    geänderter Überschrift.
  *  - **Der Wert eines Auftrags AUS EINEM ANGEBOT.** Er ist `angebot.netto_cent`
  *    und wird nicht neu gerechnet (`wandleInAuftrag`); ihn hier zu
- *    überschreiben, wäre eine zweite Wahrheit über denselben Betrag. Eine
- *    Änderung des Vertragswerts ist ein Nachtrag. Ein von Hand angelegter
- *    Auftrag hat keine andere Quelle — dort ist diese Seite die Stelle.
+ *    überschreiben, wäre eine zweite Wahrheit über denselben Betrag. Ein von
+ *    Hand angelegter Auftrag hat keine andere Quelle — dort ist diese Seite
+ *    die Stelle. **Wie sich ein solcher Vertragswert ändert, ist nur im Bau
+ *    beantwortet** (Nachtrag, § 2 VOB/B, 0080); für Reinigung und Sicherheit
+ *    ist es offen (O-921, `wertAenderungsweg`, V-239).
  *  - **Ein abgeschlossener oder stornierter Auftrag.** Beide sind Endzustände
  *    (O-734, 0389); wer dort etwas ändern müsste, korrigiert über einen
  *    Nachtrag oder einen neuen Auftrag.
@@ -81,6 +83,35 @@ interface AuftragAlt {
 
 /** Die Zustände, in denen ein Auftrag nicht mehr gepflegt wird. */
 export const PFLEGE_GESPERRT: readonly string[] = ['abgeschlossen', 'storniert'];
+
+/**
+ * Auf welchem Weg sich der Wert eines Auftrags AUS EINEM ANGEBOT ändert
+ * (V-239).
+ *
+ *  - `nachtrag`: im Bau. Eine Änderung des Bauvertrags ist ein Nachtrag nach
+ *    § 2 VOB/B, und den gibt es am Projekt des Auftrags (0080).
+ *  - `offen`: überall sonst. Reinigung und Sicherheit kennen keinen
+ *    Nachtrag; ein falscher oder angepasster Vertragswert (Tippfehler im
+ *    Angebot, Preisanpassung, geänderter Leistungsumfang) hat dort heute
+ *    KEINEN Weg. Das ist der ehrliche Zustand, keine Entscheidung: welcher
+ *    Weg gilt, ist eine Vertrags- und Preisfrage, und eine erfundene
+ *    Berichtigung wäre eine zweite Wahrheit über den Betrag, den der Kunde
+ *    angenommen hat.
+ */
+export type WertAenderungsweg = 'nachtrag' | 'offen';
+
+/**
+ * PLATZHALTER — die Antwort auf O-921 ändert diese Funktion, nicht ihre
+ * Aufrufer.
+ *
+ * TODO(client, O-921): Wie wird der Vertragswert eines Auftrags, der aus einem angenommenen Angebot entstanden ist, in Reinigung und Sicherheit berichtigt oder angepasst — (a) über eine neue Angebotsfassung und einen neuen Auftrag, (b) über eine eigene Vertragsänderung am Auftrag (Betrag, Grund, Datum, Zustimmung des Kunden) wie der Nachtrag im Bau, oder (c) als Berichtigung in der Auftragspflege mit Grund und Protokoll? Und gilt für eine Preisanpassung (etwa nach einer Tariferhöhung) derselbe Weg wie für einen Tippfehler?
+ */
+export function wertAenderungsweg(module: readonly string[]): WertAenderungsweg {
+  return module.includes('bau') ? 'nachtrag' : 'offen';
+}
+
+/** Die offene Frage hinter `offen` — die Seite nennt sie (V-239). */
+export const WERT_AENDERUNG_FRAGE = 'O-921';
 
 function leerZuNull(wert: string | null | undefined): string | null {
   const t = wert?.trim() ?? '';
@@ -149,8 +180,8 @@ export async function aendereAuftrag(
   const wertNeu = angaben.werte.wertCent === null ? null : String(angaben.werte.wertCent);
   if (alt.angebot_id !== null && wertNeu !== alt.wert) {
     throw new AuftragPflegeFehler(
-      'Der Wert dieses Auftrags kommt aus dem Angebot und wird hier nicht geändert — '
-      + 'eine Änderung des Vertragswerts ist ein Nachtrag.',
+      'Der Wert dieses Auftrags kommt aus dem Angebot und wird hier nicht geändert '
+      + '(Bau: Nachtrag; sonst offen, O-921).',
       'wert_aus_angebot');
   }
 

@@ -22,7 +22,14 @@ export interface AuftragTexte {
   /* ── Der Auftragswert (Assistent und Pflege) ───────────────────────── */
   readonly wert: string;
   readonly wertHinweis: string;
+  /**
+   * Unter dem gesperrten Wert eines Auftrags aus einem Angebot: woher er kommt
+   * und auf welchem Weg er sich ändert — im Bau über einen Nachtrag, sonst
+   * offen mit der Nummer der Frage (V-239, O-921).
+   */
   readonly wertAusAngebot: (angebotsnummer: string) => string;
+  readonly wertWegNachtrag: string;
+  readonly wertWegOffen: (frage: string) => string;
 
   /* ── Die OPS-10-Angaben bei der Annahme ────────────────────────────── */
   readonly ops10Titel: string;
@@ -85,8 +92,8 @@ export const AUFTRAG_TEXTE: Readonly<Record<InternSprache, AuftragTexte>> = {
         'Ein abgeschlossener oder stornierter Auftrag wird nicht mehr geändert. Korrigiert '
         + 'wird über einen Nachtrag oder einen neuen Auftrag.',
       wert_aus_angebot:
-        'Der Wert dieses Auftrags kommt aus dem Angebot und wird hier nicht geändert — eine '
-        + 'Änderung des Vertragswerts ist ein Nachtrag.',
+        'Der Wert dieses Auftrags kommt aus dem angenommenen Angebot und wird hier nicht '
+        + 'geändert. Unter dem Wert steht, auf welchem Weg er sich ändert.',
       nicht_gefunden: 'Diesen Auftrag gibt es nicht — oder diese Sitzung darf ihn nicht ändern.',
       nicht_angelegt:
         'Die Datenbank hat den Auftrag nicht angenommen. Ihre Eingaben stehen noch da.',
@@ -98,8 +105,14 @@ export const AUFTRAG_TEXTE: Readonly<Record<InternSprache, AuftragTexte>> = {
       + 'den Wertkennzahlen und ist die Grundlage einer Abschlagsrechnung. Leer lassen, wenn '
       + 'er noch nicht feststeht; geschätzt wird nichts.',
     wertAusAngebot: (nr) =>
-      `Kommt aus dem Angebot ${nr} und wird nicht neu gerechnet. Eine Änderung des `
-      + 'Vertragswerts ist ein Nachtrag.',
+      `Kommt aus dem Angebot ${nr} und wird hier weder neu gerechnet noch geändert.`,
+    wertWegNachtrag:
+      'Eine Änderung des Bauvertrags ist ein Nachtrag nach § 2 VOB/B — am Projekt dieses '
+      + 'Auftrags.',
+    wertWegOffen: (frage) =>
+      'Wie ein Vertragswert aus einem Angebot in dieser Gesellschaft berichtigt oder angepasst '
+      + `wird, ist noch nicht entschieden (${frage}). Bis dahin bleibt er, wie der Kunde ihn `
+      + 'angenommen hat.',
 
     ops10Titel: 'Was der Vertrag verlangt (OPS-10)',
     ops10Hinweis:
@@ -167,8 +180,8 @@ export const AUFTRAG_TEXTE: Readonly<Record<InternSprache, AuftragTexte>> = {
         'A completed or cancelled order is no longer changed. Corrections go through a '
         + 'Nachtrag (change order) or a new order.',
       wert_aus_angebot:
-        'The value of this order comes from the offer and is not changed here — a change of '
-        + 'the contract value is a Nachtrag (change order).',
+        'The value of this order comes from the accepted offer and is not changed here. Below '
+        + 'the value you can read how it can be changed.',
       nicht_gefunden: 'This order does not exist — or this session may not change it.',
       nicht_angelegt: 'The database did not accept the order. Your entries are still there.',
     },
@@ -179,8 +192,13 @@ export const AUFTRAG_TEXTE: Readonly<Record<InternSprache, AuftragTexte>> = {
       + 'figures and is the basis of a progress invoice. Leave it empty if it is not settled '
       + 'yet; nothing is estimated.',
     wertAusAngebot: (nr) =>
-      `Comes from offer ${nr} and is not recalculated. A change of the contract value is a `
-      + 'Nachtrag (change order).',
+      `Comes from offer ${nr} and is neither recalculated nor changed here.`,
+    wertWegNachtrag:
+      'A change of the construction contract is a Nachtrag (change order) under § 2 VOB/B — '
+      + 'on the project of this order.',
+    wertWegOffen: (frage) =>
+      'How a contract value from an offer is corrected or adjusted in this Mandant (company) '
+      + `has not been decided yet (${frage}). Until then it stays as the customer accepted it.`,
 
     ops10Titel: 'What the contract requires (OPS-10)',
     ops10Hinweis:

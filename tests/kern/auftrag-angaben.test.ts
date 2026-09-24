@@ -12,6 +12,10 @@ import { describe, expect, it } from 'vitest';
 import {
   istKalendertag, leitungWechselt, pruefeAuftragsangaben,
 } from '../../src/server/services/auftrag/angaben.js';
+import { AUFTRAG_TEXTE } from '../../src/lib/i18n/verwaltung/auftrag.js';
+import {
+  WERT_AENDERUNG_FRAGE, wertAenderungsweg,
+} from '../../src/server/services/auftrag/aendern.js';
 
 describe('(1) pruefeAuftragsangaben — deutsche Zahlen, die Grenzen aus 0025', () => {
   it('liest Tausenderpunkt und Dezimalkomma — „1.234,5" ist 1234,5, nicht NaN', () => {
@@ -117,6 +121,26 @@ describe('(1c) leitungWechselt — geprüft wird die Mitgliedschaft nur beim Wec
       const quelle = readFileSync(datei, 'utf8');
       expect(quelle).toContain('waehlbareLeitungen(kontext)');
       expect(quelle).not.toContain('join benutzer_mandant');
+    }
+  });
+});
+
+describe('(1d) der Wert aus einem Angebot — welcher Weg ihn ändert (V-239, O-921)', () => {
+  it('nur der Bau kennt einen Nachtrag; sonst ist der Weg offen und die Frage genannt', () => {
+    expect(wertAenderungsweg(['bau'])).toBe('nachtrag');
+    expect(wertAenderungsweg(['reinigung'])).toBe('offen');
+    expect(wertAenderungsweg(['security'])).toBe('offen');
+    expect(wertAenderungsweg([])).toBe('offen');
+    expect(WERT_AENDERUNG_FRAGE).toBe('O-921');
+  });
+
+  it('kein Text behauptet mehr, jede Änderung des Vertragswerts sei ein Nachtrag', () => {
+    for (const sprache of ['de', 'en'] as const) {
+      const t = AUFTRAG_TEXTE[sprache];
+      expect(t.fehler['wert_aus_angebot']).not.toMatch(/Nachtrag/u);
+      expect(t.wertAusAngebot('AN-1')).not.toMatch(/Nachtrag/u);
+      expect(t.wertWegOffen('O-921')).toContain('O-921');
+      expect(t.wertWegNachtrag).toContain('§ 2 VOB/B');
     }
   });
 });
