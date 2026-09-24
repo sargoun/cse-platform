@@ -14,6 +14,7 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
 import { istKennung } from '@/server/services/crm/lead-kette';
+import { waehlbareLeitungen } from '@/server/services/auftrag/angaben';
 import { vorbelegt } from '@/lib/formular/maske';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 
@@ -94,11 +95,8 @@ export default async function AuftragAssistent(
       objekte: await kontext.abfrage<ObjektAuswahl>(
         `select id, bezeichnung as name, kunde_id from objekt
           where archiviert_am is null order by bezeichnung`),
-      leitungen: await kontext.abfrage<Auswahl>(
-        `select b.id, b.name from benutzer b
-           join benutzer_mandant bm on bm.benutzer_id = b.id
-          where bm.mandant_id = app.aktiver_mandant() and b.status = 'aktiv'
-          order by b.name`),
+      // Wer HEUTE Mitglied ist — dieselbe Frage wie Dienst und Auslöser (V-177).
+      leitungen: await waehlbareLeitungen(kontext),
       lead: leadParam === null ? null : (await kontext.abfrage<AnfrageAuswahl>(
         `select l.id::text as id, l.leadnummer, l.betreff, l.kunde_id::text as kunde_id,
                 k.name as kunde_name,

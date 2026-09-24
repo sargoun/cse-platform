@@ -16,6 +16,7 @@ import { FELD, FEHLERTEXT, type AnnahmeKopf, type Auswahl } from './daten';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { waehlbareLeitungen } from '@/server/services/auftrag/angaben';
 
 /**
  * `/portal/[mandant]/angebote/[id]/annahme` — was der Kunde entschieden hat
@@ -100,14 +101,10 @@ export default async function Annahme(
        * `kern.auftrag_verantwortlich_im_mandant` weist eine Person ab, die
        * hier nicht arbeitet. Eine Auswahlliste ueber alle Benutzer boete
        * damit an, was die Datenbank hinterher zurueckweist — ein Formular,
-       * das zum Fehler einlaedt.
+       * das zum Fehler einlaedt. Gefragt wird dieselbe Mitgliedschaft wie
+       * im Dienst, mit `gueltig_ab`/`gueltig_bis` (V-177).
        */
-      const leitungen = await kontext.abfrage<Auswahl>(
-        `select b.id, b.name from benutzer b
-           join benutzer_mandant bm on bm.benutzer_id = b.id
-          where bm.mandant_id = app.aktiver_mandant()
-            and bm.entzogen_am is null and b.status = 'aktiv'
-          order by b.name`);
+      const leitungen: readonly Auswahl[] = await waehlbareLeitungen(kontext);
       return { kopf, leitungen };
     })) as Promise<{ kopf: AnnahmeKopf; leitungen: readonly Auswahl[] } | null>);
 

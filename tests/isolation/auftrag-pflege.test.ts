@@ -19,7 +19,8 @@ import {
 } from '../../src/server/services/angebot/index.js';
 import { aendereAuftrag, AuftragPflegeFehler }
   from '../../src/server/services/auftrag/aendern.js';
-import { AuftragsangabenFehler } from '../../src/server/services/auftrag/angaben.js';
+import { AuftragsangabenFehler, waehlbareLeitungen }
+  from '../../src/server/services/auftrag/angaben.js';
 import { bestaetigeKalkulation, KalkulationFehler }
   from '../../src/server/services/kalkulation/bestaetigung.js';
 
@@ -337,6 +338,92 @@ describe('(3) aendereAuftrag — Stammdaten nach der Anlage (V-173, OPS-05, OPS-
         ...PFLEGE, auftragId: id, verantwortlichBenutzerId: chef, bezeichnung: 'Gruppe',
       }))).rejects.toBeInstanceOf(AuftragPflegeFehler);
     expect((await stand(id)).bezeichnung).toBe('Unterhaltsreinigung Buero');
+  });
+});
+
+describe('(3a) die bisherige Leitung hat die Gesellschaft verlassen (V-177)', () => {
+  /**
+   * Ein Auftrag, dessen Leitung beim Anlegen Mitglied war und es danach nicht
+   * mehr ist — `wie` sagt, auf welchem Weg sie gegangen ist: ausgelaufen
+   * (`gueltig_bis` gestern) oder entzogen (`entzogen_am`).
+   */
+  async function auftragMitAusgeschiedenerLeitung(
+    wie: 'ausgelaufen' | 'entzogen',
+  ): Promise<{ id: string; leitung: string }> {
+    const leitung = await konto();
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab)
+       values ($1, $2, $3, '2026-01-01')`,
+      [leitung, f.reinigung, await rolleId('leitung')]);
+    const k = await kunde(f.reinigung);
+    const [a] = await sql.unsafe<{ id: string }[]>(
+      `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, bezeichnung,
+                            verantwortlich_benutzer_id, start_datum)
+       values ($1, $2, $3, 'rahmenvertrag', 'Unterhaltsreinigung Buero', $4, '2026-10-01')
+       returning id`, [f.reinigung, `AU-L-${zufall()}`, k, leitung]);
+    await sql.unsafe(
+      wie === 'ausgelaufen'
+        ? `update benutzer_mandant set gueltig_bis = app.berlin_heute() - 1
+            where benutzer_id = $1 and mandant_id = $2`
+        : `update benutzer_mandant set entzogen_am = now()
+            where benutzer_id = $1 and mandant_id = $2`,
+      [leitung, f.reinigung]);
+    const [m] = await sql.unsafe<{ ja: boolean }[]>(
+      `select app.ist_mitglied($1::uuid, $2::uuid) as ja`, [leitung, f.reinigung]);
+    expect(m!.ja).toBe(false);
+    return { id: a!.id, leitung };
+  }
+
+  it.each(['ausgelaufen', 'entzogen'] as const)(
+    'Mitgliedschaft %s: ein Tippfehler in der Bezeichnung lässt sich trotzdem korrigieren',
+    async (wie) => {
+      const { id, leitung } = await auftragMitAusgeschiedenerLeitung(wie);
+      const geaendert = await alsChef((db) => aendereAuftrag(db as never, {
+        ...PFLEGE, auftragId: id, verantwortlichBenutzerId: leitung,
+        bezeichnung: 'Unterhaltsreinigung Bürohaus', wochenstundenSoll: '20',
+      }));
+      expect([...geaendert].sort()).toEqual(['bezeichnung', 'wochenstunden_soll']);
+      expect(await stand(id)).toMatchObject({
+        bezeichnung: 'Unterhaltsreinigung Bürohaus', stunden: '20.000', leitung,
+      });
+    });
+
+  it('dieselbe Leitung in Grossbuchstaben ist kein Wechsel', async () => {
+    const { id, leitung } = await auftragMitAusgeschiedenerLeitung('ausgelaufen');
+    const geaendert = await alsChef((db) => aendereAuftrag(db as never, {
+      ...PFLEGE, auftragId: id, verantwortlichBenutzerId: leitung.toUpperCase(),
+      bezeichnung: 'Unterhaltsreinigung Buero', ausstattungHinweis: 'Wagen',
+    }));
+    expect(geaendert).toEqual(['ausstattung_hinweis']);
+    expect((await stand(id)).leitung).toBe(leitung);
+  });
+
+  it('ein WECHSEL wird weiter geprüft: zu einer fremden Leitung nein, zu einem Mitglied ja', async () => {
+    const { id, leitung } = await auftragMitAusgeschiedenerLeitung('entzogen');
+    await expect(alsChef((db) => aendereAuftrag(db as never, {
+      ...PFLEGE, auftragId: id, verantwortlichBenutzerId: fremd,
+    }))).rejects.toMatchObject({ grund: 'verantwortlich_fremd' });
+    expect((await stand(id)).leitung).toBe(leitung);
+
+    const geaendert = await alsChef((db) => aendereAuftrag(db as never, {
+      ...PFLEGE, auftragId: id, verantwortlichBenutzerId: chef,
+    }));
+    expect(geaendert).toEqual(['verantwortlich_benutzer_id']);
+    expect((await stand(id)).leitung).toBe(chef);
+  });
+
+  it('die Auswahlliste bietet nur an, wer heute Mitglied ist', async () => {
+    const { leitung } = await auftragMitAusgeschiedenerLeitung('ausgelaufen');
+    const kuenftig = await konto();
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab)
+       values ($1, $2, $3, app.berlin_heute() + 30)`,
+      [kuenftig, f.reinigung, await rolleId('leitung')]);
+    const ids = (await alsChef((db) => waehlbareLeitungen(db))).map((b) => b.id);
+    expect(ids).toContain(chef);
+    expect(ids).not.toContain(leitung);
+    expect(ids).not.toContain(kuenftig);
+    expect(ids).not.toContain(fremd);
   });
 });
 

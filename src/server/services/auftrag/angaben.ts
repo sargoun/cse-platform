@@ -162,6 +162,18 @@ export interface AuftragsbezugRoh {
   readonly verantwortlichBenutzerId: string;
   readonly startDatum: string;
   readonly laufzeitBis?: string | null;
+  /**
+   * Die Leitung, die der Auftrag HEUTE trägt — nur bei der Pflege (V-177).
+   *
+   * Ist die gewählte Leitung dieselbe, wird ihre Mitgliedschaft nicht erneut
+   * gefragt: genau so kehrt der Auslöser `kern.auftrag_verantwortlich_im_mandant`
+   * (0025) bei unveränderter Leitung sofort zurück. Ohne diese Angabe wies die
+   * Pflege JEDE Änderung ab — auch einen Tippfehler in der Bezeichnung —,
+   * sobald die bisherige Leitung die Gesellschaft verlassen hatte, obwohl
+   * niemand die Leitung wechseln wollte und die Datenbank die Zeile
+   * angenommen hätte.
+   */
+  readonly bisherigeLeitung?: string | null;
 }
 
 /**
@@ -171,7 +183,8 @@ export interface AuftragsbezugRoh {
  * Unter RLS gefragt: ein Kunde oder Objekt, das diese Sitzung nicht sieht,
  * gibt es für sie nicht. Die Leitung fragt `app.ist_mitglied`, dieselbe
  * Funktion, die der Auslöser `kern.auftrag_verantwortlich_im_mandant` (0025)
- * danach noch einmal fragt. Der Vergleich der Tage ist Text gegen Text —
+ * danach noch einmal fragt — und wie er nur, wenn sie WECHSELT
+ * (`bisherigeLeitung`, V-177). Der Vergleich der Tage ist Text gegen Text —
  * `JJJJ-MM-TT` sortiert wie das Datum.
  */
 export async function pruefeAuftragsbezug(
@@ -199,8 +212,52 @@ export async function pruefeAuftragsbezug(
       `select id from objekt where id = $1::uuid and archiviert_am is null`, [objekt]);
     if (o === undefined) return 'objekt_unbekannt';
   }
-  const [m] = await kontext.abfrage<{ ja: boolean }>(
-    `select app.ist_mitglied($1::uuid, app.aktiver_mandant()) as ja`, [leitung]);
-  if (m?.ja !== true) return 'verantwortlich_fremd';
+  if (leitungWechselt(roh.bisherigeLeitung, leitung)) {
+    const [m] = await kontext.abfrage<{ ja: boolean }>(
+      `select app.ist_mitglied($1::uuid, app.aktiver_mandant()) as ja`, [leitung]);
+    if (m?.ja !== true) return 'verantwortlich_fremd';
+  }
   return null;
+}
+
+/**
+ * Wechselt die Leitung? — rein, getestet (V-177). Ohne bisherige Leitung (der
+ * Assistent, die Annahme) ist jede Wahl ein Wechsel. UUIDs vergleicht
+ * Postgres ohne Rücksicht auf Gross- und Kleinschreibung; hier ebenso, sonst
+ * wäre dieselbe Leitung in Grossbuchstaben ein Wechsel, den der Auslöser
+ * nicht sieht.
+ */
+export function leitungWechselt(
+  bisher: string | null | undefined, gewaehlt: string,
+): boolean {
+  const alt = bisher?.trim().toLowerCase() ?? '';
+  return alt === '' || alt !== gewaehlt.trim().toLowerCase();
+}
+
+/** Eine wählbare Leitung — Kennung und Name. */
+export interface LeitungsWahl {
+  readonly id: string;
+  readonly name: string;
+}
+
+/**
+ * Wer als Leitung WÄHLBAR ist — dieselbe Frage wie `pruefeAuftragsbezug` und
+ * der Auslöser, damit keine Auswahlliste anbietet, was der Dienst danach
+ * abweist (V-177). Vorher fragten die Seiten `benutzer_mandant` selbst und
+ * übersahen `gueltig_ab`/`gueltig_bis` (der Assistent auch `entzogen_am`):
+ * eine ausgelaufene Mitgliedschaft stand in der Liste und endete, gewählt,
+ * in „arbeitet nicht in dieser Gesellschaft".
+ */
+export async function waehlbareLeitungen(
+  kontext: Abfrage,
+): Promise<readonly LeitungsWahl[]> {
+  return kontext.abfrage<LeitungsWahl>(
+    `select b.id::text as id, b.name
+       from benutzer b
+       join benutzer_mandant bm
+         on bm.benutzer_id = b.id and bm.mandant_id = app.aktiver_mandant()
+        and bm.entzogen_am is null
+      where b.status = 'aktiv'
+        and app.ist_mitglied(b.id, app.aktiver_mandant())
+      order by b.name`);
 }

@@ -133,10 +133,16 @@ export async function aendereAuftrag(
       'gesperrt');
   }
 
+  /*
+   * Die bisherige Leitung reist mit (V-177): hat sie die Gesellschaft
+   * verlassen, bleibt jede andere Änderung möglich — geprüft wird die
+   * Mitgliedschaft nur bei einem WECHSEL, wie im Auslöser (0025).
+   */
   const bezug = await pruefeAuftragsbezug(kontext, {
     verantwortlichBenutzerId: eingabe.verantwortlichBenutzerId,
     startDatum: alt.start_datum,
     laufzeitBis: leerZuNull(eingabe.laufzeitBis),
+    bisherigeLeitung: alt.verantwortlich_benutzer_id,
   });
   if (bezug !== null) throw new AuftragsangabenFehler(bezug);
 
@@ -151,7 +157,8 @@ export async function aendereAuftrag(
   const neu = {
     bezeichnung,
     beschreibung: leerZuNull(eingabe.beschreibung),
-    verantwortlich_benutzer_id: eingabe.verantwortlichBenutzerId.trim(),
+    /* Kleingeschrieben wie `uuid::text` — sonst wäre dieselbe Leitung ein Unterschied. */
+    verantwortlich_benutzer_id: eingabe.verantwortlichBenutzerId.trim().toLowerCase(),
     laufzeit_bis: leerZuNull(eingabe.laufzeitBis),
     wert: wertNeu,
     personalbedarf_anzahl: angaben.werte.personalbedarf,

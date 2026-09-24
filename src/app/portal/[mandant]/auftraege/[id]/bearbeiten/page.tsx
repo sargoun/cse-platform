@@ -13,6 +13,7 @@ import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
 import { PFLEGE_GESPERRT } from '@/server/services/auftrag/aendern';
+import { waehlbareLeitungen, type LeitungsWahl } from '@/server/services/auftrag/angaben';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
@@ -56,8 +57,6 @@ interface Kopf {
   readonly ausstattung: string | null;
 }
 
-interface Auswahl { readonly id: string; readonly name: string }
-
 const FELD = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm '
   + 'text-text';
 
@@ -94,26 +93,26 @@ export default async function AuftragBearbeiten(
            left join angebot ang on ang.id = a.angebot_id
            left join benutzer b on b.id = a.verantwortlich_benutzer_id
           where a.id = $1::uuid and a.archiviert_am is null`, [id]);
-      const leitungen = await kontext.abfrage<Auswahl>(
-        `select b.id::text as id, b.name from benutzer b
-           join benutzer_mandant bm on bm.benutzer_id = b.id
-          where bm.mandant_id = app.aktiver_mandant() and b.status = 'aktiv'
-            and bm.entzogen_am is null
-          order by b.name`);
+      // Dieselbe Frage wie Dienst und Auslöser (V-177): wer HEUTE Mitglied ist.
+      const leitungen = await waehlbareLeitungen(kontext);
       return { kopf, leitungen };
-    })) as Promise<{ kopf: Kopf | undefined; leitungen: readonly Auswahl[] }>);
+    })) as Promise<{ kopf: Kopf | undefined; leitungen: readonly LeitungsWahl[] }>);
 
   if (geladen.kopf === undefined) notFound();
   const k = geladen.kopf;
   const gesperrt = PFLEGE_GESPERRT.includes(k.status);
   /*
    * Die aktuelle Leitung bleibt wählbar, auch wenn sie inzwischen nicht mehr
-   * aktiv ist — sonst stünde im Formular stillschweigend jemand anderes, und
-   * „Speichern" hätte die Leitung gewechselt, ohne dass jemand es wollte.
+   * Mitglied ist — sonst stünde im Formular stillschweigend jemand anderes,
+   * und „Speichern" hätte die Leitung gewechselt, ohne dass jemand es wollte.
+   * Der Dienst prüft die Mitgliedschaft nur bei einem Wechsel (V-177); die
+   * Zeile sagt, dass sie hier nicht mehr arbeitet.
    */
-  const leitungen = geladen.leitungen.some((b) => b.id === k.verantwortlich)
-    ? geladen.leitungen
-    : [{ id: k.verantwortlich, name: k.verantwortlich_name ?? '—' }, ...geladen.leitungen];
+  const leitungAusgeschieden = !geladen.leitungen.some((b) => b.id === k.verantwortlich);
+  const leitungen = leitungAusgeschieden
+    ? [{ id: k.verantwortlich,
+         name: t.leitungAusgeschieden(k.verantwortlich_name ?? '—') }, ...geladen.leitungen]
+    : geladen.leitungen;
   const wertText = k.wert === null ? '' : formatiereGeld(cent(BigInt(k.wert))).replace(/\s*€$/u, '');
   const stundenText = k.wochenstunden === null
     ? '' : formatiereMenge(mengeAusPostgresOderNull(k.wochenstunden));

@@ -16954,8 +16954,19 @@ das einzige `update auftrag` betraf Zustand, Abschluss und Kundenfreigabe.
 8. **Sperren, dann vergleichen:** `for update` befragt die UPDATE-Policy
    `t_mandant` — eine fremde Gesellschaft und die Gruppenansicht bekommen
    keine Zeile (Invariante 3, 10).
+9. **Berichtigt (V-177): die Mitgliedschaft der Leitung wird nur bei einem
+   WECHSEL geprüft** — so wie der Auslöser
+   `kern.auftrag_verantwortlich_im_mandant` (0025), der bei unveränderter
+   Leitung sofort zurückkehrt. Die erste Fassung fragte sie bei jedem
+   Speichern; hatte die bisherige Leitung die Gesellschaft verlassen, war
+   dann keine einzige Änderung mehr möglich, auch nicht ein Tippfehler in der
+   Bezeichnung. Die Pflegeseite behält die bisherige Leitung in der Auswahl
+   und nennt sie „nicht mehr in dieser Gesellschaft"; eine andere wählt,
+   wer sie ablösen will. **Wählbar** ist in Pflege, Assistent und Annahme,
+   wer HEUTE Mitglied ist (`waehlbareLeitungen` über `app.ist_mitglied`,
+   mit `gueltig_ab`/`gueltig_bis`) — dieselbe Frage wie Dienst und Auslöser.
 
-| Betrifft | OPS-05, OPS-09, OPS-10, O-734, Invariante 1, 3, 10, V-173, `src/server/services/auftrag/{aendern,angaben}.ts`, `src/server/services/angebot/index.ts`, `src/app/api/auftrag/{route.ts,aendern/route.ts}`, `src/app/api/angebot/entscheidung/route.ts`, `src/app/portal/[mandant]/auftraege/{neu,[id],[id]/bearbeiten}/page.tsx`, `src/app/portal/[mandant]/angebote/[id]/annahme/page.tsx`, `src/lib/i18n/verwaltung/auftrag.ts`, `docs/architecture/04-SEITENKARTE.md` |
+| Betrifft | OPS-05, OPS-09, OPS-10, O-734, Invariante 1, 3, 10, V-173, V-177, `src/server/services/auftrag/{aendern,angaben}.ts`, `src/server/services/angebot/index.ts`, `src/app/api/auftrag/{route.ts,aendern/route.ts}`, `src/app/api/angebot/entscheidung/route.ts`, `src/app/portal/[mandant]/auftraege/{neu,[id],[id]/bearbeiten}/page.tsx`, `src/app/portal/[mandant]/angebote/[id]/annahme/page.tsx`, `src/lib/i18n/verwaltung/auftrag.ts`, `docs/architecture/04-SEITENKARTE.md` |
 |---|---|
 
 ### D-668 · Material und Gerät gehen in die Kalkulation — erfasst, nie vorbelegt, und die Gemeinkostenbasis wirkt (V-174)

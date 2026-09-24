@@ -10,7 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  istKalendertag, pruefeAuftragsangaben,
+  istKalendertag, leitungWechselt, pruefeAuftragsangaben,
 } from '../../src/server/services/auftrag/angaben.js';
 
 describe('(1) pruefeAuftragsangaben — deutsche Zahlen, die Grenzen aus 0025', () => {
@@ -86,6 +86,38 @@ describe('(1b) der Auftragswert — Geld in ganzen Cent, nie über Number (V-173
   it('eine unlesbare Stundenzahl geht vor dem Wert — erst die Zahlen, dann das Geld', () => {
     expect(pruefeAuftragsangaben({ wochenstunden: 'x', wert: 'y' })).toMatchObject(
       { ok: false, grund: 'keine_zahl' });
+  });
+});
+
+describe('(1c) leitungWechselt — geprüft wird die Mitgliedschaft nur beim Wechsel (V-177)', () => {
+  const a = '0b8a3a4e-2f0c-4a57-9d0e-6d1f1c2b3a4e';
+  const b = '7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f';
+  it.each([
+    [null, a, true],
+    [undefined, a, true],
+    ['', a, true],
+    [a, a, false],
+    [a, ` ${a.toUpperCase()} `, false],
+    [a, b, true],
+  ] as const)('bisher %s, gewählt %s → %s', (bisher, gewaehlt, erwartet) => {
+    expect(leitungWechselt(bisher, gewaehlt)).toBe(erwartet);
+  });
+
+  it('die Pflege reicht die bisherige Leitung mit — sonst prüfte sie jede Änderung', () => {
+    const quelle = readFileSync('src/server/services/auftrag/aendern.ts', 'utf8');
+    expect(quelle).toContain('bisherigeLeitung: alt.verantwortlich_benutzer_id');
+  });
+
+  it('die drei Auswahllisten fragen dieselbe Mitgliedschaft wie der Dienst', () => {
+    for (const datei of [
+      'src/app/portal/[mandant]/auftraege/neu/page.tsx',
+      'src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx',
+      'src/app/portal/[mandant]/angebote/[id]/annahme/page.tsx',
+    ]) {
+      const quelle = readFileSync(datei, 'utf8');
+      expect(quelle).toContain('waehlbareLeitungen(kontext)');
+      expect(quelle).not.toContain('join benutzer_mandant');
+    }
   });
 });
 

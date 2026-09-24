@@ -39,6 +39,8 @@ export interface AuftragTexte {
   readonly bezeichnung: string;
   readonly beschreibung: string;
   readonly leitung: string;
+  /** Die bisherige Leitung, die hier nicht mehr Mitglied ist (V-177). */
+  readonly leitungAusgeschieden: (name: string) => string;
   readonly laufzeitBis: string;
   readonly unbefristet: string;
   readonly speichern: string;
@@ -117,6 +119,7 @@ export const AUFTRAG_TEXTE: Readonly<Record<InternSprache, AuftragTexte>> = {
     bezeichnung: 'Bezeichnung',
     beschreibung: 'Beschreibung',
     leitung: 'Verantwortliche Leitung',
+    leitungAusgeschieden: (name) => `${name} (nicht mehr in dieser Gesellschaft)`,
     laufzeitBis: 'Laufzeit bis',
     unbefristet: 'leer = unbefristet',
     speichern: 'Änderungen speichern',
@@ -198,6 +201,7 @@ export const AUFTRAG_TEXTE: Readonly<Record<InternSprache, AuftragTexte>> = {
     bezeichnung: 'Name',
     beschreibung: 'Description',
     leitung: 'Responsible manager',
+    leitungAusgeschieden: (name) => `${name} (no longer in this Mandant (company))`,
     laufzeitBis: 'Term until',
     unbefristet: 'empty = open-ended',
     speichern: 'Save changes',
