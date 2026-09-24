@@ -2805,6 +2805,9 @@ lost between phases:
    `app.switcher_mandanten()`, and is silent on whether the counts respect the caller's
    per-module rights — a `leitung` with no `finanzen` module would still see a finance
    counter in the switcher. Settle it before the switcher ships (TEN-10).
+   **Settled in D-659 (V-165):** the counts respect the viewer's read right
+   per area — module list, second factor and group view included — and an
+   area without that right gets no row, not a zero.
 
 The third item recorded here in an earlier pass — that `02-CRM-OPERATIONS.md` must add
 `dokument.sichtbar_fuer_mitarbeiter` — was **wrong and is withdrawn**. The column is
@@ -15697,4 +15700,70 @@ Zeile, also auch auf die eigene Modulliste.
 eine laufende Sitzung muss nicht enden.
 
 | Betrifft | AUT-01, AUT-03, AUT-06, K-04, K-15, O-76, O-347, D-599, D-656, V-164, `drizzle/0416`, `src/server/services/system/mitgliedschaft-module.ts`, `src/app/api/einstellungen/mitgliedschaft-module/route.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/{ModulZuweisung.tsx,[id]/page.tsx,page.tsx}`, `src/app/portal/[mandant]/einstellungen/module/page.tsx`, `src/lib/i18n/verwaltung/einstellungen/module-zuweisung.ts`, `src/server/db/seed/{index,eingang,konto}.ts`, `tests/isolation/mitgliedschaft-module.test.ts`, `tests/kern/modul-namen.test.ts` |
+|---|---|
+
+### D-659 · Der Bereichswechsel steht in der echten Kopfzeile — mit Live-Zählern nach den Rechten des Betrachters (V-165)
+
+**Der Befund** (V-165, TEN-06, TEN-10, DESIGN §6): Die echten Portalseiten
+rendern `PortalRahmen`. Dort stand oben links ein statisches Zeichen, und die
+Kopfzeile trug für JEDE Sitzung den Verweis „Bereich wechseln“, auch bei nur
+einem Bereich. Das widerspricht TEN-06 und D-43. `/auth/bereich` zeigte keine
+Zähler; der Gruppeneintrag hatte keine `NUR LESEN`-Pille und sagte fest
+„vier“ Gesellschaften. Das Klappmenü mit Zählern, Pille und ⌘K
+(`BereichsUmschalter`) lebte nur in `/dev/portal`, mit festen Zahlen. Die
+Zählerquelle `app.mandant_kennzahlen` gab es nicht, und die Rechtefrage aus
+„Carried over“ Nr. 2 war offen.
+
+**Die Entscheidung.**
+
+1. **Die Zähler folgen den Leserechten des Betrachters, je Bereich.** Das
+   beantwortet „Carried over“ Nr. 2. `app.mandant_kennzahlen()` (0417,
+   Definer, `cse_definer`) liefert eine Zeile nur, wenn `app.hat_recht` im
+   jeweiligen Bereich das Leserecht bejaht. Darin stecken die Modulliste der
+   Mitgliedschaft (D-658), der zweite Faktor (0395) und die Gruppenansicht.
+   Ohne Recht gibt es keine Zeile und keine Null, denn eine Null wäre eine
+   Aussage über den Bestand. Die Funktion gibt nur Anzahlen zurück (`integer`,
+   nie Geld, nie Zeilen; EMP-13, D-09 §6).
+2. **Zwei Zähler, dieselben Zahlen wie die Übersichten.** `auftraege_aktiv`
+   (`auftrag.status = aktiv`, nicht archiviert, `auftrag.lesen`) ist dieselbe
+   Zahl wie in der Gruppenübersicht. `projekte_laufend` (`geplant`,
+   `in_arbeit`, `bau.lesen`) ist dieselbe Zahl wie in der Bauübersicht und
+   gilt nur, wo Bau gebucht oder die Buchung nie gepflegt ist (D-377, O-355).
+3. **Welcher Zähler in einer Zeile steht, hängt an den Gewerken**, nicht an
+   einer Liste von Gesellschaften (TEN-08). Ist Bau gebucht, sind es die
+   Projekte, sonst die Aufträge. Ohne Gewerk (CSE Operations) steht kein
+   Zähler da: dort ist ein Auftrag nicht die Arbeit, und eine Null wäre nur
+   Schmuck (DESIGN §6 zeigt es genauso). `waehleZaehler` ist die geprüfte
+   Regel dafür.
+4. **Live gezählt statt aus einer Zwischentabelle.** Anders als 01-KERN §6.3
+   gibt es keine Tabelle `mandant_kennzahl` und keinen Job dafür. TEN-10 sagt
+   „live“. Die Zählungen laufen über vorhandene Indizes (`auftrag_liste_idx`,
+   `projekt_status_idx`), eine je Bereich. Sie laufen nur für Sitzungen mit
+   mehr als einem Bereich und nur für die internen Leisten. Eine Tabelle
+   bräuchte einen Job, eine Frist und hätte trotzdem einen veralteten Stand.
+5. **Ein Bereich: kein Umschalter und kein Verweis** (TEN-06, D-43), weder in
+   der Kopfzeile noch im Blatt hinter `Mehr` oder im Telefonmenü. Das Tor
+   (`portalZugang`) liest die Bereiche in seiner gebundenen Transaktion
+   (`umschalterStand`) und legt sie in den Anfragespeicher. Der Rahmen
+   entscheidet daraus; er fragt nicht selbst.
+6. **Mehr als einer:** Im internen Portal und in der Gruppenansicht steht der
+   Umschalter oben links an der Stelle des Zeichens (DESIGN §6 „Placement“),
+   mit Unterzeile „Gewerk · Zähler“, `NUR LESEN` am Gruppeneintrag und ⌘K.
+   Ein Wechsel ist ein POST an `/api/sitzung/mandant`, derselbe Weg wie die
+   Bereichswahl. Der Server prüft die Mitgliedschaft, protokolliert und
+   landet auf der Übersicht des neuen Bereichs (Regel 6). Der Verweis
+   „Bereich wechseln“ bleibt daneben: er ist der Weg ohne JavaScript. Am
+   Telefon zeigt der Auslöser nur Zeichen und Chevron. Das Mitarbeiter- und
+   das Kundenportal behalten nur den Verweis, weil der Bereich dort keine
+   Arbeitsumgebung ist, sondern die Frage, in welches Portal man will.
+7. **`/auth/bereich` zeigt dieselben Zähler**, die Pille am Gruppeneintrag
+   und die wirkliche Zahl der Gesellschaften. Die Seite spricht jetzt de/en
+   (`BEREICHSWECHSEL_TEXTE`). Die Sprache liest `leseEigeneSprache`, dieselbe
+   Regel wie im Tor (mit Person `person.sprache`, sonst `benutzer.sprache`).
+8. **Die Gewerke kommen aus `app.umschalter_bereiche()`** (0417). Das sind die
+   Bereiche von `switcher_bereiche` (0018) plus `mandant.module`, oder
+   `NULL`, solange die Buchung nie gepflegt wurde. Unbekannt ist nicht leer.
+   `switcher_bereiche` bleibt für die Kontoseite.
+
+| Betrifft | TEN-05, TEN-06, TEN-07, TEN-08, TEN-09, TEN-10, DESIGN §6, D-43, D-377, D-658, O-355, V-165, „Carried over“ Nr. 2, `drizzle/0417`, `src/server/services/mandant/umschalter.ts`, `src/server/konto/sprache.ts`, `src/app/portal/{zugang,huellen-speicher}.ts`, `src/components/portal/{PortalRahmen,TabLeiste,BereichsUmschalter,BereichsWechsel,typen}`, `src/app/auth/bereich/page.tsx`, `src/lib/i18n/verwaltung/bereichswechsel.ts`, `tests/isolation/bereichswechsel.test.ts`, `tests/kern/bereichswechsel.test.ts` |
 |---|---|

@@ -16,25 +16,34 @@ import { alsKonto, KONTO } from './hilfen/anmeldung';
  * eine Seite RENDERT, sondern ob man von ihr wieder WEGKOMMT.
  */
 
+/**
+ * Der dritte Wert: hat das Konto MEHR ALS EINEN Bereich? Nur dann steht
+ * „Bereich wechseln" da (TEN-06, D-43, V-165) — `admin.reinigung` hat einen,
+ * Fatima zwei (D-09). Ein Verweis auf eine Wahl ohne Auswahl waere kein
+ * Ausgang, sondern eine Sackgasse mehr.
+ */
 const PORTALSEITEN = [
-  ['/portal/reinigung', KONTO.adminReinigung],
-  ['/portal/reinigung/zeiten', KONTO.adminReinigung],
-  ['/portal/mein', KONTO.fatima],
-  ['/portal/mein/schichten', KONTO.fatima],
-  ['/portal/konto', KONTO.fatima],
+  ['/portal/reinigung', KONTO.adminReinigung, false],
+  ['/portal/reinigung/zeiten', KONTO.adminReinigung, false],
+  ['/portal/mein', KONTO.fatima, true],
+  ['/portal/mein/schichten', KONTO.fatima, true],
+  ['/portal/konto', KONTO.fatima, true],
 ] as const;
 
-async function ausgangspruefung(page: Page, pfad: string) {
+async function ausgangspruefung(page: Page, pfad: string, mehrereBereiche: boolean) {
   const antwort = await page.goto(pfad);
   expect(antwort?.status(), pfad).toBe(200);
 
   // Der Ausgang steht in der Kopfzeile am Schreibtisch …
   const kopf = page.locator('[data-cse="sitzungsnavigation"]');
   await expect(kopf, `${pfad}: keine Sitzungsnavigation`).toHaveCount(1);
-  for (const ziel of ['/auth/bereich', '/portal/konto', '/']) {
+  for (const ziel of ['/portal/konto', '/']) {
     await expect(kopf.locator(`a[href="${ziel}"]`), `${pfad}: kein Weg zu ${ziel}`)
       .toHaveCount(1);
   }
+  await expect(kopf.locator('a[href="/auth/bereich"]'),
+    `${pfad}: „Bereich wechseln" nur mit mehr als einem Bereich (TEN-06)`)
+    .toHaveCount(mehrereBereiche ? 1 : 0);
   await expect(
     kopf.locator('form[action="/api/abmelden"] button[type="submit"]'),
     `${pfad}: keine Abmeldung`,
@@ -42,11 +51,12 @@ async function ausgangspruefung(page: Page, pfad: string) {
 }
 
 test.describe('(1) kein Portalbildschirm ohne Ausgang', () => {
-  for (const [pfad, konto] of PORTALSEITEN) {
-    test(`${pfad} traegt Bereichswechsel, Konto, Website und Abmelden`, async ({ page }) => {
-      await alsKonto(page, konto);
-      await ausgangspruefung(page, pfad);
-    });
+  for (const [pfad, konto, mehrereBereiche] of PORTALSEITEN) {
+    test(`${pfad} traegt Konto, Website und Abmelden — und den Bereichswechsel nur mit Auswahl`,
+      async ({ page }) => {
+        await alsKonto(page, konto);
+        await ausgangspruefung(page, pfad, mehrereBereiche);
+      });
   }
 });
 

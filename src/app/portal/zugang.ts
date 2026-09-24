@@ -11,9 +11,11 @@ import {
 } from '@/server/registry/navigation';
 import { modulAktiv, type Modulbuchung } from '@/server/registry/modul';
 import { familie, findeRoute } from '@/server/registry/routen';
-import { leisteFuer, tableiste, type LeistenSchluessel }
+import { istInterneLeiste, leisteFuer, tableiste, type LeistenSchluessel }
   from '@/server/registry/tableiste';
-import { istPortalSprache, type PortalSprache } from '@/lib/i18n/texte';
+import { umschalterStand, type UmschalterStand } from '@/server/services/mandant/umschalter';
+import type { PortalSprache } from '@/lib/i18n/texte';
+import { leseEigeneSprache } from '@/server/konto/sprache';
 import type { Sitzung } from '@/server/kontext/index';
 import { merkeHuelle } from './huellen-speicher';
 import { rueckwegFuer, rueckwegRechte, type RueckwegZiel }
@@ -134,6 +136,8 @@ interface Befund {
   readonly rueckweg: RueckwegZiel | null;
   /** Gesetzt, wenn die Rolle den zweiten Faktor verlangt und er fehlt (V-136). */
   readonly faktorSchritt?: 'pruefen' | 'einrichten';
+  /** Die Bereiche dieser Anmeldung fuer die Kopfzeile (V-165); nur bei `erlaubt`. */
+  readonly umschalter?: UmschalterStand;
 }
 
 /**
@@ -258,23 +262,29 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
 
     const rolle = await rolleImMandanten(tx, sitzung);
     /*
+     * **Die Bereiche fuer die Kopfzeile — in DIESER Transaktion** (TEN-06,
+     * TEN-10, DESIGN §6, V-165).
+     *
+     * Der Rahmen zeigt den Umschalter nur bei mehr als einem Bereich und den
+     * Verweis auf die Bereichswahl ebenso; beides fragt er hier ab und nicht
+     * selbst — die Bindung steht nur hier. Zaehler und Gruppenrecht nur fuer
+     * die internen Leisten: das Mitarbeiter- und das Kundenportal tragen
+     * keinen Umschalter, nur den Verweis.
+     */
+    const umschalter = await umschalterStand({ abfrage }, {
+      mitUmschalter: istInterneLeiste(leisteFuer(sitzung.portal, sitzung.ansicht, rolle)),
+    });
+    /*
      * Die Sprache der Person — in DERSELBEN gebundenen Transaktion, unter
      * `t_person_lesen`: die eigene Zeile darf jede Sitzung lesen. Faellt die
-     * Abfrage leer aus, bleibt es bei Deutsch statt bei einem Fehler.
+     * Abfrage leer aus, bleibt es bei Deutsch statt bei einem Fehler. Kein
+     * Mensch hinter dem Konto: dann ist `benutzer.sprache` die Quelle — die
+     * Regel steht EINMAL, in `konto/sprache.ts`, denn die Bereichswahl fragt
+     * seit V-165 dasselbe.
      */
-    const [sp] = sitzung.personId !== null
-      ? await abfrage<{ sprache: string | null }>(
-        `select sprache from person where id = $1`, [sitzung.personId])
-      /*
-       * Kein Mensch hinter dem Konto: dann ist `benutzer.sprache` die Quelle.
-       * Die eigene Zeile darf jede Sitzung lesen (`t_benutzer_lesen`,
-       * `id = app.aktueller_benutzer()`) — und nur die eigene, weshalb hier
-       * kein `where` auf eine fremde id moeglich waere.
-       */
-      : await abfrage<{ sprache: string | null }>(
-        `select sprache from benutzer where id = $1`, [sitzung.benutzerId]);
-    const rohSprache = sp?.sprache ?? '';
-    const sprache = istPortalSprache(rohSprache) ? rohSprache : null;
+    const sprache = await leseEigeneSprache({
+      abfrage, personId: sitzung.personId, benutzerId: sitzung.benutzerId,
+    });
     /**
      * Slug UND gebuchte Module in EINER Abfrage — sie stehen in derselben
      * Zeile, und eine zweite Rundreise fuer eine Spalte daneben waere eine
@@ -452,7 +462,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     return {
       entscheidung, rolle, mandanten, sichtbareTabs, navigationsRechte,
       mandantSlug: m?.slug ?? null, modulGesperrt, sprache, wechselZiel: null,
-      rueckweg: rueckwegErlaubt ? rueckweg : null,
+      rueckweg: rueckwegErlaubt ? rueckweg : null, umschalter,
     } satisfies Befund;
   }) as Promise<Befund>);
 
@@ -511,6 +521,10 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
    */
   merkeHuelle(befund.sprache, pfad, befund.rueckweg === null ? null : {
     ziel: befund.rueckweg.ziel, segment: befund.rueckweg.segment,
+  }, befund.umschalter === undefined ? null : {
+    stand: befund.umschalter,
+    aktiverMandantId: sitzung.aktiverMandantId,
+    gruppenansicht: sitzung.ansicht === 'gruppe',
   });
 
   return {
