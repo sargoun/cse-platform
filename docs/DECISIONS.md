@@ -3338,6 +3338,8 @@ Beantworten helfen:
 | O-895 | **Darf ein Mensch seine eigene Abwesenheit noch zurücknehmen, wenn ihre Tage bereits in einen Lohnexport oder einen abgeschlossenen Stundenkonto-Monat geflossen sind?** `abwesenheit` trägt keine Spalte, die das sagt — weder ein `exportiert_am` noch einen Bezug auf den Lauf. Ausgeliefert ist deshalb, was die Zustandsmaschine seit `0073` sagt und was `antrag.t_selbst_zurueckziehen` (0301) für den Antrag schon entschieden hat: **unentschieden heisst rücknehmbar** — `t_selbst_zurueckziehen` auf `abwesenheit` (0386) lässt `erfasst` und `beantragt` heran, `genehmigt` nicht. Der wahrscheinliche Konfliktfall ist die Krankmeldung: sie steht dauerhaft auf `erfasst` (sie wird nicht genehmigt, sondern zur Kenntnis genommen), und ihre Tage buchen über `abwesenheit_urlaubskonto` und die Sollzeitgutschrift weiter. Eine Rücknahme nach dem Lohnlauf dreht damit eine Zahl zurück, die ein Mensch schon in der Hand hatte — dieselbe Frage wie bei O-861 für die Zeitfreigabe, und dieselbe Antwort ist keine Selbstverständlichkeit. Zwei Wege sind denkbar: (a) eine Sperrspalte auf `abwesenheit`, die der Lohnexport setzt und die die Policy mitliest; (b) die Rücknahme bleibt offen und die Korrektur läuft über die Personalstelle, die den Export kennt. **Erfunden wird keiner von beiden.** | EMP-10, EMP-04, O-861, Invariante 8, `drizzle/0073`, `drizzle/0386`, `services/abwesenheit/index.ts` |
 | O-894 | **Darf eine Rechnung, ein Buchungsbeleg, ein Vertrag oder eine Buchhaltungsunterlage nach Ablauf der zehn Jahre gelöscht werden — oder bleibt die Aufbewahrung dauerhaft?** Die vier GoBD-Klassen tragen in `dokument_aufbewahrung` eine ENTSCHIEDENE Frist (10 Jahre, § 147 AO, § 14b UStG, § 257 HGB) **und in derselben Zeile `loeschsperre = true`** (0009:275). `kern.setze_aufbewahrung` schreibt die Sperre beim Anlegen fest, und lösen lässt sie sich nie (D-49). Eine Rechnung ist damit nicht zehn Jahre unlöschbar, sondern **dauerhaft** — während `08-PR-PLAN.md` PR 64 als Zusage „for the full ten years" führt und Art. 5 Abs. 1 lit. e DSGVO eine Obergrenze verlangt, nicht nur eine Untergrenze. Drei Antworten sind denkbar: (a) die Sperre läuft mit der Frist ab, und der Aufbewahrungslauf nimmt die vier Klassen mit; (b) sie bleibt, und das Konzept sagt „dauerhaft" statt „zehn Jahre"; (c) sie bleibt, aber ein Mensch kann je Dokument einzeln freigeben, mit Grund und Protokoll. **Die Plattform erfindet keine davon**: der Lauf `dokument_aufbewahrung` (V-116) erreicht heute nur `angebot` und `kunde` — die beiden Klassen ohne Sperre —, und das Löschkonzept nennt genau diese zwei, statt eine Reichweite zu behaupten, die die Tabelle nicht hergibt. | DOC-07, LEG-01, V-116, D-49, `drizzle/0009`, `drizzle/0141`, `drizzle/0382`, `src/server/jobs/dokumentAufbewahrung.ts` |
 | O-906 | **Gilt für Rechnungen und Buchungsbelege seit dem 1. Januar 2025 die Aufbewahrungsfrist von ACHT statt zehn Jahren?** Das Vierte Bürokratieentlastungsgesetz (BEG IV) hat die Frist für Buchungsbelege in § 147 Abs. 3 AO, § 257 Abs. 4 HGB und § 14b Abs. 1 UStG auf acht Jahre verkürzt; Bücher, Inventare, Jahresabschlüsse und Lageberichte bleiben bei zehn. Die Plattform führt in `dokument_aufbewahrung` für `rechnung` und `beleg` weiter **zehn** Jahre und zeigt das auf der Ablageseite als „§ 147 AO, § 14b UStG — 10 Jahre“. **Nicht geändert, mit Absicht:** eine zu LANGE Frist kostet nichts, was sich nicht nachholen liesse — eine zu KURZE ist ein Beleg, der fehlt, wenn die Betriebsprüfung kommt, und gelöscht ist gelöscht. Und die Übergangsregel (für welche Belege die kürzere Frist schon gilt) ist eine Frage an den Steuerberater, keine Zahl, die die Plattform setzt. Hängt mit O-894 zusammen: solange die Sperre dauerhaft ist, ändert die kürzere Frist heute nichts am Löschen — sie ändert die Aussage auf dem Bildschirm und im Löschkonzept. | DOC-07, LEG-01, O-894, V-116, `drizzle/0009`, `src/app/portal/[mandant]/dokumente/upload/page.tsx` |
+| O-907 | **Welche Leadquellen begründen eine Anfrage des Kontakts, sodass die Antwort vertraglich ist und keine Werbung?** Seit V-141 kann jeder Lead einen Ansprechpartner bekommen, und ein ausgehender Anruf oder eine ausgehende E-Mail geht mit einem ZWECK durch das UWG-Tor. Entschieden sind zwei Ränder: das Webformular ist eine Anfrage (D-631, Zweck `vertraglich`), die Akquise ist keine (recherchiert, Zweck `werbung`). Offen sind drei: (a) **von Hand erfasst** — meist nach einem Gespräch, aber das Formular sagt nicht, wer wen angerufen hat; (b) **Empfehlung** — ein Kunde nennt jemanden, der selbst vielleicht nie gefragt hat; (c) **Vergaberadar** — die Vergabestelle bittet öffentlich um Angebote, spricht aber über die Vergabeplattform (D-07). Ist die Kontaktaufnahme dort eine vorvertragliche Maßnahme auf Anfrage der betroffenen Person (Art. 6 Abs. 1 lit. b DSGVO) — oder Werbung, die eine festgestellte Grundlage braucht (§ 7 Abs. 2 UWG, auch B2B)? Bis zur Antwort gehen alle drei den restriktiven Weg `werbung`: der Kontakt braucht eine Grundlage mit Quelle und Datum, sonst hält das Tor den Anruf nicht fest. Die Antwort tauscht die Umsetzung von `LEAD_ZWECK_REGEL`, nicht ihre Aufrufer; das Leadblatt nennt die Frage. | D-631, D-635, § 7 UWG, Art. 6 Abs. 1 lit. b DSGVO, `services/crm/lead-kontakt.ts` (`PLATZHALTER_LEAD_ZWECK`), `api/lead`, `crm/leads/[id]` |
+| O-908 | **Gilt ein Widerspruch (Art. 21 DSGVO) oder ein Werbewiderspruch, der an EINEM Kontakt festgehalten ist, für jeden Kontaktdatensatz derselben E-Mail-Adresse im Bereich?** Das Tor (`app.darf_kontaktiert_werden`) prüft den einen Datensatz, an den eine Nachricht geht. Das Datenmodell hält „ein Mensch, ein Kontakt" je Kunde (`ansprechpartner_email_uk`): derselbe Mensch kann als Anfragender ohne Kunden (0396) und als Kontakt eines oder mehrerer Kunden geführt sein — etwa eine Hausverwaltung für mehrere Eigentümer, oder die Anfrage, deren Kunde die Adresse schon kennt (D-635 Punkt 5). Ein Widerspruch am einen Datensatz sperrt den anderen heute nicht. Soll er es — über alle Datensätze derselben Adresse im Bereich, auch über Kunden hinweg, und für beide Widerspruchsarten? Bis zur Antwort übernimmt der Weg „Kunden zuordnen" keinen Zwilling für einen Anfragenden, dem widersprochen wurde; sonst bleibt jeder Vermerk an seinem Datensatz. | D-631, D-635, Art. 21 DSGVO, § 7 UWG, `drizzle/0020` (`ansprechpartner_email_uk`, Tor), `services/crm/lead-kette.ts` (`nimmKontaktMit`) |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
 | O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
@@ -15699,4 +15701,82 @@ blieb ohne Firma, auch mit USt-IdNr.; „auch in" war für echte Daten leer.
    Gesellschaft kennt. Das wäre die Auskunft, die die Funktion verweigert.
 
 | Betrifft | CRM-06, TEN-02, V-140, `drizzle/0020` (`app.firma_aufloesen`), `drizzle/0401`, `src/server/services/crm/{anlegen,aendern}.ts`, `src/app/portal/gruppe/kunden/page.tsx` |
+|---|---|
+
+### D-635 · Jede Anfrage bekommt ihren Ansprechpartner, und ausgehend gilt der Zweck ihrer Herkunft (V-141)
+
+**Der Befund** (V-141; Nachprüfung von V-138, CRM-05, Teil des Befunds
+„`lead.kunde_id` und `lead.ansprechpartner_id` lassen sich nach der Anlage
+nicht setzen"): V-138 machte den Kunden setzbar, den Ansprechpartner nicht.
+Nur die Annahme eines Webformulars legte einen Kontakt an (0396). Jeder Lead,
+der von Hand, aus einer Empfehlung, aus dem Vergaberadar oder aus der Akquise
+entstand, blieb ohne — auch nach „Als Kunde übernehmen". Das Leadblatt riet,
+„den Kontakt am Kunden anzulegen"; der Lead zeigte danach trotzdem auf
+niemanden, und jeder ausgehende Anruf und jede ausgehende E-Mail brach mit
+`kein_kontakt` ab — gerade für die Quellen, die V-139 neu geschaffen hatte.
+
+Beim Beheben fiel das zweite Stück auf: `/api/lead` schrieb JEDE ausgehende
+Aktivität mit dem Zweck `vertraglich`. Für eine Web-Anfrage stimmt das
+(D-631). Sobald jeder Lead einen Kontakt bekommen kann, wäre dieselbe Zeile
+ein Weg am Werbetor vorbei: ein recherchiertes Akquiseziel, dem niemand eine
+Frage gestellt hat, liesse sich als „Antwort" anrufen — genau das, was
+`akquise/uebernahme.ts` ausschliesst („wer diese Firma anschreiben will, muss
+zuerst einen Kontakt anlegen und dessen Rechtsgrundlage benennen") und was
+CLAUDE.md als Kaltakquise aus dem Umfang nimmt.
+
+**Die Entscheidung.**
+
+1. **Das Leadblatt setzt den Ansprechpartner** — einen Kontakt des Kunden der
+   Anfrage wählen oder einen neuen anlegen (`services/crm/lead-kontakt.ts`,
+   `was=kontakt_waehlen` / `was=kontakt_anlegen` auf `/api/crm/lead`, Recht
+   `crm.schreiben`). Zur Wahl stehen nur erreichbare Kontakte DIESES Kunden:
+   nicht archiviert, nicht anonymisiert, nicht ausgeschieden (V-110). Ein
+   neuer Kontakt entsteht beim Kunden der Anfrage; hat sie noch keinen, ohne
+   Kunden, und er wandert mit, sobald sie einen bekommt (D-632 Punkt 1). Jede
+   Zuordnung schreibt eine Systemzeile in den Verlauf.
+2. **Die Rechtsgrundlage eines so angelegten Kontakts ist `keine`.** Sie ist
+   eine Feststellung mit Quelle und Datum, die ein Mensch auf dem
+   Kontaktblatt unter eigenem Recht trifft (`crm/kontakt-grundlage.ts`,
+   K-05). Ein Anlegeformular setzt sie nie nebenbei — das Leadblatt verweist
+   auf das Kontaktblatt.
+3. **Ein Mensch, ein Kontakt** — dieselbe Regel wie in der Annahme (D-631):
+   gibt es im Bereich schon einen erreichbaren Kontakt mit derselben
+   E-Mail-Adresse, zeigt die Anfrage auf IHN, bevorzugt den ihres Kunden, und
+   die Seite sagt es. Ein Widerspruch an ihm gilt damit auch hier. Ein
+   ausgeschiedener Zwilling wird nicht wiederbelebt; hält der
+   Eindeutigkeitsschlüssel die Adresse für denselben Kunden, sagt die Seite
+   warum.
+4. **Der Zweck eines ausgehenden Kontakts folgt der Herkunft** — hinter einer
+   Schnittstelle (`LEAD_ZWECK_REGEL`), weil ein Teil davon eine Rechtsfrage
+   ist:
+   - Webformular → `vertraglich` (D-631: der Mensch hat angefragt).
+   - Akquise → `werbung` (entschieden: recherchiert, niemand hat gefragt).
+   - Von Hand, Empfehlung, Vergaberadar → **Platzhalter `werbung`** bis zur
+     Antwort auf **O-907**. Der restriktive Zweig: der Kontakt braucht eine
+     festgestellte Grundlage, sonst weist das Tor ab. Das ist nie lockerer
+     als vorher — vorher ging für diese Leads gar nichts hinaus.
+   Das Leadblatt sagt das VOR dem Anruf und nennt die Frage; eine Abweisung
+   kommt mit eigenem Satz (`uwg_werbung`). Eingehendes geht am Tor vorbei
+   (es verlässt das Haus nicht) und bleibt `vertraglich` wie bisher.
+5. **Genauer als D-632 Punkt 1: der Zwilling beim Kunden.** Führt der Kunde
+   dieselbe E-Mail-Adresse schon, kann der Anfragende nicht wandern
+   (`ansprechpartner_email_uk`). Die Anfrage zeigt dann auf den Kontakt des
+   Kunden — aber nur, wenn der erreichbar ist UND dem Anfragenden nicht
+   widersprochen wurde (das Tor verweigert ihm sonst sogar die vertragliche
+   Antwort). Sonst bleibt sie bei ihm: auf einen Zwilling ohne Vermerk
+   umzustellen hiesse, einen Widerspruch mit einem Klick zu umgehen.
+   **Der Kontakt der Anfrage bleibt stehen**, ohne Kunden. Er ist der Beleg
+   der Anfrage — Grundlage `anfrage` mit Quelle und Datum — und trägt, was an
+   ihm vermerkt wurde. Ihn zu archivieren verlöre genau das, und den Vermerk
+   auf den Zwilling zu übertragen verlangte eine Regel, die es nicht gibt:
+   „ein Mensch, ein Kontakt" hält das Datenmodell JE KUNDE, nicht über die
+   Grenze Anfrage/Kunde hinweg. Ob ein Widerspruch für alle Datensätze
+   derselben Adresse gilt, ist **O-908**.
+6. **Die Aktivität hält der Dienst fest** (`halteLeadAktivitaetFest`); die
+   Route prüft das Recht und leitet um — wie CLAUDE.md es für jede Route
+   verlangt.
+7. **Seed:** die Empfehlung in der Reinigung bekommt über denselben Dienst
+   einen Kontakt ihres Kunden.
+
+| Betrifft | CRM-03, CRM-04, CRM-05, CRM-07, REQ-05, LEG-08, § 7 UWG, Art. 21 DSGVO, D-631, D-632, O-907, O-908, V-110, V-141, `src/server/services/crm/{lead-kontakt,lead-kette}.ts`, `src/app/api/{lead,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx`, `src/lib/i18n/verwaltung/crm-lead.ts`, `src/server/db/seed/vertrieb.ts` |
 |---|---|

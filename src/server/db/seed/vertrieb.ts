@@ -55,6 +55,7 @@ import {
 } from '../../services/angebot/index.js';
 import { erfasseKundenfreigabe } from '../../services/auftrag/kundenfreigabe.js';
 import { legeLeadAn } from '../../services/crm/anlegen.js';
+import { leseLeadKontaktWahl, waehleLeadKontakt } from '../../services/crm/lead-kontakt.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -331,6 +332,16 @@ export async function seedVertrieb(
         ? { quelle: 'manuell' as const }
         : { quelle: 'empfehlung' as const, empfehlungVonKundeId: empfehler.id }),
     });
+    /*
+     * **Der Mensch hinter der Anfrage** (V-141, D-635): ein Kontakt des
+     * Kunden, über denselben Dienst wie der Knopf auf dem Leadblatt. Ohne
+     * ihn stünde die Empfehlung ohne Ansprechpartner da — und jeder
+     * ausgehende Anruf, den jemand in der Demo festhält, bräche ab.
+     */
+    const [ansprechpartner] = await leseLeadKontaktWahl(kontext, anfrage.id);
+    if (ansprechpartner !== undefined) {
+      await waehleLeadKontakt(kontext, anfrage.id, ansprechpartner.id);
+    }
 
     const angebotId = await legeAngebotAn(db, {
       kundeId: objekt.kunde_id,

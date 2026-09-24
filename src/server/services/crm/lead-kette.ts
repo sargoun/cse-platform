@@ -135,10 +135,25 @@ async function sperreLead(kontext: SchreibKontext, leadId: string): Promise<Lead
  * (`angebot_ansprechpartner_fk` schliesst über `(mandant_id, kunde_id, id)`).
  *
  * Nur ein Kontakt OHNE Kunden wandert; einer, der schon einem anderen Kunden
- * gehört, bleibt, wo er ist. Führt der Kunde schon einen Kontakt mit derselben
- * E-Mail, gilt dieselbe Regel wie in der Annahme (D-631): ein Mensch, ein
- * Kontakt — der Lead zeigt dann auf DEN, und der Eindeutigkeitsschlüssel
- * `ansprechpartner_email_uk` bleibt unberührt.
+ * gehört, bleibt, wo er ist.
+ *
+ * **Führt der Kunde dieselbe E-Mail-Adresse schon**, kann der Anfragende
+ * nicht wandern: `ansprechpartner_email_uk` hält je Kunde EINEN Kontakt je
+ * Adresse. Dann gilt (D-635, genauer als D-632 Punkt 1):
+ *
+ *  - Ist der Kontakt des Kunden erreichbar, zeigt die Anfrage auf IHN — an
+ *    ihm hängen Angebot und Auftrag. Der Kontakt der Anfrage bleibt stehen,
+ *    ohne Kunden: er ist der Beleg der Anfrage (Grundlage `anfrage`, Quelle,
+ *    Datum) und trägt, was an ihm festgehalten wurde. „Ein Mensch, ein
+ *    Kontakt" gilt je Kunde, nicht über die Grenze Anfrage/Kunde hinweg; ob
+ *    ein Widerspruch für alle Datensätze derselben Adresse gilt, ist O-908.
+ *  - Wurde dem Anfragenden widersprochen (das Tor verweigert ihm sogar die
+ *    vertragliche Antwort), bleibt die Anfrage bei ihm. Sie auf einen
+ *    Zwilling ohne diesen Vermerk umzustellen, hiesse, den Widerspruch mit
+ *    einem Klick zu umgehen.
+ *  - Ist der Kontakt des Kunden ausgeschieden oder anonymisiert, bleibt
+ *    alles, wie es ist: an einen Ausgeschiedenen geht nichts (V-110), und
+ *    wandern kann der Anfragende wegen des Schlüssels trotzdem nicht.
  */
 async function nimmKontaktMit(
   kontext: SchreibKontext, lead: LeadKopf, kundeId: string,
@@ -149,12 +164,23 @@ async function nimmKontaktMit(
       where id = $1::uuid and mandant_id = app.aktiver_mandant()`, [lead.ansprechpartner_id]);
   if (kontakt === undefined || kontakt.kunde_id !== null) return;
 
-  const [zwilling] = kontakt.email === null ? [] : await kontext.abfrage<{ id: string }>(
-    `select id::text as id from ansprechpartner
+  /* Derselbe Umfang wie `ansprechpartner_email_uk`: jeder nicht archivierte Kontakt. */
+  const [zwilling] = kontakt.email === null ? [] : await kontext.abfrage<{
+    id: string; erreichbar: boolean;
+  }>(
+    `select id::text as id,
+            (anonymisiert_am is null and ausgeschieden_am is null) as erreichbar
+       from ansprechpartner
       where mandant_id = app.aktiver_mandant() and kunde_id = $1::uuid
-        and lower(email) = lower($2) and archiviert_am is null and anonymisiert_am is null
+        and lower(email) = lower($2) and archiviert_am is null
+      order by (anonymisiert_am is null and ausgeschieden_am is null) desc, erstellt_am desc
       limit 1`, [kundeId, kontakt.email]);
   if (zwilling !== undefined) {
+    if (!zwilling.erreichbar) return;
+    const [frei] = await kontext.abfrage<{ ok: boolean }>(
+      `select app.darf_kontaktiert_werden($1::uuid, 'email', 'vertraglich') as ok`,
+      [lead.ansprechpartner_id]);
+    if (frei?.ok !== true) return;
     await kontext.schreibe(
       `update lead set ansprechpartner_id = $2::uuid, geaendert_von = app.aktueller_benutzer()
         where id = $1::uuid and mandant_id = app.aktiver_mandant()`,

@@ -535,6 +535,10 @@ export const ROUTEN: readonly RouteEintrag[] = [
      * einen Radartreffer als Lead uebernehmen. Die Bekanntmachung liest der
      * Dienst unter `radar.lesen` (RLS); ohne das Recht ist sie „nicht
      * gefunden".
+     *
+     * V-141 (D-635): den Ansprechpartner der Anfrage waehlen oder anlegen —
+     * derselbe Datenbestand, dasselbe Recht. Seine Rechtsgrundlage setzt
+     * dieser Weg nie; sie hat ihr eigenes Recht und ihren eigenen Weg.
      */
     pfad: 'api/crm/lead',
     recht: 'crm.schreiben',

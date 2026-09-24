@@ -9,6 +9,7 @@ import { withTenant } from '@/server/kontext/index';
 import { CrmFehler, legeLeadAn, setzeLeadPflege, setzeLeadStatus }
   from '@/server/services/crm/anlegen';
 import { ordneLeadKundeZu, uebernehmeLeadAlsKunde } from '@/server/services/crm/lead-kette';
+import { legeLeadKontaktAn, waehleLeadKontakt } from '@/server/services/crm/lead-kontakt';
 import { uebernimmAusschreibungAlsLead } from '@/server/services/crm/lead-radar';
 
 /**
@@ -18,9 +19,10 @@ import { uebernimmAusschreibungAlsLead } from '@/server/services/crm/lead-radar'
  * Seit V-138/V-139 dazu, unter demselben Recht `crm.schreiben`: die Anfrage
  * als Kunden übernehmen oder einem Kunden zuordnen (`was=kunde_uebernehmen`,
  * `was=kunde_zuordnen`) und einen Treffer des Vergaberadars als Lead
- * übernehmen (`was=aus_radar`). Jede dieser Handlungen legt einen Lead an
- * oder schreibt an einem — ein eigenes Tor je Knopf wäre eine Stelle mehr,
- * an der jemand das `authorize` vergisst.
+ * übernehmen (`was=aus_radar`). Seit V-141 den Ansprechpartner der Anfrage
+ * wählen oder anlegen (`was=kontakt_waehlen`, `was=kontakt_anlegen`). Jede
+ * dieser Handlungen legt einen Lead an oder schreibt an einem — ein eigenes
+ * Tor je Knopf wäre eine Stelle mehr, an der jemand das `authorize` vergisst.
  *
  * **Der Besitzer ist, wer anlegt.** Kein Auswahlfeld und kein Vorgabekonto: wer
  * einen Lead einträgt, hat das Gespräch geführt. Ein Vorgabebesitzer wäre eine
@@ -80,6 +82,29 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           await ordneLeadKundeZu(kontext, String(daten.get('id') ?? ''),
             wert('kundeId') ?? '');
           return zurueck;
+        }
+
+        /*
+         * Der Ansprechpartner der Anfrage (V-141, D-635): einen Kontakt des
+         * Kunden wählen oder einen neuen anlegen. Bis hierher liess sich
+         * `lead.ansprechpartner_id` nach der Anlage nicht setzen, und jeder
+         * ausgehende Anruf eines Leads ohne Webformular brach ab.
+         */
+        if (wert('was') === 'kontakt_waehlen') {
+          await waehleLeadKontakt(kontext, String(daten.get('id') ?? ''),
+            wert('ansprechpartnerId') ?? '');
+          return zurueck;
+        }
+        if (wert('was') === 'kontakt_anlegen') {
+          const kontakt = await legeLeadKontaktAn(kontext, String(daten.get('id') ?? ''), {
+            vorname: wert('vorname'),
+            nachname: wert('nachname') ?? '',
+            email: wert('email'),
+            telefon: wert('telefon'),
+          });
+          /* Ein bekannter Mensch wird nicht verdoppelt — die Seite sagt, dass er es war. */
+          if (!kontakt.vorhanden) return zurueck;
+          return `${zurueck}${zurueck.includes('?') ? '&' : '?'}hinweis=kontakt_vorhanden`;
         }
 
         /*

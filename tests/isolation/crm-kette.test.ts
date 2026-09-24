@@ -39,6 +39,9 @@ import {
   uebernehmeLeadAlsKunde,
 } from '../../src/server/services/crm/lead-kette.js';
 import { uebernimmAusschreibungAlsLead } from '../../src/server/services/crm/lead-radar.js';
+import {
+  halteLeadAktivitaetFest, legeLeadKontaktAn, leseLeadKontaktWahl, waehleLeadKontakt,
+} from '../../src/server/services/crm/lead-kontakt.js';
 import { attribution } from '../../src/server/services/bericht/kennzahlen.js';
 import { attributionJeBereich } from '../../src/server/services/bericht/gruppe.js';
 import { ganzesJahr } from '../../src/server/services/bericht/zeitraum.js';
@@ -661,5 +664,208 @@ describe('§6 die Fehler tragen Schlüssel, keine Stapelspur', () => {
     await expect(inR((k) => uebernimmAusschreibungAlsLead(
       k, '00000000-0000-4000-8000-000000000000', { besitzerBenutzerId: chefR })))
       .rejects.toMatchObject({ grund: 'ausschreibung_unbekannt' });
+  });
+});
+
+/* ═════════════════════════════════════════════════════════════════════════
+ * §7 — der Mensch hinter der Anfrage (V-141, D-635, O-907)
+ * ═════════════════════════════════════════════════════════════════════════ */
+
+describe('§7 der Ansprechpartner der Anfrage — gewählt, angelegt, angesprochen', () => {
+  /** Die Zeilen, die das UWG-Tor an einem Lead durchgelassen hat. */
+  async function ausgehend(leadId: string): Promise<readonly {
+    zweck: string; kanal: string | null; ansprechpartner_id: string | null;
+  }[]> {
+    return sql.unsafe<{ zweck: string; kanal: string | null; ansprechpartner_id: string | null }[]>(
+      `select zweck::text as zweck, kanal, ansprechpartner_id::text as ansprechpartner_id
+         from lead_aktivitaet where lead_id = $1 and richtung = 'ausgehend'`, [leadId]);
+  }
+
+  const anruf = { typ: 'anruf', richtung: 'ausgehend', inhalt: 'Rückruf wegen des Angebots' };
+
+  /**
+   * Ein Web-Lead wie aus der Annahme — mit Eingang (`lead_herkunft_stimmig`)
+   * und einem Kontakt OHNE Werbegrundlage: die Antwort auf die Anfrage darf
+   * trotzdem hinaus, denn sie ist vertraglich (D-631).
+   */
+  async function webLead(): Promise<{ leadId: string; kontaktId: string }> {
+    const schluessel = `kette_${zufall()}`;
+    const [d] = await sql.unsafe<{ id: string }[]>(
+      `insert into formular_definition (mandant_id, schluessel, titel, felder,
+                                        datenschutz_hinweis_version)
+       values ($1, $2, 'Anfrage', '[]'::jsonb, 'v1') returning id`, [f.reinigung, schluessel]);
+    const [e] = await sql.unsafe<{ id: string }[]>(
+      `insert into formular_eingang (mandant_id, formular_definition_id, daten,
+                                     datenschutz_hinweis_bestaetigt, datenschutz_hinweis_version)
+       values ($1, $2, '{}'::jsonb, true, 'v1') returning id`, [f.reinigung, d!.id]);
+    const [a] = await sql.unsafe<{ id: string }[]>(
+      `insert into ansprechpartner (mandant_id, kunde_id, nachname, email)
+       values ($1, null, 'Webanfragende', $2) returning id`,
+      [f.reinigung, `web-${zufall()}@beispiel.test`]);
+    const [l] = await sql.unsafe<{ id: string }[]>(
+      `insert into lead (mandant_id, leadnummer, quelle, formular_eingang_id, firma_name, betreff,
+                         besitzer_benutzer_id, ansprechpartner_id)
+       values ($1, $2, 'webformular', $3, 'Netzfirma GmbH', 'Anfrage aus dem Netz', $4, $5)
+       returning id`, [f.reinigung, `L-${zufall()}`, e!.id, chefR, a!.id]);
+    return { leadId: l!.id, kontaktId: a!.id };
+  }
+
+  it('ein Lead von Hand bekommt einen Kontakt, und ausgehend geht er als Werbung durchs Tor', async () => {
+    const l = await inR((k) => legeLeadAn(k, {
+      betreff: 'Anruf von Frau Ohnekunde', firmaName: 'Ohnekunde GmbH', besitzerBenutzerId: chefR }));
+    // Vorher: kein Kontakt, also kein ausgehender Anruf.
+    await expect(inR((k) => halteLeadAktivitaetFest(k, l.id, { ...anruf, benutzerId: chefR })))
+      .rejects.toMatchObject({ grund: 'kein_kontakt' });
+
+    const neu = await inR((k) => legeLeadKontaktAn(k, l.id, {
+      vorname: 'Olga', nachname: 'Ohnekunde', email: `olga-${zufall()}@ohnekunde.test`,
+      telefon: '+49 30 1234' }));
+    expect(neu.vorhanden).toBe(false);
+    expect((await lead(l.id)).ansprechpartner_id).toBe(neu.id);
+    const [ap] = await sql.unsafe<{ kunde_id: string | null; rechtsgrundlage: string }[]>(
+      `select kunde_id::text as kunde_id, rechtsgrundlage::text as rechtsgrundlage
+         from ansprechpartner where id = $1`, [neu.id]);
+    // Ohne Kunden, ohne Werbegrundlage — die setzt ein Mensch mit Quelle und Datum.
+    expect(ap).toEqual({ kunde_id: null, rechtsgrundlage: 'keine' });
+    expect(await systemzeilen(l.id)).toContain('Ansprechpartner angelegt: Olga Ohnekunde');
+
+    /*
+     * **Der Kern von O-907.** Eine Erfassung von Hand ist (noch) keine
+     * Anfrage des Kontakts: der Anruf geht als `werbung` durch das Tor, und
+     * ohne Grundlage weist es ihn ab. Nichts wird festgehalten, die
+     * Reaktionsuhr läuft weiter.
+     */
+    await expect(inR((k) => halteLeadAktivitaetFest(k, l.id, { ...anruf, benutzerId: chefR })))
+      .rejects.toMatchObject({ grund: 'uwg_werbung' });
+    expect(await ausgehend(l.id)).toEqual([]);
+
+    // Mit festgestellter Grundlage (Quelle, Datum) geht er durch — als Werbung belegt.
+    await sql.unsafe(
+      `update ansprechpartner set rechtsgrundlage = 'anfrage',
+              rechtsgrundlage_quelle = 'Telefonat am Empfang', rechtsgrundlage_erfasst_am = now()
+        where id = $1`, [neu.id]);
+    await inR((k) => halteLeadAktivitaetFest(k, l.id, { ...anruf, benutzerId: chefR }));
+    expect(await ausgehend(l.id)).toEqual([
+      { zweck: 'werbung', kanal: 'telefon', ansprechpartner_id: neu.id }]);
+    const [uhr] = await sql.unsafe<{ erste_reaktion_am: Date | null }[]>(
+      `select erste_reaktion_am from lead where id = $1`, [l.id]);
+    expect(uhr!.erste_reaktion_am).not.toBeNull();
+
+    // Und er wandert mit, sobald die Anfrage ihren Kunden bekommt.
+    const kd = await inR((k) => uebernehmeLeadAlsKunde(k, l.id, { typ: 'firma' }));
+    const [danach] = await sql.unsafe<{ kunde_id: string }[]>(
+      `select kunde_id::text as kunde_id from ansprechpartner where id = $1`, [neu.id]);
+    expect(danach!.kunde_id).toBe(kd.kundeId);
+  });
+
+  it('ein Web-Lead antwortet vertraglich — derselbe Kontakt ohne Werbegrundlage kommt durch', async () => {
+    const { leadId, kontaktId } = await webLead();
+    await inR((k) => halteLeadAktivitaetFest(k, leadId, { ...anruf, benutzerId: chefR }));
+    expect(await ausgehend(leadId)).toEqual([
+      { zweck: 'vertraglich', kanal: 'telefon', ansprechpartner_id: kontaktId }]);
+    // Eine Notiz bleibt intern, gleich was das Formular als Richtung schickt.
+    await inR((k) => halteLeadAktivitaetFest(k, leadId, {
+      typ: 'notiz', richtung: 'ausgehend', inhalt: 'Nur fürs Haus', benutzerId: chefR }));
+    expect(await ausgehend(leadId)).toHaveLength(1);
+    // Nach einem Widerspruch hält auch die vertragliche Antwort nichts fest.
+    await sql.unsafe(`update ansprechpartner set widerspruch_am = now() where id = $1`,
+      [kontaktId]);
+    await expect(inR((k) => halteLeadAktivitaetFest(k, leadId, { ...anruf, benutzerId: chefR })))
+      .rejects.toMatchObject({ grund: 'uwg' });
+  });
+
+  it('gewählt wird nur ein erreichbarer Kontakt des eigenen Kunden', async () => {
+    const { kundeId, andererKunde, leadId } = await inR(async (k) => {
+      const kundeId = await kunde(k, 'Wahl GmbH');
+      const andererKunde = await kunde(k, 'Nachbar GmbH');
+      const l = await legeLeadAn(k, { betreff: 'Wahl', kundeId, besitzerBenutzerId: chefR });
+      return { kundeId, andererKunde, leadId: l.id };
+    });
+    const kontakt = async (kd: string, ausgeschieden = false): Promise<string> => {
+      const [a] = await sql.unsafe<{ id: string }[]>(
+        `insert into ansprechpartner (mandant_id, kunde_id, nachname, ausgeschieden_am)
+         values ($1, $2, $3, $4) returning id`,
+        [f.reinigung, kd, `Kontakt ${zufall()}`, ausgeschieden ? new Date() : null]);
+      return a!.id;
+    };
+    const eigener = await kontakt(kundeId);
+    const gegangen = await kontakt(kundeId, true);
+    const fremder = await kontakt(andererKunde);
+    const securityKontakt = await inS(async (k) => {
+      const kd = await kunde(k, 'Security-Wahl GmbH');
+      const [a] = await k.schreibe<{ id: string }>(
+        `insert into ansprechpartner (mandant_id, kunde_id, nachname)
+         values (app.aktiver_mandant(), $1::uuid, 'Fremd') returning id::text as id`, [kd]);
+      return a!.id;
+    });
+
+    // Die Wahl nennt nur den erreichbaren Kontakt des eigenen Kunden.
+    expect((await inR((k) => leseLeadKontaktWahl(k, leadId))).map((z) => z.id)).toEqual([eigener]);
+    await expect(inR((k) => waehleLeadKontakt(k, leadId, fremder)))
+      .rejects.toMatchObject({ grund: 'kontakt_fremd' });
+    await expect(inR((k) => waehleLeadKontakt(k, leadId, gegangen)))
+      .rejects.toMatchObject({ grund: 'kontakt_ausgeschieden' });
+    await expect(inR((k) => waehleLeadKontakt(k, leadId, securityKontakt)))
+      .rejects.toMatchObject({ grund: 'kontakt_unbekannt' });
+    await inR((k) => waehleLeadKontakt(k, leadId, eigener));
+    expect((await lead(leadId)).ansprechpartner_id).toBe(eigener);
+    // Dieselbe Wahl noch einmal ist keine Änderung und keine zweite Systemzeile.
+    await inR((k) => waehleLeadKontakt(k, leadId, eigener));
+    expect((await systemzeilen(leadId)).filter((z) => z.startsWith('Ansprechpartner:')))
+      .toHaveLength(1);
+  });
+
+  it('eine bekannte E-Mail-Adresse ist ein bekannter Mensch — kein zweiter Kontakt', async () => {
+    const email = `bekannt-${zufall()}@beispiel.test`;
+    const { kundeId, leadId, vorhandener } = await inR(async (k) => {
+      const kundeId = await kunde(k, 'Bekannt GmbH');
+      const [a] = await k.schreibe<{ id: string }>(
+        `insert into ansprechpartner (mandant_id, kunde_id, nachname, email)
+         values (app.aktiver_mandant(), $1::uuid, 'Bekannt', $2) returning id::text as id`,
+        [kundeId, email]);
+      const l = await legeLeadAn(k, { betreff: 'Bekannt', kundeId, besitzerBenutzerId: chefR });
+      return { kundeId, leadId: l.id, vorhandener: a!.id };
+    });
+    const r = await inR((k) => legeLeadKontaktAn(k, leadId, {
+      nachname: 'Anders geschrieben', email: email.toUpperCase() }));
+    expect(r).toEqual({ id: vorhandener, vorhanden: true });
+    expect((await lead(leadId)).ansprechpartner_id).toBe(vorhandener);
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from ansprechpartner
+        where kunde_id = $1 and lower(email) = lower($2)`, [kundeId, email]);
+    expect(n!.n).toBe(1);
+    await expect(inR((k) => legeLeadKontaktAn(k, leadId, { nachname: ' ' })))
+      .rejects.toMatchObject({ grund: 'nachname_fehlt' });
+    await expect(inR((k) => legeLeadKontaktAn(k, leadId, { nachname: 'X', email: 'kein-at' })))
+      .rejects.toMatchObject({ grund: 'email_ungueltig' });
+  });
+
+  it('wurde dem Anfragenden widersprochen, bleibt die Anfrage bei ihm — auch neben einem Zwilling', async () => {
+    const email = `widerspruch-${zufall()}@beispiel.test`;
+    const { leadId, kontaktId } = await inR(async (k) => {
+      const l = await legeLeadAn(k, {
+        betreff: 'Widerspruch', firmaName: 'Widerspruch GmbH', besitzerBenutzerId: chefR });
+      const [a] = await k.schreibe<{ id: string }>(
+        `insert into ansprechpartner (mandant_id, kunde_id, nachname, email)
+         values (app.aktiver_mandant(), null, 'Anfragende', $1) returning id::text as id`,
+        [email]);
+      await k.schreibe(`update lead set ansprechpartner_id = $2::uuid where id = $1::uuid`,
+        [l.id, a!.id]);
+      return { leadId: l.id, kontaktId: a!.id };
+    });
+    await sql.unsafe(`update ansprechpartner set widerspruch_am = now() where id = $1`,
+      [kontaktId]);
+    const kundeId = await inR(async (k) => {
+      const kd = await kunde(k, 'Zwilling GmbH');
+      await k.schreibe(
+        `insert into ansprechpartner (mandant_id, kunde_id, nachname, email)
+         values (app.aktiver_mandant(), $1::uuid, 'Zwilling', $2)`, [kd, email]);
+      return kd;
+    });
+    await inR((k) => ordneLeadKundeZu(k, leadId, kundeId));
+    const l = await lead(leadId);
+    expect(l.kunde_id).toBe(kundeId);
+    // Nicht auf den Zwilling ohne Vermerk umgestellt — der Widerspruch gilt weiter.
+    expect(l.ansprechpartner_id).toBe(kontaktId);
   });
 });

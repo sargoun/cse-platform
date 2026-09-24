@@ -647,6 +647,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'crm.schreiben',
   },
   /*
+   * Der Mensch hinter der Anfrage (V-141, CRM-03, CRM-04, D-635): den
+   * Ansprechpartner eines Leads wählen oder anlegen (schreibt `lead`,
+   * `ansprechpartner`, `lead_aktivitaet`) und eine Aktivität festhalten —
+   * ausgehend mit dem Zweck, den die Herkunft trägt (O-907).
+   */
+  {
+    modul: 'crm', pfad: 'crm/lead-kontakt',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
    * Kunde und Ansprechpartner AENDERN (V-017, V-018, V-019). Eigene Datei und
    * nicht ein Zweig in `crm/anlegen`: sie fasst vier Spalten mit Absicht NICHT
    * an — `debitorennummer`, `zahlungsziel_tage`, `mahnsperre_bis`,

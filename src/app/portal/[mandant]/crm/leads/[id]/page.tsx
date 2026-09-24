@@ -23,6 +23,9 @@ import { DataTable } from '@/components/ui/DataTable';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
 import { ANGEBOT_PILLE, AUFTRAG_PILLE, RECHNUNG_PILLE } from '@/lib/vorgang-pille';
 import { leseLeadKette, type LeadKette } from '@/server/services/crm/lead-kette';
+import {
+  LEAD_ZWECK_REGEL, leseLeadKontaktWahl, type KontaktWahlZeile,
+} from '@/server/services/crm/lead-kontakt';
 
 /**
  * `/portal/[mandant]/crm/leads/[id]` — eine Anfrage, ihr Verlauf und ihr
@@ -152,6 +155,8 @@ export default async function LeadDetail(
    * jede Abweisung beim Setzen des Stands verschwand still.
    */
   const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  /* `?hinweis=` trägt einen Schlüssel für eine Auskunft, keine Abweisung (V-141). */
+  const hinweis = typeof suche['hinweis'] === 'string' ? suche['hinweis'] : null;
   const pfad = `/portal/${mandant}/crm/leads/${id}`;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -242,9 +247,15 @@ export default async function LeadDetail(
           `select id::text as id, name, kundennummer from kunde
             where mandant_id = app.aktiver_mandant() and archiviert_am is null
             order by name limit 500`);
+      /*
+       * **Die Kontakte des Kunden zur Wahl** (V-141). Nur wer schreiben darf,
+       * bekommt die Liste — sie steht nur in einem Formular.
+       */
+      const kontaktWahl = !darfSchreiben || kopf.kunde_id === null ? []
+        : await leseLeadKontaktWahl(kontext, id);
       return {
         kopf, verlauf, benutzer, kontakt: kontakt ?? null, eingang: eingang ?? null, lv,
-        kette, kunden,
+        kette, kunden, kontaktWahl,
       };
     })) as Promise<{
       kopf: Kopf; verlauf: readonly AktivitaetZeile[];
@@ -253,13 +264,21 @@ export default async function LeadDetail(
       lv: readonly { id: string; titel: string }[];
       kette: LeadKette | null;
       kunden: readonly { id: string; name: string; kundennummer: string }[];
+      kontaktWahl: readonly KontaktWahlZeile[];
     } | null>);
 
   if (daten === null) notFound();
-  const { kopf, verlauf, benutzer, kontakt, eingang, lv, kette, kunden } = daten;
+  const { kopf, verlauf, benutzer, kontakt, eingang, lv, kette, kunden, kontaktWahl } = daten;
   const k = nachSprache(KETTE_TEXTE, zugang.sprache);
-  /* Eine Abweisung aus der Kette steht bei der Kette, nicht beim nächsten Schritt. */
-  const ketteFehler = fehler === null ? null : (k.fehler[fehler] ?? null);
+  /*
+   * Eine Abweisung steht dort, wo sie entstand: am Ansprechpartner, an der
+   * Kette — und nur sonst beim nächsten Schritt.
+   */
+  const kontaktFehler = fehler === null ? null : (t.kontaktFehler[fehler] ?? null);
+  const ketteFehler = fehler === null || kontaktFehler !== null ? null
+    : (k.fehler[fehler] ?? null);
+  /* Mit welchem Zweck ein ausgehender Kontakt dieser Anfrage durch das Tor geht (O-907). */
+  const zweck = LEAD_ZWECK_REGEL.zweckAusgehend(kopf.quelle);
   const felder = eingang === null ? null : Felder.safeParse(eingang.felder);
   const einsendung: readonly EinsendungsZeile[] = eingang === null ? []
     : einsendungLesbar(felder?.success === true ? felder.data : [], eingang.daten);
@@ -369,6 +388,114 @@ export default async function LeadDetail(
             )}
           </dl>
         )}
+        {kontakt === null ? null : (
+          <p className="m-0 mt-s3 text-sm">
+            <Link href={`/portal/${mandant}/crm/kontakte/${kontakt.id}`}
+                  className="underline underline-offset-4" data-cse="lead-kontakt-blatt">
+              {t.kontaktBlatt}
+            </Link>
+          </p>
+        )}
+        {/*
+          **Mit welchem Zweck ein ausgehender Kontakt durch das Tor geht**
+          (V-141, O-907). Die Seite sagt es, bevor jemand anruft — nicht erst,
+          wenn das Tor die Zeile abweist.
+        */}
+        {zweck.zweck === 'werbung' ? (
+          <p className="m-0 mt-s3 text-xs text-text-muted" data-cse="lead-kontakt-werbung"
+             data-offen={zweck.offen ? 'ja' : 'nein'}>
+            {zweck.offen ? t.kontaktWerbungOffen : t.kontaktWerbungAkquise}
+          </p>
+        ) : null}
+        {kontaktFehler === null ? null : (
+          <Hinweis art="warnung" cse="lead-kontakt-fehler" className="mt-s4">
+            {kontaktFehler}
+          </Hinweis>
+        )}
+        {hinweis === 'kontakt_vorhanden' ? (
+          <Hinweis art="hinweis" cse="lead-kontakt-vorhanden" className="mt-s4">
+            {t.kontaktVorhanden}
+          </Hinweis>
+        ) : null}
+
+        {/*
+          **Den Ansprechpartner setzen** (V-141, D-635). `lead.ansprechpartner_id`
+          liess sich nach der Anlage nicht setzen: nur die Annahme eines
+          Webformulars legte einen Kontakt an, und jeder andere Lead brach
+          jeden ausgehenden Anruf mit „kein Ansprechpartner" ab.
+        */}
+        {darfSchreiben && kontaktWahl.length > 0 ? (
+          <form method="post" action="/api/crm/lead" data-cse="lead-kontakt-waehlen"
+                className="mt-s5 flex flex-col gap-s4 border-t border-line pt-s5">
+            <input type="hidden" name="was" value="kontakt_waehlen" />
+            <input type="hidden" name="id" value={id} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <h3 className="m-0 text-base text-text">{t.kontaktWaehlenTitel}</h3>
+            <p className="m-0 text-sm text-text-muted">{t.kontaktWaehlenErklaerung}</p>
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.kontaktTitel}
+              <select name="ansprechpartnerId" required className={CRM_FELD}
+                      data-cse="lead-kontakt-wahl"
+                      defaultValue={kontaktWahl.some((w) => w.id === kopf.ansprechpartner_id)
+                        ? (kopf.ansprechpartner_id ?? '') : ''}>
+                <option value="" disabled>{t.kontaktWaehlen}</option>
+                {kontaktWahl.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.email === null ? w.name : `${w.name} · ${w.email}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div>
+              <button type="submit" data-cse="lead-kontakt-waehlen-knopf"
+                      className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 text-sm text-text hover:bg-surface-2">
+                {t.kontaktUebernehmen}
+              </button>
+            </div>
+          </form>
+        ) : null}
+        {darfSchreiben ? (
+          <form method="post" action="/api/crm/lead" data-cse="lead-kontakt-anlegen"
+                className="mt-s5 flex flex-col gap-s4 border-t border-line pt-s5">
+            <input type="hidden" name="was" value="kontakt_anlegen" />
+            <input type="hidden" name="id" value={id} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <h3 className="m-0 text-base text-text">{t.kontaktNeuTitel}</h3>
+            <p className="m-0 text-sm text-text-muted">
+              {kopf.kunde_id === null ? t.kontaktNeuOhneKunde : t.kontaktNeuMitKunde}
+            </p>
+            <div className="flex flex-wrap gap-s4">
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                <span>{t.vorname} <span className="text-text-muted">{t.freiwillig}</span></span>
+                <input name="vorname" maxLength={100} className={CRM_FELD}
+                       data-cse="lead-kontakt-vorname" />
+              </label>
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                {t.nachname}
+                <input name="nachname" required maxLength={100} className={CRM_FELD}
+                       data-cse="lead-kontakt-nachname" />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-s4">
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                <span>{t.email} <span className="text-text-muted">{t.freiwillig}</span></span>
+                <input type="email" name="email" maxLength={200} className={CRM_FELD}
+                       data-cse="lead-kontakt-email-feld" />
+              </label>
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                <span>{t.telefon} <span className="text-text-muted">{t.freiwillig}</span></span>
+                <input type="tel" name="telefon" maxLength={50} className={CRM_FELD}
+                       data-cse="lead-kontakt-telefon-feld" />
+              </label>
+            </div>
+            <div>
+              <button type="submit" data-cse="lead-kontakt-anlegen-knopf"
+                      className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 text-sm text-text hover:bg-surface-2">
+                {t.kontaktAnlegen}
+              </button>
+            </div>
+          </form>
+        ) : null}
       </section>
 
       {/*
@@ -708,7 +835,7 @@ export default async function LeadDetail(
         {/* Der Schlüssel gewinnt, weil er übersetzt ist; der Satz der Route
             ist deutsch und nur der Rückfall. Ein unbekannter Schlüssel ist nie
             selbst der Text — `unbekannte_prioritaet` sagt niemandem etwas. */}
-        {(fehler !== null || meldung !== null) && ketteFehler === null && (
+        {(fehler !== null || meldung !== null) && ketteFehler === null && kontaktFehler === null && (
           <Hinweis art="warnung" cse="lead-fehler" className="mt-s4 max-w-prose">
             {(fehler === null ? undefined : t.fehler[fehler]) ?? meldung ?? t.nichtGespeichert}
           </Hinweis>
