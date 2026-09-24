@@ -30,6 +30,10 @@ import { WebsiteSpruenge } from '../spruenge';
  * **Warum das nicht nur die Policy erledigt.** Sie erledigt es, und das ist
  * richtig. Aber ein Knopf, der still nichts tut, ist eine schlechtere Antwort
  * als ein Satz, der sagt, was fehlt.
+ *
+ * **Die ganze Seite spricht die Sprache der Sitzung** (V-161). V-154 hatte nur
+ * den Knopf und den Leerzustand übersetzt; Überschrift, Einleitung und
+ * Tabelle blieben deutsch, direkt daneben.
  */
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +56,7 @@ export default async function WebsiteReferenzen(
   const tor = await mandantTor(`/portal/${mandant}/website/referenzen`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+  const sprache = zugang.sprache;
   /*
    * **Der Veröffentlichen-Knopf stand hier ohne Rechteprüfung**, nur gegen
    * `nurLesen` und die Kundenfreigabe. `referenz.veroeffentlichen` hält aber
@@ -64,7 +69,7 @@ export default async function WebsiteReferenzen(
   const darf = await haeltRechte(
     zugang.sitzung, 'referenz.schreiben', 'referenz.veroeffentlichen',
     'referenz.kundenfreigabe_erfassen');
-  const t = nachSprache(WEBSITE_REFERENZ_TEXTE, zugang.sprache);
+  const t = nachSprache(WEBSITE_REFERENZ_TEXTE, sprache);
 
   const referenzen = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -80,6 +85,8 @@ export default async function WebsiteReferenzen(
    * da sind: `t_referenz_pflege` verlangt für das `insert` ebenso
    * `referenz.kundenfreigabe_erfassen` wie für jedes `update`, und ein Knopf,
    * dessen Formular abgewiesen wird, ist ein Fehlerbericht mit Verzögerung.
+   * Er führt auf die Wahl des Auftrags (V-161): eine Referenz entsteht aus
+   * einem abgeschlossenen Auftrag mit geltender Kundenfreigabe (PRO-05).
    */
   const darfAnlegen = !nurLesen && darf['referenz.schreiben'] === true
     && darf['referenz.kundenfreigabe_erfassen'] === true;
@@ -95,8 +102,8 @@ export default async function WebsiteReferenzen(
 
   return (
     <PortalRahmen
-      titel="Referenzen"
-      wurzelTitel="Website"
+      titel={t.listeTitel}
+      wurzelTitel={t.wurzelTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={nurLesen}
       leiste={zugang.leiste}
@@ -108,14 +115,10 @@ export default async function WebsiteReferenzen(
       <WebsiteSpruenge mandant={mandant} zweig="referenzen"
                        sitzung={zugang.sitzung} />
       <div className="mb-s4 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="m-0 text-h1 text-text">Referenzen</h1>
+        <h1 className="m-0 text-h1 text-text">{t.listeTitel}</h1>
         {referenzen.length > 0 && anlegenKnopf}
       </div>
-      <p className="mb-s5 max-w-[72ch] text-base text-text-muted">
-        Ein Projekt geht nur mit schriftlicher Zustimmung des Kunden auf die
-        Website. Ohne sie bleibt es hier stehen — auch als Entwurf ist es kein
-        Versehen, sondern der Normalfall.
-      </p>
+      <p className="mb-s5 max-w-[72ch] text-base text-text-muted">{t.listeEinleitung}</p>
       {abgewiesen !== null && (
         <Hinweis art="warnung" cse="referenz-status-fehler" className="mb-s5 max-w-prose">
           <strong className="block">{t.statusNichtGesetzt}</strong>
@@ -125,13 +128,13 @@ export default async function WebsiteReferenzen(
       {!nurLesen && darf['referenz.schreiben'] === true && !darfAnlegen && (
         <p className="mb-s5 max-w-[72ch] text-sm text-text-muted" data-cse="anlegen-verlangt">
           {t.anlegenVerlangt}{' '}
-          <Recht schluessel="referenz.kundenfreigabe_erfassen" sprache={zugang.sprache} />.
+          <Recht schluessel="referenz.kundenfreigabe_erfassen" sprache={sprache} />.
         </p>
       )}
 
       {referenzen.length === 0 ? (
         <Hinweis art="hinweis" cse="keine-referenzen">
-          <strong className="block">Für diese Gesellschaft ist noch kein Projekt erfasst.</strong>
+          <strong className="block">{t.leerTitel}</strong>
           {darfAnlegen && (
             <>
               <span className="mb-s4 mt-s2 block">{t.leerWeg}</span>
@@ -141,12 +144,12 @@ export default async function WebsiteReferenzen(
         </Hinweis>
       ) : (
         <DataTable
-          beschriftung="Referenzen dieser Gesellschaft"
+          beschriftung={t.tabelleBeschriftung}
           zeilen={[...referenzen]}
           schluessel={(z) => z.id}
           spalten={[
             {
-              schluessel: 'titel', kopf: 'Projekt',
+              schluessel: 'titel', kopf: t.spalteProjekt,
               zelle: (z) => (
                 <span data-cse="referenz" data-slug={z.slug} className="text-sm text-text">
                   {darf['referenz.schreiben'] === true ? (
@@ -162,34 +165,38 @@ export default async function WebsiteReferenzen(
               ),
             },
             {
-              schluessel: 'kunde', kopf: 'Kunde',
+              schluessel: 'kunde', kopf: t.spalteKunde,
               zelle: (z) => z.kundeName ?? '—',
             },
-            { schluessel: 'jahr', kopf: 'Jahr', numerisch: true, zelle: (z) => z.jahr ?? '—' },
             {
-              schluessel: 'freigabe', kopf: 'Kundenfreigabe',
+              schluessel: 'jahr', kopf: t.spalteJahr, numerisch: true,
+              zelle: (z) => z.jahr ?? '—',
+            },
+            {
+              schluessel: 'freigabe', kopf: t.spalteFreigabe,
               zelle: (z) => (
                 <span
                   className="inline-flex flex-wrap items-center gap-s2"
                   data-cse="kundenfreigabe"
                   data-freigegeben={z.freigegeben ? 'ja' : 'nein'}
                 >
-                  <StatusPill zustand={z.freigegeben ? 'Bereit' : 'Wartet'} />
+                  <StatusPill zustand={z.freigegeben ? 'Bereit' : 'Wartet'} sprache={sprache} />
                   <span className="text-xs text-text-muted">
                     {z.freigegeben
                       ? (z.freigabeAm === null
-                        ? 'ohne Datum'
+                        ? t.ohneDatum
                         : BERLIN.format(new Date(z.freigabeAm)))
-                      : 'fehlt'}
+                      : t.freigabeFehlt}
                   </span>
                 </span>
               ),
             },
             {
-              schluessel: 'status', kopf: 'Website',
+              schluessel: 'status', kopf: t.spalteWebsite,
               zelle: (z) => (
                 <span className="inline-flex flex-wrap items-center gap-s2">
-                  <StatusPill zustand={z.status === 'veroeffentlicht' ? 'Aktiv' : 'Entwurf'} />
+                  <StatusPill zustand={z.status === 'veroeffentlicht' ? 'Aktiv' : 'Entwurf'}
+                              sprache={sprache} />
                   {!nurLesen && darf['referenz.veroeffentlichen'] === true && (
                     <form method="post" action="/api/website/referenzen">
                       <input type="hidden" name="id" value={z.id} />
@@ -204,13 +211,11 @@ export default async function WebsiteReferenzen(
                         * schlechter als keiner (AUT-06 im Kleinen).
                         */}
                       {z.status === 'veroeffentlicht' ? (
-                        <Button type="submit" variante="ghost">Zurückziehen</Button>
+                        <Button type="submit" variante="ghost">{t.zurueckziehen}</Button>
                       ) : z.freigegeben ? (
-                        <Button type="submit" variante="secondary">Veröffentlichen</Button>
+                        <Button type="submit" variante="secondary">{t.veroeffentlichen}</Button>
                       ) : (
-                        <span className="text-xs text-text-subtle">
-                          erst mit Kundenfreigabe
-                        </span>
+                        <span className="text-xs text-text-subtle">{t.erstMitFreigabe}</span>
                       )}
                     </form>
                   )}
@@ -227,7 +232,7 @@ export default async function WebsiteReferenzen(
                       className="text-xs text-text-muted underline underline-offset-2 hover:text-brand"
                       data-cse="zur-veroeffentlichung"
                     >
-                      Ausführlich
+                      {t.ausfuehrlich}
                     </Link>
                   )}
                 </span>

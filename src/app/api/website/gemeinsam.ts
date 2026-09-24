@@ -66,13 +66,76 @@ export interface WebsiteLauf {
   readonly handle: (
     kontext: SchreibKontext, rumpf: Rumpf,
   ) => Promise<string | null | WebsiteWeiter>;
+  /**
+   * Was bei einer Abweisung ZUSÄTZLICH mit zurück auf das Formular geht
+   * (V-161): die kurzen Eingaben, damit ein Mensch nach „diese Adresse ist
+   * vergeben" nicht alles neu tippt. Nur, was harmlos in einer Adresse steht —
+   * kein Freitext, nichts Personenbezogenes; jeder Wert höchstens
+   * `RUECKGABE_LAENGE` Zeichen.
+   */
+  readonly rueckgabe?: (rumpf: Rumpf) => Readonly<Record<string, string>>;
 }
 
 /** Wohin es geht, wenn `zurueck` nicht in diese Anwendung zeigt (D-560). */
 const HEIMWEG = '/portal';
 
+/** Wie lang ein zurückgegebener Wert höchstens ist — die Felder tragen `maxLength` 200. */
+export const RUECKGABE_LAENGE = 200;
+
 function mitAbfrage(zurueck: string, teil: string): string {
   return `${zurueck}${zurueck.includes('?') ? '&' : '?'}${teil}`;
+}
+
+/**
+ * Die Antwort nach einer GELUNGENEN Handlung — ohne Datenbank und deshalb
+ * für sich prüfbar (V-161).
+ *
+ * Die Weiche stand im Gerüst, und ihr einziger Test war ein Blick in den
+ * Quelltext (`toContain('ergebnis.weiter')`): ob ein `{ weiter }` wirklich
+ * auf das neue Blatt führt, ob ein fremdes Ziel im eigenen Ursprung bleibt,
+ * sagte er nicht. Hier ist sie eine Funktion, die ein Test aufruft.
+ */
+export function antwortNachHandlung(
+  anfrage: NextRequest, rumpf: Pick<Rumpf, 'json' | 'felder'>,
+  ergebnis: string | null | WebsiteWeiter,
+): NextResponse {
+  if (rumpf.json) return NextResponse.json({ ergebnis }, { status: 200 });
+  const zurueck = rumpf.felder['zurueck'] ?? '';
+  const ziel = ergebnis !== null && typeof ergebnis === 'object'
+    ? ergebnis.weiter
+    : ergebnis === null || zurueck === ''
+      ? zurueck : mitAbfrage(zurueck, ergebnis);
+  return NextResponse.redirect(internesZiel(ziel, HEIMWEG, anfrage), 303);
+}
+
+/**
+ * Die Antwort auf eine FACHLICHE Abweisung (`RedaktionFehler`): zurück auf
+ * das Formular mit `?fehler=<grund>` und den kurzen Eingaben — oder JSON für
+ * einen Aufrufer ohne Rückweg.
+ */
+export function antwortNachAbweisung(
+  anfrage: NextRequest, rumpf: Pick<Rumpf, 'json' | 'felder'>, fehler: RedaktionFehler,
+  rueckgabe: Readonly<Record<string, string>> = {},
+): NextResponse {
+  const zurueck = rumpf.felder['zurueck'] ?? '';
+  if (!rumpf.json && zurueck !== '') {
+    const teile = new URLSearchParams({ fehler: fehler.grund });
+    for (const [name, wert] of Object.entries(rueckgabe)) {
+      const kurz = wert.trim().slice(0, RUECKGABE_LAENGE);
+      if (kurz !== '' && name !== 'fehler') teile.set(name, kurz);
+    }
+    return NextResponse.redirect(
+      internesZiel(mitAbfrage(zurueck, teile.toString()), HEIMWEG, anfrage), 303);
+  }
+  /*
+   * Ohne Rückweg bleibt es beim JSON: ein Aufrufer ohne `zurueck` hat
+   * keine Seite, auf die man ihn schicken könnte. `nicht_gefunden` ist
+   * 404, alles andere 400 — ein Konflikt im Zustand ist keine kaputte
+   * Anfrage, aber auch kein Serverfehler.
+   */
+  return NextResponse.json(
+    { fehler: fehler.grund, meldung: fehler.message },
+    { status: fehler.grund === 'nicht_gefunden' ? 404 : 400 });
 }
 
 export async function fuehreWebsiteAus(
@@ -90,7 +153,6 @@ export async function fuehreWebsiteAus(
     return NextResponse.json({ fehler: 'unlesbarer_rumpf' }, { status: 400 });
   }
   const recht = typeof lauf.recht === 'string' ? lauf.recht : lauf.recht(rumpf);
-  const zurueck = rumpf.felder['zurueck'] ?? '';
 
   try {
     const ergebnis = await (db().begin(
@@ -100,30 +162,10 @@ export async function fuehreWebsiteAus(
         return lauf.handle(kontext, rumpf);
       }))) as string | null | WebsiteWeiter;
 
-    if (rumpf.json) return NextResponse.json({ ergebnis }, { status: 200 });
-    const ziel = ergebnis !== null && typeof ergebnis === 'object'
-      ? ergebnis.weiter
-      : ergebnis === null || zurueck === ''
-        ? zurueck : mitAbfrage(zurueck, ergebnis);
-    return NextResponse.redirect(internesZiel(ziel, HEIMWEG, anfrage), 303);
+    return antwortNachHandlung(anfrage, rumpf, ergebnis);
   } catch (fehler: unknown) {
     if (fehler instanceof RedaktionFehler) {
-      if (!rumpf.json && zurueck !== '') {
-        return NextResponse.redirect(
-          internesZiel(
-            mitAbfrage(zurueck, `fehler=${encodeURIComponent(fehler.grund)}`),
-            HEIMWEG, anfrage),
-          303);
-      }
-      /*
-       * Ohne Rückweg bleibt es beim JSON: ein Aufrufer ohne `zurueck` hat
-       * keine Seite, auf die man ihn schicken könnte. `nicht_gefunden` ist
-       * 404, alles andere 400 — ein Konflikt im Zustand ist keine kaputte
-       * Anfrage, aber auch kein Serverfehler.
-       */
-      return NextResponse.json(
-        { fehler: fehler.grund, meldung: fehler.message },
-        { status: fehler.grund === 'nicht_gefunden' ? 404 : 400 });
+      return antwortNachAbweisung(anfrage, rumpf, fehler, lauf.rueckgabe?.(rumpf) ?? {});
     }
     const autorisierung = autorisierungsAntwort(fehler);
     if (autorisierung !== null) return autorisierung;

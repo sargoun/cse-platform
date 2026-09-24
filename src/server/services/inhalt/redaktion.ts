@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { istUuid } from '@/lib/uuid';
 import type { LeseKontext, SchreibKontext } from '@/server/kontext';
+import { referenzHindernis } from '@/server/services/auftrag/kundenfreigabe';
 import { type LeistungEintrag, leistungenAus } from './jsonld';
 
 /**
@@ -729,6 +731,12 @@ export interface ReferenzDetail {
   readonly freigegeben: boolean;
   readonly freigabeAm: string | null;
   readonly freigabeBeleg: string | null;
+  /**
+   * Der Auftrag, aus dem die Referenz angelegt wurde (0410, V-161) — `null`
+   * nur im Altbestand vor V-161. Das Blatt schlägt Datum und Beleg aus GENAU
+   * diesem Auftrag vor und nicht aus einer Kennung in der Adresse.
+   */
+  readonly auftragId: string | null;
 }
 
 export async function ladeReferenzZurPflege(
@@ -740,7 +748,8 @@ export async function ladeReferenzZurPflege(
             m.ist_platzhalter as "medienPlatzhalter",
             r.sortierung, r.status::text as status,
             r.freigegeben_vom_kunden as freigegeben,
-            r.freigabe_am as "freigabeAm", r.freigabe_beleg as "freigabeBeleg"
+            r.freigabe_am as "freigabeAm", r.freigabe_beleg as "freigabeBeleg",
+            r.auftrag_id as "auftragId"
        from referenz r
        left join medien m on m.id = r.medien_id
       where r.id = $1::uuid and r.mandant_id = app.aktiver_mandant()
@@ -971,6 +980,12 @@ export async function aendereReferenz(
 
 /** Was ein Mensch beim Anlegen einer Referenz angibt — mehr nicht. */
 export interface NeueReferenz {
+  /**
+   * Der abgeschlossene Auftrag mit geltender Kundenfreigabe, aus dem sie
+   * entsteht (PRO-05, V-161). Pflicht: eine Referenz ohne Auftrag wäre der
+   * „von Hand getippte Werbeeintrag", den die SPEC ausschliesst.
+   */
+  readonly auftragId: string;
   readonly titel: string;
   /** `null` oder leer: aus dem Titel, mit derselben Funktion wie `trg_referenz_slug`. */
   readonly slug: string | null;
@@ -988,6 +1003,104 @@ export interface AngelegteReferenz {
    * Route braucht ihn für den Weg auf das Blatt der neuen Zeile.
    */
   readonly bereich: string;
+  /**
+   * `true`: diese Referenz gab es schon — aus DEMSELBEN Auftrag unter
+   * DERSELBEN Adresse (V-161). Ein Doppelklick auf „Als Entwurf anlegen"
+   * schickte das Formular zweimal; der zweite POST scheiterte an
+   * `slug_vergeben`, und der Mensch las „Nichts wurde angelegt", obwohl der
+   * erste die Referenz angelegt hatte. Jetzt führt der zweite auf dieselbe.
+   */
+  readonly vorhanden: boolean;
+}
+
+/** Eine Referenz, die aus einem bestimmten Auftrag angelegt wurde. */
+export interface ReferenzAusAuftrag {
+  readonly id: string;
+  readonly titel: string;
+  readonly slug: string;
+  readonly status: string;
+}
+
+/**
+ * Die Referenzen aus EINEM Auftrag (0410) — damit `/neu` zeigt, was aus ihm
+ * schon entstanden ist, bevor ein Mensch eine zweite anlegt.
+ */
+export async function referenzenAusAuftrag(
+  kontext: LeseKontext, auftragId: string,
+): Promise<readonly ReferenzAusAuftrag[]> {
+  if (!istUuid(auftragId)) return [];
+  return kontext.abfrage<ReferenzAusAuftrag>(
+    `select r.id, r.titel, r.slug, r.status::text as status
+       from referenz r
+      where r.mandant_id = app.aktiver_mandant() and r.auftrag_id = $1::uuid
+        and r.geloescht_am is null
+      order by r.erstellt_am, r.titel`,
+    [auftragId]);
+}
+
+/**
+ * **Die Herkunft wird geprüft, nicht behauptet** (PRO-05, V-161, D-654).
+ *
+ * Eine Referenz entsteht nur aus einem Auftrag DIESER Gesellschaft, dessen
+ * Kundenfreigabe gilt und der abgeschlossen ist — dieselbe Regel
+ * (`referenzHindernis`), mit der die Seiten entscheiden, ob sie den Weg
+ * anbieten. Hier steht sie ein zweites Mal wirksam, weil zwischen Seite und
+ * Absenden ein Widerruf liegen kann und weil ein Formular nicht die einzige
+ * Quelle eines POST ist.
+ *
+ * `mandant_id = app.aktiver_mandant()` steht im SQL und nicht nur in der
+ * Policy: eine Sitzung, die zwei Gesellschaften lesen darf, sähe sonst den
+ * Auftrag der anderen — und der Fremdschlüssel aus 0410 wiese ihn erst beim
+ * Schreiben ab, als 23503 und damit als 500.
+ */
+async function pruefeHerkunft(kontext: LeseKontext, auftragId: string): Promise<void> {
+  if (!istUuid(auftragId)) {
+    throw new RedaktionFehler(
+      'Eine Referenz entsteht aus einem abgeschlossenen Auftrag mit Kundenfreigabe — '
+      + 'und hier kam keiner an.', 'auftrag_fehlt');
+  }
+  const [a] = await kontext.abfrage<{
+    status: string; freigegeben: boolean; widerrufen_am: string | null;
+  }>(
+    `select a.status::text as status, a.freigegeben_vom_kunden as freigegeben,
+            a.freigabe_widerrufen_am::text as widerrufen_am
+       from auftrag a
+      where a.id = $1::uuid and a.mandant_id = app.aktiver_mandant()`,
+    [auftragId]);
+  if (a === undefined) {
+    throw new RedaktionFehler(
+      'Diesen Auftrag gibt es in dieser Gesellschaft nicht — oder dieser Sitzung fehlt '
+      + 'das Recht, Aufträge zu lesen (auftrag.lesen).', 'auftrag_fehlt');
+  }
+  const hindernis = referenzHindernis(a);
+  if (hindernis === 'ohne_freigabe') {
+    throw new RedaktionFehler(
+      'Dieser Auftrag trägt keine geltende Kundenfreigabe (mehr). Ohne sie entsteht aus '
+      + 'ihm keine Referenz.', 'auftrag_ohne_freigabe');
+  }
+  if (hindernis === 'storniert') {
+    throw new RedaktionFehler(
+      'Dieser Auftrag ist storniert — er kommt nicht zustande, und aus ihm entsteht keine '
+      + 'Referenz.', 'auftrag_storniert');
+  }
+  if (hindernis === 'nicht_abgeschlossen') {
+    throw new RedaktionFehler(
+      'Dieser Auftrag ist noch nicht abgeschlossen. Eine Referenz ist ein abgeschlossener '
+      + 'Auftrag (PRO-05, offen: O-914).', 'auftrag_offen');
+  }
+}
+
+/** Der Slug der Gesellschaft dieser Sitzung — für den Weg auf das neue Blatt. */
+async function bereichDerSitzung(kontext: LeseKontext): Promise<string> {
+  const [m] = await kontext.abfrage<{ slug: string }>(
+    `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
+  if (m === undefined) {
+    // Ohne aktiven Mandanten gäbe es keinen SchreibKontext; das hier ist die
+    // zweite Linie, nicht ein erwarteter Fall.
+    throw new RedaktionFehler(
+      'Die Gesellschaft dieser Sitzung ist nicht lesbar.', 'nicht_angelegt');
+  }
+  return m.slug;
 }
 
 /**
@@ -1025,7 +1138,27 @@ export interface AngelegteReferenz {
  * **Der Slug wird geprüft, BEVOR geschrieben wird** (`pruefeSlugFrei`):
  * `referenz_slug_uk` weist eine Kollision ohnehin ab, aber als 23505 — und
  * zwei Referenzen „Büroreinigung Mitte" sind kein konstruierter Fall.
+ *
+ * **Aus einem abgeschlossenen Auftrag, und nur daraus** (V-161, D-654). Die
+ * erste Fassung legte frei an — genau den „von Hand getippten Werbeeintrag",
+ * den SPEC PRO-05 ausschliesst. Jetzt verlangt sie den Auftrag
+ * (`pruefeHerkunft`) und schreibt ihn in `referenz.auftrag_id` (0410): das
+ * Blatt schlägt Datum und Beleg aus genau diesem Auftrag vor, und die
+ * Herkunft lässt sich danach nicht mehr umhängen.
+ *
+ * **Derselbe Auftrag, dieselbe Adresse — dieselbe Referenz.** Ein zweiter
+ * POST mit beidem (der Doppelklick, das Neuladen nach einem Zeitüberlauf)
+ * legt nichts an und führt auf die vorhandene Zeile (`vorhanden: true`),
+ * statt „Nichts wurde angelegt" zu sagen, während der erste längst angelegt
+ * hat. Eine zweite Referenz aus demselben Auftrag bleibt möglich — unter
+ * einer anderen Adresse.
+ *
+ * **Die Freigabe am Auftrag wird NICHT übernommen** — die vorsichtige Lesart
+ * von O-913: die neue Zeile trägt `freigegeben_vom_kunden = false`, und das
+ * Blatt schlägt Datum und Beleg nur VOR. Eine Antwort des Auftraggebers
+ * änderte genau diese Stelle (und den leeren Haken auf dem Blatt).
  */
+// TODO(client, O-913): Deckt die Kundenfreigabe am Auftrag die öffentliche Referenz in ihrer veröffentlichten Fassung (Titel, Beschreibung, Bild, Namensform) und auch mehrere Referenzen aus demselben Auftrag — oder braucht jede Referenz eine eigene schriftliche Zustimmung des Kunden?
 export async function legeReferenzAn(
   kontext: SchreibKontext, felder: NeueReferenz,
 ): Promise<AngelegteReferenz> {
@@ -1034,26 +1167,29 @@ export async function legeReferenzAn(
   const roh = (felder.slug ?? '').trim().toLowerCase();
   const slug = roh === '' ? await slugVorschlag(kontext, titel) : roh;
   pruefeKopffelder(titel, slug, felder.jahr);
+  await pruefeHerkunft(kontext, felder.auftragId);
+
+  const [schonDa] = await kontext.abfrage<{ id: string }>(
+    `select r.id from referenz r
+      where r.mandant_id = app.aktiver_mandant() and r.slug = $2
+        and r.auftrag_id = $1::uuid and r.geloescht_am is null
+      limit 1`,
+    [felder.auftragId, slug]);
+  if (schonDa !== undefined) {
+    return { id: schonDa.id, slug, bereich: await bereichDerSitzung(kontext), vorhanden: true };
+  }
   await pruefeSlugFrei(kontext, null, slug);
 
   const id = randomUUID();
   await kontext.schreibe(
-    `insert into referenz (id, mandant_id, titel, slug, kunde_name, beschreibung, jahr,
-                           freigegeben_vom_kunden, status)
-     values ($1::uuid, app.aktiver_mandant(), $2, $3, $4, $5, $6::int,
+    `insert into referenz (id, mandant_id, auftrag_id, titel, slug, kunde_name,
+                           beschreibung, jahr, freigegeben_vom_kunden, status)
+     values ($1::uuid, app.aktiver_mandant(), $2::uuid, $3, $4, $5, $6, $7::int,
              false, 'entwurf'::seite_status)`,
-    [id, titel, slug, leerZuNull(felder.kundeName), leerZuNull(felder.beschreibung),
-     felder.jahr]);
+    [id, felder.auftragId, titel, slug, leerZuNull(felder.kundeName),
+     leerZuNull(felder.beschreibung), felder.jahr]);
 
-  const [m] = await kontext.abfrage<{ slug: string }>(
-    `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
-  if (m === undefined) {
-    // Ohne aktiven Mandanten gäbe es keinen SchreibKontext; das hier ist die
-    // zweite Linie, nicht ein erwarteter Fall.
-    throw new RedaktionFehler(
-      'Die Gesellschaft dieser Sitzung ist nicht lesbar.', 'nicht_angelegt');
-  }
-  return { id, slug, bereich: m.slug };
+  return { id, slug, bereich: await bereichDerSitzung(kontext), vorhanden: false };
 }
 
 /** Leer bleibt leer — ein leeres `<p>` auf der öffentlichen Seite ist eine Lücke. */
@@ -1135,4 +1271,21 @@ export async function slugVorschlag(kontext: LeseKontext, titel: string): Promis
   const [z] = await kontext.abfrage<{ slug: string }>(
     `select app.slug_aus_titel($1) as slug`, [titel]);
   return z?.slug ?? '';
+}
+
+/**
+ * Trägt eine Referenz dieser Gesellschaft diesen Slug schon — auch eine
+ * gelöschte (Invariante 8)?
+ *
+ * Für `/neu` (V-161): steht die Adresse aus dem vorbelegten Titel schon fest,
+ * sagt die Seite es VOR dem Absenden und verlangt einen eigenen Slug — statt
+ * dass der Mensch erst nach dem Absenden „diese Adresse ist vergeben" liest.
+ */
+export async function slugIstVergeben(kontext: LeseKontext, slug: string): Promise<boolean> {
+  if (slug === '') return false;
+  const [z] = await kontext.abfrage<{ ja: boolean }>(
+    `select exists (select 1 from referenz r
+                     where r.mandant_id = app.aktiver_mandant() and r.slug = $1) as ja`,
+    [slug]);
+  return z?.ja === true;
 }

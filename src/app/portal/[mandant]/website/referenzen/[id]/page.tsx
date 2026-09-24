@@ -22,7 +22,6 @@ import { Recht } from '@/components/ui/Recht';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { WEBSITE_REFERENZ_TEXTE } from '@/lib/i18n/verwaltung/website-referenz';
 import { eigenerEintrag } from '@/lib/nachschlagen';
-import { istUuid } from '@/lib/uuid';
 import {
   freigabeGilt, ladeFreigabestand, type Freigabestand,
 } from '@/server/services/auftrag/kundenfreigabe';
@@ -45,12 +44,18 @@ import {
  * sähe Formulare, die nichts ändern — deshalb stehen die Knöpfe nur, wo beide
  * Rechte da sind, und der Satz daneben sagt, welches fehlt.
  *
- * **Die Quelle ist diese Zeile und nicht der Auftrag.** Angelegt wird sie
- * unter `…/referenzen/neu` (V-154) — frei oder von der Kundenfreigabe eines
- * Auftrags aus. Im zweiten Fall bringt die Adresse `?auftrag=<id>` mit, und
- * der Freigabeblock unten schlägt Datum und Beleg aus dem Auftrag VOR; der
- * Haken bleibt leer, gespeichert wird erst durch einen Menschen (O-913).
- * `referenz` bekommt dadurch keinen Fremdschlüssel auf `auftrag`.
+ * **Die Herkunft steht in der Zeile, nicht in der Adresse** (V-161, 0410).
+ * Angelegt wird eine Referenz unter `…/referenzen/neu` aus einem
+ * abgeschlossenen Auftrag mit geltender Kundenfreigabe, und `auftrag_id` hält
+ * fest, aus welchem. Der Freigabeblock schlägt Datum und Beleg aus GENAU
+ * diesem Auftrag vor. Vorher kam die Kennung als `?auftrag=<id>` aus der
+ * Adresse, und jedes Referenzblatt schlug Datum und Beleg eines BELIEBIGEN
+ * Auftrags der Gesellschaft vor, ohne zu wissen, ob die Referenz aus ihm
+ * stammt. Der Haken bleibt leer; gespeichert wird erst durch einen Menschen
+ * (O-913).
+ *
+ * **Die ganze Seite spricht die Sprache der Sitzung** (V-161) — vorher stand
+ * der englische Hinweis „angelegt" neben deutschen Feldbeschriftungen.
  */
 export const dynamic = 'force-dynamic';
 
@@ -62,32 +67,6 @@ const BERLIN_TAG = new Intl.DateTimeFormat('de-DE', {
 
 const FELD = 'min-h-11 w-full rounded-md border border-line bg-surface px-s3 py-s2 '
   + 'text-sm text-text focus:border-brand focus:outline-none';
-
-const FEHLER: Readonly<Record<string, string>> = {
-  nicht_gefunden: 'Diese Referenz gibt es hier nicht.',
-  kein_freigaberecht: 'Jede Änderung an einer Referenz verlangt das Recht, '
-    + 'Kundenfreigaben zu erfassen (referenz.kundenfreigabe_erfassen). An der Referenz '
-    + 'hat sich nichts geändert.',
-  titel_fehlt: 'Eine Referenz ohne Titel hat keine Überschrift.',
-  slug_form: 'Der Slug besteht aus Kleinbuchstaben, Ziffern und einzelnen Bindestrichen '
-    + '— er ist Teil der öffentlichen Adresse.',
-  slug_vergeben: 'Diese Adresse trägt in dieser Gesellschaft schon eine andere Referenz '
-    + '— auch eine gelöschte hält ihren Slug weiter (Invariante 8). Trag einen anderen '
-    + 'Slug ein; das leere Feld schlägt den aus dem Titel vor, und der ist hier gerade '
-    + 'der belegte.',
-  jahr_ungueltig: 'Das Jahr liegt zwischen 1990 und 2100 — oder es bleibt leer.',
-  sortierung_ungueltig: 'Die Sortierung ist eine ganze Zahl ab null.',
-  bild_fremd: 'Dieses Bild gehört nicht zu dieser Gesellschaft.',
-  freigabe_ohne_datum: 'Eine Kundenfreigabe braucht ein Datum. Ohne Datum lässt die '
-    + 'Datenbank sie nicht zu — und beim Anruf des Kunden ist das Datum die Frage.',
-  freigabe_datum_form: 'Das Freigabedatum steht als Jahr-Monat-Tag, etwa 2026-03-29 — '
-    + 'und muss ein Tag sein, den es gibt.',
-  freigabe_ohne_beleg: 'Woraus geht die Zustimmung hervor? E-Mail, Vertragsklausel, '
-    + 'unterschriebenes Blatt — ein Satz genügt, aber er muss dastehen.',
-  nicht_geaendert: 'Der Schreibvorgang ging nicht durch. Die Referenz gehört nicht zu '
-    + 'dieser Gesellschaft, oder dieser Sitzung fehlt das Recht.',
-  unbekannte_handlung: 'Diese Handlung kennt die Route nicht.',
-};
 
 /** `YYYY-MM-DD` in Europe/Berlin — der Wert, den ein `<input type="date">` will. */
 function berlinTag(iso: string | null): string {
@@ -110,6 +89,7 @@ export default async function WebsiteReferenz(
   const tor = await mandantTor(pfad, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+  const sprache = zugang.sprache;
 
   const darf = await haeltRechte(
     zugang.sitzung, 'referenz.schreiben', 'referenz.kundenfreigabe_erfassen',
@@ -117,48 +97,52 @@ export default async function WebsiteReferenz(
   const nurLesen = zugang.sitzung.ansicht === 'gruppe';
   const schreibt = darf['referenz.schreiben'] === true
     && darf['referenz.kundenfreigabe_erfassen'] === true && !nurLesen;
-  const t = nachSprache(WEBSITE_REFERENZ_TEXTE, zugang.sprache);
-
-  const suche = await searchParams;
-  /*
-   * **Aus einem Auftrag angelegt (V-154).** Die Route hängt die Kennung des
-   * Auftrags an, von dessen Kundenfreigabe die Anlage ausging. Gelesen wird
-   * er nur mit `auftrag.lesen` — und nur eine GELTENDE Freigabe wird zum
-   * Vorschlag. Ein Vorschlag ist kein Eintrag: gespeichert wird die Freigabe
-   * erst, wenn ein Mensch unten den Haken setzt und speichert (PRO-05).
-   */
-  const auftragId = istUuid(suche['auftrag']) && darf['auftrag.lesen'] === true
-    ? suche['auftrag'] : null;
+  const liestAuftraege = darf['auftrag.lesen'] === true;
+  const t = nachSprache(WEBSITE_REFERENZ_TEXTE, sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, zugang.sitzung, async (kontext) => ({
-      referenz: await ladeReferenzZurPflege(kontext, referenzId),
-      bilder: await bilderZurWahl(kontext),
-      auftrag: auftragId === null ? null : await ladeFreigabestand(kontext, auftragId),
-    }))) as Promise<{
-      referenz: ReferenzDetail | null; bilder: readonly GaleriePflegeZeile[];
-      auftrag: Freigabestand | null;
+    withTenant(tx, zugang.sitzung, async (kontext) => {
+      const referenz = await ladeReferenzZurPflege(kontext, referenzId);
+      /*
+       * Der Auftrag der HERKUNFT — gelesen nur mit `auftrag.lesen`. Ohne das
+       * Recht sagt das Blatt, dass es ihn nicht lesen darf, und schlägt nichts
+       * vor; es behauptet nichts über ihn.
+       */
+      const auftrag = referenz !== null && referenz.auftragId !== null && liestAuftraege
+        ? await ladeFreigabestand(kontext, referenz.auftragId) : null;
+      return { referenz, auftrag, bilder: await bilderZurWahl(kontext) };
+    })) as Promise<{
+      referenz: ReferenzDetail | null; auftrag: Freigabestand | null;
+      bilder: readonly GaleriePflegeZeile[];
     }>);
 
   // 404 und nicht 403 (AUT-06).
   if (daten.referenz === null) notFound();
   const r = daten.referenz;
+  const herkunft = daten.auftrag;
 
+  const suche = await searchParams;
   const abgewiesen = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const gespeichert = typeof suche['gespeichert'] === 'string'
     ? suche['gespeichert'] : null;
   const angelegt = suche['angelegt'] === '1';
-  const vorschlag = !r.freigegeben && daten.auftrag !== null && freigabeGilt(daten.auftrag)
-    ? daten.auftrag : null;
+  const vorhanden = suche['vorhanden'] === '1';
+  /*
+   * Ein Vorschlag nur aus dem EIGENEN Auftrag und nur, solange dessen Freigabe
+   * gilt — ein Widerruf trägt kein Datum mehr in eine neue Zustimmung.
+   */
+  const vorschlag = !r.freigegeben && herkunft !== null && freigabeGilt(herkunft)
+    ? herkunft : null;
 
   const oeffentlich = `/unternehmen/${mandant}/projekte/${r.slug}`;
   const draussen = r.status === 'veroeffentlicht';
+  const verweis = 'text-text underline underline-offset-2 hover:text-brand';
 
   return (
     <PortalRahmen
-      zurueck={{ ziel: `/portal/${mandant}/website/referenzen`, text: 'Referenzen' }}
+      zurueck={{ ziel: `/portal/${mandant}/website/referenzen`, text: t.blattZurueck }}
       titel={r.titel}
-      wurzelTitel="Website"
+      wurzelTitel={t.wurzelTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={nurLesen}
       leiste={zugang.leiste}
@@ -173,19 +157,19 @@ export default async function WebsiteReferenz(
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 min-w-0 text-h1 text-text">{r.titel}</h1>
         <span className="inline-flex flex-wrap items-center gap-s2">
-          <StatusPill zustand={draussen ? 'Aktiv' : 'Entwurf'} />
-          <StatusPill zustand={r.freigegeben ? 'Bereit' : 'Wartet'} />
+          <StatusPill zustand={draussen ? 'Aktiv' : 'Entwurf'} sprache={sprache} />
+          <StatusPill zustand={r.freigegeben ? 'Bereit' : 'Wartet'} sprache={sprache} />
         </span>
       </div>
 
       {abgewiesen === null ? null : (
         <Hinweis art="warnung" cse="referenz-fehler" className="mb-s5 max-w-prose">
-          {eigenerEintrag(FEHLER, abgewiesen) ?? 'Die Handlung wurde abgewiesen.'}
+          {eigenerEintrag(t.blattFehler, abgewiesen) ?? t.blattFehlerSonst}
         </Hinweis>
       )}
       {gespeichert === null ? null : (
         <Hinweis art="erfolg" cse="referenz-gespeichert" className="mb-s5 max-w-prose">
-          Gespeichert.
+          {t.gespeichert}
         </Hinweis>
       )}
       {angelegt && (
@@ -194,21 +178,56 @@ export default async function WebsiteReferenz(
           {t.angelegtText}
         </Hinweis>
       )}
+      {vorhanden && (
+        <Hinweis art="hinweis" cse="referenz-vorhanden" className="mb-s5 max-w-prose">
+          <strong className="block">{t.vorhandenTitel}</strong>
+          {t.vorhandenText}
+        </Hinweis>
+      )}
       {!schreibt && !nurLesen && (
         <Hinweis art="warnung" cse="ohne-schreibrecht" className="mb-s5 max-w-prose">
-          <strong className="block">Diese Seite ist hier nur lesbar.</strong>
-          Eine Änderung an einer Referenz verlangt{' '}
-          <Recht schluessel="referenz.schreiben" /> UND{' '}
-          <Recht schluessel="referenz.kundenfreigabe_erfassen" /> — das
-          zweite steht in der Policy <code className="font-mono">t_referenz_pflege</code>{' '}
-          für jeden Schreibvorgang auf dieser Tabelle, nicht nur für das Häkchen.
-          Formulare, die nichts ändern, stehen deshalb hier nicht.
+          <strong className="block">{t.blattNurLesbarTitel}</strong>
+          {t.blattNurLesbarVor}{' '}
+          <Recht schluessel="referenz.schreiben" sprache={sprache} />{' '}
+          {t.blattNurLesbarUnd}{' '}
+          <Recht schluessel="referenz.kundenfreigabe_erfassen" sprache={sprache} />{' '}
+          {t.blattNurLesbarNach}
         </Hinweis>
       )}
 
+      {/* ── Herkunft ────────────────────────────────────────────────────── */}
+      <Card className="mb-s5">
+        <h2 className="mb-s3 mt-0 text-h3 text-text">{t.herkunftTitel}</h2>
+        <div className="max-w-prose text-sm text-text-muted" data-cse="herkunft"
+             data-auftrag={r.auftragId ?? ''}>
+          {r.auftragId === null ? (
+            <p className="m-0">{t.herkunftAltbestand}</p>
+          ) : herkunft === null ? (
+            <p className="m-0">{t.herkunftUnlesbar}</p>
+          ) : (
+            <>
+              <p className="m-0 text-text">
+                {t.herkunftAuftrag(herkunft.auftragsnummer, herkunft.kunde)}
+              </p>
+              {herkunft.widerrufen_am !== null && (
+                <p className="mb-0 mt-s2">{t.herkunftWiderrufen(herkunft.widerrufen_am)}</p>
+              )}
+              {darf['referenz.kundenfreigabe_erfassen'] === true && (
+                <p className="mb-0 mt-s2">
+                  <Link href={`/portal/${mandant}/auftraege/${herkunft.auftrag_id}/kundenfreigabe`}
+                        className={verweis} data-cse="zur-herkunft">
+                    {t.herkunftZumAuftrag}
+                  </Link>
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </Card>
+
       {/* ── Die öffentliche Adresse ─────────────────────────────────────── */}
       <Card className="mb-s5">
-        <h2 className="mb-s3 mt-0 text-h3 text-text">Öffentliche Adresse</h2>
+        <h2 className="mb-s3 mt-0 text-h3 text-text">{t.adresseTitel}</h2>
         <p className="m-0" data-cse="kanonische-adresse">
           {draussen && r.freigegeben ? (
             <a href={oeffentlich}
@@ -220,18 +239,13 @@ export default async function WebsiteReferenz(
           )}
         </p>
         <p className="mb-0 mt-s3 max-w-prose text-xs text-text-subtle">
-          {draussen && r.freigegeben
-            ? 'Ein geänderter Slug bricht jeden eingehenden Verweis und jeden Eintrag im '
-              + 'Index einer Suchmaschine. Die alte Adresse antwortet danach mit 404.'
-            : 'Diese Adresse antwortet heute mit 404: öffentlich ist eine Referenz nur '
-              + 'mit Kundenfreigabe UND veröffentlichtem Zustand — beides prüft die '
-              + 'Policy t_referenz_oeffentlich.'}
+          {draussen && r.freigegeben ? t.adresseOeffentlich : t.adresseNochNicht}
         </p>
       </Card>
 
       {/* ── Felder ──────────────────────────────────────────────────────── */}
       <Card className="mb-s5">
-        <h2 className="mb-s3 mt-0 text-h3 text-text">Projekt</h2>
+        <h2 className="mb-s3 mt-0 text-h3 text-text">{t.projektTitel}</h2>
         {schreibt ? (
           <form method="post" action="/api/website/referenz"
                 className="flex max-w-prose flex-col gap-s4" data-cse="referenz-formular">
@@ -239,82 +253,81 @@ export default async function WebsiteReferenz(
             <input type="hidden" name="id" value={r.id} />
             <input type="hidden" name="zurueck" value={pfad} />
 
-            <FormField label="Titel" name="titel" defaultValue={r.titel} required
+            <FormField label={t.feldTitel} name="titel" defaultValue={r.titel} required
                        maxLength={200} />
             <FormField
-              label="Slug — der letzte Teil der Adresse" name="slug"
+              label={t.feldSlug} name="slug"
               defaultValue={r.slug} pattern="[a-z0-9]+(-[a-z0-9]+)*"
-              hinweis="Leer lassen schlägt einen aus dem Titel vor (app.slug_aus_titel) — dieselbe Funktion, die beim Anlegen greift."
+              hinweis={t.slugHinweisBlatt}
             />
             <FormField
-              label="Kundenname" name="kundeName" defaultValue={r.kundeName ?? ''}
+              label={t.feldKunde} name="kundeName" defaultValue={r.kundeName ?? ''}
               maxLength={200}
-              hinweis="Er geht nur mit Kundenfreigabe hinaus — der Block darunter."
+              hinweis={t.kundeHinweisBlatt}
             />
             <div className="flex flex-col gap-s2">
               <label htmlFor="beschreibung" className="text-xs text-text-muted">
-                Beschreibung
+                {t.feldBeschreibung}
               </label>
               <textarea id="beschreibung" name="beschreibung" rows={6} className={FELD}
-                        defaultValue={r.beschreibung ?? ''} />
+                        defaultValue={r.beschreibung ?? ''}
+                        aria-describedby="beschreibung-hinweis" />
+              <p id="beschreibung-hinweis" className="m-0 text-xs text-text-subtle">
+                {t.beschreibungHinweis}
+              </p>
             </div>
-            <FormField label="Jahr" name="jahr" type="number" min={1990} max={2100}
+            <FormField label={t.feldJahr} name="jahr" type="number" min={1990} max={2100}
                        step={1} defaultValue={r.jahr === null ? '' : String(r.jahr)} />
-            <FormField label="Sortierung" name="sortierung" type="number" min={0} step={1}
+            <FormField label={t.feldSortierung} name="sortierung" type="number" min={0} step={1}
                        defaultValue={String(r.sortierung)}
-                       hinweis="Kleinere Zahlen stehen auf der Projektliste oben." />
+                       hinweis={t.sortierungHinweis} />
 
             <div className="flex flex-col gap-s2">
               <label htmlFor="medienId" className="text-xs text-text-muted">
-                Bild — aus den Bildern dieser Gesellschaft
+                {t.feldBild}
               </label>
               <select id="medienId" name="medienId" className={FELD}
                       defaultValue={r.medienId ?? ''} data-cse="bild-wahl">
-                <option value="">kein Bild</option>
+                <option value="">{t.keinBild}</option>
                 {daten.bilder.map((b) => (
                   <option key={b.id} value={b.id}>
-                    {`${b.alt}${b.platzhalter ? ' (Platzhalter)' : ''}`}
+                    {`${b.alt}${b.platzhalter ? t.platzhalterZusatz : ''}`}
                   </option>
                 ))}
               </select>
               <p className="m-0 text-xs text-text-subtle">
-                {daten.bilder.length === 0
-                  ? 'Für diese Gesellschaft ist kein Bild erfasst. medien-Zeilen '
-                    + 'entstehen über pnpm content:import; einen Upload gibt es im '
-                    + 'Portal nicht.'
-                  : 'Echtes Bildmaterial mit Freigaben fehlt noch (O-13) — was hier als '
-                    + 'Platzhalter markiert ist, gehört nicht auf eine Kundenreferenz.'}
+                {daten.bilder.length === 0 ? t.keineBilder : t.bilderPlatzhalter}
               </p>
             </div>
 
             <Button type="submit" variante="secondary" className="self-start"
                     data-cse="referenz-speichern">
-              Speichern
+              {t.speichern}
             </Button>
           </form>
         ) : (
           <dl className="grid grid-cols-1 gap-s3 sm:grid-cols-2">
             <div>
-              <dt className="text-xs text-text-muted">Kunde</dt>
+              <dt className="text-xs text-text-muted">{t.spalteKunde}</dt>
               <dd className="m-0 text-sm text-text">{r.kundeName ?? '—'}</dd>
             </div>
             <div>
-              <dt className="text-xs text-text-muted">Jahr</dt>
+              <dt className="text-xs text-text-muted">{t.feldJahr}</dt>
               <dd className="m-0 text-sm text-text">
                 {r.jahr === null ? '—' : String(r.jahr)}
               </dd>
             </div>
             <div className="sm:col-span-2">
-              <dt className="text-xs text-text-muted">Beschreibung</dt>
+              <dt className="text-xs text-text-muted">{t.feldBeschreibung}</dt>
               <dd className="m-0 whitespace-pre-line text-sm text-text-muted">
                 {r.beschreibung ?? '—'}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-text-muted">Bild</dt>
+              <dt className="text-xs text-text-muted">{t.feldBild}</dt>
               <dd className="m-0 text-sm text-text-muted">
-                {r.medienAlt ?? 'kein Bild'}
-                {r.medienPlatzhalter === true ? ' (Platzhalter)' : ''}
+                {r.medienAlt ?? t.keinBild}
+                {r.medienPlatzhalter === true ? t.platzhalterZusatz : ''}
               </dd>
             </div>
           </dl>
@@ -323,30 +336,27 @@ export default async function WebsiteReferenz(
 
       {/* ── Kundenfreigabe ──────────────────────────────────────────────── */}
       <Card className="mb-s5">
-        <h2 className="mb-s3 mt-0 text-h3 text-text">Kundenfreigabe</h2>
+        <h2 className="mb-s3 mt-0 text-h3 text-text">{t.freigabeTitel}</h2>
         <p className="mb-s4 mt-0 max-w-prose text-sm text-text-muted">
-          Ohne schriftliche Zustimmung des Kunden geht sein Name nicht auf die Website.
-          Die Datenbank lässt eine Freigabe <strong>ohne Datum</strong> gar nicht zu
-          (<code className="font-mono">referenz_freigabe_belegt</code>) — und der Beleg
-          steht dabei, weil beim Anruf des Kunden genau danach gefragt wird.
+          {t.freigabeErklaerung}
         </p>
 
         <dl className="mb-s4 grid grid-cols-1 gap-s3 sm:grid-cols-3">
           <div>
-            <dt className="text-xs text-text-muted">Stand</dt>
+            <dt className="text-xs text-text-muted">{t.freigabeStand}</dt>
             <dd className="m-0" data-cse="kundenfreigabe"
                 data-freigegeben={r.freigegeben ? 'ja' : 'nein'}>
-              <StatusPill zustand={r.freigegeben ? 'Bereit' : 'Wartet'} />
+              <StatusPill zustand={r.freigegeben ? 'Bereit' : 'Wartet'} sprache={sprache} />
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-text-muted">Erteilt am</dt>
+            <dt className="text-xs text-text-muted">{t.erteiltAm}</dt>
             <dd className="m-0 text-sm text-text">
               {r.freigabeAm === null ? '—' : BERLIN_TAG.format(new Date(r.freigabeAm))}
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-text-muted">Beleg</dt>
+            <dt className="text-xs text-text-muted">{t.beleg}</dt>
             <dd className="m-0 text-sm text-text-muted">{r.freigabeBeleg ?? '—'}</dd>
           </div>
         </dl>
@@ -362,10 +372,7 @@ export default async function WebsiteReferenz(
                 className="flex max-w-prose flex-col gap-s4" data-cse="freigabe-formular">
             <input type="hidden" name="handlung" value="freigabe" />
             <input type="hidden" name="id" value={r.id} />
-            {/* Mit Vorschlag reist der Auftrag im Rückweg mit: eine abgewiesene
-                Freigabe (etwa ohne Beleg) soll den Vorschlag nicht verlieren. */}
-            <input type="hidden" name="zurueck"
-                   value={vorschlag === null ? pfad : `${pfad}?auftrag=${vorschlag.auftrag_id}`} />
+            <input type="hidden" name="zurueck" value={pfad} />
 
             {/*
               * Der Haken bleibt auch mit Vorschlag LEER: Datum und Beleg aus
@@ -376,13 +383,13 @@ export default async function WebsiteReferenz(
               <input type="checkbox" name="freigegeben" value="1"
                      defaultChecked={r.freigegeben}
                      className="size-4 accent-[var(--brand)]" data-cse="freigabe-haken" />
-              <span>Der Kunde hat schriftlich zugestimmt.</span>
+              <span>{t.freigabeHaken}</span>
             </label>
-            <FormField label="Datum der Zustimmung" name="freigabeAm" type="date"
+            <FormField label={t.freigabeDatum} name="freigabeAm" type="date"
                        defaultValue={vorschlag?.freigabe_tag ?? berlinTag(r.freigabeAm)} />
             <div className="flex flex-col gap-s2">
               <label htmlFor="freigabeBeleg" className="text-xs text-text-muted">
-                Beleg — woraus geht die Zustimmung hervor?
+                {t.freigabeBelegFrage}
               </label>
               <textarea id="freigabeBeleg" name="freigabeBeleg" rows={3} className={FELD}
                         defaultValue={vorschlag === null
@@ -392,7 +399,7 @@ export default async function WebsiteReferenz(
             </div>
             <Button type="submit" variante="secondary" className="self-start"
                     data-cse="freigabe-speichern">
-              Freigabe speichern
+              {t.freigabeSpeichern}
             </Button>
           </form>
         )}
@@ -401,24 +408,23 @@ export default async function WebsiteReferenz(
       {/* ── Weg zur Veröffentlichung ────────────────────────────────────── */}
       {darf['referenz.veroeffentlichen'] === true ? (
         <Card>
-          <h2 className="mb-s3 mt-0 text-h3 text-text">Veröffentlichung</h2>
+          <h2 className="mb-s3 mt-0 text-h3 text-text">{t.veroeffentlichungTitel}</h2>
           <p className="mb-s4 mt-0 max-w-prose text-sm text-text-muted">
-            Auf die Website stellen ist eine eigene Entscheidung mit einem eigenen Recht
-            (<Recht schluessel="referenz.veroeffentlichen" />). Die
-            ausführliche Fassung zeigt vorher, was öffentlich würde.
+            {t.veroeffentlichungVor}
+            <Recht schluessel="referenz.veroeffentlichen" sprache={sprache} />
+            {t.veroeffentlichungNach}
           </p>
           <Link href={`/portal/${mandant}/website/referenzen/${referenzId}/veroeffentlichen`}
                 data-cse="zur-veroeffentlichung"
                 className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">
-            Zur Veröffentlichung
+            {t.zurVeroeffentlichung}
           </Link>
         </Card>
       ) : (
         <p className="max-w-prose text-xs text-text-subtle">
-          Auf die Website stellen darf, wer{' '}
-          <Recht schluessel="referenz.veroeffentlichen" /> hält — heute nur
-          die Super-Administration. Diese Sitzung pflegt die Angaben; die Entscheidung
-          fällt anderswo.
+          {t.nurSuperAdminVor}{' '}
+          <Recht schluessel="referenz.veroeffentlichen" sprache={sprache} />{' '}
+          {t.nurSuperAdminNach}
         </p>
       )}
     </PortalRahmen>

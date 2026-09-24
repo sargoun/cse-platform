@@ -1,9 +1,15 @@
 /**
  * Referenzen (PRO-05) — hinter einer Schnittstelle.
  *
- * Die echte Quelle haengt an `auftrag` und kommt mit PR 27. Bis dahin liest
- * `ReferenzAusTabelle` die gepflegten Zeilen. Beide erfuellen denselben
- * Vertrag, und beide geben **ausschliesslich** freigegebene Eintraege zurueck.
+ * `ReferenzAusTabelle` liest die gepflegten `referenz`-Zeilen und gibt
+ * **ausschliesslich** freigegebene Eintraege zurueck. Eine Zeile entsteht seit
+ * V-161 nur aus einem abgeschlossenen Auftrag mit geltender Kundenfreigabe
+ * und haelt ihn fest (`referenz.auftrag_id`, 0410, D-654) — die Tabelle IST
+ * damit die Quelle aus echten Auftraegen, die PR 27 angekuendigt hatte, mit
+ * einer eigenen, oeffentlichen Formulierung und einer eigenen Freigabe je
+ * Referenz (PRO-05 trennt beides; O-913). Eine Quelle, die Auftraege direkt
+ * liest, gibt es deshalb nicht: sie veroeffentlichte die Bezeichnung aus der
+ * Kundenakte, ueber die niemand einzeln entschieden hat.
  *
  * Die Filterung steht an ZWEI Stellen — hier und in der RLS-Policy. Das ist
  * keine Doppelung aus Unsicherheit: ein Kundenname auf einer Website ohne
@@ -183,7 +189,16 @@ export class ReferenzAusTabelle implements ReferenzQuelle {
 }
 
 /**
- * // TODO(client): O-13 — die echte Quelle liest abgeschlossene `auftrag`-Zeilen
- * // mit Kundenfreigabe (PR 27). Der Vertrag steht; die Implementierung wartet
- * // auf das Auftragsmodell.
+ * **Hier stand ein Merker, der nicht mehr stimmte** (V-161) — eine Frage an
+ * den Auftraggeber mit der Nummer O-13: „die echte Quelle liest abgeschlossene
+ * auftrag-Zeilen mit Kundenfreigabe (PR 27)". Zweimal daneben: O-13 ist die
+ * FOTOGRAFIE (echtes
+ * Bildmaterial), nicht die Herkunft einer Referenz — und die Frage war keine
+ * an den Auftraggeber, sondern eine Bauaufgabe, die das Auftragsmodell
+ * inzwischen erfüllt: `legeReferenzAn` verlangt den abgeschlossenen Auftrag,
+ * und die Zeile hält ihn fest (0410). Offen beim Auftraggeber sind zwei
+ * andere Fragen, jede mit ihrem Merker an der Stelle, die sie ändern würde:
+ * O-913 (deckt die Freigabe am Auftrag die Referenz in ihrer veröffentlichten
+ * Fassung?) in `inhalt/redaktion.ts` und O-914 (genügt ein laufender
+ * Auftrag?) in `auftrag/kundenfreigabe.ts`.
  */

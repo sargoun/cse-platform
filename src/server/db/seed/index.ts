@@ -32,6 +32,7 @@ import { seedEingang } from './eingang.js';
 import { seedFinanzAusgaben } from './finanz-ausgabe.js';
 import { seedRechnungen } from './rechnung.js';
 import { seedSocial } from './social.js';
+import { seedReferenzAusAuftrag } from './referenzauftrag.js';
 import { seedRecruiting } from './recruiting.js';
 import { seedAkquise } from './akquise.js';
 import { seedBerichtsdaten } from './berichtsdaten.js';
@@ -1926,6 +1927,18 @@ async function main(): Promise<void> {
         + `${String(social.referenzen)} freigegebene Referenzen (SOC-04) und `
         + `${String(social.galeriebilder)} Galeriebilder — als PLATZHALTER markiert, `
         + `weil die fünf CC0-Motive kein Objekt dieser Gruppe zeigen (O-13)\n`));
+
+  /**
+   * Eine Referenz aus einem ABGESCHLOSSENEN Auftrag (V-161, PRO-05) — nach den
+   * Kunden und dem Auftragskreis, nur auf der Vorführfläche (D-537): die
+   * Kundenfreigabe darin ist erfunden und steht als DEMODATEN im Wortlaut.
+   */
+  const referenzAuftrag = await seedReferenzAusAuftrag(sql, ids, demodaten);
+  process.stdout.write(referenzAuftrag.auftragsnummer === null
+    ? `  Referenz aus Auftrag: keine — ${referenzAuftrag.grund ?? 'übersprungen'}\n`
+    : `  Auftrag ${referenzAuftrag.auftragsnummer} abgeschlossen, mit Kundenfreigabe `
+      + `(DEMODATEN); daraus die Referenz „${referenzAuftrag.referenz ?? '—'}" als Entwurf `
+      + 'ohne eigene Freigabe (O-913)\n');
 
   /**
    * Recruiting NACH den Freigaben: eine veröffentlichte Stelle hängt an einer
