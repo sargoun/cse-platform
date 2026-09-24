@@ -11,11 +11,17 @@
  *     Seite liest.
  *  2. **Die Gruppenübersicht trägt sichtbar `NUR LESEN`** — hier und im
  *     Header, sobald sie aktiv ist. Sie ist nie ein Ort, an dem etwas entsteht.
+ *
+ * **Die Wörter kommen von aussen** (V-165): das interne Portal spricht zwei
+ * Sprachen (D-592), und der Umschalter steht seit V-165 auf jeder seiner
+ * Seiten. Ohne Angabe gilt Deutsch — die Vorschau unter `/dev/portal`.
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { BereichsAvatar } from '@/components/ui/AreaBadge';
 import { StatusPill } from '@/components/ui/StatusPill';
-import type { UmschalterBereich } from './typen';
+import { Marke } from '@/components/marke/Marke';
+import { ausloeserName, BEREICHSWECHSEL_TEXTE } from '@/lib/i18n/verwaltung/bereichswechsel';
+import type { UmschalterBereich, UmschalterTexte } from './typen';
 
 export interface BereichsUmschalterProps {
   readonly bereiche: readonly UmschalterBereich[];
@@ -25,10 +31,37 @@ export interface BereichsUmschalterProps {
   /** Darf der Benutzer die Gruppenübersicht überhaupt sehen? */
   readonly gruppeSichtbar?: boolean;
   readonly onWechsel: (mandantId: string | null) => void;
+  readonly texte?: UmschalterTexte;
+  /** Die Sitzungssprache — für die `NUR LESEN`-Pille. */
+  readonly sprache?: string | null;
+  /**
+   * In der Kopfzeile des Portals steht neben dem Auslöser schon der
+   * Seitentitel; unter `lg` trägt der Auslöser dann nur Zeichen und Chevron,
+   * der Name erscheint ab `lg` (DESIGN §8: keine Zeile über den Rand).
+   *
+   * **Ab `lg` und nicht ab `sm`.** Zwischen 640 und 1024 px steht rechts die
+   * ganze Sitzungsnavigation (Bereich, Konto, Website, Sprache, Abmelden) —
+   * dazu ein Auslöser mit vollem Firmennamen, und die Zeile lief über den
+   * Rand. Der Name steht dort trotzdem: als Seitentitel daneben.
+   */
+  readonly knapp?: boolean;
+}
+
+/** Das Zeichen einer Zeile: der Avatar im Hue — oder, ohne eigenen Hue, das der Gruppe. */
+function Zeichen({ bereich, aktiv = false }: {
+  readonly bereich: UmschalterBereich['bereich']; readonly aktiv?: boolean;
+}) {
+  if (bereich !== null) return <BereichsAvatar bereich={bereich} aktiv={aktiv} />;
+  return (
+    <span aria-hidden="true" className="inline-flex h-8 w-8 shrink-0 items-center justify-center">
+      <Marke art="gruppe" groesse="md" />
+    </span>
+  );
 }
 
 export function BereichsUmschalter({
   bereiche, aktiv, gruppenansicht = false, gruppeSichtbar = true, onWechsel,
+  texte = BEREICHSWECHSEL_TEXTE.de, sprache = null, knapp = false,
 }: BereichsUmschalterProps) {
   const [offen, setOffen] = useState(false);
   const [fokus, setFokus] = useState(0);
@@ -75,6 +108,8 @@ export function BereichsUmschalter({
   }, [offen, fokus]);
 
   const aktiverBereich = bereiche.find((b) => b.id === aktiv);
+  /* Dieselbe Regel, nach der der Rahmen entscheidet, ob daneben noch ein Logo steht. */
+  const name = ausloeserName(bereiche, aktiv, gruppenansicht, texte);
 
   /**
    * Regel 1. Ein Bereich und keine Gruppenübersicht: ein statisches Logo.
@@ -84,7 +119,7 @@ export function BereichsUmschalter({
     const einziger = bereiche[0];
     return (
       <div className="flex h-11 items-center gap-s2 px-s2" data-cse="logo-statisch">
-        {einziger !== undefined && <BereichsAvatar bereich={einziger.bereich} />}
+        {einziger !== undefined && <Zeichen bereich={einziger.bereich} />}
         <span className="text-sm font-semibold text-text">
           {einziger?.name ?? 'CSE'}
         </span>
@@ -107,7 +142,12 @@ export function BereichsUmschalter({
   }
 
   return (
-    <div className="relative">
+    /*
+     * `min-w-0` hier, `max-w-full` am Knopf und `truncate` am Namen: ein
+     * langer Firmenname (ein fünfter Bereich, TEN-08) wird gekürzt, statt die
+     * Kopfzeile über den Rand zu schieben (DESIGN §8).
+     */
+    <div className="relative min-w-0">
       <button
         ref={knopfRef}
         type="button"
@@ -115,14 +155,18 @@ export function BereichsUmschalter({
         aria-expanded={offen}
         aria-controls={offen ? menuId : undefined}
         onClick={() => { setOffen((o) => !o); setFokus(Math.max(0, zeilen.indexOf(aktiv))); }}
-        className="flex h-11 items-center gap-s2 rounded-md px-s2 hover:bg-surface-2"
+        aria-label={`${texte.ausloeser}: ${name}`}
+        className="flex h-11 min-w-11 max-w-full items-center gap-s2 rounded-md px-s2
+                   hover:bg-surface-2"
         data-cse="umschalter-ausloeser"
       >
-        {aktiverBereich !== undefined && <BereichsAvatar bereich={aktiverBereich.bereich} />}
-        <span className="text-sm font-semibold text-text">
-          {gruppenansicht ? 'Gruppenübersicht' : aktiverBereich?.name ?? 'Bereich wählen'}
+        {gruppenansicht || aktiverBereich === undefined
+          ? <Zeichen bereich={null} />
+          : <Zeichen bereich={aktiverBereich.bereich} />}
+        <span className={`truncate text-sm font-semibold text-text ${knapp ? 'hidden lg:inline' : ''}`}>
+          {name}
         </span>
-        {gruppenansicht && <StatusPill zustand="Nur Lesen" />}
+        {gruppenansicht && !knapp && <StatusPill zustand="Nur Lesen" sprache={sprache} />}
         <span aria-hidden className="text-text-muted" data-cse="chevron">⌄</span>
       </button>
 
@@ -131,13 +175,14 @@ export function BereichsUmschalter({
           ref={listeRef}
           id={menuId}
           role="menu"
-          aria-label="Bereich wechseln"
+          aria-label={texte.kopf}
           onKeyDown={beiListenTaste}
           data-cse="umschalter-menue"
-          className="absolute left-0 z-50 mt-s2 w-[320px] rounded-lg bg-surface-2 p-s2 shadow-pop"
+          className="absolute start-0 z-50 mt-s2 w-[320px] rounded-lg
+                     bg-surface-2 p-s2 shadow-pop"
         >
           <p className="px-s2 py-s1 text-micro uppercase tracking-[0.08em] text-text-subtle">
-            Bereich wechseln
+            {texte.kopf}
           </p>
 
           {bereiche.map((b, i) => (
@@ -153,16 +198,17 @@ export function BereichsUmschalter({
               className={`flex w-full items-center gap-s3 rounded-md p-s2 text-left hover:bg-surface-3
                 ${b.id === aktiv && !gruppenansicht ? 'bg-surface-3' : ''}`}
             >
-              <BereichsAvatar bereich={b.bereich} aktiv={b.id === aktiv && !gruppenansicht} />
+              <Zeichen bereich={b.bereich} aktiv={b.id === aktiv && !gruppenansicht} />
               <span className="flex min-w-0 flex-col">
                 <span className="truncate text-sm font-semibold text-text">{b.name}</span>
-                <span className="truncate text-xs text-text-muted">
-                  {b.gewerk}
-                  {/* Der Zähler ist LIVE. `null` heisst: der Benutzer hält
-                      `gruppe.bericht.lesen` nicht — dann steht dort nichts,
-                      und keine erfundene Null. */}
-                  {b.zaehler !== null && ` · ${b.zaehler} ${b.zaehlerWort}`}
-                </span>
+                {/* Der Zähler ist LIVE (0417). `null` heisst: kein Gewerk und
+                    kein Zähler, den dieser Mensch lesen darf — dann steht dort
+                    nichts, und keine erfundene Null. */}
+                {b.unterzeile !== null && (
+                  <span className="truncate text-xs text-text-muted" data-cse="umschalter-zaehler">
+                    {b.unterzeile}
+                  </span>
+                )}
               </span>
               {b.id === aktiv && !gruppenansicht && (
                 <span aria-hidden className="ml-auto text-brand">✓</span>
@@ -185,8 +231,8 @@ export function BereichsUmschalter({
                 className="flex w-full items-center gap-s3 rounded-md p-s2 text-left hover:bg-surface-3"
               >
                 <span aria-hidden className="text-text-muted">⊞</span>
-                <span className="text-sm text-text-muted">Gruppenübersicht</span>
-                <span className="ml-auto"><StatusPill zustand="Nur Lesen" /></span>
+                <span className="text-sm text-text-muted">{texte.gruppenuebersicht}</span>
+                <span className="ms-auto"><StatusPill zustand="Nur Lesen" sprache={sprache} /></span>
               </button>
             </>
           )}

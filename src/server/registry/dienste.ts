@@ -1307,6 +1307,13 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'system.module_zuweisen',
   },
   /**
+   * V-165 — was der Bereichsumschalter ueber eine Anmeldung weiss (TEN-06,
+   * TEN-10, DESIGN §6). Lesend: `app.umschalter_bereiche`,
+   * `app.darf_gruppenansicht` und `app.mandant_kennzahlen` (0417) — nur
+   * Anzahlen, nur mit dem Leserecht des Betrachters je Bereich.
+   */
+  { modul: 'system', pfad: 'mandant/umschalter', schreibend: false },
+  /**
    * V-081 — der Auftrag laeuft, ruht oder ist storniert.
    *
    * `auftrag.schreiben` und ausdruecklich nicht `auftrag.abschliessen`:

@@ -138,6 +138,10 @@ clone, and the architecture document is reviewed.
       register with region and an honest "no contract date on file"
 - [x] **Mandant switcher per DESIGN §6** — avatar + ring, dropdown with live
       counters, group entry marked `NUR LESEN`, top hue bar, `⌘K` shortcut
+      (in the real portal header since V-165, D-659: before that it lived only
+      in `/dev/portal` with fixed numbers; counters from
+      `app.mandant_kennzahlen`, filtered by the viewer's read rights; with one
+      area neither switcher nor "Bereich wechseln")
 - [x] Group view route exists and is **read-only** at the service layer
 - [x] **Group view pages** (D-475): overview matrix per company with group
       sums, and read-only lists for orders, customers, leads, projects,

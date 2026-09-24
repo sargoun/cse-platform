@@ -1619,6 +1619,13 @@ die rechtliche Fußzeile, die auf jedem Angebot und jeder Rechnung dieser Entit�
 
 ### 6.3 mandant_kennzahl
 
+> **Stand D-659 (V-165, `drizzle/0417`):** gebaut ist der Lesepfad
+> `app.mandant_kennzahlen() returns table (mandant_id uuid, schluessel text, wert integer)` —
+> LIVE gezählt über vorhandene Indizes, ohne die Tabelle unten und ohne Job, und gefiltert nach dem
+> Leserecht des Betrachters je Bereich (`auftrag.lesen`, `bau.lesen`). Die Tabelle bleibt hier als
+> Entwurf stehen, falls die Zählung je einmal zu teuer wird; dann ändert sich nur der Körper der
+> Funktion, nicht ihr Vertrag.
+
 Der Zählerstand je Bereich für das Switcher-Dropdown — „Reinigung · 24 Aufträge" —, als Cache
 berechnet, damit das Dropdown keine vier mandantenübergreifenden Aggregate pro Render auslöst.
 

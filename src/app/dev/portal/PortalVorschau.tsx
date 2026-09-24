@@ -6,21 +6,30 @@ import { Card } from '@/components/ui/Card';
 import { KpiStat } from '@/components/ui/KpiStat';
 import { NAVIGATION, GRUPPEN_NAVIGATION } from '@/server/registry/navigation';
 import type { UmschalterBereich } from '@/components/portal/typen';
+import { unterzeile } from '@/lib/i18n/verwaltung/bereichswechsel';
 
 /**
  * Beispieldaten in Berliner Wirklichkeit. Die Zähler sind hier fest — in der
- * Anwendung kommen sie aus einer Live-Abfrage je Bereich (DESIGN §6 Regel 2),
- * und `null` heisst dort: der Benutzer hält `gruppe.bericht.lesen` nicht.
+ * Anwendung kommen sie live aus `app.mandant_kennzahlen()` (0417, DESIGN §6
+ * Regel 2), und ohne Leserecht steht dort keiner (V-165, D-659).
  */
-const BEREICHE: readonly UmschalterBereich[] = [
-  { id: 'm1', slug: 'reinigung', name: 'CSE Dienstleistung', gewerk: 'Reinigung',
-    zaehler: 24, zaehlerWort: 'Aufträge', bereich: 'reinigung' },
-  { id: 'm2', slug: 'security', name: 'SSE Security', gewerk: 'Sicherheit',
-    zaehler: 8, zaehlerWort: 'Aufträge', bereich: 'security' },
-  { id: 'm3', slug: 'bau', name: 'REALTIME Service', gewerk: 'Bau',
-    zaehler: 12, zaehlerWort: 'Projekte', bereich: 'bau' },
-  { id: 'm4', slug: 'operations', name: 'CSE Operations', gewerk: 'Digital & KI',
-    zaehler: null, zaehlerWort: '', bereich: 'operations' },
+type VorschauBereich = UmschalterBereich & {
+  readonly gewerk: string;
+  readonly zaehler: number | null;
+};
+
+const BEREICHE: readonly VorschauBereich[] = [
+  { id: 'm1', slug: 'reinigung', name: 'CSE Dienstleistung', gewerk: 'Reinigung', zaehler: 24,
+    unterzeile: unterzeile(['reinigung'], { schluessel: 'auftraege_aktiv', wert: 24 }, 'de'),
+    bereich: 'reinigung' },
+  { id: 'm2', slug: 'security', name: 'SSE Security', gewerk: 'Sicherheit', zaehler: 8,
+    unterzeile: unterzeile(['security'], { schluessel: 'auftraege_aktiv', wert: 8 }, 'de'),
+    bereich: 'security' },
+  { id: 'm3', slug: 'bau', name: 'REALTIME Service', gewerk: 'Bau', zaehler: 12,
+    unterzeile: unterzeile(['bau'], { schluessel: 'projekte_laufend', wert: 12 }, 'de'),
+    bereich: 'bau' },
+  { id: 'm4', slug: 'operations', name: 'CSE Operations', gewerk: 'Digital & KI', zaehler: null,
+    unterzeile: unterzeile([], null, 'de'), bereich: 'operations' },
 ];
 
 export function PortalVorschau() {

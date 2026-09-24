@@ -89,3 +89,30 @@ export async function setzeEigeneSprache(
   if (zeilen.length === 0) throw new SpracheNichtGesetztFehler();
   return sprache;
 }
+
+/** Der schmale Lesezugriff — in der gebundenen Transaktion des Aufrufers. */
+export interface SprachLeser {
+  abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
+  /** Die Person hinter dem Konto, oder `null` bei einem Konto ohne Mensch. */
+  readonly personId: string | null;
+  readonly benutzerId: string;
+}
+
+/**
+ * Liest die eigene Sprache von dort, wo sie GILT — dieselbe Regel wie beim
+ * Schreiben: mit Person `person.sprache`, ohne `benutzer.sprache`.
+ *
+ * Die eigene Zeile darf jede Sitzung lesen (`t_person_lesen`,
+ * `t_benutzer_lesen`). Faellt die Abfrage leer aus oder steht dort keine der
+ * vier Portalsprachen, ist die Antwort `null` — „keine Wahl getroffen", nicht
+ * ein Fehler (das Tor, V-165: die Bereichswahl fragt dasselbe).
+ */
+export async function leseEigeneSprache(leser: SprachLeser): Promise<PortalSprache | null> {
+  const [sp] = leser.personId !== null
+    ? await leser.abfrage<{ sprache: string | null }>(
+      `select sprache from person where id = $1`, [leser.personId])
+    : await leser.abfrage<{ sprache: string | null }>(
+      `select sprache from benutzer where id = $1`, [leser.benutzerId]);
+  const roh = sp?.sprache ?? '';
+  return istPortalSprache(roh) ? roh : null;
+}

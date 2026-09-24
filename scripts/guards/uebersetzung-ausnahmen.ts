@@ -366,7 +366,6 @@ export const UEBERSETZUNG_AUSNAHMEN: readonly string[] = [
   'src/components/oeffentlich/Gesellschaften.tsx',
   'src/components/oeffentlich/Kontaktwege.tsx',
   'src/components/oeffentlich/ProfilTabs.tsx',
-  'src/components/portal/BereichsUmschalter.tsx',
   'src/components/portal/KachelRaster.tsx',
   'src/components/portal/PortalRahmen.tsx',
   'src/components/portal/PortalShell.tsx',
