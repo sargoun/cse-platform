@@ -14,27 +14,30 @@ import { slugTor } from '../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '../../rechte';
+import { Listenfilter } from '@/components/portal/Listenfilter';
+import { auftragStatusAus } from '@/server/services/bericht/mengen';
+import { listeAuftraege, type AuftragZeile } from '@/server/services/bericht/listen';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KENNZAHL_TEXTE } from '@/lib/i18n/verwaltung/kennzahlen';
 
 /** `/portal/[mandant]/auftraege` — was diese Gesellschaft ausfuehrt (OPS-05). */
 export const dynamic = 'force-dynamic';
 
-interface Zeile {
-  readonly id: string;
-  readonly auftragsnummer: string;
-  readonly bezeichnung: string;
-  readonly kunde: string;
-  readonly objekt: string | null;
-  readonly art: string;
-  readonly status: string;
-  readonly wert: string | null;
-  readonly start: string;
-  readonly laufzeit_bis: string | null;
-}
 
 export default async function Auftragsliste(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  /*
+   * **Der Stand aus der Kachel** (V-150, DSH-04). „Aktive Aufträge" führt
+   * mit `?status=aktiv` hierher; ohne den Filter zeigte die Liste alle
+   * Stände, und die Zahl auf der Kachel stand hier nirgends. Geprüft gegen
+   * die Werteliste — ein fremdes Wort ist keine Störung, sondern kein Filter.
+   */
+  const status = auftragStatusAus((await searchParams)['status']);
   const zugang = await portalZugang(`/portal/${mandant}/auftraege`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -52,19 +55,15 @@ export default async function Auftragsliste(
    */
   const darf = await haeltRechte(sitzung, 'auftrag.schreiben');
 
+  /*
+   * Die Abfrage steht im Dienst (`listeAuftraege`, V-152): dort prüft
+   * `tests/isolation/kennzahlen-listen.test.ts` an echten Zeilen, dass sie
+   * mit `?status=aktiv` genau die Zeilen der Kachel zeigt.
+   */
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, sitzung, async (kontext) => kontext.abfrage<Zeile>(
-      `select a.id, a.auftragsnummer, a.bezeichnung, k.name as kunde,
-              o.bezeichnung as objekt, a.art::text as art, a.status::text as status,
-              a.auftragswert_netto_cent::text as wert,
-              to_char(a.start_datum, 'DD.MM.YYYY') as start,
-              to_char(a.laufzeit_bis, 'DD.MM.YYYY') as laufzeit_bis
-         from auftrag a
-         join kunde k on k.id = a.kunde_id
-         left join objekt o on o.id = a.objekt_id
-        where a.archiviert_am is null
-        order by a.start_datum desc`,
-    ))) as Promise<readonly Zeile[]>);
+    withTenant(tx, sitzung, (kontext) => listeAuftraege(kontext, status))) as
+    Promise<readonly AuftragZeile[]>);
+  const tk = nachSprache(KENNZAHL_TEXTE, zugang.sprache);
 
   return (
     <PortalRahmen
@@ -90,7 +89,17 @@ export default async function Auftragsliste(
         )}
       </div>
 
-      {zeilen.length === 0 ? (
+      {status === null ? null : (
+        <Listenfilter sprache={zugang.sprache}
+                      beschreibung={tk.auftragStatus[status] ?? tk.keinTreffer}
+                      alleZiel={`/portal/${mandant}/auftraege`} />
+      )}
+
+      {zeilen.length === 0 && status !== null ? (
+        <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
+          {tk.keinTreffer}
+        </p>
+      ) : zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Noch kein Auftrag. Ein angenommenes Angebot wird mit einem Klick zu
           einem — oder Sie legen hier einen an.
@@ -114,7 +123,7 @@ export default async function Auftragsliste(
               ),
             },
             { schluessel: 'nummer', kopf: 'Nummer', zelle: (z) => z.auftragsnummer },
-            { schluessel: 'kunde', kopf: 'Kunde', zelle: (z) => z.kunde },
+            { schluessel: 'kunde', kopf: 'Kunde', zelle: (z) => z.kunde ?? '—' },
             { schluessel: 'objekt', kopf: 'Objekt', zelle: (z) => z.objekt ?? '—' },
             {
               schluessel: 'wert', kopf: 'Wert netto', numerisch: true,
@@ -122,7 +131,7 @@ export default async function Auftragsliste(
                 ? <span className="text-text-subtle">offen</span>
                 : formatiereGeld(cent(BigInt(z.wert)))),
             },
-            { schluessel: 'start', kopf: 'Start', zelle: (z) => z.start },
+            { schluessel: 'start', kopf: 'Start', zelle: (z) => z.start ?? '—' },
             {
               schluessel: 'status', kopf: 'Status',
               zelle: (z) => <StatusPill zustand={AUFTRAG_PILLE[z.status] ?? 'Geplant'} />,

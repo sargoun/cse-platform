@@ -1,15 +1,19 @@
 /**
  * Die Kacheln, die es HEUTE gibt (DSH-01, DSH-02).
  *
- * **Genau so viele, wie Module gemergt sind.** Der PR-Plan nennt sieben, und
- * jede einzelne zaehlt in einer Tabelle, die existiert. Eine achte fuer
- * "offene Rechnungen" waere leicht zu schreiben und wuerde `0` anzeigen — und
- * `0` heisst in einem Dashboard "es gibt keine", nicht "das Modul kommt in
- * Phase 7". Wer die beiden verwechselt, plant auf einer Zahl, die es nicht
- * gibt.
+ * **Eine Kachel erscheint, wenn ihr Modul da ist — und nicht erst, wenn es
+ * jemand bemerkt.** Die Regel stand hier von Anfang an: keine Kachel vor
+ * ihrem Modul, weil `0` in einem Dashboard „es gibt keine" heisst und nicht
+ * „kommt in Phase 7". Die Kehrseite hat niemand eingelöst: Aufträge,
+ * Angebote, Bauprojekte, Forderungen und Aufgaben waren längst gebaut und
+ * erreichbar, und die Übersicht jeder Gesellschaft zeigte keine einzige
+ * Auftrags-, Projekt-, Angebots- oder Finanzzahl (V-150, DSH-01, DSH-03).
+ * Seit V-150 stehen sie hier — jede mit dem Recht ihres Moduls und mit einer
+ * Liste, die GENAU diese Menge zeigt (die Werte in `mengen.ts`).
  *
- * Spaetere PRs registrieren ihre eigenen Kacheln; das Register waechst mit den
- * Modulen und nicht vor ihnen.
+ * Was DSH-01 darüber hinaus nennt, ist bewusst anders gelöst: Umsatz,
+ * Aufwand und Ergebnis stehen auf `/finanzen` (Geld, nicht Anzahl — D-479:
+ * keine GuV), Benachrichtigungen in der Glocke der Kopfzeile.
  *
  * **`$1` ist immer `mandant_ids::uuid[]`.** Der Bereichsfilter aendert genau
  * dieses eine Argument — und weil dieselbe Bedingung in `zaehlung` und
@@ -17,6 +21,11 @@
  */
 import { registriereKachel, type Kachel, type KachelKontext }
   from '../../registry/kennzahlen.js';
+import {
+  ANGEBOT_OFFEN, AUFTRAG_AKTIV, FRIST_UEBERSCHRITTEN, LEAD_NEU, PROJEKT_IN_ARBEIT,
+  fristUeberschrittenSql, sqlWerte,
+} from './mengen.js';
+import { OFFENE_ZUSTAENDE } from '../kern/aufgabe.js';
 
 /**
  * Wohin eine Kachel fuehrt — an EINER Stelle.
@@ -43,6 +52,10 @@ export function kennzahlPfad(
 
 export function registriereBerichtKacheln(): readonly Kachel[] {
   return [
+    /*
+     * **Mit dem Stand, den sie zählt** (V-152, DSH-04). Das Ziel war die
+     * ungefilterte Leadliste — alle Stände, die Zahl darauf nirgends.
+     */
     registriereKachel({
       schluessel: 'neue_leads',
       icon: 'crm',
@@ -52,12 +65,14 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
       ton: 'info',
       zaehlung:
         `select count(*)::int as wert from lead
-          where mandant_id = any($1) and status = 'neu' and archiviert_am is null`,
+          where mandant_id = any($1) and status = ${sqlWerte([LEAD_NEU])}
+            and archiviert_am is null`,
       zeilen:
         `select id, leadnummer, betreff, firma_name, sla_frist_am from lead
-          where mandant_id = any($1) and status = 'neu' and archiviert_am is null
+          where mandant_id = any($1) and status = ${sqlWerte([LEAD_NEU])}
+            and archiviert_am is null
           order by erstellt_am desc`,
-      ziel: (k) => kennzahlPfad(k, 'crm/leads', 'leads'),
+      ziel: (k) => kennzahlPfad(k, `crm/leads?status=${LEAD_NEU}`, `leads?status=${LEAD_NEU}`),
     }),
 
     registriereKachel({
@@ -68,18 +83,21 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
       recht: 'crm.lesen',
       // Rot, weil es eine gebrochene Zusage ist und nicht eine Information.
       ton: 'danger',
+      /*
+       * Das Prädikat steht in `mengen.ts` — die Leadliste filtert mit
+       * `?frist=ueberschritten` genau damit (V-152).
+       */
       zaehlung:
         `select count(*)::int as wert from lead
-          where mandant_id = any($1) and sla_frist_am is not null
-            and erste_reaktion_am is null and archiviert_am is null
-            and sla_frist_am < now()`,
+          where mandant_id = any($1) and archiviert_am is null
+            and ${fristUeberschrittenSql('')}`,
       zeilen:
         `select id, leadnummer, betreff, sla_frist_am, eskalationsstufe from lead
-          where mandant_id = any($1) and sla_frist_am is not null
-            and erste_reaktion_am is null and archiviert_am is null
-            and sla_frist_am < now()
+          where mandant_id = any($1) and archiviert_am is null
+            and ${fristUeberschrittenSql('')}
           order by sla_frist_am`,
-      ziel: (k) => kennzahlPfad(k, 'crm/leads', 'leads'),
+      ziel: (k) => kennzahlPfad(k, `crm/leads?frist=${FRIST_UEBERSCHRITTEN}`,
+        `leads?frist=${FRIST_UEBERSCHRITTEN}`),
     }),
 
     registriereKachel({
@@ -160,7 +178,16 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
         `select id, lead_id, typ, richtung, betreff, geschehen_am from lead_aktivitaet
           where mandant_id = any($1) and geschehen_am > now() - interval '7 days'
           order by geschehen_am desc`,
-      ziel: (k) => kennzahlPfad(k, 'crm/kunden', 'kunden'),
+      /*
+       * **Auf die Liste der Aktivitäten, nicht auf die Kundenliste** (V-149,
+       * DSH-04). Das Ziel war `crm/kunden` — eine Liste, auf der keine
+       * einzige Aktivität steht. `crm/aktivitaet` zeigt genau diese Zeilen:
+       * dieselbe Tabelle, dieselbe Frist von sieben Tagen.
+       *
+       * In der Gruppe gibt es keine solche Liste, und `lead_aktivitaet` hat
+       * keinen Gruppenleseweg — das ehrliche Ziel ist deshalb die Übersicht.
+       */
+      ziel: (k) => kennzahlPfad(k, 'crm/aktivitaet', ''),
     }),
 
     registriereKachel({
@@ -178,7 +205,14 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
            from lead_aktivitaet
           where mandant_id = any($1) and faellig_am is not null and erledigt_am is null
           order by faellig_am`,
-      ziel: (k) => kennzahlPfad(k, 'crm/wiedervorlagen', 'leads'),
+      /*
+       * **Mit `wer=alle`** (V-149, DSH-04). Die Kachel zählt die offenen
+       * Wiedervorlagen ALLER Zuständigen; die Liste öffnet ohne Parameter in
+       * der Vorgabe „nur meine". Die CRM-Übersicht hatte denselben Fehler
+       * schon behoben, das Kachelregister nicht — 4 auf der Kachel, 1 in der
+       * Liste.
+       */
+      ziel: (k) => kennzahlPfad(k, 'crm/wiedervorlagen?wer=alle', 'leads'),
     }),
 
     /**
@@ -394,6 +428,145 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
           where mandant_id = any($1)
           order by beginn_zeitpunkt`,
       ziel: (k) => kennzahlPfad(k, 'zeiten/live', ''),
+    }),
+
+    /*
+     * ════════════════════════════════════════════════════════════════════
+     * **V-150 — die Module, die gebaut waren und keine Kachel hatten**
+     * (DSH-01, DSH-03). Jede verweist auf ihre Liste MIT dem Filter, der
+     * genau diese Menge zeigt; ohne ihn zeigte die Liste alle Stände.
+     * ════════════════════════════════════════════════════════════════════
+     */
+
+    registriereKachel({
+      schluessel: 'auftraege_aktiv',
+      icon: 'auftrag',
+      label: 'Aktive Aufträge',
+      modul: 'auftrag',
+      recht: 'auftrag.lesen',
+      ton: 'info',
+      zaehlung:
+        `select count(*)::int as wert from auftrag
+          where mandant_id = any($1) and archiviert_am is null
+            and status = ${sqlWerte([AUFTRAG_AKTIV])}`,
+      zeilen:
+        `select id, auftragsnummer, bezeichnung, status, start_datum from auftrag
+          where mandant_id = any($1) and archiviert_am is null
+            and status = ${sqlWerte([AUFTRAG_AKTIV])}
+          order by start_datum desc`,
+      ziel: (k) => kennzahlPfad(k, `auftraege?status=${AUFTRAG_AKTIV}`,
+        `auftraege?status=${AUFTRAG_AKTIV}`),
+    }),
+
+    /**
+     * Die erste Kachel, die an ein GEWERK gebunden ist (`bau`, D-377).
+     * `bau.lesen` halten Leitung und Administration global, also in jeder
+     * Gesellschaft; erscheinen darf sie trotzdem nur, wo Bau gebucht ist —
+     * sonst führte sie auf `/bau/projekte`, das die Pforte dort mit 404
+     * beantwortet. Das entscheidet `kachelErreichbar` (V-151, D-645).
+     */
+    registriereKachel({
+      schluessel: 'projekte_in_arbeit',
+      icon: 'aufmass',
+      label: 'Bauprojekte in Arbeit',
+      modul: 'bau',
+      recht: 'bau.lesen',
+      ton: 'info',
+      zaehlung:
+        `select count(*)::int as wert from projekt
+          where mandant_id = any($1) and archiviert_am is null
+            and status = ${sqlWerte([PROJEKT_IN_ARBEIT])}`,
+      zeilen:
+        `select id, nummer, bezeichnung, status, soll_ende from projekt
+          where mandant_id = any($1) and archiviert_am is null
+            and status = ${sqlWerte([PROJEKT_IN_ARBEIT])}
+          order by soll_ende nulls last, nummer`,
+      ziel: (k) => kennzahlPfad(k, `bau/projekte?status=${PROJEKT_IN_ARBEIT}`,
+        `projekte?status=${PROJEKT_IN_ARBEIT}`),
+    }),
+
+    /**
+     * Offene Angebote — solange niemand angenommen, abgelehnt oder
+     * zurückgezogen hat und keines abgelaufen ist. Dieselbe Menge zählt die
+     * Gruppenübersicht (`gruppe/uebersicht.ts`, `ANGEBOT_OFFEN`).
+     */
+    registriereKachel({
+      schluessel: 'angebote_offen',
+      icon: 'angebot',
+      label: 'Offene Angebote',
+      modul: 'angebot',
+      recht: 'angebot.lesen',
+      ton: 'info',
+      zaehlung:
+        `select count(*)::int as wert from angebot
+          where mandant_id = any($1) and archiviert_am is null
+            and status in (${sqlWerte(ANGEBOT_OFFEN)})`,
+      zeilen:
+        `select id, angebotsnummer, titel, status, gueltig_bis from angebot
+          where mandant_id = any($1) and archiviert_am is null
+            and status in (${sqlWerte(ANGEBOT_OFFEN)})
+          order by erstellt_am desc`,
+      ziel: (k) => kennzahlPfad(k, 'angebote?status=offen', 'angebote?status=offen'),
+    }),
+
+    /**
+     * Offene Forderungen — die „open invoices" aus DSH-01, als das, was sie
+     * buchhalterisch sind: debitorische Posten, die nicht ausgeglichen sind.
+     *
+     * **Dieselbe Bedingung wie die Liste** (`buchhaltung/offene-posten.ts`,
+     * `postenListe`): `ausgeglichen_am is null and offen_cent > 0`. Eine
+     * Rechnung „offen" nach ihrem Status zu zählen hiesse, eine Teilzahlung
+     * zu übersehen — der Posten weiss es, der Rechnungsstatus nicht.
+     *
+     * **Und `zahlung.lesen` dazu** (V-151): `offener_posten` liest nur, wer
+     * es hält (0121, `t_mandant_lesen`). Mit `buchhaltung.lesen` allein
+     * zeigte die Kachel „0" — eine Aussage über das Recht, nicht über die
+     * Forderungen. Die Liste dahinter verlangt `buchhaltung.lesen`, und das
+     * fragt `kachelErreichbar` am Ziel.
+     */
+    registriereKachel({
+      schluessel: 'forderungen_offen',
+      icon: 'rechnung',
+      label: 'Offene Forderungen',
+      modul: 'buchhaltung',
+      recht: 'buchhaltung.lesen',
+      zusatzRechte: ['zahlung.lesen'],
+      ton: 'warning',
+      zaehlung:
+        `select count(*)::int as wert from offener_posten
+          where mandant_id = any($1) and art = 'debitor'
+            and ausgeglichen_am is null and offen_cent > 0`,
+      zeilen:
+        `select id, rechnung_id, faellig_am, offen_cent from offener_posten
+          where mandant_id = any($1) and art = 'debitor'
+            and ausgeglichen_am is null and offen_cent > 0
+          order by faellig_am, id`,
+      ziel: (k) => kennzahlPfad(k, 'buchhaltung/offene-posten?art=debitor', 'offene-posten'),
+    }),
+
+    /**
+     * Anstehende Aufgaben — die offenen, also dieselbe Menge, die
+     * `/aufgaben` in seiner Vorgabe zeigt (`nurOffene`, `kern/aufgabe.ts`):
+     * offen, in Arbeit, wartend, nicht gelöscht. Was die Sitzung davon sehen
+     * darf, entscheidet dieselbe Policy für Kachel und Liste.
+     */
+    registriereKachel({
+      schluessel: 'aufgaben_offen',
+      icon: 'ok',
+      label: 'Offene Aufgaben',
+      modul: 'aufgabe',
+      recht: 'aufgabe.lesen',
+      ton: 'info',
+      zaehlung:
+        `select count(*)::int as wert from aufgabe
+          where mandant_id = any($1) and geloescht_am is null
+            and status in (${sqlWerte(OFFENE_ZUSTAENDE)})`,
+      zeilen:
+        `select id, titel, status, faellig_am, faellig_datum from aufgabe
+          where mandant_id = any($1) and geloescht_am is null
+            and status in (${sqlWerte(OFFENE_ZUSTAENDE)})
+          order by faellig_am nulls last`,
+      ziel: (k) => kennzahlPfad(k, 'aufgaben', 'aufgaben'),
     }),
   ];
 }

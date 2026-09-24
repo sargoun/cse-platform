@@ -24,6 +24,14 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import { Recht } from '@/components/ui/Recht';
 import { kanalVerbunden } from '@/server/services/crm/nachricht-an-kontakt';
+import {
+  Kommunikationsverlauf, NotizFormular, NotizKeinRecht, NotizRueckmeldung,
+} from '@/components/portal/Kommunikationsverlauf';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { VERLAUF_TEXTE } from '@/lib/i18n/verwaltung/crm-verlauf';
+import {
+  leseKontaktVerlauf, VERLAUF_GRENZE, type VerlaufEintrag,
+} from '@/server/services/crm/verlauf';
 
 /**
  * `/portal/[mandant]/crm/kontakte/[id]` — das Blatt eines Ansprechpartners
@@ -117,22 +125,13 @@ interface Kopf {
   readonly anonymisiert: boolean;
 }
 
-interface VerlaufZeile {
-  readonly id: string;
-  readonly typ: string;
-  readonly richtung: string;
-  readonly zweck: string;
-  readonly kanal: string | null;
-  readonly betreff: string;
-  readonly geschehen: string;
-  readonly akteur: string | null;
-}
-
 export default async function Kontaktblatt(
   { params, searchParams }: {
     params: Promise<{ mandant: string; id: string }>;
     searchParams: Promise<{
       meldung?: string; erfolg?: string; fehler?: string; gesendet?: string;
+      /* V-147: die Rückmeldung von `POST /api/crm/notiz` — ein eigener Name. */
+      notiz?: string; notiert?: string;
     }>;
   },
 ) {
@@ -159,7 +158,9 @@ export default async function Kontaktblatt(
     'crm.rechtsgrundlage_setzen', 'crm.rechtsgrundlage_lesen', 'system.benutzer_lesen',
     'crm.schreiben', 'aufgabe.schreiben', 'kalender.schreiben', 'dokument.lesen',
     /* V-101: das Recht des Sendewegs — seit 0008 im Katalog, bis hierher ungenutzt. */
-    'crm.kommunikation_versenden');
+    'crm.kommunikation_versenden',
+    /* V-147: ohne es zeigt der Verlauf nur die eigenen Nachrichten — und sagt es. */
+    'nachricht.lesen');
 
   const darfNamen = darf['system.benutzer_lesen'] === true;
 
@@ -209,23 +210,18 @@ export default async function Kontaktblatt(
 
       const antworten = await torAntworten(kontext, id);
 
-      const verlauf = await kontext.abfrage<VerlaufZeile>(
-        `select la.id, la.typ::text as typ, la.richtung::text as richtung,
-                la.zweck::text as zweck, la.kanal, la.betreff,
-                to_char(la.geschehen_am at time zone 'Europe/Berlin',
-                        'DD.MM.YYYY HH24:MI') as geschehen,
-                b.name as akteur
-           from lead_aktivitaet la
-           left join benutzer b on b.id = la.benutzer_id
-          where la.mandant_id = app.aktiver_mandant()
-            and la.ansprechpartner_id = $1::uuid
-          order by la.geschehen_am desc
-          limit 50`, [id]);
+      /*
+       * **Aktivitäten UND Nachrichten** (V-147, CRM-03). Hier stand eine
+       * Abfrage nur auf `lead_aktivitaet`; was über „Nachricht senden"
+       * hinausgeht, landet aber in `nachricht` — und fehlte damit genau in
+       * dem Verlauf, der es belegen soll.
+       */
+      const verlauf = await leseKontaktVerlauf(kontext, id);
 
       return { kopf, stand, kundenLage, antworten, verlauf, zustaendige };
     })) as Promise<{
       kopf: Kopf; stand: GrundlageStand | null; kundenLage: KundenLage | null;
-      antworten: readonly TorAntwort[]; verlauf: readonly VerlaufZeile[];
+      antworten: readonly TorAntwort[]; verlauf: readonly VerlaufEintrag[];
       zustaendige: readonly { id: string; name: string }[];
     } | null>);
 
@@ -245,6 +241,8 @@ export default async function Kontaktblatt(
     archiviert: false, anonymisiert: kopf.anonymisiert,
   });
   const abweichungen = lage === null ? [] : abweichungenVomTor(lage);
+
+  const tv = nachSprache(VERLAUF_TEXTE, zugang.sprache);
 
   const knopf = 'inline-flex min-h-11 items-center rounded-md border '
     + 'border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2';
@@ -648,45 +646,43 @@ export default async function Kontaktblatt(
         </section>
       )}
 
-      <section aria-labelledby="verlauf">
-        <h2 id="verlauf" className="text-h2 text-text">Verlauf</h2>
-        {verlauf.length === 0 ? (
-          <p className="mt-s3 text-sm text-text-muted">
-            Zu diesem Kontakt ist noch keine Kommunikation festgehalten.
+      {/*
+        * **Der Verlauf — mit den Nachrichten und in Sätzen** (V-147, CRM-03).
+        *
+        * Hier stand eine eigene Tabelle über `lead_aktivitaet` allein, mit
+        * rohen Werten (`ausgehend · email`, `vertraglich`). Jetzt dasselbe
+        * Bauteil wie auf dem Kundenblatt: Aktivitäten und Nachrichten an
+        * diesen Menschen, mit der Rechtsgrundlage IM MOMENT DES SENDENS.
+        */}
+      <section aria-labelledby="verlauf" id="kommunikation" className="mb-s7">
+        <h2 id="verlauf" className="text-h2 text-text">{tv.titel}</h2>
+        <p className="mt-s2 max-w-prose text-sm text-text-muted">{tv.erklaerungKontakt}</p>
+        <NotizRueckmeldung sprache={zugang.sprache}
+                           grund={typeof suche.notiz === 'string' ? suche.notiz : null}
+                           notiert={suche.notiert === '1'} />
+        <Kommunikationsverlauf
+          eintraege={verlauf}
+          sprache={zugang.sprache}
+          mandant={mandant}
+          blatt="kontakt"
+          darfNamen={darf['system.benutzer_lesen'] === true}
+          darfNachrichten={darf['nachricht.lesen'] === true}
+          grenze={VERLAUF_GRENZE}
+        />
+        {darf['crm.schreiben'] !== true ? (
+          <NotizKeinRecht sprache={zugang.sprache} />
+        ) : kopf.kunde_id === null ? (
+          <p className="mt-s4 max-w-prose text-sm text-text-muted" data-cse="notiz-ohne-kunde">
+            {tv.notizOhneKunde}
           </p>
         ) : (
-          <DataTable
-            beschriftung="Kommunikation mit diesem Ansprechpartner, neueste zuerst"
-            zeilen={verlauf}
-            schluessel={(z) => z.id}
-            spalten={[
-              { schluessel: 'wann', kopf: 'Wann', zelle: (z) => z.geschehen },
-              { schluessel: 'betreff', kopf: 'Betreff', zelle: (z) => z.betreff },
-              { schluessel: 'typ', kopf: 'Art', zelle: (z) => z.typ },
-              {
-                schluessel: 'richtung', kopf: 'Richtung',
-                zelle: (z) => `${z.richtung}${z.kanal === null ? '' : ` · ${z.kanal}`}`,
-              },
-              { schluessel: 'zweck', kopf: 'Zweck', zelle: (z) => z.zweck },
-              {
-                schluessel: 'akteur', kopf: 'Wer',
-                zelle: (z) => (z.akteur ?? (
-                  darf['system.benutzer_lesen'] === true
-                    ? <span className="text-text-subtle">System</span>
-                    : <span className="text-text-subtle" data-cse="akteur-verdeckt"
-                            title="Dafür fehlt system.benutzer_lesen">—</span>
-                )),
-              },
-            ]}
+          <NotizFormular
+            sprache={zugang.sprache}
+            zurueck={pfad}
+            kundeId={kopf.kunde_id}
+            ansprechpartnerId={id}
+            kontakte={[]}
           />
-        )}
-        {darf['system.benutzer_lesen'] === true ? null : (
-          <p className="mt-s3 max-w-prose text-xs text-text-muted"
-             data-cse="verlauf-akteur-hinweis">
-            Die Namen der Handelnden sind Ihnen nicht sichtbar — dafür fehlt
-            <Recht schluessel="system.benutzer_lesen" />. Ein „—" in der
-            Spalte „Wer" heisst deshalb hier nicht, dass niemand gehandelt hat.
-          </p>
         )}
       </section>
 

@@ -749,6 +749,21 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'crm.schreiben',
   },
   /*
+   * Die Art der Wiedervorlage-Erinnerung (V-146, CRM-04). Definiert nur Titel,
+   * Text und Ziel; zugestellt wird im Lauf `wiedervorlage_erinnerung` als
+   * `cse_job` — kein Recht aus dem Katalog, weil hier kein Mensch handelt.
+   */
+  { modul: 'crm', pfad: 'crm/benachrichtigung', schreibend: false },
+  /*
+   * Der Kommunikationsverlauf (V-147, CRM-03). Liest Aktivitäten und
+   * Nachrichten eines Kunden oder Kontakts; `halteFest` schreibt eine
+   * Aktivität am Kunden oder Kontakt — ausgehend durch das UWG-Tor (0020).
+   */
+  {
+    modul: 'crm', pfad: 'crm/verlauf',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
    * Der Versandstand eines Kaeufers (FIN-11, LEG-05, 07-INTEGRATIONEN §12.1).
    * Ein reines Praedikat: ein Pflichtkaeufer ohne Uebertragungsweg SPERRT, er
    * faellt nicht auf E-Mail zurueck. Kein Kanal gilt hier als verbunden, ohne
@@ -788,6 +803,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
   // gefährlich, und schreiben können sie nicht.
   { modul: 'bericht', pfad: 'bericht/kacheln', schreibend: false },
   { modul: 'bericht', pfad: 'bericht/dashboard', schreibend: false },
+  /*
+   * Die Mengen hinter den Kennzahlen (V-149, V-150): Statuslisten, die eine
+   * Kachel, ihre Liste und die Gruppenübersicht teilen. Rein, ohne Datenbank.
+   */
+  { modul: 'bericht', pfad: 'bericht/mengen', schreibend: false },
+  /*
+   * Die Listen hinter den Kennzahlen, im Bereich und in der Gruppe (V-152):
+   * als Dienst, damit Zahl und Liste an echten Zeilen verglichen werden.
+   * Sie lesen nur.
+   */
+  { modul: 'bericht', pfad: 'bericht/listen', schreibend: false },
   /**
    * Nachweise und Qualifikationen (PR 31, SEC-02/03/04, LEG-04, EMP-08).
    *
@@ -1460,6 +1486,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'bericht', pfad: 'gruppe/finanzen', schreibend: false },
   { modul: 'bericht', pfad: 'gruppe/offene-posten', schreibend: false },
   { modul: 'bericht', pfad: 'gruppe/auslastung', schreibend: false },
+  /* V-150 (DSH-01): die Liste hinter „Offene Aufgaben" der Gruppenübersicht. */
+  { modul: 'bericht', pfad: 'gruppe/aufgaben', schreibend: false },
   /**
    * Die beiden Nachzuegler derselben Art (RAD-07/REP-06, CAL-01/CAL-02): die
    * Vergabepipeline und der zusammengefuehrte Kalender ueber alle

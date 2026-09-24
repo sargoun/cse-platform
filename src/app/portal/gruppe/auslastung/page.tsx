@@ -1,9 +1,14 @@
 import { DataTable } from '@/components/ui/DataTable';
 import { berlinKalendertag } from '@/server/services/zeit/dauer';
-import { formatiereStunden, gruppenAuslastung } from '@/server/services/gruppe/auslastung';
 import {
-  BereichMarke, GruppenAntwort, GruppenHinweis, GruppenRahmen, gruppenLesen, gruppenTor,
-  ladeBereiche, LeereListe,
+  formatiereStunden, gruppeImEinsatz, gruppenAuslastung,
+} from '@/server/services/gruppe/auslastung';
+import { Listenfilter } from '@/components/portal/Listenfilter';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KENNZAHL_TEXTE } from '@/lib/i18n/verwaltung/kennzahlen';
+import {
+  bereichAus, BereichMarke, GruppenAntwort, GruppenHinweis, GruppenRahmen, gruppenLesen,
+  gruppenTor, ladeBereiche, LeereListe, mandantIdsFuer, type Suchparameter,
 } from '../tor';
 
 /**
@@ -16,15 +21,31 @@ import {
  */
 export const dynamic = 'force-dynamic';
 
-export default async function GruppenAuslastung() {
+export default async function GruppenAuslastung(
+  { searchParams }: { searchParams: Suchparameter },
+) {
   const tor = await gruppenTor('/portal/gruppe/auslastung');
   if (tor.art !== 'ok') return <GruppenAntwort tor={tor} />;
+  const tk = nachSprache(KENNZAHL_TEXTE, tor.zugang.sprache);
 
   const heute = berlinKalendertag(new Date());
-  const { bereiche, daten } = await gruppenLesen(tor.zugang, async (kontext) => ({
-    bereiche: await ladeBereiche(kontext),
-    daten: await gruppenAuslastung(kontext, heute),
-  }));
+  /*
+   * **„Aktuell im Einsatz" steht hier, gefiltert nach `?bereich=`** (V-150,
+   * DSH-05, DSH-04). Die Gruppenübersicht zählt die offenen Zeiteinträge je
+   * Gesellschaft und führt mit `?bereich=…#im-einsatz` auf genau diese Liste.
+   * Der Filter gilt NUR für diesen Abschnitt: die Wochenstunden darüber sind
+   * je Person über alle Gesellschaften gezählt (D-09), und das ist ihr Zweck.
+   */
+  const { bereiche, daten, aktiv, imEinsatz } = await gruppenLesen(tor.zugang, async (kontext) => {
+    const bereiche = await ladeBereiche(kontext);
+    const aktiv = await bereichAus(searchParams, bereiche);
+    return {
+      bereiche,
+      aktiv,
+      daten: await gruppenAuslastung(kontext, heute),
+      imEinsatz: await gruppeImEinsatz(kontext, mandantIdsFuer(kontext, aktiv)),
+    };
+  });
   const namen = new Map(bereiche.map((b) => [b.slug, b.name]));
   const mehrfach = daten.personen.filter((p) => p.bereiche.length > 1).length;
 
@@ -65,6 +86,32 @@ export default async function GruppenAuslastung() {
         </div>
       )}
       <GruppenHinweis text="Gezählt werden abgeschlossene, nicht stornierte Zeiteinträge nach Beginn (Europe/Berlin). Stunden eines Bereichs, in dem diese Sitzung kein Zeit-Leserecht hält, fehlen in der Summe — die Spalte Gesellschaften zeigt, was gezählt wurde. Überstunden und Ausgleich werden im Stundenkonto des Bereichs geführt." />
+
+      <section id="im-einsatz" aria-labelledby="im-einsatz-titel" className="mt-s7"
+               data-cse="gruppe-im-einsatz">
+        <h2 id="im-einsatz-titel" className="mb-s3 text-h2 text-text">{tk.imEinsatzTitel}</h2>
+        <p className="mb-s4 max-w-prose text-sm text-text-muted">{tk.imEinsatzErklaerung}</p>
+        {aktiv === null ? null : (
+          <Listenfilter sprache={tor.zugang.sprache} beschreibung={aktiv.name}
+                        alleZiel="/portal/gruppe/auslastung#im-einsatz" />
+        )}
+        {imEinsatz.length === 0 ? (
+          <LeereListe text={tk.imEinsatzLeer} />
+        ) : (
+          <DataTable
+            beschriftung={tk.imEinsatzBeschriftung}
+            zeilen={imEinsatz}
+            schluessel={(z) => z.id}
+            spalten={[
+              { schluessel: 'bereich', kopf: tk.spalteGesellschaft,
+                zelle: (z) => <BereichMarke slug={z.slug} name={z.bereichName} /> },
+              { schluessel: 'person', kopf: tk.spaltePerson, zelle: (z) => z.person ?? '—' },
+              { schluessel: 'objekt', kopf: tk.spalteObjekt, zelle: (z) => z.objekt ?? '—' },
+              { schluessel: 'seit', kopf: tk.spalteSeit, zelle: (z) => z.seit },
+            ]}
+          />
+        )}
+      </section>
     </GruppenRahmen>
   );
 }

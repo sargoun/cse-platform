@@ -21,6 +21,16 @@ import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
 import { LEAD_TEXTE } from '@/lib/i18n/verwaltung/crm-lead';
 import { ANGEBOT_PILLE, AUFTRAG_PILLE, LEAD_PILLE, RECHNUNG_PILLE } from '@/lib/vorgang-pille';
 import { leseKundeVorgaenge, type KundeVorgaenge } from '@/server/services/crm/lead-kette';
+import {
+  Kommunikationsverlauf, NotizFormular, NotizKeinRecht, NotizRueckmeldung,
+} from '@/components/portal/Kommunikationsverlauf';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { VERLAUF_TEXTE } from '@/lib/i18n/verwaltung/crm-verlauf';
+import { KUNDE_RUECKMELDUNG } from '@/lib/i18n/verwaltung/crm-kunde';
+import { Hinweis } from '@/components/ui/Hinweis';
+import {
+  leseKundenVerlauf, VERLAUF_GRENZE, type VerlaufEintrag,
+} from '@/server/services/crm/verlauf';
 
 /**
  * `/portal/[mandant]/crm/kunden/[id]` — ein Kunde, seine Kontakte, seine
@@ -79,10 +89,35 @@ interface AuftragZeile { readonly id: string; readonly auftragsnummer: string;
   readonly bezeichnung: string; readonly status: string; readonly wert: string | null; }
 
 export default async function KundeDetail(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
+  const suche = await searchParams;
+  /* Die Rückmeldung von `POST /api/crm/notiz` (V-147) — Schlüssel, nie Satz. */
+  const notizGrund = typeof suche['notiz'] === 'string' ? suche['notiz'] : null;
+  const notiert = suche['notiert'] === '1';
+  /*
+   * **Die Abweisung des Kontaktformulars** (V-148, D-562). `POST
+   * /api/crm/kunde` leitet einen `CrmFehler` mit `?meldung=` (Satz) und
+   * `?grund=` (Schlüssel) hierher zurück — und dieses Blatt nahm bis hierher
+   * gar keine Suchparameter an. Wer „Bestandskunde" wählte und nicht sagte,
+   * woher sie stammt, bekam keinen Kontakt und keinen Satz.
+   */
+  const meldung = typeof suche['meldung'] === 'string' && suche['meldung'] !== ''
+    ? suche['meldung'] : null;
+  const meldungGrund = typeof suche['grund'] === 'string' ? suche['grund'] : null;
+  /*
+   * **Gezeigt wird nur, was diese Seite selbst sagt** (V-153). Hier stand als
+   * Rückfall der Satz aus der Adresse (`?meldung=`) — damit liess sich mit
+   * einem Verweis beliebiger Text in einen Warnkasten des Portals setzen.
+   * Ein bekannter Schlüssel wird übersetzt; alles andere wird ein
+   * allgemeiner Satz, nie Text aus der Adresse (wie `grundAus` im Recruiting).
+   */
+  const abgewiesen = meldung !== null || meldungGrund !== null;
   const zugang = await portalZugang(`/portal/${mandant}/crm/kunden/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -97,13 +132,23 @@ export default async function KundeDetail(
    * Unternavigation keinen Reiter zeigt, hinter dem ein 404 steht (AUT-06).
    * Dieselbe eine Abfrage fuer alle drei Schluessel (`app/portal/rechte.ts`).
    */
+  /*
+   * Dazu die zwei Rechte, die der Kommunikationsverlauf NICHT verlangt, aber
+   * braucht (V-147): Namen der Handelnden stehen in `benutzer`
+   * (`system.benutzer_lesen`), Nachrichten hinter `nachricht.lesen`. Fehlt
+   * eines, sagt der Verlauf, was fehlt — statt eine kürzere Liste als die
+   * ganze auszugeben. Eine Abfrage für alle.
+   */
   const unterrechte = await haeltRechte(sitzung,
     'crm_entgelt.lesen', 'abrechnung.lesen', 'system.benutzer_verwalten',
     /*
      * V-138: die Abschnitte Angebote, Rechnungen und Dokumente verweisen auf
      * Seiten mit eigenem Recht — ohne es stünde dort der Satz, nicht der Link.
      */
-    'angebot.lesen', 'finanzen.lesen', 'dokument.lesen');
+    'angebot.lesen', 'finanzen.lesen', 'dokument.lesen',
+    'system.benutzer_lesen', 'nachricht.lesen');
+  const tv = nachSprache(VERLAUF_TEXTE, zugang.sprache);
+  const tk = nachSprache(KUNDE_RUECKMELDUNG, zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -160,21 +205,35 @@ export default async function KundeDetail(
 
       /*
        * **Was am Kundenblatt fehlte** (V-138, CRM-05, 04-SEITENKARTE §5.2):
-       * Anfragen, Angebote, Rechnungen, Dokumente und der Verlauf — je mit
-       * dem Recht der Seite, auf die sie verweisen.
+       * Anfragen, Angebote, Rechnungen und Dokumente — je mit dem Recht der
+       * Seite, auf die sie verweisen. Den Verlauf zeigt EIN Abschnitt, die
+       * Kommunikation darunter (V-147): beide Gruppen hatten einen gebaut, und
+       * zwei Listen desselben Verlaufs widersprechen sich beim ersten Eintrag,
+       * den nur eine kennt (Zusammenführung, D-632/D-641).
        */
       const vorgaenge = await leseKundeVorgaenge(kontext, id);
 
-      return { kopf, kontakte, objekte, auftraege, rechte, vorgaenge };
+      /*
+       * **Der Reiter „Kommunikation" (CRM-03, 04-SEITENKARTE, V-147).** Das
+       * Blatt zeigte bis hierher keinen Verlauf, obwohl `0017` eigens
+       * `lead_aktivitaet_kunde_idx` dafür anlegte. Gelesen werden
+       * Aktivitäten am Kunden, an seinen Leads und an seinen
+       * Ansprechpartnern, und die Nachrichten an sie — eine Liste, nach der
+       * Zeit.
+       */
+      const verlauf = await leseKundenVerlauf(kontext, id);
+
+      return { kopf, kontakte, objekte, auftraege, rechte, vorgaenge, verlauf };
     })) as Promise<{
       kopf: Kopf; kontakte: readonly KontaktZeile[];
       objekte: readonly ObjektZeile[]; auftraege: readonly AuftragZeile[];
       rechte: { objekt: boolean; auftrag: boolean; schreiben: boolean } | undefined;
       vorgaenge: KundeVorgaenge;
+      verlauf: readonly VerlaufEintrag[];
     } | null>);
 
   if (daten === null) notFound();
-  const { kopf, kontakte, objekte, auftraege, vorgaenge } = daten;
+  const { kopf, kontakte, objekte, auftraege, vorgaenge, verlauf } = daten;
   const k = nachSprache(KETTE_TEXTE, zugang.sprache);
   const standWerte = nachSprache(LEAD_TEXTE, zugang.sprache).standWerte;
   // Fehlt die Zeile, ist die engste Annahme die sichere: nichts behaupten.
@@ -207,6 +266,18 @@ export default async function KundeDetail(
           <span className="text-xs text-text-muted">öffentlicher Auftraggeber</span>
         ) : null}
       </div>
+
+      {!abgewiesen ? null : (
+        <Hinweis art="warnung" cse="kunde-meldung" className="mb-s5 max-w-prose">
+          {meldungGrund !== null && tk.kontaktFehler[meldungGrund] !== undefined ? (
+            <>
+              <strong>{tk.nichtGespeichert}</strong>{' '}{tk.kontaktFehler[meldungGrund]}
+            </>
+          ) : (
+            <strong>{tk.abgewiesen}</strong>
+          )}
+        </Hinweis>
+      )}
 
       <dl className="m-0 mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
@@ -301,7 +372,7 @@ export default async function KundeDetail(
           * einer Liste, in der man gerade stand.
           */}
         {darfSchreiben && (
-          <details className="mt-s5" data-cse="kontakt-anlegen">
+          <details className="mt-s5" data-cse="kontakt-anlegen" open={abgewiesen}>
             <summary className="cursor-pointer text-sm text-brand">
               Ansprechpartner hinzufügen
             </summary>
@@ -578,35 +649,29 @@ export default async function KundeDetail(
         )}
       </section>
 
-      <section aria-labelledby="verlauf" className="mt-s7" data-cse="kunde-verlauf">
-        <h2 id="verlauf" className="text-h2 text-text">{k.verlaufTitel}</h2>
-        <p className="text-sm text-text-muted">{k.verlaufErklaerung}</p>
-        {vorgaenge.verlauf.length === 0 ? (
-          <p className="text-sm text-text-muted">{k.keinVerlauf}</p>
-        ) : (
-          <ol className="m-0 list-none p-0">
-            {vorgaenge.verlauf.map((a) => (
-              <li key={a.id} className="border-b border-line py-s3">
-                <p className="m-0 text-micro uppercase tracking-[0.08em] text-text-subtle">
-                  {`${k.typWerte[a.typ] ?? k.typWerte['notiz'] ?? ''} · `
-                    + `${k.richtungWerte[a.richtung] ?? ''} · ${a.geschehen}`}
-                </p>
-                <p className="m-0 mt-s1 text-sm text-text">
-                  {a.betreff}
-                  {a.lead_id === null ? null : (
-                    <>
-                      {' — '}
-                      <Link href={`/portal/${mandant}/crm/leads/${a.lead_id}`}
-                            className="text-text-muted underline-offset-2 hover:text-brand hover:underline">
-                        {k.zurAnfrage}
-                      </Link>
-                    </>
-                  )}
-                </p>
-              </li>
-            ))}
-          </ol>
-        )}
+      <section aria-labelledby="kommunikation-titel" id="kommunikation" className="mt-s7"
+               data-cse="kunde-kommunikation">
+        <h2 id="kommunikation-titel" className="text-h2 text-text">{tv.titel}</h2>
+        <p className="mt-s2 max-w-prose text-sm text-text-muted">{tv.erklaerungKunde}</p>
+        <NotizRueckmeldung sprache={zugang.sprache} grund={notizGrund} notiert={notiert} />
+        <Kommunikationsverlauf
+          eintraege={verlauf}
+          sprache={zugang.sprache}
+          mandant={mandant}
+          blatt="kunde"
+          darfNamen={unterrechte['system.benutzer_lesen'] === true}
+          darfNachrichten={unterrechte['nachricht.lesen'] === true}
+          grenze={VERLAUF_GRENZE}
+        />
+        {darfSchreiben ? (
+          <NotizFormular
+            sprache={zugang.sprache}
+            zurueck={`/portal/${mandant}/crm/kunden/${id}`}
+            kundeId={id}
+            ansprechpartnerId={null}
+            kontakte={kontakte.map((k) => ({ id: k.id, name: k.name }))}
+          />
+        ) : <NotizKeinRecht sprache={zugang.sprache} />}
       </section>
     </PortalRahmen>
   );

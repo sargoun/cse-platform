@@ -329,7 +329,6 @@ export const UEBERSETZUNG_AUSNAHMEN: readonly string[] = [
   'src/app/portal/gruppe/leads/page.tsx',
   'src/app/portal/gruppe/objekte/page.tsx',
   'src/app/portal/gruppe/offene-posten/page.tsx',
-  'src/app/portal/gruppe/page.tsx',
   'src/app/portal/gruppe/personen/page.tsx',
   'src/app/portal/gruppe/projekte/page.tsx',
   'src/app/portal/gruppe/protokoll/page.tsx',

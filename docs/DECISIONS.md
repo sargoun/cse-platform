@@ -3340,6 +3340,7 @@ Beantworten helfen:
 | O-906 | **Gilt für Rechnungen und Buchungsbelege seit dem 1. Januar 2025 die Aufbewahrungsfrist von ACHT statt zehn Jahren?** Das Vierte Bürokratieentlastungsgesetz (BEG IV) hat die Frist für Buchungsbelege in § 147 Abs. 3 AO, § 257 Abs. 4 HGB und § 14b Abs. 1 UStG auf acht Jahre verkürzt; Bücher, Inventare, Jahresabschlüsse und Lageberichte bleiben bei zehn. Die Plattform führt in `dokument_aufbewahrung` für `rechnung` und `beleg` weiter **zehn** Jahre und zeigt das auf der Ablageseite als „§ 147 AO, § 14b UStG — 10 Jahre“. **Nicht geändert, mit Absicht:** eine zu LANGE Frist kostet nichts, was sich nicht nachholen liesse — eine zu KURZE ist ein Beleg, der fehlt, wenn die Betriebsprüfung kommt, und gelöscht ist gelöscht. Und die Übergangsregel (für welche Belege die kürzere Frist schon gilt) ist eine Frage an den Steuerberater, keine Zahl, die die Plattform setzt. Hängt mit O-894 zusammen: solange die Sperre dauerhaft ist, ändert die kürzere Frist heute nichts am Löschen — sie ändert die Aussage auf dem Bildschirm und im Löschkonzept. | DOC-07, LEG-01, O-894, V-116, `drizzle/0009`, `src/app/portal/[mandant]/dokumente/upload/page.tsx` |
 | O-907 | **Welche Leadquellen begründen eine Anfrage des Kontakts, sodass die Antwort vertraglich ist und keine Werbung?** Seit V-141 kann jeder Lead einen Ansprechpartner bekommen, und ein ausgehender Anruf oder eine ausgehende E-Mail geht mit einem ZWECK durch das UWG-Tor. Entschieden sind zwei Ränder: das Webformular ist eine Anfrage (D-631, Zweck `vertraglich`), die Akquise ist keine (recherchiert, Zweck `werbung`). Offen sind drei: (a) **von Hand erfasst** — meist nach einem Gespräch, aber das Formular sagt nicht, wer wen angerufen hat; (b) **Empfehlung** — ein Kunde nennt jemanden, der selbst vielleicht nie gefragt hat; (c) **Vergaberadar** — die Vergabestelle bittet öffentlich um Angebote, spricht aber über die Vergabeplattform (D-07). Ist die Kontaktaufnahme dort eine vorvertragliche Maßnahme auf Anfrage der betroffenen Person (Art. 6 Abs. 1 lit. b DSGVO) — oder Werbung, die eine festgestellte Grundlage braucht (§ 7 Abs. 2 UWG, auch B2B)? Bis zur Antwort gehen alle drei den restriktiven Weg `werbung`: der Kontakt braucht eine Grundlage mit Quelle und Datum, sonst hält das Tor den Anruf nicht fest. Die Antwort tauscht die Umsetzung von `LEAD_ZWECK_REGEL`, nicht ihre Aufrufer; das Leadblatt nennt die Frage. | D-631, D-635, § 7 UWG, Art. 6 Abs. 1 lit. b DSGVO, `services/crm/lead-kontakt.ts` (`PLATZHALTER_LEAD_ZWECK`), `api/lead`, `crm/leads/[id]` |
 | O-908 | **Gilt ein Widerspruch (Art. 21 DSGVO) oder ein Werbewiderspruch, der an EINEM Kontakt festgehalten ist, für jeden Kontaktdatensatz derselben E-Mail-Adresse im Bereich?** Das Tor (`app.darf_kontaktiert_werden`) prüft den einen Datensatz, an den eine Nachricht geht. Das Datenmodell hält „ein Mensch, ein Kontakt" je Kunde (`ansprechpartner_email_uk`): derselbe Mensch kann als Anfragender ohne Kunden (0396) und als Kontakt eines oder mehrerer Kunden geführt sein — etwa eine Hausverwaltung für mehrere Eigentümer, oder die Anfrage, deren Kunde die Adresse schon kennt (D-635 Punkt 5). Ein Widerspruch am einen Datensatz sperrt den anderen heute nicht. Soll er es — über alle Datensätze derselben Adresse im Bereich, auch über Kunden hinweg, und für beide Widerspruchsarten? Bis zur Antwort übernimmt der Weg „Kunden zuordnen" keinen Zwilling für einen Anfragenden, dem widersprochen wurde; sonst bleibt jeder Vermerk an seinem Datensatz. | D-631, D-635, Art. 21 DSGVO, § 7 UWG, `drizzle/0020` (`ansprechpartner_email_uk`, Tor), `services/crm/lead-kette.ts` (`nimmKontaktMit`) |
+| O-910 | **Darf die Gruppenansicht die CRM-Aktivitäten aller Gesellschaften lesen — Notizen, Anrufe, Termine, mit Inhalt?** DSH-01 nennt für die Gruppenübersicht „letzte Aktivität“. `lead_aktivitaet` kennt seit `0017` **keinen Gruppenleseweg**: `t_aktivitaet_lesen` bindet an den aktiven Mandanten, eine `t_gruppe`-Policy wie auf `lead` oder `kunde` gibt es nicht — und das ist die einzige CRM-Tabelle, in der der WORTLAUT eines Gesprächs steht (`betreff`, `inhalt`). Eine Zahl allein ließe sich über eine Definer-Funktion zählen, ohne den Inhalt zu öffnen; sie wäre aber eine tote Zahl (DSH-04), denn die Liste dahinter müsste genau diese Zeilen zeigen. Drei Wege: (a) `t_gruppe` auf `lead_aktivitaet` mit `gruppe.crm.lesen` — dieselbe Reichweite wie für Leads und Kunden, also auch jede Gesprächsnotiz der anderen Gesellschaften; (b) ein eigenes Recht (etwa `gruppe.crm.aktivitaet_lesen`), das keine Rolle per Vorgabe hält; (c) so lassen — die Aktivität bleibt im Bereich. **Ausgeliefert ist (c):** die Kachel „Aktivität (7 Tage)“ führt im Bereich auf `/crm/aktivitaet` (V-149), in der Gruppe auf die Übersicht; die Gruppenübersicht hat keine Spalte dafür. Wer Gesprächsinhalte gesellschaftsübergreifend lesbar macht, entscheidet über eine Weitergabe personenbezogener Gesprächsinhalte zwischen rechtlich getrennten Gesellschaften — eine Datenschutzfrage an die Geschäftsführung, keine, die eine Spalte nebenbei beantwortet. | DSH-01, DSH-04, CRM-03, TEN-05, `drizzle/0017`, `services/gruppe/uebersicht.ts`, V-150, D-644 |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
 | O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
@@ -15960,4 +15961,420 @@ eine Entscheidung verlangten statt einer Änderung.
    dem Zwilling beim Kunden stehen** (D-635 Punkt 5, O-908).
 
 | Betrifft | D-592, D-632, D-635, D-636, V-144, `src/lib/i18n/verwaltung/crm-kette.ts`, `src/lib/vorgang-pille.ts`, `src/app/portal/[mandant]/{angebote,auftraege,finanzen/rechnungen,crm/leads}/page.tsx`, `src/app/portal/[mandant]/crm/{leads,kunden}/[id]/page.tsx`, `tests/kern/crm-kette.test.ts` |
+### D-640 · Die Wiedervorlage erinnert: ein Lauf je Mandant, alle fünfzehn Minuten, an den Zuständigen (V-146)
+
+**Der Befund** (V-146, CRM-04): Lead- und Kontaktblatt bieten das Feld
+„Erinnerung“ an, `legeWiedervorlageAn` schreibt `lead_aktivitaet.erinnerung_am`,
+`verschiebe` führt es mit. Gelesen hat den Wert nichts: kein Lauf, keine
+Benachrichtigungsart, kein Kalenderalarm. Wer eine Erinnerung eintrug, bekam
+keine; die Wiedervorlage erschien nur, wenn jemand von sich aus die Liste
+öffnete.
+
+**Die Entscheidung.**
+
+1. **Der Weg ist der Posteingang** (NOT-01). Die Art
+   `crm.wiedervorlage_erinnerung` (`services/crm/benachrichtigung.ts`) führt
+   auf `/crm/wiedervorlagen`, wo sich die Wiedervorlage erledigen und
+   verschieben lässt. Sie ist **nie sammelbar**: eine Erinnerung in der
+   Tageszusammenfassung käme nach dem Termin. Vorgabekanäle wie bei den
+   anderen Vertriebsarten (`app`, `email`); die E-Mail wirkt erst, wenn ein
+   Versender verbunden ist (O-36). Der Text ist deutsch wie jede Meldung an
+   die Verwaltung.
+2. **Empfänger ist der Zuständige, sonst wer die Wiedervorlage angelegt hat.**
+   Hat dieser Mensch kein aktives Konto, wird der Anspruch zurückgegeben
+   (`erinnert_am` wieder NULL), dieselbe Regel wie beim Nachtrag: ein wieder
+   aktiviertes Konto bekommt die Erinnerung noch. Steht gar kein Mensch an der
+   Zeile, bleibt der Anspruch stehen, und die Zahl steht im Laufbericht
+   (`ohneEmpfaenger`); da kann sich nichts mehr ändern.
+   *Nachgeschärft durch D-647 (V-153):* Empfänger ist nur, wer `crm.lesen`
+   in diesem Bereich hält; ohne einen solchen wird die Zeile gar nicht erst
+   beansprucht (`wartend`), statt den Anspruch alle fünfzehn Minuten zu
+   nehmen und zurückzugeben.
+3. **Alle fünfzehn Minuten, je Mandant** (`wiedervorlage_erinnerung`,
+   `*/15 * * * *`). Das Formular nimmt eine Uhrzeit auf die Minute; ein
+   stündlicher Lauf brächte „08:05“ um 09:00. Die Auswahl ist ein einziges
+   `update … set erinnert_am = now() … returning` auf einem Teilindex, der
+   Anspruch und Zustellung liegen in einer Transaktion: zwei Läufe stellen
+   nie doppelt zu, und ein Fehler rollt den Anspruch mit zurück.
+4. **Verschieben macht die Erinnerung neu.** `verschiebe` setzt `erinnert_am`
+   zurück; die mitgewanderte Erinnerung wird zum neuen Termin zugestellt.
+5. **Die Rolle ist eng** (0405). Der Lauf fährt als `cse_job` mit gebundenem
+   Mandanten (`alsJobSitzung`) und hat auf `lead_aktivitaet` nur die Spalten,
+   die er wählt und zurückgibt, und `update` auf genau `erinnert_am`.
+   `inhalt` und `rechtsgrundlage_snapshot` bleiben ihm entzogen. Die Policies
+   hängen an `app.aktiver_mandant()`, nicht an `using (true)`.
+
+**Nicht Teil dieser Entscheidung:** ein Alarm (`VALARM`) im gespiegelten
+Kalendereintrag. Der Posteingang ist der eine Weg; zwei Erinnerungen an
+denselben Termin auf zwei Wegen wären eine zu viel, und welche davon gilt,
+wäre wieder eine Frage.
+
+| Betrifft | CRM-04, NOT-01, NOT-03, D-378, D-493, V-146, `drizzle/0405`, `src/server/jobs/wiedervorlageErinnerung.ts`, `src/server/services/crm/{benachrichtigung,wiedervorlage}.ts`, `src/server/benachrichtigung/bootstrap.ts`, `src/server/jobs/bootstrap.ts`, `docs/JOB-AUSLOESER.sql` |
+|---|---|
+
+### D-641 · Der Kommunikationsverlauf am Kunden und am Kontakt: Aktivitäten und Nachrichten in einer Liste, Notizen auch ohne Lead (V-147)
+
+**Der Befund** (V-147, CRM-03, 04-SEITENKARTE Reiter „Kommunikation“): das
+Kundenblatt zeigte gar keinen Verlauf, obwohl `0017` eigens
+`lead_aktivitaet_kunde_idx` anlegte; Wiedervorlagen am Kunden und
+Kundenportal-Nachrichten erschienen nirgends. Das Kontaktblatt las nur
+`lead_aktivitaet` und zeigte rohe Werte (`ausgehend · email`). Was über
+„Nachricht senden“ hinausgeht, steht aber in `nachricht` — sobald ein Versender
+verbunden ist, fehlte jede versendete Nachricht genau in dem Verlauf, der sie
+belegen soll. Eine Notiz ließ sich nur an einen Lead hängen.
+
+**Die Entscheidung.**
+
+1. **Eine Liste aus beiden Quellen** (`services/crm/verlauf.ts`), neueste
+   zuerst, die jüngsten 50. Am **Kunden**: Aktivitäten am Kunden, an seinen
+   Leads und an seinen Ansprechpartnern; Nachrichten mit seinem `kunde_id`,
+   mit einem seiner Kontakte als Rechtsgrundlage-Kontakt oder als Empfänger.
+   Am **Kontakt**: seine Aktivitäten und jede Nachricht an ihn oder auf seiner
+   Grundlage. Ein Bauteil für beide Blätter (`Kommunikationsverlauf`), damit
+   die zwei Fassungen nicht wieder auseinanderlaufen.
+2. **Der Beleg steht dabei.** Bei allem, was hinausging, die Rechtsgrundlage
+   IM MOMENT DES SENDENS (`rechtsgrundlage_snapshot`,
+   `nachricht.rechtsgrundlage`), nicht der heutige Stand; bei Nachrichten der
+   Zustellstand — `ausstehend` heißt auf dem Bildschirm „nicht versendet“
+   (O-36). Keine rohen Aufzählungswerte, de und en.
+3. **Die Rechte entscheidet die Datenbank.** `lead_aktivitaet` hinter
+   `crm.lesen`, `nachricht` hinter `nachricht.lesen`. Fehlt das zweite oder
+   `system.benutzer_lesen`, sagt das Blatt, was fehlt, statt eine kürzere
+   Liste als die ganze auszugeben.
+4. **Festhalten am Kunden und am Kontakt** über eine eigene Route
+   `POST /api/crm/notiz` (nicht `/api/lead`, die dem Leadblatt gehört und den
+   nächsten Schritt am Lead setzt). Art Notiz/Anruf/E-Mail/Termin, Richtung,
+   und bei ein- und ausgehend der **Zweck, den der Mensch wählt**
+   (vertraglich/transaktional/Werbung, Vorgabe vertraglich — *ersetzt durch
+   D-647: Pflichtwahl ohne Vorauswahl*). Eine Notiz
+   bleibt immer intern. Ein ausgehender Anruf oder eine ausgehende E-Mail
+   verlangt einen Ansprechpartner; ob er kontaktiert werden durfte, prüft das
+   unveränderte UWG-Tor der Datenbank (0020) gegen den lebenden Kontakt —
+   sagt es Nein, wird nichts festgehalten, und das Blatt nennt den Grund.
+   Angelegt, nie geändert; `geschehen_am` setzt der Server.
+5. **Ein Kontakt ohne Kunden hat hier keinen Weg**: eine Aktivität hängt an
+   einem Lead oder an einem Kunden (`lead_aktivitaet_hat_bezug`). Das
+   Kontaktblatt sagt das und verweist auf das Leadblatt, statt ein Formular
+   anzubieten, das immer scheitert.
+6. **Die Rückmeldung trägt einen eigenen Namen** (`?notiz=<grund>`,
+   `?notiert=1`): das Kontaktblatt liest `fehler` für den Sendeweg und
+   `meldung` für seine übrigen Formulare. Jeder Grund des Dienstes hat einen
+   Satz in beiden Sprachen (geprüft).
+
+**Nicht Teil dieser Entscheidung:** der Verlauf auf dem Leadblatt (V-137) —
+er liest weiter nur die Aktivitäten des Leads. Nachrichten tragen keinen
+Leadbezug, den er lesen könnte.
+
+| Betrifft | CRM-03, CRM-08, LEG-08, O-36, V-101, V-137, V-147, `src/server/services/crm/verlauf.ts`, `src/components/portal/Kommunikationsverlauf.tsx`, `src/lib/i18n/verwaltung/crm-verlauf.ts`, `src/app/api/crm/notiz/route.ts`, `src/app/portal/[mandant]/crm/{kunden,kontakte}/[id]/page.tsx` |
+|---|---|
+
+### D-642 · Ein abgewiesenes Formular sagt es auf der Seite, von der es kam — Kundenblatt und vier Recruiting-Seiten (V-148)
+
+**Der Befund** (V-148, D-562): drei Muster derselben Lücke — eine Route
+leitet eine Abweisung mit Grund zurück, die Seite liest ihn nicht.
+(1) `/crm/kunden/[id]` nahm keine Suchparameter an; `POST /api/crm/kunde`
+schickte `?meldung=`. Wer „Bestandskunde“ oder „Einwilligung“ wählte und nicht
+sagte, woher sie stammt bzw. für welchen Kanal, bekam keinen Kontakt und
+keinen Satz. (2) Das Leadblatt las `?meldung=` bereits (V-137) — dieser Teil
+war widerlegt. (3) Bewertung, Entscheidung, neue Stelle und Veröffentlichung
+schicken `zurueck` auf sich selbst, `fuehreRecruitingAus` hängt
+`?fehler=<grund>` an, und keine der vier nahm Suchparameter an: ein
+Bewertungskriterium ohne Begründung wurde abgewiesen, alle Eingaben waren
+weg, kein Satz.
+
+**Die Entscheidung.**
+
+1. **Das Kundenblatt liest Satz und Schlüssel.** Die Kundenroute schickt
+   zusätzlich `?grund=` (nicht `?fehler=`: das Kontaktblatt liest diesen
+   Namen für den Sendeweg, V-101). Das Blatt zeigt über dem Kopf einen
+   Hinweis mit dem übersetzten Satz, sonst dem deutschen Satz der Route —
+   nie den Schlüssel — und öffnet das Kontaktformular wieder.
+2. **Die vier Recruiting-Seiten lesen `?fehler=`** über ein gemeinsames
+   Bauteil (`recruiting/rueckmeldung.tsx`). Je Seite eine eigene Satztabelle
+   in de und en: derselbe Schlüssel meint auf zwei Seiten Verschiedenes
+   (`unvollstaendig`). Ein unbekannter Grund fällt auf „Der Vorgang wurde
+   abgewiesen.“ zurück. Ein Test hält fest, dass jeder Grund, den die
+   jeweilige Route und ihr Dienst werfen können, einen Satz hat.
+3. **Die Veröffentlichung liest auch ihren Erfolg** (`?gesendet=1`) — und
+   „nicht verbunden“, den ehrlichen Normalfall jeder Börse, als Satz:
+   vermerkt, nichts hinausgegangen (O-374, D-02).
+4. **Die Eingaben kommen nicht zurück, und das steht da.** Sie über die
+   Adresse zurückzugeben hieße, Begründungen einer Bewerberbewertung (AGG)
+   und Stellentexte in Adresszeilen und Zugriffsprotokolle zu schreiben. Die
+   langen Formulare (Bewertung, neue Stelle) sagen deshalb ausdrücklich, dass
+   die Eingaben neu einzutragen sind; der Satz sagt, was zu ändern ist.
+
+**Nicht Teil dieser Entscheidung:** die Erfolgsmeldungen, die auf anderen
+Seiten ankommen (`?bewertet=1`, `?entschieden=1` auf dem Bewerbungsblatt,
+`?angelegt=1` auf dem Stellenblatt) — das sind keine Fehler-Rückwege.
+
+| Betrifft | D-562, D-599, V-101, V-137, V-148, REC-02, REC-05, REC-08, REC-09, `src/app/api/crm/kunde/route.ts`, `src/app/portal/[mandant]/crm/kunden/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/{rueckmeldung.tsx,kandidaten/[id]/bewertung,kandidaten/[id]/entscheidung,stellen/neu,stellen/[id]/veroeffentlichung}`, `src/lib/i18n/verwaltung/{crm-kunde,recruiting-rueckmeldung}.ts` |
+|---|---|
+
+### D-643 · Jede Übersichtszahl führt zu ihren Zeilen — Wiedervorlagen, Aktivität, Angebote der Gruppe (V-149)
+
+**Der Befund** (V-149, DSH-04 „no dead numbers"): drei Zahlen führten nicht
+zu der Menge, die sie zählen. (a) „Offene Wiedervorlagen" zählt alle
+Zuständigen, `/crm/wiedervorlagen` öffnet in der Vorgabe „nur meine" — die
+CRM-Übersicht hatte das mit `?wer=alle` schon behoben, das Kachelregister
+nicht. (b) „Aktivität (7 Tage)" zählt `lead_aktivitaet` und führte auf die
+Kundenliste, auf der keine Aktivität steht. (c) „Angebote offen" in der
+Gruppenübersicht war eine nackte Zahl; `/portal/gruppe/angebote` gab es nicht.
+
+**Die Entscheidung.**
+
+1. **Die Wiedervorlagen-Kachel trägt `?wer=alle`.** Dieselbe Lösung wie auf
+   der CRM-Übersicht; die Liste liest genau diesen Parameter.
+2. **Eine eigene Aktivitätsliste, keine umgebogene Kundenliste.**
+   `/portal/[mandant]/crm/aktivitaet` (`crm.lesen`) zeigt über
+   `leseAktivitaeten` dieselbe Tabelle mit derselben Frist
+   (`AKTIVITAET_TAGE = 7`) — und bewusst KEINE Nachrichten: die zählt die
+   Kachel nicht, und eine Liste, die mehr zeigt als die Zahl, ist dieselbe
+   tote Zahl andersherum. Dargestellt mit dem Verlaufsbauteil aus V-147,
+   je Zeile mit Verweis auf Lead oder Kunde (nur, wenn lesbar). In der
+   Gruppe gibt es keine solche Liste (O-910); dort bleibt das Ziel die
+   Übersicht.
+3. **`/portal/gruppe/angebote`** (`gruppe.angebot.lesen`, `t_gruppe` auf
+   `angebot`) — lesend, mit Bereichs- und Standfilter. Die Zelle der
+   Übersicht führt mit `?status=offen&bereich=…` dorthin.
+4. **Eine Menge, ein Ort** (`services/bericht/mengen.ts`): welche Stände
+   „offen", „aktiv", „in Arbeit" heissen, steht einmal. Kachel, Liste und
+   Gruppenübersicht bauen ihr Prädikat daraus; die Übersicht bekommt die
+   Werte als Parameter statt als zweite Schreibweise im SQL. Filter aus der
+   Adresse werden nur gegen die Werteliste angenommen, nie als Text.
+
+**Nicht Teil dieser Entscheidung:** welche Stände „offen" heissen — das
+folgt den Aufzählungen selbst (0024, 0025, 0071) und ist keine neue Regel.
+
+| Betrifft | DSH-04, CRM-03, CRM-04, OPS-08, V-147, V-149, `src/server/services/bericht/{kacheln,mengen}.ts`, `src/server/services/crm/verlauf.ts`, `src/app/portal/[mandant]/crm/aktivitaet/page.tsx`, `src/app/portal/gruppe/{page,angebote/page,tor}.tsx`, `docs/architecture/04-SEITENKARTE.md` |
+|---|---|
+
+### D-644 · Die gebauten Module haben ihre Kachel, und die Gruppenübersicht zählt Projekte, Einsatz und Aufgaben (V-150)
+
+**Der Befund** (V-150, DSH-01, DSH-03): das Kachelregister trug 13 Kacheln
+und begründete das Fehlen der übrigen mit „Modul noch nicht gemergt".
+Aufträge, Angebote, Bauprojekte, Forderungen und Aufgaben waren längst
+gebaut — die Übersicht jeder Gesellschaft zeigte trotzdem keine einzige
+Auftrags-, Projekt-, Angebots- oder Finanzzahl. Der Gruppenübersicht fehlten
+aktive Projekte, „aktuell im Einsatz", anstehende Aufgaben und letzte
+Aktivität.
+
+**Die Entscheidung.**
+
+1. **Fünf neue Kacheln, jede mit dem Recht ihres Moduls und einer Liste,
+   die GENAU ihre Menge zeigt:** `auftraege_aktiv` (`auftrag.lesen` →
+   `auftraege?status=aktiv`), `projekte_in_arbeit` (`bau.lesen` →
+   `bau/projekte?status=in_arbeit`), `angebote_offen` (`angebot.lesen` →
+   `angebote?status=offen`), `forderungen_offen` (`buchhaltung.lesen` →
+   `buchhaltung/offene-posten?art=debitor`, dieselbe Bedingung wie
+   `postenListe`) und `aufgaben_offen` (`aufgabe.lesen` → `aufgaben`,
+   `OFFENE_ZUSTAENDE` aus `kern/aufgabe.ts`). Die drei Listen, die bisher
+   keinen Filter kannten, lesen jetzt `?status=` gegen die Werteliste und
+   sagen es in einer Zeile über der Liste („Gefiltert: … · Alle anzeigen",
+   DESIGN §Filter line).
+2. **Der Kunde kommt in diesen Listen per LEFT JOIN.** Die Kachel zählt die
+   Hauptzeile allein; ein innerer Join auf `kunde` liess ein Projekt ohne
+   `crm.lesen` aus der Liste fallen, das die Kachel zählte. Die Zelle zeigt
+   dann einen Strich.
+3. **Umsatz, Aufwand und Ergebnis werden keine Kacheln.** Das Register zählt
+   Zeilen; Geld steht auf `/finanzen` (Bereich) und `/gruppe/finanzen`
+   (Gruppe, mit Aufwand je Bereich) — D-479, keine GuV. Benachrichtigungen
+   bleiben in der Glocke.
+4. **Die Gruppenübersicht bekommt drei Spalten:** „Bauprojekte in Arbeit"
+   (`gruppe.bau.lesen` → `/gruppe/projekte?status=in_arbeit`), „Offene
+   Aufgaben" (`gruppe.aufgabe.lesen` → neue Seite `/gruppe/aufgaben`, über
+   `t_aufgabe_gruppe` aus 0230) und „Im Einsatz" (`gruppe.zeit.lesen` →
+   `/gruppe/auslastung?bereich=…#im-einsatz`, ein neuer Abschnitt aus
+   `zeiteintrag_offen`). Wie jede Zelle dort: `null` und ein Strich, wo das
+   Recht in DIESEM Bereich fehlt — nie die 0 der Policy.
+5. **„Letzte Aktivität" bekommt die Gruppe nicht.** `lead_aktivitaet` hat
+   keinen Gruppenleseweg, und einen zu öffnen hiesse, Gesprächsinhalte aller
+   Gesellschaften in der Gruppe lesbar zu machen. Das ist O-910 und wird
+   nicht nebenbei entschieden.
+6. **Eine Ausnahme in `tests/kern/verweis-rechte.test.ts`:** der Verweis
+   „Im Einsatz" auf `/gruppe/auslastung` ist über `gruppenUebersicht()`
+   bewacht (die Zelle ist ohne `gruppe.zeit.lesen` im Bereich `null`,
+   `Zahl` rendert dann keinen Verweis). Für die statische Vermessung ist das
+   unsichtbar, weil das Recht im Dienst steht — dieselbe Lage wie die zwei
+   bestehenden Einträge. `tests/isolation/kennzahlen-listen.test.ts` hält die
+   `null`-Zelle fest.
+
+| Betrifft | DSH-01, DSH-03, DSH-04, DSH-05, OPS-05, OPS-08, OPS-11, FIN-15, TEN-05, D-479, O-910, V-150, `src/server/services/bericht/{kacheln,mengen}.ts`, `src/server/services/gruppe/{uebersicht,auslastung,aufgaben}.ts`, `src/server/services/bau/lv.ts`, `src/app/portal/[mandant]/{page,auftraege/page,angebote/page,bau/projekte/page}.tsx`, `src/app/portal/gruppe/{page,aufgaben/page,auslastung/page,auftraege/page,projekte/page}.tsx`, `src/components/portal/Listenfilter.tsx`, `src/lib/i18n/verwaltung/kennzahlen.ts`, `docs/DESIGN.md`, `tests/kern/verweis-rechte.test.ts` |
+|---|---|
+
+### D-645 · Eine Kachel erscheint nur, wenn sich ihr Ziel öffnet — Recht, Zielrechte und Modulbuchung (V-151)
+
+**Der Befund** (V-151, DSH-04, AUT-06, D-377; Nachprüfung von V-150): die
+neue Kachel „Bauprojekte in Arbeit“ (`bau.lesen`) erschien bei Leitung und
+Administration in JEDER Gesellschaft — beide halten `bau.lesen` global
+(0008) —, und in der Reinigung, der Security und bei Operations führte sie auf
+`/bau/projekte?status=in_arbeit`: ein 404, weil die Pforte eine Seite eines
+nicht gebuchten Gewerks so beantwortet. Das Dashboard filterte nur nach dem
+Recht der Kachel; `Kachel.modul` las niemand, `app.hat_recht` schneidet nur
+mit `benutzer_mandant.module`, nicht mit `mandant.module`, und kein Test
+fragte, ob sich das Ziel einer sichtbaren Kachel öffnet. Dieselbe Lücke in
+kleiner: „Offene Forderungen“ hing an `buchhaltung.lesen`, `offener_posten`
+liest aber nur, wer `zahlung.lesen` hält (0121) — eine Rolle ohne das zweite
+sah „0“, eine Aussage über das Recht statt über die Forderungen. Und
+„Offene Konflikte“ (`dienstplan.arbzg_lesen`) führt auf eine Seite, die
+zusätzlich `dienstplan.lesen` verlangt.
+
+**Die Entscheidung.**
+
+1. **Die Kachel fragt, was die Pforte fragen wird.** `kachelErreichbar`
+   (`services/bericht/dashboard.ts`) verlangt das Recht der Kachel und ihre
+   `zusatzRechte`, die Buchung ihres Moduls und ihrer Rechte (`modulAktiv`),
+   eine Zielroute im Manifest, die in dieser Gesellschaft nicht gesperrt ist,
+   und JEDES Leserecht dieser Route. Fällt eines, erscheint die Kachel nicht —
+   nicht ausgegraut (AUT-06).
+2. **Eine Regel, eine Funktion.** Ob eine Route am Modul scheitert, sagt
+   `routeGesperrt` (`registry/routen.ts`); die Pforte (`app/portal/zugang.ts`)
+   und die Übersicht rufen beide genau diese Funktion. Die Regel stand vorher
+   nur in der Pforte, und die Übersicht wusste nichts von ihr.
+3. **Die Buchung ist ein Pflichtargument von `dashboard()`.**
+   `bereichsDashboard` liest Buchung und Rechte in derselben gebundenen
+   Transaktion wie die Zahlen, in einer Rundreise (`kachelRechte`). Die
+   Entwicklungsfläche `/dev/dashboard`, deren Ziele `/dev/kennzahl/…` sind und
+   sich immer öffnen, sagt ausdrücklich „keine Buchung“
+   (`gepflegt: false`) — derselbe Wert, den eine Gesellschaft ohne gepflegte
+   Liste hat (0103).
+4. **`zusatzRechte` für die Rechte der gezählten Tabelle.** „Offene
+   Forderungen“ trägt `zahlung.lesen`; Recht und Modul der Kachel bleiben
+   `buchhaltung`, weil ihr Ziel die Liste der Buchhaltung ist.
+
+**Nicht Teil dieser Entscheidung:** ein zweiter Faktor, den ein Ziel verlangt
+(`aal2`). Keine Kachel führt heute auf eine solche Route; der Test in
+`tests/kern/kennzahlen-erreichbar.test.ts` schlägt an dem Tag an, an dem eine
+dazukommt, statt dass die Übersicht die Stufe der Sitzung raten müsste.
+
+| Betrifft | DSH-03, DSH-04, AUT-06, D-377, D-644, V-150, V-151, `src/server/services/bericht/{dashboard,kacheln}.ts`, `src/server/registry/{kennzahlen,routen}.ts`, `src/app/portal/zugang.ts`, `src/app/portal/[mandant]/page.tsx`, `src/app/dev/dashboard/page.tsx`, `tests/kern/kennzahlen-erreichbar.test.ts`, `tests/isolation/kennzahlen-listen.test.ts` |
+|---|---|
+
+### D-646 · Die Gruppenübersicht: jede Zahl mit ihrem Filter, jede Liste als Dienst, jede Beschriftung in der Sprache der Sitzung (V-152)
+
+**Der Befund** (V-152, DSH-04, AUT-06, D-592; Nachprüfung von V-149/V-150):
+die Summenkachel „Aufträge aktiv“ oben auf `/portal/gruppe` führte weiter auf
+`/gruppe/auftraege` ohne `?status=aktiv` — die Liste zeigte alle nicht
+archivierten Aufträge, die Zahl zählte nur `aktiv`; `gruppe/auftraege`
+beschrieb diese Abweichung sogar selbst. „Neue Anfragen“ zählte `status =
+'neu'` und führte auf die ganze Pipeline; dasselbe im Bereich für die Kacheln
+„Neue Anfragen“ und „Frist überschritten“ (beide auf die ungefilterte
+Leadliste). Von den Spaltenköpfen der Übersicht waren nur die drei neuen
+übersetzt — im englischen Portal eine gemischte Tabelle. „Forderungen offen“
+zählte mit `gruppe.zahlung.lesen` und führte auf `/gruppe/offene-posten`, das
+`gruppe.buchhaltung.lesen` verlangt. Und die Listen hinter „Aktive Aufträge“,
+„Offene Angebote“ und „Angebote offen“ hatten ihre Abfrage in der Seite: ob
+sie dieselbe Menge zeigen wie die Zahl, prüfte nur ein Vergleich von
+Quelltext-Zeichenketten, einer davon an Leerzeichen gebunden.
+
+**Die Entscheidung.**
+
+1. **Die Ziele der Übersicht stehen im Dienst** (`UEBERSICHT_ZIELE`,
+   `SUMMEN_ZIELE`, `uebersichtZiel` in `services/gruppe/uebersicht.ts`), jedes
+   MIT dem Filter seiner Menge: `auftraege?status=aktiv`,
+   `leads?status=neu`, `angebote?status=offen`, `projekte?status=in_arbeit`.
+   Die Seite baut keine Adresse mehr selbst; ein Test misst jedes Ziel am
+   Manifest.
+2. **Eine Zelle ist eine Zahl, wo die Sitzung das Recht der Zahl UND das der
+   Liste dahinter hält** (`UEBERSICHT_ZIELRECHTE`, heute nur „Forderungen
+   offen“ → `gruppe.buchhaltung.lesen`). Sonst `null`, also ein Strich statt
+   eines Verweises auf einen 404 (AUT-06). Eine **Summe** geht über die
+   Bereiche mit Zahl; ist es keiner, steht ein Strich ohne Verweis — „0“ wäre
+   eine Aussage über das Recht.
+3. **Leadlisten filtern nach Stand und Frist** (`?status=` gegen `lead_status`,
+   `?frist=ueberschritten`), im Bereich wie in der Gruppe, mit der Zeile
+   „Gefiltert: … · Alle anzeigen“. Das Prädikat „Reaktionsfrist
+   überschritten“ steht EINMAL (`fristUeberschrittenSql`, `mengen.ts`); die
+   Kachel und beide Listen benutzen es.
+4. **Die Listen hinter den Zahlen sind ein Dienst** (`services/bericht/listen.ts`:
+   Aufträge, Angebote, Leads — im Bereich und in der Gruppe). Im Bereich steht
+   `mandant_id = app.aktiver_mandant()` in der Abfrage und nicht nur in der
+   Policy (Invariante 3). `tests/isolation/kennzahlen-listen.test.ts` (5)(6)
+   vergleicht Zahl und Liste an echten Zeilen, auch ohne Leserecht auf den
+   Kunden.
+5. **Die Übersicht spricht ganz die Sprache der Sitzung** — Titel, Summen,
+   alle Spaltenköpfe, Hinweis (`KENNZAHL_TEXTE`); ihre Zeile in der
+   Ausnahmeliste der Übersetzungswache ist gestrichen. Die übrigen
+   Gruppenlisten bleiben, wie sie sind: deutsch mit zweisprachiger
+   Filterzeile — dieselbe Lage wie jede Modulseite, deren Fließtexte nach
+   D-592 noch folgen.
+
+**Nicht Teil dieser Entscheidung:** eine eigene Gruppenliste für
+Wiedervorlagen. Die Kachel „Offene Wiedervorlagen“ führt in der Gruppe weiter
+auf die Leadliste; `lead_aktivitaet` hat keinen Gruppenleseweg (O-910).
+
+| Betrifft | DSH-01, DSH-04, AUT-06, D-592, D-643, D-644, V-149, V-150, V-152, `src/server/services/bericht/{listen,mengen,kacheln}.ts`, `src/server/services/gruppe/uebersicht.ts`, `src/app/portal/gruppe/{page,auftraege/page,angebote/page,leads/page}.tsx`, `src/app/portal/[mandant]/{auftraege/page,angebote/page,crm/leads/page}.tsx`, `src/lib/i18n/verwaltung/kennzahlen.ts`, `scripts/guards/uebersetzung-ausnahmen.ts`, `tests/kern/{kennzahlen-ziele,verweis-rechte}.test.ts`, `tests/isolation/kennzahlen-listen.test.ts`, `tests/e2e/gruppe.spec.ts` |
+|---|---|
+
+### D-647 · CRM-Pflege nachgeschärft: Erinnerung nur an Berechtigte und ohne Altlast, geprüfte Bezüge, Zweck ohne Vorgabe, ehrliche Rückmeldungen (V-153)
+
+**Der Befund** (V-153; Nachprüfung von V-146, V-147, V-148): (1) 0405 füllte
+`erinnert_am` für den Altbestand nicht vor — der erste Lauf nach dem
+Einspielen hätte jede offene Wiedervorlage mit längst vergangener Erinnerung
+auf einmal zugestellt, per E-Mail, sobald ein Versender verbunden ist; der
+Seed hat eine solche Zeile. (2) Der Lauf prüfte den Empfänger weder auf
+Mitgliedschaft noch auf `crm.lesen` — der Betreff ging trotzdem in
+Posteingang und E-Mail —, ein stillgelegtes Konto liess den Anspruch alle
+fünfzehn Minuten nehmen und zurückgeben, ohne Ende, und der Text „Sie haben
+um eine Erinnerung gebeten“ war falsch, wenn Zuständiger und Anlegender
+verschiedene Menschen sind. (3) `halteFest` prüfte `kundeId` nicht gegen den
+Mandanten (`lead_aktivitaet.kunde_id` hat keinen Fremdschlüssel), dasselbe
+Muster in `legeWiedervorlageAn`; eine Kennung ohne UUID-Form endete als 500.
+(4) Der Zweck einer Notiz war vorgewählt `vertraglich` — die Klasse, die das
+UWG-Tor nie sperrt. (5) Ohne `crm.schreiben` zeigten Kunden- und Kontaktblatt
+weder Formular noch Satz. (6) Das Kundenblatt setzte als Rückfall den Text aus
+`?meldung=` in seinen Warnkasten. (7) Die Recruiting-Rückmeldung überschrieb
+einen vermerkten Veröffentlichungsversuch mit „Nicht gespeichert.“.
+
+**Die Entscheidung.**
+
+1. **Der Altbestand wird nicht nachgeholt, wo seine Wiedervorlage schon fällig
+   ist** (`drizzle/0406`). Eine Erinnerung ist ein Hinweis VOR einem Termin;
+   liegt die Fälligkeit selbst in der Vergangenheit, steht die Wiedervorlage
+   überfällig in Liste und Übersicht, und eine Meldung Tage danach wäre nur
+   Lärm. Diese Zeilen werden gestempelt, ohne Zustellung. Liegt die
+   Fälligkeit noch vor uns, bekommt die Erinnerung der erste Lauf — spät, aber
+   vor dem Termin. Der Seed folgt derselben Regel.
+2. **Empfänger ist nur, wer die Wiedervorlage lesen darf**
+   (`kern.traeger_des_rechts(mandant, 'crm.lesen')`: aktive Menschenkonten mit
+   dem Recht in DIESEM Bereich, dieselbe Auflösung wie `app.hat_recht`).
+   Zuerst der Zuständige, sonst wer sie angelegt hat. Darf keiner von beiden,
+   wird die Zeile nicht beansprucht: sie wartet ohne Schreibvorgang, bis wieder
+   jemand berechtigt ist (ein wieder aktiviertes Konto bekommt sie noch,
+   D-640), und steht als `wartend` im Laufbericht. Das Zurückgeben des
+   Anspruchs bleibt nur für das Fenster zwischen Auswahl und Zustellung.
+3. **Der Text sagt, warum die Meldung an diesen Menschen geht** — „als
+   zuständig eingetragen“ oder „angelegt; zuständig ist niemand“ bzw. „der
+   eingetragene Zuständige hat hier keinen Zugang zum CRM“. Geht sie an den
+   Anlegenden, führt sie auf `/crm/wiedervorlagen?wer=alle`: die Vorgabe
+   „nur meine“ zeigte sie ihm nicht.
+4. **Bezüge werden vor dem Schreiben geprüft**, mit dem Mandanten der Sitzung
+   in der Abfrage (Invariante 3): Kunde, Lead, Ansprechpartner müssen hier
+   stehen, eine Kennung ohne UUID-Form ist `ungueltiger_bezug`, und zuständig
+   kann nur sein, wer das CRM hier lesen darf (`zustaendig_ohne_zugang`) —
+   dieselbe Frage wie im Lauf. Ein Fremdschlüssel auf
+   `lead_aktivitaet.kunde_id` kommt NICHT dazu: der Bestand wurde nie
+   geprüft, und eine Migration, die an einer verwaisten Zeile scheitert, hielte
+   jedes Einspielen an; die Dienste sind die einzigen Schreiber.
+5. **Der Zweck ist eine Pflichtwahl ohne Vorauswahl** bei ein- und ausgehenden
+   Einträgen (`ohne_zweck`); eine interne Notiz braucht keinen. Damit gibt es
+   keine Vorgabe, nach der zu fragen wäre — D-641 Punkt 4 („Vorgabe
+   vertraglich“) ist hiermit ersetzt.
+6. **Formular ODER Satz**: ohne `crm.schreiben` steht „Festhalten kann, wer
+   dieses Recht hält: …“ (`NotizKeinRecht`).
+7. **Nie Text aus der Adresse im Warnkasten**: das Kundenblatt übersetzt
+   bekannte Schlüssel, alles andere wird „Der Vorgang wurde abgewiesen.“ —
+   dasselbe wie `grundAus` im Recruiting.
+8. **„Nicht veröffentlicht.“ statt „Nicht gespeichert.“**, wo der Versuch
+   vermerkt ist (`kanal_nicht_verbunden`, `veroeffentlichung_fehlgeschlagen`):
+   gespeichert ist der Vermerk, hinausgegangen ist nichts.
+
+**Nicht Teil dieser Entscheidung:** das Formular „Nachricht senden“ auf dem
+Kontaktblatt (V-101) wählt seinen Zweck weiter `vertraglich` vor; es gehört
+nicht zu diesem Befund und wird hier nicht nebenbei geändert. Ebenso zeigen
+Leadblatt, Kontaktblatt und Wiedervorlagenliste weiter den Satz, den ihre
+Routen als `?meldung=` schicken — ein älteres Muster, das eine eigene
+Durchsicht braucht.
+
+| Betrifft | CRM-03, CRM-04, LEG-08, NOT-01, D-562, D-599, D-640, D-641, D-642, V-146, V-147, V-148, V-153, `drizzle/0406`, `src/server/jobs/wiedervorlageErinnerung.ts`, `src/server/services/crm/{benachrichtigung,verlauf,wiedervorlage}.ts`, `src/server/db/seed/crm.ts`, `src/components/portal/Kommunikationsverlauf.tsx`, `src/app/portal/[mandant]/crm/{kunden,kontakte}/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/rueckmeldung.tsx`, `src/lib/i18n/verwaltung/{crm-verlauf,crm-kunde,recruiting-rueckmeldung}.ts`, `tests/kern/crm-notiz-route.test.ts` |
 |---|---|

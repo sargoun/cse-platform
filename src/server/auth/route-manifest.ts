@@ -627,6 +627,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /*
+     * CRM-03, V-147. Eine Notiz, einen Anruf, eine E-Mail oder einen Termin
+     * am Kunden oder am Ansprechpartner festhalten. Ausgehendes geht durch
+     * das UWG-Tor der Datenbank (0020) — hier steht nur das Recht, zu
+     * schreiben.
+     */
+    pfad: 'api/crm/notiz',
+    recht: 'crm.schreiben',
+  },
+  {
+    /*
      * V-022, V-074, V-075, V-076. Ein fremdes Konto entsperren, entziehen,
      * wiedergeben oder seine Anmeldungen widerrufen.
      *

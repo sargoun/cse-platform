@@ -8,6 +8,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../../kennung';
 import { RecruitingSeite, leseImMandanten } from '../../../rahmen';
 import { FELD, KNOPF } from '../../../felder';
+import { grundAus, RecruitingRueckmeldung } from '../../../rueckmeldung';
 
 /**
  * `/portal/[mandant]/recruiting/kandidaten/[id]/bewertung` — Kriterien
@@ -37,10 +38,15 @@ export const metadata = { title: 'Bewertung — Recruiting' };
 const ZEILEN = [0, 1, 2, 3, 4] as const;
 
 export default async function Bewertung(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
+  /* V-148: die Abweisung kommt als `?fehler=` auf DIESE Seite zurück. */
+  const grund = grundAus(await searchParams);
   return (
     <RecruitingSeite
       mandant={mandant}
@@ -80,6 +86,9 @@ export default async function Bewertung(
             <p className="mb-s5 text-sm text-text-muted">
               {d.b.name} · {d.b.stelleTitel ?? 'Initiativbewerbung'}
             </p>
+
+            <RecruitingRueckmeldung sprache={zugang.sprache} seite="bewertung" grund={grund}
+                                    eingabenErneut />
 
             <Hinweis art="warnung" cse="bewertung-hinweis" className="mb-s5 max-w-prose">
               <strong>Jede Punktzahl braucht einen Grund.</strong> § 22 AGG

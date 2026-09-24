@@ -322,3 +322,60 @@ describe('ohne Bezug gibt es keine Wiedervorlage', () => {
       }))).rejects.toThrow(/Frist|Fälligkeit/u);
   });
 });
+
+/**
+ * V-153 — die Kennungen des Formulars werden geprüft, BEVOR geschrieben wird.
+ *
+ * `lead_aktivitaet.kunde_id` und `ansprechpartner_id` tragen keinen
+ * Fremdschlüssel (0017): ein verändertes verstecktes Feld legte eine
+ * Wiedervorlage am Kunden einer anderen Gesellschaft an, eine Kennung ohne
+ * UUID-Form endete als 500. Und zuständig kann nur sein, wer sie lesen darf.
+ */
+describe('V-153 — Bezug und Zuständiger kommen geprüft an', () => {
+  async function grund(e: Record<string, string>): Promise<string> {
+    try {
+      await alsIntern(f.reinigung, async (tx) =>
+        legeWiedervorlageAn(kontextAus(tx, f.reinigung), {
+          betreff: 'Geprüft', faelligAm: '2026-10-01T09:00', ...e,
+        }));
+    } catch (fehler) {
+      if (fehler instanceof CrmFehler) return fehler.grund;
+      throw fehler;
+    }
+    return 'angelegt';
+  }
+
+  it('ein Kunde einer anderen Gesellschaft, oder keiner: abgewiesen, nichts geschrieben', async () => {
+    const fremd = await kunde(f.bau);
+    expect(await grund({ kundeId: fremd })).toBe('kein_kunde');
+    expect(await grund({ kundeId: '00000000-0000-4000-8000-000000000000' })).toBe('kein_kunde');
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from lead_aktivitaet where kunde_id = $1`, [fremd]);
+    expect(n?.n).toBe(0);
+  });
+
+  it('eine Kennung, die keine UUID ist — ein Satz statt 22P02', async () => {
+    const k = await kunde(f.reinigung);
+    expect(await grund({ kundeId: 'kein-kunde' })).toBe('ungueltiger_bezug');
+    expect(await grund({ kundeId: k, zustaendigBenutzerId: '1; drop' })).toBe('ungueltiger_bezug');
+    expect(await grund({ kundeId: k, ansprechpartnerId: 'x' })).toBe('ungueltiger_bezug');
+    expect(await grund({ leadId: 'x' })).toBe('ungueltiger_bezug');
+  });
+
+  it('ein Lead, den es hier nicht gibt — 404 statt Fremdschlüsselfehler', async () => {
+    expect(await grund({ leadId: '00000000-0000-4000-8000-000000000000' })).toBe('kein_lead');
+  });
+
+  it('zuständig nur, wer das CRM hier lesen darf', async () => {
+    const k = await kunde(f.reinigung);
+    // Aktiv, aber Mitglied nur der Security — in der Reinigung ohne `crm.lesen`.
+    const fremd = await konto();
+    await mitgliedschaft(fremd, f.security);
+    expect(await grund({ kundeId: k, zustaendigBenutzerId: fremd }))
+      .toBe('zustaendig_ohne_zugang');
+    // Mitglied der Reinigung: angelegt.
+    const kollegin = await konto();
+    await mitgliedschaft(kollegin, f.reinigung);
+    expect(await grund({ kundeId: k, zustaendigBenutzerId: kollegin })).toBe('angelegt');
+  });
+});
