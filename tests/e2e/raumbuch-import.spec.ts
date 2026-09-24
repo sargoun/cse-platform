@@ -129,21 +129,29 @@ test.describe('(2) Erst die Übernahme schreibt', () => {
 });
 
 test.describe('(3) Was der Import ablehnt', () => {
-  test('eine .xlsx wird abgewiesen — mit einem Satz, nicht mit halbem Lesen',
+  /**
+   * V-171 (D-665): die Abweisung kommt auf der IMPORTSEITE an, mit dem Satz —
+   * nicht mehr als weisse JSON-Seite mit HTTP 415. Und erkannt wird die Datei
+   * am Inhalt: auch eine „raumbuch.csv", die in Wahrheit ein ZIP ist, fällt.
+   */
+  test('eine Excel-Datei wird abgewiesen — mit einem Satz auf der Seite, nicht mit halbem Lesen',
     async ({ page }) => {
       await alsKonto(page, KONTO.adminReinigung);
       await zumImport(page);
-      const antwort = await page.request.post(
-        '/api/raumbuch-import?mandant=reinigung',
-        {
-          multipart: {
-            objektId: '00000000-0000-0000-0000-000000000000',
-            datei: { name: 'raumbuch.xlsx', mimeType: 'application/vnd.ms-excel',
-                     buffer: Buffer.from('PK', 'utf8') },
-          },
+      const objektId = /\/objekte\/([0-9a-f-]{36})\//u.exec(page.url())?.[1] ?? '';
+      for (const datei of [
+        { name: 'raumbuch.xlsx', mimeType: 'application/vnd.ms-excel',
+          buffer: Buffer.from('PK', 'utf8') },
+        { name: 'raumbuch.csv', mimeType: 'text/csv',
+          buffer: Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x06, 0x00]) },
+      ]) {
+        const antwort = await page.request.post('/api/raumbuch-import', {
+          multipart: { objektId, datei },
           headers: { origin: new URL(page.url()).origin },
         });
-      expect(antwort.status()).toBe(415);
-      expect(await antwort.text()).toContain('CSV');
+        expect(antwort.status()).toBe(200);
+        expect(antwort.url()).toContain('fehler=excel');
+        expect(await antwort.text()).toContain('CSV');
+      }
     });
 });

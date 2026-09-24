@@ -9,7 +9,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  alsNumerisch, deutscheZahl, leseZahl, leseCsv, TabellenFehler, trennzeichenAus,
+  alsNumerisch, deutscheZahl, istTabellenkalkulation, leseCsv, leseTextDatei, leseZahl,
+  TabellenFehler, trennzeichenAus,
 } from '../../src/server/services/raumbuch/tabelle.js';
 import { schlageZuordnungVor } from '../../src/server/services/raumbuch/import.js';
 
@@ -232,5 +233,57 @@ describe('(9) Was NICHT als Tabelle durchgehen darf', () => {
     // Fall: 12,000 m² sehen so aus, als haette jemand sie eingetragen.
     expect(leseZahl('12,').wert).toBeNull();
     expect(leseZahl('12,5').wert).toBe(12_500n);
+  });
+});
+
+/**
+ * V-171 (OPS-04, D-665): Excel wird nicht gelesen — aber am INHALT erkannt,
+ * und die CSV, die ein deutsches Excel wirklich schreibt, kommt an.
+ */
+describe('(10) Excel erkennen, Windows-1252 lesen', () => {
+  const zip = Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x06, 0x00]);
+  const ole = Uint8Array.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+  const text = new TextEncoder().encode('Etage;Raum');
+
+  it('erkennt ein ZIP (xlsx, xlsm, ods) und das alte xls am Inhalt — auch unter falschem Namen', () => {
+    expect(istTabellenkalkulation('raumbuch.csv', zip)).toBe(true);
+    expect(istTabellenkalkulation('raumbuch.csv', ole)).toBe(true);
+    expect(istTabellenkalkulation('export', zip)).toBe(true);
+  });
+
+  it('erkennt sie am Namen, wenn der Anfang fehlt', () => {
+    for (const name of ['a.xlsx', 'A.XLS', 'b.xlsm', 'c.ods', ' raum.xlsx ']) {
+      expect(istTabellenkalkulation(name, new Uint8Array())).toBe(true);
+    }
+  });
+
+  it('lässt eine Textdatei durch — auch eine, die zufällig mit P beginnt', () => {
+    expect(istTabellenkalkulation('raumbuch.csv', text)).toBe(false);
+    expect(istTabellenkalkulation('raumbuch.txt', new TextEncoder().encode('PK;Raum'))).toBe(false);
+    expect(istTabellenkalkulation('raumbuch.csv', Uint8Array.from([0x50, 0x4b]))).toBe(false);
+  });
+
+  it('liest UTF-8 unverändert — und UTF-8 wird NICHT als Windows-1252 umgedeutet', () => {
+    const utf8 = new TextEncoder().encode('Etage;Fläche m²\nEG;12,5\n');
+    expect(leseTextDatei(utf8)).toBe('Etage;Fläche m²\nEG;12,5\n');
+  });
+
+  it('liest die Windows-1252-CSV eines deutschen Excel, statt „Fl�che" daraus zu machen', () => {
+    // „Fläche m²" in Windows-1252: ä = 0xE4, ² = 0xB2 — beides ungültiges UTF-8.
+    const cp1252 = Uint8Array.from([
+      ...new TextEncoder().encode('Etage;Fl'), 0xe4,
+      ...new TextEncoder().encode('che m'), 0xb2,
+      ...new TextEncoder().encode('\nEG;12,5\n'),
+    ]);
+    const gelesen = leseTextDatei(cp1252);
+    expect(gelesen).toBe('Etage;Fläche m²\nEG;12,5\n');
+    expect(leseCsv(gelesen).kopf).toEqual(['Etage', 'Fläche m²']);
+  });
+
+  it('die verschobene Zeile trägt ihre Nummer auch als Feld — für den Satz auf der Seite', () => {
+    const csv = 'Etage;Raumnummer;Bezeichnung;Flaeche\n1;101;Buero;25,5\n1;102;Flur\n';
+    try { leseCsv(csv); expect.unreachable(); } catch (f) {
+      expect((f as TabellenFehler).zeile).toBe(3);
+    }
   });
 });

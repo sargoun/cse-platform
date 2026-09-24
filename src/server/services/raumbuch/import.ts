@@ -511,7 +511,7 @@ export async function uebernimm(
     [importId]);
   if (kopf === undefined) throw new TabellenFehler('Import nicht gefunden', 'format');
   if (kopf.status === 'uebernommen') {
-    throw new TabellenFehler('Dieser Import ist bereits uebernommen', 'format');
+    throw new TabellenFehler('Dieser Import ist bereits uebernommen', 'schon_uebernommen');
   }
 
   const zeilen = await db.abfrage<ZwischenZeile>(
