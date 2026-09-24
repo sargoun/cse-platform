@@ -89,7 +89,9 @@ describe('Veröffentlichen: eine Abweisung ist ein Satz, kein JSON', () => {
     expect(lies('src/app/api/website/referenzen/route.ts')).toContain('grundAufsFormular(');
     for (const seite of ['src/app/portal/[mandant]/website/referenzen/page.tsx',
       'src/app/portal/[mandant]/website/referenzen/[id]/veroeffentlichen/page.tsx']) {
-      expect(lies(seite), seite).toContain('t.statusFehler[abgewiesen] ?? t.statusFehlerSonst');
+      // Nur ein EIGENER Schlüssel (V-159): `?fehler=__proto__` ist kein Grund.
+      expect(lies(seite), seite)
+        .toContain('eigenerEintrag(t.statusFehler, abgewiesen) ?? t.statusFehlerSonst');
     }
     for (const s of ['de', 'en'] as const) {
       expect(WEBSITE_REFERENZ_TEXTE[s].statusFehler['ohne_kundenfreigabe']).toBeDefined();

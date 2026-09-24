@@ -21,6 +21,8 @@
  */
 import { readFileSync } from 'node:fs';
 import { NextRequest } from 'next/server';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { einteilungsGrund, fachStatus } from '../../src/app/api/einsaetze/fehler.js';
 import { grundAufsFormular } from '../../src/app/api/formular-antwort.js';
@@ -99,6 +101,18 @@ describe('Einteilung: jeder Fachfehler hat einen Grund und einen Satz (V-158)', 
       json: false, zurueck: 'https://boese.example/', grund: 'x',
     });
     expect(new URL(fremd?.headers.get('location') ?? '').origin).toBe('https://cse.example');
+    /*
+     * „Nie nach draussen" gilt auch für die Pfade, die erst die Normalisierung
+     * zu `//boese.example` macht (V-159): sie bestehen die Ursprungsprüfung,
+     * und das zweite Einlesen machte daraus eine schemalose Adresse.
+     */
+    for (const zurueck of ['/.//boese.example', '/portal/..//boese.example',
+      '/%2e//boese.example', '/./\\boese.example']) {
+      const umweg = grundAufsFormular(a, { json: false, zurueck, grund: 'grund_fehlt' });
+      expect(umweg?.status, zurueck).toBe(303);
+      expect(new URL(umweg?.headers.get('location') ?? '').origin, zurueck)
+        .toBe('https://cse.example');
+    }
     expect(grundAufsFormular(a, { json: true, zurueck: '/portal', grund: 'x' })).toBeNull();
     expect(grundAufsFormular(a, { json: false, zurueck: undefined, grund: 'x' })).toBeNull();
   });
@@ -116,7 +130,9 @@ describe('Einteilung: jeder Fachfehler hat einen Grund und einen Satz (V-158)', 
     const seite = readFileSync(
       'src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx', 'utf8');
     expect(seite).toContain("frage['fehler']");
-    expect(seite).toContain('t.fehler[abgewiesen] ?? t.fehlerSonst');
+    // Nur ein EIGENER Schlüssel der Tabelle (V-159) — `?fehler=__proto__` fände sonst
+    // `Object.prototype`, und die Seite endete in einem 500.
+    expect(seite).toContain('eigenerEintrag(t.fehler, abgewiesen) ?? t.fehlerSonst');
     // Der Absagegrund der EINTEILUNG — dieselbe Mindestlänge wie der Dienst.
     const absage = /action=\{`\/api\/einsaetze\/\$\{kopf\.id\}\/absagen`\}[\s\S]*?<\/form>/u
       .exec(seite)?.[0] ?? '';
@@ -165,6 +181,26 @@ describe('Bewerbung: eine Abweisung ist ein Satz auf der Formularseite (V-158)',
     expect(bewerbungsMeldung('etwas_neues')).toBe(BEWERBUNG_MELDUNG_SONST);
     expect(bewerbungsMeldung(undefined)).toBeUndefined();
     expect(bewerbungsMeldung(['a', 'b'])).toBeUndefined();
+  });
+
+  /**
+   * **Ein Schlüssel des Prototyps ist kein Grund** (V-159).
+   *
+   * `BEWERBUNG_MELDUNG['__proto__']` ist `Object.prototype`, `['toString']` eine
+   * Funktion — beides nicht `undefined`, also griff der Rückfall nicht. Die drei
+   * öffentlichen Karriereseiten geben den Wert als Kind eines `role="alert"`
+   * aus; React wirft bei einem Objekt, und `/karriere?fehler=__proto__` war eine
+   * Fehlerseite.
+   */
+  it('?fehler=__proto__, toString, constructor … bekommen den allgemeinen Satz', () => {
+    for (const grund of ['__proto__', 'toString', 'constructor', 'hasOwnProperty',
+      'valueOf', 'isPrototypeOf', '__defineGetter__', 'toLocaleString']) {
+      expect(bewerbungsMeldung(grund), grund).toBe(BEWERBUNG_MELDUNG_SONST);
+      // Und das Element lässt sich zeichnen — vorher warf React hier.
+      const html = renderToStaticMarkup(
+        createElement('p', { role: 'alert' }, bewerbungsMeldung(grund)));
+      expect(html, grund).toBe(`<p role="alert">${BEWERBUNG_MELDUNG_SONST}</p>`);
+    }
   });
 
   it('das E-Mail-Feld prüft wie der Dienst — `name@firma` kommt gar nicht erst an', () => {

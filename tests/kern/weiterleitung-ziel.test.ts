@@ -59,6 +59,37 @@ describe('internesZiel', () => {
         .toBe(`https://cse.example${STANDARD}`);
     }
   });
+
+  /**
+   * **Ein Pfad, den erst die Normalisierung zu `//host` macht** (V-159, D-653).
+   *
+   * `/.//boese.example` IST ein Pfad dieser Anwendung — die erste Pruefung
+   * sieht den eigenen Ursprung. `new URL` normalisiert ihn aber zu
+   * `//boese.example`, und das zweite Einlesen (`new URL(pfad, basis)`) las
+   * daraus eine schemalose Adresse: die Umleitung ging nach
+   * `https://boese.example/`. Jede dieser Formen zeigte vorher nach draussen.
+   */
+  it('weist Pfade ab, die erst nach dem Normalisieren mit // beginnen', () => {
+    for (const wert of [
+      '/.//boese.example', '/portal/..//boese.example', '/%2e//boese.example',
+      '/%2E%2E//boese.example', '/./\\boese.example', '/.\\/boese.example',
+      '/.///boese.example', '/a/../..//boese.example/x?y=1#z',
+    ]) {
+      expect(internesZiel(wert, STANDARD, anfrage).toString(), wert)
+        .toBe(`https://cse.example${STANDARD}`);
+    }
+  });
+
+  it('ein kodierter Schraegstrich bleibt ein Pfad im eigenen Ursprung', () => {
+    // `%2f` wird nicht aufgeloest — der Pfad heisst woertlich so und bleibt hier.
+    expect(internesZiel('/./%2fboese.example', STANDARD, anfrage).toString())
+      .toBe('https://cse.example/%2fboese.example');
+  });
+
+  it('behaelt einen ordentlich normalisierten Pfad', () => {
+    expect(internesZiel('/portal/a/../b/./c?x=1', STANDARD, anfrage).toString())
+      .toBe('https://cse.example/portal/b/c?x=1');
+  });
 });
 
 /**

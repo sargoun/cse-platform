@@ -13,6 +13,7 @@
  * kein Deutsch kann.
  */
 import type { Sprache } from '../sprache.js';
+import { eigenerEintrag } from '../nachschlagen.js';
 
 export interface ShellTexte {
   readonly hauptnavigation: string;
@@ -324,7 +325,8 @@ export function pflichtwegMeldung(
 ): string {
   if (sprache === 'de') return deutsch;
   const tabelle = PFLICHTWEG_FEHLER_EN[weg];
-  return tabelle[grund] ?? tabelle['sonst'] ?? '';
+  // Nur ein EIGENER Schlüssel (V-159): `tabelle['toString']` wäre eine Funktion.
+  return eigenerEintrag(tabelle, grund) ?? tabelle['sonst'] ?? '';
 }
 
 /**

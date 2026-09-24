@@ -1,3 +1,4 @@
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { BEWERBUNG_EMAIL } from '@/server/services/recruiting/dienst';
 
 /**
@@ -44,10 +45,19 @@ export const BEWERBUNG_MELDUNG: Readonly<Record<string, string>> = {
 export const BEWERBUNG_MELDUNG_SONST =
   'Ihre Bewerbung ist nicht angekommen. Bitte versuchen Sie es noch einmal.';
 
-/** Der Satz zu einem Grund aus der Adresse — oder `undefined`, wenn keiner da ist. */
+/**
+ * Der Satz zu einem Grund aus der Adresse — oder `undefined`, wenn keiner da ist.
+ *
+ * **Nur ein EIGENER Schlüssel der Tabelle zählt** (V-159, `eigenerEintrag`).
+ * Hier stand der gewöhnliche Zugriff mit Rückfall (`TABELLE[grund] ?? SONST`):
+ * `?fehler=__proto__` fand
+ * `Object.prototype`, der Rückfall griff nicht, und `/karriere`,
+ * `/karriere/initiativbewerbung` und `/karriere/<id>/bewerbung` antworteten
+ * mit einer Fehlerseite — auf eine Adresse, die jeder tippen kann.
+ */
 export function bewerbungsMeldung(grund: unknown): string | undefined {
   if (typeof grund !== 'string' || grund === '') return undefined;
-  return BEWERBUNG_MELDUNG[grund] ?? BEWERBUNG_MELDUNG_SONST;
+  return eigenerEintrag(BEWERBUNG_MELDUNG, grund) ?? BEWERBUNG_MELDUNG_SONST;
 }
 
 /**

@@ -21,6 +21,7 @@ import { WebsiteSpruenge } from '../../spruenge';
 import { Recht } from '@/components/ui/Recht';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { WEBSITE_REFERENZ_TEXTE } from '@/lib/i18n/verwaltung/website-referenz';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { istUuid } from '@/lib/uuid';
 import {
   freigabeGilt, ladeFreigabestand, type Freigabestand,
@@ -179,7 +180,7 @@ export default async function WebsiteReferenz(
 
       {abgewiesen === null ? null : (
         <Hinweis art="warnung" cse="referenz-fehler" className="mb-s5 max-w-prose">
-          {FEHLER[abgewiesen] ?? 'Die Handlung wurde abgewiesen.'}
+          {eigenerEintrag(FEHLER, abgewiesen) ?? 'Die Handlung wurde abgewiesen.'}
         </Hinweis>
       )}
       {gespeichert === null ? null : (

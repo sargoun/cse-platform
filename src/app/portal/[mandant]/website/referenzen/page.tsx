@@ -13,6 +13,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { Recht } from '@/components/ui/Recht';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { WEBSITE_REFERENZ_TEXTE } from '@/lib/i18n/verwaltung/website-referenz';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { WebsiteSpruenge } from '../spruenge';
 
@@ -118,7 +119,7 @@ export default async function WebsiteReferenzen(
       {abgewiesen !== null && (
         <Hinweis art="warnung" cse="referenz-status-fehler" className="mb-s5 max-w-prose">
           <strong className="block">{t.statusNichtGesetzt}</strong>
-          {t.statusFehler[abgewiesen] ?? t.statusFehlerSonst}
+          {eigenerEintrag(t.statusFehler, abgewiesen) ?? t.statusFehlerSonst}
         </Hinweis>
       )}
       {!nurLesen && darf['referenz.schreiben'] === true && !darfAnlegen && (

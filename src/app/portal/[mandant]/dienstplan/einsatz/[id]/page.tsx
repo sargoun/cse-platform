@@ -20,6 +20,7 @@ import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { SCHICHT_TEXTE } from '@/lib/i18n/verwaltung/dienstplan-schicht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/dienstplan/einsatz/[id]` — die einzelne Schicht.
@@ -277,7 +278,7 @@ export default async function Einsatzblatt({
       {abgewiesen !== null && (
         <Hinweis art="warnung" cse="einsatz-fehler" className="mb-s5 max-w-prose">
           <strong className="block">{t.nichtGespeichert}</strong>
-          <span role="alert">{t.fehler[abgewiesen] ?? t.fehlerSonst}</span>
+          <span role="alert">{eigenerEintrag(t.fehler, abgewiesen) ?? t.fehlerSonst}</span>
         </Hinweis>
       )}
 

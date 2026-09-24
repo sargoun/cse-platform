@@ -9,6 +9,7 @@ import { Recht } from '@/components/ui/Recht';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
 import { WEBSITE_REFERENZ_TEXTE } from '@/lib/i18n/verwaltung/website-referenz';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { istUuid } from '@/lib/uuid';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -116,7 +117,7 @@ export default async function NeueReferenzSeite(
       {abgewiesen === null ? null : (
         <Hinweis art="warnung" cse="referenz-anlegen-fehler" className="mb-s5 max-w-prose">
           <strong className="block">{t.nichtAngelegt}</strong>
-          {t.fehler[abgewiesen] ?? t.fehlerSonst}
+          {eigenerEintrag(t.fehler, abgewiesen) ?? t.fehlerSonst}
         </Hinweis>
       )}
 

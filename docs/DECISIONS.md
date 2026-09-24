@@ -15738,3 +15738,55 @@ Dazu las das Schichtblatt `?fehler=` gar nicht — auch nicht den, den
 
 | Betrifft | D-599, REC-03, TIM-05, R-08, V-158, `src/app/api/einsaetze/{fehler.ts,[id]/absagen/route.ts,[id]/besetzen/route.ts}`, `src/app/api/formular-antwort.ts`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/lib/i18n/verwaltung/dienstplan-schicht.ts`, `src/app/api/karriere/bewerbung/route.ts`, `src/app/(public)/karriere/{Formular.tsx,meldung.ts,page.tsx,initiativbewerbung/page.tsx,[stelle]/bewerbung/page.tsx}`, `src/server/services/recruiting/dienst.ts` |
 |---|---|
+
+### D-653 · Ein Grund aus der Adresse wird nur als eigener Eintrag nachgeschlagen, und ein Rückweg bleibt auch nach dem Normalisieren im eigenen Ursprung (V-159)
+
+**Der Befund** (V-159; Nachprüfung von V-154 und V-158): zwei Wege, auf denen
+ein Wert aus der Adresse mehr tat, als er sollte.
+
+1. `bewerbungsMeldung` schlug `?fehler=<grund>` in einem gewöhnlichen
+   Objektliteral nach, mit Rückfall auf den allgemeinen Satz. Ein
+   Objektliteral erbt von `Object.prototype`: `?fehler=__proto__` fand
+   `Object.prototype` selbst, `?fehler=toString` eine Funktion. Beides ist
+   nicht `undefined`, also griff der Rückfall nicht, und der Typ behauptete
+   weiter `string`. React zeichnet kein Objekt als Kind; `/karriere`,
+   `/karriere/initiativbewerbung` und `/karriere/<id>/bewerbung` antworteten
+   auf eine Adresse, die jeder tippen kann, mit einer Fehlerseite (500), und
+   `?fehler=toString` zeigte einen leeren Alarmkasten. Dasselbe Nachschlagen
+   stand in den Portalseiten, die V-154 und V-158 angelegt oder geändert
+   haben (Referenzliste, Anlegen, Referenzblatt, Veröffentlichen,
+   Schichtblatt).
+2. `internesZiel` prüfte den Ursprung des Rückwegs und las danach den PFAD
+   ein zweites Mal als Adresse ein. Die erste Prüfung normalisiert aber:
+   `/.//boese.example`, `/portal/..//boese.example`, `/%2e//boese.example`
+   und `/./\boese.example` sind Pfade dieser Anwendung und haben danach den
+   Pfad `//boese.example`. Das zweite Einlesen machte daraus eine
+   schemalose Adresse; die 303-Umleitung ging nach `https://boese.example/`.
+   Von fremden Seiten aus war das nicht auslösbar (jeder Aufrufer verlangt
+   `istGleicherUrsprung`), aber der Test zu V-158 behauptete „nie nach
+   draussen" und prüfte nur eine absolute Adresse.
+
+**Die Entscheidung.**
+
+1. **`eigenerEintrag(tabelle, schluessel)`** (`src/lib/nachschlagen.ts`)
+   liefert nur, was die Tabelle SELBST trägt (`Object.hasOwn`, nicht `in`).
+   Ein Schlüssel, der keine Zeichenkette ist, findet nichts. Die Seite
+   entscheidet dann über ihren allgemeinen Satz; der rohe Schlüssel steht nie
+   da. Benutzt in `karriere/meldung.ts`, `pflichtwegMeldung` und den fünf
+   Portalseiten dieser Gruppe.
+2. **Die älteren Seiten mit demselben Muster** (etwa `angebote/neu`,
+   `einstellungen/modelle`, `freigaben/[id]`, `auth/passwort-neu` — dort erst
+   mit gültigem Token erreichbar) liegen hinter einer Anmeldung und ausserhalb
+   dieser Gruppe. Sie werden hier nicht angefasst, weil andere Zweige
+   dieselben Dateien ändern; der Helfer steht bereit, und
+   `tests/kern/nachschlagen.test.ts` hält fest, dass die Seiten dieser Gruppe
+   ihn benutzen. Ein Schlüssel des Prototyps führt dort zu einer Fehlerseite
+   für den Angemeldeten selbst, nicht zu fremden Daten.
+3. **Ein Pfad, der nach dem Normalisieren mit `//` beginnt, ist kein
+   Rückweg.** `innerhalb` weist ihn ab, baut das Ziel durch SETZEN von Pfad,
+   Abfrage und Anker auf dem eigenen Ursprung und vergleicht den Ursprung am
+   Ende noch einmal. Das schützt jeden Aufrufer von `internesZiel`, nicht nur
+   die Formulare dieser Gruppe.
+
+| Betrifft | D-560, D-599, D-652, V-154, V-158, V-159, `src/lib/nachschlagen.ts`, `src/app/(public)/karriere/meldung.ts`, `src/lib/i18n/texte.ts` (`pflichtwegMeldung`), `src/app/portal/[mandant]/website/referenzen/{page.tsx,neu/page.tsx,[id]/page.tsx,[id]/veroeffentlichen/page.tsx}`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/server/auth/ursprung.ts`, `tests/kern/{nachschlagen,weiterleitung-ziel,einteilung-bewerbung-rueckweg}.test.ts` |
+|---|---|
