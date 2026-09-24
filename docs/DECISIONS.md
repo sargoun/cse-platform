@@ -16904,6 +16904,8 @@ Zeile, also auch auf die eigene Modulliste.
    Kreuz alles geben. Die globale Rolle trägt keine Schnittmenge (0395,
    Zweig 1) und ist nicht beschränkt. Heute hält das Recht ohnehin nur
    `super_admin`; die Regel gilt für den Tag, an dem O-76 es an `admin` bindet.
+   *(Genauer seit D-731 Nr. 2: ausgenommen ist nur, wessen globale Rolle
+   `system.module_zuweisen` selbst gewährt — nicht jede globale Rolle.)*
 5. **„Alle Module der Rolle“ ist eine eigene Wahl** (`NULL`). Eine leere
    Liste weist der Auslöser ab: kein Recht in einer Gesellschaft ist ein
    Entzug, keine Zuweisung. Und aus einer leeren Auswahl wird nicht still
@@ -17416,6 +17418,21 @@ ihrer Entscheidung verzeichnet, in der Reihenfolge, in der sie behoben wurde.
    wie es ist — „ein Feld nur in nachher ist neu“ ist für andere Aufrufer
    richtig, und der heißeste Pfad der Plattform bekommt keine neue Fassung
    für einen Fehler an einer Stelle.
+2. **Von der Decke der eigenen Module ist nur ausgenommen, wessen globale
+   Rolle das Recht selbst gewährt** (0462; berichtigt D-658 Nr. 4). Bis
+   0462 war jedes Konto mit IRGENDEINER globalen Rolle ausgenommen. Die
+   Begründung — die globale Rolle trägt keine Schnittmenge — gilt aber nur
+   für Rechte, die aus ihr kommen. Gefragt wird jetzt, was Zweig 1 von
+   `app.hat_recht_fuer` (0395) fragt: gewährt die globale Rolle
+   `system.module_zuweisen` in dieser Gesellschaft (zuerst die Zeile der
+   Gesellschaft, sonst die Vorgabe der Plattform)? Wenn nicht, kommt das
+   Recht aus der Mitgliedschaft, und deren Modulliste ist die Decke. Heute
+   latent: `super_admin` ist die einzige globale Rolle, hält das Recht per
+   Vorgabe, und ihm lässt sich kein Recht entziehen (0008). Die Suche ist
+   eine zweite Fassung von Zweig 1, weil `hat_recht_fuer` „ob“ beantwortet,
+   nicht „woher“; die Prüfung hält beide nebeneinander. Die Funktion liest
+   dafür `berechtigung` und `rolle_berechtigung` und bringt eigene, enge
+   `d_`-Policies mit.
 
-| Betrifft | SEC-A9, AUT-01, D-657, D-658, V-164, V-237, `drizzle/0461`, `tests/isolation/mitgliedschaft-module.test.ts` §1 |
+| Betrifft | SEC-A9, AUT-01, 03-AUTH §12.1, O-76, D-657, D-658, V-164, V-237, `drizzle/0461`, `drizzle/0462`, `tests/isolation/mitgliedschaft-module.test.ts` §1, §2 |
 |---|---|

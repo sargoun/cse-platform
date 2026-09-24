@@ -298,6 +298,50 @@ describe('(2) was NICHT geht', () => {
   });
 
   /**
+   * **Die Ausnahme gilt der Rolle, aus der das Recht kommt** (0462, V-237).
+   * Bis 0462 war jeder mit IRGENDEINER globalen Rolle von der Decke
+   * ausgenommen. super_admin haelt das Recht immer (0008: dem super_admin
+   * laesst sich kein Recht entziehen) — der Fall ist eine ANDERE globale
+   * Rolle, die es nicht gewaehrt. Dann kommt das Recht aus der
+   * Administration (so, wie O-76 es binden koennte), und deren Liste ist die
+   * Decke.
+   */
+  it('eine globale Rolle ist nur ausgenommen, wenn das Recht AUS ihr kommt', async () => {
+    const [rolle] = await sql.unsafe<{ id: string }[]>(
+      `insert into rolle (schluessel, bezeichnung, geltungsbereich, portal, erfordert_2fa)
+       values ('pruef_global', 'Pruefrolle ohne Modulzuweisung', 'global', 'intern', true)
+       returning id`);
+    const email = 'modul-global-liste@test.invalid';
+    const [u] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ($1) returning id`, [email]);
+    await sql.unsafe(`insert into auth.mfa_factors (user_id) values ($1)`, [u!.id]);
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status, globale_rolle_id)
+       values ($1, $2, $2, 'aktiv', $3)`, [u!.id, email, rolle!.id]);
+    const global = u!.id;
+    const globalBm = await mitglied(global, f.reinigung, 'admin');
+    await setze(chef, globalBm, ['crm', 'system']);
+    await setze(chef, adminBm, ['crm']);
+
+    await mitAdminRecht(async () => {
+      expect(await grund(setze(global, adminBm, ['crm', 'finanzen'])))
+        .toBe('ueber_eigene_module');
+      expect(await grund(setze(global, adminBm, null)), '„alle" nur, wer alle haelt')
+        .toBe('ueber_eigene_module');
+      expect(await module(adminBm), 'nichts geschrieben').toEqual(['crm']);
+      expect(await setze(global, adminBm, ['crm', 'system'])).toBe(true);
+    });
+
+    /* Gegenprobe: gewaehrt die globale Rolle das Recht selbst, gilt keine Decke. */
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       values ($1, (select id from berechtigung where schluessel = 'system.module_zuweisen'),
+               null, true)`, [rolle!.id]);
+    expect(await setze(global, adminBm, ['finanzen'])).toBe(true);
+    await setze(chef, adminBm, null);
+  });
+
+  /**
    * **Der Umweg.** `t_bm_entziehen` (0102) gibt jeder Kontoverwaltung ein
    * UPDATE auf die ganze Zeile. Ohne den Ausloeser aus 0416 setzte eine
    * Administration mit `system.benutzer_verwalten` ihre eigene Liste mit
