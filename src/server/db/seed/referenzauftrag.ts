@@ -140,19 +140,21 @@ export async function seedReferenzAusAuftrag(
     /*
      * Das Schreiben des Kunden — nur Metadaten, keine Datei: der Speicher ist
      * nicht verbunden, und ein erfundener Abruf wäre eine falsche Spur
-     * (dieselbe Bauart wie das Kundenschreiben in `vertrieb.ts`).
+     * (dieselbe Bauart wie das Kundenschreiben in `vertrieb.ts`). Es hängt
+     * am Auftrag, dessen Beleg es ist (V-176, OPS-11).
      */
     const [schreiben] = await kontext.schreibe<{ id: string }>(
       `insert into dokument
          (mandant_id, kategorie, titel, beschreibung, kunde_id,
           bucket, objekt_schluessel, mime_typ, mime_verifiziert, groesse_bytes,
-          exif_entfernt, sichtbar_fuer_kunde, sichtbar_fuer_mitarbeiter, entstanden_am)
+          exif_entfernt, sichtbar_fuer_kunde, sichtbar_fuer_mitarbeiter, entstanden_am,
+          auftrag_id)
        values (app.aktiver_mandant(), 'kunde', $1, $2, $3,
                'dokumente', $4, 'application/pdf', true, 24576, true, false, false,
-               app.berlin_heute() - 20)
+               app.berlin_heute() - 20, $5::uuid)
        returning id`,
       [SCHREIBEN.titel, SCHREIBEN.beschreibung, kunde.id,
-       `demo/referenzfreigabe/${nummer.formatiert}.pdf`]);
+       `demo/referenzfreigabe/${nummer.formatiert}.pdf`, auftrag.id]);
     if (schreiben === undefined) return NICHTS('das Kundenschreiben ging nicht in die Tabelle');
 
     await erfasseKundenfreigabe(db, auftrag.id, {

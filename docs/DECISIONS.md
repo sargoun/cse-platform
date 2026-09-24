@@ -17113,3 +17113,81 @@ Gesellschaft.
 
 | Betrifft | RAD-09, O-07, D-07, D-490, SEC-A5, Invariante 3, 5, V-175, `drizzle/0420`, `src/server/services/radar/{plattform,vorgang}.ts`, `src/app/api/radar/{plattform,vorgang}/route.ts`, `src/app/portal/[mandant]/radar/{plattformen/page.tsx,[id]/page.tsx,[id]/status/page.tsx,daten.ts}`, `src/lib/i18n/verwaltung/radar-plattform.ts`, `scripts/guards/uebersetzung-ausnahmen.ts` |
 |---|---|
+
+### D-670 · Aufgaben und Dokumente stehen am Auftrag und am Bau-Projekt, und ein Dokument hängt an einem Auftrag derselben Gesellschaft (V-176)
+
+**Der Befund** (V-176, OPS-11): OPS-11 verlangt „Tasks, deadlines, status,
+documents on every order and project". Die Seitenkarte nennt für das
+Auftragsblatt die Reiter „Dokumente" und „Aufgaben". Gebaut waren Kopf,
+Beschreibung und Zustand (V-081); das Bau-Projektblatt zeigte
+Vertragsgrundlage, Geld und sechs Vorgänge. Keines der beiden Blätter zeigte
+eine Aufgabe oder ein Dokument. Aufgaben ließen sich seit V-096 an einen
+Auftrag hängen, erschienen aber nur in der Gesamtliste, deren Filter nur den
+Bezugs-TYP kannte. `dokument` kannte keinen Auftrag (0009: Kunde, Objekt,
+Formulareingang).
+
+**Die Entscheidung.**
+
+1. **Ein Dokument hängt an höchstens einem Auftrag.** `dokument.auftrag_id`
+   (0421) trägt einen zusammengesetzten Fremdschlüssel (mandant_id,
+   auftrag_id): nur ein Auftrag derselben Gesellschaft, auch wenn jemand am
+   Ablagedienst vorbeischreibt. `legeAb` prüft den Auftrag zusätzlich unter
+   RLS, damit ein fremder oder unsichtbarer Auftrag einen Satz ergibt
+   (`BezugUnbekannt`) und keinen 23503. Die Wege, die keinen Auftrag kennen
+   (DATEV-Stapel, Kontoauszug, Formulareingang), legen unverändert ab. Der
+   Bestand vor 0421 bleibt ohne Auftrag.
+2. **Ein Bau-Projekt hat keine eigene Ablage.** `projekt.auftrag_id` ist NOT
+   NULL und eindeutig (0071), das Projekt ist die Bauakte genau eines
+   Auftrags. Das Projektblatt zeigt die Dokumente dieses Auftrags. Eine eigene
+   Projektspalte wäre eine zweite Ablage derselben Akte, und ein Dokument
+   könnte an der einen hängen und an der anderen fehlen.
+3. **Die Aufgaben eines Auftrags kommen auf beiden Wegen.** Gezählt werden
+   `aufgabe.auftrag_id` und der polymorphe Bezug `auftrag`. Das
+   Anlegeformular schreibt beide, ein Wächter oder Agent vielleicht nur den
+   zweiten. Das Projektblatt nimmt die Aufgaben mit Bezug `projekt` dazu.
+   `AufgabeFilter` bekommt `auftragId` und `projektId` im gemeinsamen
+   WHERE-Baustein, damit Liste und Kopfzahl dieselbe Menge zählen. Die
+   Kennung wird geprüft, bevor sie castet.
+4. **Das Blatt zeigt die offenen Aufgaben mit Frist und Stand, höchstens
+   zehn; die Zahl zählt alle.** `aufgabenAkte` im Dienst bildet die Kopfzahl
+   aus der Zählung, zählt als überfällig nur Offenes (Berliner Kalendertag,
+   `fristlage`) und schreibt die Frist als TT.MM.JJJJ, beim Zeitpunkt mit
+   Uhrzeit, in Europe/Berlin (`fristInWorten`). Sind keine offen, sagt das
+   Blatt, wie viele erledigt oder abgebrochen sind, statt „keine Aufgabe". Von
+   den Dokumenten stehen die zwanzig neuesten mit Kategorie in Worten und
+   Ablagetag. Beide Grenzen sind Anzeigegrenzen; die ganze Menge steht in der
+   gefilterten Aufgabenliste und in der Ablage.
+5. **Ein fehlendes Recht ist ein Satz, keine leere Liste.** Ohne
+   `aufgabe.lesen` oder `dokument.lesen` nennt die Hälfte das fehlende Recht.
+   „Aufgabe anlegen" steht nur mit `aufgabe.schreiben`, „Dokument ablegen" nur
+   mit `dokument.schreiben`, also mit den Rechten ihrer Ziele (AUT-06). Der
+   Verweis vom Projekt auf seinen Auftrag steht nur mit `auftrag.lesen`.
+6. **Angelegt wird auf den bestehenden Wegen, vorgewählt statt nachgebaut.**
+   „Aufgabe anlegen" öffnet `/aufgaben?auftrag=…` (vom Projekt
+   `?projekt=…`) mit dem Auftrag im Auswahlfeld, beim Projekt dessen Auftrag.
+   „Dokument ablegen" öffnet die Ablage mit dem Auftrag vorgewählt, und der
+   Rückweg nach einem Fehler behält ihn. Die Aufgabenliste löst
+   `?auftrag=`/`?projekt=` unter RLS auf (`vorgangImFilter`). Was die
+   Sitzung nicht sieht, filtert sie nicht, denn ein Filter auf einen
+   unsichtbaren Vorgang verriete, welche Aufgaben an ihm hängen. Die Seite
+   sagt das und zeigt alle.
+7. **Zweisprachig.** Alle neuen Sätze stehen in
+   `lib/i18n/verwaltung/vorgang-akte.ts`, Zustände und Kategorien in Worten.
+   Die beiden Blätter, die Aufgabenliste und die Ablage bleiben auf der
+   Ausnahmeliste der Übersetzungswache, weil ihre älteren Teile deutsch sind.
+   Der neue Teil ist es nicht.
+8. **Seed.** Das Kundenschreiben des Vertriebs hängt an seinem Auftrag,
+   ebenso das des Referenzauftrags (den es nur mit `CSE_DEV_FLAECHEN` gibt,
+   D-537). Die Aufgabe „Leistungsnachweis vom Kunden einholen" hing schon am
+   ersten Auftrag jeder Gesellschaft mit Aufträgen. Im Demobestand zeigen
+   damit ein Auftragsblatt der Reinigung und das Projektblatt des Baus je eine
+   überfällige Aufgabe, und ein zweites Auftragsblatt der Reinigung zeigt ein
+   Dokument.
+
+**Nicht Teil dieser Entscheidung:** die übrigen Reiter der Seitenkarte
+(Leistungen, Einsätze, Zeiten, Nachweise, Rechnungen). Ebenso wenig das
+nachträgliche Umhängen eines abgelegten Dokuments an einen Auftrag. Das wäre
+eine Änderung an einer Akte und bräuchte ein eigenes Recht und ein Protokoll.
+
+| Betrifft | OPS-11, AUT-06, V-096, Invariante 2, 3, V-176, `drizzle/0421`, `src/server/services/dokument/{ablage,vorgang}.ts`, `src/server/services/kern/aufgabe.ts`, `src/components/portal/VorgangAkte.tsx`, `src/app/portal/[mandant]/{auftraege/[id],bau/projekte/[id],aufgaben,dokumente/upload}/page.tsx`, `src/app/api/dokumente/upload/route.ts`, `src/lib/i18n/verwaltung/vorgang-akte.ts`, `src/server/db/seed/{vertrieb,referenzauftrag}.ts` |
+|---|---|

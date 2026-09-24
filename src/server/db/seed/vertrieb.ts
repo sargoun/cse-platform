@@ -535,20 +535,24 @@ export async function seedVertrieb(
      * `sichtbar_fuer_kunde` bleibt FALSE. Die Freigabe ist der Vorgang, den
      * `/dokumente/[id]/kundenfreigabe` vorfuehrt — ein Seed, der sie schon
      * gesetzt hat, nimmt der Seite ihren einen Knopf.
+     *
+     * **Und es haengt am AUFTRAG** (V-176, OPS-11): das Auftragsblatt zeigt
+     * seine Dokumente, und das Schreiben ist der Beleg genau dieses Auftrags.
      */
     const [schreiben] = await db.abfrage<{ id: string }>(
       `insert into dokument
          (mandant_id, kategorie, titel, beschreibung, kunde_id, objekt_id,
           bucket, objekt_schluessel, mime_typ, mime_verifiziert, groesse_bytes,
           exif_entfernt, sichtbar_fuer_kunde, sichtbar_fuer_mitarbeiter,
-          entstanden_am)
+          entstanden_am, auftrag_id)
        values (app.aktiver_mandant(), 'kunde', $1, $2, $3, $4,
                'dokumente', $5, 'application/pdf', true, 24576, true, false, false,
-               app.berlin_heute())
+               app.berlin_heute(), $6::uuid)
        returning id`,
       [KUNDENSCHREIBEN.titel, KUNDENSCHREIBEN.beschreibung,
        objekt.kunde_id, objekt.id,
-       `demo/referenzfreigabe/${auftrag.auftragsnummer}.pdf`]);
+       `demo/referenzfreigabe/${auftrag.auftragsnummer}.pdf`,
+       auftrag.auftragId]);
 
     /**
      * Und die Freigabe selbst — am Auftrag, der gerade entstanden ist.

@@ -49,11 +49,13 @@ export class AblageFehler extends Error {
 export class BezugUnbekannt extends Error {
   readonly code = 'nicht_gefunden';
   readonly status = 404;
-  constructor(was: 'kunde' | 'objekt') {
+  constructor(was: 'kunde' | 'objekt' | 'auftrag') {
     super(
       was === 'kunde'
         ? 'Dieser Kunde gehört nicht zu dieser Gesellschaft.'
-        : 'Dieses Objekt gehört nicht zu dieser Gesellschaft.',
+        : was === 'objekt'
+          ? 'Dieses Objekt gehört nicht zu dieser Gesellschaft.'
+          : 'Diesen Auftrag gibt es in dieser Gesellschaft nicht — oder diese Sitzung sieht ihn nicht.',
     );
     this.name = 'BezugUnbekannt';
   }
@@ -102,6 +104,12 @@ export interface AblageEingabe {
   /** `''` heisst „kein Bezug" — nie eine leere Kennung. */
   readonly kundeId: string;
   readonly objektId: string;
+  /**
+   * Der Auftrag, an dem das Dokument hängt (V-176, OPS-11) — `''` oder
+   * fehlend heisst „kein Auftrag". Freiwillig, damit die Wege, die keinen
+   * kennen (DATEV-Stapel, Kontoauszug), unverändert ablegen.
+   */
+  readonly auftragId?: string;
   readonly sichtbarFuerMitarbeiter: boolean;
   readonly dateiname: string;
   readonly daten: Uint8Array;
@@ -116,6 +124,7 @@ export interface GeprueftAblage {
   readonly tags: readonly string[];
   readonly kundeId: string | null;
   readonly objektId: string | null;
+  readonly auftragId: string | null;
   readonly sichtbarFuerMitarbeiter: boolean;
 }
 
@@ -150,8 +159,10 @@ export function pruefeFelder(eingabe: AblageEingabe): GeprueftAblage {
   }
   const kunde = eingabe.kundeId.trim();
   const objekt = eingabe.objektId.trim();
+  const auftrag = (eingabe.auftragId ?? '').trim();
   if (kunde !== '' && !UUID.test(kunde)) throw new AblageFehler('Unbekannter Kunde.');
   if (objekt !== '' && !UUID.test(objekt)) throw new AblageFehler('Unbekanntes Objekt.');
+  if (auftrag !== '' && !UUID.test(auftrag)) throw new AblageFehler('Unbekannter Auftrag.');
   if (eingabe.daten.length === 0) {
     throw new AblageFehler('Es war keine Datei dabei.');
   }
@@ -166,6 +177,7 @@ export function pruefeFelder(eingabe: AblageEingabe): GeprueftAblage {
     tags: leseTags(eingabe.tags),
     kundeId: kunde === '' ? null : kunde,
     objektId: objekt === '' ? null : objekt,
+    auftragId: auftrag === '' ? null : auftrag,
     sichtbarFuerMitarbeiter: eingabe.sichtbarFuerMitarbeiter,
   };
 }
@@ -187,9 +199,10 @@ export interface AblageErgebnis {
  * **Der Bezug wird GEPRUEFT und nicht durchgereicht.** `dokument.kunde_id`
  * und `dokument.objekt_id` tragen keinen Fremdschluessel (0009: die Ziele
  * kamen erst mit Phase 4), also gibt es keine Datenbankwache dagegen, eine
- * Kennung aus einer fremden Gesellschaft einzutragen. Die beiden Abfragen
- * unten laufen unter RLS: was diese Sitzung nicht sieht, gibt es fuer sie
- * nicht (AUT-06).
+ * Kennung aus einer fremden Gesellschaft einzutragen. Die Abfragen unten
+ * laufen unter RLS: was diese Sitzung nicht sieht, gibt es fuer sie nicht
+ * (AUT-06). `dokument.auftrag_id` (V-176) haelt zusaetzlich ein
+ * zusammengesetzter Fremdschluessel in derselben Gesellschaft (0421).
  *
  * **Und es entsteht keine Waise.** Der Bucket kennt kein Rollback, also
  * schreibt er als LETZTES — siehe den Puffer weiter unten.
@@ -208,6 +221,12 @@ export async function legeAb(
     const [o] = await kontext.abfrage<{ id: string }>(
       `select id from objekt where id = $1::uuid`, [eingabe.objektId]);
     if (o === undefined) throw new BezugUnbekannt('objekt');
+  }
+  if (eingabe.auftragId !== null) {
+    const [a] = await kontext.abfrage<{ id: string }>(
+      `select id from auftrag where id = $1::uuid and mandant_id = app.aktiver_mandant()`,
+      [eingabe.auftragId]);
+    if (a === undefined) throw new BezugUnbekannt('auftrag');
   }
 
   /* Das Entstehungsjahr aus der DATENBANK, nie aus der Uhr des Prozesses
@@ -269,14 +288,16 @@ export async function legeAb(
        (id, mandant_id, kategorie, titel, beschreibung, tags,
         kunde_id, objekt_id, sichtbar_fuer_mitarbeiter,
         mime_typ, mime_verifiziert, groesse_bytes, bucket, objekt_schluessel,
-        exif_entfernt, aufbewahrung_bis, loeschsperre, erstellt_von)
+        exif_entfernt, aufbewahrung_bis, loeschsperre, erstellt_von, auftrag_id)
      values ($1::uuid, $2::uuid, $3::dokument_kategorie, $4, $5, $6::text[],
              $7::uuid, $8::uuid, $9,
-             $10, true, $11, $12, $13, $14, $15::date, $16, app.aktueller_benutzer())`,
+             $10, true, $11, $12, $13, $14, $15::date, $16, app.aktueller_benutzer(),
+             $17::uuid)`,
     [hoch.dokumentId, kontext.aktiverMandantId, eingabe.kategorie, eingabe.titel,
       eingabe.beschreibung, [...eingabe.tags], eingabe.kundeId, eingabe.objektId,
       eingabe.sichtbarFuerMitarbeiter, hoch.mimeTyp, hoch.groesseBytes, hoch.bucket,
-      hoch.objektSchluessel, hoch.exifEntfernt, hoch.aufbewahrungBis, hoch.loeschsperre]);
+      hoch.objektSchluessel, hoch.exifEntfernt, hoch.aufbewahrungBis, hoch.loeschsperre,
+      eingabe.auftragId]);
 
   await kontext.schreibe(
     /* Version 1. Der SHA-256 haengt an der VERSION und nicht am Dokument:

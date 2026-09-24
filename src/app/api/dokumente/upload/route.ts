@@ -72,6 +72,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           tags: feld(daten, 'tags'),
           kundeId: feld(daten, 'kunde'),
           objektId: feld(daten, 'objekt'),
+          /*
+           * V-176 (OPS-11): der Auftrag, an dem das Dokument hängt — geprüft
+           * wie Kunde und Objekt (Form, dann Sichtbarkeit unter RLS), und
+           * zusätzlich vom Fremdschlüssel aus 0421 gehalten.
+           */
+          auftragId: feld(daten, 'auftrag'),
           sichtbarFuerMitarbeiter: feld(daten, 'fuer_mitarbeiter') !== '',
           dateiname: datei.name,
           daten: bytes,

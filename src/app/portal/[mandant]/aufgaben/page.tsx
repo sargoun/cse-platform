@@ -10,12 +10,17 @@ import { Button } from '@/components/ui/Button';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import {
-  bezugskandidaten, fristlage, istBezugTyp, istOffen, listeAufgaben, zaehleJeZustand,
+  bezugskandidaten, fristlage, istBezugTyp, istOffen, listeAufgaben, vorgangImFilter,
+  zaehleJeZustand,
   type AufgabeFilter, type AufgabeZeile, type Bezugskandidat, type Fristlage,
+  type VorgangImFilter,
 } from '@/server/services/kern/aufgabe';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../unterseite';
 import { Recht } from '@/components/ui/Recht';
+import { istKennung } from '../../kennung';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { VORGANG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/vorgang-akte';
 
 /**
  * Die sechs Bezugsarten mit einer Detailseite, in der Reihenfolge, in der ein
@@ -122,6 +127,22 @@ export default async function Aufgabenliste(
    */
   const bezugTyp = typeof suche['bezug'] === 'string' && istBezugTyp(suche['bezug'])
     ? suche['bezug'] : undefined;
+  /*
+   * **Die Aufgaben EINES Vorgangs** (OPS-11, V-176) — der Weg von den
+   * Blättern eines Auftrags oder Bau-Projekts hierher. Die Kennung wird
+   * geprüft, bevor sie in eine Abfrage geht, und dann UNTER RLS aufgelöst
+   * (`vorgangImFilter`): was diese Sitzung nicht sieht, filtert sie auch
+   * nicht. Kommen beide, gilt der Auftrag.
+   */
+  const auftragRoh = typeof suche['auftrag'] === 'string' ? suche['auftrag'] : undefined;
+  const projektRoh = typeof suche['projekt'] === 'string' ? suche['projekt'] : undefined;
+  const gefragt: 'auftrag' | 'projekt' | null = auftragRoh !== undefined ? 'auftrag'
+    : projektRoh !== undefined ? 'projekt' : null;
+  const wahl = gefragt === 'auftrag'
+    ? (istKennung(auftragRoh) ? { auftragId: auftragRoh } : null)
+    : gefragt === 'projekt'
+      ? (istKennung(projektRoh) ? { projektId: projektRoh } : null)
+      : null;
 
   const tor = await mandantTor(pfad, mandant);
   if (tor.art === 'anmeldung') return <AnmeldungNoetig />;
@@ -136,7 +157,9 @@ export default async function Aufgabenliste(
     ...(bezugTyp === undefined ? {} : { bezugTyp }),
   };
 
-  const { zeilen, jeZustand, darfSchreiben, kandidaten } = await (db().begin(
+  const {
+    zeilen, jeZustand, darfSchreiben, kandidaten, vorgang, darfAuftragLesen, darfBauLesen,
+  } = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
       withTenant(tx, zugang.sitzung, async (kontext) => {
         /*
@@ -146,13 +169,29 @@ export default async function Aufgabenliste(
          * ein Formular, dessen „Anlegen" von `/api/aufgaben` mit einer nackten
          * 404 beantwortet wird — richtig nach AUT-06 und unerklärt.
          */
-        const [recht] = await kontext.abfrage<{ schreiben: boolean }>(
-          `select app.hat_recht('aufgabe.schreiben', app.aktiver_mandant()) as schreiben`);
+        /*
+         * `auftrag.lesen` und `bau.lesen` sind die Rechte der zwei Blätter,
+         * zu denen der Vorgangsfilter zurückführt — der Verweis steht nur,
+         * wenn das Ziel sich öffnen lässt (AUT-06).
+         */
+        const [recht] = await kontext.abfrage<{
+          schreiben: boolean; auftrag_lesen: boolean; bau_lesen: boolean;
+        }>(
+          `select app.hat_recht('aufgabe.schreiben', app.aktiver_mandant()) as schreiben,
+                  app.hat_recht('auftrag.lesen', app.aktiver_mandant()) as auftrag_lesen,
+                  app.hat_recht('bau.lesen', app.aktiver_mandant()) as bau_lesen`);
         const darf = recht?.schreiben === true;
+        const gefunden = wahl === null ? null : await vorgangImFilter(kontext, wahl);
+        /** Der Vorgang engt die Menge ein — für Liste UND Kopfzahl. */
+        const mitVorgang: AufgabeFilter = gefunden === null
+          ? filter : { ...filter, ...gefunden.filter };
         return {
-          zeilen: await listeAufgaben(kontext, filter),
-          jeZustand: await zaehleJeZustand(kontext, filter),
+          zeilen: await listeAufgaben(kontext, mitVorgang),
+          jeZustand: await zaehleJeZustand(kontext, mitVorgang),
           darfSchreiben: darf,
+          vorgang: gefunden,
+          darfAuftragLesen: recht?.auftrag_lesen === true,
+          darfBauLesen: recht?.bau_lesen === true,
           /*
            * Nur für das Anlegeformular — ein reines Lesekonto sieht es nicht
            * und braucht die sechs Abfragen deshalb auch nicht (V-096).
@@ -165,7 +204,25 @@ export default async function Aufgabenliste(
     jeZustand: Readonly<Record<string, number>>;
     darfSchreiben: boolean;
     kandidaten: readonly Bezugskandidat[];
+    vorgang: VorgangImFilter | null;
+    darfAuftragLesen: boolean;
+    darfBauLesen: boolean;
   }>);
+  const akte = nachSprache(VORGANG_AKTE_TEXTE, zugang.sprache);
+
+  /*
+   * **Die neue Aufgabe hängt am Vorgang, von dem man kam** (V-176): der
+   * Auftrag — beim Projekt dessen Auftrag — ist im Auswahlfeld vorgewählt,
+   * und steht er nicht unter den Kandidaten (abgeschlossen, oder jenseits der
+   * fünfzig neuesten), kommt er dazu. Sieht die Sitzung den Auftrag nicht,
+   * bleibt die Auswahl frei — ein vorgewählter Wert ohne Option wäre keiner.
+   */
+  const vorgewaehlt = vorgang === null || vorgang.auftragTitel === null
+    ? '' : `auftrag:${vorgang.auftragId}`;
+  const auswahl: readonly Bezugskandidat[] = vorgang === null || vorgang.auftragTitel === null
+    || kandidaten.some((k) => k.typ === 'auftrag' && k.id === vorgang.auftragId)
+    ? kandidaten
+    : [{ typ: 'auftrag', id: vorgang.auftragId, titel: vorgang.auftragTitel }, ...kandidaten];
 
   const offenGesamt = (jeZustand['offen'] ?? 0) + (jeZustand['in_arbeit'] ?? 0)
     + (jeZustand['wartend'] ?? 0);
@@ -178,7 +235,7 @@ export default async function Aufgabenliste(
 
   /** Die Filterlinks — zusammengesetzt, also über `alsRoute` (D-504). */
   const filterLink = (
-    aenderung: { alle?: boolean; meine?: boolean; bezug?: string | null },
+    aenderung: { alle?: boolean; meine?: boolean; bezug?: string | null; vorgang?: boolean },
   ) => {
     const q = new URLSearchParams();
     const alle = aenderung.alle ?? !nurOffene;
@@ -187,6 +244,8 @@ export default async function Aufgabenliste(
     if (alle) q.set('alle', '1');
     if (meine) q.set('meine', '1');
     if (bezug !== null && bezug !== undefined) q.set('bezug', bezug);
+    // Der Vorgangsfilter bleibt stehen, bis jemand ihn aufhebt (V-176).
+    if (aenderung.vorgang !== false && vorgang !== null) q.set(vorgang.art, vorgang.id);
     const s = q.toString();
     return alsRoute(s === '' ? pfad : `${pfad}?${s}`);
   };
@@ -216,6 +275,39 @@ export default async function Aufgabenliste(
           )}
         </p>
       </div>
+
+      {vorgang !== null ? (
+        <p data-cse="filter-vorgang" data-art={vorgang.art}
+           className="mb-s4 flex flex-wrap items-center gap-s3 text-sm text-text">
+          <span className="inline-flex min-h-11 items-center rounded-md border border-line-strong
+                           bg-surface-3 px-s4">
+            {vorgang.art === 'auftrag'
+              ? akte.filterAuftrag(vorgang.titel) : akte.filterProjekt(vorgang.titel)}
+          </span>
+          {vorgang.art === 'auftrag' && darfAuftragLesen ? (
+            <Link href={`/portal/${mandant}/auftraege/${vorgang.id}`}
+                  data-cse="filter-zum-vorgang"
+                  className="text-text underline underline-offset-4 hover:text-brand">
+              {akte.zumAuftrag}
+            </Link>
+          ) : null}
+          {vorgang.art === 'projekt' && darfBauLesen ? (
+            <Link href={`/portal/${mandant}/bau/projekte/${vorgang.id}`}
+                  data-cse="filter-zum-vorgang"
+                  className="text-text underline underline-offset-4 hover:text-brand">
+              {akte.zumProjekt}
+            </Link>
+          ) : null}
+          <Link href={filterLink({ vorgang: false })} data-cse="filter-vorgang-aufheben"
+                className="text-text-muted underline underline-offset-4 hover:text-text">
+            {akte.filterAufheben}
+          </Link>
+        </p>
+      ) : gefragt !== null ? (
+        <Hinweis art="warnung" cse="filter-vorgang-unbekannt" className="mb-s4 max-w-prose">
+          {gefragt === 'auftrag' ? akte.auftragUnbekannt : akte.projektUnbekannt}
+        </Hinweis>
+      ) : null}
 
       <div className="mb-s5 flex flex-wrap items-center gap-s2">
         <Link href={filterLink({ meine: false })} data-cse="filter-alle"
@@ -317,19 +409,19 @@ export default async function Aufgabenliste(
             * einer Detailseite. Ein Bezug, dem man nicht folgen kann, ist
             * eine Notiz mit Kennung.
             */}
-          {kandidaten.length === 0 ? null : (
+          {auswahl.length === 0 ? null : (
             <>
               <label className="mt-s4 block text-sm text-text" htmlFor="bezug">
                 Woran hängt sie? (freiwillig)
               </label>
               <select
-                id="bezug" name="bezug" defaultValue=""
+                id="bezug" name="bezug" defaultValue={vorgewaehlt}
                 data-cse="aufgabe-bezug"
                 className="mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text"
               >
                 <option value="">ohne Bezug</option>
                 {BEZUGSGRUPPEN.map(([typ, beschriftung]) => {
-                  const dieser = kandidaten.filter((k) => k.typ === typ);
+                  const dieser = auswahl.filter((k) => k.typ === typ);
                   return dieser.length === 0 ? null : (
                     <optgroup key={typ} label={beschriftung}>
                       {dieser.map((k) => (

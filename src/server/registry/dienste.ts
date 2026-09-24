@@ -2097,6 +2097,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
 
   /**
+   * **Die Dokumente eines Auftrags (OPS-11, V-176, 0421).** Liest nur —
+   * `dokument.auftrag_id` unter `t_mandant`, also mit `dokument.lesen`; das
+   * Auftrags- und das Projektblatt fragen das Recht vorher und sagen, warum
+   * die Liste fehlt. Geschrieben wird der Bezug von `dokument/ablage`.
+   */
+  { modul: 'dokument', pfad: 'dokument/vorgang', schreibend: false },
+
+  /**
    * **Einstellen (D-09, EMP-14).** Erst der Mensch, dann die Beschaeftigung —
    * in EINER Transaktion, weil eine `person` ohne Beschaeftigung von dieser
    * Gesellschaft aus unsichtbar ist. Setzt weder Stundensatz noch
