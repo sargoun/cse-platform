@@ -13,6 +13,8 @@ import { einheiten, steuersaetzeAm } from '@/server/services/angebot/von-hand';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
+import { istKennung } from '@/server/services/crm/lead-kette';
 
 /**
  * `/portal/[mandant]/angebote/neu` — ein Angebot von Hand (V-005, SEC-01,
@@ -55,6 +57,13 @@ interface ObjektZeile { readonly id: string; readonly bezeichnung: string }
 interface KontaktZeile {
   readonly id: string; readonly name: string; readonly kunde: string | null;
 }
+interface AnfrageZeile {
+  readonly id: string; readonly leadnummer: string; readonly betreff: string;
+  readonly kunde_id: string | null; readonly ansprechpartner_id: string | null;
+  /** Der Kunde der Anfrage, SELBST gelesen — nicht aus der begrenzten Auswahlliste (V-142). */
+  readonly kunde_name: string | null; readonly kundennummer: string | null;
+  readonly kunde_archiviert: boolean;
+}
 
 export default async function NeuesAngebot(
   { params, searchParams }: {
@@ -74,7 +83,9 @@ export default async function NeuesAngebot(
    * Eine Rolle mit `angebot.schreiben` und ohne `angebot.lesen` liefe sonst
    * auf ein 404 — ein Menüpunkt, der auf 404 führt, ist schlechter als keiner.
    */
-  const darf = await haeltRechte(zugang.sitzung, RECHT, 'angebot.lesen');
+  const darf = await haeltRechte(zugang.sitzung, RECHT, 'angebot.lesen',
+    /* V-138: der Verweis zurück auf die Anfrage führt aufs Leadblatt. */
+    'crm.lesen');
   const suche = await searchParams;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
 
@@ -86,6 +97,15 @@ export default async function NeuesAngebot(
   const zeilenRoh = Number(typeof suche['zeilen'] === 'string' ? suche['zeilen'] : '');
   const zeilenZahl = Number.isInteger(zeilenRoh) && zeilenRoh > 0
     ? Math.min(zeilenRoh, ZEILEN_MAX) : ZEILEN_VORGABE;
+  /*
+   * **Aus einer Anfrage** (V-138, CRM-05): `?lead=` kommt vom Leadblatt. Der
+   * Kunde steht dann fest — der der Anfrage —, und das Angebot trägt ihren
+   * Bezug bis zum Auftrag. Nur eine Kennung wird überhaupt gelesen; geprüft
+   * wird sie unten gegen die Datenbank und im Dienst noch einmal.
+   */
+  const leadRoh = typeof suche['lead'] === 'string' ? suche['lead'] : '';
+  const leadParam = istKennung(leadRoh) ? leadRoh : null;
+  const kt = nachSprache(KETTE_TEXTE, zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -112,13 +132,41 @@ export default async function NeuesAngebot(
             order by k.name, a.nachname limit 500`),
         saetze: await steuersaetzeAm(kontext, tag),
         einheiten: await einheiten(kontext),
+        lead: leadParam === null ? null : (await kontext.abfrage<AnfrageZeile>(
+          `select l.id::text as id, l.leadnummer, l.betreff, l.kunde_id::text as kunde_id,
+                  l.ansprechpartner_id::text as ansprechpartner_id,
+                  k.name as kunde_name, k.kundennummer,
+                  coalesce(k.archiviert_am is not null, false) as kunde_archiviert
+             from lead l
+             left join kunde k on k.id = l.kunde_id and k.mandant_id = l.mandant_id
+            where l.id = $1::uuid and l.mandant_id = app.aktiver_mandant()
+              and l.archiviert_am is null`, [leadParam]))[0] ?? null,
       };
     })) as Promise<{
       heute: string; kunden: readonly KundeZeile[]; objekte: readonly ObjektZeile[];
       kontakte: readonly KontaktZeile[];
       saetze: Awaited<ReturnType<typeof steuersaetzeAm>>;
       einheiten: Awaited<ReturnType<typeof einheiten>>;
+      lead: AnfrageZeile | null;
     }>);
+  /*
+   * Gebunden wird nur eine Anfrage MIT Kunden, und nur an ihn. Ohne Kunden
+   * sagt die Seite, was fehlt, und das Angebot entsteht ohne Bezug — eine
+   * stille Zuordnung an den Kunden, den jemand hier wählt, wäre eine
+   * Entscheidung, die niemand getroffen hat.
+   */
+  /*
+   * Der Kunde der Anfrage kommt aus IHRER Zeile, nicht aus der Auswahlliste:
+   * die endet nach 500 Namen, und ein Kunde jenseits davon hiesse sonst „die
+   * Anfrage hat noch keinen Kunden" — ein falscher Grund (V-142). Ein
+   * archivierter Kunde bekommt kein neues Angebot und sagt das selbst.
+   */
+  const lead = daten.lead;
+  const anfrageKunde: KundeZeile | null = lead === null || lead.kunde_id === null
+    || lead.kunde_name === null || lead.kunde_archiviert ? null
+    : { id: lead.kunde_id, name: lead.kunde_name, kundennummer: lead.kundennummer };
+  const anfrage = anfrageKunde === null ? null : daten.lead;
+  const pfadMitAnfrage = anfrage === null ? pfad : `${pfad}?lead=${anfrage.id}`;
 
   const liste = `/portal/${mandant}/angebote`;
   const darfListe = darf['angebot.lesen'] === true;
@@ -154,7 +202,31 @@ export default async function NeuesAngebot(
 
       {fehler !== null ? (
         <Hinweis art="warnung" cse="angebot-hand-fehler" className="mb-s5 max-w-prose">
-          {t.fehler[fehler] ?? fehler}
+          {t.fehler[fehler] ?? kt.nichtAngelegt}
+        </Hinweis>
+      ) : null}
+
+      {anfrage !== null ? (
+        <Hinweis art="hinweis" cse="angebot-aus-anfrage" className="mb-s5 max-w-prose">
+          <strong className="block">{kt.zurAnfrageVorbelegt(anfrage.leadnummer, anfrage.betreff)}</strong>
+          {kt.kundeAusAnfrage}
+        </Hinweis>
+      ) : daten.lead !== null ? (
+        <Hinweis art="warnung" cse="angebot-anfrage-ohne-kunde" className="mb-s5 max-w-prose">
+          {daten.lead.kunde_archiviert ? kt.anfrageKundeArchiviert : kt.anfrageOhneKunde}
+          {darf['crm.lesen'] !== true ? null : (
+            <>
+              {' '}
+              <Link href={`/portal/${mandant}/crm/leads/${daten.lead.id}`}
+                    className="underline underline-offset-4">
+                {daten.lead.leadnummer}
+              </Link>
+            </>
+          )}
+        </Hinweis>
+      ) : leadParam !== null ? (
+        <Hinweis art="warnung" cse="angebot-anfrage-unbekannt" className="mb-s5 max-w-prose">
+          {kt.anfrageUnbekannt}
         </Hinweis>
       ) : null}
 
@@ -175,26 +247,41 @@ export default async function NeuesAngebot(
           <form method="post" action="/api/angebot/von-hand"
                 data-cse="angebot-hand-formular" className="flex flex-col gap-s5">
             <input type="hidden" name="mandant" value={mandant} />
-            <input type="hidden" name="zurueck" value={pfad} />
+            <input type="hidden" name="zurueck" value={pfadMitAnfrage} />
             <input type="hidden" name="zeilen" value={String(zeilenZahl)} />
+            {anfrage === null ? null : (
+              <input type="hidden" name="lead" value={anfrage.id} data-cse="angebot-lead" />
+            )}
 
             <div className="flex flex-wrap gap-s4">
-              <label className="flex min-w-[24ch] flex-1 flex-col gap-s2 text-sm text-text">
-                {t.kunde}
-                <select name="kunde" required className={FELD} defaultValue=""
-                        data-cse="angebot-kunde">
-                  <option value="" disabled>{t.kundeWaehlen}</option>
-                  {daten.kunden.map((k) => (
-                    <option key={k.id} value={k.id}>
-                      {k.name}{k.kundennummer === null ? '' : ` · ${k.kundennummer}`}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {anfrage !== null && anfrageKunde !== null ? (
+                <div className="flex min-w-[24ch] flex-1 flex-col gap-s2 text-sm text-text">
+                  {t.kunde}
+                  <input type="hidden" name="kunde" value={anfrageKunde.id} />
+                  <span className={`${FELD} flex items-center`} data-cse="angebot-kunde-fest">
+                    {anfrageKunde.name}
+                    {anfrageKunde.kundennummer === null ? '' : ` · ${anfrageKunde.kundennummer}`}
+                  </span>
+                </div>
+              ) : (
+                <label className="flex min-w-[24ch] flex-1 flex-col gap-s2 text-sm text-text">
+                  {t.kunde}
+                  <select name="kunde" required className={FELD} defaultValue=""
+                          data-cse="angebot-kunde">
+                    <option value="" disabled>{t.kundeWaehlen}</option>
+                    {daten.kunden.map((k) => (
+                      <option key={k.id} value={k.id}>
+                        {k.name}{k.kundennummer === null ? '' : ` · ${k.kundennummer}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="flex min-w-[24ch] flex-1 flex-col gap-s2 text-sm text-text">
                 {t.angebotstitel}
                 <input type="text" name="titel" required maxLength={200} className={FELD}
-                       placeholder={t.titelBeispiel} data-cse="angebot-titel" />
+                       placeholder={t.titelBeispiel} data-cse="angebot-titel"
+                       defaultValue={anfrage?.betreff ?? ''} />
               </label>
             </div>
 
@@ -212,7 +299,10 @@ export default async function NeuesAngebot(
               </label>
               <label className="flex min-w-[24ch] flex-1 flex-col gap-s2 text-sm text-text">
                 {t.kontakt}
-                <select name="kontakt" className={FELD} defaultValue=""
+                <select name="kontakt" className={FELD}
+                        defaultValue={anfrage !== null && anfrage.ansprechpartner_id !== null
+                          && daten.kontakte.some((kd) => kd.id === anfrage.ansprechpartner_id)
+                          ? anfrage.ansprechpartner_id : ''}
                         data-cse="angebot-kontakt">
                   <option value="">{t.ohneKontakt}</option>
                   {daten.kontakte.map((k) => (
@@ -332,7 +422,8 @@ export default async function NeuesAngebot(
 
               {zeilenZahl < ZEILEN_MAX ? (
                 <p className="mt-s4 max-w-prose text-xs text-text-muted">
-                  <Link href={`/portal/${mandant}/angebote/neu?zeilen=${String(mehr)}`}
+                  <Link href={`/portal/${mandant}/angebote/neu?zeilen=${String(mehr)}`
+                    + `${anfrage === null ? '' : `&lead=${anfrage.id}`}`}
                         className="underline underline-offset-2 hover:text-text"
                         data-cse="mehr-zeilen">
                     {t.mehrZeilen}

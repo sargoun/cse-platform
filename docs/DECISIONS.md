@@ -3338,6 +3338,8 @@ Beantworten helfen:
 | O-895 | **Darf ein Mensch seine eigene Abwesenheit noch zurücknehmen, wenn ihre Tage bereits in einen Lohnexport oder einen abgeschlossenen Stundenkonto-Monat geflossen sind?** `abwesenheit` trägt keine Spalte, die das sagt — weder ein `exportiert_am` noch einen Bezug auf den Lauf. Ausgeliefert ist deshalb, was die Zustandsmaschine seit `0073` sagt und was `antrag.t_selbst_zurueckziehen` (0301) für den Antrag schon entschieden hat: **unentschieden heisst rücknehmbar** — `t_selbst_zurueckziehen` auf `abwesenheit` (0386) lässt `erfasst` und `beantragt` heran, `genehmigt` nicht. Der wahrscheinliche Konfliktfall ist die Krankmeldung: sie steht dauerhaft auf `erfasst` (sie wird nicht genehmigt, sondern zur Kenntnis genommen), und ihre Tage buchen über `abwesenheit_urlaubskonto` und die Sollzeitgutschrift weiter. Eine Rücknahme nach dem Lohnlauf dreht damit eine Zahl zurück, die ein Mensch schon in der Hand hatte — dieselbe Frage wie bei O-861 für die Zeitfreigabe, und dieselbe Antwort ist keine Selbstverständlichkeit. Zwei Wege sind denkbar: (a) eine Sperrspalte auf `abwesenheit`, die der Lohnexport setzt und die die Policy mitliest; (b) die Rücknahme bleibt offen und die Korrektur läuft über die Personalstelle, die den Export kennt. **Erfunden wird keiner von beiden.** | EMP-10, EMP-04, O-861, Invariante 8, `drizzle/0073`, `drizzle/0386`, `services/abwesenheit/index.ts` |
 | O-894 | **Darf eine Rechnung, ein Buchungsbeleg, ein Vertrag oder eine Buchhaltungsunterlage nach Ablauf der zehn Jahre gelöscht werden — oder bleibt die Aufbewahrung dauerhaft?** Die vier GoBD-Klassen tragen in `dokument_aufbewahrung` eine ENTSCHIEDENE Frist (10 Jahre, § 147 AO, § 14b UStG, § 257 HGB) **und in derselben Zeile `loeschsperre = true`** (0009:275). `kern.setze_aufbewahrung` schreibt die Sperre beim Anlegen fest, und lösen lässt sie sich nie (D-49). Eine Rechnung ist damit nicht zehn Jahre unlöschbar, sondern **dauerhaft** — während `08-PR-PLAN.md` PR 64 als Zusage „for the full ten years" führt und Art. 5 Abs. 1 lit. e DSGVO eine Obergrenze verlangt, nicht nur eine Untergrenze. Drei Antworten sind denkbar: (a) die Sperre läuft mit der Frist ab, und der Aufbewahrungslauf nimmt die vier Klassen mit; (b) sie bleibt, und das Konzept sagt „dauerhaft" statt „zehn Jahre"; (c) sie bleibt, aber ein Mensch kann je Dokument einzeln freigeben, mit Grund und Protokoll. **Die Plattform erfindet keine davon**: der Lauf `dokument_aufbewahrung` (V-116) erreicht heute nur `angebot` und `kunde` — die beiden Klassen ohne Sperre —, und das Löschkonzept nennt genau diese zwei, statt eine Reichweite zu behaupten, die die Tabelle nicht hergibt. | DOC-07, LEG-01, V-116, D-49, `drizzle/0009`, `drizzle/0141`, `drizzle/0382`, `src/server/jobs/dokumentAufbewahrung.ts` |
 | O-906 | **Gilt für Rechnungen und Buchungsbelege seit dem 1. Januar 2025 die Aufbewahrungsfrist von ACHT statt zehn Jahren?** Das Vierte Bürokratieentlastungsgesetz (BEG IV) hat die Frist für Buchungsbelege in § 147 Abs. 3 AO, § 257 Abs. 4 HGB und § 14b Abs. 1 UStG auf acht Jahre verkürzt; Bücher, Inventare, Jahresabschlüsse und Lageberichte bleiben bei zehn. Die Plattform führt in `dokument_aufbewahrung` für `rechnung` und `beleg` weiter **zehn** Jahre und zeigt das auf der Ablageseite als „§ 147 AO, § 14b UStG — 10 Jahre“. **Nicht geändert, mit Absicht:** eine zu LANGE Frist kostet nichts, was sich nicht nachholen liesse — eine zu KURZE ist ein Beleg, der fehlt, wenn die Betriebsprüfung kommt, und gelöscht ist gelöscht. Und die Übergangsregel (für welche Belege die kürzere Frist schon gilt) ist eine Frage an den Steuerberater, keine Zahl, die die Plattform setzt. Hängt mit O-894 zusammen: solange die Sperre dauerhaft ist, ändert die kürzere Frist heute nichts am Löschen — sie ändert die Aussage auf dem Bildschirm und im Löschkonzept. | DOC-07, LEG-01, O-894, V-116, `drizzle/0009`, `src/app/portal/[mandant]/dokumente/upload/page.tsx` |
+| O-907 | **Welche Leadquellen begründen eine Anfrage des Kontakts, sodass die Antwort vertraglich ist und keine Werbung?** Seit V-141 kann jeder Lead einen Ansprechpartner bekommen, und ein ausgehender Anruf oder eine ausgehende E-Mail geht mit einem ZWECK durch das UWG-Tor. Entschieden sind zwei Ränder: das Webformular ist eine Anfrage (D-631, Zweck `vertraglich`), die Akquise ist keine (recherchiert, Zweck `werbung`). Offen sind drei: (a) **von Hand erfasst** — meist nach einem Gespräch, aber das Formular sagt nicht, wer wen angerufen hat; (b) **Empfehlung** — ein Kunde nennt jemanden, der selbst vielleicht nie gefragt hat; (c) **Vergaberadar** — die Vergabestelle bittet öffentlich um Angebote, spricht aber über die Vergabeplattform (D-07). Ist die Kontaktaufnahme dort eine vorvertragliche Maßnahme auf Anfrage der betroffenen Person (Art. 6 Abs. 1 lit. b DSGVO) — oder Werbung, die eine festgestellte Grundlage braucht (§ 7 Abs. 2 UWG, auch B2B)? Bis zur Antwort gehen alle drei den restriktiven Weg `werbung`: der Kontakt braucht eine Grundlage mit Quelle und Datum, sonst hält das Tor den Anruf nicht fest. Die Antwort tauscht die Umsetzung von `LEAD_ZWECK_REGEL`, nicht ihre Aufrufer; das Leadblatt nennt die Frage. | D-631, D-635, § 7 UWG, Art. 6 Abs. 1 lit. b DSGVO, `services/crm/lead-kontakt.ts` (`PLATZHALTER_LEAD_ZWECK`), `api/lead`, `crm/leads/[id]` |
+| O-908 | **Gilt ein Widerspruch (Art. 21 DSGVO) oder ein Werbewiderspruch, der an EINEM Kontakt festgehalten ist, für jeden Kontaktdatensatz derselben E-Mail-Adresse im Bereich?** Das Tor (`app.darf_kontaktiert_werden`) prüft den einen Datensatz, an den eine Nachricht geht. Das Datenmodell hält „ein Mensch, ein Kontakt" je Kunde (`ansprechpartner_email_uk`): derselbe Mensch kann als Anfragender ohne Kunden (0396) und als Kontakt eines oder mehrerer Kunden geführt sein — etwa eine Hausverwaltung für mehrere Eigentümer, oder die Anfrage, deren Kunde die Adresse schon kennt (D-635 Punkt 5). Ein Widerspruch am einen Datensatz sperrt den anderen heute nicht. Soll er es — über alle Datensätze derselben Adresse im Bereich, auch über Kunden hinweg, und für beide Widerspruchsarten? Bis zur Antwort übernimmt der Weg „Kunden zuordnen" keinen Zwilling für einen Anfragenden, dem widersprochen wurde; sonst bleibt jeder Vermerk an seinem Datensatz. | D-631, D-635, Art. 21 DSGVO, § 7 UWG, `drizzle/0020` (`ansprechpartner_email_uk`, Tor), `services/crm/lead-kette.ts` (`nimmKontaktMit`) |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
 | O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
@@ -15544,4 +15546,418 @@ weitergetragen wird (REQ-07, zweiter Halbsatz). Das hängt an der Kette
 Lead → Angebot → Auftrag, die eigens behoben wird.
 
 | Betrifft | REQ-01…07, CRM-02, CRM-03, D-61, D-83, D-599, V-137, `drizzle/0396`, `src/server/services/lead/{annahme,einsendung,eskalation,sla}.ts`, `src/lib/formular/herkunft.ts`, `src/app/api/{anfrage,lead,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx` |
+|---|---|
+
+### D-632 · Die Kette Lead → Angebot → Auftrag trägt die Herkunft bis in den Bericht (V-138)
+
+**Der Befund** (V-138; CRM-05, REQ-07 zweiter Halbsatz, REP-03):
+`angebot.lead_id` (0024) und `auftrag.lead_id` (0025) standen mit
+Fremdschlüssel und Index da, und kein Weg schrieb sie — weder
+`legeAngebotAn` noch die Maske „Neues Angebot", das Raumbuch, der direkte
+Weg `/api/auftrag` oder der Seed. `wandleInAuftrag` reichte ein NULL weiter.
+`lead.kunde_id` und `lead.ansprechpartner_id` ließen sich nach der Anlage
+nicht mehr setzen und hatten, wie `empfehlung_von_kunde_id` und
+`ausschreibung_id`, seit 0017 keinen Fremdschlüssel. Das Leadblatt zeigte
+nichts von dem, was aus der Anfrage wurde; das Kundenblatt hatte die Reiter
+Angebote, Rechnungen, Dokumente und Kommunikation der Seitenkarte (§5.2)
+nicht, und seine Auftragszeilen führten nirgends hin. Der Herkunftsbericht
+zählt Aufträge über `auftrag.lead_id` und zeigte deshalb für jeden Kanal
+„0 Aufträge, 0,00 €" — auch in der Demo.
+
+**Die Entscheidung.**
+
+1. **Der Lead bekommt seinen Kunden auf dem Leadblatt**, auf zwei Wegen:
+   „Als Kunde übernehmen" (legt ihn über `legeKundeAn` an, mit Kundennummer
+   und Firmenidentität, D-634) und „Einem bestehenden Kunden zuordnen". Eine
+   NEUE Anfrage steht danach auf `in_bearbeitung`; ein Stand, den ein Mensch
+   gesetzt hat, bleibt. Der Anfragende wandert mit, wenn er noch keinem
+   Kunden gehört — sonst wäre er nicht Ansprechpartner des Angebots
+   (`angebot_ansprechpartner_fk`). Führt der Kunde schon einen Kontakt mit
+   derselben E-Mail, zeigt der Lead auf DEN (ein Mensch, ein Kontakt, wie
+   D-631).
+2. **Die Rechtsgrundlage eines übernommenen Kunden ist `keine`.** Die
+   Antwort auf die Anfrage (Zweck `vertraglich`) hängt am Werbetor nicht an
+   der Grundlage des Kunden und bleibt offen. Ob der Kunde Werbung bekommen
+   darf, ist eine Feststellung mit Quelle und Datum, die ein Mensch trifft;
+   ob `anfrage` überhaupt Werbung trägt, ist O-660. Folge, bewusst: das Tor
+   wird für den mitgewanderten Kontakt strenger, nie lockerer.
+3. **Ein Angebot oder Auftrag hängt nur an einem Lead DESSELBEN Kunden in
+   derselben Gesellschaft.** Ein Lead ohne Kunden wird nicht nebenbei dem
+   Kunden des Angebots zugeordnet — das wäre eine Zuordnung, die niemand
+   getroffen hat. Geprüft im Dienst (`pruefeLeadBindung`, ein Satz statt
+   eines Codes) und in der Datenbank (`kern.lead_bezug_stimmt`, 0400).
+   Hängt ein Vorgang am Lead, wechselt dessen Kunde nicht mehr
+   (`kern.lead_kunde_bleibt`) — auch für eine Rolle, die die Angebote gar
+   nicht sehen darf.
+4. **Der Stand des Leads folgt der Kette, nur vorwärts.** Ein versendetes
+   Angebot stellt einen OFFENEN Lead (`neu`, `in_bearbeitung`) auf
+   `angebot`; ein Auftrag stellt jeden noch nicht gewonnenen Lead auf
+   `gewonnen` und stempelt `konvertiert_am`, auch einen, den jemand
+   verloren gegeben hatte — der unterschriebene Auftrag ist die spätere und
+   stärkere Tatsache; der Verlustgrund bleibt stehen. Eine Ablehnung stellt
+   NICHTS zurück: eine Anfrage kann ein zweites Angebot bekommen, und ein
+   Verlust trägt einen Grund, den ein Mensch schreibt. Jede Nachführung
+   schreibt eine Systemzeile in den Verlauf.
+5. **Die Nachführung läuft als Definer-Auslöser, nicht im Dienst.**
+   Versenden (`angebot.versenden`) und Annehmen (`angebot.annahme_erfassen`)
+   sind nicht `crm.schreiben`; als `cse_app` geschrieben hätte die
+   Nachführung den Versand einer solchen Rolle abgebrochen. `cse_definer`
+   darf an `lead` genau `status` und `konvertiert_am` schreiben, im aktiven
+   Mandanten, und in `lead_aktivitaet` nur interne Systemzeilen.
+6. **Drei Wege tragen die Anfrage:** die Maske „Neues Angebot" und das
+   Raumbuch mit `?lead=` (der Kunde steht dann fest), und „Auftrag direkt
+   anlegen" für den Auftrag ohne Angebot. `wandleInAuftrag` reicht sie
+   weiter. Angebots- und Auftragsblatt nennen die Anfrage (mit
+   `crm.lesen`).
+7. **Lead- und Kundenblatt zeigen die Kette**, je Stufe nur mit dem Recht
+   ihrer Zielseite (AUT-06): Angebote, Aufträge, Rechnungen; am Kunden
+   zusätzlich Anfragen, Dokumente und den Verlauf der Kommunikation.
+8. **Formulare bekommen ihre Seite zurück** (D-599): das Raumbuch und
+   `/api/auftrag` antworteten auf Abweisungen mit JSON; jetzt kehren sie
+   mit Schlüssel auf ihre Maske zurück.
+9. **Der Seed geht die ganze Kette über die echten Dienste:** Empfehlung →
+   Angebot mit Anfrage → Versand → Auftrag. Der Herkunftsbericht zeigt
+   damit schon in der Demo einen Kanal mit Auftrag.
+
+**Nicht Teil dieser Entscheidung:** ein bestehendes Angebot oder einen
+bestehenden Auftrag nachträglich einer Anfrage zuzuordnen. Versendete
+Angebote sind unveränderlich; für Entwürfe und Aufträge aus der Zeit vor
+0400 gibt es keinen Weg, und die Plattform ist nicht in Betrieb — ein
+Nachtragsweg wäre eine Fläche ohne Fall.
+
+| Betrifft | CRM-05, REQ-07, REP-03, 04-SEITENKARTE §5.2, AUT-06, D-599, D-631, O-660, V-138, `drizzle/0400`, `src/server/services/crm/lead-kette.ts`, `src/server/services/angebot/{index,von-hand}.ts`, `src/app/api/{angebot,angebot/von-hand,auftrag,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/{leads,kunden}/[id]/page.tsx`, `src/app/portal/[mandant]/{angebote,auftraege}/{neu,[id]}/page.tsx`, `src/app/portal/[mandant]/objekte/[id]/raumbuch/page.tsx`, `src/server/db/seed/vertrieb.ts` |
+|---|---|
+
+### D-633 · Vergaberadar und Empfehlung werden Leadquellen mit Erzeuger (V-139)
+
+**Der Befund** (V-139, CRM-07): CRM-07 nennt vier Leadquellen. `lead_quelle`
+kannte sie seit 0017, der CHECK `lead_herkunft_stimmig` verlangte für
+`vergabe_radar` eine `ausschreibung_id` und für `empfehlung` einen
+empfehlenden Kunden — und keine Zeile Code schrieb eines davon. Ein
+Radartreffer ließ sich nicht übernehmen, die Maske „Neuer Lead" kannte keine
+Empfehlung, und der Herkunftsbericht beschriftete zwei Werte, die nie
+entstanden. Übernommene Akquiseziele (0171) standen im Bericht unter
+„Manuell erfasst".
+
+**Die Entscheidung.**
+
+1. **Die Empfehlung ist eine Angabe der Maske „Neuer Lead"**: wer einen
+   empfehlenden Kunden wählt, erfasst eine Empfehlung. Kein zweites Feld
+   „Herkunft" daneben — ohne Javascript könnten die beiden einander
+   widersprechen. Der Empfehlende ist ein Kunde DIESER Gesellschaft; ein
+   Kunde, der sich selbst empfiehlt, ist ein Bestandskunde mit neuem Bedarf
+   und wird abgewiesen, sonst zählte der Kanal „Empfehlung" Anfragen, die
+   keine sind.
+2. **Ein Radartreffer wird auf der Bekanntmachung übernommen**, unter
+   `crm.schreiben` (der Lead) und `radar.lesen` (die Bekanntmachung).
+   Betreff und Beschreibung (gekürzt auf 2.000 Zeichen, mit Quellkennung)
+   kommen aus der Bekanntmachung, der Auftraggeber auch — fehlt er, nennt
+   ihn der Mensch; erfunden wird keiner. Der geschätzte Wert wandert nur in
+   Euro: eine Fremdwährung wird nicht umgerechnet (O-47), und ein Betrag
+   ohne Währung ist kein Euro-Betrag. Der Besitzer ist, wer übernimmt.
+3. **Einmal je Gesellschaft.** `lead_ausschreibung_uk` (0400) hält den
+   gleichzeitigen zweiten Klick; eine andere Gesellschaft darf dieselbe
+   Bekanntmachung übernehmen, sie bietet selbst. Der Vorgang des Radars
+   (Stand, Mappe) bleibt unberührt: er führt die Vergabe, der Lead den
+   Vertrieb.
+4. **Der Bericht nennt die Akquise beim Namen**, bereichsweise und in der
+   Gruppe.
+5. **Seed:** ein Radar-Lead im Bau über denselben Dienst, eine Empfehlung in
+   der Reinigung (D-632 Punkt 9).
+
+| Betrifft | CRM-07, REP-03, RAD-07, O-47, D-07, V-139, `drizzle/0400`, `src/server/services/crm/{anlegen,lead-radar}.ts`, `src/server/services/bericht/{kennzahlen,gruppe}.ts`, `src/app/api/crm/lead/route.ts`, `src/app/portal/[mandant]/crm/leads/neu/page.tsx`, `src/app/portal/[mandant]/radar/[id]/page.tsx`, `src/app/portal/gruppe/leads/page.tsx`, `src/server/db/seed/radar.ts` |
+|---|---|
+
+### D-634 · Ein Kunde findet seine Firma über die USt-IdNr. (V-140)
+
+**Der Befund** (V-140, CRM-06): die Gruppenliste erkennt denselben Kunden in
+mehreren Gesellschaften allein an `kunde.firma_id`. `app.firma_aufloesen`
+(0020) ist laut Migration die EINZIGE Stelle, an der eine `firma` entsteht,
+und hatte in der Anwendung keinen Aufrufer. Jeder im Portal angelegte Kunde
+blieb ohne Firma, auch mit USt-IdNr.; „auch in" war für echte Daten leer.
+
+**Die Entscheidung.**
+
+1. **Die Identität ist die USt-IdNr., nicht der Name.** `legeKundeAn` löst
+   für Firma und Behörde MIT USt-IdNr. über `app.firma_aufloesen` auf und
+   schreibt `firma_id` mit. Ohne Nummer entsteht keine Firma: zwei „Muster
+   GmbH" in Berlin sind zwei Unternehmen, und eine Zusammenführung über den
+   Namen legte die Historie des einen in die des anderen. Eine
+   Privatperson ist keine Firma.
+2. **Nachgetragen, nicht getauscht.** `aendereKunde` verbindet einen Kunden
+   ohne Firma, sobald seine USt-IdNr. eingetragen wird. Trägt er schon
+   eine, bleibt sie — an derselben Firma können Kunden anderer
+   Gesellschaften hängen, und eine berichtigte Nummer ist eine Frage der
+   Zusammenführung (`firma.zusammengefuehrt_in_firma_id`), nicht eines
+   stillen Umhängens.
+3. **Der Bestand wird nachgeholt** (0401) — mit derselben Regel wortgleich
+   in SQL, weil die Funktion eine Sitzung mit `crm.schreiben` verlangt und
+   eine Migration keine hat. Nicht angefasst: Privatkunden, archivierte und
+   anonymisierte Kunden (eine Anonymisierung bekommt nachträglich keine
+   Identität), Kunden mit Firma.
+4. **Kein Dublettenhinweis nach Namen in der Maske.** `app.firma_kandidaten`
+   gibt nur Kennungen und eine Ähnlichkeit heraus — eine Anzeige daraus
+   bräuchte den Namen einer Firma, die möglicherweise nur eine andere
+   Gesellschaft kennt. Das wäre die Auskunft, die die Funktion verweigert.
+
+| Betrifft | CRM-06, TEN-02, V-140, `drizzle/0020` (`app.firma_aufloesen`), `drizzle/0401`, `src/server/services/crm/{anlegen,aendern}.ts`, `src/app/portal/gruppe/kunden/page.tsx` |
+|---|---|
+
+### D-635 · Jede Anfrage bekommt ihren Ansprechpartner, und ausgehend gilt der Zweck ihrer Herkunft (V-141)
+
+**Der Befund** (V-141; Nachprüfung von V-138, CRM-05, Teil des Befunds
+„`lead.kunde_id` und `lead.ansprechpartner_id` lassen sich nach der Anlage
+nicht setzen"): V-138 machte den Kunden setzbar, den Ansprechpartner nicht.
+Nur die Annahme eines Webformulars legte einen Kontakt an (0396). Jeder Lead,
+der von Hand, aus einer Empfehlung, aus dem Vergaberadar oder aus der Akquise
+entstand, blieb ohne — auch nach „Als Kunde übernehmen". Das Leadblatt riet,
+„den Kontakt am Kunden anzulegen"; der Lead zeigte danach trotzdem auf
+niemanden, und jeder ausgehende Anruf und jede ausgehende E-Mail brach mit
+`kein_kontakt` ab — gerade für die Quellen, die V-139 neu geschaffen hatte.
+
+Beim Beheben fiel das zweite Stück auf: `/api/lead` schrieb JEDE ausgehende
+Aktivität mit dem Zweck `vertraglich`. Für eine Web-Anfrage stimmt das
+(D-631). Sobald jeder Lead einen Kontakt bekommen kann, wäre dieselbe Zeile
+ein Weg am Werbetor vorbei: ein recherchiertes Akquiseziel, dem niemand eine
+Frage gestellt hat, liesse sich als „Antwort" anrufen — genau das, was
+`akquise/uebernahme.ts` ausschliesst („wer diese Firma anschreiben will, muss
+zuerst einen Kontakt anlegen und dessen Rechtsgrundlage benennen") und was
+CLAUDE.md als Kaltakquise aus dem Umfang nimmt.
+
+**Die Entscheidung.**
+
+1. **Das Leadblatt setzt den Ansprechpartner** — einen Kontakt des Kunden der
+   Anfrage wählen oder einen neuen anlegen (`services/crm/lead-kontakt.ts`,
+   `was=kontakt_waehlen` / `was=kontakt_anlegen` auf `/api/crm/lead`, Recht
+   `crm.schreiben`). Zur Wahl stehen nur erreichbare Kontakte DIESES Kunden:
+   nicht archiviert, nicht anonymisiert, nicht ausgeschieden (V-110). Ein
+   neuer Kontakt entsteht beim Kunden der Anfrage; hat sie noch keinen, ohne
+   Kunden, und er wandert mit, sobald sie einen bekommt (D-632 Punkt 1). Jede
+   Zuordnung schreibt eine Systemzeile in den Verlauf.
+2. **Die Rechtsgrundlage eines so angelegten Kontakts ist `keine`.** Sie ist
+   eine Feststellung mit Quelle und Datum, die ein Mensch auf dem
+   Kontaktblatt unter eigenem Recht trifft (`crm/kontakt-grundlage.ts`,
+   K-05). Ein Anlegeformular setzt sie nie nebenbei — das Leadblatt verweist
+   auf das Kontaktblatt.
+3. **Ein Mensch, ein Kontakt** — dieselbe Regel wie in der Annahme (D-631):
+   gibt es im Bereich schon einen erreichbaren Kontakt mit derselben
+   E-Mail-Adresse, zeigt die Anfrage auf IHN, bevorzugt den ihres Kunden, und
+   die Seite sagt es. Ein Widerspruch an ihm gilt damit auch hier. Ein
+   ausgeschiedener Zwilling wird nicht wiederbelebt; hält der
+   Eindeutigkeitsschlüssel die Adresse für denselben Kunden, sagt die Seite
+   warum.
+4. **Der Zweck eines ausgehenden Kontakts folgt der Herkunft** — hinter einer
+   Schnittstelle (`LEAD_ZWECK_REGEL`), weil ein Teil davon eine Rechtsfrage
+   ist:
+   - Webformular → `vertraglich` (D-631: der Mensch hat angefragt).
+   - Akquise → `werbung` (entschieden: recherchiert, niemand hat gefragt).
+   - Von Hand, Empfehlung, Vergaberadar → **Platzhalter `werbung`** bis zur
+     Antwort auf **O-907**. Der restriktive Zweig: der Kontakt braucht eine
+     festgestellte Grundlage, sonst weist das Tor ab. Das ist nie lockerer
+     als vorher — vorher ging für diese Leads gar nichts hinaus.
+   Das Leadblatt sagt das VOR dem Anruf und nennt die Frage; eine Abweisung
+   kommt mit eigenem Satz (`uwg_werbung`). Eingehendes geht am Tor vorbei
+   (es verlässt das Haus nicht) und bleibt `vertraglich` wie bisher.
+5. **Genauer als D-632 Punkt 1: der Zwilling beim Kunden.** Führt der Kunde
+   dieselbe E-Mail-Adresse schon, kann der Anfragende nicht wandern
+   (`ansprechpartner_email_uk`). Die Anfrage zeigt dann auf den Kontakt des
+   Kunden — aber nur, wenn der erreichbar ist UND dem Anfragenden nicht
+   widersprochen wurde (das Tor verweigert ihm sonst sogar die vertragliche
+   Antwort). Sonst bleibt sie bei ihm: auf einen Zwilling ohne Vermerk
+   umzustellen hiesse, einen Widerspruch mit einem Klick zu umgehen.
+   **Der Kontakt der Anfrage bleibt stehen**, ohne Kunden. Er ist der Beleg
+   der Anfrage — Grundlage `anfrage` mit Quelle und Datum — und trägt, was an
+   ihm vermerkt wurde. Ihn zu archivieren verlöre genau das, und den Vermerk
+   auf den Zwilling zu übertragen verlangte eine Regel, die es nicht gibt:
+   „ein Mensch, ein Kontakt" hält das Datenmodell JE KUNDE, nicht über die
+   Grenze Anfrage/Kunde hinweg. Ob ein Widerspruch für alle Datensätze
+   derselben Adresse gilt, ist **O-908**.
+6. **Die Aktivität hält der Dienst fest** (`halteLeadAktivitaetFest`); die
+   Route prüft das Recht und leitet um — wie CLAUDE.md es für jede Route
+   verlangt.
+7. **Seed:** die Empfehlung in der Reinigung bekommt über denselben Dienst
+   einen Kontakt ihres Kunden.
+
+| Betrifft | CRM-03, CRM-04, CRM-05, CRM-07, REQ-05, LEG-08, § 7 UWG, Art. 21 DSGVO, D-631, D-632, O-907, O-908, V-110, V-141, `src/server/services/crm/{lead-kontakt,lead-kette}.ts`, `src/app/api/{lead,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx`, `src/lib/i18n/verwaltung/crm-lead.ts`, `src/server/db/seed/vertrieb.ts` |
+|---|---|
+
+### D-636 · Die Kette hält auch am Rand: im Rennen, nach dem Archiv, beim Berichtigen (V-142)
+
+**Der Befund** (V-142; Nachprüfung von V-138 bis V-140): Die Kette hielt,
+solange niemand gleichzeitig klickte, archivierte oder sich vertat.
+
+- `kern.lead_bezug_stimmt` (0400) las den Lead ohne Sperre. Hängte jemand
+  die Anfrage um, während ein anderer ein Angebot für den alten Kunden
+  anlegte, sahen beide Prüfungen den jeweils anderen Schritt nicht — danach
+  stand ein Angebot für Kunde A an einer Anfrage von Kunde B.
+- Legten zwei Gesellschaften im selben Augenblick dieselbe neue USt-IdNr.
+  an, fiel die zweite auf `firma_ust_id_uk` — ein roher `23505`, also 500.
+  Vor V-140 unerreichbar, weil `app.firma_aufloesen` keinen Aufrufer hatte.
+- `firmaFuer` gab das Land des Kunden nicht weiter; jede neue Firma bekam
+  `DE`, während 0401 für den Bestand `coalesce(kunde.land, 'DE')` nahm. Die
+  „wortgleiche" Regel aus D-634 Punkt 3 war es nicht.
+- `lead_ausschreibung_uk` zählte archivierte Leads mit: eine Bekanntmachung,
+  deren Lead archiviert wurde, liess sich nie wieder übernehmen.
+- Einen falsch zugeordneten Kunden erlaubten Dienst und Datenbank zu
+  berichtigen, solange nichts an der Anfrage hängt — das Leadblatt bot es nie
+  an.
+- Die Rechnungen auf dem Leadblatt hingen zusätzlich an `auftrag.lesen`. Wer
+  `finanzen.lesen` hielt, aber nicht `auftrag.lesen`, las „Noch keine
+  Rechnung zu diesen Aufträgen", obwohl es welche geben konnte.
+- „Neues Angebot" und „Neuer Auftrag" suchten den Kunden der Anfrage in ihrer
+  Auswahlliste (nicht archiviert; beim Angebot die ersten 500 Namen). Fehlte
+  er dort, hiess es „Die Anfrage hat noch keinen Kunden" — ein falscher Grund.
+- Einige Lesezugriffe der Kette verliessen sich allein auf RLS; die
+  Kopfkommentare von 0400 und 0401 behaupteten eine Kommentarregel „wie in
+  0392", die 0392 und 0393 nicht einhalten.
+
+**Die Entscheidung.**
+
+1. **Der Bezug wird unter Sperre gelesen** (0402): `kern.lead_bezug_stimmt`
+   liest die Zeile des Leads mit `FOR SHARE`. Ein Umhängen wartet, bis das
+   Angebot festgeschrieben ist, und sieht es dann; ein Angebot wartet auf das
+   Umhängen und liest den neuen Kunden. Die umgekehrte Reihenfolge hielt
+   schon vorher: der Fremdschlüssel sperrt den Lead für `FOR UPDATE` in
+   `ordneLeadKundeZu`.
+2. **Zwei Gesellschaften, dieselbe neue Nummer:** `firmaFuer` nimmt vor
+   `app.firma_aufloesen` eine Transaktionssperre auf die normalisierte Nummer
+   (`pg_advisory_xact_lock`, wie der Schichtgenerator). Die zweite
+   Gesellschaft wartet, bis die erste festgeschrieben hat, und findet dann
+   deren Firma; beide Kunden hängen an DERSELBEN. Ein Auffangen des `23505`
+   ging nicht: postgres.js verwirft eine Transaktion, in der eine Anweisung
+   scheiterte, auch wenn der Aufrufer den Fehler fängt — ein
+   Sicherungspunkt mit Wiederholung lief im Test genau daran auf. Die
+   Funktion selbst (0020) bleibt unverändert.
+3. **Das Land geht mit:** `aendereKunde` gibt das Land, das der Kunde nach der
+   Änderung trägt, an `app.firma_aufloesen`; `legeKundeAn` die Vorgabe der
+   Funktion, die dieselbe ist wie die der Spalte (`DE`). Damit gilt die Regel
+   aus 0401 wirklich wortgleich.
+4. **Ein laufender Lead je Bekanntmachung und Gesellschaft** (0402): ein
+   archivierter Lead ist beendet (0017) und gibt die Vergabe frei. Der
+   Schlüssel soll zwei GLEICHZEITIG bearbeitete Leads verhindern (D-633
+   Punkt 3), nicht eine Vergabe für immer sperren. Der archivierte bleibt,
+   wie jeder archivierte Lead, im Bericht.
+5. **Berichtigen, solange nichts an der Anfrage hängt — auch kein
+   zurückgezogener Entwurf.** Das Leadblatt bietet „Kunden berichtigen" an,
+   solange es weder Angebot noch Auftrag sieht; Dienst und Auslöser prüfen,
+   was diese Sitzung nicht sehen darf. Ein zurückgezogener oder archivierter
+   Entwurf zählt mit: er trägt den ersten Kunden UND diese Anfrage, und hinge
+   sie danach am zweiten, widerspräche er der Regel, die
+   `kern.lead_bezug_stimmt` für jeden Vorgang hält. Ihn abzuhängen hiesse,
+   die Geschichte des Angebots umzuschreiben. Die Folge, bewusst: nach einem
+   Entwurf für den falschen Kunden wird die Anfrage mit Grund geschlossen und
+   eine neue für den richtigen erfasst — beide erzählen dann, was geschah. Der
+   Verlauf nennt die Berichtigung („Kunde berichtigt: K-… statt K-…"); der
+   Ansprechpartner bleibt, wo er ist, und wird neu gewählt (D-635).
+6. **Rechnungen ohne Auftragsrecht:** sie hängen an den Aufträgen. Ohne
+   `auftrag.lesen` sagt das Leadblatt genau das und nennt das Recht, statt
+   „keine Rechnung" zu behaupten. Eine eigene Leseschicht an den Aufträgen
+   vorbei wäre ein Weg, Aufträge über ihre Rechnungen zu erschliessen.
+7. **Die Masken lesen den Kunden aus der Zeile der Anfrage**, nicht aus ihrer
+   Auswahlliste; ist er archiviert, sagen sie DAS.
+8. **Mandantenfilter auch dort, wo RLS ohnehin filtert** (Invariante 3: RLS
+   ist die zweite Linie): Kunde und Empfehler in `leseLeadKette`, die
+   Vorprüfung und die Nummer des alten Kunden in `ordneLeadKundeZu`, beide
+   `update kunde` in `aendereKunde`.
+9. Die Kopfkommentare von 0400 und 0401 nennen jetzt 0394 bis 0396 bzw. 0400
+   als Vorbild — nur Kommentare, keine Schemaänderung.
+
+| Betrifft | CRM-05, CRM-06, CRM-07, TEN-02, AUT-06, Invariante 3, D-632, D-633, D-634, D-635, V-142, `drizzle/0402`, `drizzle/0400` (Kommentar), `drizzle/0401` (Kommentar), `src/server/services/crm/{anlegen,aendern,lead-kette,lead-radar}.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx`, `src/app/portal/[mandant]/{angebote,auftraege}/neu/page.tsx`, `src/app/portal/[mandant]/radar/[id]/page.tsx`, `src/lib/i18n/verwaltung/crm-kette.ts` |
+|---|---|
+
+### D-637 · Die Formularwege der Kette sind Dienste, und eine Abweisung bringt die Maske samt Eingaben zurück (V-143)
+
+**Der Befund** (V-143; Nachprüfung von V-138, D-632 Punkt 8): D-632 sagte
+ohne Einschränkung, das Raumbuch und `/api/auftrag` kehrten mit Schlüssel auf
+ihre Maske zurück. Es stimmte nur zum Teil. `/api/auftrag` antwortete auf
+einen Auftrag, den die Datenbank nicht zurückgab, und auf die Antworten des
+Tors weiter mit JSON; der Raumbuchweg in `/api/angebot` antwortete auf ein
+unvollständiges Formular und auf ein Raumbuch ohne kalkulierbare Fläche mit
+JSON. Und wo die Maske zurückkam, kam sie LEER: nur `?lead=` blieb, jede
+andere Eingabe war weg. Dazu die Prüflücke: beide Wege standen ganz in ihren
+Routen, und eine Route lässt sich hier nicht gegen eine echte Datenbank
+prüfen. Ungeprüft war damit gerade, worauf es ankommt — dass eine abgewiesene
+Anfrage keine Auftragsnummer verbraucht, dass der Auftrag und das
+Raumbuch-Angebot die Anfrage tragen, und dass eine fremde Anfrage kein halbes
+Angebot hinterlässt. Der Isolationstest „der Weg von /api/auftrag" fügte per
+SQL ein und rief die Route nie.
+
+**Die Entscheidung.**
+
+1. **Beide Wege werden Dienste:** `services/auftrag/direkt.ts`
+   (`legeAuftragDirektAn`: Anfrage prüfen, DANN die Nummer ziehen, anlegen)
+   und `services/angebot/aus-raumbuch.ts` (`legeAngebotAusRaumbuchAn`:
+   Grundlage, Kalkulation, Angebot, Zeilen). Die Routen lesen das Formular,
+   prüfen das Recht, rufen den Dienst und antworten — wie CLAUDE.md es für
+   jede Route verlangt.
+2. **Was die EINGABE oder den VORGANG betrifft, kommt als Seite zurück**, mit
+   Schlüssel und Satz: `/api/auftrag` auch für „nicht angelegt", das Raumbuch
+   für `angebot_unvollstaendig` und `nichts_zu_kalkulieren`. Ein Programm
+   (`application/json`) bekommt weiter JSON (D-599).
+3. **D-632 Punkt 8, genau gefasst:** die Antworten des TORS — keine Sitzung,
+   kein zweiter Faktor, kein Recht — bleiben JSON wie auf jeder Route dieser
+   Anwendung (`uebergang.ts`, `autorisierungsAntwort`, D-562). Hinter
+   demselben Tor steht die Maske selbst; es gibt nichts, wohin man
+   zurückkehren könnte. Das ist eine Grenze, keine Lücke.
+4. **Die Maske kommt mit ihren Eingaben zurück** (`lib/formular/maske.ts`):
+   die Werte reisen in der Adresse, je Wert höchstens 1.000 Zeichen, und die
+   Maske belegt ihre Felder damit vor; eine Auswahl übernimmt nur einen Wert,
+   den sie auch anbietet. Mit diesem Weg reist nichts Geheimes — die Maske
+   fragt Stammdaten eines Vorgangs. Die Maske „Neues Angebot" von Hand macht
+   es noch nicht; sie ist nicht Teil dieses Befunds.
+5. **Geprüft gegen die Datenbank:** eine abgewiesene Anfrage lässt den
+   Auftragskreis unberührt, ein Auftrag mit Anfrage stellt sie auf
+   „gewonnen"; das Raumbuch-Angebot trägt die Anfrage, eine fremde hinterlässt
+   nichts, ein leeres Raumbuch und ein unvollständiges Formular legen nichts
+   an. Der alte Test heisst jetzt, was er prüft: den Auslöser am Dienst
+   vorbei.
+
+| Betrifft | CRM-05, OPS-10, REP-03, D-562, D-599, D-632, V-143, `src/server/services/auftrag/direkt.ts`, `src/server/services/angebot/aus-raumbuch.ts`, `src/lib/formular/maske.ts`, `src/app/api/{auftrag,angebot}/route.ts`, `src/app/portal/[mandant]/auftraege/neu/page.tsx`, `src/lib/i18n/verwaltung/crm-kette.ts`, `src/server/registry/dienste.ts` |
+|---|---|
+
+### D-638 · Was an der Kette noch schief stand — und was bewusst bleibt (V-144)
+
+**Der Befund** (V-144; Nachprüfung von V-138 bis V-140, die kleinen Punkte):
+der Satz „Sichtbar für, wer dieses Recht hält:" war kein deutscher Satz; die
+Abweisung `kein_schreibrecht` nannte den rohen Schlüssel `crm.schreiben`
+statt des Namens, den `<Recht>` überall sonst zeigt; `src/lib/vorgang-pille.ts`
+begründete sich damit, die Pillenabbildung je Seite abzulösen — und liess die
+sechs Kopien stehen (jetzt sieben Abbildungen); ein Unit-Test prüfte in
+einem `try/catch` nichts, wenn keine Ausnahme flog. Dazu drei Punkte, die
+eine Entscheidung verlangten statt einer Änderung.
+
+**Die Entscheidung.**
+
+1. **Rechte heissen, wie sie heissen:** „Das sieht, wer dieses Recht hält:"
+   (mit V-142), und `kein_schreibrecht` nennt den Namen aus
+   `lib/i18n/rechtname.ts` — derselbe, den `<Recht>` zeigt, in beiden
+   Sprachen. Eine Prüfung hält fest, dass kein Satz der Kette einen rohen
+   Schlüssel trägt.
+2. **Eine Pillenabbildung:** Angebots-, Auftrags-, Rechnungs- und Leadliste,
+   Lead- und Kundenblatt lesen aus `lib/vorgang-pille.ts`. Die Kopien trugen
+   dieselben Werte (die Leadseiten zusätzlich `qualifiziert`, einen Wert, den
+   `lead_status` nicht kennt); eine Prüfung hält fest, dass keine Seite der
+   Kette wieder eine eigene führt.
+3. **Der Test prüft, was er behauptet:** die Ausnahme muss fliegen, mit
+   genau diesem Grund.
+4. **Bewusst unverändert: die Systemzeilen im Verlauf bleiben deutsch.**
+   „Als Kunde … übernommen", „Angebot … versendet", „Aus dem Vergaberadar
+   übernommen", seit V-141/V-142 auch „Ansprechpartner: …" und „Kunde
+   berichtigt: …" stehen als Text in `lead_aktivitaet.betreff` und erscheinen
+   so auch in der englischen Oberfläche. Das ist das Muster jeder Aktivität
+   dieser Tabelle: der Verlauf ist eine Aufzeichnung, und eine Aufzeichnung
+   wird nicht nachträglich übersetzt. Eine Übersetzung bräuchte einen
+   Schlüssel je Zeile — eine eigene Spalte für alle Aktivitäten, nicht eine
+   Nachbesserung dieser Kette.
+5. **Bewusst unverändert: D-632 Punkt 4** (ein Auftrag stellt auch einen
+   verlorenen Lead auf „gewonnen", der Verlustgrund bleibt stehen). Das ist
+   eine Ablaufregel, keine Rechts- oder Finanzregel; der Nutzer hat solche
+   Fragen delegiert, und D-632 hält sie mit Begründung fest. Sie folgt
+   derselben Regel wie `setzeLeadStatus`, der beim Stand „gewonnen" den Grund
+   ebenfalls stehen lässt; kein Bericht zählt Verlustgründe ohne den Stand.
+6. **Bewusst unverändert: ein zurückgezogener Entwurf sperrt das Berichtigen
+   des Kunden** (D-636 Punkt 5), und **der Kontakt einer Anfrage bleibt neben
+   dem Zwilling beim Kunden stehen** (D-635 Punkt 5, O-908).
+
+| Betrifft | D-592, D-632, D-635, D-636, V-144, `src/lib/i18n/verwaltung/crm-kette.ts`, `src/lib/vorgang-pille.ts`, `src/app/portal/[mandant]/{angebote,auftraege,finanzen/rechnungen,crm/leads}/page.tsx`, `src/app/portal/[mandant]/crm/{leads,kunden}/[id]/page.tsx`, `tests/kern/crm-kette.test.ts` |
 |---|---|

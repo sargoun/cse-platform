@@ -5,7 +5,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
-import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
@@ -16,6 +16,11 @@ import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Unternavigation } from './Unternavigation';
 import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
+import { LEAD_TEXTE } from '@/lib/i18n/verwaltung/crm-lead';
+import { ANGEBOT_PILLE, AUFTRAG_PILLE, LEAD_PILLE, RECHNUNG_PILLE } from '@/lib/vorgang-pille';
+import { leseKundeVorgaenge, type KundeVorgaenge } from '@/server/services/crm/lead-kette';
 
 /**
  * `/portal/[mandant]/crm/kunden/[id]` — ein Kunde, seine Kontakte, seine
@@ -73,11 +78,6 @@ interface ObjektZeile { readonly id: string; readonly bezeichnung: string;
 interface AuftragZeile { readonly id: string; readonly auftragsnummer: string;
   readonly bezeichnung: string; readonly status: string; readonly wert: string | null; }
 
-const AUFTRAG_PILLE: Readonly<Record<string, PillZustand>> = {
-  angelegt: 'Geplant', aktiv: 'In Arbeit', pausiert: 'Wartet',
-  abgeschlossen: 'Abgeschlossen', storniert: 'Abgelehnt',
-};
-
 export default async function KundeDetail(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
@@ -98,7 +98,12 @@ export default async function KundeDetail(
    * Dieselbe eine Abfrage fuer alle drei Schluessel (`app/portal/rechte.ts`).
    */
   const unterrechte = await haeltRechte(sitzung,
-    'crm_entgelt.lesen', 'abrechnung.lesen', 'system.benutzer_verwalten');
+    'crm_entgelt.lesen', 'abrechnung.lesen', 'system.benutzer_verwalten',
+    /*
+     * V-138: die Abschnitte Angebote, Rechnungen und Dokumente verweisen auf
+     * Seiten mit eigenem Recht — ohne es stünde dort der Satz, nicht der Link.
+     */
+    'angebot.lesen', 'finanzen.lesen', 'dokument.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -153,15 +158,25 @@ export default async function KundeDetail(
                 auftragswert_netto_cent::text as wert
            from auftrag where kunde_id = $1 order by start_datum desc`, [id]);
 
-      return { kopf, kontakte, objekte, auftraege, rechte };
+      /*
+       * **Was am Kundenblatt fehlte** (V-138, CRM-05, 04-SEITENKARTE §5.2):
+       * Anfragen, Angebote, Rechnungen, Dokumente und der Verlauf — je mit
+       * dem Recht der Seite, auf die sie verweisen.
+       */
+      const vorgaenge = await leseKundeVorgaenge(kontext, id);
+
+      return { kopf, kontakte, objekte, auftraege, rechte, vorgaenge };
     })) as Promise<{
       kopf: Kopf; kontakte: readonly KontaktZeile[];
       objekte: readonly ObjektZeile[]; auftraege: readonly AuftragZeile[];
       rechte: { objekt: boolean; auftrag: boolean; schreiben: boolean } | undefined;
+      vorgaenge: KundeVorgaenge;
     } | null>);
 
   if (daten === null) notFound();
-  const { kopf, kontakte, objekte, auftraege } = daten;
+  const { kopf, kontakte, objekte, auftraege, vorgaenge } = daten;
+  const k = nachSprache(KETTE_TEXTE, zugang.sprache);
+  const standWerte = nachSprache(LEAD_TEXTE, zugang.sprache).standWerte;
   // Fehlt die Zeile, ist die engste Annahme die sichere: nichts behaupten.
   const darfObjekt = daten.rechte?.objekt === true;
   const darfAuftrag = daten.rechte?.auftrag === true;
@@ -415,7 +430,15 @@ export default async function KundeDetail(
             zeilen={auftraege}
             schluessel={(z) => z.id}
             spalten={[
-              { schluessel: 'nummer', kopf: 'Nummer', zelle: (z) => z.auftragsnummer },
+              /* Verlinkt (V-138): die Zeile nannte den Auftrag und führte nicht hin. */
+              { schluessel: 'nummer', kopf: 'Nummer',
+                zelle: (z) => (
+                  <Link href={`/portal/${mandant}/auftraege/${z.id}`}
+                        data-cse="kunde-auftrag"
+                        className="text-text underline-offset-2 hover:text-brand hover:underline">
+                    {z.auftragsnummer}
+                  </Link>
+                ) },
               { schluessel: 'bezeichnung', kopf: 'Auftrag', zelle: (z) => z.bezeichnung },
               {
                 schluessel: 'wert', kopf: 'Wert netto', numerisch: true,
@@ -429,6 +452,160 @@ export default async function KundeDetail(
               },
             ]}
           />
+        )}
+      </section>
+
+      <section aria-labelledby="anfragen" className="mt-s7" data-cse="kunde-anfragen">
+        <h2 id="anfragen" className="text-h2 text-text">{k.anfragenTitel}</h2>
+        {vorgaenge.anfragen.length === 0 ? (
+          <p className="text-sm text-text-muted">{k.keineAnfragen}</p>
+        ) : (
+          <DataTable
+            beschriftung={k.beschriftungAnfragen}
+            zeilen={vorgaenge.anfragen}
+            schluessel={(z) => z.id}
+            spalten={[
+              { schluessel: 'nummer', kopf: k.nummer,
+                zelle: (z) => (
+                  <Link href={`/portal/${mandant}/crm/leads/${z.id}`}
+                        className="text-text underline-offset-2 hover:text-brand hover:underline">
+                    {z.leadnummer}
+                  </Link>
+                ) },
+              { schluessel: 'titel', kopf: k.titel, zelle: (z) => z.betreff },
+              { schluessel: 'herkunft', kopf: k.herkunft,
+                zelle: (z) => k.quelleWerte[z.quelle] ?? k.quelleWerte['manuell'] },
+              { schluessel: 'angelegt', kopf: k.angelegt, zelle: (z) => z.angelegt },
+              { schluessel: 'status', kopf: k.status,
+                zelle: (z) => (
+                  <span className="flex items-center gap-s2">
+                    <StatusPill zustand={LEAD_PILLE[z.status] ?? 'Offen'} sprache={zugang.sprache} />
+                    <span className="text-xs text-text-muted">{standWerte[z.status] ?? ''}</span>
+                  </span>
+                ) },
+            ]}
+          />
+        )}
+      </section>
+
+      <section aria-labelledby="angebote" className="mt-s7" data-cse="kunde-angebote">
+        <h2 id="angebote" className="text-h2 text-text">{k.angeboteTitel}</h2>
+        {unterrechte['angebot.lesen'] !== true ? (
+          <p className="text-sm text-text-muted">
+            {k.ohneRecht} <Recht schluessel="angebot.lesen" sprache={zugang.sprache} />.
+          </p>
+        ) : vorgaenge.angebote.length === 0 ? (
+          <p className="text-sm text-text-muted">{k.keineAngeboteKunde}</p>
+        ) : (
+          <DataTable
+            beschriftung={k.beschriftungAngebote}
+            zeilen={vorgaenge.angebote}
+            schluessel={(z) => z.id}
+            spalten={[
+              { schluessel: 'titel', kopf: k.titel,
+                zelle: (z) => (
+                  <Link href={`/portal/${mandant}/angebote/${z.id}`}
+                        className="text-text underline-offset-2 hover:text-brand hover:underline">
+                    {z.titel}
+                  </Link>
+                ) },
+              { schluessel: 'nummer', kopf: k.nummer,
+                zelle: (z) => z.angebotsnummer
+                  ?? <span className="text-text-subtle">{k.ohneNummer}</span> },
+              { schluessel: 'angelegt', kopf: k.angelegt, zelle: (z) => z.angelegt },
+              { schluessel: 'netto', kopf: k.netto, numerisch: true,
+                zelle: (z) => formatiereGeld(cent(BigInt(z.netto_cent))) },
+              { schluessel: 'status', kopf: k.status,
+                zelle: (z) => <StatusPill zustand={ANGEBOT_PILLE[z.status] ?? 'Entwurf'} sprache={zugang.sprache} /> },
+            ]}
+          />
+        )}
+      </section>
+
+      <section aria-labelledby="rechnungen" className="mt-s7" data-cse="kunde-rechnungen">
+        <h2 id="rechnungen" className="text-h2 text-text">{k.rechnungenTitel}</h2>
+        {unterrechte['finanzen.lesen'] !== true ? (
+          <p className="text-sm text-text-muted">
+            {k.ohneRecht} <Recht schluessel="finanzen.lesen" sprache={zugang.sprache} />.
+          </p>
+        ) : vorgaenge.rechnungen.length === 0 ? (
+          <p className="text-sm text-text-muted">{k.keineRechnungenKunde}</p>
+        ) : (
+          <DataTable
+            beschriftung={k.rechnungenTitel}
+            zeilen={vorgaenge.rechnungen}
+            schluessel={(z) => z.id}
+            spalten={[
+              { schluessel: 'nummer', kopf: k.nummer,
+                zelle: (z) => (
+                  <Link href={`/portal/${mandant}/finanzen/rechnungen/${z.id}`}
+                        className="text-text underline-offset-2 hover:text-brand hover:underline">
+                    {z.nummer ?? k.ohneNummer}
+                  </Link>
+                ) },
+              { schluessel: 'datum', kopf: k.datum, zelle: (z) => z.datum ?? '—' },
+              { schluessel: 'brutto', kopf: k.brutto, numerisch: true,
+                zelle: (z) => formatiereGeld(cent(BigInt(z.brutto_cent))) },
+              { schluessel: 'status', kopf: k.status,
+                zelle: (z) => <StatusPill zustand={RECHNUNG_PILLE[z.status] ?? 'Entwurf'} sprache={zugang.sprache} /> },
+            ]}
+          />
+        )}
+      </section>
+
+      <section aria-labelledby="dokumente" className="mt-s7" data-cse="kunde-dokumente">
+        <h2 id="dokumente" className="text-h2 text-text">{k.dokumenteTitel}</h2>
+        {unterrechte['dokument.lesen'] !== true ? (
+          <p className="text-sm text-text-muted">
+            {k.ohneRecht} <Recht schluessel="dokument.lesen" sprache={zugang.sprache} />.
+          </p>
+        ) : vorgaenge.dokumente.length === 0 ? (
+          <p className="text-sm text-text-muted">{k.keineDokumente}</p>
+        ) : (
+          <ul className="m-0 list-none p-0">
+            {vorgaenge.dokumente.map((d) => (
+              <li key={d.id} className="border-b border-line py-s3">
+                <Link href={`/portal/${mandant}/dokumente/${d.id}`}
+                      className="text-sm text-text underline-offset-2 hover:text-brand hover:underline">
+                  {d.titel}
+                </Link>
+                <span className="ml-s3 text-xs text-text-muted">
+                  {`${k.kategorieWerte[d.kategorie] ?? k.kategorieWerte['kunde'] ?? ''}${d.datum === null ? '' : ` · ${d.datum}`}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section aria-labelledby="verlauf" className="mt-s7" data-cse="kunde-verlauf">
+        <h2 id="verlauf" className="text-h2 text-text">{k.verlaufTitel}</h2>
+        <p className="text-sm text-text-muted">{k.verlaufErklaerung}</p>
+        {vorgaenge.verlauf.length === 0 ? (
+          <p className="text-sm text-text-muted">{k.keinVerlauf}</p>
+        ) : (
+          <ol className="m-0 list-none p-0">
+            {vorgaenge.verlauf.map((a) => (
+              <li key={a.id} className="border-b border-line py-s3">
+                <p className="m-0 text-micro uppercase tracking-[0.08em] text-text-subtle">
+                  {`${k.typWerte[a.typ] ?? k.typWerte['notiz'] ?? ''} · `
+                    + `${k.richtungWerte[a.richtung] ?? ''} · ${a.geschehen}`}
+                </p>
+                <p className="m-0 mt-s1 text-sm text-text">
+                  {a.betreff}
+                  {a.lead_id === null ? null : (
+                    <>
+                      {' — '}
+                      <Link href={`/portal/${mandant}/crm/leads/${a.lead_id}`}
+                            className="text-text-muted underline-offset-2 hover:text-brand hover:underline">
+                        {k.zurAnfrage}
+                      </Link>
+                    </>
+                  )}
+                </p>
+              </li>
+            ))}
+          </ol>
         )}
       </section>
     </PortalRahmen>

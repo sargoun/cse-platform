@@ -18,6 +18,8 @@ import { berlinKalendertag } from '@/server/services/zeit/dauer';
 import { kennungOder404 } from '../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
 
 /**
  * `/portal/[mandant]/angebote/[id]` — ein Angebot, seine Positionen und die
@@ -98,6 +100,13 @@ interface Kopf {
    */
   readonly darf_auftrag_lesen: boolean;
   readonly darf_kalkulation_lesen: boolean;
+  /**
+   * Die Anfrage, auf die das Angebot antwortet (V-138, CRM-05). Die Nummer
+   * liest nur, wer `crm.lesen` hält — die Policy auf `lead`; ohne sie steht
+   * hier nichts, und der Verweis auf das Leadblatt entfällt (AUT-06).
+   */
+  readonly lead_id: string | null;
+  readonly leadnummer: string | null;
 }
 
 interface PositionZeile {
@@ -148,7 +157,9 @@ export default async function AngebotDetail(
   const darfNachbar = await haeltRechte(
     sitzung, 'angebot.preis_freigeben', 'angebot.versenden', 'angebot.annahme_erfassen',
     /* V-130: die Berichtigung eines Entwurfs — dasselbe Recht wie das Anlegen. */
-    'angebot.schreiben');
+    'angebot.schreiben',
+    /* V-138: der Verweis auf die Anfrage führt aufs Leadblatt. */
+    'crm.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -171,7 +182,9 @@ export default async function AngebotDetail(
                 (select app.hat_recht('auftrag.lesen', app.aktiver_mandant()))
                   as darf_auftrag_lesen,
                 (select app.hat_recht('kalkulation.lesen', app.aktiver_mandant()))
-                  as darf_kalkulation_lesen
+                  as darf_kalkulation_lesen,
+                a.lead_id::text as lead_id,
+                (select l.leadnummer from lead l where l.id = a.lead_id) as leadnummer
            from angebot a
            join kunde k on k.id = a.kunde_id
            left join objekt o on o.id = a.objekt_id
@@ -213,6 +226,7 @@ export default async function AngebotDetail(
   const pfad = `/portal/${mandant}/angebote/${id}`;
   const feld = 'min-h-11 rounded-md border border-line bg-surface px-s3 py-s2 '
     + 'text-sm text-text';
+  const kt = nachSprache(KETTE_TEXTE, zugang.sprache);
 
   return (
     <PortalRahmen
@@ -275,6 +289,18 @@ export default async function AngebotDetail(
             {kopf.versendet_am ?? <span className="text-text-subtle">noch nicht</span>}
           </dd>
         </div>
+        {kopf.lead_id === null || kopf.leadnummer === null
+          || darfNachbar['crm.lesen'] !== true ? null : (
+          <div>
+            <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">{kt.anfrage}</dt>
+            <dd className="m-0 mt-s1 text-sm text-text" data-cse="angebot-anfrage">
+              <Link href={`/portal/${mandant}/crm/leads/${kopf.lead_id}`}
+                    className="underline underline-offset-4">
+                {kopf.leadnummer}
+              </Link>
+            </dd>
+          </div>
+        )}
       </dl>
 
       {kopf.kalkulation_offen ? (

@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
-import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
@@ -18,6 +18,14 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { LEAD_TEXTE } from '@/lib/i18n/verwaltung/crm-lead';
 import { Felder } from '@/lib/formular/schema';
 import { einsendungLesbar, type EinsendungsZeile } from '@/server/services/lead/einsendung';
+import Link from 'next/link';
+import { DataTable } from '@/components/ui/DataTable';
+import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
+import { ANGEBOT_PILLE, AUFTRAG_PILLE, LEAD_PILLE, RECHNUNG_PILLE } from '@/lib/vorgang-pille';
+import { leseLeadKette, type LeadKette } from '@/server/services/crm/lead-kette';
+import {
+  LEAD_ZWECK_REGEL, leseLeadKontaktWahl, type KontaktWahlZeile,
+} from '@/server/services/crm/lead-kontakt';
 
 /**
  * `/portal/[mandant]/crm/leads/[id]` — eine Anfrage, ihr Verlauf und ihr
@@ -42,12 +50,6 @@ const STAENDE: readonly string[] = [
 
 const CRM_FELD = 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 '
   + 'text-sm text-text';
-
-const STATUS_PILLE: Readonly<Record<string, PillZustand>> = {
-  neu: 'Offen', in_bearbeitung: 'In Arbeit', qualifiziert: 'Bereit',
-  angebot: 'Angebot', gewonnen: 'Abgeschlossen', verloren: 'Abgelehnt',
-  kein_bedarf: 'Archiviert',
-};
 
 const TYP_TEXT: Readonly<Record<string, string>> = {
   notiz: 'Notiz', anruf: 'Anruf', email: 'E-Mail', termin: 'Termin',
@@ -126,8 +128,14 @@ export default async function LeadDetail(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /*
+   * Die Rechte der Kette (V-138) stehen HIER, neben denen der Einsendung:
+   * jeder Verweis der Kette zeigt auf eine Seite mit eigenem Recht, und ohne
+   * es führte er auf 404 (AUT-06, D-567).
+   */
   const darf = await haeltRechte(sitzung, 'crm.schreiben', 'system.benutzer_lesen',
-    'formular.lesen', 'dokument.lesen');
+    'formular.lesen', 'dokument.lesen', 'angebot.lesen', 'angebot.schreiben',
+    'auftrag.lesen', 'auftrag.schreiben', 'finanzen.lesen', 'radar.lesen', 'objekt.lesen');
   const darfSchreiben = darf['crm.schreiben'] === true;
   const darfNamen = darf['system.benutzer_lesen'] === true;
   const darfFormular = darf['formular.lesen'] === true;
@@ -141,6 +149,8 @@ export default async function LeadDetail(
    * jede Abweisung beim Setzen des Stands verschwand still.
    */
   const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  /* `?hinweis=` trägt einen Schlüssel für eine Auskunft, keine Abweisung (V-141). */
+  const hinweis = typeof suche['hinweis'] === 'string' ? suche['hinweis'] : null;
   const pfad = `/portal/${mandant}/crm/leads/${id}`;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -221,16 +231,56 @@ export default async function LeadDetail(
           `select id, titel from dokument
             where formular_eingang_id = $1 and mandant_id = app.aktiver_mandant()
             order by erstellt_am`, [kopf.formular_eingang_id]);
-      return { kopf, verlauf, benutzer, kontakt: kontakt ?? null, eingang: eingang ?? null, lv };
+      /*
+       * **Die Kette** (V-138, CRM-05): Kunde, Angebote, Aufträge, Rechnungen
+       * — je Stufe nur mit dem Recht ihrer Zielseite (AUT-06).
+       */
+      const kette = await leseLeadKette(kontext, id);
+      /*
+       * Die Kundenliste für „zuordnen" — und seit V-142 auch für
+       * „berichtigen", solange an der Anfrage sichtbar nichts hängt. Was diese
+       * Sitzung nicht sehen darf, prüft der Dienst (und die Datenbank).
+       */
+      const berichtigbar = kette !== null && kette.kunde !== null
+        && kette.angebote.length === 0 && kette.auftraege.length === 0;
+      const kunden = !darfSchreiben || kette === null || (kette.kunde !== null && !berichtigbar)
+        ? []
+        : await kontext.abfrage<{ id: string; name: string; kundennummer: string }>(
+          `select id::text as id, name, kundennummer from kunde
+            where mandant_id = app.aktiver_mandant() and archiviert_am is null
+            order by name limit 500`);
+      /*
+       * **Die Kontakte des Kunden zur Wahl** (V-141). Nur wer schreiben darf,
+       * bekommt die Liste — sie steht nur in einem Formular.
+       */
+      const kontaktWahl = !darfSchreiben || kopf.kunde_id === null ? []
+        : await leseLeadKontaktWahl(kontext, id);
+      return {
+        kopf, verlauf, benutzer, kontakt: kontakt ?? null, eingang: eingang ?? null, lv,
+        kette, kunden, kontaktWahl,
+      };
     })) as Promise<{
       kopf: Kopf; verlauf: readonly AktivitaetZeile[];
       benutzer: readonly { id: string; name: string }[];
       kontakt: Kontakt | null; eingang: Eingang | null;
       lv: readonly { id: string; titel: string }[];
+      kette: LeadKette | null;
+      kunden: readonly { id: string; name: string; kundennummer: string }[];
+      kontaktWahl: readonly KontaktWahlZeile[];
     } | null>);
 
   if (daten === null) notFound();
-  const { kopf, verlauf, benutzer, kontakt, eingang, lv } = daten;
+  const { kopf, verlauf, benutzer, kontakt, eingang, lv, kette, kunden, kontaktWahl } = daten;
+  const k = nachSprache(KETTE_TEXTE, zugang.sprache);
+  /*
+   * Eine Abweisung steht dort, wo sie entstand: am Ansprechpartner, an der
+   * Kette — und nur sonst beim nächsten Schritt.
+   */
+  const kontaktFehler = fehler === null ? null : (t.kontaktFehler[fehler] ?? null);
+  const ketteFehler = fehler === null || kontaktFehler !== null ? null
+    : (k.fehler[fehler] ?? null);
+  /* Mit welchem Zweck ein ausgehender Kontakt dieser Anfrage durch das Tor geht (O-907). */
+  const zweck = LEAD_ZWECK_REGEL.zweckAusgehend(kopf.quelle);
   const felder = eingang === null ? null : Felder.safeParse(eingang.felder);
   const einsendung: readonly EinsendungsZeile[] = eingang === null ? []
     : einsendungLesbar(felder?.success === true ? felder.data : [], eingang.daten);
@@ -251,7 +301,7 @@ export default async function LeadDetail(
     >
       <div className="mb-s5 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{kopf.betreff ?? 'Anfrage'}</h1>
-        <StatusPill zustand={STATUS_PILLE[kopf.status] ?? 'Offen'} />
+        <StatusPill zustand={LEAD_PILLE[kopf.status] ?? 'Offen'} />
       </div>
 
       <dl className="m-0 mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 lg:grid-cols-4">
@@ -340,7 +390,407 @@ export default async function LeadDetail(
             )}
           </dl>
         )}
+        {kontakt === null ? null : (
+          <p className="m-0 mt-s3 text-sm">
+            <Link href={`/portal/${mandant}/crm/kontakte/${kontakt.id}`}
+                  className="underline underline-offset-4" data-cse="lead-kontakt-blatt">
+              {t.kontaktBlatt}
+            </Link>
+          </p>
+        )}
+        {/*
+          **Mit welchem Zweck ein ausgehender Kontakt durch das Tor geht**
+          (V-141, O-907). Die Seite sagt es, bevor jemand anruft — nicht erst,
+          wenn das Tor die Zeile abweist.
+        */}
+        {zweck.zweck === 'werbung' ? (
+          <p className="m-0 mt-s3 text-xs text-text-muted" data-cse="lead-kontakt-werbung"
+             data-offen={zweck.offen ? 'ja' : 'nein'}>
+            {zweck.offen ? t.kontaktWerbungOffen : t.kontaktWerbungAkquise}
+          </p>
+        ) : null}
+        {kontaktFehler === null ? null : (
+          <Hinweis art="warnung" cse="lead-kontakt-fehler" className="mt-s4">
+            {kontaktFehler}
+          </Hinweis>
+        )}
+        {hinweis === 'kontakt_vorhanden' ? (
+          <Hinweis art="hinweis" cse="lead-kontakt-vorhanden" className="mt-s4">
+            {t.kontaktVorhanden}
+          </Hinweis>
+        ) : null}
+
+        {/*
+          **Den Ansprechpartner setzen** (V-141, D-635). `lead.ansprechpartner_id`
+          liess sich nach der Anlage nicht setzen: nur die Annahme eines
+          Webformulars legte einen Kontakt an, und jeder andere Lead brach
+          jeden ausgehenden Anruf mit „kein Ansprechpartner" ab.
+        */}
+        {darfSchreiben && kontaktWahl.length > 0 ? (
+          <form method="post" action="/api/crm/lead" data-cse="lead-kontakt-waehlen"
+                className="mt-s5 flex flex-col gap-s4 border-t border-line pt-s5">
+            <input type="hidden" name="was" value="kontakt_waehlen" />
+            <input type="hidden" name="id" value={id} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <h3 className="m-0 text-base text-text">{t.kontaktWaehlenTitel}</h3>
+            <p className="m-0 text-sm text-text-muted">{t.kontaktWaehlenErklaerung}</p>
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.kontaktTitel}
+              <select name="ansprechpartnerId" required className={CRM_FELD}
+                      data-cse="lead-kontakt-wahl"
+                      defaultValue={kontaktWahl.some((w) => w.id === kopf.ansprechpartner_id)
+                        ? (kopf.ansprechpartner_id ?? '') : ''}>
+                <option value="" disabled>{t.kontaktWaehlen}</option>
+                {kontaktWahl.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.email === null ? w.name : `${w.name} · ${w.email}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div>
+              <button type="submit" data-cse="lead-kontakt-waehlen-knopf"
+                      className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 text-sm text-text hover:bg-surface-2">
+                {t.kontaktUebernehmen}
+              </button>
+            </div>
+          </form>
+        ) : null}
+        {darfSchreiben ? (
+          <form method="post" action="/api/crm/lead" data-cse="lead-kontakt-anlegen"
+                className="mt-s5 flex flex-col gap-s4 border-t border-line pt-s5">
+            <input type="hidden" name="was" value="kontakt_anlegen" />
+            <input type="hidden" name="id" value={id} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <h3 className="m-0 text-base text-text">{t.kontaktNeuTitel}</h3>
+            <p className="m-0 text-sm text-text-muted">
+              {kopf.kunde_id === null ? t.kontaktNeuOhneKunde : t.kontaktNeuMitKunde}
+            </p>
+            <div className="flex flex-wrap gap-s4">
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                <span>{t.vorname} <span className="text-text-muted">{t.freiwillig}</span></span>
+                <input name="vorname" maxLength={100} className={CRM_FELD}
+                       data-cse="lead-kontakt-vorname" />
+              </label>
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                {t.nachname}
+                <input name="nachname" required maxLength={100} className={CRM_FELD}
+                       data-cse="lead-kontakt-nachname" />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-s4">
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                <span>{t.email} <span className="text-text-muted">{t.freiwillig}</span></span>
+                <input type="email" name="email" maxLength={200} className={CRM_FELD}
+                       data-cse="lead-kontakt-email-feld" />
+              </label>
+              <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                <span>{t.telefon} <span className="text-text-muted">{t.freiwillig}</span></span>
+                <input type="tel" name="telefon" maxLength={50} className={CRM_FELD}
+                       data-cse="lead-kontakt-telefon-feld" />
+              </label>
+            </div>
+            <div>
+              <button type="submit" data-cse="lead-kontakt-anlegen-knopf"
+                      className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 text-sm text-text hover:bg-surface-2">
+                {t.kontaktAnlegen}
+              </button>
+            </div>
+          </form>
+        ) : null}
       </section>
+
+      {/*
+        **Die Kette** (V-138, V-139, CRM-05, CRM-07). Bis hierher endete die
+        Anfrage auf diesem Blatt: kein Kunde ließ sich setzen, kein Angebot
+        anlegen, und was aus ihr wurde, stand nirgends. Der Herkunftsbericht
+        zählte deshalb für jeden Kanal null Aufträge.
+      */}
+      {kette === null ? null : (
+        <section aria-labelledby="kette" className="mb-s7" data-cse="lead-kette">
+          <h2 id="kette" className="text-h2 text-text">{k.ketteTitel}</h2>
+          <p className="max-w-prose text-sm text-text-muted">{k.ketteErklaerung}</p>
+          {ketteFehler === null ? null : (
+            <Hinweis art="warnung" cse="lead-kette-fehler" className="mt-s4 max-w-prose">
+              {ketteFehler}
+            </Hinweis>
+          )}
+
+          <dl className="m-0 mt-s4 grid max-w-prose grid-cols-1 gap-s2 text-sm sm:grid-cols-[minmax(0,14rem)_1fr] sm:gap-x-s4">
+            <dt className="text-text-muted">{k.herkunft}</dt>
+            <dd className="m-0 text-text" data-cse="lead-quelle" data-quelle={kopf.quelle}>
+              {k.quelleWerte[kopf.quelle] ?? k.quelleWerte['manuell']}
+              {kette.empfehlung === null ? null : (
+                <>
+                  {' — '}
+                  <Link href={`/portal/${mandant}/crm/kunden/${kette.empfehlung.id}`}
+                        className="underline underline-offset-4" data-cse="lead-empfehler">
+                    {k.empfohlenVon(kette.empfehlung.name)}
+                  </Link>
+                </>
+              )}
+              {kette.ausschreibung === null || darf['radar.lesen'] !== true ? null : (
+                <>
+                  {' — '}
+                  <Link href={`/portal/${mandant}/radar/${kette.ausschreibung.id}`}
+                        className="underline underline-offset-4" data-cse="lead-bekanntmachung">
+                    {`${k.bekanntmachung}: ${kette.ausschreibung.titel}`}
+                  </Link>
+                </>
+              )}
+            </dd>
+            <dt className="text-text-muted">{k.kunde}</dt>
+            <dd className="m-0 text-text" data-cse="lead-kunde">
+              {kette.kunde === null ? (
+                <span className="text-warning">{k.ohneKunde}</span>
+              ) : (
+                <Link href={`/portal/${mandant}/crm/kunden/${kette.kunde.id}`}
+                      className="underline underline-offset-4">
+                  {`${kette.kunde.name} · ${kette.kunde.kundennummer}`}
+                </Link>
+              )}
+            </dd>
+          </dl>
+
+          {kette.kunde === null && darfSchreiben ? (
+            <div className="mt-s4 flex flex-wrap gap-s4">
+              <form method="post" action="/api/crm/lead" data-cse="lead-kunde-uebernehmen"
+                    className="flex min-w-0 flex-1 flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+                <input type="hidden" name="was" value="kunde_uebernehmen" />
+                <input type="hidden" name="id" value={id} />
+                <input type="hidden" name="zurueck" value={pfad} />
+                <h3 className="m-0 text-base text-text">{k.uebernehmenTitel}</h3>
+                <p className="m-0 text-sm text-text-muted">{k.uebernehmenErklaerung}</p>
+                <label className="flex flex-col gap-s2 text-sm text-text">
+                  {k.name}
+                  <input name="name" required maxLength={200} defaultValue={kopf.firma_name ?? ''}
+                         className={CRM_FELD} data-cse="lead-kunde-name" />
+                </label>
+                <label className="flex flex-col gap-s2 text-sm text-text">
+                  {k.art}
+                  <select name="typ" defaultValue="firma" className={CRM_FELD}
+                          data-cse="lead-kunde-typ">
+                    {['firma', 'behoerde', 'privat'].map((w) => (
+                      <option key={w} value={w}>{k.artWerte[w] ?? w}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-s2 text-sm text-text">
+                  {k.ustId} <span className="text-text-muted">{t.freiwillig}</span>
+                  <input name="ustId" maxLength={20} className={CRM_FELD}
+                         data-cse="lead-kunde-ust" />
+                  <span className="text-xs text-text-muted">{k.ustIdErklaerung}</span>
+                </label>
+                <div>
+                  <button type="submit" data-cse="lead-kunde-uebernehmen-knopf"
+                          className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm text-white hover:bg-brand-hover">
+                    {k.uebernehmen}
+                  </button>
+                </div>
+              </form>
+              {kunden.length === 0 ? null : (
+                <form method="post" action="/api/crm/lead" data-cse="lead-kunde-zuordnen"
+                      className="flex min-w-0 flex-1 flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+                  <input type="hidden" name="was" value="kunde_zuordnen" />
+                  <input type="hidden" name="id" value={id} />
+                  <input type="hidden" name="zurueck" value={pfad} />
+                  <h3 className="m-0 text-base text-text">{k.zuordnenTitel}</h3>
+                  <p className="m-0 text-sm text-text-muted">{k.zuordnenErklaerung}</p>
+                  <label className="flex flex-col gap-s2 text-sm text-text">
+                    {k.kunde}
+                    <select name="kundeId" required defaultValue="" className={CRM_FELD}
+                            data-cse="lead-kunde-wahl">
+                      <option value="" disabled>{k.kundeWaehlen}</option>
+                      {kunden.map((o) => (
+                        <option key={o.id} value={o.id}>{`${o.name} · ${o.kundennummer}`}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <div>
+                    <button type="submit" data-cse="lead-kunde-zuordnen-knopf"
+                            className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 text-sm text-text hover:bg-surface-2">
+                      {k.zuordnen}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          ) : null}
+
+          {/*
+            **Einen falsch zugeordneten Kunden berichtigen** (V-142, D-636).
+            Dienst und Datenbank liessen es zu, solange nichts an der Anfrage
+            hängt — die Seite bot es nie an.
+          */}
+          {kette.kunde !== null && darfSchreiben && kette.angebote.length === 0
+            && kette.auftraege.length === 0
+            && kunden.some((o) => o.id !== kette.kunde?.id) ? (
+            <form method="post" action="/api/crm/lead" data-cse="lead-kunde-berichtigen"
+                  className="mt-s4 flex max-w-prose flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+              <input type="hidden" name="was" value="kunde_zuordnen" />
+              <input type="hidden" name="id" value={id} />
+              <input type="hidden" name="zurueck" value={pfad} />
+              <h3 className="m-0 text-base text-text">{k.berichtigenTitel}</h3>
+              <p className="m-0 text-sm text-text-muted">{k.berichtigenErklaerung}</p>
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                {k.kunde}
+                <select name="kundeId" required defaultValue="" className={CRM_FELD}
+                        data-cse="lead-kunde-berichtigen-wahl">
+                  <option value="" disabled>{k.kundeWaehlen}</option>
+                  {kunden.filter((o) => o.id !== kette.kunde?.id).map((o) => (
+                    <option key={o.id} value={o.id}>{`${o.name} · ${o.kundennummer}`}</option>
+                  ))}
+                </select>
+              </label>
+              <div>
+                <button type="submit" data-cse="lead-kunde-berichtigen-knopf"
+                        className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 text-sm text-text hover:bg-surface-2">
+                  {k.berichtigen}
+                </button>
+              </div>
+            </form>
+          ) : null}
+
+          {kette.kunde !== null
+            && (darf['angebot.schreiben'] === true || darf['auftrag.schreiben'] === true) ? (
+            <div className="mt-s4 flex flex-wrap gap-s3" data-cse="lead-kette-aktionen">
+              {darf['angebot.schreiben'] === true ? (
+                <Link href={`/portal/${mandant}/angebote/neu?lead=${id}`}
+                      data-cse="lead-angebot-erstellen"
+                      className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm text-white hover:bg-brand-hover">
+                  {k.angebotErstellen}
+                </Link>
+              ) : null}
+              {darf['angebot.schreiben'] === true && darf['objekt.lesen'] === true ? kette.objekte.map((o) => (
+                <Link key={o.id} href={`/portal/${mandant}/objekte/${o.id}/raumbuch?lead=${id}`}
+                      data-cse="lead-angebot-raumbuch"
+                      className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 text-sm text-text hover:bg-surface-2">
+                  {`${k.ausRaumbuch}: ${o.bezeichnung}`}
+                </Link>
+              )) : null}
+              {darf['auftrag.schreiben'] === true ? (
+                <Link href={`/portal/${mandant}/auftraege/neu?lead=${id}`}
+                      data-cse="lead-auftrag-anlegen"
+                      className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 text-sm text-text hover:bg-surface-2">
+                  {k.auftragAnlegen}
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
+
+          <h3 className="m-0 mt-s6 text-base text-text">{k.angeboteTitel}</h3>
+          {darf['angebot.lesen'] !== true ? (
+            <p className="m-0 mt-s2 text-sm text-text-muted">
+              {k.ohneRecht} <Recht schluessel="angebot.lesen" sprache={zugang.sprache} />.
+            </p>
+          ) : kette.angebote.length === 0 ? (
+            <p className="m-0 mt-s2 text-sm text-text-muted">{k.keineAngebote}</p>
+          ) : (
+            <div className="mt-s2" data-cse="lead-angebote">
+              <DataTable
+                beschriftung={k.beschriftungAngebote}
+                zeilen={kette.angebote}
+                schluessel={(z) => z.id}
+                spalten={[
+                  {
+                    schluessel: 'titel', kopf: k.titel,
+                    zelle: (z) => (
+                      <Link href={`/portal/${mandant}/angebote/${z.id}`}
+                            className="text-text underline-offset-2 hover:text-brand hover:underline">
+                        {z.titel}
+                      </Link>
+                    ),
+                  },
+                  { schluessel: 'nummer', kopf: k.nummer,
+                    zelle: (z) => z.angebotsnummer ?? <span className="text-text-subtle">{k.ohneNummer}</span> },
+                  { schluessel: 'netto', kopf: k.netto, numerisch: true,
+                    zelle: (z) => formatiereGeld(cent(BigInt(z.netto_cent))) },
+                  { schluessel: 'status', kopf: k.status,
+                    zelle: (z) => <StatusPill zustand={ANGEBOT_PILLE[z.status] ?? 'Entwurf'} sprache={zugang.sprache} /> },
+                ]}
+              />
+            </div>
+          )}
+
+          <h3 className="m-0 mt-s6 text-base text-text">{k.auftraegeTitel}</h3>
+          {darf['auftrag.lesen'] !== true ? (
+            <p className="m-0 mt-s2 text-sm text-text-muted">
+              {k.ohneRecht} <Recht schluessel="auftrag.lesen" sprache={zugang.sprache} />.
+            </p>
+          ) : kette.auftraege.length === 0 ? (
+            <p className="m-0 mt-s2 text-sm text-text-muted">{k.keineAuftraege}</p>
+          ) : (
+            <div className="mt-s2" data-cse="lead-auftraege">
+              <DataTable
+                beschriftung={k.beschriftungAuftraege}
+                zeilen={kette.auftraege}
+                schluessel={(z) => z.id}
+                spalten={[
+                  {
+                    schluessel: 'nummer', kopf: k.nummer,
+                    zelle: (z) => (
+                      <Link href={`/portal/${mandant}/auftraege/${z.id}`}
+                            className="text-text underline-offset-2 hover:text-brand hover:underline">
+                        {z.auftragsnummer}
+                      </Link>
+                    ),
+                  },
+                  { schluessel: 'titel', kopf: k.titel, zelle: (z) => z.bezeichnung },
+                  { schluessel: 'wert', kopf: k.wertNetto, numerisch: true,
+                    zelle: (z) => (z.wert_cent === null
+                      ? <span className="text-text-subtle">{k.offen}</span>
+                      : formatiereGeld(cent(BigInt(z.wert_cent)))) },
+                  { schluessel: 'status', kopf: k.status,
+                    zelle: (z) => <StatusPill zustand={AUFTRAG_PILLE[z.status] ?? 'Geplant'} sprache={zugang.sprache} /> },
+                ]}
+              />
+            </div>
+          )}
+
+          <h3 className="m-0 mt-s6 text-base text-text">{k.rechnungenTitel}</h3>
+          {darf['finanzen.lesen'] !== true ? (
+            <p className="m-0 mt-s2 text-sm text-text-muted">
+              {k.ohneRecht} <Recht schluessel="finanzen.lesen" sprache={zugang.sprache} />.
+            </p>
+          ) : darf['auftrag.lesen'] !== true ? (
+            /*
+             * Die Rechnungen hängen an den AUFTRÄGEN (V-142). Ohne deren
+             * Leserecht lassen sie sich nicht zuordnen — „noch keine Rechnung"
+             * wäre dann eine Aussage über den Kunden statt über das Recht.
+             */
+            <p className="m-0 mt-s2 text-sm text-text-muted" data-cse="lead-rechnungen-ohne-auftrag">
+              {k.rechnungenOhneAuftragsrecht}{' '}
+              <Recht schluessel="auftrag.lesen" sprache={zugang.sprache} />.
+            </p>
+          ) : kette.rechnungen.length === 0 ? (
+            <p className="m-0 mt-s2 text-sm text-text-muted">{k.keineRechnungen}</p>
+          ) : (
+            <div className="mt-s2" data-cse="lead-rechnungen">
+              <DataTable
+                beschriftung={k.beschriftungRechnungen}
+                zeilen={kette.rechnungen}
+                schluessel={(z) => z.id}
+                spalten={[
+                  {
+                    schluessel: 'nummer', kopf: k.nummer,
+                    zelle: (z) => (
+                      <Link href={`/portal/${mandant}/finanzen/rechnungen/${z.id}`}
+                            className="text-text underline-offset-2 hover:text-brand hover:underline">
+                        {z.nummer ?? k.ohneNummer}
+                      </Link>
+                    ),
+                  },
+                  { schluessel: 'datum', kopf: k.datum, zelle: (z) => z.datum ?? '—' },
+                  { schluessel: 'brutto', kopf: k.brutto, numerisch: true,
+                    zelle: (z) => formatiereGeld(cent(BigInt(z.brutto_cent))) },
+                  { schluessel: 'status', kopf: k.status,
+                    zelle: (z) => <StatusPill zustand={RECHNUNG_PILLE[z.status] ?? 'Entwurf'} sprache={zugang.sprache} /> },
+                ]}
+              />
+            </div>
+          )}
+        </section>
+      )}
 
       {kopf.formular_eingang_id === null ? null : (
         <section aria-labelledby="einsendung" className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5"
@@ -431,7 +881,7 @@ export default async function LeadDetail(
         {/* Der Schlüssel gewinnt, weil er übersetzt ist; der Satz der Route
             ist deutsch und nur der Rückfall. Ein unbekannter Schlüssel ist nie
             selbst der Text — `unbekannte_prioritaet` sagt niemandem etwas. */}
-        {(fehler !== null || meldung !== null) && (
+        {(fehler !== null || meldung !== null) && ketteFehler === null && kontaktFehler === null && (
           <Hinweis art="warnung" cse="lead-fehler" className="mt-s4 max-w-prose">
             {(fehler === null ? undefined : t.fehler[fehler]) ?? meldung ?? t.nichtGespeichert}
           </Hinweis>

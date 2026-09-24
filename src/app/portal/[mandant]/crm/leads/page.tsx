@@ -5,7 +5,8 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
-import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { StatusPill } from '@/components/ui/StatusPill';
+import { LEAD_PILLE } from '@/lib/vorgang-pille';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
@@ -28,16 +29,6 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  * niemand weiss, woraus sie entstand.
  */
 export const dynamic = 'force-dynamic';
-
-const STATUS_PILLE: Readonly<Record<string, PillZustand>> = {
-  neu: 'Offen',
-  in_bearbeitung: 'In Arbeit',
-  qualifiziert: 'Bereit',
-  angebot: 'Angebot',
-  gewonnen: 'Abgeschlossen',
-  verloren: 'Abgelehnt',
-  kein_bedarf: 'Archiviert',
-};
 
 interface LeadZeile {
   readonly id: string;
@@ -212,7 +203,7 @@ export default async function Leadliste(
             {
               schluessel: 'status',
               kopf: 'Status',
-              zelle: (z) => <StatusPill zustand={STATUS_PILLE[z.status] ?? 'Offen'} />,
+              zelle: (z) => <StatusPill zustand={LEAD_PILLE[z.status] ?? 'Offen'} />,
             },
           ]}
         />

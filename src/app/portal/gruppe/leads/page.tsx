@@ -16,6 +16,8 @@ const PILLE: Readonly<Record<string, PillZustand>> = {
 };
 const QUELLE: Readonly<Record<string, string>> = {
   webformular: 'Webformular', vergabe_radar: 'Vergaberadar', manuell: 'Manuell', empfehlung: 'Empfehlung',
+  // V-139: die fünfte Quelle (0171) stand hier nicht — die Zeile zeigte den rohen Schlüssel.
+  akquise: 'Akquise',
 };
 const PRIORITAET: Readonly<Record<string, string>> = { niedrig: 'niedrig', normal: 'normal', hoch: 'hoch' };
 

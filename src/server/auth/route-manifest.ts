@@ -530,6 +530,15 @@ export const ROUTEN: readonly RouteEintrag[] = [
      * Grund — beide Verlustzustaende, `verloren` wie `kein_bedarf`: eine
      * Pipeline, in der die Haelfte der Verluste „ohne Grund" heisst,
      * beantwortet keine einzige Frage.
+     *
+     * V-138/V-139 (CRM-05, CRM-07): dazu den Kunden der Anfrage setzen und
+     * einen Radartreffer als Lead uebernehmen. Die Bekanntmachung liest der
+     * Dienst unter `radar.lesen` (RLS); ohne das Recht ist sie „nicht
+     * gefunden".
+     *
+     * V-141 (D-635): den Ansprechpartner der Anfrage waehlen oder anlegen —
+     * derselbe Datenbestand, dasselbe Recht. Seine Rechtsgrundlage setzt
+     * dieser Weg nie; sie hat ihr eigenes Recht und ihren eigenen Weg.
      */
     pfad: 'api/crm/lead',
     recht: 'crm.schreiben',

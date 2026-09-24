@@ -235,6 +235,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'angebot.schreiben',
   },
   /**
+   * Das Angebot AUS DEM RAUMBUCH (V-143, D-637) — bis dahin stand der Weg
+   * ganz in `/api/angebot`. `angebot.schreiben` wie der Entwurf von Hand:
+   * es entsteht ein Blatt ohne Nummer, das das Haus nicht verlässt.
+   */
+  {
+    modul: 'angebot', pfad: 'angebot/aus-raumbuch',
+    schreibend: true, schreibRecht: 'angebot.schreiben',
+  },
+  /**
    * Der Tabellenleser liest nur; der Import SCHREIBT — und zwar zweimal
    * verschieden: die Vorschau legt Zwischenzeilen an, die Uebernahme aendert
    * das lebende Raumbuch. Beide tragen dasselbe Recht, weil beide eine Datei
@@ -625,6 +634,35 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   {
     modul: 'crm', pfad: 'crm/anlegen',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Die Kette Lead → Angebot → Auftrag (V-138, CRM-05, D-632): den Kunden
+   * einer Anfrage setzen (schreibt `kunde`, `lead`, `ansprechpartner`) und
+   * die Kette für Lead- und Kundenblatt lesen. Die Prüfung, ob ein Angebot
+   * oder Auftrag an einem Lead hängen darf, liest nur.
+   */
+  {
+    modul: 'crm', pfad: 'crm/lead-kette',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Ein Treffer des Vergaberadars wird zum Lead (V-139, CRM-07, D-633). Das
+   * Schreibrecht ist das des Leads; die Bekanntmachung liest der Dienst unter
+   * `radar.lesen`, und an ihrem Vorgang ändert er nichts.
+   */
+  {
+    modul: 'crm', pfad: 'crm/lead-radar',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Der Mensch hinter der Anfrage (V-141, CRM-03, CRM-04, D-635): den
+   * Ansprechpartner eines Leads wählen oder anlegen (schreibt `lead`,
+   * `ansprechpartner`, `lead_aktivitaet`) und eine Aktivität festhalten —
+   * ausgehend mit dem Zweck, den die Herkunft trägt (O-907).
+   */
+  {
+    modul: 'crm', pfad: 'crm/lead-kontakt',
     schreibend: true, schreibRecht: 'crm.schreiben',
   },
   /*
@@ -1307,6 +1345,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   {
     modul: 'auftrag', pfad: 'auftrag/status',
+    schreibend: true, schreibRecht: 'auftrag.schreiben',
+  },
+  /**
+   * Der Auftrag OHNE Angebot, der Weg des Assistenten (OPS-10, V-143,
+   * D-637): Anfrage prüfen, dann erst die Nummer ziehen, anlegen. Bis dahin
+   * stand das in der Route und liess sich nicht gegen die Datenbank prüfen.
+   */
+  {
+    modul: 'auftrag', pfad: 'auftrag/direkt',
     schreibend: true, schreibRecht: 'auftrag.schreiben',
   },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },

@@ -5,7 +5,8 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
-import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { StatusPill } from '@/components/ui/StatusPill';
+import { ANGEBOT_PILLE } from '@/lib/vorgang-pille';
 import { formatiereGeld, cent } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { portalZugang } from '../../zugang';
@@ -17,21 +18,12 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 /**
  * `/portal/[mandant]/angebote` — die Angebotsliste (OPS-08).
  *
- * Die Statusabbildung steht hier und nicht im Datenmodell: DESIGN §5 fuehrt
- * ein FESTES Vokabular, und ein Zustand des Angebots, der keine Pille hat,
- * waere eine erfundene Beschriftung an der Oberflaeche.
+ * Die Statusabbildung steht in `lib/vorgang-pille.ts` (seit V-144 fuer alle
+ * Seiten der Kette dieselbe) und nicht im Datenmodell: DESIGN §5 fuehrt ein
+ * FESTES Vokabular, und ein Zustand des Angebots, der keine Pille hat, waere
+ * eine erfundene Beschriftung an der Oberflaeche.
  */
 export const dynamic = 'force-dynamic';
-
-const PILLE: Readonly<Record<string, PillZustand>> = {
-  entwurf: 'Entwurf',
-  in_pruefung: 'In Prüfung',
-  versendet: 'Angebot',
-  angenommen: 'Aktiv',
-  abgelehnt: 'Abgelehnt',
-  zurueckgezogen: 'Archiviert',
-  abgelaufen: 'Überfällig',
-};
 
 interface AngebotZeile {
   readonly id: string;
@@ -171,7 +163,7 @@ export default async function Angebotsliste(
               kopf: 'Status',
               zelle: (z) => (
                 <span className="inline-flex flex-wrap items-center gap-s2">
-                  <StatusPill zustand={PILLE[z.status] ?? 'Entwurf'} />
+                  <StatusPill zustand={ANGEBOT_PILLE[z.status] ?? 'Entwurf'} />
                   {z.hat_auftrag ? (
                     <span className="text-xs text-text-muted">→ Auftrag</span>
                   ) : null}
