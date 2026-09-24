@@ -315,6 +315,14 @@ describe('(4) die eigenen Policies tragen die Funktionen allein', () => {
     ]);
     /* Einmal je Anweisung gefragt (InitPlan), nicht je Zeile — 01-KERN §1.3. */
     for (const z of zeilen) expect(z.bedingung, z.name).toMatch(/\(\s*SELECT app\./u);
+    /*
+     * Und sie fragen NUR Funktionen, keine Tabelle. Die erste Fassung von
+     * d_umschalter_rolle fragte benutzer_mandant — und schloss damit einen
+     * Kreis mit d_bm_verwaltungsrolle und d_bm_kundenrolle, deren with check
+     * rolle fragt: jedes Anlegen einer Mitgliedschaft als cse_definer brach
+     * mit „infinite recursion detected in policy" ab (§7).
+     */
+    for (const z of zeilen) expect(z.bedingung, z.name).not.toMatch(/\bFROM\b/iu);
   });
 });
 
@@ -564,5 +572,48 @@ describe('(6) ein Bereich ohne interne Rolle bekommt keinen Zaehler', () => {
       ergebnis = fehler.ergebnis;
     }
     expect(ergebnis).toEqual({ recht: true, zeilen: 'reinigung:auftraege_aktiv' });
+  });
+});
+
+/**
+ * **Die Rollenpolicy schliesst keinen Kreis** (V-166, 0418).
+ *
+ * `d_bm_kundenrolle` (0249) und `d_bm_verwaltungsrolle` (0372) pruefen beim
+ * Anlegen einer Mitgliedschaft als `cse_definer` die Rolle — ihr `with check`
+ * fragt `rolle`. Fragte eine `cse_definer`-Policy auf `rolle` ihrerseits
+ * `benutzer_mandant`, bricht Postgres jedes solche Anlegen mit „infinite
+ * recursion detected in policy" ab: Einladung und Kundenzugang standen dann
+ * still. Die erste Fassung von `d_umschalter_rolle` tat genau das. Gemessen
+ * am Weg des Kundenzugangs, in einer zurueckgerollten Transaktion.
+ */
+describe('(7) eine Mitgliedschaft laesst sich als cse_definer weiter anlegen', () => {
+  it('Kundenrolle ueber d_bm_kundenrolle: kein Kreis, die Zeile entsteht', async () => {
+    class Zurueck extends Error {
+      constructor(readonly angelegt: number) { super('zurueck'); }
+    }
+    let angelegt = -1;
+    try {
+      await sql.begin(async (tx: postgres.TransactionSql) => {
+        const [u] = (await tx.unsafe(
+          `insert into auth.users (email) values ('kreis@test.invalid') returning id`,
+        )) as unknown as { id: string }[];
+        await tx.unsafe(
+          `insert into benutzer (id, email, name, status)
+           values ($1, 'kreis@test.invalid', 'Kreisprobe', 'aktiv')`, [u!.id]);
+        await tx.unsafe(`select set_config('app.mandant_id', $1, true)`, [ids.get('reinigung')!]);
+        await tx.unsafe(`select set_config('app.scope', 'mandant', true)`);
+        await tx.unsafe(`set local role cse_definer`);
+        const zeilen = (await tx.unsafe(
+          `insert into benutzer_mandant (id, benutzer_id, mandant_id, rolle_id)
+           values (gen_random_uuid(), $1, $2,
+                   (select id from rolle where schluessel = 'kunde' and mandant_id is null))
+           returning id`, [u!.id, ids.get('reinigung')!])) as unknown as { id: string }[];
+        throw new Zurueck(zeilen.length);
+      });
+    } catch (fehler) {
+      if (!(fehler instanceof Zurueck)) throw fehler;
+      angelegt = fehler.angelegt;
+    }
+    expect(angelegt).toBe(1);
   });
 });

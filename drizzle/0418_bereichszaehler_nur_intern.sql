@@ -67,8 +67,10 @@
 -- werden unten trotzdem noch einmal ausdruecklich gesetzt.
 --
 -- Neu gelesen werden rolle und benutzer. Beide bekommen eine eigene Policy
--- fuer cse_definer, eng auf das eigene Konto und seine Rollen, im selben
--- Muster wie d_umschalter_mitgliedschaft (0417). Die breiten Policies
+-- fuer cse_definer: benutzer eng auf das eigene Konto, im selben Muster wie
+-- d_umschalter_mitgliedschaft (0417); rolle auf die Plattformrollen und die
+-- Rollen der Bereiche des Umschalters, wie t_rolle_lesen. Beide fragen nur
+-- Funktionen, keine Tabelle (Abschnitt 0 sagt, warum). Die breiten Policies
 -- d_feed_rolle, d_rolle_freigabe, d_feed_benutzer und d_benutzer_anmeldung
 -- decken das Lesen heute schon ab; die eigenen halten auch dann, wenn jene
 -- einmal enger werden.
@@ -96,15 +98,22 @@ create policy d_umschalter_benutzer on benutzer
 comment on policy d_umschalter_benutzer on benutzer is
   'app.mandant_kennzahlen (0418): nur das eigene Konto (globale Rolle).';
 
+-- Die Policy auf rolle fragt KEINE Tabelle, nur Funktionen. Eine Unterabfrage
+-- auf benutzer_mandant hier schloesse einen Kreis mit d_bm_verwaltungsrolle
+-- (0372) und d_bm_kundenrolle (0249): deren with check fragt rolle, und
+-- Postgres bricht jedes Anlegen einer Mitgliedschaft als cse_definer mit
+-- infinite recursion detected in policy for relation benutzer_mandant ab —
+-- Einladung und Kundenzugang standen still. Derselbe Zuschnitt wie
+-- t_rolle_lesen (0007): die Plattformrollen und die Rollen der Bereiche des
+-- Umschalters; eine Mitgliedschaftsrolle gehoert immer ihrem Bereich
+-- (kern.bm_rolle_pruefen, 0007).
 create policy d_umschalter_rolle on rolle
   for select to cse_definer
-  using (id in (select bm.rolle_id from public.benutzer_mandant bm
-                 where bm.benutzer_id = (select app.aktueller_benutzer())
-                   and bm.entzogen_am is null)
-         or id = (select b.globale_rolle_id from public.benutzer b
-                   where b.id = (select app.aktueller_benutzer())));
+  using (mandant_id is null
+         or mandant_id = any ((select app.switcher_mandanten())::uuid[]));
 comment on policy d_umschalter_rolle on rolle is
-  'app.mandant_kennzahlen (0418): nur die Rollen der eigenen Mitgliedschaften und die globale Rolle.';
+  'app.mandant_kennzahlen (0418): Plattformrollen und Rollen der Bereiche des Umschalters — '
+  'ohne Unterabfrage auf eine Tabelle (kein Kreis mit den Policies auf benutzer_mandant).';
 
 -- ---------------------------------------------------------------------------
 -- 1. Die Zaehler — nur in einer internen Sitzung, nur wo der Betrachter

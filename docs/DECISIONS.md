@@ -17086,6 +17086,18 @@ ganzen Bestand — die Isolationsprüfung zeigt beides.
    erst, wenn die Tabellengrants enger werden. Die Tabellengrants hier zu
    verengen hieße, jede Definer-Funktion auf diesen drei Tabellen neu
    durchzugehen — das ist nicht Teil dieser Behebung.
+6. **Die eigenen Policies der Zählung fragen nur Funktionen, keine Tabelle.**
+   Die erste Fassung von `d_umschalter_rolle` (aus dem abgebrochenen Stand)
+   fragte `benutzer_mandant` und schloss damit einen Kreis mit
+   `d_bm_verwaltungsrolle` (0372) und `d_bm_kundenrolle` (0249), deren
+   `with check` `rolle` fragt: jedes Anlegen einer Mitgliedschaft als
+   `cse_definer` — Einladung eines Verwaltungskontos, Kundenzugang — brach
+   mit „infinite recursion detected in policy“ ab. Jetzt sieht `cse_definer`
+   auf `rolle` wie `t_rolle_lesen` (0007) die Plattformrollen und die Rollen
+   der Bereiche des Umschalters; eine Mitgliedschaftsrolle gehört immer
+   ihrem Bereich (`kern.bm_rolle_pruefen`). Die Isolationsprüfung weist
+   jedes `FROM` in einer `d_umschalter_*`-Bedingung ab und legt eine
+   Kundenmitgliedschaft als `cse_definer` an (§4, §7).
 
 | Betrifft | TEN-06, TEN-10, DESIGN §6, D-43, D-659, D-658, V-165, V-166, K-04, `drizzle/0418`, `src/server/services/mandant/umschalter.ts`, `src/app/auth/bereich/page.tsx`, `src/app/portal/zugang.ts`, `src/app/portal/konto/konto.ts`, `src/server/registry/dienste.ts`, `docs/architecture/05-API-KARTE.md`, `docs/architecture/02-datenmodell/01-KERN.md` §6.3, `docs/ROADMAP.md`, `tests/isolation/bereichswechsel.test.ts` §5–§6, `tests/kern/bereichswechsel.test.ts` §5 |
 |---|---|
