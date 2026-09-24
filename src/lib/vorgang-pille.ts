@@ -4,11 +4,12 @@
  *
  * Dieselben Abbildungen standen bis hierher je Seite einzeln
  * (`angebote/page.tsx`, `auftraege/page.tsx`, `finanzen/rechnungen/page.tsx`,
- * `crm/leads/[id]/page.tsx`). Das Leadblatt und das Kundenblatt zeigen jetzt
- * alle vier Stufen nebeneinander; eine fünfte Kopie wäre die, die beim
- * nächsten neuen Zustand vergessen wird. Der Wert ist der deutsche
- * Pillenzustand — er wählt die Farbe, die Sprache färbt nur das Wort
- * (`i18n/pille.ts`).
+ * `crm/leads/page.tsx`, `crm/leads/[id]/page.tsx`, `crm/kunden/[id]/page.tsx`).
+ * Seit V-144 lesen alle sechs von hier — V-138 hatte das Modul angelegt und
+ * die Kopien stehen lassen. Das Leadblatt und das Kundenblatt zeigen alle
+ * vier Stufen nebeneinander; eine Kopie ist die, die beim nächsten neuen
+ * Zustand vergessen wird. Der Wert ist der deutsche Pillenzustand — er wählt
+ * die Farbe, die Sprache färbt nur das Wort (`i18n/pille.ts`).
  */
 import type { PillZustand } from './i18n/pille.js';
 

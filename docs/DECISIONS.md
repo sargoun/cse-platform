@@ -15914,3 +15914,50 @@ SQL ein und rief die Route nie.
 
 | Betrifft | CRM-05, OPS-10, REP-03, D-562, D-599, D-632, V-143, `src/server/services/auftrag/direkt.ts`, `src/server/services/angebot/aus-raumbuch.ts`, `src/lib/formular/maske.ts`, `src/app/api/{auftrag,angebot}/route.ts`, `src/app/portal/[mandant]/auftraege/neu/page.tsx`, `src/lib/i18n/verwaltung/crm-kette.ts`, `src/server/registry/dienste.ts` |
 |---|---|
+
+### D-638 · Was an der Kette noch schief stand — und was bewusst bleibt (V-144)
+
+**Der Befund** (V-144; Nachprüfung von V-138 bis V-140, die kleinen Punkte):
+der Satz „Sichtbar für, wer dieses Recht hält:" war kein deutscher Satz; die
+Abweisung `kein_schreibrecht` nannte den rohen Schlüssel `crm.schreiben`
+statt des Namens, den `<Recht>` überall sonst zeigt; `src/lib/vorgang-pille.ts`
+begründete sich damit, die Pillenabbildung je Seite abzulösen — und liess die
+sechs Kopien stehen (jetzt sieben Abbildungen); ein Unit-Test prüfte in
+einem `try/catch` nichts, wenn keine Ausnahme flog. Dazu drei Punkte, die
+eine Entscheidung verlangten statt einer Änderung.
+
+**Die Entscheidung.**
+
+1. **Rechte heissen, wie sie heissen:** „Das sieht, wer dieses Recht hält:"
+   (mit V-142), und `kein_schreibrecht` nennt den Namen aus
+   `lib/i18n/rechtname.ts` — derselbe, den `<Recht>` zeigt, in beiden
+   Sprachen. Eine Prüfung hält fest, dass kein Satz der Kette einen rohen
+   Schlüssel trägt.
+2. **Eine Pillenabbildung:** Angebots-, Auftrags-, Rechnungs- und Leadliste,
+   Lead- und Kundenblatt lesen aus `lib/vorgang-pille.ts`. Die Kopien trugen
+   dieselben Werte (die Leadseiten zusätzlich `qualifiziert`, einen Wert, den
+   `lead_status` nicht kennt); eine Prüfung hält fest, dass keine Seite der
+   Kette wieder eine eigene führt.
+3. **Der Test prüft, was er behauptet:** die Ausnahme muss fliegen, mit
+   genau diesem Grund.
+4. **Bewusst unverändert: die Systemzeilen im Verlauf bleiben deutsch.**
+   „Als Kunde … übernommen", „Angebot … versendet", „Aus dem Vergaberadar
+   übernommen", seit V-141/V-142 auch „Ansprechpartner: …" und „Kunde
+   berichtigt: …" stehen als Text in `lead_aktivitaet.betreff` und erscheinen
+   so auch in der englischen Oberfläche. Das ist das Muster jeder Aktivität
+   dieser Tabelle: der Verlauf ist eine Aufzeichnung, und eine Aufzeichnung
+   wird nicht nachträglich übersetzt. Eine Übersetzung bräuchte einen
+   Schlüssel je Zeile — eine eigene Spalte für alle Aktivitäten, nicht eine
+   Nachbesserung dieser Kette.
+5. **Bewusst unverändert: D-632 Punkt 4** (ein Auftrag stellt auch einen
+   verlorenen Lead auf „gewonnen", der Verlustgrund bleibt stehen). Das ist
+   eine Ablaufregel, keine Rechts- oder Finanzregel; der Nutzer hat solche
+   Fragen delegiert, und D-632 hält sie mit Begründung fest. Sie folgt
+   derselben Regel wie `setzeLeadStatus`, der beim Stand „gewonnen" den Grund
+   ebenfalls stehen lässt; kein Bericht zählt Verlustgründe ohne den Stand.
+6. **Bewusst unverändert: ein zurückgezogener Entwurf sperrt das Berichtigen
+   des Kunden** (D-636 Punkt 5), und **der Kontakt einer Anfrage bleibt neben
+   dem Zwilling beim Kunden stehen** (D-635 Punkt 5, O-908).
+
+| Betrifft | D-592, D-632, D-635, D-636, V-144, `src/lib/i18n/verwaltung/crm-kette.ts`, `src/lib/vorgang-pille.ts`, `src/app/portal/[mandant]/{angebote,auftraege,finanzen/rechnungen,crm/leads}/page.tsx`, `src/app/portal/[mandant]/crm/{leads,kunden}/[id]/page.tsx`, `tests/kern/crm-kette.test.ts` |
+|---|---|

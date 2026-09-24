@@ -5,7 +5,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
-import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
@@ -19,7 +19,7 @@ import { Recht } from '@/components/ui/Recht';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
 import { LEAD_TEXTE } from '@/lib/i18n/verwaltung/crm-lead';
-import { ANGEBOT_PILLE, LEAD_PILLE, RECHNUNG_PILLE } from '@/lib/vorgang-pille';
+import { ANGEBOT_PILLE, AUFTRAG_PILLE, LEAD_PILLE, RECHNUNG_PILLE } from '@/lib/vorgang-pille';
 import { leseKundeVorgaenge, type KundeVorgaenge } from '@/server/services/crm/lead-kette';
 
 /**
@@ -77,11 +77,6 @@ interface ObjektZeile { readonly id: string; readonly bezeichnung: string;
   readonly ort: string; }
 interface AuftragZeile { readonly id: string; readonly auftragsnummer: string;
   readonly bezeichnung: string; readonly status: string; readonly wert: string | null; }
-
-const AUFTRAG_PILLE: Readonly<Record<string, PillZustand>> = {
-  angelegt: 'Geplant', aktiv: 'In Arbeit', pausiert: 'Wartet',
-  abgeschlossen: 'Abgeschlossen', storniert: 'Abgelehnt',
-};
 
 export default async function KundeDetail(
   { params }: { params: Promise<{ mandant: string; id: string }> },

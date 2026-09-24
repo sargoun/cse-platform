@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
-import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
@@ -21,7 +21,7 @@ import { einsendungLesbar, type EinsendungsZeile } from '@/server/services/lead/
 import Link from 'next/link';
 import { DataTable } from '@/components/ui/DataTable';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
-import { ANGEBOT_PILLE, AUFTRAG_PILLE, RECHNUNG_PILLE } from '@/lib/vorgang-pille';
+import { ANGEBOT_PILLE, AUFTRAG_PILLE, LEAD_PILLE, RECHNUNG_PILLE } from '@/lib/vorgang-pille';
 import { leseLeadKette, type LeadKette } from '@/server/services/crm/lead-kette';
 import {
   LEAD_ZWECK_REGEL, leseLeadKontaktWahl, type KontaktWahlZeile,
@@ -50,12 +50,6 @@ const STAENDE: readonly string[] = [
 
 const CRM_FELD = 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 '
   + 'text-sm text-text';
-
-const STATUS_PILLE: Readonly<Record<string, PillZustand>> = {
-  neu: 'Offen', in_bearbeitung: 'In Arbeit', qualifiziert: 'Bereit',
-  angebot: 'Angebot', gewonnen: 'Abgeschlossen', verloren: 'Abgelehnt',
-  kein_bedarf: 'Archiviert',
-};
 
 const TYP_TEXT: Readonly<Record<string, string>> = {
   notiz: 'Notiz', anruf: 'Anruf', email: 'E-Mail', termin: 'Termin',
@@ -307,7 +301,7 @@ export default async function LeadDetail(
     >
       <div className="mb-s5 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{kopf.betreff ?? 'Anfrage'}</h1>
-        <StatusPill zustand={STATUS_PILLE[kopf.status] ?? 'Offen'} />
+        <StatusPill zustand={LEAD_PILLE[kopf.status] ?? 'Offen'} />
       </div>
 
       <dl className="m-0 mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 lg:grid-cols-4">

@@ -5,7 +5,8 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
-import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { StatusPill } from '@/components/ui/StatusPill';
+import { AUFTRAG_PILLE } from '@/lib/vorgang-pille';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { portalZugang } from '../../zugang';
@@ -16,11 +17,6 @@ import { haeltRechte } from '../../rechte';
 
 /** `/portal/[mandant]/auftraege` — was diese Gesellschaft ausfuehrt (OPS-05). */
 export const dynamic = 'force-dynamic';
-
-const PILLE: Readonly<Record<string, PillZustand>> = {
-  angelegt: 'Geplant', aktiv: 'In Arbeit', pausiert: 'Wartet',
-  abgeschlossen: 'Abgeschlossen', storniert: 'Abgelehnt',
-};
 
 interface Zeile {
   readonly id: string;
@@ -129,7 +125,7 @@ export default async function Auftragsliste(
             { schluessel: 'start', kopf: 'Start', zelle: (z) => z.start },
             {
               schluessel: 'status', kopf: 'Status',
-              zelle: (z) => <StatusPill zustand={PILLE[z.status] ?? 'Geplant'} />,
+              zelle: (z) => <StatusPill zustand={AUFTRAG_PILLE[z.status] ?? 'Geplant'} />,
             },
           ]}
         />

@@ -5,7 +5,8 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
-import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { StatusPill } from '@/components/ui/StatusPill';
+import { RECHNUNG_PILLE } from '@/lib/vorgang-pille';
 import { formatiereGeld, cent } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
@@ -32,13 +33,6 @@ import { RECHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnungen';
  * Pillen von DESIGN §5; bis sie dort stehen, bleibt es bei dieser Abbildung.
  */
 export const dynamic = 'force-dynamic';
-
-const PILLE: Readonly<Record<string, PillZustand>> = {
-  entwurf: 'Entwurf',
-  // „Abgeschlossen" und nicht „Festgeschrieben": das Wort fehlt DESIGN §5.
-  festgeschrieben: 'Abgeschlossen',
-  verworfen: 'Archiviert',
-};
 
 interface Zeile {
   readonly id: string;
@@ -181,7 +175,7 @@ export default async function Rechnungsliste(
               kopf: g.zustand,
               zelle: (z) => (
                 <span className="inline-flex flex-wrap items-center gap-s2">
-                  <StatusPill zustand={PILLE[z.status] ?? 'Entwurf'} sprache={zugang.sprache} />
+                  <StatusPill zustand={RECHNUNG_PILLE[z.status] ?? 'Entwurf'} sprache={zugang.sprache} />
                   {z.storniert_durch === null ? null : (
                     <span className="text-xs text-text-muted">
                       {t.aufgehobenDurch} {z.storniert_durch}

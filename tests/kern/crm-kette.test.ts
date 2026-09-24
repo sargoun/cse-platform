@@ -19,6 +19,7 @@ import {
 import {
   MASKE_WERT_HOECHSTENS, maskeMitEingaben, vorbelegt,
 } from '../../src/lib/formular/maske.js';
+import { rechtName } from '../../src/lib/i18n/rechtname.js';
 
 /**
  * Die Kette Lead → Angebot → Auftrag, ohne Datenbank (V-138, V-139,
@@ -59,11 +60,18 @@ describe('leadAusBekanntmachung — was eine Bekanntmachung an ihren Lead gibt',
   it('ohne Vergabestelle und ohne Eingabe gibt es keinen Lead — keinen erfundenen Namen', () => {
     expect(() => leadAusBekanntmachung({ ...BASIS, vergabestelleName: null }))
       .toThrow(CrmFehler);
+    /*
+     * Ohne `expect.assertions` prüfte das frühere try/catch NICHTS, wenn keine
+     * Ausnahme flog (V-144). Jetzt muss sie fliegen, und mit diesem Grund.
+     */
+    let fehler: unknown = null;
     try {
       leadAusBekanntmachung({ ...BASIS, vergabestelleName: ' ' });
     } catch (e) {
-      expect((e as CrmFehler).grund).toBe('ohne_auftraggeber');
+      fehler = e;
     }
+    expect(fehler).toBeInstanceOf(CrmFehler);
+    expect((fehler as CrmFehler).grund).toBe('ohne_auftraggeber');
   });
 
   it('ein Wert in Fremdwährung wandert NICHT — umgerechnet wird nie (O-47)', () => {
@@ -315,5 +323,34 @@ describe('die Formularwege der Kette antworten mit Seite und Satz (D-599, D-637)
     expect(route).toContain('legeAuftragDirektAn(');
     // Die Nummer zieht nur noch der Dienst — NACH der Prüfung der Anfrage.
     expect(route).not.toContain('vergebeNummer(');
+  });
+});
+
+describe('die Sätze der Kette nennen Rechte beim Namen, nicht beim Schlüssel (V-144)', () => {
+  it.each(['de', 'en'] as const)('%s: kein Satz der Kette zeigt einen rohen Rechteschlüssel', (s) => {
+    const t = KETTE_TEXTE[s];
+    const saetze = [...Object.values(t.fehler), ...Object.values(t.maskeFehler), t.ohneRecht,
+      t.rechnungenOhneAuftragsrecht];
+    for (const satz of saetze) expect(satz, satz).not.toMatch(/\b[a-z_]+\.(?:lesen|schreiben)\b/u);
+    expect(t.fehler['kein_schreibrecht']).toContain(rechtName('crm.schreiben', s));
+  });
+
+  it('„ohne Recht" ist ein deutscher Satz', () => {
+    expect(KETTE_TEXTE.de.ohneRecht).toBe('Das sieht, wer dieses Recht hält:');
+  });
+});
+
+describe('die Pillen der Kette stehen an EINER Stelle (V-144)', () => {
+  it('keine Seite der Kette führt eine eigene Abbildung mehr', () => {
+    const seiten = [
+      'angebote/page.tsx', 'auftraege/page.tsx', 'finanzen/rechnungen/page.tsx',
+      'crm/leads/page.tsx', 'crm/leads/[id]/page.tsx', 'crm/kunden/[id]/page.tsx',
+    ];
+    for (const seite of seiten) {
+      const text = readFileSync(fileURLToPath(new URL(
+        `../../src/app/portal/[mandant]/${seite}`, import.meta.url)), 'utf8');
+      expect(text, seite).not.toMatch(/Record<string, PillZustand>> = \{/u);
+      expect(text, seite).toContain("from '@/lib/vorgang-pille'");
+    }
   });
 });

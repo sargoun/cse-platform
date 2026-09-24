@@ -11,6 +11,7 @@
  * Klammern, ersetzt wird nicht (siehe `./basis.ts`).
  */
 import type { InternSprache } from '../intern.js';
+import { rechtName } from '../rechtname.js';
 
 export interface KetteTexte {
   /* ── Leadblatt: die Kette ──────────────────────────────────────────── */
@@ -277,7 +278,8 @@ const DE: KetteTexte = {
     ohne_auftraggeber:
       'Die Bekanntmachung nennt keine Vergabestelle. Bitte tragen Sie den Auftraggeber ein.',
     ohne_titel: 'Die Bekanntmachung hat keinen Titel.',
-    kein_schreibrecht: 'Dafür fehlt das Recht crm.schreiben.',
+    /* Der NAME des Rechts, nicht sein Schlüssel — wie `<Recht>` (V-144). */
+    kein_schreibrecht: `Dafür fehlt das Recht \u201e${rechtName('crm.schreiben', 'de')}\u201c.`,
   },
   maskeFehler: {
     unbepreiste_flaeche:
@@ -460,7 +462,7 @@ const EN: KetteTexte = {
     ohne_auftraggeber:
       'The notice names no contracting authority. Please enter it.',
     ohne_titel: 'The notice has no title.',
-    kein_schreibrecht: 'That needs the right crm.schreiben.',
+    kein_schreibrecht: `That needs the right \u201c${rechtName('crm.schreiben', 'en')}\u201d.`,
   },
   maskeFehler: {
     unbepreiste_flaeche:
