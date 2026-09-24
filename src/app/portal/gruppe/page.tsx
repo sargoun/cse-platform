@@ -1,13 +1,14 @@
 import { KpiStat } from '@/components/ui/KpiStat';
 import { DataTable } from '@/components/ui/DataTable';
 import { formatiereGeld, type Cent } from '@/server/services/finanz/geld';
-import { gruppenUebersicht, type BereichKennzahlen } from '@/server/services/gruppe/uebersicht';
+import {
+  gruppenUebersicht, SUMMEN_ZIELE, UEBERSICHT_ZIELE, uebersichtZiel,
+} from '@/server/services/gruppe/uebersicht';
 import {
   BereichMarke, GruppenAntwort, GruppenRahmen, gruppenLesen, gruppenTor, KeinRecht,
 } from './tor';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KENNZAHL_TEXTE } from '@/lib/i18n/verwaltung/kennzahlen';
-import { AUFTRAG_AKTIV, PROJEKT_IN_ARBEIT } from '@/server/services/bericht/mengen';
 
 /**
  * `/portal/gruppe` — die Gruppenuebersicht, LESEND (TEN-05, DSH-01, Invariante 10).
@@ -41,120 +42,137 @@ export default async function Gruppenuebersicht() {
   const { jahr, bereiche, summe } = await gruppenLesen(tor.zugang, (kontext) =>
     gruppenUebersicht(kontext));
   const n = bereiche.length;
-  const anteil = (k: number): string => (k === n ? '' : ` · ${String(k)} von ${String(n)} Bereichen`);
-  /*
-   * `&`, wenn die Liste schon einen Filter trägt (V-149/V-150): die Zahl
-   * „Aufträge aktiv" führt auf `auftraege?status=aktiv&bereich=…`, nicht auf
-   * alle Aufträge des Bereichs.
-   */
-  const liste = (pfad: string, b: BereichKennzahlen): string =>
-    `/portal/gruppe/${pfad}${pfad.includes('?') ? '&' : '?'}bereich=${b.slug}`;
   const tk = nachSprache(KENNZAHL_TEXTE, tor.zugang.sprache);
+  const anteil = (k: number): string => (k === n ? '' : tk.anteil(k, n));
+  /*
+   * Die Ziele stehen im Dienst (`UEBERSICHT_ZIELE`, V-152): jede Zahl führt
+   * auf die Liste MIT dem Filter, der ihre Menge zeigt — `auftraege?status=
+   * aktiv&bereich=…`, `leads?status=neu&bereich=…` —, und dort misst sie ein
+   * Test am Manifest.
+   */
+  const liste = (spalte: keyof typeof UEBERSICHT_ZIELE, slug: string): string =>
+    uebersichtZiel(UEBERSICHT_ZIELE[spalte], slug);
+  /*
+   * **Eine Summe ist ein Verweis nur, wo es die Liste für diese Sitzung gibt**
+   * (V-152, AUT-06). Sie zählt die Bereiche, deren Zelle eine Zahl ist — und
+   * eine Zelle ist nur dort eine Zahl, wo die Sitzung das Recht der Zahl UND
+   * der Liste hält. Ist es kein einziger, steht ein Strich ohne Verweis: die
+   * Liste dahinter gäbe dieser Sitzung einen 404, und „0“ wäre eine Aussage
+   * über das Recht, nicht über die Gruppe.
+   */
+  const summen = [
+    { schluessel: 'auftraege', label: tk.gruppeAuftraege, bereiche: summe.bereiche.auftraege,
+      wert: String(summe.auftraegeAktiv), ton: 'info', icon: 'auftrag' },
+    { schluessel: 'fakturiert', label: tk.summeFakturiert(jahr), bereiche: summe.bereiche.fakturiert,
+      wert: formatiereGeld(summe.fakturiertJahrCent), ton: 'success', icon: 'euro' },
+    { schluessel: 'forderungen', label: tk.summeForderungen, bereiche: summe.bereiche.forderungen,
+      wert: formatiereGeld(summe.forderungenOffenCent),
+      ton: summe.forderungenOffenCent > 0n ? 'warning' : 'muted', icon: 'rechnung' },
+    { schluessel: 'freigaben', label: tk.summeFreigaben, bereiche: summe.bereiche.freigaben,
+      wert: String(summe.freigabenOffen),
+      ton: summe.freigabenOffen > 0 ? 'warning' : 'muted', icon: 'freigabe' },
+  ] as const;
 
   return (
-    <GruppenRahmen zugang={tor.zugang} titel="Gruppenübersicht" aktiverTab="uebersicht">
-      <h1 className="mb-s5 text-h1 text-text">Gruppenübersicht</h1>
+    <GruppenRahmen zugang={tor.zugang} titel={tk.gruppeTitel} aktiverTab="uebersicht">
+      <h1 className="mb-s5 text-h1 text-text">{tk.gruppeTitel}</h1>
 
       <div data-cse="gruppe-summen"
            className="mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 xl:grid-cols-4">
-        <a href="/portal/gruppe/auftraege" className="group block rounded-lg">
-          <KpiStat label={`Aufträge aktiv${anteil(summe.bereiche.auftraege)}`}
-                   wert={String(summe.auftraegeAktiv)} ton="info" icon="auftrag" interaktiv />
-        </a>
-        <a href="/portal/gruppe/finanzen" className="group block rounded-lg">
-          <KpiStat label={`Fakturiert ${String(jahr)} netto${anteil(summe.bereiche.fakturiert)}`}
-                   wert={formatiereGeld(summe.fakturiertJahrCent)} ton="success" icon="euro" interaktiv />
-        </a>
-        <a href="/portal/gruppe/offene-posten" className="group block rounded-lg">
-          <KpiStat label={`Offene Forderungen${anteil(summe.bereiche.forderungen)}`}
-                   wert={formatiereGeld(summe.forderungenOffenCent)}
-                   ton={summe.forderungenOffenCent > 0n ? 'warning' : 'muted'} icon="rechnung" interaktiv />
-        </a>
-        <a href="/portal/gruppe/freigaben" className="group block rounded-lg">
-          <KpiStat label={`Wartende Freigaben${anteil(summe.bereiche.freigaben)}`}
-                   wert={String(summe.freigabenOffen)}
-                   ton={summe.freigabenOffen > 0 ? 'warning' : 'muted'} icon="freigabe" interaktiv />
-        </a>
+        {/*
+          * „Aufträge aktiv" mit `?status=aktiv` (V-152, DSH-04): die Summe zählt
+          * nur aktive Aufträge, die Liste ohne Filter zeigte alle nicht
+          * archivierten.
+          */}
+        {summen.map((z) => (z.bereiche === 0 ? (
+          <div key={z.schluessel} data-summe={z.schluessel}>
+            <KpiStat label={z.label} wert="—" ton="muted" icon={z.icon} />
+          </div>
+        ) : (
+          <a key={z.schluessel} data-summe={z.schluessel}
+             href={uebersichtZiel(SUMMEN_ZIELE[z.schluessel], null)} className="group block rounded-lg">
+            <KpiStat label={`${z.label}${anteil(z.bereiche)}`} wert={z.wert} ton={z.ton}
+                     icon={z.icon} interaktiv />
+          </a>
+        )))}
       </div>
 
-      <h2 className="mb-s3 text-h2 text-text">Je Gesellschaft</h2>
+      <h2 className="mb-s3 text-h2 text-text">{tk.gruppeJeGesellschaft}</h2>
       <div data-cse="gruppe-matrix">
         <DataTable
-          beschriftung="Kennzahlen je Gesellschaft"
+          beschriftung={tk.gruppeBeschriftung}
           zeilen={bereiche}
           schluessel={(b) => b.slug}
           spalten={[
             {
-              schluessel: 'bereich', kopf: 'Gesellschaft',
+              schluessel: 'bereich', kopf: tk.spalteGesellschaft,
               zelle: (b) => <BereichMarke slug={b.slug} name={b.name} />,
             },
             {
-              schluessel: 'auftraege', kopf: 'Aufträge aktiv', numerisch: true,
+              schluessel: 'auftraege', kopf: tk.gruppeAuftraege, numerisch: true,
               zelle: (b) => (
-                <Zahl wert={b.auftraegeAktiv} ziel={liste(`auftraege?status=${AUFTRAG_AKTIV}`, b)} />
+                <Zahl wert={b.auftraegeAktiv} ziel={liste('auftraege', b.slug)} />
               ),
             },
             {
-              schluessel: 'angebote', kopf: 'Angebote offen', numerisch: true,
+              schluessel: 'angebote', kopf: tk.gruppeAngebote, numerisch: true,
               /*
                * V-149 (DSH-04): hier stand eine nackte Zahl — die Liste
                * dahinter gab es nicht. Jetzt `/gruppe/angebote`, mit derselben
                * Menge (`ANGEBOT_OFFEN`).
                */
-              zelle: (b) => <Zahl wert={b.angeboteOffen} ziel={liste('angebote?status=offen', b)} />,
+              zelle: (b) => <Zahl wert={b.angeboteOffen} ziel={liste('angebote', b.slug)} />,
             },
             {
               schluessel: 'projekte', kopf: tk.gruppeProjekte, numerisch: true,
               zelle: (b) => (
-                <Zahl wert={b.projekteInArbeit}
-                      ziel={liste(`projekte?status=${PROJEKT_IN_ARBEIT}`, b)} />
+                <Zahl wert={b.projekteInArbeit} ziel={liste('projekte', b.slug)} />
               ),
             },
             {
               schluessel: 'aufgaben', kopf: tk.gruppeAufgaben, numerisch: true,
-              zelle: (b) => <Zahl wert={b.aufgabenOffen} ziel={liste('aufgaben', b)} />,
+              zelle: (b) => <Zahl wert={b.aufgabenOffen} ziel={liste('aufgaben', b.slug)} />,
             },
             {
               schluessel: 'einsatz', kopf: tk.gruppeImEinsatz, numerisch: true,
               zelle: (b) => (
-                <Zahl wert={b.imEinsatz}
-                      ziel={`/portal/gruppe/auslastung?bereich=${b.slug}#im-einsatz`} />
+                <Zahl wert={b.imEinsatz} ziel={liste('einsatz', b.slug)} />
               ),
             },
             {
-              schluessel: 'leads', kopf: 'Neue Anfragen', numerisch: true,
-              zelle: (b) => <Zahl wert={b.leadsNeu} ziel={liste('leads', b)} />,
+              schluessel: 'leads', kopf: tk.gruppeLeads, numerisch: true,
+              /*
+               * Mit `?status=neu` (V-152, DSH-04): die Zahl zählt neue Leads,
+               * die Liste ohne Filter zeigte die ganze Pipeline.
+               */
+              zelle: (b) => <Zahl wert={b.leadsNeu} ziel={liste('leads', b.slug)} />,
             },
             {
-              schluessel: 'objekte', kopf: 'Objekte', numerisch: true,
-              zelle: (b) => <Zahl wert={b.objekte} ziel={liste('objekte', b)} />,
+              schluessel: 'objekte', kopf: tk.gruppeObjekte, numerisch: true,
+              zelle: (b) => <Zahl wert={b.objekte} ziel={liste('objekte', b.slug)} />,
             },
             {
-              schluessel: 'beschaeftigte', kopf: 'Beschäftigte', numerisch: true,
-              zelle: (b) => <Zahl wert={b.beschaeftigte} ziel={liste('personen', b)} />,
+              schluessel: 'beschaeftigte', kopf: tk.gruppeBeschaeftigte, numerisch: true,
+              zelle: (b) => <Zahl wert={b.beschaeftigte} ziel={liste('beschaeftigte', b.slug)} />,
             },
             {
-              schluessel: 'fakturiert', kopf: `Fakturiert ${String(jahr)}`, numerisch: true,
-              zelle: (b) => <Geld wert={b.fakturiertJahrCent} ziel={liste('rechnungen', b)} />,
+              schluessel: 'fakturiert', kopf: tk.gruppeFakturiert(jahr), numerisch: true,
+              zelle: (b) => <Geld wert={b.fakturiertJahrCent} ziel={liste('fakturiert', b.slug)} />,
             },
             {
-              schluessel: 'forderungen', kopf: 'Forderungen offen', numerisch: true,
-              zelle: (b) => <Geld wert={b.forderungenOffenCent} ziel={liste('offene-posten', b)} />,
+              schluessel: 'forderungen', kopf: tk.gruppeForderungen, numerisch: true,
+              zelle: (b) => <Geld wert={b.forderungenOffenCent} ziel={liste('forderungen', b.slug)} />,
             },
             {
-              schluessel: 'freigaben', kopf: 'Freigaben', numerisch: true,
-              zelle: (b) => <Zahl wert={b.freigabenOffen} ziel={liste('freigaben', b)} />,
+              schluessel: 'freigaben', kopf: tk.gruppeFreigaben, numerisch: true,
+              zelle: (b) => <Zahl wert={b.freigabenOffen} ziel={liste('freigaben', b.slug)} />,
             },
           ]}
         />
       </div>
-      <p className="mt-s4 max-w-[72ch] text-sm text-text-subtle">
-        Ein Strich heißt: kein Leserecht in diesem Bereich — keine Null. Fakturiert
-        zählt festgeschriebene Rechnungen nach Rechnungsdatum, netto. Jede Zahl führt
-        zur Liste dahinter; gehandelt wird im Bereich.
-      </p>
+      <p className="mt-s4 max-w-[72ch] text-sm text-text-subtle">{tk.gruppeHinweis}</p>
 
-      <h2 className="mb-s3 mt-s6 text-h2 text-text">Bereiche</h2>
+      <h2 className="mb-s3 mt-s6 text-h2 text-text">{tk.gruppeBereiche}</h2>
       <ul data-cse="gruppe-bereiche" className="grid grid-cols-1 gap-s3 sm:grid-cols-2">
         {bereiche.map((b) => (
           <li key={b.slug}
@@ -162,7 +180,7 @@ export default async function Gruppenuebersicht() {
             <BereichMarke slug={b.slug} name={b.name} />
             <a href={`/portal/${b.slug}`} data-cse="bereich-oeffnen"
                className="min-h-11 rounded-md border border-line-strong px-s4 py-s3 text-sm text-text hover:bg-surface-2">
-              Bereich öffnen
+              {tk.bereichOeffnen}
             </a>
           </li>
         ))}

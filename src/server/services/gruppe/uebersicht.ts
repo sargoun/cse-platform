@@ -1,6 +1,6 @@
 import type { LeseKontext } from '../../kontext/index.js';
 import { cent, type Cent } from '../finanz/geld.js';
-import { ANGEBOT_OFFEN, AUFTRAG_AKTIV, PROJEKT_IN_ARBEIT } from '../bericht/mengen.js';
+import { ANGEBOT_OFFEN, AUFTRAG_AKTIV, LEAD_NEU, PROJEKT_IN_ARBEIT } from '../bericht/mengen.js';
 import { OFFENE_ZUSTAENDE } from '../kern/aufgabe.js';
 
 /**
@@ -39,6 +39,63 @@ export const UEBERSICHT_RECHTE = {
   einsatz: 'gruppe.zeit.lesen',
   aufgaben: 'gruppe.aufgabe.lesen',
 } as const;
+
+export type UebersichtSpalte = keyof typeof UEBERSICHT_RECHTE;
+
+/**
+ * Wohin jede Zahl der Übersicht führt — die Gruppenliste, die GENAU ihre Menge
+ * zeigt (DSH-04), relativ zu `/portal/gruppe/` (V-149, V-150, V-152).
+ *
+ * **An einer Stelle, damit sie prüfbar sind.** Standen die Ziele nur in der
+ * Seite, ließ sich weder fragen, ob die Liste dieselbe Menge zeigt, noch ob
+ * ihr Recht zu dem der Zelle passt; „Neue Anfragen" führte auf die ganze
+ * Pipeline, und „Forderungen offen" auf eine Seite mit einem anderen Recht
+ * (`UEBERSICHT_ZIELRECHTE`). `tests/kern/kennzahlen-ziele.test.ts` misst
+ * jedes Ziel am Manifest.
+ */
+export const UEBERSICHT_ZIELE: Readonly<Record<UebersichtSpalte, string>> = {
+  auftraege: `auftraege?status=${AUFTRAG_AKTIV}`,
+  angebote: 'angebote?status=offen',
+  leads: `leads?status=${LEAD_NEU}`,
+  objekte: 'objekte',
+  beschaeftigte: 'personen',
+  fakturiert: 'rechnungen',
+  forderungen: 'offene-posten',
+  freigaben: 'freigaben',
+  projekte: `projekte?status=${PROJEKT_IN_ARBEIT}`,
+  einsatz: 'auslastung#im-einsatz',
+  aufgaben: 'aufgaben',
+};
+
+/** Die vier Summen oben — „Fakturiert" führt auf die Finanzübersicht, nicht auf die Rechnungsliste. */
+export const SUMMEN_ZIELE: Readonly<Record<'auftraege' | 'fakturiert' | 'forderungen' | 'freigaben', string>> = {
+  auftraege: UEBERSICHT_ZIELE.auftraege,
+  fakturiert: 'finanzen',
+  forderungen: UEBERSICHT_ZIELE.forderungen,
+  freigaben: UEBERSICHT_ZIELE.freigaben,
+};
+
+/**
+ * Rechte, die die LISTE hinter einer Zelle zusätzlich verlangt (V-152,
+ * AUT-06). „Forderungen offen" zählt mit `gruppe.zahlung.lesen` — so liest die
+ * Policy `offener_posten` —, `/gruppe/offene-posten` öffnet aber nur mit
+ * `gruppe.buchhaltung.lesen` (SEITENKARTE §6). Ohne das zweite stand eine
+ * Zahl da, deren Verweis auf einen 404 führte; jetzt steht dort ein Strich.
+ */
+export const UEBERSICHT_ZIELRECHTE: Readonly<Partial<Record<UebersichtSpalte, string>>> = {
+  forderungen: 'gruppe.buchhaltung.lesen',
+};
+
+/**
+ * Die Adresse hinter einer Zelle (mit Bereich) oder einer Summe (ohne).
+ * Ein Anker bleibt am Ende, der Bereich kommt in die Abfrage davor.
+ */
+export function uebersichtZiel(pfad: string, bereich: string | null): string {
+  const [vorn, anker] = pfad.split('#');
+  const basis = `/portal/gruppe/${vorn ?? ''}`;
+  const mit = bereich === null ? basis : `${basis}${basis.includes('?') ? '&' : '?'}bereich=${bereich}`;
+  return anker === undefined ? mit : `${mit}#${anker}`;
+}
 
 export interface BereichKennzahlen {
   readonly mandantId: string;
@@ -118,7 +175,9 @@ interface Roh {
 }
 
 export async function gruppenUebersicht(kontext: LeseKontext): Promise<GruppenUebersicht> {
-  const rechte = await rechteJeBereich(kontext, Object.values(UEBERSICHT_RECHTE));
+  const rechte = await rechteJeBereich(kontext, [
+    ...Object.values(UEBERSICHT_RECHTE), ...Object.values(UEBERSICHT_ZIELRECHTE),
+  ]);
   // Das Jahr aus der Datenbankuhr, nicht aus `new Date()`: Uhr ist der Server
   // (Invariante 5), und ein Test kann sie stellen.
   const [uhr] = await kontext.abfrage<{ jahr: number }>(
@@ -133,7 +192,7 @@ export async function gruppenUebersicht(kontext: LeseKontext): Promise<GruppenUe
               where g.mandant_id = m.id and g.archiviert_am is null
                 and g.status::text = any($1::text[]))::int as angebote_offen,
             (select count(*) from lead l
-              where l.mandant_id = m.id and l.status = 'neu' and l.archiviert_am is null)::int
+              where l.mandant_id = m.id and l.status::text = $5 and l.archiviert_am is null)::int
               as leads_neu,
             (select count(*) from objekt o
               where o.mandant_id = m.id and o.archiviert_am is null)::int as objekte,
@@ -167,28 +226,36 @@ export async function gruppenUebersicht(kontext: LeseKontext): Promise<GruppenUe
      * `/gruppe/projekte?status=in_arbeit`, `/gruppe/aufgaben`). Zwei
      * Schreibweisen derselben Menge wären zwei Zahlen (DSH-04).
      */
-    [ANGEBOT_OFFEN, PROJEKT_IN_ARBEIT, AUFTRAG_AKTIV, OFFENE_ZUSTAENDE],
+    [ANGEBOT_OFFEN, PROJEKT_IN_ARBEIT, AUFTRAG_AKTIV, OFFENE_ZUSTAENDE, LEAD_NEU],
   );
 
   const bereiche: BereichKennzahlen[] = roh.map((z) => {
-    const darf = (recht: string): boolean => rechte.get(z.mandant_id)?.has(recht) === true;
+    const halten = rechte.get(z.mandant_id);
+    /*
+     * Eine Zelle ist eine Zahl, wo die Sitzung das Recht der Zahl UND das der
+     * Liste dahinter hält (V-152) — sonst `null`, und die Seite zeigt einen
+     * Strich statt eines Verweises auf einen 404.
+     */
+    const darf = (spalte: UebersichtSpalte): boolean => {
+      const ziel = UEBERSICHT_ZIELRECHTE[spalte];
+      return halten?.has(UEBERSICHT_RECHTE[spalte]) === true
+        && (ziel === undefined || halten.has(ziel));
+    };
     return {
       mandantId: z.mandant_id,
       slug: z.slug,
       name: z.name,
-      auftraegeAktiv: darf(UEBERSICHT_RECHTE.auftraege) ? z.auftraege_aktiv : null,
-      angeboteOffen: darf(UEBERSICHT_RECHTE.angebote) ? z.angebote_offen : null,
-      leadsNeu: darf(UEBERSICHT_RECHTE.leads) ? z.leads_neu : null,
-      objekte: darf(UEBERSICHT_RECHTE.objekte) ? z.objekte : null,
-      beschaeftigte: darf(UEBERSICHT_RECHTE.beschaeftigte) ? z.beschaeftigte : null,
-      fakturiertJahrCent: darf(UEBERSICHT_RECHTE.fakturiert)
-        ? cent(BigInt(z.fakturiert_jahr_cent)) : null,
-      forderungenOffenCent: darf(UEBERSICHT_RECHTE.forderungen)
-        ? cent(BigInt(z.forderungen_offen_cent)) : null,
-      freigabenOffen: darf(UEBERSICHT_RECHTE.freigaben) ? z.freigaben_offen : null,
-      projekteInArbeit: darf(UEBERSICHT_RECHTE.projekte) ? z.projekte_in_arbeit : null,
-      imEinsatz: darf(UEBERSICHT_RECHTE.einsatz) ? z.im_einsatz : null,
-      aufgabenOffen: darf(UEBERSICHT_RECHTE.aufgaben) ? z.aufgaben_offen : null,
+      auftraegeAktiv: darf('auftraege') ? z.auftraege_aktiv : null,
+      angeboteOffen: darf('angebote') ? z.angebote_offen : null,
+      leadsNeu: darf('leads') ? z.leads_neu : null,
+      objekte: darf('objekte') ? z.objekte : null,
+      beschaeftigte: darf('beschaeftigte') ? z.beschaeftigte : null,
+      fakturiertJahrCent: darf('fakturiert') ? cent(BigInt(z.fakturiert_jahr_cent)) : null,
+      forderungenOffenCent: darf('forderungen') ? cent(BigInt(z.forderungen_offen_cent)) : null,
+      freigabenOffen: darf('freigaben') ? z.freigaben_offen : null,
+      projekteInArbeit: darf('projekte') ? z.projekte_in_arbeit : null,
+      imEinsatz: darf('einsatz') ? z.im_einsatz : null,
+      aufgabenOffen: darf('aufgaben') ? z.aufgaben_offen : null,
     };
   });
 

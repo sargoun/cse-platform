@@ -6,6 +6,7 @@ import { Listenfilter } from '@/components/portal/Listenfilter';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KENNZAHL_TEXTE } from '@/lib/i18n/verwaltung/kennzahlen';
 import { auftragStatusAus } from '@/server/services/bericht/mengen';
+import { gruppenAuftraege } from '@/server/services/bericht/listen';
 import {
   bereichAus, BereichFilter, BereichMarke, GruppenAntwort, GruppenHinweis, GruppenRahmen,
   gruppenLesen, gruppenTor, ladeBereiche, LeereListe, mandantIdsFuer, type Suchparameter,
@@ -23,20 +24,6 @@ const ART: Readonly<Record<string, string>> = {
   dauerauftrag: 'Dauerauftrag', projekt: 'Projekt',
 };
 
-interface Zeile {
-  readonly id: string;
-  readonly slug: string;
-  readonly bereich_name: string;
-  readonly auftragsnummer: string;
-  readonly bezeichnung: string;
-  readonly kunde: string | null;
-  readonly objekt: string | null;
-  readonly art: string;
-  readonly status: string;
-  readonly wert: string | null;
-  readonly start: string | null;
-}
-
 export default async function GruppenAuftraege({ searchParams }: { searchParams: Suchparameter }) {
   const tor = await gruppenTor('/portal/gruppe/auftraege');
   if (tor.art !== 'ok') return <GruppenAntwort tor={tor} />;
@@ -53,21 +40,8 @@ export default async function GruppenAuftraege({ searchParams }: { searchParams:
   const { bereiche, aktiv, zeilen } = await gruppenLesen(tor.zugang, async (kontext) => {
     const bereiche = await ladeBereiche(kontext);
     const aktiv = await bereichAus(searchParams, bereiche);
-    const zeilen = await kontext.abfrage<Zeile>(
-      `select a.id, m.slug, m.name as bereich_name, a.auftragsnummer, a.bezeichnung,
-              k.name as kunde, o.bezeichnung as objekt, a.art::text as art, a.status::text as status,
-              a.auftragswert_netto_cent::text as wert,
-              to_char(a.start_datum, 'DD.MM.YYYY') as start
-         from auftrag a
-         join mandant m on m.id = a.mandant_id
-         left join kunde k on k.id = a.kunde_id
-         left join objekt o on o.id = a.objekt_id
-        where a.archiviert_am is null and a.mandant_id = any($1::uuid[])
-          and ($2::text is null or a.status::text = $2)
-        order by a.start_datum desc nulls last, m.sortierung, a.auftragsnummer
-        limit 500`,
-      [mandantIdsFuer(kontext, aktiv), status],
-    );
+    // Die Abfrage steht im Dienst (V-152) und wird dort gegen die Summe geprüft.
+    const zeilen = await gruppenAuftraege(kontext, mandantIdsFuer(kontext, aktiv), status);
     return { bereiche, aktiv, zeilen };
   });
 

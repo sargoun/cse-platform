@@ -19,6 +19,11 @@
  *      und ohne Recht steht `null`.
  *  (4) Die Übersicht eines Bereichs zeigt eine Kachel nur, wenn sich ihr Ziel
  *      öffnet — Buchung und Rechte aus der Datenbank (V-151, D-645).
+ *  (5) Die Listen hinter „Aktive Aufträge", „Offene Angebote", „Neue Anfragen"
+ *      und „Frist überschritten" — im Bereich und in der Gruppe, samt der
+ *      Summe „Aufträge aktiv" — zeigen genau die gezählten Zeilen (V-152,
+ *      D-646). Vorher stand ihre Abfrage in der Seite und war nur am
+ *      Quelltext geprüft.
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
@@ -32,6 +37,9 @@ import { listeProjekte } from '../../src/server/services/bau/lv.js';
 import { gruppeImEinsatz } from '../../src/server/services/gruppe/auslastung.js';
 import { gruppenUebersicht } from '../../src/server/services/gruppe/uebersicht.js';
 import { gruppenAufgaben } from '../../src/server/services/gruppe/aufgaben.js';
+import {
+  gruppenAngebote, gruppenAuftraege, gruppenLeads, listeAngebote, listeAuftraege, listeLeads,
+} from '../../src/server/services/bericht/listen.js';
 
 let f: Fixtur;
 let alle: readonly Kachel[] = [];
@@ -429,5 +437,170 @@ describe('(4) V-151 — eine Kachel erscheint nur, wenn sich ihr Ziel öffnet', 
       (k) => bereichsDashboard(k, kx('security', f.security)));
     expect(schluessel(ohne)).not.toContain('konflikte_offen');
     expect(schluessel(mit)).toContain('konflikte_offen');
+  });
+});
+
+describe('(5) V-152 — die Listen hinter den Zahlen, an echten Zeilen', () => {
+  async function auftrag(mandant: string, kundeId: string, status: string): Promise<void> {
+    await sql.unsafe(
+      `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, status, bezeichnung,
+                            verantwortlich_benutzer_id, start_datum)
+       values ($1, $2, $3, 'einzelauftrag', $4::auftrag_status, 'Unterhaltsreinigung', $5,
+               '2026-02-01')`,
+      [mandant, `AU-${zufall()}`, kundeId, status, verantwortlich]);
+  }
+  async function angebot(mandant: string, kundeId: string, status: string): Promise<void> {
+    await sql.unsafe(
+      `insert into angebot (mandant_id, kunde_id, titel, status)
+       values ($1, $2, 'Glasreinigung', $3::angebot_status)`, [mandant, kundeId, status]);
+  }
+  async function lead(mandant: string, status: string, fristVorbei: boolean): Promise<void> {
+    const [l] = await sql.unsafe<{ id: string }[]>(
+      `insert into lead (mandant_id, leadnummer, quelle, betreff, besitzer_benutzer_id,
+                         firma_name, status)
+       values ($1, $2, 'manuell', 'Treppenhaus', $3, 'Anfragende GmbH', $4::lead_status)
+       returning id`, [mandant, `L-${zufall()}`, verantwortlich, status]);
+    await sql.unsafe(
+      `update lead set sla_frist_am = now() + make_interval(hours => $2::int),
+                       erste_reaktion_am = null
+        where id = $1`, [l!.id, fristVorbei ? -2 : 24]);
+  }
+  const kx = (slug: string, id: string) => ({ mandantId: id, mandantSlug: slug, mandantIds: [id] });
+
+  it('im Bereich: Aufträge und Angebote ohne `crm.lesen` — Zahl = Liste, der Kunde fehlt nur', async () => {
+    const benutzer = await mitRechten(f.reinigung, ['auftrag.lesen', 'angebot.lesen']);
+    const k = await kunde(f.reinigung, 'Hausverwaltung Friedrichshain');
+    await auftrag(f.reinigung, k, 'aktiv');
+    await auftrag(f.reinigung, k, 'aktiv');
+    await auftrag(f.reinigung, k, 'angelegt');
+    await angebot(f.reinigung, k, 'entwurf');
+    await angebot(f.reinigung, k, 'in_pruefung');
+    await angebot(f.reinigung, k, 'zurueckgezogen');
+    // Dieselben Mengen in einer anderen Gesellschaft — sie zählen hier nicht.
+    const fremd = await kunde(f.security, 'Fremd');
+    await auftrag(f.security, fremd, 'aktiv');
+    await angebot(f.security, fremd, 'entwurf');
+
+    const r = await alsBereich(benutzer, f.reinigung, async (kontext) => ({
+      auftraegeWert: await kachelWert(kontext, kachel('auftraege_aktiv'), kx('reinigung', f.reinigung)),
+      auftraege: await listeAuftraege(kontext, 'aktiv'),
+      alleAuftraege: await listeAuftraege(kontext, null),
+      angeboteWert: await kachelWert(kontext, kachel('angebote_offen'), kx('reinigung', f.reinigung)),
+      angebote: await listeAngebote(kontext, 'offen'),
+      alleAngebote: await listeAngebote(kontext, null),
+    }));
+    expect(r.auftraegeWert).toBe(2);
+    expect(r.auftraege).toHaveLength(r.auftraegeWert);
+    expect(r.auftraege.every((z) => z.status === 'aktiv' && z.kunde === null)).toBe(true);
+    expect(r.alleAuftraege).toHaveLength(3);
+    expect(r.angeboteWert).toBe(2);
+    expect(r.angebote).toHaveLength(r.angeboteWert);
+    expect(r.angebote.map((z) => z.status).sort()).toEqual(['entwurf', 'in_pruefung']);
+    expect(r.alleAngebote).toHaveLength(3);
+  });
+
+  it('im Bereich: „Neue Anfragen" und „Frist überschritten" — dieselben Zeilen wie die Kacheln', async () => {
+    const benutzer = await mitRechten(f.reinigung, ['crm.lesen']);
+    await lead(f.reinigung, 'neu', true);
+    await lead(f.reinigung, 'neu', false);
+    await lead(f.reinigung, 'in_bearbeitung', true);
+    await lead(f.reinigung, 'gewonnen', false);
+    await lead(f.security, 'neu', true);
+
+    const r = await alsBereich(benutzer, f.reinigung, async (kontext) => ({
+      neuWert: await kachelWert(kontext, kachel('neue_leads'), kx('reinigung', f.reinigung)),
+      neu: await listeLeads(kontext, { status: 'neu', frist: null }),
+      fristWert: await kachelWert(kontext, kachel('leads_ueber_sla'), kx('reinigung', f.reinigung)),
+      frist: await listeLeads(kontext, { status: null, frist: 'ueberschritten' }),
+      alle: await listeLeads(kontext, { status: null, frist: null }),
+    }));
+    expect(r.neuWert).toBe(2);
+    expect(r.neu).toHaveLength(r.neuWert);
+    expect(r.neu.every((z) => z.status === 'neu')).toBe(true);
+    expect(r.fristWert).toBe(2);
+    expect(r.frist).toHaveLength(r.fristWert);
+    expect(r.frist.every((z) => z.frist_ueberschritten)).toBe(true);
+    expect(r.alle).toHaveLength(4);
+  });
+
+  it('in der Gruppe: Summe „Aufträge aktiv", „Angebote offen", „Neue Anfragen" = die Listen dahinter', async () => {
+    const chef = await konto('gruppe-listen', true);
+    const kr = await kunde(f.reinigung, 'Hausverwaltung Mitte');
+    const ks = await kunde(f.security, 'Eventhalle Treptow');
+    await auftrag(f.reinigung, kr, 'aktiv');
+    await auftrag(f.reinigung, kr, 'angelegt');
+    await auftrag(f.security, ks, 'aktiv');
+    await angebot(f.reinigung, kr, 'entwurf');
+    await angebot(f.reinigung, kr, 'zurueckgezogen');
+    await angebot(f.security, ks, 'in_pruefung');
+    await lead(f.reinigung, 'neu', false);
+    await lead(f.reinigung, 'angebot', false);
+    await lead(f.security, 'neu', true);
+
+    const r = await sql.begin((tx) =>
+      withGroupScope(tx as never, gruppe(chef), async (k) => ({
+        u: await gruppenUebersicht(k),
+        auftraege: await gruppenAuftraege(k, k.mandantIds, 'aktiv'),
+        alleAuftraege: await gruppenAuftraege(k, k.mandantIds, null),
+        angeboteReinigung: await gruppenAngebote(k, [f.reinigung], 'offen'),
+        angeboteAlle: await gruppenAngebote(k, k.mandantIds, 'offen'),
+        leadsReinigung: await gruppenLeads(k, [f.reinigung], { status: 'neu', frist: null }),
+        leadsFrist: await gruppenLeads(k, k.mandantIds, { status: null, frist: 'ueberschritten' }),
+      })));
+    const je = new Map(r.u.bereiche.map((b) => [b.slug, b]));
+    // Die Summenkachel oben: `/gruppe/auftraege?status=aktiv` zeigt genau ihre Zahl.
+    expect(r.u.summe.auftraegeAktiv).toBe(2);
+    expect(r.auftraege).toHaveLength(r.u.summe.auftraegeAktiv);
+    expect(r.alleAuftraege).toHaveLength(3);
+    // „Angebote offen" je Bereich und über alle.
+    expect(je.get('reinigung')?.angeboteOffen).toBe(1);
+    expect(r.angeboteReinigung).toHaveLength(1);
+    const angeboteSumme = r.u.bereiche.reduce((n, b) => n + (b.angeboteOffen ?? 0), 0);
+    expect(r.angeboteAlle).toHaveLength(angeboteSumme);
+    // „Neue Anfragen" → `/gruppe/leads?status=neu&bereich=reinigung`.
+    expect(je.get('reinigung')?.leadsNeu).toBe(1);
+    expect(r.leadsReinigung).toHaveLength(1);
+    expect(r.leadsReinigung[0]?.slug).toBe('reinigung');
+    expect(r.leadsFrist.map((z) => z.slug)).toEqual(['security']);
+  });
+});
+
+describe('(6) V-152 — „Forderungen offen" ist eine Zahl nur, wo sich die Liste öffnet', () => {
+  it('mit `gruppe.zahlung.lesen` allein ein Strich; mit `gruppe.buchhaltung.lesen` dazu die Zahl', async () => {
+    const leitung = await konto('gruppe-forderung');
+    const [r] = await sql.unsafe<{ id: string }[]>(
+      `select id from rolle where schluessel = 'leitung' and mandant_id is null`);
+    for (const m of [f.reinigung, f.security]) {
+      await sql.unsafe(
+        `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab)
+         values ($1, $2, $3, current_date - 1)`, [leitung, m, r!.id]);
+    }
+    /*
+     * `offener_posten` liest die Gruppe mit `gruppe.zahlung.lesen` (0121,
+     * `t_gruppe`) — in beiden Bereichen. `/gruppe/offene-posten` öffnet aber
+     * nur mit `gruppe.buchhaltung.lesen`, und das hält die Leitung nur in der
+     * Reinigung.
+     */
+    const gewaehre = async (recht: string, mandant: string): Promise<void> => {
+      await sql.unsafe(
+        `insert into rolle_berechtigung (rolle_id, berechtigung_id, gewaehrt, mandant_id)
+         select $1, b.id, true, $3 from berechtigung b where b.schluessel = $2
+         on conflict do nothing`, [r!.id, recht, mandant]);
+    };
+    await gewaehre('gruppe.zahlung.lesen', f.reinigung);
+    await gewaehre('gruppe.zahlung.lesen', f.security);
+    await gewaehre('gruppe.buchhaltung.lesen', f.reinigung);
+
+    const u = await sql.begin((tx) =>
+      withGroupScope(tx as never, gruppe(leitung), (k) => gruppenUebersicht(k)));
+    const je = new Map(u.bereiche.map((b) => [b.slug, b]));
+    expect(je.get('reinigung')?.forderungenOffenCent).toBe(0n);
+    // DAS war der Befund: hier stand eine Zahl, und ihr Verweis führte auf einen 404.
+    expect(je.get('security')?.forderungenOffenCent).toBeNull();
+    // Die Summe oben geht über genau den einen Bereich — und ist deshalb ein Verweis.
+    expect(u.summe.bereiche.forderungen).toBe(1);
+    // Ohne `gruppe.auftrag.lesen` irgendwo geht die Summe „Aufträge aktiv" über
+    // keinen Bereich — die Seite zeigt dann einen Strich ohne Verweis.
+    expect(u.summe.bereiche.auftraege).toBe(0);
   });
 });

@@ -14,7 +14,8 @@ import { haeltRechte } from '../../rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { Listenfilter } from '@/components/portal/Listenfilter';
-import { angebotFilterAus, angebotStaende } from '@/server/services/bericht/mengen';
+import { angebotFilterAus } from '@/server/services/bericht/mengen';
+import { listeAngebote, type BereichAngebotZeile } from '@/server/services/bericht/listen';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KENNZAHL_TEXTE } from '@/lib/i18n/verwaltung/kennzahlen';
 
@@ -37,17 +38,6 @@ const PILLE: Readonly<Record<string, PillZustand>> = {
   abgelaufen: 'Überfällig',
 };
 
-interface AngebotZeile {
-  readonly id: string;
-  readonly angebotsnummer: string | null;
-  readonly titel: string;
-  readonly kunde: string | null;
-  readonly status: string;
-  readonly netto_cent: string;
-  readonly gueltig_bis: string | null;
-  readonly hat_auftrag: boolean;
-}
-
 export default async function Angebotsliste(
   { params, searchParams }: {
     params: Promise<{ mandant: string }>;
@@ -61,7 +51,6 @@ export default async function Angebotsliste(
    * ein einzelner Stand geht ebenso. Ohne ihn zeigte die Liste alle Stände.
    */
   const filter = angebotFilterAus((await searchParams)['status']);
-  const staende = angebotStaende(filter);
   const zugang = await portalZugang(`/portal/${mandant}/angebote`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -74,18 +63,13 @@ export default async function Angebotsliste(
   const darf = await haeltRechte(sitzung, 'angebot.schreiben');
   const tk = nachSprache(KENNZAHL_TEXTE, zugang.sprache);
 
+  /*
+   * Die Abfrage steht im Dienst (`listeAngebote`, V-152) und wird dort an
+   * echten Zeilen gegen die Kachel „Offene Angebote" geprüft.
+   */
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, sitzung, async (kontext) => kontext.abfrage<AngebotZeile>(
-
-      `select a.id, a.angebotsnummer, a.titel, k.name as kunde, a.status::text as status,
-              a.netto_cent::text, to_char(a.gueltig_bis, 'DD.MM.YYYY') as gueltig_bis,
-              exists (select 1 from auftrag t where t.angebot_id = a.id) as hat_auftrag
-         from angebot a left join kunde k on k.id = a.kunde_id
-        where a.archiviert_am is null
-          and ($1::text[] is null or a.status::text = any($1::text[]))
-        order by a.erstellt_am desc`,
-      [staende],
-    ))) as Promise<readonly AngebotZeile[]>);
+    withTenant(tx, sitzung, (kontext) => listeAngebote(kontext, filter))) as
+    Promise<readonly BereichAngebotZeile[]>);
 
   return (
     <PortalRahmen

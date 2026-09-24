@@ -22,7 +22,8 @@
 import { registriereKachel, type Kachel, type KachelKontext }
   from '../../registry/kennzahlen.js';
 import {
-  ANGEBOT_OFFEN, AUFTRAG_AKTIV, PROJEKT_IN_ARBEIT, sqlWerte,
+  ANGEBOT_OFFEN, AUFTRAG_AKTIV, FRIST_UEBERSCHRITTEN, LEAD_NEU, PROJEKT_IN_ARBEIT,
+  fristUeberschrittenSql, sqlWerte,
 } from './mengen.js';
 import { OFFENE_ZUSTAENDE } from '../kern/aufgabe.js';
 
@@ -51,6 +52,10 @@ export function kennzahlPfad(
 
 export function registriereBerichtKacheln(): readonly Kachel[] {
   return [
+    /*
+     * **Mit dem Stand, den sie zählt** (V-152, DSH-04). Das Ziel war die
+     * ungefilterte Leadliste — alle Stände, die Zahl darauf nirgends.
+     */
     registriereKachel({
       schluessel: 'neue_leads',
       icon: 'crm',
@@ -60,12 +65,14 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
       ton: 'info',
       zaehlung:
         `select count(*)::int as wert from lead
-          where mandant_id = any($1) and status = 'neu' and archiviert_am is null`,
+          where mandant_id = any($1) and status = ${sqlWerte([LEAD_NEU])}
+            and archiviert_am is null`,
       zeilen:
         `select id, leadnummer, betreff, firma_name, sla_frist_am from lead
-          where mandant_id = any($1) and status = 'neu' and archiviert_am is null
+          where mandant_id = any($1) and status = ${sqlWerte([LEAD_NEU])}
+            and archiviert_am is null
           order by erstellt_am desc`,
-      ziel: (k) => kennzahlPfad(k, 'crm/leads', 'leads'),
+      ziel: (k) => kennzahlPfad(k, `crm/leads?status=${LEAD_NEU}`, `leads?status=${LEAD_NEU}`),
     }),
 
     registriereKachel({
@@ -76,18 +83,21 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
       recht: 'crm.lesen',
       // Rot, weil es eine gebrochene Zusage ist und nicht eine Information.
       ton: 'danger',
+      /*
+       * Das Prädikat steht in `mengen.ts` — die Leadliste filtert mit
+       * `?frist=ueberschritten` genau damit (V-152).
+       */
       zaehlung:
         `select count(*)::int as wert from lead
-          where mandant_id = any($1) and sla_frist_am is not null
-            and erste_reaktion_am is null and archiviert_am is null
-            and sla_frist_am < now()`,
+          where mandant_id = any($1) and archiviert_am is null
+            and ${fristUeberschrittenSql('')}`,
       zeilen:
         `select id, leadnummer, betreff, sla_frist_am, eskalationsstufe from lead
-          where mandant_id = any($1) and sla_frist_am is not null
-            and erste_reaktion_am is null and archiviert_am is null
-            and sla_frist_am < now()
+          where mandant_id = any($1) and archiviert_am is null
+            and ${fristUeberschrittenSql('')}
           order by sla_frist_am`,
-      ziel: (k) => kennzahlPfad(k, 'crm/leads', 'leads'),
+      ziel: (k) => kennzahlPfad(k, `crm/leads?frist=${FRIST_UEBERSCHRITTEN}`,
+        `leads?frist=${FRIST_UEBERSCHRITTEN}`),
     }),
 
     registriereKachel({

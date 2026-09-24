@@ -770,6 +770,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * Kachel, ihre Liste und die Gruppenübersicht teilen. Rein, ohne Datenbank.
    */
   { modul: 'bericht', pfad: 'bericht/mengen', schreibend: false },
+  /*
+   * Die Listen hinter den Kennzahlen, im Bereich und in der Gruppe (V-152):
+   * als Dienst, damit Zahl und Liste an echten Zeilen verglichen werden.
+   * Sie lesen nur.
+   */
+  { modul: 'bericht', pfad: 'bericht/listen', schreibend: false },
   /**
    * Nachweise und Qualifikationen (PR 31, SEC-02/03/04, LEG-04, EMP-08).
    *

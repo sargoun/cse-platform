@@ -15830,3 +15830,59 @@ dazukommt, statt dass die Übersicht die Stufe der Sitzung raten müsste.
 
 | Betrifft | DSH-03, DSH-04, AUT-06, D-377, D-644, V-150, V-151, `src/server/services/bericht/{dashboard,kacheln}.ts`, `src/server/registry/{kennzahlen,routen}.ts`, `src/app/portal/zugang.ts`, `src/app/portal/[mandant]/page.tsx`, `src/app/dev/dashboard/page.tsx`, `tests/kern/kennzahlen-erreichbar.test.ts`, `tests/isolation/kennzahlen-listen.test.ts` |
 |---|---|
+
+### D-646 · Die Gruppenübersicht: jede Zahl mit ihrem Filter, jede Liste als Dienst, jede Beschriftung in der Sprache der Sitzung (V-152)
+
+**Der Befund** (V-152, DSH-04, AUT-06, D-592; Nachprüfung von V-149/V-150):
+die Summenkachel „Aufträge aktiv“ oben auf `/portal/gruppe` führte weiter auf
+`/gruppe/auftraege` ohne `?status=aktiv` — die Liste zeigte alle nicht
+archivierten Aufträge, die Zahl zählte nur `aktiv`; `gruppe/auftraege`
+beschrieb diese Abweichung sogar selbst. „Neue Anfragen“ zählte `status =
+'neu'` und führte auf die ganze Pipeline; dasselbe im Bereich für die Kacheln
+„Neue Anfragen“ und „Frist überschritten“ (beide auf die ungefilterte
+Leadliste). Von den Spaltenköpfen der Übersicht waren nur die drei neuen
+übersetzt — im englischen Portal eine gemischte Tabelle. „Forderungen offen“
+zählte mit `gruppe.zahlung.lesen` und führte auf `/gruppe/offene-posten`, das
+`gruppe.buchhaltung.lesen` verlangt. Und die Listen hinter „Aktive Aufträge“,
+„Offene Angebote“ und „Angebote offen“ hatten ihre Abfrage in der Seite: ob
+sie dieselbe Menge zeigen wie die Zahl, prüfte nur ein Vergleich von
+Quelltext-Zeichenketten, einer davon an Leerzeichen gebunden.
+
+**Die Entscheidung.**
+
+1. **Die Ziele der Übersicht stehen im Dienst** (`UEBERSICHT_ZIELE`,
+   `SUMMEN_ZIELE`, `uebersichtZiel` in `services/gruppe/uebersicht.ts`), jedes
+   MIT dem Filter seiner Menge: `auftraege?status=aktiv`,
+   `leads?status=neu`, `angebote?status=offen`, `projekte?status=in_arbeit`.
+   Die Seite baut keine Adresse mehr selbst; ein Test misst jedes Ziel am
+   Manifest.
+2. **Eine Zelle ist eine Zahl, wo die Sitzung das Recht der Zahl UND das der
+   Liste dahinter hält** (`UEBERSICHT_ZIELRECHTE`, heute nur „Forderungen
+   offen“ → `gruppe.buchhaltung.lesen`). Sonst `null`, also ein Strich statt
+   eines Verweises auf einen 404 (AUT-06). Eine **Summe** geht über die
+   Bereiche mit Zahl; ist es keiner, steht ein Strich ohne Verweis — „0“ wäre
+   eine Aussage über das Recht.
+3. **Leadlisten filtern nach Stand und Frist** (`?status=` gegen `lead_status`,
+   `?frist=ueberschritten`), im Bereich wie in der Gruppe, mit der Zeile
+   „Gefiltert: … · Alle anzeigen“. Das Prädikat „Reaktionsfrist
+   überschritten“ steht EINMAL (`fristUeberschrittenSql`, `mengen.ts`); die
+   Kachel und beide Listen benutzen es.
+4. **Die Listen hinter den Zahlen sind ein Dienst** (`services/bericht/listen.ts`:
+   Aufträge, Angebote, Leads — im Bereich und in der Gruppe). Im Bereich steht
+   `mandant_id = app.aktiver_mandant()` in der Abfrage und nicht nur in der
+   Policy (Invariante 3). `tests/isolation/kennzahlen-listen.test.ts` (5)(6)
+   vergleicht Zahl und Liste an echten Zeilen, auch ohne Leserecht auf den
+   Kunden.
+5. **Die Übersicht spricht ganz die Sprache der Sitzung** — Titel, Summen,
+   alle Spaltenköpfe, Hinweis (`KENNZAHL_TEXTE`); ihre Zeile in der
+   Ausnahmeliste der Übersetzungswache ist gestrichen. Die übrigen
+   Gruppenlisten bleiben, wie sie sind: deutsch mit zweisprachiger
+   Filterzeile — dieselbe Lage wie jede Modulseite, deren Fließtexte nach
+   D-592 noch folgen.
+
+**Nicht Teil dieser Entscheidung:** eine eigene Gruppenliste für
+Wiedervorlagen. Die Kachel „Offene Wiedervorlagen“ führt in der Gruppe weiter
+auf die Leadliste; `lead_aktivitaet` hat keinen Gruppenleseweg (O-910).
+
+| Betrifft | DSH-01, DSH-04, AUT-06, D-592, D-643, D-644, V-149, V-150, V-152, `src/server/services/bericht/{listen,mengen,kacheln}.ts`, `src/server/services/gruppe/uebersicht.ts`, `src/app/portal/gruppe/{page,auftraege/page,angebote/page,leads/page}.tsx`, `src/app/portal/[mandant]/{auftraege/page,angebote/page,crm/leads/page}.tsx`, `src/lib/i18n/verwaltung/kennzahlen.ts`, `scripts/guards/uebersetzung-ausnahmen.ts`, `tests/kern/{kennzahlen-ziele,verweis-rechte}.test.ts`, `tests/isolation/kennzahlen-listen.test.ts`, `tests/e2e/gruppe.spec.ts` |
+|---|---|

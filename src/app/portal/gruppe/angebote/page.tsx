@@ -3,7 +3,8 @@ import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Listenfilter } from '@/components/portal/Listenfilter';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
-import { angebotFilterAus, angebotStaende } from '@/server/services/bericht/mengen';
+import { angebotFilterAus } from '@/server/services/bericht/mengen';
+import { gruppenAngebote } from '@/server/services/bericht/listen';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KENNZAHL_TEXTE } from '@/lib/i18n/verwaltung/kennzahlen';
 import {
@@ -31,18 +32,6 @@ const PILLE: Readonly<Record<string, PillZustand>> = {
   abgelehnt: 'Abgelehnt', zurueckgezogen: 'Archiviert', abgelaufen: 'Überfällig',
 };
 
-interface Zeile {
-  readonly id: string;
-  readonly slug: string;
-  readonly bereich_name: string;
-  readonly angebotsnummer: string | null;
-  readonly titel: string;
-  readonly kunde: string | null;
-  readonly status: string;
-  readonly netto_cent: string;
-  readonly gueltig_bis: string | null;
-}
-
 export default async function GruppenAngebote({ searchParams }: { searchParams: Suchparameter }) {
   const tor = await gruppenTor('/portal/gruppe/angebote');
   if (tor.art !== 'ok') return <GruppenAntwort tor={tor} />;
@@ -53,19 +42,8 @@ export default async function GruppenAngebote({ searchParams }: { searchParams: 
   const { bereiche, aktiv, zeilen } = await gruppenLesen(tor.zugang, async (kontext) => {
     const bereiche = await ladeBereiche(kontext);
     const aktiv = await bereichAus(Promise.resolve(suche), bereiche);
-    const zeilen = await kontext.abfrage<Zeile>(
-      `select a.id, m.slug, m.name as bereich_name, a.angebotsnummer, a.titel,
-              k.name as kunde, a.status::text as status, a.netto_cent::text as netto_cent,
-              to_char(a.gueltig_bis, 'DD.MM.YYYY') as gueltig_bis
-         from angebot a
-         join mandant m on m.id = a.mandant_id
-         left join kunde k on k.id = a.kunde_id
-        where a.archiviert_am is null and a.mandant_id = any($1::uuid[])
-          and ($2::text[] is null or a.status::text = any($2::text[]))
-        order by a.erstellt_am desc, m.sortierung
-        limit 500`,
-      [mandantIdsFuer(kontext, aktiv), angebotStaende(filter)],
-    );
+    // Die Abfrage steht im Dienst (V-152) und wird dort gegen die Zelle geprüft.
+    const zeilen = await gruppenAngebote(kontext, mandantIdsFuer(kontext, aktiv), filter);
     return { bereiche, aktiv, zeilen };
   });
 

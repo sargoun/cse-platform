@@ -21,6 +21,34 @@ export interface KennzahlTexte {
   readonly projektStatus: Readonly<Record<string, string>>;
   readonly angebotStatus: Readonly<Record<string, string>>;
   readonly angebotOffen: string;
+  /** Die Stände eines Leads (`lead_status`, 0017) — für den Filter der Leadlisten (V-152). */
+  readonly leadStatus: Readonly<Record<string, string>>;
+  readonly fristUeberschritten: string;
+
+  /*
+   * Die Gruppenübersicht, ganz (V-152). Nur drei neue Spalten waren übersetzt,
+   * die übrigen standen deutsch daneben — im englischen Portal eine gemischte
+   * Tabelle.
+   */
+  readonly gruppeTitel: string;
+  readonly gruppeJeGesellschaft: string;
+  readonly gruppeBeschriftung: string;
+  readonly gruppeAuftraege: string;
+  readonly gruppeAngebote: string;
+  readonly gruppeLeads: string;
+  readonly gruppeObjekte: string;
+  readonly gruppeBeschaeftigte: string;
+  readonly gruppeFakturiert: (jahr: number) => string;
+  readonly gruppeForderungen: string;
+  readonly gruppeFreigaben: string;
+  readonly summeFakturiert: (jahr: number) => string;
+  readonly summeForderungen: string;
+  readonly summeFreigaben: string;
+  /** „ · 2 von 4 Bereichen" — leer, wenn die Summe über alle geht. */
+  readonly anteil: (k: number, n: number) => string;
+  readonly gruppeHinweis: string;
+  readonly gruppeBereiche: string;
+  readonly bereichOeffnen: string;
 
   readonly gruppeProjekte: string;
   readonly gruppeImEinsatz: string;
@@ -95,6 +123,33 @@ export const KENNZAHL_TEXTE: Readonly<Record<InternSprache, KennzahlTexte>> = {
       abgelaufen: 'abgelaufen',
     },
     angebotOffen: 'offen — Entwurf, in Prüfung oder versendet',
+    leadStatus: {
+      neu: 'neu', in_bearbeitung: 'in Bearbeitung', angebot: 'Angebot',
+      gewonnen: 'gewonnen', verloren: 'verloren', kein_bedarf: 'kein Bedarf',
+    },
+    fristUeberschritten: 'Reaktionsfrist überschritten, noch keine Reaktion',
+
+    gruppeTitel: 'Gruppenübersicht',
+    gruppeJeGesellschaft: 'Je Gesellschaft',
+    gruppeBeschriftung: 'Kennzahlen je Gesellschaft',
+    gruppeAuftraege: 'Aufträge aktiv',
+    gruppeAngebote: 'Angebote offen',
+    gruppeLeads: 'Neue Anfragen',
+    gruppeObjekte: 'Objekte',
+    gruppeBeschaeftigte: 'Beschäftigte',
+    gruppeFakturiert: (jahr) => `Fakturiert ${String(jahr)}`,
+    gruppeForderungen: 'Forderungen offen',
+    gruppeFreigaben: 'Freigaben',
+    summeFakturiert: (jahr) => `Fakturiert ${String(jahr)} netto`,
+    summeForderungen: 'Offene Forderungen',
+    summeFreigaben: 'Wartende Freigaben',
+    anteil: (k, n) => ` · ${String(k)} von ${String(n)} Bereichen`,
+    gruppeHinweis:
+      'Ein Strich heißt: kein Leserecht in diesem Bereich — keine Null. Fakturiert zählt '
+      + 'festgeschriebene Rechnungen nach Rechnungsdatum, netto. Jede Zahl führt zur Liste '
+      + 'dahinter; gehandelt wird im Bereich.',
+    gruppeBereiche: 'Bereiche',
+    bereichOeffnen: 'Bereich öffnen',
 
     gruppeProjekte: 'Bauprojekte in Arbeit',
     gruppeImEinsatz: 'Im Einsatz',
@@ -176,6 +231,33 @@ export const KENNZAHL_TEXTE: Readonly<Record<InternSprache, KennzahlTexte>> = {
       abgelaufen: 'expired',
     },
     angebotOffen: 'open — draft, in review or sent',
+    leadStatus: {
+      neu: 'new', in_bearbeitung: 'in progress', angebot: 'offer',
+      gewonnen: 'won', verloren: 'lost', kein_bedarf: 'no need',
+    },
+    fristUeberschritten: 'response time exceeded, no response yet',
+
+    gruppeTitel: 'Group overview',
+    gruppeJeGesellschaft: 'By company',
+    gruppeBeschriftung: 'Key figures by company',
+    gruppeAuftraege: 'Active orders',
+    gruppeAngebote: 'Open offers',
+    gruppeLeads: 'New enquiries',
+    gruppeObjekte: 'Sites',
+    gruppeBeschaeftigte: 'Employees',
+    gruppeFakturiert: (jahr) => `Invoiced ${String(jahr)}`,
+    gruppeForderungen: 'Open receivables',
+    gruppeFreigaben: 'Approvals',
+    summeFakturiert: (jahr) => `Invoiced ${String(jahr)}, net`,
+    summeForderungen: 'Open receivables',
+    summeFreigaben: 'Pending approvals',
+    anteil: (k, n) => ` · ${String(k)} of ${String(n)} companies`,
+    gruppeHinweis:
+      'A dash means: no right to read in this company — not a zero. Invoiced counts finalised '
+      + 'invoices by invoice date, net. Every figure leads to the list behind it; actions happen '
+      + 'within the company area.',
+    gruppeBereiche: 'Companies',
+    bereichOeffnen: 'Open company area',
 
     gruppeProjekte: 'Construction projects in progress',
     gruppeImEinsatz: 'Working now',

@@ -15,6 +15,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '../../rechte';
 import { Listenfilter } from '@/components/portal/Listenfilter';
 import { auftragStatusAus } from '@/server/services/bericht/mengen';
+import { listeAuftraege, type AuftragZeile } from '@/server/services/bericht/listen';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KENNZAHL_TEXTE } from '@/lib/i18n/verwaltung/kennzahlen';
 
@@ -25,19 +26,6 @@ const PILLE: Readonly<Record<string, PillZustand>> = {
   angelegt: 'Geplant', aktiv: 'In Arbeit', pausiert: 'Wartet',
   abgeschlossen: 'Abgeschlossen', storniert: 'Abgelehnt',
 };
-
-interface Zeile {
-  readonly id: string;
-  readonly auftragsnummer: string;
-  readonly bezeichnung: string;
-  readonly kunde: string | null;
-  readonly objekt: string | null;
-  readonly art: string;
-  readonly status: string;
-  readonly wert: string | null;
-  readonly start: string;
-  readonly laufzeit_bis: string | null;
-}
 
 export default async function Auftragsliste(
   { params, searchParams }: {
@@ -70,21 +58,14 @@ export default async function Auftragsliste(
    */
   const darf = await haeltRechte(sitzung, 'auftrag.schreiben');
 
+  /*
+   * Die Abfrage steht im Dienst (`listeAuftraege`, V-152): dort prüft
+   * `tests/isolation/kennzahlen-listen.test.ts` an echten Zeilen, dass sie
+   * mit `?status=aktiv` genau die Zeilen der Kachel zeigt.
+   */
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, sitzung, async (kontext) => kontext.abfrage<Zeile>(
-      `select a.id, a.auftragsnummer, a.bezeichnung, k.name as kunde,
-              o.bezeichnung as objekt, a.art::text as art, a.status::text as status,
-              a.auftragswert_netto_cent::text as wert,
-              to_char(a.start_datum, 'DD.MM.YYYY') as start,
-              to_char(a.laufzeit_bis, 'DD.MM.YYYY') as laufzeit_bis
-         from auftrag a
-         left join kunde k on k.id = a.kunde_id
-         left join objekt o on o.id = a.objekt_id
-        where a.archiviert_am is null
-          and ($1::text is null or a.status::text = $1)
-        order by a.start_datum desc`,
-      [status],
-    ))) as Promise<readonly Zeile[]>);
+    withTenant(tx, sitzung, (kontext) => listeAuftraege(kontext, status))) as
+    Promise<readonly AuftragZeile[]>);
   const tk = nachSprache(KENNZAHL_TEXTE, zugang.sprache);
 
   return (
@@ -153,7 +134,7 @@ export default async function Auftragsliste(
                 ? <span className="text-text-subtle">offen</span>
                 : formatiereGeld(cent(BigInt(z.wert)))),
             },
-            { schluessel: 'start', kopf: 'Start', zelle: (z) => z.start },
+            { schluessel: 'start', kopf: 'Start', zelle: (z) => z.start ?? '—' },
             {
               schluessel: 'status', kopf: 'Status',
               zelle: (z) => <StatusPill zustand={PILLE[z.status] ?? 'Geplant'} />,

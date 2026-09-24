@@ -34,8 +34,34 @@ export const ANGEBOT_STATUS = [
 ] as const;
 export type AngebotStatus = (typeof ANGEBOT_STATUS)[number];
 
+/** `lead_status` (0017). */
+export const LEAD_STATUS = [
+  'neu', 'in_bearbeitung', 'angebot', 'gewonnen', 'verloren', 'kein_bedarf',
+] as const;
+export type LeadStatus = (typeof LEAD_STATUS)[number];
+
 /** Ein Angebot, über das noch nicht entschieden ist. */
 export const ANGEBOT_OFFEN: readonly AngebotStatus[] = ['entwurf', 'in_pruefung', 'versendet'];
+
+/**
+ * Der Stand, den „Neue Anfragen" zählt — die Kachel im Bereich und die Spalte
+ * der Gruppenübersicht (V-152). Beide führten auf die ungefilterte Liste.
+ */
+export const LEAD_NEU: LeadStatus = 'neu';
+
+/** `?frist=ueberschritten` — die Leads, die die Kachel „Frist überschritten" zählt. */
+export const FRIST_UEBERSCHRITTEN = 'ueberschritten';
+export type LeadFrist = typeof FRIST_UEBERSCHRITTEN;
+
+/**
+ * Das Prädikat „Reaktionsfrist überschritten" — für die Kachel und für die
+ * Liste, in der die Kachel ihre Zeilen zeigt (V-152). `alias` ist leer oder
+ * ein Tabellenkürzel mit Punkt (`l.`); nichts anderes kommt hinein.
+ */
+export function fristUeberschrittenSql(alias: '' | 'l.'): string {
+  return `${alias}sla_frist_am is not null and ${alias}erste_reaktion_am is null`
+    + ` and ${alias}sla_frist_am < now()`;
+}
 
 /** Der Stand, den die Kachel „Aktive Aufträge" zählt. */
 export const AUFTRAG_AKTIV: AuftragStatus = 'aktiv';
@@ -53,6 +79,16 @@ export function auftragStatusAus(roh: unknown): AuftragStatus | null {
 
 export function projektStatusAus(roh: unknown): ProjektStatus | null {
   return istAus(PROJEKT_STATUS, roh) ? roh : null;
+}
+
+/** Ein Suchparameter als Leadstand — gegen die Werteliste (V-152). */
+export function leadStatusAus(roh: unknown): LeadStatus | null {
+  return istAus(LEAD_STATUS, roh) ? roh : null;
+}
+
+/** `?frist=ueberschritten` — sonst kein Fristfilter. */
+export function leadFristAus(roh: unknown): LeadFrist | null {
+  return roh === FRIST_UEBERSCHRITTEN ? FRIST_UEBERSCHRITTEN : null;
 }
 
 /** `?status=offen` auf der Angebotsliste — die eine Sammelangabe, die es gibt. */
