@@ -1,12 +1,13 @@
 /**
  * **Der Bereichswechsel: Bereiche, Gewerke und Live-Zaehler** (TEN-06,
- * TEN-10, DESIGN §6, V-165, D-659, 0417).
+ * TEN-10, DESIGN §6, V-165, D-659, 0417; V-166, D-660, 0418).
  *
  * Gemessen am ECHTEN Seed, weil die Zusage eine ueber den Bestand ist: der
  * Zaehler im Umschalter ist dieselbe Zahl, die eine direkte Zaehlung ergibt —
- * und er erscheint nur, wo der Betrachter das Leserecht haelt. Eine Null fuer
- * einen Bereich ohne Recht waere eine Aussage ueber dessen Bestand; die
- * Funktion liefert dann gar keine Zeile.
+ * und er erscheint nur, wo der Betrachter das Leserecht haelt, in einer
+ * internen Sitzung ist und im Bereich selbst intern arbeitet (§5, §6). Eine
+ * Null fuer einen Bereich ohne Recht waere eine Aussage ueber dessen Bestand;
+ * die Funktion liefert dann gar keine Zeile.
  */
 import type postgres from 'postgres';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -362,6 +363,11 @@ describe('(5) ein Kundenkonto in zwei Gesellschaften sieht keine Zaehler', () =>
   });
 
   const kunde = (): Sitzung => sitzung(email, { portal: 'kunde', aal: 'aal1' });
+  /* Die Kundensicht selbst (Scope `kunde`, ohne aktiven Mandanten): dort ist app.portal() fest `kunde`. */
+  const kundensicht = (): Sitzung => ({
+    scope: 'kunde', mandantIds: [ids.get('reinigung')!, ids.get('bau')!],
+    benutzerId: konten.get(email)!, portal: 'kunde', readonly: false, aal: 'aal1',
+  });
 
   it('die Seite fragt fuer das Kundenportal keine Zaehler (zaehltFuer)', () => {
     expect(zaehltFuer({ portal: 'kunde', ansicht: 'mandant' })).toBe(false);
@@ -377,6 +383,7 @@ describe('(5) ein Kundenkonto in zwei Gesellschaften sieht keine Zaehler', () =>
 
   it('die zweite Linie: fragt ein Aufrufer trotzdem, liefert die Datenbank nichts (0418)', async () => {
     expect(await kennzahlen(kunde())).toEqual([]);
+    expect(await kennzahlen(kundensicht())).toEqual([]);
     const u = await stand(kunde(), { gruppe: true, zaehler: true });
     expect(u.bereiche.every((b) => b.zaehler === null)).toBe(true);
   });
@@ -396,19 +403,21 @@ describe('(5) ein Kundenkonto in zwei Gesellschaften sieht keine Zaehler', () =>
 });
 
 /**
- * **Das Portal zaehlt je Bereich, nicht je Sitzung** (0418).
+ * **Das Portal zaehlt je Bereich, nicht je Sitzung** (0418, D-660).
  *
  * Wer in einer Gesellschaft intern arbeitet und in einer anderen nicht, steht
  * mit einer internen Sitzung im Portal — der Umschalter fragt also Zaehler.
- * Fuer den zweiten Bereich zeigt ihm die RLS nur seine eigenen Vorgaenge; die
- * Zahl dort waere dieselbe Auskunft wie in §5. Die Anwendungswege verhindern
- * das Mischen von kunde und intern (0249, 0372); die Datenbank verlaesst sich
- * nicht darauf. Die Mischung aus intern und mitarbeiter ist dagegen der
- * Normalfall eines Menschen mit zwei Anstellungen (D-09).
+ * Fuer den zweiten Bereich zeigt ihm die RLS nach dem Wechsel nur seine
+ * eigenen Vorgaenge; die Zahl dort waere dieselbe Auskunft wie in §5. Die
+ * Anwendungswege verhindern das Mischen von kunde und intern (0249, 0372);
+ * die Datenbank verlaesst sich nicht darauf. Die Mischung aus intern und
+ * mitarbeiter ist dagegen der Normalfall eines Menschen mit zwei
+ * Anstellungen (D-09).
  */
 describe('(6) ein Bereich ohne interne Rolle bekommt keinen Zaehler', () => {
-  it('intern in der Reinigung, Kunde bei REALTIME: nur die Reinigung zaehlt', async () => {
-    const email = 'gemischt@test.invalid';
+  const email = 'gemischt@test.invalid';
+
+  beforeAll(async () => {
     const [u] = await sql<{ id: string }[]>`
       insert into auth.users (email) values (${email}) returning id`;
     await sql`insert into auth.mfa_factors (user_id) values (${u!.id})`;
@@ -422,7 +431,9 @@ describe('(6) ein Bereich ohne interne Rolle bekommt keinen Zaehler', () => {
                 (select id from rolle where schluessel = ${rolle} and mandant_id is null))`;
     }
     konten.set(email, u!.id);
+  });
 
+  it('intern in der Reinigung, Kunde bei REALTIME: nur die Reinigung zaehlt', async () => {
     const s = sitzung(email);
     const zeilen = await kennzahlen(s);
     expect(zeilen.map((z) => `${z.slug}:${z.schluessel}`)).toEqual(['reinigung:auftraege_aktiv']);
@@ -439,13 +450,79 @@ describe('(6) ein Bereich ohne interne Rolle bekommt keinen Zaehler', () => {
   });
 
   /**
-   * Eine Mitarbeiterin, der eine Gesellschaft `auftrag.lesen` fuer ihre Rolle
-   * gibt (Zuschnitt je Gesellschaft, AUT-03): das Recht bejaht
-   * `app.hat_recht`, das Portal bleibt `mitarbeiter`. Gezaehlt wird nicht.
-   * In einer zurueckgerollten Transaktion, damit der Zuschnitt keine andere
-   * Pruefung dieser Datei beruehrt.
+   * **Dieselbe Anmeldung als Kundensitzung: gar keine Zahl.** Steht dieses
+   * Konto in REALTIME, ist seine Sitzung eine Kundensitzung
+   * (`app.sitzung_aufloesen`, 0138). Die Reinigung waere nach dem Wechsel
+   * wieder intern — gezaehlt wird trotzdem nicht: Zaehler gehoeren den
+   * internen Leisten (D-659 Nr. 4), und die Datenbank sagt das selbst.
    */
-  it('eine Rolle im Mitarbeiterportal zaehlt auch mit Leserecht nicht', async () => {
+  it('dieselbe Anmeldung als Kundensitzung: gar keine Zahl, auch nicht fuer die Reinigung', async () => {
+    const s = sitzung(email, {
+      mandantId: ids.get('bau')!, mandantIds: [ids.get('bau')!], portal: 'kunde',
+    });
+    expect(await kennzahlen(s)).toEqual([]);
+    const u = await stand(s, { gruppe: true, zaehler: true });
+    expect(u.bereiche.every((b) => b.zaehler === null)).toBe(true);
+  });
+
+  /**
+   * **Das Portal im Bereich ist das des Wechsels — ohne Gueltigkeitsfenster.**
+   *
+   * `app.sitzung_aufloesen` (0138) nimmt die Rolle der NICHT ENTZOGENEN
+   * Mitgliedschaft, gleich ob ihr Fenster laeuft. Eine abgelaufene
+   * Kundenmitgliedschaft neben einer globalen internen Rolle macht die
+   * Sitzung nach dem Wechsel zu einer Kundensitzung, und die RLS zeigt dann
+   * nur die eigenen Vorgaenge. Haette die Zaehlung das Fenster beachtet,
+   * waere sie ueber die globale Rolle intern gewesen und haette den ganzen
+   * Bestand gezaehlt — genau die Auskunft aus §5.
+   */
+  it('eine abgelaufene Kundenmitgliedschaft neben der globalen Rolle: dort keine Zahl', async () => {
+    const adresse = 'global-mit-kunde@test.invalid';
+    const [u] = await sql<{ id: string }[]>`
+      insert into auth.users (email) values (${adresse}) returning id`;
+    await sql`insert into auth.mfa_factors (user_id) values (${u!.id})`;
+    await sql`
+      insert into benutzer (id, email, name, status, globale_rolle_id)
+      values (${u!.id}, ${adresse}, 'Global mit Kundenzeile', 'aktiv',
+              (select id from rolle where schluessel = 'super_admin' and mandant_id is null))`;
+    await sql`
+      insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab, gueltig_bis)
+      values (${u!.id}, ${ids.get('bau')!},
+              (select id from rolle where schluessel = 'kunde' and mandant_id is null),
+              '2020-01-01', '2020-12-31')`;
+    konten.set(adresse, u!.id);
+
+    const s = sitzung(adresse);
+    const zeilen = await kennzahlen(s);
+    expect([...new Set(zeilen.map((z) => z.slug))].sort())
+      .toEqual(['operations', 'reinigung', 'security']);
+    /* Der Umschalter bietet REALTIME an, und das Leserecht haelt die globale Rolle. */
+    expect((await stand(s)).bereiche.map((b) => b.slug)).toContain('bau');
+    const recht = await alsApp(s, async (tx) => (await tx.unsafe(
+      `select app.hat_recht('bau.lesen', $1::uuid) as ok`, [ids.get('bau')!],
+    )) as unknown as { ok: boolean }[]);
+    expect(recht[0]!.ok).toBe(true);
+
+    /* Die Probe auf den Wechsel selbst: dieselbe Anmeldung in REALTIME ist eine Kundensitzung. */
+    const hash = `${'a'.repeat(63)}1`;
+    await sql`
+      insert into benutzer_sitzung (benutzer_id, token_hash, aktiver_mandant_id, ansicht, aal,
+                                    ablauf_am)
+      values (${u!.id}, ${hash}, ${ids.get('bau')!}, 'mandant', 'aal2', now() + interval '1 hour')`;
+    const [aufgeloest] = await sql<{ portal: string }[]>`
+      select portal from app.sitzung_aufloesen(${hash})`;
+    expect(aufgeloest!.portal).toBe('kunde');
+  });
+
+  /**
+   * Eine Mitarbeiterrolle, der eine Gesellschaft `auftrag.lesen` gibt
+   * (Zuschnitt je Gesellschaft, AUT-03): das Recht bejaht `app.hat_recht`,
+   * das Portal im Bereich bleibt `mitarbeiter`. Gezaehlt wird dort nicht,
+   * auch aus einer internen Sitzung heraus. In einer zurueckgerollten
+   * Transaktion, damit Zuschnitt und Mitgliedschaft keine andere Pruefung
+   * dieser Datei beruehren.
+   */
+  it('eine Mitarbeiterrolle im Bereich zaehlt auch mit Leserecht nicht', async () => {
     class Zurueck extends Error {
       constructor(readonly ergebnis: { recht: boolean; zeilen: string }) { super('zurueck'); }
     }
@@ -457,20 +534,28 @@ describe('(6) ein Bereich ohne interne Rolle bekommt keinen Zaehler', () => {
            values ((select id from rolle where schluessel = 'mitarbeiter' and mandant_id is null),
                    (select id from berechtigung where schluessel = 'auftrag.lesen'),
                    $1::uuid, true)`, [ids.get('security')!]);
+        await tx.unsafe(
+          `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+           values ($1::uuid, $2::uuid,
+                   (select id from rolle where schluessel = 'mitarbeiter' and mandant_id is null))`,
+          [konten.get(email)!, ids.get('security')!]);
         await tx.unsafe(`set local role cse_app`);
         for (const [schluessel, wert] of [
-          ['app.scope', 'mandant'], ['app.mandant_id', ids.get('security')!],
-          ['app.mandant_ids', ids.get('security')!], ['app.person_id', ''],
-          ['app.benutzer_id', konten.get('fatima.yildiz@cse-gruppe.de')!],
-          ['app.readonly', 'on'], ['app.portal', 'mitarbeiter'], ['app.akteur_typ', 'mensch'],
-          ['app.aal', 'aal1'],
+          ['app.scope', 'mandant'], ['app.mandant_id', ids.get('reinigung')!],
+          ['app.mandant_ids', ids.get('reinigung')!], ['app.person_id', ''],
+          ['app.benutzer_id', konten.get(email)!],
+          ['app.readonly', 'on'], ['app.portal', 'intern'], ['app.akteur_typ', 'mensch'],
+          ['app.aal', 'aal2'],
         ] as const) {
           await tx.unsafe(`select set_config($1, $2, true)`, [schluessel, wert]);
         }
         const [r] = (await tx.unsafe(`select app.hat_recht('auftrag.lesen', $1::uuid) as ok`,
           [ids.get('security')!])) as unknown as { ok: boolean }[];
         const [z] = (await tx.unsafe(
-          `select coalesce(string_agg(schluessel, ','), '') as t from app.mandant_kennzahlen()`,
+          `select coalesce(string_agg(m.slug || ':' || k.schluessel, ',' order by m.slug), '') as t
+             from app.mandant_kennzahlen() k
+             join lateral (select slug from app.umschalter_bereiche() u
+                            where u.id = k.mandant_id) m on true`,
         )) as unknown as { t: string }[];
         throw new Zurueck({ recht: r!.ok, zeilen: z!.t });
       });
@@ -478,6 +563,6 @@ describe('(6) ein Bereich ohne interne Rolle bekommt keinen Zaehler', () => {
       if (!(fehler instanceof Zurueck)) throw fehler;
       ergebnis = fehler.ergebnis;
     }
-    expect(ergebnis).toEqual({ recht: true, zeilen: '' });
+    expect(ergebnis).toEqual({ recht: true, zeilen: 'reinigung:auftraege_aktiv' });
   });
 });

@@ -1625,6 +1625,11 @@ die rechtliche Fußzeile, die auf jedem Angebot und jeder Rechnung dieser Entit�
 > Leserecht des Betrachters je Bereich (`auftrag.lesen`, `bau.lesen`). Die Tabelle bleibt hier als
 > Entwurf stehen, falls die Zählung je einmal zu teuer wird; dann ändert sich nur der Körper der
 > Funktion, nicht ihr Vertrag.
+>
+> **Stand D-660 (V-166, `drizzle/0418`):** das Leserecht allein genügt nicht — `kunde` hält
+> `auftrag.lesen` plattformweit, und die Kundendecke der RLS sieht eine Definer-Zählung nicht.
+> Gezählt wird nur in einer internen Sitzung und je Bereich nur, wo das Portal nach einem Wechsel
+> dorthin intern wäre (wie `app.sitzung_aufloesen`). Ein Kundenkonto bekommt keine Zeile.
 
 Der Zählerstand je Bereich für das Switcher-Dropdown — „Reinigung · 24 Aufträge" —, als Cache
 berechnet, damit das Dropdown keine vier mandantenübergreifenden Aggregate pro Render auslöst.

@@ -16,8 +16,10 @@ import { istInterneLeiste, leisteFuer } from '../../registry/tableiste.js';
  *  2. Darf sie die Gruppenübersicht betreten? `app.darf_gruppenansicht()`
  *     (0018, 03-AUTH §4.5).
  *  3. Was zeigt jede Zeile als Live-Zähler? `app.mandant_kennzahlen()` (0417,
- *     0418) — nur Anzahlen, nur wo der Betrachter mit einer INTERNEN Rolle
- *     arbeitet und das Leserecht hält.
+ *     0418) — nur Anzahlen, nur in einer internen Sitzung, und je Bereich nur,
+ *     wo der Betrachter nach einem Wechsel dorthin INTERN arbeitete (das
+ *     Portal wie in `app.sitzung_aufloesen`) und das Leserecht hält. Nur dann
+ *     ist die Zahl dieselbe, die ihm die RLS dort zeigt.
  *
  * **Bei einem Bereich wird nur die erste gestellt.** Dann rendert niemand
  * einen Umschalter (DESIGN §6 Regel 1, D-43), und die Gruppenübersicht
@@ -43,8 +45,8 @@ export interface StandFragen {
   readonly gruppe: boolean;
   /**
    * Die Live-Zähler (`app.mandant_kennzahlen`). `true` nur für eine Sitzung,
-   * für die `zaehltFuer` ja sagt. Die Datenbank prüft danach noch einmal je
-   * Bereich (0418).
+   * für die `zaehltFuer` ja sagt. Die Datenbank prüft danach noch einmal —
+   * die Sitzung (internes Portal) und jeden Bereich (0418).
    */
   readonly zaehler: boolean;
 }

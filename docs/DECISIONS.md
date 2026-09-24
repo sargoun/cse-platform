@@ -17025,3 +17025,64 @@ Zählerquelle `app.mandant_kennzahlen` gab es nicht, und die Rechtefrage aus
 
 | Betrifft | TEN-05, TEN-06, TEN-07, TEN-08, TEN-09, TEN-10, DESIGN §6, DESIGN §8, D-43, D-377, D-658, O-355, V-165, „Carried over“ Nr. 2, `drizzle/0417`, `src/server/services/mandant/umschalter.ts`, `src/server/konto/sprache.ts`, `src/app/portal/{zugang,huellen-speicher}.ts`, `src/app/portal/konto/{konto.ts,[[...rest]]/page.tsx}`, `src/components/portal/{PortalRahmen,TabLeiste,BereichsUmschalter,BereichsWechsel,kopf-wechsel,typen}`, `src/app/auth/bereich/page.tsx`, `src/lib/i18n/verwaltung/bereichswechsel.ts`, `docs/architecture/02-datenmodell/01-KERN.md` §6.3, `docs/architecture/05-API-KARTE.md`, `tests/isolation/bereichswechsel.test.ts`, `tests/kern/bereichswechsel.test.ts`, `tests/e2e/{bereichswechsel,portal-ausgang}.spec.ts` |
 |---|---|
+
+### D-660 · Die Bereichszähler zählen nur, was der Betrachter dort selbst sähe — nie für ein Kundenkonto (V-166)
+
+**Der Befund** (V-166, Prüfung von V-165; TEN-10, 05-API-KARTE „A count is a
+real disclosure“): `/auth/bereich` fragte `umschalterStand` ohne Angabe, und
+„mit Zählern“ war die Vorgabe. Ein Kundenkonto mit Zugang in zwei
+Gesellschaften (0249 gibt einem bestehenden Kundenkonto eine zweite
+Mitgliedschaft) sah dort „Reinigung · 57 laufende Aufträge“: den Bestand der
+Gesellschaft über ALLE Kunden. `app.mandant_kennzahlen` (0417) fragte nur
+`app.hat_recht`, und die Rolle `kunde` hält `auftrag.lesen` und `bau.lesen`
+plattformweit (0008). Auf die eigenen Zeilen beschränkt sie allein die RLS
+(`p_kunde_decke` auf `auftrag`, `p_portal_decke` auf `projekt`), und die
+Definer-Zählung unter `cse_definer` sieht diese Decken nicht. D-659 Nr. 4
+(„nur für die internen Leisten“) stimmte damit für die Bereichswahl nicht.
+Der abgebrochene Nachbesserungsstand (WIP) rechnete das Portal je Bereich
+außerdem mit dem Gültigkeitsfenster der Mitgliedschaft und zählte deshalb
+für ein Konto mit globaler interner Rolle und abgelaufener Kundenzeile den
+ganzen Bestand — die Isolationsprüfung zeigt beides.
+
+**Die Entscheidung.**
+
+1. **Die Anwendung fragt Zähler nur für eine interne Sitzung.**
+   `umschalterStand` verlangt jetzt beide Angaben ausdrücklich
+   (`StandFragen { gruppe, zaehler }`); eine vergessene Angabe heißt nicht
+   mehr still „ja“, der Compiler lässt keinen Aufruf ohne sie durch. Tor und
+   Kontoseiten fragen Gruppe und Zähler für die internen Leisten, die
+   Bereichswahl fragt die Gruppe immer (ob eine Sitzung sie betreten darf,
+   sagt `app.darf_gruppenansicht`) und die Zähler nur, wenn `zaehltFuer` ja
+   sagt: internes Portal oder Gruppenansicht.
+2. **Die Datenbank sagt dasselbe noch einmal, für den Aufrufer, der es
+   vergisst** (0418). `app.mandant_kennzahlen` liefert nur, wenn
+   `app.portal() = 'intern'` ist — Kundenportal, Kundensicht und
+   Mitarbeiterportal bekommen keine Zeile.
+3. **Und je Bereich nur, wo der Betrachter nach einem Wechsel intern
+   arbeitete.** Das Portal im Bereich wird genau so bestimmt wie in
+   `app.sitzung_aufloesen` (0138): die Rolle der nicht entzogenen
+   Mitgliedschaft in DIESEM Bereich, sonst die globale Rolle, sonst
+   `mitarbeiter`. Bewusst OHNE Gültigkeitsfenster, weil der Wechsel keines
+   kennt: eine abgelaufene Kundenmitgliedschaft neben einer globalen
+   internen Rolle ergibt nach dem Wechsel eine Kundensitzung, und die RLS
+   zeigt dann nur die eigenen Vorgänge. Nur mit internem Portal UND
+   Leserecht ist die Zahl dieselbe, die die RLS dem Betrachter dort zeigt:
+   `p_kunde_decke` lässt ein internes Portal durch, `p_portal_decke` öffnet
+   ihm alle Projekte. Sonst gibt es für den Bereich keine Zeile, auch keine
+   Null.
+4. **Ein Kundenkonto sieht auf der Bereichswahl seine Bereiche, sonst
+   nichts** — keine Zahl, keinen Gruppeneintrag. Eine Zahl nur der EIGENEN
+   Aufträge wäre zulässig gewesen, ist aber nicht TEN-10: der Zähler gehört
+   dem Umschalter der internen Leisten (D-659 Nr. 4), und das Kundenportal
+   trägt keinen.
+5. **Die Spaltengrants für `cse_definer` beschränken heute nichts** — weder
+   die aus 0416 und 0417 noch die aus 0418. 0155 gibt `cse_definer` `select`
+   auf ganz `rolle`, `benutzer` und `benutzer_mandant`, 0191 `insert` und
+   `update` auf ganz `benutzer_mandant`. D-658 und D-659 sprachen von
+   „eigenen Spaltengrants“; sie nennen die gebrauchten Spalten und tragen
+   erst, wenn die Tabellengrants enger werden. Die Tabellengrants hier zu
+   verengen hieße, jede Definer-Funktion auf diesen drei Tabellen neu
+   durchzugehen — das ist nicht Teil dieser Behebung.
+
+| Betrifft | TEN-06, TEN-10, DESIGN §6, D-43, D-659, D-658, V-165, V-166, K-04, `drizzle/0418`, `src/server/services/mandant/umschalter.ts`, `src/app/auth/bereich/page.tsx`, `src/app/portal/zugang.ts`, `src/app/portal/konto/konto.ts`, `src/server/registry/dienste.ts`, `docs/architecture/05-API-KARTE.md`, `docs/architecture/02-datenmodell/01-KERN.md` §6.3, `docs/ROADMAP.md`, `tests/isolation/bereichswechsel.test.ts` §5–§6, `tests/kern/bereichswechsel.test.ts` §5 |
+|---|---|
