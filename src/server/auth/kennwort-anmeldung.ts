@@ -1,7 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import type { Route } from 'next';
-import type { Transaktion } from '../kontext/index.js';
+import { bindeHerkunft, type Transaktion } from '../kontext/index.js';
 import { neuerToken, tokenHash } from './sitzung.js';
 import {
   neuerWiederherstellungscode, neuesGeheimnis, otpauth, pruefe,
@@ -99,6 +99,13 @@ export async function meldeAnMitKennwort(
   userAgent: string | null,
 ): Promise<Anmeldung> {
   const token = neuerToken();
+  /*
+   * SEC-A9 (V-167, D-661): sperrt die Bremse das Konto, schreibt
+   * `app.versuch_protokollieren` `auth.konto_gesperrt` — ohne Sitzung, und
+   * `app.protokolliere` liest die Adresse aus `app.ip`. Dieselbe Adresse, die
+   * als `p_ip` in `anmeldeversuch` und `benutzer_sitzung` geht.
+   */
+  await bindeHerkunft(tx, ip);
   const zeilen = (await tx.unsafe(
     `select * from app.kennwort_anmelden($1, $2, $3, $4::inet, $5)`,
     [email, kennwort, tokenHash(token), ip, userAgent],
@@ -397,9 +404,15 @@ export interface Einloesung {
   readonly brauchtFaktor: boolean;
 }
 
+/**
+ * `ip` ist Pflicht (V-167, D-661): `app.kennwort_token_einloesen` schreibt
+ * `auth.kennwort_gesetzt`, und ohne Sitzung kennt das Protokoll die Adresse
+ * nur, wenn sie hier gebunden wird. `null` heisst ehrlich: keine bekannt.
+ */
 export async function loeseKennwortTokenEin(
-  tx: Transaktion, token: string, kennwort: string,
+  tx: Transaktion, token: string, kennwort: string, ip: string | null,
 ): Promise<Einloesung | null> {
+  await bindeHerkunft(tx, ip);
   const zeilen = (await tx.unsafe(
     `select o_benutzer_id as benutzer_id, o_braucht_faktor as braucht_faktor
        from app.kennwort_token_einloesen($1, $2)`,
@@ -428,11 +441,18 @@ export async function richteFaktorMitTokenEin(
   return { geheimnis, adresse: otpauth(geheimnis, konto) };
 }
 
-/** Prueft, bestaetigt, aktiviert und verbraucht den Token — oder nichts davon. */
+/**
+ * Prueft, bestaetigt, aktiviert und verbraucht den Token — oder nichts davon.
+ *
+ * `ip` ist Pflicht (V-167, D-661): `app.token_faktor_bestaetigen` schreibt
+ * `auth.zweiter_faktor_eingerichtet`, ohne Sitzung — die Adresse kommt nur
+ * ueber diese Bindung ins Protokoll.
+ */
 export async function bestaetigeFaktorMitToken(
-  tx: Transaktion, token: string, code: string,
+  tx: Transaktion, token: string, code: string, ip: string | null,
 ): Promise<string | null> {
-  const uhr = (await tx.unsafe(`select now() as jetzt`)) as readonly { jetzt: Date | string }[];
+  await bindeHerkunft(tx, ip);
+  const uhr =(await tx.unsafe(`select now() as jetzt`)) as readonly { jetzt: Date | string }[];
   const zeilen = (await tx.unsafe(
     `select id, geheimnis, letzter_schritt from app.token_faktor_geheimnis($1)`,
     [tokenHash(token)],

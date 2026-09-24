@@ -1,5 +1,6 @@
 /**
- * **Das Prüfprotokoll trägt IP und Agent** (SEC-A9, V-163, D-657, 0415).
+ * **Das Prüfprotokoll trägt IP und Agent** (SEC-A9, V-163, D-657, 0415;
+ * Wege ohne Sitzung: V-167, D-661).
  *
  * SEC-A9 verlangt je Eintrag Akteur (Mensch/Agent/System), Handlung,
  * vorher/nachher, Zeitpunkt und IP. `audit_log` hatte die Spalten seit 0003 —
@@ -15,8 +16,15 @@
 import type postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { schliessen, seed, sql, type Fixtur } from './harness.js';
-import { alsAgent, withTenant, type Sitzung } from '../../src/server/kontext/index.js';
+import {
+  alsAgent, withTenant, type Sitzung, type Transaktion,
+} from '../../src/server/kontext/index.js';
 import { fuehreLaufAus } from '../../src/server/agent/orchestrator.js';
+import {
+  bestaetigeFaktorMitToken, legeKennwortTokenAn, loeseKennwortTokenEin, meldeAnMitKennwort,
+  richteFaktorMitTokenEin,
+} from '../../src/server/auth/kennwort-anmeldung.js';
+import { codeFuer, schritt } from '../../src/lib/totp.js';
 
 let f: Fixtur;
 let benutzer = '';
@@ -226,5 +234,103 @@ describe('(2) was ein Agent schreibt, steht als Agent da', () => {
       expect(z.ip).toBe('192.0.2.44');
     }
     expect(waehrend.filter((w) => w.agent_id !== null && w.akteur_typ !== 'agent')).toEqual([]);
+  });
+});
+
+/**
+ * **Wege OHNE Sitzung tragen die Adresse auch** (V-167, D-661).
+ *
+ * Drei Zeilen entstehen, bevor es eine Sitzung gibt: die Sperre der Bremse
+ * (`auth.konto_gesperrt`, `app.versuch_protokollieren`), das Kennwort über
+ * einen Token (`auth.kennwort_gesetzt`) und der zweite Faktor einer Einladung
+ * (`auth.zweiter_faktor_eingerichtet`). Keiner geht durch `bindeSitzung`, und
+ * bis V-167 trugen sie deshalb `ip = NULL` — obwohl die Anfrage ihre Adresse
+ * hatte. Geprüft über die ECHTEN Dienste, in einer Transaktion ohne jede
+ * Bindung, genau wie die Seiten sie öffnen (`db().begin(...)`).
+ */
+describe('(3) Wege ohne Sitzung: Sperre, Kennwort und zweiter Faktor per Token', () => {
+  const zufall = (): string => Math.random().toString(36).slice(2, 10);
+
+  /** Eine Zeile zu genau diesem Konto — nicht irgendeine mit derselben Aktion. */
+  async function zeileZu(aktion: string, konto: string): Promise<Zeile> {
+    const [z] = await sql.unsafe<Zeile[]>(
+      `select akteur_typ::text as akteur_typ, akteur_id::text as akteur_id,
+              agent_id::text as agent_id, host(ip) as ip
+         from audit_log where aktion = $1 and objekt_id = $2 order by id desc limit 1`,
+      [aktion, konto]);
+    expect(z, `keine Protokollzeile ${aktion} fuer ${konto}`).toBeDefined();
+    return z!;
+  }
+
+  async function konto(opts: {
+    rolle: string; status: string; kennwort: string | null;
+  }): Promise<{ id: string; email: string }> {
+    const email = `herkunft-${zufall()}@test.invalid`;
+    const [u] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ($1) returning id`, [email]);
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status) values ($1, $2, 'Herkunft', $3)`,
+      [u!.id, email, opts.status]);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, ist_standard)
+       values ($1, $2, (select id from rolle where schluessel = $3 and mandant_id is null), true)`,
+      [u!.id, f.reinigung, opts.rolle]);
+    if (opts.kennwort !== null) {
+      await sql.unsafe(`select app.demo_kennwort_setzen($1::uuid, $2)`, [u!.id, opts.kennwort]);
+    }
+    return { id: u!.id, email };
+  }
+
+  /** Ohne Sitzungsbindung — der Ausweis ist das Kennwort oder der Token. */
+  async function ohneSitzung<T>(fn: (tx: Transaktion) => Promise<T>): Promise<T> {
+    return sql.begin(async (tx: postgres.TransactionSql) =>
+      fn(tx as unknown as Transaktion)) as Promise<T>;
+  }
+
+  it('die Sperre nach zehn Fehlversuchen traegt die Adresse des Versuchs', async () => {
+    const k = await konto({ rolle: 'leitung', status: 'aktiv', kennwort: 'ein-langes-kennwort-2026' });
+    for (let i = 0; i < 10; i += 1) {
+      await ohneSitzung((tx) => meldeAnMitKennwort(
+        tx, k.email, `daneben-${String(i)}`, '198.51.100.23', 'vitest'));
+    }
+    const z = await zeileZu('auth.konto_gesperrt', k.id);
+    expect(z.ip).toBe('198.51.100.23');
+    /* Wer hier handelt, ist nicht angemeldet: die Zeile behauptet keinen Menschen. */
+    expect(z.akteur_id).toBeNull();
+    expect(z.agent_id).toBeNull();
+  });
+
+  it('das Kennwort ueber den Token der Zuruecksetzung traegt sie', async () => {
+    const k = await konto({ rolle: 'leitung', status: 'aktiv', kennwort: 'ein-langes-kennwort-2026' });
+    const token = await ohneSitzung((tx) => legeKennwortTokenAn(tx, k.email, 'zuruecksetzen'));
+    const e = await ohneSitzung((tx) =>
+      loeseKennwortTokenEin(tx, token, 'ganz-neues-kennwort-2026', '2001:db8::23'));
+    expect(e?.benutzerId).toBe(k.id);
+    expect((await zeileZu('auth.kennwort_gesetzt', k.id)).ip).toBe('2001:db8::23');
+  });
+
+  it('Einladung mit Pflicht zum zweiten Faktor: Kennwort und Faktor tragen sie', async () => {
+    const k = await konto({ rolle: 'admin', status: 'eingeladen', kennwort: null });
+    const token = await ohneSitzung((tx) => legeKennwortTokenAn(tx, k.email, 'einladung'));
+    const e = await ohneSitzung((tx) =>
+      loeseKennwortTokenEin(tx, token, 'mein-eigenes-kennwort', '203.0.113.61'));
+    expect(e?.brauchtFaktor).toBe(true);
+    expect((await zeileZu('auth.kennwort_gesetzt', k.id)).ip).toBe('203.0.113.61');
+
+    const ein = await ohneSitzung((tx) => richteFaktorMitTokenEin(tx, token, k.email));
+    expect(ein).not.toBeNull();
+    const [jetzt] = await sql.unsafe<{ t: Date }[]>(`select now() as t`);
+    const code = codeFuer(ein!.geheimnis, schritt(new Date(jetzt!.t)));
+    expect(await ohneSitzung((tx) =>
+      bestaetigeFaktorMitToken(tx, token, code, '203.0.113.62'))).toBe(k.id);
+    expect((await zeileZu('auth.zweiter_faktor_eingerichtet', k.id)).ip).toBe('203.0.113.62');
+  });
+
+  it('ohne bekannte Adresse bleibt die Spalte leer — und nichts bricht ab', async () => {
+    const k = await konto({ rolle: 'leitung', status: 'aktiv', kennwort: 'ein-langes-kennwort-2026' });
+    const token = await ohneSitzung((tx) => legeKennwortTokenAn(tx, k.email, 'zuruecksetzen'));
+    expect(await ohneSitzung((tx) =>
+      loeseKennwortTokenEin(tx, token, 'ganz-neues-kennwort-2026', null))).not.toBeNull();
+    expect((await zeileZu('auth.kennwort_gesetzt', k.id)).ip).toBeNull();
   });
 });

@@ -16831,7 +16831,10 @@ und kein Weg setzte `akteur_typ = 'agent'`.
    `bindeSitzung` setzt `app.ip`. Damit tragen alle Wege sie, die über
    `withTenant`, `bindeAnfrage`, `bindePersoenlich`, `withGroupScope` oder
    `withPersonScope` binden. Ohne Anfrage (Hintergrundlauf, Test) bleibt die
-   Spalte leer statt erfunden.
+   Spalte leer statt erfunden. *(Berichtigt in D-661: drei Wege OHNE Sitzung
+   — Sperre der Bremse, Kennwort und zweiter Faktor per Token — blieben bis
+   V-167 trotz bekannter Adresse leer; sie binden sie jetzt mit
+   `bindeHerkunft`.)*
 2. **Ein kaputter Wert wird NULL, nicht ein Abbruch** (0415).
    `app.protokolliere` castet nur, was `pg_input_is_valid` für `inet` hält.
    Vorher hätte ein unbrauchbarer Wert in `app.ip` jede protokollierende
@@ -17085,4 +17088,63 @@ ganzen Bestand — die Isolationsprüfung zeigt beides.
    durchzugehen — das ist nicht Teil dieser Behebung.
 
 | Betrifft | TEN-06, TEN-10, DESIGN §6, D-43, D-659, D-658, V-165, V-166, K-04, `drizzle/0418`, `src/server/services/mandant/umschalter.ts`, `src/app/auth/bereich/page.tsx`, `src/app/portal/zugang.ts`, `src/app/portal/konto/konto.ts`, `src/server/registry/dienste.ts`, `docs/architecture/05-API-KARTE.md`, `docs/architecture/02-datenmodell/01-KERN.md` §6.3, `docs/ROADMAP.md`, `tests/isolation/bereichswechsel.test.ts` §5–§6, `tests/kern/bereichswechsel.test.ts` §5 |
+|---|---|
+
+### D-661 · Auch Wege ohne Sitzung tragen die Adresse der Anfrage ins Prüfprotokoll (V-167)
+
+**Der Befund** (V-167, Prüfung von V-163; SEC-A9): D-657 Nr. 1 sagte, ohne
+IP blieben nur Läufe ohne Anfrage. Drei Wege MIT Anfrage schrieben aber ohne
+Sitzungsbindung ins Protokoll und trugen `ip = NULL`, obwohl die Adresse
+bekannt war: `auth.konto_gesperrt` aus der Bremse
+(`app.versuch_protokollieren`, 0379 — dort liegt sie sogar als `p_ip` vor),
+`auth.kennwort_gesetzt` aus `app.kennwort_token_einloesen` (Einladung und
+Zurücksetzung, 0155) und `auth.zweiter_faktor_eingerichtet` aus
+`app.token_faktor_bestaetigen` (Einladung einer Rolle mit Pflicht zum
+zweiten Faktor, 0155). `app.protokolliere` liest die Adresse aus `app.ip`
+(0415), und das setzte nur `bindeSitzung`. Außerdem behauptete
+`server/auth/adresse.ts`, der Proxy hänge die Adresse des Geräts VORN an
+`x-forwarded-for` an — ein gewöhnlicher Reverse-Proxy hängt hinten an.
+
+**Die Entscheidung.**
+
+1. **Eine Herkunftsbindung für Wege ohne Sitzung.** `bindeHerkunft`
+   (`server/kontext`) setzt NUR `app.ip`, transaktionslokal. Kein Konto,
+   kein Portal, keine Rolle: wer hier handelt, ist noch nicht angemeldet,
+   und eine Bindung, die mehr behauptete, wäre eine erfundene Sitzung.
+2. **Die drei Dienste binden selbst, und die Adresse ist Pflicht.**
+   `meldeAnMitKennwort` (hatte sie schon), `loeseKennwortTokenEin` und
+   `bestaetigeFaktorMitToken` nehmen `ip: string | null` als Pflichtangabe —
+   eine Seite, die sie vergisst, übersetzt nicht. `null` heißt ehrlich:
+   keine Adresse bekannt, die Spalte bleibt leer.
+3. **Die Adresse kommt aus derselben Regel wie bei einer Sitzung**
+   (`anfrageAdresse`) — auf `/auth/passwort-neu` und auf dem Token-Weg von
+   `/auth/zwei-faktor/einrichten`. Die Anmeldung behält `herkunft()`:
+   dieselbe Adresse steht dort in `anmeldeversuch.ip` und
+   `benutzer_sitzung.ip`, und eine zweite Lesart ergäbe zwei Adressen für
+   denselben Versuch.
+4. **In der Anwendung und nicht in `app.versuch_protokollieren`.** Die
+   Funktion kennt `p_ip`, aber `app.protokolliere` liest die Adresse aus der
+   Bindung. Sie müsste `app.ip` für ihre eine Zeile umsetzen und
+   zurückstellen, und sie ist eine Altlast unter `postgres` (D-300), die
+   dafür neu ersetzt würde. Ein Mechanismus für alle drei Wege, so wie
+   `bindeSitzung` für alle übrigen; ihr einziger Aufrufer ist
+   `app.kennwort_anmelden` aus `meldeAnMitKennwort`.
+5. **Der Akteur dieser Zeilen bleibt, wie er war:** `system`, ohne Konto.
+   Wer den Token hält oder das Kennwort tippt, ist nicht angemeldet; das
+   betroffene Konto steht in `objekt_id`.
+6. **Die Adresse ist die des Geräts nur, weil der Proxy den Kopf SETZT.**
+   Vercel (Stack, EINRICHTEN) überschreibt `x-forwarded-for` mit der Adresse
+   der Verbindung; was der Browser mitschickt, kommt nicht durch. Ein Proxy,
+   der anhängt (nginx `$proxy_add_x_forwarded_for`), machte den ersten
+   Eintrag frei wählbar — im Protokoll, an der Bremse, am Einmalcode, an der
+   Freigabe, am Check-in. Wer die Plattform je hinter einem eigenen Proxy
+   betreibt, lässt ihn den Kopf ersetzen (nginx:
+   `proxy_set_header X-Forwarded-For $remote_addr;`). Die Lesart selbst
+   bleibt: alle Stellen lesen den ersten Eintrag, und eine Stelle, die
+   anders läse, gäbe eine zweite Antwort auf dieselbe Frage.
+7. **D-657 Nr. 1 gilt damit wörtlich:** ohne IP bleiben nur Läufe ohne
+   Anfrage (Hintergrund, Test). O-92 (wie lange die IP stehen darf) bleibt
+   offen und gilt für diese Zeilen genauso.
+
+| Betrifft | SEC-A9, AUT-01, AUT-02, AUT-07, D-300, D-657, O-92, V-163, V-167, `src/server/kontext/index.ts`, `src/server/auth/kennwort-anmeldung.ts`, `src/server/auth/adresse.ts`, `src/app/auth/passwort-neu/page.tsx`, `src/app/auth/zwei-faktor/einrichten/page.tsx`, `tests/isolation/pruefprotokoll-ip-agent.test.ts` §3, `tests/isolation/anmeldung-kennwort.test.ts` |
 |---|---|

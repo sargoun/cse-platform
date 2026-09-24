@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type postgres from 'postgres';
 import { Button } from '@/components/ui/Button';
@@ -6,6 +7,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import {
   KENNWORT_MIN, kennwortFehler, leseKennwortToken, loeseKennwortTokenEin,
 } from '@/server/auth/kennwort-anmeldung';
+import { anfrageAdresse } from '@/server/auth/adresse';
 import { db } from '@/server/db/pool';
 import { AuthFehler, AuthSchale } from '../AuthSchale';
 import { eigenerEintrag } from '@/lib/nachschlagen';
@@ -74,8 +76,10 @@ export default async function PasswortNeu({ searchParams }: {
     if (eins !== zwei) zurueck('ungleich');
     if (kennwortFehler(eins) !== null) zurueck('schwach');
 
+    /* SEC-A9 (V-167): die Adresse fuer `auth.kennwort_gesetzt` — ohne Sitzung. */
+    const ip = anfrageAdresse(await headers());
     const ergebnis = await (db().begin(async (tx: postgres.TransactionSql) =>
-      loeseKennwortTokenEin(tx, t, eins)) as ReturnType<typeof loeseKennwortTokenEin>);
+      loeseKennwortTokenEin(tx, t, eins, ip)) as ReturnType<typeof loeseKennwortTokenEin>);
     if (ergebnis === null) zurueck('abgelaufen');
 
     /**

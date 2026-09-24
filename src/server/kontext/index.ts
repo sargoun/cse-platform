@@ -106,6 +106,26 @@ export async function bindeAnfrage(tx: Transaktion, sitzung: Sitzung): Promise<v
 }
 
 /**
+ * **Die Herkunft einer Anfrage OHNE Sitzung** — nur `app.ip` (SEC-A9, V-167,
+ * D-661).
+ *
+ * Drei Wege schreiben ins Prüfprotokoll, bevor es eine Sitzung gibt: die
+ * Anmeldung (`auth.konto_gesperrt` aus der Bremse), das Kennwort über einen
+ * Token (`auth.kennwort_gesetzt`) und der zweite Faktor einer Einladung
+ * (`auth.zweiter_faktor_eingerichtet`). Keiner geht durch `bindeSitzung` —
+ * es gibt niemanden zu binden —, und bis V-167 trugen ihre Zeilen deshalb
+ * `ip = NULL`, obwohl die Adresse der Anfrage bekannt war.
+ *
+ * Gesetzt wird NUR die Adresse, transaktionslokal. Kein Konto, kein Portal,
+ * keine Rolle: wer hier handelt, ist noch nicht angemeldet, und eine
+ * Bindung, die mehr behauptete, wäre eine erfundene Sitzung. `null` setzt
+ * den leeren Wert — `app.protokolliere` (0415) schreibt dann ehrlich NULL.
+ */
+export async function bindeHerkunft(tx: Transaktion, ip: string | null): Promise<void> {
+  await tx.unsafe(`select set_config('app.ip', $1, true)`, [ip ?? '']);
+}
+
+/**
  * Dieselbe Bindung, aber SCHREIBEND — fuer das, was einem Menschen gehoert
  * und keiner Gesellschaft.
  *
