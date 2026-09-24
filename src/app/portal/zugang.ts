@@ -10,7 +10,7 @@ import {
   GRUPPEN_NAVIGATION, KUNDEN_NAVIGATION, NAVIGATION,
 } from '@/server/registry/navigation';
 import { modulAktiv, type Modulbuchung } from '@/server/registry/modul';
-import { familie, findeRoute } from '@/server/registry/routen';
+import { familie, findeRoute, routeGesperrt } from '@/server/registry/routen';
 import { istInterneLeiste, leisteFuer, tableiste, type LeistenSchluessel }
   from '@/server/registry/tableiste';
 import { umschalterStand, type UmschalterStand } from '@/server/services/mandant/umschalter';
@@ -454,10 +454,11 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     const rueckwegErlaubt = rueckweg !== null
       && rueckwegRechte(rueckweg.muster).every((r) => gehalten.has(r) && frei(r));
 
-    const route = findeRoute(pfad);
-    const bewachung = route?.bewachung;
-    const modulGesperrt = bewachung !== undefined && bewachung.art === 'recht'
-      && [...bewachung.lesen, ...bewachung.schreiben].some((r) => !modulAktiv(buchung, r));
+    /*
+     * Dieselbe Funktion fragt die Übersicht, bevor sie eine Kachel zeigt
+     * (V-151, D-645) — eine Regel an zwei Stellen liefe auseinander.
+     */
+    const modulGesperrt = routeGesperrt(findeRoute(pfad), buchung);
     return {
       entscheidung, rolle, mandanten, sichtbareTabs, navigationsRechte,
       mandantSlug: m?.slug ?? null, modulGesperrt, sprache, wechselZiel: null,

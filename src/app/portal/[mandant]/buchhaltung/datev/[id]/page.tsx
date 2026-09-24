@@ -14,6 +14,7 @@ import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/buchhaltung/datev/[id]` — ein Stapel, seine Datei und
@@ -247,7 +248,7 @@ export default async function DatevStapel(
           className="mb-s7 rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-warning"
         >
           <strong>Nichts wurde vermerkt.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </section>
       )}
 

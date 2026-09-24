@@ -8,6 +8,9 @@ import { kennungOder404 } from '../../../../../kennung';
 import { RecruitingSeite, leseImMandanten } from '../../../rahmen';
 import { KNOPF } from '../../../felder';
 import { berlinZeit } from '../../../marken';
+import {
+  grundAus, RecruitingRueckmeldung, VeroeffentlichtHinweis,
+} from '../../../rueckmeldung';
 
 /**
  * `/portal/[mandant]/recruiting/stellen/[id]/veroeffentlichung` — wohin eine
@@ -29,10 +32,21 @@ import { berlinZeit } from '../../../marken';
 export const dynamic = 'force-dynamic';
 
 export default async function Veroeffentlichung(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
+  /*
+   * V-148: beide Ausgänge der Route kommen HIER an — die Abweisung als
+   * `?fehler=` (auch „nicht verbunden", der ehrliche Normalfall jeder Börse)
+   * und der Erfolg als `?gesendet=1`. Die Seite las keinen von beiden.
+   */
+  const suche = await searchParams;
+  const grund = grundAus(suche);
+  const gesendet = suche['gesendet'] === '1';
   return (
     /*
      * **`unterpfad` ist hier die eigene Seite, nicht „stellen".**
@@ -73,6 +87,10 @@ export default async function Veroeffentlichung(
               </Link>
             </div>
             <p className="mb-s5 max-w-prose text-sm text-text-muted">{s.titel}</p>
+
+            <RecruitingRueckmeldung sprache={zugang.sprache} seite="veroeffentlichung"
+                                    grund={grund} />
+            <VeroeffentlichtHinweis sprache={zugang.sprache} gesendet={gesendet && grund === null} />
 
             <h2 className="mb-s3 text-h3 text-text">Karriereseite dieser Plattform</h2>
             <div className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5">

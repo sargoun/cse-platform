@@ -530,6 +530,15 @@ export const ROUTEN: readonly RouteEintrag[] = [
      * Grund — beide Verlustzustaende, `verloren` wie `kein_bedarf`: eine
      * Pipeline, in der die Haelfte der Verluste „ohne Grund" heisst,
      * beantwortet keine einzige Frage.
+     *
+     * V-138/V-139 (CRM-05, CRM-07): dazu den Kunden der Anfrage setzen und
+     * einen Radartreffer als Lead uebernehmen. Die Bekanntmachung liest der
+     * Dienst unter `radar.lesen` (RLS); ohne das Recht ist sie „nicht
+     * gefunden".
+     *
+     * V-141 (D-635): den Ansprechpartner der Anfrage waehlen oder anlegen —
+     * derselbe Datenbestand, dasselbe Recht. Seine Rechtsgrundlage setzt
+     * dieser Weg nie; sie hat ihr eigenes Recht und ihren eigenen Weg.
      */
     pfad: 'api/crm/lead',
     recht: 'crm.schreiben',
@@ -614,6 +623,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
      * Rueckmeldung, was NICHT entstand (O-663).
      */
     pfad: 'api/crm/wiedervorlage',
+    recht: 'crm.schreiben',
+  },
+  {
+    /*
+     * CRM-03, V-147. Eine Notiz, einen Anruf, eine E-Mail oder einen Termin
+     * am Kunden oder am Ansprechpartner festhalten. Ausgehendes geht durch
+     * das UWG-Tor der Datenbank (0020) — hier steht nur das Recht, zu
+     * schreiben.
+     */
+    pfad: 'api/crm/notiz',
     recht: 'crm.schreiben',
   },
   {
@@ -874,12 +893,14 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
-     * Die Felder und die Kundenfreigabe EINER Referenz (§5.21, PRO-05).
+     * Eine Referenz ANLEGEN (V-154), ihre Felder und ihre Kundenfreigabe
+     * (§5.21, PRO-05).
      *
      * `referenz.schreiben` steht hier; die Policy `t_referenz_pflege` verlangt
      * in ihrer `with check` zusaetzlich `referenz.kundenfreigabe_erfassen`, und
-     * zwar fuer JEDEN Schreibvorgang auf dieser Tabelle. Das zweite prueft der
-     * DIENST vor jedem `update` und weist es mit einem Satz ab — eine
+     * zwar fuer JEDEN Schreibvorgang auf dieser Tabelle — das `insert` der
+     * Anlage eingeschlossen. Das zweite prueft der
+     * DIENST vor jedem Schreiben und weist es mit einem Satz ab — eine
      * `with check` wirft, sie filtert nicht, und ein 500 waere die falsche
      * Auskunft fuer eine Handlung, die jemand einfach nicht darf.
      *

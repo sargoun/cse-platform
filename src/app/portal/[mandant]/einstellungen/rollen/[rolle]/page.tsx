@@ -11,6 +11,7 @@ import { zelleBindbar } from '@/server/services/system/rollenrecht';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '../../../../rechte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/einstellungen/rollen/[rolle]` — die Matrix einer Rolle
@@ -189,7 +190,7 @@ export default async function Rollenblatt(
       {fehler !== null ? (
         <Hinweis art="warnung" cse="rollenrecht-fehler" className="mb-s5 max-w-prose">
           <strong>Nicht gespeichert.</strong>{' '}
-          {FEHLER_TEXT[fehler] ?? 'Die Änderung wurde abgewiesen.'}
+          {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Änderung wurde abgewiesen.'}
         </Hinweis>
       ) : null}
       {gesetzt !== null ? (

@@ -269,8 +269,15 @@ export interface NeueBewerbung {
   readonly nachricht?: string | null;
 }
 
-/** Die E-Mail-Form, die auch die Datenbank verlangt (`bewerbung_email_form`). */
-const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/u;
+/**
+ * Die E-Mail-Form, die auch die Datenbank verlangt (`bewerbung_email_form`).
+ *
+ * Exportiert, weil das Formular dieselbe Regel als `pattern` trägt (V-158):
+ * `type="email"` allein lässt `name@firma` durch, diese Regel nicht — und
+ * eine Abweisung NACH dem Absenden kostet die Bewerberin ihre Nachricht.
+ */
+export const BEWERBUNG_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/u;
+const EMAIL = BEWERBUNG_EMAIL;
 
 /**
  * Die Annahme vom Karriereformular (REC-03).

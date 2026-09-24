@@ -15,6 +15,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../../kennung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/objekte/[id]/raumbuch/neu` — ein einzelner Raum
@@ -115,7 +116,7 @@ export default async function NeuerRaum(
 
       {fehler !== null ? (
         <Hinweis art="warnung" cse="raum-neu-fehler" className="mb-s5 max-w-prose">
-          {t.fehler[fehler] ?? fehler}
+          {eigenerEintrag(t.fehler, fehler) ?? fehler}
         </Hinweis>
       ) : null}
 

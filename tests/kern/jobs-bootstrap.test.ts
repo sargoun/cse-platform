@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe('der Bootstrap verdrahtet ALLE Jobs', () => {
-  it('registriert die fünfundzwanzig Jobs, die es gibt', () => {
+  it('registriert die sechsundzwanzig Jobs, die es gibt', () => {
     const schluessel = alleJobs(db).map((j) => j.schluessel).sort();
     expect(schluessel).toEqual([
       'akquise_recherche',
@@ -85,6 +85,12 @@ describe('der Bootstrap verdrahtet ALLE Jobs', () => {
        */
       'stundenkonto_abgleich',
       'urlaubskonten_jahr',
+      /*
+       * `wiedervorlage_erinnerung` kam mit V-146 dazu: das Formular nahm eine
+       * Erinnerung entgegen, `erinnerung_am` stand in der Tabelle — und kein
+       * Lauf las sie (CRM-04, D-640).
+       */
+      'wiedervorlage_erinnerung',
     ]);
   });
 

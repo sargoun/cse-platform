@@ -15,6 +15,7 @@
  */
 import { ROUTEN } from './routen.generiert.js';
 import type { RoutenEintrag, Scope } from '../../../scripts/seitenkarte/extrahiere.js';
+import { modulAktiv, type Modulbuchung } from './modul.js';
 
 export { ROUTEN };
 export type { RoutenEintrag, Scope };
@@ -132,4 +133,26 @@ export function routenMitScope(scope: Scope): readonly RoutenEintrag[] {
  */
 export function leserechte(r: RoutenEintrag): readonly string[] {
   return r.bewachung.art === 'recht' ? r.bewachung.lesen : [];
+}
+
+/**
+ * Ist diese Route in einer Gesellschaft mit dieser Buchung gesperrt (D-377)?
+ *
+ * **Eine Antwort für zwei Fragesteller.** Die Portal-Pforte
+ * (`app/portal/zugang.ts`) beantwortet eine gesperrte Route mit 404; die
+ * Übersicht fragt dasselbe VOR dem Verweis, damit keine Kachel auf diesen
+ * 404 zeigt (V-151, D-645). Stand die Regel zweimal, lief sie auseinander:
+ * die Kachel „Bauprojekte in Arbeit" erschien in der Reinigung und führte
+ * auf eine Seite, die es dort nicht gibt.
+ *
+ * Lese- UND Schreibrechte, `some` und nicht `every` — die Begründung steht an
+ * der Pforte: ein einziges nicht gebuchtes Modul macht die Seite
+ * unerreichbar. Eine Route ohne Rechtebewachung sperrt keine Buchung.
+ */
+export function routeGesperrt(
+  route: RoutenEintrag | undefined, buchung: Modulbuchung,
+): boolean {
+  const b = route?.bewachung;
+  return b !== undefined && b.art === 'recht'
+    && [...b.lesen, ...b.schreiben].some((r) => !modulAktiv(buchung, r));
 }

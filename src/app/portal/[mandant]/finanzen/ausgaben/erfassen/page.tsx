@@ -15,6 +15,7 @@ import {
   kassen, kategorien, steuergruppen,
   type KasseZeile, type Kategorie, type Steuergruppe,
 } from '@/server/services/finanz/ausgabe';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/finanzen/ausgaben/erfassen` — eine Ausgabe erfassen
@@ -137,7 +138,7 @@ export default async function AusgabeErfassen(
 
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="ausgabe-fehler" className="mb-s5 max-w-prose">
-          {t.fehler[fehler] ?? fehler}
+          {eigenerEintrag(t.fehler, fehler) ?? fehler}
         </Hinweis>
       )}
 

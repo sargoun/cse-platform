@@ -12,6 +12,7 @@ import { SCHICHT_TEXTE } from '@/lib/i18n/verwaltung/dienstplan-schicht';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/dienstplan/einsatz/neu` — eine einzelne Schicht
@@ -121,7 +122,7 @@ export default async function NeueSchicht(
 
       {fehler !== null ? (
         <Hinweis art="warnung" cse="schicht-fehler" className="mb-s5 max-w-prose">
-          {t.fehler[fehler] ?? fehler}
+          {eigenerEintrag(t.fehler, fehler) ?? fehler}
         </Hinweis>
       ) : null}
 

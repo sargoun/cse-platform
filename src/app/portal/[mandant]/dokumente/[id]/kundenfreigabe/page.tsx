@@ -17,6 +17,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { formatiereBytes, KATEGORIE } from '../../darstellung';
 import { FEHLERTEXT } from './daten';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/dokumente/[id]/kundenfreigabe` — der Schalter
@@ -103,7 +104,7 @@ export default async function Dokumentfreigabe(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="freigabe-fehler" className="mb-s5">
           <strong>Der Schalter wurde nicht umgelegt.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 

@@ -8,6 +8,7 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import { RedaktionFehler, setzeReferenzStatus } from '@/server/services/inhalt/redaktion';
+import { grundAufsFormular } from '../../formular-antwort';
 
 /**
  * `POST /api/website/referenzen` — ein Projekt auf die Website stellen oder
@@ -56,7 +57,22 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       }));
   } catch (fehler) {
     if (fehler instanceof RedaktionFehler) {
-      return NextResponse.json({ fehler: fehler.grund }, { status: 400 });
+      /*
+       * **Ein Formular bekommt seine Seite zurück, kein JSON (D-599, V-154).**
+       * Beide Aufrufer (Liste und Veröffentlichungsblatt) sind Formulare ohne
+       * JavaScript mit `zurueck`. Der Weg ist nicht konstruiert: wer die
+       * Freigabe in einem zweiten Fenster zurücknimmt und im ersten auf
+       * „Veröffentlichen" drückt, sah `{"fehler":"ohne_kundenfreigabe"}`.
+       */
+      const umleitung = grundAufsFormular(anfrage, {
+        json: false,
+        zurueck: typeof daten.get('zurueck') === 'string'
+          ? daten.get('zurueck') as string : undefined,
+        grund: fehler.grund,
+      });
+      if (umleitung !== null) return umleitung;
+      return NextResponse.json(
+        { fehler: fehler.grund, meldung: fehler.message }, { status: 400 });
     }
     /*
      * **`authorize` wirft, und der Wurf muss übersetzt werden.** Hier stand

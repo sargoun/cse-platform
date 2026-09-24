@@ -9,6 +9,9 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/crm/leads/neu` — einen Lead von Hand anlegen (CRM-07).
@@ -50,6 +53,8 @@ export default async function LeadNeu(
   const darf = await haeltRechte(zugang.sitzung, 'crm.schreiben', 'crm.lesen');
   const suche = await searchParams;
   const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const k = nachSprache(KETTE_TEXTE, zugang.sprache);
 
   const kunden = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) => kontext.abfrage<KundeZeile>(
@@ -72,9 +77,10 @@ export default async function LeadNeu(
     >
       <h1 className="mb-s5 mt-0 text-h1 text-text">Neuer Lead</h1>
 
-      {meldung !== null && (
+      {(meldung !== null || fehler !== null) && (
         <Hinweis art="warnung" cse="lead-meldung" className="mb-s5 max-w-prose">
-          {meldung}
+          {/* Der übersetzte Schlüssel gewinnt; der Satz der Route ist der Rückfall. */}
+          {(fehler === null ? undefined : eigenerEintrag(k.fehler, fehler)) ?? meldung ?? k.nichtAngelegt}
         </Hinweis>
       )}
 
@@ -111,6 +117,24 @@ export default async function LeadNeu(
                 <span className="text-xs text-text-muted">
                   Eines von beiden muss stehen — ein Lead ohne Namen ist eine Notiz.
                 </span>
+              </label>
+
+              {/*
+                **Die Empfehlung** (V-139, CRM-07). Eine der vier Leadquellen
+                der Spezifikation, und bis hierher ohne Erzeuger: der CHECK
+                verlangte einen empfehlenden Kunden, und kein Formular fragte
+                nach ihm. Wer ihn wählt, erfasst eine Empfehlung.
+              */}
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                {k.empfohlenVonFeld}
+                <select name="empfehlungVonKundeId" className={FELD} defaultValue=""
+                        data-cse="lead-empfehlung">
+                  <option value="">{k.keineEmpfehlung}</option>
+                  {kunden.map((kd) => (
+                    <option key={kd.id} value={kd.id}>{`${kd.name} (${kd.kundennummer})`}</option>
+                  ))}
+                </select>
+                <span className="text-xs text-text-muted">{k.empfehlungErklaerung}</span>
               </label>
 
               <label className="flex flex-col gap-s2 text-sm text-text">

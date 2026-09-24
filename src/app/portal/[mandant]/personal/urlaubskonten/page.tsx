@@ -15,6 +15,7 @@ import { URLAUBSKONTEN_TEXTE } from '@/lib/i18n/verwaltung/urlaubskonten';
 import { formatiereMenge } from '@/server/services/finanz/menge';
 import { leseUrlaubskonten } from '@/server/services/zeit/urlaubskonto';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/personal/urlaubskonten` — der Urlaubsanspruch je
@@ -108,7 +109,7 @@ export default async function Urlaubskonten(
       )}
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="anspruch-fehler" className="mb-s5 max-w-prose">
-          {t.fehler[fehler] ?? fehler}
+          {eigenerEintrag(t.fehler, fehler) ?? fehler}
         </Hinweis>
       )}
 

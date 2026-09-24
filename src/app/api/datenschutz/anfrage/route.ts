@@ -4,6 +4,7 @@ import { db } from '@/server/db/pool';
 import { withEingang } from '@/server/kontext/eingang';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { mitSprache, SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
+import { pflichtwegMeldung } from '@/lib/i18n/texte';
 import {
   AnfrageFehler, nimmAn, type AnfrageArt,
 } from '@/server/services/datenschutz/anfrage';
@@ -83,7 +84,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         rolleAngabe: String(daten.get('rolle') ?? '') || undefined,
       })));
   } catch (f) {
-    if (f instanceof AnfrageFehler) return fehler(f.status, f.message);
+    /*
+     * Der Dienst spricht deutsch; die englische Seite bekommt den Satz zum
+     * GRUND (V-156) — sonst stünde „Bitte prüfen Sie die E-Mail-Adresse" auf
+     * `/en/datenschutz/anfrage`.
+     */
+    if (f instanceof AnfrageFehler) {
+      return fehler(f.status, pflichtwegMeldung('anfrage', sprache, f.grund, f.message));
+    }
     throw f;
   }
 

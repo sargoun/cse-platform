@@ -14,6 +14,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
 import { ENTSCHIEDEN, leseEinwand, type EinwandBlatt } from '@/server/services/zeit/einwand';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/zeiten/einwaende/[id]` — der einzelne Einwand in voll
@@ -190,7 +191,7 @@ export default async function Einwandblatt(
           className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-warning"
         >
           <strong>Nichts wurde entschieden.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </p>
       )}
 

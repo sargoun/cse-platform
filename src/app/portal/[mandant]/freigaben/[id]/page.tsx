@@ -27,6 +27,7 @@ import {
   FEHLER_TEXT, RISIKO_LABEL, STATUS_LABEL, STATUS_PILL, VORGANG_LABEL,
   ausfuehrungText, zeitpunkt,
 } from '../darstellung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/freigaben/[id]` — die Prüfung (APR-02, APR-03, APR-07,
@@ -260,7 +261,7 @@ export default async function Freigabe(
             <strong>Nicht entschieden.</strong>{' '}
             {fehler === 'ausfuehrung' && fehlerMeldung !== null
               ? fehlerMeldung
-              : (FEHLER_TEXT[fehler] ?? 'Die Entscheidung wurde abgewiesen.')}
+              : (eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Entscheidung wurde abgewiesen.')}
           </>
         )}
         />

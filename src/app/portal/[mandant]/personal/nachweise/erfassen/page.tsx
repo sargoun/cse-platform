@@ -11,6 +11,7 @@ import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { NACHWEIS_ERFASSEN_TEXTE } from '@/lib/i18n/verwaltung/personal-nachweis';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/personal/nachweise/erfassen` — einen
@@ -132,7 +133,7 @@ export default async function NachweisErfassen(
 
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="nachweis-fehler" className="mb-s5 max-w-prose">
-          {t.fehler[fehler] ?? fehler}
+          {eigenerEintrag(t.fehler, fehler) ?? fehler}
         </Hinweis>
       )}
 

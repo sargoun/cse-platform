@@ -235,6 +235,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'angebot.schreiben',
   },
   /**
+   * Das Angebot AUS DEM RAUMBUCH (V-143, D-637) — bis dahin stand der Weg
+   * ganz in `/api/angebot`. `angebot.schreiben` wie der Entwurf von Hand:
+   * es entsteht ein Blatt ohne Nummer, das das Haus nicht verlässt.
+   */
+  {
+    modul: 'angebot', pfad: 'angebot/aus-raumbuch',
+    schreibend: true, schreibRecht: 'angebot.schreiben',
+  },
+  /**
    * Der Tabellenleser liest nur; der Import SCHREIBT — und zwar zweimal
    * verschieden: die Vorschau legt Zwischenzeilen an, die Uebernahme aendert
    * das lebende Raumbuch. Beide tragen dasselbe Recht, weil beide eine Datei
@@ -628,6 +637,35 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'crm.schreiben',
   },
   /*
+   * Die Kette Lead → Angebot → Auftrag (V-138, CRM-05, D-632): den Kunden
+   * einer Anfrage setzen (schreibt `kunde`, `lead`, `ansprechpartner`) und
+   * die Kette für Lead- und Kundenblatt lesen. Die Prüfung, ob ein Angebot
+   * oder Auftrag an einem Lead hängen darf, liest nur.
+   */
+  {
+    modul: 'crm', pfad: 'crm/lead-kette',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Ein Treffer des Vergaberadars wird zum Lead (V-139, CRM-07, D-633). Das
+   * Schreibrecht ist das des Leads; die Bekanntmachung liest der Dienst unter
+   * `radar.lesen`, und an ihrem Vorgang ändert er nichts.
+   */
+  {
+    modul: 'crm', pfad: 'crm/lead-radar',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Der Mensch hinter der Anfrage (V-141, CRM-03, CRM-04, D-635): den
+   * Ansprechpartner eines Leads wählen oder anlegen (schreibt `lead`,
+   * `ansprechpartner`, `lead_aktivitaet`) und eine Aktivität festhalten —
+   * ausgehend mit dem Zweck, den die Herkunft trägt (O-907).
+   */
+  {
+    modul: 'crm', pfad: 'crm/lead-kontakt',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
    * Kunde und Ansprechpartner AENDERN (V-017, V-018, V-019). Eigene Datei und
    * nicht ein Zweig in `crm/anlegen`: sie fasst vier Spalten mit Absicht NICHT
    * an — `debitorennummer`, `zahlungsziel_tage`, `mahnsperre_bis`,
@@ -711,6 +749,21 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'crm.schreiben',
   },
   /*
+   * Die Art der Wiedervorlage-Erinnerung (V-146, CRM-04). Definiert nur Titel,
+   * Text und Ziel; zugestellt wird im Lauf `wiedervorlage_erinnerung` als
+   * `cse_job` — kein Recht aus dem Katalog, weil hier kein Mensch handelt.
+   */
+  { modul: 'crm', pfad: 'crm/benachrichtigung', schreibend: false },
+  /*
+   * Der Kommunikationsverlauf (V-147, CRM-03). Liest Aktivitäten und
+   * Nachrichten eines Kunden oder Kontakts; `halteFest` schreibt eine
+   * Aktivität am Kunden oder Kontakt — ausgehend durch das UWG-Tor (0020).
+   */
+  {
+    modul: 'crm', pfad: 'crm/verlauf',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
    * Der Versandstand eines Kaeufers (FIN-11, LEG-05, 07-INTEGRATIONEN §12.1).
    * Ein reines Praedikat: ein Pflichtkaeufer ohne Uebertragungsweg SPERRT, er
    * faellt nicht auf E-Mail zurueck. Kein Kanal gilt hier als verbunden, ohne
@@ -750,6 +803,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
   // gefährlich, und schreiben können sie nicht.
   { modul: 'bericht', pfad: 'bericht/kacheln', schreibend: false },
   { modul: 'bericht', pfad: 'bericht/dashboard', schreibend: false },
+  /*
+   * Die Mengen hinter den Kennzahlen (V-149, V-150): Statuslisten, die eine
+   * Kachel, ihre Liste und die Gruppenübersicht teilen. Rein, ohne Datenbank.
+   */
+  { modul: 'bericht', pfad: 'bericht/mengen', schreibend: false },
+  /*
+   * Die Listen hinter den Kennzahlen, im Bereich und in der Gruppe (V-152):
+   * als Dienst, damit Zahl und Liste an echten Zeilen verglichen werden.
+   * Sie lesen nur.
+   */
+  { modul: 'bericht', pfad: 'bericht/listen', schreibend: false },
   /**
    * Nachweise und Qualifikationen (PR 31, SEC-02/03/04, LEG-04, EMP-08).
    *
@@ -1327,6 +1391,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'auftrag', pfad: 'auftrag/status',
     schreibend: true, schreibRecht: 'auftrag.schreiben',
   },
+  /**
+   * Der Auftrag OHNE Angebot, der Weg des Assistenten (OPS-10, V-143,
+   * D-637): Anfrage prüfen, dann erst die Nummer ziehen, anlegen. Bis dahin
+   * stand das in der Route und liess sich nicht gegen die Datenbank prüfen.
+   */
+  {
+    modul: 'auftrag', pfad: 'auftrag/direkt',
+    schreibend: true, schreibRecht: 'auftrag.schreiben',
+  },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/dienst', schreibend: false },
@@ -1431,6 +1504,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'bericht', pfad: 'gruppe/finanzen', schreibend: false },
   { modul: 'bericht', pfad: 'gruppe/offene-posten', schreibend: false },
   { modul: 'bericht', pfad: 'gruppe/auslastung', schreibend: false },
+  /* V-150 (DSH-01): die Liste hinter „Offene Aufgaben" der Gruppenübersicht. */
+  { modul: 'bericht', pfad: 'gruppe/aufgaben', schreibend: false },
   /**
    * Die beiden Nachzuegler derselben Art (RAD-07/REP-06, CAL-01/CAL-02): die
    * Vergabepipeline und der zusammengefuehrte Kalender ueber alle

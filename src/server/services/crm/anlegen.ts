@@ -60,6 +60,55 @@ function leer(wert: string | undefined): string | null {
 }
 
 /**
+ * **Die Firma hinter dem Kunden — über die USt-IdNr.** (V-140, CRM-06, D-634).
+ *
+ * Die Gruppenliste erkennt denselben Kunden in zwei Gesellschaften allein an
+ * `kunde.firma_id`. `app.firma_aufloesen` (0020) ist die EINZIGE Stelle, an
+ * der eine `firma` entsteht — und hatte keinen Aufrufer. Jeder im Portal
+ * angelegte Kunde blieb ohne Firma, und „auch in" war für echte Daten leer.
+ *
+ * **Nur mit USt-IdNr., nur für Firma und Behörde.** Die Nummer ist die
+ * Identität einer Rechtseinheit; ein gleicher Name ist keine — zwei
+ * „Muster GmbH" in Berlin sind zwei Unternehmen, und eine Verschmelzung über
+ * den Namen legte die Historie des einen in die des anderen. Eine
+ * Privatperson ist keine Firma. Ohne Nummer bleibt `firma_id` leer, und das
+ * ist eine Aussage („nicht zugeordnet"), keine Lücke.
+ *
+ * Die Funktion gibt NUR die Kennung zurück — nie ein Attribut aus einer
+ * anderen Gesellschaft.
+ *
+ * **Das Land des Kunden geht mit** (V-142, D-636). Ohne es legte
+ * `app.firma_aufloesen` jede neue Firma mit seiner Vorgabe `DE` an — auch
+ * für einen Kunden in Österreich, während `0401` für den Bestand
+ * `coalesce(kunde.land, 'DE')` nahm. `null` heisst: die Vorgabe der Funktion,
+ * und das ist dieselbe wie die der Spalte `kunde.land` (`DE`).
+ *
+ * **Zwei Gesellschaften, dieselbe neue Nummer, derselbe Augenblick.** Beide
+ * sahen noch keine Firma, beide legten eine an, und die zweite fiel auf
+ * `firma_ust_id_uk` (0020) — ein roher `23505`, vor V-140 nicht erreichbar,
+ * weil die Funktion keinen Aufrufer hatte. Auffangen lässt sich das in der
+ * Transaktion nicht: postgres.js verwirft eine Transaktion, in der eine
+ * Anweisung scheiterte, auch wenn der Aufrufer den Fehler fängt. Deshalb wird
+ * VORHER serialisiert — eine Transaktionssperre auf die normalisierte Nummer
+ * (dieselbe Form wie `firma_aufloesen`: ohne Leerraum, gross). Die zweite
+ * Gesellschaft wartet, bis die erste festgeschrieben hat, und findet dann
+ * DEREN Firma. Beide Kunden hängen an derselben — das, worum es bei CRM-06
+ * geht. Eine Kollision zweier Nummern im Hash kostet nur ein Warten.
+ */
+export async function firmaFuer(
+  kontext: SchreibKontext, typ: KundeTyp, name: string, ustId: string | null,
+  land: string | null = null,
+): Promise<string | null> {
+  if (typ === 'privat' || ustId === null) return null;
+  const norm = ustId.replace(/\s/gu, '').toUpperCase();
+  if (norm === '') return null;
+  await kontext.schreibe(`select pg_advisory_xact_lock(hashtext($1))`, [`firma:${norm}`]);
+  const [z] = await kontext.schreibe<{ id: string | null }>(
+    `select app.firma_aufloesen($1, $2, $3::char(2))::text as id`, [ustId, name, land]);
+  return z?.id ?? null;
+}
+
+/**
  * Die Kundennummer.
  *
  * **Kein Nummernkreis** (K-12). Dieselbe Begründung wie bei der Leadnummer:
@@ -95,13 +144,16 @@ export async function legeKundeAn(
       'grundlage_ohne_quelle');
   }
 
+  const ustId = leer(eingabe.ustId);
+  const firmaId = await firmaFuer(kontext, eingabe.typ, name, ustId);
+
   const zeilen = await kontext.schreibe<{ id: string; kundennummer: string }>(
     `insert into kunde
        (mandant_id, kundennummer, typ, name, strasse, hausnummer, plz, ort,
         email_zentral, telefon_zentral, webseite, ust_id,
         ist_oeffentlicher_auftraggeber,
         rechtsgrundlage, rechtsgrundlage_quelle, rechtsgrundlage_erfasst_am,
-        erstellt_von)
+        erstellt_von, firma_id)
      select app.aktiver_mandant(),
             -- Nummer aus dem Bestand dieser Gesellschaft; siehe Kommentar oben.
             'K-' || lpad((
@@ -111,14 +163,14 @@ export async function legeKundeAn(
             $1::kunde_typ = 'behoerde',
             $11::rechtsgrundlage, $12,
             case when $11::rechtsgrundlage = 'keine' then null else now() end,
-            app.aktueller_benutzer()
+            app.aktueller_benutzer(), $13::uuid
        from kunde k
       where k.mandant_id = app.aktiver_mandant()
      returning id, kundennummer`,
     [eingabe.typ, name, leer(eingabe.strasse), leer(eingabe.hausnummer),
       leer(eingabe.plz), leer(eingabe.ort), leer(eingabe.emailZentral),
-      leer(eingabe.telefonZentral), leer(eingabe.webseite), leer(eingabe.ustId),
-      grundlage, quelle],
+      leer(eingabe.telefonZentral), leer(eingabe.webseite), ustId,
+      grundlage, quelle, firmaId],
   );
 
   const z = zeilen[0];
@@ -211,10 +263,40 @@ export interface NeuerLead {
   readonly kundeId?: string | undefined;
   readonly bedarf?: string | undefined;
   readonly besitzerBenutzerId: string;
+  /**
+   * Die Herkunft eines von Hand erfassten Leads (V-139, CRM-07). Vorgabe
+   * `manuell`. `empfehlung` verlangt den empfehlenden Kunden — der CHECK
+   * `lead_herkunft_stimmig` (0017) ohnehin, hier steht der Satz dazu.
+   * Webformular, Vergaberadar und Akquise haben eigene Wege mit eigenem
+   * Beleg und stehen hier deshalb nicht zur Wahl.
+   */
+  readonly quelle?: 'manuell' | 'empfehlung' | undefined;
+  readonly empfehlungVonKundeId?: string | undefined;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+
+/**
+ * Ein Kunde DIESER Gesellschaft, nicht archiviert — oder `null`.
+ *
+ * `lead.kunde_id` hatte bis 0400 keinen Fremdschlüssel; ein Formular, das
+ * eine fremde Kennung schickte, hängte einen Lead an einen Kunden einer
+ * anderen Gesellschaft. Jetzt hielte der Schlüssel das mit einem `23503` —
+ * hier steht der Satz dazu.
+ */
+async function kundeHier(
+  kontext: SchreibKontext, id: string,
+): Promise<{ readonly id: string; readonly name: string } | null> {
+  if (!UUID.test(id)) return null;
+  const [k] = await kontext.abfrage<{ id: string; name: string }>(
+    `select id::text as id, name from kunde
+      where id = $1::uuid and mandant_id = app.aktiver_mandant()
+        and archiviert_am is null`, [id]);
+  return k ?? null;
 }
 
 /**
- * Einen Lead von Hand anlegen — `quelle = 'manuell'`.
+ * Einen Lead von Hand anlegen — `quelle = 'manuell'` oder `'empfehlung'`.
  *
  * **Keine SLA-Frist.** `sla_stunden` steht an einem Formular; ein Lead, den
  * jemand nach einem Telefonat einträgt, hat keine zu erben. Eine zu erfinden
@@ -236,17 +318,53 @@ export async function legeLeadAn(
       'Ein Lead braucht einen Namen: entweder einen bestehenden Kunden oder eine '
       + 'Firma im Klartext.', 'ohne_namen');
   }
+  if (kundeId !== null && await kundeHier(kontext, kundeId) === null) {
+    throw new CrmFehler('Diesen Kunden gibt es in dieser Gesellschaft nicht.',
+      'kunde_unbekannt');
+  }
+
+  /*
+   * **Die Empfehlung** (V-139, CRM-07). Ein Kunde, der sich selbst empfiehlt,
+   * ist keine Empfehlung, sondern ein Bestandskunde mit neuem Bedarf — der
+   * Herkunftsbericht zählte ihn sonst als Kanal „Empfehlung", und die Zahl,
+   * wie viele NEUE Kunden über Empfehlungen kommen, stimmte nicht.
+   */
+  const quelle = eingabe.quelle ?? 'manuell';
+  if (quelle !== 'manuell' && quelle !== 'empfehlung') {
+    throw new CrmFehler('Diese Herkunft gibt es hier nicht.', 'unbekannte_quelle');
+  }
+  let empfehler: { readonly id: string; readonly name: string } | null = null;
+  if (quelle === 'empfehlung') {
+    const empfehlerId = leer(eingabe.empfehlungVonKundeId);
+    if (empfehlerId === null) {
+      throw new CrmFehler(
+        'Eine Empfehlung nennt den Kunden, der empfohlen hat — sonst ist sie eine '
+        + 'Erfassung von Hand.', 'empfehlung_ohne_kunde');
+    }
+    empfehler = await kundeHier(kontext, empfehlerId);
+    if (empfehler === null) {
+      throw new CrmFehler('Diesen Kunden gibt es in dieser Gesellschaft nicht.',
+        'kunde_unbekannt');
+    }
+    if (kundeId !== null && empfehler.id === kundeId) {
+      throw new CrmFehler(
+        'Ein Kunde empfiehlt sich nicht selbst. Eine neue Anfrage eines Bestandskunden ist '
+        + 'eine Erfassung von Hand.', 'empfehlung_selbst');
+    }
+  }
 
   const zeilen = await kontext.schreibe<{ id: string; leadnummer: string }>(
     `insert into lead
        (mandant_id, leadnummer, quelle, firma_name, kunde_id, betreff,
-        bedarf_zusammenfassung, besitzer_benutzer_id, akteur_art, erstellt_von)
+        bedarf_zusammenfassung, besitzer_benutzer_id, akteur_art, erstellt_von,
+        empfehlung_von_kunde_id)
      values (app.aktiver_mandant(),
              'L-' || upper(replace(gen_random_uuid()::text, '-', ''))::text,
-             'manuell', $1, $2::uuid, $3, $4, $5::uuid, 'mensch',
-             app.aktueller_benutzer())
+             $6::lead_quelle, $1, $2::uuid, $3, $4, $5::uuid, 'mensch',
+             app.aktueller_benutzer(), $7::uuid)
      returning id, leadnummer`,
-    [firma, kundeId, betreff, leer(eingabe.bedarf), eingabe.besitzerBenutzerId]);
+    [firma, kundeId, betreff, leer(eingabe.bedarf), eingabe.besitzerBenutzerId,
+      quelle, empfehler?.id ?? null]);
 
   const z = zeilen[0];
   if (z === undefined) {
@@ -266,7 +384,8 @@ export async function legeLeadAn(
         akteur_art, rechtsgrundlage_snapshot)
      values (app.aktiver_mandant(), $1::uuid, 'notiz', 'intern', 'intern', 'portal',
              'Von Hand angelegt', $2, 'mensch', 'keine')`,
-    [z.id, `Eingetragen im Portal. ${firma === null ? '' : `Firma: ${firma}.`}`]);
+    [z.id, `Eingetragen im Portal. ${firma === null ? '' : `Firma: ${firma}.`}`
+      + `${empfehler === null ? '' : ` Empfohlen von ${empfehler.name}.`}`]);
 
   return { id: z.id, leadnummer: z.leadnummer };
 }

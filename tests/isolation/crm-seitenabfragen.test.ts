@@ -47,6 +47,7 @@ import { leseZugaenge } from '../../src/server/services/crm/kundenzugang.js';
 import { leseZeitanker, listeWiedervorlagen }
   from '../../src/server/services/crm/wiedervorlage.js';
 import { leseSteuerblatt } from '../../src/server/services/finanz/kunde-steuer.js';
+import { leseKontaktVerlauf } from '../../src/server/services/crm/verlauf.js';
 
 let f: Fixtur;
 let chef = '';
@@ -258,18 +259,11 @@ const KONTAKT_KOPF_SQL = `select ap.id, ap.anrede, ap.titel,
           where ap.mandant_id = app.aktiver_mandant() and ap.id = $1::uuid
             and ap.archiviert_am is null`;
 
-/** WÖRTLICH aus derselben Datei — der Verlauf. */
-const KONTAKT_VERLAUF_SQL = `select la.id, la.typ::text as typ, la.richtung::text as richtung,
-                la.zweck::text as zweck, la.kanal, la.betreff,
-                to_char(la.geschehen_am at time zone 'Europe/Berlin',
-                        'DD.MM.YYYY HH24:MI') as geschehen,
-                b.name as akteur
-           from lead_aktivitaet la
-           left join benutzer b on b.id = la.benutzer_id
-          where la.mandant_id = app.aktiver_mandant()
-            and la.ansprechpartner_id = $1::uuid
-          order by la.geschehen_am desc
-          limit 50`;
+/*
+ * Der Verlauf stand hier als WÖRTLICHE Kopie der Seitenabfrage. Seit V-147
+ * liest die Seite ihn über `leseKontaktVerlauf` (Aktivitäten UND Nachrichten),
+ * und geprüft wird genau diese Funktion — eine Kopie prüfte nur sich selbst.
+ */
 
 describe('/crm/kontakte/[id]', () => {
   it('der Kopf läuft und trägt Sprache und Kunde', async () => {
@@ -330,13 +324,15 @@ describe('/crm/kontakte/[id]', () => {
                  'vertraglich', 'telefon', 'Rückfrage Treppenhaus', $3::uuid,
                  '2026-01-15 23:30:00+00')`,
         [kunde, ap, chef]);
-      return tx.unsafe(KONTAKT_VERLAUF_SQL, [ap]);
+      return leseKontaktVerlauf(alsKontext(tx, f.reinigung), ap);
     });
     expect(gesetzt).toHaveLength(1);
-    expect(gesetzt[0]!['betreff']).toBe('Rückfrage Treppenhaus');
-    expect(gesetzt[0]!['typ']).toBe('anruf');
-    expect(gesetzt[0]!['zweck']).toBe('vertraglich');
-    expect(gesetzt[0]!['akteur']).not.toBeNull();
+    expect(gesetzt[0]!.betreff).toBe('Rückfrage Treppenhaus');
+    expect(gesetzt[0]!.art).toBe('anruf');
+    expect(gesetzt[0]!.zweck).toBe('vertraglich');
+    expect(gesetzt[0]!.wer).not.toBeNull();
+    // Der Beleg: die Rechtsgrundlage IM MOMENT DES SENDENS, vom Tor gezogen.
+    expect(gesetzt[0]!.grundlage).toBe('bestandskunde');
 
     /*
      * **Der mitgeschickte Zeitpunkt wurde verworfen** — und das ist die
@@ -346,7 +342,7 @@ describe('/crm/kontakte/[id]', () => {
      * in der Zeile: ein Verlauf, dessen Zeitpunkte ein Client bestimmt, ist
      * als Nachweis wertlos.
      */
-    expect(gesetzt[0]!['geschehen']).not.toBe('16.01.2026 00:30');
+    expect(gesetzt[0]!.zeitpunkt).not.toBe('16.01.2026 00:30');
 
     /*
      * Die Anzeige selbst — auf einer Zeile, deren Zeitpunkt nachträglich
@@ -359,8 +355,8 @@ describe('/crm/kontakte/[id]', () => {
       `update lead_aktivitaet set geschehen_am = '2026-01-15 23:30:00+00'
         where ansprechpartner_id = $1`, [ap]);
     const zeilen = await alsIntern(f.reinigung, (tx) =>
-      tx.unsafe(KONTAKT_VERLAUF_SQL, [ap]));
-    expect(zeilen[0]!['geschehen']).toBe('16.01.2026 00:30');
+      leseKontaktVerlauf(alsKontext(tx, f.reinigung), ap));
+    expect(zeilen[0]!.zeitpunkt).toBe('16.01.2026 00:30');
   });
 
   /**
@@ -381,8 +377,8 @@ describe('/crm/kontakte/[id]', () => {
         where ansprechpartner_id = $1`, [ap]);
 
     const zeilen = await alsIntern(f.reinigung, (tx) =>
-      tx.unsafe(KONTAKT_VERLAUF_SQL, [ap]));
-    expect(zeilen[0]!['geschehen']).toBe('16.07.2026 00:30');
+      leseKontaktVerlauf(alsKontext(tx, f.reinigung), ap));
+    expect(zeilen[0]!.zeitpunkt).toBe('16.07.2026 00:30');
   });
 
   it('das Tor antwortet je Kanal und Zweck', async () => {

@@ -5,13 +5,15 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { KachelRaster, type KachelAnzeige } from '@/components/portal/KachelRaster';
 import { registriereBerichtKacheln } from '@/server/services/bericht/kacheln';
-import { dashboard } from '@/server/services/bericht/dashboard';
+import { bereichsDashboard } from '@/server/services/bericht/dashboard';
 import { kacheln } from '@/server/registry/kennzahlen';
 import { AnmeldungNoetig } from '../Anmeldung';
 import { portalZugang } from '../zugang';
 import { slugTor } from '../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KENNZAHL_TEXTE } from '@/lib/i18n/verwaltung/kennzahlen';
 
 /**
  * `/portal/[mandant]` — das rollenaufgeloeste Dashboard (DSH-01, DSH-03).
@@ -71,12 +73,13 @@ export default async function MandantDashboard(
   }
   // Nach `slugTor` ist der aktive Bereich der des Pfads; ohne einen (K-20)
   // gibt es diese Seite nicht.
-  if (sitzung.aktiverMandantId === null) notFound();
+  const aktiverMandant = sitzung.aktiverMandantId;
+  if (aktiverMandant === null) notFound();
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
       const bereiche = await kontext.abfrage<Bereich>(
-        `select id, slug, name from mandant where id = $1`, [sitzung.aktiverMandantId],
+        `select id, slug, name from mandant where id = $1`, [aktiverMandant],
       );
       // `slugTor` hat die Adresse bereits gegen die Sitzung geprüft; diese
       // Zeile fängt nur noch den Fall ab, dass die Zeile selbst fehlt.
@@ -84,37 +87,30 @@ export default async function MandantDashboard(
       if (eigen === undefined || eigen.slug !== mandant) return null;
 
       /**
-       * Die Rechte werden EINMAL geholt, nicht je Kachel.
-       *
-       * `dashboard()` filtert synchron — es soll nicht wissen, dass die
-       * Antwort aus der Datenbank kommt. Und eine Abfrage je Kachel wären
-       * sieben Rundreisen für eine Frage, die eine beantwortet.
+       * Rechte, Buchung und Zahlen in dieser einen Transaktion
+       * (`bereichsDashboard`). Eine Kachel erscheint nur, wenn sich ihr Ziel
+       * öffnet — Recht UND gebuchtes Modul, dieselbe Frage wie die Pforte
+       * (V-151, D-645). Hier stand nur das Recht der Kachel: „Bauprojekte in
+       * Arbeit" erschien in der Reinigung und führte auf einen 404.
        */
-      const gefragt = [...new Set(kacheln().map((k) => k.recht))];
-      const antworten = await kontext.abfrage<{ recht: string; ok: boolean }>(
-        `select r as recht, app.hat_recht(r, $2::uuid) as ok
-           from unnest($1::text[]) as r`,
-        [gefragt, sitzung.aktiverMandantId],
-      );
-      const gehalten = new Set(antworten.filter((a) => a.ok).map((a) => a.recht));
-
-      const werte = await dashboard(
-        kontext,
-        {
-          mandantId: sitzung.aktiverMandantId,
-          mandantSlug: eigen.slug,
-          mandantIds: kontext.mandantIds,
-        },
-        (recht) => gehalten.has(recht),
-      );
+      const werte = await bereichsDashboard(kontext, {
+        mandantId: aktiverMandant,
+        mandantSlug: eigen.slug,
+        mandantIds: kontext.mandantIds,
+      });
       return { eigen, werte };
-    })) as Promise<{ eigen: Bereich; werte: Awaited<ReturnType<typeof dashboard>> } | null>);
+    })) as Promise<{ eigen: Bereich; werte: Awaited<ReturnType<typeof bereichsDashboard>> } | null>);
 
   if (daten === null) notFound();
 
+  /*
+   * Der Name in der Sprache der Sitzung (V-150, D-592). Das Register trägt
+   * den deutschen; fehlt ein Eintrag, bleibt er stehen — nie der Schlüssel.
+   */
+  const tk = nachSprache(KENNZAHL_TEXTE, zugang.sprache);
   const anzeige: readonly KachelAnzeige[] = daten.werte.map((w) => ({
     schluessel: w.kachel.schluessel,
-    label: w.kachel.label,
+    label: tk.kacheln[w.kachel.schluessel] ?? w.kachel.label,
     wert: w.wert,
     ton: w.kachel.ton,
     icon: w.kachel.icon,

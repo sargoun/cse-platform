@@ -8,7 +8,9 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
-import { vergebeNummer, NummernkreisFehler } from '@/server/services/finanz/nummernkreis';
+import { NummernkreisFehler } from '@/server/services/finanz/nummernkreis';
+import { legeAuftragDirektAn, type DirektAuftragsart } from '@/server/services/auftrag/direkt';
+import { maskeMitEingaben } from '@/lib/formular/maske';
 
 /**
  * `POST /api/auftrag` — der Auftragsassistent (OPS-10).
@@ -21,7 +23,13 @@ import { vergebeNummer, NummernkreisFehler } from '@/server/services/finanz/numm
  */
 export const dynamic = 'force-dynamic';
 
-const ARTEN = new Set(['einzelauftrag', 'rahmenvertrag', 'dauerauftrag', 'projekt']);
+const ARTEN: readonly DirektAuftragsart[] = [
+  'einzelauftrag', 'rahmenvertrag', 'dauerauftrag', 'projekt',
+];
+
+function istArt(wert: string | null): wert is DirektAuftragsart {
+  return wert !== null && (ARTEN as readonly string[]).includes(wert);
+}
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
@@ -55,6 +63,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   };
 
   const kundeId = text('kundeId');
+  /*
+   * Die Anfrage, aus der dieser Auftrag direkt entsteht — ohne Angebot
+   * (V-138, CRM-05, REP-03). Ein Auftrag am Telefon nach einer Web-Anfrage
+   * ist ein Auftrag aus DIESEM Kanal; ohne das Feld zählte ihn der
+   * Herkunftsbericht nirgends.
+   */
+  const leadId = text('leadId');
   const bezeichnung = text('bezeichnung');
   const art = text('art');
   const startDatum = text('startDatum');
@@ -86,17 +101,30 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     ausserhalb.push('wochenstundenSoll');
   }
 
-  if (kundeId === null || bezeichnung === null || art === null || startDatum === null
-      || !ARTEN.has(art)) {
-    return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
+  /*
+   * **Ein Formular bekommt seine Maske zurück, kein JSON** (D-599). Der
+   * Assistent schickt ein Formular; eine Abweisung endete bis hierher auf
+   * einer weissen Seite mit `{"fehler":"keine_zahl"}`. Jetzt führt sie auf
+   * `/auftraege/neu` mit dem Schlüssel, und die Maske sagt den Satz — mit der
+   * Anfrage, falls der Auftrag aus einer kam (V-138), und seit V-143 mit
+   * allem, was eingegeben war: wer sich bei den Wochenstunden vertippt, fängt
+   * nicht mit zehn leeren Feldern von vorn an.
+   */
+  const slug = (anfrage.nextUrl.searchParams.get('mandant') ?? '').replace(/[^a-z0-9-]/gu, '');
+  const zurMaske = (grund: string): NextResponse => NextResponse.redirect(new URL(
+    maskeMitEingaben(slug === '' ? '/portal' : `/portal/${slug}/auftraege/neu`, grund, {
+      lead: leadId, kundeId, objektId: text('objektId'), bezeichnung, art,
+      verantwortlichBenutzerId: text('verantwortlichBenutzerId'), startDatum,
+      laufzeitBis: text('laufzeitBis'), personalbedarfAnzahl: text('personalbedarfAnzahl'),
+      wochenstundenSoll: text('wochenstundenSoll'),
+      ausstattungHinweis: text('ausstattungHinweis'), beschreibung: text('beschreibung'),
+    }), erwarteterUrsprung(anfrage)), 303);
+
+  if (kundeId === null || bezeichnung === null || startDatum === null || !istArt(art)) {
+    return zurMaske('unvollstaendig');
   }
-  if (ungueltig.length > 0) {
-    return NextResponse.json({ fehler: 'keine_zahl', felder: ungueltig }, { status: 400 });
-  }
-  if (ausserhalb.length > 0) {
-    return NextResponse.json({ fehler: 'ausserhalb_bereich', felder: ausserhalb },
-      { status: 400 });
-  }
+  if (ungueltig.length > 0) return zurMaske('keine_zahl');
+  if (ausserhalb.length > 0) return zurMaske('ausserhalb_bereich');
 
   try {
     const ergebnis = await (db().begin(async (tx: postgres.TransactionSql) =>
@@ -115,37 +143,38 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
 
-        const nummer = await vergebeNummer(
+        /*
+         * Anfrage prüfen, Nummer ziehen, anlegen — im Dienst (V-143), damit es
+         * sich gegen eine echte Datenbank prüfen lässt: eine abgewiesene
+         * Anfrage verbraucht KEINE Auftragsnummer.
+         */
+        return legeAuftragDirektAn(
+          kontext,
           { unsafe: async (s: string, w: readonly unknown[] = []) =>
               (await tx.unsafe(s, w as never[])) as readonly unknown[] },
-          { kreisTyp: 'auftrag' },
-        );
+          {
+            kundeId, objektId: text('objektId'), art, bezeichnung,
+            beschreibung: text('beschreibung'), verantwortlichBenutzerId: verantwortlich,
+            startDatum, laufzeitBis: text('laufzeitBis'),
+            personalbedarfAnzahl: personalVorab, wochenstundenSoll: stundenVorab,
+            ausstattungHinweis: text('ausstattungHinweis'), leadId,
+          });
+      })) as ReturnType<typeof legeAuftragDirektAn>);
 
-        const stunden = stundenVorab;
-        const [neu] = await kontext.abfrage<{ id: string }>(
-          `insert into auftrag (mandant_id, auftragsnummer, kunde_id, objekt_id, art,
-                                bezeichnung, beschreibung, verantwortlich_benutzer_id,
-                                start_datum, laufzeit_bis, personalbedarf_anzahl,
-                                wochenstunden_soll, ausstattung_hinweis)
-           values (app.aktiver_mandant(), $1, $2, $3, $4::auftrag_art, $5, $6, $7,
-                   $8::date, $9::date, $10, $11::numeric, $12)
-           returning id`,
-          [nummer.formatiert, kundeId, text('objektId'), art, bezeichnung,
-           text('beschreibung'), verantwortlich, startDatum, text('laufzeitBis'),
-           personalVorab, stunden === null ? null : stunden.toFixed(3),
-           text('ausstattungHinweis')],
-        );
-        if (neu === undefined) return null;
-        return neu.id;
-      })) as Promise<string | null>);
-
-    if (ergebnis === null) {
-      return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
-    }
-    const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
+    /* Die Anfrage bleibt in der Adresse, damit der zweite Versuch nicht ohne sie beginnt. */
+    if (ergebnis.art === 'lead') return zurMaske(ergebnis.grund);
+    if (ergebnis.art === 'nicht_angelegt') return zurMaske('nicht_angelegt');
     return NextResponse.redirect(
-      new URL(`/portal/${slug}/auftraege/${ergebnis}`, erwarteterUrsprung(anfrage)), 303);
+      new URL(`/portal/${slug}/auftraege/${ergebnis.id}`, erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
+    /*
+     * **Die Antworten des TORS bleiben JSON** — wie auf jeder Route dieser
+     * Anwendung (`uebergang.ts`, `autorisierungsAntwort`, D-637): ohne
+     * Sitzung, ohne zweiten Faktor, ohne Recht gibt es keine Maske, auf die
+     * man zurückkehren könnte; die Maske selbst stünde hinter demselben Tor.
+     * Zurück auf die Maske geht alles, was die EINGABE oder den Vorgang
+     * betrifft.
+     */
     if (fehler instanceof NichtAngemeldetFehler) {
       return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
     }
@@ -155,9 +184,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
     }
-    if (fehler instanceof NummernkreisFehler) {
-      return NextResponse.json({ fehler: fehler.grund, text: fehler.message }, { status: 409 });
-    }
+    if (fehler instanceof NummernkreisFehler) return zurMaske(fehler.grund);
     throw fehler;
   }
 }

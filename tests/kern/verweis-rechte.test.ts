@@ -146,6 +146,16 @@ const OHNE_BEDINGUNG: Readonly<Record<string, string>> = {
     + '— auch für die Super-Administration. Ein Wächter, der nur das Recht fragte, zeigte den '
     + 'Verweis trotzdem. Diese Paarung bleibt gemessen, nur von der Prüfung, die sie gefunden '
     + 'hat: dem Browserlauf durch das Portal.',
+  /*
+   * Hier stand `gruppe/page.tsx → /portal/gruppe/auslastung` (V-150). Seit
+   * V-152 baut die Gruppenübersicht JEDES Ziel aus `UEBERSICHT_ZIELE`
+   * (`services/gruppe/uebersicht.ts`), und `tests/kern/kennzahlen-ziele.test.ts`
+   * misst jedes davon — Zellen und Summen — am Manifest: das Leserecht der
+   * Route ist genau das Recht, ohne das die Zelle `null` bleibt
+   * (`UEBERSICHT_RECHTE` plus `UEBERSICHT_ZIELRECHTE`). Das ist die Prüfung,
+   * die diese Vermessung für die Übersicht nicht leisten konnte; der Eintrag
+   * wäre ein Verweis auf eine Vorlage, die es nicht mehr gibt.
+   */
 };
 
 function befundeFuer(portal: typeof PORTALE[number]): readonly string[] {

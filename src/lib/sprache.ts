@@ -132,6 +132,34 @@ export function gibtEsIn(pfad: string, sprache: Sprache): boolean {
   return !NUR_DEUTSCH.some((n) => rein === n || rein.startsWith(`${n}/`));
 }
 
+/** Ein Verweis auf einen Inhaltspfad — mit der Sprache, in der er ANKOMMT. */
+export interface SprachVerweis {
+  readonly href: string;
+  /** Die Sprache der Zielseite — fuer `hrefLang` und fuer den Hinweis daneben. */
+  readonly sprache: Sprache;
+}
+
+/**
+ * Der Verweis von einer Seite in `sprache` auf `pfad` (V-155, D-649).
+ *
+ * Gibt es die Seite in dieser Sprache, bleibt der Besucher darin. Gibt es sie
+ * NUR auf Deutsch (`NUR_DEUTSCH`), fuehrt der Verweis auf die deutsche
+ * Fassung — und sagt es, ueber die mitgegebene Sprache: `hrefLang="de"` am
+ * Verweis und ein sichtbarer Hinweis daneben.
+ *
+ * **Warum nicht einfach weglassen.** Der Sprachumschalter laesst eine Sprache
+ * weg, in der es die Seite nicht gibt (D-583) — er fragt „dieselbe Seite in
+ * einer anderen Sprache", und die Antwort ist nein. Ein Verweis im Fuss fragt
+ * etwas anderes: „wo sind die Stellen?". Die Antwort ist die deutsche
+ * Karriereseite, und sie zu verschweigen hiesse, dass eine Bewerberin, die
+ * die Website auf Englisch liest, von der Plattform aus nie erfaehrt, dass es
+ * Stellen gibt. `mitSprache('/karriere', 'en')` waere dagegen ein 404.
+ */
+export function verweisIn(pfad: string, sprache: Sprache): SprachVerweis {
+  const ziel = gibtEsIn(pfad, sprache) ? sprache : VORGABE_SPRACHE;
+  return { href: mitSprache(pfad, ziel), sprache: ziel };
+}
+
 /**
  * Die Adressen EINER Seite in allen Sprachen — fuer `hreflang`.
  *

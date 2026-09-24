@@ -30,6 +30,37 @@ import { internesZiel } from '@/server/auth/ursprung';
 const HEIMWEG = '/portal';
 
 /**
+ * Wie `fehlerAufsFormular`, aber mit einem GRUND statt eines Satzes (V-158).
+ *
+ * **Wann der Grund und nicht der Satz.** Der Satz eines Dienstes ist deutsch
+ * und manchmal mit Kennung („Einteilung 3f2a… gibt es in dieser Gesellschaft
+ * nicht") — in einer Oberfläche, die auch Englisch spricht, ist beides falsch.
+ * Wo die Zielseite ihre Sätze zweisprachig in `lib/i18n/verwaltung/` führt,
+ * reist deshalb nur der Schlüssel (`?fehler=<grund>`), und die Seite schlägt
+ * ihn in ihrer Sprache nach. Ein Schlüssel, den sie nicht kennt, bekommt dort
+ * einen allgemeinen Satz — nie den rohen Schlüssel.
+ */
+export function grundAufsFormular(
+  anfrage: NextRequest,
+  argumente: {
+    readonly json: boolean;
+    readonly zurueck: string | undefined;
+    readonly grund: string;
+  },
+): NextResponse | null {
+  if (argumente.json) return null;
+  const zurueck = argumente.zurueck;
+  if (zurueck === undefined || zurueck === '') return null;
+  const trenner = zurueck.includes('?') ? '&' : '?';
+  return NextResponse.redirect(
+    internesZiel(
+      `${zurueck}${trenner}fehler=${encodeURIComponent(argumente.grund)}`,
+      HEIMWEG, anfrage),
+    303,
+  );
+}
+
+/**
  * Die Antwort auf einen FACHLICHEN Fehler — als Umleitung fuer ein Formular,
  * als JSON fuer einen JSON-Aufrufer.
  *

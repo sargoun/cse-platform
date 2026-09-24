@@ -15,6 +15,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { leseProfile, type ProfilZeile } from '../daten';
 import { haeltRechte } from '@/app/portal/rechte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/radar/profile` — die Suchprofile (RAD-04, RAD-05).
@@ -123,7 +124,7 @@ export default async function Profile(
       {fehler !== null ? (
         <Hinweis art="warnung" cse="radar-profil-fehler" className="mb-s5 max-w-prose">
           <strong>Nicht angelegt.</strong>{' '}
-          {FEHLER_TEXT[fehler] ?? 'Die Eingabe wurde abgewiesen.'}
+          {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Eingabe wurde abgewiesen.'}
         </Hinweis>
       ) : null}
 

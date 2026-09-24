@@ -15,6 +15,7 @@ import {
   FAEHIGKEITEN, modelle, type ModellZeile,
 } from '@/server/services/system/modellregister';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/einstellungen/modelle` — das Modellregister (V-120,
@@ -86,7 +87,7 @@ export default async function Modelle(
 
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="modelle-fehler" className="mb-s5 max-w-prose">
-          {t.fehler[fehler] ?? fehler}
+          {eigenerEintrag(t.fehler, fehler) ?? fehler}
         </Hinweis>
       )}
 
