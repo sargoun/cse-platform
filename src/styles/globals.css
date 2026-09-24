@@ -318,6 +318,23 @@ body {
  */
 
 /**
+ * §6 „Dropdown": das Klappmenue des Bereichsumschalters blendet ein —
+ * `opacity 0→1` und `translateY(-4px→0)` ueber `--base` mit `--ease` (§7:
+ * Klappmenues und Dialoge laufen mit `--base`). Eine Animation und keine
+ * Transition: das Menue wird beim Oeffnen eingehaengt, und eine Transition
+ * haette keinen Anfangszustand, von dem sie liefe. Bei
+ * `prefers-reduced-motion` gilt die Regel oben (V-237, D-731).
+ */
+@keyframes cse-klappmenue {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.cse-klappmenue {
+  animation: cse-klappmenue var(--base) var(--ease) both;
+}
+
+/**
  * §2 Mobile — „display → 36/40, h1 → 30/36, h2 → 24/30".
  *
  * **Der Befund:** `TYPO_MOBIL` stand seit PR 0 in `theme.ts`, und nichts hat es

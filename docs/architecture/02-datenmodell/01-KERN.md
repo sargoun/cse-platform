@@ -1562,7 +1562,7 @@ die rechtliche Fußzeile, die auf jedem Angebot und jeder Rechnung dieser Entit�
 |---|---|---|---|---|
 | id | uuid | NOT NULL | `gen_random_uuid()` | PK |
 | mandant_id | uuid | NOT NULL | — | FK → `mandant.id`, UNIQUE (1:1) |
-| kurzname | text | NOT NULL | — | Zeile 2 im Switcher: `Reinigung`, `Sicherheit`, `Bau`, `Digital & KI` (DESIGN §6) |
+| kurzname | text | NOT NULL | — | Kurzname der Gesellschaft; beim Anlegen der Name (0200). *Nicht* Zeile 2 im Switcher: die zeigt die gebuchten Gewerke aus `mandant.module` unter ihren Modulnamen und den Live-Zähler (DESIGN §6, D-659, D-731) |
 | identitaets_token | text | NOT NULL | — | **Token-Name, kein Hex.** `CHECK (identitaets_token IN ('area-reinigung','area-security','area-bau','area-operations'))` |
 | logo_hell_pfad · logo_dunkel_pfad · logo_druck_pfad | text | NULL | — | Storage-Keys; SVG. `// TODO(client): O-12 Logodateien` |
 | logo_alt | text | NULL | — | Alternativtext für alle Logovarianten (PUB-09, LEG-07, DESIGN §9) |

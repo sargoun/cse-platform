@@ -185,7 +185,7 @@ export function BereichsUmschalter({
           aria-label={texte.kopf}
           onKeyDown={beiListenTaste}
           data-cse="umschalter-menue"
-          className="absolute start-0 z-50 mt-s2 w-[320px] rounded-lg
+          className="cse-klappmenue absolute start-0 z-50 mt-s2 w-[320px] rounded-lg
                      bg-surface-2 p-s2 shadow-pop"
         >
           <p className="px-s2 py-s1 text-micro uppercase tracking-[0.08em] text-text-subtle">

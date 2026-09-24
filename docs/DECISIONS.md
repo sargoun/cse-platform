@@ -17459,6 +17459,30 @@ ihrer Entscheidung verzeichnet, in der Reihenfolge, in der sie behoben wurde.
    (Mitgliedschaft, Fenster, Archiv, globale Rolle), und zwei Fassungen
    derselben Regel laufen auseinander. Wer die Funktion umzieht, sieht rot
    und baut vorher die Policies um.
+4. **DESIGN §6 sagt jetzt, was gebaut ist — und das Klappmenü blendet ein,
+   wie §6 es verlangt.** Vier Abweichungen standen ohne Nachtrag in
+   DESIGN.md (CLAUDE.md: erst DESIGN.md, dann Code):
+   - *Einblenden:* dem Muster gefolgt. `.cse-klappmenue` (`globals.css`,
+     neben `.cse-auftritt`) blendet mit `opacity 0→1` und
+     `translateY(-4px→0)` ein, über `--base` mit `--ease`. §6 nannte
+     180 ms; das ist kein Token, und §7 sagt für Klappmenüs und Dialoge
+     `--base`. §6 verweist jetzt auf §7 statt auf eine eigene Zahl. Bei
+     `prefers-reduced-motion` gilt die globale Regel (kein Versatz).
+   - *Name im Auslöser erst ab `lg`:* DESIGN angepasst. Das ist D-659 Nr. 7
+     — zwischen `sm` und `lg` schob ein voller Firmenname die Kopfzeile über
+     den Rand (§8); der Seitentitel daneben und der zugängliche Name des
+     Knopfs nennen den Bereich.
+   - *„Security“ statt „Sicherheit“, keine Zeile für CSE Operations:*
+     DESIGN angepasst. Die zweite Zeile sind die gebuchten Gewerke unter
+     ihren Modulnamen — dieselben Wörter wie in der Modulzuweisung (V-164);
+     ein Gewerk, das im Umschalter anders hieße als auf dem Benutzerblatt,
+     wären zwei. Operations bucht kein Gewerk; „Digital & KI“ wäre eine
+     Beschriftung ohne Buchung und eine Null nur Schmuck (D-659 Nr. 3). Der
+     Zähler heißt, wie ihn die Anwendung zeigt („laufende Aufträge“,
+     „laufende Projekte“). 01-KERN §6.2 nannte `kurzname` noch als Zeile 2
+     im Umschalter; das ist berichtigt.
+   Kein neuer Wert: `-4px` und `320px` stehen in §6, `--base` und `--ease`
+   in §7.
 
-| Betrifft | SEC-A9, AUT-01, 03-AUTH §12.1, O-76, D-300, D-657, D-658, D-659, V-164, V-165, V-237, `drizzle/0461`, `drizzle/0462`, `tests/isolation/mitgliedschaft-module.test.ts` §1, §2, `tests/isolation/bereichswechsel.test.ts` §4 |
+| Betrifft | SEC-A9, AUT-01, 03-AUTH §12.1, O-76, O-355, D-300, D-657, D-658, D-659, V-164, V-165, V-237, DESIGN §6, §7, `drizzle/0461`, `drizzle/0462`, `src/styles/globals.css`, `src/components/portal/BereichsUmschalter.tsx`, `docs/architecture/02-datenmodell/01-KERN.md` §6.2, `tests/isolation/mitgliedschaft-module.test.ts` §1, §2, `tests/isolation/bereichswechsel.test.ts` §4, `tests/kern/bereichswechsel.test.ts` §7 |
 |---|---|

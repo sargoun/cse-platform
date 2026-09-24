@@ -438,3 +438,53 @@ describe('(6) Texte ohne Entwicklerbezug, ⌘K ohne Neuanmeldung je Rendern', ()
     expect(umschalter).not.toMatch(/\[aktiv, zeilen\]/u);
   });
 });
+
+/**
+ * **DESIGN §6 sagt, was gebaut ist** (V-237, D-731 Nr. 4).
+ *
+ * Vier Abweichungen standen ohne Nachtrag in DESIGN.md. Das Einblenden folgt
+ * jetzt dem Muster, die übrigen drei stehen begründet in §6 — und diese
+ * Prüfung hält beide Seiten zusammen: die Zeilen des Musters sind die, die
+ * `unterzeile` wirklich erzeugt, und das Klappmenü trägt die Einblendung mit
+ * den Tokens aus §7.
+ */
+describe('(7) DESIGN §6 und der Umschalter stimmen überein', () => {
+  const design = quelle('docs/DESIGN.md');
+  const abschnitt = design.slice(
+    design.indexOf('## 6. Business-area switcher'), design.indexOf('## 7. Motion'));
+
+  it('das Klappmenü blendet mit --base und --ease ein — keine eigene Dauer', () => {
+    expect(quelle('src/components/portal/BereichsUmschalter.tsx'))
+      .toMatch(/data-cse="umschalter-menue"\s+className="cse-klappmenue /u);
+    const css = quelle('src/styles/globals.css');
+    expect(css).toMatch(
+      /@keyframes cse-klappmenue \{\s*from \{ opacity: 0; transform: translateY\(-4px\); \}/u);
+    expect(css).toMatch(
+      /\.cse-klappmenue \{\s*animation: cse-klappmenue var\(--base\) var\(--ease\) both;/u);
+    expect(abschnitt).toContain('`translateY(-4px→0)` over `--base` with `--ease`');
+    expect(abschnitt).not.toMatch(/over 180ms/u);
+  });
+
+  it('die Zeilen im Muster sind die, die unterzeile erzeugt', () => {
+    const zeilen = [
+      unterzeile(['reinigung'], { schluessel: 'auftraege_aktiv', wert: 24 }, 'de'),
+      unterzeile(['security'], { schluessel: 'auftraege_aktiv', wert: 8 }, 'de'),
+      unterzeile(['bau'], { schluessel: 'projekte_laufend', wert: 12 }, 'de'),
+    ];
+    const erwartet = [
+      'Reinigung · 24 laufende Aufträge', 'Security · 8 laufende Aufträge',
+      'Bau · 12 laufende Projekte',
+    ];
+    expect(zeilen).toEqual(erwartet);
+    for (const z of erwartet) expect(abschnitt, z).toContain(z);
+    /* CSE Operations bucht kein Gewerk: keine zweite Zeile, keine erfundene. */
+    expect(unterzeile([], null, 'de')).toBeNull();
+    expect(abschnitt).not.toMatch(/│\s+Digital & KI\s+│/u);
+  });
+
+  it('der Name im Auslöser erst ab lg — und DESIGN sagt, warum', () => {
+    expect(quelle('src/components/portal/BereichsUmschalter.tsx'))
+      .toMatch(/knapp \? 'hidden lg:inline' : ''/u);
+    expect(abschnitt).toContain('In the portal header the name appears from `lg`.');
+  });
+});
