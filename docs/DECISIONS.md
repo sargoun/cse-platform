@@ -15633,3 +15633,52 @@ der Route ebenso.
 
 | Betrifft | OPS-04, D-599, AUT-06, O-919, V-171, `src/server/services/raumbuch/{tabelle,import}.ts`, `src/app/api/raumbuch-import/route.ts`, `src/app/portal/[mandant]/objekte/[id]/raumbuch/import/page.tsx`, `src/lib/i18n/verwaltung/raumbuch-import.ts`, `docs/ROADMAP.md` |
 |---|---|
+
+### D-666 · Auftragsassistent und Kalkulationsbestätigung geben ihre Maske zurück — mit Satz, Feld und dem Bereich der Sitzung (V-172)
+
+**Der Befund** (V-172, OPS-07, OPS-10, Invariante 3): beide Formulare sind
+einfache POST-Formulare ohne Client-Logik, und beide Routen antworteten auf
+jede Abweisung mit `NextResponse.json`. Wer in „Wochenstunden" „1.234,5" oder
+„40 Std" eintrug, sah `{"fehler":"keine_zahl","felder":[…]}`, und die Eingabe
+war verloren — `Number(roh.replace(',', '.'))` machte aus „1.234,5" `NaN`.
+Ebenso ein fehlender Nummernkreis (409) und jede `KalkulationFehler`; die
+Kalkulationsseite hatte keine Anzeige für `?fehler=`. Beide Routen nahmen den
+Slug für die Umleitung aus `?mandant=` — dasselbe Muster, das in
+`api/radar/profil` und `api/radar/vorgang` schon als Mangel beseitigt war.
+
+**Die Entscheidung.**
+
+1. **Eine fachliche Abweisung führt auf die Maske** — `/auftraege/neu?fehler=…`
+   bzw. `/angebote/[id]/kalkulation?fehler=…&feld=…` —, und die Seite zeigt
+   den Satz zum Schlüssel in der Sprache der Sitzung, nie den Schlüssel.
+   JSON bleibt für keine Sitzung, kein Recht, fremden Ursprung und
+   „unbekannt" (AUT-06).
+2. **Die Antwort kommt erst NACH der Rechteprüfung.** Die Zahlen werden vor
+   der Transaktion rein geprüft, die Abweisung aber erst gegeben, wenn
+   `authorize` bestanden ist: wer nicht anlegen darf, erfährt nicht, dass
+   seine Zahl zu gross war.
+3. **Deutsche Zahlen über den geprüften Leser** (`leseZahl`): Tausenderpunkt
+   und Dezimalkomma; die Grenzen sind die CHECKs aus 0025 (0 … 5.000 ganze
+   Personen, 0 … 10.000 Wochenstunden). `pruefeAuftragsangaben` ist die EINE
+   Stelle dafür — der Assistent und die Auftragspflege (V-173) teilen sie.
+4. **Was sonst als Datenbankfehler käme, wird vorher gefragt**
+   (`pruefeAuftragsbezug`): ein Datum, das es nicht gibt (22007), eine
+   Laufzeit vor dem Start (23514), ein Kunde oder Objekt, das diese Sitzung
+   nicht sieht (23503), eine Leitung, die hier nicht Mitglied ist (der
+   Auslöser aus 0025 fragt es danach ein zweites Mal). Alles VOR der Nummer:
+   eine Abweisung verbraucht keine Auftragsnummer.
+5. **Eine `KalkulationFehler` nennt ihr Feld** — Stundensatz, Gemeinkosten,
+   Wagnis und Gewinn, Frequenzfaktor, Basis. „Keine Zahl" allein liess raten,
+   welcher der drei Werte gemeint war.
+6. **Der Bereich kommt aus der Sitzung**, gelesen in der Transaktion und nach
+   aussen gereicht; `?mandant=` fällt aus beiden Formularen. Das Muster steckt
+   in weiteren Routen (Prüfung: 28); die übrigen sind nicht Teil dieses
+   Befunds.
+
+**Zur Kette Lead → Angebot → Auftrag** (Zweig `wf/crm-kette`): dieselben
+Schlüssel (`unvollstaendig`, `keine_zahl`, `ausserhalb_bereich`, Gründe des
+Nummernkreises) und dieselbe Form `zurMaske(grund)`; die Anfrage-Bindung
+(`leadId`) gehört dorthin und wird hier nicht vorweggenommen.
+
+| Betrifft | OPS-07, OPS-10, D-599, AUT-06, Invariante 3, V-172, `src/server/services/auftrag/angaben.ts`, `src/server/services/kalkulation/bestaetigung.ts`, `src/app/api/{auftrag,kalkulation}/route.ts`, `src/app/portal/[mandant]/auftraege/neu/page.tsx`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/lib/i18n/verwaltung/{auftrag,kalkulation}.ts` |
+|---|---|

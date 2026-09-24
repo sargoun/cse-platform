@@ -1309,6 +1309,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'auftrag', pfad: 'auftrag/status',
     schreibend: true, schreibRecht: 'auftrag.schreiben',
   },
+  /**
+   * V-172 — die Angaben eines Auftrags aus dem Formular: deutsche Zahlen,
+   * Grenzen aus 0025, Kunde/Objekt/Leitung unter RLS. Liest nur; geschrieben
+   * wird im Assistenten und in `auftrag/aendern`.
+   */
+  { modul: 'auftrag', pfad: 'auftrag/angaben', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/dienst', schreibend: false },

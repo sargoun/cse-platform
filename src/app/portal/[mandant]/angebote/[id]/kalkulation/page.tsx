@@ -12,6 +12,9 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KALKULATION_TEXTE } from '@/lib/i18n/verwaltung/kalkulation';
 
 /**
  * `/portal/[mandant]/angebote/[id]/kalkulation` — der Rechenweg, und der
@@ -66,10 +69,20 @@ function alsProzent(bp: number | null): string {
 }
 
 export default async function KalkulationSeite(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
+  /*
+   * Die Abweisung der Bestätigung kommt als Schlüssel und Feld zurück (V-172,
+   * D-599) — nicht mehr als weisse JSON-Seite.
+   */
+  const suche = await searchParams;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerFeld = typeof suche['feld'] === 'string' ? suche['feld'] : null;
   const pfad = `/portal/${mandant}/angebote/${id}/kalkulation`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -114,6 +127,8 @@ export default async function KalkulationSeite(
   const offen = kopf.ist_platzhalter === true || kopf.leistungswert_offen
     || kopf.frequenz_offen;
   const eingefroren = kopf.kalkulation_status === 'festgeschrieben' || kopf.versendet;
+  const tk = nachSprache(KALKULATION_TEXTE, zugang.sprache);
+  const feldName = fehlerFeld === null ? undefined : tk.feld[fehlerFeld];
 
   return (
     <PortalRahmen
@@ -136,6 +151,14 @@ export default async function KalkulationSeite(
         * damit, was es nicht zeigen darf (AUT-06, D-581).
         */}
       <h1 className="mb-s4 text-h1 text-text">Kalkulation</h1>
+
+      {fehler === null ? null : (
+        <Hinweis art="warnung" cse="kalkulation-fehler" className="mb-s5 max-w-prose">
+          <strong className="block">{tk.nichtBestaetigt}</strong>
+          {tk.fehler[fehler] ?? tk.fehler['unvollstaendig']}
+          {feldName === undefined ? null : <> {tk.imFeld(feldName)}</>}
+        </Hinweis>
+      )}
 
       {kopf.kalkulation_id === null ? (
         <p data-cse="keine-kalkulation" className="max-w-[72ch] text-base text-text-muted">
@@ -207,7 +230,7 @@ export default async function KalkulationSeite(
           ) : (
             <form
               method="post"
-              action={`/api/kalkulation?mandant=${mandant}`}
+              action="/api/kalkulation"
               data-cse="kalkulation-form"
               className="max-w-[52ch]"
             >

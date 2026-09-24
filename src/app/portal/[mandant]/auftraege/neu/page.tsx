@@ -9,6 +9,9 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '../../../rechte';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
 
 /**
  * `/portal/[mandant]/auftraege/neu` — der Auftragsassistent (OPS-10).
@@ -30,9 +33,18 @@ interface ObjektAuswahl { readonly id: string; readonly name: string;
   readonly kunde_id: string | null }
 
 export default async function AuftragAssistent(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  /*
+   * Die Abweisung des Assistenten kommt als Schlüssel zurück (V-172, D-599)
+   * — nicht mehr als weisse JSON-Seite.
+   */
+  const suche = await searchParams;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const zugang = await portalZugang(`/portal/${mandant}/auftraege/neu`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -70,6 +82,7 @@ export default async function AuftragAssistent(
 
   const feld = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
+  const ta = nachSprache(AUFTRAG_TEXTE, zugang.sprache);
 
   return (
     <PortalRahmen
@@ -87,6 +100,13 @@ export default async function AuftragAssistent(
     >
       <h1 className="mb-s5 text-h1 text-text">Neuer Auftrag</h1>
 
+      {fehler === null ? null : (
+        <Hinweis art="warnung" cse="auftrag-neu-fehler" className="mb-s5 max-w-prose">
+          <strong className="block">{ta.nichtAngelegt}</strong>
+          {ta.fehler[fehler] ?? ta.nichtGespeichert}
+        </Hinweis>
+      )}
+
       {daten.kunden.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Ohne Kunden kein Auftrag. Zuerst einen Kunden anlegen.
@@ -94,7 +114,7 @@ export default async function AuftragAssistent(
       ) : (
         <form
           method="post"
-          action={`/api/auftrag?mandant=${mandant}`}
+          action="/api/auftrag"
           className="max-w-prose rounded-lg border border-line bg-surface p-s5"
         >
           <label className="block text-sm text-text" htmlFor="kundeId">Kunde</label>

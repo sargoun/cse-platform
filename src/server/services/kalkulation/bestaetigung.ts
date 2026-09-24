@@ -24,11 +24,33 @@ export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
 }
 
+export type KalkulationFehlerGrund =
+  | 'nicht_gefunden' | 'eingefroren' | 'unvollstaendig' | 'keine_zahl';
+
 export class KalkulationFehler extends Error {
-  constructor(nachricht: string, readonly grund:
-    | 'nicht_gefunden' | 'eingefroren' | 'unvollstaendig' | 'keine_zahl') {
+  constructor(
+    nachricht: string,
+    readonly grund: KalkulationFehlerGrund,
+    /**
+     * WELCHES Feld (V-172): „keine Zahl" allein lässt den Menschen raten, ob
+     * der Stundensatz oder einer der beiden Zuschläge gemeint ist.
+     */
+    readonly feld: string | null = null,
+  ) {
     super(nachricht);
     this.name = 'KalkulationFehler';
+  }
+}
+
+/** Eine Umrechnung, deren Abweisung ihr Feld nennt. */
+function mitFeld<T>(feld: string, umrechnung: () => T): T {
+  try {
+    return umrechnung();
+  } catch (fehler) {
+    if (fehler instanceof KalkulationFehler && fehler.feld === null) {
+      throw new KalkulationFehler(fehler.message, fehler.grund, feld);
+    }
+    throw fehler;
   }
 }
 
@@ -153,7 +175,8 @@ export async function bestaetigeKalkulation(
 ): Promise<{ readonly bestaetigt: boolean }> {
   if (!(GEMEINKOSTEN_BASEN as readonly string[]).includes(eingabe.gemeinkostenBasis)) {
     throw new KalkulationFehler(
-      `Unbekannte Gemeinkostenbasis: ${eingabe.gemeinkostenBasis}`, 'unvollstaendig');
+      `Unbekannte Gemeinkostenbasis: ${eingabe.gemeinkostenBasis}`, 'unvollstaendig',
+      'gemeinkostenBasis');
   }
   if (eingabe.stundensatzEuro === null || eingabe.gemeinkostenProzent === null
       || eingabe.wagnisGewinnProzent === null) {
@@ -162,9 +185,12 @@ export async function bestaetigeKalkulation(
       + 'angegeben sein', 'unvollstaendig');
   }
 
-  const satz = stundensatzInCent(eingabe.stundensatzEuro);
-  const gk = prozentInBasispunkte(eingabe.gemeinkostenProzent);
-  const wg = prozentInBasispunkte(eingabe.wagnisGewinnProzent);
+  const stundensatzRoh = eingabe.stundensatzEuro;
+  const gkRoh = eingabe.gemeinkostenProzent;
+  const wgRoh = eingabe.wagnisGewinnProzent;
+  const satz = mitFeld('stundensatz', () => stundensatzInCent(stundensatzRoh));
+  const gk = mitFeld('gemeinkosten', () => prozentInBasispunkte(gkRoh));
+  const wg = mitFeld('wagnisGewinn', () => prozentInBasispunkte(wgRoh));
 
   /**
    * `for update` — und die Pruefung auf `festgeschrieben` DANACH.
@@ -185,9 +211,10 @@ export async function bestaetigeKalkulation(
       'Diese Kalkulation ist festgeschrieben und wird nicht mehr geaendert', 'eingefroren');
   }
 
-  const frequenzMilli = eingabe.frequenzFaktor === null
+  const frequenzRoh = eingabe.frequenzFaktor;
+  const frequenzMilli = frequenzRoh === null
     ? null
-    : frequenzFaktorInMilli(eingabe.frequenzFaktor);
+    : mitFeld('frequenzFaktor', () => frequenzFaktorInMilli(frequenzRoh));
 
   await db.abfrage(
     `update kalkulation
