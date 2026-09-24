@@ -174,14 +174,24 @@ describe('(1) die Schnittmenge wirkt — und jetzt laesst sie sich setzen', () =
   it('jede Aenderung steht im Protokoll, mit vorher und nachher', async () => {
     await setze(chef, adminBm, ['bericht', 'crm']);
     const [z] = await sql.unsafe<{
-      akteur_id: string; vorher: { module: string[] | null }; nachher: { module: string[] };
+      akteur_id: string; geaendert_felder: string[] | null;
+      vorher: { module: string[] | null; benutzer_id: string };
+      nachher: { module: string[]; benutzer_id: string };
     }[]>(
-      `select akteur_id::text as akteur_id, vorher, nachher from audit_log
+      `select akteur_id::text as akteur_id, geaendert_felder, vorher, nachher from audit_log
         where aktion = 'system.module_zugewiesen' and objekt_id = $1
         order by id desc limit 1`, [adminBm]);
     expect(z!.akteur_id).toBe(chef);
     expect(z!.vorher.module).toBeNull();
     expect(z!.nachher.module).toEqual(['bericht', 'crm']);
+    /*
+     * Das Konto ist der Bezug der Zeile, keine Aenderung (0461, V-237): es
+     * steht auf beiden Seiten, und geaendert ist nur die Liste. Bis 0461 stand
+     * es nur in nachher, und app.protokolliere meldete {benutzer_id, module}.
+     */
+    expect(z!.vorher.benutzer_id).toBe(admin);
+    expect(z!.nachher.benutzer_id).toBe(admin);
+    expect(z!.geaendert_felder).toEqual(['module']);
     await setze(chef, adminBm, null);
   });
 

@@ -17397,3 +17397,25 @@ das `t_bm_entziehen` (0102) nicht einschränkt. Mit
 
 | Betrifft | AUT-01, 03-AUTH §12.1, K-05, Invariante 8, D-610, D-658, D-662, V-168, V-236, `drizzle/0460`, `tests/isolation/mitgliedschaft-module.test.ts` §4 |
 |---|---|
+
+### D-731 · Die kleinen Punkte aus der Prüfung von V-163 bis V-169 (V-237)
+
+**Der Befund** (V-237): Neben den zwei offenen Punkten (V-235, V-236) nannte
+der unabhängige Prüfer der Gruppe sechs kleinere Stellen. Jede ist hier mit
+ihrer Entscheidung verzeichnet, in der Reihenfolge, in der sie behoben wurde.
+
+**Die Entscheidungen.**
+
+1. **Die Protokollzeile der Modulzuweisung nennt nur, was sich änderte**
+   (0461). `app.mitgliedschaft_module_setzen` schrieb vorher `{module}`,
+   nachher `{module, benutzer_id}`; `app.protokolliere` zählt jedes Feld aus
+   nachher, dessen Wert in vorher ein anderer ist, und ein fehlendes Feld ist
+   dort NULL. Jede Zeile trug deshalb `geaendert_felder = {benutzer_id,
+   module}` — eine Kontoänderung, die nie stattfand. Jetzt steht das Konto
+   auf beiden Seiten: es ist der Bezug der Zeile. `app.protokolliere` bleibt,
+   wie es ist — „ein Feld nur in nachher ist neu“ ist für andere Aufrufer
+   richtig, und der heißeste Pfad der Plattform bekommt keine neue Fassung
+   für einen Fehler an einer Stelle.
+
+| Betrifft | SEC-A9, AUT-01, D-657, D-658, V-164, V-237, `drizzle/0461`, `tests/isolation/mitgliedschaft-module.test.ts` §1 |
+|---|---|
