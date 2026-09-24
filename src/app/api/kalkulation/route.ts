@@ -62,7 +62,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const roh = text('angebotId');
   const angebotId = roh !== null && UUID.test(roh) ? roh : null;
   const basis = text('gemeinkostenBasis');
-  const aktion = text('aktion') ?? 'bestaetigen';
+  /* Zwei Handlungen, und nur diese zwei — alles andere ist die Bestätigung. */
+  const aktion = text('aktion') === 'kostenposition' ? 'kostenposition' : 'bestaetigen';
 
   let slug = '';
   const zurSeite = (grund: string, feld: string | null): NextResponse => {
@@ -72,6 +73,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const ziel = new URL(pfad, erwarteterUrsprung(anfrage));
     ziel.searchParams.set('fehler', grund);
     if (feld !== null) ziel.searchParams.set('feld', feld);
+    /* Die Seite sagt dann „die Kostenzeile", nicht „nichts bestätigt" (V-174). */
+    if (aktion === 'kostenposition') ziel.searchParams.set('aktion', aktion);
     return NextResponse.redirect(ziel, 303);
   };
 

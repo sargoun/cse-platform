@@ -13,6 +13,8 @@ import type { InternSprache } from '../intern.js';
 
 export interface KalkulationTexte {
   readonly nichtBestaetigt: string;
+  /** Über der Abweisung einer Kostenzeile (V-174). */
+  readonly kostenzeileNichtGespeichert: string;
   readonly fehler: Readonly<Record<string, string>>;
   /** Für einen Schlüssel, den die Tabelle nicht kennt — nie der Schlüssel selbst. */
   readonly fehlerSonst: string;
@@ -42,12 +44,15 @@ export interface KalkulationTexte {
   readonly speichern: string;
   readonly mengeNullHinweis: string;
   readonly gesperrtFreigegeben: string;
+  /** Statt des Bestätigungsformulars, sobald der Preis freigegeben ist (O-732). */
+  readonly bestaetigungGesperrt: string;
   readonly gespeichert: string;
 }
 
 export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>> = {
   de: {
     nichtBestaetigt: 'Nichts bestätigt, nichts neu gerechnet.',
+    kostenzeileNichtGespeichert: 'Die Kostenzeile wurde nicht gespeichert, der Preis nicht neu gerechnet.',
     fehlerSonst: 'Die Eingabe wurde abgewiesen. Bitte prüfen Sie die Angaben.',
     fehler: {
       keine_zahl:
@@ -71,6 +76,10 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
       ohne_lohn:
         'Material und Gerät brauchen eine Leistungszeile mit Lohn, die sie im Angebot trägt — '
         + 'diese Kalkulation hat keine.',
+      mehrdeutig:
+        'Die Menge lässt zwei Lesarten zu: „12.50" kann 12,5 oder 1.250 heißen. Bitte mit Komma '
+        + 'als Dezimaltrenner schreiben, z. B. 12,5 — und den Punkt nur als Tausendertrenner, '
+        + 'z. B. 1.250.',
     },
     feld: {
       stundensatz: 'Stundenverrechnungssatz',
@@ -132,10 +141,15 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
     gesperrtFreigegeben:
       'Der Preis ist freigegeben. Material und Gerät lassen sich hier nicht mehr ändern — '
       + 'ein anderer Preis braucht eine neue Angebotsversion (O-732).',
+    bestaetigungGesperrt:
+      'Der Preis dieses Angebots ist freigegeben. Die Werte lassen sich nicht mehr neu '
+      + 'bestätigen — eine Bestätigung rechnete den freigegebenen Preis um. Ein anderer Preis '
+      + 'braucht eine neue Angebotsversion (O-732).',
     gespeichert: 'Die Kostenzeile ist gespeichert, der Preis neu gerechnet.',
   },
   en: {
     nichtBestaetigt: 'Nothing was confirmed and nothing recalculated.',
+    kostenzeileNichtGespeichert: 'The cost line was not saved and the price was not recalculated.',
     fehlerSonst: 'The entry was rejected. Please check the values.',
     fehler: {
       keine_zahl:
@@ -159,6 +173,10 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
       ohne_lohn:
         'Material and equipment need a service line with labour that carries them in the '
         + 'offer — this costing has none.',
+      mehrdeutig:
+        'The quantity can be read two ways: "12.50" may mean 12.5 or 1,250. Please write it '
+        + 'the German way, with a comma as the decimal separator (e.g. 12,5) and the dot only '
+        + 'for thousands (e.g. 1.250).',
     },
     feld: {
       stundensatz: 'Hourly charge-out rate',
@@ -220,6 +238,10 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
     gesperrtFreigegeben:
       'The price has been released. Material and equipment can no longer be changed here — a '
       + 'different price needs a new offer version (O-732).',
+    bestaetigungGesperrt:
+      'The price of this offer has been released. The values can no longer be confirmed '
+      + 'again — a confirmation would recalculate the released price. A different price needs '
+      + 'a new offer version (O-732).',
     gespeichert: 'The cost line has been saved and the price recalculated.',
   },
 };

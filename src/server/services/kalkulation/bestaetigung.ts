@@ -31,7 +31,9 @@ export type KalkulationFehlerGrund =
   /** Der Preis ist freigegeben — ein anderer ist eine neue Version (O-732, V-174). */
   | 'preis_freigegeben'
   /** Material/Geraet ohne eine Lohnzeile, die den Betrag tragen koennte (V-174). */
-  | 'ohne_lohn';
+  | 'ohne_lohn'
+  /** Eine Menge mit zwei Lesarten („12.50") — abgewiesen, nie gedeutet (V-174). */
+  | 'mehrdeutig';
 
 export class KalkulationFehler extends Error {
   constructor(
@@ -219,16 +221,39 @@ export async function bestaetigeKalkulation(
    * nachtraeglich zu aendern hiesse, den Rechenweg eines abgegebenen Preises
    * umzuschreiben; der Unveraenderlichkeits-Ausloeser weist das ohnehin ab,
    * aber mit einem Fehler, der nichts erklaert.
+   *
+   * **Das Angebot wird mitgelesen** (V-174): die Bestaetigung rechnet den
+   * Preis neu und schreibt ihn in die Angebotspositionen. Ein Angebot, das
+   * diese Sitzung nicht sieht, bekaeme sonst eine neu gerechnete Kalkulation
+   * und alte Positionen — zwei Preise in einem Vorgang.
    */
-  const [kopf] = await db.abfrage<{ id: string; status: string }>(
-    `select id, status::text as status from kalkulation
-      where angebot_id = $1 for update`, [angebotId]);
+  const [kopf] = await db.abfrage<{
+    id: string; status: string; versendet: boolean; freigegeben: boolean;
+  }>(
+    `select k.id, k.status::text as status,
+            (a.versendet_am is not null) as versendet,
+            (a.freigegeben_am is not null) as freigegeben
+       from kalkulation k
+       join angebot a on a.id = k.angebot_id
+      where k.angebot_id = $1 for update of k`, [angebotId]);
   if (kopf === undefined) {
     throw new KalkulationFehler('Zu diesem Angebot gibt es keine Kalkulation', 'nicht_gefunden');
   }
-  if (kopf.status === 'festgeschrieben') {
+  if (kopf.status === 'festgeschrieben' || kopf.versendet) {
     throw new KalkulationFehler(
       'Diese Kalkulation ist festgeschrieben und wird nicht mehr geaendert', 'eingefroren');
+  }
+  /*
+   * **Nach der Preisfreigabe rechnet keine Bestaetigung den Preis mehr um**
+   * (V-174, O-732) — dieselbe Sperre wie fuer eine Kostenzeile. Die Leitung
+   * hat einen BETRAG verantwortet; eine neue Bestaetigung mit anderen Zahlen
+   * aenderte ihn unter derselben Freigabe. Ein anderer Preis braucht eine neue
+   * Angebotsversion.
+   */
+  if (kopf.freigegeben) {
+    throw new KalkulationFehler(
+      'Der Preis dieses Angebots ist freigegeben — eine neue Bestaetigung aenderte ihn. Ein '
+      + 'anderer Preis braucht eine neue Angebotsversion (O-732)', 'preis_freigegeben');
   }
 
   const frequenzRoh = eingabe.frequenzFaktor;

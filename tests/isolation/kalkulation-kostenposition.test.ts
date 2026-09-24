@@ -253,6 +253,19 @@ describe('(4) gesperrt ist, was nicht mehr geändert werden darf', () => {
     expect(await summen(id)).toEqual(vorher);
   });
 
+  it('nach der Preisfreigabe rechnet auch keine neue BESTÄTIGUNG den Preis um (O-732)', async () => {
+    const id = await angebotMitKalkulation();
+    await alsChef((db) => bestaetigeKalkulation(db, id, { ...WERTE, benutzerId: chef }));
+    await alsChef((db) => gibPreisFrei(db, id, chef));
+    const vorher = await summen(id);
+    const fehler = await alsChef((db) => bestaetigeKalkulation(db, id,
+      { ...WERTE, stundensatzEuro: '99,00', benutzerId: chef }))
+      .then(() => null, (e: unknown) => e);
+    expect(fehler).toBeInstanceOf(KalkulationFehler);
+    expect((fehler as KalkulationFehler).grund).toBe('preis_freigegeben');
+    expect(await summen(id)).toEqual(vorher);
+  });
+
   it('nach dem Versand: eingefroren', async () => {
     const id = await angebotMitKalkulation();
     await alsChef((db) => bestaetigeKalkulation(db, id, { ...WERTE, benutzerId: chef }));
@@ -269,7 +282,21 @@ describe('(4) gesperrt ist, was nicht mehr geändert werden darf', () => {
   });
 });
 
-describe('(5) die Zuschlagszeilen finden ihre Nummer hinter der Materialzeile', () => {
+describe('(5) eine deutsche Menge mit Tausenderpunkt kommt als Menge an, nicht als Bruchteil', () => {
+  it('1.250 l × 0,80 € = 1.000,00 € — und in der Zeile steht die Menge 1250', async () => {
+    const id = await angebotMitKalkulation();
+    await alsChef((db) => setzeKostenposition(db, id, {
+      ...MATERIAL, menge: '1.250', einzelpreisEuro: '0,80' }));
+    const [z] = await sql.unsafe<{ menge: string; betrag: string }[]>(
+      `select menge::text as menge, betrag_cent::text as betrag from kalkulation_position
+        where kalkulation_id = (select id from kalkulation where angebot_id = $1)
+          and kostenart = 'material'`, [id]);
+    expect(z).toEqual({ menge: '1250.000', betrag: '100000' });
+    expect((await summen(id)).material).toBe('100000');
+  });
+});
+
+describe('(6) die Zuschlagszeilen finden ihre Nummer hinter der Materialzeile', () => {
   it('Material zuerst, dann Bestätigung — keine doppelte Positionsnummer', async () => {
     const id = await angebotMitKalkulation();
     await alsChef((db) => setzeKostenposition(db, id, MATERIAL));

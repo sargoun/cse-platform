@@ -11,7 +11,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { basisPunkte, cent, formatiereGeld } from '../../src/server/services/finanz/geld.js';
-import { mengeAusPostgres, milliMenge } from '../../src/server/services/finanz/menge.js';
+import {
+  formatiereMenge, mengeAusPostgres, milliMenge,
+} from '../../src/server/services/finanz/menge.js';
 import type { Flaechenposten } from '../../src/server/services/kalkulation/richtzeit.js';
 import {
   gemeinkostenBezug, kalkuliere, verteileNetto, LEERE_KALKULATION,
@@ -139,6 +141,7 @@ describe('(3) pruefeKostenposition — Menge × Einzelpreis in ganzen Cent', () 
     [{ bezeichnung: '  ' }, 'bezeichnung'],
     [{ einheit: '' }, 'einheit'],
     [{ menge: 'viel' }, 'menge'],
+    [{ menge: '12,5 l' }, 'menge'],
     [{ menge: '-1' }, 'menge'],
     [{ menge: '1,2345' }, 'menge'],
     [{ einzelpreisEuro: '3.20' }, 'einzelpreis'],
@@ -148,5 +151,58 @@ describe('(3) pruefeKostenposition — Menge × Einzelpreis in ganzen Cent', () 
     try { pruefeKostenposition({ ...zeile, ...abweichung }); } catch (f) { gefangen = f; }
     expect(gefangen).toBeInstanceOf(KalkulationFehler);
     expect((gefangen as KalkulationFehler).feld).toBe(feld);
+  });
+});
+
+describe('(4) die Menge ist eine DEUTSCHE Zahl — und was zwei Lesarten hat, wird nicht gedeutet', () => {
+  const zeile = {
+    kostenart: 'geraet', bezeichnung: 'Scheuersaugmaschine', menge: '1', einheit: 'Std',
+    einzelpreisEuro: '2,00',
+  };
+  const fehlerVon = (abweichung: Partial<typeof zeile>): KalkulationFehler | null => {
+    try { pruefeKostenposition({ ...zeile, ...abweichung }); } catch (f) {
+      return f as KalkulationFehler;
+    }
+    return null;
+  };
+
+  it('Tausenderpunkt und Dezimalkomma: 1.234,5 Std × 2,00 € = 2.469,00 €', () => {
+    const p = pruefeKostenposition({ ...zeile, menge: '1.234,5' });
+    expect(p.menge).toBe(1_234_500n);
+    expect(p.betrag).toBe(246_900n);
+  });
+
+  it('„1.000" sind tausend, nicht eins — der Punkt gruppiert', () => {
+    expect(pruefeKostenposition({ ...zeile, menge: '1.000' }).menge).toBe(1_000_000n);
+  });
+
+  it('„12.50" hat zwei Lesarten und wird abgewiesen — mit Grund und Feld', () => {
+    const f = fehlerVon({ menge: '12.50' });
+    expect(f).toBeInstanceOf(KalkulationFehler);
+    expect(f?.grund).toBe('mehrdeutig');
+    expect(f?.feld).toBe('menge');
+    expect(fehlerVon({ menge: '12,50' })).toBeNull();
+  });
+
+  it('was die Seite zum Berichtigen vorbelegt, liest der Dienst wieder genauso', () => {
+    for (const roh of ['0,333', '12,5', '1.234,5', '999.999.999,999']) {
+      const p = pruefeKostenposition({ ...zeile, menge: roh });
+      const vorbelegt = pruefeKostenposition({ ...zeile, menge: formatiereMenge(p.menge) });
+      expect(vorbelegt.menge, roh).toBe(p.menge);
+    }
+  });
+
+  it('die Grenzen sind die der Spalte und der exakten Anzeige, keine Fachregel', () => {
+    expect(fehlerVon({ menge: '1.000.000.000' })).toMatchObject(
+      { grund: 'keine_zahl', feld: 'menge' });
+    expect(fehlerVon({ menge: '999.999.999,999' })).toBeNull();
+    expect(fehlerVon({ menge: '1', einzelpreisEuro: '90.071.992.547.409,92' })).toMatchObject(
+      { grund: 'keine_zahl', feld: 'einzelpreis' });
+    // 10 × 9.007.199.254.741,00 € liegt neun Cent über der Grenze, …
+    expect(fehlerVon({ menge: '10', einzelpreisEuro: '9.007.199.254.741,00' })).toMatchObject(
+      { grund: 'keine_zahl', feld: 'einzelpreis' });
+    // … 10 × 9.007.199.254.740,99 € darunter.
+    expect(fehlerVon({ menge: '10', einzelpreisEuro: '9.007.199.254.740,99' })).toBeNull();
+    expect(fehlerVon({ menge: '1', einzelpreisEuro: '90.071.992.547.409,91' })).toBeNull();
   });
 });

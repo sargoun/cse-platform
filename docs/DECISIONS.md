@@ -16974,44 +16974,70 @@ doch auf den Lohn gerechnet.
 1. **Die Höhe wird nie vorbelegt.** Material und Gerät sind die Summe der
    Zeilen, die ein Mensch auf der Kalkulationsseite erfasst: Menge ×
    Einzelpreis, über `multipliziereMitMenge` (halb aufwärts, eine
-   Rundungsstelle). Menge über `mengeAusEingabe`, Preis über `parseGeld`;
-   beides nie negativ.
-2. **Einzelkosten gehen IMMER in den Preis.** Die Basis entscheidet nur,
+   Rundungsstelle). Der Preis kommt über `parseGeld`, beides nie negativ.
+2. **Die Menge ist eine deutsche Zahl** (`leseZahl`, wie die Angaben des
+   Auftrags in D-666): „1.234,5" ist tausendzweihundertvierunddreißig Komma
+   fünf, „1.000" ist tausend. Eine Schreibweise mit zwei Lesarten („12.50" —
+   deutsch 1.250, englisch 12,5) wird mit `mehrdeutig` am Feld abgewiesen,
+   nicht gedeutet: ein Faktor hundert auf der Menge ist ein Faktor hundert
+   auf dem Preis. Was die Seite zum Berichtigen vorbelegt („1.234,50"), liest
+   der Dienst genauso zurück. Die Grenzen sind technische, keine Fachregeln:
+   weniger als eine Milliarde Einheiten (`numeric(12,3)`), Beträge bis
+   `Number.MAX_SAFE_INTEGER` Cent (R-12); darüber gibt es einen Satz statt
+   eines 22003.
+3. **Einzelkosten gehen IMMER in den Preis.** Die Basis entscheidet nur,
    worauf der Gemeinkostenzuschlag rechnet: `lohn` auf den Lohn,
    `selbstkosten` auf Lohn + Material + Gerät (so steht es auch in der
    Auswahl). Wagnis und Gewinn rechnen weiter auf die Summe davor
    (Einzelkosten + Gemeinkosten). Welche Basis gruppenweit gilt, bleibt O-16.
-3. **`je_kostenart` wird abgewiesen** (`basis_offen`), nicht still wie `lohn`
+4. **`je_kostenart` wird abgewiesen** (`basis_offen`), nicht still wie `lohn`
    gerechnet: sie braucht einen Zuschlag je Kostenart, und diese Sätze sind
-   offen — `// TODO(client, O-16)` am Dienst, die Auswahl zeigt die Option
-   sichtbar, aber nicht wählbar.
-4. **Im Angebot** stecken Material und Gerät wie Gemeinkosten, Wagnis und
+   offen. `// TODO(client, O-16)` steht am Dienst; die Auswahl zeigt die
+   Option sichtbar, aber nicht wählbar.
+5. **Im Angebot** stecken Material und Gerät wie Gemeinkosten, Wagnis und
    Gewinn anteilig im Preis der Leistungszeilen (`verteileNetto`, größter
-   Rest) — dieselbe offene Frage O-208, ob Zuschläge eigene Positionen wären.
-   Ohne eine Lohnzeile, die sie tragen könnte, wird abgewiesen (`ohne_lohn`).
-5. **Nach jeder Kostenzeile wird neu gerechnet** — mit den Tarifzahlen, die
-   der Kopf trägt, über dieselbe Funktion wie beim ersten Mal
-   (`rechneKalkulationNeu` → `kalkuliere`). Die Kalkulationssumme und
-   `angebot.netto_cent` nennen danach denselben Betrag.
-6. **Nichts wird gelöscht** (Invariante 8): berichtigt wird die Zeile selbst;
-   eine Zeile, die nicht mehr gelten soll, bekommt die Menge 0 und bleibt als
+   Rest). Das ist dieselbe offene Frage O-208, ob Zuschläge eigene Positionen
+   wären. Ohne eine Lohnzeile, die sie tragen könnte, wird abgewiesen
+   (`ohne_lohn`).
+6. **Nach jeder Kostenzeile wird neu gerechnet**, über dieselbe Funktion wie
+   bei der Bestätigung (`rechneKalkulationNeu` → `kalkuliere`) und mit den
+   Zahlen, die der Kopf trägt. Kalkulationssumme und `angebot.netto_cent`
+   nennen danach denselben Betrag. Vor der Bestätigung sind das die
+   Platzhalterzahlen, mit denen das Angebot entstand. Der Kopf führt Wagnis
+   und Gewinn als EINEN Satz (`wagnis_gewinn_bp`), deshalb rechnet die
+   Neuberechnung ihn wie die Bestätigung als einen Zuschlag. Der Preis
+   bleibt ein Platzhalterpreis und gesperrt, bis ein Mensch bestätigt.
+7. **Nichts wird gelöscht** (Invariante 8): berichtigt wird die Zeile selbst.
+   Eine Zeile, die nicht mehr gelten soll, bekommt die Menge 0 und bleibt als
    Beleg. Jede Änderung steht mit Vorher/Nachher im Protokoll
    (`kalkulation.kostenposition`).
-7. **Gesperrt** nach dem Versand (festgeschrieben) UND nach der
-   Preisfreigabe: eine Kostenzeile änderte den freigegebenen Preis, und „ein
-   anderer Preis braucht eine neue Angebotsversion" (O-732).
-8. **Die Zuschlagszeilen tragen ihren eigenen Bezug** (Gemeinkosten: den
+8. **Gesperrt** nach dem Versand (festgeschrieben) UND nach der
+   Preisfreigabe, denn „ein anderer Preis braucht eine neue Angebotsversion"
+   (O-732). Das gilt für eine Kostenzeile und ebenso für eine neue
+   Bestätigung: auch sie rechnete den freigegebenen Betrag um. Bisher ließ
+   `bestaetigeKalkulation` das bis zum Versand zu. Die Seite bietet dann
+   beides nicht mehr an und sagt warum.
+9. **Die Zuschlagszeilen tragen ihren eigenen Bezug** (Gemeinkosten: den
    Betrag nach der Basis; Wagnis/Gewinn: Einzelkosten + Gemeinkosten) und ihre
-   Nummer hinter der höchsten vorhandenen — vorher trugen beide den Lohn, und
+   Nummer hinter der höchsten vorhandenen. Vorher trugen beide den Lohn, und
    eine Materialzeile vor der Bestätigung hätte `kp_position_uk` verletzt.
-9. **Die Kalkulationsseite** zeigt die fünf Blöcke aus den Summen der
-   Datenbank (sie rechnet nichts), den Rechenweg nur noch für Lohnzeilen und
-   einen eigenen Abschnitt „Material und Gerät" mit Anlegen und Berichtigen.
+10. **Die Kalkulationsseite** zeigt die fünf Blöcke aus den Summen der
+    Datenbank (sie rechnet nichts), den Rechenweg nur noch für Lohnzeilen und
+    einen eigenen Abschnitt „Material und Gerät" mit Anlegen und Berichtigen.
+    Eine abgewiesene Kostenzeile kommt mit Satz und Feld zurück („Die
+    Kostenzeile wurde nicht gespeichert"), nicht als „nichts bestätigt".
+11. **Der Seed** trägt zwei Zeilen in den Entwurf „Grundreinigung", über
+    denselben Dienst und als Demodaten bezeichnet. Das sind keine
+    Katalogpreise.
 
 **Nicht Teil dieser Entscheidung:** eine Kalkulation für Angebote von Hand
-(Security, Bau, `angebot/von-hand.ts`) — sie tragen ihren Preis je Position
-selbst; ebenso `kalkulation.selbstkosten_cent`, dessen Zusammensetzung O-16
-ist.
+(Security, Bau, `angebot/von-hand.ts`), die ihren Preis je Position selbst
+tragen; `kalkulation.selbstkosten_cent`, dessen Zusammensetzung O-16 ist. Und
+das Zusammenspiel mit einem von Hand berichtigten Raumbuch-Entwurf (D-626):
+jede Neuberechnung (Bestätigung wie Kostenzeile) bepreist die
+Leistungspositionen aus den Lohnzeilen der Kalkulation neu. Eine entfernte
+Position trägt dann ihren Anteil weiter in der Kalkulation, nicht im Angebot.
+Das war bei der Bestätigung schon so und wird hier nicht geändert.
 
-| Betrifft | OPS-07, O-16, O-208, O-732, Invariante 1, 6, 8, V-174, `src/server/services/kalkulation/{index,bestaetigung,kostenposition}.ts`, `src/app/api/kalkulation/route.ts`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/lib/i18n/verwaltung/kalkulation.ts` |
+| Betrifft | OPS-07, O-16, O-208, O-732, D-626, D-666, Invariante 1, 6, 8, V-174, `src/server/services/kalkulation/{index,bestaetigung,kostenposition}.ts`, `src/app/api/kalkulation/route.ts`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/lib/i18n/verwaltung/kalkulation.ts`, `src/server/db/seed/vertrieb.ts` |
 |---|---|

@@ -106,6 +106,8 @@ export default async function KalkulationSeite(
   const suche = await searchParams;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const fehlerFeld = typeof suche['feld'] === 'string' ? suche['feld'] : null;
+  /* Welche Handlung abgewiesen wurde — nur dieser eine Wert zählt (V-174). */
+  const kostenFehler = suche['aktion'] === 'kostenposition';
   const kostenpositionGespeichert = suche['kostenposition'] === '1';
   const pfad = `/portal/${mandant}/angebote/${id}/kalkulation`;
   const zugang = await portalZugang(pfad);
@@ -217,7 +219,9 @@ export default async function KalkulationSeite(
 
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="kalkulation-fehler" className="mb-s5 max-w-prose">
-          <strong className="block">{tk.nichtBestaetigt}</strong>
+          <strong className="block">
+            {kostenFehler ? tk.kostenzeileNichtGespeichert : tk.nichtBestaetigt}
+          </strong>
           {eigenerEintrag(tk.fehler, fehler) ?? tk.fehlerSonst}
           {feldName === undefined ? null : <> {tk.imFeld(feldName)}</>}
         </Hinweis>
@@ -288,7 +292,7 @@ export default async function KalkulationSeite(
               ))}
             </dl>
             <p className="mt-s3 text-xs text-text-muted" data-cse="kalkulation-basis">
-              {tk.basisSatz[kopf.gemeinkosten_basis ?? 'lohn'] ?? tk.basisSatz['lohn']}
+              {eigenerEintrag(tk.basisSatz, kopf.gemeinkosten_basis) ?? tk.basisSatz['lohn']}
             </p>
           </section>
 
@@ -307,7 +311,9 @@ export default async function KalkulationSeite(
                       className="rounded-lg border border-line bg-surface p-s4 text-sm text-text">
                     <div className="flex flex-wrap items-baseline justify-between gap-s3">
                       <span>
-                        <span className="text-text-subtle">{tk.kostenart[z.kostenart] ?? ''}</span>
+                        <span className="text-text-subtle">
+                          {eigenerEintrag(tk.kostenart, z.kostenart) ?? ''}
+                        </span>
                         {' · '}{z.bezeichnung}
                       </span>
                       <span className="tabular-nums">
@@ -436,6 +442,15 @@ export default async function KalkulationSeite(
             <p data-cse="kalkulation-eingefroren" className="text-sm text-text-muted">
               Das Angebot ist versendet; die Kalkulation ist damit eingefroren und
               wird nicht mehr geändert. Ein anderer Preis braucht ein neues Angebot.
+            </p>
+          ) : kopf.freigegeben ? (
+            /*
+             * V-174 (O-732): nach der Preisfreigabe rechnet auch eine neue
+             * Bestätigung den Preis nicht mehr um — der Dienst weist sie ab,
+             * und die Seite bietet sie deshalb gar nicht erst an.
+             */
+            <p data-cse="kalkulation-freigegeben" className="max-w-prose text-sm text-text-muted">
+              {tk.bestaetigungGesperrt}
             </p>
           ) : (
             <form
