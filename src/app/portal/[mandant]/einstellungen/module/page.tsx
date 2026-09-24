@@ -1,10 +1,21 @@
 import type postgres from 'postgres';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
+import { internSprache } from '@/lib/i18n/intern';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import {
+  MODUL_ZUWEISUNG_TEXTE, modulName,
+} from '@/lib/i18n/verwaltung/einstellungen/module-zuweisung';
+import {
+  administrationenMitModulen, type AdministrationModule,
+} from '@/server/services/system/mitgliedschaft-module';
 import { GEWERKE, GEWERK_FUER_MODUL, QUERSCHNITT } from '@/server/registry/modul';
+import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 
@@ -37,9 +48,25 @@ export default async function Module(
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang, mandantId } = tor;
 
-  const [m] = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, zugang.sitzung, (kontext) => kontext.abfrage<Zeile>(
-      `select module, module_gepflegt from mandant where id = $1`, [mandantId]))) as Promise<readonly Zeile[]>);
+  const sprache = internSprache(zugang.sprache);
+  const tModule = nachSprache(MODUL_ZUWEISUNG_TEXTE, zugang.sprache);
+  /*
+   * Der Name fuehrt aufs Benutzerblatt — nur, wer es oeffnen darf. Ein
+   * Verweis auf eine 404 verraet, dass es das Blatt gibt (AUT-06).
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'system.benutzer_lesen');
+  const { zeilen, admins } = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+    withTenant(tx, zugang.sitzung, async (kontext) => ({
+      zeilen: await kontext.abfrage<Zeile>(
+        `select module, module_gepflegt from mandant where id = $1`, [mandantId]),
+      /*
+       * AUT-01 (V-164): die zweite Haelfte dessen, was diese Seite laut
+       * SEITENKARTE §5.24 zeigt — „which modules an admin holds in this
+       * mandant". Geaendert wird auf dem Benutzerblatt; hier steht die Liste.
+       */
+      admins: await administrationenMitModulen(kontext),
+    }))) as Promise<{ zeilen: readonly Zeile[]; admins: readonly AdministrationModule[] }>);
+  const [m] = zeilen;
   if (m === undefined) notFound();
   const gebucht = new Set(m.module ?? []);
   const gewerkModule = Object.entries(GEWERK_FUER_MODUL);
@@ -103,6 +130,35 @@ export default async function Module(
         Die Buchung ändert die Super-Administration (`system.module_zuweisen`,
         Zwei-Faktor-Pflicht); die Änderung ist eine Zeile in `mandant.module`.
       </p>
+
+      <h2 className="mb-s3 mt-s6 text-h2 text-text">{tModule.uebersichtTitel}</h2>
+      <p className="mb-s4 max-w-prose text-sm text-text-muted">{tModule.uebersichtErklaerung}</p>
+      {admins.length === 0 ? (
+        <p data-cse="admin-module-leer"
+           className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
+          {tModule.uebersichtLeer}
+        </p>
+      ) : (
+        <div data-cse="admin-module">
+          <DataTable
+            beschriftung={tModule.uebersichtBeschriftung}
+            zeilen={admins}
+            schluessel={(a) => a.mitgliedschaftId}
+            spalten={[
+              { schluessel: 'konto', kopf: tModule.spalteKonto,
+                zelle: (a) => (darf['system.benutzer_lesen'] === true ? (
+                  <Link href={`/portal/${mandant}/einstellungen/benutzer/${a.benutzerId}`}
+                        className="text-text underline-offset-2 hover:text-brand hover:underline">
+                    {a.name}
+                  </Link>
+                ) : a.name) },
+              { schluessel: 'module', kopf: tModule.spalteModule,
+                zelle: (a) => (a.module === null ? tModule.alleDerRolle
+                  : a.module.map((x) => modulName(x, sprache)).join(', ')) },
+            ]}
+          />
+        </div>
+      )}
     </PortalRahmen>
   );
 }

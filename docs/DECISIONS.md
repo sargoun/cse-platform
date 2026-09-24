@@ -15632,3 +15632,69 @@ der Marker steht in 0415.
 
 | Betrifft | SEC-A9, LEG-09, O-92, D-300, V-163, `drizzle/0415`, `src/server/auth/adresse.ts`, `src/server/auth/anfrage-sitzung.ts`, `src/server/kontext/index.ts`, `src/server/agent/orchestrator.ts`, `src/app/portal/[mandant]/einstellungen/protokoll/page.tsx`, `src/app/portal/gruppe/protokoll/page.tsx`, `tests/isolation/pruefprotokoll-ip-agent.test.ts`, `tests/kern/anfrage-adresse.test.ts` |
 |---|---|
+
+### D-658 · Die Module einer Administration lassen sich zuweisen — über genau einen Weg (V-164)
+
+**Der Befund** (V-164, AUT-01): SPEC §3 nennt für `admin` „assigned modules
+within assigned areas“. Die Spalte `benutzer_mandant.module` gibt es seit 0007,
+und `app.hat_recht_fuer` wertet sie als Schnittmenge aus (zuletzt 0395). Keine
+Funktion, keine Route, keine Oberfläche und kein Seed schrieb sie. Jede
+Administration hielt damit alle Module ihrer Rolle. Den Auslöser
+`bm_module_pruefen`, den 03-AUTH §7.1 verlangt, gab es auch nicht. Und
+`t_bm_entziehen` (0102) gibt jeder Kontoverwaltung ein UPDATE auf die ganze
+Zeile, also auch auf die eigene Modulliste.
+
+**Die Entscheidung.**
+
+1. **Ein Schreibweg: `app.mitgliedschaft_module_setzen`** (0416, Definer,
+   Eigentümer `cse_definer`). Er verlangt genau einen aktiven Mandanten ohne
+   Lesemodus (Invariante 10), den zweiten Faktor, `system.module_zuweisen` im
+   aktiven Mandanten und eine lebende Mitgliedschaft DIESES Mandanten. Jede
+   Änderung schreibt `audit_log` mit vorher und nachher. Die Route
+   `/api/einstellungen/mitgliedschaft-module` fragt Recht und Faktor vorher
+   (`authorize`, `erfordert2fa`); die Datenbank fragt beides noch einmal.
+2. **Nur die Plattformrolle `admin`.** SPEC §3 nennt die Modulzuweisung nur
+   für sie. `leitung` ist „own business area only“, `mitarbeiter` und `kunde`
+   haben ihre Decken (K-04), und eine eigene Rolle einer Gesellschaft IST
+   schon ein Zuschnitt ihrer Rechte (AUT-03).
+3. **Nie das eigene Konto.** Wer seine eigene Liste erweitern könnte, hätte
+   keine (03-AUTH §12.1: „an admin widening their own module set is the
+   risk“).
+4. **Niemand vergibt mehr, als er selbst hält.** Ist die eigene
+   Mitgliedschaft in dieser Gesellschaft auf Module beschränkt, darf nur eine
+   Teilmenge davon vergeben werden, und nie „alle Module der Rolle“. Sonst
+   könnten zwei beschränkte Konten mit `system.module_zuweisen` einander über
+   Kreuz alles geben. Die globale Rolle trägt keine Schnittmenge (0395,
+   Zweig 1) und ist nicht beschränkt. Heute hält das Recht ohnehin nur
+   `super_admin`; die Regel gilt für den Tag, an dem O-76 es an `admin` bindet.
+5. **„Alle Module der Rolle“ ist eine eigene Wahl** (`NULL`). Eine leere
+   Liste weist der Auslöser ab: kein Recht in einer Gesellschaft ist ein
+   Entzug, keine Zuweisung. Und aus einer leeren Auswahl wird nicht still
+   „alles“.
+6. **Der Auslöser `kern.bm_module_pruefen`** prüft jeden Wert gegen den
+   Katalog (`select distinct modul from berechtigung`) und speichert die Liste
+   sortiert und ohne Doppel. Er sperrt außerdem den Anwendungsweg
+   (`current_user = cse_app`) an der Spalte vorbei, damit das UPDATE aus
+   `t_bm_entziehen` die eigene Liste nicht mehr leeren kann. Seed und
+   Migrationen (Eigentümer) prüft er auch, sperrt sie aber nicht.
+7. **Die Oberfläche benennt, sie zeigt keine Schlüssel.** Auf dem
+   Benutzerblatt steht ein Formular (Umfang „alle“ oder Auswahl, eine Liste
+   aus dem Katalog). Die Seite `einstellungen/module` bekommt die Übersicht
+   „Module der Administrationen“, die SEITENKARTE §5.24 für sie vorsieht.
+   Überall stehen Modulnamen (de/en, `MODUL_NAMEN`), auch in der
+   Benutzerliste. `tests/kern/modul-namen.test.ts` hält die Namensliste gegen
+   den Katalog. Ein fehlendes Recht bleibt die 404 aller Routen (D-656); die
+   übrigen Gründe kommen als Satz auf das Blatt zurück (D-599).
+8. **Der Seed führt es vor.** `admin.vertrieb@cse-gruppe.de` ist die
+   Vertriebsadministration der Reinigung mit `angebot, auftrag, bericht, crm,
+   kalkulation, katalog, objekt`. Es ist ein eigenes Konto ohne Person: es
+   führt kein Wachbuch und steht in keinem Dienstplan, und eine erfundene
+   Beschäftigung wäre eine Kostenstelle ohne Satz (O-347). Zwei Seed-Abfragen,
+   die „eine Administration der Gesellschaft“ wählen, ordnen jetzt nach
+   E-Mail statt nach der Reihenfolge der Tabelle.
+
+**Die Rechte gelten mit der nächsten Anfrage** (03-AUTH §7.3, kein Cache);
+eine laufende Sitzung muss nicht enden.
+
+| Betrifft | AUT-01, AUT-03, AUT-06, K-04, K-15, O-76, O-347, D-599, D-656, V-164, `drizzle/0416`, `src/server/services/system/mitgliedschaft-module.ts`, `src/app/api/einstellungen/mitgliedschaft-module/route.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/{ModulZuweisung.tsx,[id]/page.tsx,page.tsx}`, `src/app/portal/[mandant]/einstellungen/module/page.tsx`, `src/lib/i18n/verwaltung/einstellungen/module-zuweisung.ts`, `src/server/db/seed/{index,eingang,konto}.ts`, `tests/isolation/mitgliedschaft-module.test.ts`, `tests/kern/modul-namen.test.ts` |
+|---|---|
