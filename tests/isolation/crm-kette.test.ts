@@ -32,6 +32,7 @@ import {
 import {
   HandAngebotFehler, legeAngebotVonHandAn,
 } from '../../src/server/services/angebot/von-hand.js';
+import { ziehEntwurfZurueck } from '../../src/server/services/angebot/entwurf.js';
 import { CrmFehler, legeKundeAn, legeLeadAn } from '../../src/server/services/crm/anlegen.js';
 import { aendereKunde } from '../../src/server/services/crm/aendern.js';
 import {
@@ -867,5 +868,170 @@ describe('§7 der Ansprechpartner der Anfrage — gewählt, angelegt, angesproch
     expect(l.kunde_id).toBe(kundeId);
     // Nicht auf den Zwilling ohne Vermerk umgestellt — der Widerspruch gilt weiter.
     expect(l.ansprechpartner_id).toBe(kontaktId);
+  });
+});
+
+/* ═════════════════════════════════════════════════════════════════════════
+ * §8 — die Kette hält auch im Rennen, nach dem Archiv und beim Berichtigen
+ *      (V-142, D-636)
+ * ═════════════════════════════════════════════════════════════════════════ */
+
+describe('§8 Rennen, Archiv, Berichtigung, Land', () => {
+  /** Hält eine Transaktion offen, bis der Test sie freigibt. */
+  function schleuse(): { tor: Promise<void>; oeffne: () => void } {
+    let oeffne!: () => void;
+    const tor = new Promise<void>((r) => { oeffne = r; });
+    return { tor, oeffne };
+  }
+  const warte = (ms: number): Promise<'wartet'> =>
+    new Promise((r) => { setTimeout(() => r('wartet'), ms); });
+  const stand = <T,>(p: Promise<T>): Promise<'fertig' | 'abgewiesen'> =>
+    p.then(() => 'fertig' as const, () => 'abgewiesen' as const);
+
+  it('ein Angebot wartet auf ein gleichzeitiges Umhängen und liest danach den neuen Kunden', async () => {
+    const { a, b, leadId } = await inR(async (k) => {
+      const a = await kunde(k, 'Rennen A GmbH');
+      const b = await kunde(k, 'Rennen B GmbH');
+      const l = await legeLeadAn(k, { betreff: 'Rennen', kundeId: a, besitzerBenutzerId: chefR });
+      return { a, b, leadId: l.id };
+    });
+    const umgehaengt = schleuse();
+    const halten = schleuse();
+    const umhaengen = inR(async (k) => {
+      await ordneLeadKundeZu(k, leadId, b);
+      umgehaengt.oeffne();
+      await halten.tor;
+    });
+    await umgehaengt.tor;
+    /*
+     * Die Vorprüfung des Dienstes sieht noch Kunde A (das Umhängen ist nicht
+     * festgeschrieben). Ohne Sperre im Auslöser (0400) hätte er A ebenfalls
+     * gelesen, und danach stünde ein Angebot für A an einer Anfrage von B.
+     */
+    const angebot = inR((k) => legeAngebotAn(k, { kundeId: a, titel: 'Zu spät', leadId }));
+    expect(await Promise.race([stand(angebot), warte(400)])).toBe('wartet');
+    halten.oeffne();
+    await umhaengen;
+    await expect(angebot).rejects.toMatchObject({ code: '23514' });
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from angebot where lead_id = $1`, [leadId]);
+    expect(n!.n).toBe(0);
+    expect((await lead(leadId)).kunde_id).toBe(b);
+  });
+
+  it('dieselbe neue USt-IdNr. im selben Augenblick in zwei Gesellschaften — eine Firma, kein Fehler', async () => {
+    const nummer = String(100000000 + Math.floor(Math.random() * 899999999));
+    const angelegt = schleuse();
+    const halten = schleuse();
+    const reinigung = inR(async (k) => {
+      const neu = await legeKundeAn(k, {
+        name: 'Gleichzeitig GmbH', typ: 'firma', rechtsgrundlage: 'keine', ustId: `DE${nummer}` });
+      angelegt.oeffne();
+      await halten.tor;
+      return neu;
+    });
+    await angelegt.tor;
+    const security = inS((k) => legeKundeAn(k, {
+      name: 'Gleichzeitig Sicherheit GmbH', typ: 'firma', rechtsgrundlage: 'keine',
+      ustId: `DE${nummer}` }));
+    // Die Security wartet am Eindeutigkeitsschlüssel der Firma …
+    expect(await Promise.race([stand(security), warte(400)])).toBe('wartet');
+    halten.oeffne();
+    // … und findet sie danach, statt mit 23505 abzubrechen.
+    const [r, s] = await Promise.all([reinigung, security]);
+    const zeilen = await sql.unsafe<{ id: string; firma_id: string | null }[]>(
+      `select id::text as id, firma_id::text as firma_id from kunde where id = any($1::uuid[])`,
+      [[r.id, s.id]]);
+    const firma = zeilen.map((z) => z.firma_id);
+    expect(firma[0]).not.toBeNull();
+    expect(firma[0]).toBe(firma[1]);
+    const [anzahl] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from firma where ust_id = $1`, [`DE${nummer}`]);
+    expect(anzahl!.n).toBe(1);
+  });
+
+  it('das Land des Kunden geht an seine Firma — dieselbe Regel wie 0401', async () => {
+    const nummer = String(10000000 + Math.floor(Math.random() * 89999999));
+    const k1 = await inR((k) => legeKundeAn(k, {
+      name: 'Wiener Gebäude GmbH', typ: 'firma', rechtsgrundlage: 'keine' }));
+    await inR((k) => aendereKunde(k, {
+      id: k1.id, name: 'Wiener Gebäude GmbH', typ: 'firma', ustId: `ATU${nummer}`, land: 'AT' }));
+    const [z] = await sql.unsafe<{ land: string }[]>(
+      `select f.land from kunde k join firma f on f.id = k.firma_id where k.id = $1`, [k1.id]);
+    expect(z!.land).toBe('AT');
+  });
+
+  it('ein archivierter Lead gibt die Bekanntmachung frei — ein laufender nicht', async () => {
+    const quellId = `test-${zufall()}`;
+    const [a] = await sql.unsafe<{ id: string }[]>(
+      `insert into ausschreibung (quelle, quell_id, titel, vergabestelle_name, rohdaten_hash)
+       values ('oeffentlichevergabe', $1, 'Glasreinigung Schule', 'Schulamt Test', $1)
+       returning id`, [quellId]);
+    const erster = await inR((k) => uebernimmAusschreibungAlsLead(k, a!.id, {
+      besitzerBenutzerId: chefR }));
+    await sql.unsafe(`update lead set archiviert_am = now() where id = $1`, [erster.id]);
+    const zweiter = await inR((k) => uebernimmAusschreibungAlsLead(k, a!.id, {
+      besitzerBenutzerId: chefR }));
+    expect(zweiter.id).not.toBe(erster.id);
+    await expect(inR((k) => uebernimmAusschreibungAlsLead(k, a!.id, {
+      besitzerBenutzerId: chefR }))).rejects.toMatchObject({ grund: 'schon_uebernommen' });
+    // Am Dienst vorbei hält der Schlüssel den zweiten LAUFENDEN Lead (0402).
+    await expect(sql.unsafe(
+      `insert into lead (mandant_id, leadnummer, quelle, ausschreibung_id, firma_name, betreff,
+                         besitzer_benutzer_id)
+       values ($1, $2, 'vergabe_radar', $3, 'X', 'X', $4)`,
+      [f.reinigung, `L-${zufall()}`, a!.id, chefR])).rejects.toMatchObject({ code: '23505' });
+  });
+
+  it('ein falsch zugeordneter Kunde wird berichtigt — bis ein Vorgang daran hängt, auch ein zurückgezogener', async () => {
+    const { a, b, leadId, nummern } = await inR(async (k) => {
+      const a = await legeKundeAn(k, { name: 'Falsch GmbH', typ: 'firma', rechtsgrundlage: 'keine' });
+      const b = await legeKundeAn(k, { name: 'Richtig GmbH', typ: 'firma', rechtsgrundlage: 'keine' });
+      const l = await legeLeadAn(k, { betreff: 'Berichtigung', kundeId: a.id, besitzerBenutzerId: chefR });
+      return { a: a.id, b: b.id, leadId: l.id, nummern: [a.kundennummer, b.kundennummer] };
+    });
+    await inR((k) => ordneLeadKundeZu(k, leadId, b));
+    expect((await lead(leadId)).kunde_id).toBe(b);
+    expect(await systemzeilen(leadId))
+      .toContain(`Kunde berichtigt: ${nummern[1]!} statt ${nummern[0]!}`);
+
+    // Ein Entwurf — auch zurückgezogen — trägt Kunde und Anfrage: danach bleibt der Kunde.
+    const angebotId = await inR((k) => handAngebot(k, b, leadId));
+    await inR((k) => ziehEntwurfZurueck(k, angebotId, chefR));
+    await expect(inR((k) => ordneLeadKundeZu(k, leadId, a)))
+      .rejects.toMatchObject({ grund: 'lead_hat_vorgaenge' });
+    expect((await lead(leadId)).kunde_id).toBe(b);
+  });
+
+  it('eine Rolle, die das Angebot nicht sehen darf, bekommt am Auslöser trotzdem einen Satz', async () => {
+    const bauAdmin = await konto(`kette-ba-${zufall()}@cse.test`);
+    await mitglied(bauAdmin, f.bau, 'admin');
+    const bauLeitung = await konto(`kette-bl-${zufall()}@cse.test`);
+    await mitglied(bauLeitung, f.bau, 'leitung');
+    // Im Bau hält die Leitung CRM, aber weder Angebote noch Aufträge.
+    for (const recht of ['angebot.lesen', 'auftrag.lesen']) {
+      await sql.unsafe(
+        `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+         values ((select id from rolle where schluessel = 'leitung' and mandant_id is null),
+                 (select id from berechtigung where schluessel = $1), $2, false)
+         on conflict (rolle_id, berechtigung_id, mandant_id) do update set gewaehrt = false`,
+        [recht, f.bau]);
+    }
+    const { leadId, andererKunde } = await imKontext(f.bau, bauAdmin, async (k) => {
+      const a = await kunde(k, 'Bau A GmbH');
+      const andererKunde = await kunde(k, 'Bau B GmbH');
+      const l = await legeLeadAn(k, { betreff: 'Rohbau', kundeId: a, besitzerBenutzerId: bauAdmin });
+      await handAngebot(k, a, l.id, 'Rohbau');
+      return { leadId: l.id, andererKunde };
+    });
+    // Die Leitung sieht das Angebot nicht — die Vorprüfung des Dienstes also auch nicht …
+    const [sichtbar] = await imKontext(f.bau, bauLeitung, (k) => k.abfrage<{ n: number }>(
+      `select count(*)::int as n from angebot where lead_id = $1::uuid`, [leadId]));
+    expect(sichtbar!.n).toBe(0);
+    // … der Auslöser schon, und aus seinem 23514 wird der Satz des Dienstes.
+    await expect(imKontext(f.bau, bauLeitung, (k) => ordneLeadKundeZu(k, leadId, andererKunde)))
+      .rejects.toMatchObject({ grund: 'lead_hat_vorgaenge' });
+    await expect(imKontext(f.bau, bauLeitung, (k) => ordneLeadKundeZu(k, leadId, andererKunde)))
+      .rejects.toThrow(CrmFehler);
   });
 });

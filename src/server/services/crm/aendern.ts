@@ -85,7 +85,9 @@ export async function aendereKunde(
     throw new CrmFehler('Bitte wählen Sie eine Art.', 'typ_fehlt');
   }
 
-  const zeilen = await kontext.schreibe<{ id: string; firma_id: string | null }>(
+  const zeilen = await kontext.schreibe<{
+    id: string; firma_id: string | null; land: string;
+  }>(
     `update kunde
         set name = $2, typ = $3::kunde_typ,
             ist_oeffentlicher_auftraggeber = ($3::kunde_typ = 'behoerde'),
@@ -95,8 +97,9 @@ export async function aendereKunde(
             email_zentral = $12, telefon_zentral = $13, webseite = $14,
             notiz = $15,
             geaendert_am = now(), geaendert_von = app.aktueller_benutzer()
-      where id = $1::uuid and archiviert_am is null
-     returning id, firma_id::text as firma_id`,
+      where id = $1::uuid and mandant_id = app.aktiver_mandant()
+        and archiviert_am is null
+     returning id, firma_id::text as firma_id, land`,
     [eingabe.id, name, eingabe.typ, leer(eingabe.rechtsform), leer(eingabe.ustId),
       leer(eingabe.steuernummer), leer(eingabe.strasse), leer(eingabe.hausnummer),
       leer(eingabe.plz), leer(eingabe.ort), leer(eingabe.land),
@@ -120,11 +123,13 @@ export async function aendereKunde(
    * stillen Umhängens.
    */
   if (z.firma_id === null) {
-    const firmaId = await firmaFuer(kontext, eingabe.typ, name, leer(eingabe.ustId));
+    /* Mit dem Land, das der Kunde JETZT trägt — dieselbe Regel wie 0401 (V-142). */
+    const firmaId = await firmaFuer(kontext, eingabe.typ, name, leer(eingabe.ustId), z.land);
     if (firmaId !== null) {
       await kontext.schreibe(
         `update kunde set firma_id = $2::uuid
-          where id = $1::uuid and firma_id is null and archiviert_am is null`,
+          where id = $1::uuid and mandant_id = app.aktiver_mandant()
+            and firma_id is null and archiviert_am is null`,
         [eingabe.id, firmaId]);
     }
   }

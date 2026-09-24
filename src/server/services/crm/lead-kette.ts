@@ -284,18 +284,34 @@ export async function ordneLeadKundeZu(
     throw new CrmFehler('Diesen Kunden gibt es in dieser Gesellschaft nicht.', 'kunde_unbekannt');
   }
   if (lead.kunde_id === kunde.id) return;
+  /*
+   * **Eine Berichtigung** (V-142, D-636): ein falsch zugeordneter Kunde wird
+   * getauscht, solange NICHTS an der Anfrage hängt — auch kein
+   * zurückgezogener oder archivierter Entwurf. Der trägt den ersten Kunden
+   * und diese Anfrage; hinge sie danach am zweiten, widerspräche er der
+   * Regel, die `kern.lead_bezug_stimmt` für jeden Vorgang hält, und der
+   * Verlauf nennte einen Kunden, dem nie ein Angebot galt.
+   */
+  let notiz = `Dem Kunden ${kunde.kundennummer} zugeordnet`;
   if (lead.kunde_id !== null) {
-    const [haengt] = await kontext.abfrage<{ ja: boolean }>(
-      `select exists (select 1 from angebot where lead_id = $1::uuid)
-              or exists (select 1 from auftrag where lead_id = $1::uuid) as ja`, [lead.id]);
+    const [haengt] = await kontext.abfrage<{ ja: boolean; vorher: string | null }>(
+      `select exists (select 1 from angebot
+                       where lead_id = $1::uuid and mandant_id = app.aktiver_mandant())
+              or exists (select 1 from auftrag
+                          where lead_id = $1::uuid and mandant_id = app.aktiver_mandant())
+                as ja,
+              (select kundennummer from kunde
+                where id = $2::uuid and mandant_id = app.aktiver_mandant()) as vorher`,
+      [lead.id, lead.kunde_id]);
     if (haengt?.ja === true) {
       throw new CrmFehler(
         'An dieser Anfrage hängt schon ein Angebot oder Auftrag. Ihr Kunde bleibt.',
         'lead_hat_vorgaenge');
     }
+    notiz = `Kunde berichtigt: ${kunde.kundennummer} statt ${haengt?.vorher ?? 'eines anderen'}`;
   }
   try {
-    await bindeKunde(kontext, lead, kunde.id, `Dem Kunden ${kunde.kundennummer} zugeordnet`);
+    await bindeKunde(kontext, lead, kunde.id, notiz);
   } catch (fehler) {
     /*
      * Der Auslöser `kern.lead_kunde_bleibt` sieht, was diese Rolle nicht
@@ -402,13 +418,16 @@ export async function leseLeadKette(kontext: LeseKontext, leadId: string): Promi
   if (lead === undefined) return null;
   const r = await rechte(kontext);
 
+  /* Mit Mandantenfilter, nicht nur über RLS — die Policy ist die zweite Linie. */
   const [kunde] = lead.kunde_id === null ? [] : await kontext.abfrage<{
     id: string; name: string; kundennummer: string;
-  }>(`select id::text as id, name, kundennummer from kunde where id = $1::uuid`,
+  }>(`select id::text as id, name, kundennummer from kunde
+       where id = $1::uuid and mandant_id = app.aktiver_mandant()`,
     [lead.kunde_id]);
   const [empfehlung] = lead.empfehlung_von_kunde_id === null ? []
     : await kontext.abfrage<{ id: string; name: string }>(
-      `select id::text as id, name from kunde where id = $1::uuid`,
+      `select id::text as id, name from kunde
+        where id = $1::uuid and mandant_id = app.aktiver_mandant()`,
       [lead.empfehlung_von_kunde_id]);
   const [ausschreibung] = lead.ausschreibung_id === null || !r.radarLesen ? []
     : await kontext.abfrage<{ id: string; titel: string }>(
@@ -431,7 +450,9 @@ export async function leseLeadKette(kontext: LeseKontext, leadId: string): Promi
       order by t.start_datum desc`, [leadId]);
   /*
    * Die Rechnungen hängen am AUFTRAG, nicht am Lead: gelesen werden nur die
-   * der Aufträge, die diese Sitzung sehen darf.
+   * der Aufträge, die diese Sitzung sehen darf. Ohne `auftrag.lesen` lassen
+   * sie sich der Anfrage nicht zuordnen — das Blatt sagt dann DAS, nicht
+   * „es gibt keine" (V-142).
    */
   const rechnungen = !r.finanzenLesen || auftraege.length === 0 ? []
     : await kontext.abfrage<RechnungZeile>(

@@ -87,9 +87,10 @@ export function leadAusBekanntmachung(
  * Policy auf `lead` noch einmal), `radar.lesen` für die Bekanntmachung — ohne
  * das Recht sieht die Sitzung sie nicht und bekommt „nicht gefunden".
  *
- * **Einmal je Gesellschaft.** Zuerst gelesen, damit der Mensch einen Satz
- * bekommt; danach hält `lead_ausschreibung_uk` (0400) den gleichzeitigen
- * zweiten Klick.
+ * **Einmal je Gesellschaft** — ein laufender Lead je Bekanntmachung. Zuerst
+ * gelesen, damit der Mensch einen Satz bekommt; danach hält
+ * `lead_ausschreibung_uk` (0400, seit 0402 ohne archivierte Leads) den
+ * gleichzeitigen zweiten Klick.
  */
 export async function uebernimmAusschreibungAlsLead(
   kontext: SchreibKontext, ausschreibungId: string,
@@ -109,9 +110,14 @@ export async function uebernimmAusschreibungAlsLead(
   if (a === undefined) {
     throw new CrmFehler('Diese Bekanntmachung gibt es nicht.', 'ausschreibung_unbekannt', 404);
   }
+  /*
+   * Nur ein LAUFENDER Lead sperrt (V-142, D-636): ein archivierter ist beendet
+   * (0017), und `lead_ausschreibung_uk` zählt ihn seit 0402 nicht mehr.
+   */
   const [schon] = await kontext.abfrage<{ leadnummer: string }>(
     `select leadnummer from lead
-      where mandant_id = app.aktiver_mandant() and ausschreibung_id = $1::uuid`,
+      where mandant_id = app.aktiver_mandant() and ausschreibung_id = $1::uuid
+        and archiviert_am is null`,
     [ausschreibungId]);
   if (schon !== undefined) {
     throw new CrmFehler(

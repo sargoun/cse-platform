@@ -15780,3 +15780,87 @@ CLAUDE.md als Kaltakquise aus dem Umfang nimmt.
 
 | Betrifft | CRM-03, CRM-04, CRM-05, CRM-07, REQ-05, LEG-08, § 7 UWG, Art. 21 DSGVO, D-631, D-632, O-907, O-908, V-110, V-141, `src/server/services/crm/{lead-kontakt,lead-kette}.ts`, `src/app/api/{lead,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx`, `src/lib/i18n/verwaltung/crm-lead.ts`, `src/server/db/seed/vertrieb.ts` |
 |---|---|
+
+### D-636 · Die Kette hält auch am Rand: im Rennen, nach dem Archiv, beim Berichtigen (V-142)
+
+**Der Befund** (V-142; Nachprüfung von V-138 bis V-140): Die Kette hielt,
+solange niemand gleichzeitig klickte, archivierte oder sich vertat.
+
+- `kern.lead_bezug_stimmt` (0400) las den Lead ohne Sperre. Hängte jemand
+  die Anfrage um, während ein anderer ein Angebot für den alten Kunden
+  anlegte, sahen beide Prüfungen den jeweils anderen Schritt nicht — danach
+  stand ein Angebot für Kunde A an einer Anfrage von Kunde B.
+- Legten zwei Gesellschaften im selben Augenblick dieselbe neue USt-IdNr.
+  an, fiel die zweite auf `firma_ust_id_uk` — ein roher `23505`, also 500.
+  Vor V-140 unerreichbar, weil `app.firma_aufloesen` keinen Aufrufer hatte.
+- `firmaFuer` gab das Land des Kunden nicht weiter; jede neue Firma bekam
+  `DE`, während 0401 für den Bestand `coalesce(kunde.land, 'DE')` nahm. Die
+  „wortgleiche" Regel aus D-634 Punkt 3 war es nicht.
+- `lead_ausschreibung_uk` zählte archivierte Leads mit: eine Bekanntmachung,
+  deren Lead archiviert wurde, liess sich nie wieder übernehmen.
+- Einen falsch zugeordneten Kunden erlaubten Dienst und Datenbank zu
+  berichtigen, solange nichts an der Anfrage hängt — das Leadblatt bot es nie
+  an.
+- Die Rechnungen auf dem Leadblatt hingen zusätzlich an `auftrag.lesen`. Wer
+  `finanzen.lesen` hielt, aber nicht `auftrag.lesen`, las „Noch keine
+  Rechnung zu diesen Aufträgen", obwohl es welche geben konnte.
+- „Neues Angebot" und „Neuer Auftrag" suchten den Kunden der Anfrage in ihrer
+  Auswahlliste (nicht archiviert; beim Angebot die ersten 500 Namen). Fehlte
+  er dort, hiess es „Die Anfrage hat noch keinen Kunden" — ein falscher Grund.
+- Einige Lesezugriffe der Kette verliessen sich allein auf RLS; die
+  Kopfkommentare von 0400 und 0401 behaupteten eine Kommentarregel „wie in
+  0392", die 0392 und 0393 nicht einhalten.
+
+**Die Entscheidung.**
+
+1. **Der Bezug wird unter Sperre gelesen** (0402): `kern.lead_bezug_stimmt`
+   liest die Zeile des Leads mit `FOR SHARE`. Ein Umhängen wartet, bis das
+   Angebot festgeschrieben ist, und sieht es dann; ein Angebot wartet auf das
+   Umhängen und liest den neuen Kunden. Die umgekehrte Reihenfolge hielt
+   schon vorher: der Fremdschlüssel sperrt den Lead für `FOR UPDATE` in
+   `ordneLeadKundeZu`.
+2. **Zwei Gesellschaften, dieselbe neue Nummer:** `firmaFuer` nimmt vor
+   `app.firma_aufloesen` eine Transaktionssperre auf die normalisierte Nummer
+   (`pg_advisory_xact_lock`, wie der Schichtgenerator). Die zweite
+   Gesellschaft wartet, bis die erste festgeschrieben hat, und findet dann
+   deren Firma; beide Kunden hängen an DERSELBEN. Ein Auffangen des `23505`
+   ging nicht: postgres.js verwirft eine Transaktion, in der eine Anweisung
+   scheiterte, auch wenn der Aufrufer den Fehler fängt — ein
+   Sicherungspunkt mit Wiederholung lief im Test genau daran auf. Die
+   Funktion selbst (0020) bleibt unverändert.
+3. **Das Land geht mit:** `aendereKunde` gibt das Land, das der Kunde nach der
+   Änderung trägt, an `app.firma_aufloesen`; `legeKundeAn` die Vorgabe der
+   Funktion, die dieselbe ist wie die der Spalte (`DE`). Damit gilt die Regel
+   aus 0401 wirklich wortgleich.
+4. **Ein laufender Lead je Bekanntmachung und Gesellschaft** (0402): ein
+   archivierter Lead ist beendet (0017) und gibt die Vergabe frei. Der
+   Schlüssel soll zwei GLEICHZEITIG bearbeitete Leads verhindern (D-633
+   Punkt 3), nicht eine Vergabe für immer sperren. Der archivierte bleibt,
+   wie jeder archivierte Lead, im Bericht.
+5. **Berichtigen, solange nichts an der Anfrage hängt — auch kein
+   zurückgezogener Entwurf.** Das Leadblatt bietet „Kunden berichtigen" an,
+   solange es weder Angebot noch Auftrag sieht; Dienst und Auslöser prüfen,
+   was diese Sitzung nicht sehen darf. Ein zurückgezogener oder archivierter
+   Entwurf zählt mit: er trägt den ersten Kunden UND diese Anfrage, und hinge
+   sie danach am zweiten, widerspräche er der Regel, die
+   `kern.lead_bezug_stimmt` für jeden Vorgang hält. Ihn abzuhängen hiesse,
+   die Geschichte des Angebots umzuschreiben. Die Folge, bewusst: nach einem
+   Entwurf für den falschen Kunden wird die Anfrage mit Grund geschlossen und
+   eine neue für den richtigen erfasst — beide erzählen dann, was geschah. Der
+   Verlauf nennt die Berichtigung („Kunde berichtigt: K-… statt K-…"); der
+   Ansprechpartner bleibt, wo er ist, und wird neu gewählt (D-635).
+6. **Rechnungen ohne Auftragsrecht:** sie hängen an den Aufträgen. Ohne
+   `auftrag.lesen` sagt das Leadblatt genau das und nennt das Recht, statt
+   „keine Rechnung" zu behaupten. Eine eigene Leseschicht an den Aufträgen
+   vorbei wäre ein Weg, Aufträge über ihre Rechnungen zu erschliessen.
+7. **Die Masken lesen den Kunden aus der Zeile der Anfrage**, nicht aus ihrer
+   Auswahlliste; ist er archiviert, sagen sie DAS.
+8. **Mandantenfilter auch dort, wo RLS ohnehin filtert** (Invariante 3: RLS
+   ist die zweite Linie): Kunde und Empfehler in `leseLeadKette`, die
+   Vorprüfung und die Nummer des alten Kunden in `ordneLeadKundeZu`, beide
+   `update kunde` in `aendereKunde`.
+9. Die Kopfkommentare von 0400 und 0401 nennen jetzt 0394 bis 0396 bzw. 0400
+   als Vorbild — nur Kommentare, keine Schemaänderung.
+
+| Betrifft | CRM-05, CRM-06, CRM-07, TEN-02, AUT-06, Invariante 3, D-632, D-633, D-634, D-635, V-142, `drizzle/0402`, `drizzle/0400` (Kommentar), `drizzle/0401` (Kommentar), `src/server/services/crm/{anlegen,aendern,lead-kette,lead-radar}.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx`, `src/app/portal/[mandant]/{angebote,auftraege}/neu/page.tsx`, `src/app/portal/[mandant]/radar/[id]/page.tsx`, `src/lib/i18n/verwaltung/crm-kette.ts` |
+|---|---|

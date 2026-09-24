@@ -34,6 +34,10 @@ export interface KetteTexte {
   readonly zuordnenErklaerung: string;
   readonly kundeWaehlen: string;
   readonly zuordnen: string;
+  /** V-142: einen falsch zugeordneten Kunden berichtigen, solange nichts an der Anfrage hängt. */
+  readonly berichtigenTitel: string;
+  readonly berichtigenErklaerung: string;
+  readonly berichtigen: string;
   readonly angebotErstellen: string;
   readonly auftragAnlegen: string;
   readonly ausRaumbuch: string;
@@ -44,6 +48,8 @@ export interface KetteTexte {
   readonly keineAuftraege: string;
   readonly keineRechnungen: string;
   readonly ohneRecht: string;
+  /** V-142: Rechnungen hängen an Aufträgen — ohne deren Leserecht keine Zuordnung. */
+  readonly rechnungenOhneAuftragsrecht: string;
 
   /* ── Spalten ───────────────────────────────────────────────────────── */
   readonly nummer: string;
@@ -94,6 +100,8 @@ export interface KetteTexte {
   /* ── Masken mit ?lead= ─────────────────────────────────────────────── */
   readonly zurAnfrageVorbelegt: (leadnummer: string, betreff: string) => string;
   readonly anfrageOhneKunde: string;
+  /** V-142: der Kunde der Anfrage ist archiviert — ein anderer Grund als „kein Kunde". */
+  readonly anfrageKundeArchiviert: string;
   readonly anfrageUnbekannt: string;
   readonly kundeAusAnfrage: string;
   readonly anfrage: string;
@@ -150,6 +158,12 @@ const DE: KetteTexte = {
     + 'Ansprechpartner, wenn er noch keinem Kunden gehört.',
   kundeWaehlen: 'Kunden wählen',
   zuordnen: 'Zuordnen',
+  berichtigenTitel: 'Kunden berichtigen',
+  berichtigenErklaerung:
+    'Solange weder ein Angebot noch ein Auftrag an der Anfrage hängt — auch kein '
+    + 'zurückgezogener Entwurf —, lässt sich ein falsch zugeordneter Kunde berichtigen. Der '
+    + 'Ansprechpartner bleibt, wo er ist; wählen Sie danach einen des richtigen Kunden.',
+  berichtigen: 'Berichtigen',
   angebotErstellen: 'Angebot erstellen',
   auftragAnlegen: 'Auftrag direkt anlegen',
   ausRaumbuch: 'Angebot aus dem Raumbuch',
@@ -159,7 +173,10 @@ const DE: KetteTexte = {
   keineAngebote: 'Noch kein Angebot zu dieser Anfrage.',
   keineAuftraege: 'Noch kein Auftrag aus dieser Anfrage.',
   keineRechnungen: 'Noch keine Rechnung zu diesen Aufträgen.',
-  ohneRecht: 'Sichtbar für, wer dieses Recht hält:',
+  ohneRecht: 'Das sieht, wer dieses Recht hält:',
+  rechnungenOhneAuftragsrecht:
+    'Rechnungen hängen an den Aufträgen dieser Anfrage. Zuordnen lässt sie hier nur, wer auch '
+    + 'dieses Recht hält:',
 
   nummer: 'Nummer',
   titel: 'Titel',
@@ -220,6 +237,10 @@ const DE: KetteTexte = {
   anfrageOhneKunde:
     'Die Anfrage hat noch keinen Kunden. Übernehmen Sie sie zuerst auf dem Leadblatt als '
     + 'Kunden oder ordnen Sie einen bestehenden zu — sonst entsteht der Vorgang ohne Bezug.',
+  anfrageKundeArchiviert:
+    'Der Kunde dieser Anfrage ist archiviert; für ihn entsteht hier kein Vorgang. Der Vorgang '
+    + 'entsteht ohne Bezug zur Anfrage — oder Sie berichtigen den Kunden auf dem Leadblatt, '
+    + 'solange nichts an ihr hängt.',
   anfrageUnbekannt:
     'Diese Anfrage ist nicht erreichbar. Der Vorgang entsteht ohne Bezug zu einer Anfrage.',
   kundeAusAnfrage: 'Der Kunde kommt aus der Anfrage und steht damit fest.',
@@ -315,6 +336,12 @@ const EN: KetteTexte = {
     + 'if they do not belong to a customer yet.',
   kundeWaehlen: 'Choose a customer',
   zuordnen: 'Assign',
+  berichtigenTitel: 'Correct the Kunde (customer)',
+  berichtigenErklaerung:
+    'As long as no quote and no order hangs on the enquiry — not even a withdrawn draft — a '
+    + 'wrongly assigned customer can be corrected. The contact person stays where they are; '
+    + 'choose one of the right customer afterwards.',
+  berichtigen: 'Correct',
   angebotErstellen: 'Create Angebot (quote)',
   auftragAnlegen: 'Create Auftrag (order) directly',
   ausRaumbuch: 'Angebot (quote) from the room book',
@@ -325,6 +352,9 @@ const EN: KetteTexte = {
   keineAuftraege: 'No order from this enquiry yet.',
   keineRechnungen: 'No invoice for these orders yet.',
   ohneRecht: 'Shown to holders of this right:',
+  rechnungenOhneAuftragsrecht:
+    'Invoices hang off this enquiry’s orders. They can only be matched here for holders of '
+    + 'this right as well:',
 
   nummer: 'Number',
   titel: 'Title',
@@ -385,6 +415,10 @@ const EN: KetteTexte = {
   anfrageOhneKunde:
     'The enquiry has no customer yet. Take it over as a customer on the Lead page first, or '
     + 'assign an existing one — otherwise this is created without a link to the enquiry.',
+  anfrageKundeArchiviert:
+    'The customer of this enquiry is archived; nothing new is created for it here. This is '
+    + 'created without a link to the enquiry — or correct the customer on the Lead page while '
+    + 'nothing hangs on it.',
   anfrageUnbekannt:
     'This enquiry is not reachable. This is created without a link to an enquiry.',
   kundeAusAnfrage: 'The customer comes from the enquiry and is fixed.',

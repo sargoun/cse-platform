@@ -27,7 +27,7 @@
 -- firma_id tragen.
 --
 -- Nur Kommentare mit Doppelstrich und keine Backticks: dieselbe Regel wie in
--- 0392 bis 0400.
+-- 0394 bis 0400 (0392 und 0393 folgen ihr noch nicht).
 -- ===========================================================================
 
 do $$

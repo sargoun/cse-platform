@@ -145,9 +145,11 @@ export default async function Bekanntmachung(
        * Die Policy auf `lead` verlangt `crm.lesen`; ohne das Recht bleibt die
        * Antwort leer, und die Übernahme weist den zweiten Versuch mit Satz ab.
        */
+      /* Nur ein laufender Lead zählt — ein archivierter gibt die Vergabe frei (V-142). */
       const [lead] = await kontext.abfrage<{ id: string; leadnummer: string }>(
         `select id::text as id, leadnummer from lead
-          where ausschreibung_id = $1::uuid and mandant_id = app.aktiver_mandant()`, [id]);
+          where ausschreibung_id = $1::uuid and mandant_id = app.aktiver_mandant()
+            and archiviert_am is null`, [id]);
       return {
         lead: lead ?? null,
         mappe: mp === undefined ? null

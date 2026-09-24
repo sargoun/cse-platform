@@ -242,7 +242,15 @@ export default async function LeadDetail(
        * — je Stufe nur mit dem Recht ihrer Zielseite (AUT-06).
        */
       const kette = await leseLeadKette(kontext, id);
-      const kunden = !darfSchreiben || kette === null || kette.kunde !== null ? []
+      /*
+       * Die Kundenliste für „zuordnen" — und seit V-142 auch für
+       * „berichtigen", solange an der Anfrage sichtbar nichts hängt. Was diese
+       * Sitzung nicht sehen darf, prüft der Dienst (und die Datenbank).
+       */
+      const berichtigbar = kette !== null && kette.kunde !== null
+        && kette.angebote.length === 0 && kette.auftraege.length === 0;
+      const kunden = !darfSchreiben || kette === null || (kette.kunde !== null && !berichtigbar)
+        ? []
         : await kontext.abfrage<{ id: string; name: string; kundennummer: string }>(
           `select id::text as id, name, kundennummer from kunde
             where mandant_id = app.aktiver_mandant() and archiviert_am is null
@@ -615,6 +623,40 @@ export default async function LeadDetail(
             </div>
           ) : null}
 
+          {/*
+            **Einen falsch zugeordneten Kunden berichtigen** (V-142, D-636).
+            Dienst und Datenbank liessen es zu, solange nichts an der Anfrage
+            hängt — die Seite bot es nie an.
+          */}
+          {kette.kunde !== null && darfSchreiben && kette.angebote.length === 0
+            && kette.auftraege.length === 0
+            && kunden.some((o) => o.id !== kette.kunde?.id) ? (
+            <form method="post" action="/api/crm/lead" data-cse="lead-kunde-berichtigen"
+                  className="mt-s4 flex max-w-prose flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+              <input type="hidden" name="was" value="kunde_zuordnen" />
+              <input type="hidden" name="id" value={id} />
+              <input type="hidden" name="zurueck" value={pfad} />
+              <h3 className="m-0 text-base text-text">{k.berichtigenTitel}</h3>
+              <p className="m-0 text-sm text-text-muted">{k.berichtigenErklaerung}</p>
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                {k.kunde}
+                <select name="kundeId" required defaultValue="" className={CRM_FELD}
+                        data-cse="lead-kunde-berichtigen-wahl">
+                  <option value="" disabled>{k.kundeWaehlen}</option>
+                  {kunden.filter((o) => o.id !== kette.kunde?.id).map((o) => (
+                    <option key={o.id} value={o.id}>{`${o.name} · ${o.kundennummer}`}</option>
+                  ))}
+                </select>
+              </label>
+              <div>
+                <button type="submit" data-cse="lead-kunde-berichtigen-knopf"
+                        className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 text-sm text-text hover:bg-surface-2">
+                  {k.berichtigen}
+                </button>
+              </div>
+            </form>
+          ) : null}
+
           {kette.kunde !== null
             && (darf['angebot.schreiben'] === true || darf['auftrag.schreiben'] === true) ? (
             <div className="mt-s4 flex flex-wrap gap-s3" data-cse="lead-kette-aktionen">
@@ -715,6 +757,16 @@ export default async function LeadDetail(
           {darf['finanzen.lesen'] !== true ? (
             <p className="m-0 mt-s2 text-sm text-text-muted">
               {k.ohneRecht} <Recht schluessel="finanzen.lesen" sprache={zugang.sprache} />.
+            </p>
+          ) : darf['auftrag.lesen'] !== true ? (
+            /*
+             * Die Rechnungen hängen an den AUFTRÄGEN (V-142). Ohne deren
+             * Leserecht lassen sie sich nicht zuordnen — „noch keine Rechnung"
+             * wäre dann eine Aussage über den Kunden statt über das Recht.
+             */
+            <p className="m-0 mt-s2 text-sm text-text-muted" data-cse="lead-rechnungen-ohne-auftrag">
+              {k.rechnungenOhneAuftragsrecht}{' '}
+              <Recht schluessel="auftrag.lesen" sprache={zugang.sprache} />.
             </p>
           ) : kette.rechnungen.length === 0 ? (
             <p className="m-0 mt-s2 text-sm text-text-muted">{k.keineRechnungen}</p>

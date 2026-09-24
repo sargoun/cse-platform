@@ -32,7 +32,7 @@
 -- aktiven Mandanten und duerfen an lead genau zwei Spalten schreiben.
 --
 -- Nur Kommentare mit Doppelstrich und keine Backticks: dieselbe Regel wie in
--- 0392 bis 0396.
+-- 0394 bis 0396 (0392 und 0393 folgen ihr noch nicht).
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------

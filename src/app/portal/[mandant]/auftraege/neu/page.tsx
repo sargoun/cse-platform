@@ -33,6 +33,8 @@ interface Auswahl { readonly id: string; readonly name: string }
 interface AnfrageAuswahl {
   readonly id: string; readonly leadnummer: string; readonly betreff: string;
   readonly kunde_id: string | null;
+  /** Der Kunde der Anfrage, SELBST gelesen (V-142). */
+  readonly kunde_name: string | null; readonly kunde_archiviert: boolean;
 }
 interface ObjektAuswahl { readonly id: string; readonly name: string;
   readonly kunde_id: string | null }
@@ -85,8 +87,11 @@ export default async function AuftragAssistent(
           where bm.mandant_id = app.aktiver_mandant() and b.status = 'aktiv'
           order by b.name`),
       lead: leadParam === null ? null : (await kontext.abfrage<AnfrageAuswahl>(
-        `select l.id::text as id, l.leadnummer, l.betreff, l.kunde_id::text as kunde_id
+        `select l.id::text as id, l.leadnummer, l.betreff, l.kunde_id::text as kunde_id,
+                k.name as kunde_name,
+                coalesce(k.archiviert_am is not null, false) as kunde_archiviert
            from lead l
+           left join kunde k on k.id = l.kunde_id and k.mandant_id = l.mandant_id
           where l.id = $1::uuid and l.mandant_id = app.aktiver_mandant()
             and l.archiviert_am is null`, [leadParam]))[0] ?? null,
     }))) as Promise<{
@@ -94,9 +99,15 @@ export default async function AuftragAssistent(
       leitungen: readonly Auswahl[]; lead: AnfrageAuswahl | null;
     }>);
   const kt = nachSprache(KETTE_TEXTE, zugang.sprache);
-  /* Gebunden wird nur an einen Kunden, den die Maske auch anbietet (nicht archiviert). */
-  const anfrageKunde = daten.lead === null || daten.lead.kunde_id === null ? null
-    : daten.kunden.find((kd) => kd.id === daten.lead?.kunde_id) ?? null;
+  /*
+   * Gebunden wird nur an einen Kunden, der nicht archiviert ist — gelesen aus
+   * der Zeile der Anfrage, damit die Seite den richtigen Grund nennt, wenn
+   * sie es nicht tut (V-142).
+   */
+  const lead = daten.lead;
+  const anfrageKunde: Auswahl | null = lead === null || lead.kunde_id === null
+    || lead.kunde_name === null || lead.kunde_archiviert ? null
+    : { id: lead.kunde_id, name: lead.kunde_name };
   const anfrage = anfrageKunde === null ? null : daten.lead;
 
   const feld = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
@@ -130,7 +141,7 @@ export default async function AuftragAssistent(
         </Hinweis>
       ) : daten.lead !== null ? (
         <Hinweis art="warnung" cse="auftrag-anfrage-ohne-kunde" className="mb-s5 max-w-prose">
-          {kt.anfrageOhneKunde}
+          {daten.lead.kunde_archiviert ? kt.anfrageKundeArchiviert : kt.anfrageOhneKunde}
         </Hinweis>
       ) : leadParam !== null ? (
         <Hinweis art="warnung" cse="auftrag-anfrage-unbekannt" className="mb-s5 max-w-prose">

@@ -76,13 +76,35 @@ function leer(wert: string | undefined): string | null {
  *
  * Die Funktion gibt NUR die Kennung zurück — nie ein Attribut aus einer
  * anderen Gesellschaft.
+ *
+ * **Das Land des Kunden geht mit** (V-142, D-636). Ohne es legte
+ * `app.firma_aufloesen` jede neue Firma mit seiner Vorgabe `DE` an — auch
+ * für einen Kunden in Österreich, während `0401` für den Bestand
+ * `coalesce(kunde.land, 'DE')` nahm. `null` heisst: die Vorgabe der Funktion,
+ * und das ist dieselbe wie die der Spalte `kunde.land` (`DE`).
+ *
+ * **Zwei Gesellschaften, dieselbe neue Nummer, derselbe Augenblick.** Beide
+ * sahen noch keine Firma, beide legten eine an, und die zweite fiel auf
+ * `firma_ust_id_uk` (0020) — ein roher `23505`, vor V-140 nicht erreichbar,
+ * weil die Funktion keinen Aufrufer hatte. Auffangen lässt sich das in der
+ * Transaktion nicht: postgres.js verwirft eine Transaktion, in der eine
+ * Anweisung scheiterte, auch wenn der Aufrufer den Fehler fängt. Deshalb wird
+ * VORHER serialisiert — eine Transaktionssperre auf die normalisierte Nummer
+ * (dieselbe Form wie `firma_aufloesen`: ohne Leerraum, gross). Die zweite
+ * Gesellschaft wartet, bis die erste festgeschrieben hat, und findet dann
+ * DEREN Firma. Beide Kunden hängen an derselben — das, worum es bei CRM-06
+ * geht. Eine Kollision zweier Nummern im Hash kostet nur ein Warten.
  */
 export async function firmaFuer(
   kontext: SchreibKontext, typ: KundeTyp, name: string, ustId: string | null,
+  land: string | null = null,
 ): Promise<string | null> {
   if (typ === 'privat' || ustId === null) return null;
+  const norm = ustId.replace(/\s/gu, '').toUpperCase();
+  if (norm === '') return null;
+  await kontext.schreibe(`select pg_advisory_xact_lock(hashtext($1))`, [`firma:${norm}`]);
   const [z] = await kontext.schreibe<{ id: string | null }>(
-    `select app.firma_aufloesen($1, $2)::text as id`, [ustId, name]);
+    `select app.firma_aufloesen($1, $2, $3::char(2))::text as id`, [ustId, name, land]);
   return z?.id ?? null;
 }
 

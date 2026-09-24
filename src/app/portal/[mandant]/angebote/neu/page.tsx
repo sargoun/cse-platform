@@ -60,6 +60,9 @@ interface KontaktZeile {
 interface AnfrageZeile {
   readonly id: string; readonly leadnummer: string; readonly betreff: string;
   readonly kunde_id: string | null; readonly ansprechpartner_id: string | null;
+  /** Der Kunde der Anfrage, SELBST gelesen — nicht aus der begrenzten Auswahlliste (V-142). */
+  readonly kunde_name: string | null; readonly kundennummer: string | null;
+  readonly kunde_archiviert: boolean;
 }
 
 export default async function NeuesAngebot(
@@ -131,8 +134,11 @@ export default async function NeuesAngebot(
         einheiten: await einheiten(kontext),
         lead: leadParam === null ? null : (await kontext.abfrage<AnfrageZeile>(
           `select l.id::text as id, l.leadnummer, l.betreff, l.kunde_id::text as kunde_id,
-                  l.ansprechpartner_id::text as ansprechpartner_id
+                  l.ansprechpartner_id::text as ansprechpartner_id,
+                  k.name as kunde_name, k.kundennummer,
+                  coalesce(k.archiviert_am is not null, false) as kunde_archiviert
              from lead l
+             left join kunde k on k.id = l.kunde_id and k.mandant_id = l.mandant_id
             where l.id = $1::uuid and l.mandant_id = app.aktiver_mandant()
               and l.archiviert_am is null`, [leadParam]))[0] ?? null,
       };
@@ -149,8 +155,16 @@ export default async function NeuesAngebot(
    * stille Zuordnung an den Kunden, den jemand hier wählt, wäre eine
    * Entscheidung, die niemand getroffen hat.
    */
-  const anfrageKunde = daten.lead === null || daten.lead.kunde_id === null ? null
-    : daten.kunden.find((kd) => kd.id === daten.lead?.kunde_id) ?? null;
+  /*
+   * Der Kunde der Anfrage kommt aus IHRER Zeile, nicht aus der Auswahlliste:
+   * die endet nach 500 Namen, und ein Kunde jenseits davon hiesse sonst „die
+   * Anfrage hat noch keinen Kunden" — ein falscher Grund (V-142). Ein
+   * archivierter Kunde bekommt kein neues Angebot und sagt das selbst.
+   */
+  const lead = daten.lead;
+  const anfrageKunde: KundeZeile | null = lead === null || lead.kunde_id === null
+    || lead.kunde_name === null || lead.kunde_archiviert ? null
+    : { id: lead.kunde_id, name: lead.kunde_name, kundennummer: lead.kundennummer };
   const anfrage = anfrageKunde === null ? null : daten.lead;
   const pfadMitAnfrage = anfrage === null ? pfad : `${pfad}?lead=${anfrage.id}`;
 
@@ -199,7 +213,7 @@ export default async function NeuesAngebot(
         </Hinweis>
       ) : daten.lead !== null ? (
         <Hinweis art="warnung" cse="angebot-anfrage-ohne-kunde" className="mb-s5 max-w-prose">
-          {kt.anfrageOhneKunde}
+          {daten.lead.kunde_archiviert ? kt.anfrageKundeArchiviert : kt.anfrageOhneKunde}
           {darf['crm.lesen'] !== true ? null : (
             <>
               {' '}
