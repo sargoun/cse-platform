@@ -1298,6 +1298,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'system.rolle_verwalten',
   },
   /**
+   * V-164 — die Module einer Administration (AUT-01). Schreibt ueber
+   * `app.mitgliedschaft_module_setzen` (0416), das dasselbe Recht noch einmal
+   * fragt, dazu den zweiten Faktor und ein fremdes Konto.
+   */
+  {
+    modul: 'system', pfad: 'system/mitgliedschaft-module',
+    schreibend: true, schreibRecht: 'system.module_zuweisen',
+  },
+  /**
    * V-081 — der Auftrag laeuft, ruht oder ist storniert.
    *
    * `auftrag.schreiben` und ausdruecklich nicht `auftrag.abschliessen`:

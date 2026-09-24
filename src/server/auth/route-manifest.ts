@@ -2160,6 +2160,20 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Die Module einer Administration setzen (AUT-01, V-164, D-658).
+     *
+     * **`system.module_zuweisen` und ausdruecklich `erfordert2fa`** — nicht
+     * `system.benutzer_verwalten`. Wer Konten verwaltet, bestimmt damit nicht,
+     * welche Module eine Administration haelt; 03-AUTH §12.1 bindet das Recht
+     * nur an `super_admin` (bindbar bis `admin`, O-76). Die Datenbank
+     * (`app.mitgliedschaft_module_setzen`, 0416) fragt Recht, Faktor, Rolle
+     * und ein fremdes Konto noch einmal.
+     */
+    pfad: 'api/einstellungen/mitgliedschaft-module',
+    recht: 'system.module_zuweisen',
+  },
+  {
+    /**
      * Ein Dokument samt Datei entfernen (V-026, DOC-07, LEG-01).
      *
      * **`dokument.archivieren` und nicht `dokument.schreiben`.** Wer ablegen
