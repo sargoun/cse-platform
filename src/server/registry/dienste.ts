@@ -204,6 +204,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'kalkulation.schreiben',
   },
   /**
+   * V-174 — Material und Geraet: eine erfasste Kostenzeile aendert, worauf
+   * der Preis ruht, und rechnet ihn neu. Dasselbe Recht wie die Bestaetigung.
+   */
+  {
+    modul: 'objekt', pfad: 'kalkulation/kostenposition',
+    schreibend: true, schreibRecht: 'kalkulation.schreiben',
+  },
+  /**
    * Der Angebotsdienst SCHREIBT — und sein Recht ist `angebot.versenden`,
    * nicht `angebot.schreiben`: der Uebergang, der etwas aus dem Haus laesst,
    * ist der, der ein eigenes Recht braucht (Invariante 7).

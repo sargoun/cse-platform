@@ -4,7 +4,18 @@
  * Der Weg ist genau einer, und er steht hier:
  *
  *   Flaeche je Belagsart → Sekunden je Durchgang → Sekunden je Periode
- *     → Lohnkosten → + Gemeinkosten → + Wagnis → + Gewinn → Netto
+ *     → Lohnkosten (+ Material + Geraet) → + Gemeinkosten → + Wagnis
+ *     → + Gewinn → Netto
+ *
+ * **Die fuenf Bloecke von OPS-07** (V-174): Lohn, Material, Geraet,
+ * Gemeinkosten, Wagnis/Gewinn. Material und Geraet werden NIE vorbelegt —
+ * sie sind die Summe der Positionen, die ein Mensch erfasst hat
+ * (`kostenposition.ts`). Ohne sie rechnet die Kette wie bisher; mit ihnen
+ * gehen sie als Einzelkosten in den Preis, und die Gemeinkosten rechnen auf
+ * die Basis, die die Kalkulation nennt: `lohn` (nur der Lohn) oder
+ * `selbstkosten` (Lohn + Material + Geraet). `je_kostenart` braucht Saetze je
+ * Kostenart, die niemand genannt hat (O-16) — sie wird abgewiesen, nie still
+ * wie `lohn` gerechnet.
  *
  * Drei Regeln, die den teuren Fehler verhindern:
  *
@@ -43,13 +54,35 @@ export interface Kalkulationszeile {
   readonly leistungswertIstPlatzhalter: boolean;
 }
 
+/**
+ * Worauf der Gemeinkostenzuschlag rechnet (V-174). `je_kostenart` fehlt hier
+ * mit Absicht: dafuer braeuchte es je Kostenart einen Satz, und die sind
+ * offen (O-16).
+ */
+export type GemeinkostenBasis = 'lohn' | 'selbstkosten';
+
+/** Die von Menschen erfassten Einzelkosten neben dem Lohn (V-174). */
+export interface Einzelkosten {
+  readonly material: Cent;
+  readonly geraet: Cent;
+}
+
 export interface Kalkulation {
   readonly zeilen: readonly Kalkulationszeile[];
   readonly flaecheGesamt: MilliMenge;
   readonly sekundenJeDurchgang: bigint;
   readonly sekundenJePeriode: bigint;
   readonly lohnkosten: Cent;
+  /** Summe der Materialpositionen — erfasst, nie vorbelegt (V-174). */
+  readonly materialkosten: Cent;
+  /** Summe der Geraetepositionen — erfasst, nie vorbelegt (V-174). */
+  readonly geraetekosten: Cent;
+  readonly gemeinkostenBasis: GemeinkostenBasis;
+  /** Der Betrag, auf den der Gemeinkostenzuschlag gerechnet wurde. */
+  readonly gemeinkostenBezug: Cent;
   readonly gemeinkosten: Cent;
+  /** Einzelkosten + Gemeinkosten — der Bezug von Wagnis und Gewinn. */
+  readonly vorZuschlag: Cent;
   readonly wagnis: Cent;
   readonly gewinn: Cent;
   /** Netto — die Umsatzsteuer entsteht erst auf der Rechnung, je Steuergruppe. */
@@ -74,6 +107,24 @@ export interface Kalkulationseingabe {
   readonly flaecheOhneBelagsart?: MilliMenge;
   /** Belagsarten ohne gueltigen Leistungswert am Stichtag. */
   readonly ohneGueltigenLeistungswert?: readonly string[];
+  /** Material und Geraet (V-174). Fehlt es, sind beide null. */
+  readonly einzelkosten?: Einzelkosten;
+  /** Vorgabe `lohn` — die Basis, mit der jedes Angebot aus dem Raumbuch entsteht. */
+  readonly gemeinkostenBasis?: GemeinkostenBasis;
+}
+
+/**
+ * Der Bezug des Gemeinkostenzuschlags (V-174) — EINE Stelle, getestet.
+ *
+ * `lohn`: nur die Lohnkosten. `selbstkosten`: Lohn + Material + Geraet, also
+ * die Einzelkosten, auf die ein Gemeinkostenzuschlag in der
+ * Zuschlagskalkulation rechnet. Welche Basis gilt, waehlt ein Mensch je
+ * Kalkulation; was gruppenweit gilt, ist O-16.
+ */
+export function gemeinkostenBezug(
+  basis: GemeinkostenBasis, lohn: Cent, einzel: Einzelkosten,
+): Cent {
+  return basis === 'lohn' ? lohn : addiere(lohn, einzel.material, einzel.geraet);
 }
 
 /** Lohnkosten aus Sekunden und Stundensatz — die einzige Zeit→Geld-Stelle. */
@@ -102,8 +153,17 @@ export function kalkuliere(eingabe: Kalkulationseingabe): Kalkulation {
 
   // Regel 1: die Summe ist die Summe der ANGEZEIGTEN Zeilen.
   const lohnkosten = addiere(...zeilen.map((z) => z.lohnkosten));
-  const gemeinkosten = anteilInBasisPunkten(lohnkosten, tarif.gemeinkostenSatz);
-  const zwischensumme = addiere(lohnkosten, gemeinkosten);
+  const einzel = eingabe.einzelkosten ?? { material: NULL_CENT, geraet: NULL_CENT };
+  if ((einzel.material as bigint) < 0n || (einzel.geraet as bigint) < 0n) {
+    // Negative Kosten waeren eine Gutschrift im Preis — kein Material der Welt.
+    throw new Error('Material- und Geraetekosten sind nicht negativ');
+  }
+  const basis: GemeinkostenBasis = eingabe.gemeinkostenBasis ?? 'lohn';
+  const bezug = gemeinkostenBezug(basis, lohnkosten, einzel);
+  const gemeinkosten = anteilInBasisPunkten(bezug, tarif.gemeinkostenSatz);
+  // Die Einzelkosten gehen IMMER in den Preis — die Basis entscheidet nur,
+  // worauf der Gemeinkostenzuschlag rechnet.
+  const zwischensumme = addiere(lohnkosten, einzel.material, einzel.geraet, gemeinkosten);
   // Wagnis und Gewinn rechnen auf die Zwischensumme, nicht auf den Lohn: ein
   // Zuschlag auf einen Zuschlag ist eine Entscheidung, und dies ist sie.
   const wagnis = anteilInBasisPunkten(zwischensumme, tarif.wagnisSatz);
@@ -128,7 +188,12 @@ export function kalkuliere(eingabe: Kalkulationseingabe): Kalkulation {
     sekundenJeDurchgang: zeilen.reduce((s, z) => s + z.sekundenJeDurchgang, 0n),
     sekundenJePeriode: zeilen.reduce((s, z) => s + z.sekundenJePeriode, 0n),
     lohnkosten,
+    materialkosten: einzel.material,
+    geraetekosten: einzel.geraet,
+    gemeinkostenBasis: basis,
+    gemeinkostenBezug: bezug,
     gemeinkosten,
+    vorZuschlag: zwischensumme,
     wagnis,
     gewinn,
     netto: addiere(zwischensumme, wagnis, gewinn),
@@ -142,7 +207,9 @@ export function kalkuliere(eingabe: Kalkulationseingabe): Kalkulation {
 /** Eine Kalkulation ohne einen einzigen Posten — ausdruecklich, nicht leer geraten. */
 export const LEERE_KALKULATION: Kalkulation = {
   zeilen: [], flaecheGesamt: NULL_MENGE, sekundenJeDurchgang: 0n, sekundenJePeriode: 0n,
-  lohnkosten: NULL_CENT, gemeinkosten: NULL_CENT, wagnis: NULL_CENT, gewinn: NULL_CENT,
+  lohnkosten: NULL_CENT, materialkosten: NULL_CENT, geraetekosten: NULL_CENT,
+  gemeinkostenBasis: 'lohn', gemeinkostenBezug: NULL_CENT, gemeinkosten: NULL_CENT,
+  vorZuschlag: NULL_CENT, wagnis: NULL_CENT, gewinn: NULL_CENT,
   netto: NULL_CENT, flaecheOhneBelagsart: NULL_MENGE, ohneGueltigenLeistungswert: [],
   istPlatzhalter: false, offeneFragen: [],
 };
@@ -164,8 +231,15 @@ export const LEERE_KALKULATION: Kalkulation = {
  * einzige Weg, bei dem die Zeilensumme exakt `netto` ergibt, ohne dass eine
  * Zeile die Rundung aller anderen traegt.
  *
- * Sind die Lohnkosten insgesamt null, ist auch `netto` null: alle Zuschlaege
- * rechnen auf den Lohn. Dann bekommt jede Zeile null, und das ist richtig.
+ * Sind die Lohnkosten insgesamt null, ist ohne Material und Geraet auch
+ * `netto` null, und jede Zeile bekommt null. MIT Material oder Geraet gibt es
+ * dann keine Zeile, die den Betrag tragen koennte — das wird abgewiesen, nie
+ * verschluckt (V-174).
+ *
+ * **Material und Geraet reisen mit** (V-174): sie stecken im Netto und
+ * werden wie Gemeinkosten, Wagnis und Gewinn nach dem Lohngewicht auf die
+ * Leistungszeilen verteilt — dieselbe offene Frage O-208, ob sie im Angebot
+ * eigene Positionen waeren.
  *
  * TODO(client, O-208): Sollen Gemeinkosten, Wagnis und Gewinn im Angebot als
  * EIGENE Positionen erscheinen, oder bleiben sie — wie hier — im Einzelpreis

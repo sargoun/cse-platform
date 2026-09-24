@@ -10,6 +10,7 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
 import { withTenant } from '@/server/kontext/index';
 import { bestaetigeKalkulation, KalkulationFehler }
   from '@/server/services/kalkulation/bestaetigung';
+import { setzeKostenposition } from '@/server/services/kalkulation/kostenposition';
 
 /**
  * `POST /api/kalkulation` — die Werte bestaetigen, auf denen ein Preis ruht.
@@ -32,6 +33,12 @@ import { bestaetigeKalkulation, KalkulationFehler }
  *
  * **Der Bereich kommt aus der SITZUNG** (Invariante 3), nicht aus
  * `?mandant=`.
+ *
+ * **Zweite Handlung: `aktion=kostenposition`** (V-174, OPS-07) — eine Material-
+ * oder Gerätezeile anlegen oder berichtigen und den Preis neu rechnen.
+ * Dasselbe Recht, dieselbe Seite, dieselbe Abweisung mit Feld: beides ändert,
+ * worauf der Preis ruht. Gelöscht wird nichts (Invariante 8); eine Zeile, die
+ * nicht mehr gelten soll, bekommt die Menge null.
  */
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +62,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const roh = text('angebotId');
   const angebotId = roh !== null && UUID.test(roh) ? roh : null;
   const basis = text('gemeinkostenBasis');
+  const aktion = text('aktion') ?? 'bestaetigen';
 
   let slug = '';
   const zurSeite = (grund: string, feld: string | null): NextResponse => {
@@ -91,6 +99,21 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         if (angebotId === null) {
           throw new KalkulationFehler('Kein Angebot benannt', 'nicht_gefunden');
         }
+        if (aktion === 'kostenposition') {
+          const positionId = text('positionId');
+          if (positionId !== null && !UUID.test(positionId)) {
+            throw new KalkulationFehler('Diese Kostenzeile gibt es nicht', 'nicht_gefunden');
+          }
+          await setzeKostenposition(kontext, angebotId, {
+            kostenart: text('kostenart') ?? '',
+            bezeichnung: text('bezeichnung') ?? '',
+            menge: text('menge') ?? '',
+            einheit: text('einheit') ?? '',
+            einzelpreisEuro: text('einzelpreis') ?? '',
+            positionId,
+          });
+          return { bestaetigt: false };
+        }
         if (basis === null) {
           throw new KalkulationFehler(
             'Die Gemeinkostenbasis fehlt', 'unvollstaendig', 'gemeinkostenBasis');
@@ -106,9 +129,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         });
       })) as Promise<{ readonly bestaetigt: boolean }>);
 
-    return NextResponse.redirect(
-      new URL(`/portal/${slug}/angebote/${String(angebotId)}`, erwarteterUrsprung(anfrage)),
-      303);
+    /* Nach einer Kostenzeile zurück auf die Kalkulation — dort steht, was sie bewirkt hat. */
+    const ziel = aktion === 'kostenposition'
+      ? `/portal/${slug}/angebote/${String(angebotId)}/kalkulation?kostenposition=1`
+      : `/portal/${slug}/angebote/${String(angebotId)}`;
+    return NextResponse.redirect(new URL(ziel, erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
     if (fehler instanceof NichtAngemeldetFehler) {
       return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });

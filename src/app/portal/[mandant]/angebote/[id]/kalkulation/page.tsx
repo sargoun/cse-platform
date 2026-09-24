@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
+import { Button } from '@/components/ui/Button';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
@@ -44,8 +46,28 @@ interface Kopf {
   readonly wagnis_gewinn_bp: number | null;
   readonly bemerkung: string | null;
   readonly versendet: boolean;
+  /** V-174: nach der Preisfreigabe ändert keine Kostenzeile mehr den Preis (O-732). */
+  readonly freigegeben: boolean;
   readonly leistungswert_offen: boolean;
   readonly frequenz_offen: boolean;
+  /* Die fünf Blöcke — materialisiert von `kern.aktualisiere_kalkulation_summen`. */
+  readonly summe_lohn: string;
+  readonly summe_material: string;
+  readonly summe_geraet: string;
+  readonly summe_gemeinkosten: string;
+  readonly summe_wagnis_gewinn: string;
+  readonly summe_netto: string;
+}
+
+/** Eine Material- oder Gerätezeile (V-174). */
+interface Kostenzeile {
+  readonly id: string;
+  readonly kostenart: string;
+  readonly bezeichnung: string;
+  readonly menge: string | null;
+  readonly einheit: string | null;
+  readonly einzelbetrag_cent: string | null;
+  readonly betrag_cent: string;
 }
 
 interface Zeile {
@@ -83,6 +105,7 @@ export default async function KalkulationSeite(
   const suche = await searchParams;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const fehlerFeld = typeof suche['feld'] === 'string' ? suche['feld'] : null;
+  const kostenpositionGespeichert = suche['kostenposition'] === '1';
   const pfad = `/portal/${mandant}/angebote/${id}/kalkulation`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -103,6 +126,13 @@ export default async function KalkulationSeite(
                 k.gemeinkosten_basis::text as gemeinkosten_basis,
                 k.gemeinkosten_bp, k.wagnis_gewinn_bp, k.bemerkung,
                 (a.versendet_am is not null) as versendet,
+                (a.freigegeben_am is not null) as freigegeben,
+                coalesce(k.summe_lohn_cent, 0)::text as summe_lohn,
+                coalesce(k.summe_material_cent, 0)::text as summe_material,
+                coalesce(k.summe_geraet_cent, 0)::text as summe_geraet,
+                coalesce(k.summe_gemeinkosten_cent, 0)::text as summe_gemeinkosten,
+                coalesce(k.summe_wagnis_gewinn_cent, 0)::text as summe_wagnis_gewinn,
+                coalesce(k.angebotssumme_netto_cent, 0)::text as summe_netto,
                 exists (select 1 from kalkulation_position p
                          where p.kalkulation_id = k.id
                            and p.leistungswert_ist_platzhalter)
@@ -113,22 +143,48 @@ export default async function KalkulationSeite(
            left join kalkulation k on k.angebot_id = a.id
           where a.id = $1`, [id]);
       if (kopf === undefined) return null;
+      /*
+       * Der Rechenweg zeigt die LOHNZEILEN — Fläche, Leistungswert, Stunden.
+       * Zuschläge, Material und Gerät stehen in eigenen Blöcken darunter
+       * (V-174): in einer Spalte „Belagsart" war eine Gemeinkostenzeile ein
+       * Belag, und eine Materialzeile hätte es auch sein müssen.
+       */
       const zeilen = kopf.kalkulation_id === null ? [] : await kontext.abfrage<Zeile>(
         `select id, position_nr, bezeichnung, menge::text, einheit,
                 einzelbetrag_cent::text, betrag_cent::text,
                 leistungswert_qm_pro_stunde::text as leistungswert, berechnungsweg
            from kalkulation_position
-          where kalkulation_id = $1 order by position_nr`, [kopf.kalkulation_id]);
-      return { kopf, zeilen };
-    })) as Promise<{ kopf: Kopf; zeilen: readonly Zeile[] } | null>);
+          where kalkulation_id = $1 and kostenart = 'lohn'
+          order by position_nr`, [kopf.kalkulation_id]);
+      const kostenzeilen = kopf.kalkulation_id === null ? [] : await kontext.abfrage<Kostenzeile>(
+        `select id, kostenart::text as kostenart, bezeichnung, menge::text as menge, einheit,
+                einzelbetrag_cent::text as einzelbetrag_cent, betrag_cent::text as betrag_cent
+           from kalkulation_position
+          where kalkulation_id = $1 and kostenart in ('material', 'geraet')
+          order by position_nr`, [kopf.kalkulation_id]);
+      return { kopf, zeilen, kostenzeilen };
+    })) as Promise<{
+      kopf: Kopf; zeilen: readonly Zeile[]; kostenzeilen: readonly Kostenzeile[];
+    } | null>);
 
   if (daten === null) notFound();
-  const { kopf, zeilen } = daten;
+  const { kopf, zeilen, kostenzeilen } = daten;
   const offen = kopf.ist_platzhalter === true || kopf.leistungswert_offen
     || kopf.frequenz_offen;
   const eingefroren = kopf.kalkulation_status === 'festgeschrieben' || kopf.versendet;
   const tk = nachSprache(KALKULATION_TEXTE, zugang.sprache);
   const feldName = fehlerFeld === null ? undefined : tk.feld[fehlerFeld];
+  /* Material und Gerät sind änderbar, solange weder festgeschrieben noch freigegeben. */
+  const kostenOffen = !eingefroren && !kopf.freigegeben;
+  const basisVorgabe = kopf.gemeinkosten_basis === 'selbstkosten' ? 'selbstkosten' : 'lohn';
+  const geld = (text: string | null): string =>
+    (text === null ? '—' : formatiereGeld(cent(BigInt(text))));
+  const mengeText = (text: string | null): string =>
+    (text === null ? '' : formatiereMenge(mengeAusPostgresOderNull(text)));
+  const eurText = (text: string | null): string =>
+    (text === null ? '' : formatiereGeld(cent(BigInt(text))).replace(/\s*€$/u, ''));
+  const kostenFeld = 'mt-s1 block min-h-11 w-full rounded-md border border-line bg-surface px-s3 '
+    + 'text-text';
 
   return (
     <PortalRahmen
@@ -151,6 +207,12 @@ export default async function KalkulationSeite(
         * damit, was es nicht zeigen darf (AUT-06, D-581).
         */}
       <h1 className="mb-s4 text-h1 text-text">Kalkulation</h1>
+
+      {kostenpositionGespeichert && fehler === null ? (
+        <Hinweis art="erfolg" cse="kostenposition-gespeichert" className="mb-s5 max-w-prose">
+          {tk.gespeichert}
+        </Hinweis>
+      ) : null}
 
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="kalkulation-fehler" className="mb-s5 max-w-prose">
@@ -199,6 +261,153 @@ export default async function KalkulationSeite(
                 },
               ]}
             />
+          </section>
+
+          {/*
+            * V-174 (OPS-07): die fünf Blöcke — Lohn, Material, Gerät,
+            * Gemeinkosten, Wagnis/Gewinn. Die Summen hält die Datenbank
+            * (`kern.aktualisiere_kalkulation_summen`); diese Seite rechnet nichts.
+            */}
+          <section aria-labelledby="zusammensetzung" className="mb-s7 max-w-prose">
+            <h2 id="zusammensetzung" className="text-h2 text-text">{tk.zusammensetzung}</h2>
+            <p className="mb-s4 text-sm text-text-muted">{tk.zusammensetzungErklaerung}</p>
+            <dl data-cse="kalkulation-bloecke"
+                className="m-0 grid grid-cols-1 gap-s3 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-2">
+              {([
+                ['lohn', kopf.summe_lohn], ['material', kopf.summe_material],
+                ['geraet', kopf.summe_geraet], ['gemeinkosten', kopf.summe_gemeinkosten],
+                ['wagnisGewinn', kopf.summe_wagnis_gewinn], ['netto', kopf.summe_netto],
+              ] as const).map(([block, betrag]) => (
+                <div key={block} data-cse={`block-${block}`}>
+                  <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">
+                    {tk.block[block]}
+                  </dt>
+                  <dd className="m-0 mt-s1 text-sm tabular-nums text-text">{geld(betrag)}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-s3 text-xs text-text-muted" data-cse="kalkulation-basis">
+              {tk.basisSatz[kopf.gemeinkosten_basis ?? 'lohn'] ?? tk.basisSatz['lohn']}
+            </p>
+          </section>
+
+          <section aria-labelledby="material" className="mb-s7 max-w-prose"
+                   data-cse="kalkulation-material">
+            <h2 id="material" className="text-h2 text-text">{tk.materialTitel}</h2>
+            <p className="mb-s4 text-sm text-text-muted">{tk.materialErklaerung}</p>
+            {kostenzeilen.length === 0 ? (
+              <p className="mb-s4 text-sm text-text-muted" data-cse="material-leer">
+                {tk.materialLeer}
+              </p>
+            ) : (
+              <ul className="m-0 mb-s4 flex list-none flex-col gap-s3 p-0" data-cse="material-zeilen">
+                {kostenzeilen.map((z) => (
+                  <li key={z.id} data-cse="material-zeile"
+                      className="rounded-lg border border-line bg-surface p-s4 text-sm text-text">
+                    <div className="flex flex-wrap items-baseline justify-between gap-s3">
+                      <span>
+                        <span className="text-text-subtle">{tk.kostenart[z.kostenart] ?? ''}</span>
+                        {' · '}{z.bezeichnung}
+                      </span>
+                      <span className="tabular-nums">
+                        {`${mengeText(z.menge)} ${z.einheit ?? ''} × ${geld(z.einzelbetrag_cent)} `}
+                        {'= '}<strong>{geld(z.betrag_cent)}</strong>
+                      </span>
+                    </div>
+                    {kostenOffen ? (
+                      <details className="mt-s3">
+                        <summary className="cursor-pointer text-sm text-text-muted">
+                          {tk.zeileBerichtigen}
+                        </summary>
+                        <form method="post" action="/api/kalkulation" className="mt-s3 grid grid-cols-1 gap-s3 sm:grid-cols-2">
+                          <input type="hidden" name="aktion" value="kostenposition" />
+                          <input type="hidden" name="angebotId" value={id} />
+                          <input type="hidden" name="positionId" value={z.id} />
+                          <label className="block text-sm text-text">
+                            {tk.spalte.kostenart}
+                            <select name="kostenart" defaultValue={z.kostenart} className={kostenFeld}>
+                              <option value="material">{tk.kostenart['material']}</option>
+                              <option value="geraet">{tk.kostenart['geraet']}</option>
+                            </select>
+                          </label>
+                          <label className="block text-sm text-text">
+                            {tk.spalte.bezeichnung}
+                            <input name="bezeichnung" required defaultValue={z.bezeichnung}
+                                   maxLength={200} className={kostenFeld} />
+                          </label>
+                          <label className="block text-sm text-text">
+                            {tk.spalte.menge}
+                            <input name="menge" required inputMode="decimal"
+                                   defaultValue={mengeText(z.menge)} className={kostenFeld} />
+                          </label>
+                          <label className="block text-sm text-text">
+                            {tk.spalte.einheit}
+                            <input name="einheit" required maxLength={20}
+                                   defaultValue={z.einheit ?? ''} className={kostenFeld} />
+                          </label>
+                          <label className="block text-sm text-text">
+                            {tk.spalte.einzelpreis}
+                            <input name="einzelpreis" required inputMode="decimal"
+                                   defaultValue={eurText(z.einzelbetrag_cent)}
+                                   className={kostenFeld} />
+                          </label>
+                          <div className="flex items-end">
+                            <Button type="submit" variante="secondary">{tk.speichern}</Button>
+                          </div>
+                        </form>
+                      </details>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {kostenOffen ? (
+              <form method="post" action="/api/kalkulation" data-cse="material-hinzufuegen"
+                    className="grid grid-cols-1 gap-s3 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-2">
+                <input type="hidden" name="aktion" value="kostenposition" />
+                <input type="hidden" name="angebotId" value={id} />
+                <h3 className="m-0 text-h3 text-text sm:col-span-2">{tk.zeileHinzufuegen}</h3>
+                <label className="block text-sm text-text">
+                  {tk.spalte.kostenart}
+                  <select name="kostenart" defaultValue="material" className={kostenFeld}
+                          data-cse="material-art">
+                    <option value="material">{tk.kostenart['material']}</option>
+                    <option value="geraet">{tk.kostenart['geraet']}</option>
+                  </select>
+                </label>
+                <label className="block text-sm text-text">
+                  {tk.spalte.bezeichnung}
+                  <input name="bezeichnung" required maxLength={200} className={kostenFeld}
+                         data-cse="material-bezeichnung" />
+                </label>
+                <label className="block text-sm text-text">
+                  {tk.spalte.menge}
+                  <input name="menge" required inputMode="decimal" className={kostenFeld}
+                         data-cse="material-menge" />
+                </label>
+                <label className="block text-sm text-text">
+                  {tk.spalte.einheit}
+                  <input name="einheit" required maxLength={20} className={kostenFeld}
+                         data-cse="material-einheit" />
+                </label>
+                <label className="block text-sm text-text">
+                  {tk.spalte.einzelpreis}
+                  <input name="einzelpreis" required inputMode="decimal" className={kostenFeld}
+                         data-cse="material-einzelpreis" />
+                </label>
+                <div className="flex items-end">
+                  <Button type="submit" variante="primary" data-cse="material-speichern">
+                    {tk.speichern}
+                  </Button>
+                </div>
+                <p className="m-0 text-xs text-text-muted sm:col-span-2">{tk.mengeNullHinweis}</p>
+              </form>
+            ) : kopf.freigegeben && !eingefroren ? (
+              <p className="text-sm text-text-muted" data-cse="material-freigegeben">
+                {tk.gesperrtFreigegeben}
+              </p>
+            ) : null}
           </section>
 
           {offen ? (
@@ -261,12 +470,17 @@ export default async function KalkulationSeite(
                   name="gemeinkostenBasis"
                   data-cse="feld-basis"
                   required
-                  defaultValue={kopf.gemeinkosten_basis ?? 'lohn'}
+                  defaultValue={basisVorgabe}
                   className="mt-s1 block min-h-11 w-full rounded-md border border-line bg-surface px-s3 text-text"
                 >
-                  <option value="lohn">Lohnkosten</option>
-                  <option value="selbstkosten">Selbstkosten</option>
-                  <option value="je_kostenart">je Kostenart</option>
+                  <option value="lohn">{tk.basisOption.lohn}</option>
+                  <option value="selbstkosten">{tk.basisOption.selbstkosten}</option>
+                  {/*
+                    * V-174: `je_kostenart` wurde gespeichert und auf den Lohn gerechnet.
+                    * Sie braucht Sätze je Kostenart (O-16) und ist deshalb sichtbar,
+                    * aber nicht wählbar — der Dienst weist sie ebenso ab.
+                    */}
+                  <option value="je_kostenart" disabled>{tk.basisOption.je_kostenart}</option>
                 </select>
               </label>
 
