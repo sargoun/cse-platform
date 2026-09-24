@@ -17197,10 +17197,19 @@ beim Zeichnen) und gab einen unbekannten `?konto=`-Wert roh aus.
    `cse_definer`: `app.verwaltungskonto_einladen` legt sie an (D-610, nur
    `super_admin`), `app.mitgliedschaft_module_setzen` ändert ihre Module
    (D-658). Seed und Migration laufen als Eigentümer und sind nicht gemeint.
+   *(Berichtigt in D-730: so war das nicht vollständig wahr. Der Auslöser hing
+   nur an `rolle_id` und `entzogen_am`, `cse_app` hielt ein UPDATE auf die
+   ganze Zeile — `benutzer_id` einer lebenden Administration umschreiben
+   oder das Fenster einer abgelaufenen wieder öffnen ging an allen
+   Auslösern vorbei. Seit 0460 fragt der Auslöser die ganze Zeile, und
+   `cse_app` hält nur noch Spaltenrechte.)*
 2. **Entziehen bleibt, Pflege bleibt.** Eine Administration zu entziehen und
    eine lebende weiter zu pflegen (`gueltig_bis`, `ist_standard`) geht wie
    bisher über `t_bm_entziehen`. Andere Rollen tragen keine Modulliste
    (0416) und sind nicht gemeint.
+   *(Genauer seit D-730: das Fenster einer Administration lässt sich auf dem
+   Anwendungsweg nur verkürzen; verlängern, wieder öffnen und vorziehen
+   heißt neu einladen.)*
 3. **Ein eigener Auslöser, keine neue Fassung von `bm_module_pruefen`.** Jener
    prüft den Katalog an der Spalte `module`, dieser den Weg an `rolle_id`
    und `entzogen_am`. Ohne `security definer`, wie 0416: `current_user` ist
@@ -17323,4 +17332,68 @@ Kein Test deckte einen dieser Wege ab.
    der Kommentar an `bindeHerkunft`.
 
 | Betrifft | SEC-A9, K-08, D-657, D-661, O-92, V-167, V-235, `src/server/kontext/checkin.ts`, `src/server/kontext/index.ts` (`bindeHerkunft`), `src/server/services/zeit/checkin.ts`, `src/server/services/zeit/offline.ts`, `src/server/auth/mitarbeiter-anmeldung.ts`, `src/app/api/check-in/[token]/{route,offline/route,medien/route}.ts`, `src/app/api/mein/stempeluhr/route.ts`, `src/app/auth/mitarbeiter/code/page.tsx`, `docs/architecture/03-AUTH-BERECHTIGUNGEN.md` (Check-in-Prinzipal), `tests/isolation/pruefprotokoll-ip-agent.test.ts` §4, `tests/kern/mitarbeiter-anmeldung.test.ts` |
+|---|---|
+
+### D-730 · Eine Administration entsteht auch nicht über Konto oder Fenster — die Zeile zählt, nicht die Spalte (V-236)
+
+**Der Befund** (V-236, Prüfung von V-168; AUT-01, 03-AUTH §12.1): D-662 Nr. 1
+sagte, auf dem Anwendungsweg entstehe keine lebende Administration. Die
+Auslöser auf `benutzer_mandant` hingen aber an einzelnen Spalten — 0419 an
+`rolle_id` und `entzogen_am`, 0416 an `module`, 0007 an `rolle_id` und
+`mandant_id` —, und `cse_app` hielt seit 0007 ein UPDATE auf die ganze Zeile,
+das `t_bm_entziehen` (0102) nicht einschränkt. Mit
+`system.benutzer_verwalten` und dem zweiten Faktor gingen zwei Wege durch:
+
+- `update benutzer_mandant set benutzer_id = X` an einer lebenden
+  Administration ohne Modulliste — das Konto X war danach eine
+  Administration mit allen Modulen der Rolle, ohne
+  `app.verwaltungskonto_einladen` (D-610) und ohne
+  `system.module_zuweisen`;
+- `set gueltig_bis = null` an einer abgelaufenen, nie entzogenen
+  Administration — `app.hat_recht_fuer` prüft das Fenster (0395), die Zeile
+  galt wieder. Ebenso ein früheres `gueltig_ab`.
+
+`tests/isolation/mitgliedschaft-module.test.ts` §4 erlaubte die Pflege von
+`gueltig_bis` ausdrücklich und prüfte keinen der beiden Wege.
+
+**Die Entscheidung.**
+
+1. **Erste Linie: Spaltenrechte** (0460). `cse_app` hält auf
+   `benutzer_mandant` kein UPDATE auf die Tabelle mehr, sondern eines auf
+   die Spalten, die eine Mitgliedschaft PFLEGEN: `rolle_id`, `module`,
+   `aus_anstellung`, `ist_standard`, `gueltig_ab`, `gueltig_bis`,
+   `entzogen_am`, `entzogen_von`, `entzugsgrund`, `geaendert_von`. Nicht
+   darunter ist, was eine Mitgliedschaft IST — `id`, `benutzer_id`,
+   `mandant_id` — und ihre Spur (`erstellt_am`, `erstellt_von`,
+   `geaendert_am`). Eine Mitgliedschaft wechselt nie das Konto; wer eine
+   für ein anderes Konto braucht, legt sie an, und die alte bleibt als
+   Antwort auf „wer hatte wann Zugriff“ stehen (Invariante 8). Das ist das
+   Muster, das 0007 für `benutzer` selbst vorschreibt (K-05). Kein
+   Anwendungscode schreibt `benutzer_mandant` direkt; die Definer-Wege
+   (0191, 0249, 0372, 0416) laufen als `cse_definer` und sind nicht berührt.
+2. **Zweite Linie: der Auslöser fragt die ganze Zeile.**
+   `kern.bm_administration_pruefen` hängt jetzt an JEDEM Update, und die
+   Frage ist nicht mehr „welche Spalte hat sich geändert“, sondern „gibt die
+   Zeile danach mehr Administration als vorher“. Eine Zeile, die nach der
+   Anweisung eine lebende Mitgliedschaft mit der Plattformrolle `admin` ist,
+   geht auf dem Anwendungsweg nur durch, wenn sie das vorher schon war —
+   dasselbe Konto, dieselbe Gesellschaft, und ein Fenster, das im alten
+   liegt. Anlegen, Wiederbeleben und Umwidmen (0419) fallen unter dieselbe
+   eine Frage. Die zweite Linie hält auch allein: die Prüfung gibt das
+   Spaltenrecht auf `benutzer_id` in einer zurückgerollten Transaktion
+   zurück, und der Auslöser weist ab.
+3. **Pflege heißt Verkürzen.** Ein Ende setzen oder früher legen, einen
+   späteren Beginn, `ist_standard`, entziehen und herabstufen bleiben.
+   Verlängern, ein abgelaufenes Fenster wieder öffnen und den Beginn
+   vorziehen geben einem Konto Tage mit Administration, die es nicht hatte
+   — das ist Anlegen, und Anlegen hat einen Weg: die alte Zeile entziehen
+   und über `app.verwaltungskonto_einladen` neu einladen (0372 nimmt ein
+   vorhandenes Konto an, sobald es in der Gesellschaft keine lebende
+   Mitgliedschaft mehr hat; nur `super_admin`, D-610).
+4. **Seed und Migration bleiben Eigentümer** und sind nicht gemeint; die
+   Meldung und `detail = administration_nur_ueber_funktion` bleiben die aus
+   0419, damit die Oberfläche und die bestehenden Prüfungen nichts Neues
+   lernen müssen.
+
+| Betrifft | AUT-01, 03-AUTH §12.1, K-05, Invariante 8, D-610, D-658, D-662, V-168, V-236, `drizzle/0460`, `tests/isolation/mitgliedschaft-module.test.ts` §4 |
 |---|---|

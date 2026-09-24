@@ -382,7 +382,8 @@ describe('(3) der Seed: admin.vertrieb haelt nur seine Module', () => {
 });
 
 /**
- * **Keine Administration am Anwendungsweg vorbei** (V-168, D-662, 0419).
+ * **Keine Administration am Anwendungsweg vorbei** (V-168, D-662, 0419;
+ * Konto und Fenster: V-236, D-730, 0460).
  *
  * Der Ausloeser aus 0416 sperrt nur das SETZEN einer Liste. Mit
  * `system.benutzer_verwalten` gab es drei Umwege zu einer Administration mit
@@ -463,5 +464,82 @@ describe('(4) keine Administration am Anwendungsweg vorbei (0419)', () => {
   it('die Sperre gilt dem Anwendungsweg — der Eigentuemer (Seed, Migration) legt weiter an', async () => {
     const seedKonto = await konto('modul-seedweg@test.invalid');
     expect(await lebt(await mitglied(seedKonto, f.reinigung, 'admin'))).toBe(true);
+  });
+
+  /*
+   * **Die zwei Wege, die 0419 offen liess** (V-236, D-730, 0460): das Konto
+   * einer lebenden Administration austauschen und das Fenster einer
+   * abgelaufenen wieder oeffnen. Beide liefen an allen Ausloesern vorbei,
+   * weil die an einzelnen Spalten hingen.
+   */
+  async function besitzer(bm: string): Promise<string> {
+    const [z] = await sql.unsafe<{ benutzer_id: string }[]>(
+      `select benutzer_id::text as benutzer_id from benutzer_mandant where id = $1`, [bm]);
+    return z!.benutzer_id;
+  }
+
+  it('eine Mitgliedschaft wechselt nicht das Konto — schon das Spaltenrecht fehlt', async () => {
+    const x = await konto('modul-uebernahme@test.invalid');
+    await expect(als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set benutzer_id = $1 where id = $2`, [x, adminBm])))
+      .rejects.toThrow(/permission denied/u);
+    await expect(als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set benutzer_id = $1 where id = $2`, [x, leitungBm])))
+      .rejects.toThrow(/permission denied/u);
+    expect(await besitzer(adminBm)).toBe(admin);
+    expect(await recht(x, 'finanzen.lesen')).toBe(false);
+  });
+
+  it('und gaebe jemand das Spaltenrecht zurueck, haelt der Ausloeser allein', async () => {
+    const x = await konto('modul-uebernahme-zwei@test.invalid');
+    await expect(alsApp({
+      scope: 'mandant', mandantId: f.reinigung, mandantIds: [f.reinigung], benutzerId: chef,
+      portal: 'intern', readonly: false, aal: 'aal2',
+    }, async (tx) => {
+      /* Als Eigentuemer das Recht zurueckgeben, das 0460 nimmt — nur in dieser
+         Transaktion; der Wurf rollt es mit zurueck. */
+      await tx.unsafe(`reset role`);
+      await tx.unsafe(`grant update (benutzer_id) on benutzer_mandant to cse_app`);
+      await tx.unsafe(`set local role cse_app`);
+      await tx.unsafe(`update benutzer_mandant set benutzer_id = $1 where id = $2`, [x, adminBm]);
+    })).rejects.toThrow(WEG);
+    expect(await besitzer(adminBm)).toBe(admin);
+    const [g] = await sql.unsafe<{ darf: boolean }[]>(
+      `select has_column_privilege('cse_app', 'benutzer_mandant', 'benutzer_id', 'UPDATE') as darf`);
+    expect(g!.darf, 'das Recht ist mit der Transaktion zurueckgerollt').toBe(false);
+  });
+
+  it('eine abgelaufene Administration gilt nicht wieder, weil ihr Fenster aufgeht', async () => {
+    const frueher = await konto('modul-abgelaufen@test.invalid');
+    const [bm] = await sql.unsafe<{ id: string }[]>(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab, gueltig_bis)
+       values ($1, $2, ${ADMIN}, '2020-01-01', '2020-12-31') returning id`,
+      [frueher, f.reinigung]);
+    expect(await recht(frueher, 'finanzen.lesen'), 'abgelaufen gilt nichts').toBe(false);
+
+    for (const satz of [`gueltig_bis = null`, `gueltig_bis = '2099-12-31'`,
+                        `gueltig_ab = '2019-01-01'`]) {
+      await expect(als(chef, (k) => k.schreibe(
+        `update benutzer_mandant set ${satz} where id = $1`, [bm!.id])), satz).rejects.toThrow(WEG);
+    }
+    expect(await recht(frueher, 'finanzen.lesen')).toBe(false);
+  });
+
+  it('das Fenster einer lebenden Administration wird verkuerzt, nie verlaengert', async () => {
+    const befristet = await konto('modul-befristet@test.invalid');
+    const [bm] = await sql.unsafe<{ id: string }[]>(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab, gueltig_bis)
+       values ($1, $2, ${ADMIN}, current_date - 10, current_date + 30) returning id`,
+      [befristet, f.reinigung]);
+    for (const satz of [`gueltig_bis = null`, `gueltig_bis = current_date + 31`,
+                        `gueltig_ab = current_date - 11`]) {
+      await expect(als(chef, (k) => k.schreibe(
+        `update benutzer_mandant set ${satz} where id = $1`, [bm!.id])), satz).rejects.toThrow(WEG);
+    }
+    /* Verkuerzen ist Pflege — und dieselbe Zeile gilt weiter. */
+    await als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set gueltig_bis = current_date + 5, ist_standard = false
+        where id = $1`, [bm!.id]));
+    expect(await recht(befristet, 'finanzen.lesen')).toBe(true);
   });
 });
