@@ -7,11 +7,12 @@ import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant } from '@/server/kontext/index';
 import {
-  SETZBAR, VorgangFehler, setzeVorgangsstand,
+  SETZBAR, VorgangFehler, setzePlattformPruefung, setzeVorgangsstand,
   type SetzbarerStatus, type VorgangErgebnis,
 } from '@/server/services/radar/vorgang';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { alsAntwort } from '../../sicherheit/antwort';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `POST /api/radar/vorgang` — den Stand einer Bekanntmachung setzen (RAD-07).
@@ -20,6 +21,10 @@ import { alsAntwort } from '../../sicherheit/antwort';
  * ohne Grund weist der Dienst ab, und die Seite sagt warum. **Einreichen
  * steht hier nicht** — D-07: die Vergabeplattformen bieten dafür keine
  * Schnittstelle an, und eine Route, die so hiesse, wäre eine Behauptung.
+ *
+ * **Und die Plattformprüfung am Vorgang** (`was=plattform`, RAD-09, V-175):
+ * was ein Mensch für diese Bekanntmachung über die Plattform nachgesehen hat.
+ * Dasselbe Recht, dieselbe Unterseite; sie setzt keinen Stand.
  */
 export const dynamic = 'force-dynamic';
 
@@ -61,10 +66,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const daten = await anfrage.formData();
   const ausschreibung = text(daten, 'ausschreibung') ?? '';
   const status = text(daten, 'status') ?? '';
+  /* Nur diese eine zweite Handlung — alles andere ist ein Stand. */
+  const plattformPruefung = text(daten, 'was') === 'plattform';
   if (!UUID.test(ausschreibung)) {
     return NextResponse.json({ fehler: 'unbekannte_bekanntmachung' }, { status: 400 });
   }
-  if (!(SETZBAR as readonly string[]).includes(status)) {
+  if (!plattformPruefung && !(SETZBAR as readonly string[]).includes(status)) {
     return NextResponse.json({ fehler: 'status_unbekannt' }, { status: 400 });
   }
 
@@ -83,11 +90,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const seite = (): string => `/portal/${slug}/radar/${ausschreibung}`;
   /* Kam das Formular von der Unterseite, gehen Absagen DORTHIN zurueck — mit
      der Eingabe im Blick und einem Satz dazu. */
-  const unterseite = FORMULARSEITE[String(daten.get('zurueck') ?? '')];
+  const unterseite = eigenerEintrag(FORMULARSEITE, daten.get('zurueck'));
   const formular = (): string => (unterseite === undefined
     ? seite() : `${seite()}/${unterseite}`);
 
-  let ergebnis: VorgangErgebnis;
+  let ergebnis: VorgangErgebnis | null;
   try {
     ergebnis = await (db().begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
@@ -99,6 +106,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
         if (bereich === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
         slug = bereich.slug;
+        if (plattformPruefung) {
+          await setzePlattformPruefung(kontext, ausschreibung, text(daten, 'plattformPruefung') ?? '');
+          return null;
+        }
         const profil = text(daten, 'profil');
         const bewertung = text(daten, 'bewertung');
         return setzeVorgangsstand(kontext, {
@@ -108,20 +119,28 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           radarProfilId: profil !== null && UUID.test(profil) ? profil : null,
           bewertungId: bewertung !== null && UUID.test(bewertung) ? bewertung : null,
         });
-      })) as Promise<VorgangErgebnis>);
+      })) as Promise<VorgangErgebnis | null>);
   } catch (fehler) {
     /*
      * Der fehlende Grund ist kein Serverfehler, sondern eine Auskunft: die
      * Seite zeigt sie als Satz und behaelt die Eingabe des Menschen im Blick.
+     * Dasselbe gilt fuer die Plattformpruefung ohne Vorgang (V-175).
      */
     if (fehler instanceof VorgangFehler
-        && (fehler.code === 'grund' || fehler.code === 'mappe_recht')) {
+        && (fehler.code === 'grund' || fehler.code === 'mappe_recht'
+            || fehler.code === 'plattform' || fehler.code === 'kein_vorgang')) {
       return NextResponse.redirect(
         internesZiel(`${formular()}?fehler=${fehler.code}`, formular(), anfrage), 303);
     }
     const antwort = alsAntwort(fehler);
     if (antwort !== null) return antwort;
     throw fehler;
+  }
+
+  /* Die Plattformpruefung setzt keinen Stand — sie bleibt auf ihrer Seite. */
+  if (ergebnis === null) {
+    return NextResponse.redirect(
+      internesZiel(`${formular()}?vermerkt=plattform`, formular(), anfrage), 303);
   }
 
   /* Der ERFOLG geht auf die Detailseite: dort steht der neue Stand im

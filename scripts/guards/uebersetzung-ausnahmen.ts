@@ -224,7 +224,6 @@ export const UEBERSETZUNG_AUSNAHMEN: readonly string[] = [
   'src/app/portal/[mandant]/radar/[id]/page.tsx',
   'src/app/portal/[mandant]/radar/[id]/status/page.tsx',
   'src/app/portal/[mandant]/radar/page.tsx',
-  'src/app/portal/[mandant]/radar/plattformen/page.tsx',
   'src/app/portal/[mandant]/radar/profile/[id]/page.tsx',
   'src/app/portal/[mandant]/radar/profile/page.tsx',
   'src/app/portal/[mandant]/recruiting/bedarf/page.tsx',

@@ -1670,7 +1670,7 @@ firing. Per-user channel preferences (NOT-02) arrive with Phase 9 at
 | `/portal/[mandant]/radar/[id]/mappe` — Vergabemappe assembly, completeness gaps named | `vergabe.schreiben` | `M1` | RAD-07, AGT-02, APR-03, D-07 | 8 |
 | `/portal/[mandant]/radar/[id]/mappe/einreichung` — record that a human submitted, with when and by whom | `vergabe.einreichung_erfassen` | `M1` | RAD-07, D-07, REP-06 | 8 |
 | `/portal/[mandant]/radar/profile` , `/[id]` — CPV codes, NUTS DE3/DE300, positive and negative keywords, value bounds | `radar.profil_schreiben` | `M1` | RAD-04 | 8 |
-| `/portal/[mandant]/radar/plattformen` — registration status per procurement platform | `radar.plattform_verwalten` | `M1` | RAD-09 | 8 |
+| `/portal/[mandant]/radar/plattformen` — registration status per procurement platform; the super administration maintains the catalogue, and a new platform also assigns the notices already read in (V-175) | `radar.plattform_verwalten` | `M1` | RAD-09 | 8 |
 
 **RAD-07's vocabulary is rendered as an explicit transition control**, because D-07 correctly
 removes any submit button and without a control `eingereicht` and `verworfen` could never be

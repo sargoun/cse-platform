@@ -17041,3 +17041,75 @@ Das war bei der Bestätigung schon so und wird hier nicht geändert.
 
 | Betrifft | OPS-07, O-16, O-208, O-732, D-626, D-666, Invariante 1, 6, 8, V-174, `src/server/services/kalkulation/{index,bestaetigung,kostenposition}.ts`, `src/app/api/kalkulation/route.ts`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/lib/i18n/verwaltung/kalkulation.ts`, `src/server/db/seed/vertrieb.ts` |
 |---|---|
+
+### D-669 · Den Plattformkatalog pflegt die Super-Administration, den Registrierungsstand jede Gesellschaft, und eine neue Plattform erreicht auch die Bekanntmachungen von gestern (V-175)
+
+**Der Befund** (V-175, RAD-09): RAD-09 verlangt festzuhalten, auf welchen
+Vergabeplattformen die Gruppe registriert ist, und Bekanntmachungen auf
+Plattformen ohne Registrierung zu markieren. `vergabeplattform` und
+`mandant_plattform_registrierung` hatten seit 0145 Schema, RLS und
+Schreibrechte, aber keinen Dienst, keine Route und kein Formular. Dass der
+Katalog leer ausgeliefert wird, ist entschieden (O-07, D-490). Die Antwort auf
+O-07 ließ sich aber nie eintragen. `ausschreibung.vergabeplattform_id` blieb
+deshalb immer leer, und die Warnung „nicht freigeschaltet" (Liste, Kennzahl,
+Detailblatt) konnte nie auslösen. `ausschreibung_vorgang.plattform_pruefung`
+schrieb nur der Seed.
+
+**Die Entscheidung.**
+
+1. **Den Katalog pflegt die Super-Administration**, weil er keiner
+   Gesellschaft gehört. Das sagt `r_plattform_schreiben` (0145, 0146) seit
+   jeher; `services/radar/plattform.ts` fragt `app.ist_super_admin()` vorher
+   und gibt einen Satz statt einer Policy-Verletzung. Eintragen, ändern,
+   bestätigen, archivieren gehen über `POST /api/radar/plattform`. Das Tor der
+   Route ist das Recht der Seite (`radar.plattform_verwalten`).
+2. **Eingetragen wird, was ein Mensch weiß; vorbelegt wird nichts.** Ein
+   neuer Eintrag trägt `ist_platzhalter`, bis ihn die Super-Administration
+   eigens bestätigt („gilt für die Gruppe", O-07). Der Seed bleibt leer
+   (D-490). Eine Demoplattform wäre eine Behauptung über die Konten des
+   Betriebs.
+3. **Eine neue oder geänderte Plattform ordnet die schon eingelesenen
+   Bekanntmachungen ohne Plattform nach.** Sonst erreichte ein heute
+   eingetragener Hostname nur die Bekanntmachungen von morgen, nicht die, deren
+   Frist schon läuft. `cse_app` darf `ausschreibung` weiter nur lesen. Der
+   Definer `app.radar_plattform_nachordnen()` (0420) setzt `quell_url` auf
+   sich selbst, und `trg_plattform_zuordnen` entscheidet wie beim Einlesen.
+   Eine zweite Fassung der Hostregel gibt es nicht. Eine vorhandene Zuordnung
+   bleibt. Das Tor steht zweimal: in der Funktion (Super-Administration,
+   internes Portal, nicht nur lesend) und in den `d_`-Policies. Die Seite
+   nennt, wie viele Bekanntmachungen dabei eine Plattform bekamen.
+4. **Hostnamen sind Hostnamen.** Getrennt durch Komma oder Zeilenwechsel,
+   klein geschrieben, höchstens zwanzig; aus einer eingefügten Adresse wird
+   ihr Host. Eine Basisadresse ist http(s) und trägt nie Zugangsdaten.
+5. **Den Registrierungsstand pflegt jede Gesellschaft selbst** (Stand,
+   Anmeldekennung, freigeschaltet am, gültig bis, verantwortlich, Notiz), eine
+   Zeile je Plattform (`mpr_uk`), als Upsert unter `radar.plattform_verwalten`.
+   Protokolliert wird mit Vorher und Nachher. `zuletzt_bestaetigt_am` stempelt
+   die Serveruhr. Die CHECKs aus 0145 (registriert braucht ein Datum, die
+   Gültigkeit endet nicht vorher) und die Mitgliedschaft der Verantwortlichen
+   werden vorher als Satz geprüft.
+6. **Ein Kennwort steht nirgends** (SEC-A5). Gefragt wird die Anmeldekennung.
+   `credential_ref`, der Name eines Geheimnisses im Vault, bleibt unbenutzt,
+   solange kein Vault angebunden ist. Ein Feld dafür verwiese auf etwas, das
+   es nicht gibt.
+7. **Abgelaufen wird nicht still umgedeutet.** Liegt „gültig bis" vor heute,
+   sagt die Seite das und bittet um Prüfung. Den Stand ändert ein Mensch.
+8. **Die Plattformprüfung am Vorgang** (`plattform_pruefung`) setzt, wer
+   `radar.status_setzen` hält, auf der Seite „Stand setzen", mit Serverzeit.
+   Sie ändert keinen Stand. Sie hängt am Vorgang, und der entsteht mit dem
+   ersten gesetzten Stand (RAD-07). Ohne Vorgang wird abgewiesen, statt still
+   einen zu eröffnen.
+9. **Die Seite ist zweisprachig** (`lib/i18n/verwaltung/radar-plattform.ts`).
+   Stände erscheinen in Worten, auch in der Warnung des Detailblatts, das
+   bisher den Aufzählungswert zeigte. Datumsangaben stehen als TT.MM.JJJJ.
+   Schlüssel aus der Adresse gehen nur über `eigenerEintrag`. Die Seite ist
+   aus der Ausnahmeliste der Übersetzungswache gestrichen.
+
+**Nicht Teil dieser Entscheidung:** welche Plattformen gelten und wer dort
+registriert ist. Das bleibt O-07 und wird von Menschen eingetragen. Ebenso
+wenig ob die Radarliste die Plattformprüfung des Vorgangs zusätzlich zur
+Registrierung als Warnung führt; sie zeigt weiter den Registrierungsstand der
+Gesellschaft.
+
+| Betrifft | RAD-09, O-07, D-07, D-490, SEC-A5, Invariante 3, 5, V-175, `drizzle/0420`, `src/server/services/radar/{plattform,vorgang}.ts`, `src/app/api/radar/{plattform,vorgang}/route.ts`, `src/app/portal/[mandant]/radar/{plattformen/page.tsx,[id]/page.tsx,[id]/status/page.tsx,daten.ts}`, `src/lib/i18n/verwaltung/radar-plattform.ts`, `scripts/guards/uebersetzung-ausnahmen.ts` |
+|---|---|

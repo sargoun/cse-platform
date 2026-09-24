@@ -2617,6 +2617,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Den Plattformkatalog und den Registrierungsstand pflegen (RAD-09,
+     * V-175, D-669). Das Tor ist das Recht der Seite; den KATALOG selbst
+     * aendert nur die Super-Administration — das fragt der Dienst, und die
+     * Policy `r_plattform_schreiben` (0145, 0146) fragt es ein zweites Mal.
+     */
+    pfad: 'api/radar/plattform',
+    recht: 'radar.plattform_verwalten',
+  },
+  {
+    /**
      * Die Pruefliste der Vergabemappe (RAD-07): Position anlegen, Stand einer
      * Position setzen, Stand der Mappe setzen — drei Handlungen, ein Recht.
      */

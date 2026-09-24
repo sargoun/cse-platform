@@ -102,6 +102,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'radar', pfad: 'radar/profil',
     schreibend: true, schreibRecht: 'radar.profil_schreiben',
   },
+  /**
+   * V-175 — Plattformkatalog und Registrierungsstand (RAD-09). Das Recht ist
+   * das der Seite; den Katalog schreibt zusaetzlich nur die
+   * Super-Administration (Dienst und `r_plattform_schreiben`).
+   */
+  {
+    modul: 'radar', pfad: 'radar/plattform',
+    schreibend: true, schreibRecht: 'radar.plattform_verwalten',
+  },
   { modul: 'buchhaltung', pfad: 'buchhaltung/kontenrahmen', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/kontierung', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/index', schreibend: false },

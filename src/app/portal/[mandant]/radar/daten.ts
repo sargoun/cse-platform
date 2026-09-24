@@ -238,40 +238,69 @@ export async function leseProfile(kontext: LeseKontext): Promise<readonly Profil
 export interface PlattformZeile {
   readonly id: string;
   readonly name: string;
+  readonly slug: string;
   readonly betreiber: string | null;
+  readonly basisUrl: string | null;
+  /** Die Hostnamen, über die der Auslöser zuordnet (0145). */
+  readonly hostMuster: readonly string[];
+  readonly registrierungErforderlich: boolean;
   readonly istPlatzhalter: boolean;
   readonly registrierung: string;
   readonly registriertAm: string | null;
   readonly gueltigBis: string | null;
+  /** Liegt `gueltigBis` vor dem heutigen Berliner Kalendertag? Die Datenbank sagt es. */
+  readonly gueltigkeitVorbei: boolean;
   readonly benutzerkennung: string | null;
+  readonly verantwortlichBenutzerId: string | null;
+  readonly notiz: string | null;
+  readonly zuletztBestaetigtAm: Date | null;
   readonly hinweis: string | null;
   readonly offeneBekanntmachungen: number;
 }
 
+/**
+ * Der Katalog mit dem Registrierungsstand DIESER Gesellschaft (RAD-09).
+ *
+ * Die Registrierung wird ausdrücklich auf den aktiven Mandanten gebunden und
+ * nicht nur der RLS überlassen: in einer Sitzung mit mehreren sichtbaren
+ * Bereichen stünde eine Plattform sonst je Bereich einmal da.
+ */
 export async function lesePlattformen(kontext: LeseKontext): Promise<readonly PlattformZeile[]> {
   const zeilen = await kontext.abfrage<Record<string, unknown>>(
-    `select vp.id, vp.name, vp.betreiber, vp.ist_platzhalter,
+    `select vp.id, vp.name, vp.slug, vp.betreiber, vp.basis_url, vp.host_muster,
+            vp.registrierung_erforderlich, vp.ist_platzhalter,
             vp.registrierung_dauer_hinweis,
             coalesce(m.status::text, 'unbekannt') as registrierung,
             m.registriert_am::text as registriert_am, m.gueltig_bis::text as gueltig_bis,
-            m.benutzerkennung,
+            coalesce(m.gueltig_bis < app.berlin_heute(), false) as gueltigkeit_vorbei,
+            m.benutzerkennung, m.verantwortlich_benutzer_id::text as verantwortlich,
+            m.notiz, m.zuletzt_bestaetigt_am,
             (select count(*) from ausschreibung a
               where a.vergabeplattform_id = vp.id and a.quell_status = 'aktiv'
                 and a.frist_angebot > now())::int as offene
        from vergabeplattform vp
        left join mandant_plattform_registrierung m
               on m.vergabeplattform_id = vp.id and m.geloescht_am is null
+             and m.mandant_id = app.aktiver_mandant()
       where vp.archiviert_am is null
       order by vp.name`);
   return zeilen.map((z) => ({
     id: String(z['id']),
     name: String(z['name']),
+    slug: String(z['slug']),
     betreiber: (z['betreiber'] as string | null) ?? null,
+    basisUrl: (z['basis_url'] as string | null) ?? null,
+    hostMuster: (z['host_muster'] as string[] | null) ?? [],
+    registrierungErforderlich: z['registrierung_erforderlich'] !== false,
     istPlatzhalter: z['ist_platzhalter'] === true,
     registrierung: String(z['registrierung']),
     registriertAm: (z['registriert_am'] as string | null) ?? null,
     gueltigBis: (z['gueltig_bis'] as string | null) ?? null,
+    gueltigkeitVorbei: z['gueltigkeit_vorbei'] === true,
     benutzerkennung: (z['benutzerkennung'] as string | null) ?? null,
+    verantwortlichBenutzerId: (z['verantwortlich'] as string | null) ?? null,
+    notiz: (z['notiz'] as string | null) ?? null,
+    zuletztBestaetigtAm: (z['zuletzt_bestaetigt_am'] as Date | null) ?? null,
     hinweis: (z['registrierung_dauer_hinweis'] as string | null) ?? null,
     offeneBekanntmachungen: Number(z['offene']),
   }));
@@ -292,6 +321,9 @@ export interface VorgangBlick {
   readonly fristSnapshot: Date | null;
   readonly fristAbweichungSeit: Date | null;
   readonly hatMappe: boolean;
+  /** Was ein Mensch über die Plattform geprüft hat (RAD-09, V-175). */
+  readonly plattformPruefung: string;
+  readonly plattformGeprueftAm: Date | null;
 }
 
 /**
@@ -310,6 +342,7 @@ export async function leseVorgang(
     `select v.id, v.status::text as status, v.verworfen_grund, v.status_geaendert_am,
             b.name as geaendert_von_name, v.frist_angebot_snapshot,
             v.frist_abweichung_seit,
+            v.plattform_pruefung::text as plattform_pruefung, v.plattform_geprueft_am,
             exists (select 1 from vergabemappe m
                      where m.ausschreibung_vorgang_id = v.id
                        and m.mandant_id = v.mandant_id
@@ -328,6 +361,8 @@ export async function leseVorgang(
     fristSnapshot: (z['frist_angebot_snapshot'] as Date | null) ?? null,
     fristAbweichungSeit: (z['frist_abweichung_seit'] as Date | null) ?? null,
     hatMappe: z['hat_mappe'] === true,
+    plattformPruefung: String(z['plattform_pruefung'] ?? 'unbekannt'),
+    plattformGeprueftAm: (z['plattform_geprueft_am'] as Date | null) ?? null,
   };
 }
 
