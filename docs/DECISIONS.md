@@ -3297,7 +3297,7 @@ Beantworten helfen:
 | O-731 | **Which Zeitwerte (minutes per unit) and which Standardeinzelpreise apply per Leistungskatalog position, and who releases them?** This is the position side of the same gap as O-17 (Leistungswerte per Belagsart) and additionally covers the time value and the standard price. The CHECK `lkp_kalkulierbar` does not allow a position without any of the three values, so „do not invent a value" cannot mean „leave it NULL": every position carries a clearly marked placeholder with `ist_platzhalter = true` (the column's default), the list shows the placeholder share per Fassung, and the confirm tick says explicitly „for THIS Fassung" — it does not answer O-17 or this row. | `services/katalog/index.ts`, `/leistungskatalog`, `/leistungskatalog/[id]`, OPS-06, CLN-05, O-17, O-16, O-37 |
 | O-732 | **May a granted Preisfreigabe be revoked while the offer has not yet been sent — and if so, by whom and under what logging duty?** The release became its own step when `versendeAngebot` was split (`angebot.preis_freigeben` vs `angebot.versenden`), and with it the question of taking it back. Until answered it is **immutable**: `kern.angebot_preisfreigabe_pruefen` rejects any change to `freigegeben_von`/`freigegeben_am` once set, and a different price needs a new offer version — the same shape as invariant 4. Allowing a revocation would be an invented rule; allowing it silently would be an invented rule without a trace. | `drizzle/0295`, `services/angebot/index.ts` (`gibPreisFrei`), `/angebote/[id]/freigabe`, invariant 4, invariant 7 |
 | O-734 | **Must a closed order be re-openable (Nachtrag, warranty case) — and what then happens to the FIN-18 warning the closure armed?** `pruefeZeiterfassung` reads `status = 'abgeschlossen' or abgeschlossen_am is not null` as the signal that arms the FIN-18 block in the invoice path (D-366). A silent re-opening would therefore disarm a warning somebody deliberately decided on, and leave no trace. Until answered the closure is **one-way**: `abgeschlossen_am` is immutable and the status cannot leave `abgeschlossen`; correction runs through a Nachtrag or a new order. | `drizzle/0296`, `services/auftrag/abschluss.ts`, `/auftraege/[id]/abschluss`, FIN-18, D-366, D-367 |
-| O-735 | **Is the customer's Referenzfreigabe time-limited (how long does the permission hold), and does a revocation work retroactively** — must already-published references be taken down, or only no new ones created? The order row keeps the proof either way: `freigabe_widerrufen_am` is the field that counts, and `auftrag_referenz_idx` reads it that way (`freigegeben_vom_kunden AND freigabe_widerrufen_am IS NULL`). Until answered, a revocation removes **no** `referenz` row — PRO-05 keeps the two acts apart, and `referenz` deliberately carries no foreign key to `auftrag`. A revocation is not a dead end either: `freigegeben_vom_kunden` stays `true` (the CHECK requires it), and a fresh customer statement clears `freigabe_widerrufen_am` and takes effect again — the customer may change their mind twice. The revocation reason goes to the audit log (`auftrag.kundenfreigabe_widerrufen`), never into `freigabe_text`: that column holds the customer's own wording and is the proof PRO-05 relies on. | `drizzle/0296`, `services/auftrag/kundenfreigabe.ts`, `/auftraege/[id]/kundenfreigabe`, PRO-05 |
+| O-735 | **Is the customer's Referenzfreigabe time-limited (how long does the permission hold), and does a revocation work retroactively** — must already-published references be taken down, or only no new ones created? The order row keeps the proof either way: `freigabe_widerrufen_am` is the field that counts, and `auftrag_referenz_idx` reads it that way (`freigegeben_vom_kunden AND freigabe_widerrufen_am IS NULL`). Until answered, a revocation removes **no** `referenz` row — PRO-05 keeps the two acts apart. Since V-161 (`drizzle/0410`, D-654) a new `referenz` records the `auftrag` it was created from (`auftrag_id`, composite FK over the Gesellschaft, immutable) — as PROVENANCE, not coupling: nothing cascades, no trigger on `auftrag` reads it, and the reference keeps its own release; the reference sheet shows a revocation on its origin order as information. A revocation is not a dead end either: `freigegeben_vom_kunden` stays `true` (the CHECK requires it), and a fresh customer statement clears `freigabe_widerrufen_am` and takes effect again — the customer may change their mind twice. The revocation reason goes to the audit log (`auftrag.kundenfreigabe_widerrufen`), never into `freigabe_text`: that column holds the customer's own wording and is the proof PRO-05 relies on. | `drizzle/0296`, `services/auftrag/kundenfreigabe.ts`, `/auftraege/[id]/kundenfreigabe`, PRO-05 |
 | O-736 | **Which document categories may EVER be released to a customer?** DOC-01 lists `mitarbeiter` and `buchhaltung` alongside the customer-facing ones; releasing a payslip or a bank statement to a customer must be impossible, not merely unusual. Today the database checks only the right (`dokument.kunde_freigeben`, `drizzle/0297`), so the release screen names the category prominently and the audit entry records it with every switch. A release without `kunde_id` is rejected outright. | `drizzle/0297`, `services/dokument/kundenfreigabe.ts`, `/dokumente/[id]/kundenfreigabe`, DOC-01, DOC-03, DOC-04, O-671 |
 | O-737 | **Does a later change to `raum.flaeche_qm` or `raum.belagsart_id` affect running offers and orders** — must the Kalkulation be recomputed and the customer informed — **or does it apply only to future calculations?** Both values feed every cleaning price (OPS-02, OPS-07) and every Revier target time, so one measurement moves numbers in several other places. Until answered the room sheet changes only the room, and it shows underneath **what hangs on it**: the Richtzeit this room contributes, its Reviere with their overrides, and its import history. Blocking the change would be wrong — a re-measured room is the truth, and the numbers beside it are what must follow. | `services/raumbuch/raum.ts`, `services/kalkulation/raumbuch.ts` (`ladeRaumRichtzeit`), `/objekte/[id]/raumbuch/[raumId]`, OPS-02, OPS-03, OPS-07 |
 
@@ -3341,6 +3341,8 @@ Beantworten helfen:
 | O-907 | **Welche Leadquellen begründen eine Anfrage des Kontakts, sodass die Antwort vertraglich ist und keine Werbung?** Seit V-141 kann jeder Lead einen Ansprechpartner bekommen, und ein ausgehender Anruf oder eine ausgehende E-Mail geht mit einem ZWECK durch das UWG-Tor. Entschieden sind zwei Ränder: das Webformular ist eine Anfrage (D-631, Zweck `vertraglich`), die Akquise ist keine (recherchiert, Zweck `werbung`). Offen sind drei: (a) **von Hand erfasst** — meist nach einem Gespräch, aber das Formular sagt nicht, wer wen angerufen hat; (b) **Empfehlung** — ein Kunde nennt jemanden, der selbst vielleicht nie gefragt hat; (c) **Vergaberadar** — die Vergabestelle bittet öffentlich um Angebote, spricht aber über die Vergabeplattform (D-07). Ist die Kontaktaufnahme dort eine vorvertragliche Maßnahme auf Anfrage der betroffenen Person (Art. 6 Abs. 1 lit. b DSGVO) — oder Werbung, die eine festgestellte Grundlage braucht (§ 7 Abs. 2 UWG, auch B2B)? Bis zur Antwort gehen alle drei den restriktiven Weg `werbung`: der Kontakt braucht eine Grundlage mit Quelle und Datum, sonst hält das Tor den Anruf nicht fest. Die Antwort tauscht die Umsetzung von `LEAD_ZWECK_REGEL`, nicht ihre Aufrufer; das Leadblatt nennt die Frage. | D-631, D-635, § 7 UWG, Art. 6 Abs. 1 lit. b DSGVO, `services/crm/lead-kontakt.ts` (`PLATZHALTER_LEAD_ZWECK`), `api/lead`, `crm/leads/[id]` |
 | O-908 | **Gilt ein Widerspruch (Art. 21 DSGVO) oder ein Werbewiderspruch, der an EINEM Kontakt festgehalten ist, für jeden Kontaktdatensatz derselben E-Mail-Adresse im Bereich?** Das Tor (`app.darf_kontaktiert_werden`) prüft den einen Datensatz, an den eine Nachricht geht. Das Datenmodell hält „ein Mensch, ein Kontakt" je Kunde (`ansprechpartner_email_uk`): derselbe Mensch kann als Anfragender ohne Kunden (0396) und als Kontakt eines oder mehrerer Kunden geführt sein — etwa eine Hausverwaltung für mehrere Eigentümer, oder die Anfrage, deren Kunde die Adresse schon kennt (D-635 Punkt 5). Ein Widerspruch am einen Datensatz sperrt den anderen heute nicht. Soll er es — über alle Datensätze derselben Adresse im Bereich, auch über Kunden hinweg, und für beide Widerspruchsarten? Bis zur Antwort übernimmt der Weg „Kunden zuordnen" keinen Zwilling für einen Anfragenden, dem widersprochen wurde; sonst bleibt jeder Vermerk an seinem Datensatz. | D-631, D-635, Art. 21 DSGVO, § 7 UWG, `drizzle/0020` (`ansprechpartner_email_uk`, Tor), `services/crm/lead-kette.ts` (`nimmKontaktMit`) |
 | O-910 | **Darf die Gruppenansicht die CRM-Aktivitäten aller Gesellschaften lesen — Notizen, Anrufe, Termine, mit Inhalt?** DSH-01 nennt für die Gruppenübersicht „letzte Aktivität“. `lead_aktivitaet` kennt seit `0017` **keinen Gruppenleseweg**: `t_aktivitaet_lesen` bindet an den aktiven Mandanten, eine `t_gruppe`-Policy wie auf `lead` oder `kunde` gibt es nicht — und das ist die einzige CRM-Tabelle, in der der WORTLAUT eines Gesprächs steht (`betreff`, `inhalt`). Eine Zahl allein ließe sich über eine Definer-Funktion zählen, ohne den Inhalt zu öffnen; sie wäre aber eine tote Zahl (DSH-04), denn die Liste dahinter müsste genau diese Zeilen zeigen. Drei Wege: (a) `t_gruppe` auf `lead_aktivitaet` mit `gruppe.crm.lesen` — dieselbe Reichweite wie für Leads und Kunden, also auch jede Gesprächsnotiz der anderen Gesellschaften; (b) ein eigenes Recht (etwa `gruppe.crm.aktivitaet_lesen`), das keine Rolle per Vorgabe hält; (c) so lassen — die Aktivität bleibt im Bereich. **Ausgeliefert ist (c):** die Kachel „Aktivität (7 Tage)“ führt im Bereich auf `/crm/aktivitaet` (V-149), in der Gruppe auf die Übersicht; die Gruppenübersicht hat keine Spalte dafür. Wer Gesprächsinhalte gesellschaftsübergreifend lesbar macht, entscheidet über eine Weitergabe personenbezogener Gesprächsinhalte zwischen rechtlich getrennten Gesellschaften — eine Datenschutzfrage an die Geschäftsführung, keine, die eine Spalte nebenbei beantwortet. | DSH-01, DSH-04, CRM-03, TEN-05, `drizzle/0017`, `services/gruppe/uebersicht.ts`, V-150, D-644 |
+| O-913 | **Deckt die Kundenfreigabe am Auftrag die öffentliche Referenz — oder braucht die Referenz eine eigene Zustimmung des Kunden zu Titel, Beschreibung und Bild?** PRO-05 trennt den Beleg (am Auftrag: Ansprechpartner, Schreiben, Wortlaut) von der Veröffentlichung (die `referenz`-Zeile mit eigener Freigabe, Datum und Beleg). Seit V-154 lässt sich eine Referenz anlegen, seit V-161 nur aus einem ABGESCHLOSSENEN Auftrag mit GELTENDER Freigabe, und sie hält fest, aus welchem (`referenz.auftrag_id`, 0410): übernommen werden Titel und Kundenname, und das Blatt der Referenz SCHLÄGT Datum und Beleg der Freigabe GENAU dieses Auftrags vor — der Haken „Der Kunde hat schriftlich zugestimmt" bleibt leer, gespeichert wird durch einen Menschen. Offen ist die Rechtsfrage dahinter: erlaubt ein Satz wie „Sie dürfen uns als Referenz nennen" auch die Beschreibung, das Bild und die Namensform, die die Redaktion wählt, oder muss der Kunde die Referenz in ihrer veröffentlichten Fassung gesehen haben? Und gilt eine am Auftrag erteilte Freigabe für mehrere Referenzen aus demselben Auftrag? **Ausgeliefert ist die vorsichtige Lesart:** keine automatische Übernahme, kein vorgesetzter Haken; die Referenz bleibt Entwurf, bis ein Mensch ihre eigene Freigabe einträgt, und veröffentlicht wird mit eigenem Recht. Wer die Übernahme automatisieren will, braucht dafür eine anwaltliche Aussage — nicht eine Zeile Code. Hängt mit O-735 (Widerruf) zusammen. | PRO-05, O-735, V-154, V-161, D-648, D-654, `services/inhalt/redaktion.ts` (`legeReferenzAn`), `src/app/portal/[mandant]/website/referenzen/{neu,[id]}/page.tsx` |
+| O-914 | **Darf auch ein LAUFENDER Auftrag mit geltender Kundenfreigabe zur öffentlichen Referenz werden — oder nur ein abgeschlossener?** SPEC PRO-05 sagt es wörtlich: „a reference is a completed `auftrag` with customer release on file, not a marketing entry typed by hand". Seit V-161 gilt genau das (`REFERENZFAEHIGE_ZUSTAENDE = ['abgeschlossen']` in `services/auftrag/kundenfreigabe.ts`, geprüft in `legeReferenzAn`). In der Gebäudereinigung und im Objektschutz laufen Aufträge aber als Dauerauftrag oder Rahmenvertrag über Jahre, und „wir reinigen seit 2019 die Zentrale der X AG" ist dort die übliche Referenz — nach der wörtlichen Lesart entsteht sie erst mit dem Ende des Vertrags. Dazu die Nachbarfrage: ein Projekt aus der Zeit vor der Plattform wird heute als Auftrag angelegt, mit Kundenfreigabe versehen und abgeschlossen, bevor daraus eine Referenz werden kann; reicht dem Auftraggeber dieser Weg? **Ausgeliefert ist die wörtliche Lesart:** nur ein abgeschlossener Auftrag; laufende stehen unter `/website/referenzen/neu` sichtbar als „noch nicht abgeschlossen", ein stornierter nie. Die Antwort ist eine Zeile (die Liste der Zustände), keine Umbauarbeit. | PRO-05, V-161, D-654, O-913, `src/server/services/auftrag/kundenfreigabe.ts` (`REFERENZFAEHIGE_ZUSTAENDE`, `referenzHindernis`), `src/app/portal/[mandant]/website/referenzen/neu/page.tsx` |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
 | O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
@@ -16377,4 +16379,367 @@ Routen als `?meldung=` schicken — ein älteres Muster, das eine eigene
 Durchsicht braucht.
 
 | Betrifft | CRM-03, CRM-04, LEG-08, NOT-01, D-562, D-599, D-640, D-641, D-642, V-146, V-147, V-148, V-153, `drizzle/0406`, `src/server/jobs/wiedervorlageErinnerung.ts`, `src/server/services/crm/{benachrichtigung,verlauf,wiedervorlage}.ts`, `src/server/db/seed/crm.ts`, `src/components/portal/Kommunikationsverlauf.tsx`, `src/app/portal/[mandant]/crm/{kunden,kontakte}/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/rueckmeldung.tsx`, `src/lib/i18n/verwaltung/{crm-verlauf,crm-kunde,recruiting-rueckmeldung}.ts`, `tests/kern/crm-notiz-route.test.ts` |
+### D-648 · Eine Referenz lässt sich anlegen — als Entwurf, ohne Freigabe, frei oder aus einem Auftrag (V-154)
+
+**Der Befund** (V-154; PRO-05, PRO-02): kein Dienst und keine Route schrieb
+ein `insert into referenz` — nur der Seed. Die Kundenfreigabe am Auftrag und
+ihr Hinweistext versprachen „die öffentliche Referenz legt danach ein Mensch
+unter `/website/referenzen` an", und dort gab es Bearbeiten, Kundenfreigabe
+und Veröffentlichen einer BESTEHENDEN Zeile; der Leerzustand der Liste hatte
+keinen Knopf. Eine echte Gesellschaft brachte damit kein einziges Projekt auf
+ihr Profil, auf `/projekte` oder in die Sitemap.
+
+**Die Entscheidung.**
+
+1. **`legeReferenzAn` in `services/inhalt/redaktion.ts`** legt einen ENTWURF
+   an: `status = 'entwurf'`, `freigegeben_vom_kunden = false`, Mandant aus
+   der Sitzung (`app.aktiver_mandant()`, Invariante 3). Veröffentlichen und
+   Kundenfreigabe bleiben eigene Handlungen mit eigenem Beleg und eigenem
+   Recht — eine Anlage, die beides mitbrächte, wäre ein Kundenname auf der
+   Website, über den niemand einzeln entschieden hat.
+2. **Dasselbe Recht wie beim Ändern.** Die Route trägt `referenz.schreiben`;
+   `t_referenz_pflege` verlangt für das `insert` ebenso
+   `referenz.kundenfreigabe_erfassen`, und der Dienst prüft es vorher, damit
+   ein Mensch einen Satz liest und keinen 500. Keine Migration: Grant und
+   Policy für `insert` bestehen seit 0015, der Slug-Auslöser seit 0170.
+3. **Der Slug** kommt, wenn keiner mitgegeben wird, aus `app.slug_aus_titel`
+   — derselben Funktion wie `trg_referenz_slug` — und wird VOR dem Schreiben
+   auf Eindeutigkeit geprüft, auch gegen gelöschte Zeilen (Invariante 8).
+   Titel, Slug-Form und Jahr prüft `pruefeKopffelder`, dieselbe Stelle wie
+   beim Ändern: zwei abgeschriebene Prüfungen laufen auseinander.
+4. **Die Kennung entsteht im Dienst, nicht über `returning`** — eine Rolle,
+   der ein Override das Lesen entzieht, bekäme sonst nach gelungener Anlage
+   einen Fehler und legte ein zweites Mal an.
+5. **Die Oberfläche.** „Neue Referenz" auf der Liste (auch im Leerzustand)
+   und `/portal/[mandant]/website/referenzen/neu` (Seitenkarte §5.21, jetzt
+   mit `/neu`). Nach dem Anlegen führt die Route auf das Blatt der neuen
+   Zeile (`WebsiteWeiter` in `api/website/gemeinsam.ts`), weil dort der
+   nächste Schritt steht; Fehler kommen als `?fehler=<grund>` auf das
+   Formular zurück, zweisprachig (`verwaltung/website-referenz.ts`).
+6. **Aus dem Auftrag.** Auf der Kundenfreigabe eines Auftrags mit GELTENDER
+   Freigabe (`freigabeGilt`: erteilt und nicht widerrufen) steht „Referenz aus
+   diesem Auftrag anlegen" → `/neu?auftrag=<id>`. Vorbelegt werden Titel und
+   Kundenname, sonst nichts. Das Blatt der neuen Referenz schlägt danach
+   Datum (Berliner Kalendertag, `freigabe_tag`) und Beleg der
+   Auftragsfreigabe VOR; der Haken bleibt leer. Ob die Auftragsfreigabe die
+   Referenz in ihrer veröffentlichten Fassung deckt, ist eine Rechtsfrage:
+   **O-913**. `referenz` bekommt keinen Fremdschlüssel auf `auftrag` — die
+   öffentliche Zeile bleibt eine Neuschöpfung (PRO-05).
+7. **Der letzte Schritt desselben Wegs antwortet mit einer Seite.**
+   `api/website/referenzen` (Veröffentlichen/Zurückziehen) gab bei einer
+   Abweisung `{"fehler": grund}` zurück — erreichbar, wenn die Freigabe in
+   einem zweiten Fenster zurückgenommen wurde. Jetzt geht der Grund auf die
+   Seite zurück (`grundAufsFormular`, D-599), und Liste wie
+   Veröffentlichungsblatt nennen den Satz.
+
+**Nachtrag (V-161, D-654) — was davon nicht mehr gilt.** Die FREIE Anlage
+(„frei oder aus einem Auftrag" in der Überschrift) ist zurückgenommen: SPEC
+PRO-05 nennt eine Referenz ausdrücklich „a completed `auftrag` with customer
+release on file, not a marketing entry typed by hand". Eine Referenz entsteht
+jetzt nur aus einem ABGESCHLOSSENEN Auftrag mit geltender Kundenfreigabe
+(Punkt 6 verlangte nur die geltende Freigabe); „Neue Referenz" (Punkt 5)
+führt deshalb zuerst auf die Wahl des Auftrags. Und Punkt 6 letzter Satz gilt
+nicht mehr: `referenz` trägt seit 0410 die Herkunft `auftrag_id` — als Beleg,
+woher sie stammt, nicht als Kopplung. Das Blatt schlägt Datum und Beleg aus
+diesem Auftrag vor und nicht mehr aus `?auftrag=` in der Adresse. Die Punkte
+1 bis 4 und 7 gelten weiter.
+
+| Betrifft | PRO-02, PRO-05, O-735, O-913, V-154, V-161, D-654, `src/server/services/inhalt/redaktion.ts`, `src/server/services/auftrag/kundenfreigabe.ts`, `src/app/api/website/{gemeinsam.ts,referenz/route.ts,referenzen/route.ts}`, `src/app/portal/[mandant]/website/referenzen/{page.tsx,neu/page.tsx,[id]/page.tsx,[id]/veroeffentlichen/page.tsx}`, `src/app/portal/[mandant]/auftraege/[id]/kundenfreigabe/page.tsx`, `src/lib/i18n/verwaltung/website-referenz.ts`, `docs/architecture/04-SEITENKARTE.md` |
+|---|---|
+
+### D-649 · Über uns, Aktuelles und Karriere stehen im Fuss und im Telefonmenü — nicht in der Kopfzeile (V-155)
+
+**Der Befund** (V-155; PUB-01, REC-03): `/ueber-uns` und `/news` (auch unter
+`/en`) waren gebaut, befüllt und in der Sitemap, `/karriere` war das
+öffentliche Recruiting-Portal — und keine Seite verlinkte sie. Die Kopfzeile
+führt vier Punkte, das Telefonmenü dieselben vier, der Fuss Gesellschaften
+und Rechtliches. SEITENKARTE §11.4 nannte „Über uns" und „News" in der
+Kopfzeile; DESIGN §5 hatte die Kopfzeile auf vier Punkte gekürzt (D-417),
+ohne einen anderen Ort zu nennen.
+
+**Die Entscheidung.**
+
+1. **Die Kopfzeile bleibt bei vier Punkten.** D-417 hat gemessen, dass mehr
+   Punkte die `lg`-Stufe sprengen; das gilt weiter.
+2. **Drei Verweise der GRUPPE** (`lib/oeffentliche-navigation.ts`): im
+   Telefonmenü direkt nach den vier, vor den Gesellschaften und „Angebot
+   anfragen"; im Fuss als eigenes `nav` „Die Gruppe" über dem Rechtlichen,
+   in derselben Spalte (eine vierte Spalte hätte die Anschriften umbrechen
+   lassen). Beschriftungen in `SHELL_TEXTE` (de/en); „Aktuelles" heisst die
+   Seite auf Deutsch selbst.
+3. **Eine nur deutsche Seite wird von einer englischen aus trotzdem verlinkt**
+   — auf ihre deutsche Adresse, mit `hrefLang="de"` und dem Hinweis „(in
+   German)" (`verweisIn` in `lib/sprache.ts`). Der Sprachumschalter lässt
+   eine fehlende Sprache weg (D-583), weil er „dieselbe Seite in einer
+   anderen Sprache" meint; ein Fussverweis meint „wo sind die Stellen", und
+   die Antwort ist die deutsche Karriereseite. `/en/karriere` wäre ein 404.
+4. **DESIGN §5 und SEITENKARTE §11.4 nennen den Ort jetzt.**
+
+| Betrifft | PUB-01, REC-03, D-417, D-583, O-512, V-155, `src/components/oeffentlich/OeffentlicheShell.tsx`, `src/lib/oeffentliche-navigation.ts`, `src/lib/sprache.ts`, `src/lib/i18n/texte.ts`, `docs/DESIGN.md` §5, `docs/architecture/04-SEITENKARTE.md` §11.4 |
+|---|---|
+
+### D-650 · Die englischen Pflichtformulare sind geroutet, und die Pflichtwege sind verlinkt (V-156)
+
+**Der Befund** (V-156; D-82, D-83, PUB-09, LEG-07, LEG-09): `Anfrage.tsx`
+(Betroffenenanfrage) und `Feedback.tsx` (Barrieremeldung) trugen vollständige
+englische Texte, ihre Routen leiteten mit `mitSprache(…, 'en')` zurück — aber
+`/en/datenschutz/anfrage`, `…/danke` und `/en/barrierefreiheit/feedback` gab
+es nicht. Weil die Pfade nicht in `NUR_DEUTSCH` standen, bot die Sprachwahl
+auf den deutschen Formularen `/en/…` an: 404. Die englische
+Widerspruchsseite verwies fest auf `/en/datenschutz/anfrage`: 404.
+`sprachpfade.test.ts` verglich nur das erste Pfadsegment und liess beides
+durch. Keine Seite verlinkte das BFSG-Meldeformular (die Erklärung nannte nur
+eine E-Mail-Adresse), und die Betroffenenanfrage war nur über den
+Werbewiderspruch erreichbar. Dazu reichten beide Routen den deutschen Satz
+des Dienstes auch an die englische Seite.
+
+**Die Entscheidung.**
+
+1. **Drei englische Seiten**, die die vorhandenen Komponenten mit
+   `sprache='en'` rendern — derselbe Schreibweg, dieselben Felder (D-83).
+2. **Die Prüfung vergleicht den vollen Pfad.** Jede deutsche Seite hat eine
+   englische Datei desselben Musters, wird über `/en/[seite]` ausgeliefert
+   oder steht in `NUR_DEUTSCH`; und keine englische Seite ohne deutsche.
+3. **Die Erklärung zur Barrierefreiheit führt zuerst auf das Formular**, dann
+   auf E-Mail und Telefon. „Kein Meldeweg hinterlegt" war mit dem Formular
+   falsch; der Satz sagt jetzt, dass nur eine Adresse fehlt.
+4. **Unter der Datenschutzerklärung stehen die zwei Pflichtwege**
+   (`Betroffenenwege`, dieselbe Bauart wie die Pflichtangaben unter dem
+   Impressum): Betroffenenanfrage und Werbewiderspruch. Der Erklärungstext
+   selbst bleibt redaktionell und unverändert. Art. 12 Abs. 2 DSGVO verlangt,
+   die Ausübung zu erleichtern.
+5. **Die Meldungen der Pflichtformulare sprechen die Sprache der Seite** —
+   übersetzt über den GRUND des Dienstfehlers (`pflichtwegMeldung`), nicht
+   über den deutschen Wortlaut.
+6. **`/werbewiderspruch` bleibt in `NUR_DEUTSCH`** (O-34, unverändert); von
+   englischen Seiten führt der Verweis dorthin mit „(in German)".
+
+| Betrifft | D-82, D-83, D-583, D-600, PUB-09, LEG-07, LEG-09, O-34, V-156, `src/app/(public)/en/{datenschutz/anfrage,datenschutz/anfrage/danke,barrierefreiheit/feedback}/page.tsx`, `src/app/(public)/barrierefreiheit/Erklaerung.tsx`, `src/app/(public)/OeffentlicheSeite.tsx`, `src/components/oeffentlich/Betroffenenwege.tsx`, `src/app/api/{datenschutz/anfrage,barrierefreiheit/meldung}/route.ts`, `src/lib/i18n/texte.ts`, `tests/kern/sprachpfade.test.ts` |
+|---|---|
+
+### D-651 · Der Honigtopf antwortet in der Form des Erfolgs, und die englische Anfrage bekommt englische Sammelsätze (V-157)
+
+**Der Befund** (V-157; REQ-01, D-82, D-83, D-599): das Angebotsformular
+schickt `antwort=seite`; Erfolg und Fehler gehen per 303 auf Seiten. Der
+Honigtopf-Zweig antwortete aber VOR dieser Weiche mit JSON. Ein falsch
+positiver Treffer (Passwortverwalter im versteckten Feld) sah eine weisse
+Seite statt der Dankseite, die `lead/annahme.ts` zusagt, und ein Bot erkannte
+am anderen Antworttyp, dass er erkannt war. Auf `/en/angebot/<bereich>`
+standen der deutsche Sammelsatz („Bitte prüfen Sie die markierten Felder.")
+und die deutsche Ratenlimitmeldung über englischen Feldmeldungen.
+
+**Die Entscheidung.**
+
+1. **Ein Honigtopf-Treffer mit `antwort=seite` bekommt 303 auf die Dankseite
+   seiner Sprache** — OHNE Vorgangsnummer. Es gibt keinen Vorgang; eine
+   erfundene Nummer wäre eine, auf die sich ein Mensch am Telefon beruft und
+   die niemand findet. Die Dankseite zeigt den Nummernblock ohnehin nur mit
+   Nummer. Ein Programm bekommt weiter JSON. Ob ein Treffer aufbewahrt wird,
+   bleibt O-905.
+2. **Die Sammelsätze stehen in `API_TEXTE`** (`pruefen`,
+   `datenschutzBestaetigen`, `zuVieleAnfragen`). Welcher gilt, sagt der
+   GRUND des `FormularFehler` (seit V-160, siehe unten), nicht ein Abgleich
+   auf den deutschen Wortlaut; auf Deutsch bleibt der Satz des Dienstes.
+
+**Nachtrag (V-160) — was „dieselbe Form" nicht leistet.** Dieselbe Form ist
+nicht dieselbe Antwort: ein Erfolg führt auf `…/danke?nr=L-…` und trägt im
+JSON eine `leadnummer`, ein Treffer führt auf `…/danke` ohne `nr` und trägt
+keine. Ein Programm, das beide Antworten vergleicht, erkennt den Treffer
+weiterhin. Geschlossen ist die Lücke für den Menschen (Dankseite statt JSON)
+und für einen Bot, der nur auf Statuscode oder Antworttyp schaut. Der Rest
+ist der Preis dafür, keine Nummer zu erfinden, und er ist bewusst gewählt.
+Die Zusagen in `lead/annahme.ts` und am Zweig in `api/anfrage/route.ts`
+nennen ihn jetzt.
+
+**Nachtrag (V-160) — die Ursache statt der Felder.** Punkt 2 las die Ursache
+in der ersten Fassung aus den FELDERN (`datenschutz_hinweis` darunter →
+„bestätigen"). Die Formularversion führt die Checkbox aber als Pflichtfeld,
+und die Prüfung meldet sie zusammen mit allen anderen. Bei drei leeren
+Feldern und fehlendem Häkchen stand dann auf Deutsch „Bitte prüfen Sie die
+markierten Felder.", auf Englisch „Please confirm that you have read the
+privacy notice". `FormularFehler` trägt jetzt einen `grund`
+(`pruefen` · `datenschutz` · `automatisiert` · `zu_viele` · `sonst`), gesetzt
+an derselben Stelle wie der deutsche Satz. Fehlt NUR die Bestätigung, ist
+der Grund in beiden Sprachen „bestätigen", sonst „prüfen". Ein Grund ohne
+eigenen Satz bekommt auf Englisch den allgemeinen (`nichtGespeichert`).
+
+| Betrifft | REQ-01, D-82, D-83, D-599, O-905, V-157, V-160, `src/app/api/anfrage/route.ts`, `src/lib/i18n/texte.ts` (`API_TEXTE`, `formularSammelmeldung`), `src/lib/formular/schema.ts` (`FormularFehler.grund`), `src/server/services/lead/annahme.ts` |
+|---|---|
+
+### D-652 · Nach Einteilen, Absagen und Bewerben kommt eine Seite mit einem Satz — kein JSON (V-158)
+
+**Der Befund** (V-158; D-599, REC-03): `POST /api/einsaetze/[id]/absagen`
+und `…/besetzen` werden nur von HTML-Formularen aufgerufen und antworteten
+auf Fachfehler mit `{"fehler": code}`, den Satz des Dienstes verwarfen sie.
+Das Absagefeld verlangte `required`, der Dienst drei Zeichen — „ok" endete als
+`{"fehler":"ungueltige_eingabe"}`; ein Doppelklick auf „Einteilen" als
+`{"fehler":"ungueltiger_zustand"}`. Die öffentliche Bewerbung antwortete auf
+jeden Fehler mit JSON; `name@firma` liess der Browser durch, der Dienst nicht.
+Dazu las das Schichtblatt `?fehler=` gar nicht — auch nicht den, den
+`api/dienstplan/einsatz` bei einer abgewiesenen Schicht-Absage schon schickte.
+
+**Die Entscheidung.**
+
+1. **Die Einteilungsrouten schicken den GRUND zurück** (`?fehler=<grund>`,
+   `grundAufsFormular` in `api/formular-antwort.ts`), nicht den Satz: drei
+   der Dienstsätze tragen eine Kennung, alle sind deutsch, und das
+   Schichtblatt spricht zwei Sprachen. `api/einsaetze/fehler.ts` bildet jede
+   Fehlerklasse auf einen Grund ab; unbekannte Fachfehler werden
+   `abgewiesen`. Ohne `zurueck` bleibt es beim JSON, jetzt mit Satz.
+2. **Das Schichtblatt liest `?fehler=`** und nennt den Satz aus
+   `SCHICHT_TEXTE.fehler` in der Sprache der Sitzung — für alle drei
+   Formulare der Seite; ein unbekannter Grund bekommt einen allgemeinen
+   Satz, nie den rohen Schlüssel.
+3. **Das Absagefeld verlangt drei Zeichen** (`minLength={3}`, wie der
+   Dienst), und die beiden Einteilungsformulare stehen nur, wo
+   `dienstplan.schreiben` da ist — die Route verlangt es.
+4. **Die Bewerbung folgt D-599:** das Formular trägt `antwort=seite`, die
+   Route leitet mit dem Grund auf die Formularseite zurück (eine geschlossene
+   Stelle auf die Liste, weil ihr Blatt 404 antwortet), dort steht der Satz
+   als `role="alert"`. Die Eingaben reisen NICHT in die Adresse (Name,
+   E-Mail, Nachricht gehören in kein Zugriffsprotokoll); deshalb trägt das
+   E-Mail-Feld die Regel des Dienstes als `pattern`, abgeleitet aus
+   `BEWERBUNG_EMAIL` und nicht abgeschrieben.
+
+**Nachtrag (V-160).** Fehlte beim Einteilen die Beschäftigung, schickte
+`besetzen` den Grund des Absagens (`keine_auswahl`) — dessen Satz lautet
+„Welche Einteilung gemeint war …". Das Einteilen hat jetzt seinen eigenen
+Grund `keine_anstellung` mit eigenem Satz in beiden Sprachen („Welche
+Beschäftigung eingeteilt werden soll …"). Ausserdem schlägt das Schichtblatt
+den Grund nur als eigenen Eintrag nach (D-653).
+
+| Betrifft | D-599, REC-03, TIM-05, R-08, V-158, V-160, `src/app/api/einsaetze/{fehler.ts,[id]/absagen/route.ts,[id]/besetzen/route.ts}`, `src/app/api/formular-antwort.ts`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/lib/i18n/verwaltung/dienstplan-schicht.ts`, `src/app/api/karriere/bewerbung/route.ts`, `src/app/(public)/karriere/{Formular.tsx,meldung.ts,page.tsx,initiativbewerbung/page.tsx,[stelle]/bewerbung/page.tsx}`, `src/server/services/recruiting/dienst.ts` |
+|---|---|
+
+### D-653 · Ein Grund aus der Adresse wird nur als eigener Eintrag nachgeschlagen, und ein Rückweg bleibt auch nach dem Normalisieren im eigenen Ursprung (V-159)
+
+**Der Befund** (V-159; Nachprüfung von V-154 und V-158): zwei Wege, auf denen
+ein Wert aus der Adresse mehr tat, als er sollte.
+
+1. `bewerbungsMeldung` schlug `?fehler=<grund>` in einem gewöhnlichen
+   Objektliteral nach, mit Rückfall auf den allgemeinen Satz. Ein
+   Objektliteral erbt von `Object.prototype`: `?fehler=__proto__` fand
+   `Object.prototype` selbst, `?fehler=toString` eine Funktion. Beides ist
+   nicht `undefined`, also griff der Rückfall nicht, und der Typ behauptete
+   weiter `string`. React zeichnet kein Objekt als Kind; `/karriere`,
+   `/karriere/initiativbewerbung` und `/karriere/<id>/bewerbung` antworteten
+   auf eine Adresse, die jeder tippen kann, mit einer Fehlerseite (500), und
+   `?fehler=toString` zeigte einen leeren Alarmkasten. Dasselbe Nachschlagen
+   stand in den Portalseiten, die V-154 und V-158 angelegt oder geändert
+   haben (Referenzliste, Anlegen, Referenzblatt, Veröffentlichen,
+   Schichtblatt).
+2. `internesZiel` prüfte den Ursprung des Rückwegs und las danach den PFAD
+   ein zweites Mal als Adresse ein. Die erste Prüfung normalisiert aber:
+   `/.//boese.example`, `/portal/..//boese.example`, `/%2e//boese.example`
+   und `/./\boese.example` sind Pfade dieser Anwendung und haben danach den
+   Pfad `//boese.example`. Das zweite Einlesen machte daraus eine
+   schemalose Adresse; die 303-Umleitung ging nach `https://boese.example/`.
+   Von fremden Seiten aus war das nicht auslösbar (jeder Aufrufer verlangt
+   `istGleicherUrsprung`), aber der Test zu V-158 behauptete „nie nach
+   draussen" und prüfte nur eine absolute Adresse.
+
+**Die Entscheidung.**
+
+1. **`eigenerEintrag(tabelle, schluessel)`** (`src/lib/nachschlagen.ts`)
+   liefert nur, was die Tabelle SELBST trägt (`Object.hasOwn`, nicht `in`).
+   Ein Schlüssel, der keine Zeichenkette ist, findet nichts. Die Seite
+   entscheidet dann über ihren allgemeinen Satz; der rohe Schlüssel steht nie
+   da. Benutzt in `karriere/meldung.ts`, `pflichtwegMeldung` und den fünf
+   Portalseiten dieser Gruppe.
+2. **Die älteren Seiten mit demselben Muster** (etwa `angebote/neu`,
+   `einstellungen/modelle`, `freigaben/[id]`, `auth/passwort-neu` — dort erst
+   mit gültigem Token erreichbar) liegen hinter einer Anmeldung und ausserhalb
+   dieser Gruppe. Sie werden hier nicht angefasst, weil andere Zweige
+   dieselben Dateien ändern; der Helfer steht bereit, und
+   `tests/kern/nachschlagen.test.ts` hält fest, dass die Seiten dieser Gruppe
+   ihn benutzen. Ein Schlüssel des Prototyps führt dort zu einer Fehlerseite
+   für den Angemeldeten selbst, nicht zu fremden Daten.
+3. **Ein Pfad, der nach dem Normalisieren mit `//` beginnt, ist kein
+   Rückweg.** `innerhalb` weist ihn ab, baut das Ziel durch SETZEN von Pfad,
+   Abfrage und Anker auf dem eigenen Ursprung und vergleicht den Ursprung am
+   Ende noch einmal. Das schützt jeden Aufrufer von `internesZiel`, nicht nur
+   die Formulare dieser Gruppe.
+
+| Betrifft | D-560, D-599, D-652, V-154, V-158, V-159, `src/lib/nachschlagen.ts`, `src/app/(public)/karriere/meldung.ts`, `src/lib/i18n/texte.ts` (`pflichtwegMeldung`), `src/app/portal/[mandant]/website/referenzen/{page.tsx,neu/page.tsx,[id]/page.tsx,[id]/veroeffentlichen/page.tsx}`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/server/auth/ursprung.ts`, `tests/kern/{nachschlagen,weiterleitung-ziel,einteilung-bewerbung-rueckweg}.test.ts` |
+|---|---|
+
+### D-654 · Eine Referenz entsteht aus einem abgeschlossenen Auftrag mit geltender Kundenfreigabe und hält fest, aus welchem (V-161)
+
+**Der Befund** (V-161; Nachprüfung von V-154; PRO-05, D-648): der Weg, den
+V-154 baute, wich an sieben Stellen von dem ab, was er versprach.
+
+1. **Frei statt aus dem Auftrag.** SPEC PRO-05: „a reference is a completed
+   `auftrag` with customer release on file, not a marketing entry typed by
+   hand". Die Anlage nahm Titel, Kunde und Text beliebig, und der Verweis von
+   der Kundenfreigabe verlangte nur eine geltende Freigabe, keinen Abschluss.
+   O-913 fragte nach der Reichweite der Freigabe, nicht nach dieser
+   Abweichung; festgehalten war sie nirgends.
+2. **Ein Vorschlag aus irgendeinem Auftrag.** Das Referenzblatt las
+   `?auftrag=<id>` aus der Adresse und schlug Datum und Beleg eines
+   BELIEBIGEN Auftrags der Gesellschaft mit geltender Freigabe vor — ohne
+   Fremdschlüssel und ohne Abgleich, ob die Referenz aus ihm stammt.
+3. **Eine falsche Aussage.** Ohne `auftrag.lesen` blieb der Auftrag ungelesen,
+   und `/neu` sagte trotzdem „Dieser Auftrag trägt keine geltende
+   Kundenfreigabe".
+4. **Nach einer Abweisung war alles weg** (Titel, Kunde, Beschreibung), und
+   ein Doppelklick auf „Als Entwurf anlegen" legte beim ersten POST an und
+   meldete beim zweiten `slug_vergeben` — „Nichts wurde angelegt".
+5. **Zwei Sprachen auf einer Seite.** Nur die neuen Sätze waren übersetzt;
+   Überschrift, Einleitung, Tabelle und Feldbeschriftungen blieben deutsch.
+6. **Die Weiche `{ weiter }` war nur am Quelltext geprüft.**
+7. **Der Seed begeht den Weg nicht**, und die Merker stimmten nicht: kein
+   `TODO(client, O-913)` im Code, dafür ein alter Merker mit der Nummer der
+   Fotografie (O-13) auf einer längst gebauten Aufgabe.
+
+**Die Entscheidung.**
+
+1. **Nur aus einem abgeschlossenen Auftrag mit geltender Kundenfreigabe** —
+   die SPEC wörtlich. Die Regel steht an EINER Stelle
+   (`referenzHindernis`, `REFERENZFAEHIGE_ZUSTAENDE` in
+   `services/auftrag/kundenfreigabe.ts`): Seiten, Verweis und Dienst fragen
+   sie, und `legeReferenzAn` prüft sie beim Anlegen ein zweites Mal
+   (`pruefeHerkunft`), mit eigenem Grund je Hindernis. Ein stornierter
+   Auftrag ist kein „noch nicht", sondern ein „nie". Ob ein laufender
+   Dauerauftrag genügt — in Reinigung und Objektschutz die übliche Referenz —,
+   ist eine Frage an den Auftraggeber: **O-914**; die Antwort ist eine Zeile.
+   Die freie Anlage aus V-154 entfällt (sie war nur im nicht zusammengeführten
+   Zweig); ein Projekt aus der Zeit vor der Plattform wird als Auftrag
+   angelegt, freigegeben und abgeschlossen.
+2. **Die Referenz hält ihre Herkunft** (`referenz.auftrag_id`, 0410):
+   zusammengesetzter Fremdschlüssel über die Gesellschaft, ein Auslöser hält
+   ihn nach dem Anlegen fest. O-735 und der Kommentar an `ladeFreigabestand`
+   hielten „bewusst kein Fremdschlüssel" fest; ihr Grund war, dass Beleg und
+   Veröffentlichung getrennt bleiben und ein Widerruf keine Referenz entfernt.
+   Das gilt weiter — der Schlüssel ist Herkunft, keine Kopplung: nichts
+   kaskadiert, kein Auslöser auf `auftrag` liest ihn, und die Referenz trägt
+   ihre eigene Freigabe. Der Altbestand (Demoreferenzen, D-537) bleibt ohne
+   Herkunft.
+3. **Das Blatt schlägt aus der eigenen Herkunft vor** und zeigt sie („Angelegt
+   aus Auftrag …", ein Widerruf dort als Hinweis, O-735). Der Haken bleibt
+   leer (O-913, jetzt mit Merker an `legeReferenzAn`).
+4. **Jede Aussage über den Auftrag stimmt.** `/neu` ohne Auftrag zeigt die
+   Wahl (bereit, darunter die laufenden); ohne `auftrag.lesen` nennt die
+   Seite das fehlende Recht; ein unbekannter, ein nicht freigegebener, ein
+   laufender und ein stornierter Auftrag bekommen je ihren Satz.
+5. **Nichts geht verloren, nichts entsteht zweimal.** Derselbe Auftrag unter
+   derselben Adresse ist dieselbe Referenz: ein zweiter POST legt nichts an
+   und führt mit `vorhanden=1` auf sie. Bei einer Abweisung gibt die Route
+   Titel, Slug, Kundenname und Jahr in der Adresse zurück (höchstens 200
+   Zeichen je Wert, nichts Personenbezogenes, kein Freitext); die
+   Beschreibung steht erst auf dem Blatt der neuen Zeile. Liegt die Adresse
+   aus dem vorbelegten Titel schon fest, sagt es das Feld vor dem Absenden
+   und wird Pflicht.
+6. **Die vier Referenzseiten sprechen eine Sprache** (`verwaltung/
+   website-referenz.ts`) und stehen nicht mehr in der Ausnahmeliste der
+   Sprachwache. Rechte erscheinen über `Recht`, nicht als roher Schlüssel.
+7. **Die Antwort des Gerüsts ist eine Funktion** (`antwortNachHandlung`,
+   `antwortNachAbweisung` in `api/website/gemeinsam.ts`) und wird am
+   Verhalten geprüft.
+8. **Der Seed begeht den Weg** — nur mit `CSE_DEV_FLAECHEN` (D-537): ein
+   abgeschlossener Auftrag mit Kundenfreigabe (Wortlaut und Schreiben
+   `DEMODATEN:`) über die echten Dienste und die Entwurfsreferenz daraus.
+   Der Auftrag aus dem Demoangebot bleibt `angelegt`: er erscheint unter
+   „noch nicht abgeschlossen" und zeigt damit auch diesen Zweig.
+
+| Betrifft | PRO-05, D-537, D-648, O-735, O-913, O-914, V-154, V-161, `drizzle/0410_referenz_herkunft.sql`, `src/server/services/auftrag/kundenfreigabe.ts`, `src/server/services/inhalt/{redaktion.ts,referenz.ts}`, `src/app/api/website/{gemeinsam.ts,referenz/route.ts}`, `src/app/portal/[mandant]/website/referenzen/{page.tsx,neu/page.tsx,[id]/page.tsx,[id]/veroeffentlichen/page.tsx}`, `src/app/portal/[mandant]/auftraege/[id]/kundenfreigabe/page.tsx`, `src/lib/i18n/verwaltung/website-referenz.ts`, `scripts/guards/uebersetzung-ausnahmen.ts`, `src/server/db/seed/{referenzauftrag.ts,index.ts}`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/referenz-anlegen.test.ts`, `tests/kern/referenz-anlegen-weg.test.ts` |
 |---|---|

@@ -96,9 +96,11 @@ export interface AnnahmeErgebnis {
  * **Der Preis steht trotzdem, und er wird nicht verschwiegen:** ein falsch
  * positiver Treffer (Passwortverwalter, Browser-Autofill in einem versteckten
  * Feld) verschwindet spurlos, und der Absender bekommt dieselbe Dankseite wie
- * bei Erfolg. Ob das so bleibt, ist eine Abwaegung zwischen einer verlorenen
- * Anfrage und einer Angriffsflaeche — sie steht als O-905 beim Auftraggeber
- * und wird hier nicht nebenbei entschieden.
+ * bei Erfolg — OHNE Vorgangsnummer, denn es gibt keinen Vorgang (D-651). Ein
+ * Programm, das Antworten vergleicht, erkennt den Treffer daran weiterhin;
+ * eine erfundene Nummer waere der teurere Preis. Ob das so bleibt, ist eine
+ * Abwaegung zwischen einer verlorenen Anfrage und einer Angriffsflaeche — sie
+ * steht als O-905 beim Auftraggeber und wird hier nicht nebenbei entschieden.
  */
 // TODO(client, O-905): Soll eine als automatisiert abgewiesene Einsendung aufbewahrt werden — oder nur gezaehlt, oder gar nicht?
 export function istBot(honigtopf: string | undefined): boolean {
@@ -117,6 +119,7 @@ export function ipHash(ip: string, pfeffer: string): string {
     throw new FormularFehler(
       'Kein IP-Pfeffer gesetzt (CSE_IP_PFEFFER). Ohne ihn wäre der Hash über den '
       + 'gesamten IPv4-Raum an einem Nachmittag umkehrbar — das ist kein Schutz.',
+      {}, 'sonst',
     );
   }
   return createHash('sha256').update(`${ip}:${pfeffer}`).digest('hex');
@@ -124,10 +127,15 @@ export function ipHash(ip: string, pfeffer: string): string {
 
 export class RatenlimitFehler extends FormularFehler {
   constructor(readonly wartenSekunden: number) {
-    super('Zu viele Anfragen von dieser Verbindung. Bitte versuchen Sie es später erneut.');
+    super('Zu viele Anfragen von dieser Verbindung. Bitte versuchen Sie es später erneut.',
+      {}, 'zu_viele');
     this.name = 'RatenlimitFehler';
   }
 }
+
+/** Der Sammelsatz, wenn die Bestätigung der Datenschutzhinweise fehlt. */
+const DATENSCHUTZ_BESTAETIGEN =
+  'Bitte bestätigen Sie, dass Sie die Datenschutzhinweise gelesen haben.';
 
 /** Wie viele Einsendungen je IP-Hash im Fenster. VORLAEUFIG — siehe O-80. */
 export const LIMIT_JE_IP = 5;
@@ -170,23 +178,37 @@ export async function nimmAn(
   einsendung: Einsendung,
 ): Promise<AnnahmeErgebnis> {
   if (istBot(einsendung.honigtopf)) {
-    throw new FormularFehler('Diese Anfrage wurde als automatisiert erkannt.');
+    throw new FormularFehler(
+      'Diese Anfrage wurde als automatisiert erkannt.', {}, 'automatisiert');
   }
 
   const geprueft = eingabeSchema(formular.felder).safeParse(einsendung.werte);
   if (!geprueft.success) {
-    throw new FormularFehler(
-      'Bitte prüfen Sie die markierten Felder.',
-      fehlerAbbilden(formular.felder, geprueft.error),
-    );
+    const felder = fehlerAbbilden(formular.felder, geprueft.error);
+    /*
+     * **Fehlt NUR die Bestätigung, ist das der Grund — in beiden Sprachen**
+     * (V-160). Die Formularversion führt `datenschutz_hinweis` als
+     * Pflicht-Checkbox; ihr Fehlen fiel deshalb schon hier auf, unter dem
+     * Sammelsatz „prüfen", während die englische Seite aus den Feldern
+     * „Datenschutz bestätigen" las. Jetzt entscheidet diese Stelle die
+     * Ursache, und beide Sätze folgen ihr: allein die Bestätigung →
+     * „bestätigen", mehrere Felder → „prüfen".
+     */
+    const nurBestaetigung = Object.keys(felder).length === 1
+      && Object.hasOwn(felder, 'datenschutz_hinweis');
+    if (nurBestaetigung) {
+      throw new FormularFehler(DATENSCHUTZ_BESTAETIGEN, felder, 'datenschutz');
+    }
+    throw new FormularFehler('Bitte prüfen Sie die markierten Felder.', felder, 'pruefen');
   }
   const werte = geprueft.data;
 
   const bestaetigt = werte['datenschutz_hinweis'] === true;
   if (!bestaetigt) {
     throw new FormularFehler(
-      'Bitte bestätigen Sie, dass Sie die Datenschutzhinweise gelesen haben.',
+      DATENSCHUTZ_BESTAETIGEN,
       { datenschutz_hinweis: 'Bitte bestätigen Sie die Datenschutzhinweise.' },
+      'datenschutz',
     );
   }
   const werbung = werte['einwilligung_werbung'] === true;

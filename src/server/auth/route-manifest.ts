@@ -893,12 +893,14 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
-     * Die Felder und die Kundenfreigabe EINER Referenz (§5.21, PRO-05).
+     * Eine Referenz ANLEGEN (V-154), ihre Felder und ihre Kundenfreigabe
+     * (§5.21, PRO-05).
      *
      * `referenz.schreiben` steht hier; die Policy `t_referenz_pflege` verlangt
      * in ihrer `with check` zusaetzlich `referenz.kundenfreigabe_erfassen`, und
-     * zwar fuer JEDEN Schreibvorgang auf dieser Tabelle. Das zweite prueft der
-     * DIENST vor jedem `update` und weist es mit einem Satz ab — eine
+     * zwar fuer JEDEN Schreibvorgang auf dieser Tabelle — das `insert` der
+     * Anlage eingeschlossen. Das zweite prueft der
+     * DIENST vor jedem Schreiben und weist es mit einem Satz ab — eine
      * `with check` wirft, sie filtert nicht, und ein 500 waere die falsche
      * Auskunft fuer eine Handlung, die jemand einfach nicht darf.
      *

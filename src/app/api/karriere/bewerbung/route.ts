@@ -8,6 +8,7 @@ import { herkunft } from '@/app/auth/mitarbeiter/anmeldung';
 import { ipHash, istBot, pruefeRatenlimit, RatenlimitFehler }
   from '@/server/services/lead/annahme';
 import { nimmBewerbungAn, RecruitingFehler } from '@/server/services/recruiting/dienst';
+import { bewerbungsMeldung } from '@/app/(public)/karriere/meldung';
 
 /**
  * `POST /api/karriere/bewerbung` — die öffentliche Bewerbung (REC-03).
@@ -84,15 +85,47 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const stelleRoh = feld(daten, 'stelle');
   const stelleId = UUID.test(stelleRoh) ? stelleRoh : null;
   const bereich = feld(daten, 'bereich');
+
+  /*
+   * **Ein Browser bekommt eine Seite, ein Programm bekommt JSON (D-599, V-158).**
+   *
+   * Hier antwortete JEDER Fehler mit JSON — `{"fehler":"unvollstaendig"}`
+   * auf weissem Grund, für eine Bewerberin, deren `name@firma` der Browser
+   * durchliess und der Dienst nicht. Das Formular trägt jetzt `antwort=seite`
+   * (dieselbe Weiche wie `api/anfrage`), und die Abweisung geht als GRUND
+   * zurück auf die Seite, von der sie kam; dort steht der Satz
+   * (`karriere/meldung.ts`). Die eingegebenen Werte reisen NICHT mit: Name,
+   * E-Mail und Nachricht gehören in keine Adresse.
+   */
+  const alsSeite = feld(daten, 'antwort') === 'seite';
+  const formularPfad = stelleId === null
+    ? '/karriere/initiativbewerbung' : `/karriere/${stelleId}/bewerbung`;
+  const abgewiesen = (grund: string, status: number, ziel = formularPfad): NextResponse =>
+    alsSeite
+      ? NextResponse.redirect(internesZiel(
+        `${ziel}?fehler=${encodeURIComponent(grund)}`, '/karriere', anfrage), 303)
+      : NextResponse.json({ fehler: grund, meldung: bewerbungsMeldung(grund) }, { status });
+
   if (stelleId === null && !SLUG.test(bereich)) {
-    return NextResponse.json({ fehler: 'kein_bereich' }, { status: 400 });
+    return abgewiesen('kein_bereich', 400);
   }
 
   const mandantId = await mandantFuer(stelleId, bereich);
   // Eine geschlossene Stelle und eine erfundene Kennung geben dieselbe
   // Antwort — der Unterschied waere die Auskunft, dass es sie gibt (AUT-06).
   if (mandantId === null) {
-    return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
+    /*
+     * Mit Stelle: zurück auf die LISTE — das Stellenblatt einer geschlossenen
+     * Stelle antwortet mit 404. Ohne Stelle war der Bereich unbekannt, und das
+     * ist für den Menschen dasselbe wie keiner.
+     */
+    const grund = stelleId === null ? 'kein_bereich' : 'stelle_geschlossen';
+    if (!alsSeite) {
+      // Das JSON bleibt, was es war (`nicht_gefunden`) — jetzt mit Satz.
+      return NextResponse.json(
+        { fehler: 'nicht_gefunden', meldung: bewerbungsMeldung(grund) }, { status: 404 });
+    }
+    return abgewiesen(grund, 404, stelleId === null ? formularPfad : '/karriere');
   }
 
   const { ip } = await herkunft(anfrage.headers);
@@ -120,10 +153,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       }));
   } catch (fehler: unknown) {
     if (fehler instanceof RatenlimitFehler) {
-      return NextResponse.json({ fehler: 'zu_viele' }, { status: 429 });
+      return abgewiesen('zu_viele', 429);
     }
     if (fehler instanceof RecruitingFehler) {
-      return NextResponse.json({ fehler: fehler.grund }, { status: fehler.status });
+      return abgewiesen(fehler.grund, fehler.status);
     }
     throw fehler;
   }

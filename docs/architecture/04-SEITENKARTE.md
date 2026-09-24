@@ -1838,7 +1838,7 @@ per-person review-duration distribution is performance monitoring.
 | `/portal/[mandant]/website/profil` — logo, cover, description of this area's public profile | `referenz.schreiben` + `system.identitaet_verwalten` | `M1` | PRO-01, PRO-02, TEN-07 | 2 |
 | `/portal/[mandant]/website/seiten` , `/[id]` | `referenz.schreiben` | `M1` | PUB-07, PUB-08 | 2 |
 | `/portal/[mandant]/website/leistungen` , `/[id]` | `referenz.schreiben` | `M1` | PRO-02, PUB-07, OPS-06 | 2 |
-| `/portal/[mandant]/website/referenzen` , `/[id]` — created from an `auftrag` whose customer release is on file | `referenz.schreiben` | `M1` | PRO-05 | 2 |
+| `/portal/[mandant]/website/referenzen` , `/[id]` , `/neu` — created from a completed `auftrag` whose customer release is on file, and it keeps that origin | `referenz.schreiben` | `M1` | PRO-05 | 2 |
 | `/portal/[mandant]/website/referenzen/[id]/veroeffentlichen` | `referenz.veroeffentlichen` | `M1` | PRO-05, PUB-07 | 2 |
 | `/portal/[mandant]/website/news` , `/[id]` | `referenz.schreiben` | `M1` | PRO-02, SOC-05 | 2 |
 | `/portal/[mandant]/website/galerie` | `referenz.schreiben` | `M1` | PRO-02, PUB-04 | 2 |
@@ -2533,7 +2533,7 @@ a horizontal scrollbar on a phone.
 ### 11.4 Public navigation (DESIGN §5)
 
 Header `72px`, `--ink` at 85 % opacity with `backdrop-filter: blur(12px)` once scrolled. Logo
-left; centre nav **Unternehmen · Leistungen · Projekte · Über uns · News · Kontakt**; right a
+left; centre nav **Unternehmen · Leistungen · Projekte · Kontakt** (DESIGN §5, D-417 — **Über uns · News · Karriere** do not fit the row; they sit in the overlay menu and in a footer column *Die Gruppe*, D-649); right a
 red `Angebot anfragen` — the one primary button on the page — and a ghost `Login` pointing at
 `/auth/login`. Mobile: a full-screen overlay menu. The footer carries the four entities' NAP
 (PUB-12), the legal trio **Impressum · Datenschutz · Barrierefreiheit**, and — only on pages

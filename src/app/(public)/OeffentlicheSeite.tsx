@@ -3,6 +3,7 @@ import { Abschnitte } from '@/components/oeffentlich/Abschnitte';
 import { JsonLd } from '@/components/oeffentlich/JsonLd';
 import { Gesellschaften } from '@/components/oeffentlich/Gesellschaften';
 import { Kontaktwege } from '@/components/oeffentlich/Kontaktwege';
+import { Betroffenenwege } from '@/components/oeffentlich/Betroffenenwege';
 import { Beitraege } from '@/components/oeffentlich/Beitraege';
 import { ProfilTabs } from '@/components/oeffentlich/ProfilTabs';
 import { GruppenNeuigkeiten, GruppenProjekte } from '@/components/oeffentlich/GruppenListen';
@@ -123,6 +124,14 @@ export async function OeffentlicheSeite(
       {pfad === '/kontakt' && (
         <Kontaktwege bereiche={daten.bereiche} sprache={sprache} />
       )}
+      {/*
+        * Dieselbe Bauart für `/datenschutz` (V-156): die Erklärung zählt die
+        * Rechte auf, und die zwei Formulare, mit denen man sie ausübt, waren
+        * von hier aus nicht zu erreichen — die Betroffenenanfrage nur über den
+        * Werbewiderspruch, der Werbewiderspruch nur über einen Link in einer
+        * Mail. Art. 12 Abs. 2 DSGVO verlangt, die Ausübung zu erleichtern.
+        */}
+      {pfad === '/datenschutz' && <Betroffenenwege sprache={sprache} />}
       {/*
         * Dieselbe Bauart wie bei `/impressum` und `/kontakt`: der
         * redaktionelle Abschnitt bleibt die Einleitung, die Liste kommt

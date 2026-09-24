@@ -183,14 +183,30 @@ export function internesZiel(
  * fremd, geht es auf `/` — ein Ziel, das niemand vorgeben kann.
  *
  * `null` heisst „nicht innerhalb": leer, unlesbar oder fremder Ursprung.
+ *
+ * **Und der Pfad wird kein zweites Mal als Adresse GELESEN** (V-159, D-653).
+ * Hier stand `new URL(pathname + search + hash, basis)`. Der erste Schritt
+ * normalisiert aber: `/.//boese.example`, `/portal/..//boese.example`,
+ * `/%2e//boese.example` und `/./\boese.example` bestehen die
+ * Ursprungspruefung (sie SIND Pfade dieser Anwendung) und haben danach den
+ * Pfad `//boese.example`. Den zweiten Schritt las `new URL` als
+ * schemalose Adresse — und die Umleitung ging nach `https://boese.example/`.
+ * Ein Pfad, der mit zwei Schraegstrichen beginnt, ist deshalb nicht
+ * innerhalb; das Ziel entsteht durch SETZEN von Pfad, Abfrage und Anker auf
+ * dem eigenen Ursprung, und die Herkunft wird am Ende noch einmal verglichen.
  */
 function innerhalb(roh: string | null | undefined, basis: URL): URL | null {
   if (roh === null || roh === undefined || roh === '') return null;
   try {
     const ziel = new URL(roh, basis);
     if (ziel.origin !== basis.origin) return null;
+    if (ziel.pathname.startsWith('//')) return null;
     // Nur Pfad, Abfrage und Anker uebernehmen — nie Anmeldedaten im Ziel.
-    return new URL(`${ziel.pathname}${ziel.search}${ziel.hash}`, basis);
+    const aus = new URL(basis.origin);
+    aus.pathname = ziel.pathname;
+    aus.search = ziel.search;
+    aus.hash = ziel.hash;
+    return aus.origin === basis.origin ? aus : null;
   } catch {
     return null;
   }
