@@ -152,6 +152,15 @@ describe('die Pflichtformulare sind verlinkt (V-156)', () => {
       join(WURZEL, 'src/components/oeffentlich/Betroffenenwege.tsx'), 'utf8');
     expect(wege).toContain("verweisIn('/datenschutz/anfrage', sprache)");
     expect(wege).toContain("verweisIn('/werbewiderspruch', sprache)");
+    /*
+     * „(in German)" ist ein Hinweis, kein Teil des Verweistexts (V-160). Die
+     * Linie liegt auf dem Text; am Verweis selbst vererbte sie sich an den
+     * Hinweis, und `no-underline` dort hob sie nicht auf.
+     */
+    const verweis = /<a href=\{w\.href\}[\s\S]*?<\/a>/u.exec(wege)?.[0] ?? '';
+    expect(verweis).toContain('<span className="underline underline-offset-4">{w.text} ›</span>');
+    expect(/<a href=\{w\.href\}[^>]*className="[^"]*\bunderline\b/u.test(verweis)).toBe(false);
+    expect(verweis).not.toContain('no-underline');
     for (const s of SPRACHEN) {
       expect(BETROFFENENWEGE_TEXTE[s].anfrage, s).not.toBe('');
       expect(wirdAusgeliefert(verweisIn('/datenschutz/anfrage', s).href), s).toBe(true);

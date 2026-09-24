@@ -155,6 +155,15 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
    * beruft und die niemand findet. Die Seite kennt diesen Fall schon — sie
    * zeigt den Nummernblock nur, wenn eine Nummer da ist. Ob ein solcher
    * Treffer aufbewahrt werden soll, bleibt O-905.
+   *
+   * **Was damit NICHT erreicht ist, ausdrücklich** (V-160, D-651): dieselbe
+   * Form heisst nicht dieselbe Antwort. Ein Erfolg führt auf `…/danke?nr=L-…`
+   * und trägt im JSON eine `leadnummer`; der Treffer führt auf `…/danke` ohne
+   * `nr` und trägt keine. Ein Programm, das beide Antworten vergleicht,
+   * erkennt den Treffer also weiterhin. Geschlossen ist die Lücke für den
+   * MENSCHEN (Dankseite statt JSON) und für einen Bot, der nur auf den
+   * Statuscode oder den Antworttyp schaut. Die restliche Unterscheidbarkeit
+   * ist der Preis dafür, keine Nummer zu erfinden — bewusst so gewählt.
    */
   if (istBot(formData.get('website') as string | null ?? undefined)) {
     if (alsSeite) {

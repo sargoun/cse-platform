@@ -15693,12 +15693,33 @@ und die deutsche Ratenlimitmeldung über englischen Feldmeldungen.
    Nummer. Ein Programm bekommt weiter JSON. Ob ein Treffer aufbewahrt wird,
    bleibt O-905.
 2. **Die Sammelsätze stehen in `API_TEXTE`** (`pruefen`,
-   `datenschutzBestaetigen`, `zuVieleAnfragen`). Welcher gilt, sagen die
-   FELDER des `FormularFehler` (`datenschutz_hinweis` darunter → Bestätigung
-   fehlt), nicht ein Abgleich auf den deutschen Wortlaut; auf Deutsch bleibt
-   der Satz des Dienstes.
+   `datenschutzBestaetigen`, `zuVieleAnfragen`). Welcher gilt, sagt der
+   GRUND des `FormularFehler` (seit V-160, siehe unten), nicht ein Abgleich
+   auf den deutschen Wortlaut; auf Deutsch bleibt der Satz des Dienstes.
 
-| Betrifft | REQ-01, D-82, D-83, D-599, O-905, V-157, `src/app/api/anfrage/route.ts`, `src/lib/i18n/texte.ts` (`API_TEXTE`, `formularSammelmeldung`) |
+**Nachtrag (V-160) — was „dieselbe Form" nicht leistet.** Dieselbe Form ist
+nicht dieselbe Antwort: ein Erfolg führt auf `…/danke?nr=L-…` und trägt im
+JSON eine `leadnummer`, ein Treffer führt auf `…/danke` ohne `nr` und trägt
+keine. Ein Programm, das beide Antworten vergleicht, erkennt den Treffer
+weiterhin. Geschlossen ist die Lücke für den Menschen (Dankseite statt JSON)
+und für einen Bot, der nur auf Statuscode oder Antworttyp schaut. Der Rest
+ist der Preis dafür, keine Nummer zu erfinden, und er ist bewusst gewählt.
+Die Zusagen in `lead/annahme.ts` und am Zweig in `api/anfrage/route.ts`
+nennen ihn jetzt.
+
+**Nachtrag (V-160) — die Ursache statt der Felder.** Punkt 2 las die Ursache
+in der ersten Fassung aus den FELDERN (`datenschutz_hinweis` darunter →
+„bestätigen"). Die Formularversion führt die Checkbox aber als Pflichtfeld,
+und die Prüfung meldet sie zusammen mit allen anderen. Bei drei leeren
+Feldern und fehlendem Häkchen stand dann auf Deutsch „Bitte prüfen Sie die
+markierten Felder.", auf Englisch „Please confirm that you have read the
+privacy notice". `FormularFehler` trägt jetzt einen `grund`
+(`pruefen` · `datenschutz` · `automatisiert` · `zu_viele` · `sonst`), gesetzt
+an derselben Stelle wie der deutsche Satz. Fehlt NUR die Bestätigung, ist
+der Grund in beiden Sprachen „bestätigen", sonst „prüfen". Ein Grund ohne
+eigenen Satz bekommt auf Englisch den allgemeinen (`nichtGespeichert`).
+
+| Betrifft | REQ-01, D-82, D-83, D-599, O-905, V-157, V-160, `src/app/api/anfrage/route.ts`, `src/lib/i18n/texte.ts` (`API_TEXTE`, `formularSammelmeldung`), `src/lib/formular/schema.ts` (`FormularFehler.grund`), `src/server/services/lead/annahme.ts` |
 |---|---|
 
 ### D-652 · Nach Einteilen, Absagen und Bewerben kommt eine Seite mit einem Satz — kein JSON (V-158)
@@ -15736,7 +15757,14 @@ Dazu las das Schichtblatt `?fehler=` gar nicht — auch nicht den, den
    E-Mail-Feld die Regel des Dienstes als `pattern`, abgeleitet aus
    `BEWERBUNG_EMAIL` und nicht abgeschrieben.
 
-| Betrifft | D-599, REC-03, TIM-05, R-08, V-158, `src/app/api/einsaetze/{fehler.ts,[id]/absagen/route.ts,[id]/besetzen/route.ts}`, `src/app/api/formular-antwort.ts`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/lib/i18n/verwaltung/dienstplan-schicht.ts`, `src/app/api/karriere/bewerbung/route.ts`, `src/app/(public)/karriere/{Formular.tsx,meldung.ts,page.tsx,initiativbewerbung/page.tsx,[stelle]/bewerbung/page.tsx}`, `src/server/services/recruiting/dienst.ts` |
+**Nachtrag (V-160).** Fehlte beim Einteilen die Beschäftigung, schickte
+`besetzen` den Grund des Absagens (`keine_auswahl`) — dessen Satz lautet
+„Welche Einteilung gemeint war …". Das Einteilen hat jetzt seinen eigenen
+Grund `keine_anstellung` mit eigenem Satz in beiden Sprachen („Welche
+Beschäftigung eingeteilt werden soll …"). Ausserdem schlägt das Schichtblatt
+den Grund nur als eigenen Eintrag nach (D-653).
+
+| Betrifft | D-599, REC-03, TIM-05, R-08, V-158, V-160, `src/app/api/einsaetze/{fehler.ts,[id]/absagen/route.ts,[id]/besetzen/route.ts}`, `src/app/api/formular-antwort.ts`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/lib/i18n/verwaltung/dienstplan-schicht.ts`, `src/app/api/karriere/bewerbung/route.ts`, `src/app/(public)/karriere/{Formular.tsx,meldung.ts,page.tsx,initiativbewerbung/page.tsx,[stelle]/bewerbung/page.tsx}`, `src/server/services/recruiting/dienst.ts` |
 |---|---|
 
 ### D-653 · Ein Grund aus der Adresse wird nur als eigener Eintrag nachgeschlagen, und ein Rückweg bleibt auch nach dem Normalisieren im eigenen Ursprung (V-159)

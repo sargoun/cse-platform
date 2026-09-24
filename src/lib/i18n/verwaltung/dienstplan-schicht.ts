@@ -135,6 +135,10 @@ export const SCHICHT_TEXTE: Readonly<Record<InternSprache, SchichtTexte>> = {
       keine_auswahl:
         'Welche Einteilung gemeint war, ist nicht angekommen. Laden Sie die Seite neu '
         + 'und versuchen Sie es noch einmal.',
+      /* V-160: das Einteilen hat einen eigenen Grund — es fehlt die Beschäftigung. */
+      keine_anstellung:
+        'Welche Beschäftigung eingeteilt werden soll, ist nicht angekommen. Wählen Sie '
+        + 'sie in der Liste und versuchen Sie es noch einmal.',
       einteilung_weg:
         'Diese Einteilung steht nicht mehr auf der Schicht — sie wurde vermutlich schon '
         + 'abgesagt. Die Besetzung unten zeigt den aktuellen Stand.',
@@ -242,6 +246,9 @@ export const SCHICHT_TEXTE: Readonly<Record<InternSprache, SchichtTexte>> = {
     fehler: {
       keine_auswahl:
         'Which assignment was meant did not arrive. Reload the page and try again.',
+      keine_anstellung:
+        'Which Anstellung (employment) should be assigned did not arrive. Choose it in the '
+        + 'list and try again.',
       einteilung_weg:
         'This assignment is no longer on the shift — it was probably called off already. '
         + 'The staffing list below shows the current state.',

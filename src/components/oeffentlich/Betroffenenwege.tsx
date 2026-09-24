@@ -33,14 +33,20 @@ export function Betroffenenwege({ sprache }: { readonly sprache: Sprache }) {
       <ul className="m-0 grid list-none grid-cols-1 gap-s5 p-0 md:grid-cols-2">
         {wege.map((w) => (
           <li key={w.schluessel} className="rounded-lg border border-line bg-surface-2 p-s5">
+            {/*
+              * Die Unterstreichung liegt auf dem TEXT, nicht auf dem Verweis
+              * (V-160): `text-decoration` vererbt sich an jedes Kind im Fluss,
+              * und ein `no-underline` am Hinweis hebt eine geerbte Linie nicht
+              * auf — „(in German)" stand unterstrichen da.
+              */}
             <a href={w.href}
                hrefLang={w.sprache === sprache ? undefined : w.sprache}
                data-cse="betroffenenweg"
                data-ziel={w.schluessel}
-               className="inline-flex min-h-11 items-center gap-s2 text-base text-text underline underline-offset-4">
-              {w.text} ›
+               className="inline-flex min-h-11 items-center gap-s2 text-base text-text">
+              <span className="underline underline-offset-4">{w.text} ›</span>
               {w.sprache !== sprache && (
-                <span className="text-sm text-text-muted no-underline">{t.aufDeutsch}</span>
+                <span className="text-sm text-text-muted">{t.aufDeutsch}</span>
               )}
             </a>
             <p className="m-0 mt-s1 text-sm text-text-muted">{w.hinweis}</p>

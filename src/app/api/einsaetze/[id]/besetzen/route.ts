@@ -67,8 +67,13 @@ export async function POST(
       grund: grundSchluessel,
     }) ?? NextResponse.json({ fehler: code, meldung }, { status });
 
+  /*
+   * Ein EIGENER Grund (V-160): `keine_auswahl` ist der des Absagens und sagt
+   * „welche Einteilung gemeint war" — hier fehlt aber die Beschäftigung, die
+   * eingeteilt werden soll.
+   */
   if (typeof anstellungId !== 'string' || anstellungId === '') {
-    return abgewiesen('keine_auswahl', 400, 'keine_anstellung',
+    return abgewiesen('keine_anstellung', 400, 'keine_anstellung',
       'Welche Beschäftigung eingeteilt werden soll, fehlt.');
   }
   const bestaetigt = daten.get('bestaetigt') === '1';

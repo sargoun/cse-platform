@@ -479,23 +479,38 @@ export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
 };
 
 /**
- * Der Sammelsatz über einem abgewiesenen Anfrageformular (V-157).
+ * Der Sammelsatz über einem abgewiesenen Anfrageformular (V-157, V-160).
  *
- * **Warum über die Ursache und nicht über `fehler.message`.** `FormularFehler`
- * trägt keinen Schlüssel, nur einen deutschen Satz und die Feldmeldungen.
- * Welche der zwei Ursachen vorliegt, sagen die FELDER: ist
- * `datenschutz_hinweis` darunter, fehlt die Bestätigung
- * (`lead/annahme.ts`), sonst hat die Prüfung gegen die Formularversion
- * etwas gefunden. Auf Deutsch bleibt es beim Satz des Dienstes — er ist der
- * genauere, und er IST deutsch.
+ * **Über die URSACHE und nicht über `fehler.message`** — und seit V-160 auch
+ * nicht mehr über die Felder. Die erste Fassung las die Ursache aus den
+ * FELDERN (`datenschutz_hinweis` darunter → „bestätigen"). Die Prüfung gegen
+ * die Formularversion meldet die Pflicht-Checkbox aber zusammen mit allen
+ * anderen Feldern; bei drei leeren Feldern und fehlendem Häkchen stand dann
+ * auf Deutsch „Bitte prüfen Sie die markierten Felder." und auf Englisch
+ * „Please confirm that you have read the privacy notice". Jetzt trägt der
+ * Fehler seinen Grund (`FormularFehler.grund`), gesetzt an derselben Stelle
+ * wie der deutsche Satz — beide Sprachen sagen dasselbe.
+ *
+ * Auf Deutsch bleibt es beim Satz des Dienstes: er IST der Satz zu diesem
+ * Grund. Ein Grund ohne eigenen Satz bekommt den allgemeinen, nie den
+ * Sammelsatz einer anderen Ursache.
  */
 export function formularSammelmeldung(
   sprache: Sprache,
-  fehler: { readonly message: string; readonly felder: Readonly<Record<string, string>> },
+  fehler: {
+    readonly message: string;
+    readonly felder: Readonly<Record<string, string>>;
+    readonly grund?: string;
+  },
 ): string {
   if (sprache === 'de') return fehler.message;
   const t = API_TEXTE[sprache];
-  return 'datenschutz_hinweis' in fehler.felder ? t.datenschutzBestaetigen : t.pruefen;
+  switch (fehler.grund ?? 'pruefen') {
+    case 'pruefen': return t.pruefen;
+    case 'datenschutz': return t.datenschutzBestaetigen;
+    case 'zu_viele': return t.zuVieleAnfragen;
+    default: return t.nichtGespeichert;
+  }
 }
 
 /**

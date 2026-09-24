@@ -55,11 +55,29 @@ export type FormularFeld = z.infer<typeof FormularFeld>;
 
 export const Felder = z.array(FormularFeld).min(1);
 
+/**
+ * WARUM eine Einsendung abgewiesen wurde — als Schlüssel, nicht als Satz (V-160).
+ *
+ * **Der Befund.** Der Satz des Dienstes ist deutsch; die englische Seite
+ * suchte ihren eigenen Satz über die FELDER des Fehlers
+ * (`datenschutz_hinweis` darunter → „Datenschutz bestätigen"). Die Prüfung
+ * gegen die Formularversion meldet die Pflicht-Checkbox aber zusammen mit
+ * allen anderen Feldern: bei drei leeren Feldern und fehlendem Häkchen stand
+ * auf Deutsch „Bitte prüfen Sie die markierten Felder.", auf Englisch „Please
+ * confirm that you have read the privacy notice". Zwei Sprachen, zwei
+ * verschiedene Aussagen über dieselbe Abweisung. Der Grund entsteht jetzt an
+ * der Stelle, an der auch der deutsche Satz entsteht — beide Sprachen lesen
+ * dieselbe Ursache.
+ */
+export type FormularGrund = 'pruefen' | 'datenschutz' | 'automatisiert' | 'zu_viele' | 'sonst';
+
 export class FormularFehler extends Error {
   constructor(
     nachricht: string,
     /** Feldschluessel → Meldung. Leer, wenn der Fehler nicht an einem Feld haengt. */
     readonly felder: Readonly<Record<string, string>> = {},
+    /** Die Ursache, über die eine andere Sprache ihren Satz findet. */
+    readonly grund: FormularGrund = 'pruefen',
   ) {
     super(nachricht);
     this.name = 'FormularFehler';

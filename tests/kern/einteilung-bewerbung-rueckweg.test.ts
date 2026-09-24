@@ -76,6 +76,24 @@ describe('Einteilung: jeder Fachfehler hat einen Grund und einen Satz (V-158)', 
     expect(new ZuordnungNichtGefunden(UUID).message).toContain(UUID);
   });
 
+  /**
+   * **Einteilen und Absagen fehlt je etwas anderes** (V-160). `besetzen`
+   * schickte ohne Beschäftigung den Grund des Absagens, `keine_auswahl` — und
+   * dessen Satz fragt nach der EINTEILUNG. Gemeint ist die Beschäftigung.
+   */
+  it('ohne Beschäftigung nennt das Einteilen die Beschäftigung, nicht die Einteilung', () => {
+    const besetzen = readFileSync('src/app/api/einsaetze/[id]/besetzen/route.ts', 'utf8');
+    expect(besetzen).toMatch(/abgewiesen\('keine_anstellung', 400, 'keine_anstellung'/u);
+    expect(besetzen).not.toContain("abgewiesen('keine_auswahl'");
+    // Das Absagen bleibt bei seinem Grund.
+    expect(readFileSync('src/app/api/einsaetze/[id]/absagen/route.ts', 'utf8'))
+      .toContain("abgewiesen('keine_auswahl'");
+    expect(SCHICHT_TEXTE.de.fehler['keine_anstellung']).toContain('Beschäftigung');
+    expect(SCHICHT_TEXTE.de.fehler['keine_anstellung']).not.toContain('Einteilung');
+    expect(SCHICHT_TEXTE.en.fehler['keine_anstellung']).toContain('Anstellung (employment)');
+    expect(SCHICHT_TEXTE.de.fehler['keine_auswahl']).toContain('Einteilung');
+  });
+
   it('ein unbekannter Fachfehler wird „abgewiesen", ein fremder Fehler gar nicht', () => {
     const fremd = Object.assign(new Error('x'), { status: 409, code: 'irgendwas' });
     expect(einteilungsGrund(fremd)).toBe('abgewiesen');
