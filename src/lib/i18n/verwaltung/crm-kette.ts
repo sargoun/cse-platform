@@ -294,6 +294,15 @@ const DE: KetteTexte = {
     geschlossen: 'Der Nummernkreis ist geschlossen.',
     definer_kreis: 'Der Nummernkreis ist nicht richtig eingerichtet.',
     maske_ungueltig: 'Die Nummernmaske des Kreises ist ungültig.',
+    nicht_angelegt:
+      'Der Vorgang wurde nicht angelegt — die Datenbank hat ihn nicht angenommen. Es wurde '
+      + 'nichts geändert; Ihre Eingaben stehen noch da.',
+    angebot_unvollstaendig:
+      'Dem Angebot fehlt Objekt, Kunde oder Titel, oder der Turnus ist unbekannt. Es wurde '
+      + 'nichts angelegt.',
+    nichts_zu_kalkulieren:
+      'Das Raumbuch trägt keine kalkulierbare Fläche — daraus entsteht kein Angebot. Legen Sie '
+      + 'zuerst Räume mit Fläche und Belagsart an.',
   },
 };
 
@@ -467,6 +476,15 @@ const EN: KetteTexte = {
     geschlossen: 'The number range is closed.',
     definer_kreis: 'The number range is not set up correctly.',
     maske_ungueltig: 'The number mask of the range is invalid.',
+    nicht_angelegt:
+      'This was not created — the database did not accept it. Nothing was changed; your '
+      + 'entries are still there.',
+    angebot_unvollstaendig:
+      'The quote lacks a property, customer or title, or the interval is unknown. Nothing was '
+      + 'created.',
+    nichts_zu_kalkulieren:
+      'The room book holds no area that can be calculated — no quote comes from it. Add rooms '
+      + 'with area and floor type first.',
   },
 };
 

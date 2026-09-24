@@ -33,6 +33,8 @@ import {
   HandAngebotFehler, legeAngebotVonHandAn,
 } from '../../src/server/services/angebot/von-hand.js';
 import { ziehEntwurfZurueck } from '../../src/server/services/angebot/entwurf.js';
+import { legeAngebotAusRaumbuchAn } from '../../src/server/services/angebot/aus-raumbuch.js';
+import { legeAuftragDirektAn } from '../../src/server/services/auftrag/direkt.js';
 import { CrmFehler, legeKundeAn, legeLeadAn } from '../../src/server/services/crm/anlegen.js';
 import { aendereKunde } from '../../src/server/services/crm/aendern.js';
 import {
@@ -349,7 +351,11 @@ describe('§2 Lead → Angebot → Versand → Auftrag → Bericht', () => {
     expect((await lead(leadId)).status).toBe('gewonnen');
   });
 
-  it('ein Auftrag direkt aus der Anfrage — der Weg von /api/auftrag', async () => {
+  /*
+   * Am Dienst vorbei, mit einem rohen INSERT: hier spricht nur der Auslöser.
+   * Den Weg von `/api/auftrag` selbst (Dienst `legeAuftragDirektAn`) prüft §9.
+   */
+  it('ein Auftrag mit Anfrage am Dienst vorbei — der Auslöser hält den Kunden', async () => {
     const { kundeId, andererKunde, leadId } = await inR(async (k) => {
       const kundeId = await kunde(k, 'Direkt GmbH');
       const andererKunde = await kunde(k, 'Anders GmbH');
@@ -1033,5 +1039,117 @@ describe('§8 Rennen, Archiv, Berichtigung, Land', () => {
       .rejects.toMatchObject({ grund: 'lead_hat_vorgaenge' });
     await expect(imKontext(f.bau, bauLeitung, (k) => ordneLeadKundeZu(k, leadId, andererKunde)))
       .rejects.toThrow(CrmFehler);
+  });
+});
+
+/* ═════════════════════════════════════════════════════════════════════════
+ * §9 — die beiden Formularwege der Kette, als Dienst geprüft (V-143, D-637)
+ * ═════════════════════════════════════════════════════════════════════════ */
+
+describe('§9 Auftrag direkt und Angebot aus dem Raumbuch — mit Anfrage', () => {
+  /** Der nächste Stand des Auftragskreises — eine verbrauchte Nummer ist hier zu sehen. */
+  async function naechsteAuftragsnummer(): Promise<string> {
+    const [z] = await sql.unsafe<{ n: string }[]>(
+      `select naechste_nummer::text as n from nummernkreis
+        where mandant_id = $1 and kreis_typ = 'auftrag'`, [f.reinigung]);
+    return z!.n;
+  }
+
+  const direkt = (kundeId: string, leadId: string | null) => ({
+    kundeId, objektId: null, art: 'einzelauftrag' as const, bezeichnung: 'Direkt beauftragt',
+    beschreibung: null, verantwortlichBenutzerId: chefR, startDatum: `${String(jahr)}-11-15`,
+    laufzeitBis: null, personalbedarfAnzahl: 2, wochenstundenSoll: 12.5,
+    ausstattungHinweis: null, leadId,
+  });
+
+  it('eine abgewiesene Anfrage verbraucht keine Auftragsnummer — eine passende trägt den Auftrag', async () => {
+    const { kundeId, andererKunde, leadId } = await inR(async (k) => {
+      const kundeId = await kunde(k, 'Direktweg GmbH');
+      const andererKunde = await kunde(k, 'Umweg GmbH');
+      const l = await legeLeadAn(k, { betreff: 'Direktweg', kundeId, besitzerBenutzerId: chefR });
+      return { kundeId, andererKunde, leadId: l.id };
+    });
+    const vorher = await naechsteAuftragsnummer();
+    await expect(inR((k) => legeAuftragDirektAn(k, k, direkt(andererKunde, leadId))))
+      .resolves.toEqual({ art: 'lead', grund: 'lead_kunde_abweichend' });
+    await expect(inR((k) => legeAuftragDirektAn(k, k, direkt(kundeId, 'keine-kennung'))))
+      .resolves.toEqual({ art: 'lead', grund: 'lead_unbekannt' });
+    expect(await naechsteAuftragsnummer()).toBe(vorher);
+
+    const neu = await inR((k) => legeAuftragDirektAn(k, k, direkt(kundeId, leadId)));
+    expect(neu).toMatchObject({ art: 'angelegt', auftragsnummer: expect.stringMatching(/^AU-/u) });
+    expect(await naechsteAuftragsnummer()).not.toBe(vorher);
+    const [t] = await sql.unsafe<{ lead_id: string; stunden: string; personal: number }[]>(
+      `select lead_id::text as lead_id, wochenstunden_soll::text as stunden,
+              personalbedarf_anzahl as personal
+         from auftrag where id = $1`, [neu.art === 'angelegt' ? neu.id : '']);
+    expect(t).toEqual({ lead_id: leadId, stunden: '12.500', personal: 2 });
+    expect((await lead(leadId)).status).toBe('gewonnen');
+  });
+
+  /** Ein fester Tag nach dem `gueltig_ab` der Leistungswerte (R-11: der Dienst liest keine Uhr). */
+  const stichtag = new Date('2026-09-15T10:00:00Z');
+
+  /** Ein Objekt mit einem kleinen, echten Raumbuch — wie `angebot-dienst.test.ts`. */
+  async function objektMitRaumbuch(kundeId: string, mitRaeumen = true): Promise<string> {
+    const [b] = await sql.unsafe<{ id: string }[]>(
+      `insert into belagsart (mandant_id, code, bezeichnung, leistungswert_qm_pro_stunde,
+                              quelle, gueltig_ab)
+       values ($1, $2, 'PVC / Vinyl', '250.000', 'Platzhalter (O-17)', '2026-01-01')
+       returning id`, [f.reinigung, `PVC-${zufall()}`]);
+    const [o] = await sql.unsafe<{ id: string }[]>(
+      `insert into objekt (mandant_id, kunde_id, objektnummer, bezeichnung, strasse, plz, ort)
+       values ($1, $2, $3, 'Bürohaus Raumbuch', 'Kurfürstendamm 21', '10719', 'Berlin')
+       returning id`, [f.reinigung, kundeId, `OBJ-${zufall()}`]);
+    if (mitRaeumen) {
+      for (const [nr, flaeche] of [['101', '300.000'], ['102', '200.000']] as const) {
+        await sql.unsafe(
+          `insert into raum (mandant_id, objekt_id, raumnummer, etage, flaeche_qm, belagsart_id)
+           values ($1, $2, $3, 'EG', $4, $5)`, [f.reinigung, o!.id, nr, flaeche, b!.id]);
+      }
+    }
+    return o!.id;
+  }
+
+  it('das Angebot aus dem Raumbuch trägt die Anfrage — eine fremde hinterlässt kein halbes', async () => {
+    const { kundeId, andererKunde, leadId } = await inR(async (k) => {
+      const kundeId = await kunde(k, 'Raumbuch GmbH');
+      const andererKunde = await kunde(k, 'Nebenan GmbH');
+      const l = await legeLeadAn(k, { betreff: 'Raumbuch', kundeId, besitzerBenutzerId: chefR });
+      return { kundeId, andererKunde, leadId: l.id };
+    });
+    const objektId = await objektMitRaumbuch(kundeId);
+    const eingabe = { objektId, kundeId, titel: 'Unterhaltsreinigung', turnus: '1_pro_monat' };
+
+    // Die Anfrage eines anderen Kunden: abgewiesen, und es bleibt nichts liegen.
+    const fremd = await inR((k) => legeLeadAn(k, {
+      betreff: 'Fremd', kundeId: andererKunde, besitzerBenutzerId: chefR }));
+    await expect(inR((k) => legeAngebotAusRaumbuchAn(k, f.reinigung,
+      { ...eingabe, leadId: fremd.id }, stichtag))).rejects.toMatchObject({ grund: 'lead_kunde_abweichend' });
+    const [leer] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from angebot where objekt_id = $1`, [objektId]);
+    expect(leer!.n).toBe(0);
+
+    const r = await inR((k) => legeAngebotAusRaumbuchAn(k, f.reinigung, { ...eingabe, leadId },
+      stichtag));
+    expect(r.art).toBe('angelegt');
+    const [a] = await sql.unsafe<{ lead_id: string; zeilen: number }[]>(
+      `select a.lead_id::text as lead_id,
+              (select count(*)::int from angebotsposition p where p.angebot_id = a.id) as zeilen
+         from angebot a where a.id = $1`, [r.art === 'angelegt' ? r.angebotId : '']);
+    expect(a!.lead_id).toBe(leadId);
+    expect(a!.zeilen).toBeGreaterThan(0);
+  });
+
+  it('ohne kalkulierbare Fläche oder ohne Titel entsteht nichts — und der Dienst sagt, warum', async () => {
+    const kundeId = await inR((k) => kunde(k, 'Leerraum GmbH'));
+    const objektId = await objektMitRaumbuch(kundeId, false);
+    await expect(inR((k) => legeAngebotAusRaumbuchAn(k, f.reinigung,
+      { objektId, kundeId, titel: 'Nichts' }, stichtag))).resolves.toEqual({ art: 'leer' });
+    await expect(inR((k) => legeAngebotAusRaumbuchAn(k, f.reinigung,
+      { objektId, kundeId }, stichtag))).resolves.toEqual({ art: 'ungueltig' });
+    await expect(inR((k) => legeAngebotAusRaumbuchAn(k, f.reinigung,
+      { objektId, kundeId, titel: 'X', turnus: 'erfunden' }, stichtag)))
+      .resolves.toEqual({ art: 'ungueltig' });
   });
 });

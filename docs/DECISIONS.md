@@ -15864,3 +15864,53 @@ solange niemand gleichzeitig klickte, archivierte oder sich vertat.
 
 | Betrifft | CRM-05, CRM-06, CRM-07, TEN-02, AUT-06, Invariante 3, D-632, D-633, D-634, D-635, V-142, `drizzle/0402`, `drizzle/0400` (Kommentar), `drizzle/0401` (Kommentar), `src/server/services/crm/{anlegen,aendern,lead-kette,lead-radar}.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx`, `src/app/portal/[mandant]/{angebote,auftraege}/neu/page.tsx`, `src/app/portal/[mandant]/radar/[id]/page.tsx`, `src/lib/i18n/verwaltung/crm-kette.ts` |
 |---|---|
+
+### D-637 · Die Formularwege der Kette sind Dienste, und eine Abweisung bringt die Maske samt Eingaben zurück (V-143)
+
+**Der Befund** (V-143; Nachprüfung von V-138, D-632 Punkt 8): D-632 sagte
+ohne Einschränkung, das Raumbuch und `/api/auftrag` kehrten mit Schlüssel auf
+ihre Maske zurück. Es stimmte nur zum Teil. `/api/auftrag` antwortete auf
+einen Auftrag, den die Datenbank nicht zurückgab, und auf die Antworten des
+Tors weiter mit JSON; der Raumbuchweg in `/api/angebot` antwortete auf ein
+unvollständiges Formular und auf ein Raumbuch ohne kalkulierbare Fläche mit
+JSON. Und wo die Maske zurückkam, kam sie LEER: nur `?lead=` blieb, jede
+andere Eingabe war weg. Dazu die Prüflücke: beide Wege standen ganz in ihren
+Routen, und eine Route lässt sich hier nicht gegen eine echte Datenbank
+prüfen. Ungeprüft war damit gerade, worauf es ankommt — dass eine abgewiesene
+Anfrage keine Auftragsnummer verbraucht, dass der Auftrag und das
+Raumbuch-Angebot die Anfrage tragen, und dass eine fremde Anfrage kein halbes
+Angebot hinterlässt. Der Isolationstest „der Weg von /api/auftrag" fügte per
+SQL ein und rief die Route nie.
+
+**Die Entscheidung.**
+
+1. **Beide Wege werden Dienste:** `services/auftrag/direkt.ts`
+   (`legeAuftragDirektAn`: Anfrage prüfen, DANN die Nummer ziehen, anlegen)
+   und `services/angebot/aus-raumbuch.ts` (`legeAngebotAusRaumbuchAn`:
+   Grundlage, Kalkulation, Angebot, Zeilen). Die Routen lesen das Formular,
+   prüfen das Recht, rufen den Dienst und antworten — wie CLAUDE.md es für
+   jede Route verlangt.
+2. **Was die EINGABE oder den VORGANG betrifft, kommt als Seite zurück**, mit
+   Schlüssel und Satz: `/api/auftrag` auch für „nicht angelegt", das Raumbuch
+   für `angebot_unvollstaendig` und `nichts_zu_kalkulieren`. Ein Programm
+   (`application/json`) bekommt weiter JSON (D-599).
+3. **D-632 Punkt 8, genau gefasst:** die Antworten des TORS — keine Sitzung,
+   kein zweiter Faktor, kein Recht — bleiben JSON wie auf jeder Route dieser
+   Anwendung (`uebergang.ts`, `autorisierungsAntwort`, D-562). Hinter
+   demselben Tor steht die Maske selbst; es gibt nichts, wohin man
+   zurückkehren könnte. Das ist eine Grenze, keine Lücke.
+4. **Die Maske kommt mit ihren Eingaben zurück** (`lib/formular/maske.ts`):
+   die Werte reisen in der Adresse, je Wert höchstens 1.000 Zeichen, und die
+   Maske belegt ihre Felder damit vor; eine Auswahl übernimmt nur einen Wert,
+   den sie auch anbietet. Mit diesem Weg reist nichts Geheimes — die Maske
+   fragt Stammdaten eines Vorgangs. Die Maske „Neues Angebot" von Hand macht
+   es noch nicht; sie ist nicht Teil dieses Befunds.
+5. **Geprüft gegen die Datenbank:** eine abgewiesene Anfrage lässt den
+   Auftragskreis unberührt, ein Auftrag mit Anfrage stellt sie auf
+   „gewonnen"; das Raumbuch-Angebot trägt die Anfrage, eine fremde hinterlässt
+   nichts, ein leeres Raumbuch und ein unvollständiges Formular legen nichts
+   an. Der alte Test heisst jetzt, was er prüft: den Auslöser am Dienst
+   vorbei.
+
+| Betrifft | CRM-05, OPS-10, REP-03, D-562, D-599, D-632, V-143, `src/server/services/auftrag/direkt.ts`, `src/server/services/angebot/aus-raumbuch.ts`, `src/lib/formular/maske.ts`, `src/app/api/{auftrag,angebot}/route.ts`, `src/app/portal/[mandant]/auftraege/neu/page.tsx`, `src/lib/i18n/verwaltung/crm-kette.ts`, `src/server/registry/dienste.ts` |
+|---|---|

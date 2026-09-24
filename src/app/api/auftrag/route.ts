@@ -8,8 +8,9 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
-import { vergebeNummer, NummernkreisFehler } from '@/server/services/finanz/nummernkreis';
-import { pruefeLeadBindung, type LeadBindungGrund } from '@/server/services/crm/lead-kette';
+import { NummernkreisFehler } from '@/server/services/finanz/nummernkreis';
+import { legeAuftragDirektAn, type DirektAuftragsart } from '@/server/services/auftrag/direkt';
+import { maskeMitEingaben } from '@/lib/formular/maske';
 
 /**
  * `POST /api/auftrag` — der Auftragsassistent (OPS-10).
@@ -22,7 +23,13 @@ import { pruefeLeadBindung, type LeadBindungGrund } from '@/server/services/crm/
  */
 export const dynamic = 'force-dynamic';
 
-const ARTEN = new Set(['einzelauftrag', 'rahmenvertrag', 'dauerauftrag', 'projekt']);
+const ARTEN: readonly DirektAuftragsart[] = [
+  'einzelauftrag', 'rahmenvertrag', 'dauerauftrag', 'projekt',
+];
+
+function istArt(wert: string | null): wert is DirektAuftragsart {
+  return wert !== null && (ARTEN as readonly string[]).includes(wert);
+}
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
@@ -99,19 +106,21 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
    * Assistent schickt ein Formular; eine Abweisung endete bis hierher auf
    * einer weissen Seite mit `{"fehler":"keine_zahl"}`. Jetzt führt sie auf
    * `/auftraege/neu` mit dem Schlüssel, und die Maske sagt den Satz — mit der
-   * Anfrage, falls der Auftrag aus einer kam (V-138).
+   * Anfrage, falls der Auftrag aus einer kam (V-138), und seit V-143 mit
+   * allem, was eingegeben war: wer sich bei den Wochenstunden vertippt, fängt
+   * nicht mit zehn leeren Feldern von vorn an.
    */
   const slug = (anfrage.nextUrl.searchParams.get('mandant') ?? '').replace(/[^a-z0-9-]/gu, '');
-  const zurMaske = (grund: string): NextResponse => {
-    const ziel = new URL(slug === '' ? '/portal' : `/portal/${slug}/auftraege/neu`,
-      erwarteterUrsprung(anfrage));
-    if (leadId !== null) ziel.searchParams.set('lead', leadId);
-    ziel.searchParams.set('fehler', grund);
-    return NextResponse.redirect(ziel, 303);
-  };
+  const zurMaske = (grund: string): NextResponse => NextResponse.redirect(new URL(
+    maskeMitEingaben(slug === '' ? '/portal' : `/portal/${slug}/auftraege/neu`, grund, {
+      lead: leadId, kundeId, objektId: text('objektId'), bezeichnung, art,
+      verantwortlichBenutzerId: text('verantwortlichBenutzerId'), startDatum,
+      laufzeitBis: text('laufzeitBis'), personalbedarfAnzahl: text('personalbedarfAnzahl'),
+      wochenstundenSoll: text('wochenstundenSoll'),
+      ausstattungHinweis: text('ausstattungHinweis'), beschreibung: text('beschreibung'),
+    }), erwarteterUrsprung(anfrage)), 303);
 
-  if (kundeId === null || bezeichnung === null || art === null || startDatum === null
-      || !ARTEN.has(art)) {
+  if (kundeId === null || bezeichnung === null || startDatum === null || !istArt(art)) {
     return zurMaske('unvollstaendig');
   }
   if (ungueltig.length > 0) return zurMaske('keine_zahl');
@@ -135,50 +144,37 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         );
 
         /*
-         * VOR der Nummer: eine abgewiesene Anfrage soll keine Auftragsnummer
-         * verbrauchen. Der Auslöser `kern.lead_bezug_stimmt` (0400) prüft
-         * dieselbe Frage noch einmal.
+         * Anfrage prüfen, Nummer ziehen, anlegen — im Dienst (V-143), damit es
+         * sich gegen eine echte Datenbank prüfen lässt: eine abgewiesene
+         * Anfrage verbraucht KEINE Auftragsnummer.
          */
-        if (leadId !== null) {
-          const bindung = await pruefeLeadBindung(kontext, leadId, kundeId);
-          if (!bindung.ok) return { art: 'lead' as const, grund: bindung.grund };
-        }
-
-        const nummer = await vergebeNummer(
+        return legeAuftragDirektAn(
+          kontext,
           { unsafe: async (s: string, w: readonly unknown[] = []) =>
               (await tx.unsafe(s, w as never[])) as readonly unknown[] },
-          { kreisTyp: 'auftrag' },
-        );
+          {
+            kundeId, objektId: text('objektId'), art, bezeichnung,
+            beschreibung: text('beschreibung'), verantwortlichBenutzerId: verantwortlich,
+            startDatum, laufzeitBis: text('laufzeitBis'),
+            personalbedarfAnzahl: personalVorab, wochenstundenSoll: stundenVorab,
+            ausstattungHinweis: text('ausstattungHinweis'), leadId,
+          });
+      })) as ReturnType<typeof legeAuftragDirektAn>);
 
-        const stunden = stundenVorab;
-        const [neu] = await kontext.abfrage<{ id: string }>(
-          `insert into auftrag (mandant_id, auftragsnummer, kunde_id, objekt_id, art,
-                                bezeichnung, beschreibung, verantwortlich_benutzer_id,
-                                start_datum, laufzeit_bis, personalbedarf_anzahl,
-                                wochenstunden_soll, ausstattung_hinweis, lead_id)
-           values (app.aktiver_mandant(), $1, $2, $3, $4::auftrag_art, $5, $6, $7,
-                   $8::date, $9::date, $10, $11::numeric, $12, $13::uuid)
-           returning id`,
-          [nummer.formatiert, kundeId, text('objektId'), art, bezeichnung,
-           text('beschreibung'), verantwortlich, startDatum, text('laufzeitBis'),
-           personalVorab, stunden === null ? null : stunden.toFixed(3),
-           text('ausstattungHinweis'), leadId],
-        );
-        if (neu === undefined) return null;
-        return { art: 'angelegt' as const, id: neu.id };
-      })) as Promise<
-        | { art: 'angelegt'; id: string }
-        | { art: 'lead'; grund: LeadBindungGrund }
-        | null>);
-
-    if (ergebnis === null) {
-      return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
-    }
     /* Die Anfrage bleibt in der Adresse, damit der zweite Versuch nicht ohne sie beginnt. */
     if (ergebnis.art === 'lead') return zurMaske(ergebnis.grund);
+    if (ergebnis.art === 'nicht_angelegt') return zurMaske('nicht_angelegt');
     return NextResponse.redirect(
       new URL(`/portal/${slug}/auftraege/${ergebnis.id}`, erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
+    /*
+     * **Die Antworten des TORS bleiben JSON** — wie auf jeder Route dieser
+     * Anwendung (`uebergang.ts`, `autorisierungsAntwort`, D-637): ohne
+     * Sitzung, ohne zweiten Faktor, ohne Recht gibt es keine Maske, auf die
+     * man zurückkehren könnte; die Maske selbst stünde hinter demselben Tor.
+     * Zurück auf die Maske geht alles, was die EINGABE oder den Vorgang
+     * betrifft.
+     */
     if (fehler instanceof NichtAngemeldetFehler) {
       return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
     }

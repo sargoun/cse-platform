@@ -16,6 +16,9 @@ import { LEAD_TEXTE } from '../../src/lib/i18n/verwaltung/crm-lead.js';
 import {
   betreffAus, LEAD_ZWECK_REGEL, PLATZHALTER_LEAD_ZWECK,
 } from '../../src/server/services/crm/lead-kontakt.js';
+import {
+  MASKE_WERT_HOECHSTENS, maskeMitEingaben, vorbelegt,
+} from '../../src/lib/formular/maske.js';
 
 /**
  * Die Kette Lead → Angebot → Auftrag, ohne Datenbank (V-138, V-139,
@@ -250,5 +253,67 @@ describe('jede Abweisung am Ansprechpartner hat einen Satz — in beiden Sprache
       .toEqual(Object.keys(LEAD_TEXTE.de.kontaktFehler).sort());
     expect(Object.keys(LEAD_TEXTE.en.fehler).sort())
       .toEqual(Object.keys(LEAD_TEXTE.de.fehler).sort());
+  });
+});
+
+/**
+ * **Eine abgewiesene Maske kommt mit ihren Eingaben zurück** (V-143, D-637).
+ * `/api/auftrag` schickte nur `?lead=` und den Grund zurück; wer sich bei
+ * den Wochenstunden vertippte, fing mit zehn leeren Feldern von vorn an.
+ */
+describe('maskeMitEingaben / vorbelegt — die Eingaben reisen in der Adresse', () => {
+  it('trägt die Werte, lässt leere weg und setzt den Grund zuletzt', () => {
+    const ziel = maskeMitEingaben('/portal/reinigung/auftraege/neu', 'keine_zahl', {
+      lead: 'abc', bezeichnung: ' Glasreinigung ', wochenstundenSoll: 'zwölf', laufzeitBis: '',
+      objektId: null, beschreibung: undefined,
+    });
+    const url = new URL(ziel, 'https://cse.test');
+    expect(url.pathname).toBe('/portal/reinigung/auftraege/neu');
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      lead: 'abc', bezeichnung: 'Glasreinigung', wochenstundenSoll: 'zwölf', fehler: 'keine_zahl',
+    });
+  });
+
+  it('eine Eingabe namens fehler überschreibt den Grund nicht', () => {
+    const url = new URL(maskeMitEingaben('/m', 'unvollstaendig', { fehler: 'erfunden' }),
+      'https://cse.test');
+    expect(url.searchParams.getAll('fehler')).toEqual(['unvollstaendig']);
+  });
+
+  it('kürzt jeden Wert — eine Adresse mit zehn Seiten weist mancher Proxy ab', () => {
+    const url = new URL(maskeMitEingaben('/m', 'x', { beschreibung: 'y'.repeat(5000) }),
+      'https://cse.test');
+    expect(url.searchParams.get('beschreibung')).toHaveLength(MASKE_WERT_HOECHSTENS);
+    expect(vorbelegt({ a: 'z'.repeat(5000) }, 'a')).toHaveLength(MASKE_WERT_HOECHSTENS);
+  });
+
+  it('vorbelegt nimmt nur einen einzelnen Text', () => {
+    expect(vorbelegt({ a: 'eins' }, 'a')).toBe('eins');
+    expect(vorbelegt({ a: ['eins', 'zwei'] }, 'a')).toBeUndefined();
+    expect(vorbelegt({}, 'a')).toBeUndefined();
+  });
+});
+
+describe('die Formularwege der Kette antworten mit Seite und Satz (D-599, D-637)', () => {
+  const quelle = (pfad: string): string => readFileSync(fileURLToPath(
+    new URL(`../../src/app/api/${pfad}`, import.meta.url)), 'utf8');
+
+  it('/api/angebot schickt das Raumbuch mit Grund zurück — und die Seite kennt jeden Grund', () => {
+    const route = quelle('angebot/route.ts');
+    // Beide Abweisungen des Raumbuchs gehen über `zurueck`, nicht als JSON an den Browser.
+    expect(route).toMatch(/ergebnis\.art === 'ungueltig' \|\| ergebnis\.art === 'leer'/u);
+    for (const grund of ['angebot_unvollstaendig', 'nichts_zu_kalkulieren']) {
+      expect(route, grund).toContain(`'${grund}'`);
+      expect(KETTE_TEXTE.de.maskeFehler[grund], grund).toBeDefined();
+      expect(KETTE_TEXTE.en.maskeFehler[grund], grund).toBeDefined();
+    }
+  });
+
+  it('/api/auftrag gibt die Eingaben mit zurück und ruft den geprüften Dienst', () => {
+    const route = quelle('auftrag/route.ts');
+    expect(route).toContain('maskeMitEingaben(');
+    expect(route).toContain('legeAuftragDirektAn(');
+    // Die Nummer zieht nur noch der Dienst — NACH der Prüfung der Anfrage.
+    expect(route).not.toContain('vergebeNummer(');
   });
 });

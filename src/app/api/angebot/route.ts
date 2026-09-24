@@ -9,13 +9,11 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtGefundenFehler, NichtAngemeldetFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
-import { ladeKalkulationsgrundlage } from '@/server/services/kalkulation/raumbuch';
-import { kalkuliere } from '@/server/services/kalkulation/index';
-import { PLATZHALTER_FREQUENZ, PLATZHALTER_TARIF, PLATZHALTER_TURNUSSE, TarifFehler }
-  from '@/server/services/kalkulation/tarif';
+import { TarifFehler } from '@/server/services/kalkulation/tarif';
 import {
-  AngebotFehler, legeAngebotAn, uebernimmKalkulation, versendeAngebot, wandleInAuftrag,
+  AngebotFehler, versendeAngebot, wandleInAuftrag,
 } from '@/server/services/angebot/index';
+import { legeAngebotAusRaumbuchAn } from '@/server/services/angebot/aus-raumbuch';
 import { NummernkreisFehler } from '@/server/services/finanz/nummernkreis';
 
 /**
@@ -173,36 +171,15 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
 
+        /*
+         * Das Raumbuch (V-143): Grundlage laden, kalkulieren, anlegen — im
+         * Dienst, damit es sich gegen eine echte Datenbank prüfen lässt.
+         */
         if (aktion === 'aus_raumbuch') {
-          const { objektId, kundeId, titel } = koerper;
-          if (objektId === undefined || kundeId === undefined || titel === undefined) {
-            return { art: 'ungueltig' as const };
-          }
-          const turnus = koerper.turnus ?? '1_pro_monat';
-          if (!PLATZHALTER_TURNUSSE.includes(turnus)) return { art: 'ungueltig' as const };
-
-          const stichtag = new Date();
-          const grundlage = await ladeKalkulationsgrundlage(dbSchicht, objektId, stichtag);
-          const frequenz = PLATZHALTER_FREQUENZ.frequenz(turnus);
-          const tarif = PLATZHALTER_TARIF.tarif(sitzung.aktiverMandantId!, 'reinigung');
-          const kalk = kalkuliere({
-            posten: grundlage.posten,
-            frequenz,
-            tarif,
-            flaecheOhneBelagsart: grundlage.flaecheOhneBelagsart,
-            // Beide Luecken gehen MIT — `uebernimmKalkulation` weist ein
-            // Angebot ueber nicht bepreisbare Flaeche ab (D-97).
-            ohneGueltigenLeistungswert: grundlage.ohneGueltigenLeistungswert,
-          });
-          if (kalk.zeilen.length === 0) return { art: 'leer' as const };
-
-          const angebotId = await legeAngebotAn(dbSchicht, {
-            kundeId, titel, objektId,
-            ...(koerper.leadId === undefined ? {} : { leadId: koerper.leadId }),
-          });
-          await uebernimmKalkulation(dbSchicht, angebotId, kalk,
-            { objektId, turnusLabel: turnus, tarif, frequenz });
-          return { art: 'angelegt' as const, angebotId };
+          return legeAngebotAusRaumbuchAn(dbSchicht, sitzung.aktiverMandantId!, {
+            objektId: koerper.objektId, kundeId: koerper.kundeId, titel: koerper.titel,
+            turnus: koerper.turnus, leadId: koerper.leadId,
+          }, new Date());
         }
 
         if (aktion === 'versenden') {
@@ -232,13 +209,28 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         | { art: 'versendet'; angebotId: string; versand: { angebotsnummer: string } }
         | { art: 'gewandelt'; angebotId: string; auftrag: { auftragId: string } }>);
 
-    if (ergebnis.art === 'ungueltig') {
-      return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
-    }
-    if (ergebnis.art === 'leer') {
-      // Kein Fehler des Aufrufers: das Raumbuch traegt keine kalkulierbare
-      // Flaeche. Die Antwort sagt das, statt ein leeres Angebot anzulegen.
-      return NextResponse.json({ fehler: 'nichts_zu_kalkulieren' }, { status: 409 });
+    /*
+     * **Auch diese beiden Abweisungen kommen als Seite zurück** (V-143,
+     * D-599, D-637). Das Raumbuch schickt ein Formular mit `zurueck`; bis
+     * hierher endeten ein unvollständiges Formular und ein Raumbuch ohne
+     * kalkulierbare Fläche auf einer weissen Seite mit JSON. Ein Programm
+     * (`application/json`) bekommt weiter JSON.
+     */
+    if (ergebnis.art === 'ungueltig' || ergebnis.art === 'leer') {
+      const grund = ergebnis.art === 'leer' ? 'nichts_zu_kalkulieren' : 'unvollstaendig';
+      const zurueck = koerper.zurueck;
+      if (!jsonAngefragt(anfrage) && zurueck !== undefined && zurueck !== '') {
+        const trenner = zurueck.includes('?') ? '&' : '?';
+        return NextResponse.redirect(internesZiel(
+          `${zurueck}${trenner}fehler=${aktion === 'aus_raumbuch' && grund === 'unvollstaendig'
+            ? 'angebot_unvollstaendig' : grund}`, '/portal', anfrage), 303);
+      }
+      // Kein Fehler des Aufrufers bei `leer`: das Raumbuch traegt keine
+      // kalkulierbare Flaeche. Die Antwort sagt das, statt ein leeres Angebot
+      // anzulegen.
+      return ergebnis.art === 'leer'
+        ? NextResponse.json({ fehler: 'nichts_zu_kalkulieren' }, { status: 409 })
+        : NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
     }
 
     if (jsonAngefragt(anfrage)) return NextResponse.json(ergebnis, { status: 200 });

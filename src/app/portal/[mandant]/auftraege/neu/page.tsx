@@ -13,6 +13,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
 import { istKennung } from '@/server/services/crm/lead-kette';
+import { vorbelegt } from '@/lib/formular/maske';
 
 /**
  * `/portal/[mandant]/auftraege/neu` — der Auftragsassistent (OPS-10).
@@ -56,6 +57,12 @@ export default async function AuftragAssistent(
   const leadRoh = typeof suche['lead'] === 'string' ? suche['lead'] : '';
   const leadParam = istKennung(leadRoh) ? leadRoh : null;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  /*
+   * **Was eingegeben war, steht wieder da** (V-143, D-637). Eine Abweisung
+   * von `/api/auftrag` kommt mit den Eingaben in der Adresse zurück; ohne
+   * sie begann der zweite Versuch mit zehn leeren Feldern.
+   */
+  const wert = (name: string): string | undefined => vorbelegt(suche, name);
   const zugang = await portalZugang(`/portal/${mandant}/auftraege/neu`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -112,6 +119,13 @@ export default async function AuftragAssistent(
 
   const feld = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
+  /* Eine Auswahl übernimmt nur einen Wert, den sie auch anbietet. */
+  const gewaehlt = (name: string, optionen: readonly { readonly id: string }[]): string | undefined => {
+    const w = wert(name);
+    return w !== undefined && optionen.some((o) => o.id === w) ? w : undefined;
+  };
+  const ARTEN = ['einzelauftrag', 'rahmenvertrag', 'dauerauftrag', 'projekt'];
+  const artWert = wert('art');
 
   return (
     <PortalRahmen
@@ -171,7 +185,8 @@ export default async function AuftragAssistent(
           ) : (
             <>
               <label className="block text-sm text-text" htmlFor="kundeId">Kunde</label>
-              <select id="kundeId" name="kundeId" required className={feld}>
+              <select id="kundeId" name="kundeId" required className={feld}
+                      defaultValue={gewaehlt('kundeId', daten.kunden)}>
                 {daten.kunden.map((k) => (
                   <option key={k.id} value={k.id}>{k.name}</option>
                 ))}
@@ -182,7 +197,8 @@ export default async function AuftragAssistent(
           <label className="mt-s4 block text-sm text-text" htmlFor="objektId">
             Ort (Objekt)
           </label>
-          <select id="objektId" name="objektId" className={feld}>
+          <select id="objektId" name="objektId" className={feld}
+                  defaultValue={gewaehlt('objektId', daten.objekte) ?? ''}>
             <option value="">— ohne festen Ort (Rahmenvertrag) —</option>
             {daten.objekte.map((o) => (
               <option key={o.id} value={o.id}>{o.name}</option>
@@ -193,10 +209,12 @@ export default async function AuftragAssistent(
             Bezeichnung
           </label>
           <input id="bezeichnung" name="bezeichnung" type="text" required className={feld}
-                 defaultValue={anfrage?.betreff ?? ''} />
+                 defaultValue={wert('bezeichnung') ?? anfrage?.betreff ?? ''} />
 
           <label className="mt-s4 block text-sm text-text" htmlFor="art">Art</label>
-          <select id="art" name="art" defaultValue="rahmenvertrag" className={feld}>
+          <select id="art" name="art" className={feld}
+                  defaultValue={artWert !== undefined && ARTEN.includes(artWert)
+                    ? artWert : 'rahmenvertrag'}>
             <option value="einzelauftrag">Einzelauftrag</option>
             <option value="rahmenvertrag">Rahmenvertrag</option>
             <option value="dauerauftrag">Dauerauftrag</option>
@@ -211,6 +229,7 @@ export default async function AuftragAssistent(
             name="verantwortlichBenutzerId"
             required
             className={feld}
+            defaultValue={gewaehlt('verantwortlichBenutzerId', daten.leitungen)}
           >
             {daten.leitungen.map((b) => (
               <option key={b.id} value={b.id}>{b.name}</option>
@@ -220,13 +239,15 @@ export default async function AuftragAssistent(
           <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">
             <div>
               <label className="block text-sm text-text" htmlFor="startDatum">Start</label>
-              <input id="startDatum" name="startDatum" type="date" required className={feld} />
+              <input id="startDatum" name="startDatum" type="date" required className={feld}
+                     defaultValue={wert('startDatum') ?? ''} />
             </div>
             <div>
               <label className="block text-sm text-text" htmlFor="laufzeitBis">
                 Laufzeit bis
               </label>
-              <input id="laufzeitBis" name="laufzeitBis" type="date" className={feld} />
+              <input id="laufzeitBis" name="laufzeitBis" type="date" className={feld}
+                     defaultValue={wert('laufzeitBis') ?? ''} />
               <p className="mt-s1 text-xs text-text-muted">leer = unbefristet</p>
             </div>
             <div>
@@ -240,6 +261,7 @@ export default async function AuftragAssistent(
                 min="0"
                 step="1"
                 className={feld}
+                defaultValue={wert('personalbedarfAnzahl') ?? ''}
               />
             </div>
             <div>
@@ -252,6 +274,7 @@ export default async function AuftragAssistent(
                 type="text"
                 inputMode="decimal"
                 className={feld}
+                defaultValue={wert('wochenstundenSoll') ?? ''}
               />
             </div>
           </div>
@@ -260,12 +283,14 @@ export default async function AuftragAssistent(
             Ausstattung
           </label>
           <textarea id="ausstattungHinweis" name="ausstattungHinweis" rows={2}
+                    defaultValue={wert('ausstattungHinweis') ?? ''}
                     className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text" />
 
           <label className="mt-s4 block text-sm text-text" htmlFor="beschreibung">
             Beschreibung
           </label>
           <textarea id="beschreibung" name="beschreibung" rows={3}
+                    defaultValue={wert('beschreibung') ?? ''}
                     className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text" />
 
           <p className="mt-s4 text-xs text-text-muted">
