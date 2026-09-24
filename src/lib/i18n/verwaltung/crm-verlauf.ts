@@ -57,6 +57,8 @@ export interface VerlaufTexte {
   readonly notizArten: Readonly<Record<string, string>>;
   readonly notizRichtung: string;
   readonly notizZweck: string;
+  /** Die leere erste Wahl — ohne Vorauswahl (V-153, D-647). */
+  readonly notizZweckLeer: string;
   readonly notizZweckErklaerung: string;
   readonly notizAnsprechpartner: string;
   readonly notizOhneAnsprechpartner: string;
@@ -147,10 +149,11 @@ export const VERLAUF_TEXTE: Readonly<Record<InternSprache, VerlaufTexte>> = {
     notizArten: { notiz: 'Notiz', anruf: 'Anruf', email: 'E-Mail', termin: 'Termin' },
     notizRichtung: 'Richtung',
     notizZweck: 'Zweck',
+    notizZweckLeer: '— bei ein- und ausgehend wählen —',
     notizZweckErklaerung:
-      'Nur bei ein- und ausgehend. Ausgehende Anrufe und E-Mails prüft das Sendetor gegen die '
-      + 'Rechtsgrundlage des Ansprechpartners (§ 7 UWG); Werbung ohne Grundlage wird nicht '
-      + 'festgehalten.',
+      'Nur bei ein- und ausgehend, und dort Pflicht: der Zweck steht im § 7-Beleg. Ausgehende '
+      + 'Anrufe und E-Mails prüft das Sendetor gegen die Rechtsgrundlage des Ansprechpartners '
+      + '(§ 7 UWG); Werbung ohne Grundlage wird nicht festgehalten.',
     notizAnsprechpartner: 'Ansprechpartner',
     notizOhneAnsprechpartner: 'keiner — nur am Kunden',
     notizBetreff: 'Betreff',
@@ -168,7 +171,13 @@ export const VERLAUF_TEXTE: Readonly<Record<InternSprache, VerlaufTexte>> = {
       unbekannte_art: 'Diese Art gibt es nicht.',
       unbekannte_richtung: 'Diese Richtung gibt es nicht.',
       unbekannter_zweck: 'Diesen Zweck gibt es nicht.',
+      ohne_zweck:
+        'Wählen Sie den Zweck — vertraglich, transaktional oder Werbung. Bei ein- und '
+        + 'ausgehenden Einträgen steht er im § 7-Beleg, und eine Vorgabe entscheidet ihn nicht.',
       ohne_bezug: 'Eine Notiz hängt an einem Kunden oder an einem Ansprechpartner.',
+      ungueltiger_bezug:
+        'Dieser Bezug ist ungültig. Öffnen Sie das Blatt neu und versuchen Sie es noch einmal.',
+      kein_kunde: 'Diesen Kunden gibt es hier nicht.',
       kein_kontakt: 'Diesen Ansprechpartner gibt es hier nicht.',
       kontakt_ohne_kunde:
         'Dieser Ansprechpartner hängt an keinem Kunden. Halten Sie die Notiz am Lead fest oder '
@@ -258,9 +267,11 @@ export const VERLAUF_TEXTE: Readonly<Record<InternSprache, VerlaufTexte>> = {
     notizArten: { notiz: 'Note', anruf: 'Call', email: 'E-mail', termin: 'Appointment' },
     notizRichtung: 'Direction',
     notizZweck: 'Purpose',
+    notizZweckLeer: '— choose for incoming and outgoing —',
     notizZweckErklaerung:
-      'Incoming and outgoing only. Outgoing calls and e-mails are checked against the '
-      + 'contact’s legal basis (§ 7 UWG); advertising without a basis is not recorded.',
+      'Incoming and outgoing only, and required there: the purpose is part of the § 7 evidence. '
+      + 'Outgoing calls and e-mails are checked against the contact’s legal basis (§ 7 UWG); '
+      + 'advertising without a basis is not recorded.',
     notizAnsprechpartner: 'Contact',
     notizOhneAnsprechpartner: 'none — customer only',
     notizBetreff: 'Subject',
@@ -278,7 +289,12 @@ export const VERLAUF_TEXTE: Readonly<Record<InternSprache, VerlaufTexte>> = {
       unbekannte_art: 'This type does not exist.',
       unbekannte_richtung: 'This direction does not exist.',
       unbekannter_zweck: 'This purpose does not exist.',
+      ohne_zweck:
+        'Choose the purpose — contractual, transactional or advertising. For incoming and '
+        + 'outgoing entries it is part of the § 7 evidence, and no default decides it.',
       ohne_bezug: 'A note belongs to a customer or to a contact.',
+      ungueltiger_bezug: 'This reference is invalid. Reopen the page and try again.',
+      kein_kunde: 'This customer does not exist here.',
       kein_kontakt: 'This contact does not exist here.',
       kontakt_ohne_kunde:
         'This contact belongs to no customer. Record the note on the Lead or assign the contact '

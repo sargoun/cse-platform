@@ -39,13 +39,23 @@ import {
  * zurück, und der nächste Lauf versucht es erneut.
  *
  * Wer bekommt sie? Der Zuständige; ist keiner eingetragen, wer die
- * Wiedervorlage angelegt hat (D-640). Hat dieser Mensch kein aktives Konto,
- * wird der Anspruch ZURÜCKGEGEBEN — dieselbe Regel wie beim Nachtrag
- * (`nachtragWache.ts`): ein wieder aktiviertes Konto soll die Erinnerung noch
- * bekommen, statt dass sie still als zugestellt gilt. Gibt es gar keinen
- * Menschen an der Zeile, bleibt der Anspruch stehen und die Zahl steht im
- * Laufbericht — da kann sich nichts mehr ändern, und ein Lauf alle fünfzehn
- * Minuten auf dieselbe Zeile wäre nur Lärm.
+ * Wiedervorlage angelegt hat (D-640). Gibt es gar keinen Menschen an der
+ * Zeile, bleibt der Anspruch stehen und die Zahl steht im Laufbericht — da
+ * kann sich nichts mehr ändern, und ein Lauf alle fünfzehn Minuten auf
+ * dieselbe Zeile wäre nur Lärm.
+ *
+ * **Empfänger ist nur, wer die Wiedervorlage lesen darf** (V-153, D-647).
+ * Die Zeile nannte bisher jeden, der an ihr stand — auch ein stillgelegtes
+ * Konto, einen Menschen ohne Mitgliedschaft oder ohne `crm.lesen` in dieser
+ * Gesellschaft, und der Betreff ging trotzdem in Posteingang und E-Mail.
+ * Gefragt wird jetzt `kern.traeger_des_rechts(mandant, 'crm.lesen')`: aktive
+ * Menschenkonten, die das Recht in DIESEM Bereich halten (dieselbe Auflösung
+ * wie `app.hat_recht`). Hält der Zuständige es nicht, geht die Erinnerung an
+ * den, der die Wiedervorlage angelegt hat; hält es keiner von beiden, wird
+ * die Zeile gar nicht erst beansprucht. Sie bleibt offen, bis wieder jemand
+ * berechtigt ist — ein wieder aktiviertes Konto bekommt sie noch —, und
+ * steht als `wartend` im Laufbericht. Vorher nahm der Lauf den Anspruch alle
+ * fünfzehn Minuten und gab ihn wieder zurück, ohne Ende.
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * **Alle fünfzehn Minuten, nicht stündlich.**
@@ -63,16 +73,28 @@ export interface ErinnerungsBefund {
   /** Wiedervorlagen, deren Erinnerungszeit erreicht war und die dieser Lauf nahm. */
   readonly faellig: number;
   readonly zugestellt: number;
-  /** Der Empfänger hat kein aktives Konto — Anspruch zurückgegeben. */
+  /**
+   * Das Konto wurde zwischen Auswahl und Zustellung stillgelegt — Anspruch
+   * zurückgegeben. Die Auswahl nimmt nur berechtigte Empfänger; das hier ist
+   * das Fenster dazwischen.
+   */
   readonly ohneKonto: number;
   /** Weder zuständig noch angelegt von jemandem — Anspruch bleibt, gezählt. */
   readonly ohneEmpfaenger: number;
+  /**
+   * Fällig, aber weder der Zuständige noch der Anlegende darf sie lesen —
+   * nicht beansprucht, sie wartet auf einen berechtigten Menschen (V-153).
+   */
+  readonly wartend: number;
 }
 
 interface FaelligeZeile {
   readonly id: string;
   readonly betreff: string;
   readonly empfaenger: string | null;
+  /** `zustaendig` oder `angelegt` — worauf sich der Text der Meldung stützt. */
+  readonly rolle: 'zustaendig' | 'angelegt' | null;
+  readonly ohne_zustaendigen: boolean;
   readonly faellig_text: string;
 }
 
@@ -119,18 +141,46 @@ async function erinnere(db: JobAbfrage): Promise<ErinnerungsBefund> {
    * Zeitpunkt, gegen den `erinnerung_am` gespeichert wurde — als Berliner
    * Wanduhr gelesen und als Zeitpunkt abgelegt (`legeWiedervorlageAn`).
    */
+  /*
+   * `berechtigt`: die aktiven Menschenkonten mit `crm.lesen` in diesem
+   * Bereich (0149, security definer, für `cse_job` freigegeben). Beansprucht
+   * wird eine Zeile nur, wenn einer der beiden Menschen an ihr darunter ist —
+   * oder wenn gar keiner an ihr steht (D-640: gezählt, Anspruch bleibt).
+   * `erinnert_am is null` steht in der Aktualisierung noch einmal: ein
+   * zweiter Lauf, der auf dieselbe Zeile wartet, prüft sie nach dem Warten
+   * neu und nimmt sie dann nicht mehr.
+   */
   const faellige = await db.abfrage<FaelligeZeile>(
-    `update lead_aktivitaet
+    `with berechtigt as (
+       select kern.traeger_des_rechts(app.aktiver_mandant(), 'crm.lesen') as ids
+     ), faellig as (
+       select la.id,
+              case when la.zustaendig_benutzer_id = any (b.ids) then la.zustaendig_benutzer_id
+                   when la.benutzer_id = any (b.ids) then la.benutzer_id
+              end as empfaenger,
+              case when la.zustaendig_benutzer_id = any (b.ids) then 'zustaendig'
+                   when la.benutzer_id = any (b.ids) then 'angelegt'
+              end as rolle,
+              (la.zustaendig_benutzer_id is null and la.benutzer_id is null) as niemand
+         from lead_aktivitaet la cross join berechtigt b
+        where la.mandant_id = app.aktiver_mandant()
+          and la.faellig_am is not null
+          and la.erinnerung_am is not null
+          and la.erinnerung_am <= now()
+          and la.erinnert_am is null
+          and la.erledigt_am is null
+     )
+     update lead_aktivitaet la
         set erinnert_am = now()
-      where mandant_id = app.aktiver_mandant()
-        and faellig_am is not null
-        and erinnerung_am is not null
-        and erinnerung_am <= now()
-        and erinnert_am is null
-        and erledigt_am is null
-      returning id, betreff,
-                coalesce(zustaendig_benutzer_id, benutzer_id)::text as empfaenger,
-                to_char(faellig_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
+       from faellig f
+      where la.id = f.id
+        and la.mandant_id = app.aktiver_mandant()
+        and (f.empfaenger is not null or f.niemand)
+        and la.erinnert_am is null
+        and la.erledigt_am is null
+      returning la.id, la.betreff, f.empfaenger::text as empfaenger, f.rolle,
+                (la.zustaendig_benutzer_id is null) as ohne_zustaendigen,
+                to_char(la.faellig_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
                   as faellig_text`);
 
   const zustellung = { unsafe: (s: string, w?: readonly unknown[]) => db.abfrage(s, w) };
@@ -146,7 +196,12 @@ async function erinnere(db: JobAbfrage): Promise<ErinnerungsBefund> {
       mandantSlug: m.slug,
       objektTyp: 'lead_aktivitaet',
       objektId: z.id,
-      daten: { betreff: z.betreff, faellig: z.faellig_text },
+      daten: {
+        betreff: z.betreff, faellig: z.faellig_text,
+        // Der Text sagt, WARUM die Meldung an diesen Menschen geht (V-153).
+        rolle: z.rolle ?? 'zustaendig',
+        ohneZustaendigen: z.ohne_zustaendigen,
+      },
     });
     const e = await stelleZuAnKonto(zustellung, [{
       benachrichtigung, benutzerId: z.empfaenger,
@@ -163,5 +218,22 @@ async function erinnere(db: JobAbfrage): Promise<ErinnerungsBefund> {
       [zurueck]);
   }
 
-  return { faellig: faellige.length, zugestellt, ohneKonto, ohneEmpfaenger };
+  /*
+   * Was fällig ist und liegen blieb, weil niemand Berechtigtes an der Zeile
+   * steht — gezählt, nicht beansprucht (V-153). Nach der Aktualisierung
+   * oben ist das genau der Rest mit `erinnert_am is null`.
+   */
+  const [rest] = await db.abfrage<{ n: number }>(
+    `select count(*)::int as n from lead_aktivitaet
+      where mandant_id = app.aktiver_mandant()
+        and faellig_am is not null
+        and erinnerung_am is not null
+        and erinnerung_am <= now()
+        and erinnert_am is null
+        and erledigt_am is null`);
+
+  return {
+    faellig: faellige.length, zugestellt, ohneKonto, ohneEmpfaenger,
+    wartend: (rest?.n ?? 0) - zurueck.length,
+  };
 }

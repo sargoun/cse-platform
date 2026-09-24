@@ -49,6 +49,28 @@ describe('die Art crm.wiedervorlage_erinnerung', () => {
     expect(b.text).toContain('05.10.2026 09:00');
   });
 
+  it('V-153: der Text sagt, warum die Meldung an DIESEN Menschen geht', () => {
+    registriereWiedervorlageArten();
+    const zustaendig = erzeuge(ART_WIEDERVORLAGE_ERINNERUNG,
+      { ...kontext, daten: { ...kontext.daten, rolle: 'zustaendig' } });
+    expect(zustaendig.text)
+      .toBe('Fällig am 05.10.2026 09:00. Sie sind für diese Wiedervorlage als zuständig eingetragen.');
+    expect(zustaendig.ziel).toBe('/portal/reinigung/crm/wiedervorlagen');
+    // Hier stand für jeden „Sie haben … um eine Erinnerung gebeten" — auch für
+    // den Zuständigen, der um nichts gebeten hatte.
+    expect(zustaendig.text).not.toContain('gebeten');
+
+    const ohne = erzeuge(ART_WIEDERVORLAGE_ERINNERUNG,
+      { ...kontext, daten: { ...kontext.daten, rolle: 'angelegt', ohneZustaendigen: true } });
+    expect(ohne.text).toContain('Sie haben diese Wiedervorlage angelegt; zuständig ist niemand.');
+    // „nur meine" zeigte sie dem Anlegenden nicht — das Ziel zeigt alle.
+    expect(ohne.ziel).toBe('/portal/reinigung/crm/wiedervorlagen?wer=alle');
+
+    const ohneZugang = erzeuge(ART_WIEDERVORLAGE_ERINNERUNG,
+      { ...kontext, daten: { ...kontext.daten, rolle: 'angelegt', ohneZustaendigen: false } });
+    expect(ohneZugang.text).toContain('keinen Zugang zum CRM');
+  });
+
   it('ohne Slug entsteht keine Meldung — kein Ziel ist ehrlicher als ein totes', () => {
     registriereWiedervorlageArten();
     expect(() => erzeuge(ART_WIEDERVORLAGE_ERINNERUNG, { ...kontext, mandantSlug: null }))

@@ -53,10 +53,30 @@ describe('planeNotiz — aus der Eingabe wird eine Zeile', () => {
     expect(p).toMatchObject({ richtung: 'intern', kanal: null, zweck: 'intern' });
   });
 
-  it('ohne Zweck gilt vertraglich — nie intern für etwas, das das Haus verlässt', () => {
-    const p = planeNotiz({ art: 'email', richtung: 'eingehend', inhalt: 'Anfrage per Mail' });
-    expect(p.zweck).toBe('vertraglich');
-    expect(p.kanal).toBe('email');
+  it('V-153: ohne Zweck kein ein- oder ausgehender Eintrag — keine Vorgabe entscheidet ihn', () => {
+    /*
+     * Hier galt ohne Zweck `vertraglich` — die Klasse, die das UWG-Tor nie
+     * sperrt. Wer nicht aktiv „Werbung" wählte, erzeugte einen § 7-Beleg
+     * „vertraglich". Jetzt muss der Mensch wählen.
+     */
+    expect(grundVon(() => planeNotiz({ art: 'email', richtung: 'eingehend',
+      inhalt: 'Anfrage per Mail' }))).toBe('ohne_zweck');
+    expect(grundVon(() => planeNotiz({ art: 'anruf', richtung: 'ausgehend',
+      inhalt: 'Rückruf' }))).toBe('ohne_zweck');
+    // Gewählt, gilt die Wahl — und nie `intern` für etwas, das das Haus verlässt.
+    const p = planeNotiz({ art: 'email', richtung: 'eingehend', zweck: 'transaktional',
+      inhalt: 'Anfrage per Mail' });
+    expect(p).toMatchObject({ zweck: 'transaktional', kanal: 'email' });
+    // Eine interne Notiz braucht keinen Zweck; das leere Feld des Formulars reicht.
+    expect(planeNotiz({ art: 'notiz', richtung: 'intern', inhalt: 'x' }).zweck).toBe('intern');
+    expect(planeNotiz({ art: 'anruf', richtung: 'intern', inhalt: 'x' }).zweck).toBe('intern');
+  });
+
+  it('V-153: das Formular wählt keinen Zweck vor', () => {
+    const bauteil = readFileSync(
+      resolve(WURZEL, 'src/components/portal/Kommunikationsverlauf.tsx'), 'utf8');
+    expect(bauteil).toContain('<select name="zweck" defaultValue=""');
+    expect(bauteil).not.toContain('defaultValue="vertraglich"');
   });
 
   it('ohne Betreff steht die erste Zeile, gekürzt auf 80 Zeichen', () => {

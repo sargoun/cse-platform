@@ -305,8 +305,11 @@ describe('§3 festhalten am Kunden und am Kontakt — durch das UWG-Tor', () => 
     const halte = (e: Parameters<typeof halteFest>[1]) => crmFehler(
       alsIntern(f.reinigung, (tx) => halteFest(kontextAus(tx, f.reinigung), e)));
 
+    expect(await halte({ kundeId: k, art: 'anruf', richtung: 'ausgehend', zweck: 'vertraglich',
+      inhalt: 'x' })).toBe('ohne_ansprechpartner');
+    // V-153: ohne Zweck kein ausgehender Eintrag — keine Vorgabe „vertraglich" mehr.
     expect(await halte({ kundeId: k, art: 'anruf', richtung: 'ausgehend', inhalt: 'x' }))
-      .toBe('ohne_ansprechpartner');
+      .toBe('ohne_zweck');
     expect(await halte({ ansprechpartnerId: apOhne, art: 'notiz', richtung: 'intern',
       inhalt: 'x' })).toBe('kontakt_ohne_kunde');
     expect(await halte({ kundeId: k, ansprechpartnerId: apAnders, art: 'notiz',
@@ -315,5 +318,29 @@ describe('§3 festhalten am Kunden und am Kontakt — durch das UWG-Tor', () => 
     expect(await halte({ ansprechpartnerId: apBau, art: 'notiz', richtung: 'intern',
       inhalt: 'x' })).toBe('kein_kontakt');
     expect(await halte({ art: 'notiz', richtung: 'intern', inhalt: 'x' })).toBe('ohne_bezug');
+  });
+
+  it('V-153: ein veränderter Kundenbezug legt keine verwaiste Notiz an', async () => {
+    const kBau = await kunde(f.bau, 'Bauherr Spandau');
+    const halte = (e: Parameters<typeof halteFest>[1]) => crmFehler(
+      alsIntern(f.reinigung, (tx) => halteFest(kontextAus(tx, f.reinigung), e)));
+    /*
+     * `lead_aktivitaet.kunde_id` trägt keinen Fremdschlüssel (0017). Vorher
+     * entstand hier eine Zeile im Mandanten der Sitzung mit der Kennung eines
+     * Kunden der Bau-GmbH — und eine mit einer Kennung, die es gar nicht gibt.
+     */
+    expect(await halte({ kundeId: kBau, art: 'notiz', richtung: 'intern', inhalt: 'x' }))
+      .toBe('kein_kunde');
+    expect(await halte({ kundeId: '00000000-0000-4000-8000-000000000000', art: 'notiz',
+      richtung: 'intern', inhalt: 'x' })).toBe('kein_kunde');
+    // Keine UUID: vorher 22P02 am `::uuid`, also 500 — jetzt ein Satz.
+    expect(await halte({ kundeId: 'kein-bezug', art: 'notiz', richtung: 'intern', inhalt: 'x' }))
+      .toBe('ungueltiger_bezug');
+    expect(await halte({ ansprechpartnerId: 'x', art: 'notiz', richtung: 'intern', inhalt: 'x' }))
+      .toBe('ungueltiger_bezug');
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from lead_aktivitaet
+        where mandant_id = $1 and kunde_id = $2`, [f.reinigung, kBau]);
+    expect(n?.n).toBe(0);
   });
 });

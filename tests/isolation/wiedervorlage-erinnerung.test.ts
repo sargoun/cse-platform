@@ -14,6 +14,8 @@
  * das, was hier grün oder rot macht — nicht eine Hilfsfunktion, die als
  * Eigentümer schreibt (V-119 war genau dieser Fehler eine Tabelle weiter).
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
 import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
@@ -186,9 +188,17 @@ describe('§2 was der Lauf NICHT nimmt', () => {
   });
 });
 
-describe('§3 ohne Konto wird der Anspruch zurückgegeben, ohne Menschen nicht', () => {
-  it('ein stillgelegtes Konto: nicht zugestellt, erinnert_am wieder NULL', async () => {
+describe('§3 ohne berechtigten Menschen wird nichts beansprucht, ohne Menschen schon', () => {
+  /** Die Zeilenversion — sie ändert sich mit jedem `update`, auch mit einem, das zurücknimmt. */
+  async function version(id: string): Promise<string> {
+    const [z] = await sql.unsafe<{ v: string }[]>(
+      `select xmin::text as v from lead_aktivitaet where id = $1`, [id]);
+    return z!.v;
+  }
+
+  it('ein stillgelegtes Konto: nicht zugestellt, nicht beansprucht — und kein Hin und Her', async () => {
     const still = await konto();
+    await mitgliedschaft(still, f.reinigung);
     await sql.unsafe(
       `update benutzer set status = 'deaktiviert', deaktiviert_am = now() where id = $1`,
       [still]);
@@ -197,11 +207,66 @@ describe('§3 ohne Konto wird der Anspruch zurückgegeben, ohne Menschen nicht',
       mandantId: f.reinigung, kundeId: k, zustaendig: still, ersteller: still,
       faelligInMin: 60, erinnerungInMin: -5,
     });
+    const vorher = await version(id);
 
     const bericht = await laufe(sql, f.reinigung);
     expect(bericht.zugestellt).toBe(0);
-    expect(bericht.ohneKonto).toBe(1);
+    expect(bericht.faellig).toBe(0);
+    expect(bericht.wartend).toBe(1);
+    expect(bericht.ohneKonto).toBe(0);
     expect(await erinnert(id)).toBe(false);
+    /*
+     * V-153: vorher nahm jeder Lauf den Anspruch und gab ihn zurück — zwei
+     * Schreibvorgänge alle fünfzehn Minuten, ohne Ende. Jetzt bleibt die
+     * Zeile unberührt, auch über zwei Läufe.
+     */
+    await laufe(sql, f.reinigung);
+    expect(await version(id)).toBe(vorher);
+
+    // Wird das Konto wieder aktiv, kommt die Erinnerung noch an (D-640). Eine
+    // Rolle mit Faktorpflicht wird nur mit eingerichtetem Faktor aktiv (AUT-02).
+    await sql.unsafe(`insert into auth.mfa_factors (user_id) values ($1)`, [still]);
+    await sql.unsafe(
+      `update benutzer set status = 'aktiv', deaktiviert_am = null where id = $1`, [still]);
+    expect((await laufe(sql, f.reinigung)).zugestellt).toBe(1);
+    expect(await erinnert(id)).toBe(true);
+  });
+
+  it('ein Zuständiger ohne Zugang zu diesem Bereich: die Erinnerung geht an den Anlegenden', async () => {
+    // Ein aktives Konto — aber ohne Mitgliedschaft in der Reinigung, also ohne `crm.lesen` dort.
+    const fremd = await konto();
+    await mitgliedschaft(fremd, f.security);
+    const k = await kunde(f.reinigung);
+    const id = await wiedervorlage({
+      mandantId: f.reinigung, kundeId: k, zustaendig: fremd, ersteller: chef,
+      faelligInMin: 60, erinnerungInMin: -5,
+    });
+
+    const bericht = await laufe(sql, f.reinigung);
+    expect(bericht.zugestellt).toBe(1);
+    expect(await meldungen(fremd)).toHaveLength(0);
+    const [m] = await meldungen(chef);
+    expect(m?.objekt_id).toBe(id);
+    // Der Text sagt, warum — und das Ziel zeigt alle, denn „nur meine" zeigte sie ihm nicht.
+    expect(m?.text).toContain('Sie haben diese Wiedervorlage angelegt');
+    expect(m?.text).toContain('keinen Zugang zum CRM');
+    expect(m?.ziel).toBe('/portal/reinigung/crm/wiedervorlagen?wer=alle');
+  });
+
+  it('der Zuständige bekommt den Satz des Zuständigen — nicht „Sie haben gebeten"', async () => {
+    const zustaendig = await konto();
+    await mitgliedschaft(zustaendig, f.reinigung);
+    const k = await kunde(f.reinigung);
+    await wiedervorlage({
+      mandantId: f.reinigung, kundeId: k, zustaendig, ersteller: chef,
+      faelligInMin: 60, erinnerungInMin: -5,
+    });
+    expect((await laufe(sql, f.reinigung)).zugestellt).toBe(1);
+    expect(await meldungen(chef)).toHaveLength(0);
+    const [m] = await meldungen(zustaendig);
+    expect(m?.text).toContain('Sie sind für diese Wiedervorlage als zuständig eingetragen.');
+    expect(m?.text).not.toContain('gebeten');
+    expect(m?.ziel).toBe('/portal/reinigung/crm/wiedervorlagen');
   });
 
   it('weder zuständig noch Ersteller: gezählt, und der Anspruch bleibt', async () => {
@@ -273,5 +338,41 @@ describe('§5 die Rolle des Laufs ist eng (0405)', () => {
       await tx.unsafe(`select set_config('app.mandant_ids', $1, true)`, [f.reinigung]);
       return tx.unsafe(`update lead_aktivitaet set erledigt_am = now() where id = $1`, [id]);
     })).rejects.toThrow(/permission denied/u);
+  });
+});
+
+describe('§6 der Altbestand (0406): nachgeholt wird nur, was vor seiner Wiedervorlage liegt', () => {
+  it('die Regel der Migration — überfällige Wiedervorlage gestempelt, künftige zugestellt', async () => {
+    const k = await kunde(f.reinigung);
+    // Beide Erinnerungen lagen vor dem Lauf; die eine Wiedervorlage ist vorbei, die andere nicht.
+    const vorbei = await wiedervorlage({
+      mandantId: f.reinigung, kundeId: k, zustaendig: chef, ersteller: chef,
+      faelligInMin: -3 * 24 * 60, erinnerungInMin: -3 * 24 * 60 - 60,
+    });
+    const kommt = await wiedervorlage({
+      mandantId: f.reinigung, kundeId: k, zustaendig: chef, ersteller: chef,
+      faelligInMin: 2 * 24 * 60, erinnerungInMin: -24 * 60,
+    });
+    const erledigt = await wiedervorlage({
+      mandantId: f.reinigung, kundeId: k, zustaendig: chef, ersteller: chef,
+      faelligInMin: -60, erinnerungInMin: -120, erledigt: true,
+    });
+
+    // Die Anweisung AUS der Migration, nicht eine Abschrift.
+    const datei = readFileSync(
+      resolve(import.meta.dirname, '../../drizzle/0406_erinnerung_altbestand.sql'), 'utf8');
+    const anweisung = /update lead_aktivitaet[\s\S]*?;/u.exec(datei)?.[0];
+    expect(anweisung).toBeDefined();
+    await sql.unsafe(anweisung!);
+
+    expect(await erinnert(vorbei)).toBe(true);
+    expect(await erinnert(kommt)).toBe(false);
+    expect(await erinnert(erledigt)).toBe(false);
+
+    // Der erste Lauf danach stellt genau die eine zu, deren Termin noch kommt.
+    const bericht = await laufe(sql, f.reinigung);
+    expect(bericht.zugestellt).toBe(1);
+    const liste = await meldungen(chef);
+    expect(liste.map((m) => m.objekt_id)).toEqual([kommt]);
   });
 });

@@ -1,6 +1,7 @@
 import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { CrmFehler } from './anlegen.js';
+import { istUuid } from '../../../lib/uuid.js';
 
 /**
  * Der Kommunikationsverlauf eines Kunden und eines Ansprechpartners
@@ -301,7 +302,7 @@ export interface NeueNotiz {
   readonly ansprechpartnerId?: string | undefined;
   readonly art: string;
   readonly richtung: string;
-  /** Nur bei ein- und ausgehend; Vorgabe `vertraglich`. */
+  /** Nur bei ein- und ausgehend — und dort Pflicht, ohne Vorgabe (V-153, D-647). */
   readonly zweck?: string | undefined;
   readonly betreff?: string | undefined;
   readonly inhalt: string;
@@ -342,7 +343,18 @@ export function planeNotiz(eingabe: NeueNotiz): NotizPlan {
   }
   const kanal = KANAL_DER_ART[eingabe.art];
   const richtung: Richtung = kanal === null ? 'intern' : eingabe.richtung;
-  const zweckRoh = eingabe.zweck ?? 'vertraglich';
+  /*
+   * **Der Zweck ist eine Wahl, keine Vorgabe** (V-153, D-647). Hier stand
+   * `eingabe.zweck ?? 'vertraglich'`, und das Formular wählte `vertraglich`
+   * vor — die offenste Klasse des UWG-Tors, denn `vertraglich` sperrt es nie.
+   * Wer nicht aktiv „Werbung" wählte, erzeugte einen § 7-Beleg „vertraglich".
+   * Bei ein- und ausgehenden Einträgen muss der Mensch den Zweck nennen.
+   */
+  if (richtung !== 'intern' && eingabe.zweck === undefined) {
+    throw new CrmFehler('Wählen Sie den Zweck — bei ein- und ausgehenden Einträgen steht er '
+      + 'im § 7-Beleg, und eine Vorgabe entscheidet ihn nicht.', 'ohne_zweck');
+  }
+  const zweckRoh = eingabe.zweck ?? '';
   if (richtung !== 'intern' && !istAus(ZWECKE, zweckRoh)) {
     throw new CrmFehler('Diesen Zweck gibt es nicht.', 'unbekannter_zweck');
   }
@@ -387,9 +399,35 @@ export async function halteFest(
     throw new CrmFehler('Eine Notiz hängt an einem Kunden oder an einem Ansprechpartner.',
       'ohne_bezug');
   }
+  /*
+   * **Die Kennungen kommen aus versteckten Feldern** (V-153). Eine, die keine
+   * UUID ist, endete am `::uuid` als 22P02 und damit als 500; jetzt ist sie
+   * ein Satz auf dem Blatt.
+   */
+  for (const kennung of [eingabe.kundeId, eingabe.ansprechpartnerId]) {
+    if (kennung !== undefined && !istUuid(kennung)) {
+      throw new CrmFehler('Dieser Bezug ist ungültig.', 'ungueltiger_bezug', 400);
+    }
+  }
 
   let kundeId = eingabe.kundeId ?? null;
   const ansprechpartnerId = eingabe.ansprechpartnerId ?? null;
+  /*
+   * **Der Kunde muss in DIESEM Bereich stehen** (V-153). `lead_aktivitaet.
+   * kunde_id` trägt keinen Fremdschlüssel (0017); ein verändertes Feld legte
+   * eine Notiz mit der Kennung eines fremden oder gar keines Kunden an —
+   * unsichtbar für beide, und doch ein Eintrag im § 7-Beleg. Gefragt wird mit
+   * dem Mandanten der Sitzung, nicht nur über die Policy (Invariante 3).
+   */
+  if (kundeId !== null) {
+    const [k] = await kontext.abfrage<{ id: string }>(
+      `select id from kunde
+        where mandant_id = app.aktiver_mandant() and id = $1::uuid
+          and archiviert_am is null`, [kundeId]);
+    if (k === undefined) {
+      throw new CrmFehler('Diesen Kunden gibt es hier nicht.', 'kein_kunde', 404);
+    }
+  }
   if (ansprechpartnerId !== null) {
     const [ap] = await kontext.abfrage<{ kunde_id: string | null }>(
       `select kunde_id from ansprechpartner

@@ -20,6 +20,8 @@ import type { InternSprache } from '../intern.js';
 
 export interface RecruitingRueckmeldungTexte {
   readonly nichtGespeichert: string;
+  /** Die Überschrift, wenn der Versuch vermerkt ist, aber nichts hinausging (V-153). */
+  readonly nichtVeroeffentlicht: string;
   readonly abgewiesen: string;
   readonly eingabenErneut: string;
   readonly bewertung: Readonly<Record<string, string>>;
@@ -32,6 +34,7 @@ export interface RecruitingRueckmeldungTexte {
 export const RECRUITING_RUECKMELDUNG: Readonly<Record<InternSprache, RecruitingRueckmeldungTexte>> = {
   de: {
     nichtGespeichert: 'Nicht gespeichert.',
+    nichtVeroeffentlicht: 'Nicht veröffentlicht.',
     abgewiesen: 'Der Vorgang wurde abgewiesen.',
     eingabenErneut: 'Die Eingaben sind nicht übernommen — bitte erneut eintragen.',
     bewertung: {
@@ -83,6 +86,7 @@ export const RECRUITING_RUECKMELDUNG: Readonly<Record<InternSprache, RecruitingR
   },
   en: {
     nichtGespeichert: 'Not saved.',
+    nichtVeroeffentlicht: 'Not published.',
     abgewiesen: 'The request was refused.',
     eingabenErneut: 'Your entries were not kept — please enter them again.',
     bewertung: {

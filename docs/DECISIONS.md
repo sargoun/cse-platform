@@ -15572,6 +15572,10 @@ keine; die Wiedervorlage erschien nur, wenn jemand von sich aus die Liste
    aktiviertes Konto bekommt die Erinnerung noch. Steht gar kein Mensch an der
    Zeile, bleibt der Anspruch stehen, und die Zahl steht im Laufbericht
    (`ohneEmpfaenger`); da kann sich nichts mehr ändern.
+   *Nachgeschärft durch D-647 (V-153):* Empfänger ist nur, wer `crm.lesen`
+   in diesem Bereich hält; ohne einen solchen wird die Zeile gar nicht erst
+   beansprucht (`wartend`), statt den Anspruch alle fünfzehn Minuten zu
+   nehmen und zurückzugeben.
 3. **Alle fünfzehn Minuten, je Mandant** (`wiedervorlage_erinnerung`,
    `*/15 * * * *`). Das Formular nimmt eine Uhrzeit auf die Minute; ein
    stündlicher Lauf brächte „08:05“ um 09:00. Die Auswahl ist ein einziges
@@ -15627,7 +15631,8 @@ belegen soll. Eine Notiz ließ sich nur an einen Lead hängen.
    `POST /api/crm/notiz` (nicht `/api/lead`, die dem Leadblatt gehört und den
    nächsten Schritt am Lead setzt). Art Notiz/Anruf/E-Mail/Termin, Richtung,
    und bei ein- und ausgehend der **Zweck, den der Mensch wählt**
-   (vertraglich/transaktional/Werbung, Vorgabe vertraglich). Eine Notiz
+   (vertraglich/transaktional/Werbung, Vorgabe vertraglich — *ersetzt durch
+   D-647: Pflichtwahl ohne Vorauswahl*). Eine Notiz
    bleibt immer intern. Ein ausgehender Anruf oder eine ausgehende E-Mail
    verlangt einen Ansprechpartner; ob er kontaktiert werden durfte, prüft das
    unveränderte UWG-Tor der Datenbank (0020) gegen den lebenden Kontakt —
@@ -15885,4 +15890,77 @@ Wiedervorlagen. Die Kachel „Offene Wiedervorlagen“ führt in der Gruppe weit
 auf die Leadliste; `lead_aktivitaet` hat keinen Gruppenleseweg (O-910).
 
 | Betrifft | DSH-01, DSH-04, AUT-06, D-592, D-643, D-644, V-149, V-150, V-152, `src/server/services/bericht/{listen,mengen,kacheln}.ts`, `src/server/services/gruppe/uebersicht.ts`, `src/app/portal/gruppe/{page,auftraege/page,angebote/page,leads/page}.tsx`, `src/app/portal/[mandant]/{auftraege/page,angebote/page,crm/leads/page}.tsx`, `src/lib/i18n/verwaltung/kennzahlen.ts`, `scripts/guards/uebersetzung-ausnahmen.ts`, `tests/kern/{kennzahlen-ziele,verweis-rechte}.test.ts`, `tests/isolation/kennzahlen-listen.test.ts`, `tests/e2e/gruppe.spec.ts` |
+|---|---|
+
+### D-647 · CRM-Pflege nachgeschärft: Erinnerung nur an Berechtigte und ohne Altlast, geprüfte Bezüge, Zweck ohne Vorgabe, ehrliche Rückmeldungen (V-153)
+
+**Der Befund** (V-153; Nachprüfung von V-146, V-147, V-148): (1) 0405 füllte
+`erinnert_am` für den Altbestand nicht vor — der erste Lauf nach dem
+Einspielen hätte jede offene Wiedervorlage mit längst vergangener Erinnerung
+auf einmal zugestellt, per E-Mail, sobald ein Versender verbunden ist; der
+Seed hat eine solche Zeile. (2) Der Lauf prüfte den Empfänger weder auf
+Mitgliedschaft noch auf `crm.lesen` — der Betreff ging trotzdem in
+Posteingang und E-Mail —, ein stillgelegtes Konto liess den Anspruch alle
+fünfzehn Minuten nehmen und zurückgeben, ohne Ende, und der Text „Sie haben
+um eine Erinnerung gebeten“ war falsch, wenn Zuständiger und Anlegender
+verschiedene Menschen sind. (3) `halteFest` prüfte `kundeId` nicht gegen den
+Mandanten (`lead_aktivitaet.kunde_id` hat keinen Fremdschlüssel), dasselbe
+Muster in `legeWiedervorlageAn`; eine Kennung ohne UUID-Form endete als 500.
+(4) Der Zweck einer Notiz war vorgewählt `vertraglich` — die Klasse, die das
+UWG-Tor nie sperrt. (5) Ohne `crm.schreiben` zeigten Kunden- und Kontaktblatt
+weder Formular noch Satz. (6) Das Kundenblatt setzte als Rückfall den Text aus
+`?meldung=` in seinen Warnkasten. (7) Die Recruiting-Rückmeldung überschrieb
+einen vermerkten Veröffentlichungsversuch mit „Nicht gespeichert.“.
+
+**Die Entscheidung.**
+
+1. **Der Altbestand wird nicht nachgeholt, wo seine Wiedervorlage schon fällig
+   ist** (`drizzle/0406`). Eine Erinnerung ist ein Hinweis VOR einem Termin;
+   liegt die Fälligkeit selbst in der Vergangenheit, steht die Wiedervorlage
+   überfällig in Liste und Übersicht, und eine Meldung Tage danach wäre nur
+   Lärm. Diese Zeilen werden gestempelt, ohne Zustellung. Liegt die
+   Fälligkeit noch vor uns, bekommt die Erinnerung der erste Lauf — spät, aber
+   vor dem Termin. Der Seed folgt derselben Regel.
+2. **Empfänger ist nur, wer die Wiedervorlage lesen darf**
+   (`kern.traeger_des_rechts(mandant, 'crm.lesen')`: aktive Menschenkonten mit
+   dem Recht in DIESEM Bereich, dieselbe Auflösung wie `app.hat_recht`).
+   Zuerst der Zuständige, sonst wer sie angelegt hat. Darf keiner von beiden,
+   wird die Zeile nicht beansprucht: sie wartet ohne Schreibvorgang, bis wieder
+   jemand berechtigt ist (ein wieder aktiviertes Konto bekommt sie noch,
+   D-640), und steht als `wartend` im Laufbericht. Das Zurückgeben des
+   Anspruchs bleibt nur für das Fenster zwischen Auswahl und Zustellung.
+3. **Der Text sagt, warum die Meldung an diesen Menschen geht** — „als
+   zuständig eingetragen“ oder „angelegt; zuständig ist niemand“ bzw. „der
+   eingetragene Zuständige hat hier keinen Zugang zum CRM“. Geht sie an den
+   Anlegenden, führt sie auf `/crm/wiedervorlagen?wer=alle`: die Vorgabe
+   „nur meine“ zeigte sie ihm nicht.
+4. **Bezüge werden vor dem Schreiben geprüft**, mit dem Mandanten der Sitzung
+   in der Abfrage (Invariante 3): Kunde, Lead, Ansprechpartner müssen hier
+   stehen, eine Kennung ohne UUID-Form ist `ungueltiger_bezug`, und zuständig
+   kann nur sein, wer das CRM hier lesen darf (`zustaendig_ohne_zugang`) —
+   dieselbe Frage wie im Lauf. Ein Fremdschlüssel auf
+   `lead_aktivitaet.kunde_id` kommt NICHT dazu: der Bestand wurde nie
+   geprüft, und eine Migration, die an einer verwaisten Zeile scheitert, hielte
+   jedes Einspielen an; die Dienste sind die einzigen Schreiber.
+5. **Der Zweck ist eine Pflichtwahl ohne Vorauswahl** bei ein- und ausgehenden
+   Einträgen (`ohne_zweck`); eine interne Notiz braucht keinen. Damit gibt es
+   keine Vorgabe, nach der zu fragen wäre — D-641 Punkt 4 („Vorgabe
+   vertraglich“) ist hiermit ersetzt.
+6. **Formular ODER Satz**: ohne `crm.schreiben` steht „Festhalten kann, wer
+   dieses Recht hält: …“ (`NotizKeinRecht`).
+7. **Nie Text aus der Adresse im Warnkasten**: das Kundenblatt übersetzt
+   bekannte Schlüssel, alles andere wird „Der Vorgang wurde abgewiesen.“ —
+   dasselbe wie `grundAus` im Recruiting.
+8. **„Nicht veröffentlicht.“ statt „Nicht gespeichert.“**, wo der Versuch
+   vermerkt ist (`kanal_nicht_verbunden`, `veroeffentlichung_fehlgeschlagen`):
+   gespeichert ist der Vermerk, hinausgegangen ist nichts.
+
+**Nicht Teil dieser Entscheidung:** das Formular „Nachricht senden“ auf dem
+Kontaktblatt (V-101) wählt seinen Zweck weiter `vertraglich` vor; es gehört
+nicht zu diesem Befund und wird hier nicht nebenbei geändert. Ebenso zeigen
+Leadblatt, Kontaktblatt und Wiedervorlagenliste weiter den Satz, den ihre
+Routen als `?meldung=` schicken — ein älteres Muster, das eine eigene
+Durchsicht braucht.
+
+| Betrifft | CRM-03, CRM-04, LEG-08, NOT-01, D-562, D-599, D-640, D-641, D-642, V-146, V-147, V-148, V-153, `drizzle/0406`, `src/server/jobs/wiedervorlageErinnerung.ts`, `src/server/services/crm/{benachrichtigung,verlauf,wiedervorlage}.ts`, `src/server/db/seed/crm.ts`, `src/components/portal/Kommunikationsverlauf.tsx`, `src/app/portal/[mandant]/crm/{kunden,kontakte}/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/rueckmeldung.tsx`, `src/lib/i18n/verwaltung/{crm-verlauf,crm-kunde,recruiting-rueckmeldung}.ts`, `tests/kern/crm-notiz-route.test.ts` |
 |---|---|

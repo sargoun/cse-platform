@@ -321,6 +321,20 @@ export async function seedCrm(
                  ::timestamp at time zone 'Europe/Berlin')`;
           wiedervorlagen += 1;
         }
+        /*
+         * **Dieselbe Regel wie 0406 für den Altbestand** (V-153, D-647): eine
+         * Erinnerung, deren Wiedervorlage beim Säen schon fällig ist, gilt als
+         * vergangen und wird nicht nachgeholt. Ohne diese Zeile stellte der
+         * erste Lauf nach dem Seed die Erinnerung an die überfällige Zeile
+         * (−3 Tage) zu — eine Meldung zu einem Termin von vorgestern. Die
+         * künftigen bekommt der Lauf zu ihrer Zeit.
+         */
+        await sql`
+          update lead_aktivitaet set erinnert_am = now()
+           where mandant_id = ${reinigung}
+             and erinnerung_am is not null and erinnerung_am <= now()
+             and faellig_am is not null and faellig_am <= now()
+             and erinnert_am is null and erledigt_am is null`;
       }
 
       // ---------------------------------------------------------------------

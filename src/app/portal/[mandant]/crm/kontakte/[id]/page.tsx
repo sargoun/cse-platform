@@ -25,7 +25,7 @@ import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import { Recht } from '@/components/ui/Recht';
 import { kanalVerbunden } from '@/server/services/crm/nachricht-an-kontakt';
 import {
-  Kommunikationsverlauf, NotizFormular, NotizRueckmeldung,
+  Kommunikationsverlauf, NotizFormular, NotizKeinRecht, NotizRueckmeldung,
 } from '@/components/portal/Kommunikationsverlauf';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { VERLAUF_TEXTE } from '@/lib/i18n/verwaltung/crm-verlauf';
@@ -669,7 +669,9 @@ export default async function Kontaktblatt(
           darfNachrichten={darf['nachricht.lesen'] === true}
           grenze={VERLAUF_GRENZE}
         />
-        {darf['crm.schreiben'] !== true ? null : kopf.kunde_id === null ? (
+        {darf['crm.schreiben'] !== true ? (
+          <NotizKeinRecht sprache={zugang.sprache} />
+        ) : kopf.kunde_id === null ? (
           <p className="mt-s4 max-w-prose text-sm text-text-muted" data-cse="notiz-ohne-kunde">
             {tv.notizOhneKunde}
           </p>

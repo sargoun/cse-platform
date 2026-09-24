@@ -20,12 +20,24 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import * as React from 'react';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { RECRUITING_RUECKMELDUNG } from '../../src/lib/i18n/verwaltung/recruiting-rueckmeldung.js';
 import { KUNDE_RUECKMELDUNG } from '../../src/lib/i18n/verwaltung/crm-kunde.js';
-import { grundAus } from '../../src/app/portal/[mandant]/recruiting/rueckmeldung.js';
+import {
+  grundAus, RecruitingRueckmeldung, VERMERKTE_GRUENDE,
+} from '../../src/app/portal/[mandant]/recruiting/rueckmeldung.js';
+import { NotizKeinRecht } from '../../src/components/portal/Kommunikationsverlauf.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
+/*
+ * Die Bauteile sind `.tsx` mit der klassischen JSX-Umwandlung dieses
+ * Testläufers — sie erwarten `React` im Geltungsbereich. Nur für das Rendern
+ * der Rückmeldungen unten (V-153).
+ */
+(globalThis as { React?: typeof React }).React = React;
 const lies = (pfad: string): string => readFileSync(resolve(WURZEL, pfad), 'utf8');
 
 /** Die Gründe, die ein Quelltext als `RecruitingFehler`/`CrmFehler` oder als `grund:` nennt. */
@@ -69,6 +81,24 @@ describe('(a) die vier Recruiting-Seiten lesen ihren Rückweg', () => {
     expect(quelle).toContain('VeroeffentlichtHinweis');
     expect(lies('src/app/api/recruiting/stellen/[id]/veroeffentlichen/route.ts'))
       .toContain('?gesendet=1');
+  });
+
+  it('V-153: ein vermerkter Versuch heisst „Nicht veröffentlicht." — nicht „Nicht gespeichert."', () => {
+    const html = (grund: string, sprache: 'de' | 'en' = 'de'): string => renderToStaticMarkup(
+      createElement(RecruitingRueckmeldung, { sprache, seite: 'veroeffentlichung', grund }));
+    // Geschrieben ist geschrieben (`api/recruiting/gemeinsam.ts`): der Versuch steht im Vermerk.
+    for (const grund of ['kanal_nicht_verbunden', 'veroeffentlichung_fehlgeschlagen']) {
+      expect(VERMERKTE_GRUENDE.veroeffentlichung?.has(grund)).toBe(true);
+      expect(html(grund)).toContain('Nicht veröffentlicht.');
+      expect(html(grund)).not.toContain('Nicht gespeichert.');
+      expect(html(grund)).toContain('vermerkt');
+      expect(html(grund, 'en')).toContain('Not published.');
+    }
+    // Eine Abweisung vor dem Schreiben bleibt „Nicht gespeichert.".
+    expect(html('geschlossen')).toContain('Nicht gespeichert.');
+    expect(renderToStaticMarkup(createElement(RecruitingRueckmeldung,
+      { sprache: 'de', seite: 'bewertung', grund: 'ohne_begruendung' })))
+      .toContain('Nicht gespeichert.');
   });
 
   it('grundAus nimmt nur einen Schlüssel — nie Markup oder einen Satz', () => {
@@ -134,7 +164,22 @@ describe('(c) das Kundenblatt liest die Abweisung des Kontaktformulars', () => {
     const seite = lies('src/app/portal/[mandant]/crm/kunden/[id]/page.tsx');
     expect(seite).toContain('searchParams');
     expect(seite).toContain('cse="kunde-meldung"');
-    expect(seite).toContain('open={meldung !== null}');
+    expect(seite).toContain('open={abgewiesen}');
+  });
+
+  it('V-153: nie Text aus der Adresse im Warnkasten — ein unbekannter Grund wird ein allgemeiner Satz', () => {
+    /*
+     * Der Rückfall war `?? meldung`: der Satz aus `?meldung=` stand im
+     * Warnkasten des Portals, also jeder Text, den ein Verweis mitbringt.
+     */
+    const seite = lies('src/app/portal/[mandant]/crm/kunden/[id]/page.tsx');
+    expect(seite).not.toMatch(/\?\?\s*meldung\b/u);
+    expect(seite).not.toMatch(/\{meldung\}/u);
+    expect(seite).toContain('tk.kontaktFehler[meldungGrund]');
+    expect(seite).toContain('tk.abgewiesen');
+    for (const sprache of ['de', 'en'] as const) {
+      expect(KUNDE_RUECKMELDUNG[sprache].abgewiesen).toBeTruthy();
+    }
   });
 
   it('jeder Grund von legeKontaktAn hat einen Satz in beiden Sprachen', () => {
@@ -147,5 +192,20 @@ describe('(c) das Kundenblatt liest die Abweisung des Kontaktformulars', () => {
         expect(KUNDE_RUECKMELDUNG[sprache].kontaktFehler[g], `${sprache}: ${g}`).toBeTruthy();
       }
     }
+  });
+});
+
+describe('V-153: ohne `crm.schreiben` steht ein Satz, kein leerer Platz', () => {
+  it('Kunden- und Kontaktblatt zeigen den Satz statt des Formulars', () => {
+    const html = renderToStaticMarkup(createElement(NotizKeinRecht, { sprache: 'de' }));
+    expect(html).toContain('data-cse="notiz-kein-recht"');
+    expect(html).toContain('Festhalten kann, wer dieses Recht hält:');
+    expect(html).toContain('data-recht="crm.schreiben"');
+    expect(renderToStaticMarkup(createElement(NotizKeinRecht, { sprache: 'en' })))
+      .toContain('Recording requires this right:');
+    expect(lies('src/app/portal/[mandant]/crm/kunden/[id]/page.tsx'))
+      .toContain('<NotizKeinRecht sprache={zugang.sprache} />');
+    expect(lies('src/app/portal/[mandant]/crm/kontakte/[id]/page.tsx'))
+      .toContain('<NotizKeinRecht sprache={zugang.sprache} />');
   });
 });

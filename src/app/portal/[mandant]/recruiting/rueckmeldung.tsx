@@ -17,6 +17,20 @@ import type { PortalSprache } from '@/lib/i18n/texte';
 export type RueckmeldungSeite = keyof Pick<RecruitingRueckmeldungTexte,
   'bewertung' | 'entscheidung' | 'stelleNeu' | 'veroeffentlichung'>;
 
+/**
+ * Gründe, bei denen der Versuch GESCHRIEBEN ist (V-153).
+ *
+ * `fuehreRecruitingAus` schreibt zuerst und antwortet danach („Geschrieben ist
+ * geschrieben", `api/recruiting/gemeinsam.ts`): eine Börse, die nicht
+ * verbunden ist oder den Versuch ablehnt, hinterlässt einen Vermerk mit Datum
+ * und Grund. Über diesen Sätzen stand trotzdem „Nicht gespeichert." — und der
+ * Satz darunter sagte „vermerkt". Für sie gilt die Überschrift „Nicht
+ * veröffentlicht.": gespeichert ist der Versuch, hinausgegangen ist nichts.
+ */
+export const VERMERKTE_GRUENDE: Readonly<Partial<Record<RueckmeldungSeite, ReadonlySet<string>>>> = {
+  veroeffentlichung: new Set(['kanal_nicht_verbunden', 'veroeffentlichung_fehlgeschlagen']),
+};
+
 /** Der Grund aus den Suchparametern — ein Schlüssel oder nichts. */
 export function grundAus(
   suche: Readonly<Record<string, string | string[] | undefined>>,
@@ -34,9 +48,11 @@ export function RecruitingRueckmeldung({ sprache, seite, grund, eingabenErneut =
 }) {
   if (grund === null) return null;
   const t = nachSprache(RECRUITING_RUECKMELDUNG, sprache);
+  const vermerkt = VERMERKTE_GRUENDE[seite]?.has(grund) === true;
   return (
     <Hinweis art="warnung" cse="recruiting-rueckmeldung" className="mb-s5 max-w-prose">
-      <strong>{t.nichtGespeichert}</strong> {t[seite][grund] ?? t.abgewiesen}
+      <strong>{vermerkt ? t.nichtVeroeffentlicht : t.nichtGespeichert}</strong>{' '}
+      {t[seite][grund] ?? t.abgewiesen}
       {eingabenErneut ? <span className="mt-s2 block">{t.eingabenErneut}</span> : null}
     </Hinweis>
   );

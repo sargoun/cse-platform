@@ -1,6 +1,7 @@
 import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { CrmFehler } from './anlegen.js';
+import { istUuid } from '../../../lib/uuid.js';
 
 /**
  * Wiedervorlagen (CRM-04) — die Arbeitsliste des Vertriebs.
@@ -228,6 +229,70 @@ export interface NeueWiedervorlage {
  * Serverzeit (der Auslöser `kern.erzwinge_serverzeit_geschehen` erzwingt es),
  * `faellig_am` ist die Eingabe.
  */
+/**
+ * Die Kennungen des Formulars — geprüft, BEVOR geschrieben wird (V-153).
+ *
+ * Sie kommen aus versteckten Feldern und einer Auswahl, und sie landen in
+ * `lead_aktivitaet`, deren `kunde_id` und `ansprechpartner_id` keinen
+ * Fremdschlüssel tragen (0017). Ein verändertes Feld legte eine Wiedervorlage
+ * an einem fremden oder gar keinem Kunden an; eine Kennung, die keine UUID
+ * ist, endete am `::uuid` als 500. Gefragt wird mit dem Mandanten der
+ * Sitzung, nicht nur über die Policy (Invariante 3). Und zuständig kann nur
+ * sein, wer die Wiedervorlage hier lesen darf — dieselbe Frage, die der
+ * Erinnerungslauf stellt (`kern.traeger_des_rechts`, D-647): eine Zuweisung
+ * an jemanden ohne `crm.lesen` in diesem Bereich wäre eine Wiedervorlage,
+ * die ihr Zuständiger nie sieht.
+ */
+async function pruefeBezuege(kontext: SchreibKontext, e: NeueWiedervorlage): Promise<void> {
+  for (const kennung of [e.leadId, e.kundeId, e.ansprechpartnerId, e.zustaendigBenutzerId]) {
+    if (kennung !== undefined && !istUuid(kennung)) {
+      throw new CrmFehler('Dieser Bezug ist ungültig. Öffnen Sie das Blatt neu.',
+        'ungueltiger_bezug', 400);
+    }
+  }
+  const [z] = await kontext.abfrage<{
+    lead_da: boolean | null; kunde_da: boolean | null; kontakt_kunde: string | null;
+    kontakt_da: boolean | null; zustaendig_darf: boolean | null;
+  }>(
+    `select case when $1::uuid is null then null else exists (
+              select 1 from lead where mandant_id = app.aktiver_mandant() and id = $1::uuid)
+            end as lead_da,
+            case when $2::uuid is null then null else exists (
+              select 1 from kunde where mandant_id = app.aktiver_mandant() and id = $2::uuid
+                                   and archiviert_am is null)
+            end as kunde_da,
+            case when $3::uuid is null then null else exists (
+              select 1 from ansprechpartner
+               where mandant_id = app.aktiver_mandant() and id = $3::uuid
+                 and archiviert_am is null)
+            end as kontakt_da,
+            (select kunde_id::text from ansprechpartner
+              where mandant_id = app.aktiver_mandant() and id = $3::uuid) as kontakt_kunde,
+            case when $4::uuid is null then null
+                 else $4::uuid = any (kern.traeger_des_rechts(app.aktiver_mandant(), 'crm.lesen'))
+            end as zustaendig_darf`,
+    [e.leadId ?? null, e.kundeId ?? null, e.ansprechpartnerId ?? null,
+      e.zustaendigBenutzerId ?? null]);
+  if (z?.lead_da === false) {
+    throw new CrmFehler('Diesen Lead gibt es hier nicht.', 'kein_lead', 404);
+  }
+  if (z?.kunde_da === false) {
+    throw new CrmFehler('Diesen Kunden gibt es hier nicht.', 'kein_kunde', 404);
+  }
+  if (z?.kontakt_da === false) {
+    throw new CrmFehler('Diesen Ansprechpartner gibt es hier nicht.', 'kein_kontakt', 404);
+  }
+  const kontaktKunde = z?.kontakt_kunde ?? null;
+  if (e.kundeId !== undefined && kontaktKunde !== null && kontaktKunde !== e.kundeId) {
+    throw new CrmFehler('Dieser Ansprechpartner gehört zu einem anderen Kunden.',
+      'fremder_kontakt');
+  }
+  if (z?.zustaendig_darf === false) {
+    throw new CrmFehler('Zuständig kann nur sein, wer in diesem Bereich das CRM lesen darf — '
+      + 'sonst sähe er die Wiedervorlage nie.', 'zustaendig_ohne_zugang');
+  }
+}
+
 export async function legeWiedervorlageAn(
   kontext: SchreibKontext, eingabe: NeueWiedervorlage,
 ): Promise<Spiegel> {
@@ -246,6 +311,7 @@ export async function legeWiedervorlageAn(
     throw new CrmFehler('Ohne Fälligkeit ist es eine Notiz und keine Wiedervorlage.',
       'ohne_frist');
   }
+  await pruefeBezuege(kontext, eingabe);
 
   const [akt] = await kontext.schreibe<{ id: string }>(
     `insert into lead_aktivitaet

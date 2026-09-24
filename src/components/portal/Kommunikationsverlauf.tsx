@@ -213,8 +213,16 @@ export function NotizFormular({
         </label>
         <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
           {t.notizZweck}
-          <select name="zweck" defaultValue="vertraglich" className={FELD}
+          {/*
+            * Keine Vorauswahl (V-153, D-647): stand hier `vertraglich`, wurde
+            * jeder Eintrag ohne aktive Wahl ein § 7-Beleg „vertraglich" — die
+            * Klasse, die das Sendetor nie sperrt. Bei ein- und ausgehend
+            * verlangt der Dienst die Wahl (`ohne_zweck`); bei einer internen
+            * Notiz bleibt das Feld leer, ohne JavaScript und ohne `required`.
+            */}
+          <select name="zweck" defaultValue="" className={FELD}
                   data-cse="notiz-zweck">
+            <option value="">{t.notizZweckLeer}</option>
             {['vertraglich', 'transaktional', 'werbung'].map((w) => (
               <option key={w} value={w}>{t.zwecke[w] ?? w}</option>
             ))}
@@ -250,6 +258,21 @@ export function NotizFormular({
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Statt des Formulars, wenn `crm.schreiben` fehlt — Formular ODER Satz, nie
+ * nichts (V-153). Ohne das Recht zeigten Kunden- und Kontaktblatt weder das
+ * eine noch das andere, und wer festhalten wollte, erfuhr nicht, warum er es
+ * nicht kann; der Satz stand in den Texten und wurde nirgends benutzt.
+ */
+export function NotizKeinRecht({ sprache }: { readonly sprache: PortalSprache | null }) {
+  const t = nachSprache(VERLAUF_TEXTE, sprache);
+  return (
+    <p className="mt-s4 max-w-prose text-sm text-text-muted" data-cse="notiz-kein-recht">
+      {t.notizKeinRecht} <Recht schluessel="crm.schreiben" sprache={sprache} />.
+    </p>
   );
 }
 

@@ -9,20 +9,25 @@
  * keinen Satz: das Formular war zu, die Eingaben weg, und es sah aus wie
  * gespeichert.
  *
- * Der Schlüssel (`?grund=`) wird übersetzt; der deutsche Satz der Route
- * (`?meldung=`) bleibt der Rückfall für einen Schlüssel, den diese Tabelle
- * nicht kennt — nie der Schlüssel selbst.
+ * Der Schlüssel (`?grund=`) wird übersetzt. Ein Schlüssel, den diese Tabelle
+ * nicht kennt, wird `abgewiesen` — nie der Schlüssel selbst und nie der Satz
+ * aus der Adresse (`?meldung=`): der wäre ein Weg, beliebigen Text in einen
+ * Warnkasten des Portals zu setzen (V-153).
  */
 import type { InternSprache } from '../intern.js';
 
 export interface KundeRueckmeldungTexte {
   readonly nichtGespeichert: string;
+  /** Für einen Schlüssel, den diese Tabelle nicht kennt — nie Text aus der Adresse (V-153). */
+  readonly abgewiesen: string;
   readonly kontaktFehler: Readonly<Record<string, string>>;
 }
 
 export const KUNDE_RUECKMELDUNG: Readonly<Record<InternSprache, KundeRueckmeldungTexte>> = {
   de: {
     nichtGespeichert: 'Der Ansprechpartner wurde nicht angelegt.',
+    abgewiesen:
+      'Der Vorgang wurde abgewiesen. Öffnen Sie das Blatt neu und versuchen Sie es noch einmal.',
     kontaktFehler: {
       name_fehlt: 'Ein Kontakt braucht mindestens einen Nachnamen.',
       grundlage_ohne_quelle:
@@ -36,6 +41,7 @@ export const KUNDE_RUECKMELDUNG: Readonly<Record<InternSprache, KundeRueckmeldun
   },
   en: {
     nichtGespeichert: 'The contact was not created.',
+    abgewiesen: 'The request was rejected. Reopen the page and try again.',
     kontaktFehler: {
       name_fehlt: 'A contact needs at least a last name.',
       grundlage_ohne_quelle:

@@ -17,7 +17,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { Unternavigation } from './Unternavigation';
 import { Recht } from '@/components/ui/Recht';
 import {
-  Kommunikationsverlauf, NotizFormular, NotizRueckmeldung,
+  Kommunikationsverlauf, NotizFormular, NotizKeinRecht, NotizRueckmeldung,
 } from '@/components/portal/Kommunikationsverlauf';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { VERLAUF_TEXTE } from '@/lib/i18n/verwaltung/crm-verlauf';
@@ -110,6 +110,14 @@ export default async function KundeDetail(
   const meldung = typeof suche['meldung'] === 'string' && suche['meldung'] !== ''
     ? suche['meldung'] : null;
   const meldungGrund = typeof suche['grund'] === 'string' ? suche['grund'] : null;
+  /*
+   * **Gezeigt wird nur, was diese Seite selbst sagt** (V-153). Hier stand als
+   * Rückfall der Satz aus der Adresse (`?meldung=`) — damit liess sich mit
+   * einem Verweis beliebiger Text in einen Warnkasten des Portals setzen.
+   * Ein bekannter Schlüssel wird übersetzt; alles andere wird ein
+   * allgemeiner Satz, nie Text aus der Adresse (wie `grundAus` im Recruiting).
+   */
+  const abgewiesen = meldung !== null || meldungGrund !== null;
   const zugang = await portalZugang(`/portal/${mandant}/crm/kunden/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -241,10 +249,15 @@ export default async function KundeDetail(
         ) : null}
       </div>
 
-      {meldung === null ? null : (
+      {!abgewiesen ? null : (
         <Hinweis art="warnung" cse="kunde-meldung" className="mb-s5 max-w-prose">
-          <strong>{tk.nichtGespeichert}</strong>{' '}
-          {(meldungGrund === null ? undefined : tk.kontaktFehler[meldungGrund]) ?? meldung}
+          {meldungGrund !== null && tk.kontaktFehler[meldungGrund] !== undefined ? (
+            <>
+              <strong>{tk.nichtGespeichert}</strong>{' '}{tk.kontaktFehler[meldungGrund]}
+            </>
+          ) : (
+            <strong>{tk.abgewiesen}</strong>
+          )}
         </Hinweis>
       )}
 
@@ -341,7 +354,7 @@ export default async function KundeDetail(
           * einer Liste, in der man gerade stand.
           */}
         {darfSchreiben && (
-          <details className="mt-s5" data-cse="kontakt-anlegen" open={meldung !== null}>
+          <details className="mt-s5" data-cse="kontakt-anlegen" open={abgewiesen}>
             <summary className="cursor-pointer text-sm text-brand">
               Ansprechpartner hinzufügen
             </summary>
@@ -509,7 +522,7 @@ export default async function KundeDetail(
             ansprechpartnerId={null}
             kontakte={kontakte.map((k) => ({ id: k.id, name: k.name }))}
           />
-        ) : null}
+        ) : <NotizKeinRecht sprache={zugang.sprache} />}
       </section>
     </PortalRahmen>
   );
