@@ -17483,6 +17483,16 @@ ihrer Entscheidung verzeichnet, in der Reihenfolge, in der sie behoben wurde.
      im Umschalter; das ist berichtigt.
    Kein neuer Wert: `-4px` und `320px` stehen in §6, `--base` und `--ease`
    in §7.
+5. **Die Prüfung der Agentenzeile misst eine echte Zeile.** In
+   `pruefprotokoll-ip-agent.test.ts` lief die Schleife über die
+   Protokollzeilen „während des Laufs“ über null Zeilen — ein Demolauf
+   schreibt selbst keine (D-657 Nr. 3) —, und die Erwartung danach war auf
+   einer leeren Menge trivial wahr. Jetzt schreibt der Spion im Moment, in
+   dem die Freigabe entsteht, eine Zeile über `app.protokolliere` — genau
+   das, was ein protokollierender Auslöser dort täte, im Zustand, den der
+   Lauf gesetzt hat. Geprüft wird diese Zeile (Agent, Agentenkennung der
+   Freigabe, der Mensch als Auftraggeber, seine Adresse) und jede Zeile
+   zwischen einer Marke davor und einer danach; die Menge ist nie leer.
 
-| Betrifft | SEC-A9, AUT-01, 03-AUTH §12.1, O-76, O-355, D-300, D-657, D-658, D-659, V-164, V-165, V-237, DESIGN §6, §7, `drizzle/0461`, `drizzle/0462`, `src/styles/globals.css`, `src/components/portal/BereichsUmschalter.tsx`, `docs/architecture/02-datenmodell/01-KERN.md` §6.2, `tests/isolation/mitgliedschaft-module.test.ts` §1, §2, `tests/isolation/bereichswechsel.test.ts` §4, `tests/kern/bereichswechsel.test.ts` §7 |
+| Betrifft | SEC-A9, AUT-01, 03-AUTH §12.1, O-76, O-355, D-300, D-657, D-658, D-659, V-164, V-165, V-237, DESIGN §6, §7, `drizzle/0461`, `drizzle/0462`, `src/styles/globals.css`, `src/components/portal/BereichsUmschalter.tsx`, `docs/architecture/02-datenmodell/01-KERN.md` §6.2, `tests/isolation/mitgliedschaft-module.test.ts` §1, §2, `tests/isolation/bereichswechsel.test.ts` §4, `tests/isolation/pruefprotokoll-ip-agent.test.ts` §2, `tests/kern/bereichswechsel.test.ts` §7 |
 |---|---|

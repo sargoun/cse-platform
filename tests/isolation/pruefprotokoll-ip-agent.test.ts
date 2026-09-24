@@ -165,6 +165,16 @@ describe('(2) was ein Agent schreibt, steht als Agent da', () => {
    * Der Orchestrator selbst: ein ganzer Lauf, danach dieselbe Transaktion
    * weiter. Was er schreibt, schreibt er als Agent; was danach kommt, wieder
    * der Mensch.
+   *
+   * **Gemessen wird eine ECHTE Protokollzeile aus dem Lauf** (V-237, D-731).
+   * Ein Demolauf schreibt selbst keine (Freigabe und Artefakt tragen keinen
+   * Ausloeser). Die Pruefung stand deshalb frueher als Schleife ueber die
+   * Zeilen „waehrend des Laufs" — ueber null Zeilen, und die Erwartung danach
+   * war auf einer leeren Menge trivial wahr. Jetzt schreibt der Spion im
+   * Moment, in dem die Freigabe entsteht, selbst eine Zeile ueber
+   * app.protokolliere: genau das, was ein protokollierender Ausloeser an
+   * dieser Stelle taete, mit genau dem Zustand der Transaktion, den der Lauf
+   * gesetzt hat.
    */
   it('fuehreLaufAus stellt fuer den Lauf um und danach zurueck', async () => {
     await sql.unsafe(`update agent set ist_aktiv = true where kennung = 'backoffice'`);
@@ -178,28 +188,20 @@ describe('(2) was ein Agent schreibt, steht als Agent da', () => {
                5000, true, 'system', 'job:test')
        on conflict do nothing`, [f.reinigung]);
 
-    /*
-     * **Gemessen wird der Zustand AM Schreibvorgang.** Heute schreibt ein
-     * Demolauf selbst keine Protokollzeile (Freigabe und Artefakt tragen
-     * keinen Ausloeser); was zaehlt, ist, als wer die Transaktion in dem
-     * Moment dasteht, in dem die Freigabe entsteht — jeder protokollierende
-     * Ausloeser und jede Definer-Funktion liest genau das.
-     */
-    const amSchreiben: { typ: string | null; agent: string | null }[] = [];
+    let imLauf = 0;
     const stand = await sql.begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung('192.0.2.44'), async (k) => {
         const spion = {
           ...k,
           schreibe: async <T,>(q: string, w?: readonly unknown[]): Promise<readonly T[]> => {
             if (/insert into freigabe/u.test(q)) {
-              const [s] = await k.abfrage<{ typ: string | null; agent: string | null }>(
-                `select current_setting('app.akteur_typ', true) as typ,
-                        current_setting('app.agent_id', true) as agent`);
-              amSchreiben.push(s!);
+              await k.schreibe(`select app.protokolliere('probe.im_lauf', 'probe', '1')`);
+              imLauf += 1;
             }
             return k.schreibe<T>(q, w);
           },
         };
+        await k.schreibe(`select app.protokolliere('probe.vor_lauf', 'probe', '1')`);
         const lauf = await fuehreLaufAus(spion, {
           agent: 'backoffice', vorgangTyp: 'interner_hinweis', aktion: 'interner_hinweis',
           titel: 'Probe fuer das Protokoll', vorlage: 'interner_hinweis',
@@ -217,30 +219,46 @@ describe('(2) was ein Agent schreibt, steht als Agent da', () => {
       };
 
     expect(stand.lauf.gestoert, 'der Lauf muss durchlaufen').toBeNull();
+    expect(imLauf, 'die Freigabe entsteht genau einmal').toBe(1);
     const [ag] = await sql.unsafe<{ agent_id: string }[]>(
       `select agent_id::text as agent_id from freigabe where id = $1`, [stand.lauf.freigabeId]);
-    expect(amSchreiben, 'die Freigabe entsteht als Agent, nicht als Mensch').toEqual([
-      { typ: 'agent', agent: ag!.agent_id },
-    ]);
+
+    /* Die Zeile aus dem Lauf steht als Agent da — im Auftrag des Menschen, mit seiner Adresse. */
+    const im = await zeile('probe.im_lauf');
+    expect(im.akteur_typ).toBe('agent');
+    expect(im.agent_id).toBe(ag!.agent_id);
+    expect(im.akteur_id, 'in wessen Auftrag').toBe(benutzer);
+    expect(im.ip).toBe('192.0.2.44');
+
+    /* Danach schreibt wieder der Mensch — Zustand und Zeile. */
     expect(stand.g.typ).toBe('mensch');
     expect(stand.g.agent ?? '').toBe('');
     const nach = await zeile('probe.nach_lauf');
     expect(nach.akteur_typ).toBe('mensch');
     expect(nach.agent_id).toBeNull();
 
-    /* Und wenn waehrend des Laufs eine Protokollzeile entstand, traegt sie ihn. */
-    const waehrend = await sql.unsafe<Zeile[]>(
-      `select akteur_typ::text as akteur_typ, akteur_id::text as akteur_id,
-              agent_id::text as agent_id, host(ip) as ip
-         from audit_log
-        where sitzung_id = '00000000-0000-4000-8000-000000000415'
-          and aktion not like 'probe.%'
-          and erstellt_am >= now() - interval '1 minute'`);
-    for (const z of waehrend.filter((w) => w.akteur_typ === 'agent')) {
-      expect(z.agent_id).toBe(ag!.agent_id);
-      expect(z.ip).toBe('192.0.2.44');
+    expect((await zeile('probe.vor_lauf')).akteur_typ, 'vor dem Lauf: der Mensch').toBe('mensch');
+
+    /*
+     * Und JEDE Zeile, die zwischen der Marke davor und der danach entstand —
+     * also waehrend des Laufs —, traegt den Agenten. Die Menge ist nicht leer:
+     * sie enthaelt mindestens die Zeile aus dem Lauf. Die Kennungen steigen in
+     * der Reihenfolge, in der die Transaktion schrieb.
+     */
+    const waehrend = await sql.unsafe<(Zeile & { aktion: string })[]>(
+      `select a.aktion, a.akteur_typ::text as akteur_typ, a.akteur_id::text as akteur_id,
+              a.agent_id::text as agent_id, host(a.ip) as ip
+         from audit_log a
+        where a.sitzung_id = '00000000-0000-4000-8000-000000000415'
+          and a.id > (select max(id) from audit_log where aktion = 'probe.vor_lauf')
+          and a.id < (select max(id) from audit_log where aktion = 'probe.nach_lauf')
+        order by a.id`);
+    expect(waehrend.map((z) => z.aktion)).toContain('probe.im_lauf');
+    for (const z of waehrend) {
+      expect(z.akteur_typ, z.aktion).toBe('agent');
+      expect(z.agent_id, z.aktion).toBe(ag!.agent_id);
+      expect(z.ip, z.aktion).toBe('192.0.2.44');
     }
-    expect(waehrend.filter((w) => w.agent_id !== null && w.akteur_typ !== 'agent')).toEqual([]);
   });
 });
 
