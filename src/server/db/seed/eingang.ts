@@ -189,8 +189,9 @@ export async function seedEingang(
 
   /*
    * Wer ablegt: die Administration oder Leitung der Gesellschaft — wie in
-   * `konto.ts`. Die E-Mail entscheidet unter mehreren Administrationen (seit
-   * V-164 traegt die Reinigung zwei), nicht die Reihenfolge der Tabelle.
+   * `konto.ts`. Unter mehreren Administrationen (seit V-164 traegt die
+   * Reinigung zwei) zuerst eine OHNE Modulliste, dann die E-Mail — nie die
+   * Reihenfolge der Tabelle (V-168).
    */
   const [konto] = await sql<{ id: string }[]>`
     select b.id from benutzer b
@@ -198,7 +199,7 @@ export async function seedEingang(
      join rolle r on r.id = bm.rolle_id
     where r.schluessel in ('admin', 'leitung') and b.status = 'aktiv'
       and bm.entzogen_am is null
-    order by r.schluessel, b.email limit 1`;
+    order by r.schluessel, bm.module is not null, b.email limit 1`;
   if (konto === undefined) return { status: 'kein_konto', freigabeId: null, unsichereFelder: 0 };
 
   const extrakt = extrahiereERechnung(xml);

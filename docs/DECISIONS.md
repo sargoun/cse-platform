@@ -17160,3 +17160,59 @@ zweiten Faktor, 0155). `app.protokolliere` liest die Adresse aus `app.ip`
 
 | Betrifft | SEC-A9, AUT-01, AUT-02, AUT-07, D-300, D-657, O-92, V-163, V-167, `src/server/kontext/index.ts`, `src/server/auth/kennwort-anmeldung.ts`, `src/server/auth/adresse.ts`, `src/app/auth/passwort-neu/page.tsx`, `src/app/auth/zwei-faktor/einrichten/page.tsx`, `tests/isolation/pruefprotokoll-ip-agent.test.ts` §3, `tests/isolation/anmeldung-kennwort.test.ts` |
 |---|---|
+
+### D-662 · Eine Administration entsteht nur über ihre zwei Wege — auch nicht über die Zeile daneben (V-168)
+
+**Der Befund** (V-168, Prüfung von V-164; AUT-01, 03-AUTH §12.1): Der
+Auslöser `kern.bm_module_pruefen` (0416) sperrt den Anwendungsweg nur beim
+SETZEN einer Modulliste. Mit `system.benutzer_verwalten` führten auf
+Datenbankebene drei Umwege zu einer Administration mit allen Modulen der
+Rolle, ohne `system.module_zuweisen` und ohne die Decke der eigenen Module
+(D-658 Nr. 4): entziehen (`t_bm_entziehen`, ein UPDATE auf `entzogen_am`,
+der Auslöser hängt an `update of module`) und ohne Liste neu anlegen
+(`t_bm_schreiben`); eine entzogene, unbeschränkte Administration
+wiederbeleben; eine andere Mitgliedschaft per `rolle_id` umwidmen. Heute
+nimmt kein Code diese Wege. Daneben drei kleinere Folgen von V-164: Die
+Isolationsprüfung des INSERT-Zweigs legte für eine FREMDE Gesellschaft an
+und erwartete einen Wurf ohne Meldung, bewies also nicht, welcher Grund ihn
+auslöste. Fünf Seed-Stellen wählten ihr handelndes Konto mit
+`order by r.schluessel limit 1`, und seit V-164 trägt die Reinigung zwei
+Administrationen — welche gewählt wurde, hing an der Zeilenfolge, und
+`admin.vertrieb` hält weder Dienstplan noch Zeit. Das Benutzerblatt schlug
+`?module=` und `?konto=` im Objektliteral nach (`?module=__proto__` warf
+beim Zeichnen) und gab einen unbekannten `?konto=`-Wert roh aus.
+
+**Die Entscheidung.**
+
+1. **Auf dem Anwendungsweg entsteht keine lebende Administration** (0419,
+   `kern.bm_administration_pruefen`). Unter `current_user = cse_app` wird
+   jedes INSERT einer lebenden Mitgliedschaft mit der Plattformrolle
+   `admin` abgewiesen, ebenso jedes UPDATE, das eine Mitgliedschaft erst
+   dazu macht (`rolle_id` wechselt auf `admin`, oder `entzogen_am` geht von
+   gesetzt auf leer). Eine Administration hat genau zwei Wege, beide als
+   `cse_definer`: `app.verwaltungskonto_einladen` legt sie an (D-610, nur
+   `super_admin`), `app.mitgliedschaft_module_setzen` ändert ihre Module
+   (D-658). Seed und Migration laufen als Eigentümer und sind nicht gemeint.
+2. **Entziehen bleibt, Pflege bleibt.** Eine Administration zu entziehen und
+   eine lebende weiter zu pflegen (`gueltig_bis`, `ist_standard`) geht wie
+   bisher über `t_bm_entziehen`. Andere Rollen tragen keine Modulliste
+   (0416) und sind nicht gemeint.
+3. **Ein eigener Auslöser, keine neue Fassung von `bm_module_pruefen`.** Jener
+   prüft den Katalog an der Spalte `module`, dieser den Weg an `rolle_id`
+   und `entzogen_am`. Ohne `security definer`, wie 0416: `current_user` ist
+   der Aufrufer.
+4. **Die Prüfung sagt, welcher Grund abweist.** Der INSERT-Zweig von
+   `bm_module_pruefen` wird im AKTIVEN Mandanten geprüft, mit einer Rolle,
+   die 0419 nicht sperrt, gegen die Meldung — und die Gegenprobe ohne Liste
+   geht durch.
+5. **Der Seed wählt nach Bedeutung, nicht nach Zeilenfolge.** Alle sieben
+   Stellen, die ein handelndes Konto über die Rolle suchen, ordnen
+   `r.schluessel, bm.module is not null, b.email`: zuerst eine Mitgliedschaft
+   ohne Modulliste (alle Module der Rolle), dann die E-Mail. D-658 Nr. 8
+   hatte zwei davon über die E-Mail allein gerichtet.
+6. **Das Benutzerblatt nimmt `eigenerEintrag`** für `?konto=` und
+   `?module=` (D-653) und zeigt `?anzahl=` nur als Zahl; ein unbekannter
+   Wert erzeugt keine Meldung.
+
+| Betrifft | AUT-01, AUT-04, 03-AUTH §12.1, D-610, D-653, D-658, V-164, V-168, `drizzle/0419`, `src/server/db/seed/{zeit,reinigung,security,eingang,konto}.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/[id]/page.tsx`, `tests/isolation/mitgliedschaft-module.test.ts` §2, §4, `tests/kern/nachschlagen.test.ts` |
+|---|---|

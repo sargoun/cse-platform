@@ -74,9 +74,9 @@ async function seedKontenEinesBereichs(
   sql: Sql, mandantId: string,
 ): Promise<KontoErgebnis> {
   /*
-   * Unter mehreren Administrationen entscheidet die E-Mail (seit V-164 traegt
-   * die Reinigung zwei) — sonst waere die Freigabe der Zeiten mal hier, mal
-   * dort, je nach Reihenfolge der Tabelle.
+   * Unter mehreren Administrationen (seit V-164 traegt die Reinigung zwei)
+   * zuerst eine OHNE Modulliste, dann die E-Mail — sonst waere die Freigabe
+   * der Zeiten mal hier, mal dort, je nach Reihenfolge der Tabelle (V-168).
    */
   const [verantwortlich] = await sql<{ id: string }[]>`
     select b.id from benutzer b
@@ -84,7 +84,7 @@ async function seedKontenEinesBereichs(
      join rolle r on r.id = bm.rolle_id
     where r.schluessel in ('admin', 'leitung') and b.status = 'aktiv'
       and bm.entzogen_am is null
-    order by r.schluessel, b.email limit 1`;
+    order by r.schluessel, bm.module is not null, b.email limit 1`;
   if (verantwortlich === undefined) return leer();
 
   /**

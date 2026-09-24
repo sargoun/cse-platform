@@ -10,7 +10,8 @@
  * Recht, ohne zweiten Faktor, in einer fremden Gesellschaft, an einer Rolle,
  * die keine Administration ist, mit einem Modul, das es nicht gibt — und der
  * Umweg über das UPDATE, das `t_bm_entziehen` (0102) jeder Kontoverwaltung
- * gibt.
+ * gibt. Seit 0419 (V-168, D-662) auch die Umwege über die ZEILE: entziehen
+ * und ohne Liste neu anlegen, wiederbeleben, umwidmen (§4).
  */
 import type postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -297,13 +298,34 @@ describe('(2) was NICHT geht', () => {
     await expect(als(chef, (k) => k.schreibe(
       `update benutzer_mandant set module = null where id = $1`, [adminBm])))
       .rejects.toThrow(/mitgliedschaft_module_setzen/u);
-    await expect(als(chef, (k) => k.schreibe(
-      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, module)
-       values ($1, $2, (select id from rolle where schluessel = 'admin' and mandant_id is null),
-               '{crm}')`, [chef, f.bau])))
-      .rejects.toThrow();
     expect(await module(adminBm)).toEqual(['crm']);
     await setze(chef, adminBm, null);
+  });
+
+  /**
+   * **Der INSERT-Zweig des Ausloesers — und nur er** (V-168). Hier stand ein
+   * INSERT fuer `f.bau` mit `.rejects.toThrow()` ohne Meldung: die Sitzung
+   * steht in der Reinigung, `t_bm_schreiben` verlangt den aktiven Mandanten,
+   * und welcher Grund den Wurf ausloeste, sagte die Pruefung nicht. Jetzt: im
+   * AKTIVEN Mandanten, fuer ein Konto ohne lebende Mitgliedschaft dort, mit
+   * einer Rolle, die 0419 nicht sperrt — und die Gegenprobe ohne Liste geht
+   * durch. Es bleibt nur die Liste als Grund.
+   */
+  it('kein INSERT mit Liste aus dem Anwendungsweg — die Gegenprobe ohne Liste geht durch', async () => {
+    const neu = await konto('modul-insert@test.invalid');
+    const LEITUNG = `(select id from rolle where schluessel = 'leitung' and mandant_id is null)`;
+    await expect(als(chef, (k) => k.schreibe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, module)
+       values ($1, $2, ${LEITUNG}, '{crm}')`, [neu, f.reinigung])))
+      .rejects.toThrow(/mitgliedschaft_module_setzen/u);
+    await als(chef, (k) => k.schreibe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+       values ($1, $2, ${LEITUNG})`, [neu, f.reinigung]));
+    const [z] = await sql.unsafe<{ module: string[] | null }[]>(
+      `select module from benutzer_mandant
+        where benutzer_id = $1 and mandant_id = $2 and entzogen_am is null`, [neu, f.reinigung]);
+    expect(z, 'die Gegenprobe legt die Mitgliedschaft an').toBeDefined();
+    expect(z!.module).toBeNull();
   });
 
   it('der Ausloeser prueft auch Seed und Migration — ein falsches Modul kommt nirgends hinein', async () => {
@@ -357,4 +379,89 @@ describe('(3) der Seed: admin.vertrieb haelt nur seine Module', () => {
     'haelt %s NICHT — das Modul ist nicht zugewiesen', async (schluessel) => {
       expect(await haelt(schluessel)).toBe(false);
     });
+});
+
+/**
+ * **Keine Administration am Anwendungsweg vorbei** (V-168, D-662, 0419).
+ *
+ * Der Ausloeser aus 0416 sperrt nur das SETZEN einer Liste. Mit
+ * `system.benutzer_verwalten` gab es drei Umwege zu einer Administration mit
+ * allen Modulen der Rolle — ohne `system.module_zuweisen` und ohne die Decke
+ * der eigenen Module: entziehen und ohne Liste neu anlegen, eine entzogene
+ * wiederbeleben, eine andere Mitgliedschaft umwidmen. Heute nimmt sie kein
+ * Code; die zweite Linie soll halten, wenn einmal einer es tut.
+ */
+describe('(4) keine Administration am Anwendungsweg vorbei (0419)', () => {
+  const ADMIN = `(select id from rolle where schluessel = 'admin' and mandant_id is null)`;
+  const WEG = /verwaltungskonto_einladen/u;
+
+  async function lebt(bm: string): Promise<boolean> {
+    const [z] = await sql.unsafe<{ lebt: boolean }[]>(
+      `select entzogen_am is null as lebt from benutzer_mandant where id = $1`, [bm]);
+    return z!.lebt;
+  }
+
+  it('entziehen und ohne Liste neu anlegen hebt die Beschraenkung nicht auf', async () => {
+    await setze(chef, adminBm, ['crm']);
+    await expect(als(chef, async (k) => {
+      await k.schreibe(
+        `update benutzer_mandant set entzogen_am = now(), entzugsgrund = 'Umweg'
+          where id = $1`, [adminBm]);
+      await k.schreibe(
+        `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+         values ($1, $2, ${ADMIN})`, [admin, f.reinigung]);
+    })).rejects.toThrow(WEG);
+    /* Die Transaktion ist zurueckgerollt: die Zeile lebt, die Beschraenkung steht. */
+    expect(await lebt(adminBm)).toBe(true);
+    expect(await module(adminBm)).toEqual(['crm']);
+    expect(await recht(admin, 'finanzen.lesen')).toBe(false);
+    await setze(chef, adminBm, null);
+  });
+
+  it('eine entzogene Administration laesst sich nicht wiederbeleben', async () => {
+    const frueher = await konto('modul-frueher@test.invalid');
+    const [bm] = await sql.unsafe<{ id: string }[]>(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, entzogen_am, entzugsgrund)
+       values ($1, $2, ${ADMIN}, now(), 'frueher') returning id`, [frueher, f.reinigung]);
+    await expect(als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set entzogen_am = null, entzugsgrund = null where id = $1`,
+      [bm!.id]))).rejects.toThrow(WEG);
+    expect(await lebt(bm!.id)).toBe(false);
+  });
+
+  it('eine Leitung wird nicht per UPDATE zur Administration', async () => {
+    await expect(als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set rolle_id = ${ADMIN} where id = $1`, [leitungBm])))
+      .rejects.toThrow(WEG);
+    const [z] = await sql.unsafe<{ schluessel: string }[]>(
+      `select r.schluessel from benutzer_mandant bm join rolle r on r.id = bm.rolle_id
+        where bm.id = $1`, [leitungBm]);
+    expect(z!.schluessel).toBe('leitung');
+  });
+
+  it('auch die Plattformverwaltung legt eine Administration nicht direkt an', async () => {
+    const neu = await konto('modul-direkt@test.invalid');
+    await expect(als(chef, (k) => k.schreibe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1, $2, ${ADMIN})`,
+      [neu, f.reinigung]))).rejects.toThrow(WEG);
+  });
+
+  it('entziehen bleibt moeglich, und eine lebende Administration laesst sich weiter pflegen', async () => {
+    const weg = await konto('modul-weg@test.invalid');
+    const bm = await mitglied(weg, f.reinigung, 'admin');
+    await als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set gueltig_bis = '2099-12-31' where id = $1`, [bm]));
+    await als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set entzogen_am = now(), entzugsgrund = 'Probe' where id = $1`,
+      [bm]));
+    const [z] = await sql.unsafe<{ gueltig_bis: string }[]>(
+      `select gueltig_bis::text as gueltig_bis from benutzer_mandant where id = $1`, [bm]);
+    expect(z!.gueltig_bis).toBe('2099-12-31');
+    expect(await lebt(bm)).toBe(false);
+  });
+
+  it('die Sperre gilt dem Anwendungsweg — der Eigentuemer (Seed, Migration) legt weiter an', async () => {
+    const seedKonto = await konto('modul-seedweg@test.invalid');
+    expect(await lebt(await mitglied(seedKonto, f.reinigung, 'admin'))).toBe(true);
+  });
 });

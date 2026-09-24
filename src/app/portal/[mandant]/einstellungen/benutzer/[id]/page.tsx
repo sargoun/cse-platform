@@ -9,6 +9,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { KontoHandlungen } from '../KontoHandlungen';
 import { ModulZuweisung } from '../ModulZuweisung';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { ZUGANG_TEXTE } from '@/lib/i18n/verwaltung/einstellungen/zugang';
 import {
   MODUL_ZUWEISUNG_TEXTE, modulName,
@@ -100,17 +101,23 @@ export default async function Benutzerblatt(
     zugang.sitzung, 'system.benutzer_verwalten', 'system.sitzung_widerrufen',
     'system.module_zuweisen');
   const suche = await searchParams;
-  const stand = typeof suche['konto'] === 'string' ? suche['konto'] : null;
-  const anzahl = typeof suche['anzahl'] === 'string' ? suche['anzahl'] : null;
   const tZugang = nachSprache(ZUGANG_TEXTE, zugang.sprache);
   /*
-   * AUT-01 (V-164): der Stand der Modulzuweisung kommt als `?module=` zurueck.
-   * Nur ein Schluessel mit Satz wird gezeigt — ein fremder Wert in der
-   * Adresse ist keine Meldung und wird nicht als roher Text ausgegeben.
+   * **Ein Schluessel aus der Adresse wird nur als EIGENER Eintrag
+   * nachgeschlagen** (V-168, D-653). `tabelle[schluessel]` fand fuer
+   * `?module=__proto__` den Prototyp und die Seite warf beim Zeichnen;
+   * `?konto=` gab einen unbekannten Wert dazu roh aus. Gezeigt wird nur ein
+   * Schluessel mit Satz, die Anzahl nur als Zahl.
    */
+  const kontoRoh = typeof suche['konto'] === 'string' ? suche['konto'] : null;
+  const kontoMeldung = eigenerEintrag(tZugang.meldung, kontoRoh);
+  const stand = kontoMeldung === undefined ? null : kontoRoh;
+  const anzahl = typeof suche['anzahl'] === 'string' && /^\d{1,6}$/u.test(suche['anzahl'])
+    ? suche['anzahl'] : null;
+  /* AUT-01 (V-164): der Stand der Modulzuweisung kommt als `?module=` zurueck. */
   const tModule = nachSprache(MODUL_ZUWEISUNG_TEXTE, zugang.sprache);
   const modulStandRoh = typeof suche['module'] === 'string' ? suche['module'] : null;
-  const modulMeldung = modulStandRoh === null ? undefined : tModule.meldung[modulStandRoh];
+  const modulMeldung = eigenerEintrag(tModule.meldung, modulStandRoh);
   const modulStand = modulMeldung === undefined ? null : modulStandRoh;
   const sprache = internSprache(zugang.sprache);
 
@@ -197,7 +204,7 @@ export default async function Benutzerblatt(
           cse="konto-stand"
           className="mb-s5 max-w-prose"
         >
-          {tZugang.meldung[stand] ?? stand}
+          {kontoMeldung}
           {anzahl === null ? null : ` (${anzahl})`}
         </Hinweis>
       )}

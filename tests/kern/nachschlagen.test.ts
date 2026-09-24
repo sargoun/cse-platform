@@ -17,6 +17,8 @@ import { eigenerEintrag } from '../../src/lib/nachschlagen.js';
 import { pflichtwegMeldung } from '../../src/lib/i18n/texte.js';
 import { WEBSITE_REFERENZ_TEXTE } from '../../src/lib/i18n/verwaltung/website-referenz.js';
 import { SCHICHT_TEXTE } from '../../src/lib/i18n/verwaltung/dienstplan-schicht.js';
+import { ZUGANG_TEXTE } from '../../src/lib/i18n/verwaltung/einstellungen/zugang.js';
+import { MODUL_ZUWEISUNG_TEXTE } from '../../src/lib/i18n/verwaltung/einstellungen/module-zuweisung.js';
 
 /** Was `Object.prototype` mitbringt — jeder Name ist in der Adresse tippbar. */
 const PROTOTYP = [
@@ -88,6 +90,37 @@ describe('die Seiten schlagen den Grund aus der Adresse nur als eigenen Eintrag 
       expect(quelle, seite).toContain('eigenerEintrag(');
       expect(quelle, seite).not.toMatch(
         /\b(?:t\.fehler|t\.statusFehler|FEHLER|BEWERBUNG_MELDUNG)\[(?:abgewiesen|grund)\]\s*\?\?/u);
+    }
+  });
+});
+
+/**
+ * **Das Benutzerblatt: `?konto=`, `?module=` und `?anzahl=`** (V-168).
+ *
+ * Die Prüfung über den ganzen Baum unten sucht `[fehler]` und `[grund]`;
+ * das Benutzerblatt nannte seine Schlüssel `stand` und `modulStandRoh` und
+ * schlug sie als `t.meldung[…]` nach. `?module=__proto__` warf beim
+ * Zeichnen, `?konto=` gab einen fremden Wert roh aus.
+ */
+describe('das Benutzerblatt schlägt seine Meldungen nur als eigenen Eintrag nach', () => {
+  const SEITE = 'src/app/portal/[mandant]/einstellungen/benutzer/[id]/page.tsx';
+
+  it('eigenerEintrag statt `.meldung[…]`, und die Anzahl nur als Zahl', () => {
+    const quelle = readFileSync(SEITE, 'utf8');
+    expect(quelle).toContain('eigenerEintrag(tZugang.meldung, kontoRoh)');
+    expect(quelle).toContain('eigenerEintrag(tModule.meldung, modulStandRoh)');
+    expect(quelle).not.toMatch(/\.meldung\[/u);
+    expect(quelle).not.toMatch(/\?\? stand\}/u);
+    expect(quelle).toMatch(/\/\^\\d\{1,6\}\$\/u\.test\(suche\['anzahl'\]\)/u);
+  });
+
+  it('die beiden Tabellen kennen keinen Schlüssel des Prototyps, in beiden Sprachen', () => {
+    for (const sprache of ['de', 'en'] as const) {
+      for (const schluessel of PROTOTYP) {
+        expect(eigenerEintrag(ZUGANG_TEXTE[sprache].meldung, schluessel)).toBeUndefined();
+        expect(eigenerEintrag(MODUL_ZUWEISUNG_TEXTE[sprache].meldung, schluessel))
+          .toBeUndefined();
+      }
     }
   });
 });
