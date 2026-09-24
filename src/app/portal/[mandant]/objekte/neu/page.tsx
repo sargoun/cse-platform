@@ -68,7 +68,13 @@ export default async function ObjektNeu(
    */
   const darf = await haeltRechte(zugang.sitzung, 'objekt.schreiben', 'objekt.lesen');
   const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  /*
+   * Der übersetzte Satz zum Schlüssel, sonst der deutsche Satz des Dienstes
+   * (V-170) — nie der Schlüssel selbst.
+   */
+  const grund = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const roh = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  const meldung = (grund === null ? undefined : t.fehler[grund]) ?? roh;
 
   /*
    * Die Kundenliste kommt aus derselben Gesellschaft und nur ungesperrt: ein

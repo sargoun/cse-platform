@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import type { ObjekteTexte } from '@/lib/i18n/verwaltung/objekte';
+import { koordinateAlsText } from '@/server/services/objekt/anlegen';
 
 /**
  * Das Formular für ein Objekt — einmal zum Anlegen, einmal zum Ändern
@@ -40,6 +41,9 @@ export interface ObjektWerte {
   readonly etagenAnzahl: number | null;
   readonly zutrittHinweis: string | null;
   readonly bemerkung: string | null;
+  /** Wie gespeichert (`52.520008`), oder `null` — beide oder keiner (V-170). */
+  readonly geoLat: string | null;
+  readonly geoLon: string | null;
 }
 
 export interface ObjektFormularProps {
@@ -142,6 +146,28 @@ export function ObjektFormular(
                      defaultValue={werte?.land ?? 'DE'} />
             </label>
           </div>
+          {/*
+            * V-170 (OPS-01): die Spalten gab es seit 0021, kein Formular fragte
+            * danach — und das Bautagebuch meldete für jede Baustelle
+            * „Keine Koordinaten am Objekt hinterlegt", ohne einen Ort, an dem
+            * man sie hätte eintragen können. Text statt `type="number"`: ein
+            * deutsches Komma soll ankommen und im Dienst geprüft werden.
+            */}
+          <div className="flex gap-s3">
+            <label className="flex flex-1 flex-col gap-s2 text-sm text-text">
+              {t.breitengrad} <span className="text-text-subtle">{t.freiwillig}</span>
+              <input name="geoLat" inputMode="decimal" className={FELD}
+                     defaultValue={koordinateAlsText(werte?.geoLat ?? null)}
+                     placeholder={t.breitengradBeispiel} data-cse="objekt-geo-lat" />
+            </label>
+            <label className="flex flex-1 flex-col gap-s2 text-sm text-text">
+              {t.laengengrad} <span className="text-text-subtle">{t.freiwillig}</span>
+              <input name="geoLon" inputMode="decimal" className={FELD}
+                     defaultValue={koordinateAlsText(werte?.geoLon ?? null)}
+                     placeholder={t.laengengradBeispiel} data-cse="objekt-geo-lon" />
+            </label>
+          </div>
+          <span className="text-xs text-text-muted">{t.koordinatenHinweis}</span>
         </div>
       </Card>
 

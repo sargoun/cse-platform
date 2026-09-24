@@ -15545,3 +15545,49 @@ Lead → Angebot → Auftrag, die eigens behoben wird.
 
 | Betrifft | REQ-01…07, CRM-02, CRM-03, D-61, D-83, D-599, V-137, `drizzle/0396`, `src/server/services/lead/{annahme,einsendung,eskalation,sla}.ts`, `src/lib/formular/herkunft.ts`, `src/app/api/{anfrage,lead,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx` |
 |---|---|
+
+### D-664 · Die Koordinaten eines Objekts trägt ein Mensch ein — in Dezimalgrad, als Paar, ohne Gleitkomma (V-170)
+
+**Der Befund** (V-170, OPS-01, Folge BAU-08): OPS-01 verlangt Objekte „with
+address and coordinates". `objekt.geo_lat`/`geo_lon` gibt es seit 0021 mit
+drei CHECKs, aber weder Anlegen noch Ändern schrieb sie, kein Formular fragte
+danach, und auch der Seed füllte sie nicht. Der einzige Leser, die
+Wetteranheftung im Bautagebuch, endete deshalb für jede Baustelle im Befund
+`ohne_koordinaten` — „Keine Koordinaten am Objekt hinterlegt" —, ohne dass es
+einen Ort gab, an dem man sie hätte hinterlegen können.
+
+**Die Entscheidung.**
+
+1. **Von Hand, freiwillig, als Paar.** Das Objektformular fragt Breiten- und
+   Längengrad; beide oder keiner (`objekt_geo_vollstaendig`). Beide leer räumt
+   ein vorhandenes Paar beim Ändern ab. Eine automatische Geokodierung der
+   Adresse ist das NICHT — sie bleibt O-122 und hängt an einem Dienst, der
+   eine Datenverarbeitung mit sich bringt. Eine Eingabe von Hand hängt an
+   dieser Frage nicht.
+2. **Dezimalgrad mit Komma oder Punkt.** Eine Koordinate hat höchstens drei
+   Vorkommastellen und keinen Tausenderpunkt; `52,520008` von der Tastatur und
+   `52.520008` aus einer Karte meinen dasselbe. Ein Leerzeichen MITTEN in der
+   Zahl wird abgewiesen, nicht zusammengeschoben.
+3. **Sechs Nachkommastellen, gerundet in ganzen Zahlen.** Eine Karte liefert
+   `52.52000659999999`; die Spalte trägt sechs Stellen (etwa zehn Zentimeter).
+   `leseKoordinate` rundet halb vom Nullpunkt weg in Mikrograd als `bigint` —
+   die Regel, die Postgres für `numeric` selbst anwendet — und übergibt einen
+   fertigen `numeric(9,6)`-Text. Geprüft wird der GERUNDETE Wert gegen ±90°/
+   ±180°, also genau der, der in der Spalte landet. Das ist keine Fachregel
+   über Geld oder Fristen, sondern die Genauigkeit einer Spalte, die es seit
+   0021 gibt.
+4. **Die Abweisung kommt als Schlüssel und Satz.** `api/objekt` gibt neben dem
+   deutschen Satz des Dienstes den `grund` mit; Anlegen- und Ändern-Seite
+   zeigen den übersetzten Text, sonst den Satz — nie den Schlüssel.
+5. **Das Objektblatt zeigt das Paar** (deutsches Komma) oder sagt, dass keines
+   hinterlegt ist und wofür es gebraucht wird.
+6. **Der Seed trägt Näherungswerte** für die fünf Vorführobjekte, aus einer
+   Karte abgelesen und so beschriftet. Das Wetter im Bautagebuch kommt damit
+   über „keine Koordinaten" hinaus bis zur Stationsfrage (`keine_station`); die
+   DWD-Anbindung selbst bleibt „nicht verbunden".
+
+**Nicht Teil dieser Entscheidung:** eine Karte (O-360) und die Zuordnung einer
+DWD-Station zum Projekt.
+
+| Betrifft | OPS-01, BAU-08, O-122, O-360, V-170, `drizzle/0021`, `src/server/services/objekt/anlegen.ts`, `src/app/api/objekt/route.ts`, `src/app/portal/[mandant]/objekte/{ObjektFormular.tsx,neu/page.tsx,[id]/page.tsx,[id]/bearbeiten/page.tsx}`, `src/lib/i18n/verwaltung/objekte.ts`, `src/server/db/seed/operations.ts` |
+|---|---|

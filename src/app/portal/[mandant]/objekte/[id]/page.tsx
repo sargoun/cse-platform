@@ -6,6 +6,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
+import { koordinateAlsText } from '@/server/services/objekt/anlegen';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { haeltRechte } from '../../../rechte';
@@ -59,6 +60,8 @@ interface ObjektKopf {
   readonly plz: string;
   readonly ort: string;
   readonly etagen_anzahl: number | null;
+  readonly geo_lat: string | null;
+  readonly geo_lon: string | null;
   readonly kunde: string | null;
   readonly ansprechpartner: string | null;
   readonly flaeche: string | null;
@@ -112,6 +115,7 @@ export default async function ObjektDetail(
       const [kopf] = await kontext.abfrage<ObjektKopf>(
         `select o.id, o.objektnummer, o.bezeichnung, o.gebaeudetyp,
                 o.strasse, o.hausnummer, o.adresszusatz, o.plz, o.ort, o.etagen_anzahl,
+                o.geo_lat::text as geo_lat, o.geo_lon::text as geo_lon,
                 k.name as kunde,
                 nullif(trim(coalesce(ap.vorname,'') || ' ' || ap.nachname), '')
                   as ansprechpartner,
@@ -330,6 +334,16 @@ export default async function ObjektDetail(
           {kopf.etagen_anzahl === null
             ? <span className="text-text-subtle">nicht angegeben</span>
             : String(kopf.etagen_anzahl)}
+        </Feld>
+        {/* V-170 (OPS-01): „address and coordinates" — beides steht jetzt hier. */}
+        <Feld label={tObjekt.koordinaten}>
+          {kopf.geo_lat === null || kopf.geo_lon === null
+            ? <span className="text-text-subtle" data-cse="objekt-ohne-koordinaten">
+                {tObjekt.ohneKoordinaten}
+              </span>
+            : <span className="tabular-nums" data-cse="objekt-koordinaten">
+                {`${koordinateAlsText(kopf.geo_lat)} · ${koordinateAlsText(kopf.geo_lon)}`}
+              </span>}
         </Feld>
       </dl>
 

@@ -1048,10 +1048,11 @@ export async function seedBau(
        * wurde.
        *
        * `hefteWetterAn` wirft nie: es gibt einen Befund zurueck, und der
-       * Bautag bleibt, wie er ist (BAU-08). Hier kommt heute
-       * `ohne_koordinaten` heraus — die Baustelle traegt keine Geodaten, also
-       * wird die Station gar nicht erst gesucht. Der DWD selbst ist ohnehin
-       * nicht verbunden; beides steht in der Schlussmeldung und wird nicht
+       * Bautag bleibt, wie er ist (BAU-08). Seit V-170 traegt die Baustelle
+       * Koordinaten (Naeherungswerte, `seed/operations.ts`), also kommt der
+       * Weg bis zur Stationsfrage: heute `keine_station`, weil dem Projekt
+       * keine DWD-Station zugeordnet ist. Der DWD selbst ist ohnehin nicht
+       * verbunden; beides steht in der Schlussmeldung und wird nicht
        * ueberschrieben.
        */
       const befund = await hefteWetterAn(kontext, { bautagebuchId: bautagId }, port);

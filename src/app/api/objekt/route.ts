@@ -87,6 +87,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           etagenAnzahl: wert('etagenAnzahl'),
           zutrittHinweis: wert('zutrittHinweis'),
           bemerkung: wert('bemerkung'),
+          /* V-170: als Text weitergereicht — geprüft wird im Dienst. */
+          geoLat: wert('geoLat'),
+          geoLon: wert('geoLon'),
         };
 
         if (aktion === 'aendern') {
@@ -112,8 +115,15 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   } catch (fehler) {
     if (fehler instanceof ObjektFehler) {
       const trenner = zurueck.includes('?') ? '&' : '?';
+      /*
+       * Der SCHLÜSSEL geht mit (V-170): die Seite übersetzt ihn in die Sprache
+       * der Sitzung. Der deutsche Satz bleibt daneben für die Gründe, die
+       * eine Zahl tragen (`einsaetze_offen`) und deshalb keinen festen Text
+       * haben.
+       */
       return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`,
+        `${zurueck}${trenner}fehler=${encodeURIComponent(fehler.grund)}`
+        + `&meldung=${encodeURIComponent(fehler.message)}`,
         '/portal', anfrage), 303);
     }
     throw fehler;

@@ -275,3 +275,74 @@ describe('§5 archivieren', () => {
       archiviereObjekt(kontextAus(tx, f.reinigung), a.id))).rejects.toThrow(ObjektFehler);
   });
 });
+
+describe('§6 Koordinaten (V-170, OPS-01, BAU-08)', () => {
+  /*
+   * `geo_lat`/`geo_lon` gab es seit 0021, und kein Weg schrieb sie — das
+   * Bautagebuch meldete für jede Baustelle „Keine Koordinaten am Objekt
+   * hinterlegt". Geprüft wird hier, dass Anlegen und Ändern sie schreiben,
+   * dass sie genau so ankommen, wie der Dienst sie gebildet hat (kein Float
+   * dazwischen), und dass ein leeres Paar sie wieder räumt.
+   */
+  const lies = async (id: string) => (await sql.unsafe<
+    { geo_lat: string | null; geo_lon: string | null }[]>(
+    `select geo_lat::text, geo_lon::text from objekt where id = $1`, [id]))[0]!;
+
+  it('schreibt sie beim Anlegen — mit deutschem Komma eingegeben, exakt gespeichert', async () => {
+    const a = await alsApp(sitzung(), (tx) => legeObjektAn(kontextAus(tx, f.reinigung), {
+      ...GRUND, bezeichnung: 'Mit Ort', geoLat: '52,503100', geoLon: '13.33240049',
+    }));
+    expect(await lies(a.id)).toEqual({ geo_lat: '52.503100', geo_lon: '13.332400' });
+  });
+
+  it('ändert sie und räumt sie mit einem leeren Paar wieder ab', async () => {
+    const a = await alsApp(sitzung(), (tx) => legeObjektAn(kontextAus(tx, f.reinigung), {
+      ...GRUND, bezeichnung: 'Umziehend',
+    }));
+    expect(await lies(a.id)).toEqual({ geo_lat: null, geo_lon: null });
+    await alsApp(sitzung(), (tx) => aendereObjekt(kontextAus(tx, f.reinigung), {
+      ...GRUND, id: a.id, geoLat: '-33,86882', geoLon: '151,209296',
+    }));
+    expect(await lies(a.id)).toEqual({ geo_lat: '-33.868820', geo_lon: '151.209296' });
+    await alsApp(sitzung(), (tx) => aendereObjekt(kontextAus(tx, f.reinigung), {
+      ...GRUND, id: a.id, geoLat: '', geoLon: '',
+    }));
+    expect(await lies(a.id)).toEqual({ geo_lat: null, geo_lon: null });
+  });
+
+  it('WEIST ein halbes Paar und einen Wert ausserhalb ab — ohne etwas zu schreiben', async () => {
+    const a = await alsApp(sitzung(), (tx) => legeObjektAn(kontextAus(tx, f.reinigung), {
+      ...GRUND, bezeichnung: 'Fest', geoLat: '52,5', geoLon: '13,4',
+    }));
+    await expect(alsApp(sitzung(), (tx) => aendereObjekt(kontextAus(tx, f.reinigung), {
+      ...GRUND, id: a.id, geoLat: '52,6', geoLon: '',
+    }))).rejects.toMatchObject({ grund: 'koordinaten_paar' });
+    await expect(alsApp(sitzung(), (tx) => aendereObjekt(kontextAus(tx, f.reinigung), {
+      ...GRUND, id: a.id, geoLat: '95', geoLon: '13,4',
+    }))).rejects.toMatchObject({ grund: 'koordinate_bereich' });
+    expect(await lies(a.id)).toEqual({ geo_lat: '52.500000', geo_lon: '13.400000' });
+  });
+
+  it('die zweite Linie steht: die CHECKs aus 0021 halten auch ohne den Dienst', async () => {
+    const a = await alsApp(sitzung(), (tx) => legeObjektAn(kontextAus(tx, f.reinigung), {
+      ...GRUND, bezeichnung: 'Ohne Dienst',
+    }));
+    await expect(sql.unsafe(
+      `update objekt set geo_lat = 52.5 where id = $1`, [a.id]))
+      .rejects.toThrow(/objekt_geo_vollstaendig/u);
+    await expect(sql.unsafe(
+      `update objekt set geo_lat = 91, geo_lon = 13 where id = $1`, [a.id]))
+      .rejects.toThrow(/objekt_geo_lat_bereich/u);
+  });
+
+  it('eine fremde Gesellschaft ändert die Koordinaten nicht (Invariante 3)', async () => {
+    const a = await alsApp(sitzung(), (tx) => legeObjektAn(kontextAus(tx, f.reinigung), {
+      ...GRUND, bezeichnung: 'Nur Reinigung', geoLat: '52,5', geoLon: '13,4',
+    }));
+    await expect(alsApp(sitzung(f.security), (tx) =>
+      aendereObjekt(kontextAus(tx, f.security), {
+        ...GRUND, id: a.id, geoLat: '48,1', geoLon: '11,5',
+      }))).rejects.toMatchObject({ grund: 'objekt_unbekannt' });
+    expect(await lies(a.id)).toEqual({ geo_lat: '52.500000', geo_lon: '13.400000' });
+  });
+});
