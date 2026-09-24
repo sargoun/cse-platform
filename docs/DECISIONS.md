@@ -15682,3 +15682,48 @@ Nummernkreises) und dieselbe Form `zurMaske(grund)`; die Anfrage-Bindung
 
 | Betrifft | OPS-07, OPS-10, D-599, AUT-06, Invariante 3, V-172, `src/server/services/auftrag/angaben.ts`, `src/server/services/kalkulation/bestaetigung.ts`, `src/app/api/{auftrag,kalkulation}/route.ts`, `src/app/portal/[mandant]/auftraege/neu/page.tsx`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/lib/i18n/verwaltung/{auftrag,kalkulation}.ts` |
 |---|---|
+
+### D-667 · Ein Auftrag lässt sich nach der Anlage pflegen — mit festem Kern, und der Wert aus dem Angebot bleibt (V-173)
+
+**Der Befund** (V-173, OPS-05, OPS-09, OPS-10): OPS-05 verlangt Aufträge mit
+Art, Laufzeit, WERT und verantwortlicher Leitung, OPS-10 zeigt Ort,
+Personalbedarf, Stunden, Ausstattung, Start und Leitung. Die zwei
+Entstehungswege füllten je die halbe Menge: der Assistent hatte kein
+Wertfeld (ein so angelegter Auftrag hatte für immer keinen Wert, die
+Wertkennzahlen zählten ihn mit 0, eine Abschlagsrechnung hatte keine
+Grundlage), die Wandlung aus dem Angebot setzte den Wert, aber nie
+Personalbedarf, Stunden oder Ausstattung. Einen Änderungsweg gab es nicht:
+das einzige `update auftrag` betraf Zustand, Abschluss und Kundenfreigabe.
+
+**Die Entscheidung.**
+
+1. **Der Assistent fragt den Wert** — freiwillig, deutsch geschrieben, über
+   `parseGeld` in ganze Cent (Invariante 1), nie geschätzt. Ein negativer
+   Betrag ist ein Tippfehler und wird abgewiesen (`wert_ungueltig`).
+2. **Die Annahme fragt Personalbedarf, Stunden und Ausstattung** und reicht
+   sie an `wandleInAuftrag` — geprüft mit demselben Leser wie der Assistent
+   (`pruefeAuftragsangaben`), freiwillig, nie geschätzt.
+3. **Gepflegt werden** Bezeichnung, Beschreibung, Leitung, Laufzeit, Wert,
+   Personalbedarf, Wochenstunden und Ausstattung — auf einer eigenen Seite
+   `/auftraege/[id]/bearbeiten`, unter `auftrag.schreiben` (dasselbe Recht wie
+   Anlegen und Zustand), über `POST /api/auftrag/aendern` mit dem Bereich aus
+   der Sitzung und der Abweisung auf der Maske.
+4. **Nicht gepflegt werden** Nummer, Kunde, Art, Start und Objekt: sie tragen
+   Rechnungen, Einsätze, Leistungsnachweise und Abrechnungszeiträume, und ein
+   anderer Vertragspartner oder Ort ist ein anderer Auftrag.
+5. **Der Wert eines Auftrags AUS EINEM ANGEBOT bleibt**, wie er ist. Er ist
+   `angebot.netto_cent` und wird nicht neu gerechnet (`wandleInAuftrag`); ihn
+   hier zu überschreiben, wäre eine zweite Wahrheit über denselben Betrag. Die
+   Seite zeigt ihn zum Lesen, der Dienst weist eine Abweichung ab
+   (`wert_aus_angebot`) — eine Änderung des Vertragswerts ist ein Nachtrag.
+6. **Abgeschlossen und storniert sind gesperrt** (O-734, 0389); die Seite sagt
+   warum, statt ein Formular anzubieten.
+7. **Jede Änderung steht im Protokoll** (`auftrag.geaendert`) mit Vorher und
+   Nachher der GEÄNDERTEN Felder. Speichern ohne Änderung schreibt nichts und
+   ist kein Fehler.
+8. **Sperren, dann vergleichen:** `for update` befragt die UPDATE-Policy
+   `t_mandant` — eine fremde Gesellschaft und die Gruppenansicht bekommen
+   keine Zeile (Invariante 3, 10).
+
+| Betrifft | OPS-05, OPS-09, OPS-10, O-734, Invariante 1, 3, 10, V-173, `src/server/services/auftrag/{aendern,angaben}.ts`, `src/server/services/angebot/index.ts`, `src/app/api/auftrag/{route.ts,aendern/route.ts}`, `src/app/api/angebot/entscheidung/route.ts`, `src/app/portal/[mandant]/auftraege/{neu,[id],[id]/bearbeiten}/page.tsx`, `src/app/portal/[mandant]/angebote/[id]/annahme/page.tsx`, `src/lib/i18n/verwaltung/auftrag.ts`, `docs/architecture/04-SEITENKARTE.md` |
+|---|---|

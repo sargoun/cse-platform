@@ -14,8 +14,12 @@ import { ladeKalkulationsgrundlage } from '../../src/server/services/kalkulation
 import { kalkuliere } from '../../src/server/services/kalkulation/index.js';
 import { PLATZHALTER_FREQUENZ, PLATZHALTER_TARIF }
   from '../../src/server/services/kalkulation/tarif.js';
-import { legeAngebotAn, uebernimmKalkulation }
-  from '../../src/server/services/angebot/index.js';
+import {
+  gibPreisFrei, legeAngebotAn, uebernimmKalkulation, versendeAngebot, wandleInAuftrag,
+} from '../../src/server/services/angebot/index.js';
+import { aendereAuftrag, AuftragPflegeFehler }
+  from '../../src/server/services/auftrag/aendern.js';
+import { AuftragsangabenFehler } from '../../src/server/services/auftrag/angaben.js';
 import { bestaetigeKalkulation, KalkulationFehler }
   from '../../src/server/services/kalkulation/bestaetigung.js';
 
@@ -201,5 +205,192 @@ describe('(2) eine abgewiesene Kalkulationsbestätigung nennt ihr Feld (V-172)',
       `select stundenverrechnungssatz_cent::text as satz from kalkulation
         where angebot_id = $1`, [angebotId]);
     expect(nachher).toEqual(vorher);
+  });
+});
+
+/* ------------------------------------------------------------------------- */
+/* V-173 — der Auftrag lässt sich pflegen, und die Wandlung trägt OPS-10     */
+/* ------------------------------------------------------------------------- */
+
+/** Ein von Hand angelegter Auftrag, wie ihn der Assistent schreibt — ohne Wert. */
+async function auftragVonHand(): Promise<string> {
+  const k = await kunde(f.reinigung);
+  const [a] = await sql.unsafe<{ id: string }[]>(
+    `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, bezeichnung,
+                          verantwortlich_benutzer_id, start_datum)
+     values ($1, $2, $3, 'rahmenvertrag', 'Unterhaltsreinigung Buero', $4, '2026-10-01')
+     returning id`, [f.reinigung, `AU-H-${zufall()}`, k, chef]);
+  return a!.id;
+}
+
+interface Stand {
+  bezeichnung: string; wert: string | null; personal: number | null; stunden: string | null;
+  ausstattung: string | null; laufzeit: string | null; leitung: string;
+}
+async function stand(id: string): Promise<Stand> {
+  const [z] = await sql.unsafe<Stand[]>(
+    `select bezeichnung, auftragswert_netto_cent::text as wert,
+            personalbedarf_anzahl as personal, wochenstunden_soll::text as stunden,
+            ausstattung_hinweis as ausstattung,
+            to_char(laufzeit_bis, 'YYYY-MM-DD') as laufzeit,
+            verantwortlich_benutzer_id::text as leitung
+       from auftrag where id = $1`, [id]);
+  return z!;
+}
+
+const PFLEGE = {
+  bezeichnung: 'Unterhaltsreinigung Buero', verantwortlichBenutzerId: '',
+  laufzeitBis: '', auftragswertNetto: '', personalbedarfAnzahl: '',
+  wochenstundenSoll: '', ausstattungHinweis: '', beschreibung: '',
+};
+
+describe('(3) aendereAuftrag — Stammdaten nach der Anlage (V-173, OPS-05, OPS-10)', () => {
+  it('trägt Wert, Personalbedarf, Stunden, Ausstattung und Laufzeit nach — Geld in ganzen Cent', async () => {
+    const id = await auftragVonHand();
+    const geaendert = await alsChef((db) => aendereAuftrag(db as never, {
+      ...PFLEGE, auftragId: id, verantwortlichBenutzerId: chef,
+      bezeichnung: 'Unterhaltsreinigung Bürohaus', auftragswertNetto: '12.500,00',
+      personalbedarfAnzahl: '4', wochenstundenSoll: '38,5',
+      ausstattungHinweis: 'Scheuersaugmaschine', laufzeitBis: '2027-09-30',
+    }));
+    expect([...geaendert].sort()).toEqual([
+      'ausstattung_hinweis', 'bezeichnung', 'laufzeit_bis', 'personalbedarf_anzahl',
+      'wert', 'wochenstunden_soll']);
+    expect(await stand(id)).toEqual({
+      bezeichnung: 'Unterhaltsreinigung Bürohaus', wert: '1250000', personal: 4,
+      stunden: '38.500', ausstattung: 'Scheuersaugmaschine', laufzeit: '2027-09-30',
+      leitung: chef,
+    });
+  });
+
+  it('schreibt Vorher und Nachher ins Protokoll — nur die geänderten Felder', async () => {
+    const id = await auftragVonHand();
+    await alsChef((db) => aendereAuftrag(db as never, {
+      ...PFLEGE, auftragId: id, verantwortlichBenutzerId: chef, auftragswertNetto: '99,90',
+    }));
+    const [z] = await sql.unsafe<{
+      vorher: Record<string, unknown>; nachher: Record<string, unknown>;
+    }[]>(
+      `select vorher, nachher from audit_log
+        where aktion = 'auftrag.geaendert' and objekt_id = $1
+        order by id desc limit 1`, [id]);
+    expect(z?.vorher).toMatchObject({ wert: null });
+    expect(z?.nachher).toMatchObject({ wert: '9990' });
+    expect(Object.keys(z?.nachher ?? {}).sort()).toEqual(['nummer', 'wert']);
+  });
+
+  it('ohne Änderung wird nichts geschrieben und nichts protokolliert', async () => {
+    const id = await auftragVonHand();
+    const geaendert = await alsChef((db) => aendereAuftrag(db as never, {
+      ...PFLEGE, auftragId: id, verantwortlichBenutzerId: chef,
+    }));
+    expect(geaendert).toEqual([]);
+    const [n] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from audit_log
+        where aktion = 'auftrag.geaendert' and objekt_id = $1`, [id]);
+    expect(n!.n).toBe('0');
+  });
+
+  it('weist unlesbare Zahlen, einen negativen Wert, eine fremde Leitung und eine Laufzeit vor dem Start ab', async () => {
+    const id = await auftragVonHand();
+    const vorher = await stand(id);
+    for (const [abweichung, grund] of [
+      [{ wochenstundenSoll: '40 Std' }, 'keine_zahl'],
+      [{ auftragswertNetto: '-5,00' }, 'wert_ungueltig'],
+      [{ personalbedarfAnzahl: '5001' }, 'ausserhalb_bereich'],
+      [{ verantwortlichBenutzerId: fremd }, 'verantwortlich_fremd'],
+      [{ laufzeitBis: '2026-09-30' }, 'laufzeit_vor_start'],
+    ] as const) {
+      const fehler = await alsChef((db) => aendereAuftrag(db as never, {
+        ...PFLEGE, auftragId: id, verantwortlichBenutzerId: chef, ...abweichung,
+      })).then(() => null, (e: unknown) => e);
+      expect(fehler).toBeInstanceOf(AuftragsangabenFehler);
+      expect((fehler as AuftragsangabenFehler).grund).toBe(grund);
+    }
+    expect(await stand(id)).toEqual(vorher);
+  });
+
+  it('ein stornierter Auftrag wird nicht mehr geändert', async () => {
+    const id = await auftragVonHand();
+    await sql.unsafe(
+      `update auftrag set status = 'storniert', status_grund = 'Kunde hat abgesagt'
+        where id = $1`, [id]);
+    await expect(alsChef((db) => aendereAuftrag(db as never, {
+      ...PFLEGE, auftragId: id, verantwortlichBenutzerId: chef, bezeichnung: 'Anders',
+    }))).rejects.toMatchObject({ grund: 'gesperrt' });
+    expect((await stand(id)).bezeichnung).toBe('Unterhaltsreinigung Buero');
+  });
+
+  it('eine fremde Gesellschaft und die Gruppenansicht finden ihn nicht (Invariante 3, 10)', async () => {
+    const id = await auftragVonHand();
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+       values ($1, $2, $3) on conflict do nothing`,
+      [chef, f.security, await rolleId('leitung')]);
+    await expect(als(chef, f.security, (db) => aendereAuftrag(db as never, {
+      ...PFLEGE, auftragId: id, verantwortlichBenutzerId: chef, bezeichnung: 'Fremd',
+    }))).rejects.toBeInstanceOf(AuftragPflegeFehler);
+    await expect(alsApp(
+      { scope: 'gruppe', mandantIds: [f.reinigung, f.security], benutzerId: chef,
+        portal: 'intern', readonly: true },
+      (tx) => aendereAuftrag(kontextAus(tx, chef, f.reinigung) as never, {
+        ...PFLEGE, auftragId: id, verantwortlichBenutzerId: chef, bezeichnung: 'Gruppe',
+      }))).rejects.toBeInstanceOf(AuftragPflegeFehler);
+    expect((await stand(id)).bezeichnung).toBe('Unterhaltsreinigung Buero');
+  });
+});
+
+describe('(4) die Wandlung trägt OPS-10, und der Wert aus dem Angebot bleibt (V-173)', () => {
+  async function gewandelt(ops10: {
+    personalbedarfAnzahl?: number | null; wochenstundenSoll?: string | null;
+    ausstattungHinweis?: string | null;
+  }): Promise<{ auftragId: string; netto: string }> {
+    const { angebotId } = await angebotMitKalkulation();
+    await alsChef((db) => bestaetigeKalkulation(db, angebotId, {
+      stundensatzEuro: '29,00', gemeinkostenBasis: 'lohn', gemeinkostenProzent: '15',
+      wagnisGewinnProzent: '8', frequenzFaktor: '1', leistungswerteBestaetigen: true,
+      benutzerId: chef,
+    }));
+    const auftrag = await alsChef(async (db) => {
+      await gibPreisFrei(db, angebotId, chef);
+      await versendeAngebot(db, angebotId, chef);
+      return wandleInAuftrag(db, angebotId, {
+        art: 'rahmenvertrag', verantwortlichBenutzerId: chef, startDatum: '2026-11-01',
+        ...ops10,
+      });
+    });
+    const [a] = await sql.unsafe<{ netto: string }[]>(
+      `select netto_cent::text as netto from angebot where id = $1`, [angebotId]);
+    return { auftragId: auftrag.auftragId, netto: a!.netto };
+  }
+
+  it('Personalbedarf, Stunden und Ausstattung aus der Annahme stehen am Auftrag', async () => {
+    const { auftragId, netto } = await gewandelt({
+      personalbedarfAnzahl: 3, wochenstundenSoll: '25.500', ausstattungHinweis: 'Leiter, Wagen',
+    });
+    const z = await stand(auftragId);
+    expect(z).toMatchObject({ personal: 3, stunden: '25.500', ausstattung: 'Leiter, Wagen',
+                              wert: netto });
+  });
+
+  it('ohne Angaben bleiben sie leer — nichts wird geschätzt', async () => {
+    const { auftragId } = await gewandelt({});
+    expect(await stand(auftragId)).toMatchObject(
+      { personal: null, stunden: null, ausstattung: null });
+  });
+
+  it('der Wert eines Auftrags aus dem Angebot wird in der Pflege nicht überschrieben', async () => {
+    const { auftragId, netto } = await gewandelt({});
+    await expect(alsChef((db) => aendereAuftrag(db as never, {
+      ...PFLEGE, auftragId, verantwortlichBenutzerId: chef, auftragswertNetto: '1,00',
+    }))).rejects.toMatchObject({ grund: 'wert_aus_angebot' });
+    // Derselbe Wert, wie die Seite ihn mitschickt, lässt die übrigen Felder zu.
+    const euro = `${String(BigInt(netto) / 100n)},${String(BigInt(netto) % 100n).padStart(2, '0')}`;
+    const geaendert = await alsChef((db) => aendereAuftrag(db as never, {
+      ...PFLEGE, auftragId, verantwortlichBenutzerId: chef, auftragswertNetto: euro,
+      bezeichnung: 'Unterhaltsreinigung', personalbedarfAnzahl: '2',
+    }));
+    expect(geaendert).toEqual(['personalbedarf_anzahl']);
+    expect((await stand(auftragId)).wert).toBe(netto);
   });
 });

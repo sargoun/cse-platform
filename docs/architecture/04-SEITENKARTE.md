@@ -1069,6 +1069,7 @@ DSH-01's two counters are "`auftrag` without a `projekt` row" and "`auftrag` wit
 | `/portal/[mandant]/auftraege` | `auftrag.lesen` | `M1` | OPS-05, CRM-05 | 4 |
 | `/portal/[mandant]/auftraege/neu` — contract wizard: location · staff needed · hours · equipment · start date · responsible manager | `auftrag.schreiben` | `M1` | OPS-10, OPS-05 | 4 |
 | `/portal/[mandant]/auftraege/[id]` — tabs: Übersicht · Leistungen · Einsätze · Zeiten · Nachweise · Dokumente · Rechnungen · Aufgaben | `auftrag.lesen` | `M1` | OPS-05, OPS-11, FIN-07, FIN-18 | 4 |
+| `/portal/[mandant]/auftraege/[id]/bearbeiten` — maintain name, manager, term, value, staff needed, hours, equipment. Number, customer, type, start and site are not editable; the value of an order from an offer changes only by Nachtrag (V-173) | `auftrag.schreiben` | `M1` | OPS-05, OPS-10 | 4 |
 | `/portal/[mandant]/auftraege/[id]/abrechnung` — billing type and its parameters per contract | `abrechnung.schreiben` | `M1` | FIN-01, FIN-05, FIN-08 | 6 |
 | `/portal/[mandant]/auftraege/[id]/abschluss` — mark complete; FIN-18 warnings shown first | `auftrag.abschliessen` | `M1` | OPS-05, FIN-18 | 6 |
 | `/portal/[mandant]/auftraege/[id]/kundenfreigabe` — record the customer's written release for public use | `referenz.kundenfreigabe_erfassen` | `M1` | PRO-05 | 4 |

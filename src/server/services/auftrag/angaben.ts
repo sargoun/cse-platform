@@ -23,6 +23,7 @@
  * Auftragsnummer verbraucht.
  */
 import { alsNumerisch, leseZahl } from '../raumbuch/tabelle.js';
+import { parseGeld, type Cent } from '../finanz/geld.js';
 
 /** Was dieser Dienst von einem Kontext braucht: lesen unter der Sitzung. */
 export interface Abfrage {
@@ -34,11 +35,28 @@ export const PERSONALBEDARF_HOECHSTENS = 5_000;
 /** `auftrag_wochenstunden_bereich` (0025). */
 export const WOCHENSTUNDEN_HOECHSTENS = 10_000;
 
-export type AngabenGrund = 'keine_zahl' | 'ausserhalb_bereich';
+export type AngabenGrund = 'keine_zahl' | 'ausserhalb_bereich' | 'wert_ungueltig';
+
+/**
+ * Eine Abweisung der Angaben als WURF — für die Routen, die über das Gerüst
+ * `fuehreUebergangAus` laufen (Annahme, Auftragspflege) und ihren Grund aus
+ * einer Fehlerklasse lesen (V-173).
+ */
+export class AuftragsangabenFehler extends Error {
+  constructor(
+    readonly grund: AngabenGrund | BezugGrund,
+    readonly felder: readonly string[] = [],
+  ) {
+    super(`Auftragsangaben abgewiesen: ${grund}`);
+    this.name = 'AuftragsangabenFehler';
+  }
+}
 
 export interface AngabenRoh {
   readonly personalbedarf?: string | null;
   readonly wochenstunden?: string | null;
+  /** Auftragswert netto in Euro, deutsch geschrieben (V-173). */
+  readonly wert?: string | null;
 }
 
 export interface Angaben {
@@ -46,6 +64,12 @@ export interface Angaben {
   readonly personalbedarf: number | null;
   /** Wochenstunden als `numeric(12,3)`-Text, oder `null`. */
   readonly wochenstunden: string | null;
+  /**
+   * Der Auftragswert netto in ganzen Cent (Invariante 1), oder `null`.
+   * Aus `parseGeld` — nie aus `Number`: „1.234" ist hier eintausend-
+   * zweihundertvierunddreissig Euro, nicht einer Komma zwei drei.
+   */
+  readonly wertCent: Cent | null;
 }
 
 export type AngabenErgebnis =
@@ -92,9 +116,30 @@ export function pruefeAuftragsangaben(roh: AngabenRoh): AngabenErgebnis {
     }
   }
 
+  /*
+   * Der Wert ist Geld: `parseGeld` nimmt nur deutsche Schreibweise (Komma,
+   * Tausenderpunkt, höchstens zwei Nachkommastellen) und weist anderes ab,
+   * statt es zu deuten. Ein negativer Auftragswert ist keine Gutschrift,
+   * sondern ein Tippfehler.
+   */
+  let wertCent: Cent | null = null;
+  let wertFalsch = false;
+  if (!leer(roh.wert)) {
+    try {
+      const betrag = parseGeld(roh.wert ?? '');
+      if ((betrag as bigint) < 0n) wertFalsch = true;
+      else wertCent = betrag;
+    } catch {
+      wertFalsch = true;
+    }
+  }
+
   if (unlesbar.length > 0) return { ok: false, grund: 'keine_zahl', felder: unlesbar };
+  if (wertFalsch) {
+    return { ok: false, grund: 'wert_ungueltig', felder: ['auftragswertNetto'] };
+  }
   if (ausserhalb.length > 0) return { ok: false, grund: 'ausserhalb_bereich', felder: ausserhalb };
-  return { ok: true, werte: { personalbedarf, wochenstunden } };
+  return { ok: true, werte: { personalbedarf, wochenstunden, wertCent } };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;

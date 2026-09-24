@@ -200,6 +200,18 @@ export default async function AuftragAssistent(
             </div>
           </div>
 
+          {/*
+            * V-173 (OPS-05): „Art, Laufzeit, WERT und verantwortliche Leitung".
+            * Ein so angelegter Auftrag hatte für immer keinen Wert, und die
+            * Wertkennzahlen zählten ihn mit 0.
+            */}
+          <label className="mt-s4 block text-sm text-text" htmlFor="auftragswertNetto">
+            {ta.wert}
+          </label>
+          <input id="auftragswertNetto" name="auftragswertNetto" type="text"
+                 inputMode="decimal" data-cse="auftrag-wert" className={feld} />
+          <p className="mt-s1 text-xs text-text-muted">{ta.wertHinweis}</p>
+
           <label className="mt-s4 block text-sm text-text" htmlFor="ausstattungHinweis">
             Ausstattung
           </label>

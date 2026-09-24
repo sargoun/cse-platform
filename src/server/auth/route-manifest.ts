@@ -391,6 +391,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Stammdaten eines Auftrags pflegen (V-173, OPS-05, OPS-10): Leitung,
+     * Laufzeit, Wert, Personalbedarf, Stunden, Ausstattung. Dasselbe Recht
+     * wie Anlegen und Zustand; die zweite Linie ist `t_mandant`, die der
+     * Dienst mit `for update` befragt.
+     */
+    pfad: 'api/auftrag/aendern',
+    recht: 'auftrag.schreiben',
+  },
+  {
+    /**
      * Die Kundenfreigabe zur Nennung als Referenz (0296).
      * `referenz.kundenfreigabe_erfassen` und nicht `auftrag.schreiben`: was
      * hier festgehalten wird, ist die Erklaerung des KUNDEN, mit seinem Namen

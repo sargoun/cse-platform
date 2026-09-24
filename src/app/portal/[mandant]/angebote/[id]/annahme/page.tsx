@@ -13,6 +13,8 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { FELD, FEHLERTEXT, type AnnahmeKopf, type Auswahl } from './daten';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
 
 /**
  * `/portal/[mandant]/angebote/[id]/annahme` — was der Kunde entschieden hat
@@ -143,7 +145,9 @@ export default async function Annahme(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="annahme-fehler" className="mb-s5">
           <strong>Nichts wurde erfasst.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {FEHLERTEXT[fehler]
+            ?? nachSprache(AUFTRAG_TEXTE, zugang.sprache).fehler[fehler]
+            ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 
@@ -322,6 +326,41 @@ export default async function Annahme(
                 <p className="mt-s1 text-xs text-text-muted">leer = unbefristet</p>
               </div>
             </div>
+
+            {/*
+              * V-173 (OPS-10): die Wandlung setzte weder Personalbedarf noch
+              * Stunden noch Ausstattung — ein Auftrag aus dem Angebot hatte
+              * sie für immer nicht. Freiwillig, nie geschätzt.
+              */}
+            <fieldset className="mt-s5 border-0 p-0" data-cse="annahme-ops10">
+              <legend className="text-sm font-semibold text-text">
+                {nachSprache(AUFTRAG_TEXTE, zugang.sprache).ops10Titel}
+              </legend>
+              <p className="mt-s1 text-xs text-text-muted">
+                {nachSprache(AUFTRAG_TEXTE, zugang.sprache).ops10Hinweis}
+              </p>
+              <div className="mt-s3 grid grid-cols-1 gap-s4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm text-text" htmlFor="personalbedarfAnzahl">
+                    {nachSprache(AUFTRAG_TEXTE, zugang.sprache).personalbedarf}
+                  </label>
+                  <input id="personalbedarfAnzahl" name="personalbedarfAnzahl"
+                         inputMode="numeric" className={FELD} />
+                </div>
+                <div>
+                  <label className="block text-sm text-text" htmlFor="wochenstundenSoll">
+                    {nachSprache(AUFTRAG_TEXTE, zugang.sprache).wochenstunden}
+                  </label>
+                  <input id="wochenstundenSoll" name="wochenstundenSoll"
+                         inputMode="decimal" className={FELD} />
+                </div>
+              </div>
+              <label className="mt-s4 block text-sm text-text" htmlFor="ausstattungHinweis">
+                {nachSprache(AUFTRAG_TEXTE, zugang.sprache).ausstattung}
+              </label>
+              <textarea id="ausstattungHinweis" name="ausstattungHinweis" rows={2}
+                        className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text" />
+            </fieldset>
 
             <button
               type="submit"

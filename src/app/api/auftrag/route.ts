@@ -73,6 +73,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const angaben = pruefeAuftragsangaben({
     personalbedarf: text('personalbedarfAnzahl'),
     wochenstunden: text('wochenstundenSoll'),
+    /*
+     * V-173 (OPS-05): ein von Hand angelegter Auftrag hatte für immer keinen
+     * Wert — das Formular fragte nicht danach. Er kommt als deutscher
+     * Eurobetrag und geht über `parseGeld` in ganze Cent (Invariante 1).
+     */
+    wert: text('auftragswertNetto'),
   });
 
   /*
@@ -128,14 +134,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           `insert into auftrag (mandant_id, auftragsnummer, kunde_id, objekt_id, art,
                                 bezeichnung, beschreibung, verantwortlich_benutzer_id,
                                 start_datum, laufzeit_bis, personalbedarf_anzahl,
-                                wochenstunden_soll, ausstattung_hinweis)
+                                wochenstunden_soll, ausstattung_hinweis,
+                                auftragswert_netto_cent)
            values (app.aktiver_mandant(), $1, $2, $3, $4::auftrag_art, $5, $6, $7,
-                   $8::date, $9::date, $10, $11::numeric, $12)
+                   $8::date, $9::date, $10, $11::numeric, $12, $13::bigint)
            returning id`,
           [nummer.formatiert, kundeId, text('objektId'), art, bezeichnung,
            text('beschreibung'), verantwortlich, startDatum, text('laufzeitBis'),
            angaben.werte.personalbedarf, angaben.werte.wochenstunden,
-           text('ausstattungHinweis')],
+           text('ausstattungHinweis'),
+           angaben.werte.wertCent === null ? null : String(angaben.werte.wertCent)],
         );
         if (neu === undefined) throw new NichtGefundenFehler('Auftrag nicht angelegt');
         return { art: 'angelegt', id: neu.id };

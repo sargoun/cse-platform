@@ -11,6 +11,8 @@ import { Recht } from '@/components/ui/Recht';
 import { WEGE, ZUSTAND_TEXT, type Auftragszustand } from '@/server/services/auftrag/status';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
+import { nachSprache as sprachTexte } from '@/lib/i18n/verwaltung/basis';
+import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
@@ -233,7 +235,29 @@ export default async function AuftragDetail(
         * nicht als Knopf: was sie tun, gehoert auf ihre Seite, mit dem, was
         * dagegen spricht.
         */}
+      {suche['gespeichert'] === '1' ? (
+        <Hinweis art="erfolg" cse="auftrag-gespeichert" className="mb-s5 max-w-prose">
+          {sprachTexte(AUFTRAG_TEXTE, zugang.sprache).gespeichert}
+        </Hinweis>
+      ) : null}
+
       <nav aria-label="Vorgänge" className="mb-s6 flex flex-wrap gap-s3">
+        {/*
+          * V-173 (OPS-05, OPS-10): Leitung, Laufzeit, Wert, Personalbedarf,
+          * Stunden und Ausstattung standen nach der Anlage fest — kein
+          * Tippfehler liess sich korrigieren. Die Pflege trägt dasselbe Recht
+          * wie das Anlegen; für abgeschlossene und stornierte Aufträge sagt
+          * die Seite, warum dort nichts mehr geht.
+          */}
+        {darf['auftrag.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/auftraege/${id}/bearbeiten`}
+            data-cse="zur-auftragspflege"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+          >
+            {sprachTexte(AUFTRAG_TEXTE, zugang.sprache).bearbeiten}
+          </Link>
+        )}
         {darf['auftrag.abschliessen'] === true && (
           <Link
             href={`/portal/${mandant}/auftraege/${id}/abschluss`}

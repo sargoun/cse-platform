@@ -1315,6 +1315,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * wird im Assistenten und in `auftrag/aendern`.
    */
   { modul: 'auftrag', pfad: 'auftrag/angaben', schreibend: false },
+  /**
+   * V-173 — Stammdaten eines Auftrags pflegen. `auftrag.schreiben`; gesperrt
+   * für abgeschlossen und storniert, der Wert aus einem Angebot bleibt.
+   */
+  {
+    modul: 'auftrag', pfad: 'auftrag/aendern',
+    schreibend: true, schreibRecht: 'auftrag.schreiben',
+  },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/dienst', schreibend: false },

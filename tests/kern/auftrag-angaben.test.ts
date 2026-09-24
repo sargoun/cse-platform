@@ -16,14 +16,14 @@ import {
 describe('(1) pruefeAuftragsangaben — deutsche Zahlen, die Grenzen aus 0025', () => {
   it('liest Tausenderpunkt und Dezimalkomma — „1.234,5" ist 1234,5, nicht NaN', () => {
     expect(pruefeAuftragsangaben({ wochenstunden: '1.234,5' })).toEqual(
-      { ok: true, werte: { personalbedarf: null, wochenstunden: '1234.500' } });
+      { ok: true, werte: { personalbedarf: null, wochenstunden: '1234.500', wertCent: null } });
     expect(pruefeAuftragsangaben({ wochenstunden: '38,5', personalbedarf: '12' })).toEqual(
-      { ok: true, werte: { personalbedarf: 12, wochenstunden: '38.500' } });
+      { ok: true, werte: { personalbedarf: 12, wochenstunden: '38.500', wertCent: null } });
   });
 
   it('leer heisst „nicht angegeben" — nichts wird geschätzt', () => {
     expect(pruefeAuftragsangaben({ personalbedarf: '  ', wochenstunden: null })).toEqual(
-      { ok: true, werte: { personalbedarf: null, wochenstunden: null } });
+      { ok: true, werte: { personalbedarf: null, wochenstunden: null, wertCent: null } });
   });
 
   it('Unlesbares ist ein FEHLER, kein fehlendes Feld — und nennt seine Felder', () => {
@@ -52,9 +52,40 @@ describe('(1) pruefeAuftragsangaben — deutsche Zahlen, die Grenzen aus 0025', 
 
   it('die Ränder gehören dazu', () => {
     expect(pruefeAuftragsangaben({ personalbedarf: '5.000', wochenstunden: '10.000' }))
-      .toEqual({ ok: true, werte: { personalbedarf: 5000, wochenstunden: '10000.000' } });
+      .toEqual({ ok: true, werte: { personalbedarf: 5000, wochenstunden: '10000.000', wertCent: null } });
     expect(pruefeAuftragsangaben({ personalbedarf: '0', wochenstunden: '0' }))
-      .toEqual({ ok: true, werte: { personalbedarf: 0, wochenstunden: '0.000' } });
+      .toEqual({ ok: true, werte: { personalbedarf: 0, wochenstunden: '0.000', wertCent: null } });
+  });
+});
+
+describe('(1b) der Auftragswert — Geld in ganzen Cent, nie über Number (V-173, Invariante 1)', () => {
+  it.each([
+    ['12.500,00', 1_250_000n],
+    ['12500', 1_250_000n],
+    ['0,01', 1n],
+    ['1.234', 123_400n],
+    ['0', 0n],
+    [' 99,90 € ', 9_990n],
+  ])('„%s" → %s Cent', (roh, cent) => {
+    const e = pruefeAuftragsangaben({ wert: roh });
+    expect(e.ok).toBe(true);
+    if (e.ok) expect(e.werte.wertCent).toBe(cent);
+  });
+
+  it.each(['12.50', '1,234', '12,345', '-5,00', 'zwölf', '12 500'])(
+    '„%s" ist kein deutscher, nicht negativer Eurobetrag', (roh) => {
+      expect(pruefeAuftragsangaben({ wert: roh })).toEqual(
+        { ok: false, grund: 'wert_ungueltig', felder: ['auftragswertNetto'] });
+    });
+
+  it('leer bleibt null — kein geschätzter Wert', () => {
+    const e = pruefeAuftragsangaben({ wert: '' });
+    expect(e.ok && e.werte.wertCent).toBeNull();
+  });
+
+  it('eine unlesbare Stundenzahl geht vor dem Wert — erst die Zahlen, dann das Geld', () => {
+    expect(pruefeAuftragsangaben({ wochenstunden: 'x', wert: 'y' })).toMatchObject(
+      { ok: false, grund: 'keine_zahl' });
   });
 });
 
