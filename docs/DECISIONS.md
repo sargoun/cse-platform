@@ -17098,6 +17098,13 @@ schrieb nur der Seed.
    bleibt. Das Tor steht zweimal: in der Funktion (Super-Administration,
    internes Portal, nicht nur lesend) und in den `d_`-Policies. Die Seite
    nennt, wie viele Bekanntmachungen dabei eine Plattform bekamen.
+   **Berichtigt (V-240, 0422):** die erste Fassung schrieb bei jeder
+   Katalogänderung ALLE Bekanntmachungen ohne Plattform an und sperrte sie
+   bis zum Ende der Transaktion gegen den Einlesejob — auch die, zu denen gar
+   keine Plattform passt. Jetzt wird nur angeschrieben, wessen Host zu einem
+   Muster einer nicht archivierten Plattform passt. Die Hostregel steht dafür
+   in `app.radar_url_host` und `app.radar_host_passt`, und der Auslöser aus
+   0145 ruft dieselben zwei Funktionen: es bleibt EINE Fassung.
 4. **Hostnamen sind Hostnamen.** Getrennt durch Komma oder Zeilenwechsel,
    klein geschrieben, höchstens zwanzig; aus einer eingefügten Adresse wird
    ihr Host. Eine Basisadresse ist http(s) und trägt nie Zugangsdaten.
@@ -17114,6 +17121,21 @@ schrieb nur der Seed.
    es nicht gibt.
 7. **Abgelaufen wird nicht still umgedeutet.** Liegt „gültig bis" vor heute,
    sagt die Seite das und bittet um Prüfung. Den Stand ändert ein Mensch.
+   **Berichtigt (V-240):** die WARNUNG rechnet die Gültigkeit jetzt überall
+   ein, nicht nur auf der Plattformseite, und sie beachtet
+   `registrierung_erforderlich`. „Freigeschaltet" heisst an EINER Stelle
+   (`freischaltungSql` in `services/radar/plattform.ts`): die Plattform
+   verlangt laut Eintrag keine Registrierung, ODER der Stand ist
+   `registriert` und „gültig bis" ist leer oder nicht vor dem heutigen
+   Berliner Tag. Ohne Plattform wird nichts behauptet. Liste, Kennzahl
+   „Ohne Freischaltung", Detailblatt (bei abgelaufener Gültigkeit mit dem
+   Datum statt „Stand: registriert"), Plattformseite, Vergabemappe und
+   Gruppenansicht fragen dieselbe Stelle; bisher meldeten sie auch Plattformen
+   ohne Registrierungspflicht als „nicht freigeschaltet", und eine abgelaufene
+   Registrierung galt überall sonst als freigeschaltet. Der Stand der Zeile
+   bleibt unverändert. Liste, Kennzahl und Detail binden die Registrierung
+   ausdrücklich an `app.aktiver_mandant()`, die Mappe an ihre eigene
+   Gesellschaft — nicht nur über RLS (Invariante 3).
 8. **Die Plattformprüfung am Vorgang** (`plattform_pruefung`) setzt, wer
    `radar.status_setzen` hält, auf der Seite „Stand setzen", mit Serverzeit.
    Sie ändert keinen Stand. Sie hängt am Vorgang, und der entsteht mit dem

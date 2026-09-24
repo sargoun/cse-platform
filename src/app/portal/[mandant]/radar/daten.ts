@@ -1,5 +1,6 @@
 import 'server-only';
 import type { LeseKontext } from '@/server/kontext/index';
+import { freischaltungSql, registrierungAbgelaufenSql } from '@/server/services/radar/plattform';
 
 /**
  * Was die Radarseiten lesen (RAD-05 … RAD-09).
@@ -42,6 +43,15 @@ export interface RadarZeile {
   readonly plattformHinweis: string | null;
   /** `null` = keine Plattform zugeordnet; sonst der Registrierungsstand dieser Gesellschaft. */
   readonly registrierung: string | null;
+  /**
+   * Freigeschaltet? `null` ohne Plattform; sonst die Antwort von
+   * `freischaltungSql` — Registrierungspflicht und Gültigkeit eingerechnet (V-240).
+   */
+  readonly freigeschaltet: boolean | null;
+  /** Registriert, aber „gültig bis" liegt vor heute (V-240). */
+  readonly registrierungAbgelaufen: boolean;
+  /** „Gültig bis" der Registrierung, `JJJJ-MM-TT`, oder `null`. */
+  readonly registrierungGueltigBis: string | null;
   readonly vorgangStatus: string | null;
 }
 
@@ -63,6 +73,9 @@ const ZEILEN_SQL = `
          k.begruendung, p.name as profil_name, p.id as profil_id, p.ist_platzhalter,
          vp.name as plattform_name, a.plattform_hinweis,
          mpr.status::text as registrierung,
+         ${freischaltungSql('vp', 'mpr')} as freigeschaltet,
+         ${registrierungAbgelaufenSql('mpr')} as registrierung_abgelaufen,
+         mpr.gueltig_bis::text as registrierung_gueltig_bis,
          v.status::text as vorgang_status
     from aktuell k
     join ausschreibung a on a.id = k.ausschreibung_id
@@ -70,6 +83,7 @@ const ZEILEN_SQL = `
     left join vergabeplattform vp on vp.id = a.vergabeplattform_id
     left join mandant_plattform_registrierung mpr
            on mpr.vergabeplattform_id = a.vergabeplattform_id and mpr.geloescht_am is null
+          and mpr.mandant_id = app.aktiver_mandant()
     left join ausschreibung_vorgang v
            on v.ausschreibung_id = a.id and v.geloescht_am is null`;
 
@@ -99,6 +113,9 @@ function alsZeile(z: Record<string, unknown>): RadarZeile {
     plattformName: (z['plattform_name'] as string | null) ?? null,
     plattformHinweis: (z['plattform_hinweis'] as string | null) ?? null,
     registrierung: (z['registrierung'] as string | null) ?? null,
+    freigeschaltet: typeof z['freigeschaltet'] === 'boolean' ? z['freigeschaltet'] : null,
+    registrierungAbgelaufen: z['registrierung_abgelaufen'] === true,
+    registrierungGueltigBis: (z['registrierung_gueltig_bis'] as string | null) ?? null,
     vorgangStatus: (z['vorgang_status'] as string | null) ?? null,
   };
 }
@@ -151,8 +168,9 @@ export async function leseRadarKennzahlen(kontext: LeseKontext): Promise<RadarKe
           join vergabeplattform vp on vp.id = a.vergabeplattform_id
           left join mandant_plattform_registrierung m
                  on m.vergabeplattform_id = vp.id and m.geloescht_am is null
+                and m.mandant_id = app.aktiver_mandant()
          where a.quell_status = 'aktiv' and a.frist_angebot > now()
-           and coalesce(m.status::text, 'unbekannt') <> 'registriert')::int as ohne_registrierung,
+           and not ${freischaltungSql('vp', 'm')})::int as ohne_registrierung,
        (select count(*) from radar_profil where ist_aktiv and geloescht_am is null)::int as profile`);
   const [lauf] = await kontext.abfrage<{ quelle: string; status: string; am: Date | null }>(
     `select quelle::text as quelle, status::text as status, coalesce(beendet_am, gestartet_am) as am
@@ -250,6 +268,8 @@ export interface PlattformZeile {
   readonly gueltigBis: string | null;
   /** Liegt `gueltigBis` vor dem heutigen Berliner Kalendertag? Die Datenbank sagt es. */
   readonly gueltigkeitVorbei: boolean;
+  /** Freigeschaltet — Registrierungspflicht und Gültigkeit eingerechnet (`freischaltungSql`, V-240). */
+  readonly freigeschaltet: boolean;
   readonly benutzerkennung: string | null;
   readonly verantwortlichBenutzerId: string | null;
   readonly notiz: string | null;
@@ -273,6 +293,7 @@ export async function lesePlattformen(kontext: LeseKontext): Promise<readonly Pl
             coalesce(m.status::text, 'unbekannt') as registrierung,
             m.registriert_am::text as registriert_am, m.gueltig_bis::text as gueltig_bis,
             coalesce(m.gueltig_bis < app.berlin_heute(), false) as gueltigkeit_vorbei,
+            ${freischaltungSql('vp', 'm')} as freigeschaltet,
             m.benutzerkennung, m.verantwortlich_benutzer_id::text as verantwortlich,
             m.notiz, m.zuletzt_bestaetigt_am,
             (select count(*) from ausschreibung a
@@ -297,6 +318,7 @@ export async function lesePlattformen(kontext: LeseKontext): Promise<readonly Pl
     registriertAm: (z['registriert_am'] as string | null) ?? null,
     gueltigBis: (z['gueltig_bis'] as string | null) ?? null,
     gueltigkeitVorbei: z['gueltigkeit_vorbei'] === true,
+    freigeschaltet: z['freigeschaltet'] === true,
     benutzerkennung: (z['benutzerkennung'] as string | null) ?? null,
     verantwortlichBenutzerId: (z['verantwortlich'] as string | null) ?? null,
     notiz: (z['notiz'] as string | null) ?? null,

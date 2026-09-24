@@ -174,3 +174,36 @@ describe('(6) die Route nimmt den Bereich aus der Sitzung und antwortet mit der 
     expect(seite).toContain('action="/api/radar/plattform"');
   });
 });
+
+describe('(7) EINE Frage „freigeschaltet?" für alle Warnungen (V-240)', () => {
+  it('Liste, Kennzahl, Plattformseite, Mappe und Gruppe fragen freischaltungSql', () => {
+    for (const datei of [
+      'src/app/portal/[mandant]/radar/daten.ts',
+      'src/app/portal/[mandant]/radar/[id]/mappe/daten.ts',
+      'src/server/services/gruppe/radar.ts',
+    ]) {
+      const quelle = readFileSync(datei, 'utf8');
+      expect(quelle, datei).toContain('freischaltungSql(');
+      expect(quelle, datei).not.toMatch(/<> 'registriert'/u);
+    }
+  });
+
+  it('keine Seite vergleicht den Stand noch selbst mit „registriert"', () => {
+    for (const seite of [
+      'src/app/portal/[mandant]/radar/page.tsx',
+      'src/app/portal/[mandant]/radar/[id]/page.tsx',
+      'src/app/portal/[mandant]/radar/[id]/mappe/page.tsx',
+      'src/app/portal/gruppe/radar/page.tsx',
+    ]) {
+      expect(readFileSync(seite, 'utf8'), seite).not.toMatch(/registrierung [!=]== 'registriert'/u);
+    }
+  });
+
+  it('der Registrierungsstand ist ausdrücklich an den aktiven Bereich gebunden — nicht nur an RLS', () => {
+    const daten = readFileSync('src/app/portal/[mandant]/radar/daten.ts', 'utf8');
+    expect(daten).toContain('and mpr.mandant_id = app.aktiver_mandant()');
+    expect(daten).toContain('and m.mandant_id = app.aktiver_mandant()');
+    expect(readFileSync('src/app/portal/[mandant]/radar/[id]/mappe/daten.ts', 'utf8'))
+      .toContain('and mpr.mandant_id = m.mandant_id');
+  });
+});

@@ -130,7 +130,8 @@ export default async function Radar(
       schluessel: 'plattform', kopf: 'Plattform',
       zelle: (z) => (z.plattformName === null
         ? <span className="text-xs text-text-subtle">{z.plattformHinweis ?? 'unbekannt'}</span>
-        : z.registrierung === 'registriert'
+        /* V-240: registriert UND gültig, oder keine Registrierungspflicht. */
+        : z.freigeschaltet !== false
           ? <span className="text-xs text-text-muted">{z.plattformName}</span>
           : (
             /*

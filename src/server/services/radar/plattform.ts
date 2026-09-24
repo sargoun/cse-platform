@@ -64,6 +64,45 @@ export function istRegistrierungStand(wert: string): wert is RegistrierungStand 
   return (REGISTRIERUNG_STAENDE as readonly string[]).includes(wert);
 }
 
+/**
+ * **Ist diese Gesellschaft auf der Plattform einer Bekanntmachung
+ * freigeschaltet?** — als SQL-Ausdruck, EINE Stelle für Liste, Kennzahl,
+ * Detailblatt, Plattformseite und Gruppenansicht (V-240, RAD-09).
+ *
+ * Vorher fragte jede Stelle nur `status = 'registriert'`. Damit meldeten sie
+ * auch eine Plattform als „nicht freigeschaltet", die laut Katalog gar keine
+ * Registrierung verlangt (`registrierung_erforderlich`, 0145), und eine
+ * Registrierung, deren eingetragene Gültigkeit vorbei ist, galt überall als
+ * freigeschaltet — nur die Plattformseite warnte.
+ *
+ *  - `null`: die Bekanntmachung hat keine Plattform — darüber lässt sich
+ *    nichts sagen, und es wird nichts behauptet.
+ *  - `true`: die Plattform verlangt laut Eintrag keine Registrierung, ODER
+ *    der Stand ist `registriert` und „gültig bis" ist leer oder nicht vor
+ *    dem heutigen Berliner Tag.
+ *  - `false`: alles andere — auch `unbekannt` (keine Zeile).
+ *
+ * Der gespeicherte Stand wird dabei nicht umgedeutet (D-669 Punkt 7): eine
+ * abgelaufene Gültigkeit ändert die WARNUNG, nicht die Zeile.
+ *
+ * Die Aliasse sind Namen aus dem Code, nie aus einer Anfrage.
+ */
+export function freischaltungSql(plattform: string, registrierung: string): string {
+  return `(case when ${plattform}.id is null then null
+               when not ${plattform}.registrierung_erforderlich then true
+               else coalesce(${registrierung}.status = 'registriert'
+                             and (${registrierung}.gueltig_bis is null
+                                  or ${registrierung}.gueltig_bis >= app.berlin_heute()),
+                             false)
+          end)`;
+}
+
+/** Registriert, aber die eingetragene Gültigkeit ist vorbei (V-240). */
+export function registrierungAbgelaufenSql(registrierung: string): string {
+  return `coalesce(${registrierung}.status = 'registriert'
+                   and ${registrierung}.gueltig_bis < app.berlin_heute(), false)`;
+}
+
 /** Anzeigegrenzen, keine Fachregeln. */
 export const NAME_LAENGE = 200;
 export const TEXT_LAENGE = 500;

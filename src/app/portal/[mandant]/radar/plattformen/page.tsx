@@ -104,8 +104,9 @@ export default async function Plattformen(
     }>);
   const { zeilen, superAdmin, personen } = daten;
 
+  /* V-240: dieselbe Frage wie Liste und Kennzahl (`freischaltungSql`). */
   const offeneOhneKonto = zeilen
-    .filter((z) => z.registrierung !== 'registriert')
+    .filter((z) => !z.freigeschaltet)
     .reduce((summe, z) => summe + z.offeneBekanntmachungen, 0);
 
   return (
@@ -305,7 +306,7 @@ export default async function Plattformen(
                       <label className="flex items-start gap-s3 text-sm text-text sm:mt-s5">
                         <input type="checkbox" name="registrierungErforderlich" value="ja"
                                defaultChecked={z.registrierungErforderlich}
-                               className="mt-1 min-h-5 min-w-5" />
+                               className="mt-s1 min-h-5 min-w-5" />
                         <span>{t.feldPflicht}</span>
                       </label>
                       <div className="sm:col-span-2">
@@ -379,7 +380,7 @@ export default async function Plattformen(
             </label>
             <label className="flex items-start gap-s3 text-sm text-text sm:mt-s5">
               <input type="checkbox" name="registrierungErforderlich" value="ja" defaultChecked
-                     className="mt-1 min-h-5 min-w-5" />
+                     className="mt-s1 min-h-5 min-w-5" />
               <span>{t.feldPflicht}</span>
             </label>
             <div className="sm:col-span-2">

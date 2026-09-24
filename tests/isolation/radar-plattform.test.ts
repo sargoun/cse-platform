@@ -19,6 +19,7 @@ import {
 import {
   VorgangFehler, setzePlattformPruefung, setzeVorgangsstand,
 } from '../../src/server/services/radar/vorgang.js';
+import { lesePlattformen, leseRadarKennzahlen } from '../../src/app/portal/[mandant]/radar/daten.js';
 
 let f: Fixtur;
 let chef = '';
@@ -166,6 +167,31 @@ describe('(2) eine neue Plattform erreicht auch die Bekanntmachungen von gestern
     expect(await plattformVon(await bekanntmachung(`https://${host}/notice/2`))).toBe(plattformId);
   });
 
+  it('V-240 (0422): eine Bekanntmachung, zu der keine Plattform passt, wird nicht angeschrieben', async () => {
+    const host = `gezielt-${zufall()}.example.org`;
+    const passt = await bekanntmachung(`https://portal.${host}/n/1`);
+    const fremdeAdresse = await bekanntmachung(`https://anders-${zufall()}.example.org/x`);
+    const fassung = async (id: string): Promise<string> => (await sql.unsafe<{ x: string }[]>(
+      `select xmin::text as x from ausschreibung where id = $1`, [id]))[0]!.x;
+    const vorher = await fassung(fremdeAdresse);
+
+    const { plattformId, zugeordnet } = await als(chef, f.reinigung, (k) =>
+      legePlattformAn(k, { name: `Gezielt ${zufall()}`, hostMuster: host }));
+    expect(zugeordnet).toBe(1);
+    expect(await plattformVon(passt)).toBe(plattformId);
+    // Keine neue Zeilenfassung: weder geschrieben noch gesperrt.
+    expect(await fassung(fremdeAdresse)).toBe(vorher);
+    expect(await plattformVon(fremdeAdresse)).toBeNull();
+
+    // Dieselbe Hostregel wie der Auslöser — Unterdomain ja, bloss ähnlich nein.
+    const [r] = await sql.unsafe<{ a: boolean; b: boolean; c: boolean; host: string }[]>(
+      `select app.radar_host_passt('www.dtvp.de', array['DTVP.de']) as a,
+              app.radar_host_passt('xdtvp.de', array['dtvp.de']) as b,
+              app.radar_host_passt('', array['dtvp.de']) as c,
+              app.radar_url_host('https://WWW.Evergabe.de:8443/pfad?x=1') as host`);
+    expect(r).toEqual({ a: true, b: false, c: false, host: 'www.evergabe.de' });
+  });
+
   it('ein nachgetragener Hostname ordnet beim Ändern nach — eine vorhandene Zuordnung bleibt', async () => {
     const hostA = `a-${zufall()}.example.org`;
     const hostB = `b-${zufall()}.example.org`;
@@ -251,6 +277,46 @@ describe('(3) der Registrierungsstand gehört der Gesellschaft, die ihn setzt', 
     await als(admin, f.reinigung, (k) => setzeRegistrierung(k, plattformId, {
       status: 'registriert', registriertAm: '2026-09-01' }));
     expect(await ohneFreischaltung()).toBe(0);
+  });
+
+  it('V-240: freigeschaltet heisst registriert UND gültig — und ohne Registrierungspflicht warnt nichts', async () => {
+    const host = `frei-${zufall()}.example.org`;
+    const { plattformId } = await als(chef, f.reinigung, (k) =>
+      legePlattformAn(k, { name: `Freischaltung ${zufall()}`, hostMuster: host }));
+    await bekanntmachung(`https://${host}/offen`);
+    const blick = (): Promise<{ kennzahl: number; freigeschaltet: boolean | undefined }> =>
+      als(admin, f.reinigung, async (k) => ({
+        kennzahl: (await leseRadarKennzahlen(k)).ohneRegistrierung,
+        freigeschaltet: (await lesePlattformen(k)).find((p) => p.id === plattformId)
+          ?.freigeschaltet,
+      }));
+    const [t] = await sql.unsafe<{ heute: string; gestern: string }[]>(
+      `select app.berlin_heute()::text as heute, (app.berlin_heute() - 1)::text as gestern`);
+
+    expect(await blick()).toEqual({ kennzahl: 1, freigeschaltet: false });
+
+    // Eine ANDERE Gesellschaft ist registriert — hier ändert das nichts.
+    await als(fremd, f.security, (k) => setzeRegistrierung(k, plattformId, {
+      status: 'registriert', registriertAm: '2026-01-01' }));
+    expect(await blick()).toEqual({ kennzahl: 1, freigeschaltet: false });
+
+    // Registriert, aber die eingetragene Gültigkeit endete gestern: weiter nicht freigeschaltet.
+    await als(admin, f.reinigung, (k) => setzeRegistrierung(k, plattformId, {
+      status: 'registriert', registriertAm: '2026-01-01', gueltigBis: t!.gestern }));
+    expect(await blick()).toEqual({ kennzahl: 1, freigeschaltet: false });
+
+    // Gültig bis heute: freigeschaltet.
+    await als(admin, f.reinigung, (k) => setzeRegistrierung(k, plattformId, {
+      status: 'registriert', registriertAm: '2026-01-01', gueltigBis: t!.heute }));
+    expect(await blick()).toEqual({ kennzahl: 0, freigeschaltet: true });
+
+    // Nicht registriert, aber die Plattform verlangt laut Eintrag keine Registrierung.
+    await als(admin, f.reinigung, (k) => setzeRegistrierung(k, plattformId, {
+      status: 'nicht_registriert' }));
+    expect(await blick()).toEqual({ kennzahl: 1, freigeschaltet: false });
+    await als(chef, f.reinigung, (k) => aenderePlattform(k, plattformId, {
+      name: `Freischaltung ${zufall()}`, hostMuster: host, registrierungErforderlich: false }));
+    expect(await blick()).toEqual({ kennzahl: 0, freigeschaltet: true });
   });
 
   it('eine andere Gesellschaft sieht und ändert diesen Stand nicht (Invariante 3)', async () => {
