@@ -16,6 +16,11 @@ export interface AngebotHandTexte {
   readonly titel: string;
   readonly untertitel: string;
   readonly warum: string;
+  /**
+   * Der ehrliche Zustand (V-238, O-920): ein Angebot von Hand hat keine
+   * Kalkulation — der Preis je Position ist der eingetragene.
+   */
+  readonly ohneKalkulation: (frage: string) => string;
   readonly zurListe: string;
 
   /* ── Kopf ──────────────────────────────────────────────────────────── */
@@ -77,6 +82,11 @@ const DE: AngebotHandTexte = {
     'Ein Reinigungsangebot entsteht aus dem Raumbuch eines Objekts: Flächen mal '
     + 'Leistungswert mal Turnus. Ein Wachdienst und eine Bauleistung haben kein '
     + 'Raumbuch — hier stehen die Positionen selbst.',
+  ohneKalkulation: (frage) =>
+    'Ohne Kalkulation: der Einzelpreis jeder Position ist der, den Sie eintragen. Lohn, '
+    + 'Material, Gerät, Gemeinkosten sowie Wagnis und Gewinn (OPS-07) werden hier weder '
+    + 'getrennt erfasst noch nachgerechnet. Ob und wie ein Angebot von Hand eine Kalkulation '
+    + `bekommt, ist noch nicht entschieden (${frage}).`,
   zurListe: 'Zu den Angeboten',
 
   kunde: 'Kunde',
@@ -187,6 +197,11 @@ const EN: AngebotHandTexte = {
     'A cleaning offer is calculated from an object’s Raumbuch (room register): '
     + 'area × performance rate × frequency. Guarding and construction work have no '
     + 'Raumbuch — here the line items are written out.',
+  ohneKalkulation: (frage) =>
+    'Without a Kalkulation (costing): the unit price of each line is the one you enter. '
+    + 'Labour, material, equipment, overhead and risk/profit (OPS-07) are neither recorded '
+    + 'separately nor recalculated here. Whether and how a hand-written offer gets a costing '
+    + `has not been decided yet (${frage}).`,
   zurListe: 'To the offers',
 
   kunde: 'Customer',

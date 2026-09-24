@@ -18,6 +18,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KALKULATION_TEXTE } from '@/lib/i18n/verwaltung/kalkulation';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { HAND_ANGEBOT_KALKULATION } from '@/server/services/angebot/von-hand';
 
 /**
  * `/portal/[mandant]/angebote/[id]/kalkulation` — der Rechenweg, und der
@@ -231,7 +232,10 @@ export default async function KalkulationSeite(
         <p data-cse="keine-kalkulation" className="max-w-[72ch] text-base text-text-muted">
           Zu diesem Angebot gibt es keine Kalkulation. Angebote, die aus einem
           Raumbuch entstehen, bringen eine mit; ein von Hand angelegtes Angebot
-          trägt seinen Preis dagegen selbst.
+          trägt seinen Preis dagegen selbst. Ob und wie Angebote von Hand eine
+          Kalkulation mit Lohn, Material, Gerät, Gemeinkosten sowie Wagnis und
+          Gewinn bekommen, ist noch nicht entschieden
+          ({HAND_ANGEBOT_KALKULATION.offeneFrage}).
         </p>
       ) : (
         <>

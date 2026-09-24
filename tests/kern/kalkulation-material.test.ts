@@ -9,8 +9,11 @@
  * dass die Einzelkosten in den Preis gehen, dass die Basis wirkt, und dass
  * jede Zahl eine ganze Cent-Zahl aus einer getesteten Funktion ist.
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { basisPunkte, cent, formatiereGeld } from '../../src/server/services/finanz/geld.js';
+import { ANGEBOT_HAND_TEXTE } from '../../src/lib/i18n/verwaltung/angebot-hand.js';
+import { HAND_ANGEBOT_KALKULATION } from '../../src/server/services/angebot/von-hand.js';
 import {
   formatiereMenge, mengeAusPostgres, milliMenge,
 } from '../../src/server/services/finanz/menge.js';
@@ -204,5 +207,24 @@ describe('(4) die Menge ist eine DEUTSCHE Zahl — und was zwei Lesarten hat, wi
     // … 10 × 9.007.199.254.740,99 € darunter.
     expect(fehlerVon({ menge: '10', einzelpreisEuro: '9.007.199.254.740,99' })).toBeNull();
     expect(fehlerVon({ menge: '1', einzelpreisEuro: '90.071.992.547.409,91' })).toBeNull();
+  });
+});
+
+describe('(6) ein Angebot von Hand sagt, dass es keine Kalkulation hat (V-238, O-920)', () => {
+  it('der Platzhalter nennt die Frage, und Maske und Kalkulationsblatt lesen ihn', () => {
+    expect(HAND_ANGEBOT_KALKULATION).toEqual({ vorhanden: false, offeneFrage: 'O-920' });
+    for (const seite of [
+      'src/app/portal/[mandant]/angebote/neu/page.tsx',
+      'src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx',
+    ]) {
+      expect(readFileSync(seite, 'utf8'), seite).toContain('HAND_ANGEBOT_KALKULATION.offeneFrage');
+    }
+    expect(readFileSync('src/server/services/angebot/von-hand.ts', 'utf8'))
+      .toContain('TODO(client, O-920)');
+  });
+
+  it('beide Sprachen sagen es, mit der Nummer', () => {
+    expect(ANGEBOT_HAND_TEXTE.de.ohneKalkulation('O-920')).toContain('O-920');
+    expect(ANGEBOT_HAND_TEXTE.en.ohneKalkulation('O-920')).toContain('O-920');
   });
 });

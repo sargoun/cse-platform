@@ -9,7 +9,9 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { Recht } from '@/components/ui/Recht';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { ANGEBOT_HAND_TEXTE } from '@/lib/i18n/verwaltung/angebot-hand';
-import { einheiten, steuersaetzeAm } from '@/server/services/angebot/von-hand';
+import {
+  einheiten, HAND_ANGEBOT_KALKULATION, steuersaetzeAm,
+} from '@/server/services/angebot/von-hand';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
@@ -200,6 +202,10 @@ export default async function NeuesAngebot(
 
       <Hinweis art="hinweis" cse="angebot-hand-warum" className="mb-s6 max-w-prose">
         {t.warum}
+        {/* V-238: der ehrliche Zustand, mit der offenen Frage — keine erfundene Kalkulation. */}
+        <span className="mt-s2 block" data-cse="angebot-hand-ohne-kalkulation">
+          {t.ohneKalkulation(HAND_ANGEBOT_KALKULATION.offeneFrage)}
+        </span>
       </Hinweis>
 
       {fehler !== null ? (
