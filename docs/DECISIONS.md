@@ -17028,6 +17028,9 @@ Zählerquelle `app.mandant_kennzahlen` gab es nicht, und die Rechtefrage aus
     und bekommt dieselben Bereiche und Zähler, und ohne die eigenen fehlen
     sie (Gegenprobe). Eine spätere Verengung jener Policies nimmt dem
     Umschalter also nichts weg.
+    *(Unter einer Bedingung, festgehalten in D-731 Nr. 3:
+    `switcher_mandanten` liest an der RLS vorbei. Unter `cse_definer` läsen
+    die eigenen Policies sich selbst.)*
 
 | Betrifft | TEN-05, TEN-06, TEN-07, TEN-08, TEN-09, TEN-10, DESIGN §6, DESIGN §8, D-43, D-377, D-658, O-355, V-165, „Carried over“ Nr. 2, `drizzle/0417`, `src/server/services/mandant/umschalter.ts`, `src/server/konto/sprache.ts`, `src/app/portal/{zugang,huellen-speicher}.ts`, `src/app/portal/konto/{konto.ts,[[...rest]]/page.tsx}`, `src/components/portal/{PortalRahmen,TabLeiste,BereichsUmschalter,BereichsWechsel,kopf-wechsel,typen}`, `src/app/auth/bereich/page.tsx`, `src/lib/i18n/verwaltung/bereichswechsel.ts`, `docs/architecture/02-datenmodell/01-KERN.md` §6.3, `docs/architecture/05-API-KARTE.md`, `tests/isolation/bereichswechsel.test.ts`, `tests/kern/bereichswechsel.test.ts`, `tests/e2e/{bereichswechsel,portal-ausgang}.spec.ts` |
 |---|---|
@@ -17433,6 +17436,29 @@ ihrer Entscheidung verzeichnet, in der Reihenfolge, in der sie behoben wurde.
    nicht „woher“; die Prüfung hält beide nebeneinander. Die Funktion liest
    dafür `berechtigung` und `rolle_berechtigung` und bringt eigene, enge
    `d_`-Policies mit.
+3. **Die Umschalter-Policies sind kreisfrei nur, solange
+   `app.switcher_mandanten` an der RLS vorbei liest — das ist jetzt
+   festgenagelt, nicht umgebaut.** `d_umschalter_mandant`, `_auftrag`,
+   `_projekt` (0417) und `d_umschalter_rolle` (0418) fragen
+   `switcher_mandanten()`, und die Funktion liest `mandant` und
+   `benutzer_mandant`, über `app.ist_super_admin` auch `benutzer` und
+   `rolle`. Heute gehören beide `postgres` (D-300, Superuser mit
+   `BYPASSRLS`). Zöge `switcher_mandanten` zu `cse_definer` um — das Ziel
+   von D-300 —, läse sie `mandant` unter `d_umschalter_mandant`, die wieder
+   sie fragt; solange `d_feed_mandant` (`using (true)`, 0161) daneben
+   steht, faltet der Planer das „oder“ weg, fällt auch sie, bricht jede
+   Zählung mit „stack depth limit exceeded“ ab. D-659 Nr. 10 („eine spätere
+   Verengung jener Policies nimmt dem Umschalter nichts weg“) gilt also nur
+   unter dieser Bedingung. `tests/isolation/bereichswechsel.test.ts` §4
+   hält sie fest: die Liste der `cse_definer`-Policies, die
+   `switcher_mandanten` oder `ist_super_admin` fragen, und dass beide
+   Funktionen an der RLS vorbei lesen; die Gegenprobe zieht die Funktion in
+   einer zurückgerollten Transaktion um, lässt die breiten Policies fallen
+   und sieht den Abbruch. Nicht umgebaut, weil eine Policy, die den Kreis
+   ohne die Funktion ausdrückte, eine zweite Fassung der Bereichsregel wäre
+   (Mitgliedschaft, Fenster, Archiv, globale Rolle), und zwei Fassungen
+   derselben Regel laufen auseinander. Wer die Funktion umzieht, sieht rot
+   und baut vorher die Policies um.
 
-| Betrifft | SEC-A9, AUT-01, 03-AUTH §12.1, O-76, D-657, D-658, V-164, V-237, `drizzle/0461`, `drizzle/0462`, `tests/isolation/mitgliedschaft-module.test.ts` §1, §2 |
+| Betrifft | SEC-A9, AUT-01, 03-AUTH §12.1, O-76, D-300, D-657, D-658, D-659, V-164, V-165, V-237, `drizzle/0461`, `drizzle/0462`, `tests/isolation/mitgliedschaft-module.test.ts` §1, §2, `tests/isolation/bereichswechsel.test.ts` §4 |
 |---|---|

@@ -252,10 +252,17 @@ describe('(4) die eigenen Policies tragen die Funktionen allein', () => {
     constructor(readonly bild: Bild) { super('zurueckgerollt'); }
   }
 
-  /** Liest beide Funktionen als die Plattformverwaltung — ohne die genannten Policies. */
-  async function ohne(policies: readonly (readonly [string, string])[]): Promise<Bild> {
+  /**
+   * Liest beide Funktionen als die Plattformverwaltung — ohne die genannten
+   * Policies und nach den Anweisungen in `vorher`, alles in einer
+   * zurueckgerollten Transaktion.
+   */
+  async function ohne(
+    policies: readonly (readonly [string, string])[], vorher: readonly string[] = [],
+  ): Promise<Bild> {
     try {
       await sql.begin(async (tx: postgres.TransactionSql) => {
+        for (const anweisung of vorher) await tx.unsafe(anweisung);
         for (const [tabelle, name] of policies) await tx.unsafe(`drop policy ${name} on ${tabelle}`);
         await tx.unsafe(`set local role cse_app`);
         for (const [schluessel, wert] of [
@@ -323,6 +330,69 @@ describe('(4) die eigenen Policies tragen die Funktionen allein', () => {
      * mit „infinite recursion detected in policy" ab (§7).
      */
     for (const z of zeilen) expect(z.bedingung, z.name).not.toMatch(/\bFROM\b/iu);
+  });
+
+  /*
+   * **Kreisfrei nur, solange switcher_mandanten an der RLS vorbei liest**
+   * (V-237, D-731).
+   *
+   * Vier dieser Policies fragen app.switcher_mandanten(), und die Funktion
+   * liest mandant und benutzer_mandant — ueber app.ist_super_admin auch
+   * benutzer und rolle. Heute gehoeren beide postgres (D-300: Superuser mit
+   * BYPASSRLS), lesen also an jeder Policy vorbei, und der Kreis schliesst
+   * sich nie. Zoege switcher_mandanten zu cse_definer um — das Ziel von
+   * D-300 —, laese sie mandant unter d_umschalter_mandant, und die fragt
+   * wieder sie. Solange d_feed_mandant (using true, 0161) daneben steht,
+   * faltet der Planer das „oder" weg; faellt auch sie, bricht jede Zaehlung
+   * mit „stack depth limit exceeded" ab — die Gegenprobe unten zeigt es.
+   *
+   * Festgenagelt und nicht umgebaut: eine Policy, die den Kreis ohne die
+   * Funktion ausdrueckte, waere eine zweite Fassung der Bereichsregel neben
+   * switcher_mandanten (Mitgliedschaft, Fenster, Archiv, globale Rolle), und
+   * zwei Fassungen derselben Regel laufen auseinander. Wer die Funktion
+   * umzieht, sieht hier rot und muss vorher die Policies umbauen.
+   */
+  it('die Umschalter-Policies fragen switcher_mandanten — und die Funktion liest an der RLS vorbei', async () => {
+    const fragen = await sql<{ policy: string }[]>`
+      select c.relname || '.' || p.polname as policy
+        from pg_policy p
+        join pg_class c on c.oid = p.polrelid
+        join pg_roles r on r.oid = any (p.polroles)
+       where r.rolname = 'cse_definer'
+         and (coalesce(pg_get_expr(p.polqual, p.polrelid), '')
+                ~ 'switcher_mandanten|ist_super_admin'
+              or coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '')
+                ~ 'switcher_mandanten|ist_super_admin')
+       order by 1`;
+    expect(fragen.map((z) => z.policy), 'eine neue Policy fuer cse_definer, die die Funktion '
+      + 'fragt, gehoert in diese Liste — und unter dieselbe Bedingung').toEqual([
+      'auftrag.d_umschalter_auftrag', 'mandant.d_umschalter_mandant',
+      'projekt.d_umschalter_projekt', 'rolle.d_umschalter_rolle',
+    ]);
+
+    const eigentuemer = await sql<{ name: string; rolle: string; vorbei: boolean }[]>`
+      select p.proname as name, r.rolname as rolle, (r.rolsuper or r.rolbypassrls) as vorbei
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        join pg_roles r on r.oid = p.proowner
+       where n.nspname = 'app' and p.proname in ('switcher_mandanten', 'ist_super_admin')
+       order by 1`;
+    expect(eigentuemer.map((e) => [e.name, e.vorbei]),
+      'switcher_mandanten und ist_super_admin muessen an der RLS vorbei lesen, solange '
+      + 'd_umschalter_* sie fragen — unter cse_definer laesen die Policies sich selbst')
+      .toEqual([['ist_super_admin', true], ['switcher_mandanten', true]]);
+  });
+
+  it('Gegenprobe: unter cse_definer und ohne die breiten Policies laese sie sich selbst', async () => {
+    await expect(ohne(BREIT, [
+      `alter function app.switcher_mandanten() owner to cse_definer`,
+      `grant execute on function app.ist_super_admin() to cse_definer`,
+    ])).rejects.toThrow(/stack depth limit exceeded|infinite recursion/u);
+    /* Zurueckgerollt: der Eigentuemer ist wieder der alte. */
+    const [e] = await sql<{ rolle: string }[]>`
+      select pg_get_userbyid(proowner) as rolle from pg_proc
+       where oid = 'app.switcher_mandanten()'::regprocedure`;
+    expect(e!.rolle).not.toBe('cse_definer');
   });
 });
 
