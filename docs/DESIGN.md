@@ -634,7 +634,12 @@ A notice is one sentence with weight, in a frame: `--r-lg`, `1px` border,
 `danger` notice: an error belongs at the field (Forms) or in a status pill.
 The first words carry the meaning in bold, so the colour never carries it
 alone (§9). Component: `components/ui/Hinweis.tsx`; every notice carries a
-`data-cse` anchor.
+`data-cse` anchor. A notice that reports the outcome of a submitted form
+carries `rolle` — `alert` for a rejection, `status` for a confirmation — so it
+is announced (§9, errors announced via `aria-live`). A page does not rebuild a
+notice from its classes (`border-warning bg-warning-soft …`); it uses the
+component. Older pages that still do are moved over when they are touched
+(V-217).
 
 ### Status pages — 404 and error
 

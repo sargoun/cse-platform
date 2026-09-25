@@ -129,7 +129,7 @@ export default async function MonatszahlenSeite(
             ) : geld(m.aufwandEingangCent)) },
           { schluessel: 'ausgaben', kopf: 'Betriebsausgaben netto', numerisch: true,
             zelle: (m) => (darf['eingang.lesen'] === true ? (
-              <Link href={`/portal/${mandant}/finanzen/ausgaben?monat=${m.monat}`} data-cse="monat-ausgaben"
+              <Link href={`/portal/${mandant}/finanzen/ausgaben?monat=${m.monat}&aufwand=ja`} data-cse="monat-ausgaben"
                     className="underline-offset-2 hover:text-brand hover:underline">
                 {geld(m.aufwandAusgabenCent)}
               </Link>

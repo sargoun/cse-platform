@@ -3,10 +3,11 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { formatiereGeld } from '@/server/services/finanz/geld';
-import { mahnstufen } from '@/server/services/finanz/mahnung/stufen';
+import { mahnstufen, type Zinsberechnung } from '@/server/services/finanz/mahnung/stufen';
 import { AUFSCHLAG_B2B_BP, AUFSCHLAG_B2C_BP }
   from '@/server/services/finanz/mahnung/stufen.platzhalter';
 import { AnmeldungNoetig } from '../../../Anmeldung';
@@ -48,6 +49,17 @@ const FEHLER: Readonly<Record<string, string>> = {
   ungueltig: 'Die Stufe wurde nicht bestätigt: eine Angabe ist ungültig.',
   ueberlappt: 'Die Stufe wurde nicht bestätigt: für diesen Tag gilt schon eine Fassung.',
   geld: 'Die Stufe wurde nicht bestätigt: die Gebühr ist kein Eurobetrag.',
+};
+
+/**
+ * Die Zinsart in Worten (V-217) — die Tabelle zeigte den Schlüssel
+ * (`gesetzlich_b2b`). Dieselben Worte wie die Auswahl im Formular.
+ */
+const ZINSART: Readonly<Record<Zinsberechnung, string>> = {
+  keine: '—',
+  gesetzlich_b2b: 'gesetzlich, Unternehmen',
+  gesetzlich_b2c: 'gesetzlich, Verbraucher',
+  vertraglich: 'vertraglich vereinbart',
 };
 
 export default async function Mahnwesen(
@@ -116,10 +128,9 @@ export default async function Mahnwesen(
       <h1 className="mb-s3 text-h1 text-text">Mahnwesen</h1>
 
       {fehlerText !== null && (typeof hinweis !== 'string' || hinweis === '') ? (
-        <p role="alert" data-cse="stufen-fehler"
-           className="mb-s5 rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
+        <Hinweis art="warnung" rolle="alert" cse="stufen-fehler" className="mb-s5">
           {fehlerText}
-        </p>
+        </Hinweis>
       ) : null}
 
       {typeof hinweis === 'string' && hinweis !== '' ? (
@@ -169,7 +180,7 @@ export default async function Mahnwesen(
               },
               {
                 schluessel: 'zins', kopf: 'Zins',
-                zelle: (s) => (s.zinsberechnung === 'keine' ? '—' : s.zinsberechnung),
+                zelle: (s) => ZINSART[s.zinsberechnung],
               },
               {
                 schluessel: 'gueltig', kopf: 'Gültig',
@@ -337,7 +348,8 @@ export default async function Mahnwesen(
             Er steht im Schreiben zwischen Datum und Forderungsliste, so wie Sie
             ihn hier eintragen — höchstens {String(MAHNTEXT_HOECHSTENS)} Zeichen.
             Leer gelassen, übernimmt die neue Fassung den Mahntext der laufenden
-            Fassung dieser Stufe.
+            Fassung dieser Stufe, wenn diese bestätigt ist. Der Text einer
+            unbestätigten Platzhalterfassung wird nicht übernommen.
           </p>
           <label className="mt-s2 flex min-h-11 items-center gap-s3 text-sm text-text">
             <input type="checkbox" name="ohneMahntext" value="1"

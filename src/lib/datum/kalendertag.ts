@@ -29,6 +29,21 @@ export function montag(datum: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Ist `wert` ein Kalendertag `JJJJ-MM-TT`, den es gibt (V-217)?
+ *
+ * Das Muster allein lässt den 31. Februar durch; die Datenbank antwortet
+ * darauf mit `22008`, und eine Route, die nur das Muster prüft, zeigt dem
+ * Menschen einen Fehler 500 statt eines Satzes am Formular. Geprüft wird
+ * über die Rundreise durch UTC-Mitternacht: ein Tag, den es nicht gibt,
+ * kommt als ein anderer zurück.
+ */
+export function istGueltigerKalendertag(wert: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(wert)) return false;
+  const t = Date.parse(`${wert}T00:00:00Z`);
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === wert;
+}
+
 /** `datum` plus `tage` Kalendertage — negative Werte gehen zurück. */
 export function tagePlus(datum: string, tage: number): string {
   const d = new Date(`${datum}T00:00:00Z`);

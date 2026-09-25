@@ -131,6 +131,7 @@ export interface EingangsrechnungenTexte {
   readonly zahlungsweg: string;
   readonly vonKonto: string;
   readonly zahlungErfassen: string;
+  /** Vor dem Tag, an dem der Kreditorposten ausgeglichen wurde (V-217). */
   readonly bezahlt: string;
   /** Die Rückmeldung nach dem Erfassen — `?meldung=`, über `eigenerEintrag()`. */
   readonly ausgangMeldungen: Readonly<Record<'ausgang_erfasst' | 'ausgang_guthaben', string>>;
@@ -398,7 +399,7 @@ const DE: EingangsrechnungenTexte = {
   zahlungsweg: 'Zahlungsweg',
   vonKonto: 'Gezahlt von Konto',
   zahlungErfassen: 'Zahlung erfassen',
-  bezahlt: 'bezahlt',
+  bezahlt: 'Diese Eingangsrechnung ist vollständig bezahlt, ausgeglichen am',
   ausgangMeldungen: {
     ausgang_erfasst: 'Die Zahlung an den Lieferanten ist erfasst.',
     ausgang_guthaben:
@@ -411,7 +412,11 @@ const DE: EingangsrechnungenTexte = {
     betrag: 'Der Betrag ist kein Eurobetrag — bitte wie 1.190,00 schreiben.',
     kein_posten: 'Zu dieser Eingangsrechnung gibt es noch keinen offenen Posten — erst das Buchen eröffnet ihn.',
     schon_ausgeglichen: 'Diese Eingangsrechnung ist bereits bezahlt.',
-    abgewiesen: 'Die Zahlung wurde abgewiesen — der Betrag muss größer als null sein.',
+    betrag_nicht_positiv: 'Der Betrag muss größer als null sein.',
+    bankkonto_fremd: 'Das gewählte Konto gehört nicht zu dieser Gesellschaft.',
+    abgewiesen:
+      'Die Zahlung wurde abgewiesen — darf Ihr Zugang in dieser Gesellschaft Zahlungen '
+      + 'erfassen?',
     nicht_gefunden: 'Der offene Posten ist nicht erreichbar.',
   },
   ausgangFehlerSonst: 'Die Zahlung wurde nicht erfasst.',
@@ -770,7 +775,7 @@ const EN: EingangsrechnungenTexte = {
   zahlungsweg: 'Payment method',
   vonKonto: 'Paid from account',
   zahlungErfassen: 'Record payment',
-  bezahlt: 'paid',
+  bezahlt: 'This incoming invoice is paid in full, settled on',
   ausgangMeldungen: {
     ausgang_erfasst: 'The payment to the supplier has been recorded.',
     ausgang_guthaben:
@@ -783,7 +788,11 @@ const EN: EingangsrechnungenTexte = {
     betrag: 'The amount is not a euro amount — please write it like 1.190,00.',
     kein_posten: 'This incoming invoice has no open item yet — booking it opens one.',
     schon_ausgeglichen: 'This incoming invoice has already been paid.',
-    abgewiesen: 'The payment was rejected — the amount must be greater than zero.',
+    betrag_nicht_positiv: 'The amount must be greater than zero.',
+    bankkonto_fremd: 'The selected account does not belong to this company.',
+    abgewiesen:
+      'The payment was rejected — is your access allowed to record payments in this '
+      + 'company?',
     nicht_gefunden: 'The open item cannot be reached.',
   },
   ausgangFehlerSonst: 'The payment was not recorded.',

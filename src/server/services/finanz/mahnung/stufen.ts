@@ -3,6 +3,7 @@ import type { SchreibKontext } from '../../../kontext/index.js';
 import { cent, type Cent } from '../geld.js';
 import { MASKE_WERT_HOECHSTENS } from '../../../../lib/formular/maske.js';
 import type { ZinsMethode } from './zins.js';
+import { tagDeutsch } from '../../../../lib/datum/kalendertag.js';
 
 /**
  * Die Mahnstufen als Einstellung — der Ort, an dem O-19 beantwortet wird
@@ -127,7 +128,11 @@ export interface StufeEingabe {
    *
    *  - eine Zeichenkette: dieser Text, getrimmt;
    *  - `null`: ausdrücklich OHNE Mahntext;
-   *  - weggelassen: der Text der laufenden Fassung wird übernommen (D-705).
+   *  - weggelassen: der Text der laufenden Fassung wird übernommen (D-705) —
+   *    aber nur aus einer BESTÄTIGTEN Fassung (V-217, D-710). Der Text einer
+   *    Platzhalterfassung (`ist_platzhalter`, im Seed „PLATZHALTER (O-19): …")
+   *    ist niemandes Wortlaut und käme sonst mit der ersten echten Fassung
+   *    in den Brief an den Kunden.
    *
    * Übernommen und nicht geleert, weil eine neue Fassung meist eine neue
    * Gebühr oder Frist ist: wer die Gebühr ändert, soll nicht nebenbei den
@@ -191,18 +196,22 @@ export async function bestaetigeStufe(
    * hiesse, die Grundlage von Mahnungen zu ändern, die unter der alten
    * hinausgegangen sind.
    */
-  const [laufend] = await kontext.abfrage<{ gueltig_ab: string; textbaustein: string | null }>(
-    `select gueltig_ab::text as gueltig_ab, textbaustein
+  const [laufend] = await kontext.abfrage<{
+    gueltig_ab: string; textbaustein: string | null; ist_platzhalter: boolean;
+  }>(
+    `select gueltig_ab::text as gueltig_ab, textbaustein, ist_platzhalter
        from mahnstufe
       where stufe = $1 and gueltig_bis is null
       order by gueltig_ab desc limit 1`, [e.stufe]);
   if (laufend !== undefined && e.gueltigAb <= laufend.gueltig_ab) {
     const fruehestens = new Date(`${laufend.gueltig_ab}T00:00:00Z`);
     fruehestens.setUTCDate(fruehestens.getUTCDate() + 1);
+    /* Tage als TT.MM.JJJJ (V-217) — der Satz erscheint auf der Seite. */
     throw new StufenFehler(
       'ueberlappt',
-      `Für Stufe ${String(e.stufe)} gilt seit dem ${laufend.gueltig_ab} eine Fassung. `
-      + `Eine neue beginnt frühestens am ${fruehestens.toISOString().slice(0, 10)} — `
+      `Für Stufe ${String(e.stufe)} gilt seit dem ${tagDeutsch(laufend.gueltig_ab)} eine `
+      + `Fassung. Eine neue beginnt frühestens am ${
+        tagDeutsch(fruehestens.toISOString().slice(0, 10))} — `
       + 'rückwirkend ändert sie die Grundlage bereits versendeter Mahnungen.');
   }
 
@@ -217,8 +226,14 @@ export async function bestaetigeStufe(
    * nicht — sie wäre eine zweite Wahrheit über denselben Tag. Sie wird von
    * `mahnstufe_kein_ueberlapp` abgewiesen, und der Dienst übersetzt das.
    */
-  /* Weggelassen heisst übernommen; ein leerer Text heisst keiner (V-214). */
-  const text = neuerText === undefined ? (laufend?.textbaustein ?? null)
+  /*
+   * Weggelassen heisst übernommen; ein leerer Text heisst keiner (V-214).
+   * Übernommen wird nur aus einer bestätigten Fassung (V-217, D-710): der
+   * Platzhaltertext des Seeds ist kein Wortlaut der Gesellschaft.
+   */
+  const uebernehmbar = laufend !== undefined && !laufend.ist_platzhalter
+    ? laufend.textbaustein : null;
+  const text = neuerText === undefined ? uebernehmbar
     : neuerText === null || neuerText === '' ? null : neuerText;
   const zeilen = await kontext.schreibe<{ id: string }>(
     `insert into mahnstufe
@@ -237,7 +252,7 @@ export async function bestaetigeStufe(
       if (istUeberlapp(fehler)) {
         throw new StufenFehler(
           'ueberlappt',
-          `Für Stufe ${String(e.stufe)} gilt am ${e.gueltigAb} bereits eine Fassung. `
+          `Für Stufe ${String(e.stufe)} gilt am ${tagDeutsch(e.gueltigAb)} bereits eine Fassung. `
           + 'Zwei Fassungen derselben Stufe an einem Tag gibt es nicht.');
       }
       throw fehler;

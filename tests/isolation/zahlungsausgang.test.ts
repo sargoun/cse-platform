@@ -264,6 +264,40 @@ describe('(2) kein Posten ohne Buchung, keine zweite Zahlung auf eine bezahlte R
   });
 });
 
+/**
+ * **Zwei Eingaben, die als 500 endeten** (V-217, Prüfung von V-216): ein
+ * Konto einer anderen Gesellschaft verletzte `zahlung_bankkonto_fk`, und ein
+ * Betrag von null kam als `abgewiesen` mit einem Satz über „Betrag muss
+ * größer als null sein" zurück, den die Seite für JEDE Abweisung zeigte.
+ */
+describe('(2a) falsche Eingaben werden benannt, nicht als Datenbankfehler gemeldet', () => {
+  it('ein Konto einer anderen Gesellschaft: bankkonto_fremd — und keine Zahlung', async () => {
+    const er = await eingangsrechnung(100_000n);
+    const [fremd] = await sql.unsafe<{ id: string }[]>(
+      `insert into bankkonto (mandant_id, bezeichnung, iban, kontoinhaber, erstellt_von_art,
+                              erstellt_von)
+       values ($1, 'Fremdes Konto', 'DE89370400440532013000', 'SSE Security', 'mensch', $2)
+       returning id`, [f.security, benutzer]);
+    await expect(alsApp(sitzung(), async (tx) => verbucheZahlungsausgang(kontextAus(tx), {
+      eingangsrechnungId: er.id, betragCent: cent(1_000n), zahlungsdatum: await heute(),
+      zahlungsmittel: 'ueberweisung', bankkontoId: fremd!.id,
+    }))).rejects.toSatisfy((e: unknown) =>
+      e instanceof ZahlungFehler && e.grund === 'bankkonto_fremd');
+    const [n] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from zahlung where richtung = 'ausgang'`);
+    expect(n?.n).toBe('0');
+  });
+
+  it('ein Betrag von null: betrag_nicht_positiv', async () => {
+    const er = await eingangsrechnung(100_000n);
+    await expect(alsApp(sitzung(), async (tx) => verbucheZahlungsausgang(kontextAus(tx), {
+      eingangsrechnungId: er.id, betragCent: cent(0n), zahlungsdatum: await heute(),
+      zahlungsmittel: 'ueberweisung',
+    }))).rejects.toSatisfy((e: unknown) =>
+      e instanceof ZahlungFehler && e.grund === 'betrag_nicht_positiv');
+  });
+});
+
 describe('(3) die Richtung passt zum Posten (0130)', () => {
   it('ein Eingang gleicht keinen Kreditorposten aus', async () => {
     const er = await eingangsrechnung(100_000n);

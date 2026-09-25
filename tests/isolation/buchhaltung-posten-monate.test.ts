@@ -32,6 +32,7 @@ import {
   abstimmungOffenePosten, altersstruktur, klasseFuer, postenListe,
 } from '../../src/server/services/buchhaltung/offene-posten.js';
 import { monatszahlen } from '../../src/server/services/buchhaltung/monatszahlen.js';
+import { ausgaben, summen } from '../../src/server/services/finanz/ausgabe.js';
 import { KALENDERJAHR } from '../../src/server/services/buchhaltung/wirtschaftsjahr.js';
 import { PeriodenschlussFehler, schliessePeriode } from '../../src/server/services/buchhaltung/periodenschluss.js';
 import { gruppenFinanzen } from '../../src/server/services/gruppe/finanzen.js';
@@ -592,5 +593,39 @@ describe('(5) Betriebsausgaben zaehlen zum Aufwand — im Bereich, in der Gruppe
       `select aufwand_cent::text as aufwand, ergebnis_cent::text as ergebnis
          from periode where mandant_id = $1 and jahr = $2 and monat = $3`, [f.reinigung, jahr, monat]);
     expect(p).toMatchObject({ aufwand: '12345', ergebnis: '-12345' });
+  });
+
+  /*
+   * V-217: die Spalte „Betriebsausgaben" verlinkt auf die Ausgabenliste des
+   * Monats. Ohne Filter zeigte die Liste alle Zustände und auch Ausgaben aus
+   * Eingangsrechnungen, und ihre Summe passte nicht zur Spalte.
+   */
+  it('die verlinkte Liste (?monat=…&aufwand=ja) summiert genau die Spalte', async () => {
+    const lieferant = await legeLieferantAn();
+    const tag = await heute();
+    const jahr = Number(tag.slice(0, 4));
+    const monat = tag.slice(0, 7);
+    await ausgabe(f.reinigung, tag, 3_000n, { status: 'gebucht' });
+    await ausgabe(f.reinigung, tag, 2_000n, { status: 'freigegeben' });
+    await ausgabe(f.reinigung, tag, 7_000n, { status: 'erfasst' });
+    await ausgabe(f.reinigung, tag, 9_000n, { status: 'abgelehnt' });
+    const er = await eingangsrechnungFreigegeben(lieferant, tag, 40_000n);
+    await ausgabe(f.reinigung, tag, 40_000n, { eingangsrechnungId: er });
+
+    const z = await alsApp(sitzung(), (tx) => monatszahlen(kontextAus(tx), jahr, KALENDERJAHR));
+    const spalte = z.monate.find((x) => x.monat === monat)!.aufwandAusgabenCent;
+    expect(spalte).toBe(5_000n);
+
+    const mitFilter = await alsApp(sitzung(), (tx) =>
+      summen(kontextAus(tx), { monat, nurAufwand: true }));
+    expect(mitFilter.nettoCent).toBe(spalte);
+    const liste = await alsApp(sitzung(), (tx) =>
+      ausgaben(kontextAus(tx), { monat, nurAufwand: true }));
+    expect(liste.map((a) => a.status).sort()).toEqual(['freigegeben', 'gebucht']);
+    expect(liste.every((a) => a.eingangsrechnungId === null)).toBe(true);
+
+    /* Ohne den Filter sind es alle fünf — die Abweichung, die der Befund meinte. */
+    const ohne = await alsApp(sitzung(), (tx) => summen(kontextAus(tx), { monat }));
+    expect(ohne.nettoCent).toBe(61_000n);
   });
 });

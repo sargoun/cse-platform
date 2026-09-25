@@ -858,6 +858,46 @@ describe('(7) der Mahntext je Stufe wird gepflegt und steht im Schreiben', () =>
     expect(nachTag.get('2026-11-01')).toBeNull();
   });
 
+  /*
+   * V-217: „weggelassen = übernommen" holte den Text auch aus einer
+   * Platzhalterfassung. Mit dem Seed stand „PLATZHALTER (O-19): …" in jeder
+   * Stufe, und die erste echte Fassung ohne eigenen Text erbte ihn — in den
+   * Brief an den Kunden.
+   */
+  it('der Text einer PLATZHALTERfassung wird nicht übernommen', async () => {
+    await sql.unsafe(
+      `insert into mahnstufe (mandant_id, stufe, bezeichnung, tage_nach_faelligkeit,
+                              textbaustein, ist_platzhalter, gueltig_ab, erstellt_von_art,
+                              erstellt_von_dienst)
+       values ($1, 1, 'Zahlungserinnerung (unbestätigt)', 14,
+               'PLATZHALTER (O-19): kein Wortlaut der Gesellschaft.', true, '2026-01-01',
+               'system', 'job:test')`, [f.reinigung]);
+    const neu = await alsApp(sitzung(), async (tx) => bestaetigeStufe(kontextAus(tx), {
+      stufe: 1, bezeichnung: 'Zahlungserinnerung', tageNachFaelligkeit: 14,
+      gebuehrCent: cent(0n), zinsberechnung: 'keine', gueltigAb: '2026-09-01',
+    }));
+    const zeilen = await alsApp(sitzung(), async (tx) => mahnstufen(kontextAus(tx)));
+    expect(zeilen.find((z) => z.id === neu)?.textbaustein).toBeNull();
+    /* Die Platzhalterfassung selbst behält ihren Text — umgeschrieben wird nichts. */
+    expect(zeilen.find((z) => z.id !== neu)?.textbaustein)
+      .toBe('PLATZHALTER (O-19): kein Wortlaut der Gesellschaft.');
+  });
+
+  it('die Abweisung einer zu frühen Fassung nennt die Tage als TT.MM.JJJJ', async () => {
+    await alsApp(sitzung(), async (tx) => bestaetigeStufe(kontextAus(tx), {
+      stufe: 3, bezeichnung: 'Letzte Mahnung', tageNachFaelligkeit: 42,
+      gebuehrCent: cent(0n), zinsberechnung: 'keine', gueltigAb: '2026-09-01',
+    }));
+    const fehler: unknown = await alsApp(sitzung(), async (tx) => bestaetigeStufe(kontextAus(tx), {
+      stufe: 3, bezeichnung: 'Letzte Mahnung', tageNachFaelligkeit: 42,
+      gebuehrCent: cent(0n), zinsberechnung: 'keine', gueltigAb: '2026-08-01',
+    })).then(() => null, (e: unknown) => e);
+    expect(fehler).toBeInstanceOf(StufenFehler);
+    expect((fehler as StufenFehler).message).toContain('seit dem 01.09.2026');
+    expect((fehler as StufenFehler).message).toContain('frühestens am 02.09.2026');
+    expect((fehler as StufenFehler).message).not.toMatch(/\d{4}-\d{2}-\d{2}/u);
+  });
+
   it('ein zu langer Mahntext wird mit Satz abgewiesen, nicht gekürzt', async () => {
     await expect(alsApp(sitzung(), async (tx) => bestaetigeStufe(kontextAus(tx), {
       stufe: 2, bezeichnung: 'Erste Mahnung', tageNachFaelligkeit: 28,

@@ -5,11 +5,11 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
-  from '@/server/auth/fehler';
+import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { GeldFehler, parseGeld } from '@/server/services/finanz/geld';
 import { maskeMitEingaben } from '@/lib/formular/maske';
+import { istGueltigerKalendertag, tagDeutsch } from '@/lib/datum/kalendertag';
 import {
   StufenFehler, bestaetigeStufe, type Folgeaktion, type Zinsberechnung,
 } from '@/server/services/finanz/mahnung/stufen';
@@ -95,6 +95,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return zurueckMitEingaben(anfrage, 'unvollstaendig',
       'Stufe, Frist, Bezeichnung, Gebühr, Zinsart und „Gültig ab“ sind Pflicht.', daten);
   }
+  /*
+   * Ein Tag, den es nicht gibt (31.02.), kam vorher als `22008` aus der
+   * Datenbank und damit als 500 (V-217) — jetzt als Satz am Formular.
+   */
+  if (!istGueltigerKalendertag(gueltigAb)) {
+    return zurueckMitEingaben(anfrage, 'unvollstaendig',
+      '„Gültig ab“ ist kein Kalendertag.', daten);
+  }
 
   /*
    * Der Mahntext (V-214): ein Text setzt ihn, „ohne Mahntext“ entfernt ihn,
@@ -124,7 +132,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           ...(textbaustein === undefined ? {} : { textbaustein }),
         });
         return zurueck(anfrage,
-          `Stufe ${String(stufe)} ist ab ${gueltigAb} bestätigt. Der Mahnlauf `
+          `Stufe ${String(stufe)} ist ab ${tagDeutsch(gueltigAb)} bestätigt. Der Mahnlauf `
           + 'schlägt sie ab jetzt vor — versendet wird weiterhin nichts ohne Freigabe.');
       }))) as NextResponse;
   } catch (fehler: unknown) {
@@ -142,15 +150,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (fehler instanceof StufenFehler) {
       return zurueckMitEingaben(anfrage, fehler.grund, fehler.message, daten);
     }
-    if (fehler instanceof NichtGefundenFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
-    }
-    if (fehler instanceof NichtAngemeldetFehler) {
-      return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
-    }
-    if (fehler instanceof ZweiterFaktorFehler) {
-      return NextResponse.json({ fehler: 'zweiter_faktor' }, { status: 403 });
-    }
+    /*
+     * Auth-Würfe an EINER Stelle (V-217): von Hand übersetzt fehlten
+     * `KontoGesperrtFehler` und `ZuVieleVersucheFehler`, sie endeten als 500.
+     */
+    const auth = autorisierungsAntwort(fehler);
+    if (auth !== null) return auth;
     throw fehler;
   }
 }

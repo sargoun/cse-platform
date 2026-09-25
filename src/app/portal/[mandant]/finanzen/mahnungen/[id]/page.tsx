@@ -88,6 +88,12 @@ export default async function MahnungDetail(
     + 'p-s3 text-sm text-text';
   const knopf = 'mt-s4 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold '
     + 'text-white hover:bg-brand-hover';
+  /*
+   * Ein Primary je Ansicht (DESIGN §5): im Entwurf ist es „Freigeben";
+   * „Verwerfen" steht daneben als stiller Knopf (V-217) — vorher waren es zwei.
+   */
+  const knopfStill = 'mt-s4 min-h-11 rounded-md border border-line-strong px-s5 py-s3 '
+    + 'text-base text-text hover:bg-surface-2';
 
   return (
     <PortalRahmen
@@ -232,10 +238,9 @@ export default async function MahnungDetail(
             </Hinweis>
           )}
         {kopf.textbaustein === null || kopf.textbaustein.trim() === '' ? (
-          <p data-cse="mahn-ohne-mahntext"
-             className="mb-s4 max-w-prose rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
+          <Hinweis cse="mahn-ohne-mahntext" className="mb-s4 max-w-prose">
             {t.mahntextFehlt}
-          </p>
+          </Hinweis>
         ) : null}
         <div lang="de"
              className="max-w-prose whitespace-pre-line rounded-lg border border-line bg-surface p-s5 text-sm text-text">
@@ -304,7 +309,7 @@ export default async function MahnungDetail(
                 id="grund" name="grund" type="text" required minLength={5} className={feld}
                 placeholder={t.verwerfenPlatzhalter}
               />
-              <button type="submit" className={knopf}>{t.verwerfen}</button>
+              <button type="submit" className={knopfStill}>{t.verwerfen}</button>
             </form>
           </section>
         </div>

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
@@ -145,10 +146,9 @@ export default async function DatevNeu(
       </div>
 
       {fehlerText !== null ? (
-        <p role="alert" data-cse="datev-fehler"
-           className="mb-s5 rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
+        <Hinweis art="warnung" rolle="alert" cse="datev-fehler" className="mb-s5">
           {fehlerText}
-        </p>
+        </Hinweis>
       ) : null}
 
       <form method="get" className="mb-s7 flex flex-wrap items-end gap-s4">
