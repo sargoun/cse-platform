@@ -19313,3 +19313,71 @@ als sofort geschrieben im Buch (TIM-09).
 
 | Betrifft | SEC-05, SEC-07, TIM-09, V-180, D-599, D-728, `src/server/services/security/{wachbuch,schluessel}.ts`, `src/server/services/mitarbeiter/schichtbuch.ts`, `src/app/api/sicherheit/{wachbuch,schluessel/[id]/quittung}/route.ts`, `src/app/api/mein/schichten/[zuordnungId]/wachbuch/route.ts`, `src/app/portal/[mandant]/security/{wachbuch/neu,wachbuch/[id],schluessel/[id],schluessel/[id]/quittung}/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/lib/i18n/{wachbuch-schicht,verwaltung/wachbuch}.ts`, `drizzle/0466_wachbuch_schluessel.sql`, `src/server/db/seed/{wachbuch,index}.ts`, `tests/kern/wachbuch-schluessel-texte.test.ts`, `tests/isolation/{wachbuch-schluessel,security-wachbuch}.test.ts` |
 |---|---|
+
+### D-675 · Ein Foto kommt mit der Wachbuchseite, nie danach — und die Leitstelle sieht es (V-181)
+
+**Der Befund** (V-181; Audit Gruppe „einsatz", SEC-05 „with server time and
+photos"): `0070` hat `wachbuch_eintrag` eigens im Register
+`einsatz_medien_bezug` eingetragen, damit SEC-05s „mit Fotos" baubar wird.
+Geschrieben hat nie jemand ein Medium mit diesem Bezug. Das Mitarbeiterportal
+verwies auf die Fotoseite der Schicht (Bezug `einsatz`), und die las nur
+`listeSchichtMedien` auf der eigenen Fotoseite der Kraft. Wachbuchblatt,
+Wachbuchliste und Schichtblatt der Verwaltung zeigten keine Aufnahme, und die
+einzige Lesepolicy auf `einsatz_medien` fragte das Zeitrecht. Ein
+Vorkommnisfoto erreichte die Einsatzleitung nicht, und ein in der Leitstelle
+geschriebener Eintrag konnte gar keines bekommen.
+
+**Die Entscheidung.**
+
+1. **Ein Foto kommt MIT der Seite, nie danach.** Die Seite ist anfügbar und
+   nie änderbar (0070, § 34a GewO); ein Bild, das Stunden später an eine alte
+   Seite gehängt wird, ließe sie aussehen, als hätte es von Anfang an
+   dazugehört. Die Datenbank hält das fest: die restriktive Policy
+   `p_wachbuch_medien_mit_seite` (0467) lässt ein Medium mit Bezug
+   `wachbuch_eintrag` nur an einer Seite zu, die DIESE Transaktion vom
+   Menschen dieser Sitzung geschrieben hat
+   (`app.wachbuch_seite_eben_geschrieben`, `cse_definer`; `erfasst_am = now()`
+   ist der Stempel aus `kern.wachbuch_eintrag_vorbereiten`). Restriktiv, weil
+   `t_mandant` (0041) mit `zeit.schreiben` jeden Bezug erlaubt und erlaubende
+   Policies ODER-verknüpft werden — die Prüfung fand genau das: eine Leitung
+   mit Zeitrecht hängte ein Foto an eine alte Seite. Ein späteres Foto
+   ist eine neue Seite — oder die Richtigstellung, die ihrerseits eine neue
+   Seite ist; ihr Formular nimmt deshalb ebenfalls Fotos an.
+2. **Schreiben darf, wer die Seite schreiben darf** (`wachbuch.schreiben`) —
+   die Leitstelle wie die Wache im Mitarbeiterportal. Die Portaldecke
+   `p_ma_decke` bleibt. **Lesen darf, wer das Buch lesen darf**
+   (`t_wachbuch_medien_lesen`, `wachbuch.lesen`, ohne Zeitrecht); die Wache
+   sieht ihre eigenen Aufnahmen weiter über `t_person`. Die Kundensicht bleibt
+   zu (`kunde_pfad` NULL, O-78).
+3. **Ein Weg, drei Aufrufer.** `legeWachbuchFotosAb` (`zeit/medien.ts`) prüft,
+   bereinigt und legt je Datei ab — Größe, Typ aus den Magic Bytes, Metadaten
+   weg, Zeile, Speicher, dieselbe Reihenfolge wie das Schichtfoto, je Datei
+   ein eigener `verzoegerterSpeicher`. Beide Wachbuchrouten rufen ihn in der
+   Transaktion, die die Seite schreibt. **Scheitert ein Foto, steht auch die
+   Seite nicht da**, und der Grund kommt als `?fehler=foto_<grund>` bzw.
+   `speicher_nicht_verbunden` zurück (D-599). Die Größe prüfen die Routen vor
+   dem Lesen des Rumpfes (dieselbe technische Grenze wie `me_groesse`, 100
+   MiB je Anfrage); die Leitstellenformulare tragen das Ziel der Abweisung
+   dafür auch in ihrer Adresse.
+4. **Kein Speicher, kein Dateifeld.** Ist der Medienspeicher nicht verbunden,
+   zeigen beide Formulare statt des Feldes den Satz, dass Fotos gerade nicht
+   gehen — der Eintrag selbst geht. Nichts wird vorgetäuscht.
+5. **Anzeige.** Das Wachbuchblatt zeigt die Fotos der Seite und, getrennt
+   benannt, die Aufnahmen der Schicht, an der sie hängt; die Wachbuchliste
+   nennt die Zahl der Fotos je Seite; das Schichtblatt der Verwaltung zeigt
+   die Aufnahmen der Schicht; die Wache sieht ihre Fotos an ihren Seiten. Immer
+   als signierte Links (`signierteAdressen`, einzeln gesichert), nie als
+   eingebettetes Bild, und wo kein Link entstehen konnte, steht der Grund.
+   Was die Anmeldung nicht lesen darf, kommt nicht zurück — dann steht dort
+   kein Abschnitt, statt „keine" zu behaupten.
+6. **Der Seed** schreibt eine Seite mit Foto nur bei verbundenem Speicher
+   (Platzhalterbild, als DEMODATEN beschriftet), sonst keine — eine Seite
+   ohne Foto bekäme es nach Punkt 1 auch später nicht.
+
+**Nicht Teil dieser Entscheidung:** ob die Wache die Fotos der Übergabeseite
+einer Kollegin sieht (sie sieht den Text im eingestellten Fenster, O-151,
+die Aufnahmen nicht), ob ein Kunde Wachbuchfotos sieht (O-78), Pflichtfotos
+je Eintragsart (O-133).
+
+| Betrifft | SEC-05, TIM-10, LEG-10, V-181, D-599, D-728, O-78, O-133, O-151, `drizzle/0467_wachbuch_fotos.sql`, `src/server/services/zeit/medien.ts`, `src/server/services/mitarbeiter/medien.ts`, `src/server/services/security/wachbuch.ts`, `src/app/api/sicherheit/wachbuch/route.ts`, `src/app/api/mein/schichten/[zuordnungId]/wachbuch/route.ts`, `src/app/portal/[mandant]/security/wachbuch/{page,neu/page,[id]/page}.tsx`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/components/portal/Aufnahmeliste.tsx`, `src/lib/i18n/{wachbuch-schicht,verwaltung/wachbuch,verwaltung/aufnahmen}.ts`, `src/server/db/seed/{wachbuch,index}.ts`, `tests/kern/wachbuch-fotos.test.ts`, `tests/isolation/wachbuch-fotos.test.ts` |
+|---|---|

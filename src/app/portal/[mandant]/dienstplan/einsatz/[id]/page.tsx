@@ -21,6 +21,11 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { SCHICHT_TEXTE } from '@/lib/i18n/verwaltung/dienstplan-schicht';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { AUFNAHMEN_TEXTE } from '@/lib/i18n/verwaltung/aufnahmen';
+import { Aufnahmeliste } from '@/components/portal/Aufnahmeliste';
+import { listeSchichtMedien } from '@/server/services/mitarbeiter/medien';
+import { signierteAdressen } from '@/server/services/zeit/medien';
+import { waehleSpeicher } from '@/server/storage/waehle';
 
 /**
  * `/portal/[mandant]/dienstplan/einsatz/[id]` — die einzelne Schicht.
@@ -150,6 +155,7 @@ export default async function Einsatzblatt({
    * allgemeinen Satz und erscheint nie roh.
    */
   const abgewiesen = typeof frage['fehler'] === 'string' ? frage['fehler'] : null;
+  const speicher = waehleSpeicher();
 
   const daten = await db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -240,12 +246,19 @@ export default async function Einsatzblatt({
         ? null
         : await pruefeEinteilung(kontext, id, pruefling);
 
-      return { kopf, besetzung, kandidaten, vorschau };
+      /* V-181: die Aufnahmen der Schicht — signiert, einzeln gesichert. */
+      const aufnahmen = await signierteAdressen(
+        kontext, await listeSchichtMedien(kontext, id), speicher,
+        Math.floor(Date.now() / 1000));
+
+      return { kopf, besetzung, kandidaten, vorschau, aufnahmen };
     }));
 
   // AUT-06: eine fremde oder nicht vorhandene Zeile ist 404, nie 403.
   if (daten === null) notFound();
-  const { kopf, besetzung, kandidaten, vorschau } = daten;
+  const { kopf, besetzung, kandidaten, vorschau, aufnahmen } = daten;
+  const speicherVerbunden = speicher.verbunden;
+  const tA = nachSprache(AUFNAHMEN_TEXTE, zugang.sprache);
   const dauer = stundenText({ id: kopf.id, beginn: new Date(kopf.beginn), ende: new Date(kopf.ende) });
 
   return (
@@ -508,6 +521,26 @@ export default async function Einsatzblatt({
         abgesagte gibt es oben den Grund, und ein zweiter Knopf daneben waere
         ein Weg, der auf 409 fuehrt.
       */}
+      {/*
+        V-181: die Aufnahmen der Schicht (Bezug `einsatz`). Bis dahin las sie
+        nur die Fotoseite der Kraft selbst — die Einsatzleitung sah kein
+        einziges. Gelesen wird durch die Sitzung (`t_mandant`, zeit.lesen):
+        wer das Zeitrecht nicht hält, bekommt keine Zeilen und damit keinen
+        Abschnitt, statt „keine Aufnahmen".
+      */}
+      {aufnahmen.length > 0 && (
+        <section data-cse="schicht-fotos" className="mt-s6">
+          <h3 className="mb-s2 mt-0 text-base text-text">{tA.schichtAufnahmen}</h3>
+          <p className="mb-s3 max-w-prose text-sm text-text-muted">
+            {tA.schichtAufnahmenHinweis}
+          </p>
+          {!speicherVerbunden && (
+            <p className="m-0 mb-s2 text-sm text-warning">{tA.speicherFehlt}</p>
+          )}
+          <Aufnahmeliste aufnahmen={aufnahmen} texte={tA} marke="schicht-foto" />
+        </section>
+      )}
+
       {kopf.storno_grund === null && darf['dienstplan.schreiben'] === true && (
         <section data-cse="schicht-absagen"
                  className="mt-s6 rounded-lg border border-line bg-surface p-s5">

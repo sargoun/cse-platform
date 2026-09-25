@@ -3,6 +3,11 @@ import {
   BezugPasstNichtZumObjekt, istWachbuchArt, schreibeEintrag, WachbuchEingabeFehlt,
   type WachbuchArt,
 } from '@/server/services/security/wachbuch';
+import {
+  legeWachbuchFotosAb, MedienFehler, MEDIEN_MAX_BYTES, type FormularDatei,
+} from '@/server/services/zeit/medien';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { erwarteterUrsprung } from '@/server/auth/ursprung';
 import { aufDerSchicht, dienstFehlerAntwort, zurueckZu } from '../../bruecke';
 
@@ -37,6 +42,13 @@ import { aufDerSchicht, dienstFehlerAntwort, zurueckZu } from '../../bruecke';
  * echtes `<form method="post">` auf einem Diensttelefon. Der Grund reist als
  * `?fehler=` auf die Wachbuchseite DIESER Schicht zurueck — die Adresse baut
  * die Route selbst, aus der Zuordnung im Pfad, nicht aus einem Feld.
+ *
+ * **Fotos kommen MIT der Seite** (V-181, SEC-05 „with photos"): das Formular
+ * ist `multipart/form-data`, jedes Feld `foto` eine Aufnahme. Sie werden in
+ * DERSELBEN Transaktion wie die Seite geprüft, bereinigt und abgelegt
+ * (`legeWachbuchFotosAb`); scheitert eine, steht auch die Seite nicht da, und
+ * der Grund kommt als `?fehler=` zurück. Die Grösse wird VOR dem Lesen des
+ * Rumpfes geprüft — die Adresse für die Abweisung kennt die Route ohne ihn.
  */
 export const dynamic = 'force-dynamic';
 
@@ -45,18 +57,30 @@ function textOder(daten: FormData, feld: string): string | null {
   return typeof wert === 'string' && wert.trim() !== '' ? wert.trim() : null;
 }
 
+/** Die Aufnahmen des Formulars — ein leeres Dateifeld ist keine. */
+function fotosAus(daten: FormData): readonly File[] {
+  return daten.getAll('foto').filter((f): f is File => f instanceof File && f.size > 0);
+}
+
 export async function POST(
   anfrage: NextRequest,
   kontext: { params: Promise<{ zuordnungId: string }> },
 ): Promise<NextResponse> {
   const { zuordnungId } = await kontext.params;
-  const daten = await anfrage.formData();
   const seite = `/portal/mein/schichten/${zuordnungId}/wachbuch`;
   const abgewiesen = (grund: string): NextResponse => {
     const ziel = new URL(seite, erwarteterUrsprung(anfrage));
     ziel.searchParams.set('fehler', grund);
     return NextResponse.redirect(ziel, 303);
   };
+
+  /* Die Grösse VOR dem Lesen — sonst läge die ganze Anfrage schon im Speicher. */
+  const angekuendigt = Number(anfrage.headers.get('content-length') ?? '0');
+  if (Number.isFinite(angekuendigt) && angekuendigt > MEDIEN_MAX_BYTES) {
+    return abgewiesen('foto_zu_gross');
+  }
+  const daten = await anfrage.formData();
+  const fotos = fotosAus(daten);
 
   const art = textOder(daten, 'art');
   const betreff = textOder(daten, 'betreff');
@@ -75,7 +99,7 @@ export async function POST(
           // Objekt gibt es keins — und keinen Platz fuer diesen Eintrag.
           return null;
         }
-        return schreibeEintrag(k, {
+        const eintragId = await schreibeEintrag(k, {
           objektId: bezug.objektId,
           einsatzId: bezug.einsatzId,
           art: art as WachbuchArt,
@@ -115,10 +139,27 @@ export async function POST(
            */
           nachgetragen: daten.get('nachgetragen') === '1',
         });
+        /*
+         * Die Fotos, nach der Seite und in DERSELBEN Transaktion: die
+         * Datenbank nimmt ein Foto nur an einer Seite an, die diese
+         * Transaktion geschrieben hat (`t_wachbuch_medien`, 0467). Die Bytes
+         * werden erst hier gelesen — nach der Pruefung der Schicht.
+         */
+        const dateien: FormularDatei[] = [];
+        for (const foto of fotos) {
+          dateien.push({
+            daten: new Uint8Array(await foto.arrayBuffer()),
+            behaupteterTyp: foto.type === '' ? null : foto.type,
+          });
+        }
+        await legeWachbuchFotosAb(k, { eintragId, dateien }, waehleSpeicher());
+        return eintragId;
       });
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
     if (ergebnis.wert === null) return abgewiesen('kein_objekt');
   } catch (fehler: unknown) {
+    if (fehler instanceof MedienFehler) return abgewiesen(`foto_${fehler.grund}`);
+    if (fehler instanceof NichtVerbundenFehler) return abgewiesen('speicher_nicht_verbunden');
     if (fehler instanceof WachbuchEingabeFehlt) return abgewiesen(fehler.grund);
     if (fehler instanceof BezugPasstNichtZumObjekt) return abgewiesen(`fremder_${fehler.tabelle}`);
     const f = fehler as { status?: unknown; code?: unknown };

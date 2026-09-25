@@ -444,6 +444,11 @@ export interface EintragZeile {
   /** Die Quittung, die diese Seite geschrieben hat — wo es eine gibt und sie lesbar ist. */
   readonly quittungId: string | null;
   readonly quittungSchluesselId: string | null;
+  /**
+   * Die Schicht, an der die Seite haengt (V-181) — ihre Aufnahmen zeigt das
+   * Blatt daneben, soweit die Anmeldung sie lesen darf.
+   */
+  readonly einsatzId: string | null;
 }
 
 interface RohEintrag {
@@ -467,6 +472,7 @@ interface RohEintrag {
   readonly ersetzt_durch_id: string | null;
   readonly ersetzt_id: string | null;
   readonly schluessel: string | null;
+  readonly einsatz_id: string | null;
   readonly quittung_id: string | null;
   readonly quittung_schluessel_id: string | null;
 }
@@ -509,6 +515,7 @@ function ausEintrag(z: RohEintrag): EintragZeile {
     schluessel: z.schluessel,
     quittungId: z.quittung_id,
     quittungSchluesselId: z.quittung_schluessel_id,
+    einsatzId: z.einsatz_id,
   };
 }
 
@@ -533,7 +540,7 @@ function ausEintrag(z: RohEintrag): EintragZeile {
  */
 const FELDER = `
   w.id, w.jahr, w.laufnummer, w.art::text as art, w.betreff, w.eintragstext,
-  w.objekt_id, o.bezeichnung as objekt,
+  w.objekt_id, o.bezeichnung as objekt, w.einsatz_id,
   to_char(w.erfasst_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI') as erfasst_lokal,
   (p.vorname || ' ' || p.nachname) as urheber,
   w.zeitabweichung_sek, w.nachgetragen, w.polizei_informiert,

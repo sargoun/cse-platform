@@ -23,7 +23,7 @@ import { seedZeit } from './zeit.js';
 import { seedKonten } from './konto.js';
 import { normalisiereTelefon } from '../../../lib/telefon.js';
 import { seedAnforderung, seedBewacherUndEvents, seedSecurity } from './security.js';
-import { seedSchluesselImWachbuch, seedWachbuch } from './wachbuch.js';
+import { seedSchluesselImWachbuch, seedWachbuch, seedWachbuchFoto } from './wachbuch.js';
 import { seedReinigung, seedSonderUndQualitaet } from './reinigung.js';
 import { seedVertrieb } from './vertrieb.js';
 import { seedBau } from './bau.js';
@@ -1735,6 +1735,20 @@ async function main(): Promise<void> {
   process.stdout.write(
     `  ${String(bund.schluessel)} Schlüssel, ${String(bund.quittungen)} Quittungen `
     + 'zugleich im Wachbuch (Art „Schlüssel", SEC-05/SEC-07)\n',
+  );
+
+  /**
+   * V-181: eine Seite MIT Foto — nur mit verbundenem Speicher. Ohne ihn
+   * keine Seite: ein Foto kommt mit der Seite, nie danach (0467).
+   */
+  const buchFoto = await seedWachbuchFoto(
+    sql, ids.get('security')!, sec.postenId, sec.objektId, verbundenerSpeicher);
+  process.stdout.write(
+    buchFoto.grund === 'nicht_verbunden'
+      ? '  · Wachbuchfoto: KEINES — Medienspeicher nicht verbunden (SUPABASE_URL / '
+        + 'SUPABASE_SERVICE_ROLE_KEY oder Vorführordner)\n'
+      : `  ${String(buchFoto.seiten)} Wachbuchseite mit ${String(buchFoto.fotos)} Foto `
+        + '(Platzhalterbild, als DEMODATEN beschriftet)\n',
   );
 
   /**

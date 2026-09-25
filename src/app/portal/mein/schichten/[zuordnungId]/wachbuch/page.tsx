@@ -12,6 +12,9 @@ import { leseSchichtbuch, type Schichtbuch }
 import { findeSchichtBezug } from '@/server/services/mitarbeiter/schicht-zugang';
 import { WACHBUCH_SCHICHT_TEXTE } from '@/lib/i18n/wachbuch-schicht';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { listeWachbuchMedien, type SchichtMedium } from '@/server/services/mitarbeiter/medien';
+import { signierteAdressen } from '@/server/services/zeit/medien';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
 import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
@@ -40,11 +43,13 @@ import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
  * **Ein echtes `<form method="post">`** ohne JavaScript: die Geraete sind alte
  * Diensttelefone im Treppenhaus (SEITENKARTE §13).
  *
- * **Kein Foto am Eintrag.** SEC-05 nennt Bilder; sie haengen an
- * `einsatz_medien`, und der Bezug, den diese Schicht traegt, ist ihr `einsatz`
- * — die Aufnahme geht deshalb ueber `/fotos` derselben Schicht und steht in
- * derselben Beweiskette. Ein zweiter Uploadweg mit einem zweiten Bezug waere
- * eine zweite Stelle, an der dasselbe Bild liegt.
+ * **Fotos am Eintrag** (V-181, SEC-05 „with server time and photos"). Hier
+ * stand „Kein Foto am Eintrag — die Aufnahme geht ueber `/fotos`". Die
+ * Schichtfotos erreichten aber weder das Wachbuchblatt noch die Leitstelle,
+ * und ein Vorkommnisfoto gehoert zur Seite, die das Vorkommnis beschreibt.
+ * Jetzt nimmt das Formular Fotos MIT der Seite an (Bezug `wachbuch_eintrag`,
+ * 0070/0467) — nur beim Schreiben, nie nachtraeglich. `/fotos` bleibt fuer
+ * die Dokumentation der Schicht, die keine Wachbuchseite ist.
  *
  * **Der Schluessel** (V-180, SEC-05 „key"): fuehrt das Objekt Schluessel,
  * bietet das Formular die Art `schluessel` und die Auswahl an. Eine
@@ -55,6 +60,10 @@ export const dynamic = 'force-dynamic';
 interface Blatt {
   readonly schicht: EigeneSchicht;
   readonly buch: Schichtbuch | null;
+  /** V-181: die eigenen Fotos je Seite, signiert (`t_person`: nur eigene Aufnahmen). */
+  readonly fotos: ReadonlyMap<string, readonly {
+    readonly medium: SchichtMedium; readonly adresse: string | null;
+  }[]>;
 }
 
 /**
@@ -79,6 +88,7 @@ export default async function MeinWachbuch(
 ) {
   const { zuordnungId } = await params;
   const suche = await searchParams;
+  const speicher = waehleSpeicher();
   const ergebnis = await meinPortal<Blatt | null>(
     `/portal/mein/schichten/${zuordnungId}/wachbuch`,
     async (kontext) => {
@@ -93,14 +103,22 @@ export default async function MeinWachbuch(
         : await leseSchichtbuch(kontext, {
           objektId: schicht.objektId, mandantId: bezug.mandantId,
         });
-      return { schicht, buch };
+      const roh = await listeWachbuchMedien(kontext, buch?.eintraege.map((e) => e.id) ?? []);
+      const jetzt = Math.floor(Date.now() / 1000);
+      const fotos = new Map<string, readonly {
+        readonly medium: SchichtMedium; readonly adresse: string | null;
+      }[]>();
+      for (const [eintragId, medien] of roh) {
+        fotos.set(eintragId, await signierteAdressen(kontext, medien, speicher, jetzt));
+      }
+      return { schicht, buch, fotos };
     },
   );
   if (ergebnis.art === 'anmeldung') return <AnmeldungNoetig />;
   if (ergebnis.daten === null) notFound();
 
   const { basis } = ergebnis;
-  const { schicht, buch } = ergebnis.daten;
+  const { schicht, buch, fotos } = ergebnis.daten;
   const t = basis.texte;
   const arten = WACHBUCH_ART_TEXTE[basis.sprache];
   const tW = WACHBUCH_SCHICHT_TEXTE[basis.sprache];
@@ -190,6 +208,30 @@ export default async function MeinWachbuch(
                       {e.schluessel !== null && (
                         <Feld label={tW.schluessel}>{e.schluessel}</Feld>
                       )}
+                      {(fotos.get(e.id)?.length ?? 0) > 0 && (
+                        <Feld label={tW.fotos}>
+                          <ul className="m-0 flex list-none flex-col gap-s1 p-0"
+                              data-cse="wachbuch-fotos">
+                            {(fotos.get(e.id) ?? []).map(({ medium, adresse }) => (
+                              <li key={medium.id} className="text-base">
+                                {adresse !== null ? (
+                                  <a href={adresse}
+                                     className="inline-flex min-h-11 items-center text-base
+                                                text-text underline">
+                                    {t.oeffnen}
+                                  </a>
+                                ) : (
+                                  <span className="text-text-muted">{tW.fotoOhneAdresse}</span>
+                                )}
+                                <span className="cse-zahl text-text-muted">
+                                  {' · '}
+                                  {medium.erfasstLokal}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </Feld>
+                      )}
                       {e.storniert && (
                         <Feld label={t.entscheidung}>{e.stornoGrund ?? '—'}</Feld>
                       )}
@@ -217,6 +259,7 @@ export default async function MeinWachbuch(
             </p>
             <form
               method="post"
+              encType="multipart/form-data"
               action={`/api/mein/schichten/${zuordnungId}/wachbuch`}
               className="flex max-w-prose flex-col gap-s4"
             >
@@ -308,6 +351,28 @@ export default async function MeinWachbuch(
                        className="min-h-11 min-w-11 shrink-0" />
                 {t.polizei}
               </label>
+
+              {/*
+                V-181: Fotos MIT der Seite — danach nimmt die Datenbank keines
+                mehr an (0467). Ohne verbundenen Speicher steht statt eines
+                Dateifelds, das nur scheitern kann, der Satz, warum es fehlt.
+              */}
+              {speicher.verbunden ? (
+                <div className="flex flex-col gap-s2" data-cse="wachbuch-foto-feld">
+                  <label htmlFor="wb-fotos" className="text-base text-text">
+                    {tW.fotos}
+                  </label>
+                  <input id="wb-fotos" name="foto" type="file" accept="image/*" multiple
+                         aria-describedby="wb-fotos-hinweis" className={eingabe} />
+                  <span id="wb-fotos-hinweis" className="text-base text-text-muted">
+                    {tW.fotoHinweis}
+                  </span>
+                </div>
+              ) : (
+                <p className="m-0 text-base text-text-muted" data-cse="wachbuch-foto-nicht-verbunden">
+                  {tW.fotoNichtVerbunden}
+                </p>
+              )}
 
               {/*
                 * **Nachgetragen** (V-078, TIM-09).

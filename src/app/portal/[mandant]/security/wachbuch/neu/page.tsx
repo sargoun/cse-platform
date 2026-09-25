@@ -15,6 +15,7 @@ import { ART_TEXT, WACHBUCH_ARTEN } from '@/server/services/security/wachbuch';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { WACHBUCH_TEXTE } from '@/lib/i18n/verwaltung/wachbuch';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { waehleSpeicher } from '@/server/storage/waehle';
 
 /**
  * `/portal/[mandant]/security/wachbuch/neu` — eine Seite schreiben
@@ -36,6 +37,11 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * Art `Schlüssel` hier ausgegraut („mit PR 42") — gebaut war die
  * Schlüsselverwaltung längst. Den Schlüssel eines fremden Objekts weist der
  * Dienst ab, bevor geschrieben wird, und die Seite sagt, warum (`?fehler=`).
+ *
+ * **Und die Fotos** (V-181, SEC-05 „with photos"): ein Dateifeld im selben
+ * Formular. Sie gehören zu der Seite, die dieses Formular schreibt, und zu
+ * keiner anderen — ein späteres Foto an einer alten Seite nimmt die
+ * Datenbank nicht an (0467).
  */
 export const dynamic = 'force-dynamic';
 
@@ -93,6 +99,8 @@ export default async function WachbuchNeu(
   const fehler = typeof suche['fehler'] === 'string'
     ? (eigenerEintrag(tW.fehler, suche['fehler']) ?? tW.fehlerUnbekannt) : null;
   const darfSchluessel = (await haeltRechte(sitzung, 'schluessel.lesen'))['schluessel.lesen'] === true;
+  /* V-181: ob ein Foto überhaupt ankommen kann — die Verbundenheit des echten Speichers. */
+  const speicherVerbunden = waehleSpeicher().verbunden;
 
   const { objekte, punkte, schluessel } = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -166,8 +174,9 @@ export default async function WachbuchNeu(
         </p>
       ) : (
         <form
-          action="/api/sicherheit/wachbuch"
+          action={`/api/sicherheit/wachbuch?zurueck_fehler=${encodeURIComponent(pfad)}`}
           method="post"
+          encType="multipart/form-data"
           className="max-w-prose rounded-lg border border-line bg-surface p-s5"
         >
           <input type="hidden" name="mandant" value={mandant} />
@@ -260,6 +269,24 @@ export default async function WachbuchNeu(
             <input type="checkbox" name="polizei" value="1" className="min-h-6 min-w-6" />
             Polizei informiert
           </label>
+
+          {/*
+            V-181: Fotos kommen MIT der Seite — danach nimmt die Datenbank
+            keines mehr an (0467). Ohne verbundenen Speicher kein Dateifeld,
+            das nur scheitern kann, sondern der Satz, warum es fehlt.
+          */}
+          {speicherVerbunden ? (
+            <label className="mb-s5 block" data-cse="wachbuch-fotos">
+              <span className={feld}>{tW.fotos}</span>
+              <input type="file" name="foto" accept="image/*" multiple
+                     className={eingabe} />
+              <span className="mt-s1 block text-xs text-text-muted">{tW.fotoHinweis}</span>
+            </label>
+          ) : (
+            <p className="mb-s5 text-sm text-text-muted" data-cse="wachbuch-fotos-nicht-verbunden">
+              {tW.fotoNichtVerbunden}
+            </p>
+          )}
 
           <Button type="submit" variante="primary">Eintrag schreiben</Button>
         </form>

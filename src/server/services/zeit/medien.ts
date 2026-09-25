@@ -20,7 +20,8 @@
  * den Check-in mit der Marke schreibt sie `app.offline_ereignis_annehmen`,
  * weil dort Mandant, Beschaeftigung und Mensch aus der Marke aufgeloest werden
  * — nie aus der Anfrage (K-08). Fuer die ANGEMELDETE Kraft schreibt sie
- * `legeSchichtMediumAb` unten, und dort gilt die umgekehrte Reihenfolge:
+ * `legeSchichtMediumAb` unten (und fuer die Wachbuchseite
+ * `legeWachbuchMediumAb`, V-181), und dort gilt die umgekehrte Reihenfolge:
  * ZEILE, dann Bucket, beides in EINER Transaktion (`verzoegerterSpeicher`).
  * Die Begruendung steht bei der Funktion — kurz: die Sitzung hat eine
  * Transaktion, die Marke nicht.
@@ -28,7 +29,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { entferneMetadaten } from '../../storage/exif.js';
 import { erkenneMime, MimeFehler } from '../../storage/mime.js';
-import { SIGNATUR_SEKUNDEN, type Bucket, type Speicher } from '../../storage/adapter.js';
+import {
+  NichtVerbundenFehler, SIGNATUR_SEKUNDEN, type Bucket, type Speicher,
+} from '../../storage/adapter.js';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 
 /** Der eine private Bucket fuer Schichtmedien (07-INTEGRATIONEN §6.4). */
@@ -316,23 +319,150 @@ export async function legeSchichtMediumAb(
     readonly ablage: MedienAblage;
   },
 ): Promise<string> {
-  const id = eingabe.medienId ?? randomUUID();
+  return legeMediumZeileAn(kontext, 'einsatz', eingabe.einsatzId,
+    eingabe.medienId ?? randomUUID(), eingabe.ablage);
+}
+
+/**
+ * Ein Foto AM WACHBUCHEINTRAG (SEC-05 „with server time and photos", V-181).
+ *
+ * `0070` hat `wachbuch_eintrag` eigens in `einsatz_medien_bezug` eingetragen —
+ * „ohne diese Zeile … waere SEC-05s ‚mit Fotos' unbaubar". Geschrieben hat
+ * trotzdem nie jemand eine solche Zeile: das Mitarbeiterportal verwies auf
+ * die Schichtfotos, und die erreichten die Leitstelle nicht. Hier entsteht die
+ * Zeile mit dem Bezug auf die SEITE, in derselben Transaktion wie die Seite
+ * selbst (die Route ruft beides nacheinander).
+ *
+ * Dieselbe Bauart wie `legeSchichtMediumAb`: die Datei ist vorher geprueft,
+ * bereinigt und liegt im Puffer (`legeMediumAb` + `verzoegerterSpeicher`);
+ * `kunde_id` leitet der Ausloeser ab — beim Wachbuch NULL (O-78 offen).
+ *
+ * **Ein Foto kommt MIT der Seite, nie danach** (D-675). Wer schreiben darf,
+ * sagt die Datenbank: `t_wachbuch_medien` (0467) verlangt
+ * `wachbuch.schreiben`, und die restriktive `p_wachbuch_medien_mit_seite`
+ * verlangt fuer JEDEN Schreibweg — auch den ueber `zeit.schreiben` — eine
+ * Seite, die DIESE Transaktion vom Menschen dieser Sitzung geschrieben hat
+ * (`app.wachbuch_seite_eben_geschrieben`). Ein
+ * Bild an einer alten Seite liesse sie aussehen, als haette es von Anfang an
+ * dazugehoert — die Seite ist anfuegbar, nie aenderbar (§ 34a GewO).
+ */
+export async function legeWachbuchMediumAb(
+  kontext: SchreibKontext,
+  eingabe: {
+    readonly eintragId: string;
+    readonly medienId?: string;
+    readonly ablage: MedienAblage;
+  },
+): Promise<string> {
+  return legeMediumZeileAn(kontext, 'wachbuch_eintrag', eingabe.eintragId,
+    eingabe.medienId ?? randomUUID(), eingabe.ablage);
+}
+
+/** Eine Datei aus einem Formular — noch ungeprueft, der Typ nur behauptet. */
+export interface FormularDatei {
+  readonly daten: Uint8Array;
+  readonly behaupteterTyp: string | null;
+}
+
+/**
+ * Die Fotos einer Wachbuchseite ablegen — IN der Transaktion, die die Seite
+ * eben geschrieben hat (V-181, D-675).
+ *
+ * Je Datei ein eigener Puffer: `verzoegerterSpeicher` haelt genau eine
+ * Aufnahme. Je Datei also: Groesse, Typ aus den Magic Bytes, Metadaten weg,
+ * ZEILE, Bucket — dieselbe Reihenfolge wie das Schichtfoto.
+ *
+ * **Scheitert eine, scheitert die Seite mit.** Ist der Speicher nicht
+ * verbunden, faellt das VOR dem ersten Byte (`NichtVerbundenFehler`); faellt
+ * das Bucket spaeter, rollt die Transaktion zurueck — die Seite
+ * eingeschlossen. Eine Seite, die ein Foto zeigen will, das nie ankam, waere
+ * die stille Luecke in der Beweiskette; die Route sagt stattdessen, warum
+ * nichts geschrieben wurde.
+ */
+export async function legeWachbuchFotosAb(
+  kontext: SchreibKontext,
+  eingabe: {
+    readonly eintragId: string;
+    readonly dateien: readonly FormularDatei[];
+    readonly beschreibung?: string | null;
+  },
+  echt: Speicher,
+): Promise<readonly string[]> {
+  if (eingabe.dateien.length === 0) return [];
+  if (!echt.verbunden) throw new NichtVerbundenFehler('Der Medienspeicher');
+  const ids: string[] = [];
+  for (const datei of eingabe.dateien) {
+    pruefeMedienGroesse(datei.daten.length);
+    const speicher = verzoegerterSpeicher(echt);
+    const medienId = randomUUID();
+    const ablage = await legeMediumAb({
+      mandantId: kontext.aktiverMandantId,
+      medienId,
+      daten: datei.daten,
+      behaupteterTyp: datei.behaupteterTyp,
+      aufgenommenAmGeraet: null,
+      beschreibung: (eingabe.beschreibung ?? '').trim() === '' ? null
+        : (eingabe.beschreibung ?? '').trim(),
+    }, speicher);
+    ids.push(await legeWachbuchMediumAb(kontext, {
+      eintragId: eingabe.eintragId, medienId, ablage,
+    }));
+    await speicher.schreibeJetzt();
+  }
+  return ids;
+}
+
+/** Die eine Einfuegung beider Wege — der Bezug ist eine Registerzeile (0041). */
+async function legeMediumZeileAn(
+  kontext: SchreibKontext,
+  bezugTabelle: 'einsatz' | 'wachbuch_eintrag',
+  bezugId: string,
+  id: string,
+  ablage: MedienAblage,
+): Promise<string> {
   await kontext.schreibe(
     `insert into einsatz_medien
        (id, mandant_id, bezug_tabelle, bezug_id, art, bucket, pfad, mime_typ,
         groesse_bytes, sha256, exif_entfernt, aufgenommen_am_geraet, beschreibung,
         erstellt_von_art, erstellt_von, erstellt_von_person_id)
-     values ($1::uuid, $2::uuid, 'einsatz', $3::uuid, $4::medien_art, $5, $6, $7,
+     values ($1::uuid, $2::uuid, $12, $3::uuid, $4::medien_art, $5, $6, $7,
              $8::bigint, $9, true, $10::timestamptz, $11,
              'mensch', app.aktueller_benutzer(), app.aktuelle_person())`,
     [
-      id, kontext.aktiverMandantId, eingabe.einsatzId,
-      eingabe.ablage.art, eingabe.ablage.bucket, eingabe.ablage.pfad,
-      eingabe.ablage.mimeTyp, String(eingabe.ablage.groesseBytes), eingabe.ablage.sha256,
-      eingabe.ablage.aufgenommenAmGeraet, eingabe.ablage.beschreibung,
+      id, kontext.aktiverMandantId, bezugId,
+      ablage.art, ablage.bucket, ablage.pfad,
+      ablage.mimeTyp, String(ablage.groesseBytes), ablage.sha256,
+      ablage.aufgenommenAmGeraet, ablage.beschreibung, bezugTabelle,
     ],
   );
   return id;
+}
+
+/**
+ * Signierte Adressen fuer eine Liste von Aufnahmen — EINZELN gesichert.
+ *
+ * Dieselbe Regel wie auf der Fotoseite der Schicht: eine Datei, die im Bucket
+ * fehlt, soll nicht die ganze Liste leeren. Ist der Speicher nicht verbunden
+ * oder die Datei nach LEG-09 entfernt, bleibt die Adresse `null` — und die
+ * Seite sagt, was los ist, statt einen toten Bildrahmen zu zeigen.
+ */
+export async function signierteAdressen<M extends { readonly id: string; readonly entfernt: boolean }>(
+  kontext: LeseKontext, medien: readonly M[], speicher: Speicher, jetztSekunden: number,
+): Promise<readonly { readonly medium: M; readonly adresse: string | null }[]> {
+  const ergebnis: { medium: M; adresse: string | null }[] = [];
+  for (const medium of medien) {
+    if (!speicher.verbunden || medium.entfernt) {
+      ergebnis.push({ medium, adresse: null });
+      continue;
+    }
+    try {
+      const adresse = await signierteMedienAdresse(kontext, medium.id, speicher, jetztSekunden);
+      ergebnis.push({ medium, adresse: adresse?.url ?? null });
+    } catch {
+      ergebnis.push({ medium, adresse: null });
+    }
+  }
+  return ergebnis;
 }
 
 /**

@@ -11,6 +11,11 @@ import {
   BezugPasstNichtZumObjekt, istWachbuchArt, korrigiereEintrag, schreibeEintrag,
   WachbuchEingabeFehlt,
 } from '@/server/services/security/wachbuch';
+import {
+  legeWachbuchFotosAb, MedienFehler, MEDIEN_MAX_BYTES, type FormularDatei,
+} from '@/server/services/zeit/medien';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { alsAntwort } from '../antwort';
 
 /**
@@ -36,6 +41,13 @@ import { alsAntwort } from '../antwort';
  * Schlüssel (`?fehler=`), den die Seite als eigenen Eintrag nachschlägt
  * (D-728). Ohne das Feld — ein Programm — antwortet die Route wie bisher mit
  * JSON und Statuscode.
+ *
+ * **Fotos kommen MIT der Seite** (V-181, SEC-05 „with photos"): jedes Feld
+ * `foto` eines `multipart/form-data`-Formulars ist eine Aufnahme. Geprüft,
+ * bereinigt und abgelegt wird in DERSELBEN Transaktion wie die Seite
+ * (`legeWachbuchFotosAb`); scheitert eine, steht auch die Seite nicht da. Die
+ * Grösse prüft die Route VOR dem Lesen des Rumpfes; das Ziel der Abweisung
+ * steht dafür auch in der Adresse des Formulars (`?zurueck_fehler=`).
  */
 export const dynamic = 'force-dynamic';
 
@@ -44,8 +56,15 @@ function text(daten: FormData, feld: string): string | null {
   return typeof wert === 'string' && wert.trim() !== '' ? wert.trim() : null;
 }
 
+/** Die Aufnahmen des Formulars — ein leeres Dateifeld ist keine. */
+function fotosAus(daten: FormData): readonly File[] {
+  return daten.getAll('foto').filter((f): f is File => f instanceof File && f.size > 0);
+}
+
 /** Der Grund einer Abweisung, als Schlüssel für `?fehler=`. */
 function grundVon(fehler: unknown): string | null {
+  if (fehler instanceof MedienFehler) return `foto_${fehler.grund}`;
+  if (fehler instanceof NichtVerbundenFehler) return 'speicher_nicht_verbunden';
   if (fehler instanceof WachbuchEingabeFehlt) return fehler.grund;
   /* Welcher Bezug nicht zum Objekt passt, sagt die Tabelle — „irgendetwas
      passt nicht" hilft niemandem, der die Eingabe korrigieren soll. */
@@ -63,20 +82,38 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
   }
 
+  /**
+   * D-599: ein Formular geht mit dem Grund zurück auf seine Seite. Das Ziel
+   * steht im Formular (`zurueck_fehler`) — und für die Grössenprüfung, die
+   * VOR dem Lesen des Rumpfes fällt, auch in dessen Adresse. `internesZiel`
+   * lässt nur eine Adresse dieses Hauses durch.
+   */
+  const zurueckAus = (ziel: string | null, grund: string, ersatz: string): NextResponse => {
+    const basis = ziel ?? ersatz;
+    const trenner = basis.includes('?') ? '&' : '?';
+    return NextResponse.redirect(internesZiel(
+      `${basis}${trenner}fehler=${encodeURIComponent(grund)}`, ersatz, anfrage), 303);
+  };
+  const zielInAdresse = anfrage.nextUrl.searchParams.get('zurueck_fehler');
+  const angekuendigt = Number(anfrage.headers.get('content-length') ?? '0');
+  if (Number.isFinite(angekuendigt) && angekuendigt > MEDIEN_MAX_BYTES) {
+    if (zielInAdresse === null || zielInAdresse.trim() === '') {
+      return NextResponse.json({ fehler: 'foto_zu_gross' }, { status: 413 });
+    }
+    return zurueckAus(zielInAdresse, 'foto_zu_gross', '/portal');
+  }
+
   const daten = await anfrage.formData();
   const betreff = text(daten, 'betreff');
   const eintragstext = text(daten, 'eintragstext');
   const korrigiert = text(daten, 'korrigiert');
   const mandant = String(daten.get('mandant') ?? '');
-  const fehlerZiel = text(daten, 'zurueck_fehler');
+  const fehlerZiel = text(daten, 'zurueck_fehler') ?? zielInAdresse;
+  const fotos = fotosAus(daten);
 
-  /** D-599: ein Formular geht mit dem Grund zurück auf seine Seite. */
   const abgewiesen = (grund: string, antwort: () => NextResponse): NextResponse => {
     if (fehlerZiel === null) return antwort();
-    const trenner = fehlerZiel.includes('?') ? '&' : '?';
-    return NextResponse.redirect(internesZiel(
-      `${fehlerZiel}${trenner}fehler=${encodeURIComponent(grund)}`,
-      `/portal/${mandant}/security/wachbuch`, anfrage), 303);
+    return zurueckAus(fehlerZiel, grund, `/portal/${mandant}/security/wachbuch`);
   };
 
   if (betreff === null || eintragstext === null) {
@@ -94,6 +131,24 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
 
+        /*
+         * Die Fotos gehen an die Seite, die DIESE Transaktion schreibt — an
+         * die neue, auch bei einer Richtigstellung. Die Datenbank nimmt sie
+         * an keiner anderen an (`t_wachbuch_medien`, 0467). Die Bytes werden
+         * erst nach der Rechtepruefung gelesen.
+         */
+        const mitFotos = async (eintragId: string): Promise<string> => {
+          const dateien: FormularDatei[] = [];
+          for (const foto of fotos) {
+            dateien.push({
+              daten: new Uint8Array(await foto.arrayBuffer()),
+              behaupteterTyp: foto.type === '' ? null : foto.type,
+            });
+          }
+          await legeWachbuchFotosAb(kontext, { eintragId, dateien }, waehleSpeicher());
+          return eintragId;
+        };
+
         if (korrigiert !== null) {
           const grund = text(daten, 'grund');
           if (grund === null) {
@@ -101,9 +156,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             // eines Konflikts.
             throw new WachbuchEingabeFehlt('Eine Korrektur braucht einen Grund.', 'grund_fehlt');
           }
-          return korrigiereEintrag(kontext, {
+          return mitFotos(await korrigiereEintrag(kontext, {
             eintragId: korrigiert, grund, betreff, eintragstext,
-          });
+          }));
         }
 
         const objektId = text(daten, 'objekt');
@@ -113,7 +168,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             code: 'pflichtfeld_fehlt', status: 400,
           });
         }
-        return schreibeEintrag(kontext, {
+        return mitFotos(await schreibeEintrag(kontext, {
           objektId,
           art,
           betreff,
@@ -133,7 +188,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
            */
           geraeteZeit: text(daten, 'geraete_zeit'),
           nachgetragen: daten.get('nachgetragen') === '1',
-        });
+        }));
       })) as Promise<string>);
   } catch (fehler) {
     const grund = grundVon(fehler);

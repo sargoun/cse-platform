@@ -1,6 +1,6 @@
 /**
- * Das Wachbuch der Leitstelle — die Sätze, die mit V-180 (Schlüssel) dazukamen,
- * in beiden Sprachen (SEC-05, SEC-07, D-592).
+ * Das Wachbuch der Leitstelle — die Sätze, die mit V-180 (Schlüssel) und
+ * V-181 (Fotos) dazukamen, in beiden Sprachen (SEC-05, SEC-07, D-592).
  *
  * **Die Fachbegriffe bleiben deutsch, auch im englischen Text:** `Wachbuch`,
  * `Objekt`, `Posten` und die Art `Schlüssel` sind die Wörter des
@@ -19,6 +19,17 @@ export interface WachbuchTexte {
   readonly ohneSchluessel: string;
   readonly schluesselZeile: (schluessel: string) => string;
   readonly quittungVerweis: string;
+  /**
+   * V-181: Fotos an der Seite — nur beim Schreiben, nie danach. Die Liste
+   * selbst spricht `AUFNAHMEN_TEXTE` (`./aufnahmen.ts`), dieselbe wie auf dem
+   * Schichtblatt.
+   */
+  readonly fotos: string;
+  readonly fotoHinweis: string;
+  readonly fotoNichtVerbunden: string;
+  readonly fotoAnzahl: (anzahl: number) => string;
+  /** Die Aufnahmen der Schicht, an der die Seite hängt (Bezug `einsatz`). */
+  readonly schichtFotosHinweis: string;
   readonly abgewiesen: string;
   readonly fehler: Readonly<Record<string, string>>;
   readonly fehlerUnbekannt: string;
@@ -87,9 +98,28 @@ export const WACHBUCH_TEXTE: Readonly<Record<InternSprache, WachbuchTexte>> = {
     ohneSchluessel: '— keiner —',
     schluesselZeile: (schluessel) => `Schlüssel ${schluessel}`,
     quittungVerweis: 'Zur Quittung',
+    fotos: 'Fotos',
+    fotoHinweis: 'Freiwillig. Die Fotos gehören zu diesem Eintrag und lassen sich später '
+      + 'nicht ergänzen — ein späteres Foto ist ein neuer Eintrag. Ortsdaten werden vor '
+      + 'dem Speichern entfernt.',
+    fotoNichtVerbunden: 'Der Medienspeicher ist nicht verbunden — Fotos lassen sich gerade '
+      + 'nicht anhängen. Der Eintrag selbst geht.',
+    fotoAnzahl: (anzahl) => (anzahl === 1 ? '1 Foto' : `${String(anzahl)} Fotos`),
+    schichtFotosHinweis: 'Was die Wache während dieser Schicht über „Fotos" aufgenommen hat — '
+      + 'sie hängen an der Schicht, nicht an dieser Seite.',
     abgewiesen: 'Der Eintrag wurde nicht geschrieben.',
     fehler: {
       pflichtfeld_fehlt: 'Objekt, Art, Betreff und Text gehören zu jedem Eintrag.',
+      foto_zu_gross: 'Ein Foto ist zu groß — bitte ohne dieses Foto oder mit einem kleineren '
+        + 'erneut senden.',
+      foto_leer: 'Ein Foto ist leer.',
+      foto_typ_unbekannt: 'Eine Datei ist kein erkennbares Foto.',
+      foto_typ_nicht_erlaubt: 'Dieser Dateityp ist für Fotos nicht zugelassen.',
+      foto_widerspruch: 'Eine Datei ist nicht das, als was sie ausgegeben wird.',
+      foto_bereinigung: 'Aus einem Foto ließen sich die Ortsdaten nicht entfernen, deshalb '
+        + 'wurde nichts gespeichert.',
+      speicher_nicht_verbunden: 'Der Medienspeicher ist nicht verbunden — bitte ohne Foto '
+        + 'senden.',
       schluessel_fehlt: 'Ein Schlüsseleintrag nennt den Schlüssel, um den es geht.',
       grund_fehlt: 'Eine Korrektur braucht einen Grund.',
       ungueltige_eingabe: 'Die Eingabe ist unvollständig — bitte Betreff und Text prüfen.',
@@ -114,9 +144,26 @@ export const WACHBUCH_TEXTE: Readonly<Record<InternSprache, WachbuchTexte>> = {
     ohneSchluessel: '— none —',
     schluesselZeile: (schluessel) => `Key ${schluessel}`,
     quittungVerweis: 'To the receipt',
+    fotos: 'Photos',
+    fotoHinweis: 'Optional. The photos belong to this entry and cannot be added later — a '
+      + 'later photo is a new entry. Location data is removed before saving.',
+    fotoNichtVerbunden: 'The media storage is not connected — photos cannot be attached right '
+      + 'now. The entry itself works.',
+    fotoAnzahl: (anzahl) => (anzahl === 1 ? '1 photo' : `${String(anzahl)} photos`),
+    schichtFotosHinweis: 'What the guard recorded under "Photos" during this shift — they '
+      + 'belong to the shift, not to this page.',
     abgewiesen: 'The entry was not written.',
     fehler: {
       pflichtfeld_fehlt: 'Objekt, type, subject and text belong to every entry.',
+      foto_zu_gross: 'A photo is too large — please send again without this photo or with a '
+        + 'smaller one.',
+      foto_leer: 'A photo is empty.',
+      foto_typ_unbekannt: 'A file is not a recognisable photo.',
+      foto_typ_nicht_erlaubt: 'This file type is not allowed for photos.',
+      foto_widerspruch: 'A file is not what it claims to be.',
+      foto_bereinigung: 'Location data could not be removed from a photo, so nothing was saved.',
+      speicher_nicht_verbunden: 'The media storage is not connected — please send without a '
+        + 'photo.',
       schluessel_fehlt: 'A key entry names the key it concerns.',
       grund_fehlt: 'A correction needs a reason.',
       ungueltige_eingabe: 'The input is incomplete — please check subject and text.',

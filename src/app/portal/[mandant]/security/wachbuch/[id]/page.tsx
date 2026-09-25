@@ -20,7 +20,14 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { WACHBUCH_TEXTE } from '@/lib/i18n/verwaltung/wachbuch';
+import { AUFNAHMEN_TEXTE } from '@/lib/i18n/verwaltung/aufnahmen';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { Aufnahmeliste, type Aufnahme } from '@/components/portal/Aufnahmeliste';
+import {
+  listeSchichtMedien, listeWachbuchMedien,
+} from '@/server/services/mitarbeiter/medien';
+import { signierteAdressen } from '@/server/services/zeit/medien';
+import { waehleSpeicher } from '@/server/storage/waehle';
 
 /**
  * `/portal/[mandant]/security/wachbuch/[id]` — eine Seite, mit Serverzeit,
@@ -37,6 +44,12 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * Aufzeichnung, und sie gehört auf die Seite, die als Beweis dient — nicht in
  * eine Auswertung, die jemand später gegen den Menschen richtet (O-06,
  * § 87 Abs. 1 Nr. 6 BetrVG).
+ *
+ * **Die Fotos stehen an der Seite** (V-181, SEC-05 „with photos"): die der
+ * Seite selbst und, getrennt benannt, die Aufnahmen der Schicht, an der sie
+ * hängt. Beide als signierte Links, beide nur, soweit diese Anmeldung sie
+ * lesen darf. Die Richtigstellung kann Fotos mitbringen — sie ist eine neue
+ * Seite; an diese hier hängt niemand nachträglich eines (0467).
  */
 export const dynamic = 'force-dynamic';
 
@@ -62,18 +75,40 @@ export default async function Wachbuchblatt(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  const speicher = waehleSpeicher();
   const daten = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
         const eintrag = await leseEintrag(kontext, id);
         if (eintrag === null) return null;
-        return { eintrag, kette: await pruefeKette(kontext, eintrag.objektId) };
-      })) as Promise<{ eintrag: EintragZeile; kette: Kettenbefund } | null>);
+        /*
+         * V-181: die Fotos DIESER Seite (`t_wachbuch_medien_lesen`,
+         * wachbuch.lesen) und die Aufnahmen ihrer Schicht (Bezug `einsatz`,
+         * `t_mandant` mit zeit.lesen). Was die Anmeldung nicht lesen darf,
+         * kommt nicht zurueck — und dann steht hier kein Abschnitt, statt
+         * „keine" zu behaupten. Die Adressen sind signiert und einzeln
+         * gesichert (`signierteAdressen`).
+         */
+        const jetzt = Math.floor(Date.now() / 1000);
+        const eigene = (await listeWachbuchMedien(kontext, [eintrag.id])).get(eintrag.id) ?? [];
+        const schicht = eintrag.einsatzId === null ? []
+          : await listeSchichtMedien(kontext, eintrag.einsatzId);
+        return {
+          eintrag,
+          kette: await pruefeKette(kontext, eintrag.objektId),
+          fotos: await signierteAdressen(kontext, eigene, speicher, jetzt),
+          schichtFotos: await signierteAdressen(kontext, schicht, speicher, jetzt),
+        };
+      })) as Promise<{
+        eintrag: EintragZeile; kette: Kettenbefund;
+        fotos: readonly Aufnahme[]; schichtFotos: readonly Aufnahme[];
+      } | null>);
 
   // AUT-06: eine fremde Seite ist nicht vorhanden, nicht verboten.
   if (daten === null) notFound();
-  const { eintrag, kette } = daten;
+  const { eintrag, kette, fotos, schichtFotos } = daten;
   const tW = nachSprache(WACHBUCH_TEXTE, zugang.sprache);
+  const tA = nachSprache(AUFNAHMEN_TEXTE, zugang.sprache);
   /* D-599/D-728: der Grund einer abgewiesenen Richtigstellung. */
   const fehler = typeof suche['fehler'] === 'string'
     ? (eigenerEintrag(tW.fehler, suche['fehler']) ?? tW.fehlerUnbekannt) : null;
@@ -166,6 +201,16 @@ export default async function Wachbuchblatt(
           {eintrag.eintragstext}
         </p>
 
+        {fotos.length > 0 && (
+          <section data-cse="wachbuch-fotos" className="mt-s4">
+            <h2 className="m-0 mb-s2 text-sm font-semibold text-text">{tW.fotos}</h2>
+            {!speicher.verbunden && (
+              <p className="m-0 mb-s2 text-sm text-warning">{tA.speicherFehlt}</p>
+            )}
+            <Aufnahmeliste aufnahmen={fotos} texte={tA} marke="wachbuch-foto" />
+          </section>
+        )}
+
         {eintrag.storniert && (
           <p className="m-0 mt-s4 text-sm text-danger">
             Storniert: {eintrag.stornoGrund}
@@ -195,6 +240,17 @@ export default async function Wachbuchblatt(
           </p>
         )}
       </article>
+
+      {schichtFotos.length > 0 && (
+        <section data-cse="schicht-fotos" className="mb-s6">
+          <h2 className="mb-s2 text-h3 text-text">{tA.schichtAufnahmen}</h2>
+          <p className="mb-s3 max-w-prose text-sm text-text-muted">{tW.schichtFotosHinweis}</p>
+          {!speicher.verbunden && (
+            <p className="m-0 mb-s2 text-sm text-warning">{tA.speicherFehlt}</p>
+          )}
+          <Aufnahmeliste aufnahmen={schichtFotos} texte={tA} marke="schicht-foto" />
+        </section>
+      )}
 
       <section data-cse="kettenzustand" className="mb-s6">
         <h2 className="mb-s2 text-h3 text-text">Nachweiskette dieses Objekts</h2>
@@ -227,8 +283,9 @@ export default async function Wachbuchblatt(
             zeigt. Beide sind danach lesbar — genau das ist der Beweiswert.
           </p>
           <form
-            action="/api/sicherheit/wachbuch"
+            action={`/api/sicherheit/wachbuch?zurueck_fehler=${encodeURIComponent(pfad)}`}
             method="post"
+            encType="multipart/form-data"
             className="max-w-prose rounded-lg border border-line bg-surface p-s5"
           >
             <input type="hidden" name="mandant" value={mandant} />
@@ -258,6 +315,16 @@ export default async function Wachbuchblatt(
                 defaultValue={eintrag.eintragstext}
               />
             </label>
+
+            {speicher.verbunden ? (
+              <label className="mb-s5 block" data-cse="richtigstellung-fotos">
+                <span className={feld}>{tW.fotos}</span>
+                <input type="file" name="foto" accept="image/*" multiple className={eingabe} />
+                <span className="mt-s1 block text-xs text-text-muted">{tW.fotoHinweis}</span>
+              </label>
+            ) : (
+              <p className="mb-s5 text-sm text-text-muted">{tW.fotoNichtVerbunden}</p>
+            )}
 
             <Button type="submit" variante="secondary">Richtigstellung schreiben</Button>
           </form>

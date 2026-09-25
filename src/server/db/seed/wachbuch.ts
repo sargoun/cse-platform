@@ -29,8 +29,11 @@
  * loeschbar (Invariante 8, §1.14), ein Fehlgriff bliebe also fuer immer
  * stehen.
  */
+import { crc32, deflateSync } from 'node:zlib';
 import type postgres from 'postgres';
 import type { SchreibKontext } from '../../kontext/index.js';
+import type { Speicher } from '../../storage/adapter.js';
+import { legeWachbuchFotosAb } from '../../services/zeit/medien.js';
 import {
   korrigiereEintrag, schreibeEintrag,
 } from '../../services/security/wachbuch.js';
@@ -320,4 +323,101 @@ export async function seedSchluesselImWachbuch(
     (k) => nimmZurueck(k, { ...bewegung, bemerkung: 'Übergabe an den Tagdienst, Bund vollzählig.' }));
 
   return { schluessel: 1, quittungen: 2 };
+}
+
+export interface WachbuchFotoErgebnis {
+  /** Seiten mit Foto, die DIESER Lauf geschrieben hat. */
+  readonly seiten: number;
+  readonly fotos: number;
+  /** Warum keine — `null`, wenn geschrieben wurde oder schon da war. */
+  readonly grund: 'nicht_verbunden' | 'keine_leitung' | null;
+}
+
+const FOTO_BETREFF = 'Schranke Tiefgarage beschädigt vorgefunden';
+
+/**
+ * Ein graues Platzhalterbild, 32 × 24 Pixel, als ECHTES PNG gebaut (IHDR,
+ * IDAT, IEND, je mit CRC-32) — kein Foto vom Objekt, und die Beschreibung
+ * der Aufnahme sagt das (DEMODATEN).
+ */
+function demoPng(): Uint8Array {
+  const breite = 32;
+  const hoehe = 24;
+  const stueck = (art: string, inhalt: Uint8Array): Buffer => {
+    const laenge = Buffer.alloc(4);
+    laenge.writeUInt32BE(inhalt.length);
+    const kopfUndInhalt = Buffer.concat([Buffer.from(art, 'latin1'), inhalt]);
+    const pruef = Buffer.alloc(4);
+    pruef.writeUInt32BE(crc32(kopfUndInhalt) >>> 0);
+    return Buffer.concat([laenge, kopfUndInhalt, pruef]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(breite, 0);
+  ihdr.writeUInt32BE(hoehe, 4);
+  ihdr[8] = 8; // Bittiefe
+  ihdr[9] = 0; // Graustufen
+  const zeilen = Buffer.alloc(hoehe * (1 + breite));
+  for (let y = 0; y < hoehe; y += 1) {
+    zeilen[y * (1 + breite)] = 0; // Filter: keiner
+    for (let x = 0; x < breite; x += 1) {
+      zeilen[y * (1 + breite) + 1 + x] = (x + y) % 2 === 0 ? 0x80 : 0x90;
+    }
+  }
+  return new Uint8Array(Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    stueck('IHDR', ihdr),
+    stueck('IDAT', deflateSync(zeilen)),
+    stueck('IEND', new Uint8Array(0)),
+  ]));
+}
+
+/**
+ * V-181 — eine Wachbuchseite MIT Foto (SEC-05 „with server time and photos").
+ *
+ * **Nur mit verbundenem Speicher.** Ohne ihn entsteht KEINE Seite: ein Foto
+ * kommt mit der Seite und nie danach (0467) — eine Seite, die dieser Lauf
+ * ohne Foto schriebe, bekaeme auch spaeter keines, und eine selbst
+ * geschriebene Medienzeile ohne Datei waere ein vorgetaeuschter Beleg.
+ *
+ * Geschrieben wird ueber die ECHTEN Dienste in EINER Transaktion der
+ * Wachleitung: `schreibeEintrag`, dann `legeWachbuchFotosAb` (pruefen,
+ * bereinigen, Zeile, Speicher). Idempotent ueber den Betreff am Objekt.
+ */
+export async function seedWachbuchFoto(
+  sql: Sql, mandantId: string, postenId: string | null, objektId: string | null,
+  speicher: Speicher | null,
+): Promise<WachbuchFotoErgebnis> {
+  if (postenId === null || objektId === null) return { seiten: 0, fotos: 0, grund: null };
+  if (speicher === null || !speicher.verbunden) {
+    return { seiten: 0, fotos: 0, grund: 'nicht_verbunden' };
+  }
+  const [da] = await sql<{ id: string }[]>`
+    select id from wachbuch_eintrag
+     where mandant_id = ${mandantId} and objekt_id = ${objektId} and betreff = ${FOTO_BETREFF}
+     limit 1`;
+  if (da !== undefined) return { seiten: 0, fotos: 0, grund: null };
+
+  const wache = await wachleitung(sql, mandantId);
+  if (wache === undefined) return { seiten: 0, fotos: 0, grund: 'keine_leitung' };
+
+  const fotos = await alsWache(sql, mandantId, wache.benutzer_id, wache.person_id,
+    async (k) => {
+      const eintragId = await schreibeEintrag(k, {
+        objektId,
+        postenId,
+        art: 'vorkommnis',
+        betreff: FOTO_BETREFF,
+        eintragstext:
+          'Beim Rundgang 3 stand die Schranke der Tiefgaragenzufahrt schräg, der '
+          + 'Schrankenbaum ist am Gelenk eingerissen. Kein Fahrzeug in der Nähe, '
+          + 'niemand angetroffen. Zufahrt mit Leitkegeln gesichert, Haustechnik über '
+          + 'die Rufbereitschaft verständigt. Foto anbei.',
+      });
+      return legeWachbuchFotosAb(k, {
+        eintragId,
+        dateien: [{ daten: demoPng(), behaupteterTyp: 'image/png' }],
+        beschreibung: 'DEMODATEN — Platzhalterbild, keine Aufnahme vom Objekt',
+      }, speicher);
+    });
+  return { seiten: 1, fotos: fotos.length, grund: null };
 }
