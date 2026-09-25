@@ -1,5 +1,6 @@
 import { Geraetezeit } from '../../Geraetezeit';
 import { notFound } from 'next/navigation';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import {
   findeEigeneDienstanweisung, type EigeneDienstanweisung,
 } from '@/server/services/mitarbeiter/dienstanweisungen';
@@ -79,7 +80,7 @@ export default async function MeineDienstanweisung(
             <span className="cse-zahl">{daten.version}</span>
           </Feld>
           <Feld label={t.giltAb}>
-            <span className="cse-zahl">{daten.gueltigAb}</span>
+            <span className="cse-zahl">{tagInSprache(daten.gueltigAb, basis.sprache)}</span>
           </Feld>
           {daten.naechsteSchichtLokal !== null && (
             <Feld label={t.vorNaechsterSchicht}>

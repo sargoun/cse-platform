@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
 import {
@@ -105,10 +106,14 @@ export default async function MeinAntrag(
           </Feld>
           <Feld label={t.antragArt}>{artName}</Feld>
           <Feld label={t.von}>
-            <span className="cse-zahl">{a.vonDatum ?? '—'}</span>
+            <span className="cse-zahl">
+              {a.vonDatum === null ? '—' : tagInSprache(a.vonDatum, basis.sprache)}
+            </span>
           </Feld>
           <Feld label={t.bis}>
-            <span className="cse-zahl">{a.bisDatum ?? '—'}</span>
+            <span className="cse-zahl">
+              {a.bisDatum === null ? '—' : tagInSprache(a.bisDatum, basis.sprache)}
+            </span>
           </Feld>
           <Feld label={t.nachricht}>{a.nachricht ?? '—'}</Feld>
           <Feld label={t.eingereichtAm}>

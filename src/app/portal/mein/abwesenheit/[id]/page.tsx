@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
 import { tageAusPostgres } from '@/server/services/finanz/menge';
@@ -100,8 +101,12 @@ export default async function MeineAbwesenheit(
           <Feld label={t.gesellschaft}>
             <Gesellschaft slug={daten.mandantSlug} name={daten.mandantName} />
           </Feld>
-          <Feld label={t.von}><span className="cse-zahl">{a.von}</span></Feld>
-          <Feld label={t.bis}><span className="cse-zahl">{a.bis}</span></Feld>
+          <Feld label={t.von}>
+            <span className="cse-zahl">{tagInSprache(a.von, basis.sprache)}</span>
+          </Feld>
+          <Feld label={t.bis}>
+            <span className="cse-zahl">{tagInSprache(a.bis, basis.sprache)}</span>
+          </Feld>
           <Feld label={t.tage}>
             {/*
               `numeric(12,3)` kommt als Text „5.000" — das IST die Zahl (fünf

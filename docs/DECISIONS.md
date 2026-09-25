@@ -19392,3 +19392,44 @@ Leistungsnachweis, Bautagebuch und Fotos über `dienstFehlerAntwort`.
 | Betrifft | D-599, D-728, D-691, EMP-07, EMP-09, EMP-10, EMP-11, EMP-12, SEC-05, CLN-04, BAU-07, TIM-10, O-139, V-198, `src/app/api/formular-antwort.ts`, `src/app/api/zeit/einwand/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/[id]/zurueckziehen/route.ts`, `src/app/api/mein/dienstanweisungen/[id]/kenntnisnahme/route.ts`, `src/app/api/mein/nachrichten/[id]/route.ts`, `src/app/api/mein/schichten/**`, `src/server/services/abwesenheit/antrag.ts` (`pflichtfeldGrund`), `src/server/services/security/wachbuch.ts`, `src/lib/i18n/mein-formular.ts`, `src/app/portal/mein/FormularAntwort.tsx`, `src/components/ui/Hinweis.tsx` (`groesse`), DESIGN §5 „Notices", `tests/kern/mein-formular-rueckweg.test.ts`, `tests/e2e/mitarbeiter.spec.ts` |
 |---|---|
 
+### D-693 · Das Arbeiterportal schreibt jeden Kalendertag in der Sprache der Seite — ISO bleibt Adresse, Schlüssel und Formularwert (V-199)
+
+**Der Befund** (V-199; Audit Befund 66): Die Dienste des Arbeiterportals
+liefern Kalendertage als `JJJJ-MM-TT` — für Logik, Adressen und Schlüssel —,
+und die Seiten gaben sie unverändert aus. Auf dem Blatt eines Zeiteintrags
+stand die Überschrift „2026-09-11" über dem Feld Beginn „11.09.2026 22:00".
+Dieselbe Rohform hatten die Monatsgrenzen der Zeitenliste, Wochenwechsler
+und Tagesüberschriften der Schichtliste, die Ablaufdaten der Nachweise auf
+„Heute" und „Meine Nachweise" (samt Stichtag und Bewacherregister), der
+Zeitraum von Anträgen und Abwesenheiten (Liste und Blatt), der betroffene Tag
+eines Einwands, „gilt ab" einer Dienstanweisung und das Entstehungsdatum
+eines Dokuments. V-210 hatte den Monatsnachweis und die Schichtseiten
+umgestellt; die übrigen Seiten blieben ISO.
+
+**Die Entscheidung.**
+
+1. **Dieselbe Regel wie V-210:** `tagInSprache(tag, basis.sprache)` —
+   Deutsch, Arabisch und Türkisch `TT.MM.JJJJ`, Englisch „11 Sep 2026".
+   Umgeschrieben wird nur die Anzeige; Dienste, `href`, `key`, `data-*` und
+   versteckte Formularfelder (der `datum` des Einwands, `?woche=`) behalten
+   ISO, weil dort ein Programm liest.
+2. **Der Monatsnachweis bleibt deutsch** (`tagDeutsch`, V-210): er ist das
+   Blatt nach § 17 MiLoG.
+3. **Zeitpunkte bleiben, wie SEITENKARTE §12 sie festlegt** — Europe/Berlin
+   in der gesetzlichen Form, in jeder Sprache; die Browserprüfung „Zahlen,
+   Geld und Zeit bleiben in der gesetzlichen Form" hält das. Diese
+   Entscheidung betrifft Kalendertage. Auf Deutsch, Arabisch und Türkisch
+   stehen Tag und Zeitpunkt damit in derselben Schreibweise; auf Englisch
+   steht der Tag wie auf den Schichtseiten seit V-210.
+4. **Geprüft am Quellbaum, nicht an einer Liste:**
+   `tests/kern/mein-kalendertage.test.ts` liest jede `.tsx` unter
+   `src/app/portal/mein` — auch eine künftige — und schlägt fehl, sobald ein
+   Feld, das ein Dienst als ISO-Tag liefert, roh in einer JSX-Klammer, in
+   einem Vorlagentext oder als `tagePlus(…)` auf dem Bildschirm steht.
+   Beschriftungen (`t.von`, `b.tag` …) und Eigenschaften, die ein Programm
+   liest, sind ausgenommen; eine Gegenprobe beweist, dass das Muster die
+   gefundenen Fälle trifft.
+
+| Betrifft | EMP-03, EMP-07, EMP-08, EMP-09, EMP-10, EMP-12, SEC-03, V-199, V-210, D-688, SEITENKARTE §12, `src/app/portal/mein/{page,nachweise/page,zeiten/page,zeiten/[id]/page,zeiten/[id]/einwand/page,schichten/page,antraege/page,antraege/[id]/page,abwesenheit/[id]/page,dienstanweisungen/page,dienstanweisungen/[id]/page,dokumente/[id]/page}.tsx`, `tests/kern/mein-kalendertage.test.ts` |
+|---|---|
+

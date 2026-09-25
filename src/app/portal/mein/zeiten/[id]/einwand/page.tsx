@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import {
   EINWAND_ARTEN, EINWAND_ART_TEXTE, EINWAND_STATUS_TEXTE, PORTAL_BCP47,
   type EinwandStatusSchluessel,
@@ -104,7 +105,9 @@ export default async function EinwandFormular(
 
       <section className="mb-s5 rounded-lg border border-line bg-surface p-s4">
         <Felder>
-          <Feld label={t.datum}><span className="cse-zahl">{z.tag}</span></Feld>
+          <Feld label={t.datum}>
+            <span className="cse-zahl">{tagInSprache(z.tag, basis.sprache)}</span>
+          </Feld>
           <Feld label={t.beginn}><span className="cse-zahl">{z.beginnLokal}</span></Feld>
           <Feld label={t.ende}><span className="cse-zahl">{z.endeLokal ?? '—'}</span></Feld>
           <Feld label={t.gesellschaft}>{z.mandantName}</Feld>

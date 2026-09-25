@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { KpiStat } from '@/components/ui/KpiStat';
 import { Icon } from '@/components/ui/Icon';
 import { berlinHeute } from '@/server/db/heute';
-import { monatsgrenzen, montag } from '@/lib/datum/kalendertag';
+import { monatsgrenzen, montag, tagInSprache } from '@/lib/datum/kalendertag';
 import { stundenMinutenText } from '@/lib/datum/stunden';
 import {
   laufendeOderNaechsteSchicht, type EigeneSchicht,
@@ -118,13 +118,14 @@ export default async function MeinPortal(
             {gesperrt.map((n) => (
               <li key={n.nachweisId} data-cse="nachweis-abgelaufen" className="text-base text-text">
                 <strong>{n.bezeichnung}</strong> — {t.abgelaufen}
-                {n.gueltigBis === null ? '' : ` (${n.gueltigBis})`}. {t.sperrtEinteilung}
+                {n.gueltigBis === null ? '' : ` (${tagInSprache(n.gueltigBis, basis.sprache)})`}. {t.sperrtEinteilung}
               </li>
             ))}
             {ablaufend.map((n) => (
               <li key={n.nachweisId} data-cse="nachweis-laeuft-ab" className="text-base text-text">
                 <strong>{n.bezeichnung}</strong> — {t.laeuftAb}
-                {n.gueltigBis === null ? '' : ` (${t.gueltigBis} ${n.gueltigBis})`}.
+                {n.gueltigBis === null ? ''
+                  : ` (${t.gueltigBis} ${tagInSprache(n.gueltigBis, basis.sprache)})`}.
               </li>
             ))}
           </ul>

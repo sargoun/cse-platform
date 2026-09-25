@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { berlinHeute } from '@/server/db/heute';
-import { montag, tagePlus } from '@/lib/datum/kalendertag';
+import { montag, tagePlus, tagInSprache } from '@/lib/datum/kalendertag';
 import { stundenMinutenText } from '@/lib/datum/stunden';
 import {
   listeEigeneSchichten, type EigeneSchicht,
@@ -65,7 +65,8 @@ export default async function MeineSchichten({
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{t.schichten}</h1>
         <p className="m-0 text-base text-text-muted">
-          <span className="cse-zahl">{von}</span> – <span className="cse-zahl">{bis}</span>
+          <span className="cse-zahl">{tagInSprache(von, basis.sprache)}</span> –{' '}
+          <span className="cse-zahl">{tagInSprache(bis, basis.sprache)}</span>
           {' · '}
           <span data-cse="wochensumme" className="cse-zahl">{stundenMinutenText(summe)}</span>
         </p>
@@ -83,14 +84,14 @@ export default async function MeineSchichten({
           data-cse="woche-zurueck"
           className="min-h-11 text-base text-text underline"
         >
-          ← <span className="cse-zahl">{tagePlus(von, -7)}</span>
+          ← <span className="cse-zahl">{tagInSprache(tagePlus(von, -7), basis.sprache)}</span>
         </Link>
         <Link
           href={`/portal/mein/schichten?woche=${tagePlus(von, 7)}`}
           data-cse="woche-vor"
           className="min-h-11 text-base text-text underline"
         >
-          <span className="cse-zahl">{tagePlus(von, 7)}</span> →
+          <span className="cse-zahl">{tagInSprache(tagePlus(von, 7), basis.sprache)}</span> →
         </Link>
       </nav>
 
@@ -99,7 +100,7 @@ export default async function MeineSchichten({
           {[...nachTag].map(([tag, schichten]) => (
             <section key={tag} data-cse="schicht-tag" data-tag={tag}>
               <h2 className="mb-s3 text-h3 text-text">
-                <span className="cse-zahl">{tag}</span>
+                <span className="cse-zahl">{tagInSprache(tag, basis.sprache)}</span>
               </h2>
               <ul className="m-0 flex list-none flex-col gap-s3 p-0">
                 {schichten.map((s) => (

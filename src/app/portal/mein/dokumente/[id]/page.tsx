@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { dokumentKategorieText } from '@/lib/i18n/texte';
 import { waehleSpeicher } from '@/server/storage/waehle';
 import {
@@ -91,7 +92,7 @@ export default async function MeinDokumentBlatt(
             <span className="cse-zahl">{d.abgelegtLokal}</span>
           </Feld>
           <Feld label={t.datum}>
-            <span className="cse-zahl">{d.entstandenAm}</span>
+            <span className="cse-zahl">{tagInSprache(d.entstandenAm, basis.sprache)}</span>
           </Feld>
           <Feld label={t.groesse}>
             <span className="cse-zahl">{groesseText(d.groesseBytes)}</span>

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { DataTable, type Spalte } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { berlinHeute } from '@/server/db/heute';
-import { monatsgrenzen } from '@/lib/datum/kalendertag';
+import { monatsgrenzen, tagInSprache } from '@/lib/datum/kalendertag';
 import { stundenMinutenText } from '@/lib/datum/stunden';
 import {
   listeEigeneZeiten, type EigenerZeiteintrag,
@@ -119,8 +119,8 @@ export default async function MeineZeiten({
       <div className="mb-s4 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{t.zeiten}</h1>
         <p className="m-0 text-base text-text-muted">
-          <span className="cse-zahl">{grenzen.von}</span> –{' '}
-          <span className="cse-zahl">{grenzen.bis}</span>
+          <span className="cse-zahl">{tagInSprache(grenzen.von, basis.sprache)}</span> –{' '}
+          <span className="cse-zahl">{tagInSprache(grenzen.bis, basis.sprache)}</span>
           {' · '}
           <span data-cse="monatssumme" className="cse-zahl">
             {stundenMinutenText(summe)}
