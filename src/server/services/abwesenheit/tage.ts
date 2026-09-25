@@ -50,10 +50,17 @@ export interface TageEingabe {
   readonly arbeitstage?: readonly Wochentag[];
 }
 
+/**
+ * Welcher Teil des Zeitraums nicht stimmt — als Schlüssel, den ein Formular
+ * in seiner Sprache nachschlägt (V-188). Der Satz des Fehlers bleibt deutsch
+ * und für die Verwaltungsseite, die ihn schon zeigt.
+ */
+export type ZeitraumGrund = 'kein_datum' | 'zeitraum_verkehrt' | 'zeitraum_zu_lang';
+
 export class ZeitraumFehler extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
-  constructor(nachricht: string) {
+  constructor(nachricht: string, readonly grund: ZeitraumGrund = 'kein_datum') {
     super(nachricht);
     this.name = 'ZeitraumFehler';
   }
@@ -75,10 +82,10 @@ function wochentag(datum: string): Wochentag {
  */
 export function rechneTage(eingabe: TageEingabe): MilliMenge {
   if (!/^\d{4}-\d{2}-\d{2}$/u.test(eingabe.von) || !/^\d{4}-\d{2}-\d{2}$/u.test(eingabe.bis)) {
-    throw new ZeitraumFehler('Zeitraum erwartet zwei Kalendertage als JJJJ-MM-TT.');
+    throw new ZeitraumFehler('Zeitraum erwartet zwei Kalendertage als JJJJ-MM-TT.', 'kein_datum');
   }
   if (eingabe.bis < eingabe.von) {
-    throw new ZeitraumFehler('Der Zeitraum endet vor seinem Anfang.');
+    throw new ZeitraumFehler('Der Zeitraum endet vor seinem Anfang.', 'zeitraum_verkehrt');
   }
   /**
    * Eine Obergrenze, damit ein Tippfehler im Jahr keine Schleife ueber
@@ -88,7 +95,8 @@ export function rechneTage(eingabe: TageEingabe): MilliMenge {
    */
   const grenze = tagePlus(eingabe.von, 366);
   if (eingabe.bis > grenze) {
-    throw new ZeitraumFehler('Ein Zeitraum von mehr als 366 Tagen ist keine Abwesenheit.');
+    throw new ZeitraumFehler(
+      'Ein Zeitraum von mehr als 366 Tagen ist keine Abwesenheit.', 'zeitraum_zu_lang');
   }
 
   const arbeitstage = new Set<Wochentag>(eingabe.arbeitstage ?? ARBEITSTAGE_PLATZHALTER);

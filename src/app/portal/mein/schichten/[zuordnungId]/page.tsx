@@ -6,6 +6,9 @@ import { findeEigeneSchicht, type EigeneSchicht }
 import {
   listeEigeneDienstanweisungen, type EigeneDienstanweisung,
 } from '@/server/services/mitarbeiter/dienstanweisungen';
+import { eigenerEintragZurSchicht } from '@/server/services/mitarbeiter/zeiten';
+import { EINWAND_FORM_TEXTE } from '@/lib/i18n/mein-formulare';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
 import { Feld, Felder, SchichtKarte, Zusagefeld } from '../../bausteine';
@@ -44,10 +47,27 @@ const ANTWORT_TEXT: Readonly<Record<string, (t: MeinTexte) => string>> = {
  */
 export const dynamic = 'force-dynamic';
 
+/**
+ * Kann zu dieser Schicht eine Zeit fehlen (V-189)? Nur zu einer BEENDETEN,
+ * die weder abgesagt noch an jemand anderen gegangen ist und selbst nicht
+ * ausfiel. „Nicht erschienen" gehört dazu: genau dort widerspricht jemand,
+ * der da war.
+ */
+function zeitFrage(s: EigeneSchicht): boolean {
+  return s.beendet && s.status !== 'abgesagt' && s.status !== 'ersetzt'
+    && s.einsatzStatus !== 'storniert';
+}
+
 /** Was diese Seite in EINER Transaktion liest — Schicht plus ihre Anweisungen. */
 interface Blatt {
   readonly schicht: EigeneSchicht;
   readonly anweisungen: readonly EigeneDienstanweisung[];
+  /**
+   * Der eigene Eintrag zu dieser Schicht — nur fuer eine BEENDETE Schicht
+   * gefragt (V-189). `null` heisst: es gibt keinen, und das Blatt fuehrt zu
+   * „Eine Zeit fehlt".
+   */
+  readonly eintragId: string | null;
 }
 
 export default async function MeineSchicht(
@@ -72,7 +92,10 @@ export default async function MeineSchicht(
       const anweisungen = schicht.objektId === null ? [] as const
         : await listeEigeneDienstanweisungen(kontext, teil.sprache,
           { objektId: schicht.objektId });
-      return { schicht, anweisungen };
+      const eintragId = zeitFrage(schicht)
+        ? await eigenerEintragZurSchicht(kontext, schicht.einsatzId, schicht.anstellungId)
+        : null;
+      return { schicht, anweisungen, eintragId };
     },
   );
   if (ergebnis.art === 'anmeldung') return <AnmeldungNoetig />;
@@ -83,6 +106,8 @@ export default async function MeineSchicht(
   const anweisungen = ergebnis.daten.anweisungen;
   const offene = anweisungen.filter((a) => a.offen);
   const t = basis.texte;
+  const ft = EINWAND_FORM_TEXTE[basis.sprache];
+  const eintragId = ergebnis.daten.eintragId;
   const zielKnopf =
     'inline-flex min-h-11 items-center justify-center rounded-md border '
     + 'border-line-strong px-s5 py-s3 text-base text-text no-underline hover:bg-surface-2';
@@ -141,6 +166,27 @@ export default async function MeineSchicht(
         ist ein Link, den man einmal folgt und danach nicht mehr glaubt.
       */}
       <nav aria-label={t.weiteres} className="mt-s5 flex flex-wrap gap-s3">
+        {/*
+          **Die Zeit zu einer vergangenen Schicht** (V-189, EMP-07). Gibt es
+          einen Eintrag, fuehrt der Weg zu ihm — dort steht der Einwand. Gibt
+          es KEINEN, fuehrt er zu „Eine Zeit fehlt", vorbelegt mit Tag und
+          Beschaeftigung; vorher gab es fuer diesen Fall keinen Weg.
+        */}
+        {zeitFrage(daten) && eintragId !== null && (
+          <Link href={`/portal/mein/zeiten/${eintragId}`} data-cse="zur-zeit" className={zielKnopf}>
+            {ft.zurZeitDerSchicht}
+          </Link>
+        )}
+        {zeitFrage(daten) && eintragId === null && (
+          <Link
+            href={alsRoute(
+              `/portal/mein/zeiten/einwand?anstellung=${daten.anstellungId}&datum=${daten.planDatum}`)}
+            data-cse="zeit-fehlt"
+            className={zielKnopf}
+          >
+            {ft.schichtOhneEintrag}
+          </Link>
+        )}
         <Link
           href={`/portal/mein/schichten/${daten.zuordnungId}/fotos`}
           data-cse="zu-fotos"

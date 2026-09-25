@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SchreibKontext } from '../../kontext/index.js';
 import { MAX_DAUER_MINUTEN } from './vorkommnisse.js';
+import { LeistungsankerFehler, pruefeLeistungsanker } from './leistungsanker.js';
 
 /**
  * **Eine einzelne Schicht — angelegt und wieder abgesagt** (V-013, TIM-01,
@@ -42,7 +43,14 @@ import { MAX_DAUER_MINUTEN } from './vorkommnisse.js';
  * Aufrufer nicht geglaubt: auf dieser Spalte stehen die Kundendecke und
  * `t_kunde`.
  *
- * **4. Abgesagt wird mit Grund, nie durch Löschen.**
+ * **4. Die Leistungszeile ist der Abrechnungsanker** (TIM-12, V-191). Der
+ * Zeiteintrag erbt `auftrag_leistung_id` von seiner Schicht (`z_erben`,
+ * 0034) — und NUR davon; `auftrag_id` allein liest in der Zeitkette niemand.
+ * Wer den Auftrag nennt, nennt deshalb auch die Zeile, oder die Schicht hängt
+ * an keiner Abrechnung. Ist nur die Zeile genannt, leitet die Datenbank den
+ * Auftrag ab (`kern.einsatz_auftrag_ableiten`).
+ *
+ * **5. Abgesagt wird mit Grund, nie durch Löschen.**
  * `einsatz_storno_begruendet` verlangt es; eine Schicht, die spurlos
  * verschwindet, ist im Lohnstreit keine Auskunft. Eine Schicht mit erfasster
  * Zeit wird gar nicht erst abgesagt — die Zeit bliebe an einer Schicht
@@ -52,7 +60,9 @@ export class SchichtFehler extends Error {
   constructor(
     nachricht: string,
     readonly grund: 'unvollstaendig' | 'zeitfenster' | 'besetzung' | 'kein_kunde'
-      | 'nicht_gefunden' | 'schon_storniert' | 'hat_zeiten' | 'grund_fehlt' | 'abgewiesen',
+      | 'nicht_gefunden' | 'schon_storniert' | 'hat_zeiten' | 'grund_fehlt' | 'abgewiesen'
+      | 'leistung_unbekannt' | 'leistung_beendet' | 'leistung_anderer_auftrag'
+      | 'nicht_manuell' | 'leistung_hat_zeiten',
     readonly status = 400,
   ) {
     super(nachricht);
@@ -73,7 +83,23 @@ export interface EinzelschichtEingabe {
   readonly pauseMinuten?: number;
   readonly revierId?: string | null;
   readonly auftragId?: string | null;
+  /** Die Leistungszeile, an deren Abrechnung die Zeit dieser Schicht hängt (TIM-12). */
+  readonly auftragLeistungId?: string | null;
   readonly notiz?: string | null;
+}
+
+/** Ein Ankerfehler als Fehler dieser Schicht — derselbe Grund, dieselbe Maske. */
+async function pruefeAnker(
+  kontext: SchreibKontext, auftragLeistungId: string, auftragId: string | null,
+): Promise<void> {
+  try {
+    await pruefeLeistungsanker(kontext, auftragLeistungId, auftragId);
+  } catch (fehler: unknown) {
+    if (fehler instanceof LeistungsankerFehler) {
+      throw new SchichtFehler(fehler.message, fehler.grund, 422);
+    }
+    throw fehler;
+  }
 }
 
 export interface EinzelschichtErgebnis {
@@ -153,6 +179,8 @@ export async function legeEinzelschichtAn(
   kontext: SchreibKontext, e: EinzelschichtEingabe,
 ): Promise<EinzelschichtErgebnis> {
   pruefeEinzelschicht(e);
+  const leistung = e.auftragLeistungId ?? null;
+  if (leistung !== null) await pruefeAnker(kontext, leistung, e.auftragId ?? null);
 
   try {
     const [z] = await kontext.schreibe<{ id: string; zeitanomalie: string }>(
@@ -160,11 +188,13 @@ export async function legeEinzelschichtAn(
             ende   as (select * from app.loese_ortszeit(
                          ($2::date + case when $5 then 1 else 0 end), $4::time, 'Europe/Berlin'))
        insert into einsatz (
-         mandant_id, quelle, objekt_id, revier_id, auftrag_id, plan_datum,
+         mandant_id, quelle, objekt_id, revier_id, auftrag_id, auftrag_leistung_id,
+         auftrag_von_hand, plan_datum,
          beginn_zeitpunkt, ende_zeitpunkt, zeitzone, beginn_lokal, ende_lokal,
          endet_am_folgetag, zeitanomalie, pause_geplant_minuten,
          soll_besetzung, min_besetzung, notiz, status, erstellt_von_art, erstellt_von)
-       select $1::uuid, 'manuell'::einsatz_quelle, $6::uuid, $7::uuid, $8::uuid, $2::date,
+       select $1::uuid, 'manuell'::einsatz_quelle, $6::uuid, $7::uuid, $8::uuid, $14::uuid,
+              ($8::uuid is not null), $2::date,
               anfang.zeitpunkt, ende.zeitpunkt, 'Europe/Berlin', $3::time, $4::time,
               $5, anfang.anomalie, $9::integer,
               $10::smallint, $11::smallint, $12, 'geplant'::einsatz_status,
@@ -174,7 +204,7 @@ export async function legeEinzelschichtAn(
       [kontext.aktiverMandantId, e.planDatum, e.beginnLokal, e.endeLokal, e.endetAmFolgetag,
         e.objektId, e.revierId ?? null, e.auftragId ?? null, e.pauseMinuten ?? 0,
         e.sollBesetzung, e.minBesetzung, e.notiz?.trim() === '' ? null : e.notiz ?? null,
-        kontext.benutzerId]);
+        kontext.benutzerId, leistung]);
     if (z === undefined) {
       throw new SchichtFehler(
         'Die Schicht wurde nicht angelegt — fehlt `dienstplan.schreiben` in dieser '
@@ -256,6 +286,81 @@ export async function sageEinsatzAb(
   if (zeilen.length === 0) {
     throw new SchichtFehler(
       'Die Schicht wurde nicht abgesagt — fehlt `dienstplan.schreiben` in dieser '
+      + 'Gesellschaft?', 'abgewiesen', 403);
+  }
+}
+
+/**
+ * Die Leistungszeile einer von Hand geplanten Schicht nachtragen, ändern oder
+ * lösen (V-191, TIM-12).
+ *
+ * **Nur, solange auf der Schicht keine Zeit erfasst ist.** Der Zeiteintrag
+ * erbt den Anker beim Anlegen (`z_erben`, 0034) und hält ihn danach fest; ein
+ * Anker, der sich nach der ersten Stunde ändert, bräche die Schicht von ihren
+ * eigenen Einträgen ab. Deshalb dieselbe Bedingung wie beim Absagen und im
+ * Generator: `app.einsatz_hat_zeiterfassung`.
+ *
+ * **Nur für eine Einzelschicht** (`quelle = 'manuell'`). Eine Serienschicht
+ * trägt den Anker ihres Turnus oder Postens, und der Generator schreibt ihn
+ * bei jedem Lauf auf die künftigen Schichten — ein hier gesetzter Wert hielte
+ * nur bis zum nächsten Lauf. Der Weg dorthin ist der Träger.
+ *
+ * **Der Auftrag folgt dem Anker — ausser, ein Mensch hat ihn genannt**
+ * (`einsatz.auftrag_von_hand`, 0431, V-192). Hat ihn ein Mensch in der Maske
+ * genannt, muss jede Zeile zu IHM gehören, und das Lösen der Zeile lässt ihn
+ * stehen — das war die Angabe eines Menschen. Sonst stammt er aus der Zeile:
+ * eine neue Zeile bringt ihren eigenen mit (`auftrag_id` wird geleert und von
+ * `kern.einsatz_auftrag_ableiten` neu gesetzt), und das Lösen nimmt ihn mit.
+ *
+ * Vorher riet der Dienst die Herkunft aus dem Stand („trägt die Schicht eine
+ * Zeile, ist der Auftrag abgeleitet"). Nach dem Lösen stand ein abgeleiteter
+ * Auftrag ohne Zeile da und galt beim nächsten Setzen als genannt: die Zeile
+ * eines anderen Auftrags wurde abgewiesen, obwohl ihn nie ein Mensch nannte.
+ */
+export async function setzeLeistungsanker(
+  kontext: SchreibKontext, einsatzId: string, auftragLeistungId: string | null,
+): Promise<void> {
+  const [stand] = await kontext.abfrage<{
+    quelle: string; storniert: boolean; zeiten: boolean; auftrag_id: string | null;
+    von_hand: boolean;
+  }>(
+    `select quelle::text as quelle, (storniert_am is not null) as storniert,
+            app.einsatz_hat_zeiterfassung(id) as zeiten, auftrag_id,
+            auftrag_von_hand as von_hand
+       from einsatz where id = $1::uuid`, [einsatzId]);
+  if (stand === undefined) {
+    throw new SchichtFehler('Diese Schicht gibt es nicht.', 'nicht_gefunden', 404);
+  }
+  if (stand.quelle !== 'manuell') {
+    throw new SchichtFehler(
+      'Eine Serienschicht trägt die Leistungszeile ihres Turnus oder Postens — '
+      + 'ändern Sie sie dort.', 'nicht_manuell', 409);
+  }
+  if (stand.storniert) {
+    throw new SchichtFehler('Diese Schicht ist abgesagt.', 'schon_storniert', 409);
+  }
+  if (stand.zeiten) {
+    throw new SchichtFehler(
+      'Auf dieser Schicht ist schon Zeit erfasst; ihre Einträge haben den Anker '
+      + 'übernommen, den die Schicht damals trug.', 'leistung_hat_zeiten', 409);
+  }
+  const auftragFolgtAnker = !stand.von_hand;
+  if (auftragLeistungId !== null) {
+    await pruefeAnker(kontext, auftragLeistungId, auftragFolgtAnker ? null : stand.auftrag_id);
+  }
+
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update einsatz
+        set auftrag_leistung_id = $2::uuid,
+            auftrag_id = case when $4 then null else auftrag_id end,
+            geaendert_am = now(), geaendert_von_art = 'mensch'::akteur_art,
+            geaendert_von = $3::uuid
+      where id = $1::uuid and storniert_am is null
+        and not app.einsatz_hat_zeiterfassung(id)
+      returning id`, [einsatzId, auftragLeistungId, kontext.benutzerId, auftragFolgtAnker]);
+  if (zeilen.length === 0) {
+    throw new SchichtFehler(
+      'Die Leistungszeile wurde nicht gesetzt — fehlt `dienstplan.schreiben` in dieser '
       + 'Gesellschaft?', 'abgewiesen', 403);
   }
 }

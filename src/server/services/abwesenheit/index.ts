@@ -191,6 +191,23 @@ async function pruefeArt(kontext: LeseKontext, artId: string): Promise<ArtZeile>
   return art;
 }
 
+/**
+ * Die Bescheinigung gilt bis vor dem ersten Tag der Abwesenheit.
+ *
+ * Dieselbe Regel wie `ab_au_bis` (0073) — hier VOR dem Schreiben geprüft,
+ * damit sie als Satz zurückkommt und nicht als `check_violation`, den keine
+ * Route übersetzte (V-188): auf dem Weg der Arbeiterin war das eine rohe 500.
+ */
+export class AuBisVorBeginn extends Error {
+  readonly code = 'ungueltige_eingabe';
+  readonly status = 400;
+  readonly grund = 'au_bis_vor_von';
+  constructor() {
+    super('„Bescheinigung gültig bis" liegt vor dem ersten Tag der Abwesenheit.');
+    this.name = 'AuBisVorBeginn';
+  }
+}
+
 export interface MeldeEingabe {
   readonly anstellungId: string;
   readonly abwesenheitsartId: string;
@@ -228,6 +245,11 @@ export async function meldeAbwesenheit(
     bisHalbtags: eingabe.bisHalbtags ?? false,
     ...(eingabe.arbeitstage === undefined ? {} : { arbeitstage: eingabe.arbeitstage }),
   });
+  // `JJJJ-MM-TT` vergleicht sich als Zeichenkette wie als Datum; das Format
+  // hat `rechneTage` gerade geprüft, `au_bis` prüft die Route.
+  if (eingabe.auBis !== undefined && eingabe.auBis !== null && eingabe.auBis < eingabe.von) {
+    throw new AuBisVorBeginn();
+  }
 
   const [neu] = await kontext.schreibe<{ id: string }>(
     `insert into abwesenheit

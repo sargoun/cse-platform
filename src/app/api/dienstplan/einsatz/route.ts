@@ -8,7 +8,7 @@ import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant } from '@/server/kontext/index';
 import {
-  SchichtFehler, legeEinzelschichtAn, sageEinsatzAb,
+  SchichtFehler, legeEinzelschichtAn, sageEinsatzAb, setzeLeistungsanker,
 } from '@/server/services/dienstplan/einzelschicht';
 
 /**
@@ -22,14 +22,35 @@ import {
  *
  * Nicht zu verwechseln mit `POST /api/einsaetze/[id]/absagen`: dort sagt EINE
  * EINGETEILTE ihre Zuordnung ab, hier fällt die ganze Schicht aus.
+ *
+ * **Die Leistungszeile** (V-191, TIM-12): beim Anlegen als `auftrag_leistung`,
+ * und für eine Einzelschicht ohne erfasste Zeit nachträglich mit
+ * `aktion=leistung` — ein leeres Feld löst den Anker. Dasselbe Recht: es ist
+ * dieselbe Disposition.
  */
 export const dynamic = 'force-dynamic';
 
-const AKTIONEN = ['anlegen', 'absagen'] as const;
+const AKTIONEN = ['anlegen', 'absagen', 'leistung'] as const;
 type Aktion = typeof AKTIONEN[number];
 
 const RECHT = 'dienstplan.schreiben';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+
+/**
+ * Die Leistungszeile aus dem Formular: leer heisst „ohne" (lösen), eine
+ * Kennung wird durchgereicht — und alles andere abgewiesen (V-192).
+ *
+ * Vorher wurde ein Wert, der keine Kennung ist, still zu `null`, also zu
+ * „Anker lösen": eine verstümmelte oder nachgebaute Anfrage löste den Anker,
+ * statt abgewiesen zu werden. Welche Zeile es gibt, prüft der Dienst.
+ */
+function ankerOder(roh: string): string | null {
+  if (roh === '') return null;
+  if (!UUID.test(roh)) {
+    throw new SchichtFehler('Diese Leistungszeile gibt es nicht.', 'leistung_unbekannt', 422);
+  }
+  return roh;
+}
 
 function zurueck(
   anfrage: NextRequest, daten: FormData, hinweis: string | null, ziel?: string,
@@ -88,12 +109,19 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           await sageEinsatzAb(kontext, id, feld('grund'));
           return null;
         }
+        if (aktion === 'leistung') {
+          const id = feld('einsatz');
+          if (!UUID.test(id)) throw new SchichtFehler('Ohne Schicht kein Anker.', 'nicht_gefunden', 404);
+          await setzeLeistungsanker(kontext, id, ankerOder(feld('auftrag_leistung')));
+          return null;
+        }
         const objekt = feld('objekt');
         if (!UUID.test(objekt)) {
           throw new SchichtFehler('Ohne Objekt entsteht keine Schicht.', 'unvollstaendig');
         }
         const revier = feld('revier');
         const auftrag = feld('auftrag');
+        const anker = ankerOder(feld('auftrag_leistung'));
         const ergebnis = await legeEinzelschichtAn(kontext, {
           objektId: objekt,
           planDatum: feld('datum'),
@@ -105,6 +133,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           pauseMinuten: zahl('pause', 0),
           revierId: UUID.test(revier) ? revier : null,
           auftragId: UUID.test(auftrag) ? auftrag : null,
+          auftragLeistungId: anker,
           notiz: feld('notiz'),
         });
         return ergebnis.einsatzId;

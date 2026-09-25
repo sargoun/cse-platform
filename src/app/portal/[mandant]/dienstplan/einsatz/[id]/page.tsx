@@ -18,6 +18,11 @@ import { pruefeEinteilung, type Vorschau } from '@/server/services/dienstplan/ei
 import type { ArbzgBefund } from '@/server/services/zeit/arbzg';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { LeistungsankerFeld } from '@/components/portal/LeistungsankerFeld';
+import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
+import {
+  listeAnkerbareLeistungen, type AnkerbareLeistung,
+} from '@/server/services/dienstplan/leistungsanker';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { SCHICHT_TEXTE } from '@/lib/i18n/verwaltung/dienstplan-schicht';
 import { eigenerEintrag } from '@/lib/nachschlagen';
@@ -71,6 +76,10 @@ interface Kopf {
   }[];
   /** Hat die Schicht begonnen? Dann ist der Schnappschuss eingefroren. */
   readonly begonnen: boolean;
+  /** Der Abrechnungsanker (TIM-12, V-191) — `null` ohne Leistungszeile. */
+  readonly auftrag_leistung_id: string | null;
+  /** Ist auf der Schicht schon Zeit erfasst? Dann bleibt ihr Anker, wie er ist. */
+  readonly hat_zeit: boolean;
 }
 
 interface Kandidat {
@@ -115,7 +124,8 @@ export default async function Einsatzblatt({
      Sperre im Pruefblatt sah, bekam hinter „Nachweisregister oeffnen" ein 404.
      Ein Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf
      PR 16 / D-581). */
-  const darf = await haeltRechte(sitzung, 'personal.nachweis_lesen', 'dienstplan.schreiben');
+  const darf = await haeltRechte(
+    sitzung, 'personal.nachweis_lesen', 'dienstplan.schreiben', 'auftrag.lesen');
   /*
    * Nur die Absage unten spricht beide Sprachen (V-013). Der uebrige Rumpf
    * dieser Seite ist deutsch fest verdrahtet und steht dafuer in der
@@ -167,6 +177,8 @@ export default async function Einsatzblatt({
                 f.bezeichnung as feiertag, e.storno_grund,
                 e.anforderung_erfuellt,
                 (e.beginn_zeitpunkt <= now()) as begonnen,
+                e.auftrag_leistung_id::text as auftrag_leistung_id,
+                app.einsatz_hat_zeiterfassung(e.id) as hat_zeit,
                 -- V-129: die Anforderungen aus dem SCHNAPPSCHUSS, nicht aus
                 -- dem Katalog von heute. Kein Backtick in diesem Kommentar.
                 coalesce((select jsonb_agg(jsonb_build_object(
@@ -240,12 +252,22 @@ export default async function Einsatzblatt({
         ? null
         : await pruefeEinteilung(kontext, id, pruefling);
 
-      return { kopf, besetzung, kandidaten, vorschau };
+      /*
+       * Die Leistungszeilen — nur für eine Einzelschicht, die ihren Anker noch
+       * ändern darf, und nur für den, der Aufträge lesen darf (V-191).
+       */
+      const leistungen: readonly AnkerbareLeistung[] | null =
+        kopf.quelle === 'manuell' && darf['auftrag.lesen'] === true
+          ? await listeAnkerbareLeistungen(kontext, kopf.auftrag_leistung_id)
+          : null;
+
+      return { kopf, besetzung, kandidaten, vorschau, leistungen };
     }));
 
   // AUT-06: eine fremde oder nicht vorhandene Zeile ist 404, nie 403.
   if (daten === null) notFound();
-  const { kopf, besetzung, kandidaten, vorschau } = daten;
+  const { kopf, besetzung, kandidaten, vorschau, leistungen } = daten;
+  const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
   const dauer = stundenText({ id: kopf.id, beginn: new Date(kopf.beginn), ende: new Date(kopf.ende) });
 
   return (
@@ -278,7 +300,10 @@ export default async function Einsatzblatt({
       {abgewiesen !== null && (
         <Hinweis art="warnung" cse="einsatz-fehler" className="mb-s5 max-w-prose">
           <strong className="block">{t.nichtGespeichert}</strong>
-          <span role="alert">{eigenerEintrag(t.fehler, abgewiesen) ?? t.fehlerSonst}</span>
+          <span role="alert">
+            {eigenerEintrag(t.fehler, abgewiesen)
+              ?? eigenerEintrag(tL.fehler, abgewiesen) ?? t.fehlerSonst}
+          </span>
         </Hinweis>
       )}
 
@@ -531,6 +556,50 @@ export default async function Einsatzblatt({
               {t.absagen}
             </Button>
           </form>
+        </section>
+      )}
+
+      {/*
+        **Die Leistungszeile einer Einzelschicht** (V-191, TIM-12). Ohne sie
+        landet jede Stunde dieser Schicht in „Zeit ohne Auftrag". Sie lässt
+        sich setzen, solange auf der Schicht keine Zeit erfasst ist — danach
+        tragen die Einträge den Anker, den die Schicht damals hatte. Eine
+        Serienschicht trägt den Anker ihres Turnus oder Postens; dort wird er
+        geändert, und der Generator schreibt ihn auf die künftigen Schichten.
+      */}
+      {kopf.quelle === 'manuell' && kopf.storno_grund === null
+        && darf['dienstplan.schreiben'] === true && (
+        <section data-cse="schicht-leistung"
+                 className="mt-s6 rounded-lg border border-line bg-surface p-s5">
+          <h3 className="mb-s2 mt-0 text-base text-text">{tL.feld}</h3>
+          {frage['leistung'] === 'gesetzt' && (
+            <p role="status" className="mb-s4 max-w-prose text-sm text-success"
+               data-cse="schicht-leistung-gesetzt">{tL.gesetztEinzeln}</p>
+          )}
+          {kopf.hat_zeit ? (
+            <p className="m-0 max-w-prose text-sm text-text-muted"
+               data-cse="schicht-leistung-hat-zeiten">{tL.hatZeiten}</p>
+          ) : (
+            <form method="post" action="/api/dienstplan/einsatz"
+                  className="flex max-w-[60ch] flex-col gap-s4">
+              <input type="hidden" name="aktion" value="leistung" />
+              <input type="hidden" name="einsatz" value={kopf.id} />
+              <input type="hidden" name="mandant" value={mandant} />
+              <input type="hidden" name="zurueck" value={`${pfad}?leistung=gesetzt`} />
+              <input type="hidden" name="fehlerweg" value={pfad} />
+              <LeistungsankerFeld leistungen={leistungen} gewaehlt={kopf.auftrag_leistung_id}
+                                  sprache={zugang.sprache}
+                                  feldKlasse="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text" />
+              {leistungen !== null && (
+                <div>
+                  <Button type="submit" variante="secondary" data-cse="schicht-leistung-knopf">
+                    {tL.speichern}
+                  </Button>
+                </div>
+              )}
+              <p className="m-0 max-w-prose text-xs text-text-muted">{tL.nurOhneZeit}</p>
+            </form>
+          )}
         </section>
       )}
 

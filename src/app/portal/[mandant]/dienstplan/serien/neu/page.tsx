@@ -9,6 +9,14 @@ import { WOCHENTAGE } from '@/lib/datum/rrule';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { LeistungsankerFeld } from '@/components/portal/LeistungsankerFeld';
+import {
+  listeAnkerbareLeistungen, type AnkerbareLeistung,
+} from '@/server/services/dienstplan/leistungsanker';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { vorbelegt } from '@/lib/formular/maske';
 
 /**
  * `/portal/[mandant]/dienstplan/serien/neu` — eine Serie anlegen, und die
@@ -19,6 +27,10 @@ import { haeltRechte } from '@/app/portal/rechte';
  * der Dienstzeiten traegt — ein neuer Posten entsteht unter
  * Sicherheit → Posten. Bau und Operations planen nicht in Serien; die Seite
  * sagt es, statt ein leeres Formular zu zeigen.
+ *
+ * **Ein abgewiesener Anker kommt hierher zurück** (V-192, D-599): der Grund
+ * steht als Satz in der Sprache der Sitzung über dem Formular, die Eingaben
+ * sind vorbelegt — nur mit Werten, die die Seite anbietet (D-733 Nr. 4).
  */
 export const dynamic = 'force-dynamic';
 
@@ -33,8 +45,12 @@ interface Posten {
   readonly rrule: string; readonly beginn: string | null; readonly dauer: number | null; readonly serie: boolean;
 }
 
-export default async function SerieNeu({ params }: { params: Promise<{ mandant: string }> }) {
+export default async function SerieNeu({ params, searchParams }: {
+  params: Promise<{ mandant: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { mandant } = await params;
+  const suche = await searchParams;
   const tor = await mandantTor(`/portal/${mandant}/dienstplan/serien/neu`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
@@ -44,7 +60,7 @@ export default async function SerieNeu({ params }: { params: Promise<{ mandant: 
      oeffnen zu duerfen, bekam hinter „Sicherheit → Posten → Neu" ein 404.
      Ein Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf
      PR 16 / D-581). */
-  const darf = await haeltRechte(zugang.sitzung, 'security.lesen');
+  const darf = await haeltRechte(zugang.sitzung, 'security.lesen', 'auftrag.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -63,8 +79,41 @@ export default async function SerieNeu({ params }: { params: Promise<{ mandant: 
            from posten p join objekt o on o.id = p.objekt_id and o.mandant_id = p.mandant_id
           where p.archiviert_am is null and p.abdeckung_rrule is not null
           order by o.bezeichnung, p.bezeichnung`);
-      return { heute: heute?.tag ?? '2026-01-01', reviere, leistungen, posten };
-    })) as Promise<{ heute: string; reviere: readonly Revier[]; leistungen: readonly Leistung[]; posten: readonly Posten[] }>);
+      /* Der Abrechnungsanker des Turnus — nur mit `auftrag.lesen` (V-191, TIM-12). */
+      const anker = darf['auftrag.lesen'] === true ? await listeAnkerbareLeistungen(kontext) : null;
+      return { heute: heute?.tag ?? '2026-01-01', reviere, leistungen, posten, anker };
+    })) as Promise<{
+      heute: string; reviere: readonly Revier[]; leistungen: readonly Leistung[];
+      posten: readonly Posten[]; anker: readonly AnkerbareLeistung[] | null;
+    }>);
+
+  /* Die Rückkehr einer abgewiesenen Anlage (V-192) — vorbelegt wird nur, was angeboten ist. */
+  const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
+  const fehler = vorbelegt(suche, 'fehler') ?? null;
+  const angeboten = (name: string, werte: readonly string[]): string | undefined => {
+    const wert = vorbelegt(suche, name);
+    return wert !== undefined && werte.includes(wert) ? wert : undefined;
+  };
+  const muster = (name: string, form: RegExp): string | undefined => {
+    const wert = vorbelegt(suche, name);
+    return wert !== undefined && form.test(wert) ? wert : undefined;
+  };
+  const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
+  const vor = {
+    revier: angeboten('revier', daten.reviere.map((r) => r.id)),
+    leistung: angeboten('leistung', daten.leistungen.map((l) => l.id)),
+    bezeichnung: vorbelegt(suche, 'bezeichnung')?.slice(0, 120),
+    beginn: muster('beginn', /^([01]\d|2[0-3]):[0-5]\d$/u) ?? '06:00',
+    dauer: muster('dauer', /^\d{1,4}$/u) ?? '240',
+    gueltigAb: muster('gueltig_ab', DATUM) ?? daten.heute,
+    gueltigBis: muster('gueltig_bis', DATUM),
+    feiertage: vorbelegt(suche, 'feiertage') === 'unveraendert' ? 'unveraendert' : 'ausfall',
+    anker: angeboten('auftrag_leistung',
+      (daten.anker ?? []).filter((l) => l.lebt).map((l) => l.id)) ?? null,
+  };
+  const tageVor = (vorbelegt(suche, 'wochentage') ?? '').split(',')
+    .filter((w) => (WOCHENTAGE as readonly string[]).includes(w));
+  const tage: readonly string[] = tageVor.length > 0 ? tageVor : ['MO', 'TU', 'WE', 'TH', 'FR'];
 
   const feld = 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 text-sm text-text';
   const knopf = 'inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2';
@@ -94,6 +143,13 @@ export default async function SerieNeu({ params }: { params: Promise<{ mandant: 
         besetzt, entscheidet die Einteilung je Schicht — mit Qualifikations- und ArbZG-Prüfung.
       </p>
 
+      {fehler !== null && (
+        <Hinweis art="warnung" cse="serie-fehler" className="mb-s5 max-w-prose">
+          <strong>{tL.nichtAngelegt}</strong>{' '}
+          {eigenerEintrag(tL.fehler, fehler) ?? tL.fehlerSonst}
+        </Hinweis>
+      )}
+
       {istReinigung ? (
         <form method="post" action="/api/dienstplan/serien" data-cse="serie-formular"
               className="flex max-w-form flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
@@ -101,7 +157,8 @@ export default async function SerieNeu({ params }: { params: Promise<{ mandant: 
           <input type="hidden" name="art" value="turnus" />
           <label className="block">
             <span className="mb-s1 block text-sm text-text">Revier</span>
-            <select name="revier" required className={feld} data-cse="serie-revier">
+            <select name="revier" required className={feld} data-cse="serie-revier"
+                    defaultValue={vor.revier}>
               {daten.reviere.map((r) => <option key={r.id} value={r.id}>{r.objekt} · {r.bezeichnung}</option>)}
             </select>
             {daten.reviere.length === 0 ? (
@@ -112,20 +169,22 @@ export default async function SerieNeu({ params }: { params: Promise<{ mandant: 
           </label>
           <label className="block">
             <span className="mb-s1 block text-sm text-text">Leistung (Katalogposition)</span>
-            <select name="leistung" required className={feld} data-cse="serie-leistung">
+            <select name="leistung" required className={feld} data-cse="serie-leistung"
+                    defaultValue={vor.leistung}>
               {daten.leistungen.map((l) => <option key={l.id} value={l.id}>{l.oz} · {l.kurztext}</option>)}
             </select>
           </label>
           <label className="block">
             <span className="mb-s1 block text-sm text-text">Bezeichnung</span>
-            <input name="bezeichnung" required maxLength={120} className={feld} placeholder="Unterhaltsreinigung früh" />
+            <input name="bezeichnung" required maxLength={120} className={feld} placeholder="Unterhaltsreinigung früh"
+                   defaultValue={vor.bezeichnung} />
           </label>
           <fieldset>
             <legend className="mb-s1 text-sm text-text">Wochentage</legend>
             <div className="flex flex-wrap gap-s3">
               {WOCHENTAGE.map((w) => (
                 <label key={w} className="inline-flex min-h-11 items-center gap-s2 text-sm text-text">
-                  <input type="checkbox" name="wochentag" value={w} defaultChecked={['MO', 'TU', 'WE', 'TH', 'FR'].includes(w)} />
+                  <input type="checkbox" name="wochentag" value={w} defaultChecked={tage.includes(w)} />
                   {TAG_TEXT[w]}
                 </label>
               ))}
@@ -134,28 +193,30 @@ export default async function SerieNeu({ params }: { params: Promise<{ mandant: 
           <div className="grid grid-cols-1 gap-s4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-s1 block text-sm text-text">Beginn (Uhrzeit)</span>
-              <input name="beginn" type="time" required defaultValue="06:00" className={feld} />
+              <input name="beginn" type="time" required defaultValue={vor.beginn} className={feld} />
             </label>
             <label className="block">
               <span className="mb-s1 block text-sm text-text">Dauer (Minuten)</span>
-              <input name="dauer" type="number" min={15} max={1440} step={15} required defaultValue={240} className={feld} />
+              <input name="dauer" type="number" min={15} max={1440} step={15} required defaultValue={vor.dauer} className={feld} />
             </label>
             <label className="block">
               <span className="mb-s1 block text-sm text-text">Gültig ab</span>
-              <input name="gueltig_ab" type="date" required defaultValue={daten.heute} className={feld} />
+              <input name="gueltig_ab" type="date" required defaultValue={vor.gueltigAb} className={feld} />
             </label>
             <label className="block">
               <span className="mb-s1 block text-sm text-text">Gültig bis (leer = offen)</span>
-              <input name="gueltig_bis" type="date" className={feld} />
+              <input name="gueltig_bis" type="date" className={feld} defaultValue={vor.gueltigBis} />
             </label>
           </div>
           <label className="block">
             <span className="mb-s1 block text-sm text-text">An Berliner Feiertagen</span>
-            <select name="feiertage" className={feld} defaultValue="ausfall">
+            <select name="feiertage" className={feld} defaultValue={vor.feiertage}>
               <option value="ausfall">fällt aus</option>
               <option value="unveraendert">findet statt</option>
             </select>
           </label>
+          <LeistungsankerFeld leistungen={daten.anker} gewaehlt={vor.anker}
+                              sprache={zugang.sprache} feldKlasse={feld} />
           <div>
             <Button type="submit" variante="primary" data-cse="serie-anlegen">Serie anlegen und Schichten erzeugen</Button>
           </div>

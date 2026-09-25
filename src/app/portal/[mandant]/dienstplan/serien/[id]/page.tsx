@@ -14,6 +14,12 @@ import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { LeistungsankerFeld } from '@/components/portal/LeistungsankerFeld';
+import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import {
+  listeAnkerbareLeistungen, type AnkerbareLeistung,
+} from '@/server/services/dienstplan/leistungsanker';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { Nutzlastblatt } from '@/components/ui/Nutzlastblatt';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
@@ -98,20 +104,30 @@ export default async function Serienblatt(
       withTenant(tx, sitzung, async (kontext) => {
         const blatt = await leseSerie(kontext, id);
         if (blatt === null) return null;
+        /*
+         * Die Leistungszeilen fuer den Anker des Turnus (V-191) — unter der
+         * RLS des Betrachters: ohne `auftrag.lesen` ist die Liste leer, und
+         * die Maske zeigt dann KEIN Feld (siehe unten).
+         */
+        const [lesen] = await kontext.abfrage<{ darf: boolean }>(
+          `select app.hat_recht('auftrag.lesen', app.aktiver_mandant()) as darf`);
         return {
           blatt,
           einsaetze: await leseSerienEinsaetze(kontext, id),
           ausnahmen: await leseAusnahmen(kontext, blatt),
+          anker: blatt.turnusId !== null && lesen?.darf === true
+            ? await listeAnkerbareLeistungen(kontext, blatt.auftragLeistungId) : null,
         };
       }),
   ) as Promise<{
     blatt: SerienBlatt;
     einsaetze: readonly SerienEinsatzZeile[];
     ausnahmen: readonly AusnahmeZeile[];
+    anker: readonly AnkerbareLeistung[] | null;
   } | null>);
   // AUT-06: eine fremde Zeile ist nicht vorhanden, nicht verboten.
   if (gelesen === null) notFound();
-  const { blatt, einsaetze, ausnahmen } = gelesen;
+  const { blatt, einsaetze, ausnahmen, anker } = gelesen;
 
   const leserecht = ausnahmeLeserecht(blatt);
   const schreibrecht = ausnahmeSchreibrecht(blatt);
@@ -127,6 +143,9 @@ export default async function Serienblatt(
   const istPosten = blatt.postenId !== null;
   const tNutzlast = nachSprache(NUTZLAST_TEXTE, zugang.sprache);
   const tP = nachSprache(SERIE_PFLEGE_TEXTE, zugang.sprache);
+  const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
+  /* Was die Adresse meldet, steht nur als eigener Satz da — nie ihr Wortlaut (V-192). */
+  const erledigtText = gepflegt === null ? undefined : eigenerEintrag(tP.erledigt, gepflegt);
 
   return (
     <PortalRahmen
@@ -593,13 +612,15 @@ export default async function Serienblatt(
 
         {pflegeFehler !== null && (
           <Hinweis art="warnung" cse="pflege-fehler" className="mb-s4 max-w-prose">
-            {tP.fehler[pflegeFehler] ?? pflegeFehler}
+            {eigenerEintrag(tP.fehler, pflegeFehler)
+              ?? eigenerEintrag(tL.fehler, pflegeFehler) ?? tP.fehlerSonst}
           </Hinweis>
         )}
-        {gepflegt !== null && pflegeFehler === null && (
+        {erledigtText !== undefined && pflegeFehler === null && (
           <Hinweis art="erfolg" cse="pflege-erledigt" className="mb-s4 max-w-prose">
-            {tP.erledigt[gepflegt] ?? gepflegt}
+            {erledigtText}
             {erzeugt !== null && storniert !== null
+              && /^\d{1,6}$/u.test(erzeugt) && /^\d{1,6}$/u.test(storniert)
               ? ` — ${erzeugt} / ${storniert} ${tP.bilanz}.` : ''}
           </Hinweis>
         )}
@@ -666,6 +687,13 @@ export default async function Serienblatt(
                     </select>
                   </label>
                 </div>
+                {/*
+                  Der Abrechnungsanker (V-191, TIM-12). Ohne `auftrag.lesen`
+                  steht hier ein Satz und KEIN Feld — die Route aendert den
+                  Anker nur, wenn das Feld geschickt wurde.
+                */}
+                <LeistungsankerFeld leistungen={anker} gewaehlt={blatt.auftragLeistungId}
+                                    sprache={zugang.sprache} feldKlasse={PFLEGEFELD} />
                 <div>
                   <Button type="submit" variante="primary" data-cse="pflege-regel-knopf">
                     {tP.regelSpeichern}

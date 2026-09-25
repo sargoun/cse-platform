@@ -138,7 +138,6 @@ export const UEBERSETZUNG_AUSNAHMEN: readonly string[] = [
   'src/app/portal/[mandant]/dienstplan/konflikte/[id]/quittung/page.tsx',
   'src/app/portal/[mandant]/dienstplan/konflikte/[id]/uebersteuern/page.tsx',
   'src/app/portal/[mandant]/dienstplan/konflikte/page.tsx',
-  'src/app/portal/[mandant]/dienstplan/monat/page.tsx',
   'src/app/portal/[mandant]/dienstplan/offene-schichten/page.tsx',
   'src/app/portal/[mandant]/dienstplan/serien/[id]/page.tsx',
   'src/app/portal/[mandant]/dienstplan/serien/neu/page.tsx',

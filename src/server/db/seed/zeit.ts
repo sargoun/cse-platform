@@ -91,6 +91,7 @@ export async function seedZeit(
 
   const abwesenheiten = await seedAbwesenheiten(sql, mandantId, planer.id, anstellungen, heute);
   const konflikt = await seedRuhezeitkonflikt(sql, mandantId, planer.id, heute);
+  const teildienst = await seedGeteilterDienst(sql, mandantId, planer.id, heute);
   const ansprueche = await seedOfflineAnspruch(sql, mandantId, planer.id);
 
   /*
@@ -105,11 +106,12 @@ export async function seedZeit(
     sql, mandantId, planer.id, anstellungen, heute);
   process.stdout.write(
     `  ${String(einwaende)} Zeit-Einwand/-Einwände (offen und entschieden), `
-    + `${String(teilbesetzt)} teilbesetzte Schicht(en)\n`,
+    + `${String(teilbesetzt)} teilbesetzte Schicht(en), `
+    + `${String(teildienst)} geteilter Dienst ohne §-5-Befund\n`,
   );
 
   return {
-    einteilungen: einteilungen + konflikt,
+    einteilungen: einteilungen + konflikt + teildienst,
     uebergangen: uebergangen + konflikt,
     zeiteintraege: erfasst,
     laufend,
@@ -360,6 +362,103 @@ async function seedRuhezeitkonflikt(
     process.stdout.write(
       `  · Ruhezeitkonflikt nicht angelegt: `
       + `${fehler instanceof Error ? fehler.message : String(fehler)}\n`,
+    );
+    return 0;
+  }
+}
+
+/**
+ * Ein GETEILTER Dienst — früh und abends am selben Tag, ohne § 5-Befund
+ * (V-193, D-684).
+ *
+ * Das Grundmuster der Gebäudereinigung: morgens das Büro, abends noch einmal.
+ * § 5 Abs. 1 ArbZG verlangt die elf Stunden Ruhe „nach Beendigung der
+ * täglichen Arbeitszeit"; die Unterbrechung zwischen den Teilen ist keine
+ * Ruhezeit. Bis V-190 meldete die Prüfung sie trotzdem als Verstoss, und die
+ * Demo zeigte den Fall nie. Hier steht er: eine besetzte Frühschicht
+ * (06:00–09:30) und am SELBEN Tag ein zweiter Teil 17:00–18:30 für dieselbe
+ * Kraft, eingeteilt über den echten Dienst OHNE Bestätigung — geht das nur
+ * mit einem Befund, bleibt er aus und der Seed sagt es.
+ *
+ * Gewählt wird eine Frühschicht, um die herum die Kraft von 20:00 am Vortag
+ * bis 08:00 am übernächsten Tag nichts anderes hat: dann liegt vor dem ersten
+ * und nach dem zweiten Teil mehr als elf Stunden Ruhe, und der Fall zeigt
+ * genau EINE Sache — den geteilten Dienst. Zusammen sind es fünf Stunden;
+ * § 3 und § 4 haben nichts zu melden. Der Ruhezeitkonflikt oben (22:00–02:00
+ * vor einer Frühschicht) bleibt, was er ist: ein Verstoss.
+ */
+async function seedGeteilterDienst(
+  sql: Sql, mandantId: string, planerId: string, heute: string,
+): Promise<number> {
+  const [frueh] = await sql<{
+    anstellung: string; objekt: string; kunde: string | null; tag: string;
+  }[]>`
+    select zo.anstellung_id as anstellung, e.objekt_id as objekt, e.kunde_id as kunde,
+           to_char(e.plan_datum, 'YYYY-MM-DD') as tag
+      from einsatz e
+      join einsatz_zuordnung zo
+        on zo.mandant_id = e.mandant_id and zo.einsatz_id = e.id and zo.entfernt_am is null
+     where e.mandant_id = ${mandantId}
+       and e.storniert_am is null
+       and e.beginn_lokal = time '06:00'
+       and not e.endet_am_folgetag
+       and e.plan_datum between (${heute}::date - 14) and (${heute}::date - 2)
+       and not exists (
+             select 1
+               from einsatz_zuordnung z2
+               join einsatz e2 on e2.mandant_id = z2.mandant_id and e2.id = z2.einsatz_id
+              where z2.person_id = zo.person_id
+                and z2.entfernt_am is null
+                and e2.storniert_am is null
+                and e2.id <> e.id
+                and e2.beginn_zeitpunkt
+                    < ((e.plan_datum + 2)::timestamp + time '08:00') at time zone 'Europe/Berlin'
+                and e2.ende_zeitpunkt
+                    > ((e.plan_datum - 1)::timestamp + time '20:00') at time zone 'Europe/Berlin')
+       -- Und an diesem Tag nicht abgemeldet: eine Abwesenheit wäre ein
+       -- anderer Befund als der, den dieser Fall zeigen soll.
+       and not exists (
+             select 1 from abwesenheit ab
+              where ab.anstellung_id = zo.anstellung_id
+                and ab.status::text not in ('abgelehnt', 'storniert')
+                and e.plan_datum between ab.von and ab.bis)
+     order by e.plan_datum, e.id
+     limit 1`;
+  if (frueh === undefined) return 0;
+
+  const schluessel = `seed:teildienst:${frueh.tag}`;
+  const [schon] = await sql<{ id: string }[]>`
+    select id from einsatz
+     where mandant_id = ${mandantId} and quell_schluessel = ${schluessel}`;
+  if (schon !== undefined) return 0;
+
+  const [abend] = await sql<{ id: string }[]>`
+    insert into einsatz (
+      mandant_id, quelle, quell_schluessel, plan_datum,
+      beginn_zeitpunkt, ende_zeitpunkt, zeitzone,
+      beginn_lokal, ende_lokal, endet_am_folgetag,
+      objekt_id, kunde_id, soll_besetzung, min_besetzung,
+      pause_geplant_minuten, erstellt_von_art, status, notiz
+    )
+    select ${mandantId}, 'manuell', ${schluessel}, ${frueh.tag}::date,
+           (select zeitpunkt from app.loese_ortszeit(${frueh.tag}::date, time '17:00', 'Europe/Berlin')),
+           (select zeitpunkt from app.loese_ortszeit(${frueh.tag}::date, time '18:30', 'Europe/Berlin')),
+           'Europe/Berlin', time '17:00', time '18:30', false,
+           ${frueh.objekt}, ${frueh.kunde}, 1, 1,
+           0, 'system', 'geplant',
+           'Abendreinigung, zweiter Teil eines geteilten Dienstes — Demodaten (Seed)'
+    returning id`;
+  if (abend === undefined) return 0;
+
+  try {
+    await alsPortalSitzung(sql, mandantId, planerId, (k) =>
+      // OHNE `bestaetigt`: ein geteilter Dienst ist kein Befund, der quittiert wird.
+      besetzeEinsatz(k, { einsatzId: abend.id, anstellungId: frueh.anstellung }));
+    return 1;
+  } catch (fehler) {
+    process.stdout.write(
+      `  · Geteilter Dienst nicht eingeteilt — die Prüfung meldet einen Befund, den es `
+      + `nach § 5 nicht gibt: ${fehler instanceof Error ? fehler.message : String(fehler)}\n`,
     );
     return 0;
   }

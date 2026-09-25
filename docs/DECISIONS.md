@@ -3353,6 +3353,9 @@ Beantworten helfen:
 | O-932 | **Ist der Fertigstellungsgrad einer anteiligen Festpreis-Abrechnung der GESAMTSTAND der Leistung (bisher Berechnetes wird abgezogen) oder der ZUWACHS seit der letzten Rechnung?** Seit V-206 lässt sich ein Pauschalpreis-Los mit `teilleistung = anteilig` über das Rechnungsblatt abrechnen; der Grad kommt von einem Menschen (O-04: er wird nicht geschätzt). Bis V-207 rechnete jede Rechnung Grad × Festpreis, ohne bisher Berechnetes abzuziehen — 30 % und danach 60 % ergaben 90 % des Festpreises. **Ausgeliefert ist der Gesamtstand** (`anteiligerRest`): die Zeile trägt `anteil(Festpreis, Grad) − Summe der wirksamen Zeilen derselben Vereinbarung`, einmal gerundet über den ganzen Stand, und ein Stand ohne Zuwachs blockiert mit einem Befund. Diese Lesart macht aus einer Verwechslung eine sichtbare Unterberechnung (die Vorschau zeigt das bisher Berechnete), die andere eine stille Doppelberechnung. Eine Schlussrechnung zählt die festgeschriebenen Abschläge ihres Auftrags nicht mit, weil sie sie abzieht (FIN-08, D-700 Nr. 5). Zu bestätigen: (1) Gesamtstand oder Zuwachs; (2) ob eine Abschlagsrechnung den Abschlag als kumulierten Stand mit Abzug der Vorabschläge ausweisen soll (§ 16 VOB/B lässt beides zu) — dann gehört die Aufstellung auf den Beleg und nicht nur in die Vorschau. Die Antwort ändert `anteiligerRest` und den Satz der Maske, nicht ihre Aufrufer. | FIN-01, FIN-08, O-04, V-207, D-700, `src/server/services/finanz/abrechnungsart/festpreis-los.ts` (`anteiligerRest`), `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts` (`abrFertigstellung`) |
 | O-933 | **Darf der Leistungsort (Objekt) einer Rechnung einem ANDEREN Kunden zugeordnet sein als dem Rechnungsempfänger — oder muss `objekt.kunde_id` dem Kunden der Rechnung entsprechen?** Übliche Fälle, in denen beides auseinanderfällt: eine Hausverwaltung empfängt die Rechnung für das Haus eines Eigentümers, ein Generalunternehmer für die Baustelle seines Bauherrn, eine Muttergesellschaft für die Niederlassung der Tochter. Bis V-209 prüfte die Plattform beim Leistungsort gar nichts, nicht einmal, ob der Mensch das Objekt sehen darf. **Ausgeliefert ist:** geprüft wird die Sichtbarkeit (`objekt_passt_nicht`, wie beim Auftrag D-698 Nr. 2); die Zugehörigkeit zum Kunden NICHT (`OBJEKT_KUNDE_REGEL = offen`). Die Masken ordnen die Objekte nach Kunden bzw. „dieses Kunden" zuerst, damit eine fremde Wahl sichtbar ist. Zu entscheiden: (1) Sperre, Warnung in der Vorabprüfung oder frei; (2) falls frei, ob der Beleg den abweichenden Leistungsort mit dem Namen seines Kunden ausweisen soll. Die Antwort ändert `pruefeObjektZuordnung` und die Konstante, nicht ihre Aufrufer. | FIN-04, V-209, D-702, `src/server/services/finanz/rechnung.ts` (`OBJEKT_KUNDE_REGEL`, `pruefeObjektZuordnung`), `src/app/portal/[mandant]/finanzen/rechnungen/{neu,[id]}/page.tsx` |
 | O-934 | **Darf eine Mahnung hinausgehen, solange im Briefkopf Pflichtangaben fehlen — und welche gelten für eine Gesellschaft, die keine GmbH ist?** Seit V-213 trägt das Mahnschreiben Absender, Empfängeranschrift und die Angaben aus `mandant` (Firma, Anschrift, Registergericht, Registernummer, Geschäftsführung, USt-IdNr./Steuernummer, Bankverbindung) — dieselben wie das Angebotsblatt. Fehlt eine davon in den Unternehmensdaten, fehlt sie im Brief, und das Mahnungsblatt sagt, welche (`fehlendeBriefkopfangaben`). **Gesperrt wird der Versand nicht:** ob ein unvollständiger Briefkopf den Versand verhindern soll (§ 35a GmbHG verlangt Rechtsform, Sitz, Registergericht, Registernummer und alle Geschäftsführer auf Geschäftsbriefen; die Folge eines Verstosses ist ein Zwangsgeld, nicht die Unwirksamkeit der Mahnung), und welche Angaben für CSE Operations gelten, solange O-01 offen ist, ist eine Entscheidung der Geschäftsführung und keine, die eine Prüfung im Code nebenbei trifft. Die Antwort ändert die Freigabe (`gibFrei`) oder den Versand (`dokumentiereVersand`), nicht das Schreiben. | FIN-15, § 35a GmbHG, O-01, V-213, D-705, `services/finanz/mahnung/index.ts` |
+| O-925 | **Wen darf eine Beschäftigte beim Schichttausch als Tauschpartner sehen und wählen — und auf welcher Grundlage?** Die Systemart `schichttausch` (0074) verlangt Schicht UND Tauschpartner (`erfordert_tauschpartner`, Auslöser `antrag_pflichtfelder`). Die Schicht ist eigene Sache der Kraft (EMP-02) und wird seit V-187 angeboten: ihre kommenden, nicht abgesagten Einteilungen, geprüft im Dienst. Der Partner ist dagegen eine Liste ANDERER Beschäftigter, und EMP-13 sagt „Employees never see … other employees' data". **Zu entscheiden:** (1) der Kreis — alle aktiven Beschäftigten derselben Gesellschaft, nur die am selben Objekt oder Revier Eingesetzten, nur die mit derselben Qualifikation (SEC-04), oder gar keine Liste und der Partner wird von der Planung gesucht; (2) die Namensform — Vor- und Nachname, Vorname und Initial, Personalnummer; (3) die Grundlage — reicht § 26 BDSG, braucht es eine Einwilligung oder eine Betriebsvereinbarung (hängt mit O-06 zusammen). **Ausgeliefert ist die vorsichtige Lesart:** `TAUSCHPARTNER_QUELLE` ist der Platzhalter `TAUSCHPARTNER_NICHT_FESTGELEGT`, das Formular führt den Schichttausch nicht in der Auswahl, sondern sagt in vier Sprachen, dass er dort noch nicht beantragt werden kann und die Planung ihn aufnimmt; der Dienst nimmt keinen Partner an, auch keinen aus einer nachgebauten Anfrage. Die Antwort ersetzt eine Zeile (die Quelle) und liefert eine Lesefunktion — Formular, Dienst und Prüfungen stehen. Die GENEHMIGUNG eines Tauschs ist O-613. | EMP-10, EMP-13, O-06, O-613, D-681, V-187, `src/server/services/mitarbeiter/tausch.ts` (`TAUSCHPARTNER_QUELLE`), `src/server/services/abwesenheit/antrag.ts` (`reicheAntragEin`), `src/app/portal/mein/antraege/neu/page.tsx` |
+| O-926 | **Wo endet ein Arbeitstag im Sinne der §§ 3 und 5 ArbZG — am Berliner Kalendertag oder 24 Stunden nach Arbeitsbeginn (individueller Werktag) —, und wie wird ein geteilter Dienst über Mitternacht behandelt?** § 5 Abs. 1 verlangt elf Stunden Ruhe „nach Beendigung der täglichen Arbeitszeit"; die Unterbrechung eines geteilten Dienstes (Früh- und Abendreinigung) ist keine Ruhezeit. Das folgt aus dem Gesetz und ist seit V-190 gebaut. Offen ist die GRENZE des Arbeitstags: nach der Kalendertag-Lesart beginnt um 00:00 Berliner Zeit ein neuer, nach der Werktag-Lesart 24 Stunden nach dem ersten Arbeitsbeginn. Die Lesarten gehen auseinander bei (a) einem geteilten Dienst über Mitternacht (22:00–23:30 und 00:30–06:00 — nach der Kalendertag-Lesart zwei Arbeitstage mit einer Stunde Ruhe, nach der Werktag-Lesart einer), (b) einer Kette kurzer Pausen über mehr als 24 Stunden, (c) der klassischen Folge 14:00–23:00 und 07:00 am nächsten Tag, die nach der reinen Werktag-Lesart gar keine Ruhezeit auslöste. Dieselbe Frage trägt die § 3-Summe, die heute je Berliner Kalendertag des Schichtbeginns gebildet und in jeder Begründung so benannt wird. **Ausgeliefert ist der vorsichtige Platzhalter** `ARBEITSTAG_BEIDE_LESARTEN`: zwei Blöcke gelten nur als EIN Arbeitstag, wenn beide Lesarten es sagen (gleicher Kalendertag UND weniger als 24 Stunden nach Beginn des Arbeitstags); sonst misst die Prüfung wie bisher und meldet einen Verstoss, dessen Begründung die Lesart und diese Nummer nennt. Verschwiegen wird nur, was nach keiner Lesart ein Verstoss ist. Die Antwort ersetzt die `Arbeitstagsgrenze` (und gegebenenfalls die § 3-Zuordnung), nicht die Rechnung. Hängt mit O-18 (Zehn-Stunden-Ausnahme) und O-50 (strengere Tarifregeln) zusammen. | TIM-05, TIM-06, TIM-14, D-09, D-684, V-190, O-18, O-50, `src/server/services/zeit/arbzg.ts` (`Arbeitstagsgrenze`, `ARBEITSTAG_BEIDE_LESARTEN`) |
+| O-927 | **Welche Leistungszeile darf die Zeit einer Schicht tragen — über die Wahl eines Menschen beim Planen hinaus?** Seit V-191 setzt ein Mensch die Leistungszeile an Einzelschicht, Turnus und Posten; der Zeiteintrag erbt sie beim Erfassen (`z_erben`, 0034) und hält sie danach fest (`z_unveraenderlich`). Jede der vier Fragen entscheidet, bei welchem Kunden eine geleistete Stunde abgerechnet wird, und keine davon beantwortet SPEC oder das Datenmodell: **(1) Nachträgliche Zuordnung.** Darf Zeit, die schon OHNE Leistungszeile erfasst ist (`zeiteintrag_ohne_auftrag`, Ursache `einsatz_ohne_leistung`), einer Leistungszeile zugeordnet werden — und bis wann: vor der Freigabe, nach der Freigabe, nach der Abrechnung, in einem gesperrten Monat (dort verlangt jede Korrektur eine Gegenbuchung, O-891)? Heute übernimmt eine Korrektur die Zeile der alten Fassung, und die Zeit bleibt ohne Auftrag; für den Abruf stellt O-708 dieselbe Frage. **(2) Der Anker des Reviers.** `revier.auftrag_leistung_id` (0029) liest niemand; der Generator nimmt den des Turnus. Soll ein Turnus ohne eigene Zeile die seines Reviers übernehmen, und welche gilt, wenn beide gesetzt sind und auseinandergehen? **(3) Der Kunde.** Muss der Auftrag der gewählten Zeile dem Kunden des Objekts (Reviers, Postens) gehören, an dem die Schicht stattfindet? Die Datenbank prüft nur, dass Zeile und Auftrag zusammengehören (`einsatz_leistung_fk`); seit V-192 nennt die Auswahl Kunde und Objekt jeder Zeile, verhindert aber nichts — eine Hausverwaltung, die für einen Eigentümer bestellt, wäre ein Fall, in dem beide auseinandergehen dürfen. **(4) Der Zustand des Auftrags.** In welchen Zuständen nimmt ein Auftrag neue Zeit an? `storniert` nie (einwegig, 0389), `abgeschlossen` nicht, solange O-734 offen ist. Offen sind `angelegt` (ein neuer Auftrag steht dort, bis jemand ihn aktiviert) und `pausiert`. Der Platzhalter `ANKERBARE_AUFTRAGSZUSTAENDE` nimmt `aktiv` und `pausiert` — dieselbe Menge wie die Auftragsauswahl der Einzelschicht (V-013); die Antwort ersetzt nur ihn. | TIM-12, FIN-07, O-708, O-734, O-891, D-685, D-686, V-191, V-192, `src/server/services/dienstplan/leistungsanker.ts` (`ANKERBARE_AUFTRAGSZUSTAENDE`), `drizzle/0029`, `drizzle/0034`, `drizzle/0050` |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
 | O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
@@ -19137,4 +19140,481 @@ bestätigt das über alle Eingänge.
    davor.
 
 | Betrifft | V-248, V-255, D-613, AUT-06, `src/server/registry/rueckweg.ts`, `tests/kern/rueckweg.test.ts` (7), `tests/kern/hilfen/tor-adresse.ts` |
+### D-680 · Die Monatsansicht verweist auf den Tag, sobald sie eine Schicht nicht zeigt (V-186)
+
+**Der Befund** (V-186): der `Monatsplan` zeigte je Tag höchstens vier
+Schichten und darunter „und N weitere" als blossen Text. Weder dieser Text
+noch die Tagesüberschrift führten irgendwohin. An einem Objekt mit zehn
+parallelen Wachen — genau der Fall aus TIM-04, „none hidden" — waren sechs
+davon aus der Monatsansicht weder sichtbar noch erreichbar.
+
+**Die Entscheidung.**
+
+1. **Die Karte bleibt bei vier Schichten** (`MONATSKARTE_HOECHSTENS`). Der
+   Monat ist Übersicht, keine Disposition; eine Karte mit zehn Zeilen
+   zerlegt das Kartenraster auf 375 px. Was nicht auf die Karte passt, ist
+   **einen Tipp entfernt**, nicht verborgen.
+2. **Zwei Wege in die Tagesansicht** (`/dienstplan/tag?tag=`), die jede
+   Schicht des Tages zeigt: der Kopf jeder Karte — auch an einem Tag ohne
+   Schicht, denn dort wird geplant — und unter einer vollen Karte der
+   Verweis „und N weitere — alle M in der Tagesansicht". `tagZiel` ist eine
+   Pflichteigenschaft des `Monatsplan`, damit keine künftige Seite ihn ohne
+   den Weg einbindet.
+3. **Jeder Verweis der Karte hat 44 px Zielfläche** (DESIGN §8, `min-h-11`),
+   auch die Schichtzeilen, die vorher eine Textzeile hoch waren.
+4. **Die Monatsseite spricht die Sprache der Sitzung** (`MONAT_TEXTE`,
+   de/en, Zahlen nach Sprache); das fehlende Recht heisst beim Namen
+   (`<Recht>`), nicht `zeit.abwesenheit_lesen`. Die Tagesbeschriftung aus
+   `dienstplan/daten.ts` („Mo 04.01.") und die Wochen- und Tagesansicht
+   bleiben vorerst deutsch — sie teilen die Beschriftung, und ihre Umstellung
+   ist ein eigener Schritt. **Berichtigt (V-193, D-687 Nr. 2):** die
+   Monatsseite schreibt ihre Tage jetzt in der Sprache der Sitzung
+   (`tagKurz`), und auch ein Monat ohne Schicht zeigt seine Tage (Nr. 2 galt
+   vorher nur in Monaten mit mindestens einer Schicht).
+
+| Betrifft | TIM-01, TIM-04, DESIGN §8, V-186, `src/components/portal/Wochenplan.tsx` (`Monatsplan`), `src/app/portal/[mandant]/dienstplan/monat/page.tsx`, `src/lib/i18n/verwaltung/dienstplan-monat.ts`, `tests/kern/monatsplan.test.ts` |
+|---|---|
+
+### D-681 · Ein Antrag fragt nach allem, was seine Art verlangt, und eine Abweisung kommt als Satz zurück — der Schichttausch wartet auf O-925 (V-187)
+
+**Der Befund** (V-187; Befunde 35 und 78 der Prüfung, derselbe Fehler):
+`/portal/mein/antraege/neu` bot die Systemart „Schichttausch" an, die laut
+0074 `einsatz_id` und `tausch_partner_anstellung_id` verlangt, und hatte für
+keines der beiden ein Feld. Der Auslöser `antrag_pflichtfelder` warf
+`check_violation`; die Route übersetzte nur Fehler mit numerischem `status`,
+ein PostgresError hat keinen — jeder Tauschantrag endete als rohe 500.
+Dasselbe beim Urlaubsantrag ohne Zeitraum oder Abwesenheitsart (die Felder
+waren nicht als Pflicht markiert). Jede andere Abweisung kam als JSON.
+
+**Die Entscheidung.**
+
+1. **Der Dienst prüft vor dem Auslöser, was die Art verlangt**
+   (`reicheAntragEin` → `AntragAbgewiesen` mit Grund, Status 422):
+   Zeitraum, Reihenfolge von „Von" und „Bis", Abwesenheitsart, Schicht,
+   Tauschpartner, archivierte Art. Der Auslöser bleibt die zweite Linie.
+2. **Die Schicht muss die eigene sein und noch bevorstehen:** eine lebende,
+   nicht abgesagte Einteilung DIESER Beschäftigung, deren Beginn nach der
+   Uhr der Datenbank in der Zukunft liegt (Invariante 5). Die
+   Fremdschlüssel prüfen nur die Gesellschaft; ohne diese Prüfung ließe sich
+   jede Schicht der Gesellschaft in einen Antrag schreiben. Das ist keine
+   neue Fachregel, sondern die Bedeutung von „meine Schicht tauschen".
+3. **Das Formular bietet die eigenen kommenden Schichten an**
+   (`listeTauschbareSchichten`, beide Gesellschaften, jede beschriftet,
+   höchstens 60 — die Länge einer Auswahl auf einem Telefon, keine Regel).
+   Ohne JavaScript kann es ein Feld nicht erst nach der Wahl der Art zeigen:
+   ein Feld ist Pflicht, wenn JEDE angebotene Art es verlangt, sonst steht
+   „Pflicht bei: …" darunter.
+4. **Den Tauschpartner bietet niemand an, bis O-925 beantwortet ist.** Eine
+   Liste anderer Beschäftigter berührt EMP-13 („never see other employees'
+   data") und ist eine Datenschutzfrage, keine Oberflächenfrage.
+   `TAUSCHPARTNER_QUELLE` ist der beschriftete Platzhalter
+   `TAUSCHPARTNER_NICHT_FESTGELEGT` mit `TODO(client, O-925)`; eine Art,
+   die einen Partner verlangt, steht deshalb nicht in der Auswahl, sondern
+   als Satz darunter („kann hier noch nicht beantragt werden — sprechen Sie
+   die Planung an"), und der Dienst nimmt keinen Partner an, auch keinen aus
+   einer nachgebauten Anfrage. Die Antwort ersetzt die Quelle; Formular
+   (Auswahl je Gesellschaft), Dienst (nur angebotene Partner) und Prüfungen
+   stehen schon.
+5. **Jede Abweisung führt auf die Maske** (`zurMaske`, `maskeMitEingaben`,
+   D-599): Grund als Schlüssel, Satz in der Sprache der Kraft
+   (`ANTRAG_FORM_TEXTE`, de/en/ar/tr, über `eigenerEintrag`), die Auswahlen
+   und Tage vorbelegt, nur mit Werten, die die Seite anbietet (D-733 Nr. 4).
+   Die Datenbank-Codes 23514, 23503 und 22007/22008 werden zu
+   „ungueltige_eingabe" bzw. „kein_datum" (`datenbankGrund`); alles andere
+   bleibt ein Serverfehler. Eine fremde Beschäftigung bleibt 404 (AUT-06).
+6. **Freitext reist nicht in der Adresse.** Die Nachricht kann sagen, warum
+   jemand frei braucht; eine Adresse landet in Verlauf und Protokollen. Die
+   Maske sagt stattdessen, dass die Nachricht noch einmal einzugeben ist.
+
+| Betrifft | EMP-10, EMP-13, O-613, O-925, D-599, D-728, D-733, V-187, `src/server/services/abwesenheit/antrag.ts`, `src/server/services/mitarbeiter/tausch.ts`, `src/app/api/mein/{formular.ts,antraege/route.ts}`, `src/app/portal/mein/antraege/neu/page.tsx`, `src/app/portal/mein/bausteine.tsx` (`Abgewiesen`), `src/lib/i18n/mein-formulare.ts`, `tests/isolation/antrag-tausch.test.ts`, `tests/kern/antrag-rueckweg.test.ts` |
+|---|---|
+
+### D-682 · Eine Abwesenheitsmeldung kommt mit einem Satz zurück — auch die doppelte und die mit einer Bescheinigung vor dem ersten Tag (V-188)
+
+**Der Befund** (V-188; Befund 81 der Prüfung): `POST /api/mein/abwesenheit`
+übersetzte nur Fehler mit numerischem `status`. Die Ausschlussbedingung
+`ab_keine_dublette` (23P01 — dieselbe Art für dieselben Tage noch einmal)
+und die Prüfbedingung `ab_au_bis` (23514 — „Bescheinigung gültig bis" vor
+dem ersten Tag) tragen keinen; beide endeten als rohe 500, ausgerechnet auf
+dem Weg, den jemand morgens krank vom Telefon aus nimmt. Jede andere
+Abweisung kam als JSON. Die Büroroute kannte 23P01 („die häufigste Eingabe
+am Telefon"), aber nicht 23514. „Bis" vor „Von" endete nicht als 500 — der
+Prüfer hat das selbst widerlegt —, sondern als JSON-400 (`ZeitraumFehler`).
+
+**Die Entscheidung.**
+
+1. **Der Dienst prüft die Bescheinigung vor dem Schreiben**
+   (`meldeAbwesenheit` → `AuBisVorBeginn`, dieselbe Regel wie `ab_au_bis`;
+   keine neue Regel). `ZeitraumFehler` nennt seinen Grund
+   (`kein_datum`, `zeitraum_verkehrt`, `zeitraum_zu_lang`), der Satz bleibt
+   für die Verwaltungsseite, die ihn schon zeigt.
+2. **Jede Abweisung führt auf die Maske** `/portal/mein/abwesenheit/neu`
+   (`zurMaske`, D-681 Nr. 5): Grund als Schlüssel, Satz in der Sprache der
+   Kraft (`MELDUNG_FORM_TEXTE`, de/en/ar/tr), Auswahlen, Tage und Haken
+   vorbelegt. Die doppelte Meldung heißt „ueberlappt" und sagt, wo die
+   vorhandene steht; die Art mit ungeklärter Lohnwirkung (O-139) heißt
+   „art_ungeklaert" statt JSON-409. Ein fehlendes Recht bleibt 404
+   (`autorisierungsAntwort`, D-656).
+3. **Die Bemerkung reist nie in der Adresse.** `cse_app` darf sie nicht
+   einmal lesen (0073, Art. 9 DSGVO); die Maske bittet darum, sie noch
+   einmal einzugeben.
+4. **Die Büroroute kommt ebenso zurück:** `ZeitraumFehler`,
+   `AuBisVorBeginn` und ein 23514 führen über `fehlerweg` auf die
+   Aufnahmeseite, die für jeden Grund einen Satz in de/en hat
+   (`ABWESENHEIT_AUFNAHME_TEXTE.abgewiesen`); sie fängt jetzt auch
+   Auth-Würfe mit `autorisierungsAntwort`.
+5. **Nicht Teil:** das `min` von „Bescheinigung gültig bis" an „Von" zu
+   koppeln. Ohne JavaScript gibt es keinen Weg dafür, und die
+   Serverprüfung ist ohnehin die Linie, die zählt.
+
+| Betrifft | EMP-10, O-139, D-599, D-656, D-681, V-188, `src/server/services/abwesenheit/{index,tage}.ts`, `src/app/api/mein/abwesenheit/route.ts`, `src/app/api/personal/abwesenheit/route.ts`, `src/app/portal/mein/abwesenheit/neu/page.tsx`, `src/app/portal/[mandant]/personal/abwesenheiten/erfassen/page.tsx`, `src/lib/i18n/{mein-formulare.ts,verwaltung/personal.ts}`, `tests/kern/meldung-rueckweg.test.ts`, `tests/isolation/meldung-rueckweg.test.ts` |
+|---|---|
+
+### D-683 · „Eine Zeit fehlt" hat einen eigenen Weg — ohne Eintrag, mit Beschäftigung, und das Absenden endet auf einer Seite (V-189)
+
+**Der Befund** (V-189; Befund 36 der Prüfung): `zeit_einwand.zeiteintrag_id`
+ist genau für den Fall nullbar, dass es keinen Eintrag gibt (0052: „ich
+habe gearbeitet, es steht nichts da" — Einstempeln vergessen, Marke
+gescheitert), und V-067 hat auf der Planerseite den Zweig `e.eintrag ===
+null` samt „Zeit nacherfassen" gebaut. Das einzige Formular der Arbeiterin,
+`/portal/mein/zeiten/[id]/einwand`, antwortete ohne Eintrag mit 404 und
+schickte die Kennung des Eintrags immer mit. Der häufigste Fall im
+Lohnstreit hatte keinen Weg. Dazu: das Absenden endete auf einer weissen
+Seite mit `{"einwand": "…"}`, ein Ende vor dem Beginn (`ze_fenster`) als
+500.
+
+**Die Entscheidung.**
+
+1. **Eine eigene Seite `/portal/mein/zeiten/einwand`** („Eine Zeit
+   fehlt"): Beschäftigung als Pflichtwahl (D-09), Tag (Pflicht, höchstens
+   heute nach der Uhr der Datenbank), behaupteter Beginn und Ende und Pause
+   (freiwillig — wer die Uhrzeit nicht weiss, schreibt es in die
+   Begründung; der Dienst verlangt sie nicht, und diese Seite erfindet keine
+   Pflicht), Begründung (Pflicht). **Berichtigt (V-193, D-687 Nr. 1):**
+   „höchstens heute" galt nur im Browser; jetzt prüft es der Dienst, samt
+   der behaupteten Zeit. Die Art steht fest (`eintrag_fehlt`), und
+   es reist KEIN `zeiteintrag` mit. Darunter die eigenen Meldungen ohne
+   Eintrag mit Zustand und Entscheidung (`EinwandListe`, jetzt ein
+   Baustein, den auch der Einwand zu einem Eintrag benutzt).
+2. **Derselbe Weg wie der Einwand zu einem Eintrag:** `POST
+   /api/zeit/einwand`, Mandant aus der Beschäftigung (K-02), `withTenant`
+   mit `portal: 'mitarbeiter'`, Policy `t_selbst_einreichen`. Keine zweite
+   Route. Die behauptete Zeit bleibt eine Behauptung (Invariante 5), als
+   Berliner Wanduhrzeit gelesen — auch über Mitternacht und die Nacht der
+   Zeitumstellung.
+3. **Zwei Einstiege:** „Meine Zeiten" verweist darauf, und das Blatt einer
+   BEENDETEN Schicht — nicht abgesagt, nicht an jemand anderen gegangen,
+   nicht ausgefallen; „nicht erschienen" gehört dazu, dort widerspricht, wer
+   da war — fragt, ob es einen eigenen Eintrag gibt
+   (`eigenerEintragZurSchicht`, Personen-Scope): gibt es einen, führt es zu
+   ihm (dort steht der Einwand); gibt es keinen, zu „Eine Zeit fehlt",
+   vorbelegt mit Tag und Beschäftigung (vorbelegt wird nur, was die Seite
+   anbietet, D-733 Nr. 4).
+4. **Ein Formular bekommt eine Seite zurück, kein JSON** (D-599): beide
+   Einwandformulare schicken `maske` und `zurueck`; die Route leitet einen
+   Erfolg mit `?gemeldet=1` auf die Seite, die die Meldung zeigt, und eine
+   Abweisung als Grund auf die Maske (`EINWAND_FORM_TEXTE`, vier Sprachen).
+   Ein Ende vor dem Beginn prüft die Route vor der Datenbank
+   (`fenster_verkehrt`, dieselbe Bedingung wie `ze_fenster`); 23514, 23503
+   und 22007/22008 sind die zweite Linie (`datenbankGrund`). Ohne `maske`
+   und `zurueck` antwortet die Route wie bisher mit JSON. Die Begründung
+   reist nicht in der Adresse.
+5. **VOLLSTÄNDIGKEIT §9.1 ist präzisiert:** die damalige Widerlegung
+   betraf nur die wählbare Art, nicht den Fall ohne Eintrag.
+
+| Betrifft | EMP-07, TIM-11, D-09, D-599, D-733, V-051, V-067, V-189, `drizzle/0052`, `src/app/portal/mein/zeiten/{einwand,[id]/einwand}/page.tsx`, `src/app/portal/mein/zeiten/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/page.tsx`, `src/app/portal/mein/bausteine.tsx` (`EinwandListe`), `src/app/api/zeit/einwand/route.ts`, `src/server/services/mitarbeiter/zeiten.ts` (`eigenerEintragZurSchicht`), `src/lib/i18n/mein-formulare.ts`, `docs/architecture/04-SEITENKARTE.md` §7, `tests/kern/einwand-ohne-eintrag.test.ts`, `tests/isolation/einwand-ohne-eintrag.test.ts` |
+|---|---|
+
+### D-684 · § 5 ArbZG misst die Ruhezeit zwischen Arbeitstagen — der geteilte Dienst ist kein Verstoss, und wo der Arbeitstag endet, fragt O-926 (V-190)
+
+**Der Befund** (V-190; Befund 38 der Prüfung): `pruefeArbzg` mass die
+Ruhezeit zwischen JEDEM Paar aufeinanderfolgender Blöcke einer Person und
+meldete unter elf Stunden `ruhezeit_unter_11h` mit Schwere `verstoss` —
+auch zwischen Früh- und Abendreinigung desselben Tages. § 5 Abs. 1 ArbZG
+verlangt die Ruhezeit „nach Beendigung der täglichen Arbeitszeit"; die
+Unterbrechung eines geteilten Dienstes ist keine. Jeder solche Tag trug
+einen falschen Rechtsverstoss: beim Einteilen eine Warnung, die quittiert
+werden musste (`pruefeEinteilung`, `besetzeEinsatz`), nachts eine
+Konfliktkarte (`erkenneKonflikte`). Der Test schrieb es fest (06–14 und
+18–19 am selben Tag = 240 min). Die Auslegung war still gewählt.
+
+**Die Entscheidung — nur, was eindeutig aus dem Gesetz folgt.**
+
+1. **Eine Lücke innerhalb desselben Arbeitstags ist keine Ruhezeit und
+   kein § 5-Befund.** Das folgt aus dem Wortlaut von § 5 Abs. 1. Die Teile
+   zählen weiter zusammen zur täglichen Arbeitszeit nach § 3 (die
+   Tagessumme je Berliner Kalendertag des Beginns bleibt, wie sie war, auch
+   über zwei Gesellschaften, K-06). Ein `hinweis` statt nichts wäre keine
+   Hilfe: jede Befundschwere hält die Einteilung an und erzeugt nachts eine
+   Karte.
+2. **Wo ein Arbeitstag endet, ist offen** (O-926): Berliner Kalendertag
+   oder 24 Stunden ab Arbeitsbeginn. Die Stelle ist austauschbar
+   (`Arbeitstagsgrenze`, `ArbzgOptionen.arbeitstag`); ausgeliefert ist der
+   beschriftete Platzhalter `ARBEITSTAG_BEIDE_LESARTEN` mit
+   `TODO(client, O-926)`: zwei Blöcke gelten nur dann als ein Arbeitstag,
+   wenn BEIDE Lesarten es sagen — gleicher Kalendertag des Beginns UND
+   weniger als 24 Stunden nach Beginn des Arbeitstags (erster Block nach der
+   letzten Ruhezeit von elf Stunden; nach 24 Stunden beginnt der nächste).
+   Wo sie auseinandergehen — geteilter Dienst über Mitternacht, eine Kette
+   kurzer Pausen über mehr als 24 Stunden —, wird gemessen und gemeldet wie
+   bisher. Verschwiegen wird nur, was nach keiner Lesart ein Verstoss ist.
+3. **Jeder Ruhezeitbefund nennt die Lesart**, mit der er entstand, samt
+   offener Frage — wie die § 3-Befunde schon ihre Tageszuordnung nennen.
+4. **Gemessen wird weiter gegen das SPÄTESTE Ende** (die Tests für
+   verschachtelte, gleich beginnende und gesellschaftsübergreifende
+   Schichten liegen jetzt mit der Folgeschicht am nächsten Tag); die Tests
+   über Mitternacht und die Zeitumstellung bleiben unverändert grün.
+5. **Grenze der Sicht:** der Arbeitstagsbeginn sieht nur die übergebenen
+   Blöcke; `pruefeEinsatz` liest 24 Stunden davor und danach. Eine Kette
+   kurzer Pausen, die länger ist, trägt ihre Befunde schon an den früheren
+   Lücken.
+
+| Betrifft | TIM-05, TIM-06, TIM-14, D-09, K-06, O-18, O-50, O-926, V-190, `src/server/services/zeit/arbzg.ts`, `src/server/services/arbzg/pruefung.ts` (Kommentar), `tests/kern/arbzg.test.ts`, `tests/kern/arbzg-teildienst.test.ts` |
+|---|---|
+
+### D-685 · Die Leistungszeile lässt sich an Einzelschicht, Turnus und Posten setzen — und der Generator trägt sie auf die künftigen Schichten (V-191)
+
+**Der Befund** (V-191; Befund 34 der Prüfung, TIM-12/FIN-07): ein
+Zeiteintrag hängt über `auftrag_leistung_id` am Auftrag und erbt die
+Spalte beim Anlegen AUSSCHLIESSLICH von seiner Schicht (`z_erben`, 0034);
+die Schicht bekommt sie vom Träger (Turnus, Posten, Veranstaltung) oder beim
+Anlegen. Weder `legeTurnusSerieAn` noch die Turnuspflege noch
+`legePostenAn` noch die Einzelschicht schrieben eine, und keine Seite konnte
+sie nachträglich setzen — nur der Seed tat es. Jede Stunde aus einer über
+die Oberfläche geplanten Schicht landete dauerhaft in
+`zeiteintrag_ohne_auftrag`; die Stundenabrechnung fand sie nie. Die Maske
+der Einzelschicht versprach das Gegenteil („Mit Auftrag hängt sie an dessen
+Abrechnung") und schrieb nur `einsatz.auftrag_id`, das in der Zeitkette
+niemand liest.
+
+**Die Entscheidung.**
+
+1. **Ein Feld, ein Dienst, eine Prüfung.** `listeAnkerbareLeistungen`
+   bietet die lebenden Leistungszeilen nicht stornierter Aufträge an
+   (`gueltig_bis` einschliesslich, heute nach `app.berlin_heute()`), den
+   bisherigen Anker immer mit; `pruefeLeistungsanker` prüft vor dem
+   Schreiben — `leistung_unbekannt`, `leistung_beendet`,
+   `leistung_anderer_auftrag` — mit Satz statt Fremdschlüsselfehler. Den
+   Auftrag leitet weiter die Datenbank aus der Zeile ab
+   (`kern.einsatz_auftrag_ableiten`), die Zusammengehörigkeit prüft weiter
+   `einsatz_leistung_fk`. Welche Zeile gilt, entscheidet ein Mensch; nichts
+   wird vorgeschlagen. **Berichtigt (V-192, D-686 Nr. 1):** „immer" galt
+   nur bis zur Obergrenze der Liste; die bisherige Zeile kommt jetzt
+   ungekappt mit.
+2. **Einzelschicht:** beim Anlegen (`auftragLeistungId`), und nachträglich
+   auf dem Schichtblatt (`setzeLeistungsanker`, `aktion=leistung`) —
+   solange keine Zeit erfasst ist (danach tragen die Einträge den Anker, den
+   die Schicht damals hatte) und nur für `quelle = 'manuell'` (eine
+   Serienschicht trägt den Anker ihres Trägers, den der Generator bei jedem
+   Lauf schreibt). Trug die Schicht schon eine Zeile, folgt der Auftrag der
+   neuen; nannte sie nur einen Auftrag, muss die Zeile zu ihm gehören.
+   **Berichtigt (V-192, D-686 Nr. 5):** die Herkunft steht jetzt in
+   `einsatz.auftrag_von_hand` (0431) und wird nicht mehr aus dem Stand
+   geraten; das Lösen nimmt einen abgeleiteten Auftrag mit.
+3. **Turnus:** beim Anlegen (beide Masken) und in der Turnuspflege
+   (`aendereTurnus`: `undefined` lässt den Anker, `null` löst ihn); geprüft
+   nur, wenn er sich ändert. **Posten:** beim Anlegen und auf dem Postenblatt
+   (`setzePostenLeistung`, danach läuft der Generator).
+4. **Der Generator trägt den Anker auf die künftigen Schichten** — im
+   Aktualisierungszweig seines Upserts, also nur auf Schichten, die noch
+   nicht begonnen haben und keine erfasste Zeit tragen. Bei derselben Zeile
+   bleibt `auftrag_id`, bei einer neuen folgt er ihr. Die Vergangenheit
+   wird nicht umgeschrieben.
+5. **Ohne `auftrag.lesen` gibt es kein Feld, sondern einen Satz**
+   (`LeistungsankerFeld`, ein Baustein für alle sieben Stellen). Ein
+   Auswahlfeld, dessen Liste die RLS leert, schickte „ohne" und löschte in
+   einer Pflegemaske einen Anker, den jemand anderes gesetzt hat. Die
+   Turnuspflege ändert den Anker deshalb nur, wenn das Feld GESCHICKT wurde.
+6. **Die Zusage der Einzelschichtmaske ist berichtigt:** der Auftrag allein
+   bringt keine Stunde in eine Abrechnung, die Leistungszeile tut es.
+7. **Nicht Teil:** (a) Zeit, die schon ohne Anker erfasst ist, bleibt in
+   `zeiteintrag_ohne_auftrag` — sie hat den Anker beim Anlegen geerbt, und
+   ihre Korrektur ist ein eigener Vorgang. (b) Der Anker des REVIERS
+   (`revier.auftrag_leistung_id`) — der Generator liest den des Turnus.
+   (c) `kern.einsatz_auftrag_ableiten` liest die Leistungszeile unter der
+   RLS des Aufrufers: wer ohne `auftrag.lesen` einen verankerten Turnus
+   ändert, dessen Lauf scheitert beim Ableiten für NEUE Schichten. Das galt
+   schon für die geseedeten Anker; es als `SECURITY DEFINER` zu führen ist
+   ein eigener Schritt. **Berichtigt (V-192, D-686 Nr. 2 und 10):** (c) ist
+   erledigt (`drizzle/0430`); (a) und (b) fragt O-927.
+
+| Betrifft | TIM-12, FIN-07, CLN-02, SEC-01, D-150, V-013, V-191, `src/server/services/dienstplan/{leistungsanker,einzelschicht,serie,serie-pflege,generator}.ts`, `src/server/services/security/posten.ts`, `src/app/api/{dienstplan/einsatz,dienstplan/serien,dienstplan/serien/[id],reinigung/turnus,sicherheit/posten}/route.ts`, `src/components/portal/LeistungsankerFeld.tsx`, `src/lib/i18n/verwaltung/{leistungsanker,dienstplan-schicht}.ts`, sieben Masken unter `dienstplan/`, `reinigung/turnus/` und `security/posten/`, `tests/isolation/leistungsanker.test.ts`, `tests/kern/leistungsanker.test.ts` |
+|---|---|
+
+### D-686 · Der Leistungsanker hält — jenseits der Liste, ohne `auftrag.lesen`, gegen einen ungültigen Wert und nach dem Lösen; eine Abweisung kommt als Satz auf die Maske (V-192)
+
+**Der Befund** (V-192; die zweite Prüfung von V-191 durch den unabhängigen
+Prüfer der Gruppe zeit). `listeAnkerbareLeistungen` versprach, den bisherigen
+Anker IMMER mitzuliefern (D-685 Nr. 1), und kappte mit `limit` NACH dem
+`or al.id = bisher`. Bei mehr als 300 lebenden Leistungszeilen im Mandanten
+fiel der bisherige Anker aus der Liste — sortiert nach Auftragsnummer
+absteigend gerade der alte, lange laufende Vertrag —, das Feld wählte
+„ohne", und das nächste Speichern der Turnuspflege, auch nur einer Uhrzeit,
+löste ihn; der Generator trug das auf alle künftigen Schichten. Genau der
+Fehler, den D-685 Nr. 5 verhindern sollte.
+
+**Die Entscheidung.**
+
+1. **Der bisherige Anker kommt ungekappt mit.** Die Abfrage hat zwei Teile:
+   die gekappte Liste der lebenden Zeilen und, daneben und ungekappt, die
+   bisherige Zeile (lebend oder nicht, `union` hält sie einmal). Das Feld
+   (`LeistungsankerFeld`) wählt den bisherigen Anker immer vor; fehlt er
+   trotzdem in der Liste, steht er als eigene Zeile „bisherige
+   Leistungszeile (bleibt, wie sie ist)" da, statt dass „ohne" ihn beim
+   Speichern löst.
+2. **Die Ableitung des Auftrags liest als `cse_definer`** (`drizzle/0430`,
+   D-685 Nr. 7(c) erledigt). Der Generator läuft nach jeder Pflege über ALLE
+   Serien der Gesellschaft, und sein Upsert feuert
+   `kern.einsatz_auftrag_ableiten` für jede vorgeschlagene Zeile. Unter der
+   RLS des Aufrufers warf er ohne `auftrag.lesen` 23503, sobald eine einzige
+   Serie verankert war — auch beim Ändern einer fremden, unverankerten, und
+   als 500. Eine eigene Rolle mit `dienstplan.schreiben` ohne `auftrag.lesen`
+   ist zulässig; ob sie planen kann, darf nicht davon abhängen, ob irgendwo
+   ein Anker steht. Die Funktion liest genau `auftrag_id` der Zeile, die die
+   Schicht selbst nennt, in der Gesellschaft der Schicht; Grant und Policy
+   (`d_auftrag_leistung_lesen`) stehen seit 0107, die Liste der
+   Definer-Policies wächst nicht. Einen gewählten Anker prüfen die Dienste
+   weiter vorher unter der RLS des Menschen.
+3. **Ein Wert, der keine Kennung ist, wird abgewiesen — er löst den Anker
+   nicht.** Schichtblatt, Einzelschicht und Postenblatt machten aus ihm
+   still `null`, also „ohne"; eine verstümmelte oder nachgebaute Anfrage
+   löste damit einen Anker. Leer heisst weiter „ohne" (das Feld schickt
+   genau das), alles andere, was keine Kennung ist, kommt als
+   `leistung_unbekannt` auf die Maske zurück.
+4. **Der Sofortlauf erfindet keinen Tag** (`generiereSofort`). An drei
+   Stellen stand `heute?.tag ?? '2026-01-01'`: ohne Antwort der Datenbank
+   lief der Generator still ab einem festen Tag. Jetzt kommt der Tag aus
+   `berlinHeute`, und ohne Antwort gibt es einen Fehler statt eines Laufs.
+5. **Woher der Auftrag einer Einzelschicht stammt, steht in der Datenbank**
+   (`einsatz.auftrag_von_hand`, `drizzle/0431`). D-685 Nr. 2 unterscheidet
+   einen GENANNTEN Auftrag (die Zeile muss zu ihm gehören) von einem
+   ABGELEITETEN (er folgt der Zeile), aber der Dienst riet die Herkunft aus
+   dem Stand. Nach dem Lösen stand ein abgeleiteter Auftrag ohne Zeile da und
+   galt beim nächsten Setzen als genannt — die Zeile eines anderen Auftrags
+   wurde abgewiesen, obwohl ihn nie ein Mensch nannte. Jetzt gilt: hat ein
+   Mensch den Auftrag in der Maske genannt (mit oder ohne Zeile), bindet er
+   jede Zeile, und das Lösen lässt ihn stehen; sonst folgt er der Zeile und
+   geht mit ihr. Der Bestand: eine von Hand geplante Schicht mit Auftrag und
+   ohne Zeile hat ihn von einem Menschen (abgeleitet wird nur aus einer
+   Zeile); eine Prüfung hält fest, dass „von Hand" einen Auftrag heisst.
+   Der Seed legt eine Einzelschicht mit genanntem Auftrag und Leistungszeile
+   über den Dienst an (`seedEinzelschichtMitAnker`) — vorher zeigte keine
+   Demoschicht diesen Weg.
+6. **Welche Aufträge neue Zeit annehmen, steht an EINER Stelle**
+   (`ANKERBARE_AUFTRAGSZUSTAENDE`). Die Leistungszeile nahm jeden nicht
+   stornierten Auftrag an — auch `abgeschlossen` und `angelegt` —, die
+   Auftragsauswahl derselben Maske nur `aktiv` und `pausiert`. `storniert`
+   nie und `abgeschlossen` nicht, solange O-734 offen ist, folgen aus dem
+   Zustand (beide einwegig; Zeit an einem abgeschlossenen Auftrag fände keine
+   Rechnung mehr). Ob `angelegt` und `pausiert` neue Zeit annehmen, ist eine
+   Frage an den Auftraggeber (O-927 Nr. 4); bis zur Antwort gilt der
+   beschriftete Platzhalter mit der Menge, die die Auftragsauswahl schon
+   hatte — `aktiv` und `pausiert` —, jetzt für beide Felder.
+7. **Die Auswahl nennt Kunde und Objekt jeder Zeile.** Sie zeigte nur
+   „Auftragsnummer · Pos. · Bezeichnung"; ein Turnus am Objekt von Kunde A
+   liess sich an den Auftrag von Kunde B hängen, ohne dass es jemand sah, und
+   die Stundenabrechnung rechnete bei B ab. OB der Auftrag dem Kunden des
+   Objekts gehören muss, prüft die Plattform nicht — eine Hausverwaltung, die
+   für einen Eigentümer bestellt, ist ein legitimer Fall, in dem beide
+   auseinandergehen; das fragt O-927 Nr. 3. Kunde und Objekt kommen über
+   einen äusseren Verbund: ohne `crm.lesen` bzw. `objekt.lesen` bleiben sie
+   leer, die Zeile verschwindet nicht.
+8. **Ein abgewiesener Anker kommt als Satz auf die Maske** (D-599). Die
+   Anlage einer Serie (`POST /api/dienstplan/serien`) und eines Postens
+   (`POST /api/sicherheit/posten`) antworteten mit JSON-422; jetzt führen sie
+   mit dem Grund als Schlüssel und den Eingaben auf ihre Maske zurück
+   (`maskeMitEingaben`; vorbelegt wird nur, was die Maske anbietet, D-733
+   Nr. 4). Der Turnus der Reinigung (`POST /api/reinigung/turnus`) schickte
+   den deutschen SATZ in die Adresse; ein Ankerfehler reist jetzt als
+   Schlüssel zurück in die Vorschau, mit allen Eingaben, und die Seite
+   schlägt ihn in der Sprache der Sitzung nach. **Nicht Teil:** die übrigen
+   Abweisungen dieser drei Wege (Pflichtfelder, Regel, Recht) antworten
+   weiter wie bisher — JSON bzw. ein Satz in der Adresse. Das ist die Altlast
+   aus D-599; das Anker-Feld hat sie nicht erzeugt.
+9. **Die kleinen Punkte an den Blättern.** Das Schichtblatt zeigt bei
+   erfasster Zeit einen Hinweis statt des Fehlersatzes („Nichts wurde
+   gespeichert", obwohl nichts versucht wurde), und „gespeichert" spricht
+   von DIESER Schicht, nicht von „künftigen Schichten". Das Postenblatt zeigt
+   an einem archivierten Posten einen Satz statt des Formulars, und der
+   Dienst weist ihn mit Grund ab (`PostenArchiviert`, zurück aufs Blatt —
+   vorher JSON); ein fremder Posten ist 404. Das Serienblatt zeigt für einen
+   unbekannten Grund einen Satz statt des Schlüssels aus der Adresse, und
+   eine Erfolgsmeldung nur für eine Handlung, die es kennt.
+10. **Offen, nicht gebaut** (D-685 Nr. 7(a) und (b)): Zeit, die schon ohne
+   Anker erfasst ist, bleibt in `zeiteintrag_ohne_auftrag`, und
+   `revier.auftrag_leistung_id` bleibt ungelesen. Ob und bis wann erfasste
+   Zeit nachträglich eine Leistungszeile bekommt und ob ein Turnus den Anker
+   seines Reviers erbt, entscheidet, bei welchem Kunden eine Stunde
+   abgerechnet wird — das fragt O-927 Nr. 1 und 2.
+
+| Betrifft | TIM-12, FIN-07, K-01, Invariante 5, D-599, D-685, D-733, O-734, O-927, V-191, V-192, `drizzle/0430_auftrag_ableiten_als_definer.sql`, `drizzle/0431_auftrag_von_hand.sql`, `src/server/db/seed/auftrag.ts`, `src/server/services/dienstplan/{leistungsanker,einzelschicht,generator,serie,serie-pflege}.ts`, `src/server/services/security/posten.ts`, `src/app/api/{dienstplan/einsatz,dienstplan/serien,reinigung/turnus,sicherheit/posten}/route.ts`, `src/components/portal/LeistungsankerFeld.tsx`, `src/lib/i18n/verwaltung/{leistungsanker,dienstplan-serie-pflege}.ts`, `src/app/portal/[mandant]/{dienstplan/einsatz/neu,dienstplan/einsatz/[id],dienstplan/serien/neu,dienstplan/serien/[id],reinigung/turnus/neu,security/posten/neu,security/posten/[id]}/page.tsx`, `tests/isolation/leistungsanker.test.ts`, `tests/kern/leistungsanker-feld.test.ts`, `tests/kern/leistungsanker.test.ts` |
+|---|---|
+
+### D-687 · Die zweite Prüfung von V-186 bis V-190: der Einwand gilt gegen die Uhr der Datenbank, der leere Monat hat Tage, und das Arbeiterportal schreibt Tage in der gesetzlichen Form (V-193)
+
+**Der Befund** (V-193; die zweite Prüfung der Gruppe zeit durch den
+unabhängigen Prüfer). Vier Zusagen hielten nur halb: D-683 („Tag höchstens
+heute nach der Uhr der Datenbank") galt nur im Browser (`max={heute}`); weder
+Route noch `reicheEinwandEin` prüften Tag oder behauptete Zeit, ein
+nachgebauter POST legte einen Einwand für einen künftigen Tag an. D-680 („auch
+an einem Tag ohne Schicht, denn dort wird geplant") galt nur in Monaten mit
+mindestens einer Schicht — war der Monat leer, ersetzte der Satz „nichts
+geplant" das ganze Raster; und die englische Monatsseite schrieb die Tage
+deutsch („Mo 04.01."). Dazu die kleinen Punkte: die Einwandliste schrieb den
+Tag des Einwands als TT.MM.JJJJ und daneben Eingangs- und Entscheidungstag nach
+Sprache (englisch 09/21/2026, arabisch mit anderen Ziffern), die Pause stand
+mit festem „(min)" da, die Pflichtwahl der Gesellschaft wählte die erste vor,
+und der Seed zeigte den geteilten Dienst ohne Befund nicht.
+
+**Die Entscheidung.**
+
+1. **Tag und behauptete Zeit eines Einwands gelten gegen die Uhr der
+   Datenbank** (`reicheEinwandEin` → `EinwandZeitFehler`, Invariante 5): ein
+   Tag nach `app.berlin_heute()` (`tag_in_zukunft`) und ein behaupteter
+   Beginn oder ein Ende nach `now()` (`zeit_in_zukunft`) werden abgewiesen —
+   ein Einwand behauptet geleistete Arbeit. Bei „Eine Zeit fehlt", wo die
+   Kraft Tag UND Zeit selbst wählt, liegt der behauptete Beginn an diesem Tag
+   (`beginn_nicht_am_tag`): der Tag eines Einwands ist der Berliner
+   Kalendertag, an dem die Arbeit begann (0052, K-11), wie beim Eintrag, dessen
+   Tag der seines Beginns ist. Beim Einwand zu einem Eintrag gilt das nicht —
+   dort kann gerade der Beginn falsch erfasst sein. Keine neue Regel: es ist
+   die Zusage von D-683, jetzt auf dem Server. Die Route führt jeden Grund auf
+   die Maske (vier Sprachen), ohne Maske als JSON 422. Die Einwandfälle in
+   `tests/isolation/zeit-auftrag.test.ts` liegen deshalb im September statt im
+   Oktober: ein Eintrag in der Zukunft entsteht im Betrieb nicht.
+2. **Der Monat zeigt seine Tage immer** (`monat/page.tsx`): der Satz „nichts
+   geplant" steht über dem Raster, nicht an seiner Stelle, und jeder Tag führt
+   in die Tagesansicht. Die Tagesbeschriftung schreibt `tagKurz`
+   (`@/lib/datum/kalendertag`) in der Sprache der Sitzung — deutsch „Mo
+   04.01." wie bisher (dieselbe Funktion benutzt jetzt `dienstplan/daten.ts`),
+   englisch „Sun 04 Jan" (britisch, über UTC, wie `tagInSprache`, D-733).
+   **Nicht Teil:** die Wochen- und die Tagesansicht selbst. Sie stehen in der
+   eingefrorenen Ausnahmeliste der Übersetzungswache, der Befund 39 betraf
+   die Monatsansicht; ihre Umstellung bleibt ein eigener Schritt (D-680 Nr. 4).
+3. **Das Arbeiterportal schreibt jeden Tag in der gesetzlichen Form** —
+   TT.MM.JJJJ, Berliner Kalendertag, in jeder Sprache (SEITENKARTE §12:
+   „numbers, money and time never localise away from the legal form"). Die
+   Einwandliste formatiert Eingangs- und Entscheidungstag deshalb wie den Tag
+   des Einwands; die Schichtauswahl des Antrags (`tagDeutsch`) war schon
+   richtig. Die Pause trägt ihre Einheit in der Sprache der Kraft
+   (`pauseMinuten`).
+4. **Die Gesellschaft ist eine Pflichtwahl ohne Vorauswahl** (D-09): ein
+   leerer erster Eintrag „Gesellschaft wählen", `required` verlangt die Wahl —
+   auf „Eine Zeit fehlt" und ebenso auf Antrag und Abwesenheitsmeldung, die
+   dasselbe Muster trugen und in ihrem Kommentar schon „kein Vorgabewert"
+   versprachen. Vorbelegt wird nur, was die Seite anbietet (D-733 Nr. 4).
+5. **Der Seed zeigt den geteilten Dienst** (`seedGeteilterDienst`): eine
+   Frühschicht 06:00–09:30 und am selben Tag 17:00–18:30 für dieselbe Kraft,
+   eingeteilt über `besetzeEinsatz` OHNE Bestätigung — mit einem Befund bliebe
+   sie aus, und der Seed sagte es. Der Ruhezeitkonflikt (22:00–02:00 vor einer
+   Frühschicht) bleibt der eine echte Verstoss der Demo.
+6. **Geprüft und nicht geändert:** der Rückfall der Arbeiterrouten auf
+   `ungueltige_eingabe` für einen übrigen Dienstfehler. Beim EINREICHEN gibt
+   es keinen spezifischen Grund, der dort verloren ginge: `UrlaubskontoFehlt`
+   wirft nur die Entscheidung (`entscheideAntrag`), der Kontoauslöser (0073)
+   greift erst bei `genehmigt`, und die Meldung der Kraft entsteht als
+   `erfasst`; jeder Grund von `reicheAntragEin` und `meldeAbwesenheit` hat
+   seinen eigenen Zweig.
+
+| Betrifft | EMP-07, EMP-10, TIM-01, TIM-04, TIM-06, TIM-11, D-09, D-599, D-680, D-683, D-684, D-733, SEITENKARTE §12, V-186, V-189, V-190, V-193, `src/server/services/zeit/einwand.ts`, `src/app/api/zeit/einwand/route.ts`, `src/lib/i18n/{mein-formulare,texte}.ts`, `src/app/portal/[mandant]/dienstplan/{monat/page.tsx,daten.ts}`, `src/lib/datum/kalendertag.ts`, `src/lib/i18n/verwaltung/dienstplan-monat.ts`, `src/app/portal/mein/{bausteine.tsx,zeiten/einwand/page.tsx,zeiten/[id]/einwand/page.tsx,antraege/neu/page.tsx,abwesenheit/neu/page.tsx}`, `src/server/db/seed/zeit.ts`, `tests/isolation/{einwand-ohne-eintrag,zeit-auftrag}.test.ts`, `tests/kern/{einwand-ohne-eintrag,monatsplan,mein-einwand-form}.test.ts` |
 |---|---|

@@ -97,7 +97,72 @@ export interface ArbzgOptionen {
    * compensation window (§3 Satz 2: six calendar months or 24 weeks)?`
    */
   readonly zehnStundenAusnahme?: boolean;
+  /**
+   * Wo ein Arbeitstag im Sinne von § 5 ArbZG endet (V-190, O-926).
+   *
+   * Vorgabe: der beschriftete Platzhalter `ARBEITSTAG_BEIDE_LESARTEN`. Die
+   * Antwort auf O-926 ersetzt ihn — hier oder als neue Vorgabe —, nicht die
+   * Rechnung.
+   */
+  readonly arbeitstag?: Arbeitstagsgrenze;
 }
+
+/**
+ * Wo ein Arbeitstag endet — die austauschbare Stelle der § 5-Prüfung
+ * (V-190, O-926).
+ *
+ * **Was eindeutig aus dem Gesetz folgt, und was nicht.** § 5 Abs. 1 ArbZG
+ * verlangt die elfstündige Ruhezeit „nach Beendigung der täglichen
+ * Arbeitszeit". Die Unterbrechung zwischen zwei Teilen DESSELBEN
+ * Arbeitstags — der geteilte Dienst, in der Gebäudereinigung das
+ * Grundmuster (früh und abends) — ist deshalb keine Ruhezeit und für sich
+ * kein Verstoss; die Teile zählen zusammen zur täglichen Arbeitszeit nach
+ * § 3. Offen ist dagegen, WO ein Arbeitstag endet: am Berliner Kalendertag
+ * oder 24 Stunden nach Arbeitsbeginn (der „individuelle Werktag"). Das ist
+ * eine Rechtsauslegung, und sie gehört dem Auftraggeber, nicht dieser Datei.
+ */
+export interface Arbeitstagsgrenze {
+  /** Wie die Lesart heisst — sie steht in der Begründung jedes Ruhezeitbefunds. */
+  readonly name: string;
+  /** Die offene Frage, solange die Lesart ein Platzhalter ist — sonst `null`. */
+  readonly offeneFrage: string | null;
+  /**
+   * `true` heisst: der nächste Block gehört zu DERSELBEN täglichen
+   * Arbeitszeit wie der vorige, zwischen ihnen ist keine Ruhezeit nach § 5
+   * geschuldet. `false` heisst: gemessen wird die Ruhezeit.
+   */
+  gleicherArbeitstag(bloecke: {
+    /** Beginn des Blocks mit dem bisher spätesten Ende. */
+    readonly vorherBeginn: Date;
+    readonly naechsterBeginn: Date;
+    /** Beginn des ersten Blocks nach der letzten Ruhezeit von elf Stunden. */
+    readonly arbeitstagBeginn: Date;
+  }): boolean;
+}
+
+const TAG_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * PLATZHALTER — beide Lesarten zugleich, bis O-926 beantwortet ist.
+ *
+ * Zwei Blöcke gelten nur dann als EIN Arbeitstag, wenn BEIDE Lesarten das
+ * sagen: sie beginnen am selben Berliner Kalendertag, UND der spätere
+ * beginnt weniger als 24 Stunden nach dem Beginn dieses Arbeitstags. Wo die
+ * Lesarten auseinandergehen — ein geteilter Dienst über Mitternacht, eine
+ * Kette kurzer Pausen über mehr als 24 Stunden —, misst die Prüfung die
+ * Ruhezeit wie bisher und meldet einen Verstoss. Das ist die vorsichtige
+ * Richtung: ein Verstoss, den eine der beiden Lesarten sieht, wird nicht
+ * verschwiegen; verschwiegen wird nur, was nach keiner ein Verstoss ist.
+ *
+ * TODO(client, O-926): Wo endet ein Arbeitstag im Sinne der §§ 3 und 5 ArbZG — am Berliner Kalendertag oder 24 Stunden nach Arbeitsbeginn (individueller Werktag) —, und gilt für einen geteilten Dienst über Mitternacht (etwa 22:00–23:30 und 00:30–06:00) die Unterbrechung als Teil desselben Arbeitstags?
+ */
+export const ARBEITSTAG_BEIDE_LESARTEN: Arbeitstagsgrenze = {
+  name: 'Platzhalter: derselbe Arbeitstag nur, wenn Kalendertag (Berlin) und 24-Stunden-Werktag übereinstimmen',
+  offeneFrage: 'O-926',
+  gleicherArbeitstag: ({ vorherBeginn, naechsterBeginn, arbeitstagBeginn }) =>
+    berlinKalendertag(vorherBeginn) === berlinKalendertag(naechsterBeginn)
+    && naechsterBeginn.getTime() - arbeitstagBeginn.getTime() < TAG_MS,
+};
 
 /**
  * Die gesetzlichen Grenzen — EXPORTIERT, weil ein zweiter Ort sie sonst
@@ -142,6 +207,7 @@ export function pruefeArbzg(
   if (schichten.length === 0) return [];
   const personId = pruefePersonenSchluessel(schichten);
   const ausnahme = optionen.zehnStundenAusnahme ?? false;
+  const arbeitstag = optionen.arbeitstag ?? ARBEITSTAG_BEIDE_LESARTEN;
 
   const befunde: ArbzgBefund[] = [];
   const sortiert = [...schichten].sort((a, b) => a.vonUtc.getTime() - b.vonUtc.getTime());
@@ -247,8 +313,24 @@ export function pruefeArbzg(
     }
   }
 
-  // --- §5 rest period: 11 h between the end of one shift and the next start --
+  // --- §5 rest period: 11 h after the end of the DAILY working time ----------
   /**
+   * **Gemessen wird zwischen zwei Arbeitstagen, nicht zwischen jedem Paar
+   * Blöcke** (V-190). Vorher meldete die Prüfung jede Lücke unter elf
+   * Stunden als Verstoss — auch die zwischen Früh- und Abendreinigung
+   * desselben Tages, die nach § 5 Abs. 1 keine Ruhezeit ist. Jeder geteilte
+   * Dienst trug damit einen falschen Rechtsverstoss: beim Einteilen eine
+   * Warnung, die quittiert werden musste, nachts eine Konfliktkarte. Ob zwei
+   * Blöcke zu einem Arbeitstag gehören, entscheidet `arbeitstag` — bis O-926
+   * der vorsichtige Platzhalter, der nur verschweigt, was nach KEINER Lesart
+   * ein Verstoss ist.
+   *
+   * `arbeitstagBeginn` ist der Beginn des ersten Blocks nach der letzten
+   * Ruhezeit von elf Stunden; nach 24 Stunden beginnt der nächste. Er sieht
+   * nur die übergebenen Blöcke — `pruefeEinsatz` liest 24 Stunden davor und
+   * danach, und eine Kette kurzer Pausen, die länger ist, trägt ihre Befunde
+   * schon an den früheren Lücken.
+   *
    * Gefuehrt wird das bisher SPAETESTE Schichtende, nicht das Ende der nach
    * BEGINN vorangehenden Schicht.
    *
@@ -263,13 +345,21 @@ export function pruefeArbzg(
    * laufende Schicht der ersten hinein.
    */
   let spaetestesEnde: Schicht | undefined;
+  let arbeitstagBeginn: Date | undefined;
   for (const naechste of sortiert) {
-    if (spaetestesEnde !== undefined
+    /** Die Ruhezeit vor diesem Block — `null`, wenn es keine Lücke gibt. */
+    let ruheDavor: number | null = null;
+    if (spaetestesEnde !== undefined && arbeitstagBeginn !== undefined
         && naechste.vonUtc.getTime() >= spaetestesEnde.bisUtc.getTime()) {
       // ABGERUNDET: 10:59:40 ist keine elfte Stunde, und Wegrunden hiesse, eine
       // Unterschreitung zu verschweigen.
       const ruhe = dauerMinutenAbgerundet(spaetestesEnde.bisUtc, naechste.vonUtc);
-      if (ruhe < RUHEZEIT_MINUTEN) {
+      ruheDavor = ruhe;
+      if (ruhe < RUHEZEIT_MINUTEN && !arbeitstag.gleicherArbeitstag({
+        vorherBeginn: spaetestesEnde.vonUtc,
+        naechsterBeginn: naechste.vonUtc,
+        arbeitstagBeginn,
+      })) {
         const ueber = spaetestesEnde.mandantId !== naechste.mandantId;
         befunde.push({
           regel: 'ruhezeit_unter_11h',
@@ -282,9 +372,22 @@ export function pruefeArbzg(
           begruendung:
             `${ruhe} min Ruhezeit zwischen Schichtende und nächstem Beginn; ` +
             `§5 ArbZG verlangt ${RUHEZEIT_MINUTEN} min` +
-            (ueber ? ' — die Schichten liegen in zwei Gesellschaften' : ''),
+            (ueber ? ' — die Schichten liegen in zwei Gesellschaften' : '') +
+            ` — Arbeitstag: ${arbeitstag.name}` +
+            (arbeitstag.offeneFrage === null ? '' : ` (${arbeitstag.offeneFrage})`),
         });
       }
+    }
+    /*
+     * Den Arbeitstag fortschreiben — ERST nach der Prüfung, denn gemessen wird
+     * gegen den Arbeitstag, in dem der vorige Block lag. Ein neuer beginnt mit
+     * dem ersten Block, nach einer Ruhezeit von elf Stunden (die tägliche
+     * Arbeitszeit war beendet) und 24 Stunden nach dem Beginn des laufenden.
+     */
+    if (arbeitstagBeginn === undefined
+        || (ruheDavor !== null && ruheDavor >= RUHEZEIT_MINUTEN)
+        || naechste.vonUtc.getTime() - arbeitstagBeginn.getTime() >= TAG_MS) {
+      arbeitstagBeginn = naechste.vonUtc;
     }
     if (spaetestesEnde === undefined
         || naechste.bisUtc.getTime() > spaetestesEnde.bisUtc.getTime()) {

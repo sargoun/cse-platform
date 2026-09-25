@@ -2159,6 +2159,7 @@ tr with `dir="rtl"` for Arabic (DESIGN §8, EMP-12).
 | `/portal/mein/zeiten` — my time entries, **read-only** | `S` | `PER` | EMP-03, TIM-13, LEG-02 | 5 |
 | `/portal/mein/zeiten/[id]` — server time shown, device deviation shown | `S` | `PER` | TIM-08, TIM-11 | 5 |
 | `/portal/mein/zeiten/[id]/einwand` — raise a `zeit_einwand` | `S` | `PER→M1` | EMP-07 | 5 |
+| `/portal/mein/zeiten/einwand` — hours missing: a `zeit_einwand` of kind `eintrag_fehlt` WITHOUT an entry (V-189) | `S` | `PER→M1` | EMP-07, TIM-11 | 5 |
 | `/portal/mein/stundenkonto` — one tab per employment: target versus actual, overtime, carry-forward, lock state | `S` | `PER` | EMP-04, EMP-15 | 5 |
 | `/portal/mein/monatsnachweis` — the monthly hours statement as PDF, per employment | `S` | `PER` | EMP-06, TIM-13, LEG-02 | 5 |
 | `/portal/mein/urlaub` — balance and used days, per employment | `S` | `PER` | EMP-05, EMP-15 | 5 |

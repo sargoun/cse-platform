@@ -187,6 +187,26 @@ export async function mandantDerAnstellung(
 }
 
 /**
+ * Warum ein Einwand gegen die Uhr der Datenbank nicht passt (V-193) — als
+ * Schlüssel, den das Formular in der Sprache der Kraft nachschlägt.
+ *
+ *  - `tag_in_zukunft`: der Tag liegt nach dem heutigen Berliner Tag.
+ *  - `zeit_in_zukunft`: der behauptete Beginn oder das Ende liegt nach jetzt.
+ *  - `beginn_nicht_am_tag`: bei „Eine Zeit fehlt" beginnt die behauptete Zeit
+ *    nicht an dem gewählten Tag.
+ */
+export type EinwandZeitGrund = 'tag_in_zukunft' | 'zeit_in_zukunft' | 'beginn_nicht_am_tag';
+
+export class EinwandZeitFehler extends Error {
+  readonly code = 'ungueltige_eingabe';
+  readonly status = 422;
+  constructor(readonly grund: EinwandZeitGrund) {
+    super(`Der Einwand passt nicht zur Uhr der Datenbank: ${grund}`);
+    this.name = 'EinwandZeitFehler';
+  }
+}
+
+/**
  * Der Einwand wird eingereicht.
  *
  * Kein Rechteschluessel: EMP-07 fuehrt das Einreichen als Selbstzugriff (`S`)
@@ -194,12 +214,41 @@ export async function mandantDerAnstellung(
  * `t_selbst_einreichen` — sie trifft nur Zeilen, deren Anstellung dem
  * angemeldeten Menschen gehoert, und sie ist die einzige Schreiboperation,
  * die ein Mitarbeitender in dieser Domaene besitzt.
+ *
+ * **Tag und behauptete Zeit gelten gegen die Uhr der Datenbank** (V-193,
+ * Invariante 5). Die Seite „Eine Zeit fehlt" setzte `max={heute}` nur im
+ * Browser; eine nachgebaute Anfrage legte einen Einwand für einen künftigen
+ * Tag an. Ein Einwand behauptet, dass gearbeitet WURDE: ein Tag nach heute
+ * oder eine Zeit nach jetzt ist keine Behauptung über geleistete Arbeit. Und
+ * der Tag eines Einwands ist der Berliner Kalendertag, an dem die Arbeit
+ * begann (0052, K-11 — dieselbe Zuordnung wie beim Eintrag, dessen Tag der
+ * seines Beginns ist). Bei „Eine Zeit fehlt" wählt die Kraft Tag UND Zeit
+ * selbst, also muss der behauptete Beginn an diesem Tag liegen; beim Einwand
+ * zu einem Eintrag nicht — dort kann gerade der Beginn falsch erfasst sein.
  */
 export async function reicheEinwandEin(
   kontext: SchreibKontext, eingabe: EinwandEingabe,
 ): Promise<string> {
   const bezug = eingabe.zeiteintragId ?? null;
   if (bezug === null && eingabe.art !== 'eintrag_fehlt') throw new EinwandOhneBezugFehler();
+
+  const beginn = eingabe.behauptetBeginn ?? null;
+  const ende = eingabe.behauptetEnde ?? null;
+  const [uhr] = await kontext.abfrage<{
+    tag_zukunft: boolean; zeit_zukunft: boolean; beginn_tag: string | null;
+  }>(
+    `select ($1::date > app.berlin_heute())                              as tag_zukunft,
+            (coalesce($2::timestamptz > now(), false)
+             or coalesce($3::timestamptz > now(), false))                 as zeit_zukunft,
+            to_char($2::timestamptz at time zone 'Europe/Berlin', 'YYYY-MM-DD') as beginn_tag`,
+    [eingabe.betrifftDatum, beginn?.toISOString() ?? null, ende?.toISOString() ?? null],
+  );
+  if (uhr?.tag_zukunft === true) throw new EinwandZeitFehler('tag_in_zukunft');
+  if (uhr?.zeit_zukunft === true) throw new EinwandZeitFehler('zeit_in_zukunft');
+  if (eingabe.art === 'eintrag_fehlt' && beginn !== null
+      && uhr?.beginn_tag !== eingabe.betrifftDatum) {
+    throw new EinwandZeitFehler('beginn_nicht_am_tag');
+  }
 
   const [zeile] = await kontext.schreibe<{ id: string }>(
     `insert into zeit_einwand

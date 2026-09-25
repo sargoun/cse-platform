@@ -384,6 +384,12 @@ describe('§ 4: eine unbekannte Pause sagt nichts', () => {
 describe('§ 5: verschachtelte und gleich beginnende Schichten', () => {
   const ruhezeiten = (schichten: readonly Schicht[]): readonly ArbzgBefund[] =>
     pruefeArbzg(schichten).filter((b) => b.regel === 'ruhezeit_unter_11h');
+  /*
+   * Seit V-190 liegt die Folgeschicht in (a) bis (c) am NÄCHSTEN Tag: eine
+   * Lücke innerhalb desselben Arbeitstags ist nach § 5 Abs. 1 keine Ruhezeit
+   * (geteilter Dienst, `Arbeitstagsgrenze`, O-926). Geprüft wird weiter,
+   * wogegen gemessen wird — gegen das SPÄTESTE Ende.
+   */
 
   it('(a) ein eingeschobener Einsatz verkürzt die Ruhezeit nicht auf dem Papier', () => {
     // 04.05.2026 ist CEST (UTC+2).
@@ -401,19 +407,19 @@ describe('§ 5: verschachtelte und gleich beginnende Schichten', () => {
     };
     const folgeschicht: Schicht = {
       id: 'folgeschicht', personId: PERSON, mandantId: REINIGUNG,
-      vonUtc: utc('2026-05-04T20:00:00Z'),   // 22:00 Berlin
-      bisUtc: utc('2026-05-04T21:00:00Z'),   // 23:00 Berlin
+      vonUtc: utc('2026-05-05T04:00:00Z'),   // 05.05. 06:00 Berlin
+      bisUtc: utc('2026-05-05T05:00:00Z'),   // 05.05. 07:00 Berlin
       pauseMinuten: null,
     };
 
     const befunde = ruhezeiten([tagschicht, eingeschoben, folgeschicht]);
     expect(befunde).toHaveLength(1);
-    // 20:00 → 22:00 Berlin sind ZWEI Stunden. Gegen den eingeschobenen Einsatz
-    // gemessen wären es zwölf gewesen, und § 5 hätte geschwiegen.
-    expect(befunde[0]?.minuten).toBe(120);
+    // 20:00 → 06:00 Berlin sind ZEHN Stunden. Gegen den eingeschobenen Einsatz
+    // gemessen wären es zwanzig gewesen, und § 5 hätte geschwiegen.
+    expect(befunde[0]?.minuten).toBe(600);
     expect(befunde[0]?.beteiligteSchichten).toEqual(['tagschicht', 'folgeschicht']);
     expect(befunde[0]?.ueberMandanten).toBe(false);
-    expect(befunde[0]?.kalendertag).toBe('2026-05-04');
+    expect(befunde[0]?.kalendertag).toBe('2026-05-05');
   });
 
   it('(b) bei gleicher Beginnzeit zählt die Schicht, die SPÄTER endet', () => {
@@ -431,17 +437,16 @@ describe('§ 5: verschachtelte und gleich beginnende Schichten', () => {
     };
     const abends: Schicht = {
       id: 'abends', personId: PERSON, mandantId: SECURITY,
-      vonUtc: utc('2026-05-04T16:00:00Z'),   // 18:00 Berlin
-      bisUtc: utc('2026-05-04T17:00:00Z'),   // 19:00 Berlin
+      vonUtc: utc('2026-05-04T22:30:00Z'),   // 05.05. 00:30 Berlin
+      bisUtc: utc('2026-05-04T23:30:00Z'),   // 05.05. 01:30 Berlin
       pauseMinuten: null,
     };
 
     const befunde = ruhezeiten([bis14, bis10, abends]);
     expect(befunde).toHaveLength(1);
-    // 14:00 → 18:00 sind 240 Minuten. Gegen die 10:00-Schicht wären es 480 —
-    // immer noch ein Befund, aber mit der doppelten Ruhezeit und der falschen
-    // Gesellschaft.
-    expect(befunde[0]?.minuten).toBe(240);
+    // 14:00 → 00:30 sind 630 Minuten. Gegen die 10:00-Schicht wären es 870 —
+    // über elf Stunden, also gar kein Befund.
+    expect(befunde[0]?.minuten).toBe(630);
     expect(befunde[0]?.beteiligteSchichten).toEqual(['bis-14', 'abends']);
     expect(befunde[0]?.ueberMandanten).toBe(true);
 
@@ -450,7 +455,7 @@ describe('§ 5: verschachtelte und gleich beginnende Schichten', () => {
     // der Zufall, in welcher Reihenfolge die Fenster aus der Datenbank kamen.
     const andersHerum = ruhezeiten([abends, bis10, bis14]);
     expect(andersHerum).toHaveLength(1);
-    expect(andersHerum[0]?.minuten).toBe(240);
+    expect(andersHerum[0]?.minuten).toBe(630);
     expect(andersHerum[0]?.beteiligteSchichten).toEqual(['bis-14', 'abends']);
     expect(andersHerum[0]?.ueberMandanten).toBe(true);
   });
@@ -470,17 +475,18 @@ describe('§ 5: verschachtelte und gleich beginnende Schichten', () => {
     };
     const spaetEigen: Schicht = {
       id: 'spaet-eigen', personId: PERSON, mandantId: REINIGUNG,
-      vonUtc: utc('2026-05-04T18:30:00Z'),   // 20:30 Berlin
-      bisUtc: utc('2026-05-04T20:00:00Z'),   // 22:00 Berlin
+      vonUtc: utc('2026-05-05T04:30:00Z'),   // 05.05. 06:30 Berlin
+      bisUtc: utc('2026-05-05T06:00:00Z'),   // 05.05. 08:00 Berlin
       pauseMinuten: null,
     };
 
     const befunde = ruhezeiten([langFremd, kurzEigen, spaetEigen]);
     expect(befunde).toHaveLength(1);
-    // 20:00 → 20:30 Berlin: eine halbe Stunde. Gegen die eigene 19:30-Schicht
-    // gemessen wäre es eine ganze — und vor allem: der Befund wäre als rein
-    // hauseigen geschrieben worden, obwohl die fremde Gesellschaft ihn trägt.
-    expect(befunde[0]?.minuten).toBe(30);
+    // 20:00 → 06:30 Berlin: 630 Minuten. Gegen die eigene 19:30-Schicht
+    // gemessen wären es genau elf Stunden — kein Befund —, und vor allem: der
+    // Befund wäre als rein hauseigen geschrieben worden, obwohl die fremde
+    // Gesellschaft ihn trägt.
+    expect(befunde[0]?.minuten).toBe(630);
     expect(befunde[0]?.beteiligteSchichten).toEqual(['lang-fremd', 'spaet-eigen']);
     expect(befunde[0]?.ueberMandanten).toBe(true);
     expect(befunde[0]?.begruendung).toContain('zwei Gesellschaften');

@@ -44,6 +44,14 @@ export interface AbwesenheitAufnahmeTexte {
   readonly keineAnstellung: string;
   readonly keinSchreibrecht: string;
   readonly ueberlappt: string;
+  /**
+   * Die übrigen Abweisungen, die auf die Aufnahmeseite zurückführen (V-188):
+   * vorher endeten „Bescheinigung vor dem ersten Tag" und ein `23514` der
+   * Datenbank als 500, ein verkehrter Zeitraum als JSON.
+   */
+  readonly abgewiesen: Readonly<Record<
+    'au_bis_vor_von' | 'zeitraum_verkehrt' | 'zeitraum_zu_lang' | 'kein_datum'
+    | 'ungueltige_eingabe', string>>;
 }
 
 export const ABWESENHEIT_AUFNAHME_TEXTE:
@@ -116,6 +124,19 @@ Readonly<Record<InternSprache, AbwesenheitAufnahmeTexte>> = {
       'Für diese Anstellung ist in diesem Zeitraum bereits eine Abwesenheit '
       + 'erfasst. Zwei Abwesenheiten über denselben Tag schliessen einander '
       + 'aus — prüfen Sie die vorhandene, statt eine zweite daneben zu stellen.',
+    abgewiesen: {
+      au_bis_vor_von:
+        '„Bescheinigung gültig bis" liegt vor dem ersten Tag der Abwesenheit. '
+        + 'Nichts wurde gespeichert — bitte prüfen Sie das Datum.',
+      zeitraum_verkehrt:
+        '„Bis" liegt vor „Von". Nichts wurde gespeichert — bitte prüfen Sie die beiden Tage.',
+      zeitraum_zu_lang:
+        'Der Zeitraum ist länger als ein Jahr. Nichts wurde gespeichert — bitte '
+        + 'prüfen Sie die Jahreszahl.',
+      kein_datum: 'Ein Datum ließ sich nicht lesen. Nichts wurde gespeichert.',
+      ungueltige_eingabe:
+        'Die Angaben passen nicht zusammen. Nichts wurde gespeichert — bitte prüfen Sie sie.',
+    },
   },
 
   en: {
@@ -185,5 +206,16 @@ Readonly<Record<InternSprache, AbwesenheitAufnahmeTexte>> = {
       'An absence is already on file for this Anstellung in this period. Two '
       + 'absences over the same day exclude each other — check the existing one '
       + 'rather than placing a second beside it.',
+    abgewiesen: {
+      au_bis_vor_von:
+        '"Certificate valid until" is before the first day of the absence. '
+        + 'Nothing was saved — please check the date.',
+      zeitraum_verkehrt: '"To" is before "From". Nothing was saved — please check both days.',
+      zeitraum_zu_lang:
+        'The period is longer than a year. Nothing was saved — please check the year.',
+      kein_datum: 'A date could not be read. Nothing was saved.',
+      ungueltige_eingabe:
+        'The details do not fit together. Nothing was saved — please check them.',
+    },
   },
 };

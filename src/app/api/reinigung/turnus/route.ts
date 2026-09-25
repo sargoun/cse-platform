@@ -12,6 +12,8 @@ import {
   legeAusnahmeAn, type AusnahmeArt, AUSNAHME_ARTEN,
 } from '@/server/services/reinigung/turnus';
 import { alsAntwort } from '../../sicherheit/antwort';
+import { LeistungsankerFehler } from '@/server/services/dienstplan/leistungsanker';
+import { MASKE_WERT_HOECHSTENS } from '@/lib/formular/maske';
 
 /**
  * `POST /api/reinigung/turnus` — einen Turnus anlegen oder eine Ausnahme
@@ -171,6 +173,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           gueltigAb,
           gueltigBis: text(daten, 'gueltig_bis'),
           feiertagsregel: text(daten, 'feiertage') === 'unveraendert' ? 'unveraendert' : 'ausfall',
+          // Der Abrechnungsanker (V-191, TIM-12) — freiwillig, geprueft im Dienst.
+          auftragLeistungId: text(daten, 'auftrag_leistung'),
         });
         /*
          * Was der Generator uebersprungen hat, steht im Ziel — nicht
@@ -185,6 +189,26 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           + `${ergebnis.bestandSchon ? '&bestand=1' : ''}${uebersprungen}`;
       })) as Promise<string>);
   } catch (fehler) {
+    /*
+     * **Ein abgewiesener Anker reist als SCHLÜSSEL** (V-192), nicht als
+     * deutscher Satz: die Seite schlägt ihn in der Sprache der Sitzung nach.
+     * Zurück geht es in die Vorschau, mit allen Eingaben — der Knopf, der
+     * anlegt, steht dort wieder unter der Terminliste. Die übrigen Fehler
+     * dieses Wegs reisen weiter als Satz (D-599-Altlast, D-686 Nr. 7).
+     */
+    if (fehler instanceof LeistungsankerFehler && art === 'turnus') {
+      const suche = new URLSearchParams({ vorschau: '1' });
+      for (const name of ['revier', 'leistung', 'bezeichnung', 'frequenz', 'interval', 'beginn',
+        'dauer', 'gueltig_ab', 'gueltig_bis', 'feiertage', 'auftrag_leistung']) {
+        const wert = text(daten, name);
+        if (wert !== null) suche.set(name, wert.slice(0, MASKE_WERT_HOECHSTENS));
+      }
+      for (const w of daten.getAll('wochentag')) suche.append('wochentag', String(w));
+      for (const m of daten.getAll('monatstag')) suche.append('monatstag', String(m));
+      suche.set('fehler', fehler.grund);
+      return NextResponse.redirect(
+        internesZiel(`${liste}/neu?${suche.toString()}`, liste, anfrage), 303);
+    }
     const antwort = alsAntwort(fehler);
     if (antwort !== null) {
       /*

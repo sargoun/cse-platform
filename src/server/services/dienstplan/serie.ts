@@ -1,8 +1,9 @@
 import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { WOCHENTAGE, leseRegel, type Wochentag } from '../../../lib/datum/rrule.js';
-import { generiereEinsaetze, type SerienBericht } from './generator.js';
+import { generiereSofort, type SerienBericht } from './generator.js';
 import { MAX_DAUER_MINUTEN } from './vorkommnisse.js';
+import { pruefeLeistungsanker } from './leistungsanker.js';
 
 /**
  * Serien anlegen — der Weg, auf dem eine Administration Schichten in den
@@ -66,6 +67,13 @@ export interface TurnusSerieEingabe {
   readonly gueltigAb: string;
   readonly gueltigBis?: string | null;
   readonly feiertagsregel: Feiertagsregel;
+  /**
+   * Die Leistungszeile, an deren Abrechnung die Zeit dieses Turnus hängt
+   * (TIM-12, V-191). Der Generator schreibt sie auf jede Schicht, der
+   * Zeiteintrag erbt sie von dort (`z_erben`). Ohne sie landet jede Stunde in
+   * `zeiteintrag_ohne_auftrag`.
+   */
+  readonly auftragLeistungId?: string | null;
 }
 
 export interface PlanungsserieEingabe {
@@ -198,15 +206,21 @@ export async function legeTurnusSerieAn(
   kontext: SchreibKontext, e: TurnusSerieEingabe,
 ): Promise<SerienErgebnis> {
   const { rrule, gueltigBis } = pruefeTurnusEingabe(e);
+  const anker = e.auftragLeistungId ?? null;
+  // Vor dem Schreiben, mit Satz — nicht als Fremdschluesselfehler (V-191).
+  if (anker !== null) await pruefeLeistungsanker(kontext, anker);
   const [turnus] = await kontext.schreibe<{ id: string }>(
     `insert into turnus
        (mandant_id, revier_id, leistungskatalog_position_id, bezeichnung, rrule, dtstart_lokal,
-        dauer_minuten, feiertagsregel, gueltig_ab, gueltig_bis, erstellt_von_art, erstellt_von)
+        dauer_minuten, feiertagsregel, gueltig_ab, gueltig_bis, auftrag_leistung_id,
+        erstellt_von_art, erstellt_von)
      values ($1::uuid, $2::uuid, $3::uuid, $4, $5, ($6 || ' ' || $7)::timestamp,
-             $8::integer, $9::turnus_feiertagsregel, $6::date, $10::date, 'mensch', $11::uuid)
+             $8::integer, $9::turnus_feiertagsregel, $6::date, $10::date, $12::uuid,
+             'mensch', $11::uuid)
      returning id`,
     [kontext.aktiverMandantId, e.revierId, e.leistungskatalogPositionId, e.bezeichnung.trim(), rrule,
-      e.gueltigAb, e.beginnLokal, e.dauerMinuten, e.feiertagsregel, gueltigBis, kontext.benutzerId]);
+      e.gueltigAb, e.beginnLokal, e.dauerMinuten, e.feiertagsregel, gueltigBis, kontext.benutzerId,
+      anker]);
   if (turnus === undefined) {
     throw new SerieEingabeFehlt(
       'Der Turnus wurde nicht angelegt — das Revier oder die Leistung gehört nicht zu dieser Gesellschaft.');
@@ -257,10 +271,9 @@ export async function legePlanungsserieAn(
     planungsserieId = neu.id;
   }
 
-  const [heute] = await kontext.abfrage<{ tag: string }>(`select app.berlin_heute()::text as tag`);
-  const berichte: readonly SerienBericht[] = await generiereEinsaetze(
+  const berichte: readonly SerienBericht[] = await generiereSofort(
     { unsafe: (sql, werte) => kontext.schreibe<unknown>(sql, werte) },
-    kontext.aktiverMandantId, { heute: heute?.tag ?? '2026-01-01', laufId: null }, { eigen: true });
+    kontext.aktiverMandantId);
   const bericht = berichte.find((b) => b.planungsserieId === planungsserieId);
 
   await kontext.schreibe(
@@ -328,6 +341,8 @@ export interface SerienBlatt {
   readonly letzteMeldung: Record<string, unknown>;
   readonly archiviert: boolean;
   readonly einsaetze: number;
+  /** Der Abrechnungsanker des Trägers (TIM-12, V-191) — `null` ohne Leistungszeile. */
+  readonly auftragLeistungId: string | null;
 }
 
 interface RohBlatt {
@@ -357,6 +372,7 @@ interface RohBlatt {
   letzte_meldung: Record<string, unknown> | null;
   archiviert: boolean;
   einsaetze: number;
+  auftrag_leistung_id: string | null;
 }
 
 /**
@@ -397,7 +413,9 @@ export async function leseSerie(
                     'DD.MM.YYYY HH24:MI')                          as letzte_generierung_lokal,
             ps.letzte_meldung,
             (ps.archiviert_am is not null)                         as archiviert,
-            coalesce(e.anzahl, 0)::int                             as einsaetze
+            coalesce(e.anzahl, 0)::int                             as einsaetze,
+            coalesce(t.auftrag_leistung_id, p.auftrag_leistung_id,
+                     va.auftrag_leistung_id)::text                 as auftrag_leistung_id
        from planungsserie ps
        left join turnus t  on t.mandant_id = ps.mandant_id and t.id = ps.turnus_id
        left join posten p  on p.mandant_id = ps.mandant_id and p.id = ps.posten_id
@@ -443,6 +461,7 @@ export async function leseSerie(
     letzteMeldung: z.letzte_meldung ?? {},
     archiviert: z.archiviert,
     einsaetze: Number(z.einsaetze),
+    auftragLeistungId: z.auftrag_leistung_id,
   };
 }
 
@@ -790,10 +809,9 @@ export async function legeAusnahmeAn(
       + 'oder die Serie gehört nicht zu dieser Gesellschaft.');
   }
 
-  const [heute] = await kontext.abfrage<{ tag: string }>(`select app.berlin_heute()::text as tag`);
-  const berichte: readonly SerienBericht[] = await generiereEinsaetze(
+  const berichte: readonly SerienBericht[] = await generiereSofort(
     { unsafe: (sql, werte) => kontext.schreibe<unknown>(sql, werte) },
-    kontext.aktiverMandantId, { heute: heute?.tag ?? e.datum, laufId: null }, { eigen: true });
+    kontext.aktiverMandantId);
 
   await kontext.schreibe(
     `select app.protokolliere('dienstplan.ausnahme_angelegt', $1, $2, null, $3::jsonb,

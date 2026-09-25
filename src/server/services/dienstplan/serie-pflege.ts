@@ -1,8 +1,9 @@
 import 'server-only';
 import type { SchreibKontext } from '../../kontext/index.js';
-import { generiereEinsaetze, type SerienBericht } from './generator.js';
+import { generiereSofort, type SerienBericht } from './generator.js';
 import { MAX_DAUER_MINUTEN } from './vorkommnisse.js';
 import { turnusRegel, type Feiertagsregel, type TurnusFrequenz } from './serie.js';
+import { LeistungsankerFehler, pruefeLeistungsanker } from './leistungsanker.js';
 
 /**
  * **Eine Planungsserie ändern, beenden und archivieren** (V-021, TIM-02,
@@ -65,7 +66,8 @@ export class SeriePflegeFehler extends Error {
   constructor(
     nachricht: string,
     readonly grund: 'nicht_gefunden' | 'kein_turnus' | 'unvollstaendig' | 'zeitraum'
-      | 'schon_archiviert' | 'grund_fehlt' | 'abgewiesen',
+      | 'schon_archiviert' | 'grund_fehlt' | 'abgewiesen'
+      | 'leistung_unbekannt' | 'leistung_beendet' | 'leistung_anderer_auftrag',
     readonly status = 400,
   ) {
     super(nachricht);
@@ -97,13 +99,18 @@ interface SerienKopf {
   readonly posten_id: string | null;
   readonly veranstaltung_id: string | null;
   readonly archiviert: boolean;
+  /** Der bisherige Anker des Turnus — `null` ohne Turnus oder ohne Anker. */
+  readonly auftrag_leistung_id: string | null;
 }
 
 async function leseKopf(kontext: SchreibKontext, serieId: string): Promise<SerienKopf> {
   const [k] = await kontext.abfrage<SerienKopf>(
     `select id, quelle::text as quelle, turnus_id::text as turnus_id,
             posten_id::text as posten_id, veranstaltung_id::text as veranstaltung_id,
-            (archiviert_am is not null) as archiviert
+            (archiviert_am is not null) as archiviert,
+            (select t.auftrag_leistung_id::text from turnus t
+              where t.mandant_id = planungsserie.mandant_id
+                and t.id = planungsserie.turnus_id) as auftrag_leistung_id
        from planungsserie where id = $1::uuid`, [serieId]);
   if (k === undefined) {
     /* AUT-06: eine fremde Zeile ist nicht vorhanden, nicht verboten. */
@@ -120,13 +127,9 @@ async function leseKopf(kontext: SchreibKontext, serieId: string): Promise<Serie
  * Nachtlaufs.
  */
 async function generiereJetzt(kontext: SchreibKontext): Promise<readonly SerienBericht[]> {
-  const [heute] = await kontext.abfrage<{ tag: string }>(
-    `select app.berlin_heute()::text as tag`);
-  return generiereEinsaetze(
+  return generiereSofort(
     { unsafe: (sql, werte) => kontext.schreibe<unknown>(sql, werte) },
-    kontext.aktiverMandantId,
-    { heute: heute?.tag ?? '2026-01-01', laufId: null },
-    { eigen: true });
+    kontext.aktiverMandantId);
 }
 
 /**
@@ -233,6 +236,13 @@ export interface TurnusAenderung {
   readonly dauerMinuten?: number;
   readonly feiertagsregel?: Feiertagsregel;
   readonly gueltigBis?: string | null;
+  /**
+   * Die Leistungszeile (TIM-12, V-191). `undefined` lässt sie, wie sie ist —
+   * eine Maske ohne `auftrag.lesen` schickt das Feld gar nicht und darf den
+   * Anker nicht still löschen; `null` löst ihn. Der Generator schreibt den
+   * neuen Anker gleich danach auf die künftigen Schichten ohne erfasste Zeit.
+   */
+  readonly auftragLeistungId?: string | null;
 }
 
 export async function aendereTurnus(
@@ -285,6 +295,23 @@ export async function aendereTurnus(
   if (bis !== null && !DATUM.test(bis)) {
     throw new SeriePflegeFehler('„Gültig bis" ist ein Datum.', 'unvollstaendig');
   }
+  /*
+   * Der Anker wird nur geprüft, wenn er sich ÄNDERT: ein bisheriger Anker,
+   * dessen Zeile inzwischen beendet ist, soll das Speichern einer Uhrzeit
+   * nicht verhindern.
+   */
+  const ankerGenannt = e.auftragLeistungId !== undefined;
+  const anker = e.auftragLeistungId ?? null;
+  if (ankerGenannt && anker !== null && anker !== kopf.auftrag_leistung_id) {
+    try {
+      await pruefeLeistungsanker(kontext, anker);
+    } catch (fehler: unknown) {
+      if (fehler instanceof LeistungsankerFehler) {
+        throw new SeriePflegeFehler(fehler.message, fehler.grund, 422);
+      }
+      throw fehler;
+    }
+  }
 
   /*
    * **Jeder Parameter traegt seinen Typ ausgeschrieben.** In
@@ -303,13 +330,14 @@ export async function aendereTurnus(
             dauer_minuten  = coalesce($5::integer, dauer_minuten),
             feiertagsregel = coalesce($6::turnus_feiertagsregel, feiertagsregel),
             gueltig_bis    = case when $8 then $7::date else gueltig_bis end,
+            auftrag_leistung_id = case when $10 then $11::uuid else auftrag_leistung_id end,
             geaendert_am = now(), geaendert_von_art = 'mensch'::akteur_art,
             geaendert_von = $9::uuid
       where id = $1::uuid and archiviert_am is null
       returning id`,
     [kopf.turnus_id, e.bezeichnung?.trim() === '' ? null : e.bezeichnung ?? null,
       rrule, e.beginnLokal ?? null, e.dauerMinuten ?? null, e.feiertagsregel ?? null,
-      bis, e.gueltigBis !== undefined, kontext.benutzerId]);
+      bis, e.gueltigBis !== undefined, kontext.benutzerId, ankerGenannt, anker]);
   if (zeilen.length === 0) {
     throw new SeriePflegeFehler(
       'Der Turnus wurde nicht geändert — ist er archiviert, oder fehlt '
@@ -323,7 +351,10 @@ export async function aendereTurnus(
 
   const bericht = (await generiereJetzt(kontext)).find((b) => b.planungsserieId === serieId);
   await protokolliere(kontext, serieId, AUDIT_GEAENDERT,
-    { turnusId: kopf.turnus_id, rrule, gueltigBis: bis, abgesagt });
+    {
+      turnusId: kopf.turnus_id, rrule, gueltigBis: bis, abgesagt,
+      ...(ankerGenannt ? { auftragLeistungId: anker } : {}),
+    });
   return {
     erzeugt: bericht?.erzeugt ?? 0, aktualisiert: bericht?.aktualisiert ?? 0,
     storniert: bericht?.storniert ?? 0, abgesagt,

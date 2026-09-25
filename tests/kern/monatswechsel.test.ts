@@ -93,8 +93,14 @@ describe('(3) die Entscheidung über einen Einwand hat Wörter (V-051)', () => {
   });
 
   it('die Seite zeigt Zustand, Zeitpunkt UND Begründung — nicht nur den Zustand', () => {
-    const quelle = readFileSync(
+    const seite = readFileSync(
       'src/app/portal/mein/zeiten/[id]/einwand/page.tsx', 'utf8');
+    /*
+     * Die Liste steht seit V-189 als `EinwandListe` in den Bausteinen, weil
+     * auch „Eine Zeit fehlt" sie zeigt — die Seite muss sie benutzen.
+     */
+    expect(seite).toContain('<EinwandListe');
+    const quelle = readFileSync('src/app/portal/mein/bausteine.tsx', 'utf8');
     /*
      * Vorher stand dort `{e.status}` — der rohe Enum-Wert — und sonst nichts.
      * Diese drei Zeilen halten fest, dass alle drei Teile der Entscheidung
