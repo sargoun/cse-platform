@@ -150,7 +150,10 @@ describe('Einteilung: jeder Fachfehler hat einen Grund und einen Satz (V-158)', 
     expect(seite).toContain("frage['fehler']");
     // Nur ein EIGENER Schlüssel der Tabelle (V-159) — `?fehler=__proto__` fände sonst
     // `Object.prototype`, und die Seite endete in einem 500.
-    expect(seite).toContain('eigenerEintrag(t.fehler, abgewiesen) ?? t.fehlerSonst');
+    // Seit V-191 steht die Tabelle der Leistungszeile dazwischen — der Rückfall
+    // bleibt der allgemeine Satz, nie der rohe Schlüssel.
+    expect(seite).toMatch(
+      /eigenerEintrag\(t\.fehler, abgewiesen\)\s*\?\? eigenerEintrag\(tL\.fehler, abgewiesen\) \?\? t\.fehlerSonst/u);
     // Der Absagegrund der EINTEILUNG — dieselbe Mindestlänge wie der Dienst.
     const absage = /action=\{`\/api\/einsaetze\/\$\{kopf\.id\}\/absagen`\}[\s\S]*?<\/form>/u
       .exec(seite)?.[0] ?? '';

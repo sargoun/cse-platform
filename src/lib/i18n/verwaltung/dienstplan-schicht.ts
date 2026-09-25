@@ -82,8 +82,9 @@ export const SCHICHT_TEXTE: Readonly<Record<InternSprache, SchichtTexte>> = {
     auftrag: 'Auftrag',
     ohneAuftrag: 'ohne Auftrag',
     auftragErklaerung:
-      'Ohne Auftrag entsteht die Schicht trotzdem — abgerechnet wird sie dann über '
-      + 'eine Sonderleistung oder gar nicht. Mit Auftrag hängt sie an dessen Abrechnung.',
+      'Der Auftrag allein bringt keine Stunde in eine Abrechnung — an der Abrechnung hängt '
+      + 'die Schicht über ihre Leistungszeile (darunter). Ohne sie entsteht die Schicht '
+      + 'trotzdem; ihre Zeit steht dann unter „Zeit ohne Auftrag".',
 
     datum: 'Tag',
     beginn: 'Beginn',
@@ -196,9 +197,9 @@ export const SCHICHT_TEXTE: Readonly<Record<InternSprache, SchichtTexte>> = {
     auftrag: 'Auftrag (order)',
     ohneAuftrag: 'no Auftrag',
     auftragErklaerung:
-      'Without an Auftrag the shift is still created — it is then billed through a '
-      + 'Sonderleistung (one-off service) or not at all. With one, it hangs off that '
-      + 'order’s billing.',
+      'The Auftrag (order) alone brings no hour into any billing — the shift is billed '
+      + 'through its Leistungszeile (below). Without one the shift is still created; its '
+      + 'time is then listed under "time without an order".',
 
     datum: 'Day',
     beginn: 'Start',

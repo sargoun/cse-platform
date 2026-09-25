@@ -14,6 +14,10 @@ import { lesbareRegel } from '@/lib/datum/regeltext';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '@/app/portal/rechte';
+import { LeistungsankerFeld } from '@/components/portal/LeistungsankerFeld';
+import {
+  listeAnkerbareLeistungen, type AnkerbareLeistung,
+} from '@/server/services/dienstplan/leistungsanker';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { rechteImKontext } from '@/server/auth/kontext-rechte';
 import { ladeFeiertage } from '@/server/services/dienstplan/generator';
@@ -128,6 +132,8 @@ export default async function TurnusNeu(
   const gueltigAb = einer(suche['gueltig_ab']) ?? heute;
   const gueltigBis = einer(suche['gueltig_bis']);
   const feiertage = einer(suche['feiertage']) === 'unveraendert' ? 'unveraendert' : 'ausfall';
+  /** Der Abrechnungsanker (V-191, TIM-12) — reist durch die Vorschau mit. */
+  const ankerRoh = einer(suche['auftrag_leistung']);
 
   /* ---- die Regel: gebaut vom Dienst, gegengelesen vom Parser ------------ */
   let rrule: string | null = null;
@@ -152,7 +158,7 @@ export default async function TurnusNeu(
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
       const rechte = await rechteImKontext(
-        kontext, 'objekt.lesen', 'katalog.lesen', 'dienstplan.schreiben',
+        kontext, 'objekt.lesen', 'katalog.lesen', 'dienstplan.schreiben', 'auftrag.lesen',
       );
       /*
        * `left join objekt` und nicht `join`: `objekt` liegt hinter
@@ -183,13 +189,20 @@ export default async function TurnusNeu(
         { unsafe: (sql, werte) => kontext.abfrage<unknown>(sql, werte) },
         'BE', fenster.vonDatum, fenster.bisDatum,
       )).namen;
-      return { rechte, reviere, leistungen, feiertagsKarte: karte };
+      /* Die Leistungszeilen des Auftrags — nur mit `auftrag.lesen` (V-191). */
+      const anker = rechte['auftrag.lesen'] === true
+        ? await listeAnkerbareLeistungen(kontext) : null;
+      return { rechte, reviere, leistungen, feiertagsKarte: karte, anker };
     })) as Promise<{
       rechte: Readonly<Record<string, boolean>>;
       reviere: readonly RevierWahl[];
       leistungen: readonly LeistungWahl[];
       feiertagsKarte: ReadonlyMap<string, string>;
+      anker: readonly AnkerbareLeistung[] | null;
     }>);
+  /* Vorbelegt wird nur, was die Auswahl anbietet (D-733 Nr. 4). */
+  const gewaehlterAnker = ankerRoh !== null && daten.anker !== null
+    && daten.anker.some((l) => l.id === ankerRoh && l.lebt) ? ankerRoh : null;
 
   /* ---- die Vorschau, mit echten Feiertagen ----------------------------- */
   let termine: readonly VorschauTermin[] = [];
@@ -463,6 +476,11 @@ export default async function TurnusNeu(
           </label>
         </div>
 
+        <div className="mt-s4 max-w-[60ch]">
+          <LeistungsankerFeld leistungen={daten.anker} gewaehlt={gewaehlterAnker}
+                              sprache={zugang.sprache} feldKlasse={feld} />
+        </div>
+
         <div>
           <Button type="submit" variante="secondary" data-cse="turnus-vorschau">
             Vorschau der nächsten {VORSCHAU_TAGE} Tage
@@ -624,6 +642,7 @@ export default async function TurnusNeu(
                 <input type="hidden" name="gueltig_ab" value={gueltigAb} />
                 <input type="hidden" name="gueltig_bis" value={gueltigBis ?? ''} />
                 <input type="hidden" name="feiertage" value={feiertage} />
+                <input type="hidden" name="auftrag_leistung" value={gewaehlterAnker ?? ''} />
                 <p className="m-0 mb-s4 max-w-prose text-sm text-text-muted">
                   Angelegt wird genau die Regel
                   {' „'}{rrule === null ? '' : lesbareRegel(rrule)}{'“ '}

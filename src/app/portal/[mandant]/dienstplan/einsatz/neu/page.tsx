@@ -13,6 +13,11 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { LeistungsankerFeld } from '@/components/portal/LeistungsankerFeld';
+import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
+import {
+  listeAnkerbareLeistungen, type AnkerbareLeistung,
+} from '@/server/services/dienstplan/leistungsanker';
 
 /**
  * `/portal/[mandant]/dienstplan/einsatz/neu` — eine einzelne Schicht
@@ -30,6 +35,12 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * Formular, das die Wahl anbietet und danach abweist, ist eine Falle; die
  * Seite nennt die kundenlosen Objekte trotzdem — abgeblendet, mit dem Grund
  * daneben, statt sie zu verschweigen.
+ *
+ * **Die Leistungszeile ist der Abrechnungsanker** (V-191, TIM-12). Der
+ * Zeiteintrag erbt sie von der Schicht — und nur sie; der Auftrag allein
+ * bringt keine Stunde in eine Abrechnung. Das Feld steht nur für den, der
+ * Aufträge lesen darf; ohne das Recht sagt die Seite es, statt eine leere
+ * Liste zu zeigen.
  */
 export const dynamic = 'force-dynamic';
 
@@ -61,7 +72,7 @@ export default async function NeueSchicht(
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
   const t = nachSprache(SCHICHT_TEXTE, zugang.sprache);
-  const darf = await haeltRechte(zugang.sitzung, RECHT);
+  const darf = await haeltRechte(zugang.sitzung, RECHT, 'auftrag.lesen');
   const suche = await searchParams;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const tagRoh = typeof suche['tag'] === 'string' ? suche['tag'] : null;
@@ -85,10 +96,12 @@ export default async function NeueSchicht(
           `select id, auftragsnummer as nummer, bezeichnung
              from auftrag where status in ('aktiv','pausiert')
             order by auftragsnummer desc limit 200`),
+        leistungen: darf['auftrag.lesen'] === true ? await listeAnkerbareLeistungen(kontext) : null,
       };
     })) as Promise<{
       heute: string; objekte: readonly ObjektZeile[];
       reviere: readonly RevierZeile[]; auftraege: readonly AuftragZeile[];
+      leistungen: readonly AnkerbareLeistung[] | null;
     }>);
 
   const plan = `/portal/${mandant}/dienstplan/tag`;
@@ -122,7 +135,9 @@ export default async function NeueSchicht(
 
       {fehler !== null ? (
         <Hinweis art="warnung" cse="schicht-fehler" className="mb-s5 max-w-prose">
-          {eigenerEintrag(t.fehler, fehler) ?? fehler}
+          {eigenerEintrag(t.fehler, fehler)
+            ?? eigenerEintrag(nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache).fehler, fehler)
+            ?? t.fehlerSonst}
         </Hinweis>
       ) : null}
 
@@ -226,6 +241,9 @@ export default async function NeueSchicht(
               </select>
               <span className="text-xs text-text-muted">{t.auftragErklaerung}</span>
             </label>
+
+            <LeistungsankerFeld leistungen={daten.leistungen} gewaehlt={null}
+                                sprache={zugang.sprache} feldKlasse={FELD} />
 
             <label className="flex flex-col gap-s2 text-sm text-text">
               {t.notiz} <span className="text-text-muted">{t.freiwillig}</span>

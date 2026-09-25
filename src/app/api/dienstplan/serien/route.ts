@@ -74,6 +74,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           beginnLokal: beginn, dauerMinuten: Number.isFinite(dauer) ? Math.trunc(dauer) : 0,
           gueltigAb, gueltigBis: text(daten, 'gueltig_bis'),
           feiertagsregel: daten.get('feiertage') === 'unveraendert' ? 'unveraendert' : 'ausfall',
+          // Der Abrechnungsanker (V-191, TIM-12) — freiwillig, geprueft im Dienst.
+          auftragLeistungId: text(daten, 'auftrag_leistung'),
         });
       })) as Promise<SerienErgebnis | NextResponse>);
     if (aus instanceof NextResponse) return aus;

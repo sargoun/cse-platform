@@ -9,6 +9,10 @@ import { WOCHENTAGE } from '@/lib/datum/rrule';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { LeistungsankerFeld } from '@/components/portal/LeistungsankerFeld';
+import {
+  listeAnkerbareLeistungen, type AnkerbareLeistung,
+} from '@/server/services/dienstplan/leistungsanker';
 
 /**
  * `/portal/[mandant]/dienstplan/serien/neu` — eine Serie anlegen, und die
@@ -44,7 +48,7 @@ export default async function SerieNeu({ params }: { params: Promise<{ mandant: 
      oeffnen zu duerfen, bekam hinter „Sicherheit → Posten → Neu" ein 404.
      Ein Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf
      PR 16 / D-581). */
-  const darf = await haeltRechte(zugang.sitzung, 'security.lesen');
+  const darf = await haeltRechte(zugang.sitzung, 'security.lesen', 'auftrag.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -63,8 +67,13 @@ export default async function SerieNeu({ params }: { params: Promise<{ mandant: 
            from posten p join objekt o on o.id = p.objekt_id and o.mandant_id = p.mandant_id
           where p.archiviert_am is null and p.abdeckung_rrule is not null
           order by o.bezeichnung, p.bezeichnung`);
-      return { heute: heute?.tag ?? '2026-01-01', reviere, leistungen, posten };
-    })) as Promise<{ heute: string; reviere: readonly Revier[]; leistungen: readonly Leistung[]; posten: readonly Posten[] }>);
+      /* Der Abrechnungsanker des Turnus — nur mit `auftrag.lesen` (V-191, TIM-12). */
+      const anker = darf['auftrag.lesen'] === true ? await listeAnkerbareLeistungen(kontext) : null;
+      return { heute: heute?.tag ?? '2026-01-01', reviere, leistungen, posten, anker };
+    })) as Promise<{
+      heute: string; reviere: readonly Revier[]; leistungen: readonly Leistung[];
+      posten: readonly Posten[]; anker: readonly AnkerbareLeistung[] | null;
+    }>);
 
   const feld = 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 text-sm text-text';
   const knopf = 'inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2';
@@ -156,6 +165,8 @@ export default async function SerieNeu({ params }: { params: Promise<{ mandant: 
               <option value="unveraendert">findet statt</option>
             </select>
           </label>
+          <LeistungsankerFeld leistungen={daten.anker} gewaehlt={null}
+                              sprache={zugang.sprache} feldKlasse={feld} />
           <div>
             <Button type="submit" variante="primary" data-cse="serie-anlegen">Serie anlegen und Schichten erzeugen</Button>
           </div>

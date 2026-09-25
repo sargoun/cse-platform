@@ -236,6 +236,15 @@ export async function ladeFeiertage(
  *
  * `zeitanomalie` kommt vom ANFANG. Nur der ist der Anker, den die Serie nennt;
  * ein Ende in der Luecke ist eine Folge, kein eigener Befund.
+ *
+ * **Der Abrechnungsanker geht mit** (V-191, TIM-12). Bekommt ein Turnus oder
+ * Posten eine Leistungszeile — oder eine andere —, schreibt der Lauf sie auf
+ * die KUENFTIGEN Schichten ohne erfasste Zeit, dieselben, deren Uhrzeit er
+ * umschreiben darf. Vorher blieb eine einmal erzeugte Schicht fuer immer
+ * ohne Anker, und jede Stunde auf ihr landete in `zeiteintrag_ohne_auftrag`.
+ * `auftrag_id` folgt der Zeile: bei einer neuen Zeile wird er geleert, und
+ * `kern.einsatz_auftrag_ableiten` setzt ihn aus ihr; bei derselben Zeile
+ * bleibt er, und der Ausloeser kehrt ohne Abfrage zurueck.
  */
 function upsertText(): string {
   return `
@@ -271,7 +280,14 @@ function upsertText(): string {
         soll_besetzung    = excluded.soll_besetzung,
         min_besetzung     = excluded.min_besetzung,
         feiertag_id       = excluded.feiertag_id,
-        generator_lauf_id = excluded.generator_lauf_id
+        generator_lauf_id = excluded.generator_lauf_id,
+        auftrag_id        = case
+                              when einsatz.auftrag_leistung_id
+                                   is not distinct from excluded.auftrag_leistung_id
+                              then einsatz.auftrag_id
+                              else excluded.auftrag_id
+                            end,
+        auftrag_leistung_id = excluded.auftrag_leistung_id
       where einsatz.beginn_zeitpunkt > now()
         and not app.einsatz_hat_zeiterfassung(einsatz.id)
     returning id, quell_schluessel, (xmax = 0) as neu`;

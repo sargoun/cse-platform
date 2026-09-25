@@ -21,6 +21,8 @@
  * durchgeht, solange eine Postenschicht unter ihrer Mindeststaerke liegt.
  */
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
+import { pruefeLeistungsanker } from '../dienstplan/leistungsanker.js';
+import { generiereEinsaetze } from '../dienstplan/generator.js';
 
 /** Eine Postenschicht unter ihrer Mindestbesetzung — die Zeile der Sicht. */
 export interface Unterbesetzung {
@@ -265,6 +267,12 @@ export interface PostenEingabe {
   readonly dauerMinuten?: number | null;
   readonly gueltigAb: string;
   readonly gueltigBis?: string | null;
+  /**
+   * Die Leistungszeile, an deren Abrechnung die Zeit dieses Postens hängt
+   * (TIM-12, V-191). Der Generator schreibt sie auf jede Schicht, der
+   * Zeiteintrag erbt sie von dort (`z_erben`).
+   */
+  readonly auftragLeistungId?: string | null;
 }
 
 /**
@@ -301,14 +309,18 @@ export async function legePostenAn(
     );
   }
 
+  const anker = eingabe.auftragLeistungId ?? null;
+  // Vor dem Schreiben, mit Satz — nicht als Fremdschluesselfehler (V-191).
+  if (anker !== null) await pruefeLeistungsanker(kontext, anker);
+
   const [zeile] = await kontext.schreibe<{ id: string }>(
     `insert into posten
        (mandant_id, objekt_id, postenart_id, bezeichnung, kurzzeichen,
         min_besetzung, soll_besetzung, abdeckung_rrule, dtstart_lokal, dauer_minuten,
-        gueltig_ab, gueltig_bis, erstellt_von_art, erstellt_von)
+        gueltig_ab, gueltig_bis, auftrag_leistung_id, erstellt_von_art, erstellt_von)
      values ($1::uuid, $2::uuid, $3::uuid, $4, $5,
              $6::smallint, $7::smallint, $8, $9::timestamp, $10::integer,
-             $11::date, $12::date, 'mensch', $13::uuid)
+             $11::date, $12::date, $14::uuid, 'mensch', $13::uuid)
      returning id`,
     [
       kontext.aktiverMandantId, eingabe.objektId, eingabe.postenartId ?? null,
@@ -319,7 +331,7 @@ export async function legePostenAn(
       dtstart === '' ? null : dtstart,
       eingabe.dauerMinuten ?? null,
       eingabe.gueltigAb, eingabe.gueltigBis ?? null,
-      kontext.benutzerId,
+      kontext.benutzerId, anker,
     ],
   );
   if (zeile === undefined) {
@@ -331,4 +343,49 @@ export async function legePostenAn(
     );
   }
   return zeile.id;
+}
+
+/**
+ * Die Leistungszeile eines Postens setzen, ändern oder lösen (V-191, TIM-12).
+ *
+ * Der Posten hatte keinen Weg dafür: `posten.auftrag_leistung_id` stand seit
+ * 0069 samt Fremdschlüssel da, und nur der Seed schrieb ihn. Danach läuft der
+ * Generator sofort — er schreibt den Anker auf die KÜNFTIGEN Schichten ohne
+ * erfasste Zeit (derselbe Weg wie die Turnuspflege, `aendereTurnus`). Was
+ * schon Zeit trägt, behält seinen Anker: der Zeiteintrag hat ihn beim Anlegen
+ * übernommen (`z_erben`), und die Vergangenheit wird nicht umgeschrieben.
+ *
+ * Geprüft wird der neue Anker nur, wenn er sich ändert.
+ */
+export async function setzePostenLeistung(
+  kontext: SchreibKontext, postenId: string, auftragLeistungId: string | null,
+): Promise<void> {
+  const [bisher] = await kontext.abfrage<{ anker: string | null }>(
+    `select auftrag_leistung_id::text as anker from posten
+      where id = $1::uuid and archiviert_am is null`, [postenId]);
+  if (bisher === undefined) {
+    throw new PostenEingabeFehlt('Diesen Posten gibt es in dieser Gesellschaft nicht.');
+  }
+  if (auftragLeistungId !== null && auftragLeistungId !== bisher.anker) {
+    await pruefeLeistungsanker(kontext, auftragLeistungId);
+  }
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update posten
+        set auftrag_leistung_id = $2::uuid,
+            geaendert_am = now(), geaendert_von_art = 'mensch'::akteur_art,
+            geaendert_von = $3::uuid
+      where id = $1::uuid and archiviert_am is null
+      returning id`, [postenId, auftragLeistungId, kontext.benutzerId]);
+  if (zeilen.length === 0) {
+    throw new PostenEingabeFehlt(
+      'Der Posten wurde nicht geändert — die Sitzung darf hier nicht schreiben.');
+  }
+  const [heute] = await kontext.abfrage<{ tag: string }>(
+    `select app.berlin_heute()::text as tag`);
+  await generiereEinsaetze(
+    { unsafe: (sql, werte) => kontext.schreibe<unknown>(sql, werte) },
+    kontext.aktiverMandantId,
+    { heute: heute?.tag ?? '2026-01-01', laufId: null },
+    { eigen: true },
+  );
 }

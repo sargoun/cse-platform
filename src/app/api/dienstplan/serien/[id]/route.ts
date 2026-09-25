@@ -138,6 +138,13 @@ export async function POST(
                   feiertagsregel: text(daten, 'feiertage') === 'ausfall'
                     ? 'ausfall' as const : 'unveraendert' as const,
                 }),
+              /*
+               * Der Anker (V-191): nur, wenn das Feld GESCHICKT wurde. Eine
+               * Maske ohne `auftrag.lesen` zeigt es nicht — und ein fehlendes
+               * Feld darf den Anker nicht still loeschen. Leer heisst: loesen.
+               */
+              ...(daten.has('auftrag_leistung')
+                ? { auftragLeistungId: text(daten, 'auftrag_leistung') } : {}),
             });
           }
           case 'beenden':

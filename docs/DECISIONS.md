@@ -18307,3 +18307,66 @@ Konfliktkarte (`erkenneKonflikte`). Der Test schrieb es fest (06–14 und
 
 | Betrifft | TIM-05, TIM-06, TIM-14, D-09, K-06, O-18, O-50, O-926, V-190, `src/server/services/zeit/arbzg.ts`, `src/server/services/arbzg/pruefung.ts` (Kommentar), `tests/kern/arbzg.test.ts`, `tests/kern/arbzg-teildienst.test.ts` |
 |---|---|
+
+### D-685 · Die Leistungszeile lässt sich an Einzelschicht, Turnus und Posten setzen — und der Generator trägt sie auf die künftigen Schichten (V-191)
+
+**Der Befund** (V-191; Befund 34 der Prüfung, TIM-12/FIN-07): ein
+Zeiteintrag hängt über `auftrag_leistung_id` am Auftrag und erbt die
+Spalte beim Anlegen AUSSCHLIESSLICH von seiner Schicht (`z_erben`, 0034);
+die Schicht bekommt sie vom Träger (Turnus, Posten, Veranstaltung) oder beim
+Anlegen. Weder `legeTurnusSerieAn` noch die Turnuspflege noch
+`legePostenAn` noch die Einzelschicht schrieben eine, und keine Seite konnte
+sie nachträglich setzen — nur der Seed tat es. Jede Stunde aus einer über
+die Oberfläche geplanten Schicht landete dauerhaft in
+`zeiteintrag_ohne_auftrag`; die Stundenabrechnung fand sie nie. Die Maske
+der Einzelschicht versprach das Gegenteil („Mit Auftrag hängt sie an dessen
+Abrechnung") und schrieb nur `einsatz.auftrag_id`, das in der Zeitkette
+niemand liest.
+
+**Die Entscheidung.**
+
+1. **Ein Feld, ein Dienst, eine Prüfung.** `listeAnkerbareLeistungen`
+   bietet die lebenden Leistungszeilen nicht stornierter Aufträge an
+   (`gueltig_bis` einschliesslich, heute nach `app.berlin_heute()`), den
+   bisherigen Anker immer mit; `pruefeLeistungsanker` prüft vor dem
+   Schreiben — `leistung_unbekannt`, `leistung_beendet`,
+   `leistung_anderer_auftrag` — mit Satz statt Fremdschlüsselfehler. Den
+   Auftrag leitet weiter die Datenbank aus der Zeile ab
+   (`kern.einsatz_auftrag_ableiten`), die Zusammengehörigkeit prüft weiter
+   `einsatz_leistung_fk`. Welche Zeile gilt, entscheidet ein Mensch; nichts
+   wird vorgeschlagen.
+2. **Einzelschicht:** beim Anlegen (`auftragLeistungId`), und nachträglich
+   auf dem Schichtblatt (`setzeLeistungsanker`, `aktion=leistung`) —
+   solange keine Zeit erfasst ist (danach tragen die Einträge den Anker, den
+   die Schicht damals hatte) und nur für `quelle = 'manuell'` (eine
+   Serienschicht trägt den Anker ihres Trägers, den der Generator bei jedem
+   Lauf schreibt). Trug die Schicht schon eine Zeile, folgt der Auftrag der
+   neuen; nannte sie nur einen Auftrag, muss die Zeile zu ihm gehören.
+3. **Turnus:** beim Anlegen (beide Masken) und in der Turnuspflege
+   (`aendereTurnus`: `undefined` lässt den Anker, `null` löst ihn); geprüft
+   nur, wenn er sich ändert. **Posten:** beim Anlegen und auf dem Postenblatt
+   (`setzePostenLeistung`, danach läuft der Generator).
+4. **Der Generator trägt den Anker auf die künftigen Schichten** — im
+   Aktualisierungszweig seines Upserts, also nur auf Schichten, die noch
+   nicht begonnen haben und keine erfasste Zeit tragen. Bei derselben Zeile
+   bleibt `auftrag_id`, bei einer neuen folgt er ihr. Die Vergangenheit
+   wird nicht umgeschrieben.
+5. **Ohne `auftrag.lesen` gibt es kein Feld, sondern einen Satz**
+   (`LeistungsankerFeld`, ein Baustein für alle sieben Stellen). Ein
+   Auswahlfeld, dessen Liste die RLS leert, schickte „ohne" und löschte in
+   einer Pflegemaske einen Anker, den jemand anderes gesetzt hat. Die
+   Turnuspflege ändert den Anker deshalb nur, wenn das Feld GESCHICKT wurde.
+6. **Die Zusage der Einzelschichtmaske ist berichtigt:** der Auftrag allein
+   bringt keine Stunde in eine Abrechnung, die Leistungszeile tut es.
+7. **Nicht Teil:** (a) Zeit, die schon ohne Anker erfasst ist, bleibt in
+   `zeiteintrag_ohne_auftrag` — sie hat den Anker beim Anlegen geerbt, und
+   ihre Korrektur ist ein eigener Vorgang. (b) Der Anker des REVIERS
+   (`revier.auftrag_leistung_id`) — der Generator liest den des Turnus.
+   (c) `kern.einsatz_auftrag_ableiten` liest die Leistungszeile unter der
+   RLS des Aufrufers: wer ohne `auftrag.lesen` einen verankerten Turnus
+   ändert, dessen Lauf scheitert beim Ableiten für NEUE Schichten. Das galt
+   schon für die geseedeten Anker; es als `SECURITY DEFINER` zu führen ist
+   ein eigener Schritt.
+
+| Betrifft | TIM-12, FIN-07, CLN-02, SEC-01, D-150, V-013, V-191, `src/server/services/dienstplan/{leistungsanker,einzelschicht,serie,serie-pflege,generator}.ts`, `src/server/services/security/posten.ts`, `src/app/api/{dienstplan/einsatz,dienstplan/serien,dienstplan/serien/[id],reinigung/turnus,sicherheit/posten}/route.ts`, `src/components/portal/LeistungsankerFeld.tsx`, `src/lib/i18n/verwaltung/{leistungsanker,dienstplan-schicht}.ts`, sieben Masken unter `dienstplan/`, `reinigung/turnus/` und `security/posten/`, `tests/isolation/leistungsanker.test.ts`, `tests/kern/leistungsanker.test.ts` |
+|---|---|

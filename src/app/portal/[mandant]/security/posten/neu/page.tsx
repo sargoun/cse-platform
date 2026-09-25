@@ -2,6 +2,10 @@ import type postgres from 'postgres';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
+import { LeistungsankerFeld } from '@/components/portal/LeistungsankerFeld';
+import {
+  listeAnkerbareLeistungen, type AnkerbareLeistung,
+} from '@/server/services/dienstplan/leistungsanker';
 import { berlinHeute } from '@/server/db/heute';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
@@ -45,19 +49,26 @@ export default async function PostenNeu(
   if (sitzung.aktiverMandantId === null) notFound();
 
   const heute = await berlinHeute();
-  const { objekte, arten } = await (db().begin(
+  const { objekte, arten, anker } = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-      withTenant(tx, sitzung, async (kontext) => ({
-        objekte: await kontext.abfrage<Objektzeile>(
-          `select id, bezeichnung from objekt
-            where archiviert_am is null order by bezeichnung`,
-        ),
-        arten: await kontext.abfrage<Artzeile>(
-          `select id, bezeichnung from postenart
-            where archiviert_am is null order by sortierung, bezeichnung`,
-        ),
-      }))) as Promise<{
+      withTenant(tx, sitzung, async (kontext) => {
+        /* Der Abrechnungsanker (V-191, TIM-12) — nur mit `auftrag.lesen`. */
+        const [lesen] = await kontext.abfrage<{ darf: boolean }>(
+          `select app.hat_recht('auftrag.lesen', app.aktiver_mandant()) as darf`);
+        return {
+          objekte: await kontext.abfrage<Objektzeile>(
+            `select id, bezeichnung from objekt
+              where archiviert_am is null order by bezeichnung`,
+          ),
+          arten: await kontext.abfrage<Artzeile>(
+            `select id, bezeichnung from postenart
+              where archiviert_am is null order by sortierung, bezeichnung`,
+          ),
+          anker: lesen?.darf === true ? await listeAnkerbareLeistungen(kontext) : null,
+        };
+      })) as Promise<{
         objekte: readonly Objektzeile[]; arten: readonly Artzeile[];
+        anker: readonly AnkerbareLeistung[] | null;
       }>);
 
   const feld = 'mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted';
@@ -176,6 +187,11 @@ export default async function PostenNeu(
               <span className={feld}>Gültig bis (einschliesslich)</span>
               <input name="gueltig_bis" type="date" className={eingabe} />
             </label>
+          </div>
+
+          <div className="mb-s5">
+            <LeistungsankerFeld leistungen={anker} gewaehlt={null}
+                                sprache={zugang.sprache} feldKlasse={eingabe} />
           </div>
 
           <Button type="submit" variante="primary">Posten anlegen</Button>

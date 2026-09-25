@@ -13,6 +13,15 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { Button } from '@/components/ui/Button';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { LeistungsankerFeld } from '@/components/portal/LeistungsankerFeld';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import {
+  listeAnkerbareLeistungen, type AnkerbareLeistung,
+} from '@/server/services/dienstplan/leistungsanker';
 import {
   assertBesetzungVeroeffentlichbar, PostenUnterbesetzt,
 } from '@/server/services/security/posten';
@@ -51,6 +60,8 @@ interface PostenKopf {
   readonly dauer_minuten: number | null;
   readonly gueltig_ab: string;
   readonly gueltig_bis: string | null;
+  /** Der Abrechnungsanker (TIM-12, V-191) — `null` ohne Leistungszeile. */
+  readonly auftrag_leistung_id: string | null;
 }
 
 interface Anforderung {
@@ -73,9 +84,13 @@ interface Schicht {
 }
 
 export default async function PostenBlatt(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
+  const suche = await searchParams;
   kennungOder404(id);
   const pfad = `/portal/${mandant}/security/posten/${id}`;
   const zugang = await portalZugang(pfad);
@@ -86,7 +101,7 @@ export default async function PostenBlatt(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
-  const darf = await haeltRechte(sitzung, 'dienstplan.lesen');
+  const darf = await haeltRechte(sitzung, 'dienstplan.lesen', 'security.schreiben', 'auftrag.lesen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const heute = await berlinHeute();
@@ -100,7 +115,8 @@ export default async function PostenBlatt(
                   pa.bezeichnung as art, pa.ist_platzhalter as art_platzhalter,
                   p.min_besetzung, p.soll_besetzung, p.abdeckung_rrule, p.dauer_minuten,
                   to_char(p.gueltig_ab, 'DD.MM.YYYY') as gueltig_ab,
-                  to_char(p.gueltig_bis, 'DD.MM.YYYY') as gueltig_bis
+                  to_char(p.gueltig_bis, 'DD.MM.YYYY') as gueltig_bis,
+                  p.auftrag_leistung_id::text as auftrag_leistung_id
              from posten p
              join objekt o on o.id = p.objekt_id and o.mandant_id = p.mandant_id
              left join postenart pa on pa.id = p.postenart_id and pa.mandant_id = p.mandant_id
@@ -161,18 +177,25 @@ export default async function PostenBlatt(
           luecken = fehler.luecken.length;
         }
 
-        return { kopf, anforderungen, schichten, veroeffentlichbar, luecken };
+        /* Die Leistungszeilen fuer den Anker (V-191) — nur mit `auftrag.lesen`. */
+        const anker = darf['auftrag.lesen'] === true
+          ? await listeAnkerbareLeistungen(kontext, kopf.auftrag_leistung_id) : null;
+
+        return { kopf, anforderungen, schichten, veroeffentlichbar, luecken, anker };
       })) as Promise<{
         kopf: PostenKopf;
         anforderungen: readonly Anforderung[];
         schichten: readonly Schicht[];
         veroeffentlichbar: boolean;
         luecken: number;
+        anker: readonly AnkerbareLeistung[] | null;
       } | null>);
 
   // AUT-06: eine fremde Zeile ist nicht vorhanden, nicht verboten.
   if (daten === null) notFound();
-  const { kopf, anforderungen, schichten, veroeffentlichbar, luecken } = daten;
+  const { kopf, anforderungen, schichten, veroeffentlichbar, luecken, anker } = daten;
+  const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
+  const ankerFehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
 
   return (
     <PortalRahmen
@@ -331,6 +354,45 @@ export default async function PostenBlatt(
           </ul>
         )}
       </section>
+
+      {/*
+        **Die Leistungszeile des Postens** (V-191, TIM-12). Jede Stunde auf
+        seinen Schichten übernimmt sie beim Erfassen; ohne sie steht sie unter
+        „Zeit ohne Auftrag". Nach dem Speichern schreibt der Generator sie auf
+        die künftigen Schichten ohne erfasste Zeit.
+      */}
+      {darf['security.schreiben'] === true && (
+        <section data-cse="posten-leistung"
+                 className="mt-s6 rounded-lg border border-line bg-surface p-s5">
+          <h2 className="mb-s3 mt-0 text-h3 text-text">{tL.feld}</h2>
+          {ankerFehler !== null && (
+            <Hinweis art="warnung" cse="posten-leistung-fehler" className="mb-s4 max-w-prose">
+              {eigenerEintrag(tL.fehler, ankerFehler) ?? tL.fehler.leistung_unbekannt}
+            </Hinweis>
+          )}
+          {suche['leistung'] === 'gesetzt' && ankerFehler === null && (
+            <Hinweis art="erfolg" cse="posten-leistung-gesetzt" className="mb-s4 max-w-prose">
+              {tL.gesetzt}
+            </Hinweis>
+          )}
+          <form method="post" action="/api/sicherheit/posten"
+                className="flex max-w-[60ch] flex-col gap-s4">
+            <input type="hidden" name="aktion" value="leistung" />
+            <input type="hidden" name="posten" value={kopf.id} />
+            <input type="hidden" name="mandant" value={mandant} />
+            <LeistungsankerFeld leistungen={anker} gewaehlt={kopf.auftrag_leistung_id}
+                                sprache={zugang.sprache}
+                                feldKlasse="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text" />
+            {anker !== null && (
+              <div>
+                <Button type="submit" variante="secondary" data-cse="posten-leistung-knopf">
+                  {tL.speichern}
+                </Button>
+              </div>
+            )}
+          </form>
+        </section>
+      )}
     </PortalRahmen>
   );
 }

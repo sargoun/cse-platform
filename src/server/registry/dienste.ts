@@ -1353,6 +1353,10 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'dienstplan', pfad: 'dienstplan/serie-pflege',
     schreibend: true, schreibRecht: 'dienstplan.schreiben',
   },
+  /* V-191 — die Leistungszeile als Abrechnungsanker: welche lebenden Zeilen
+     sich waehlen lassen und ob eine gewaehlte passt. Liest nur; geschrieben
+     wird der Anker von Einzelschicht, Serie, Serienpflege und Posten. */
+  { modul: 'dienstplan', pfad: 'dienstplan/leistungsanker', schreibend: false },
   /* V-015 — die eine Zahl, ohne die kein Agent laeuft. Eigenes Recht, weil
      sich sonst begrenzt, wer seine Grenze selbst verstellt (AGT-05). */
   {
