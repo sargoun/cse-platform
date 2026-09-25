@@ -18080,3 +18080,41 @@ Ablaufentscheidungen, die neu sind.
 
 | Betrifft | V-240, V-144, V-153, D-599, D-668, D-669, RAD-09, OPS-04, OPS-07, OPS-11, Invariante 2, `src/server/services/finanz/{geld,menge}.ts`, `src/lib/datum/kalendertag.ts`, `src/server/services/kern/aufgabe.ts`, `src/server/services/dokument/vorgang.ts`, `src/components/portal/VorgangAkte.tsx`, `src/server/services/objekt/anlegen.ts`, `src/app/api/{uebergang.ts,objekt/route.ts,auftrag/aendern/route.ts,angebot/entscheidung/route.ts}`, `src/server/services/raumbuch/tabelle.ts`, `src/lib/i18n/verwaltung/{objekte,vorgang-akte,angebot-hand}.ts` |
 |---|---|
+
+### D-735 · Die Statushistorie des Radars liest über einen Definer — `cse_app` bekommt kein Recht auf die Nutzlast des Protokolls (V-241)
+
+**Der Befund** (V-241): `/portal/[mandant]/radar/[id]/status` las die
+Historie mit `select … a.nachher ->> 'status' … from audit_log` als
+`cse_app`. `cse_app` hält auf `audit_log` seit 0005 ein Spaltenrecht OHNE
+`vorher` und `nachher` — mit Absicht, weil die Nutzlast einer Protokollzeile
+Werte tragen kann, die die Tabelle selbst ihrem Leser vorenthält. Jeder
+Vorgang mit einem gesetzten Stand endete in „permission denied for table
+audit_log" und einer Fehlerseite. Solange der Seed keinen Vorgang mit Stand
+anlegte, fiel das nicht auf; seither traf der Verweislauf der Browsersuite
+(`verweise.spec.ts`, leitung und admin in der Reinigung) die Seite als 500.
+
+**Die Entscheidung.**
+
+1. **Kein weiteres Spaltenrecht.** `grant select (nachher) on audit_log to
+   cse_app` hätte die Nutzlast JEDER Protokollzeile geöffnet, nicht nur
+   dieser einen Aktion.
+2. **Ein Definer-Leser für genau diese Frage:** `app.radar_stand_verlauf(uuid)`
+   (0463) gibt je Zeile `radar.stand_gesetzt` nur `audit_id`, `erstellt_am`,
+   `akteur_typ`, `akteur_id`, den Stand und `mit_grund` heraus. Eigentümer
+   `cse_definer` (liest über `d_audit_lesen`, 0204), `set search_path`,
+   `revoke … from public`.
+3. **Dieselben Bedingungen wie die Lesepolicy des Vorgangs** (`t_lesen`,
+   `p_intern_ceiling`): internes Portal, ein aktiver Mandant, `radar.lesen`
+   in ihm — sonst eine Abweisung (42501), keine leere Liste; eine leere
+   Historie hiesse „nie ein Stand gesetzt". Gelesen werden nur Zeilen mit
+   `mandant_id = app.aktiver_mandant()`: eine fremde Gesellschaft bekommt für
+   dieselbe Kennung nichts.
+4. **Der Name bleibt beim Aufrufer.** `leseStandHistorie` verbindet
+   `akteur_id` weiter als `cse_app` mit `benutzer`; ob ein Name sichtbar ist,
+   entscheidet dort die Policy auf `benutzer`, nicht ein Definer.
+5. **Kein Protokolleintrag je Lesen** (wie `app.belagsart_historie_lesen`):
+   die eigene Statushistorie ist keine sensible Nutzlast, und eine Zeile je
+   Seitenaufruf ertränkte das Protokoll, aus dem sie liest.
+
+| Betrifft | V-241, RAD-06, REP-06, K-01, K-04, Invariante 3, `drizzle/0463_radar_stand_verlauf.sql`, `src/app/portal/[mandant]/radar/daten.ts`, `tests/isolation/radar-stand-verlauf.test.ts` |
+|---|---|
