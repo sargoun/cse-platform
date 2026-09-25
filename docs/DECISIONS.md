@@ -19092,3 +19092,49 @@ Satz, der künftig für jede Rolle verschwände, fiele keinem Test auf.
 
 | Betrifft | V-244, V-245, V-254, D-738, D-739, O-195, DESIGN §8, §9, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/app/portal/[mandant]/agenten/budget/page.tsx`, `src/server/agent/budget.ts`, `src/lib/i18n/verwaltung/agent-budget.ts`, `tests/kern/mein-haekchen.test.ts`, `tests/kern/agent-budget-warnschwelle.test.ts`, `tests/e2e/agenten.spec.ts` |
 |---|---|
+
+### D-747 · Ein Muster ist keine Adresse: daraus entsteht kein Rückweg — und die Wache davor sieht alle fünf Eingänge des Tors (V-255)
+
+**Der Befund** (V-255; Prüfung von V-248): V-248 hat zwei Dinge eingeführt
+und keines davon festgehalten. (1) Eine Verhaltensregel: `rueckwegFuer`
+gibt für einen Pfad mit einem `[…]`-Segment `null` zurück
+(`src/server/registry/rueckweg.ts`) — V-241 bis V-245 bekamen je eine
+Entscheidung, diese Regel keine. (2) Eine statische Wache
+(`tests/kern/rueckweg.test.ts` (7)), die nur `portalZugang` und `mandantTor`
+mit einem Literal als erstem Argument erfasste — nicht `meinPortal`,
+`kundePortal` und `gruppenTor`, nicht die rund 160 Aufrufe mit einer
+Variablen (`const pfad = …`) und nicht den Weiterreicher
+`RecruitingSeite({ unterpfad })`. Gäbe dort jemand ein Muster weiter,
+blendete die Regel (1) den Pfeil still aus, und der Verweislauf der
+Browsersuite fände nichts mehr — aber das `zurueck` des Sprachumschalters,
+das Wechselblatt und das `weiter=` nach der Zwei-Faktor-Anmeldung bekämen
+das Muster weiterhin. Heute gibt es keinen solchen Aufruf; die neue Wache
+bestätigt das über alle Eingänge.
+
+**Die Entscheidung.**
+
+1. **Die Regel bleibt, und sie ist die zweite Linie.** Aus einem Pfad mit
+   `[…]`-Segment leitet `rueckwegFuer` keinen Rückweg ab: welcher Datensatz
+   gemeint war, steht in einem Muster nicht, und einen Vorfahren daraus zu
+   raten hiesse, ins Leere zu zeigen — lieber kein Pfeil als einer auf 404
+   (AUT-06, D-613). Sie ersetzt nicht, dem Tor die Adresse zu geben: sie
+   deckt nur den Pfeil.
+2. **Die erste Linie ist die Wache, und sie liest den Syntaxbaum**
+   (`tests/kern/hilfen/tor-adresse.ts`): jeder Aufruf der fünf Eingänge,
+   das erste Argument aufgelöst über Literale, Vorlagen, `?:`, `+` und
+   Deklarationen im Gültigkeitsbereich. Die Weitergabe innerhalb der Tore
+   wird an deren Aufrufern geprüft, ein Weiterreicher (Parameter einer
+   anderen Funktion, auch nur in `${…}` eingesetzt) an jedem Aufruf und
+   jedem JSX-Element. Ein erstes Argument, das sich nicht auflösen lässt,
+   wird als „unprüfbar" gemeldet und nicht übergangen.
+3. **Die Wache wird selbst geprüft** (Gegenprobe im selben Abschnitt): ein
+   Muster über jeden Eingang, über eine Variable und über einen
+   Weiterreicher wird gefunden, ein unauflösbares Argument gemeldet; die
+   Adresse und die Weitergabe im Tor bleiben ohne Befund.
+4. **Keine Laufzeitsperre im Tor.** Ein Muster im Tor ist ein
+   Programmierfehler, den die Wache vor dem Zusammenführen findet; ein Wurf
+   zur Laufzeit machte aus einem falschen Pfeil eine 500 für den Menschen
+   davor.
+
+| Betrifft | V-248, V-255, D-613, AUT-06, `src/server/registry/rueckweg.ts`, `tests/kern/rueckweg.test.ts` (7), `tests/kern/hilfen/tor-adresse.ts` |
+|---|---|
