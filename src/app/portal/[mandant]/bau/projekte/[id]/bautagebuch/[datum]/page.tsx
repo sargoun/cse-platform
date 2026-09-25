@@ -338,7 +338,7 @@ export default async function Bautag(
                           <span className="text-text-subtle">—</span>
                         ) : (
                           <details data-cse="mannstunden-korrigieren" data-zeile={m.id}>
-                            <summary className="cursor-pointer text-brand">Korrigieren</summary>
+                            <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">Korrigieren</summary>
                             <form action="/api/bau/bautagebuch" method="post"
                                   className="mt-s3 flex w-72 flex-col gap-s2">
                               <Bezug />
@@ -632,7 +632,7 @@ export default async function Bautag(
                           <span className="text-text-subtle">—</span>
                         ) : (
                           <details data-cse="position-korrigieren" data-zeile={q.id}>
-                            <summary className="cursor-pointer text-brand">Korrigieren</summary>
+                            <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">Korrigieren</summary>
                             <form action="/api/bau/bautagebuch" method="post"
                                   className="mt-s3 flex w-72 flex-col gap-s2">
                               <Bezug />

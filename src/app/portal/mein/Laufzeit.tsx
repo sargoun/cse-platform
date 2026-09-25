@@ -70,7 +70,7 @@ export function Laufzeit({ beginnIso, serverIso, label }: LaufzeitProps) {
 
   return (
     <p data-cse="laufzeit" className="m-0 flex flex-wrap items-baseline gap-s2">
-      <span className="text-sm text-text-muted">{label}</span>
+      <span className="text-base text-text-muted">{label}</span>
       <span
         className="cse-zahl text-h1 text-text"
         /* Ein Zaehler, der jede Sekunde vorgelesen wird, ist unbenutzbar. */

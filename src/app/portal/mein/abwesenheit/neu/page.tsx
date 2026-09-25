@@ -115,17 +115,17 @@ export default async function NeueAbwesenheit() {
           */}
           <fieldset className="m-0 flex flex-col gap-s3 border-0 p-0">
             <legend className="mb-s1 p-0 text-base text-text">{t.halberTagBeginn}</legend>
-            <label className="flex items-start gap-s3 text-base text-text">
+            <label className="flex items-center gap-s3 text-base text-text">
               <input type="checkbox" name="von_halbtags" value="ja"
-                     className="mt-s1 min-h-6 min-w-6" data-cse="abw-von-halb" />
+                     className="min-h-11 min-w-11 shrink-0" data-cse="abw-von-halb" />
               <span>{t.halberTagBeginn}</span>
             </label>
-            <label className="flex items-start gap-s3 text-base text-text">
+            <label className="flex items-center gap-s3 text-base text-text">
               <input type="checkbox" name="bis_halbtags" value="ja"
-                     className="mt-s1 min-h-6 min-w-6" data-cse="abw-bis-halb" />
+                     className="min-h-11 min-w-11 shrink-0" data-cse="abw-bis-halb" />
               <span>{t.halberTagEnde}</span>
             </label>
-            <p className="m-0 text-sm text-text-muted">{t.halberTagHinweis}</p>
+            <p className="m-0 text-base text-text-muted">{t.halberTagHinweis}</p>
           </fieldset>
 
           {/*
@@ -137,9 +137,9 @@ export default async function NeueAbwesenheit() {
           */}
           <fieldset className="m-0 flex flex-col gap-s3 border-0 p-0">
             <legend className="mb-s1 p-0 text-base text-text">{t.auVorliegt}</legend>
-            <label className="flex items-start gap-s3 text-base text-text">
+            <label className="flex items-center gap-s3 text-base text-text">
               <input type="checkbox" name="au_vorliegt" value="ja"
-                     className="mt-s1 min-h-6 min-w-6" data-cse="abw-au-vorliegt" />
+                     className="min-h-11 min-w-11 shrink-0" data-cse="abw-au-vorliegt" />
               <span>{t.auVorliegt}</span>
             </label>
             <div className="flex flex-col gap-s2">
@@ -147,7 +147,7 @@ export default async function NeueAbwesenheit() {
               <input id="abw-au-bis" name="au_bis" type="date" className={eingabe}
                      data-cse="abw-au-bis" />
             </div>
-            <p className="m-0 text-sm text-text-muted">{t.auHinweis}</p>
+            <p className="m-0 text-base text-text-muted">{t.auHinweis}</p>
           </fieldset>
 
           <div className="flex flex-col gap-s2">

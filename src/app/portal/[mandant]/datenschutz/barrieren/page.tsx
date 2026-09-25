@@ -157,7 +157,7 @@ export default async function Barrieren(
                   ? <span className="text-text-subtle">—</span>
                   : (
                     <details data-cse="barriere-erledigen">
-                      <summary className="cursor-pointer text-sm text-brand">Erledigen</summary>
+                      <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">Erledigen</summary>
                       <form method="post" action="/api/barrierefreiheit/erledigen"
                             className="mt-s3 flex flex-col gap-s2">
                         <input type="hidden" name="id" value={z.id} />

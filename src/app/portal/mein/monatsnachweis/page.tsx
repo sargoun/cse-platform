@@ -251,7 +251,7 @@ export default async function Monatsnachweis({
               <span
                 key={b.anstellungId}
                 aria-current="page"
-                className="inline-flex min-h-11 items-center rounded-md border border-line-strong bg-surface-2 px-s4 text-sm font-semibold text-text"
+                className="inline-flex min-h-11 items-center rounded-md border border-line-strong bg-surface-2 px-s4 text-base font-semibold text-text"
               >
                 {b.mandantName}
               </span>
@@ -259,7 +259,7 @@ export default async function Monatsnachweis({
               <Link
                 key={b.anstellungId}
                 href={`/portal/mein/monatsnachweis?monat=${monatsErster}&anstellung=${b.anstellungId}`}
-                className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+                className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-base text-text hover:bg-surface-2"
               >
                 {b.mandantName}
               </Link>

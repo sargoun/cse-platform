@@ -277,7 +277,7 @@ export default async function MeinBautagebuch(
                     {offen && m.eigene && !m.storniert && gewerke.length > 0 && (
                       <details data-cse="mannstunden-korrigieren" data-zeile={m.id}
                                className="mt-s3">
-                        <summary className="min-h-11 cursor-pointer text-base text-brand">
+                        <summary className="min-h-11 cursor-pointer text-base font-semibold text-text">
                           {t.korrigieren}
                         </summary>
                         <form
@@ -325,7 +325,7 @@ export default async function MeinBautagebuch(
                           </label>
                           <input id={`kt-${m.id}`} name="taetigkeit"
                                  defaultValue={m.taetigkeit ?? ''} className={eingabe} />
-                          <p className="m-0 max-w-prose text-sm text-text-muted">
+                          <p className="m-0 max-w-prose text-base text-text-muted">
                             {t.korrekturHinweis}
                           </p>
                           <button type="submit" className={knopfZwei}>
@@ -539,7 +539,7 @@ export default async function MeinBautagebuch(
                     {t.beschreibung}
                   </label>
                   <input id="tf-text" name="beschreibung" className={eingabe} />
-                  <p className="m-0 text-sm text-text-muted">{t.tagesfotoHinweis}</p>
+                  <p className="m-0 text-base text-text-muted">{t.tagesfotoHinweis}</p>
                   <button type="submit" className={knopf}>{t.tagesfotoHinzufuegen}</button>
                 </form>
               )}

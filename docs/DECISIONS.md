@@ -18172,3 +18172,34 @@ der Browsersuite bleibt, wie sie war.
 
 | Betrifft | V-243, CAL-01, AUT-06, D-581, `src/server/services/kalender/eintraege.ts`, `src/app/portal/[mandant]/buchhaltung/monatszahlen/page.tsx`, `tests/isolation/kalender.test.ts`, `tests/e2e/verweise.spec.ts` |
 |---|---|
+
+### D-738 · Arbeiterportal: 16 px Fliesstext und 44 px Tippziele auch in den neuen Bausteinen — und Rot ist keine Textfarbe (V-244)
+
+**Der Befund** (V-244), gefunden von der Browsersuite:
+
+1. Die seit dem letzten Stand gebauten Teile des Arbeiterportals setzten
+   Fliesstext in `text-sm` (14 px): Stempelkarte (`serverUhrHinweis`,
+   „seit …"), Monats- und Jahreswechsler, Absagefeld, Nachweise („Hochladen
+   geht hier nicht"), Hinweise im Abwesenheitsformular, Bautagebuch,
+   Leistungsnachweis, Wachbuch, Einwand, Monatsnachweis-Knöpfe,
+   `Laufzeit`. DESIGN §8: „Body text never below 16px". Gemessen fiel es auf
+   `/portal/mein`, `/zeiten`, `/stundenkonto`, `/nachweise`.
+2. Die drei Häkchen im Abwesenheitsformular (halber Tag am Beginn/Ende,
+   AU liegt vor) waren 24 × 24 px — DESIGN §8 verlangt 44 × 44.
+3. Achtzehn Aufklapper (`<summary>`) waren `text-brand`: rote Schrift in
+   14 px auf der dunklen Fläche hat einen Kontrast von 4,09 : 1 (WCAG AA
+   verlangt 4,5 : 1), und DESIGN §1 sagt „never red body text". axe meldete
+   es auf dem Angebot (Spalte „Berichtigen").
+
+**Die Entscheidung.**
+
+1. Im Arbeiterportal ist Fliesstext `text-base`, auch in Hinweisen und in
+   den Knöpfen der Wechsler — kein neuer Wert, die Regel aus §8.
+2. Häkchen sind `min-h-11 min-w-11`, die Zeile richtet sich mittig aus.
+3. Ein Aufklapper ist `min-h-11 cursor-pointer font-semibold text-text` —
+   das Muster, das `KontoHandlungen` und die Lieferantenseite schon hatten;
+   im Arbeiterportal in `text-base`. Rot bleibt Knöpfen, der aktiven
+   Navigation und Pfeilen.
+
+| Betrifft | V-244, DESIGN §1, §8, §9, EMP-12, `src/app/portal/mein/**`, 18 `<summary>` unter `src/app/portal/**`, `tests/e2e/mitarbeiter.spec.ts` (6), `tests/e2e/angebot-portal.spec.ts` (4) |
+|---|---|

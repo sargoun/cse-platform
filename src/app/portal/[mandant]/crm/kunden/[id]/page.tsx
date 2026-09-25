@@ -372,7 +372,7 @@ export default async function KundeDetail(
           */}
         {darfSchreiben && (
           <details className="mt-s5" data-cse="kontakt-anlegen" open={abgewiesen}>
-            <summary className="cursor-pointer text-sm text-brand">
+            <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">
               Ansprechpartner hinzufügen
             </summary>
             <form method="post" action="/api/crm/kunde" data-cse="kontakt-formular"

@@ -235,7 +235,7 @@ export default async function Anfragen(
                   ? <span className="text-text-subtle">—</span>
                   : (
                     <details data-cse="anfrage-entscheiden">
-                      <summary className="cursor-pointer text-sm text-brand">
+                      <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">
                         Entscheiden
                       </summary>
                       <form method="post" action="/api/datenschutz/bearbeiten"

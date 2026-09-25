@@ -360,6 +360,8 @@ stehen hier, weil ein Befund ohne Nummer ein Befund ist, den niemand wiederfinde
 
 | V-243 | **Drei gezeigte Verweise führten ins Nichts** — der Kalender gab Schichten `/dienstplan` (keine Wurzelseite) und Vergabefristen `/radar/vorgaenge/<id>` (nie gebaut); die Monatszahlen verwiesen unbedingt auf `/portal/gruppe/finanzen`, auch ohne `gruppe.finanzen.lesen` und Gruppenzugang | Gefunden vom Verweislauf der Browsersuite (`verweise.spec.ts` leitung und admin · reinigung: 404), im Code gegengeprüft (`kalender/eintraege.ts`, `gruppe/kalender.ts` hatte die richtigen Ziele) | falsch | **erledigt** (D-737) — Schicht → `/dienstplan/einsatz/<id>`, Frist → `/radar/<ausschreibung_id>`; der Gruppensatz nur mit Recht und `app.darf_gruppenansicht()`. Prüfungen: `tests/isolation/kalender.test.ts` (7) (jeder Weg eine gebaute Seite), `tests/e2e/verweise.spec.ts` |
 
+| V-244 | **Die neuen Bausteine des Arbeiterportals unterschritten DESIGN §8, und achtzehn Aufklapper waren rote Schrift** — Fliesstext in 14 px an zwanzig Stellen (Stempelkarte, Monats- und Jahreswechsler, Absage, Nachweise, Abwesenheit, Bautagebuch, Leistungsnachweis, Wachbuch, Einwand, Monatsnachweis, `Laufzeit`), drei Häkchen mit 24 px; `<summary className="… text-brand">` mit 4,09 : 1 Kontrast | Gefunden von der Browsersuite (`mitarbeiter.spec.ts` (6) fünf Seiten, `angebot-portal.spec.ts` (4) axe `color-contrast`), jede Stelle im Code gegengeprüft | behindert | **erledigt** (D-738) — `text-base` im Arbeiterportal, Häkchen `min-h-11 min-w-11`, Aufklapper `min-h-11 … font-semibold text-text`. Prüfungen: `tests/e2e/mitarbeiter.spec.ts` (6), `tests/e2e/angebot-portal.spec.ts` (4) |
+
 ---
 
 ## 9. Was geprüft und **widerlegt** wurde

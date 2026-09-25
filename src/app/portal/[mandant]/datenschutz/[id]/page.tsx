@@ -389,7 +389,7 @@ export default async function Vorgangsakte(
            && extra.stand.length > 0
            && extra.stand.every((s) => s.widerspruchAm === null) && (
             <details className="mt-s4" data-cse="art21-setzen">
-              <summary className="cursor-pointer text-sm text-brand">
+              <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">
                 Widerspruch nach Art. 21 festhalten
               </summary>
               <form method="post" action="/api/datenschutz/widerspruch"

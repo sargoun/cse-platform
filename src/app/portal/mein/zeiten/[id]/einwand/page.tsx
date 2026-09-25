@@ -232,7 +232,7 @@ export default async function EinwandFormular(
                     </div>
                   ) : (
                     <p data-cse="einwand-wartet"
-                       className="m-0 mt-s4 border-t border-line pt-s4 text-sm text-text-muted">
+                       className="m-0 mt-s4 border-t border-line pt-s4 text-base text-text-muted">
                       {t.einwandWartet}
                     </p>
                   )}
