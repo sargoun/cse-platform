@@ -373,6 +373,22 @@ describe('§3 die Zuordnung zum Auftrag (V-205)', () => {
     expect((await kopf(id)).auftrag_id).toBe(auftragId);
   });
 
+  it('ein UNVERÄNDERTER Auftrag wird nicht neu geprüft — der übrige Kopf bleibt pflegbar', async () => {
+    /*
+     * Der Auftrag wurde beim Setzen geprüft. Wird er danach storniert (oder
+     * darf der Pflegende ihn nicht lesen), darf das den Zeitraum oder das
+     * Zahlungsziel nicht sperren — sonst wäre die Sackgasse aus V-204 zurück.
+     */
+    const auftrag = await legeAuftragAn(kundeId);
+    const id = await entwurf({ auftrag });
+    await alsApp(sitzung(), async (tx) => tx.unsafe(
+      `update auftrag set status = 'storniert', status_grund = 'Kunde hat gekündigt'
+        where id = $1`, [auftrag]));
+    await imDienst(async (d) => aendereEntwurfKopf(d, id, await kopfMit(id, { zahlungszielTage: 10 })));
+    const k = await kopf(id);
+    expect([k.auftrag_id, k.zahlungsziel_tage]).toEqual([auftrag, 10]);
+  });
+
   it('der Auftrag eines anderen Kunden wird auch im Kopf abgewiesen', async () => {
     const id = await entwurf();
     const fremd = await legeAuftragAn(fremderKundeId);

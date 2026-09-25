@@ -29,6 +29,7 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
 import { tagInSprache } from '@/lib/datum/kalendertag';
 import { formatiereGeldIn } from '@/server/services/finanz/geld';
 import { formatiereMengeIn } from '@/server/services/finanz/menge';
+import { prozentText } from '@/server/services/finanz/prozent';
 import { ZAHLUNGSMITTEL } from '@/server/services/finanz/zahlungsmittel';
 import { ENTWURF_RECHNUNGSARTEN, istVorauszahlung } from '@/server/services/finanz/rechnung';
 import {
@@ -687,6 +688,18 @@ export default async function Rechnungsblatt(
                   defaultValue={kopfWert('auftragId', k.auftrag_id)}
                 >
                   <option value="">{e.ohneAuftrag}</option>
+                  {/*
+                    * Der heutige Auftrag steht IMMER zur Wahl — auch wenn er
+                    * inzwischen storniert ist und die Liste ihn nicht mehr
+                    * anbietet. Sonst wählte der Browser still „ohne Auftrag",
+                    * und wer nur den Zeitraum nachträgt, nähme die Zuordnung
+                    * mit weg.
+                    */}
+                  {k.auftrag_id !== null && !ent.auftraege.some((a) => a.id === k.auftrag_id) && (
+                    <option value={k.auftrag_id}>
+                      {k.auftragsnummer ?? e.nichtGesetzt} · {k.auftrag_bezeichnung ?? ''}
+                    </option>
+                  )}
                   {ent.auftraege.map((a) => (
                     <option key={a.id} value={a.id}>{a.auftragsnummer} · {a.bezeichnung}</option>
                   ))}
@@ -715,6 +728,10 @@ export default async function Rechnungsblatt(
               defaultValue={kopfWert('objektId', k.objekt_id)}
             >
               <option value="">{e.nichtGesetzt}</option>
+              {/* Dasselbe für ein inzwischen archiviertes Objekt. */}
+              {k.objekt_id !== null && !ent.objekte.some((o) => o.id === k.objekt_id) && (
+                <option value={k.objekt_id}>{k.objekt ?? e.nichtGesetzt}</option>
+              )}
               {ent.objekte.map((o) => (
                 <option key={o.id} value={o.id}>{o.name}</option>
               ))}
@@ -831,7 +848,7 @@ export default async function Rechnungsblatt(
                 zelle: (p) => p.einzelpreis_cent === null ? '—'
                   : formatiereGeld(cent(BigInt(p.einzelpreis_cent))) },
               { schluessel: 'satz', kopf: 'USt', numerisch: true,
-                zelle: (p) => `${(p.satz_bp / 100).toFixed(2).replace('.', ',')} %` },
+                zelle: (p) => prozentText(p.satz_bp) },
               { schluessel: 'netto', kopf: t.netto, numerisch: true,
                 zelle: (p) => p.netto_cent === null ? '—'
                   : formatiereGeld(cent(BigInt(p.netto_cent))) },
@@ -921,7 +938,7 @@ export default async function Rechnungsblatt(
           {daten.steuer.map((s) => (
             <tr key={s.gruppe} className="border-b border-line">
               <th scope="row" className="py-s2 text-left font-normal text-text-muted">
-                {s.gruppe} ({(s.satz_bp / 100).toFixed(2).replace('.', ',')} %)
+                {s.gruppe} ({prozentText(s.satz_bp)})
               </th>
               <td className="cse-zahl py-s2 text-text">
                 {formatiereGeld(cent(BigInt(s.netto_cent)))}
@@ -992,7 +1009,7 @@ export default async function Rechnungsblatt(
                   </th>
                   <td className="py-s2 text-text-muted">
                     {a.gruppe}
-                    {a.satz_bp === null ? '' : ` (${(a.satz_bp / 100).toFixed(2).replace('.', ',')} %)`}
+                    {a.satz_bp === null ? '' : ` (${prozentText(a.satz_bp)})`}
                   </td>
                   <td className="cse-zahl py-s2 text-right text-text">
                     −{formatiereGeld(cent(BigInt(a.netto_cent)))}
@@ -1051,7 +1068,7 @@ export default async function Rechnungsblatt(
               <strong className="text-text">§48 EStG:</strong>{' '}
               {k.bauabzugsteuer_satz_bp === null
                 ? ''
-                : `${(k.bauabzugsteuer_satz_bp / 100).toFixed(2).replace('.', ',')} % `}
+                : `${prozentText(k.bauabzugsteuer_satz_bp)} `}
               {t.bauabzugsteuerEinbehalten}{' '}
               {formatiereGeld(cent(BigInt(k.einbehalt_bauabzugsteuer_cent)))}
               {t.ueberwiesenWerden}{' '}

@@ -156,6 +156,19 @@ describe('jede Abweisung hat einen Satz — in beiden Sprachen', () => {
   });
 });
 
+describe('ein Satz der Ausgangsrechnung, eine Schreibweise (D-629, V-202)', () => {
+  it.each([
+    'src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx',
+    'src/app/portal/[mandant]/finanzen/rechnungen/[id]/abschlaege/page.tsx',
+    'src/app/portal/[mandant]/finanzen/rechnungen/[id]/festschreiben/page.tsx',
+  ])('%s teilt keine Basispunkte in eine Gleitkommazahl', (datei) => {
+    const text = readFileSync(join(WURZEL, datei), 'utf8');
+    expect(text).not.toMatch(/_bp\s*\/\s*100\b/u);
+    expect(text).not.toMatch(/Bp\s*\/\s*100\b/u);
+    expect(text).toMatch(/prozentText\(/u);
+  });
+});
+
 describe('jedes Formular an /api/rechnungen trägt seinen Rückweg (D-599)', () => {
   it.each([
     'src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx',

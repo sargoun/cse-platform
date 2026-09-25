@@ -8,6 +8,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import { prozentText } from '@/server/services/finanz/prozent';
 import { pruefeRechnung, type PflichtfeldBericht } from '@/server/services/finanz/ustg14';
 import {
   FIN18_BEGRUENDUNG_MINDESTLAENGE, pruefeZeiterfassung, type Fin18Befund,
@@ -344,7 +345,7 @@ export default async function Festschreibeblatt(
             { schluessel: 'gruppe', kopf: t.steuersatzgruppe, zelle: (z) => z.gruppe },
             {
               schluessel: 'satz', kopf: t.satz, numerisch: true,
-              zelle: (z) => `${(z.satz_bp / 100).toLocaleString('de-DE')} %`,
+              zelle: (z) => prozentText(z.satz_bp),
             },
             {
               schluessel: 'netto', kopf: t.netto, numerisch: true,
@@ -392,7 +393,7 @@ export default async function Festschreibeblatt(
           <dt className="text-xs text-text-muted">
             {t.bauabzugsteuer48}
             {k.bauabzugsteuer_satz_bp === null
-              ? '' : ` (${String(k.bauabzugsteuer_satz_bp / 100)} %)`}
+              ? '' : ` (${prozentText(k.bauabzugsteuer_satz_bp)})`}
           </dt>
           <dd className="cse-zahl text-sm text-text">
             {k.bauabzugsteuer_pflichtig

@@ -174,9 +174,19 @@ export async function aendereEntwurfKopf(
    */
   pruefeZeitraum(kopf.leistungVon, kopf.leistungBis);
 
-  if (kopf.auftragId !== null) await pruefeAuftragZuordnung(db, alt.kunde_id, kopf.auftragId);
+  /*
+   * Geprüft wird die Zuordnung, wenn sie sich ÄNDERT. Die bestehende wurde
+   * beim Setzen geprüft — und wer den Auftrag nicht lesen darf, muss den
+   * übrigen Kopf trotzdem pflegen können, ohne dass sein unveränderter
+   * Auftrag als „nicht sichtbar" abgewiesen wird.
+   */
   const auftragWechselt = kopf.auftragId !== alt.auftrag_id;
-  if (auftragWechselt) await pruefeZuordnungFrei(db, rechnungId);
+  if (auftragWechselt) {
+    if (kopf.auftragId !== null) {
+      await pruefeAuftragZuordnung(db, alt.kunde_id, kopf.auftragId);
+    }
+    await pruefeZuordnungFrei(db, rechnungId);
+  }
 
   await pruefeSaetzeAmStichtag(db, rechnungId, kopf.leistungVon, kopf.leistungBis, vereinnahmung);
 

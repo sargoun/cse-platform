@@ -18119,7 +18119,11 @@ Kundenportal für dasselbe Angebot mit `prozentText` „19,0 %".
    Dokument, Detailblatt und Preisfreigabe setzen den Steuersatz mit
    `prozentText` aus `finanz/prozent.ts` — „19,0 %" wie im Kundenportal.
    Die Zuschlagssätze der Kalkulation (`alsProzent`) sind keine Belegzeile
-   und bleiben, wie sie sind.
+   und bleiben, wie sie sind. Mit V-204 nachgezogen: Rechnungsblatt,
+   Abschlags- und Festschreibungsseite der Ausgangsrechnung (Steuersatz,
+   Bauabzugsteuer, Sicherheitseinbehalt) — vorher „19,00 %“ bzw. „19 %“
+   für denselben Beleg. Die Seiten eingehender Belege (Eingangsrechnung,
+   Ausgabe) sind nicht Teil dieser Entscheidung.
 
 | Betrifft | OPS-08, D-626, D-629, V-130, V-202, V-203, Invariante 3, Invariante 8, `drizzle/0440`, `src/server/services/angebot/{lebend,index}.ts`, `src/server/services/kundenportal/angebot.ts`, `src/app/portal/[mandant]/angebote/[id]/{page,pdf/page,freigabe/page,versand/page}.tsx`, `tests/kern/angebot-lebend.test.ts`, `tests/isolation/angebotsentwurf.test.ts` §7 |
 |---|---|
