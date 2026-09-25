@@ -21,8 +21,15 @@ const BLAETTER = [
   'src/app/portal/mein/schichten/[zuordnungId]/leistungsnachweis/page.tsx',
 ] as const;
 
-/** Ein ISO-Kalendertag, der ohne Umformung in einer JSX-Klammer steht. */
-const ROH = /\{\s*(?:z\.kalendertag|vorschau\.kopf\.leistungszeitraum(?:Von|Bis)|n\.von|n\.bis|\w+\.planDatum)\s*\}/u;
+/**
+ * Ein ISO-Kalendertag, der ohne Umformung in einer JSX-Klammer steht.
+ *
+ * `(?<!\$)`: `${daten.planDatum}` in einer Vorlagenzeichenkette ist keine
+ * Anzeige, sondern ein Adressparameter (`…/einwand?datum=2026-09-01`) — dort
+ * MUSS der Tag ISO bleiben, die Zielseite liest ihn so. Gemeint sind nur
+ * JSX-Klammern, die ein Mensch als Text sieht.
+ */
+const ROH = /(?<!\$)\{\s*(?:z\.kalendertag|vorschau\.kopf\.leistungszeitraum(?:Von|Bis)|n\.von|n\.bis|\w+\.planDatum)\s*\}/u;
 
 function quelle(pfad: string): string {
   return readFileSync(join(WURZEL, pfad), 'utf8');
