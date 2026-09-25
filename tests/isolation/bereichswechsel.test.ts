@@ -364,10 +364,23 @@ describe('(4) die eigenen Policies tragen die Funktionen allein', () => {
               or coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '')
                 ~ 'switcher_mandanten|ist_super_admin')
        order by 1`;
+    /*
+     * Dazu die drei Policies des Plattform-Nachordnens (0420, V-175, D-669):
+     * sie fragen ist_super_admin, stehen aber auf ausschreibung und
+     * vergabeplattform — Tabellen, die keine der beiden Funktionen liest.
+     * Ueber sie kann sich kein Kreis schliessen, auch nicht nach einem
+     * Umzug zu cse_definer. Sie stehen hier, weil die Liste VOLLSTAENDIG
+     * sein muss: wer eine Funktion umzieht, soll jede Policy sehen, die sie
+     * fragt (Zusammenfuehrung der Gruppen Rechte und Operations).
+     */
     expect(fragen.map((z) => z.policy), 'eine neue Policy fuer cse_definer, die die Funktion '
       + 'fragt, gehoert in diese Liste — und unter dieselbe Bedingung').toEqual([
-      'auftrag.d_umschalter_auftrag', 'mandant.d_umschalter_mandant',
+      'auftrag.d_umschalter_auftrag',
+      'ausschreibung.d_ausschreibung_nachordnen',
+      'ausschreibung.d_ausschreibung_nachordnen_lesen',
+      'mandant.d_umschalter_mandant',
       'projekt.d_umschalter_projekt', 'rolle.d_umschalter_rolle',
+      'vergabeplattform.d_plattform_nachordnen_lesen',
     ]);
 
     const eigentuemer = await sql<{ name: string; rolle: string; vorbei: boolean }[]>`
