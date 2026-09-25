@@ -1630,10 +1630,12 @@ async function main(): Promise<void> {
    * V-219: die Pflege eines abgelegten Dokuments — eine Freigabe für die
    * Belegschaft, zurückgenommen über den Dienst (mit Grund im Prüfprotokoll).
    */
-  const pflege = await seedDokumentPflege(sql, ids);
+  const pflege = await seedDokumentPflege(sql, ids, verbundenerSpeicher);
   process.stdout.write(
     `  Dokumentpflege: ${String(pflege.zurueckgenommen)} Freigabe für die Belegschaft `
-    + 'mit Grund zurückgenommen (DOC-04, V-219)\n');
+    + `mit Grund zurückgenommen (DOC-04), ${String(pflege.fassungen)} Rahmenvertrag mit `
+    + 'zweiter Fassung (DOC-05) — '
+    + (pflege.mitDatei ? 'Dateien im Speicher\n' : 'Metadaten ohne Datei, der Bucket ist nicht verbunden\n'));
 
   /**
    * Der Qualifikationskatalog kommt VOR dem Dienstplan und vor jeder

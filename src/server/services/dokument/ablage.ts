@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { SchreibKontext } from '../../kontext/index.js';
 import { NichtVerbundenFehler, type Bucket, type Speicher } from '../../storage/adapter.js';
 import { MAX_BYTES } from '../../storage/mime.js';
-import { KATEGORIEN, type Kategorie } from './kategorie.js';
+import { KATEGORIEN, fassungMoeglich, type Kategorie } from './kategorie.js';
 import { ladeHoch } from './upload.js';
 
 /**
@@ -322,6 +322,226 @@ export async function legeAb(
     loeschsperre: hoch.loeschsperre,
     aufbewahrungBis: hoch.aufbewahrungBis,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Fassungen (DOC-05, V-219, D-713)
+// ---------------------------------------------------------------------------
+
+/** Warum eine neue Fassung abgewiesen wird — je ein eigener Satz auf dem Blatt. */
+export type FassungAbweisung =
+  | 'nicht_gefunden' | 'geloescht' | 'kategorie_gesperrt' | 'an_buchung'
+  | 'ohne_kette' | 'leer' | 'kein_recht';
+
+export class FassungFehler extends Error {
+  constructor(nachricht: string, readonly grund: FassungAbweisung) {
+    super(nachricht);
+    this.name = 'FassungFehler';
+  }
+}
+
+export interface FassungEingabe {
+  readonly dateiname: string;
+  readonly daten: Uint8Array;
+  /** Was der Browser behauptet. Wird verglichen, nie geglaubt. */
+  readonly behaupteterTyp: string;
+}
+
+export interface FassungErgebnis {
+  readonly dokumentId: string;
+  readonly version: number;
+  readonly sha256: string;
+  readonly groesseBytes: number;
+  readonly mimeTyp: string;
+}
+
+/**
+ * Der Speicherschlüssel einer Fassung jenseits der ersten.
+ *
+ * **Ein Geschwister, kein Unterordner.** Die erste Fassung liegt unter
+ * `<mandant>/<kategorie>/<dokument>` (`upload.ts`). `…/<dokument>/v2` sähe
+ * ordentlicher aus, aber im Vorführordner (V-131) ist der erste Schlüssel
+ * eine DATEI, und unter einer Datei lässt sich kein Ordner anlegen. Der
+ * Punkt steht im erlaubten Alphabet beider Speicher; das alte Objekt wird
+ * nie überschrieben (DOC-05: nichts überschreiben, nichts hart löschen).
+ */
+export function fassungSchluessel(
+  mandantId: string, kategorie: string, dokumentId: string, version: number,
+): string {
+  return `${mandantId}/${kategorie}/${dokumentId}.v${String(version)}`;
+}
+
+/**
+ * Eine neue Fassung eines bestehenden Dokuments ablegen (DOC-05, DOC-06).
+ *
+ * **Dieselbe Prüfkette wie beim Ablegen** — Größe, Typ aus den Magic Bytes,
+ * Metadaten entfernen, SHA-256 — über `ladeHoch`, gegen denselben Puffer wie
+ * `legeAb`: erst stehen `dokument_version` und die geänderte Zeile, dann
+ * gehen die Bytes hinaus.
+ *
+ * **Die Kette bleibt lesbar.** Die neue Fassung ist eine neue Zeile in
+ * `dokument_version` mit eigenem Objekt; die alte bleibt Zeile UND Datei.
+ * `dokument` zeigt danach auf die neueste (Typ, Größe, Schlüssel), damit
+ * Liste und Abruf ohne Fassungsnummer das Aktuelle liefern.
+ *
+ * **Gesperrt** (`fassungMoeglich`, 0470): Rechnung, Beleg und Buchhaltung —
+ * GoBD; und ein Dokument, auf das sich eine Buchungszeile beruft (ACC-03). Die
+ * zweite Prüfung sieht nur, wer die Buchhaltung lesen darf; die Kategorie
+ * prüft zusätzlich die Datenbank (`kern.dokument_fassung_pruefen`, 0470).
+ */
+export async function legeFassungAn(
+  kontext: SchreibKontext, speicher: Speicher, dokumentId: string, roh: FassungEingabe,
+): Promise<FassungErgebnis> {
+  if (!UUID.test(dokumentId)) {
+    throw new FassungFehler('Dieses Dokument gibt es hier nicht.', 'nicht_gefunden');
+  }
+  if (roh.daten.length === 0) throw new FassungFehler('Es war keine Datei dabei.', 'leer');
+  if (roh.daten.length > MAX_BYTES) {
+    throw new AblageFehler(
+      `Die Datei ist grösser als ${String(Math.trunc(MAX_BYTES / (1024 * 1024)))} MB.`);
+  }
+  if (!speicher.verbunden) throw new NichtVerbundenFehler('Supabase Storage');
+
+  /*
+   * **Erst sperren.** Zwei gleichzeitige Uploads läsen sonst dieselbe
+   * höchste Fassung und wollten beide die nächste werden; die Eindeutigkeit
+   * aus 0009 fiele dem zweiten dann als 500 in die Hände. Mit der Sperre
+   * wartet er und liest danach die neue höchste.
+   */
+  const [d] = await kontext.abfrage<{
+    id: string; mandant_id: string; kategorie: string; titel: string; bucket: string;
+    geloescht_am: Date | null; an_buchung: boolean;
+  }>(
+    `select d.id, d.mandant_id, d.kategorie::text as kategorie, d.titel, d.bucket,
+            d.geloescht_am,
+            exists (select 1 from beleg bl
+                      join buchungssatz bs on bs.beleg_id = bl.id
+                                          and bs.mandant_id = bl.mandant_id
+                     where bl.dokument_id = d.id and bl.mandant_id = d.mandant_id)
+              as an_buchung
+       from dokument d
+      where d.id = $1::uuid and d.mandant_id = app.aktiver_mandant()
+      for update of d`, [dokumentId]);
+  if (d === undefined) {
+    throw new FassungFehler('Dieses Dokument gibt es hier nicht.', 'nicht_gefunden');
+  }
+  if (d.geloescht_am !== null) {
+    throw new FassungFehler('Dieses Dokument ist gelöscht — es bekommt keine Fassung.',
+      'geloescht');
+  }
+  if (!fassungMoeglich(d.kategorie)) {
+    throw new FassungFehler(
+      'Rechnungen, Belege und Buchhaltungsunterlagen bekommen keine neue Fassung (GoBD, '
+      + '§ 147 AO): berichtigt wird durch Gegenbuchung oder Storno, nie durch den Austausch '
+      + 'der Datei.', 'kategorie_gesperrt');
+  }
+  if (d.an_buchung) {
+    throw new FassungFehler(
+      'Eine Buchungszeile beruft sich auf dieses Dokument (ACC-03) — seine Datei wird nicht '
+      + 'durch eine neue Fassung ersetzt.', 'an_buchung');
+  }
+  const [kette] = await kontext.abfrage<{ hoechste: number | null }>(
+    `select max(version) as hoechste from dokument_version
+      where dokument_id = $1::uuid and mandant_id = app.aktiver_mandant()`, [dokumentId]);
+  if (kette === undefined || kette.hoechste === null) {
+    throw new FassungFehler(
+      'Dieses Dokument trägt keine erste Fassung in der Kette — es wurde vor ihr abgelegt. '
+      + 'Neben eine Datei, deren Prüfsumme niemand kennt, stellt sich keine zweite.',
+      'ohne_kette');
+  }
+  const version = kette.hoechste + 1;
+
+  const [jetzt] = await kontext.abfrage<{ jahr: number }>(
+    `select extract(year from (now() at time zone 'Europe/Berlin'))::int as jahr`);
+  if (jetzt === undefined) {
+    throw new Error('Die Datenbank hat kein Jahr zurückgegeben.');
+  }
+
+  const puffer = new PufferSpeicher(speicher.verbunden);
+  const hoch = await ladeHoch({
+    mandantId: d.mandant_id,
+    kategorie: d.kategorie as Kategorie,
+    titel: d.titel,
+    dateiname: roh.dateiname,
+    daten: roh.daten,
+    bucket: d.bucket as Bucket,
+    schluessel: fassungSchluessel(d.mandant_id, d.kategorie, d.id, version),
+    ...(roh.behaupteterTyp === '' ? {} : { behaupteterTyp: roh.behaupteterTyp }),
+  }, puffer, jetzt.jahr);
+
+  await kontext.schreibe(
+    `insert into dokument_version
+       (id, mandant_id, dokument_id, version, objekt_schluessel,
+        sha256, groesse_bytes, mime_typ, erstellt_von)
+     values ($1::uuid, $2::uuid, $3::uuid, $4::int, $5, $6, $7, $8, app.aktueller_benutzer())`,
+    [randomUUID(), d.mandant_id, d.id, version, hoch.objektSchluessel,
+      hoch.sha256, hoch.groesseBytes, hoch.mimeTyp]);
+
+  /*
+   * `returning id`: ohne `dokument.schreiben` trifft das UPDATE still null
+   * Zeilen — und ohne diese Prüfung stünde eine Fassung in der Kette, auf die
+   * das Dokument nicht zeigt.
+   */
+  const geaendert = await kontext.schreibe<{ id: string }>(
+    `update dokument
+        set objekt_schluessel = $2, mime_typ = $3, groesse_bytes = $4,
+            exif_entfernt = $5, mime_verifiziert = true
+      where id = $1::uuid and mandant_id = app.aktiver_mandant() and geloescht_am is null
+      returning id`,
+    [d.id, hoch.objektSchluessel, hoch.mimeTyp, hoch.groesseBytes, hoch.exifEntfernt]);
+  if (geaendert.length === 0) {
+    throw new FassungFehler(
+      'Eine Fassung legt ab, wer Dokumente ablegen darf. Es wurde nichts gespeichert.',
+      'kein_recht');
+  }
+
+  await kontext.schreibe(
+    `select app.protokolliere('dokument.fassung_abgelegt', 'dokument', $1, $2::jsonb,
+                              $3::jsonb, app.aktiver_mandant())`,
+    [d.id, { version: version - 1 },
+      { version, sha256: hoch.sha256, groesse_bytes: hoch.groesseBytes, mime_typ: hoch.mimeTyp }]);
+
+  /* Jetzt, und keine Zeile früher. */
+  await puffer.schreibeDurch(speicher);
+
+  return {
+    dokumentId: d.id, version, sha256: hoch.sha256,
+    groesseBytes: hoch.groesseBytes, mimeTyp: hoch.mimeTyp,
+  };
+}
+
+export interface FassungZeile {
+  readonly version: number;
+  readonly sha256: string;
+  readonly groesse: string;
+  readonly mimeTyp: string;
+  /** Der Berliner Kalendertag der Ablage, `JJJJ-MM-TT`. */
+  readonly tag: string;
+  /** Die Berliner Uhrzeit der Ablage, `HH:MM`. */
+  readonly uhrzeit: string;
+  readonly von: string | null;
+}
+
+/**
+ * Die Kette eines Dokuments, neueste zuerst — für das Dokumentblatt.
+ *
+ * Tag und Uhrzeit rechnet die DATENBANK in Berliner Zeit (Invariante 2); die
+ * Seite schreibt den Tag in der Sprache der Sitzung.
+ */
+export async function ladeFassungen(
+  kontext: { abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]> },
+  dokumentId: string,
+): Promise<readonly FassungZeile[]> {
+  return kontext.abfrage<FassungZeile>(
+    `select v.version, v.sha256, v.groesse_bytes::text as groesse, v.mime_typ as "mimeTyp",
+            to_char(v.erstellt_am at time zone 'Europe/Berlin', 'YYYY-MM-DD') as tag,
+            to_char(v.erstellt_am at time zone 'Europe/Berlin', 'HH24:MI') as uhrzeit,
+            b.name as von
+       from dokument_version v
+       left join benutzer b on b.id = v.erstellt_von
+      where v.dokument_id = $1::uuid and v.mandant_id = app.aktiver_mandant()
+      order by v.version desc`,
+    [dokumentId]);
 }
 
 /**

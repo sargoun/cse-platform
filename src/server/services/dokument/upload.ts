@@ -28,6 +28,12 @@ export interface UploadEingabe {
   /** Was der Browser behauptet. Wird geprueft, nie geglaubt. */
   readonly behaupteterTyp?: string;
   readonly bucket?: Bucket;
+  /**
+   * Der Speicherschluessel, wenn ihn der Aufrufer vorgibt — die zweite und
+   * jede weitere FASSUNG eines Dokuments (`legeFassungAn`, V-219). Ohne
+   * Angabe entsteht der Schluessel der ersten Fassung wie bisher.
+   */
+  readonly schluessel?: string;
 }
 
 export interface UploadErgebnis {
@@ -77,7 +83,8 @@ export async function ladeHoch(
   // Der Mandant fuehrt den Schluessel an: ein Objekt liegt sichtbar im
   // Praefix seines Bereichs, und ein Listing ueber den falschen Praefix
   // findet nichts.
-  const objektSchluessel = `${eingabe.mandantId}/${eingabe.kategorie}/${dokumentId}`;
+  const objektSchluessel = eingabe.schluessel
+    ?? `${eingabe.mandantId}/${eingabe.kategorie}/${dokumentId}`;
 
   await speicher.lege(bucket, objektSchluessel, bytes);
 

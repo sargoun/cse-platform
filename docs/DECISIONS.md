@@ -3362,6 +3362,7 @@ Beantworten helfen:
 | O-890 | **Muss ein von der Verwaltung geschlossener Zeiteintrag gegengezeichnet werden, bevor er abrechenbar ist?** `zeiteintrag_status` führt seit `0034` den Wert `offen_nacherfassung`, und **nichts im Baum schreibt ihn**. Er wäre der ehrliche Zustand für „von der Planung gesetzt, aber noch nicht bestätigt" — nur beschreibt kein Dokument, **wer** ihn wieder wegnimmt und was bis dahin gilt: zählt die Stunde ins Stundenkonto? Steht sie im Monatsnachweis? Darf sie abgerechnet werden? Ein Eintrag in einem Zustand, aus dem kein Weg herausführt, ist schlimmer als keiner. Gebaut ist deshalb der Weg, der am wenigsten erfindet: `schliesseLaufendenEintrag` schliesst nach `abgeschlossen`, und die Spur bleibt vollständig (`quelle_ende = 'planer_entscheidung'`, `nacherfasst = true`, `behauptet_ende`, Begründung in `notiz`). Das Recht `zeit.nacherfassung_pruefen` existiert bereits — sobald die Antwort da ist, ist die Umkehr **eine Zeile** im Dienst plus ein Filter auf der Prüfseite. | TIM-11, V-064, `drizzle/0034`, `src/server/services/zeit/laufender-eintrag.ts` |
 | O-889 | **Soll eine Benachrichtigung in der Sprache der Empfängerin entstehen (`person.sprache`) oder in der Sprache der Gesellschaft, die sie versendet?** `benachrichtigung` trägt **gespeicherten** Text: Titel und Text entstehen beim Erzeugen und stehen danach fest — eine Meldung, deren Sprache sich später ändert, gibt es nicht. **Ausgeliefert ist seit V-102 die Sprache der EMPFÄNGERIN**, und der Grund ist der Zweck der Meldung: sie soll gelesen werden. Eine Ablaufwarnung kündigt eine Sperre nach § 34a GewO an; wer sie nicht lesen kann, erscheint zur Schicht und wird weggeschickt. Betroffen sind **genau die drei Arten, die in `/portal/mein` landen** (`nachweis.ablauf_60/30/7`, `zeit.einwand_entschieden`, `dienstplan.plan_veroeffentlicht`); alle übrigen bleiben deutsch, weil das interne Portal deutsch ist und seine Begriffe juristische Bedeutung tragen — `tests/kern/benachrichtigung-sprachen.test.ts` §5 hält diesen Umfang fest. **Eingesetzter Text wird NICHT übersetzt**: die Bezeichnung einer Qualifikation, die Begründung der Planung, der Name der Gesellschaft — sie zu übersetzen hiesse, sie zu erfinden. Übersetzt wird dagegen, was die Plattform selbst formuliert, bis hin zur Fügung zwischen zwei Kalendertagen. **Offen bleibt die Bestätigung**: sagt der Auftraggeber, es solle die Sprache der Gesellschaft sein, ist die Änderung eine Zeile je Erzeuger — die Sprache steht als `sprache` im `BenachrichtigungsKontext` und nicht in den Texten. | NOT-01, NOT-02, SPEC §10, D-419, V-102, `src/lib/i18n/benachrichtigung.ts`, `src/server/benachrichtigung/registry.ts` |
 | O-888 | **Kodiert die Tausenderstelle der Objektnummer die Gesellschaft?** Der Bestand legt es nahe: die Reinigung führt `OBJ-1001 … OBJ-1003`, SSE Security `OBJ-2001`, REALTIME Bau `OBJ-3001` (`src/server/db/seed/operations.ts`). Ist das eine Hausregel oder ein Zufall der Demo-Daten? **Die Plattform erfindet dazu nichts**: `legeObjektAn` zählt aus dem Bestand DIESER Gesellschaft weiter und übernimmt damit von selbst, was dort schon gilt — ohne die Regel je auszusprechen. Nur der allererste Fall, eine Gesellschaft ohne ein einziges Objekt, hat keinen Bestand; dort steht `OBJ-1001` als **klar bezeichneter Platzhalter**. Das Feld ist im Formular von Hand überschreibbar, damit niemand an der Vorgabe hängenbleibt. Sagt der Auftraggeber eine Maske zu, ist die Änderung **eine Zeile** im Dienst. | OPS-01, V-001, `src/server/services/objekt/anlegen.ts` |
+| O-937 | **Welche Dokumentkategorien sollen Fassungen führen — DOC-05 sagt „versioning where the document type warrants it" und nennt die Typen nicht?** Seit V-219 lässt sich zu einem abgelegten Dokument eine zweite Fassung ablegen (`legeFassungAn`, `POST /api/dokumente/[id]/version`): neue Zeile in `dokument_version`, neues Objekt im Speicher, die alte Fassung bleibt Zeile und Datei. Fest steht eine Seite: Rechnung, Beleg und Buchhaltungsunterlage bekommen KEINE (GoBD, § 147 AO; berichtigt wird durch Gegenbuchung bzw. Storno) — das prüfen Dienst und Datenbank (0470). Offen sind die übrigen sechs: Kundenunterlage, Vertrag, Angebot, Personalunterlage, Projektunterlage, Unternehmensunterlage. Denkbar sind (a) alle sechs, (b) nur Vertrag, Angebot und Projektunterlage (die Unterlagen, die typischerweise überarbeitet werden), (c) je Kategorie einstellbar. Bei der Personalunterlage kommt hinzu, dass eine ältere Fassung personenbezogene Angaben weiter vorhält, die die neue berichtigt hat (Art. 16 DSGVO). **Ausgeliefert ist (a) als Platzhalter** (`FASSUNG_ERLAUBT_PLATZHALTER`): gesperrt wird nur, was GoBD sperrt. Die Antwort ändert diese eine Liste (und, falls enger, den Auslöser in 0470), nicht die Aufrufer. | DOC-05, DOC-07, Art. 16 DSGVO, V-219, D-713, `src/server/services/dokument/kategorie.ts` (`FASSUNG_ERLAUBT_PLATZHALTER`, `fassungMoeglich`), `drizzle/0470` |
 
 
 ### D-619 — Ein Objekt entsteht in der Anwendung, nicht im Seed
@@ -19662,4 +19663,64 @@ keinen Rückweg.
 — die Datenbank prüft weiterhin nur den Schalter.
 
 | Betrifft | DOC-04, EMP-11, O-851, D-599, V-219, `drizzle/0009` (`t_mandant`, `t_person`, `p_ma_ceiling`), `src/server/services/dokument/mitarbeiterfreigabe.ts`, `src/app/api/dokumente/[id]/mitarbeiterfreigabe/route.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `src/server/db/seed/dokument-pflege.ts`, `tests/isolation/dokument-mitarbeiterfreigabe.test.ts` |
+|---|---|
+
+### D-713 · Eine zweite Fassung überschreibt nichts — und Rechnung, Beleg und Buchhaltung bekommen keine (V-219)
+
+**Der Befund** (V-219 b; Audit-Befund 47, DOC-05): `dokument_version` war seit
+0009 als Kette angelegt — eindeutig je Dokument und Nummer, anfügend, mit dem
+SHA-256 der gespeicherten Bytes. Alle zehn Schreiber setzten aber das Literal
+`version = 1`; es gab keinen Dienst, keine Route und kein Formular für eine
+neue Fassung, und das Dokumentblatt zeigte keine Fassung, obwohl die
+Seitenkarte es als „metadata, versions, access log" führt. Ein überarbeiteter
+Vertrag liess sich nur als neues, unverbundenes Dokument ablegen.
+
+**Die Entscheidung.**
+
+1. **Eine Fassung ist eine neue Zeile mit eigenem Objekt**
+   (`legeFassungAn`, `services/dokument/ablage.ts`; `POST
+   /api/dokumente/[id]/version`, die Adresse aus der API-Karte). Die Datei
+   geht durch dieselbe Prüfkette wie beim Ablegen (`ladeHoch`: Größe, Typ aus
+   den Bytes, Metadaten, SHA-256) und gegen denselben Puffer — erst stehen
+   Zeile und Kette, dann gehen die Bytes hinaus. Die alte Fassung bleibt Zeile
+   UND Datei; `dokument` zeigt danach auf die neueste (Schlüssel, Typ, Größe),
+   damit Liste und Abruf ohne Nummer das Aktuelle liefern.
+2. **Der Schlüssel ist ein Geschwister, kein Unterordner**:
+   `<mandant>/<kategorie>/<dokument>.v<n>` (`fassungSchluessel`). Im
+   Vorführordner (V-131) ist der Schlüssel der ersten Fassung eine Datei, und
+   unter einer Datei lässt sich kein Ordner anlegen.
+3. **Die Kette ist lückenlos und beginnt bei der ersten Fassung.** Der Dienst
+   sperrt das Dokument (`for update`) und nimmt die höchste Nummer plus eins;
+   ein Dokument ohne erste Fassung (vor der Kette abgelegt) bekommt keine
+   zweite — neben eine Datei, deren Prüfsumme niemand kennt, stellt sich keine
+   zweite.
+4. **Rechnung, Beleg und Buchhaltung bekommen keine neue Fassung** — GoBD und
+   § 147 AO verlangen den unveränderten Buchungsbeleg, und berichtigt wird
+   durch Gegenbuchung bzw. Storno (Invariante 4), nie durch den Austausch der
+   Datei. Ebenso ein Dokument, auf das sich eine Buchungszeile beruft
+   (ACC-03). Welche der übrigen sechs Kategorien Fassungen führen sollen,
+   entscheidet der Mandant (**O-937**); bis dahin sperrt die Plattform nur, was
+   GoBD sperrt (`FASSUNG_ERLAUBT_PLATZHALTER`).
+5. **Die zweite Linie steht in der Datenbank** (`0470`,
+   `kern.dokument_fassung_pruefen`): jede Fassung jenseits der ersten folgt
+   lückenlos der höchsten, nie an einem gelöschten Dokument und nie an
+   Rechnung, Beleg oder Buchhaltung — für jeden Schreiber, auch an der Route
+   vorbei. Kein Definer: wer eine Fassung anlegt, muss das Dokument sehen. Die
+   erste Fassung läuft unverändert durch; alle bisherigen Schreiber bleiben.
+   `tests/kern/dokument-fassung.test.ts` hält die Kategorienliste des Dienstes
+   und des Auslösers gleich.
+6. **Das Dokumentblatt zeigt die Kette** (Nummer, Tag in der Sprache der
+   Sitzung und Berliner Uhrzeit, Person, Größe, Typ, SHA-256) und jede ältere
+   Fassung ist abrufbar: `GET /api/dokumente/[id]/datei?fassung=<n>` — über
+   eine signierte Adresse und mit Zeile im Zugriffsprotokoll wie der Abruf der
+   aktuellen.
+7. **Der Seed zeigt es** (`seed/dokument-pflege.ts`): ein Rahmenvertrag mit
+   zweiter Fassung — mit Speicher über die Dienste, ohne Speicher als Zeilen
+   mit der Prüfsumme der Demobytes (V-131).
+
+**Nicht Teil:** welche Fassung ein Abruf im Zugriffsprotokoll betraf
+(`dokument_zugriff` kennt keine Fassung) und eine Löschung einzelner
+Fassungen (Invariante 8: es gibt keine).
+
+| Betrifft | DOC-05, DOC-06, ACC-03, O-937, O-364, Invariante 4, Invariante 8, V-131, V-219, `drizzle/0470_dokument_fassungskette.sql`, `src/server/services/dokument/{ablage,upload,kategorie}.ts`, `src/app/api/dokumente/[id]/{version,datei}/route.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `src/server/db/seed/dokument-pflege.ts`, `tests/isolation/dokument-fassung.test.ts`, `tests/kern/dokument-fassung.test.ts` |
 |---|---|

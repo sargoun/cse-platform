@@ -18,6 +18,10 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { DOKUMENT_BLATT_TEXTE } from '@/lib/i18n/verwaltung/dokument-blatt';
 import { internSprache } from '@/lib/i18n/intern';
 import { dokumentKategorieText } from '@/lib/i18n/texte';
+import { tagInSprache } from '@/lib/datum/kalendertag';
+import { DataTable } from '@/components/ui/DataTable';
+import { ladeFassungen, type FassungZeile } from '@/server/services/dokument/ablage';
+import { fassungMoeglich } from '@/server/services/dokument/kategorie';
 
 /**
  * `/portal/[mandant]/dokumente/[id]` — die Metadaten eines Dokuments
@@ -107,6 +111,9 @@ export default async function Dokumentblatt(
    * über einer abgewiesenen Rücknahme „Nicht gelöscht.".
    */
   const vorgang = typeof suche['vorgang'] === 'string' ? suche['vorgang'] : null;
+  /* V-219 b: `?fassung=<n>` nach dem Ablegen einer neuen Fassung. */
+  const faErfolg = typeof suche['fassung'] === 'string' && /^[1-9][0-9]{0,5}$/u.test(suche['fassung'])
+    ? suche['fassung'] : null;
   const mfErfolg = suche['mitarbeiterfreigabe'] === 'gesetzt'
     || suche['mitarbeiterfreigabe'] === 'zurueckgenommen'
     ? suche['mitarbeiterfreigabe'] : null;
@@ -160,10 +167,19 @@ export default async function Dokumentblatt(
          left join benutzer b on b.id = d.erstellt_von
         where d.id = $1 and d.geloescht_am is null`, [id]))) as Promise<readonly Dokument[]>);
   if (d === undefined) notFound();
+  /*
+   * Die Kette der Fassungen (DOC-05, V-219 b) — neueste zuerst. Eigene
+   * Transaktion, damit die Abfrage des Blatts oben unverändert bleibt.
+   */
+  const fassungen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+    withTenant(tx, zugang.sitzung, (kontext) => ladeFassungen(kontext, id))) as
+    Promise<readonly FassungZeile[]>);
+  const naechsteFassung = (fassungen[0]?.version ?? 0) + 1;
   const speicher = waehleSpeicher();
   const sprache = internSprache(zugang.sprache);
   const t = nachSprache(DOKUMENT_BLATT_TEXTE, sprache);
   const mfFehler = vorgang === 'mitarbeiterfreigabe' ? fehler : null;
+  const faFehler = vorgang === 'fassung' ? fehler : null;
 
   return (
     <PortalRahmen
@@ -255,6 +271,118 @@ export default async function Dokumentblatt(
           </p>
         </section>
       </div>
+
+      {/* ------------------------------------------------ Fassungen (V-219 b) */}
+      {/*
+        * **Die Kette, die es gab und die niemand fortsetzen konnte.**
+        * `dokument_version` war seit 0009 als Kette angelegt, jeder Schreiber
+        * setzte `version = 1`, und dieses Blatt zeigte keine Fassung. Jetzt
+        * steht die Kette hier (Nummer, Tag, Person, Größe, Typ, SHA-256), und
+        * eine neue Fassung überschreibt keine alte (D-713).
+        */}
+      <section aria-labelledby="fassungen" className="mt-s7" data-cse="fassungen">
+        <h2 id="fassungen" className="mb-s3 text-h3 text-text">{t.faTitel}</h2>
+        {faErfolg !== null ? (
+          <Hinweis art="erfolg" cse="fassung-erfolg" className="mb-s4 max-w-prose">
+            {t.faAbgelegt.replace('{n}', faErfolg)}
+          </Hinweis>
+        ) : null}
+        {faFehler !== null ? (
+          <Hinweis art="warnung" cse="fassung-fehler" className="mb-s4 max-w-prose">
+            <strong>{t.faNichtAbgelegt}</strong>{' '}
+            {eigenerEintrag(t.faFehler, faFehler) ?? t.faFehlerSonst}
+          </Hinweis>
+        ) : null}
+        <p className="mb-s4 max-w-prose text-sm text-text-muted">{t.faErklaerung}</p>
+        {fassungen.length === 0 ? (
+          <p className="max-w-prose text-sm text-text-muted" data-cse="fassungen-leer">
+            {t.faKeine}
+          </p>
+        ) : (
+          <DataTable
+            beschriftung={t.faBeschriftung}
+            zeilen={fassungen}
+            schluessel={(v) => String(v.version)}
+            spalten={[
+              {
+                schluessel: 'fassung', kopf: t.faSpalteFassung, numerisch: true,
+                zelle: (v) => (
+                  <span data-cse="fassung-nummer" data-version={String(v.version)}>
+                    {v.version === fassungen[0]?.version
+                      ? `${String(v.version)} · ${t.faAktuell}` : String(v.version)}
+                  </span>
+                ),
+              },
+              {
+                schluessel: 'abgelegt', kopf: t.faSpalteAbgelegt,
+                zelle: (v) => `${tagInSprache(v.tag, sprache)} ${v.uhrzeit}`,
+              },
+              { schluessel: 'von', kopf: t.faSpalteVon, zelle: (v) => v.von ?? '—' },
+              {
+                schluessel: 'groesse', kopf: t.faSpalteGroesse, numerisch: true,
+                zelle: (v) => formatiereBytes(v.groesse),
+              },
+              { schluessel: 'typ', kopf: t.faSpalteTyp, zelle: (v) => v.mimeTyp },
+              {
+                schluessel: 'sha256', kopf: t.faSpaltePruefsumme,
+                zelle: (v) => <code className="break-all text-xs">{v.sha256}</code>,
+              },
+              ...(speicher.verbunden ? [{
+                schluessel: 'abruf', kopf: t.faSpalteAbruf,
+                zelle: (v: FassungZeile) => (
+                  <a href={`/api/dokumente/${d.id}/datei?fassung=${String(v.version)}`}
+                     data-cse="fassung-abrufen"
+                     className="text-text underline underline-offset-2 hover:text-brand">
+                    {t.faAbrufen}
+                  </a>
+                ),
+              }] : []),
+            ]}
+          />
+        )}
+
+        <h3 className="mb-s3 mt-s5 text-base font-semibold text-text">{t.faNeuTitel}</h3>
+        {darf['dokument.schreiben'] !== true ? (
+          <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-ohne-recht">
+            {t.faOhneRecht}{' '}
+            <Recht schluessel="dokument.schreiben" sprache={sprache} />.
+          </p>
+        ) : !fassungMoeglich(d.kategorie) ? (
+          <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-gesperrt">
+            {t.faGesperrtKategorie}
+          </p>
+        ) : d.an_buchung ? (
+          <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-buchung">
+            {t.faGesperrtBuchung}
+          </p>
+        ) : fassungen.length === 0 ? (
+          <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-ohne-kette">
+            {t.faFehler.ohne_kette}
+          </p>
+        ) : !speicher.verbunden ? (
+          <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-ohne-speicher">
+            {t.faOhneSpeicher}
+          </p>
+        ) : (
+          <form method="post" action={`/api/dokumente/${d.id}/version`}
+                encType="multipart/form-data" data-cse="fassung-formular"
+                className="flex max-w-prose flex-col gap-s3 rounded-lg border border-line bg-surface p-s5">
+            <input type="hidden" name="zurueck"
+                   value={`/portal/${mandant}/dokumente/${d.id}?vorgang=fassung`} />
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.faDatei}
+              <input type="file" name="datei" required data-cse="fassung-datei"
+                     className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text" />
+            </label>
+            <p className="m-0 text-xs text-text-muted">{t.faNeuErklaerung}</p>
+            <div>
+              <Button type="submit" variante="secondary" data-cse="fassung-abschicken">
+                {t.faAbschicken.replace('{n}', String(naechsteFassung))}
+              </Button>
+            </div>
+          </form>
+        )}
+      </section>
 
       {/* ------------------------------ Freigabe für die Belegschaft (V-219) */}
       {/*

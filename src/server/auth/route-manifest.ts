@@ -2423,6 +2423,15 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Eine neue Fassung eines bestehenden Dokuments ablegen (DOC-05, V-219,
+     * D-713) — die Adresse aus 05-API-KARTE. `dokument.schreiben`, wie beim
+     * Ablegen; die alte Fassung bleibt Zeile und Datei.
+     */
+    pfad: 'api/dokumente/[id]/version',
+    recht: 'dokument.schreiben',
+  },
+  {
+    /**
      * Ablegen, was ein MENSCH mitbringt (DOC-01, DOC-03, DOC-06, TIM-10).
      *
      * `dokument.schreiben` — dasselbe Recht wie jeder andere Schreibweg in
