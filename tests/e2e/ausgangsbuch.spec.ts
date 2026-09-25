@@ -59,7 +59,9 @@ async function belegFestschreiben(page: Page): Promise<string> {
   await page.getByLabel('Begründung, falls von Hand erfasst')
     .fill('Einmalige Leistung ohne Auftragsbezug');
   await page.getByRole('button', { name: 'Position hinzufügen' }).click();
-  await expect(page.getByText('Unterhaltsreinigung').first()).toBeVisible();
+  // Die Zelle der Positionstabelle — die Auftragsauswahl des Kopfs (V-205)
+  // traegt Optionen mit demselben Namen.
+  await expect(page.getByRole('cell', { name: 'Unterhaltsreinigung', exact: true }).first()).toBeVisible();
 
   await page.getByRole('button', { name: 'Rechnung festschreiben' }).click();
   await page.waitForLoadState('domcontentloaded');

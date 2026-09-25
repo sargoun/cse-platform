@@ -82,7 +82,9 @@ async function festgeschriebenerBeleg(page: Page): Promise<string> {
   await page.getByLabel('Begründung, falls von Hand erfasst')
     .fill('Einmalige Leistung ohne Auftragsbezug');
   await page.getByRole('button', { name: 'Position hinzufügen' }).click();
-  await expect(page.getByText('Unterhaltsreinigung').first()).toBeVisible();
+  // Die Zelle der Positionstabelle, nicht irgendein Text: seit V-205 steht im
+  // Kopf eine Auftragsauswahl, deren Optionen denselben Namen tragen koennen.
+  await expect(page.getByRole('cell', { name: 'Unterhaltsreinigung', exact: true }).first()).toBeVisible();
 
   await page.getByRole('button', { name: 'Rechnung festschreiben' }).click();
   await page.waitForLoadState('domcontentloaded');

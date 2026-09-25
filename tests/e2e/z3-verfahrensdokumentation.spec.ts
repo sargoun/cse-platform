@@ -34,7 +34,10 @@ test.describe('Z3-Export und Verfahrensdokumentation (PR 66)', () => {
     await expect(page.locator('[data-cse="z3-kennzahlen"] [data-cse="kpi-wert"]')).toHaveCount(4);
     await expect(page.locator('[data-cse="z3-unvollstaendig"]')).toBeVisible();
     await expect(page.locator('[data-cse="z3-grenzen"]')).toContainText('O-365');
-    await expect(page.locator('[data-cse="tabelle"] tbody tr')).toHaveCount(14);
+    // 16 Tabellen: seit V-215 gehoeren die Betriebsausgaben und ihre Steuerzeilen
+    // dazu (ausgaben, ausgabensteuer) — vorher standen nur ihre Buchungen im Paket.
+    await expect(page.locator('[data-cse="tabelle"] tbody tr')).toHaveCount(16);
+    await expect(page.locator('[data-cse="tabelle"]')).toContainText('ausgaben');
 
     const sha = await page.locator('[data-cse="z3-sha256"]').getAttribute('title');
     expect(sha).toMatch(/^[0-9a-f]{64}$/u);

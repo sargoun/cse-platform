@@ -196,7 +196,8 @@ async function festgeschriebenerBeleg(page: Page): Promise<void> {
    * faellt dort, wo es passiert, mit dem, was auf dem Bildschirm steht.
    */
   await expect(
-    page.getByText('Unterhaltsreinigung').first(),
+    // Die Zelle der Positionstabelle, nicht eine Option der Auftragsauswahl (V-205).
+    page.getByRole('cell', { name: 'Unterhaltsreinigung', exact: true }).first(),
     'die Position wurde nicht übernommen — der Beleg ist ohne sie nicht festschreibbar',
   ).toBeVisible();
 
@@ -399,7 +400,8 @@ test.describe('Die XRechnung im Browser (FIN-11)', () => {
     await page.getByLabel('Begründung, falls von Hand erfasst')
       .fill('Einmalige Leistung ohne Auftragsbezug');
     await page.getByRole('button', { name: 'Position hinzufügen' }).click();
-    await expect(page.getByText('Unterhaltsreinigung').first()).toBeVisible();
+    // Die Zelle der Positionstabelle, nicht eine Option der Auftragsauswahl (V-205).
+    await expect(page.getByRole('cell', { name: 'Unterhaltsreinigung', exact: true }).first()).toBeVisible();
 
     await page.getByRole('button', { name: 'Rechnung festschreiben' }).click();
     await page.waitForLoadState('domcontentloaded');

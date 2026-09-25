@@ -155,8 +155,9 @@ test.describe('(2) Der Versand — und was er erzeugt', () => {
     // Die Nummer steht jetzt da, und der Versandknopf ist fort.
     await expect(page.getByText(/AN-\d{4}-\d{5}/u).first()).toBeVisible();
     await expect(page.locator('[data-cse="versenden"]')).toHaveCount(0);
-    // Die Umsatzsteuerzeile ist beim Versand entstanden.
-    await expect(page.getByText(/Umsatzsteuer 19 %/u)).toBeVisible();
+    // Die Umsatzsteuerzeile ist beim Versand entstanden — geschrieben wie im
+    // Kundenportal und im Beleg (prozentText, V-202/D-696 Nr. 4).
+    await expect(page.getByText(/Umsatzsteuer 19,0 %/u)).toBeVisible();
   });
 
   test('das Angebotsdokument trägt die Identität DIESER Gesellschaft', async ({ page }) => {
