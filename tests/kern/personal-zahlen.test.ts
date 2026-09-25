@@ -117,6 +117,28 @@ describe('keine Seite des Personalbereichs gibt diese Werte roh aus', () => {
     expect(funde).toEqual([]);
   });
 
+  it('eine Regel für alle: keine Abfrage des Bereichs bildet `DD.MM.YYYY` (D-690 Nr. 1)', () => {
+    /*
+     * Das Beschäftigungsblatt las Eintritt und Austritt schon als ISO, die
+     * Abwesenheiten derselben Seite aber noch als `DD.MM.YYYY` — D-690 Nr. 1
+     * behauptete die Regel für die ganze Seite. Eine Anzeigeform in der
+     * Abfrage ist für die Prüfung oben unsichtbar; also steht sie nirgends.
+     */
+    const dateien = (d: string): string[] => readdirSync(d).flatMap((e) => {
+      const v = join(d, e);
+      return statSync(v).isDirectory() ? dateien(v) : /\.tsx?$/u.test(v) ? [v] : [];
+    });
+    const funde = dateien(join(WURZEL, P))
+      .filter((d) => /'DD\.MM\.YYYY'/u.test(readFileSync(d, 'utf8')))
+      .map((d) => d.slice(WURZEL.length + 1));
+    expect(funde).toEqual([]);
+    /* Und die Zellen der Abwesenheiten schreiben den Tag um, statt ihn roh zu zeigen. */
+    const blatt = quelle(`${P}/anstellungen/[id]/page.tsx`);
+    expect(blatt).toContain('zelle: (a) => tagDeutsch(a.von)');
+    expect(blatt).toContain('zelle: (a) => tagDeutsch(a.bis)');
+    expect(blatt).not.toMatch(/zelle: \(a\) => a\.(?:von|bis) \}/u);
+  });
+
   it('Listen: Eintritt und Austritt als TT.MM.JJJJ', () => {
     for (const datei of [`${P}/anstellungen/page.tsx`, `${P}/personen/[id]/page.tsx`]) {
       const s = quelle(datei);

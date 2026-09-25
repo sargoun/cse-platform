@@ -132,9 +132,11 @@ export default async function Anstellungsblatt(
       // Ohne die Art: `abwesenheitsart_id` gehoert nicht zu den Spalten, die
       // `cse_app` lesen darf — die Art einer Abwesenheit ist gesundheitsnah
       // und bleibt dem Abwesenheitsmodul mit seinem eigenen Weg vorbehalten.
+      // ISO und nicht `DD.MM.YYYY`: die Seite schreibt um (`tagDeutsch`), wie
+      // für Eintritt und Austritt oben — eine Regel für alle (D-690 Nr. 1).
       const abwesenheiten = rechte?.abwesenheit === true ? await kontext.abfrage<Abwesenheit>(
         `select ab.id,
-                to_char(ab.von, 'DD.MM.YYYY') as von, to_char(ab.bis, 'DD.MM.YYYY') as bis,
+                to_char(ab.von, 'YYYY-MM-DD') as von, to_char(ab.bis, 'YYYY-MM-DD') as bis,
                 (ab.von_halbtags or ab.bis_halbtags) as halbtags,
                 ab.tage_angerechnet::text as tage, ab.status::text as status
            from abwesenheit ab
@@ -303,8 +305,8 @@ export default async function Anstellungsblatt(
             zeilen={abwesenheiten}
             schluessel={(a) => a.id}
             spalten={[
-              { schluessel: 'von', kopf: 'Von', zelle: (a) => a.von },
-              { schluessel: 'bis', kopf: 'Bis', zelle: (a) => a.bis },
+              { schluessel: 'von', kopf: 'Von', zelle: (a) => tagDeutsch(a.von) },
+              { schluessel: 'bis', kopf: 'Bis', zelle: (a) => tagDeutsch(a.bis) },
               { schluessel: 'tage', kopf: 'Tage', numerisch: true,
                 zelle: (a) => `${tageAusPostgres(a.tage)}${a.halbtags ? ' (halbtags)' : ''}` },
               { schluessel: 'status', kopf: 'Status',

@@ -19255,6 +19255,12 @@ dazu den Status des Bewacherregisters als Schlüssel.
    Das Beschäftigungsblatt, das als einzige Seite `DD.MM.YYYY` in der
    Abfrage bildete, liest jetzt auch ISO und schreibt in der Seite um — eine
    Regel für alle, damit die Prüfung sie am Quelltext halten kann.
+   **Berichtigt (Prüfer der Gruppe):** umgestellt war nur die Kopfabfrage;
+   die Abwesenheiten desselben Blatts bildeten weiter `DD.MM.YYYY`. Jetzt
+   lesen auch sie ISO und schreiben über `tagDeutsch` um, und
+   `tests/kern/personal-zahlen.test.ts` hält die Regel: keine Datei des
+   Bereichs enthält `'DD.MM.YYYY'`. V-196 steht auf „falsch", nicht auf
+   „Schönheit" — „5.000" Tage sind keine korrekte Anzeige.
 2. **Deutsch und nicht „in der Sprache der Seite"**: die Seiten stehen auf
    der Ausnahmeliste der Übersetzungswache, ihr Text ist deutsch. Eine
    englische Zahl in einem deutschen Satz wäre der umgekehrte Fehler.
