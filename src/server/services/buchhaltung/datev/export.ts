@@ -4,7 +4,7 @@ import type { Speicher } from '../../../storage/adapter.js';
 import { legeErzeugtAb } from '../../dokument/erzeugt.js';
 import { exportPaket, type Exportpaket } from '../exportpaket.js';
 import {
-  FORMAT_SPEZIFIKATIONSABGELEITET, schreibeExtf,
+  FORMAT_SPEZIFIKATIONSABGELEITET, schreibeExtf, stapelBezeichnung,
   type ExtfBuchung, type ExtfKopf,
 } from './extf.js';
 
@@ -177,7 +177,7 @@ export async function erzeugeDatevExport(
     sachkontenlaenge: stamm.sachkontenlaenge,
     von,
     bis,
-    bezeichnung: `Buchungsstapel ${von} bis ${bis}`,
+    bezeichnung: stapelBezeichnung(von, bis),
     kontenrahmen: stamm.kontenrahmen,
     festschreibung: stamm.festschreibung,
     exportiertVon: ausgeloestVon,
