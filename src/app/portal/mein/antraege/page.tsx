@@ -5,6 +5,7 @@ import {
   type EigeneAbwesenheit, type EigenerAntrag,
 } from '@/server/services/mitarbeiter/antraege';
 import { artInSprache } from '@/server/services/abwesenheit/antrag';
+import { tageAusPostgres } from '@/server/services/finanz/menge';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../rahmen';
 import { Feld, Felder, Gesellschaft, Leer } from '../bausteine';
@@ -173,7 +174,9 @@ export default async function MeineAntraege() {
                       <span className="cse-zahl">{a.abwesenheit.bis}</span>
                     </Feld>
                     <Feld label={t.tage}>
-                      <span className="cse-zahl">{a.abwesenheit.tageAngerechnet ?? '—'}</span>
+                      <span className="cse-zahl">
+                        {tageAusPostgres(a.abwesenheit.tageAngerechnet, basis.sprache)}
+                      </span>
                     </Feld>
                   </Felder>
                 </Link>

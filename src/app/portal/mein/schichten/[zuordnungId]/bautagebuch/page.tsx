@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { tagInSprache } from '@/lib/datum/kalendertag';
+import { formatiereMengeIn, mengeAusPostgres } from '@/server/services/finanz/menge';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { BAUTAG_PILLE } from '@/app/portal/[mandant]/bau/bautagebuch-anzeige';
 import {
@@ -427,7 +428,10 @@ export default async function MeinBautagebuch(
                     <Felder>
                       <Feld label={t.bezeichnung}>{q.bezeichnung}</Feld>
                       <Feld label={t.menge}>
-                        <span className="cse-zahl">{q.menge ?? '—'}</span>{' '}
+                        <span className="cse-zahl">
+                          {q.menge === null
+                            ? '—' : formatiereMengeIn(mengeAusPostgres(q.menge), basis.sprache)}
+                        </span>{' '}
                         {q.einheit ?? ''}
                       </Feld>
                       <Feld label={t.eintragstext}>{q.beschreibung ?? '—'}</Feld>

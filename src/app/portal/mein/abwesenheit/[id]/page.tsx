@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
+import { tageAusPostgres } from '@/server/services/finanz/menge';
 import {
   findeEigeneAbwesenheit, type EigeneAbwesenheit,
 } from '@/server/services/mitarbeiter/antraege';
@@ -43,27 +44,6 @@ function abwesenheitPille(status: string): PillZustand {
     case 'storniert': return 'Archiviert';
     default: return 'In Arbeit';
   }
-}
-
-/**
- * `numeric(12,3)` als Tausendstel — „1500" sind anderthalb Tage.
- *
- * `Intl.NumberFormat` und nicht `toLocaleString` mit Optionen: die
- * Zeitzonenwache liest den zweiten Aufruf als Datumsanzeige, und sie hat
- * recht, streng zu sein — `new Date(x).toLocaleString('de-DE', {…})` ist
- * Zeichen für Zeichen derselbe Aufruf. Eine Zahl, die einmal zuviel gemeldet
- * wird, kostet eine Zeile; ein Datum in Serverzone kostet einen Streit über
- * Stunden.
- */
-const TAGE_FORMAT = new Intl.NumberFormat('de-DE', {
-  minimumFractionDigits: 0, maximumFractionDigits: 1,
-});
-
-function tageText(tausendstel: string | null): string {
-  if (tausendstel === null) return '—';
-  const zahl = Number(tausendstel);
-  if (!Number.isFinite(zahl)) return tausendstel;
-  return TAGE_FORMAT.format(zahl / 1000);
 }
 
 export default async function MeineAbwesenheit(
@@ -115,7 +95,12 @@ export default async function MeineAbwesenheit(
           <Feld label={t.von}><span className="cse-zahl">{a.von}</span></Feld>
           <Feld label={t.bis}><span className="cse-zahl">{a.bis}</span></Feld>
           <Feld label={t.tage}>
-            <span className="cse-zahl">{tageText(a.tageAngerechnet)}</span>
+            {/*
+              `numeric(12,3)` kommt als Text „5.000" — das IST die Zahl (fünf
+              Tage), nicht ihre Tausendstel. Hier stand eine Teilung durch
+              1000, und jede Krankmeldung über fünf Tage zeigte „0" (V-194).
+            */}
+            <span className="cse-zahl">{tageAusPostgres(a.tageAngerechnet, basis.sprache)}</span>
           </Feld>
           {halbe !== '' && <Feld label={t.halbeTage}>{halbe}</Feld>}
           <Feld label={t.gemeldetAm}>

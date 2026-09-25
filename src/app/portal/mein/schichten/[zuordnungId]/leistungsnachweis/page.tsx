@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { tagInSprache } from '@/lib/datum/kalendertag';
+import { formatiereMenge, mengeAusPostgres } from '@/server/services/finanz/menge';
 import {
   BESTAETIGUNGSTEXT, bereiteUnterschriftVor, type Unterschriftsvorschau,
 } from '@/server/services/reinigung/leistungsnachweis';
@@ -410,7 +411,16 @@ export default async function MeinLeistungsnachweis(
                     {vorschau.positionen.map((p) => (
                       <tr key={p.reihenfolge} className="border-b border-line">
                         <td className="py-s2 pe-s3">{p.bezeichnung}</td>
-                        <td className="cse-zahl py-s2 pe-s3">{p.menge}</td>
+                        {/*
+                          Die Menge in der deutschen Form (V-194), in JEDER
+                          Sprache der Oberfläche: die Tabelle gehört zu dem,
+                          was der Kunde unter dem deutschen Bestätigungstext
+                          unterschreibt. Roh stand hier „12.500" — deutsch
+                          gelesen zwölftausendfünfhundert.
+                        */}
+                        <td className="cse-zahl py-s2 pe-s3">
+                          {formatiereMenge(mengeAusPostgres(p.menge))}
+                        </td>
                         <td className="py-s2">{p.einheit}</td>
                       </tr>
                     ))}

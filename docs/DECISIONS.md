@@ -19138,3 +19138,42 @@ bestätigt das über alle Eingänge.
 
 | Betrifft | V-248, V-255, D-613, AUT-06, `src/server/registry/rueckweg.ts`, `tests/kern/rueckweg.test.ts` (7), `tests/kern/hilfen/tor-adresse.ts` |
 |---|---|
+
+### D-688 · Tage und Mengen im Arbeiterportal stehen als Zahl in der Sprache der Seite — die unterschriebene Tabelle bleibt deutsch (V-194)
+
+**Der Befund** (V-194; Audit Befund 62): `abwesenheit.tage_angerechnet` ist
+`numeric(12,3)` und kommt als Text „5.000" — das IST die Zahl fünf. Das Blatt
+einer eigenen Abwesenheit (`/portal/mein/abwesenheit/[id]`) behandelte den
+Text als Tausendstel und teilte durch 1000: eine fünftägige Krankmeldung
+stand dort mit „0". Die Liste unter „Anträge" gab „5.000" roh aus, und das
+liest ein deutscher Leser als fünftausend. Bei der Gegenprobe über das ganze
+Arbeiterportal fanden sich zwei weitere `numeric(12,3)`-Werte in Rohform: die
+Menge auf dem Unterschriftsblatt des Leistungsnachweises („12.500") und die
+Menge einer Bautagebuchzeile. Das Urlaubskonto rechnete richtig, schrieb aber
+„30,00 Tage" neben ein „5" der Verwaltung.
+
+**Die Entscheidung.**
+
+1. **Eine Funktion für Tage:** `formatiereTage` und `tageAusPostgres` in
+   `services/finanz/menge.ts`. Ganze Tage ohne Nachkommastellen („5"), ein
+   halber bleibt sichtbar („1,5", „0,5"), `null` ist „—" und nicht „0" — „noch
+   nicht berechnet" ist keine Null. Abwesenheitsblatt, Antragsliste und
+   Urlaubskonto benutzen sie; die Teilung durch 1000 ist weg.
+2. **Die Schreibweise folgt der Sprache der Seite, wie beim Kalendertag**
+   (V-210): englisch mit englischem Dezimalzeichen („1.5"), deutsch, türkisch
+   und arabisch in der deutschen Form („1,5") — dieselbe Regel wie
+   `formatiereMengeIn` (V-240). Geld und Zeitpunkte bleiben, wie SEITENKARTE
+   §12 sie festlegt; diese Entscheidung betrifft Mengen und Tage.
+3. **Die Tabelle, die der Kunde unterschreibt, bleibt deutsch** — auch auf
+   einem Telefon mit englischer Oberfläche. Sie gehört zu dem Blatt unter dem
+   deutschen Bestätigungstext (SEITENKARTE §12, 0066), also `formatiereMenge`
+   ohne Sprache. Die Menge einer Bautagebuchzeile ist dagegen die eigene
+   Aufzeichnung der Kraft und folgt ihrer Sprache.
+4. **Geprüft am Quellbaum, nicht an einer Liste:** `tests/kern/mein-tage.test.ts`
+   liest jede `.tsx` unter `src/app/portal/mein` und schlägt fehl, sobald
+   `tageAngerechnet`, `menge`, `anspruchTage` oder `restTage` wieder roh in
+   einer JSX-Klammer steht oder eine Tageszahl durch 1000 geteilt wird.
+
+| Betrifft | EMP-05, EMP-10, EMP-12, CLN-04, BAU-07, V-194, V-210, V-240, SEITENKARTE §12, `src/server/services/finanz/menge.ts` (`formatiereTage`, `tageAusPostgres`), `src/app/portal/mein/{abwesenheit/[id],antraege,urlaub}/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/{leistungsnachweis,bautagebuch}/page.tsx`, `tests/kern/mein-tage.test.ts` |
+|---|---|
+

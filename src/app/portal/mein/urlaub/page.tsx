@@ -1,5 +1,5 @@
 import { berlinHeute } from '@/server/db/heute';
-import { formatiereMenge } from '@/server/services/finanz/menge';
+import { formatiereTage } from '@/server/services/finanz/menge';
 import { leseUrlaub, type UrlaubAnsicht } from '@/server/services/mitarbeiter/stunden';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../rahmen';
@@ -26,8 +26,9 @@ import { Feld, Felder, Gesellschaft, Jahreswechsler, Leer } from '../bausteine';
  * Zahl.
  *
  * **Tage sind `numeric(12,3)`, also `MilliMenge`** — ein halber Urlaubstag ist
- * ein Anspruch, kein Rundungsergebnis. Formatiert wird mit `formatiereMenge`,
- * derselben Funktion wie ueberall sonst.
+ * ein Anspruch, kein Rundungsergebnis. Formatiert wird mit `formatiereTage`,
+ * derselben Funktion wie auf den Abwesenheiten und Anträgen (V-194): „30"
+ * und „2,5", nicht „30,00" — und in der Sprache der Person.
  */
 export const dynamic = 'force-dynamic';
 
@@ -112,27 +113,27 @@ export default async function MeinUrlaub({
                 <Felder>
                   <Feld label={t.anspruch}>
                     <span className="cse-zahl">
-                      {formatiereMenge(u.konto.anspruchTage)} {t.tage}
+                      {formatiereTage(u.konto.anspruchTage, basis.sprache)} {t.tage}
                     </span>
                   </Feld>
                   <Feld label={t.vortrag}>
                     <span className="cse-zahl">
-                      {formatiereMenge(u.konto.uebertragTage)} {t.tage}
+                      {formatiereTage(u.konto.uebertragTage, basis.sprache)} {t.tage}
                     </span>
                   </Feld>
                   <Feld label={t.genommen}>
                     <span className="cse-zahl">
-                      {formatiereMenge(u.konto.genommenTage)} {t.tage}
+                      {formatiereTage(u.konto.genommenTage, basis.sprache)} {t.tage}
                     </span>
                   </Feld>
                   <Feld label={t.verplant}>
                     <span className="cse-zahl">
-                      {formatiereMenge(u.konto.verplantTage)} {t.tage}
+                      {formatiereTage(u.konto.verplantTage, basis.sprache)} {t.tage}
                     </span>
                   </Feld>
                   <Feld label={t.rest}>
                     <span data-cse="urlaub-rest" className="cse-zahl">
-                      {formatiereMenge(u.konto.restTage)} {t.tage}
+                      {formatiereTage(u.konto.restTage, basis.sprache)} {t.tage}
                     </span>
                   </Feld>
                 </Felder>
