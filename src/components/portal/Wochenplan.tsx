@@ -283,10 +283,25 @@ function schwersterBefund(befunde: readonly PlanBefund[]): PlanBefund | null {
     ?? null;
 }
 
+/** Wie viele Schichten eine Monatskarte zeigt, bevor sie auf den Tag verweist. */
+export const MONATSKARTE_HOECHSTENS = 4;
+
+export interface MonatsplanProps extends WochenplanProps {
+  /**
+   * Wohin ein Tag fuehrt — die Tagesansicht mit ALLEN Schichten dieses Tages.
+   *
+   * Pflicht, nicht freiwillig (TIM-04, „none hidden"): die Karte zeigt
+   * hoechstens {@link MONATSKARTE_HOECHSTENS} Schichten. Zehn parallele
+   * Wachen an einem Objekt sind genau der Fall aus TIM-04; ohne Verweis
+   * waeren sechs davon aus der Monatsansicht weder sichtbar noch erreichbar.
+   */
+  readonly tagZiel: (datum: string) => string;
+}
+
 /** Die Monatsansicht — dieselben Daten, ohne Raster (DESIGN §8: 375px). */
 export function Monatsplan({
-  tage, schichten, zielFuer,
-}: WochenplanProps): ReactNode {
+  tage, schichten, zielFuer, tagZiel,
+}: MonatsplanProps): ReactNode {
   return (
     <ul data-cse="monatsplan" className="m-0 grid list-none gap-s2 p-0 sm:grid-cols-2 lg:grid-cols-4">
       {tage.map((tag) => {
@@ -298,19 +313,28 @@ export function Monatsplan({
             data-datum={tag.datum}
             className="rounded-md border border-line bg-surface p-s3"
           >
-            <div className="mb-s2">
-              <span className="block text-sm font-semibold text-text">{tag.beschriftung}</span>
+            {/*
+              Die Tagesueberschrift fuehrt in die Tagesansicht — auch an einem
+              Tag ohne Schicht, denn dort wird geplant. `min-h-11`: 44 px
+              Zielflaeche (DESIGN §6).
+            */}
+            <a
+              href={tagZiel(tag.datum)}
+              data-cse="monatstag-ziel"
+              className="mb-s2 block min-h-11 rounded-md text-text hover:text-brand"
+            >
+              <span className="block text-sm font-semibold">{tag.beschriftung}</span>
               <span className="block text-micro text-text-muted">
                 {desTages.length === 0
                   ? 'keine Schicht'
                   : `${String(desTages.length)} ${desTages.length === 1 ? 'Schicht' : 'Schichten'}`}
               </span>
-            </div>
+            </a>
             {tag.feiertag !== null && (
               <p className="m-0 mb-s2 text-micro text-info">Feiertag: {tag.feiertag}</p>
             )}
             <ul className="m-0 list-none p-0">
-              {desTages.slice(0, 4).map((s) => (
+              {desTages.slice(0, MONATSKARTE_HOECHSTENS).map((s) => (
                 <li key={s.id} className="border-t border-line py-s1 first:border-t-0">
                   <a
                     href={zielFuer(s)}
@@ -324,9 +348,16 @@ export function Monatsplan({
                   </a>
                 </li>
               ))}
-              {desTages.length > 4 && (
-                <li className="border-t border-line pt-s1 text-micro text-text-muted">
-                  und {String(desTages.length - 4)} weitere
+              {desTages.length > MONATSKARTE_HOECHSTENS && (
+                <li className="border-t border-line pt-s1">
+                  <a
+                    href={tagZiel(tag.datum)}
+                    data-cse="monatstag-weitere"
+                    className="flex min-h-11 items-center text-micro text-brand hover:underline"
+                  >
+                    und {String(desTages.length - MONATSKARTE_HOECHSTENS)} weitere — alle
+                    {' '}{String(desTages.length)} in der Tagesansicht
+                  </a>
                 </li>
               )}
             </ul>

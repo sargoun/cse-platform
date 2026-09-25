@@ -88,6 +88,7 @@ export default async function Monatsansicht({
           tage={tage}
           schichten={schichten}
           zielFuer={(s) => `/portal/${mandant}/dienstplan/einsatz/${s.id}`}
+          tagZiel={(datum) => `/portal/${mandant}/dienstplan/tag?tag=${datum}`}
         />
       )}
     </PortalRahmen>
