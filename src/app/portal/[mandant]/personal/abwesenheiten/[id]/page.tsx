@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type postgres from 'postgres';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
@@ -211,8 +212,8 @@ export default async function Abwesenheitsblatt({
       <section className="mb-s6 rounded-lg border border-line bg-surface p-s5">
         <h2 className="mb-s4 text-h3 text-text">Zeitraum</h2>
         <dl data-cse="abwesenheit-felder" className="m-0 grid grid-cols-[auto_1fr] gap-x-s5 gap-y-s3">
-          <Feld label="Von" wert={`${zeile.von}${zeile.vonHalbtags ? ' (halber Tag)' : ''}`} />
-          <Feld label="Bis" wert={`${zeile.bis}${zeile.bisHalbtags ? ' (halber Tag)' : ''}`} />
+          <Feld label="Von" wert={`${tagDeutsch(zeile.von)}${zeile.vonHalbtags ? ' (halber Tag)' : ''}`} />
+          <Feld label="Bis" wert={`${tagDeutsch(zeile.bis)}${zeile.bisHalbtags ? ' (halber Tag)' : ''}`} />
           <Feld label="Angerechnete Tage" wert={tageText(zeile.tageAngerechnet)} />
           <Feld label="Gemeldet" wert={berlinAnzeige(zeile.gemeldetAm)} />
           <Feld

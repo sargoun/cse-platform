@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type postgres from 'postgres';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
@@ -238,7 +239,7 @@ export default async function Antragsblatt({
           <Feld
             label="Zeitraum"
             wert={antrag.vonDatum !== null && antrag.bisDatum !== null
-              ? `${antrag.vonDatum} bis ${antrag.bisDatum}`
+              ? `${tagDeutsch(antrag.vonDatum)} bis ${tagDeutsch(antrag.bisDatum)}`
               : 'ohne Zeitraum'}
           />
           <Feld label="Eingereicht" wert={berlinAnzeige(antrag.eingereichtAm)} />

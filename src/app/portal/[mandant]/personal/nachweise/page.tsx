@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type postgres from 'postgres';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
@@ -142,7 +143,7 @@ export default async function Nachweisregister({
           ) : null}
         </span>
         <p className="m-0 text-sm text-text-muted">
-          Stichtag <span className="tabular-nums">{heute}</span>
+          Stichtag <span className="tabular-nums">{tagDeutsch(heute)}</span>
           {' · '}
           {alle.length === 1 ? '1 Nachweis' : `${String(alle.length)} Nachweise`}
         </p>
@@ -252,9 +253,9 @@ export default async function Nachweisregister({
               kopf: 'Gültig',
               zelle: (m) => (
                 <span className="tabular-nums">
-                  {m.zeile.gueltigAb}
+                  {tagDeutsch(m.zeile.gueltigAb)}
                   {' – '}
-                  {m.zeile.gueltigBis ?? 'unbefristet'}
+                  {m.zeile.gueltigBis === null ? 'unbefristet' : tagDeutsch(m.zeile.gueltigBis)}
                 </span>
               ),
             },

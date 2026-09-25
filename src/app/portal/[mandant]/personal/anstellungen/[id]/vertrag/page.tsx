@@ -9,6 +9,9 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
+import { Recht } from '@/components/ui/Recht';
+import { formatiereMenge, mengeAusPostgres, tageAusPostgres } from '@/server/services/finanz/menge';
 import {
   findeAnstellung, leseKonditionen,
   type AnstellungZeile, type KonditionZeile,
@@ -186,7 +189,9 @@ export default async function Vertragsblatt({
       >
         <label className="flex flex-col gap-s2 text-sm text-text-muted">
           Austritt
-          <input type="text" readOnly disabled value={zeile.austritt ?? 'unbefristet'} className={gesperrt} />
+          <input type="text" readOnly disabled
+                 value={zeile.austritt === null ? 'unbefristet' : tagDeutsch(zeile.austritt)}
+                 className={gesperrt} />
           <span className="text-xs text-text-subtle">
             Das Austrittsdatum gehört der Seite „Beschäftigung beenden": dort
             steht der Pflichtgrund daneben, und dort ist sichtbar, was ein
@@ -210,7 +215,8 @@ export default async function Vertragsblatt({
             type="text"
             readOnly
             disabled
-            value={zeile.wochenstunden === null ? 'nicht hinterlegt' : `${zeile.wochenstunden} h`}
+            value={zeile.wochenstunden === null
+              ? 'nicht hinterlegt' : `${formatiereMenge(mengeAusPostgres(zeile.wochenstunden))} h`}
             className={gesperrt}
           />
         </label>
@@ -220,7 +226,8 @@ export default async function Vertragsblatt({
             type="text"
             readOnly
             disabled
-            value={zeile.arbeitstageWoche ?? 'nicht hinterlegt'}
+            value={zeile.arbeitstageWoche === null
+              ? 'nicht hinterlegt' : tageAusPostgres(zeile.arbeitstageWoche)}
             className={gesperrt}
           />
         </label>
@@ -231,13 +238,13 @@ export default async function Vertragsblatt({
           (01-KERN §6.14) und haben genau einen Schreiber — den Auslöser, der
           sie aus <span className="font-mono">anstellung_kondition</span>
           {' '}ableitet. Geändert werden sie, indem eine neue datierte Kondition
-          entsteht; das verlangt <span className="font-mono">personal.entgelt_schreiben</span>.
+          entsteht; das verlangt <Recht schluessel="personal.entgelt_schreiben" />.
           Der Grund ist nicht Ordnungsliebe: eine Änderung an der Spalte
           bewertete jede vergangene Sollstunden- und Lohnkostenrechnung
           stillschweigend neu.
           {laufend === null
             ? ' Für diese Beschäftigung ist noch keine Kondition hinterlegt.'
-            : ` Die laufende Kondition gilt ab ${laufend.giltAb}.`}
+            : ` Die laufende Kondition gilt ab ${tagDeutsch(laufend.giltAb)}.`}
         </p>
         {darf['personal.entgelt_schreiben'] === true && (
           <div>

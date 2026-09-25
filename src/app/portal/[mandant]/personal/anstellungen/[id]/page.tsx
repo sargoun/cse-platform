@@ -6,8 +6,9 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
-import { MONATSNAMEN } from '@/lib/datum/kalendertag';
+import { MONATSNAMEN, tagDeutsch } from '@/lib/datum/kalendertag';
 import { stundenMinutenText } from '@/lib/datum/stunden';
+import { formatiereMenge, mengeAusPostgres, tageAusPostgres } from '@/server/services/finanz/menge';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { kennungOder404 } from '../../../../kennung';
@@ -98,8 +99,8 @@ export default async function Anstellungsblatt(
       const [kopf] = await kontext.abfrage<Kopf>(
         `select a.id, a.person_id, (p.vorname || ' ' || p.nachname) as name, p.telefon,
                 a.personalnummer,
-                to_char(a.eintritt, 'DD.MM.YYYY') as eintritt,
-                to_char(a.austritt, 'DD.MM.YYYY') as austritt,
+                to_char(a.eintritt, 'YYYY-MM-DD') as eintritt,
+                to_char(a.austritt, 'YYYY-MM-DD') as austritt,
                 a.status::text as status, a.arbeitszeitmodell, a.wochenstunden::text as wochenstunden,
                 (select count(*) from anstellung a2
                   where a2.person_id = a.person_id and a2.id <> a.id and a2.geloescht_am is null)::int as weitere
@@ -238,10 +239,11 @@ export default async function Anstellungsblatt(
         <h2 className="mb-s4 text-h3 text-text">Beschäftigung</h2>
         <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-s5 gap-y-s3">
           <Feld label="Personalnummer" wert={kopf.personalnummer ?? '—'} />
-          <Feld label="Eintritt" wert={kopf.eintritt} />
-          <Feld label="Austritt" wert={kopf.austritt ?? 'unbefristet'} />
+          <Feld label="Eintritt" wert={tagDeutsch(kopf.eintritt)} />
+          <Feld label="Austritt" wert={kopf.austritt === null ? 'unbefristet' : tagDeutsch(kopf.austritt)} />
           <Feld label="Arbeitszeitmodell" wert={kopf.arbeitszeitmodell ?? 'nicht hinterlegt'} />
-          <Feld label="Wochenstunden" wert={kopf.wochenstunden === null ? 'nicht hinterlegt' : `${kopf.wochenstunden} h`} />
+          {/* `numeric(5,2)` als Text „38.50" — deutsch „38,50 h", nicht „38.50 h" (V-196). */}
+          <Feld label="Wochenstunden" wert={kopf.wochenstunden === null ? 'nicht hinterlegt' : `${formatiereMenge(mengeAusPostgres(kopf.wochenstunden))} h`} />
           <Feld label="Telefon" wert={kopf.telefon ?? '—'} />
           <Feld label="Weitere Beschäftigungen" wert={kopf.weitere === 0 ? 'keine' : `${String(kopf.weitere)} — in anderen Gesellschaften (D-09); Arbeitszeitgrenzen gelten je Person, siehe Gruppenansicht`} />
         </dl>
@@ -274,9 +276,10 @@ export default async function Anstellungsblatt(
               { schluessel: 'ist', kopf: 'Ist', numerisch: true, zelle: (k) => stundenMinutenText(k.istMinuten) },
               { schluessel: 'saldo', kopf: 'Saldo', numerisch: true,
                 zelle: (k) => <span className={k.saldoMinuten < 0 ? 'text-danger' : ''}>{stundenMinutenText(k.saldoMinuten)}</span> },
-              { schluessel: 'urlaub', kopf: 'Urlaub (Tage)', numerisch: true, zelle: (k) => k.urlaub ?? '0' },
-              { schluessel: 'krank', kopf: 'Krank (Tage)', numerisch: true, zelle: (k) => k.krank ?? '0' },
-              { schluessel: 'status', kopf: 'Status', zelle: (k) => KONTO_STATUS[k.status] ?? k.status },
+              /* `numeric(12,3)`: „5.000" sind fünf Tage — nicht fünftausend (V-196). */
+              { schluessel: 'urlaub', kopf: 'Urlaub (Tage)', numerisch: true, zelle: (k) => tageAusPostgres(k.urlaub) },
+              { schluessel: 'krank', kopf: 'Krank (Tage)', numerisch: true, zelle: (k) => tageAusPostgres(k.krank) },
+              { schluessel: 'status', kopf: 'Status', zelle: (k) => KONTO_STATUS[k.status] ?? '—' },
             ]}
           />
         </div>
@@ -303,7 +306,7 @@ export default async function Anstellungsblatt(
               { schluessel: 'von', kopf: 'Von', zelle: (a) => a.von },
               { schluessel: 'bis', kopf: 'Bis', zelle: (a) => a.bis },
               { schluessel: 'tage', kopf: 'Tage', numerisch: true,
-                zelle: (a) => `${a.tage ?? '—'}${a.halbtags ? ' (halbtags)' : ''}` },
+                zelle: (a) => `${tageAusPostgres(a.tage)}${a.halbtags ? ' (halbtags)' : ''}` },
               { schluessel: 'status', kopf: 'Status',
                 zelle: (a) => <StatusPill zustand={ABWESENHEIT[a.status] ?? 'Offen'} /> },
             ]}

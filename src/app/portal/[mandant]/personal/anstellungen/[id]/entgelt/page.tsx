@@ -11,6 +11,9 @@ import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
 import { formatiereGeld, type Cent } from '@/server/services/finanz/geld';
+import { formatiereMenge, mengeAusPostgres, tageAusPostgres } from '@/server/services/finanz/menge';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
+import { Recht } from '@/components/ui/Recht';
 import {
   findeAnstellung, leseEntgelt, leseKonditionen,
   type AnstellungZeile, type KonditionZeile,
@@ -137,7 +140,7 @@ export default async function Entgeltblatt({
         <p className="m-0 text-sm text-text-muted">
           Personalnummer <span className="tabular-nums">{zeile.personalnummer}</span>
           {' · '}
-          Stichtag <span className="tabular-nums">{stichtag}</span>
+          Stichtag <span className="tabular-nums">{tagDeutsch(stichtag)}</span>
         </p>
       </div>
 
@@ -177,7 +180,7 @@ export default async function Entgeltblatt({
         {keinRecht ? (
           <p data-cse="entgelt-kein-recht" className="m-0 text-sm text-text-muted">
             Kein Recht auf Entgeltdaten in dieser Gesellschaft
-            (<span className="font-mono">personal.entgelt_lesen</span>). Das ist
+            (<Recht schluessel="personal.entgelt_lesen" />). Das ist
             etwas anderes als „kein Satz hinterlegt" — die Zeile trägt
             möglicherweise einen, diese Sitzung darf ihn nicht sehen (K-05).
           </p>
@@ -188,18 +191,28 @@ export default async function Entgeltblatt({
             </p>
             {satz === null && (
               <p className="m-0 mt-s2 text-sm text-text-muted">
-                Für den {stichtag} ist kein Satz hinterlegt.
+                Für den {tagDeutsch(stichtag)} ist kein Satz hinterlegt.
               </p>
             )}
             <dl className="m-0 mt-s4 grid grid-cols-[auto_1fr] gap-x-s5 gap-y-s3">
-              <Feld label="Gültig ab" wert={laufend?.giltAb ?? 'keine Kondition hinterlegt'} />
+              {/*
+                Tage, Stunden und Kalendertage in der deutschen Schreibweise
+                (V-196): „5", „38,50 h", „01.01.2026" — nicht „5.000",
+                „38.50 h" und „2026-01-01".
+              */}
+              <Feld
+                label="Gültig ab"
+                wert={laufend === null ? 'keine Kondition hinterlegt' : tagDeutsch(laufend.giltAb)}
+              />
               <Feld
                 label="Wochenstunden"
-                wert={zeile.wochenstunden === null ? 'nicht hinterlegt' : `${zeile.wochenstunden} h`}
+                wert={zeile.wochenstunden === null
+                  ? 'nicht hinterlegt' : `${formatiereMenge(mengeAusPostgres(zeile.wochenstunden))} h`}
               />
               <Feld
                 label="Arbeitstage pro Woche"
-                wert={zeile.arbeitstageWoche ?? 'nicht hinterlegt'}
+                wert={zeile.arbeitstageWoche === null
+                  ? 'nicht hinterlegt' : tageAusPostgres(zeile.arbeitstageWoche)}
               />
               <Feld label="Kostenstelle" wert={zeile.kostenstelle ?? 'nicht hinterlegt'} />
             </dl>
@@ -240,9 +253,9 @@ export default async function Entgeltblatt({
                 kopf: 'Gilt',
                 zelle: (k) => (
                   <span className="tabular-nums">
-                    {k.giltAb}
+                    {tagDeutsch(k.giltAb)}
                     {' – '}
-                    {k.giltBis ?? 'offen'}
+                    {k.giltBis === null ? 'offen' : tagDeutsch(k.giltBis)}
                   </span>
                 ),
               },
@@ -255,13 +268,14 @@ export default async function Entgeltblatt({
                 schluessel: 'stunden',
                 kopf: 'Wochenstunden',
                 numerisch: true,
-                zelle: (k) => (k.wochenstunden ?? '—'),
+                zelle: (k) => (k.wochenstunden === null
+                  ? '—' : formatiereMenge(mengeAusPostgres(k.wochenstunden))),
               },
               {
                 schluessel: 'tage',
                 kopf: 'Arbeitstage',
                 numerisch: true,
-                zelle: (k) => (k.arbeitstageWoche ?? '—'),
+                zelle: (k) => tageAusPostgres(k.arbeitstageWoche),
               },
               { schluessel: 'grund', kopf: 'Grund', zelle: (k) => (k.grund ?? '—') },
               {
@@ -293,7 +307,7 @@ export default async function Entgeltblatt({
       {darf['personal.entgelt_schreiben'] !== true ? (
         <p data-cse="entgelt-kein-schreibrecht" className="max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Einen Kostensatz setzt, wer{' '}
-          <span className="font-mono">personal.entgelt_schreiben</span> hält. Wer
+          <Recht schluessel="personal.entgelt_schreiben" /> hält. Wer
           ihn lesen darf, darf ihn darum noch nicht ändern.
         </p>
       ) : (

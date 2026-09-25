@@ -19224,6 +19224,55 @@ Objekt, und die Seite antwortete mit 500.
 | Betrifft | EMP-02, EMP-08, EMP-12, SEC-03, O-40, O-170, D-728, V-195, `src/lib/i18n/texte.ts` (`MeinTexte`, `ZUORDNUNG_STATUS_SCHLUESSEL`, `BEWACHER_STATUS_SCHLUESSEL`), `src/app/portal/mein/{bausteine.tsx,nachweise/page.tsx,schichten/[zuordnungId]/page.tsx}`, `src/app/portal/mein/zeiten/[id]/einwand/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/{wachbuch,bautagebuch}/page.tsx`, `tests/kern/mein-rohwerte.test.ts`, `tests/kern/nachschlagen.test.ts` |
 |---|---|
 
+### D-690 · Der Personalbereich schreibt Tage, Stunden und Kalendertage deutsch — umgeschrieben wird nur die Anzeige (V-196)
+
+**Der Befund** (V-196; Audit Befund 67): `numeric`-Spalten wurden per `::text`
+gelesen und ohne Formatierung ausgegeben. Das Stundenkonto der Beschäftigung
+zeigte „Urlaub (Tage)" und „Krank (Tage)" als „5.000" bzw. „0.000", die
+Abwesenheiten ebenso — deutsch gelesen fünftausend. „Wochenstunden" stand
+als „38.50 h", „Arbeitstage pro Woche" als „5.000", auf dem Vertrags- wie auf
+dem Entgeltblatt und in dessen Konditionentabelle. Die Listen der
+Beschäftigungen und die Personenseite zeigten Eintritt und Austritt als
+„2026-01-15", das Detailblatt derselben Beschäftigung als „15.01.2026"; das
+Entgeltblatt schrieb Stichtag, Geltungsbeginn und Konditionszeitraum als
+ISO-Tag. Die Gegenprobe über den ganzen Personalbereich fand dieselbe
+Rohform auf acht weiteren Seiten: Antrags- und Abwesenheitsblatt, Antrags-
+und Abwesenheitsliste, Nachweisregister und -blatt (samt Stichtag und
+Bewacherregister), Personenblatt, „Beschäftigung beenden" und der gesperrte
+Austritt auf dem Vertragsblatt; das Personen- und das Nachweisblatt zeigten
+dazu den Status des Bewacherregisters als Schlüssel.
+
+**Die Entscheidung.**
+
+1. **Die Dienste und Abfragen bleiben, wie sie sind** — ISO-Tag und Punkt.
+   Links (`?stichtag=`), Vergleiche (`giltAb === stichtag`) und die
+   Formularwerte hängen daran; eine Anzeigeform in der Abfrage hätte sie
+   gebrochen. Umgeschrieben wird in der Seite: `tageAusPostgres` für Tage
+   (D-688, „5", „1,5", `null` → „—"), `formatiereMenge(mengeAusPostgres(…))`
+   für Wochenstunden (`numeric(5,2)`, „38,50 h" — dieselbe Form, die die
+   Liste der Beschäftigungen schon schrieb), `tagDeutsch` für Kalendertage.
+   Das Beschäftigungsblatt, das als einzige Seite `DD.MM.YYYY` in der
+   Abfrage bildete, liest jetzt auch ISO und schreibt in der Seite um — eine
+   Regel für alle, damit die Prüfung sie am Quelltext halten kann.
+2. **Deutsch und nicht „in der Sprache der Seite"**: die Seiten stehen auf
+   der Ausnahmeliste der Übersetzungswache, ihr Text ist deutsch. Eine
+   englische Zahl in einem deutschen Satz wäre der umgekehrte Fehler.
+3. **Geprüft über den ganzen Personalbereich**, nicht über die Liste des
+   Befunds: `tests/kern/personal-zahlen.test.ts` liest jede `.tsx` unter
+   `personal/` und findet einen ISO-Tag im sichtbaren Text; Technik (`href`,
+   `key`, `min`, `defaultValue` eines Datumsfelds) bleibt ISO.
+4. **Nebenbei:** die drei Rechteschlüssel auf Vertrags- und Entgeltblatt
+   (`personal.entgelt_lesen`, `personal.entgelt_schreiben`) stehen als
+   `<Recht>` statt als Quelltext; der Status im Bewacherregister steht als
+   Wort (`STATUS_TEXT`), und der Status eines Kontomonats oder Nachweises
+   fällt bei einem unbekannten Wert auf „—" statt auf den Schlüssel.
+5. **Die Antrags- und die Abwesenheitsliste und das Nachweisblatt** bekommen
+   ihre Kalendertage mit V-197: dieselben Seiten bekommen dort ihren
+   Fehler-Rückweg, und eine Datei gehört einem Befund.
+
+| Betrifft | EMP-04, EMP-05, SEC-03, D-688, V-196, V-197, `src/app/portal/[mandant]/personal/anstellungen/{page,[id]/page,[id]/vertrag/page,[id]/entgelt/page,[id]/beenden/page}.tsx`, `src/app/portal/[mandant]/personal/{antraege/[id],abwesenheiten/[id],nachweise,personen/[id]}/page.tsx`, `tests/kern/personal-zahlen.test.ts` |
+|---|---|
+
 ### D-691 · Eine Seite, auf die ein Formular zurückführt, liest den Grund, den die Route mitgibt — sonst ist der Rückweg ein Weg ins Leere (V-197)
 
 **Der Befund** (V-197; Audit Befund 79): Fünf Formulare schicken `zurueck`
