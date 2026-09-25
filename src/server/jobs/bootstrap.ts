@@ -45,6 +45,7 @@ import { registriereBewerberLoeschung } from './bewerberLoeschung.js';
 import { registriereDokumentAufbewahrung } from './dokumentAufbewahrung.js';
 import { registriereKontenRollover } from './kontenRollover.js';
 import { registriereUrlaubskontenJahr } from './urlaubskontenJahr.js';
+import { registriereFeiertagePflegen } from './feiertagePflegen.js';
 
 /*
  * Methodensyntax, nicht Eigenschaftssyntax — wie ueberall sonst im Baum
@@ -78,6 +79,8 @@ let geschehen = false;
  */
 export function alleJobs(db: Abfrage): readonly JobDefinition[] {
   if (!geschehen) {
+    /* V-178 — der Kalender, aus dem der Generator die Feiertage liest. */
+    registriereFeiertagePflegen(db);
     registriereEinsatzGenerator(db);
     registriereKonfliktDetektor(db);
     registriereLeadSlaJob(db);

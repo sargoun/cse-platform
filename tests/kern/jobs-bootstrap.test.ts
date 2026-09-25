@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe('der Bootstrap verdrahtet ALLE Jobs', () => {
-  it('registriert die sechsundzwanzig Jobs, die es gibt', () => {
+  it('registriert die siebenundzwanzig Jobs, die es gibt', () => {
     const schluessel = alleJobs(db).map((j) => j.schluessel).sort();
     expect(schluessel).toEqual([
       'akquise_recherche',
@@ -71,6 +71,12 @@ describe('der Bootstrap verdrahtet ALLE Jobs', () => {
        */
       'einsaetze_generieren',
       'einsatz_abschluss',
+      /*
+       * `feiertage_pflegen` kam mit V-178 dazu: `0028` nannte ihn als
+       * einzigen Schreiber von `feiertag`, und es gab ihn nicht — der
+       * Generator las eine leere Tabelle und plante am 3. Oktober.
+       */
+      'feiertage_pflegen',
       'freigabe_fenster', 'kette_pruefen',
       'konflikte_erkennen', 'konten_rollover', 'lead_sla_eskalation',
       'mahnvorschlaege_erzeugen',

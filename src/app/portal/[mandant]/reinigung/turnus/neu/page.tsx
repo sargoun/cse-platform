@@ -25,6 +25,8 @@ import {
   turnusVorschau, type VorschauTermin,
 } from '@/server/services/reinigung/turnusvorschau';
 import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { FEIERTAG_TEXTE } from '@/lib/i18n/verwaltung/feiertage';
 
 /**
  * `/portal/[mandant]/reinigung/turnus/neu` — eine Regel bauen und VORHER
@@ -179,17 +181,25 @@ export default async function TurnusNeu(
           order by oz, kurztext
           limit 200`,
       );
-      const karte = rrule === null ? new Map<string, string>() : (await ladeFeiertage(
+      const kalender = rrule === null ? null : await ladeFeiertage(
         { unsafe: (sql, werte) => kontext.abfrage<unknown>(sql, werte) },
         'BE', fenster.vonDatum, fenster.bisDatum,
-      )).namen;
-      return { rechte, reviere, leistungen, feiertagsKarte: karte };
+      );
+      return {
+        rechte, reviere, leistungen,
+        feiertagsKarte: kalender?.namen ?? new Map<string, string>(),
+        /* V-178: ein Jahr ohne Kalender sieht in der Vorschau aus wie eines
+           ohne Feiertag — deshalb wird es mitgeliefert und benannt. */
+        ohneKalender: kalender?.fehlendeJahre ?? [],
+      };
     })) as Promise<{
       rechte: Readonly<Record<string, boolean>>;
       reviere: readonly RevierWahl[];
       leistungen: readonly LeistungWahl[];
       feiertagsKarte: ReadonlyMap<string, string>;
+      ohneKalender: readonly number[];
     }>);
+  const tF = nachSprache(FEIERTAG_TEXTE, zugang.sprache);
 
   /* ---- die Vorschau, mit echten Feiertagen ----------------------------- */
   let termine: readonly VorschauTermin[] = [];
@@ -489,6 +499,14 @@ export default async function TurnusNeu(
                 {findet.length} Termin(e) im Fenster
                 {faelltAus.length > 0 && `, ${String(faelltAus.length)} fallen aus`}
               </p>
+
+              {daten.ohneKalender.length > 0 && (
+                <Hinweis art="warnung" cse="turnus-feiertagskalender-fehlt"
+                         className="mb-s4 max-w-prose">
+                  <strong>{tF.kalenderFehltTitel}.</strong>{' '}
+                  {tF.kalenderFehlt('BE', daten.ohneKalender)}
+                </Hinweis>
+              )}
 
               {anomalien.length > 0 && (
                 <Hinweis art="warnung" cse="turnus-vorschau-dst" className="mb-s4 max-w-prose">

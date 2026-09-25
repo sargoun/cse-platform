@@ -19138,3 +19138,66 @@ bestätigt das über alle Eingänge.
 
 | Betrifft | V-248, V-255, D-613, AUT-06, `src/server/registry/rueckweg.ts`, `tests/kern/rueckweg.test.ts` (7), `tests/kern/hilfen/tor-adresse.ts` |
 |---|---|
+
+### D-672 · Der Feiertagskalender hat einen Schreiber, und der Generator liest die Regel, die der Bildschirm zeigt (V-178)
+
+**Der Befund** (V-178; Audit Gruppe „einsatz", CLN-03, TIM-02): Generator,
+Turnusvorschau und Dienstplanansicht lesen die Feiertage ausschliesslich aus
+`feiertag`. Die Tabelle hatte keinen einzigen Schreiber — `0028` kündigte
+`job:feiertage_pflegen` an, `src/lib/datum/feiertage-berlin.ts` rechnete die
+Tage, eingetragen hat sie niemand. `ladeFeiertage` lieferte immer eine leere
+Karte: ein Turnus mit `feiertagsregel = 'ausfall'` legte am 3. Oktober eine
+Reinigung an, `einsatz.feiertag_id` blieb NULL, und die Vorschau auf
+`/reinigung/turnus/neu` zeigte keinen Feiertag. Beim Gegenprüfen fiel ein
+zweiter Fehler dahinter auf: der Generator strich nur, wenn der TURNUS
+`ausfall` sagte, übergab die Feiertage aber nur, wenn die SERIE übersprang.
+Ein Turnus, dessen Regel später am Turnus auf `ausfall` gesetzt wurde,
+fiel deshalb nie aus; eine Postenserie mit „fällt aus" ebenso — während
+Serienblatt und Serienliste das Gegenteil zeigten.
+
+**Die Entscheidung.**
+
+1. **Ein Dienst, eine Rechnung.** `services/dienstplan/feiertage.ts`
+   schreibt die GERECHNETEN Berliner Tage (`feiertageBerlin`) eines Jahres
+   in `feiertag`, idempotent über `feiertag_uk (bundesland, datum)`, mit
+   `quelle = 'berechnet'`. Die Osterrechnung bleibt, wo sie ist; erfunden
+   wird kein Tag, auch kein betrieblicher. Heiligabend und Silvester reisen
+   mit `gesetzlich = false` mit, wie §5.1 es will — ihre Behandlung bleibt
+   O-167.
+2. **Ein vorhandener Tag wird gemeldet, nicht umgeschrieben.** Weicht eine
+   Zeile von der Rechnung ab (anderer Name, andere Gesetzlichkeit), oder
+   steht ein Tag in der Tabelle, den die Rechnung nicht kennt (Import, von
+   Hand), bleibt er stehen und steht im Bericht. Feiertagsrecht ändert sich;
+   ein Lauf, der ein materialisiertes Jahr still umdatiert, datiert auch
+   einen bestätigten Import um.
+3. **Der Lauf `feiertage_pflegen`** — `plattform` (die Tabelle trägt keine
+   `mandant_id`), als `cse_job` über die Policy `f_job` (`alsJobRolle`),
+   täglich um 01:50 UTC und damit vor `einsaetze_generieren` (02:15 UTC),
+   für das laufende und die zwei folgenden Jahre (der längste Horizont einer
+   Serie sind 400 Tage). „Heute" kommt aus `app.berlin_heute()`.
+   **Der Seed** ruft denselben Dienst vor seinem ersten Generatorlauf, mit
+   dem Vorjahr dazu (er legt drei Wochen Vergangenheit an). **Eine
+   Mandantenanlage** gibt es in der Anwendung nicht, und der Kalender hängt
+   an keinem Mandanten — dort ist nichts aufzurufen.
+4. **Die wirksame Feiertagsregel ist die, die der Bildschirm zeigt**
+   (`wirksameFeiertagsregel`): die des Turnus, wo es einen gibt, sonst die
+   bei der Anlage festgeschriebene Entscheidung der Serie
+   (`planungsserie.feiertage_ueberspringen`). Die Feiertagskarte geht IMMER
+   an `planeVorkommnisse`: bei `ausfall` fällt der Termin aus und steht im
+   Bericht, sonst entsteht er und trägt `feiertag_id`. Eine Postenschicht am
+   3. Oktober bleibt damit bestehen (Vorgabe aus 0028: nie still entfernen;
+   ob Posten an Feiertagen besetzt werden, fragt O-167) — aber sie ist als
+   Feiertagsschicht erkennbar.
+5. **Ein Jahr ohne Kalender wird benannt.** `ladeFeiertage` liefert
+   `fehlendeJahre` (Jahre im Fenster ohne eine einzige Zeile des Landes).
+   Der Generator schreibt sie als `feiertagskalender_fehlt` in die Meldung
+   der Serie und ins Laufprotokoll, die Turnusvorschau (`turnus/neu`,
+   `turnus/[id]`) zeigt einen Hinweis in beiden Sprachen. Ein Bundesland,
+   das `feiertage-berlin.ts` nicht rechnet, plant damit nicht mehr still
+   ohne Feiertage.
+
+**Nicht Teil dieser Entscheidung:** andere Bundesländer und die Behandlung
+von Heiligabend und Silvester (O-167), Zuschläge an Feiertagen.
+
+| Betrifft | CLN-03, TIM-02, TIM-03, V-178, O-167, D-624, `src/server/services/dienstplan/{feiertage,generator}.ts`, `src/server/jobs/{feiertagePflegen,bootstrap,einsaetzeGenerieren}.ts`, `src/server/db/seed/{dienstplan,index}.ts`, `src/server/services/reinigung/turnus.ts`, `src/app/portal/[mandant]/reinigung/turnus/{neu,[id]}/page.tsx`, `src/lib/i18n/verwaltung/{feiertage,nutzlast}.ts`, `docs/JOB-AUSLOESER.sql`, `tests/kern/feiertage-pflege.test.ts`, `tests/isolation/feiertage-pflege.test.ts` |
+|---|---|

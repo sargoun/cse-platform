@@ -24,6 +24,9 @@ import type postgres from 'postgres';
 import {
   berlinHeute, generiereEinsaetze, type Abfrage,
 } from '../../services/dienstplan/generator.js';
+import {
+  pflegeFeiertage, pflegeJahre, type FeiertagPflegeBericht,
+} from '../../services/dienstplan/feiertage.js';
 import { montag, tagePlus } from '@/lib/datum/kalendertag';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
@@ -73,6 +76,32 @@ export interface DienstplanErgebnis {
   readonly turnusse: number;
   readonly serien: number;
   readonly einsaetze: number;
+}
+
+/**
+ * Der Feiertagskalender VOR dem ersten Generatorlauf (V-178, D-672).
+ *
+ * Derselbe Dienst wie der Nachtlauf `feiertage_pflegen`, mit einem Jahr mehr
+ * nach hinten: der Seed legt drei Wochen Vergangenheit an, und im Januar
+ * liegen die im Vorjahr. Ohne diesen Schritt plante der Seed genau den Fehler
+ * vor, den der Befund beschreibt — die Nachtreinigung am 3. Oktober ohne
+ * Feiertag, die Unterhaltsreinigung an einem Feiertag, der als Werktag galt.
+ *
+ * Geschrieben wird als Eigentuemer der Seed-Verbindung; im Betrieb schreibt
+ * `cse_job` ueber `f_job` (0028). Dieselben Zeilen, derselbe
+ * Konfliktschluessel — ein zweiter Seed traegt nichts doppelt ein.
+ */
+export async function seedFeiertage(sql: Sql): Promise<FeiertagPflegeBericht> {
+  const [heute] = await sql<{ jahr: number }[]>`
+    select extract(year from app.berlin_heute())::int as jahr`;
+  const jahr = Number(heute?.jahr);
+  return pflegeFeiertage(
+    {
+      abfrage: async <T,>(anweisung: string, werte: readonly unknown[] = []) =>
+        (await sql.unsafe(anweisung, werte as never[])) as unknown as readonly T[],
+    },
+    [jahr - 1, ...pflegeJahre(jahr)],
+  );
 }
 
 export async function seedDienstplan(

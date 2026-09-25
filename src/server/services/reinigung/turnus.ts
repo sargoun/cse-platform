@@ -396,6 +396,11 @@ export interface TurnusVorschauErgebnis {
   readonly fenster: { readonly vonDatum: string; readonly bisDatum: string };
   /** Bundesland der Serie, sonst Berlin — die Feiertage haengen daran. */
   readonly bundesland: string;
+  /**
+   * Jahre im Fenster ohne gepflegten Feiertagskalender (V-178). Leer heisst:
+   * die Vorschau kennt jeden Feiertag, den der Generator kennt.
+   */
+  readonly feiertageFehlen: readonly number[];
 }
 
 /**
@@ -416,7 +421,7 @@ export async function ladeVorschau(
     [blatt.planungsserieId],
   );
   const bundesland = land?.land ?? 'BE';
-  const { namen } = await ladeFeiertage(
+  const { namen, fehlendeJahre } = await ladeFeiertage(
     { unsafe: (sql, werte) => kontext.abfrage<unknown>(sql, werte) },
     bundesland, fenster.vonDatum, fenster.bisDatum,
   );
@@ -440,7 +445,7 @@ export async function ladeVorschau(
     })),
     namen, fenster,
   );
-  return { termine, fenster, bundesland };
+  return { termine, fenster, bundesland, feiertageFehlen: fehlendeJahre };
 }
 
 export interface TurnusEinsatzZeile {

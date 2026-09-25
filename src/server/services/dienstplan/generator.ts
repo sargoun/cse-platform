@@ -88,6 +88,12 @@ export interface SerienBericht {
   readonly storniert: number;
   readonly uebersprungen: readonly { readonly quellSchluessel: string; readonly grund: string }[];
   readonly generiertBis: string;
+  /**
+   * Kalenderjahre im Horizont ohne gepflegten Feiertagskalender (V-178) —
+   * leer, wenn alles da ist. Fehlt ein Jahr, kennt der Lauf dort keinen
+   * Feiertag; das steht im Bericht, weil es sonst niemand merkt.
+   */
+  readonly feiertagskalenderFehlt?: readonly number[];
 }
 
 interface EinsatzZeile {
@@ -141,14 +147,17 @@ export async function materialisiereSerie(
   const bis = horizontEnde(lage.heute, serie.horizontTage);
   const feiertage = await ladeFeiertage(db, serie.feiertagBundesland, lage.heute, bis);
   const { einsaetze, uebersprungen } = planeVorkommnisse(
-    serie,
+    { ...serie, feiertagsregel: wirksameFeiertagsregel(serie) },
     ausnahmen,
-    // Die Feiertagsregel des Traegers entscheidet, ob die Tage ueberhaupt
-    // wirken; wo sie nicht wirkt, wird die Karte leer uebergeben, damit
-    // `feiertag_id` nicht faelschlich gesetzt wird.
-    serie.feiertageUeberspringen || serie.feiertagsregel === 'unveraendert'
-      ? feiertage.namen
-      : new Map<string, string>(),
+    /*
+     * **Die Karte geht IMMER mit** (V-178). Sie entscheidet zweierlei: ob ein
+     * Termin ausfaellt (nur bei `ausfall`) und ob eine Schicht, die trotzdem
+     * stattfindet, ihren Feiertag traegt (`feiertag_id`). Bisher wurde sie bei
+     * einer Postenserie ohne Ueberspringen leer uebergeben — die Wache am
+     * 3. Oktober stand im Plan wie an jedem Dienstag, und genau dort fragt
+     * die Einsatzleitung nach Zuschlag und Besetzung.
+     */
+    feiertage.namen,
     { vonDatum: lage.heute, bisDatum: bis },
   );
 
@@ -178,6 +187,15 @@ export async function materialisiereSerie(
   const storniert = await storniereVerwaiste(db, serie, geschrieben, lage);
   await schreibeSerienstand(db, serie, bis, lage, {
     erzeugt, aktualisiert, storniert, uebersprungen: nichtAngewandt,
+    /*
+     * Nur wenn es etwas zu sagen gibt: ein fehlendes Kalenderjahr heisst,
+     * dass in diesem Fenster KEIN Feiertag bekannt ist — ein Turnus mit
+     * `ausfall` fiele dort nie aus, und niemand saehe, warum (V-178).
+     */
+    ...(feiertage.fehlendeJahre.length === 0 ? {} : {
+      feiertagskalender_fehlt: feiertage.fehlendeJahre.map((j) =>
+        `${serie.feiertagBundesland} ${String(j)}`),
+    }),
   });
 
   return {
@@ -185,12 +203,49 @@ export async function materialisiereSerie(
     erzeugt, aktualisiert, storniert,
     uebersprungen: nichtAngewandt,
     generiertBis: bis,
+    feiertagskalenderFehlt: feiertage.fehlendeJahre,
   };
+}
+
+/**
+ * Welche Feiertagsregel fuer diese Serie GILT (V-178).
+ *
+ * Dieselbe Antwort, die das Serienblatt und die Serienliste zeigen
+ * (`serie.ts: leseSerie`, `serienliste.ts`): die Regel des Turnus, wo es
+ * einen gibt, sonst die bei der Anlage festgeschriebene Entscheidung der Serie
+ * (`planungsserie.feiertage_ueberspringen`, §8.5). Bisher las der Generator
+ * zwei verschiedene Stellen: er strich nur, wenn der Turnus `ausfall` sagte,
+ * und uebergab die Feiertage nur, wenn die Serie uebersprang. Ein Turnus,
+ * dessen Regel spaeter auf `ausfall` gesetzt wurde (`aendereTurnus`),
+ * fiel deshalb nie aus; eine Postenserie mit „faellt aus" auch nicht — der
+ * Bildschirm sagte das Gegenteil dessen, was der Plan tat.
+ *
+ * Die Vorgabe fuer Posten und Veranstaltungen bleibt `false` (0028: „eine
+ * geplante Schicht niemals still entfernen"), ob sie an Feiertagen besetzt
+ * werden, fragt O-167. Diese Funktion entscheidet das nicht, sie liest nur,
+ * was jemand entschieden hat.
+ */
+export function wirksameFeiertagsregel(
+  serie: Pick<SerienZeile, 'feiertagsregel' | 'feiertageUeberspringen'>,
+): 'ausfall' | 'unveraendert' {
+  const vomTraeger = serie.feiertagsregel as string | null;
+  if (vomTraeger === 'ausfall' || vomTraeger === 'unveraendert') return vomTraeger;
+  return serie.feiertageUeberspringen ? 'ausfall' : 'unveraendert';
 }
 
 export interface Feiertagsfenster {
   readonly namen: ReadonlyMap<string, string>;
   readonly ids: ReadonlyMap<string, string>;
+  /**
+   * Kalenderjahre im Fenster, fuer die das Bundesland KEINE einzige Zeile hat.
+   *
+   * Jedes Jahr hat in Berlin mindestens neun gesetzliche Feiertage; ein Jahr
+   * ohne Zeile ist also nicht „feiertagsfrei", sondern nicht gepflegt — der
+   * Lauf `feiertage_pflegen` war noch nicht da, oder das Land ist keines, das
+   * `feiertage-berlin.ts` rechnet (O-167). Die Vorschau und der Generator
+   * sagen das, statt still ohne Feiertage zu planen.
+   */
+  readonly fehlendeJahre: readonly number[];
 }
 
 /**
@@ -223,7 +278,24 @@ export async function ladeFeiertage(
     namen.set(z.datum, z.bezeichnung);
     ids.set(z.datum, z.id);
   }
-  return { namen, ids };
+  /*
+   * Gezaehlt wird JEDE Zeile des Jahres, auch Heiligabend (`gesetzlich =
+   * false`): gefragt ist, ob der Kalender gepflegt ist, nicht ob im Fenster
+   * ein Feiertag liegt. Ein Fenster vom 2. bis 20. Januar hat keinen — und
+   * ist trotzdem gepflegt.
+   */
+  const jahre = (await db.unsafe(
+    `select j.jahr::int as jahr
+       from generate_series(extract(year from $2::date)::int,
+                            extract(year from $3::date)::int) as j(jahr)
+      where not exists (
+              select 1 from feiertag f
+               where f.bundesland = $1
+                 and f.datum between make_date(j.jahr, 1, 1) and make_date(j.jahr, 12, 31))
+      order by j.jahr`,
+    [bundesland, von, bis],
+  )) as { jahr: number }[];
+  return { namen, ids, fehlendeJahre: jahre.map((j) => Number(j.jahr)) };
 }
 
 /**

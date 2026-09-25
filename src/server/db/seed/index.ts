@@ -16,7 +16,7 @@
 import postgres from 'postgres';
 import { DATENSCHUTZ_VERSION, FORMULARE } from './formulare.js';
 import { seedOperations } from './operations.js';
-import { seedDienstplan } from './dienstplan.js';
+import { seedDienstplan, seedFeiertage } from './dienstplan.js';
 import { seedQualifikationen } from './qualifikation.js';
 import { seedAuftrag } from './auftrag.js';
 import { seedZeit } from './zeit.js';
@@ -1637,6 +1637,21 @@ async function main(): Promise<void> {
     `  ${String(qual.qualifikationen)} Qualifikationen (§34a GewO, §11b GewO, `
     + `DGUV V1), ${String(qual.nachweise)} Nachweise — gültig, in der Warnfrist `
     + 'und abgelaufen (Ablauffrist des Bewacherausweises offen: O-341)\n',
+  );
+
+  /**
+   * Der Feiertagskalender VOR jedem Generatorlauf (V-178): der Generator
+   * liest die Feiertage ausschliesslich aus `feiertag`. Kaeme er danach,
+   * planten Reinigung und Security ihre acht Wochen ohne einen einzigen
+   * Feiertag — genau der Befund, der hier behoben ist.
+   */
+  const kalender = await seedFeiertage(sql);
+  process.stdout.write(
+    `  Feiertagskalender BE ${kalender.jahre.join(', ')}: ${String(kalender.eingetragen)} `
+    + `eingetragen, ${String(kalender.unveraendert)} schon vorhanden`
+    + (kalender.abweichungen.length === 0
+      ? '' : `, ${String(kalender.abweichungen.length)} ABWEICHEND (nicht ueberschrieben)`)
+    + '\n',
   );
 
   /**

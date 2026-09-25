@@ -55,6 +55,13 @@ export function registriereEinsatzGenerator(db: Abfrage): JobDefinition {
         }),
         { erzeugt: 0, aktualisiert: 0, storniert: 0 },
       );
+      /*
+       * V-178: ein Kalenderjahr ohne Feiertage im Horizont ist KEIN ruhiger
+       * Lauf — dort faellt kein Turnus mit `ausfall` aus. Es steht deshalb im
+       * Laufprotokoll, nicht nur an der einzelnen Serie.
+       */
+      const ohneKalender = [...new Set(berichte.flatMap((b) => b.feiertagskalenderFehlt ?? []))]
+        .sort((a, b) => a - b);
       return {
         ...summe,
         serien: berichte.length,
@@ -62,6 +69,7 @@ export function registriereEinsatzGenerator(db: Abfrage): JobDefinition {
         nicht_angewandt: berichte
           .filter((b) => b.uebersprungen.length > 0)
           .map((b) => ({ serie: b.planungsserieId, faelle: b.uebersprungen })),
+        ...(ohneKalender.length === 0 ? {} : { feiertagskalender_fehlt: ohneKalender }),
       };
     },
   });

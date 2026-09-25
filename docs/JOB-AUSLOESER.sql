@@ -102,6 +102,18 @@ select cron.schedule('cse_einsatz_abschluss', '15 * * * *', $cse$
   );
 $cse$);
 
+-- Berliner Feiertage in den Kalender schreiben (laufendes Jahr und zwei weitere) (plattform)
+select cron.unschedule('cse_feiertage_pflegen')
+  where exists (select 1 from cron.job where jobname = 'cse_feiertage_pflegen');
+select cron.schedule('cse_feiertage_pflegen', '50 1 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/feiertage_pflegen',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
 -- Abgelaufene Einspruchsfenster freigeben (APR-05) (uebergreifend)
 select cron.unschedule('cse_freigabe_fenster')
   where exists (select 1 from cron.job where jobname = 'cse_freigabe_fenster');

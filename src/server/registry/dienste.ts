@@ -581,6 +581,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'dienstplan', pfad: 'dienstplan/generator',
     schreibend: true, schreibRecht: 'dienstplan.schreiben',
   },
+  /**
+   * V-178 — der Feiertagskalender. Er schreibt `feiertag`, aber nicht als
+   * Mensch mit einem Katalogrecht: `cse_app` hat auf der Tabelle nur Lesen,
+   * geschrieben wird als `cse_job` (Policy `f_job`, 0028) vom Lauf
+   * `feiertage_pflegen` und vom Seed. Ein Schreibrecht aus dem Katalog gibt
+   * es dafuer nicht und soll es nicht geben — ein Feiertag ist Landesrecht,
+   * kein Stammdatensatz. Deshalb `schreibend: false` wie die Wachen oben: in
+   * der Gruppenansicht fuehrt kein Weg hierher.
+   */
+  { modul: 'dienstplan', pfad: 'dienstplan/feiertage', schreibend: false },
   { modul: 'dokument', pfad: 'dokument/kategorie', schreibend: false },
   {
     modul: 'dokument', pfad: 'dokument/upload',
