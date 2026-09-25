@@ -10,7 +10,7 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
 import { withTenant } from '@/server/kontext/index';
 import { entscheideAntrag } from '@/server/services/abwesenheit/antrag';
 import { liesRumpf } from '../../rumpf';
-import { fehlerAufsFormular } from '../../formular-antwort';
+import { grundAufsFormular } from '../../formular-antwort';
 
 /**
  * `POST /api/antraege/[id]` — über einen Antrag entscheiden (EMP-10, NOT-01).
@@ -83,12 +83,16 @@ export async function POST(
     const status = (fehler as { status?: number }).status;
     const code = (fehler as { code?: string }).code;
     if (typeof status === 'number' && typeof code === 'string') {
-      // Die fachlichen Fehler tragen ihre Meldung: „kein Urlaubsanspruch
-      // hinterlegt (O-18)" ist eine Auskunft und kein Serverfehler — und eine
-      // Auskunft gehoert auf die Seite, nicht auf einen weissen Grund.
+      // Die fachlichen Fehler sind Auskuenfte: „kein Urlaubsanspruch
+      // hinterlegt (O-18)" ist kein Serverfehler — und eine Auskunft gehoert
+      // auf die Seite, nicht auf einen weissen Grund. Sie reist als GRUND
+      // (D-753), nie als Satz des Dienstes: der ist deutsch und traegt fuer
+      // einen schon entschiedenen Antrag die volle Kennung.
       const meldung = (fehler as Error).message;
-      const aufsFormular = fehlerAufsFormular(anfrage, {
-        json: rumpf.json, zurueck: rumpf.felder['zurueck'], meldung,
+      const grund = (fehler as { grund?: unknown }).grund;
+      const aufsFormular = grundAufsFormular(anfrage, {
+        json: rumpf.json, zurueck: rumpf.felder['zurueck'],
+        grund: typeof grund === 'string' ? grund : code,
       });
       if (aufsFormular !== null) return aufsFormular;
       return NextResponse.json({ fehler: code, meldung }, { status });

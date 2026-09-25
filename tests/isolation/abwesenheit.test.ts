@@ -23,7 +23,7 @@ import {
 } from '../../src/server/services/abwesenheit/index.js';
 import {
   entscheideAntrag, listeOffeneAntraege, reicheAntragEin, zieheAntragZurueck,
-  KommentarFehlt, UrlaubskontoFehlt,
+  AntragNichtGefunden, KommentarFehlt, UrlaubskontoFehlt,
 } from '../../src/server/services/abwesenheit/antrag.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 
@@ -258,6 +258,59 @@ describe('(2) Eine Ablehnung behält ihren Grund und beide Zeitpunkte', () => {
 
     await expect(alsMensch(jonasKonto, f.jonas, f.reinigung, (k) => zieheAntragZurueck(k, antrag.id)))
       .rejects.toThrow();
+  });
+});
+
+describe('(2a) Ein zweiter Klick auf „Genehmigen" ist „schon entschieden" — kein Serverfehler (D-753)', () => {
+  it('die zweite Genehmigung wirft AntragNichtGefunden mit Grund, und es bleibt EINE Abwesenheit', async () => {
+    const urlaub = await art('urlaub');
+    await sql.unsafe(
+      `insert into urlaubskonto (mandant_id, anstellung_id, jahr, anspruch_tage)
+       values ($1, $2, 2029, 30)`, [f.reinigung, f.jonasReinigung]);
+    const artId = await antragsart('urlaub');
+    const antrag = await alsMensch(jonasKonto, f.jonas, f.reinigung, (k) =>
+      reicheAntragEin(k, {
+        anstellungId: f.jonasReinigung, antragsartId: artId,
+        vonDatum: '2029-10-08', bisDatum: '2029-10-09', abwesenheitsartId: urlaub,
+      }));
+    await alsRolle(chef, f.reinigung, (k) =>
+      entscheideAntrag(k, { antragId: antrag.id, entscheidung: 'genehmigt' }));
+
+    /*
+     * Vorher stand vor dem Update, das den Stand prüft, das INSERT der
+     * Abwesenheit — und das traf die Sperre `ab_keine_dublette` (23P01):
+     * eine 500 statt des Satzes. Jetzt fällt die Entscheidung am Stand.
+     */
+    const zweite = alsRolle(chef, f.reinigung, (k) =>
+      entscheideAntrag(k, { antragId: antrag.id, entscheidung: 'genehmigt' }));
+    await expect(zweite).rejects.toBeInstanceOf(AntragNichtGefunden);
+    await expect(zweite).rejects.toMatchObject({ grund: 'nicht_gefunden', status: 404 });
+
+    const [n] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from abwesenheit where antrag_id = $1`, [antrag.id]);
+    expect(Number(n?.n ?? '0'), 'genau eine Abwesenheit').toBe(1);
+  });
+
+  it('eine Ablehnung nach der Genehmigung ändert nichts', async () => {
+    const urlaub = await art('urlaub');
+    await sql.unsafe(
+      `insert into urlaubskonto (mandant_id, anstellung_id, jahr, anspruch_tage)
+       values ($1, $2, 2029, 30)`, [f.reinigung, f.jonasReinigung]);
+    const artId = await antragsart('urlaub');
+    const antrag = await alsMensch(jonasKonto, f.jonas, f.reinigung, (k) =>
+      reicheAntragEin(k, {
+        anstellungId: f.jonasReinigung, antragsartId: artId,
+        vonDatum: '2029-10-15', bisDatum: '2029-10-15', abwesenheitsartId: urlaub,
+      }));
+    await alsRolle(chef, f.reinigung, (k) =>
+      entscheideAntrag(k, { antragId: antrag.id, entscheidung: 'genehmigt' }));
+    await expect(alsRolle(chef, f.reinigung, (k) =>
+      entscheideAntrag(k, { antragId: antrag.id, entscheidung: 'abgelehnt', kommentar: 'zu spät' })))
+      .rejects.toBeInstanceOf(AntragNichtGefunden);
+
+    const [z] = await sql.unsafe<{ status: string }[]>(
+      `select status::text as status from antrag where id = $1`, [antrag.id]);
+    expect(z?.status).toBe('genehmigt');
   });
 });
 

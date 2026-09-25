@@ -7,6 +7,9 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { ENTSCHEIDUNG_FEHLER_TEXTE } from '@/lib/i18n/verwaltung/personal-entscheidung';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { DataTable } from '@/components/ui/DataTable';
 import { haeltRechte } from '@/app/portal/rechte';
@@ -99,7 +102,10 @@ export default async function Abwesenheitsblatt({
 
   const suche = await searchParams;
   const grundGewuenscht = suche['grund'] === '1';
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  /* Der Grund eines abgewiesenen Formulars, als Satz nachgeschlagen (D-753) —
+     nie Text aus der Adresse. */
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerTexte = nachSprache(ENTSCHEIDUNG_FEHLER_TEXTE, zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -203,9 +209,10 @@ export default async function Abwesenheitsblatt({
         )}
       </nav>
 
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="abwesenheit-meldung" className="mb-s5 max-w-prose">
-          <strong>Der Vorgang lief nicht durch.</strong> {meldung}
+      {fehler !== null && (
+        <Hinweis art="warnung" cse="abwesenheit-fehler" rolle="alert" className="mb-s5 max-w-prose">
+          <strong>{fehlerTexte.titel}</strong>{' '}
+          {eigenerEintrag(fehlerTexte.fehler, fehler) ?? fehlerTexte.sonst}
         </Hinweis>
       )}
 

@@ -7,6 +7,9 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { ENTSCHEIDUNG_FEHLER_TEXTE } from '@/lib/i18n/verwaltung/personal-entscheidung';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -95,8 +98,10 @@ export default async function Antragsblatt({
     'zeit.konto_lesen', 'zeit.abwesenheit_lesen', 'personal.lesen', 'dienstplan.lesen');
 
   const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  /* Der Grund eines abgewiesenen Formulars, als Satz nachgeschlagen (D-753) —
+     nie Text aus der Adresse und nie der rohe Schlüssel. */
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerTexte = nachSprache(ENTSCHEIDUNG_FEHLER_TEXTE, zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -219,15 +224,10 @@ export default async function Antragsblatt({
         )}
       </nav>
 
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="antrag-meldung" className="mb-s5 max-w-prose">
-          <strong>Der Vorgang lief nicht durch.</strong> {meldung}
-        </Hinweis>
-      )}
-      {fehler !== null && meldung === null && (
-        <Hinweis art="warnung" cse="antrag-fehler" className="mb-s5 max-w-prose">
-          <strong>Der Vorgang lief nicht durch.</strong> Grund:{' '}
-          <span className="font-mono">{fehler}</span>
+      {fehler !== null && (
+        <Hinweis art="warnung" cse="antrag-fehler" rolle="alert" className="mb-s5 max-w-prose">
+          <strong>{fehlerTexte.titel}</strong>{' '}
+          {eigenerEintrag(fehlerTexte.fehler, fehler) ?? fehlerTexte.sonst}
         </Hinweis>
       )}
 

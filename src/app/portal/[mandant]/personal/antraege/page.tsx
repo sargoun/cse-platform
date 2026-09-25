@@ -6,6 +6,9 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { ENTSCHEIDUNG_FEHLER_TEXTE } from '@/lib/i18n/verwaltung/personal-entscheidung';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
@@ -44,18 +47,20 @@ export default async function Antragseingang(
 ) {
   const { mandant } = await params;
   /*
-   * **Der Rückweg eines abgewiesenen Formulars** (V-197, D-599).
+   * **Der Rückweg eines abgewiesenen Formulars** (V-197, D-599, D-753).
    * `POST /api/antraege/[id]` schickt einen fachlichen Fehler als
-   * `?meldung=<Satz>` auf `zurueck` — hierher, denn jede Karte dieser Liste
+   * `?fehler=<grund>` auf `zurueck` — hierher, denn jede Karte dieser Liste
    * trägt ihr Formular. Die Seite las den Parameter nicht: „Ablehnen" ohne
    * Kommentar landete wieder auf derselben Liste, nichts war geschehen, und
-   * kein Satz sagte, warum. Das Blatt eines Antrags liest ihn seit V-158.
+   * kein Satz sagte, warum. Gezeigt wird der Satz aus der Tabelle, nie Text
+   * aus der Adresse (bis D-753 `?meldung=` roh, mit Kennung).
    */
   const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const pfad = `/portal/${mandant}/personal/antraege`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
+  const fehlerTexte = nachSprache(ENTSCHEIDUNG_FEHLER_TEXTE, zugang.sprache);
 
   const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {
@@ -122,9 +127,10 @@ export default async function Antragseingang(
         )}
       </nav>
 
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="antraege-meldung" rolle="alert" className="mb-s5 max-w-prose">
-          <strong>Der Vorgang lief nicht durch.</strong> {meldung}
+      {fehler !== null && (
+        <Hinweis art="warnung" cse="antraege-fehler" rolle="alert" className="mb-s5 max-w-prose">
+          <strong>{fehlerTexte.titel}</strong>{' '}
+          {eigenerEintrag(fehlerTexte.fehler, fehler) ?? fehlerTexte.sonst}
         </Hinweis>
       )}
 

@@ -46,8 +46,12 @@ const PROTOTYP = ['__proto__', 'constructor', 'toString', 'valueOf', 'hasOwnProp
 
 describe('jede Zielseite liest den Grund ihres Formulars', () => {
   const FAELLE = [
-    { seite: `${M}/personal/antraege/page.tsx`, parameter: 'meldung', cse: 'antraege-meldung' },
-    { seite: `${M}/personal/abwesenheiten/page.tsx`, parameter: 'meldung', cse: 'abwesenheiten-meldung' },
+    /* Seit D-753 ein Grund und kein Satz: `?meldung=` zeigte die Kennung aus
+       dem Satz des Dienstes und jeden Text aus einem präparierten Link. */
+    { seite: `${M}/personal/antraege/page.tsx`, parameter: 'fehler', cse: 'antraege-fehler' },
+    { seite: `${M}/personal/abwesenheiten/page.tsx`, parameter: 'fehler', cse: 'abwesenheiten-fehler' },
+    { seite: `${M}/personal/antraege/[id]/page.tsx`, parameter: 'fehler', cse: 'antrag-fehler' },
+    { seite: `${M}/personal/abwesenheiten/[id]/page.tsx`, parameter: 'fehler', cse: 'abwesenheit-fehler' },
     { seite: `${M}/finanzen/ausgaben/[id]/page.tsx`, parameter: 'fehler', cse: 'ausgabe-fehler' },
     { seite: `${M}/personal/nachweise/[id]/page.tsx`, parameter: 'fehler', cse: 'nachweis-fehler' },
     { seite: `${M}/dienstplan/einsatz/[id]/page.tsx`, parameter: 'fehler', cse: 'einsatz-fehler' },

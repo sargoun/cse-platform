@@ -67,6 +67,8 @@ export interface AbwesenheitsGrund {
 export class ArtUngeklaertFehler extends Error {
   readonly code = 'ungueltiger_zustand';
   readonly status = 409;
+  /** Der Grund für `?fehler=` (D-753) — der Satz oben ist deutsch. */
+  readonly grund = 'art_ungeklaert';
   constructor(bezeichnung: string) {
     super(
       `Für die Abwesenheitsart „${bezeichnung}" ist nicht hinterlegt, ob sie `
@@ -80,6 +82,8 @@ export class ArtUngeklaertFehler extends Error {
 export class AbwesenheitNichtGefunden extends Error {
   readonly code = 'nicht_gefunden';
   readonly status = 404;
+  /** Der Grund für `?fehler=` (D-753) — der Satz oben ist deutsch und trägt die Kennung. */
+  readonly grund = 'nicht_gefunden';
   constructor(id: string) {
     super(`Abwesenheit ${id} gibt es in dieser Gesellschaft nicht.`);
     this.name = 'AbwesenheitNichtGefunden';
@@ -89,6 +93,8 @@ export class AbwesenheitNichtGefunden extends Error {
 export class GrundFehlt extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
+  /** Der Grund für `?fehler=` (D-753) — der Satz oben ist deutsch. */
+  readonly grund = 'grund_fehlt';
   constructor(was: string) {
     super(`${was} ohne Begründung ist kein Vorgang, sondern ein Klick.`);
     this.name = 'GrundFehlt';

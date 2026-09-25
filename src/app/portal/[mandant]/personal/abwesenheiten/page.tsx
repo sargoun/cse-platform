@@ -7,6 +7,9 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { ENTSCHEIDUNG_FEHLER_TEXTE } from '@/lib/i18n/verwaltung/personal-entscheidung';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
@@ -71,13 +74,18 @@ export default async function Abwesenheitsliste({
 
   const frage = await searchParams;
   /*
-   * **Der Rückweg eines abgewiesenen Formulars** (V-197, D-599).
+   * **Der Rückweg eines abgewiesenen Formulars** (V-197, D-599, D-753).
    * `POST /api/abwesenheiten/[id]` schickt einen fachlichen Fehler — etwa
-   * „Ablehnen" oder „Stornieren" ohne Grund — als `?meldung=<Satz>` hierher
-   * zurück. Die Seite las nur `woche`: der Klick endete auf derselben Liste,
-   * und nichts sagte, dass nichts geschehen war.
+   * „Ablehnen" oder „Stornieren" ohne Grund, oder eine Abwesenheit, über die
+   * schon entschieden ist — als `?fehler=<grund>` hierher zurück. Die Seite
+   * las nur `woche`: der Klick endete auf derselben Liste, und nichts sagte,
+   * dass nichts geschehen war. Gezeigt wird der Satz aus der Tabelle, nie
+   * Text aus der Adresse: bis D-753 stand hier `?meldung=` roh — mit der
+   * vollen Kennung aus dem Satz des Dienstes, und jeder präparierte Link
+   * schrieb seine eigene rote Meldung.
    */
-  const meldung = typeof frage['meldung'] === 'string' ? frage['meldung'] : null;
+  const fehler = typeof frage['fehler'] === 'string' ? frage['fehler'] : null;
+  const fehlerTexte = nachSprache(ENTSCHEIDUNG_FEHLER_TEXTE, zugang.sprache);
   const heute = await berlinHeute();
   const roh = typeof frage['woche'] === 'string' ? frage['woche'] : null;
   const anker = roh !== null && /^\d{4}-\d{2}-\d{2}$/u.test(roh) ? roh : heute;
@@ -140,9 +148,10 @@ export default async function Abwesenheitsliste({
         </Link>
       )}
 
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="abwesenheiten-meldung" rolle="alert" className="mb-s5 max-w-prose">
-          <strong>Der Vorgang lief nicht durch.</strong> {meldung}
+      {fehler !== null && (
+        <Hinweis art="warnung" cse="abwesenheiten-fehler" rolle="alert" className="mb-s5 max-w-prose">
+          <strong>{fehlerTexte.titel}</strong>{' '}
+          {eigenerEintrag(fehlerTexte.fehler, fehler) ?? fehlerTexte.sonst}
         </Hinweis>
       )}
 

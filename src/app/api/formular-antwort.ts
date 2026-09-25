@@ -94,6 +94,12 @@ export function grundAufsFormularweg(
  * Die Antwort auf einen FACHLICHEN Fehler — als Umleitung fuer ein Formular,
  * als JSON fuer einen JSON-Aufrufer.
  *
+ * **Fuer einen neuen Aufrufer ist `grundAufsFormular` der Weg** (D-753): der
+ * Satz eines Dienstes ist deutsch und traegt manchmal eine Kennung, und eine
+ * Seite, die `?meldung=` roh zeigt, zeigt auch jeden Text aus einem
+ * praeparierten Link. Die beiden Zeitrouten, fuer die diese Weiche gebaut
+ * wurde, schicken seit V-197/D-753 einen Grund.
+ *
  * `null` heisst: dafuer ist diese Weiche nicht zustaendig (kein Formular oder
  * kein `zurueck`). Der Aufrufer antwortet dann wie bisher mit JSON — das ist
  * die richtige Antwort fuer eine Schnittstelle und die einzig moegliche ohne

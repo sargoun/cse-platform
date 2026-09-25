@@ -19296,7 +19296,11 @@ lesen `?meldung=`". Das Schichtblatt (`dienstplan/einsatz/[id]`) liest
    zeigen `?meldung=` wie ihre Detailblätter (V-158): „Der Vorgang lief nicht
    durch." und der Satz des Dienstes, im Hinweiskasten `warnung` mit
    `role="alert"` (DESIGN §5 „Notices"). Der Satz kommt aus dem Dienst und
-   ist deutsch — wie die beiden Listen.
+   ist deutsch — wie die beiden Listen. **Berichtigt (D-753):** der Satz des
+   Dienstes trug nach einer schon getroffenen Entscheidung die volle Kennung
+   und sagte, den Vorgang gebe es nicht; und jeder Text aus einem
+   präparierten Link stand als rote Meldung da. Listen und Blätter lesen
+   jetzt `?fehler=<grund>` und schlagen den Satz nach.
 2. **Ausgabe- und Nachweisblatt schlagen `?fehler=` in ihren zweisprachigen
    Tabellen nach** (`AUSGABE_ERFASSEN_TEXTE.fehler`,
    `NACHWEIS_ERFASSEN_TEXTE.fehler`), nur als eigener Eintrag (D-728). Ein
@@ -19653,4 +19657,65 @@ zutreffende Satz „Zu dieser Schicht läuft keine Zeiterfassung.".
    und Stempeluhr den Code weiterreichen bzw. nur ihn lesen.
 
 | Betrifft | TIM-07, TIM-09, AUT-06, D-131, D-694 Nr. 4, V-200, `src/server/services/zeit/checkin.ts` (`KeinOffenerEintragFehler`), `src/lib/i18n/vor-anmeldung.ts` (`stempelMeldung`, `STEMPEL_TEXTE.keinOffenerEintrag`), `tests/kern/stempel-meldung.test.ts` |
+|---|---|
+
+### D-753 · Eine abgewiesene Entscheidung über Abwesenheit oder Antrag reist als Grund — nie als Satz des Dienstes, nie mit Kennung (V-197 Nachtrag)
+
+**Der Befund** (Prüfer der Gruppe arbeiterportal): Antrags- und
+Abwesenheitsliste lasen seit V-197 `?meldung=` und gaben den Text
+unverändert in einem Warnkasten mit `role="alert"` aus; die Blätter taten es
+schon vorher, das Antragsblatt zeigte dazu `?fehler=` als rohen Schlüssel in
+Maschinenschrift. Die Routen `POST /api/abwesenheiten/[id]` und
+`POST /api/antraege/[id]` schickten `(fehler as Error).message`.
+`genehmigeAbwesenheit`, `lehneAbwesenheitAb` und `entscheideAntrag` werfen
+`…NichtGefunden`, sobald der Vorgang nicht mehr offen ist — eine Kollegin war
+schneller, die Liste war veraltet, oder jemand klickte zweimal. Auf der Liste
+stand dann „Abwesenheit 5b0d6c1e-… gibt es in dieser Gesellschaft nicht.":
+eine volle Kennung (Hausregel „keine UUIDs", D-599) und eine falsche
+Aussage. Jeder präparierte Link `…/personal/abwesenheiten?meldung=…` schrieb
+seine eigene rote Systemmeldung (React maskiert, also kein Skript — aber
+verfälschter Inhalt auf einer Innenseite). Und ein zweites „Genehmigen" eines
+Urlaubsantrags traf vor der Prüfung des Stands das INSERT der Abwesenheit
+und damit die Sperre `ab_keine_dublette` (0073): 23P01 ohne Status, eine 500.
+
+**Die Entscheidung.**
+
+1. **Die Route schickt einen GRUND** (`grundAufsFormular`, `?fehler=`), wie
+   Ausgabe, Nachweis und Schicht (D-691 Nr. 2, V-158). Die Fehlerklassen
+   tragen ihn neben ihrem deutschen Satz (`grund`, wie
+   `WachbuchEingabeFehlt`): `nicht_gefunden`, `grund_fehlt`,
+   `kommentar_fehlt`, `urlaubskonto_fehlt`, `art_ungeklaert`; eine Klasse
+   ohne eigenen Grund reist mit ihrem `code`. Eine Schnittstelle (JSON)
+   bekommt weiter `{ fehler, meldung }` mit Status (D-599).
+2. **Die Seite schlägt den Satz nach** (`ENTSCHEIDUNG_FEHLER_TEXTE`, de/en,
+   `src/lib/i18n/verwaltung/personal-entscheidung.ts`), nur als eigener
+   Eintrag (D-728); ein unbekannter Grund bekommt „Es wurde nichts
+   geändert.", nie den Schlüssel und nie Text aus der Adresse. Alle vier
+   Seiten (zwei Listen, zwei Blätter), Kasten `Hinweis` `warnung` mit
+   `role="alert"`. Die Sprache ist die der Sitzung wie beim Nachweisblatt
+   (D-691 Nr. 2); die Seiten selbst stehen noch auf der Ausnahmeliste.
+3. **`nicht_gefunden` nennt den häufigen Fall**: „Darüber ist schon
+   entschieden, oder der Vorgang ist nicht mehr da — die Seite zeigt den
+   aktuellen Stand." (wie D-691 Nr. 3 beim Nachweis). Die offenen Fragen
+   O-18 und O-139 stehen mit Nummer im Satz, wie im Dienst; das Jahr des
+   fehlenden Urlaubskontos reist nicht mit („das Jahr dieses Urlaubs").
+4. **`entscheideAntrag` prüft den Stand VOR der Abwesenheit**, unter
+   `for update of a`: ein entschiedener Antrag wirft `AntragNichtGefunden`,
+   bevor ein INSERT die Dublettensperre trifft, und zwei gleichzeitige
+   Entscheidungen laufen hintereinander. Welche Stände offen sind, ändert
+   sich nicht — es sind dieselben zwei, die das Update schon prüfte.
+5. **`fehlerAufsFormular`** hat keinen Aufrufer mehr; es bleibt stehen (andere
+   Zweige), sein Kommentar verweist neue Aufrufer auf `grundAufsFormular`.
+6. **Geprüft:** `tests/kern/personal-entscheidung-rueckweg.test.ts` (die
+   echten Routen mit ersetzter Sitzung, Datenbank und Dienst: jeder Grund
+   jeder Fehlerklasse, `&` an einer Liste mit Woche, nie nach draussen, keine
+   Kennung in der Adresse, JSON für eine Schnittstelle; die Tabelle in beiden
+   Sprachen ohne Kennung und ohne Prototyp-Treffer; keine der vier Seiten
+   liest `?meldung=`), `tests/kern/fehler-rueckweg-seiten.test.ts` (an das
+   bewusst geänderte `?fehler=` angepasst, um die Blätter erweitert),
+   `tests/isolation/abwesenheit.test.ts` §2a (zweite Genehmigung →
+   `AntragNichtGefunden` mit Grund, genau eine Abwesenheit; Ablehnung nach
+   der Genehmigung ändert nichts).
+
+| Betrifft | EMP-10, D-599, D-691, D-728, V-158, V-197, O-18, O-139, `src/app/api/{abwesenheiten,antraege}/[id]/route.ts`, `src/app/api/formular-antwort.ts`, `src/server/services/abwesenheit/{index,antrag}.ts` (`grund`, `entscheideAntrag`), `src/lib/i18n/verwaltung/personal-entscheidung.ts`, `src/app/portal/[mandant]/personal/{abwesenheiten,antraege}/{page,[id]/page}.tsx`, `tests/kern/{personal-entscheidung-rueckweg,fehler-rueckweg-seiten}.test.ts`, `tests/isolation/abwesenheit.test.ts` |
 |---|---|
