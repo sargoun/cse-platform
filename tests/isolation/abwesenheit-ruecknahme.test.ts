@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
-  AbwesenheitNichtGefunden, meldeAbwesenheit, storniereAbwesenheit,
+  AbwesenheitNichtGefunden, AuBisVorBeginn, meldeAbwesenheit, storniereAbwesenheit,
 } from '../../src/server/services/abwesenheit/index.js';
 
 /**
@@ -208,11 +208,24 @@ describe('§2 die AU-Bescheinigung — vier Felder, die kein Formular schickte (
     expect(z.au_bis).toBeNull();
   });
 
-  /** `ab_au_bis check (au_bis is null or au_bis >= von)` — 0073. */
-  it('eine Bescheinigung, die vor dem ersten Tag endet, weist die Datenbank ab', async () => {
+  /**
+   * `ab_au_bis check (au_bis is null or au_bis >= von)` — 0073.
+   *
+   * Seit V-188 prüft der Dienst dieselbe Regel VOR dem Schreiben und antwortet
+   * mit einem Satz (`AuBisVorBeginn`) statt mit dem `check_violation`, der auf
+   * dem Weg der Arbeiterin eine rohe 500 war. Abgewiesen wird weiterhin — und
+   * es entsteht keine Zeile. Die zweite Linie in der Datenbank prüft
+   * `meldung-rueckweg.test.ts` („die zweite Linie bleibt"), am Dienst vorbei.
+   */
+  it('eine Bescheinigung, die vor dem ersten Tag endet, wird abgewiesen', async () => {
+    const vorher = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from abwesenheit where von = '2026-07-20'`);
     await expect(melde({
       von: '2026-07-20', bis: '2026-07-24', au: true, auBis: '2026-07-19',
-    })).rejects.toThrow(/ab_au_bis/u);
+    })).rejects.toBeInstanceOf(AuBisVorBeginn);
+    const nachher = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from abwesenheit where von = '2026-07-20'`);
+    expect(nachher[0]!.n).toBe(vorher[0]!.n);
   });
 });
 
