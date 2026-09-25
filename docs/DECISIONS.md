@@ -18203,3 +18203,21 @@ der Browsersuite bleibt, wie sie war.
 
 | Betrifft | V-244, DESIGN §1, §8, §9, EMP-12, `src/app/portal/mein/**`, 18 `<summary>` unter `src/app/portal/**`, `tests/e2e/mitarbeiter.spec.ts` (6), `tests/e2e/angebot-portal.spec.ts` (4) |
 |---|---|
+
+### D-739 · Das KI-Budget nennt die Warnschwelle — gesetzt in ihrer Zeile, sonst „nicht hinterlegt (O-195)" (V-245)
+
+**Der Befund** (V-245): `/portal/[mandant]/agenten/budget` las
+`warnschwelle_prozent` und zeigte es nirgends. Bis V-015 stand unter der
+Tabelle unbedingt „Warnschwelle: nicht hinterlegt (offene Frage O-195)"; mit
+der Maske, die eine Schwelle setzen lässt, fiel der Satz ersatzlos weg. Die
+Seite schwieg damit über eine offene Finanzregel — genau das, was
+`agenten.spec.ts` zusichert („wird nicht erfunden, und der Bildschirm sagt
+das").
+
+**Die Entscheidung.** Eine gesetzte Schwelle steht in ihrer Zeile („Warnung
+ab 80 %"). Solange eine gezeigte Zeile keine hat oder es keine Zeile gibt,
+steht der Satz wieder unter der Tabelle, zweisprachig (`warnschwelleOffen`),
+und sagt dazu, wer sie einträgt. Kein Vorgabewert, O-195 bleibt offen.
+
+| Betrifft | V-245, V-015, O-195, AGT-05, `src/app/portal/[mandant]/agenten/budget/page.tsx`, `src/lib/i18n/verwaltung/agent-budget.ts`, `tests/e2e/agenten.spec.ts` |
+|---|---|

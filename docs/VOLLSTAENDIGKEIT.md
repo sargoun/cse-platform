@@ -362,6 +362,8 @@ stehen hier, weil ein Befund ohne Nummer ein Befund ist, den niemand wiederfinde
 
 | V-244 | **Die neuen Bausteine des Arbeiterportals unterschritten DESIGN §8, und achtzehn Aufklapper waren rote Schrift** — Fliesstext in 14 px an zwanzig Stellen (Stempelkarte, Monats- und Jahreswechsler, Absage, Nachweise, Abwesenheit, Bautagebuch, Leistungsnachweis, Wachbuch, Einwand, Monatsnachweis, `Laufzeit`), drei Häkchen mit 24 px; `<summary className="… text-brand">` mit 4,09 : 1 Kontrast | Gefunden von der Browsersuite (`mitarbeiter.spec.ts` (6) fünf Seiten, `angebot-portal.spec.ts` (4) axe `color-contrast`), jede Stelle im Code gegengeprüft | behindert | **erledigt** (D-738) — `text-base` im Arbeiterportal, Häkchen `min-h-11 min-w-11`, Aufklapper `min-h-11 … font-semibold text-text`. Prüfungen: `tests/e2e/mitarbeiter.spec.ts` (6), `tests/e2e/angebot-portal.spec.ts` (4) |
 
+| V-245 | **Das KI-Budget verschwieg die Warnschwelle** — `warnschwelle_prozent` wurde gelesen und nie gezeigt; der Satz „nicht hinterlegt (O-195)“ fiel mit der Maske (V-015) ersatzlos weg | Gefunden von der Browsersuite (`agenten.spec.ts` „das Budget nennt seine Obergrenze“) | behindert | **erledigt** (D-739) — gesetzt „Warnung ab N %“ in der Zeile, sonst der Satz zweisprachig unter der Tabelle. Prüfung: `tests/e2e/agenten.spec.ts` |
+
 ---
 
 ## 9. Was geprüft und **widerlegt** wurde
