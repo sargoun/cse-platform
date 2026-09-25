@@ -11,7 +11,8 @@
  * die er stellt. Die Sprache dieser Flächen hängt deshalb am GERÄT.
  *
  * **Die Reihenfolge**: der Sprachkeks (gesetzt von der Sprachwahl auf diesen
- * Flächen und beim Speichern der Sprache im Profil), dann `Accept-Language`
+ * Flächen und beim Speichern der Sprache im Profil der Arbeiterhülle; ein
+ * Sitzungskeks, bis O-928 beantwortet ist), dann `Accept-Language`
  * — die Sprache, auf die das Telefon eingestellt ist —, dann Deutsch.
  *
  * Diese Datei ist rein: sie liest keinen Keks und keinen Kopf selbst. Die
@@ -23,8 +24,28 @@ import { istPortalSprache, type PortalSprache } from './texte.js';
 /** Der Name des Kekses — ein Wert aus vier, kein Personenbezug. */
 export const SPRACH_KEKS = 'cse_sprache';
 
-/** Ein Jahr: eine Spracheinstellung ist keine Sitzung. */
-export const SPRACH_KEKS_SEKUNDEN = 365 * 24 * 60 * 60;
+/**
+ * Wie lange der Sprachkeks lebt — **OFFEN (O-928)**, und bis zur Antwort so
+ * kurz wie möglich: `null` heisst Sitzungskeks (kein `Max-Age`), er endet,
+ * wenn der Browser geschlossen wird.
+ *
+ * Hier stand ein Jahr, begründet mit „eine Spracheinstellung ist keine
+ * Sitzung". Das ist eine Rechtsfrage, die still entschieden war: ein Keks, der
+ * vor der Anmeldung entsteht und die Abmeldung überdauert, braucht eine
+ * Grundlage nach § 25 TTDSG (heute TDDDG), und ob eine vom Menschen gewählte
+ * Oberflächeneinstellung darunter auch als DAUERHAFTER Keks „unbedingt
+ * erforderlich" ist, entscheidet nicht diese Datei. Die Datenschutzerklärung
+ * (Seed de/en) beschreibt genau diesen Platzhalter; wer ihn ändert, ändert
+ * dort den Satz mit (D-751).
+ *
+ * PLATZHALTER — die Antwort auf O-928 ändert diesen Wert (Sekunden) und den
+ * Satz der Datenschutzerklärung, nicht die Aufrufer.
+ * TODO(client, O-928): Darf der Sprachkeks „cse_sprache" (nur de/en/ar/tr, gesetzt auf ausdrückliche Wahl der Beschäftigten auf Anmeldung/Stempeluhr oder beim Speichern der Sprache im Profil der Arbeiterhülle) als technisch notwendig nach § 25 Abs. 2 Nr. 2 TDDDG über die Browsersitzung hinaus bestehen — und wenn ja, wie lange (etwa ein Jahr)?
+ */
+export const SPRACH_KEKS_SEKUNDEN: number | null = null;
+
+/** Die offene Frage hinter `SPRACH_KEKS_SEKUNDEN`. */
+export const SPRACH_KEKS_FRAGE = 'O-928';
 
 interface Angebot {
   readonly tag: string;

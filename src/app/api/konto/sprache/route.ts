@@ -99,15 +99,18 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     303,
   );
   /*
-   * **Dieselbe Wahl auch für das Gerät** (V-200, D-694). Stempeluhr und
-   * Anmeldung haben keine Sitzung und lesen deshalb einen Keks statt
-   * `person.sprache`. Wer im Profil Arabisch speichert, bekommt es damit auch
-   * auf dem Check-in-Link dieses Telefons — ohne die Wahl ein zweites Mal zu
-   * treffen. Geschrieben wird er erst NACH dem gespeicherten Wert: eine
-   * abgewiesene Sprache stellt auch das Gerät nicht um.
+   * **Dieselbe Wahl auch für das Gerät** (V-200, D-694, D-751). Stempeluhr
+   * und Anmeldung der Beschäftigten haben keine Sitzung und lesen deshalb
+   * einen Keks statt `person.sprache`. Wer im Profil Arabisch speichert,
+   * bekommt es damit auch auf dem Check-in-Link dieses Telefons — ohne die
+   * Wahl ein zweites Mal zu treffen. Geschrieben wird er erst NACH dem
+   * gespeicherten Wert: eine abgewiesene Sprache stellt auch das Gerät nicht
+   * um. **Und nur in der Hülle der Beschäftigten:** die Verwaltung liest ihn
+   * nirgends (ihre Anmeldung bleibt deutsch/englisch nach eigener Regel), und
+   * ein Keks ohne Zweck ist einer zu viel (Art. 5 Abs. 1 lit. c DSGVO).
    */
   const gespeichert = typeof wert === 'string' ? wert.trim() : '';
-  if (istPortalSprache(gespeichert)) {
+  if (sitzung.portal === 'mitarbeiter' && istPortalSprache(gespeichert)) {
     antwort.cookies.set(SPRACH_KEKS, gespeichert, sprachKeksOptionen());
   }
   return antwort;

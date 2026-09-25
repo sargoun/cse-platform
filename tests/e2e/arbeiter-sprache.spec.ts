@@ -81,6 +81,8 @@ test.describe('die Stempeluhr auf Arabisch — aus Accept-Language', () => {
     const keks = (await page.context().cookies()).find((k) => k.name === 'cse_sprache');
     expect(keks?.value).toBe('tr');
     expect(keks?.httpOnly).toBe(true);
+    // Ein Sitzungskeks, solange O-928 offen ist (D-751) — Playwright meldet -1.
+    expect(keks?.expires).toBe(-1);
 
     // Und sie bleibt: der Keks geht vor den Kopf des Browsers.
     await page.reload();

@@ -3353,6 +3353,7 @@ Beantworten helfen:
 | O-932 | **Ist der Fertigstellungsgrad einer anteiligen Festpreis-Abrechnung der GESAMTSTAND der Leistung (bisher Berechnetes wird abgezogen) oder der ZUWACHS seit der letzten Rechnung?** Seit V-206 lässt sich ein Pauschalpreis-Los mit `teilleistung = anteilig` über das Rechnungsblatt abrechnen; der Grad kommt von einem Menschen (O-04: er wird nicht geschätzt). Bis V-207 rechnete jede Rechnung Grad × Festpreis, ohne bisher Berechnetes abzuziehen — 30 % und danach 60 % ergaben 90 % des Festpreises. **Ausgeliefert ist der Gesamtstand** (`anteiligerRest`): die Zeile trägt `anteil(Festpreis, Grad) − Summe der wirksamen Zeilen derselben Vereinbarung`, einmal gerundet über den ganzen Stand, und ein Stand ohne Zuwachs blockiert mit einem Befund. Diese Lesart macht aus einer Verwechslung eine sichtbare Unterberechnung (die Vorschau zeigt das bisher Berechnete), die andere eine stille Doppelberechnung. Eine Schlussrechnung zählt die festgeschriebenen Abschläge ihres Auftrags nicht mit, weil sie sie abzieht (FIN-08, D-700 Nr. 5). Zu bestätigen: (1) Gesamtstand oder Zuwachs; (2) ob eine Abschlagsrechnung den Abschlag als kumulierten Stand mit Abzug der Vorabschläge ausweisen soll (§ 16 VOB/B lässt beides zu) — dann gehört die Aufstellung auf den Beleg und nicht nur in die Vorschau. Die Antwort ändert `anteiligerRest` und den Satz der Maske, nicht ihre Aufrufer. | FIN-01, FIN-08, O-04, V-207, D-700, `src/server/services/finanz/abrechnungsart/festpreis-los.ts` (`anteiligerRest`), `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts` (`abrFertigstellung`) |
 | O-933 | **Darf der Leistungsort (Objekt) einer Rechnung einem ANDEREN Kunden zugeordnet sein als dem Rechnungsempfänger — oder muss `objekt.kunde_id` dem Kunden der Rechnung entsprechen?** Übliche Fälle, in denen beides auseinanderfällt: eine Hausverwaltung empfängt die Rechnung für das Haus eines Eigentümers, ein Generalunternehmer für die Baustelle seines Bauherrn, eine Muttergesellschaft für die Niederlassung der Tochter. Bis V-209 prüfte die Plattform beim Leistungsort gar nichts, nicht einmal, ob der Mensch das Objekt sehen darf. **Ausgeliefert ist:** geprüft wird die Sichtbarkeit (`objekt_passt_nicht`, wie beim Auftrag D-698 Nr. 2); die Zugehörigkeit zum Kunden NICHT (`OBJEKT_KUNDE_REGEL = offen`). Die Masken ordnen die Objekte nach Kunden bzw. „dieses Kunden" zuerst, damit eine fremde Wahl sichtbar ist. Zu entscheiden: (1) Sperre, Warnung in der Vorabprüfung oder frei; (2) falls frei, ob der Beleg den abweichenden Leistungsort mit dem Namen seines Kunden ausweisen soll. Die Antwort ändert `pruefeObjektZuordnung` und die Konstante, nicht ihre Aufrufer. | FIN-04, V-209, D-702, `src/server/services/finanz/rechnung.ts` (`OBJEKT_KUNDE_REGEL`, `pruefeObjektZuordnung`), `src/app/portal/[mandant]/finanzen/rechnungen/{neu,[id]}/page.tsx` |
 | O-934 | **Darf eine Mahnung hinausgehen, solange im Briefkopf Pflichtangaben fehlen — und welche gelten für eine Gesellschaft, die keine GmbH ist?** Seit V-213 trägt das Mahnschreiben Absender, Empfängeranschrift und die Angaben aus `mandant` (Firma, Anschrift, Registergericht, Registernummer, Geschäftsführung, USt-IdNr./Steuernummer, Bankverbindung) — dieselben wie das Angebotsblatt. Fehlt eine davon in den Unternehmensdaten, fehlt sie im Brief, und das Mahnungsblatt sagt, welche (`fehlendeBriefkopfangaben`). **Gesperrt wird der Versand nicht:** ob ein unvollständiger Briefkopf den Versand verhindern soll (§ 35a GmbHG verlangt Rechtsform, Sitz, Registergericht, Registernummer und alle Geschäftsführer auf Geschäftsbriefen; die Folge eines Verstosses ist ein Zwangsgeld, nicht die Unwirksamkeit der Mahnung), und welche Angaben für CSE Operations gelten, solange O-01 offen ist, ist eine Entscheidung der Geschäftsführung und keine, die eine Prüfung im Code nebenbei trifft. Die Antwort ändert die Freigabe (`gibFrei`) oder den Versand (`dokumentiereVersand`), nicht das Schreiben. | FIN-15, § 35a GmbHG, O-01, V-213, D-705, `services/finanz/mahnung/index.ts` |
+| O-928 | **Darf der Sprachkeks „cse_sprache" über die Browsersitzung hinaus bestehen — und wenn ja, wie lange?** Seit V-200 merkt sich das Telefon einer Kraft die Sprache der Flächen ohne Sitzung (Stempeluhr, Anmeldung): ein Keks mit einem von vier Werten (de, en, ar, tr), gesetzt nur auf ausdrückliche Wahl — die Sprachwahl dieser Flächen oder das Speichern der Sprache im Profil der Arbeiterhülle —, gelesen vor der Anmeldung, und die Abmeldung löscht ihn nicht, weil die Stempeluhr ohne Anmeldung benutzt wird. V-200 gab ihm ein Jahr, begründet mit „eine Spracheinstellung ist keine Sitzung"; das war eine still entschiedene Rechtsfrage (§ 25 Abs. 2 Nr. 2 TDDDG, vormals TTDSG: „unbedingt erforderlich" für einen ausdrücklich gewünschten Dienst — die Art.-29-Gruppe (WP194) nennt Oberflächen-Kekse ohne weiteren Hinweis nur als Sitzungs- oder Kurzzeitkeks ausgenommen). **Ausgeliefert ist der Sitzungskeks** (`SPRACH_KEKS_SEKUNDEN = null`, kein `Max-Age`): er endet mit dem Browser; `Accept-Language` trägt die Sprache des Telefons ohnehin. Die Datenschutzerklärung (Seed de/en) beschreibt genau das. Zu entscheiden: (1) Sitzungskeks oder dauerhaft; (2) falls dauerhaft, die Dauer und ob der Hinweis in der Erklärung genügt; (3) ob die Erklärung den Namen des Gesetzes auf TDDDG umstellen soll (der ganze Absatz nennt noch TTDSG). Die Antwort ändert `SPRACH_KEKS_SEKUNDEN` und den Satz der Erklärung, nicht die Aufrufer. | EMP-12, TIM-07, D-61, D-694, D-751, V-200, `src/lib/i18n/geraetesprache.ts` (`SPRACH_KEKS_SEKUNDEN`), `src/server/konto/sprach-keks.ts`, `src/server/db/seed/{inhalt,inhalt-en}.ts` |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
 | O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
@@ -19486,7 +19487,11 @@ D-557; die Benachrichtigungseinstellungen trugen den Schlüssel jeder Art
    der Sprachwahl dieser Flächen (`GET /api/geraetesprache`, Manifest mit
    Begründung) und beim Speichern der Sprache im Profil
    (`/api/konto/sprache`) — wer im Portal Arabisch wählt, bekommt die
-   Stempeluhr auf demselben Telefon auf Arabisch.
+   Stempeluhr auf demselben Telefon auf Arabisch. **Berichtigt (D-751):**
+   „ein Jahr" war eine still entschiedene Rechtsfrage und widersprach der
+   Datenschutzerklärung, auf die die Anmeldung verweist; bis O-928 ist er
+   ein Sitzungskeks, die Erklärung beschreibt ihn, und das Profil setzt ihn
+   nur noch in der Hülle der Beschäftigten.
 3. **Die Sprachwahl sind Verweise, keine Knöpfe** — die Stempelfläche hat
    genau einen Knopf (DESIGN §8), und die Browserprüfung zählt ihn. Die Route
    ist deshalb ein `GET`; sie ändert keine Zeile. Zwei Riegel: kein Keks, wenn
@@ -19620,6 +19625,51 @@ IST der Zugang … ohne Anmeldung".
    Tabelle im Rumpf trägt).
 
 | Betrifft | CAL-03, EMP-12, SEITENKARTE §12, D-419, D-557, D-694, D-695, D-738, V-200, `src/app/portal/konto/kalender-feed/page.tsx`, `src/lib/i18n/konto.ts` (`KALENDER_FEED_TEXTE`), `src/server/kalender/feed.ts` (`FEED_STANDARD_BEZEICHNUNG`), `scripts/guards/uebersetzung-ausnahmen.ts`, `tests/kern/konto-sprachen.test.ts` |
+|---|---|
+
+### D-751 · Der Sprachkeks ist ein Sitzungskeks, bis die Dauer entschieden ist — und die Datenschutzerklärung sagt, dass es ihn gibt (V-200 Nachtrag, O-928)
+
+**Der Befund** (Prüfer der Gruppe arbeiterportal): V-200 führte `cse_sprache`
+mit `maxAge` ein Jahr und `path=/` ein. `GET /api/geraetesprache` setzt ihn
+vor jeder Anmeldung, `/api/konto/sprache` bei jeder gespeicherten Sprache —
+auch beim de/en-Umschalter der Verwaltung —, und die Abmeldung löscht ihn
+nicht (gewollt: die Stempeluhr läuft ohne Anmeldung). Die geseedete
+Datenschutzerklärung (de und en), auf die die Anmeldung seit D-694 Nr. 6
+ausdrücklich verweist, sagte dagegen: nach der Anmeldung ein Sitzungscookie,
+„es endet mit der Abmeldung". D-694 begründete weder die Speicherung nach
+§ 25 TTDSG (heute TDDDG) noch die Dauer; das Haus hat für Speicher im Browser
+sonst eine ausdrückliche Abwägung (D-61, D-631 Nr. 6).
+
+**Die Entscheidung.**
+
+1. **Die Dauer ist offen (O-928)** und steht als Platzhalter an EINER Stelle:
+   `SPRACH_KEKS_SEKUNDEN = null` in `src/lib/i18n/geraetesprache.ts` mit
+   `TODO(client, O-928)`. `null` heisst Sitzungskeks — kein `Max-Age`, er
+   endet mit dem Browser. Das ist die kürzeste Form, die die Funktion noch
+   trägt; die Sprache des Telefons kommt ohnehin über `Accept-Language`.
+   Ein Jahr wäre die stille Antwort auf eine Rechtsfrage gewesen.
+2. **Gesetzt wird er nur auf eine ausdrückliche Wahl, und nur, wo er einen
+   Zweck hat:** die Sprachwahl der Flächen ohne Sitzung, und das Speichern
+   der Sprache im Profil NUR in der Hülle der Beschäftigten. Die Verwaltung
+   liest den Keks nirgends; ihn dort nebenbei zu setzen, war ein Keks ohne
+   Zweck (Art. 5 Abs. 1 lit. c DSGVO).
+3. **Die Datenschutzerklärung sagt es** (Seed de/en, Absatz „Keine Dritten auf
+   dieser Seite"): Name, Inhalt (nur das Kürzel der Sprache), Zweck, wann er
+   entsteht, dass er mit dem Browser endet und dass die Abmeldung ihn nicht
+   löscht. Die rechtliche Einordnung folgt der des Sitzungscookies im selben
+   Absatz (§ 25 Abs. 2 Nr. 2); sie zu bestätigen und die Dauer festzulegen,
+   ist O-928. Die Antwort ändert den Wert UND diesen Satz.
+4. **Geprüft:** `tests/kern/sprach-keks.test.ts` — die echte Route
+   `GET /api/geraetesprache` (Keks mit Attributen und ohne `Max-Age`/
+   `Expires`; beide Riegel: `cross-site`/`same-site` setzen nichts, ein Wert
+   ausserhalb der vier — auch `__proto__` — setzt nichts; Rückweg im eigenen
+   Ursprung; `no-store`), `sprachKeksOptionen` in Produktion und Entwicklung,
+   `POST /api/konto/sprache` (Keks nur nach gespeichertem Wert und nur für
+   Beschäftigte; abgewiesen → kein Keks), und dass Platzhalter, Register und
+   Erklärung zusammenpassen. `tests/e2e/arbeiter-sprache.spec.ts` prüft den
+   Sitzungskeks im Browser (`expires = -1`).
+
+| Betrifft | EMP-12, TIM-07, AUT-06, D-61, D-631, D-694, O-928, V-200, `src/lib/i18n/geraetesprache.ts`, `src/server/konto/sprach-keks.ts`, `src/app/api/{geraetesprache,konto/sprache}/route.ts`, `src/server/db/seed/{inhalt,inhalt-en}.ts`, `tests/kern/sprach-keks.test.ts`, `tests/e2e/arbeiter-sprache.spec.ts` |
 |---|---|
 
 ### D-752 · Ausstempeln ohne laufende Zeiterfassung ist keine Ablehnung der Marke — eigener Code, eigener Satz (V-200 Nachtrag)
