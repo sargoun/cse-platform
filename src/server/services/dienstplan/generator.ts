@@ -101,7 +101,9 @@ export async function berlinHeute(db: Abfrage): Promise<string> {
   const [z] = (await db.unsafe(
     `select to_char((now() at time zone 'Europe/Berlin')::date, 'YYYY-MM-DD') as tag`,
   )) as { tag: string }[];
-  return z!.tag;
+  // Ohne Antwort kein Tag — und kein erfundener an seiner Stelle (V-192).
+  if (z === undefined) throw new Error('Die Datenbank nannte keinen Berliner Tag.');
+  return z.tag;
 }
 
 /**
@@ -482,6 +484,24 @@ export async function ladeAusnahmen(
     ersatzBesetzung: z['ersatz_besetzung'] === null || z['ersatz_besetzung'] === undefined
       ? null : Number(z['ersatz_besetzung']),
   }));
+}
+
+/**
+ * Ein Lauf SOFORT — fuer die aktive Gesellschaft und unter dem Recht des
+ * Menschen, der gerade geplant hat (`app.planungsbedarf_eigen`,
+ * `dienstplan.schreiben`): nach dem Anlegen oder Aendern einer Serie, einer
+ * Ausnahme oder eines Postens.
+ *
+ * Der Tag kommt aus der Datenbank (Invariante 5). Vorher stand an drei
+ * Stellen `heute?.tag ?? '2026-01-01'`: fehlte die Antwort, lief der
+ * Generator still ab einem festen Tag — eine erfundene Angabe statt eines
+ * Fehlers (V-192).
+ */
+export async function generiereSofort(
+  db: Abfrage, mandantId: string,
+): Promise<readonly SerienBericht[]> {
+  return generiereEinsaetze(
+    db, mandantId, { heute: await berlinHeute(db), laufId: null }, { eigen: true });
 }
 
 /** Ein ganzer Lauf fuer einen Mandanten — alle faelligen Serien. */

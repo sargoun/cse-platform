@@ -18336,7 +18336,9 @@ niemand liest.
    Auftrag leitet weiter die Datenbank aus der Zeile ab
    (`kern.einsatz_auftrag_ableiten`), die Zusammengehörigkeit prüft weiter
    `einsatz_leistung_fk`. Welche Zeile gilt, entscheidet ein Mensch; nichts
-   wird vorgeschlagen.
+   wird vorgeschlagen. **Berichtigt (V-192, D-686 Nr. 1):** „immer" galt
+   nur bis zur Obergrenze der Liste; die bisherige Zeile kommt jetzt
+   ungekappt mit.
 2. **Einzelschicht:** beim Anlegen (`auftragLeistungId`), und nachträglich
    auf dem Schichtblatt (`setzeLeistungsanker`, `aktion=leistung`) —
    solange keine Zeit erfasst ist (danach tragen die Einträge den Anker, den
@@ -18368,7 +18370,56 @@ niemand liest.
    RLS des Aufrufers: wer ohne `auftrag.lesen` einen verankerten Turnus
    ändert, dessen Lauf scheitert beim Ableiten für NEUE Schichten. Das galt
    schon für die geseedeten Anker; es als `SECURITY DEFINER` zu führen ist
-   ein eigener Schritt.
+   ein eigener Schritt. **Berichtigt (V-192, D-686 Nr. 2):** (c) ist
+   erledigt (`drizzle/0430`).
 
 | Betrifft | TIM-12, FIN-07, CLN-02, SEC-01, D-150, V-013, V-191, `src/server/services/dienstplan/{leistungsanker,einzelschicht,serie,serie-pflege,generator}.ts`, `src/server/services/security/posten.ts`, `src/app/api/{dienstplan/einsatz,dienstplan/serien,dienstplan/serien/[id],reinigung/turnus,sicherheit/posten}/route.ts`, `src/components/portal/LeistungsankerFeld.tsx`, `src/lib/i18n/verwaltung/{leistungsanker,dienstplan-schicht}.ts`, sieben Masken unter `dienstplan/`, `reinigung/turnus/` und `security/posten/`, `tests/isolation/leistungsanker.test.ts`, `tests/kern/leistungsanker.test.ts` |
+|---|---|
+
+### D-686 · Der Leistungsanker hält — auch jenseits der Liste, ohne `auftrag.lesen` und gegen einen Wert, der keine Kennung ist (V-192)
+
+**Der Befund** (V-192; die zweite Prüfung von V-191 durch den unabhängigen
+Prüfer der Gruppe zeit). `listeAnkerbareLeistungen` versprach, den bisherigen
+Anker IMMER mitzuliefern (D-685 Nr. 1), und kappte mit `limit` NACH dem
+`or al.id = bisher`. Bei mehr als 300 lebenden Leistungszeilen im Mandanten
+fiel der bisherige Anker aus der Liste — sortiert nach Auftragsnummer
+absteigend gerade der alte, lange laufende Vertrag —, das Feld wählte
+„ohne", und das nächste Speichern der Turnuspflege, auch nur einer Uhrzeit,
+löste ihn; der Generator trug das auf alle künftigen Schichten. Genau der
+Fehler, den D-685 Nr. 5 verhindern sollte.
+
+**Die Entscheidung.**
+
+1. **Der bisherige Anker kommt ungekappt mit.** Die Abfrage hat zwei Teile:
+   die gekappte Liste der lebenden Zeilen und, daneben und ungekappt, die
+   bisherige Zeile (lebend oder nicht, `union` hält sie einmal). Das Feld
+   (`LeistungsankerFeld`) wählt den bisherigen Anker immer vor; fehlt er
+   trotzdem in der Liste, steht er als eigene Zeile „bisherige
+   Leistungszeile (bleibt, wie sie ist)" da, statt dass „ohne" ihn beim
+   Speichern löst.
+2. **Die Ableitung des Auftrags liest als `cse_definer`** (`drizzle/0430`,
+   D-685 Nr. 7(c) erledigt). Der Generator läuft nach jeder Pflege über ALLE
+   Serien der Gesellschaft, und sein Upsert feuert
+   `kern.einsatz_auftrag_ableiten` für jede vorgeschlagene Zeile. Unter der
+   RLS des Aufrufers warf er ohne `auftrag.lesen` 23503, sobald eine einzige
+   Serie verankert war — auch beim Ändern einer fremden, unverankerten, und
+   als 500. Eine eigene Rolle mit `dienstplan.schreiben` ohne `auftrag.lesen`
+   ist zulässig; ob sie planen kann, darf nicht davon abhängen, ob irgendwo
+   ein Anker steht. Die Funktion liest genau `auftrag_id` der Zeile, die die
+   Schicht selbst nennt, in der Gesellschaft der Schicht; Grant und Policy
+   (`d_auftrag_leistung_lesen`) stehen seit 0107, die Liste der
+   Definer-Policies wächst nicht. Einen gewählten Anker prüfen die Dienste
+   weiter vorher unter der RLS des Menschen.
+3. **Ein Wert, der keine Kennung ist, wird abgewiesen — er löst den Anker
+   nicht.** Schichtblatt, Einzelschicht und Postenblatt machten aus ihm
+   still `null`, also „ohne"; eine verstümmelte oder nachgebaute Anfrage
+   löste damit einen Anker. Leer heisst weiter „ohne" (das Feld schickt
+   genau das), alles andere, was keine Kennung ist, kommt als
+   `leistung_unbekannt` auf die Maske zurück.
+4. **Der Sofortlauf erfindet keinen Tag** (`generiereSofort`). An drei
+   Stellen stand `heute?.tag ?? '2026-01-01'`: ohne Antwort der Datenbank
+   lief der Generator still ab einem festen Tag. Jetzt kommt der Tag aus
+   `berlinHeute`, und ohne Antwort gibt es einen Fehler statt eines Laufs.
+
+| Betrifft | TIM-12, FIN-07, K-01, Invariante 5, D-685, V-191, V-192, `drizzle/0430_auftrag_ableiten_als_definer.sql`, `src/server/services/dienstplan/{leistungsanker,generator,serie,serie-pflege}.ts`, `src/server/services/security/posten.ts`, `src/app/api/{dienstplan/einsatz,sicherheit/posten}/route.ts`, `src/components/portal/LeistungsankerFeld.tsx`, `src/lib/i18n/verwaltung/leistungsanker.ts`, `tests/isolation/leistungsanker.test.ts` §5–6, `tests/kern/leistungsanker-feld.test.ts`, `tests/kern/leistungsanker.test.ts` |
 |---|---|

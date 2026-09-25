@@ -1,6 +1,6 @@
 import 'server-only';
 import type { SchreibKontext } from '../../kontext/index.js';
-import { generiereEinsaetze, type SerienBericht } from './generator.js';
+import { generiereSofort, type SerienBericht } from './generator.js';
 import { MAX_DAUER_MINUTEN } from './vorkommnisse.js';
 import { turnusRegel, type Feiertagsregel, type TurnusFrequenz } from './serie.js';
 import { LeistungsankerFehler, pruefeLeistungsanker } from './leistungsanker.js';
@@ -127,13 +127,9 @@ async function leseKopf(kontext: SchreibKontext, serieId: string): Promise<Serie
  * Nachtlaufs.
  */
 async function generiereJetzt(kontext: SchreibKontext): Promise<readonly SerienBericht[]> {
-  const [heute] = await kontext.abfrage<{ tag: string }>(
-    `select app.berlin_heute()::text as tag`);
-  return generiereEinsaetze(
+  return generiereSofort(
     { unsafe: (sql, werte) => kontext.schreibe<unknown>(sql, werte) },
-    kontext.aktiverMandantId,
-    { heute: heute?.tag ?? '2026-01-01', laufId: null },
-    { eigen: true });
+    kontext.aktiverMandantId);
 }
 
 /**

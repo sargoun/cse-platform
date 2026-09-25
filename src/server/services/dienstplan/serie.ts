@@ -1,7 +1,7 @@
 import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { WOCHENTAGE, leseRegel, type Wochentag } from '../../../lib/datum/rrule.js';
-import { generiereEinsaetze, type SerienBericht } from './generator.js';
+import { generiereSofort, type SerienBericht } from './generator.js';
 import { MAX_DAUER_MINUTEN } from './vorkommnisse.js';
 import { pruefeLeistungsanker } from './leistungsanker.js';
 
@@ -271,10 +271,9 @@ export async function legePlanungsserieAn(
     planungsserieId = neu.id;
   }
 
-  const [heute] = await kontext.abfrage<{ tag: string }>(`select app.berlin_heute()::text as tag`);
-  const berichte: readonly SerienBericht[] = await generiereEinsaetze(
+  const berichte: readonly SerienBericht[] = await generiereSofort(
     { unsafe: (sql, werte) => kontext.schreibe<unknown>(sql, werte) },
-    kontext.aktiverMandantId, { heute: heute?.tag ?? '2026-01-01', laufId: null }, { eigen: true });
+    kontext.aktiverMandantId);
   const bericht = berichte.find((b) => b.planungsserieId === planungsserieId);
 
   await kontext.schreibe(
@@ -810,10 +809,9 @@ export async function legeAusnahmeAn(
       + 'oder die Serie gehört nicht zu dieser Gesellschaft.');
   }
 
-  const [heute] = await kontext.abfrage<{ tag: string }>(`select app.berlin_heute()::text as tag`);
-  const berichte: readonly SerienBericht[] = await generiereEinsaetze(
+  const berichte: readonly SerienBericht[] = await generiereSofort(
     { unsafe: (sql, werte) => kontext.schreibe<unknown>(sql, werte) },
-    kontext.aktiverMandantId, { heute: heute?.tag ?? e.datum, laufId: null }, { eigen: true });
+    kontext.aktiverMandantId);
 
   await kontext.schreibe(
     `select app.protokolliere('dienstplan.ausnahme_angelegt', $1, $2, null, $3::jsonb,

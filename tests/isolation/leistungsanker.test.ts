@@ -380,3 +380,126 @@ describe('(4) Posten: anlegen mit Zeile, später ändern', () => {
     }
   });
 });
+
+describe('(5) der bisherige Anker bleibt in der Auswahl — auch jenseits der Obergrenze (V-192)', () => {
+  /**
+   * Die erste Fassung kappte NACH dem `or al.id = bisher` mit `limit`. Bei
+   * mehr lebenden Zeilen als der Obergrenze fiel der bisherige Anker aus der
+   * Liste, die Maske wählte „ohne", und das nächste Speichern löste ihn.
+   * Geprüft mit der Obergrenze 1, statt 300 Zeilen anzulegen — dieselbe Abfrage.
+   */
+  it('die gekappte Liste bringt die bisherige Zeile trotzdem mit — lebend oder beendet, und nur einmal', async () => {
+    const bau = await baue(f.reinigung);
+    // Ein Auftrag, der in der absteigenden Sortierung ganz hinten steht.
+    const [alt] = await sql.unsafe<{ id: string }[]>(
+      `insert into auftrag (mandant_id, auftragsnummer, kunde_id, objekt_id, art, status,
+                            bezeichnung, verantwortlich_benutzer_id, start_datum)
+       select mandant_id, $2, kunde_id, id, 'rahmenvertrag', 'aktiv', 'Altvertrag', $3, '2020-01-01'
+         from objekt where id = $1
+       returning id`,
+      [bau.objekt, `0000-ALT-${zufall()}`, admin] as never[]);
+    const [altZeile] = await sql.unsafe<{ id: string }[]>(
+      `insert into auftrag_leistung (mandant_id, auftrag_id, position_nr, bezeichnung,
+                                     steuersatz_bp, gueltig_ab)
+       values ($1, $2, 1, 'Unterhaltsreinigung Altbau', 1900, '2020-01-01') returning id`,
+      [f.reinigung, alt!.id]);
+
+    const gekappt = await imKontext((k) => listeAnkerbareLeistungen(k, null, 1));
+    expect(gekappt).toHaveLength(1);
+    expect(gekappt.map((l) => l.id)).not.toContain(altZeile!.id);
+
+    const mitBisher = await imKontext((k) => listeAnkerbareLeistungen(k, altZeile!.id, 1));
+    expect(mitBisher).toHaveLength(2);
+    expect(mitBisher.find((l) => l.id === altZeile!.id)).toMatchObject({
+      lebt: true, auftragId: alt!.id,
+    });
+
+    // Ist die bisherige zugleich die erste der Liste, steht sie genau einmal da.
+    const erste = gekappt[0]!.id;
+    const einmal = await imKontext((k) => listeAnkerbareLeistungen(k, erste, 1));
+    expect(einmal.map((l) => l.id)).toEqual([erste]);
+
+    // Auch eine beendete bisherige kommt gekappt mit — als nicht lebend.
+    const beendet = await imKontext((k) => listeAnkerbareLeistungen(k, bau.beendet, 1));
+    expect(beendet).toHaveLength(2);
+    expect(beendet.find((l) => l.id === bau.beendet)?.lebt).toBe(false);
+  });
+});
+
+/**
+ * Ein Konto mit GENAU diesen Rechten in der Gesellschaft — eine eigene Rolle,
+ * wie sie eine Administration anlegen darf. Die Standardrollen halten
+ * `dienstplan.schreiben` und `auftrag.lesen` zusammen; eine eigene nicht.
+ */
+async function eigeneRolle(mandant: string, rechte: readonly string[]): Promise<string> {
+  const email = `anker-rolle-${zufall()}@cse.test`;
+  const [u] = await sql.unsafe<{ id: string }[]>(
+    `insert into auth.users (email) values ($1) returning id`, [email]);
+  await sql.unsafe(`insert into auth.mfa_factors (user_id) values ($1)`, [u!.id]);
+  await sql.unsafe(
+    `insert into benutzer (id, email, name, status) values ($1,$2,$2,'aktiv')`, [u!.id, email]);
+  const [r] = await sql.unsafe<{ id: string }[]>(
+    `insert into rolle (mandant_id, schluessel, bezeichnung, geltungsbereich, portal)
+     values ($1, $2, $2, 'mandant', 'intern') returning id`, [mandant, `planung_${zufall()}`]);
+  await sql.unsafe(
+    `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+     select $1, b.id, $2, true from berechtigung b where b.schluessel = any($3::text[])`,
+    [r!.id, mandant, [...rechte]]);
+  // `gueltig_ab` auf gestern: der Berliner Tag gegen `current_date` (wie `kennzahlen-listen`).
+  await sql.unsafe(
+    `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, ist_standard, gueltig_ab)
+     values ($1, $2, $3, true, current_date - 1)`, [u!.id, mandant, r!.id]);
+  return u!.id;
+}
+
+describe('(6) die Ableitung des Auftrags braucht kein `auftrag.lesen` (V-192, 0430)', () => {
+  /**
+   * `kern.einsatz_auftrag_ableiten` las die Leistungszeile unter der RLS des
+   * Aufrufers. Der Generator läuft nach jeder Pflege über ALLE Serien der
+   * Gesellschaft, und sein Upsert feuert den Auslöser für jede vorgeschlagene
+   * Zeile; ohne `auftrag.lesen` warf er 23503, sobald eine einzige Serie
+   * verankert war — auch beim Ändern einer fremden, unverankerten.
+   */
+  it('eine Planung ohne Auftragsrecht ändert Serien neben einer verankerten — und neue Schichten bekommen ihren Auftrag', async () => {
+    const bau = await baue(f.reinigung);
+    const { revier, position } = await revierUndPosition(bau.objekt);
+    const verankert = await imKontext(async (k) => legeTurnusSerieAn(k, {
+      revierId: revier, leistungskatalogPositionId: position, bezeichnung: 'Verankert',
+      wochentage: ['MO'], beginnLokal: '18:00', dauerMinuten: 120,
+      gueltigAb: await tagePlus(1), feiertagsregel: 'unveraendert', auftragLeistungId: bau.zeileA,
+    }));
+    const fremd = await imKontext(async (k) => legeTurnusSerieAn(k, {
+      revierId: revier, leistungskatalogPositionId: position, bezeichnung: 'Ohne Anker',
+      wochentage: ['TU'], beginnLokal: '06:00', dauerMinuten: 120,
+      gueltigAb: await tagePlus(1), feiertagsregel: 'unveraendert',
+    }));
+    const planung = await eigeneRolle(f.reinigung, [
+      'dienstplan.lesen', 'dienstplan.schreiben', 'reinigung.lesen', 'reinigung.schreiben',
+      'objekt.lesen', 'katalog.lesen',
+    ]);
+    // Die Planung sieht keine Leistungszeile — die Voraussetzung dieses Falls.
+    expect(await imKontext((k) => listeAnkerbareLeistungen(k), planung)).toEqual([]);
+
+    // (a) eine FREMDE, unverankerte Serie ändern: der Lauf geht über alle Serien.
+    await imKontext((k) => aendereTurnus(k, fremd.planungsserieId, { dauerMinuten: 150 }), planung);
+
+    // (b) die verankerte selbst: neue Wochentage heissen NEUE Schichten, die ihren
+    // Auftrag aus der Zeile ableiten, die die Planung nicht lesen darf.
+    const vorher = (await schichtenDerSerie(verankert.planungsserieId)).length;
+    await imKontext((k) => aendereTurnus(k, verankert.planungsserieId, {
+      wochentage: ['MO', 'WE', 'FR'],
+    }), planung);
+    const danach = await schichtenDerSerie(verankert.planungsserieId);
+    expect(danach.length).toBeGreaterThan(vorher);
+    for (const s of danach) expect(s).toMatchObject({ auftrag: bau.auftragA, anker: bau.zeileA });
+  });
+
+  it('die Ableitung gehört `cse_definer` und steht niemandem sonst zum Aufruf offen', async () => {
+    const [f0] = await sql.unsafe<{ definer: boolean; eigentuemer: string; oeffentlich: boolean }[]>(
+      `select p.prosecdef as definer, pg_get_userbyid(p.proowner) as eigentuemer,
+              has_function_privilege('public', p.oid, 'execute') as oeffentlich
+         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'kern' and p.proname = 'einsatz_auftrag_ableiten'`);
+    expect(f0).toEqual({ definer: true, eigentuemer: 'cse_definer', oeffentlich: false });
+  });
+});

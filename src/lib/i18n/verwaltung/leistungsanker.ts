@@ -20,6 +20,11 @@ export interface LeistungsankerTexte {
   readonly ohne: string;
   readonly position: string;
   readonly beendet: string;
+  /**
+   * Der bisherige Anker, wenn er in der Liste fehlt (V-192) — er bleibt
+   * gewählt, statt dass „ohne" ihn beim Speichern löst.
+   */
+  readonly bisherNichtGelistet: string;
   readonly erklaerung: string;
   readonly keinLeserecht: string;
   readonly bleibt: string;
@@ -36,6 +41,7 @@ export const LEISTUNGSANKER_TEXTE: Readonly<Record<InternSprache, Leistungsanker
     ohne: 'ohne Leistungszeile — die Zeit hängt an keiner Abrechnung',
     position: 'Pos.',
     beendet: 'beendet',
+    bisherNichtGelistet: 'bisherige Leistungszeile (bleibt, wie sie ist)',
     erklaerung:
       'Jede Stunde auf diesen Schichten übernimmt die Leistungszeile beim Erfassen. Ohne '
       + 'sie steht sie unter „Zeit ohne Auftrag" und in keiner Stundenabrechnung. Schon '
@@ -74,6 +80,7 @@ export const LEISTUNGSANKER_TEXTE: Readonly<Record<InternSprache, Leistungsanker
     ohne: 'no Leistungszeile — the time is not attached to any billing',
     position: 'item',
     beendet: 'ended',
+    bisherNichtGelistet: 'current Leistungszeile (stays as it is)',
     erklaerung:
       'Every hour recorded on these shifts takes over the Leistungszeile when it is recorded. '
       + 'Without one it is listed under "time without an order" and in no hourly billing. '

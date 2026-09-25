@@ -54,25 +54,49 @@ export const ANKERBARE_LEISTUNGEN_HOECHSTENS = 300;
  * stornierten Auftrag. `bisher` kommt IMMER mit, auch wenn die Zeile nicht
  * mehr lebt: eine Pflegemaske, die den bisherigen Anker nicht anbietet,
  * löschte ihn beim nächsten Speichern.
+ *
+ * **„Immer" heisst: auch jenseits der Obergrenze** (V-192). Die erste Fassung
+ * hängte `or al.id = $2` in dieselbe Abfrage und kappte DANACH mit `limit`.
+ * Bei mehr als {@link ANKERBARE_LEISTUNGEN_HOECHSTENS} lebenden Zeilen fiel
+ * der bisherige Anker damit aus der Liste — sortiert nach Auftragsnummer
+ * absteigend traf das gerade die alten, lange laufenden Verträge —, die Maske
+ * wählte „ohne", und das nächste Speichern einer Uhrzeit löste ihn; der
+ * Generator trug das auf jede künftige Schicht. Deshalb zwei Teile: die
+ * gekappte Liste der lebenden Zeilen und, UNGEKAPPT daneben, die bisherige.
+ *
+ * `hoechstens` ist die Obergrenze der lebenden Zeilen; die Vorgabe genügt
+ * jeder Maske, die Angabe gibt es für die Prüfung der Kappung.
  */
 export async function listeAnkerbareLeistungen(
   kontext: LeseKontext, bisher: string | null = null,
+  hoechstens: number = ANKERBARE_LEISTUNGEN_HOECHSTENS,
 ): Promise<readonly AnkerbareLeistung[]> {
   const zeilen = await kontext.abfrage<{
     id: string; auftrag_id: string; auftragsnummer: string; position_nr: number;
     bezeichnung: string; lebt: boolean;
   }>(
-    `select al.id, al.auftrag_id, a.auftragsnummer, al.position_nr, al.bezeichnung,
-            (a.status <> 'storniert'
-             and (al.gueltig_bis is null or al.gueltig_bis >= app.berlin_heute())) as lebt
-       from auftrag_leistung al
-       join auftrag a on a.mandant_id = al.mandant_id and a.id = al.auftrag_id
-      where (a.status <> 'storniert'
-             and (al.gueltig_bis is null or al.gueltig_bis >= app.berlin_heute()))
-         or al.id = $2::uuid
-      order by a.auftragsnummer desc, al.position_nr
-      limit $1::int`,
-    [ANKERBARE_LEISTUNGEN_HOECHSTENS, bisher],
+    `with lebend as (
+       select al.id, al.auftrag_id, a.auftragsnummer, al.position_nr, al.bezeichnung,
+              true as lebt
+         from auftrag_leistung al
+         join auftrag a on a.mandant_id = al.mandant_id and a.id = al.auftrag_id
+        where a.status <> 'storniert'
+          and (al.gueltig_bis is null or al.gueltig_bis >= app.berlin_heute())
+        order by a.auftragsnummer desc, al.position_nr
+        limit $1::int
+     ), bisherig as (
+       select al.id, al.auftrag_id, a.auftragsnummer, al.position_nr, al.bezeichnung,
+              (a.status <> 'storniert'
+               and (al.gueltig_bis is null or al.gueltig_bis >= app.berlin_heute())) as lebt
+         from auftrag_leistung al
+         join auftrag a on a.mandant_id = al.mandant_id and a.id = al.auftrag_id
+        where al.id = $2::uuid
+     )
+     select * from lebend
+     union
+     select * from bisherig
+     order by auftragsnummer desc, position_nr`,
+    [Math.max(0, Math.trunc(hoechstens)), bisher],
   );
   return zeilen.map((z) => ({
     id: z.id,

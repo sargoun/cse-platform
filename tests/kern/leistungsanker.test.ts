@@ -4,8 +4,8 @@
  *
  * Was die Datenbank daraus macht (Erbe, Ableitung, Generator), prüft
  * `tests/isolation/leistungsanker.test.ts` an echten Zeilen. Hier: die Route
- * der Einzelschicht mit ersetztem Dienst, die Quelltexte der fünf Masken und
- * die Texttabellen.
+ * der Einzelschicht und das Postenblatt mit ersetztem Dienst, die Quelltexte
+ * der sieben Masken und die Texttabellen.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -20,6 +20,7 @@ import { INTERN_SPRACHEN } from '../../src/lib/i18n/intern.js';
 const zustand = vi.hoisted(() => ({
   setze: vi.fn(),
   lege: vi.fn(),
+  posten: vi.fn(),
   authorize: vi.fn(),
 }));
 
@@ -45,9 +46,14 @@ vi.mock('@/server/services/dienstplan/einzelschicht', async (original) => ({
   setzeLeistungsanker: zustand.setze,
   legeEinzelschichtAn: zustand.lege,
 }));
+vi.mock('@/server/services/security/posten', async (original) => ({
+  ...(await original<Record<string, unknown>>()),
+  setzePostenLeistung: zustand.posten,
+}));
 
 const { SchichtFehler } = await import('../../src/server/services/dienstplan/einzelschicht.js');
 const { POST } = await import('../../src/app/api/dienstplan/einsatz/route.js');
+const { POST: POSTEN_POST } = await import('../../src/app/api/sicherheit/posten/route.js');
 
 const HIER = 'http://localhost:3001';
 const EINSATZ = '5b0d6c1e-0a41-4c55-9d1c-1c2f3b4a5d6e';
@@ -67,7 +73,9 @@ function anfrage(felder: Record<string, string>): NextRequest {
 beforeEach(() => {
   zustand.setze.mockReset();
   zustand.lege.mockReset();
+  zustand.posten.mockReset();
   zustand.authorize.mockReset();
+  zustand.posten.mockResolvedValue(undefined);
   zustand.setze.mockResolvedValue(undefined);
   zustand.lege.mockResolvedValue({ einsatzId: EINSATZ, zeitanomalie: 'keine' });
   zustand.authorize.mockResolvedValue(undefined);
@@ -102,6 +110,29 @@ describe('POST /api/dienstplan/einsatz — die Leistungszeile', () => {
     expect(zustand.setze).toHaveBeenLastCalledWith(expect.anything(), EINSATZ, null);
   });
 
+  it('ein Wert, der keine Kennung ist, wird abgewiesen — er löst den Anker nicht (V-192)', async () => {
+    const antwort = await POST(anfrage({
+      aktion: 'leistung', einsatz: EINSATZ, mandant: 'reinigung', auftrag_leistung: 'kaputt',
+      zurueck: `${BLATT}?leistung=gesetzt`, fehlerweg: BLATT,
+    }));
+    expect(zustand.setze).not.toHaveBeenCalled();
+    expect(antwort.status).toBe(303);
+    const ziel = new URL(antwort.headers.get('location') ?? '');
+    expect(ziel.pathname).toBe(BLATT);
+    expect(ziel.searchParams.get('fehler')).toBe('leistung_unbekannt');
+
+    // Beim Anlegen ebenso: vorher wurde daraus eine Schicht OHNE Leistungszeile.
+    const maske = '/portal/reinigung/dienstplan/einsatz/neu';
+    const angelegt = await POST(anfrage({
+      aktion: 'anlegen', mandant: 'reinigung', objekt: EINSATZ, datum: '2026-10-12',
+      beginn: '06:00', ende: '10:00', auftrag_leistung: 'kaputt', zurueck: '/portal/reinigung',
+      fehlerweg: maske,
+    }));
+    expect(zustand.lege).not.toHaveBeenCalled();
+    expect(new URL(angelegt.headers.get('location') ?? '').searchParams.get('fehler'))
+      .toBe('leistung_unbekannt');
+  });
+
   it('eine Abweisung kommt als Grund auf das Schichtblatt — nie als JSON', async () => {
     zustand.setze.mockRejectedValueOnce(
       new SchichtFehler('Zeit schon erfasst', 'leistung_hat_zeiten', 409));
@@ -116,7 +147,44 @@ describe('POST /api/dienstplan/einsatz — die Leistungszeile', () => {
   });
 });
 
-describe('die fünf Masken setzen den Anker über EIN Feld', () => {
+describe('POST /api/sicherheit/posten — die Leistungszeile am Postenblatt', () => {
+  const POSTEN = '7d2f6c1e-0a41-4c55-9d1c-1c2f3b4a5d70';
+  const POSTENBLATT = `/portal/security/security/posten/${POSTEN}`;
+
+  function postenAnfrage(felder: Record<string, string>): NextRequest {
+    const daten = new FormData();
+    for (const [k, v] of Object.entries(felder)) daten.append(k, v);
+    const kopf = new Headers({ host: 'localhost:3001', origin: HIER });
+    return new NextRequest(new URL('/api/sicherheit/posten', HIER),
+      { method: 'POST', body: daten, headers: kopf });
+  }
+
+  it('ein Wert, der keine Kennung ist, wird abgewiesen — er löst den Anker nicht (V-192)', async () => {
+    const antwort = await POSTEN_POST(postenAnfrage({
+      aktion: 'leistung', posten: POSTEN, mandant: 'security', auftrag_leistung: 'kaputt',
+    }));
+    expect(zustand.posten).not.toHaveBeenCalled();
+    expect(antwort.status).toBe(303);
+    const ziel = new URL(antwort.headers.get('location') ?? '');
+    expect(ziel.pathname).toBe(POSTENBLATT);
+    expect(ziel.searchParams.get('fehler')).toBe('leistung_unbekannt');
+  });
+
+  it('ein leeres Feld löst den Anker, eine Kennung setzt ihn', async () => {
+    await POSTEN_POST(postenAnfrage({
+      aktion: 'leistung', posten: POSTEN, mandant: 'security', auftrag_leistung: '',
+    }));
+    expect(zustand.posten).toHaveBeenLastCalledWith(expect.anything(), POSTEN, null);
+    const gesetzt = await POSTEN_POST(postenAnfrage({
+      aktion: 'leistung', posten: POSTEN, mandant: 'security', auftrag_leistung: ZEILE,
+    }));
+    expect(zustand.posten).toHaveBeenLastCalledWith(expect.anything(), POSTEN, ZEILE);
+    expect(new URL(gesetzt.headers.get('location') ?? '').searchParams.get('leistung'))
+      .toBe('gesetzt');
+  });
+});
+
+describe('die sieben Masken setzen den Anker über EIN Feld', () => {
   const MASKEN = [
     'src/app/portal/[mandant]/dienstplan/einsatz/neu/page.tsx',
     'src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx',

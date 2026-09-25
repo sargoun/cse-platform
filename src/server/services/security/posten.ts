@@ -22,7 +22,7 @@
  */
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { pruefeLeistungsanker } from '../dienstplan/leistungsanker.js';
-import { generiereEinsaetze } from '../dienstplan/generator.js';
+import { generiereSofort } from '../dienstplan/generator.js';
 
 /** Eine Postenschicht unter ihrer Mindestbesetzung — die Zeile der Sicht. */
 export interface Unterbesetzung {
@@ -380,12 +380,7 @@ export async function setzePostenLeistung(
     throw new PostenEingabeFehlt(
       'Der Posten wurde nicht geändert — die Sitzung darf hier nicht schreiben.');
   }
-  const [heute] = await kontext.abfrage<{ tag: string }>(
-    `select app.berlin_heute()::text as tag`);
-  await generiereEinsaetze(
+  await generiereSofort(
     { unsafe: (sql, werte) => kontext.schreibe<unknown>(sql, werte) },
-    kontext.aktiverMandantId,
-    { heute: heute?.tag ?? '2026-01-01', laufId: null },
-    { eigen: true },
-  );
+    kontext.aktiverMandantId);
 }

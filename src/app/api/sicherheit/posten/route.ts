@@ -72,9 +72,17 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             { recht: 'security.schreiben', schreibend: true },
             rechtepruefer(kontext.abfrage.bind(kontext)),
           );
+          /*
+           * Leer heisst „ohne" (lösen). Ein Wert, der keine Kennung ist, wird
+           * abgewiesen — vorher wurde er still zu `null` und LÖSTE den Anker
+           * (V-192). Welche Zeile es gibt, prüft der Dienst.
+           */
           const anker = text(daten, 'auftrag_leistung');
-          await setzePostenLeistung(kontext, postenId,
-            anker !== null && /^[0-9a-f-]{36}$/u.test(anker) ? anker : null);
+          if (anker !== null
+            && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(anker)) {
+            throw new LeistungsankerFehler('leistung_unbekannt');
+          }
+          await setzePostenLeistung(kontext, postenId, anker);
         })));
     } catch (fehler) {
       const grund = (fehler as { grund?: unknown }).grund;

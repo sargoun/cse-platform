@@ -36,6 +36,22 @@ type Aktion = typeof AKTIONEN[number];
 const RECHT = 'dienstplan.schreiben';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
+/**
+ * Die Leistungszeile aus dem Formular: leer heisst „ohne" (lösen), eine
+ * Kennung wird durchgereicht — und alles andere abgewiesen (V-192).
+ *
+ * Vorher wurde ein Wert, der keine Kennung ist, still zu `null`, also zu
+ * „Anker lösen": eine verstümmelte oder nachgebaute Anfrage löste den Anker,
+ * statt abgewiesen zu werden. Welche Zeile es gibt, prüft der Dienst.
+ */
+function ankerOder(roh: string): string | null {
+  if (roh === '') return null;
+  if (!UUID.test(roh)) {
+    throw new SchichtFehler('Diese Leistungszeile gibt es nicht.', 'leistung_unbekannt', 422);
+  }
+  return roh;
+}
+
 function zurueck(
   anfrage: NextRequest, daten: FormData, hinweis: string | null, ziel?: string,
 ): NextResponse {
@@ -96,8 +112,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         if (aktion === 'leistung') {
           const id = feld('einsatz');
           if (!UUID.test(id)) throw new SchichtFehler('Ohne Schicht kein Anker.', 'nicht_gefunden', 404);
-          const anker = feld('auftrag_leistung');
-          await setzeLeistungsanker(kontext, id, UUID.test(anker) ? anker : null);
+          await setzeLeistungsanker(kontext, id, ankerOder(feld('auftrag_leistung')));
           return null;
         }
         const objekt = feld('objekt');
@@ -106,7 +121,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         }
         const revier = feld('revier');
         const auftrag = feld('auftrag');
-        const anker = feld('auftrag_leistung');
+        const anker = ankerOder(feld('auftrag_leistung'));
         const ergebnis = await legeEinzelschichtAn(kontext, {
           objektId: objekt,
           planDatum: feld('datum'),
@@ -118,7 +133,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           pauseMinuten: zahl('pause', 0),
           revierId: UUID.test(revier) ? revier : null,
           auftragId: UUID.test(auftrag) ? auftrag : null,
-          auftragLeistungId: UUID.test(anker) ? anker : null,
+          auftragLeistungId: anker,
           notiz: feld('notiz'),
         });
         return ergebnis.einsatzId;

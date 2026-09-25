@@ -9,15 +9,22 @@ import type { PortalSprache } from '@/lib/i18n/texte';
  * Das Feld „Leistungszeile" — der Abrechnungsanker einer Schicht, eines
  * Turnus oder eines Postens (TIM-12, V-191).
  *
- * Ein Baustein und keine Abschrift je Seite: fünf Masken setzen denselben
- * Anker (Einzelschicht, zwei Turnusmasken, Turnuspflege, Posten), und eine
- * Abschrift, die beim nächsten Satz zurückbleibt, erklärte die Abrechnung
- * falsch.
+ * Ein Baustein und keine Abschrift je Seite: sieben Masken setzen denselben
+ * Anker (Einzelschicht anlegen und Schichtblatt, zwei Turnusmasken,
+ * Turnuspflege, Posten anlegen und Postenblatt), und eine Abschrift, die beim
+ * nächsten Satz zurückbleibt, erklärte die Abrechnung falsch.
  *
  * **Ohne `auftrag.lesen` gibt es KEIN Feld** (`leistungen === null`), sondern
  * einen Satz. Ein Auswahlfeld, dessen Liste die RLS leert, schickte beim
  * Speichern „ohne" — und löschte in einer Pflegemaske den Anker, den jemand
  * anderes gesetzt hat. Kein Feld heisst: der Anker bleibt.
+ *
+ * **Und der bisherige Anker ist immer gewählt** (V-192). Der Dienst liefert
+ * ihn mit (`listeAnkerbareLeistungen(…, bisher)`), auch jenseits der
+ * Obergrenze. Fehlt er trotzdem in der Liste, steht er als eigene Zeile da
+ * und bleibt vorgewählt: ein Feld, das dann „ohne" vorwählte, löste den Anker
+ * beim nächsten Speichern — in der Turnuspflege schon beim Ändern einer
+ * Uhrzeit.
  */
 export function LeistungsankerFeld({
   leistungen, gewaehlt, sprache, feldKlasse, name = 'auftrag_leistung',
@@ -37,13 +44,16 @@ export function LeistungsankerFeld({
       </p>
     );
   }
-  const vorhanden = gewaehlt !== null && leistungen.some((l) => l.id === gewaehlt);
+  const fehlt = gewaehlt !== null && !leistungen.some((l) => l.id === gewaehlt);
   return (
     <label className="flex flex-col gap-s2 text-sm text-text">
       {t.feld}
-      <select name={name} className={feldKlasse} defaultValue={vorhanden ? gewaehlt : ''}
+      <select name={name} className={feldKlasse} defaultValue={gewaehlt ?? ''}
               data-cse="leistungsanker">
         <option value="">{t.ohne}</option>
+        {fehlt && gewaehlt !== null && (
+          <option value={gewaehlt} data-cse="leistungsanker-bisher">{t.bisherNichtGelistet}</option>
+        )}
         {leistungen.map((l) => (
           <option key={l.id} value={l.id}>
             {l.auftragsnummer} · {t.position} {l.positionNr} · {l.bezeichnung}
