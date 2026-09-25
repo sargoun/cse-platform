@@ -5,6 +5,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { AnmeldungNoetig } from '../../../../../Anmeldung';
 import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
@@ -120,7 +121,7 @@ export default async function Unterschriftsblatt({
       <p className="mb-s5 text-sm text-text-muted">
         {vorschau.kopf.kunde} · {vorschau.kopf.objekt ?? '—'} ·{' '}
         <span className="tabular-nums">
-          {vorschau.kopf.leistungszeitraumVon} – {vorschau.kopf.leistungszeitraumBis}
+          {tagDeutsch(vorschau.kopf.leistungszeitraumVon)} – {tagDeutsch(vorschau.kopf.leistungszeitraumBis)}
         </span>
       </p>
 

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import {
   BESTAETIGUNGSTEXT, bereiteUnterschriftVor, type Unterschriftsvorschau,
 } from '@/server/services/reinigung/leistungsnachweis';
@@ -193,7 +194,7 @@ export default async function MeinLeistungsnachweis(
 
       <h1 className="mb-s2 text-h1 text-text">{t.leistungsnachweis}</h1>
       <p className="mb-s5 text-base text-text-muted">
-        {schicht.objekt ?? '—'} · <span className="cse-zahl">{schicht.planDatum}</span>
+        {schicht.objekt ?? '—'} · <span className="cse-zahl">{tagInSprache(schicht.planDatum, basis.sprache)}</span>
       </p>
 
       {schicht.objektId === null ? <Leer text={t.keineEintraege} /> : (
@@ -216,7 +217,7 @@ export default async function MeinLeistungsnachweis(
                     </div>
                     <Felder>
                       <Feld label={t.leistungszeitraum}>
-                        <span className="cse-zahl">{n.von} – {n.bis}</span>
+                        <span className="cse-zahl">{tagInSprache(n.von, basis.sprache)} – {tagInSprache(n.bis, basis.sprache)}</span>
                       </Feld>
                       <Feld label={t.positionen}>
                         <span className="cse-zahl">{n.positionen}</span>
@@ -261,7 +262,7 @@ export default async function MeinLeistungsnachweis(
                     >
                       <Felder>
                         <Feld label={t.leistungszeitraum}>
-                          <span className="cse-zahl">{n.von} – {n.bis}</span>
+                          <span className="cse-zahl">{tagInSprache(n.von, basis.sprache)} – {tagInSprache(n.bis, basis.sprache)}</span>
                         </Feld>
                         <Feld label={t.positionen}>
                           <span className="cse-zahl">{n.positionen}</span>
@@ -374,7 +375,7 @@ export default async function MeinLeistungsnachweis(
                 <Felder>
                   <Feld label={t.leistungszeitraum}>
                     <span className="cse-zahl">
-                      {vorschau.kopf.leistungszeitraumVon} – {vorschau.kopf.leistungszeitraumBis}
+                      {tagInSprache(vorschau.kopf.leistungszeitraumVon, basis.sprache)} – {tagInSprache(vorschau.kopf.leistungszeitraumBis, basis.sprache)}
                     </span>
                   </Feld>
                   <Feld label={t.objekt}>{vorschau.kopf.objekt ?? '—'}</Feld>

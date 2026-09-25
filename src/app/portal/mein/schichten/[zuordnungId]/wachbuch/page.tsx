@@ -1,4 +1,5 @@
 import { Geraetezeit } from '../../../Geraetezeit';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { notFound } from 'next/navigation';
 import { StatusPill } from '@/components/ui/StatusPill';
 import {
@@ -105,7 +106,7 @@ export default async function MeinWachbuch(
 
       <h1 className="mb-s2 text-h1 text-text">{t.wachbuch}</h1>
       <p className="mb-s5 text-base text-text-muted">
-        {schicht.objekt ?? '—'} · <span className="cse-zahl">{schicht.planDatum}</span>
+        {schicht.objekt ?? '—'} · <span className="cse-zahl">{tagInSprache(schicht.planDatum, basis.sprache)}</span>
       </p>
 
       {schicht.objektId === null ? (
