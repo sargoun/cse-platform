@@ -1048,6 +1048,7 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'zeit', pfad: 'mitarbeiter/stempeluhr', schreibend: false },
   { modul: 'nachweis', pfad: 'mitarbeiter/nachweise', schreibend: false },
   { modul: 'zeit', pfad: 'mitarbeiter/antraege', schreibend: false },
+  { modul: 'zeit', pfad: 'mitarbeiter/tausch', schreibend: false },
   { modul: 'zeit', pfad: 'mitarbeiter/felder', schreibend: false },
   /**
    * Die vier Nachzuegler des Mitarbeiterportals (0300–0304). Ebenfalls

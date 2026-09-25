@@ -187,6 +187,32 @@ export function Hinweis(
 }
 
 /**
+ * Warum ein Formular zurückkam — über dem Formular, in der Sprache der Kraft
+ * (V-187, V-188, D-599).
+ *
+ * `role="alert"`: ein Screenreader liest den Satz beim Laden vor, ohne dass
+ * jemand ihn suchen muss (DESIGN §9). Der Rahmen aus `--warning` trägt die
+ * Bedeutung nicht allein — die erste Zeile sagt, dass nichts gesendet wurde.
+ * Fliesstext in `text-base` (DESIGN §8: nie unter 16 px).
+ */
+export function Abgewiesen({ titel, text, zusatz, marke = 'abgewiesen' }: {
+  readonly titel: string;
+  readonly text: string;
+  /** Ein zweiter Satz, etwa dass die Nachricht noch einmal einzugeben ist. */
+  readonly zusatz?: string | null;
+  readonly marke?: string;
+}) {
+  return (
+    <div role="alert" data-cse={marke}
+         className="mb-s4 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-base text-text">
+      <p className="m-0 font-semibold">{titel}</p>
+      <p className="m-0 mt-s1">{text}</p>
+      {zusatz !== undefined && zusatz !== null && <p className="m-0 mt-s1">{zusatz}</p>}
+    </div>
+  );
+}
+
+/**
  * Die Stempeluhr auf „Heute" — ein Knopf, und er sagt, was er tut
  * (D-618, O-93, TIM-07, Invariante 5, DESIGN §5).
  *
