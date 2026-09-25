@@ -18080,3 +18080,48 @@ Ablaufentscheidungen, die neu sind.
 
 | Betrifft | V-240, V-144, V-153, D-599, D-668, D-669, RAD-09, OPS-04, OPS-07, OPS-11, Invariante 2, `src/server/services/finanz/{geld,menge}.ts`, `src/lib/datum/kalendertag.ts`, `src/server/services/kern/aufgabe.ts`, `src/server/services/dokument/vorgang.ts`, `src/components/portal/VorgangAkte.tsx`, `src/server/services/objekt/anlegen.ts`, `src/app/api/{uebergang.ts,objekt/route.ts,auftrag/aendern/route.ts,angebot/entscheidung/route.ts}`, `src/server/services/raumbuch/tabelle.ts`, `src/lib/i18n/verwaltung/{objekte,vorgang-akte,angebot-hand}.ts` |
 |---|---|
+
+### D-704 · Ein DATEV-Stapel umfasst höchstens ein Wirtschaftsjahr — abgewiesen wird vor dem Stempel, nicht geteilt (V-212)
+
+**Der Befund** (V-212, ACC-02): das Belegdatum steht in jeder Zeile des
+EXTF-Stapels als `TTMM`, das Jahr kommt aus dem WJ-Beginn im Kopf, und der
+wurde nur aus `von` abgeleitet. Weder Formular noch Route, Dienst oder Tabelle
+verhinderten einen Zeitraum über die Grenze. 01.12.2025–31.01.2026 bei
+Kalender-WJ schrieb eine Buchung vom 15.01.2026 als `1501` unter den
+WJ-Beginn 2025 — für DATEV der 15.01.2025 —, und die Zeilen waren danach als
+exportiert gestempelt.
+
+**Die Entscheidung.**
+
+1. **Das Wirtschaftsjahr kommt aus den Stammdaten, nicht aus einer Annahme.**
+   Geprüft wird mit `wj_beginn_monat`/`wj_beginn_tag`, die
+   `app.datev_stammdaten` gerade geprüft zurückgegeben hat und die der Stapel
+   einfriert. Welches Wirtschaftsjahr gilt, bleibt O-05.
+2. **Abweisen, nicht teilen.** Ein Zeitraum über die Grenze ergibt keinen
+   Stapel und keinen Stempel, sondern einen Satz: „… reicht über den Beginn des
+   Wirtschaftsjahres am 01.01.2026 … Bitte in zwei Stapel teilen."
+   (`pruefeEinWirtschaftsjahr`, `ExportFehler` mit Grund `wirtschaftsjahr`).
+   Still in zwei Dateien zu teilen hiesse, dass ein Klick zwei Übergaben an den
+   Steuerberater erzeugt, von denen der Mensch nur eine gewählt hat.
+3. **Drei Stellen, eine Rechnung.** `wirtschaftsjahrGrenzeIm` (über
+   `wirtschaftsjahrVon`) steht in der Vorschau der Seite, die den Knopf sperrt
+   und das Datum nennt, und im Dienst, der VOR dem Paket und vor
+   `datev_zeilen_stempeln` wirft. Die Pruefbedingung
+   `datev_export_ein_wirtschaftsjahr` (0445) rechnet dasselbe aus den
+   eingefrorenen Spalten der Zeile nach — über `extract`, damit ein WJ-Beginn am
+   30. im Februar nicht in einen Datumsfehler läuft.
+4. **Die Vorschau sagt nur, was sie weiss.** Sieht die Person die Stammdaten
+   nicht (`buchhaltung_konfiguration.lesen` fehlt), nimmt die Vorschau KEIN
+   Kalenderjahr an — sie sperrte sonst einen Zeitraum, der im abweichenden
+   Wirtschaftsjahr in Ordnung ist. Dann entscheidet der Dienst beim Erzeugen
+   (`liesWirtschaftsjahrWennGepflegt`).
+5. **`not valid`:** ein früher über die Grenze erzeugter Stapel ist ein Beleg
+   dafür, was übergeben wurde; er wird weder gelöscht noch umgeschrieben.
+6. **Ein Browser bekommt eine Seite** (D-599): jede Abweisung der Route führt
+   mit Zeitraum und `?fehler=<grund>` auf die Vorschau zurück, die den Grund
+   über `eigenerEintrag()` als Satz zeigt; Programme ohne `mandant` bekommen
+   JSON wie bisher, der Zeitraum über die Grenze als 400. Auth-Würfe gehen über
+   `autorisierungsAntwort`.
+
+| Betrifft | ACC-02, O-05, D-599, V-212, `drizzle/0445_datev_stapel_ein_wirtschaftsjahr.sql`, `src/server/services/buchhaltung/datev/export.ts`, `src/server/services/buchhaltung/wirtschaftsjahr.ts`, `src/app/api/buchhaltung/datev/route.ts`, `src/app/portal/[mandant]/buchhaltung/datev/neu/page.tsx` |
+|---|---|

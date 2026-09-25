@@ -95,10 +95,26 @@ interface KonfigRoh {
 
 /** Aus den Stammdaten des aktiven Bereichs — unter der Policy, nie per Parameter. */
 export async function liesWirtschaftsjahr(db: Abfrage): Promise<Wirtschaftsjahr> {
+  return (await liesWirtschaftsjahrWennGepflegt(db)) ?? KALENDERJAHR;
+}
+
+/**
+ * Wie `liesWirtschaftsjahr`, aber `null` statt des Kalenderjahrs, wenn keine
+ * Zeile sichtbar ist oder Monat/Tag fehlen.
+ *
+ * Für eine Frage, die mit einer ANGENOMMENEN Antwort falsch würde: die
+ * Vorschau des DATEV-Stapels sperrt den Knopf, wenn der Zeitraum über den
+ * WJ-Beginn reicht (V-212). Wer `buchhaltung.exportieren` hält, aber nicht
+ * `buchhaltung_konfiguration.lesen`, sieht die Zeile nicht — ein
+ * angenommenes Kalenderjahr sperrte ihm dann einen Zeitraum, der in einem
+ * abweichenden Wirtschaftsjahr völlig in Ordnung ist. Ohne Wissen sagt die
+ * Vorschau nichts; der Dienst prüft beim Erzeugen mit den echten Stammdaten.
+ */
+export async function liesWirtschaftsjahrWennGepflegt(db: Abfrage): Promise<Wirtschaftsjahr | null> {
   const [k] = await db.abfrage<KonfigRoh>(
     `select wj_beginn_monat, wj_beginn_tag, ist_platzhalter
        from datev_konfiguration
       where mandant_id = app.aktiver_mandant()`);
-  if (k === undefined || k.wj_beginn_monat === null || k.wj_beginn_tag === null) return KALENDERJAHR;
+  if (k === undefined || k.wj_beginn_monat === null || k.wj_beginn_tag === null) return null;
   return { beginnMonat: k.wj_beginn_monat, beginnTag: k.wj_beginn_tag, istPlatzhalter: k.ist_platzhalter };
 }

@@ -290,6 +290,82 @@ describe('(2) eine unvollständige Zeile sperrt den Export', () => {
 });
 
 // ---------------------------------------------------------------------------
+// (2a) Ein Stapel, ein Wirtschaftsjahr (V-212)
+// ---------------------------------------------------------------------------
+
+describe('(2a) ein Stapel umfasst höchstens ein Wirtschaftsjahr', () => {
+  it('ein Zeitraum über den 1. Januar wird bei Kalender-WJ abgewiesen — und nichts gestempelt',
+    async () => {
+      await stammdatenBestaetigen(f.reinigung);
+      const id = await exportfaehig();
+      const { bis } = await zeitraum(id);
+      const jahr = Number(bis.slice(0, 4));
+      const von = `${String(jahr - 1)}-12-01`;
+
+      const fehler: unknown = await alsApp(sitzung(), async (tx) =>
+        erzeugeDatevExport(alsDienst(tx), new LokalerSpeicher(), von, bis, STUNDE, 'Test'))
+        .then(() => null, (e: unknown) => e);
+
+      expect(fehler).toBeInstanceOf(ExportFehler);
+      expect((fehler as ExportFehler).grund).toBe('wirtschaftsjahr');
+      expect((fehler as ExportFehler).message).toContain(`01.01.${String(jahr)}`);
+
+      const [z] = await sql.unsafe<{ n: string }[]>(
+        `select count(*)::text as n from buchungssatz
+          where rechnung_id = $1 and datev_export_id is not null`, [id]);
+      expect(z?.n).toBe('0');
+      const [e] = await sql.unsafe<{ n: string }[]>(
+        'select count(*)::text as n from datev_export');
+      expect(e?.n).toBe('0');
+    });
+
+  it('bei abweichendem WJ zählt dessen Beginn, nicht der 1. Januar', async () => {
+    await stammdatenBestaetigen(f.reinigung);
+    const id = await exportfaehig();
+    const { bis } = await zeitraum(id);
+    /*
+     * Das WJ beginnt am Tag der Buchung: der Vortag liegt im alten, der Tag
+     * selbst im neuen Wirtschaftsjahr. Ein Kalender-WJ liesse diesen Zeitraum
+     * durch — die Prüfung liest also wirklich die Stammdaten.
+     */
+    const monat = Number(bis.slice(5, 7));
+    const tag = Number(bis.slice(8, 10));
+    await sql.unsafe(
+      `update datev_konfiguration set wj_beginn_monat = $2, wj_beginn_tag = $3
+        where mandant_id = $1`, [f.reinigung, monat, tag]);
+    const vortag = await sql.unsafe<{ d: string }[]>(
+      `select ($1::date - 1)::text as d`, [bis]);
+
+    await expect(alsApp(sitzung(), async (tx) =>
+      erzeugeDatevExport(alsDienst(tx), new LokalerSpeicher(), vortag[0]!.d, bis, STUNDE,
+        'Test'))).rejects.toThrow(/Wirtschaftsjahres/u);
+  });
+
+  it('die Tabelle selbst weist einen Stapel über die WJ-Grenze ab (0445)', async () => {
+    const zeile = (von: string, bis: string, monat: number, tag: number) => sql.unsafe(
+      `insert into datev_export
+         (mandant_id, von, bis, berater_nummer, mandanten_nummer, kontenrahmen,
+          sachkontenlaenge, wj_beginn_monat, wj_beginn_tag, versteuerungsart,
+          extf_version, festschreibung, zeilen, summe_soll_cent, summe_haben_cent,
+          datei_sha256, erstellt_von_art, erstellt_von)
+       values ($1, $2::date, $3::date, '1234567', '12345', 'skr03', 4, $4, $5, 'soll',
+               '700', false, 1, 100, 100, $6, 'mensch', $7)
+       returning id`,
+      [f.reinigung, von, bis, monat, tag, 'a'.repeat(64), benutzer]);
+
+    await expect(zeile('2025-12-01', '2026-01-31', 1, 1))
+      .rejects.toThrow(/datev_export_ein_wirtschaftsjahr/u);
+    // WJ ab 1. Juli: Dezember und Januar liegen im selben WJ 2025/2026.
+    await expect(zeile('2025-12-01', '2026-01-31', 7, 1)).resolves.toHaveLength(1);
+    // WJ ab 1. Juli: Juni und Juli nicht.
+    await expect(zeile('2026-06-15', '2026-07-15', 7, 1))
+      .rejects.toThrow(/datev_export_ein_wirtschaftsjahr/u);
+    // Ein WJ-Beginn, den es nicht in jedem Monat gibt, führt nicht in einen Datumsfehler.
+    await expect(zeile('2026-02-01', '2026-02-28', 2, 30)).resolves.toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // (3) Der Rückweg und die Wiederholbarkeit
 // ---------------------------------------------------------------------------
 
