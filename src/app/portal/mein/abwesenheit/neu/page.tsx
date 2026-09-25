@@ -2,9 +2,12 @@ import Link from 'next/link';
 import {
   leseAbwesenheitsarten, type AbwesenheitsartWahl,
 } from '@/server/services/mitarbeiter/antraege';
+import { MELDUNG_FORM_TEXTE } from '@/lib/i18n/mein-formulare';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { vorbelegt } from '@/lib/formular/maske';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
-import { Leer } from '../../bausteine';
+import { Abgewiesen, Leer } from '../../bausteine';
 
 /**
  * `/portal/mein/abwesenheit/neu` — Krankheit oder Abwesenheit melden (EMP-10).
@@ -22,10 +25,19 @@ import { Leer } from '../../bausteine';
  * wird sichtbar als ungeklaert gezeigt, statt still zu verschwinden. Der
  * Dienst weist sie beim Melden mit einer Meldung ab, die den Grund nennt;
  * eine Art, die aus dem Formular fehlt, erzeugt stattdessen einen Anruf.
+ *
+ * **Eine Abweisung kommt als Satz auf diese Seite zurueck** (V-188), mit den
+ * gewaehlten Werten — vorher endeten die doppelte Meldung und die
+ * Bescheinigung vor dem ersten Tag als rohe 500, alles andere als JSON. Die
+ * Bemerkung reist nicht mit (Art. 9 DSGVO); der Satz bittet darum, sie noch
+ * einmal einzugeben.
  */
 export const dynamic = 'force-dynamic';
 
-export default async function NeueAbwesenheit() {
+export default async function NeueAbwesenheit(
+  { searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> },
+) {
+  const suche = await searchParams;
   const ergebnis = await meinPortal<readonly AbwesenheitsartWahl[]>(
     '/portal/mein/abwesenheit/neu',
     async (kontext, basis) => leseAbwesenheitsarten(kontext, basis.sprache),
@@ -34,6 +46,19 @@ export default async function NeueAbwesenheit() {
 
   const { basis, daten } = ergebnis;
   const t = basis.texte;
+  const ft = MELDUNG_FORM_TEXTE[basis.sprache];
+  const fehler = vorbelegt(suche, 'fehler');
+  const satz = fehler === undefined ? null : (eigenerEintrag(ft.gruende, fehler) ?? ft.unbekannt);
+  /** Eine Vorbelegung zaehlt nur, wenn die Auswahl den Wert anbietet (D-733). */
+  const gewaehlt = (feld: string, angebot: readonly string[]): string | undefined => {
+    const wert = vorbelegt(suche, feld);
+    return wert !== undefined && angebot.includes(wert) ? wert : undefined;
+  };
+  const datum = (feld: string): string | undefined => {
+    const wert = vorbelegt(suche, feld);
+    return wert !== undefined && /^\d{4}-\d{2}-\d{2}$/u.test(wert) ? wert : undefined;
+  };
+  const haken = (feld: string): boolean => vorbelegt(suche, feld) === 'ja';
   const eingabe =
     'min-h-11 w-full rounded-md border border-line-strong bg-surface px-s3 py-s2 '
     + 'text-base text-text';
@@ -47,6 +72,15 @@ export default async function NeueAbwesenheit() {
         ← {t.antraege}
       </Link>
       <h1 className="mb-s5 text-h1 text-text">{t.abwesenheitMelden}</h1>
+
+      {satz !== null && (
+        <Abgewiesen
+          marke="abwesenheit-abgewiesen"
+          titel={ft.nichtGesendet}
+          text={satz}
+          zusatz={haken('bemerkung_neu') ? ft.bemerkungErneut : null}
+        />
+      )}
 
       {basis.anstellungen.length === 0 ? <Leer text={t.keineEintraege} /> : (
         <form
@@ -62,7 +96,8 @@ export default async function NeueAbwesenheit() {
               {t.gesellschaft} <span aria-hidden="true">*</span>
               <span className="sr-only">{t.pflichtfeld}</span>
             </label>
-            <select id="abw-anstellung" name="anstellung" required className={eingabe}>
+            <select id="abw-anstellung" name="anstellung" required className={eingabe}
+              defaultValue={gewaehlt('anstellung', basis.anstellungen.map((a) => a.anstellungId))}>
               {basis.anstellungen.map((a) => (
                 <option key={a.anstellungId} value={a.anstellungId}>
                   {a.mandantName}
@@ -77,7 +112,8 @@ export default async function NeueAbwesenheit() {
               {t.abwesenheitArt} <span aria-hidden="true">*</span>
               <span className="sr-only">{t.pflichtfeld}</span>
             </label>
-            <select id="abw-art" name="abwesenheitsart" required className={eingabe}>
+            <select id="abw-art" name="abwesenheitsart" required className={eingabe}
+              defaultValue={gewaehlt('abwesenheitsart', daten.map((a) => a.id))}>
               {daten.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.bezeichnung}
@@ -94,14 +130,16 @@ export default async function NeueAbwesenheit() {
                 {t.von} <span aria-hidden="true">*</span>
                 <span className="sr-only">{t.pflichtfeld}</span>
               </label>
-              <input id="abw-von" name="von" type="date" required className={eingabe} />
+              <input id="abw-von" name="von" type="date" required className={eingabe}
+                     defaultValue={datum('von')} />
             </div>
             <div className="flex flex-col gap-s2">
               <label htmlFor="abw-bis" className="text-base text-text">
                 {t.bis} <span aria-hidden="true">*</span>
                 <span className="sr-only">{t.pflichtfeld}</span>
               </label>
-              <input id="abw-bis" name="bis" type="date" required className={eingabe} />
+              <input id="abw-bis" name="bis" type="date" required className={eingabe}
+                     defaultValue={datum('bis')} />
             </div>
           </div>
 
@@ -117,11 +155,13 @@ export default async function NeueAbwesenheit() {
             <legend className="mb-s1 p-0 text-base text-text">{t.halberTagBeginn}</legend>
             <label className="flex items-start gap-s3 text-base text-text">
               <input type="checkbox" name="von_halbtags" value="ja"
+                     defaultChecked={haken('von_halbtags')}
                      className="mt-s1 min-h-6 min-w-6" data-cse="abw-von-halb" />
               <span>{t.halberTagBeginn}</span>
             </label>
             <label className="flex items-start gap-s3 text-base text-text">
               <input type="checkbox" name="bis_halbtags" value="ja"
+                     defaultChecked={haken('bis_halbtags')}
                      className="mt-s1 min-h-6 min-w-6" data-cse="abw-bis-halb" />
               <span>{t.halberTagEnde}</span>
             </label>
@@ -139,13 +179,14 @@ export default async function NeueAbwesenheit() {
             <legend className="mb-s1 p-0 text-base text-text">{t.auVorliegt}</legend>
             <label className="flex items-start gap-s3 text-base text-text">
               <input type="checkbox" name="au_vorliegt" value="ja"
+                     defaultChecked={haken('au_vorliegt')}
                      className="mt-s1 min-h-6 min-w-6" data-cse="abw-au-vorliegt" />
               <span>{t.auVorliegt}</span>
             </label>
             <div className="flex flex-col gap-s2">
               <label htmlFor="abw-au-bis" className="text-base text-text">{t.auBis}</label>
               <input id="abw-au-bis" name="au_bis" type="date" className={eingabe}
-                     data-cse="abw-au-bis" />
+                     defaultValue={datum('au_bis')} data-cse="abw-au-bis" />
             </div>
             <p className="m-0 text-sm text-text-muted">{t.auHinweis}</p>
           </fieldset>

@@ -5,12 +5,15 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
-  from '@/server/auth/fehler';
+import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/index';
 import { KeineAnstellungFehler, mandantDerAnstellung }
   from '@/server/services/zeit/einwand';
-import { meldeAbwesenheit } from '@/server/services/abwesenheit/index';
+import {
+  AbwesenheitNichtGefunden, ArtUngeklaertFehler, AuBisVorBeginn, meldeAbwesenheit,
+} from '@/server/services/abwesenheit/index';
+import { ZeitraumFehler } from '@/server/services/abwesenheit/tage';
+import { datenbankGrund, zurMaske } from '../formular';
 
 /**
  * `POST /api/mein/abwesenheit` — der Mensch meldet eine Abwesenheit (EMP-10).
@@ -38,10 +41,22 @@ import { meldeAbwesenheit } from '@/server/services/abwesenheit/index';
  * Mandant wird daraus serverseitig abgeleitet (K-02). `authorize` bekommt
  * deshalb genau diesen Mandanten als aktiven — geprueft wird die
  * Mitgliedschaft des Menschen DORT, nicht anderswo.
+ *
+ * **Jede Abweisung fuehrt auf die Maske zurueck** (V-188, D-599). Vorher
+ * kamen die Abweisungen der Route als JSON, und die der DATENBANK gar nicht:
+ * die doppelte Meldung (`ab_keine_dublette`, 23P01) und die Bescheinigung vor
+ * dem ersten Tag (`ab_au_bis`, 23514) trugen keinen `status`, wurden
+ * weitergeworfen und endeten als rohe 500 — ausgerechnet auf dem Weg, den
+ * jemand morgens krank vom Telefon aus nimmt. Die Buero-Route kannte die
+ * doppelte Meldung schon als „die haeufigste Eingabe am Telefon"; dieser Weg
+ * nicht. Die Bescheinigung prueft jetzt der Dienst VOR dem Schreiben
+ * (`AuBisVorBeginn`), die Datenbank bleibt die zweite Linie.
  */
 export const dynamic = 'force-dynamic';
 
 const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
+/** Die Maske, auf die jede Abweisung zurueckfuehrt — das einzige Formular dieses Wegs. */
+const MASKE = '/portal/mein/abwesenheit/neu';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 function textOder(daten: FormData, feld: string): string | null {
@@ -71,14 +86,25 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const abwesenheitsartId = uuidOder(daten, 'abwesenheitsart');
   const von = textOder(daten, 'von');
   const bis = textOder(daten, 'bis');
-  if (anstellungId === null) {
-    return NextResponse.json({ fehler: 'keine_anstellung' }, { status: 400 });
-  }
-  if (abwesenheitsartId === null) {
-    return NextResponse.json({ fehler: 'keine_art' }, { status: 400 });
-  }
-  if (von === null || bis === null || !DATUM.test(von) || !DATUM.test(bis)) {
-    return NextResponse.json({ fehler: 'kein_datum' }, { status: 400 });
+  const auBis = textOder(daten, 'au_bis');
+  const ja = (feld: string): string | null => (daten.get(feld) === 'ja' ? 'ja' : null);
+  /*
+   * Was zurueckreist: Auswahlen, Tage und Haken — die Bemerkung NICHT. Sie
+   * darf `cse_app` nicht einmal lesen (0073, Art. 9 DSGVO), und eine Adresse
+   * landet in Verlauf und Protokollen. Die Maske bittet darum, sie noch einmal
+   * einzugeben.
+   */
+  const maske = (grund: string): NextResponse => zurMaske(anfrage, MASKE, grund, {
+    anstellung: anstellungId, abwesenheitsart: abwesenheitsartId, von, bis,
+    von_halbtags: ja('von_halbtags'), bis_halbtags: ja('bis_halbtags'),
+    au_vorliegt: ja('au_vorliegt'), au_bis: auBis,
+    bemerkung_neu: textOder(daten, 'bemerkung') === null ? null : 'ja',
+  });
+  if (anstellungId === null) return maske('keine_anstellung');
+  if (abwesenheitsartId === null) return maske('keine_art');
+  if (von === null || bis === null || !DATUM.test(von) || !DATUM.test(bis)
+      || (auBis !== null && !DATUM.test(auBis))) {
+    return maske('kein_datum');
   }
 
   try {
@@ -112,28 +138,28 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           bisHalbtags: daten.get('bis_halbtags') === 'ja',
           bemerkung: textOder(daten, 'bemerkung'),
           auBescheinigungVorliegt: daten.get('au_vorliegt') === 'ja',
-          auBis: textOder(daten, 'au_bis'),
+          auBis,
         });
       });
     });
   } catch (fehler) {
-    if (fehler instanceof KeineAnstellungFehler || fehler instanceof NichtGefundenFehler) {
+    // Eine fremde Beschaeftigung bietet das Formular nicht an (AUT-06).
+    if (fehler instanceof KeineAnstellungFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }
-    if (fehler instanceof NichtAngemeldetFehler) {
-      return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
-    }
-    if (fehler instanceof ZweiterFaktorFehler) {
-      return NextResponse.json({ fehler: 'zweiter_faktor' }, { status: 403 });
-    }
+    const auth = autorisierungsAntwort(fehler);
+    if (auth !== null) return auth;
+    // „Fuer diese Art ist nicht hinterlegt, ob sie bezahlt ist" (O-139) ist
+    // eine Auskunft, kein Serverfehler — und keine JSON-Seite.
+    if (fehler instanceof ArtUngeklaertFehler) return maske('art_ungeklaert');
+    if (fehler instanceof AbwesenheitNichtGefunden) return maske('art_nicht_waehlbar');
+    if (fehler instanceof ZeitraumFehler) return maske(fehler.grund);
+    if (fehler instanceof AuBisVorBeginn) return maske(fehler.grund);
+    const ausDatenbank = datenbankGrund(fehler);
+    if (ausDatenbank !== null) return maske(ausDatenbank);
     const status = (fehler as { status?: number }).status;
     const code = (fehler as { code?: string }).code;
-    if (typeof status === 'number' && typeof code === 'string') {
-      // „Fuer diese Abwesenheitsart ist nicht hinterlegt, ob sie bezahlt ist"
-      // (O-139) ist eine Auskunft und kein Serverfehler.
-      return NextResponse.json(
-        { fehler: code, meldung: (fehler as Error).message }, { status });
-    }
+    if (typeof status === 'number' && typeof code === 'string') return maske('ungueltige_eingabe');
     throw fehler;
   }
 

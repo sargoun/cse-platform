@@ -18167,3 +18167,44 @@ waren nicht als Pflicht markiert). Jede andere Abweisung kam als JSON.
 
 | Betrifft | EMP-10, EMP-13, O-613, O-925, D-599, D-728, D-733, V-187, `src/server/services/abwesenheit/antrag.ts`, `src/server/services/mitarbeiter/tausch.ts`, `src/app/api/mein/{formular.ts,antraege/route.ts}`, `src/app/portal/mein/antraege/neu/page.tsx`, `src/app/portal/mein/bausteine.tsx` (`Abgewiesen`), `src/lib/i18n/mein-formulare.ts`, `tests/isolation/antrag-tausch.test.ts`, `tests/kern/antrag-rueckweg.test.ts` |
 |---|---|
+
+### D-682 · Eine Abwesenheitsmeldung kommt mit einem Satz zurück — auch die doppelte und die mit einer Bescheinigung vor dem ersten Tag (V-188)
+
+**Der Befund** (V-188; Befund 81 der Prüfung): `POST /api/mein/abwesenheit`
+übersetzte nur Fehler mit numerischem `status`. Die Ausschlussbedingung
+`ab_keine_dublette` (23P01 — dieselbe Art für dieselben Tage noch einmal)
+und die Prüfbedingung `ab_au_bis` (23514 — „Bescheinigung gültig bis" vor
+dem ersten Tag) tragen keinen; beide endeten als rohe 500, ausgerechnet auf
+dem Weg, den jemand morgens krank vom Telefon aus nimmt. Jede andere
+Abweisung kam als JSON. Die Büroroute kannte 23P01 („die häufigste Eingabe
+am Telefon"), aber nicht 23514. „Bis" vor „Von" endete nicht als 500 — der
+Prüfer hat das selbst widerlegt —, sondern als JSON-400 (`ZeitraumFehler`).
+
+**Die Entscheidung.**
+
+1. **Der Dienst prüft die Bescheinigung vor dem Schreiben**
+   (`meldeAbwesenheit` → `AuBisVorBeginn`, dieselbe Regel wie `ab_au_bis`;
+   keine neue Regel). `ZeitraumFehler` nennt seinen Grund
+   (`kein_datum`, `zeitraum_verkehrt`, `zeitraum_zu_lang`), der Satz bleibt
+   für die Verwaltungsseite, die ihn schon zeigt.
+2. **Jede Abweisung führt auf die Maske** `/portal/mein/abwesenheit/neu`
+   (`zurMaske`, D-681 Nr. 5): Grund als Schlüssel, Satz in der Sprache der
+   Kraft (`MELDUNG_FORM_TEXTE`, de/en/ar/tr), Auswahlen, Tage und Haken
+   vorbelegt. Die doppelte Meldung heißt „ueberlappt" und sagt, wo die
+   vorhandene steht; die Art mit ungeklärter Lohnwirkung (O-139) heißt
+   „art_ungeklaert" statt JSON-409. Ein fehlendes Recht bleibt 404
+   (`autorisierungsAntwort`, D-656).
+3. **Die Bemerkung reist nie in der Adresse.** `cse_app` darf sie nicht
+   einmal lesen (0073, Art. 9 DSGVO); die Maske bittet darum, sie noch
+   einmal einzugeben.
+4. **Die Büroroute kommt ebenso zurück:** `ZeitraumFehler`,
+   `AuBisVorBeginn` und ein 23514 führen über `fehlerweg` auf die
+   Aufnahmeseite, die für jeden Grund einen Satz in de/en hat
+   (`ABWESENHEIT_AUFNAHME_TEXTE.abgewiesen`); sie fängt jetzt auch
+   Auth-Würfe mit `autorisierungsAntwort`.
+5. **Nicht Teil:** das `min` von „Bescheinigung gültig bis" an „Von" zu
+   koppeln. Ohne JavaScript gibt es keinen Weg dafür, und die
+   Serverprüfung ist ohnehin die Linie, die zählt.
+
+| Betrifft | EMP-10, O-139, D-599, D-656, D-681, V-188, `src/server/services/abwesenheit/{index,tage}.ts`, `src/app/api/mein/abwesenheit/route.ts`, `src/app/api/personal/abwesenheit/route.ts`, `src/app/portal/mein/abwesenheit/neu/page.tsx`, `src/app/portal/[mandant]/personal/abwesenheiten/erfassen/page.tsx`, `src/lib/i18n/{mein-formulare.ts,verwaltung/personal.ts}`, `tests/kern/meldung-rueckweg.test.ts`, `tests/isolation/meldung-rueckweg.test.ts` |
+|---|---|

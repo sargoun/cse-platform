@@ -13,6 +13,7 @@ import {
   type AnstellungAuswahl, type ArtAuswahl,
 } from '../AufnahmeFormular';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/personal/abwesenheiten/erfassen` — die Krankmeldung am
@@ -129,6 +130,16 @@ export default async function AbwesenheitErfassen(
       {fehler === 'ueberlappt' && (
         <Hinweis art="warnung" cse="abwesenheit-ueberlappt" className="mb-s5 max-w-prose">
           {t.ueberlappt}
+        </Hinweis>
+      )}
+      {/*
+        Jede andere Abweisung (V-188) — nachgeschlagen als eigener Eintrag
+        (D-728); ein unbekannter Grund bekommt den allgemeinen Satz, nie den
+        rohen Schluessel.
+      */}
+      {fehler !== null && fehler !== 'ueberlappt' && (
+        <Hinweis art="warnung" cse="abwesenheit-abgewiesen" className="mb-s5 max-w-prose">
+          {eigenerEintrag(t.abgewiesen, fehler) ?? t.abgewiesen.ungueltige_eingabe}
         </Hinweis>
       )}
 

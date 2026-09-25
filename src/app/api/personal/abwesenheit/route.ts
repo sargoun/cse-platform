@@ -6,7 +6,9 @@ import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
-import { meldeAbwesenheit } from '@/server/services/abwesenheit/index';
+import { autorisierungsAntwort } from '@/server/auth/antwort';
+import { AuBisVorBeginn, meldeAbwesenheit } from '@/server/services/abwesenheit/index';
+import { ZeitraumFehler } from '@/server/services/abwesenheit/tage';
 
 /**
  * `POST /api/personal/abwesenheit` — die Krankmeldung am Telefon um 05:40
@@ -107,8 +109,27 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         });
       }));
   } catch (fehler) {
+    const auth = autorisierungsAntwort(fehler);
+    if (auth !== null) return auth;
     const status = (fehler as { status?: number }).status;
     const code = (fehler as { code?: string }).code;
+    /*
+     * **Zeitraum und Bescheinigung** (V-188): „Bis" vor „Von", mehr als ein
+     * Jahr, „Bescheinigung gültig bis" vor dem ersten Tag. Der Dienst nennt
+     * den Grund (`ZeitraumFehler.grund`, `AuBisVorBeginn`); ein `23514` der
+     * Datenbank (`ab_zeitraum`, `ab_au_bis`) ist die zweite Linie und endete
+     * vorher als 500. Alle drei fuehren auf die Aufnahmeseite zurueck.
+     */
+    const grund = fehler instanceof ZeitraumFehler || fehler instanceof AuBisVorBeginn
+      ? fehler.grund
+      : code === '23514' ? 'ungueltige_eingabe' : null;
+    const rueckweg = textOder(daten, 'fehlerweg');
+    if (grund !== null) {
+      if (rueckweg === null) return NextResponse.json({ fehler: grund }, { status: 400 });
+      const ziel = new URL(internesZiel(rueckweg, '/portal', anfrage));
+      ziel.searchParams.set('fehler', grund);
+      return NextResponse.redirect(ziel, 303);
+    }
     /*
      * Die Ausschlussbedingung `abwesenheit_kein_ueberlapp` (0073) meldet sich
      * als `23P01`. Zwei Abwesenheiten derselben Anstellung im selben Zeitraum
