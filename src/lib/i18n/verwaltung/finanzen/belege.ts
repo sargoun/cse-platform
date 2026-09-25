@@ -579,7 +579,8 @@ const DE: BelegeTexte = {
   weiterberechnungTitel: 'Weiterberechnung (FIN-07)',
   nochNichtWeiterberechnetVor:
     'Noch nicht weiterberechnet. Diese Ausgabe darf als Materialzeile auf einer '
-    + 'Rechnung erscheinen — genau einmal: der Teilindex ',
+    + 'Rechnung erscheinen — im Rechnungsentwurf unter „Position hinzufügen“, '
+    + 'Herkunft „Material“ — und genau einmal: der Teilindex ',
   nochNichtWeiterberechnetNach: ' lässt eine zweite wirksame Zeile nicht zu.',
   nichtWeiterberechenbar:
     'Diese Ausgabe ist nicht als weiterberechenbar gekennzeichnet und erscheint '
@@ -911,7 +912,8 @@ const EN: BelegeTexte = {
   weiterberechnungTitel: 'Recharging (FIN-07)',
   nochNichtWeiterberechnetVor:
     'Not recharged yet. This expense may appear as a material line on an '
-    + 'invoice — exactly once: the partial index ',
+    + 'invoice — in the invoice draft under “Add line item”, origin “Material” — and '
+    + 'exactly once: the partial index ',
   nochNichtWeiterberechnetNach: ' does not admit a second effective line.',
   nichtWeiterberechenbar:
     'This expense is not marked as rechargeable and appears on no invoice.',

@@ -22,7 +22,8 @@ import { EINHEITSPREIS_AUFMASS } from './einheitspreis-aufmass.js';
 import { EINZELABRUF } from './einzelabruf.js';
 import { FESTPREIS_LOS } from './festpreis-los.js';
 import { MONATSPAUSCHALE } from './monatspauschale.js';
-import { hole, registriere } from './register.js';
+import { hole, istRegistriert, registriere } from './register.js';
+import { tagDeutsch } from '../../../../lib/datum/kalendertag.js';
 import { STUNDENBASIERT } from './stunden.js';
 import {
   AbrechnungFehler,
@@ -445,10 +446,19 @@ function alsQuellen(
 ): readonly QuelleEingabe[] {
   return herkunft.map((h) => {
     if (h.art === 'vertrag_abrechnung') {
+      /*
+       * Die Notiz steht als Herkunft unter der Zeile auf dem Rechnungsblatt
+       * (DSH-04) — sie nennt deshalb die Art beim Namen und den Zeitraum
+       * deutsch, und keine Kennung (V-206). Welche Vereinbarung gemeint ist,
+       * steht maschinenlesbar in `rechnungsposition.vertrag_abrechnung_id`.
+       */
+      const art = istRegistriert(entwurf.abrechnungsart)
+        ? hole(entwurf.abrechnungsart).bezeichnung : entwurf.abrechnungsart;
+      const von = entwurf.leistungVon === null ? '?' : tagDeutsch(entwurf.leistungVon);
+      const bis = entwurf.leistungBis === null ? '?' : tagDeutsch(entwurf.leistungBis);
       return {
         typ: 'manuell' as const,
-        notiz: `${entwurf.abrechnungsart} nach Vertragsabrechnung ${h.id} `
-          + `(${entwurf.leistungVon ?? '?'} bis ${entwurf.leistungBis ?? '?'})`,
+        notiz: `${art} laut Abrechnungsvereinbarung des Auftrags (${von} bis ${bis})`,
       };
     }
     return { typ: h.art, id: h.id, mengeAnteil: h.anteil };

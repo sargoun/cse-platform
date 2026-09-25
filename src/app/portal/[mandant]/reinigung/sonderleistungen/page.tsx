@@ -170,6 +170,17 @@ export default async function Sonderleistungen(
         Zeitwerten, unten die <strong className="text-text">einzelnen Abrufe</strong>
         {' '}je Objekt.
       </p>
+      {/*
+        * V-206: der Weg auf die Rechnung. Bis dahin hatte die Übernahme in
+        * `einzelabruf.ts` keinen Aufrufer — die Seite versprach eine
+        * Abrechenbarkeit, die keine Maske einlöste.
+        */}
+      <p className="mb-s5 max-w-prose text-sm text-text-muted" data-cse="abruf-rechnungsweg">
+        Abgerechnet wird ein <strong className="text-text">erbrachter</strong> Abruf mit
+        Vertragszeile im Rechnungsentwurf seines Auftrags: Abrechnungsart „Einzelabruf“
+        am Auftrag, dann auf der Rechnung „Nach Abrechnungsart übernehmen“ für den
+        Leistungszeitraum. Nach dem Festschreiben steht er als abgerechnet hier.
+      </p>
 
       {meldung !== null && (
         <Hinweis art="erfolg" cse="sonderleistung-ok" className="mb-s5 max-w-prose">

@@ -1191,6 +1191,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'finanzen', pfad: 'finanz/abrechnungsart/index',
     schreibend: true, schreibRecht: 'finanzen.schreiben',
   },
+  /**
+   * Der Rechnungsentwurf nach dem Anlegen (V-204 … V-206, D-697 … D-699):
+   * Kopf und Zuordnung, die Übernahme nach Abrechnungsart, Material aus einer
+   * Ausgabe. Er ändert nur ENTWÜRFE — `finanzen.schreiben`, wie das Anlegen;
+   * die Festschreibung bleibt beim engeren Recht in `finanz/rechnung`.
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/entwurf',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
 
   /**
    * PR 50 — der Abzug der Abschlaege in einer Schlussrechnung (FIN-08).

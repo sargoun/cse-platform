@@ -18,6 +18,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 
 /**
  * `/portal/[mandant]/auftraege/[id]/abrechnung` — wie DIESER Auftrag
@@ -32,8 +33,13 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * Prüfpfad.
  *
  * **Und jede Art trägt die Marke „provisorisch"** (O-04). Fehlt ein
- * Parameter, steht das an der Zeile — nicht erst in der Fehlermeldung des
- * Abrechnungslaufs, wenn jemand schon eine Rechnung erwartet.
+ * Parameter, steht das an der Zeile — nicht erst in der Vorschau des
+ * Rechnungsentwurfs, wenn jemand schon eine Rechnung erwartet.
+ *
+ * **Wo die Art wirkt** (V-206, D-699): im Rechnungsentwurf dieses Auftrags,
+ * Abschnitt „Nach Abrechnungsart übernehmen". Einen eigenen Abrechnungslauf
+ * gibt es nicht — der Zeitraum ist der Leistungszeitraum des Entwurfs, und
+ * jede Zeile entsteht durch `fuegePositionHinzu` mit Beleg darunter.
  *
  * // TODO(client, O-04): sind dies exakt die fünf Abrechnungsarten?
  * Bezeichnung, Rundung und Satzbasis je Art bestätigen.
@@ -108,7 +114,7 @@ export default async function AuftragAbrechnung(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
-  const darf = await haeltRechte(sitzung, 'auftrag.lesen');
+  const darf = await haeltRechte(sitzung, 'auftrag.lesen', 'finanzen.schreiben');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -154,6 +160,24 @@ export default async function AuftragAbrechnung(
         */}
       <h1 className="mb-s2 text-h1 text-text">Abrechnung</h1>
       <p className="mb-s5 text-sm text-text-muted">{daten.kopf.kunde}</p>
+
+      {/*
+        * Der Weg zur Rechnung (V-206): die hier festgelegte Art rechnet im
+        * Rechnungsentwurf dieses Auftrags. Vorher verwies die Seite auf einen
+        * „Abrechnungslauf", den es nicht gab.
+        */}
+      {darf['finanzen.schreiben'] === true && (
+        <p className="mb-s5 max-w-prose text-sm text-text-muted" data-cse="abrechnung-rechnungsweg">
+          Gerechnet wird im Rechnungsentwurf dieses Auftrags: Kopf mit Auftrag und
+          Leistungszeitraum, dann „Nach Abrechnungsart übernehmen".{' '}
+          <Link
+            href={alsRoute(`/portal/${mandant}/finanzen/rechnungen/neu?auftrag=${id}`)}
+            className="underline underline-offset-2"
+          >
+            Rechnung zu diesem Auftrag anlegen
+          </Link>
+        </p>
+      )}
 
       {fehler === null ? null : (
         <p

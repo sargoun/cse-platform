@@ -19,6 +19,23 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
 import { RECHNUNG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-akte';
+import { RECHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnungen';
+import { RECHNUNG_ENTWURF_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-entwurf';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
+import { haeltRechte } from '@/app/portal/rechte';
+import { vorbelegt } from '@/lib/formular/maske';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { tagInSprache } from '@/lib/datum/kalendertag';
+import { formatiereGeldIn } from '@/server/services/finanz/geld';
+import { formatiereMengeIn } from '@/server/services/finanz/menge';
+import { ZAHLUNGSMITTEL } from '@/server/services/finanz/zahlungsmittel';
+import { ENTWURF_RECHNUNGSARTEN, istVorauszahlung } from '@/server/services/finanz/rechnung';
+import {
+  aufmasseZumAuftrag, auftraegeZurAuswahl, grundOhneLeistungszeitpunkt,
+  vorschauAbrechnungsart, weiterberechenbareAusgaben,
+  type AbrechnungsVorschau, type AufmassAuswahl, type AuftragAuswahl, type AusgabeAuswahl,
+} from '@/server/services/finanz/entwurf';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]` — **Entwurfseditor ODER
@@ -80,6 +97,15 @@ interface Kopf {
   readonly brutto_cent: string;
   readonly kopftext: string | null;
   readonly verworfen_grund: string | null;
+  /* V-204/V-205: was der Kopf des Entwurfs in seiner Maske braucht. */
+  readonly objekt_id: string | null;
+  readonly auftragsnummer: string | null;
+  readonly auftrag_bezeichnung: string | null;
+  readonly leistung_von_tag: string | null;
+  readonly leistung_bis_tag: string | null;
+  readonly vereinnahmung_tag: string | null;
+  readonly zahlungsmittel_code: string | null;
+  readonly fusstext: string | null;
   readonly hash: string | null;
   readonly kette_position: string | null;
   readonly storniert_durch: string | null;
@@ -133,9 +159,13 @@ interface Einheit { readonly schluessel: string; readonly bezeichnung: string;
 interface Gruppe { readonly schluessel: string; readonly bezeichnung: string }
 
 export default async function Rechnungsblatt(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
+  const suche = await searchParams;
   kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/finanzen/rechnungen/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -148,7 +178,18 @@ export default async function Rechnungsblatt(
 
   /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
   const t = nachSprache(RECHNUNG_AKTE_TEXTE, zugang.sprache);
+  const e = nachSprache(RECHNUNG_ENTWURF_TEXTE, zugang.sprache);
+  const rt = nachSprache(RECHNUNGEN_TEXTE, zugang.sprache);
+  const arten = rt.artNamen;
   const g = verwaltungTexte(zugang.sprache);
+
+  /*
+   * V-204 … V-206: Auftrag, Ausgaben und die Abrechnung des Auftrags tragen
+   * EIGENE Rechte. Ohne sie steht der Satz, welches Recht fehlt — keine leere
+   * Liste, die „nichts da" behauptet, und kein Verweis auf ein 404 (AUT-06).
+   */
+  const darf = await haeltRechte(
+    sitzung, 'auftrag.lesen', 'eingang.lesen', 'abrechnung.schreiben');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
@@ -167,6 +208,12 @@ export default async function Rechnungsblatt(
                 r.einbehalt_bauabzugsteuer_cent::text, r.ueberweisungsbetrag_cent::text,
                 fb.bescheinigung_nummer as freistellung_nummer,
                 r.kopftext, r.verworfen_grund,
+                r.objekt_id::text as objekt_id, a.auftragsnummer,
+                a.bezeichnung as auftrag_bezeichnung,
+                to_char(r.leistung_von, 'YYYY-MM-DD') as leistung_von_tag,
+                to_char(r.leistung_bis, 'YYYY-MM-DD') as leistung_bis_tag,
+                to_char(r.vereinnahmung_geplant_am, 'YYYY-MM-DD') as vereinnahmung_tag,
+                r.zahlungsmittel_code, r.fusstext,
                 h.hash, h.kette_position::text,
                 (select s.nummer from rechnung_beziehung b
                    join rechnung s on s.id = b.von_rechnung_id
@@ -177,6 +224,9 @@ export default async function Rechnungsblatt(
            from rechnung r
            join kunde k on k.mandant_id = r.mandant_id and k.id = r.kunde_id
            left join objekt o on o.mandant_id = r.mandant_id and o.id = r.objekt_id
+           -- Ohne auftrag.lesen bleibt die Nummer leer; die Kennung steht
+           -- trotzdem am Kopf, und das Blatt sagt, welches Recht fehlt.
+           left join auftrag a on a.mandant_id = r.mandant_id and a.id = r.auftrag_id
            left join rechnung_hash h on h.rechnung_id = r.id
            left join freistellungsbescheinigung fb
                   on fb.mandant_id = r.mandant_id
@@ -335,6 +385,71 @@ export default async function Rechnungsblatt(
   const feld = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
 
+  /*
+   * **Was nur ein Entwurf braucht** (V-204 … V-206): die Auswahl des Kopfes,
+   * die Vorschau nach Abrechnungsart, die Aufmaßblätter und die
+   * weiterberechenbaren Ausgaben. Ein festgeschriebener Beleg bekommt keine
+   * davon — ein Formular darauf verspräche eine Änderung, die die Datenbank
+   * ablehnt (Invariante 4).
+   *
+   * `?zeile=` wählt die Leistungszeile der Vorschau; übernommen wird sie nur,
+   * wenn sie zu den Leistungszeilen DIESES Auftrags gehört.
+   */
+  const zeileAusAdresse = vorbelegt(suche, 'zeile');
+  const zeile = daten.leistungen.some((l) => l.id === zeileAusAdresse)
+    ? (zeileAusAdresse ?? null) : null;
+  const ent = !entwurf ? null : await (db().begin(SCHNAPPSCHUSS,
+    async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => {
+      const d = { abfrage: kontext.abfrage.bind(kontext) };
+      const vorschau = await vorschauAbrechnungsart(d, k.id, zeile);
+      return {
+        objekte: await kontext.abfrage<{ id: string; name: string }>(
+          `select id::text as id, bezeichnung as name from objekt
+            where archiviert_am is null order by bezeichnung`),
+        auftraege: darf['auftrag.lesen'] === true ? await auftraegeZurAuswahl(d, k.kunde_id) : [],
+        vorschau,
+        aufmasse: vorschau.art?.schluessel === 'einheitspreis_aufmass' && k.auftrag_id !== null
+          ? await aufmasseZumAuftrag(d, k.auftrag_id) : [],
+        ausgaben: darf['eingang.lesen'] === true ? await weiterberechenbareAusgaben(d, k.id) : [],
+      };
+    }))) as {
+      objekte: readonly { id: string; name: string }[];
+      auftraege: readonly AuftragAuswahl[];
+      vorschau: AbrechnungsVorschau;
+      aufmasse: readonly AufmassAuswahl[];
+      ausgaben: readonly AusgabeAuswahl[];
+    } | null;
+
+  /*
+   * Eine Abweisung kommt mit ihren Eingaben zurück (D-599, V-240) — aber nur
+   * in die Maske, aus der sie kam (`maske`), nicht in jede mit gleichem
+   * Feldnamen. Ein Schlüssel aus der Adresse wird nur als eigener Eintrag
+   * nachgeschlagen (D-728).
+   */
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const hinweis = typeof suche['hinweis'] === 'string' ? suche['hinweis'] : null;
+  const maske = fehler === null ? null : (vorbelegt(suche, 'maske') ?? null);
+  const zurueckIn = (m: string) => (name: string): string | undefined =>
+    maske === m ? vorbelegt(suche, name) : undefined;
+  const kopfZurueck = zurueckIn('kopf');
+  const posZurueck = zurueckIn('position');
+  const kopfWert = (name: string, db: string | null): string =>
+    kopfZurueck(name) ?? db ?? '';
+  const kopfArt = ENTWURF_RECHNUNGSARTEN.find((a) => a === kopfWert('rechnungsart', k.rechnungsart))
+    ?? 'standard';
+  const fehltZeitpunkt = grundOhneLeistungszeitpunkt({
+    rechnungsart: k.rechnungsart, leistungVon: k.leistung_von_tag,
+    leistungBis: k.leistung_bis_tag, vereinnahmungGeplantAm: k.vereinnahmung_tag,
+  });
+  const rueckweg = `/portal/${mandant}/finanzen/rechnungen/${k.id}`;
+  const herkunftVor = posZurueck('herkunft');
+  /* Die Herkünfte, die diese Zeile haben KANN — von Hand gibt es immer. */
+  const herkuenfte: readonly ('vertrag' | 'material' | 'manuell')[] = [
+    ...(daten.leistungen.length > 0 ? ['vertrag' as const] : []),
+    ...(ent !== null && ent.ausgaben.length > 0 ? ['material' as const] : []),
+    'manuell' as const,
+  ];
+
   return (
     <PortalRahmen
       zurueck={{ ziel: `/portal/${mandant}/finanzen/rechnungen`, text: t.alleRechnungen }}
@@ -484,7 +599,196 @@ export default async function Rechnungsblatt(
           </dd></div>
         <div><dt className="text-xs text-text-muted">{g.faellig}</dt>
           <dd className="text-sm text-text">{k.faellig_am ?? '—'}</dd></div>
+        <div><dt className="text-xs text-text-muted">{e.rechnungsart}</dt>
+          <dd className="text-sm text-text" data-cse="rechnungsart-anzeige">
+            {eigenerEintrag(arten, k.rechnungsart) ?? '—'}
+          </dd></div>
+        {/*
+          * Der Auftrag (V-205) — als Verweis nur für den, der ihn öffnen darf
+          * (AUT-06). Ohne `auftrag.lesen` steht das fehlende Recht da, nicht
+          * die Kennung.
+          */}
+        <div><dt className="text-xs text-text-muted">{e.auftrag}</dt>
+          <dd className="text-sm text-text" data-cse="auftrag-anzeige">
+            {k.auftrag_id === null ? e.ohneAuftrag
+              : k.auftragsnummer === null
+                ? <><span className="text-text-muted">{e.auftraegeVerdeckt}</span>{' '}
+                  <Recht schluessel="auftrag.lesen" sprache={zugang.sprache} /></>
+                : (
+                  <Link
+                    href={`/portal/${mandant}/auftraege/${k.auftrag_id}`}
+                    className="underline-offset-2 hover:underline"
+                  >
+                    {k.auftragsnummer} · {k.auftrag_bezeichnung}
+                  </Link>
+                )}
+          </dd></div>
+        {istVorauszahlung(k.rechnungsart) && (
+          <div><dt className="text-xs text-text-muted">{e.vereinnahmung}</dt>
+            <dd className="text-sm text-text">
+              {k.vereinnahmung_tag === null ? '—'
+                : tagInSprache(k.vereinnahmung_tag, zugang.sprache)}
+            </dd></div>
+        )}
       </dl>
+
+      {fehler === null ? null : (
+        <Hinweis art="warnung" cse="rechnung-fehler" className="mb-s5 max-w-prose">
+          <strong>{e.nichtsGespeichert}</strong>{' '}
+          {eigenerEintrag(e.fehler, fehler) ?? e.abgewiesen}
+        </Hinweis>
+      )}
+      {hinweis === null || eigenerEintrag(e.hinweis, hinweis) === undefined ? null : (
+        <Hinweis art="erfolg" cse="rechnung-hinweis" className="mb-s5 max-w-prose">
+          {eigenerEintrag(e.hinweis, hinweis)}
+        </Hinweis>
+      )}
+
+      {/*
+        * **Der Kopf des Entwurfs** (V-204, V-205, FIN-04, FIN-05).
+        *
+        * Bis dahin liess sich nach dem Anlegen nichts davon ändern: ein
+        * fehlender Leistungszeitraum oder ein fehlendes Zahlungsziel sperrte
+        * den Entwurf dauerhaft, und die Vorabprüfung verwies hierher, wo beides
+        * nur ANGEZEIGT wurde. Jetzt zeigt ihr Verweis auf `#kopf`. Die Maske
+        * ist mit dem heutigen Stand vorbelegt — ein leeres Feld heisst „leer".
+        */}
+      {entwurf && ent !== null && (
+        <section id="kopf" className="mb-s5 max-w-prose rounded-lg border border-line bg-surface p-s5">
+          <h2 className="text-h3 text-text">{e.kopfTitel}</h2>
+          <p className="mt-s2 text-sm text-text-muted">{e.kopfErklaerung}</p>
+          {fehltZeitpunkt === null ? null : (
+            <p className="mt-s3 rounded-md border border-warning bg-warning-soft p-s3 text-sm text-warning">
+              {eigenerEintrag(e.fehler, fehltZeitpunkt)}
+            </p>
+          )}
+          <form method="post" action={`/api/rechnungen?mandant=${mandant}`} data-cse="kopf-form">
+            <input type="hidden" name="aktion" value="kopf" />
+            <input type="hidden" name="rechnungId" value={k.id} />
+            <input type="hidden" name="zurueck" value={rueckweg} />
+
+            <label className="mt-s4 block text-sm text-text" htmlFor="kopf-rechnungsart">
+              {e.rechnungsart}
+            </label>
+            <select
+              id="kopf-rechnungsart" name="rechnungsart" required className={feld}
+              defaultValue={kopfArt}
+            >
+              {ENTWURF_RECHNUNGSARTEN.map((a) => (
+                <option key={a} value={a}>{arten[a]}</option>
+              ))}
+            </select>
+
+            <label className="mt-s4 block text-sm text-text" htmlFor="kopf-auftrag">{e.auftrag}</label>
+            {darf['auftrag.lesen'] === true ? (
+              <>
+                <select
+                  id="kopf-auftrag" name="auftragId" className={feld}
+                  defaultValue={kopfWert('auftragId', k.auftrag_id)}
+                >
+                  <option value="">{e.ohneAuftrag}</option>
+                  {ent.auftraege.map((a) => (
+                    <option key={a.id} value={a.id}>{a.auftragsnummer} · {a.bezeichnung}</option>
+                  ))}
+                </select>
+                <p className="mt-s1 text-xs text-text-muted">{e.auftragHinweis}</p>
+              </>
+            ) : (
+              <>
+                {/* Ohne Leserecht bleibt die Zuordnung, wie sie ist. */}
+                <input type="hidden" name="auftragId" value={k.auftrag_id ?? ''} />
+                <p className="mt-s2 text-sm text-text-muted">
+                  {e.auftraegeVerdeckt}{' '}
+                  <Recht schluessel="auftrag.lesen" sprache={zugang.sprache} />.
+                </p>
+              </>
+            )}
+            {k.rechnungsart === 'schluss' && daten.abzuege.length > 0 && (
+              <p className="mt-s1 text-xs text-warning">{e.kopfAbzugHinweis}</p>
+            )}
+
+            <label className="mt-s4 block text-sm text-text" htmlFor="kopf-objekt">
+              {t.leistungsort}
+            </label>
+            <select
+              id="kopf-objekt" name="objektId" className={feld}
+              defaultValue={kopfWert('objektId', k.objekt_id)}
+            >
+              <option value="">{e.nichtGesetzt}</option>
+              {ent.objekte.map((o) => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </select>
+
+            <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm text-text" htmlFor="kopf-von">{rt.leistungVon}</label>
+                <input
+                  id="kopf-von" name="leistungVon" type="date" className={feld}
+                  defaultValue={kopfWert('leistungVon', k.leistung_von_tag)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-text" htmlFor="kopf-bis">{rt.leistungBis}</label>
+                <input
+                  id="kopf-bis" name="leistungBis" type="date" className={feld}
+                  defaultValue={kopfWert('leistungBis', k.leistung_bis_tag)}
+                />
+              </div>
+            </div>
+            <p className="mt-s1 text-xs text-text-muted">{e.leistungszeitraumPflicht}</p>
+
+            <label className="mt-s4 block text-sm text-text" htmlFor="kopf-vereinnahmung">
+              {e.vereinnahmung}
+            </label>
+            <input
+              id="kopf-vereinnahmung" name="vereinnahmungGeplantAm" type="date" className={feld}
+              defaultValue={kopfWert('vereinnahmungGeplantAm', k.vereinnahmung_tag)}
+            />
+            <p className="mt-s1 text-xs text-text-muted">{e.vereinnahmungHinweis}</p>
+
+            <label className="mt-s4 block text-sm text-text" htmlFor="kopf-ziel">{t.zahlungsziel}</label>
+            <input
+              id="kopf-ziel" name="zahlungszielTage" type="number" min="0" step="1" className={feld}
+              defaultValue={kopfWert('zahlungszielTage',
+                k.zahlungsziel_tage === null ? null : String(k.zahlungsziel_tage))}
+            />
+            <p className="mt-s1 text-xs text-text-muted">{e.kopfZahlungszielLeer}</p>
+
+            <label className="mt-s4 block text-sm text-text" htmlFor="kopf-zahlungsart">
+              {rt.zahlungsart}
+            </label>
+            <select
+              id="kopf-zahlungsart" name="zahlungsmittelCode" className={feld}
+              defaultValue={kopfWert('zahlungsmittelCode', k.zahlungsmittel_code)}
+            >
+              <option value="">{e.nichtGesetzt}</option>
+              {ZAHLUNGSMITTEL.map((z) => (
+                <option key={z.code} value={z.code}>{z.bezeichnung} ({z.code})</option>
+              ))}
+            </select>
+
+            <label className="mt-s4 block text-sm text-text" htmlFor="kopf-kopftext">{rt.kopftext}</label>
+            <textarea
+              id="kopf-kopftext" name="kopftext" rows={3} className={feld}
+              defaultValue={kopfWert('kopftext', k.kopftext)}
+            />
+            <label className="mt-s4 block text-sm text-text" htmlFor="kopf-fusstext">{e.fusstext}</label>
+            <textarea
+              id="kopf-fusstext" name="fusstext" rows={3} className={feld}
+              defaultValue={kopfWert('fusstext', k.fusstext)}
+            />
+
+            <button
+              type="submit"
+              data-cse="kopf-speichern"
+              className="mt-s5 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
+            >
+              {e.kopfSpeichern}
+            </button>
+          </form>
+        </section>
+      )}
 
       {k.verworfen_grund === null ? null : (
         <p className="mb-s5 rounded-lg border border-line bg-surface-2 p-s4 text-sm text-text-muted">
@@ -499,7 +803,7 @@ export default async function Rechnungsblatt(
         </p>
       )}
 
-      <h2 className="mb-s3 text-h3 text-text">{t.positionen}</h2>
+      <h2 id="positionen" className="mb-s3 text-h3 text-text">{t.positionen}</h2>
       {daten.positionen.length === 0 ? (
         <p className="mb-s5 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           {t.keinePosition}
@@ -849,6 +1153,178 @@ export default async function Rechnungsblatt(
       {entwurf ? (
         <>
           {/*
+            * **Nach der Abrechnungsart des Auftrags** (V-206, FIN-01, FIN-07).
+            *
+            * `bestueckeAusAbrechnungsart` hatte bis dahin keinen Aufrufer: die
+            * Art liess sich je Auftrag festlegen und wirkte auf keine Rechnung.
+            * Die Vorschau rechnet mit DERSELBEN Funktion wie die Übernahme, und
+            * die Befunde stehen VOR dem Knopf — wer übernimmt, hat sie gesehen.
+            * Der Zeitraum ist der Leistungszeitraum im Kopf, der Auftrag der
+            * des Kopfes; einen zweiten gibt es nicht.
+            */}
+          {ent === null ? null : (
+            <section
+              id="abrechnungsart" data-cse="abrechnungsart"
+              className="mb-s5 max-w-prose rounded-lg border border-line bg-surface p-s5"
+            >
+              <h2 className="text-h3 text-text">{e.abrTitel}</h2>
+              <p className="mt-s2 text-sm text-text-muted">{e.abrErklaerung}</p>
+
+              {ent.vorschau.auftragId === null && ent.vorschau.grund === 'auftrag_passt_nicht' ? (
+                <p className="mt-s3 text-sm text-text-muted">{e.abrOhneAuftrag}</p>
+              ) : ent.vorschau.grund === 'leistungszeitpunkt_fehlt' ? (
+                <p className="mt-s3 text-sm text-text-muted">{e.abrOhneZeitraum}</p>
+              ) : ent.vorschau.grund !== null ? (
+                <Hinweis art="warnung" cse="abrechnung-abgewiesen" className="mt-s3">
+                  {e.abrAbgewiesen} {ent.vorschau.meldung}
+                  {darf['abrechnung.schreiben'] === true && k.auftrag_id !== null && (
+                    <>
+                      {' '}
+                      <Link
+                        href={`/portal/${mandant}/auftraege/${k.auftrag_id}/abrechnung`}
+                        className="underline underline-offset-2"
+                      >
+                        {e.abrZurAbrechnung}
+                      </Link>
+                    </>
+                  )}
+                </Hinweis>
+              ) : ent.vorschau.art === null ? null : (
+                <>
+                  <dl className="mt-s3 grid grid-cols-1 gap-s3 sm:grid-cols-2">
+                    <div><dt className="text-xs text-text-muted">{e.abrArt}</dt>
+                      <dd className="text-sm text-text">
+                        {ent.vorschau.art.bezeichnung}
+                        {ent.vorschau.art.istProvisorisch && (
+                          <span className="text-xs text-warning"> · {e.abrProvisorisch}</span>
+                        )}
+                      </dd></div>
+                    <div><dt className="text-xs text-text-muted">{e.abrGiltAb}</dt>
+                      <dd className="text-sm text-text">
+                        {tagInSprache(ent.vorschau.gueltigAb, zugang.sprache)}
+                      </dd></div>
+                  </dl>
+                  {ent.vorschau.befunde.length === 0 ? null : (
+                    <Hinweis art="warnung" cse="abrechnung-befunde" className="mt-s3">
+                      <p className="font-semibold">{e.abrBefunde}</p>
+                      <ul className="mt-s2 list-disc pl-s5">
+                        {ent.vorschau.befunde.map((b) => (
+                          <li key={`${b.feld}-${b.textDe}`}>
+                            {b.textDe}{b.offeneFrage === null ? '' : ` (${b.offeneFrage})`}
+                          </li>
+                        ))}
+                      </ul>
+                    </Hinweis>
+                  )}
+                  {ent.vorschau.positionen.length === 0 ? (
+                    <p className="mt-s3 text-sm text-text-muted">{e.abrKeineZeilen}</p>
+                  ) : (
+                    <div className="mt-s3">
+                      <h3 className="mb-s2 text-sm text-text">{e.abrZeilen}</h3>
+                      <DataTable
+                        beschriftung={e.abrTabelle}
+                        zeilen={ent.vorschau.positionen}
+                        schluessel={(p) => `${p.bezeichnung}-${p.leistungVon ?? ''}-${p.auftragLeistungId ?? ''}-${p.herkunft[0]?.id ?? ''}`}
+                        spalten={[
+                          { schluessel: 'bez', kopf: g.bezeichnung, zelle: (p) => p.bezeichnung },
+                          { schluessel: 'zeit', kopf: e.abrZeitraum,
+                            zelle: (p) => p.leistungVon === null ? '—'
+                              : `${tagInSprache(p.leistungVon, zugang.sprache)} – ${
+                                tagInSprache(p.leistungBis, zugang.sprache)}` },
+                          { schluessel: 'menge', kopf: g.menge, numerisch: true,
+                            zelle: (p) => `${formatiereMengeIn(p.menge, zugang.sprache)} ${p.einheit}` },
+                          { schluessel: 'preis', kopf: t.einzelpreis, numerisch: true,
+                            zelle: (p) => formatiereGeldIn(p.einzelpreisCent, zugang.sprache) },
+                          { schluessel: 'netto', kopf: t.netto, numerisch: true,
+                            zelle: (p) => formatiereGeldIn(p.nettoCent, zugang.sprache) },
+                        ]}
+                      />
+                    </div>
+                  )}
+                  {ent.vorschau.schonUebernommen > 0
+                    && ent.vorschau.art.schluessel !== 'einheitspreis_aufmass' && (
+                    <p className="mt-s3 text-sm text-warning">{e.abrSchonUebernommen}</p>
+                  )}
+                </>
+              )}
+
+              {/*
+                * Mehrere Leistungszeilen: die Vorschau je Zeile wählen (O-53).
+                * Ein GET-Formular — die Auswahl ändert nichts, sie zeigt nur.
+                */}
+              {daten.leistungen.length > 1 && ent.vorschau.auftragId !== null && (
+                <form method="get" action={rueckweg} className="mt-s4">
+                  <label className="block text-sm text-text" htmlFor="abr-zeile">
+                    {e.abrLeistungszeile}
+                  </label>
+                  <select id="abr-zeile" name="zeile" className={feld} defaultValue={zeile ?? ''}>
+                    <option value="">{e.abrGanzerAuftrag}</option>
+                    {daten.leistungen.map((l) => (
+                      <option key={l.id} value={l.id}>{l.position_nr}. {l.bezeichnung}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="submit"
+                    className="mt-s3 min-h-11 rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+                  >
+                    {e.abrVorschauFuerZeile}
+                  </button>
+                </form>
+              )}
+
+              {ent.vorschau.art === null ? null : (
+                <form
+                  method="post" action={`/api/rechnungen?mandant=${mandant}`}
+                  className="mt-s4" data-cse="abrechnung-uebernehmen"
+                >
+                  <input type="hidden" name="aktion" value="aus-abrechnungsart" />
+                  <input type="hidden" name="rechnungId" value={k.id} />
+                  <input type="hidden" name="zurueck" value={rueckweg} />
+                  <input type="hidden" name="auftragLeistungId" value={zeile ?? ''} />
+                  {ent.vorschau.art.schluessel === 'einheitspreis_aufmass' && (
+                    <fieldset className="rounded-md border border-line p-s4">
+                      <legend className="px-s2 text-sm text-text">{e.abrAufmasse}</legend>
+                      <p className="text-xs text-text-muted">{e.abrAufmasseHinweis}</p>
+                      {ent.aufmasse.length === 0 ? (
+                        <p className="mt-s2 text-sm text-text-muted">{e.abrKeineAufmasse}</p>
+                      ) : ent.aufmasse.map((a) => (
+                        <label key={a.id} className="mt-s2 flex min-h-11 items-center gap-s3 text-sm text-text">
+                          <input type="checkbox" name="aufmassIds" value={a.id} />
+                          <span>
+                            {a.nummer}{a.bezeichnung === null ? '' : ` · ${a.bezeichnung}`}
+                            {' · '}{eigenerEintrag(e.aufmassStatus, a.status) ?? ''}
+                            {a.messdatum === null ? '' : ` · ${tagInSprache(a.messdatum, zugang.sprache)}`}
+                          </span>
+                        </label>
+                      ))}
+                    </fieldset>
+                  )}
+                  {ent.vorschau.art.schluessel === 'festpreis_los' && (
+                    <>
+                      <label className="block text-sm text-text" htmlFor="abr-fertig">
+                        {e.abrFertigstellung}
+                      </label>
+                      <input
+                        id="abr-fertig" name="fertigstellung" type="text" inputMode="decimal"
+                        className={feld}
+                      />
+                      <p className="mt-s1 text-xs text-text-muted">{e.abrFertigstellungHinweis}</p>
+                    </>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={ent.vorschau.schonUebernommen > 0
+                      && ent.vorschau.art.schluessel !== 'einheitspreis_aufmass'}
+                    className="mt-s4 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {e.abrUebernehmen}
+                  </button>
+                </form>
+              )}
+            </section>
+          )}
+
+          {/*
             * **Der Regelweg: eine Zeile AUS der Zeiterfassung** (TIM-12,
             * FIN-07). Er steht VOR der Handeingabe, weil er der bessere ist —
             * die Stunden kommen aus freigegebenen Eintraegen, jeder einzelne
@@ -859,7 +1335,7 @@ export default async function Rechnungsblatt(
             */}
           {daten.leistungen.length === 0 ? null : (
             <>
-              <h2 className="mb-s3 text-h3 text-text">{t.zeitzeileTitel}</h2>
+              <h2 id="zeitzeile" className="mb-s3 text-h3 text-text">{t.zeitzeileTitel}</h2>
               <form
                 method="post"
                 action={`/api/rechnungen?mandant=${mandant}`}
@@ -867,6 +1343,7 @@ export default async function Rechnungsblatt(
               >
                 <input type="hidden" name="aktion" value="aus-zeiten" />
                 <input type="hidden" name="rechnungId" value={k.id} />
+                <input type="hidden" name="zurueck" value={rueckweg} />
                 <p className="max-w-prose text-sm text-text-muted">
                   {t.zeitzeileTeil1}{' '}
                   <strong className="text-text">{t.zeitzeileBetont}</strong>{' '}
@@ -942,7 +1419,7 @@ export default async function Rechnungsblatt(
             </>
           )}
 
-          <h2 className="mb-s3 text-h3 text-text">{t.positionHinzufuegen}</h2>
+          <h2 id="position" className="mb-s3 text-h3 text-text">{t.positionHinzufuegen}</h2>
           <form
             method="post"
             action={`/api/rechnungen?mandant=${mandant}`}
@@ -950,11 +1427,15 @@ export default async function Rechnungsblatt(
           >
             <input type="hidden" name="aktion" value="position" />
             <input type="hidden" name="rechnungId" value={k.id} />
+            <input type="hidden" name="zurueck" value={rueckweg} />
 
             <label className="block text-sm text-text" htmlFor="bezeichnung">
               {t.handelsuebliche}
             </label>
-            <input id="bezeichnung" name="bezeichnung" type="text" required className={feld} />
+            <input
+              id="bezeichnung" name="bezeichnung" type="text" required className={feld}
+              defaultValue={posZurueck('bezeichnung')}
+            />
 
             <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">
               <div>
@@ -967,12 +1448,19 @@ export default async function Rechnungsblatt(
                 <label className="block text-sm text-text" htmlFor="menge">
                   {t.mengeTausendstel}
                 </label>
-                <input id="menge" name="menge" type="number" step="1" required className={feld} />
+                <input
+                  id="menge" name="menge" type="number" step="1" required className={feld}
+                  defaultValue={posZurueck('menge')}
+                />
                 <p className="mt-s1 text-xs text-text-muted">30870 = 30,870</p>
               </div>
               <div>
                 <label className="block text-sm text-text" htmlFor="einheit">{g.einheit}</label>
-                <select id="einheit" name="einheit" required className={feld}>
+                <select
+                  id="einheit" name="einheit" required className={feld}
+                  defaultValue={daten.einheiten.some((x) => x.schluessel === posZurueck('einheit'))
+                    ? posZurueck('einheit') : daten.einheiten[0]?.schluessel}
+                >
                   {daten.einheiten.map((e) => (
                     <option key={e.schluessel} value={e.schluessel}>
                       {e.bezeichnung}{e.ist_platzhalter ? t.unbestaetigterWertSuffix : ''}
@@ -986,7 +1474,7 @@ export default async function Rechnungsblatt(
                 </label>
                 <input
                   id="einzelpreisCent" name="einzelpreisCent" type="number" step="1" required
-                  className={feld}
+                  className={feld} defaultValue={posZurueck('einzelpreisCent')}
                 />
                 <p className="mt-s1 text-xs text-text-muted">1999 = 19,99 €</p>
               </div>
@@ -994,7 +1482,11 @@ export default async function Rechnungsblatt(
                 <label className="block text-sm text-text" htmlFor="steuergruppe">
                   {t.steuergruppe}
                 </label>
-                <select id="steuergruppe" name="steuergruppe" required className={feld}>
+                <select
+                  id="steuergruppe" name="steuergruppe" required className={feld}
+                  defaultValue={daten.gruppen.some((x) => x.schluessel === posZurueck('steuergruppe'))
+                    ? posZurueck('steuergruppe') : daten.gruppen[0]?.schluessel}
+                >
                   {daten.gruppen.map((g) => (
                     <option key={g.schluessel} value={g.schluessel}>{g.bezeichnung}</option>
                   ))}
@@ -1003,28 +1495,43 @@ export default async function Rechnungsblatt(
             </div>
 
             {/*
-              * **Die Herkunft ist Pflicht** (FIN-07, §4.4). Es gibt genau zwei
-              * Wege und keinen dritten: eine Vertragszeile als Beleg oder
-              * ausdruecklich „von Hand" MIT Begruendung. Ein „ohne Angabe"
-              * faende die Datenbank beim COMMIT — dann aber erst, nachdem
-              * jemand das ganze Formular ausgefuellt hat.
+              * **Die Herkunft ist Pflicht** (FIN-07, §4.4). Es gibt drei Wege
+              * und keinen vierten: eine Vertragszeile als Beleg, eine Ausgabe
+              * als Beleg (Material, V-206) oder ausdruecklich „von Hand" MIT
+              * Begruendung. Ein „ohne Angabe" faende die Datenbank beim
+              * COMMIT — dann aber erst, nachdem jemand das ganze Formular
+              * ausgefuellt hat.
               */}
             <fieldset className="mt-s5 rounded-md border border-line p-s4">
               <legend className="px-s2 text-sm text-text">{t.herkunftDieserZeile}</legend>
-              {daten.leistungen.length === 0 ? (
+              {herkuenfte.length === 1 ? (
                 <input type="hidden" name="herkunft" value="manuell" />
               ) : (
                 <>
                   <label className="block text-sm text-text" htmlFor="herkunft">{t.beleg}</label>
-                  <select id="herkunft" name="herkunft" defaultValue="vertrag" className={feld}>
-                    <option value="vertrag">{t.optionVertrag}</option>
-                    <option value="manuell">{t.optionManuell}</option>
+                  <select
+                    id="herkunft" name="herkunft" className={feld} data-cse="herkunft"
+                    defaultValue={herkuenfte.find((h) => h === herkunftVor) ?? herkuenfte[0]}
+                  >
+                    {herkuenfte.map((h) => (
+                      <option key={h} value={h}>
+                        {h === 'vertrag' ? t.optionVertrag
+                          : h === 'material' ? e.optionMaterial : t.optionManuell}
+                      </option>
+                    ))}
                   </select>
-
+                </>
+              )}
+              {daten.leistungen.length === 0 ? null : (
+                <>
                   <label className="mt-s4 block text-sm text-text" htmlFor="auftragLeistungId">
                     {t.vertragsposition}
                   </label>
-                  <select id="auftragLeistungId" name="auftragLeistungId" className={feld}>
+                  <select
+                    id="auftragLeistungId" name="auftragLeistungId" className={feld}
+                    defaultValue={daten.leistungen.some((l) => l.id === posZurueck('auftragLeistungId'))
+                      ? posZurueck('auftragLeistungId') : daten.leistungen[0]?.id}
+                  >
                     {daten.leistungen.map((l) => (
                       <option key={l.id} value={l.id}>
                         {l.position_nr}. {l.bezeichnung}
@@ -1032,6 +1539,38 @@ export default async function Rechnungsblatt(
                     ))}
                   </select>
                 </>
+              )}
+              {/*
+                * **Material** (V-206, FIN-07): eine weiterberechenbare,
+                * freigegebene Ausgabe als Beleg. Der Preis ist die Eingabe
+                * oben — ob zum Einstand oder mit Aufschlag, ist offen (O-931);
+                * der Einstand steht hier nur als Auskunft.
+                */}
+              {ent === null || ent.ausgaben.length === 0 ? null : (
+                <>
+                  <label className="mt-s4 block text-sm text-text" htmlFor="ausgabeId">
+                    {e.ausgabe}
+                  </label>
+                  <select
+                    id="ausgabeId" name="ausgabeId" className={feld} data-cse="material-ausgabe"
+                    defaultValue={ent.ausgaben.some((a) => a.id === posZurueck('ausgabeId'))
+                      ? posZurueck('ausgabeId') : ent.ausgaben[0]?.id}
+                  >
+                    {ent.ausgaben.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {tagInSprache(a.ausgabedatum, zugang.sprache)} · {a.bezeichnung} · {e.einstandNetto}{' '}
+                        {formatiereGeldIn(a.nettoCent, zugang.sprache)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-s1 text-xs text-text-muted">{e.materialHinweis}</p>
+                </>
+              )}
+              {darf['eingang.lesen'] === true ? null : (
+                <p className="mt-s4 text-xs text-text-muted">
+                  {e.ausgabenVerdeckt}{' '}
+                  <Recht schluessel="eingang.lesen" sprache={zugang.sprache} />.
+                </p>
               )}
 
               <label className="mt-s4 block text-sm text-text" htmlFor="herkunftNotiz">
@@ -1047,7 +1586,8 @@ export default async function Rechnungsblatt(
                 */}
               <input
                 id="herkunftNotiz" name="herkunftNotiz" type="text" minLength={3}
-                required={daten.leistungen.length === 0} className={feld}
+                required={herkuenfte.length === 1} className={feld}
+                defaultValue={posZurueck('herkunftNotiz')}
               />
               <p className="mt-s1 text-xs text-text-muted">
                 {t.keineZeileOhneBeleg}
@@ -1148,7 +1688,7 @@ export default async function Rechnungsblatt(
            && !daten.darfStornieren ? (
              <p className="max-w-prose text-sm text-text-muted">
                {t.stornoRechtFehltVor}
-               <span className="text-text"> {RECHT_STORNIEREN} </span>
+               {' '}<Recht schluessel={RECHT_STORNIEREN} sprache={zugang.sprache} />{' '}
                {t.stornoRechtFehltNach}
              </p>
            ) : null}

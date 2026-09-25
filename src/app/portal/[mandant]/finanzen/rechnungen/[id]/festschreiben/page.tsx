@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import Link from 'next/link';
+import { alsVerweis } from '@/lib/verweis';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -133,7 +134,7 @@ function Befundliste(
               {b.link === null ? null : (
                 <p className="m-0 mt-s2">
                   <Link
-                    href={{ pathname: b.link }}
+                    href={alsVerweis(b.link)}
                     className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
                   >
                     {linkText}

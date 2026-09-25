@@ -227,7 +227,15 @@ export type AbrechnungGrund =
    * Die Rechnung traegt einen ANDEREN Auftrag als der Vorgang, der sie
    * bestueckt. Siehe `bestueckeAusAbrechnungsart`.
    */
-  | 'auftrag_passt_nicht';
+  | 'auftrag_passt_nicht'
+  /**
+   * V-206 (D-699): die Übernahme in einen Rechnungsentwurf. Eine Strategie,
+   * die mit einem Befund blockiert, schreibt keine Zeile — und dieselbe
+   * Vereinbarung (beim Aufmaß: dasselbe Blatt) steht auf einem Entwurf nur
+   * einmal. Siehe `finanz/entwurf.ts`.
+   */
+  | 'befund_blockiert'
+  | 'schon_uebernommen';
 
 /**
  * Der eine getippte Fehler dieser Schicht.

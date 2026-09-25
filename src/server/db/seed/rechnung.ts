@@ -5,6 +5,8 @@ import {
 import { cent } from '../../services/finanz/geld.js';
 import { milliMenge } from '../../services/finanz/menge.js';
 import { alsPortalSitzung } from './sitzung.js';
+import { schreibeVerrechnung } from '../../services/finanz/abschlag/index.js';
+import type { Abfrage } from '../../services/finanz/rechnung.js';
 
 /**
  * Ausgangsrechnungen für die Vorführung — über den ECHTEN Weg (FIN-01…FIN-04).
@@ -109,6 +111,77 @@ function vormonat(heute: string): { von: string; bis: string } {
   };
 }
 
+/**
+ * **Ein Abschlag und die Schlussrechnung dazu — am Auftrag** (V-205, FIN-08).
+ *
+ * Bis dahin legte der Seed nur `standard` ohne Auftrag an, und damit
+ * erschien keiner der Wege, die an Rechnungsart und Auftrag hängen: der
+ * Verweis „Abschläge und Abzug", das Formular „Abschläge abziehen", die
+ * Abzugstabelle, die Prüfung auf fehlende Zeiterfassung (FIN-18). Jetzt
+ * steht im Bau der Auftrag des Seeds mit
+ *
+ *  - einer FESTGESCHRIEBENEN Abschlagsrechnung, die statt des
+ *    Leistungszeitraums den Tag der Vereinnahmung nennt (§14 Abs. 4 Nr. 6
+ *    UStG, zweite Alternative — das Feld dafür gab es vor V-205 nicht), und
+ *  - einer Schlussrechnung als ENTWURF, von der dieser Abschlag abgezogen
+ *    ist. Entwurf, damit die Vorführung Kopf, Abzug und Übernahme zeigen
+ *    kann; festschreiben lässt sie sich wie jede andere.
+ *
+ * Die Beträge sind Demowerte wie die übrigen dieser Datei. Ohne sichtbaren
+ * Auftrag im Bau (`auftrag.lesen`) bleibt es bei den drei Belegen oben.
+ */
+async function abschlagUndSchluss(
+  db: Abfrage, zeitraum: { von: string; bis: string },
+): Promise<{ abschlagNummer: string } | null> {
+  const [auftrag] = await db.abfrage<{ id: string; kunde_id: string }>(
+    `select id::text as id, kunde_id::text as kunde_id from auftrag
+      where status <> 'storniert' and art = 'projekt' and kunde_id is not null
+      order by erstellt_am, auftragsnummer limit 1`);
+  if (auftrag === undefined) return null;
+
+  const abschlag = await legeEntwurfAn(db, {
+    kundeId: auftrag.kunde_id,
+    auftragId: auftrag.id,
+    rechnungsart: 'abschlag',
+    vereinnahmungGeplantAm: zeitraum.bis,
+    zahlungszielTage: 14,
+    zahlungsmittelCode: '58',
+    kopftext: '1. Abschlagsrechnung nach Baufortschritt.',
+  });
+  await fuegePositionHinzu(db, {
+    rechnungId: abschlag,
+    bezeichnung: '1. Abschlag Rückbau, Baufortschritt Trockenbau',
+    menge: milliMenge(1_000n),
+    einheit: 'psch',
+    einzelpreisCent: cent(800_000n),
+    steuergruppe: 'ust_19',
+    quellen: vonHand('Demodaten des Seeds — Abschlag nach Baufortschritt, keine Messung.'),
+  });
+  const fest = await finalisiere(db, abschlag);
+
+  const schluss = await legeEntwurfAn(db, {
+    kundeId: auftrag.kunde_id,
+    auftragId: auftrag.id,
+    rechnungsart: 'schluss',
+    leistungVon: zeitraum.von,
+    leistungBis: zeitraum.bis,
+    zahlungszielTage: 30,
+    zahlungsmittelCode: '58',
+    kopftext: 'Schlussrechnung. Der geleistete Abschlag ist abgezogen.',
+  });
+  await fuegePositionHinzu(db, {
+    rechnungId: schluss,
+    bezeichnung: 'Rückbau Trockenbauwände, Gesamtleistung',
+    menge: milliMenge(1_000n),
+    einheit: 'psch',
+    einzelpreisCent: cent(1_950_000n),
+    steuergruppe: 'ust_19',
+    quellen: vonHand('Demodaten des Seeds — Gesamtleistung laut Abnahme, keine Messung.'),
+  });
+  await schreibeVerrechnung(db, schluss);
+  return { abschlagNummer: fest.nummer };
+}
+
 export async function seedRechnungen(
   sql: Sql, ids: ReadonlyMap<string, string>, demodaten: boolean,
 ): Promise<RechnungsErgebnis> {
@@ -211,12 +284,15 @@ export async function seedRechnungen(
           eigene.push(fest.nummer);
         }
       }
-      return eigene;
+      /* V-205: im Bau ein Abschlag und die Schlussrechnung dazu, am Auftrag. */
+      const kette = slug === 'bau' ? await abschlagUndSchluss(db, zeitraum) : null;
+      if (kette !== null) eigene.push(kette.abschlagNummer);
+      return { eigene, schlussEntwurf: kette !== null };
     });
 
-    nummern.push(...ergebnis);
-    festgeschrieben += ergebnis.length;
-    entwuerfe += 1;
+    nummern.push(...ergebnis.eigene);
+    festgeschrieben += ergebnis.eigene.length;
+    entwuerfe += ergebnis.schlussEntwurf ? 2 : 1;
   }
 
   return { festgeschrieben, entwuerfe, nummern, uebersprungen: false, grund: null };
