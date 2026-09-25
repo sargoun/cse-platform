@@ -19539,14 +19539,14 @@ D-557; die Benachrichtigungseinstellungen trugen den Schlüssel jeder Art
 7. **Die Kontoseiten der Arbeiterhülle folgen `person.sprache`**:
    Kontowurzel und Benachrichtigungseinstellungen lesen
    `KONTO_WURZEL_TEXTE`/`KONTO_BENACHRICHTIGUNG_TEXTE` (de/en/ar/tr) und
-   setzen `lang`/`dir`; die Verwaltung liest Deutsch wie bisher.
-   **Nachtrag (D-750):** hier fehlte der Kalender-Feed, auf den die
-   übersetzte Wurzel verweist; er folgt jetzt derselben Regel. Profil und
-   Sicherheit taten es schon vorher (D-557, V-039). Die Rolle
+   setzen `lang`/`dir`; die Verwaltung liest Deutsch wie bisher. Die Rolle
    steht mit ihrem Namen (`rolle.bezeichnung`), nicht als Schlüssel. Jede
    Benachrichtigungsart heisst nach ihrem Namen; die Arbeiterhülle zeigt nur
    die Arten mit einem Ziel unter `/portal/mein` (V-102), und die Wahl der
    übrigen reist als verstecktes Feld mit, damit Speichern sie nicht ändert.
+   **Nachtrag (D-750):** hier fehlte der Kalender-Feed, auf den die
+   übersetzte Wurzel verweist; er folgt jetzt derselben Regel. Profil und
+   Sicherheit taten es schon vorher (D-557, V-039).
 8. **Fliesstext in 16 px** auf allen diesen Flächen (DESIGN §8, D-738);
    `AuthSchale` bekommt `sprache`, Beschriftung und Sprachwahl als
    Eigenschaften und bleibt für die Anmeldung der Verwaltung, wie sie war.
