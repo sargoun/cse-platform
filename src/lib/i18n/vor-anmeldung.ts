@@ -64,6 +64,11 @@ export interface StempelTexte {
   readonly ungueltig: string;
   /** `kein_benutzerkonto`: die Marke bleibt benutzbar. */
   readonly keinZugang: string;
+  /**
+   * `kein_offener_eintrag` (D-752): eine gültige Ausstempelmarke, zu der
+   * keine Zeiterfassung läuft — die Marke bleibt benutzbar.
+   */
+  readonly keinOffenerEintrag: string;
 
   readonly fotoAufnehmen: string;
   readonly fotoSendet: string;
@@ -99,6 +104,10 @@ export const STEMPEL_TEXTE: Readonly<Record<PortalSprache, StempelTexte>> = {
     uebertragungMehrere: '{anzahl} Einträge warten auf die Übertragung.',
     ungueltig: 'Dieser Link ist nicht gültig.',
     keinZugang: 'Für diese Person besteht noch kein Zugang. Der Link bleibt gültig.',
+    keinOffenerEintrag:
+      'Zu dieser Schicht läuft keine Zeiterfassung — vielleicht wartet das Einstempeln '
+      + 'noch auf die Übertragung. Der Link bleibt gültig; wenden Sie sich an die '
+      + 'Einsatzleitung.',
     fotoAufnehmen: 'Foto von der Schicht',
     fotoSendet: 'Wird übertragen …',
     fotoHinweis: 'Freiwillig. Ortsdaten werden vor der Ablage entfernt (TIM-10).',
@@ -133,6 +142,9 @@ export const STEMPEL_TEXTE: Readonly<Record<PortalSprache, StempelTexte>> = {
     uebertragungMehrere: '{anzahl} entries are waiting to be sent.',
     ungueltig: 'This link is not valid.',
     keinZugang: 'There is no access for this person yet. The link stays valid.',
+    keinOffenerEintrag:
+      'No time recording is running for this shift — the clock-in may still be waiting '
+      + 'to be sent. The link stays valid; please contact your site manager.',
     fotoAufnehmen: 'Photo of the shift',
     fotoSendet: 'Uploading …',
     fotoHinweis: 'Optional. Location data is removed before the photo is stored (TIM-10).',
@@ -164,6 +176,9 @@ export const STEMPEL_TEXTE: Readonly<Record<PortalSprache, StempelTexte>> = {
     uebertragungMehrere: '{anzahl} إدخالات تنتظر الإرسال.',
     ungueltig: 'هذا الرابط غير صالح.',
     keinZugang: 'لا يوجد وصول لهذا الشخص بعد. يبقى الرابط صالحاً.',
+    keinOffenerEintrag:
+      'لا يوجد تسجيل وقت جارٍ لهذه النوبة — ربما لا يزال تسجيل الدخول ينتظر الإرسال. '
+      + 'يبقى الرابط صالحاً؛ يُرجى التواصل مع إدارة العمليات.',
     fotoAufnehmen: 'صورة من المناوبة',
     fotoSendet: 'جارٍ الرفع …',
     fotoHinweis: 'اختياري. تُزال بيانات الموقع قبل حفظ الصورة (TIM-10).',
@@ -194,6 +209,9 @@ export const STEMPEL_TEXTE: Readonly<Record<PortalSprache, StempelTexte>> = {
     uebertragungMehrere: '{anzahl} kayıt gönderilmeyi bekliyor.',
     ungueltig: 'Bu bağlantı geçerli değil.',
     keinZugang: 'Bu kişi için henüz erişim yok. Bağlantı geçerli kalır.',
+    keinOffenerEintrag:
+      'Bu vardiya için çalışan bir zaman kaydı yok — giriş kaydı belki hâlâ gönderilmeyi '
+      + 'bekliyor. Bağlantı geçerli kalır; lütfen operasyon yönetimine başvurun.',
     fotoAufnehmen: 'Vardiyadan fotoğraf',
     fotoSendet: 'Yükleniyor …',
     fotoHinweis: 'İsteğe bağlı. Konum verileri kaydetmeden önce silinir (TIM-10).',
@@ -565,18 +583,24 @@ export const ANMELDUNG_TEXTE: Readonly<Record<PortalSprache, AnmeldungTexte>> = 
  * ═════════════════════════════════════════════════════════════════════════ */
 
 /**
- * Der Satz zu einer Ablehnung von `POST /api/check-in/[token]` (V-200).
+ * Der Satz zu einer Ablehnung von `POST /api/check-in/[token]` (V-200, D-752).
  *
  * Die Route antwortet mit `error.code` und einem deutschen `message`. Gezeigt
  * wurde die `message` — auf Arabisch wie auf Deutsch derselbe deutsche Satz.
- * Jetzt zählt nur der Code: `kein_benutzerkonto` hat einen eigenen Satz, weil
- * die Marke dann unverbraucht bleibt und der Fall behebbar ist; JEDE andere
- * Ablehnung bekommt denselben (AUT-06) — auch „zu dieser Schicht läuft keine
- * Zeiterfassung", die bis hierhin als einziger Grund durch die `message`
- * schien.
+ * Jetzt zählt nur der Code. Zwei Fälle haben einen eigenen Satz, weil die
+ * Marke dabei GÜLTIG und unverbraucht bleibt und der Fall behebbar ist:
+ * `kein_benutzerkonto` und `kein_offener_eintrag` (Ausstempeln ohne laufende
+ * Zeiterfassung, meist ein Einstempeln, das noch in der Offline-Schlange
+ * wartet). Beide entstehen erst, nachdem die Marke jede Prüfung bestanden hat;
+ * sie zu unterscheiden verrät keinem Durchprobierenden etwas. JEDE Ablehnung
+ * der Marke selbst bekommt denselben Satz (AUT-06).
  */
 export function stempelMeldung(t: StempelTexte, code: unknown): string {
-  return code === 'kein_benutzerkonto' ? t.keinZugang : t.ungueltig;
+  switch (code) {
+    case 'kein_benutzerkonto': return t.keinZugang;
+    case 'kein_offener_eintrag': return t.keinOffenerEintrag;
+    default: return t.ungueltig;
+  }
 }
 
 /**

@@ -64,9 +64,23 @@ export class KeinBenutzerkontoFehler extends Error {
   }
 }
 
-/** Eine Ausstempelmarke, zu der kein offener Eintrag existiert (§9.1). */
+/**
+ * Eine Ausstempelmarke, zu der kein offener Eintrag existiert (§9.1).
+ *
+ * **Ein eigener Code und KEINE Ablehnung der Marke** (D-752). P0004 wirft
+ * `app.checkin_verbrauchen` erst, nachdem die Marke jede Prüfung bestanden
+ * hat — es gibt sie, sie liegt im Fenster, ist weder widerrufen noch benutzt,
+ * und die Person hat ein Konto. Die Transaktion fällt zurück, die Marke bleibt
+ * unverbraucht. Wer diesen Fehler sieht, HAT also eine gültige Marke; ihm
+ * „Dieser Link ist nicht gültig." zu sagen, verriete keinem Durchprobierenden
+ * etwas (AUT-06), führte aber die Kraft in die Irre: der häufigste Fall ist
+ * ein Einstempeln, das ohne Netz gemerkt wurde und noch als Offline-Ereignis
+ * auf die Prüfung wartet (TIM-09), der zweithäufigste ein vergessenes.
+ * Bis V-200 trug er `ungueltiger_zustand` wie `TokenAbgelehntFehler`, und die
+ * Stempeluhr zeigte seit V-200 genau diesen falschen Satz.
+ */
 export class KeinOffenerEintragFehler extends Error {
-  readonly code = 'ungueltiger_zustand';
+  readonly code = 'kein_offener_eintrag';
   readonly status = 409;
   constructor() {
     super('Zu dieser Schicht läuft keine Zeiterfassung.');

@@ -19483,8 +19483,10 @@ D-557; die Benachrichtigungseinstellungen trugen den Schlüssel jeder Art
 4. **Eine Ablehnung wird nach ihrem CODE übersetzt**, nicht nach der
    deutschen `message` (`stempelMeldung`, `fotoMeldung`): `kein_benutzerkonto`
    hat einen eigenen Satz (die Marke bleibt unverbraucht), jede andere
-   Ablehnung denselben — auch „zu dieser Schicht läuft keine Zeiterfassung",
-   die bisher als einziger Grund durch die `message` schien (AUT-06).
+   Ablehnung denselben. **Berichtigt (D-752):** hier stand, auch „zu dieser
+   Schicht läuft keine Zeiterfassung" bekomme den allgemeinen Satz (AUT-06).
+   Das war falsch — der Fall entsteht nur mit einer gültigen Marke, und die
+   Kraft las, ihr Link sei kaputt; er hat jetzt seinen eigenen Code und Satz.
 5. **Nicht übersetzt**: die Uhrzeit (Berliner Zeit in deutscher Form,
    SEITENKARTE §12), Fundstellen (`TIM-10`, `O-82`) und die Namen der
    Verwaltungsmenüs („Personal → Person → Zugang"), weil die Einsatzleitung
@@ -19604,4 +19606,41 @@ IST der Zugang … ohne Anmeldung".
    Tabelle im Rumpf trägt).
 
 | Betrifft | CAL-03, EMP-12, SEITENKARTE §12, D-419, D-557, D-694, D-695, D-738, V-200, `src/app/portal/konto/kalender-feed/page.tsx`, `src/lib/i18n/konto.ts` (`KALENDER_FEED_TEXTE`), `src/server/kalender/feed.ts` (`FEED_STANDARD_BEZEICHNUNG`), `scripts/guards/uebersetzung-ausnahmen.ts`, `tests/kern/konto-sprachen.test.ts` |
+|---|---|
+
+### D-752 · Ausstempeln ohne laufende Zeiterfassung ist keine Ablehnung der Marke — eigener Code, eigener Satz (V-200 Nachtrag)
+
+**Der Befund** (Prüfer der Gruppe arbeiterportal): `stempelMeldung` bildete
+jeden Code ausser `kein_benutzerkonto` auf „Dieser Link ist nicht gültig." ab,
+und `KeinOffenerEintragFehler` trug denselben Code `ungueltiger_zustand` wie
+`TokenAbgelehntFehler`. Wer mit einer gültigen Ausstempelmarke ausstempelte,
+während das Einstempeln noch in der Offline-Schlange lag (TIM-09: die
+Warteschlange legt nur ein `offline_ereignis` zur Prüfung an, keinen
+laufenden Eintrag) oder vergessen war, las seit V-200 in allen vier
+Sprachen, der Link sei ungültig. Vor V-200 stand dort — nur deutsch — der
+zutreffende Satz „Zu dieser Schicht läuft keine Zeiterfassung.".
+
+**Die Entscheidung.**
+
+1. **`KeinOffenerEintragFehler` trägt `kein_offener_eintrag`** (weiter 409).
+   `app.checkin_verbrauchen` (0035) wirft P0004 erst, nachdem die Marke jede
+   Prüfung bestanden hat — es gibt sie, sie liegt im Fenster, ist weder
+   widerrufen noch benutzt, und die Person hat ein Konto —, und die
+   Transaktion fällt zurück: die Marke bleibt unverbraucht. Ein eigener Satz
+   verrät deshalb keinem Durchprobierenden etwas (AUT-06); wer ihn sieht, hat
+   eine gültige Marke. Dieselbe Begründung, die `kein_benutzerkonto` schon
+   trug.
+2. **Der Satz** (`STEMPEL_TEXTE.keinOffenerEintrag`, de/en/ar/tr) sagt, was
+   die Plattform weiss: zu dieser Schicht läuft keine Zeiterfassung,
+   vielleicht wartet das Einstempeln noch auf die Übertragung, der Link
+   bleibt gültig, und an wen die Kraft sich wendet. Er verspricht nicht, dass
+   ein zweiter Versuch gelingt.
+3. **Jede Ablehnung der Marke selbst** behält den einen Satz „Dieser Link ist
+   nicht gültig." (AUT-06, D-131).
+4. **Geprüft:** `tests/kern/stempel-meldung.test.ts` gegen die echten Codes
+   der Fehlerklassen in vier Sprachen (auch `__proto__` und ein fehlender
+   Code fallen auf den allgemeinen Satz), die Klasse selbst, und dass Route
+   und Stempeluhr den Code weiterreichen bzw. nur ihn lesen.
+
+| Betrifft | TIM-07, TIM-09, AUT-06, D-131, D-694 Nr. 4, V-200, `src/server/services/zeit/checkin.ts` (`KeinOffenerEintragFehler`), `src/lib/i18n/vor-anmeldung.ts` (`stempelMeldung`, `STEMPEL_TEXTE.keinOffenerEintrag`), `tests/kern/stempel-meldung.test.ts` |
 |---|---|
