@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { notFound } from 'next/navigation';
 import { findeEigeneSchicht, type EigeneSchicht }
   from '@/server/services/mitarbeiter/schichten';
@@ -92,7 +93,7 @@ export default async function MeineSchicht(
     >
 
       <h1 className="mb-s5 text-h1 text-text">
-        <span className="cse-zahl">{daten.planDatum}</span>
+        <span className="cse-zahl">{tagInSprache(daten.planDatum, basis.sprache)}</span>
       </h1>
 
       <div className="mb-s5">

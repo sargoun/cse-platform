@@ -2,6 +2,7 @@ import 'server-only';
 import { cent, type Cent } from '../finanz/geld.js';
 import { MONATSNAMEN, monatsgrenzen, monatVerschieben } from '../../../lib/datum/kalendertag.js';
 import { wirtschaftsjahrZeitraum, type Wirtschaftsjahr } from './wirtschaftsjahr.js';
+import { ausgabenAufwand } from './aufwand.js';
 
 /**
  * Monatszahlen einer Gesellschaft — BWA-artig, je Wirtschaftsjahr (ACC-08,
@@ -12,8 +13,10 @@ import { wirtschaftsjahrZeitraum, type Wirtschaftsjahr } from './wirtschaftsjahr
  * steht, kommt aus den BELEGEN: Erloese sind die festgeschriebenen
  * Ausgangsrechnungen nach Rechnungsdatum (netto, Stornos mit ihrem
  * Vorzeichen), Aufwand sind die freigegebenen und gebuchten
- * Eingangsrechnungen nach Rechnungsdatum (netto), Ergebnis ist die
- * Differenz. Das ist dieselbe Lesart wie die Gruppensicht (D-475) — die
+ * Eingangsrechnungen nach Rechnungsdatum (netto) UND die freigegebenen und
+ * gebuchten Betriebsausgaben nach Belegdatum (netto, V-215, D-706 —
+ * vorher fehlten sie, und das Ergebnis war um jede Tankquittung zu hoch),
+ * Ergebnis ist die Differenz. Das ist dieselbe Lesart wie die Gruppensicht (D-475) — die
  * Gruppensumme ist damit die Summe der Gesellschaften, nichts anderes —
  * und sie sagt, was ihr fehlt, statt es zu schaetzen.
  *
@@ -39,8 +42,14 @@ export interface MonatsZahl {
   readonly bis: string;
   readonly erloeseCent: Cent;
   readonly rechnungen: number;
+  /** Eingangsrechnungen UND Betriebsausgaben (V-215). */
   readonly aufwandCent: Cent;
+  /** Davon aus Eingangsrechnungen. */
+  readonly aufwandEingangCent: Cent;
   readonly eingangsrechnungen: number;
+  /** Davon aus Betriebsausgaben (`app.ausgaben_aufwand`, 0446). */
+  readonly aufwandAusgabenCent: Cent;
+  readonly ausgaben: number;
   readonly ergebnisCent: Cent;
   readonly periode: {
     readonly id: string;
@@ -126,12 +135,21 @@ export async function monatszahlen(db: Abfrage, jahr: number, wj: Wirtschaftsjah
     [von, bis]);
   const summeKarte = new Map(summen.map((s) => [s.monat, s]));
   const periodeKarte = new Map(perioden.map((p) => [p.monat, p]));
+  /*
+   * Die Betriebsausgaben aus EINER Quelle (V-215): dieselbe Funktion rechnet
+   * die Gruppe. Im Bereich liefert sie nur den aktiven Mandanten.
+   */
+  const ausgabenKarte = new Map(
+    (await ausgabenAufwand(db, von, bis)).map((a) => [a.monat, a]));
 
   let erloeseGesamt = 0n; let aufwandGesamt = 0n;
   const zeilen: MonatsZahl[] = monate.map((m) => {
     const s = summeKarte.get(m.monat);
+    const a = ausgabenKarte.get(m.monat);
     const erloese = BigInt(s?.erloese ?? '0');
-    const aufwand = BigInt(s?.aufwand ?? '0');
+    const aufwandEingang = BigInt(s?.aufwand ?? '0');
+    const aufwandAusgaben = a?.nettoCent ?? 0n;
+    const aufwand = aufwandEingang + aufwandAusgaben;
     erloeseGesamt += erloese; aufwandGesamt += aufwand;
     const p = periodeKarte.get(m.monat);
     const eingefroren = p !== undefined && p.umsatz_erloes_cent !== null && p.aufwand_cent !== null && p.ergebnis_cent !== null
@@ -141,7 +159,9 @@ export async function monatszahlen(db: Abfrage, jahr: number, wj: Wirtschaftsjah
     return {
       monat: m.monat, label: m.label, von: m.von, bis: m.bis,
       erloeseCent: cent(erloese), rechnungen: s?.rechnungen ?? 0,
-      aufwandCent: cent(aufwand), eingangsrechnungen: s?.eingangsrechnungen ?? 0,
+      aufwandCent: cent(aufwand),
+      aufwandEingangCent: cent(aufwandEingang), eingangsrechnungen: s?.eingangsrechnungen ?? 0,
+      aufwandAusgabenCent: cent(aufwandAusgaben), ausgaben: a?.anzahl ?? 0,
       ergebnisCent: cent(erloese - aufwand),
       periode: p === undefined ? null : {
         id: p.id, status: p.status, geschlossenAm: p.geschlossen_am, eingefroren,

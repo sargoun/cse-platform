@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { berlinHeute } from '@/server/db/heute';
 import { FARBEN_DRUCK, FARBEN_MARKE, MASSE_DRUCK } from '@/lib/design/theme';
 import { stundenMinutenText } from '@/lib/datum/stunden';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { leseNachweis, type MiLoGNachweis } from '@/server/services/zeit/milog';
 import { leseKonten, type Stundenkonto } from '@/server/services/zeit/stundenkonto';
 import { leseEigeneAnstellungen } from '@/server/services/mitarbeiter/person';
@@ -334,7 +335,7 @@ export default async function Monatsnachweis({
         <tbody>
           {n.zeilen.map((z) => (
             <tr key={`${z.zeiteintragId}-${z.anteilBeginn}`}>
-              <td>{z.kalendertag}</td>
+              <td>{tagDeutsch(z.kalendertag)}</td>
               <td className="zahl">{UHR.format(new Date(z.beginn))}</td>
               <td className="zahl">{UHR.format(new Date(z.ende))}</td>
               <td className="zahl">{String(z.pauseMinuten)}</td>

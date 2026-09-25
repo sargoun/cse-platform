@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { waehleSpeicher } from '@/server/storage/waehle';
 import { signierteMedienAdresse } from '@/server/services/zeit/medien';
@@ -115,7 +116,7 @@ export default async function MeineSchichtfotos(
 
       <h1 className="mb-s2 text-h1 text-text">{t.fotos}</h1>
       <p className="mb-s5 text-base text-text-muted">
-        {schicht.objekt ?? '—'} · <span className="cse-zahl">{schicht.planDatum}</span>
+        {schicht.objekt ?? '—'} · <span className="cse-zahl">{tagInSprache(schicht.planDatum, basis.sprache)}</span>
       </p>
 
       {!verbunden && (

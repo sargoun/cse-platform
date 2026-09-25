@@ -5,14 +5,16 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
-  from '@/server/auth/fehler';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { GeldFehler, parseGeld } from '@/server/services/finanz/geld';
 import {
   ZahlungFehler, bucheBauabzug, gleicheAus, legeBankkontoAn, storniereZahlung,
-  verbucheZahlungseingang, type Zahlungsart,
+  verbucheZahlungsausgang, verbucheZahlungseingang, type Zahlungsart,
 } from '@/server/services/finanz/zahlung/index';
+import { autorisierungsAntwort } from '@/server/auth/antwort';
+import { maskeMitEingaben } from '@/lib/formular/maske';
+import { istUuid } from '@/lib/uuid';
+import { istGueltigerKalendertag } from '@/lib/datum/kalendertag';
 import { IbanFehler } from '@/server/services/finanz/zahlung/iban';
 
 /**
@@ -37,6 +39,43 @@ export const dynamic = 'force-dynamic';
 
 const MITTEL: ReadonlySet<string> = new Set(
   ['ueberweisung', 'lastschrift', 'bar', 'karte', 'verrechnung']);
+
+/**
+ * Die Wege eines Zahlungsausgangs (V-216) — ohne `bar`: eine Barzahlung
+ * verlangt eine Kasse (`zahlung_bar_braucht_kasse`), und das Formular der
+ * Eingangsrechnung bietet keine an. Ein Wert, der erst in der Datenbank
+ * scheitert, wäre eine 500 statt eines Satzes.
+ */
+const MITTEL_AUSGANG: ReadonlySet<string> = new Set(
+  ['ueberweisung', 'lastschrift', 'karte', 'verrechnung']);
+
+/** Die Felder des Ausgangsformulars, die bei einer Abweisung zurückreisen (D-599). */
+const AUSGANG_FELDER = ['betrag', 'zahlungsdatum', 'zahlungsmittel', 'bankkontoId', 'referenz'] as const;
+
+/**
+ * Zurück auf die Eingangsrechnung (V-216, D-599): ein Browser bekommt eine
+ * Seite, mit dem Grund als Schlüssel und — bei einer Abweisung — seinen
+ * Eingaben.
+ */
+function zurEingangsrechnung(
+  anfrage: NextRequest, eingangsrechnungId: string,
+  ergebnis: { readonly meldung: string } | { readonly fehler: string; readonly daten: FormData },
+): NextResponse {
+  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
+  const pfad = `/portal/${slug}/finanzen/eingangsrechnungen/${eingangsrechnungId}`;
+  if ('meldung' in ergebnis) {
+    const url = new URL(pfad, erwarteterUrsprung(anfrage));
+    url.searchParams.set('meldung', ergebnis.meldung);
+    return NextResponse.redirect(url, 303);
+  }
+  const werte: Record<string, string | null> = {};
+  for (const name of AUSGANG_FELDER) {
+    const w = ergebnis.daten.get(name);
+    werte[name] = typeof w === 'string' ? w : null;
+  }
+  return NextResponse.redirect(
+    new URL(maskeMitEingaben(pfad, ergebnis.fehler, werte), erwarteterUrsprung(anfrage)), 303);
+}
 
 function zurueck(
   anfrage: NextRequest, hinweis?: string, seite = 'zahlungen',
@@ -63,6 +102,36 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   };
 
   const aktion = text('aktion') ?? 'erfassen';
+  const eingangsrechnungId = text('eingangsrechnungId');
+
+  /*
+   * **Der Zahlungsausgang an einen Lieferanten** (V-216). Die Eingaben
+   * werden VOR der Transaktion geprüft: eine Abweisung führt zurück auf die
+   * Eingangsrechnung, mit den Eingaben, statt eine geschweifte Klammer zu
+   * zeigen (D-599).
+   */
+  if (aktion === 'ausgang') {
+    if (!istUuid(eingangsrechnungId)) {
+      return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
+    }
+    const mittel = text('zahlungsmittel');
+    const datum = text('zahlungsdatum');
+    if (text('betrag') === null || datum === null || mittel === null
+        || !MITTEL_AUSGANG.has(mittel)) {
+      return zurEingangsrechnung(anfrage, eingangsrechnungId, { fehler: 'unvollstaendig', daten });
+    }
+    /*
+     * Ein Tag, den es gibt — das Muster allein liess den 31.02. durch, und
+     * die Datenbank antwortete mit `22008`, also einem 500 (V-217).
+     */
+    if (!istGueltigerKalendertag(datum)) {
+      return zurEingangsrechnung(anfrage, eingangsrechnungId, { fehler: 'datum', daten });
+    }
+    const konto = text('bankkontoId');
+    if (konto !== null && !istUuid(konto)) {
+      return zurEingangsrechnung(anfrage, eingangsrechnungId, { fehler: 'unvollstaendig', daten });
+    }
+  }
 
   try {
     return await (db().begin(async (tx: postgres.TransactionSql) =>
@@ -135,6 +204,21 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           return zurueck(anfrage, 'ausgeglichen');
         }
 
+        if (aktion === 'ausgang' && eingangsrechnungId !== null) {
+          const ergebnis = await verbucheZahlungsausgang(kontext, {
+            eingangsrechnungId,
+            betragCent: parseGeld(text('betrag') ?? ''),
+            zahlungsdatum: text('zahlungsdatum') ?? '',
+            zahlungsmittel: (text('zahlungsmittel') ?? '') as Zahlungsart,
+            bankkontoId: text('bankkontoId'),
+            referenz: text('referenz'),
+          });
+          /* Die Überzahlung wird BENANNT: ein Guthaben beim Lieferanten. */
+          return zurEingangsrechnung(anfrage, eingangsrechnungId, {
+            meldung: ergebnis.ueberzahlungCent > 0n ? 'ausgang_guthaben' : 'ausgang_erfasst',
+          });
+        }
+
         if (aktion === 'stornieren') {
           const zahlungId = text('zahlungId');
           const grund = text('grund');
@@ -158,8 +242,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
          * Schranke landete jede Zeichenkette im `::date`-Cast und ergaebe
          * einen rohen Postgres-Syntaxfehler statt einer Abweisung.
          */
-        if (!/^\d{4}-\d{2}-\d{2}$/u.test(zahlungsdatum)) {
+        if (!istGueltigerKalendertag(zahlungsdatum)) {
           return NextResponse.json({ fehler: 'ungueltig', felder: ['zahlungsdatum'] },
+            { status: 400 });
+        }
+        /* Wie beim Ausgang (V-217): ein Wort statt einer Kennung wäre `22P02`, also 500. */
+        const kontoEingang = text('bankkontoId');
+        if (kontoEingang !== null && !istUuid(kontoEingang)) {
+          return NextResponse.json({ fehler: 'ungueltig', felder: ['bankkontoId'] },
             { status: 400 });
         }
 
@@ -181,15 +271,20 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           ergebnis.ueberzahlungCent > 0n ? 'guthaben' : 'erfasst');
       }))) as NextResponse;
   } catch (fehler) {
-    if (fehler instanceof NichtAngemeldetFehler) {
-      return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    /*
+     * Der Ausgang (V-216): eine fachliche Abweisung führt zurück auf die
+     * Maske — mit dem Grund als Schlüssel und den Eingaben.
+     */
+    if (aktion === 'ausgang' && eingangsrechnungId !== null) {
+      if (fehler instanceof GeldFehler) {
+        return zurEingangsrechnung(anfrage, eingangsrechnungId, { fehler: 'betrag', daten });
+      }
+      if (fehler instanceof ZahlungFehler) {
+        return zurEingangsrechnung(anfrage, eingangsrechnungId, { fehler: fehler.grund, daten });
+      }
     }
-    if (fehler instanceof ZweiterFaktorFehler) {
-      return NextResponse.json({ fehler: 'zweiter_faktor' }, { status: 403 });
-    }
-    if (fehler instanceof NichtGefundenFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
-    }
+    const auth = autorisierungsAntwort(fehler);
+    if (auth !== null) return auth;
     if (fehler instanceof GeldFehler) {
       return NextResponse.json({ fehler: 'ungueltig', felder: ['betrag'] }, { status: 400 });
     }
@@ -205,7 +300,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (fehler instanceof ZahlungFehler) {
       return NextResponse.json(
         { fehler: fehler.grund, meldung: fehler.message },
-        { status: fehler.grund === 'nicht_gefunden' ? 404 : 409 });
+        {
+          status: fehler.grund === 'nicht_gefunden' ? 404
+            /* Eine falsche Eingabe ist kein Konflikt mit dem Bestand (V-217). */
+            : fehler.grund === 'betrag_nicht_positiv' || fehler.grund === 'bankkonto_fremd'
+              ? 400 : 409,
+        });
     }
     throw fehler;
   }

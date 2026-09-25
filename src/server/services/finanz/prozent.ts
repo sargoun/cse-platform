@@ -89,3 +89,14 @@ export function prozentText(bp: number): string {
   const nach = rest % 10 === 0 ? String(rest / 10) : String(rest).padStart(2, '0');
   return `${negativ ? '-' : ''}${String(ganz)},${nach} %`;
 }
+
+/**
+ * Ein Satz in Basispunkten in der Sprache der Seite (V-213) — deutsch wie
+ * `prozentText` („10,27 %"), englisch mit Punkt und ohne Leerzeichen
+ * („10.27%"). Dieselbe Zeichenkettenzerlegung, kein Fliesskommawert.
+ */
+export function prozentTextIn(bp: number, sprache: string | null | undefined): string {
+  const deutsch = prozentText(bp);
+  if (sprache !== 'en') return deutsch;
+  return deutsch.replace(',', '.').replace(' %', '%');
+}

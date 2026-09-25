@@ -112,10 +112,28 @@ export interface AusgabeZeile {
 
 export interface AusgabeFilter {
   readonly jahr?: number | null;
+  /**
+   * `YYYY-MM` — der Monat nach Belegdatum, wie ihn die Monatszahlen
+   * verlinken (V-215). Dieselbe Lesart wie `app.ausgaben_aufwand`.
+   */
+  readonly monat?: string | null;
   readonly status?: AusgabeStatus | null;
   readonly kategorieId?: string | null;
   readonly nurWeiterberechenbar?: boolean;
+  /**
+   * Nur, was als Aufwand zählt (V-217): freigegeben oder gebucht, ohne
+   * Ausgaben aus einer Eingangsrechnung — dieselbe Lesart wie
+   * `app.ausgaben_aufwand` (0446), aus der Monatszahlen, Finanzübersicht und
+   * Gruppe die Spalte „Betriebsausgaben" bilden. Ohne diesen Filter summierte
+   * die verlinkte Liste auch Erfasstes, Abgelehntes und Ausgaben aus
+   * Eingangsrechnungen, und ihre Summe passte nicht zur Spalte.
+   */
+  readonly nurAufwand?: boolean;
 }
+
+/** Die Bedingung zu `nurAufwand` — EINE Stelle für Liste und Summen. */
+const AUFWAND_BEDINGUNG = `($6::bool is not true
+        or (a.status in ('freigegeben', 'gebucht') and a.eingangsrechnung_id is null))`;
 
 interface RohZeile {
   readonly id: string;
@@ -230,9 +248,11 @@ export async function ausgaben(
         and ($2::text is null or a.status = $2::ausgabe_status)
         and ($3::uuid is null or a.kategorie_id = $3::uuid)
         and ($4::bool is not true or a.weiterberechenbar)
+        and ($5::text is null or to_char(a.ausgabedatum, 'YYYY-MM') = $5::text)
+        and ${AUFWAND_BEDINGUNG}
       order by a.ausgabedatum desc, a.erstellt_am desc`,
     [filter.jahr ?? null, filter.status ?? null, filter.kategorieId ?? null,
-      filter.nurWeiterberechenbar === true]);
+      filter.nurWeiterberechenbar === true, filter.monat ?? null, filter.nurAufwand === true]);
   return zeilen.map(zuZeile);
 }
 
@@ -290,10 +310,12 @@ export async function summen(
         and ($2::text is null or a.status = $2::ausgabe_status)
         and ($3::uuid is null or a.kategorie_id = $3::uuid)
         and ($4::bool is not true or a.weiterberechenbar)
+        and ($5::text is null or to_char(a.ausgabedatum, 'YYYY-MM') = $5::text)
+        and ${AUFWAND_BEDINGUNG}
       group by a.status
       order by a.status`,
     [filter.jahr ?? null, filter.status ?? null, filter.kategorieId ?? null,
-      filter.nurWeiterberechenbar === true]);
+      filter.nurWeiterberechenbar === true, filter.monat ?? null, filter.nurAufwand === true]);
 
   const jeStatus = zeilen.map((z) => ({
     status: z.status,

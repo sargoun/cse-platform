@@ -3352,6 +3352,7 @@ Beantworten helfen:
 | O-931 | **Wird Material aus einer Ausgabe zum Einstandspreis weiterberechnet oder mit Aufschlag — und wenn mit Aufschlag, mit welchem Satz, je Gesellschaft, je Kunde oder je Vertrag?** Seit V-206 hat eine weiterberechenbare, freigegebene Ausgabe einen Weg auf die Rechnung: eine Materialzeile mit der Ausgabe als Beleg (FIN-07, Quelle `material`, höchstens eine wirksame Zeile je Ausgabe über `quelle_ausgabe_uk`). Welcher PREIS darauf steht, ist eine Kalkulationsregel, die niemand festgelegt hat: ein vorbelegter Einstand wäre die stille Antwort „ohne Aufschlag“, ein vorbelegter Aufschlag eine erfundene Marge. **Bis zur Antwort setzt der Mensch den Einzelpreis selbst**; die Maske zeigt den Einstand (Netto der Ausgabe) daneben nur als Auskunft, und `MATERIAL_PREISREGEL` steht als Platzhalter `offen`. Die Antwort ist eine Preisregel hinter dieser Konstante (und gegebenenfalls ein Feld an Gesellschaft, Kunde oder Abrechnungsvereinbarung), plus ein Test. | FIN-07, V-206, D-699, `src/server/services/finanz/entwurf.ts` (`MATERIAL_PREISREGEL`, `fuegeMaterialPositionHinzu`), `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `drizzle/0107` (`quelle_ausgabe_uk`) |
 | O-932 | **Ist der Fertigstellungsgrad einer anteiligen Festpreis-Abrechnung der GESAMTSTAND der Leistung (bisher Berechnetes wird abgezogen) oder der ZUWACHS seit der letzten Rechnung?** Seit V-206 lässt sich ein Pauschalpreis-Los mit `teilleistung = anteilig` über das Rechnungsblatt abrechnen; der Grad kommt von einem Menschen (O-04: er wird nicht geschätzt). Bis V-207 rechnete jede Rechnung Grad × Festpreis, ohne bisher Berechnetes abzuziehen — 30 % und danach 60 % ergaben 90 % des Festpreises. **Ausgeliefert ist der Gesamtstand** (`anteiligerRest`): die Zeile trägt `anteil(Festpreis, Grad) − Summe der wirksamen Zeilen derselben Vereinbarung`, einmal gerundet über den ganzen Stand, und ein Stand ohne Zuwachs blockiert mit einem Befund. Diese Lesart macht aus einer Verwechslung eine sichtbare Unterberechnung (die Vorschau zeigt das bisher Berechnete), die andere eine stille Doppelberechnung. Eine Schlussrechnung zählt die festgeschriebenen Abschläge ihres Auftrags nicht mit, weil sie sie abzieht (FIN-08, D-700 Nr. 5). Zu bestätigen: (1) Gesamtstand oder Zuwachs; (2) ob eine Abschlagsrechnung den Abschlag als kumulierten Stand mit Abzug der Vorabschläge ausweisen soll (§ 16 VOB/B lässt beides zu) — dann gehört die Aufstellung auf den Beleg und nicht nur in die Vorschau. Die Antwort ändert `anteiligerRest` und den Satz der Maske, nicht ihre Aufrufer. | FIN-01, FIN-08, O-04, V-207, D-700, `src/server/services/finanz/abrechnungsart/festpreis-los.ts` (`anteiligerRest`), `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts` (`abrFertigstellung`) |
 | O-933 | **Darf der Leistungsort (Objekt) einer Rechnung einem ANDEREN Kunden zugeordnet sein als dem Rechnungsempfänger — oder muss `objekt.kunde_id` dem Kunden der Rechnung entsprechen?** Übliche Fälle, in denen beides auseinanderfällt: eine Hausverwaltung empfängt die Rechnung für das Haus eines Eigentümers, ein Generalunternehmer für die Baustelle seines Bauherrn, eine Muttergesellschaft für die Niederlassung der Tochter. Bis V-209 prüfte die Plattform beim Leistungsort gar nichts, nicht einmal, ob der Mensch das Objekt sehen darf. **Ausgeliefert ist:** geprüft wird die Sichtbarkeit (`objekt_passt_nicht`, wie beim Auftrag D-698 Nr. 2); die Zugehörigkeit zum Kunden NICHT (`OBJEKT_KUNDE_REGEL = offen`). Die Masken ordnen die Objekte nach Kunden bzw. „dieses Kunden" zuerst, damit eine fremde Wahl sichtbar ist. Zu entscheiden: (1) Sperre, Warnung in der Vorabprüfung oder frei; (2) falls frei, ob der Beleg den abweichenden Leistungsort mit dem Namen seines Kunden ausweisen soll. Die Antwort ändert `pruefeObjektZuordnung` und die Konstante, nicht ihre Aufrufer. | FIN-04, V-209, D-702, `src/server/services/finanz/rechnung.ts` (`OBJEKT_KUNDE_REGEL`, `pruefeObjektZuordnung`), `src/app/portal/[mandant]/finanzen/rechnungen/{neu,[id]}/page.tsx` |
+| O-934 | **Darf eine Mahnung hinausgehen, solange im Briefkopf Pflichtangaben fehlen — und welche gelten für eine Gesellschaft, die keine GmbH ist?** Seit V-213 trägt das Mahnschreiben Absender, Empfängeranschrift und die Angaben aus `mandant` (Firma, Anschrift, Registergericht, Registernummer, Geschäftsführung, USt-IdNr./Steuernummer, Bankverbindung) — dieselben wie das Angebotsblatt. Fehlt eine davon in den Unternehmensdaten, fehlt sie im Brief, und das Mahnungsblatt sagt, welche (`fehlendeBriefkopfangaben`). **Gesperrt wird der Versand nicht:** ob ein unvollständiger Briefkopf den Versand verhindern soll (§ 35a GmbHG verlangt Rechtsform, Sitz, Registergericht, Registernummer und alle Geschäftsführer auf Geschäftsbriefen; die Folge eines Verstosses ist ein Zwangsgeld, nicht die Unwirksamkeit der Mahnung), und welche Angaben für CSE Operations gelten, solange O-01 offen ist, ist eine Entscheidung der Geschäftsführung und keine, die eine Prüfung im Code nebenbei trifft. Die Antwort ändert die Freigabe (`gibFrei`) oder den Versand (`dokumentiereVersand`), nicht das Schreiben. | FIN-15, § 35a GmbHG, O-01, V-213, D-705, `services/finanz/mahnung/index.ts` |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
 | O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
@@ -8810,6 +8811,13 @@ ist keine gesetzliche Vorgabe und wird nicht erfunden.
 **Kontenrahmen lesend.** `/buchhaltung/konten` zeigt Kontenrahmen, Sach-
 kontenlänge, Wirtschaftsjahr und jede Zuordnung mit Platzhalterstand — und
 keinen Editor: welche Zuordnung gilt, bestätigt der Steuerberater (O-05).
+
+**Nachtrag (V-215, D-706):** Aufwand sind die freigegebenen und gebuchten
+Eingangsrechnungen UND die freigegebenen und gebuchten Betriebsausgaben
+(`ausgabe`, nach Belegdatum, netto). Als D-484 entstand, waren Ausgaben nicht
+erfassbar; seit V-011 werden sie gebucht, und ohne sie war das Ergebnis um
+jede Tankquittung zu hoch. Die Ausnahmen oben (Personal, Abschreibung,
+Abgrenzung, Steuern) bleiben.
 
 ### D-485 · Z3-Datenträgerüberlassung und Verfahrensdokumentation aus der lebenden Konfiguration (PR 66)
 
@@ -18454,4 +18462,415 @@ eines Abzugs mit storniertem Abschlag, Sperre der Übernahme). Die übrigen:
    Sperre bräche sie.
 
 | Betrifft | FIN-04, FIN-05, FIN-07, FIN-08, O-66, O-933, D-599, D-697, D-698, D-699, D-728, V-204, V-205, V-206, V-209, `src/app/api/rechnungen/route.ts`, `src/server/services/finanz/{entwurf,rechnung,ustg14}.ts`, `src/app/portal/[mandant]/finanzen/rechnungen/{[id],neu}/page.tsx`, `src/app/portal/[mandant]/auftraege/[id]/{page,abrechnung/page}.tsx`, `src/app/portal/[mandant]/reinigung/sonderleistungen/page.tsx`, `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts`, `tests/isolation/rechnung-entwurf.test.ts` §2, §5, `tests/isolation/rechnung.test.ts`, `tests/kern/rechnung-entwurf.test.ts` |
+### D-704 · Ein DATEV-Stapel umfasst höchstens ein Wirtschaftsjahr — abgewiesen wird vor dem Stempel, nicht geteilt (V-212)
+
+**Der Befund** (V-212, ACC-02): das Belegdatum steht in jeder Zeile des
+EXTF-Stapels als `TTMM`, das Jahr kommt aus dem WJ-Beginn im Kopf, und der
+wurde nur aus `von` abgeleitet. Weder Formular noch Route, Dienst oder Tabelle
+verhinderten einen Zeitraum über die Grenze. 01.12.2025–31.01.2026 bei
+Kalender-WJ schrieb eine Buchung vom 15.01.2026 als `1501` unter den
+WJ-Beginn 2025 — für DATEV der 15.01.2025 —, und die Zeilen waren danach als
+exportiert gestempelt.
+
+**Die Entscheidung.**
+
+1. **Das Wirtschaftsjahr kommt aus den Stammdaten, nicht aus einer Annahme.**
+   Geprüft wird mit `wj_beginn_monat`/`wj_beginn_tag`, die
+   `app.datev_stammdaten` gerade geprüft zurückgegeben hat und die der Stapel
+   einfriert. Welches Wirtschaftsjahr gilt, bleibt O-05.
+2. **Abweisen, nicht teilen.** Ein Zeitraum über die Grenze ergibt keinen
+   Stapel und keinen Stempel, sondern einen Satz: „… reicht über den Beginn des
+   Wirtschaftsjahres am 01.01.2026 … Bitte in zwei Stapel teilen."
+   (`pruefeEinWirtschaftsjahr`, `ExportFehler` mit Grund `wirtschaftsjahr`).
+   Still in zwei Dateien zu teilen hiesse, dass ein Klick zwei Übergaben an den
+   Steuerberater erzeugt, von denen der Mensch nur eine gewählt hat.
+3. **Drei Stellen, eine Rechnung.** `wirtschaftsjahrGrenzeIm` (über
+   `wirtschaftsjahrVon`) steht in der Vorschau der Seite, die den Knopf sperrt
+   und das Datum nennt, und im Dienst, der VOR dem Paket und vor
+   `datev_zeilen_stempeln` wirft. Die Pruefbedingung
+   `datev_export_ein_wirtschaftsjahr` (0445) rechnet dasselbe aus den
+   eingefrorenen Spalten der Zeile nach — über `extract`, damit ein WJ-Beginn am
+   30. im Februar nicht in einen Datumsfehler läuft.
+4. **Die Vorschau sagt nur, was sie weiss.** Sieht die Person die Stammdaten
+   nicht (`buchhaltung_konfiguration.lesen` fehlt), nimmt die Vorschau KEIN
+   Kalenderjahr an — sie sperrte sonst einen Zeitraum, der im abweichenden
+   Wirtschaftsjahr in Ordnung ist. Dann entscheidet der Dienst beim Erzeugen
+   (`liesWirtschaftsjahrWennGepflegt`).
+5. **`not valid`:** ein früher über die Grenze erzeugter Stapel ist ein Beleg
+   dafür, was übergeben wurde; er wird weder gelöscht noch umgeschrieben.
+   **Berichtigt durch D-708:** eine Prüfbedingung mit `not valid` prüft
+   trotzdem jedes `update` einer alten Zeile, der alte Stapel liess sich also
+   nicht verwerfen. Seit 0448 prüft ein Auslöser nur beim Einfügen.
+6. **Ein Browser bekommt eine Seite** (D-599): jede Abweisung der Route führt
+   mit Zeitraum und `?fehler=<grund>` auf die Vorschau zurück, die den Grund
+   über `eigenerEintrag()` als Satz zeigt; Programme ohne `mandant` bekommen
+   JSON wie bisher, der Zeitraum über die Grenze als 400. Auth-Würfe gehen über
+   `autorisierungsAntwort`.
+
+| Betrifft | ACC-02, O-05, D-599, V-212, `drizzle/0445_datev_stapel_ein_wirtschaftsjahr.sql`, `src/server/services/buchhaltung/datev/export.ts`, `src/server/services/buchhaltung/wirtschaftsjahr.ts`, `src/app/api/buchhaltung/datev/route.ts`, `src/app/portal/[mandant]/buchhaltung/datev/neu/page.tsx` |
+|---|---|
+
+### D-705 · Das Mahnschreiben ist ein Geschäftsbrief, und der Mahntext der Stufe steht darin (V-213, V-214)
+
+**Der Befund** (V-213, V-214, FIN-15): das PDF, das als Mahnschreiben abgelegt
+wird und den Verzugsbeginn belegt, entstand aus `mahnungstext()` und hatte
+keinen Absender (keine Firma, Anschrift, kein Registergericht, keine
+Geschäftsführung), vom Empfänger nur „Kunde: Name", Tage als `2026-09-23`
+und den Zins als „900 Basispunkte". Das abgelegte PDF war vom Mahnungsblatt
+aus nicht erreichbar, und die Rückmeldung nach dem Versand zeigte den rohen
+UTC-Zeitstempel. `mahnstufe.textbaustein` gab es seit `0125`, die
+Vorlagenseite verwies für seine Pflege auf Einstellungen › Mahnwesen — dort
+gab es kein Feld, kein Weg schrieb ihn, und der Mahnungsdienst las ihn nicht.
+
+**Die Entscheidung.**
+
+1. **Der Brief hat einen Kopf und einen Fuss aus `mandant`.** Absenderzeile
+   (Firma · Strasse · PLZ Ort), darunter die Anschrift des Empfängers; am
+   Ende nach der freien Fusszeile (V-099) die Pflichtangaben in derselben
+   Reihenfolge wie im Angebotsblatt. Was in den Unternehmensdaten fehlt,
+   fehlt im Brief — erfunden wird nichts. Das Mahnungsblatt nennt die leeren
+   Angaben; gesperrt wird nicht (O-934).
+2. **Gemahnt wird, wer die Rechnung bekommt.** Die Anschrift ist die
+   abweichende Rechnungsanschrift des Kunden, wenn eine gepflegt ist, sonst
+   seine Anschrift — dieselbe Verzweigung wie auf der Rechnung. Ein Land steht
+   nur, wenn es nicht Deutschland ist.
+3. **Tage als `TT.MM.JJJJ`, der Satz als Prozent p. a.** (`tagDeutsch`,
+   `prozentText`). Das Mahnungsblatt zeigt Tage, Beträge und Satz in der
+   Sprache der Sitzung (`tagInSprache`, `formatiereGeldIn`, neu
+   `prozentTextIn`); das Schreiben bleibt deutsch.
+4. **Die Freigabe bindet den ganzen Brief** (Invariante 7): Absender,
+   Empfänger und Mahntext stehen in `mahnungNutzlast`. Wer nach der Freigabe
+   die Kundenanschrift, den Registereintrag oder den Mahntext ändert, hat
+   einen anderen Brief, und das Tor lässt ihn nicht hinaus. **Folge beim
+   Einspielen:** eine Mahnung, die schon `freigegeben` ist, aber noch nicht
+   versendet, passt nicht mehr zu ihrem Abdruck. Einen Rückweg von
+   `freigegeben` gibt es heute nicht (0130 lässt nur `versendet` zu): eine
+   freigegebene Mahnung wird deshalb VOR dem Einspielen versendet, sonst
+   bleibt sie stehen. **Berichtigt durch D-709:** live gelesen hielt jede
+   Pflege der Stammdaten nach der Freigabe die Mahnung für immer fest; seit
+   0449 friert die Freigabe den Brief ein. Die Folge beim Einspielen bleibt.
+5. **Das Mahnungsblatt zeigt das Schreiben**, aus derselben Funktion wie das
+   PDF, damit wer freigibt den Brief sieht und nicht nur Beträge; nach dem
+   Versand verweist es auf das abgelegte PDF über den signierten
+   Dokumentabruf (nur mit `dokument.lesen`). Die Rückmeldung nennt die
+   Versandzeit als Berliner Ortszeit.
+6. **Der Mahntext wird mit jeder Fassung einer Stufe gepflegt** (Einstellungen
+   › Mahnwesen, Feld „Mahntext dieser Stufe"). Ein leeres Feld übernimmt den
+   Text der laufenden Fassung — wer die Gebühr ändert, verliert nicht nebenbei
+   den Brieftext; „Diese Fassung ohne Mahntext" entfernt ihn ausdrücklich.
+   Höchstens `MASKE_WERT_HOECHSTENS` (1000) Zeichen, weil eine Abweisung die
+   Eingaben in der Adresse zurückbringt (D-599) und ein längerer Text gekürzt
+   zurückkäme. Im Brief steht er zwischen Datum und Forderungsliste; fehlt er,
+   bleibt die Stelle leer. **Kein vorgeschlagener Wortlaut** — der Seed trägt
+   einen ausdrücklich als PLATZHALTER (O-19) beschrifteten Satz.
+7. Die Rückmeldung nach dem Versand sagt, was die Plattform tut: der Posten
+   trägt den Versandtag als Beginn des Verzugs, nicht das Mahndatum (0125).
+
+| Betrifft | FIN-15, D-599, V-099, V-213, V-214, O-19, O-934, Invariante 7, `src/server/services/finanz/mahnung/{index,stufen}.ts`, `src/server/services/finanz/prozent.ts`, `src/app/api/finanzen/mahnungen/route.ts`, `src/app/api/einstellungen/mahnwesen/route.ts`, `src/app/portal/[mandant]/finanzen/mahnungen/{page,[id]/page}.tsx`, `src/app/portal/[mandant]/einstellungen/{mahnwesen,vorlagen}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/mahnungen.ts`, `src/server/db/seed/index.ts` |
+|---|---|
+
+### D-706 · Betriebsausgaben sind Aufwand — in Monatszahlen, Gruppe, Periodenschluss, Jahrespaket und Z3 (V-215)
+
+**Der Befund** (V-215, FIN-17, ACC-08, ACC-09, ACC-11): seit V-011 lassen
+sich Betriebsausgaben erfassen, freigeben und buchen, und sie erzeugen
+Buchungssätze mit Herkunft `ausgabe`. Jede Auswertung zu Aufwand und Ergebnis
+las aber nur `eingangsrechnung`: „Aufwand netto" der Monatszahlen, der Saldo
+je Gesellschaft und Gruppe, die beim Periodenschluss eingefrorenen Zahlen und
+die Monatstabelle des Jahrespakets. Das Z3-Paket hatte keine Tabelle der
+Ausgaben, das Journal keine `ausgabe_id`, und der Herkunftstext unterschlug
+zwei Werte des Enums. D-475/D-484 schliessen Personal und Abschreibung aus,
+nicht erfasste Betriebsausgaben — das war keine Entscheidung, sondern eine
+Lücke.
+
+**Die Entscheidung.**
+
+1. **Aufwand = Eingangsrechnungen + Betriebsausgaben**, beide freigegeben oder
+   gebucht, netto; Eingangsrechnungen nach Rechnungsdatum, Ausgaben nach
+   Belegdatum (`ausgabedatum`). D-484 ist an Ort und Stelle ergänzt.
+2. **Eine Ausgabe aus einer Lieferantenrechnung zählt einmal** — dort, wo sie
+   herkommt: `eingangsrechnung_id` gesetzt heisst, sie steht schon im
+   Eingang. (Heute setzt kein Weg diese Spalte; die Regel steht trotzdem,
+   damit der erste, der sie setzt, nicht doppelt zählt.)
+3. **Eine Quelle: `app.ausgaben_aufwand` (0446).** Im Bereich unter
+   `eingang.lesen` für den aktiven Mandanten, in der Gruppe unter
+   `gruppe.eingang.lesen` — dieselben Rechte wie die Eingangsrechnungen. Eine
+   Definer-Funktion, weil die Gruppendecke (0180) Erstattungen als ZEILEN
+   ausblendet; eine Summe darüber wäre kleiner als die Summe der
+   Gesellschaften. Sie gibt nur Summen und Anzahl je Gesellschaft und Monat
+   heraus, keine Person — dieselbe Abwägung, mit der 0180 `buchungssatz` ohne
+   die Decke liess.
+4. **Die Bildschirme nennen beide Quellen.** Monatszahlen: Spalten
+   „Eingangsrechnungen netto" (→ `/finanzen/eingangsrechnungen?monat=`),
+   „Betriebsausgaben netto" (→ `/finanzen/ausgaben?monat=`, neuer
+   Monatsfilter) und „Aufwand netto". Gruppe: Kachel und Spalte
+   „Betriebsausgaben", Tabelle „Betriebsausgaben je Monat", Ergebnis je Monat
+   aus dem Aufwand, Saldo „aus Belegen". Finanzübersicht: Kachel
+   „Betriebsausgaben {Jahr}".
+5. **Eingefrorene Monate bleiben, wie sie geschlossen wurden.** Ein vor dieser
+   Änderung geschlossener Monat mit Ausgaben zeigt jetzt „weicht ab" — das
+   ist die Aussage, für die die eingefrorene Zahl da ist (D-484), und sie
+   wird nicht nachträglich umgeschrieben (GoBD). Neue Schlüsse frieren den
+   Aufwand mit Ausgaben ein.
+6. **Jahrespaket:** `aufwand` umfasst beide Quellen; die Aufteilung steht in
+   drei neuen Spalten am ENDE (`aufwand_eingangsrechnungen`,
+   `aufwand_ausgaben`, `ausgaben`), damit ein Leser nach Spaltenposition
+   nichts verschoben findet.
+7. **Z3:** Tabellen `ausgaben` (Kopf mit Kategorie, Beträgen, Zahlungsmittel,
+   Beleg, Status, Kostenzuordnung, `ist_erstattung` über den protokollfreien
+   Definer aus 0184 — ohne Person) und `ausgabensteuer` (Aufteilung je
+   Steuersatz); `buchungen` mit `ausgabe_id`; der Herkunftstext nennt alle
+   Werte des Enums aus 0127 (ein Test hält ihn am Enum).
+
+| Betrifft | FIN-17, ACC-08, ACC-09, ACC-11, D-475, D-484, V-011, V-215, `drizzle/0446_aufwand_aus_betriebsausgaben.sql`, `src/server/services/buchhaltung/{aufwand,monatszahlen,jahrespaket,z3}.ts`, `src/server/services/gruppe/finanzen.ts`, `src/server/services/finanz/ausgabe.ts`, `src/app/portal/[mandant]/buchhaltung/monatszahlen/page.tsx`, `src/app/portal/[mandant]/finanzen/{page,ausgaben/page}.tsx`, `src/app/portal/gruppe/finanzen/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{uebersicht,belege}.ts` |
+|---|---|
+
+### D-707 · Zahlungen an Lieferanten werden erfasst, nicht ausgelöst — aus der Eingangsrechnung und aus dem Kontoauszug (V-216)
+
+**Der Befund** (V-216, FIN-14, ACC-04, ACC-07): das Buchen einer
+Eingangsrechnung eröffnet einen Kreditorposten (0123), ausgeglichen wird ein
+Posten nur über `zahlung_zuordnung` — und für Kreditoren gab es keinen Weg
+dorthin. Die Zahlungsroute kannte nur den Eingang auf eine Rechnung, der
+Bankabgleich wies jeden Ausgang ab, `erfasseZahlung` wurde nur mit
+`richtung = eingang` gerufen, und die Eingangsrechnung hatte keine
+Zahlungsaktion. Jede gebuchte Eingangsrechnung stand für immer als unbezahlt
+in Offene Posten, Altersstruktur, Gruppensumme „Kreditoren offen" und
+Jahrespaket.
+
+**Die Entscheidung.**
+
+1. **Erfasst wird, was hinausging — ausgelöst wird nichts.** Es gibt keine
+   Bankanbindung und keinen Zahlungsverkehr; die Überweisung macht ein Mensch
+   in seinem Bankprogramm. Die Plattform hält danach fest, dass sie geschah
+   (`verbucheZahlungsausgang`). Deshalb keine Freigabe nach Invariante 7 —
+   nichts verlässt das System; freigegeben wurde die Rechnung vor dem Buchen.
+   Recht: `zahlung.schreiben`, wie beim Eingang.
+2. **Zwei Wege, ein Dienst.** Das Formular „Zahlung an den Lieferanten
+   erfassen" auf der gebuchten Eingangsrechnung (solange offen) und die
+   Klärung eines Ausgangs im Kontoauszug gehen beide über
+   `verbucheZahlungsausgang`. Der Verwendungszweck ist mit der
+   Rechnungsnummer des Lieferanten vorbelegt. `bar` wird nicht angeboten: eine
+   Barzahlung verlangt eine Kasse (`zahlung_bar_braucht_kasse`).
+3. **Eine Überzahlung wird ein Guthaben beim Lieferanten** —
+   `kreditor_guthaben` über `fin.op_kreditor_guthaben_eroeffnen` (0447), das
+   Gegenstück zu `fin.op_guthaben_eroeffnen`, protokolliert. Sie wird weder
+   auf die Rechnung gebucht (die Datenbank weist das ab) noch weggeworfen.
+4. **Ein Ausgang wird im Bankabgleich nie automatisch zugeordnet.**
+   `schlageVorAusgang` nennt die passenden Verbindlichkeiten (Betrag und
+   Rechnungsnummer des Lieferanten oder eigene Belegnummer im Zweck) im Satz
+   an der Zeile; bestätigt wird in der Klärung, die dafür die offenen
+   Verbindlichkeiten zur Wahl stellt. Anders als beim Eingang kann ein
+   Ausgang mit passendem Betrag ebenso Lohn, Steuer oder Erstattung sein.
+   Die Schutzregel „ein Ausgang trifft nie eine Ausgangsrechnung" bleibt
+   (`schlageVor`), und die Datenbank prüft sie seit 0130
+   (`fin.zuordnung_richtung_pruefen`) — der Befund, das verhindere nur die
+   Oberfläche, war an dieser Stelle falsch; 0447 legt deshalb keinen zweiten
+   Riegel an.
+5. **Die Rückmeldung kommt als Seite** (D-599): die Route führt auf die
+   Eingangsrechnung zurück, mit `?meldung=` oder mit `?fehler=` und den
+   Eingaben; beide Schlüssel nur über `eigenerEintrag()`. Die Eingangsrechnung
+   listet die Zahlungen auf ihren Posten mit Verweis auf die Zahlungsakte,
+   die Richtung und — bei einem Lieferantenguthaben — „Guthaben beim
+   Lieferanten" nennt; dort wird storniert, und das Storno öffnet den Posten
+   wieder.
+6. **Nicht gebaut:** eine eigene Liste aller Zahlungsausgänge (die
+   Zahlungsseite bleibt die der Eingänge) und das Verrechnen eines
+   Lieferantenguthabens mit einer späteren Rechnung über die Oberfläche —
+   `gleicheAus` kann es, ein Formular dafür gibt es auf der Kreditorenseite
+   noch nicht.
+
+| Betrifft | FIN-14, ACC-04, ACC-07, D-599, D-728, Invariante 7, V-216, `drizzle/0447_zahlungsausgang_an_lieferanten.sql`, `drizzle/0130` (Richtungsprüfung), `src/server/services/finanz/zahlung/index.ts`, `src/server/services/finanz/bank/{abgleich,import}.ts`, `src/app/api/finanzen/zahlungen/route.ts`, `src/app/api/buchhaltung/bank/umsatz/route.ts`, `src/app/portal/[mandant]/finanzen/eingangsrechnungen/[id]/page.tsx`, `src/app/portal/[mandant]/finanzen/zahlungen/[id]/page.tsx`, `src/app/portal/[mandant]/buchhaltung/bank/[auszugId]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,mahnungen}.ts` |
+|---|---|
+
+### D-708 · Die WJ-Prüfung des DATEV-Stapels greift beim Erzeugen — ein alter Stapel bleibt verwerfbar (V-217, berichtigt D-704 §5)
+
+**Der Befund** (Prüfung von V-212): 0445 legte `datev_export_ein_wirtschaftsjahr`
+als `check … not valid` an. `not valid` heisst nur, dass der Bestand beim
+Anlegen nicht geprüft wird. PostgreSQL prüft die Bedingung aber bei JEDEM
+späteren `update` einer Zeile, auch einer alten und auch dann, wenn nur
+`status` geändert wird. Ein Stapel über die WJ-Grenze, der vor 0445 entstand
+und noch auf „erzeugt" stand, liess sich deshalb weder verwerfen noch als
+übergeben vermerken (`verwirfStapel`/`vermerkeUebergabe` → `23514` → 500).
+Er blieb für immer „erzeugt". Das ist gerade der Stapel, den man verwerfen
+will („Zeitraum falsch gewählt"). D-704 §5 behauptete, der alte Stapel bleibe
+unberührt; die Migration selbst sagte „gilt für jede geänderte Zeile".
+
+**Die Entscheidung.**
+
+1. **Geprüft wird beim Einfügen, nicht beim Vermerk.** 0448 ersetzt die
+   Prüfbedingung durch den Auslöser `datev_export_ein_wirtschaftsjahr`
+   (`before insert`, `fin.datev_export_ein_wirtschaftsjahr()`). Die Rechnung
+   ist unverändert (`extract`, dieselbe wie `wirtschaftsjahrVon`).
+2. **Ein Auslöser für `update` ist nicht nötig.** `von`, `bis`,
+   `wj_beginn_monat` und `wj_beginn_tag` ändern sich nach dem Erzeugen nie
+   mehr: `datev_export_unveraenderlich` (0133) lässt nur Zustand, Vermerk,
+   Ablage und Aufbewahrung beweglich. Was die Prüfbedingung bei einem
+   `update` zusätzlich prüfte, war also nur der Bestand, und genau den soll
+   sie nicht prüfen.
+3. **Der alte Stapel wird weder umgeschrieben noch gelöscht**
+   (Invariante 8). Er lässt sich verwerfen (mit Grund) oder als übergeben
+   vermerken, wie jeder andere.
+4. **Die Meldung bleibt erkennbar.** Der Auslöser wirft `23514` mit
+   `constraint = datev_export_ein_wirtschaftsjahr` und nennt den Namen im
+   Text, wie vorher die Bedingung. Der Dienst prüft wie bisher VOR Paket und
+   Stempel (D-704 §2), die Datenbank ist die zweite Linie.
+5. **0445 bleibt, wie sie ist.** Migrationen werden nach Dateiname
+   eingespielt und nicht erneut ausgeführt; eine Datenbank, auf der 0445
+   schon lief, bekäme eine geänderte 0445 nie zu sehen. Deshalb eine neue
+   Migration, die die Bedingung entfernt.
+
+| Betrifft | ACC-02, D-704, V-212, V-217, Invariante 8, `drizzle/0445_datev_stapel_ein_wirtschaftsjahr.sql`, `drizzle/0448_datev_wirtschaftsjahr_nur_beim_erzeugen.sql`, `drizzle/0133_datev_export.sql` (`datev_export_unveraenderlich`), `src/server/services/buchhaltung/datev/stapel.ts`, `tests/isolation/datev-stapel.test.ts` (§7), `tests/isolation/datev-export.test.ts` (2a) |
+|---|---|
+
+### D-709 · Die Freigabe friert den Brief der Mahnung ein — eine Pflege der Stammdaten hält keine freigegebene Mahnung mehr fest (V-217, berichtigt D-705 §4)
+
+**Der Befund** (Prüfung von V-213): `KOPF_SQL` las den Briefkopf LIVE — die
+Kunden- bzw. Rechnungsanschrift und sechzehn Felder aus `mandant` (Telefon,
+E-Mail, Web, Bank, IBAN, BIC, Geschäftsführung, Register …) —, und
+`mahnungNutzlast` bindet alles an den Abdruck der Freigabe. Aus
+`freigegeben` führt aber kein Weg zurück: `verwirf` und `gibFrei` verlangen
+`entwurf`, `fin.mahnung_uebergang` lässt nur `freigegeben → versendet` zu.
+Wer nach der Freigabe irgendeines dieser Felder pflegte (neue Anschrift im
+CRM, neue Telefonnummer, neuer Geschäftsführer), hatte eine Mahnung, die für
+immer hing: der Versand wurde mit `FreigabeErforderlich` abgewiesen,
+verwerfen und neu freigeben ging nicht, und der Mahnlauf sperrte ihre Posten
+dauerhaft („Es liegt bereits ein Mahnungsentwurf vor", 0125). Vor V-213
+lösten das nur `kunde.name` und `brief_fuss` aus, danach fast jede
+Stammdatenpflege. Der Test (8) hielt dieses Hängen als erwünscht fest.
+
+**Die Entscheidung.**
+
+1. **Eingefroren, nicht zurückgenommen.** Die Freigabe schreibt in derselben
+   Anweisung, die den Zustand kippt, den Brief in `mahnung.brief` (0449):
+   Kundenname, Stufenbezeichnung, Absender mit Pflichtangaben,
+   Empfängeranschrift, Mahntext und Fusszeile — aus DENSELBEN Werten, aus
+   denen der Abdruck entsteht. Ab da liest der Dienst den Brief von dort;
+   Versand, PDF und Mahnungsblatt zeigen genau den freigegebenen Brief, und
+   eine spätere Pflege wirkt auf die nächste Mahnung. Dasselbe Muster wie der
+   Schnappschuss der Rechnung (K-12).
+2. **Kein Rückweg `freigegeben → entwurf`.** Er hätte die Nummer (schon
+   gezogen, lückenlos) und die Freigabe (in der Kette) zurücknehmen müssen;
+   0130 hat bewusst entschieden, dass eine freigegebene Mahnung eine Nummer
+   trägt und nicht verworfen wird. Das Einfrieren löst den Befund, ohne diese
+   Entscheidung aufzuheben. Wer nach der Freigabe merkt, dass die Anschrift
+   falsch war, sieht den eingefrorenen Brief auf dem Blatt und dokumentiert
+   beim Versand den tatsächlichen Empfänger; ein Widerruf der Freigabe ist
+   nicht gebaut.
+3. **Die Datenbank hält es fest** (0449): ein Entwurf trägt keinen Brief
+   (`mahnung_brief_erst_mit_freigabe`), der Übergang `entwurf → freigegeben`
+   verlangt ihn, und danach ändert er sich nie mehr
+   (`mahnung_4_brief_eingefroren`, auch nicht zwischen Freigabe und Versand;
+   ab `versendet` hält ohnehin `mahnung_3_unveraenderlich` die Zeile fest).
+4. **Das Tor bleibt, wo es hingehört.** Was jemand an der Mahnung SELBST
+   ändert (Beträge, Positionen), hält sie weiter am Tor (Invariante 7) — die
+   Freigabe gilt einem Betrag, nicht einer Kennung.
+5. **Streng zurückgelesen.** `briefAusSpalte` prüft jedes Feld; eine
+   beschädigte Spalte wirft, statt still die Stammdaten zu nehmen — sonst
+   ginge ein Brief hinaus, den niemand freigegeben hat. Die Feldliste ist ein
+   Satz über alle Schlüssel von `MahnAbsender`/`MahnEmpfaenger`, damit ein
+   neues Feld den Übersetzer anhält statt den Abdruck.
+6. **Der Bestand.** Eine Mahnung, die vor 0449 freigegeben wurde, hat keinen
+   eingefrorenen Brief und wird weiter live gelesen; D-705 §4 gilt für sie
+   unverändert. Das Mahnungsblatt sagt dann ausdrücklich, dass die Vorschau
+   die heutigen Stammdaten zeigt und das abgelegte Schreiben maßgeblich ist
+   (`briefNichtEingefroren`); bei einem eingefrorenen sagt es, dass eine
+   Pflege erst die nächste Mahnung ändert.
+7. **Mit erledigt:** ein Empfänger im Ausland bekommt in der letzten Zeile den
+   deutschen Namen des Landes in Grossbuchstaben (`landZeile`, wie die
+   Deutsche Post das Bestimmungsland verlangt), nicht den Code „AT". Ein Code,
+   den die Länderliste der Laufzeit nicht kennt, bleibt, wie er ist.
+
+| Betrifft | FIN-15, K-12, D-705, V-213, V-217, Invariante 7, `drizzle/0449_mahnung_brief_eingefroren.sql`, `drizzle/0125_mahnwesen.sql`, `drizzle/0130_pruefbefunde_finanzen.sql`, `src/server/services/finanz/mahnung/index.ts`, `src/app/portal/[mandant]/finanzen/mahnungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/mahnungen.ts`, `tests/isolation/mahnung.test.ts` (8), (9), `tests/kern/mahnschreiben.test.ts` |
+|---|---|
+
+### D-710 · Die kleinen Befunde der Prüfung von V-210 bis V-216 — Platzhaltertext, Aufwandsliste, Zahlungsabweisungen, Hinweiskasten (V-217)
+
+**Der Befund** (Prüfung der Gruppe buchhaltung, neben den beiden blockierenden
+Punkten aus D-708 und D-709): (1) „weggelassen = übernommen" holte den
+Mahntext auch aus einer Platzhalterfassung — mit dem Seed stand
+„PLATZHALTER (O-19): …" in jeder Stufe, und die erste echte Fassung ohne
+eigenen Text erbte ihn in den Brief an den Kunden; (2) die Mahnwesen- und die
+Kontoklärungsroute übersetzten Auth-Würfe von Hand, `KontoGesperrtFehler` und
+`ZuVieleVersucheFehler` endeten als 500; (3) Erfolgsmeldung und Abweisungen
+der Stufenpflege nannten Tage als `2026-10-01`, die Zinsart stand als
+Schlüssel (`gesetzlich_b2b`) in der Tabelle; (4) der Zahlungsausgang liess
+`2026-02-31` durch (`22008` → 500), ein Konto einer anderen Gesellschaft
+endete als Fremdschlüsselverletzung (500), und der Satz zu `abgewiesen`
+behauptete für jede Abweisung, der Betrag sei null; der Text `bezahlt` war
+unbenutzt; (5) die Verweise auf die Ausgabenliste (Monatszahlen `?monat=`,
+Finanzübersicht `?jahr=`) zeigten alle Zustände und auch Ausgaben aus
+Eingangsrechnungen, die Summe passte nicht zur Spalte; (6) vier Seiten bauten
+den Warnkasten aus Klassen nach, statt `<Hinweis>` zu nehmen; (7) ein
+Testsatz prüfte bei `mehrdeutig` trivial `false`; (8) Tage im Kontoauszug
+und Beträge der Zahlungstabelle standen nicht in der Hausschreibweise bzw.
+der Sprache der Sitzung, und das Kontoauszugsblatt samt der neuen Maske für
+den Ausgang war nur deutsch.
+
+**Die Entscheidung.**
+
+1. **Übernommen wird nur aus einer bestätigten Fassung.** Der Text einer
+   Platzhalterfassung ist niemandes Wortlaut; die neue Fassung ohne eigenen
+   Text hat dann keinen (`bestaetigeStufe`), und die Maske sagt es. Die
+   Platzhalterfassung selbst bleibt, wie sie ist.
+2. **Auth-Würfe an einer Stelle:** beide Routen gehen über
+   `autorisierungsAntwort` (404/403/401/429, nie 500).
+3. **Ein Tag, den es gibt.** `istGueltigerKalendertag` (`lib/datum/kalendertag`)
+   prüft Muster UND Kalender; Zahlungsausgang, Zahlungseingang und „Gültig ab"
+   der Stufenpflege benutzen ihn und führen mit einem Satz zurück.
+4. **Zwei neue Gründe am `ZahlungFehler`:** `betrag_nicht_positiv` (vorher
+   `abgewiesen`) und `bankkonto_fremd` (aus `zahlung_bankkonto_fk`, 23503 —
+   die Schranke bleibt die Wahrheit, der Dienst macht einen Satz daraus). Der
+   Satz zu `abgewiesen` fragt nach dem Recht, statt den Betrag zu beschuldigen.
+   Ein Unit-Test hält fest, dass jeder Grund einen Satz in beiden Sprachen hat.
+   Programme bekommen für beide 400 statt 409. Eine Kontokennung, die keine
+   ist, weist die Route schon vor dem Dienst ab — beim Ausgang mit Satz am
+   Formular, beim Eingang (JSON) mit 400 statt `22P02`.
+5. **Die verlinkte Liste zählt wie die Spalte.** `AusgabeFilter.nurAufwand`
+   (`?aufwand=ja`, Kästchen „nur Aufwand" in der Liste) ist dieselbe Lesart wie
+   `app.ausgaben_aufwand` (0446): freigegeben oder gebucht, ohne Ausgaben aus
+   Eingangsrechnungen. Monatszahlen und Finanzübersicht verlinken damit; die
+   Liste bleibt ohne den Filter, wie sie war.
+6. **`<Hinweis>` bekommt eine Rolle.** `rolle` (`alert`/`status`) für Kästen,
+   die den Ausgang eines Formulars melden (DESIGN §5 „Notices", §9 „errors
+   announced via aria-live"); die vier nachgebauten Kästen dieser Gruppe
+   gehen darüber, dazu auf den angefassten Seiten die älteren: „abgelehnt
+   mit" und „keine Aufteilung" auf der Eingangsrechnung, „ohne Mahntext" auf
+   der Mahnung. Ein statischer Hinweis (Briefkopflücke) trägt keine Rolle.
+   Ältere Seiten mit nachgebauten Kästen werden umgestellt, wenn sie
+   angefasst werden — sie alle hier umzustellen, wäre ein Eingriff in rund
+   siebzig Seiten ohne Befund. Keine Kästen im Sinne von §5 sind die Tafeln,
+   die je nach Zustand die Farbe wechseln und ihren Zustand als
+   `data-offen`/`data-stimmt` für die Browsersuite tragen (DATEV-Vorschau
+   mit Überschrift und Liste, Saldenprobe des Kontoauszugs); sie bleiben,
+   wie sie sind.
+7. **Ein Primary je Ansicht:** auf dem Mahnungsentwurf ist „Freigeben" der
+   Primary, „Verwerfen" ein stiller Knopf.
+8. Der Text `bezahlt` steht jetzt dort, wo das Formular verschwindet: „Diese
+   Eingangsrechnung ist vollständig bezahlt, ausgeglichen am …".
+
+9. **Das Kontoauszugsblatt spricht zwei Sprachen**
+   (`lib/i18n/verwaltung/finanzen/kontoauszug.ts`). Es war ganz deutsch,
+   auch die mit V-216 neue Maske für den Ausgang, und es zeigte bei einer
+   Abweisung den deutschen Satz des Dienstes so, wie er als `?meldung=` in
+   der Adresse stand — in jeder Sprache deutsch und mit jedem Text, den
+   jemand in einen Link schreibt. Jetzt:
+   (a) Beschriftungen, Tage (`tagInSprache`) und Beträge (`formatiereGeldIn`)
+   folgen der Sprache der Sitzung, die Pille trägt `sprache`; die Seite ist
+   von der Ausnahmeliste der Sperrklinke gestrichen
+   (`scripts/guards/uebersetzung-ausnahmen.ts`).
+   (b) Die Klärung schickt SCHLÜSSEL, wie es D-599 und die Rückmeldung
+   `?meldung=zugeordnet` schon taten: `ImportFehler` trägt statt des einen
+   Grundes `klaerung` sieben (`KlaerungGrund`), der Zahlungsausgang seine
+   Gründe mit dem Vorsatz `zahlung_`, die Route selbst `posten_waehlen`. Das
+   Blatt schlägt über `eigenerEintrag` nach; ein unbekannter Schlüssel
+   bekommt den allgemeinen Satz, nie den Rohwert — auch als Meldung nicht.
+   `tests/kern/kontoauszug-texte.test.ts` hält fest, dass jeder Grund in
+   beiden Sprachen einen Satz hat, und dass kein Satz für einen Grund steht,
+   den es nicht gibt.
+   (c) Nicht übersetzt werden DATEN: die Begründung des Abgleichs
+   (`vorschlag_text`) und die Klärungsnotiz stehen, wie sie geschrieben
+   wurden. Die übrigen Blätter der Buchhaltung (Bankliste, Import, DATEV,
+   Monatszahlen) bleiben auf der Ausnahmeliste; sie werden umgestellt, wenn
+   sie angefasst werden (D-592).
+
+| Betrifft | FIN-14, FIN-15, FIN-17, ACC-04, D-599, D-705, D-706, D-707, D-728, V-214, V-215, V-216, V-217, O-19, `src/server/services/finanz/mahnung/stufen.ts`, `src/server/services/finanz/zahlung/index.ts`, `src/server/services/finanz/ausgabe.ts`, `src/lib/datum/kalendertag.ts`, `src/components/ui/Hinweis.tsx`, `docs/DESIGN.md` §5, `src/app/api/einstellungen/mahnwesen/route.ts`, `src/app/api/buchhaltung/bank/umsatz/route.ts`, `src/app/api/finanzen/zahlungen/route.ts`, `src/app/portal/[mandant]/{einstellungen/mahnwesen,buchhaltung/datev/neu,buchhaltung/bank/[auszugId],buchhaltung/monatszahlen,finanzen,finanzen/ausgaben,finanzen/eingangsrechnungen/[id],finanzen/mahnungen/[id]}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,belege,kontoauszug}.ts`, `src/server/services/finanz/bank/import.ts` (`KlaerungGrund`), `scripts/guards/uebersetzung-ausnahmen.ts`, D-592, `tests/kern/kontoauszug-texte.test.ts` |
 |---|---|

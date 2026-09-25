@@ -76,9 +76,11 @@ export default async function GruppenFinanzen({ searchParams }: { searchParams: 
       </div>
 
       <div data-cse="finanzen-summen"
-           className="mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 xl:grid-cols-5">
+           className="mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 xl:grid-cols-3">
         <KpiStat label={t.fakturiertNetto} wert={formatiereGeld(summe.fakturiertCent)} ton="success" icon="rechnung" />
         <KpiStat label={t.eingangsrechnungenNetto} wert={formatiereGeld(summe.eingangCent)} ton="info" icon="euro" />
+        {/* V-215: die Betriebsausgaben zählen zum Aufwand und zum Saldo. */}
+        <KpiStat label={t.ausgabenNetto} wert={formatiereGeld(summe.ausgabenCent)} ton="info" icon="euro" />
         <KpiStat label={t.saldoAusRechnungen}
                  wert={summe.saldoCent === null ? '—' : formatiereGeld(summe.saldoCent)}
                  ton={summe.saldoCent !== null && summe.saldoCent < 0n ? 'danger' : 'muted'} icon="uebersicht" />
@@ -105,6 +107,8 @@ export default async function GruppenFinanzen({ searchParams }: { searchParams: 
               zelle: (b) => <Betrag wert={b.eingangCent} /> },
             { schluessel: 'eingangsrechnungen', kopf: t.belegeKopf, numerisch: true,
               zelle: (b) => (b.eingangsrechnungen === null ? <KeinRecht /> : b.eingangsrechnungen) },
+            { schluessel: 'ausgaben', kopf: t.ausgabenNettoKopf, numerisch: true,
+              zelle: (b) => <Betrag wert={b.ausgabenCent} /> },
             { schluessel: 'saldo', kopf: t.saldoKopf, numerisch: true,
               zelle: (b) => <Betrag wert={b.saldoCent} /> },
             { schluessel: 'forderungen', kopf: t.forderungenOffen, numerisch: true,
@@ -131,13 +135,21 @@ export default async function GruppenFinanzen({ searchParams }: { searchParams: 
           spalten={monatsSpalten} />
       </div>
 
+      <h2 className="mb-s3 mt-s6 text-h2 text-text">{t.ausgabenJeMonat}</h2>
+      <div data-cse="finanzen-monate-ausgaben">
+        <DataTable
+          beschriftung={`${t.ausgabenWort} ${String(jahr)} ${t.tabelleAusgabenMonate}`}
+          zeilen={daten.ausgabenJeMonat} schluessel={(z) => String(z.monat)}
+          spalten={monatsSpalten} />
+      </div>
+
       <h2 className="mb-s3 mt-s6 text-h2 text-text">{t.ergebnisJeMonat}</h2>
       <div data-cse="finanzen-monate-ergebnis">
         <DataTable
           beschriftung={`${t.ergebnisKopf} ${String(jahr)} ${t.tabelleErgebnisMonate}`}
           zeilen={daten.fakturiertJeMonat.map((z, i) => ({
             monat: z.monat, label: z.label,
-            erloese: z.summe, aufwand: daten.eingangJeMonat[i]?.summe ?? (0n as Cent),
+            erloese: z.summe, aufwand: daten.aufwandJeMonat[i]?.summe ?? (0n as Cent),
           }))}
           schluessel={(z) => String(z.monat)}
           spalten={[

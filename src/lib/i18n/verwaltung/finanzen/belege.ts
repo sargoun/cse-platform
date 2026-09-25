@@ -83,6 +83,9 @@ export interface BelegeTexte {
   readonly alle: string;
   readonly anzeigen: string;
   readonly jahr: string;
+  /** Vor „MM/JJJJ" — der Monatsfilter aus den Monatszahlen (V-215). */
+  readonly belegdatumImMonat: string;
+  readonly alleZeigen: string;
   readonly netto: string;
   readonly brutto: string;
   readonly ust: string;
@@ -178,6 +181,8 @@ export interface BelegeTexte {
   /* ── Blatt 3: die Ausgabenliste ────────────────────────────────────── */
   readonly ausgabenTitel: string;
   readonly nurWeiterberechenbar: string;
+  /** Filter wie die Spalte „Betriebsausgaben" der Monatszahlen (V-217). */
+  readonly nurAufwand: string;
   readonly unbestaetigtKlammer: string;
   readonly summenJeZustand: string;
   readonly gezaehltInDatenbank: string;
@@ -287,6 +292,8 @@ const DE: BelegeTexte = {
   alle: 'alle',
   anzeigen: 'Anzeigen',
   jahr: 'Jahr',
+  belegdatumImMonat: 'Belegdatum im Monat',
+  alleZeigen: 'alle zeigen',
   netto: 'Netto',
   brutto: 'Brutto',
   ust: 'USt',
@@ -441,6 +448,7 @@ const DE: BelegeTexte = {
 
   ausgabenTitel: 'Ausgaben',
   nurWeiterberechenbar: 'nur weiterberechenbar',
+  nurAufwand: 'nur Aufwand (freigegeben oder gebucht, ohne Eingangsrechnungen)',
   unbestaetigtKlammer: ' (unbestätigt)',
   summenJeZustand: 'Summen je Zustand',
   gezaehltInDatenbank:
@@ -616,6 +624,8 @@ const EN: BelegeTexte = {
   alle: 'all',
   anzeigen: 'Show',
   jahr: 'Year',
+  belegdatumImMonat: 'Receipt date in',
+  alleZeigen: 'show all',
   netto: 'Net',
   brutto: 'Gross',
   ust: 'USt (VAT)',
@@ -772,6 +782,7 @@ const EN: BelegeTexte = {
 
   ausgabenTitel: 'Expenses',
   nurWeiterberechenbar: 'rechargeable only',
+  nurAufwand: 'expense only (approved or booked, without incoming invoices)',
   unbestaetigtKlammer: ' (unconfirmed)',
   summenJeZustand: 'Totals by state',
   gezaehltInDatenbank:

@@ -286,6 +286,59 @@ describe('(1) das Z3-Paket', () => {
     expect(a.ersetzteZeichen).toBe(0);
   });
 
+  /*
+   * V-215: die Betriebsausgaben haben eine Tabelle, ihre Steuerzeilen eine
+   * zweite, und das Journal nennt die Ausgabe, auf die eine Zeile zeigt. Die
+   * Person hinter einer Erstattung steht NICHT darin — nur, dass es eine ist.
+   */
+  it('traegt die Betriebsausgaben mit Steuerzeilen — eine Erstattung ohne Person', async () => {
+    const jahr = await heuteJahr();
+    const [heute] = await sql.unsafe<{ tag: string }[]>('select app.berlin_heute()::text as tag');
+    const [kat] = await sql.unsafe<{ id: string }[]>(
+      `insert into ausgabe_kategorie (mandant_id, schluessel, bezeichnung, erstellt_von_art, erstellt_von)
+       values ($1, 'kraftstoff', 'Kraftstoff', 'mensch', $2) returning id`, [f.reinigung, benutzer]);
+    const [a] = await sql.unsafe<{ id: string }[]>(
+      `insert into ausgabe (mandant_id, kategorie_id, bezeichnung, ausgabedatum, netto_cent,
+                            steuer_cent, brutto_cent, zahlungsmittel, anstellung_id, status,
+                            erstellt_von_art, erstellt_von)
+       values ($1, $2, 'Fahrtkosten', $3::date, 1000, 190, 1190, 'verrechnung', $4, 'erfasst',
+               'mensch', $5) returning id`,
+      [f.reinigung, kat!.id, heute!.tag, f.fatimaReinigung, benutzer]);
+    await sql.unsafe(
+      `insert into ausgabe_steuer (mandant_id, ausgabe_id, steuersatz_gruppe_id, satz_bp, kategorie,
+                                   netto_cent, steuer_cent, erstellt_von_art, erstellt_von)
+       select $1, $2, g.id, g.satz_bp, g.kategorie, 1000, 190, 'mensch', $3
+         from steuersatz_gruppe g where g.schluessel = 'ust_19'`, [f.reinigung, a!.id, benutzer]);
+
+    const p = await alsApp(sitzung(), (tx) => erstelleZ3Paket(kontextAus(tx), jahr));
+    const verzeichnis = leseZipVerzeichnis(p.zip);
+    const dateien = new Map(verzeichnis.map((e) => [e.pfad, leseZipEintrag(p.zip, e)]));
+
+    const ausgaben = csvZeilen(dateien.get('ausgaben.csv')!);
+    const aKopf = ausgaben[0]!;
+    expect(aKopf.some((k) => /anstellung|person/u.test(k))).toBe(false);
+    const zeile = ausgaben.slice(1).find((z) => z[aKopf.indexOf('id')] === a!.id);
+    expect(zeile).toBeDefined();
+    expect(zeile![aKopf.indexOf('kategorie')]).toBe('Kraftstoff');
+    expect(zeile![aKopf.indexOf('netto')]).toBe('10,00');
+    expect(zeile![aKopf.indexOf('ist_erstattung')]).toBe('ja');
+
+    const steuer = csvZeilen(dateien.get('ausgabensteuer.csv')!);
+    const sKopf = steuer[0]!;
+    const sz = steuer.slice(1).find((z) => z[sKopf.indexOf('ausgabe_id')] === a!.id);
+    expect(sz![sKopf.indexOf('steuersatz')]).toBe('ust_19');
+    expect(sz![sKopf.indexOf('steuer')]).toBe('1,90');
+
+    /* Das Journal fuehrt die Spalte, und die Herkunft nennt jeden Wert des Enums. */
+    const buchungen = csvZeilen(dateien.get('buchungen.csv')!);
+    expect(buchungen[0]).toContain('ausgabe_id');
+    const spez = TABELLEN.find((t) => t.name === 'buchungen')!;
+    const herkunft = spez.spalten.find((s) => s.name === 'herkunft')!.text;
+    const [werte] = await sql.unsafe<{ w: string[] }[]>(
+      "select enum_range(null::buchung_herkunft)::text[] as w");
+    for (const w of werte!.w) expect(herkunft, w).toContain(w);
+  });
+
   it('die Rechnung der einen Gesellschaft steht nicht im Paket der anderen', async () => {
     const r = await festgeschrieben();
     const jahr = await heuteJahr();

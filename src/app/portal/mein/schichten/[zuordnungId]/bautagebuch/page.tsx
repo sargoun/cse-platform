@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { BAUTAG_PILLE } from '@/app/portal/[mandant]/bau/bautagebuch-anzeige';
 import {
@@ -179,7 +180,7 @@ export default async function MeinBautagebuch(
 
       <h1 className="mb-s2 text-h1 text-text">{t.bautagebuch}</h1>
       <p className="mb-s5 text-base text-text-muted">
-        {schicht.objekt ?? '—'} · <span className="cse-zahl">{schicht.planDatum}</span>
+        {schicht.objekt ?? '—'} · <span className="cse-zahl">{tagInSprache(schicht.planDatum, basis.sprache)}</span>
       </p>
 
       {schicht.projektId === null ? (

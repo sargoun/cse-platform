@@ -14,6 +14,7 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
 import { MAHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/mahnungen';
 
@@ -211,7 +212,7 @@ export default async function Mahnungen(
               },
               { schluessel: 'kunde', kopf: g.kunde, zelle: (m) => m.kundeName },
               { schluessel: 'stufe', kopf: t.stufe, zelle: (m) => String(m.stufe) },
-              { schluessel: 'datum', kopf: g.datum, zelle: (m) => m.mahndatum },
+              { schluessel: 'datum', kopf: g.datum, zelle: (m) => tagInSprache(m.mahndatum, zugang.sprache) },
               {
                 schluessel: 'gesamt', kopf: g.summe, numerisch: true,
                 zelle: (m) => formatiereGeld(m.gesamtCent),

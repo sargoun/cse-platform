@@ -135,7 +135,8 @@ export const TABELLEN: readonly TabellenSpezifikation[] = [
                  bs.konto, bs.gegenkonto, bs.bu_schluessel, g.schluessel as steuersatz,
                  bs.buchungstext, bs.kostenstelle, bs.kostentraeger, bs.herkunft::text as herkunft,
                  bs.rechnung_id::text as rechnung_id, bs.eingangsrechnung_id::text as eingangsrechnung_id,
-                 bs.zahlung_id::text as zahlung_id, bs.beleg_id::text as beleg_id,
+                 bs.zahlung_id::text as zahlung_id, bs.ausgabe_id::text as ausgabe_id,
+                 bs.beleg_id::text as beleg_id,
                  b.belegnummer, b.datei_sha256 as beleg_sha256,
                  ${JA_NEIN('bs.festgeschrieben')} as festgeschrieben,
                  ${ZEIT('bs.festgeschrieben_am')} as festgeschrieben_am,
@@ -162,10 +163,12 @@ export const TABELLEN: readonly TabellenSpezifikation[] = [
       { name: 'buchungstext', typ: 'text', text: 'Buchungstext' },
       { name: 'kostenstelle', typ: 'text', text: 'Kostenstelle' },
       { name: 'kostentraeger', typ: 'text', text: 'Kostenträger' },
-      { name: 'herkunft', typ: 'text', text: 'Herkunft: rechnung, eingangsrechnung, zahlung, manuell' },
+      /* Alle Werte des Enums aus 0127 — vorher fehlten ausgabe und kassenbewegung (V-215). */
+      { name: 'herkunft', typ: 'text', text: 'Herkunft: rechnung, eingangsrechnung, zahlung, ausgabe, kassenbewegung, manuell' },
       { name: 'rechnung_id', typ: 'text', text: 'Kennung der Ausgangsrechnung (rechnungen.csv)' },
       { name: 'eingangsrechnung_id', typ: 'text', text: 'Kennung der Eingangsrechnung (eingangsrechnungen.csv)' },
       { name: 'zahlung_id', typ: 'text', text: 'Kennung der Zahlung (zahlungen.csv)' },
+      { name: 'ausgabe_id', typ: 'text', text: 'Kennung der Betriebsausgabe (ausgaben.csv)' },
       { name: 'beleg_id', typ: 'text', text: 'Kennung des Belegs (belege.csv)' },
       { name: 'belegnummer', typ: 'text', text: 'Belegnummer' },
       { name: 'beleg_sha256', typ: 'text', text: 'SHA-256 der archivierten Belegdatei' },
@@ -312,6 +315,85 @@ export const TABELLEN: readonly TabellenSpezifikation[] = [
       { name: 'beleg_id', typ: 'text', text: 'Kennung des Belegs (belege.csv)' },
       { name: 'kostenstelle', typ: 'text', text: 'Kostenstelle' },
       { name: 'abgelehnt_grund', typ: 'text', text: 'Ablehnungsgrund' },
+    ],
+  },
+  /*
+   * **Die Betriebsausgaben** (V-215). Seit V-011 werden sie gebucht, und ihre
+   * Buchungszeilen standen im Journal — ohne den Kopf, auf den sie zeigen.
+   * Die Eingangsrechnungen hatten eine Tabelle, die Ausgaben nicht. Gelesen
+   * werden nur die Spalten, die cse_app halten darf: `anstellung_id` (wer
+   * eine Erstattung bekam) steht nicht im Recht (0180 §7) und gehört als
+   * Personendatum nicht in eine Datenüberlassung; ob eine Zeile eine
+   * Erstattung ist, sagt `ist_erstattung` über den protokollfreien Definer
+   * aus 0184, ohne Person.
+   */
+  {
+    name: 'ausgaben',
+    text: 'Betriebsausgaben des Wirtschaftsjahrs (nach Belegdatum) mit Kategorie, Beträgen, Zahlungsmittel, Beleg und Status — abgelehnte eingeschlossen, als solche gekennzeichnet.',
+    parameter: 'zeitraum',
+    sql: `select a.id::text as id, a.ausgabedatum::text as ausgabedatum,
+                 a.status::text as status, a.bezeichnung,
+                 a.kategorie_id::text as kategorie_id, k.schluessel as kategorie_schluessel,
+                 k.bezeichnung as kategorie,
+                 a.netto_cent::text as netto, a.steuer_cent::text as steuer, a.brutto_cent::text as brutto,
+                 a.zahlungsmittel::text as zahlungsmittel, a.kasse_id::text as kasse_id,
+                 a.beleg_id::text as beleg_id, a.eingangsrechnung_id::text as eingangsrechnung_id,
+                 a.auftrag_id::text as auftrag_id, a.projekt_id::text as projekt_id,
+                 a.objekt_id::text as objekt_id,
+                 ${JA_NEIN('a.weiterberechenbar')} as weiterberechenbar,
+                 ${JA_NEIN('app.ausgabe_ist_erstattung(a.id)')} as ist_erstattung,
+                 ${ZEIT('a.freigegeben_am')} as freigegeben_am, a.abgelehnt_grund,
+                 ${ZEIT('a.erstellt_am')} as erstellt_am
+            from ausgabe a
+            join ausgabe_kategorie k on k.id = a.kategorie_id and k.mandant_id = a.mandant_id
+           where a.mandant_id = $1::uuid and a.ausgabedatum between $2::date and $3::date
+           order by a.ausgabedatum, a.erstellt_am, a.id`,
+    spalten: [
+      { name: 'id', typ: 'text', schluessel: true, text: 'Kennung der Betriebsausgabe' },
+      { name: 'ausgabedatum', typ: 'datum', text: 'Belegdatum' },
+      { name: 'status', typ: 'text', text: 'erfasst, freigegeben, gebucht, abgelehnt' },
+      { name: 'bezeichnung', typ: 'text', text: 'Bezeichnung' },
+      { name: 'kategorie_id', typ: 'text', text: 'Kennung der Aufwandskategorie' },
+      { name: 'kategorie_schluessel', typ: 'text', text: 'Schlüssel der Aufwandskategorie' },
+      { name: 'kategorie', typ: 'text', text: 'Aufwandskategorie' },
+      { name: 'netto', typ: 'betrag', text: 'Netto EUR' },
+      { name: 'steuer', typ: 'betrag', text: 'Vorsteuer EUR' },
+      { name: 'brutto', typ: 'betrag', text: 'Brutto EUR' },
+      { name: 'zahlungsmittel', typ: 'text', text: 'Zahlungsmittel' },
+      { name: 'kasse_id', typ: 'text', text: 'Kennung der Kasse (bei Barzahlung)' },
+      { name: 'beleg_id', typ: 'text', text: 'Kennung des Belegs (belege.csv)' },
+      { name: 'eingangsrechnung_id', typ: 'text', text: 'Kennung der Eingangsrechnung, aus der die Ausgabe stammt (eingangsrechnungen.csv)' },
+      { name: 'auftrag_id', typ: 'text', text: 'Kennung des Auftrags (Kostenzuordnung)' },
+      { name: 'projekt_id', typ: 'text', text: 'Kennung des Projekts (Kostenzuordnung)' },
+      { name: 'objekt_id', typ: 'text', text: 'Kennung des Objekts (Kostenzuordnung)' },
+      { name: 'weiterberechenbar', typ: 'text', text: 'ja/nein — darf als Material weiterberechnet werden' },
+      { name: 'ist_erstattung', typ: 'text', text: 'ja/nein — Erstattung an eine Beschäftigte (ohne Person)' },
+      { name: 'freigegeben_am', typ: 'text', text: 'Freigabe, Europe/Berlin' },
+      { name: 'abgelehnt_grund', typ: 'text', text: 'Ablehnungsgrund' },
+      { name: 'erstellt_am', typ: 'text', text: 'Zeitpunkt der Erfassung, Europe/Berlin' },
+    ],
+  },
+  {
+    name: 'ausgabensteuer',
+    text: 'Aufteilung jeder Betriebsausgabe nach Steuersatz (Vorsteuer), für die Ausgaben aus ausgaben.csv.',
+    parameter: 'zeitraum',
+    sql: `select s.id::text as id, s.ausgabe_id::text as ausgabe_id,
+                 g.schluessel as steuersatz, s.satz_bp::text as satz_bp,
+                 s.kategorie::text as kategorie,
+                 s.netto_cent::text as netto, s.steuer_cent::text as steuer
+            from ausgabe_steuer s
+            join ausgabe a on a.id = s.ausgabe_id and a.mandant_id = s.mandant_id
+            join steuersatz_gruppe g on g.id = s.steuersatz_gruppe_id
+           where s.mandant_id = $1::uuid and a.ausgabedatum between $2::date and $3::date
+           order by a.ausgabedatum, s.ausgabe_id, g.schluessel, s.id`,
+    spalten: [
+      { name: 'id', typ: 'text', schluessel: true, text: 'Kennung der Steuerzeile' },
+      { name: 'ausgabe_id', typ: 'text', text: 'Kennung der Betriebsausgabe (ausgaben.csv)' },
+      { name: 'steuersatz', typ: 'text', text: 'Steuersatzgruppe (steuersaetze.csv)' },
+      { name: 'satz_bp', typ: 'zahl', text: 'Steuersatz in Basispunkten (1900 = 19 %)' },
+      { name: 'kategorie', typ: 'text', text: 'EN-16931-Steuerkategorie' },
+      { name: 'netto', typ: 'betrag', text: 'Netto EUR' },
+      { name: 'steuer', typ: 'betrag', text: 'Vorsteuer EUR' },
     ],
   },
   {

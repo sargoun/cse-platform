@@ -163,9 +163,15 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             /* Fail-closed: keine Richtlinie, also niemals ohne Menschen. */
             null,
           );
+          /*
+           * `versendetAm` kommt als Berliner Ortszeit `TT.MM.JJJJ HH:MM`
+           * (V-213) — vorher der rohe UTC-Text mit Mikrosekunden. Und der
+           * Satz sagt, was die Plattform tut: der Posten trägt den
+           * VERSANDtag als Beginn, nicht das Mahndatum (0125).
+           */
           return zurueck(anfrage, `/${mahnungId}`,
-            `Versand dokumentiert am ${ergebnis.versendetAm}. Ab dem Mahndatum läuft `
-            + 'der Verzug.');
+            `Versand dokumentiert am ${ergebnis.versendetAm} Uhr. Ab dem Versandtag `
+            + 'läuft der Verzug; das Schreiben ist abgelegt.');
         }
 
         return NextResponse.json({ fehler: 'unbekannte_aktion' }, { status: 400 });

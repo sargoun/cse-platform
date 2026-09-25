@@ -187,6 +187,98 @@ export function schlageVor(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Der Ausgang — an einen Lieferanten (V-216, D-707)
+// ---------------------------------------------------------------------------
+
+/** Ein offener Kreditorposten, wie der Abgleich ihn für einen Ausgang braucht. */
+export interface KreditorKandidat {
+  readonly id: string;
+  readonly eingangsrechnungId: string;
+  /** Die Rechnungsnummer DES LIEFERANTEN — sie steht im Verwendungszweck. */
+  readonly nummerLieferant: string | null;
+  /** Die eigene Belegnummer — manche Zahlungsläufe schreiben sie dazu. */
+  readonly belegnummer: string | null;
+  readonly lieferant: string;
+  readonly offenCent: bigint;
+}
+
+export interface AusgangVorschlag {
+  /** Nie `eindeutig`: einen Zahlungsausgang bestätigt ein Mensch. */
+  readonly art: 'mehrdeutig' | 'kein_treffer';
+  readonly kandidaten: readonly KreditorKandidat[];
+  readonly begruendung: string;
+}
+
+function nenne(k: readonly KreditorKandidat[]): string {
+  const namen = k.slice(0, 3).map((p) => `${p.lieferant} ${p.nummerLieferant ?? p.belegnummer ?? ''}`.trim());
+  return k.length > 3 ? `${namen.join(', ')} und ${String(k.length - 3)} weitere` : namen.join(', ');
+}
+
+/**
+ * Der Vorschlag zu einem AUSGANG: welche Verbindlichkeit er bezahlt haben
+ * könnte (V-216).
+ *
+ * **Ein Ausgang wird nie automatisch zugeordnet** (D-707). Beim Eingang sagt
+ * eine Kundenzahlung mit Betrag, Nummer und IBAN genug; beim Ausgang ist die
+ * Gesellschaft selbst der Zahlende, und ein Ausgang mit passendem Betrag kann
+ * ebenso gut eine Rückerstattung, eine Lohnzahlung oder eine Steuer sein. Die
+ * Kandidaten stehen im Satz, bestätigt wird in der Klärung.
+ *
+ * Gesucht wird wie beim Eingang: Betrag, dann die Rechnungsnummer des
+ * Lieferanten (oder die eigene Belegnummer) im Verwendungszweck.
+ */
+export function schlageVorAusgang(
+  umsatz: AbgleichUmsatz, offene: readonly KreditorKandidat[],
+): AusgangVorschlag {
+  if (umsatz.richtung !== 'ausgang') {
+    return { art: 'kein_treffer', kandidaten: [], begruendung: 'Kein Ausgang.' };
+  }
+  const zweck = `${umsatz.verwendungszweck} ${umsatz.referenz ?? ''}`;
+  const nummerPasst = (p: KreditorKandidat): boolean =>
+    (p.nummerLieferant !== null && nummerImZweck(zweck, p.nummerLieferant))
+    || (p.belegnummer !== null && nummerImZweck(zweck, p.belegnummer));
+  const betragGleich = offene.filter((p) => p.offenCent === umsatz.betragCent);
+  const beides = betragGleich.filter(nummerPasst);
+
+  if (beides.length > 0) {
+    return {
+      art: 'mehrdeutig',
+      kandidaten: beides,
+      begruendung:
+        `Betrag und Rechnungsnummer passen auf ${nenne(beides)}. Ein Zahlungsausgang `
+        + 'wird nicht automatisch zugeordnet — ein Mensch bestätigt ihn.',
+    };
+  }
+  if (betragGleich.length > 0) {
+    return {
+      art: 'mehrdeutig',
+      kandidaten: betragGleich,
+      begruendung:
+        `Der Betrag passt auf ${nenne(betragGleich)}, im Verwendungszweck steht aber `
+        + 'keine Rechnungsnummer. Ein Betrag allein ordnet nichts zu.',
+    };
+  }
+  const nurNummer = offene.filter(nummerPasst);
+  if (nurNummer.length > 0) {
+    return {
+      art: 'mehrdeutig',
+      kandidaten: nurNummer,
+      begruendung:
+        `Die Rechnungsnummer von ${nenne(nurNummer)} steht im Verwendungszweck, der `
+        + 'Betrag weicht ab — Teilzahlung, Skonto oder Sammelüberweisung. Ein Mensch entscheidet.',
+    };
+  }
+  return {
+    art: 'kein_treffer',
+    kandidaten: [],
+    begruendung:
+      'Kein offener Kreditorposten passt auf Betrag oder Rechnungsnummer — Gebühr, '
+      + 'Lohn, Steuer oder eine Zahlung ohne gebuchte Eingangsrechnung. Der Umsatz '
+      + 'bleibt in der Klärung.',
+  };
+}
+
 /** Nur ein `eindeutig`-Treffer darf ohne Menschen gebucht werden. */
 export function darfAutomatischBuchen(v: Vorschlag): boolean {
   return v.art === 'eindeutig';

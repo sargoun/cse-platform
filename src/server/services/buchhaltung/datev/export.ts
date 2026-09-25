@@ -3,8 +3,10 @@ import { createHash } from 'node:crypto';
 import type { Speicher } from '../../../storage/adapter.js';
 import { legeErzeugtAb } from '../../dokument/erzeugt.js';
 import { exportPaket, type Exportpaket } from '../exportpaket.js';
+import { wirtschaftsjahrVon } from '../wirtschaftsjahr.js';
+import { tagDeutsch } from '../../../../lib/datum/kalendertag.js';
 import {
-  FORMAT_SPEZIFIKATIONSABGELEITET, schreibeExtf,
+  FORMAT_SPEZIFIKATIONSABGELEITET, schreibeExtf, stapelBezeichnung,
   type ExtfBuchung, type ExtfKopf,
 } from './extf.js';
 
@@ -42,7 +44,10 @@ export interface Abfrage {
 }
 
 export class ExportFehler extends Error {
-  constructor(nachricht: string, readonly grund: 'stammdaten' | 'leer' | 'speicher') {
+  constructor(
+    nachricht: string,
+    readonly grund: 'stammdaten' | 'leer' | 'speicher' | 'wirtschaftsjahr',
+  ) {
     super(nachricht);
     this.name = 'ExportFehler';
   }
@@ -98,6 +103,40 @@ export function wirtschaftsjahrBeginn(
     : `${String(jahr - 1)}-${mm}-${tt}`;
 }
 
+/**
+ * Der WJ-Beginn, der INNERHALB von `von` … `bis` liegt — oder `null`, wenn der
+ * Zeitraum in einem Wirtschaftsjahr bleibt. Dieselbe Rechnung für die
+ * Vorschau der Seite und für den Riegel des Dienstes (V-212).
+ */
+export function wirtschaftsjahrGrenzeIm(
+  von: string, bis: string, monat: number, tag: number,
+): string | null {
+  const wj = { beginnMonat: monat, beginnTag: tag, istPlatzhalter: false };
+  if (wirtschaftsjahrVon(von, wj) === wirtschaftsjahrVon(bis, wj)) return null;
+  return wirtschaftsjahrBeginn(bis, monat, tag);
+}
+
+/**
+ * Wirft, wenn `von` und `bis` in verschiedenen Wirtschaftsjahren liegen.
+ *
+ * Monat und Tag des WJ-Beginns kommen aus den Stammdaten, die
+ * `app.datev_stammdaten` gerade geprüft zurückgegeben hat — dieselben Werte,
+ * die der Stapel einfriert. Keine eigene Annahme über das Wirtschaftsjahr:
+ * welches gilt, ist O-05.
+ */
+export function pruefeEinWirtschaftsjahr(
+  von: string, bis: string, monat: number, tag: number,
+): void {
+  const grenze = wirtschaftsjahrGrenzeIm(von, bis, monat, tag);
+  if (grenze === null) return;
+  throw new ExportFehler(
+    `Der Zeitraum ${tagDeutsch(von)} bis ${tagDeutsch(bis)} reicht über den `
+    + `Beginn des Wirtschaftsjahres am ${tagDeutsch(grenze)}. Ein DATEV-Stapel `
+    + 'umfasst höchstens ein Wirtschaftsjahr: das Belegdatum steht in der Datei '
+    + 'ohne Jahr, das Jahr kommt aus dem Kopf. Bitte in zwei Stapel teilen.',
+    'wirtschaftsjahr');
+}
+
 /** `EXTF_Buchungsstapel_2026-08-01_2026-08-31.csv` — ohne Umlaute, ohne Leerzeichen. */
 export function exportDateiname(von: string, bis: string): string {
   return `EXTF_Buchungsstapel_${von}_${bis}.csv`;
@@ -125,14 +164,26 @@ export async function erzeugeDatevExport(
       'stammdaten');
   }
 
+  /*
+   * **Ein Stapel, ein Wirtschaftsjahr (V-212).** Das Belegdatum steht in
+   * jeder Zeile als `TTMM` — das Jahr kommt aus dem WJ-Beginn im Kopf, und der
+   * wird aus `von` abgeleitet. Ein Zeitraum 01.12.2025–31.01.2026 bei
+   * Kalender-WJ schrieb eine Buchung vom 15.01.2026 als `1501` unter den
+   * WJ-Beginn 2025: für DATEV der 15.01.2025. DATEV nimmt einen Stapel über
+   * zwei Wirtschaftsjahre nicht an — und die Zeilen waren da schon als
+   * exportiert gestempelt. Geprüft wird VOR dem Paket und vor dem Stempel;
+   * die Datenbank prüft dasselbe noch einmal an der Zeile (0445).
+   */
+  pruefeEinWirtschaftsjahr(von, bis, stamm.wj_beginn_monat, stamm.wj_beginn_tag);
+
   /* Die Exportsperre aus PR 59 sitzt in `exportPaket` — sie wirft, nicht wir. */
   const paket: Exportpaket = await exportPaket(db, mandantId, von, bis);
 
   if (paket.zeilen.length === 0) {
     throw new ExportFehler(
-      `Im Zeitraum ${von} bis ${bis} steht keine Buchungszeile. Eine leere `
-      + 'EXTF-Datei ist keine Aussage — sie sieht aus wie ein Monat ohne '
-      + 'Geschäft.',
+      `Im Zeitraum ${tagDeutsch(von)} bis ${tagDeutsch(bis)} steht keine `
+      + 'Buchungszeile. Eine leere EXTF-Datei ist keine Aussage — sie sieht '
+      + 'aus wie ein Monat ohne Geschäft.',
       'leer');
   }
 
@@ -177,7 +228,7 @@ export async function erzeugeDatevExport(
     sachkontenlaenge: stamm.sachkontenlaenge,
     von,
     bis,
-    bezeichnung: `Buchungsstapel ${von} bis ${bis}`,
+    bezeichnung: stapelBezeichnung(von, bis),
     kontenrahmen: stamm.kontenrahmen,
     festschreibung: stamm.festschreibung,
     exportiertVon: ausgeloestVon,

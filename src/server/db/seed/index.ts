@@ -978,13 +978,20 @@ async function main(): Promise<void> {
       [2, 'Erste Mahnung (unbestätigt)', 28],
       [3, 'Letzte Mahnung (unbestätigt)', 42],
     ] as const) {
+      /*
+       * Der Mahntext (V-214) als ausdrücklicher PLATZHALTER, kein Wortlaut:
+       * was eine Erinnerung oder eine letzte Mahnung sagt, entscheidet die
+       * Gesellschaft. So zeigen Vorlagenseite und Schreiben, WO er steht.
+       */
+      const mahntext = `PLATZHALTER (O-19): Der Mahntext der Stufe ${String(stufe)} `
+        + 'kommt von der Gesellschaft und wird unter Einstellungen › Mahnwesen eingetragen.';
       await sql`
         insert into mahnstufe
           (mandant_id, stufe, bezeichnung, tage_nach_faelligkeit, gebuehr_cent,
-           zinsberechnung, ist_platzhalter, gueltig_ab,
+           zinsberechnung, textbaustein, ist_platzhalter, gueltig_ab,
            erstellt_von_art, erstellt_von_dienst)
         values (${ids.get(b.slug)!}, ${stufe}, ${bez}, ${tage}, 0,
-                'keine', true, ${heute}, 'system', 'job:seed')
+                'keine', ${mahntext}, true, ${heute}, 'system', 'job:seed')
         on conflict do nothing`;
     }
   }

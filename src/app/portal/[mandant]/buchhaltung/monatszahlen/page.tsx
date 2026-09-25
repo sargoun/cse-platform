@@ -86,8 +86,8 @@ export default async function MonatszahlenSeite(
       </div>
       <Hinweis cse="monatszahlen-lesart" className="mb-s5 max-w-prose">
         <strong>BWA-artig — keine Betriebswirtschaftliche Auswertung.</strong> Erlöse sind die festgeschriebenen Ausgangsrechnungen nach
-        Rechnungsdatum (netto), Aufwand die freigegebenen und gebuchten Eingangsrechnungen (netto),
-        Ergebnis die Differenz. Personal, Abschreibungen, Abgrenzungen und Steuern fehlen — die
+        Rechnungsdatum (netto), Aufwand die freigegebenen und gebuchten Eingangsrechnungen nach
+        Rechnungsdatum und Betriebsausgaben nach Belegdatum (netto), Ergebnis die Differenz. Personal, Abschreibungen, Abgrenzungen und Steuern fehlen — die
         Betriebswirtschaftliche Auswertung erstellt der Steuerberater aus dem DATEV-Export.
         Wirtschaftsjahr ab {String(z.wirtschaftsjahr.beginnTag)}.{String(z.wirtschaftsjahr.beginnMonat)}.
         {z.wirtschaftsjahr.istPlatzhalter ? ' — angenommen (O-05).' : '.'}
@@ -114,13 +114,28 @@ export default async function MonatszahlenSeite(
               </Link>
             ) : geld(m.erloeseCent)) },
           { schluessel: 'rechnungen', kopf: 'Rechnungen', numerisch: true, zelle: (m) => String(m.rechnungen) },
-          { schluessel: 'aufwand', kopf: 'Aufwand netto', numerisch: true,
+          /*
+            * **Aufwand aus zwei Quellen** (V-215): Eingangsrechnungen und
+            * Betriebsausgaben — je mit ihrem Verweis, und die Summe daneben.
+            * Vorher stand hier nur die erste, und das Ergebnis war um jede
+            * gebuchte Tankquittung zu hoch.
+            */
+          { schluessel: 'eingang', kopf: 'Eingangsrechnungen netto', numerisch: true,
             zelle: (m) => (darf['eingang.lesen'] === true ? (
-              <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen?monat=${m.monat}`} data-cse="monat-aufwand"
+              <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen?monat=${m.monat}`} data-cse="monat-eingang"
                     className="underline-offset-2 hover:text-brand hover:underline">
-                {geld(m.aufwandCent)}
+                {geld(m.aufwandEingangCent)}
               </Link>
-            ) : geld(m.aufwandCent)) },
+            ) : geld(m.aufwandEingangCent)) },
+          { schluessel: 'ausgaben', kopf: 'Betriebsausgaben netto', numerisch: true,
+            zelle: (m) => (darf['eingang.lesen'] === true ? (
+              <Link href={`/portal/${mandant}/finanzen/ausgaben?monat=${m.monat}&aufwand=ja`} data-cse="monat-ausgaben"
+                    className="underline-offset-2 hover:text-brand hover:underline">
+                {geld(m.aufwandAusgabenCent)}
+              </Link>
+            ) : geld(m.aufwandAusgabenCent)) },
+          { schluessel: 'aufwand', kopf: 'Aufwand netto', numerisch: true,
+            zelle: (m) => <span data-cse="monat-aufwand" data-cent={m.aufwandCent.toString()}>{geld(m.aufwandCent)}</span> },
           { schluessel: 'ergebnis', kopf: 'Ergebnis', numerisch: true,
             zelle: (m) => <strong data-cse="monat-ergebnis" data-cent={m.ergebnisCent.toString()}>{geld(m.ergebnisCent)}</strong> },
           { schluessel: 'periode', kopf: 'Monat',
