@@ -19775,3 +19775,53 @@ iCal-Feed stehen.
 
 | Betrifft | REC-06, CAL-01, CAL-03, Invariante 2, Invariante 5, Invariante 7, Invariante 8, V-220, `drizzle/0471_gespraech_absage_vermerk.sql`, `src/server/services/recruiting/{gespraech,dienst}.ts`, `src/app/api/recruiting/gespraeche/[id]/route.ts`, `src/app/portal/[mandant]/recruiting/gespraeche/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/marken.ts`, `src/lib/i18n/verwaltung/recruiting-gespraech.ts`, `src/lib/datum/formularzeit.ts`, `src/server/db/seed/gespraech.ts`, `tests/isolation/recruiting-gespraech.test.ts`, `tests/isolation/kalender.test.ts` |
 |---|---|
+
+### D-715 · Der Kalender legt seine eigenen Termine an, ändert und sagt sie ab — nur Besprechung, Kundentermin und sonstigen Termin (V-221)
+
+**Der Befund** (V-221; Audit-Befund 46, CAL-01): `kalender_eintrag` kannte
+seit 0160 die Arten `besprechung`, `kundentermin` und `sonstiges`. Kein
+Bildschirm und keine Route legte einen solchen Termin an, änderte oder sagte
+ihn ab; Besprechungen und Kundentermine entstanden nur im Seed, und
+`abgesagt_am` setzte niemand, obwohl die Terminseite „Abgesagt" anzeigt und
+der iCal-Ausgang `STATUS:CANCELLED` schreibt.
+
+**Die Entscheidung.**
+
+1. **Ein Dienst, drei Wege** (`services/kalender/termin.ts`):
+   `legeTerminAn`, `aendereTermin`, `sageTerminAb`; Routen
+   `POST /api/kalender/eintraege` (anlegen) und
+   `POST /api/kalender/eintraege/[id]` mit Feld `aktion` (`aendern` |
+   `absagen`) — die Adressen der API-Karte, POST statt PATCH, weil ein
+   Browserformular kein PATCH kennt (D-599). Recht: `kalender.schreiben`,
+   dasselbe, das `t_kalender_schreiben` (0160) in der zweiten Linie prüft.
+2. **Nur, was der Kalender besitzt.** Wiedervorlagen gehören dem CRM (es
+   spiegelt sie hierher), Bewerbungsgespräche dem Recruiting (eigene Tabelle,
+   V-220). Ein Termin dieser Arten wird hier weder geändert noch abgesagt
+   (`fremde_art`); die Terminseite verweist auf die Quelle. Zwei Wahrheiten
+   über denselben Termin sind genau das, wogegen 0160 gebaut ist.
+3. **Die Zeit ist ein Instant** (Invariante 2): die Berliner Wanduhr des
+   Formulars löst `planEingabe` bzw. `berlinTagesZeitpunkt` auf; ganztägig
+   heisst Berliner Mitternacht bis Berliner Mitternacht NACH dem letzten Tag
+   (wie iCal) — an einem Umstellungstag 23 oder 25 Stunden, und das ist
+   richtig. `tests/kern/kalender-termin.test.ts` hält 22:00–06:00, beide
+   Umstellungsnächte und den ganztägigen Umstellungstag.
+4. **Absagen heisst: stehen lassen** — mit Grund (CHECK
+   `ke_absage_begruendet`, 0160) und Zeitpunkt der DATENBANK; danach ändert
+   niemand den Termin mehr. Gelöscht wird nichts. Jede Änderung und jede
+   Absage steht im Prüfprotokoll (vorher/nachher).
+5. **Wer anlegt, führt den Termin**; Teilnehmende nur aus DIESER
+   Gesellschaft und nur, wer sie unter RLS sehen darf
+   (`system.benutzer_lesen`) — dieselbe Grenze in der Auswahl des Formulars
+   wie im Dienst. Wer ändert, übernimmt die Führung nicht.
+6. **Bildschirme:** `/kalender/neu` (neu, ganz zweisprachig), „Neuer Termin"
+   auf `/kalender` nur mit `kalender.schreiben`, „Termin ändern" und
+   „Absagen" auf `/kalender/[id]`; ein Formular (`TerminFormular.tsx`) für
+   beide Wege, Rückweg mit Grund und Maske (V-240).
+7. **Einladungen gehen nicht hinaus.** Der Termin steht im Kalender der
+   Teilnehmenden und in ihrem Abonnement; eine E-Mail an Kunden entsteht
+   hier nicht (Invariante 7).
+8. **Der Seed** legt über die Dienste eine Besprechung, einen Kundentermin
+   und einen abgesagten Kundentermin (mit Grund) in der Reinigung an.
+
+| Betrifft | CAL-01, CAL-02, CAL-03, Invariante 2, Invariante 5, Invariante 7, Invariante 8, V-221, D-599, V-240, `src/server/services/kalender/termin.ts`, `src/app/api/kalender/eintraege/{route,termin-rumpf}.ts`, `src/app/api/kalender/eintraege/[id]/route.ts`, `src/app/portal/[mandant]/kalender/{page,TerminFormular}.tsx`, `src/app/portal/[mandant]/kalender/neu/page.tsx`, `src/app/portal/[mandant]/kalender/[id]/page.tsx`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/termine.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/kalender-termin.test.ts` |
+|---|---|

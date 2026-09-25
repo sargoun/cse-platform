@@ -36,6 +36,7 @@ import { seedSocial } from './social.js';
 import { seedReferenzAusAuftrag } from './referenzauftrag.js';
 import { seedRecruiting } from './recruiting.js';
 import { seedGespraeche } from './gespraech.js';
+import { seedTermine } from './termine.js';
 import { seedAkquise } from './akquise.js';
 import { seedBerichtsdaten } from './berichtsdaten.js';
 import { seedRadar, seedRadarLead } from './radar.js';
@@ -1987,6 +1988,17 @@ async function main(): Promise<void> {
       + `${String(berichtsdaten.zeiten)} freigegebene Zeiten und `
       + `${String(berichtsdaten.termine)} Termine — damit jede Gesellschaft in jedem der `
       + 'sechs Berichte und im Kalender eine Zeile hat\n');
+  }
+
+  /*
+   * Eigene Termine über den Dienst (V-221, D-715) — NACH den Berichtslücken:
+   * die legen ihre Termine nur in eine Gesellschaft, die noch keinen hat.
+   */
+  const termine = await seedTermine(sql, ids, demodaten);
+  if (termine.angelegt > 0) {
+    process.stdout.write(
+      `  Kalender: ${String(termine.angelegt)} eigene Termine über den Dienst, davon `
+      + `${String(termine.abgesagt)} abgesagt (mit Grund, bleibt stehen)\n`);
   }
 
   /**

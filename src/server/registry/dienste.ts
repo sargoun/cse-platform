@@ -1727,6 +1727,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'recruiting', pfad: 'recruiting/gespraech', schreibend: true,
     schreibRecht: 'kalender.schreiben',
   },
+  /* Die eigenen Termine des Kalenders (CAL-01, V-221, D-715). */
+  {
+    modul: 'kalender', pfad: 'kalender/termin', schreibend: true,
+    schreibRecht: 'kalender.schreiben',
+  },
   /* =====================================================================
    * **Die Domaenenwelle (Routenbau, 117 offene Adressen).** Fuenfzehn
    * Domaenen, nacheinander gebaut, gepruefet und behoben; die Eintraege lagen

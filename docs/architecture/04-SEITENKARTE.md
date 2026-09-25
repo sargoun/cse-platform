@@ -1641,6 +1641,7 @@ defaults to "keep forever" or "delete after a year" is both a GoBD risk and a DS
 |---|---|---|---|---|
 | `/portal/[mandant]/kalender` — month · week · day | `kalender.lesen` | `M1` | CAL-01, CAL-02 | 9 |
 | `/portal/[mandant]/kalender/[id]` | `kalender.lesen` / `kalender.schreiben` | `M1` | CAL-01 | 9 |
+| `/portal/[mandant]/kalender/neu` — a meeting, customer appointment or other own appointment | `kalender.lesen` + `kalender.schreiben` | `M1` | CAL-01 | 9 |
 | `/portal/[mandant]/nachrichten` , `/[id]` — the staff-side thread inbox | `nachricht.lesen` / `nachricht.versenden` | `M1` | EMP-11, NOT-03, SPEC §22 `nachricht` | 3 |
 | `/portal/[mandant]/benachrichtigungen` — notification centre; every item links to its record | `bericht.dashboard_lesen` | `M1` | NOT-01, NOT-03 | **2** |
 

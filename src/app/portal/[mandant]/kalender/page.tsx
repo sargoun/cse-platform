@@ -13,6 +13,10 @@ import {
   ankerAus, ansichtAus, fensterFuer, monatsGitter, teile, type Ansicht,
 } from '@/server/services/kalender/fenster';
 import { nachTagen, type Tageszeile } from '@/server/services/kalender/tagesraster';
+import { haeltRechte } from '@/app/portal/rechte';
+import { internSprache } from '@/lib/i18n/intern';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KALENDER_TERMIN_TEXTE } from '@/lib/i18n/verwaltung/kalender-termin';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../unterseite';
 import { QuellenPill, quellenWort } from './QuellenPill';
@@ -139,6 +143,14 @@ export default async function Kalender({ params, searchParams }: {
    * Eintrag an seinem Rand beginnt und nicht an seinem eigenen Anfang.
    */
   const proTag = nachTagen(zeilen, { von: fenster.abfrageVon, bis: fenster.abfrageBis });
+  /*
+   * V-221: „Neuer Termin" nur mit dem Recht, das die Seite dahinter verlangt
+   * (`kalender.schreiben`, Manifest) — ein Knopf vor einem 404 verrät, was er
+   * nicht zeigen darf (AUT-06, D-567).
+   */
+  const darfSchreiben = (await haeltRechte(zugang.sitzung, 'kalender.schreiben'))[
+    'kalender.schreiben'] === true;
+  const tt = nachSprache(KALENDER_TERMIN_TEXTE, internSprache(zugang.sprache));
   const wurzel = `/portal/${mandant}/kalender`;
   const adresse = (aenderung: {
     tag?: string; ansicht?: Ansicht; quellen?: string | null; eigene?: boolean;
@@ -173,10 +185,18 @@ export default async function Kalender({ params, searchParams }: {
             nicht aus einer Kopie.
           </p>
         </div>
-        <Link href={alsRoute('/portal/konto/kalender-feed')} data-cse="zum-feed"
-              className="text-sm text-text underline underline-offset-2">
-          Als Kalender abonnieren
-        </Link>
+        <div className="flex flex-wrap items-baseline gap-s4">
+          {darfSchreiben && (
+            <Link href={alsRoute(`/portal/${mandant}/kalender/neu`)} data-cse="termin-neu-link"
+                  className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm text-white hover:bg-brand-hover">
+              {tt.neuerTermin}
+            </Link>
+          )}
+          <Link href={alsRoute('/portal/konto/kalender-feed')} data-cse="zum-feed"
+                className="text-sm text-text underline underline-offset-2">
+            Als Kalender abonnieren
+          </Link>
+        </div>
       </div>
 
       <div className="mb-s5 flex flex-wrap items-center gap-s4" data-cse="kalender-steuerung">
