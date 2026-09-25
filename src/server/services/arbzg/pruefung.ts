@@ -59,8 +59,10 @@ export class ArbzgFehler extends Error {
 /**
  * Das Fenster, das gelesen wird — und warum es nicht der Tag ist.
  *
- * § 5 ArbZG misst die Ruhezeit **zwischen** zwei Schichten, also muss der
- * Abend davor und der Morgen danach mit hinein. Ein Tagesfenster faende die
+ * § 5 ArbZG misst die Ruhezeit **zwischen** zwei Arbeitstagen — nach dem
+ * Ende der täglichen Arbeitszeit, nicht zwischen zwei Teilen eines geteilten
+ * Dienstes (V-190, `Arbeitstagsgrenze`, O-926) —, also muss der Abend davor
+ * und der Morgen danach mit hinein. Ein Tagesfenster faende die
  * Unterschreitung nie: die Schicht, die um 23:00 endet, und die, die um 07:00
  * beginnt, liegen an zwei Kalendertagen. Eine Pruefung, die den einen Fall
  * nicht sehen kann, den sie pruefen soll, ist schlimmer als keine.
