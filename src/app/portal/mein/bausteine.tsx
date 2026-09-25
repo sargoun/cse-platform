@@ -5,8 +5,14 @@ import { AreaBadge } from '@/components/ui/AreaBadge';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
 import { stundenMinutenText } from '@/lib/datum/stunden';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import type { BereichSchluessel } from '@/lib/design/theme';
-import type { MeinTexte, PortalSprache } from '@/lib/i18n/texte';
+import {
+  EINWAND_ART_TEXTE, EINWAND_STATUS_TEXTE, PORTAL_BCP47,
+  type MeinTexte, type PortalSprache,
+} from '@/lib/i18n/texte';
+import type { EinwandZeile } from '@/server/services/zeit/einwand';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import type { EigeneSchicht } from '@/server/services/mitarbeiter/schichten';
 import type { OffenerEintrag } from '@/server/services/mitarbeiter/stempeluhr';
 import { Button } from '@/components/ui/Button';
@@ -209,6 +215,78 @@ export function Abgewiesen({ titel, text, zusatz, marke = 'abgewiesen' }: {
       <p className="m-0 mt-s1">{text}</p>
       {zusatz !== undefined && zusatz !== null && <p className="m-0 mt-s1">{zusatz}</p>}
     </div>
+  );
+}
+
+/**
+ * Die eigenen Einwände und was aus ihnen wurde (V-051, V-189, EMP-07).
+ *
+ * Steht hier, weil ZWEI Seiten sie zeigen: der Einwand zu einem Eintrag
+ * (`/portal/mein/zeiten/[id]/einwand`) und „Eine Zeit fehlt" ohne Eintrag
+ * (`/portal/mein/zeiten/einwand`). Zwei Abschriften derselben Liste gingen
+ * beim nächsten Feld auseinander.
+ *
+ * **Die Begründung der Planung wird NICHT übersetzt:** sie ist eine Aussage
+ * eines Menschen über einen Einzelfall, keine Beschriftung. Übersetzt werden
+ * die Wörter darum herum. Das Datum steht in Berliner Zeit (Invariante 2),
+ * der Zustand als Wort, nie als Enum-Wert.
+ */
+export function EinwandListe({ einwaende, texte, sprache }: {
+  readonly einwaende: readonly EinwandZeile[];
+  readonly texte: MeinTexte;
+  readonly sprache: PortalSprache;
+}) {
+  const t = texte;
+  const arten = EINWAND_ART_TEXTE[sprache];
+  const statusWort = EINWAND_STATUS_TEXTE[sprache];
+  const tagFormat = new Intl.DateTimeFormat(PORTAL_BCP47[sprache], {
+    timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const tagText = (wert: Date | null): string => (wert === null ? '—' : tagFormat.format(wert));
+  if (einwaende.length === 0) return <Leer text={t.keineEintraege} />;
+  return (
+    <ul data-cse="eigene-einwaende" className="m-0 flex list-none flex-col gap-s3 p-0">
+      {einwaende.map((e) => {
+        const entschieden = e.entschiedenAm !== null;
+        return (
+          <li key={e.id} data-cse="einwand-zeile"
+              className="rounded-lg border border-line bg-surface p-s4">
+            <Felder>
+              <Feld label={t.status}>
+                <span data-cse="einwand-status">{eigenerEintrag(statusWort, e.status) ?? '—'}</span>
+              </Feld>
+              <Feld label={t.einwandArt}>{arten[e.art]}</Feld>
+              <Feld label={t.datum}>
+                <span className="cse-zahl">{tagDeutsch(e.betrifftDatum)}</span>
+              </Feld>
+              <Feld label={t.einwandEingereichtAm}>
+                <span className="cse-zahl">{tagText(e.eingereichtAm)}</span>
+              </Feld>
+              <Feld label={t.einwandBegruendung}>{e.begruendung}</Feld>
+            </Felder>
+
+            {entschieden ? (
+              <div data-cse="einwand-entscheidung"
+                   className="mt-s4 border-t border-line pt-s4">
+                <Felder>
+                  <Feld label={t.einwandEntschiedenAm}>
+                    <span className="cse-zahl">{tagText(e.entschiedenAm)}</span>
+                  </Feld>
+                  <Feld label={t.einwandEntscheidung}>
+                    {e.entscheidungBegruendung ?? t.einwandOhneBegruendung}
+                  </Feld>
+                </Felder>
+              </div>
+            ) : (
+              <p data-cse="einwand-wartet"
+                 className="m-0 mt-s4 border-t border-line pt-s4 text-base text-text-muted">
+                {t.einwandWartet}
+              </p>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

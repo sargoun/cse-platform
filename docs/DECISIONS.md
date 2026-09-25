@@ -18208,3 +18208,54 @@ Prüfer hat das selbst widerlegt —, sondern als JSON-400 (`ZeitraumFehler`).
 
 | Betrifft | EMP-10, O-139, D-599, D-656, D-681, V-188, `src/server/services/abwesenheit/{index,tage}.ts`, `src/app/api/mein/abwesenheit/route.ts`, `src/app/api/personal/abwesenheit/route.ts`, `src/app/portal/mein/abwesenheit/neu/page.tsx`, `src/app/portal/[mandant]/personal/abwesenheiten/erfassen/page.tsx`, `src/lib/i18n/{mein-formulare.ts,verwaltung/personal.ts}`, `tests/kern/meldung-rueckweg.test.ts`, `tests/isolation/meldung-rueckweg.test.ts` |
 |---|---|
+
+### D-683 · „Eine Zeit fehlt" hat einen eigenen Weg — ohne Eintrag, mit Beschäftigung, und das Absenden endet auf einer Seite (V-189)
+
+**Der Befund** (V-189; Befund 36 der Prüfung): `zeit_einwand.zeiteintrag_id`
+ist genau für den Fall nullbar, dass es keinen Eintrag gibt (0052: „ich
+habe gearbeitet, es steht nichts da" — Einstempeln vergessen, Marke
+gescheitert), und V-067 hat auf der Planerseite den Zweig `e.eintrag ===
+null` samt „Zeit nacherfassen" gebaut. Das einzige Formular der Arbeiterin,
+`/portal/mein/zeiten/[id]/einwand`, antwortete ohne Eintrag mit 404 und
+schickte die Kennung des Eintrags immer mit. Der häufigste Fall im
+Lohnstreit hatte keinen Weg. Dazu: das Absenden endete auf einer weissen
+Seite mit `{"einwand": "…"}`, ein Ende vor dem Beginn (`ze_fenster`) als
+500.
+
+**Die Entscheidung.**
+
+1. **Eine eigene Seite `/portal/mein/zeiten/einwand`** („Eine Zeit
+   fehlt"): Beschäftigung als Pflichtwahl (D-09), Tag (Pflicht, höchstens
+   heute nach der Uhr der Datenbank), behaupteter Beginn und Ende und Pause
+   (freiwillig — wer die Uhrzeit nicht weiss, schreibt es in die
+   Begründung; der Dienst verlangt sie nicht, und diese Seite erfindet keine
+   Pflicht), Begründung (Pflicht). Die Art steht fest (`eintrag_fehlt`), und
+   es reist KEIN `zeiteintrag` mit. Darunter die eigenen Meldungen ohne
+   Eintrag mit Zustand und Entscheidung (`EinwandListe`, jetzt ein
+   Baustein, den auch der Einwand zu einem Eintrag benutzt).
+2. **Derselbe Weg wie der Einwand zu einem Eintrag:** `POST
+   /api/zeit/einwand`, Mandant aus der Beschäftigung (K-02), `withTenant`
+   mit `portal: 'mitarbeiter'`, Policy `t_selbst_einreichen`. Keine zweite
+   Route. Die behauptete Zeit bleibt eine Behauptung (Invariante 5), als
+   Berliner Wanduhrzeit gelesen — auch über Mitternacht und die Nacht der
+   Zeitumstellung.
+3. **Zwei Einstiege:** „Meine Zeiten" verweist darauf, und das Blatt einer
+   BEENDETEN Schicht fragt, ob es einen eigenen Eintrag gibt
+   (`eigenerEintragZurSchicht`, Personen-Scope): gibt es einen, führt es zu
+   ihm (dort steht der Einwand); gibt es keinen, zu „Eine Zeit fehlt",
+   vorbelegt mit Tag und Beschäftigung (vorbelegt wird nur, was die Seite
+   anbietet, D-733 Nr. 4).
+4. **Ein Formular bekommt eine Seite zurück, kein JSON** (D-599): beide
+   Einwandformulare schicken `maske` und `zurueck`; die Route leitet einen
+   Erfolg mit `?gemeldet=1` auf die Seite, die die Meldung zeigt, und eine
+   Abweisung als Grund auf die Maske (`EINWAND_FORM_TEXTE`, vier Sprachen).
+   Ein Ende vor dem Beginn prüft die Route vor der Datenbank
+   (`fenster_verkehrt`, dieselbe Bedingung wie `ze_fenster`); 23514, 23503
+   und 22007/22008 sind die zweite Linie (`datenbankGrund`). Ohne `maske`
+   und `zurueck` antwortet die Route wie bisher mit JSON. Die Begründung
+   reist nicht in der Adresse.
+5. **VOLLSTÄNDIGKEIT §9.1 ist präzisiert:** die damalige Widerlegung
+   betraf nur die wählbare Art, nicht den Fall ohne Eintrag.
+
+| Betrifft | EMP-07, TIM-11, D-09, D-599, D-733, V-051, V-067, V-189, `drizzle/0052`, `src/app/portal/mein/zeiten/{einwand,[id]/einwand}/page.tsx`, `src/app/portal/mein/zeiten/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/page.tsx`, `src/app/portal/mein/bausteine.tsx` (`EinwandListe`), `src/app/api/zeit/einwand/route.ts`, `src/server/services/mitarbeiter/zeiten.ts` (`eigenerEintragZurSchicht`), `src/lib/i18n/mein-formulare.ts`, `docs/architecture/04-SEITENKARTE.md` §7, `tests/kern/einwand-ohne-eintrag.test.ts`, `tests/isolation/einwand-ohne-eintrag.test.ts` |
+|---|---|

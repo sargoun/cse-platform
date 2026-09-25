@@ -359,17 +359,25 @@ describe('(2) es gibt keinen Weg, der einen Zeiteintrag aendert (EMP-07)', () =>
     expect(quelle).toContain('zeit.abwesenheit_melden');
   });
 
-  it('unter `/portal/mein/zeiten` steht GENAU EIN Formular — der Einwand', () => {
+  /*
+   * Seit V-189 sind es ZWEI — beide der Einwand: zu einem Eintrag und
+   * „Eine Zeit fehlt" ohne Eintrag (der Fall, fuer den
+   * `zeit_einwand.zeiteintrag_id` nullbar ist). Kein Formular bearbeitet eine
+   * Zeit.
+   */
+  it('unter `/portal/mein/zeiten` stehen nur die zwei Einwandformulare', () => {
     const mitFormular = dateien(join(MEIN, 'zeiten'))
       .filter((d) => /<form/u.test(readFileSync(d, 'utf8')))
-      .map((d) => d.replace(`${MEIN}/`, ''));
-    expect(mitFormular).toEqual(['zeiten/[id]/einwand/page.tsx']);
+      .map((d) => d.replace(`${MEIN}/`, ''))
+      .sort();
+    expect(mitFormular).toEqual(['zeiten/[id]/einwand/page.tsx', 'zeiten/einwand/page.tsx']);
   });
 
-  it('und dieses Formular zeigt auf die vorhandene Einwandroute, nicht auf eine zweite', () => {
-    const quelle = readFileSync(
-      join(MEIN, 'zeiten/[id]/einwand/page.tsx'), 'utf8');
-    expect(quelle).toContain('action="/api/zeit/einwand"');
+  it('und beide zeigen auf die vorhandene Einwandroute, nicht auf eine zweite', () => {
+    for (const seite of ['zeiten/[id]/einwand/page.tsx', 'zeiten/einwand/page.tsx']) {
+      const quelle = readFileSync(join(MEIN, seite), 'utf8');
+      expect(quelle).toContain('action="/api/zeit/einwand"');
+    }
   });
 
   it('keine Seite unter `/portal/mein` ruft eine Schreibfunktion der Zeitdomaene', () => {

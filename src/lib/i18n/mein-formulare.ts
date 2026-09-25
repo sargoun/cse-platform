@@ -1,7 +1,7 @@
 /**
  * Die Sätze, mit denen ein abgewiesenes Formular des Mitarbeiterportals
  * zurückkommt — in allen vier Portalsprachen (EMP-10, EMP-12, SPEC §10,
- * D-599, V-187, V-188).
+ * D-599, V-187, V-188, V-189).
  *
  * **Der Befund, der diese Datei gebaut hat.** `POST /api/mein/antraege` und
  * `POST /api/mein/abwesenheit` antworteten auf eine Abweisung mit JSON — und
@@ -280,5 +280,152 @@ export const MELDUNG_FORM_TEXTE: Readonly<Record<PortalSprache, MeldungFormTexte
     },
     unbekannt: 'Bildirim reddedildi. Lütfen bilgilerinizi kontrol edin.',
     bemerkungErneut: 'Lütfen mesajınızı yeniden yazın.',
+  },
+};
+
+/* ===========================================================================
+ * „Eine Zeit fehlt" — der Einwand ohne Zeiteintrag (V-189, EMP-07, TIM-11)
+ * ======================================================================== */
+
+/** Die Gründe, aus denen `POST /api/zeit/einwand` die Maske zurückgibt. */
+export const EINWAND_GRUENDE = [
+  'keine_anstellung', 'unbekannte_art', 'kein_datum', 'keine_begruendung',
+  'pause_ungueltig', 'kein_zeiteintrag', 'fenster_verkehrt', 'ungueltige_eingabe',
+] as const;
+export type EinwandGrund = (typeof EINWAND_GRUENDE)[number];
+
+export interface EinwandFormTexte {
+  readonly nichtGesendet: string;
+  readonly gruende: Readonly<Record<EinwandGrund, string>>;
+  readonly unbekannt: string;
+  readonly begruendungErneut: string;
+  /** Nach dem Absenden — die Meldung liegt bei der Planung. */
+  readonly gemeldet: string;
+  /** Titel und Erklärung der Seite `/portal/mein/zeiten/einwand`. */
+  readonly titel: string;
+  readonly erklaerung: string;
+  readonly wannGearbeitet: string;
+  /** Der Verweis auf „Meine Zeiten". */
+  readonly zeitFehlt: string;
+  /** Auf dem Blatt einer vergangenen Schicht OHNE Eintrag. */
+  readonly schichtOhneEintrag: string;
+  /** Auf dem Blatt einer vergangenen Schicht MIT Eintrag. */
+  readonly zurZeitDerSchicht: string;
+  /** Die eigenen Meldungen ohne Eintrag. */
+  readonly ohneEintragGemeldet: string;
+}
+
+export const EINWAND_FORM_TEXTE: Readonly<Record<PortalSprache, EinwandFormTexte>> = {
+  de: {
+    nichtGesendet: 'Die Meldung wurde nicht gesendet.',
+    gruende: {
+      keine_anstellung: 'Bitte wählen Sie die Gesellschaft, für die Sie gearbeitet haben.',
+      unbekannte_art: 'Die Art der Meldung ließ sich nicht lesen. Bitte senden Sie erneut.',
+      kein_datum: 'Ein Datum ließ sich nicht lesen. Bitte wählen Sie es im Kalender.',
+      keine_begruendung: 'Bitte schreiben Sie, was nicht stimmt.',
+      pause_ungueltig: 'Die Pause muss eine ganze Zahl von Minuten sein, 0 oder mehr.',
+      kein_zeiteintrag:
+        'Diese Art der Meldung braucht einen erfassten Eintrag. Öffnen Sie ihn unter „Meine Zeiten".',
+      fenster_verkehrt: 'Das Ende liegt vor dem Beginn. Bitte prüfen Sie beide Uhrzeiten.',
+      ungueltige_eingabe:
+        'Die Angaben passen nicht zusammen. Bitte prüfen Sie sie und senden Sie erneut.',
+    },
+    unbekannt: 'Die Meldung wurde abgewiesen. Bitte prüfen Sie Ihre Angaben.',
+    begruendungErneut: 'Was nicht stimmt, geben Sie bitte noch einmal ein.',
+    gemeldet:
+      'Ihre Meldung ist bei der Planung. Sobald entschieden ist, steht die Begründung '
+      + 'hier und Sie bekommen eine Nachricht.',
+    titel: 'Eine Zeit fehlt',
+    erklaerung:
+      'Sie haben gearbeitet, aber es steht kein Eintrag da — zum Beispiel, weil das '
+      + 'Einstempeln nicht geklappt hat. Melden Sie es hier. Ihre Zeiten ändern sich '
+      + 'dadurch nicht; die Planung prüft die Meldung und trägt die Zeit nach.',
+    wannGearbeitet: 'Wann haben Sie gearbeitet? Wenn Sie es wissen.',
+    zeitFehlt: 'Eine Zeit fehlt? Hier melden',
+    schichtOhneEintrag: 'Zu dieser Schicht ist keine Zeit erfasst — melden',
+    zurZeitDerSchicht: 'Meine Zeit zu dieser Schicht',
+    ohneEintragGemeldet: 'Meine Meldungen ohne Eintrag',
+  },
+  en: {
+    nichtGesendet: 'The report was not sent.',
+    gruende: {
+      keine_anstellung: 'Please choose the company you worked for.',
+      unbekannte_art: 'The type of report could not be read. Please send it again.',
+      kein_datum: 'A date could not be read. Please pick it in the calendar.',
+      keine_begruendung: 'Please write what is wrong.',
+      pause_ungueltig: 'The break must be a whole number of minutes, 0 or more.',
+      kein_zeiteintrag: 'This type of report needs a recorded entry. Open it under "My hours".',
+      fenster_verkehrt: 'The end is before the start. Please check both times.',
+      ungueltige_eingabe: 'The details do not fit together. Please check them and send again.',
+    },
+    unbekannt: 'The report was refused. Please check your details.',
+    begruendungErneut: 'Please type again what is wrong.',
+    gemeldet:
+      'Your report is with the planners. Once it is decided, the reason will appear '
+      + 'here and you will get a message.',
+    titel: 'Hours are missing',
+    erklaerung:
+      'You worked, but no entry is shown — for example because clocking in did not '
+      + 'work. Report it here. Your hours do not change by this; the planners check '
+      + 'the report and add the time.',
+    wannGearbeitet: 'When did you work? If you know.',
+    zeitFehlt: 'Hours missing? Report it here',
+    schichtOhneEintrag: 'No time is recorded for this shift — report it',
+    zurZeitDerSchicht: 'My time for this shift',
+    ohneEintragGemeldet: 'My reports without an entry',
+  },
+  ar: {
+    nichtGesendet: 'لم يتم إرسال البلاغ.',
+    gruende: {
+      keine_anstellung: 'يرجى اختيار الشركة التي عملت لديها.',
+      unbekannte_art: 'تعذّرت قراءة نوع البلاغ. يرجى الإرسال مرة أخرى.',
+      kein_datum: 'تعذّرت قراءة أحد التواريخ. يرجى اختياره من التقويم.',
+      keine_begruendung: 'يرجى كتابة ما هو الخطأ.',
+      pause_ungueltig: 'يجب أن تكون الاستراحة عددًا صحيحًا من الدقائق، صفرًا أو أكثر.',
+      kein_zeiteintrag: 'يتطلب هذا النوع من البلاغات قيدًا مسجلًا. افتحه من «ساعاتي».',
+      fenster_verkehrt: 'وقت النهاية يسبق وقت البداية. يرجى التحقق من الوقتين.',
+      ungueltige_eingabe: 'البيانات غير متوافقة. يرجى التحقق منها وإعادة الإرسال.',
+    },
+    unbekannt: 'تم رفض البلاغ. يرجى التحقق من بياناتك.',
+    begruendungErneut: 'يرجى كتابة ما هو الخطأ مرة أخرى.',
+    gemeldet: 'بلاغك لدى قسم التخطيط. عند صدور القرار سيظهر التعليل هنا وستصلك رسالة.',
+    titel: 'وقت عمل مفقود',
+    erklaerung:
+      'لقد عملت، لكن لا يظهر أي قيد — مثلًا لأن تسجيل الحضور لم ينجح. أبلغ عن ذلك هنا. '
+      + 'لن تتغير ساعاتك بذلك؛ سيراجع قسم التخطيط البلاغ ويضيف الوقت.',
+    wannGearbeitet: 'متى عملت؟ إن كنت تعرف.',
+    zeitFehlt: 'هل ينقص وقت عمل؟ أبلغ هنا',
+    schichtOhneEintrag: 'لا يوجد وقت مسجل لهذه الوردية — أبلغ عن ذلك',
+    zurZeitDerSchicht: 'وقتي لهذه الوردية',
+    ohneEintragGemeldet: 'بلاغاتي بدون قيد',
+  },
+  tr: {
+    nichtGesendet: 'Bildirim gönderilmedi.',
+    gruende: {
+      keine_anstellung: 'Lütfen çalıştığınız şirketi seçin.',
+      unbekannte_art: 'Bildirim türü okunamadı. Lütfen tekrar gönderin.',
+      kein_datum: 'Bir tarih okunamadı. Lütfen takvimden seçin.',
+      keine_begruendung: 'Lütfen neyin yanlış olduğunu yazın.',
+      pause_ungueltig: 'Mola, 0 veya daha fazla tam dakika olmalıdır.',
+      kein_zeiteintrag:
+        'Bu bildirim türü kayıtlı bir giriş gerektirir. Girişi „Saatlerim" altında açın.',
+      fenster_verkehrt: 'Bitiş, başlangıçtan önce. Lütfen iki saati kontrol edin.',
+      ungueltige_eingabe: 'Bilgiler birbirine uymuyor. Lütfen kontrol edip tekrar gönderin.',
+    },
+    unbekannt: 'Bildirim reddedildi. Lütfen bilgilerinizi kontrol edin.',
+    begruendungErneut: 'Lütfen neyin yanlış olduğunu yeniden yazın.',
+    gemeldet:
+      'Bildiriminiz planlamada. Karar verildiğinde gerekçe burada görünür ve size bir '
+      + 'mesaj gelir.',
+    titel: 'Çalışma saati eksik',
+    erklaerung:
+      'Çalıştınız ama hiçbir kayıt görünmüyor — örneğin giriş kaydı çalışmadığı için. '
+      + 'Bunu burada bildirin. Saatleriniz bununla değişmez; planlama bildirimi inceler '
+      + 've süreyi ekler.',
+    wannGearbeitet: 'Ne zaman çalıştınız? Biliyorsanız.',
+    zeitFehlt: 'Saat mi eksik? Buradan bildirin',
+    schichtOhneEintrag: 'Bu vardiya için kayıtlı süre yok — bildirin',
+    zurZeitDerSchicht: 'Bu vardiyadaki sürem',
+    ohneEintragGemeldet: 'Kayıtsız bildirimlerim',
   },
 };

@@ -226,3 +226,30 @@ export async function findeEigenenZeiteintrag(
   );
   return z === undefined ? null : abbilden(z);
 }
+
+/**
+ * Der eigene Eintrag zu EINER Schicht — seine Kennung, oder `null`, wenn es
+ * keinen gibt (V-189).
+ *
+ * Das Blatt einer vergangenen Schicht fragt das, um den richtigen Weg zu
+ * zeigen: gibt es einen Eintrag, fuehrt es zu ihm (und dort zum Einwand);
+ * gibt es keinen, fuehrt es zu „Eine Zeit fehlt" — vorbelegt mit Tag und
+ * Beschaeftigung. Gefragt wird die aktuelle Fassung (`ersetzt_am is null`),
+ * auch eine stornierte: ein stornierter Eintrag ist einer, ueber den man mit
+ * seinem eigenen Einwand streitet, nicht einer, der fehlt.
+ *
+ * Laeuft im Personen-Scope; die RLS gibt nur eigene Eintraege heraus.
+ */
+export async function eigenerEintragZurSchicht(
+  kontext: LeseKontext, einsatzId: string, anstellungId: string,
+): Promise<string | null> {
+  const [z] = await kontext.abfrage<{ id: string }>(
+    `select z.id from zeiteintrag z
+      where z.einsatz_id = $1::uuid and z.anstellung_id = $2::uuid
+        and z.ersetzt_am is null
+      order by z.beginn_zeitpunkt asc, z.id asc
+      limit 1`,
+    [einsatzId, anstellungId],
+  );
+  return z?.id ?? null;
+}

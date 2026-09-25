@@ -360,6 +360,8 @@ stehen hier, weil ein Befund ohne Nummer ein Befund ist, den niemand wiederfinde
 
 | V-188 | **Abwesenheitsmeldung im Mitarbeiterportal: doppelte Meldung oder Bescheinigung vor dem ersten Tag endeten als rohe 500** — `api/mein/abwesenheit` übersetzte nur Fehler mit numerischem `status`; `ab_keine_dublette` (23P01) und `ab_au_bis` (23514) aus 0073 tragen keinen. Jede andere Abweisung kam als JSON. Die Büroroute fing 23P01, nicht 23514 | Gefunden vom unabhängigen Prüfer der Gruppe zeit (Befund 81, teilweise bestätigt: `api/mein/abwesenheit/route.ts:119-137`, `api/personal/abwesenheit/route.ts:109-137`, `0073:215-216/246-250`; „Bis" vor „Von" war JSON-400, keine 500), im Code gegengeprüft | falsch | **erledigt** (D-682) — `meldeAbwesenheit` prüft die Bescheinigung vor dem Schreiben (`AuBisVorBeginn`), `ZeitraumFehler` nennt seinen Grund; jede Abweisung führt auf `/portal/mein/abwesenheit/neu` mit Grund und vorbelegten Auswahlen/Tagen/Haken, Satz in vier Sprachen (`MELDUNG_FORM_TEXTE`), die Bemerkung reist nie in der Adresse (Art. 9 DSGVO); die Büroroute führt Zeitraum, Bescheinigung und 23514 über `fehlerweg` zurück, die Aufnahmeseite hat die Sätze in de/en; beide fangen Auth-Würfe. Prüfungen: `tests/kern/meldung-rueckweg.test.ts` (echte Routen: 23P01 → `ueberlappt` mit Eingaben ohne Bemerkung, 23514 → `ungueltige_eingabe`, jeder Dienstgrund bleibt, fehlende Auswahl/unlesbares Datum erreicht den Dienst nie, fehlendes Recht 404, Serverfehler bleibt einer; Büro: 23514/Bescheinigung/Zeitraum auf die Aufnahmeseite), `tests/isolation/meldung-rueckweg.test.ts` (Bescheinigung vor Beginn ohne Zeile, am ersten Tag gültig; verkehrter Zeitraum; doppelte Meldung 23P01 → `ueberlappt`; `ab_au_bis` bleibt die zweite Linie) |
 
+| V-189 | **Einwand „Eintrag fehlt" ohne vorhandenen Zeiteintrag war für Beschäftigte unerreichbar** — `zeit_einwand.zeiteintrag_id` ist für genau diesen Fall nullbar (0052), und V-067 baute den Planerzweig dafür; das einzige Arbeiterformular `/portal/mein/zeiten/[id]/einwand` antwortete ohne Eintrag mit 404 und schickte die Kennung des Eintrags immer mit. Dazu endete das Absenden auf einer weissen Seite mit JSON, ein Ende vor dem Beginn (`ze_fenster`) als 500. VOLLSTÄNDIGKEIT §9.1 widerlegte nur „kein Formular für die Art" | Gefunden vom unabhängigen Prüfer der Gruppe zeit (Befund 36, EMP-07/TIM-11: `[id]/einwand/page.tsx:61/100/112`, `0052:134`, `einwaende/[id]/page.tsx:529`), im Code gegengeprüft | blockiert | **erledigt** (D-683) — neue Seite `/portal/mein/zeiten/einwand` („Eine Zeit fehlt": Beschäftigung, Tag bis heute, behauptete Zeit freiwillig, Begründung; Art `eintrag_fehlt`, kein `zeiteintrag`), über dieselbe Route `POST /api/zeit/einwand`; Einstiege aus „Meine Zeiten" und vom Blatt einer beendeten Schicht (mit Eintrag → zum Eintrag, ohne → vorbelegt hierher, `eigenerEintragZurSchicht`); beide Einwandformulare kommen nach dem Absenden auf ihre Seite zurück (`?gemeldet=1`, Abweisung als Grund in vier Sprachen, `fenster_verkehrt` vor der Datenbank), ohne `maske`/`zurueck` bleibt JSON; `EinwandListe` als Baustein; Seitenkarte §7 und Routenregister ergänzt; §9.1 präzisiert. Prüfungen: `tests/kern/einwand-ohne-eintrag.test.ts` (echte Route: ohne Eintrag durch, 303 statt JSON, Uhrzeit über die Zeitumstellung korrekt, Abweisung mit Eingaben ohne Begründung, Ende vor Beginn vor und nach der Datenbank, JSON-Aufrufer unverändert, kein Rückweg nach draussen; Seiten und Seitenkarte; Sätze in vier Sprachen), `tests/isolation/einwand-ohne-eintrag.test.ts` (Einwand ohne Eintrag im echten Portalweg, in der Gesellschaft der gewählten Beschäftigung, 420 min über die Umstellungsnacht; Eintrag zur Schicht gefunden oder nicht, nie ein fremder), `tests/kern/mitarbeiter.test.ts` (genau die zwei Einwandformulare unter `zeiten/`, beide auf dieselbe Route) |
+
 ---
 
 ## 9. Was geprüft und **widerlegt** wurde
@@ -367,10 +369,14 @@ stehen hier, weil ein Befund ohne Nummer ein Befund ist, den niemand wiederfinde
 Sechs Beobachtungen sahen aus wie Lücken und sind begründete Entscheidungen.
 Sie stehen hier, damit sie nicht in drei Monaten erneut als Befund auftauchen.
 
-1. **Der Einwand `eintrag_fehlt` hat sehr wohl ein Formular.** Die Behauptung
-   war am Code falsch; sie beruhte zusätzlich auf einer Fehldeutung des
-   NULL-Zwecks. (Deshalb ist in § 4 nur die *Entscheidung* (V-051) offen,
-   nicht das Formular.)
+1. **Der Einwand `eintrag_fehlt` hat sehr wohl ein Formular** — aber damals
+   nur für einen Eintrag, den es GIBT. Die Behauptung „kein Formular für die
+   Art" war am Code falsch: die Art ist unter
+   `/portal/mein/zeiten/[id]/einwand` wählbar. Den Fall, für den
+   `zeiteintrag_id` nullbar ist — gearbeitet, aber nichts steht da —, deckte
+   diese Widerlegung NICHT ab; er war ohne UI-Weg und ist als V-189 behoben
+   (`/portal/mein/zeiten/einwand`, D-683). (In § 4 ist deshalb nur die
+   *Entscheidung* (V-051) offen, nicht das Formular.)
 2. **Der fehlende Zustand `zugesagt` ist im Migrationskopf von
    `drizzle/0028_dienstplan.sql` beschrieben** — als Vokabular, das die
    Oberfläche später füllt. Das Fehlen ist dokumentiert. **Es bleibt trotzdem
