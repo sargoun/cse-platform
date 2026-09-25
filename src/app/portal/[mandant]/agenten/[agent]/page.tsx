@@ -94,7 +94,7 @@ export default async function AgentDetail(
    */
   const laufSchluessel = randomUUID();
 
-  const zugang = await portalZugang(`/portal/${mandant}/agenten/[agent]`);
+  const zugang = await portalZugang(`/portal/${mandant}/agenten/${agent}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {

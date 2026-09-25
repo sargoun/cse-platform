@@ -74,7 +74,7 @@ export default async function PruefungBlatt(
   const angelegt = typeof suche['angelegt'] === 'string' ? suche['angelegt'] : null;
   kennungOder404(id);
   const tor = await mandantTor(
-    `/portal/${mandant}/qualitaet/pruefungen/[id]`, mandant,
+    `/portal/${mandant}/qualitaet/pruefungen/${id}`, mandant,
   );
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;

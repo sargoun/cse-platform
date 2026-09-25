@@ -54,7 +54,7 @@ export default async function ReklamationsBlatt({
 }) {
   const { mandant, id } = await params;
   kennungOder404(id);
-  const zugang = await portalZugang(`/portal/${mandant}/qualitaet/reklamationen/[id]`);
+  const zugang = await portalZugang(`/portal/${mandant}/qualitaet/reklamationen/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
 
   const tor = await slugTor(zugang, mandant);

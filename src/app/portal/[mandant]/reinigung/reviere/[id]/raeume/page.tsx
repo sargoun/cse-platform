@@ -37,7 +37,7 @@ export default async function RaeumeZuordnen({
 }) {
   const { mandant, id } = await params;
   kennungOder404(id);
-  const zugang = await portalZugang(`/portal/${mandant}/reinigung/reviere/[id]/raeume`);
+  const zugang = await portalZugang(`/portal/${mandant}/reinigung/reviere/${id}/raeume`);
   if (zugang === null) return <AnmeldungNoetig />;
 
   const tor = await slugTor(zugang, mandant);

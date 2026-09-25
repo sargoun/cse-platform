@@ -60,7 +60,7 @@ export default async function ZahlungDetail(
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
-  const zugang = await portalZugang(`/portal/${mandant}/finanzen/zahlungen/[id]`);
+  const zugang = await portalZugang(`/portal/${mandant}/finanzen/zahlungen/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {

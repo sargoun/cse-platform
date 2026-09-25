@@ -91,6 +91,17 @@ export function rueckwegFuer(pfad: string): RueckwegZiel | null {
    * Modulwurzel oder Portalwurzel — beide tragen keinen Rückweg.
    */
   if (echt.length < 4 || echt[0] !== 'portal') return null;
+  /*
+   * **Ein Muster ist keine Adresse** (V-248). Fünfzehn Seiten gaben dem Tor
+   * `/portal/${mandant}/agenten/[agent]/aufgaben/[id]` statt der echten
+   * Adresse; die Ableitung machte daraus wörtlich den Pfeil
+   * `…/agenten/[agent]/aufgaben` — ein Verweis auf 404, den der Verweislauf
+   * fand. Welcher Datensatz gemeint war, steht in einem Muster nicht; einen
+   * Vorfahren daraus zu raten hiesse, ins Leere zu zeigen. Also keiner — die
+   * Seiten selbst geben seither ihre Adresse, und `tests/kern/rueckweg.test.ts`
+   * (7) hält beides fest.
+   */
+  if (echt.some((s) => s.startsWith('['))) return null;
 
   for (let i = echt.length - 1; i >= 3; i -= 1) {
     const kandidat = echt.slice(0, i);

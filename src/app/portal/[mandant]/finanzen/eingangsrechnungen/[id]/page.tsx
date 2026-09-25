@@ -82,7 +82,7 @@ export default async function EingangsrechnungDetail(
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
-  const zugang = await portalZugang(`/portal/${mandant}/finanzen/eingangsrechnungen/[id]`);
+  const zugang = await portalZugang(`/portal/${mandant}/finanzen/eingangsrechnungen/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {

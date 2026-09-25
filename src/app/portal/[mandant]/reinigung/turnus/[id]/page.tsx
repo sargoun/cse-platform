@@ -97,7 +97,7 @@ export default async function TurnusBlattSeite(
   const ausnahmeAngelegt = suche['ausnahme'] === '1';
   const fehlerText = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   kennungOder404(id);
-  const tor = await mandantTor(`/portal/${mandant}/reinigung/turnus/[id]`, mandant);
+  const tor = await mandantTor(`/portal/${mandant}/reinigung/turnus/${id}`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
   const { sitzung } = zugang;

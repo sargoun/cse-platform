@@ -196,3 +196,59 @@ describe('(6) der Rückweg steht genau einmal — in der Hülle', () => {
     expect(quelle).toMatch(/:\s*abgeleitet !== null &&\s*\(?\s*<Zurueck/u);
   });
 });
+
+/**
+ * (7) **Das Tor bekommt die ADRESSE, nicht das Muster** (V-248).
+ *
+ * Fünfzehn Seiten riefen `portalZugang`/`mandantTor` mit dem Muster ihrer Route —
+ * `/portal/${mandant}/agenten/[agent]/aufgaben/[id]` — statt mit der Adresse,
+ * die aufgerufen wurde. Für die Wache war das gleich (ein `[…]` im Muster
+ * passt auf alles), für alles, was das Tor daraus BAUT, nicht: der
+ * abgeleitete Rückweg zeigte wörtlich auf `…/agenten/[agent]/aufgaben`, und
+ * genauso wären der Sprung nach dem Bereichswechsel und das `weiter=` nach
+ * der Zwei-Faktor-Anmeldung auf einer Adresse mit eckigen Klammern gelandet.
+ * Gefunden hat es der Verweislauf der Browsersuite (`verweise.spec.ts`,
+ * leitung und admin · reinigung: 404).
+ */
+describe('(7) das Tor bekommt die Adresse, nicht das Muster', () => {
+  it('aus einem Muster wird kein Rückweg — ein Pfeil auf „[agent]" wäre ein 404', () => {
+    expect(rueckwegFuer('/portal/reinigung/agenten/[agent]/aufgaben/[id]')).toBeNull();
+    expect(rueckwegFuer('/portal/reinigung/agenten/[agent]/protokoll')).toBeNull();
+    expect(rueckwegFuer('/portal/reinigung/finanzen/zahlungen/[id]')).toBeNull();
+  });
+
+  it('aus der echten Adresse wird der echte Vorfahr', () => {
+    const lauf = rueckwegFuer(
+      '/portal/reinigung/agenten/akquise/aufgaben/a1b2c3d4-0000-0000-0000-000000000000');
+    expect(lauf?.ziel).toBe('/portal/reinigung/agenten/akquise/aufgaben');
+    expect(lauf?.muster).toBe('/portal/[mandant]/agenten/[agent]/aufgaben');
+
+    const protokoll = rueckwegFuer('/portal/reinigung/agenten/akquise/protokoll');
+    expect(protokoll?.ziel).toBe('/portal/reinigung/agenten/akquise');
+  });
+
+  it('keine Seite ruft das Tor mit einem Muster-Segment', async () => {
+    const { readdirSync, statSync } = await import('node:fs');
+    const { join } = await import('node:path');
+
+    const alle: string[] = [];
+    const gehe = (verzeichnis: string): void => {
+      for (const eintrag of readdirSync(verzeichnis)) {
+        const voll = join(verzeichnis, eintrag);
+        if (statSync(voll).isDirectory()) gehe(voll);
+        else if (voll.endsWith('.tsx') || voll.endsWith('.ts')) alle.push(voll);
+      }
+    };
+    gehe('src/app');
+
+    /*
+     * Die beiden Eingänge: `portalZugang` und `mandantTor` (der ruft
+     * `portalZugang` mit demselben Pfad). Gesucht wird ein Literal als
+     * erstes Argument, in dem ein Segment `[…]` steht — `${id}` ist die
+     * Adresse, `[id]` das Muster.
+     */
+    const muster = /\b(?:portalZugang|mandantTor)\(\s*[`'"][^`'"]*\/\[[^\]/]+\]/u;
+    const treffer = alle.filter((d) => muster.test(readFileSync(d, 'utf8')));
+    expect(treffer).toEqual([]);
+  });
+});

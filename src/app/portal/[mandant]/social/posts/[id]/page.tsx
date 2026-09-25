@@ -113,7 +113,7 @@ export default async function Beitrag(
   const { mandant, id } = await params;
   kennungOder404(id);
   if (!UUID.test(id)) notFound();
-  const tor = await mandantTor(`/portal/${mandant}/social/posts/[id]`, mandant);
+  const tor = await mandantTor(`/portal/${mandant}/social/posts/${id}`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
   /*

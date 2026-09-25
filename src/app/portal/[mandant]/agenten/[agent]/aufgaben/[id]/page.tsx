@@ -81,7 +81,7 @@ export default async function Lauf(
   const kennung = kennungFuer(agent);
   if (kennung === undefined) notFound();
 
-  const zugang = await portalZugang(`/portal/${mandant}/agenten/[agent]/aufgaben/[id]`);
+  const zugang = await portalZugang(`/portal/${mandant}/agenten/${agent}/aufgaben/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {

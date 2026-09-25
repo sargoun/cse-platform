@@ -36,7 +36,7 @@ export default async function AgentProtokoll(
   const kennung = kennungFuer(agent);
   if (kennung === undefined) notFound();
 
-  const zugang = await portalZugang(`/portal/${mandant}/agenten/[agent]/protokoll`);
+  const zugang = await portalZugang(`/portal/${mandant}/agenten/${agent}/protokoll`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {
