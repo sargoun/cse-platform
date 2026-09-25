@@ -23,7 +23,11 @@ export interface VorgangsDokument {
   readonly id: string;
   readonly titel: string;
   readonly kategorie: string;
-  /** Der Berliner Kalendertag der Ablage, `TT.MM.JJJJ` — aus der Datenbank. */
+  /**
+   * Der Berliner Kalendertag der Ablage, `JJJJ-MM-TT` — aus der Datenbank.
+   * Formatiert wird im Blatt, in dessen Sprache (`tagInSprache`, V-240); vorher
+   * kam hier schon `TT.MM.JJJJ` und stand so auch in der englischen Oberfläche.
+   */
   readonly abgelegtAm: string;
 }
 
@@ -46,7 +50,7 @@ export async function leseDokumenteAmAuftrag(
   if (!KENNUNG.test(auftragId)) return { zeilen: [], gesamt: 0, weitere: 0 };
   const zeilen = await kontext.abfrage<VorgangsDokument & { gesamt: number }>(
     `select d.id::text as id, d.titel, d.kategorie::text as kategorie,
-            to_char(d.erstellt_am at time zone 'Europe/Berlin', 'DD.MM.YYYY') as "abgelegtAm",
+            to_char(d.erstellt_am at time zone 'Europe/Berlin', 'YYYY-MM-DD') as "abgelegtAm",
             count(*) over ()::int as gesamt
        from dokument d
       where d.auftrag_id = $1::uuid and d.mandant_id = app.aktiver_mandant()

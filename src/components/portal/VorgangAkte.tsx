@@ -7,6 +7,7 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { VORGANG_AKTE_TEXTE, type AkteArt } from '@/lib/i18n/verwaltung/vorgang-akte';
 import type { PortalSprache } from '@/lib/i18n/texte';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import type { AufgabenAkte } from '@/server/services/kern/aufgabe';
 import type { VorgangsDokumente } from '@/server/services/dokument/vorgang';
 
@@ -104,7 +105,8 @@ export function VorgangAkte({
                         {zeile.titel}
                       </Link>
                       <span className="mt-s1 block text-xs text-text-muted">
-                        {eigenerEintrag(t.zustand, zeile.status) ?? t.zustand.offen}
+                        {/* V-240: ein unbekannter Stand heisst so — nicht „offen". */}
+                        {eigenerEintrag(t.zustand, zeile.status) ?? t.zustandUnbekannt}
                         {' · '}
                         <span className={lage === 'ueberfaellig' ? 'text-danger'
                           : lage === 'heute' ? 'text-warning' : ''}>
@@ -164,7 +166,7 @@ export function VorgangAkte({
                       <span className="mt-s1 block text-xs text-text-muted">
                         {eigenerEintrag(t.kategorie, d.kategorie) ?? t.kategorieUnbekannt}
                         {' · '}
-                        {t.abgelegtAm(d.abgelegtAm)}
+                        {t.abgelegtAm(tagInSprache(d.abgelegtAm, sprache))}
                       </span>
                     </li>
                   ))}

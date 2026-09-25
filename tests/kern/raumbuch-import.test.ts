@@ -215,6 +215,23 @@ describe('(9) Was NICHT als Tabelle durchgehen darf', () => {
     }
   });
 
+  it.each([
+    // Eine Leerzeile vor der kaputten Zeile: gefiltert, aber mitgezählt.
+    ['Etage;Raum;Flaeche\n1;101;25,5\n\n1;102\n', 4],
+    // Eine Leerzeile aus Trennzeichen (Excel) ebenso.
+    ['Etage;Raum;Flaeche\n;;\n1;102\n', 3],
+    // Ein Feld mit Zeilenumbruch: die nächste Zeile beginnt eine Dateizeile später.
+    ['Etage;Raum;Flaeche\n1;"101\nNord";25,5\n1;102\n', 4],
+    // Und der Datensatz, der den Umbruch trägt, nennt SEINE erste Zeile.
+    ['Etage;Raum;Flaeche\n1;101;25,5\n1;"102\nSüd"\n', 3],
+  ])('V-240: die Abweisung nennt die Zeile der DATEI — %j → Zeile %i', (csv, zeile) => {
+    try { leseCsv(csv); expect.unreachable(); } catch (f) {
+      expect((f as TabellenFehler).grund).toBe('feldzahl');
+      expect((f as TabellenFehler).zeile).toBe(zeile);
+      expect((f as TabellenFehler).message).toContain(`Zeile ${String(zeile)} `);
+    }
+  });
+
   it('und eine mit zu vielen ebenso — sie wird nicht abgeschnitten', () => {
     const csv = 'Etage;Raumnummer;Bezeichnung\n1;101;Buero;25,5\n';
     try { leseCsv(csv); expect.unreachable(); } catch (f) {

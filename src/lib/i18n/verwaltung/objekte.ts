@@ -18,6 +18,7 @@
  * Wer sie übersetzt, sucht danach vergeblich.
  */
 import type { InternSprache } from '../intern.js';
+import { rechtName } from '../rechtname.js';
 
 export interface ObjekteTexte {
   /* ── Die Reiter des Objektblatts (V-044, SEITENKARTE §5.4) ─────────── */
@@ -74,10 +75,13 @@ export interface ObjekteTexte {
   readonly ohneKoordinaten: string;
   /**
    * Die Abweisungen des Objektdienstes (`ObjektFehler.grund`). Fehlt ein
-   * Schlüssel, zeigt die Seite den deutschen Satz des Dienstes — nie den
-   * Schlüssel selbst.
+   * Schlüssel, zeigt die Seite `fehlerSonst` — nie den Schlüssel selbst und
+   * nie Text aus der Adresse (V-153, V-240).
    */
   readonly fehler: Readonly<Record<string, string>>;
+  /** `einsaetze_offen` — mit der Zahl aus `?anzahl=`, wenn sie eine ist (V-240). */
+  readonly einsaetzeOffen: (anzahl: number | null) => string;
+  readonly fehlerSonst: string;
 
   /* ── Sätze, die eine Entscheidung begründen ────────────────────────── */
   readonly anschriftPflicht: string;
@@ -186,11 +190,17 @@ export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
         'Koordinaten sind ein Paar: Breiten- UND Längengrad, oder keines von beiden.',
       objekt_unbekannt:
         'Dieses Objekt gibt es nicht mehr, oder es ist bereits archiviert.',
+      // V-240: das Recht beim Namen, nicht als Schlüssel (wie V-144).
       kein_schreibrecht:
-        'Das Objekt wurde nicht angelegt — es fehlt das Recht objekt.schreiben in '
-        + 'dieser Gesellschaft.',
+        `Das Objekt wurde nicht angelegt — es fehlt das Recht „${rechtName('objekt.schreiben', 'de')}“ `
+        + 'in dieser Gesellschaft.',
       id_fehlt: 'Kein Objekt angegeben.',
     },
+    einsaetzeOffen: (n) =>
+      `Zu diesem Objekt stehen noch ${n === null ? '' : `${String(n)} `}Einsätze in der `
+      + 'Zukunft. Stornieren Sie diese zuerst — sonst fährt morgen jemand an einen Ort, den '
+      + 'es in der Plattform nicht mehr gibt.',
+    fehlerSonst: 'Die Eingabe wurde abgewiesen. Bitte prüfen Sie die Angaben.',
 
     anschriftPflicht:
       'Die Anschrift ist Pflicht. Eine Schicht, die auf ein Objekt ohne '
@@ -312,10 +322,16 @@ export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
         'Coordinates are a pair: latitude AND longitude, or neither.',
       objekt_unbekannt: 'This Objekt no longer exists, or it has already been archived.',
       kein_schreibrecht:
-        'The Objekt was not created — the right objekt.schreiben is missing in this '
-        + 'Gesellschaft (the legal entity).',
+        `The Objekt was not created — the right “${rechtName('objekt.schreiben', 'en')}” `
+        + 'is missing in this Gesellschaft (the legal entity).',
       id_fehlt: 'No Objekt was given.',
     },
+    einsaetzeOffen: (n) =>
+      `There ${n === 1 ? 'is' : 'are'} still ${n === null ? '' : `${String(n)} `}future `
+      + `${n === 1 ? 'Einsatz' : 'Einsätze'} (shift${n === 1 ? '' : 's'}) at this Objekt. Cancel `
+      + `${n === 1 ? 'it' : 'them'} first — otherwise someone drives tomorrow to a place that `
+      + 'no longer exists in the platform.',
+    fehlerSonst: 'The entry was rejected. Please check the values.',
 
     anschriftPflicht:
       'The address is required. A shift scheduled on an Objekt without an '

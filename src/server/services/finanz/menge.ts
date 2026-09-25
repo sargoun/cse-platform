@@ -97,6 +97,29 @@ export function formatiereMenge(menge: MilliMenge): string {
   return DE_MENGE.format(negativ ? -alsZahl : alsZahl);
 }
 
+const EN_MENGE = new Intl.NumberFormat('en-GB', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 3,
+});
+
+/**
+ * Display a quantity in the language of the page (V-240): German `"1.234,50"`,
+ * English `"1,234.50"`. Display only — a form keeps German notation, because
+ * the readers of this platform read German numbers. Same guard as
+ * `formatiereMenge`.
+ */
+export function formatiereMengeIn(menge: MilliMenge, sprache: string | null | undefined): string {
+  if (sprache !== 'en') return formatiereMenge(menge);
+  const negativ = menge < 0n;
+  const abs = negativ ? -menge : menge;
+  const ganz = abs / 1000n;
+  if (!Number.isSafeInteger(Number(ganz))) {
+    throw new MengeFehler(`Menge zu gross fuer die Anzeige: ${String(menge)}`);
+  }
+  const alsZahl = Number(ganz) + Number(abs % 1000n) / 1000;
+  return EN_MENGE.format(negativ ? -alsZahl : alsZahl);
+}
+
 const EINGABE_MUSTER = /^(-?)(\d{1,9})(?:[.,](\d{1,3}))?$/u;
 
 /**

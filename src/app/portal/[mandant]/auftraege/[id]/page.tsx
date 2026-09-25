@@ -11,7 +11,6 @@ import { Recht } from '@/components/ui/Recht';
 import { WEGE, ZUSTAND_TEXT, type Auftragszustand } from '@/server/services/auftrag/status';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
-import { nachSprache as sprachTexte } from '@/lib/i18n/verwaltung/basis';
 import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
@@ -25,7 +24,7 @@ import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { VorgangAkte } from '@/components/portal/VorgangAkte';
 import {
-  aufgabenAkte, listeAufgaben, zaehleJeZustand, type AufgabenAkte,
+  AUFGABEN_JE_BLATT, aufgabenAkte, listeAufgaben, zaehleJeZustand, type AufgabenAkte,
 } from '@/server/services/kern/aufgabe';
 import {
   leseDokumenteAmAuftrag, type VorgangsDokumente,
@@ -199,7 +198,7 @@ export default async function AuftragDetail(
           ? aufgabenAkte(
             await listeAufgaben(kontext, { ...amAuftrag, nurOffene: true }),
             await zaehleJeZustand(kontext, amAuftrag),
-            jetzt)
+            jetzt, AUFGABEN_JE_BLATT, zugang.sprache)
           : null,
         dokumente: darf['dokument.lesen'] === true
           ? await leseDokumenteAmAuftrag(kontext, gelesen.id)
@@ -305,7 +304,7 @@ export default async function AuftragDetail(
         */}
       {suche['gespeichert'] === '1' ? (
         <Hinweis art="erfolg" cse="auftrag-gespeichert" className="mb-s5 max-w-prose">
-          {sprachTexte(AUFTRAG_TEXTE, zugang.sprache).gespeichert}
+          {nachSprache(AUFTRAG_TEXTE, zugang.sprache).gespeichert}
         </Hinweis>
       ) : null}
 
@@ -323,7 +322,7 @@ export default async function AuftragDetail(
             data-cse="zur-auftragspflege"
             className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
           >
-            {sprachTexte(AUFTRAG_TEXTE, zugang.sprache).bearbeiten}
+            {nachSprache(AUFTRAG_TEXTE, zugang.sprache).bearbeiten}
           </Link>
         )}
         {darf['auftrag.abschliessen'] === true && (

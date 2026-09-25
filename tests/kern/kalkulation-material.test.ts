@@ -12,6 +12,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { basisPunkte, cent, formatiereGeld } from '../../src/server/services/finanz/geld.js';
+import { KALKULATION_TEXTE } from '../../src/lib/i18n/verwaltung/kalkulation.js';
 import { ANGEBOT_HAND_TEXTE } from '../../src/lib/i18n/verwaltung/angebot-hand.js';
 import { HAND_ANGEBOT_KALKULATION } from '../../src/server/services/angebot/von-hand.js';
 import {
@@ -207,6 +208,29 @@ describe('(4) die Menge ist eine DEUTSCHE Zahl — und was zwei Lesarten hat, wi
     // … 10 × 9.007.199.254.740,99 € darunter.
     expect(fehlerVon({ menge: '10', einzelpreisEuro: '9.007.199.254.740,99' })).toBeNull();
     expect(fehlerVon({ menge: '1', einzelpreisEuro: '90.071.992.547.409,91' })).toBeNull();
+  });
+});
+
+describe('(5) die Basis heisst, was sie rechnet — und die Selbstkosten bleiben O-16 (V-240)', () => {
+  it('keine Auswahl und kein Satz nennt Lohn + Material + Gerät „Selbstkosten"', () => {
+    for (const sprache of ['de', 'en'] as const) {
+      const t = KALKULATION_TEXTE[sprache];
+      expect(t.basisOption.selbstkosten).not.toMatch(/Selbstkosten/u);
+      expect(t.basisOption.selbstkosten).toMatch(/Einzelkosten/u);
+      expect(t.basisSatz['selbstkosten']).toContain('O-16');
+      expect(t.fehler['basis_offen']).not.toMatch(/Selbstkosten/u);
+    }
+  });
+
+  it('niemand schreibt kalkulation.selbstkosten_cent — seine Zusammensetzung ist O-16', () => {
+    for (const datei of [
+      'src/server/services/kalkulation/index.ts',
+      'src/server/services/kalkulation/bestaetigung.ts',
+      'src/server/services/kalkulation/kostenposition.ts',
+      'src/server/services/angebot/index.ts',
+    ]) {
+      expect(readFileSync(datei, 'utf8'), datei).not.toMatch(/selbstkosten_cent\s*=/u);
+    }
   });
 });
 

@@ -17,6 +17,7 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { waehlbareLeitungen } from '@/server/services/auftrag/angaben';
+import { vorbelegt } from '@/lib/formular/maske';
 
 /**
  * `/portal/[mandant]/angebote/[id]/annahme` — was der Kunde entschieden hat
@@ -110,6 +111,20 @@ export default async function Annahme(
 
   if (daten === null) notFound();
   const { kopf, leitungen } = daten;
+  /*
+   * V-240: nach einer Abweisung stehen die Eingaben wieder in DEM Formular,
+   * das abgeschickt wurde (`ausgang` reist mit, `maskeFelder` der Route).
+   * Eine Auswahl übernimmt nur einen Wert, den sie auch anbietet.
+   */
+  const zurueckAus = fehler === null ? undefined : vorbelegt(suche, 'ausgang');
+  const annahmeWert = (name: string): string | undefined =>
+    (zurueckAus === 'angenommen' ? vorbelegt(suche, name) : undefined);
+  const absageWert = (name: string): string | undefined =>
+    (zurueckAus === 'abgelehnt' || zurueckAus === 'zurueckgezogen'
+      ? vorbelegt(suche, name) : undefined);
+  const ARTEN = ['einzelauftrag', 'rahmenvertrag', 'dauerauftrag', 'projekt'];
+  const artVorwahl = ARTEN.find((a) => a === annahmeWert('art')) ?? 'rahmenvertrag';
+  const leitungVorwahl = leitungen.find((b) => b.id === annahmeWert('verantwortlichBenutzerId'))?.id;
 
   const gewandelt = kopf.auftrag_id !== null;
   const entschieden = kopf.status === 'abgelehnt' || kopf.status === 'zurueckgezogen'
@@ -260,6 +275,7 @@ export default async function Annahme(
               name="notiz"
               rows={3}
               required
+              defaultValue={annahmeWert('notiz') ?? ''}
               placeholder="z. B. Auftragsbestätigung per Mail vom 14.03., Herr Meyer"
               className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text"
             />
@@ -271,7 +287,7 @@ export default async function Annahme(
             <label className="mt-s4 block text-sm text-text" htmlFor="art">
               Auftragsart
             </label>
-            <select id="art" name="art" defaultValue="rahmenvertrag" className={FELD}>
+            <select id="art" name="art" defaultValue={artVorwahl} className={FELD}>
               <option value="einzelauftrag">Einzelauftrag</option>
               <option value="rahmenvertrag">Rahmenvertrag</option>
               <option value="dauerauftrag">Dauerauftrag</option>
@@ -289,6 +305,7 @@ export default async function Annahme(
               id="verantwortlichBenutzerId"
               name="verantwortlichBenutzerId"
               required
+              {...(leitungVorwahl === undefined ? {} : { defaultValue: leitungVorwahl })}
               className={FELD}
             >
               {leitungen.map((b) => (
@@ -312,7 +329,7 @@ export default async function Annahme(
                    * auf dem Vortag — und der Auftrag begaenne einen Tag zu
                    * frueh (Invariante 2).
                    */
-                  defaultValue={berlinKalendertag(new Date())}
+                  defaultValue={annahmeWert('startDatum') ?? berlinKalendertag(new Date())}
                   className={FELD}
                 />
               </div>
@@ -320,7 +337,8 @@ export default async function Annahme(
                 <label className="block text-sm text-text" htmlFor="laufzeitBis">
                   Laufzeit bis
                 </label>
-                <input id="laufzeitBis" name="laufzeitBis" type="date" className={FELD} />
+                <input id="laufzeitBis" name="laufzeitBis" type="date" className={FELD}
+                       defaultValue={annahmeWert('laufzeitBis') ?? ''} />
                 <p className="mt-s1 text-xs text-text-muted">leer = unbefristet</p>
               </div>
             </div>
@@ -343,20 +361,23 @@ export default async function Annahme(
                     {nachSprache(AUFTRAG_TEXTE, zugang.sprache).personalbedarf}
                   </label>
                   <input id="personalbedarfAnzahl" name="personalbedarfAnzahl"
-                         inputMode="numeric" className={FELD} />
+                         inputMode="numeric" className={FELD}
+                         defaultValue={annahmeWert('personalbedarfAnzahl') ?? ''} />
                 </div>
                 <div>
                   <label className="block text-sm text-text" htmlFor="wochenstundenSoll">
                     {nachSprache(AUFTRAG_TEXTE, zugang.sprache).wochenstunden}
                   </label>
                   <input id="wochenstundenSoll" name="wochenstundenSoll"
-                         inputMode="decimal" className={FELD} />
+                         inputMode="decimal" className={FELD}
+                         defaultValue={annahmeWert('wochenstundenSoll') ?? ''} />
                 </div>
               </div>
               <label className="mt-s4 block text-sm text-text" htmlFor="ausstattungHinweis">
                 {nachSprache(AUFTRAG_TEXTE, zugang.sprache).ausstattung}
               </label>
               <textarea id="ausstattungHinweis" name="ausstattungHinweis" rows={2}
+                        defaultValue={annahmeWert('ausstattungHinweis') ?? ''}
                         className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text" />
             </fieldset>
 
@@ -386,7 +407,8 @@ export default async function Annahme(
             <label className="block text-sm text-text" htmlFor="ausgang">
               Was ist geschehen?
             </label>
-            <select id="ausgang" name="ausgang" defaultValue="abgelehnt" className={FELD}>
+            <select id="ausgang" name="ausgang" className={FELD}
+                    defaultValue={zurueckAus === 'zurueckgezogen' ? 'zurueckgezogen' : 'abgelehnt'}>
               <option value="abgelehnt">Der Kunde hat abgelehnt</option>
               <option value="zurueckgezogen">Wir ziehen das Angebot zurück</option>
             </select>
@@ -405,6 +427,7 @@ export default async function Annahme(
               name="notiz"
               rows={3}
               required
+              defaultValue={absageWert('notiz') ?? ''}
               placeholder="z. B. Preis über Budget; Vergabe an Bestandsdienstleister"
               className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text"
             />

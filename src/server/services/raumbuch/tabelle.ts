@@ -144,6 +144,16 @@ export function leseCsv(text: string): Tabelle {
   const trenner = trennzeichenAus(ersteZeile);
 
   const felder: string[][] = [];
+  /**
+   * Die Zeile der DATEI, in der ein Datensatz beginnt (V-240). Vorher nannte
+   * die Abweisung `feldzahl` den Index nach dem Wegfiltern leerer Zeilen plus
+   * zwei — nach einer Leerzeile oder einem Feld mit Zeilenumbruch zeigte sie
+   * auf die falsche Zeile, und wer die Datei danach absuchte, fand dort
+   * nichts. Gezählt wird jeder Zeilenumbruch, auch der in Anführungszeichen.
+   */
+  const anfaenge: number[] = [];
+  let physisch = 1;
+  let anfang = 1;
   let zeile: string[] = [];
   let feld = '';
   let inAnfuehrung = false;
@@ -154,6 +164,7 @@ export function leseCsv(text: string): Tabelle {
       if (z === '"') {
         if (ohneBom[i + 1] === '"') { feld += '"'; i += 1; } else { inAnfuehrung = false; }
       } else {
+        if (z === '\n') physisch += 1;
         feld += z;
       }
       continue;
@@ -163,6 +174,9 @@ export function leseCsv(text: string): Tabelle {
     if (z === '\n') {
       zeile.push(feld.replace(/\r$/u, ''));
       felder.push(zeile);
+      anfaenge.push(anfang);
+      physisch += 1;
+      anfang = physisch;
       zeile = []; feld = '';
       continue;
     }
@@ -182,7 +196,7 @@ export function leseCsv(text: string): Tabelle {
       'Ein Anfuehrungszeichen wurde nicht geschlossen — die Datei laesst sich '
       + 'nicht sicher lesen', 'anfuehrung');
   }
-  if (feld !== '' || zeile.length > 0) { zeile.push(feld); felder.push(zeile); }
+  if (feld !== '' || zeile.length > 0) { zeile.push(feld); felder.push(zeile); anfaenge.push(anfang); }
 
   const [kopfRoh, ...rest] = felder;
   if (kopfRoh === undefined) throw new TabellenFehler('Keine Kopfzeile', 'kopfzeile');
@@ -192,11 +206,12 @@ export function leseCsv(text: string): Tabelle {
   }
 
   const zeilen = rest
+    .map((z, i) => ({ z, dateizeile: anfaenge[i + 1] ?? i + 2 }))
     // Eine Zeile, die nur aus Trennzeichen besteht, ist keine Zeile — Excel
     // haengt sie ans Dateiende, und ohne diese Bedingung entstuende bei jedem
     // Import ein leerer Raum.
-    .filter((z) => z.some((w) => w.trim() !== ''))
-    .map((z, i) => {
+    .filter(({ z }) => z.some((w) => w.trim() !== ''))
+    .map(({ z, dateizeile }) => {
       /**
        * Eine Zeile mit ANDERER Feldzahl wurde bisher still aufgefuellt oder
        * abgeschnitten. Genau dann ist die Datei verschoben — und die Spalten,
@@ -205,8 +220,8 @@ export function leseCsv(text: string): Tabelle {
        */
       if (z.length !== kopf.length) {
         throw new TabellenFehler(
-          `Zeile ${i + 2} hat ${z.length} Felder, die Kopfzeile ${kopf.length} — `
-          + 'die Datei ist verschoben', 'feldzahl', i + 2);
+          `Zeile ${dateizeile} hat ${z.length} Felder, die Kopfzeile ${kopf.length} — `
+          + 'die Datei ist verschoben', 'feldzahl', dateizeile);
       }
       const satz: Record<string, string> = {};
       kopf.forEach((name, j) => { satz[name] = (z[j] ?? '').trim(); });

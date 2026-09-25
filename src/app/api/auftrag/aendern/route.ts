@@ -23,6 +23,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   return fuehreUebergangAus(anfrage, {
     recht: 'auftrag.schreiben',
     grundVon: (f) => grundAus(f, AuftragPflegeFehler, AuftragsangabenFehler),
+    /* V-240: eine Abweisung bringt die Eingaben zurück, nicht den alten Stand. */
+    maskeFelder: [
+      'bezeichnung', 'beschreibung', 'verantwortlichBenutzerId', 'laufzeitBis',
+      'auftragswertNetto', 'personalbedarfAnzahl', 'wochenstundenSoll', 'ausstattungHinweis',
+    ],
     handle: async (kontext, rumpf) => {
       const auftragId = rumpf.felder['auftragId'] ?? '';
       if (!UUID.test(auftragId)) {

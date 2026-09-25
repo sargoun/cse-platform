@@ -12,10 +12,13 @@
  * sie sind die Summe der Positionen, die ein Mensch erfasst hat
  * (`kostenposition.ts`). Ohne sie rechnet die Kette wie bisher; mit ihnen
  * gehen sie als Einzelkosten in den Preis, und die Gemeinkosten rechnen auf
- * die Basis, die die Kalkulation nennt: `lohn` (nur der Lohn) oder
- * `selbstkosten` (Lohn + Material + Geraet). `je_kostenart` braucht Saetze je
- * Kostenart, die niemand genannt hat (O-16) — sie wird abgewiesen, nie still
- * wie `lohn` gerechnet.
+ * die Basis, die die Kalkulation nennt: `lohn` (nur der Lohn) oder den
+ * gespeicherten Wert `selbstkosten`, der hier Lohn + Material + Geraet
+ * bedeutet — die Einzelkosten, und so heisst er auch in der Oberflaeche
+ * (V-240). Der Schluessel stammt aus 0023; was die SELBSTKOSTEN umfassen, ist
+ * O-16 und wird hier nicht behauptet (`kalkulation.selbstkosten_cent` schreibt
+ * niemand). `je_kostenart` braucht Saetze je Kostenart, die niemand genannt
+ * hat (O-16) — sie wird abgewiesen, nie still wie `lohn` gerechnet.
  *
  * Drei Regeln, die den teuren Fehler verhindern:
  *
@@ -116,10 +119,13 @@ export interface Kalkulationseingabe {
 /**
  * Der Bezug des Gemeinkostenzuschlags (V-174) — EINE Stelle, getestet.
  *
- * `lohn`: nur die Lohnkosten. `selbstkosten`: Lohn + Material + Geraet, also
- * die Einzelkosten, auf die ein Gemeinkostenzuschlag in der
- * Zuschlagskalkulation rechnet. Welche Basis gilt, waehlt ein Mensch je
- * Kalkulation; was gruppenweit gilt, ist O-16.
+ * `lohn`: nur die Lohnkosten. `selbstkosten` (der gespeicherte Schluessel aus
+ * 0023): Lohn + Material + Geraet, also die EINZELKOSTEN. Die Oberflaeche nennt
+ * die Basis so und nicht „Selbstkosten" (V-240): Selbstkosten enthalten die
+ * Gemeinkosten schon, und ihre Zusammensetzung ist O-16. Welche Basis gilt,
+ * waehlt ein Mensch je Kalkulation.
+ *
+ * TODO(client, O-16): Worauf rechnet der Gemeinkostenzuschlag je Bereich — auf den Lohn, auf Lohn + Material + Geraet oder je Kostenart getrennt —, und was gehoert zu den Selbstkosten?
  */
 export function gemeinkostenBezug(
   basis: GemeinkostenBasis, lohn: Cent, einzel: Einzelkosten,

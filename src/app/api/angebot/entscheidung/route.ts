@@ -53,6 +53,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   return fuehreUebergangAus<Ergebnis>(anfrage, {
     recht: 'angebot.annahme_erfassen',
     grundVon: (f) => grundAus(f, AngebotFehler, NummernkreisFehler, AuftragsangabenFehler),
+    /*
+     * V-240: eine abgewiesene Annahme bringt ihre Eingaben zurück — sonst
+     * standen Personalbedarf, Stunden und Ausstattung nach einem Tippfehler
+     * wieder leer da. `ausgang` sagt der Seite, welches der beiden Formulare
+     * gemeint war.
+     */
+    maskeFelder: [
+      'ausgang', 'notiz', 'art', 'verantwortlichBenutzerId', 'startDatum', 'laufzeitBis',
+      'personalbedarfAnzahl', 'wochenstundenSoll', 'ausstattungHinweis',
+    ],
     handle: async (kontext, rumpf): Promise<Ergebnis> => {
       const db = { abfrage: kontext.abfrage.bind(kontext) };
       const dbMitNummern = {

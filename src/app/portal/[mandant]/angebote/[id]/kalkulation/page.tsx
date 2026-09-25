@@ -2,8 +2,10 @@ import type postgres from 'postgres';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
-import { cent, formatiereGeld } from '@/server/services/finanz/geld';
-import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
+import { cent, formatiereGeld, formatiereGeldIn } from '@/server/services/finanz/geld';
+import {
+  formatiereMenge, formatiereMengeIn, mengeAusPostgresOderNull,
+} from '@/server/services/finanz/menge';
 import { Button } from '@/components/ui/Button';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
@@ -181,8 +183,14 @@ export default async function KalkulationSeite(
   /* Material und Gerät sind änderbar, solange weder festgeschrieben noch freigegeben. */
   const kostenOffen = !eingefroren && !kopf.freigegeben;
   const basisVorgabe = kopf.gemeinkosten_basis === 'selbstkosten' ? 'selbstkosten' : 'lohn';
+  /*
+   * ANZEIGE in der Sprache der Seite (V-240); die Formulare darunter bleiben
+   * deutsch geschrieben (`mengeText`, `eurText`), weil ihre Leser nur das lesen.
+   */
   const geld = (text: string | null): string =>
-    (text === null ? '—' : formatiereGeld(cent(BigInt(text))));
+    (text === null ? '—' : formatiereGeldIn(cent(BigInt(text)), zugang.sprache));
+  const mengeAnzeige = (text: string | null): string =>
+    (text === null ? '' : formatiereMengeIn(mengeAusPostgresOderNull(text), zugang.sprache));
   const mengeText = (text: string | null): string =>
     (text === null ? '' : formatiereMenge(mengeAusPostgresOderNull(text)));
   const eurText = (text: string | null): string =>
@@ -321,7 +329,7 @@ export default async function KalkulationSeite(
                         {' · '}{z.bezeichnung}
                       </span>
                       <span className="tabular-nums">
-                        {`${mengeText(z.menge)} ${z.einheit ?? ''} × ${geld(z.einzelbetrag_cent)} `}
+                        {`${mengeAnzeige(z.menge)} ${z.einheit ?? ''} × ${geld(z.einzelbetrag_cent)} `}
                         {'= '}<strong>{geld(z.betrag_cent)}</strong>
                       </span>
                     </div>
@@ -408,7 +416,12 @@ export default async function KalkulationSeite(
                          data-cse="material-einzelpreis" />
                 </label>
                 <div className="flex items-end">
-                  <Button type="submit" variante="primary" data-cse="material-speichern">
+                  {/*
+                    * Sekundär: der eine Primary-Knopf dieser Ansicht ist
+                    * „Werte bestätigen" (DESIGN § Buttons) — beide Formulare
+                    * stehen immer zusammen da, solange der Preis offen ist.
+                    */}
+                  <Button type="submit" variante="secondary" data-cse="material-speichern">
                     {tk.speichern}
                   </Button>
                 </div>
@@ -550,7 +563,7 @@ export default async function KalkulationSeite(
                     name="leistungswerte"
                     value="ja"
                     data-cse="feld-leistungswerte"
-                    className="mt-1 min-h-5 min-w-5"
+                    className="mt-s1 min-h-5 min-w-5"
                   />
                   <span>
                     Auch die Reinigungsrichtwerte der hier benutzten Belagsarten
@@ -562,13 +575,10 @@ export default async function KalkulationSeite(
                 </label>
               ) : null}
 
-              <button
-                type="submit"
-                data-cse="kalkulation-bestaetigen"
-                className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm text-white hover:bg-brand-hover"
-              >
+              {/* Der eine Primary-Knopf dieser Ansicht (DESIGN § Buttons). */}
+              <Button type="submit" variante="primary" data-cse="kalkulation-bestaetigen">
                 Werte bestätigen
-              </button>
+              </Button>
             </form>
           )}
         </>

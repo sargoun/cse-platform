@@ -24,7 +24,7 @@ import { VorgangAkte } from '@/components/portal/VorgangAkte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { VORGANG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/vorgang-akte';
 import {
-  aufgabenAkte, listeAufgaben, zaehleJeZustand, type AufgabenAkte,
+  AUFGABEN_JE_BLATT, aufgabenAkte, listeAufgaben, zaehleJeZustand, type AufgabenAkte,
 } from '@/server/services/kern/aufgabe';
 import {
   leseDokumenteAmAuftrag, type VorgangsDokumente,
@@ -179,7 +179,7 @@ export default async function ProjektDetail(
           ? aufgabenAkte(
             await listeAufgaben(kontext, { ...amProjekt, nurOffene: true }),
             await zaehleJeZustand(kontext, amProjekt),
-            jetzt)
+            jetzt, AUFGABEN_JE_BLATT, zugang.sprache)
           : null,
         dokumente: darf['dokument.lesen'] === true
           ? await leseDokumenteAmAuftrag(kontext, bezug.auftrag_id)

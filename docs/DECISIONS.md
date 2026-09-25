@@ -17002,11 +17002,22 @@ doch auf den Lohn gerechnet.
    der Dienst genauso zurück. Die Grenzen sind technische, keine Fachregeln:
    weniger als eine Milliarde Einheiten (`numeric(12,3)`), Beträge bis
    `Number.MAX_SAFE_INTEGER` Cent (R-12); darüber gibt es einen Satz statt
-   eines 22003.
+   eines 22003. **Berichtigt (V-240):** die Angaben des Auftrags lasen
+   `leseZahl` bis dahin OHNE `mehrdeutig` — „12.50" Wochenstunden wurden still
+   12,5. `pruefeAuftragsangaben` weist eine solche Zahl jetzt ebenso ab
+   (`mehrdeutig`, mit Feld, in beiden Sprachen).
 3. **Einzelkosten gehen IMMER in den Preis.** Die Basis entscheidet nur,
    worauf der Gemeinkostenzuschlag rechnet: `lohn` auf den Lohn,
    `selbstkosten` auf Lohn + Material + Gerät (so steht es auch in der
-   Auswahl). Wagnis und Gewinn rechnen weiter auf die Summe davor
+   Auswahl). **Berichtigt (V-240):** die Auswahl hiess „Selbstkosten (Lohn +
+   Material + Gerät)". Das legte fest, was O-16 offenlässt — 0023 nennt die
+   Zusammensetzung der Selbstkosten ausdrücklich eine offene Frage, und
+   fachlich sind Lohn, Material und Gerät die EINZELKOSTEN (Selbstkosten
+   enthalten die Gemeinkosten schon). Die Auswahl heisst jetzt „Lohn +
+   Material + Gerät (Einzelkosten)", der Satz darunter nennt O-16. Der
+   gespeicherte Schlüssel bleibt `selbstkosten` (Aufzählung aus 0023) — ein
+   Schlüssel, keine Aussage; `selbstkosten_cent` schreibt weiter niemand.
+   Wagnis und Gewinn rechnen weiter auf die Summe davor
    (Einzelkosten + Gemeinkosten). Welche Basis gruppenweit gilt, bleibt O-16.
 4. **`je_kostenart` wird abgewiesen** (`basis_offen`), nicht still wie `lohn`
    gerechnet: sie braucht einen Zuschlag je Kostenart, und diese Sätze sind
@@ -17295,3 +17306,55 @@ Frage.
 | Betrifft | OPS-05, O-921, D-667, V-173, V-239, `drizzle/0080`, `src/server/services/auftrag/aendern.ts`, `src/lib/i18n/verwaltung/auftrag.ts`, `src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx` |
 |---|---|
 
+### D-733 · Anzeige in der Sprache der Seite, Eingaben zurück auf die Maske, Zeilen der Datei — die kleinen Punkte der Gruppe operations (V-240)
+
+**Der Befund** (V-240): der unabhängige Prüfer der Gruppe operations fand
+dreizehn kleine Punkte. Die Berichtigungen an bestehenden Entscheidungen stehen
+dort, wo sie gelten: D-668 (die Basis heisst „Lohn + Material + Gerät
+(Einzelkosten)", `mehrdeutig` auch beim Auftrag) und D-669 (EINE Frage
+„freigeschaltet?", gezieltes Nachordnen, 0422). Hier stehen die
+Ablaufentscheidungen, die neu sind.
+
+**Die Entscheidung.**
+
+1. **Eine Seite, die ihre Sprache kennt, zeigt Zahlen und Tage in ihr.**
+   Englisch: `formatiereGeldIn` („€12,500.00"), `formatiereMengeIn`
+   („1,234.50"), `tagInSprache` („29 Mar 2026", britisches Englisch, mittlere
+   Länge, über UTC hin und zurück ohne Zonenversatz), `fristInWorten(…,
+   sprache)` (dieselbe Form, Uhrzeit weiter Europe/Berlin),
+   `koordinateAlsText(…, sprache)` (Punkt). Deutsch bleibt alles, wie es war.
+   Betroffen sind die zweisprachigen Blätter dieser Gruppe: Auftragspflege,
+   Kalkulation, Objektblatt, Akte an Auftrag und Projekt. **Formulare
+   bleiben deutsch geschrieben**, auch englisch vorbelegt: `parseGeld` und
+   `leseZahl` lesen nur deutsche Schreibweise, und die englischen Hilfetexte
+   sagen das seit V-172. (Die Koordinate liest Punkt und Komma.)
+2. **Ein Dienst liefert Tage als `JJJJ-MM-TT`, das Blatt schreibt sie.**
+   `leseDokumenteAmAuftrag` gab `TT.MM.JJJJ` aus der Datenbank und legte
+   damit die Sprache fest; jetzt formatiert `VorgangAkte`.
+3. **Eine Zahl in einem Satz reist als Zahl, nicht als Satz.**
+   `einsaetze_offen` kommt als `?anzahl=` (nur ganze Zahl gelesen), und die
+   Seite bildet den Satz in ihrer Sprache. `?meldung=` fällt auf den
+   Objektseiten weg: ein unbekannter Grund wird „Die Eingabe wurde
+   abgewiesen", nie Text aus der Adresse (dieselbe Regel wie V-153).
+4. **Eine abgewiesene Pflege oder Annahme bringt ihre Eingaben zurück.** Das
+   Übergangsgerüst (`api/uebergang.ts`) nimmt dafür `maskeFelder` und baut
+   den Rückweg mit `maskeMitEingaben` (D-599); ohne Angabe bleibt es beim
+   Grund allein. Die Pflegeseite erkennt die Rückkehr an der Leitung (Pflicht,
+   reist immer mit); ein leer gelassenes Feld bleibt leer und fällt nicht auf
+   den gespeicherten Wert zurück. Die Annahmeseite belegt nur das Formular
+   vor, das abgeschickt wurde (`ausgang`), und eine Auswahl nur mit einem
+   Wert, den sie anbietet.
+5. **Die Abweisung `feldzahl` nennt die Zeile der Datei.** Der CSV-Leser
+   zählt jeden Zeilenumbruch, auch den in Anführungszeichen, und merkt sich,
+   in welcher Zeile ein Datensatz beginnt; gefilterte Leerzeilen zählen mit.
+6. **Ein Recht heisst beim Namen** (`rechtName`, wie V-144), ein unbekannter
+   Aufgabenstand „Stand unbekannt", und je Ansicht gibt es einen
+   Primary-Knopf (auf der Kalkulation „Werte bestätigen"; „Speichern und neu
+   rechnen" ist sekundär).
+7. **`credential_ref` bekommt kein Feld** — D-669 Punkt 6 gilt: solange kein
+   Tresor angebunden ist, verwiese ein Feld für den Namen eines Geheimnisses
+   auf etwas, das es nicht gibt, und lüde dazu ein, das Geheimnis selbst
+   einzutragen.
+
+| Betrifft | V-240, V-144, V-153, D-599, D-668, D-669, RAD-09, OPS-04, OPS-07, OPS-11, Invariante 2, `src/server/services/finanz/{geld,menge}.ts`, `src/lib/datum/kalendertag.ts`, `src/server/services/kern/aufgabe.ts`, `src/server/services/dokument/vorgang.ts`, `src/components/portal/VorgangAkte.tsx`, `src/server/services/objekt/anlegen.ts`, `src/app/api/{uebergang.ts,objekt/route.ts,auftrag/aendern/route.ts,angebot/entscheidung/route.ts}`, `src/server/services/raumbuch/tabelle.ts`, `src/lib/i18n/verwaltung/{objekte,vorgang-akte,angebot-hand}.ts` |
+|---|---|

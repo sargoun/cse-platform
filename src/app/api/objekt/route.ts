@@ -117,13 +117,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       const trenner = zurueck.includes('?') ? '&' : '?';
       /*
        * Der SCHLÜSSEL geht mit (V-170): die Seite übersetzt ihn in die Sprache
-       * der Sitzung. Der deutsche Satz bleibt daneben für die Gründe, die
-       * eine Zahl tragen (`einsaetze_offen`) und deshalb keinen festen Text
-       * haben.
+       * der Sitzung. Trägt der Grund eine Zahl (`einsaetze_offen`), reist die
+       * ZAHL mit und die Seite bildet den Satz selbst (V-240) — vorher reiste
+       * der deutsche Satz als `?meldung=` und stand so auch in der englischen
+       * Oberfläche, und ein Warnkasten zeigte Text aus der Adresse (V-153).
        */
       return NextResponse.redirect(internesZiel(
         `${zurueck}${trenner}fehler=${encodeURIComponent(fehler.grund)}`
-        + `&meldung=${encodeURIComponent(fehler.message)}`,
+        + (fehler.anzahl === null ? '' : `&anzahl=${String(fehler.anzahl)}`),
         '/portal', anfrage), 303);
     }
     throw fehler;
