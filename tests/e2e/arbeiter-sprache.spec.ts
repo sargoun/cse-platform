@@ -19,7 +19,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { ANMELDUNG_TEXTE, STEMPEL_TEXTE } from '../../src/lib/i18n/vor-anmeldung.js';
-import { KONTO_WURZEL_TEXTE } from '../../src/lib/i18n/konto.js';
+import { KALENDER_FEED_TEXTE, KONTO_WURZEL_TEXTE } from '../../src/lib/i18n/konto.js';
 import { alsKonto, KONTO } from './hilfen/anmeldung';
 
 const ADRESSE = '/check-in/aaaabbbbccccddddeeeeffff00001111222233334444555566667777';
@@ -156,4 +156,16 @@ test.describe('das Konto einer arabischsprachigen Beschäftigten', () => {
     // Kein Schlüssel als Überschrift einer Zeile.
     await expect(page.locator('main')).not.toContainText('plan_veroeffentlicht');
   });
+
+  test('der Kalender-Feed, auf den die Wurzel verweist, spricht Arabisch — samt Warnung (D-750)',
+    async ({ page }) => {
+      await alsKonto(page, KONTO.amir);
+      await page.goto('/portal/konto/kalender-feed');
+      const t = KALENDER_FEED_TEXTE.ar;
+      await expect(page.locator('[data-sprache="ar"]').first()).toHaveAttribute('dir', 'rtl');
+      await expect(page.locator('main')).toContainText(t.titel);
+      await expect(page.locator('[data-cse="feed-warnung"]')).toContainText(t.warnungTitel);
+      // Der Kalender eines Bereichs ist Verwaltung — kein Verweis dorthin.
+      await expect(page.locator('[data-cse="zum-kalender"]')).toHaveCount(0);
+    });
 });
