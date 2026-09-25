@@ -18080,3 +18080,35 @@ Ablaufentscheidungen, die neu sind.
 
 | Betrifft | V-240, V-144, V-153, D-599, D-668, D-669, RAD-09, OPS-04, OPS-07, OPS-11, Invariante 2, `src/server/services/finanz/{geld,menge}.ts`, `src/lib/datum/kalendertag.ts`, `src/server/services/kern/aufgabe.ts`, `src/server/services/dokument/vorgang.ts`, `src/components/portal/VorgangAkte.tsx`, `src/server/services/objekt/anlegen.ts`, `src/app/api/{uebergang.ts,objekt/route.ts,auftrag/aendern/route.ts,angebot/entscheidung/route.ts}`, `src/server/services/raumbuch/tabelle.ts`, `src/lib/i18n/verwaltung/{objekte,vorgang-akte,angebot-hand}.ts` |
 |---|---|
+
+### D-680 · Die Monatsansicht verweist auf den Tag, sobald sie eine Schicht nicht zeigt (V-186)
+
+**Der Befund** (V-186): der `Monatsplan` zeigte je Tag höchstens vier
+Schichten und darunter „und N weitere" als blossen Text. Weder dieser Text
+noch die Tagesüberschrift führten irgendwohin. An einem Objekt mit zehn
+parallelen Wachen — genau der Fall aus TIM-04, „none hidden" — waren sechs
+davon aus der Monatsansicht weder sichtbar noch erreichbar.
+
+**Die Entscheidung.**
+
+1. **Die Karte bleibt bei vier Schichten** (`MONATSKARTE_HOECHSTENS`). Der
+   Monat ist Übersicht, keine Disposition; eine Karte mit zehn Zeilen
+   zerlegt das Kartenraster auf 375 px. Was nicht auf die Karte passt, ist
+   **einen Tipp entfernt**, nicht verborgen.
+2. **Zwei Wege in die Tagesansicht** (`/dienstplan/tag?tag=`), die jede
+   Schicht des Tages zeigt: der Kopf jeder Karte — auch an einem Tag ohne
+   Schicht, denn dort wird geplant — und unter einer vollen Karte der
+   Verweis „und N weitere — alle M in der Tagesansicht". `tagZiel` ist eine
+   Pflichteigenschaft des `Monatsplan`, damit keine künftige Seite ihn ohne
+   den Weg einbindet.
+3. **Jeder Verweis der Karte hat 44 px Zielfläche** (DESIGN §8, `min-h-11`),
+   auch die Schichtzeilen, die vorher eine Textzeile hoch waren.
+4. **Die Monatsseite spricht die Sprache der Sitzung** (`MONAT_TEXTE`,
+   de/en, Zahlen nach Sprache); das fehlende Recht heisst beim Namen
+   (`<Recht>`), nicht `zeit.abwesenheit_lesen`. Die Tagesbeschriftung aus
+   `dienstplan/daten.ts` („Mo 04.01.") und die Wochen- und Tagesansicht
+   bleiben vorerst deutsch — sie teilen die Beschriftung, und ihre Umstellung
+   ist ein eigener Schritt.
+
+| Betrifft | TIM-01, TIM-04, DESIGN §8, V-186, `src/components/portal/Wochenplan.tsx` (`Monatsplan`), `src/app/portal/[mandant]/dienstplan/monat/page.tsx`, `src/lib/i18n/verwaltung/dienstplan-monat.ts`, `tests/kern/monatsplan.test.ts` |
+|---|---|
