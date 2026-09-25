@@ -46,6 +46,17 @@ const ANTWORT_TEXT: Readonly<Record<string, (t: MeinTexte) => string>> = {
  */
 export const dynamic = 'force-dynamic';
 
+/**
+ * Kann zu dieser Schicht eine Zeit fehlen (V-189)? Nur zu einer BEENDETEN,
+ * die weder abgesagt noch an jemand anderen gegangen ist und selbst nicht
+ * ausfiel. „Nicht erschienen" gehört dazu: genau dort widerspricht jemand,
+ * der da war.
+ */
+function zeitFrage(s: EigeneSchicht): boolean {
+  return s.beendet && s.status !== 'abgesagt' && s.status !== 'ersetzt'
+    && s.einsatzStatus !== 'storniert';
+}
+
 /** Was diese Seite in EINER Transaktion liest — Schicht plus ihre Anweisungen. */
 interface Blatt {
   readonly schicht: EigeneSchicht;
@@ -80,7 +91,7 @@ export default async function MeineSchicht(
       const anweisungen = schicht.objektId === null ? [] as const
         : await listeEigeneDienstanweisungen(kontext, teil.sprache,
           { objektId: schicht.objektId });
-      const eintragId = schicht.beendet
+      const eintragId = zeitFrage(schicht)
         ? await eigenerEintragZurSchicht(kontext, schicht.einsatzId, schicht.anstellungId)
         : null;
       return { schicht, anweisungen, eintragId };
@@ -160,12 +171,12 @@ export default async function MeineSchicht(
           es KEINEN, fuehrt er zu „Eine Zeit fehlt", vorbelegt mit Tag und
           Beschaeftigung; vorher gab es fuer diesen Fall keinen Weg.
         */}
-        {daten.beendet && eintragId !== null && (
+        {zeitFrage(daten) && eintragId !== null && (
           <Link href={`/portal/mein/zeiten/${eintragId}`} data-cse="zur-zeit" className={zielKnopf}>
             {ft.zurZeitDerSchicht}
           </Link>
         )}
-        {daten.beendet && eintragId === null && (
+        {zeitFrage(daten) && eintragId === null && (
           <Link
             href={alsRoute(
               `/portal/mein/zeiten/einwand?anstellung=${daten.anstellungId}&datum=${daten.planDatum}`)}

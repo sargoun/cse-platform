@@ -171,6 +171,9 @@ describe('die Seiten', () => {
     const blatt = lies('src/app/portal/mein/schichten/[zuordnungId]/page.tsx');
     expect(blatt).toContain('/portal/mein/zeiten/einwand?anstellung=');
     expect(blatt).toContain('eigenerEintragZurSchicht');
+    // Nur zu einer beendeten Schicht, die nicht abgesagt, ersetzt oder ausgefallen ist.
+    expect(blatt).toMatch(/s\.beendet && s\.status !== 'abgesagt' && s\.status !== 'ersetzt'/u);
+    expect(blatt).toContain("s.einsatzStatus !== 'storniert'");
   });
 
   it('die Seite steht in der Seitenkarte', () => {

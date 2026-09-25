@@ -18241,7 +18241,9 @@ Seite mit `{"einwand": "…"}`, ein Ende vor dem Beginn (`ze_fenster`) als
    Berliner Wanduhrzeit gelesen — auch über Mitternacht und die Nacht der
    Zeitumstellung.
 3. **Zwei Einstiege:** „Meine Zeiten" verweist darauf, und das Blatt einer
-   BEENDETEN Schicht fragt, ob es einen eigenen Eintrag gibt
+   BEENDETEN Schicht — nicht abgesagt, nicht an jemand anderen gegangen,
+   nicht ausgefallen; „nicht erschienen" gehört dazu, dort widerspricht, wer
+   da war — fragt, ob es einen eigenen Eintrag gibt
    (`eigenerEintragZurSchicht`, Personen-Scope): gibt es einen, führt es zu
    ihm (dort steht der Einwand); gibt es keinen, zu „Eine Zeit fehlt",
    vorbelegt mit Tag und Beschäftigung (vorbelegt wird nur, was die Seite
