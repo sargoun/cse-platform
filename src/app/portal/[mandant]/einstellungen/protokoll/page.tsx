@@ -46,7 +46,8 @@ export default async function Protokoll(
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) => kontext.abfrage<Zeile>(
       `select a.id::text as id, a.ebene::text as ebene, a.akteur_typ::text as akteur_typ,
-              coalesce(b.name, ag.name) as akteur, a.aktion, a.objekt_typ, a.objekt_id,
+              case when a.akteur_typ = 'agent' then coalesce(ag.name, b.name)
+                   else coalesce(b.name, ag.name) end as akteur, a.aktion, a.objekt_typ, a.objekt_id,
               a.geaendert_felder as felder,
               to_char(a.erstellt_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI:SS') as zeit
          from audit_log a

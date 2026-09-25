@@ -129,12 +129,17 @@ async function KontoWurzel() {
         * Der Wechsel geschieht NICHT hier. `/auth/bereich` traegt ihn, und
         * dort ist jede Zeile ein POST — koennte ein GET den aktiven Mandanten
         * aendern, waere die URL der Mandantenzustand (Invariante 3).
+        *
+        * Und nur mit einer Auswahl (TEN-06, D-43, V-165): mit einem einzigen
+        * Bereich fuehrte der Verweis auf eine Wahl mit einer Zeile.
         */}
-      <p className="mt-s4 max-w-[72ch] text-sm text-text-subtle">
-        Gewechselt wird über <a href="/auth/bereich"
-          className="text-text underline underline-offset-4">Bereich wechseln</a> —
-        der Wechsel wird protokolliert.
-      </p>
+      {k.bereiche.length > 1 && (
+        <p data-cse="konto-wechsel" className="mt-s4 max-w-[72ch] text-sm text-text-subtle">
+          Gewechselt wird über <a href="/auth/bereich"
+            className="text-text underline underline-offset-4">Bereich wechseln</a> —
+          der Wechsel wird protokolliert.
+        </p>
+      )}
 
       {/*
         * ═══════════════════════════════════════════════════════════════════

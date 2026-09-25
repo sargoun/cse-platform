@@ -858,28 +858,51 @@ Circular brand avatar `32px` with a 2px ring in the area's identity hue · name
 in `sm` 600 · chevron in `--text-muted`. Whole control is one button, `44px`
 tall, hover `--surface-2`.
 
+**In the portal header the name appears from `lg`.** Below `lg` the trigger
+carries avatar and chevron only; the page title beside it names the area, and
+the button's accessible name always does. Between `sm` and `lg` the whole
+session navigation stands on the right of the same row, and a full company
+name on the left pushed the row off the edge (§8). A name that is still too
+long at `lg` is truncated, never allowed to push (a fifth area, TEN-08).
+
 **Dropdown:** `--surface-2`, `--r-lg`, `--shadow-pop`, width `320px`,
-enters with `opacity 0→1` + `translateY(-4px→0)` over 180ms.
+enters with `opacity 0→1` + `translateY(-4px→0)` over `--base` with `--ease`
+— §7: dropdowns and modals move at `--base`. (This line said 180ms before;
+that is not a token, and §7 is the table the durations come from.) Under
+`prefers-reduced-motion` the offset is dropped (§7). The class is
+`.cse-klappmenue` in `globals.css`, the sibling of `.cse-auftritt`.
 
 ```
 ┌──────────────────────────────────────┐
 │  BEREICH WECHSELN                    │  micro, --text-subtle
 ├──────────────────────────────────────┤
 │ ◉  CSE Dienstleistung        ✓       │  active: red ring, --surface-3
-│    Reinigung · 24 Aufträge           │
+│    Reinigung · 24 laufende Aufträge  │
 │                                      │
 │ ◉  SSE Security                      │  blue ring
-│    Sicherheit · 8 Aufträge           │
+│    Security · 8 laufende Aufträge    │
 │                                      │
 │ ◉  REALTIME Service GmbH             │  amber ring
-│    Bau · 12 Projekte                 │
+│    Bau · 12 laufende Projekte        │
 │                                      │
 │ ◉  CSE Operations                    │  violet ring
-│    Digital & KI                      │
+│                                      │  no second line: no trade, no count
 ├──────────────────────────────────────┤
 │ ⊞  Gruppenübersicht      NUR LESEN   │  --text-muted + warning pill
 └──────────────────────────────────────┘
 ```
+
+**The second line is data, not copy.** It is the area's booked trades
+(`mandant.module`) under their module names — the same words the module
+assignment uses (`Reinigung`, `Security`, `Bau`), because a trade that is
+called one thing in the switcher and another on the user sheet reads as two
+trades — followed by the live counter: running projects where `bau` is booked,
+active orders otherwise. **CSE Operations books no trade**, so its row has no
+second line: „Digital & KI", which this mockup showed before, was a label no
+booking carries, and a zero counter would be decoration, not information
+(D-659 Nr. 3). An area whose booking was never maintained shows no trade word,
+only the counter — unknown is not empty, and not a trade either (O-355).
+D-731.
 
 **Rules:**
 

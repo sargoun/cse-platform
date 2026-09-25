@@ -111,7 +111,7 @@ export default async function CodeEingabe({ searchParams }: Props) {
      * die er nicht mehr bekommt, weil die Bremse aus 0114 mitzaehlt.
      */
     const anmeldung = await (db().begin(async (tx: postgres.TransactionSql) => {
-      const personId = await codeEinloesen(tx, nummer, code);
+      const personId = await codeEinloesen(tx, nummer, code, ip);
       if (personId === null) return { art: 'code' as const };
       const sitzung = await mitarbeiterSitzungAusstellen(tx, personId, ip, agent);
       /* Der Code war richtig — nur das Konto fehlt. Siehe oben, warum das ein

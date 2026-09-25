@@ -240,9 +240,11 @@ describe('der eingefuegte Code traegt Formatierung — die Ziffern tragen die Be
         return Promise.resolve([{ person_id: 'person-1' }]);
       },
     };
-    const person = await codeEinloesen(tx, '0170 1234567', ' 12 34 56 ');
+    const person = await codeEinloesen(tx, '0170 1234567', ' 12 34 56 ', '203.0.113.9');
     expect(person).toBe('person-1');
-    expect(gefragt[0]?.[1], 'die Datenbank sieht den Hash der sechs Ziffern').toBe(codeHash('123456'));
+    /* Zuerst die Herkunft fuer das Protokoll (V-235), dann die Einloesung. */
+    expect(gefragt[0], 'die Adresse der Anfrage wird gebunden').toEqual(['203.0.113.9']);
+    expect(gefragt[1]?.[1], 'die Datenbank sieht den Hash der sechs Ziffern').toBe(codeHash('123456'));
   });
 
   it('zu wenige oder zu viele Ziffern: die Datenbank wird gar nicht gefragt', async () => {
@@ -250,9 +252,9 @@ describe('der eingefuegte Code traegt Formatierung — die Ziffern tragen die Be
     const tx = {
       unsafe: (): Promise<readonly unknown[]> => { aufrufe += 1; return Promise.resolve([{ person_id: 'x' }]); },
     };
-    expect(await codeEinloesen(tx, '0170 1234567', '12345')).toBeNull();
-    expect(await codeEinloesen(tx, '0170 1234567', '1234567')).toBeNull();
-    expect(await codeEinloesen(tx, '0170 1234567', '')).toBeNull();
+    expect(await codeEinloesen(tx, '0170 1234567', '12345', null)).toBeNull();
+    expect(await codeEinloesen(tx, '0170 1234567', '1234567', null)).toBeNull();
+    expect(await codeEinloesen(tx, '0170 1234567', '', null)).toBeNull();
     expect(aufrufe).toBe(0);
   });
 });

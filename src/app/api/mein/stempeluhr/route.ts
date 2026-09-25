@@ -91,7 +91,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           zuordnungId,
           zweck: zweckRoh,
           geraeteZeit: gueltigeGeraetezeit,
-          ip: anfrage.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
+          /* Dieselbe Adresse, die `withTenant` fuer das Protokoll bindet —
+             eine Lesart, nicht zwei (D-661 Nr. 6, V-235). */
+          ip: sitzung.ip ?? null,
           userAgent: anfrage.headers.get('user-agent'),
         });
         return r.art;

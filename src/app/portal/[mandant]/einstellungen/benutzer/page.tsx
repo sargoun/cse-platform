@@ -9,6 +9,11 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Recht } from '@/components/ui/Recht';
+import { internSprache } from '@/lib/i18n/intern';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import {
+  MODUL_ZUWEISUNG_TEXTE, modulName,
+} from '@/lib/i18n/verwaltung/einstellungen/module-zuweisung';
 
 /**
  * `/portal/[mandant]/einstellungen/benutzer` — die Konten dieser Gesellschaft
@@ -59,6 +64,8 @@ export default async function Benutzerliste(
    * damit die Existenz dessen, was er nicht zeigen darf.
    */
   const darf = await haeltRechte(zugang.sitzung, 'system.verwaltungskonto_erstellen');
+  const sprache = internSprache(zugang.sprache);
+  const tModule = nachSprache(MODUL_ZUWEISUNG_TEXTE, zugang.sprache);
 
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) => kontext.abfrage<Zeile>(
@@ -137,8 +144,10 @@ export default async function Benutzerliste(
           { schluessel: 'email', kopf: 'E-Mail', zelle: (z) => z.email },
           { schluessel: 'rolle', kopf: 'Rolle',
             zelle: (z) => `${z.rolle}${z.aus_anstellung ? ' · aus Anstellung' : ''}` },
+          /* Benannt, nicht als Schluessel (V-164): `crm, finanzen` sagt niemandem etwas. */
           { schluessel: 'module', kopf: 'Module',
-            zelle: (z) => (z.module === null ? 'alle der Rolle' : z.module.join(', ') || 'keine') },
+            zelle: (z) => (z.module === null ? tModule.alleDerRolle
+              : z.module.map((m) => modulName(m, sprache)).join(', ')) },
           { schluessel: 'faktor', kopf: 'Zweiter Faktor',
             zelle: (z) => (z.zweiter_faktor
               ? 'eingerichtet'

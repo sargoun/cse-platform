@@ -7,8 +7,15 @@ import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { haeltRechte } from '@/app/portal/rechte';
 import { KontoHandlungen } from '../KontoHandlungen';
+import { ModulZuweisung } from '../ModulZuweisung';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { ZUGANG_TEXTE } from '@/lib/i18n/verwaltung/einstellungen/zugang';
+import {
+  MODUL_ZUWEISUNG_TEXTE, modulName,
+} from '@/lib/i18n/verwaltung/einstellungen/module-zuweisung';
+import { internSprache } from '@/lib/i18n/intern';
+import { modulKatalog } from '@/server/services/system/mitgliedschaft-module';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { kennungOder404 } from '../../../../kennung';
@@ -40,6 +47,8 @@ interface Kopf {
 interface Mitgliedschaft {
   readonly id: string;
   readonly rolle: string;
+  /** `admin` mit `rolle.mandant_id is null` — nur ihr werden Module zugewiesen (0416). */
+  readonly plattform_admin: boolean;
   readonly erfordert_2fa: boolean;
   readonly module: readonly string[] | null;
   readonly aus_anstellung: boolean;
@@ -89,11 +98,28 @@ export default async function Benutzerblatt(
   const { zugang, mandantId } = tor;
   const selbst = id.toLowerCase() === zugang.sitzung.benutzerId.toLowerCase();
   const darf = await haeltRechte(
-    zugang.sitzung, 'system.benutzer_verwalten', 'system.sitzung_widerrufen');
+    zugang.sitzung, 'system.benutzer_verwalten', 'system.sitzung_widerrufen',
+    'system.module_zuweisen');
   const suche = await searchParams;
-  const stand = typeof suche['konto'] === 'string' ? suche['konto'] : null;
-  const anzahl = typeof suche['anzahl'] === 'string' ? suche['anzahl'] : null;
   const tZugang = nachSprache(ZUGANG_TEXTE, zugang.sprache);
+  /*
+   * **Ein Schluessel aus der Adresse wird nur als EIGENER Eintrag
+   * nachgeschlagen** (V-168, D-653). `tabelle[schluessel]` fand fuer
+   * `?module=__proto__` den Prototyp und die Seite warf beim Zeichnen;
+   * `?konto=` gab einen unbekannten Wert dazu roh aus. Gezeigt wird nur ein
+   * Schluessel mit Satz, die Anzahl nur als Zahl.
+   */
+  const kontoRoh = typeof suche['konto'] === 'string' ? suche['konto'] : null;
+  const kontoMeldung = eigenerEintrag(tZugang.meldung, kontoRoh);
+  const stand = kontoMeldung === undefined ? null : kontoRoh;
+  const anzahl = typeof suche['anzahl'] === 'string' && /^\d{1,6}$/u.test(suche['anzahl'])
+    ? suche['anzahl'] : null;
+  /* AUT-01 (V-164): der Stand der Modulzuweisung kommt als `?module=` zurueck. */
+  const tModule = nachSprache(MODUL_ZUWEISUNG_TEXTE, zugang.sprache);
+  const modulStandRoh = typeof suche['module'] === 'string' ? suche['module'] : null;
+  const modulMeldung = eigenerEintrag(tModule.meldung, modulStandRoh);
+  const modulStand = modulMeldung === undefined ? null : modulStandRoh;
+  const sprache = internSprache(zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -110,7 +136,9 @@ export default async function Benutzerblatt(
         [id, mandantId]);
       if (kopf === undefined) return null;
       const mitgliedschaften = await kontext.abfrage<Mitgliedschaft>(
-        `select bm.id, r.bezeichnung as rolle, r.erfordert_2fa, bm.module, bm.aus_anstellung,
+        `select bm.id, r.bezeichnung as rolle,
+                (r.schluessel = 'admin' and r.mandant_id is null) as plattform_admin,
+                r.erfordert_2fa, bm.module, bm.aus_anstellung,
                 bm.ist_standard,
                 to_char(bm.gueltig_ab, 'DD.MM.YYYY') as gueltig_ab,
                 to_char(bm.gueltig_bis, 'DD.MM.YYYY') as gueltig_bis,
@@ -129,12 +157,26 @@ export default async function Benutzerblatt(
           where s.benutzer_id = $1
           order by s.letzte_aktivitaet_am desc
           limit 20`, [id]) : [];
-      return { kopf, mitgliedschaften, sitzungen };
+      /* Der Katalog nur, wenn es etwas zuzuweisen gibt — eine Abfrage weniger sonst. */
+      const katalog = darf['system.module_zuweisen'] === true
+        ? await modulKatalog(kontext) : [];
+      return { kopf, mitgliedschaften, sitzungen, katalog };
     })) as Promise<{
       kopf: Kopf; mitgliedschaften: readonly Mitgliedschaft[]; sitzungen: readonly Sitzung[];
+      katalog: readonly string[];
     } | null>);
   if (daten === null) notFound();
-  const { kopf, mitgliedschaften, sitzungen } = daten;
+  const { kopf, mitgliedschaften, sitzungen, katalog } = daten;
+  /*
+   * Zuweisbar ist eine LEBENDE Mitgliedschaft mit der Plattformrolle `admin`
+   * (0416). Der Knopf erscheint nur mit `system.module_zuweisen` — die
+   * Datenbank fragt es beim Speichern ein zweites Mal.
+   */
+  const lebenderAdmin = darf['system.module_zuweisen'] === true
+    ? mitgliedschaften.find((m) => m.plattform_admin && m.entzogen_am === null)
+    : undefined;
+  const zuweisbar = lebenderAdmin === undefined
+    ? null : { id: lebenderAdmin.id, module: lebenderAdmin.module };
 
   return (
     <PortalRahmen
@@ -162,7 +204,7 @@ export default async function Benutzerblatt(
           cse="konto-stand"
           className="mb-s5 max-w-prose"
         >
-          {tZugang.meldung[stand] ?? stand}
+          {kontoMeldung}
           {anzahl === null ? null : ` (${anzahl})`}
         </Hinweis>
       )}
@@ -189,8 +231,10 @@ export default async function Benutzerblatt(
           spalten={[
             { schluessel: 'rolle', kopf: 'Rolle',
               zelle: (m) => `${m.rolle}${m.erfordert_2fa ? ' · 2FA-Pflicht' : ''}` },
+            /* Benannt, nicht als Schluessel (V-164): `crm, finanzen` sagt niemandem etwas. */
             { schluessel: 'module', kopf: 'Module',
-              zelle: (m) => (m.module === null ? 'alle der Rolle' : m.module.join(', ') || 'keine') },
+              zelle: (m) => (m.module === null ? tModule.alleDerRolle
+                : m.module.map((x) => modulName(x, sprache)).join(', ')) },
             { schluessel: 'herkunft', kopf: 'Herkunft',
               zelle: (m) => (m.aus_anstellung ? 'aus Anstellung (K-14)' : 'vergeben') },
             { schluessel: 'ab', kopf: 'Gültig ab', zelle: (m) => m.gueltig_ab },
@@ -201,6 +245,27 @@ export default async function Benutzerblatt(
           ]}
         />
       </div>
+
+      {modulStand === null ? null : (
+        <Hinweis
+          art={modulStand === 'module_gesetzt' ? 'erfolg'
+            : modulStand === 'module_unveraendert' ? 'hinweis' : 'warnung'}
+          cse="modul-stand"
+          className="mb-s5 max-w-prose"
+        >
+          {modulMeldung}
+        </Hinweis>
+      )}
+
+      <ModulZuweisung
+        mandant={mandant}
+        benutzerId={kopf.id}
+        selbst={selbst}
+        mitgliedschaft={zuweisbar}
+        katalog={katalog}
+        sprache={sprache}
+        t={tModule}
+      />
 
       <KontoHandlungen
         mandant={mandant}

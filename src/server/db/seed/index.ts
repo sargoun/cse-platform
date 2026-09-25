@@ -1498,6 +1498,52 @@ async function main(): Promise<void> {
   process.stdout.write(`  ${konten.length} Rollenkonten (admin, leitung, mitarbeiter, kunde)\n`);
 
   /**
+   * **Eine Administration mit ZUGEWIESENEN Modulen** (AUT-01, V-164, D-658).
+   *
+   * SPEC §3: „Admin — assigned modules within assigned areas". Die Spalte
+   * `benutzer_mandant.module` wirkt seit 0008 als Schnittmenge — und kein
+   * geseedetes Konto trug je eine Liste, also liess sich die Einschraenkung
+   * weder vorfuehren noch widerlegen. Dieses Konto ist die Vertriebs-
+   * Administration der Reinigung: Kunden, Angebote, Auftraege, Objekte, die
+   * Uebersicht — und ausdruecklich NICHT Finanzen, Personal oder System.
+   *
+   * **Ein eigenes Konto und kein umgebautes.** `admin.reinigung` traegt die
+   * Browsersuite; ihm Module zu nehmen, hiesse, dreissig Pruefungen aus dem
+   * falschen Grund rot zu machen. Und ein Konto OHNE Person, mit Absicht:
+   * diese Administration fuehrt kein Wachbuch und steht in keinem Dienstplan
+   * — eine erfundene Beschaeftigung dazu waere eine Kostenstelle ohne Satz
+   * (O-347) und ein Mensch, den es nicht gibt.
+   *
+   * Der Seed schreibt die Liste direkt: er laeuft als Eigentuemer, und der
+   * Ausloeser `kern.bm_module_pruefen` (0416) prueft sie trotzdem gegen den
+   * Katalog. Der Anwendungsweg geht ueber `app.mitgliedschaft_module_setzen`.
+   */
+  {
+    const email = 'admin.vertrieb@cse-gruppe.de';
+    const id = await authBenutzer(email);
+    await sql`
+      insert into auth.mfa_factors (user_id)
+      select ${id}
+       where not exists (select 1 from auth.mfa_factors f where f.user_id = ${id})`;
+    await sql`
+      insert into benutzer (id, email, name, status)
+      values (${id}, ${email}, 'Administration Vertrieb Reinigung', 'aktiv')
+      on conflict (id) do update set status = 'aktiv'`;
+    await sql`
+      insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, ist_standard)
+      values (${id}, ${ids.get('reinigung')!}, ${rollenIds.get('admin')!}, true)
+      on conflict do nothing`;
+    const vertrieb = ['angebot', 'auftrag', 'bericht', 'crm', 'kalkulation', 'katalog', 'objekt'];
+    await sql`
+      update benutzer_mandant set module = ${vertrieb}::text[]
+       where benutzer_id = ${id} and mandant_id = ${ids.get('reinigung')!}
+         and entzogen_am is null
+         and module is distinct from ${vertrieb}::text[]`;
+    process.stdout.write(
+      `  1 Administration mit zugewiesenen Modulen (${vertrieb.join(', ')}) — AUT-01\n`);
+  }
+
+  /**
    * **Die Telefonzugaenge — ohne die sich niemand anmelden kann** (EMP-01,
    * PR 20).
    *

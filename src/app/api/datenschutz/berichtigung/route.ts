@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
+import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
@@ -101,6 +102,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ fehler: fehler.grund, meldung: fehler.message },
                                { status: fehler.status });
     }
+    const autorisierung = autorisierungsAntwort(fehler);
+    if (autorisierung !== null) return autorisierung;
     throw fehler;
   }
 

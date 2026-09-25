@@ -68,13 +68,15 @@ export async function seedZeit(
   const mandantId = ids.get('reinigung');
   if (mandantId === undefined) throw new Error('Bereich reinigung fehlt');
 
+  /* Unter mehreren Administrationen zuerst eine ohne Modulliste, dann die
+     E-Mail — nie die Reihenfolge der Tabelle (V-168). */
   const [planer] = await sql<{ id: string }[]>`
     select b.id from benutzer b
      join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${mandantId}
      join rolle r on r.id = bm.rolle_id
     where r.schluessel in ('admin', 'leitung') and b.status = 'aktiv'
       and bm.entzogen_am is null
-    order by r.schluessel limit 1`;
+    order by r.schluessel, bm.module is not null, b.email limit 1`;
   if (planer === undefined) return leer();
 
   const anstellungen = (await sql<{ id: string }[]>`

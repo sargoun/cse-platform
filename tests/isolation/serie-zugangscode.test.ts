@@ -228,9 +228,9 @@ describe('(2) der Anmeldecode aus der Hand der Einsatzleitung', () => {
     expect(JSON.stringify(protokoll!.nachher)).not.toContain(a.code);
 
     /* Einloesbar wie ein SMS-Code — und genau einmal. */
-    const person = await sql.begin(async (tx) => codeEinloesen(tx, TELEFON, a.code));
+    const person = await sql.begin(async (tx) => codeEinloesen(tx, TELEFON, a.code, null));
     expect(person).toBe(f.jonas);
-    const nochmal = await sql.begin(async (tx) => codeEinloesen(tx, TELEFON, a.code));
+    const nochmal = await sql.begin(async (tx) => codeEinloesen(tx, TELEFON, a.code, null));
     expect(nochmal).toBeNull();
 
     /* Drei offene Codes sind die Grenze — der vierte ist „bremse". */
@@ -299,7 +299,7 @@ describe('(2b) der Zugangsstand sagt, woran die Anmeldung haengt', () => {
 
     /* Der Code stimmt — die Sitzung kommt trotzdem nicht. */
     const ergebnis = await sql.begin(async (tx) => {
-      const personId = await codeEinloesen(tx, TELEFON, a.code);
+      const personId = await codeEinloesen(tx, TELEFON, a.code, null);
       return personId === null ? null : mitarbeiterSitzungAusstellen(tx, personId, null, null);
     });
     expect(ergebnis, 'kein benutzbares Konto (0115) — genau dieser Fall hiess bisher „falscher Code"')

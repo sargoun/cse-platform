@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { anfrageAdresse } from '@/server/auth/adresse';
 import { db } from '@/server/db/pool';
 import { NichtVerbundenFehler } from '@/server/storage/adapter';
 import { waehleSpeicher } from '@/server/storage/waehle';
@@ -53,12 +54,6 @@ export const dynamic = 'force-dynamic';
 
 const UUID_FORM =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
-
-function ipAus(anfrage: NextRequest): string | null {
-  const kopf = anfrage.headers.get('x-forwarded-for');
-  const erste = kopf?.split(',')[0]?.trim();
-  return erste === undefined || erste === '' ? null : erste;
-}
 
 function fehlerAntwort(code: string, meldung: string, status: number): NextResponse {
   return NextResponse.json({ error: { code, message: meldung } }, { status });
@@ -120,7 +115,7 @@ export async function POST(
           art: 'foto',
           behaupteteZeit: new Date(),
         }],
-        ip: ipAus(anfrage),
+        ip: anfrageAdresse(anfrage.headers),
         userAgent: anfrage.headers.get('user-agent'),
       })) as Promise<unknown>);
     return fehlerAntwort('ungueltiger_zustand', 'Dieser Link ist nicht gültig.', 409);
@@ -205,7 +200,7 @@ export async function POST(
             beschreibung: ablage.beschreibung,
           },
         }],
-        ip: ipAus(anfrage),
+        ip: anfrageAdresse(anfrage.headers),
         userAgent: anfrage.headers.get('user-agent'),
       })) as Promise<Awaited<ReturnType<typeof nimmClaimAn>>>);
 

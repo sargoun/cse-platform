@@ -8,8 +8,11 @@ import { TabLeiste } from './TabLeiste';
 import { SeitenNavigation } from './SeitenNavigation';
 import { istInterneLeiste, tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
 import { Sprachumschalter } from './Sprachumschalter';
+import { BereichsWechsel } from './BereichsWechsel';
+import { kopfWechsel } from './kopf-wechsel';
 import { KUNDEN_NAVIGATION, NAVIGATION } from '@/server/registry/navigation';
 import { internBeschriftungen, internSprache } from '@/lib/i18n/intern';
+import { BEREICHSWECHSEL_TEXTE } from '@/lib/i18n/verwaltung/bereichswechsel';
 import { gemerkteHuelle } from '@/app/portal/huellen-speicher';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -134,6 +137,39 @@ export function PortalRahmen({
    * nur fuer Leisten ohne `Mehr` (D-419).
    */
   const ohneMehr = !tabs.ziele.some((z) => z.schluessel === 'mehr');
+  /**
+   * **Der Bereichswechsel nach DESIGN §6** (TEN-06, TEN-10, V-165, D-659).
+   *
+   * Das Tor hat die Bereiche dieser Anmeldung in seiner gebundenen
+   * Transaktion gelesen (`umschalterStand`) und in den Anfragespeicher
+   * gelegt — die Kontoseiten, die an ihm vorbeigehen, tun dasselbe in
+   * `leseKonto`. Was davon erscheint, entscheidet `kopfWechsel`: bei einem
+   * Bereich weder Umschalter noch Verweis „Bereich wechseln" (Kopfzeile,
+   * Telefonmenü, `Mehr`-Blatt), bei mehreren im internen Portal und in der
+   * Gruppenansicht der Umschalter oben links, an der Stelle des Zeichens
+   * (§6 „Placement"), und daneben der Verweis als Weg ohne JavaScript.
+   */
+  const sprache = internSprache(stand.sprache);
+  const tWechsel = BEREICHSWECHSEL_TEXTE[sprache];
+  const { verweis: bereichsVerweis, umschalter } = kopfWechsel(stand.umschalter, leiste, sprache);
+  /**
+   * **Der Umschalter IST das Logo** (§6 „Placement": „replacing a static
+   * logo"). Das Zeichen wandert in den Auslöser; der Seitenname bleibt der
+   * Weg zur Übersicht. Trägt die Seite aber denselben Namen wie der Auslöser
+   * — die Übersicht eines Bereichs, die Gruppenübersicht —, stünde er ab
+   * `lg` zweimal nebeneinander, denn ab dort zeigt der Auslöser seinen Namen.
+   * Dort entfällt das zweite Logo; darunter zeigt der Auslöser nur Zeichen
+   * und Chevron, und der Name bleibt, wo er war.
+   */
+  const logoImUmschalter = umschalter !== null && titel === umschalter.name;
+  /**
+   * Die Kante des Logos: als erstes Element der Zeile zieht es sich um seine
+   * Innenpolsterung nach links (`-ms-s2`), damit das Zeichen auf der Rinne
+   * steht. Steht der Umschalter davor, gehoert die Kante ihm.
+   */
+  const logoKante = umschalter === null ? '-ms-s2' : logoImUmschalter ? 'lg:hidden' : '';
+  const zeichen = (groesse: 'sm'): React.ReactNode => (umschalter !== null ? null
+    : bereich === null ? <Marke art="gruppe" groesse={groesse} /> : <Marke art={bereich} groesse={groesse} />);
   return (
     /*
      * `sicher-oben`: mit `viewport-fit=cover` beginnt der Inhalt bei y=0 — im
@@ -185,6 +221,28 @@ export function PortalRahmen({
           * Zeilenhoehe von `text-h3` sind 28. Neun Bildschirme unter
           * `/portal/mein/**` fielen daran, jeder mit genau diesem einen Knoten.
           */}
+        {umschalter !== null && (
+          /*
+           * An der Stelle des Zeichens (§6 „Placement") — mit derselben Kante
+           * wie das Logo, das er ersetzt (`-ms-s2`), damit das Zeichen beim
+           * Wechsel von einem auf zwei Bereiche nicht springt.
+           */
+          <div data-cse="kopf-umschalter" className="-ms-s2 min-w-0">
+            <BereichsWechsel
+              bereiche={umschalter.bereiche}
+              aktiv={umschalter.aktiv}
+              gruppenansicht={umschalter.gruppenansicht}
+              gruppeSichtbar={umschalter.gruppeSichtbar}
+              /* Nur die vier Woerter, nicht die ganze Tabelle: an eine
+                 Client-Komponente geht nichts, was eine Funktion traegt. */
+              texte={{
+                kopf: tWechsel.kopf, gruppenuebersicht: tWechsel.gruppenuebersicht,
+                bereichWaehlen: tWechsel.bereichWaehlen, ausloeser: tWechsel.ausloeser,
+              }}
+              sprache={stand.sprache}
+            />
+          </div>
+        )}
         {wurzelTitel === undefined || wurzelTitel === titel ? (
           /*
            * Das Logo der Gesellschaft als Weg zur Uebersicht — Zeichen und
@@ -193,10 +251,10 @@ export function PortalRahmen({
            */
           wurzelOffen ? (
             <a href={wurzel} data-cse="portal-logo"
-               className="-ms-s2 flex min-h-11 min-w-11 items-center gap-s2 rounded-md px-s2
+               className={`flex min-h-11 min-w-11 items-center gap-s2 rounded-md px-s2
                           text-h3 text-text transition-colors duration-fast ease-brand
-                          hover:bg-surface-2">
-              {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
+                          hover:bg-surface-2 ${logoKante}`}>
+              {zeichen('sm')}
               <span className="truncate">{titel}</span>
             </a>
           ) : (
@@ -206,9 +264,9 @@ export function PortalRahmen({
              * dasselbe wie ein offener (AUT-06); er ist nur hoeflicher dabei.
              */
             <span data-cse="portal-logo-ohne-ziel"
-                  className="-ms-s2 flex min-h-11 min-w-11 items-center gap-s2 px-s2
-                             text-h3 text-text">
-              {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
+                  className={`flex min-h-11 min-w-11 items-center gap-s2 px-s2
+                             text-h3 text-text ${logoKante}`}>
+              {zeichen('sm')}
               <span className="truncate">{titel}</span>
             </span>
           )
@@ -239,14 +297,14 @@ export function PortalRahmen({
               <a href={wurzel} data-cse="spur-zurueck"
                  className="flex min-h-11 min-w-11 items-center gap-s2 text-sm text-text-muted
                             transition-colors duration-fast ease-brand hover:text-text">
-                {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
+                {zeichen('sm')}
                 <span aria-hidden="true">‹</span>
                 <span className="truncate">{wurzelTitel}</span>
               </a>
             ) : (
               <span data-cse="spur-ohne-ziel"
                     className="flex min-h-11 min-w-11 items-center gap-s2 text-sm text-text-muted">
-                {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
+                {zeichen('sm')}
                 <span className="truncate">{wurzelTitel}</span>
               </span>
             )}
@@ -309,12 +367,14 @@ export function PortalRahmen({
             * Bereichswahl der einzige Weg in das andere Portal (§4.4). Nur die
             * Beschriftung folgt der Sprache der Person (D-419).
             */}
-          <a href="/auth/bereich"
-             className="flex min-h-11 items-center rounded-md px-s2 text-sm text-text-muted
-                        transition-colors duration-fast ease-brand hover:bg-surface-2
-                        hover:text-text">
-            {b('sitzung.bereich', 'Bereich wechseln')}
-          </a>
+          {bereichsVerweis && (
+            <a href="/auth/bereich" data-cse="sitzung-bereich"
+               className="flex min-h-11 items-center rounded-md px-s2 text-sm text-text-muted
+                          transition-colors duration-fast ease-brand hover:bg-surface-2
+                          hover:text-text">
+              {b('sitzung.bereich', 'Bereich wechseln')}
+            </a>
+          )}
           <a href="/portal/konto"
              className="flex min-h-11 items-center rounded-md px-s2 text-sm text-text-muted
                         transition-colors duration-fast ease-brand hover:bg-surface-2
@@ -374,10 +434,11 @@ export function PortalRahmen({
             >
               <ul className="m-0 list-none p-0">
                 {([
-                  ['/auth/bereich', b('sitzung.bereich', 'Bereich wechseln')],
-                  ['/portal/konto', b('sitzung.konto', 'Konto')],
-                  ['/', b('sitzung.website', 'Website')],
-                ] as const).map(([ziel, text]) => (
+                  ...(bereichsVerweis
+                    ? [['/auth/bereich', b('sitzung.bereich', 'Bereich wechseln')] as const] : []),
+                  ['/portal/konto', b('sitzung.konto', 'Konto')] as const,
+                  ['/', b('sitzung.website', 'Website')] as const,
+                ]).map(([ziel, text]) => (
                   <li key={ziel}>
                     <a href={ziel} data-cse="sitzungsmenue-ziel"
                        className="flex min-h-11 items-center rounded-md px-s2 text-sm text-text
@@ -547,6 +608,7 @@ export function PortalRahmen({
         label={titel}
         beschriftungen={karte}
         intern={istInterneLeiste(leiste)}
+        bereichsVerweis={bereichsVerweis}
       />
     </div>
   );

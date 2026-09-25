@@ -1,4 +1,4 @@
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type postgres from 'postgres';
 import { Button } from '@/components/ui/Button';
@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { qrSvg } from '@/lib/qr';
+import { anfrageAdresse } from '@/server/auth/adresse';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import {
   bestaetigeFaktorMitToken, gibWiederherstellungscodesAus, hebeAufAal2, pruefeFaktor,
@@ -88,8 +89,10 @@ export default async function FaktorEinrichten({ searchParams }: {
     const einladungstoken = String(daten.get('token') ?? '');
 
     if (einladungstoken !== '') {
+      /* SEC-A9 (V-167): die Adresse fuer `auth.zweiter_faktor_eingerichtet` — ohne Sitzung. */
+      const ip = anfrageAdresse(await headers());
       const wer = await (db().begin(async (tx: postgres.TransactionSql) =>
-        bestaetigeFaktorMitToken(tx, einladungstoken, code)) as Promise<string | null>);
+        bestaetigeFaktorMitToken(tx, einladungstoken, code, ip)) as Promise<string | null>);
       if (wer === null) {
         redirect(`/auth/zwei-faktor/einrichten?fehler=code&token=${encodeURIComponent(einladungstoken)}`);
       }

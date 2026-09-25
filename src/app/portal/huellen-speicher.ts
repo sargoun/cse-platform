@@ -1,6 +1,19 @@
 import 'server-only';
 import { cache } from 'react';
 import type { PortalSprache } from '@/lib/i18n/texte';
+import type { UmschalterStand } from '@/server/services/mandant/umschalter';
+
+/**
+ * Was der Bereichsumschalter braucht (DESIGN §6, TEN-06, TEN-10, V-165) —
+ * vom Tor in DERSELBEN gebundenen Transaktion gelesen wie der Zugang zur
+ * Seite, damit die Kopfzeile keine zweite Wahrheit ueber die Bereiche hat.
+ */
+export interface UmschalterHuelle {
+  readonly stand: UmschalterStand;
+  /** Der aktive Bereich dieser Sitzung — `null` in der Gruppenansicht. */
+  readonly aktiverMandantId: string | null;
+  readonly gruppenansicht: boolean;
+}
 
 /**
  * Was die Portalhuelle ueber DIESE Anfrage wissen muss — einmal vom Tor
@@ -30,9 +43,10 @@ import type { PortalSprache } from '@/lib/i18n/texte';
  *
  * **Und wenn niemand schreibt?** Dann bleibt beides `null`. `null` heisst bei
  * `internSprache()` Deutsch, und ein Umschalter ohne Rueckweg faellt auf die
- * Vorgabe der Route. Eine Huelle ohne Tor davor gibt es nicht —
- * `portalZugang` laeuft vor jeder —, aber die Vorschau unter `/dev/portal`
- * rendert den Rahmen ohne Sitzung, und die soll nicht fallen.
+ * Vorgabe der Route. Vor fast jeder Huelle laeuft `portalZugang`; die
+ * Kontoseiten binden ihre Sitzung selbst (`leseKonto`) und legen nur die
+ * Bereiche ab (`merkeUmschalter`, V-165). Die Vorschau unter `/dev/portal`
+ * rendert den Rahmen ganz ohne Sitzung, und die soll nicht fallen.
  */
 export interface HuellenStand {
   sprache: PortalSprache | null;
@@ -48,20 +62,47 @@ export interface HuellenStand {
    * Ausgang. Gemessen war das der Zustand: 311 Seiten, zwei mit Rueckweg.
    */
   rueckweg: { ziel: string; segment: string } | null;
+  /**
+   * Die Bereiche dieser Anmeldung — `null` heisst „nicht gefragt" (die
+   * Vorschau unter `/dev/portal`, ein Rahmen ohne Tor). Dann bleibt die
+   * Kopfzeile, wie sie vor V-165 war: kein Umschalter, der Verweis auf die
+   * Bereichswahl bleibt. Niemand soll ohne Ausgang dastehen, weil ein Wert
+   * fehlte.
+   */
+  umschalter: UmschalterHuelle | null;
 }
 
-const kasten = cache((): HuellenStand => ({ sprache: null, pfad: null, rueckweg: null }));
+const kasten = cache((): HuellenStand => ({
+  sprache: null, pfad: null, rueckweg: null, umschalter: null,
+}));
 
 /** Vom Tor aufgerufen, sobald die Sitzung aufgeloest ist. */
 export function merkeHuelle(
   sprache: PortalSprache | null,
   pfad: string | null,
   rueckweg: HuellenStand['rueckweg'] = null,
+  umschalter: UmschalterHuelle | null = null,
 ): void {
   const k = kasten();
   k.sprache = sprache;
   k.pfad = pfad;
   k.rueckweg = rueckweg;
+  k.umschalter = umschalter;
+}
+
+/**
+ * Nur die Bereiche — fuer die Kontoseiten (`leseKonto`), die nicht durch das
+ * Tor gehen und ihre Sitzung selbst binden (V-165).
+ *
+ * **Warum eine eigene Funktion und nicht `merkeHuelle`.** Die Kontoseiten
+ * setzten bisher NICHTS in diesen Speicher; Sprache, Pfad und Rueckweg dort
+ * anzufassen hiesse, drei Verhalten zu aendern, um eines zu reparieren. Ohne
+ * diese Zeile aber zeigte die Kopfzeile auf `/portal/konto` jedem Konto
+ * „Bereich wechseln" — auch dem mit einem einzigen Bereich (TEN-06), und
+ * genau das hat V-165 ueberall sonst abgestellt.
+ */
+export function merkeUmschalter(umschalter: UmschalterHuelle | null): void {
+  kasten().umschalter = umschalter;
 }
 
 /** Von der Huelle aufgerufen, beim Rendern der Kopfzeile und der Leisten. */

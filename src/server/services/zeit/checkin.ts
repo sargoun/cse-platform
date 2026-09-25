@@ -106,7 +106,12 @@ export interface CheckinEingabe {
   readonly token: string;
   /** Die Uhr des Geraets. Wird GESPEICHERT und ist nie massgeblich (TIM-08). */
   readonly geraeteZeit?: Date | null;
-  readonly ip?: string | null;
+  /**
+   * Die Adresse der Anfrage (`anfrageAdresse`) — PFLICHT, und `null` heisst
+   * ehrlich: keine bekannt. Sie steht in `checkin_token.ip_adresse` und, ueber
+   * `withCheckin`, in jeder Protokollzeile des Check-ins (SEC-A9, V-235).
+   */
+  readonly ip: string | null;
   readonly userAgent?: string | null;
   /**
    * Nur uebergeben, wenn die Oberflaeche einen Punkt erhoben hat. Ist
@@ -154,14 +159,14 @@ export async function loeseCheckinEin(
 
   let zeilen: readonly VerbrauchZeile[];
   try {
-    zeilen = await withCheckin(tx, async (k) =>
+    zeilen = await withCheckin(tx, eingabe.ip, async (k) =>
       k.rufe<VerbrauchZeile>(
         `select ergebnis, zeiteintrag_id, objekt, beginn, zeitabweichung_sek
            from app.checkin_verbrauchen($1, $2::timestamptz, $3::inet, $4, $5::jsonb)`,
         [
           hash,
           eingabe.geraeteZeit?.toISOString() ?? null,
-          eingabe.ip ?? null,
+          eingabe.ip,
           eingabe.userAgent ?? null,
           /**
            * Das OBJEKT, nicht `JSON.stringify(objekt)`.

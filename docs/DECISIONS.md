@@ -2805,6 +2805,9 @@ lost between phases:
    `app.switcher_mandanten()`, and is silent on whether the counts respect the caller's
    per-module rights — a `leitung` with no `finanzen` module would still see a finance
    counter in the switcher. Settle it before the switcher ships (TEN-10).
+   **Settled in D-659 (V-165):** the counts respect the viewer's read right
+   per area — module list, second factor and group view included — and an
+   area without that right gets no row, not a zero.
 
 The third item recorded here in an earlier pass — that `02-CRM-OPERATIONS.md` must add
 `dokument.sichtbar_fuer_mitarbeiter` — was **wrong and is withdrawn**. The column is
@@ -16774,4 +16777,725 @@ jede Portalseite mit `?fehler=`, darunter das Leadblatt aus V-137.
    (Befund 68), die eigens behoben werden.
 
 | Betrifft | D-599, D-653, V-137, V-159, V-234, `src/lib/nachschlagen.ts`, `tests/kern/nachschlagen.test.ts`, 45 Seiten unter `src/app/portal` und `src/components/portal` |
+|---|---|
+
+### D-656 · Ein fehlendes Recht ist auf jeder schreibenden Route ein 404 — nie ein 500 (V-162)
+
+**Der Befund** (V-162, AUT-06): `authorize` wirft `NichtGefundenFehler` (Recht
+fehlt, fremder Mandant, Schreiben ohne genau einen aktiven Mandanten),
+`ZweiterFaktorFehler` und `NichtAngemeldetFehler`. `server/auth/antwort.ts`
+übersetzt sie, und die Gerüste (`uebergang.ts`, `*/gemeinsam.ts`,
+`sicherheit/antwort.ts`) benutzen den Übersetzer. 37 Routen mit eigenem
+`try`/`catch` fingen nur ihre Fachklasse und warfen den Rest weiter — ein
+fehlendes Recht wurde dort ein **500**. `website/referenzen` hatte den Fall
+im Betrieb, die übrigen 37 hatten ihn nur noch nicht.
+
+**Die Entscheidung.**
+
+1. **Derselbe Übersetzer, an derselben Stelle.** Jede der 37 Routen ruft
+   `autorisierungsAntwort(fehler)` unmittelbar vor ihrem `throw fehler`. Die
+   Fachfehler behalten ihren Weg (zurück aufs Formular, mit Grund); nur, was
+   bisher ungefangen hinausflog, wird jetzt 404, 403 oder 401. Ein
+   Programmfehler bleibt ein Wurf und damit ein roter Lauf.
+2. **Die Antwort ist die der übrigen Routen, byte-gleich.** Ein fehlendes
+   Recht sieht auf allen schreibenden Routen gleich aus — auch dort, wo ein
+   Browserformular absendet. Eine eigene Browserseite nur für diese 37 wäre
+   eine zweite Antwort auf dieselbe Frage und damit genau die Unterscheidung,
+   die AUT-06 nicht will. Der Fall ist im Portal selten: jeder Knopf steht
+   hinter derselben Rechtefrage (`haeltRechte`), und ein POST ohne Knopf
+   kommt nicht von einem Menschen, der eine Seite erwartet.
+3. **Eine Sperrklinke statt einer Liste.** `tests/kern/autorisierung-uebersetzt.test.ts`
+   liest jede `route.ts`: wer `authorize` ruft (selbst oder in einem Gerüst
+   eine Ebene tief), muss den Wurf übersetzen — mit `autorisierungsAntwort`,
+   `instanceof NichtGefundenFehler` oder der `status`/`code`-Weiche. Die 38.
+   Route ist damit automatisch dabei; die Prüfung zeigt ihr Nein an drei
+   erfundenen Beispielen.
+
+| Betrifft | AUT-06, AUT-02, V-128, V-162, `src/server/auth/antwort.ts`, 37 Routen unter `src/app/api/**` (Liste in V-162), `tests/kern/autorisierung-uebersetzt.test.ts` |
+|---|---|
+
+### D-657 · Das Prüfprotokoll trägt die IP der Anfrage und den handelnden Agenten (V-163)
+
+**Der Befund** (V-163, SEC-A9): `audit_log` hat seit 0003 `akteur_typ`,
+`agent_id` und `ip`; `app.protokolliere` (0004) ist der einzige Schreiber.
+Keine Sitzungsbindung setzte `app.ip` — jede Zeile trug `ip = NULL`, die
+Spalte im GoBD-/Revisionsexport war immer leer. `agent_id` schrieb niemand,
+und kein Weg setzte `akteur_typ = 'agent'`.
+
+**Die Entscheidung.**
+
+1. **Die IP reist mit der Sitzung, nicht mit der Sitzungszeile.**
+   `aktuelleSitzung()` liest sie aus der Anfrage (`anfrageAdresse`: erster
+   Eintrag aus `x-forwarded-for`, sonst `x-real-ip`, nur was `isIP` als
+   Adresse erkennt — dieselbe Regel wie am Einmalcode und an der Freigabe),
+   `bindeSitzung` setzt `app.ip`. Damit tragen alle Wege sie, die über
+   `withTenant`, `bindeAnfrage`, `bindePersoenlich`, `withGroupScope` oder
+   `withPersonScope` binden. Ohne Anfrage (Hintergrundlauf, Test) bleibt die
+   Spalte leer statt erfunden. *(Berichtigt in D-661: drei Wege OHNE Sitzung
+   — Sperre der Bremse, Kennwort und zweiter Faktor per Token — blieben bis
+   V-167 trotz bekannter Adresse leer; sie binden sie jetzt mit
+   `bindeHerkunft`. Der Check-in mit der Marke und der Einmalcode der Kraft
+   folgten erst mit V-235, D-729.)*
+2. **Ein kaputter Wert wird NULL, nicht ein Abbruch** (0415).
+   `app.protokolliere` castet nur, was `pg_input_is_valid` für `inet` hält.
+   Vorher hätte ein unbrauchbarer Wert in `app.ip` jede protokollierende
+   Transaktion abgebrochen, auch ein Festschreiben. Kein Ausnahmeblock: der
+   wäre eine Untertransaktion je Protokollzeile im heißesten Pfad (0204).
+3. **Was ein Agentenlauf schreibt, schreibt der Agent.** `alsAgent`
+   (`server/kontext`) setzt `app.akteur_typ = 'agent'` und `app.agent_id` für
+   die Dauer des Laufs und stellt danach zurück; der Orchestrator legt es um
+   alles nach dem Anlegen der Aufgabe (die Aufgabe selbst ist der Auftrag des
+   Menschen). `akteur_id` bleibt der angemeldete Mensch — in wessen Auftrag.
+   `app.protokolliere` schreibt `agent_id` nur zu `akteur_typ = 'agent'`; eine
+   Menschenzeile mit Agentenkennung wäre eine Aussage, die niemand traf.
+   Heute schreibt ein Demolauf selbst keine Protokollzeile (Freigabe und
+   Artefakt tragen keinen Auslöser); die Prüfung misst deshalb den Zustand
+   der Transaktion AM Anlegen der Freigabe — genau den liest jeder
+   protokollierende Auslöser.
+4. **Die öffentliche Formularannahme schreibt keine IP.** Dort handelt der
+   Dienstprinzipal `formular_eingang` für einen anonymen Besucher, und dessen
+   rohe Adresse wird nirgends gespeichert (02-CRM-OPERATIONS,
+   `formular_eingang.ip_hash`: „The raw IP is never stored"). Das Protokoll
+   macht davon keine Ausnahme; SEC-A9 meint den angemeldeten Akteur.
+5. **Die Protokollseiten nennen bei einer Agentenzeile den Agenten**, nicht
+   den auslösenden Menschen (Gesellschaft und Gruppe).
+6. **Der Eigentümer von `app.protokolliere` bleibt `postgres`** (Altlast nach
+   D-300). `cse_definer` bekäme sonst ein INSERT auf `audit_log` — den
+   Schreibpfad für jede Definer-Funktion, den 0204 bewusst verweigert.
+
+**Offen, und nicht hier zu entscheiden:** wie lange die IP im Protokoll
+stehen darf. Das ist eine Lösch- und Aufbewahrungsregel und gehört zu O-92;
+der Marker steht in 0415.
+
+| Betrifft | SEC-A9, LEG-09, O-92, D-300, V-163, `drizzle/0415`, `src/server/auth/adresse.ts`, `src/server/auth/anfrage-sitzung.ts`, `src/server/kontext/index.ts`, `src/server/agent/orchestrator.ts`, `src/app/portal/[mandant]/einstellungen/protokoll/page.tsx`, `src/app/portal/gruppe/protokoll/page.tsx`, `tests/isolation/pruefprotokoll-ip-agent.test.ts`, `tests/kern/anfrage-adresse.test.ts` |
+|---|---|
+
+### D-658 · Die Module einer Administration lassen sich zuweisen — über genau einen Weg (V-164)
+
+**Der Befund** (V-164, AUT-01): SPEC §3 nennt für `admin` „assigned modules
+within assigned areas“. Die Spalte `benutzer_mandant.module` gibt es seit 0007,
+und `app.hat_recht_fuer` wertet sie als Schnittmenge aus (zuletzt 0395). Keine
+Funktion, keine Route, keine Oberfläche und kein Seed schrieb sie. Jede
+Administration hielt damit alle Module ihrer Rolle. Den Auslöser
+`bm_module_pruefen`, den 03-AUTH §7.1 verlangt, gab es auch nicht. Und
+`t_bm_entziehen` (0102) gibt jeder Kontoverwaltung ein UPDATE auf die ganze
+Zeile, also auch auf die eigene Modulliste.
+
+**Die Entscheidung.**
+
+1. **Ein Schreibweg: `app.mitgliedschaft_module_setzen`** (0416, Definer,
+   Eigentümer `cse_definer`). Er verlangt genau einen aktiven Mandanten ohne
+   Lesemodus (Invariante 10), den zweiten Faktor, `system.module_zuweisen` im
+   aktiven Mandanten und eine lebende Mitgliedschaft DIESES Mandanten. Jede
+   Änderung schreibt `audit_log` mit vorher und nachher. Die Route
+   `/api/einstellungen/mitgliedschaft-module` fragt Recht und Faktor vorher
+   (`authorize`, `erfordert2fa`); die Datenbank fragt beides noch einmal.
+2. **Nur die Plattformrolle `admin`.** SPEC §3 nennt die Modulzuweisung nur
+   für sie. `leitung` ist „own business area only“, `mitarbeiter` und `kunde`
+   haben ihre Decken (K-04), und eine eigene Rolle einer Gesellschaft IST
+   schon ein Zuschnitt ihrer Rechte (AUT-03).
+3. **Nie das eigene Konto.** Wer seine eigene Liste erweitern könnte, hätte
+   keine (03-AUTH §12.1: „an admin widening their own module set is the
+   risk“).
+4. **Niemand vergibt mehr, als er selbst hält.** Ist die eigene
+   Mitgliedschaft in dieser Gesellschaft auf Module beschränkt, darf nur eine
+   Teilmenge davon vergeben werden, und nie „alle Module der Rolle“. Sonst
+   könnten zwei beschränkte Konten mit `system.module_zuweisen` einander über
+   Kreuz alles geben. Die globale Rolle trägt keine Schnittmenge (0395,
+   Zweig 1) und ist nicht beschränkt. Heute hält das Recht ohnehin nur
+   `super_admin`; die Regel gilt für den Tag, an dem O-76 es an `admin` bindet.
+   *(Genauer seit D-731 Nr. 2: ausgenommen ist nur, wessen globale Rolle
+   `system.module_zuweisen` selbst gewährt — nicht jede globale Rolle.)*
+5. **„Alle Module der Rolle“ ist eine eigene Wahl** (`NULL`). Eine leere
+   Liste weist der Auslöser ab: kein Recht in einer Gesellschaft ist ein
+   Entzug, keine Zuweisung. Und aus einer leeren Auswahl wird nicht still
+   „alles“.
+6. **Der Auslöser `kern.bm_module_pruefen`** prüft jeden Wert gegen den
+   Katalog (`select distinct modul from berechtigung`) und speichert die Liste
+   sortiert und ohne Doppel. Er sperrt außerdem den Anwendungsweg
+   (`current_user = cse_app`) an der Spalte vorbei, damit das UPDATE aus
+   `t_bm_entziehen` die eigene Liste nicht mehr leeren kann. Seed und
+   Migrationen (Eigentümer) prüft er auch, sperrt sie aber nicht.
+7. **Die Oberfläche benennt, sie zeigt keine Schlüssel.** Auf dem
+   Benutzerblatt steht ein Formular (Umfang „alle“ oder Auswahl, eine Liste
+   aus dem Katalog). Die Seite `einstellungen/module` bekommt die Übersicht
+   „Module der Administrationen“, die SEITENKARTE §5.24 für sie vorsieht.
+   Überall stehen Modulnamen (de/en, `MODUL_NAMEN`), auch in der
+   Benutzerliste. `tests/kern/modul-namen.test.ts` hält die Namensliste gegen
+   den Katalog. Ein fehlendes Recht bleibt die 404 aller Routen (D-656); die
+   übrigen Gründe kommen als Satz auf das Blatt zurück (D-599).
+8. **Der Seed führt es vor.** `admin.vertrieb@cse-gruppe.de` ist die
+   Vertriebsadministration der Reinigung mit `angebot, auftrag, bericht, crm,
+   kalkulation, katalog, objekt`. Es ist ein eigenes Konto ohne Person: es
+   führt kein Wachbuch und steht in keinem Dienstplan, und eine erfundene
+   Beschäftigung wäre eine Kostenstelle ohne Satz (O-347). Zwei Seed-Abfragen,
+   die „eine Administration der Gesellschaft“ wählen, ordnen jetzt nach
+   E-Mail statt nach der Reihenfolge der Tabelle.
+
+**Die Rechte gelten mit der nächsten Anfrage** (03-AUTH §7.3, kein Cache);
+eine laufende Sitzung muss nicht enden.
+
+| Betrifft | AUT-01, AUT-03, AUT-06, K-04, K-15, O-76, O-347, D-599, D-656, V-164, `drizzle/0416`, `src/server/services/system/mitgliedschaft-module.ts`, `src/app/api/einstellungen/mitgliedschaft-module/route.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/{ModulZuweisung.tsx,[id]/page.tsx,page.tsx}`, `src/app/portal/[mandant]/einstellungen/module/page.tsx`, `src/lib/i18n/verwaltung/einstellungen/module-zuweisung.ts`, `src/server/db/seed/{index,eingang,konto}.ts`, `tests/isolation/mitgliedschaft-module.test.ts`, `tests/kern/modul-namen.test.ts` |
+|---|---|
+
+### D-659 · Der Bereichswechsel steht in der echten Kopfzeile — mit Live-Zählern nach den Rechten des Betrachters (V-165)
+
+**Der Befund** (V-165, TEN-06, TEN-10, DESIGN §6): Die echten Portalseiten
+rendern `PortalRahmen`. Dort stand oben links ein statisches Zeichen, und die
+Kopfzeile trug für JEDE Sitzung den Verweis „Bereich wechseln“, auch bei nur
+einem Bereich. Das widerspricht TEN-06 und D-43. `/auth/bereich` zeigte keine
+Zähler; der Gruppeneintrag hatte keine `NUR LESEN`-Pille und sagte fest
+„vier“ Gesellschaften. Das Klappmenü mit Zählern, Pille und ⌘K
+(`BereichsUmschalter`) lebte nur in `/dev/portal`, mit festen Zahlen. Die
+Zählerquelle `app.mandant_kennzahlen` gab es nicht, und die Rechtefrage aus
+„Carried over“ Nr. 2 war offen.
+
+**Die Entscheidung.**
+
+1. **Die Zähler folgen den Leserechten des Betrachters, je Bereich.** Das
+   beantwortet „Carried over“ Nr. 2. `app.mandant_kennzahlen()` (0417,
+   Definer, `cse_definer`) liefert eine Zeile nur, wenn `app.hat_recht` im
+   jeweiligen Bereich das Leserecht bejaht. Darin stecken die Modulliste der
+   Mitgliedschaft (D-658), der zweite Faktor (0395) und die Gruppenansicht.
+   Ohne Recht gibt es keine Zeile und keine Null, denn eine Null wäre eine
+   Aussage über den Bestand. Die Funktion gibt nur Anzahlen zurück (`integer`,
+   nie Geld, nie Zeilen; EMP-13, D-09 §6).
+2. **Zwei Zähler, dieselben Zahlen wie die Übersichten.** `auftraege_aktiv`
+   (`auftrag.status = aktiv`, nicht archiviert, `auftrag.lesen`) ist dieselbe
+   Zahl wie in der Gruppenübersicht. `projekte_laufend` (`geplant`,
+   `in_arbeit`, `bau.lesen`) ist dieselbe Zahl wie in der Bauübersicht und
+   gilt nur, wo Bau gebucht oder die Buchung nie gepflegt ist (D-377, O-355).
+3. **Welcher Zähler in einer Zeile steht, hängt an den Gewerken**, nicht an
+   einer Liste von Gesellschaften (TEN-08). Ist Bau gebucht, sind es die
+   Projekte, sonst die Aufträge. Ohne Gewerk (CSE Operations) steht kein
+   Zähler da: dort ist ein Auftrag nicht die Arbeit, und eine Null wäre nur
+   Schmuck (DESIGN §6 zeigt es genauso). `waehleZaehler` ist die geprüfte
+   Regel dafür.
+4. **Live gezählt statt aus einer Zwischentabelle.** Anders als 01-KERN §6.3
+   gibt es keine Tabelle `mandant_kennzahl` und keinen Job dafür. TEN-10 sagt
+   „live“. Die Zählungen laufen über vorhandene Indizes (`auftrag_liste_idx`,
+   `projekt_status_idx`), eine je Bereich. Sie laufen nur für Sitzungen mit
+   mehr als einem Bereich und nur für die internen Leisten. Eine Tabelle
+   bräuchte einen Job, eine Frist und hätte trotzdem einen veralteten Stand.
+5. **Ein Bereich: kein Umschalter und kein Verweis** (TEN-06, D-43), weder in
+   der Kopfzeile noch im Blatt hinter `Mehr`, im Telefonmenü oder im Satz
+   „Gewechselt wird über …“ auf der Kontowurzel. Das Tor (`portalZugang`)
+   liest die Bereiche in seiner gebundenen Transaktion (`umschalterStand`)
+   und legt sie in den Anfragespeicher. Die fünf Seiten unter `/portal/konto`
+   gehen nicht durch das Tor; sie tun dasselbe in `leseKonto`
+   (`merkeUmschalter`) — ohne das trug ihre Kopfzeile den Verweis weiter für
+   jedes Konto. Der Rahmen entscheidet mit `kopfWechsel`, einer reinen,
+   geprüften Funktion; er fragt die Datenbank nicht selbst. Fehlt der Stand
+   ganz (nur die Vorschau unter `/dev/portal`), bleibt der Verweis: niemand
+   soll ohne Ausgang dastehen, weil ein Wert fehlte.
+6. **Mehr als einer:** Im internen Portal und in der Gruppenansicht steht der
+   Umschalter oben links an der Stelle des Zeichens (DESIGN §6 „Placement“),
+   mit Unterzeile „Gewerk · Zähler“, `NUR LESEN` am Gruppeneintrag und ⌘K.
+   Ein Wechsel ist ein POST an `/api/sitzung/mandant`, derselbe Weg wie die
+   Bereichswahl. Der Server prüft die Mitgliedschaft, protokolliert und
+   landet auf der Übersicht des neuen Bereichs (Regel 6). Der Verweis
+   „Bereich wechseln“ bleibt daneben: er ist der Weg ohne JavaScript. Das
+   Mitarbeiter- und das Kundenportal behalten nur den Verweis, weil der
+   Bereich dort keine Arbeitsumgebung ist, sondern die Frage, in welches
+   Portal man will.
+7. **Der Umschalter ERSETZT das Logo, er steht nicht daneben.** Das Zeichen
+   wandert in den Auslöser, der Seitenname bleibt der Weg zur Übersicht.
+   Trägt die Seite denselben Namen wie der Auslöser — die Übersicht eines
+   Bereichs, die Gruppenübersicht —, entfällt das zweite Logo dort, wo der
+   Auslöser seinen Namen zeigt; zweimal „CSE Dienstleistungen GmbH“
+   nebeneinander war genau die Übersicht, auf der jeder Wechsel landet. Der
+   Name im Auslöser erscheint ab `lg`, darunter nur Zeichen und Chevron:
+   zwischen 640 und 1024 px steht rechts die ganze Sitzungsnavigation, und
+   ein voller Firmenname links daneben schob die Zeile über den Rand
+   (DESIGN §8). Ein langer Name wird gekürzt statt zu schieben (TEN-08).
+   Der Auslöser steht auf derselben Kante wie das Zeichen, das er ersetzt.
+8. **`/auth/bereich` zeigt dieselben Zähler**, die Pille am Gruppeneintrag
+   und die wirkliche Zahl der Gesellschaften. Die Seite spricht jetzt de/en
+   (`BEREICHSWECHSEL_TEXTE`). Die Sprache liest `leseEigeneSprache`, dieselbe
+   Regel wie im Tor (mit Person `person.sprache`, sonst `benutzer.sprache`).
+9. **Die Gewerke kommen aus `app.umschalter_bereiche()`** (0417). Das sind die
+   Bereiche von `switcher_bereiche` (0018) plus `mandant.module`, oder
+   `NULL`, solange die Buchung nie gepflegt wurde. Unbekannt ist nicht leer.
+   `switcher_bereiche` bleibt unverändert; die Kontoseite liest dieselbe
+   Menge jetzt über `umschalter_bereiche`, weil sie daraus auch ihre
+   Kopfzeile baut — eine Abfrage statt zwei.
+10. **Die eigenen Policies der beiden Funktionen tragen allein.**
+    `d_umschalter_*` gelten nur für `cse_definer` und nur für `select`, und
+    sie fragen `switcher_mandanten()` als Unterabfrage — einmal je Anweisung
+    (InitPlan, 01-KERN §1.3), nicht je Zeile. Die breiten `using (true)`-
+    Policies anderer Migrationen decken das Lesen heute mit ab; die
+    Isolationsprüfung lässt sie in einer zurückgerollten Transaktion fallen
+    und bekommt dieselben Bereiche und Zähler, und ohne die eigenen fehlen
+    sie (Gegenprobe). Eine spätere Verengung jener Policies nimmt dem
+    Umschalter also nichts weg.
+    *(Unter einer Bedingung, festgehalten in D-731 Nr. 3:
+    `switcher_mandanten` liest an der RLS vorbei. Unter `cse_definer` läsen
+    die eigenen Policies sich selbst.)*
+
+| Betrifft | TEN-05, TEN-06, TEN-07, TEN-08, TEN-09, TEN-10, DESIGN §6, DESIGN §8, D-43, D-377, D-658, O-355, V-165, „Carried over“ Nr. 2, `drizzle/0417`, `src/server/services/mandant/umschalter.ts`, `src/server/konto/sprache.ts`, `src/app/portal/{zugang,huellen-speicher}.ts`, `src/app/portal/konto/{konto.ts,[[...rest]]/page.tsx}`, `src/components/portal/{PortalRahmen,TabLeiste,BereichsUmschalter,BereichsWechsel,kopf-wechsel,typen}`, `src/app/auth/bereich/page.tsx`, `src/lib/i18n/verwaltung/bereichswechsel.ts`, `docs/architecture/02-datenmodell/01-KERN.md` §6.3, `docs/architecture/05-API-KARTE.md`, `tests/isolation/bereichswechsel.test.ts`, `tests/kern/bereichswechsel.test.ts`, `tests/e2e/{bereichswechsel,portal-ausgang}.spec.ts` |
+|---|---|
+
+### D-660 · Die Bereichszähler zählen nur, was der Betrachter dort selbst sähe — nie für ein Kundenkonto (V-166)
+
+**Der Befund** (V-166, Prüfung von V-165; TEN-10, 05-API-KARTE „A count is a
+real disclosure“): `/auth/bereich` fragte `umschalterStand` ohne Angabe, und
+„mit Zählern“ war die Vorgabe. Ein Kundenkonto mit Zugang in zwei
+Gesellschaften (0249 gibt einem bestehenden Kundenkonto eine zweite
+Mitgliedschaft) sah dort „Reinigung · 57 laufende Aufträge“: den Bestand der
+Gesellschaft über ALLE Kunden. `app.mandant_kennzahlen` (0417) fragte nur
+`app.hat_recht`, und die Rolle `kunde` hält `auftrag.lesen` und `bau.lesen`
+plattformweit (0008). Auf die eigenen Zeilen beschränkt sie allein die RLS
+(`p_kunde_decke` auf `auftrag`, `p_portal_decke` auf `projekt`), und die
+Definer-Zählung unter `cse_definer` sieht diese Decken nicht. D-659 Nr. 4
+(„nur für die internen Leisten“) stimmte damit für die Bereichswahl nicht.
+Der abgebrochene Nachbesserungsstand (WIP) rechnete das Portal je Bereich
+außerdem mit dem Gültigkeitsfenster der Mitgliedschaft und zählte deshalb
+für ein Konto mit globaler interner Rolle und abgelaufener Kundenzeile den
+ganzen Bestand — die Isolationsprüfung zeigt beides.
+
+**Die Entscheidung.**
+
+1. **Die Anwendung fragt Zähler nur für eine interne Sitzung.**
+   `umschalterStand` verlangt jetzt beide Angaben ausdrücklich
+   (`StandFragen { gruppe, zaehler }`); eine vergessene Angabe heißt nicht
+   mehr still „ja“, der Compiler lässt keinen Aufruf ohne sie durch. Tor und
+   Kontoseiten fragen Gruppe und Zähler für die internen Leisten, die
+   Bereichswahl fragt die Gruppe immer (ob eine Sitzung sie betreten darf,
+   sagt `app.darf_gruppenansicht`) und die Zähler nur, wenn `zaehltFuer` ja
+   sagt: internes Portal oder Gruppenansicht.
+2. **Die Datenbank sagt dasselbe noch einmal, für den Aufrufer, der es
+   vergisst** (0418). `app.mandant_kennzahlen` liefert nur, wenn
+   `app.portal() = 'intern'` ist — Kundenportal, Kundensicht und
+   Mitarbeiterportal bekommen keine Zeile.
+3. **Und je Bereich nur, wo der Betrachter nach einem Wechsel intern
+   arbeitete.** Das Portal im Bereich wird genau so bestimmt wie in
+   `app.sitzung_aufloesen` (0138): die Rolle der nicht entzogenen
+   Mitgliedschaft in DIESEM Bereich, sonst die globale Rolle, sonst
+   `mitarbeiter`. Bewusst OHNE Gültigkeitsfenster, weil der Wechsel keines
+   kennt: eine abgelaufene Kundenmitgliedschaft neben einer globalen
+   internen Rolle ergibt nach dem Wechsel eine Kundensitzung, und die RLS
+   zeigt dann nur die eigenen Vorgänge. Nur mit internem Portal UND
+   Leserecht ist die Zahl dieselbe, die die RLS dem Betrachter dort zeigt:
+   `p_kunde_decke` lässt ein internes Portal durch, `p_portal_decke` öffnet
+   ihm alle Projekte. Sonst gibt es für den Bereich keine Zeile, auch keine
+   Null.
+4. **Ein Kundenkonto sieht auf der Bereichswahl seine Bereiche, sonst
+   nichts** — keine Zahl, keinen Gruppeneintrag. Eine Zahl nur der EIGENEN
+   Aufträge wäre zulässig gewesen, ist aber nicht TEN-10: der Zähler gehört
+   dem Umschalter der internen Leisten (D-659 Nr. 4), und das Kundenportal
+   trägt keinen.
+5. **Die Spaltengrants für `cse_definer` beschränken heute nichts** — weder
+   die aus 0416 und 0417 noch die aus 0418. 0155 gibt `cse_definer` `select`
+   auf ganz `rolle`, `benutzer` und `benutzer_mandant`, 0191 `insert` und
+   `update` auf ganz `benutzer_mandant`. D-658 und D-659 sprachen von
+   „eigenen Spaltengrants“; sie nennen die gebrauchten Spalten und tragen
+   erst, wenn die Tabellengrants enger werden. Die Tabellengrants hier zu
+   verengen hieße, jede Definer-Funktion auf diesen drei Tabellen neu
+   durchzugehen — das ist nicht Teil dieser Behebung.
+6. **Die eigenen Policies der Zählung fragen nur Funktionen, keine Tabelle.**
+   Die erste Fassung von `d_umschalter_rolle` (aus dem abgebrochenen Stand)
+   fragte `benutzer_mandant` und schloss damit einen Kreis mit
+   `d_bm_verwaltungsrolle` (0372) und `d_bm_kundenrolle` (0249), deren
+   `with check` `rolle` fragt: jedes Anlegen einer Mitgliedschaft als
+   `cse_definer` — Einladung eines Verwaltungskontos, Kundenzugang — brach
+   mit „infinite recursion detected in policy“ ab. Jetzt sieht `cse_definer`
+   auf `rolle` wie `t_rolle_lesen` (0007) die Plattformrollen und die Rollen
+   der Bereiche des Umschalters; eine Mitgliedschaftsrolle gehört immer
+   ihrem Bereich (`kern.bm_rolle_pruefen`). Die Isolationsprüfung weist
+   jedes `FROM` in einer `d_umschalter_*`-Bedingung ab und legt eine
+   Kundenmitgliedschaft als `cse_definer` an (§4, §7).
+
+| Betrifft | TEN-06, TEN-10, DESIGN §6, D-43, D-659, D-658, V-165, V-166, K-04, `drizzle/0418`, `src/server/services/mandant/umschalter.ts`, `src/app/auth/bereich/page.tsx`, `src/app/portal/zugang.ts`, `src/app/portal/konto/konto.ts`, `src/server/registry/dienste.ts`, `docs/architecture/05-API-KARTE.md`, `docs/architecture/02-datenmodell/01-KERN.md` §6.3, `docs/ROADMAP.md`, `tests/isolation/bereichswechsel.test.ts` §5–§6, `tests/kern/bereichswechsel.test.ts` §5 |
+|---|---|
+
+### D-661 · Auch Wege ohne Sitzung tragen die Adresse der Anfrage ins Prüfprotokoll (V-167)
+
+**Der Befund** (V-167, Prüfung von V-163; SEC-A9): D-657 Nr. 1 sagte, ohne
+IP blieben nur Läufe ohne Anfrage. Drei Wege MIT Anfrage schrieben aber ohne
+Sitzungsbindung ins Protokoll und trugen `ip = NULL`, obwohl die Adresse
+bekannt war: `auth.konto_gesperrt` aus der Bremse
+(`app.versuch_protokollieren`, 0379 — dort liegt sie sogar als `p_ip` vor),
+`auth.kennwort_gesetzt` aus `app.kennwort_token_einloesen` (Einladung und
+Zurücksetzung, 0155) und `auth.zweiter_faktor_eingerichtet` aus
+`app.token_faktor_bestaetigen` (Einladung einer Rolle mit Pflicht zum
+zweiten Faktor, 0155). `app.protokolliere` liest die Adresse aus `app.ip`
+(0415), und das setzte nur `bindeSitzung`. Außerdem behauptete
+`server/auth/adresse.ts`, der Proxy hänge die Adresse des Geräts VORN an
+`x-forwarded-for` an — ein gewöhnlicher Reverse-Proxy hängt hinten an.
+
+**Die Entscheidung.**
+
+1. **Eine Herkunftsbindung für Wege ohne Sitzung.** `bindeHerkunft`
+   (`server/kontext`) setzt NUR `app.ip`, transaktionslokal. Kein Konto,
+   kein Portal, keine Rolle: wer hier handelt, ist noch nicht angemeldet,
+   und eine Bindung, die mehr behauptete, wäre eine erfundene Sitzung.
+2. **Die drei Dienste binden selbst, und die Adresse ist Pflicht.**
+   `meldeAnMitKennwort` (hatte sie schon), `loeseKennwortTokenEin` und
+   `bestaetigeFaktorMitToken` nehmen `ip: string | null` als Pflichtangabe —
+   eine Seite, die sie vergisst, übersetzt nicht. `null` heißt ehrlich:
+   keine Adresse bekannt, die Spalte bleibt leer.
+3. **Die Adresse kommt aus derselben Regel wie bei einer Sitzung**
+   (`anfrageAdresse`) — auf `/auth/passwort-neu` und auf dem Token-Weg von
+   `/auth/zwei-faktor/einrichten`. Die Anmeldung behält `herkunft()`:
+   dieselbe Adresse steht dort in `anmeldeversuch.ip` und
+   `benutzer_sitzung.ip`, und eine zweite Lesart ergäbe zwei Adressen für
+   denselben Versuch.
+4. **In der Anwendung und nicht in `app.versuch_protokollieren`.** Die
+   Funktion kennt `p_ip`, aber `app.protokolliere` liest die Adresse aus der
+   Bindung. Sie müsste `app.ip` für ihre eine Zeile umsetzen und
+   zurückstellen, und sie ist eine Altlast unter `postgres` (D-300), die
+   dafür neu ersetzt würde. Ein Mechanismus für alle drei Wege, so wie
+   `bindeSitzung` für alle übrigen; ihr einziger Aufrufer ist
+   `app.kennwort_anmelden` aus `meldeAnMitKennwort`.
+5. **Der Akteur dieser Zeilen bleibt, wie er war:** `system`, ohne Konto.
+   Wer den Token hält oder das Kennwort tippt, ist nicht angemeldet; das
+   betroffene Konto steht in `objekt_id`.
+6. **Die Adresse ist die des Geräts nur, weil der Proxy den Kopf SETZT.**
+   Vercel (Stack, EINRICHTEN) überschreibt `x-forwarded-for` mit der Adresse
+   der Verbindung; was der Browser mitschickt, kommt nicht durch. Ein Proxy,
+   der anhängt (nginx `$proxy_add_x_forwarded_for`), machte den ersten
+   Eintrag frei wählbar — im Protokoll, an der Bremse, am Einmalcode, an der
+   Freigabe, am Check-in. Wer die Plattform je hinter einem eigenen Proxy
+   betreibt, lässt ihn den Kopf ersetzen (nginx:
+   `proxy_set_header X-Forwarded-For $remote_addr;`). Die Lesart selbst
+   bleibt: alle Stellen lesen den ersten Eintrag, und eine Stelle, die
+   anders läse, gäbe eine zweite Antwort auf dieselbe Frage.
+7. **D-657 Nr. 1 gilt damit wörtlich:** ohne IP bleiben nur Läufe ohne
+   Anfrage (Hintergrund, Test). O-92 (wie lange die IP stehen darf) bleibt
+   offen und gilt für diese Zeilen genauso. *(Berichtigt in D-729: das war
+   nicht wahr. Der Check-in mit der Marke — Einlösen, Nachreichung,
+   Aufnahme als `cse_checkin` — und der Einmalcode der Kraft schrieben
+   weiter ohne Adresse, obwohl sie vorlag; seit V-235 binden auch sie.)*
+
+| Betrifft | SEC-A9, AUT-01, AUT-02, AUT-07, D-300, D-657, O-92, V-163, V-167, `src/server/kontext/index.ts`, `src/server/auth/kennwort-anmeldung.ts`, `src/server/auth/adresse.ts`, `src/app/auth/passwort-neu/page.tsx`, `src/app/auth/zwei-faktor/einrichten/page.tsx`, `tests/isolation/pruefprotokoll-ip-agent.test.ts` §3, `tests/isolation/anmeldung-kennwort.test.ts` |
+|---|---|
+
+### D-662 · Eine Administration entsteht nur über ihre zwei Wege — auch nicht über die Zeile daneben (V-168)
+
+**Der Befund** (V-168, Prüfung von V-164; AUT-01, 03-AUTH §12.1): Der
+Auslöser `kern.bm_module_pruefen` (0416) sperrt den Anwendungsweg nur beim
+SETZEN einer Modulliste. Mit `system.benutzer_verwalten` führten auf
+Datenbankebene drei Umwege zu einer Administration mit allen Modulen der
+Rolle, ohne `system.module_zuweisen` und ohne die Decke der eigenen Module
+(D-658 Nr. 4): entziehen (`t_bm_entziehen`, ein UPDATE auf `entzogen_am`,
+der Auslöser hängt an `update of module`) und ohne Liste neu anlegen
+(`t_bm_schreiben`); eine entzogene, unbeschränkte Administration
+wiederbeleben; eine andere Mitgliedschaft per `rolle_id` umwidmen. Heute
+nimmt kein Code diese Wege. Daneben drei kleinere Folgen von V-164: Die
+Isolationsprüfung des INSERT-Zweigs legte für eine FREMDE Gesellschaft an
+und erwartete einen Wurf ohne Meldung, bewies also nicht, welcher Grund ihn
+auslöste. Fünf Seed-Stellen wählten ihr handelndes Konto mit
+`order by r.schluessel limit 1`, und seit V-164 trägt die Reinigung zwei
+Administrationen — welche gewählt wurde, hing an der Zeilenfolge, und
+`admin.vertrieb` hält weder Dienstplan noch Zeit. Das Benutzerblatt schlug
+`?module=` und `?konto=` im Objektliteral nach (`?module=__proto__` warf
+beim Zeichnen) und gab einen unbekannten `?konto=`-Wert roh aus.
+
+**Die Entscheidung.**
+
+1. **Auf dem Anwendungsweg entsteht keine lebende Administration** (0419,
+   `kern.bm_administration_pruefen`). Unter `current_user = cse_app` wird
+   jedes INSERT einer lebenden Mitgliedschaft mit der Plattformrolle
+   `admin` abgewiesen, ebenso jedes UPDATE, das eine Mitgliedschaft erst
+   dazu macht (`rolle_id` wechselt auf `admin`, oder `entzogen_am` geht von
+   gesetzt auf leer). Eine Administration hat genau zwei Wege, beide als
+   `cse_definer`: `app.verwaltungskonto_einladen` legt sie an (D-610, nur
+   `super_admin`), `app.mitgliedschaft_module_setzen` ändert ihre Module
+   (D-658). Seed und Migration laufen als Eigentümer und sind nicht gemeint.
+   *(Berichtigt in D-730: so war das nicht vollständig wahr. Der Auslöser hing
+   nur an `rolle_id` und `entzogen_am`, `cse_app` hielt ein UPDATE auf die
+   ganze Zeile — `benutzer_id` einer lebenden Administration umschreiben
+   oder das Fenster einer abgelaufenen wieder öffnen ging an allen
+   Auslösern vorbei. Seit 0460 fragt der Auslöser die ganze Zeile, und
+   `cse_app` hält nur noch Spaltenrechte.)*
+2. **Entziehen bleibt, Pflege bleibt.** Eine Administration zu entziehen und
+   eine lebende weiter zu pflegen (`gueltig_bis`, `ist_standard`) geht wie
+   bisher über `t_bm_entziehen`. Andere Rollen tragen keine Modulliste
+   (0416) und sind nicht gemeint.
+   *(Genauer seit D-730: das Fenster einer Administration lässt sich auf dem
+   Anwendungsweg nur verkürzen; verlängern, wieder öffnen und vorziehen
+   heißt neu einladen.)*
+3. **Ein eigener Auslöser, keine neue Fassung von `bm_module_pruefen`.** Jener
+   prüft den Katalog an der Spalte `module`, dieser den Weg an `rolle_id`
+   und `entzogen_am`. Ohne `security definer`, wie 0416: `current_user` ist
+   der Aufrufer.
+4. **Die Prüfung sagt, welcher Grund abweist.** Der INSERT-Zweig von
+   `bm_module_pruefen` wird im AKTIVEN Mandanten geprüft, mit einer Rolle,
+   die 0419 nicht sperrt, gegen die Meldung — und die Gegenprobe ohne Liste
+   geht durch.
+5. **Der Seed wählt nach Bedeutung, nicht nach Zeilenfolge.** Alle sieben
+   Stellen, die ein handelndes Konto über die Rolle suchen, ordnen
+   `r.schluessel, bm.module is not null, b.email`: zuerst eine Mitgliedschaft
+   ohne Modulliste (alle Module der Rolle), dann die E-Mail. D-658 Nr. 8
+   hatte zwei davon über die E-Mail allein gerichtet.
+6. **Das Benutzerblatt nimmt `eigenerEintrag`** für `?konto=` und
+   `?module=` (D-653) und zeigt `?anzahl=` nur als Zahl; ein unbekannter
+   Wert erzeugt keine Meldung.
+
+| Betrifft | AUT-01, AUT-04, 03-AUTH §12.1, D-610, D-653, D-658, V-164, V-168, `drizzle/0419`, `src/server/db/seed/{zeit,reinigung,security,eingang,konto}.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/[id]/page.tsx`, `tests/isolation/mitgliedschaft-module.test.ts` §2, §4, `tests/kern/nachschlagen.test.ts` |
+|---|---|
+
+### D-663 · Die Texte des Bereichswechsels und der Modulzuweisung nennen keine Entwurfskennung, und ⌘K meldet sich nicht je Rendern neu an (V-169)
+
+**Der Befund** (V-169, Prüfung von V-164/V-165): Die Gruppenzeile der
+Bereichswahl endete auf „(Invariante 10)“ bzw. „(invariant 10)“, die
+Erklärung der Modulzuweisung auf „(AUT-01)“ — Verweise für die, die den Code
+lesen, auf dem Bildschirm ohne Bedeutung. Im `BereichsUmschalter` hing der
+globale ⌘K-Listener an `[aktiv, zeilen]`; `zeilen` entsteht bei jedem
+Rendern neu, der Listener wurde also bei jedem Rendern ab- und wieder
+angemeldet.
+
+**Die Entscheidung.**
+
+1. **Was der Mensch liest, nennt keine Kennung des Entwurfs** — keine
+   Invariante, keine SPEC-, D-, K-, O- oder V-Nummer — in den Texttabellen
+   dieser Gruppe (`bereichswechsel.ts`, `module-zuweisung.ts`). Die
+   Aussage bleibt („nur lesen“, „eingeschränkt auf die gewählten Module“),
+   nur der Verweis fällt. Eine Prüfung läuft über jede Zeichenkette beider
+   Tabellen in beiden Sprachen, auch über die erzeugten.
+2. **Der ⌘K-Listener hängt an einer Zahl** (`startFokus`, die Stelle des
+   aktiven Bereichs in der Liste), nicht an der je Rendern neuen Liste. Er
+   wird nur neu angemeldet, wenn sich diese Stelle ändert.
+3. **Nicht Teil dieser Entscheidung, bewusst:**
+   - Andere, ältere Seiten tragen dieselbe Sorte Verweis im Text (etwa
+     `portal/gruppe/freigaben`, die Kundenfreigabe eines Dokuments: „(Invariante
+     10)“). Sie gehören nicht zu den Befunden dieser Gruppe.
+   - Benutzerliste und Benutzerblatt bleiben deutsch bis auf die
+     Modulzuweisung (V-164), die zweisprachig ist. Beide Seiten stehen in der
+     eingefrorenen Ausnahmeliste der Übersetzungswache
+     (`scripts/guards/uebersetzung-ausnahmen.ts`). Nur die Spaltenköpfe
+     „Rolle“ und „Module“ umzustellen, ergäbe eine andere Mischung — die Zelle
+     „Rolle“ zeigt die deutsche Rollenbezeichnung aus der Datenbank, daneben
+     stehen ein Dutzend weitere deutsche Köpfe. Die Abhilfe ist, beide Seiten
+     ganz auf die Verwaltungstexte umzustellen und aus der Liste zu
+     streichen.
+   - `/auth/bereich` spricht de/en. Eine Kraft mit zwei Anstellungen und
+     Arabisch oder Türkisch landet dort weiter auf Deutsch — vor V-165 sprach
+     die Seite nur Deutsch, es ist also kein Rückschritt. Arabisch verlangt
+     außerdem die Schreibrichtung von rechts; die Seite setzt heute keine.
+
+| Betrifft | DESIGN §6, D-659, D-658, V-164, V-165, V-169, `src/lib/i18n/verwaltung/bereichswechsel.ts`, `src/lib/i18n/verwaltung/einstellungen/module-zuweisung.ts`, `src/components/portal/BereichsUmschalter.tsx`, `tests/kern/bereichswechsel.test.ts` §6 |
+|---|---|
+
+### D-729 · Auch der Check-in und der Einmalcode tragen die Adresse der Anfrage ins Prüfprotokoll (V-235)
+
+**Der Befund** (V-235, Prüfung von V-167; SEC-A9): D-661 Nr. 7 sagte, ohne
+IP blieben nur Läufe ohne Anfrage. Zwei Familien von Wegen MIT Anfrage
+schrieben aber weiter `ip = NULL`:
+
+- **Der Check-in mit der Marke.** `/api/check-in/[token]`,
+  `…/offline` und `…/medien` lesen die Adresse und reichen sie als `p_ip`
+  an `app.checkin_verbrauchen` bzw. `app.offline_ereignis_annehmen`. Dort
+  landet sie in `checkin_token.ip_adresse`, an der Bremse und im
+  `nachher`-JSON von `zeit.eingestempelt` — aber nicht in der Spalte `ip`:
+  `app.protokolliere` liest `app.ip` (0415), und `withCheckin` setzte als
+  einzige GUC die Rolle. Betroffen waren `zeiteintrag.insert`/`.update`
+  (Auslöser aus 0034), `zeit.eingestempelt`/`zeit.ausgestempelt` (0035)
+  und `zeit.offline_empfangen` (0090).
+- **Der Einmalcode der Kraft.** `app.zugang_code_einloesen` (0114) setzt
+  `mitarbeiter_zugang.letzter_login_am`; der Auslöser der Tabelle (0384)
+  schreibt `mitarbeiter_zugang.update` — vor jeder Sitzung, ohne Adresse,
+  obwohl `/auth/mitarbeiter/code` sie mit `herkunft()` schon liest.
+
+Kein Test deckte einen dieser Wege ab.
+
+**Die Entscheidung.**
+
+1. **`withCheckin` bindet die Herkunft, und sie ist Pflicht.** Die
+   Signatur ist `withCheckin(tx, ip, fn)`; vor dem Rollenwechsel setzt
+   `bindeHerkunft` `app.ip`, transaktionslokal. Das ist keine Sitzung —
+   kein Konto, kein Mandant, kein Portal —, die Marke bleibt die einzige
+   Berechtigung (K-08). `loeseCheckinEin` und `nimmClaimAn` nehmen
+   `ip: string | null` als Pflichtangabe, wie die Dienste aus D-661 Nr. 2.
+   `markePraesentierbar` liest nur und bindet ausdrücklich keine Adresse.
+2. **`codeEinloesen` bindet sie selbst**, ebenfalls als Pflichtangabe,
+   und erst, nachdem Nummer und Code überhaupt die Form haben — eine
+   Eingabe, die gar nicht zur Datenbank geht, bindet nichts.
+3. **Eine Lesart.** Die drei Check-in-Routen nehmen `anfrageAdresse`
+   (D-661 Nr. 6) statt einer eigenen Kopie ohne Prüfung. Nebenbei: ein
+   Kopf, der keine Adresse ist, lief bisher roh in den `inet`-Parameter,
+   an dem Postgres ihn mit `invalid input syntax` abweist, und der Dienst
+   reichte den Fehler an die Route durch; jetzt wird er `null`, bevor er
+   die Datenbank erreicht. Die Stempeluhr aus
+   der Sitzung reicht `sitzung.ip` durch — dieselbe Adresse, die
+   `withTenant` für das Protokoll bindet.
+4. **In der Anwendung, nicht in den Funktionen** — aus demselben Grund
+   wie D-661 Nr. 4: ein Mechanismus für alle Wege ohne Sitzung, und keine
+   Definer-Funktion, die `app.ip` für ihre eigenen Zeilen umsetzt. Wer
+   `app.checkin_verbrauchen` am Anwendungsweg vorbei aufruft, bekommt die
+   Adresse weiter nur in `checkin_token` — das ist kein Weg der Plattform.
+5. **Was jetzt ohne Adresse bleibt, ist nachgezählt**, nicht behauptet:
+   alle Transaktionen unter `src/app`, die keine Sitzung binden. Die
+   Anmeldung und ihre Tokens binden seit D-661, Check-in und Einmalcode
+   seit hier. Die öffentlichen Formulare (`withEingang`) speichern die
+   rohe Adresse bewusst nirgends (D-657 Nr. 4). Der Kalenderabruf per
+   Token liest nur. Abmelden, „Kennwort vergessen“ und das Anfordern
+   eines Einmalcodes schreiben keine Protokollzeile. Ohne Adresse bleiben
+   damit die Läufe ohne Anfrage eines Menschen (Nachtläufe, auch wenn der
+   Zeitplaner sie per HTTP anstößt; Seed; Test) und die Formularannahme.
+   Ein neuer Weg ohne Sitzung muss die Herkunft selbst binden; das sagt
+   der Kommentar an `bindeHerkunft`.
+
+| Betrifft | SEC-A9, K-08, D-657, D-661, O-92, V-167, V-235, `src/server/kontext/checkin.ts`, `src/server/kontext/index.ts` (`bindeHerkunft`), `src/server/services/zeit/checkin.ts`, `src/server/services/zeit/offline.ts`, `src/server/auth/mitarbeiter-anmeldung.ts`, `src/app/api/check-in/[token]/{route,offline/route,medien/route}.ts`, `src/app/api/mein/stempeluhr/route.ts`, `src/app/auth/mitarbeiter/code/page.tsx`, `docs/architecture/03-AUTH-BERECHTIGUNGEN.md` (Check-in-Prinzipal), `tests/isolation/pruefprotokoll-ip-agent.test.ts` §4, `tests/kern/mitarbeiter-anmeldung.test.ts` |
+|---|---|
+
+### D-730 · Eine Administration entsteht auch nicht über Konto oder Fenster — die Zeile zählt, nicht die Spalte (V-236)
+
+**Der Befund** (V-236, Prüfung von V-168; AUT-01, 03-AUTH §12.1): D-662 Nr. 1
+sagte, auf dem Anwendungsweg entstehe keine lebende Administration. Die
+Auslöser auf `benutzer_mandant` hingen aber an einzelnen Spalten — 0419 an
+`rolle_id` und `entzogen_am`, 0416 an `module`, 0007 an `rolle_id` und
+`mandant_id` —, und `cse_app` hielt seit 0007 ein UPDATE auf die ganze Zeile,
+das `t_bm_entziehen` (0102) nicht einschränkt. Mit
+`system.benutzer_verwalten` und dem zweiten Faktor gingen zwei Wege durch:
+
+- `update benutzer_mandant set benutzer_id = X` an einer lebenden
+  Administration ohne Modulliste — das Konto X war danach eine
+  Administration mit allen Modulen der Rolle, ohne
+  `app.verwaltungskonto_einladen` (D-610) und ohne
+  `system.module_zuweisen`;
+- `set gueltig_bis = null` an einer abgelaufenen, nie entzogenen
+  Administration — `app.hat_recht_fuer` prüft das Fenster (0395), die Zeile
+  galt wieder. Ebenso ein früheres `gueltig_ab`.
+
+`tests/isolation/mitgliedschaft-module.test.ts` §4 erlaubte die Pflege von
+`gueltig_bis` ausdrücklich und prüfte keinen der beiden Wege.
+
+**Die Entscheidung.**
+
+1. **Erste Linie: Spaltenrechte** (0460). `cse_app` hält auf
+   `benutzer_mandant` kein UPDATE auf die Tabelle mehr, sondern eines auf
+   die Spalten, die eine Mitgliedschaft PFLEGEN: `rolle_id`, `module`,
+   `aus_anstellung`, `ist_standard`, `gueltig_ab`, `gueltig_bis`,
+   `entzogen_am`, `entzogen_von`, `entzugsgrund`, `geaendert_von`. Nicht
+   darunter ist, was eine Mitgliedschaft IST — `id`, `benutzer_id`,
+   `mandant_id` — und ihre Spur (`erstellt_am`, `erstellt_von`,
+   `geaendert_am`). Eine Mitgliedschaft wechselt nie das Konto; wer eine
+   für ein anderes Konto braucht, legt sie an, und die alte bleibt als
+   Antwort auf „wer hatte wann Zugriff“ stehen (Invariante 8). Das ist das
+   Muster, das 0007 für `benutzer` selbst vorschreibt (K-05). Kein
+   Anwendungscode schreibt `benutzer_mandant` direkt; die Definer-Wege
+   (0191, 0249, 0372, 0416) laufen als `cse_definer` und sind nicht berührt.
+2. **Zweite Linie: der Auslöser fragt die ganze Zeile.**
+   `kern.bm_administration_pruefen` hängt jetzt an JEDEM Update, und die
+   Frage ist nicht mehr „welche Spalte hat sich geändert“, sondern „gibt die
+   Zeile danach mehr Administration als vorher“. Eine Zeile, die nach der
+   Anweisung eine lebende Mitgliedschaft mit der Plattformrolle `admin` ist,
+   geht auf dem Anwendungsweg nur durch, wenn sie das vorher schon war —
+   dasselbe Konto, dieselbe Gesellschaft, und ein Fenster, das im alten
+   liegt. Anlegen, Wiederbeleben und Umwidmen (0419) fallen unter dieselbe
+   eine Frage. Die zweite Linie hält auch allein: die Prüfung gibt das
+   Spaltenrecht auf `benutzer_id` in einer zurückgerollten Transaktion
+   zurück, und der Auslöser weist ab.
+3. **Pflege heißt Verkürzen.** Ein Ende setzen oder früher legen, einen
+   späteren Beginn, `ist_standard`, entziehen und herabstufen bleiben.
+   Verlängern, ein abgelaufenes Fenster wieder öffnen und den Beginn
+   vorziehen geben einem Konto Tage mit Administration, die es nicht hatte
+   — das ist Anlegen, und Anlegen hat einen Weg: die alte Zeile entziehen
+   und über `app.verwaltungskonto_einladen` neu einladen (0372 nimmt ein
+   vorhandenes Konto an, sobald es in der Gesellschaft keine lebende
+   Mitgliedschaft mehr hat; nur `super_admin`, D-610).
+4. **Seed und Migration bleiben Eigentümer** und sind nicht gemeint; die
+   Meldung und `detail = administration_nur_ueber_funktion` bleiben die aus
+   0419, damit die Oberfläche und die bestehenden Prüfungen nichts Neues
+   lernen müssen.
+
+| Betrifft | AUT-01, 03-AUTH §12.1, K-05, Invariante 8, D-610, D-658, D-662, V-168, V-236, `drizzle/0460`, `tests/isolation/mitgliedschaft-module.test.ts` §4 |
+|---|---|
+
+### D-731 · Die kleinen Punkte aus der Prüfung von V-163 bis V-169 (V-237)
+
+**Der Befund** (V-237): Neben den zwei offenen Punkten (V-235, V-236) nannte
+der unabhängige Prüfer der Gruppe sechs kleinere Stellen. Jede ist hier mit
+ihrer Entscheidung verzeichnet, in der Reihenfolge, in der sie behoben wurde.
+
+**Die Entscheidungen.**
+
+1. **Die Protokollzeile der Modulzuweisung nennt nur, was sich änderte**
+   (0461). `app.mitgliedschaft_module_setzen` schrieb vorher `{module}`,
+   nachher `{module, benutzer_id}`; `app.protokolliere` zählt jedes Feld aus
+   nachher, dessen Wert in vorher ein anderer ist, und ein fehlendes Feld ist
+   dort NULL. Jede Zeile trug deshalb `geaendert_felder = {benutzer_id,
+   module}` — eine Kontoänderung, die nie stattfand. Jetzt steht das Konto
+   auf beiden Seiten: es ist der Bezug der Zeile. `app.protokolliere` bleibt,
+   wie es ist — „ein Feld nur in nachher ist neu“ ist für andere Aufrufer
+   richtig, und der heißeste Pfad der Plattform bekommt keine neue Fassung
+   für einen Fehler an einer Stelle.
+2. **Von der Decke der eigenen Module ist nur ausgenommen, wessen globale
+   Rolle das Recht selbst gewährt** (0462; berichtigt D-658 Nr. 4). Bis
+   0462 war jedes Konto mit IRGENDEINER globalen Rolle ausgenommen. Die
+   Begründung — die globale Rolle trägt keine Schnittmenge — gilt aber nur
+   für Rechte, die aus ihr kommen. Gefragt wird jetzt, was Zweig 1 von
+   `app.hat_recht_fuer` (0395) fragt: gewährt die globale Rolle
+   `system.module_zuweisen` in dieser Gesellschaft (zuerst die Zeile der
+   Gesellschaft, sonst die Vorgabe der Plattform)? Wenn nicht, kommt das
+   Recht aus der Mitgliedschaft, und deren Modulliste ist die Decke. Heute
+   latent: `super_admin` ist die einzige globale Rolle, hält das Recht per
+   Vorgabe, und ihm lässt sich kein Recht entziehen (0008). Die Suche ist
+   eine zweite Fassung von Zweig 1, weil `hat_recht_fuer` „ob“ beantwortet,
+   nicht „woher“; die Prüfung hält beide nebeneinander. Die Funktion liest
+   dafür `berechtigung` und `rolle_berechtigung` und bringt eigene, enge
+   `d_`-Policies mit.
+3. **Die Umschalter-Policies sind kreisfrei nur, solange
+   `app.switcher_mandanten` an der RLS vorbei liest — das ist jetzt
+   festgenagelt, nicht umgebaut.** `d_umschalter_mandant`, `_auftrag`,
+   `_projekt` (0417) und `d_umschalter_rolle` (0418) fragen
+   `switcher_mandanten()`, und die Funktion liest `mandant` und
+   `benutzer_mandant`, über `app.ist_super_admin` auch `benutzer` und
+   `rolle`. Heute gehören beide `postgres` (D-300, Superuser mit
+   `BYPASSRLS`). Zöge `switcher_mandanten` zu `cse_definer` um — das Ziel
+   von D-300 —, läse sie `mandant` unter `d_umschalter_mandant`, die wieder
+   sie fragt; solange `d_feed_mandant` (`using (true)`, 0161) daneben
+   steht, faltet der Planer das „oder“ weg, fällt auch sie, bricht jede
+   Zählung mit „stack depth limit exceeded“ ab. D-659 Nr. 10 („eine spätere
+   Verengung jener Policies nimmt dem Umschalter nichts weg“) gilt also nur
+   unter dieser Bedingung. `tests/isolation/bereichswechsel.test.ts` §4
+   hält sie fest: die Liste der `cse_definer`-Policies, die
+   `switcher_mandanten` oder `ist_super_admin` fragen, und dass beide
+   Funktionen an der RLS vorbei lesen; die Gegenprobe zieht die Funktion in
+   einer zurückgerollten Transaktion um, lässt die breiten Policies fallen
+   und sieht den Abbruch. Nicht umgebaut, weil eine Policy, die den Kreis
+   ohne die Funktion ausdrückte, eine zweite Fassung der Bereichsregel wäre
+   (Mitgliedschaft, Fenster, Archiv, globale Rolle), und zwei Fassungen
+   derselben Regel laufen auseinander. Wer die Funktion umzieht, sieht rot
+   und baut vorher die Policies um.
+4. **DESIGN §6 sagt jetzt, was gebaut ist — und das Klappmenü blendet ein,
+   wie §6 es verlangt.** Vier Abweichungen standen ohne Nachtrag in
+   DESIGN.md (CLAUDE.md: erst DESIGN.md, dann Code):
+   - *Einblenden:* dem Muster gefolgt. `.cse-klappmenue` (`globals.css`,
+     neben `.cse-auftritt`) blendet mit `opacity 0→1` und
+     `translateY(-4px→0)` ein, über `--base` mit `--ease`. §6 nannte
+     180 ms; das ist kein Token, und §7 sagt für Klappmenüs und Dialoge
+     `--base`. §6 verweist jetzt auf §7 statt auf eine eigene Zahl. Bei
+     `prefers-reduced-motion` gilt die globale Regel (kein Versatz).
+   - *Name im Auslöser erst ab `lg`:* DESIGN angepasst. Das ist D-659 Nr. 7
+     — zwischen `sm` und `lg` schob ein voller Firmenname die Kopfzeile über
+     den Rand (§8); der Seitentitel daneben und der zugängliche Name des
+     Knopfs nennen den Bereich.
+   - *„Security“ statt „Sicherheit“, keine Zeile für CSE Operations:*
+     DESIGN angepasst. Die zweite Zeile sind die gebuchten Gewerke unter
+     ihren Modulnamen — dieselben Wörter wie in der Modulzuweisung (V-164);
+     ein Gewerk, das im Umschalter anders hieße als auf dem Benutzerblatt,
+     wären zwei. Operations bucht kein Gewerk; „Digital & KI“ wäre eine
+     Beschriftung ohne Buchung und eine Null nur Schmuck (D-659 Nr. 3). Der
+     Zähler heißt, wie ihn die Anwendung zeigt („laufende Aufträge“,
+     „laufende Projekte“). 01-KERN §6.2 nannte `kurzname` noch als Zeile 2
+     im Umschalter; das ist berichtigt.
+   Kein neuer Wert: `-4px` und `320px` stehen in §6, `--base` und `--ease`
+   in §7.
+5. **Die Prüfung der Agentenzeile misst eine echte Zeile.** In
+   `pruefprotokoll-ip-agent.test.ts` lief die Schleife über die
+   Protokollzeilen „während des Laufs“ über null Zeilen — ein Demolauf
+   schreibt selbst keine (D-657 Nr. 3) —, und die Erwartung danach war auf
+   einer leeren Menge trivial wahr. Jetzt schreibt der Spion im Moment, in
+   dem die Freigabe entsteht, eine Zeile über `app.protokolliere` — genau
+   das, was ein protokollierender Auslöser dort täte, im Zustand, den der
+   Lauf gesetzt hat. Geprüft wird diese Zeile (Agent, Agentenkennung der
+   Freigabe, der Mensch als Auftraggeber, seine Adresse) und jede Zeile
+   zwischen einer Marke davor und einer danach; die Menge ist nie leer.
+6. **Formatierung:** `const uhr =(await …` in
+   `server/auth/kennwort-anmeldung.ts` (`bestaetigeFaktorMitToken`) steht
+   jetzt wie jede andere Zeile der Datei.
+
+| Betrifft | SEC-A9, AUT-01, 03-AUTH §12.1, O-76, O-355, D-300, D-657, D-658, D-659, V-164, V-165, V-237, DESIGN §6, §7, `drizzle/0461`, `drizzle/0462`, `src/styles/globals.css`, `src/components/portal/BereichsUmschalter.tsx`, `docs/architecture/02-datenmodell/01-KERN.md` §6.2, `tests/isolation/mitgliedschaft-module.test.ts` §1, §2, `tests/isolation/bereichswechsel.test.ts` §4, `tests/isolation/pruefprotokoll-ip-agent.test.ts` §2, `tests/kern/bereichswechsel.test.ts` §7, `src/server/auth/kennwort-anmeldung.ts` |
 |---|---|
