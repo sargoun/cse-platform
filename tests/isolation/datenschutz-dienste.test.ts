@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
@@ -184,6 +187,34 @@ describe('die Akte: laden, suchen, zuordnen', () => {
       expect(z.art, art).toBe(art);
       expect(z.id, art).not.toBeNull();
     }
+  });
+
+  /**
+   * **Der Verweis im Vorgangskopf führt auf eine Seite, die es gibt** (V-218).
+   *
+   * Bis V-218 baute `ladeZuordnung` für eine Person `/personal/<id>` — unter
+   * `/personal` liegt kein `[id]`, der Verweis fiel auf 404. Der Fall darüber
+   * prüfte Art und Kennung, nicht das Ziel. Hier wird jeder Pfad auf eine
+   * Datei unter `src/app` abgebildet (eine Kennung wird `[id]`, der Slug
+   * `[mandant]`, wie in `kalender.test.ts` (7)), und die Person trägt ihr
+   * genaues Ziel: die Personalakte.
+   */
+  it('jeder Zuordnungspfad ist eine gebaute Seite — die Person führt in ihre Akte', async () => {
+    const KENNUNG = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+    const wurzel = fileURLToPath(new URL('../../src/app', import.meta.url));
+    for (const art of ['person', 'ansprechpartner', 'bewerbung'] as const) {
+      const z = await imKontext(dsb,
+        (k) => ladeZuordnung(k as LeseKontext, 'reinigung', anfrage[art]!));
+      expect(z.pfad, art).not.toBeNull();
+      const teile = z.pfad!.split('/').filter((t) => t !== '');
+      expect(teile.slice(0, 2), z.pfad!).toEqual(['portal', 'reinigung']);
+      const form = ['portal', '[mandant]',
+        ...teile.slice(2).map((t) => (KENNUNG.test(t) ? '[id]' : t))];
+      expect(existsSync(join(wurzel, ...form, 'page.tsx')), `${art}: ${z.pfad!}`).toBe(true);
+    }
+    const person = await imKontext(dsb,
+      (k) => ladeZuordnung(k as LeseKontext, 'reinigung', anfrage['person']!));
+    expect(person.pfad).toBe(`/portal/reinigung/personal/personen/${f.fatima}`);
   });
 
   it('`kandidaten` findet in allen drei Töpfen — und schweigt unter zwei Zeichen', async () => {

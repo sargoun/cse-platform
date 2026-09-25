@@ -19,6 +19,7 @@
  * Menschen weitergeleitet.
  */
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
+import { editorPfad } from './berichtigung.js';
 
 export type AnfrageArt =
   'auskunft' | 'berichtigung' | 'loeschung' | 'einschraenkung'
@@ -577,10 +578,19 @@ export async function ladeZuordnung(
     const [p] = await kontext.abfrage<{ name: string }>(
       `select btrim(coalesce(vorname, '') || ' ' || nachname) as name
          from person where id = $1::uuid`, [z.person_id]);
+    /*
+     * **Der Pfad kommt aus `editorPfad`, nicht aus einer zweiten Zeile hier**
+     * (V-218). Bis dahin stand an dieser Stelle `/personal/<id>` — eine
+     * Adresse, die es nicht gibt (unter `/personal` liegt kein `[id]`); der
+     * Verweis im Kopf jedes Vorgangs mit zugeordneter Person fiel auf 404.
+     * `berichtigung.ts` hatte denselben Fehler schon behoben und
+     * dokumentiert, nur lief diese Stelle daneben weiter. Eine Funktion für
+     * beide heisst: sie können nicht wieder auseinanderlaufen.
+     */
     return {
       art: 'person', id: z.person_id, name: p?.name ?? null,
       pfad: mandantSlug === null
-        ? null : `/portal/${mandantSlug}/personal/${z.person_id}`,
+        ? null : editorPfad(mandantSlug, 'person', z.person_id),
     };
   }
   if (z.ansprechpartner_id !== null) {
@@ -602,7 +612,7 @@ export async function ladeZuordnung(
     return {
       art: 'bewerbung', id: z.bewerbung_id, name: b?.name ?? null,
       pfad: mandantSlug === null
-        ? null : `/portal/${mandantSlug}/recruiting/bewerbungen/${z.bewerbung_id}`,
+        ? null : editorPfad(mandantSlug, 'bewerbung', z.bewerbung_id),
     };
   }
   return { art: 'keine', id: null, name: null, pfad: null };
