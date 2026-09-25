@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SchreibKontext } from '../../../kontext/index.js';
 import { cent, type Cent } from '../geld.js';
+import { MASKE_WERT_HOECHSTENS } from '../../../../lib/formular/maske.js';
 import type { ZinsMethode } from './zins.js';
 
 /**
@@ -47,8 +48,10 @@ export interface StufenZeile {
    *
    * Er wird hier mitgelesen, weil `/einstellungen/vorlagen` alle Vorlagen an
    * EINER Stelle zeigt und eine Stufenliste ohne ihren Text dort genau das
-   * verfehlt, was die Seite verspricht. Gepflegt wird er weiterhin nur unter
-   * `/einstellungen/mahnwesen`.
+   * verfehlt, was die Seite verspricht. Gepflegt wird er nur unter
+   * `/einstellungen/mahnwesen`, mit jeder bestätigten Fassung — und seit
+   * V-214 stimmt das auch: vorher schrieb ihn kein Weg, und der Mahnungsdienst
+   * las ihn nicht.
    */
   readonly textbaustein: string | null;
   readonly istPlatzhalter: boolean;
@@ -119,7 +122,28 @@ export interface StufeEingabe {
   readonly zinsMethode?: ZinsMethode;
   readonly folgeaktion?: Folgeaktion;
   readonly gueltigAb: string;
+  /**
+   * Der Mahntext dieser Fassung (V-214).
+   *
+   *  - eine Zeichenkette: dieser Text, getrimmt;
+   *  - `null`: ausdrücklich OHNE Mahntext;
+   *  - weggelassen: der Text der laufenden Fassung wird übernommen (D-705).
+   *
+   * Übernommen und nicht geleert, weil eine neue Fassung meist eine neue
+   * Gebühr oder Frist ist: wer die Gebühr ändert, soll nicht nebenbei den
+   * Brieftext verlieren, den er gar nicht angefasst hat.
+   */
+  readonly textbaustein?: string | null;
 }
+
+/**
+ * Die Höchstlänge eines Mahntexts — ein Absatz eines Briefs, rund 150 Wörter.
+ *
+ * Dieselbe Grenze wie ein Wert, der bei einer Abweisung mit der Maske
+ * zurückreist (`MASKE_WERT_HOECHSTENS`, D-599): ein längerer Text käme dann
+ * gekürzt zurück, und wer ihn erneut abschickt, verlöre still sein Ende.
+ */
+export const MAHNTEXT_HOECHSTENS = MASKE_WERT_HOECHSTENS;
 
 /**
  * Eine bestätigte Fassung — und die Ablösung der vorherigen in einem Zug.
@@ -144,6 +168,15 @@ export async function bestaetigeStufe(
   const methode: ZinsMethode | null = e.zinsberechnung === 'keine'
     ? null
     : e.zinsMethode ?? 'act_365';
+  const neuerText = e.textbaustein === undefined || e.textbaustein === null
+    ? e.textbaustein
+    : e.textbaustein.replace(/\r\n?/gu, '\n').trim();
+  if (typeof neuerText === 'string' && neuerText.length > MAHNTEXT_HOECHSTENS) {
+    throw new StufenFehler(
+      'ungueltig',
+      `Ein Mahntext hat höchstens ${String(MAHNTEXT_HOECHSTENS)} Zeichen — dieser hat `
+      + `${String(neuerText.length)}.`);
+  }
 
   /**
    * **Rückwärts gibt es keine Fassung.**
@@ -158,8 +191,8 @@ export async function bestaetigeStufe(
    * hiesse, die Grundlage von Mahnungen zu ändern, die unter der alten
    * hinausgegangen sind.
    */
-  const [laufend] = await kontext.abfrage<{ gueltig_ab: string }>(
-    `select gueltig_ab::text as gueltig_ab
+  const [laufend] = await kontext.abfrage<{ gueltig_ab: string; textbaustein: string | null }>(
+    `select gueltig_ab::text as gueltig_ab, textbaustein
        from mahnstufe
       where stufe = $1 and gueltig_bis is null
       order by gueltig_ab desc limit 1`, [e.stufe]);
@@ -184,18 +217,21 @@ export async function bestaetigeStufe(
    * nicht — sie wäre eine zweite Wahrheit über denselben Tag. Sie wird von
    * `mahnstufe_kein_ueberlapp` abgewiesen, und der Dienst übersetzt das.
    */
+  /* Weggelassen heisst übernommen; ein leerer Text heisst keiner (V-214). */
+  const text = neuerText === undefined ? (laufend?.textbaustein ?? null)
+    : neuerText === null || neuerText === '' ? null : neuerText;
   const zeilen = await kontext.schreibe<{ id: string }>(
     `insert into mahnstufe
        (mandant_id, stufe, bezeichnung, tage_nach_faelligkeit, gebuehr_cent,
-        zinsberechnung, zins_aufschlag_bp, zins_methode, folgeaktion,
+        zinsberechnung, zins_aufschlag_bp, zins_methode, folgeaktion, textbaustein,
         ist_platzhalter, gueltig_ab, erstellt_von_art, erstellt_von)
      values (app.aktiver_mandant(), $1, $2, $3, $4::bigint,
-             $5::mahn_zinsberechnung, $6, $7::zins_methode, $8::mahn_folgeaktion,
+             $5::mahn_zinsberechnung, $6, $7::zins_methode, $8::mahn_folgeaktion, $10,
              false, $9::date, 'mensch', app.aktueller_benutzer())
      returning id`,
     [e.stufe, e.bezeichnung.trim(), e.tageNachFaelligkeit, e.gebuehrCent.toString(),
      e.zinsberechnung, e.zinsAufschlagBp ?? null, methode, e.folgeaktion ?? 'keine',
-     e.gueltigAb]).catch((fehler: unknown) => {
+     e.gueltigAb, text]).catch((fehler: unknown) => {
       /* Die Schranke ist die Wahrheit; die Prüfung oben ist nur die freundliche
          Vorstufe. Fällt trotzdem 23P01, wird daraus derselbe Satz und kein 500. */
       if (istUeberlapp(fehler)) {

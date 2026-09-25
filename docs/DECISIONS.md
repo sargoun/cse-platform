@@ -3349,6 +3349,7 @@ Beantworten helfen:
 | O-919 | **Soll der Raumbuch-Import Excel-Arbeitsmappen (.xlsx, gegebenenfalls .xls/.ods) direkt lesen — und welche Bibliothek darf dafür fremde Dateien entpacken?** OPS-04 sagt „Excel/CSV". Gebaut ist CSV (UTF-8 und die Windows-1252-CSV eines deutschen Excel); eine Arbeitsmappe wird am Inhalt erkannt und mit dem Weg über „Speichern unter › CSV" abgewiesen (D-665). Die Plattform bringt keine Bibliothek dafür mit, und ein selbstgebauter Leser für ein ZIP mit XML ist genau der halbe Leser, der Formeln und verbundene Zellen übersieht und Erfolg meldet. **Zu entscheiden sind vier Dinge:** (1) ob eine Bibliothek aufgenommen wird und welche (Lizenz, Pflege, Prüfung gegen präparierte ZIP-/XML-Dateien), (2) was mit einer Formelzelle geschieht — berechneten Wert übernehmen oder abweisen, (3) welches Blatt gilt, wenn die Mappe mehrere hat, (4) ob das alte `.xls` aus Altsystemen überhaupt vorkommt. Bis dahin bleibt CSV der Weg, und die Seite sagt es. | OPS-04, D-665, V-171, `src/server/services/raumbuch/tabelle.ts`, `src/app/api/raumbuch-import/route.ts` |
 | O-920 | **Sollen Angebote von Hand (Sicherheit, Bau) eine Kalkulation mit den fünf Kostenblöcken aus OPS-07 bekommen — und wenn ja, woraus entsteht der Lohn?** OPS-07 nennt Lohn, Material, Gerät, Gemeinkosten und Wagnis/Gewinn. Das Angebot der Reinigung entsteht aus dem Raumbuch und rechnet alle fünf (D-668). Ein Angebot von Hand (`angebot/von-hand.ts`, V-005) trägt je Position den Einzelpreis, den ein Mensch einträgt; woraus er entstanden ist, weiss die Plattform nicht, und sie rechnet ihn nicht nach. **Zu entscheiden:** (1) ob Sicherheit und Bau überhaupt eine Kalkulation in der Plattform führen oder ihre Preise weiter ausserhalb bilden; (2) wenn ja, die Grundlage des Lohns — in der Sicherheit etwa Stunden je Posten und Schicht mal Stundenverrechnungssatz, mit welchen Zuschlägen für Nacht, Sonn- und Feiertag; im Bau Einheitspreise je Position des Leistungsverzeichnisses; (3) welche Zuschläge je Bereich gelten (das ist O-16). **Ausgeliefert ist der ehrliche Zustand:** keine Kalkulation, und Maske wie Kalkulationsblatt sagen das mit dieser Nummer (`HAND_ANGEBOT_KALKULATION`). Eine erfundene Formel wäre eine Preisregel, die niemand aufgestellt hat, und ein Preis sähe dann geprüft aus, der es nicht ist. | OPS-07, O-16, D-668, D-671, V-238, `src/server/services/angebot/von-hand.ts`, `src/app/portal/[mandant]/angebote/{neu,[id]/kalkulation}/page.tsx` |
 | O-921 | **Wie wird der Vertragswert eines Auftrags aus einem angenommenen Angebot in Reinigung und Sicherheit berichtigt oder angepasst?** Der Wert eines solchen Auftrags ist `angebot.netto_cent`; die Auftragspflege überschreibt ihn nicht (D-667 Punkt 5), weil sie sonst eine zweite Wahrheit über den Betrag führte, den der Kunde angenommen hat. Im Bau ändert ein Nachtrag nach § 2 VOB/B den Vertrag (0080). **Reinigung und Sicherheit kennen keinen Nachtrag** — ein Tippfehler im Angebot, eine Preisanpassung nach einer Tariferhöhung oder ein geänderter Leistungsumfang hat dort heute keinen Weg in den Auftrag. Drei Wege sind denkbar: (a) eine neue Angebotsfassung und ein neuer Auftrag; (b) eine eigene Vertragsänderung am Auftrag mit Betrag, Grund, Datum und Zustimmung des Kunden, wie der Nachtrag im Bau; (c) eine Berichtigung in der Auftragspflege mit Grund und Protokoll. Und: gilt für eine Preisanpassung derselbe Weg wie für einen Tippfehler? **Ausgeliefert ist der gesperrte Wert mit dem ehrlichen Satz:** die Pflegeseite sagt im Bau „Nachtrag", sonst „noch nicht entschieden (O-921)". Die Antwort ändert `wertAenderungsweg`, nicht ihre Aufrufer. | OPS-05, D-667, D-732, V-239, `src/server/services/auftrag/aendern.ts` (`wertAenderungsweg`), `src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx`, `drizzle/0080` |
+| O-934 | **Darf eine Mahnung hinausgehen, solange im Briefkopf Pflichtangaben fehlen — und welche gelten für eine Gesellschaft, die keine GmbH ist?** Seit V-213 trägt das Mahnschreiben Absender, Empfängeranschrift und die Angaben aus `mandant` (Firma, Anschrift, Registergericht, Registernummer, Geschäftsführung, USt-IdNr./Steuernummer, Bankverbindung) — dieselben wie das Angebotsblatt. Fehlt eine davon in den Unternehmensdaten, fehlt sie im Brief, und das Mahnungsblatt sagt, welche (`fehlendeBriefkopfangaben`). **Gesperrt wird der Versand nicht:** ob ein unvollständiger Briefkopf den Versand verhindern soll (§ 35a GmbHG verlangt Rechtsform, Sitz, Registergericht, Registernummer und alle Geschäftsführer auf Geschäftsbriefen; die Folge eines Verstosses ist ein Zwangsgeld, nicht die Unwirksamkeit der Mahnung), und welche Angaben für CSE Operations gelten, solange O-01 offen ist, ist eine Entscheidung der Geschäftsführung und keine, die eine Prüfung im Code nebenbei trifft. Die Antwort ändert die Freigabe (`gibFrei`) oder den Versand (`dokumentiereVersand`), nicht das Schreiben. | FIN-15, § 35a GmbHG, O-01, V-213, D-705, `services/finanz/mahnung/index.ts` |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
 | O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
@@ -18124,4 +18125,61 @@ exportiert gestempelt.
    `autorisierungsAntwort`.
 
 | Betrifft | ACC-02, O-05, D-599, V-212, `drizzle/0445_datev_stapel_ein_wirtschaftsjahr.sql`, `src/server/services/buchhaltung/datev/export.ts`, `src/server/services/buchhaltung/wirtschaftsjahr.ts`, `src/app/api/buchhaltung/datev/route.ts`, `src/app/portal/[mandant]/buchhaltung/datev/neu/page.tsx` |
+|---|---|
+
+### D-705 · Das Mahnschreiben ist ein Geschäftsbrief, und der Mahntext der Stufe steht darin (V-213, V-214)
+
+**Der Befund** (V-213, V-214, FIN-15): das PDF, das als Mahnschreiben abgelegt
+wird und den Verzugsbeginn belegt, entstand aus `mahnungstext()` und hatte
+keinen Absender (keine Firma, Anschrift, kein Registergericht, keine
+Geschäftsführung), vom Empfänger nur „Kunde: Name", Tage als `2026-09-23`
+und den Zins als „900 Basispunkte". Das abgelegte PDF war vom Mahnungsblatt
+aus nicht erreichbar, und die Rückmeldung nach dem Versand zeigte den rohen
+UTC-Zeitstempel. `mahnstufe.textbaustein` gab es seit `0125`, die
+Vorlagenseite verwies für seine Pflege auf Einstellungen › Mahnwesen — dort
+gab es kein Feld, kein Weg schrieb ihn, und der Mahnungsdienst las ihn nicht.
+
+**Die Entscheidung.**
+
+1. **Der Brief hat einen Kopf und einen Fuss aus `mandant`.** Absenderzeile
+   (Firma · Strasse · PLZ Ort), darunter die Anschrift des Empfängers; am
+   Ende nach der freien Fusszeile (V-099) die Pflichtangaben in derselben
+   Reihenfolge wie im Angebotsblatt. Was in den Unternehmensdaten fehlt,
+   fehlt im Brief — erfunden wird nichts. Das Mahnungsblatt nennt die leeren
+   Angaben; gesperrt wird nicht (O-934).
+2. **Gemahnt wird, wer die Rechnung bekommt.** Die Anschrift ist die
+   abweichende Rechnungsanschrift des Kunden, wenn eine gepflegt ist, sonst
+   seine Anschrift — dieselbe Verzweigung wie auf der Rechnung. Ein Land steht
+   nur, wenn es nicht Deutschland ist.
+3. **Tage als `TT.MM.JJJJ`, der Satz als Prozent p. a.** (`tagDeutsch`,
+   `prozentText`). Das Mahnungsblatt zeigt Tage, Beträge und Satz in der
+   Sprache der Sitzung (`tagInSprache`, `formatiereGeldIn`, neu
+   `prozentTextIn`); das Schreiben bleibt deutsch.
+4. **Die Freigabe bindet den ganzen Brief** (Invariante 7): Absender,
+   Empfänger und Mahntext stehen in `mahnungNutzlast`. Wer nach der Freigabe
+   die Kundenanschrift, den Registereintrag oder den Mahntext ändert, hat
+   einen anderen Brief, und das Tor lässt ihn nicht hinaus. **Folge beim
+   Einspielen:** eine Mahnung, die schon `freigegeben` ist, aber noch nicht
+   versendet, passt nicht mehr zu ihrem Abdruck. Einen Rückweg von
+   `freigegeben` gibt es heute nicht (0130 lässt nur `versendet` zu): eine
+   freigegebene Mahnung wird deshalb VOR dem Einspielen versendet, sonst
+   bleibt sie stehen.
+5. **Das Mahnungsblatt zeigt das Schreiben**, aus derselben Funktion wie das
+   PDF, damit wer freigibt den Brief sieht und nicht nur Beträge; nach dem
+   Versand verweist es auf das abgelegte PDF über den signierten
+   Dokumentabruf (nur mit `dokument.lesen`). Die Rückmeldung nennt die
+   Versandzeit als Berliner Ortszeit.
+6. **Der Mahntext wird mit jeder Fassung einer Stufe gepflegt** (Einstellungen
+   › Mahnwesen, Feld „Mahntext dieser Stufe"). Ein leeres Feld übernimmt den
+   Text der laufenden Fassung — wer die Gebühr ändert, verliert nicht nebenbei
+   den Brieftext; „Diese Fassung ohne Mahntext" entfernt ihn ausdrücklich.
+   Höchstens `MASKE_WERT_HOECHSTENS` (1000) Zeichen, weil eine Abweisung die
+   Eingaben in der Adresse zurückbringt (D-599) und ein längerer Text gekürzt
+   zurückkäme. Im Brief steht er zwischen Datum und Forderungsliste; fehlt er,
+   bleibt die Stelle leer. **Kein vorgeschlagener Wortlaut** — der Seed trägt
+   einen ausdrücklich als PLATZHALTER (O-19) beschrifteten Satz.
+7. Die Rückmeldung nach dem Versand sagt, was die Plattform tut: der Posten
+   trägt den Versandtag als Beginn des Verzugs, nicht das Mahndatum (0125).
+
+| Betrifft | FIN-15, D-599, V-099, V-213, V-214, O-19, O-934, Invariante 7, `src/server/services/finanz/mahnung/{index,stufen}.ts`, `src/server/services/finanz/prozent.ts`, `src/app/api/finanzen/mahnungen/route.ts`, `src/app/api/einstellungen/mahnwesen/route.ts`, `src/app/portal/[mandant]/finanzen/mahnungen/{page,[id]/page}.tsx`, `src/app/portal/[mandant]/einstellungen/{mahnwesen,vorlagen}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/mahnungen.ts`, `src/server/db/seed/index.ts` |
 |---|---|

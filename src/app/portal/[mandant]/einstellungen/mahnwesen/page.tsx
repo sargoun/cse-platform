@@ -14,6 +14,10 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { vorbelegt } from '@/lib/formular/maske';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
+import { MAHNTEXT_HOECHSTENS } from '@/server/services/finanz/mahnung/stufen';
 
 /**
  * `/portal/[mandant]/einstellungen/mahnwesen` — der Ort, an dem O-19
@@ -35,6 +39,17 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  */
 export const dynamic = 'force-dynamic';
 
+/**
+ * Der Grund einer Abweisung (`?fehler=`), falls kein Satz mitkam — nur über
+ * `eigenerEintrag()` nachgeschlagen, nie roh angezeigt (D-728).
+ */
+const FEHLER: Readonly<Record<string, string>> = {
+  unvollstaendig: 'Die Stufe wurde nicht bestätigt: es fehlen Angaben.',
+  ungueltig: 'Die Stufe wurde nicht bestätigt: eine Angabe ist ungültig.',
+  ueberlappt: 'Die Stufe wurde nicht bestätigt: für diesen Tag gilt schon eine Fassung.',
+  geld: 'Die Stufe wurde nicht bestätigt: die Gebühr ist kein Eurobetrag.',
+};
+
 export default async function Mahnwesen(
   { params, searchParams }: {
     params: Promise<{ mandant: string }>;
@@ -42,7 +57,16 @@ export default async function Mahnwesen(
   },
 ) {
   const { mandant } = await params;
-  const { hinweis } = await searchParams;
+  const suche = await searchParams;
+  const { hinweis } = suche;
+  /*
+   * Eine Abweisung bringt die Eingaben zurück (V-214, D-599): erkannt an
+   * `?fehler=`, und nur dann belegt die Maske ihre Felder aus der Adresse vor.
+   */
+  const abgewiesen = typeof suche['fehler'] === 'string';
+  const fehlerText = abgewiesen ? (eigenerEintrag(FEHLER, suche['fehler']) ?? null) : null;
+  const zurueck = (name: string): string | undefined =>
+    (abgewiesen ? vorbelegt(suche, name) : undefined);
   const zugang = await portalZugang(`/portal/${mandant}/einstellungen/mahnwesen`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -90,6 +114,13 @@ export default async function Mahnwesen(
       navigationsRechte={zugang.navigationsRechte}
     >
       <h1 className="mb-s3 text-h1 text-text">Mahnwesen</h1>
+
+      {fehlerText !== null && (typeof hinweis !== 'string' || hinweis === '') ? (
+        <p role="alert" data-cse="stufen-fehler"
+           className="mb-s5 rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
+          {fehlerText}
+        </p>
+      ) : null}
 
       {typeof hinweis === 'string' && hinweis !== '' ? (
         <p
@@ -142,7 +173,13 @@ export default async function Mahnwesen(
               },
               {
                 schluessel: 'gueltig', kopf: 'Gültig',
-                zelle: (s) => `${s.gueltigAb} – ${s.gueltigBis ?? 'offen'}`,
+                zelle: (s) => `${tagDeutsch(s.gueltigAb)} – ${
+                  s.gueltigBis === null ? 'offen' : tagDeutsch(s.gueltigBis)}`,
+              },
+              {
+                /* V-214: ob die Fassung einen Brieftext trägt. */
+                schluessel: 'mahntext', kopf: 'Mahntext',
+                zelle: (s) => (s.textbaustein === null ? 'nicht hinterlegt' : 'hinterlegt'),
               },
               {
                 schluessel: 'zustand', kopf: 'Zustand',
@@ -174,7 +211,7 @@ export default async function Mahnwesen(
               <label className="block text-sm text-text" htmlFor="stufe">Stufe</label>
               <input
                 id="stufe" name="stufe" type="number" min={1} step={1} required
-                className={feld} defaultValue={1}
+                className={feld} defaultValue={zurueck('stufe') ?? 1}
               />
             </div>
             <div>
@@ -183,7 +220,7 @@ export default async function Mahnwesen(
               </label>
               <input
                 id="tage" name="tage" type="number" min={0} step={1} required
-                className={feld} defaultValue={14}
+                className={feld} defaultValue={zurueck('tage') ?? 14}
               />
             </div>
           </div>
@@ -193,7 +230,7 @@ export default async function Mahnwesen(
           </label>
           <input
             id="bezeichnung" name="bezeichnung" type="text" required className={feld}
-            placeholder="Zahlungserinnerung"
+            placeholder="Zahlungserinnerung" defaultValue={zurueck('bezeichnung')}
           />
 
           <label className="mt-s4 block text-sm text-text" htmlFor="gebuehr">
@@ -201,13 +238,14 @@ export default async function Mahnwesen(
           </label>
           <input
             id="gebuehr" name="gebuehr" type="text" inputMode="decimal" required
-            className={feld} placeholder="0,00"
+            className={feld} placeholder="0,00" defaultValue={zurueck('gebuehr')}
           />
 
           <label className="mt-s4 block text-sm text-text" htmlFor="zinsberechnung">
             Verzugszins
           </label>
-          <select id="zinsberechnung" name="zinsberechnung" required className={feld}>
+          <select id="zinsberechnung" name="zinsberechnung" required className={feld}
+                  defaultValue={zurueck('zinsberechnung') ?? 'keine'}>
             <option value="keine">kein Verzugszins</option>
             <option value="gesetzlich_b2b">
               gesetzlich, Unternehmen (Basiszins + {String(AUFSCHLAG_B2B_BP / 100)} Punkte)
@@ -223,6 +261,7 @@ export default async function Mahnwesen(
           </label>
           <input
             id="aufschlag" name="aufschlag" type="number" min={0} step={1} className={feld}
+            defaultValue={zurueck('aufschlag')}
           />
 
           {/*
@@ -245,7 +284,7 @@ export default async function Mahnwesen(
             Folgeaktion dieser Stufe
           </label>
           <select id="folgeaktion" name="folgeaktion" required className={feld}
-                  defaultValue="keine">
+                  defaultValue={zurueck('folgeaktion') ?? 'keine'}>
             <option value="keine">keine</option>
             <option value="lieferstopp">Lieferstopp</option>
             <option value="inkasso">Inkasso</option>
@@ -263,7 +302,7 @@ export default async function Mahnwesen(
           </label>
           <input
             id="gueltigAb" name="gueltigAb" type="date" required className={feld}
-            min={heute} defaultValue={morgen}
+            min={heute} defaultValue={zurueck('gueltigAb') ?? morgen}
           />
           <p className="mt-s2 text-xs text-text-muted">
             Vorgeschlagen ist der morgige Tag: solange für diese Stufe eine
@@ -271,6 +310,40 @@ export default async function Mahnwesen(
             sie nicht — sie änderte die Grundlage bereits versendeter
             Mahnungen.
           </p>
+
+          {/*
+            * **Der Mahntext** (V-214).
+            *
+            * `mahnstufe.textbaustein` gab es seit `0125`, die Vorlagenseite
+            * zeigte ihn als „Mahntext je Stufe“ und sagte, er werde hier
+            * gepflegt — hier stand kein Feld, kein Weg schrieb ihn, und der
+            * Mahnungsdienst las ihn nicht. Das Schreiben war eine Liste von
+            * Beträgen ohne jeden Brieftext.
+            *
+            * **Kein vorgeschlagener Wortlaut.** Was eine Zahlungserinnerung
+            * oder eine letzte Mahnung sagt, entscheidet die Gesellschaft; ein
+            * Platzhaltertext, der eine Frist androht oder ein gerichtliches
+            * Verfahren ankündigt, wäre eine erfundene Erklärung in ihrem Namen.
+            */}
+          <label className="mt-s4 block text-sm text-text" htmlFor="textbaustein">
+            Mahntext dieser Stufe
+          </label>
+          <textarea
+            id="textbaustein" name="textbaustein" rows={6} maxLength={MAHNTEXT_HOECHSTENS}
+            className={feld} defaultValue={zurueck('textbaustein')}
+            data-cse="stufen-mahntext"
+          />
+          <p className="mt-s2 text-xs text-text-muted">
+            Er steht im Schreiben zwischen Datum und Forderungsliste, so wie Sie
+            ihn hier eintragen — höchstens {String(MAHNTEXT_HOECHSTENS)} Zeichen.
+            Leer gelassen, übernimmt die neue Fassung den Mahntext der laufenden
+            Fassung dieser Stufe.
+          </p>
+          <label className="mt-s2 flex min-h-11 items-center gap-s3 text-sm text-text">
+            <input type="checkbox" name="ohneMahntext" value="1"
+              defaultChecked={zurueck('ohneMahntext') === '1'} />
+            Diese Fassung ohne Mahntext
+          </label>
 
           <p className="mt-s4 text-xs text-text-muted">
             Der Basiszinssatz nach § 247 BGB wird nicht hier gepflegt: er ist eine

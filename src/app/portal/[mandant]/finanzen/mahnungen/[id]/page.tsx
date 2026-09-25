@@ -5,8 +5,13 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
-import { formatiereGeld } from '@/server/services/finanz/geld';
-import { findeMahnung, type MahnungStatus } from '@/server/services/finanz/mahnung/index';
+import { formatiereGeldIn } from '@/server/services/finanz/geld';
+import { prozentTextIn } from '@/server/services/finanz/prozent';
+import {
+  fehlendeBriefkopfangaben, findeMahnung, mahnungstext, type MahnungStatus,
+} from '@/server/services/finanz/mahnung/index';
+import { tagInSprache } from '@/lib/datum/kalendertag';
+import { haeltRechte } from '@/app/portal/rechte';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
@@ -21,7 +26,7 @@ import { MAHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/mahnungen';
  * und die drei Schritte, die ein Mensch auslöst (FIN-15).
  *
  * **Die Herleitung steht auf dem Bildschirm, nicht nur der Betrag.** Zu jeder
- * Position stehen Verzugsbeginn, Tage, Satz in Basispunkten und der daraus
+ * Position stehen Verzugsbeginn, Tage, Zinssatz p. a. und der daraus
  * gerechnete Zins. Danach fragt der Anwalt des Empfängers — und wer die Zahl
  * ohne Rechenweg zeigt, kann sie nicht verteidigen.
  *
@@ -67,6 +72,16 @@ export default async function MahnungDetail(
     ) as Awaited<ReturnType<typeof findeMahnung>>;
   if (vorgang === null) notFound();
   const { kopf, positionen } = vorgang;
+  /*
+   * Das Schreiben, wie es hinausgeht (V-213, V-214) — aus DERSELBEN Funktion,
+   * aus der beim Versand das PDF entsteht. Deutsch, auch in englischer
+   * Oberfläche: der Brief geht an den Kunden, nicht an den Bildschirm.
+   */
+  const schreiben = mahnungstext(kopf, positionen);
+  const briefkopfLuecken = fehlendeBriefkopfangaben(kopf.absender);
+  const darf = await haeltRechte(sitzung, 'dokument.lesen');
+  const sp = zugang.sprache;
+  const geld = (c: Parameters<typeof formatiereGeldIn>[0]): string => formatiereGeldIn(c, sp);
 
   const feld = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
@@ -113,11 +128,11 @@ export default async function MahnungDetail(
         </div>
         <div>
           <dt className="text-xs text-text-muted">{t.mahndatum}</dt>
-          <dd className="text-sm text-text">{kopf.mahndatum}</dd>
+          <dd className="text-sm text-text">{tagInSprache(kopf.mahndatum, sp)}</dd>
         </div>
         <div>
           <dt className="text-xs text-text-muted">{t.zahlbarBis}</dt>
-          <dd className="text-sm text-text">{kopf.zahlbarBis}</dd>
+          <dd className="text-sm text-text">{tagInSprache(kopf.zahlbarBis, sp)}</dd>
         </div>
       </dl>
 
@@ -134,47 +149,95 @@ export default async function MahnungDetail(
               schluessel: 'rechnung', kopf: t.rechnung,
               zelle: (p) => p.rechnungsnummer ?? '—',
             },
-            { schluessel: 'faellig', kopf: g.faellig, zelle: (p) => p.faelligAm },
+            {
+              schluessel: 'faellig', kopf: g.faellig,
+              zelle: (p) => tagInSprache(p.faelligAm, sp),
+            },
             {
               schluessel: 'offen', kopf: t.offen, numerisch: true,
-              zelle: (p) => formatiereGeld(p.offenCent),
+              zelle: (p) => geld(p.offenCent),
             },
             {
               schluessel: 'verzug', kopf: t.verzugAb,
-              zelle: (p) => p.verzugsbeginnAm ?? '—',
+              zelle: (p) => (p.verzugsbeginnAm === null ? '—' : tagInSprache(p.verzugsbeginnAm, sp)),
             },
             {
               schluessel: 'tage', kopf: t.tage, numerisch: true,
               zelle: (p) => String(p.verzugstage),
             },
             {
-              schluessel: 'satz', kopf: t.satzBp, numerisch: true,
-              zelle: (p) => String(p.zinsBp),
+              schluessel: 'satz', kopf: t.zinssatz, numerisch: true,
+              zelle: (p) => prozentTextIn(p.zinsBp, sp),
             },
             {
               schluessel: 'zins', kopf: t.zins, numerisch: true,
-              zelle: (p) => formatiereGeld(p.zinsCent),
+              zelle: (p) => geld(p.zinsCent),
             },
           ]}
         />
         <dl className="mt-s4 max-w-sm text-sm">
           <div className="flex justify-between border-t border-line py-s2">
             <dt className="text-text-muted">{t.forderung}</dt>
-            <dd className="text-text">{formatiereGeld(kopf.forderungCent)}</dd>
+            <dd className="text-text">{geld(kopf.forderungCent)}</dd>
           </div>
           <div className="flex justify-between py-s2">
             <dt className="text-text-muted">{t.mahngebuehr}</dt>
-            <dd className="text-text">{formatiereGeld(kopf.gebuehrCent)}</dd>
+            <dd className="text-text">{geld(kopf.gebuehrCent)}</dd>
           </div>
           <div className="flex justify-between py-s2">
             <dt className="text-text-muted">{t.verzugszinsen}</dt>
-            <dd className="text-text">{formatiereGeld(kopf.zinsenCent)}</dd>
+            <dd className="text-text">{geld(kopf.zinsenCent)}</dd>
           </div>
           <div className="flex justify-between border-t border-line py-s2">
             <dt className="text-text">{t.gesamtbetrag}</dt>
-            <dd className="text-text"><strong>{formatiereGeld(kopf.gesamtCent)}</strong></dd>
+            <dd className="text-text"><strong>{geld(kopf.gesamtCent)}</strong></dd>
           </div>
         </dl>
+      </section>
+
+      {/*
+        * **Das Schreiben** (V-213, V-214).
+        *
+        * Vorher war vom Brief nur das abgelegte PDF zu haben, und das nur
+        * über die Suche unter Dokumente: das Blatt las `dokument_id` nicht.
+        * Wer freigab, sah Beträge, aber nicht den Brief, den er freigab —
+        * ohne Absender, ohne Anschrift, ohne Mahntext.
+        */}
+      <section aria-labelledby="schreiben-titel" className="mb-s7" data-cse="mahn-schreiben">
+        <h2 id="schreiben-titel" className="mb-s3 text-h2 text-text">{t.schreibenTitel}</h2>
+        <p className="mb-s4 max-w-prose text-xs text-text-muted">{t.schreibenErklaerung}</p>
+        {briefkopfLuecken.length === 0 ? null : (
+          <p role="status" data-cse="mahn-briefkopf-luecke"
+             className="mb-s4 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
+            {t.briefkopfFehlt}{' '}
+            {briefkopfLuecken.map((a) => t.briefkopfAngaben[a]).join(', ')}.{' '}
+            {t.briefkopfPflege}
+          </p>
+        )}
+        {kopf.textbaustein === null || kopf.textbaustein.trim() === '' ? (
+          <p data-cse="mahn-ohne-mahntext"
+             className="mb-s4 max-w-prose rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
+            {t.mahntextFehlt}
+          </p>
+        ) : null}
+        <div lang="de"
+             className="max-w-prose whitespace-pre-line rounded-lg border border-line bg-surface p-s5 text-sm text-text">
+          {schreiben}
+        </div>
+        {kopf.dokumentId === null ? null : darf['dokument.lesen'] === true ? (
+          <p className="mt-s4">
+            <a
+              href={`/api/dokumente/${kopf.dokumentId}/datei`}
+              className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s4 text-sm text-text hover:bg-surface-2"
+              data-cse="mahn-schreiben-oeffnen"
+            >
+              {t.schreibenOeffnen}
+            </a>
+            <span className="ml-s3 text-xs text-text-muted">{t.schreibenSigniert}</span>
+          </p>
+        ) : (
+          <p className="mt-s4 text-xs text-text-muted">{t.schreibenOhneRecht}</p>
+        )}
       </section>
 
       {kopf.verworfenGrund === null ? null : (

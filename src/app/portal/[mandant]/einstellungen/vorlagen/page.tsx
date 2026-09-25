@@ -10,6 +10,7 @@ import {
   ladeVorlagenuebersicht, type Vorlagenuebersicht,
 } from '@/server/services/einstellung/vorlagen';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Recht } from '@/components/ui/Recht';
@@ -212,7 +213,7 @@ export default async function Vorlagen(
                           {s.textbaustein}
                         </span>
                       )) },
-                  { schluessel: 'gueltig', kopf: 'Gültig ab', zelle: (s) => s.gueltigAb },
+                  { schluessel: 'gueltig', kopf: 'Gültig ab', zelle: (s) => tagDeutsch(s.gueltigAb) },
                   { schluessel: 'zustand', kopf: 'Zustand',
                     zelle: (s) => (s.istPlatzhalter
                       ? <StatusPill zustand="Entwurf" />

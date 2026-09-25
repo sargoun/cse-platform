@@ -26,7 +26,7 @@ import { ermittleVorschlaege, legeMahnentwurfAn }
   from '../../src/server/services/finanz/mahnung/lauf.js';
 import {
   KanalNichtVerbundenFehler, MahnungFehler, dokumentiereVersand, findeMahnung,
-  gibFrei, mahnungNutzlast, verwirf,
+  gibFrei, mahnungNutzlast, mahnungstext, verwirf,
 } from '../../src/server/services/finanz/mahnung/index.js';
 import { StufenFehler, bestaetigeStufe, mahnstufen }
   from '../../src/server/services/finanz/mahnung/stufen.js';
@@ -824,4 +824,178 @@ describe('(6) Bestätigte Stufen lösen ab, sie überschreiben nicht', () => {
     expect(nachher.vorschlaege[0]!.gebuehrCent).toBe(500n);
     expect(nachher.uebergangen).toHaveLength(0);
   });
+});
+
+// ---------------------------------------------------------------------------
+// (7) Der Mahntext je Stufe erreicht das Schreiben (V-214)
+// ---------------------------------------------------------------------------
+
+describe('(7) der Mahntext je Stufe wird gepflegt und steht im Schreiben', () => {
+  it('eine bestätigte Fassung trägt ihren Mahntext — die nächste übernimmt ihn', async () => {
+    await alsApp(sitzung(), async (tx) => bestaetigeStufe(kontextAus(tx), {
+      stufe: 1, bezeichnung: 'Zahlungserinnerung', tageNachFaelligkeit: 14,
+      gebuehrCent: cent(0n), zinsberechnung: 'keine', gueltigAb: '2026-09-01',
+      textbaustein: '  Sicher haben Sie die Rechnung übersehen.\r\nBitte prüfen Sie. ',
+    }));
+    /* Eine neue Gebühr, KEIN Text angegeben: der Text der laufenden bleibt. */
+    await alsApp(sitzung(), async (tx) => bestaetigeStufe(kontextAus(tx), {
+      stufe: 1, bezeichnung: 'Zahlungserinnerung', tageNachFaelligkeit: 14,
+      gebuehrCent: cent(250n), zinsberechnung: 'keine', gueltigAb: '2026-10-01',
+    }));
+    /* Ausdrücklich ohne Text. */
+    await alsApp(sitzung(), async (tx) => bestaetigeStufe(kontextAus(tx), {
+      stufe: 1, bezeichnung: 'Zahlungserinnerung', tageNachFaelligkeit: 14,
+      gebuehrCent: cent(250n), zinsberechnung: 'keine', gueltigAb: '2026-11-01',
+      textbaustein: null,
+    }));
+
+    const zeilen = await alsApp(sitzung(), async (tx) => mahnstufen(kontextAus(tx)));
+    const nachTag = new Map(zeilen.map((z) => [z.gueltigAb, z.textbaustein]));
+    const text = 'Sicher haben Sie die Rechnung übersehen.\nBitte prüfen Sie.';
+    expect(nachTag.get('2026-09-01')).toBe(text);
+    expect(nachTag.get('2026-10-01')).toBe(text);
+    expect(nachTag.get('2026-11-01')).toBeNull();
+  });
+
+  it('ein zu langer Mahntext wird mit Satz abgewiesen, nicht gekürzt', async () => {
+    await expect(alsApp(sitzung(), async (tx) => bestaetigeStufe(kontextAus(tx), {
+      stufe: 2, bezeichnung: 'Erste Mahnung', tageNachFaelligkeit: 28,
+      gebuehrCent: cent(0n), zinsberechnung: 'keine', gueltigAb: '2026-09-01',
+      textbaustein: 'x'.repeat(1001),
+    }))).rejects.toThrow(StufenFehler);
+  });
+
+  it('die Mahnung liest den Text der Fassung, auf die sie zeigt — zwischen Datum und Forderungen',
+    async () => {
+      const id = await festgeschrieben();
+      await macheUeberfaellig(id, 40);
+      const stufeId = await legeStufeAn(1, 14);
+      await sql.unsafe('update mahnstufe set textbaustein = $2 where id = $1',
+        [stufeId, 'Wir bitten Sie, den offenen Betrag zu begleichen.']);
+      const mahnungId = await alsApp(sitzung(), async (tx) => {
+        const lage = await ermittleVorschlaege(alsDienst(tx));
+        return legeMahnentwurfAn(alsDienst(tx), lage.vorschlaege[0]!);
+      });
+
+      const vorgang = await alsApp(sitzung(), async (tx) =>
+        findeMahnung(kontextAus(tx), mahnungId));
+      expect(vorgang!.kopf.textbaustein).toBe('Wir bitten Sie, den offenen Betrag zu begleichen.');
+
+      const text = mahnungstext(vorgang!.kopf, vorgang!.positionen);
+      const datum = text.indexOf('Datum:');
+      const mahntext = text.indexOf('Wir bitten Sie, den offenen Betrag');
+      const liste = text.indexOf('Offene Forderungen:');
+      expect(datum).toBeGreaterThan(-1);
+      expect(mahntext).toBeGreaterThan(datum);
+      expect(liste).toBeGreaterThan(mahntext);
+
+      /* Und die Freigabe bindet ihn (Invariante 7). */
+      const nutzlast = mahnungNutzlast(f.reinigung, vorgang!.kopf, vorgang!.positionen);
+      expect(nutzlast.inhalt['textbaustein'])
+        .toBe('Wir bitten Sie, den offenen Betrag zu begleichen.');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// (8) Das Schreiben ist ein Geschäftsbrief (V-213)
+// ---------------------------------------------------------------------------
+
+describe('(8) das Schreiben trägt Briefkopf, Anschrift und Pflichtangaben', () => {
+  async function entwurf(): Promise<string> {
+    const id = await festgeschrieben();
+    await macheUeberfaellig(id, 40);
+    await legeStufeAn(1, 14, { gebuehrCent: 500n });
+    return alsApp(sitzung(), async (tx) => {
+      const lage = await ermittleVorschlaege(alsDienst(tx));
+      return legeMahnentwurfAn(alsDienst(tx), lage.vorschlaege[0]!);
+    });
+  }
+
+  beforeEach(async () => {
+    await sql.unsafe(
+      `update mandant
+          set handelsregister_gericht = 'Amtsgericht Charlottenburg',
+              handelsregister_nummer = 'HRB 12345 B',
+              geschaeftsfuehrer = array['Max Muster', 'Erika Beispiel']
+        where id = $1`, [f.reinigung]);
+  });
+
+  it('Absender, Empfängeranschrift, Pflichtangaben — und kein Tag als JJJJ-MM-TT', async () => {
+    const mahnungId = await entwurf();
+    const vorgang = await alsApp(sitzung(), async (tx) =>
+      findeMahnung(kontextAus(tx), mahnungId));
+    const text = mahnungstext(vorgang!.kopf, vorgang!.positionen);
+    const [firma] = await sql.unsafe<{ firma: string }[]>(
+      'select firma from mandant where id = $1', [f.reinigung]);
+
+    const zeilen = text.split('\n');
+    /* Die Absenderzeile zuerst, dann die Anschrift des Empfängers. */
+    expect(zeilen[0]).toBe(`${firma!.firma} · Kurfürstendamm 21 · 10719 Berlin`);
+    expect(zeilen.slice(2, 5)).toEqual(['Beispiel GmbH', 'Musterweg 7', '10178 Berlin']);
+    /* Die Pflichtangaben (§ 35a GmbHG) am Ende. */
+    expect(text).toContain('Amtsgericht Charlottenburg HRB 12345 B');
+    expect(text).toContain('Geschäftsführung: Max Muster, Erika Beispiel');
+    expect(text).toContain('USt-IdNr. DE123456789');
+    expect(text).toContain('Steuernummer 30/123/45678');
+    expect(text).toContain('IBAN DE02120300000000202051');
+    /* Die Hausschreibweise — der Test fände jedes ISO-Datum im Brief. */
+    expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}/u);
+    expect(text).toMatch(/Datum: \d{2}\.\d{2}\.\d{4}/u);
+    expect(text).toMatch(/fällig am \d{2}\.\d{2}\.\d{4}/u);
+    expect(text).toMatch(/Ausgleich bis zum \d{2}\.\d{2}\.\d{4}\./u);
+    expect(text).not.toContain('Basispunkte');
+  });
+
+  it('eine abweichende Rechnungsanschrift ist die Anschrift des Schreibens', async () => {
+    await sql.unsafe(
+      `update kunde
+          set rechnungsadresse_abweichend = true, rechnung_name = 'Beispiel GmbH Buchhaltung',
+              rechnung_strasse = 'Postfach', rechnung_hausnummer = '12 34',
+              rechnung_plz = '10001', rechnung_ort = 'Berlin', rechnung_land = 'AT'
+        where id = $1`, [kundeId]);
+    const mahnungId = await entwurf();
+    const vorgang = await alsApp(sitzung(), async (tx) =>
+      findeMahnung(kontextAus(tx), mahnungId));
+    expect(vorgang!.kopf.empfaenger).toEqual({
+      name: 'Beispiel GmbH Buchhaltung', strasse: 'Postfach 12 34', plz: '10001',
+      ort: 'Berlin', land: 'AT',
+    });
+    const text = mahnungstext(vorgang!.kopf, vorgang!.positionen);
+    expect(text.split('\n').slice(2, 6))
+      .toEqual(['Beispiel GmbH Buchhaltung', 'Postfach 12 34', '10001 Berlin', 'AT']);
+  });
+
+  it('wird nach der Freigabe die Anschrift geändert, geht nichts hinaus (Invariante 7)', async () => {
+    const mahnungId = await entwurf();
+    await alsApp(sitzung(), async (tx) =>
+      gibFrei(kontextAus(tx), mahnungId, 'Freigegeben zur Versendung als Brief.'));
+    await sql.unsafe("update kunde set strasse = 'Andere Strasse' where id = $1", [kundeId]);
+
+    await expect(alsApp(sitzung(), async (tx) => dokumentiereVersand(
+      kontextAus(tx),
+      { id: mahnungId, versandart: 'brief', empfaenger: 'Beispiel GmbH' },
+      new LokalerSpeicher(),
+    ))).rejects.toThrow(FreigabeErforderlich);
+  });
+
+  it('der Versand meldet Berliner Ortszeit und das Blatt findet das abgelegte Schreiben',
+    async () => {
+      const mahnungId = await entwurf();
+      await alsApp(sitzung(), async (tx) =>
+        gibFrei(kontextAus(tx), mahnungId, 'Freigegeben zur Versendung als Brief.'));
+      const ergebnis = await alsApp(sitzung(), async (tx) => dokumentiereVersand(
+        kontextAus(tx),
+        { id: mahnungId, versandart: 'brief', empfaenger: 'Beispiel GmbH' },
+        new LokalerSpeicher(),
+      ));
+      expect(ergebnis.versendetAm).toMatch(/^\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/u);
+      const [berlin] = await sql.unsafe<{ t: string }[]>(
+        `select to_char(versendet_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI') as t
+           from mahnung where id = $1`, [mahnungId]);
+      expect(ergebnis.versendetAm).toBe(berlin!.t);
+
+      const vorgang = await alsApp(sitzung(), async (tx) =>
+        findeMahnung(kontextAus(tx), mahnungId));
+      expect(vorgang!.kopf.dokumentId).toBe(ergebnis.dokumentId);
+    });
 });

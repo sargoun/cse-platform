@@ -99,7 +99,12 @@ describe('(3) die Folgeaktion einer Mahnstufe (V-098)', () => {
      * Mahnbescheid ist ein gerichtliches Verfahren.
      */
     const seite = readFileSync(SEITE, 'utf8');
-    expect(seite).toMatch(/name="folgeaktion"[\s\S]{0,200}defaultValue="keine"/u);
+    /*
+     * Seit V-214 bringt eine Abweisung die Eingaben zurück: vorbelegt ist
+     * dann, was der Mensch gewählt hatte — und sonst weiterhin „keine".
+     */
+    expect(seite).toMatch(
+      /name="folgeaktion"[\s\S]{0,200}defaultValue=(?:"keine"|\{zurueck\('folgeaktion'\) \?\? 'keine'\})/u);
   });
 
   it('und die Seite sagt, dass die Plattform sie NICHT auslöst', () => {

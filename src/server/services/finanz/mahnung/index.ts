@@ -7,6 +7,8 @@ import { ladeHoch } from '../../dokument/upload.js';
 import { schreibeTextPdf } from '../../dokument/pdf.js';
 import { erteileFreigabe } from '../../freigabe/erteilen.js';
 import { cent, formatiereGeld, type Cent } from '../geld.js';
+import { prozentText } from '../prozent.js';
+import { tagDeutsch } from '../../../../lib/datum/kalendertag.js';
 
 /**
  * Der Weg einer Mahnung vom Entwurf bis zum Briefkasten (FIN-15,
@@ -97,6 +99,82 @@ export interface MahnungZeile {
    * Anzeige derselben Einstellungsseite vor.
    */
   readonly briefFuss: string | null;
+  /**
+   * Der Absender mit den Angaben, die auf einen Geschäftsbrief gehören
+   * (V-213, § 35a GmbHG) — aus `mandant`, dieselben Spalten wie das
+   * Angebotsblatt. Vorher stand im Schreiben kein Absender.
+   */
+  readonly absender: MahnAbsender;
+  /** Die Postanschrift des Empfängers (V-213) — vorher nur „Kunde: Name". */
+  readonly empfaenger: MahnEmpfaenger;
+  /**
+   * Der Mahntext der Stufe, WIE SIE GALT (`mahnstufe.textbaustein` der
+   * Fassung, auf die die Mahnung zeigt) — `null`, wenn keiner hinterlegt ist
+   * (V-214). Einen Wortlaut erfindet der Code nicht.
+   */
+  readonly textbaustein: string | null;
+  /** Das abgelegte Schreiben (ab `versendet`) — `null` davor (V-213). */
+  readonly dokumentId: string | null;
+}
+
+/**
+ * Der Absender eines Mahnschreibens (V-213).
+ *
+ * Jede Angabe ist, was in `mandant` steht; fehlt eine, fehlt sie im Brief —
+ * und das Mahnungsblatt sagt, welche (`fehlendeBriefkopfangaben`). Erfunden
+ * oder aus einer Konstante gefüllt wird nichts: drei Gesellschaften, drei
+ * Registereinträge.
+ */
+export interface MahnAbsender {
+  readonly firma: string;
+  readonly strasse: string | null;
+  readonly plz: string | null;
+  readonly ort: string | null;
+  readonly land: string | null;
+  readonly telefon: string | null;
+  readonly email: string | null;
+  readonly web: string | null;
+  readonly registergericht: string | null;
+  readonly registernummer: string | null;
+  /** Alle Geschäftsführer, mit Komma verbunden — `null`, wenn keiner eingetragen ist. */
+  readonly geschaeftsfuehrung: string | null;
+  readonly ustId: string | null;
+  readonly steuernummer: string | null;
+  readonly bank: string | null;
+  readonly iban: string | null;
+  readonly bic: string | null;
+}
+
+/**
+ * Wohin das Schreiben geht: die RECHNUNGSanschrift des Kunden, wenn eine
+ * abweichende gepflegt ist, sonst seine Anschrift — dieselbe Verzweigung wie
+ * auf der Rechnung (`rechnung.ts`), denn gemahnt wird, wer die Rechnung
+ * bekommen hat (D-705).
+ */
+export interface MahnEmpfaenger {
+  readonly name: string;
+  readonly strasse: string | null;
+  readonly plz: string | null;
+  readonly ort: string | null;
+  readonly land: string | null;
+}
+
+export type BriefkopfAngabe =
+  'anschrift' | 'registergericht' | 'registernummer' | 'geschaeftsfuehrung';
+
+/**
+ * Welche Angaben des Briefkopfs leer sind — für den Hinweis auf dem
+ * Mahnungsblatt, nicht als Sperre. Ob eine Gesellschaft ohne Registereintrag
+ * mahnen darf, entscheidet hier niemand; gesagt wird nur, was fehlt.
+ */
+export function fehlendeBriefkopfangaben(a: MahnAbsender): readonly BriefkopfAngabe[] {
+  const leer = (w: string | null): boolean => w === null || w.trim() === '';
+  const fehlt: BriefkopfAngabe[] = [];
+  if (leer(a.strasse) || leer(a.plz) || leer(a.ort)) fehlt.push('anschrift');
+  if (leer(a.registergericht)) fehlt.push('registergericht');
+  if (leer(a.registernummer)) fehlt.push('registernummer');
+  if (leer(a.geschaeftsfuehrung)) fehlt.push('geschaeftsfuehrung');
+  return fehlt;
 }
 
 export interface MahnungPositionZeile {
@@ -116,10 +194,30 @@ const KOPF_SQL = `
          m.forderung_cent::text, m.gebuehr_cent::text, m.zinsen_cent::text,
          m.gesamt_cent::text, m.versendet_am::text as versendet_am,
          m.verworfen_grund, m.stufensprung_grund,
-         mi.brief_fuss
+         mi.brief_fuss,
+         ms.textbaustein, m.dokument_id,
+         ma.firma as a_firma, ma.strasse as a_strasse, ma.plz as a_plz, ma.ort as a_ort,
+         ma.land::text as a_land, ma.telefon as a_telefon, ma.email as a_email,
+         ma.web as a_web,
+         ma.handelsregister_gericht as a_gericht, ma.handelsregister_nummer as a_hrb,
+         nullif(array_to_string(ma.geschaeftsfuehrer, ', '), '') as a_gf,
+         ma.ust_id as a_ust_id, ma.steuernummer as a_steuernummer,
+         ma.bank as a_bank, ma.iban as a_iban, ma.bic as a_bic,
+         -- Die Rechnungsanschrift, wenn eine abweichende gepflegt ist (V-213,
+         -- D-705) - dieselbe Verzweigung wie in rechnung.ts.
+         coalesce(nullif(k.rechnung_name, ''), k.name) as e_name,
+         case when k.rechnungsadresse_abweichend
+              then nullif(concat_ws(' ', k.rechnung_strasse, k.rechnung_hausnummer), '')
+              else nullif(concat_ws(' ', k.strasse, k.hausnummer), '')
+         end as e_strasse,
+         case when k.rechnungsadresse_abweichend then k.rechnung_plz else k.plz end as e_plz,
+         case when k.rechnungsadresse_abweichend then k.rechnung_ort else k.ort end as e_ort,
+         (case when k.rechnungsadresse_abweichend
+               then coalesce(k.rechnung_land, k.land) else k.land end)::text as e_land
     from mahnung m
     join kunde k on k.id = m.kunde_id and k.mandant_id = m.mandant_id
     join mahnstufe ms on ms.id = m.mahnstufe_id and ms.mandant_id = m.mandant_id
+    join mandant ma on ma.id = m.mandant_id
     -- LINKS verbunden (V-099): die Identitaetszeile entsteht mit dem Mandanten
     -- (Ausloeser in 0200) und sollte immer da sein — aber eine Mahnung, die
     -- wegen einer fehlenden Fusszeile gar nicht entsteht, waere der teurere
@@ -133,6 +231,14 @@ interface KopfRoh {
   zinsen_cent: string; gesamt_cent: string; versendet_am: string | null;
   verworfen_grund: string | null; stufensprung_grund: string | null;
   brief_fuss: string | null;
+  textbaustein: string | null; dokument_id: string | null;
+  a_firma: string; a_strasse: string | null; a_plz: string | null; a_ort: string | null;
+  a_land: string | null; a_telefon: string | null; a_email: string | null;
+  a_web: string | null; a_gericht: string | null; a_hrb: string | null;
+  a_gf: string | null; a_ust_id: string | null; a_steuernummer: string | null;
+  a_bank: string | null; a_iban: string | null; a_bic: string | null;
+  e_name: string; e_strasse: string | null; e_plz: string | null; e_ort: string | null;
+  e_land: string | null;
 }
 
 function zuZeile(r: KopfRoh): MahnungZeile {
@@ -147,6 +253,18 @@ function zuZeile(r: KopfRoh): MahnungZeile {
     versendetAm: r.versendet_am, verworfenGrund: r.verworfen_grund,
     stufensprungGrund: r.stufensprung_grund,
     briefFuss: r.brief_fuss,
+    absender: {
+      firma: r.a_firma, strasse: r.a_strasse, plz: r.a_plz, ort: r.a_ort,
+      land: r.a_land, telefon: r.a_telefon, email: r.a_email, web: r.a_web,
+      registergericht: r.a_gericht, registernummer: r.a_hrb,
+      geschaeftsfuehrung: r.a_gf, ustId: r.a_ust_id, steuernummer: r.a_steuernummer,
+      bank: r.a_bank, iban: r.a_iban, bic: r.a_bic,
+    },
+    empfaenger: {
+      name: r.e_name, strasse: r.e_strasse, plz: r.e_plz, ort: r.e_ort, land: r.e_land,
+    },
+    textbaustein: r.textbaustein,
+    dokumentId: r.dokument_id,
   };
 }
 
@@ -313,6 +431,17 @@ export function mahnungNutzlast(
        * soll es sein — der Brief ist danach ein anderer.
        */
       briefFuss: kopf.briefFuss ?? '',
+      /**
+       * **Briefkopf, Empfängeranschrift und Mahntext gehören ebenso hinein**
+       * (V-213, V-214, Invariante 7) — aus demselben Grund wie die
+       * Fusszeile: sie stehen im Brief, also bindet die Freigabe sie. Wer
+       * nach der Freigabe die Anschrift des Kunden, den Registereintrag oder
+       * den Mahntext der Stufe ändert, hat einen anderen Brief, und das Tor
+       * lässt ihn nicht hinaus.
+       */
+      absender: { ...kopf.absender },
+      empfaenger: { ...kopf.empfaenger },
+      textbaustein: kopf.textbaustein ?? '',
     },
   };
 }
@@ -369,19 +498,55 @@ export function mahnungstext(
   kopf: MahnungZeile, positionen: readonly MahnungPositionZeile[],
 ): string {
   const zeilen: string[] = [];
+  const a = kopf.absender;
+  const e = kopf.empfaenger;
+  const nichtLeer = (w: string | null | undefined): w is string =>
+    typeof w === 'string' && w.trim() !== '';
+  const ortZeile = (plz: string | null, ort: string | null): string | null => {
+    const z = [plz, ort].filter(nichtLeer).join(' ');
+    return z === '' ? null : z;
+  };
+  /* Ein Land steht nur, wenn es nicht Deutschland ist — so schreibt man Post. */
+  const auslandsland = (land: string | null): string | null =>
+    nichtLeer(land) && land.trim().toUpperCase() !== 'DE' ? land.trim() : null;
+
+  /*
+   * **Der Briefkopf** (V-213): die Absenderzeile über dem Anschriftfeld und
+   * die Postanschrift des Empfängers. Vorher stand vom Absender nichts im
+   * Schreiben und vom Empfänger nur „Kunde: Name" — bei Versand als Brief
+   * oder Einschreiben kein Geschäftsbrief.
+   */
+  zeilen.push([a.firma, a.strasse, ortZeile(a.plz, a.ort)].filter(nichtLeer).join(' · '));
+  zeilen.push('');
+  for (const z of [e.name, e.strasse, ortZeile(e.plz, e.ort), auslandsland(e.land)]) {
+    if (nichtLeer(z)) zeilen.push(z);
+  }
+  zeilen.push('');
   zeilen.push(`${kopf.bezeichnung} — ${kopf.nummer ?? '(ohne Nummer)'}`);
   zeilen.push('');
   zeilen.push(`Kunde: ${kopf.kundeName}`);
-  zeilen.push(`Datum: ${kopf.mahndatum}`);
+  /* Tage in der Hausschreibweise (V-213) — vorher `2026-09-23`. */
+  zeilen.push(`Datum: ${tagDeutsch(kopf.mahndatum)}`);
+  /*
+   * **Der Mahntext der Stufe** (V-214) — zwischen Kopf und Forderungsliste,
+   * wie ein Brief ihn trägt. Fehlt er, bleibt die Stelle leer: einen
+   * Wortlaut für eine Zahlungserinnerung oder eine letzte Mahnung erfindet
+   * der Code nicht, er kommt von der Gesellschaft.
+   */
+  if (nichtLeer(kopf.textbaustein)) {
+    zeilen.push('');
+    zeilen.push(kopf.textbaustein.trim());
+  }
   zeilen.push('');
   zeilen.push('Offene Forderungen:');
   for (const p of positionen) {
+    /* Der Satz als Prozent p. a., nicht als „900 Basispunkte" (V-213). */
     const zins = p.zinsCent === 0n
       ? ''
       : `, Verzugszins ${formatiereGeld(p.zinsCent)} `
-        + `(${String(p.verzugstage)} Tage, ${String(p.zinsBp)} Basispunkte)`;
+        + `(${String(p.verzugstage)} Tage, ${prozentText(p.zinsBp)} p. a.)`;
     zeilen.push(
-      `  · Rechnung ${p.rechnungsnummer ?? '—'}, fällig am ${p.faelligAm}: `
+      `  · Rechnung ${p.rechnungsnummer ?? '—'}, fällig am ${tagDeutsch(p.faelligAm)}: `
       + `${formatiereGeld(p.offenCent)}${zins}`);
   }
   zeilen.push('');
@@ -390,7 +555,7 @@ export function mahnungstext(
   zeilen.push(`Verzugszinsen:  ${formatiereGeld(kopf.zinsenCent)}`);
   zeilen.push(`Gesamtbetrag:   ${formatiereGeld(kopf.gesamtCent)}`);
   zeilen.push('');
-  zeilen.push(`Wir bitten um Ausgleich bis zum ${kopf.zahlbarBis}.`);
+  zeilen.push(`Wir bitten um Ausgleich bis zum ${tagDeutsch(kopf.zahlbarBis)}.`);
   /*
    * **Die stehende Briefzeile der Gesellschaft** (V-099, K-12).
    *
@@ -404,6 +569,33 @@ export function mahnungstext(
     zeilen.push('—');
     zeilen.push(kopf.briefFuss.trim());
   }
+  /*
+   * **Die Pflichtangaben** (V-213, § 35a GmbHG) — dieselben Felder und
+   * dieselbe Reihenfolge wie im Fuss des Angebotsblatts: Firma und
+   * Anschrift, Kontakt, Registergericht und -nummer, Geschäftsführung,
+   * Steuernummern, Bankverbindung. Die freie Fusszeile steht DAVOR, damit
+   * sie nicht wie eine Auswahl aus den Pflichtangaben aussieht (V-099).
+   */
+  const pflicht: string[] = [
+    [a.firma, [a.strasse, ortZeile(a.plz, a.ort)].filter(nichtLeer).join(', ')]
+      .filter(nichtLeer).join(' · '),
+    [nichtLeer(a.telefon) ? `Telefon ${a.telefon}` : null, a.email, a.web]
+      .filter(nichtLeer).join(' · '),
+    [nichtLeer(a.registergericht) || nichtLeer(a.registernummer)
+      ? [a.registergericht, a.registernummer].filter(nichtLeer).join(' ') : null,
+    nichtLeer(a.geschaeftsfuehrung) ? `Geschäftsführung: ${a.geschaeftsfuehrung}` : null]
+      .filter(nichtLeer).join(' · '),
+    [nichtLeer(a.ustId) ? `USt-IdNr. ${a.ustId}` : null,
+      nichtLeer(a.steuernummer) ? `Steuernummer ${a.steuernummer}` : null]
+      .filter(nichtLeer).join(' · '),
+    nichtLeer(a.iban)
+      ? [a.bank, `IBAN ${a.iban}`, nichtLeer(a.bic) ? `BIC ${a.bic}` : null]
+        .filter(nichtLeer).join(' · ')
+      : '',
+  ].filter(nichtLeer);
+  zeilen.push('');
+  zeilen.push('—');
+  for (const z of pflicht) zeilen.push(z);
   return zeilen.join('\n');
 }
 
@@ -436,7 +628,14 @@ export async function dokumentiereVersand(
   eingabe: VersandEingabe,
   speicher: Speicher,
   richtlinie: Richtlinie | null = null,
-): Promise<{ readonly dokumentId: string; readonly versendetAm: string }> {
+): Promise<{
+  readonly dokumentId: string;
+  /**
+   * Berliner Ortszeit als `TT.MM.JJJJ HH:MM` (V-213) — für den Satz, den die
+   * Route zurückgibt. Vorher der rohe UTC-Text mit Mikrosekunden.
+   */
+  readonly versendetAm: string;
+}> {
   if (!MENSCHLICHE_KANAELE.includes(eingabe.versandart)) {
     throw new KanalNichtVerbundenFehler(eingabe.versandart);
   }
@@ -561,7 +760,8 @@ export async function dokumentiereVersand(
               geaendert_am = now(), geaendert_von_art = 'mensch',
               geaendert_von = app.aktueller_benutzer()
         where id = $1::uuid and status = 'freigegeben'
-        returning versendet_am::text as versendet_am`,
+        returning to_char(versendet_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
+                    as versendet_am`,
       [eingabe.id, hoch.dokumentId]);
     if (nachher === undefined) {
       throw new MahnungFehler(
