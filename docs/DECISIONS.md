@@ -19726,7 +19726,13 @@ zutreffende Satz „Zu dieser Schicht läuft keine Zeiterfassung.".
 4. **Geprüft:** `tests/kern/stempel-meldung.test.ts` gegen die echten Codes
    der Fehlerklassen in vier Sprachen (auch `__proto__` und ein fehlender
    Code fallen auf den allgemeinen Satz), die Klasse selbst, und dass Route
-   und Stempeluhr den Code weiterreichen bzw. nur ihn lesen.
+   und Stempeluhr den Code weiterreichen bzw. nur ihn lesen. Dieselbe Datei
+   prüft `fotoMeldung` — die zweite Code-Tabelle aus V-200, die bis dahin
+   keinen Test hatte — gegen `NichtVerbundenFehler.code`,
+   `KeinBenutzerkontoFuerMediumFehler.code` und jeden Grund, den
+   `MedienFehler` tragen kann (aus seiner Union gelesen): ein falsch
+   geschriebener Code fiele sonst still auf „Die Aufnahme ging nicht
+   durch."
 
 | Betrifft | TIM-07, TIM-09, AUT-06, D-131, D-694 Nr. 4, V-200, `src/server/services/zeit/checkin.ts` (`KeinOffenerEintragFehler`), `src/lib/i18n/vor-anmeldung.ts` (`stempelMeldung`, `STEMPEL_TEXTE.keinOffenerEintrag`), `tests/kern/stempel-meldung.test.ts` |
 |---|---|
