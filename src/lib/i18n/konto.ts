@@ -464,3 +464,211 @@ export const KONTO_BENACHRICHTIGUNG_TEXTE:
       },
     },
   };
+
+/* ═════════════════════════════════════════════════════════════════════════
+ * Der Kalender-Feed `/portal/konto/kalender-feed` (CAL-03, V-200 Nachtrag)
+ * ═════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Die Wörter der Seite des Kalender-Feeds — in der Hülle der Beschäftigten in
+ * ihrer Sprache, in der Verwaltung deutsch wie Kontowurzel und
+ * Benachrichtigungen (D-694 Nr. 7, D-750).
+ *
+ * **Warum gerade diese Seite nicht deutsch bleiben darf.** Die übersetzte
+ * Kontowurzel verweist jede Kraft hierher („رابط التقويم", „Takvim
+ * bağlantısı"), und die Seite sagt das Wichtigste, das eine Kraft über den
+ * Zugang wissen muss: die Adresse IST der Zugang, ohne Anmeldung, bis sie
+ * widerrufen wird. Eine Warnung, die die Kraft nicht lesen kann, warnt nicht.
+ *
+ * Die Namen der Kalenderprogramme, `iCal` und die Fundstelle `O-510` bleiben
+ * in jeder Sprache stehen, wie sie heissen.
+ */
+export interface KalenderFeedTexte {
+  readonly titel: string;
+  readonly konto: string;
+  readonly zumKalender: string;
+  readonly nurLesend: string;
+  readonly einleitung: string;
+  readonly neuTitel: string;
+  readonly neuText: string;
+  readonly widerrufenTitel: string;
+  readonly widerrufenText: string;
+  readonly widerrufenVeraltet: string;
+  readonly warnungTitel: string;
+  readonly warnungText: string;
+  readonly zugaenge: string;
+  readonly leer: string;
+  readonly angelegt: string;
+  readonly zuletztAbgerufen: string;
+  readonly nochNie: string;
+  /** Mit `{anzahl}` — die Zahl der Abrufe. */
+  readonly abrufe: string;
+  readonly widerrufen: string;
+  readonly anlegen: string;
+  readonly zweiterZugang: string;
+  /** Der Name, den ein Zugang ohne eigenen Namen trägt (`FEED_STANDARD_BEZEICHNUNG`). */
+  readonly standardName: string;
+}
+
+export const KALENDER_FEED_TEXTE: Readonly<Record<PortalSprache, KalenderFeedTexte>> = {
+  de: {
+    titel: 'Kalender abonnieren',
+    konto: 'Konto',
+    zumKalender: 'Zum Kalender',
+    nurLesend: 'Nur lesend.',
+    einleitung:
+      'Ein Zugang für Ihr Kalenderprogramm — Apple Kalender, Outlook, Thunderbird. Er zeigt '
+      + 'Ihre Termine, Ihre Schichten und Ihre Fristen aus allen Bereichen, in denen Sie '
+      + 'Mitglied sind. Ändern lässt sich darüber nichts.',
+    neuTitel: 'Diese Adresse sehen Sie genau einmal.',
+    neuText:
+      'Kopieren Sie sie jetzt in Ihr Kalenderprogramm. Gespeichert ist nur ihre Prüfsumme — '
+      + 'wir können sie Ihnen später nicht noch einmal zeigen, und niemand kann sie aus der '
+      + 'Datenbank lesen.',
+    widerrufenTitel: 'Widerrufen.',
+    widerrufenText:
+      'Der nächste Abruf mit dieser Adresse bekommt nichts mehr — sofort, nicht beim nächsten '
+      + 'Abgleich.',
+    widerrufenVeraltet:
+      'Sollte der Zugang unten noch stehen, ist das eine veraltete Anzeige und kein offener '
+      + 'Zugang (O-510): ein Neuladen der Seite zeigt den richtigen Stand.',
+    warnungTitel: 'Die Adresse IST der Zugang.',
+    warnungText:
+      'Wer sie hat, sieht Ihre Termine — ohne Anmeldung und ohne zweiten Faktor, bis Sie '
+      + 'widerrufen. Ein Kalenderprogramm kann sich nicht anmelden; das ist der Grund, und es '
+      + 'ist auch die Grenze. Geben Sie die Adresse nicht weiter, und widerrufen Sie sie, wenn '
+      + 'ein Gerät abhandenkommt.',
+    zugaenge: 'Ihre Zugänge',
+    leer:
+      'Sie haben noch keinen Zugang. Ohne einen holt kein Kalenderprogramm etwas ab — und das '
+      + 'ist der Ruhezustand, nicht ein fehlender Schritt.',
+    angelegt: 'Angelegt',
+    zuletztAbgerufen: 'zuletzt abgerufen',
+    nochNie: 'noch nie',
+    abrufe: '{anzahl}×',
+    widerrufen: 'Widerrufen',
+    anlegen: 'Neuen Zugang anlegen',
+    zweiterZugang:
+      'Ein zweiter Zugang ist sinnvoll, wenn Sie zwei Geräte getrennt widerrufen können '
+      + 'wollen. Der alte bleibt gültig, bis Sie ihn widerrufen.',
+    standardName: 'Mein Kalender',
+  },
+  en: {
+    titel: 'Subscribe to calendar',
+    konto: 'Account',
+    zumKalender: 'To the calendar',
+    nurLesend: 'Read only.',
+    einleitung:
+      'An address for your calendar app — Apple Calendar, Outlook, Thunderbird. It shows your '
+      + 'appointments, your shifts and your deadlines from every area you are a member of. '
+      + 'Nothing can be changed through it.',
+    neuTitel: 'You see this address exactly once.',
+    neuText:
+      'Copy it into your calendar app now. Only its checksum is stored — we cannot show it to '
+      + 'you again later, and nobody can read it from the database.',
+    widerrufenTitel: 'Revoked.',
+    widerrufenText:
+      'The next request with this address gets nothing — immediately, not at the next sync.',
+    widerrufenVeraltet:
+      'If the address still appears below, that is an out-of-date display, not an open address '
+      + '(O-510): reloading the page shows the correct state.',
+    warnungTitel: 'The address IS the access.',
+    warnungText:
+      'Whoever has it sees your appointments — without signing in and without a second factor, '
+      + 'until you revoke it. A calendar app cannot sign in; that is the reason, and it is also '
+      + 'the limit. Do not pass the address on, and revoke it if a device is lost.',
+    zugaenge: 'Your addresses',
+    leer:
+      'You do not have an address yet. Without one, no calendar app fetches anything — and that '
+      + 'is the resting state, not a missing step.',
+    angelegt: 'Created',
+    zuletztAbgerufen: 'last fetched',
+    nochNie: 'never',
+    abrufe: '{anzahl}×',
+    widerrufen: 'Revoke',
+    anlegen: 'Create new address',
+    zweiterZugang:
+      'A second address makes sense if you want to be able to revoke two devices separately. '
+      + 'The old one stays valid until you revoke it.',
+    standardName: 'My calendar',
+  },
+  ar: {
+    titel: 'الاشتراك في التقويم',
+    konto: 'الحساب',
+    zumKalender: 'إلى التقويم',
+    nurLesend: 'للقراءة فقط.',
+    einleitung:
+      'عنوان لبرنامج التقويم لديك — Apple Calendar وOutlook وThunderbird. يعرض مواعيدك '
+      + 'ونوباتك ومواعيدك النهائية من جميع المجالات التي أنت عضو فيها. لا يمكن تغيير أي شيء '
+      + 'من خلاله.',
+    neuTitel: 'سترى هذا العنوان مرة واحدة فقط.',
+    neuText:
+      'انسخه الآن إلى برنامج التقويم لديك. لا يُحفظ إلا مجموعه الاختباري — لا يمكننا عرضه لك '
+      + 'مرة أخرى لاحقًا، ولا يستطيع أحد قراءته من قاعدة البيانات.',
+    widerrufenTitel: 'تم الإلغاء.',
+    widerrufenText:
+      'الطلب التالي بهذا العنوان لن يحصل على شيء — فورًا، وليس عند المزامنة التالية.',
+    widerrufenVeraltet:
+      'إذا ظل العنوان ظاهرًا أدناه، فهذا عرض قديم وليس وصولًا مفتوحًا (O-510): إعادة تحميل '
+      + 'الصفحة تعرض الحالة الصحيحة.',
+    warnungTitel: 'العنوان هو الوصول نفسه.',
+    warnungText:
+      'من يملكه يرى مواعيدك — دون تسجيل دخول ودون خطوة ثانية، إلى أن تلغيه. برنامج التقويم '
+      + 'لا يستطيع تسجيل الدخول؛ هذا هو السبب، وهو أيضًا الحد. لا تعطِ العنوان لأحد، وألغِه '
+      + 'إذا فُقد جهاز.',
+    zugaenge: 'عناوين الوصول الخاصة بك',
+    leer:
+      'ليس لديك عنوان وصول بعد. من دونه لا يجلب أي برنامج تقويم شيئًا — وهذه حالة السكون، وليست '
+      + 'خطوة ناقصة.',
+    angelegt: 'أُنشئ',
+    zuletztAbgerufen: 'آخر جلب',
+    nochNie: 'لم يحدث بعد',
+    abrufe: '{anzahl}×',
+    widerrufen: 'إلغاء',
+    anlegen: 'إنشاء عنوان جديد',
+    zweiterZugang:
+      'يفيد عنوان ثانٍ إذا أردت أن تستطيع إلغاء جهازين كلٌّ على حدة. يبقى العنوان القديم صالحًا '
+      + 'إلى أن تلغيه.',
+    standardName: 'تقويمي',
+  },
+  tr: {
+    titel: 'Takvime abone ol',
+    konto: 'Hesap',
+    zumKalender: 'Takvime',
+    nurLesend: 'Salt okunur.',
+    einleitung:
+      'Takvim programınız için bir adres — Apple Takvim, Outlook, Thunderbird. Üyesi olduğunuz '
+      + 'tüm alanlardaki randevularınızı, vardiyalarınızı ve son tarihlerinizi gösterir. Bu '
+      + 'yolla hiçbir şey değiştirilemez.',
+    neuTitel: 'Bu adresi yalnızca bir kez görürsünüz.',
+    neuText:
+      'Şimdi takvim programınıza kopyalayın. Yalnızca sağlama toplamı saklanır — adresi size '
+      + 'daha sonra tekrar gösteremeyiz ve kimse onu veritabanından okuyamaz.',
+    widerrufenTitel: 'İptal edildi.',
+    widerrufenText:
+      'Bu adresle yapılan bir sonraki istek artık hiçbir şey almaz — hemen, bir sonraki '
+      + 'eşitlemede değil.',
+    widerrufenVeraltet:
+      'Adres aşağıda hâlâ görünüyorsa bu eski bir görüntüdür, açık bir erişim değildir (O-510): '
+      + 'sayfayı yeniden yüklemek doğru durumu gösterir.',
+    warnungTitel: 'Adresin kendisi erişimdir.',
+    warnungText:
+      'Adrese sahip olan herkes randevularınızı görür — giriş yapmadan ve ikinci adım olmadan, '
+      + 'siz iptal edene kadar. Bir takvim programı giriş yapamaz; nedeni budur ve sınırı da '
+      + 'budur. Adresi kimseyle paylaşmayın ve bir cihaz kaybolursa iptal edin.',
+    zugaenge: 'Erişimleriniz',
+    leer:
+      'Henüz bir erişiminiz yok. Erişim olmadan hiçbir takvim programı bir şey almaz — bu bir '
+      + 'bekleme durumudur, eksik bir adım değil.',
+    angelegt: 'Oluşturuldu',
+    zuletztAbgerufen: 'son alınma',
+    nochNie: 'hiç',
+    abrufe: '{anzahl}×',
+    widerrufen: 'İptal et',
+    anlegen: 'Yeni erişim oluştur',
+    zweiterZugang:
+      'İki cihazı ayrı ayrı iptal edebilmek istiyorsanız ikinci bir erişim mantıklıdır. Eskisi '
+      + 'siz iptal edene kadar geçerli kalır.',
+    standardName: 'Takvimim',
+  },
+};

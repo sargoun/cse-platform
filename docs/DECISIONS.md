@@ -19497,7 +19497,10 @@ D-557; die Benachrichtigungseinstellungen trugen den Schlüssel jeder Art
 7. **Die Kontoseiten der Arbeiterhülle folgen `person.sprache`**:
    Kontowurzel und Benachrichtigungseinstellungen lesen
    `KONTO_WURZEL_TEXTE`/`KONTO_BENACHRICHTIGUNG_TEXTE` (de/en/ar/tr) und
-   setzen `lang`/`dir`; die Verwaltung liest Deutsch wie bisher. Die Rolle
+   setzen `lang`/`dir`; die Verwaltung liest Deutsch wie bisher.
+   **Nachtrag (D-750):** hier fehlte der Kalender-Feed, auf den die
+   übersetzte Wurzel verweist; er folgt jetzt derselben Regel. Profil und
+   Sicherheit taten es schon vorher (D-557, V-039). Die Rolle
    steht mit ihrem Namen (`rolle.bezeichnung`), nicht als Schlüssel. Jede
    Benachrichtigungsart heisst nach ihrem Namen; die Arbeiterhülle zeigt nur
    die Arten mit einem Ziel unter `/portal/mein` (V-102), und die Wahl der
@@ -19552,4 +19555,53 @@ nannte, gibt es auf dem Server nicht: `ar` rechnet dort mit `latn`.
 4. **D-693 Nr. 3 ist berichtigt**, ebenso V-199 im Register.
 
 | Betrifft | EMP-07, EMP-10, EMP-12, AUT-05, SEITENKARTE §12, D-419, D-693, D-733, V-199, V-201, V-240, `src/lib/datum/zeitpunkt.ts`, `src/app/portal/mein/{abwesenheit/[id],antraege/[id],nachrichten,nachrichten/[id],zeiten/[id]/einwand}/page.tsx`, `src/app/portal/konto/sicherheit/page.tsx`, `tests/kern/zeitpunkt-sprache.test.ts` |
+|---|---|
+
+### D-750 · Der Kalender-Feed spricht in der Arbeiterhülle die Sprache der Person — gerade seine Warnung (V-200 Nachtrag)
+
+**Der Befund** (Prüfer der Gruppe arbeiterportal, zweimal gemeldet):
+SEITENKARTE §12 zählt `/portal/konto/**` bei `app.portal() = 'mitarbeiter'`
+zu den vier Sprachen. V-200 übersetzte Kontowurzel und
+Benachrichtigungen und meldete „Kontoseiten" als erledigt. Die Wurzel
+verweist jede Kraft auf `/portal/konto/kalender-feed` („رابط التقويم",
+„Takvim bağlantısı"), und diese Seite war vollständig deutsch: kein `lang`,
+kein `dir`, keine `meinBeschriftungen` für die Leiste (die Hülle fiel auf
+die Beschriftung der Verwaltung zurück), Zeitpunkte fest `de-DE`, Fliesstext
+in 13 und 14 px. Die Übersetzungswache schwieg, weil die Datei auf ihrer
+Ausnahmeliste stand. Unlesbar war damit ausgerechnet der Satz „Die Adresse
+IST der Zugang … ohne Anmeldung".
+
+**Die Entscheidung.**
+
+1. **Dieselbe Regel wie Wurzel und Benachrichtigungen:** in der Hülle der
+   Beschäftigten `person.sprache` (`KALENDER_FEED_TEXTE`, de/en/ar/tr, in
+   `src/lib/i18n/konto.ts`), `lang`/`dir`/`data-sprache` am Rand und
+   `meinBeschriftungen` für die Leiste; die Verwaltung liest Deutsch wie
+   bisher. Die Datei ist von der Ausnahmeliste gestrichen — die Wache sieht
+   sie jetzt.
+2. **Fliesstext der Beschäftigten in 16 px** (DESIGN §8, D-738): Absätze,
+   Zeilen der Zugänge und die Hinweiskästen (`Hinweis groesse="base"`); die
+   Verwaltung behält `sm`/`xs`.
+3. **Zeitpunkte über `zeitpunktInSprache`** (D-695): Berliner Zeit in der
+   gesetzlichen Form, „noch nie" in der Sprache der Seite.
+4. **Der Name eines Zugangs ohne eigenen Namen** steht deutsch in der Zeile
+   (`FEED_STANDARD_BEZEICHNUNG`, „Mein Kalender"); die Seite zeigt ihn in der
+   Sprache der Person. Ein eigener Name bleibt, wie er ist — er ist Inhalt,
+   nicht Oberfläche.
+5. **Die Adresse steht von links nach rechts**, auch auf Arabisch
+   (`dir="ltr"` am `<code>`), wie Mobilnummer und Code der Anmeldung (D-694
+   Nr. 5).
+6. **„Zum Kalender" fehlt in der Arbeiterhülle**: der Kalender eines Bereichs
+   liegt unter `/portal/<bereich>`, und diese Familie betritt das Portal
+   `mitarbeiter` nicht (`ERLAUBTE_FAMILIEN`, K-04-Decke) — der Verweis hätte
+   auf `/portal/mein` zurückgeleitet.
+7. **Geprüft:** `tests/kern/konto-sprachen.test.ts` (vier Sprachen
+   vollständig, nur Deutsch ist deutsch; die Warnung trägt in jeder Sprache
+   ihren Satz; die Seite liest die Sprache der Person, setzt `lang`/`dir`,
+   reicht die Beschriftungen weiter, formatiert keinen Zeitpunkt selbst;
+   keine Kontoseite, auf die die Wurzel verweist, steht noch auf der
+   Ausnahmeliste — das Profil ausgenommen, das seine vier Sprachen als
+   Tabelle im Rumpf trägt).
+
+| Betrifft | CAL-03, EMP-12, SEITENKARTE §12, D-419, D-557, D-694, D-695, D-738, V-200, `src/app/portal/konto/kalender-feed/page.tsx`, `src/lib/i18n/konto.ts` (`KALENDER_FEED_TEXTE`), `src/server/kalender/feed.ts` (`FEED_STANDARD_BEZEICHNUNG`), `scripts/guards/uebersetzung-ausnahmen.ts`, `tests/kern/konto-sprachen.test.ts` |
 |---|---|

@@ -62,6 +62,14 @@ export async function eigeneFeeds(db: Leser): Promise<readonly FeedStand[]> {
 }
 
 /**
+ * Der Name eines Zugangs, dem niemand einen gegeben hat. Er steht deutsch in
+ * der Zeile; die Seite zeigt ihn in der Sprache der Person
+ * (`KALENDER_FEED_TEXTE.standardName`, D-750) — ein eigener Name bleibt, wie
+ * er ist.
+ */
+export const FEED_STANDARD_BEZEICHNUNG = 'Mein Kalender';
+
+/**
  * Legt einen Feed an und gibt den Token **genau hier** zurück.
  *
  * Er wird nicht gespeichert und nicht protokolliert; der Aufrufer zeigt ihn
@@ -69,14 +77,14 @@ export async function eigeneFeeds(db: Leser): Promise<readonly FeedStand[]> {
  * den man nachschlagen kann.
  */
 export async function legeFeedAn(
-  db: Schreiber, bezeichnung = 'Mein Kalender',
+  db: Schreiber, bezeichnung = FEED_STANDARD_BEZEICHNUNG,
 ): Promise<{ readonly token: string; readonly id: string }> {
   const token = neuerToken();
   const [zeile] = await db.schreibe<{ id: string }>(
     `insert into kalender_feed (benutzer_id, token_hash, bezeichnung)
      values (app.aktueller_benutzer(), $1, $2)
      returning id::text as id`,
-    [tokenHash(token), bezeichnung.trim() === '' ? 'Mein Kalender' : bezeichnung.trim()]);
+    [tokenHash(token), bezeichnung.trim() === '' ? FEED_STANDARD_BEZEICHNUNG : bezeichnung.trim()]);
   if (zeile === undefined) throw new Error('Der Kalenderzugang liess sich nicht anlegen.');
   return { token, id: zeile.id };
 }
