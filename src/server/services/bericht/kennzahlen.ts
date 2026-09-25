@@ -1,5 +1,5 @@
 import 'server-only';
-import { cent, NULL_CENT, type Cent } from '../finanz/geld.js';
+import { addiere, cent, NULL_CENT, type Cent } from '../finanz/geld.js';
 import type { Zeitraum } from './zeitraum.js';
 
 /**
@@ -438,24 +438,169 @@ export function verzug(soll: string | null, ist: string | null): number | null {
 // REP-06 — Vergabepipeline
 // ---------------------------------------------------------------------------
 
-export interface PipelineStufe {
-  readonly status: string;
-  readonly bezeichnung: string;
-  readonly anzahl: number;
+/**
+ * Die vier Stufen aus REP-06 — gefunden, gesichtet, geboten, gewonnen — und
+ * daneben, NICHT im Trichter, was verworfen wurde (V-226, D-720).
+ *
+ * **Kumulativ, nicht nach dem heutigen Stand.** `ausschreibung_vorgang` führt
+ * eine Zeile je Bekanntmachung und überschreibt ihren Status bei jedem
+ * Schritt. Zählte der Bericht nach dem Status, stünde ein gewonnener Vorgang
+ * nur unter „Zuschlag" und nicht mehr unter „geboten" — und „gefunden" wäre
+ * immer 0, weil `setzeVorgangsstand` den Anfangsstand `neu` in derselben
+ * Transaktion überschreibt. Eine Stufe zählt deshalb jeden Fall, der sie
+ * ERREICHT hat:
+ *
+ *  - **gefunden**: jede Bekanntmachung, die das Radar für diese Gesellschaft
+ *    bewertet und nicht ausgeschlossen hat (`bewertung`), und jede, zu der ein
+ *    Mensch einen Vorgang eröffnet hat — auch ohne Bewertung.
+ *  - **gesichtet**: ein Vorgang, dessen Stand nicht mehr `neu` ist. Auch ein
+ *    verworfener ist gesichtet worden: verwerfen kann nur, wer hingesehen hat.
+ *  - **geboten**: eingereicht oder einer der drei Ausgänge — ein Ausgang lässt
+ *    sich nur aus `eingereicht` setzen (`vergabe/einreichung.ts`), also hat
+ *    jeder von ihnen ein Angebot hinter sich. `verfahren_aufgehoben` gehört
+ *    dazu: das Angebot war abgegeben, die Vergabestelle hat aufgehoben.
+ *  - **gewonnen**: Zuschlag. Nur hier steht ein Zuschlagswert.
+ *
+ * **Die Kohorte ist der Eingang.** Ein Fall gehört in das Jahr, in dem er
+ * zuerst auftauchte — die früheste nicht ausgeschlossene Bewertung oder, falls
+ * früher oder allein, die Eröffnung des Vorgangs. Damit ist jede Stufe eine
+ * Teilmenge der vorigen, und der Balken darf ein Trichter sein.
+ *
+ * **Eine Zählung, zwei Aufrufer.** `pipelineZahlen` ist die einzige Stelle,
+ * an der diese Definition steht; die Bereichsfassung (`pipeline`) und die
+ * Gruppenfassung (`pipelineJeBereich` in `gruppe.ts`) lesen beide daraus.
+ * Welche Zeilen dabei sichtbar sind, entscheidet RLS: im Bereich die eine
+ * Gesellschaft, in der Gruppenansicht die unter `gruppe.radar.lesen`.
+ */
+export type PipelineStufenSchluessel =
+  'gefunden' | 'gesichtet' | 'geboten' | 'gewonnen' | 'verworfen';
+
+export interface PipelineZahlen {
+  readonly gefunden: number;
+  readonly gesichtet: number;
+  readonly geboten: number;
+  readonly gewonnen: number;
+  readonly verworfen: number;
   readonly zuschlagswertCent: Cent;
 }
 
-/** Die acht Zustände aus `ausschreibung_status`, in ihrer Reihenfolge. */
-export const PIPELINE_STUFEN: readonly { readonly status: string; readonly bezeichnung: string }[] = [
-  { status: 'neu', bezeichnung: 'Gefunden' },
-  { status: 'geprueft', bezeichnung: 'Gesichtet' },
-  { status: 'in_bearbeitung', bezeichnung: 'In Bearbeitung' },
-  { status: 'eingereicht', bezeichnung: 'Eingereicht' },
-  { status: 'zuschlag', bezeichnung: 'Zuschlag' },
-  { status: 'nicht_beruecksichtigt', bezeichnung: 'Nicht berücksichtigt' },
-  { status: 'verfahren_aufgehoben', bezeichnung: 'Verfahren aufgehoben' },
-  { status: 'verworfen', bezeichnung: 'Verworfen' },
+export const PIPELINE_LEER: PipelineZahlen = {
+  gefunden: 0, gesichtet: 0, geboten: 0, gewonnen: 0, verworfen: 0,
+  zuschlagswertCent: NULL_CENT,
+};
+
+/** Die Stände, die ein Angebot hinter sich haben (siehe oben: „geboten"). */
+export const PIPELINE_GEBOTEN: readonly string[] = [
+  'eingereicht', 'zuschlag', 'nicht_beruecksichtigt', 'verfahren_aufgehoben',
 ];
+
+/**
+ * Die Zählung je Gesellschaft — der EINE Ort der Definition.
+ *
+ * `least()` überspringt in PostgreSQL ein NULL: ein Fall ohne Bewertung hat
+ * den Eingang seines Vorgangs, einer ohne Vorgang den seiner Bewertung.
+ */
+export async function pipelineZahlen(
+  db: Abfrage, zeitraum: Zeitraum,
+): Promise<ReadonlyMap<string, PipelineZahlen>> {
+  const zeilen = await db.abfrage<{
+    mandant_id: string; gefunden: string; gesichtet: string; geboten: string;
+    gewonnen: string; verworfen: string; wert: string;
+  }>(
+    `with fund as (
+       select b.mandant_id, b.ausschreibung_id, min(b.berechnet_am) as am
+         from bewertung b
+        where not b.ausgeschlossen
+        group by b.mandant_id, b.ausschreibung_id
+     ), vorgang as (
+       select v.mandant_id, v.ausschreibung_id, v.erstellt_am, v.status::text as status,
+              v.zuschlagswert_cent
+         from ausschreibung_vorgang v
+        where v.geloescht_am is null
+     ), fall as (
+       select coalesce(v.mandant_id, f.mandant_id) as mandant_id,
+              least(f.am, v.erstellt_am) as eingang,
+              v.status, v.zuschlagswert_cent
+         from fund f
+         full join vorgang v
+           on v.mandant_id = f.mandant_id and v.ausschreibung_id = f.ausschreibung_id
+     )
+     select mandant_id,
+            count(*)::text as gefunden,
+            count(*) filter (where status is not null and status <> 'neu')::text as gesichtet,
+            count(*) filter (where status = any ($3::text[]))::text as geboten,
+            count(*) filter (where status = 'zuschlag')::text as gewonnen,
+            count(*) filter (where status = 'verworfen')::text as verworfen,
+            coalesce(sum(zuschlagswert_cent) filter (where status = 'zuschlag'), 0)::text as wert
+       from fall
+      where (eingang at time zone 'Europe/Berlin')::date between $1::date and $2::date
+      group by mandant_id`,
+    [zeitraum.von, zeitraum.bis, PIPELINE_GEBOTEN],
+  );
+  return new Map(zeilen.map((z) => [z.mandant_id, {
+    gefunden: zahl(z.gefunden),
+    gesichtet: zahl(z.gesichtet),
+    geboten: zahl(z.geboten),
+    gewonnen: zahl(z.gewonnen),
+    verworfen: zahl(z.verworfen),
+    zuschlagswertCent: geld(z.wert),
+  }]));
+}
+
+/** Mehrere Gesellschaften zu einer Zahl — was die Bereichsfassung aus RLS bekommt. */
+export function summierePipeline(teile: Iterable<PipelineZahlen>): PipelineZahlen {
+  let s = PIPELINE_LEER;
+  for (const t of teile) {
+    s = {
+      gefunden: s.gefunden + t.gefunden,
+      gesichtet: s.gesichtet + t.gesichtet,
+      geboten: s.geboten + t.geboten,
+      gewonnen: s.gewonnen + t.gewonnen,
+      verworfen: s.verworfen + t.verworfen,
+      zuschlagswertCent: addiere(s.zuschlagswertCent, t.zuschlagswertCent),
+    };
+  }
+  return s;
+}
+
+/**
+ * Trefferquote in Basispunkten: gewonnen je geboten. `null`, solange nichts
+ * geboten wurde — eine Quote aus null Angeboten ist keine 0 %.
+ */
+export function trefferquoteBp(z: PipelineZahlen): number | null {
+  return z.geboten === 0 ? null : Math.round((z.gewonnen * 10000) / z.geboten);
+}
+
+export interface PipelineStufe {
+  readonly stufe: PipelineStufenSchluessel;
+  readonly bezeichnung: string;
+  readonly anzahl: number;
+  /** Teil des Trichters? `verworfen` steht daneben, nicht darin. */
+  readonly imTrichter: boolean;
+  /** Nur auf „gewonnen" — sonst `null`. */
+  readonly zuschlagswertCent: Cent | null;
+}
+
+export const PIPELINE_STUFEN: readonly {
+  readonly stufe: PipelineStufenSchluessel; readonly bezeichnung: string;
+}[] = [
+  { stufe: 'gefunden', bezeichnung: 'Gefunden' },
+  { stufe: 'gesichtet', bezeichnung: 'Gesichtet' },
+  { stufe: 'geboten', bezeichnung: 'Geboten' },
+  { stufe: 'gewonnen', bezeichnung: 'Gewonnen' },
+  { stufe: 'verworfen', bezeichnung: 'Verworfen' },
+];
+
+/** Die Zahlen als Zeilen — jede Stufe erscheint, auch die leere. */
+export function pipelineStufen(z: PipelineZahlen): readonly PipelineStufe[] {
+  return PIPELINE_STUFEN.map((s) => ({
+    stufe: s.stufe,
+    bezeichnung: s.bezeichnung,
+    anzahl: z[s.stufe],
+    imTrichter: s.stufe !== 'verworfen',
+    zuschlagswertCent: s.stufe === 'gewonnen' ? z.zuschlagswertCent : null,
+  }));
+}
 
 /**
  * **Jede Stufe erscheint, auch die leere.** Eine Pipeline, die nur zeigt, wo
@@ -465,24 +610,6 @@ export const PIPELINE_STUFEN: readonly { readonly status: string; readonly bezei
 export async function pipeline(
   db: Abfrage, zeitraum: Zeitraum,
 ): Promise<readonly PipelineStufe[]> {
-  const zeilen = await db.abfrage<{ status: string; anzahl: string; wert: string | null }>(
-    `select v.status::text, count(*)::text as anzahl,
-            coalesce(sum(v.zuschlagswert_cent), 0)::text as wert
-       from ausschreibung_vorgang v
-      where v.geloescht_am is null
-        and (v.erstellt_am at time zone 'Europe/Berlin')::date
-            between $1::date and $2::date
-      group by v.status`,
-    [zeitraum.von, zeitraum.bis],
-  );
-  const nach = new Map(zeilen.map((z) => [z.status, z]));
-  return PIPELINE_STUFEN.map((s) => {
-    const z = nach.get(s.status);
-    return {
-      status: s.status,
-      bezeichnung: s.bezeichnung,
-      anzahl: zahl(z?.anzahl),
-      zuschlagswertCent: geld(z?.wert),
-    };
-  });
+  const je = await pipelineZahlen(db, zeitraum);
+  return pipelineStufen(summierePipeline(je.values()));
 }

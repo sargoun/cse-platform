@@ -158,8 +158,8 @@ async function zeilenUndSpalten(
         zeilen: await pipeline(kontext, jahresZeitraum),
         spalten: s<PipelineStufe>([
           { kopf: 'Stufe', wert: (z) => z.bezeichnung },
-          { kopf: 'Status', wert: (z) => z.status },
-          { kopf: 'Vorgänge', wert: (z) => z.anzahl },
+          { kopf: 'Im Trichter', wert: (z) => (z.imTrichter ? 'ja' : 'nein') },
+          { kopf: 'Fälle', wert: (z) => z.anzahl },
           { kopf: 'Zuschlagswert', wert: (z) => geldText(z.zuschlagswertCent),
             cent: (z) => z.zuschlagswertCent },
         ]),

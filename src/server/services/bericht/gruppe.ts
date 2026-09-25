@@ -1,6 +1,8 @@
 import 'server-only';
 import { cent, NULL_CENT, type Cent } from '../finanz/geld.js';
-import type { Abfrage } from './kennzahlen.js';
+import {
+  PIPELINE_LEER, pipelineZahlen, trefferquoteBp, type Abfrage, type PipelineZahlen,
+} from './kennzahlen.js';
 import type { Zeitraum } from './zeitraum.js';
 
 /**
@@ -253,45 +255,41 @@ export async function projekteJeBereich(
   }));
 }
 
-export interface PipelineJeBereich extends BereichsZeile {
-  readonly gefunden: number;
-  readonly eingereicht: number;
-  readonly zuschlag: number;
-  readonly zuschlagswertCent: Cent;
+export interface PipelineJeBereich extends BereichsZeile, PipelineZahlen {
+  /** Gewonnen je geboten, in Basispunkten; `null` ohne ein einziges Angebot. */
+  readonly trefferquoteBp: number | null;
 }
 
+/**
+ * REP-06 je Gesellschaft — mit DERSELBEN Zählung wie die Bereichsseite
+ * (`pipelineZahlen` in `kennzahlen.ts`, V-226, D-720).
+ *
+ * Hier stand eine eigene Abfrage, und sie zählte anders: „gefunden" war jeder
+ * Vorgang, „eingereicht" liess `verfahren_aufgehoben` aus, und die
+ * Bereichsseite zählte nach dem heutigen Stand. Für dieselben Zeilen standen
+ * auf beiden Seiten verschiedene Zahlen. Jetzt fragt diese Funktion nur noch
+ * die Liste der Gesellschaften und hängt die gemeinsame Zählung an; wo sie
+ * für einen Bereich nichts liefert, steht die leere Zählung da.
+ */
 export async function pipelineJeBereich(
   db: Abfrage, z: Zeitraum,
 ): Promise<readonly PipelineJeBereich[]> {
   const darf = await bereicheMitRechten(db, GRUPPENBERICHT_RECHTE.pipeline);
-  const zeilen = await db.abfrage<{
-    mandant_id: string; slug: string; name: string;
-    gefunden: string; eingereicht: string; zuschlag: string; wert: string;
-  }>(
-    `select m.id as mandant_id, m.slug, m.name,
-            coalesce(count(v.id), 0)::text as gefunden,
-            coalesce(count(*) filter (
-              where v.status in ('eingereicht','zuschlag','nicht_beruecksichtigt')), 0)::text
-              as eingereicht,
-            coalesce(count(*) filter (where v.status = 'zuschlag'), 0)::text as zuschlag,
-            coalesce(sum(v.zuschlagswert_cent) filter (where v.status = 'zuschlag'), 0)::text
-              as wert
+  const bereiche = await db.abfrage<{ mandant_id: string; slug: string; name: string }>(
+    `select m.id as mandant_id, m.slug, m.name
        from mandant m
-       left join ausschreibung_vorgang v
-              on v.mandant_id = m.id and v.geloescht_am is null
-             and (v.erstellt_am at time zone 'Europe/Berlin')::date between $1::date and $2::date
-      group by m.id, m.slug, m.name, m.sortierung
       order by m.sortierung, m.slug`,
-    [z.von, z.bis],
   );
-  return zeilen.map((r) => ({
-    mandantId: r.mandant_id, slug: r.slug, name: r.name,
-    lesbar: darf.has(r.mandant_id),
-    gefunden: Number(r.gefunden),
-    eingereicht: Number(r.eingereicht),
-    zuschlag: Number(r.zuschlag),
-    zuschlagswertCent: geld(r.wert),
-  }));
+  const zahlen = await pipelineZahlen(db, z);
+  return bereiche.map((r) => {
+    const je = zahlen.get(r.mandant_id) ?? PIPELINE_LEER;
+    return {
+      mandantId: r.mandant_id, slug: r.slug, name: r.name,
+      lesbar: darf.has(r.mandant_id),
+      ...je,
+      trefferquoteBp: trefferquoteBp(je),
+    };
+  });
 }
 
 export interface AttributionJeBereich extends BereichsZeile {

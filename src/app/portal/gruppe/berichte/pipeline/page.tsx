@@ -7,7 +7,10 @@ import { BereichMarke } from '../../tor';
 import { GruppenBerichtsSeite } from '../rahmen';
 import { nurLesbar } from '../Zelle';
 
-/** `/portal/gruppe/berichte/pipeline` — REP-06 je Gesellschaft. */
+/**
+ * `/portal/gruppe/berichte/pipeline` — REP-06 je Gesellschaft, mit derselben
+ * Zählung wie die Bereichsseite (`pipelineZahlen`, V-226, D-720).
+ */
 export const dynamic = 'force-dynamic';
 
 export default async function Pipeline({ searchParams }: {
@@ -17,10 +20,12 @@ export default async function Pipeline({ searchParams }: {
     <GruppenBerichtsSeite
       bericht="pipeline"
       suche={searchParams}
-      fussnote={<>„Eingereicht" fasst alles zusammen, was das Haus verlassen hat —
-        eingereicht, bezuschlagt und nicht berücksichtigt. Die Trefferquote ist Zuschlag
-        geteilt durch eingereicht; verworfene Vorgänge zählen dort nicht mit, weil sie
-        nie eingereicht wurden.</>}
+      fussnote={<>Dieselbe Zählung wie auf der Seite jeder Gesellschaft: eine Stufe zählt,
+        was sie erreicht hat, im Jahr des Eingangs. Gefunden ist, was das Radar bewertet
+        und nicht ausgeschlossen hat oder wozu ein Vorgang eröffnet wurde; gesichtet ist
+        ein Vorgang mit Stand; geboten ist, was eingereicht wurde, samt Zuschlag, Absage
+        und aufgehobenem Verfahren. Die Trefferquote ist gewonnen geteilt durch geboten;
+        verworfene Fälle zählen dort nicht mit, weil sie nie geboten wurden.</>}
       kinder={async (kontext, jahr) => {
         const zeilen = await pipelineJeBereich(kontext, jahr);
         return (
@@ -33,14 +38,18 @@ export default async function Pipeline({ searchParams }: {
                 zelle: (z) => <BereichMarke slug={z.slug} name={z.name} /> },
               { schluessel: 'gefunden', kopf: 'Gefunden', numerisch: true,
                 zelle: (z) => nurLesbar(z, z.gefunden) },
-              { schluessel: 'eingereicht', kopf: 'Eingereicht', numerisch: true,
-                zelle: (z) => nurLesbar(z, z.eingereicht) },
-              { schluessel: 'zuschlag', kopf: 'Zuschlag', numerisch: true,
-                zelle: (z) => nurLesbar(z, z.zuschlag) },
+              { schluessel: 'gesichtet', kopf: 'Gesichtet', numerisch: true,
+                zelle: (z) => nurLesbar(z, z.gesichtet) },
+              { schluessel: 'geboten', kopf: 'Geboten', numerisch: true,
+                zelle: (z) => nurLesbar(z, z.geboten) },
+              { schluessel: 'gewonnen', kopf: 'Gewonnen', numerisch: true,
+                zelle: (z) => nurLesbar(z, z.gewonnen) },
+              { schluessel: 'verworfen', kopf: 'Verworfen', numerisch: true,
+                zelle: (z) => nurLesbar(z, z.verworfen) },
               { schluessel: 'quote', kopf: 'Trefferquote', numerisch: true,
-                zelle: (z) => nurLesbar(z, (z.eingereicht === 0
+                zelle: (z) => nurLesbar(z, (z.trefferquoteBp === null
                   ? <span className="text-text-subtle">—</span>
-                  : prozent(Math.round((z.zuschlag * 10000) / z.eingereicht)))) },
+                  : prozent(z.trefferquoteBp))) },
               { schluessel: 'wert', kopf: 'Zuschlagswert', numerisch: true,
                 zelle: (z) => nurLesbar(z, formatiereGeld(z.zuschlagswertCent)) },
             ]}

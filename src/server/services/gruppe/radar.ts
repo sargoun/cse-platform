@@ -190,7 +190,8 @@ const BEREICHE_SQL = `
              and v.status = 'in_bearbeitung')::int as in_bearbeitung,
          (select count(*) from ausschreibung_vorgang v
            where v.mandant_id = m.id and v.geloescht_am is null
-             and v.status in ('eingereicht', 'zuschlag', 'nicht_beruecksichtigt'))::int
+             and v.status in ('eingereicht', 'zuschlag', 'nicht_beruecksichtigt',
+                              'verfahren_aufgehoben'))::int
            as eingereicht,
          (select count(*) from ausschreibung_vorgang v
            where v.mandant_id = m.id and v.geloescht_am is null

@@ -14,7 +14,8 @@
  *     Behauptungen des Lieferanten.
  *  4. **Die Abschlussquote gehört zur Kohorte**: ein Lead vom Januar zählt im
  *     Januar, auch wenn er im März gewonnen wurde.
- *  5. **Die Pipeline zeigt jede Stufe, auch die leere.**
+ *  5. **Die Pipeline zeigt jede Stufe, auch die leere — kumulativ, und
+ *     Bereichs- und Gruppenfassung zählen dieselbe Menge gleich** (D-720).
  *  6. **Die Gruppenfassung teilt auf, statt zu summieren.**
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
@@ -24,7 +25,7 @@ import type { LeseKontext } from '../../src/server/kontext/index.js';
 import {
   attribution, auftragsReihe, pipeline, projektReihe, umsatzReihe,
 } from '../../src/server/services/bericht/kennzahlen.js';
-import { umsatzJeBereich } from '../../src/server/services/bericht/gruppe.js';
+import { pipelineJeBereich, umsatzJeBereich } from '../../src/server/services/bericht/gruppe.js';
 import { abschnitte, ganzesJahr } from '../../src/server/services/bericht/zeitraum.js';
 import {
   finalisiere, fuegePositionHinzu, legeEntwurfAn, verwerfe, vonHand,
@@ -346,16 +347,141 @@ describe('(4) die Abschlussquote gehört zur Kohorte', () => {
   });
 });
 
-describe('(5) die Pipeline zeigt jede Stufe', () => {
-  it('acht Stufen, auch ohne einen einzigen Vorgang', async () => {
-    const jahr = ganzesJahr(await berlinJahr());
-    const stufen = await alsBereich(f.reinigung, (k) => pipeline(k, jahr));
-    expect(stufen).toHaveLength(8);
-    expect(stufen.map((s) => s.status)).toEqual([
-      'neu', 'geprueft', 'in_bearbeitung', 'eingereicht',
-      'zuschlag', 'nicht_beruecksichtigt', 'verfahren_aufgehoben', 'verworfen',
-    ]);
-    expect(stufen.every((s) => s.anzahl >= 0)).toBe(true);
+describe('(5) die Pipeline zählt kumulativ, und Bereich und Gruppe zählen gleich', () => {
+  /**
+   * **Ein Jahr, in dem sonst nichts liegt.** Die Fälle bekommen ihren Eingang
+   * ausdrücklich in 2019 — dann zählt der Bericht genau sie, und ein anderer
+   * Test, der im laufenden Jahr eine Bekanntmachung anlegt, verschiebt hier
+   * keine Zahl.
+   */
+  const JAHR = 2019;
+  const zeitraum = ganzesJahr(JAHR);
+
+  async function profil(mandant: string): Promise<string> {
+    const [p] = await sql.unsafe<{ id: string }[]>(
+      `insert into radar_profil (mandant_id, name, ist_aktiv, ist_platzhalter, skala_max)
+       values ($1, $2, true, true, 20) returning id`, [mandant, `Profil ${zufall()}`]);
+    return p!.id;
+  }
+
+  async function bekanntmachung(): Promise<string> {
+    const [a] = await sql.unsafe<{ id: string }[]>(
+      `insert into ausschreibung (quelle, quell_id, titel, rohdaten_hash, quell_status)
+       values ('oeffentlichevergabe', $1, 'Unterhaltsreinigung', $1, 'aktiv') returning id`,
+      [`rep06-${zufall()}`]);
+    return a!.id;
+  }
+
+  async function bewerte(
+    mandant: string, profilId: string, ausschreibung: string, am: string,
+    ausgeschlossen = false,
+  ): Promise<void> {
+    await sql.unsafe(
+      `insert into bewertung (mandant_id, ausschreibung_id, radar_profil_id, regel_version,
+                              profil_version, punkte, skala_max, ausgeschlossen,
+                              ausschluss_grund, begruendung, eingaben_hash, berechnet_am)
+       values ($1, $2, $3, 'v1', 1, 12, 20, $4, $5, 'Testbewertung', $6, $7::timestamptz)`,
+      [mandant, ausschreibung, profilId, ausgeschlossen,
+        ausgeschlossen ? 'Ausschlusskriterium' : null, zufall(), am]);
+  }
+
+  async function vorgang(
+    mandant: string, ausschreibung: string, status: string, am: string,
+    wertCent: bigint | null = null,
+  ): Promise<void> {
+    await sql.unsafe(
+      `insert into ausschreibung_vorgang
+         (mandant_id, ausschreibung_id, status, erstellt_von_art, erstellt_am,
+          verworfen_grund, entschieden_am, zuschlagswert_cent)
+       values ($1, $2, $3::ausschreibung_status, 'mensch', $4::timestamptz,
+               case when $3 = 'verworfen' then 'Leistung passt nicht' end,
+               case when $3 = 'zuschlag' then $4::timestamptz end, $5::bigint)`,
+      [mandant, ausschreibung, status, am, wertCent === null ? null : String(wertCent)]);
+  }
+
+  /**
+   * Neun Fälle, jeder für eine Regel aus D-720:
+   *  1 bewertet, sonst nichts                       → gefunden
+   *  2 bewertet, aber ausgeschlossen                → gar nicht
+   *  3 bewertet + geprüft                           → gefunden, gesichtet
+   *  4 bewertet + verworfen                         → gefunden, gesichtet, verworfen
+   *  5 NUR Vorgang (ohne Bewertung), Zuschlag       → alle vier Stufen
+   *  6 bewertet + Verfahren aufgehoben              → gefunden, gesichtet, geboten
+   *  7 ZWEIMAL bewertet + nicht berücksichtigt      → einmal, bis geboten
+   *  8 bewertet 2019, Vorgang erst 2020 (geprüft)   → Kohorte 2019
+   *  9 bewertet 2020                                → nicht in 2019
+   */
+  async function legeFaelleAn(mandant: string): Promise<void> {
+    const p1 = await profil(mandant);
+    const p2 = await profil(mandant);
+    const im = '2019-03-01T10:00:00Z';
+    const a = await Promise.all(Array.from({ length: 9 }, () => bekanntmachung()));
+    await bewerte(mandant, p1, a[0]!, im);
+    await bewerte(mandant, p1, a[1]!, im, true);
+    await bewerte(mandant, p1, a[2]!, im);
+    await vorgang(mandant, a[2]!, 'geprueft', '2019-03-02T10:00:00Z');
+    await bewerte(mandant, p1, a[3]!, im);
+    await vorgang(mandant, a[3]!, 'verworfen', '2019-03-02T10:00:00Z');
+    await vorgang(mandant, a[4]!, 'zuschlag', '2019-05-01T10:00:00Z', 1_000_000n);
+    await bewerte(mandant, p1, a[5]!, im);
+    await vorgang(mandant, a[5]!, 'verfahren_aufgehoben', '2019-04-01T10:00:00Z');
+    await bewerte(mandant, p1, a[6]!, im);
+    await bewerte(mandant, p2, a[6]!, '2019-03-05T10:00:00Z');
+    await vorgang(mandant, a[6]!, 'nicht_beruecksichtigt', '2019-04-01T10:00:00Z');
+    await bewerte(mandant, p1, a[7]!, '2019-12-31T12:00:00Z');
+    await vorgang(mandant, a[7]!, 'geprueft', '2020-01-03T10:00:00Z');
+    await bewerte(mandant, p1, a[8]!, '2020-02-01T10:00:00Z');
+  }
+
+  it('fünf Stufen, auch ohne einen einzigen Fall', async () => {
+    const stufen = await alsBereich(f.reinigung, (k) => pipeline(k, ganzesJahr(1990)),
+      await legeLeitungAn(f.reinigung, 'admin'));
+    expect(stufen.map((s) => s.stufe)).toEqual(
+      ['gefunden', 'gesichtet', 'geboten', 'gewonnen', 'verworfen']);
+    expect(stufen.every((s) => s.anzahl === 0)).toBe(true);
+  });
+
+  it('jede Stufe zählt, was sie erreicht hat — nicht den heutigen Stand', async () => {
+    await legeFaelleAn(f.reinigung);
+    const stufen = await alsBereich(f.reinigung, (k) => pipeline(k, zeitraum),
+      await legeLeitungAn(f.reinigung, 'admin'));
+    const zahl = (s: string): number => stufen.find((x) => x.stufe === s)!.anzahl;
+
+    expect(zahl('gefunden'), 'Fälle 1, 3–8').toBe(7);
+    expect(zahl('gesichtet'), 'Fälle 3–8').toBe(6);
+    expect(zahl('geboten'), 'Fälle 5–7').toBe(3);
+    expect(zahl('gewonnen'), 'Fall 5').toBe(1);
+    expect(zahl('verworfen'), 'Fall 4').toBe(1);
+    expect(stufen.find((x) => x.stufe === 'gewonnen')!.zuschlagswertCent).toBe(1_000_000n);
+
+    // Ein Trichter: keine Stufe ist grösser als die vor ihr.
+    const trichter = stufen.filter((s) => s.imTrichter).map((s) => s.anzahl);
+    expect([...trichter].sort((x, y) => y - x)).toEqual(trichter);
+  });
+
+  it('die Gruppenfassung nennt für dieselben Zeilen dieselben Zahlen', async () => {
+    await legeFaelleAn(f.reinigung);
+    await legeFaelleAn(f.bau);
+    const bereich = await alsBereich(f.reinigung, (k) => pipeline(k, zeitraum),
+      await legeLeitungAn(f.reinigung, 'admin'));
+
+    const chef = await legeGruppenleitungAn();
+    const gruppe = await inGruppe([f.reinigung, f.security, f.bau, f.operations], chef,
+      (k) => pipelineJeBereich(k, zeitraum));
+    const reinigung = gruppe.find((z) => z.mandantId === f.reinigung)!;
+    const bau = gruppe.find((z) => z.mandantId === f.bau)!;
+    const security = gruppe.find((z) => z.mandantId === f.security)!;
+
+    for (const s of bereich) {
+      expect(reinigung[s.stufe], s.stufe).toBe(s.anzahl);
+      // Die Gesellschaften teilen nichts: der Bau hat seine eigenen sieben Fälle.
+      expect(bau[s.stufe], s.stufe).toBe(s.anzahl);
+    }
+    expect(reinigung.zuschlagswertCent).toBe(1_000_000n);
+    expect(reinigung.trefferquoteBp).toBe(3333);
+    // Wer nichts hat, hat die leere Zählung — und keine Quote.
+    expect(security.gefunden).toBe(0);
+    expect(security.trefferquoteBp).toBeNull();
   });
 });
 

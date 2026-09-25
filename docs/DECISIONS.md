@@ -19618,3 +19618,53 @@ und der Seed zeigte den geteilten Dienst ohne Befund nicht.
 
 | Betrifft | EMP-07, EMP-10, TIM-01, TIM-04, TIM-06, TIM-11, D-09, D-599, D-680, D-683, D-684, D-733, SEITENKARTE §12, V-186, V-189, V-190, V-193, `src/server/services/zeit/einwand.ts`, `src/app/api/zeit/einwand/route.ts`, `src/lib/i18n/{mein-formulare,texte}.ts`, `src/app/portal/[mandant]/dienstplan/{monat/page.tsx,daten.ts}`, `src/lib/datum/kalendertag.ts`, `src/lib/i18n/verwaltung/dienstplan-monat.ts`, `src/app/portal/mein/{bausteine.tsx,zeiten/einwand/page.tsx,zeiten/[id]/einwand/page.tsx,antraege/neu/page.tsx,abwesenheit/neu/page.tsx}`, `src/server/db/seed/zeit.ts`, `tests/isolation/{einwand-ohne-eintrag,zeit-auftrag}.test.ts`, `tests/kern/{einwand-ohne-eintrag,monatsplan,mein-einwand-form}.test.ts` |
 |---|---|
+
+### D-720 · Die Vergabepipeline zählt kumulativ, und Bereich und Gruppe zählen mit derselben Funktion (V-226)
+
+**Der Befund** (Audit Befund 55, REP-06): der Bereichsbericht zählte
+`ausschreibung_vorgang` nach dem HEUTIGEN Status und nannte `neu` „Gefunden".
+`setzeVorgangsstand` legt einen Vorgang aber mit `neu` an und überschreibt den
+Stand in derselben Transaktion; kein Weg führt zurück. „Gefunden" war im
+Betrieb immer 0, und ein gewonnener Vorgang zählte nur unter „Zuschlag", nicht
+unter „eingereicht". Die Seite zeichnete das trotzdem als Trichter. Die
+Gruppenfassung hatte eine eigene Abfrage, die kumulativ zählte und
+`verfahren_aufgehoben` aus „eingereicht" ausliess: für dieselben Zeilen standen
+auf beiden Seiten verschiedene Zahlen.
+
+**Die Entscheidung.**
+
+1. **Eine Zählung, zwei Aufrufer.** `pipelineZahlen` (`bericht/kennzahlen.ts`)
+   ist der einzige Ort der Definition und liefert je Gesellschaft fünf Zahlen.
+   `pipeline()` (Bereich) summiert, was RLS ihr zeigt; `pipelineJeBereich()`
+   (Gruppe, lesend) hängt dieselbe Zählung an die Liste der Gesellschaften.
+   Die Trefferquote rechnet `trefferquoteBp` im Dienst, nicht die Seite.
+2. **Die Stufen, jede kumulativ:** *gefunden* = eine nicht ausgeschlossene
+   `bewertung` dieser Gesellschaft ODER ein eröffneter Vorgang (auch ohne
+   Bewertung — `setzeVorgangsstand` verlangt keine); *gesichtet* = ein
+   Vorgang mit einem Stand ausser `neu` (auch ein verworfener: verwerfen kann
+   nur, wer hingesehen hat); *geboten* = `eingereicht` oder einer der drei
+   Ausgänge (`einreichung.ts` setzt einen Ausgang nur aus `eingereicht`, also
+   hat jeder ein Angebot hinter sich, auch das aufgehobene Verfahren);
+   *gewonnen* = `zuschlag`, und nur dort steht der Zuschlagswert.
+   *Verworfen* steht als Ausgang NEBEN dem Trichter, nicht darin.
+3. **Die Kohorte ist der Eingang:** die früheste nicht ausgeschlossene
+   Bewertung oder, falls früher oder allein, die Eröffnung des Vorgangs. Jede
+   Stufe ist damit eine Teilmenge der vorigen. Eine Bekanntmachung, die zwei
+   Profile bewertet haben, ist EIN Fall.
+4. **Der Stand heute bleibt, wo er hingehört:** die Gruppenübersicht des
+   Radars (`gruppe/radar.ts`) zählt weiter nach dem heutigen Stand, ihr
+   „eingereicht" umfasst jetzt aber dieselbe Menge wie „geboten" (mit
+   `verfahren_aufgehoben`).
+5. **Der Seed zeigt einen verworfenen Fall** je Gesellschaft ohne Mappe; einen
+   eingereichten oder gewonnenen legt er nicht an — eingereicht wird von Hand
+   auf der Plattform (D-07), und ein Seed, der das behauptete, erzählte eine
+   Abgabe, die es nie gab.
+
+**Nicht Teil:** die Statushistorie aus `audit_log` (D-735) als Quelle. Sie
+kennt nur die Stände, die über `setzeVorgangsstand` gesetzt wurden, nicht die
+der Mappe, und `cse_app` liest sie nicht; der heutige Stand zusammen mit der
+Regel „ein Ausgang setzt eingereicht voraus" beantwortet dieselbe Frage ohne
+sie.
+
+| Betrifft | REP-06, RAD-07, D-07, D-506, D-735, V-226, Invariante 6, Invariante 10, `src/server/services/bericht/{kennzahlen,gruppe}.ts`, `src/server/services/gruppe/radar.ts`, `src/app/portal/[mandant]/berichte/{pipeline/page,rahmen}.tsx`, `src/app/portal/gruppe/berichte/{pipeline/page,rahmen}.tsx`, `src/app/portal/gruppe/radar/page.tsx`, `src/app/api/berichte/[bericht]/csv/route.ts`, `src/server/db/seed/berichtsdaten.ts`, `tests/kern/bericht-pipeline.test.ts`, `tests/isolation/bericht.test.ts` (5) |
+|---|---|

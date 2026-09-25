@@ -331,6 +331,32 @@ export async function seedBerichtsdaten(
               'unbekannt'::plattform_pruefung, 'system',
               now() - make_interval(days => 21))`;
     vorgaenge += ergebnis.count;
+
+    /*
+     * **Und ein verworfener daneben** (V-226, D-720). Der Bericht zeigt
+     * „verworfen" als Ausgang neben dem Trichter; ohne eine Zeile stünde dort
+     * immer 0, und niemand sähe, dass ein verworfener Fall trotzdem als
+     * gesichtet zählt. Der Grund ist Pflicht (RAD-07, `av_verworfen_begruendet`).
+     * Kein eingereichter und kein gewonnener Fall: eingereicht wird von Hand
+     * auf der Vergabeplattform (D-07), und ein Seed, der das behauptete,
+     * erzählte eine Abgabe, die es nie gab.
+     */
+    const [zweite] = await sql<{ id: string }[]>`
+      select a.id from ausschreibung a
+       where not exists (select 1 from ausschreibung_vorgang v
+                          where v.ausschreibung_id = a.id and v.mandant_id = ${mandantId})
+       order by a.erstellt_am desc limit 1`;
+    if (zweite !== undefined) {
+      const verworfen = await sql`
+        insert into ausschreibung_vorgang
+          (mandant_id, ausschreibung_id, status, verworfen_grund, plattform_pruefung,
+           erstellt_von_art, erstellt_am, status_geaendert_am)
+        values (${mandantId}, ${zweite.id}, 'verworfen'::ausschreibung_status,
+                'Demodaten: Leistungsumfang passt nicht zu dieser Gesellschaft.',
+                'unbekannt'::plattform_pruefung, 'system',
+                now() - make_interval(days => 14), now() - make_interval(days => 14))`;
+      vorgaenge += verworfen.count;
+    }
   }
 
   /*

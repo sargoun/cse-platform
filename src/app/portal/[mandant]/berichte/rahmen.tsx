@@ -40,7 +40,7 @@ export const BERICHTE = [
   { schluessel: 'projekte', titel: 'Projekte', spec: 'REP-05',
     beschreibung: 'Status, Marge, Termintreue' },
   { schluessel: 'pipeline', titel: 'Vergabepipeline', spec: 'REP-06',
-    beschreibung: 'Gefunden · gesichtet · eingereicht · Zuschlag' },
+    beschreibung: 'Gefunden · gesichtet · geboten · gewonnen' },
 ] as const;
 
 export type BerichtSchluessel = (typeof BERICHTE)[number]['schluessel'];
