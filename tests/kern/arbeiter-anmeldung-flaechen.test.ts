@@ -19,7 +19,12 @@ import { FormField } from '../../src/components/ui/FormField.js';
 import { AuthSchale } from '../../src/app/auth/AuthSchale.js';
 import { ANMELDUNG_TEXTE } from '../../src/lib/i18n/vor-anmeldung.js';
 
-void React;
+/*
+ * Die Bauteile werden ohne den JSX-Wandler von Next übersetzt — sie erwarten
+ * `React` im Geltungsbereich (wie in `formular-rueckwege.test.ts`). Nur für
+ * das Rendern in diesem Test.
+ */
+(globalThis as { React?: typeof React }).React = React;
 const WURZEL = resolve(import.meta.dirname, '../..');
 const quelle = (pfad: string): string => readFileSync(join(WURZEL, pfad), 'utf8');
 
