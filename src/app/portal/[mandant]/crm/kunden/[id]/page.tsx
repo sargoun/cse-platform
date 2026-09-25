@@ -461,7 +461,7 @@ export default async function KundeDetail(
         <h2 id="objekte" className="text-h2 text-text">Objekte</h2>
         {!darfObjekt ? (
           <p data-cse="objekte-verdeckt" className="text-sm text-text-muted">
-            Die Objekte dieses Kunden sind Ihnen nicht sichtbar — dafür fehlt
+            Die Objekte dieses Kunden sind Ihnen nicht sichtbar — dafür fehlt{' '}
             <Recht schluessel="objekt.lesen" />. Das heißt nicht,
             dass es keine gibt.
           </p>
@@ -488,7 +488,7 @@ export default async function KundeDetail(
         <h2 id="auftraege" className="text-h2 text-text">Aufträge</h2>
         {!darfAuftrag ? (
           <p data-cse="auftraege-verdeckt" className="text-sm text-text-muted">
-            Die Aufträge dieses Kunden sind Ihnen nicht sichtbar — dafür fehlt
+            Die Aufträge dieses Kunden sind Ihnen nicht sichtbar — dafür fehlt{' '}
             <Recht schluessel="auftrag.lesen" />. Das heißt nicht,
             dass es keine gibt.
           </p>
