@@ -19013,3 +19013,37 @@ und sagt dazu, wer sie einträgt. Kein Vorgabewert, O-195 bleibt offen.
 
 | Betrifft | V-245, V-015, O-195, AGT-05, `src/app/portal/[mandant]/agenten/budget/page.tsx`, `src/lib/i18n/verwaltung/agent-budget.ts`, `tests/e2e/agenten.spec.ts` |
 |---|---|
+
+### D-745 · Ein Verweis in die Gruppensicht fragt, was ihr Tor fragt — Rechte aus dem Manifest, im aktiven Mandanten (V-253)
+
+**Der Befund** (V-253; Prüfung von V-243): Die Bedingung, unter der
+`/buchhaltung/monatszahlen` auf `/portal/gruppe/finanzen` verweist (D-737),
+stand als zwei Abfragen und ein fest geschriebener Rechteschlüssel in der
+Seite — und hatte keinen eigenen Test. Weder „ohne Recht fehlt der Satz"
+noch „mit Recht und Gruppenzugang steht er" war geprüft; den ersten Fall fing
+nur der Verweislauf der Browsersuite indirekt ab, den zweiten nichts. Ein
+Satz, der künftig für jede Rolle verschwände, fiele keinem Test auf.
+
+**Die Entscheidung.**
+
+1. **Eine Stelle:** `gruppenverweisOffen(kontext, ziel)`
+   (`src/server/services/gruppe/verweis.ts`) beantwortet, ob eine Seite einer
+   Gesellschaft auf eine Seite der Gruppensicht verweisen darf. Sie stellt
+   dieselben Fragen wie das Ziel, wenn es aus einer Mandantensitzung
+   aufgerufen wird: die Leserechte der Zielroute im AKTIVEN Mandanten (so
+   fragt `pruefeZugang`), den zweiten Faktor, wenn die Route ihn verlangt,
+   und `app.darf_gruppenansicht()` (sonst antwortet `gruppenTor` mit 404).
+2. **Die Rechte kommen aus dem Manifest**, nicht aus der Seite: ändert es
+   den Schlüssel der Zielroute, folgt der Verweis. Eine Adresse, die keine
+   Gruppenroute ist oder die das Manifest nicht kennt, bekommt nie einen
+   Verweis — lieber keiner als einer auf 404.
+3. **Geprüft:** `tests/isolation/gruppenverweis.test.ts` — ein Fall mit allen
+   Bedingungen (ja), je einer ohne das Recht bei offener Gruppenansicht, mit
+   dem Recht nur in einem anderen Bereich und ohne Gruppenansicht (nein), ein
+   Ziel mit zwei Leserechten, keine und eine unbekannte Gruppenroute;
+   `tests/e2e/buchhaltung.spec.ts`: die Administration der Reinigung sieht
+   den Satz nicht, die Plattformverwaltung sieht ihn, und sein Ziel
+   antwortet mit 200.
+
+| Betrifft | V-243, V-253, D-581, D-737, AUT-06, `src/server/services/gruppe/verweis.ts`, `src/app/portal/[mandant]/buchhaltung/monatszahlen/page.tsx`, `tests/isolation/gruppenverweis.test.ts`, `tests/e2e/buchhaltung.spec.ts` |
+|---|---|

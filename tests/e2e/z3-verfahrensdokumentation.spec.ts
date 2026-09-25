@@ -37,7 +37,13 @@ test.describe('Z3-Export und Verfahrensdokumentation (PR 66)', () => {
     // 16 Tabellen: seit V-215 gehoeren die Betriebsausgaben und ihre Steuerzeilen
     // dazu (ausgaben, ausgabensteuer) — vorher standen nur ihre Buchungen im Paket.
     await expect(page.locator('[data-cse="tabelle"] tbody tr')).toHaveCount(16);
-    await expect(page.locator('[data-cse="tabelle"]')).toContainText('ausgaben');
+    // Beide Dateien mit ihrem GENAUEN Namen (V-253): ein Teiltreffer auf „ausgaben"
+    // waere schon von „ausgabensteuer.csv" allein erfuellt.
+    const zeilen = page.locator('[data-cse="tabelle"] tbody tr');
+    await expect(zeilen.filter({ has: page.getByText('ausgaben.csv', { exact: true }) }))
+      .toHaveCount(1);
+    await expect(zeilen.filter({ has: page.getByText('ausgabensteuer.csv', { exact: true }) }))
+      .toHaveCount(1);
 
     const sha = await page.locator('[data-cse="z3-sha256"]').getAttribute('title');
     expect(sha).toMatch(/^[0-9a-f]{64}$/u);

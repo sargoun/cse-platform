@@ -1568,6 +1568,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'bericht', pfad: 'gruppe/radar', schreibend: false },
   { modul: 'bericht', pfad: 'gruppe/kalender', schreibend: false },
+  /*
+   * V-253, D-745: ob eine Seite einer Gesellschaft auf eine Gruppenseite
+   * verweisen darf — dieselben zwei Fragen wie das Tor des Ziels, nur
+   * Prädikate, kein Schreibweg.
+   */
+  { modul: 'bericht', pfad: 'gruppe/verweis', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/diff-json', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/json', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/laden', schreibend: false },
