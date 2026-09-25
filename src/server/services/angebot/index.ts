@@ -19,6 +19,7 @@
 import { vergebeNummer, type Abfrage as NummernAbfrage }
   from '../finanz/nummernkreis.js';
 import { formatiereGeld } from '../finanz/geld.js';
+import { lebendeLeistungenZahl } from './lebend.js';
 import { formatiereMenge, mengeNachPostgres, type MilliMenge } from '../finanz/menge.js';
 import { alsStundenText, stundenNachPostgres } from '../kalkulation/richtzeit.js';
 import type { Frequenz, Tarif } from '../kalkulation/tarif.js';
@@ -317,8 +318,7 @@ export async function gibPreisFrei(
     positionen: string; offen: boolean;
   }>(
     `select a.status, a.freigegeben_am, a.netto_cent::text as netto_cent,
-            (select count(*) from angebotsposition p
-              where p.angebot_id = a.id and p.typ = 'leistung')::text as positionen,
+            ${lebendeLeistungenZahl('a')}::text as positionen,
             exists (select 1 from kalkulation_platzhalter kp where kp.angebot_id = a.id)
               as offen
        from angebot a where a.id = $1 for update`,
@@ -410,8 +410,7 @@ export async function versendeAngebot(
     status: string; positionen: string; freigegeben_am: Date | null;
   }>(
     `select a.status, a.freigegeben_am,
-            (select count(*) from angebotsposition p
-              where p.angebot_id = a.id and p.typ = 'leistung')::text as positionen
+            ${lebendeLeistungenZahl('a')}::text as positionen
        from angebot a where a.id = $1 for update`,
     [angebotId],
   );

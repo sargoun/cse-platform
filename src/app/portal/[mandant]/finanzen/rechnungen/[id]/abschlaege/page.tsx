@@ -8,6 +8,7 @@ import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld, subtrahiere, type Cent } from '@/server/services/finanz/geld';
+import { prozentText } from '@/server/services/finanz/prozent';
 import {
   AbschlagFehler, abschlaegeZumAuftrag, berechneVerrechnung, jeSteuergruppe,
   offeneAbschlaege, offeneAbschlaegeSatz,
@@ -319,7 +320,7 @@ export default async function Abschlagsblatt(
               { schluessel: 'gruppe', kopf: t.steuersatzgruppe, zelle: (z) => z.gruppe },
               {
                 schluessel: 'satz', kopf: t.satz, numerisch: true,
-                zelle: (z) => `${(z.satzBp / 100).toLocaleString('de-DE')} %`,
+                zelle: (z) => prozentText(z.satzBp),
               },
               {
                 schluessel: 'netto', kopf: t.netto, numerisch: true,
@@ -396,11 +397,11 @@ export default async function Abschlagsblatt(
                 data-cse="abschlaege-einbehalt-auftrag">
               {t.imAuftragHinterlegt}
               {k.auftrag_einbehalt_bp !== null && k.auftrag_einbehalt_cent !== null
-                ? `${(k.auftrag_einbehalt_bp / 100).toLocaleString('de-DE')} % `
+                ? `${prozentText(k.auftrag_einbehalt_bp)} `
                   + `${t.bzw} ${formatiereGeld(cent(BigInt(k.auftrag_einbehalt_cent)))}`
                 : k.auftrag_einbehalt_bp === null
                   ? formatiereGeld(cent(BigInt(k.auftrag_einbehalt_cent ?? '0')))
-                  : `${(k.auftrag_einbehalt_bp / 100).toLocaleString('de-DE')} %`}
+                  : prozentText(k.auftrag_einbehalt_bp)}
               {t.nichtsAbgezogenSolangeOffen}
               {k.auftrag_einbehalt_bp !== null && k.auftrag_einbehalt_cent !== null ? (
                 <span className="mt-s1 block text-warning">

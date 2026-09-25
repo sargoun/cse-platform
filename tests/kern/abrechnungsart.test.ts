@@ -26,9 +26,15 @@ import {
   type Abrechnungsart,
 } from '../../src/server/services/finanz/abrechnungsart/index.js';
 import {
-  alsTag, monateDerPeriode, pruefeParameter, tageImMonat, zerlegeTag,
-  type VertragAbrechnung,
+  alsTag, belegBenannt, monateDerPeriode, pruefeParameter, tageImMonat, ueberschneidet,
+  zerlegeTag, type BisherigerAnspruch, type VertragAbrechnung,
 } from '../../src/server/services/finanz/abrechnungsart/typen.js';
+import { MONATSPAUSCHALE } from '../../src/server/services/finanz/abrechnungsart/monatspauschale.js';
+import {
+  FESTPREIS_LOS, anteiligerRest,
+} from '../../src/server/services/finanz/abrechnungsart/festpreis-los.js';
+import { cent } from '../../src/server/services/finanz/geld.js';
+import type { Abfrage } from '../../src/server/services/finanz/rechnung.js';
 
 function konfiguration(
   art: string, parameter: Record<string, unknown> = {},
@@ -191,5 +197,92 @@ describe('ein fehlender Parameter blockiert, bevor gerechnet wird', () => {
     const treffer = befunde.find((b) => b.feld === 'leistungszeitraum_modus');
     expect(treffer?.art).toBe('fehler');
     expect(treffer?.offeneFrage).toBe('O-54');
+  });
+});
+
+/*
+ * V-207 (D-700): dieselbe Vereinbarung auf zwei Belegen. Die Beträge gegen
+ * Postgres prüft `tests/isolation/rechnung-entwurf.test.ts` §7; hier steht,
+ * was ohne Datenbank entschieden wird.
+ */
+describe('ein Anspruch aus der Vereinbarung wird einmal berechnet (V-207)', () => {
+  const anspruch = (
+    von: string | null, bis: string | null, netto = 0n, nummer: string | null = 'RE-00007',
+  ): BisherigerAnspruch => ({
+    rechnungId: '00000000-0000-0000-0000-00000000000a', nummer, angelegtAm: '2026-09-01',
+    leistungVon: von, leistungBis: bis, nettoCent: cent(netto),
+  });
+  const ohneDb = {} as Abfrage;
+
+  it('überschneiden heisst: mindestens ein gemeinsamer Tag, beide Grenzen einschließlich', () => {
+    const august = { von: '2026-08-01', bis: '2026-08-31' };
+    expect(ueberschneidet(anspruch('2026-08-31', '2026-09-30'), august)).toBe(true);
+    expect(ueberschneidet(anspruch('2026-07-01', '2026-08-01'), august)).toBe(true);
+    expect(ueberschneidet(anspruch('2026-09-01', '2026-09-30'), august)).toBe(false);
+    /* Ohne Zeitraum weiss niemand, welche Tage er deckt — er gilt als überall. */
+    expect(ueberschneidet(anspruch(null, null), august)).toBe(true);
+  });
+
+  it('der Beleg wird beim Namen genannt — mit Nummer oder als Entwurf mit Tag', () => {
+    expect(belegBenannt(anspruch(null, null))).toBe('Rechnung RE-00007');
+    expect(belegBenannt(anspruch(null, null, 0n, null))).toBe('einem Entwurf vom 01.09.2026');
+  });
+
+  it('nur die Arten mit eigenem Beleg verzichten auf die Liste', () => {
+    const ohneListe = alleAbrechnungsarten()
+      .filter((a) => a.sperrtUeberBeleg === true).map((a) => a.schluessel).sort();
+    expect(ohneListe).toEqual(['einheitspreis_aufmass', 'einzelabruf', 'stundenbasiert']);
+  });
+
+  it('Monatspauschale: ein schon berechneter Monat blockiert — mit Nummer und Tagen', async () => {
+    const k = { ...konfiguration('monatspauschale', { teilmonat: 'keine' }),
+      pauschaleNettoCent: cent(240_000n) };
+    const befunde = await MONATSPAUSCHALE.pruefe(ohneDb, {
+      konfiguration: k, periode: { von: '2026-07-01', bis: '2026-09-30' },
+      bisher: [anspruch('2026-08-01', '2026-08-31', 240_000n)],
+    });
+    const fehler = befunde.filter((b) => b.art === 'fehler');
+    expect(fehler).toHaveLength(1);
+    expect(fehler[0]!.textDe).toMatch(/August 2026 \(01\.08\.2026 bis 31\.08\.2026\).*RE-00007/u);
+  });
+
+  it('„teilmonat = keine": ein halber Monat beansprucht den ganzen', async () => {
+    const k = { ...konfiguration('monatspauschale', { teilmonat: 'keine' }),
+      pauschaleNettoCent: cent(240_000n) };
+    const befunde = await MONATSPAUSCHALE.pruefe(ohneDb, {
+      konfiguration: k, periode: { von: '2026-10-16', bis: '2026-10-31' },
+      bisher: [anspruch('2026-10-01', '2026-10-15', 240_000n)],
+    });
+    expect(befunde.some((b) => b.art === 'fehler')).toBe(true);
+
+    const anteilig = { ...k, parameter: { teilmonat: 'kalendertage' } };
+    const frei = await MONATSPAUSCHALE.pruefe(ohneDb, {
+      konfiguration: anteilig, periode: { von: '2026-10-16', bis: '2026-10-31' },
+      bisher: [anspruch('2026-10-01', '2026-10-15', 116_129n)],
+    });
+    expect(frei.filter((b) => b.art === 'fehler')).toEqual([]);
+  });
+
+  it('Festpreis anteilig: der Grad ist der Gesamtstand — EINE Rundung über den Stand', () => {
+    const festpreis = cent(1_000_001n);
+    const erste = anteiligerRest(festpreis, 3333, cent(0n));
+    const zweite = anteiligerRest(festpreis, 6667, erste);
+    const dritte = anteiligerRest(festpreis, 10_000, cent(erste + zweite));
+    /* In der Summe genau der Festpreis — kein Cent aus drei Rundungen. */
+    expect(erste + zweite + dritte).toBe(1_000_001n);
+    /* Ein Stand unter dem schon Berechneten ergibt nichts Neues. */
+    expect(anteiligerRest(festpreis, 5000, cent(erste + zweite))).toBeLessThan(0n);
+  });
+
+  it('Festpreis anteilig: kein Zuwachs ist ein Befund mit O-932, keine Zeile über null', async () => {
+    const k = { ...konfiguration('festpreis_los', { teilleistung: 'anteilig' }),
+      festpreisNettoCent: cent(1_000_000n) };
+    const befunde = await FESTPREIS_LOS.pruefe(ohneDb, {
+      konfiguration: k, periode: { von: '2026-08-01', bis: '2026-08-31' },
+      fertigstellungBp: 6000, bisher: [anspruch('2026-07-01', '2026-07-31', 600_000n)],
+    });
+    const fehler = befunde.find((b) => b.feld === 'fertigstellung_bp');
+    expect(fehler?.offeneFrage).toBe('O-932');
+    expect(fehler?.textDe).toMatch(/Gesamtstand/u);
   });
 });

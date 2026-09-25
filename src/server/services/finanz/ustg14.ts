@@ -355,6 +355,13 @@ const beleg = (e: PruefEingabe): string =>
   `/portal/${e.mandantSlug}/finanzen/rechnungen/${e.rechnungId}`;
 const kreise = (e: PruefEingabe): string =>
   `/portal/${e.mandantSlug}/finanzen/nummernkreise`;
+/**
+ * Der Kopf des Entwurfs auf dem Rechnungsblatt (V-204, D-697). Bis dahin
+ * verwiesen Leistungszeitraum und Zahlungsziel auf ein Blatt, das beides nur
+ * ANZEIGTE — der Verweis fuehrte an die Stelle, an der man es nicht aendern
+ * konnte.
+ */
+const kopf = (e: PruefEingabe): string => `${beleg(e)}#kopf`;
 
 /**
  * **Die Liste, die die Abnahme meint** — ein Eintrag je §14-Abs.-4-Feld, in
@@ -523,7 +530,7 @@ export const REGELN: readonly Regel[] = [
     regel: '§14 Abs. 4 Nr. 6 UStG',
     stufe: 'fehler',
     kleinbetragEntfaellt: false,
-    link: beleg,
+    link: kopf,
     pruefe: (e) => {
       if (e.rechnungsart === 'abschlag' || e.rechnungsart === 'anzahlung') return leer;
       return istLeer(e.leistungVon) || istLeer(e.leistungBis)
@@ -545,7 +552,7 @@ export const REGELN: readonly Regel[] = [
     regel: '§14 Abs. 4 Nr. 6 UStG',
     stufe: 'fehler',
     kleinbetragEntfaellt: false,
-    link: beleg,
+    link: kopf,
     pruefe: (e) => {
       if (e.rechnungsart !== 'abschlag' && e.rechnungsart !== 'anzahlung') return leer;
       const hatZeitraum = !istLeer(e.leistungVon) && !istLeer(e.leistungBis);
@@ -661,11 +668,12 @@ export const REGELN: readonly Regel[] = [
     regel: '§4.2, O-66',
     stufe: 'fehler',
     kleinbetragEntfaellt: false,
-    link: kunde,
+    link: kopf,
     pruefe: (e) => e.zahlungszielTage === null
       ? ['Es ist kein Zahlungsziel hinterlegt. Ohne Fälligkeit geht kein Beleg '
-        + 'hinaus; zu setzen am Kunden oder in der Einstellung '
-        + '„finanzen.zahlungsziel_tage_standard" (O-66).']
+        + 'hinaus; zu setzen im Kopf dieses Entwurfs. Bleibt das Feld dort leer, '
+        + 'gilt die Kondition des Kunden oder die Vorgabe der Gesellschaft für das '
+        + 'Zahlungsziel (O-66).']
       : leer,
   },
   {

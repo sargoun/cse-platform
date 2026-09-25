@@ -19,6 +19,8 @@ import {
   type AbrufAuswahl, type AbrufZeile, type KatalogAusschnitt, type SonderleistungStatus,
 } from '@/server/services/reinigung/sonderleistung';
 import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { RECHNUNG_ENTWURF_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-entwurf';
 
 /**
  * `/portal/[mandant]/reinigung/sonderleistungen` — Glas, Sonderreinigung,
@@ -94,6 +96,8 @@ export default async function Sonderleistungen(
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
   const { sitzung } = zugang;
+  /* V-209: der Weg auf die Rechnung in der Sprache der Seite. */
+  const weg = nachSprache(RECHNUNG_ENTWURF_TEXTE, zugang.sprache);
 
   /* AUT-06: der Leistungsnachweis dahinter verlangt `nachweis.lesen`, das
      Pflegen der Abrufe `reinigung.schreiben`, das der Katalogzeilen
@@ -169,6 +173,15 @@ export default async function Sonderleistungen(
         die <strong className="text-text">Katalogzeilen</strong> mit ihren
         Zeitwerten, unten die <strong className="text-text">einzelnen Abrufe</strong>
         {' '}je Objekt.
+      </p>
+      {/*
+        * V-206: der Weg auf die Rechnung. Bis dahin hatte die Übernahme in
+        * `einzelabruf.ts` keinen Aufrufer — die Seite versprach eine
+        * Abrechenbarkeit, die keine Maske einlöste.
+        */}
+      <p className="mb-s5 max-w-prose text-sm text-text-muted" data-cse="abruf-rechnungsweg">
+        {weg.wegAbrufVor}<strong className="text-text">{weg.wegAbrufErbracht}</strong>
+        {weg.wegAbrufNach}
       </p>
 
       {meldung !== null && (

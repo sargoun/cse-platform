@@ -9,6 +9,7 @@ import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
+import { prozentText } from '@/server/services/finanz/prozent';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
@@ -432,7 +433,7 @@ export default async function AngebotDetail(
             schluessel: 'steuer',
             kopf: 'USt.',
             numerisch: true,
-            zelle: (z) => `${(z.steuersatz_bp / 100).toLocaleString('de-DE')} %`,
+            zelle: (z) => prozentText(z.steuersatz_bp),
           },
           /*
            * **Die Bearbeiten-Spalte gibt es nur am ENTWURF** (V-130, D-626).
@@ -527,7 +528,7 @@ export default async function AngebotDetail(
         {steuer.map((z) => (
           <div key={z.steuersatz_bp} className="contents">
             <dt className="text-sm text-text-muted">
-              {`Umsatzsteuer ${(z.steuersatz_bp / 100).toLocaleString('de-DE')} %`}
+              {`Umsatzsteuer ${prozentText(z.steuersatz_bp)}`}
             </dt>
             <dd className="m-0 cse-zahl text-sm text-text">
               {formatiereGeld(cent(BigInt(z.steuer_cent)))}

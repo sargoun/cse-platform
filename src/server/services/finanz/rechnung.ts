@@ -68,7 +68,23 @@ export class RechnungFehler extends Error {
       | 'basismenge_ungueltig'
       | 'kopf_nicht_uebernehmbar'
       | 'leistungszeitpunkt_fehlt'
-      | 'quelle_passt_nicht',
+      | 'quelle_passt_nicht'
+      /*
+       * V-204/V-205 (D-697, D-698): die Zuordnung und der Kopf eines
+       * Entwurfs. Jeder Grund ist ein eigener Satz auf der Maske — ein
+       * gemeinsames „abgewiesen" schickte niemanden an die richtige Stelle.
+       */
+      | 'auftrag_passt_nicht'
+      | 'rechnungsart_unbekannt'
+      | 'zeitraum_verkehrt'
+      | 'zuordnung_gebunden'
+      /*
+       * V-209 (D-702): Zeilen aus der Abrechnungsart tragen den Zeitraum,
+       * für den sie übernommen wurden — der Kopf verlässt ihn nicht.
+       */
+      | 'zeitraum_gebunden'
+      /* V-209 (D-702): ein Leistungsort, den dieser Mensch nicht sieht. */
+      | 'objekt_passt_nicht',
   ) {
     super(nachricht);
     this.name = 'RechnungFehler';
@@ -91,13 +107,41 @@ export const REGELWERK_VERSION = USTG14_REGELWERK_VERSION;
 // Entwurf anlegen und bestuecken
 // ---------------------------------------------------------------------------
 
+/**
+ * Die Rechnungsarten, die ein ENTWURF tragen kann (FIN-08).
+ *
+ * `storno` fehlt mit Absicht: eine Stornorechnung entsteht nur aus
+ * `storniere()` als Spiegel eines festgeschriebenen Belegs (Invariante 4) und
+ * nie aus einer Maske. Die Liste steht hier einmal — Route, Maske und Dienst
+ * lesen sie, und keiner führt eine eigene.
+ */
+export const ENTWURF_RECHNUNGSARTEN = ['standard', 'abschlag', 'anzahlung', 'schluss'] as const;
+export type EntwurfRechnungsart = (typeof ENTWURF_RECHNUNGSARTEN)[number];
+
+export function istEntwurfRechnungsart(wert: string): wert is EntwurfRechnungsart {
+  return (ENTWURF_RECHNUNGSARTEN as readonly string[]).includes(wert);
+}
+
+/** Eine Vorauszahlungsrechnung darf statt des Zeitraums die Vereinnahmung nennen. */
+export function istVorauszahlung(art: string): boolean {
+  return art === 'abschlag' || art === 'anzahlung';
+}
+
 export interface EntwurfAnlegen {
   readonly kundeId: string;
   readonly objektId?: string | null;
   readonly auftragId?: string | null;
-  readonly rechnungsart?: 'standard' | 'abschlag' | 'anzahlung' | 'schluss';
+  readonly rechnungsart?: EntwurfRechnungsart;
   readonly leistungVon?: string | null;
   readonly leistungBis?: string | null;
+  /**
+   * §14 Abs. 4 Nr. 6 UStG, zweite Alternative: bei einer Abschlags- oder
+   * Anzahlungsrechnung der Zeitpunkt der Vereinnahmung, wenn der
+   * Leistungszeitraum noch nicht feststeht (`rechnung_leistungszeitpunkt`,
+   * 0075). Bis V-205 gab es kein Feld dafür — und damit keine
+   * Vorauszahlungsrechnung ohne Zeitraum.
+   */
+  readonly vereinnahmungGeplantAm?: string | null;
   readonly zahlungszielTage?: number | null;
   /**
    * BT-81, UNTDID 4461 — wie gezahlt wird.
@@ -163,21 +207,135 @@ export async function ermittleZahlungsziel(
   return e?.tage ?? null;
 }
 
+/**
+ * **Ein Auftrag gehört zu DIESEM Kunden, oder er gehört nicht auf den Beleg**
+ * (V-205, D-698).
+ *
+ * Die Fremdschlüssel halten die Mandantengrenze, und die sagt „dieselbe
+ * Gesellschaft", nicht „derselbe Kunde". Ohne diese Prüfung liesse sich eine
+ * Rechnung an Kunde A auf den Auftrag des Kunden B schreiben: die Abschläge
+ * von B würden abgezogen, die Stunden von B abgerechnet, und FIN-18 fragte
+ * nach der Zeiterfassung eines fremden Vertrags.
+ *
+ * Ein stornierter Auftrag wird nie mehr abgerechnet — dieselbe Lesart wie die
+ * Prüfliste `auftrag_ohne_rechnung` in `vorabpruefung.ts`. Einen Auftrag, den
+ * diese Sitzung nicht lesen darf (`auftrag.lesen`), gibt es hier nicht: wer
+ * zuordnet, muss sehen können, was er zuordnet.
+ */
+export async function pruefeAuftragZuordnung(
+  db: Abfrage, kundeId: string, auftragId: string,
+): Promise<void> {
+  const [a] = await db.abfrage<{ kunde_id: string; status: string; auftragsnummer: string }>(
+    `select kunde_id::text as kunde_id, status::text as status, auftragsnummer
+       from auftrag where id = $1::uuid`,
+    [auftragId],
+  );
+  if (a === undefined) {
+    throw new RechnungFehler(
+      'Diesen Auftrag gibt es in dieser Gesellschaft nicht — oder er ist für Sie nicht '
+      + 'sichtbar.',
+      'auftrag_passt_nicht',
+    );
+  }
+  if (a.status === 'storniert') {
+    throw new RechnungFehler(
+      `Auftrag ${a.auftragsnummer} ist storniert und wird nicht mehr abgerechnet.`,
+      'auftrag_passt_nicht',
+    );
+  }
+  if (a.kunde_id !== kundeId) {
+    throw new RechnungFehler(
+      `Auftrag ${a.auftragsnummer} gehört zu einem anderen Kunden als diese Rechnung.`,
+      'auftrag_passt_nicht',
+    );
+  }
+}
+
+/**
+ * // TODO(client, O-933): Darf der Leistungsort einer Rechnung ein Objekt
+ * sein, das einem ANDEREN Kunden zugeordnet ist als dem Rechnungsempfänger
+ * (Hausverwaltung und Eigentümer, Generalunternehmer und Bauherr, eine
+ * Muttergesellschaft, die für die Tochter bezahlt) — oder muss
+ * `objekt.kunde_id` dem Kunden der Rechnung entsprechen?
+ *
+ * Bis zur Antwort weist die Plattform NICHT ab: `offen`. Die Masken ordnen die
+ * Objekte des Kunden zuerst und die übrigen darunter, damit die Wahl
+ * sichtbar ist; geprüft wird nur, ob der Mensch das Objekt sehen darf.
+ */
+export const OBJEKT_KUNDE_REGEL: { readonly art: 'offen'; readonly frage: 'O-933' } = {
+  art: 'offen', frage: 'O-933',
+};
+
+/**
+ * **Ein Leistungsort, den dieser Mensch sehen darf** (V-209, D-702).
+ *
+ * Der Fremdschlüssel prüft nur „dieselbe Gesellschaft" — und er läuft an der
+ * RLS vorbei. Ohne diese Prüfung liesse sich über eine gebastelte Anfrage ein
+ * Objekt auf den Beleg schreiben, das die Auswahl nie angeboten hätte (ein
+ * Objekt unter `objekt.lesen`, das diese Sitzung nicht hält). Dieselbe Regel
+ * wie beim Auftrag (D-698 Nr. 2): wer zuordnet, muss sehen, was er zuordnet.
+ * Ob das Objekt zum Kunden gehören MUSS, ist offen (`OBJEKT_KUNDE_REGEL`).
+ */
+export async function pruefeObjektZuordnung(db: Abfrage, objektId: string): Promise<void> {
+  const [o] = await db.abfrage<{ id: string }>(
+    `select id::text as id from objekt where id = $1::uuid`, [objektId]);
+  if (o === undefined) {
+    throw new RechnungFehler(
+      'Dieses Objekt gibt es in dieser Gesellschaft nicht — oder es ist für Sie nicht '
+      + 'sichtbar.',
+      'objekt_passt_nicht',
+    );
+  }
+}
+
+/** Ein Zeitraum, der vor seinem Beginn endet, ist kein Zeitraum. */
+export function pruefeZeitraum(
+  von: string | null | undefined, bis: string | null | undefined,
+): void {
+  if (von != null && bis != null && bis < von) {
+    throw new RechnungFehler(
+      `Der Leistungszeitraum endet (${bis}) vor seinem Beginn (${von}).`,
+      'zeitraum_verkehrt',
+    );
+  }
+}
+
 export async function legeEntwurfAn(db: Abfrage, eingabe: EntwurfAnlegen): Promise<string> {
+  const art: string = eingabe.rechnungsart ?? 'standard';
+  if (!istEntwurfRechnungsart(art)) {
+    throw new RechnungFehler(
+      `„${art}" ist keine Rechnungsart, die ein Entwurf tragen kann.`,
+      'rechnungsart_unbekannt',
+    );
+  }
+  pruefeZeitraum(eingabe.leistungVon, eingabe.leistungBis);
+  const auftragId = eingabe.auftragId ?? null;
+  if (auftragId !== null) await pruefeAuftragZuordnung(db, eingabe.kundeId, auftragId);
+  /* V-209: ein Leistungsort, den dieser Mensch sehen darf. */
+  const objektId = eingabe.objektId ?? null;
+  if (objektId !== null) await pruefeObjektZuordnung(db, objektId);
   const ziel = eingabe.zahlungszielTage ?? await ermittleZahlungsziel(db, eingabe.kundeId);
 
   const [zeile] = await db.abfrage<{ id: string }>(
     `insert into rechnung (mandant_id, kunde_id, objekt_id, auftrag_id, rechnungsart,
-                           leistung_von, leistung_bis, zahlungsziel_tage,
-                           zahlungsmittel_code, kopftext, fusstext,
+                           leistung_von, leistung_bis, vereinnahmung_geplant_am,
+                           zahlungsziel_tage, zahlungsmittel_code, kopftext, fusstext,
                            erstellt_von_art, erstellt_von)
-     values (app.aktiver_mandant(), $1, $2, $3, coalesce($4,'standard')::rechnungsart,
-             $5::date, $6::date, $7, $8, $9, $10, 'mensch', app.aktueller_benutzer())
+     values (app.aktiver_mandant(), $1, $2, $3, $4::rechnungsart,
+             $5::date, $6::date, $11::date,
+             $7, $8, $9, $10, 'mensch', app.aktueller_benutzer())
      returning id`,
-    [eingabe.kundeId, eingabe.objektId ?? null, eingabe.auftragId ?? null,
-     eingabe.rechnungsart ?? null, eingabe.leistungVon ?? null, eingabe.leistungBis ?? null,
+    [eingabe.kundeId, objektId, auftragId,
+     art, eingabe.leistungVon ?? null, eingabe.leistungBis ?? null,
      ziel, zahlungsmittelCode(eingabe.zahlungsmittelCode),
-     eingabe.kopftext ?? null, eingabe.fusstext ?? null],
+     eingabe.kopftext ?? null, eingabe.fusstext ?? null,
+     /*
+      * Nur eine Vorauszahlungsrechnung traegt den Vereinnahmungstag. Auf jeder
+      * anderen waere er eine Angabe, die §14 Abs. 4 Nr. 6 UStG dort nicht
+      * vorsieht — und die der Stichtag der Steuersatzaufloesung trotzdem
+      * laese (`fuegePositionHinzu`).
+      */
+     istVorauszahlung(art) ? (eingabe.vereinnahmungGeplantAm ?? null) : null],
   );
   if (zeile === undefined) {
     throw new RechnungFehler('Der Entwurf wurde nicht angelegt', 'nicht_gefunden');
@@ -758,6 +916,25 @@ export async function verwerfe(
       'kein_entwurf',
     );
   }
+
+  /**
+   * **Und seine Ansprüche werden frei** (V-207, D-700). Die Verwerfen-Seite
+   * und D-699 sagten es seit jeher — getan hat es bis V-207 nur das Storno:
+   * ein verworfener Entwurf hielt seine Zeiteinträge (`abgerechnet_am`),
+   * seine Abrufe, seine Ausgabe und — seit V-207 — seinen Monat aus der
+   * Pauschale für immer fest, und niemand konnte sie je wieder berechnen.
+   * Die Zeilen bleiben stehen (Invariante 8); `wirksam` fällt, wie 0107 es
+   * für einen verworfenen Beleg ausdrücklich zulässt.
+   *
+   * Dasselbe für die Abschläge, die ein verworfener SCHLUSSRECHNUNGSentwurf
+   * abgezogen hatte: sonst hielte er sie gegen die nächste Schlussrechnung
+   * fest („wird bereits von einer anderen Schlussrechnung abgezogen").
+   */
+  await gibQuellenFrei(db, rechnungId);
+  await db.abfrage(
+    `update abschlagsrechnung_bezug set wirksam = false
+      where schluss_rechnung_id = $1::uuid and wirksam`,
+    [rechnungId]);
 }
 
 // ---------------------------------------------------------------------------

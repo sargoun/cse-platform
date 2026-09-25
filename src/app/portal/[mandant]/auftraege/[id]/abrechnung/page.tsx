@@ -18,6 +18,9 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { RECHNUNG_ENTWURF_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-entwurf';
 
 /**
  * `/portal/[mandant]/auftraege/[id]/abrechnung` — wie DIESER Auftrag
@@ -32,8 +35,13 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * Prüfpfad.
  *
  * **Und jede Art trägt die Marke „provisorisch"** (O-04). Fehlt ein
- * Parameter, steht das an der Zeile — nicht erst in der Fehlermeldung des
- * Abrechnungslaufs, wenn jemand schon eine Rechnung erwartet.
+ * Parameter, steht das an der Zeile — nicht erst in der Vorschau des
+ * Rechnungsentwurfs, wenn jemand schon eine Rechnung erwartet.
+ *
+ * **Wo die Art wirkt** (V-206, D-699): im Rechnungsentwurf dieses Auftrags,
+ * Abschnitt „Nach Abrechnungsart übernehmen". Einen eigenen Abrechnungslauf
+ * gibt es nicht — der Zeitraum ist der Leistungszeitraum des Entwurfs, und
+ * jede Zeile entsteht durch `fuegePositionHinzu` mit Beleg darunter.
  *
  * // TODO(client, O-04): sind dies exakt die fünf Abrechnungsarten?
  * Bezeichnung, Rundung und Satzbasis je Art bestätigen.
@@ -47,6 +55,7 @@ interface Kopf {
   readonly auftragsnummer: string;
   readonly bezeichnung: string;
   readonly kunde: string;
+  readonly status: string;
 }
 
 interface Leistungszeile {
@@ -108,13 +117,13 @@ export default async function AuftragAbrechnung(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
-  const darf = await haeltRechte(sitzung, 'auftrag.lesen');
+  const darf = await haeltRechte(sitzung, 'auftrag.lesen', 'finanzen.schreiben');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
       kopf: (await kontext.abfrage<Kopf>(
-        `select a.auftragsnummer, a.bezeichnung, k.name as kunde
+        `select a.auftragsnummer, a.bezeichnung, k.name as kunde, a.status::text as status
            from auftrag a
            join kunde k on k.mandant_id = a.mandant_id and k.id = a.kunde_id
           where a.id = $1`, [id]))[0] ?? null,
@@ -154,6 +163,27 @@ export default async function AuftragAbrechnung(
         */}
       <h1 className="mb-s2 text-h1 text-text">Abrechnung</h1>
       <p className="mb-s5 text-sm text-text-muted">{daten.kopf.kunde}</p>
+
+      {/*
+        * Der Weg zur Rechnung (V-206): die hier festgelegte Art rechnet im
+        * Rechnungsentwurf dieses Auftrags. Vorher verwies die Seite auf einen
+        * „Abrechnungslauf", den es nicht gab.
+        */}
+      {/*
+        * V-209: in der Sprache der Seite, und nicht bei einem stornierten
+        * Auftrag (D-698 Nr. 1) — die Maske böte ihn ohnehin nicht an.
+        */}
+      {darf['finanzen.schreiben'] === true && daten.kopf.status !== 'storniert' && (
+        <p className="mb-s5 max-w-prose text-sm text-text-muted" data-cse="abrechnung-rechnungsweg">
+          {nachSprache(RECHNUNG_ENTWURF_TEXTE, zugang.sprache).wegAbrechnung}{' '}
+          <Link
+            href={alsRoute(`/portal/${mandant}/finanzen/rechnungen/neu?auftrag=${id}`)}
+            className="underline underline-offset-2"
+          >
+            {nachSprache(RECHNUNG_ENTWURF_TEXTE, zugang.sprache).wegAbrechnungLink}
+          </Link>
+        </p>
+      )}
 
       {fehler === null ? null : (
         <p

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import { lebendeLeistungenZahl } from '@/server/services/angebot/lebend';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
@@ -80,8 +81,7 @@ export default async function Versand(
                 to_char(a.versendet_am at time zone 'Europe/Berlin',
                         'DD.MM.YYYY HH24:MI') as versendet_am,
                 vb.name as versendet_von,
-                (select count(*) from angebotsposition p
-                  where p.angebot_id = a.id and p.typ = 'leistung')::text as positionen,
+                ${lebendeLeistungenZahl('a')}::text as positionen,
                 exists (select 1 from kalkulation_platzhalter kp
                          where kp.angebot_id = a.id) as kalkulation_offen,
                 (select app.hat_recht('kalkulation.lesen', app.aktiver_mandant()))

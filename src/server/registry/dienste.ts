@@ -261,6 +261,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'angebot.schreiben',
   },
   /**
+   * Die lebenden Positionen eines Angebots (V-203, D-696) — nur lesend. Der
+   * Filter auf `entfernt_am` steht hier einmal, und Dokument, Freigabe,
+   * Versand und Kundenportal fragen ihn ab.
+   */
+  { modul: 'angebot', pfad: 'angebot/lebend', schreibend: false },
+  /**
    * Der Tabellenleser liest nur; der Import SCHREIBT — und zwar zweimal
    * verschieden: die Vorschau legt Zwischenzeilen an, die Uebernahme aendert
    * das lebende Raumbuch. Beide tragen dasselbe Recht, weil beide eine Datei
@@ -1183,6 +1189,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'finanzen', pfad: 'finanz/abrechnungsart/einzelabruf', schreibend: false },
   {
     modul: 'finanzen', pfad: 'finanz/abrechnungsart/index',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
+  /**
+   * Der Rechnungsentwurf nach dem Anlegen (V-204 … V-206, D-697 … D-699):
+   * Kopf und Zuordnung, die Übernahme nach Abrechnungsart, Material aus einer
+   * Ausgabe. Er ändert nur ENTWÜRFE — `finanzen.schreiben`, wie das Anlegen;
+   * die Festschreibung bleibt beim engeren Recht in `finanz/rechnung`.
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/entwurf',
     schreibend: true, schreibRecht: 'finanzen.schreiben',
   },
 

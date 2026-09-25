@@ -21,7 +21,9 @@ import { kennungOder404 } from '../../../kennung';
 import { haeltRechte } from '../../../rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
+import { RECHNUNG_ENTWURF_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-entwurf';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import { VorgangAkte } from '@/components/portal/VorgangAkte';
 import {
   AUFGABEN_JE_BLATT, aufgabenAkte, listeAufgaben, zaehleJeZustand, type AufgabenAkte,
@@ -153,7 +155,12 @@ export default async function AuftragDetail(
      * Die Schreibrechte entscheiden über „Aufgabe anlegen" und „Dokument
      * ablegen": deren Ziele verlangen sie (AUT-06).
      */
-    'aufgabe.lesen', 'aufgabe.schreiben', 'dokument.lesen', 'dokument.schreiben');
+    'aufgabe.lesen', 'aufgabe.schreiben', 'dokument.lesen', 'dokument.schreiben',
+    /*
+     * V-205: „Rechnung anlegen" führt auf den neuen Entwurf mit diesem
+     * Auftrag. Die Zielseite öffnet mit `finanzen.schreiben` (Manifest).
+     */
+    'finanzen.schreiben');
 
   /** Die Serveruhr — für die Fristlage der Aufgaben (Invariante 5). */
   const jetzt = new Date();
@@ -359,6 +366,22 @@ export default async function AuftragDetail(
             className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
           >
             Abrechnung
+          </Link>
+        )}
+        {/*
+          * **Rechnung anlegen** (V-205, FIN-08). Bis dahin entstand jede
+          * Rechnung ohne Auftrag — Abschläge, Schlussrechnung, FIN-18 und die
+          * Abrechnungsart waren von hier aus unerreichbar. Die Maske belegt
+          * Kunde und Auftrag vor; die Rechnungsart wählt der Mensch.
+          * Ein stornierter Auftrag wird nicht mehr abgerechnet.
+          */}
+        {darf['finanzen.schreiben'] === true && kopf.status !== 'storniert' && (
+          <Link
+            href={alsRoute(`/portal/${mandant}/finanzen/rechnungen/neu?auftrag=${id}`)}
+            data-cse="rechnung-anlegen"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+          >
+            {nachSprache(RECHNUNG_ENTWURF_TEXTE, zugang.sprache).wegRechnungAnlegen}
           </Link>
         )}
       </nav>

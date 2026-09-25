@@ -779,7 +779,9 @@ describe('Ohne Zahlungsziel geht kein Beleg hinaus (§4.2, O-66)', () => {
      * Aufrufer, der den Dienst uebergeht.
      */
     expect((fehler as Error).message).toMatch(/kein Zahlungsziel hinterlegt/u);
-    expect((fehler as Error).message).toMatch(/zahlungsziel_tage_standard/u);
+    // V-209: die Stelle beim Namen, nicht als Schlüssel `finanzen.zahlungsziel_tage_standard`.
+    expect((fehler as Error).message).toMatch(/Vorgabe der Gesellschaft für das Zahlungsziel/u);
+    expect((fehler as Error).message).not.toMatch(/zahlungsziel_tage_standard/u);
   });
 });
 

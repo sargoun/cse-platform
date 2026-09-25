@@ -23,18 +23,46 @@
  * mit PR 50; diese Strategie rechnet, was in IHREM Zeitraum faellig ist, und
  * behauptet nicht, dass es die Schlussrechnung waere.
  *
+ * **Ein Los wird einmal berechnet — über alle Belege hinweg** (V-207,
+ * D-700). Seine Zeile hat keinen Beleg, den ein Index sperren könnte; was
+ * schon berechnet ist, steht in `eingabe.bisher`:
+ *
+ *   · `erst_bei_abnahme` — steht das Los schon auf einem lebenden Beleg,
+ *     wird es nicht noch einmal berechnet. Auch nicht auf einer Rechnung für
+ *     einen späteren Zeitraum: die Abnahme liegt dann zwar „bis zum Ende des
+ *     Zeitraums", aber sie ist schon abgerechnet.
+ *   · `anteilig` — der eingegebene Grad ist der GESAMTSTAND der
+ *     Fertigstellung. Die Zeile trägt, was dieser Stand über das bisher
+ *     Berechnete hinaus ergibt; in der Summe also nie mehr als der Anteil
+ *     am Festpreis, den der Grad nennt, und nie mehr als der Festpreis.
+ *
+ * Eine SCHLUSSRECHNUNG sieht die festgeschriebenen Abschläge ihres Auftrags
+ * nicht in `bisher`: sie führt die Gesamtleistung und zieht die Abschläge
+ * danach ab (FIN-08) — sonst stünde derselbe Abschlag zweimal gegen den
+ * Kunden.
+ *
  * // TODO(client, O-04): sind dies exakt die fuenf Abrechnungsarten?
  * Bezeichnung, Rundung und Satzbasis je Art bestaetigen. Fuer diese Art
  * konkret: wird Teilfertigstellung anteilig abgerechnet oder erst bei Abnahme?
+ *
+ * // TODO(client, O-932): Ist der Fertigstellungsgrad einer anteiligen
+ * Abrechnung der Gesamtstand (bisher Berechnetes wird abgezogen) oder der
+ * Zuwachs seit der letzten Rechnung? Ausgeliefert ist der Gesamtstand — die
+ * Lesart, bei der eine Verwechslung eine sichtbare Unterberechnung ergibt
+ * und keine stille Doppelberechnung (`anteiligerRest`).
  */
-import { anteilInBasisPunkten, basisPunkte, type Cent } from '../geld.js';
+import {
+  addiere, anteilInBasisPunkten, basisPunkte, cent, formatiereGeld, subtrahiere, type Cent,
+} from '../geld.js';
 import { berechneNetto, type Abfrage } from '../rechnung.js';
 import {
   AbrechnungFehler,
   type AbrechnungsBefund,
   type Abrechnungsart,
+  type BisherigerAnspruch,
   type RechnungspositionEntwurf,
   type VertragAbrechnung,
+  belegBenannt,
   fehler,
   ganzeMenge,
   leistungszeitraum,
@@ -98,6 +126,15 @@ export const FESTPREIS_LOS: Abrechnungsart = {
           + 'ist bis zum Ende des Zeitraums keine Abnahme eingetragen.',
         ));
       }
+      /* V-207 (D-700): der volle Pauschalpreis steht EINMAL auf einem Beleg. */
+      if (eingabe.bisher.length > 0) {
+        befunde.push(fehler(
+          'festpreis_netto_cent',
+          'Der Pauschalpreis dieses Loses ist schon auf '
+          + `${eingabe.bisher.map(belegBenannt).join(', ')} berechnet. Nach Vereinbarung `
+          + '(teilleistung = erst_bei_abnahme) wird er einmal berechnet, nach der Abnahme.',
+        ));
+      }
     }
     if (modus === 'anteilig' && eingabe.fertigstellungBp === undefined) {
       befunde.push(fehler(
@@ -106,6 +143,28 @@ export const FESTPREIS_LOS: Abrechnungsart = {
         + 'nicht geschätzt — die Plattform leitet ihn aus nichts her.',
         'O-04',
       ));
+    }
+    /*
+     * V-207 (D-700): der Grad ist der Gesamtstand. Ergibt er nicht mehr, als
+     * schon berechnet ist, entsteht keine Zeile — und der Befund nennt, was
+     * bisher auf welchem Beleg steht, statt einer Zeile über null Euro.
+     */
+    const grad = eingabe.fertigstellungBp;
+    const festpreis = konfiguration.festpreisNettoCent;
+    if (modus === 'anteilig' && grad !== undefined && festpreis !== null && gradLesbar(grad)) {
+      const bisher = bisherBerechnet(eingabe.bisher);
+      if (anteiligerRest(festpreis, grad, bisher) <= 0n) {
+        befunde.push(fehler(
+          'fertigstellung_bp',
+          `Aus diesem Los sind schon ${formatiereGeld(bisher)} berechnet `
+          + `(${eingabe.bisher.map(belegBenannt).join(', ')}). Ein Fertigstellungsgrad von `
+          + `${prozentText(grad)} ergibt insgesamt `
+          + `${formatiereGeld(anteilInBasisPunkten(festpreis, basisPunkte(grad)))} — es bleibt `
+          + 'nichts Neues abzurechnen. Der Grad ist der Gesamtstand der Fertigstellung, '
+          + 'nicht der Zuwachs seit der letzten Rechnung.',
+          'O-932',
+        ));
+      }
     }
     return befunde;
   },
@@ -142,17 +201,20 @@ export const FESTPREIS_LOS: Abrechnungsart = {
       ? await steuergruppeDesAuftrags(db, konfiguration.auftragId, periode.bis)
       : await steuergruppeDerLeistung(db, konfiguration, periode.bis);
 
+    const bisher = bisherBerechnet(eingabe.bisher);
     const betrag = modus === 'anteilig'
-      ? anteiligerBetrag(festpreis, eingabe.fertigstellungBp)
-      : vollerBetragNachAbnahme(festpreis, auftrag, periode.bis, konfiguration);
+      ? anteiligerBetrag(festpreis, eingabe.fertigstellungBp, bisher)
+      : vollerBetragNachAbnahme(festpreis, auftrag, periode.bis, konfiguration, eingabe.bisher);
 
     const menge = ganzeMenge(1);
     const basis = ganzeMenge(1);
     return [{
       bezeichnung: auftrag.bezeichnung,
       beschreibung: modus === 'anteilig'
-        ? `Teilleistung ${prozentText(eingabe.fertigstellungBp ?? 0)} des vereinbarten `
-          + 'Pauschalpreises — provisorisch (O-04)'
+        ? `Teilleistung: Fertigstellung ${prozentText(eingabe.fertigstellungBp ?? 0)} des `
+          + 'vereinbarten Pauschalpreises'
+          + (bisher === 0n ? '' : `, abzüglich bisher berechneter ${formatiereGeld(bisher)}`)
+          + ' — provisorisch (O-04, O-932)'
         : `Pauschalpreis nach Abnahme vom ${String(auftrag.abnahme_am)} `
           + '— provisorisch (O-04)',
       menge,
@@ -179,30 +241,73 @@ export const FESTPREIS_LOS: Abrechnungsart = {
  * dem Bautagebuch oder aus einem Aufmass zu schaetzen waere eine erfundene
  * Fertigstellung, und sie stuende auf einem unveraenderlichen Beleg.
  */
-function anteiligerBetrag(festpreis: Cent, bp: number | undefined): Cent {
+function anteiligerBetrag(festpreis: Cent, bp: number | undefined, bisher: Cent): Cent {
   if (bp === undefined) {
     throw new AbrechnungFehler(
       'Anteilige Abrechnung verlangt einen Fertigstellungsgrad in Basispunkten.',
       'parameter_offen',
     );
   }
-  if (!Number.isInteger(bp) || bp <= 0 || bp > 10_000) {
+  if (!gradLesbar(bp)) {
     throw new AbrechnungFehler(
       `Der Fertigstellungsgrad ${String(bp)} liegt nicht zwischen 1 und 10000 Basispunkten.`,
       'keine_menge',
     );
   }
-  return anteilInBasisPunkten(festpreis, basisPunkte(bp));
+  const rest = anteiligerRest(festpreis, bp, bisher);
+  if (rest <= 0n) {
+    throw new AbrechnungFehler(
+      `Bisher sind ${formatiereGeld(bisher)} aus diesem Los berechnet; der Fertigstellungsgrad `
+      + `${prozentText(bp)} ergibt nichts darüber hinaus (O-932).`,
+      'nichts_abzurechnen',
+    );
+  }
+  return rest;
+}
+
+/** 1 bis 10000 Basispunkte, ganzzahlig — ein Grad von null ist keine Teilleistung. */
+function gradLesbar(bp: number): boolean {
+  return Number.isInteger(bp) && bp > 0 && bp <= 10_000;
+}
+
+/** Die Summe der bisherigen Zeilen dieses Loses — addiert, nicht gerundet. */
+function bisherBerechnet(bisher: readonly BisherigerAnspruch[]): Cent {
+  return bisher.length === 0 ? cent(0n) : addiere(...bisher.map((a) => a.nettoCent));
+}
+
+/**
+ * **Was der Gesamtstand über das bisher Berechnete hinaus ergibt** (V-207,
+ * D-700, O-932).
+ *
+ * Der Anteil am Festpreis wird EINMAL gerundet — über den ganzen Stand, nicht
+ * je Rechnung. So ergeben 30 % und danach 60 % zusammen genau den Betrag, den
+ * 60 % auf einmal ergäben, und 100 % am Ende genau den Festpreis: keine
+ * Rundungsdifferenz, die sich über fünf Rechnungen zu einem Cent zu viel
+ * aufsummiert.
+ *
+ * Kann null oder negativ sein — dann gibt es nichts Neues abzurechnen, und
+ * der Aufrufer entscheidet, was er daraus macht (Befund oder Fehler).
+ */
+export function anteiligerRest(festpreis: Cent, bp: number, bisher: Cent): Cent {
+  return subtrahiere(anteilInBasisPunkten(festpreis, basisPunkte(bp)), bisher);
 }
 
 function vollerBetragNachAbnahme(
   festpreis: Cent, auftrag: AuftragZeile, bis: string, konfiguration: VertragAbrechnung,
+  bisher: readonly BisherigerAnspruch[],
 ): Cent {
   if (auftrag.abnahme_am === null || auftrag.abnahme_am > bis) {
     throw new AbrechnungFehler(
       `Nach Vereinbarung (teilleistung = erst_bei_abnahme) wird erst nach der Abnahme `
       + `abgerechnet; für Auftrag ${konfiguration.auftragId} ist bis ${bis} keine `
       + 'eingetragen.',
+      'nichts_abzurechnen',
+    );
+  }
+  if (bisher.length > 0) {
+    throw new AbrechnungFehler(
+      `Der Pauschalpreis dieses Loses ist schon auf ${bisher.map(belegBenannt).join(', ')} `
+      + 'berechnet.',
       'nichts_abzurechnen',
     );
   }

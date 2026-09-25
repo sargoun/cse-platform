@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import { prozentText } from '@/server/services/finanz/prozent';
+import { lebendeLeistungenZahl, steuerJeSatzVorVersand } from '@/server/services/angebot/lebend';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
@@ -80,8 +82,7 @@ export default async function Preisfreigabe(
                 fb.name as freigegeben_von,
                 to_char(a.versendet_am at time zone 'Europe/Berlin',
                         'DD.MM.YYYY HH24:MI') as versendet_am,
-                (select count(*) from angebotsposition p
-                  where p.angebot_id = a.id and p.typ = 'leistung')::text as positionen,
+                ${lebendeLeistungenZahl('a')}::text as positionen,
                 k.id as kalkulation_id,
                 k.stundenverrechnungssatz_cent::text as satz_cent,
                 k.gemeinkosten_basis::text as gemeinkosten_basis,
@@ -107,14 +108,7 @@ export default async function Preisfreigabe(
            left join kalkulation_platzhalter kp on kp.angebot_id = a.id
           where a.id = $1`, [id]);
       if (kopf === undefined) return null;
-      const steuer = await kontext.abfrage<SteuerZeile>(
-        `select steuersatz_bp, steuer_kennzeichen::text as steuer_kennzeichen,
-                sum(gesamtpreis_cent)::text as netto_cent,
-                count(*)::text as zeilen
-           from angebotsposition
-          where angebot_id = $1 and typ = 'leistung'
-          group by steuersatz_bp, steuer_kennzeichen
-          order by steuersatz_bp`, [id]);
+      const steuer: readonly SteuerZeile[] = await steuerJeSatzVorVersand(kontext, id);
       return { kopf, steuer };
     })) as Promise<{ kopf: Kopf; steuer: readonly SteuerZeile[] } | null>);
 
@@ -220,7 +214,7 @@ export default async function Preisfreigabe(
           spalten={[
             {
               schluessel: 'satz', kopf: 'Steuersatz', numerisch: true,
-              zelle: (z) => `${(z.steuersatz_bp / 100).toLocaleString('de-DE')} %`,
+              zelle: (z) => prozentText(z.steuersatz_bp),
             },
             {
               schluessel: 'kz', kopf: 'Kennzeichen',
