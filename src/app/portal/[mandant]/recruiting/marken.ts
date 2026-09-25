@@ -33,7 +33,6 @@ export const GESPRAECH_MARKE: Readonly<Record<string, PillZustand>> = {
   geplant: 'Geplant',
   stattgefunden: 'Abgeschlossen',
   abgesagt: 'Abgelehnt',
-  verschoben: 'Wartet',
 };
 
 /**
@@ -65,5 +64,18 @@ export function berlinZeit(wert: Date): string {
 export function berlinDatum(wert: Date): string {
   return new Intl.DateTimeFormat('de-DE', {
     dateStyle: 'medium', timeZone: 'Europe/Berlin',
+  }).format(wert);
+}
+
+/**
+ * Dasselbe wie `berlinZeit`, in der Sprache der Sitzung (V-220): deutsch wie
+ * bisher, englisch britisch — und die Zone steht in beiden dabei (MEZ/MESZ
+ * bzw. CET/CEST), aus demselben Grund wie oben.
+ */
+export function berlinZeitIn(wert: Date, sprache: string | null | undefined): string {
+  return new Intl.DateTimeFormat(sprache === 'en' ? 'en-GB' : 'de-DE', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+    timeZone: 'Europe/Berlin', timeZoneName: 'short',
   }).format(wert);
 }

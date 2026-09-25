@@ -19724,3 +19724,54 @@ Fassungen (Invariante 8: es gibt keine).
 
 | Betrifft | DOC-05, DOC-06, ACC-03, O-937, O-364, Invariante 4, Invariante 8, V-131, V-219, `drizzle/0470_dokument_fassungskette.sql`, `src/server/services/dokument/{ablage,upload,kategorie}.ts`, `src/app/api/dokumente/[id]/{version,datei}/route.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `src/server/db/seed/dokument-pflege.ts`, `tests/isolation/dokument-fassung.test.ts`, `tests/kern/dokument-fassung.test.ts` |
 |---|---|
+
+### D-714 · Ein Gespräch wird abgesagt, verschoben oder als geführt vermerkt — als Zustand mit Protokoll, nie als Löschung (V-220)
+
+**Der Befund** (V-220; Audit-Befund 53, REC-06 mit CAL-01): ein
+Bewerbungsgespräch liess sich anlegen und erschien im Kalender. Danach war es
+fest — `gespraech.status` blieb immer `geplant`; `stattgefunden` und
+`abgesagt` hatten keinen Erzeuger, obwohl Kalender und Gesprächsseite sie
+anzeigen. Ein abgesagter Termin blieb als lebender Termin im Kalender und im
+iCal-Feed stehen.
+
+**Die Entscheidung.**
+
+1. **Drei Übergänge, alle nur aus `geplant`** (`services/recruiting/
+   gespraech.ts`; `POST /api/recruiting/gespraeche/[id]` mit Feld `aktion`):
+   `sageGespraechAb` (Pflichtgrund), `verschiebeGespraech` (neuer Termin und
+   Dauer), `vermerkeGespraech` (als geführt). Jeder sperrt die Zeile und
+   schreibt mit `status = 'geplant'` IM `update` — wer gleichzeitig verliert,
+   bekommt `falscher_status` bzw. `gleichzeitig`, nie stillen Erfolg.
+   Dieselben Rechte wie beim Anlegen: `recruiting.bewerbung_lesen` UND
+   `kalender.schreiben`.
+2. **Die Uhr ist die der Datenbank** (Invariante 5): verschoben wird nur in
+   die Zukunft (`$termin > now()`), als geführt vermerkt nur, was begonnen
+   hat (`termin <= now()`). Die Berliner Wanduhr des Formulars löst
+   `planEingabe` auf (Invariante 2) — in der Nacht der Zeitumstellung gilt die
+   erste 02:30, die Dauer bleibt die Differenz zweier Instants.
+3. **Verschieben ist KEIN eigener Zustand.** Das Enum (0166) kennt keinen,
+   und ein verschobenes Gespräch ist dasselbe Gespräch zu einer anderen Zeit:
+   es bleibt `geplant`, der alte Termin steht im Prüfprotokoll
+   (`recruiting.gespraech_verschoben`, vorher/nachher). Der Typ
+   `GespraechZeile` führte ein `verschoben`, das es in der Datenbank nie gab —
+   gestrichen, samt Marke.
+4. **Absage und Vermerk sind Spalten mit Zeitpunkt und Person** (`0471`:
+   `abgesagt_am/_grund/_von`, `stattgefunden_vermerkt_am/_von`), der Grund
+   ist Pflicht (`gespraech_absage_vollstaendig`), und aus `abgesagt` und
+   `stattgefunden` führt kein Weg zurück; ein entschiedenes Gespräch ändert
+   weder Termin noch Dauer (`kern.gespraech_weg`). Die Notiz bleibt offen.
+   Gelöscht wird nichts (Invariante 8); der Löschlauf der Bewerbung (REC-07)
+   entfernt die Zeile weiterhin als `cse_job`.
+5. **Die Absage bleibt im Kalender stehen** — durchgestrichen, im Abonnement
+   `STATUS:CANCELLED` (`kalender/eintraege.ts`, `ical.ts` werteten das schon
+   aus; jetzt setzt es jemand).
+6. **Nichts geht an die Bewerberin** (Invariante 7). Der Dienst schreibt
+   Zustand und Protokoll; eine Nachricht über Absage oder neuen Termin
+   entsteht als Entwurf auf der Antwortseite der Bewerbung und geht durch die
+   Freigabe. Das Gesprächsblatt sagt das und verweist dorthin (mit deren zwei
+   Rechten, AUT-06).
+7. **Der Seed zeigt alle drei Stände** über die Dienste: ein geplantes, ein
+   abgesagtes (mit Grund) und ein geführtes Gespräch in der Reinigung.
+
+| Betrifft | REC-06, CAL-01, CAL-03, Invariante 2, Invariante 5, Invariante 7, Invariante 8, V-220, `drizzle/0471_gespraech_absage_vermerk.sql`, `src/server/services/recruiting/{gespraech,dienst}.ts`, `src/app/api/recruiting/gespraeche/[id]/route.ts`, `src/app/portal/[mandant]/recruiting/gespraeche/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/marken.ts`, `src/lib/i18n/verwaltung/recruiting-gespraech.ts`, `src/lib/datum/formularzeit.ts`, `src/server/db/seed/gespraech.ts`, `tests/isolation/recruiting-gespraech.test.ts`, `tests/isolation/kalender.test.ts` |
+|---|---|

@@ -93,3 +93,24 @@ export function berlinFormularZeit(roh: unknown): FormularZeit | null {
 export function berlinFormularZeitpunkt(roh: unknown): Date | null {
   return berlinFormularZeit(roh)?.zeitpunkt ?? null;
 }
+
+const BERLIN_TEILE = new Intl.DateTimeFormat('en-GB', {
+  year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Berlin',
+});
+
+/**
+ * Die Gegenrichtung: ein Instant als Wert eines `datetime-local`-Felds —
+ * Berliner Wanduhr, `JJJJ-MM-TTTHH:MM` (V-220, V-221).
+ *
+ * Ein Formular, das einen gespeicherten Termin zum Ändern vorbelegt, braucht
+ * die Wanduhr, die der Mensch damals meinte — nicht die UTC-Zeit, die in der
+ * Spalte steht. Aus Teilen gebaut und nicht aus einer Sprachform: die
+ * Reihenfolge der Teile ist hier Syntax des Felds, nicht Darstellung.
+ */
+export function berlinFormularWert(zeitpunkt: Date): string {
+  const teile = BERLIN_TEILE.formatToParts(zeitpunkt);
+  const teil = (art: Intl.DateTimeFormatPartTypes): string =>
+    teile.find((x) => x.type === art)?.value ?? '';
+  return `${teil('year')}-${teil('month')}-${teil('day')}T${teil('hour')}:${teil('minute')}`;
+}

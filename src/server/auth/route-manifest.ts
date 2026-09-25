@@ -2943,6 +2943,12 @@ export const ROUTEN: readonly RouteEintrag[] = [
    * nicht haelt, sieht es nicht.
    */
   { pfad: 'api/recruiting/gespraeche', recht: 'recruiting.bewerbung_lesen' },
+  /*
+   * Ein Gespräch absagen, verschieben oder als geführt vermerken (REC-06,
+   * V-220, D-714) — dieselbe Schranke wie beim Anlegen; `kalender.schreiben`
+   * prüft die Route dazu (`weitereRechte`).
+   */
+  { pfad: 'api/recruiting/gespraeche/[id]', recht: 'recruiting.bewerbung_lesen' },
   {
     pfad: 'api/recruiting/bewerbungen/[id]/bewertung',
     recht: 'recruiting.bewerbung_bewerten',

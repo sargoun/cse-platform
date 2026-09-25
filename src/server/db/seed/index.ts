@@ -35,6 +35,7 @@ import { seedRechnungen } from './rechnung.js';
 import { seedSocial } from './social.js';
 import { seedReferenzAusAuftrag } from './referenzauftrag.js';
 import { seedRecruiting } from './recruiting.js';
+import { seedGespraeche } from './gespraech.js';
 import { seedAkquise } from './akquise.js';
 import { seedBerichtsdaten } from './berichtsdaten.js';
 import { seedRadar, seedRadarLead } from './radar.js';
@@ -2029,6 +2030,16 @@ async function main(): Promise<void> {
       + `${String(recruiting.bewertungen)} Bewertungskriterien, `
       + `${String(recruiting.antworten)} Antwortentwürfe (KEINER gesendet — `
       + `kein Postausgang verbunden, O-501)\n`);
+
+  /*
+   * Gespräche in allen drei Ständen (V-220, D-714) — NACH den Bewerbungen,
+   * über die Dienste: geplant, abgesagt mit Grund, als geführt vermerkt.
+   */
+  const gespraeche = await seedGespraeche(sql, ids, demodaten);
+  process.stdout.write(
+    `  Gespräche: ${String(gespraeche.geplant)} geplant, ${String(gespraeche.abgesagt)} `
+    + `abgesagt (mit Grund, bleibt im Kalender stehen), ${String(gespraeche.gefuehrt)} als `
+    + 'geführt vermerkt — an die Bewerberin geht nichts ohne Freigabe\n');
 
   /*
    * Die Akquise. Die vier Quellen und der übersprungene Lauf entstehen immer;

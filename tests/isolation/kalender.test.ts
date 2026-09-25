@@ -242,8 +242,15 @@ describe('(2b) ein Bewerbungsgespraech steht im Kalender (CAL-01, REC-06)', () =
   it('ein abgesagtes Gespraech steht als abgesagt da, nicht als geloescht', async () => {
     const wer = await legeKontoAn(f.reinigung, 'admin');
     const gespraechId = await legeGespraechAn(f.reinigung, wer, 'Fatima Nasser');
+    /*
+     * Seit 0471 (V-220) gibt es „abgesagt" nur mit Zeitpunkt und Grund
+     * (`gespraech_absage_vollstaendig`) — der Weg des Dienstes steht in
+     * `recruiting-gespraech.test.ts`; hier zählt nur, was der Kalender zeigt.
+     */
     await sql.unsafe(
-      `update gespraech set status = 'abgesagt'::gespraech_status where id = $1::uuid`,
+      `update gespraech set status = 'abgesagt'::gespraech_status, abgesagt_am = now(),
+              abgesagt_grund = 'Bewerberin hat abgesagt'
+        where id = $1::uuid`,
       [gespraechId]);
 
     const z = await fenster();

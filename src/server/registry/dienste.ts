@@ -1717,6 +1717,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'recruiting', pfad: 'recruiting/antwort', schreibend: true,
     schreibRecht: 'recruiting.bewerbung_bewerten',
   },
+  /*
+   * Ein Gespräch absagen, verschieben, als geführt vermerken (REC-06, V-220,
+   * D-714). Die Route verlangt `recruiting.bewerbung_lesen` UND
+   * `kalender.schreiben`; das Register nennt das schreibende der beiden —
+   * ein Leserecht wäre in der Gruppenansicht erreichbar und bewiese nichts.
+   */
+  {
+    modul: 'recruiting', pfad: 'recruiting/gespraech', schreibend: true,
+    schreibRecht: 'kalender.schreiben',
+  },
   /* =====================================================================
    * **Die Domaenenwelle (Routenbau, 117 offene Adressen).** Fuenfzehn
    * Domaenen, nacheinander gebaut, gepruefet und behoben; die Eintraege lagen
