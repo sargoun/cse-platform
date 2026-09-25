@@ -241,14 +241,16 @@ export default async function MeinWachbuch(
                     </select>
                   </div>
                   <label className="flex min-h-11 items-center gap-s3 text-base text-text">
-                    <input type="checkbox" name="praesenz" value="ja" />
+                    <input type="checkbox" name="praesenz" value="ja"
+                           className="min-h-11 min-w-11 shrink-0" />
                     {t.praesenz}
                   </label>
                 </>
               )}
 
               <label className="flex min-h-11 items-center gap-s3 text-base text-text">
-                <input type="checkbox" name="polizei" value="ja" />
+                <input type="checkbox" name="polizei" value="ja"
+                       className="min-h-11 min-w-11 shrink-0" />
                 {t.polizei}
               </label>
 
@@ -271,7 +273,8 @@ export default async function MeinWachbuch(
                 * am Objekt, nach der Schicht getippt.
                 */}
               <label className="flex min-h-11 items-start gap-s3 text-base text-text">
-                <input type="checkbox" name="nachgetragen" value="1" className="mt-s1"
+                <input type="checkbox" name="nachgetragen" value="1"
+                       className="min-h-11 min-w-11 shrink-0"
                        data-cse="wachbuch-nachgetragen" />
                 <span>
                   {t.nachgetragen}

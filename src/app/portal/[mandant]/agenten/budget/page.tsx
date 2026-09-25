@@ -7,6 +7,7 @@ import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { formatiereGeld, cent } from '@/server/services/finanz/geld';
 import { mikrocentNachCent } from '@/server/agent/kosten';
+import { warnschwelleOffen } from '@/server/agent/budget';
 import { monatsName } from '@/lib/datum/kalendertag';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
@@ -263,7 +264,7 @@ export default async function AgentBudget(
                     : <span className="text-xs text-warning">ohne Hartstopp</span>}
                   {b.warnschwelle_prozent === null ? null : (
                     <span className="text-xs text-text-muted" data-cse="budget-warnung-ab">
-                      {t.warnungAb} {String(b.warnschwelle_prozent)} %
+                      {t.warnungAb(b.warnschwelle_prozent)}
                     </span>
                   )}
                 </span>
@@ -280,13 +281,18 @@ export default async function AgentBudget(
         setzen — der Satz fiel dabei ersatzlos weg, und die Seite schwieg
         über eine Schwelle, die sie gar nicht zeigte. Jetzt: eine gesetzte
         Schwelle steht in ihrer Zeile, und solange eine gezeigte Zeile keine
-        hat (oder es keine Zeile gibt), steht der Satz wieder da.
+        hat (oder es keine Zeile gibt), steht der Satz wieder da. Die
+        Bedingung steht als `warnschwelleOffen` im Budgetdienst und ist dort in
+        beiden Zweigen geprüft (V-254) — hier stand sie als Ausdruck, dessen
+        zweiter Zweig nie lief. Erklärender Text in `text-text-muted`, nicht
+        `text-subtle`: DESIGN §9 hält `--text-subtle` Meta, Zeitstempeln und
+        Platzhaltern vor.
       */}
-      {budgets.length > 0 && budgets.every((b) => b.warnschwelle_prozent !== null) ? null : (
-        <p className="mt-s5 text-xs text-text-subtle" data-cse="budget-warnschwelle-offen">
+      {warnschwelleOffen(budgets) ? (
+        <p className="mt-s5 max-w-prose text-sm text-text-muted" data-cse="budget-warnschwelle-offen">
           {t.warnschwelleOffen}
         </p>
-      )}
+      ) : null}
 
       <h2 className="mb-s3 mt-s6 text-h2 text-text">Gebundenes Budget</h2>
       {offen.length === 0 ? (
