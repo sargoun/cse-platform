@@ -3346,6 +3346,9 @@ Beantworten helfen:
 | O-910 | **Darf die Gruppenansicht die CRM-Aktivitäten aller Gesellschaften lesen — Notizen, Anrufe, Termine, mit Inhalt?** DSH-01 nennt für die Gruppenübersicht „letzte Aktivität“. `lead_aktivitaet` kennt seit `0017` **keinen Gruppenleseweg**: `t_aktivitaet_lesen` bindet an den aktiven Mandanten, eine `t_gruppe`-Policy wie auf `lead` oder `kunde` gibt es nicht — und das ist die einzige CRM-Tabelle, in der der WORTLAUT eines Gesprächs steht (`betreff`, `inhalt`). Eine Zahl allein ließe sich über eine Definer-Funktion zählen, ohne den Inhalt zu öffnen; sie wäre aber eine tote Zahl (DSH-04), denn die Liste dahinter müsste genau diese Zeilen zeigen. Drei Wege: (a) `t_gruppe` auf `lead_aktivitaet` mit `gruppe.crm.lesen` — dieselbe Reichweite wie für Leads und Kunden, also auch jede Gesprächsnotiz der anderen Gesellschaften; (b) ein eigenes Recht (etwa `gruppe.crm.aktivitaet_lesen`), das keine Rolle per Vorgabe hält; (c) so lassen — die Aktivität bleibt im Bereich. **Ausgeliefert ist (c):** die Kachel „Aktivität (7 Tage)“ führt im Bereich auf `/crm/aktivitaet` (V-149), in der Gruppe auf die Übersicht; die Gruppenübersicht hat keine Spalte dafür. Wer Gesprächsinhalte gesellschaftsübergreifend lesbar macht, entscheidet über eine Weitergabe personenbezogener Gesprächsinhalte zwischen rechtlich getrennten Gesellschaften — eine Datenschutzfrage an die Geschäftsführung, keine, die eine Spalte nebenbei beantwortet. | DSH-01, DSH-04, CRM-03, TEN-05, `drizzle/0017`, `services/gruppe/uebersicht.ts`, V-150, D-644 |
 | O-913 | **Deckt die Kundenfreigabe am Auftrag die öffentliche Referenz — oder braucht die Referenz eine eigene Zustimmung des Kunden zu Titel, Beschreibung und Bild?** PRO-05 trennt den Beleg (am Auftrag: Ansprechpartner, Schreiben, Wortlaut) von der Veröffentlichung (die `referenz`-Zeile mit eigener Freigabe, Datum und Beleg). Seit V-154 lässt sich eine Referenz anlegen, seit V-161 nur aus einem ABGESCHLOSSENEN Auftrag mit GELTENDER Freigabe, und sie hält fest, aus welchem (`referenz.auftrag_id`, 0410): übernommen werden Titel und Kundenname, und das Blatt der Referenz SCHLÄGT Datum und Beleg der Freigabe GENAU dieses Auftrags vor — der Haken „Der Kunde hat schriftlich zugestimmt" bleibt leer, gespeichert wird durch einen Menschen. Offen ist die Rechtsfrage dahinter: erlaubt ein Satz wie „Sie dürfen uns als Referenz nennen" auch die Beschreibung, das Bild und die Namensform, die die Redaktion wählt, oder muss der Kunde die Referenz in ihrer veröffentlichten Fassung gesehen haben? Und gilt eine am Auftrag erteilte Freigabe für mehrere Referenzen aus demselben Auftrag? **Ausgeliefert ist die vorsichtige Lesart:** keine automatische Übernahme, kein vorgesetzter Haken; die Referenz bleibt Entwurf, bis ein Mensch ihre eigene Freigabe einträgt, und veröffentlicht wird mit eigenem Recht. Wer die Übernahme automatisieren will, braucht dafür eine anwaltliche Aussage — nicht eine Zeile Code. Hängt mit O-735 (Widerruf) zusammen. | PRO-05, O-735, V-154, V-161, D-648, D-654, `services/inhalt/redaktion.ts` (`legeReferenzAn`), `src/app/portal/[mandant]/website/referenzen/{neu,[id]}/page.tsx` |
 | O-914 | **Darf auch ein LAUFENDER Auftrag mit geltender Kundenfreigabe zur öffentlichen Referenz werden — oder nur ein abgeschlossener?** SPEC PRO-05 sagt es wörtlich: „a reference is a completed `auftrag` with customer release on file, not a marketing entry typed by hand". Seit V-161 gilt genau das (`REFERENZFAEHIGE_ZUSTAENDE = ['abgeschlossen']` in `services/auftrag/kundenfreigabe.ts`, geprüft in `legeReferenzAn`). In der Gebäudereinigung und im Objektschutz laufen Aufträge aber als Dauerauftrag oder Rahmenvertrag über Jahre, und „wir reinigen seit 2019 die Zentrale der X AG" ist dort die übliche Referenz — nach der wörtlichen Lesart entsteht sie erst mit dem Ende des Vertrags. Dazu die Nachbarfrage: ein Projekt aus der Zeit vor der Plattform wird heute als Auftrag angelegt, mit Kundenfreigabe versehen und abgeschlossen, bevor daraus eine Referenz werden kann; reicht dem Auftraggeber dieser Weg? **Ausgeliefert ist die wörtliche Lesart:** nur ein abgeschlossener Auftrag; laufende stehen unter `/website/referenzen/neu` sichtbar als „noch nicht abgeschlossen", ein stornierter nie. Die Antwort ist eine Zeile (die Liste der Zustände), keine Umbauarbeit. | PRO-05, V-161, D-654, O-913, `src/server/services/auftrag/kundenfreigabe.ts` (`REFERENZFAEHIGE_ZUSTAENDE`, `referenzHindernis`), `src/app/portal/[mandant]/website/referenzen/neu/page.tsx` |
+| O-919 | **Soll der Raumbuch-Import Excel-Arbeitsmappen (.xlsx, gegebenenfalls .xls/.ods) direkt lesen — und welche Bibliothek darf dafür fremde Dateien entpacken?** OPS-04 sagt „Excel/CSV". Gebaut ist CSV (UTF-8 und die Windows-1252-CSV eines deutschen Excel); eine Arbeitsmappe wird am Inhalt erkannt und mit dem Weg über „Speichern unter › CSV" abgewiesen (D-665). Die Plattform bringt keine Bibliothek dafür mit, und ein selbstgebauter Leser für ein ZIP mit XML ist genau der halbe Leser, der Formeln und verbundene Zellen übersieht und Erfolg meldet. **Zu entscheiden sind vier Dinge:** (1) ob eine Bibliothek aufgenommen wird und welche (Lizenz, Pflege, Prüfung gegen präparierte ZIP-/XML-Dateien), (2) was mit einer Formelzelle geschieht — berechneten Wert übernehmen oder abweisen, (3) welches Blatt gilt, wenn die Mappe mehrere hat, (4) ob das alte `.xls` aus Altsystemen überhaupt vorkommt. Bis dahin bleibt CSV der Weg, und die Seite sagt es. | OPS-04, D-665, V-171, `src/server/services/raumbuch/tabelle.ts`, `src/app/api/raumbuch-import/route.ts` |
+| O-920 | **Sollen Angebote von Hand (Sicherheit, Bau) eine Kalkulation mit den fünf Kostenblöcken aus OPS-07 bekommen — und wenn ja, woraus entsteht der Lohn?** OPS-07 nennt Lohn, Material, Gerät, Gemeinkosten und Wagnis/Gewinn. Das Angebot der Reinigung entsteht aus dem Raumbuch und rechnet alle fünf (D-668). Ein Angebot von Hand (`angebot/von-hand.ts`, V-005) trägt je Position den Einzelpreis, den ein Mensch einträgt; woraus er entstanden ist, weiss die Plattform nicht, und sie rechnet ihn nicht nach. **Zu entscheiden:** (1) ob Sicherheit und Bau überhaupt eine Kalkulation in der Plattform führen oder ihre Preise weiter ausserhalb bilden; (2) wenn ja, die Grundlage des Lohns — in der Sicherheit etwa Stunden je Posten und Schicht mal Stundenverrechnungssatz, mit welchen Zuschlägen für Nacht, Sonn- und Feiertag; im Bau Einheitspreise je Position des Leistungsverzeichnisses; (3) welche Zuschläge je Bereich gelten (das ist O-16). **Ausgeliefert ist der ehrliche Zustand:** keine Kalkulation, und Maske wie Kalkulationsblatt sagen das mit dieser Nummer (`HAND_ANGEBOT_KALKULATION`). Eine erfundene Formel wäre eine Preisregel, die niemand aufgestellt hat, und ein Preis sähe dann geprüft aus, der es nicht ist. | OPS-07, O-16, D-668, D-671, V-238, `src/server/services/angebot/von-hand.ts`, `src/app/portal/[mandant]/angebote/{neu,[id]/kalkulation}/page.tsx` |
+| O-921 | **Wie wird der Vertragswert eines Auftrags aus einem angenommenen Angebot in Reinigung und Sicherheit berichtigt oder angepasst?** Der Wert eines solchen Auftrags ist `angebot.netto_cent`; die Auftragspflege überschreibt ihn nicht (D-667 Punkt 5), weil sie sonst eine zweite Wahrheit über den Betrag führte, den der Kunde angenommen hat. Im Bau ändert ein Nachtrag nach § 2 VOB/B den Vertrag (0080). **Reinigung und Sicherheit kennen keinen Nachtrag** — ein Tippfehler im Angebot, eine Preisanpassung nach einer Tariferhöhung oder ein geänderter Leistungsumfang hat dort heute keinen Weg in den Auftrag. Drei Wege sind denkbar: (a) eine neue Angebotsfassung und ein neuer Auftrag; (b) eine eigene Vertragsänderung am Auftrag mit Betrag, Grund, Datum und Zustimmung des Kunden, wie der Nachtrag im Bau; (c) eine Berichtigung in der Auftragspflege mit Grund und Protokoll. Und: gilt für eine Preisanpassung derselbe Weg wie für einen Tippfehler? **Ausgeliefert ist der gesperrte Wert mit dem ehrlichen Satz:** die Pflegeseite sagt im Bau „Nachtrag", sonst „noch nicht entschieden (O-921)". Die Antwort ändert `wertAenderungsweg`, nicht ihre Aufrufer. | OPS-05, D-667, D-732, V-239, `src/server/services/auftrag/aendern.ts` (`wertAenderungsweg`), `src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx`, `drizzle/0080` |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
 | O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
@@ -17498,4 +17501,582 @@ ihrer Entscheidung verzeichnet, in der Reihenfolge, in der sie behoben wurde.
    jetzt wie jede andere Zeile der Datei.
 
 | Betrifft | SEC-A9, AUT-01, 03-AUTH §12.1, O-76, O-355, D-300, D-657, D-658, D-659, V-164, V-165, V-237, DESIGN §6, §7, `drizzle/0461`, `drizzle/0462`, `src/styles/globals.css`, `src/components/portal/BereichsUmschalter.tsx`, `docs/architecture/02-datenmodell/01-KERN.md` §6.2, `tests/isolation/mitgliedschaft-module.test.ts` §1, §2, `tests/isolation/bereichswechsel.test.ts` §4, `tests/isolation/pruefprotokoll-ip-agent.test.ts` §2, `tests/kern/bereichswechsel.test.ts` §7, `src/server/auth/kennwort-anmeldung.ts` |
+### D-664 · Die Koordinaten eines Objekts trägt ein Mensch ein — in Dezimalgrad, als Paar, ohne Gleitkomma (V-170)
+
+**Der Befund** (V-170, OPS-01, Folge BAU-08): OPS-01 verlangt Objekte „with
+address and coordinates". `objekt.geo_lat`/`geo_lon` gibt es seit 0021 mit
+drei CHECKs, aber weder Anlegen noch Ändern schrieb sie, kein Formular fragte
+danach, und auch der Seed füllte sie nicht. Der einzige Leser, die
+Wetteranheftung im Bautagebuch, endete deshalb für jede Baustelle im Befund
+`ohne_koordinaten` — „Keine Koordinaten am Objekt hinterlegt" —, ohne dass es
+einen Ort gab, an dem man sie hätte hinterlegen können.
+
+**Die Entscheidung.**
+
+1. **Von Hand, freiwillig, als Paar.** Das Objektformular fragt Breiten- und
+   Längengrad; beide oder keiner (`objekt_geo_vollstaendig`). Beide leer räumt
+   ein vorhandenes Paar beim Ändern ab. Eine automatische Geokodierung der
+   Adresse ist das NICHT — sie bleibt O-122 und hängt an einem Dienst, der
+   eine Datenverarbeitung mit sich bringt. Eine Eingabe von Hand hängt an
+   dieser Frage nicht.
+2. **Dezimalgrad mit Komma oder Punkt.** Eine Koordinate hat höchstens drei
+   Vorkommastellen und keinen Tausenderpunkt; `52,520008` von der Tastatur und
+   `52.520008` aus einer Karte meinen dasselbe. Ein Leerzeichen MITTEN in der
+   Zahl wird abgewiesen, nicht zusammengeschoben.
+3. **Sechs Nachkommastellen, gerundet in ganzen Zahlen.** Eine Karte liefert
+   `52.52000659999999`; die Spalte trägt sechs Stellen (etwa zehn Zentimeter).
+   `leseKoordinate` rundet halb vom Nullpunkt weg in Mikrograd als `bigint` —
+   die Regel, die Postgres für `numeric` selbst anwendet — und übergibt einen
+   fertigen `numeric(9,6)`-Text. Geprüft wird der GERUNDETE Wert gegen ±90°/
+   ±180°, also genau der, der in der Spalte landet. Das ist keine Fachregel
+   über Geld oder Fristen, sondern die Genauigkeit einer Spalte, die es seit
+   0021 gibt.
+4. **Die Abweisung kommt als Schlüssel und Satz.** `api/objekt` gibt neben dem
+   deutschen Satz des Dienstes den `grund` mit; Anlegen- und Ändern-Seite
+   zeigen den übersetzten Text, sonst den Satz — nie den Schlüssel.
+5. **Das Objektblatt zeigt das Paar** (deutsches Komma) oder sagt, dass keines
+   hinterlegt ist und wofür es gebraucht wird.
+6. **Der Seed trägt Näherungswerte** für die fünf Vorführobjekte, aus einer
+   Karte abgelesen und so beschriftet. Das Wetter im Bautagebuch kommt damit
+   über „keine Koordinaten" hinaus bis zur Stationsfrage (`keine_station`); die
+   DWD-Anbindung selbst bleibt „nicht verbunden".
+
+**Nicht Teil dieser Entscheidung:** eine Karte (O-360) und die Zuordnung einer
+DWD-Station zum Projekt.
+
+| Betrifft | OPS-01, BAU-08, O-122, O-360, V-170, `drizzle/0021`, `src/server/services/objekt/anlegen.ts`, `src/app/api/objekt/route.ts`, `src/app/portal/[mandant]/objekte/{ObjektFormular.tsx,neu/page.tsx,[id]/page.tsx,[id]/bearbeiten/page.tsx}`, `src/lib/i18n/verwaltung/objekte.ts`, `src/server/db/seed/operations.ts` |
+|---|---|
+
+### D-665 · Der Raumbuch-Import liest CSV und sagt es vorher — Excel wird am Inhalt erkannt und abgewiesen, bis O-919 beantwortet ist (V-171)
+
+**Der Befund** (V-171, OPS-04): OPS-04 verlangt einen „Excel/CSV import for
+Raumbuch with preview before commit", und die ROADMAP hakte „Excel/CSV
+Raumbuch import" ab. Die Route wies `.xls`/`.xlsx` aber ausdrücklich ab, das
+Dateifeld nahm nur `.csv`, und die Begründung („bis eine geprüfte Bibliothek
+dafür eingerichtet ist") stand nur in einem Code-Kommentar — weder als
+Entscheidung noch als offene Frage noch im Register. Die Abweisung kam als
+weisse Seite (`{"fehler":"kein_csv",…}`, HTTP 415), und jede andere Abweisung
+der Route ebenso.
+
+**Die Entscheidung.**
+
+1. **Keine neue Abhängigkeit in diesem Schritt.** Die Plattform bringt keine
+   Bibliothek für Excel-Arbeitsmappen mit (`package.json`). Eine, die fremde
+   ZIP- und XML-Dateien entpackt, ist eine Sicherheits- und Pflegefrage und
+   wird nicht nebenbei aufgenommen; ein selbstgebauter halber Leser, der
+   Formeln und verbundene Zellen übersieht und Erfolg meldet, ist schlimmer
+   als keiner. Die Frage steht als **O-919**.
+2. **Die Grenze steht auf der Seite, VOR dem Hochladen** — mit dem Weg, der
+   funktioniert: in Excel als CSV speichern.
+3. **Excel wird am INHALT erkannt**, nicht nur am Namen: ZIP (`.xlsx`,
+   `.xlsm`, `.ods`) und das Verbunddateiformat von `.xls`. Eine umbenannte
+   Arbeitsmappe fällt mit demselben Satz, statt als „leere Kopfzeile" aus
+   Binärzeichen.
+4. **Die CSV, die ein deutsches Excel wirklich schreibt, kommt an.**
+   „CSV (Trennzeichen-getrennt)" ist Windows-1252; UTF-8 wird streng gelesen,
+   nur ungültiges UTF-8 geht an Windows-1252. Ohne das fand „Fläche" keine
+   Spalte — der Umweg, auf den die Abweisung verweist, wäre selbst eine
+   Sackgasse gewesen.
+5. **Jede Abweisung führt auf die Importseite zurück** (D-599): Schlüssel und
+   bei einer verschobenen Zeile deren Nummer, übersetzt in die Sprache der
+   Sitzung. JSON bleibt für keine Sitzung, kein Recht, fremden Ursprung und
+   ein unbekanntes Objekt (AUT-06). Der Bereich kommt aus der Sitzung, nicht
+   aus `?mandant=`.
+6. **Die ROADMAP sagt, was gilt:** CSV abgehakt, Excel offen mit Verweis auf
+   diese Entscheidung.
+
+| Betrifft | OPS-04, D-599, AUT-06, O-919, V-171, `src/server/services/raumbuch/{tabelle,import}.ts`, `src/app/api/raumbuch-import/route.ts`, `src/app/portal/[mandant]/objekte/[id]/raumbuch/import/page.tsx`, `src/lib/i18n/verwaltung/raumbuch-import.ts`, `docs/ROADMAP.md` |
+|---|---|
+
+### D-666 · Auftragsassistent und Kalkulationsbestätigung geben ihre Maske zurück — mit Satz, Feld und dem Bereich der Sitzung (V-172)
+
+**Der Befund** (V-172, OPS-07, OPS-10, Invariante 3): beide Formulare sind
+einfache POST-Formulare ohne Client-Logik, und beide Routen antworteten auf
+jede Abweisung mit `NextResponse.json`. Wer in „Wochenstunden" „1.234,5" oder
+„40 Std" eintrug, sah `{"fehler":"keine_zahl","felder":[…]}`, und die Eingabe
+war verloren — `Number(roh.replace(',', '.'))` machte aus „1.234,5" `NaN`.
+Ebenso ein fehlender Nummernkreis (409) und jede `KalkulationFehler`; die
+Kalkulationsseite hatte keine Anzeige für `?fehler=`. Beide Routen nahmen den
+Slug für die Umleitung aus `?mandant=` — dasselbe Muster, das in
+`api/radar/profil` und `api/radar/vorgang` schon als Mangel beseitigt war.
+
+**Die Entscheidung.**
+
+1. **Eine fachliche Abweisung führt auf die Maske** — `/auftraege/neu?fehler=…`
+   bzw. `/angebote/[id]/kalkulation?fehler=…&feld=…` —, und die Seite zeigt
+   den Satz zum Schlüssel in der Sprache der Sitzung, nie den Schlüssel.
+   JSON bleibt für keine Sitzung, kein Recht, fremden Ursprung und
+   „unbekannt" (AUT-06).
+2. **Die Antwort kommt erst NACH der Rechteprüfung.** Die Zahlen werden vor
+   der Transaktion rein geprüft, die Abweisung aber erst gegeben, wenn
+   `authorize` bestanden ist: wer nicht anlegen darf, erfährt nicht, dass
+   seine Zahl zu gross war.
+3. **Deutsche Zahlen über den geprüften Leser** (`leseZahl`): Tausenderpunkt
+   und Dezimalkomma; die Grenzen sind die CHECKs aus 0025 (0 … 5.000 ganze
+   Personen, 0 … 10.000 Wochenstunden). `pruefeAuftragsangaben` ist die EINE
+   Stelle dafür — der Assistent und die Auftragspflege (V-173) teilen sie.
+4. **Was sonst als Datenbankfehler käme, wird vorher gefragt**
+   (`pruefeAuftragsbezug`): ein Datum, das es nicht gibt (22007), eine
+   Laufzeit vor dem Start (23514), ein Kunde oder Objekt, das diese Sitzung
+   nicht sieht (23503), eine Leitung, die hier nicht Mitglied ist (der
+   Auslöser aus 0025 fragt es danach ein zweites Mal). Alles VOR der Nummer:
+   eine Abweisung verbraucht keine Auftragsnummer.
+5. **Eine `KalkulationFehler` nennt ihr Feld** — Stundensatz, Gemeinkosten,
+   Wagnis und Gewinn, Frequenzfaktor, Basis. „Keine Zahl" allein liess raten,
+   welcher der drei Werte gemeint war.
+6. **Der Bereich kommt aus der Sitzung**, gelesen in der Transaktion und nach
+   aussen gereicht; `?mandant=` fällt aus beiden Formularen. Das Muster steckt
+   in weiteren Routen (Prüfung: 28); die übrigen sind nicht Teil dieses
+   Befunds.
+
+**Zur Kette Lead → Angebot → Auftrag** (Zweig `wf/crm-kette`): dieselben
+Schlüssel (`unvollstaendig`, `keine_zahl`, `ausserhalb_bereich`, Gründe des
+Nummernkreises) und dieselbe Form `zurMaske(grund)`; die Anfrage-Bindung
+(`leadId`) gehört dorthin und wird hier nicht vorweggenommen.
+
+| Betrifft | OPS-07, OPS-10, D-599, AUT-06, Invariante 3, V-172, `src/server/services/auftrag/angaben.ts`, `src/server/services/kalkulation/bestaetigung.ts`, `src/app/api/{auftrag,kalkulation}/route.ts`, `src/app/portal/[mandant]/auftraege/neu/page.tsx`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/lib/i18n/verwaltung/{auftrag,kalkulation}.ts` |
+|---|---|
+
+### D-667 · Ein Auftrag lässt sich nach der Anlage pflegen — mit festem Kern, und der Wert aus dem Angebot bleibt (V-173)
+
+**Der Befund** (V-173, OPS-05, OPS-09, OPS-10): OPS-05 verlangt Aufträge mit
+Art, Laufzeit, WERT und verantwortlicher Leitung, OPS-10 zeigt Ort,
+Personalbedarf, Stunden, Ausstattung, Start und Leitung. Die zwei
+Entstehungswege füllten je die halbe Menge: der Assistent hatte kein
+Wertfeld (ein so angelegter Auftrag hatte für immer keinen Wert, die
+Wertkennzahlen zählten ihn mit 0, eine Abschlagsrechnung hatte keine
+Grundlage), die Wandlung aus dem Angebot setzte den Wert, aber nie
+Personalbedarf, Stunden oder Ausstattung. Einen Änderungsweg gab es nicht:
+das einzige `update auftrag` betraf Zustand, Abschluss und Kundenfreigabe.
+
+**Die Entscheidung.**
+
+1. **Der Assistent fragt den Wert** — freiwillig, deutsch geschrieben, über
+   `parseGeld` in ganze Cent (Invariante 1), nie geschätzt. Ein negativer
+   Betrag ist ein Tippfehler und wird abgewiesen (`wert_ungueltig`).
+2. **Die Annahme fragt Personalbedarf, Stunden und Ausstattung** und reicht
+   sie an `wandleInAuftrag` — geprüft mit demselben Leser wie der Assistent
+   (`pruefeAuftragsangaben`), freiwillig, nie geschätzt.
+3. **Gepflegt werden** Bezeichnung, Beschreibung, Leitung, Laufzeit, Wert,
+   Personalbedarf, Wochenstunden und Ausstattung — auf einer eigenen Seite
+   `/auftraege/[id]/bearbeiten`, unter `auftrag.schreiben` (dasselbe Recht wie
+   Anlegen und Zustand), über `POST /api/auftrag/aendern` mit dem Bereich aus
+   der Sitzung und der Abweisung auf der Maske.
+4. **Nicht gepflegt werden** Nummer, Kunde, Art, Start und Objekt: sie tragen
+   Rechnungen, Einsätze, Leistungsnachweise und Abrechnungszeiträume, und ein
+   anderer Vertragspartner oder Ort ist ein anderer Auftrag.
+5. **Der Wert eines Auftrags AUS EINEM ANGEBOT bleibt**, wie er ist. Er ist
+   `angebot.netto_cent` und wird nicht neu gerechnet (`wandleInAuftrag`); ihn
+   hier zu überschreiben, wäre eine zweite Wahrheit über denselben Betrag. Die
+   Seite zeigt ihn zum Lesen, der Dienst weist eine Abweichung ab
+   (`wert_aus_angebot`) — eine Änderung des Vertragswerts ist ein Nachtrag.
+   **Berichtigt (V-239, D-732):** der letzte Halbsatz galt nur für den Bau.
+   Nachträge gibt es nur dort (§ 2 VOB/B, 0080); für Reinigung und Sicherheit
+   hatte ein falscher Vertragswert damit keinen Weg, und der Text behauptete
+   einen. Die Sperre bleibt; welcher Weg dort gilt, ist O-921, und die Seite
+   sagt es so.
+6. **Abgeschlossen und storniert sind gesperrt** (O-734, 0389); die Seite sagt
+   warum, statt ein Formular anzubieten.
+7. **Jede Änderung steht im Protokoll** (`auftrag.geaendert`) mit Vorher und
+   Nachher der GEÄNDERTEN Felder. Speichern ohne Änderung schreibt nichts und
+   ist kein Fehler.
+8. **Sperren, dann vergleichen:** `for update` befragt die UPDATE-Policy
+   `t_mandant` — eine fremde Gesellschaft und die Gruppenansicht bekommen
+   keine Zeile (Invariante 3, 10).
+9. **Berichtigt (V-177): die Mitgliedschaft der Leitung wird nur bei einem
+   WECHSEL geprüft** — so wie der Auslöser
+   `kern.auftrag_verantwortlich_im_mandant` (0025), der bei unveränderter
+   Leitung sofort zurückkehrt. Die erste Fassung fragte sie bei jedem
+   Speichern; hatte die bisherige Leitung die Gesellschaft verlassen, war
+   dann keine einzige Änderung mehr möglich, auch nicht ein Tippfehler in der
+   Bezeichnung. Die Pflegeseite behält die bisherige Leitung in der Auswahl
+   und nennt sie „nicht mehr in dieser Gesellschaft"; eine andere wählt,
+   wer sie ablösen will. **Wählbar** ist in Pflege, Assistent und Annahme,
+   wer HEUTE Mitglied ist (`waehlbareLeitungen` über `app.ist_mitglied`,
+   mit `gueltig_ab`/`gueltig_bis`) — dieselbe Frage wie Dienst und Auslöser.
+
+| Betrifft | OPS-05, OPS-09, OPS-10, O-734, Invariante 1, 3, 10, V-173, V-177, `src/server/services/auftrag/{aendern,angaben}.ts`, `src/server/services/angebot/index.ts`, `src/app/api/auftrag/{route.ts,aendern/route.ts}`, `src/app/api/angebot/entscheidung/route.ts`, `src/app/portal/[mandant]/auftraege/{neu,[id],[id]/bearbeiten}/page.tsx`, `src/app/portal/[mandant]/angebote/[id]/annahme/page.tsx`, `src/lib/i18n/verwaltung/auftrag.ts`, `docs/architecture/04-SEITENKARTE.md` |
+|---|---|
+
+### D-668 · Material und Gerät gehen in die Kalkulation — erfasst, nie vorbelegt, und die Gemeinkostenbasis wirkt (V-174)
+
+**Der Befund** (V-174, OPS-07): OPS-07 verlangt die Kostenblöcke „labour +
+material + equipment + overhead + risk/profit". Das Schema trug sie seit 0023
+(`kostenart` 'material'/'geraet', `summe_material_cent`/`summe_geraet_cent`),
+aber `kalkuliere` kannte nur Lohn → Gemeinkosten → Wagnis/Gewinn, und kein Weg
+legte eine Material- oder Gerätezeile an. Ein Reinigungsangebot enthielt nie
+Reinigungsmittel oder Maschinen und war systematisch zu niedrig. Die wählbare
+Gemeinkostenbasis `selbstkosten`/`je_kostenart` wurde gespeichert und dann
+doch auf den Lohn gerechnet.
+
+**Die Entscheidung.**
+
+1. **Die Höhe wird nie vorbelegt.** Material und Gerät sind die Summe der
+   Zeilen, die ein Mensch auf der Kalkulationsseite erfasst: Menge ×
+   Einzelpreis, über `multipliziereMitMenge` (halb aufwärts, eine
+   Rundungsstelle). Der Preis kommt über `parseGeld`, beides nie negativ.
+2. **Die Menge ist eine deutsche Zahl** (`leseZahl`, wie die Angaben des
+   Auftrags in D-666): „1.234,5" ist tausendzweihundertvierunddreißig Komma
+   fünf, „1.000" ist tausend. Eine Schreibweise mit zwei Lesarten („12.50" —
+   deutsch 1.250, englisch 12,5) wird mit `mehrdeutig` am Feld abgewiesen,
+   nicht gedeutet: ein Faktor hundert auf der Menge ist ein Faktor hundert
+   auf dem Preis. Was die Seite zum Berichtigen vorbelegt („1.234,50"), liest
+   der Dienst genauso zurück. Die Grenzen sind technische, keine Fachregeln:
+   weniger als eine Milliarde Einheiten (`numeric(12,3)`), Beträge bis
+   `Number.MAX_SAFE_INTEGER` Cent (R-12); darüber gibt es einen Satz statt
+   eines 22003. **Berichtigt (V-240):** die Angaben des Auftrags lasen
+   `leseZahl` bis dahin OHNE `mehrdeutig` — „12.50" Wochenstunden wurden still
+   12,5. `pruefeAuftragsangaben` weist eine solche Zahl jetzt ebenso ab
+   (`mehrdeutig`, mit Feld, in beiden Sprachen).
+3. **Einzelkosten gehen IMMER in den Preis.** Die Basis entscheidet nur,
+   worauf der Gemeinkostenzuschlag rechnet: `lohn` auf den Lohn,
+   `selbstkosten` auf Lohn + Material + Gerät (so steht es auch in der
+   Auswahl). **Berichtigt (V-240):** die Auswahl hiess „Selbstkosten (Lohn +
+   Material + Gerät)". Das legte fest, was O-16 offenlässt — 0023 nennt die
+   Zusammensetzung der Selbstkosten ausdrücklich eine offene Frage, und
+   fachlich sind Lohn, Material und Gerät die EINZELKOSTEN (Selbstkosten
+   enthalten die Gemeinkosten schon). Die Auswahl heisst jetzt „Lohn +
+   Material + Gerät (Einzelkosten)", der Satz darunter nennt O-16. Der
+   gespeicherte Schlüssel bleibt `selbstkosten` (Aufzählung aus 0023) — ein
+   Schlüssel, keine Aussage; `selbstkosten_cent` schreibt weiter niemand.
+   Wagnis und Gewinn rechnen weiter auf die Summe davor
+   (Einzelkosten + Gemeinkosten). Welche Basis gruppenweit gilt, bleibt O-16.
+4. **`je_kostenart` wird abgewiesen** (`basis_offen`), nicht still wie `lohn`
+   gerechnet: sie braucht einen Zuschlag je Kostenart, und diese Sätze sind
+   offen. `// TODO(client, O-16)` steht am Dienst; die Auswahl zeigt die
+   Option sichtbar, aber nicht wählbar.
+5. **Im Angebot** stecken Material und Gerät wie Gemeinkosten, Wagnis und
+   Gewinn anteilig im Preis der Leistungszeilen (`verteileNetto`, größter
+   Rest). Das ist dieselbe offene Frage O-208, ob Zuschläge eigene Positionen
+   wären. Ohne eine Lohnzeile, die sie tragen könnte, wird abgewiesen
+   (`ohne_lohn`).
+6. **Nach jeder Kostenzeile wird neu gerechnet**, über dieselbe Funktion wie
+   bei der Bestätigung (`rechneKalkulationNeu` → `kalkuliere`) und mit den
+   Zahlen, die der Kopf trägt. Kalkulationssumme und `angebot.netto_cent`
+   nennen danach denselben Betrag. Vor der Bestätigung sind das die
+   Platzhalterzahlen, mit denen das Angebot entstand. Der Kopf führt Wagnis
+   und Gewinn als EINEN Satz (`wagnis_gewinn_bp`), deshalb rechnet die
+   Neuberechnung ihn wie die Bestätigung als einen Zuschlag. Der Preis
+   bleibt ein Platzhalterpreis und gesperrt, bis ein Mensch bestätigt.
+7. **Nichts wird gelöscht** (Invariante 8): berichtigt wird die Zeile selbst.
+   Eine Zeile, die nicht mehr gelten soll, bekommt die Menge 0 und bleibt als
+   Beleg. Jede Änderung steht mit Vorher/Nachher im Protokoll
+   (`kalkulation.kostenposition`).
+8. **Gesperrt** nach dem Versand (festgeschrieben) UND nach der
+   Preisfreigabe, denn „ein anderer Preis braucht eine neue Angebotsversion"
+   (O-732). Das gilt für eine Kostenzeile und ebenso für eine neue
+   Bestätigung: auch sie rechnete den freigegebenen Betrag um. Bisher ließ
+   `bestaetigeKalkulation` das bis zum Versand zu. Die Seite bietet dann
+   beides nicht mehr an und sagt warum.
+9. **Die Zuschlagszeilen tragen ihren eigenen Bezug** (Gemeinkosten: den
+   Betrag nach der Basis; Wagnis/Gewinn: Einzelkosten + Gemeinkosten) und ihre
+   Nummer hinter der höchsten vorhandenen. Vorher trugen beide den Lohn, und
+   eine Materialzeile vor der Bestätigung hätte `kp_position_uk` verletzt.
+10. **Die Kalkulationsseite** zeigt die fünf Blöcke aus den Summen der
+    Datenbank (sie rechnet nichts), den Rechenweg nur noch für Lohnzeilen und
+    einen eigenen Abschnitt „Material und Gerät" mit Anlegen und Berichtigen.
+    Eine abgewiesene Kostenzeile kommt mit Satz und Feld zurück („Die
+    Kostenzeile wurde nicht gespeichert"), nicht als „nichts bestätigt".
+11. **Der Seed** trägt zwei Zeilen in den Entwurf „Grundreinigung", über
+    denselben Dienst und als Demodaten bezeichnet. Das sind keine
+    Katalogpreise.
+
+**Nicht Teil dieser Entscheidung:** eine Kalkulation für Angebote von Hand
+(Security, Bau, `angebot/von-hand.ts`), die ihren Preis je Position selbst
+tragen — **berichtigt (V-238):** das stand hier ohne offene Frage; es ist
+jetzt O-920, und Maske wie Kalkulationsblatt sagen es (D-671);
+`kalkulation.selbstkosten_cent`, dessen Zusammensetzung O-16 ist. Und
+das Zusammenspiel mit einem von Hand berichtigten Raumbuch-Entwurf (D-626):
+jede Neuberechnung (Bestätigung wie Kostenzeile) bepreist die
+Leistungspositionen aus den Lohnzeilen der Kalkulation neu. Eine entfernte
+Position trägt dann ihren Anteil weiter in der Kalkulation, nicht im Angebot.
+Das war bei der Bestätigung schon so und wird hier nicht geändert.
+
+| Betrifft | OPS-07, O-16, O-208, O-732, D-626, D-666, Invariante 1, 6, 8, V-174, `src/server/services/kalkulation/{index,bestaetigung,kostenposition}.ts`, `src/app/api/kalkulation/route.ts`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/lib/i18n/verwaltung/kalkulation.ts`, `src/server/db/seed/vertrieb.ts` |
+|---|---|
+
+### D-669 · Den Plattformkatalog pflegt die Super-Administration, den Registrierungsstand jede Gesellschaft, und eine neue Plattform erreicht auch die Bekanntmachungen von gestern (V-175)
+
+**Der Befund** (V-175, RAD-09): RAD-09 verlangt festzuhalten, auf welchen
+Vergabeplattformen die Gruppe registriert ist, und Bekanntmachungen auf
+Plattformen ohne Registrierung zu markieren. `vergabeplattform` und
+`mandant_plattform_registrierung` hatten seit 0145 Schema, RLS und
+Schreibrechte, aber keinen Dienst, keine Route und kein Formular. Dass der
+Katalog leer ausgeliefert wird, ist entschieden (O-07, D-490). Die Antwort auf
+O-07 ließ sich aber nie eintragen. `ausschreibung.vergabeplattform_id` blieb
+deshalb immer leer, und die Warnung „nicht freigeschaltet" (Liste, Kennzahl,
+Detailblatt) konnte nie auslösen. `ausschreibung_vorgang.plattform_pruefung`
+schrieb nur der Seed.
+
+**Die Entscheidung.**
+
+1. **Den Katalog pflegt die Super-Administration**, weil er keiner
+   Gesellschaft gehört. Das sagt `r_plattform_schreiben` (0145, 0146) seit
+   jeher; `services/radar/plattform.ts` fragt `app.ist_super_admin()` vorher
+   und gibt einen Satz statt einer Policy-Verletzung. Eintragen, ändern,
+   bestätigen, archivieren gehen über `POST /api/radar/plattform`. Das Tor der
+   Route ist das Recht der Seite (`radar.plattform_verwalten`).
+2. **Eingetragen wird, was ein Mensch weiß; vorbelegt wird nichts.** Ein
+   neuer Eintrag trägt `ist_platzhalter`, bis ihn die Super-Administration
+   eigens bestätigt („gilt für die Gruppe", O-07). Der Seed bleibt leer
+   (D-490). Eine Demoplattform wäre eine Behauptung über die Konten des
+   Betriebs.
+3. **Eine neue oder geänderte Plattform ordnet die schon eingelesenen
+   Bekanntmachungen ohne Plattform nach.** Sonst erreichte ein heute
+   eingetragener Hostname nur die Bekanntmachungen von morgen, nicht die, deren
+   Frist schon läuft. `cse_app` darf `ausschreibung` weiter nur lesen. Der
+   Definer `app.radar_plattform_nachordnen()` (0420) setzt `quell_url` auf
+   sich selbst, und `trg_plattform_zuordnen` entscheidet wie beim Einlesen.
+   Eine zweite Fassung der Hostregel gibt es nicht. Eine vorhandene Zuordnung
+   bleibt. Das Tor steht zweimal: in der Funktion (Super-Administration,
+   internes Portal, nicht nur lesend) und in den `d_`-Policies. Die Seite
+   nennt, wie viele Bekanntmachungen dabei eine Plattform bekamen.
+   **Berichtigt (V-240, 0422):** die erste Fassung schrieb bei jeder
+   Katalogänderung ALLE Bekanntmachungen ohne Plattform an und sperrte sie
+   bis zum Ende der Transaktion gegen den Einlesejob — auch die, zu denen gar
+   keine Plattform passt. Jetzt wird nur angeschrieben, wessen Host zu einem
+   Muster einer nicht archivierten Plattform passt. Die Hostregel steht dafür
+   in `app.radar_url_host` und `app.radar_host_passt`, und der Auslöser aus
+   0145 ruft dieselben zwei Funktionen: es bleibt EINE Fassung.
+4. **Hostnamen sind Hostnamen.** Getrennt durch Komma oder Zeilenwechsel,
+   klein geschrieben, höchstens zwanzig; aus einer eingefügten Adresse wird
+   ihr Host. Eine Basisadresse ist http(s) und trägt nie Zugangsdaten.
+5. **Den Registrierungsstand pflegt jede Gesellschaft selbst** (Stand,
+   Anmeldekennung, freigeschaltet am, gültig bis, verantwortlich, Notiz), eine
+   Zeile je Plattform (`mpr_uk`), als Upsert unter `radar.plattform_verwalten`.
+   Protokolliert wird mit Vorher und Nachher. `zuletzt_bestaetigt_am` stempelt
+   die Serveruhr. Die CHECKs aus 0145 (registriert braucht ein Datum, die
+   Gültigkeit endet nicht vorher) und die Mitgliedschaft der Verantwortlichen
+   werden vorher als Satz geprüft.
+6. **Ein Kennwort steht nirgends** (SEC-A5). Gefragt wird die Anmeldekennung.
+   `credential_ref`, der Name eines Geheimnisses im Vault, bleibt unbenutzt,
+   solange kein Vault angebunden ist. Ein Feld dafür verwiese auf etwas, das
+   es nicht gibt.
+7. **Abgelaufen wird nicht still umgedeutet.** Liegt „gültig bis" vor heute,
+   sagt die Seite das und bittet um Prüfung. Den Stand ändert ein Mensch.
+   **Berichtigt (V-240):** die WARNUNG rechnet die Gültigkeit jetzt überall
+   ein, nicht nur auf der Plattformseite, und sie beachtet
+   `registrierung_erforderlich`. „Freigeschaltet" heisst an EINER Stelle
+   (`freischaltungSql` in `services/radar/plattform.ts`): die Plattform
+   verlangt laut Eintrag keine Registrierung, ODER der Stand ist
+   `registriert` und „gültig bis" ist leer oder nicht vor dem heutigen
+   Berliner Tag. Ohne Plattform wird nichts behauptet. Liste, Kennzahl
+   „Ohne Freischaltung", Detailblatt (bei abgelaufener Gültigkeit mit dem
+   Datum statt „Stand: registriert"), Plattformseite, Vergabemappe und
+   Gruppenansicht fragen dieselbe Stelle; bisher meldeten sie auch Plattformen
+   ohne Registrierungspflicht als „nicht freigeschaltet", und eine abgelaufene
+   Registrierung galt überall sonst als freigeschaltet. Der Stand der Zeile
+   bleibt unverändert. Liste, Kennzahl und Detail binden die Registrierung
+   ausdrücklich an `app.aktiver_mandant()`, die Mappe an ihre eigene
+   Gesellschaft — nicht nur über RLS (Invariante 3).
+8. **Die Plattformprüfung am Vorgang** (`plattform_pruefung`) setzt, wer
+   `radar.status_setzen` hält, auf der Seite „Stand setzen", mit Serverzeit.
+   Sie ändert keinen Stand. Sie hängt am Vorgang, und der entsteht mit dem
+   ersten gesetzten Stand (RAD-07). Ohne Vorgang wird abgewiesen, statt still
+   einen zu eröffnen.
+9. **Die Seite ist zweisprachig** (`lib/i18n/verwaltung/radar-plattform.ts`).
+   Stände erscheinen in Worten, auch in der Warnung des Detailblatts, das
+   bisher den Aufzählungswert zeigte. Datumsangaben stehen als TT.MM.JJJJ.
+   Schlüssel aus der Adresse gehen nur über `eigenerEintrag`. Die Seite ist
+   aus der Ausnahmeliste der Übersetzungswache gestrichen.
+
+**Nicht Teil dieser Entscheidung:** welche Plattformen gelten und wer dort
+registriert ist. Das bleibt O-07 und wird von Menschen eingetragen. Ebenso
+wenig ob die Radarliste die Plattformprüfung des Vorgangs zusätzlich zur
+Registrierung als Warnung führt; sie zeigt weiter den Registrierungsstand der
+Gesellschaft.
+
+| Betrifft | RAD-09, O-07, D-07, D-490, SEC-A5, Invariante 3, 5, V-175, `drizzle/0420`, `src/server/services/radar/{plattform,vorgang}.ts`, `src/app/api/radar/{plattform,vorgang}/route.ts`, `src/app/portal/[mandant]/radar/{plattformen/page.tsx,[id]/page.tsx,[id]/status/page.tsx,daten.ts}`, `src/lib/i18n/verwaltung/radar-plattform.ts`, `scripts/guards/uebersetzung-ausnahmen.ts` |
+|---|---|
+
+### D-670 · Aufgaben und Dokumente stehen am Auftrag und am Bau-Projekt, und ein Dokument hängt an einem Auftrag derselben Gesellschaft (V-176)
+
+**Der Befund** (V-176, OPS-11): OPS-11 verlangt „Tasks, deadlines, status,
+documents on every order and project". Die Seitenkarte nennt für das
+Auftragsblatt die Reiter „Dokumente" und „Aufgaben". Gebaut waren Kopf,
+Beschreibung und Zustand (V-081); das Bau-Projektblatt zeigte
+Vertragsgrundlage, Geld und sechs Vorgänge. Keines der beiden Blätter zeigte
+eine Aufgabe oder ein Dokument. Aufgaben ließen sich seit V-096 an einen
+Auftrag hängen, erschienen aber nur in der Gesamtliste, deren Filter nur den
+Bezugs-TYP kannte. `dokument` kannte keinen Auftrag (0009: Kunde, Objekt,
+Formulareingang).
+
+**Die Entscheidung.**
+
+1. **Ein Dokument hängt an höchstens einem Auftrag.** `dokument.auftrag_id`
+   (0421) trägt einen zusammengesetzten Fremdschlüssel (mandant_id,
+   auftrag_id): nur ein Auftrag derselben Gesellschaft, auch wenn jemand am
+   Ablagedienst vorbeischreibt. `legeAb` prüft den Auftrag zusätzlich unter
+   RLS, damit ein fremder oder unsichtbarer Auftrag einen Satz ergibt
+   (`BezugUnbekannt`) und keinen 23503. Die Wege, die keinen Auftrag kennen
+   (DATEV-Stapel, Kontoauszug, Formulareingang), legen unverändert ab. Der
+   Bestand vor 0421 bleibt ohne Auftrag.
+2. **Ein Bau-Projekt hat keine eigene Ablage.** `projekt.auftrag_id` ist NOT
+   NULL und eindeutig (0071), das Projekt ist die Bauakte genau eines
+   Auftrags. Das Projektblatt zeigt die Dokumente dieses Auftrags. Eine eigene
+   Projektspalte wäre eine zweite Ablage derselben Akte, und ein Dokument
+   könnte an der einen hängen und an der anderen fehlen.
+3. **Die Aufgaben eines Auftrags kommen auf beiden Wegen.** Gezählt werden
+   `aufgabe.auftrag_id` und der polymorphe Bezug `auftrag`. Das
+   Anlegeformular schreibt beide, ein Wächter oder Agent vielleicht nur den
+   zweiten. Das Projektblatt nimmt die Aufgaben mit Bezug `projekt` dazu.
+   `AufgabeFilter` bekommt `auftragId` und `projektId` im gemeinsamen
+   WHERE-Baustein, damit Liste und Kopfzahl dieselbe Menge zählen. Die
+   Kennung wird geprüft, bevor sie castet.
+4. **Das Blatt zeigt die offenen Aufgaben mit Frist und Stand, höchstens
+   zehn; die Zahl zählt alle.** `aufgabenAkte` im Dienst bildet die Kopfzahl
+   aus der Zählung, zählt als überfällig nur Offenes (Berliner Kalendertag,
+   `fristlage`) und schreibt die Frist als TT.MM.JJJJ, beim Zeitpunkt mit
+   Uhrzeit, in Europe/Berlin (`fristInWorten`). Sind keine offen, sagt das
+   Blatt, wie viele erledigt oder abgebrochen sind, statt „keine Aufgabe". Von
+   den Dokumenten stehen die zwanzig neuesten mit Kategorie in Worten und
+   Ablagetag. Beide Grenzen sind Anzeigegrenzen; die ganze Menge steht in der
+   gefilterten Aufgabenliste und in der Ablage.
+5. **Ein fehlendes Recht ist ein Satz, keine leere Liste.** Ohne
+   `aufgabe.lesen` oder `dokument.lesen` nennt die Hälfte das fehlende Recht.
+   „Aufgabe anlegen" steht nur mit `aufgabe.schreiben`, „Dokument ablegen" nur
+   mit `dokument.schreiben`, also mit den Rechten ihrer Ziele (AUT-06). Der
+   Verweis vom Projekt auf seinen Auftrag steht nur mit `auftrag.lesen`.
+6. **Angelegt wird auf den bestehenden Wegen, vorgewählt statt nachgebaut.**
+   „Aufgabe anlegen" öffnet `/aufgaben?auftrag=…` (vom Projekt
+   `?projekt=…`) mit dem Auftrag im Auswahlfeld, beim Projekt dessen Auftrag.
+   „Dokument ablegen" öffnet die Ablage mit dem Auftrag vorgewählt, und der
+   Rückweg nach einem Fehler behält ihn. Die Aufgabenliste löst
+   `?auftrag=`/`?projekt=` unter RLS auf (`vorgangImFilter`). Was die
+   Sitzung nicht sieht, filtert sie nicht, denn ein Filter auf einen
+   unsichtbaren Vorgang verriete, welche Aufgaben an ihm hängen. Die Seite
+   sagt das und zeigt alle.
+7. **Zweisprachig.** Alle neuen Sätze stehen in
+   `lib/i18n/verwaltung/vorgang-akte.ts`, Zustände und Kategorien in Worten.
+   Die beiden Blätter, die Aufgabenliste und die Ablage bleiben auf der
+   Ausnahmeliste der Übersetzungswache, weil ihre älteren Teile deutsch sind.
+   Der neue Teil ist es nicht.
+8. **Seed.** Das Kundenschreiben des Vertriebs hängt an seinem Auftrag,
+   ebenso das des Referenzauftrags (den es nur mit `CSE_DEV_FLAECHEN` gibt,
+   D-537). Die Aufgabe „Leistungsnachweis vom Kunden einholen" hing schon am
+   ersten Auftrag jeder Gesellschaft mit Aufträgen. Im Demobestand zeigen
+   damit ein Auftragsblatt der Reinigung und das Projektblatt des Baus je eine
+   überfällige Aufgabe, und ein zweites Auftragsblatt der Reinigung zeigt ein
+   Dokument.
+
+**Nicht Teil dieser Entscheidung:** die übrigen Reiter der Seitenkarte
+(Leistungen, Einsätze, Zeiten, Nachweise, Rechnungen). Ebenso wenig das
+nachträgliche Umhängen eines abgelegten Dokuments an einen Auftrag. Das wäre
+eine Änderung an einer Akte und bräuchte ein eigenes Recht und ein Protokoll.
+
+| Betrifft | OPS-11, AUT-06, V-096, Invariante 2, 3, V-176, `drizzle/0421`, `src/server/services/dokument/{ablage,vorgang}.ts`, `src/server/services/kern/aufgabe.ts`, `src/components/portal/VorgangAkte.tsx`, `src/app/portal/[mandant]/{auftraege/[id],bau/projekte/[id],aufgaben,dokumente/upload}/page.tsx`, `src/app/api/dokumente/upload/route.ts`, `src/lib/i18n/verwaltung/vorgang-akte.ts`, `src/server/db/seed/{vertrieb,referenzauftrag}.ts` |
+|---|---|
+
+### D-671 · Ein Angebot von Hand sagt, dass es keine Kalkulation hat — bis O-920 beantwortet ist (V-238)
+
+**Der Befund** (V-238, OPS-07): D-668 brachte Material, Gerät und die
+Gemeinkostenbasis in die Kalkulation der Reinigung. Angebote von Hand
+(Sicherheit, Bau, `angebot/von-hand.ts`) führte D-668 nur unter „Nicht Teil",
+ohne offene Frage und ohne `TODO(client)`. Ein solches Angebot trägt je
+Position den Einzelpreis, den ein Mensch einträgt; woraus er entstanden ist,
+weiss die Plattform nicht. Das stand nirgends, wo es jemand liest.
+
+**Die Entscheidung** (Ablauf, keine Preisregel).
+
+1. **Keine erfundene Kalkulation.** Welche Grundlage eine Kalkulation für
+   Wachdienst und Bau hätte, hat niemand gesagt. Eine Formel aus Stunden mal
+   Satz oder aus Einheitspreisen wäre eine Preisregel, die niemand aufgestellt
+   hat. Die Frage steht als **O-920** im Register und als
+   `// TODO(client, O-920)` am Dienst.
+2. **Der ehrliche Zustand steht an EINER Stelle:** `HAND_ANGEBOT_KALKULATION`
+   (`vorhanden: false`, `offeneFrage: 'O-920'`) in `angebot/von-hand.ts`,
+   ausdrücklich als Platzhalter bezeichnet. Die Antwort ändert diese Stelle.
+3. **Die Maske sagt es** (`/angebote/neu`, zweisprachig): der Einzelpreis ist
+   der eingetragene; Lohn, Material, Gerät, Gemeinkosten sowie Wagnis und
+   Gewinn werden weder getrennt erfasst noch nachgerechnet; ob und wie das
+   kommt, ist O-920. Das Kalkulationsblatt eines Angebots ohne Kalkulation
+   nennt dieselbe Frage.
+
+**Nicht Teil dieser Entscheidung:** die Zuschläge je Bereich (O-16) und
+jede Form einer Kalkulation für Sicherheit oder Bau.
+
+| Betrifft | OPS-07, O-16, O-920, D-668, V-005, V-238, `src/server/services/angebot/von-hand.ts`, `src/lib/i18n/verwaltung/angebot-hand.ts`, `src/app/portal/[mandant]/angebote/{neu,[id]/kalkulation}/page.tsx` |
+|---|---|
+
+### D-732 · Der Wert eines Auftrags aus einem Angebot bleibt gesperrt, und die Seite sagt, welcher Weg ihn ändert — im Bau der Nachtrag, sonst O-921 (V-239)
+
+**Der Befund** (V-239, OPS-05): D-667 Punkt 5 sperrt den Wert eines Auftrags
+aus einem Angebot in der Pflege und begründete das mit „eine Änderung des
+Vertragswerts ist ein Nachtrag". Nachträge gibt es nur im Bau (0080, § 2
+VOB/B, am Projekt). Für Reinigung und Sicherheit war ein falscher Vertragswert
+damit auf keinem Weg korrigierbar, und die Seite verwies auf einen Weg, den es
+dort nicht gibt. Die Sperre war eine selbst gesetzte Fachregel ohne offene
+Frage.
+
+**Die Entscheidung.**
+
+1. **Die Sperre bleibt, in allen Gesellschaften.** Sie ist keine Preisregel,
+   sondern die Weigerung, eine zweite Wahrheit über den angenommenen Betrag zu
+   führen (`angebot.netto_cent`). Sie aufzuheben hiesse, die offene Frage
+   stillschweigend mit „Berichtigung in der Pflege" zu beantworten.
+2. **Welcher Weg den Wert ändert, sagt EINE Funktion:**
+   `wertAenderungsweg(mandant.module)` in `auftrag/aendern.ts` — `nachtrag`,
+   wenn die Gesellschaft das Gewerk Bau gebucht hat, sonst `offen`. Sie ist als
+   Platzhalter bezeichnet und trägt `// TODO(client, O-921)`; die Antwort
+   ändert sie, nicht ihre Aufrufer.
+3. **Die Pflegeseite sagt es unter dem Wert**, zweisprachig: im Bau „ein
+   Nachtrag nach § 2 VOB/B am Projekt", sonst „noch nicht entschieden
+   (O-921); bis dahin bleibt er, wie der Kunde ihn angenommen hat". Die
+   Abweisung `wert_aus_angebot` behauptet keinen Nachtrag mehr.
+4. D-667 Punkt 5 ist an Ort und Stelle berichtigt.
+
+| Betrifft | OPS-05, O-921, D-667, V-173, V-239, `drizzle/0080`, `src/server/services/auftrag/aendern.ts`, `src/lib/i18n/verwaltung/auftrag.ts`, `src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx` |
+|---|---|
+
+### D-733 · Anzeige in der Sprache der Seite, Eingaben zurück auf die Maske, Zeilen der Datei — die kleinen Punkte der Gruppe operations (V-240)
+
+**Der Befund** (V-240): der unabhängige Prüfer der Gruppe operations fand
+dreizehn kleine Punkte. Die Berichtigungen an bestehenden Entscheidungen stehen
+dort, wo sie gelten: D-668 (die Basis heisst „Lohn + Material + Gerät
+(Einzelkosten)", `mehrdeutig` auch beim Auftrag) und D-669 (EINE Frage
+„freigeschaltet?", gezieltes Nachordnen, 0422). Hier stehen die
+Ablaufentscheidungen, die neu sind.
+
+**Die Entscheidung.**
+
+1. **Eine Seite, die ihre Sprache kennt, zeigt Zahlen und Tage in ihr.**
+   Englisch: `formatiereGeldIn` („€12,500.00"), `formatiereMengeIn`
+   („1,234.50"), `tagInSprache` („29 Mar 2026", britisches Englisch, mittlere
+   Länge, über UTC hin und zurück ohne Zonenversatz), `fristInWorten(…,
+   sprache)` (dieselbe Form, Uhrzeit weiter Europe/Berlin),
+   `koordinateAlsText(…, sprache)` (Punkt). Deutsch bleibt alles, wie es war.
+   Betroffen sind die zweisprachigen Blätter dieser Gruppe: Auftragspflege,
+   Kalkulation, Objektblatt, Akte an Auftrag und Projekt. **Formulare
+   bleiben deutsch geschrieben**, auch englisch vorbelegt: `parseGeld` und
+   `leseZahl` lesen nur deutsche Schreibweise, und die englischen Hilfetexte
+   sagen das seit V-172. (Die Koordinate liest Punkt und Komma.)
+2. **Ein Dienst liefert Tage als `JJJJ-MM-TT`, das Blatt schreibt sie.**
+   `leseDokumenteAmAuftrag` gab `TT.MM.JJJJ` aus der Datenbank und legte
+   damit die Sprache fest; jetzt formatiert `VorgangAkte`.
+3. **Eine Zahl in einem Satz reist als Zahl, nicht als Satz.**
+   `einsaetze_offen` kommt als `?anzahl=` (nur ganze Zahl gelesen), und die
+   Seite bildet den Satz in ihrer Sprache. `?meldung=` fällt auf den
+   Objektseiten weg: ein unbekannter Grund wird „Die Eingabe wurde
+   abgewiesen", nie Text aus der Adresse (dieselbe Regel wie V-153).
+4. **Eine abgewiesene Pflege oder Annahme bringt ihre Eingaben zurück.** Das
+   Übergangsgerüst (`api/uebergang.ts`) nimmt dafür `maskeFelder` und baut
+   den Rückweg mit `maskeMitEingaben` (D-599); ohne Angabe bleibt es beim
+   Grund allein. Die Pflegeseite erkennt die Rückkehr an der Leitung (Pflicht,
+   reist immer mit); ein leer gelassenes Feld bleibt leer und fällt nicht auf
+   den gespeicherten Wert zurück. Die Annahmeseite belegt nur das Formular
+   vor, das abgeschickt wurde (`ausgang`), und eine Auswahl nur mit einem
+   Wert, den sie anbietet.
+5. **Die Abweisung `feldzahl` nennt die Zeile der Datei.** Der CSV-Leser
+   zählt jeden Zeilenumbruch, auch den in Anführungszeichen, und merkt sich,
+   in welcher Zeile ein Datensatz beginnt; gefilterte Leerzeilen zählen mit.
+6. **Ein Recht heisst beim Namen** (`rechtName`, wie V-144), ein unbekannter
+   Aufgabenstand „Stand unbekannt", und je Ansicht gibt es einen
+   Primary-Knopf (auf der Kalkulation „Werte bestätigen"; „Speichern und neu
+   rechnen" ist sekundär).
+7. **`credential_ref` bekommt kein Feld** — D-669 Punkt 6 gilt: solange kein
+   Tresor angebunden ist, verwiese ein Feld für den Namen eines Geheimnisses
+   auf etwas, das es nicht gibt, und lüde dazu ein, das Geheimnis selbst
+   einzutragen.
+
+| Betrifft | V-240, V-144, V-153, D-599, D-668, D-669, RAD-09, OPS-04, OPS-07, OPS-11, Invariante 2, `src/server/services/finanz/{geld,menge}.ts`, `src/lib/datum/kalendertag.ts`, `src/server/services/kern/aufgabe.ts`, `src/server/services/dokument/vorgang.ts`, `src/components/portal/VorgangAkte.tsx`, `src/server/services/objekt/anlegen.ts`, `src/app/api/{uebergang.ts,objekt/route.ts,auftrag/aendern/route.ts,angebot/entscheidung/route.ts}`, `src/server/services/raumbuch/tabelle.ts`, `src/lib/i18n/verwaltung/{objekte,vorgang-akte,angebot-hand}.ts` |
 |---|---|

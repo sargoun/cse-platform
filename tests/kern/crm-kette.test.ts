@@ -12,6 +12,8 @@ import {
 } from '../../src/lib/vorgang-pille.js';
 import { KETTE_TEXTE } from '../../src/lib/i18n/verwaltung/crm-kette.js';
 import { ANGEBOT_HAND_TEXTE } from '../../src/lib/i18n/verwaltung/angebot-hand.js';
+import { AUFTRAG_TEXTE } from '../../src/lib/i18n/verwaltung/auftrag.js';
+import { eigenerEintrag } from '../../src/lib/nachschlagen.js';
 import { LEAD_TEXTE } from '../../src/lib/i18n/verwaltung/crm-lead.js';
 import {
   betreffAus, LEAD_ZWECK_REGEL, PLATZHALTER_LEAD_ZWECK,
@@ -163,16 +165,35 @@ describe('jede Stufe der Kette hat für jeden Zustand ein Wort', () => {
   it('jede Abweisung von /api/auftrag hat einen Satz in der Maske', () => {
     /*
      * Die Route schickt diese Schlüssel an `/auftraege/neu` zurück (D-599);
-     * die Nummernkreisgründe stehen in `NummernkreisFehler`.
+     * die Nummernkreisgründe stehen in `NummernkreisFehler`, die Gründe der
+     * Zahlen und des Bezugs in `pruefeAuftragsangaben`/`pruefeAuftragsbezug`
+     * (V-172, V-173), die der Anfrage in `pruefeLeadBindung` (V-138).
+     *
+     * Die Maske schlägt in DIESER Reihenfolge nach: die Sätze des Auftrags,
+     * dann die der Maske der Kette, dann die der Kette — genau diese Kette
+     * prüft der Test, in beiden Sprachen.
      */
     const route = readFileSync(fileURLToPath(
       new URL('../../src/app/api/auftrag/route.ts', import.meta.url)), 'utf8');
-    const schluessel = [...route.matchAll(/zurMaske\('([a-z_]+)'\)/gu)].map((m) => m[1] ?? '');
-    expect(schluessel.length).toBeGreaterThanOrEqual(3);
+    const schluessel = [
+      ...route.matchAll(/zurMaske\('([a-z_]+)'\)/gu),
+      ...route.matchAll(/grund: '([a-z_]+)'/gu),
+    ].map((m) => m[1] ?? '');
+    expect(schluessel.length).toBeGreaterThanOrEqual(2);
     const nummernkreis = ['kein_kreis', 'platzhalter', 'geschlossen', 'definer_kreis',
       'maske_ungueltig'];
-    for (const s of [...schluessel, ...nummernkreis]) {
-      expect(KETTE_TEXTE.de.maskeFehler[s], s).toBeDefined();
+    const angaben = ['keine_zahl', 'ausserhalb_bereich', 'wert_ungueltig'];
+    const bezug = ['unvollstaendig', 'datum_ungueltig', 'laufzeit_vor_start',
+      'kunde_unbekannt', 'objekt_unbekannt', 'verantwortlich_fremd'];
+    const lead = Object.keys(LEAD_BINDUNG_SATZ);
+    for (const sprache of ['de', 'en'] as const) {
+      const satz = (grund: string): string | undefined =>
+        eigenerEintrag(AUFTRAG_TEXTE[sprache].fehler, grund)
+        ?? eigenerEintrag(KETTE_TEXTE[sprache].maskeFehler, grund)
+        ?? eigenerEintrag(KETTE_TEXTE[sprache].fehler, grund);
+      for (const s of [...schluessel, ...nummernkreis, ...angaben, ...bezug, ...lead]) {
+        expect(satz(s), `${sprache}: ${s}`).toBeDefined();
+      }
     }
   });
 

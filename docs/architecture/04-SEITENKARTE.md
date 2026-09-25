@@ -1069,7 +1069,8 @@ DSH-01's two counters are "`auftrag` without a `projekt` row" and "`auftrag` wit
 |---|---|---|---|---|
 | `/portal/[mandant]/auftraege` | `auftrag.lesen` | `M1` | OPS-05, CRM-05 | 4 |
 | `/portal/[mandant]/auftraege/neu` — contract wizard: location · staff needed · hours · equipment · start date · responsible manager | `auftrag.schreiben` | `M1` | OPS-10, OPS-05 | 4 |
-| `/portal/[mandant]/auftraege/[id]` — tabs: Übersicht · Leistungen · Einsätze · Zeiten · Nachweise · Dokumente · Rechnungen · Aufgaben | `auftrag.lesen` | `M1` | OPS-05, OPS-11, FIN-07, FIN-18 | 4 |
+| `/portal/[mandant]/auftraege/[id]` — tabs: Übersicht · Leistungen · Einsätze · Zeiten · Nachweise · Dokumente · Rechnungen · Aufgaben. Aufgaben and Dokumente stand on the sheet as sections, each under its own read right; the construction project sheet shows the same for its order (V-176) | `auftrag.lesen` | `M1` | OPS-05, OPS-11, FIN-07, FIN-18 | 4 |
+| `/portal/[mandant]/auftraege/[id]/bearbeiten` — maintain name, manager, term, value, staff needed, hours, equipment. Number, customer, type, start and site are not editable; the value of an order from an offer changes only by Nachtrag (V-173) | `auftrag.schreiben` | `M1` | OPS-05, OPS-10 | 4 |
 | `/portal/[mandant]/auftraege/[id]/abrechnung` — billing type and its parameters per contract | `abrechnung.schreiben` | `M1` | FIN-01, FIN-05, FIN-08 | 6 |
 | `/portal/[mandant]/auftraege/[id]/abschluss` — mark complete; FIN-18 warnings shown first | `auftrag.abschliessen` | `M1` | OPS-05, FIN-18 | 6 |
 | `/portal/[mandant]/auftraege/[id]/kundenfreigabe` — record the customer's written release for public use | `referenz.kundenfreigabe_erfassen` | `M1` | PRO-05 | 4 |
@@ -1601,7 +1602,7 @@ ships Z3 only, and no read-only auditor role exists.
 | Path | Right | Scope | SPEC | Phase |
 |---|---|---|---|---|
 | `/portal/[mandant]/dokumente` — categories, search, filter, tags | `dokument.lesen` | `M1` | DOC-01, DOC-02, DOC-04 | 4 |
-| `/portal/[mandant]/dokumente/upload` — MIME sniffed from the bytes, size limits, EXIF stripped | `dokument.schreiben` | `M1` | DOC-06, TIM-10 | 4 |
+| `/portal/[mandant]/dokumente/upload` — MIME sniffed from the bytes, size limits, EXIF stripped; an order can be named, and the order sheet preselects its own (V-176) | `dokument.schreiben` | `M1` | DOC-06, TIM-10 | 4 |
 | `/portal/[mandant]/dokumente/[id]` — metadata, versions, access log | `dokument.lesen` | `M1` | DOC-05, DOC-07, SEC-A9 | 4 |
 | `/portal/[mandant]/dokumente/[id]/kundenfreigabe` — flip `sichtbar_fuer_kunde` | `dokument.kunde_freigeben` | `M1` | DOC-04 | 4 |
 | `/portal/[mandant]/dokumente/buendel` — one-click bundle for an audit or inspection | `dokument.buendel_exportieren` | `M1` | DOC-08, ACC-09, LEG-01 | 7 |
@@ -1669,7 +1670,7 @@ firing. Per-user channel preferences (NOT-02) arrive with Phase 9 at
 | `/portal/[mandant]/radar/[id]/mappe` — Vergabemappe assembly, completeness gaps named | `vergabe.schreiben` | `M1` | RAD-07, AGT-02, APR-03, D-07 | 8 |
 | `/portal/[mandant]/radar/[id]/mappe/einreichung` — record that a human submitted, with when and by whom | `vergabe.einreichung_erfassen` | `M1` | RAD-07, D-07, REP-06 | 8 |
 | `/portal/[mandant]/radar/profile` , `/[id]` — CPV codes, NUTS DE3/DE300, positive and negative keywords, value bounds | `radar.profil_schreiben` | `M1` | RAD-04 | 8 |
-| `/portal/[mandant]/radar/plattformen` — registration status per procurement platform | `radar.plattform_verwalten` | `M1` | RAD-09 | 8 |
+| `/portal/[mandant]/radar/plattformen` — registration status per procurement platform; the super administration maintains the catalogue, and a new platform also assigns the notices already read in (V-175) | `radar.plattform_verwalten` | `M1` | RAD-09 | 8 |
 
 **RAD-07's vocabulary is rendered as an explicit transition control**, because D-07 correctly
 removes any submit button and without a control `eingereicht` and `verworfen` could never be

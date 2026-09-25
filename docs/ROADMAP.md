@@ -202,7 +202,8 @@ proven by test, not by inspection.
 - [x] Notes, communication history, follow-ups
 - [x] Customers, objects, **Raumbuch** (rooms, m², floor types)
 - [x] Floor-type catalogue with performance values
-- [x] Excel/CSV Raumbuch import with preview before commit
+- [x] CSV Raumbuch import with preview before commit (UTF-8 and the Windows-1252 CSV a German Excel writes)
+- [ ] Excel (.xlsx/.xls) Raumbuch import — not read: no vetted library in the stack; an Excel file is recognised by its content and rejected on the page with the CSV route (V-171, D-665, O-919)
 - [x] Service catalogue, costing engine, offer PDF per entity
 - [x] Offer → order conversion
 - [x] New contract wizard (OPS-10)

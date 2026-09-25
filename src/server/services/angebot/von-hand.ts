@@ -49,7 +49,36 @@ import {
  * keine Fliesskommazahl, nirgends. Eine vierte Nachkommastelle wird
  * abgewiesen statt gerundet: die Spalte trägt drei, und stilles Runden
  * verstecke, woher der Wert kam.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Was ein Angebot von Hand NICHT hat: eine Kalkulation** (V-238, OPS-07).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * OPS-07 nennt fünf Kostenblöcke — Lohn, Material, Gerät, Gemeinkosten,
+ * Wagnis/Gewinn. Das Raumbuch-Angebot der Reinigung rechnet sie (D-668). Ein
+ * Angebot von Hand trägt dagegen je Position den Einzelpreis, den ein Mensch
+ * einträgt; woraus er entstanden ist, weiss die Plattform nicht, und sie
+ * rechnet ihn nicht nach. Das ist KEINE Entscheidung, dass es so bleiben
+ * soll, sondern der ehrliche Zustand: welche Grundlage eine Kalkulation für
+ * Wachdienst und Bau hätte (Stunden je Posten und Zuschläge? Einheitspreise
+ * aus einem Leistungsverzeichnis?), hat niemand gesagt, und eine erfundene
+ * Formel wäre eine Preisregel, die niemand aufgestellt hat. Die Maske sagt
+ * es deshalb, mit der Nummer der Frage (`HAND_ANGEBOT_KALKULATION`).
  */
+
+/**
+ * PLATZHALTER — der Kalkulationsstand eines Angebots von Hand (V-238).
+ *
+ * `vorhanden: false` ist der heutige Zustand, nicht die Antwort. Die Maske
+ * und das Kalkulationsblatt lesen die offene Frage von hier, damit die
+ * Antwort EINE Stelle ändert.
+ *
+ * TODO(client, O-920): Sollen Angebote von Hand (Sicherheit, Bau) eine Kalkulation mit den fünf Kostenblöcken aus OPS-07 bekommen — und wenn ja, woraus entsteht der Lohn (Sicherheit: Stunden je Posten und Schicht mal Stundenverrechnungssatz, mit welchen Zuschlägen; Bau: Einheitspreise je LV-Position) und welche Zuschläge gelten je Bereich (O-16)? Oder bleibt der Einzelpreis je Position eine von Hand eingetragene Zahl, deren Herleitung ausserhalb der Plattform liegt?
+ */
+export const HAND_ANGEBOT_KALKULATION = {
+  vorhanden: false,
+  offeneFrage: 'O-920',
+} as const;
 export class HandAngebotFehler extends Error {
   constructor(
     nachricht: string,

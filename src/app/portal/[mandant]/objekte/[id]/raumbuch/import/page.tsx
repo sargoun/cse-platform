@@ -13,6 +13,10 @@ import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../kennung';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { RAUMBUCH_IMPORT_TEXTE } from '@/lib/i18n/verwaltung/raumbuch-import';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/objekte/[id]/raumbuch/import` — hochladen und VORSCHAU
@@ -63,6 +67,13 @@ export default async function RaumbuchImport(
   kennungOder404(id);
   const suche = await searchParams;
   const importId = typeof suche['import'] === 'string' ? suche['import'] : null;
+  /*
+   * Die Abweisung der Route kommt als Schlüssel zurück (V-171, D-599) — nicht
+   * mehr als weisse JSON-Seite. Die Zeilennummer nur als Ziffern.
+   */
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerZeile = typeof suche['zeile'] === 'string' && /^\d{1,7}$/u.test(suche['zeile'])
+    ? suche['zeile'] : null;
 
   const pfad = `/portal/${mandant}/objekte/${id}/raumbuch/import`;
   const zugang = await portalZugang(pfad);
@@ -103,6 +114,10 @@ export default async function RaumbuchImport(
   if (daten === null) notFound();
   const { objekt, kopf, zeilen } = daten;
   const schonUebernommen = kopf?.status === 'uebernommen';
+  const t = nachSprache(RAUMBUCH_IMPORT_TEXTE, zugang.sprache);
+  const fehlerText = fehler === null ? null
+    : fehler === 'feldzahl' && fehlerZeile !== null ? t.feldzahlInZeile(fehlerZeile)
+      : eigenerEintrag(t.fehler, fehler) ?? eigenerEintrag(t.fehler, 'format') ?? null;
 
   return (
     <PortalRahmen
@@ -126,14 +141,27 @@ export default async function RaumbuchImport(
         */}
       <h1 className="mb-s5 text-h1 text-text">Raumbuch importieren</h1>
 
+      {fehlerText === null ? null : (
+        <Hinweis art="warnung" cse="import-fehler" className="mb-s5 max-w-prose">
+          <strong className="block">{fehlerText}</strong>
+          {fehler === 'schon_uebernommen' ? null : t.nichtsGeaendert}
+        </Hinweis>
+      )}
+
       {kopf === null ? (
         <form
           method="post"
-          action={`/api/raumbuch-import?mandant=${mandant}`}
+          action="/api/raumbuch-import"
           encType="multipart/form-data"
           className="max-w-prose rounded-lg border border-line bg-surface p-s5"
         >
           <input type="hidden" name="objektId" value={id} />
+          {/*
+            * V-171 (OPS-04, D-665): die Grenze steht VOR dem Hochladen, mit dem
+            * Weg, der funktioniert — nicht erst in der Abweisung.
+            */}
+          <p className="mt-0 text-sm text-text" data-cse="import-nur-csv">{t.nurCsv}</p>
+          <p className="text-sm text-text-muted">{t.ausExcel}</p>
           <p className="mt-0 text-sm text-text-muted">
             CSV mit Semikolon als Trennzeichen — so speichert Excel im deutschen
             Sprachraum. Erwartete Spalten: Etage, Raumnummer, Bezeichnung,
@@ -239,8 +267,7 @@ export default async function RaumbuchImport(
           ) : (
             <form
               method="post"
-              action={`/api/raumbuch-import?mandant=${mandant}&zurueck=${
-                encodeURIComponent(`/portal/${mandant}/objekte/${id}/raumbuch`)}`}
+              action="/api/raumbuch-import"
               className="mt-s5"
             >
               <input type="hidden" name="aktion" value="uebernehmen" />

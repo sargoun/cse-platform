@@ -1,5 +1,6 @@
 import 'server-only';
 import { berlinKalendertag } from '@/server/services/zeit/dauer';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import type { LeseKontext, SchreibKontext } from '@/server/kontext';
 
 /**
@@ -268,7 +269,17 @@ export interface AufgabeFilter {
   readonly nurOffene?: boolean;
   /** Einer der Werte aus `BEZUG_TYPEN` — sonst wirft der Dienst. */
   readonly bezugTyp?: string;
+  /**
+   * **Die Aufgaben EINES Vorgangs** (OPS-11, V-176): an diesem Auftrag —
+   * über `auftrag_id` ODER den polymorphen Bezug, denn beide Wege schreiben
+   * ihn —, und fuer ein Bau-Projekt zusaetzlich die, die am Projekt selbst
+   * haengen. Beides zusammen ist EINE Bedingung (oder), nicht zwei.
+   */
+  readonly auftragId?: string;
+  readonly projektId?: string;
 }
+
+const KENNUNG = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 /**
  * Die WHERE-Bausteine des Filters — EINMAL, fuer Liste und Zaehlung.
@@ -299,6 +310,21 @@ function filterBausteine(
     werte.push(filter.bezugTyp);
     wo.push(`a.bezug_typ = $${String(werte.length)}::bezug_typ`);
   }
+  const amVorgang: string[] = [];
+  if (filter.auftragId !== undefined) {
+    // Dieselbe Regel wie beim Typ: die Kennung wird geprueft, bevor sie castet.
+    if (!KENNUNG.test(filter.auftragId)) throw new Error('Unbekannter Auftrag');
+    werte.push(filter.auftragId);
+    const n = String(werte.length);
+    amVorgang.push(`a.auftrag_id = $${n}::uuid`,
+      `(a.bezug_typ = 'auftrag' and a.bezug_id = $${n}::uuid)`);
+  }
+  if (filter.projektId !== undefined) {
+    if (!KENNUNG.test(filter.projektId)) throw new Error('Unbekanntes Projekt');
+    werte.push(filter.projektId);
+    amVorgang.push(`(a.bezug_typ = 'projekt' and a.bezug_id = $${String(werte.length)}::uuid)`);
+  }
+  if (amVorgang.length > 0) wo.push(`(${amVorgang.join(' or ')})`);
   return wo;
 }
 
@@ -451,6 +477,8 @@ export async function zaehleJeZustand(
     {
       ...(filter.nurMeine === true ? { nurMeine: true } : {}),
       ...(filter.bezugTyp === undefined ? {} : { bezugTyp: filter.bezugTyp }),
+      ...(filter.auftragId === undefined ? {} : { auftragId: filter.auftragId }),
+      ...(filter.projektId === undefined ? {} : { projektId: filter.projektId }),
     },
     werte,
   );
@@ -461,6 +489,170 @@ export async function zaehleJeZustand(
     werte,
   );
   return Object.fromEntries(zeilen.map((z) => [z.status, Number(z.anzahl)]));
+}
+
+/* ------------------------------------------------ Die Akte eines Vorgangs */
+
+/**
+ * Wie eine Frist dasteht — `TT.MM.JJJJ`, beim Zeitpunkt mit Uhrzeit, immer
+ * in Europe/Berlin (Invariante 2). `null`: die Aufgabe hat keine.
+ *
+ * Dasselbe Format wie die Aufgabenliste (`dateStyle: 'medium'`), damit zwei
+ * Blätter derselben Aufgabe nicht zwei Fristen zeigen. Der Tag wird NICHT
+ * über ein `Date` geführt: `faellig_datum` ist ein Kalendertag, und ein
+ * `new Date('2026-03-29')` ist Mitternacht UTC — in Berlin noch der 29.,
+ * in New York schon der 28.
+ */
+const FRIST_ZEITPUNKT = new Intl.DateTimeFormat('de-DE', {
+  dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Berlin',
+});
+/** Dieselbe Frist in der englischen Oberfläche — immer noch Berliner Uhrzeit (V-240). */
+const FRIST_ZEITPUNKT_EN = new Intl.DateTimeFormat('en-GB', {
+  dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Berlin',
+});
+
+/**
+ * `sprache` (V-240): eine Seite, die ihre Sprache kennt, bekommt die Frist in
+ * ihr — englisch „1 Jul 2026, 00:30", deutsch wie bisher. Die Zone bleibt
+ * Europe/Berlin in beiden: die Frist ist eine Berliner Frist.
+ */
+export function fristInWorten(frist: Frist, sprache?: string | null): string | null {
+  if (frist.faelligAm !== null) {
+    return (sprache === 'en' ? FRIST_ZEITPUNKT_EN : FRIST_ZEITPUNKT).format(frist.faelligAm);
+  }
+  if (frist.faelligDatum === null) return null;
+  if (sprache === 'en') return tagInSprache(frist.faelligDatum, 'en');
+  const tag = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(frist.faelligDatum);
+  return tag === null ? frist.faelligDatum : `${String(tag[3])}.${String(tag[2])}.${String(tag[1])}`;
+}
+
+/** Eine offene Aufgabe auf dem Blatt eines Auftrags oder Projekts (V-176). */
+export interface AktenAufgabe {
+  readonly zeile: AufgabeZeile;
+  readonly lage: Fristlage;
+  /** Aus `fristInWorten` — `null` heisst: ohne Frist. */
+  readonly frist: string | null;
+}
+
+export interface AufgabenAkte {
+  /** Offen, in Arbeit und wartend — aus der ZAEHLUNG, nicht aus der Liste. */
+  readonly offen: number;
+  /** Erledigt und abgebrochen. */
+  readonly geschlossen: number;
+  /** Offene, deren Frist abgelaufen ist. */
+  readonly ueberfaellig: number;
+  /** Die ersten offenen in der Reihenfolge der Liste (Frist zuerst). */
+  readonly zeilen: readonly AktenAufgabe[];
+  /** Offene, die über der Anzeigegrenze liegen. */
+  readonly weitere: number;
+}
+
+/** Eine Anzeigegrenze, keine Fachregel: die ganze Liste steht unter `/aufgaben`. */
+export const AUFGABEN_JE_BLATT = 10;
+
+/**
+ * Der Vorgang, auf den die Aufgabenliste gefiltert ist — `?auftrag=` oder
+ * `?projekt=` aus den Blättern (V-176).
+ */
+export interface VorgangImFilter {
+  readonly art: 'auftrag' | 'projekt';
+  readonly id: string;
+  /** Nummer und Bezeichnung, wie die Liste sie zeigt. */
+  readonly titel: string;
+  /**
+   * Der Auftrag, an den eine NEUE Aufgabe gehängt wird — beim Projekt
+   * dessen Auftrag (`projekt.auftrag_id` ist NOT NULL, 0071).
+   */
+  readonly auftragId: string;
+  /** Sein Name für die Auswahl — `null`, wenn diese Sitzung den Auftrag nicht sieht. */
+  readonly auftragTitel: string | null;
+  /** Derselbe Filter, den das Blatt für seine Akte benutzt. */
+  readonly filter: { readonly auftragId: string; readonly projektId?: string };
+}
+
+/**
+ * **Löst `?auftrag=`/`?projekt=` UNTER RLS auf** — oder gibt `null`.
+ *
+ * `null` heisst „gibt es nicht, oder diese Sitzung sieht es nicht", und die
+ * Liste filtert dann NICHT: ein Filter auf einen Vorgang, den die Sitzung
+ * nicht sehen darf, verriete, welche Aufgaben an ihm hängen (AUT-06). Die
+ * Kennung wird geprüft, bevor sie castet — eine verstümmelte Adresse ist
+ * eine Eingabe, keine Störung (dieselbe Regel wie beim Bezugstyp).
+ */
+export async function vorgangImFilter(
+  kontext: LeseKontext,
+  wahl: { readonly auftragId?: string; readonly projektId?: string },
+): Promise<VorgangImFilter | null> {
+  if (wahl.auftragId !== undefined) {
+    if (!KENNUNG.test(wahl.auftragId)) return null;
+    const [a] = await kontext.abfrage<{ id: string; titel: string }>(
+      `select a.id::text as id, a.auftragsnummer || ' — ' || a.bezeichnung as titel
+         from auftrag a
+        where a.id = $1::uuid and a.mandant_id = app.aktiver_mandant()`,
+      [wahl.auftragId]);
+    if (a === undefined) return null;
+    return {
+      art: 'auftrag', id: a.id, titel: a.titel, auftragId: a.id, auftragTitel: a.titel,
+      filter: { auftragId: a.id },
+    };
+  }
+  if (wahl.projektId !== undefined) {
+    if (!KENNUNG.test(wahl.projektId)) return null;
+    const [p] = await kontext.abfrage<{
+      id: string; titel: string; auftrag_id: string; auftrag_titel: string | null;
+    }>(
+      `select p.id::text as id, p.nummer || ' — ' || p.bezeichnung as titel,
+              p.auftrag_id::text as auftrag_id,
+              a.auftragsnummer || ' — ' || a.bezeichnung as auftrag_titel
+         from projekt p
+         left join auftrag a on a.mandant_id = p.mandant_id and a.id = p.auftrag_id
+        where p.id = $1::uuid and p.mandant_id = app.aktiver_mandant()`,
+      [wahl.projektId]);
+    if (p === undefined) return null;
+    return {
+      art: 'projekt', id: p.id, titel: p.titel,
+      auftragId: p.auftrag_id, auftragTitel: p.auftrag_titel,
+      filter: { projektId: p.id, auftragId: p.auftrag_id },
+    };
+  }
+  return null;
+}
+
+/**
+ * **Was das Blatt eines Auftrags oder Projekts über seine Aufgaben sagt**
+ * (OPS-11, V-176, D-670) — hier und nicht in der Komponente, weil „offen"
+ * und „überfällig" Regeln sind: die Zahl über der Liste kommt aus
+ * `zaehleJeZustand` über DENSELBEN Filter, überfällig ist nur, was noch offen
+ * ist (eine erledigte Aufgabe mit alter Frist ist fertig, nicht zu spät), und
+ * die Fristlage rechnet `fristlage` in Berliner Kalendertagen.
+ *
+ * `zeilen` darf mehr tragen als offene — sie werden hier aussortiert, damit
+ * ein Aufrufer, der die Liste ungefiltert holt, nicht Erledigtes als offen
+ * zeigt.
+ */
+export function aufgabenAkte(
+  zeilen: readonly AufgabeZeile[],
+  jeZustand: Readonly<Record<string, number>>,
+  jetzt: Date,
+  grenze: number = AUFGABEN_JE_BLATT,
+  /** Die Sprache der Seite — die Frist steht in ihr (V-240). */
+  sprache?: string | null,
+): AufgabenAkte {
+  const zaehle = (z: string): number => {
+    const n = jeZustand[z];
+    return typeof n === 'number' && Number.isFinite(n) ? n : 0;
+  };
+  const offene = zeilen.filter((z) => istOffen(z.status)).map((z) => ({
+    zeile: z, lage: fristlage(z, jetzt), frist: fristInWorten(z, sprache),
+  }));
+  const gezeigt = offene.slice(0, Math.max(0, grenze));
+  return {
+    offen: OFFENE_ZUSTAENDE.reduce((summe, z) => summe + zaehle(z), 0),
+    geschlossen: zaehle('erledigt') + zaehle('abgebrochen'),
+    ueberfaellig: offene.filter((a) => a.lage === 'ueberfaellig').length,
+    zeilen: gezeigt,
+    weitere: offene.length - gezeigt.length,
+  };
 }
 
 /* -------------------------------------------------------------------- Detail */

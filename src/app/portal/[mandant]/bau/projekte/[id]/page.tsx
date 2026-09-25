@@ -20,6 +20,15 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { Recht } from '@/components/ui/Recht';
+import { VorgangAkte } from '@/components/portal/VorgangAkte';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { VORGANG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/vorgang-akte';
+import {
+  AUFGABEN_JE_BLATT, aufgabenAkte, listeAufgaben, zaehleJeZustand, type AufgabenAkte,
+} from '@/server/services/kern/aufgabe';
+import {
+  leseDokumenteAmAuftrag, type VorgangsDokumente,
+} from '@/server/services/dokument/vorgang';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]` — das Bauprojekt (OPS-05, REP-05,
@@ -127,15 +136,54 @@ export default async function ProjektDetail(
    * Berichtsmodul; eine Objektleitung mit Kalkulationsrecht und ohne
    * Berichtsrecht bekam hinter dem Wort „Projekte" ein 404 (D-567, AUT-06).
    */
+  /*
+   * V-176 (OPS-11): die Aufgaben und Dokumente des Projekts. Beide lesen nur
+   * mit ihrem eigenen Leserecht; „Aufgabe anlegen" und „Dokument ablegen"
+   * stehen nur mit dem Schreibrecht ihres Ziels, und der Verweis auf den
+   * Auftrag nur mit `auftrag.lesen` (AUT-06).
+   */
   const darf = await haeltRechte(
-    sitzung, 'bau.schreiben', 'bericht.lesen', 'kalkulation.lesen');
+    sitzung, 'bau.schreiben', 'bericht.lesen', 'kalkulation.lesen',
+    'aufgabe.lesen', 'aufgabe.schreiben', 'dokument.lesen', 'dokument.schreiben',
+    'auftrag.lesen');
+  /** Die Serveruhr — für die Fristlage der Aufgaben (Invariante 5). */
+  const jetzt = new Date();
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
       const projekt = await findeProjektDetail(kontext, id);
       if (projekt === null) return null;
+      /*
+       * **Ein Projekt hat seine Akte an seinem Auftrag** (V-176, D-670).
+       * `projekt.auftrag_id` ist lesbar (Spaltenrecht aus 0089); die
+       * Nummer kommt über einen Join unter RLS und bleibt leer, wenn die
+       * Sitzung den Auftrag nicht sieht — die Aufgaben und Dokumente daran
+       * zeigt das Blatt trotzdem, denn die hängen an ihren eigenen Rechten.
+       */
+      const [bezug] = await kontext.abfrage<{
+        auftrag_id: string; auftragsnummer: string | null;
+      }>(
+        `select p.auftrag_id::text as auftrag_id, a.auftragsnummer
+           from projekt p
+           left join auftrag a on a.mandant_id = p.mandant_id and a.id = p.auftrag_id
+          where p.id = $1::uuid`, [id]);
+      // `projekt.auftrag_id` ist NOT NULL (0071); dieselbe Zeile hat
+      // `findeProjektDetail` eben gelesen.
+      if (bezug === undefined) return null;
+      const amProjekt = { projektId: id, auftragId: bezug.auftrag_id };
       return {
         projekt,
+        auftragId: bezug.auftrag_id,
+        auftragsnummer: bezug.auftragsnummer,
+        aufgaben: darf['aufgabe.lesen'] === true
+          ? aufgabenAkte(
+            await listeAufgaben(kontext, { ...amProjekt, nurOffene: true }),
+            await zaehleJeZustand(kontext, amProjekt),
+            jetzt, AUFGABEN_JE_BLATT, zugang.sprache)
+          : null,
+        dokumente: darf['dokument.lesen'] === true
+          ? await leseDokumenteAmAuftrag(kontext, bezug.auftrag_id)
+          : null,
         // NUR wenn das Recht gehalten wird — sonst wirft die Funktion und
         // reisst die ganze Transaktion mit.
         marge: projekt.darf_kalkulation_lesen
@@ -146,6 +194,10 @@ export default async function ProjektDetail(
     }),
   ) as Promise<{
     projekt: ProjektDetailZeile;
+    auftragId: string;
+    auftragsnummer: string | null;
+    aufgaben: AufgabenAkte | null;
+    dokumente: VorgangsDokumente | null;
     marge: ProjektMarge | null;
     warnungen: readonly AusserhalbLvWarnung[];
   } | null>);
@@ -153,6 +205,7 @@ export default async function ProjektDetail(
   // AUT-06: ein fremdes Projekt ist nicht vorhanden, nicht verboten.
   if (daten === null) notFound();
   const { projekt: p } = daten;
+  const akteTexte = nachSprache(VORGANG_AKTE_TEXTE, zugang.sprache);
 
   /**
    * Die Marge entsteht aus GANZZAHLIGEN CENT, nicht aus Prozenten (Invariante
@@ -485,6 +538,40 @@ export default async function ProjektDetail(
           ))}
         </div>
       </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* OPS-11 (V-176): Aufgaben und Dokumente — am Projekt und am Auftrag. */}
+      {/* ------------------------------------------------------------------ */}
+      <VorgangAkte
+        art="projekt"
+        sprache={zugang.sprache}
+        mandant={mandant}
+        filter={`projekt=${id}`}
+        aufgaben={daten.aufgaben}
+        dokumente={daten.dokumente}
+        auftragId={daten.auftragId}
+        darf={{
+          aufgabeSchreiben: darf['aufgabe.schreiben'] === true,
+          dokumentSchreiben: darf['dokument.schreiben'] === true,
+        }}
+        hinweis={(
+          <>
+            {akteTexte.projektAmAuftrag(daten.auftragsnummer)}
+            {darf['auftrag.lesen'] === true && daten.auftragsnummer !== null ? (
+              <>
+                {' '}
+                <Link
+                  href={`/portal/${mandant}/auftraege/${daten.auftragId}`}
+                  data-cse="projekt-zum-auftrag"
+                  className="text-text underline-offset-2 hover:text-brand hover:underline"
+                >
+                  {akteTexte.zumAuftrag}
+                </Link>
+              </>
+            ) : null}
+          </>
+        )}
+      />
     </PortalRahmen>
   );
 }

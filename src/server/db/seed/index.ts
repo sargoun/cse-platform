@@ -1793,7 +1793,8 @@ async function main(): Promise<void> {
       + `Positionen aus der Kalkulation (${vertrieb.angebotsnummer ?? 'ohne Nummer'} `
       + `versendet → Auftrag ${vertrieb.auftragsnummer ?? '—'} `
       + `aus Anfrage ${vertrieb.anfrage ?? '—'}, `
-      + `${String(vertrieb.entwuerfe)} Entwurf ohne Nummer — den sieht der Kunde nicht)\n`,
+      + `${String(vertrieb.entwuerfe)} Entwurf ohne Nummer — den sieht der Kunde nicht, `
+      + `mit ${String(vertrieb.kostenzeilen)} Material-/Gerätezeilen aus Demodaten)\n`,
     );
     if (vertrieb.offeneFragen.length > 0) {
       process.stdout.write(

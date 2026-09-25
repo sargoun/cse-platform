@@ -473,6 +473,15 @@ export interface AuftragAnlegen {
    * Vertragsschluss ist das nichts.
    */
   readonly entscheidungNotiz?: string;
+  /**
+   * Was der Vertrag verlangt (OPS-10, V-173) — bereits GEPRÜFT
+   * (`pruefeAuftragsangaben`): ganze Personen, Wochenstunden als
+   * `numeric(12,3)`-Text. Die Wandlung setzte bisher keines davon; ein Auftrag
+   * aus dem Angebot hatte für immer keinen Personalbedarf.
+   */
+  readonly personalbedarfAnzahl?: number | null;
+  readonly wochenstundenSoll?: string | null;
+  readonly ausstattungHinweis?: string | null;
 }
 
 /**
@@ -550,13 +559,17 @@ export async function wandleInAuftrag(
       const [z] = await db.abfrage<{ id: string; auftragsnummer: string }>(
         `insert into auftrag (mandant_id, auftragsnummer, kunde_id, objekt_id, angebot_id,
                               lead_id, art, bezeichnung, verantwortlich_benutzer_id,
-                              start_datum, laufzeit_bis, auftragswert_netto_cent)
+                              start_datum, laufzeit_bis, auftragswert_netto_cent,
+                              personalbedarf_anzahl, wochenstunden_soll,
+                              ausstattung_hinweis)
          values (app.aktiver_mandant(), $1, $2, $3, $4, $5, $6::auftrag_art, $7, $8,
-                 $9::date, $10::date, $11)
+                 $9::date, $10::date, $11, $12, $13::numeric, $14)
          returning id, auftragsnummer`,
         [nummer.formatiert, angebot.kunde_id, angebot.objekt_id, angebotId, angebot.lead_id,
          eingabe.art, angebot.titel, eingabe.verantwortlichBenutzerId,
-         eingabe.startDatum, eingabe.laufzeitBis ?? null, angebot.netto_cent],
+         eingabe.startDatum, eingabe.laufzeitBis ?? null, angebot.netto_cent,
+         eingabe.personalbedarfAnzahl ?? null, eingabe.wochenstundenSoll ?? null,
+         eingabe.ausstattungHinweis ?? null],
       );
       return z;
     } catch (fehler) {

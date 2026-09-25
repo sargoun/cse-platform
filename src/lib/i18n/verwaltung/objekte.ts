@@ -18,6 +18,7 @@
  * Wer sie übersetzt, sucht danach vergeblich.
  */
 import type { InternSprache } from '../intern.js';
+import { rechtName } from '../rechtname.js';
 
 export interface ObjekteTexte {
   /* ── Die Reiter des Objektblatts (V-044, SEITENKARTE §5.4) ─────────── */
@@ -63,6 +64,24 @@ export interface ObjekteTexte {
   readonly zutrittBeispiel: string;
   readonly bemerkung: string;
   readonly freiwillig: string;
+
+  /* ── Koordinaten (V-170, OPS-01, BAU-08) ───────────────────────────── */
+  readonly koordinaten: string;
+  readonly breitengrad: string;
+  readonly laengengrad: string;
+  readonly breitengradBeispiel: string;
+  readonly laengengradBeispiel: string;
+  readonly koordinatenHinweis: string;
+  readonly ohneKoordinaten: string;
+  /**
+   * Die Abweisungen des Objektdienstes (`ObjektFehler.grund`). Fehlt ein
+   * Schlüssel, zeigt die Seite `fehlerSonst` — nie den Schlüssel selbst und
+   * nie Text aus der Adresse (V-153, V-240).
+   */
+  readonly fehler: Readonly<Record<string, string>>;
+  /** `einsaetze_offen` — mit der Zahl aus `?anzahl=`, wenn sie eine ist (V-240). */
+  readonly einsaetzeOffen: (anzahl: number | null) => string;
+  readonly fehlerSonst: string;
 
   /* ── Sätze, die eine Entscheidung begründen ────────────────────────── */
   readonly anschriftPflicht: string;
@@ -136,6 +155,52 @@ export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
     zutrittBeispiel: 'z. B. Schlüssel beim Pförtner, Code am Nebeneingang',
     bemerkung: 'Bemerkung',
     freiwillig: '(freiwillig)',
+
+    koordinaten: 'Koordinaten',
+    breitengrad: 'Breitengrad',
+    laengengrad: 'Längengrad',
+    breitengradBeispiel: 'z. B. 52,520008',
+    laengengradBeispiel: 'z. B. 13,404954',
+    koordinatenHinweis:
+      'Freiwillig, aber beide oder keiner — in Dezimalgrad, mit Komma oder Punkt. '
+      + 'Gespeichert werden sechs Nachkommastellen (etwa zehn Zentimeter). Das '
+      + 'Wetter im Bautagebuch sucht damit die nächste Station. Eine Adresse wird '
+      + 'nicht von selbst in Koordinaten umgerechnet (O-122); was hier steht, hat '
+      + 'ein Mensch eingetragen.',
+    ohneKoordinaten:
+      'keine hinterlegt — das Wetter im Bautagebuch braucht sie',
+    fehler: {
+      bezeichnung_fehlt: 'Die Bezeichnung fehlt.',
+      strasse_fehlt: 'Die Strasse fehlt.',
+      ort_fehlt: 'Der Ort fehlt.',
+      plz_fehlt: 'Die Postleitzahl fehlt.',
+      plz_ungueltig: 'Eine deutsche Postleitzahl hat fünf Ziffern.',
+      land_ungueltig:
+        'Das Land ist ein Länderkürzel aus zwei Buchstaben (ISO 3166-1), z. B. DE.',
+      etagen_ungueltig:
+        'Die Zahl der Etagen ist eine ganze Zahl ohne Vorzeichen — das '
+        + 'Untergeschoss zählt die Etagen nicht herunter.',
+      koordinate_ungueltig:
+        'Eine Koordinate ist keine Zahl in Dezimalgrad — z. B. 52,520008 und '
+        + '13,404954.',
+      koordinate_bereich:
+        'Der Breitengrad liegt zwischen −90 und 90 Grad, der Längengrad zwischen '
+        + '−180 und 180 Grad.',
+      koordinaten_paar:
+        'Koordinaten sind ein Paar: Breiten- UND Längengrad, oder keines von beiden.',
+      objekt_unbekannt:
+        'Dieses Objekt gibt es nicht mehr, oder es ist bereits archiviert.',
+      // V-240: das Recht beim Namen, nicht als Schlüssel (wie V-144).
+      kein_schreibrecht:
+        `Das Objekt wurde nicht angelegt — es fehlt das Recht „${rechtName('objekt.schreiben', 'de')}“ `
+        + 'in dieser Gesellschaft.',
+      id_fehlt: 'Kein Objekt angegeben.',
+    },
+    einsaetzeOffen: (n) =>
+      `Zu diesem Objekt stehen noch ${n === null ? '' : `${String(n)} `}Einsätze in der `
+      + 'Zukunft. Stornieren Sie diese zuerst — sonst fährt morgen jemand an einen Ort, den '
+      + 'es in der Plattform nicht mehr gibt.',
+    fehlerSonst: 'Die Eingabe wurde abgewiesen. Bitte prüfen Sie die Angaben.',
 
     anschriftPflicht:
       'Die Anschrift ist Pflicht. Eine Schicht, die auf ein Objekt ohne '
@@ -223,6 +288,50 @@ export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
     zutrittBeispiel: 'e.g. key at the porter, code at the side entrance',
     bemerkung: 'Note',
     freiwillig: '(optional)',
+
+    koordinaten: 'Coordinates',
+    breitengrad: 'Latitude',
+    laengengrad: 'Longitude',
+    breitengradBeispiel: 'e.g. 52.520008',
+    laengengradBeispiel: 'e.g. 13.404954',
+    koordinatenHinweis:
+      'Optional, but both or neither — in decimal degrees, with a comma or a dot. '
+      + 'Six decimal places are stored (about ten centimetres). The weather in the '
+      + 'Bautagebuch (construction diary) uses them to find the nearest station. An '
+      + 'address is not converted into coordinates automatically (O-122); what is '
+      + 'shown here was entered by a person.',
+    ohneKoordinaten:
+      'none recorded — the weather in the Bautagebuch (construction diary) needs them',
+    fehler: {
+      bezeichnung_fehlt: 'The name is missing.',
+      strasse_fehlt: 'The street is missing.',
+      ort_fehlt: 'The town is missing.',
+      plz_fehlt: 'The postcode is missing.',
+      plz_ungueltig: 'A German postcode has five digits.',
+      land_ungueltig: 'The country is a two-letter code (ISO 3166-1), e.g. DE.',
+      etagen_ungueltig:
+        'The number of floors is a whole number without a sign — a basement does '
+        + 'not count the floors down.',
+      koordinate_ungueltig:
+        'A coordinate is not a number in decimal degrees — e.g. 52.520008 and '
+        + '13.404954.',
+      koordinate_bereich:
+        'Latitude lies between −90 and 90 degrees, longitude between −180 and 180 '
+        + 'degrees.',
+      koordinaten_paar:
+        'Coordinates are a pair: latitude AND longitude, or neither.',
+      objekt_unbekannt: 'This Objekt no longer exists, or it has already been archived.',
+      kein_schreibrecht:
+        `The Objekt was not created — the right “${rechtName('objekt.schreiben', 'en')}” `
+        + 'is missing in this Gesellschaft (the legal entity).',
+      id_fehlt: 'No Objekt was given.',
+    },
+    einsaetzeOffen: (n) =>
+      `There ${n === 1 ? 'is' : 'are'} still ${n === null ? '' : `${String(n)} `}future `
+      + `${n === 1 ? 'Einsatz' : 'Einsätze'} (shift${n === 1 ? '' : 's'}) at this Objekt. Cancel `
+      + `${n === 1 ? 'it' : 'them'} first — otherwise someone drives tomorrow to a place that `
+      + 'no longer exists in the platform.',
+    fehlerSonst: 'The entry was rejected. Please check the values.',
 
     anschriftPflicht:
       'The address is required. A shift scheduled on an Objekt without an '

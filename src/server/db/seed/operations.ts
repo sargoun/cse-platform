@@ -223,28 +223,38 @@ interface ObjektVorgabe {
   readonly etagen: number | null;
   readonly zutritt: string | null;
   readonly raumbuch: readonly RaumVorgabe[];
+  /**
+   * Breiten- und Längengrad als `numeric(9,6)`-Text (V-170, OPS-01).
+   *
+   * **Näherungswerte für die Vorführung**, aus einer Karte abgelesen, nicht
+   * vermessen — sie liegen im richtigen Block, nicht auf der Haustür. Sie
+   * stehen hier, damit das Wetter im Bautagebuch (BAU-08) über den Befund
+   * „keine Koordinaten" hinaus bis zur Stationsfrage kommt und das Objektblatt
+   * das Feld gefüllt zeigt. Eine Geokodierung der Adresse ist das nicht (O-122).
+   */
+  readonly geo: readonly [lat: string, lon: string];
 }
 
 const OBJEKTE: readonly ObjektVorgabe[] = [
-  { bereich: 'reinigung', kundenNummer: 'K-10001', nummer: 'OBJ-1001',
+  { bereich: 'reinigung', kundenNummer: 'K-10001', nummer: 'OBJ-1001', geo: ['52.503100', '13.332400'],
     bezeichnung: 'Bürohaus Kurfürstendamm', typ: 'Bürogebäude',
     strasse: 'Kurfürstendamm', hausnummer: '21', plz: '10719', ort: 'Berlin',
     etagen: 4, zutritt: 'Schlüsselkasten Hintereingang, Code beim Objektleiter',
     raumbuch: RAUMBUCH_BUEROHAUS },
-  { bereich: 'reinigung', kundenNummer: 'K-10002', nummer: 'OBJ-1002',
+  { bereich: 'reinigung', kundenNummer: 'K-10002', nummer: 'OBJ-1002', geo: ['52.487300', '13.321000'],
     bezeichnung: 'Ärztehaus Wilmersdorf', typ: 'Praxis',
     strasse: 'Berliner Straße', hausnummer: '48', plz: '10713', ort: 'Berlin',
     etagen: 1, zutritt: 'Zugang nur nach Praxisschluss ab 19:00',
     raumbuch: RAUMBUCH_AERZTEHAUS },
-  { bereich: 'reinigung', kundenNummer: null, nummer: 'OBJ-1003',
+  { bereich: 'reinigung', kundenNummer: null, nummer: 'OBJ-1003', geo: ['52.483800', '13.392000'],
     bezeichnung: 'Veranstaltungshalle Tempelhof', typ: 'Veranstaltungsort',
     strasse: 'Columbiadamm', hausnummer: '10', plz: '10965', ort: 'Berlin',
     etagen: 1, zutritt: null, raumbuch: [] },
-  { bereich: 'security', kundenNummer: 'K-20001', nummer: 'OBJ-2001',
+  { bereich: 'security', kundenNummer: 'K-20001', nummer: 'OBJ-2001', geo: ['52.503100', '13.332400'],
     bezeichnung: 'Bürohaus Kurfürstendamm — Objektschutz', typ: 'Bürogebäude',
     strasse: 'Kurfürstendamm', hausnummer: '21', plz: '10719', ort: 'Berlin',
     etagen: 4, zutritt: 'Wachbuch im Empfang', raumbuch: [] },
-  { bereich: 'bau', kundenNummer: 'K-30001', nummer: 'OBJ-3001',
+  { bereich: 'bau', kundenNummer: 'K-30001', nummer: 'OBJ-3001', geo: ['52.487300', '13.321000'],
     bezeichnung: 'Dachgeschossausbau Wilmersdorf', typ: 'Baustelle',
     strasse: 'Berliner Straße', hausnummer: '48', plz: '10713', ort: 'Berlin',
     etagen: null, zutritt: 'Bauzaun Süd, Schlüssel bei der Bauleitung',
@@ -481,12 +491,23 @@ export async function seedOperations(
     if (objektId === undefined) {
       const [neu] = await sql<{ id: string }[]>`
         insert into objekt (mandant_id, kunde_id, objektnummer, bezeichnung, gebaeudetyp,
-                            strasse, hausnummer, plz, ort, etagen_anzahl, zutritt_hinweis)
+                            strasse, hausnummer, plz, ort, etagen_anzahl, zutritt_hinweis,
+                            geo_lat, geo_lon)
         values (${mandant}, ${kundeId}, ${o.nummer}, ${o.bezeichnung}, ${o.typ},
                 ${o.strasse}, ${o.hausnummer}, ${o.plz}, ${o.ort},
-                ${o.etagen}, ${o.zutritt})
+                ${o.etagen}, ${o.zutritt},
+                ${o.geo[0]}::numeric(9,6), ${o.geo[1]}::numeric(9,6))
         returning id`;
       objektId = neu!.id;
+    } else {
+      /*
+       * Ein Bestand aus einem Seed VOR V-170 bekommt seine Koordinaten nach —
+       * aber nur, wo keine stehen: was ein Mensch eingetragen hat, gewinnt.
+       */
+      await sql`
+        update objekt set geo_lat = ${o.geo[0]}::numeric(9,6),
+                          geo_lon = ${o.geo[1]}::numeric(9,6)
+         where id = ${objektId} and geo_lat is null and geo_lon is null`;
     }
     objekte += 1;
 

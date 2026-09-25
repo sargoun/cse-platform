@@ -11,8 +11,10 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '../../../rechte';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
 import { istKennung } from '@/server/services/crm/lead-kette';
+import { waehlbareLeitungen } from '@/server/services/auftrag/angaben';
 import { vorbelegt } from '@/lib/formular/maske';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 
@@ -57,6 +59,10 @@ export default async function AuftragAssistent(
    */
   const leadRoh = typeof suche['lead'] === 'string' ? suche['lead'] : '';
   const leadParam = istKennung(leadRoh) ? leadRoh : null;
+  /*
+   * Die Abweisung des Assistenten kommt als Schlüssel zurück (V-172, D-599)
+   * — nicht mehr als weisse JSON-Seite.
+   */
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   /*
    * **Was eingegeben war, steht wieder da** (V-143, D-637). Eine Abweisung
@@ -89,11 +95,8 @@ export default async function AuftragAssistent(
       objekte: await kontext.abfrage<ObjektAuswahl>(
         `select id, bezeichnung as name, kunde_id from objekt
           where archiviert_am is null order by bezeichnung`),
-      leitungen: await kontext.abfrage<Auswahl>(
-        `select b.id, b.name from benutzer b
-           join benutzer_mandant bm on bm.benutzer_id = b.id
-          where bm.mandant_id = app.aktiver_mandant() and b.status = 'aktiv'
-          order by b.name`),
+      // Wer HEUTE Mitglied ist — dieselbe Frage wie Dienst und Auslöser (V-177).
+      leitungen: await waehlbareLeitungen(kontext),
       lead: leadParam === null ? null : (await kontext.abfrage<AnfrageAuswahl>(
         `select l.id::text as id, l.leadnummer, l.betreff, l.kunde_id::text as kunde_id,
                 k.name as kunde_name,
@@ -120,6 +123,7 @@ export default async function AuftragAssistent(
 
   const feld = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
+  const ta = nachSprache(AUFTRAG_TEXTE, zugang.sprache);
   /* Eine Auswahl übernimmt nur einen Wert, den sie auch anbietet. */
   const gewaehlt = (name: string, optionen: readonly { readonly id: string }[]): string | undefined => {
     const w = wert(name);
@@ -144,9 +148,15 @@ export default async function AuftragAssistent(
     >
       <h1 className="mb-s5 text-h1 text-text">Neuer Auftrag</h1>
 
+      {/*
+        * Die Sätze des Auftrags zuerst (V-172, V-173: deutsche Zahlen, Wert,
+        * Datum, Leitung), dann die der Kette (V-138, V-143: Anfrage, Maske).
+        */}
       {fehler !== null ? (
         <Hinweis art="warnung" cse="auftrag-neu-fehler" className="mb-s5 max-w-prose">
-          {eigenerEintrag(kt.maskeFehler, fehler) ?? eigenerEintrag(kt.fehler, fehler) ?? kt.nichtAngelegt}
+          <strong className="block">{ta.nichtAngelegt}</strong>
+          {eigenerEintrag(ta.fehler, fehler) ?? eigenerEintrag(kt.maskeFehler, fehler)
+            ?? eigenerEintrag(kt.fehler, fehler) ?? ta.nichtGespeichert}
         </Hinweis>
       ) : null}
       {anfrage !== null ? (
@@ -171,7 +181,7 @@ export default async function AuftragAssistent(
       ) : (
         <form
           method="post"
-          action={`/api/auftrag?mandant=${mandant}`}
+          action="/api/auftrag"
           className="max-w-prose rounded-lg border border-line bg-surface p-s5"
         >
           {anfrage !== null && anfrageKunde !== null ? (
@@ -279,6 +289,19 @@ export default async function AuftragAssistent(
               />
             </div>
           </div>
+
+          {/*
+            * V-173 (OPS-05): „Art, Laufzeit, WERT und verantwortliche Leitung".
+            * Ein so angelegter Auftrag hatte für immer keinen Wert, und die
+            * Wertkennzahlen zählten ihn mit 0.
+            */}
+          <label className="mt-s4 block text-sm text-text" htmlFor="auftragswertNetto">
+            {ta.wert}
+          </label>
+          <input id="auftragswertNetto" name="auftragswertNetto" type="text"
+                 inputMode="decimal" data-cse="auftrag-wert" className={feld}
+                 defaultValue={wert('auftragswertNetto') ?? ''} />
+          <p className="mt-s1 text-xs text-text-muted">{ta.wertHinweis}</p>
 
           <label className="mt-s4 block text-sm text-text" htmlFor="ausstattungHinweis">
             Ausstattung

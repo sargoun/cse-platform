@@ -104,3 +104,31 @@ export function tagDeutsch(datum: string | null | undefined): string {
   if (treffer === null) return datum;
   return `${treffer[3] ?? ''}.${treffer[2] ?? ''}.${treffer[1] ?? ''}`;
 }
+
+/**
+ * Britisches Englisch, mittlere Länge („29 Mar 2026") — dieselbe Form, die
+ * ein Zeitpunkt mit `dateStyle: 'medium'` bekommt, damit Tag und Zeitpunkt
+ * auf einem Blatt gleich aussehen. Gerechnet in UTC hin UND zurück: ein
+ * Kalendertag als UTC-Mitternacht, formatiert in UTC, ist derselbe Tag in
+ * jeder Zone des Prozesses.
+ */
+const EN_TAG = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' });
+
+/**
+ * Ein Kalendertag in der Sprache der Seite (V-240): deutsch `TT.MM.JJJJ`,
+ * englisch „29 Mar 2026" — weder das amerikanische Monat-Tag noch der
+ * deutsche Punkt. Was nicht wie ein Kalendertag aussieht, kommt unverändert
+ * zurück, wie bei `tagDeutsch`.
+ */
+export function tagInSprache(
+  datum: string | null | undefined, sprache: string | null | undefined,
+): string {
+  if (sprache !== 'en') return tagDeutsch(datum);
+  if (typeof datum !== 'string') return '';
+  const treffer = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(datum.slice(0, 10));
+  if (treffer === null) return datum;
+  const t = Date.UTC(Number(treffer[1]), Number(treffer[2]) - 1, Number(treffer[3]));
+  const d = new Date(t);
+  if (Number.isNaN(t) || d.toISOString().slice(0, 10) !== datum.slice(0, 10)) return datum;
+  return EN_TAG.format(d);
+}

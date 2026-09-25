@@ -32,7 +32,15 @@
 import type { SchreibKontext } from '../../kontext/index.js';
 
 export class ObjektFehler extends Error {
-  constructor(nachricht: string, readonly grund: string, readonly status = 400) {
+  constructor(
+    nachricht: string, readonly grund: string, readonly status = 400,
+    /**
+     * Die Zahl, die ein Grund trägt (`einsaetze_offen`) — damit die Seite den
+     * Satz in IHRER Sprache bilden kann, statt den deutschen aus der Adresse
+     * zu zeigen (V-240).
+     */
+    readonly anzahl: number | null = null,
+  ) {
     super(nachricht);
     this.name = 'ObjektFehler';
   }
@@ -53,6 +61,13 @@ export interface NeuesObjekt {
   readonly etagenAnzahl?: string | undefined;
   readonly zutrittHinweis?: string | undefined;
   readonly bemerkung?: string | undefined;
+  /**
+   * Breiten- und Längengrad als EINGABETEXT (V-170, OPS-01) — beide oder
+   * keiner. Geprüft und in die Form von `numeric(9,6)` gebracht wird er in
+   * `koordinatenAus`, nie über eine Gleitkommazahl.
+   */
+  readonly geoLat?: string | undefined;
+  readonly geoLon?: string | undefined;
 }
 
 export interface AngelegtesObjekt {
@@ -106,6 +121,101 @@ function plzPruefen(plz: string, land: string): string {
   return plz;
 }
 
+/**
+ * Eine Koordinate in Dezimalgrad — der Text, den `numeric(9,6)` erwartet
+ * (V-170, OPS-01).
+ *
+ * **Warum das fehlte.** `objekt.geo_lat`/`geo_lon` gibt es seit 0021 mit
+ * CHECKs, aber kein Weg schrieb sie. Das Bautagebuch meldete deshalb für jede
+ * Baustelle „Keine Koordinaten am Objekt hinterlegt" — einen Pflegefehler,
+ * den niemand beheben konnte, weil kein Formular danach fragte.
+ *
+ * **Komma UND Punkt sind Dezimaltrenner.** Eine Koordinate hat höchstens drei
+ * Vorkommastellen, einen Tausenderpunkt gibt es darin nicht — `52.520008` aus
+ * einer Karte und `52,520008` von einer deutschen Tastatur meinen dasselbe.
+ *
+ * **Gerundet wird auf sechs Nachkommastellen, in ganzen Zahlen.** Eine Karte
+ * liefert gern `52.52000659999999`; sechs Stellen sind etwa zehn Zentimeter,
+ * mehr trägt die Spalte nicht. Gerundet wird halb aufwärts vom Nullpunkt weg
+ * — dieselbe Regel, die Postgres für `numeric` anwendet —, und zwar HIER, in
+ * Mikrograd als `bigint`, damit die Datenbank einen Wert bekommt, den sie
+ * nicht mehr anfassen muss. Eine Gleitkommazahl sieht dieser Weg nie.
+ *
+ * **Der Bereich ist der der CHECKs aus 0021** — ±90° Breite, ±180° Länge —
+ * und wird hier mit einem Satz abgewiesen statt dort mit `23514`.
+ */
+export type KoordinatenArt = 'breite' | 'laenge';
+
+const KOORDINATE = /^([+-]?)(\d{1,3})(?:[.,](\d{1,15}))?$/u;
+const MIKRO = 1_000_000n;
+
+export function leseKoordinate(roh: string, art: KoordinatenArt): string {
+  // Nur aussen gekürzt: ein Leerzeichen MITTEN in der Zahl („5 2") ist kein
+  // Tippfehler, den man still zusammenschiebt — daraus würde 52.
+  const text = roh.trim().replace(/°$/u, '').trim();
+  const treffer = KOORDINATE.exec(text);
+  if (treffer === null) {
+    throw new ObjektFehler(
+      art === 'breite'
+        ? 'Der Breitengrad ist keine Zahl in Dezimalgrad — z. B. 52,520008.'
+        : 'Der Längengrad ist keine Zahl in Dezimalgrad — z. B. 13,404954.',
+      'koordinate_ungueltig');
+  }
+  const [, zeichen = '', ganz = '0', bruch = ''] = treffer;
+  const stellen = bruch.padEnd(7, '0');
+  let mikro = BigInt(ganz) * MIKRO + BigInt(stellen.slice(0, 6));
+  // Halb aufwärts auf dem BETRAG: die siebte Stelle entscheidet, ob der Rest
+  // mindestens ein halbes Millionstel ist.
+  if (Number(stellen[6]) >= 5) mikro += 1n;
+  const grenze = (art === 'breite' ? 90n : 180n) * MIKRO;
+  if (mikro > grenze) {
+    throw new ObjektFehler(
+      art === 'breite'
+        ? 'Der Breitengrad liegt zwischen −90 und 90 Grad.'
+        : 'Der Längengrad liegt zwischen −180 und 180 Grad.',
+      'koordinate_bereich');
+  }
+  const negativ = zeichen === '-' && mikro !== 0n;
+  return `${negativ ? '-' : ''}${String(mikro / MIKRO)}.`
+    + `${String(mikro % MIKRO).padStart(6, '0')}`;
+}
+
+/**
+ * Das Paar — beide Werte oder keiner (`objekt_geo_vollstaendig`, 0021).
+ *
+ * Ein halbes Paar ist kein Ort: mit einem Breitengrad allein liegt die
+ * Baustelle auf einem Kreis um die Erde. Beide leer heisst „keine
+ * Koordinaten", und beim Ändern räumt das ein vorhandenes Paar ab.
+ */
+export function koordinatenAus(
+  lat: string | undefined, lon: string | undefined,
+): { readonly lat: string; readonly lon: string } | null {
+  const b = lat?.trim() ?? '';
+  const l = lon?.trim() ?? '';
+  if (b === '' && l === '') return null;
+  if (b === '' || l === '') {
+    throw new ObjektFehler(
+      'Koordinaten sind ein Paar: Breiten- UND Längengrad, oder keines von beiden.',
+      'koordinaten_paar');
+  }
+  return { lat: leseKoordinate(b, 'breite'), lon: leseKoordinate(l, 'laenge') };
+}
+
+/**
+ * `52.520008` → `52,520008` — die gespeicherte Koordinate für ein deutsches
+ * Formular und das Objektblatt. Reine Textarbeit, kein Umweg über `Number`.
+ *
+ * **In der englischen Oberfläche bleibt der Punkt** (V-240): `52.520008`.
+ * Beides liest `leseKoordinate` zurück (Punkt oder Komma), also auch ein
+ * englisch vorbelegtes Formular.
+ */
+export function koordinateAlsText(
+  gespeichert: string | null, sprache?: string | null,
+): string {
+  if (gespeichert === null) return '';
+  return sprache === 'en' ? gespeichert : gespeichert.replace('.', ',');
+}
+
 function landPruefen(wert: string | undefined): string {
   const t = (wert?.trim() ?? 'DE').toUpperCase();
   if (!/^[A-Z]{2}$/.test(t)) {
@@ -143,17 +253,19 @@ export async function legeObjektAn(
   const land = landPruefen(eingabe.land);
   const plz = plzPruefen(pflicht(eingabe.plz, 'Die Postleitzahl', 'plz_fehlt'), land);
   const nummer = leer(eingabe.objektnummer);
+  const geo = koordinatenAus(eingabe.geoLat, eingabe.geoLon);
 
   const zeilen = await kontext.schreibe<AngelegtesObjekt>(
     `insert into objekt
        (mandant_id, kunde_id, objektnummer, bezeichnung, gebaeudetyp,
         strasse, hausnummer, adresszusatz, plz, ort, land,
-        etagen_anzahl, zutritt_hinweis, bemerkung, erstellt_von)
+        etagen_anzahl, zutritt_hinweis, bemerkung, geo_lat, geo_lon, erstellt_von)
      select app.aktiver_mandant(), $1,
             coalesce($2, 'OBJ-' || (
               coalesce(max(substring(o.objektnummer from '^OBJ-(\\d+)$')::int), 1000) + 1
             )::text),
             $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+            $14::numeric(9,6), $15::numeric(9,6),
             app.aktueller_benutzer()
        from objekt o
       where o.mandant_id = app.aktiver_mandant()
@@ -161,7 +273,7 @@ export async function legeObjektAn(
     [leer(eingabe.kundeId), nummer, bezeichnung, leer(eingabe.gebaeudetyp),
       strasse, leer(eingabe.hausnummer), leer(eingabe.adresszusatz), plz, ort, land,
       etagen(eingabe.etagenAnzahl), leer(eingabe.zutrittHinweis),
-      leer(eingabe.bemerkung)],
+      leer(eingabe.bemerkung), geo?.lat ?? null, geo?.lon ?? null],
   );
 
   const angelegt = zeilen[0];
@@ -193,6 +305,9 @@ export interface ObjektAenderung {
   readonly etagenAnzahl?: string | undefined;
   readonly zutrittHinweis?: string | undefined;
   readonly bemerkung?: string | undefined;
+  /** Beide oder keiner; beide leer räumt ein vorhandenes Paar ab (V-170). */
+  readonly geoLat?: string | undefined;
+  readonly geoLon?: string | undefined;
 }
 
 /**
@@ -212,6 +327,7 @@ export async function aendereObjekt(
   const ort = pflicht(eingabe.ort, 'Der Ort', 'ort_fehlt');
   const land = landPruefen(eingabe.land);
   const plz = plzPruefen(pflicht(eingabe.plz, 'Die Postleitzahl', 'plz_fehlt'), land);
+  const geo = koordinatenAus(eingabe.geoLat, eingabe.geoLon);
 
   const zeilen = await kontext.schreibe<{ id: string }>(
     `update objekt
@@ -219,13 +335,14 @@ export async function aendereObjekt(
             strasse = $5, hausnummer = $6, adresszusatz = $7,
             plz = $8, ort = $9, land = $10,
             etagen_anzahl = $11, zutritt_hinweis = $12, bemerkung = $13,
+            geo_lat = $14::numeric(9,6), geo_lon = $15::numeric(9,6),
             geaendert_am = now(), geaendert_von = app.aktueller_benutzer()
       where id = $1::uuid and archiviert_am is null
      returning id`,
     [eingabe.id, leer(eingabe.kundeId), bezeichnung, leer(eingabe.gebaeudetyp),
       strasse, leer(eingabe.hausnummer), leer(eingabe.adresszusatz), plz, ort, land,
       etagen(eingabe.etagenAnzahl), leer(eingabe.zutrittHinweis),
-      leer(eingabe.bemerkung)],
+      leer(eingabe.bemerkung), geo?.lat ?? null, geo?.lon ?? null],
   );
   if (zeilen[0] === undefined) {
     throw new ObjektFehler(
@@ -265,7 +382,7 @@ export async function archiviereObjekt(
       `Zu diesem Objekt stehen noch ${offen.anzahl} Einsätze in der Zukunft. `
       + 'Stornieren Sie diese zuerst — sonst fährt morgen jemand an einen Ort, '
       + 'den es in der Plattform nicht mehr gibt.',
-      'einsaetze_offen', 409);
+      'einsaetze_offen', 409, Number(offen.anzahl));
   }
 
   const zeilen = await kontext.schreibe<{ id: string }>(

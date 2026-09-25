@@ -1,5 +1,6 @@
 import 'server-only';
 import type { LeseKontext } from '@/server/kontext/index';
+import { freischaltungSql } from '@/server/services/radar/plattform';
 
 /**
  * Was die Vergabemappe zeigt (RAD-07, D-07).
@@ -55,6 +56,8 @@ export interface MappenBlick {
   readonly kennzeichen: string | null;
   readonly plattformName: string | null;
   readonly registrierung: string | null;
+  /** Registrierungspflicht und Gültigkeit eingerechnet (`freischaltungSql`, V-240). */
+  readonly freigeschaltet: boolean | null;
   readonly positionen: readonly Mappenposition[];
   /** Die mit der Bekanntmachung veröffentlichten Unterlagen — als Herkunft. */
   readonly quellDokumente: readonly QuellDokument[];
@@ -75,7 +78,8 @@ const BLICK_SQL = `
          m.einreichung_kennzeichen,
          vp.name as plattform_name,
          case when vp.id is null then null
-              else coalesce(mpr.status::text, 'unbekannt') end as registrierung
+              else coalesce(mpr.status::text, 'unbekannt') end as registrierung,
+         ${freischaltungSql('vp', 'mpr')} as freigeschaltet
     from vergabemappe m
     join ausschreibung_vorgang v on v.id = m.ausschreibung_vorgang_id and v.mandant_id = m.mandant_id
     join ausschreibung a on a.id = v.ausschreibung_id
@@ -85,6 +89,7 @@ const BLICK_SQL = `
     left join vergabeplattform vp on vp.id = a.vergabeplattform_id
     left join mandant_plattform_registrierung mpr
            on mpr.vergabeplattform_id = vp.id and mpr.geloescht_am is null
+          and mpr.mandant_id = m.mandant_id
    where m.geloescht_am is null and a.id = $1::uuid`;
 
 export async function leseMappe(
@@ -134,6 +139,7 @@ export async function leseMappe(
     kennzeichen: (z['einreichung_kennzeichen'] as string | null) ?? null,
     plattformName: (z['plattform_name'] as string | null) ?? null,
     registrierung: (z['registrierung'] as string | null) ?? null,
+    freigeschaltet: typeof z['freigeschaltet'] === 'boolean' ? z['freigeschaltet'] : null,
     positionen: positionen.map((p) => ({
       id: String(p['id']),
       position: Number(p['position']),

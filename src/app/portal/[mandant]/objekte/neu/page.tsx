@@ -10,6 +10,7 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { OBJEKTE_TEXTE } from '@/lib/i18n/verwaltung/objekte';
 import { ObjektFormular, type KundeAuswahl } from '../ObjektFormular';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/objekte/neu` — ein Objekt anlegen (OPS-01, V-001).
@@ -68,7 +69,12 @@ export default async function ObjektNeu(
    */
   const darf = await haeltRechte(zugang.sitzung, 'objekt.schreiben', 'objekt.lesen');
   const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  /*
+   * Der übersetzte Satz zum Schlüssel, sonst ein allgemeiner Satz — nie der
+   * Schlüssel und nie Text aus der Adresse (V-153, V-240).
+   */
+  const grund = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const meldung = grund === null ? null : eigenerEintrag(t.fehler, grund) ?? t.fehlerSonst;
 
   /*
    * Die Kundenliste kommt aus derselben Gesellschaft und nur ungesperrt: ein

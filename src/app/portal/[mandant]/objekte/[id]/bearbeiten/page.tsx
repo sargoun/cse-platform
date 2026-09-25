@@ -15,6 +15,7 @@ import { OBJEKTE_TEXTE } from '@/lib/i18n/verwaltung/objekte';
 import { ObjektFormular, type KundeAuswahl, type ObjektWerte }
   from '../../ObjektFormular';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/objekte/[id]/bearbeiten` — ein Objekt ändern oder
@@ -66,6 +67,8 @@ interface ObjektZeile {
   readonly etagen_anzahl: number | null;
   readonly zutritt_hinweis: string | null;
   readonly bemerkung: string | null;
+  readonly geo_lat: string | null;
+  readonly geo_lon: string | null;
   readonly archiviert: boolean;
 }
 
@@ -92,7 +95,17 @@ export default async function ObjektBearbeiten(
    */
   const darf = await haeltRechte(zugang.sitzung, 'objekt.schreiben', 'objekt.lesen');
   const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  /*
+   * Der übersetzte Satz zum Schlüssel, sonst ein allgemeiner Satz — nie der
+   * Schlüssel und nie Text aus der Adresse (V-153, V-240). Die Zahl offener
+   * Einsätze kommt als `?anzahl=` und wird nur als ganze Zahl gelesen.
+   */
+  const grund = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const anzahlRoh = typeof suche['anzahl'] === 'string' ? suche['anzahl'] : '';
+  const anzahl = /^\d{1,6}$/u.test(anzahlRoh) ? Number(anzahlRoh) : null;
+  const meldung = grund === null ? null
+    : grund === 'einsaetze_offen' ? t.einsaetzeOffen(anzahl)
+      : eigenerEintrag(t.fehler, grund) ?? t.fehlerSonst;
 
   const geladen = await db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -109,6 +122,7 @@ export default async function ObjektBearbeiten(
         `select o.id, o.objektnummer, o.bezeichnung, o.strasse, o.hausnummer,
                 o.adresszusatz, o.plz, o.ort, o.land, o.kunde_id, o.gebaeudetyp,
                 o.etagen_anzahl, n.zutritt_hinweis, n.bemerkung,
+                o.geo_lat::text as geo_lat, o.geo_lon::text as geo_lon,
                 (o.archiviert_am is not null) as archiviert
            from objekt o
            left join lateral app.objekt_notiz_lesen(o.id) n on true
@@ -139,6 +153,8 @@ export default async function ObjektBearbeiten(
     etagenAnzahl: o.etagen_anzahl,
     zutrittHinweis: o.zutritt_hinweis,
     bemerkung: o.bemerkung,
+    geoLat: o.geo_lat,
+    geoLon: o.geo_lon,
   };
 
   return (

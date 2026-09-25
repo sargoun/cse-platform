@@ -13,7 +13,11 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { FELD, FEHLERTEXT, type AnnahmeKopf, type Auswahl } from './daten';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { waehlbareLeitungen } from '@/server/services/auftrag/angaben';
+import { vorbelegt } from '@/lib/formular/maske';
 
 /**
  * `/portal/[mandant]/angebote/[id]/annahme` — was der Kunde entschieden hat
@@ -98,19 +102,29 @@ export default async function Annahme(
        * `kern.auftrag_verantwortlich_im_mandant` weist eine Person ab, die
        * hier nicht arbeitet. Eine Auswahlliste ueber alle Benutzer boete
        * damit an, was die Datenbank hinterher zurueckweist — ein Formular,
-       * das zum Fehler einlaedt.
+       * das zum Fehler einlaedt. Gefragt wird dieselbe Mitgliedschaft wie
+       * im Dienst, mit `gueltig_ab`/`gueltig_bis` (V-177).
        */
-      const leitungen = await kontext.abfrage<Auswahl>(
-        `select b.id, b.name from benutzer b
-           join benutzer_mandant bm on bm.benutzer_id = b.id
-          where bm.mandant_id = app.aktiver_mandant()
-            and bm.entzogen_am is null and b.status = 'aktiv'
-          order by b.name`);
+      const leitungen: readonly Auswahl[] = await waehlbareLeitungen(kontext);
       return { kopf, leitungen };
     })) as Promise<{ kopf: AnnahmeKopf; leitungen: readonly Auswahl[] } | null>);
 
   if (daten === null) notFound();
   const { kopf, leitungen } = daten;
+  /*
+   * V-240: nach einer Abweisung stehen die Eingaben wieder in DEM Formular,
+   * das abgeschickt wurde (`ausgang` reist mit, `maskeFelder` der Route).
+   * Eine Auswahl übernimmt nur einen Wert, den sie auch anbietet.
+   */
+  const zurueckAus = fehler === null ? undefined : vorbelegt(suche, 'ausgang');
+  const annahmeWert = (name: string): string | undefined =>
+    (zurueckAus === 'angenommen' ? vorbelegt(suche, name) : undefined);
+  const absageWert = (name: string): string | undefined =>
+    (zurueckAus === 'abgelehnt' || zurueckAus === 'zurueckgezogen'
+      ? vorbelegt(suche, name) : undefined);
+  const ARTEN = ['einzelauftrag', 'rahmenvertrag', 'dauerauftrag', 'projekt'];
+  const artVorwahl = ARTEN.find((a) => a === annahmeWert('art')) ?? 'rahmenvertrag';
+  const leitungVorwahl = leitungen.find((b) => b.id === annahmeWert('verantwortlichBenutzerId'))?.id;
 
   const gewandelt = kopf.auftrag_id !== null;
   const entschieden = kopf.status === 'abgelehnt' || kopf.status === 'zurueckgezogen'
@@ -144,7 +158,9 @@ export default async function Annahme(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="annahme-fehler" className="mb-s5">
           <strong>Nichts wurde erfasst.</strong>{' '}
-          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler)
+            ?? eigenerEintrag(nachSprache(AUFTRAG_TEXTE, zugang.sprache).fehler, fehler)
+            ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 
@@ -259,6 +275,7 @@ export default async function Annahme(
               name="notiz"
               rows={3}
               required
+              defaultValue={annahmeWert('notiz') ?? ''}
               placeholder="z. B. Auftragsbestätigung per Mail vom 14.03., Herr Meyer"
               className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text"
             />
@@ -270,7 +287,7 @@ export default async function Annahme(
             <label className="mt-s4 block text-sm text-text" htmlFor="art">
               Auftragsart
             </label>
-            <select id="art" name="art" defaultValue="rahmenvertrag" className={FELD}>
+            <select id="art" name="art" defaultValue={artVorwahl} className={FELD}>
               <option value="einzelauftrag">Einzelauftrag</option>
               <option value="rahmenvertrag">Rahmenvertrag</option>
               <option value="dauerauftrag">Dauerauftrag</option>
@@ -288,6 +305,7 @@ export default async function Annahme(
               id="verantwortlichBenutzerId"
               name="verantwortlichBenutzerId"
               required
+              {...(leitungVorwahl === undefined ? {} : { defaultValue: leitungVorwahl })}
               className={FELD}
             >
               {leitungen.map((b) => (
@@ -311,7 +329,7 @@ export default async function Annahme(
                    * auf dem Vortag — und der Auftrag begaenne einen Tag zu
                    * frueh (Invariante 2).
                    */
-                  defaultValue={berlinKalendertag(new Date())}
+                  defaultValue={annahmeWert('startDatum') ?? berlinKalendertag(new Date())}
                   className={FELD}
                 />
               </div>
@@ -319,10 +337,49 @@ export default async function Annahme(
                 <label className="block text-sm text-text" htmlFor="laufzeitBis">
                   Laufzeit bis
                 </label>
-                <input id="laufzeitBis" name="laufzeitBis" type="date" className={FELD} />
+                <input id="laufzeitBis" name="laufzeitBis" type="date" className={FELD}
+                       defaultValue={annahmeWert('laufzeitBis') ?? ''} />
                 <p className="mt-s1 text-xs text-text-muted">leer = unbefristet</p>
               </div>
             </div>
+
+            {/*
+              * V-173 (OPS-10): die Wandlung setzte weder Personalbedarf noch
+              * Stunden noch Ausstattung — ein Auftrag aus dem Angebot hatte
+              * sie für immer nicht. Freiwillig, nie geschätzt.
+              */}
+            <fieldset className="mt-s5 border-0 p-0" data-cse="annahme-ops10">
+              <legend className="text-sm font-semibold text-text">
+                {nachSprache(AUFTRAG_TEXTE, zugang.sprache).ops10Titel}
+              </legend>
+              <p className="mt-s1 text-xs text-text-muted">
+                {nachSprache(AUFTRAG_TEXTE, zugang.sprache).ops10Hinweis}
+              </p>
+              <div className="mt-s3 grid grid-cols-1 gap-s4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm text-text" htmlFor="personalbedarfAnzahl">
+                    {nachSprache(AUFTRAG_TEXTE, zugang.sprache).personalbedarf}
+                  </label>
+                  <input id="personalbedarfAnzahl" name="personalbedarfAnzahl"
+                         inputMode="numeric" className={FELD}
+                         defaultValue={annahmeWert('personalbedarfAnzahl') ?? ''} />
+                </div>
+                <div>
+                  <label className="block text-sm text-text" htmlFor="wochenstundenSoll">
+                    {nachSprache(AUFTRAG_TEXTE, zugang.sprache).wochenstunden}
+                  </label>
+                  <input id="wochenstundenSoll" name="wochenstundenSoll"
+                         inputMode="decimal" className={FELD}
+                         defaultValue={annahmeWert('wochenstundenSoll') ?? ''} />
+                </div>
+              </div>
+              <label className="mt-s4 block text-sm text-text" htmlFor="ausstattungHinweis">
+                {nachSprache(AUFTRAG_TEXTE, zugang.sprache).ausstattung}
+              </label>
+              <textarea id="ausstattungHinweis" name="ausstattungHinweis" rows={2}
+                        defaultValue={annahmeWert('ausstattungHinweis') ?? ''}
+                        className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text" />
+            </fieldset>
 
             <button
               type="submit"
@@ -350,7 +407,8 @@ export default async function Annahme(
             <label className="block text-sm text-text" htmlFor="ausgang">
               Was ist geschehen?
             </label>
-            <select id="ausgang" name="ausgang" defaultValue="abgelehnt" className={FELD}>
+            <select id="ausgang" name="ausgang" className={FELD}
+                    defaultValue={zurueckAus === 'zurueckgezogen' ? 'zurueckgezogen' : 'abgelehnt'}>
               <option value="abgelehnt">Der Kunde hat abgelehnt</option>
               <option value="zurueckgezogen">Wir ziehen das Angebot zurück</option>
             </select>
@@ -369,6 +427,7 @@ export default async function Annahme(
               name="notiz"
               rows={3}
               required
+              defaultValue={absageWert('notiz') ?? ''}
               placeholder="z. B. Preis über Budget; Vergabe an Bestandsdienstleister"
               className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text"
             />

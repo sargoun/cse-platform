@@ -391,6 +391,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Stammdaten eines Auftrags pflegen (V-173, OPS-05, OPS-10): Leitung,
+     * Laufzeit, Wert, Personalbedarf, Stunden, Ausstattung. Dasselbe Recht
+     * wie Anlegen und Zustand; die zweite Linie ist `t_mandant`, die der
+     * Dienst mit `for update` befragt.
+     */
+    pfad: 'api/auftrag/aendern',
+    recht: 'auftrag.schreiben',
+  },
+  {
+    /**
      * Die Kundenfreigabe zur Nennung als Referenz (0296).
      * `referenz.kundenfreigabe_erfassen` und nicht `auftrag.schreiben`: was
      * hier festgehalten wird, ist die Erklaerung des KUNDEN, mit seinem Namen
@@ -2618,6 +2628,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/radar/profil',
     recht: 'radar.profil_schreiben',
+  },
+  {
+    /**
+     * Den Plattformkatalog und den Registrierungsstand pflegen (RAD-09,
+     * V-175, D-669). Das Tor ist das Recht der Seite; den KATALOG selbst
+     * aendert nur die Super-Administration — das fragt der Dienst, und die
+     * Policy `r_plattform_schreiben` (0145, 0146) fragt es ein zweites Mal.
+     */
+    pfad: 'api/radar/plattform',
+    recht: 'radar.plattform_verwalten',
   },
   {
     /**

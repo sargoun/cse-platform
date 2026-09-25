@@ -11,6 +11,7 @@ import { Recht } from '@/components/ui/Recht';
 import { WEGE, ZUSTAND_TEXT, type Auftragszustand } from '@/server/services/auftrag/status';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
+import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
@@ -20,6 +21,14 @@ import { kennungOder404 } from '../../../kennung';
 import { haeltRechte } from '../../../rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { VorgangAkte } from '@/components/portal/VorgangAkte';
+import {
+  AUFGABEN_JE_BLATT, aufgabenAkte, listeAufgaben, zaehleJeZustand, type AufgabenAkte,
+} from '@/server/services/kern/aufgabe';
+import {
+  leseDokumenteAmAuftrag, type VorgangsDokumente,
+} from '@/server/services/dokument/vorgang';
 
 /**
  * `/portal/[mandant]/auftraege/[id]` — ein Auftrag mit dem, was OPS-10
@@ -136,10 +145,21 @@ export default async function AuftragDetail(
      * (`auftrag.schreiben`) und ausdrücklich nicht der Abschluss — der trägt
      * sein eigenes Recht, weil er nach D-366 die FIN-18-Warnung scharf stellt.
      */
-    'auftrag.schreiben');
+    'auftrag.schreiben',
+    /*
+     * V-176 (OPS-11): die Aufgaben und Dokumente dieses Auftrags. Gelesen
+     * wird nur, was die Sitzung lesen darf — ohne Leserecht steht der Satz,
+     * welches Recht fehlt, und keine leere Liste, die „nichts da" behauptet.
+     * Die Schreibrechte entscheiden über „Aufgabe anlegen" und „Dokument
+     * ablegen": deren Ziele verlangen sie (AUT-06).
+     */
+    'aufgabe.lesen', 'aufgabe.schreiben', 'dokument.lesen', 'dokument.schreiben');
 
-  const [kopf] = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, sitzung, async (kontext) => kontext.abfrage<Kopf>(
+  /** Die Serveruhr — für die Fristlage der Aufgaben (Invariante 5). */
+  const jetzt = new Date();
+  const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+    withTenant(tx, sitzung, async (kontext) => {
+      const [gelesen] = await kontext.abfrage<Kopf>(
       `select a.id, a.auftragsnummer, a.bezeichnung, a.beschreibung,
               a.art::text as art, a.status::text as status,
               k.name as kunde, a.kunde_id, o.bezeichnung as objekt, a.objekt_id,
@@ -163,9 +183,35 @@ export default async function AuftragDetail(
          left join benutzer b on b.id = a.verantwortlich_benutzer_id
          left join angebot ang on ang.id = a.angebot_id
         where a.id = $1`, [id],
-    ))) as Promise<readonly Kopf[]>);
+      );
+      if (gelesen === undefined) return null;
+      /*
+       * **Derselbe Filter für Liste und Zahl** (`filterBausteine`): an
+       * diesem Auftrag über `auftrag_id` ODER den polymorphen Bezug. Die
+       * Liste holt nur offene; die Zahl zählt alle Zustände, damit „keine
+       * offene — drei erledigt" von „noch keine Aufgabe" zu unterscheiden ist.
+       */
+      const amAuftrag = { auftragId: gelesen.id };
+      return {
+        kopf: gelesen,
+        aufgaben: darf['aufgabe.lesen'] === true
+          ? aufgabenAkte(
+            await listeAufgaben(kontext, { ...amAuftrag, nurOffene: true }),
+            await zaehleJeZustand(kontext, amAuftrag),
+            jetzt, AUFGABEN_JE_BLATT, zugang.sprache)
+          : null,
+        dokumente: darf['dokument.lesen'] === true
+          ? await leseDokumenteAmAuftrag(kontext, gelesen.id)
+          : null,
+      };
+    })) as Promise<{
+      kopf: Kopf;
+      aufgaben: AufgabenAkte | null;
+      dokumente: VorgangsDokumente | null;
+    } | null>);
 
-  if (kopf === undefined) notFound();
+  if (daten === null) notFound();
+  const { kopf } = daten;
 
   /*
    * **Dieselbe Tabelle wie im Dienst und im Auslöser.** Sie steht in
@@ -256,7 +302,29 @@ export default async function AuftragDetail(
         * nicht als Knopf: was sie tun, gehoert auf ihre Seite, mit dem, was
         * dagegen spricht.
         */}
+      {suche['gespeichert'] === '1' ? (
+        <Hinweis art="erfolg" cse="auftrag-gespeichert" className="mb-s5 max-w-prose">
+          {nachSprache(AUFTRAG_TEXTE, zugang.sprache).gespeichert}
+        </Hinweis>
+      ) : null}
+
       <nav aria-label="Vorgänge" className="mb-s6 flex flex-wrap gap-s3">
+        {/*
+          * V-173 (OPS-05, OPS-10): Leitung, Laufzeit, Wert, Personalbedarf,
+          * Stunden und Ausstattung standen nach der Anlage fest — kein
+          * Tippfehler liess sich korrigieren. Die Pflege trägt dasselbe Recht
+          * wie das Anlegen; für abgeschlossene und stornierte Aufträge sagt
+          * die Seite, warum dort nichts mehr geht.
+          */}
+        {darf['auftrag.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/auftraege/${id}/bearbeiten`}
+            data-cse="zur-auftragspflege"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+          >
+            {nachSprache(AUFTRAG_TEXTE, zugang.sprache).bearbeiten}
+          </Link>
+        )}
         {darf['auftrag.abschliessen'] === true && (
           <Link
             href={`/portal/${mandant}/auftraege/${id}/abschluss`}
@@ -321,6 +389,21 @@ export default async function AuftragDetail(
         </section>
       )}
 
+      {/* ------------------------- Aufgaben und Dokumente (OPS-11, V-176) */}
+      <VorgangAkte
+        art="auftrag"
+        sprache={zugang.sprache}
+        mandant={mandant}
+        filter={`auftrag=${kopf.id}`}
+        aufgaben={daten.aufgaben}
+        dokumente={daten.dokumente}
+        auftragId={kopf.id}
+        darf={{
+          aufgabeSchreiben: darf['aufgabe.schreiben'] === true,
+          dokumentSchreiben: darf['dokument.schreiben'] === true,
+        }}
+      />
+
       {/* ---------------------------------------- Der Zustand (V-081) */}
       <section aria-labelledby="zustand" className="mt-s7 max-w-prose">
         <h2 id="zustand" className="mb-s3 text-h3 text-text">Zustand des Auftrags</h2>
@@ -337,7 +420,7 @@ export default async function AuftragDetail(
         {statusFehler !== null ? (
           <Hinweis art="warnung" cse="auftrag-statusfehler" className="mb-s4">
             <strong>Nicht gesetzt.</strong>{' '}
-            {STATUS_FEHLER[statusFehler] ?? 'Die Änderung wurde abgewiesen.'}
+            {eigenerEintrag(STATUS_FEHLER, statusFehler) ?? 'Die Änderung wurde abgewiesen.'}
           </Hinweis>
         ) : null}
 

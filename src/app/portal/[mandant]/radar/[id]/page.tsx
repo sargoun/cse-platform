@@ -14,6 +14,9 @@ import { kennungOder404 } from '../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
+import { RADAR_PLATTFORM_TEXTE } from '@/lib/i18n/verwaltung/radar-plattform';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 
 /**
  * `/portal/[mandant]/radar/[id]` — eine Bekanntmachung (RAD-03, RAD-05,
@@ -88,12 +91,14 @@ export default async function Bekanntmachung(
   const vermerkt = typeof suche['vermerkt'] === 'string' ? suche['vermerkt'] : null;
   const fehlerRoh = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const k = nachSprache(KETTE_TEXTE, zugang.sprache);
+  /* Der Registrierungsstand in Worten, nie als Aufzählungswert (V-175). */
+  const tp = nachSprache(RADAR_PLATTFORM_TEXTE, zugang.sprache);
   /*
    * Eine Abweisung der Lead-Übernahme (V-139) kommt mit ihrem eigenen
    * Schlüssel zurück und steht bei der Übernahme — nicht als „Nicht
    * geändert" über dem Stand der Bekanntmachung, den sie nicht berührt.
    */
-  const leadFehler = fehlerRoh === null ? null : (k.fehler[fehlerRoh] ?? null);
+  const leadFehler = eigenerEintrag(k.fehler, fehlerRoh) ?? null;
   const abgewiesen = leadFehler === null ? fehlerRoh : null;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -234,10 +239,17 @@ export default async function Bekanntmachung(
           prüfen Sie Frist und Unterlagen gegen die Quelle.
         </Hinweis>
       ) : null}
-      {kopf.plattformName !== null && kopf.registrierung !== 'registriert' ? (
+      {/*
+        * V-240: freigeschaltet heisst registriert UND gültig — und eine
+        * Plattform ohne Registrierungspflicht warnt nicht (`freischaltungSql`).
+        */}
+      {kopf.plattformName !== null && kopf.freigeschaltet === false ? (
         <Hinweis art="warnung" cse="radar-plattform-warnung" className="mb-s5 max-w-prose">
           <strong>Auf {kopf.plattformName} ist diese Gesellschaft nicht freigeschaltet.</strong>{' '}
-          Stand: {kopf.registrierung ?? 'unbekannt'}. Eine Freischaltung dauert Tage bis Wochen —
+          {kopf.registrierungAbgelaufen && kopf.registrierungGueltigBis !== null
+            ? tp.gueltigkeitAbgelaufen(tagInSprache(kopf.registrierungGueltigBis, zugang.sprache))
+            : <>Stand: {eigenerEintrag(tp.stand, kopf.registrierung ?? 'unbekannt')
+                ?? tp.stand.unbekannt}.</>} Eine Freischaltung dauert Tage bis Wochen —
           ohne sie ist ein Angebot am Abgabetag nicht abzugeben (RAD-09).
           {/* `/radar/plattformen` verlangt `radar.plattform_verwalten` (Manifest);
             * ohne das Recht fuehrte der Verweis auf 404 (AUT-06; D-581). */}

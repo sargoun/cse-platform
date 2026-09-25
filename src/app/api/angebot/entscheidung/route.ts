@@ -4,6 +4,9 @@ import {
   AngebotFehler, entscheideAngebot, wandleInAuftrag,
 } from '@/server/services/angebot/index';
 import { NummernkreisFehler } from '@/server/services/finanz/nummernkreis';
+import {
+  AuftragsangabenFehler, pruefeAuftragsangaben,
+} from '@/server/services/auftrag/angaben';
 
 /**
  * `POST /api/angebot/entscheidung` — was der Kunde gesagt hat (OPS-09, CRM-05).
@@ -49,7 +52,17 @@ interface Ergebnis {
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   return fuehreUebergangAus<Ergebnis>(anfrage, {
     recht: 'angebot.annahme_erfassen',
-    grundVon: (f) => grundAus(f, AngebotFehler, NummernkreisFehler),
+    grundVon: (f) => grundAus(f, AngebotFehler, NummernkreisFehler, AuftragsangabenFehler),
+    /*
+     * V-240: eine abgewiesene Annahme bringt ihre Eingaben zurück — sonst
+     * standen Personalbedarf, Stunden und Ausstattung nach einem Tippfehler
+     * wieder leer da. `ausgang` sagt der Seite, welches der beiden Formulare
+     * gemeint war.
+     */
+    maskeFelder: [
+      'ausgang', 'notiz', 'art', 'verantwortlichBenutzerId', 'startDatum', 'laufzeitBis',
+      'personalbedarfAnzahl', 'wochenstundenSoll', 'ausstattungHinweis',
+    ],
     handle: async (kontext, rumpf): Promise<Ergebnis> => {
       const db = { abfrage: kontext.abfrage.bind(kontext) };
       const dbMitNummern = {
@@ -95,6 +108,17 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         throw new AngebotFehler('Unbekannte Verantwortliche', 'nicht_entscheidbar');
       }
       const notiz = (rumpf.felder['notiz'] ?? '').trim();
+      /*
+       * OPS-10 (V-173): Personalbedarf, Stunden, Ausstattung — freiwillig,
+       * nie geschätzt, geprüft mit demselben Leser wie im Assistenten. Eine
+       * Abweisung kommt als Schlüssel auf die Annahmeseite zurück.
+       */
+      const angaben = pruefeAuftragsangaben({
+        personalbedarf: rumpf.felder['personalbedarfAnzahl'] ?? null,
+        wochenstunden: rumpf.felder['wochenstundenSoll'] ?? null,
+      });
+      if (!angaben.ok) throw new AuftragsangabenFehler(angaben.grund, angaben.felder);
+      const ausstattung = (rumpf.felder['ausstattungHinweis'] ?? '').trim();
 
       const auftrag = await wandleInAuftrag(dbMitNummern, angebotId, {
         art,
@@ -108,6 +132,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         startDatum,
         ...(laufzeitBis === '' ? {} : { laufzeitBis }),
         ...(notiz === '' ? {} : { entscheidungNotiz: notiz }),
+        personalbedarfAnzahl: angaben.werte.personalbedarf,
+        wochenstundenSoll: angaben.werte.wochenstunden,
+        ausstattungHinweis: ausstattung === '' ? null : ausstattung,
       });
       return { angebotId, auftragId: auftrag.auftragId };
     },

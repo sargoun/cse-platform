@@ -102,6 +102,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'radar', pfad: 'radar/profil',
     schreibend: true, schreibRecht: 'radar.profil_schreiben',
   },
+  /**
+   * V-175 — Plattformkatalog und Registrierungsstand (RAD-09). Das Recht ist
+   * das der Seite; den Katalog schreibt zusaetzlich nur die
+   * Super-Administration (Dienst und `r_plattform_schreiben`).
+   */
+  {
+    modul: 'radar', pfad: 'radar/plattform',
+    schreibend: true, schreibRecht: 'radar.plattform_verwalten',
+  },
   { modul: 'buchhaltung', pfad: 'buchhaltung/kontenrahmen', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/kontierung', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/index', schreibend: false },
@@ -201,6 +210,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   {
     modul: 'objekt', pfad: 'kalkulation/bestaetigung',
+    schreibend: true, schreibRecht: 'kalkulation.schreiben',
+  },
+  /**
+   * V-174 — Material und Geraet: eine erfasste Kostenzeile aendert, worauf
+   * der Preis ruht, und rechnet ihn neu. Dasselbe Recht wie die Bestaetigung.
+   */
+  {
+    modul: 'objekt', pfad: 'kalkulation/kostenposition',
     schreibend: true, schreibRecht: 'kalkulation.schreiben',
   },
   /**
@@ -1395,9 +1412,24 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * Der Auftrag OHNE Angebot, der Weg des Assistenten (OPS-10, V-143,
    * D-637): Anfrage prüfen, dann erst die Nummer ziehen, anlegen. Bis dahin
    * stand das in der Route und liess sich nicht gegen die Datenbank prüfen.
+   * Seit V-172/V-173 prüft er vorher auch den Bezug und trägt den Wert.
    */
   {
     modul: 'auftrag', pfad: 'auftrag/direkt',
+    schreibend: true, schreibRecht: 'auftrag.schreiben',
+  },
+  /**
+   * V-172 — die Angaben eines Auftrags aus dem Formular: deutsche Zahlen,
+   * Grenzen aus 0025, Kunde/Objekt/Leitung unter RLS. Liest nur; geschrieben
+   * wird im Assistenten (`auftrag/direkt`) und in `auftrag/aendern`.
+   */
+  { modul: 'auftrag', pfad: 'auftrag/angaben', schreibend: false },
+  /**
+   * V-173 — Stammdaten eines Auftrags pflegen. `auftrag.schreiben`; gesperrt
+   * für abgeschlossen und storniert, der Wert aus einem Angebot bleibt.
+   */
+  {
+    modul: 'auftrag', pfad: 'auftrag/aendern',
     schreibend: true, schreibRecht: 'auftrag.schreiben',
   },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
@@ -2081,6 +2113,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'dokument', pfad: 'dokument/ablage',
     schreibend: true, schreibRecht: 'dokument.schreiben',
   },
+
+  /**
+   * **Die Dokumente eines Auftrags (OPS-11, V-176, 0421).** Liest nur —
+   * `dokument.auftrag_id` unter `t_mandant`, also mit `dokument.lesen`; das
+   * Auftrags- und das Projektblatt fragen das Recht vorher und sagen, warum
+   * die Liste fehlt. Geschrieben wird der Bezug von `dokument/ablage`.
+   */
+  { modul: 'dokument', pfad: 'dokument/vorgang', schreibend: false },
 
   /**
    * **Einstellen (D-09, EMP-14).** Erst der Mensch, dann die Beschaeftigung —

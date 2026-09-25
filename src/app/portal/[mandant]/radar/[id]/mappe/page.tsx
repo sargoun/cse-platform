@@ -210,7 +210,7 @@ export default async function Vergabemappe(
         </Hinweis>
       ) : null}
 
-      {m.plattformName !== null && m.registrierung !== 'registriert' ? (
+      {m.plattformName !== null && m.freigeschaltet === false ? (
         <Hinweis art="warnung" cse="mappe-plattform" className="mb-s5 max-w-prose">
           <strong>Auf {m.plattformName} ist diese Gesellschaft nicht freigeschaltet.</strong>{' '}
           Eine vollständige Mappe nützt nichts, wenn niemand sie hochladen kann — die
