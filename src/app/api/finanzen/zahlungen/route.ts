@@ -5,8 +5,6 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
-  from '@/server/auth/fehler';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { GeldFehler, parseGeld } from '@/server/services/finanz/geld';
 import {
@@ -16,6 +14,7 @@ import {
 import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { maskeMitEingaben } from '@/lib/formular/maske';
 import { istUuid } from '@/lib/uuid';
+import { istGueltigerKalendertag } from '@/lib/datum/kalendertag';
 import { IbanFehler } from '@/server/services/finanz/zahlung/iban';
 
 /**
@@ -121,7 +120,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         || !MITTEL_AUSGANG.has(mittel)) {
       return zurEingangsrechnung(anfrage, eingangsrechnungId, { fehler: 'unvollstaendig', daten });
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/u.test(datum)) {
+    /*
+     * Ein Tag, den es gibt — das Muster allein liess den 31.02. durch, und
+     * die Datenbank antwortete mit `22008`, also einem 500 (V-217).
+     */
+    if (!istGueltigerKalendertag(datum)) {
       return zurEingangsrechnung(anfrage, eingangsrechnungId, { fehler: 'datum', daten });
     }
     const konto = text('bankkontoId');
@@ -239,7 +242,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
          * Schranke landete jede Zeichenkette im `::date`-Cast und ergaebe
          * einen rohen Postgres-Syntaxfehler statt einer Abweisung.
          */
-        if (!/^\d{4}-\d{2}-\d{2}$/u.test(zahlungsdatum)) {
+        if (!istGueltigerKalendertag(zahlungsdatum)) {
           return NextResponse.json({ fehler: 'ungueltig', felder: ['zahlungsdatum'] },
             { status: 400 });
         }
@@ -276,15 +279,6 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     }
     const auth = autorisierungsAntwort(fehler);
     if (auth !== null) return auth;
-    if (fehler instanceof NichtAngemeldetFehler) {
-      return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
-    }
-    if (fehler instanceof ZweiterFaktorFehler) {
-      return NextResponse.json({ fehler: 'zweiter_faktor' }, { status: 403 });
-    }
-    if (fehler instanceof NichtGefundenFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
-    }
     if (fehler instanceof GeldFehler) {
       return NextResponse.json({ fehler: 'ungueltig', felder: ['betrag'] }, { status: 400 });
     }
@@ -300,7 +294,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (fehler instanceof ZahlungFehler) {
       return NextResponse.json(
         { fehler: fehler.grund, meldung: fehler.message },
-        { status: fehler.grund === 'nicht_gefunden' ? 404 : 409 });
+        {
+          status: fehler.grund === 'nicht_gefunden' ? 404
+            /* Eine falsche Eingabe ist kein Konflikt mit dem Bestand (V-217). */
+            : fehler.grund === 'betrag_nicht_positiv' || fehler.grund === 'bankkonto_fremd'
+              ? 400 : 409,
+        });
     }
     throw fehler;
   }

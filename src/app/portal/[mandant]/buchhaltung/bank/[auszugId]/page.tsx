@@ -8,6 +8,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
@@ -246,7 +247,7 @@ export default async function BankAuszug(
         {[
           ['Bankkonto', k.bankkonto],
           ['IBAN', k.iban],
-          ['Zeitraum', k.von === null ? '—' : `${k.von} – ${k.bis ?? k.von}`],
+          ['Zeitraum', k.von === null ? '—' : `${tagDeutsch(k.von)} – ${tagDeutsch(k.bis ?? k.von)}`],
           ['Zeilen', String(k.zeilen)],
           ['Anfangssaldo', anfang === null ? '—' : formatiereGeld(cent(anfang))],
           ['Endsaldo', ende === null ? '—' : formatiereGeld(cent(ende))],
@@ -287,7 +288,7 @@ export default async function BankAuszug(
           schluessel={(z) => z.id}
           spalten={[
             { schluessel: 'nr', kopf: 'Nr.', numerisch: true, zelle: (z) => z.laufnummer },
-            { schluessel: 'datum', kopf: 'Datum', zelle: (z) => z.buchungsdatum },
+            { schluessel: 'datum', kopf: 'Datum', zelle: (z) => tagDeutsch(z.buchungsdatum) },
             {
               schluessel: 'betrag', kopf: 'Betrag', numerisch: true,
               zelle: (z) => (
@@ -368,7 +369,7 @@ export default async function BankAuszug(
                   className="rounded-lg border border-line bg-surface p-s5">
                 <div className="mb-s3 flex flex-wrap items-baseline justify-between gap-s3">
                   <span className="text-sm text-text">
-                    Nr. {z.laufnummer} · {z.buchungsdatum} ·{' '}
+                    Nr. {z.laufnummer} · {tagDeutsch(z.buchungsdatum)} ·{' '}
                     <strong>{z.richtung === 'eingang' ? '' : '− '}{formatiereGeld(cent(BigInt(z.betrag_cent)))}</strong>
                     {z.gegenpartei === null ? '' : ` · ${z.gegenpartei}`}
                   </span>

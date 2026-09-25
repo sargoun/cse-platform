@@ -18408,3 +18408,65 @@ Stammdatenpflege. Der Test (8) hielt dieses Hängen als erwünscht fest.
 
 | Betrifft | FIN-15, K-12, D-705, V-213, V-217, Invariante 7, `drizzle/0449_mahnung_brief_eingefroren.sql`, `drizzle/0125_mahnwesen.sql`, `drizzle/0130_pruefbefunde_finanzen.sql`, `src/server/services/finanz/mahnung/index.ts`, `src/app/portal/[mandant]/finanzen/mahnungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/mahnungen.ts`, `tests/isolation/mahnung.test.ts` (8), (9), `tests/kern/mahnschreiben.test.ts` |
 |---|---|
+
+### D-710 · Die kleinen Befunde der Prüfung von V-210 bis V-216 — Platzhaltertext, Aufwandsliste, Zahlungsabweisungen, Hinweiskasten (V-217)
+
+**Der Befund** (Prüfung der Gruppe buchhaltung, neben den beiden blockierenden
+Punkten aus D-708 und D-709): (1) „weggelassen = übernommen" holte den
+Mahntext auch aus einer Platzhalterfassung — mit dem Seed stand
+„PLATZHALTER (O-19): …" in jeder Stufe, und die erste echte Fassung ohne
+eigenen Text erbte ihn in den Brief an den Kunden; (2) die Mahnwesen- und die
+Kontoklärungsroute übersetzten Auth-Würfe von Hand, `KontoGesperrtFehler` und
+`ZuVieleVersucheFehler` endeten als 500; (3) Erfolgsmeldung und Abweisungen
+der Stufenpflege nannten Tage als `2026-10-01`, die Zinsart stand als
+Schlüssel (`gesetzlich_b2b`) in der Tabelle; (4) der Zahlungsausgang liess
+`2026-02-31` durch (`22008` → 500), ein Konto einer anderen Gesellschaft
+endete als Fremdschlüsselverletzung (500), und der Satz zu `abgewiesen`
+behauptete für jede Abweisung, der Betrag sei null; der Text `bezahlt` war
+unbenutzt; (5) die Verweise auf die Ausgabenliste (Monatszahlen `?monat=`,
+Finanzübersicht `?jahr=`) zeigten alle Zustände und auch Ausgaben aus
+Eingangsrechnungen, die Summe passte nicht zur Spalte; (6) vier Seiten bauten
+den Warnkasten aus Klassen nach, statt `<Hinweis>` zu nehmen; (7) ein
+Testsatz prüfte bei `mehrdeutig` trivial `false`; (8) Tage im Kontoauszug
+und Beträge der Zahlungstabelle standen nicht in der Hausschreibweise bzw.
+der Sprache der Sitzung.
+
+**Die Entscheidung.**
+
+1. **Übernommen wird nur aus einer bestätigten Fassung.** Der Text einer
+   Platzhalterfassung ist niemandes Wortlaut; die neue Fassung ohne eigenen
+   Text hat dann keinen (`bestaetigeStufe`), und die Maske sagt es. Die
+   Platzhalterfassung selbst bleibt, wie sie ist.
+2. **Auth-Würfe an einer Stelle:** beide Routen gehen über
+   `autorisierungsAntwort` (404/403/401/429, nie 500).
+3. **Ein Tag, den es gibt.** `istGueltigerKalendertag` (`lib/datum/kalendertag`)
+   prüft Muster UND Kalender; Zahlungsausgang, Zahlungseingang und „Gültig ab"
+   der Stufenpflege benutzen ihn und führen mit einem Satz zurück.
+4. **Zwei neue Gründe am `ZahlungFehler`:** `betrag_nicht_positiv` (vorher
+   `abgewiesen`) und `bankkonto_fremd` (aus `zahlung_bankkonto_fk`, 23503 —
+   die Schranke bleibt die Wahrheit, der Dienst macht einen Satz daraus). Der
+   Satz zu `abgewiesen` fragt nach dem Recht, statt den Betrag zu beschuldigen.
+   Ein Unit-Test hält fest, dass jeder Grund einen Satz in beiden Sprachen hat.
+   Programme bekommen für beide 400 statt 409.
+5. **Die verlinkte Liste zählt wie die Spalte.** `AusgabeFilter.nurAufwand`
+   (`?aufwand=ja`, Kästchen „nur Aufwand" in der Liste) ist dieselbe Lesart wie
+   `app.ausgaben_aufwand` (0446): freigegeben oder gebucht, ohne Ausgaben aus
+   Eingangsrechnungen. Monatszahlen und Finanzübersicht verlinken damit; die
+   Liste bleibt ohne den Filter, wie sie war.
+6. **`<Hinweis>` bekommt eine Rolle.** `rolle` (`alert`/`status`) für Kästen,
+   die den Ausgang eines Formulars melden (DESIGN §5 „Notices", §9 „errors
+   announced via aria-live"); die vier nachgebauten Kästen dieser Gruppe
+   gehen darüber. Ältere Seiten mit nachgebauten Kästen werden umgestellt,
+   wenn sie angefasst werden — sie alle hier umzustellen, wäre ein Eingriff in
+   rund siebzig Seiten ohne Befund.
+7. **Ein Primary je Ansicht:** auf dem Mahnungsentwurf ist „Freigeben" der
+   Primary, „Verwerfen" ein stiller Knopf.
+8. Der Text `bezahlt` steht jetzt dort, wo das Formular verschwindet: „Diese
+   Eingangsrechnung ist vollständig bezahlt, ausgeglichen am …".
+
+**Nicht geändert:** das Kontoauszugsblatt (`buchhaltung/bank/[auszugId]`) ist
+weiter nur deutsch, wie vor V-216 — es bekommt die Tage als TT.MM.JJJJ, aber
+keine Übersetzung in dieser Nachbesserung.
+
+| Betrifft | FIN-14, FIN-15, FIN-17, ACC-04, D-599, D-705, D-706, D-707, D-728, V-214, V-215, V-216, V-217, O-19, `src/server/services/finanz/mahnung/stufen.ts`, `src/server/services/finanz/zahlung/index.ts`, `src/server/services/finanz/ausgabe.ts`, `src/lib/datum/kalendertag.ts`, `src/components/ui/Hinweis.tsx`, `docs/DESIGN.md` §5, `src/app/api/einstellungen/mahnwesen/route.ts`, `src/app/api/buchhaltung/bank/umsatz/route.ts`, `src/app/api/finanzen/zahlungen/route.ts`, `src/app/portal/[mandant]/{einstellungen/mahnwesen,buchhaltung/datev/neu,buchhaltung/bank/[auszugId],buchhaltung/monatszahlen,finanzen,finanzen/ausgaben,finanzen/eingangsrechnungen/[id],finanzen/mahnungen/[id]}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,belege}.ts` |
+|---|---|

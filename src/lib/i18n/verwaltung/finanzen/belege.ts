@@ -181,6 +181,8 @@ export interface BelegeTexte {
   /* ── Blatt 3: die Ausgabenliste ────────────────────────────────────── */
   readonly ausgabenTitel: string;
   readonly nurWeiterberechenbar: string;
+  /** Filter wie die Spalte „Betriebsausgaben" der Monatszahlen (V-217). */
+  readonly nurAufwand: string;
   readonly unbestaetigtKlammer: string;
   readonly summenJeZustand: string;
   readonly gezaehltInDatenbank: string;
@@ -446,6 +448,7 @@ const DE: BelegeTexte = {
 
   ausgabenTitel: 'Ausgaben',
   nurWeiterberechenbar: 'nur weiterberechenbar',
+  nurAufwand: 'nur Aufwand (freigegeben oder gebucht, ohne Eingangsrechnungen)',
   unbestaetigtKlammer: ' (unbestätigt)',
   summenJeZustand: 'Summen je Zustand',
   gezaehltInDatenbank:
@@ -778,6 +781,7 @@ const EN: BelegeTexte = {
 
   ausgabenTitel: 'Expenses',
   nurWeiterberechenbar: 'rechargeable only',
+  nurAufwand: 'expense only (approved or booked, without incoming invoices)',
   unbestaetigtKlammer: ' (unconfirmed)',
   summenJeZustand: 'Totals by state',
   gezaehltInDatenbank:

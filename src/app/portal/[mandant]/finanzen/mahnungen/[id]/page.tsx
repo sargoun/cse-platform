@@ -88,6 +88,12 @@ export default async function MahnungDetail(
     + 'p-s3 text-sm text-text';
   const knopf = 'mt-s4 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold '
     + 'text-white hover:bg-brand-hover';
+  /*
+   * Ein Primary je Ansicht (DESIGN §5): im Entwurf ist es „Freigeben";
+   * „Verwerfen" steht daneben als stiller Knopf (V-217) — vorher waren es zwei.
+   */
+  const knopfStill = 'mt-s4 min-h-11 rounded-md border border-line-strong px-s5 py-s3 '
+    + 'text-base text-text hover:bg-surface-2';
 
   return (
     <PortalRahmen
@@ -208,7 +214,7 @@ export default async function MahnungDetail(
         <h2 id="schreiben-titel" className="mb-s3 text-h2 text-text">{t.schreibenTitel}</h2>
         <p className="mb-s4 max-w-prose text-xs text-text-muted">{t.schreibenErklaerung}</p>
         {briefkopfLuecken.length === 0 ? null : (
-          <Hinweis art="warnung" cse="mahn-briefkopf-luecke" className="mb-s4 max-w-prose">
+          <Hinweis art="warnung" rolle="status" cse="mahn-briefkopf-luecke" className="mb-s4 max-w-prose">
             {t.briefkopfFehlt}{' '}
             {briefkopfLuecken.map((a) => t.briefkopfAngaben[a]).join(', ')}.{' '}
             {t.briefkopfPflege}
@@ -304,7 +310,7 @@ export default async function MahnungDetail(
                 id="grund" name="grund" type="text" required minLength={5} className={feld}
                 placeholder={t.verwerfenPlatzhalter}
               />
-              <button type="submit" className={knopf}>{t.verwerfen}</button>
+              <button type="submit" className={knopfStill}>{t.verwerfen}</button>
             </form>
           </section>
         </div>

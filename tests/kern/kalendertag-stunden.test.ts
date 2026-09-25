@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { monatsgrenzen, montag, tagePlus } from '@/lib/datum/kalendertag';
+import {
+  istGueltigerKalendertag, monatsgrenzen, montag, tagePlus,
+} from '@/lib/datum/kalendertag';
 import { stundenAusMinuten, stundenMinutenText } from '@/lib/datum/stunden';
 
 /**
@@ -57,6 +59,19 @@ describe('Kalendertag', () => {
     expect(monatsgrenzen('2026-02-14')).toEqual({ von: '2026-02-01', bis: '2026-02-28' });
     expect(monatsgrenzen('2028-02-14')).toEqual({ von: '2028-02-01', bis: '2028-02-29' });
     expect(monatsgrenzen('2026-12-31')).toEqual({ von: '2026-12-01', bis: '2026-12-31' });
+  });
+
+  it('erkennt einen Tag, den es gibt — das Muster allein genügt nicht (V-217)', () => {
+    expect(istGueltigerKalendertag('2026-02-28')).toBe(true);
+    expect(istGueltigerKalendertag('2028-02-29')).toBe(true);
+    // Das Muster passt, den Tag gibt es nicht: vorher 22008 aus der Datenbank.
+    expect(istGueltigerKalendertag('2026-02-31')).toBe(false);
+    expect(istGueltigerKalendertag('2026-02-29')).toBe(false);
+    expect(istGueltigerKalendertag('2026-13-01')).toBe(false);
+    expect(istGueltigerKalendertag('2026-00-10')).toBe(false);
+    expect(istGueltigerKalendertag('26-02-01')).toBe(false);
+    expect(istGueltigerKalendertag('2026-02-01T00:00')).toBe(false);
+    expect(istGueltigerKalendertag('')).toBe(false);
   });
 });
 

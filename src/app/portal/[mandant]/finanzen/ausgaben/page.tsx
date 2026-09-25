@@ -100,6 +100,8 @@ export default async function Ausgabenliste(
     kategorieId: kategorieRoh !== null && KENNUNG.test(kategorieRoh) ? kategorieRoh : null,
     nurWeiterberechenbar: suche['weiterberechenbar'] === 'ja',
     monat,
+    /* Wie die Spalte „Betriebsausgaben" zählt (V-217) — Monatszahlen und Übersicht verlinken so. */
+    nurAufwand: suche['aufwand'] === 'ja',
   };
 
   const tor = await mandantTor(`/portal/${mandant}/finanzen/ausgaben`, mandant);
@@ -148,7 +150,8 @@ export default async function Ausgabenliste(
   const feld = 'min-h-11 max-w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
   const gefiltert = filter.jahr !== null || filter.status !== null
-    || filter.kategorieId !== null || filter.nurWeiterberechenbar || filter.monat !== null;
+    || filter.kategorieId !== null || filter.nurWeiterberechenbar || filter.monat !== null
+    || filter.nurAufwand;
   const belegLuecken = daten.zeilen.filter((z) => z.belegPflichtVerletzt);
   const platzhalterKategorien = daten.zeilen.filter((z) => z.kategorieIstPlatzhalter);
 
@@ -233,6 +236,13 @@ export default async function Ausgabenliste(
               defaultChecked={filter.nurWeiterberechenbar}
             />
             {t.nurWeiterberechenbar}
+          </label>
+          <label className="flex min-w-0 items-center gap-s2 text-sm text-text">
+            <input
+              type="checkbox" name="aufwand" value="ja" data-cse="filter-aufwand"
+              defaultChecked={filter.nurAufwand}
+            />
+            {t.nurAufwand}
           </label>
           <button
             type="submit"

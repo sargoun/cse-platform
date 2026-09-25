@@ -179,7 +179,26 @@ describe('(7) ein Ausgang bekommt Verbindlichkeiten vorgeschlagen, nie gebucht',
     expect(v.art).toBe('mehrdeutig');
     expect(v.kandidaten.map((k) => k.nummerLieferant)).toEqual(['HN-4711']);
     expect(v.begruendung).toContain('Hygiene Nord HN-4711');
-    expect(darfAutomatischBuchen({ ...v, kandidaten: [] })).toBe(false);
+  });
+
+  /*
+   * V-217: vorher stand hier `darfAutomatischBuchen({ ...v, kandidaten: [] })`
+   * — bei `mehrdeutig` trivial falsch, geprüft war damit nichts. Was zu
+   * beweisen ist: auch der EINE Kandidat, bei dem Betrag und Nummer passen,
+   * wird nicht `eindeutig` (der Typ sagt es, die Laufzeit muss es halten).
+   */
+  it('auch ein einziger, genau passender Kandidat bleibt mehrdeutig — ein Mensch bestätigt', () => {
+    const v = schlageVorAusgang(ausgang(), [kreditor('HN-4711', 119_000n)]);
+    expect(v.art).toBe('mehrdeutig');
+    expect(v.kandidaten.map((k) => k.nummerLieferant)).toEqual(['HN-4711']);
+    const arten = new Set<string>([v.art]);
+    for (const zweck of ['Rechnung HN-4711', 'HN-4711', 'Sammelzahlung', '']) {
+      for (const betrag of [119_000n, 100_000n, 1n]) {
+        arten.add(schlageVorAusgang(ausgang({ verwendungszweck: zweck, betragCent: betrag }),
+          [kreditor('HN-4711', 119_000n)]).art);
+      }
+    }
+    expect([...arten].filter((a) => a !== 'mehrdeutig' && a !== 'kein_treffer')).toEqual([]);
   });
 
   it('die eigene Belegnummer im Zweck zaehlt ebenso', () => {

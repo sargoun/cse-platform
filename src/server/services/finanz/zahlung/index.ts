@@ -43,7 +43,14 @@ export class ZahlungFehler extends Error {
       | 'kein_posten'
       | 'schon_ausgeglichen'
       | 'storniert'
-      | 'abgewiesen',
+      | 'abgewiesen'
+      /** Ein Betrag von null oder weniger (V-217) — vorher `abgewiesen`. */
+      | 'betrag_nicht_positiv'
+      /**
+       * Das Bankkonto gibt es in dieser Gesellschaft nicht (V-217) — vorher
+       * eine Fremdschlüsselverletzung und damit ein Fehler 500.
+       */
+      | 'bankkonto_fremd',
   ) {
     super(nachricht);
     this.name = 'ZahlungFehler';
@@ -246,7 +253,7 @@ export async function erfasseZahlung(
   if (eingabe.betragCent <= 0n) {
     throw new ZahlungFehler(
       'Eine Zahlung ueber null oder weniger ist keine. Die Richtung steht in '
-      + '`richtung`, nicht im Vorzeichen.', 'abgewiesen');
+      + '`richtung`, nicht im Vorzeichen.', 'betrag_nicht_positiv');
   }
   const [zeile] = await db.abfrage<{ id: string }>(
     `insert into zahlung (mandant_id, richtung, betrag_cent, zahlungsdatum, valuta,
@@ -259,7 +266,20 @@ export async function erfasseZahlung(
     [eingabe.richtung, eingabe.betragCent.toString(), eingabe.zahlungsdatum,
      eingabe.valuta ?? null, eingabe.zahlungsmittel,
      eingabe.bankkontoId ?? null, eingabe.kasseId ?? null,
-     eingabe.referenz ?? null, eingabe.notiz ?? null]);
+     eingabe.referenz ?? null, eingabe.notiz ?? null]).catch((fehler: unknown) => {
+    /*
+     * **Ein Konto einer anderen Gesellschaft** (V-217). Der Fremdschlüssel
+     * `zahlung_bankkonto_fk` hängt an `(mandant_id, bankkonto_id)` und weist
+     * es ab — als roher `23503`, im Browser ein 500. Die Schranke bleibt die
+     * Wahrheit; hier wird aus ihr ein Satz.
+     */
+    const f = fehler as { code?: unknown; constraint_name?: unknown };
+    if (f.code === '23503' && f.constraint_name === 'zahlung_bankkonto_fk') {
+      throw new ZahlungFehler(
+        'Das gewählte Bankkonto gehört nicht zu dieser Gesellschaft.', 'bankkonto_fremd');
+    }
+    throw fehler;
+  });
   if (zeile === undefined) {
     throw new ZahlungFehler('Die Zahlung wurde nicht erfasst.', 'abgewiesen');
   }
@@ -361,7 +381,7 @@ export async function verbucheZahlungseingang(
   }
   if (posten.ausgeglichenAm !== null) {
     throw new ZahlungFehler(
-      `Die Rechnung ist seit dem ${posten.ausgeglichenAm} ausgeglichen.`,
+      `Die Rechnung ist seit dem ${tagDeutsch(posten.ausgeglichenAm)} ausgeglichen.`,
       'schon_ausgeglichen');
   }
 

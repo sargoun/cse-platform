@@ -79,6 +79,9 @@ test.describe('Buchhaltung (PR 65)', () => {
     await ausgaben.click();
     await expect(page).toHaveURL(/\/finanzen\/ausgaben\?monat=/u);
     await expect(page.locator('[data-cse="monat-filter"]')).toBeVisible();
+    // V-217: die Liste zaehlt wie die Spalte — nur freigegeben/gebucht, ohne Eingangsrechnungen.
+    await expect(page).toHaveURL(/aufwand=ja/u);
+    await expect(page.locator('[data-cse="filter-aufwand"]')).toBeChecked();
   });
 
   test('das Periodenschloss: ein Monat mit Zeilen ohne Konto schliesst nicht — ein leerer Monat vorlaeufig, offen, endgueltig', async ({ page }) => {

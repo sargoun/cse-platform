@@ -201,7 +201,7 @@ export default async function Finanzuebersicht(
               <KpiStat label={`${t.eingang} ${String(z.jahr)} ${t.netto} ${t.freigegebenGebucht}`} wert={geld(z.eingang_jahr_netto_cent)}
                        ton="muted" icon="export" interaktiv />
             </a>
-            <a href={`${basis}/ausgaben?jahr=${String(z.jahr)}`} className="group block rounded-lg" data-cse="kachel" data-kachel="ausgaben-jahr">
+            <a href={`${basis}/ausgaben?jahr=${String(z.jahr)}&aufwand=ja`} className="group block rounded-lg" data-cse="kachel" data-kachel="ausgaben-jahr">
               <KpiStat label={`${t.ausgabenKachel} ${String(z.jahr)} ${t.netto} ${t.freigegebenGebucht}`}
                        wert={formatiereGeld(ausgabenJahrCent)} ton="muted" icon="euro" interaktiv />
             </a>

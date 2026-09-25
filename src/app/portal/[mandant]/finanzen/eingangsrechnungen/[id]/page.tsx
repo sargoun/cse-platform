@@ -6,7 +6,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
-import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import { cent, formatiereGeld, formatiereGeldIn, type Cent } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
@@ -120,6 +120,12 @@ export default async function EingangsrechnungDetail(
   /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
   const t = nachSprache(EINGANGSRECHNUNGEN_TEXTE, zugang.sprache);
   const g = verwaltungTexte(zugang.sprache);
+  /*
+   * Beträge in der Sprache der Sitzung (V-217) — die Seite ist zweisprachig,
+   * die Zahlungstabelle schrieb trotzdem deutsch. Nur der Platzhalter im
+   * Betragsfeld bleibt deutsch: er zeigt, wie `parseGeld` die Eingabe liest.
+   */
+  const geld = (c: Cent): string => formatiereGeldIn(c, zugang.sprache);
   const tz = nachSprache(ZAHLUNGEN_TEXTE, zugang.sprache);
   const tm = nachSprache(MAHNUNGEN_TEXTE, zugang.sprache);
 
@@ -282,7 +288,7 @@ export default async function EingangsrechnungDetail(
         <div>
           <dt className="text-text-muted">{t.brutto}</dt>
           <dd className="text-text">
-            {kopf.brutto_cent === null ? '—' : formatiereGeld(cent(BigInt(kopf.brutto_cent)))}
+            {kopf.brutto_cent === null ? '—' : geld(cent(BigInt(kopf.brutto_cent)))}
           </dd>
         </div>
         <div>
@@ -290,7 +296,7 @@ export default async function EingangsrechnungDetail(
           <dd className="text-text">
             {kopf.offen_cent === null
               ? <span className="text-text-subtle">{t.nochKeinPosten}</span>
-              : formatiereGeld(cent(BigInt(kopf.offen_cent)))}
+              : geld(cent(BigInt(kopf.offen_cent)))}
           </dd>
         </div>
       </dl>
@@ -312,11 +318,11 @@ export default async function EingangsrechnungDetail(
               { schluessel: 'gruppe', kopf: t.steuersatz, zelle: (s) => s.bezeichnung },
               {
                 schluessel: 'netto', kopf: t.netto, numerisch: true,
-                zelle: (s) => formatiereGeld(cent(BigInt(s.netto_cent))),
+                zelle: (s) => geld(cent(BigInt(s.netto_cent))),
               },
               {
                 schluessel: 'steuer', kopf: t.steuer, numerisch: true,
-                zelle: (s) => formatiereGeld(cent(BigInt(s.steuer_cent))),
+                zelle: (s) => geld(cent(BigInt(s.steuer_cent))),
               },
             ]}
           />
@@ -363,13 +369,12 @@ export default async function EingangsrechnungDetail(
       ) : null}
 
       {meldung === null ? null : (
-        <Hinweis art="erfolg" cse="ausgang-meldung" className="mb-s5 max-w-prose">{meldung}</Hinweis>
+        <Hinweis art="erfolg" rolle="status" cse="ausgang-meldung" className="mb-s5 max-w-prose">{meldung}</Hinweis>
       )}
       {fehlerText === null ? null : (
-        <p role="alert" data-cse="ausgang-fehler"
-           className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
+        <Hinweis art="warnung" rolle="alert" cse="ausgang-fehler" className="mb-s5 max-w-prose">
           {fehlerText}
-        </p>
+        </Hinweis>
       )}
 
       {/*
@@ -396,7 +401,7 @@ export default async function EingangsrechnungDetail(
                 { schluessel: 'art', kopf: g.art,
                   zelle: (z) => eigenerEintrag(tm.zuordnungsarten, z.art) ?? '—' },
                 { schluessel: 'betrag', kopf: g.betrag, numerisch: true,
-                  zelle: (z) => formatiereGeld(z.betragCent) },
+                  zelle: (z) => geld(z.betragCent) },
                 { schluessel: 'zahlung', kopf: tz.titel,
                   zelle: (z) => (z.zahlungId === null ? '—' : (
                     <Link href={`/portal/${mandant}/finanzen/zahlungen/${z.zahlungId}`}
@@ -406,6 +411,16 @@ export default async function EingangsrechnungDetail(
                   )) },
               ]}
             />
+          )}
+
+          {posten.ausgeglichenAm === null ? null : (
+            /*
+             * Ist der Posten ausgeglichen, verschwindet das Formular — und
+             * der Satz sagt, warum (V-217; der Text lag seit V-216 unbenutzt).
+             */
+            <p data-cse="ausgang-bezahlt" className="mt-s4 max-w-prose text-sm text-text-muted">
+              {t.bezahlt} {tagInSprache(posten.ausgeglichenAm, zugang.sprache)}.
+            </p>
           )}
 
           {kannZahlen ? (
