@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe('der Bootstrap verdrahtet ALLE Jobs', () => {
-  it('registriert die siebenundzwanzig Jobs, die es gibt', () => {
+  it('registriert die achtundzwanzig Jobs, die es gibt', () => {
     const schluessel = alleJobs(db).map((j) => j.schluessel).sort();
     expect(schluessel).toEqual([
       'akquise_recherche',
@@ -91,6 +91,12 @@ describe('der Bootstrap verdrahtet ALLE Jobs', () => {
        */
       'stundenkonto_abgleich',
       'urlaubskonten_jahr',
+      /*
+       * `wetter_zuordnung` kam mit V-183 dazu: BAU-08 verlangt das Wetter
+       * AUTOMATISCH am Bautag, `03-GEWERKE` §13.2 nennt den Lauf — und
+       * `hefteWetterAn` lief nur auf Knopfdruck.
+       */
+      'wetter_zuordnung',
       /*
        * `wiedervorlage_erinnerung` kam mit V-146 dazu: das Formular nahm eine
        * Erinnerung entgegen, `erinnerung_am` stand in der Tabelle — und kein

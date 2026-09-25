@@ -233,7 +233,18 @@ export default async function Bautag(
         {!quelle.verbunden && (
           <p className="m-0 mt-s3 text-xs text-text-subtle" data-cse="wetter-nicht-verbunden">
             {quelle.bezeichnung}: nicht verbunden. Es wird kein Wetter erfunden — der
-            Bautag speichert trotzdem, und das Feld bleibt leer.
+            Bautag speichert trotzdem, und das Feld bleibt leer. Auch der Nachtlauf
+            heftet dann nichts an.
+          </p>
+        )}
+
+        {/* V-183: BAU-08 verlangt das Wetter AUTOMATISCH — das tut der Nachtlauf
+            `wetter_zuordnung`, für Tage bis gestern, solange der Tag offen ist. */}
+        {kopf !== null && offen && quelle.verbunden && daten.wetter?.quelle === 'keine' && (
+          <p className="m-0 mt-s3 text-xs text-text-subtle" data-cse="wetter-automatisch">
+            Das Wetter heftet der Nachtlauf automatisch an, sobald der Tag vorbei ist —
+            solange der Bautag dann noch offen ist. Wer ihn vorher abschließt, trägt es
+            hier selbst nach.
           </p>
         )}
 

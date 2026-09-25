@@ -46,6 +46,7 @@ import { registriereDokumentAufbewahrung } from './dokumentAufbewahrung.js';
 import { registriereKontenRollover } from './kontenRollover.js';
 import { registriereUrlaubskontenJahr } from './urlaubskontenJahr.js';
 import { registriereFeiertagePflegen } from './feiertagePflegen.js';
+import { registriereWetterZuordnung } from './wetterZuordnung.js';
 
 /*
  * Methodensyntax, nicht Eigenschaftssyntax — wie ueberall sonst im Baum
@@ -109,6 +110,8 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereUrlaubskontenJahr(db);
     registriereRadar(db);
     registriereAkquise(db);
+    /* V-183 — das Wetter, das BAU-08 automatisch angeheftet verlangt. */
+    registriereWetterZuordnung(db);
     geschehen = true;
   }
   return jobs();

@@ -217,6 +217,13 @@ export async function hefteWetterAn(
   kontext: SchreibKontext,
   eingabe: { readonly bautagebuchId: string },
   port: WetterPort,
+  /**
+   * Wer anheftet (V-183): der Mensch am Knopf oder der Nachtlauf
+   * `wetter_zuordnung`. Er steht in `geaendert_von_art`; ein Lauf, der sich
+   * als Mensch eintruege, verfaelschte die Spur, wer den Tag zuletzt
+   * angefasst hat.
+   */
+  akteur: 'mensch' | 'system' = 'mensch',
 ): Promise<WetterBefund> {
   const [tag] = await kontext.abfrage<TagZeile>(
     `select b.id, to_char(b.datum, 'YYYY-MM-DD') as datum, b.projekt_id,
@@ -316,7 +323,7 @@ export async function hefteWetterAn(
             temperatur_max_c = $8::numeric,
             niederschlag_mm  = $9::numeric,
             geaendert_von    = app.aktueller_benutzer(),
-            geaendert_von_art = 'mensch'
+            geaendert_von_art = $10::akteur_art
       where id = $1 and mandant_id = $2 and abgeschlossen_am is null`,
     [
       tag.id, kontext.aktiverMandantId,
@@ -325,6 +332,7 @@ export async function hefteWetterAn(
       belegung.abend === null ? null : kennungen.get(belegung.abend) ?? null,
       schnappschuss,
       kennzahlen.temperaturMin, kennzahlen.temperaturMax, kennzahlen.niederschlag,
+      akteur,
     ],
   );
 
@@ -389,4 +397,102 @@ export async function leseWetterAnzeige(
     niederschlag: zeile.niederschlag_mm,
     notiz: zeile.wetter_notiz,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Die automatische Zuordnung (BAU-08 „auto-attached", V-183, D-677)
+// ---------------------------------------------------------------------------
+
+/**
+ * Wie weit der Nachtlauf zurueckblickt: die sieben Kalendertage VOR heute.
+ *
+ * Eine Betriebsgroesse, keine Geschaeftsregel: sie deckt ein Wochenende,
+ * einen Feiertag und ein paar ausgefallene Laeufe ab. Heute selbst gehoert nie
+ * dazu — ein Schnappschuss vom Vormittag waere ein halber Tag, und ein
+ * einmal angehefteter Tag wird vom Lauf nicht wieder angefasst.
+ */
+export const WETTER_ZUORDNUNG_TAGE = 7;
+
+/**
+ * Fuehrt eine Arbeit in EINER eigenen Transaktion mit gebundenem Mandanten
+ * aus — im Nachtlauf `alsJobSitzung`, im Test dasselbe. Je Bautag eine
+ * eigene: der Abruf beim DWD darf dauern (30 s Zeitgrenze), und eine
+ * Transaktion ueber alle Tage hielte waehrenddessen jede schon angeheftete
+ * Zeile gesperrt.
+ */
+export type KontextLauf = <T>(
+  arbeit: (kontext: SchreibKontext) => Promise<T>,
+  optionen: { readonly schreibend: boolean },
+) => Promise<T>;
+
+export interface WetterZuordnung {
+  /** Ob die Quelle verbunden ist. Ohne sie fragt der Lauf nichts und schreibt nichts. */
+  readonly verbunden: boolean;
+  /** Offene Bautage ohne Wetter im Fenster — die Tage, die der Lauf anfasst. */
+  readonly offen: number;
+  readonly angeheftet: number;
+  /** Je Grund, warum ein Tag KEIN Wetter bekam (ohne `angeheftet`). */
+  readonly befunde: Readonly<Partial<Record<WetterBefundArt, number>>>;
+  /**
+   * Tage im Fenster, die schon abgeschlossen waren, bevor der Lauf kam. An
+   * sie heftet er nichts an: ab dem Abschluss bewegt sich am Tag nichts mehr
+   * (0082), und ob das Wetter davon ausgenommen ist, fragt O-922.
+   *
+   * // TODO(client, O-922): Darf der Nachtlauf das DWD-Wetter an einen Bautag heften, der schon abgeschlossen ist — oder soll das Wetter vor dem Abschluss angeheftet werden, und der Abschluss ohne Wetter bleibt ohne?
+   */
+  readonly abgeschlossenOhneWetter: number;
+}
+
+/**
+ * Heftet das Wetter an jeden offenen Bautag der letzten Tage, der noch keins
+ * hat (`wetter_quelle = 'keine'`) — derselbe Weg wie der Knopf
+ * (`hefteWetterAn`), mit `akteur = 'system'`.
+ *
+ * **Ohne verbundene Quelle geschieht nichts.** Der Lauf zaehlt die Tage, die
+ * er angefasst HAETTE, und meldet `verbunden: false` — er fragt keinen
+ * Adapter, schreibt kein „nicht verfuegbar" und erfindet keinen Wert. Dass
+ * das Feld leer bleibt, ist die Aussage (BAU-08).
+ *
+ * **Ein Tag mit Wetter wird nie ueberschrieben** — weder ein angehefteter noch
+ * ein von Hand eingetragener. Die Policy `j_wetter_anheften` (0468) haelt das
+ * auch dann, wenn zwischen Lesen und Schreiben jemand von Hand eintraegt.
+ */
+export async function ordneWetterZu(
+  lauf: KontextLauf,
+  port: WetterPort,
+  tage: number = WETTER_ZUORDNUNG_TAGE,
+): Promise<WetterZuordnung> {
+  const kandidaten = await lauf((kontext) => kontext.abfrage<{
+    id: string; abgeschlossen: boolean;
+  }>(
+    `select b.id, (b.abgeschlossen_am is not null) as abgeschlossen
+       from bautagebuch b
+      where b.mandant_id = $1::uuid
+        and b.storniert_am is null
+        and b.wetter_quelle = 'keine'
+        and b.datum >= app.berlin_heute() - $2::int
+        and b.datum < app.berlin_heute()
+      order by b.datum, b.id`,
+    [kontext.aktiverMandantId, tage],
+  ), { schreibend: false });
+
+  const offen = kandidaten.filter((k) => !k.abgeschlossen);
+  const abgeschlossenOhneWetter = kandidaten.length - offen.length;
+  if (!port.verbunden) {
+    return {
+      verbunden: false, offen: offen.length, angeheftet: 0, befunde: {}, abgeschlossenOhneWetter,
+    };
+  }
+
+  let angeheftet = 0;
+  const befunde: Partial<Record<WetterBefundArt, number>> = {};
+  for (const tag of offen) {
+    const befund = await lauf(
+      (kontext) => hefteWetterAn(kontext, { bautagebuchId: tag.id }, port, 'system'),
+      { schreibend: true },
+    );
+    if (befund.art === 'angeheftet') angeheftet += 1;
+    else befunde[befund.art] = (befunde[befund.art] ?? 0) + 1;
+  }
+  return { verbunden: true, offen: offen.length, angeheftet, befunde, abgeschlossenOhneWetter };
 }

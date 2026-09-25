@@ -3349,6 +3349,7 @@ Beantworten helfen:
 | O-919 | **Soll der Raumbuch-Import Excel-Arbeitsmappen (.xlsx, gegebenenfalls .xls/.ods) direkt lesen — und welche Bibliothek darf dafür fremde Dateien entpacken?** OPS-04 sagt „Excel/CSV". Gebaut ist CSV (UTF-8 und die Windows-1252-CSV eines deutschen Excel); eine Arbeitsmappe wird am Inhalt erkannt und mit dem Weg über „Speichern unter › CSV" abgewiesen (D-665). Die Plattform bringt keine Bibliothek dafür mit, und ein selbstgebauter Leser für ein ZIP mit XML ist genau der halbe Leser, der Formeln und verbundene Zellen übersieht und Erfolg meldet. **Zu entscheiden sind vier Dinge:** (1) ob eine Bibliothek aufgenommen wird und welche (Lizenz, Pflege, Prüfung gegen präparierte ZIP-/XML-Dateien), (2) was mit einer Formelzelle geschieht — berechneten Wert übernehmen oder abweisen, (3) welches Blatt gilt, wenn die Mappe mehrere hat, (4) ob das alte `.xls` aus Altsystemen überhaupt vorkommt. Bis dahin bleibt CSV der Weg, und die Seite sagt es. | OPS-04, D-665, V-171, `src/server/services/raumbuch/tabelle.ts`, `src/app/api/raumbuch-import/route.ts` |
 | O-920 | **Sollen Angebote von Hand (Sicherheit, Bau) eine Kalkulation mit den fünf Kostenblöcken aus OPS-07 bekommen — und wenn ja, woraus entsteht der Lohn?** OPS-07 nennt Lohn, Material, Gerät, Gemeinkosten und Wagnis/Gewinn. Das Angebot der Reinigung entsteht aus dem Raumbuch und rechnet alle fünf (D-668). Ein Angebot von Hand (`angebot/von-hand.ts`, V-005) trägt je Position den Einzelpreis, den ein Mensch einträgt; woraus er entstanden ist, weiss die Plattform nicht, und sie rechnet ihn nicht nach. **Zu entscheiden:** (1) ob Sicherheit und Bau überhaupt eine Kalkulation in der Plattform führen oder ihre Preise weiter ausserhalb bilden; (2) wenn ja, die Grundlage des Lohns — in der Sicherheit etwa Stunden je Posten und Schicht mal Stundenverrechnungssatz, mit welchen Zuschlägen für Nacht, Sonn- und Feiertag; im Bau Einheitspreise je Position des Leistungsverzeichnisses; (3) welche Zuschläge je Bereich gelten (das ist O-16). **Ausgeliefert ist der ehrliche Zustand:** keine Kalkulation, und Maske wie Kalkulationsblatt sagen das mit dieser Nummer (`HAND_ANGEBOT_KALKULATION`). Eine erfundene Formel wäre eine Preisregel, die niemand aufgestellt hat, und ein Preis sähe dann geprüft aus, der es nicht ist. | OPS-07, O-16, D-668, D-671, V-238, `src/server/services/angebot/von-hand.ts`, `src/app/portal/[mandant]/angebote/{neu,[id]/kalkulation}/page.tsx` |
 | O-921 | **Wie wird der Vertragswert eines Auftrags aus einem angenommenen Angebot in Reinigung und Sicherheit berichtigt oder angepasst?** Der Wert eines solchen Auftrags ist `angebot.netto_cent`; die Auftragspflege überschreibt ihn nicht (D-667 Punkt 5), weil sie sonst eine zweite Wahrheit über den Betrag führte, den der Kunde angenommen hat. Im Bau ändert ein Nachtrag nach § 2 VOB/B den Vertrag (0080). **Reinigung und Sicherheit kennen keinen Nachtrag** — ein Tippfehler im Angebot, eine Preisanpassung nach einer Tariferhöhung oder ein geänderter Leistungsumfang hat dort heute keinen Weg in den Auftrag. Drei Wege sind denkbar: (a) eine neue Angebotsfassung und ein neuer Auftrag; (b) eine eigene Vertragsänderung am Auftrag mit Betrag, Grund, Datum und Zustimmung des Kunden, wie der Nachtrag im Bau; (c) eine Berichtigung in der Auftragspflege mit Grund und Protokoll. Und: gilt für eine Preisanpassung derselbe Weg wie für einen Tippfehler? **Ausgeliefert ist der gesperrte Wert mit dem ehrlichen Satz:** die Pflegeseite sagt im Bau „Nachtrag", sonst „noch nicht entschieden (O-921)". Die Antwort ändert `wertAenderungsweg`, nicht ihre Aufrufer. | OPS-05, D-667, D-732, V-239, `src/server/services/auftrag/aendern.ts` (`wertAenderungsweg`), `src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx`, `drizzle/0080` |
+| O-922 | **Darf der Nachtlauf das DWD-Wetter an einen Bautag heften, der schon abgeschlossen ist — oder soll das Wetter vor dem Abschluss angeheftet werden?** BAU-08 verlangt das Wetter automatisch; `wetter_zuordnung` (V-183, D-677) heftet es nachts an die Tage bis gestern, weil erst dann ein ganzer Tag vorliegt. `0082` sagt aber: ab dem Abschluss bewegt sich am Bautag nichts mehr (der Auslöser `bautagebuch_einfrieren` nennt die Wetterspalten zwar nicht, der Dienst hält es trotzdem so). Wer den Tag am Abend abschließt — der übliche Fall —, bekommt deshalb heute kein automatisches Wetter; der Lauf zählt solche Tage (`abgeschlossen_ohne_wetter`). **Zu entscheiden:** (a) das Wetter ist vom Einfrieren ausgenommen, weil es eine Messung Dritter und keine Aussage der Bauleitung ist, und der Lauf heftet es auch an abgeschlossene Tage (dann gehört es ausdrücklich in den Auslöser und in die Policy); (b) der Abschluss holt das Wetter vorher selbst, mit dem, was bis dahin gemessen ist; (c) es bleibt beim Knopf vor dem Abschluss. **Ausgeliefert ist (c) plus der Lauf für offene Tage** — der Tag bleibt unverändert, und die Tagesseite sagt, dass der Nachtlauf nur offene Tage erreicht. | BAU-07, BAU-08, D-677, V-183, `src/server/services/bau/wetter.ts` (`ordneWetterZu`), `drizzle/0468_wetter_zuordnung_job.sql`, `drizzle/0082` |
 | O-931 | **Wird Material aus einer Ausgabe zum Einstandspreis weiterberechnet oder mit Aufschlag — und wenn mit Aufschlag, mit welchem Satz, je Gesellschaft, je Kunde oder je Vertrag?** Seit V-206 hat eine weiterberechenbare, freigegebene Ausgabe einen Weg auf die Rechnung: eine Materialzeile mit der Ausgabe als Beleg (FIN-07, Quelle `material`, höchstens eine wirksame Zeile je Ausgabe über `quelle_ausgabe_uk`). Welcher PREIS darauf steht, ist eine Kalkulationsregel, die niemand festgelegt hat: ein vorbelegter Einstand wäre die stille Antwort „ohne Aufschlag“, ein vorbelegter Aufschlag eine erfundene Marge. **Bis zur Antwort setzt der Mensch den Einzelpreis selbst**; die Maske zeigt den Einstand (Netto der Ausgabe) daneben nur als Auskunft, und `MATERIAL_PREISREGEL` steht als Platzhalter `offen`. Die Antwort ist eine Preisregel hinter dieser Konstante (und gegebenenfalls ein Feld an Gesellschaft, Kunde oder Abrechnungsvereinbarung), plus ein Test. | FIN-07, V-206, D-699, `src/server/services/finanz/entwurf.ts` (`MATERIAL_PREISREGEL`, `fuegeMaterialPositionHinzu`), `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `drizzle/0107` (`quelle_ausgabe_uk`) |
 | O-932 | **Ist der Fertigstellungsgrad einer anteiligen Festpreis-Abrechnung der GESAMTSTAND der Leistung (bisher Berechnetes wird abgezogen) oder der ZUWACHS seit der letzten Rechnung?** Seit V-206 lässt sich ein Pauschalpreis-Los mit `teilleistung = anteilig` über das Rechnungsblatt abrechnen; der Grad kommt von einem Menschen (O-04: er wird nicht geschätzt). Bis V-207 rechnete jede Rechnung Grad × Festpreis, ohne bisher Berechnetes abzuziehen — 30 % und danach 60 % ergaben 90 % des Festpreises. **Ausgeliefert ist der Gesamtstand** (`anteiligerRest`): die Zeile trägt `anteil(Festpreis, Grad) − Summe der wirksamen Zeilen derselben Vereinbarung`, einmal gerundet über den ganzen Stand, und ein Stand ohne Zuwachs blockiert mit einem Befund. Diese Lesart macht aus einer Verwechslung eine sichtbare Unterberechnung (die Vorschau zeigt das bisher Berechnete), die andere eine stille Doppelberechnung. Eine Schlussrechnung zählt die festgeschriebenen Abschläge ihres Auftrags nicht mit, weil sie sie abzieht (FIN-08, D-700 Nr. 5). Zu bestätigen: (1) Gesamtstand oder Zuwachs; (2) ob eine Abschlagsrechnung den Abschlag als kumulierten Stand mit Abzug der Vorabschläge ausweisen soll (§ 16 VOB/B lässt beides zu) — dann gehört die Aufstellung auf den Beleg und nicht nur in die Vorschau. Die Antwort ändert `anteiligerRest` und den Satz der Maske, nicht ihre Aufrufer. | FIN-01, FIN-08, O-04, V-207, D-700, `src/server/services/finanz/abrechnungsart/festpreis-los.ts` (`anteiligerRest`), `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts` (`abrFertigstellung`) |
 | O-933 | **Darf der Leistungsort (Objekt) einer Rechnung einem ANDEREN Kunden zugeordnet sein als dem Rechnungsempfänger — oder muss `objekt.kunde_id` dem Kunden der Rechnung entsprechen?** Übliche Fälle, in denen beides auseinanderfällt: eine Hausverwaltung empfängt die Rechnung für das Haus eines Eigentümers, ein Generalunternehmer für die Baustelle seines Bauherrn, eine Muttergesellschaft für die Niederlassung der Tochter. Bis V-209 prüfte die Plattform beim Leistungsort gar nichts, nicht einmal, ob der Mensch das Objekt sehen darf. **Ausgeliefert ist:** geprüft wird die Sichtbarkeit (`objekt_passt_nicht`, wie beim Auftrag D-698 Nr. 2); die Zugehörigkeit zum Kunden NICHT (`OBJEKT_KUNDE_REGEL = offen`). Die Masken ordnen die Objekte nach Kunden bzw. „dieses Kunden" zuerst, damit eine fremde Wahl sichtbar ist. Zu entscheiden: (1) Sperre, Warnung in der Vorabprüfung oder frei; (2) falls frei, ob der Beleg den abweichenden Leistungsort mit dem Namen seines Kunden ausweisen soll. Die Antwort ändert `pruefeObjektZuordnung` und die Konstante, nicht ihre Aufrufer. | FIN-04, V-209, D-702, `src/server/services/finanz/rechnung.ts` (`OBJEKT_KUNDE_REGEL`, `pruefeObjektZuordnung`), `src/app/portal/[mandant]/finanzen/rechnungen/{neu,[id]}/page.tsx` |
@@ -19428,4 +19429,61 @@ einzutragen, gab es nicht.
 Liste den STLB-Bau-Leistungsbereichen folgt (O-159, bleibt offen).
 
 | Betrifft | BAU-07, V-182, D-317, D-599, D-728, O-159, `src/server/services/bau/gewerk.ts`, `src/app/api/bau/gewerke/route.ts`, `src/app/portal/[mandant]/bau/{gewerke/page,GewerkFormular,page,projekte/[id]/bautagebuch/[datum]/page}.tsx`, `src/lib/i18n/verwaltung/gewerke.ts`, `src/server/auth/route-manifest.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/server/registry/{dienste,routen.generiert}.ts`, `src/server/db/seed/bau.ts`, `tests/kern/gewerk-eingabe.test.ts`, `tests/isolation/gewerk-katalog.test.ts` |
+|---|---|
+
+### D-677 · Das Wetter hängt ein Nachtlauf an, nicht nur ein Knopf — und ohne DWD tut er nichts (V-183)
+
+**Der Befund** (V-183; Audit Gruppe „einsatz", BAU-08 „Weather auto-attached
+from DWD open data"): `hefteWetterAn` lief nur, wenn jemand auf der
+Tagesseite „Wetter vom DWD nachtragen" drückte; außer dem Seed rief ihn
+niemand. Beim Anlegen eines Bautags wurde kein Wetter geholt, und den Lauf
+`job:wetter_zuordnung`, den `03-GEWERKE` §13.2 vorsieht, gab es nicht.
+`cse_job` durfte `bautagebuch` und `projekt` weder lesen noch schreiben. Ein
+Bautag, den niemand öffnete, blieb ohne Wetter — auch mit verbundenem DWD,
+und genau dieser Beleg fehlt im Behinderungs- oder Bauzeitenstreit.
+
+**Die Entscheidung.**
+
+1. **Der Lauf `wetter_zuordnung`** — `je_mandant`, täglich 04:40 UTC, als
+   `cse_job` mit gebundenem Mandanten (`alsJobSitzung`). Er fasst jeden
+   OFFENEN, nicht stornierten Bautag der sieben Kalendertage vor heute an,
+   der noch kein Wetter trägt (`wetter_quelle = 'keine'`), und heftet über
+   denselben Weg wie der Knopf an (`ordneWetterZu` → `hefteWetterAn`), mit
+   `geaendert_von_art = 'system'`. Heute selbst nie: ein Schnappschuss vom
+   Vormittag wäre ein halber Tag, und einen angehefteten Tag fasst der Lauf
+   nicht wieder an. Die sieben Tage sind eine Betriebsgröße (Wochenende,
+   Feiertag, ausgefallene Läufe), keine Geschäftsregel.
+2. **Ohne DWD geschieht nichts.** Ist `DWD_OPENDATA_BASE` nicht gesetzt,
+   zählt der Lauf die Tage, die er angefasst hätte, meldet `verbunden: false`
+   im Laufprotokoll und schreibt nichts — kein vorgetäuschter Abruf, kein
+   „nicht verfügbar" in einem Feld, kein erfundener Wert. Die Tagesseite sagt
+   „nicht verbunden — auch der Nachtlauf heftet dann nichts an".
+3. **Vorhandenes Wetter wird nie überschrieben.** Die Policy
+   `j_wetter_anheften` (0468) lässt `cse_job` nur einen offenen, nicht
+   stornierten Tag mit `wetter_quelle = 'keine'` ändern, und nur zu `dwd`;
+   ein von Hand eingetragenes Wetter bleibt, auch wenn es zwischen Lesen und
+   Schreiben entsteht. `cse_job` bekommt genau die Spalten, die der Weg liest
+   und schreibt, an `app.aktiver_mandant()` gebunden.
+4. **Je Tag eine Transaktion** (`KontextLauf`): der Abruf beim DWD darf
+   dauern, und eine Transaktion über alle Tage hielte die schon angehefteten
+   Zeilen so lange gesperrt.
+5. **Ein abgeschlossener Tag bleibt draußen.** `0082` sagt: ab dem Abschluss
+   bewegt sich am Tag nichts mehr. Ob das Wetter davon ausgenommen sein soll
+   — es liegt erst nach dem Tag vollständig vor, und wer am Abend schließt,
+   bekommt heute kein automatisches Wetter —, fragt O-922. Bis zur Antwort
+   zählt der Lauf solche Tage (`abgeschlossen_ohne_wetter`), und die
+   Tagesseite sagt, dass der Nachtlauf nur offene Tage erreicht. Der Knopf
+   bleibt als Weg für den Tag, der vorher geschlossen werden soll.
+6. **`je_mandant` statt übergreifend.** `03-GEWERKE` §13.2 nennt den Lauf
+   neben `job:dwd_import` unter den nicht mandantenbezogenen. Der Bautag ist
+   aber eine Zeile einer Gesellschaft, und der Weg liest sie durch die
+   Sitzung; ein übergreifender Lauf bräuchte dafür eine Rolle über allen
+   Mandanten. `job:dwd_import` (stündlicher Vorabimport) ist nicht gebaut —
+   die Beobachtungen übernimmt weiter `app.wetter_beobachtung_uebernehmen`
+   beim Anheften.
+
+**Nicht Teil dieser Entscheidung:** Wetter an abgeschlossenen Tagen (O-922),
+welche Uhrzeiten als früh, mittag und abend gelten (O-213).
+
+| Betrifft | BAU-08, V-183, D-318, O-213, O-922, `src/server/services/bau/wetter.ts`, `src/server/jobs/{wetterZuordnung,bootstrap}.ts`, `drizzle/0468_wetter_zuordnung_job.sql`, `docs/JOB-AUSLOESER.sql`, `src/app/portal/[mandant]/bau/projekte/[id]/bautagebuch/[datum]/page.tsx`, `tests/kern/{wetter-zuordnung,jobs-bootstrap}.test.ts`, `tests/isolation/wetter-zuordnung.test.ts` |
 |---|---|
