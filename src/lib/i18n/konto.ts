@@ -662,7 +662,7 @@ export const KALENDER_FEED_TEXTE: Readonly<Record<PortalSprache, KalenderFeedTex
       + 'bekleme durumudur, eksik bir adım değil.',
     angelegt: 'Oluşturuldu',
     zuletztAbgerufen: 'son alınma',
-    nochNie: 'hiç',
+    nochNie: 'henüz yok',
     abrufe: '{anzahl}×',
     widerrufen: 'İptal et',
     anlegen: 'Yeni erişim oluştur',
