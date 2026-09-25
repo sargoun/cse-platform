@@ -48,18 +48,32 @@ export default async function MonatszahlenSeite(
    * und verriete, was sie nicht zeigen darf (AUT-06, Copilot-Runde auf PR 16 /
    * D-581). Ohne das Recht steht der Betrag ohne Verweis.
    */
-  const darf = await haeltRechte(zugang.sitzung, 'finanzen.lesen', 'eingang.lesen');
+  const darf = await haeltRechte(
+    zugang.sitzung, 'finanzen.lesen', 'eingang.lesen', 'gruppe.finanzen.lesen');
   const suche = await searchParams;
   const jahrRoh = typeof suche['jahr'] === 'string' ? suche['jahr'] : null;
   const gewaehlt = jahrRoh !== null && /^\d{4}$/u.test(jahrRoh) ? Number(jahrRoh) : null;
 
-  const z = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+  /*
+   * **Der Verweis in die Gruppensicht haengt an ZWEI Bedingungen** (V-243,
+   * D-737). `/portal/gruppe/finanzen` verlangt laut Manifest
+   * `gruppe.finanzen.lesen`, und ihr Tor oeffnet nur, wem
+   * `app.darf_gruppenansicht()` die Gruppenuebersicht erlaubt — sonst 404.
+   * Der Verweis stand unbedingt da: eine Administration der Reinigung ohne
+   * Gruppenrecht klickte ins Nichts (gefunden vom Verweislauf der
+   * Browsersuite). Dieselbe Regel wie oben fuer die Monatslisten (AUT-06,
+   * D-581): ohne beide Bedingungen steht der Satz nicht da.
+   */
+  const { z, gruppeOffen } = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
       const wj = await liesWirtschaftsjahr(kontext);
       const [heute] = await kontext.abfrage<{ tag: string }>(`select app.berlin_heute()::text as tag`);
       const jahr = gewaehlt ?? wirtschaftsjahrVon(heute?.tag ?? '2026-01-01', wj);
-      return monatszahlen(kontext, jahr, wj);
-    })) as Promise<Monatszahlen>);
+      const [gruppe] = await kontext.abfrage<{ ok: boolean }>(
+        `select app.darf_gruppenansicht() as ok`);
+      return { z: await monatszahlen(kontext, jahr, wj), gruppeOffen: gruppe?.ok === true };
+    })) as Promise<{ z: Monatszahlen; gruppeOffen: boolean }>);
+  const darfGruppe = gruppeOffen && darf['gruppe.finanzen.lesen'] === true;
 
   const basis = `/portal/${mandant}/buchhaltung/monatszahlen`;
   const knopf = 'inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2';
@@ -138,9 +152,11 @@ export default async function MonatszahlenSeite(
             )) },
         ]}
       />
-      <p className="mt-s4 text-xs text-text-subtle">
-        Gruppensicht: <Link href={`/portal/gruppe/finanzen?jahr=${String(z.jahr)}`} className="underline underline-offset-2">Finanzen der Gruppe</Link> — die Summe der Gesellschaften, nach Kalenderjahr.
-      </p>
+      {darfGruppe ? (
+        <p className="mt-s4 text-xs text-text-subtle" data-cse="monatszahlen-gruppe">
+          Gruppensicht: <Link href={`/portal/gruppe/finanzen?jahr=${String(z.jahr)}`} className="underline underline-offset-2">Finanzen der Gruppe</Link> — die Summe der Gesellschaften, nach Kalenderjahr.
+        </p>
+      ) : null}
     </PortalRahmen>
   );
 }

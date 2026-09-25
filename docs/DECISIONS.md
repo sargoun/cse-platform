@@ -18138,3 +18138,37 @@ der Browsersuite bleibt, wie sie war.
 
 | Betrifft | V-242, V-091, FIN-14, WCAG 1.3.1/2.4.6, `src/app/portal/[mandant]/finanzen/zahlungen/page.tsx`, `src/lib/i18n/verwaltung/finanzen/zahlungen.ts`, `tests/e2e/zahlung.spec.ts` |
 |---|---|
+
+### D-737 · Ein gezeigter Verweis führt auf eine Seite, die es gibt und die dieser Mensch öffnen darf — Kalender und Monatszahlen (V-243)
+
+**Der Befund** (V-243), gefunden vom Verweislauf der Browsersuite
+(`verweise.spec.ts`, leitung und admin der Reinigung):
+
+1. `kalenderZeilen` gab einer Schicht den Weg `/portal/<slug>/dienstplan` —
+   eine Wurzelseite hat der Dienstplan nicht (Woche, Tag, Monat, Einsatz).
+   Jede Schicht im Kalender war ein Verweis auf 404.
+2. Dieselbe Datei gab einer Vergabefrist `/radar/vorgaenge/<vorgang_id>` — eine
+   Route, die es nie gab. Sie fiel nur nicht auf, weil selten eine Frist im
+   gezeigten Fenster lag.
+3. `/buchhaltung/monatszahlen` verwies unbedingt auf
+   `/portal/gruppe/finanzen`. Die Route verlangt `gruppe.finanzen.lesen`, ihr
+   Tor `app.darf_gruppenansicht()`; eine Administration der Reinigung ohne
+   beides klickte ins Nichts.
+
+**Die Entscheidung.**
+
+1. Die Schicht führt auf ihre Einsatzseite `/dienstplan/einsatz/<id>`, die
+   Vergabefrist auf die Bekanntmachung `/radar/<ausschreibung_id>` — genau
+   die Ziele, die der Gruppenkalender (`gruppe/kalender.ts`) schon immer
+   hatte. Beide Seiten verlangen das Recht, ohne das die Policy die Zeile gar
+   nicht erst herausgibt (`dienstplan.lesen` auf `einsatz`, `radar.lesen` auf
+   `ausschreibung_vorgang`); wer die Zeile sieht, darf die Seite öffnen.
+2. Der Satz „Gruppensicht: Finanzen der Gruppe" steht nur, wenn die Sitzung
+   `gruppe.finanzen.lesen` hält UND `app.darf_gruppenansicht()` ja sagt —
+   dieselbe Regel wie für die Monatslisten darüber (AUT-06, D-581).
+3. `tests/isolation/kalender.test.ts` (7) bildet jeden Weg des Kalenders auf
+   eine Datei unter `src/app` ab: ein Weg ohne gebaute Seite wird rot, bevor
+   ihn ein Browser findet.
+
+| Betrifft | V-243, CAL-01, AUT-06, D-581, `src/server/services/kalender/eintraege.ts`, `src/app/portal/[mandant]/buchhaltung/monatszahlen/page.tsx`, `tests/isolation/kalender.test.ts`, `tests/e2e/verweise.spec.ts` |
+|---|---|

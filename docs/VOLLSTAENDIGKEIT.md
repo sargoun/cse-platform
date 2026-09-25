@@ -358,6 +358,8 @@ stehen hier, weil ein Befund ohne Nummer ein Befund ist, den niemand wiederfinde
 
 | V-242 | **Zwei Betragsfelder mit derselben Beschriftung auf dem Zahlungsbildschirm** — „Posten gegen Posten ausgleichen“ (V-091) und „Zahlungseingang erfassen“ beschrifteten ihr Betragsfeld beide mit „Betrag in Euro“; sobald Guthaben und Forderung zugleich dastehen, bot die Seite zwei gleichnamige Felder an (WCAG 1.3.1, 2.4.6) | Gefunden im CI-Job `barrierefreiheit` auf PR #20 (`zahlung.spec.ts` drei Fälle, strikter Modus), lokal nachgestellt | behindert | **erledigt** (D-736) — eigene Beschriftung `ausgleichBetrag` „Ausgleichsbetrag (€)“ / „Offset amount (€)“, die die andere nicht enthält. Prüfung: `tests/e2e/zahlung.spec.ts` unverändert |
 
+| V-243 | **Drei gezeigte Verweise führten ins Nichts** — der Kalender gab Schichten `/dienstplan` (keine Wurzelseite) und Vergabefristen `/radar/vorgaenge/<id>` (nie gebaut); die Monatszahlen verwiesen unbedingt auf `/portal/gruppe/finanzen`, auch ohne `gruppe.finanzen.lesen` und Gruppenzugang | Gefunden vom Verweislauf der Browsersuite (`verweise.spec.ts` leitung und admin · reinigung: 404), im Code gegengeprüft (`kalender/eintraege.ts`, `gruppe/kalender.ts` hatte die richtigen Ziele) | falsch | **erledigt** (D-737) — Schicht → `/dienstplan/einsatz/<id>`, Frist → `/radar/<ausschreibung_id>`; der Gruppensatz nur mit Recht und `app.darf_gruppenansicht()`. Prüfungen: `tests/isolation/kalender.test.ts` (7) (jeder Weg eine gebaute Seite), `tests/e2e/verweise.spec.ts` |
+
 ---
 
 ## 9. Was geprüft und **widerlegt** wurde
