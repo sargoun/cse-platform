@@ -17493,6 +17493,9 @@ ihrer Entscheidung verzeichnet, in der Reihenfolge, in der sie behoben wurde.
    Lauf gesetzt hat. Geprüft wird diese Zeile (Agent, Agentenkennung der
    Freigabe, der Mensch als Auftraggeber, seine Adresse) und jede Zeile
    zwischen einer Marke davor und einer danach; die Menge ist nie leer.
+6. **Formatierung:** `const uhr =(await …` in
+   `server/auth/kennwort-anmeldung.ts` (`bestaetigeFaktorMitToken`) steht
+   jetzt wie jede andere Zeile der Datei.
 
-| Betrifft | SEC-A9, AUT-01, 03-AUTH §12.1, O-76, O-355, D-300, D-657, D-658, D-659, V-164, V-165, V-237, DESIGN §6, §7, `drizzle/0461`, `drizzle/0462`, `src/styles/globals.css`, `src/components/portal/BereichsUmschalter.tsx`, `docs/architecture/02-datenmodell/01-KERN.md` §6.2, `tests/isolation/mitgliedschaft-module.test.ts` §1, §2, `tests/isolation/bereichswechsel.test.ts` §4, `tests/isolation/pruefprotokoll-ip-agent.test.ts` §2, `tests/kern/bereichswechsel.test.ts` §7 |
+| Betrifft | SEC-A9, AUT-01, 03-AUTH §12.1, O-76, O-355, D-300, D-657, D-658, D-659, V-164, V-165, V-237, DESIGN §6, §7, `drizzle/0461`, `drizzle/0462`, `src/styles/globals.css`, `src/components/portal/BereichsUmschalter.tsx`, `docs/architecture/02-datenmodell/01-KERN.md` §6.2, `tests/isolation/mitgliedschaft-module.test.ts` §1, §2, `tests/isolation/bereichswechsel.test.ts` §4, `tests/isolation/pruefprotokoll-ip-agent.test.ts` §2, `tests/kern/bereichswechsel.test.ts` §7, `src/server/auth/kennwort-anmeldung.ts` |
 |---|---|
