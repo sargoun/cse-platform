@@ -16,6 +16,7 @@
 import postgres from 'postgres';
 import { DATENSCHUTZ_VERSION, FORMULARE } from './formulare.js';
 import { seedOperations } from './operations.js';
+import { seedDokumentPflege } from './dokument-pflege.js';
 import { seedDienstplan } from './dienstplan.js';
 import { seedQualifikationen } from './qualifikation.js';
 import { seedAuftrag } from './auftrag.js';
@@ -1624,6 +1625,15 @@ async function main(): Promise<void> {
       ? 'Metadaten ohne Datei, der Bucket ist nicht verbunden\n'
       : `${String(ops.mitDatei)} Dateien als DEMODATEN beschriftet im Speicher\n`),
   );
+
+  /*
+   * V-219: die Pflege eines abgelegten Dokuments — eine Freigabe für die
+   * Belegschaft, zurückgenommen über den Dienst (mit Grund im Prüfprotokoll).
+   */
+  const pflege = await seedDokumentPflege(sql, ids);
+  process.stdout.write(
+    `  Dokumentpflege: ${String(pflege.zurueckgenommen)} Freigabe für die Belegschaft `
+    + 'mit Grund zurückgenommen (DOC-04, V-219)\n');
 
   /**
    * Der Qualifikationskatalog kommt VOR dem Dienstplan und vor jeder

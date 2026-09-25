@@ -19618,3 +19618,48 @@ und der Seed zeigte den geteilten Dienst ohne Befund nicht.
 
 | Betrifft | EMP-07, EMP-10, TIM-01, TIM-04, TIM-06, TIM-11, D-09, D-599, D-680, D-683, D-684, D-733, SEITENKARTE §12, V-186, V-189, V-190, V-193, `src/server/services/zeit/einwand.ts`, `src/app/api/zeit/einwand/route.ts`, `src/lib/i18n/{mein-formulare,texte}.ts`, `src/app/portal/[mandant]/dienstplan/{monat/page.tsx,daten.ts}`, `src/lib/datum/kalendertag.ts`, `src/lib/i18n/verwaltung/dienstplan-monat.ts`, `src/app/portal/mein/{bausteine.tsx,zeiten/einwand/page.tsx,zeiten/[id]/einwand/page.tsx,antraege/neu/page.tsx,abwesenheit/neu/page.tsx}`, `src/server/db/seed/zeit.ts`, `tests/isolation/{einwand-ohne-eintrag,zeit-auftrag}.test.ts`, `tests/kern/{einwand-ohne-eintrag,monatsplan,mein-einwand-form}.test.ts` |
 |---|---|
+
+### D-712 · Die Freigabe für die Belegschaft lässt sich zurücknehmen — mit dem Recht, mit dem sie gesetzt wird, und mit Grund (V-219)
+
+**Der Befund** (V-219 a; Audit-Befund 48, DOC-04): `sichtbar_fuer_mitarbeiter`
+wurde genau einmal gesetzt — beim Ablegen, über ein Kästchen im
+Uploadformular. Danach gab es keinen Weg zurück: kein Dienst, keine Route,
+kein Formular; das Dokumentblatt verlinkte nur die Kundenfreigabe. Nach
+`t_person` (0009) sieht jede Sitzung im Mitarbeiterportal der Gesellschaft ein
+freigegebenes Dokument, und die meisten Kategorien tragen eine Löschsperre —
+ein versehentlich freigegebener Vertrag oder eine Personalunterlage blieb
+damit dauerhaft für die ganze Belegschaft sichtbar. O-851 verliess sich
+darauf, dass eine falsche Freigabe „auffällt"; nach dem Auffallen gab es
+keinen Rückweg.
+
+**Die Entscheidung.**
+
+1. **Ein Schalter in beide Richtungen, auf dem Dokumentblatt**
+   (`setzeMitarbeiterfreigabe`, `services/dokument/mitarbeiterfreigabe.ts`;
+   `POST /api/dokumente/[id]/mitarbeiterfreigabe`). Die Richtung, die ein
+   Dokument der Belegschaft zeigt, braucht das ausdrückliche Wort
+   (`sichtbar=ja`); ein fehlendes Feld ist eine Rücknahme, nie eine Freigabe.
+2. **Dasselbe Recht wie das Kästchen beim Ablegen: `dokument.schreiben`.**
+   Wer den Fehler machen darf, darf ihn auch beheben — ein engeres Recht nur
+   für die Rücknahme hiesse, dass der Fehler leichter zu machen ist als zu
+   beheben. Die zweite Linie ist `t_mandant` (0009): das UPDATE verlangt
+   zusätzlich LESEND `dokument.lesen`; die Rolle `mitarbeiter` hält es nicht
+   und trifft null Zeilen (geprüft).
+3. **Immer mit Grund, im Prüfprotokoll** (`dokument.mitarbeiter_freigegeben`
+   bzw. `dokument.mitarbeiterfreigabe_zurueckgenommen`, mit Kategorie und
+   Richtung) — dieselbe Form wie die Kundenfreigabe (D-599-Rückweg auf das
+   Blatt, `?vorgang=mitarbeiterfreigabe&fehler=<grund>`), weil `dokument`
+   keine Spalte dafür hat und der Grund ins Audit gehört.
+4. **Die Kategorie steht im Abschnitt groß** — O-851 bleibt offen, und an
+   ihr fällt eine falsche Freigabe auf. Der Satz unter dem Knopf sagt, was die
+   Rücknahme nicht kann: eine schon geholte Datei zurückholen (dafür steht das
+   Zugriffsprotokoll).
+5. **Der Seed zeigt es über den Dienst** (`seed/dokument-pflege.ts`): eine
+   interne Einsatzplanung, beim Ablegen versehentlich freigegeben, mit Grund
+   zurückgenommen.
+
+**Nicht Teil:** welche Kategorien überhaupt freigegeben werden dürfen (O-851)
+— die Datenbank prüft weiterhin nur den Schalter.
+
+| Betrifft | DOC-04, EMP-11, O-851, D-599, V-219, `drizzle/0009` (`t_mandant`, `t_person`, `p_ma_ceiling`), `src/server/services/dokument/mitarbeiterfreigabe.ts`, `src/app/api/dokumente/[id]/mitarbeiterfreigabe/route.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `src/server/db/seed/dokument-pflege.ts`, `tests/isolation/dokument-mitarbeiterfreigabe.test.ts` |
+|---|---|

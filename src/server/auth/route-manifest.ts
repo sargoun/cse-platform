@@ -2414,6 +2414,15 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Die Freigabe fuer die Belegschaft setzen oder zuruecknehmen (DOC-04,
+     * V-219, D-712). `dokument.schreiben` — dasselbe Recht wie das Kaestchen
+     * beim Ablegen: wer den Fehler machen darf, darf ihn auch beheben.
+     */
+    pfad: 'api/dokumente/[id]/mitarbeiterfreigabe',
+    recht: 'dokument.schreiben',
+  },
+  {
+    /**
      * Ablegen, was ein MENSCH mitbringt (DOC-01, DOC-03, DOC-06, TIM-10).
      *
      * `dokument.schreiben` — dasselbe Recht wie jeder andere Schreibweg in

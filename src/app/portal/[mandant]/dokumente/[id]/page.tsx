@@ -14,6 +14,10 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { formatiereBytes, KATEGORIE } from '../darstellung';
 import { kennungOder404 } from '../../../kennung';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { DOKUMENT_BLATT_TEXTE } from '@/lib/i18n/verwaltung/dokument-blatt';
+import { internSprache } from '@/lib/i18n/intern';
+import { dokumentKategorieText } from '@/lib/i18n/texte';
 
 /**
  * `/portal/[mandant]/dokumente/[id]` — die Metadaten eines Dokuments
@@ -96,6 +100,16 @@ export default async function Dokumentblatt(
   const { mandant, id } = await params;
   const suche = await searchParams;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  /*
+   * **Welches Formular die Abweisung meint** (V-219). Löschen und die
+   * Freigabe für die Belegschaft schicken ihren Grund beide als `?fehler=`
+   * zurück; `vorgang` sagt, zu welchem Abschnitt er gehört — sonst stünde
+   * über einer abgewiesenen Rücknahme „Nicht gelöscht.".
+   */
+  const vorgang = typeof suche['vorgang'] === 'string' ? suche['vorgang'] : null;
+  const mfErfolg = suche['mitarbeiterfreigabe'] === 'gesetzt'
+    || suche['mitarbeiterfreigabe'] === 'zurueckgenommen'
+    ? suche['mitarbeiterfreigabe'] : null;
   kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const tor = await mandantTor(`/portal/${mandant}/dokumente/${id}`, mandant);
@@ -114,7 +128,9 @@ export default async function Dokumentblatt(
      * ablegen darf, räumt damit nicht auf. Das eine legt hinzu, das andere
      * nimmt fort, und in einem Archiv ist das nicht dieselbe Handlung.
      */
-    'dokument.archivieren');
+    'dokument.archivieren',
+    /* V-219: die Freigabe für die Belegschaft — dasselbe Recht wie beim Ablegen. */
+    'dokument.schreiben');
 
   const [d] = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) => kontext.abfrage<Dokument>(
@@ -145,14 +161,18 @@ export default async function Dokumentblatt(
         where d.id = $1 and d.geloescht_am is null`, [id]))) as Promise<readonly Dokument[]>);
   if (d === undefined) notFound();
   const speicher = waehleSpeicher();
+  const sprache = internSprache(zugang.sprache);
+  const t = nachSprache(DOKUMENT_BLATT_TEXTE, sprache);
+  const mfFehler = vorgang === 'mitarbeiterfreigabe' ? fehler : null;
 
   return (
     <PortalRahmen
       titel={d.titel}
       wurzelTitel="Dokumente"
       bereich={mandant as BereichSchluessel}
-      /* Mit `dokument.archivieren` ist dieses Blatt schreibend (V-026). */
-      nurLesen={darf['dokument.archivieren'] !== true}
+      /* Mit `dokument.archivieren` ist dieses Blatt schreibend (V-026), mit
+         `dokument.schreiben` seit V-219 ebenso (Freigabe für die Belegschaft). */
+      nurLesen={darf['dokument.archivieren'] !== true && darf['dokument.schreiben'] !== true}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
       aktiverTab="dokumente"
@@ -162,7 +182,7 @@ export default async function Dokumentblatt(
       <h1 className="mb-s3 text-h1 text-text">{d.titel}</h1>
       {d.beschreibung === null ? null : <p className="mb-s5 max-w-[72ch] text-base text-text-muted">{d.beschreibung}</p>}
 
-      {fehler !== null ? (
+      {fehler !== null && vorgang === null ? (
         <Hinweis art="warnung" cse="dokument-loeschfehler" className="mb-s5 max-w-prose">
           <strong>Nicht gelöscht.</strong>{' '}
           {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Löschung wurde abgewiesen.'}
@@ -235,6 +255,76 @@ export default async function Dokumentblatt(
           </p>
         </section>
       </div>
+
+      {/* ------------------------------ Freigabe für die Belegschaft (V-219) */}
+      {/*
+        * **Der Rückweg, den es nicht gab.** Das Kästchen beim Ablegen setzte
+        * `sichtbar_fuer_mitarbeiter`, und danach führte kein Weg zurück —
+        * bei den Kategorien mit Löschsperre auch nicht über das Löschen.
+        * Der Schalter steht hier in BEIDE Richtungen, mit Pflichtgrund, unter
+        * demselben Recht wie beim Ablegen (D-712).
+        */}
+      <section aria-labelledby="mitarbeiterfreigabe" className="mt-s7 max-w-prose"
+               data-cse="mitarbeiterfreigabe">
+        <h2 id="mitarbeiterfreigabe" className="mb-s3 text-h3 text-text">{t.mfTitel}</h2>
+        {mfErfolg !== null ? (
+          <Hinweis art="erfolg" cse="mitarbeiterfreigabe-erfolg" className="mb-s4">
+            {mfErfolg === 'gesetzt' ? t.mfGesetzt : t.mfZurueckgenommen}
+          </Hinweis>
+        ) : null}
+        {mfFehler !== null ? (
+          <Hinweis art="warnung" cse="mitarbeiterfreigabe-fehler" className="mb-s4">
+            <strong>{t.mfNichtGeaendert}</strong>{' '}
+            {eigenerEintrag(t.mfFehler, mfFehler) ?? t.mfFehlerSonst}
+          </Hinweis>
+        ) : null}
+        <p className="m-0 text-sm text-text" data-cse="mitarbeiterfreigabe-stand"
+           data-frei={d.sichtbar_fuer_mitarbeiter ? 'ja' : 'nein'}>
+          {d.sichtbar_fuer_mitarbeiter ? t.mfIstFrei : t.mfIstNichtFrei}
+        </p>
+        <p className="mt-s3 text-sm text-text">
+          <span className="text-micro uppercase tracking-[0.08em] text-text-subtle">
+            {t.mfKategorie}
+          </span>{' '}
+          <strong data-cse="mitarbeiterfreigabe-kategorie">
+            {dokumentKategorieText(sprache, d.kategorie)}
+          </strong>
+        </p>
+        <p className="mt-s2 text-xs text-text-muted">{t.mfKategorieHinweis}</p>
+        {darf['dokument.schreiben'] !== true ? (
+          <p className="mt-s4 text-sm text-text-muted" data-cse="mitarbeiterfreigabe-ohne-recht">
+            {t.mfOhneRecht}{' '}
+            <Recht schluessel="dokument.schreiben" sprache={sprache} />.
+          </p>
+        ) : (
+          <form method="post" action={`/api/dokumente/${d.id}/mitarbeiterfreigabe`}
+                data-cse="mitarbeiterfreigabe-formular"
+                className="mt-s4 flex flex-col gap-s3 rounded-lg border border-line bg-surface p-s5">
+            <input type="hidden" name="sichtbar"
+                   value={d.sichtbar_fuer_mitarbeiter ? 'nein' : 'ja'} />
+            <input type="hidden" name="zurueck"
+                   value={`/portal/${mandant}/dokumente/${d.id}?vorgang=mitarbeiterfreigabe`} />
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.mfGrund}
+              <textarea name="grund" rows={2} required
+                        data-cse="mitarbeiterfreigabe-grund"
+                        placeholder={d.sichtbar_fuer_mitarbeiter
+                          ? t.mfGrundBeispielZuruecknehmen : t.mfGrundBeispielFreigeben}
+                        className="w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text" />
+            </label>
+            <div>
+              <Button type="submit"
+                      variante={d.sichtbar_fuer_mitarbeiter ? 'danger' : 'secondary'}
+                      data-cse="mitarbeiterfreigabe-abschicken">
+                {d.sichtbar_fuer_mitarbeiter ? t.mfZuruecknehmen : t.mfFreigeben}
+              </Button>
+            </div>
+            <p className="m-0 text-xs text-text-muted">
+              {d.sichtbar_fuer_mitarbeiter ? t.mfRuecknahmeGrenze : t.mfFreigabeFolge}
+            </p>
+          </form>
+        )}
+      </section>
 
       {/* --------------------------------------------------- Löschen (V-026) */}
       <section aria-labelledby="loeschen" className="mt-s7 max-w-prose">

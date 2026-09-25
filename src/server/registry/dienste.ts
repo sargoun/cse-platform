@@ -2032,6 +2032,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'dokument.kunde_freigeben',
   },
   /**
+   * **Die Freigabe für die Belegschaft, in beide Richtungen (DOC-04, V-219,
+   * D-712).** Dasselbe Recht wie das Kästchen beim Ablegen
+   * (`dokument.schreiben`) — wer freigeben darf, darf auch zurücknehmen.
+   * `t_mandant` verlangt dazu LESEND `dokument.lesen`.
+   */
+  {
+    modul: 'dokument', pfad: 'dokument/mitarbeiterfreigabe',
+    schreibend: true, schreibRecht: 'dokument.schreiben',
+  },
+  /**
    * Der EINZELNE Raum (OPS-02, OPS-03) — neben dem Massenweg
    * `raumbuch/import`. Hier passen Tor und Policy zusammen: `t_mandant` auf
    * `raum` verlangt im WITH CHECK genau `objekt.schreiben`.
