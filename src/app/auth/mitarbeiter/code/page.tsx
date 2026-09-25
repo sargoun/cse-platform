@@ -215,6 +215,7 @@ export default async function CodeEingabe({ searchParams }: Props) {
 
       <form action={einloesen} data-cse="anmeldung-code" className="flex flex-col gap-s4">
         <FormField
+          groesse="base"
           label={t.codeLabel}
           name="code"
           type="text"

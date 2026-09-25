@@ -174,6 +174,7 @@ export default async function MitarbeiterAnmeldung(
 
       <form action={anfordern} data-cse="anmeldung-telefon" className="flex flex-col gap-s4">
         <FormField
+          groesse="base"
           label={t.mobilnummer}
           name="telefon"
           type="tel"

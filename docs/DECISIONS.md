@@ -19529,6 +19529,11 @@ D-557; die Benachrichtigungseinstellungen trugen den Schlüssel jeder Art
 8. **Fliesstext in 16 px** auf allen diesen Flächen (DESIGN §8, D-738);
    `AuthSchale` bekommt `sprache`, Beschriftung und Sprachwahl als
    Eigenschaften und bleibt für die Anmeldung der Verwaltung, wie sie war.
+   **Nachtrag (Prüfer der Gruppe):** die Felder waren ausgelassen —
+   Beschriftung, Hinweis und Fehler von `FormField` standen fest in `xs`
+   (13 px). `FormField` hat jetzt `groesse` wie `Hinweis` (`sm`|`base`),
+   beide Anmeldeseiten setzen `base`, DESIGN §5 „Forms" nennt die Regel
+   (`tests/kern/arbeiter-anmeldung-flaechen.test.ts`).
 9. **Die Wache sieht die Flächen**: `seite-ohne-uebersetzung` liest jetzt
    auch `src/app/check-in` und `src/app/auth/mitarbeiter`; Kontowurzel und
    Benachrichtigungen sind von der Ausnahmeliste gestrichen. Die Browsersuite

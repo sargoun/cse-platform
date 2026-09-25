@@ -634,6 +634,11 @@ scrollbar on a data table on a phone.
 Input: `--surface-3` bg, `1px solid --border`, `--r-md`, `12px 14px`, min
 height `44px`. Focus: border `--red` + ring. Error: border `--danger`, message
 below in `--danger` at `xs`. Label above, always — never placeholder-as-label.
+Component: `components/ui/FormField.tsx`. On the worker screens (the sign-in
+`/auth/mitarbeiter/**`, `/portal/mein/**`) label, hint and error message set
+`base` type instead of `xs` — `groesse="base"` — because body text there is
+never below `16px` (§8, D-738); the input itself is `base` everywhere. Same
+rule as for notices (V-200).
 
 ### Notices
 
