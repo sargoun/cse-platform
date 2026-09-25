@@ -16,6 +16,17 @@ import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
 import { EINGANGSRECHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/eingangsrechnungen';
+import { ZAHLUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/zahlungen';
+import { MAHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/mahnungen';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { vorbelegt } from '@/lib/formular/maske';
+import { tagInSprache } from '@/lib/datum/kalendertag';
+import {
+  bankkonten, buchungenZuPosten, postenZuEingangsrechnung,
+  type Bankkonto, type Buchungszeile, type Kreditorposten,
+} from '@/server/services/finanz/zahlung/index';
+import { formatiereIban } from '@/server/services/finanz/zahlung/iban';
 
 /**
  * `/portal/[mandant]/finanzen/eingangsrechnungen/[id]` — der Beleg und sein
@@ -78,9 +89,13 @@ interface HerkunftFeld {
 }
 
 export default async function EingangsrechnungDetail(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
+  const suche = await searchParams;
   kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/finanzen/eingangsrechnungen/[id]`);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -100,11 +115,13 @@ export default async function EingangsrechnungDetail(
    */
   const darf = await haeltRechte(
     sitzung, 'freigabe.entscheiden', 'eingang.freigeben',
-    'abrechnung.freistellung_pflegen');
+    'abrechnung.freistellung_pflegen', 'zahlung.lesen', 'zahlung.schreiben');
 
   /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
   const t = nachSprache(EINGANGSRECHNUNGEN_TEXTE, zugang.sprache);
   const g = verwaltungTexte(zugang.sprache);
+  const tz = nachSprache(ZAHLUNGEN_TEXTE, zugang.sprache);
+  const tm = nachSprache(MAHNUNGEN_TEXTE, zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
@@ -142,8 +159,25 @@ export default async function EingangsrechnungDetail(
           where f.bezug_typ = 'eingangsrechnung' and f.bezug_id = $1::uuid
             and f.aktion = 'eingangsrechnung_uebernehmen'
           order by ff.feld_pfad`, [id]),
+      /*
+       * Der Zahlungsausgang (V-216): der Kreditorposten, was darauf gezahlt
+       * wurde, und die Konten, von denen gezahlt werden kann. Ohne
+       * `zahlung.lesen` sieht die Seite keinen Posten — dann steht der
+       * Abschnitt nicht da, statt „keine Zahlung" zu behaupten.
+       */
+      ...(darf['zahlung.lesen'] === true
+        ? await (async () => {
+          const posten = await postenZuEingangsrechnung(kontext, id);
+          return {
+            posten,
+            zahlungen: posten === null ? [] : await buchungenZuPosten(kontext, posten.id),
+            konten: darf['zahlung.schreiben'] === true ? await bankkonten(kontext) : [],
+          };
+        })()
+        : { posten: null, zahlungen: [], konten: [] }),
     }))) as Promise<{ kopf: Kopf | null; steuer: readonly SteuerZeile[];
-      herkunft: readonly HerkunftFeld[] }>);
+      herkunft: readonly HerkunftFeld[]; posten: Kreditorposten | null;
+      zahlungen: readonly Buchungszeile[]; konten: readonly Bankkonto[] }>);
 
   if (daten.kopf === null) notFound();
   const kopf = daten.kopf;
@@ -154,6 +188,19 @@ export default async function EingangsrechnungDetail(
     + 'text-white hover:bg-brand-hover';
   const knopfStill = 'min-h-11 rounded-md border border-line-strong px-s5 py-s3 '
     + 'text-base text-text hover:bg-surface-2';
+  /*
+   * Rückmeldung und Abweisung aus `/api/finanzen/zahlungen` (V-216) — beide
+   * nur als eigener Eintrag nachgeschlagen, nie roh angezeigt (D-728).
+   */
+  const meldung = eigenerEintrag(t.ausgangMeldungen, suche['meldung']) ?? null;
+  const abgewiesen = typeof suche['fehler'] === 'string';
+  const fehlerText = abgewiesen
+    ? (eigenerEintrag(t.ausgangFehler, suche['fehler']) ?? t.ausgangFehlerSonst) : null;
+  const zurueck = (name: string): string | undefined =>
+    (abgewiesen ? vorbelegt(suche, name) : undefined);
+  const { posten } = daten;
+  const kannZahlen = kopf.status === 'gebucht' && posten !== null && posten.ausgeglichenAm === null
+    && posten.offenCent > 0n && darf['zahlung.schreiben'] === true;
 
   return (
     <PortalRahmen
@@ -314,6 +361,100 @@ export default async function EingangsrechnungDetail(
           />
         </section>
       ) : null}
+
+      {meldung === null ? null : (
+        <Hinweis art="erfolg" cse="ausgang-meldung" className="mb-s5 max-w-prose">{meldung}</Hinweis>
+      )}
+      {fehlerText === null ? null : (
+        <p role="alert" data-cse="ausgang-fehler"
+           className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
+          {fehlerText}
+        </p>
+      )}
+
+      {/*
+        * **Die Zahlungen an den Lieferanten** (V-216, FIN-14). Bis hierher gab
+        * es auf der Kreditorenseite keinen Zahlungsweg: jede gebuchte
+        * Eingangsrechnung stand für immer als unbezahlt in den offenen
+        * Posten, der Altersstruktur, der Gruppensumme und dem Jahrespaket.
+        */}
+      {posten === null ? null : (
+        <section aria-labelledby="zahlungen-titel" className="mb-s7" data-cse="ausgang-zahlungen">
+          <h2 id="zahlungen-titel" className="mb-s3 text-h2 text-text">{t.zahlungenTitel}</h2>
+          {daten.zahlungen.length === 0 ? (
+            <p className="max-w-prose rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
+              {t.keineZahlung}
+            </p>
+          ) : (
+            <DataTable
+              beschriftung={t.tabelleZahlungen}
+              zeilen={daten.zahlungen}
+              schluessel={(z) => z.id}
+              spalten={[
+                { schluessel: 'tag', kopf: t.zahlungstag,
+                  zelle: (z) => (z.zahlungsdatum === null ? '—' : tagInSprache(z.zahlungsdatum, zugang.sprache)) },
+                { schluessel: 'art', kopf: g.art,
+                  zelle: (z) => eigenerEintrag(tm.zuordnungsarten, z.art) ?? '—' },
+                { schluessel: 'betrag', kopf: g.betrag, numerisch: true,
+                  zelle: (z) => formatiereGeld(z.betragCent) },
+                { schluessel: 'zahlung', kopf: tz.titel,
+                  zelle: (z) => (z.zahlungId === null ? '—' : (
+                    <Link href={`/portal/${mandant}/finanzen/zahlungen/${z.zahlungId}`}
+                          className="underline underline-offset-2">
+                      {z.storniertAm === null ? t.zahlungOeffnen : `${t.zahlungOeffnen} (${t.storniert})`}
+                    </Link>
+                  )) },
+              ]}
+            />
+          )}
+
+          {kannZahlen ? (
+            <form method="post" action={`/api/finanzen/zahlungen?mandant=${mandant}`}
+                  data-cse="ausgang-formular"
+                  className="mt-s5 max-w-prose rounded-lg border border-line bg-surface p-s5">
+              <h3 className="text-h3 text-text">{t.zahlungErfassenTitel}</h3>
+              <p className="mt-s2 text-xs text-text-muted">{t.zahlungErfassenErklaerung}</p>
+              <input type="hidden" name="aktion" value="ausgang" />
+              <input type="hidden" name="eingangsrechnungId" value={kopf.id} />
+              <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm text-text" htmlFor="betrag">{t.betragInEuro}</label>
+                  <input id="betrag" name="betrag" type="text" inputMode="decimal" required
+                         className={feld} placeholder={formatiereGeld(posten.offenCent).replace(/\s*€$/u, '')}
+                         defaultValue={zurueck('betrag')} />
+                </div>
+                <div>
+                  <label className="block text-sm text-text" htmlFor="zahlungsdatum">{t.zahlungstag}</label>
+                  <input id="zahlungsdatum" name="zahlungsdatum" type="date" required className={feld}
+                         defaultValue={zurueck('zahlungsdatum')} />
+                </div>
+              </div>
+              <label className="mt-s4 block text-sm text-text" htmlFor="zahlungsmittel">{t.zahlungsweg}</label>
+              <select id="zahlungsmittel" name="zahlungsmittel" required className={feld}
+                      defaultValue={zurueck('zahlungsmittel') ?? 'ueberweisung'}>
+                <option value="ueberweisung">{tz.mittelNamen.ueberweisung}</option>
+                <option value="lastschrift">{tz.mittelNamen.lastschrift}</option>
+                <option value="karte">{tz.mittelNamen.karte}</option>
+                <option value="verrechnung">{tz.mittelNamen.verrechnung}</option>
+              </select>
+              <label className="mt-s4 block text-sm text-text" htmlFor="bankkontoId">{t.vonKonto}</label>
+              <select id="bankkontoId" name="bankkontoId" className={feld}
+                      defaultValue={zurueck('bankkontoId') ?? ''}>
+                <option value="">{tz.ohneKontobezug}</option>
+                {daten.konten.map((k) => (
+                  <option key={k.id} value={k.id}>{k.bezeichnung} · {formatiereIban(k.iban)}</option>
+                ))}
+              </select>
+              <label className="mt-s4 block text-sm text-text" htmlFor="referenz">{tz.verwendungszweck}</label>
+              <input id="referenz" name="referenz" type="text" className={feld}
+                     defaultValue={zurueck('referenz') ?? kopf.rechnungsnummer_lieferant ?? ''} />
+              <button type="submit" className={`mt-s5 ${knopf}`} data-cse="ausgang-erfassen">
+                {t.zahlungErfassen}
+              </button>
+            </form>
+          ) : null}
+        </section>
+      )}
 
       <section aria-labelledby="weg-titel">
         <h2 id="weg-titel" className="mb-s3 text-h2 text-text">{t.naechsterSchritt}</h2>

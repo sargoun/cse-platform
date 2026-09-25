@@ -18245,3 +18245,60 @@ Lücke.
 
 | Betrifft | FIN-17, ACC-08, ACC-09, ACC-11, D-475, D-484, V-011, V-215, `drizzle/0446_aufwand_aus_betriebsausgaben.sql`, `src/server/services/buchhaltung/{aufwand,monatszahlen,jahrespaket,z3}.ts`, `src/server/services/gruppe/finanzen.ts`, `src/server/services/finanz/ausgabe.ts`, `src/app/portal/[mandant]/buchhaltung/monatszahlen/page.tsx`, `src/app/portal/[mandant]/finanzen/{page,ausgaben/page}.tsx`, `src/app/portal/gruppe/finanzen/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{uebersicht,belege}.ts` |
 |---|---|
+
+### D-707 · Zahlungen an Lieferanten werden erfasst, nicht ausgelöst — aus der Eingangsrechnung und aus dem Kontoauszug (V-216)
+
+**Der Befund** (V-216, FIN-14, ACC-04, ACC-07): das Buchen einer
+Eingangsrechnung eröffnet einen Kreditorposten (0123), ausgeglichen wird ein
+Posten nur über `zahlung_zuordnung` — und für Kreditoren gab es keinen Weg
+dorthin. Die Zahlungsroute kannte nur den Eingang auf eine Rechnung, der
+Bankabgleich wies jeden Ausgang ab, `erfasseZahlung` wurde nur mit
+`richtung = eingang` gerufen, und die Eingangsrechnung hatte keine
+Zahlungsaktion. Jede gebuchte Eingangsrechnung stand für immer als unbezahlt
+in Offene Posten, Altersstruktur, Gruppensumme „Kreditoren offen" und
+Jahrespaket.
+
+**Die Entscheidung.**
+
+1. **Erfasst wird, was hinausging — ausgelöst wird nichts.** Es gibt keine
+   Bankanbindung und keinen Zahlungsverkehr; die Überweisung macht ein Mensch
+   in seinem Bankprogramm. Die Plattform hält danach fest, dass sie geschah
+   (`verbucheZahlungsausgang`). Deshalb keine Freigabe nach Invariante 7 —
+   nichts verlässt das System; freigegeben wurde die Rechnung vor dem Buchen.
+   Recht: `zahlung.schreiben`, wie beim Eingang.
+2. **Zwei Wege, ein Dienst.** Das Formular „Zahlung an den Lieferanten
+   erfassen" auf der gebuchten Eingangsrechnung (solange offen) und die
+   Klärung eines Ausgangs im Kontoauszug gehen beide über
+   `verbucheZahlungsausgang`. Der Verwendungszweck ist mit der
+   Rechnungsnummer des Lieferanten vorbelegt. `bar` wird nicht angeboten: eine
+   Barzahlung verlangt eine Kasse (`zahlung_bar_braucht_kasse`).
+3. **Eine Überzahlung wird ein Guthaben beim Lieferanten** —
+   `kreditor_guthaben` über `fin.op_kreditor_guthaben_eroeffnen` (0447), das
+   Gegenstück zu `fin.op_guthaben_eroeffnen`, protokolliert. Sie wird weder
+   auf die Rechnung gebucht (die Datenbank weist das ab) noch weggeworfen.
+4. **Ein Ausgang wird im Bankabgleich nie automatisch zugeordnet.**
+   `schlageVorAusgang` nennt die passenden Verbindlichkeiten (Betrag und
+   Rechnungsnummer des Lieferanten oder eigene Belegnummer im Zweck) im Satz
+   an der Zeile; bestätigt wird in der Klärung, die dafür die offenen
+   Verbindlichkeiten zur Wahl stellt. Anders als beim Eingang kann ein
+   Ausgang mit passendem Betrag ebenso Lohn, Steuer oder Erstattung sein.
+   Die Schutzregel „ein Ausgang trifft nie eine Ausgangsrechnung" bleibt
+   (`schlageVor`), und die Datenbank prüft sie seit 0130
+   (`fin.zuordnung_richtung_pruefen`) — der Befund, das verhindere nur die
+   Oberfläche, war an dieser Stelle falsch; 0447 legt deshalb keinen zweiten
+   Riegel an.
+5. **Die Rückmeldung kommt als Seite** (D-599): die Route führt auf die
+   Eingangsrechnung zurück, mit `?meldung=` oder mit `?fehler=` und den
+   Eingaben; beide Schlüssel nur über `eigenerEintrag()`. Die Eingangsrechnung
+   listet die Zahlungen auf ihren Posten mit Verweis auf die Zahlungsakte,
+   die Richtung und — bei einem Lieferantenguthaben — „Guthaben beim
+   Lieferanten" nennt; dort wird storniert, und das Storno öffnet den Posten
+   wieder.
+6. **Nicht gebaut:** eine eigene Liste aller Zahlungsausgänge (die
+   Zahlungsseite bleibt die der Eingänge) und das Verrechnen eines
+   Lieferantenguthabens mit einer späteren Rechnung über die Oberfläche —
+   `gleicheAus` kann es, ein Formular dafür gibt es auf der Kreditorenseite
+   noch nicht.
+
+| Betrifft | FIN-14, ACC-04, ACC-07, D-599, D-728, Invariante 7, V-216, `drizzle/0447_zahlungsausgang_an_lieferanten.sql`, `drizzle/0130` (Richtungsprüfung), `src/server/services/finanz/zahlung/index.ts`, `src/server/services/finanz/bank/{abgleich,import}.ts`, `src/app/api/finanzen/zahlungen/route.ts`, `src/app/api/buchhaltung/bank/umsatz/route.ts`, `src/app/portal/[mandant]/finanzen/eingangsrechnungen/[id]/page.tsx`, `src/app/portal/[mandant]/finanzen/zahlungen/[id]/page.tsx`, `src/app/portal/[mandant]/buchhaltung/bank/[auszugId]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,mahnungen}.ts` |
+|---|---|

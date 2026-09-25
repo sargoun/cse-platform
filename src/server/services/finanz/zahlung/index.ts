@@ -1,6 +1,7 @@
 import 'server-only';
 import { cent, type Cent } from '../geld.js';
 import { ibanGeprueft } from './iban.js';
+import { tagDeutsch } from '../../../../lib/datum/kalendertag.js';
 
 /**
  * Zahlungen, offene Posten und ihr Ausgleich (FIN-14, `05-FINANZEN.md`
@@ -420,6 +421,159 @@ export async function verbucheZahlungseingang(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Der Zahlungsausgang an einen Lieferanten (V-216, D-707)
+// ---------------------------------------------------------------------------
+
+/**
+ * Der Kreditorposten einer Eingangsrechnung — `null`, solange sie nicht
+ * gebucht ist (erst `fin.op_kreditor_eroeffnen` eroeffnet ihn, 0123).
+ */
+export interface Kreditorposten {
+  readonly id: string;
+  readonly eingangsrechnungId: string;
+  readonly lieferantId: string;
+  readonly betragCent: Cent;
+  readonly offenCent: Cent;
+  readonly ausgeglichenAm: string | null;
+}
+
+export async function postenZuEingangsrechnung(
+  db: Abfrage, eingangsrechnungId: string,
+): Promise<Kreditorposten | null> {
+  const [z] = await db.abfrage<{
+    id: string; eingangsrechnung_id: string; lieferant_id: string;
+    betrag_cent: string; offen_cent: string; ausgeglichen_am: string | null;
+  }>(
+    `select op.id, op.eingangsrechnung_id, op.lieferant_id,
+            op.betrag_cent::text, op.offen_cent::text, op.ausgeglichen_am::text
+       from offener_posten op
+      where op.eingangsrechnung_id = $1::uuid and op.art = 'kreditor'`,
+    [eingangsrechnungId]);
+  if (z === undefined) return null;
+  return {
+    id: z.id, eingangsrechnungId: z.eingangsrechnung_id, lieferantId: z.lieferant_id,
+    betragCent: cent(BigInt(z.betrag_cent)), offenCent: cent(BigInt(z.offen_cent)),
+    ausgeglichenAm: z.ausgeglichen_am,
+  };
+}
+
+export interface ZahlungsausgangEingabe {
+  readonly eingangsrechnungId: string;
+  readonly betragCent: Cent;
+  /** Berliner Kalendertag als `YYYY-MM-DD`. */
+  readonly zahlungsdatum: string;
+  readonly valuta?: string | null;
+  readonly zahlungsmittel: Zahlungsart;
+  readonly bankkontoId?: string | null;
+  readonly kasseId?: string | null;
+  readonly referenz?: string | null;
+  readonly notiz?: string | null;
+}
+
+export interface Zahlungsausgang {
+  readonly zahlungId: string;
+  /** Was auf die Eingangsrechnung entfaellt. */
+  readonly angerechnetCent: Cent;
+  /** Was darueber hinaus gezahlt wurde — 0, wenn nichts. */
+  readonly ueberzahlungCent: Cent;
+  /** Das Guthaben beim Lieferanten, falls eine Ueberzahlung entstand. */
+  readonly guthabenPostenId: string | null;
+  /** Was nach dieser Zahlung an den Lieferanten offen bleibt. */
+  readonly offenCent: Cent;
+  readonly ausgeglichen: boolean;
+}
+
+/**
+ * **Eine Zahlung an einen Lieferanten erfassen** — das Gegenstück zu
+ * `verbucheZahlungseingang` auf der Kreditorenseite (V-216, FIN-14).
+ *
+ * Bis hierher gab es ihn nicht: `fin.op_kreditor_eroeffnen` eröffnete beim
+ * Buchen einer Eingangsrechnung einen Kreditorposten, und kein Weg glich ihn
+ * je aus. Jede gebuchte Eingangsrechnung stand für immer als unbezahlt in
+ * Offene Posten, Altersstruktur, Gruppensumme und Jahrespaket.
+ *
+ * **Erfasst wird, was geschehen ist — ausgelöst wird nichts.** Es gibt keine
+ * Bankanbindung; die Überweisung macht ein Mensch in seinem Bankprogramm, und
+ * hier steht danach, dass sie hinausging. Deshalb braucht es auch keine
+ * Freigabe nach Invariante 7: nichts verlässt das System. Freigegeben wurde
+ * die Rechnung selbst, bevor sie gebucht wurde.
+ *
+ * **Die Überzahlung** wie beim Eingang: der Teil über dem offenen Betrag
+ * wird nicht auf die Rechnung gebucht (die Datenbank weist das ab) und nicht
+ * weggeworfen, sondern ein GUTHABEN BEIM LIEFERANTEN (`kreditor_guthaben`,
+ * 0447) — eine Forderung, bis sie verrechnet oder erstattet ist.
+ *
+ * Eine Transaktion mit dem Aufrufer (`withTenant`), wie beim Eingang: Zahlung,
+ * Anrechnung, Guthaben und dessen Zuordnung stehen zusammen oder gar nicht.
+ */
+export async function verbucheZahlungsausgang(
+  db: Abfrage, eingabe: ZahlungsausgangEingabe,
+): Promise<Zahlungsausgang> {
+  const posten = await postenZuEingangsrechnung(db, eingabe.eingangsrechnungId);
+  if (posten === null) {
+    throw new ZahlungFehler(
+      'Zu dieser Eingangsrechnung gibt es keinen offenen Posten. Erst das Buchen '
+      + 'eröffnet die Verbindlichkeit gegenüber dem Lieferanten.', 'kein_posten');
+  }
+  if (posten.ausgeglichenAm !== null) {
+    throw new ZahlungFehler(
+      `Die Eingangsrechnung ist seit dem ${tagDeutsch(posten.ausgeglichenAm)} bezahlt.`,
+      'schon_ausgeglichen');
+  }
+
+  const zahlungId = await erfasseZahlung(db, {
+    richtung: 'ausgang',
+    betragCent: eingabe.betragCent,
+    zahlungsdatum: eingabe.zahlungsdatum,
+    valuta: eingabe.valuta ?? null,
+    zahlungsmittel: eingabe.zahlungsmittel,
+    bankkontoId: eingabe.bankkontoId ?? null,
+    kasseId: eingabe.kasseId ?? null,
+    referenz: eingabe.referenz ?? null,
+    notiz: eingabe.notiz ?? null,
+  });
+
+  const angerechnet = eingabe.betragCent > posten.offenCent
+    ? posten.offenCent : eingabe.betragCent;
+  const ueber = cent(eingabe.betragCent - angerechnet);
+
+  await ordneZu(db, {
+    zahlungId,
+    offenerPostenId: posten.id,
+    art: 'zahlung',
+    betragCent: angerechnet,
+  });
+
+  let guthabenId: string | null = null;
+  if (ueber > 0n) {
+    const [zeile] = await db.abfrage<{ id: string }>(
+      `select fin.op_kreditor_guthaben_eroeffnen($1::uuid, $2::bigint) as id`,
+      [posten.lieferantId, ueber.toString()]);
+    if (zeile === undefined) {
+      throw new ZahlungFehler('Das Guthaben beim Lieferanten wurde nicht eroeffnet.',
+        'abgewiesen');
+    }
+    guthabenId = zeile.id;
+    await ordneZu(db, {
+      zahlungId,
+      offenerPostenId: guthabenId,
+      art: 'ueberzahlung',
+      betragCent: ueber,
+    });
+  }
+
+  const danach = await postenZuEingangsrechnung(db, eingabe.eingangsrechnungId);
+  return {
+    zahlungId,
+    angerechnetCent: angerechnet,
+    ueberzahlungCent: ueber,
+    guthabenPostenId: guthabenId,
+    offenCent: danach?.offenCent ?? cent(0n),
+    ausgeglichen: danach !== null && danach.ausgeglichenAm !== null,
+  };
+}
+
 /**
  * Der §48-EStG-Einbehalt loescht den Rest, ohne dass Geld kommt (§7.2).
  *
@@ -551,6 +705,8 @@ export async function gleicheAus(
 
 export interface Buchungszeile {
   readonly id: string;
+  /** Die Zahlung dahinter — `null` bei Skonto und Einbehalt (V-216: für den Verweis). */
+  readonly zahlungId: string | null;
   readonly art: ZuordnungArt;
   readonly betragCent: Cent;
   readonly zahlungsdatum: string | null;
@@ -563,11 +719,11 @@ export async function buchungenZuPosten(
   db: Abfrage, postenId: string,
 ): Promise<readonly Buchungszeile[]> {
   const zeilen = await db.abfrage<{
-    id: string; art: ZuordnungArt; betrag_cent: string;
+    id: string; zahlung_id: string | null; art: ZuordnungArt; betrag_cent: string;
     zahlungsdatum: string | null; zahlungsmittel: Zahlungsart | null;
     storniert_am: string | null; notiz: string | null;
   }>(
-    `select zz.id, zz.art, zz.betrag_cent::text,
+    `select zz.id, zz.zahlung_id, zz.art, zz.betrag_cent::text,
             z.zahlungsdatum::text, z.zahlungsmittel, z.storniert_am::text, zz.notiz
        from zahlung_zuordnung zz
        left join zahlung z on z.id = zz.zahlung_id and z.mandant_id = zz.mandant_id
@@ -575,6 +731,7 @@ export async function buchungenZuPosten(
       order by zz.erstellt_am`, [postenId]);
   return zeilen.map((z) => ({
     id: z.id,
+    zahlungId: z.zahlung_id,
     art: z.art,
     betragCent: cent(BigInt(z.betrag_cent)),
     zahlungsdatum: z.zahlungsdatum,

@@ -73,6 +73,14 @@ interface PostenAuswahl {
   readonly kunde: string | null;
 }
 
+/** Eine offene Verbindlichkeit — was ein Mensch einem Ausgang zuordnen kann (V-216). */
+interface KreditorAuswahl {
+  readonly id: string;
+  readonly nummer: string | null;
+  readonly offen_cent: string;
+  readonly lieferant: string | null;
+}
+
 const MELDUNG: Readonly<Record<string, string>> = {
   zugeordnet: 'Der Umsatz ist zugeordnet; die Zahlung ist angelegt.',
   ohne_bezug: 'Der Umsatz ist als „ohne Bezug" vermerkt.',
@@ -110,7 +118,10 @@ export default async function BankAuszug(
           where a.id = $1`,
         [auszugId]);
       if (kopf === undefined) {
-        return { kopf: null, umsaetze: [] as UmsatzRoh[], posten: [] as PostenAuswahl[] };
+        return {
+          kopf: null, umsaetze: [] as UmsatzRoh[], posten: [] as PostenAuswahl[],
+          kreditoren: [] as KreditorAuswahl[],
+        };
       }
 
       const umsaetze = await kontext.abfrage<UmsatzRoh>(
@@ -118,7 +129,7 @@ export default async function BankAuszug(
                 u.betrag_cent::text, u.buchungsdatum::text, u.valuta::text,
                 u.referenz, u.verwendungszweck, u.gegenpartei, u.gebucht,
                 u.zustand::text as zustand, u.klaerungsnotiz, u.vorschlag_text,
-                r.nummer
+                coalesce(r.nummer, er.rechnungsnummer_lieferant, er.interne_belegnummer) as nummer
            from kontoumsatz u
            left join umsatz_zuordnung uz on uz.kontoumsatz_id = u.id
                                         and uz.mandant_id = u.mandant_id
@@ -128,6 +139,8 @@ export default async function BankAuszug(
            left join offener_posten op on op.id = zz.offener_posten_id
                                       and op.mandant_id = zz.mandant_id
            left join rechnung r on r.id = op.rechnung_id and r.mandant_id = op.mandant_id
+           left join eingangsrechnung er on er.id = op.eingangsrechnung_id
+                                        and er.mandant_id = op.mandant_id
           where u.kontoauszug_id = $1
           order by u.laufnummer`,
         [auszugId]);
@@ -145,9 +158,24 @@ export default async function BankAuszug(
           where op.ausgeglichen_am is null and op.offen_cent > 0 and r.nummer is not null
           order by r.nummer
           limit 200`);
-      return { kopf, umsaetze, posten };
+      /*
+       * Die offenen Verbindlichkeiten fuer einen Ausgang (V-216) — die
+       * Kreditorposten gebuchter Eingangsrechnungen, mit der Nummer des
+       * Lieferanten, wie sie im Verwendungszweck steht.
+       */
+      const kreditoren = await kontext.abfrage<KreditorAuswahl>(
+        `select op.id, coalesce(er.rechnungsnummer_lieferant, er.interne_belegnummer) as nummer,
+                op.offen_cent::text, l.name as lieferant
+           from offener_posten op
+           join eingangsrechnung er on er.id = op.eingangsrechnung_id
+                                   and er.mandant_id = op.mandant_id
+           left join lieferant l on l.id = op.lieferant_id and l.mandant_id = op.mandant_id
+          where op.art = 'kreditor' and op.ausgeglichen_am is null and op.offen_cent > 0
+          order by l.name nulls last, er.rechnungsdatum nulls last
+          limit 200`);
+      return { kopf, umsaetze, posten, kreditoren };
     }))) as { kopf: KopfRoh | null; umsaetze: readonly UmsatzRoh[];
-      posten: readonly PostenAuswahl[] };
+      posten: readonly PostenAuswahl[]; kreditoren: readonly KreditorAuswahl[] };
 
   if (daten.kopf === null) notFound();
   const k = daten.kopf;
@@ -374,11 +402,40 @@ export default async function BankAuszug(
                         Zuordnen
                       </button>
                     </form>
+                  ) : z.richtung === 'ausgang' && z.gebucht ? (
+                    /*
+                     * **Ein Ausgang an einen Lieferanten** (V-216). Bis hierher
+                     * stand hier „Ein Ausgang wird keiner Forderung zugeordnet",
+                     * und die bezahlte Eingangsrechnung blieb für immer offen.
+                     * Zur Wahl stehen nur Verbindlichkeiten — nie eine
+                     * Ausgangsrechnung (die Datenbank weist das ab, 0130).
+                     */
+                    <form method="post" action="/api/buchhaltung/bank/umsatz"
+                          className="flex flex-col gap-s2 sm:flex-row sm:items-end">
+                      <input type="hidden" name="mandant" value={mandant} />
+                      <input type="hidden" name="auszugId" value={k.id} />
+                      <input type="hidden" name="umsatzId" value={z.id} />
+                      <input type="hidden" name="aktion" value="zuordnen" />
+                      <label className="flex min-w-0 flex-1 flex-col gap-s1 text-sm text-text">
+                        Offene Verbindlichkeit
+                        <select name="postenId" required className={feld} defaultValue="">
+                          <option value="" disabled>— wählen —</option>
+                          {daten.kreditoren.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.lieferant ?? '—'} · {p.nummer ?? '—'} ·{' '}
+                              {formatiereGeld(cent(BigInt(p.offen_cent)))}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button type="submit" data-cse="klaerung-ausgang" className={knopf}
+                              disabled={daten.kreditoren.length === 0}>
+                        Zuordnen
+                      </button>
+                    </form>
                   ) : (
                     <p className="text-sm text-text-subtle">
-                      {z.gebucht
-                        ? 'Ein Ausgang wird keiner Forderung zugeordnet.'
-                        : 'Eine Vormerkung wird erst zugeordnet, wenn die Bank gebucht hat.'}
+                      Eine Vormerkung wird erst zugeordnet, wenn die Bank gebucht hat.
                     </p>
                   )}
                   <form method="post" action="/api/buchhaltung/bank/umsatz"

@@ -117,6 +117,26 @@ export interface EingangsrechnungenTexte {
   readonly entstehtBeimBuchen: string;
   readonly offenAnLieferanten: string;
   readonly nochKeinPosten: string;
+
+  /* ── Der Zahlungsausgang (V-216) ─────────────────────────────────────── */
+  readonly zahlungenTitel: string;
+  readonly keineZahlung: string;
+  readonly tabelleZahlungen: string;
+  readonly zahlungstag: string;
+  readonly zahlungOeffnen: string;
+  readonly storniert: string;
+  readonly zahlungErfassenTitel: string;
+  readonly zahlungErfassenErklaerung: string;
+  readonly betragInEuro: string;
+  readonly zahlungsweg: string;
+  readonly vonKonto: string;
+  readonly zahlungErfassen: string;
+  readonly bezahlt: string;
+  /** Die Rückmeldung nach dem Erfassen — `?meldung=`, über `eigenerEintrag()`. */
+  readonly ausgangMeldungen: Readonly<Record<'ausgang_erfasst' | 'ausgang_guthaben', string>>;
+  /** Der Grund einer Abweisung — `?fehler=`, über `eigenerEintrag()`. */
+  readonly ausgangFehler: Readonly<Record<string, string>>;
+  readonly ausgangFehlerSonst: string;
   readonly entgeltJeSteuersatz: string;
   readonly keineAufteilung: string;
   readonly tabelleSteuerzeilen: string;
@@ -362,6 +382,39 @@ const DE: EingangsrechnungenTexte = {
   entstehtBeimBuchen: 'entsteht beim Buchen',
   offenAnLieferanten: 'Offen an den Lieferanten',
   nochKeinPosten: 'noch kein Posten — nicht gebucht',
+
+  zahlungenTitel: 'Zahlungen an den Lieferanten',
+  keineZahlung: 'Noch keine Zahlung erfasst.',
+  tabelleZahlungen: 'Zahlungen an den Lieferanten mit Tag, Art und Betrag',
+  zahlungstag: 'Zahlungstag',
+  zahlungOeffnen: 'Zahlung öffnen',
+  storniert: 'storniert',
+  zahlungErfassenTitel: 'Zahlung an den Lieferanten erfassen',
+  zahlungErfassenErklaerung:
+    'Erfasst wird eine Zahlung, die hinausgegangen ist — die Plattform löst '
+    + 'keine Überweisung aus, eine Bankanbindung gibt es nicht. Was über den '
+    + 'offenen Betrag hinausgeht, steht danach als Guthaben beim Lieferanten.',
+  betragInEuro: 'Betrag in Euro',
+  zahlungsweg: 'Zahlungsweg',
+  vonKonto: 'Gezahlt von Konto',
+  zahlungErfassen: 'Zahlung erfassen',
+  bezahlt: 'bezahlt',
+  ausgangMeldungen: {
+    ausgang_erfasst: 'Die Zahlung an den Lieferanten ist erfasst.',
+    ausgang_guthaben:
+      'Die Zahlung ist erfasst. Sie lag über dem offenen Betrag — der Rest steht '
+      + 'als Guthaben beim Lieferanten in den offenen Posten.',
+  },
+  ausgangFehler: {
+    unvollstaendig: 'Betrag, Zahlungstag und Zahlungsweg sind Pflicht.',
+    datum: 'Der Zahlungstag ist kein Datum.',
+    betrag: 'Der Betrag ist kein Eurobetrag — bitte wie 1.190,00 schreiben.',
+    kein_posten: 'Zu dieser Eingangsrechnung gibt es noch keinen offenen Posten — erst das Buchen eröffnet ihn.',
+    schon_ausgeglichen: 'Diese Eingangsrechnung ist bereits bezahlt.',
+    abgewiesen: 'Die Zahlung wurde abgewiesen — der Betrag muss größer als null sein.',
+    nicht_gefunden: 'Der offene Posten ist nicht erreichbar.',
+  },
+  ausgangFehlerSonst: 'Die Zahlung wurde nicht erfasst.',
   entgeltJeSteuersatz: 'Entgelt je Steuersatz (§15 UStG)',
   keineAufteilung:
     'Keine Aufteilung erfasst. Ohne sie wird nicht gebucht — ein Brutto '
@@ -701,6 +754,39 @@ const EN: EingangsrechnungenTexte = {
   entstehtBeimBuchen: 'comes into being on booking',
   offenAnLieferanten: 'Open to the supplier',
   nochKeinPosten: 'no item yet — not booked',
+
+  zahlungenTitel: 'Payments to the supplier',
+  keineZahlung: 'No payment recorded yet.',
+  tabelleZahlungen: 'Payments to the supplier with date, type and amount',
+  zahlungstag: 'Payment date',
+  zahlungOeffnen: 'Open payment',
+  storniert: 'reversed',
+  zahlungErfassenTitel: 'Record a payment to the supplier',
+  zahlungErfassenErklaerung:
+    'This records a payment that has gone out — the platform does not make '
+    + 'transfers, there is no bank connection. Anything above the open amount '
+    + 'is then held as a credit with the supplier.',
+  betragInEuro: 'Amount in euros (German notation, e.g. 1.190,00)',
+  zahlungsweg: 'Payment method',
+  vonKonto: 'Paid from account',
+  zahlungErfassen: 'Record payment',
+  bezahlt: 'paid',
+  ausgangMeldungen: {
+    ausgang_erfasst: 'The payment to the supplier has been recorded.',
+    ausgang_guthaben:
+      'The payment has been recorded. It exceeded the open amount — the rest is '
+      + 'listed as a credit with the supplier among the open items.',
+  },
+  ausgangFehler: {
+    unvollstaendig: 'Amount, payment date and payment method are required.',
+    datum: 'The payment date is not a date.',
+    betrag: 'The amount is not a euro amount — please write it like 1.190,00.',
+    kein_posten: 'This incoming invoice has no open item yet — booking it opens one.',
+    schon_ausgeglichen: 'This incoming invoice has already been paid.',
+    abgewiesen: 'The payment was rejected — the amount must be greater than zero.',
+    nicht_gefunden: 'The open item cannot be reached.',
+  },
+  ausgangFehlerSonst: 'The payment was not recorded.',
   entgeltJeSteuersatz: 'Consideration by tax rate (§15 UStG)',
   keineAufteilung:
     'No breakdown recorded. Without it nothing is booked — a gross amount at a '

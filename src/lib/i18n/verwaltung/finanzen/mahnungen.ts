@@ -127,6 +127,11 @@ export interface MahnungenTexte {
   readonly tabelleZuordnung: string;
   readonly beleg: string;
   readonly guthabenDesKunden: string;
+  /** V-216: der Rest eines Zahlungsausgangs über dem offenen Betrag. */
+  readonly guthabenBeimLieferanten: string;
+  readonly richtung: string;
+  readonly richtungEingang: string;
+  readonly richtungAusgang: string;
 
   /** Steht HINTER dem Restbetrag, deshalb ohne fuehrendes Grosswort. */
   readonly restOhneForderung: string;
@@ -257,6 +262,10 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
     tabelleZuordnung: 'Zuordnungen dieser Zahlung mit Art, Betrag und Beleg',
     beleg: 'Beleg',
     guthabenDesKunden: 'Guthaben des Kunden',
+    guthabenBeimLieferanten: 'Guthaben beim Lieferanten',
+    richtung: 'Richtung',
+    richtungEingang: 'Zahlungseingang',
+    richtungAusgang: 'Zahlungsausgang an einen Lieferanten',
     restOhneForderung: 'dieser Zahlung sind keiner Forderung zugeordnet.',
 
     stornoTitel: 'Zahlung stornieren',
@@ -390,6 +399,10 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
     tabelleZuordnung: 'Allocations of this payment with type, amount and document',
     beleg: 'Document',
     guthabenDesKunden: 'Credit balance of the customer',
+    guthabenBeimLieferanten: 'Credit balance with the supplier',
+    richtung: 'Direction',
+    richtungEingang: 'Incoming payment',
+    richtungAusgang: 'Outgoing payment to a supplier',
     restOhneForderung: 'of this payment is not allocated to any receivable.',
 
     stornoTitel: 'Reverse the payment (Storno)',

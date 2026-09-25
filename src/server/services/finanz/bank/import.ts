@@ -4,8 +4,11 @@ import type { Speicher } from '../../../storage/adapter.js';
 import { legeErzeugtAb } from '../../dokument/erzeugt.js';
 import { leseCamt053, type CamtAuszug } from './camt.js';
 import {
-  schlageVor, darfAutomatischBuchen, type OffenerPosten, type Vorschlag,
+  schlageVor, schlageVorAusgang, darfAutomatischBuchen,
+  type AusgangVorschlag, type KreditorKandidat, type OffenerPosten, type Vorschlag,
 } from './abgleich.js';
+import { cent } from '../geld.js';
+import { verbucheZahlungsausgang } from '../zahlung/index.js';
 
 /**
  * Einen Kontoauszug einlesen und abgleichen (ACC-04, PR 61).
@@ -123,6 +126,8 @@ export async function importiereAuszug(
   }
 
   const offene = await ladeOffenePosten(db);
+  /* V-216: die offenen Verbindlichkeiten — Kandidaten für einen Ausgang. */
+  const kreditoren = await ladeOffeneKreditorposten(db);
   let automatisch = 0;
   let klaerung = 0;
 
@@ -133,15 +138,24 @@ export async function importiereAuszug(
      * Eine Rechnung darauf als bezahlt zu setzen wäre eine Aussage über Geld,
      * das noch nicht da ist.
      */
-    const vorschlag: Vorschlag = u.gebucht
-      ? schlageVor(u, offene)
-      : {
+    /*
+     * Ein Ausgang bekommt seine Kandidaten unter den Verbindlichkeiten
+     * (V-216) — als Satz an der Zeile. Gebucht wird er trotzdem nie
+     * automatisch: `schlageVorAusgang` liefert nie `eindeutig`, und seine
+     * Kandidaten sind keine Debitorposten, also reicht `vorschlag` hier nur
+     * Art und Begründung weiter.
+     */
+    const vorschlag: Vorschlag = !u.gebucht
+      ? {
         art: 'kein_treffer',
         kandidaten: [],
         begruendung:
           'Eine Vormerkung (PDNG) wird nicht zugeordnet — die Bank hat noch '
           + 'nicht gebucht, und der Betrag kann sich noch ändern.',
-      };
+      }
+      : u.richtung === 'ausgang'
+        ? alsKlaerung(schlageVorAusgang(u, kreditoren))
+        : schlageVor(u, offene);
 
     const zustand = darfAutomatischBuchen(vorschlag) ? 'zugeordnet' : 'in_klaerung';
     if (zustand === 'zugeordnet') automatisch += 1; else klaerung += 1;
@@ -268,6 +282,35 @@ async function ladeOffenePosten(db: Abfrage): Promise<readonly OffenerPosten[]> 
     nummer: z.nummer,
     offenCent: BigInt(z.offenCent),
     kundeIban: z.kundeIban,
+  }));
+}
+
+/** Ein Ausgangsvorschlag als Zeilenvorschlag: Art und Satz, keine Debitorkandidaten. */
+function alsKlaerung(v: AusgangVorschlag): Vorschlag {
+  return { art: v.art, begruendung: v.begruendung, kandidaten: [] };
+}
+
+/**
+ * Die offenen Verbindlichkeiten gegenüber Lieferanten (V-216) — mit der
+ * Rechnungsnummer des Lieferanten, die im Verwendungszweck eines Ausgangs
+ * steht, und dem Lieferantennamen für den Satz an der Zeile.
+ */
+async function ladeOffeneKreditorposten(db: Abfrage): Promise<readonly KreditorKandidat[]> {
+  const roh = await db.abfrage<{
+    id: string; eingangsrechnung_id: string; nummer_lieferant: string | null;
+    belegnummer: string | null; lieferant: string | null; offen_cent: string;
+  }>(
+    `select op.id, op.eingangsrechnung_id, er.rechnungsnummer_lieferant as nummer_lieferant,
+            er.interne_belegnummer as belegnummer, l.name as lieferant,
+            op.offen_cent::text as offen_cent
+       from offener_posten op
+       join eingangsrechnung er on er.id = op.eingangsrechnung_id and er.mandant_id = op.mandant_id
+       left join lieferant l on l.id = op.lieferant_id and l.mandant_id = op.mandant_id
+      where op.art = 'kreditor' and op.offen_cent > 0 and op.ausgeglichen_am is null`);
+  return roh.map((z) => ({
+    id: z.id, eingangsrechnungId: z.eingangsrechnung_id,
+    nummerLieferant: z.nummer_lieferant, belegnummer: z.belegnummer,
+    lieferant: z.lieferant ?? '—', offenCent: BigInt(z.offen_cent),
   }));
 }
 
@@ -404,6 +447,9 @@ export async function bestaetigeZuordnung(
       'Eine Vormerkung (PDNG) wird nicht zugeordnet — die Bank hat noch nicht gebucht.',
       'klaerung');
   }
+  if (u.richtung === 'ausgang') {
+    return bestaetigeAusgang(db, u, offenerPostenId);
+  }
   if (u.richtung !== 'eingang') {
     throw new ImportFehler(
       'Nur ein Zahlungseingang wird einer Forderung zugeordnet. Ein Ausgang ist '
@@ -442,6 +488,72 @@ export async function bestaetigeZuordnung(
             geaendert_von_art = 'mensch', geaendert_von = app.aktueller_benutzer()
       where id = $1::uuid`,
     [u.id, `Von Hand zugeordnet zu ${posten.nummer}`]);
+
+  return {
+    umsatzId: u.id, auszugId: u.kontoauszug_id,
+    auszugAbgeglichen: await schliesseAuszugWennFertig(db, u.kontoauszug_id),
+  };
+}
+
+/**
+ * **Ein Ausgang an einen Lieferanten** (V-216) — bestätigt von einem Menschen.
+ *
+ * Bis hierher wies die Klärung jeden Ausgang ab („ein Ausgang ist keine
+ * Kundenzahlung"), und eine gebuchte Eingangsrechnung blieb für immer offen,
+ * auch wenn der Auszug die Überweisung zeigte. Die Zahlung entsteht über
+ * denselben Dienst wie aus dem Formular der Eingangsrechnung
+ * (`verbucheZahlungsausgang`) — mit Überzahlung als Guthaben beim
+ * Lieferanten —, und der Umsatz wird mit ihr verbunden.
+ *
+ * Nur ein Kreditorposten kommt in Frage: eine Ausgangsrechnung ist keine
+ * Verbindlichkeit (die Datenbank weist das zusätzlich ab, 0130).
+ */
+async function bestaetigeAusgang(
+  db: Abfrage, u: OffenerUmsatzRoh, offenerPostenId: string,
+): Promise<KlaerungErgebnis> {
+  const [posten] = await db.abfrage<{
+    eingangsrechnung_id: string; nummer: string | null; lieferant: string | null;
+  }>(
+    `select op.eingangsrechnung_id,
+            coalesce(er.rechnungsnummer_lieferant, er.interne_belegnummer) as nummer,
+            l.name as lieferant
+       from offener_posten op
+       join eingangsrechnung er on er.id = op.eingangsrechnung_id and er.mandant_id = op.mandant_id
+       left join lieferant l on l.id = op.lieferant_id and l.mandant_id = op.mandant_id
+      where op.id = $1::uuid and op.art = 'kreditor'
+        and op.ausgeglichen_am is null and op.offen_cent > 0`,
+    [offenerPostenId]);
+  if (posten === undefined) {
+    throw new ImportFehler(
+      'Diese Verbindlichkeit ist nicht offen — sie ist bezahlt, oder der Posten ist '
+      + 'keiner gegenüber einem Lieferanten.',
+      'klaerung');
+  }
+
+  const ergebnis = await verbucheZahlungsausgang(db, {
+    eingangsrechnungId: posten.eingangsrechnung_id,
+    betragCent: cent(BigInt(u.betrag_cent)),
+    zahlungsdatum: u.buchungsdatum,
+    valuta: u.valuta,
+    zahlungsmittel: 'ueberweisung',
+    bankkontoId: u.bankkonto_id,
+    referenz: u.referenz,
+  });
+
+  const text = `Von Hand zugeordnet: Zahlung an ${posten.lieferant ?? '—'}, `
+    + `Rechnung ${posten.nummer ?? '—'}`;
+  await db.schreibe(
+    `insert into umsatz_zuordnung
+       (mandant_id, kontoumsatz_id, zahlung_id, automatisch, begruendung,
+        erstellt_von_art, erstellt_von)
+     values ($1::uuid, $2::uuid, $3::uuid, false, $4, 'mensch', app.aktueller_benutzer())`,
+    [db.aktiverMandantId, u.id, ergebnis.zahlungId, text]);
+  await db.schreibe(
+    `update kontoumsatz
+        set zustand = 'zugeordnet', klaerungsnotiz = $2,
+            geaendert_von_art = 'mensch', geaendert_von = app.aktueller_benutzer()
+      where id = $1::uuid`,
+    [u.id, text]);
 
   return {
     umsatzId: u.id, auszugId: u.kontoauszug_id,

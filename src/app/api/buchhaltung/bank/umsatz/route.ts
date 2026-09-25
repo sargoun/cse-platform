@@ -12,6 +12,7 @@ import { istUuid } from '@/lib/uuid';
 import {
   ImportFehler, bestaetigeZuordnung, markiereOhneBezug, type KlaerungErgebnis,
 } from '@/server/services/finanz/bank/import';
+import { ZahlungFehler } from '@/server/services/finanz/zahlung/index';
 
 /**
  * `POST /api/buchhaltung/bank/umsatz` — die Klaerung eines Umsatzes (ACC-04).
@@ -80,6 +81,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     });
   } catch (fehler: unknown) {
     if (fehler instanceof ImportFehler) {
+      return zurueck(anfrage, slug, auszugId, { fehler: 'klaerung', meldung: fehler.message });
+    }
+    /*
+     * V-216: ein Ausgang geht über `verbucheZahlungsausgang` — dessen
+     * Abweisungen (kein Posten, schon bezahlt) sind ein Satz auf der Seite,
+     * kein 500.
+     */
+    if (fehler instanceof ZahlungFehler) {
       return zurueck(anfrage, slug, auszugId, { fehler: 'klaerung', meldung: fehler.message });
     }
     if (fehler instanceof NichtAngemeldetFehler) {
