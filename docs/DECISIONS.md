@@ -8809,6 +8809,13 @@ ist keine gesetzliche Vorgabe und wird nicht erfunden.
 kontenlänge, Wirtschaftsjahr und jede Zuordnung mit Platzhalterstand — und
 keinen Editor: welche Zuordnung gilt, bestätigt der Steuerberater (O-05).
 
+**Nachtrag (V-215, D-706):** Aufwand sind die freigegebenen und gebuchten
+Eingangsrechnungen UND die freigegebenen und gebuchten Betriebsausgaben
+(`ausgabe`, nach Belegdatum, netto). Als D-484 entstand, waren Ausgaben nicht
+erfassbar; seit V-011 werden sie gebucht, und ohne sie war das Ergebnis um
+jede Tankquittung zu hoch. Die Ausnahmen oben (Personal, Abschreibung,
+Abgrenzung, Steuern) bleiben.
+
 ### D-485 · Z3-Datenträgerüberlassung und Verfahrensdokumentation aus der lebenden Konfiguration (PR 66)
 
 **Z3 ist eine Überlassung, keine Freigabe.** § 147 Abs. 6 AO gibt der
@@ -18182,4 +18189,59 @@ gab es kein Feld, kein Weg schrieb ihn, und der Mahnungsdienst las ihn nicht.
    trägt den Versandtag als Beginn des Verzugs, nicht das Mahndatum (0125).
 
 | Betrifft | FIN-15, D-599, V-099, V-213, V-214, O-19, O-934, Invariante 7, `src/server/services/finanz/mahnung/{index,stufen}.ts`, `src/server/services/finanz/prozent.ts`, `src/app/api/finanzen/mahnungen/route.ts`, `src/app/api/einstellungen/mahnwesen/route.ts`, `src/app/portal/[mandant]/finanzen/mahnungen/{page,[id]/page}.tsx`, `src/app/portal/[mandant]/einstellungen/{mahnwesen,vorlagen}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/mahnungen.ts`, `src/server/db/seed/index.ts` |
+|---|---|
+
+### D-706 · Betriebsausgaben sind Aufwand — in Monatszahlen, Gruppe, Periodenschluss, Jahrespaket und Z3 (V-215)
+
+**Der Befund** (V-215, FIN-17, ACC-08, ACC-09, ACC-11): seit V-011 lassen
+sich Betriebsausgaben erfassen, freigeben und buchen, und sie erzeugen
+Buchungssätze mit Herkunft `ausgabe`. Jede Auswertung zu Aufwand und Ergebnis
+las aber nur `eingangsrechnung`: „Aufwand netto" der Monatszahlen, der Saldo
+je Gesellschaft und Gruppe, die beim Periodenschluss eingefrorenen Zahlen und
+die Monatstabelle des Jahrespakets. Das Z3-Paket hatte keine Tabelle der
+Ausgaben, das Journal keine `ausgabe_id`, und der Herkunftstext unterschlug
+zwei Werte des Enums. D-475/D-484 schliessen Personal und Abschreibung aus,
+nicht erfasste Betriebsausgaben — das war keine Entscheidung, sondern eine
+Lücke.
+
+**Die Entscheidung.**
+
+1. **Aufwand = Eingangsrechnungen + Betriebsausgaben**, beide freigegeben oder
+   gebucht, netto; Eingangsrechnungen nach Rechnungsdatum, Ausgaben nach
+   Belegdatum (`ausgabedatum`). D-484 ist an Ort und Stelle ergänzt.
+2. **Eine Ausgabe aus einer Lieferantenrechnung zählt einmal** — dort, wo sie
+   herkommt: `eingangsrechnung_id` gesetzt heisst, sie steht schon im
+   Eingang. (Heute setzt kein Weg diese Spalte; die Regel steht trotzdem,
+   damit der erste, der sie setzt, nicht doppelt zählt.)
+3. **Eine Quelle: `app.ausgaben_aufwand` (0446).** Im Bereich unter
+   `eingang.lesen` für den aktiven Mandanten, in der Gruppe unter
+   `gruppe.eingang.lesen` — dieselben Rechte wie die Eingangsrechnungen. Eine
+   Definer-Funktion, weil die Gruppendecke (0180) Erstattungen als ZEILEN
+   ausblendet; eine Summe darüber wäre kleiner als die Summe der
+   Gesellschaften. Sie gibt nur Summen und Anzahl je Gesellschaft und Monat
+   heraus, keine Person — dieselbe Abwägung, mit der 0180 `buchungssatz` ohne
+   die Decke liess.
+4. **Die Bildschirme nennen beide Quellen.** Monatszahlen: Spalten
+   „Eingangsrechnungen netto" (→ `/finanzen/eingangsrechnungen?monat=`),
+   „Betriebsausgaben netto" (→ `/finanzen/ausgaben?monat=`, neuer
+   Monatsfilter) und „Aufwand netto". Gruppe: Kachel und Spalte
+   „Betriebsausgaben", Tabelle „Betriebsausgaben je Monat", Ergebnis je Monat
+   aus dem Aufwand, Saldo „aus Belegen". Finanzübersicht: Kachel
+   „Betriebsausgaben {Jahr}".
+5. **Eingefrorene Monate bleiben, wie sie geschlossen wurden.** Ein vor dieser
+   Änderung geschlossener Monat mit Ausgaben zeigt jetzt „weicht ab" — das
+   ist die Aussage, für die die eingefrorene Zahl da ist (D-484), und sie
+   wird nicht nachträglich umgeschrieben (GoBD). Neue Schlüsse frieren den
+   Aufwand mit Ausgaben ein.
+6. **Jahrespaket:** `aufwand` umfasst beide Quellen; die Aufteilung steht in
+   drei neuen Spalten am ENDE (`aufwand_eingangsrechnungen`,
+   `aufwand_ausgaben`, `ausgaben`), damit ein Leser nach Spaltenposition
+   nichts verschoben findet.
+7. **Z3:** Tabellen `ausgaben` (Kopf mit Kategorie, Beträgen, Zahlungsmittel,
+   Beleg, Status, Kostenzuordnung, `ist_erstattung` über den protokollfreien
+   Definer aus 0184 — ohne Person) und `ausgabensteuer` (Aufteilung je
+   Steuersatz); `buchungen` mit `ausgabe_id`; der Herkunftstext nennt alle
+   Werte des Enums aus 0127 (ein Test hält ihn am Enum).
+
+| Betrifft | FIN-17, ACC-08, ACC-09, ACC-11, D-475, D-484, V-011, V-215, `drizzle/0446_aufwand_aus_betriebsausgaben.sql`, `src/server/services/buchhaltung/{aufwand,monatszahlen,jahrespaket,z3}.ts`, `src/server/services/gruppe/finanzen.ts`, `src/server/services/finanz/ausgabe.ts`, `src/app/portal/[mandant]/buchhaltung/monatszahlen/page.tsx`, `src/app/portal/[mandant]/finanzen/{page,ausgaben/page}.tsx`, `src/app/portal/gruppe/finanzen/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{uebersicht,belege}.ts` |
 |---|---|

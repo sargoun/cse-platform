@@ -83,6 +83,9 @@ export interface BelegeTexte {
   readonly alle: string;
   readonly anzeigen: string;
   readonly jahr: string;
+  /** Vor „MM/JJJJ" — der Monatsfilter aus den Monatszahlen (V-215). */
+  readonly belegdatumImMonat: string;
+  readonly alleZeigen: string;
   readonly netto: string;
   readonly brutto: string;
   readonly ust: string;
@@ -287,6 +290,8 @@ const DE: BelegeTexte = {
   alle: 'alle',
   anzeigen: 'Anzeigen',
   jahr: 'Jahr',
+  belegdatumImMonat: 'Belegdatum im Monat',
+  alleZeigen: 'alle zeigen',
   netto: 'Netto',
   brutto: 'Brutto',
   ust: 'USt',
@@ -615,6 +620,8 @@ const EN: BelegeTexte = {
   alle: 'all',
   anzeigen: 'Show',
   jahr: 'Year',
+  belegdatumImMonat: 'Receipt date in',
+  alleZeigen: 'show all',
   netto: 'Net',
   brutto: 'Gross',
   ust: 'USt (VAT)',

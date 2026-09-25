@@ -67,9 +67,17 @@ test.describe('Buchhaltung (PR 65)', () => {
     await expect(page.locator('[data-cse="monat-filter"]')).toBeVisible();
 
     await page.goto(`/portal/${MANDANT}/buchhaltung/monatszahlen`);
-    const aufwand = page.locator('[data-cse="monat-aufwand"]:visible').first();
-    await aufwand.click();
+    const eingang = page.locator('[data-cse="monat-eingang"]:visible').first();
+    await eingang.click();
     await expect(page).toHaveURL(/\/finanzen\/eingangsrechnungen\?monat=/u);
+    await expect(page.locator('[data-cse="monat-filter"]')).toBeVisible();
+
+    // V-215: die Betriebsausgaben zaehlen zum Aufwand und fuehren auf ihre Liste.
+    await page.goto(`/portal/${MANDANT}/buchhaltung/monatszahlen`);
+    await expect(page.locator('[data-cse="monat-aufwand"]:visible')).toHaveCount(12);
+    const ausgaben = page.locator('[data-cse="monat-ausgaben"]:visible').first();
+    await ausgaben.click();
+    await expect(page).toHaveURL(/\/finanzen\/ausgaben\?monat=/u);
     await expect(page.locator('[data-cse="monat-filter"]')).toBeVisible();
   });
 

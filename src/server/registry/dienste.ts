@@ -1281,6 +1281,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
   /* PR 65 — Offene Posten, Monatszahlen, Periodenschloss. */
   { modul: 'buchhaltung', pfad: 'buchhaltung/offene-posten', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/monatszahlen', schreibend: false },
+  /* V-215 — der Aufwand aus Betriebsausgaben, eine Quelle für alle Auswertungen. */
+  { modul: 'buchhaltung', pfad: 'buchhaltung/aufwand', schreibend: false },
   {
     modul: 'buchhaltung', pfad: 'buchhaltung/periodenschluss',
     schreibend: true, schreibRecht: 'buchhaltung.festschreiben',

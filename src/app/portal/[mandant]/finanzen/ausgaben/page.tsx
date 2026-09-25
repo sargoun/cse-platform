@@ -85,6 +85,9 @@ export default async function Ausgabenliste(
   const jahrRoh = typeof suche['jahr'] === 'string' ? suche['jahr'] : null;
   const statusRoh = typeof suche['status'] === 'string' ? suche['status'] : null;
   const kategorieRoh = typeof suche['kategorie'] === 'string' ? suche['kategorie'] : null;
+  /* Der Monat aus den Monatszahlen (V-215) — nur in genau dieser Form. */
+  const monatRoh = typeof suche['monat'] === 'string' ? suche['monat'] : null;
+  const monat = monatRoh !== null && /^\d{4}-(?:0[1-9]|1[0-2])$/u.test(monatRoh) ? monatRoh : null;
   const KENNUNG = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
   const filter = {
     jahr: jahrRoh !== null && /^\d{4}$/u.test(jahrRoh) ? Number(jahrRoh) : null,
@@ -96,6 +99,7 @@ export default async function Ausgabenliste(
      */
     kategorieId: kategorieRoh !== null && KENNUNG.test(kategorieRoh) ? kategorieRoh : null,
     nurWeiterberechenbar: suche['weiterberechenbar'] === 'ja',
+    monat,
   };
 
   const tor = await mandantTor(`/portal/${mandant}/finanzen/ausgaben`, mandant);
@@ -144,7 +148,7 @@ export default async function Ausgabenliste(
   const feld = 'min-h-11 max-w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
   const gefiltert = filter.jahr !== null || filter.status !== null
-    || filter.kategorieId !== null || filter.nurWeiterberechenbar;
+    || filter.kategorieId !== null || filter.nurWeiterberechenbar || filter.monat !== null;
   const belegLuecken = daten.zeilen.filter((z) => z.belegPflichtVerletzt);
   const platzhalterKategorien = daten.zeilen.filter((z) => z.kategorieIstPlatzhalter);
 
@@ -179,7 +183,16 @@ export default async function Ausgabenliste(
             </Link>
           ) : null}
         </span>
+        {monat === null ? null : (
+          <p data-cse="monat-filter" className="text-sm text-text-muted">
+            {t.belegdatumImMonat}{' '}
+            <strong>{monat.slice(5, 7)}/{monat.slice(0, 4)}</strong>{' '}
+            <Link href={`/portal/${mandant}/finanzen/ausgaben`} className="underline underline-offset-2">{t.alleZeigen}</Link>
+          </p>
+        )}
         <form method="get" className="flex min-w-0 flex-wrap items-end gap-s3">
+          {/* Der Monat bleibt beim Verfeinern stehen; „alle zeigen" hebt ihn auf. */}
+          {monat === null ? null : <input type="hidden" name="monat" value={monat} />}
           <div className="min-w-0">
             <label className="block text-xs text-text-muted" htmlFor="jahr">{t.jahr}</label>
             <input

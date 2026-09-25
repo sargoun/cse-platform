@@ -112,6 +112,11 @@ export interface AusgabeZeile {
 
 export interface AusgabeFilter {
   readonly jahr?: number | null;
+  /**
+   * `YYYY-MM` — der Monat nach Belegdatum, wie ihn die Monatszahlen
+   * verlinken (V-215). Dieselbe Lesart wie `app.ausgaben_aufwand`.
+   */
+  readonly monat?: string | null;
   readonly status?: AusgabeStatus | null;
   readonly kategorieId?: string | null;
   readonly nurWeiterberechenbar?: boolean;
@@ -230,9 +235,10 @@ export async function ausgaben(
         and ($2::text is null or a.status = $2::ausgabe_status)
         and ($3::uuid is null or a.kategorie_id = $3::uuid)
         and ($4::bool is not true or a.weiterberechenbar)
+        and ($5::text is null or to_char(a.ausgabedatum, 'YYYY-MM') = $5::text)
       order by a.ausgabedatum desc, a.erstellt_am desc`,
     [filter.jahr ?? null, filter.status ?? null, filter.kategorieId ?? null,
-      filter.nurWeiterberechenbar === true]);
+      filter.nurWeiterberechenbar === true, filter.monat ?? null]);
   return zeilen.map(zuZeile);
 }
 
@@ -290,10 +296,11 @@ export async function summen(
         and ($2::text is null or a.status = $2::ausgabe_status)
         and ($3::uuid is null or a.kategorie_id = $3::uuid)
         and ($4::bool is not true or a.weiterberechenbar)
+        and ($5::text is null or to_char(a.ausgabedatum, 'YYYY-MM') = $5::text)
       group by a.status
       order by a.status`,
     [filter.jahr ?? null, filter.status ?? null, filter.kategorieId ?? null,
-      filter.nurWeiterberechenbar === true]);
+      filter.nurWeiterberechenbar === true, filter.monat ?? null]);
 
   const jeStatus = zeilen.map((z) => ({
     status: z.status,
