@@ -15,12 +15,20 @@
  *
  * `cse-nicht-drucken` nimmt ihn vom Papier: ein Knopf im Ausdruck wäre ein
  * Bedienelement auf einem Beweisstück.
+ *
+ * **Geteilt, seit es ein zweites Blatt gibt** (V-227, D-721): das Druckblatt
+ * der Berichte trägt denselben Knopf. Er lag vorher neben dem Monatsnachweis;
+ * eine Kopie im Berichtsblatt wäre ein zweites Bauteil für denselben Klick.
+ * `cse` benennt ihn für die Browserprüfung des jeweiligen Blatts.
  */
-export function DruckKnopf({ text }: { readonly text: string }) {
+export function DruckKnopf({ text, cse = 'nachweis-drucken' }: {
+  readonly text: string;
+  readonly cse?: string;
+}) {
   return (
     <button
       type="button"
-      data-cse="nachweis-drucken"
+      data-cse={cse}
       onClick={() => { globalThis.print(); }}
       className="cse-nicht-drucken inline-flex min-h-11 items-center rounded-md border
                  border-line-strong px-s4 text-base text-text hover:bg-surface-2"

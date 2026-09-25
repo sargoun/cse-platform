@@ -5,18 +5,12 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler } from '@/server/auth/fehler';
-import { withTenant, type LeseKontext } from '@/server/kontext/index';
+import { withTenant } from '@/server/kontext/index';
+import { jahrAus } from '@/server/services/bericht/zeitraum';
+import { alsCsv, dateiname } from '@/server/services/bericht/ausgabe';
 import {
-  abschnitte, ganzesJahr, jahrAus, type Granularitaet,
-} from '@/server/services/bericht/zeitraum';
-import {
-  alsCsv, dateiname, geldText, prozent, stunden, type Spalte,
-} from '@/server/services/bericht/ausgabe';
-import {
-  attribution, auftragsReihe, mitarbeiterReihe, pipeline, projektReihe, umsatzReihe,
-  type AttributionsZeile, type AuftragsZeile, type MitarbeiterZeile, type PipelineStufe,
-  type ProjektZeile, type UmsatzZeile,
-} from '@/server/services/bericht/kennzahlen';
+  BERICHT_DATEINAME, berichtTabelle, istBericht, koernungAus,
+} from '@/server/services/bericht/export';
 
 /**
  * `GET /api/berichte/[bericht]/csv` — ein Bericht als Datei (REP-07).
@@ -38,134 +32,12 @@ import {
  */
 export const dynamic = 'force-dynamic';
 
-type BerichtName =
-  'umsatz' | 'auftraege' | 'attribution' | 'mitarbeiter' | 'projekte' | 'pipeline';
-
-const NAMEN: Readonly<Record<BerichtName, string>> = {
-  umsatz: 'Umsatz', auftraege: 'Auftraege', attribution: 'Herkunft',
-  mitarbeiter: 'Stunden', projekte: 'Projekte', pipeline: 'Vergabepipeline',
-};
-
-function istBericht(wert: string): wert is BerichtName {
-  return Object.hasOwn(NAMEN, wert);
-}
-
-function koernungAus(roh: string | null): Granularitaet {
-  return roh === 'quartal' || roh === 'jahr' ? roh : 'monat';
-}
-
-/**
- * Die Spalten je Bericht — dieselbe Reihenfolge wie auf dem Bildschirm.
- *
- * **Eine andere Reihenfolge wäre ein zweiter Bericht.** Wer die Datei neben
- * die Seite legt und die Spalten nicht wiedererkennt, prüft nicht nach,
- * sondern rechnet neu.
+/*
+ * Die Spalten stehen in `services/bericht/export.ts` (`berichtTabelle`) — dieselbe
+ * Quelle wie das Druckblatt `/portal/[mandant]/berichte/druck/[bericht]`
+ * (REP-07, V-227, D-721). Eine Datei und ein Blatt, die für denselben
+ * Bericht verschiedene Spalten zeigten, prüfte niemand gegeneinander.
  */
-async function zeilenUndSpalten(
-  bericht: BerichtName, kontext: LeseKontext, jahr: number, koernung: Granularitaet,
-): Promise<{ zeilen: readonly unknown[]; spalten: readonly Spalte<never>[]; zeitraum: string }> {
-  const jahresZeitraum = ganzesJahr(jahr);
-  const stuecke = abschnitte(jahr, koernung);
-  const s = <Z,>(spalten: readonly Spalte<Z>[]): readonly Spalte<never>[] =>
-    spalten as unknown as readonly Spalte<never>[];
-
-  switch (bericht) {
-    case 'umsatz':
-      return {
-        zeitraum: String(jahr),
-        zeilen: await umsatzReihe(kontext, stuecke),
-        spalten: s<UmsatzZeile>([
-          { kopf: 'Zeitraum', wert: (z) => z.zeitraum.bezeichnung },
-          { kopf: 'Von', wert: (z) => z.zeitraum.von },
-          { kopf: 'Bis', wert: (z) => z.zeitraum.bis },
-          { kopf: 'Erlöse', wert: (z) => geldText(z.erloeseCent), cent: (z) => z.erloeseCent },
-          { kopf: 'Rechnungen', wert: (z) => z.rechnungen },
-          { kopf: 'Aufwand', wert: (z) => geldText(z.aufwandCent), cent: (z) => z.aufwandCent },
-          { kopf: 'Eingangsrechnungen', wert: (z) => z.eingangsrechnungen },
-          { kopf: 'Ergebnis', wert: (z) => geldText(z.ergebnisCent), cent: (z) => z.ergebnisCent },
-        ]),
-      };
-    case 'auftraege':
-      return {
-        zeitraum: String(jahr),
-        zeilen: await auftragsReihe(kontext, stuecke),
-        spalten: s<AuftragsZeile>([
-          { kopf: 'Zeitraum', wert: (z) => z.zeitraum.bezeichnung },
-          { kopf: 'Von', wert: (z) => z.zeitraum.von },
-          { kopf: 'Bis', wert: (z) => z.zeitraum.bis },
-          { kopf: 'Anfragen', wert: (z) => z.leads },
-          { kopf: 'Gewonnen', wert: (z) => z.leadsGewonnen },
-          { kopf: 'Quote', wert: (z) => prozent(z.quoteBp) },
-          { kopf: 'Aufträge', wert: (z) => z.auftraege },
-          { kopf: 'Auftragswert netto', wert: (z) => geldText(z.auftragswertCent),
-            cent: (z) => z.auftragswertCent },
-        ]),
-      };
-    case 'attribution':
-      return {
-        zeitraum: String(jahr),
-        zeilen: await attribution(kontext, jahresZeitraum),
-        spalten: s<AttributionsZeile>([
-          { kopf: 'Kanal', wert: (z) => z.kanal },
-          { kopf: 'Medium', wert: (z) => z.medium },
-          { kopf: 'Kampagne', wert: (z) => z.kampagne },
-          { kopf: 'Anfragen', wert: (z) => z.leads },
-          { kopf: 'Aufträge', wert: (z) => z.auftraege },
-          { kopf: 'Quote', wert: (z) => prozent(z.quoteBp) },
-          { kopf: 'Auftragswert netto', wert: (z) => geldText(z.auftragswertCent),
-            cent: (z) => z.auftragswertCent },
-        ]),
-      };
-    case 'mitarbeiter':
-      return {
-        zeitraum: String(jahr),
-        zeilen: await mitarbeiterReihe(kontext, jahresZeitraum),
-        spalten: s<MitarbeiterZeile>([
-          { kopf: 'Name', wert: (z) => z.name },
-          { kopf: 'Personalnummer', wert: (z) => z.personalnummer },
-          { kopf: 'Wochenstunden Soll', wert: (z) => z.wochenstundenSoll },
-          { kopf: 'Ist', wert: (z) => stunden(z.istMinuten) },
-          { kopf: 'Ist (Minuten)', wert: (z) => z.istMinuten },
-          { kopf: 'Soll', wert: (z) => stunden(z.sollMinuten) },
-          { kopf: 'Soll (Minuten)', wert: (z) => z.sollMinuten },
-          { kopf: 'Auslastung', wert: (z) => prozent(z.auslastungBp) },
-          { kopf: 'Ist minus Soll (Minuten)', wert: (z) => z.mehrarbeitMinuten },
-        ]),
-      };
-    case 'projekte':
-      return {
-        zeitraum: String(jahr),
-        zeilen: await projektReihe(kontext, jahresZeitraum),
-        spalten: s<ProjektZeile>([
-          { kopf: 'Nummer', wert: (z) => z.nummer },
-          { kopf: 'Projekt', wert: (z) => z.bezeichnung },
-          { kopf: 'Status', wert: (z) => z.status },
-          { kopf: 'Soll-Ende', wert: (z) => z.sollEnde },
-          { kopf: 'Ist-Ende', wert: (z) => z.istEnde },
-          { kopf: 'Verzug (Tage)', wert: (z) => z.verzugTage },
-          { kopf: 'Auftragssumme', wert: (z) => geldText(z.auftragssummeCent),
-            cent: (z) => z.auftragssummeCent },
-          { kopf: 'Berechnet', wert: (z) => geldText(z.berechnetCent),
-            cent: (z) => z.berechnetCent },
-          { kopf: 'Kosten (Näherung)', wert: (z) => geldText(z.kostenCent),
-            cent: (z) => z.kostenCent },
-          { kopf: 'Marge', wert: (z) => prozent(z.margeBp) },
-        ]),
-      };
-    default:
-      return {
-        zeitraum: String(jahr),
-        zeilen: await pipeline(kontext, jahresZeitraum),
-        spalten: s<PipelineStufe>([
-          { kopf: 'Stufe', wert: (z) => z.bezeichnung },
-          { kopf: 'Im Trichter', wert: (z) => (z.imTrichter ? 'ja' : 'nein') },
-          { kopf: 'Fälle', wert: (z) => z.anzahl },
-          { kopf: 'Zuschlagswert', wert: (z) => geldText(z.zuschlagswertCent),
-            cent: (z) => z.zuschlagswertCent },
-        ]),
-      };
-  }
-}
 
 export async function GET(
   anfrage: NextRequest, { params }: { params: Promise<{ bericht: string }> },
@@ -218,12 +90,12 @@ export async function GET(
             throw new NichtGefundenFehler(`Fremder Bereich ${gewuenscht}`);
           }
           const jahr = jahrAus(suche.get('jahr'), uhr!.heute);
-          const { zeilen, spalten, zeitraum } = await zeilenUndSpalten(
+          const { zeilen, spalten, zeitraum } = await berichtTabelle(
             bericht, kontext, jahr, koernungAus(suche.get('koernung')),
           );
           return {
             csv: alsCsv(spalten, zeilen as readonly never[]),
-            name: dateiname(NAMEN[bericht], uhr!.name ?? 'Bereich', zeitraum),
+            name: dateiname(BERICHT_DATEINAME[bericht], uhr!.name ?? 'Bereich', zeitraum),
           };
         }))) as { csv: string; name: string };
 

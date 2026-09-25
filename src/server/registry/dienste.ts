@@ -1651,6 +1651,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'bericht', pfad: 'bericht/ausgabe', schreibend: false },
   { modul: 'bericht', pfad: 'bericht/kennzahlen', schreibend: false },
   { modul: 'bericht', pfad: 'bericht/gruppe', schreibend: false },
+  /* Eine Quelle fuer CSV-Datei und Druckblatt (REP-07, V-227, D-721). Liest nur. */
+  { modul: 'bericht', pfad: 'bericht/export', schreibend: false },
   /**
    * **Der Kalender (CAL-01…CAL-03) — beide lesend.**
    *

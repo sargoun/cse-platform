@@ -10,6 +10,7 @@
  *  · Jahr und Körnung sind Links, keine versteckte Zustandsmaschine —
  *    ein Bericht ist damit teilbar und ein Browser-Zurück tut das Richtige;
  *  · der CSV-Ausgang liefert wirklich eine Datei mit BOM und CRLF (REP-07);
+ *  · das Druckblatt trägt dieselben Spalten und Zeilen wie die Datei (REP-07);
  *  · **der Ausgang ist ein eigenes Recht**: wer lesen darf, darf nicht
  *    automatisch ausleiten;
  *  · die Gruppenfassung teilt je Gesellschaft auf und trägt keinen Ausgang.
@@ -124,6 +125,35 @@ test.describe('Berichte im Bereich', () => {
     await expect(page.locator('h1')).toBeVisible();
     await expect(page.locator('table')).toHaveCount(1);
     await expect(page.locator('[data-cse="csv-export"]')).toHaveCount(0);
+    // Das Druckblatt ist derselbe Ausgang mit demselben Recht (REP-07, D-721).
+    await expect(page.locator('[data-cse="druck-export"]')).toHaveCount(0);
+    const direkt = await page.goto('/portal/reinigung/berichte/druck/umsatz');
+    expect(direkt?.status()).toBe(404);
+  });
+
+  /**
+   * **REP-07, der zweite Ausgang: das Druckblatt** (V-227, D-721). Es zeigt
+   * dieselben Spaltenköpfe wie die Datei — ohne deren Cent-Zwillinge — und
+   * genauso viele Zeilen; der Druckknopf steht darüber, nicht darauf.
+   */
+  test('das Druckblatt trägt die Spalten und Zeilen der CSV-Datei', async ({ page }) => {
+    await alsAdmin(page);
+    await page.goto('/portal/reinigung/berichte/umsatz');
+    const csvHref = await page.locator('[data-cse="csv-export"]').getAttribute('href') ?? '';
+    const csv = (await (await page.request.get(csvHref)).text()).replace('\uFEFF', '');
+    const csvZeilen = csv.trimEnd().split('\r\n');
+    const koepfe = csvZeilen[0]!.split(';').filter((k) => !k.endsWith(' (Cent)'));
+
+    await page.locator('[data-cse="druck-export"]').click();
+    await page.waitForURL(/\/berichte\/druck\/umsatz/u);
+    await expect(page.locator('[data-cse="bericht-druckblatt"]')).toBeVisible();
+    await expect(page.locator('[data-cse="bericht-drucken"]')).toBeVisible();
+    await expect(page.locator('[data-cse="bericht-druck-stand"]'))
+      .toHaveText(/^\d{2}\.\d{2}\.\d{4}$/u);
+    await expect(page.locator('[data-cse="bericht-druck-tabelle"] thead th'))
+      .toHaveText(koepfe);
+    await expect(page.locator('[data-cse="bericht-druck-tabelle"] tbody tr'))
+      .toHaveCount(csvZeilen.length - 1);
   });
 
   test('keine Verstösse nach WCAG 2.1 AA auf dem Umsatzbericht', async ({ page }) => {

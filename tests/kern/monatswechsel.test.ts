@@ -174,9 +174,11 @@ describe('(5) der Monatsnachweis ist bedienbar (V-055)', () => {
 
   it('der Knopf steht nicht auf dem Ausdruck', () => {
     // Ein Bedienelement im Ausdruck wäre ein Knopf auf einem Beweisstück.
-    const knopf = readFileSync(
-      'src/app/portal/mein/monatsnachweis/DruckKnopf.tsx', 'utf8');
+    // Der Knopf ist seit V-227 geteilt (Monatsnachweis und Berichtsblatt, D-721).
+    const knopf = readFileSync('src/components/ui/DruckKnopf.tsx', 'utf8');
     expect(knopf).toContain('cse-nicht-drucken');
+    const seite = readFileSync('src/app/portal/mein/monatsnachweis/page.tsx', 'utf8');
+    expect(seite).toContain("from '@/components/ui/DruckKnopf'");
   });
 
   it('bei zwei Beschäftigungen lässt sich wählen (D-09)', () => {

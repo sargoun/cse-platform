@@ -4,6 +4,8 @@ import { formatiereGeld } from '@/server/services/finanz/geld';
 import { prozent } from '@/server/services/bericht/ausgabe';
 import { projektReihe, type ProjektZeile } from '@/server/services/bericht/kennzahlen';
 import { BerichtsSeite } from '../rahmen';
+import { PROJEKT_STATUS_TEXT } from '@/server/services/bericht/export';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/berichte/projekte` — REP-05.
@@ -15,10 +17,6 @@ import { BerichtsSeite } from '../rahmen';
  */
 export const dynamic = 'force-dynamic';
 
-const STATUS: Readonly<Record<string, string>> = {
-  geplant: 'Geplant', in_arbeit: 'In Arbeit', abgenommen: 'Abgenommen',
-  abgeschlossen: 'Abgeschlossen', archiviert: 'Archiviert',
-};
 
 function verzugsText(tage: number | null): React.ReactNode {
   if (tage === null) return <span className="text-text-subtle">offen</span>;
@@ -71,7 +69,7 @@ export default async function Projekte({ params, searchParams }: {
               { schluessel: 'nummer', kopf: 'Nummer', zelle: (z) => z.nummer },
               { schluessel: 'bezeichnung', kopf: 'Projekt', zelle: (z) => z.bezeichnung },
               { schluessel: 'status', kopf: 'Status',
-                zelle: (z) => STATUS[z.status] ?? z.status },
+                zelle: (z) => eigenerEintrag(PROJEKT_STATUS_TEXT, z.status) ?? z.status },
               { schluessel: 'summe', kopf: 'Auftragssumme', numerisch: true,
                 zelle: (z) => formatiereGeld(z.auftragssummeCent) },
               { schluessel: 'berechnet', kopf: 'Berechnet', numerisch: true,

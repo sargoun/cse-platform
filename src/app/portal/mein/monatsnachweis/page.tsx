@@ -10,7 +10,7 @@ import { AnmeldungNoetig } from '../../Anmeldung';
 import { meinPortal } from '../rahmen';
 import Link from 'next/link';
 import { Monatswechsler } from '../bausteine';
-import { DruckKnopf } from './DruckKnopf';
+import { DruckKnopf } from '@/components/ui/DruckKnopf';
 
 /**
  * `/portal/mein/monatsnachweis` — der Stundennachweis eines Monats, je

@@ -12261,6 +12261,10 @@ Lehre tragen:
    ausserdem näher an der Wahrheit: ein Mensch meldet sich nicht in derselben
    Sitzung nacheinander als sieben verschiedene Leute an.
 
+**Nachtrag (D-721, V-227):** REP-07 verlangt CSV UND PDF, diese Entscheidung
+behandelte nur die Datei. Der zweite Ausgang ist ein Druckblatt je Bericht
+aus derselben Quelle (`berichtTabelle`) unter demselben Recht.
+
 | Betrifft | DESIGN §8, D-565, `globals.css`, `PortalShell`, `OeffentlicheShell`, `DataTable`, `abmessungen.spec.ts` |
 |---|---|
 
@@ -19667,4 +19671,50 @@ Regel „ein Ausgang setzt eingereicht voraus" beantwortet dieselbe Frage ohne
 sie.
 
 | Betrifft | REP-06, RAD-07, D-07, D-506, D-735, V-226, Invariante 6, Invariante 10, `src/server/services/bericht/{kennzahlen,gruppe}.ts`, `src/server/services/gruppe/radar.ts`, `src/app/portal/[mandant]/berichte/{pipeline/page,rahmen}.tsx`, `src/app/portal/gruppe/berichte/{pipeline/page,rahmen}.tsx`, `src/app/portal/gruppe/radar/page.tsx`, `src/app/api/berichte/[bericht]/csv/route.ts`, `src/server/db/seed/berichtsdaten.ts`, `tests/kern/bericht-pipeline.test.ts`, `tests/isolation/bericht.test.ts` (5) |
+|---|---|
+
+### D-721 · Der PDF-Teil von REP-07 ist ein Druckblatt aus derselben Quelle wie die CSV-Datei (V-227)
+
+**Der Befund** (Audit Befunde 60 und 75, REP-07 „Export to CSV and PDF"): es
+gab nur `GET /api/berichte/[bericht]/csv`. Keine der sechs Berichtsseiten bot
+ein PDF oder eine Druckfassung an, ein Browserdruck gab die dunkle App-Seite
+mit Navigation aus (DESIGN §11: „Print ist nicht die App"), D-506 behandelte
+nur CSV, und die ROADMAP hakte REP-07 trotzdem ab.
+
+**Die Entscheidung.**
+
+1. **Ein Druckblatt, keine erzeugte Datei** — dieselbe Entscheidung wie beim
+   Angebot und beim Monatsnachweis (D-204): ein serverseitiger PDF-Renderer
+   ist eine eigene Abhängigkeit, und ein Knopf „PDF" ohne Datei wäre eine
+   vorgetäuschte Funktion. `/portal/[mandant]/berichte/druck/[bericht]` IST
+   das Dokument: A4, 20 mm Rand, 10 pt, die Drucktoken aus DESIGN §11
+   (`FARBEN_DRUCK`, `MASSE_DRUCK`), CSE-Rot nur in der Kopflinie; der
+   Druckdialog des Browsers macht Papier oder eine PDF-Datei daraus. Der
+   Druckknopf (`DruckKnopf`, jetzt in `components/ui`, geteilt mit dem
+   Monatsnachweis) und der Rückweg stehen über dem Blatt und nicht darauf.
+   Die Adresse ist `berichte/druck/[bericht]` und nicht
+   `berichte/[bericht]/druck`: neben den sechs festen Berichtsordnern wäre
+   ein dynamisches Segment auf derselben Ebene eine Frage an die
+   Routenauflösung, die niemand stellen muss.
+2. **Eine Quelle für beide Ausgänge.** Die Spalten standen in der CSV-Route;
+   sie stehen jetzt in `services/bericht/export.ts` (`berichtTabelle`), und
+   Route und Blatt fragen beide diese Funktion. Das Blatt zeigt dieselben
+   Spaltenköpfe und Werte in derselben Reihenfolge; die Cent-Zwillingsspalte
+   der Datei bleibt dort (sie ist für eine Maschine, die weiterrechnet), und
+   eine ganze Zahl bekommt auf Papier ihren Tausenderpunkt (`zahlText`,
+   `src/lib/zahl.ts`).
+3. **Dasselbe Recht wie die Datei: `bericht.exportieren`** — in der
+   Seitenkarte als Wache der Adresse und INNERHALB der Bindung noch einmal
+   gefragt, wie in der CSV-Route. Ohne das Recht erscheint im Berichtsrahmen
+   weder „Als CSV" noch „Als PDF drucken", und die Adresse antwortet 404.
+4. **Der Rahmen des Blatts spricht die Sprache der Sitzung, die Tabelle
+   bleibt die deutsche Datei** (`i18n/verwaltung/bericht-druck.ts`); das
+   englische Blatt sagt es dazu. Der Stand kommt aus `app.berlin_heute()`
+   als TT.MM.JJJJ.
+5. **Nebenbei in der Datei geändert, weil das Blatt dieselben Werte zeigt:**
+   Tage stehen als TT.MM.JJJJ (`datumText`) statt `YYYY-MM-DD`, und der Stand
+   eines Projekts als Wort (`PROJEKT_STATUS_TEXT`, dieselbe Karte wie auf der
+   Projektseite) statt als roher Wert `in_arbeit`.
+
+| Betrifft | REP-07, D-204, D-506, V-227, DESIGN §11, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/app/api/berichte/[bericht]/csv/route.ts`, `src/app/portal/[mandant]/berichte/{rahmen.tsx,projekte/page.tsx,druck/[bericht]/page.tsx}`, `src/components/ui/DruckKnopf.tsx`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `docs/architecture/04-SEITENKARTE.md`, `docs/ROADMAP.md`, `tests/kern/bericht-export.test.ts`, `tests/isolation/bericht.test.ts` (8), `tests/e2e/berichte.spec.ts` |
 |---|---|

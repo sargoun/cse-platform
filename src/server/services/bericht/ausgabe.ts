@@ -141,3 +141,18 @@ export function stunden(minuten: number | null): string {
   const min = abs % 60;
   return `${negativ ? '-' : ''}${String(std)}:${String(min).padStart(2, '0')} h`;
 }
+
+/**
+ * Ein Kalendertag als TT.MM.JJJJ — `2026-03-01` wird „01.03.2026" (V-227).
+ *
+ * Die Berichte führen Tage als `YYYY-MM-DD` (Berliner Kalendertag, keine
+ * Uhrzeit, keine Zone); gezeigt wird die Form, die überall im Portal steht.
+ * Kein `Date`: ein Tag ohne Uhrzeit durch `new Date` zu schicken, verschiebt
+ * ihn je nach Zone des Servers um einen Tag. Was keine solche Zeichenkette
+ * ist, bleibt, wie es ist — erfunden wird kein Tag.
+ */
+export function datumText(tag: string | null): string | null {
+  if (tag === null) return null;
+  const t = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(tag);
+  return t === null ? tag : `${t[3]!}.${t[2]!}.${t[1]!}`;
+}

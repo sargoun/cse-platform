@@ -18,7 +18,7 @@ import { MandantAntwort, mandantTor } from '../../unterseite';
  *
  * **Warum sie sich einen teilen.** Alle sechs beantworten dieselbe
  * Vorfrage — welcher Bereich, welches Jahr, welche Körnung — und alle sechs
- * bieten denselben Ausgang (CSV). Sechsmal ausgeschrieben wäre das sechsmal
+ * bieten dieselben zwei Ausgänge (CSV-Datei und Druckblatt, REP-07). Sechsmal ausgeschrieben wäre das sechsmal
  * dieselbe Gelegenheit, den Zeitraum anders zu lesen: eine Umsatzzahl für
  * „dieses Jahr" neben einer Auftragszahl für „letzte 365 Tage" widerspricht
  * sich auf einem Bildschirm, ohne dass es jemand bemerkt.
@@ -190,6 +190,24 @@ export async function BerichtsSeite({
           >
             Als CSV
           </a>
+        )}
+        {/*
+          * **Der zweite Ausgang aus REP-07: das Blatt** (V-227, D-721). Es
+          * zeigt dieselben Zeilen und Spalten wie die Datei und wird im
+          * Browser zu Papier oder PDF. Dasselbe Recht wie die CSV-Datei — ein
+          * Ausdruck verlässt das Haus genauso.
+          */}
+        {darfExportieren && (
+          <Link
+            href={alsRoute(`/portal/${mandant}/berichte/druck/${bericht}?jahr=${String(lage.jahr)}`
+              + `&koernung=${lage.koernung}`)}
+            data-cse="druck-export"
+            className="inline-flex min-h-11 items-center rounded-md border border-line
+                       px-s4 text-sm text-text transition-colors duration-fast ease-brand
+                       hover:border-line-strong"
+          >
+            Als PDF drucken
+          </Link>
         )}
       </div>
 

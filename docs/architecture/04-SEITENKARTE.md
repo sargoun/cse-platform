@@ -1905,6 +1905,7 @@ part of O-46 and the purge log shows what the clock is set to and why.
 | `/portal/[mandant]/berichte/mitarbeiter` — hours, utilisation, overtime | `bericht.lesen` + `zeit.konto_lesen` | `M1` | REP-04, EMP-04, TIM-13 | 9 |
 | `/portal/[mandant]/berichte/projekte` — status, margin, deadline adherence | `bericht.lesen` + `kalkulation.lesen` | `M1` | REP-05 | 9 |
 | `/portal/[mandant]/berichte/pipeline` — found · screened · bid · won | `bericht.lesen` + `radar.lesen` | `M1` | REP-06, RAD-07 | 9 |
+| `/portal/[mandant]/berichte/druck/[bericht]` — one report as an A4 print sheet: the CSV rows and columns on paper, printed or saved as PDF by the browser | `bericht.exportieren` | `M1` | REP-07, D-204, D-721 | 9 |
 
 Every report exports to CSV and PDF from the report page itself (REP-07), gated on
 `bericht.exportieren`. A margin figure requires `kalkulation.lesen`, so a report cannot be

@@ -27,6 +27,8 @@ import {
 } from '../../src/server/services/bericht/kennzahlen.js';
 import { pipelineJeBereich, umsatzJeBereich } from '../../src/server/services/bericht/gruppe.js';
 import { abschnitte, ganzesJahr } from '../../src/server/services/bericht/zeitraum.js';
+import { berichtTabelle, zellenFuerBlatt } from '../../src/server/services/bericht/export.js';
+import { alsCsv } from '../../src/server/services/bericht/ausgabe.js';
 import {
   finalisiere, fuegePositionHinzu, legeEntwurfAn, verwerfe, vonHand,
 } from '../../src/server/services/finanz/rechnung.js';
@@ -616,5 +618,34 @@ describe('(7) die Gruppenfassung teilt auf, statt zu summieren', () => {
     );
     expect(zeilen.every((z) => z.rechnungen === 0)).toBe(true);
     expect(zeilen.reduce((s, z) => s + z.erloeseCent, 0n)).toBe(0n);
+  });
+});
+
+describe('(8) REP-07: Datei und Druckblatt aus einer Quelle (D-721)', () => {
+  /**
+   * **Für jeden der sechs Berichte dieselben Spalten und Zeilen.** Die
+   * CSV-Datei und das Druckblatt fragen beide `berichtTabelle`; der Beweis
+   * dafür, dass das auch gegen echte Zeilen gilt, steht hier: die Köpfe der
+   * Datei ohne ihre Cent-Zwillinge sind die Köpfe des Blatts, und die Datei
+   * hat genau eine Zeile mehr (die Kopfzeile) als das Blatt Zeilen.
+   */
+  it('jeder Bericht: dieselben Köpfe, dieselbe Zeilenzahl', async () => {
+    const jahr = await berlinJahr();
+    await macheFakturierfaehig(f.reinigung);
+    const wer = await legeLeitungAn(f.reinigung, 'admin');
+    await legeRechnungAn(f.reinigung, wer, await legeKundeAn(f.reinigung),
+      'festgeschrieben', 1000n);
+
+    for (const bericht of ['umsatz', 'auftraege', 'attribution', 'mitarbeiter', 'projekte',
+      'pipeline'] as const) {
+      const tabelle = await alsBereich(f.reinigung,
+        (k) => berichtTabelle(bericht, k, jahr, 'quartal'), wer);
+      const csv = alsCsv(tabelle.spalten, tabelle.zeilen as readonly never[]);
+      const csvZeilen = csv.replace('\uFEFF', '').trimEnd().split('\r\n');
+      const blatt = zellenFuerBlatt(tabelle);
+      expect(blatt.koepfe.map((k) => k.text), bericht).toEqual(
+        csvZeilen[0]!.split(';').filter((k) => !k.endsWith(' (Cent)')));
+      expect(csvZeilen.length - 1, bericht).toBe(blatt.zeilen.length);
+    }
   });
 });
