@@ -201,7 +201,7 @@ export default async function MeinBautagebuch(
               <div className="mb-s3 flex flex-wrap items-center gap-s3">
                 <StatusPill sprache={basis.sprache} zustand={BAUTAG_PILLE[tag.status] ?? 'Entwurf'} />
                 <span className="text-sm text-text-muted">
-                  {bautagStatus[tag.status as BautagStatusSchluessel] ?? tag.status}
+                  {bautagStatus[tag.status as BautagStatusSchluessel] ?? '—'}
                 </span>
               </div>
               <Felder>
@@ -561,7 +561,7 @@ export default async function MeinBautagebuch(
                 Falschmeldung.
               */}
               <p className="m-0 mb-s3 max-w-prose text-base text-text">
-                {abgleichSatz[abgleich.befund] ?? abgleich.befund}
+                {abgleichSatz[abgleich.befund] ?? '—'}
               </p>
               <Felder>
                 <Feld label={t.mannstunden}>

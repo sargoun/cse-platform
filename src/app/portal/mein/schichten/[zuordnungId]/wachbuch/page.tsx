@@ -147,7 +147,7 @@ export default async function MeinWachbuch(
                           : e.art === 'alarm' ? 'Fehler' : 'Abgeschlossen'}
                       />
                       <span className="text-sm text-text-muted">
-                        {arten[e.art as WachbuchArtSchluessel] ?? e.art}
+                        {arten[e.art as WachbuchArtSchluessel] ?? '—'}
                       </span>
                     </div>
                     <Felder>

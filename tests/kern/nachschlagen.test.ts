@@ -150,13 +150,21 @@ describe('kein Quelltext schlägt einen Grund aus der Adresse im Prototyp nach',
     expect(BAUM.length).toBeGreaterThan(300);
   });
 
-  it('`TABELLE[fehler]` und `TABELLE[grund]` stehen nirgends ausserhalb von Kommentaren', () => {
+  /*
+   * `antwort` kam mit V-195 dazu: das Schichtblatt des Arbeiterportals schlug
+   * `?antwort=` als `ANTWORT_TEXT[antwort]` nach und RIEF das Gefundene —
+   * `?antwort=constructor` gab ein Objekt an React, und die Seite antwortete
+   * mit 500.
+   */
+  it('`TABELLE[fehler]`, `[grund]` und `[antwort]` stehen nirgends ausserhalb von Kommentaren', () => {
     const verstoesse: string[] = [];
     for (const datei of BAUM) {
       readFileSync(datei, 'utf8').split('\n').forEach((zeile, i) => {
         const code = zeile.trim();
         if (code.startsWith('*') || code.startsWith('//') || code.startsWith('/*')) return;
-        if (/[\w\]]\[(?:fehler|grund)\]/u.test(code)) verstoesse.push(`${datei}:${String(i + 1)}`);
+        if (/[\w\]]\[(?:fehler|grund|antwort)\]/u.test(code)) {
+          verstoesse.push(`${datei}:${String(i + 1)}`);
+        }
       });
     }
     expect(

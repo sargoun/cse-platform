@@ -1121,7 +1121,49 @@ export interface MeinTexte {
   readonly keinZutrittHinterlegt: string;
   readonly letzteSchicht: string;
   readonly meineSchichtenHier: string;
+
+  /* ── Werte aus der Datenbank als WORT, nie als Schlüssel (V-195) ─────── */
+  /**
+   * Der Zustand der eigenen Einteilung (`dienstplan_zuordnung.status`).
+   *
+   * Das Schichtblatt zeigte unter „Status" den rohen Wert — `nicht_erschienen`
+   * auch auf Arabisch. Das Vokabular selbst ist ein Platzhalter (O-170); die
+   * Wörter übersetzen es, sie erfinden keinen Zustand dazu.
+   */
+  readonly zuordnungStatus: Readonly<Record<ZuordnungStatusSchluessel, string>>;
+  /**
+   * Die Lage im Bewacherregister (`bewacher_eintrag.status`, SEC-03). Das
+   * Vokabular ist ein Platzhalter (O-40); das Deutsche ist wortgleich mit
+   * `STATUS_TEXT` der Verwaltung, damit Büro und Kraft dasselbe lesen.
+   */
+  readonly bewacherStatus: Readonly<Record<BewacherStatusSchluessel, string>>;
+  /**
+   * Die Beschriftung über der Fundstelle eines Nachweises („§34a Abs. 1a
+   * GewO"). Dort stand „Status" — ein Paragraph ist kein Zustand. Die
+   * Fundstelle selbst bleibt unübersetzt (siehe `nachweisBlatt`).
+   */
+  readonly rechtsgrundlage: string;
+  /**
+   * Der Tag der Zeitumstellung, an dem eine Schicht liegt (Invariante 2).
+   * Stand als deutsches Wort in einem Ternär in `SchichtKarte` — in jeder
+   * Sprache „23-Stunden-Tag".
+   */
+  readonly zeitanomalie: Readonly<Record<'dst_luecke' | 'dst_doppelt', string>>;
 }
+
+/**
+ * Die Werte von `zuordnung_status` (0028). `tests/kern/mein-rohwerte.test.ts`
+ * hält die Liste gegen die Migration — ein neuer Wert ohne Wort fällt dort auf
+ * und nicht erst auf dem Telefon einer Kraft.
+ */
+export const ZUORDNUNG_STATUS_SCHLUESSEL =
+  ['geplant', 'zugesagt', 'abgesagt', 'ersetzt', 'nicht_erschienen'] as const;
+export type ZuordnungStatusSchluessel = (typeof ZUORDNUNG_STATUS_SCHLUESSEL)[number];
+
+/** Die Werte von `bewacher_status` (0031) — geprüft gegen `BEWACHER_STATUS`. */
+export const BEWACHER_STATUS_SCHLUESSEL =
+  ['beantragt', 'registriert', 'abgelehnt', 'erloschen', 'gesperrt', 'unbekannt'] as const;
+export type BewacherStatusSchluessel = (typeof BEWACHER_STATUS_SCHLUESSEL)[number];
 
 export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
   de: {
@@ -1484,6 +1526,27 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinZutrittHinterlegt: 'Für dieses Objekt ist kein Zutrittshinweis hinterlegt.',
     letzteSchicht: 'Letzte Schicht',
     meineSchichtenHier: 'Meine Schichten hier',
+
+    zuordnungStatus: {
+      geplant: 'Geplant',
+      zugesagt: 'Zugesagt',
+      abgesagt: 'Abgesagt',
+      ersetzt: 'Ersetzt',
+      nicht_erschienen: 'Nicht erschienen',
+    },
+    bewacherStatus: {
+      beantragt: 'Beantragt',
+      registriert: 'Registriert',
+      abgelehnt: 'Abgelehnt',
+      erloschen: 'Erloschen',
+      gesperrt: 'Gesperrt',
+      unbekannt: 'Unbekannt',
+    },
+    rechtsgrundlage: 'Rechtsgrundlage',
+    zeitanomalie: {
+      dst_luecke: '23-Stunden-Tag (Zeitumstellung)',
+      dst_doppelt: '25-Stunden-Tag (Zeitumstellung)',
+    },
   },
   en: {
     heute: 'Today',
@@ -1842,6 +1905,27 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinZutrittHinterlegt: 'No access note is on file for this site.',
     letzteSchicht: 'Last shift',
     meineSchichtenHier: 'My shifts here',
+
+    zuordnungStatus: {
+      geplant: 'Planned',
+      zugesagt: 'Accepted',
+      abgesagt: 'Declined',
+      ersetzt: 'Replaced',
+      nicht_erschienen: 'Did not attend',
+    },
+    bewacherStatus: {
+      beantragt: 'Applied for',
+      registriert: 'Registered',
+      abgelehnt: 'Rejected',
+      erloschen: 'Lapsed',
+      gesperrt: 'Blocked',
+      unbekannt: 'Unknown',
+    },
+    rechtsgrundlage: 'Legal basis',
+    zeitanomalie: {
+      dst_luecke: '23-hour day (clock change)',
+      dst_doppelt: '25-hour day (clock change)',
+    },
   },
   ar: {
     heute: 'اليوم',
@@ -2181,6 +2265,27 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinZutrittHinterlegt: 'لا توجد إرشادات دخول مسجّلة لهذا الموقع.',
     letzteSchicht: 'آخر مناوبة',
     meineSchichtenHier: 'مناوباتي هنا',
+
+    zuordnungStatus: {
+      geplant: 'مخطّط لها',
+      zugesagt: 'تمت الموافقة',
+      abgesagt: 'تم الاعتذار',
+      ersetzt: 'تم الاستبدال',
+      nicht_erschienen: 'لم يحضر',
+    },
+    bewacherStatus: {
+      beantragt: 'قيد الطلب',
+      registriert: 'مسجّل',
+      abgelehnt: 'مرفوض',
+      erloschen: 'منتهٍ',
+      gesperrt: 'محظور',
+      unbekannt: 'غير معروف',
+    },
+    rechtsgrundlage: 'الأساس القانوني',
+    zeitanomalie: {
+      dst_luecke: 'يوم من 23 ساعة (تغيير التوقيت)',
+      dst_doppelt: 'يوم من 25 ساعة (تغيير التوقيت)',
+    },
   },
   tr: {
     heute: 'Bugün',
@@ -2534,6 +2639,27 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinZutrittHinterlegt: 'Bu nesne için kayıtlı bir giriş açıklaması yok.',
     letzteSchicht: 'Son vardiya',
     meineSchichtenHier: 'Buradaki vardiyalarım',
+
+    zuordnungStatus: {
+      geplant: 'Planlandı',
+      zugesagt: 'Kabul edildi',
+      abgesagt: 'Reddedildi',
+      ersetzt: 'Değiştirildi',
+      nicht_erschienen: 'Gelmedi',
+    },
+    bewacherStatus: {
+      beantragt: 'Başvuruldu',
+      registriert: 'Kayıtlı',
+      abgelehnt: 'Reddedildi',
+      erloschen: 'Sona erdi',
+      gesperrt: 'Engellendi',
+      unbekannt: 'Bilinmiyor',
+    },
+    rechtsgrundlage: 'Yasal dayanak',
+    zeitanomalie: {
+      dst_luecke: '23 saatlik gün (saat değişimi)',
+      dst_doppelt: '25 saatlik gün (saat değişimi)',
+    },
   },
 };
 

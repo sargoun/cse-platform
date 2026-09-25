@@ -95,15 +95,23 @@ export function SchichtKarte({
   readonly sprache: PortalSprache;
   readonly alsLink?: boolean;
 }) {
+  const zeitanomalie = schicht.zeitanomalie === 'dst_luecke' || schicht.zeitanomalie === 'dst_doppelt'
+    ? texte.zeitanomalie[schicht.zeitanomalie] : undefined;
   const inhalt = (
     <>
       <div className="mb-s3 flex flex-wrap items-center gap-s3">
         <Gesellschaft slug={schicht.mandantSlug} name={schicht.mandantName} />
         <StatusPill zustand={schichtPille(schicht)} sprache={sprache} />
-        {schicht.zeitanomalie !== 'keine' && (
-          <span data-cse="zeitanomalie" className="text-sm text-warning">
+        {/*
+          Der Tag der Zeitumstellung in der Sprache der Person (V-195). Hier
+          stand ein deutsches Wort in einem Ternär — die Übersetzungswache sah
+          es nicht, und die Kraft las in jeder Sprache „23-Stunden-Tag".
+        */}
+        {zeitanomalie !== undefined && (
+          <span data-cse="zeitanomalie" data-art={schicht.zeitanomalie}
+                className="text-base text-warning">
             <Icon name="warnung" groesse="sm" className="inline-block align-[-2px]" />{' '}
-            {schicht.zeitanomalie === 'dst_luecke' ? '23-Stunden-Tag' : '25-Stunden-Tag'}
+            {zeitanomalie}
           </span>
         )}
       </div>

@@ -208,7 +208,7 @@ export default async function EinwandFormular(
                   <Felder>
                     <Feld label={t.status}>
                       <span data-cse="einwand-status">
-                        {statusWort[e.status as EinwandStatusSchluessel] ?? e.status}
+                        {statusWort[e.status as EinwandStatusSchluessel] ?? '—'}
                       </span>
                     </Feld>
                     <Feld label={t.einwandArt}>{arten[e.art]}</Feld>

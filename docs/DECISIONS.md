@@ -19177,3 +19177,50 @@ Menge einer Bautagebuchzeile. Das Urlaubskonto rechnete richtig, schrieb aber
 | Betrifft | EMP-05, EMP-10, EMP-12, CLN-04, BAU-07, V-194, V-210, V-240, SEITENKARTE §12, `src/server/services/finanz/menge.ts` (`formatiereTage`, `tageAusPostgres`), `src/app/portal/mein/{abwesenheit/[id],antraege,urlaub}/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/{leistungsnachweis,bautagebuch}/page.tsx`, `tests/kern/mein-tage.test.ts` |
 |---|---|
 
+### D-689 · Ein Wert aus der Datenbank steht im Arbeiterportal als Wort unter seiner eigenen Beschriftung — ein unbekannter als Strich (V-195)
+
+**Der Befund** (V-195; Audit Befund 65): Auf Bildschirmen, die in vier
+Sprachen stehen, lagen vier Stellen daneben. Das Schichtblatt zeigte unter
+„Status" den rohen Wert von `dienstplan_zuordnung.status` (`geplant`,
+`zugesagt`, `abgesagt`, `ersetzt`, `nicht_erschienen`) — auch auf Arabisch.
+„Meine Nachweise" stellte die Rechtsgrundlage („§34a Abs. 1a GewO") unter die
+Beschriftung „Status" / „الحالة" und zeigte den Status im Bewacherregister
+roh. Die Schichtkarte schrieb in jeder Sprache „23-Stunden-Tag" bzw.
+„25-Stunden-Tag"; die Übersetzungswache sah es nicht, weil der Text in einem
+Ternär stand. Bei der Gegenprobe fanden sich vier Rückfälle, die einen
+unbekannten Wert als Schlüssel gezeigt hätten (`?? e.status`, `?? e.art`,
+`?? tag.status`, `?? abgleich.befund`), und ein Nachschlagen aus der Adresse
+im Prototyp: `ANTWORT_TEXT[antwort]!(t)` auf dem Schichtblatt —
+`?antwort=constructor` rief den Konstruktor von `Object`, gab React ein
+Objekt, und die Seite antwortete mit 500.
+
+**Die Entscheidung.**
+
+1. **Die Wörter stehen in `MeinTexte`**, nicht in einer zweiten Karte:
+   `zuordnungStatus`, `bewacherStatus`, `rechtsgrundlage`, `zeitanomalie` —
+   damit prüft `tests/kern/mitarbeiter-sprachen.test.ts` sie auf
+   Vollständigkeit in allen vier Sprachen mit.
+2. **Die Vokabulare bleiben Platzhalter** (O-170, O-40). Die Wörter
+   übersetzen sie, sie erfinden keinen Zustand dazu; das Deutsche ist
+   wortgleich mit der Verwaltung (`STATUS_TEXT`), damit Büro und Kraft
+   dasselbe lesen. `ZUORDNUNG_STATUS_SCHLUESSEL` und
+   `BEWACHER_STATUS_SCHLUESSEL` werden gegen die Migrationen 0028/0031 und
+   den Dienst gehalten: ein neuer Wert ohne Wort fällt im Test auf, nicht auf
+   dem Telefon.
+3. **Ein unbekannter Wert wird ein Strich, nie ein Schlüssel.** Wo ein
+   Datenbankwert nachgeschlagen wird, fällt er auf „—" zurück; aus der
+   Adresse wird nur ein eigener Eintrag nachgeschlagen (D-728), und die
+   Quellbaumprüfung aus D-728 kennt jetzt auch `[antwort]`.
+4. **Die Fundstelle bleibt unübersetzt** — „§34a Abs. 1a GewO" ist eine
+   Fundstelle, kein Wort (dieselbe Regel wie `nachweisBlatt`); übersetzt wird
+   die Beschriftung darüber.
+5. **Die Wache der Übersetzung wird NICHT auf Ternäre ausgedehnt.** Gezählt:
+   62 Dateien unter `src/app/portal` und `src/components` ausserhalb der
+   Ausnahmeliste trügen dann einen Fund, fast alle
+   Klassennamen oder Pillenschlüssel (`'Archiviert' : 'Fehler'`) — eine Wache,
+   die überwiegend Technik meldet, wird abgeschaltet. Geprüft wird stattdessen
+   am Quellbaum des Arbeiterportals (`tests/kern/mein-rohwerte.test.ts`).
+
+| Betrifft | EMP-02, EMP-08, EMP-12, SEC-03, O-40, O-170, D-728, V-195, `src/lib/i18n/texte.ts` (`MeinTexte`, `ZUORDNUNG_STATUS_SCHLUESSEL`, `BEWACHER_STATUS_SCHLUESSEL`), `src/app/portal/mein/{bausteine.tsx,nachweise/page.tsx,schichten/[zuordnungId]/page.tsx}`, `src/app/portal/mein/zeiten/[id]/einwand/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/{wachbuch,bautagebuch}/page.tsx`, `tests/kern/mein-rohwerte.test.ts`, `tests/kern/nachschlagen.test.ts` |
+|---|---|
+

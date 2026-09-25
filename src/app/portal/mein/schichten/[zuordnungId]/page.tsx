@@ -10,6 +10,7 @@ import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
 import { Feld, Felder, SchichtKarte, Zusagefeld } from '../../bausteine';
 import type { MeinTexte } from '@/lib/i18n/texte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * Die acht Ausgaenge von `POST /api/mein/schicht`, beschriftet.
@@ -83,6 +84,13 @@ export default async function MeineSchicht(
   const anweisungen = ergebnis.daten.anweisungen;
   const offene = anweisungen.filter((a) => a.offen);
   const t = basis.texte;
+  /*
+   * `?antwort=` kommt aus der Adresszeile: nachgeschlagen wird deshalb nur ein
+   * EIGENER Eintrag (D-728). `ANTWORT_TEXT['constructor']` fand den
+   * Konstruktor von `Object`, der Aufruf gab ein Objekt zurück, und React
+   * antwortete mit 500.
+   */
+  const antwortText = eigenerEintrag(ANTWORT_TEXT, antwort);
   const zielKnopf =
     'inline-flex min-h-11 items-center justify-center rounded-md border '
     + 'border-line-strong px-s5 py-s3 text-base text-text no-underline hover:bg-surface-2';
@@ -107,7 +115,7 @@ export default async function MeineSchicht(
         Programmfehler, und „Sie hatten schon zugesagt" gehoert in einen Satz,
         nicht in ein rotes Fenster.
       */}
-      {antwort !== null && ANTWORT_TEXT[antwort] !== undefined && (
+      {antwortText !== undefined && antwort !== null && (
         <p
           data-cse="schicht-antwort"
           data-antwort={antwort}
@@ -116,7 +124,7 @@ export default async function MeineSchicht(
               ? 'border-success bg-success-soft text-text'
               : 'border-warning bg-warning-soft text-text'}`}
         >
-          {ANTWORT_TEXT[antwort]!(t)}
+          {antwortText(t)}
         </p>
       )}
 
@@ -126,7 +134,16 @@ export default async function MeineSchicht(
           <Feld label={t.pause}>
             <span className="cse-zahl">{daten.pauseGeplantMinuten}</span> min
           </Feld>
-          <Feld label={t.status}>{daten.status}</Feld>
+          {/*
+            Der Zustand der Einteilung als WORT in der Sprache der Person
+            (V-195) — hier stand der rohe Wert, `nicht_erschienen` auch auf
+            Arabisch. Ein unbekannter Wert wird ein Strich, nie ein Schlüssel.
+          */}
+          <Feld label={t.status}>
+            <span data-cse="zuordnung-status" data-status={daten.status}>
+              {eigenerEintrag(t.zuordnungStatus, daten.status) ?? '—'}
+            </span>
+          </Feld>
           {daten.funktion !== null && <Feld label={t.funktion}>{daten.funktion}</Feld>}
         </Felder>
       </section>
