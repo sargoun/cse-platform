@@ -885,6 +885,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'security.schreiben',
   },
   /**
+   * V-179 — die verlangten Nachweise (SEC-01, SEC-04). Sie SCHREIBEN
+   * `einsatzanforderung` mit `security.schreiben`, demselben Recht, das die
+   * `WITH CHECK`-Hälfte von `t_mandant` verlangt (0031). Dass eine neue Zeile
+   * die künftigen Schichten neu bewertet, tut der Auslöser aus 0465 — nicht
+   * dieser Dienst, und deshalb auch nicht an ihm vorbei.
+   */
+  {
+    modul: 'security', pfad: 'security/anforderung',
+    schreibend: true, schreibRecht: 'security.schreiben',
+  },
+  /**
    * Das Wachbuch schreibt mit `wachbuch.schreiben` — dem einen Schreibrecht,
    * das die Rolle `mitarbeiter` in dieser Domäne tatsächlich hält (SEC-05: die
    * Wache führt das Buch). Gelesen wird mit `wachbuch.lesen`, im eigenen

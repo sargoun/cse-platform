@@ -31,9 +31,12 @@
  * // TODO(client, O-342): Welche Qualifikation verlangt welcher Posten —
  * genuegt die Unterrichtung nach §34a Abs. 1a GewO, oder verlangt der
  * Objektschutz am Kurfürstendamm die Sachkundeprüfung? Bis zur Antwort traegt
- * der Demoposten KEINE `einsatzanforderung`; die Sperre ist gebaut und
- * geprueft (`app.einsatz_qualifikation_erfuellt`), aber welche Zeile sie
- * scharf stellt, entscheidet der Vertrag und nicht dieser Seed.
+ * der Demoposten KEINE Sperre; die Sperre ist gebaut und geprueft
+ * (`app.einsatz_qualifikation_erfuellt`), aber welche Zeile sie scharf
+ * stellt, entscheidet der Vertrag und nicht dieser Seed. Seit V-179 traegt er
+ * EINE Warnung, eingetragen ueber den echten Dienst und als unbestaetigt
+ * markiert (`seedAnforderung` unten) — damit der Weg zu sehen ist, nicht die
+ * Antwort.
  *
  * **Idempotent durch LESEN ZUERST** — wie die uebrigen Seed-Dateien.
  */
@@ -45,6 +48,7 @@ import { montag, tagePlus } from '@/lib/datum/kalendertag';
 import { besetzeUndErfasse } from './zeit.js';
 import { alsPortalSitzung } from './sitzung.js';
 import { erzeugeVeranstaltungsschicht } from '../../services/security/eventbesetzung.js';
+import { legeAnforderungAn } from '../../services/security/anforderung.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -185,6 +189,58 @@ export async function seedSecurity(
     zeiteintraege: lauf.erfasst,
     postenId, objektId: objekt.id,
   };
+}
+
+/**
+ * V-179 — ein verlangter Nachweis am Demoposten, eingetragen ueber den
+ * ECHTEN Dienst (`legeAnforderungAn`) in der Sitzung der Leitung.
+ *
+ * **Eine Warnung, keine Sperre, und als unbestaetigt markiert.** Welche
+ * Qualifikation der Objektschutz verlangt, entscheidet der Vertrag (O-342),
+ * nicht dieser Seed — eine Sperre hier waere eine erfundene Regel, die
+ * Einteilungen verhindert. Die Warnung zeigt dagegen den ganzen Weg: sie
+ * steht auf dem Postenblatt mit „Anforderung unbestätigt", und weil sie NACH
+ * der Einteilung entsteht, zieht der Ausloeser aus 0465 die kuenftigen
+ * Schichten nach — Fatimas abgelaufener Bewacherausweis (seed/qualifikation)
+ * steht danach an jeder ihrer kommenden Postenschichten als „nicht erfüllt".
+ */
+export async function seedAnforderung(
+  sql: Sql, ids: ReadonlyMap<string, string>, postenId: string | null,
+): Promise<number> {
+  const mandantId = ids.get('security');
+  if (mandantId === undefined || postenId === null) return 0;
+  const [q] = await sql<{ id: string }[]>`
+    select id from qualifikation
+     where schluessel = 'bewacherausweis' and archiviert_am is null
+       and (mandant_id is null or mandant_id = ${mandantId})
+     order by mandant_id nulls first limit 1`;
+  if (q === undefined) return 0;
+  const [da] = await sql<{ id: string }[]>`
+    select id from einsatzanforderung
+     where posten_id = ${postenId} and qualifikation_id = ${q.id}
+       and archiviert_am is null limit 1`;
+  if (da !== undefined) return 0;
+  const [leitung] = await sql<{ id: string }[]>`
+    select b.id from benutzer b
+     join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${mandantId}
+     join rolle r on r.id = bm.rolle_id
+    where r.schluessel in ('admin', 'leitung', 'super_admin') and b.status = 'aktiv'
+      and bm.entzogen_am is null
+    order by r.schluessel, bm.module is not null, b.email limit 1`;
+  if (leitung === undefined) return 0;
+  await alsPortalSitzung(sql, mandantId, leitung.id, (k) => legeAnforderungAn(k, {
+    herkunft: { art: 'posten', id: postenId },
+    bereich: 'posten',
+    qualifikationId: q.id,
+    zwingend: false,
+    geltung: 'jeder',
+    mindestanzahl: 1,
+    bewacherregisterPflicht: false,
+    gueltigAb: null,
+    rechtsgrundlage: null,
+    bestaetigt: false,
+  }));
+  return 1;
 }
 
 /* ===========================================================================

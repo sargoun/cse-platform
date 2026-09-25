@@ -1193,6 +1193,17 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * SEC-01, SEC-04, SEC-08 (V-179) — einen verlangten Nachweis eines
+     * Postens, einer Veranstaltung, ihres Objekts oder der Gesellschaft
+     * eintragen oder archivieren. `security.schreiben`: dasselbe Recht, das
+     * die `WITH CHECK`-Hälfte von `einsatzanforderung.t_mandant` verlangt
+     * (0031). Ohne diese Adresse hatte das SEC-04-Tor nie eine Zeile.
+     */
+    pfad: 'api/sicherheit/anforderungen',
+    recht: 'security.schreiben',
+  },
+  {
+    /**
      * SEC-05, TIM-08, TIM-10 — eine Wachbuchseite schreiben oder
      * richtigstellen.
      *

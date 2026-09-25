@@ -22,7 +22,7 @@ import { seedAuftrag } from './auftrag.js';
 import { seedZeit } from './zeit.js';
 import { seedKonten } from './konto.js';
 import { normalisiereTelefon } from '../../../lib/telefon.js';
-import { seedBewacherUndEvents, seedSecurity } from './security.js';
+import { seedAnforderung, seedBewacherUndEvents, seedSecurity } from './security.js';
 import { seedWachbuch } from './wachbuch.js';
 import { seedReinigung, seedSonderUndQualitaet } from './reinigung.js';
 import { seedVertrieb } from './vertrieb.js';
@@ -1742,6 +1742,16 @@ async function main(): Promise<void> {
     + `kein Registerabgleich: nicht verbunden, O-40), `
     + `${String(reg.veranstaltungen)} Veranstaltungen `
     + `(Herkunft eines Eventauftrags offen: O-703)\n`,
+  );
+
+  /**
+   * V-179: ein verlangter Nachweis am Demoposten — NACH der Einteilung, damit
+   * der Ausloeser aus 0465 zeigt, was er tut (kuenftige Schichten neu
+   * bewertet). Eine Warnung, unbestaetigt: welche Sperre gilt, sagt O-342.
+   */
+  const anforderung = await seedAnforderung(sql, ids, sec.postenId);
+  process.stdout.write(
+    `  ${String(anforderung)} verlangter Nachweis am Posten (Warnung, unbestätigt: O-342)\n`,
   );
 
   /**

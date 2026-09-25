@@ -5018,7 +5018,7 @@ hinterlegte Urkunde — als das, was sie sind.
 | # | Question | Blocks |
 |---|---|---|
 | O-341 | **Mit welcher Frist läuft ein Bewacherausweis in Ihrem Haus ab — folgt sie der Wiederholung der Zuverlässigkeitsprüfung oder dem aufgedruckten Datum des Ausweises?** `qualifikation.standard_gueltigkeit_monate` bleibt deshalb leer; das Ablaufdatum steht am einzelnen Nachweis, wo es herkommt. Ein geratener Vorgabewert trägt sich sonst in jeden neu erfassten Nachweis ein und sieht dort aus wie eine geprüfte Angabe — und der 60/30/7-Wächter mahnt zu einem Datum, das niemand geprüft hat. | SEC-02, EMP-08, §11b GewO, `qualifikation` |
-| O-342 | **Welche Qualifikation verlangt welcher Posten — genügt die Unterrichtung nach §34a Abs. 1a GewO, oder verlangt der Objektschutz am Kurfürstendamm die Sachkundeprüfung?** Die Sperre ist gebaut und geprüft (`app.einsatz_qualifikation_erfuellt`, `einsatzanforderung`); welche Zeile sie scharf stellt, entscheidet der Vertrag und nicht der Seed. Bis zur Antwort trägt der Demoposten KEINE `einsatzanforderung` — die Einteilung fragt also, findet nichts und lässt durch. | SEC-01, SEC-04, §34a GewO, `einsatzanforderung`, `posten` |
+| O-342 | **Welche Qualifikation verlangt welcher Posten — genügt die Unterrichtung nach §34a Abs. 1a GewO, oder verlangt der Objektschutz am Kurfürstendamm die Sachkundeprüfung?** Die Sperre ist gebaut und geprüft (`app.einsatz_qualifikation_erfuellt`, `einsatzanforderung`); welche Zeile sie scharf stellt, entscheidet der Vertrag und nicht der Seed. Bis zur Antwort trägt der Demoposten KEINE Sperre — seit V-179 eine unbestätigte WARNUNG (D-673), die zeigt, wo der Nachweis fehlt, aber keine Einteilung verhindert. | SEC-01, SEC-04, §34a GewO, `einsatzanforderung`, `posten` |
 | O-343 | **Sollen die Urkunden zu §34a und Bewacherausweis in der Plattform liegen, oder genügt die Personalakte auf Papier und die Plattform führt nur Nummer und Frist?** `qualifikation.erfordert_dokument` steht für die drei gesetzlichen Einträge auf `true`, und DOC-01 verweigert deshalb `gueltig` ohne hinterlegte Urkunde. Das ist die strengere und damit laute Variante: sie blockiert sichtbar, statt still eine Gültigkeit zu behaupten, für die kein Papier da ist. Antwortet der Mandant mit „Papierakte genügt", ist es ein Boolean. | SEC-02, DOC-01, `qualifikation`, `nachweis`, `dokument` |
 
 ### D-305 · Der Konfliktlauf prüft die EINTEILUNG, nicht die erfasste Zeit
@@ -19200,4 +19200,60 @@ Serienblatt und Serienliste das Gegenteil zeigten.
 von Heiligabend und Silvester (O-167), Zuschläge an Feiertagen.
 
 | Betrifft | CLN-03, TIM-02, TIM-03, V-178, O-167, D-624, `src/server/services/dienstplan/{feiertage,generator}.ts`, `src/server/jobs/{feiertagePflegen,bootstrap,einsaetzeGenerieren}.ts`, `src/server/db/seed/{dienstplan,index}.ts`, `src/server/services/reinigung/turnus.ts`, `src/app/portal/[mandant]/reinigung/turnus/{neu,[id]}/page.tsx`, `src/lib/i18n/verwaltung/{feiertage,nutzlast}.ts`, `docs/JOB-AUSLOESER.sql`, `tests/kern/feiertage-pflege.test.ts`, `tests/isolation/feiertage-pflege.test.ts` |
+|---|---|
+
+### D-673 · Verlangte Nachweise haben einen Schreibweg, und die geplanten Schichten ziehen nach (V-179)
+
+**Der Befund** (V-179; Audit Gruppe „einsatz", SEC-01, SEC-04): Das harte
+Tor `app.einsatz_qualifikation_erfuellt` (0031) liest seine Anforderungen
+aus `einsatzanforderung`. Für die Tabelle gab es weder Dienst noch Route noch
+Formular — Policy und Rechte (`security.schreiben`) standen bereit, geschrieben
+hat sie nur ein Test. Ohne Zeile meldet das Tor für jede Einteilung
+„erfüllt": die Sperre bei abgelaufener §34a-Sachkunde trat in keinem
+Mandanten je ein. Die Postenseite sagte „angelegt werden sie woanders", und
+ein solches Woanders gab es nicht. Der Schnappschuss aus V-129 (0394) folgte
+dem Katalog zudem nur bei einer Besetzungsänderung — eine neue Anforderung
+hätte jede schon eingeteilte künftige Schicht als erfüllt stehen lassen.
+
+**Die Entscheidung.**
+
+1. **Ein Dienst** (`services/security/anforderung.ts`): eintragen und
+   archivieren, nie ändern oder löschen (`trg_einsatzanforderung_kein_hard_delete`).
+   Wer einen anderen Wert braucht, archiviert und trägt neu ein — dieselbe
+   Regel, die `ea_scope_uk` ohnehin erzwingt.
+2. **Woran die Anforderung hängt, sagt die Seite, von der sie kommt.** Das
+   Formular steht auf dem Postenblatt und auf der Veranstaltungsseite; der
+   Bereich (Posten, Veranstaltung, Objekt, Gesellschaft) ist eine Auswahl, das
+   Objekt löst der Dienst aus dem Posten bzw. der Veranstaltung auf. Eine
+   Objektkennung aus der Anfrage nimmt er nicht (K-02). Die Liste auf beiden
+   Seiten zeigt ADDITIV alles, was dort greift — auch die Objekt- und die
+   mandantenweite Anforderung, genau wie der Auflöser im Tor.
+3. **Eine Sperre gilt für jede eingesetzte Person.** Eine harte Sperre mit
+   „mindestens eine Person" weist der Dienst ab (`sperre_nur_jeder`): das Tor
+   prüft je Zuordnung nur `jeder`, die Schichtprüfung aus §9.4 ist nicht
+   gebaut (`ea_geltung_zwischenstand`, 0031). Die Sperre gälte still nicht;
+   als Warnung ist die Mindestanzahl erlaubt.
+4. **`ist_platzhalter` = nicht bestätigt.** Ein Häkchen „aus Vertrag oder
+   Dienstanweisung bestätigt"; ohne es trägt die Zeile auf beiden Seiten
+   „unbestätigt". Welche Qualifikation welcher Posten verlangt, bleibt O-342;
+   der Dienst schlägt nichts vor.
+5. **Die Schichten ziehen nach, die Vergangenheit nicht** (0465). Ein
+   `AFTER INSERT OR UPDATE`-Auslöser (`kern.einsatzanforderung_nachziehen`,
+   `cse_definer`) löst für jede künftige, nicht stornierte Schicht des
+   Bereichs Schnappschuss und Mischungsbewertung mit denselben zwei
+   Funktionen wie 0394 neu auf. Eine begonnene Schicht bleibt eingefroren.
+   Neue Rechte braucht er nicht: `e_definer_besetzung`/`e_definer_status`
+   (0394) geben ihm genau die zwei Spalten.
+6. **Die Route** `POST /api/sicherheit/anforderungen` (`security.schreiben`,
+   `fuehreUebergangAus`, D-599): Abweisungen kehren als `?fehler=<grund>` auf
+   die Seite zurück und stehen dort als Satz in beiden Sprachen.
+7. **Der Seed** trägt am Demoposten EINE Warnung ein (Bewacherausweis,
+   unbestätigt) — über den echten Dienst und nach der Einteilung, damit der
+   Nachzug sichtbar wird. Eine Sperre im Seed wäre die Antwort auf O-342,
+   die niemand gegeben hat.
+
+**Nicht Teil dieser Entscheidung:** die Schichtprüfung für „mindestens N
+Personen" (§9.4), welche Qualifikation welcher Posten verlangt (O-342).
+
+| Betrifft | SEC-01, SEC-04, SEC-08, V-179, V-129, D-624, O-342, `src/server/services/security/anforderung.ts`, `src/app/api/sicherheit/anforderungen/route.ts`, `src/app/portal/[mandant]/security/{Anforderungsblock.tsx,posten/[id]/page.tsx,veranstaltungen/[id]/page.tsx}`, `src/lib/i18n/verwaltung/anforderung.ts`, `drizzle/0465_anforderung_zieht_schichten_nach.sql`, `src/server/db/seed/security.ts`, `tests/kern/anforderung-eingabe.test.ts`, `tests/isolation/anforderung-pflege.test.ts` |
 |---|---|
