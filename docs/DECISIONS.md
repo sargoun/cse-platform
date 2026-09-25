@@ -3351,6 +3351,7 @@ Beantworten helfen:
 | O-921 | **Wie wird der Vertragswert eines Auftrags aus einem angenommenen Angebot in Reinigung und Sicherheit berichtigt oder angepasst?** Der Wert eines solchen Auftrags ist `angebot.netto_cent`; die Auftragspflege überschreibt ihn nicht (D-667 Punkt 5), weil sie sonst eine zweite Wahrheit über den Betrag führte, den der Kunde angenommen hat. Im Bau ändert ein Nachtrag nach § 2 VOB/B den Vertrag (0080). **Reinigung und Sicherheit kennen keinen Nachtrag** — ein Tippfehler im Angebot, eine Preisanpassung nach einer Tariferhöhung oder ein geänderter Leistungsumfang hat dort heute keinen Weg in den Auftrag. Drei Wege sind denkbar: (a) eine neue Angebotsfassung und ein neuer Auftrag; (b) eine eigene Vertragsänderung am Auftrag mit Betrag, Grund, Datum und Zustimmung des Kunden, wie der Nachtrag im Bau; (c) eine Berichtigung in der Auftragspflege mit Grund und Protokoll. Und: gilt für eine Preisanpassung derselbe Weg wie für einen Tippfehler? **Ausgeliefert ist der gesperrte Wert mit dem ehrlichen Satz:** die Pflegeseite sagt im Bau „Nachtrag", sonst „noch nicht entschieden (O-921)". Die Antwort ändert `wertAenderungsweg`, nicht ihre Aufrufer. | OPS-05, D-667, D-732, V-239, `src/server/services/auftrag/aendern.ts` (`wertAenderungsweg`), `src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx`, `drizzle/0080` |
 | O-931 | **Wird Material aus einer Ausgabe zum Einstandspreis weiterberechnet oder mit Aufschlag — und wenn mit Aufschlag, mit welchem Satz, je Gesellschaft, je Kunde oder je Vertrag?** Seit V-206 hat eine weiterberechenbare, freigegebene Ausgabe einen Weg auf die Rechnung: eine Materialzeile mit der Ausgabe als Beleg (FIN-07, Quelle `material`, höchstens eine wirksame Zeile je Ausgabe über `quelle_ausgabe_uk`). Welcher PREIS darauf steht, ist eine Kalkulationsregel, die niemand festgelegt hat: ein vorbelegter Einstand wäre die stille Antwort „ohne Aufschlag“, ein vorbelegter Aufschlag eine erfundene Marge. **Bis zur Antwort setzt der Mensch den Einzelpreis selbst**; die Maske zeigt den Einstand (Netto der Ausgabe) daneben nur als Auskunft, und `MATERIAL_PREISREGEL` steht als Platzhalter `offen`. Die Antwort ist eine Preisregel hinter dieser Konstante (und gegebenenfalls ein Feld an Gesellschaft, Kunde oder Abrechnungsvereinbarung), plus ein Test. | FIN-07, V-206, D-699, `src/server/services/finanz/entwurf.ts` (`MATERIAL_PREISREGEL`, `fuegeMaterialPositionHinzu`), `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `drizzle/0107` (`quelle_ausgabe_uk`) |
 | O-932 | **Ist der Fertigstellungsgrad einer anteiligen Festpreis-Abrechnung der GESAMTSTAND der Leistung (bisher Berechnetes wird abgezogen) oder der ZUWACHS seit der letzten Rechnung?** Seit V-206 lässt sich ein Pauschalpreis-Los mit `teilleistung = anteilig` über das Rechnungsblatt abrechnen; der Grad kommt von einem Menschen (O-04: er wird nicht geschätzt). Bis V-207 rechnete jede Rechnung Grad × Festpreis, ohne bisher Berechnetes abzuziehen — 30 % und danach 60 % ergaben 90 % des Festpreises. **Ausgeliefert ist der Gesamtstand** (`anteiligerRest`): die Zeile trägt `anteil(Festpreis, Grad) − Summe der wirksamen Zeilen derselben Vereinbarung`, einmal gerundet über den ganzen Stand, und ein Stand ohne Zuwachs blockiert mit einem Befund. Diese Lesart macht aus einer Verwechslung eine sichtbare Unterberechnung (die Vorschau zeigt das bisher Berechnete), die andere eine stille Doppelberechnung. Eine Schlussrechnung zählt die festgeschriebenen Abschläge ihres Auftrags nicht mit, weil sie sie abzieht (FIN-08, D-700 Nr. 5). Zu bestätigen: (1) Gesamtstand oder Zuwachs; (2) ob eine Abschlagsrechnung den Abschlag als kumulierten Stand mit Abzug der Vorabschläge ausweisen soll (§ 16 VOB/B lässt beides zu) — dann gehört die Aufstellung auf den Beleg und nicht nur in die Vorschau. Die Antwort ändert `anteiligerRest` und den Satz der Maske, nicht ihre Aufrufer. | FIN-01, FIN-08, O-04, V-207, D-700, `src/server/services/finanz/abrechnungsart/festpreis-los.ts` (`anteiligerRest`), `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts` (`abrFertigstellung`) |
+| O-933 | **Darf der Leistungsort (Objekt) einer Rechnung einem ANDEREN Kunden zugeordnet sein als dem Rechnungsempfänger — oder muss `objekt.kunde_id` dem Kunden der Rechnung entsprechen?** Übliche Fälle, in denen beides auseinanderfällt: eine Hausverwaltung empfängt die Rechnung für das Haus eines Eigentümers, ein Generalunternehmer für die Baustelle seines Bauherrn, eine Muttergesellschaft für die Niederlassung der Tochter. Bis V-209 prüfte die Plattform beim Leistungsort gar nichts, nicht einmal, ob der Mensch das Objekt sehen darf. **Ausgeliefert ist:** geprüft wird die Sichtbarkeit (`objekt_passt_nicht`, wie beim Auftrag D-698 Nr. 2); die Zugehörigkeit zum Kunden NICHT (`OBJEKT_KUNDE_REGEL = offen`). Die Masken ordnen die Objekte nach Kunden bzw. „dieses Kunden" zuerst, damit eine fremde Wahl sichtbar ist. Zu entscheiden: (1) Sperre, Warnung in der Vorabprüfung oder frei; (2) falls frei, ob der Beleg den abweichenden Leistungsort mit dem Namen seines Kunden ausweisen soll. Die Antwort ändert `pruefeObjektZuordnung` und die Konstante, nicht ihre Aufrufer. | FIN-04, V-209, D-702, `src/server/services/finanz/rechnung.ts` (`OBJEKT_KUNDE_REGEL`, `pruefeObjektZuordnung`), `src/app/portal/[mandant]/finanzen/rechnungen/{neu,[id]}/page.tsx` |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
 | O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
@@ -18399,4 +18400,58 @@ einen Entwurf von Kunde A.
 D-699 Nr. 5 an Ort und Stelle mit Verweis berichtigt.
 
 | Betrifft | FIN-07, D-698, D-699, V-206, V-208, `src/server/services/finanz/entwurf.ts` (`weiterberechenbareAusgaben`, `fuegeMaterialPositionHinzu`), `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts`, `tests/isolation/rechnung-entwurf.test.ts` §6 |
+|---|---|
+
+### D-702 · Die kleinen Punkte des Rechnungsentwurfs: Kopf, Eingaben, Sprache, Leistungsort (V-209)
+
+**Der Befund** (V-209): der unabhängige Prüfer der Gruppe rechnung fand neben
+den zwei blockierenden Punkten (V-207, V-208) fünfzehn kleine. Vier davon
+sind mit V-207/V-208 erledigt (Vorwahl „Material", verdeckter Bezug, Rücknahme
+eines Abzugs mit storniertem Abschlag, Sperre der Übernahme). Die übrigen:
+
+**Die Entscheidung.**
+
+1. **Der Kopf verlässt den Zeitraum der übernommenen Zeilen nicht**
+   (`zeitraum_gebunden`). Zeilen aus der Abrechnungsart tragen den Zeitraum,
+   für den sie übernommen wurden; der Leistungszeitraum des Kopfes muss sie
+   einschließen. Erweitern geht, verschieben oder leeren nicht. Zeilen von
+   Hand und aus der Zeiterfassung wählen ihren Zeitraum selbst und binden
+   nichts.
+2. **Eingaben werden gelesen, nicht an Postgres durchgereicht.** Ein Tag muss
+   als Datum existieren (`istKalendertag`: der 30. Februar ist eine
+   Abweisung, keine 500); ein Fertigstellungsgrad von 0 ist
+   `fertigstellung_ungueltig` („über 0 und bis 100") statt „es fehlt eine
+   Menge"; `aktion=kopf` ohne Rechnungsart ist `unvollstaendig` statt still
+   `standard` — sonst verlor eine Schlussrechnung ihre Art und ihren Abzug.
+3. **Die Abweisung steht dort, wohin der Browser springt.** Die Route führt
+   auf den Anker der Maske zurück; „Nichts wurde gespeichert" steht jetzt im
+   Abschnitt dieser Maske, oben nur ohne bekannte Maske.
+4. **Die Kopfmaske nach einer Abweisung zeigt, was geschickt wurde** — ein
+   bewusst geleertes Feld bleibt leer, statt auf den gespeicherten Wert
+   zurückzufallen.
+5. **Sprache.** „Rechnung anlegen" (Auftragsblatt), der Weg zur Rechnung auf
+   der Abrechnungs- und der Sonderleistungsseite, die Abrechnungsart (mit
+   englischer Erläuterung hinter dem deutschen Fachbegriff) und die Einheit
+   der Vorschau (Bezeichnung statt Schlüssel) folgen der Sprache der Seite.
+   Die Befunde der Abrechnungsregeln bleiben deutsch — sie entstehen in den
+   Strategien als Satz mit Zahlen und Belegnummern, und die englische
+   Überschrift sagt das („in German"); was daneben zählt, die Liste des schon
+   Berechneten (D-700 Nr. 7), ist übersetzt.
+6. **Keine internen Hinweise im Satz.** `kein_entwurf` nennt den Weg (Storno)
+   statt „(Invariante 4)"; die Vorabprüfung zum Zahlungsziel nennt „die
+   Vorgabe der Gesellschaft für das Zahlungsziel" statt des Schlüssels
+   `finanzen.zahlungsziel_tage_standard`; `nicht_uebernommen` hat einen Satz
+   in beiden Sprachen.
+7. **„Rechnung zu diesem Auftrag anlegen" nicht bei einem stornierten
+   Auftrag** — jetzt auch auf der Abrechnungsseite, wie D-698 Nr. 1 sagt.
+8. **Der Leistungsort muss sichtbar sein** (`objekt_passt_nicht`, beim
+   Anlegen und bei einem neuen Objekt im Kopf) — dieselbe Regel wie beim
+   Auftrag (D-698 Nr. 2). Die Auswahl ordnet die Objekte nach Kunden (neuer
+   Entwurf) bzw. „dieses Kunden" zuerst (Kopf). **Ob das Objekt zum Kunden
+   gehören MUSS, entscheidet die Plattform nicht** (O-933,
+   `OBJEKT_KUNDE_REGEL` offen): Hausverwaltung und Eigentümer oder
+   Generalunternehmer und Bauherr sind übliche Fälle, und eine erfundene
+   Sperre bräche sie.
+
+| Betrifft | FIN-04, FIN-05, FIN-07, FIN-08, O-66, O-933, D-599, D-697, D-698, D-699, D-728, V-204, V-205, V-206, V-209, `src/app/api/rechnungen/route.ts`, `src/server/services/finanz/{entwurf,rechnung,ustg14}.ts`, `src/app/portal/[mandant]/finanzen/rechnungen/{[id],neu}/page.tsx`, `src/app/portal/[mandant]/auftraege/[id]/{page,abrechnung/page}.tsx`, `src/app/portal/[mandant]/reinigung/sonderleistungen/page.tsx`, `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts`, `tests/isolation/rechnung-entwurf.test.ts` §2, §5, `tests/isolation/rechnung.test.ts`, `tests/kern/rechnung-entwurf.test.ts` |
 |---|---|

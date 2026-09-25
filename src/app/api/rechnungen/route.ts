@@ -27,6 +27,7 @@ import {
 import { AbrechnungFehler } from '@/server/services/finanz/abrechnungsart/index';
 import { SteuerfallFehler } from '@/server/services/finanz/steuerfall';
 import { maskeMitEingaben } from '@/lib/formular/maske';
+import { istKalendertag } from '@/server/services/auftrag/angaben';
 import { UUID } from '../rumpf';
 
 /**
@@ -67,8 +68,6 @@ const ANKER: Readonly<Record<string, string>> = {
   kopf: 'kopf', position: 'position', 'aus-zeiten': 'zeitzeile',
   'aus-abrechnungsart': 'abrechnungsart',
 };
-
-const TAG = /^\d{4}-\d{2}-\d{2}$/u;
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
@@ -147,10 +146,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (zahl < min || zahl > max) { ungueltig.push(name); return null; }
     return zahl;
   };
+  /*
+   * Ein Kalendertag, der als Datum EXISTIERT (V-209): das Muster allein liess
+   * `2026-02-30` durch, und Postgres warf am `::date` — eine 500.
+   */
   const tagOderNull = (name: string): string | null => {
     const wert = text(name);
     if (wert === null) return null;
-    if (!TAG.test(wert)) { ungueltig.push(name); return null; }
+    if (!istKalendertag(wert)) { ungueltig.push(name); return null; }
     return wert;
   };
   const kennungOderNull = (name: string): string | null => {
@@ -186,6 +189,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   if (ungueltig.length > 0) return abweisung('ungueltig', 400, { felder: ungueltig });
 
+  /*
+   * Der Kopf schickt die Art IMMER mit (V-209): ohne sie setzte `kopf` still
+   * `standard` — aus einer Schlussrechnung wurde eine Standardrechnung, und
+   * ihr Abzug fiel. Nur das Anlegen kennt einen Vorgabewert.
+   */
+  if (aktion === 'kopf' && text('rechnungsart') === null) return abweisung('unvollstaendig', 400);
   const artEingabe = text('rechnungsart') ?? 'standard';
   if (!istEntwurfRechnungsart(artEingabe)) return abweisung('rechnungsart_unbekannt', 400);
   const rechnungsart: EntwurfRechnungsart = artEingabe;
@@ -198,7 +207,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const fertigstellung = text('fertigstellung');
   if (fertigstellung !== null) {
     const p = prozentInBasispunkteOderGrund(fertigstellung, 10_000);
-    if (p.art !== 'ok') return abweisung('fertigstellung_ungueltig', 400);
+    /* Ein Grad von 0 ist keine Teilleistung (V-209) — hier benannt, nicht als „Menge fehlt". */
+    if (p.art !== 'ok' || p.bp === 0) return abweisung('fertigstellung_ungueltig', 400);
     fertigstellungBp = p.bp;
   }
 

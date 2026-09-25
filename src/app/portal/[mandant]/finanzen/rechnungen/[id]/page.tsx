@@ -404,8 +404,8 @@ export default async function Rechnungsblatt(
       const d = { abfrage: kontext.abfrage.bind(kontext) };
       const vorschau = await vorschauAbrechnungsart(d, k.id, zeile);
       return {
-        objekte: await kontext.abfrage<{ id: string; name: string }>(
-          `select id::text as id, bezeichnung as name from objekt
+        objekte: await kontext.abfrage<{ id: string; name: string; kunde_id: string | null }>(
+          `select id::text as id, bezeichnung as name, kunde_id::text as kunde_id from objekt
             where archiviert_am is null order by bezeichnung`),
         auftraege: darf['auftrag.lesen'] === true ? await auftraegeZurAuswahl(d, k.kunde_id) : [],
         vorschau,
@@ -415,7 +415,7 @@ export default async function Rechnungsblatt(
           : { ausgaben: [], abgeschnitten: false, verdeckt: 0 },
       };
     }))) as {
-      objekte: readonly { id: string; name: string }[];
+      objekte: readonly { id: string; name: string; kunde_id: string | null }[];
       auftraege: readonly AuftragAuswahl[];
       vorschau: AbrechnungsVorschau;
       aufmasse: readonly AufmassAuswahl[];
@@ -435,8 +435,14 @@ export default async function Rechnungsblatt(
     maske === m ? vorbelegt(suche, name) : undefined;
   const kopfZurueck = zurueckIn('kopf');
   const posZurueck = zurueckIn('position');
+  /*
+   * Kam die KOPFmaske abgewiesen zurück, gilt, was sie geschickt hat — auch ein
+   * bewusst geleertes Feld (V-209). `maskeMitEingaben` lässt leere Werte weg;
+   * fiele ein fehlender Wert auf den gespeicherten zurück, stünde nach der
+   * Abweisung wieder da, was der Mensch gerade gelöscht hat.
+   */
   const kopfWert = (name: string, db: string | null): string =>
-    kopfZurueck(name) ?? db ?? '';
+    maske === 'kopf' ? (kopfZurueck(name) ?? '') : (db ?? '');
   const kopfArt = ENTWURF_RECHNUNGSARTEN.find((a) => a === kopfWert('rechnungsart', k.rechnungsart))
     ?? 'standard';
   const fehltZeitpunkt = grundOhneLeistungszeitpunkt({
@@ -444,6 +450,23 @@ export default async function Rechnungsblatt(
     leistungBis: k.leistung_bis_tag, vereinnahmungGeplantAm: k.vereinnahmung_tag,
   });
   const rueckweg = `/portal/${mandant}/finanzen/rechnungen/${k.id}`;
+  /*
+   * **Die Abweisung steht dort, wohin der Browser springt** (V-209). Die
+   * Route führt zurück auf den Anker der Maske (`#kopf`, `#abrechnungsart`,
+   * `#zeitzeile`, `#position`); oben auf dem Blatt lag „Nichts wurde
+   * gespeichert" dann außerhalb des Sichtbaren. Ohne bekannte Maske — oder
+   * wenn ihr Abschnitt auf diesem Blatt nicht steht — bleibt sie oben.
+   */
+  const fehlerHinweis = fehler === null ? null : (
+    <Hinweis art="warnung" cse="rechnung-fehler" className="my-s4 max-w-prose">
+      <strong>{e.nichtsGespeichert}</strong>{' '}
+      {eigenerEintrag(e.fehler, fehler) ?? e.abgewiesen}
+    </Hinweis>
+  );
+  const fehlerImAbschnitt = entwurf && ent !== null && (maske === 'kopf'
+    || maske === 'aus-abrechnungsart' || maske === 'position'
+    || (maske === 'aus-zeiten' && daten.leistungen.length > 0));
+  const fehlerOben = fehler !== null && !fehlerImAbschnitt;
   const herkunftVor = posZurueck('herkunft');
   /* Die Herkünfte, die diese Zeile haben KANN — von Hand gibt es immer. */
   const herkuenfte: readonly ('vertrag' | 'material' | 'manuell')[] = [
@@ -634,12 +657,7 @@ export default async function Rechnungsblatt(
         )}
       </dl>
 
-      {fehler === null ? null : (
-        <Hinweis art="warnung" cse="rechnung-fehler" className="mb-s5 max-w-prose">
-          <strong>{e.nichtsGespeichert}</strong>{' '}
-          {eigenerEintrag(e.fehler, fehler) ?? e.abgewiesen}
-        </Hinweis>
-      )}
+      {fehlerOben && fehlerHinweis}
       {hinweis === null || eigenerEintrag(e.hinweis, hinweis) === undefined ? null : (
         <Hinweis art="erfolg" cse="rechnung-hinweis" className="mb-s5 max-w-prose">
           {eigenerEintrag(e.hinweis, hinweis)}
@@ -658,6 +676,7 @@ export default async function Rechnungsblatt(
       {entwurf && ent !== null && (
         <section id="kopf" className="mb-s5 max-w-prose rounded-lg border border-line bg-surface p-s5">
           <h2 className="text-h3 text-text">{e.kopfTitel}</h2>
+          {maske === 'kopf' && fehlerHinweis}
           <p className="mt-s2 text-sm text-text-muted">{e.kopfErklaerung}</p>
           {fehltZeitpunkt === null ? null : (
             <p className="mt-s3 rounded-md border border-warning bg-warning-soft p-s3 text-sm text-warning">
@@ -733,8 +752,21 @@ export default async function Rechnungsblatt(
               {k.objekt_id !== null && !ent.objekte.some((o) => o.id === k.objekt_id) && (
                 <option value={k.objekt_id}>{k.objekt ?? e.nichtGesetzt}</option>
               )}
-              {ent.objekte.map((o) => (
-                <option key={o.id} value={o.id}>{o.name}</option>
+              {/*
+                * V-209: die Objekte des Kunden zuerst, die übrigen darunter —
+                * ob ein fremder Leistungsort zulässig ist, ist offen (O-933).
+                */}
+              {[
+                { schluessel: 'eigene', label: e.objekteDesKunden,
+                  objekte: ent.objekte.filter((o) => o.kunde_id === k.kunde_id) },
+                { schluessel: 'weitere', label: e.objekteWeitere,
+                  objekte: ent.objekte.filter((o) => o.kunde_id !== k.kunde_id) },
+              ].filter((gr) => gr.objekte.length > 0).map((gr) => (
+                <optgroup key={gr.schluessel} label={gr.label}>
+                  {gr.objekte.map((o) => (
+                    <option key={o.id} value={o.id}>{o.name}</option>
+                  ))}
+                </optgroup>
               ))}
             </select>
 
@@ -1186,6 +1218,7 @@ export default async function Rechnungsblatt(
               className="mb-s5 max-w-prose rounded-lg border border-line bg-surface p-s5"
             >
               <h2 className="text-h3 text-text">{e.abrTitel}</h2>
+              {maske === 'aus-abrechnungsart' && fehlerHinweis}
               <p className="mt-s2 text-sm text-text-muted">{e.abrErklaerung}</p>
 
               {ent.vorschau.auftragId === null && ent.vorschau.grund === 'auftrag_passt_nicht' ? (
@@ -1212,7 +1245,8 @@ export default async function Rechnungsblatt(
                   <dl className="mt-s3 grid grid-cols-1 gap-s3 sm:grid-cols-2">
                     <div><dt className="text-xs text-text-muted">{e.abrArt}</dt>
                       <dd className="text-sm text-text">
-                        {ent.vorschau.art.bezeichnung}
+                        {eigenerEintrag(e.abrechnungsartName, ent.vorschau.art.schluessel)
+                          ?? ent.vorschau.art.bezeichnung}
                         {ent.vorschau.art.istProvisorisch && (
                           <span className="text-xs text-warning"> · {e.abrProvisorisch}</span>
                         )}
@@ -1276,7 +1310,10 @@ export default async function Rechnungsblatt(
                               : `${tagInSprache(p.leistungVon, zugang.sprache)} – ${
                                 tagInSprache(p.leistungBis, zugang.sprache)}` },
                           { schluessel: 'menge', kopf: g.menge, numerisch: true,
-                            zelle: (p) => `${formatiereMengeIn(p.menge, zugang.sprache)} ${p.einheit}` },
+                            /* Die Einheit beim Namen, wie auf der Zeile — nicht ihr Schlüssel (V-209). */
+                            zelle: (p) => `${formatiereMengeIn(p.menge, zugang.sprache)} ${
+                              daten.einheiten.find((x) => x.schluessel === p.einheit)?.bezeichnung
+                                ?? p.einheit}` },
                           { schluessel: 'preis', kopf: t.einzelpreis, numerisch: true,
                             zelle: (p) => formatiereGeldIn(p.einzelpreisCent, zugang.sprache) },
                           { schluessel: 'netto', kopf: t.netto, numerisch: true,
@@ -1380,6 +1417,7 @@ export default async function Rechnungsblatt(
           {daten.leistungen.length === 0 ? null : (
             <>
               <h2 id="zeitzeile" className="mb-s3 text-h3 text-text">{t.zeitzeileTitel}</h2>
+              {maske === 'aus-zeiten' && fehlerHinweis}
               <form
                 method="post"
                 action={`/api/rechnungen?mandant=${mandant}`}
@@ -1464,6 +1502,7 @@ export default async function Rechnungsblatt(
           )}
 
           <h2 id="position" className="mb-s3 text-h3 text-text">{t.positionHinzufuegen}</h2>
+          {maske === 'position' && fehlerHinweis}
           <form
             method="post"
             action={`/api/rechnungen?mandant=${mandant}`}

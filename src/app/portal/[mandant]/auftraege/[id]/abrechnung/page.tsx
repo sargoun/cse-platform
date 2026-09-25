@@ -19,6 +19,8 @@ import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { RECHNUNG_ENTWURF_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-entwurf';
 
 /**
  * `/portal/[mandant]/auftraege/[id]/abrechnung` — wie DIESER Auftrag
@@ -53,6 +55,7 @@ interface Kopf {
   readonly auftragsnummer: string;
   readonly bezeichnung: string;
   readonly kunde: string;
+  readonly status: string;
 }
 
 interface Leistungszeile {
@@ -120,7 +123,7 @@ export default async function AuftragAbrechnung(
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
       kopf: (await kontext.abfrage<Kopf>(
-        `select a.auftragsnummer, a.bezeichnung, k.name as kunde
+        `select a.auftragsnummer, a.bezeichnung, k.name as kunde, a.status::text as status
            from auftrag a
            join kunde k on k.mandant_id = a.mandant_id and k.id = a.kunde_id
           where a.id = $1`, [id]))[0] ?? null,
@@ -166,15 +169,18 @@ export default async function AuftragAbrechnung(
         * Rechnungsentwurf dieses Auftrags. Vorher verwies die Seite auf einen
         * „Abrechnungslauf", den es nicht gab.
         */}
-      {darf['finanzen.schreiben'] === true && (
+      {/*
+        * V-209: in der Sprache der Seite, und nicht bei einem stornierten
+        * Auftrag (D-698 Nr. 1) — die Maske böte ihn ohnehin nicht an.
+        */}
+      {darf['finanzen.schreiben'] === true && daten.kopf.status !== 'storniert' && (
         <p className="mb-s5 max-w-prose text-sm text-text-muted" data-cse="abrechnung-rechnungsweg">
-          Gerechnet wird im Rechnungsentwurf dieses Auftrags: Kopf mit Auftrag und
-          Leistungszeitraum, dann „Nach Abrechnungsart übernehmen".{' '}
+          {nachSprache(RECHNUNG_ENTWURF_TEXTE, zugang.sprache).wegAbrechnung}{' '}
           <Link
             href={alsRoute(`/portal/${mandant}/finanzen/rechnungen/neu?auftrag=${id}`)}
             className="underline underline-offset-2"
           >
-            Rechnung zu diesem Auftrag anlegen
+            {nachSprache(RECHNUNG_ENTWURF_TEXTE, zugang.sprache).wegAbrechnungLink}
           </Link>
         </p>
       )}

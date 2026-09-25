@@ -128,6 +128,18 @@ export default async function NeueRechnung(
       auftraege: daten.auftraege.filter((a) => a.kundeId === kid),
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  /*
+   * Die Objekte ebenso (V-209): welcher Leistungsort zu welchem Kunden gehört,
+   * steht an der Gruppe. Ob ein fremder überhaupt zulässig ist, ist offen
+   * (O-933) — abgewiesen wird nur, was der Mensch nicht sehen darf.
+   */
+  const objektGruppen = [...new Set(daten.objekte.map((o) => o.kunde_id))]
+    .map((kid) => ({
+      schluessel: kid ?? 'ohne',
+      name: (kid === null ? undefined : nameJeKunde.get(kid)) ?? e.objekteOhneKunde,
+      objekte: daten.objekte.filter((o) => o.kunde_id === kid),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'de'));
 
   const feld = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
@@ -242,8 +254,12 @@ export default async function NeueRechnung(
           </label>
           <select id="objektId" name="objektId" className={feld} defaultValue={objektVor ?? ''}>
             <option value="">{t.ohneFestenOrt}</option>
-            {daten.objekte.map((o) => (
-              <option key={o.id} value={o.id}>{o.name}</option>
+            {objektGruppen.map((gr) => (
+              <optgroup key={gr.schluessel} label={gr.name}>
+                {gr.objekte.map((o) => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </optgroup>
             ))}
           </select>
 

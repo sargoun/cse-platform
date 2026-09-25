@@ -22,8 +22,10 @@ import {
   grundOhneLeistungszeitpunkt, MATERIAL_PREISREGEL,
 } from '../../src/server/services/finanz/entwurf.js';
 import {
-  ENTWURF_RECHNUNGSARTEN, istEntwurfRechnungsart, istVorauszahlung, type RechnungFehler,
+  ENTWURF_RECHNUNGSARTEN, OBJEKT_KUNDE_REGEL, istEntwurfRechnungsart, istVorauszahlung,
+  type RechnungFehler,
 } from '../../src/server/services/finanz/rechnung.js';
+import { istKalendertag } from '../../src/server/services/auftrag/angaben.js';
 import type { QuellenFehler } from '../../src/server/services/finanz/positionsquelle.js';
 import type { AbrechnungGrund } from '../../src/server/services/finanz/abrechnungsart/index.js';
 import { REGELN, type PruefEingabe } from '../../src/server/services/finanz/ustg14.js';
@@ -101,7 +103,8 @@ const RECHNUNG_GRUENDE: Readonly<Record<RechnungFehler['grund'], true>> = {
   unbekannte_einheit: true, unbekannte_steuergruppe: true, mehrdeutige_steuergruppe: true,
   basismenge_ungueltig: true, kopf_nicht_uebernehmbar: true, leistungszeitpunkt_fehlt: true,
   quelle_passt_nicht: true, auftrag_passt_nicht: true, rechnungsart_unbekannt: true,
-  zeitraum_verkehrt: true, zuordnung_gebunden: true,
+  zeitraum_verkehrt: true, zuordnung_gebunden: true, zeitraum_gebunden: true,
+  objekt_passt_nicht: true,
 };
 const QUELLEN_GRUENDE: Readonly<Record<QuellenFehler['grund'], true>> = {
   ohne_quelle: true, quelle_fehlt: true, schon_abgerechnet: true, anteil_fehlt: true,
@@ -124,7 +127,7 @@ const ROUTE_GRUENDE = [
  */
 const ANDERSWO = new Set([
   'nicht_festgeschrieben', 'ohne_positionen', 'kein_zahlungsziel', 'kein_kreis',
-  'schon_storniert', 'kopf_nicht_uebernehmbar', 'nicht_uebernommen',
+  'schon_storniert', 'kopf_nicht_uebernehmbar',
 ]);
 
 describe('jede Abweisung hat einen Satz — in beiden Sprachen', () => {
@@ -166,6 +169,31 @@ describe('ein Satz der Ausgangsrechnung, eine Schreibweise (D-629, V-202)', () =
     expect(text).not.toMatch(/_bp\s*\/\s*100\b/u);
     expect(text).not.toMatch(/Bp\s*\/\s*100\b/u);
     expect(text).toMatch(/prozentText\(/u);
+  });
+});
+
+describe('die Route liest, statt Postgres raten zu lassen (V-209)', () => {
+  const route = readFileSync(join(WURZEL, 'src/app/api/rechnungen/route.ts'), 'utf8');
+
+  it('ein Tag muss als Datum existieren — der 30. Februar ist eine Abweisung, keine 500', () => {
+    expect(istKalendertag('2026-02-28')).toBe(true);
+    expect(istKalendertag('2026-02-30')).toBe(false);
+    expect(istKalendertag('2026-13-01')).toBe(false);
+    expect(route).toMatch(/if \(!istKalendertag\(wert\)\)/u);
+    expect(route).not.toMatch(/const TAG = /u);
+  });
+
+  it('ein Fertigstellungsgrad von 0 ist keine Teilleistung', () => {
+    expect(route).toMatch(/p\.art !== 'ok' \|\| p\.bp === 0/u);
+  });
+
+  it('der Kopf schickt die Rechnungsart mit — ohne sie wird nicht still „standard"', () => {
+    expect(route).toMatch(
+      /aktion === 'kopf' && text\('rechnungsart'\) === null\) return abweisung\('unvollstaendig'/u);
+  });
+
+  it('der Leistungsort bleibt offen, bis O-933 beantwortet ist', () => {
+    expect(OBJEKT_KUNDE_REGEL).toEqual({ art: 'offen', frage: 'O-933' });
   });
 });
 

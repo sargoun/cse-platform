@@ -335,6 +335,20 @@ describe('§2 der Kopf eines Entwurfs ist änderbar (V-204)', () => {
       await kopfMit(id, { leistungVon: null, leistungBis: null })));
     expect((await kopf(id)).leistung_von).toBeNull();
   });
+
+  it('ein Leistungsort, den es nicht gibt oder den niemand sehen darf, wird abgewiesen — '
+    + 'beim Anlegen und im Kopf (V-209)', async () => {
+    const unbekannt = '00000000-0000-4000-8000-00000000abcd';
+    const anlegen = await fehlerVon(imDienst((d) => legeEntwurfAn(d, {
+      kundeId, objektId: unbekannt, leistungVon: '2026-08-01', leistungBis: '2026-08-31',
+      zahlungszielTage: 30,
+    })));
+    expect(anlegen?.grund).toBe('objekt_passt_nicht');
+    const id = await entwurf();
+    const imKopf = await fehlerVon(imDienst(async (d) => aendereEntwurfKopf(d, id,
+      await kopfMit(id, { objektId: unbekannt }))));
+    expect(imKopf?.grund).toBe('objekt_passt_nicht');
+  });
 });
 
 describe('§3 die Zuordnung zum Auftrag (V-205)', () => {
@@ -551,6 +565,29 @@ describe('§5 die Abrechnungsart rechnet auf einer Rechnung (V-206, FIN-01)', ()
       uebernimmAbrechnungsart(d, id, { auftragLeistungId: leistungId })));
     expect(fehler?.grund).toBe('auftrag_passt_nicht');
   });
+
+  it('der Kopf verlässt den Zeitraum der übernommenen Zeilen nicht — erweitern geht (V-209)',
+    async () => {
+      const auftrag = await pauschalAuftrag();
+      const id = await imDienst((d) => legeEntwurfAn(d, {
+        kundeId, auftragId: auftrag, leistungVon: '2026-08-01', leistungBis: '2026-08-31',
+        zahlungszielTage: 30,
+      }));
+      await imDienst((d) => uebernimmAbrechnungsart(d, id, {}));
+
+      for (const [von, bis] of [['2026-09-01', '2026-09-30'], ['2026-08-15', '2026-09-15'],
+        [null, null]] as const) {
+        const fehler = await fehlerVon(imDienst(async (d) => aendereEntwurfKopf(d, id,
+          await kopfMit(id, { leistungVon: von, leistungBis: bis }))));
+        expect(fehler?.grund, `${String(von)} bis ${String(bis)}`).toBe('zeitraum_gebunden');
+      }
+      expect((await kopf(id)).leistung_von).toBe('2026-08-01');
+
+      await imDienst(async (d) => aendereEntwurfKopf(d, id,
+        await kopfMit(id, { leistungVon: '2026-07-01', leistungBis: '2026-09-30' })));
+      expect([(await kopf(id)).leistung_von, (await kopf(id)).leistung_bis])
+        .toEqual(['2026-07-01', '2026-09-30']);
+    });
 });
 
 describe('§6 Material aus einer Ausgabe (V-206, FIN-07)', () => {

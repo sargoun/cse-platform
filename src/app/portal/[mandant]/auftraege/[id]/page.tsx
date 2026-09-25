@@ -21,6 +21,7 @@ import { kennungOder404 } from '../../../kennung';
 import { haeltRechte } from '../../../rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
+import { RECHNUNG_ENTWURF_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-entwurf';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import { VorgangAkte } from '@/components/portal/VorgangAkte';
@@ -380,7 +381,7 @@ export default async function AuftragDetail(
             data-cse="rechnung-anlegen"
             className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
           >
-            Rechnung anlegen
+            {nachSprache(RECHNUNG_ENTWURF_TEXTE, zugang.sprache).wegRechnungAnlegen}
           </Link>
         )}
       </nav>

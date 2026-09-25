@@ -77,7 +77,14 @@ export class RechnungFehler extends Error {
       | 'auftrag_passt_nicht'
       | 'rechnungsart_unbekannt'
       | 'zeitraum_verkehrt'
-      | 'zuordnung_gebunden',
+      | 'zuordnung_gebunden'
+      /*
+       * V-209 (D-702): Zeilen aus der Abrechnungsart tragen den Zeitraum,
+       * für den sie übernommen wurden — der Kopf verlässt ihn nicht.
+       */
+      | 'zeitraum_gebunden'
+      /* V-209 (D-702): ein Leistungsort, den dieser Mensch nicht sieht. */
+      | 'objekt_passt_nicht',
   ) {
     super(nachricht);
     this.name = 'RechnungFehler';
@@ -244,6 +251,43 @@ export async function pruefeAuftragZuordnung(
   }
 }
 
+/**
+ * // TODO(client, O-933): Darf der Leistungsort einer Rechnung ein Objekt
+ * sein, das einem ANDEREN Kunden zugeordnet ist als dem Rechnungsempfänger
+ * (Hausverwaltung und Eigentümer, Generalunternehmer und Bauherr, eine
+ * Muttergesellschaft, die für die Tochter bezahlt) — oder muss
+ * `objekt.kunde_id` dem Kunden der Rechnung entsprechen?
+ *
+ * Bis zur Antwort weist die Plattform NICHT ab: `offen`. Die Masken ordnen die
+ * Objekte des Kunden zuerst und die übrigen darunter, damit die Wahl
+ * sichtbar ist; geprüft wird nur, ob der Mensch das Objekt sehen darf.
+ */
+export const OBJEKT_KUNDE_REGEL: { readonly art: 'offen'; readonly frage: 'O-933' } = {
+  art: 'offen', frage: 'O-933',
+};
+
+/**
+ * **Ein Leistungsort, den dieser Mensch sehen darf** (V-209, D-702).
+ *
+ * Der Fremdschlüssel prüft nur „dieselbe Gesellschaft" — und er läuft an der
+ * RLS vorbei. Ohne diese Prüfung liesse sich über eine gebastelte Anfrage ein
+ * Objekt auf den Beleg schreiben, das die Auswahl nie angeboten hätte (ein
+ * Objekt unter `objekt.lesen`, das diese Sitzung nicht hält). Dieselbe Regel
+ * wie beim Auftrag (D-698 Nr. 2): wer zuordnet, muss sehen, was er zuordnet.
+ * Ob das Objekt zum Kunden gehören MUSS, ist offen (`OBJEKT_KUNDE_REGEL`).
+ */
+export async function pruefeObjektZuordnung(db: Abfrage, objektId: string): Promise<void> {
+  const [o] = await db.abfrage<{ id: string }>(
+    `select id::text as id from objekt where id = $1::uuid`, [objektId]);
+  if (o === undefined) {
+    throw new RechnungFehler(
+      'Dieses Objekt gibt es in dieser Gesellschaft nicht — oder es ist für Sie nicht '
+      + 'sichtbar.',
+      'objekt_passt_nicht',
+    );
+  }
+}
+
 /** Ein Zeitraum, der vor seinem Beginn endet, ist kein Zeitraum. */
 export function pruefeZeitraum(
   von: string | null | undefined, bis: string | null | undefined,
@@ -267,6 +311,9 @@ export async function legeEntwurfAn(db: Abfrage, eingabe: EntwurfAnlegen): Promi
   pruefeZeitraum(eingabe.leistungVon, eingabe.leistungBis);
   const auftragId = eingabe.auftragId ?? null;
   if (auftragId !== null) await pruefeAuftragZuordnung(db, eingabe.kundeId, auftragId);
+  /* V-209: ein Leistungsort, den dieser Mensch sehen darf. */
+  const objektId = eingabe.objektId ?? null;
+  if (objektId !== null) await pruefeObjektZuordnung(db, objektId);
   const ziel = eingabe.zahlungszielTage ?? await ermittleZahlungsziel(db, eingabe.kundeId);
 
   const [zeile] = await db.abfrage<{ id: string }>(
@@ -278,7 +325,7 @@ export async function legeEntwurfAn(db: Abfrage, eingabe: EntwurfAnlegen): Promi
              $5::date, $6::date, $11::date,
              $7, $8, $9, $10, 'mensch', app.aktueller_benutzer())
      returning id`,
-    [eingabe.kundeId, eingabe.objektId ?? null, auftragId,
+    [eingabe.kundeId, objektId, auftragId,
      art, eingabe.leistungVon ?? null, eingabe.leistungBis ?? null,
      ziel, zahlungsmittelCode(eingabe.zahlungsmittelCode),
      eingabe.kopftext ?? null, eingabe.fusstext ?? null,

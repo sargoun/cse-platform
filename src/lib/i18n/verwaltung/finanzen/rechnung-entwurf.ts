@@ -80,6 +80,21 @@ export interface RechnungEntwurfTexte {
   readonly ausgabenAbgeschnitten: (hoechstens: number) => string;
   readonly ausgabenBezugVerdeckt: (n: number) => string;
 
+  /* ── Die Wege zur Rechnung auf Auftrag, Abrechnung und Abruf (V-209) ── */
+  readonly wegRechnungAnlegen: string;
+  readonly wegAbrechnung: string;
+  readonly wegAbrechnungLink: string;
+  readonly wegAbrufVor: string;
+  readonly wegAbrufErbracht: string;
+  readonly wegAbrufNach: string;
+  /** Die Abrechnungsart in der Sprache der Seite — der Schlüssel aus `0086`. */
+  readonly abrechnungsartName: Readonly<Record<string, string>>;
+
+  /* V-209: die Objekte nach Kunden geordnet (O-933). */
+  readonly objekteDesKunden: string;
+  readonly objekteWeitere: string;
+  readonly objekteOhneKunde: string;
+
   /* ── Rückmeldungen ───────────────────────────────────────────────── */
   readonly nichtsGespeichert: string;
   readonly abgewiesen: string;
@@ -197,6 +212,29 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
         + 'die Sie nicht sehen dürfen. Ob sie zu dieser Rechnung passen, lässt sich so nicht '
         + 'prüfen — sie werden nicht angeboten.'),
 
+    wegRechnungAnlegen: 'Rechnung anlegen',
+    wegAbrechnung:
+      'Gerechnet wird im Rechnungsentwurf dieses Auftrags: Kopf mit Auftrag und '
+      + 'Leistungszeitraum, dann „Nach Abrechnungsart übernehmen".',
+    wegAbrechnungLink: 'Rechnung zu diesem Auftrag anlegen',
+    wegAbrufVor: 'Abgerechnet wird ein ',
+    wegAbrufErbracht: 'erbrachter',
+    wegAbrufNach:
+      ' Abruf mit Vertragszeile im Rechnungsentwurf seines Auftrags: Abrechnungsart '
+      + '„Einzelabruf“ am Auftrag, dann auf der Rechnung „Nach Abrechnungsart übernehmen“ '
+      + 'für den Leistungszeitraum. Nach dem Festschreiben steht er als abgerechnet hier.',
+    abrechnungsartName: {
+      stundenbasiert: 'Stundenlohn',
+      monatspauschale: 'Monatspauschale',
+      festpreis_los: 'Pauschalpreis-Los',
+      einheitspreis_aufmass: 'Einheitspreis nach Aufmaß',
+      einzelabruf: 'Einzelabruf',
+    },
+
+    objekteDesKunden: 'Objekte dieses Kunden',
+    objekteWeitere: 'Weitere Objekte (anderer oder kein Kunde, O-933)',
+    objekteOhneKunde: 'Ohne Kunde',
+
     nichtsGespeichert: 'Nichts wurde gespeichert.',
     abgewiesen: 'Der Vorgang wurde abgewiesen.',
     fehler: {
@@ -215,7 +253,16 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       zuordnung_gebunden:
         'Der Auftrag lässt sich nicht mehr wechseln: an Zeilen dieses Entwurfs hängen '
         + 'Belege aus dem bisherigen Auftrag. Den Entwurf verwerfen und neu anlegen.',
-      kein_entwurf: 'Dieser Beleg ist kein Entwurf mehr und ändert sich nicht (Invariante 4).',
+      objekt_passt_nicht:
+        'Dieses Objekt gibt es in dieser Gesellschaft nicht, oder es ist für Sie nicht '
+        + 'sichtbar.',
+      zeitraum_gebunden:
+        'Der Leistungszeitraum muss die Zeilen aus der Abrechnungsart einschließen — sie '
+        + 'wurden für ihren Zeitraum übernommen. Erweitern geht, verschieben nicht; sonst '
+        + 'den Entwurf verwerfen und neu anlegen.',
+      kein_entwurf:
+        'Dieser Beleg ist kein Entwurf mehr und ändert sich nicht. Berichtigt wird er durch '
+        + 'ein Storno.',
       nicht_gefunden: 'Diesen Beleg gibt es nicht.',
       unbekannte_steuergruppe:
         'Eine Steuergruppe gilt am Leistungsdatum nicht. Der Satz einer Zeile wird '
@@ -231,6 +278,9 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       ohne_quelle:
         'Eine von Hand erfasste Zeile braucht eine Begründung (mindestens drei Zeichen).',
       schon_abgerechnet: 'Dieser Beleg ist schon auf einer Rechnungszeile abgerechnet.',
+      nicht_uebernommen:
+        'Die Herkunft der Zeile ließ sich nicht vollständig übernehmen — ein innerer '
+        + 'Widerspruch, kein Eingabefehler. Bitte den Betrieb der Plattform informieren.',
       anteil_fehlt: 'Ein Aufmaß wird anteilig abgerechnet — die Menge fehlt.',
       keine_abrechnungsart:
         'Für den Auftrag ist im Leistungszeitraum keine Abrechnungsart hinterlegt — oder '
@@ -248,7 +298,7 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       keine_menge: 'Der Abrechnung fehlt eine Menge oder ein lesbarer Zeitraum.',
       ausserhalb_lv: 'Eine Aufmaßzeile liegt außerhalb des Leistungsverzeichnisses.',
       fertigstellung_ungueltig:
-        'Der Fertigstellungsgrad ist keine Prozentangabe zwischen 0 und 100.',
+        'Der Fertigstellungsgrad ist keine Prozentangabe über 0 und bis 100.',
       kennung_ungueltig: 'Eine Auswahl war nicht lesbar.',
     },
     hinweis: {
@@ -369,6 +419,30 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       : `${String(n)} more open expenses are linked to orders, projects or sites you may `
         + 'not see. Whether they fit this invoice cannot be checked — they are not offered.'),
 
+    wegRechnungAnlegen: 'Create invoice',
+    wegAbrechnung:
+      'Billing happens in the invoice draft of this order: header with order and supply '
+      + 'period, then “Take over by billing type”.',
+    wegAbrechnungLink: 'Create an invoice for this order',
+    wegAbrufVor: 'A ',
+    wegAbrufErbracht: 'completed',
+    wegAbrufNach:
+      ' call-off with a contract line is billed in the invoice draft of its order: billing '
+      + 'type “Einzelabruf” (single call-off) on the order, then “Take over by billing '
+      + 'type” on the invoice for the supply period. After Festschreibung (finalisation) '
+      + 'it is shown here as billed.',
+    abrechnungsartName: {
+      stundenbasiert: 'Stundenlohn (hourly rate)',
+      monatspauschale: 'Monatspauschale (monthly flat fee)',
+      festpreis_los: 'Pauschalpreis-Los (fixed-price lot)',
+      einheitspreis_aufmass: 'Einheitspreis nach Aufmaß (unit price by measurement)',
+      einzelabruf: 'Einzelabruf (single call-off)',
+    },
+
+    objekteDesKunden: 'Sites of this customer',
+    objekteWeitere: 'Other sites (other or no customer, O-933)',
+    objekteOhneKunde: 'No customer',
+
     nichtsGespeichert: 'Nothing was saved.',
     abgewiesen: 'The request was rejected.',
     fehler: {
@@ -386,8 +460,15 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       zuordnung_gebunden:
         'The order can no longer be changed: lines of this draft carry evidence from '
         + 'the previous order. Discard the draft and create a new one.',
+      objekt_passt_nicht:
+        'This site does not exist in this company, or it is not visible to you.',
+      zeitraum_gebunden:
+        'The supply period must include the lines taken over by billing type — they were '
+        + 'taken over for their period. Extending works, shifting does not; otherwise '
+        + 'discard the draft and create a new one.',
       kein_entwurf:
-        'This document is no longer a draft and does not change (invariant 4).',
+        'This document is no longer a draft and does not change. It is corrected by a '
+        + 'cancellation (Storno).',
       nicht_gefunden: 'This document does not exist.',
       unbekannte_steuergruppe:
         'A tax group is not valid on the date of supply. The rate of a line is not '
@@ -403,6 +484,9 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       ohne_quelle:
         'A line entered by hand needs a justification (at least three characters).',
       schon_abgerechnet: 'This evidence is already billed on an invoice line.',
+      nicht_uebernommen:
+        'The origin of the line could not be taken over completely — an internal '
+        + 'inconsistency, not an input error. Please inform the platform operators.',
       anteil_fehlt: 'An Aufmaß is billed proportionally — the quantity is missing.',
       keine_abrechnungsart:
         'No billing type is stored for the order in the supply period — or several on '
@@ -418,7 +502,8 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       kein_preis: 'The billing lacks an agreed price.',
       keine_menge: 'The billing lacks a quantity or a readable period.',
       ausserhalb_lv: 'An Aufmaß line lies outside the bill of quantities.',
-      fertigstellung_ungueltig: 'The degree of completion is not a percentage from 0 to 100.',
+      fertigstellung_ungueltig:
+        'The degree of completion is not a percentage above 0 and up to 100.',
       kennung_ungueltig: 'A selection could not be read.',
     },
     hinweis: {

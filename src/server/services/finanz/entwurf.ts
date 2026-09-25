@@ -3,7 +3,8 @@ import type { Cent } from './geld.js';
 import type { MilliMenge } from './menge.js';
 import {
   RechnungFehler, ermittleZahlungsziel, fuegePositionHinzu, istEntwurfRechnungsart,
-  istVorauszahlung, pruefeAuftragZuordnung, pruefeZeitraum, schreibeSummen,
+  istVorauszahlung, pruefeAuftragZuordnung, pruefeObjektZuordnung, pruefeZeitraum,
+  schreibeSummen,
   type Abfrage, type EntwurfRechnungsart,
 } from './rechnung.js';
 import { QuellenFehler } from './positionsquelle.js';
@@ -121,6 +122,7 @@ interface KopfAlt {
   readonly status: string;
   readonly kunde_id: string;
   readonly auftrag_id: string | null;
+  readonly objekt_id: string | null;
   readonly rechnungsart: string;
 }
 
@@ -144,7 +146,8 @@ export async function aendereEntwurfKopf(
 ): Promise<KopfErgebnis> {
   const [alt] = await db.abfrage<KopfAlt>(
     `select status::text as status, kunde_id::text as kunde_id,
-            auftrag_id::text as auftrag_id, rechnungsart::text as rechnungsart
+            auftrag_id::text as auftrag_id, objekt_id::text as objekt_id,
+            rechnungsart::text as rechnungsart
        from rechnung where id = $1::uuid for update`,
     [rechnungId],
   );
@@ -187,7 +190,15 @@ export async function aendereEntwurfKopf(
     }
     await pruefeZuordnungFrei(db, rechnungId);
   }
+  /*
+   * V-209: ein NEUER Leistungsort muss sichtbar sein — ein unveränderter wird
+   * nicht neu geprüft (auch ein inzwischen archivierter bleibt stehen).
+   */
+  if (kopf.objektId !== null && kopf.objektId !== alt.objekt_id) {
+    await pruefeObjektZuordnung(db, kopf.objektId);
+  }
 
+  await pruefeZeitraumGebunden(db, rechnungId, kopf.leistungVon, kopf.leistungBis);
   await pruefeSaetzeAmStichtag(db, rechnungId, kopf.leistungVon, kopf.leistungBis, vereinnahmung);
 
   /*
@@ -270,6 +281,44 @@ async function pruefeZuordnungFrei(db: Abfrage, rechnungId: string): Promise<voi
       + '(Zeiterfassung, Vertragszeile, Aufmaß, Abruf oder Ausgabe). Der Auftrag lässt '
       + 'sich deshalb nicht mehr wechseln — den Entwurf verwerfen und neu anlegen.',
       'zuordnung_gebunden',
+    );
+  }
+}
+
+/**
+ * **Schließt der neue Zeitraum die Zeilen aus der Abrechnungsart ein?**
+ * (V-209, D-702)
+ *
+ * Eine Zeile aus der Abrechnungsart wurde für den Leistungszeitraum des
+ * Kopfes übernommen und trägt ihn selbst (`leistung_von`/`leistung_bis`,
+ * Herkunftsnotiz). Verschöbe der Kopf ihn danach — Zeilen über August, der
+ * Beleg über September —, widerspräche sich der Beleg (D-699 Nr. 1), und
+ * derselbe August stünde auf der nächsten Rechnung zur Übernahme bereit, nur
+ * gebremst durch die Sperre über Belege (D-700). Erweitern bleibt erlaubt:
+ * ein Beleg über August und September, dessen Zeilen im August liegen, sagt
+ * nichts Falsches. Zeilen von Hand und aus der Zeiterfassung wählen ihren
+ * Zeitraum selbst und binden den Kopf nicht.
+ */
+async function pruefeZeitraumGebunden(
+  db: Abfrage, rechnungId: string, von: string | null, bis: string | null,
+): Promise<void> {
+  const [ausserhalb] = await db.abfrage<{ von: string | null; bis: string | null }>(
+    `select to_char(p.leistung_von, 'DD.MM.YYYY') as von,
+            to_char(p.leistung_bis, 'DD.MM.YYYY') as bis
+       from rechnungsposition p
+      where p.rechnung_id = $1::uuid and p.vertrag_abrechnung_id is not null
+        and ($2::date is null or $3::date is null
+             or p.leistung_von is null or p.leistung_bis is null
+             or p.leistung_von < $2::date or p.leistung_bis > $3::date)
+      order by p.position_nr
+      limit 1`,
+    [rechnungId, von, bis]);
+  if (ausserhalb !== undefined) {
+    throw new RechnungFehler(
+      `Eine Zeile aus der Abrechnungsart gilt für ${ausserhalb.von ?? '?'} bis `
+      + `${ausserhalb.bis ?? '?'}; der Leistungszeitraum des Kopfes muss sie einschließen. `
+      + 'Erweitern geht, verschieben nicht — sonst den Entwurf verwerfen und neu anlegen.',
+      'zeitraum_gebunden',
     );
   }
 }
