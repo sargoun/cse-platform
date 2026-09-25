@@ -7,6 +7,12 @@ import { legeAngebotVonHandAn, type HandPosition }
 import {
   EntwurfFehler, berichtigePosition, entfernePosition, ziehEntwurfZurueck,
 } from '../../src/server/services/angebot/entwurf.js';
+import {
+  lebendeLeistungenZahl, positionenFuerDokument, steuerJeSatzVorVersand,
+} from '../../src/server/services/angebot/lebend.js';
+import {
+  listeKundenangebote, positionenZumAngebot,
+} from '../../src/server/services/kundenportal/angebot.js';
 
 /**
  * **Ein Angebotsentwurf lässt sich berichtigen und zurückziehen** — gegen
@@ -41,6 +47,8 @@ import {
  *     nichts mehr hinaus, und wiederbelebt wird er nicht.
  *  §5 Ein VERSENDETES Angebot bleibt unveränderlich — die Trennlinie hält.
  *  §6 Die Steuerzeilen beim Versand zählen keine entfernte Position mit.
+ *  §7 Und kein LESER zeigt sie noch (V-203): nicht das Dokument, nicht die
+ *     Preisfreigabe, nicht das Kundenportal — auch nicht an ihm vorbei.
  *
  * §6 ist die teuerste: sie wiese dem Kunden Umsatzsteuer auf eine Leistung
  * aus, die im Angebot gar nicht steht — und sie friert diese Zahl in
@@ -142,7 +150,7 @@ beforeAll(async () => {
      values ($1,$2,(select id from rolle where schluessel = 'leitung' and mandant_id is null),
              true)`, [leitung, f.security]);
   for (const r of ['angebot.lesen', 'angebot.schreiben', 'angebot.versenden',
-                   'angebot.preis_freigeben']) {
+                   'angebot.preis_freigeben', 'system.benutzer_verwalten']) {
     await sql.unsafe(
       `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
        values ((select id from rolle where schluessel = 'leitung' and mandant_id is null),
@@ -412,5 +420,92 @@ describe('§6 die Steuerzeilen beim Versand zählen keine entfernte Position', (
         `update angebot set versendet_am = now(), angebotsnummer = $2
           where id = $1::uuid`, [id, `AN-${zufall()}`])))
         .rejects.toThrow(/ohne Leistungsposition geht nicht hinaus/u);
+    });
+});
+
+describe('§7 kein Leser zeigt eine entfernte Position (V-203)', () => {
+  /**
+   * Der Befund: das Dokument druckte die entfernte Zeile mit Preis, das
+   * Kundenportal zeigte sie dem Kunden und zählte sie mit, und die
+   * Preisfreigabe summierte sie ins Netto je Steuersatz — direkt neben einem
+   * Kopfbetrag ohne sie. Hier steht jede Zahl gegen `netto_cent` und
+   * `angebot_steuer`, die beiden Summen der Datenbank.
+   */
+  async function dreiZeilenEineWeg(): Promise<{ id: string; weg: string }> {
+    const id = await entwurf(
+      zeile({ kurztext: 'Objektschutz Tag', menge: '10' }),
+      zeile({ kurztext: 'Irrtum — gehört nicht hierher', menge: '100' }),
+      zeile({ kurztext: 'Revierfahrt', menge: '4', steuersatzSchluessel: 'ust_07' }));
+    const weg = (await posten(id)).find((p) => p.kurztext.startsWith('Irrtum'))!;
+    await imKontext((k) => entfernePosition(k, weg.id, leitung));
+    return { id, weg: weg.id };
+  }
+
+  const summe = (werte: readonly string[]): bigint =>
+    werte.reduce((a, w) => a + BigInt(w), 0n);
+
+  it('die Preisfreigabe zeigt das Netto, das beim Versand eingefroren wird', async () => {
+    const { id } = await dreiZeilenEineWeg();
+    const vorschau = await imKontext((k) => steuerJeSatzVorVersand(k, id));
+    expect(summe(vorschau.map((z) => z.netto_cent))).toBe(await netto(id));
+    expect(vorschau.map((z) => Number(z.zeilen))).toEqual([1, 1]);
+
+    const [kopf] = await imKontext((k) => k.abfrage<{ positionen: string }>(
+      `select ${lebendeLeistungenZahl('a')}::text as positionen
+         from angebot a where a.id = $1::uuid`, [id]));
+    expect(kopf!.positionen).toBe('2');
+
+    await versende(id);
+    const eingefroren = await sql.unsafe<{ steuersatz_bp: number; netto_cent: string }[]>(
+      `select steuersatz_bp, netto_cent::text from angebot_steuer
+        where angebot_id = $1 order by steuersatz_bp`, [id]);
+    expect(eingefroren.map((z) => [z.steuersatz_bp, z.netto_cent]))
+      .toEqual(vorschau.map((z) => [z.steuersatz_bp, z.netto_cent]));
+  });
+
+  it('das Dokument druckt zwei Zeilen, und sie ergeben das Netto', async () => {
+    const { id, weg } = await dreiZeilenEineWeg();
+    await versende(id);
+    const zeilen = await imKontext((k) => positionenFuerDokument(k, id));
+    expect(zeilen.map((z) => z.id)).not.toContain(weg);
+    expect(zeilen).toHaveLength(2);
+    expect(summe(zeilen.map((z) => z.gesamtpreis_cent))).toBe(await netto(id));
+  });
+
+  it('das Kundenportal zeigt und zählt sie nicht — und die Policy gibt sie nicht her',
+    async () => {
+      const { id, weg } = await dreiZeilenEineWeg();
+      await versende(id);
+      const [z] = await alsApp(
+        { scope: 'mandant' as const, mandantId: f.security, benutzerId: leitung,
+          portal: 'intern' as const, readonly: false },
+        async (tx) => tx.unsafe<{ ok: boolean; konto_id: string | null }[]>(
+          `select ok, konto_id from app.kundenzugang_ausstellen($1::uuid, $2, $3, $4)`,
+          [kundeId, `portal-${zufall()}@hv.test`, 'Bernd Beispiel',
+            'a'.repeat(64)]));
+      expect(z!.ok).toBe(true);
+      const kundensitzung = {
+        scope: 'kunde' as const, mandantIds: [f.security], benutzerId: z!.konto_id!,
+        portal: 'kunde' as const, readonly: true,
+      };
+      const ergebnis = await alsApp(kundensitzung, async (tx) => {
+        const k = {
+          abfrage: async <T,>(s: string, w: readonly unknown[] = []) =>
+            (await tx.unsafe(s, w as never[])) as readonly T[],
+        };
+        const roh = await tx.unsafe<{ id: string }[]>(
+          `select id from angebotsposition where angebot_id = $1`, [id]);
+        return {
+          liste: await listeKundenangebote(k),
+          positionen: await positionenZumAngebot(k, id),
+          roh,
+        };
+      });
+      expect(ergebnis.positionen.map((p) => p.id)).not.toContain(weg);
+      expect(ergebnis.positionen).toHaveLength(2);
+      expect(ergebnis.liste.find((a) => a.id === id)?.positionen).toBe(2);
+      /* Die zweite Linie (0440): auch ohne den Dienst keine entfernte Zeile. */
+      expect(ergebnis.roh.map((r) => r.id)).not.toContain(weg);
+      expect(ergebnis.roh).toHaveLength(2);
     });
 });

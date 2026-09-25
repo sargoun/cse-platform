@@ -3,6 +3,7 @@ import {
   GESELLSCHAFT_SPALTEN, GRENZE,
   type Gesellschaft, type GesellschaftRoh, type KundenAbfrage,
 } from './basis.js';
+import { lebendeLeistungenZahl } from '../angebot/lebend.js';
 
 /**
  * Die eigenen Angebote eines Kunden (OPS-08, OPS-09, 04-SEITENKARTE §8).
@@ -108,8 +109,7 @@ const SPALTEN = `
   a.netto_cent::text as netto_cent,
   to_char(a.entschieden_am at time zone 'Europe/Berlin', 'DD.MM.YYYY') as entschieden_lokal,
   ${GESELLSCHAFT_SPALTEN},
-  (select count(*) from angebotsposition p
-    where p.angebot_id = a.id and p.typ = 'leistung')::int as positionen`;
+  ${lebendeLeistungenZahl('a')}::int as positionen`;
 
 /**
  * `left join angebot vor` — der Vorgaenger kann ein ENTWURF sein.
@@ -246,7 +246,7 @@ export async function positionenZumAngebot(
             o.bezeichnung as objekt_bezeichnung
        from angebotsposition p
        left join objekt o on o.mandant_id = p.mandant_id and o.id = p.objekt_id
-      where p.angebot_id = $1::uuid
+      where p.angebot_id = $1::uuid and p.entfernt_am is null
       order by p.sortierung, p.position_nr
       limit ${GRENZE}`,
     [angebotId],

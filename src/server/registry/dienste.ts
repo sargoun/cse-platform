@@ -261,6 +261,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'angebot.schreiben',
   },
   /**
+   * Die lebenden Positionen eines Angebots (V-203, D-696) — nur lesend. Der
+   * Filter auf `entfernt_am` steht hier einmal, und Dokument, Freigabe,
+   * Versand und Kundenportal fragen ihn ab.
+   */
+  { modul: 'angebot', pfad: 'angebot/lebend', schreibend: false },
+  /**
    * Der Tabellenleser liest nur; der Import SCHREIBT — und zwar zweimal
    * verschieden: die Vorschau legt Zwischenzeilen an, die Uebernahme aendert
    * das lebende Raumbuch. Beide tragen dasselbe Recht, weil beide eine Datei

@@ -4,6 +4,8 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
+import { prozentText } from '@/server/services/finanz/prozent';
+import { positionenFuerDokument, type DokumentPosition } from '@/server/services/angebot/lebend';
 import { FARBEN_DRUCK, FARBEN_MARKE, MASSE_DRUCK } from '@/lib/design/theme';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
@@ -82,17 +84,8 @@ interface Kopf {
   readonly m_bank: string | null;
 }
 
-interface PositionZeile {
-  readonly id: string;
-  readonly position_nr: number;
-  readonly typ: string;
-  readonly kurztext: string;
-  readonly langtext: string | null;
-  readonly menge: string | null;
-  readonly einheit: string | null;
-  readonly einzelpreis_cent: string | null;
-  readonly gesamtpreis_cent: string;
-}
+/** Nur lebende Positionen — eine entfernte gehört nicht aufs Blatt (V-203). */
+type PositionZeile = DokumentPosition;
 
 interface SteuerZeile {
   readonly steuersatz_bp: number;
@@ -154,10 +147,7 @@ export default async function Angebotsdokument(
            left join objekt o on o.id = a.objekt_id
           where a.id = $1`, [id]);
       if (kopf === undefined) return null;
-      const positionen = await kontext.abfrage<PositionZeile>(
-        `select id, position_nr, typ::text as typ, kurztext, langtext, menge::text,
-                einheit, einzelpreis_cent::text, gesamtpreis_cent::text
-           from angebotsposition where angebot_id = $1 order by position_nr`, [id]);
+      const positionen = await positionenFuerDokument(kontext, id);
       const steuer = await kontext.abfrage<SteuerZeile>(
         `select steuersatz_bp, netto_cent::text, steuer_cent::text, hinweistext
            from angebot_steuer where angebot_id = $1 order by steuersatz_bp`, [id]);
@@ -306,7 +296,7 @@ export default async function Angebotsdokument(
           {steuer.map((z) => (
             <tr key={z.steuersatz_bp}>
               <td colSpan={4} className="zahl">
-                {`Umsatzsteuer ${(z.steuersatz_bp / 100).toLocaleString('de-DE')} %`}
+                {`Umsatzsteuer ${prozentText(z.steuersatz_bp)}`}
               </td>
               <td className="zahl">{formatiereGeld(cent(BigInt(z.steuer_cent)))}</td>
             </tr>

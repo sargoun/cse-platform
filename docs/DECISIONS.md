@@ -18080,3 +18080,45 @@ Ablaufentscheidungen, die neu sind.
 
 | Betrifft | V-240, V-144, V-153, D-599, D-668, D-669, RAD-09, OPS-04, OPS-07, OPS-11, Invariante 2, `src/server/services/finanz/{geld,menge}.ts`, `src/lib/datum/kalendertag.ts`, `src/server/services/kern/aufgabe.ts`, `src/server/services/dokument/vorgang.ts`, `src/components/portal/VorgangAkte.tsx`, `src/server/services/objekt/anlegen.ts`, `src/app/api/{uebergang.ts,objekt/route.ts,auftrag/aendern/route.ts,angebot/entscheidung/route.ts}`, `src/server/services/raumbuch/tabelle.ts`, `src/lib/i18n/verwaltung/{objekte,vorgang-akte,angebot-hand}.ts` |
 |---|---|
+
+### D-696 · Ein Angebot druckt, zeigt und zählt nur, was darauf steht — und schreibt den Satz wie das Kundenportal (V-202, V-203)
+
+**Der Befund** (V-203; V-202): seit 0392 (V-130, D-626) wird eine Position aus
+einem Angebotsentwurf nicht gelöscht, sondern mit `entfernt_am` markiert, und
+die beiden Summen der Datenbank — `angebot.netto_cent` und die beim Versand
+eingefrorene `angebot_steuer` — zählen nur lebende Zeilen. Die Leser hatten
+den Filter nicht bekommen: das Angebotsdokument (`/angebote/[id]/pdf`)
+druckte die entfernte Zeile mit Menge und Preis unter einer Netto-Zeile ohne
+sie, das Kundenportal zeigte sie dem Kunden und zählte sie in der Liste mit,
+und die Preisfreigabe zeigte das Netto je Steuersatz einschliesslich der
+entfernten Zeile neben `netto_cent` ohne sie — freigegeben wurde eine Zahl,
+die so nie hinausging. Versandseite und Versanddienst zählten ebenso. Die
+Kundenpolicy `t_kunde` (0024) gab dem Kunden jede Zeile eines versendeten
+Angebots frei. Daneben (V-202) schrieben Dokument, Detailblatt und
+Preisfreigabe den Satz mit `(bp / 100).toLocaleString()` als „19 %", das
+Kundenportal für dasselbe Angebot mit `prozentText` „19,0 %".
+
+**Die Entscheidung.**
+
+1. **Ein Leser, ein Filter.** `src/server/services/angebot/lebend.ts` trägt
+   `positionenFuerDokument`, `steuerJeSatzVorVersand` (dieselbe Gruppierung
+   und derselbe Filter wie `kern.angebot_versand_festschreiben`, also genau
+   die Zahl, die beim Versand eingefroren wird) und `lebendeLeistungenZahl`
+   (die Zählung als Unterabfrage für Kopfabfragen mit `for update`).
+   Dokument, Freigabe, Versandseite, Versanddienst und Kundenportal fragen
+   diese Stellen; das Kundenportal filtert seine Positionsliste selbst.
+2. **Die zweite Linie in der Datenbank** (`drizzle/0440`): `t_kunde` auf
+   `angebotsposition` verlangt zusätzlich `entfernt_am is null`. Eine
+   entfernte Zeile ist ein Arbeitsstand des Hauses, kein Teil des
+   Vertragsangebots; nach dem Versand ändert sich `entfernt_am` nicht mehr
+   (`ap_unveraenderlich`). Intern bleibt die Zeile sichtbar (Invariante 8).
+3. **Eine Prüfung über den ganzen Quellbaum**: `tests/kern/angebot-lebend.test.ts`
+   findet jede lesende Abfrage auf `angebotsposition` ohne `entfernt_am`.
+4. **Ein Satz, eine Schreibweise** (D-629 Nr. 8 auf das Angebot angewandt):
+   Dokument, Detailblatt und Preisfreigabe setzen den Steuersatz mit
+   `prozentText` aus `finanz/prozent.ts` — „19,0 %" wie im Kundenportal.
+   Die Zuschlagssätze der Kalkulation (`alsProzent`) sind keine Belegzeile
+   und bleiben, wie sie sind.
+
+| Betrifft | OPS-08, D-626, D-629, V-130, V-202, V-203, Invariante 3, Invariante 8, `drizzle/0440`, `src/server/services/angebot/{lebend,index}.ts`, `src/server/services/kundenportal/angebot.ts`, `src/app/portal/[mandant]/angebote/[id]/{page,pdf/page,freigabe/page,versand/page}.tsx`, `tests/kern/angebot-lebend.test.ts`, `tests/isolation/angebotsentwurf.test.ts` §7 |
+|---|---|
