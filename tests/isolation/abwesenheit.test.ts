@@ -22,7 +22,7 @@ import {
   unverfuegbarImFenster, ArtUngeklaertFehler,
 } from '../../src/server/services/abwesenheit/index.js';
 import {
-  entscheideAntrag, listeOffeneAntraege, reicheAntragEin, zieheAntragZurueck,
+  entscheideAntrag, listeOffeneAntraege, pflichtfeldGrund, reicheAntragEin, zieheAntragZurueck,
   AntragNichtGefunden, KommentarFehlt, UrlaubskontoFehlt,
 } from '../../src/server/services/abwesenheit/antrag.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
@@ -311,6 +311,50 @@ describe('(2a) Ein zweiter Klick auf „Genehmigen" ist „schon entschieden" �
     const [z] = await sql.unsafe<{ status: string }[]>(
       `select status::text as status from antrag where id = $1`, [antrag.id]);
     expect(z?.status).toBe('genehmigt');
+  });
+});
+
+describe('(2b) Was der Auslöser abweist, wird ein Grund — am echten Fehler (V-198, D-692 Nr. 4)', () => {
+  /*
+   * `pflichtfeldGrund` war nur an nachgebauten Objekten geprüft
+   * (`Object.assign(new Error('x'), { code: '23514', hint })`). Ob der ECHTE
+   * postgres.js-Fehler des Auslösers `antrag_pflichtfelder` und der Prüfung
+   * `an_zeitraum` diese Felder so trägt und den Dienst so verlässt, prüft nur
+   * die Datenbank.
+   */
+  async function abgewiesen(eingabe: Parameters<typeof reicheAntragEin>[1]): Promise<unknown> {
+    try {
+      await alsMensch(jonasKonto, f.jonas, f.reinigung, (k) => reicheAntragEin(k, eingabe));
+    } catch (fehler) {
+      return fehler;
+    }
+    throw new Error('der Antrag hätte abgewiesen werden müssen');
+  }
+
+  it('Urlaubsantrag ohne Datum → `fehlt_zeitraum`', async () => {
+    const urlaub = await art('urlaub');
+    const fehler = await abgewiesen({
+      anstellungId: f.jonasReinigung, antragsartId: await antragsart('urlaub'),
+      abwesenheitsartId: urlaub,
+    });
+    expect(pflichtfeldGrund(fehler)).toBe('fehlt_zeitraum');
+  });
+
+  it('Urlaubsantrag ohne Abwesenheitsart → `fehlt_abwesenheitsart`', async () => {
+    const fehler = await abgewiesen({
+      anstellungId: f.jonasReinigung, antragsartId: await antragsart('urlaub'),
+      vonDatum: '2029-06-04', bisDatum: '2029-06-05',
+    });
+    expect(pflichtfeldGrund(fehler)).toBe('fehlt_abwesenheitsart');
+  });
+
+  it('„bis" vor „von" → `zeitraum` (die Prüfung an_zeitraum)', async () => {
+    const urlaub = await art('urlaub');
+    const fehler = await abgewiesen({
+      anstellungId: f.jonasReinigung, antragsartId: await antragsart('urlaub'),
+      vonDatum: '2029-06-10', bisDatum: '2029-06-03', abwesenheitsartId: urlaub,
+    });
+    expect(pflichtfeldGrund(fehler)).toBe('zeitraum');
   });
 });
 

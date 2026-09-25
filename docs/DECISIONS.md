@@ -19366,6 +19366,16 @@ Leistungsnachweis, Bautagebuch und Fotos über `dienstFehlerAntwort`.
    bleibt `nicht_gefunden` (404). Der genauere Satz verrät nichts: das Blatt
    zeigt ohnehin nur eigene Vorgänge (AUT-06). Geprüft an der echten Route
    (`tests/kern/mein-ruecknahme-route.test.ts`).
+   **Nachtrag zu den Prüfungen (Prüfer der Gruppe):** die Fälle des Befunds
+   waren nur an Hilfsfunktionen und am Quelltext geprüft. Jetzt am Verhalten:
+   `dienstFehlerAntwort` (Grund vor Code, leerer Grund ist keiner,
+   `fehlerweg` vor `zurueck`, JSON ohne Formular, `null` für einen
+   Programmfehler) in `tests/kern/mein-formular-rueckweg.test.ts`, und
+   `pflichtfeldGrund` am ECHTEN postgres.js-Fehler des Auslösers
+   (`fehlt_zeitraum`, `fehlt_abwesenheitsart`) und der Prüfung `an_zeitraum`
+   (`zeitraum`) in `tests/isolation/abwesenheit.test.ts` §2b. Eine
+   Browserprüfung der drei Fehlerfälle bleibt aus: Playwright läuft in
+   diesem Zweig nicht, und die Weiche ist an der Route selbst geprüft.
 3. **Der Einwand endet auf seinem Blatt**:
    `/portal/mein/zeiten/<id>/einwand?gesendet=1` bestätigt den Eingang
    („eingegangen, nicht entschieden", EMP-07) und zeigt die Meldung in der

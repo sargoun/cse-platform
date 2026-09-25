@@ -27,6 +27,7 @@ import {
 import { PORTAL_SPRACHEN } from '../../src/lib/i18n/texte.js';
 import { pflichtfeldGrund } from '../../src/server/services/abwesenheit/antrag.js';
 import { WachbuchEingabeFehlt } from '../../src/server/services/security/wachbuch.js';
+import { dienstFehlerAntwort } from '../../src/app/api/mein/schichten/bruecke.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 
@@ -229,6 +230,61 @@ describe('am Quelltext: keine Formularroute antwortet mit JSON, wo sie einen Gru
       if (!s.includes('dienstFehlerAntwort(')) continue;
       expect(s, relative(WURZEL, datei)).toContain('dienstFehlerAntwort(fehler, { anfrage, daten })');
     }
+  });
+});
+
+describe('dienstFehlerAntwort — die Weiche der Schichtwege, am Verhalten (V-198)', () => {
+  /*
+   * Bis hierhin war nur geprüft, dass die Routen den TEXT
+   * `dienstFehlerAntwort(fehler, { anfrage, daten })` enthalten. Nähme die
+   * Funktion `code` statt `grund`, zeigte die Wachbuchseite den allgemeinen
+   * Satz zu `ungueltige_eingabe` statt „Präsenz ohne Kontrollpunkt" — und
+   * kein Test schlüge an.
+   */
+  const WACHBUCH = '/portal/mein/schichten/5b0d6c1e-0a41-4c55-9d1c-1c2f3b4a5d6e/wachbuch';
+  const SCHICHT_ANFRAGE = new NextRequest('https://cse.example/api/mein/schichten/x/wachbuch', {
+    method: 'POST', headers: { origin: 'https://cse.example' },
+  });
+
+  it('ein Grund des Dienstes geht vor seinem Code — als Seite mit `?fehler=`', () => {
+    const r = dienstFehlerAntwort(new WachbuchEingabeFehlt('x', 'praesenz_ohne_kontrollpunkt'),
+      { anfrage: SCHICHT_ANFRAGE, daten: formular({ zurueck: WACHBUCH }) });
+    expect(r?.status).toBe(303);
+    expect(r?.headers.get('location'))
+      .toBe(`https://cse.example${WACHBUCH}?fehler=praesenz_ohne_kontrollpunkt`);
+  });
+
+  it('ohne Grund reist der Code', () => {
+    const ohne = Object.assign(new Error('Satz mit Kennung 5b0d6c1e'), {
+      code: 'ungueltiger_zustand', status: 409,
+    });
+    const r = dienstFehlerAntwort(ohne,
+      { anfrage: SCHICHT_ANFRAGE, daten: formular({ zurueck: WACHBUCH }) });
+    expect(r?.headers.get('location')).toBe(`https://cse.example${WACHBUCH}?fehler=ungueltiger_zustand`);
+    /* Ein leerer Grund ist keiner. */
+    const leer = Object.assign(new Error('x'), { code: 'konflikt', status: 409, grund: '' });
+    expect(dienstFehlerAntwort(leer, { anfrage: SCHICHT_ANFRAGE, daten: formular({ zurueck: WACHBUCH }) })
+      ?.headers.get('location')).toBe(`https://cse.example${WACHBUCH}?fehler=konflikt`);
+  });
+
+  it('fehlerweg geht vor zurueck, wie bei jedem Formular', () => {
+    const r = dienstFehlerAntwort(new WachbuchEingabeFehlt('x', 'kein_text'), {
+      anfrage: SCHICHT_ANFRAGE,
+      daten: formular({ zurueck: '/portal/mein/schichten', fehlerweg: WACHBUCH }),
+    });
+    expect(r?.headers.get('location')).toBe(`https://cse.example${WACHBUCH}?fehler=kein_text`);
+  });
+
+  it('ohne Formular ist der Aufrufer ein Programm: JSON mit Status und Code', async () => {
+    const r = dienstFehlerAntwort(new WachbuchEingabeFehlt('Satz', 'praesenz_ohne_kontrollpunkt'));
+    expect(r?.status).toBe(400);
+    expect(await r?.json()).toEqual({ fehler: 'ungueltige_eingabe', meldung: 'Satz' });
+  });
+
+  it('ein Programmfehler ist keine Aussage für den Menschen: `null`', () => {
+    expect(dienstFehlerAntwort(new Error('kaputt'),
+      { anfrage: SCHICHT_ANFRAGE, daten: formular({ zurueck: WACHBUCH }) })).toBeNull();
+    expect(dienstFehlerAntwort(Object.assign(new Error('x'), { code: '23505' }))).toBeNull();
   });
 });
 
