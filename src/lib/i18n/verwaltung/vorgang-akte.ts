@@ -36,6 +36,8 @@ export interface VorgangAkteTexte {
   readonly ohneFrist: string;
   readonly ueberfaellig: string;
   readonly zustand: Readonly<Record<AufgabeZustand, string>>;
+  /** Ein Stand, den diese Tabelle nicht kennt — neutral, nie „offen" (V-240). */
+  readonly zustandUnbekannt: string;
 
   /* ── Dokumente ─────────────────────────────────────────────────────── */
   readonly dokumenteTitel: string;
@@ -100,6 +102,7 @@ export const VORGANG_AKTE_TEXTE: Readonly<Record<InternSprache, VorgangAkteTexte
       offen: 'offen', in_arbeit: 'in Arbeit', wartend: 'wartet',
       erledigt: 'erledigt', abgebrochen: 'abgebrochen',
     },
+    zustandUnbekannt: 'Stand unbekannt',
 
     dokumenteTitel: 'Dokumente',
     dokumenteErklaerung: {
@@ -174,6 +177,7 @@ export const VORGANG_AKTE_TEXTE: Readonly<Record<InternSprache, VorgangAkteTexte
       offen: 'open', in_arbeit: 'in progress', wartend: 'waiting',
       erledigt: 'done', abgebrochen: 'cancelled',
     },
+    zustandUnbekannt: 'status unknown',
 
     dokumenteTitel: 'Documents',
     dokumenteErklaerung: {

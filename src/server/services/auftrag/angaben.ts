@@ -35,7 +35,8 @@ export const PERSONALBEDARF_HOECHSTENS = 5_000;
 /** `auftrag_wochenstunden_bereich` (0025). */
 export const WOCHENSTUNDEN_HOECHSTENS = 10_000;
 
-export type AngabenGrund = 'keine_zahl' | 'ausserhalb_bereich' | 'wert_ungueltig';
+export type AngabenGrund =
+  | 'keine_zahl' | 'mehrdeutig' | 'ausserhalb_bereich' | 'wert_ungueltig';
 
 /**
  * Eine Abweisung der Angaben als WURF — für die Routen, die über das Gerüst
@@ -85,9 +86,17 @@ function leer(wert: string | null | undefined): boolean {
  *
  * Erst „ist das eine Zahl", dann „liegt sie im Bereich": wer „40 Std" tippt,
  * soll nicht lesen, 40 Std liege ausserhalb des Bereichs.
+ *
+ * **Eine Zahl mit zwei Lesarten wird abgewiesen, nicht gedeutet** (V-240,
+ * wie die Menge einer Kostenzeile in D-668): „12.50" ist deutsch gelesen
+ * 1.250, englisch 12,5 — `leseZahl` meldet das als `mehrdeutig`. Vorher las
+ * die Pflege es still als 12,5 Wochenstunden; ein Faktor hundert auf dem
+ * Soll wäre niemandem aufgefallen. „1.250" (Tausendergruppe) und „12,5"
+ * sind eindeutig und gehen durch.
  */
 export function pruefeAuftragsangaben(roh: AngabenRoh): AngabenErgebnis {
   const unlesbar: string[] = [];
+  const mehrdeutig: string[] = [];
   const ausserhalb: string[] = [];
 
   let personalbedarf: number | null = null;
@@ -95,6 +104,8 @@ export function pruefeAuftragsangaben(roh: AngabenRoh): AngabenErgebnis {
     const befund = leseZahl(roh.personalbedarf ?? '');
     if (befund.wert === null) {
       unlesbar.push('personalbedarfAnzahl');
+    } else if (befund.mehrdeutig) {
+      mehrdeutig.push('personalbedarfAnzahl');
     } else if (befund.wert % 1000n !== 0n || befund.wert < 0n
                || befund.wert > BigInt(PERSONALBEDARF_HOECHSTENS) * 1000n) {
       // Ganze Personen: `smallint` schneidet 2,5 nicht ab, es wirft.
@@ -109,6 +120,8 @@ export function pruefeAuftragsangaben(roh: AngabenRoh): AngabenErgebnis {
     const befund = leseZahl(roh.wochenstunden ?? '');
     if (befund.wert === null) {
       unlesbar.push('wochenstundenSoll');
+    } else if (befund.mehrdeutig) {
+      mehrdeutig.push('wochenstundenSoll');
     } else if (befund.wert < 0n || befund.wert > BigInt(WOCHENSTUNDEN_HOECHSTENS) * 1000n) {
       ausserhalb.push('wochenstundenSoll');
     } else {
@@ -135,6 +148,7 @@ export function pruefeAuftragsangaben(roh: AngabenRoh): AngabenErgebnis {
   }
 
   if (unlesbar.length > 0) return { ok: false, grund: 'keine_zahl', felder: unlesbar };
+  if (mehrdeutig.length > 0) return { ok: false, grund: 'mehrdeutig', felder: mehrdeutig };
   if (wertFalsch) {
     return { ok: false, grund: 'wert_ungueltig', felder: ['auftragswertNetto'] };
   }

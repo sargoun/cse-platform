@@ -32,7 +32,15 @@
 import type { SchreibKontext } from '../../kontext/index.js';
 
 export class ObjektFehler extends Error {
-  constructor(nachricht: string, readonly grund: string, readonly status = 400) {
+  constructor(
+    nachricht: string, readonly grund: string, readonly status = 400,
+    /**
+     * Die Zahl, die ein Grund trägt (`einsaetze_offen`) — damit die Seite den
+     * Satz in IHRER Sprache bilden kann, statt den deutschen aus der Adresse
+     * zu zeigen (V-240).
+     */
+    readonly anzahl: number | null = null,
+  ) {
     super(nachricht);
     this.name = 'ObjektFehler';
   }
@@ -196,9 +204,16 @@ export function koordinatenAus(
 /**
  * `52.520008` → `52,520008` — die gespeicherte Koordinate für ein deutsches
  * Formular und das Objektblatt. Reine Textarbeit, kein Umweg über `Number`.
+ *
+ * **In der englischen Oberfläche bleibt der Punkt** (V-240): `52.520008`.
+ * Beides liest `leseKoordinate` zurück (Punkt oder Komma), also auch ein
+ * englisch vorbelegtes Formular.
  */
-export function koordinateAlsText(gespeichert: string | null): string {
-  return gespeichert === null ? '' : gespeichert.replace('.', ',');
+export function koordinateAlsText(
+  gespeichert: string | null, sprache?: string | null,
+): string {
+  if (gespeichert === null) return '';
+  return sprache === 'en' ? gespeichert : gespeichert.replace('.', ',');
 }
 
 function landPruefen(wert: string | undefined): string {
@@ -367,7 +382,7 @@ export async function archiviereObjekt(
       `Zu diesem Objekt stehen noch ${offen.anzahl} Einsätze in der Zukunft. `
       + 'Stornieren Sie diese zuerst — sonst fährt morgen jemand an einen Ort, '
       + 'den es in der Plattform nicht mehr gibt.',
-      'einsaetze_offen', 409);
+      'einsaetze_offen', 409, Number(offen.anzahl));
   }
 
   const zeilen = await kontext.schreibe<{ id: string }>(

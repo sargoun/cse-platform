@@ -180,8 +180,10 @@ describe('(1) ein Dokument hängt an einem Auftrag DERSELBEN Gesellschaft', () =
     expect(akte.weitere).toBe(0);
     expect(akte.zeilen[0]?.titel).toBe('Auftragsbestätigung Treppenhaus');
     expect(akte.zeilen[0]?.kategorie).toBe('vertrag');
-    // Der Berliner Kalendertag, TT.MM.JJJJ — aus der Datenbank, nicht aus der Serveruhr.
-    expect(akte.zeilen[0]?.abgelegtAm).toMatch(/^\d{2}\.\d{2}\.\d{4}$/u);
+    // Der Berliner Kalendertag, JJJJ-MM-TT — aus der Datenbank, nicht aus der Serveruhr;
+    // das Blatt schreibt ihn in seiner Sprache (V-240).
+    const [heute] = await sql.unsafe<{ tag: string }[]>(`select app.berlin_heute()::text as tag`);
+    expect(akte.zeilen[0]?.abgelegtAm).toBe(heute!.tag);
   });
 
   it('ohne Auftrag abgelegt bleibt die Spalte leer — die übrigen Ablagewege unverändert', async () => {

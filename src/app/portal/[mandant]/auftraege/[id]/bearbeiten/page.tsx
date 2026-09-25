@@ -10,7 +10,7 @@ import { Recht } from '@/components/ui/Recht';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
-import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import { cent, formatiereGeld, formatiereGeldIn } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
 import {
   PFLEGE_GESPERRT, WERT_AENDERUNG_FRAGE, wertAenderungsweg,
@@ -20,6 +20,7 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { vorbelegt } from '@/lib/formular/maske';
 
 /**
  * `/portal/[mandant]/auftraege/[id]/bearbeiten` — Stammdaten eines Auftrags
@@ -124,6 +125,18 @@ export default async function AuftragBearbeiten(
   const wertText = k.wert === null ? '' : formatiereGeld(cent(BigInt(k.wert))).replace(/\s*€$/u, '');
   const stundenText = k.wochenstunden === null
     ? '' : formatiereMenge(mengeAusPostgresOderNull(k.wochenstunden));
+  /*
+   * V-240: nach einer Abweisung stehen die EINGABEN wieder da, nicht der alte
+   * Stand — die Route schickt sie mit (`maskeFelder`). Erkannt an der Leitung:
+   * sie ist Pflicht und reist darum immer mit. Ein leer gelassenes Feld reist
+   * nicht und bleibt leer; es fällt NICHT auf den gespeicherten Wert zurück.
+   */
+  const mitEingaben = fehler !== null && vorbelegt(suche, 'verantwortlichBenutzerId') !== undefined;
+  const eingabe = (name: string, gespeichert: string): string =>
+    (mitEingaben ? vorbelegt(suche, name) ?? '' : gespeichert);
+  const leitungEingabe = vorbelegt(suche, 'verantwortlichBenutzerId');
+  const leitungVorwahl = mitEingaben && leitungen.some((b) => b.id === leitungEingabe)
+    ? leitungEingabe ?? k.verantwortlich : k.verantwortlich;
 
   return (
     <PortalRahmen
@@ -169,14 +182,14 @@ export default async function AuftragBearbeiten(
             <label className="block text-sm text-text" htmlFor="bezeichnung">
               {t.bezeichnung}
             </label>
-            <input id="bezeichnung" name="bezeichnung" required defaultValue={k.bezeichnung}
-                   className={FELD} />
+            <input id="bezeichnung" name="bezeichnung" required
+                   defaultValue={eingabe('bezeichnung', k.bezeichnung)} className={FELD} />
 
             <label className="mt-s4 block text-sm text-text" htmlFor="verantwortlichBenutzerId">
               {t.leitung}
             </label>
             <select id="verantwortlichBenutzerId" name="verantwortlichBenutzerId" required
-                    defaultValue={k.verantwortlich} className={FELD}>
+                    defaultValue={leitungVorwahl} className={FELD}>
               {leitungen.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
@@ -186,7 +199,7 @@ export default async function AuftragBearbeiten(
               {t.laufzeitBis}
             </label>
             <input id="laufzeitBis" name="laufzeitBis" type="date"
-                   defaultValue={k.laufzeit_bis ?? ''} className={FELD} />
+                   defaultValue={eingabe('laufzeitBis', k.laufzeit_bis ?? '')} className={FELD} />
             <p className="mt-s1 text-xs text-text-muted">{t.unbefristet}</p>
           </Card>
 
@@ -197,7 +210,8 @@ export default async function AuftragBearbeiten(
             {k.angebot_id === null ? (
               <>
                 <input id="auftragswertNetto" name="auftragswertNetto" inputMode="decimal"
-                       defaultValue={wertText} data-cse="auftrag-wert" className={FELD} />
+                       defaultValue={eingabe('auftragswertNetto', wertText)}
+                       data-cse="auftrag-wert" className={FELD} />
                 <p className="mt-s1 text-xs text-text-muted">{t.wertHinweis}</p>
               </>
             ) : (
@@ -205,7 +219,7 @@ export default async function AuftragBearbeiten(
                 {/* Mitgeschickt, damit der Dienst den Vergleich sieht — und nichts ändert. */}
                 <input type="hidden" name="auftragswertNetto" value={wertText} />
                 <p className="mt-s2 text-sm tabular-nums text-text" data-cse="auftrag-wert-fest">
-                  {k.wert === null ? '—' : formatiereGeld(cent(BigInt(k.wert)))}
+                  {k.wert === null ? '—' : formatiereGeldIn(cent(BigInt(k.wert)), zugang.sprache)}
                 </p>
                 <p className="mt-s1 text-xs text-text-muted" data-cse="auftrag-wert-weg">
                   {t.wertAusAngebot(k.angebotsnummer ?? '—')}{' '}
@@ -222,14 +236,15 @@ export default async function AuftragBearbeiten(
                 </label>
                 <input id="personalbedarfAnzahl" name="personalbedarfAnzahl"
                        inputMode="numeric" className={FELD}
-                       defaultValue={k.personalbedarf === null ? '' : String(k.personalbedarf)} />
+                       defaultValue={eingabe('personalbedarfAnzahl',
+                         k.personalbedarf === null ? '' : String(k.personalbedarf))} />
               </div>
               <div>
                 <label className="block text-sm text-text" htmlFor="wochenstundenSoll">
                   {t.wochenstunden}
                 </label>
                 <input id="wochenstundenSoll" name="wochenstundenSoll" inputMode="decimal"
-                       defaultValue={stundenText} className={FELD} />
+                       defaultValue={eingabe('wochenstundenSoll', stundenText)} className={FELD} />
               </div>
             </div>
 
@@ -237,14 +252,14 @@ export default async function AuftragBearbeiten(
               {t.ausstattung}
             </label>
             <textarea id="ausstattungHinweis" name="ausstattungHinweis" rows={2}
-                      defaultValue={k.ausstattung ?? ''}
+                      defaultValue={eingabe('ausstattungHinweis', k.ausstattung ?? '')}
                       className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text" />
 
             <label className="mt-s4 block text-sm text-text" htmlFor="beschreibung">
               {t.beschreibung}
             </label>
             <textarea id="beschreibung" name="beschreibung" rows={3}
-                      defaultValue={k.beschreibung ?? ''}
+                      defaultValue={eingabe('beschreibung', k.beschreibung ?? '')}
                       className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text" />
           </Card>
 

@@ -114,6 +114,32 @@ export function formatiereGeld(betrag: Cent): string {
   return DE_GELD.format(negativ ? -alsZahl : alsZahl);
 }
 
+const EN_GELD = new Intl.NumberFormat('en-GB', {
+  style: 'currency',
+  currency: 'EUR',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/**
+ * Display a cent amount in the language of the page (V-240): German
+ * `"12.500,00 €"`, English `"€12,500.00"`. Display only — a FORM keeps German
+ * notation, because `parseGeld` reads nothing else, and the English help text
+ * says so. Same conversion and the same safe-integer guard as `formatiereGeld`.
+ */
+export function formatiereGeldIn(betrag: Cent, sprache: string | null | undefined): string {
+  if (sprache !== 'en') return formatiereGeld(betrag);
+  const negativ = betrag < 0n;
+  const abs = negativ ? -betrag : betrag;
+  const euro = abs / 100n;
+  const rest = abs % 100n;
+  if (!Number.isSafeInteger(Number(euro))) {
+    throw new GeldFehler(`Betrag zu groß für die Anzeige: ${betrag}`);
+  }
+  const alsZahl = Number(euro) + Number(rest) / 100;
+  return EN_GELD.format(negativ ? -alsZahl : alsZahl);
+}
+
 const DE_MUSTER = /^-?\d{1,3}(\.\d{3})*(,\d{1,2})?$|^-?\d+(,\d{1,2})?$/u;
 
 /**

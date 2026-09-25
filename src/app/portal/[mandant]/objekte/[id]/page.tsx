@@ -342,7 +342,8 @@ export default async function ObjektDetail(
                 {tObjekt.ohneKoordinaten}
               </span>
             : <span className="tabular-nums" data-cse="objekt-koordinaten">
-                {`${koordinateAlsText(kopf.geo_lat)} · ${koordinateAlsText(kopf.geo_lon)}`}
+                {`${koordinateAlsText(kopf.geo_lat, zugang.sprache)} · `
+                  + koordinateAlsText(kopf.geo_lon, zugang.sprache)}
               </span>}
         </Feld>
       </dl>

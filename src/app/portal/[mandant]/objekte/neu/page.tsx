@@ -70,12 +70,11 @@ export default async function ObjektNeu(
   const darf = await haeltRechte(zugang.sitzung, 'objekt.schreiben', 'objekt.lesen');
   const suche = await searchParams;
   /*
-   * Der übersetzte Satz zum Schlüssel, sonst der deutsche Satz des Dienstes
-   * (V-170) — nie der Schlüssel selbst.
+   * Der übersetzte Satz zum Schlüssel, sonst ein allgemeiner Satz — nie der
+   * Schlüssel und nie Text aus der Adresse (V-153, V-240).
    */
   const grund = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
-  const roh = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
-  const meldung = eigenerEintrag(t.fehler, grund) ?? roh;
+  const meldung = grund === null ? null : eigenerEintrag(t.fehler, grund) ?? t.fehlerSonst;
 
   /*
    * Die Kundenliste kommt aus derselben Gesellschaft und nur ungesperrt: ein

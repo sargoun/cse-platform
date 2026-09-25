@@ -54,6 +54,31 @@ describe('(1) pruefeAuftragsangaben — deutsche Zahlen, die Grenzen aus 0025', 
       { ok: false, grund: 'ausserhalb_bereich', felder: [feld] });
   });
 
+  it.each([
+    [{ wochenstunden: '12.50' }, ['wochenstundenSoll']],
+    [{ wochenstunden: '38.5' }, ['wochenstundenSoll']],
+    [{ personalbedarf: '2.5' }, ['personalbedarfAnzahl']],
+    [{ personalbedarf: '1.25', wochenstunden: '1.5' }, ['personalbedarfAnzahl', 'wochenstundenSoll']],
+  ] as const)('V-240: %o hat zwei Lesarten — abgewiesen, nicht gedeutet', (roh, felder) => {
+    expect(pruefeAuftragsangaben(roh)).toEqual({ ok: false, grund: 'mehrdeutig', felder });
+  });
+
+  it('V-240: eindeutig bleibt eindeutig — Tausendergruppe und Dezimalkomma', () => {
+    expect(pruefeAuftragsangaben({ wochenstunden: '1.250', personalbedarf: '1.000' })).toEqual(
+      { ok: true, werte: { personalbedarf: 1000, wochenstunden: '1250.000', wertCent: null } });
+    expect(pruefeAuftragsangaben({ wochenstunden: '12,5' })).toMatchObject({ ok: true });
+  });
+
+  it('V-240: unlesbar geht vor mehrdeutig — erst „ist das eine Zahl"', () => {
+    expect(pruefeAuftragsangaben({ wochenstunden: '12.50', personalbedarf: 'zwei' }))
+      .toEqual({ ok: false, grund: 'keine_zahl', felder: ['personalbedarfAnzahl'] });
+  });
+
+  it('beide Sprachen haben einen Satz für „mehrdeutig"', () => {
+    expect(AUFTRAG_TEXTE.de.fehler['mehrdeutig']).toContain('12.50');
+    expect(AUFTRAG_TEXTE.en.fehler['mehrdeutig']).toContain('12.50');
+  });
+
   it('die Ränder gehören dazu', () => {
     expect(pruefeAuftragsangaben({ personalbedarf: '5.000', wochenstunden: '10.000' }))
       .toEqual({ ok: true, werte: { personalbedarf: 5000, wochenstunden: '10000.000', wertCent: null } });
@@ -176,6 +201,26 @@ describe('(3) die Formulare bekommen ihre Seite zurück, nicht JSON (V-172)', ()
   it('die Zahlen liest der geprüfte Dienst — kein Number() auf einer Formularzahl', () => {
     expect(auftrag).toContain('pruefeAuftragsangaben(');
     expect(auftrag).not.toMatch(/Number\(roh/u);
+  });
+
+  it('V-240: Pflege und Annahme bekommen nach einer Abweisung ihre EINGABEN zurück', () => {
+    const geruest = readFileSync('src/app/api/uebergang.ts', 'utf8');
+    expect(geruest).toContain('maskeMitEingaben(zurueck, grund, werte)');
+    for (const [route, felder] of [
+      ['src/app/api/auftrag/aendern/route.ts',
+        ['bezeichnung', 'verantwortlichBenutzerId', 'auftragswertNetto', 'wochenstundenSoll']],
+      ['src/app/api/angebot/entscheidung/route.ts',
+        ['ausgang', 'personalbedarfAnzahl', 'wochenstundenSoll', 'ausstattungHinweis']],
+    ] as const) {
+      const quelle = readFileSync(route, 'utf8');
+      expect(quelle, route).toContain('maskeFelder: [');
+      for (const feld of felder) expect(quelle, `${route}: ${feld}`).toContain(`'${feld}'`);
+    }
+    const pflege = readFileSync('src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx', 'utf8');
+    expect(pflege).toContain("eingabe('wochenstundenSoll', stundenText)");
+    const annahme = readFileSync('src/app/portal/[mandant]/angebote/[id]/annahme/page.tsx', 'utf8');
+    expect(annahme).toContain("annahmeWert('wochenstundenSoll')");
+    expect(annahme).toContain("annahmeWert('personalbedarfAnzahl')");
   });
 
   it('die Masken schicken kein ?mandant= mehr und zeigen den Grund', () => {

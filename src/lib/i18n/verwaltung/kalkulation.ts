@@ -3,8 +3,15 @@
  * Sprachen (V-172, V-174, OPS-07, D-592).
  *
  * **Fachbegriffe bleiben deutsch** (`Kalkulation`, `Gemeinkosten`, `Wagnis
- * und Gewinn`, `Selbstkosten`): sie sind die Begriffe der Preisbegründung,
+ * und Gewinn`, `Einzelkosten`): sie sind die Begriffe der Preisbegründung,
  * erklärt in Klammern, nicht ersetzt.
+ *
+ * **Die zweite Basis heisst, was sie rechnet: Lohn + Material + Gerät**
+ * (V-240). Die erste Fassung nannte sie „Selbstkosten". Das sind sie nicht —
+ * Selbstkosten enthalten die Gemeinkosten schon, ein Zuschlag darauf wäre
+ * ein Zuschlag auf sich selbst —, und was die Selbstkosten umfassen, ist die
+ * offene Frage O-16 (0023). Der gespeicherte Wert heisst weiter
+ * `selbstkosten` (Aufzählung aus 0023); er ist ein Schlüssel, keine Aussage.
  *
  * **Die Abweisungen sind SCHLÜSSEL** der Route (`?fehler=…&feld=…`); die
  * Seite zeigt den Satz zum Schlüssel und nennt das Feld — nie den Schlüssel.
@@ -69,7 +76,7 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
       nicht_gefunden: 'Zu diesem Angebot gibt es keine Kalkulation.',
       basis_offen:
         'Gemeinkosten je Kostenart brauchen einen Satz je Kostenart, und die sind noch offen '
-        + '(O-16). Bitte Lohnkosten oder Selbstkosten wählen.',
+        + '(O-16). Bitte „Lohnkosten" oder „Lohn + Material + Gerät" wählen.',
       preis_freigegeben:
         'Der Preis dieses Angebots ist freigegeben. Eine Kostenzeile änderte ihn — ein anderer '
         + 'Preis braucht eine neue Angebotsversion (O-732).',
@@ -109,12 +116,14 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
     },
     basisSatz: {
       lohn: 'Die Gemeinkosten rechnen auf die Lohnkosten.',
-      selbstkosten: 'Die Gemeinkosten rechnen auf Lohn, Material und Gerät zusammen.',
+      selbstkosten:
+        'Die Gemeinkosten rechnen auf Lohn, Material und Gerät zusammen (die Einzelkosten). '
+        + 'Welche Basis in welchem Bereich gilt, ist offen (O-16).',
       je_kostenart: 'Gemeinkosten je Kostenart sind offen (O-16) — so wird nicht gerechnet.',
     },
     basisOption: {
       lohn: 'Lohnkosten',
-      selbstkosten: 'Selbstkosten (Lohn + Material + Gerät)',
+      selbstkosten: 'Lohn + Material + Gerät (Einzelkosten)',
       je_kostenart: 'je Kostenart — offen (O-16)',
     },
 
@@ -166,7 +175,7 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
       nicht_gefunden: 'There is no Kalkulation (costing) for this offer.',
       basis_offen:
         'Overhead per cost type needs a rate per cost type, and those are still open (O-16). '
-        + 'Please choose labour cost or Selbstkosten (prime cost).',
+        + 'Please choose "Labour cost" or "Labour + material + equipment".',
       preis_freigegeben:
         'The price of this offer has been released. A cost line would change it — a '
         + 'different price needs a new offer version (O-732).',
@@ -206,12 +215,14 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
     },
     basisSatz: {
       lohn: 'Overhead is charged on labour cost.',
-      selbstkosten: 'Overhead is charged on labour, material and equipment together.',
+      selbstkosten:
+        'Overhead is charged on labour, material and equipment together (the Einzelkosten, '
+        + 'direct costs). Which base applies in which area is open (O-16).',
       je_kostenart: 'Overhead per cost type is open (O-16) — it is not calculated that way.',
     },
     basisOption: {
       lohn: 'Labour cost',
-      selbstkosten: 'Selbstkosten (labour + material + equipment)',
+      selbstkosten: 'Labour + material + equipment (Einzelkosten, direct costs)',
       je_kostenart: 'per cost type — open (O-16)',
     },
 

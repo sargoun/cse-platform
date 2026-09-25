@@ -131,7 +131,7 @@ export function PositionsFelder(
         <label className="mt-s4 flex items-start gap-s3 text-sm text-text">
           <input type="checkbox" name="bestaetigt" value="ja"
                  defaultChecked={zeile !== null && !zeile.ist_platzhalter}
-                 className="mt-1 min-h-5 min-w-5" />
+                 className="mt-s1 min-h-5 min-w-5" />
           <span>
             Diese Werte sind für <strong>diese Fassung</strong> bestätigt.
             Ohne Häkchen trägt die Position <code>ist_platzhalter</code> und

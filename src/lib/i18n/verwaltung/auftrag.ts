@@ -67,6 +67,10 @@ export const AUFTRAG_TEXTE: Readonly<Record<InternSprache, AuftragTexte>> = {
       keine_zahl:
         'Personalbedarf oder Wochenstunden ist keine Zahl. Erlaubt sind Ziffern mit '
         + 'Tausenderpunkt und Dezimalkomma, z. B. 1.234,5 — ohne Einheit.',
+      mehrdeutig:
+        'Personalbedarf oder Wochenstunden lässt zwei Lesarten zu: „12.50" kann 12,5 oder '
+        + '1.250 heißen. Bitte mit Komma als Dezimaltrenner schreiben, z. B. 12,5 — und den '
+        + 'Punkt nur als Tausendertrenner, z. B. 1.250.',
       ausserhalb_bereich:
         'Personalbedarf (ganze Personen, 0 bis 5.000) oder Wochenstunden (0 bis 10.000) liegt '
         + 'außerhalb des Bereichs.',
@@ -155,6 +159,10 @@ export const AUFTRAG_TEXTE: Readonly<Record<InternSprache, AuftragTexte>> = {
       keine_zahl:
         'Staff required or weekly hours is not a number. Digits with a thousands dot and a '
         + 'decimal comma are accepted, e.g. 1.234,5 — without a unit.',
+      mehrdeutig:
+        'Staff required or weekly hours can be read two ways: "12.50" may mean 12.5 or 1,250. '
+        + 'Please write it the German way, with a comma as the decimal separator (e.g. 12,5) '
+        + 'and the dot only for thousands (e.g. 1.250).',
       ausserhalb_bereich:
         'Staff required (whole people, 0 to 5,000) or weekly hours (0 to 10,000) is out of '
         + 'range.',

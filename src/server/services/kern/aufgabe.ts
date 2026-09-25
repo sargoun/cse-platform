@@ -1,5 +1,6 @@
 import 'server-only';
 import { berlinKalendertag } from '@/server/services/zeit/dauer';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import type { LeseKontext, SchreibKontext } from '@/server/kontext';
 
 /**
@@ -505,10 +506,22 @@ export async function zaehleJeZustand(
 const FRIST_ZEITPUNKT = new Intl.DateTimeFormat('de-DE', {
   dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Berlin',
 });
+/** Dieselbe Frist in der englischen Oberfläche — immer noch Berliner Uhrzeit (V-240). */
+const FRIST_ZEITPUNKT_EN = new Intl.DateTimeFormat('en-GB', {
+  dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Berlin',
+});
 
-export function fristInWorten(frist: Frist): string | null {
-  if (frist.faelligAm !== null) return FRIST_ZEITPUNKT.format(frist.faelligAm);
+/**
+ * `sprache` (V-240): eine Seite, die ihre Sprache kennt, bekommt die Frist in
+ * ihr — englisch „1 Jul 2026, 00:30", deutsch wie bisher. Die Zone bleibt
+ * Europe/Berlin in beiden: die Frist ist eine Berliner Frist.
+ */
+export function fristInWorten(frist: Frist, sprache?: string | null): string | null {
+  if (frist.faelligAm !== null) {
+    return (sprache === 'en' ? FRIST_ZEITPUNKT_EN : FRIST_ZEITPUNKT).format(frist.faelligAm);
+  }
   if (frist.faelligDatum === null) return null;
+  if (sprache === 'en') return tagInSprache(frist.faelligDatum, 'en');
   const tag = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(frist.faelligDatum);
   return tag === null ? frist.faelligDatum : `${String(tag[3])}.${String(tag[2])}.${String(tag[1])}`;
 }
@@ -622,13 +635,15 @@ export function aufgabenAkte(
   jeZustand: Readonly<Record<string, number>>,
   jetzt: Date,
   grenze: number = AUFGABEN_JE_BLATT,
+  /** Die Sprache der Seite — die Frist steht in ihr (V-240). */
+  sprache?: string | null,
 ): AufgabenAkte {
   const zaehle = (z: string): number => {
     const n = jeZustand[z];
     return typeof n === 'number' && Number.isFinite(n) ? n : 0;
   };
   const offene = zeilen.filter((z) => istOffen(z.status)).map((z) => ({
-    zeile: z, lage: fristlage(z, jetzt), frist: fristInWorten(z),
+    zeile: z, lage: fristlage(z, jetzt), frist: fristInWorten(z, sprache),
   }));
   const gezeigt = offene.slice(0, Math.max(0, grenze));
   return {

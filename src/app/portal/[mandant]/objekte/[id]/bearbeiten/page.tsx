@@ -96,12 +96,16 @@ export default async function ObjektBearbeiten(
   const darf = await haeltRechte(zugang.sitzung, 'objekt.schreiben', 'objekt.lesen');
   const suche = await searchParams;
   /*
-   * Der übersetzte Satz zum Schlüssel, sonst der deutsche Satz des Dienstes
-   * (V-170) — nie der Schlüssel selbst.
+   * Der übersetzte Satz zum Schlüssel, sonst ein allgemeiner Satz — nie der
+   * Schlüssel und nie Text aus der Adresse (V-153, V-240). Die Zahl offener
+   * Einsätze kommt als `?anzahl=` und wird nur als ganze Zahl gelesen.
    */
   const grund = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
-  const satz = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
-  const meldung = eigenerEintrag(t.fehler, grund) ?? satz;
+  const anzahlRoh = typeof suche['anzahl'] === 'string' ? suche['anzahl'] : '';
+  const anzahl = /^\d{1,6}$/u.test(anzahlRoh) ? Number(anzahlRoh) : null;
+  const meldung = grund === null ? null
+    : grund === 'einsaetze_offen' ? t.einsaetzeOffen(anzahl)
+      : eigenerEintrag(t.fehler, grund) ?? t.fehlerSonst;
 
   const geladen = await db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
