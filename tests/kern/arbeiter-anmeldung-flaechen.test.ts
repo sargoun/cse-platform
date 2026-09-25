@@ -60,3 +60,31 @@ describe('die beiden Anmeldeseiten der Beschäftigten', () => {
     for (const f of felder) expect(f, seite).toContain('groesse="base"');
   });
 });
+
+describe('die Kästen der Anmeldung sind das Bauteil (DESIGN §5 „Notices", V-217)', () => {
+  const KAESTEN = [
+    { seite: 'src/app/auth/mitarbeiter/page.tsx', cse: 'anmeldung-abgelaufen', art: 'warnung', alert: true },
+    { seite: 'src/app/auth/mitarbeiter/page.tsx', cse: 'keks-ohne-secure', art: 'hinweis', alert: false },
+    { seite: 'src/app/auth/mitarbeiter/page.tsx', cse: 'sms-nicht-verbunden', art: 'warnung', alert: false },
+    { seite: 'src/app/auth/mitarbeiter/code/page.tsx', cse: 'dev-code', art: 'warnung', alert: false },
+    { seite: 'src/app/auth/mitarbeiter/code/page.tsx', cse: 'code-fehler', art: 'warnung', alert: true },
+  ] as const;
+
+  it.each(KAESTEN)('$cse: Hinweis $art in 16 px', ({ seite, cse, art, alert }) => {
+    const s = quelle(seite);
+    const kasten = new RegExp(`<Hinweis[^>]*cse="${cse}"[^>]*>`, 'u').exec(s)?.[0] ?? '';
+    expect(kasten, cse).not.toBe('');
+    expect(kasten).toContain(`art="${art}"`);
+    expect(kasten).toContain('groesse="base"');
+    /* Der Ausgang eines abgeschickten Formulars wird angesagt (§9). */
+    if (alert) expect(kasten).toContain('rolle="alert"');
+  });
+
+  it.each(['src/app/auth/mitarbeiter/page.tsx', 'src/app/auth/mitarbeiter/code/page.tsx'])(
+    '%s baut keinen Kasten mehr aus Klassen nach', (seite) => {
+      const s = quelle(seite);
+      expect(s).not.toMatch(/border-warning bg-warning-soft/u);
+      expect(s).not.toMatch(/rounded-md border border-line bg-surface p-s4/u);
+      expect(s).not.toMatch(/data-cse="(?:anmeldung-abgelaufen|keks-ohne-secure|sms-nicht-verbunden|dev-code)"/u);
+    });
+});

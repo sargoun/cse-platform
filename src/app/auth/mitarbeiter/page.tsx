@@ -4,6 +4,7 @@ import type postgres from 'postgres';
 import { devFlaechenAn } from '@/lib/dev-flaechen';
 import { db } from '@/server/db/pool';
 import { Button } from '@/components/ui/Button';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { AuthSchale } from '../AuthSchale';
 import { FormField } from '@/components/ui/FormField';
 import { codeAnfordern } from '@/server/auth/mitarbeiter-anmeldung';
@@ -128,17 +129,19 @@ export default async function MitarbeiterAnmeldung(
     >
 
       {/*
-        * Die Kästen dieser Seite in 16 px (DESIGN §8): sie stehen auf einer
-        * Fläche der Beschäftigten, und ihre Sätze sind Fliesstext (V-200).
+        * Die Kästen dieser Seite sind `Hinweis` in 16 px (DESIGN §5 „Notices",
+        * §8): sie stehen auf einer Fläche der Beschäftigten, und ihre Sätze
+        * sind Fliesstext (V-200). Hier standen sie aus den Klassen nachgebaut
+        * — ohne Rolle, mit anderem Radius und Abstand als das Bauteil (V-217).
+        * „Abgelaufen" ist der Ausgang eines abgeschickten Formulars
+        * (`einloesen` leitet mit `?fehler=abgelaufen` hierher) und wird
+        * deshalb angesagt (`rolle="alert"`).
         */}
       {abgelaufen && (
-        <p
-          data-cse="anmeldung-abgelaufen"
-          className="rounded-md border border-warning bg-warning-soft p-s4 text-base text-warning"
-        >
+        <Hinweis art="warnung" cse="anmeldung-abgelaufen" rolle="alert" groesse="base">
           <strong>{t.abgelaufenTitel}</strong>{' '}
           {t.abgelaufenText}
-        </p>
+        </Hinweis>
       )}
 
       {!keksSicher() && (
@@ -152,24 +155,18 @@ export default async function MitarbeiterAnmeldung(
          * Ernstfall — also steht sie auf dem Bildschirm und nicht nur in einer
          * Umgebungsvariablen, die niemand liest.
          */
-        <p
-          data-cse="keks-ohne-secure"
-          className="rounded-md border border-line bg-surface p-s4 text-base text-text-muted"
-        >
+        <Hinweis art="hinweis" cse="keks-ohne-secure" groesse="base">
           <strong>{t.vorfuehrTitel}</strong>{' '}
           {t.vorfuehrText}
-        </p>
+        </Hinweis>
       )}
 
       {!sms.verbunden && (
-        <p
-          data-cse="sms-nicht-verbunden"
-          className="rounded-md border border-warning bg-warning-soft p-s4 text-base text-warning"
-        >
+        <Hinweis art="warnung" cse="sms-nicht-verbunden" groesse="base">
           <strong>{t.smsTitel}</strong>{' '}
           {t.smsText}{' '}
           {sms.zeigtCode ? t.smsEntwicklung : t.smsOhne}
-        </p>
+        </Hinweis>
       )}
 
       <form action={anfordern} data-cse="anmeldung-telefon" className="flex flex-col gap-s4">

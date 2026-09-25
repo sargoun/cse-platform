@@ -203,14 +203,12 @@ export default async function CodeEingabe({ searchParams }: Props) {
       )}
 
       {devCode !== null && (
-        <p
-          data-cse="dev-code"
-          className="rounded-md border border-warning bg-warning-soft p-s4 text-base text-warning"
-        >
+        /* Das Bauteil wie `code-fehler` darüber, nicht aus Klassen nachgebaut (V-217). */
+        <Hinweis art="warnung" cse="dev-code" groesse="base">
           <strong>{t.devTitel}</strong>{' '}
           {t.devCode}{' '}
           <code data-cse="dev-code-wert" dir="ltr">{devCode}</code>.
-        </p>
+        </Hinweis>
       )}
 
       <form action={einloesen} data-cse="anmeldung-code" className="flex flex-col gap-s4">

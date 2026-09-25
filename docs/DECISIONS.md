@@ -19533,7 +19533,13 @@ D-557; die Benachrichtigungseinstellungen trugen den Schlüssel jeder Art
    Beschriftung, Hinweis und Fehler von `FormField` standen fest in `xs`
    (13 px). `FormField` hat jetzt `groesse` wie `Hinweis` (`sm`|`base`),
    beide Anmeldeseiten setzen `base`, DESIGN §5 „Forms" nennt die Regel
-   (`tests/kern/arbeiter-anmeldung-flaechen.test.ts`).
+   (`tests/kern/arbeiter-anmeldung-flaechen.test.ts`). Die vier angefassten
+   Kästen (`anmeldung-abgelaufen`, `keks-ohne-secure`,
+   `sms-nicht-verbunden`, `dev-code`) waren aus Klassen nachgebaut — ohne
+   Rolle, mit `rounded-md p-s4` statt `rounded-lg p-s5`; sie sind jetzt
+   `Hinweis groesse="base"` wie `code-fehler` (DESIGN §5 „Notices": beim
+   Anfassen umstellen, V-217), und „abgelaufen" als Ausgang eines
+   abgeschickten Formulars mit `rolle="alert"`.
 9. **Die Wache sieht die Flächen**: `seite-ohne-uebersetzung` liest jetzt
    auch `src/app/check-in` und `src/app/auth/mitarbeiter`; Kontowurzel und
    Benachrichtigungen sind von der Ausnahmeliste gestrichen. Die Browsersuite
