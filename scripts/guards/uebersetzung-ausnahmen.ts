@@ -89,7 +89,6 @@ export const UEBERSETZUNG_AUSNAHMEN: readonly string[] = [
   'src/app/portal/[mandant]/berichte/rahmen.tsx',
   'src/app/portal/[mandant]/berichte/umsatz/page.tsx',
   'src/app/portal/[mandant]/buchhaltung/archiv/page.tsx',
-  'src/app/portal/[mandant]/buchhaltung/bank/[auszugId]/page.tsx',
   'src/app/portal/[mandant]/buchhaltung/bank/import/page.tsx',
   'src/app/portal/[mandant]/buchhaltung/bank/page.tsx',
   'src/app/portal/[mandant]/buchhaltung/buchungen/[id]/page.tsx',

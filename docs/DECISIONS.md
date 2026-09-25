@@ -18429,7 +18429,8 @@ Eingangsrechnungen, die Summe passte nicht zur Spalte; (6) vier Seiten bauten
 den Warnkasten aus Klassen nach, statt `<Hinweis>` zu nehmen; (7) ein
 Testsatz prüfte bei `mehrdeutig` trivial `false`; (8) Tage im Kontoauszug
 und Beträge der Zahlungstabelle standen nicht in der Hausschreibweise bzw.
-der Sprache der Sitzung.
+der Sprache der Sitzung, und das Kontoauszugsblatt samt der neuen Maske für
+den Ausgang war nur deutsch.
 
 **Die Entscheidung.**
 
@@ -18473,9 +18474,30 @@ der Sprache der Sitzung.
 8. Der Text `bezahlt` steht jetzt dort, wo das Formular verschwindet: „Diese
    Eingangsrechnung ist vollständig bezahlt, ausgeglichen am …".
 
-**Nicht geändert:** das Kontoauszugsblatt (`buchhaltung/bank/[auszugId]`) ist
-weiter nur deutsch, wie vor V-216 — es bekommt die Tage als TT.MM.JJJJ, aber
-keine Übersetzung in dieser Nachbesserung.
+9. **Das Kontoauszugsblatt spricht zwei Sprachen**
+   (`lib/i18n/verwaltung/finanzen/kontoauszug.ts`). Es war ganz deutsch,
+   auch die mit V-216 neue Maske für den Ausgang, und es zeigte bei einer
+   Abweisung den deutschen Satz des Dienstes so, wie er als `?meldung=` in
+   der Adresse stand — in jeder Sprache deutsch und mit jedem Text, den
+   jemand in einen Link schreibt. Jetzt:
+   (a) Beschriftungen, Tage (`tagInSprache`) und Beträge (`formatiereGeldIn`)
+   folgen der Sprache der Sitzung, die Pille trägt `sprache`; die Seite ist
+   von der Ausnahmeliste der Sperrklinke gestrichen
+   (`scripts/guards/uebersetzung-ausnahmen.ts`).
+   (b) Die Klärung schickt SCHLÜSSEL, wie es D-599 und die Rückmeldung
+   `?meldung=zugeordnet` schon taten: `ImportFehler` trägt statt des einen
+   Grundes `klaerung` sieben (`KlaerungGrund`), der Zahlungsausgang seine
+   Gründe mit dem Vorsatz `zahlung_`, die Route selbst `posten_waehlen`. Das
+   Blatt schlägt über `eigenerEintrag` nach; ein unbekannter Schlüssel
+   bekommt den allgemeinen Satz, nie den Rohwert — auch als Meldung nicht.
+   `tests/kern/kontoauszug-texte.test.ts` hält fest, dass jeder Grund in
+   beiden Sprachen einen Satz hat, und dass kein Satz für einen Grund steht,
+   den es nicht gibt.
+   (c) Nicht übersetzt werden DATEN: die Begründung des Abgleichs
+   (`vorschlag_text`) und die Klärungsnotiz stehen, wie sie geschrieben
+   wurden. Die übrigen Blätter der Buchhaltung (Bankliste, Import, DATEV,
+   Monatszahlen) bleiben auf der Ausnahmeliste; sie werden umgestellt, wenn
+   sie angefasst werden (D-592).
 
-| Betrifft | FIN-14, FIN-15, FIN-17, ACC-04, D-599, D-705, D-706, D-707, D-728, V-214, V-215, V-216, V-217, O-19, `src/server/services/finanz/mahnung/stufen.ts`, `src/server/services/finanz/zahlung/index.ts`, `src/server/services/finanz/ausgabe.ts`, `src/lib/datum/kalendertag.ts`, `src/components/ui/Hinweis.tsx`, `docs/DESIGN.md` §5, `src/app/api/einstellungen/mahnwesen/route.ts`, `src/app/api/buchhaltung/bank/umsatz/route.ts`, `src/app/api/finanzen/zahlungen/route.ts`, `src/app/portal/[mandant]/{einstellungen/mahnwesen,buchhaltung/datev/neu,buchhaltung/bank/[auszugId],buchhaltung/monatszahlen,finanzen,finanzen/ausgaben,finanzen/eingangsrechnungen/[id],finanzen/mahnungen/[id]}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,belege}.ts` |
+| Betrifft | FIN-14, FIN-15, FIN-17, ACC-04, D-599, D-705, D-706, D-707, D-728, V-214, V-215, V-216, V-217, O-19, `src/server/services/finanz/mahnung/stufen.ts`, `src/server/services/finanz/zahlung/index.ts`, `src/server/services/finanz/ausgabe.ts`, `src/lib/datum/kalendertag.ts`, `src/components/ui/Hinweis.tsx`, `docs/DESIGN.md` §5, `src/app/api/einstellungen/mahnwesen/route.ts`, `src/app/api/buchhaltung/bank/umsatz/route.ts`, `src/app/api/finanzen/zahlungen/route.ts`, `src/app/portal/[mandant]/{einstellungen/mahnwesen,buchhaltung/datev/neu,buchhaltung/bank/[auszugId],buchhaltung/monatszahlen,finanzen,finanzen/ausgaben,finanzen/eingangsrechnungen/[id],finanzen/mahnungen/[id]}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,belege,kontoauszug}.ts`, `src/server/services/finanz/bank/import.ts` (`KlaerungGrund`), `scripts/guards/uebersetzung-ausnahmen.ts`, D-592, `tests/kern/kontoauszug-texte.test.ts` |
 |---|---|

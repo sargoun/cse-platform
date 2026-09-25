@@ -33,10 +33,29 @@ export interface Abfrage {
   readonly aktiverMandantId: string;
 }
 
+/**
+ * Die Gründe, aus denen eine KLÄRUNG abgewiesen wird (V-217, D-710).
+ *
+ * Vorher hiessen alle sieben `klaerung`, und die Route schickte den deutschen
+ * Satz des Dienstes als `?meldung=` zurück. Das Kontoauszugsblatt spricht
+ * seitdem zwei Sprachen und schlägt den Satz zum Grund nach
+ * (`KONTOAUSZUG_TEXTE.fehler`); ein Grund ohne Satz fiele dort auf den
+ * allgemeinen — `tests/kern/kontoauszug-texte.test.ts` hält fest, dass
+ * keiner fehlt.
+ */
+export type KlaerungGrund =
+  | 'umsatz_fehlt'
+  | 'schon_entschieden'
+  | 'vormerkung'
+  | 'nur_eingang'
+  | 'posten_nicht_offen'
+  | 'verbindlichkeit_nicht_offen'
+  | 'begruendung_fehlt';
+
 export class ImportFehler extends Error {
   constructor(
     nachricht: string,
-    readonly grund: 'kein_bankkonto' | 'falsches_konto' | 'leer' | 'klaerung',
+    readonly grund: 'kein_bankkonto' | 'falsches_konto' | 'leer' | KlaerungGrund,
   ) {
     super(nachricht);
     this.name = 'ImportFehler';
@@ -414,13 +433,13 @@ async function ladeOffenenUmsatz(db: Abfrage, umsatzId: string): Promise<Offener
       for update of u`,
     [umsatzId]);
   if (u === undefined) {
-    throw new ImportFehler('Diesen Umsatz gibt es nicht.', 'klaerung');
+    throw new ImportFehler('Diesen Umsatz gibt es nicht.', 'umsatz_fehlt');
   }
   if (u.zustand !== 'offen' && u.zustand !== 'in_klaerung') {
     throw new ImportFehler(
       `Der Umsatz ist bereits entschieden (${u.zustand}). Eine Entscheidung wird `
       + 'nicht ueberschrieben; eine falsche Zuordnung wird widerrufen.',
-      'klaerung');
+      'schon_entschieden');
   }
   return u;
 }
@@ -445,7 +464,7 @@ export async function bestaetigeZuordnung(
   if (!u.gebucht) {
     throw new ImportFehler(
       'Eine Vormerkung (PDNG) wird nicht zugeordnet — die Bank hat noch nicht gebucht.',
-      'klaerung');
+      'vormerkung');
   }
   if (u.richtung === 'ausgang') {
     return bestaetigeAusgang(db, u, offenerPostenId);
@@ -454,7 +473,7 @@ export async function bestaetigeZuordnung(
     throw new ImportFehler(
       'Nur ein Zahlungseingang wird einer Forderung zugeordnet. Ein Ausgang ist '
       + 'keine Kundenzahlung.',
-      'klaerung');
+      'nur_eingang');
   }
   const [posten] = await db.abfrage<{
     id: string; rechnung_id: string; nummer: string; offen_cent: string;
@@ -467,7 +486,7 @@ export async function bestaetigeZuordnung(
   if (posten === undefined) {
     throw new ImportFehler(
       'Dieser Posten ist nicht offen — er ist ausgeglichen oder gehoert nicht hierher.',
-      'klaerung');
+      'posten_nicht_offen');
   }
 
   await ordneZu(db, u.id, {
@@ -527,7 +546,7 @@ async function bestaetigeAusgang(
     throw new ImportFehler(
       'Diese Verbindlichkeit ist nicht offen — sie ist bezahlt, oder der Posten ist '
       + 'keiner gegenüber einem Lieferanten.',
-      'klaerung');
+      'verbindlichkeit_nicht_offen');
   }
 
   const ergebnis = await verbucheZahlungsausgang(db, {
@@ -574,7 +593,7 @@ export async function markiereOhneBezug(
     throw new ImportFehler(
       'Ohne Begruendung bleibt der Umsatz in Klaerung — „ohne Bezug" braucht '
       + 'einen Satz, der spaeter allein steht.',
-      'klaerung');
+      'begruendung_fehlt');
   }
   const u = await ladeOffenenUmsatz(db, umsatzId);
   await db.schreibe(

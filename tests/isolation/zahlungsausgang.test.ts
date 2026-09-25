@@ -421,6 +421,7 @@ describe('(5) der Bankabgleich: ein Ausgang an einen Lieferanten', () => {
       'select id from kontoumsatz where kontoauszug_id = $1', [ergebnis.auszugId]);
     const debitor = await alsApp(sitzung(), (tx) => postenZuRechnung(kontextAus(tx), r));
     await expect(alsApp(sitzung(), (tx) => bestaetigeZuordnung(alsImport(tx), u!.id, debitor!.id)))
-      .rejects.toThrow(ImportFehler);
+      .rejects.toSatisfy((e: unknown) =>
+        e instanceof ImportFehler && e.grund === 'verbindlichkeit_nicht_offen');
   });
 });
