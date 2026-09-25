@@ -16,6 +16,8 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { FormField } from '../../src/components/ui/FormField.js';
+import { AuthSchale } from '../../src/app/auth/AuthSchale.js';
+import { ANMELDUNG_TEXTE } from '../../src/lib/i18n/vor-anmeldung.js';
 
 void React;
 const WURZEL = resolve(import.meta.dirname, '../..');
@@ -87,4 +89,26 @@ describe('die Kästen der Anmeldung sind das Bauteil (DESIGN §5 „Notices", V-
       expect(s).not.toMatch(/rounded-md border border-line bg-surface p-s4/u);
       expect(s).not.toMatch(/data-cse="(?:anmeldung-abgelaufen|keks-ohne-secure|sms-nicht-verbunden|dev-code)"/u);
     });
+});
+
+describe('der Rückweg „Zur Website" führt in die Website der gewählten Sprache (D-82)', () => {
+  const rahmen = (sprache?: 'de' | 'en' | 'ar' | 'tr'): string => renderToStaticMarkup(
+    createElement(AuthSchale, {
+      titel: 'Anmelden', children: 'x',
+      ...(sprache === undefined ? {} : { sprache, beschriftung: ANMELDUNG_TEXTE[sprache] }),
+    }));
+  const ziel = (html: string): string =>
+    /<a href="([^"]*)" data-cse="auth-zurueck"/u.exec(html)?.[1] ?? '';
+
+  it('Englisch auf /en — wie der Verweis auf die Datenschutzerklärung', () => {
+    expect(ziel(rahmen('en'))).toBe('/en');
+  });
+
+  it.each(['de', 'ar', 'tr'] as const)('%s auf die deutsche Startseite (es gibt keine andere)', (s) => {
+    expect(ziel(rahmen(s))).toBe('/');
+  });
+
+  it('die Anmeldung der Verwaltung bleibt, wie sie war', () => {
+    expect(ziel(rahmen())).toBe('/');
+  });
 });

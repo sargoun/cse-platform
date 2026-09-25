@@ -77,6 +77,14 @@ export function AuthSchale({
   readonly sprachwahl?: ReactNode;
 }) {
   const klein = sprache === undefined ? 'text-sm' : 'text-base';
+  /*
+   * **Der Rückweg führt in die Website der gewählten Sprache** — Englisch
+   * auf `/en` (D-82), wie der Verweis auf die Datenschutzerklärung (D-694
+   * Nr. 6). Arabisch und Türkisch haben keine eigene Website und führen auf
+   * die deutsche. Hier stand fest `/`: wer „To the website" antippte, landete
+   * auf der deutschen Startseite.
+   */
+  const website = sprache === 'en' ? '/en' : '/';
   return (
     <div className="relative min-h-dvh"
          {...(sprache === undefined ? {} : {
@@ -95,7 +103,7 @@ export function AuthSchale({
                         ${breit ? 'max-w-wahl' : 'max-w-form'}`}>
         <div className="flex flex-wrap items-center justify-between gap-s3">
           {/* Die Marke traegt den Rueckweg — ein Ziel, ein Element (D-613). */}
-          <a href="/" data-cse="auth-zurueck"
+          <a href={website} data-cse="auth-zurueck"
              className="group inline-flex items-center gap-s3 self-start rounded-md
                         p-s1 transition-colors duration-fast ease-brand">
             <Marke art="gruppe" groesse="lg" />

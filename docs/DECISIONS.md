@@ -19514,7 +19514,9 @@ D-557; die Benachrichtigungseinstellungen trugen den Schlüssel jeder Art
 6. **Die Anmeldung verweist auf die Datenschutzerklärung**, und jede
    Übersetzung sagt dabei, dass die deutsche Fassung verbindlich ist — wie die
    Website (D-84). Englisch führt auf `/en/datenschutz`, Arabisch und
-   Türkisch auf die deutsche Seite.
+   Türkisch auf die deutsche Seite. **Nachtrag:** dieselbe Regel gilt für den
+   Rückweg „Zur Website" des Rahmens — Englisch auf `/en` (D-82), sonst `/`;
+   er zeigte fest auf die deutsche Startseite.
 7. **Die Kontoseiten der Arbeiterhülle folgen `person.sprache`**:
    Kontowurzel und Benachrichtigungseinstellungen lesen
    `KONTO_WURZEL_TEXTE`/`KONTO_BENACHRICHTIGUNG_TEXTE` (de/en/ar/tr) und
