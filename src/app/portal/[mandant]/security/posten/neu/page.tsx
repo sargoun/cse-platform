@@ -14,6 +14,11 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { vorbelegt } from '@/lib/formular/maske';
 
 /**
  * `/portal/[mandant]/security/posten/neu` — einen Posten anlegen (SEC-01).
@@ -27,6 +32,10 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  * wird leer ausgeliefert (O-148), und eine Auswahlliste mit „Objektschutz,
  * Empfang, Streife" sähe aus wie eine Abstimmung, die es nicht gab (K-17).
  * Solange niemand Arten hinterlegt hat, steht hier der Satz statt der Liste.
+ *
+ * **Ein abgewiesener Anker kommt hierher zurück** (V-192, D-599): der Grund
+ * als Satz in der Sprache der Sitzung, die Eingaben vorbelegt — nur mit
+ * Werten, die die Seite anbietet (D-733 Nr. 4).
  */
 export const dynamic = 'force-dynamic';
 
@@ -34,9 +43,13 @@ interface Objektzeile { readonly id: string; readonly bezeichnung: string }
 interface Artzeile { readonly id: string; readonly bezeichnung: string }
 
 export default async function PostenNeu(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  const suche = await searchParams;
   const pfad = `/portal/${mandant}/security/posten/neu`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -71,6 +84,34 @@ export default async function PostenNeu(
         anker: readonly AnkerbareLeistung[] | null;
       }>);
 
+  /* Die Rückkehr einer abgewiesenen Anlage (V-192) — vorbelegt wird nur, was angeboten ist. */
+  const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
+  const fehler = vorbelegt(suche, 'fehler') ?? null;
+  const angeboten = (name: string, werte: readonly string[]): string | undefined => {
+    const wert = vorbelegt(suche, name);
+    return wert !== undefined && werte.includes(wert) ? wert : undefined;
+  };
+  const muster = (name: string, form: RegExp): string | undefined => {
+    const wert = vorbelegt(suche, name);
+    return wert !== undefined && form.test(wert) ? wert : undefined;
+  };
+  const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
+  const vor = {
+    objekt: angeboten('objekt', objekte.map((o) => o.id)),
+    bezeichnung: vorbelegt(suche, 'bezeichnung')?.slice(0, 120),
+    kurzzeichen: vorbelegt(suche, 'kurzzeichen')?.slice(0, 20),
+    postenart: angeboten('postenart', arten.map((a) => a.id)) ?? '',
+    minBesetzung: muster('min_besetzung', /^\d{1,3}$/u) ?? '1',
+    sollBesetzung: muster('soll_besetzung', /^\d{1,3}$/u) ?? '1',
+    rrule: vorbelegt(suche, 'rrule')?.slice(0, 200),
+    dtstart: muster('dtstart', /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/u),
+    dauer: muster('dauer', /^\d{1,4}$/u),
+    gueltigAb: muster('gueltig_ab', DATUM) ?? heute,
+    gueltigBis: muster('gueltig_bis', DATUM),
+    anker: angeboten('auftrag_leistung', (anker ?? []).filter((l) => l.lebt).map((l) => l.id))
+      ?? null,
+  };
+
   const feld = 'mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted';
   const eingabe = 'min-h-11 w-full rounded-md border border-line bg-surface-3 '
     + 'px-s3 py-s2 text-sm text-text';
@@ -88,6 +129,13 @@ export default async function PostenNeu(
     >
       <h1 className="mb-s5 text-h1 text-text">Posten anlegen</h1>
 
+      {fehler !== null && (
+        <Hinweis art="warnung" cse="posten-fehler" className="mb-s5 max-w-prose">
+          <strong>{tL.nichtAngelegt}</strong>{' '}
+          {eigenerEintrag(tL.fehler, fehler) ?? tL.fehlerSonst}
+        </Hinweis>
+      )}
+
       {objekte.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           In dieser Gesellschaft ist noch kein Objekt angelegt. Ein Posten steht
@@ -103,7 +151,7 @@ export default async function PostenNeu(
 
           <label className="mb-s4 block">
             <span className={feld}>Objekt</span>
-            <select name="objekt" required className={eingabe}>
+            <select name="objekt" required className={eingabe} defaultValue={vor.objekt}>
               {objekte.map((o) => (
                 <option key={o.id} value={o.id}>{o.bezeichnung}</option>
               ))}
@@ -113,12 +161,13 @@ export default async function PostenNeu(
           <label className="mb-s4 block">
             <span className={feld}>Bezeichnung</span>
             <input name="bezeichnung" required maxLength={120} className={eingabe}
-              placeholder="Nachtwache Haupteingang" />
+              placeholder="Nachtwache Haupteingang" defaultValue={vor.bezeichnung} />
           </label>
 
           <label className="mb-s4 block">
             <span className={feld}>Kurzzeichen (auf dem Plan)</span>
-            <input name="kurzzeichen" maxLength={20} className={eingabe} placeholder="NW-1" />
+            <input name="kurzzeichen" maxLength={20} className={eingabe} placeholder="NW-1"
+              defaultValue={vor.kurzzeichen} />
           </label>
 
           <div className="mb-s4">
@@ -130,7 +179,7 @@ export default async function PostenNeu(
                 die ehrliche Variante.
               </p>
             ) : (
-              <select name="postenart" className={eingabe}>
+              <select name="postenart" className={eingabe} defaultValue={vor.postenart}>
                 <option value="">— ohne Art —</option>
                 {arten.map((a) => (
                   <option key={a.id} value={a.id}>{a.bezeichnung}</option>
@@ -142,12 +191,12 @@ export default async function PostenNeu(
           <div className="mb-s4 flex flex-wrap gap-s4">
             <label className="flex-1">
               <span className={feld}>Mindestbesetzung</span>
-              <input name="min_besetzung" type="number" min={1} defaultValue={1}
+              <input name="min_besetzung" type="number" min={1} defaultValue={vor.minBesetzung}
                 required className={eingabe} />
             </label>
             <label className="flex-1">
               <span className={feld}>Sollbesetzung</span>
-              <input name="soll_besetzung" type="number" min={1} defaultValue={1}
+              <input name="soll_besetzung" type="number" min={1} defaultValue={vor.sollBesetzung}
                 required className={eingabe} />
             </label>
           </div>
@@ -161,7 +210,7 @@ export default async function PostenNeu(
           <label className="mb-s4 block">
             <span className={feld}>Abdeckungsregel (RFC 5545, leer = durchgehend)</span>
             <input name="rrule" maxLength={200} className={eingabe}
-              placeholder="FREQ=DAILY" />
+              placeholder="FREQ=DAILY" defaultValue={vor.rrule} />
           </label>
 
           <div className="mb-s4 flex flex-wrap gap-s4">
@@ -169,28 +218,31 @@ export default async function PostenNeu(
               <span className={feld}>Beginn (Ortszeit, nur mit Regel)</span>
               {/* Wanduhr ohne Zone (§10.1): „22:00" bleibt 22:00, auch am
                   Tag der Zeitumstellung. */}
-              <input name="dtstart" type="datetime-local" className={eingabe} />
+              <input name="dtstart" type="datetime-local" className={eingabe}
+                defaultValue={vor.dtstart} />
             </label>
             <label className="flex-1">
               <span className={feld}>Dauer in Minuten</span>
-              <input name="dauer" type="number" min={1} className={eingabe} placeholder="480" />
+              <input name="dauer" type="number" min={1} className={eingabe} placeholder="480"
+                defaultValue={vor.dauer} />
             </label>
           </div>
 
           <div className="mb-s5 flex flex-wrap gap-s4">
             <label className="flex-1">
               <span className={feld}>Gültig ab</span>
-              <input name="gueltig_ab" type="date" required defaultValue={heute}
+              <input name="gueltig_ab" type="date" required defaultValue={vor.gueltigAb}
                 className={eingabe} />
             </label>
             <label className="flex-1">
               <span className={feld}>Gültig bis (einschliesslich)</span>
-              <input name="gueltig_bis" type="date" className={eingabe} />
+              <input name="gueltig_bis" type="date" className={eingabe}
+                defaultValue={vor.gueltigBis} />
             </label>
           </div>
 
           <div className="mb-s5">
-            <LeistungsankerFeld leistungen={anker} gewaehlt={null}
+            <LeistungsankerFeld leistungen={anker} gewaehlt={vor.anker}
                                 sprache={zugang.sprache} feldKlasse={eingabe} />
           </div>
 

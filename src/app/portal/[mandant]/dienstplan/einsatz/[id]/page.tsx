@@ -574,10 +574,11 @@ export default async function Einsatzblatt({
           <h3 className="mb-s2 mt-0 text-base text-text">{tL.feld}</h3>
           {frage['leistung'] === 'gesetzt' && (
             <p role="status" className="mb-s4 max-w-prose text-sm text-success"
-               data-cse="schicht-leistung-gesetzt">{tL.gesetzt}</p>
+               data-cse="schicht-leistung-gesetzt">{tL.gesetztEinzeln}</p>
           )}
           {kopf.hat_zeit ? (
-            <p className="m-0 max-w-prose text-sm text-text-muted">{tL.fehler.leistung_hat_zeiten}</p>
+            <p className="m-0 max-w-prose text-sm text-text-muted"
+               data-cse="schicht-leistung-hat-zeiten">{tL.hatZeiten}</p>
           ) : (
             <form method="post" action="/api/dienstplan/einsatz"
                   className="flex max-w-[60ch] flex-col gap-s4">

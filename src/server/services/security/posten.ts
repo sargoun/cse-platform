@@ -254,6 +254,32 @@ export class PostenEingabeFehlt extends Error {
   }
 }
 
+/** Diesen Posten gibt es in dieser Gesellschaft nicht (AUT-06: nicht vorhanden, nicht verboten). */
+export class PostenNichtGefunden extends Error {
+  readonly code = 'nicht_gefunden';
+  readonly status = 404;
+  constructor() {
+    super('Diesen Posten gibt es in dieser Gesellschaft nicht.');
+    this.name = 'PostenNichtGefunden';
+  }
+}
+
+/**
+ * Ein archivierter Posten bekommt keine andere Leistungszeile (V-192): er
+ * erzeugt keine Schichten mehr, und die Zeit, die an ihm hing, hat ihren
+ * Anker beim Erfassen übernommen. Mit dem Grund als Schlüssel, den das
+ * Postenblatt in seiner Sprache nachschlägt.
+ */
+export class PostenArchiviert extends Error {
+  readonly code = 'ungueltiger_zustand';
+  readonly status = 409;
+  readonly grund = 'posten_archiviert';
+  constructor() {
+    super('Dieser Posten ist archiviert; seine Leistungszeile bleibt, wie sie war.');
+    this.name = 'PostenArchiviert';
+  }
+}
+
 export interface PostenEingabe {
   readonly objektId: string;
   readonly bezeichnung: string;
@@ -360,12 +386,11 @@ export async function legePostenAn(
 export async function setzePostenLeistung(
   kontext: SchreibKontext, postenId: string, auftragLeistungId: string | null,
 ): Promise<void> {
-  const [bisher] = await kontext.abfrage<{ anker: string | null }>(
-    `select auftrag_leistung_id::text as anker from posten
-      where id = $1::uuid and archiviert_am is null`, [postenId]);
-  if (bisher === undefined) {
-    throw new PostenEingabeFehlt('Diesen Posten gibt es in dieser Gesellschaft nicht.');
-  }
+  const [bisher] = await kontext.abfrage<{ anker: string | null; archiviert: boolean }>(
+    `select auftrag_leistung_id::text as anker, (archiviert_am is not null) as archiviert
+       from posten where id = $1::uuid`, [postenId]);
+  if (bisher === undefined) throw new PostenNichtGefunden();
+  if (bisher.archiviert) throw new PostenArchiviert();
   if (auftragLeistungId !== null && auftragLeistungId !== bisher.anker) {
     await pruefeLeistungsanker(kontext, auftragLeistungId);
   }

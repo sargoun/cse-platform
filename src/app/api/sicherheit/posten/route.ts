@@ -6,10 +6,13 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant } from '@/server/kontext/index';
-import { legePostenAn, setzePostenLeistung } from '@/server/services/security/posten';
+import {
+  legePostenAn, PostenArchiviert, setzePostenLeistung,
+} from '@/server/services/security/posten';
 import { legePlanungsserieAn } from '@/server/services/dienstplan/serie';
 import { alsAntwort } from '../antwort';
 import { LeistungsankerFehler } from '@/server/services/dienstplan/leistungsanker';
+import { maskeMitEingaben } from '@/lib/formular/maske';
 
 /**
  * `POST /api/sicherheit/posten` — einen Wachposten anlegen (SEC-01).
@@ -85,9 +88,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           await setzePostenLeistung(kontext, postenId, anker);
         })));
     } catch (fehler) {
-      const grund = (fehler as { grund?: unknown }).grund;
-      if (fehler instanceof LeistungsankerFehler && typeof grund === 'string') {
-        return zurueckMit('fehler', grund);
+      // Ankerfehler und archivierter Posten: der Grund als Schlüssel auf das
+      // Blatt (V-192) — vorher kam der archivierte als JSON.
+      if (fehler instanceof LeistungsankerFehler || fehler instanceof PostenArchiviert) {
+        return zurueckMit('fehler', fehler.grund);
       }
       const antwort = alsAntwort(fehler);
       if (antwort !== null) return antwort;
@@ -141,6 +145,22 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         return postenId;
       })) as Promise<string>);
   } catch (fehler) {
+    /*
+     * Ein abgewiesener Anker kommt auf die Maske zurück, mit dem Grund als
+     * Schlüssel und den Eingaben (V-192, D-599) — vorher als JSON-422. Die
+     * übrigen Abweisungen antworten weiter mit JSON (D-599-Altlast).
+     */
+    if (fehler instanceof LeistungsankerFehler) {
+      const maske = maskeMitEingaben(`/portal/${mandant}/security/posten/neu`, fehler.grund, {
+        objekt: objektId, bezeichnung, kurzzeichen: text(daten, 'kurzzeichen'),
+        postenart: text(daten, 'postenart'), min_besetzung: text(daten, 'min_besetzung'),
+        soll_besetzung: text(daten, 'soll_besetzung'), rrule: text(daten, 'rrule'),
+        dtstart: text(daten, 'dtstart'), dauer: text(daten, 'dauer'), gueltig_ab: gueltigAb,
+        gueltig_bis: text(daten, 'gueltig_bis'), auftrag_leistung: text(daten, 'auftrag_leistung'),
+      });
+      return NextResponse.redirect(
+        internesZiel(maske, `/portal/${mandant}/security/posten`, anfrage), 303);
+    }
     const antwort = alsAntwort(fehler);
     if (antwort !== null) return antwort;
     throw fehler;

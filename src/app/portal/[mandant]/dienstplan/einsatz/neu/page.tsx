@@ -16,7 +16,7 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
 import { LeistungsankerFeld } from '@/components/portal/LeistungsankerFeld';
 import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
 import {
-  listeAnkerbareLeistungen, type AnkerbareLeistung,
+  ANKERBARE_AUFTRAGSZUSTAENDE, listeAnkerbareLeistungen, type AnkerbareLeistung,
 } from '@/server/services/dienstplan/leistungsanker';
 
 /**
@@ -92,10 +92,14 @@ export default async function NeueSchicht(
              from revier r join objekt o on o.id = r.objekt_id and o.mandant_id = r.mandant_id
             where r.archiviert_am is null and o.archiviert_am is null
             order by o.bezeichnung, r.sortierung, r.bezeichnung limit 300`),
+        /*
+         * Dieselben Zustände wie die Leistungszeile derselben Maske (V-192,
+         * O-927) — vorher nahm die Zeile auch `angelegt` und `abgeschlossen`.
+         */
         auftraege: await kontext.abfrage<AuftragZeile>(
           `select id, auftragsnummer as nummer, bezeichnung
-             from auftrag where status in ('aktiv','pausiert')
-            order by auftragsnummer desc limit 200`),
+             from auftrag where status::text = any($1::text[])
+            order by auftragsnummer desc limit 200`, [[...ANKERBARE_AUFTRAGSZUSTAENDE]]),
         leistungen: darf['auftrag.lesen'] === true ? await listeAnkerbareLeistungen(kontext) : null,
       };
     })) as Promise<{

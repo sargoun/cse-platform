@@ -188,12 +188,13 @@ export async function legeEinzelschichtAn(
             ende   as (select * from app.loese_ortszeit(
                          ($2::date + case when $5 then 1 else 0 end), $4::time, 'Europe/Berlin'))
        insert into einsatz (
-         mandant_id, quelle, objekt_id, revier_id, auftrag_id, auftrag_leistung_id, plan_datum,
+         mandant_id, quelle, objekt_id, revier_id, auftrag_id, auftrag_leistung_id,
+         auftrag_von_hand, plan_datum,
          beginn_zeitpunkt, ende_zeitpunkt, zeitzone, beginn_lokal, ende_lokal,
          endet_am_folgetag, zeitanomalie, pause_geplant_minuten,
          soll_besetzung, min_besetzung, notiz, status, erstellt_von_art, erstellt_von)
        select $1::uuid, 'manuell'::einsatz_quelle, $6::uuid, $7::uuid, $8::uuid, $14::uuid,
-              $2::date,
+              ($8::uuid is not null), $2::date,
               anfang.zeitpunkt, ende.zeitpunkt, 'Europe/Berlin', $3::time, $4::time,
               $5, anfang.anomalie, $9::integer,
               $10::smallint, $11::smallint, $12, 'geplant'::einsatz_status,
@@ -304,23 +305,28 @@ export async function sageEinsatzAb(
  * bei jedem Lauf auf die künftigen Schichten — ein hier gesetzter Wert hielte
  * nur bis zum nächsten Lauf. Der Weg dorthin ist der Träger.
  *
- * **Der Auftrag folgt dem Anker — ausser, er wurde ohne Anker genannt.**
- * Trug die Schicht schon eine Zeile, stammt ihr Auftrag aus dieser Zeile, und
+ * **Der Auftrag folgt dem Anker — ausser, ein Mensch hat ihn genannt**
+ * (`einsatz.auftrag_von_hand`, 0431, V-192). Hat ihn ein Mensch in der Maske
+ * genannt, muss jede Zeile zu IHM gehören, und das Lösen der Zeile lässt ihn
+ * stehen — das war die Angabe eines Menschen. Sonst stammt er aus der Zeile:
  * eine neue Zeile bringt ihren eigenen mit (`auftrag_id` wird geleert und von
- * `kern.einsatz_auftrag_ableiten` neu gesetzt). Nannte sie nur einen Auftrag,
- * muss die Zeile zu IHM gehören — das war die Angabe eines Menschen. Gelöst
- * wird nur der Anker; der Auftrag bleibt.
+ * `kern.einsatz_auftrag_ableiten` neu gesetzt), und das Lösen nimmt ihn mit.
+ *
+ * Vorher riet der Dienst die Herkunft aus dem Stand („trägt die Schicht eine
+ * Zeile, ist der Auftrag abgeleitet"). Nach dem Lösen stand ein abgeleiteter
+ * Auftrag ohne Zeile da und galt beim nächsten Setzen als genannt: die Zeile
+ * eines anderen Auftrags wurde abgewiesen, obwohl ihn nie ein Mensch nannte.
  */
 export async function setzeLeistungsanker(
   kontext: SchreibKontext, einsatzId: string, auftragLeistungId: string | null,
 ): Promise<void> {
   const [stand] = await kontext.abfrage<{
     quelle: string; storniert: boolean; zeiten: boolean; auftrag_id: string | null;
-    anker: string | null;
+    von_hand: boolean;
   }>(
     `select quelle::text as quelle, (storniert_am is not null) as storniert,
             app.einsatz_hat_zeiterfassung(id) as zeiten, auftrag_id,
-            auftrag_leistung_id as anker
+            auftrag_von_hand as von_hand
        from einsatz where id = $1::uuid`, [einsatzId]);
   if (stand === undefined) {
     throw new SchichtFehler('Diese Schicht gibt es nicht.', 'nicht_gefunden', 404);
@@ -338,7 +344,7 @@ export async function setzeLeistungsanker(
       'Auf dieser Schicht ist schon Zeit erfasst; ihre Einträge haben den Anker '
       + 'übernommen, den die Schicht damals trug.', 'leistung_hat_zeiten', 409);
   }
-  const auftragFolgtAnker = stand.anker !== null;
+  const auftragFolgtAnker = !stand.von_hand;
   if (auftragLeistungId !== null) {
     await pruefeAnker(kontext, auftragLeistungId, auftragFolgtAnker ? null : stand.auftrag_id);
   }
@@ -346,7 +352,7 @@ export async function setzeLeistungsanker(
   const zeilen = await kontext.schreibe<{ id: string }>(
     `update einsatz
         set auftrag_leistung_id = $2::uuid,
-            auftrag_id = case when $4 and $2::uuid is not null then null else auftrag_id end,
+            auftrag_id = case when $4 then null else auftrag_id end,
             geaendert_am = now(), geaendert_von_art = 'mensch'::akteur_art,
             geaendert_von = $3::uuid
       where id = $1::uuid and storniert_am is null

@@ -22,13 +22,15 @@ import {
   SchichtFehler, legeEinzelschichtAn, setzeLeistungsanker,
 } from '../../src/server/services/dienstplan/einzelschicht.js';
 import {
-  LeistungsankerFehler, listeAnkerbareLeistungen, pruefeLeistungsanker,
+  ANKERBARE_AUFTRAGSZUSTAENDE, LeistungsankerFehler, listeAnkerbareLeistungen, pruefeLeistungsanker,
 } from '../../src/server/services/dienstplan/leistungsanker.js';
 import { legePlanungsserieAn, legeTurnusSerieAn } from '../../src/server/services/dienstplan/serie.js';
 import {
   SeriePflegeFehler, aendereTurnus,
 } from '../../src/server/services/dienstplan/serie-pflege.js';
-import { legePostenAn, setzePostenLeistung } from '../../src/server/services/security/posten.js';
+import {
+  legePostenAn, PostenArchiviert, PostenNichtGefunden, setzePostenLeistung,
+} from '../../src/server/services/security/posten.js';
 import { listeMitAuftrag, listeOhneAuftrag } from '../../src/server/services/zeit/auftrag.js';
 
 let f: Fixtur;
@@ -228,7 +230,7 @@ describe('(1) Einzelschicht: die Zeit auf ihr erreicht die Abrechnung', () => {
 });
 
 describe('(2) die Leistungszeile einer Einzelschicht nachtragen, ändern, lösen', () => {
-  it('nachtragen leitet den Auftrag ab; ändern nimmt den neuen mit; lösen lässt den Auftrag', async () => {
+  it('nachtragen leitet den Auftrag ab; ändern nimmt den neuen mit; lösen nimmt den abgeleiteten mit (V-192)', async () => {
     const bau = await baue(f.reinigung);
     const { einsatzId } = await imKontext((k) => legeEinzelschichtAn(k, {
       ...EINZEL, objektId: bau.objekt,
@@ -238,19 +240,45 @@ describe('(2) die Leistungszeile einer Einzelschicht nachtragen, ändern, lösen
     // Der Auftrag stammte aus der Zeile — eine neue Zeile bringt ihren eigenen mit.
     await imKontext((k) => setzeLeistungsanker(k, einsatzId, bau.zeileB));
     expect(await einsatzZeile(einsatzId)).toEqual({ auftrag: bau.auftragB, anker: bau.zeileB });
+    // Lösen nimmt den ABGELEITETEN Auftrag mit (0431) — vorher blieb er stehen …
     await imKontext((k) => setzeLeistungsanker(k, einsatzId, null));
-    expect(await einsatzZeile(einsatzId)).toEqual({ auftrag: bau.auftragB, anker: null });
+    expect(await einsatzZeile(einsatzId)).toEqual({ auftrag: null, anker: null });
+    // … und galt beim nächsten Setzen als genannt: die Zeile eines anderen
+    // Auftrags wurde abgewiesen, obwohl ihn nie ein Mensch genannt hatte.
+    await imKontext((k) => setzeLeistungsanker(k, einsatzId, bau.zeileA));
+    expect(await einsatzZeile(einsatzId)).toEqual({ auftrag: bau.auftragA, anker: bau.zeileA });
   });
 
-  it('ein von Hand genannter Auftrag bleibt: die Zeile muss zu ihm gehören', async () => {
+  it('ein von Hand genannter Auftrag bleibt: die Zeile muss zu ihm gehören — auch nach dem Lösen', async () => {
     const bau = await baue(f.reinigung);
     const { einsatzId } = await imKontext((k) => legeEinzelschichtAn(k, {
       ...EINZEL, objektId: bau.objekt, auftragId: bau.auftragA,
     }));
+    const [herkunft] = await sql.unsafe<{ von_hand: boolean }[]>(
+      `select auftrag_von_hand as von_hand from einsatz where id = $1`, [einsatzId]);
+    expect(herkunft?.von_hand).toBe(true);
     expect(await grund(() => imKontext((k) => setzeLeistungsanker(k, einsatzId, bau.zeileB))))
       .toBe('leistung_anderer_auftrag');
     await imKontext((k) => setzeLeistungsanker(k, einsatzId, bau.zeileA));
     expect(await einsatzZeile(einsatzId)).toEqual({ auftrag: bau.auftragA, anker: bau.zeileA });
+    // Lösen lässt den GENANNTEN Auftrag stehen, und er bindet weiter.
+    await imKontext((k) => setzeLeistungsanker(k, einsatzId, null));
+    expect(await einsatzZeile(einsatzId)).toEqual({ auftrag: bau.auftragA, anker: null });
+    expect(await grund(() => imKontext((k) => setzeLeistungsanker(k, einsatzId, bau.zeileB))))
+      .toBe('leistung_anderer_auftrag');
+  });
+
+  it('eine Schicht ohne genannten Auftrag trägt `auftrag_von_hand = false`, und „von Hand" heisst: mit Auftrag (0431)', async () => {
+    const bau = await baue(f.reinigung);
+    const { einsatzId } = await imKontext((k) => legeEinzelschichtAn(k, {
+      ...EINZEL, objektId: bau.objekt, auftragLeistungId: bau.zeileA,
+    }));
+    const [z] = await sql.unsafe<{ von_hand: boolean }[]>(
+      `select auftrag_von_hand as von_hand from einsatz where id = $1`, [einsatzId]);
+    expect(z?.von_hand).toBe(false);
+    await expect(sql.unsafe(
+      `update einsatz set auftrag_leistung_id = null, auftrag_id = null, auftrag_von_hand = true
+        where id = $1`, [einsatzId])).rejects.toThrow(/einsatz_auftrag_von_hand_hat_auftrag/u);
   });
 
   it('nach der ersten erfassten Stunde bleibt der Anker', async () => {
@@ -501,5 +529,91 @@ describe('(6) die Ableitung des Auftrags braucht kein `auftrag.lesen` (V-192, 04
          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'kern' and p.proname = 'einsatz_auftrag_ableiten'`);
     expect(f0).toEqual({ definer: true, eigentuemer: 'cse_definer', oeffentlich: false });
+  });
+});
+
+/** Ein Auftrag am Objekt des Aufbaus in einem Zustand, mit einer Leistungszeile. */
+async function zeileImZustand(objekt: string, status: string): Promise<string> {
+  const [a] = await sql.unsafe<{ id: string }[]>(
+    `insert into auftrag (mandant_id, auftragsnummer, kunde_id, objekt_id, art, status,
+                          status_grund, abgeschlossen_am, bezeichnung,
+                          verantwortlich_benutzer_id, start_datum)
+     select mandant_id, $2, kunde_id, id, 'rahmenvertrag', $3::auftrag_status,
+            case when $3 in ('pausiert', 'storniert') then 'Objekt geschlossen' end,
+            case when $3 = 'abgeschlossen' then now() end,
+            'Zustandsauftrag', $4, '2026-01-01'
+       from objekt where id = $1
+     returning id`,
+    [objekt, `AU-Z-${zufall()}`, status, admin] as never[]);
+  const [l] = await sql.unsafe<{ id: string }[]>(
+    `insert into auftrag_leistung (mandant_id, auftrag_id, position_nr, bezeichnung,
+                                   steuersatz_bp, gueltig_ab)
+     select mandant_id, id, 1, 'Unterhaltsreinigung', 1900, '2026-01-01'
+       from auftrag where id = $1
+     returning id`, [a!.id]);
+  return l!.id;
+}
+
+describe('(7) nur ein laufender Auftrag nimmt neue Zeit an — EINE Liste für beide Felder (V-192, O-927)', () => {
+  it('Zeilen eines angelegten, abgeschlossenen oder stornierten Auftrags stehen nicht zur Wahl und werden abgewiesen', async () => {
+    const bau = await baue(f.reinigung);
+    const zeile = {
+      angelegt: await zeileImZustand(bau.objekt, 'angelegt'),
+      pausiert: await zeileImZustand(bau.objekt, 'pausiert'),
+      abgeschlossen: await zeileImZustand(bau.objekt, 'abgeschlossen'),
+      storniert: await zeileImZustand(bau.objekt, 'storniert'),
+    };
+    // Der Platzhalter: dieselbe Menge wie die Auftragsauswahl der Einzelschicht.
+    expect(ANKERBARE_AUFTRAGSZUSTAENDE).toEqual(['aktiv', 'pausiert']);
+
+    const ids = (await imKontext((k) => listeAnkerbareLeistungen(k))).map((l) => l.id);
+    expect(ids).toContain(zeile.pausiert);
+    expect(ids).toContain(bau.zeileA);
+    for (const nicht of [zeile.angelegt, zeile.abgeschlossen, zeile.storniert]) {
+      expect(ids).not.toContain(nicht);
+      expect(await grund(() => imKontext((k) => pruefeLeistungsanker(k, nicht))))
+        .toBe('leistung_beendet');
+    }
+    expect(await grund(() => imKontext((k) => pruefeLeistungsanker(k, zeile.pausiert)))).toBeNull();
+
+    // Als bisheriger Anker steht sie weiter da — nicht wählbar, nicht gelöscht.
+    const mitBisher = await imKontext((k) => listeAnkerbareLeistungen(k, zeile.abgeschlossen));
+    expect(mitBisher.find((l) => l.id === zeile.abgeschlossen)?.lebt).toBe(false);
+  });
+});
+
+describe('(8) jede Zeile nennt Kunde und Objekt — ohne das Recht bleibt die Angabe leer, nicht die Zeile (V-192)', () => {
+  it('mit den Rechten: Kunde und Objekt; ohne `crm.lesen` und `objekt.lesen`: dieselbe Zeile ohne sie', async () => {
+    const bau = await baue(f.reinigung);
+    const voll = (await imKontext((k) => listeAnkerbareLeistungen(k)))
+      .find((l) => l.id === bau.zeileA);
+    expect(voll).toMatchObject({ kunde: 'Ankerkunde', objekt: 'Ankerobjekt', lebt: true });
+
+    const nurAuftrag = await eigeneRolle(f.reinigung, ['auftrag.lesen', 'dienstplan.lesen']);
+    const knapp = (await imKontext((k) => listeAnkerbareLeistungen(k), nurAuftrag))
+      .find((l) => l.id === bau.zeileA);
+    expect(knapp).toMatchObject({ kunde: null, objekt: null, lebt: true });
+  });
+});
+
+describe('(9) ein archivierter Posten behält seine Leistungszeile — mit Grund abgewiesen (V-192)', () => {
+  it('archiviert: `PostenArchiviert` und keine Änderung; unbekannt: nicht vorhanden', async () => {
+    const adminS = await konto(f.security);
+    const bau = await baue(f.security, adminS);
+    const postenId = await imKontext(async (k) => legePostenAn(k, {
+      objektId: bau.objekt, bezeichnung: 'Tor Süd', minBesetzung: 1, sollBesetzung: 1,
+      gueltigAb: await tagePlus(1), auftragLeistungId: bau.zeileA,
+    }), adminS, f.security);
+    await sql.unsafe(`update posten set archiviert_am = now() where id = $1`, [postenId]);
+
+    await expect(imKontext((k) => setzePostenLeistung(k, postenId, bau.zeileB), adminS, f.security))
+      .rejects.toBeInstanceOf(PostenArchiviert);
+    const [p] = await sql.unsafe<{ anker: string | null }[]>(
+      `select auftrag_leistung_id as anker from posten where id = $1`, [postenId]);
+    expect(p?.anker).toBe(bau.zeileA);
+
+    await expect(imKontext((k) => setzePostenLeistung(
+      k, '00000000-0000-4000-8000-00000000abcd', bau.zeileB), adminS, f.security))
+      .rejects.toBeInstanceOf(PostenNichtGefunden);
   });
 });

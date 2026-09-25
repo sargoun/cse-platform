@@ -48,6 +48,8 @@ export interface SeriePflegeTexte {
   readonly bilanz: string;
   readonly keinSchreibrecht: string;
   readonly fehler: Readonly<Record<string, string>>;
+  /** Ein Grund, den diese Seite nicht kennt — nie der Schlüssel aus der Adresse (V-192). */
+  readonly fehlerSonst: string;
 }
 
 export const SERIE_PFLEGE_TEXTE: Readonly<Record<InternSprache, SeriePflegeTexte>> = {
@@ -134,6 +136,7 @@ export const SERIE_PFLEGE_TEXTE: Readonly<Record<InternSprache, SeriePflegeTexte
         'Die Datenbank hat den Schreibversuch abgewiesen. Fehlt das Gewerkerecht in dieser '
         + 'Gesellschaft, oder steht die Ansicht auf „nur lesen"?',
     },
+    fehlerSonst: 'Die Änderung wurde abgewiesen. Nichts wurde gespeichert.',
   },
 
   en: {
@@ -218,5 +221,6 @@ export const SERIE_PFLEGE_TEXTE: Readonly<Record<InternSprache, SeriePflegeTexte
         'The database refused the write. Is the trade right missing in this Gesellschaft '
         + '(legal entity), or is the view read-only?',
     },
+    fehlerSonst: 'The change was refused. Nothing was saved.',
   },
 };

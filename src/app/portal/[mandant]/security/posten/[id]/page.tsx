@@ -62,6 +62,8 @@ interface PostenKopf {
   readonly gueltig_bis: string | null;
   /** Der Abrechnungsanker (TIM-12, V-191) — `null` ohne Leistungszeile. */
   readonly auftrag_leistung_id: string | null;
+  /** Archiviert: kein Formular für den Anker, sondern ein Satz (V-192). */
+  readonly archiviert: boolean;
 }
 
 interface Anforderung {
@@ -116,7 +118,8 @@ export default async function PostenBlatt(
                   p.min_besetzung, p.soll_besetzung, p.abdeckung_rrule, p.dauer_minuten,
                   to_char(p.gueltig_ab, 'DD.MM.YYYY') as gueltig_ab,
                   to_char(p.gueltig_bis, 'DD.MM.YYYY') as gueltig_bis,
-                  p.auftrag_leistung_id::text as auftrag_leistung_id
+                  p.auftrag_leistung_id::text as auftrag_leistung_id,
+                  (p.archiviert_am is not null) as archiviert
              from posten p
              join objekt o on o.id = p.objekt_id and o.mandant_id = p.mandant_id
              left join postenart pa on pa.id = p.postenart_id and pa.mandant_id = p.mandant_id
@@ -367,7 +370,7 @@ export default async function PostenBlatt(
           <h2 className="mb-s3 mt-0 text-h3 text-text">{tL.feld}</h2>
           {ankerFehler !== null && (
             <Hinweis art="warnung" cse="posten-leistung-fehler" className="mb-s4 max-w-prose">
-              {eigenerEintrag(tL.fehler, ankerFehler) ?? tL.fehler.leistung_unbekannt}
+              {eigenerEintrag(tL.fehler, ankerFehler) ?? tL.fehlerSonst}
             </Hinweis>
           )}
           {suche['leistung'] === 'gesetzt' && ankerFehler === null && (
@@ -375,22 +378,28 @@ export default async function PostenBlatt(
               {tL.gesetzt}
             </Hinweis>
           )}
-          <form method="post" action="/api/sicherheit/posten"
-                className="flex max-w-[60ch] flex-col gap-s4">
-            <input type="hidden" name="aktion" value="leistung" />
-            <input type="hidden" name="posten" value={kopf.id} />
-            <input type="hidden" name="mandant" value={mandant} />
-            <LeistungsankerFeld leistungen={anker} gewaehlt={kopf.auftrag_leistung_id}
-                                sprache={zugang.sprache}
-                                feldKlasse="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text" />
-            {anker !== null && (
-              <div>
-                <Button type="submit" variante="secondary" data-cse="posten-leistung-knopf">
-                  {tL.speichern}
-                </Button>
-              </div>
-            )}
-          </form>
+          {kopf.archiviert ? (
+            <p data-cse="posten-leistung-archiviert" className="m-0 max-w-prose text-sm text-text-muted">
+              {tL.postenArchiviert}
+            </p>
+          ) : (
+            <form method="post" action="/api/sicherheit/posten"
+                  className="flex max-w-[60ch] flex-col gap-s4">
+              <input type="hidden" name="aktion" value="leistung" />
+              <input type="hidden" name="posten" value={kopf.id} />
+              <input type="hidden" name="mandant" value={mandant} />
+              <LeistungsankerFeld leistungen={anker} gewaehlt={kopf.auftrag_leistung_id}
+                                  sprache={zugang.sprache}
+                                  feldKlasse="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text" />
+              {anker !== null && (
+                <div>
+                  <Button type="submit" variante="secondary" data-cse="posten-leistung-knopf">
+                    {tL.speichern}
+                  </Button>
+                </div>
+              )}
+            </form>
+          )}
         </section>
       )}
     </PortalRahmen>

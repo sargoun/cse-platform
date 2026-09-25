@@ -19,6 +19,10 @@ import type { PortalSprache } from '@/lib/i18n/texte';
  * Speichern „ohne" — und löschte in einer Pflegemaske den Anker, den jemand
  * anderes gesetzt hat. Kein Feld heisst: der Anker bleibt.
  *
+ * **Jede Zeile nennt Kunde und Objekt ihres Auftrags** (V-192): ohne sie
+ * liess sich ein Turnus am Objekt von Kunde A an den Auftrag von Kunde B
+ * hängen, ohne dass es jemand sah. Ob das je richtig ist, fragt O-927.
+ *
  * **Und der bisherige Anker ist immer gewählt** (V-192). Der Dienst liefert
  * ihn mit (`listeAnkerbareLeistungen(…, bisher)`), auch jenseits der
  * Obergrenze. Fehlt er trotzdem in der Liste, steht er als eigene Zeile da
@@ -57,7 +61,9 @@ export function LeistungsankerFeld({
         {leistungen.map((l) => (
           <option key={l.id} value={l.id}>
             {l.auftragsnummer} · {t.position} {l.positionNr} · {l.bezeichnung}
-            {l.lebt ? '' : ` (${t.beendet})`}
+            {l.kunde === null ? '' : ` · ${l.kunde}`}
+            {l.objekt === null ? '' : ` · ${l.objekt}`}
+            {l.lebt ? '' : ` (${t.nichtWaehlbar})`}
           </option>
         ))}
       </select>

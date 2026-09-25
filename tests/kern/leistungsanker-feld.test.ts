@@ -21,7 +21,8 @@ import type { AnkerbareLeistung } from '../../src/server/services/dienstplan/lei
 
 const LEBEND: AnkerbareLeistung = {
   id: '6c1e5b0d-0a41-4c55-9d1c-1c2f3b4a5d6f', auftragId: '7d2f6c1e-0a41-4c55-9d1c-1c2f3b4a5d70',
-  auftragsnummer: 'AU-2026-0042', positionNr: 1, bezeichnung: 'Unterhaltsreinigung', lebt: true,
+  auftragsnummer: 'AU-2026-0042', positionNr: 1, bezeichnung: 'Unterhaltsreinigung',
+  kunde: 'Hausverwaltung Mitte', objekt: 'Bürohaus Nord', lebt: true,
 };
 const BISHER = '8e3a7d2f-0a41-4c55-9d1c-1c2f3b4a5d71';
 
@@ -60,5 +61,23 @@ describe('LeistungsankerFeld — der bisherige Anker ist gewählt', () => {
     const html = feld(null, BISHER);
     expect(html).not.toContain('<select');
     expect(html).toContain('data-cse="leistungsanker-kein-recht"');
+  });
+});
+
+describe('LeistungsankerFeld — jede Zeile nennt Kunde und Objekt (V-192)', () => {
+  it('Auftragsnummer, Position, Bezeichnung, Kunde und Objekt stehen in der Zeile', () => {
+    const html = feld([LEBEND], null);
+    expect(html).toContain('AU-2026-0042 · Pos. 1 · Unterhaltsreinigung · Hausverwaltung Mitte · Bürohaus Nord');
+  });
+
+  it('ohne Leserecht auf Kunde oder Objekt fehlt nur die Angabe, nicht die Zeile', () => {
+    const html = feld([{ ...LEBEND, kunde: null, objekt: null }], null);
+    expect(html).toContain('AU-2026-0042 · Pos. 1 · Unterhaltsreinigung<');
+  });
+
+  it('eine nicht wählbare bisherige Zeile sagt es', () => {
+    const html = feld([{ ...LEBEND, lebt: false }], LEBEND.id);
+    expect(html).toContain(`(${LEISTUNGSANKER_TEXTE.de.nichtWaehlbar})`);
+    expect(gewaehlterWert(html)).toBe(LEBEND.id);
   });
 });

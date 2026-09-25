@@ -29,6 +29,9 @@ import {
   turnusVorschau, type VorschauTermin,
 } from '@/server/services/reinigung/turnusvorschau';
 import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/reinigung/turnus/neu` — eine Regel bauen und VORHER
@@ -115,6 +118,13 @@ export default async function TurnusNeu(
 
   const heute = await berlinHeute();
   const fehlerAusApi = einer(suche['fehler']);
+  /*
+   * Ein abgewiesener Anker kommt als SCHLÜSSEL (V-192) und wird hier ein Satz
+   * in der Sprache der Sitzung. Die übrigen Abweisungen der Route kommen noch
+   * als Satz (D-599-Altlast, D-686 Nr. 7).
+   */
+  const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
+  const ankerFehler = fehlerAusApi === null ? undefined : eigenerEintrag(tL.fehler, fehlerAusApi);
 
   /* ---- die Eingabe, wie sie aus der Vorschaurunde zurückkommt ----------- */
   const istVorschau = einer(suche['vorschau']) !== null;
@@ -262,7 +272,11 @@ export default async function TurnusNeu(
 
       {fehlerAusApi !== null && (
         <Hinweis art="warnung" cse="turnus-api-fehler" className="mb-s5 max-w-prose">
-          <strong>Nicht angelegt.</strong> {fehlerAusApi}
+          {ankerFehler !== undefined ? (
+            <><strong>{tL.nichtAngelegt}</strong>{' '}{ankerFehler}</>
+          ) : (
+            <><strong>Nicht angelegt.</strong> {fehlerAusApi}</>
+          )}
         </Hinweis>
       )}
 

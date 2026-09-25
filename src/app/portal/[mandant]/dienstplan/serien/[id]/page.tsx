@@ -144,6 +144,8 @@ export default async function Serienblatt(
   const tNutzlast = nachSprache(NUTZLAST_TEXTE, zugang.sprache);
   const tP = nachSprache(SERIE_PFLEGE_TEXTE, zugang.sprache);
   const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
+  /* Was die Adresse meldet, steht nur als eigener Satz da — nie ihr Wortlaut (V-192). */
+  const erledigtText = gepflegt === null ? undefined : eigenerEintrag(tP.erledigt, gepflegt);
 
   return (
     <PortalRahmen
@@ -611,13 +613,14 @@ export default async function Serienblatt(
         {pflegeFehler !== null && (
           <Hinweis art="warnung" cse="pflege-fehler" className="mb-s4 max-w-prose">
             {eigenerEintrag(tP.fehler, pflegeFehler)
-              ?? eigenerEintrag(tL.fehler, pflegeFehler) ?? pflegeFehler}
+              ?? eigenerEintrag(tL.fehler, pflegeFehler) ?? tP.fehlerSonst}
           </Hinweis>
         )}
-        {gepflegt !== null && pflegeFehler === null && (
+        {erledigtText !== undefined && pflegeFehler === null && (
           <Hinweis art="erfolg" cse="pflege-erledigt" className="mb-s4 max-w-prose">
-            {tP.erledigt[gepflegt] ?? gepflegt}
+            {erledigtText}
             {erzeugt !== null && storniert !== null
+              && /^\d{1,6}$/u.test(erzeugt) && /^\d{1,6}$/u.test(storniert)
               ? ` — ${erzeugt} / ${storniert} ${tP.bilanz}.` : ''}
           </Hinweis>
         )}
