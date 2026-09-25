@@ -33,6 +33,7 @@ import { StufenFehler, bestaetigeStufe, mahnstufen }
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import { LokalerSpeicher } from '../../src/server/storage/adapter.js';
 import { FreigabeErforderlich, nutzlastHash } from '../../src/server/agent/policy.js';
+import { erteileFreigabe } from '../../src/server/services/freigabe/erteilen.js';
 
 let f: Fixtur;
 let benutzer: string;
@@ -961,21 +962,9 @@ describe('(8) das Schreiben trägt Briefkopf, Anschrift und Pflichtangaben', () 
       ort: 'Berlin', land: 'AT',
     });
     const text = mahnungstext(vorgang!.kopf, vorgang!.positionen);
+    /* Das Land als Name in der letzten Zeile, nicht als Code (V-217). */
     expect(text.split('\n').slice(2, 6))
-      .toEqual(['Beispiel GmbH Buchhaltung', 'Postfach 12 34', '10001 Berlin', 'AT']);
-  });
-
-  it('wird nach der Freigabe die Anschrift geändert, geht nichts hinaus (Invariante 7)', async () => {
-    const mahnungId = await entwurf();
-    await alsApp(sitzung(), async (tx) =>
-      gibFrei(kontextAus(tx), mahnungId, 'Freigegeben zur Versendung als Brief.'));
-    await sql.unsafe("update kunde set strasse = 'Andere Strasse' where id = $1", [kundeId]);
-
-    await expect(alsApp(sitzung(), async (tx) => dokumentiereVersand(
-      kontextAus(tx),
-      { id: mahnungId, versandart: 'brief', empfaenger: 'Beispiel GmbH' },
-      new LokalerSpeicher(),
-    ))).rejects.toThrow(FreigabeErforderlich);
+      .toEqual(['Beispiel GmbH Buchhaltung', 'Postfach 12 34', '10001 Berlin', 'ÖSTERREICH']);
   });
 
   it('der Versand meldet Berliner Ortszeit und das Blatt findet das abgelegte Schreiben',
@@ -998,4 +987,128 @@ describe('(8) das Schreiben trägt Briefkopf, Anschrift und Pflichtangaben', () 
         findeMahnung(kontextAus(tx), mahnungId));
       expect(vorgang!.kopf.dokumentId).toBe(ergebnis.dokumentId);
     });
+});
+
+// ---------------------------------------------------------------------------
+// (9) Die Freigabe friert den Brief ein (V-217, 0449, D-709)
+// ---------------------------------------------------------------------------
+
+/**
+ * **Der Befund der Prüfung von V-213.** Briefkopf und Anschrift wurden live
+ * gelesen und von der Freigabe gebunden; aus `freigegeben` führt kein Weg
+ * zurück. Wer nach der Freigabe die Kundenanschrift, eine Telefonnummer oder
+ * die Geschäftsführung pflegte, hatte eine Mahnung, die nie mehr hinausging,
+ * nicht verworfen werden konnte und ihre Posten für immer sperrte. (8) hielt
+ * das vorher als „geht nichts hinaus" fest.
+ */
+describe('(9) die Freigabe friert den Brief ein', () => {
+  async function entwurf(): Promise<string> {
+    const id = await festgeschrieben();
+    await macheUeberfaellig(id, 40);
+    await legeStufeAn(1, 14, { gebuehrCent: 500n });
+    return alsApp(sitzung(), async (tx) => {
+      const lage = await ermittleVorschlaege(alsDienst(tx));
+      return legeMahnentwurfAn(alsDienst(tx), lage.vorschlaege[0]!);
+    });
+  }
+
+  it('Stammdaten nach der Freigabe gepflegt: der FREIGEGEBENE Brief geht hinaus', async () => {
+    const mahnungId = await entwurf();
+    await alsApp(sitzung(), async (tx) =>
+      gibFrei(kontextAus(tx), mahnungId, 'Freigegeben zur Versendung als Brief.'));
+    const vorher = await alsApp(sitzung(), async (tx) => findeMahnung(kontextAus(tx), mahnungId));
+    expect(vorher!.kopf.briefEingefroren).toBe(true);
+
+    /* Die Pflege, die vorher jede freigegebene Mahnung festhielt. */
+    await sql.unsafe(
+      "update kunde set strasse = 'Andere Strasse', name = 'Beispiel GmbH (neu)' where id = $1",
+      [kundeId]);
+    await sql.unsafe(
+      `update mandant set telefon = '+49 30 9999999', geschaeftsfuehrer = array['Neu Person']
+        where id = $1`, [f.reinigung]);
+    await sql.unsafe(
+      `update mandant_identitaet set brief_fuss = 'Neue Fusszeile.' where mandant_id = $1`,
+      [f.reinigung]);
+
+    const nachher = await alsApp(sitzung(), async (tx) => findeMahnung(kontextAus(tx), mahnungId));
+    expect(nachher!.kopf.empfaenger).toEqual(vorher!.kopf.empfaenger);
+    expect(nachher!.kopf.absender).toEqual(vorher!.kopf.absender);
+    expect(nachher!.kopf.kundeName).toBe(vorher!.kopf.kundeName);
+    expect(nachher!.kopf.briefFuss).toBe(vorher!.kopf.briefFuss);
+    const text = mahnungstext(nachher!.kopf, nachher!.positionen);
+    expect(text).toContain('Musterweg 7');
+    expect(text).not.toContain('Andere Strasse');
+    expect(text).not.toContain('Neu Person');
+    expect(text).not.toContain('Neue Fusszeile.');
+
+    const ergebnis = await alsApp(sitzung(), async (tx) => dokumentiereVersand(
+      kontextAus(tx),
+      { id: mahnungId, versandart: 'brief', empfaenger: 'Beispiel GmbH' },
+      new LokalerSpeicher(),
+    ));
+    expect(ergebnis.dokumentId).toMatch(/^[0-9a-f-]{36}$/u);
+
+    /* Was hinausging, hat den Abdruck, den die Freigabe trägt (Invariante 7). */
+    const [abdruck] = await sql.unsafe<{ versand: string; freigabe: string }[]>(
+      `select v.nutzlast_hash as versand,
+              (select s.nutzlast_hash from freigabe_snapshot s
+                where s.freigabe_id = m.freigabe_id order by s.kette_nr desc limit 1) as freigabe
+         from mahnung m join versand v on v.freigabe_id = m.freigabe_id
+        where m.id = $1`, [mahnungId]);
+    expect(abdruck!.versand).toBe(abdruck!.freigabe);
+
+    /* Und die versendete Mahnung zeigt weiter den Brief, der hinausging. */
+    const danach = await alsApp(sitzung(), async (tx) => findeMahnung(kontextAus(tx), mahnungId));
+    expect(mahnungstext(danach!.kopf, danach!.positionen)).toBe(text);
+  });
+
+  it('ein geänderter BETRAG hält die Mahnung weiter am Tor', async () => {
+    const mahnungId = await entwurf();
+    await alsApp(sitzung(), async (tx) =>
+      gibFrei(kontextAus(tx), mahnungId, 'Freigegeben mit der geprüften Summe.'));
+    await sql.unsafe(
+      `update mahnung set gebuehr_cent = 9900,
+                          gesamt_cent = forderung_cent + 9900 + zinsen_cent
+        where id = $1`, [mahnungId]);
+    await expect(alsApp(sitzung(), async (tx) => dokumentiereVersand(
+      kontextAus(tx),
+      { id: mahnungId, versandart: 'brief', empfaenger: 'Beispiel GmbH' },
+      new LokalerSpeicher(),
+    ))).rejects.toThrow(FreigabeErforderlich);
+  });
+
+  it('der eingefrorene Brief ändert sich nicht mehr — auch nicht vor dem Versand', async () => {
+    const mahnungId = await entwurf();
+    await alsApp(sitzung(), async (tx) =>
+      gibFrei(kontextAus(tx), mahnungId, 'Freigegeben zur Versendung als Brief.'));
+    await expect(alsApp(sitzung(), async (tx) => tx.unsafe(
+      `update mahnung set brief = jsonb_set(brief, '{empfaenger,strasse}', '"Andere Strasse"')
+        where id = $1`, [mahnungId] as never[]))).rejects.toThrow(/eingefroren/u);
+  });
+
+  it('ein Entwurf trägt keinen eingefrorenen Brief', async () => {
+    const mahnungId = await entwurf();
+    const vorgang = await alsApp(sitzung(), async (tx) => findeMahnung(kontextAus(tx), mahnungId));
+    expect(vorgang!.kopf.briefEingefroren).toBe(false);
+    await expect(sql.unsafe(
+      `update mahnung set brief = '{"kunde":"X"}'::jsonb where id = $1`, [mahnungId]))
+      .rejects.toThrow(/mahnung_brief_erst_mit_freigabe|eingefroren/u);
+  });
+
+  it('eine Freigabe ohne Brief weist die Datenbank ab (0449)', async () => {
+    const mahnungId = await entwurf();
+    await expect(alsApp(sitzung(), async (tx) => {
+      const freigabeId = await erteileFreigabe(alsDienst(tx), {
+        aktion: 'mahnung_senden', inhalt: { mahnungId },
+        begruendung: 'Freigabe am Dienst vorbei, ohne Brief.', abdruck: 'a'.repeat(64),
+      });
+      return tx.unsafe(
+        `update mahnung set status = 'freigegeben', freigabe_id = $2 where id = $1`,
+        [mahnungId, freigabeId] as never[]);
+    })).rejects.toThrow(/friert den Brief ein/u);
+    const [zeile] = await sql.unsafe<{ status: string; nummer: string | null }[]>(
+      'select status::text as status, nummer from mahnung where id = $1', [mahnungId]);
+    expect(zeile!.status).toBe('entwurf');
+    expect(zeile!.nummer).toBeNull();
+  });
 });

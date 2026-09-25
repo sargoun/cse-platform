@@ -18173,7 +18173,9 @@ gab es kein Feld, kein Weg schrieb ihn, und der Mahnungsdienst las ihn nicht.
    versendet, passt nicht mehr zu ihrem Abdruck. Einen Rückweg von
    `freigegeben` gibt es heute nicht (0130 lässt nur `versendet` zu): eine
    freigegebene Mahnung wird deshalb VOR dem Einspielen versendet, sonst
-   bleibt sie stehen.
+   bleibt sie stehen. **Berichtigt durch D-709:** live gelesen hielt jede
+   Pflege der Stammdaten nach der Freigabe die Mahnung für immer fest; seit
+   0449 friert die Freigabe den Brief ein. Die Folge beim Einspielen bleibt.
 5. **Das Mahnungsblatt zeigt das Schreiben**, aus derselben Funktion wie das
    PDF, damit wer freigibt den Brief sieht und nicht nur Beträge; nach dem
    Versand verweist es auf das abgelegte PDF über den signierten
@@ -18344,4 +18346,65 @@ unberührt; die Migration selbst sagte „gilt für jede geänderte Zeile".
    Migration, die die Bedingung entfernt.
 
 | Betrifft | ACC-02, D-704, V-212, V-217, Invariante 8, `drizzle/0445_datev_stapel_ein_wirtschaftsjahr.sql`, `drizzle/0448_datev_wirtschaftsjahr_nur_beim_erzeugen.sql`, `drizzle/0133_datev_export.sql` (`datev_export_unveraenderlich`), `src/server/services/buchhaltung/datev/stapel.ts`, `tests/isolation/datev-stapel.test.ts` (§7), `tests/isolation/datev-export.test.ts` (2a) |
+|---|---|
+
+### D-709 · Die Freigabe friert den Brief der Mahnung ein — eine Pflege der Stammdaten hält keine freigegebene Mahnung mehr fest (V-217, berichtigt D-705 §4)
+
+**Der Befund** (Prüfung von V-213): `KOPF_SQL` las den Briefkopf LIVE — die
+Kunden- bzw. Rechnungsanschrift und sechzehn Felder aus `mandant` (Telefon,
+E-Mail, Web, Bank, IBAN, BIC, Geschäftsführung, Register …) —, und
+`mahnungNutzlast` bindet alles an den Abdruck der Freigabe. Aus
+`freigegeben` führt aber kein Weg zurück: `verwirf` und `gibFrei` verlangen
+`entwurf`, `fin.mahnung_uebergang` lässt nur `freigegeben → versendet` zu.
+Wer nach der Freigabe irgendeines dieser Felder pflegte (neue Anschrift im
+CRM, neue Telefonnummer, neuer Geschäftsführer), hatte eine Mahnung, die für
+immer hing: der Versand wurde mit `FreigabeErforderlich` abgewiesen,
+verwerfen und neu freigeben ging nicht, und der Mahnlauf sperrte ihre Posten
+dauerhaft („Es liegt bereits ein Mahnungsentwurf vor", 0125). Vor V-213
+lösten das nur `kunde.name` und `brief_fuss` aus, danach fast jede
+Stammdatenpflege. Der Test (8) hielt dieses Hängen als erwünscht fest.
+
+**Die Entscheidung.**
+
+1. **Eingefroren, nicht zurückgenommen.** Die Freigabe schreibt in derselben
+   Anweisung, die den Zustand kippt, den Brief in `mahnung.brief` (0449):
+   Kundenname, Stufenbezeichnung, Absender mit Pflichtangaben,
+   Empfängeranschrift, Mahntext und Fusszeile — aus DENSELBEN Werten, aus
+   denen der Abdruck entsteht. Ab da liest der Dienst den Brief von dort;
+   Versand, PDF und Mahnungsblatt zeigen genau den freigegebenen Brief, und
+   eine spätere Pflege wirkt auf die nächste Mahnung. Dasselbe Muster wie der
+   Schnappschuss der Rechnung (K-12).
+2. **Kein Rückweg `freigegeben → entwurf`.** Er hätte die Nummer (schon
+   gezogen, lückenlos) und die Freigabe (in der Kette) zurücknehmen müssen;
+   0130 hat bewusst entschieden, dass eine freigegebene Mahnung eine Nummer
+   trägt und nicht verworfen wird. Das Einfrieren löst den Befund, ohne diese
+   Entscheidung aufzuheben. Wer nach der Freigabe merkt, dass die Anschrift
+   falsch war, sieht den eingefrorenen Brief auf dem Blatt und dokumentiert
+   beim Versand den tatsächlichen Empfänger; ein Widerruf der Freigabe ist
+   nicht gebaut.
+3. **Die Datenbank hält es fest** (0449): ein Entwurf trägt keinen Brief
+   (`mahnung_brief_erst_mit_freigabe`), der Übergang `entwurf → freigegeben`
+   verlangt ihn, und danach ändert er sich nie mehr
+   (`mahnung_4_brief_eingefroren`, auch nicht zwischen Freigabe und Versand;
+   ab `versendet` hält ohnehin `mahnung_3_unveraenderlich` die Zeile fest).
+4. **Das Tor bleibt, wo es hingehört.** Was jemand an der Mahnung SELBST
+   ändert (Beträge, Positionen), hält sie weiter am Tor (Invariante 7) — die
+   Freigabe gilt einem Betrag, nicht einer Kennung.
+5. **Streng zurückgelesen.** `briefAusSpalte` prüft jedes Feld; eine
+   beschädigte Spalte wirft, statt still die Stammdaten zu nehmen — sonst
+   ginge ein Brief hinaus, den niemand freigegeben hat. Die Feldliste ist ein
+   Satz über alle Schlüssel von `MahnAbsender`/`MahnEmpfaenger`, damit ein
+   neues Feld den Übersetzer anhält statt den Abdruck.
+6. **Der Bestand.** Eine Mahnung, die vor 0449 freigegeben wurde, hat keinen
+   eingefrorenen Brief und wird weiter live gelesen; D-705 §4 gilt für sie
+   unverändert. Das Mahnungsblatt sagt dann ausdrücklich, dass die Vorschau
+   die heutigen Stammdaten zeigt und das abgelegte Schreiben maßgeblich ist
+   (`briefNichtEingefroren`); bei einem eingefrorenen sagt es, dass eine
+   Pflege erst die nächste Mahnung ändert.
+7. **Mit erledigt:** ein Empfänger im Ausland bekommt in der letzten Zeile den
+   deutschen Namen des Landes in Grossbuchstaben (`landZeile`, wie die
+   Deutsche Post das Bestimmungsland verlangt), nicht den Code „AT". Ein Code,
+   den die Länderliste der Laufzeit nicht kennt, bleibt, wie er ist.
+
+| Betrifft | FIN-15, K-12, D-705, V-213, V-217, Invariante 7, `drizzle/0449_mahnung_brief_eingefroren.sql`, `drizzle/0125_mahnwesen.sql`, `drizzle/0130_pruefbefunde_finanzen.sql`, `src/server/services/finanz/mahnung/index.ts`, `src/app/portal/[mandant]/finanzen/mahnungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/mahnungen.ts`, `tests/isolation/mahnung.test.ts` (8), (9), `tests/kern/mahnschreiben.test.ts` |
 |---|---|

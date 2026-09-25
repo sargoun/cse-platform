@@ -91,6 +91,16 @@ export interface MahnungenTexte {
   readonly schreibenSigniert: string;
   readonly schreibenOhneRecht: string;
   readonly mahntextFehlt: string;
+  /**
+   * Ab der Freigabe: der Brief ist eingefroren, eine Pflege der Stammdaten
+   * wirkt erst auf die nächste Mahnung (V-217, D-709).
+   */
+  readonly briefEingefroren: string;
+  /**
+   * Freigegeben oder versendet VOR 0449: kein eingefrorener Brief, die
+   * Vorschau zeigt die heutigen Stammdaten (V-217).
+   */
+  readonly briefNichtEingefroren: string;
   /** Vor der Liste der leeren Briefkopfangaben. */
   readonly briefkopfFehlt: string;
   /** Hinter der Liste: wo sie gepflegt werden. */
@@ -220,6 +230,14 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
     mahntextFehlt:
       'Für diese Stufe ist kein Mahntext hinterlegt — das Schreiben nennt nur die '
       + 'Forderungen. Gepflegt wird er unter Einstellungen › Mahnwesen.',
+    briefEingefroren:
+      'Der Brief ist mit der Freigabe eingefroren: Anschrift, Briefkopf, Mahntext und '
+      + 'Fußzeile stehen so da, wie sie freigegeben wurden. Wer die Stammdaten danach '
+      + 'pflegt, ändert erst die nächste Mahnung.',
+    briefNichtEingefroren:
+      'Diese Mahnung wurde freigegeben, bevor die Freigabe den Brief einfror. Die '
+      + 'Vorschau zeigt deshalb die heutigen Stammdaten; maßgeblich ist das abgelegte '
+      + 'Schreiben, sobald es vorliegt.',
     briefkopfFehlt: 'Im Briefkopf fehlen:',
     briefkopfPflege: 'Gepflegt werden sie unter Einstellungen › Unternehmensdaten.',
     briefkopfAngaben: {
@@ -357,6 +375,14 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
     mahntextFehlt:
       'No text is stored for this Mahnstufe — the letter lists the claims only. '
       + 'It is maintained under Settings › Mahnwesen (dunning).',
+    briefEingefroren:
+      'The letter was frozen when it was approved: address, letterhead, text and '
+      + 'footer read exactly as approved. Changes to the master data after that only '
+      + 'affect the next Mahnung.',
+    briefNichtEingefroren:
+      'This Mahnung was approved before approval froze the letter. The preview '
+      + 'therefore shows today\'s master data; the filed letter is authoritative once '
+      + 'it exists.',
     briefkopfFehlt: 'Missing from the letterhead:',
     briefkopfPflege: 'They are maintained under Settings › Unternehmensdaten (company details).',
     briefkopfAngaben: {

@@ -115,6 +115,13 @@ export interface MahnungZeile {
   readonly textbaustein: string | null;
   /** Das abgelegte Schreiben (ab `versendet`) — `null` davor (V-213). */
   readonly dokumentId: string | null;
+  /**
+   * Kommen Kundenname, Stufenbezeichnung, Absender, Empfänger, Mahntext und
+   * Fusszeile aus dem mit der Freigabe EINGEFRORENEN Brief (`mahnung.brief`,
+   * 0449, V-217)? `false` im Entwurf (dort gilt, was heute in den Stammdaten
+   * steht) und bei einer Mahnung, die vor 0449 freigegeben wurde.
+   */
+  readonly briefEingefroren: boolean;
 }
 
 /**
@@ -195,7 +202,7 @@ const KOPF_SQL = `
          m.gesamt_cent::text, m.versendet_am::text as versendet_am,
          m.verworfen_grund, m.stufensprung_grund,
          mi.brief_fuss,
-         ms.textbaustein, m.dokument_id,
+         ms.textbaustein, m.dokument_id, m.brief,
          ma.firma as a_firma, ma.strasse as a_strasse, ma.plz as a_plz, ma.ort as a_ort,
          ma.land::text as a_land, ma.telefon as a_telefon, ma.email as a_email,
          ma.web as a_web,
@@ -239,9 +246,124 @@ interface KopfRoh {
   a_bank: string | null; a_iban: string | null; a_bic: string | null;
   e_name: string; e_strasse: string | null; e_plz: string | null; e_ort: string | null;
   e_land: string | null;
+  brief: unknown;
+}
+
+/**
+ * **Was im Brief aus Stammdaten kommt — eingefroren mit der Freigabe**
+ * (V-217, D-709, 0449).
+ *
+ * Die Freigabe bindet den ganzen Brief über den Abdruck der Nutzlast
+ * (Invariante 7). Gelesen wurde er aber LIVE, und aus `freigegeben` führt
+ * kein Weg zurück: wer nach der Freigabe die Kundenanschrift, die
+ * Telefonnummer oder die Geschäftsführung pflegte, hatte eine Mahnung, die
+ * nie mehr hinausging, nicht verworfen werden konnte und ihre Posten für
+ * immer sperrte. Jetzt schreibt `gibFrei` diese Angaben in `mahnung.brief`,
+ * aus DENSELBEN Werten, über die der Abdruck entsteht, und ab da liest der
+ * Dienst den Brief von dort — Versand, PDF und Mahnungsblatt zeigen den
+ * freigegebenen Brief, eine spätere Pflege wirkt auf die nächste Mahnung.
+ */
+export interface EingefrorenerBrief {
+  readonly kunde: string;
+  readonly bezeichnung: string;
+  readonly absender: MahnAbsender;
+  readonly empfaenger: MahnEmpfaenger;
+  readonly textbaustein: string | null;
+  readonly briefFuss: string | null;
+}
+
+/** Der Brief einer Mahnung, wie `gibFrei` ihn in `mahnung.brief` schreibt. */
+export function briefZumEinfrieren(kopf: MahnungZeile): EingefrorenerBrief {
+  return {
+    kunde: kopf.kundeName,
+    bezeichnung: kopf.bezeichnung,
+    absender: { ...kopf.absender },
+    empfaenger: { ...kopf.empfaenger },
+    textbaustein: kopf.textbaustein,
+    briefFuss: kopf.briefFuss,
+  };
+}
+
+/*
+ * Jedes Feld ausser dem Namen darf leer sein — genau wie in den Stammdaten.
+ * Als Satz mit ALLEN Schlüsseln geschrieben: kommt an `MahnAbsender` oder
+ * `MahnEmpfaenger` ein Feld dazu, meldet der Übersetzer die Lücke hier, statt
+ * dass es beim Zurücklesen still fehlte und der Abdruck nicht mehr passte.
+ */
+type AbsenderFeld = Exclude<keyof MahnAbsender, 'firma'>;
+type EmpfaengerFeld = Exclude<keyof MahnEmpfaenger, 'name'>;
+const ABSENDER_SATZ: Readonly<Record<AbsenderFeld, true>> = {
+  strasse: true, plz: true, ort: true, land: true, telefon: true, email: true, web: true,
+  registergericht: true, registernummer: true, geschaeftsfuehrung: true, ustId: true,
+  steuernummer: true, bank: true, iban: true, bic: true,
+};
+const EMPFAENGER_SATZ: Readonly<Record<EmpfaengerFeld, true>> =
+  { strasse: true, plz: true, ort: true, land: true };
+const ABSENDER_FELDER = Object.keys(ABSENDER_SATZ) as AbsenderFeld[];
+const EMPFAENGER_FELDER = Object.keys(EMPFAENGER_SATZ) as EmpfaengerFeld[];
+
+/**
+ * Liest `mahnung.brief` zurück — streng: jedes Feld mit seinem Typ.
+ *
+ * Eine Spalte, die nicht passt, ist kein Fall für einen stillen Rückfall auf
+ * die Stammdaten: dann ginge ein Brief hinaus, den niemand freigegeben hat.
+ * Sie wirft, und die Mahnung bleibt stehen, bis jemand hinsieht.
+ */
+export function briefAusSpalte(wert: unknown): EingefrorenerBrief {
+  const kaputt = (feld: string): Error =>
+    new Error(`mahnung.brief ist beschädigt (Feld „${feld}"). Der eingefrorene Brief `
+      + 'einer Mahnung wird nicht aus den Stammdaten ergänzt.');
+  const objekt = (w: unknown, feld: string): Record<string, unknown> => {
+    if (typeof w !== 'object' || w === null || Array.isArray(w)) throw kaputt(feld);
+    return w as Record<string, unknown>;
+  };
+  const text = (o: Record<string, unknown>, feld: string, pfad: string): string => {
+    const w = o[feld];
+    if (typeof w !== 'string') throw kaputt(pfad);
+    return w;
+  };
+  const textOderNull = (o: Record<string, unknown>, feld: string, pfad: string): string | null => {
+    const w = o[feld];
+    if (w === null) return null;
+    if (typeof w !== 'string') throw kaputt(pfad);
+    return w;
+  };
+  /* postgres.js liest jsonb als Objekt; ein Text (anderer Treiber) wird gelesen. */
+  const roh: unknown = typeof wert === 'string' ? JSON.parse(wert) as unknown : wert;
+  const b = objekt(roh, 'brief');
+  const a = objekt(b['absender'], 'absender');
+  const e = objekt(b['empfaenger'], 'empfaenger');
+  const absender = { firma: text(a, 'firma', 'absender.firma') } as Record<string, string | null>;
+  for (const f of ABSENDER_FELDER) absender[f] = textOderNull(a, f, `absender.${f}`);
+  const empfaenger = { name: text(e, 'name', 'empfaenger.name') } as Record<string, string | null>;
+  for (const f of EMPFAENGER_FELDER) empfaenger[f] = textOderNull(e, f, `empfaenger.${f}`);
+  return {
+    kunde: text(b, 'kunde', 'kunde'),
+    bezeichnung: text(b, 'bezeichnung', 'bezeichnung'),
+    absender: absender as unknown as MahnAbsender,
+    empfaenger: empfaenger as unknown as MahnEmpfaenger,
+    textbaustein: textOderNull(b, 'textbaustein', 'textbaustein'),
+    briefFuss: textOderNull(b, 'briefFuss', 'briefFuss'),
+  };
 }
 
 function zuZeile(r: KopfRoh): MahnungZeile {
+  const zeile = zuZeileLive(r);
+  if (r.brief === null || r.brief === undefined) return zeile;
+  const b = briefAusSpalte(r.brief);
+  return {
+    ...zeile,
+    kundeName: b.kunde,
+    bezeichnung: b.bezeichnung,
+    absender: b.absender,
+    empfaenger: b.empfaenger,
+    textbaustein: b.textbaustein,
+    briefFuss: b.briefFuss,
+    briefEingefroren: true,
+  };
+}
+
+function zuZeileLive(r: KopfRoh): MahnungZeile {
   return {
     id: r.id, nummer: r.nummer, kundeId: r.kunde_id, kundeName: r.kunde_name,
     stufe: r.stufe, bezeichnung: r.bezeichnung, status: r.status as MahnungStatus,
@@ -265,6 +387,7 @@ function zuZeile(r: KopfRoh): MahnungZeile {
     },
     textbaustein: r.textbaustein,
     dokumentId: r.dokument_id,
+    briefEingefroren: false,
   };
 }
 
@@ -434,10 +557,15 @@ export function mahnungNutzlast(
       /**
        * **Briefkopf, Empfängeranschrift und Mahntext gehören ebenso hinein**
        * (V-213, V-214, Invariante 7) — aus demselben Grund wie die
-       * Fusszeile: sie stehen im Brief, also bindet die Freigabe sie. Wer
-       * nach der Freigabe die Anschrift des Kunden, den Registereintrag oder
-       * den Mahntext der Stufe ändert, hat einen anderen Brief, und das Tor
-       * lässt ihn nicht hinaus.
+       * Fusszeile: sie stehen im Brief, also bindet die Freigabe sie.
+       *
+       * **Seit V-217 kommen sie ab der Freigabe aus `mahnung.brief`** — mit
+       * der Freigabe eingefroren (0449). Vorher wurden sie live gelesen:
+       * eine Pflege der Kundenanschrift oder der Geschäftsführung nach der
+       * Freigabe liess die Mahnung für immer stehen, denn aus `freigegeben`
+       * führt kein Weg zurück. Jetzt geht genau der freigegebene Brief
+       * hinaus, und das Tor weist nur noch ab, was jemand an der Mahnung
+       * selbst ändert (Beträge, Positionen).
        */
       absender: { ...kopf.absender },
       empfaenger: { ...kopf.empfaenger },
@@ -478,19 +606,50 @@ export async function gibFrei(
       abdruck: nutzlastHash(nutzlast),
     });
 
+  /*
+   * **Der Brief wird mit derselben Anweisung eingefroren** (V-217, 0449) —
+   * aus `vorgang`, aus dem auch die Nutzlast und damit der Abdruck oben
+   * entstand. Was jemand zwischen dem Lesen und diesem Schreiben an den
+   * Stammdaten ändert, landet also weder im Abdruck noch im Brief.
+   * `::text::jsonb` und nicht `::jsonb`: bei `jsonb` serialisiert der Treiber
+   * den Text ein zweites Mal, und in der Spalte stünde eine Zeichenkette
+   * statt eines Objekts (wie in `bau/abnahme.ts`).
+   */
   const [zeile] = await kontext.schreibe<{ nummer: string | null }>(
     `update mahnung
         set status = 'freigegeben', freigabe_id = $2::uuid,
             freigegeben_am = now(), freigegeben_von = app.aktueller_benutzer(),
+            brief = $3::text::jsonb,
             geaendert_am = now(), geaendert_von_art = 'mensch',
             geaendert_von = app.aktueller_benutzer()
       where id = $1::uuid and status = 'entwurf'
-      returning nummer`, [id, freigabeId]);
+      returning nummer`,
+    [id, freigabeId, JSON.stringify(briefZumEinfrieren(vorgang.kopf))]);
   if (zeile?.nummer == null) {
     throw new MahnungFehler(
       'kein_entwurf', 'Die Freigabe hat keine Nummer gezogen — der Zustand blieb stehen.');
   }
   return { freigabeId, nummer: zeile.nummer };
+}
+
+/**
+ * Die Länderzeile einer Auslandsanschrift (V-217): der deutsche Name des
+ * Landes in Grossbuchstaben, so wie die Deutsche Post das Bestimmungsland in
+ * der letzten Zeile verlangt — nicht der Code aus `kunde.land` („AT").
+ *
+ * Gespeichert bleibt der Code (`char(2)`); der Name entsteht beim Schreiben.
+ * Einen Code, den die Länderliste der Laufzeit nicht kennt, schreibt die
+ * Zeile so, wie er gespeichert ist — erfunden wird kein Land.
+ */
+export function landZeile(code: string): string {
+  const c = code.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/u.test(c) || c === 'ZZ') return c;
+  try {
+    const name = new Intl.DisplayNames(['de'], { type: 'region', fallback: 'code' }).of(c);
+    return name === undefined || name === c ? c : name.toLocaleUpperCase('de-DE');
+  } catch {
+    return c;
+  }
 }
 
 /** Der Brief, wie er hinausgeht — dieselbe Quelle wie die Nutzlast. */
@@ -508,7 +667,7 @@ export function mahnungstext(
   };
   /* Ein Land steht nur, wenn es nicht Deutschland ist — so schreibt man Post. */
   const auslandsland = (land: string | null): string | null =>
-    nichtLeer(land) && land.trim().toUpperCase() !== 'DE' ? land.trim() : null;
+    nichtLeer(land) && land.trim().toUpperCase() !== 'DE' ? landZeile(land) : null;
 
   /*
    * **Der Briefkopf** (V-213): die Absenderzeile über dem Anschriftfeld und

@@ -5,6 +5,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { formatiereGeldIn } from '@/server/services/finanz/geld';
 import { prozentTextIn } from '@/server/services/finanz/prozent';
 import {
@@ -207,13 +208,29 @@ export default async function MahnungDetail(
         <h2 id="schreiben-titel" className="mb-s3 text-h2 text-text">{t.schreibenTitel}</h2>
         <p className="mb-s4 max-w-prose text-xs text-text-muted">{t.schreibenErklaerung}</p>
         {briefkopfLuecken.length === 0 ? null : (
-          <p role="status" data-cse="mahn-briefkopf-luecke"
-             className="mb-s4 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
+          <Hinweis art="warnung" cse="mahn-briefkopf-luecke" className="mb-s4 max-w-prose">
             {t.briefkopfFehlt}{' '}
             {briefkopfLuecken.map((a) => t.briefkopfAngaben[a]).join(', ')}.{' '}
             {t.briefkopfPflege}
-          </p>
+          </Hinweis>
         )}
+        {/*
+          * **Eingefroren oder nicht** (V-217, D-709). Ab der Freigabe steht
+          * der Brief in `mahnung.brief`; eine Mahnung, die vor 0449
+          * freigegeben wurde, hat keinen, und ihre Vorschau zeigt die
+          * heutigen Stammdaten — das sagt der Hinweis, statt die Vorschau
+          * als das versendete Schreiben auszugeben.
+          */}
+        {kopf.status === 'entwurf' || kopf.status === 'verworfen' ? null
+          : kopf.briefEingefroren ? (
+            <p data-cse="mahn-brief-eingefroren" className="mb-s4 max-w-prose text-xs text-text-muted">
+              {t.briefEingefroren}
+            </p>
+          ) : (
+            <Hinweis art="warnung" cse="mahn-brief-nicht-eingefroren" className="mb-s4 max-w-prose">
+              {t.briefNichtEingefroren}
+            </Hinweis>
+          )}
         {kopf.textbaustein === null || kopf.textbaustein.trim() === '' ? (
           <p data-cse="mahn-ohne-mahntext"
              className="mb-s4 max-w-prose rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">

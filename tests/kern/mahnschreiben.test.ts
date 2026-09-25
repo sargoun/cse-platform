@@ -10,7 +10,8 @@ import { describe, expect, it } from 'vitest';
 import { cent } from '../../src/server/services/finanz/geld.js';
 import { prozentTextIn } from '../../src/server/services/finanz/prozent.js';
 import {
-  fehlendeBriefkopfangaben, mahnungNutzlast, mahnungstext,
+  briefAusSpalte, briefZumEinfrieren, fehlendeBriefkopfangaben, landZeile,
+  mahnungNutzlast, mahnungstext,
   type MahnAbsender, type MahnungPositionZeile, type MahnungZeile,
 } from '../../src/server/services/finanz/mahnung/index.js';
 import { nutzlastHash } from '../../src/server/agent/policy.js';
@@ -38,6 +39,7 @@ const KOPF: MahnungZeile = {
   },
   textbaustein: 'Leider konnten wir bis heute keinen Zahlungseingang feststellen.',
   dokumentId: null,
+  briefEingefroren: true,
 };
 
 const POSITIONEN: readonly MahnungPositionZeile[] = [{
@@ -99,7 +101,17 @@ describe('mahnungstext — der Brief', () => {
     const ausland = mahnungstext({
       ...KOPF, empfaenger: { ...KOPF.empfaenger, land: 'AT' },
     }, POSITIONEN).split('\n');
-    expect(ausland.slice(2, 6)).toEqual(['Beispiel GmbH', 'Musterweg 7', '10178 Berlin', 'AT']);
+    /* Der Name des Landes, gross geschrieben — nicht der Code (V-217). */
+    expect(ausland.slice(2, 6))
+      .toEqual(['Beispiel GmbH', 'Musterweg 7', '10178 Berlin', 'ÖSTERREICH']);
+  });
+
+  it('landZeile: Name statt Code, ein unbekannter Code bleibt, wie er ist', () => {
+    expect(landZeile('AT')).toBe('ÖSTERREICH');
+    expect(landZeile('ch ')).toBe('SCHWEIZ');
+    expect(landZeile('NL')).toBe('NIEDERLANDE');
+    expect(landZeile('ZZ')).toBe('ZZ');
+    expect(landZeile('A1')).toBe('A1');
   });
 
   it('eine leere Angabe erzeugt keine halbe Zeile', () => {
@@ -143,6 +155,52 @@ describe('die Freigabe bindet Briefkopf, Anschrift und Mahntext (Invariante 7)',
   it('ein anderer Registereintrag ist ein anderer Brief', () => {
     expect(hash({ ...KOPF, absender: { ...ABSENDER, registernummer: 'HRB 99999 B' } }))
       .not.toBe(hash(KOPF));
+  });
+});
+
+/**
+ * **Der eingefrorene Brief** (V-217, D-709, 0449).
+ *
+ * `gibFrei` schreibt `briefZumEinfrieren(kopf)` als jsonb in `mahnung.brief`,
+ * der Versand liest ihn mit `briefAusSpalte` zurück und bildet daraus die
+ * Nutzlast neu. Beide Abdrücke müssen gleich sein, sonst stünde jede
+ * freigegebene Mahnung am Tor — genau der Fehler, den das Einfrieren behebt.
+ */
+describe('der eingefrorene Brief', () => {
+  const hash = (k: MahnungZeile): string =>
+    nutzlastHash(mahnungNutzlast('33333333-3333-4333-8333-333333333333', k, POSITIONEN));
+  const rundreise = (k: MahnungZeile): MahnungZeile => {
+    const b = briefAusSpalte(JSON.parse(JSON.stringify(briefZumEinfrieren(k))) as unknown);
+    return {
+      ...k, kundeName: b.kunde, bezeichnung: b.bezeichnung, absender: b.absender,
+      empfaenger: b.empfaenger, textbaustein: b.textbaustein, briefFuss: b.briefFuss,
+    };
+  };
+
+  it('Einfrieren und Zurücklesen ergeben denselben Abdruck', () => {
+    expect(hash(rundreise(KOPF))).toBe(hash(KOPF));
+    const karg: MahnungZeile = {
+      ...KOPF, textbaustein: null, briefFuss: null,
+      absender: { ...ABSENDER, web: null, bic: null, telefon: null },
+      empfaenger: { name: 'X', strasse: null, plz: null, ort: null, land: null },
+    };
+    expect(hash(rundreise(karg))).toBe(hash(karg));
+  });
+
+  it('auch als Text gespeichert (anderer Treiber) liest er sich zurück', () => {
+    const b = briefAusSpalte(JSON.stringify(briefZumEinfrieren(KOPF)));
+    expect(b.empfaenger).toEqual(KOPF.empfaenger);
+    expect(b.absender).toEqual(KOPF.absender);
+  });
+
+  it('ein beschädigter Brief wirft, statt still die Stammdaten zu nehmen', () => {
+    const gut = briefZumEinfrieren(KOPF);
+    expect(() => briefAusSpalte(null)).toThrow(/beschädigt/u);
+    expect(() => briefAusSpalte({ ...gut, kunde: 7 })).toThrow(/kunde/u);
+    expect(() => briefAusSpalte({ ...gut, absender: { ...gut.absender, iban: 1 } }))
+      .toThrow(/absender\.iban/u);
+    expect(() => briefAusSpalte({ ...gut, empfaenger: { ...gut.empfaenger, name: undefined } }))
+      .toThrow(/empfaenger\.name/u);
   });
 });
 
