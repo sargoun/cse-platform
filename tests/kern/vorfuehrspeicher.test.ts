@@ -198,7 +198,15 @@ describe('§6 die Auslieferung prüft, was die Adresse trägt', () => {
     process.env['CSE_DEV_FLAECHEN'] = '1';
     const s = new OrdnerSpeicher(o);
     await s.lege('dokumente', 'm/a.pdf', PDF);
-    const url = (await s.signierteUrl('dokumente', 'm/a.pdf')).replace(/sig=./u, 'sig=X');
+    const echt = await s.signierteUrl('dokumente', 'm/a.pdf');
+    /*
+     * Das erste Zeichen wird GEWISS ein anderes. Vorher stand hier fest
+     * `sig=X`: begann die Signatur selbst mit „X" (base64url, rund jeder
+     * 64. Lauf — sie hängt am Ablaufzeitpunkt), blieb die Adresse gleich und
+     * die 200 war richtig, der Test aber rot.
+     */
+    const url = echt.replace(/sig=(.)/u, (_, erstes: string) => `sig=${erstes === 'A' ? 'B' : 'A'}`);
+    expect(url).not.toBe(echt);
     const antwort = await hole(url, 'dokumente', ['m', 'a.pdf']);
     expect(antwort.status).toBe(403);
   });
