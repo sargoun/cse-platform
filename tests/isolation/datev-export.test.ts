@@ -341,7 +341,7 @@ describe('(2a) ein Stapel umfasst höchstens ein Wirtschaftsjahr', () => {
         'Test'))).rejects.toThrow(/Wirtschaftsjahres/u);
   });
 
-  it('die Tabelle selbst weist einen Stapel über die WJ-Grenze ab (0445)', async () => {
+  it('die Tabelle selbst weist einen Stapel über die WJ-Grenze ab (0445, seit 0448 beim Einfügen)', async () => {
     const zeile = (von: string, bis: string, monat: number, tag: number) => sql.unsafe(
       `insert into datev_export
          (mandant_id, von, bis, berater_nummer, mandanten_nummer, kontenrahmen,

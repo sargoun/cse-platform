@@ -288,3 +288,74 @@ describe('§6 nur die zwei Vermerke, die es gibt', () => {
     expect(istStapelVermerk('gesendet')).toBe(false);
   });
 });
+
+/* ═════════════════════════════════════════════════════════════════════════
+ * §7 — Ein alter Stapel über die WJ-Grenze bleibt verwerfbar (V-217, D-708)
+ * ═════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * **Der Befund der Prüfung von V-212.** 0445 legte die WJ-Prüfung als
+ * `check … not valid` an. PostgreSQL prüft eine solche Bedingung bei JEDEM
+ * Update einer Zeile, auch einer alten: ein Stapel über die Grenze, der vor
+ * 0445 entstand und noch auf „erzeugt" stand, liess sich weder verwerfen noch
+ * vermerken (23514, im Browser ein 500). 0448 prüft beim Einfügen.
+ *
+ * Die alte Zeile entsteht hier so, wie sie vor 0445 entstand: ohne die
+ * Prüfung. Der Auslöser wird dafür als Eigentümer in EINER Transaktion
+ * abgeschaltet und wieder eingeschaltet.
+ */
+async function alterStapelUeberDieGrenze(): Promise<string> {
+  return sql.begin(async (tx) => {
+    await tx.unsafe('alter table datev_export disable trigger datev_export_ein_wirtschaftsjahr');
+    const [z] = await tx.unsafe<{ id: string }[]>(
+      `insert into datev_export
+         (mandant_id, von, bis, berater_nummer, mandanten_nummer, kontenrahmen,
+          sachkontenlaenge, wj_beginn_monat, wj_beginn_tag, versteuerungsart,
+          extf_version, festschreibung, zeilen, summe_soll_cent, summe_haben_cent,
+          datei_sha256, erstellt_von_art, erstellt_von)
+       values ($1, date '2025-12-01', date '2026-01-31', '1234567', '12345', 'skr03',
+               4, 1, 1, 'soll', '700', false, 3, 1000, 1000, $2, 'mensch', $3)
+       returning id`,
+      [f.reinigung, 'b'.repeat(64), exporteur]);
+    await tx.unsafe('alter table datev_export enable trigger datev_export_ein_wirtschaftsjahr');
+    return z!.id;
+  }) as Promise<string>;
+}
+
+describe('§7 ein alter Stapel über die WJ-Grenze bleibt verwerfbar (0448)', () => {
+  it('er lässt sich mit Grund verwerfen — der Vermerk ist keine neue Zeile', async () => {
+    const id = await alterStapelUeberDieGrenze();
+    await imKontext((db) => verwirfStapel(db, id, 'Zeitraum falsch gewählt — über den Jahreswechsel.'));
+    const s = await stand(id);
+    expect(s.status).toBe('verworfen');
+    expect(s.verwerfungsgrund).toContain('Zeitraum falsch gewählt');
+  });
+
+  it('er lässt sich auch als übergeben vermerken', async () => {
+    const id = await alterStapelUeberDieGrenze();
+    await imKontext((db) => vermerkeUebergabe(db, id, 'Lag schon beim Steuerbüro.'));
+    expect((await stand(id)).status).toBe('uebergeben');
+  });
+
+  it('ein NEUER Stapel über die Grenze wird weiter abgewiesen', async () => {
+    await expect(sql.unsafe(
+      `insert into datev_export
+         (mandant_id, von, bis, berater_nummer, mandanten_nummer, kontenrahmen,
+          sachkontenlaenge, wj_beginn_monat, wj_beginn_tag, versteuerungsart,
+          extf_version, festschreibung, zeilen, summe_soll_cent, summe_haben_cent,
+          datei_sha256, erstellt_von_art, erstellt_von)
+       values ($1, date '2025-12-01', date '2026-01-31', '1234567', '12345', 'skr03',
+               4, 1, 1, 'soll', '700', false, 3, 1000, 1000, $2, 'mensch', $3)`,
+      [f.reinigung, 'c'.repeat(64), exporteur]))
+      .rejects.toMatchObject({
+        code: '23514', constraint_name: 'datev_export_ein_wirtschaftsjahr',
+      });
+  });
+
+  it('der Zeitraum eines Stapels ändert sich auch danach nicht (0133)', async () => {
+    const id = await stapel(f.reinigung);
+    await expect(sql.unsafe(
+      `update datev_export set bis = date '2026-02-28' where id = $1`, [id]))
+      .rejects.toThrow(/unveraenderlich/u);
+  });
+});

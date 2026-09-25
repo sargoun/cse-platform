@@ -18125,6 +18125,9 @@ exportiert gestempelt.
    (`liesWirtschaftsjahrWennGepflegt`).
 5. **`not valid`:** ein früher über die Grenze erzeugter Stapel ist ein Beleg
    dafür, was übergeben wurde; er wird weder gelöscht noch umgeschrieben.
+   **Berichtigt durch D-708:** eine Prüfbedingung mit `not valid` prüft
+   trotzdem jedes `update` einer alten Zeile, der alte Stapel liess sich also
+   nicht verwerfen. Seit 0448 prüft ein Auslöser nur beim Einfügen.
 6. **Ein Browser bekommt eine Seite** (D-599): jede Abweisung der Route führt
    mit Zeitraum und `?fehler=<grund>` auf die Vorschau zurück, die den Grund
    über `eigenerEintrag()` als Satz zeigt; Programme ohne `mandant` bekommen
@@ -18301,4 +18304,44 @@ Jahrespaket.
    noch nicht.
 
 | Betrifft | FIN-14, ACC-04, ACC-07, D-599, D-728, Invariante 7, V-216, `drizzle/0447_zahlungsausgang_an_lieferanten.sql`, `drizzle/0130` (Richtungsprüfung), `src/server/services/finanz/zahlung/index.ts`, `src/server/services/finanz/bank/{abgleich,import}.ts`, `src/app/api/finanzen/zahlungen/route.ts`, `src/app/api/buchhaltung/bank/umsatz/route.ts`, `src/app/portal/[mandant]/finanzen/eingangsrechnungen/[id]/page.tsx`, `src/app/portal/[mandant]/finanzen/zahlungen/[id]/page.tsx`, `src/app/portal/[mandant]/buchhaltung/bank/[auszugId]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,mahnungen}.ts` |
+|---|---|
+
+### D-708 · Die WJ-Prüfung des DATEV-Stapels greift beim Erzeugen — ein alter Stapel bleibt verwerfbar (V-217, berichtigt D-704 §5)
+
+**Der Befund** (Prüfung von V-212): 0445 legte `datev_export_ein_wirtschaftsjahr`
+als `check … not valid` an. `not valid` heisst nur, dass der Bestand beim
+Anlegen nicht geprüft wird. PostgreSQL prüft die Bedingung aber bei JEDEM
+späteren `update` einer Zeile, auch einer alten und auch dann, wenn nur
+`status` geändert wird. Ein Stapel über die WJ-Grenze, der vor 0445 entstand
+und noch auf „erzeugt" stand, liess sich deshalb weder verwerfen noch als
+übergeben vermerken (`verwirfStapel`/`vermerkeUebergabe` → `23514` → 500).
+Er blieb für immer „erzeugt". Das ist gerade der Stapel, den man verwerfen
+will („Zeitraum falsch gewählt"). D-704 §5 behauptete, der alte Stapel bleibe
+unberührt; die Migration selbst sagte „gilt für jede geänderte Zeile".
+
+**Die Entscheidung.**
+
+1. **Geprüft wird beim Einfügen, nicht beim Vermerk.** 0448 ersetzt die
+   Prüfbedingung durch den Auslöser `datev_export_ein_wirtschaftsjahr`
+   (`before insert`, `fin.datev_export_ein_wirtschaftsjahr()`). Die Rechnung
+   ist unverändert (`extract`, dieselbe wie `wirtschaftsjahrVon`).
+2. **Ein Auslöser für `update` ist nicht nötig.** `von`, `bis`,
+   `wj_beginn_monat` und `wj_beginn_tag` ändern sich nach dem Erzeugen nie
+   mehr: `datev_export_unveraenderlich` (0133) lässt nur Zustand, Vermerk,
+   Ablage und Aufbewahrung beweglich. Was die Prüfbedingung bei einem
+   `update` zusätzlich prüfte, war also nur der Bestand, und genau den soll
+   sie nicht prüfen.
+3. **Der alte Stapel wird weder umgeschrieben noch gelöscht**
+   (Invariante 8). Er lässt sich verwerfen (mit Grund) oder als übergeben
+   vermerken, wie jeder andere.
+4. **Die Meldung bleibt erkennbar.** Der Auslöser wirft `23514` mit
+   `constraint = datev_export_ein_wirtschaftsjahr` und nennt den Namen im
+   Text, wie vorher die Bedingung. Der Dienst prüft wie bisher VOR Paket und
+   Stempel (D-704 §2), die Datenbank ist die zweite Linie.
+5. **0445 bleibt, wie sie ist.** Migrationen werden nach Dateiname
+   eingespielt und nicht erneut ausgeführt; eine Datenbank, auf der 0445
+   schon lief, bekäme eine geänderte 0445 nie zu sehen. Deshalb eine neue
+   Migration, die die Bedingung entfernt.
+
+| Betrifft | ACC-02, D-704, V-212, V-217, Invariante 8, `drizzle/0445_datev_stapel_ein_wirtschaftsjahr.sql`, `drizzle/0448_datev_wirtschaftsjahr_nur_beim_erzeugen.sql`, `drizzle/0133_datev_export.sql` (`datev_export_unveraenderlich`), `src/server/services/buchhaltung/datev/stapel.ts`, `tests/isolation/datev-stapel.test.ts` (§7), `tests/isolation/datev-export.test.ts` (2a) |
 |---|---|
