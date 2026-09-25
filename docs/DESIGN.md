@@ -592,6 +592,16 @@ survive a middle-click and a copied link; and the current one carries
 reader **is**, not what they have switched on. Colour alone never marks it
 (§9) — `aria-current` is the second signal.
 
+**The device-language row of the worker surfaces without a session** — the
+check-in screen and the worker sign-in (SEITENKARTE §12) — is such a row:
+four `<a>` in the pill rail, each at least `44×44px` and in `base` type (§8),
+each language named in itself („العربية", not „Arabisch") with its own `lang`
+and `dir`, the current one `aria-current`. Links and not buttons, because the
+check-in screen has exactly one button (§8); and a plain `<a>`, not a
+prefetching one, because the target sets the language cookie. Component:
+`components/sprache/GeraeteSprachwahl.tsx` (`data-cse="geraete-sprachwahl"`),
+V-200.
+
 ### Filter line
 
 A list that opens **already filtered** — from a dashboard figure (DSH-04) or a

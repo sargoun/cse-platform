@@ -42,7 +42,19 @@ export default defineConfig({
   workers: 1,
   forbidOnly: Boolean(process.env['CI']),
   retries: process.env['CI'] !== undefined ? 2 : 0,
-  use: { baseURL: 'http://localhost:3000', trace: 'on-first-retry' },
+  use: {
+    baseURL: 'http://localhost:3000',
+    trace: 'on-first-retry',
+    /**
+     * **Deutsch als Sprache des Browsers** (V-200, D-694). Stempeluhr und
+     * Anmeldung der Beschäftigten lesen seitdem `Accept-Language`, wenn kein
+     * Sprachkeks gesetzt ist — und Playwright schickt ohne Angabe `en-US`. Die
+     * Prüfungen dieser Flächen lesen deutsche Sätze, weil die Plattform
+     * deutsch ist; die anderen Sprachen prüft `arbeiter-sprache.spec.ts`
+     * ausdrücklich, mit eigenem Kopf oder Keks.
+     */
+    locale: 'de-DE',
+  },
   projects: [
     {
       name: 'chromium',

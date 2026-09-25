@@ -11,6 +11,10 @@ import { codeEinloesen } from '@/server/auth/mitarbeiter-anmeldung';
 import { smsDienst } from '@/server/auth/sms';
 import { SITZUNG_COOKIE, mitarbeiterSitzungAusstellen, sitzungsKeksOptionen }
   from '@/server/auth/sitzung';
+import { GeraeteSprachwahl } from '@/components/sprache/GeraeteSprachwahl';
+import { geraeteSprache, SPRACH_KEKS } from '@/lib/i18n/geraetesprache';
+import type { PortalSprache } from '@/lib/i18n/texte';
+import { ANMELDUNG_TEXTE } from '@/lib/i18n/vor-anmeldung';
 import {
   ANMELDUNG_DEV_COOKIE, ANMELDUNG_TELEFON_COOKIE, anmeldeKeksOptionen, herkunft,
 } from '../anmeldung';
@@ -32,7 +36,16 @@ import {
 export const dynamic = 'force-dynamic';
 
 /** Siehe den Titel des ersten Schritts — WCAG 2.4.2. */
-export const metadata = { title: 'Code eingeben — CSE Gruppe' };
+/** Der Titel in der Sprache der Seite (V-200) — WCAG 2.4.2, wie im ersten Schritt. */
+export async function generateMetadata(): Promise<{ title: string }> {
+  return { title: ANMELDUNG_TEXTE[await spracheDesGeraets()].codeSeitentitel };
+}
+
+/** Sprachkeks, dann `Accept-Language`, dann Deutsch (V-200, D-694). */
+async function spracheDesGeraets(): Promise<PortalSprache> {
+  const keks = (await cookies()).get(SPRACH_KEKS)?.value;
+  return geraeteSprache(keks, (await headers()).get('accept-language'));
+}
 
 interface Props {
   readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -74,6 +87,8 @@ export default async function CodeEingabe({ searchParams }: Props) {
    */
   const sms = smsDienst(devFlaechenAn());
   const ohneZustellung = !sms.verbunden && !sms.zeigtCode;
+  const sprache = await spracheDesGeraets();
+  const t = ANMELDUNG_TEXTE[sprache];
 
   async function einloesen(daten: FormData): Promise<void> {
     'use server';
@@ -155,32 +170,33 @@ export default async function CodeEingabe({ searchParams }: Props) {
 
   return (
     <AuthSchale
-      titel="Code eingeben"
+      titel={t.codeTitel}
       schritt={2}
       schritte={2}
       unterzeile={
         <span data-cse="code-hinweis">
-          {ohneZustellung
-            ? 'Es wurde keine SMS versendet — es ist kein Gateway verbunden (O-82). Geben Sie den '
-              + 'sechsstelligen Code ein, den Ihnen Ihre Einsatzleitung genannt hat. Er gilt zehn Minuten.'
-            : 'Falls Ihre Nummer hinterlegt ist, haben wir einen sechsstelligen Code geschickt. '
-              + 'Er gilt zehn Minuten.'}
+          {ohneZustellung ? t.codeHinweisOhneZustellung : t.codeHinweisSms}
         </span>
+      }
+      sprache={sprache}
+      beschriftung={t}
+      sprachwahl={
+        <GeraeteSprachwahl aktiv={sprache} zurueck="/auth/mitarbeiter/code" label={t.sprachwahl} />
       }
     >
 
       {fehler !== null && (
-        <Hinweis art="warnung" cse="code-fehler" className="max-w-[60ch]">
+        <Hinweis art="warnung" cse="code-fehler" rolle="alert" groesse="base"
+                 className="max-w-[60ch]">
           {fehler === 'konto' ? (
             <>
-              <strong>Der Code war richtig — das Konto fehlt.</strong> Zu dieser Mobilnummer gehört
-              noch kein aktiver Portalzugang, deshalb kommt die Anmeldung nicht durch. Ein neuer Code
-              ändert daran nichts; Ihre Einsatzleitung lässt das Konto anlegen oder entsperren.
+              <strong>{t.kontoFehltTitel}</strong>{' '}
+              {t.kontoFehltText}
             </>
           ) : (
             <>
-              <strong>Die Anmeldung hat nicht geklappt.</strong> Der Code stimmt nicht, ist abgelaufen
-              oder wurde schon benutzt. Ein Code gilt zehn Minuten und genau einmal.
+              <strong>{t.codeFalschTitel}</strong>{' '}
+              {t.codeFalschText}
             </>
           )}
         </Hinweis>
@@ -189,16 +205,17 @@ export default async function CodeEingabe({ searchParams }: Props) {
       {devCode !== null && (
         <p
           data-cse="dev-code"
-          className="rounded-md border border-warning bg-warning-soft p-s4 text-sm text-warning"
+          className="rounded-md border border-warning bg-warning-soft p-s4 text-base text-warning"
         >
-          <strong>Entwicklungsfläche — es wurde nichts versendet.</strong> Der
-          Code lautet <code data-cse="dev-code-wert">{devCode}</code>.
+          <strong>{t.devTitel}</strong>{' '}
+          {t.devCode}{' '}
+          <code data-cse="dev-code-wert" dir="ltr">{devCode}</code>.
         </p>
       )}
 
       <form action={einloesen} data-cse="anmeldung-code" className="flex flex-col gap-s4">
         <FormField
-          label="Sechsstelliger Code"
+          label={t.codeLabel}
           name="code"
           type="text"
           inputMode="numeric"
@@ -212,21 +229,21 @@ export default async function CodeEingabe({ searchParams }: Props) {
            */
           maxLength={20}
           required
-          hinweis="Sechs Ziffern. Leerzeichen dürfen mitkommen."
+          hinweis={t.codeFeldHinweis}
+          /* Ziffern laufen von links nach rechts — auch auf Arabisch. */
+          dir="ltr"
           {...(fehler === 'code'
-            ? { fehler: ohneZustellung
-                ? 'Lassen Sie sich von Ihrer Einsatzleitung einen neuen Code ausstellen.'
-                : 'Fordern Sie einen neuen Code an.' }
+            ? { fehler: ohneZustellung ? t.neuerCodeVonLeitung : t.neuerCodeAnfordern }
             : {})}
         />
         <Button type="submit" variante="primary" data-cse="code-einloesen">
-          Anmelden
+          {t.anmelden}
         </Button>
       </form>
 
       <form action="/auth/mitarbeiter" method="get">
         <Button type="submit" variante="ghost" data-cse="code-neu">
-          Andere Nummer oder neuen Code
+          {t.andereNummer}
         </Button>
       </form>
     </AuthSchale>

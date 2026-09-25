@@ -2549,8 +2549,8 @@ German may have to operate to do their job or to be paid correctly.
 
 | Surface | Routes | Locale source |
 |---|---|---|
-| Check-in | `/check-in/[token]`, `/check-in/abgelaufen` | `person.sprache`, resolved from the token — there is no login to read a preference from |
-| Worker login | `/auth/mitarbeiter`, `/auth/mitarbeiter/code` | a cookie, defaulting to `Accept-Language`, then German |
+| Check-in | `/check-in/[token]`, `/check-in/abgelaufen` | the device: the language cookie `cse_sprache` (set by the language row on the surface and when the language is saved at `/portal/konto/profil`), then `Accept-Language`, then German. **Not** `person.sprache` through the token: the page does not resolve its token before the tap (AUT-06), and a page that answered a valid token in Arabic and an invalid one in German would be the oracle (D-694) |
+| Worker login | `/auth/mitarbeiter`, `/auth/mitarbeiter/code` | the same device cookie `cse_sprache`, defaulting to `Accept-Language`, then German (D-694) |
 | Worker portal | every route under `/portal/mein/**` | `person.sprache` |
 | Account screens in the worker shell | `/portal/konto/**` when `app.portal() = 'mitarbeiter'` | `person.sprache`, editable at `/portal/konto/profil` |
 | Shift action screens | `/portal/mein/schichten/[zuordnungId]/{fotos,wachbuch,leistungsnachweis,bautagebuch}` | operator chrome translated; the legal text a **customer** signs on the Leistungsnachweis stays German |

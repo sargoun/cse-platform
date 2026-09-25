@@ -1,5 +1,19 @@
 import type { ReactNode } from 'react';
 import { Marke } from '@/components/marke/Marke';
+import { PORTAL_BCP47, PORTAL_RICHTUNG, type PortalSprache } from '@/lib/i18n/texte';
+import { setzeEin } from '@/lib/i18n/vorlage';
+
+/** Die drei Wörter des Rahmens — deutsch, solange eine Seite nichts anderes sagt. */
+export interface SchalenBeschriftung {
+  readonly marke: string;
+  readonly zurWebsite: string;
+  /** Mit `{schritt}` und `{schritte}`. */
+  readonly schritt: string;
+}
+
+const DEUTSCH: SchalenBeschriftung = {
+  marke: 'CSE Gruppe', zurWebsite: 'Zur Website', schritt: 'Schritt {schritt} von {schritte}',
+};
 
 /**
  * Der Rahmen aller `/auth`-Seiten (DESIGN §5 „Standalone pages").
@@ -37,9 +51,16 @@ import { Marke } from '@/components/marke/Marke';
  * Der Schrittzaehler steht oben in der Tafel, wo er gelesen wird, bevor das
  * Formular gelesen wird: wer weiss, dass noch ein Schritt kommt, bricht beim
  * zweiten nicht ab.
+ *
+ * **Die Anmeldung der Beschäftigten spricht vier Sprachen** (V-200, EMP-12,
+ * SEITENKARTE §12). Sie reicht `sprache`, die Wörter des Rahmens und die
+ * Sprachwahl herein; der Rahmen setzt `lang` und `dir` (Arabisch läuft von
+ * rechts) und schreibt Fliesstext dort in 16 px (DESIGN §8). Die Anmeldung
+ * der Verwaltung reicht nichts davon und bleibt, wie sie war.
  */
 export function AuthSchale({
   titel, unterzeile, schritt, schritte, children, fuss, breit = false,
+  sprache, beschriftung = DEUTSCH, sprachwahl,
 }: {
   readonly titel: string;
   readonly unterzeile?: ReactNode;
@@ -49,9 +70,18 @@ export function AuthSchale({
   readonly fuss?: ReactNode;
   /** Fuer Auswahlseiten mit Zeilen — `max-w-wahl` statt `max-w-form` (§5). */
   readonly breit?: boolean;
+  /** Die Sprache einer Fläche der Beschäftigten — setzt `lang`, `dir` und 16 px. */
+  readonly sprache?: PortalSprache;
+  readonly beschriftung?: SchalenBeschriftung;
+  /** Die Sprachwahl (`GeraeteSprachwahl`) — neben der Marke, wo sie zuerst gefunden wird. */
+  readonly sprachwahl?: ReactNode;
 }) {
+  const klein = sprache === undefined ? 'text-sm' : 'text-base';
   return (
-    <div className="relative min-h-dvh">
+    <div className="relative min-h-dvh"
+         {...(sprache === undefined ? {} : {
+           lang: PORTAL_BCP47[sprache], dir: PORTAL_RICHTUNG[sprache], 'data-sprache': sprache,
+         })}>
       {/*
         * Der eine Lichthauch (§5). `fixed`, damit er beim Rollen einer langen
         * Auswahlliste nicht mitwandert; `pointer-events-none`, damit er
@@ -63,28 +93,36 @@ export function AuthSchale({
       <main className={`relative mx-auto flex min-h-dvh w-full flex-col
                         justify-start gap-s5 p-s5 sm:justify-center sm:p-s6
                         ${breit ? 'max-w-wahl' : 'max-w-form'}`}>
-        {/* Die Marke traegt den Rueckweg — ein Ziel, ein Element (D-613). */}
-        <a href="/" data-cse="auth-zurueck"
-           className="group inline-flex items-center gap-s3 self-start rounded-md
-                      p-s1 transition-colors duration-fast ease-brand">
-          <Marke art="gruppe" groesse="lg" />
-          <span className="flex flex-col">
-            <span className="text-base font-semibold text-text">CSE Gruppe</span>
-            <span className="text-xs text-text-subtle transition-colors duration-fast
-                             ease-brand group-hover:text-text-muted">
-              <span aria-hidden="true">←</span> Zur Website
+        <div className="flex flex-wrap items-center justify-between gap-s3">
+          {/* Die Marke traegt den Rueckweg — ein Ziel, ein Element (D-613). */}
+          <a href="/" data-cse="auth-zurueck"
+             className="group inline-flex items-center gap-s3 self-start rounded-md
+                        p-s1 transition-colors duration-fast ease-brand">
+            <Marke art="gruppe" groesse="lg" />
+            <span className="flex flex-col">
+              <span className="text-base font-semibold text-text">{beschriftung.marke}</span>
+              <span className={`${sprache === undefined ? 'text-xs' : 'text-base'} text-text-subtle
+                                transition-colors duration-fast ease-brand
+                                group-hover:text-text-muted`}>
+                {/* Der Pfeil zeigt zurück — auf Arabisch nach rechts (§12). */}
+                <span aria-hidden="true">{sprache === 'ar' ? '→' : '←'}</span>{' '}
+                {beschriftung.zurWebsite}
+              </span>
             </span>
-          </span>
-        </a>
+          </a>
+          {sprachwahl}
+        </div>
 
         <section className="flex flex-col gap-s5 rounded-xl border border-line
                             bg-surface p-s5 sm:p-s6">
           <header className="flex flex-col gap-s3">
             {schritt !== undefined && schritte !== undefined && (
               <p data-cse="auth-schritt"
-                 className="flex items-center gap-s3 text-xs font-semibold uppercase
-                            tracking-widest text-text-subtle">
-                Schritt {schritt} von {schritte}
+                 className={`flex items-center gap-s3 font-semibold text-text-subtle ${
+                   sprache === undefined ? 'text-xs uppercase tracking-widest' : 'text-base'}`}>
+                {setzeEin(beschriftung.schritt, {
+                  schritt: String(schritt), schritte: String(schritte),
+                })}
                 {/*
                   * Der Fortschritt als BALKEN und nicht nur als Zahl: „Schritt
                   * 1 von 2" muss man lesen, einen halb gefuellten Balken sieht
@@ -109,7 +147,7 @@ export function AuthSchale({
 
         {fuss !== undefined && (
           <footer data-cse="auth-fuss"
-                  className="flex flex-col gap-s3 px-s2 text-sm text-text-subtle">
+                  className={`flex flex-col gap-s3 px-s2 ${klein} text-text-subtle`}>
             {fuss}
           </footer>
         )}

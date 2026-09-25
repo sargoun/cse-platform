@@ -19433,3 +19433,79 @@ umgestellt; die übrigen Seiten blieben ISO.
 | Betrifft | EMP-03, EMP-07, EMP-08, EMP-09, EMP-10, EMP-12, SEC-03, V-199, V-210, D-688, SEITENKARTE §12, `src/app/portal/mein/{page,nachweise/page,zeiten/page,zeiten/[id]/page,zeiten/[id]/einwand/page,schichten/page,antraege/page,antraege/[id]/page,abwesenheit/[id]/page,dienstanweisungen/page,dienstanweisungen/[id]/page,dokumente/[id]/page}.tsx`, `tests/kern/mein-kalendertage.test.ts` |
 |---|---|
 
+### D-694 · Stempeluhr und Anmeldung der Beschäftigten sprechen die Sprache des Geräts — die Kontoseiten die der Person (V-200)
+
+**Der Befund** (V-200; Audit Befunde 37 und 64, derselbe Mangel):
+SEITENKARTE §12 zählt die Stempeluhr (`/check-in/[token]`), die Anmeldung
+(`/auth/mitarbeiter`, `/code`) und die Kontoseiten der Arbeiterhülle zu den
+vier Sprachen. Alle drei waren fest deutsch: „Zeiterfassung",
+„Einstempeln", „Ohne Verbindung gemerkt", „Dieser Link ist nicht gültig.",
+„Geben Sie Ihre Mobilnummer ein …", „Code eingeben". Keine Datei las eine
+Sprache, keine setzte `lang` oder `dir`. Die Stempeluhr zeigte bei einer
+Ablehnung die deutsche `message` der Route. Die Kontowurzel blieb laut
+Kommentar deutsch, „bis das Profil gebaut ist" — das Profil gibt es seit
+D-557; die Benachrichtigungseinstellungen trugen den Schlüssel jeder Art
+(`plan_veroeffentlicht`) als Überschrift. Die Wache
+`seite-ohne-uebersetzung` sah beide Flächen nicht: sie las nur
+`src/app/portal` und `src/components`.
+
+**Die Entscheidung.**
+
+1. **Vor der Anmeldung spricht das GERÄT** — der Sprachkeks `cse_sprache`,
+   dann `Accept-Language`, dann Deutsch (`geraeteSprache`,
+   `src/lib/i18n/geraetesprache.ts`). Für die Anmeldung ist das die Regel der
+   SEITENKARTE. **Für die Stempeluhr ist es eine bewusste Abweichung**: §12
+   nannte `person.sprache` über die Marke. Die Seite löst ihre Marke vor dem
+   Antippen aber absichtlich nicht auf (AUT-06, D-135) — eine Seite, die für
+   eine gültige Marke Arabisch zeigt und für eine ungültige Deutsch, ist
+   genau das Orakel, gegen das sie gebaut ist. Nach dem Antippen die Sprache
+   aus der Antwort zu lesen, hiesse, `app.checkin_verbrauchen` (K-08) um eine
+   Spalte für eine Anzeigeeinstellung zu erweitern; der Keks trägt dieselbe
+   Wahl ohne das. SEITENKARTE §12 ist entsprechend berichtigt.
+2. **Der Keks** trägt einen von vier Werten und nichts über einen Menschen
+   (`httpOnly`, `sameSite=lax`, ein Jahr, `secure` wie jeder Keks der
+   Installation, `sprachKeksOptionen`). Gesetzt wird er an zwei Stellen: von
+   der Sprachwahl dieser Flächen (`GET /api/geraetesprache`, Manifest mit
+   Begründung) und beim Speichern der Sprache im Profil
+   (`/api/konto/sprache`) — wer im Portal Arabisch wählt, bekommt die
+   Stempeluhr auf demselben Telefon auf Arabisch.
+3. **Die Sprachwahl sind Verweise, keine Knöpfe** — die Stempelfläche hat
+   genau einen Knopf (DESIGN §8), und die Browserprüfung zählt ihn. Die Route
+   ist deshalb ein `GET`; sie ändert keine Zeile. Zwei Riegel: kein Keks, wenn
+   `Sec-Fetch-Site` eine fremde Seite meldet, und der Rückweg bleibt im
+   eigenen Ursprung (`internesZiel`). Die Reihe steht in DESIGN §5 („Filter
+   pills"): 44 px je Ziel, jede Sprache nennt sich selbst mit eigenem `lang`
+   und `dir`.
+4. **Eine Ablehnung wird nach ihrem CODE übersetzt**, nicht nach der
+   deutschen `message` (`stempelMeldung`, `fotoMeldung`): `kein_benutzerkonto`
+   hat einen eigenen Satz (die Marke bleibt unverbraucht), jede andere
+   Ablehnung denselben — auch „zu dieser Schicht läuft keine Zeiterfassung",
+   die bisher als einziger Grund durch die `message` schien (AUT-06).
+5. **Nicht übersetzt**: die Uhrzeit (Berliner Zeit in deutscher Form,
+   SEITENKARTE §12), Fundstellen (`TIM-10`, `O-82`) und die Namen der
+   Verwaltungsmenüs („Personal → Person → Zugang"), weil die Einsatzleitung
+   dieses Wort auf ihrem Bildschirm sieht. Mobilnummer und Code stehen auch
+   auf Arabisch von links nach rechts (`dir="ltr"`).
+6. **Die Anmeldung verweist auf die Datenschutzerklärung**, und jede
+   Übersetzung sagt dabei, dass die deutsche Fassung verbindlich ist — wie die
+   Website (D-84). Englisch führt auf `/en/datenschutz`, Arabisch und
+   Türkisch auf die deutsche Seite.
+7. **Die Kontoseiten der Arbeiterhülle folgen `person.sprache`**:
+   Kontowurzel und Benachrichtigungseinstellungen lesen
+   `KONTO_WURZEL_TEXTE`/`KONTO_BENACHRICHTIGUNG_TEXTE` (de/en/ar/tr) und
+   setzen `lang`/`dir`; die Verwaltung liest Deutsch wie bisher. Die Rolle
+   steht mit ihrem Namen (`rolle.bezeichnung`), nicht als Schlüssel. Jede
+   Benachrichtigungsart heisst nach ihrem Namen; die Arbeiterhülle zeigt nur
+   die Arten mit einem Ziel unter `/portal/mein` (V-102), und die Wahl der
+   übrigen reist als verstecktes Feld mit, damit Speichern sie nicht ändert.
+8. **Fliesstext in 16 px** auf allen diesen Flächen (DESIGN §8, D-738);
+   `AuthSchale` bekommt `sprache`, Beschriftung und Sprachwahl als
+   Eigenschaften und bleibt für die Anmeldung der Verwaltung, wie sie war.
+9. **Die Wache sieht die Flächen**: `seite-ohne-uebersetzung` liest jetzt
+   auch `src/app/check-in` und `src/app/auth/mitarbeiter`; Kontowurzel und
+   Benachrichtigungen sind von der Ausnahmeliste gestrichen. Die Browsersuite
+   läuft mit `locale: de-DE`, weil Playwright sonst `en-US` schickt; die
+   anderen Sprachen prüft `tests/e2e/arbeiter-sprache.spec.ts` ausdrücklich.
+
+| Betrifft | EMP-01, EMP-12, TIM-07, TIM-10, AUT-06, D-84, D-135, D-419, D-557, D-738, V-102, V-200, SEITENKARTE §12, DESIGN §5 „Filter pills", `src/lib/i18n/{geraetesprache,vor-anmeldung,vorlage,konto}.ts`, `src/app/check-in/[token]/{page,Stempeluhr,Schichtfoto}.tsx`, `src/app/auth/{AuthSchale.tsx,mitarbeiter/page.tsx,mitarbeiter/code/page.tsx}`, `src/app/api/geraetesprache/route.ts`, `src/app/api/konto/sprache/route.ts`, `src/server/konto/sprach-keks.ts`, `src/components/sprache/GeraeteSprachwahl.tsx`, `src/app/portal/konto/{[[...rest]],benachrichtigungen}/page.tsx`, `src/app/portal/konto/konto.ts`, `scripts/guards/run-all.ts`, `playwright.config.ts`, `tests/kern/{geraetesprache,konto-sprachen}.test.ts`, `tests/e2e/arbeiter-sprache.spec.ts` |
+|---|---|

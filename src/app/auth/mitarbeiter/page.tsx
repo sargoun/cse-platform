@@ -9,6 +9,10 @@ import { FormField } from '@/components/ui/FormField';
 import { codeAnfordern } from '@/server/auth/mitarbeiter-anmeldung';
 import { smsDienst } from '@/server/auth/sms';
 import { keksSicher } from '@/server/auth/sitzung';
+import { GeraeteSprachwahl } from '@/components/sprache/GeraeteSprachwahl';
+import { geraeteSprache, SPRACH_KEKS } from '@/lib/i18n/geraetesprache';
+import type { PortalSprache } from '@/lib/i18n/texte';
+import { ANMELDUNG_TEXTE } from '@/lib/i18n/vor-anmeldung';
 import {
   ANMELDUNG_DEV_COOKIE, ANMELDUNG_TELEFON_COOKIE, anmeldeKeksOptionen, herkunft,
 } from './anmeldung';
@@ -38,8 +42,21 @@ export const dynamic = 'force-dynamic';
  * nicht in einer Regelnummer: wer mit einem Screenreader arbeitet, hoert den
  * Titel als Erstes, und „CSE Platform" auf jeder Seite sagt nur, dass man
  * irgendwo ist. Fuer eine Anmeldung ist das die schlechteste Stelle dafuer.
+ * Und er steht in der Sprache der Seite (V-200).
  */
-export const metadata = { title: 'Anmeldung für Mitarbeitende — CSE Gruppe' };
+export async function generateMetadata(): Promise<{ title: string }> {
+  return { title: ANMELDUNG_TEXTE[await spracheDesGeraets()].seitentitel };
+}
+
+/**
+ * **Die Sprache dieser Seite kommt vom GERÄT** (V-200, D-694, SEITENKARTE
+ * §12): der Sprachkeks, dann `Accept-Language`, dann Deutsch. Vor der
+ * Anmeldung gibt es keinen Menschen, dessen `person.sprache` gälte.
+ */
+async function spracheDesGeraets(): Promise<PortalSprache> {
+  const keks = (await cookies()).get(SPRACH_KEKS)?.value;
+  return geraeteSprache(keks, (await headers()).get('accept-language'));
+}
 
 export default async function MitarbeiterAnmeldung(
   { searchParams }: {
@@ -55,6 +72,8 @@ export default async function MitarbeiterAnmeldung(
   const suche: Record<string, string | string[] | undefined> =
     searchParams === undefined ? {} : await searchParams;
   const abgelaufen = suche['fehler'] === 'abgelaufen';
+  const sprache = await spracheDesGeraets();
+  const t = ANMELDUNG_TEXTE[sprache];
   /**
    * **Ohne SMS-Gateway kann sich niemand anmelden, und das steht hier so da.**
    *
@@ -97,26 +116,28 @@ export default async function MitarbeiterAnmeldung(
 
   return (
     <AuthSchale
-      titel="Anmeldung für Mitarbeitende"
+      titel={t.titel}
       schritt={1}
       schritte={2}
-      unterzeile={ohneZustellung
-        ? 'Geben Sie Ihre Mobilnummer ein und danach den sechsstelligen Code, den Ihnen Ihre '
-          + 'Einsatzleitung nennt. Ein Kennwort brauchen Sie nicht.'
-        : 'Geben Sie Ihre Mobilnummer ein. Sie erhalten einen sechsstelligen Code per SMS. '
-          + 'Ein Kennwort brauchen Sie nicht.'}
+      unterzeile={ohneZustellung ? t.unterzeileOhneZustellung : t.unterzeileSms}
+      sprache={sprache}
+      beschriftung={t}
+      sprachwahl={
+        <GeraeteSprachwahl aktiv={sprache} zurueck="/auth/mitarbeiter" label={t.sprachwahl} />
+      }
     >
 
+      {/*
+        * Die Kästen dieser Seite in 16 px (DESIGN §8): sie stehen auf einer
+        * Fläche der Beschäftigten, und ihre Sätze sind Fliesstext (V-200).
+        */}
       {abgelaufen && (
         <p
           data-cse="anmeldung-abgelaufen"
-          className="rounded-md border border-warning bg-warning-soft p-s4 text-sm text-warning"
+          className="rounded-md border border-warning bg-warning-soft p-s4 text-base text-warning"
         >
-          <strong>Die angefangene Anmeldung gilt nicht mehr.</strong>{' '}
-          Bitte geben Sie Ihre Nummer noch einmal ein; Sie bekommen dann einen neuen Code.
-          Ein Code gilt zehn Minuten, und der Browser muss das kleine
-          Anmelde-Merkzeichen behalten dürfen — im privaten Modus oder bei
-          gesperrten Cookies kommt die Anmeldung nicht durch.
+          <strong>{t.abgelaufenTitel}</strong>{' '}
+          {t.abgelaufenText}
         </p>
       )}
 
@@ -133,54 +154,58 @@ export default async function MitarbeiterAnmeldung(
          */
         <p
           data-cse="keks-ohne-secure"
-          className="rounded-md border border-line bg-surface p-s4 text-sm text-text-muted"
+          className="rounded-md border border-line bg-surface p-s4 text-base text-text-muted"
         >
-          <strong>Vorführfläche.</strong> Diese Installation läuft ohne
-          verschlüsselte Verbindung, damit die Anmeldung im selben Netz am Telefon
-          funktioniert. Für den Echtbetrieb gehört die Plattform hinter HTTPS —
-          dann tragen die Anmelde-Merkzeichen wieder <code>Secure</code>.
+          <strong>{t.vorfuehrTitel}</strong>{' '}
+          {t.vorfuehrText}
         </p>
       )}
 
       {!sms.verbunden && (
         <p
           data-cse="sms-nicht-verbunden"
-          className="rounded-md border border-warning bg-warning-soft p-s4 text-sm text-warning"
+          className="rounded-md border border-warning bg-warning-soft p-s4 text-base text-warning"
         >
-          <strong>SMS-Versand: nicht verbunden.</strong>{' '}
-          Es ist kein Gateway hinterlegt (offene Frage O-82: welcher in der EU
-          gehostete Anbieter mit Auftragsverarbeitungsvertrag, und ab welchem
-          Monatsbetrag gilt ein harter Stopp).{' '}
-          {sms.zeigtCode
-            ? 'Auf dieser Entwicklungsfläche wird der Code stattdessen sichtbar angezeigt.'
-            : 'Bis dahin kommt hier keine SMS an. Ihre Einsatzleitung stellt Ihnen den Code im Portal aus '
-              + '(Personal → Person → Zugang) und nennt ihn Ihnen; er gilt zehn Minuten. Die Zeiterfassung '
-              + 'läuft daneben über den Check-in-Link, der ohne Anmeldung funktioniert.'}
+          <strong>{t.smsTitel}</strong>{' '}
+          {t.smsText}{' '}
+          {sms.zeigtCode ? t.smsEntwicklung : t.smsOhne}
         </p>
       )}
 
       <form action={anfordern} data-cse="anmeldung-telefon" className="flex flex-col gap-s4">
         <FormField
-          label="Mobilnummer"
+          label={t.mobilnummer}
           name="telefon"
           type="tel"
           inputMode="tel"
           autoComplete="tel"
           required
           placeholder="0170 1234567"
-          hinweis="Deutsche Nummern mit 0 beginnend; ausländische mit + und Ländervorwahl."
+          hinweis={t.mobilHinweis}
+          /* Eine Nummer liest sich von links nach rechts — auch auf Arabisch. */
+          dir="ltr"
         />
         <Button type="submit" variante="primary" data-cse="code-anfordern">
-          {ohneZustellung ? 'Weiter zur Codeeingabe' : 'Code anfordern'}
+          {ohneZustellung ? t.weiterZurCodeeingabe : t.codeAnfordern}
         </Button>
       </form>
 
-      <p className="max-w-[60ch] text-sm text-text-subtle">
-        Ihre Nummer wird ausschliesslich zur Anmeldung verwendet.{' '}
-        {ohneZustellung
-          ? 'Ob sie hinterlegt ist, sagt diese Seite bewusst nicht.'
-          : 'Wenn sie hinterlegt ist, kommt gleich ein Code — ob sie es ist, sagt diese Seite bewusst nicht.'}
+      <p className="max-w-[60ch] text-base text-text-subtle">
+        {t.nummerNurZurAnmeldung}{' '}
+        {ohneZustellung ? t.nummerOhneAuskunft : t.nummerMitSms}{' '}
+        {t.datenschutzHinweis}
       </p>
+      {/*
+        * Verbindlich ist die deutsche Datenschutzerklärung (D-84); die
+        * englische Website-Fassung sagt das selbst, Arabisch und Türkisch
+        * haben keine und führen deshalb auf die deutsche (V-200).
+        */}
+      <a href={sprache === 'en' ? '/en/datenschutz' : '/datenschutz'}
+         data-cse="anmeldung-datenschutz"
+         className="inline-flex min-h-11 items-center self-start text-base text-text underline
+                    underline-offset-4">
+        {t.datenschutzLink}
+      </a>
     </AuthSchale>
   );
 }

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { stempelMeldung, type StempelTexte } from '@/lib/i18n/vor-anmeldung';
+import { setzeEin } from '@/lib/i18n/vorlage';
 import { lies, sende, stelleAn } from './warteschlange';
 import { Schichtfoto } from './Schichtfoto';
 
@@ -28,9 +30,14 @@ import { Schichtfoto } from './Schichtfoto';
  * entscheidet, ob LEG-10 ueberhaupt ausgeliefert wird — und die Frage betrifft
  * neben der Geolokalisierung auch Geraetekennung, Geraeteabweichung,
  * Korrekturstatistik und Nicht-erschienen-Auswertung.
+ *
+ * **Die Wörter kommen als Eigenschaft** (V-200, EMP-12): die Seite liest die
+ * Sprache des Geräts und reicht die passenden Texte herein. Die Uhrzeit bleibt
+ * in jeder Sprache `TT.MM.JJ HH:MM` in Berliner Zeit — dieselbe Form wie im
+ * Monatsnachweis (SEITENKARTE §12).
  */
 
-/** Berliner Wanduhr — mit `timeZone`, nie mit der Zone des Geraets. */
+/** Berliner Wanduhr — mit `timeZone`, nie mit der Zone des Geraets; in JEDER Sprache deutsch (§12). */
 const UHR = new Intl.DateTimeFormat('de-DE', {
   timeZone: 'Europe/Berlin',
   dateStyle: 'short',
@@ -53,7 +60,9 @@ type Zustand =
   | { readonly art: 'gemerkt'; readonly zeit: string; readonly offen: number }
   | { readonly art: 'abgelehnt'; readonly meldung: string };
 
-export function Stempeluhr({ token }: { readonly token: string }) {
+export function Stempeluhr(
+  { token, texte }: { readonly token: string; readonly texte: StempelTexte },
+) {
   const [zustand, setzeZustand] = useState<Zustand>({ art: 'bereit' });
   const [offen, setzeOffen] = useState(0);
 
@@ -148,13 +157,16 @@ export function Stempeluhr({ token }: { readonly token: string }) {
      */
     const daten = (await antwort.json().catch(() => ({}))) as {
       ergebnis?: string; objekt?: string | null; server_zeit?: string;
-      error?: { message?: string };
+      error?: { code?: string };
     };
     if (!antwort.ok) {
-      setzeZustand({
-        art: 'abgelehnt',
-        meldung: daten.error?.message ?? 'Dieser Link ist nicht gültig.',
-      });
+      /*
+       * Der Satz kommt aus dem CODE, nicht aus der `message` des Servers — die
+       * ist deutsch und stand hier auch auf einem arabischen Bildschirm
+       * (V-200). Jede Ablehnung ausser dem fehlenden Zugang ergibt denselben
+       * Satz (AUT-06).
+       */
+      setzeZustand({ art: 'abgelehnt', meldung: stempelMeldung(texte, daten.error?.code) });
       return;
     }
     setzeZustand({
@@ -169,15 +181,13 @@ export function Stempeluhr({ token }: { readonly token: string }) {
     return (
       <div className="flex flex-col items-center gap-s4 text-center" aria-live="polite">
         <p className="text-2xl font-semibold text-text">
-          {zustand.ausgestempelt ? 'Ausgestempelt' : 'Eingestempelt'}
+          {zustand.ausgestempelt ? texte.ausgestempelt : texte.eingestempelt}
         </p>
         <p className="text-lg text-text">{zustand.zeit}</p>
         {zustand.objekt !== null && (
           <p className="text-base text-text-muted">{zustand.objekt}</p>
         )}
-        <p className="text-sm text-text-subtle">
-          Erfasst mit der Uhr des Servers, angezeigt in Berliner Zeit.
-        </p>
+        <p className="text-base text-text-subtle">{texte.serverUhr}</p>
         {/*
           * **Das Foto steht HIER und nirgendwo sonst** (TIM-10, DOC-06).
           *
@@ -187,7 +197,7 @@ export function Stempeluhr({ token }: { readonly token: string }) {
           * grossen waehlen. Vorher gab es die Aufnahme gar nicht — die Route
           * `…/medien` war gebaut, geprueft und ohne Aufrufer.
           */}
-        <Schichtfoto token={token} />
+        <Schichtfoto token={token} texte={texte} />
       </div>
     );
   }
@@ -203,14 +213,13 @@ export function Stempeluhr({ token }: { readonly token: string }) {
   if (zustand.art === 'gemerkt') {
     return (
       <div className="flex flex-col items-center gap-s4 text-center" aria-live="polite">
-        <p className="text-2xl font-semibold text-text">Ohne Verbindung gemerkt</p>
+        <p className="text-2xl font-semibold text-text">{texte.gemerkt}</p>
         <p className="text-lg text-text">{zustand.zeit}</p>
-        <p className="text-base text-text-muted">
-          Die Zeit wird nachgereicht, sobald wieder Netz da ist. Sie zählt erst,
-          wenn die Planung sie bestätigt hat.
-        </p>
-        <p className="text-sm text-text-subtle">
-          {zustand.offen === 1 ? '1 Eintrag wartet' : `${String(zustand.offen)} Einträge warten`}
+        <p className="text-base text-text-muted">{texte.gemerktText}</p>
+        <p className="text-base text-text-subtle">
+          {zustand.offen === 1
+            ? texte.wartetEiner
+            : setzeEin(texte.wartenMehrere, { anzahl: String(zustand.offen) })}
         </p>
       </div>
     );
@@ -226,16 +235,16 @@ export function Stempeluhr({ token }: { readonly token: string }) {
         onClick={() => { void stemple(); }}
         disabled={zustand.art === 'sendet'}
       >
-        {zustand.art === 'sendet' ? 'Wird gesendet …' : 'Einstempeln'}
+        {zustand.art === 'sendet' ? texte.sendet : texte.einstempeln}
       </Button>
       <p className="min-h-6 text-base text-danger-strong" aria-live="assertive">
         {zustand.art === 'abgelehnt' ? zustand.meldung : ''}
       </p>
       {offen > 0 && (
-        <p className="text-sm text-text-subtle" aria-live="polite">
+        <p className="text-base text-text-subtle" aria-live="polite">
           {offen === 1
-            ? '1 Eintrag wartet auf die Übertragung.'
-            : `${String(offen)} Einträge warten auf die Übertragung.`}
+            ? texte.uebertragungEiner
+            : setzeEin(texte.uebertragungMehrere, { anzahl: String(offen) })}
         </p>
       )}
     </div>

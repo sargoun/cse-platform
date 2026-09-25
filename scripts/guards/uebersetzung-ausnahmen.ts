@@ -330,8 +330,6 @@ export const UEBERSETZUNG_AUSNAHMEN: readonly string[] = [
   'src/app/portal/gruppe/radar/page.tsx',
   'src/app/portal/gruppe/rechnungen/page.tsx',
   'src/app/portal/gruppe/tor.tsx',
-  'src/app/portal/konto/[[...rest]]/page.tsx',
-  'src/app/portal/konto/benachrichtigungen/page.tsx',
   'src/app/portal/konto/kalender-feed/page.tsx',
   'src/app/portal/konto/profil/page.tsx',
   'src/app/portal/kunde/angebote/[id]/page.tsx',

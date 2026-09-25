@@ -983,6 +983,20 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'Schreibrecht machte aus dieser Route eine Kontouebernahme.',
   },
   {
+    pfad: 'api/geraetesprache',
+    recht: null,
+    grund:
+      'EMP-12, SEITENKARTE §12, V-200, D-694. Die Sprache der Flaechen OHNE Sitzung — '
+      + 'Stempeluhr (`/check-in/[token]`) und Anmeldung der Beschaeftigten. Vor der '
+      + 'Anmeldung gibt es niemanden, dessen Recht sich pruefen liesse, und die Stempeluhr '
+      + 'loest ihre Marke vor dem Antippen absichtlich nicht auf (AUT-06). Die Route setzt '
+      + 'nur einen Keks mit einem von vier Werten (de/en/ar/tr) und leitet zurueck; sie '
+      + 'liest und schreibt keine Zeile und gibt nichts heraus. Sie ist ein GET, weil die '
+      + 'Wahl als Verweisreihe auf der Stempelflaeche steht, die genau einen Knopf hat '
+      + '(DESIGN §8). Riegel: kein Keks, wenn `Sec-Fetch-Site` eine fremde Seite meldet, und '
+      + 'der Rueckweg bleibt im eigenen Ursprung (`internesZiel`).',
+  },
+  {
     /**
      * TIM-07 — die AUSGABE der Check-in-Marke, und ihr Widerruf.
      *
