@@ -483,15 +483,23 @@ describe('der Urheber kommt aus der Sitzung, nicht aus der Anfrage', () => {
       expect(Number(zeile!.laufnummer)).toBe(1);
     });
 
-  it('die Art `schluessel` wird benannt abgewiesen, solange es keine Schluessel gibt',
-    async () => {
-      const fehler = await alsWache((k) => schreibeEintrag(k, {
-        objektId, art: 'schluessel', betreff: 'Schlüssel 12',
-        eintragstext: 'Ausgegeben.',
-      }).then(() => null, (x: unknown) => x));
-      expect(fehler).toBeInstanceOf(WachbuchEingabeFehlt);
-      expect((fehler as Error).message).toContain('SEC-07');
-    });
+  /*
+   * Bis V-180 stand hier: „die Art `schluessel` wird benannt abgewiesen,
+   * solange es keine Schluessel gibt" — mit „SEC-07" in der Meldung. Die
+   * Schluesselverwaltung gibt es seit 0079; abgewiesen wird jetzt nur noch,
+   * was die Datenbank ohnehin abwiese (`wachbuch_schluessel_genannt`): die
+   * Art OHNE Schluessel. Der Weg MIT Schluessel steht in
+   * `wachbuch-schluessel.test.ts`.
+   */
+  it('die Art `schluessel` OHNE Schluessel wird benannt abgewiesen', async () => {
+    const fehler = await alsWache((k) => schreibeEintrag(k, {
+      objektId, art: 'schluessel', betreff: 'Schlüssel 12',
+      eintragstext: 'Ausgegeben.',
+    }).then(() => null, (x: unknown) => x));
+    expect(fehler).toBeInstanceOf(WachbuchEingabeFehlt);
+    expect((fehler as WachbuchEingabeFehlt).grund).toBe('schluessel_fehlt');
+    expect((fehler as Error).message).toContain('Schlüssel');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -19257,3 +19257,59 @@ Personen" (§9.4), welche Qualifikation welcher Posten verlangt (O-342).
 
 | Betrifft | SEC-01, SEC-04, SEC-08, V-179, V-129, D-624, O-342, `src/server/services/security/anforderung.ts`, `src/app/api/sicherheit/anforderungen/route.ts`, `src/app/portal/[mandant]/security/{Anforderungsblock.tsx,posten/[id]/page.tsx,veranstaltungen/[id]/page.tsx}`, `src/lib/i18n/verwaltung/anforderung.ts`, `drizzle/0465_anforderung_zieht_schichten_nach.sql`, `src/server/db/seed/security.ts`, `tests/kern/anforderung-eingabe.test.ts`, `tests/isolation/anforderung-pflege.test.ts` |
 |---|---|
+
+### D-674 · Das Wachbuch nimmt Schlüsseleinträge an, und eine Quittung kann ihre Seite schreiben (V-180)
+
+**Der Befund** (V-180; Audit Gruppe „einsatz", SEC-05 „key", SEC-07): Der
+Wachbuchdienst wies die Art `schluessel` grundsätzlich ab — mit dem Satz, die
+Schlüsselverwaltung sei „noch nicht gebaut". Sie war seit 0079 gebaut:
+`schluessel`, `schluessel_quittung`, `wachbuch_schluessel_fk` und die Spalte
+`schluessel_quittung.wachbuch_eintrag_id` standen da. Das Formular der
+Leitstelle zeigte die Art ausgegraut („mit PR 42"), das der Wache ließ sie
+weg, keine Route las eine Schlüsselkennung, und keine Quittung zeigte je auf eine Seite.
+Nebenbei fiel auf: die Wachbuchroute des Mitarbeiterportals las
+`nachgetragen` aus dem Formular nicht — eine offline geschriebene Seite stand
+als sofort geschrieben im Buch (TIM-09).
+
+**Die Entscheidung.**
+
+1. **Die Art `schluessel` verlangt einen Schlüssel — und zwar einen dieses
+   Objekts.** Ohne Kennung weist der Dienst mit Grund ab (`schluessel_fehlt`),
+   bevor die Datenbank es mit `wachbuch_schluessel_genannt` täte. Die Kennung
+   aus dem Formular prüft `schreibeEintrag` wie Posten, Schicht und
+   Kontrollpunkt gegen das Objekt der Seite (`fremder_schluessel`): der
+   Fremdschlüssel aus 0079 bindet nur an den Mandanten. Bei jeder anderen Art
+   ist der Schlüssel erlaubt, nicht verlangt.
+2. **Die Richtigstellung erbt den Schlüssel** wie Objekt, Posten und Art.
+   Eine Korrektur, die den Gegenstand wechselt, wäre eine neue Seite.
+3. **Eine Quittung schreibt ihre Seite nur auf ausdrücklichen Wunsch**
+   (`imWachbuch`, ein Häkchen auf der Quittungsseite). Seite und Quittung
+   entstehen dann in EINER Transaktion, die Seite zuerst, und die Quittung
+   zeigt auf sie. Keine Vorgabe, weil der Urheber einer Seite eine
+   Beschäftigung in dieser Gesellschaft ist (§10.5) und `wachbuch.schreiben`
+   ein eigenes Recht: wer beides nicht hat, bekäme sonst still keine Seite
+   oder eine gescheiterte Quittung, die er so nicht gewählt hat. Scheitert
+   die Seite, scheitert die Quittung mit (`kein_urheber`), mit Satz. Betreff
+   und Text der Seite nennen nur, was die Quittung sagt; die Zeit stempelt
+   der Server an beiden Zeilen.
+4. **Die Wache liest im eigenen Portal die Schlüssel ihres Objekts**
+   (`schluessel.t_selbst_m1`, 0466, nur lesend, Prädikat wortgleich mit
+   `kontrollpunkt.t_selbst_m1`). Ohne diese Zeile fände die Objektprüfung im
+   M1-Scope nichts und wiese den eigenen Schlüssel ab.
+5. **Das Blatt zeigt den Schlüssel und die Quittung**, die die Seite
+   geschrieben hat; Schlüsselseite und Quittungsjournal verweisen
+   aufeinander. Ein Index auf `schluessel_quittung.wachbuch_eintrag_id` (0466)
+   trägt diese Frage.
+6. **Abweisungen kehren als `?fehler=<grund>` zurück** (D-599) und stehen als
+   eigener Eintrag nachgeschlagen (D-728) in beiden Sprachen der Verwaltung
+   und in allen vier des Mitarbeiterportals. Die Wachbuchroute des Portals
+   übernimmt `nachgetragen` jetzt aus dem Formular.
+7. **Der Seed** legt am Demoobjekt den Bund an, von dem die Übergabeseite
+   spricht, und bucht Ausgabe und Rücknahme mit `imWachbuch` über den echten
+   Dienst: zwei Quittungen, zwei Seiten der Art „Schlüssel", der Bund liegt
+   danach wieder im Depot.
+
+**Nicht Teil dieser Entscheidung:** Fotos am Wachbucheintrag (V-181, D-675).
+
+| Betrifft | SEC-05, SEC-07, TIM-09, V-180, D-599, D-728, `src/server/services/security/{wachbuch,schluessel}.ts`, `src/server/services/mitarbeiter/schichtbuch.ts`, `src/app/api/sicherheit/{wachbuch,schluessel/[id]/quittung}/route.ts`, `src/app/api/mein/schichten/[zuordnungId]/wachbuch/route.ts`, `src/app/portal/[mandant]/security/{wachbuch/neu,wachbuch/[id],schluessel/[id],schluessel/[id]/quittung}/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/lib/i18n/{wachbuch-schicht,verwaltung/wachbuch}.ts`, `drizzle/0466_wachbuch_schluessel.sql`, `src/server/db/seed/{wachbuch,index}.ts`, `tests/kern/wachbuch-schluessel-texte.test.ts`, `tests/isolation/{wachbuch-schluessel,security-wachbuch}.test.ts` |
+|---|---|

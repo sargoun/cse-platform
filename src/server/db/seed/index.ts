@@ -23,7 +23,7 @@ import { seedZeit } from './zeit.js';
 import { seedKonten } from './konto.js';
 import { normalisiereTelefon } from '../../../lib/telefon.js';
 import { seedAnforderung, seedBewacherUndEvents, seedSecurity } from './security.js';
-import { seedWachbuch } from './wachbuch.js';
+import { seedSchluesselImWachbuch, seedWachbuch } from './wachbuch.js';
 import { seedReinigung, seedSonderUndQualitaet } from './reinigung.js';
 import { seedVertrieb } from './vertrieb.js';
 import { seedBau } from './bau.js';
@@ -1724,6 +1724,17 @@ async function main(): Promise<void> {
   process.stdout.write(
     `  ${String(buch.eintraege)} Wachbucheintraege über den echten Dienst `
     + `(davon ${String(buch.storniert)} richtiggestellt — beide Seiten bleiben stehen)\n`,
+  );
+
+  /**
+   * V-180: der Schluesselbund, von dem die Uebergabeseite spricht — einmal
+   * ausgegeben und zurueckgenommen, beide Quittungen zugleich als Seite
+   * `schluessel` im Wachbuch (und die Quittung zeigt auf ihre Seite).
+   */
+  const bund = await seedSchluesselImWachbuch(sql, ids.get('security')!, sec.objektId);
+  process.stdout.write(
+    `  ${String(bund.schluessel)} Schlüssel, ${String(bund.quittungen)} Quittungen `
+    + 'zugleich im Wachbuch (Art „Schlüssel", SEC-05/SEC-07)\n',
   );
 
   /**

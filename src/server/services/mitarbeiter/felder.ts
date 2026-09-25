@@ -34,7 +34,7 @@ import { EIGENER_NACHWEIS_FELDER, EIGENE_NACHWEISLAGE_FELDER } from './nachweise
 import { EIGENER_ANTRAG_FELDER, EIGENE_ABWESENHEIT_FELDER } from './antraege.js';
 import { SCHICHT_NACHWEIS_FELDER } from './nachweis-schicht.js';
 import { SCHICHT_MEDIUM_FELDER } from './medien.js';
-import { SCHICHT_KONTROLLPUNKT_FELDER } from './schichtbuch.js';
+import { SCHICHT_KONTROLLPUNKT_FELDER, SCHICHT_SCHLUESSEL_FELDER } from './schichtbuch.js';
 import { MEIN_DOKUMENT_FELDER } from './dokumente.js';
 import { EIGENES_OBJEKT_FELDER, OBJEKT_ZUGANG_FELDER } from './objekte.js';
 
@@ -65,6 +65,8 @@ export const MITARBEITER_NUTZLASTEN: Readonly<Record<string, readonly string[]>>
   schichtNachweis: SCHICHT_NACHWEIS_FELDER,
   schichtMedium: SCHICHT_MEDIUM_FELDER,
   schichtKontrollpunkt: SCHICHT_KONTROLLPUNKT_FELDER,
+  /* V-180: die Schluessel des eigenen Objekts im Wachbuchformular — Kennung und Name, kein Halter. */
+  schichtSchluessel: SCHICHT_SCHLUESSEL_FELDER,
   /*
    * Die Nutzlasten von `/portal/mein/dokumente` und `/portal/mein/objekte`
    * (0360, 0361). `dokument` und `objekt` sind die zwei Tabellen, an denen im

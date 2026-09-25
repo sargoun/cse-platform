@@ -34,6 +34,9 @@ import type { SchreibKontext } from '../../kontext/index.js';
 import {
   korrigiereEintrag, schreibeEintrag,
 } from '../../services/security/wachbuch.js';
+import {
+  legeSchluesselAn, nimmZurueck, uebergib,
+} from '../../services/security/schluessel.js';
 import { alsPortalSitzung } from './sitzung.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
@@ -232,4 +235,89 @@ export async function seedWachbuch(
     }));
 
   return { eintraege: 4, storniert: 1 };
+}
+
+export interface SchluesselbuchErgebnis {
+  /** Neu angelegte Schluessel — beim zweiten Lauf 0. */
+  readonly schluessel: number;
+  /** Quittungen, die zugleich eine Wachbuchseite `schluessel` schreiben. */
+  readonly quittungen: number;
+}
+
+/** Der Bund, von dem die Uebergabeseite oben spricht („Schlüsselbund OS-1"). */
+const DEMO_BUND = 'Schlüsselbund Objektschutz';
+
+/**
+ * V-180 — der Schluessel im Wachbuch (SEC-05 „key", SEC-07).
+ *
+ * Bis dahin wies das Wachbuch die Art `schluessel` ab, und keine Quittung
+ * zeigte je auf eine Seite (`schluessel_quittung.wachbuch_eintrag_id`, 0079,
+ * blieb in jeder Zeile NULL). Die Uebergabeseite dieser Demo sprach vom
+ * „Schlüsselbund OS-1" — einen solchen Schluessel gab es nirgends.
+ *
+ * Hier entsteht er, ueber den ECHTEN Dienst, und wandert einmal hin und
+ * zurueck: Ausgabe an die Wache zum Dienstbeginn, Ruecknahme bei der
+ * Uebergabe. Beide Quittungen mit „auch ins Wachbuch" (`imWachbuch`) — die
+ * Seite und die Quittung entstehen in EINER Transaktion, und die Quittung
+ * zeigt auf die Seite. Danach liegt der Bund wieder im Depot, das Journal
+ * zeigt beide Bewegungen und das Buch beide Seiten.
+ *
+ * Geschrieben wird als WACHLEITUNG (s. o.): der Urheber einer Seite ist eine
+ * Beschaeftigung in dieser Gesellschaft, und `schluessel.schreiben` haelt die
+ * Leitung ebenso wie `wachbuch.schreiben` (0008).
+ *
+ * **Idempotent durch LESEN ZUERST:** steht der Bund schon am Objekt,
+ * geschieht nichts — eine Quittung und eine Wachbuchseite sind beide nicht
+ * loeschbar (Invariante 8).
+ */
+export async function seedSchluesselImWachbuch(
+  sql: Sql, mandantId: string, objektId: string | null,
+): Promise<SchluesselbuchErgebnis> {
+  const nichts: SchluesselbuchErgebnis = { schluessel: 0, quittungen: 0 };
+  if (objektId === null) return nichts;
+
+  const [da] = await sql<{ id: string }[]>`
+    select id from schluessel
+     where mandant_id = ${mandantId} and objekt_id = ${objektId}
+       and bezeichnung = ${DEMO_BUND}
+     limit 1`;
+  if (da !== undefined) return nichts;
+
+  const wache = await wachleitung(sql, mandantId);
+  if (wache === undefined) return nichts;
+
+  /* Die Wache, die den Bund bekommt: eine andere Beschaeftigung derselben
+     Gesellschaft als die Leitung, die quittiert. */
+  const [empfaenger] = await sql<{ id: string; name: string }[]>`
+    select a.id, p.vorname || ' ' || p.nachname as name
+      from anstellung a
+      join person p on p.id = a.person_id
+     where a.mandant_id = ${mandantId} and a.status = 'aktiv' and a.geloescht_am is null
+       and a.person_id <> ${wache.person_id}
+     order by a.personalnummer
+     limit 1`;
+  if (empfaenger === undefined) return nichts;
+
+  const schluesselId = await alsWache(sql, mandantId, wache.benutzer_id, wache.person_id,
+    (k) => legeSchluesselAn(k, {
+      objektId,
+      bezeichnung: DEMO_BUND,
+      schluesselNummer: 'OS-1',
+    }));
+
+  const bewegung = {
+    schluesselId,
+    empfaengerArt: 'mitarbeiter',
+    anstellungId: empfaenger.id,
+    empfaengerName: empfaenger.name,
+    unterzeichnerName: empfaenger.name,
+    imWachbuch: true,
+  } as const;
+
+  await alsWache(sql, mandantId, wache.benutzer_id, wache.person_id,
+    (k) => uebergib(k, { ...bewegung, bemerkung: 'Dienstbeginn Nachtwache, Bund vollzählig.' }));
+  await alsWache(sql, mandantId, wache.benutzer_id, wache.person_id,
+    (k) => nimmZurueck(k, { ...bewegung, bemerkung: 'Übergabe an den Tagdienst, Bund vollzählig.' }));
+
+  return { schluessel: 1, quittungen: 2 };
 }

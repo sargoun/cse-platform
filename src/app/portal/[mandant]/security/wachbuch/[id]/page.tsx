@@ -16,6 +16,11 @@ import {
   ART_TEXT, leseEintrag, pruefeKette,
   type EintragZeile, type Kettenbefund,
 } from '@/server/services/security/wachbuch';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { WACHBUCH_TEXTE } from '@/lib/i18n/verwaltung/wachbuch';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/security/wachbuch/[id]` — eine Seite, mit Serverzeit,
@@ -36,9 +41,15 @@ import {
 export const dynamic = 'force-dynamic';
 
 export default async function Wachbuchblatt(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  {
+    params, searchParams,
+  }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
+  const suche = await searchParams;
   kennungOder404(id);
   const pfad = `/portal/${mandant}/security/wachbuch/${id}`;
   const zugang = await portalZugang(pfad);
@@ -62,6 +73,12 @@ export default async function Wachbuchblatt(
   // AUT-06: eine fremde Seite ist nicht vorhanden, nicht verboten.
   if (daten === null) notFound();
   const { eintrag, kette } = daten;
+  const tW = nachSprache(WACHBUCH_TEXTE, zugang.sprache);
+  /* D-599/D-728: der Grund einer abgewiesenen Richtigstellung. */
+  const fehler = typeof suche['fehler'] === 'string'
+    ? (eigenerEintrag(tW.fehler, suche['fehler']) ?? tW.fehlerUnbekannt) : null;
+  /* AUT-06: der Verweis auf die Quittung nur, wo ihr Ziel lesbar ist. */
+  const darf = await haeltRechte(sitzung, 'schluessel.lesen');
 
   const feld = 'mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted';
   const eingabe = 'min-h-11 w-full rounded-md border border-line bg-surface-3 '
@@ -127,6 +144,23 @@ export default async function Wachbuchblatt(
         {eintrag.polizeiInformiert && (
           <p className="m-0 mt-s2 text-sm text-text">Polizei informiert.</p>
         )}
+        {eintrag.schluessel !== null && (
+          <p className="m-0 mt-s2 text-sm text-text" data-cse="wachbuch-schluessel">
+            {tW.schluesselZeile(eintrag.schluessel)}
+            {eintrag.quittungId !== null && eintrag.quittungSchluesselId !== null
+              && darf['schluessel.lesen'] === true && (
+              <>
+                {' · '}
+                <Link
+                  href={`/portal/${mandant}/security/schluessel/${eintrag.quittungSchluesselId}`}
+                  className="underline-offset-2 hover:underline"
+                >
+                  {tW.quittungVerweis}
+                </Link>
+              </>
+            )}
+          </p>
+        )}
 
         <p className="mt-s4 whitespace-pre-wrap text-base text-text">
           {eintrag.eintragstext}
@@ -179,6 +213,13 @@ export default async function Wachbuchblatt(
 
       {!eintrag.storniert && (
         <section>
+          {fehler !== null && (
+            <Hinweis art="warnung" cse="wachbuch-abgewiesen" rolle="alert"
+                     className="mb-s4 max-w-prose">
+              <strong>{tW.abgewiesen}</strong>{' '}
+              {fehler}
+            </Hinweis>
+          )}
           <h2 className="mb-s2 text-h3 text-text">Richtigstellen</h2>
           <p className="mb-s4 max-w-prose text-sm text-text-muted">
             Der Eintrag bleibt stehen und wird als storniert gekennzeichnet; die
@@ -192,6 +233,7 @@ export default async function Wachbuchblatt(
           >
             <input type="hidden" name="mandant" value={mandant} />
             <input type="hidden" name="korrigiert" value={eintrag.id} />
+            <input type="hidden" name="zurueck_fehler" value={pfad} />
 
             <label className="mb-s4 block">
               <span className={feld}>Warum war der Eintrag falsch?</span>

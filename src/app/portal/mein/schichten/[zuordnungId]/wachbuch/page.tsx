@@ -10,6 +10,8 @@ import { findeEigeneSchicht, type EigeneSchicht }
 import { leseSchichtbuch, type Schichtbuch }
   from '@/server/services/mitarbeiter/schichtbuch';
 import { findeSchichtBezug } from '@/server/services/mitarbeiter/schicht-zugang';
+import { WACHBUCH_SCHICHT_TEXTE } from '@/lib/i18n/wachbuch-schicht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
 import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
@@ -43,6 +45,10 @@ import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
  * — die Aufnahme geht deshalb ueber `/fotos` derselben Schicht und steht in
  * derselben Beweiskette. Ein zweiter Uploadweg mit einem zweiten Bezug waere
  * eine zweite Stelle, an der dasselbe Bild liegt.
+ *
+ * **Der Schluessel** (V-180, SEC-05 „key"): fuehrt das Objekt Schluessel,
+ * bietet das Formular die Art `schluessel` und die Auswahl an. Eine
+ * Abweisung kommt als Seite mit Grund zurueck (`?fehler=`, D-599).
  */
 export const dynamic = 'force-dynamic';
 
@@ -51,15 +57,28 @@ interface Blatt {
   readonly buch: Schichtbuch | null;
 }
 
-/** Die vier Arten, die der Dienst heute annimmt. */
-const ARTEN: readonly WachbuchArtSchluessel[] = [
+/**
+ * Die Arten, die das Formular anbietet. `schluessel` nur, wo das Objekt
+ * Schluessel fuehrt (V-180): der Dienst verlangt bei dieser Art einen, und
+ * eine Wahl, die nur scheitern kann, ist keine.
+ */
+const ARTEN_OHNE_SCHLUESSEL: readonly WachbuchArtSchluessel[] = [
   'rundgang', 'vorkommnis', 'uebergabe', 'alarm',
+];
+const ARTEN_MIT_SCHLUESSEL: readonly WachbuchArtSchluessel[] = [
+  'rundgang', 'vorkommnis', 'uebergabe', 'schluessel', 'alarm',
 ];
 
 export default async function MeinWachbuch(
-  { params }: { params: Promise<{ zuordnungId: string }> },
+  {
+    params, searchParams,
+  }: {
+    params: Promise<{ zuordnungId: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { zuordnungId } = await params;
+  const suche = await searchParams;
   const ergebnis = await meinPortal<Blatt | null>(
     `/portal/mein/schichten/${zuordnungId}/wachbuch`,
     async (kontext) => {
@@ -84,6 +103,12 @@ export default async function MeinWachbuch(
   const { schicht, buch } = ergebnis.daten;
   const t = basis.texte;
   const arten = WACHBUCH_ART_TEXTE[basis.sprache];
+  const tW = WACHBUCH_SCHICHT_TEXTE[basis.sprache];
+  /* D-599/D-728: der Grund einer Abweisung nur als EIGENER Eintrag. */
+  const fehler = typeof suche['fehler'] === 'string'
+    ? (eigenerEintrag(tW.fehler, suche['fehler']) ?? tW.fehlerUnbekannt) : null;
+  const schluessel = buch?.schluessel ?? [];
+  const ARTEN = schluessel.length > 0 ? ARTEN_MIT_SCHLUESSEL : ARTEN_OHNE_SCHLUESSEL;
   /*
    * Warum hier kein Formular mehr steht — und nicht: warum es scheitert.
    *
@@ -162,6 +187,9 @@ export default async function MeinWachbuch(
                             ? '—' : `${String(e.zeitabweichungSek)} s`}
                         </span>
                       </Feld>
+                      {e.schluessel !== null && (
+                        <Feld label={tW.schluessel}>{e.schluessel}</Feld>
+                      )}
                       {e.storniert && (
                         <Feld label={t.entscheidung}>{e.stornoGrund ?? '—'}</Feld>
                       )}
@@ -176,6 +204,14 @@ export default async function MeinWachbuch(
             <h2 className="mb-s3 text-h2 text-text">{t.wachbuchNeu}</h2>
             {sperre !== null ? <Hinweis text={sperre} marke="erfassung-zu" /> : (
             <>
+            {fehler !== null && (
+              <p role="alert" data-cse="wachbuch-abgewiesen"
+                 className="mb-s4 max-w-prose rounded-lg border border-warning bg-warning-soft
+                            p-s4 text-base text-warning">
+                <strong>{tW.abgewiesen}</strong>{' '}
+                {fehler}
+              </p>
+            )}
             <p className="mb-s4 max-w-prose text-base text-text-muted">
               {t.unveraenderlich}
             </p>
@@ -246,6 +282,25 @@ export default async function MeinWachbuch(
                     {t.praesenz}
                   </label>
                 </>
+              )}
+
+              {schluessel.length > 0 && (
+                <div className="flex flex-col gap-s2">
+                  <label htmlFor="wb-schluessel" className="text-base text-text">
+                    {tW.schluessel}
+                  </label>
+                  <select id="wb-schluessel" name="schluessel" className={eingabe}
+                          aria-describedby="wb-schluessel-hinweis"
+                          data-cse="wachbuch-schluessel">
+                    <option value="">—</option>
+                    {schluessel.map((k) => (
+                      <option key={k.id} value={k.id}>{k.bezeichnung}</option>
+                    ))}
+                  </select>
+                  <span id="wb-schluessel-hinweis" className="text-base text-text-muted">
+                    {tW.schluesselHinweis}
+                  </span>
+                </div>
               )}
 
               <label className="flex min-h-11 items-center gap-s3 text-base text-text">

@@ -12,6 +12,9 @@ import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { ART_TEXT, WACHBUCH_ARTEN } from '@/server/services/security/wachbuch';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { WACHBUCH_TEXTE } from '@/lib/i18n/verwaltung/wachbuch';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/security/wachbuch/neu` — eine Seite schreiben
@@ -28,12 +31,21 @@ import { ART_TEXT, WACHBUCH_ARTEN } from '@/server/services/security/wachbuch';
  * Grosselternschlüssel in der Datenbank weist einen Punkt eines fremden
  * Objekts ab (§1.4), also kann hier höchstens eine Eingabe scheitern — nie
  * eine falsche Zeile entstehen.
+ *
+ * **Die Schlüssel ebenso** (V-180, SEC-05 „key", SEC-07). Bis dahin war die
+ * Art `Schlüssel` hier ausgegraut („mit PR 42") — gebaut war die
+ * Schlüsselverwaltung längst. Den Schlüssel eines fremden Objekts weist der
+ * Dienst ab, bevor geschrieben wird, und die Seite sagt, warum (`?fehler=`).
  */
 export const dynamic = 'force-dynamic';
 
 interface Objektzeile { readonly id: string; readonly bezeichnung: string }
 interface Punktzeile {
   readonly id: string; readonly bezeichnung: string; readonly objekt: string;
+}
+interface Schluesselzeile {
+  readonly id: string; readonly bezeichnung: string; readonly nummer: string | null;
+  readonly objekt: string;
 }
 
 export default async function WachbuchNeu(
@@ -76,8 +88,13 @@ export default async function WachbuchNeu(
     ? `/portal/${mandant}/security/wachbuch`
     : `${pfad}?gespeichert=1`;
   const gespeichert = suche['gespeichert'] === '1';
+  const tW = nachSprache(WACHBUCH_TEXTE, zugang.sprache);
+  /* D-599/D-728: der Grund einer Abweisung nur als EIGENER Eintrag. */
+  const fehler = typeof suche['fehler'] === 'string'
+    ? (eigenerEintrag(tW.fehler, suche['fehler']) ?? tW.fehlerUnbekannt) : null;
+  const darfSchluessel = (await haeltRechte(sitzung, 'schluessel.lesen'))['schluessel.lesen'] === true;
 
-  const { objekte, punkte } = await (db().begin(
+  const { objekte, punkte, schluessel } = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => ({
         objekte: await kontext.abfrage<Objektzeile>(
@@ -91,8 +108,18 @@ export default async function WachbuchNeu(
             where k.archiviert_am is null
             order by o.bezeichnung, k.reihenfolge, k.bezeichnung`,
         ),
+        /* `schluessel.lesen` fehlt → keine Liste, nicht „keine Schlüssel". */
+        schluessel: darfSchluessel ? await kontext.abfrage<Schluesselzeile>(
+          `select s.id, s.bezeichnung, s.schluessel_nummer as nummer,
+                  o.bezeichnung as objekt
+             from schluessel s
+             join objekt o on o.id = s.objekt_id and o.mandant_id = s.mandant_id
+            where s.archiviert_am is null
+            order by o.bezeichnung, s.bezeichnung`,
+        ) : null,
       }))) as Promise<{
         objekte: readonly Objektzeile[]; punkte: readonly Punktzeile[];
+        schluessel: readonly Schluesselzeile[] | null;
       }>);
 
   const feld = 'mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted';
@@ -119,6 +146,13 @@ export default async function WachbuchNeu(
           selbst bleibt Ihnen verschlossen — dafür braucht es das Leserecht.
         </Hinweis>
       )}
+      {fehler !== null && (
+        <Hinweis art="warnung" cse="wachbuch-abgewiesen" rolle="alert"
+                 className="mb-s5 max-w-prose">
+          <strong>{tW.abgewiesen}</strong>{' '}
+          {fehler}
+        </Hinweis>
+      )}
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Der Zeitpunkt kommt vom Server und lässt sich nicht eintragen. Der
         Eintrag ist danach unveränderlich — eine Korrektur ist ein neuer
@@ -138,6 +172,7 @@ export default async function WachbuchNeu(
         >
           <input type="hidden" name="mandant" value={mandant} />
           <input type="hidden" name="zurueck" value={zurueck} />
+          <input type="hidden" name="zurueck_fehler" value={pfad} />
 
           <label className="mb-s4 block">
             <span className={feld}>Objekt</span>
@@ -164,21 +199,9 @@ export default async function WachbuchNeu(
                     value={a}
                     required
                     defaultChecked={a === 'rundgang'}
-                    /**
-                     * `schluessel` steht in der Liste, weil SEC-05 sie nennt —
-                     * und ist gesperrt, weil die Schlüsselverwaltung erst mit
-                     * PR 42 kommt. Sie stillschweigend wegzulassen hiesse, eine
-                     * der fünf Arten verschwinden zu lassen; sie anzubieten
-                     * hiesse, den Dienst in eine Bedingungsverletzung laufen zu
-                     * lassen.
-                     */
-                    disabled={a === 'schluessel'}
                     className="min-h-6 min-w-6"
                   />
-                  <span className={a === 'schluessel' ? 'text-text-subtle' : undefined}>
-                    {ART_TEXT[a]}
-                    {a === 'schluessel' && ' (mit PR 42)'}
-                  </span>
+                  <span>{ART_TEXT[a]}</span>
                 </label>
               ))}
             </div>
@@ -213,6 +236,25 @@ export default async function WachbuchNeu(
               </select>
             </label>
           )}
+
+          {schluessel !== null && (schluessel.length === 0 ? (
+            <p className="mb-s4 text-sm text-text-muted" data-cse="wachbuch-ohne-schluessel">
+              {tW.keinSchluessel}
+            </p>
+          ) : (
+            <label className="mb-s4 block">
+              <span className={feld}>{tW.schluessel}</span>
+              <select name="schluessel" className={eingabe} data-cse="wachbuch-schluessel">
+                <option value="">{tW.ohneSchluessel}</option>
+                {schluessel.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.objekt} · {k.bezeichnung}{k.nummer === null ? '' : ` · ${k.nummer}`}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-s1 block text-xs text-text-muted">{tW.schluesselHinweis}</span>
+            </label>
+          ))}
 
           <label className="mb-s5 flex items-center gap-s2 text-sm text-text">
             <input type="checkbox" name="polizei" value="1" className="min-h-6 min-w-6" />

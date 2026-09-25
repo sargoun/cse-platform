@@ -17,6 +17,10 @@ import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
 import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { QUITTUNG_WACHBUCH_TEXTE } from '@/lib/i18n/verwaltung/wachbuch';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/security/schluessel/[id]/quittung` — die Übergabe mit
@@ -69,7 +73,11 @@ export default async function Quittung(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
-  const darf = await haeltRechte(sitzung, 'schluessel.lesen');
+  const darf = await haeltRechte(sitzung, 'schluessel.lesen', 'wachbuch.schreiben');
+  const tQ = nachSprache(QUITTUNG_WACHBUCH_TEXTE, zugang.sprache);
+  /* D-599/D-728: der Grund einer Abweisung nur als EIGENER Eintrag. */
+  const fehler = typeof suche['fehler'] === 'string'
+    ? (eigenerEintrag(tQ.fehler, suche['fehler']) ?? tQ.fehlerUnbekannt) : null;
   if (sitzung.aktiverMandantId === null) notFound();
 
   const { schluessel, quittungen, anstellungen, kunden } = await (db().begin(
@@ -156,6 +164,14 @@ export default async function Quittung(
         </p>
       )}
 
+      {fehler !== null && (
+        <Hinweis art="warnung" cse="quittung-abgewiesen" rolle="alert"
+                 className="mb-s5 max-w-prose">
+          <strong>{tQ.abgewiesen}</strong>{' '}
+          {fehler}
+        </Hinweis>
+      )}
+
       <form
         action={`/api/sicherheit/schluessel/${id}/quittung`}
         method="post"
@@ -163,6 +179,7 @@ export default async function Quittung(
         className="max-w-prose rounded-lg border border-line bg-surface p-s5"
       >
         <input type="hidden" name="mandant" value={mandant} />
+        <input type="hidden" name="zurueck_fehler" value={pfad} />
         <input
           type="hidden" name="zurueck"
           value={`/portal/${mandant}/security/schluessel/${id}`}
@@ -292,6 +309,26 @@ export default async function Quittung(
             </span>
           </span>
         </label>
+
+        {/*
+          * V-180 (SEC-05 „key"): dieselbe Bewegung als Seite im Wachbuch des
+          * Objekts. Angeboten nur, wer das Buch führen darf; vorausgewählt,
+          * weil eine Schlüsselübergabe am Objekt dorthin gehört — abwählbar,
+          * weil der Urheber einer Seite eine Beschäftigung in dieser
+          * Gesellschaft sein muss.
+          */}
+        {darf['wachbuch.schreiben'] === true && (
+          <label className="mb-s5 flex min-h-11 items-start gap-s3 text-sm text-text">
+            <input type="checkbox" name="im_wachbuch" value="1" defaultChecked
+                   className="mt-s1" data-cse="quittung-im-wachbuch" />
+            <span>
+              {tQ.imWachbuch}
+              <span className="mt-s1 block text-xs text-text-muted">
+                {tQ.imWachbuchHinweis}
+              </span>
+            </span>
+          </label>
+        )}
 
         <Button type="submit" variante="primary">Quittung schreiben</Button>
       </form>

@@ -1,12 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import {
-  istWachbuchArt, schreibeEintrag, type WachbuchArt,
+  BezugPasstNichtZumObjekt, istWachbuchArt, schreibeEintrag, WachbuchEingabeFehlt,
+  type WachbuchArt,
 } from '@/server/services/security/wachbuch';
+import { erwarteterUrsprung } from '@/server/auth/ursprung';
 import { aufDerSchicht, dienstFehlerAntwort, zurueckZu } from '../../bruecke';
 
 /**
  * `POST /api/mein/schichten/[zuordnungId]/wachbuch` — die Wache schreibt eine
- * Seite (SEC-05, TIM-08, TIM-09, LEG-01, § 34a GewO).
+ * Seite (SEC-05, SEC-07, TIM-08, TIM-09, LEG-01, § 34a GewO).
  *
  * **Das Recht ist `wachbuch.schreiben`**, und es steht im Katalog UND an der
  * Rolle `mitarbeiter` (0008). Es wird hier nicht noch einmal abgefragt: die
@@ -24,11 +26,17 @@ import { aufDerSchicht, dienstFehlerAntwort, zurueckZu } from '../../bruecke';
  * dabei `einsatz`, das im M1-Scope `dienstplan.lesen` verlangt. Die Rolle
  * `mitarbeiter` haelt es nicht, die EIGENE Schicht kam mit null Zeilen zurueck,
  * und der Dienst wies den eigenen Eintrag mit „der Bezug gehoert zu einem
- * anderen Objekt" ab. `einsatz.t_selbst_m1` (0300) traegt den Weg.
+ * anderen Objekt" ab. `einsatz.t_selbst_m1` (0300) traegt den Weg — und
+ * `schluessel.t_selbst_m1` (0466) denselben fuer den Schluessel (V-180).
  *
  * **Nummer, Serverzeit und Kettenglied schickt diese Route nicht mit.** Sie
  * entstehen in der Datenbank (0070); die Geraetezeit reist als Behauptung mit
  * und wird gespeichert, nie geglaubt (TIM-08).
+ *
+ * **Eine Abweisung ist eine Seite, kein JSON** (D-599): das Formular ist ein
+ * echtes `<form method="post">` auf einem Diensttelefon. Der Grund reist als
+ * `?fehler=` auf die Wachbuchseite DIESER Schicht zurueck — die Adresse baut
+ * die Route selbst, aus der Zuordnung im Pfad, nicht aus einem Feld.
  */
 export const dynamic = 'force-dynamic';
 
@@ -43,21 +51,21 @@ export async function POST(
 ): Promise<NextResponse> {
   const { zuordnungId } = await kontext.params;
   const daten = await anfrage.formData();
+  const seite = `/portal/mein/schichten/${zuordnungId}/wachbuch`;
+  const abgewiesen = (grund: string): NextResponse => {
+    const ziel = new URL(seite, erwarteterUrsprung(anfrage));
+    ziel.searchParams.set('fehler', grund);
+    return NextResponse.redirect(ziel, 303);
+  };
 
   const art = textOder(daten, 'art');
   const betreff = textOder(daten, 'betreff');
   const eintragstext = textOder(daten, 'eintragstext');
 
-  if (art === null || !istWachbuchArt(art)) {
-    return NextResponse.json({ fehler: 'unbekannte_art' }, { status: 400 });
-  }
-  if (betreff === null) {
-    return NextResponse.json({ fehler: 'kein_betreff' }, { status: 400 });
-  }
-  if (eintragstext === null) {
-    // Ein Eintrag ohne Text dokumentiert nichts. Was ist passiert?
-    return NextResponse.json({ fehler: 'kein_text' }, { status: 400 });
-  }
+  if (art === null || !istWachbuchArt(art)) return abgewiesen('unbekannte_art');
+  if (betreff === null) return abgewiesen('kein_betreff');
+  // Ein Eintrag ohne Text dokumentiert nichts. Was ist passiert?
+  if (eintragstext === null) return abgewiesen('kein_text');
 
   try {
     const ergebnis = await aufDerSchicht(anfrage, zuordnungId,
@@ -82,6 +90,8 @@ export async function POST(
            * sonst scheiterte der Cast auf `uuid`.
            */
           kontrollpunktId: textOder(daten, 'kontrollpunkt'),
+          /* V-180: der Schluessel — ebenso gegen das Objekt gehalten. */
+          schluesselId: textOder(daten, 'schluessel'),
           /*
            * `praesenz` ohne Kontrollpunkt weist `pruefeText` ab (400 mit
            * Grund). Das ist Absicht und wird hier nicht vorweggenommen: eine
@@ -97,17 +107,28 @@ export async function POST(
            * etwas, und eine erfundene waere schlechter als keine.
            */
           geraeteZeit: textOder(daten, 'geraete_zeit'),
+          /*
+           * Das Haekchen „nachgetragen" (TIM-09, V-078): das Formular dieser
+           * Schicht schickt es, diese Route reichte es nie weiter — die Seite
+           * stand danach ohne die Aussage der Wache da (V-180, im
+           * Vorbeigehen behoben).
+           */
+          nachgetragen: daten.get('nachgetragen') === '1',
         });
       });
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
-    if (ergebnis.wert === null) {
-      return NextResponse.json({ fehler: 'kein_objekt' }, { status: 422 });
-    }
+    if (ergebnis.wert === null) return abgewiesen('kein_objekt');
   } catch (fehler: unknown) {
+    if (fehler instanceof WachbuchEingabeFehlt) return abgewiesen(fehler.grund);
+    if (fehler instanceof BezugPasstNichtZumObjekt) return abgewiesen(`fremder_${fehler.tabelle}`);
+    const f = fehler as { status?: unknown; code?: unknown };
+    if (typeof f.status === 'number' && typeof f.code === 'string' && f.status < 500) {
+      return abgewiesen(f.code);
+    }
     const antwort = dienstFehlerAntwort(fehler);
     if (antwort !== null) return antwort;
     throw fehler;
   }
 
-  return zurueckZu(daten, `/portal/mein/schichten/${zuordnungId}/wachbuch`, anfrage);
+  return zurueckZu(daten, seite, anfrage);
 }
