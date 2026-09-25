@@ -19385,6 +19385,9 @@ Leistungsnachweis, Bautagebuch und Fotos über `dienstFehlerAntwort`.
    Tauschpartner beim Schichttausch), bleibt sichtbar, ist aber nicht wählbar
    („hier noch nicht möglich"): angeboten wäre sie ein sicherer Fehlschlag.
    Welche Art was verlangt, entscheidet weiter allein die Datenbank.
+   **Die Lücke dahinter ist V-260 (offen):** EMP-10 verlangt den
+   Tauschantrag, und kein Formular dieses Portals schickt `einsatz` und
+   `tauschpartner`; was eine Genehmigung bewirkt, ist O-613.
 6. **Der Satz steht in der Sprache der Person** — `MEIN_FORMULAR_TEXTE`
    (de/en/ar/tr, `src/lib/i18n/mein-formular.ts`), nachgeschlagen nur als
    eigener Eintrag (D-728); ein Grund, den die Tabelle nicht kennt, bekommt

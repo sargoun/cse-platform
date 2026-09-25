@@ -114,7 +114,9 @@ export default async function NeuerAntrag(
                 Eine Art, deren Pflichtfelder dieses Formular nicht anbietet
                 (Schicht und Tauschpartner beim Schichttausch), bleibt
                 sichtbar, ist aber nicht wählbar: angeboten wäre sie ein
-                sicherer Fehlschlag (V-198).
+                sicherer Fehlschlag (V-198). Die Lücke selbst — EMP-10 verlangt
+                den Tauschantrag, kein Formular dieses Portals schickt
+                `einsatz` und `tauschpartner` — ist V-260 (offen, mit O-613).
               */}
               {daten.antragsarten.map((a) => {
                 const nichtHier = a.erfordertEinsatz || a.erfordertTauschpartner;
