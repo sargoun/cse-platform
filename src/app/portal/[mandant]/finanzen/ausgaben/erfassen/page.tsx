@@ -138,7 +138,7 @@ export default async function AusgabeErfassen(
 
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="ausgabe-fehler" className="mb-s5 max-w-prose">
-          {eigenerEintrag(t.fehler, fehler) ?? fehler}
+          {eigenerEintrag(t.fehler, fehler) ?? t.fehlerAllgemein}
         </Hinweis>
       )}
 

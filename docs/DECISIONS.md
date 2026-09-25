@@ -19224,3 +19224,43 @@ Objekt, und die Seite antwortete mit 500.
 | Betrifft | EMP-02, EMP-08, EMP-12, SEC-03, O-40, O-170, D-728, V-195, `src/lib/i18n/texte.ts` (`MeinTexte`, `ZUORDNUNG_STATUS_SCHLUESSEL`, `BEWACHER_STATUS_SCHLUESSEL`), `src/app/portal/mein/{bausteine.tsx,nachweise/page.tsx,schichten/[zuordnungId]/page.tsx}`, `src/app/portal/mein/zeiten/[id]/einwand/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/{wachbuch,bautagebuch}/page.tsx`, `tests/kern/mein-rohwerte.test.ts`, `tests/kern/nachschlagen.test.ts` |
 |---|---|
 
+### D-691 · Eine Seite, auf die ein Formular zurückführt, liest den Grund, den die Route mitgibt — sonst ist der Rückweg ein Weg ins Leere (V-197)
+
+**Der Befund** (V-197; Audit Befund 79): Fünf Formulare schicken `zurueck`
+bzw. `fehlerweg` auf ihre eigene Seite, und ihre Routen bilden einen
+fachlichen Fehler richtig als Umleitung ab — `POST /api/antraege/[id]` und
+`POST /api/abwesenheiten/[id]` mit `?meldung=<Satz>` (`fehlerAufsFormular`),
+`POST /api/finanzen/ausgaben`, `/api/personal/nachweise` und
+`/api/dienstplan/einsatz` mit `?fehler=<grund>`. Die Zielseiten nahmen den
+Parameter nicht an: „Ablehnen" in der Antrags- oder Abwesenheitsliste ohne
+Kommentar bzw. Grund (das Feld kann nicht `required` sein, weil „Genehmigen"
+dasselbe Formular benutzt), „Freigeben" einer Ausgabe ohne Beleg,
+Bestätigen oder Widerrufen eines schon entschiedenen Nachweises — der Klick
+landete auf derselben Seite, nichts war geschehen, und kein Satz sagte,
+warum. Der Kommentar in `api/abwesenheiten/[id]` behauptete „Die Seiten
+lesen `?meldung=`". Das Schichtblatt (`dienstplan/einsatz/[id]`) liest
+`?fehler=` seit V-158; das ist hier nur gegengeprüft.
+
+**Die Entscheidung.**
+
+1. **Die Liste liest, was ihr Blatt liest.** Antrags- und Abwesenheitsliste
+   zeigen `?meldung=` wie ihre Detailblätter (V-158): „Der Vorgang lief nicht
+   durch." und der Satz des Dienstes, im Hinweiskasten `warnung` mit
+   `role="alert"` (DESIGN §5 „Notices"). Der Satz kommt aus dem Dienst und
+   ist deutsch — wie die beiden Listen.
+2. **Ausgabe- und Nachweisblatt schlagen `?fehler=` in ihren zweisprachigen
+   Tabellen nach** (`AUSGABE_ERFASSEN_TEXTE.fehler`,
+   `NACHWEIS_ERFASSEN_TEXTE.fehler`), nur als eigener Eintrag (D-728). Ein
+   unbekannter Grund bekommt einen allgemeinen Satz (`fehlerAllgemein`,
+   `fehlerSonst`) — auch auf den beiden Erfassungsseiten, die bis hierhin
+   den rohen Schlüssel zeigten.
+3. **`nicht_gefunden` beim Nachweis nennt den häufigen Fall.** Der Dienst
+   wirft ihn auch, wenn der Nachweis schon bestätigt oder widerrufen ist; „ist
+   nicht erreichbar" allein ließ glauben, er sei weg.
+4. **Jeder Grund, den ein Dienst werfen kann, hat einen Satz** — geprüft
+   gegen die Union am Konstruktor von `AusgabeFehler`, `NachweisFehler` und
+   `SchichtFehler`, in beiden Sprachen.
+
+| Betrifft | D-599, D-562, D-728, EMP-10, TIM-02, ACC-03, V-158, V-197, `src/app/portal/[mandant]/personal/{antraege,abwesenheiten,nachweise/[id],nachweise/erfassen}/page.tsx`, `src/app/portal/[mandant]/finanzen/ausgaben/{[id],erfassen}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/ausgabe-erfassen.ts`, `src/lib/i18n/verwaltung/personal-nachweis.ts`, `tests/kern/fehler-rueckweg-seiten.test.ts` |
+|---|---|
+

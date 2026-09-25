@@ -5,6 +5,8 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
@@ -35,9 +37,22 @@ import { listeOffeneAntraege, type AntragZeile }
 export const dynamic = 'force-dynamic';
 
 export default async function Antragseingang(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  /*
+   * **Der Rückweg eines abgewiesenen Formulars** (V-197, D-599).
+   * `POST /api/antraege/[id]` schickt einen fachlichen Fehler als
+   * `?meldung=<Satz>` auf `zurueck` — hierher, denn jede Karte dieser Liste
+   * trägt ihr Formular. Die Seite las den Parameter nicht: „Ablehnen" ohne
+   * Kommentar landete wieder auf derselben Liste, nichts war geschehen, und
+   * kein Satz sagte, warum. Das Blatt eines Antrags liest ihn seit V-158.
+   */
+  const suche = await searchParams;
+  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   const pfad = `/portal/${mandant}/personal/antraege`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -107,6 +122,12 @@ export default async function Antragseingang(
         )}
       </nav>
 
+      {meldung !== null && (
+        <Hinweis art="warnung" cse="antraege-meldung" rolle="alert" className="mb-s5 max-w-prose">
+          <strong>Der Vorgang lief nicht durch.</strong> {meldung}
+        </Hinweis>
+      )}
+
       {zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Kein offener Antrag. Das heißt: entschieden ist entschieden — nicht,
@@ -166,7 +187,7 @@ function Karte({ antrag, mandant, pfad }: {
         </span>
         <span className="text-sm tabular-nums text-text-muted">
           {antrag.vonDatum !== null && antrag.bisDatum !== null
-            ? `${antrag.vonDatum} bis ${antrag.bisDatum}`
+            ? `${tagDeutsch(antrag.vonDatum)} bis ${tagDeutsch(antrag.bisDatum)}`
             : 'ohne Zeitraum'}
         </span>
       </div>

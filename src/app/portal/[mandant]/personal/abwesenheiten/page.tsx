@@ -6,6 +6,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
@@ -13,7 +14,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
-import { montag, tagePlus } from '@/lib/datum/kalendertag';
+import { montag, tagDeutsch, tagePlus } from '@/lib/datum/kalendertag';
 import {
   listeAbwesenheiten, type AbwesenheitZeile,
 } from '@/server/services/abwesenheit/index';
@@ -69,6 +70,14 @@ export default async function Abwesenheitsliste({
     'zeit.abwesenheit_melden');
 
   const frage = await searchParams;
+  /*
+   * **Der Rückweg eines abgewiesenen Formulars** (V-197, D-599).
+   * `POST /api/abwesenheiten/[id]` schickt einen fachlichen Fehler — etwa
+   * „Ablehnen" oder „Stornieren" ohne Grund — als `?meldung=<Satz>` hierher
+   * zurück. Die Seite las nur `woche`: der Klick endete auf derselben Liste,
+   * und nichts sagte, dass nichts geschehen war.
+   */
+  const meldung = typeof frage['meldung'] === 'string' ? frage['meldung'] : null;
   const heute = await berlinHeute();
   const roh = typeof frage['woche'] === 'string' ? frage['woche'] : null;
   const anker = roh !== null && /^\d{4}-\d{2}-\d{2}$/u.test(roh) ? roh : heute;
@@ -106,7 +115,8 @@ export default async function Abwesenheitsliste({
         <p className="m-0 text-sm text-text-muted">
           {zeilen.length === 1 ? '1 Eintrag' : `${String(zeilen.length)} Einträge`}
           {' · '}
-          <span className="tabular-nums">{von}</span> bis <span className="tabular-nums">{bis}</span>
+          <span className="tabular-nums">{tagDeutsch(von)}</span> bis{' '}
+          <span className="tabular-nums">{tagDeutsch(bis)}</span>
         </p>
       </div>
 
@@ -128,6 +138,12 @@ export default async function Abwesenheitsliste({
         >
           Abwesenheit aufnehmen
         </Link>
+      )}
+
+      {meldung !== null && (
+        <Hinweis art="warnung" cse="abwesenheiten-meldung" rolle="alert" className="mb-s5 max-w-prose">
+          <strong>Der Vorgang lief nicht durch.</strong> {meldung}
+        </Hinweis>
       )}
 
       <nav aria-label="Zeitraum wechseln" className="mb-s5 flex flex-wrap items-center gap-s2">
@@ -185,7 +201,7 @@ export default async function Abwesenheitsliste({
         </p>
       ) : (
         <DataTable
-          beschriftung={`Abwesenheiten vom ${von} bis ${bis}`}
+          beschriftung={`Abwesenheiten vom ${tagDeutsch(von)} bis ${tagDeutsch(bis)}`}
           zeilen={zeilen}
           schluessel={(z) => z.id}
           spalten={[
@@ -195,10 +211,10 @@ export default async function Abwesenheitsliste({
               kopf: 'Von – bis',
               zelle: (z) => (
                 <span className="tabular-nums">
-                  {z.von}
+                  {tagDeutsch(z.von)}
                   {z.vonHalbtags && ' ½'}
                   {' – '}
-                  {z.bis}
+                  {tagDeutsch(z.bis)}
                   {z.bisHalbtags && ' ½'}
                 </span>
               ),
