@@ -19381,3 +19381,51 @@ je Eintragsart (O-133).
 
 | Betrifft | SEC-05, TIM-10, LEG-10, V-181, D-599, D-728, O-78, O-133, O-151, `drizzle/0467_wachbuch_fotos.sql`, `src/server/services/zeit/medien.ts`, `src/server/services/mitarbeiter/medien.ts`, `src/server/services/security/wachbuch.ts`, `src/app/api/sicherheit/wachbuch/route.ts`, `src/app/api/mein/schichten/[zuordnungId]/wachbuch/route.ts`, `src/app/portal/[mandant]/security/wachbuch/{page,neu/page,[id]/page}.tsx`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/components/portal/Aufnahmeliste.tsx`, `src/lib/i18n/{wachbuch-schicht,verwaltung/wachbuch,verwaltung/aufnahmen}.ts`, `src/server/db/seed/{wachbuch,index}.ts`, `tests/kern/wachbuch-fotos.test.ts`, `tests/isolation/wachbuch-fotos.test.ts` |
 |---|---|
+
+### D-676 · Der Gewerkekatalog hat einen Eingang — eintragen, umbenennen, archivieren (V-182)
+
+**Der Befund** (V-182; Audit Gruppe „einsatz", BAU-07 „Mannstunden per
+trade"): `bautagebuch_mannstunden.gewerk_id` ist NOT NULL, und
+`hefteMannstundenAn` weist jedes unbekannte Gewerk ab. Der Katalog `gewerk`
+wird leer ausgeliefert (O-159, D-317) und nur der Seed füllte ihn; Dienst,
+Route und Seite fehlten, obwohl Policy und `grant insert, update` (0082) für
+`bau.schreiben` bereitstanden. In jedem echten Bau-Mandanten sagte das
+Bautagebuch dauerhaft „keine Gewerke hinterlegt", und die Kernangabe des
+Bautagebuchs war weder in der Verwaltung noch im Mitarbeiterportal erfassbar.
+O-159 fragt nur, WELCHE Gewerke geführt werden — einen Weg, die Antwort
+einzutragen, gab es nicht.
+
+**Die Entscheidung.**
+
+1. **Ein Dienst** (`services/bau/gewerk.ts`): eintragen, ändern, archivieren,
+   nie löschen (`trg_gewerk_kein_hard_delete`; an einem Gewerk hängen
+   gebuchte Mannstunden). Er schlägt kein Gewerk vor und legt keines an, das
+   ein Mensch nicht eingetragen hat.
+2. **Der Code ist fest, der Name nicht.** Die Mannstunden eines Tages zeigen
+   „Code · Bezeichnung"; ein Code, der sich unter gebuchten Stunden ändert,
+   schriebe die Anzeige eines abgeschlossenen Tages um. Wer einen anderen
+   Code braucht, archiviert und trägt neu ein — der archivierte Code ist dann
+   wieder frei (`gewerk_code_uk` gilt nur unter lebenden Zeilen). Die Form:
+   ein bis zwölf Buchstaben, Ziffern, Binde- oder Unterstriche, groß
+   geschrieben. Eine engere Form (etwa die STLB-Nummer) wäre eine Antwort auf
+   O-159.
+3. **Unbestätigt ist Platzhalter.** Ohne das Häkchen „bestätigt" trägt die
+   Zeile `ist_platzhalter`, und das Bautagebuch schreibt „(unbestätigt)"
+   dahinter — dieselbe Kennzeichnung, die der Seed seit D-317 benutzt.
+4. **Übersetzungen sind Daten.** Die Bezeichnung für das Mitarbeiterportal
+   (en, ar, tr) steht in `bezeichnung_i18n`; eine leere wird weggelassen, und
+   die Kraft sieht dann die deutsche.
+5. **Route und Seite.** `POST /api/bau/gewerke` (`bau.schreiben`,
+   `fuehreUebergangAus`, D-599) und `/portal/[mandant]/bau/gewerke` (lesen mit
+   `bau.lesen`, pflegen mit `bau.schreiben`, zweisprachig). Jede Zeile nennt
+   die Zahl ihrer gebuchten Mannstundenzeilen — die Folge eines
+   Archivierens. Der Leerhinweis des Bautagebuchs und die Bau-Übersicht
+   verweisen auf den Katalog.
+6. **Der Seed** trägt seine zwei unbestätigten Gewerke über denselben Dienst
+   ein.
+
+**Nicht Teil dieser Entscheidung:** welche Gewerke geführt werden und ob die
+Liste den STLB-Bau-Leistungsbereichen folgt (O-159, bleibt offen).
+
+| Betrifft | BAU-07, V-182, D-317, D-599, D-728, O-159, `src/server/services/bau/gewerk.ts`, `src/app/api/bau/gewerke/route.ts`, `src/app/portal/[mandant]/bau/{gewerke/page,GewerkFormular,page,projekte/[id]/bautagebuch/[datum]/page}.tsx`, `src/lib/i18n/verwaltung/gewerke.ts`, `src/server/auth/route-manifest.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/server/registry/{dienste,routen.generiert}.ts`, `src/server/db/seed/bau.ts`, `tests/kern/gewerk-eingabe.test.ts`, `tests/isolation/gewerk-katalog.test.ts` |
+|---|---|

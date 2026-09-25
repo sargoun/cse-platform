@@ -1396,6 +1396,17 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Den Gewerkekatalog pflegen — eintragen, ändern, archivieren (BAU-07,
+     * V-182). `bau.schreiben`: dasselbe Recht, das die `WITH CHECK`-Hälfte
+     * von `gewerk.t_mandant` verlangt (0082) und das eine Mannstundenzeile
+     * braucht. Ohne diese Adresse füllte nur der Seed den Katalog, und in
+     * jedem echten Bau-Mandanten blieb das Bautagebuch ohne Mannstunden.
+     */
+    pfad: 'api/bau/gewerke',
+    recht: 'bau.schreiben',
+  },
+  {
+    /**
      * Einen Nachtrag ANMELDEN (BAU-04, BAU-05).
      *
      * `bau.nachtrag_anmelden` — das Recht der Ankuendigung nach § 2 Abs. 6

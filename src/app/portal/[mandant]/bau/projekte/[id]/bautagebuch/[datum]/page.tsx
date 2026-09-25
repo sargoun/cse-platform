@@ -428,10 +428,22 @@ export default async function Bautag(
             <input type="hidden" name="vorgang" value="mannstunden" />
             {daten.gewerke.length === 0 ? (
               <p className="m-0 text-sm text-warning" data-cse="ohne-gewerk">
-                Es sind keine Gewerke hinterlegt. Der Katalog wird leer ausgeliefert,
-                bis feststeht, welche Gewerke im Bautagebuch geführt werden und ob die
-                Liste den STLB-Bau-Leistungsbereichen folgt (O-159). Solange lässt sich
-                keine Mannstundenzeile anlegen — geraten wird hier nichts.
+                Es sind keine Gewerke hinterlegt. Welche Gewerke im Bautagebuch geführt
+                werden und ob die Liste den STLB-Bau-Leistungsbereichen folgt, entscheidet
+                die Gesellschaft (O-159) — eingetragen werden sie im Gewerkekatalog.
+                Solange lässt sich keine Mannstundenzeile anlegen; geraten wird hier nichts.
+                {darf['bau.lesen'] === true && (
+                  <>
+                    {' '}
+                    <Link
+                      href={`/portal/${mandant}/bau/gewerke`}
+                      className="underline underline-offset-2 hover:text-text"
+                      data-cse="zum-gewerkekatalog"
+                    >
+                      Zum Gewerkekatalog
+                    </Link>
+                  </>
+                )}
               </p>
             ) : (
               <>

@@ -1019,6 +1019,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'bau.schreiben',
   },
   /**
+   * V-182 — der Gewerkekatalog, gegen den das Bautagebuch Mannstunden bucht.
+   * Er SCHREIBT `gewerk` mit `bau.schreiben` — dem Recht der `WITH
+   * CHECK`-Hälfte von `gewerk.t_mandant` (0082) und dem der Mannstunden
+   * selbst: wer das Bautagebuch führen darf, trägt die Gewerke ein.
+   */
+  {
+    modul: 'bau', pfad: 'bau/gewerk',
+    schreibend: true, schreibRecht: 'bau.schreiben',
+  },
+  /**
    * Die Reinigung — die Sollzeitrechnung und der Abzug LESEN, der Rest
    * schreibt.
    *

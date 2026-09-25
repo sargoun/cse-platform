@@ -401,12 +401,22 @@ export default async function BauUebersicht(
       <section className="mb-s6" data-cse="bautagebuch-stand">
         <div className="mb-s3 flex flex-wrap items-baseline justify-between gap-s3">
           <h2 className="m-0 text-h3 text-text">Bautagebuch</h2>
-          <Link
-            href={`/portal/${mandant}/bau/bautagebuch`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            Alle Bautage
-          </Link>
+          <span className="flex flex-wrap items-baseline gap-s4">
+            {/* V-182: der Katalog, gegen den das Bautagebuch Mannstunden bucht. */}
+            <Link
+              href={`/portal/${mandant}/bau/gewerke`}
+              className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+              data-cse="gewerkekatalog"
+            >
+              Gewerkekatalog
+            </Link>
+            <Link
+              href={`/portal/${mandant}/bau/bautagebuch`}
+              className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+            >
+              Alle Bautage
+            </Link>
+          </span>
         </div>
 
         {daten.bautageEntwurf.length === 0 ? (
