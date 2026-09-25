@@ -19047,3 +19047,48 @@ Satz, der künftig für jede Rolle verschwände, fiele keinem Test auf.
 
 | Betrifft | V-243, V-253, D-581, D-737, AUT-06, `src/server/services/gruppe/verweis.ts`, `src/app/portal/[mandant]/buchhaltung/monatszahlen/page.tsx`, `tests/isolation/gruppenverweis.test.ts`, `tests/e2e/buchhaltung.spec.ts` |
 |---|---|
+
+### D-746 · Arbeiterportal: jedes Häkchen hat 44 px, geprüft am Quellbaum — und die Warnschwelle des KI-Budgets ist in beiden Zweigen geprüft, ohne dass der Seed eine erfindet (V-254)
+
+**Der Befund** (V-254; Prüfung von V-244 und V-245):
+
+1. V-244 brachte die drei Häkchen der Abwesenheit auf 44 × 44 px. Das
+   vierte, das derselbe Zweig ins Arbeiterportal brachte — „nachgetragen"
+   im Wachbuch —, behielt seine native Grösse; nur die Beschriftung darum
+   war 44 px hoch. Ebenso „Präsenz bestätigt" und „Polizei informiert" auf
+   derselben Seite (älter als der Zweig). `mitarbeiter.spec.ts` (6) misst
+   jedes `input`, aber nur auf den Seiten seiner Liste, und die
+   Wachbuchseite hängt an einer Security-Schicht, die die gemessene Person
+   nicht hat.
+2. Der Zweig „Warnung ab N %" der Budgetseite und das Verschwinden des
+   O-195-Satzes, sobald jede Zeile eine Schwelle hat, liefen in keinem Test
+   und in keiner Seed-Zeile: der Seed setzt `warnschwelle_prozent` mit
+   Absicht nicht (eine gesetzte Zahl wäre eine still erfundene Finanzregel,
+   O-195). Dazu zwei kleine Punkte: englisch stand „Warning from 80 %"
+   (V-213: englisch ohne Leerzeichen vor dem Prozentzeichen), und der
+   mehrsätzige Erklärsatz stand in `text-xs text-text-subtle`, das DESIGN §9
+   Meta, Zeitstempeln und Platzhaltern vorbehält.
+
+**Die Entscheidung.**
+
+1. Alle drei Häkchen des Wachbuchs sind `min-h-11 min-w-11 shrink-0` —
+   dieselbe Regel wie D-738 Nr. 2. Eine Wache über den QUELLBAUM
+   (`tests/kern/mein-haekchen.test.ts`) prüft jedes `checkbox` und `radio`
+   unter `src/app/portal/mein`: ein neues Häkchen auf einer neuen Seite ist
+   damit geprüft, bevor eine Seitenliste der Browsersuite es kennt.
+2. Die Bedingung des O-195-Satzes ist eine reine Funktion
+   (`warnschwelleOffen` in `src/server/agent/budget.ts`), in beiden Zweigen
+   geprüft (`tests/kern/agent-budget-warnschwelle.test.ts`). **Der Seed
+   bekommt bewusst KEINE Schwelle.** Die Definition of done („seed data
+   exercises it") erfüllen für diesen Zweig der Test und eine
+   Browserprüfung, die selbst eine Schwelle über die Maske setzt — für
+   Dezember 2099, einen Monat, den kein Agent bucht, damit die Zeile des
+   laufenden Monats unberührt bleibt; die Zahl ist Testeingabe, keine
+   Vorgabe. Eine Seed-Zeile mit Schwelle sähe abgestimmt aus, und genau das
+   schliesst O-195 aus.
+3. `warnungAb` ist eine Funktion der Sprache: „Warnung ab 80 %", „Warns at
+   80%". Der Erklärsatz steht in `text-sm text-text-muted` mit
+   `max-w-prose`, wie die Erklärung der Maske darunter.
+
+| Betrifft | V-244, V-245, V-254, D-738, D-739, O-195, DESIGN §8, §9, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/app/portal/[mandant]/agenten/budget/page.tsx`, `src/server/agent/budget.ts`, `src/lib/i18n/verwaltung/agent-budget.ts`, `tests/kern/mein-haekchen.test.ts`, `tests/kern/agent-budget-warnschwelle.test.ts`, `tests/e2e/agenten.spec.ts` |
+|---|---|

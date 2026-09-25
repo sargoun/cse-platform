@@ -30,10 +30,17 @@ export interface BudgetTexte {
    * **Was die Tabelle über die Warnschwelle sagt** (V-245, D-739). Die Seite
    * las `warnschwelle_prozent` und zeigte es nie; der Satz „nicht
    * hinterlegt (O-195)" war beim Bau der Maske (V-015) ersatzlos entfallen.
-   * `warnungAb` steht vor einer gesetzten Schwelle, `warnschwelleOffen`
-   * unter der Tabelle, solange eine gezeigte Zeile keine hat.
+   * `warnungAb` steht in der Zeile einer gesetzten Schwelle,
+   * `warnschwelleOffen` unter der Tabelle, solange eine gezeigte Zeile keine
+   * hat (`warnschwelleOffen` in `server/agent/budget.ts`).
+   *
+   * **Eine Funktion, kein Wortanfang** (V-254, D-746): die Zahl steht in der
+   * Schreibweise der Sprache — deutsch „80 %", englisch „80%" ohne
+   * Leerzeichen, wie `prozentTextIn` (V-213) es für Sätze hält. Die
+   * Schwelle ist eine ganze Zahl zwischen 1 und 100 (0128), also ohne
+   * Nachkommastelle und ohne Tausendertrennung.
    */
-  readonly warnungAb: string;
+  readonly warnungAb: (prozent: number) => string;
   readonly warnschwelleOffen: string;
 
   readonly gesetzt: string;
@@ -76,7 +83,7 @@ export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
     freiwillig: '(freiwillig)',
     speichern: 'Obergrenze speichern',
 
-    warnungAb: 'Warnung ab',
+    warnungAb: (prozent) => `Warnung ab ${String(prozent)} %`,
     warnschwelleOffen:
       'Warnschwelle: nicht hinterlegt (offene Frage O-195). AGT-05 nennt eine Obergrenze '
       + 'und einen harten Stopp; ab welchem Anteil vorher gewarnt wird, ist eine Finanzregel '
@@ -137,7 +144,7 @@ export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
     freiwillig: '(optional)',
     speichern: 'Save cap',
 
-    warnungAb: 'Warning from',
+    warnungAb: (prozent) => `Warns at ${String(prozent)}%`,
     warnschwelleOffen:
       'Warning threshold: not on file (open question O-195). AGT-05 names a cap and a hard '
       + 'stop; the share at which to warn beforehand is a financial rule and is not '

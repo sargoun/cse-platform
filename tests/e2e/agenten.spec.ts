@@ -101,6 +101,39 @@ test.describe('Agenten-Zentrum', () => {
     await expect(page.getByText(/Warnschwelle: nicht hinterlegt/u)).toBeVisible();
   });
 
+  /**
+   * **Eine gesetzte Warnschwelle steht in ihrer Zeile** (V-245, D-739; V-254,
+   * D-746).
+   *
+   * Der Seed setzt keine Schwelle (O-195), also lief dieser Zweig der Seite in
+   * keinem Browserlauf. Der Fall legt deshalb selbst eine an — über die
+   * Maske, wie ein Mensch — und zwar für Dezember 2099: einen Monat, den kein
+   * Agent bucht, damit die Zeile des laufenden Monats und der Fall darüber
+   * unberührt bleiben. Die 80 ist Testeingabe, keine Vorgabe. Der Satz „nicht
+   * hinterlegt" bleibt stehen, denn die Zeile des laufenden Monats hat weiter
+   * keine; dass er verschwindet, sobald JEDE Zeile eine hat, prüft
+   * `tests/kern/agent-budget-warnschwelle.test.ts`.
+   */
+  test('eine gesetzte Warnschwelle steht in ihrer Zeile — der Satz bleibt, solange eine fehlt', async ({ page }) => {
+    await anmelden(page, KONTO.gruppe);
+    await page.goto(`/portal/${MANDANT}/agenten/budget`);
+    const wechsel = page.locator('[data-cse="wechsel-knopf"]');
+    if ((await wechsel.count()) > 0) await wechsel.click();
+    await expect(page).toHaveURL(new RegExp(`/portal/${MANDANT}/agenten/budget$`, 'u'));
+
+    await page.locator('[data-cse="budget-jahr"]').fill('2099');
+    await page.locator('[data-cse="budget-monat"]').fill('12');
+    await page.locator('[data-cse="budget-betrag"]').fill('10,00');
+    await page.locator('[data-cse="budget-warnschwelle"]').fill('80');
+    await page.locator('[data-cse="budget-speichern"]').click();
+
+    await expect(page.locator('[data-cse="budget-gesetzt"]')).toBeVisible();
+    await expect(page.locator('[data-cse="budget-warnung-ab"]').first())
+      .toHaveText('Warnung ab 80 %');
+    await expect(page.locator('[data-cse="budget-warnschwelle-offen"]'))
+      .toContainText('Warnschwelle: nicht hinterlegt');
+  });
+
   test('ein Agent zeigt seine Grenzen und was hinausgehen darf', async ({ page }) => {
     await anmelden(page, KONTO.adminReinigung);
     await page.goto(`/portal/${MANDANT}/agenten/akquise`);
