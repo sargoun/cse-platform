@@ -18441,6 +18441,9 @@ Fehler, den D-685 Nr. 5 verhindern sollte.
    geht mit ihr. Der Bestand: eine von Hand geplante Schicht mit Auftrag und
    ohne Zeile hat ihn von einem Menschen (abgeleitet wird nur aus einer
    Zeile); eine Prüfung hält fest, dass „von Hand" einen Auftrag heisst.
+   Der Seed legt eine Einzelschicht mit genanntem Auftrag und Leistungszeile
+   über den Dienst an (`seedEinzelschichtMitAnker`) — vorher zeigte keine
+   Demoschicht diesen Weg.
 6. **Welche Aufträge neue Zeit annehmen, steht an EINER Stelle**
    (`ANKERBARE_AUFTRAGSZUSTAENDE`). Die Leistungszeile nahm jeden nicht
    stornierten Auftrag an — auch `abgeschlossen` und `angelegt` —, die
@@ -18488,7 +18491,7 @@ Fehler, den D-685 Nr. 5 verhindern sollte.
    seines Reviers erbt, entscheidet, bei welchem Kunden eine Stunde
    abgerechnet wird — das fragt O-927 Nr. 1 und 2.
 
-| Betrifft | TIM-12, FIN-07, K-01, Invariante 5, D-599, D-685, D-733, O-734, O-927, V-191, V-192, `drizzle/0430_auftrag_ableiten_als_definer.sql`, `drizzle/0431_auftrag_von_hand.sql`, `src/server/services/dienstplan/{leistungsanker,einzelschicht,generator,serie,serie-pflege}.ts`, `src/server/services/security/posten.ts`, `src/app/api/{dienstplan/einsatz,dienstplan/serien,reinigung/turnus,sicherheit/posten}/route.ts`, `src/components/portal/LeistungsankerFeld.tsx`, `src/lib/i18n/verwaltung/{leistungsanker,dienstplan-serie-pflege}.ts`, `src/app/portal/[mandant]/{dienstplan/einsatz/neu,dienstplan/einsatz/[id],dienstplan/serien/neu,dienstplan/serien/[id],reinigung/turnus/neu,security/posten/neu,security/posten/[id]}/page.tsx`, `tests/isolation/leistungsanker.test.ts`, `tests/kern/leistungsanker-feld.test.ts`, `tests/kern/leistungsanker.test.ts` |
+| Betrifft | TIM-12, FIN-07, K-01, Invariante 5, D-599, D-685, D-733, O-734, O-927, V-191, V-192, `drizzle/0430_auftrag_ableiten_als_definer.sql`, `drizzle/0431_auftrag_von_hand.sql`, `src/server/db/seed/auftrag.ts`, `src/server/services/dienstplan/{leistungsanker,einzelschicht,generator,serie,serie-pflege}.ts`, `src/server/services/security/posten.ts`, `src/app/api/{dienstplan/einsatz,dienstplan/serien,reinigung/turnus,sicherheit/posten}/route.ts`, `src/components/portal/LeistungsankerFeld.tsx`, `src/lib/i18n/verwaltung/{leistungsanker,dienstplan-serie-pflege}.ts`, `src/app/portal/[mandant]/{dienstplan/einsatz/neu,dienstplan/einsatz/[id],dienstplan/serien/neu,dienstplan/serien/[id],reinigung/turnus/neu,security/posten/neu,security/posten/[id]}/page.tsx`, `tests/isolation/leistungsanker.test.ts`, `tests/kern/leistungsanker-feld.test.ts`, `tests/kern/leistungsanker.test.ts` |
 |---|---|
 
 ### D-687 · Die zweite Prüfung von V-186 bis V-190: der Einwand gilt gegen die Uhr der Datenbank, der leere Monat hat Tage, und das Arbeiterportal schreibt Tage in der gesetzlichen Form (V-193)

@@ -34,6 +34,7 @@ import type postgres from 'postgres';
 import { cent, type Cent } from '../../services/finanz/geld.js';
 import { vergebeNummer } from '../../services/finanz/nummernkreis.js';
 import { alsPortalSitzung } from './sitzung.js';
+import { legeEinzelschichtAn } from '../../services/dienstplan/einzelschicht.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -229,10 +230,55 @@ export async function seedAuftrag(
        and t.auftrag_leistung_id is not null
      returning e.id`;
 
+  await seedEinzelschichtMitAnker(sql, reinigung, leitung.id, objekt.id, auftragId, grund);
+
   return {
     auftraege: 1,
     leistungen: leistungIds.length,
     verankerteTurnusse: turnusse.length,
     verankerteEinsaetze: einsaetze.length,
   };
+}
+
+/** Der Wiedererkennungsschlüssel der Demo-Einzelschicht — ihre Notiz. */
+const EINZELSCHICHT_NOTIZ =
+  'Grundreinigung nach Wasserschaden — Einzelschicht mit Auftrag und Leistungszeile (Demodaten, Seed)';
+
+/**
+ * EINE Einzelschicht mit genanntem Auftrag UND Leistungszeile — über den
+ * echten Dienst (V-191, V-192).
+ *
+ * Die Turnusschichten oben bekommen ihren Anker per `update`, weil der Plan
+ * vor dem Auftrag entstand. Der Weg, den eine Planung für eine einzelne
+ * Schicht geht — Auftrag und Zeile in der Maske wählen —, stand dagegen in
+ * keinem Demodatensatz: weder `auftrag_von_hand` (0431) noch der Abschnitt
+ * „Leistungszeile" auf dem Schichtblatt hatte etwas zu zeigen. Die Schicht
+ * liegt fünf Tage voraus; der Besetzungslauf in `seedZeit` teilt sie ein.
+ *
+ * Idempotent über die Notiz: eine Einzelschicht hat keinen eigenen
+ * natürlichen Schlüssel (`manuell:<id>` vergibt die Datenbank).
+ */
+async function seedEinzelschichtMitAnker(
+  sql: Sql, mandantId: string, planerId: string, objektId: string,
+  auftragId: string, leistungId: string,
+): Promise<void> {
+  const [schon] = await sql<{ id: string }[]>`
+    select id from einsatz
+     where mandant_id = ${mandantId} and quelle = 'manuell' and notiz = ${EINZELSCHICHT_NOTIZ}`;
+  if (schon !== undefined) return;
+  const [tag] = await sql<{ t: string }[]>`
+    select to_char(app.berlin_heute() + 5, 'YYYY-MM-DD') as t`;
+  if (tag === undefined) return;
+  try {
+    await alsPortalSitzung(sql, mandantId, planerId, (k) => legeEinzelschichtAn(k, {
+      objektId, planDatum: tag.t, beginnLokal: '07:00', endeLokal: '11:00',
+      endetAmFolgetag: false, sollBesetzung: 1, minBesetzung: 1,
+      auftragId, auftragLeistungId: leistungId, notiz: EINZELSCHICHT_NOTIZ,
+    }));
+    process.stdout.write('  1 Einzelschicht mit genanntem Auftrag und Leistungszeile\n');
+  } catch (fehler) {
+    process.stdout.write(
+      `  · Einzelschicht mit Anker nicht angelegt: `
+      + `${fehler instanceof Error ? fehler.message : String(fehler)}\n`);
+  }
 }
