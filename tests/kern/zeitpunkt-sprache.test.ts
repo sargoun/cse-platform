@@ -136,10 +136,13 @@ describe('Zeitpunkte auf den Flächen der Beschäftigten', () => {
   });
 
   it('die Gegenprobe: das Muster trifft die alten Fälle', () => {
+    /* Die alten Zeilen, wie sie dastanden — mit ihrer Zone, die das Problem
+       nicht war: die Sprache wählte Uhr und Reihenfolge. */
     const alt = [
-      "const zeitpunkt = new Intl.DateTimeFormat(basis.sprache === 'de' ? 'de-DE' : basis.sprache, {",
-      'const tagFormat = new Intl.DateTimeFormat(PORTAL_BCP47[basis.sprache], {',
-      'const zeit = new Intl.DateTimeFormat(PORTAL_BCP47[aktuell], {',
+      "new Intl.DateTimeFormat(basis.sprache === 'de' ? 'de-DE' : basis.sprache, "
+        + "{ timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short' })",
+      "new Intl.DateTimeFormat(PORTAL_BCP47[basis.sprache], { timeZone: 'Europe/Berlin' })",
+      "new Intl.DateTimeFormat(PORTAL_BCP47[aktuell], { timeZone: 'Europe/Berlin' })",
     ];
     for (const z of alt) {
       const intl = /Intl\.DateTimeFormat\(\s*([^,)]*)/u.exec(z);
