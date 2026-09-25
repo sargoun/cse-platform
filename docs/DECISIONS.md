@@ -18873,4 +18873,143 @@ den Ausgang war nur deutsch.
    sie angefasst werden (D-592).
 
 | Betrifft | FIN-14, FIN-15, FIN-17, ACC-04, D-599, D-705, D-706, D-707, D-728, V-214, V-215, V-216, V-217, O-19, `src/server/services/finanz/mahnung/stufen.ts`, `src/server/services/finanz/zahlung/index.ts`, `src/server/services/finanz/ausgabe.ts`, `src/lib/datum/kalendertag.ts`, `src/components/ui/Hinweis.tsx`, `docs/DESIGN.md` §5, `src/app/api/einstellungen/mahnwesen/route.ts`, `src/app/api/buchhaltung/bank/umsatz/route.ts`, `src/app/api/finanzen/zahlungen/route.ts`, `src/app/portal/[mandant]/{einstellungen/mahnwesen,buchhaltung/datev/neu,buchhaltung/bank/[auszugId],buchhaltung/monatszahlen,finanzen,finanzen/ausgaben,finanzen/eingangsrechnungen/[id],finanzen/mahnungen/[id]}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,belege,kontoauszug}.ts`, `src/server/services/finanz/bank/import.ts` (`KlaerungGrund`), `scripts/guards/uebersetzung-ausnahmen.ts`, D-592, `tests/kern/kontoauszug-texte.test.ts` |
+### D-735 · Die Statushistorie des Radars liest über einen Definer — `cse_app` bekommt kein Recht auf die Nutzlast des Protokolls (V-241)
+
+**Der Befund** (V-241): `/portal/[mandant]/radar/[id]/status` las die
+Historie mit `select … a.nachher ->> 'status' … from audit_log` als
+`cse_app`. `cse_app` hält auf `audit_log` seit 0005 ein Spaltenrecht OHNE
+`vorher` und `nachher` — mit Absicht, weil die Nutzlast einer Protokollzeile
+Werte tragen kann, die die Tabelle selbst ihrem Leser vorenthält. Jeder
+Vorgang mit einem gesetzten Stand endete in „permission denied for table
+audit_log" und einer Fehlerseite. Solange der Seed keinen Vorgang mit Stand
+anlegte, fiel das nicht auf; seither traf der Verweislauf der Browsersuite
+(`verweise.spec.ts`, leitung und admin in der Reinigung) die Seite als 500.
+
+**Die Entscheidung.**
+
+1. **Kein weiteres Spaltenrecht.** `grant select (nachher) on audit_log to
+   cse_app` hätte die Nutzlast JEDER Protokollzeile geöffnet, nicht nur
+   dieser einen Aktion.
+2. **Ein Definer-Leser für genau diese Frage:** `app.radar_stand_verlauf(uuid)`
+   (0463) gibt je Zeile `radar.stand_gesetzt` nur `audit_id`, `erstellt_am`,
+   `akteur_typ`, `akteur_id`, den Stand und `mit_grund` heraus. Eigentümer
+   `cse_definer` (liest über `d_audit_lesen`, 0204), `set search_path`,
+   `revoke … from public`.
+3. **Dieselben Bedingungen wie die Lesepolicy des Vorgangs** (`t_lesen`,
+   `p_intern_ceiling`): internes Portal, ein aktiver Mandant, `radar.lesen`
+   in ihm — sonst eine Abweisung (42501), keine leere Liste; eine leere
+   Historie hiesse „nie ein Stand gesetzt". Gelesen werden nur Zeilen mit
+   `mandant_id = app.aktiver_mandant()`: eine fremde Gesellschaft bekommt für
+   dieselbe Kennung nichts.
+4. **Der Name bleibt beim Aufrufer.** `leseStandHistorie` verbindet
+   `akteur_id` weiter als `cse_app` mit `benutzer`; ob ein Name sichtbar ist,
+   entscheidet dort die Policy auf `benutzer`, nicht ein Definer.
+5. **Kein Protokolleintrag je Lesen** (wie `app.belagsart_historie_lesen`):
+   die eigene Statushistorie ist keine sensible Nutzlast, und eine Zeile je
+   Seitenaufruf ertränkte das Protokoll, aus dem sie liest.
+
+| Betrifft | V-241, RAD-06, REP-06, K-01, K-04, Invariante 3, `drizzle/0463_radar_stand_verlauf.sql`, `src/app/portal/[mandant]/radar/daten.ts`, `tests/isolation/radar-stand-verlauf.test.ts` |
+|---|---|
+
+### D-736 · Zwei Felder mit derselben Beschriftung sind ein Mangel — der Ausgleichsbetrag heisst „Ausgleichsbetrag (€)" (V-242)
+
+**Der Befund** (V-242): `/portal/[mandant]/finanzen/zahlungen` trägt seit
+V-091 zwei Formulare: „Posten gegen Posten ausgleichen" und „Zahlungseingang
+erfassen". Beide Betragsfelder hiessen „Betrag in Euro" (`t.betragInEuro`).
+Sobald ein Guthaben und eine offene Forderung zugleich dastehen, erscheint das
+Ausgleichsformular — und ein Screenreader bot zwei gleichnamige Felder an, ohne
+dass zu hören war, welches Geld wohin geht (WCAG 1.3.1, 2.4.6). Die
+Browsersuite fiel daran im strikten Modus (drei Fälle in `zahlung.spec.ts`).
+
+**Die Entscheidung.** Das Ausgleichsfeld bekommt eine eigene Beschriftung,
+`ausgleichBetrag`: „Ausgleichsbetrag (€)" / „Offset amount (€)" — dieselbe
+Form wie „Auftragswert netto (€)". Bewusst NICHT „Ausgleichsbetrag in Euro":
+die Beschriftung des einen Feldes darf die des anderen nicht enthalten, sonst
+bleibt die Verwechslung für jede Suche nach Teilnamen bestehen. Die Prüfung
+der Browsersuite bleibt, wie sie war.
+
+| Betrifft | V-242, V-091, FIN-14, WCAG 1.3.1/2.4.6, `src/app/portal/[mandant]/finanzen/zahlungen/page.tsx`, `src/lib/i18n/verwaltung/finanzen/zahlungen.ts`, `tests/e2e/zahlung.spec.ts` |
+|---|---|
+
+### D-737 · Ein gezeigter Verweis führt auf eine Seite, die es gibt und die dieser Mensch öffnen darf — Kalender und Monatszahlen (V-243)
+
+**Der Befund** (V-243), gefunden vom Verweislauf der Browsersuite
+(`verweise.spec.ts`, leitung und admin der Reinigung):
+
+1. `kalenderZeilen` gab einer Schicht den Weg `/portal/<slug>/dienstplan` —
+   eine Wurzelseite hat der Dienstplan nicht (Woche, Tag, Monat, Einsatz).
+   Jede Schicht im Kalender war ein Verweis auf 404.
+2. Dieselbe Datei gab einer Vergabefrist `/radar/vorgaenge/<vorgang_id>` — eine
+   Route, die es nie gab. Sie fiel nur nicht auf, weil selten eine Frist im
+   gezeigten Fenster lag.
+3. `/buchhaltung/monatszahlen` verwies unbedingt auf
+   `/portal/gruppe/finanzen`. Die Route verlangt `gruppe.finanzen.lesen`, ihr
+   Tor `app.darf_gruppenansicht()`; eine Administration der Reinigung ohne
+   beides klickte ins Nichts.
+
+**Die Entscheidung.**
+
+1. Die Schicht führt auf ihre Einsatzseite `/dienstplan/einsatz/<id>`, die
+   Vergabefrist auf die Bekanntmachung `/radar/<ausschreibung_id>` — genau
+   die Ziele, die der Gruppenkalender (`gruppe/kalender.ts`) schon immer
+   hatte. Beide Seiten verlangen das Recht, ohne das die Policy die Zeile gar
+   nicht erst herausgibt (`dienstplan.lesen` auf `einsatz`, `radar.lesen` auf
+   `ausschreibung_vorgang`); wer die Zeile sieht, darf die Seite öffnen.
+2. Der Satz „Gruppensicht: Finanzen der Gruppe" steht nur, wenn die Sitzung
+   `gruppe.finanzen.lesen` hält UND `app.darf_gruppenansicht()` ja sagt —
+   dieselbe Regel wie für die Monatslisten darüber (AUT-06, D-581).
+3. `tests/isolation/kalender.test.ts` (7) bildet jeden Weg des Kalenders auf
+   eine Datei unter `src/app` ab: ein Weg ohne gebaute Seite wird rot, bevor
+   ihn ein Browser findet.
+
+| Betrifft | V-243, CAL-01, AUT-06, D-581, `src/server/services/kalender/eintraege.ts`, `src/app/portal/[mandant]/buchhaltung/monatszahlen/page.tsx`, `tests/isolation/kalender.test.ts`, `tests/e2e/verweise.spec.ts` |
+|---|---|
+
+### D-738 · Arbeiterportal: 16 px Fliesstext und 44 px Tippziele auch in den neuen Bausteinen — und Rot ist keine Textfarbe (V-244)
+
+**Der Befund** (V-244), gefunden von der Browsersuite:
+
+1. Die seit dem letzten Stand gebauten Teile des Arbeiterportals setzten
+   Fliesstext in `text-sm` (14 px): Stempelkarte (`serverUhrHinweis`,
+   „seit …"), Monats- und Jahreswechsler, Absagefeld, Nachweise („Hochladen
+   geht hier nicht"), Hinweise im Abwesenheitsformular, Bautagebuch,
+   Leistungsnachweis, Wachbuch, Einwand, Monatsnachweis-Knöpfe,
+   `Laufzeit`. DESIGN §8: „Body text never below 16px". Gemessen fiel es auf
+   `/portal/mein`, `/zeiten`, `/stundenkonto`, `/nachweise`.
+2. Die drei Häkchen im Abwesenheitsformular (halber Tag am Beginn/Ende,
+   AU liegt vor) waren 24 × 24 px — DESIGN §8 verlangt 44 × 44.
+3. Achtzehn Aufklapper (`<summary>`) waren `text-brand`: rote Schrift in
+   14 px auf der dunklen Fläche hat einen Kontrast von 4,09 : 1 (WCAG AA
+   verlangt 4,5 : 1), und DESIGN §1 sagt „never red body text". axe meldete
+   es auf dem Angebot (Spalte „Berichtigen").
+
+**Die Entscheidung.**
+
+1. Im Arbeiterportal ist Fliesstext `text-base`, auch in Hinweisen und in
+   den Knöpfen der Wechsler — kein neuer Wert, die Regel aus §8.
+2. Häkchen sind `min-h-11 min-w-11`, die Zeile richtet sich mittig aus.
+3. Ein Aufklapper ist `min-h-11 cursor-pointer font-semibold text-text` —
+   das Muster, das `KontoHandlungen` und die Lieferantenseite schon hatten;
+   im Arbeiterportal in `text-base`. Rot bleibt Knöpfen, der aktiven
+   Navigation und Pfeilen.
+
+| Betrifft | V-244, DESIGN §1, §8, §9, EMP-12, `src/app/portal/mein/**`, 18 `<summary>` unter `src/app/portal/**`, `tests/e2e/mitarbeiter.spec.ts` (6), `tests/e2e/angebot-portal.spec.ts` (4) |
+|---|---|
+
+### D-739 · Das KI-Budget nennt die Warnschwelle — gesetzt in ihrer Zeile, sonst „nicht hinterlegt (O-195)" (V-245)
+
+**Der Befund** (V-245): `/portal/[mandant]/agenten/budget` las
+`warnschwelle_prozent` und zeigte es nirgends. Bis V-015 stand unter der
+Tabelle unbedingt „Warnschwelle: nicht hinterlegt (offene Frage O-195)"; mit
+der Maske, die eine Schwelle setzen lässt, fiel der Satz ersatzlos weg. Die
+Seite schwieg damit über eine offene Finanzregel — genau das, was
+`agenten.spec.ts` zusichert („wird nicht erfunden, und der Bildschirm sagt
+das").
+
+**Die Entscheidung.** Eine gesetzte Schwelle steht in ihrer Zeile („Warnung
+ab 80 %"). Solange eine gezeigte Zeile keine hat oder es keine Zeile gibt,
+steht der Satz wieder unter der Tabelle, zweisprachig (`warnschwelleOffen`),
+und sagt dazu, wer sie einträgt. Kein Vorgabewert, O-195 bleibt offen.
+
+| Betrifft | V-245, V-015, O-195, AGT-05, `src/app/portal/[mandant]/agenten/budget/page.tsx`, `src/lib/i18n/verwaltung/agent-budget.ts`, `tests/e2e/agenten.spec.ts` |
 |---|---|

@@ -261,11 +261,31 @@ export default async function AgentBudget(
                   {b.stopp_bei_ueberschreitung
                     ? null
                     : <span className="text-xs text-warning">ohne Hartstopp</span>}
+                  {b.warnschwelle_prozent === null ? null : (
+                    <span className="text-xs text-text-muted" data-cse="budget-warnung-ab">
+                      {t.warnungAb} {String(b.warnschwelle_prozent)} %
+                    </span>
+                  )}
                 </span>
               ),
             },
           ]}
         />
+      )}
+
+      {/*
+        **Die Warnschwelle wird genannt, nicht erfunden** (O-195, V-245). Die
+        Abfrage oben liest `warnschwelle_prozent`, und bis V-015 stand hier
+        unbedingt „nicht hinterlegt". Mit der Maske darunter LÄSST sie sich
+        setzen — der Satz fiel dabei ersatzlos weg, und die Seite schwieg
+        über eine Schwelle, die sie gar nicht zeigte. Jetzt: eine gesetzte
+        Schwelle steht in ihrer Zeile, und solange eine gezeigte Zeile keine
+        hat (oder es keine Zeile gibt), steht der Satz wieder da.
+      */}
+      {budgets.length > 0 && budgets.every((b) => b.warnschwelle_prozent !== null) ? null : (
+        <p className="mt-s5 text-xs text-text-subtle" data-cse="budget-warnschwelle-offen">
+          {t.warnschwelleOffen}
+        </p>
       )}
 
       <h2 className="mb-s3 mt-s6 text-h2 text-text">Gebundenes Budget</h2>

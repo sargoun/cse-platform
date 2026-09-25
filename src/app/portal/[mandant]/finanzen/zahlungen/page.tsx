@@ -346,7 +346,7 @@ export default async function Zahlungen(
               </select>
             </label>
             <label className="text-sm text-text">
-              {t.betragInEuro}
+              {t.ausgleichBetrag}
               <input type="text" name="ausgleichBetrag" required inputMode="decimal"
                      className={feld} data-cse="ausgleich-betrag" />
             </label>

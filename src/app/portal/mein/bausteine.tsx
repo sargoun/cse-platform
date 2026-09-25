@@ -249,7 +249,7 @@ export function StempelUhr({
         <>
           <Laufzeit beginnIso={offen.beginnIso} serverIso={offen.serverIso}
                     label={u.laeuftSeit} />
-          <p className="m-0 text-sm text-text-muted">
+          <p className="m-0 text-base text-text-muted">
             {u.seit} <span className="cse-zahl">{offen.beginnLokal}</span>
             {offen.objekt === null ? '' : ` · ${offen.objekt}`}
           </p>
@@ -267,7 +267,7 @@ export function StempelUhr({
         </p>
       )}
 
-      <p className="m-0 text-sm text-text-subtle">{u.serverUhrHinweis}</p>
+      <p className="m-0 text-base text-text-subtle">{u.serverUhrHinweis}</p>
     </section>
   );
 }
@@ -353,7 +353,7 @@ export function Zusagefeld({
       <section data-cse="zusage-abgesagt"
                className="mt-s4 rounded-lg border border-line bg-surface-2 p-s4">
         <p className="m-0 text-base text-text">{texte.abgesagtHinweis}</p>
-        <p className="m-0 mt-s2 text-sm text-text-muted">{texte.absageEndgueltig}</p>
+        <p className="m-0 mt-s2 text-base text-text-muted">{texte.absageEndgueltig}</p>
       </section>
     );
   }
@@ -391,9 +391,9 @@ export function Zusagefeld({
           {texte.absageGrund}
           <textarea name="grund" rows={2} required className={feld}
                     data-cse="absage-grund" />
-          <span className="text-sm text-text-muted">{texte.absageGrundHinweis}</span>
+          <span className="text-base text-text-muted">{texte.absageGrundHinweis}</span>
         </label>
-        <p className="m-0 text-sm text-text-muted">{texte.absageEndgueltig}</p>
+        <p className="m-0 text-base text-text-muted">{texte.absageEndgueltig}</p>
         <Button type="submit" variante="secondary" className="min-h-16 w-full">
           {texte.absagen}
         </Button>
@@ -476,7 +476,7 @@ export function Monatswechsler({
   const darfVor = spaeter <= jetzt;
 
   const knopf = 'inline-flex min-h-11 items-center gap-s2 rounded-md border border-line '
-    + 'px-s4 text-sm text-text hover:bg-surface-2';
+    + 'px-s4 text-base text-text hover:bg-surface-2';
 
   /* `?monat=` zuerst, damit die Adresse lesbar bleibt; der Rest haengt an. */
   const ziel = (jjjjMm: string | null): LinkProps<string>['href'] => {
@@ -520,7 +520,7 @@ export function Monatswechsler({
          */
         <span data-cse="monat-vor-gesperrt" aria-disabled="true"
               className="inline-flex min-h-11 items-center gap-s2 rounded-md border
-                         border-line px-s4 text-sm text-text-subtle opacity-50">
+                         border-line px-s4 text-base text-text-subtle opacity-50">
           <span className="cse-zahl">{anzeige(spaeter)}</span>
           {texte.monatSpaeter}
           <span aria-hidden="true">→</span>
@@ -577,7 +577,7 @@ export function Jahreswechsler({
   const darfVor = spaeter <= jetzt + 1;
 
   const knopf = 'inline-flex min-h-11 items-center gap-s2 rounded-md border border-line '
-    + 'px-s4 text-sm text-text hover:bg-surface-2';
+    + 'px-s4 text-base text-text hover:bg-surface-2';
   const ziel = (j: number | null): LinkProps<string>['href'] => {
     const roh = j === null ? pfad : `${pfad}?jahr=${String(j)}`;
     /* Dieselbe Umtypisierung und dieselbe Begründung wie im Monatswechsler. */
@@ -604,7 +604,7 @@ export function Jahreswechsler({
       ) : (
         <span data-cse="jahr-vor-gesperrt" aria-disabled="true"
               className="inline-flex min-h-11 items-center gap-s2 rounded-md border
-                         border-line px-s4 text-sm text-text-subtle opacity-50">
+                         border-line px-s4 text-base text-text-subtle opacity-50">
           <span className="cse-zahl">{String(spaeter)}</span>
           {texte.jahrSpaeter}
           <span aria-hidden="true">→</span>

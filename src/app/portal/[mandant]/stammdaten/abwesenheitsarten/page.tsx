@@ -246,7 +246,7 @@ export default async function Abwesenheitsarten(
                     }
                     return (
                       <details data-cse="art-bearbeiten">
-                        <summary className="cursor-pointer text-sm text-brand">Bearbeiten</summary>
+                        <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">Bearbeiten</summary>
                         <form method="post"
                               action={`/api/stammdaten/abwesenheitsarten?was=aendern&mandant=${mandant}`}
                               className="mt-s3 flex w-64 flex-col gap-s2">

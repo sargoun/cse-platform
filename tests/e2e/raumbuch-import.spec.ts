@@ -103,7 +103,14 @@ test.describe('(1) Hochladen zeigt eine Vorschau und ändert nichts', () => {
     await page.locator('[data-cse="import-hochladen"]').click();
     await page.waitForURL(/\?import=/u);
 
-    await page.getByRole('link', { name: '← Raumbuch' }).click();
+    /*
+     * Der Rueckweg ist `<Zurueck>` (D-613): der Pfeil ist `aria-hidden`, der
+     * Name des Verweises heisst „Raumbuch". Gesucht wird genau dieser
+     * Verweis im Rueckweg der Seite — „Raumbuch" allein traefe auch
+     * „Raumbuch und Kalkulation" in der Navigation.
+     */
+    await page.getByRole('navigation', { name: 'Zurück' })
+      .getByRole('link', { name: 'Raumbuch', exact: true }).click();
     await expect(page.locator('h1')).toHaveText('Raumbuch');
     expect(await raeume.count()).toBe(vorher);
   });

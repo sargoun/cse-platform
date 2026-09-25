@@ -11,6 +11,9 @@
  *  3. Der persönliche Kalender ist persönlich: fremde Schichten fehlen.
  *  4. Ohne `kalender.lesen` ist er leer — und zwar leer, nicht fehlerhaft.
  */
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
@@ -385,6 +388,74 @@ describe('(6) der Weg kommt aus der Zeile, nicht aus einem Textbaustein', () => 
     expect(zeilen.length).toBeGreaterThan(0);
     for (const e of zeilen) {
       expect(e.weg, e.titel).toMatch(/^\/portal\/bau\//u);
+    }
+  });
+});
+
+/**
+ * **Jeder Weg ist eine gebaute Seite** (V-243, D-737).
+ *
+ * `(3)` prüfte, DASS jede Zeile einen Weg trägt, und `(6)`, dass er in die
+ * richtige Gesellschaft zeigt — nicht, dass es die Seite am Ende gibt. So
+ * standen zwei tote Ziele unbemerkt im Dienst: eine Schicht führte auf
+ * `/dienstplan` (keine Wurzelseite), eine Vergabefrist auf
+ * `/radar/vorgaenge/<id>` (nie gebaut). Gefunden hat es erst der Verweislauf
+ * der Browsersuite. Hier wird jede Zeile auf eine Datei unter `src/app`
+ * abgebildet — eine Kennung wird `[id]`, der Slug `[mandant]` —, und die
+ * Schicht und die Frist tragen ihr genaues Ziel.
+ */
+describe('(7) jeder Weg führt auf eine Seite, die es gibt', () => {
+  it('Schicht → ihre Einsatzseite, Vergabefrist → die Bekanntmachung', async () => {
+    const wer = await legeKontoAn(f.reinigung, 'admin');
+    await legeTerminAn(f.reinigung, wer, 'Mit Seite');
+    const [k] = await sql.unsafe<{ id: string }[]>(
+      `insert into kunde (mandant_id, kundennummer, name)
+       values ($1::uuid, $2, 'Bezirksamt') returning id`, [f.reinigung, `K-${zufall()}`]);
+    const [o] = await sql.unsafe<{ id: string }[]>(
+      `insert into objekt (mandant_id, objektnummer, bezeichnung, strasse, plz, ort, kunde_id)
+       values ($1::uuid, $2, 'Dienstgebäude Süd', 'Musterweg 2', '10178', 'Berlin', $3::uuid)
+       returning id`, [f.reinigung, `OBJ-${zufall()}`, k!.id]);
+    const [e] = await sql.unsafe<{ id: string }[]>(
+      `insert into einsatz
+         (mandant_id, quelle, quell_schluessel, plan_datum, beginn_zeitpunkt, ende_zeitpunkt,
+          zeitzone, beginn_lokal, ende_lokal, endet_am_folgetag, objekt_id,
+          soll_besetzung, min_besetzung, status, erstellt_von_art)
+       select $1::uuid, 'manuell', $2, app.berlin_heute(),
+              (app.berlin_heute()::timestamp + interval '8 hours') at time zone 'Europe/Berlin',
+              (app.berlin_heute()::timestamp + interval '12 hours') at time zone 'Europe/Berlin',
+              'Europe/Berlin',
+              app.berlin_heute()::timestamp + interval '8 hours',
+              app.berlin_heute()::timestamp + interval '12 hours',
+              false, $3::uuid, 1, 1, 'geplant', 'system'
+       returning id`, [f.reinigung, `k-${zufall()}`, o!.id]);
+    const [a] = await sql.unsafe<{ id: string }[]>(
+      `insert into ausschreibung (quelle, quell_id, titel, sprache, rohdaten_hash, frist_angebot)
+       values ('oeffentlichevergabe', $1, 'Glasreinigung Rathaus', 'de', $2,
+               now() + interval '3 days')
+       returning id`, [`kal-${zufall()}`, `${zufall()}${zufall()}`]);
+    await sql.unsafe(
+      `insert into ausschreibung_vorgang (mandant_id, ausschreibung_id)
+       values ($1::uuid, $2::uuid)`, [f.reinigung, a!.id]);
+
+    const z = await fenster();
+    const zeilen = await alsBereich(f.reinigung, wer,
+      (kk) => kalenderZeilen(kk, { zeitraum: z }));
+
+    const schicht = zeilen.find((x) => x.quelle === 'einsatz' && x.id === e!.id);
+    expect(schicht?.weg).toBe(`/portal/reinigung/dienstplan/einsatz/${e!.id}`);
+    const frist = zeilen.find((x) => x.quelle === 'vergabe' && x.weg?.endsWith(a!.id) === true);
+    expect(frist?.weg).toBe(`/portal/reinigung/radar/${a!.id}`);
+
+    const KENNUNG = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+    const wurzel = fileURLToPath(new URL('../../src/app', import.meta.url));
+    expect(zeilen.length).toBeGreaterThanOrEqual(3);
+    for (const zeile of zeilen) {
+      const teile = zeile.weg!.split('/').filter((t) => t !== '');
+      expect(teile[0], zeile.weg!).toBe('portal');
+      const form = ['portal', '[mandant]',
+        ...teile.slice(2).map((t) => (KENNUNG.test(t) ? '[id]' : t))];
+      expect(existsSync(join(wurzel, ...form, 'page.tsx')), `${zeile.quelle}: ${zeile.weg!}`)
+        .toBe(true);
     }
   });
 });

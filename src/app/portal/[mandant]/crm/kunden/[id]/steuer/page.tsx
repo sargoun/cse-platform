@@ -353,7 +353,7 @@ export default async function Steuer(
 
         {blatt.rechte.crmSchreiben ? (
           <details className="mt-s5" data-cse="steuer-erechnung-aendern">
-            <summary className="cursor-pointer text-sm text-brand">
+            <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">
               Rechnungsangaben ändern
             </summary>
             <form
@@ -536,7 +536,7 @@ export default async function Steuer(
 
             {blatt.rechte.finanzenSchreiben ? (
               <details className="mt-s5" data-cse="steuer-13b-anlegen">
-                <summary className="cursor-pointer text-sm text-brand">
+                <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">
                   Zeitscheibe hinzufügen
                 </summary>
                 <form
@@ -767,7 +767,7 @@ export default async function Steuer(
 
             {blatt.rechte.finanzenSchreiben ? (
               <details className="mt-s5" data-cse="steuer-48b-anlegen">
-                <summary className="cursor-pointer text-sm text-brand">
+                <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">
                   Bescheinigung erfassen
                 </summary>
                 <form

@@ -275,7 +275,7 @@ export default async function MeinWachbuch(
                        data-cse="wachbuch-nachgetragen" />
                 <span>
                   {t.nachgetragen}
-                  <span className="mt-s1 block text-sm text-text-muted">
+                  <span className="mt-s1 block text-base text-text-muted">
                     {t.nachgetragenHinweis}
                   </span>
                 </span>

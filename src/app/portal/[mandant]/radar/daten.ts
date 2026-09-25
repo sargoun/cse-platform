@@ -417,22 +417,26 @@ export interface StandEreignis {
  * Verwerfungsgrundes steht in `ausschreibung_vorgang.verworfen_grund`; ältere
  * sind mit ihrem Stand überschrieben, und die Seite sagt das, statt eine
  * Lücke als „ohne Grund" auszugeben.
+ *
+ * **Gelesen über `app.radar_stand_verlauf` (0463), nicht aus `audit_log`
+ * direkt** (V-241, D-735). Hier stand `select … a.nachher ->> 'status' from
+ * audit_log` als `cse_app` — und `cse_app` hält `vorher`/`nachher` seit 0005
+ * mit Absicht nicht. Jeder Vorgang mit einem Stand endete deshalb in
+ * „permission denied for table audit_log" und einer Fehlerseite. Der Definer
+ * gibt genau Stand und `mitGrund` heraus, gebunden an den aktiven Mandanten
+ * und an `radar.lesen`; den NAMEN verbindet diese Abfrage weiter als
+ * `cse_app` mit `benutzer`, damit dessen Policy entscheidet, ob er sichtbar
+ * ist.
  */
 export async function leseStandHistorie(
   kontext: LeseKontext, vorgangId: string,
 ): Promise<readonly StandEreignis[]> {
   const zeilen = await kontext.abfrage<Record<string, unknown>>(
-    `select a.id::text as id, a.erstellt_am, a.akteur_typ::text as akteur_typ,
-            a.nachher ->> 'status' as status,
-            (a.nachher -> 'mitGrund') = 'true'::jsonb as mit_grund,
-            b.name as akteur_name
-       from audit_log a
-       left join benutzer b on b.id = a.akteur_id
-      where a.aktion = 'radar.stand_gesetzt'
-        and a.objekt_typ = 'ausschreibung_vorgang'
-        and a.objekt_id = $1
-      order by a.erstellt_am desc, a.id desc
-      limit 50`,
+    `select h.audit_id::text as id, h.erstellt_am, h.akteur_typ::text as akteur_typ,
+            h.status, h.mit_grund, b.name as akteur_name
+       from app.radar_stand_verlauf($1::uuid) h
+       left join benutzer b on b.id = h.akteur_id
+      order by h.erstellt_am desc, h.audit_id desc`,
     [vorgangId]);
   return zeilen.map((z) => ({
     id: String(z['id']),

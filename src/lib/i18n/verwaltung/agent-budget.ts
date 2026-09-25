@@ -26,6 +26,16 @@ export interface BudgetTexte {
   readonly freiwillig: string;
   readonly speichern: string;
 
+  /**
+   * **Was die Tabelle über die Warnschwelle sagt** (V-245, D-739). Die Seite
+   * las `warnschwelle_prozent` und zeigte es nie; der Satz „nicht
+   * hinterlegt (O-195)" war beim Bau der Maske (V-015) ersatzlos entfallen.
+   * `warnungAb` steht vor einer gesetzten Schwelle, `warnschwelleOffen`
+   * unter der Tabelle, solange eine gezeigte Zeile keine hat.
+   */
+  readonly warnungAb: string;
+  readonly warnschwelleOffen: string;
+
   readonly gesetzt: string;
   readonly keinSchreibrecht: string;
   readonly fehler: Readonly<Record<string, string>>;
@@ -65,6 +75,13 @@ export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
     prozent: 'Prozent',
     freiwillig: '(freiwillig)',
     speichern: 'Obergrenze speichern',
+
+    warnungAb: 'Warnung ab',
+    warnschwelleOffen:
+      'Warnschwelle: nicht hinterlegt (offene Frage O-195). AGT-05 nennt eine Obergrenze '
+      + 'und einen harten Stopp; ab welchem Anteil vorher gewarnt wird, ist eine Finanzregel '
+      + 'und wird nicht erfunden. Wer die Obergrenze setzt, trägt sie ein, sobald sie '
+      + 'entschieden ist.',
 
     gesetzt:
       'Die Obergrenze ist gesetzt. Ein zuvor gesetzter Stopp ist damit aufgehoben — der '
@@ -119,6 +136,12 @@ export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
     prozent: 'percent',
     freiwillig: '(optional)',
     speichern: 'Save cap',
+
+    warnungAb: 'Warning from',
+    warnschwelleOffen:
+      'Warning threshold: not on file (open question O-195). AGT-05 names a cap and a hard '
+      + 'stop; the share at which to warn beforehand is a financial rule and is not '
+      + 'invented. Whoever sets the cap enters it once it has been decided.',
 
     gesetzt:
       'The cap is set. Any earlier stop is lifted with it — the next run sets it again if '

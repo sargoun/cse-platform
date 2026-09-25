@@ -120,7 +120,7 @@ export default async function NachweisBlatt({
   const { mandant, id } = await params;
   kennungOder404(id);
   const zugang = await portalZugang(
-    `/portal/${mandant}/reinigung/leistungsnachweise/[id]`,
+    `/portal/${mandant}/reinigung/leistungsnachweise/${id}`,
   );
   if (zugang === null) return <AnmeldungNoetig />;
 

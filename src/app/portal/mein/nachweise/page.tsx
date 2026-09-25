@@ -115,7 +115,7 @@ export default async function MeineNachweise() {
                 ))}
               </p>
             )}
-            <p className="mt-s2 m-0 max-w-prose text-sm text-text-muted">
+            <p className="mt-s2 m-0 max-w-prose text-base text-text-muted">
               {t.nachweisKeinUpload}
             </p>
             <Link

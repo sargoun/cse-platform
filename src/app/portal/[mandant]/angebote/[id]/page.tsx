@@ -450,7 +450,7 @@ export default async function AngebotDetail(
             kopf: '',
             zelle: (z: PositionZeile) => (
               <details data-cse="position-bearbeiten" data-position={z.id}>
-                <summary className="cursor-pointer text-sm text-brand">Berichtigen</summary>
+                <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">Berichtigen</summary>
                 <form method="post" action="/api/angebot/entwurf"
                       className="mt-s3 flex w-72 flex-col gap-s2">
                   <input type="hidden" name="was" value="berichtigen" />

@@ -90,7 +90,14 @@ test.describe('(2) Das UWG-Tor steht als Anzeige auf der Kundenseite', () => {
     await alsKonto(page, KONTO.adminReinigung);
     await page.goto('/portal/reinigung/crm/kunden');
     await page.getByRole('link', { name: 'Berliner Hausverwaltung GmbH' }).click();
-    await page.getByRole('link', { name: 'Bürohaus Kurfürstendamm' }).click();
+    /*
+     * Im Abschnitt „Objekte" und mit exaktem Namen: seit die Kundenseite auch
+     * Anfragen, Angebote und Rechnungen des Kunden führt, heissen die
+     * Angebote „Unterhaltsreinigung Bürohaus Kurfürstendamm" — ein Treffer
+     * auf Teilnamen fand viele Verweise statt des einen Objekts.
+     */
+    await page.getByRole('region', { name: 'Objekte' })
+      .getByRole('link', { name: 'Bürohaus Kurfürstendamm', exact: true }).click();
     await expect(page.locator('h1')).toHaveText('Bürohaus Kurfürstendamm');
   });
 });
@@ -121,9 +128,19 @@ test.describe('(3) Der Lead-Posteingang und der Verlauf', () => {
       await page.waitForURL(/\/crm\/leads\/[0-9a-f-]{36}$/u);
       const url = page.url();
 
-      await page.fill('#inhalt', 'Rückruf: Termin am Objekt vereinbart.');
-      await page.fill('#naechsteAktion', 'Angebot rechnen und senden');
-      await page.fill('#naechsteAktionAm', '2026-10-01');
+      /*
+       * Über die Beschriftung im Formular „Aktivität festhalten" und nicht
+       * über `#inhalt`/`#naechsteAktion`: das Formular trägt seit V-137 Art
+       * und Richtung, und seine Felder sind in ihre Beschriftung gefasst —
+       * ohne `id`. Geprüft wird, was ein Mensch sieht, in genau diesem
+       * Formular.
+       */
+      const formular = page.locator('[data-cse="lead-aktivitaet-formular"]');
+      await formular.getByLabel('Was ist passiert?', { exact: true })
+        .fill('Rückruf: Termin am Objekt vereinbart.');
+      await formular.getByLabel('Nächster Schritt', { exact: true })
+        .fill('Angebot rechnen und senden');
+      await formular.getByLabel('Wann', { exact: true }).fill('2026-10-01');
       await page.locator('[data-cse="lead-notieren"]').click();
       await page.waitForURL(url);
 

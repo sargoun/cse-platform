@@ -206,7 +206,7 @@ export default async function Belagsarten(
                     ? <span className="text-text-subtle">—</span>
                     : (
                       <details data-cse="belagsart-bearbeiten">
-                        <summary className="cursor-pointer text-sm text-brand">Bearbeiten</summary>
+                        <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">Bearbeiten</summary>
 
                         <form method="post"
                               action={`/api/stammdaten/belagsarten?was=richtigstellen&mandant=${mandant}`}

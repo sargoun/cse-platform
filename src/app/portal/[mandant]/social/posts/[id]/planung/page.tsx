@@ -55,7 +55,7 @@ export default async function Planung(
   const { mandant, id } = await params;
   kennungOder404(id);
   if (!UUID.test(id)) notFound();
-  const tor = await mandantTor(`/portal/${mandant}/social/posts/[id]/planung`, mandant);
+  const tor = await mandantTor(`/portal/${mandant}/social/posts/${id}/planung`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
   const suche = await searchParams;

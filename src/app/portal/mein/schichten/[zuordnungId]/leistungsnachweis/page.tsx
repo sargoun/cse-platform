@@ -345,7 +345,7 @@ export default async function MeinLeistungsnachweis(
                   * Falle, und auf einem Diensttelefon tippt man langsam.
                   */}
                 {zeilenZahl < ZEILEN_MAX ? (
-                  <p className="m-0 text-sm text-text-muted">
+                  <p className="m-0 text-base text-text-muted">
                     <Link
                       href={`/portal/mein/schichten/${zuordnungId}/leistungsnachweis?zeilen=${String(mehrZeilen)}`}
                       data-cse="mehr-zeilen"

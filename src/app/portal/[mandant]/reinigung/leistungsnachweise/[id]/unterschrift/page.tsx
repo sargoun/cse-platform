@@ -55,7 +55,7 @@ export default async function Unterschriftsblatt({
   const { mandant, id } = await params;
   kennungOder404(id);
   const zugang = await portalZugang(
-    `/portal/${mandant}/reinigung/leistungsnachweise/[id]/unterschrift`,
+    `/portal/${mandant}/reinigung/leistungsnachweise/${id}/unterschrift`,
   );
   if (zugang === null) return <AnmeldungNoetig />;
 

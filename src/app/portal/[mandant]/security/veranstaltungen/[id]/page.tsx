@@ -53,7 +53,7 @@ export default async function VeranstaltungBlattSeite(
   const { mandant, id } = await params;
   kennungOder404(id);
   const tor = await mandantTor(
-    `/portal/${mandant}/security/veranstaltungen/[id]`, mandant,
+    `/portal/${mandant}/security/veranstaltungen/${id}`, mandant,
   );
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
