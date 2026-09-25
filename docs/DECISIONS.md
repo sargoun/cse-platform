@@ -19345,6 +19345,16 @@ Leistungsnachweis, Bautagebuch und Fotos über `dienstFehlerAntwort`.
    während die Seite offen war); die Unterschrift unter einem
    Leistungsnachweis auf dasselbe Blatt (`?nachweis=`). Schichtwege, deren
    `zurueck` schon die eigene Seite ist, brauchen kein zweites Feld.
+   **Nachtrag (Prüfer der Gruppe):** der Wettlauf der Rücknahme kam als
+   `nicht_gefunden` zurück, und das Blatt zeigte über dem Vorgang mit seinem
+   neuen Stand „Das gibt es für Ihre Anmeldung nicht (mehr)." — ein Satz, der
+   dem Bildschirm darunter widersprach. Jetzt unterscheidet die Route: hat
+   der Personen-Scope die Zeile geliefert und scheitert erst die Rücknahme,
+   ist das `ungueltiger_zustand` (409, „Das geht in diesem Stand nicht mehr.
+   Die Seite zeigt den aktuellen Stand."); ein fremder oder fehlender Vorgang
+   bleibt `nicht_gefunden` (404). Der genauere Satz verrät nichts: das Blatt
+   zeigt ohnehin nur eigene Vorgänge (AUT-06). Geprüft an der echten Route
+   (`tests/kern/mein-ruecknahme-route.test.ts`).
 3. **Der Einwand endet auf seinem Blatt**:
    `/portal/mein/zeiten/<id>/einwand?gesendet=1` bestätigt den Eingang
    („eingegangen, nicht entschieden", EMP-07) und zeigt die Meldung in der

@@ -54,6 +54,17 @@ export async function POST(
 
   const daten = await anfrage.formData();
 
+  /*
+   * **Gefunden, aber nicht mehr rücknehmbar, ist ein anderer Fall als
+   * „gibt es nicht"** (D-692 Nr. 2, Nachtrag). Liefert der Personen-Scope
+   * die Zeile, gehört sie der Person; scheitert danach die Rücknahme, ist sie
+   * inzwischen entschieden oder schon zurückgenommen — ein Wettlauf, kein
+   * fremder Vorgang. Das Blatt, auf das der Rückweg führt, zeigt den Vorgang mit
+   * seinem neuen Stand; „gibt es nicht (mehr)" darüber widerspräche ihm. Ein
+   * genauerer Satz verrät nichts: das Blatt zeigt ohnehin nur eigene Vorgänge,
+   * ein fremder oder fehlender bleibt `nicht_gefunden` (AUT-06).
+   */
+  let gefunden = false;
   try {
     await db().begin(async (tx: postgres.TransactionSql) => {
       /*
@@ -66,6 +77,7 @@ export async function POST(
         return antrag?.anstellungId ?? null;
       });
       if (anstellungId === null) throw new AntragNichtGefunden(id);
+      gefunden = true;
 
       const mandantId = await withPersonScope(tx, sitzung, async (k) =>
         mandantDerAnstellung(k, anstellungId));
@@ -76,11 +88,16 @@ export async function POST(
       return withTenant(tx, imMandanten, async (k) => zieheAntragZurueck(k, id));
     });
   } catch (fehler: unknown) {
-    if (fehler instanceof AntragNichtGefunden || fehler instanceof KeineAnstellungFehler) {
+    if (fehler instanceof AntragNichtGefunden && gefunden) {
       /*
-       * Meist ein Wettlauf: die Personalstelle hat entschieden, während das
-       * Blatt offen war. Zurück aufs Blatt, das jetzt den Stand zeigt (V-198).
+       * Der Wettlauf: die Personalstelle hat entschieden (oder ein zweiter
+       * Tipp hat schon zurückgenommen), während das Blatt offen war. Zurück
+       * aufs Blatt, das jetzt den Stand zeigt (V-198) — mit dem Satz, der
+       * genau das sagt.
        */
+      return grundAufsFormularweg(anfrage, daten, 'ungueltiger_zustand', 409);
+    }
+    if (fehler instanceof AntragNichtGefunden || fehler instanceof KeineAnstellungFehler) {
       return grundAufsFormularweg(anfrage, daten, 'nicht_gefunden', 404);
     }
     throw fehler;
