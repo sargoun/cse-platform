@@ -452,7 +452,7 @@ export async function bestaetigeFaktorMitToken(
   tx: Transaktion, token: string, code: string, ip: string | null,
 ): Promise<string | null> {
   await bindeHerkunft(tx, ip);
-  const uhr =(await tx.unsafe(`select now() as jetzt`)) as readonly { jetzt: Date | string }[];
+  const uhr = (await tx.unsafe(`select now() as jetzt`)) as readonly { jetzt: Date | string }[];
   const zeilen = (await tx.unsafe(
     `select id, geheimnis, letzter_schritt from app.token_faktor_geheimnis($1)`,
     [tokenHash(token)],
