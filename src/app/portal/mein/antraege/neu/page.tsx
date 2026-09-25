@@ -160,7 +160,9 @@ export default async function NeuerAntrag(
               {t.gesellschaft}{pflichtMarke}
             </label>
             <select id="antrag-anstellung" name="anstellung" required className={eingabe}
-              defaultValue={gewaehlt('anstellung', basis.anstellungen.map((a) => a.anstellungId))}>
+              defaultValue={gewaehlt('anstellung', basis.anstellungen.map((a) => a.anstellungId)) ?? ''}>
+              {/* Keine Vorauswahl (D-09): `required` verlangt die Wahl. */}
+              <option value="">{t.gesellschaftWaehlen}</option>
               {basis.anstellungen.map((a) => (
                 <option key={a.anstellungId} value={a.anstellungId}>
                   {a.mandantName}

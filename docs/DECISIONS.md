@@ -18110,7 +18110,10 @@ davon aus der Monatsansicht weder sichtbar noch erreichbar.
    (`<Recht>`), nicht `zeit.abwesenheit_lesen`. Die Tagesbeschriftung aus
    `dienstplan/daten.ts` („Mo 04.01.") und die Wochen- und Tagesansicht
    bleiben vorerst deutsch — sie teilen die Beschriftung, und ihre Umstellung
-   ist ein eigener Schritt.
+   ist ein eigener Schritt. **Berichtigt (V-193, D-687 Nr. 2):** die
+   Monatsseite schreibt ihre Tage jetzt in der Sprache der Sitzung
+   (`tagKurz`), und auch ein Monat ohne Schicht zeigt seine Tage (Nr. 2 galt
+   vorher nur in Monaten mit mindestens einer Schicht).
 
 | Betrifft | TIM-01, TIM-04, DESIGN §8, V-186, `src/components/portal/Wochenplan.tsx` (`Monatsplan`), `src/app/portal/[mandant]/dienstplan/monat/page.tsx`, `src/lib/i18n/verwaltung/dienstplan-monat.ts`, `tests/kern/monatsplan.test.ts` |
 |---|---|
@@ -18230,7 +18233,9 @@ Seite mit `{"einwand": "…"}`, ein Ende vor dem Beginn (`ze_fenster`) als
    heute nach der Uhr der Datenbank), behaupteter Beginn und Ende und Pause
    (freiwillig — wer die Uhrzeit nicht weiss, schreibt es in die
    Begründung; der Dienst verlangt sie nicht, und diese Seite erfindet keine
-   Pflicht), Begründung (Pflicht). Die Art steht fest (`eintrag_fehlt`), und
+   Pflicht), Begründung (Pflicht). **Berichtigt (V-193, D-687 Nr. 1):**
+   „höchstens heute" galt nur im Browser; jetzt prüft es der Dienst, samt
+   der behaupteten Zeit. Die Art steht fest (`eintrag_fehlt`), und
    es reist KEIN `zeiteintrag` mit. Darunter die eigenen Meldungen ohne
    Eintrag mit Zustand und Entscheidung (`EinwandListe`, jetzt ein
    Baustein, den auch der Einwand zu einem Eintrag benutzt).
@@ -18422,4 +18427,73 @@ Fehler, den D-685 Nr. 5 verhindern sollte.
    `berlinHeute`, und ohne Antwort gibt es einen Fehler statt eines Laufs.
 
 | Betrifft | TIM-12, FIN-07, K-01, Invariante 5, D-685, V-191, V-192, `drizzle/0430_auftrag_ableiten_als_definer.sql`, `src/server/services/dienstplan/{leistungsanker,generator,serie,serie-pflege}.ts`, `src/server/services/security/posten.ts`, `src/app/api/{dienstplan/einsatz,sicherheit/posten}/route.ts`, `src/components/portal/LeistungsankerFeld.tsx`, `src/lib/i18n/verwaltung/leistungsanker.ts`, `tests/isolation/leistungsanker.test.ts` §5–6, `tests/kern/leistungsanker-feld.test.ts`, `tests/kern/leistungsanker.test.ts` |
+|---|---|
+
+### D-687 · Die zweite Prüfung von V-186 bis V-190: der Einwand gilt gegen die Uhr der Datenbank, der leere Monat hat Tage, und das Arbeiterportal schreibt Tage in der gesetzlichen Form (V-193)
+
+**Der Befund** (V-193; die zweite Prüfung der Gruppe zeit durch den
+unabhängigen Prüfer). Vier Zusagen hielten nur halb: D-683 („Tag höchstens
+heute nach der Uhr der Datenbank") galt nur im Browser (`max={heute}`); weder
+Route noch `reicheEinwandEin` prüften Tag oder behauptete Zeit, ein
+nachgebauter POST legte einen Einwand für einen künftigen Tag an. D-680 („auch
+an einem Tag ohne Schicht, denn dort wird geplant") galt nur in Monaten mit
+mindestens einer Schicht — war der Monat leer, ersetzte der Satz „nichts
+geplant" das ganze Raster; und die englische Monatsseite schrieb die Tage
+deutsch („Mo 04.01."). Dazu die kleinen Punkte: die Einwandliste schrieb den
+Tag des Einwands als TT.MM.JJJJ und daneben Eingangs- und Entscheidungstag nach
+Sprache (englisch 09/21/2026, arabisch mit anderen Ziffern), die Pause stand
+mit festem „(min)" da, die Pflichtwahl der Gesellschaft wählte die erste vor,
+und der Seed zeigte den geteilten Dienst ohne Befund nicht.
+
+**Die Entscheidung.**
+
+1. **Tag und behauptete Zeit eines Einwands gelten gegen die Uhr der
+   Datenbank** (`reicheEinwandEin` → `EinwandZeitFehler`, Invariante 5): ein
+   Tag nach `app.berlin_heute()` (`tag_in_zukunft`) und ein behaupteter
+   Beginn oder ein Ende nach `now()` (`zeit_in_zukunft`) werden abgewiesen —
+   ein Einwand behauptet geleistete Arbeit. Bei „Eine Zeit fehlt", wo die
+   Kraft Tag UND Zeit selbst wählt, liegt der behauptete Beginn an diesem Tag
+   (`beginn_nicht_am_tag`): der Tag eines Einwands ist der Berliner
+   Kalendertag, an dem die Arbeit begann (0052, K-11), wie beim Eintrag, dessen
+   Tag der seines Beginns ist. Beim Einwand zu einem Eintrag gilt das nicht —
+   dort kann gerade der Beginn falsch erfasst sein. Keine neue Regel: es ist
+   die Zusage von D-683, jetzt auf dem Server. Die Route führt jeden Grund auf
+   die Maske (vier Sprachen), ohne Maske als JSON 422. Die Einwandfälle in
+   `tests/isolation/zeit-auftrag.test.ts` liegen deshalb im September statt im
+   Oktober: ein Eintrag in der Zukunft entsteht im Betrieb nicht.
+2. **Der Monat zeigt seine Tage immer** (`monat/page.tsx`): der Satz „nichts
+   geplant" steht über dem Raster, nicht an seiner Stelle, und jeder Tag führt
+   in die Tagesansicht. Die Tagesbeschriftung schreibt `tagKurz`
+   (`@/lib/datum/kalendertag`) in der Sprache der Sitzung — deutsch „Mo
+   04.01." wie bisher (dieselbe Funktion benutzt jetzt `dienstplan/daten.ts`),
+   englisch „Sun 04 Jan" (britisch, über UTC, wie `tagInSprache`, D-733).
+   **Nicht Teil:** die Wochen- und die Tagesansicht selbst. Sie stehen in der
+   eingefrorenen Ausnahmeliste der Übersetzungswache, der Befund 39 betraf
+   die Monatsansicht; ihre Umstellung bleibt ein eigener Schritt (D-680 Nr. 4).
+3. **Das Arbeiterportal schreibt jeden Tag in der gesetzlichen Form** —
+   TT.MM.JJJJ, Berliner Kalendertag, in jeder Sprache (SEITENKARTE §12:
+   „numbers, money and time never localise away from the legal form"). Die
+   Einwandliste formatiert Eingangs- und Entscheidungstag deshalb wie den Tag
+   des Einwands; die Schichtauswahl des Antrags (`tagDeutsch`) war schon
+   richtig. Die Pause trägt ihre Einheit in der Sprache der Kraft
+   (`pauseMinuten`).
+4. **Die Gesellschaft ist eine Pflichtwahl ohne Vorauswahl** (D-09): ein
+   leerer erster Eintrag „Gesellschaft wählen", `required` verlangt die Wahl —
+   auf „Eine Zeit fehlt" und ebenso auf Antrag und Abwesenheitsmeldung, die
+   dasselbe Muster trugen und in ihrem Kommentar schon „kein Vorgabewert"
+   versprachen. Vorbelegt wird nur, was die Seite anbietet (D-733 Nr. 4).
+5. **Der Seed zeigt den geteilten Dienst** (`seedGeteilterDienst`): eine
+   Frühschicht 06:00–09:30 und am selben Tag 17:00–18:30 für dieselbe Kraft,
+   eingeteilt über `besetzeEinsatz` OHNE Bestätigung — mit einem Befund bliebe
+   sie aus, und der Seed sagte es. Der Ruhezeitkonflikt (22:00–02:00 vor einer
+   Frühschicht) bleibt der eine echte Verstoss der Demo.
+6. **Geprüft und nicht geändert:** der Rückfall der Arbeiterrouten auf
+   `ungueltige_eingabe` für einen übrigen Dienstfehler. Beim EINREICHEN gibt
+   es keinen spezifischen Grund, der dort verloren ginge: `UrlaubskontoFehlt`
+   wirft nur die Entscheidung (`entscheideAntrag`), der Kontoauslöser (0073)
+   greift erst bei `genehmigt`, und die Meldung der Kraft entsteht als
+   `erfasst`; jeder Grund von `reicheAntragEin` und `meldeAbwesenheit` hat
+   seinen eigenen Zweig.
+
+| Betrifft | EMP-07, EMP-10, TIM-01, TIM-04, TIM-06, TIM-11, D-09, D-599, D-680, D-683, D-684, D-733, SEITENKARTE §12, V-186, V-189, V-190, V-193, `src/server/services/zeit/einwand.ts`, `src/app/api/zeit/einwand/route.ts`, `src/lib/i18n/{mein-formulare,texte}.ts`, `src/app/portal/[mandant]/dienstplan/{monat/page.tsx,daten.ts}`, `src/lib/datum/kalendertag.ts`, `src/lib/i18n/verwaltung/dienstplan-monat.ts`, `src/app/portal/mein/{bausteine.tsx,zeiten/einwand/page.tsx,zeiten/[id]/einwand/page.tsx,antraege/neu/page.tsx,abwesenheit/neu/page.tsx}`, `src/server/db/seed/zeit.ts`, `tests/isolation/{einwand-ohne-eintrag,zeit-auftrag}.test.ts`, `tests/kern/{einwand-ohne-eintrag,monatsplan,mein-einwand-form}.test.ts` |
 |---|---|

@@ -8,7 +8,7 @@ import { stundenMinutenText } from '@/lib/datum/stunden';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import {
-  EINWAND_ART_TEXTE, EINWAND_STATUS_TEXTE, PORTAL_BCP47,
+  EINWAND_ART_TEXTE, EINWAND_STATUS_TEXTE,
   type MeinTexte, type PortalSprache,
 } from '@/lib/i18n/texte';
 import type { EinwandZeile } from '@/server/services/zeit/einwand';
@@ -231,6 +231,11 @@ export function Abgewiesen({ titel, text, zusatz, marke = 'abgewiesen' }: {
  * die Wörter darum herum. Das Datum steht in Berliner Zeit (Invariante 2),
  * der Zustand als Wort, nie als Enum-Wert.
  */
+/** Der Berliner Kalendertag eines Zeitpunkts als TT.MM.JJJJ (Invariante 2). */
+const TAG_BERLIN = new Intl.DateTimeFormat('de-DE', {
+  timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit',
+});
+
 export function EinwandListe({ einwaende, texte, sprache }: {
   readonly einwaende: readonly EinwandZeile[];
   readonly texte: MeinTexte;
@@ -239,10 +244,15 @@ export function EinwandListe({ einwaende, texte, sprache }: {
   const t = texte;
   const arten = EINWAND_ART_TEXTE[sprache];
   const statusWort = EINWAND_STATUS_TEXTE[sprache];
-  const tagFormat = new Intl.DateTimeFormat(PORTAL_BCP47[sprache], {
-    timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit',
-  });
-  const tagText = (wert: Date | null): string => (wert === null ? '—' : tagFormat.format(wert));
+  /*
+   * Jeder Tag dieser Liste in DERSELBEN, der gesetzlichen Form: TT.MM.JJJJ,
+   * Berliner Kalendertag, in jeder Sprache (SEITENKARTE §12 — „numbers,
+   * money and time never localise away from the legal form", V-193). Vorher
+   * stand der Tag des Einwands deutsch da und daneben Eingangs- und
+   * Entscheidungstag nach Sprache — englisch als 09/21/2026, arabisch mit
+   * arabisch-indischen Ziffern: drei Schreibweisen auf einer Karte.
+   */
+  const tagText = (wert: Date | null): string => (wert === null ? '—' : TAG_BERLIN.format(wert));
   if (einwaende.length === 0) return <Leer text={t.keineEintraege} />;
   return (
     <ul data-cse="eigene-einwaende" className="m-0 flex list-none flex-col gap-s3 p-0">

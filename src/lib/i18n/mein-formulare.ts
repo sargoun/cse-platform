@@ -291,6 +291,8 @@ export const MELDUNG_FORM_TEXTE: Readonly<Record<PortalSprache, MeldungFormTexte
 export const EINWAND_GRUENDE = [
   'keine_anstellung', 'unbekannte_art', 'kein_datum', 'keine_begruendung',
   'pause_ungueltig', 'kein_zeiteintrag', 'fenster_verkehrt', 'ungueltige_eingabe',
+  // V-193: gegen die Uhr der Datenbank (`EinwandZeitFehler`).
+  'tag_in_zukunft', 'zeit_in_zukunft', 'beginn_nicht_am_tag',
 ] as const;
 export type EinwandGrund = (typeof EINWAND_GRUENDE)[number];
 
@@ -329,6 +331,12 @@ export const EINWAND_FORM_TEXTE: Readonly<Record<PortalSprache, EinwandFormTexte
       fenster_verkehrt: 'Das Ende liegt vor dem Beginn. Bitte prüfen Sie beide Uhrzeiten.',
       ungueltige_eingabe:
         'Die Angaben passen nicht zusammen. Bitte prüfen Sie sie und senden Sie erneut.',
+      tag_in_zukunft: 'Der Tag liegt in der Zukunft. Melden Sie nur einen Tag bis heute.',
+      zeit_in_zukunft:
+        'Die Uhrzeit liegt in der Zukunft. Melden Sie nur Zeit, die Sie schon gearbeitet haben.',
+      beginn_nicht_am_tag:
+        'Der Beginn liegt nicht an dem gewählten Tag. Der Tag ist der, an dem Sie angefangen '
+        + 'haben — auch bei einer Nachtschicht.',
     },
     unbekannt: 'Die Meldung wurde abgewiesen. Bitte prüfen Sie Ihre Angaben.',
     begruendungErneut: 'Was nicht stimmt, geben Sie bitte noch einmal ein.',
@@ -357,6 +365,11 @@ export const EINWAND_FORM_TEXTE: Readonly<Record<PortalSprache, EinwandFormTexte
       kein_zeiteintrag: 'This type of report needs a recorded entry. Open it under "My hours".',
       fenster_verkehrt: 'The end is before the start. Please check both times.',
       ungueltige_eingabe: 'The details do not fit together. Please check them and send again.',
+      tag_in_zukunft: 'The day is in the future. Only report a day up to today.',
+      zeit_in_zukunft: 'The time is in the future. Only report time you have already worked.',
+      beginn_nicht_am_tag:
+        'The start is not on the chosen day. The day is the one on which you started — also '
+        + 'for a night shift.',
     },
     unbekannt: 'The report was refused. Please check your details.',
     begruendungErneut: 'Please type again what is wrong.',
@@ -385,6 +398,10 @@ export const EINWAND_FORM_TEXTE: Readonly<Record<PortalSprache, EinwandFormTexte
       kein_zeiteintrag: 'يتطلب هذا النوع من البلاغات قيدًا مسجلًا. افتحه من «ساعاتي».',
       fenster_verkehrt: 'وقت النهاية يسبق وقت البداية. يرجى التحقق من الوقتين.',
       ungueltige_eingabe: 'البيانات غير متوافقة. يرجى التحقق منها وإعادة الإرسال.',
+      tag_in_zukunft: 'اليوم في المستقبل. أبلغ فقط عن يوم حتى اليوم.',
+      zeit_in_zukunft: 'الوقت في المستقبل. أبلغ فقط عن وقت عملته بالفعل.',
+      beginn_nicht_am_tag:
+        'وقت البداية ليس في اليوم المختار. اليوم هو الذي بدأت فيه العمل — حتى في الوردية الليلية.',
     },
     unbekannt: 'تم رفض البلاغ. يرجى التحقق من بياناتك.',
     begruendungErneut: 'يرجى كتابة ما هو الخطأ مرة أخرى.',
@@ -411,6 +428,10 @@ export const EINWAND_FORM_TEXTE: Readonly<Record<PortalSprache, EinwandFormTexte
         'Bu bildirim türü kayıtlı bir giriş gerektirir. Girişi „Saatlerim" altında açın.',
       fenster_verkehrt: 'Bitiş, başlangıçtan önce. Lütfen iki saati kontrol edin.',
       ungueltige_eingabe: 'Bilgiler birbirine uymuyor. Lütfen kontrol edip tekrar gönderin.',
+      tag_in_zukunft: 'Gün gelecekte. Yalnızca bugüne kadar olan bir günü bildirin.',
+      zeit_in_zukunft: 'Saat gelecekte. Yalnızca zaten çalıştığınız süreyi bildirin.',
+      beginn_nicht_am_tag:
+        'Başlangıç seçilen günde değil. Gün, işe başladığınız gündür — gece vardiyasında da.',
     },
     unbekannt: 'Bildirim reddedildi. Lütfen bilgilerinizi kontrol edin.',
     begruendungErneut: 'Lütfen neyin yanlış olduğunu yeniden yazın.',

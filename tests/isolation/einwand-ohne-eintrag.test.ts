@@ -16,7 +16,7 @@ import {
   type LeseKontext, type SchreibKontext, type Sitzung,
 } from '../../src/server/kontext/index.js';
 import {
-  listeEigeneEinwaende, mandantDerAnstellung, reicheEinwandEin,
+  EinwandZeitFehler, listeEigeneEinwaende, mandantDerAnstellung, reicheEinwandEin,
 } from '../../src/server/services/zeit/einwand.js';
 import { eigenerEintragZurSchicht } from '../../src/server/services/mitarbeiter/zeiten.js';
 
@@ -166,5 +166,78 @@ describe('V-189: „Eine Zeit fehlt" im Schreibweg der Arbeiterin', () => {
       ...sitzung(), benutzerId: ju!.id, personId: f.jonas,
     }, (k) => eigenerEintragZurSchicht(k, einsatz, f.fatimaReinigung)));
     expect(fremd).toBeNull();
+  });
+});
+
+describe('V-193: Tag und behauptete Zeit gelten gegen die Uhr der Datenbank', () => {
+  /** Der Berliner Tag `n` Tage von heute, aus der Datenbank (Invariante 5). */
+  async function tag(n: number): Promise<string> {
+    const [z] = await sql.unsafe<{ t: string }[]>(
+      `select to_char(app.berlin_heute() + $1::int, 'YYYY-MM-DD') as t`, [n]);
+    return z!.t;
+  }
+  /** 08:00 Berliner Zeit an diesem Tag, als Instant aus der Datenbank. */
+  async function achtUhr(datum: string): Promise<Date> {
+    const [z] = await sql.unsafe<{ t: Date }[]>(
+      `select ($1::date + time '08:00') at time zone 'Europe/Berlin' as t`, [datum]);
+    return z!.t;
+  }
+  function melde(e: { betrifftDatum: string; behauptetBeginn?: Date; behauptetEnde?: Date }) {
+    return imMandantenDer(f.fatimaReinigung, (k) => reicheEinwandEin(k, {
+      anstellungId: f.fatimaReinigung, zeiteintragId: null, art: 'eintrag_fehlt',
+      begruendung: 'Die Marke am Tor ging nicht.', eingereichtVonBenutzerId: fatimaKonto, ...e,
+    }));
+  }
+  async function grund(fn: () => Promise<unknown>): Promise<string | null> {
+    try {
+      await fn();
+      return null;
+    } catch (fehler) {
+      if (fehler instanceof EinwandZeitFehler) return fehler.grund;
+      throw fehler;
+    }
+  }
+  async function anzahl(): Promise<number> {
+    const [z] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from zeit_einwand where anstellung_id = $1`, [f.fatimaReinigung]);
+    return Number(z!.n);
+  }
+
+  it('VORHER angelegt: ein künftiger Tag wird abgewiesen — und nichts geschrieben', async () => {
+    const vorher = await anzahl();
+    const morgen = await tag(1);
+    expect(await grund(() => melde({ betrifftDatum: morgen }))).toBe('tag_in_zukunft');
+    expect(await anzahl()).toBe(vorher);
+  });
+
+  it('eine behauptete Zeit nach jetzt wird abgewiesen, auch an einem vergangenen Tag', async () => {
+    const gestern = await tag(-1);
+    const beginn = await achtUhr(gestern);
+    const ende = await achtUhr(await tag(1));
+    expect(await grund(() => melde({
+      betrifftDatum: gestern, behauptetBeginn: beginn, behauptetEnde: ende,
+    }))).toBe('zeit_in_zukunft');
+  });
+
+  it('bei „Eine Zeit fehlt" liegt der behauptete Beginn am gewählten Tag', async () => {
+    const vorgestern = await tag(-2);
+    const amFolgetag = await achtUhr(await tag(-1));
+    expect(await grund(() => melde({
+      betrifftDatum: vorgestern, behauptetBeginn: amFolgetag,
+    }))).toBe('beginn_nicht_am_tag');
+  });
+
+  it('ein vergangener Tag mit Zeit an diesem Tag geht durch — auch über Mitternacht', async () => {
+    const vorgestern = await tag(-2);
+    const [nacht] = await sql.unsafe<{ von: Date; bis: Date }[]>(
+      `select ($1::date + time '22:00') at time zone 'Europe/Berlin' as von,
+              ($1::date + 1 + time '06:00') at time zone 'Europe/Berlin' as bis`, [vorgestern]);
+    const id = await melde({
+      betrifftDatum: vorgestern, behauptetBeginn: nacht!.von, behauptetEnde: nacht!.bis,
+    });
+    expect(id).toMatch(/^[0-9a-f-]{36}$/u);
+    // Und heute ohne Uhrzeit — der Tag darf heute sein.
+    const heute = await tag(0);
+    expect(await melde({ betrifftDatum: heute })).toMatch(/^[0-9a-f-]{36}$/u);
   });
 });

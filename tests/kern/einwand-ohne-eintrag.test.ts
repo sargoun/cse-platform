@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { EinwandOhneBezugFehler } from '../../src/server/services/zeit/einwand.js';
+import { EinwandOhneBezugFehler, EinwandZeitFehler } from '../../src/server/services/zeit/einwand.js';
 import { EINWAND_FORM_TEXTE, EINWAND_GRUENDE } from '../../src/lib/i18n/mein-formulare.js';
 import { PORTAL_SPRACHEN } from '../../src/lib/i18n/texte.js';
 import { ROUTEN } from '../../src/server/registry/routen.generiert.js';
@@ -128,6 +128,26 @@ describe('POST /api/zeit/einwand aus „Eine Zeit fehlt"', () => {
     zustand.reiche.mockRejectedValueOnce(new EinwandOhneBezugFehler());
     const antwort = await POST(anfrage({ ...FORMULAR, art: 'zeit_falsch' }));
     expect(ziel(antwort).searchParams.get('fehler')).toBe('kein_zeiteintrag');
+  });
+
+  it('VORHER durch: Tag und Zeit gegen die Uhr der Datenbank — der Grund des Dienstes, auf der Maske (V-193)', async () => {
+    for (const grund of ['tag_in_zukunft', 'zeit_in_zukunft', 'beginn_nicht_am_tag'] as const) {
+      zustand.reiche.mockRejectedValueOnce(new EinwandZeitFehler(grund));
+      const antwort = await POST(anfrage(FORMULAR));
+      expect(antwort.status, grund).toBe(303);
+      expect(ziel(antwort).pathname).toBe(MASKE);
+      expect(ziel(antwort).searchParams.get('fehler')).toBe(grund);
+      expect(ziel(antwort).searchParams.get('datum')).toBe('2026-03-28');
+      expect(ziel(antwort).toString()).not.toContain('Marke');
+    }
+    // Ohne Maske: JSON mit 422, wie jede andere Abweisung dieser Route.
+    const ohne: Record<string, string> = { ...FORMULAR };
+    delete ohne['maske'];
+    delete ohne['zurueck'];
+    zustand.reiche.mockRejectedValueOnce(new EinwandZeitFehler('tag_in_zukunft'));
+    const json = await POST(anfrage(ohne));
+    expect(json.status).toBe(422);
+    expect(await json.json()).toEqual({ fehler: 'tag_in_zukunft' });
   });
 
   it('ohne `maske` und `zurueck` bleibt die Route, wie sie war: JSON', async () => {

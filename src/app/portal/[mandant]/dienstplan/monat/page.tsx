@@ -12,6 +12,7 @@ import { berlinHeute } from '@/server/db/heute';
 import { Recht } from '@/components/ui/Recht';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { MONAT_TEXTE } from '@/lib/i18n/verwaltung/dienstplan-monat';
+import { tagKurz } from '@/lib/datum/kalendertag';
 
 /**
  * `/portal/[mandant]/dienstplan/monat` — TIM-01.
@@ -23,7 +24,9 @@ import { MONAT_TEXTE } from '@/lib/i18n/verwaltung/dienstplan-monat';
  *
  * **Keine Schicht bleibt verborgen** (TIM-04, V-186): eine Karte zeigt
  * hoechstens vier Schichten; ihr Kopf und der Verweis „und N weitere" fuehren
- * in die Tagesansicht, die alle zeigt.
+ * in die Tagesansicht, die alle zeigt — an jedem Tag des Monats, auch wenn
+ * der ganze Monat noch leer ist (V-193). Die Tagesbeschriftung spricht die
+ * Sprache der Sitzung (`tagKurz`).
  */
 export const dynamic = 'force-dynamic';
 
@@ -85,19 +88,25 @@ export default async function Monatsansicht({
         </Link>
       </nav>
 
-      {schichten.length === 0 ? (
-        <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
+      {/*
+        Die Karten stehen AUCH in einem Monat ohne Schicht (V-193): ihr Kopf
+        führt in die Tagesansicht, und dort wird geplant. Vorher ersetzte der
+        Satz „nichts geplant" das ganze Raster — und damit jeden Weg zu einem
+        Tag, gerade in dem Monat, der noch geplant werden muss.
+      */}
+      {schichten.length === 0 && (
+        <p data-cse="monat-leer"
+           className="mb-s4 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           {t.nichtsGeplant}
         </p>
-      ) : (
-        <Monatsplan
-          tage={tage}
-          schichten={schichten}
-          zielFuer={(s) => `/portal/${mandant}/dienstplan/einsatz/${s.id}`}
-          tagZiel={(datum) => `/portal/${mandant}/dienstplan/tag?tag=${datum}`}
-          texte={t}
-        />
       )}
+      <Monatsplan
+        tage={tage.map((tag) => ({ ...tag, beschriftung: tagKurz(tag.datum, zugang.sprache) }))}
+        schichten={schichten}
+        zielFuer={(s) => `/portal/${mandant}/dienstplan/einsatz/${s.id}`}
+        tagZiel={(datum) => `/portal/${mandant}/dienstplan/tag?tag=${datum}`}
+        texte={t}
+      />
     </PortalRahmen>
   );
 }

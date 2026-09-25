@@ -132,3 +132,35 @@ export function tagInSprache(
   if (Number.isNaN(t) || d.toISOString().slice(0, 10) !== datum.slice(0, 10)) return datum;
   return EN_TAG.format(d);
 }
+
+/** Die Wochentage der deutschen Tagesbeschriftung, ab Montag. */
+const WOCHENTAGE_KURZ = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as const;
+
+/** Britisches Englisch, kurz („Sun 04 Jan") — gerechnet in UTC hin und zurück. */
+const EN_TAG_KURZ = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short', day: '2-digit', month: 'short', timeZone: 'UTC',
+});
+
+/**
+ * Die kurze Tagesbeschriftung des Dienstplans in der Sprache der Seite
+ * (V-193): deutsch „Mo 04.01.", englisch „Sun 04 Jan".
+ *
+ * **Deutsch ohne `Intl` und ohne `to_char(… 'TMDy')`**: `TM` nimmt die Namen
+ * aus `lc_time` der Verbindung, und steht die auf `C`, liest der Dienstplan
+ * „Tue" auf einem deutschen Bildschirm (`dienstplan/daten.ts` hat das
+ * begründet und benutzt jetzt diese Funktion). Der Wochentag wird aus dem
+ * Kalendertag gerechnet und aus einer festen Liste benannt. Englisch folgt
+ * `tagInSprache` (D-733): britisch, über UTC, ohne Zonenversatz.
+ *
+ * Was nicht wie ein Kalendertag aussieht, kommt unverändert zurück.
+ */
+export function tagKurz(datum: string, sprache?: string | null): string {
+  const treffer = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(datum.slice(0, 10));
+  if (treffer === null) return datum;
+  const t = Date.UTC(Number(treffer[1]), Number(treffer[2]) - 1, Number(treffer[3]));
+  const d = new Date(t);
+  if (Number.isNaN(t) || d.toISOString().slice(0, 10) !== datum.slice(0, 10)) return datum;
+  if (sprache === 'en') return EN_TAG_KURZ.format(d);
+  const tag = WOCHENTAGE_KURZ[(d.getUTCDay() + 6) % 7] ?? '';
+  return `${tag} ${treffer[3] ?? ''}.${treffer[2] ?? ''}.`;
+}

@@ -7,6 +7,8 @@
  * führen in die Tagesansicht, die alle zeigt. Vorher stand „und 6 weitere"
  * als blosser Text da, ohne Weg dorthin.
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import * as React from 'react';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -15,6 +17,7 @@ import {
   MONATSKARTE_HOECHSTENS, Monatsplan, type PlanSchicht, type PlanTag,
 } from '../../src/components/portal/Wochenplan.js';
 import { MONAT_TEXTE } from '../../src/lib/i18n/verwaltung/dienstplan-monat.js';
+import { tagKurz } from '../../src/lib/datum/kalendertag.js';
 
 /*
  * Die Bauteile sind `.tsx` mit der klassischen JSX-Umwandlung dieses
@@ -129,5 +132,47 @@ describe('Monatsansicht: zehn Wachen zur selben Sekunde (TIM-04)', () => {
     expect(MONAT_TEXTE.de.schichten(1234)).toBe('1.234 Schichten');
     expect(MONAT_TEXTE.en.schichten(1234)).toBe('1,234 shifts');
     expect(MONAT_TEXTE.en.schichten(1)).toBe('1 shift');
+  });
+});
+
+describe('Monatsansicht ohne jede Schicht (V-193)', () => {
+  /**
+   * Die Zusage „auch an einem Tag ohne Schicht, denn dort wird geplant"
+   * (D-680) galt nur in Monaten mit mindestens einer Schicht: war der Monat
+   * leer, ersetzte der Satz „nichts geplant" das ganze Raster und damit jeden
+   * Weg zu einem Tag.
+   */
+  it('jeder Tag hat seine Karte mit Verweis auf die Tagesansicht', () => {
+    const html = zeichne('de', []);
+    expect(html.match(/data-cse="monatstag-ziel"/gu)).toHaveLength(3);
+    for (const datum of ['2026-03-18', '2026-03-19', '2026-03-20']) {
+      expect(karte(html, datum)).toContain(`href="/portal/security/dienstplan/tag?tag=${datum}"`);
+    }
+    expect(html).not.toContain('data-cse="schicht"');
+  });
+
+  it('die Seite zeigt das Raster immer — der Satz steht darüber, nicht an seiner Stelle', () => {
+    const seite = readFileSync(
+      resolve(import.meta.dirname, '../../src/app/portal/[mandant]/dienstplan/monat/page.tsx'), 'utf8');
+    expect(seite).not.toMatch(/schichten\.length === 0 \?/u);
+    expect(seite).toMatch(/schichten\.length === 0 && \(/u);
+    expect(seite).toContain('<Monatsplan');
+    expect(seite).toContain('tagKurz(tag.datum, zugang.sprache)');
+  });
+});
+
+describe('die Tagesbeschriftung spricht die Sprache der Seite (V-193)', () => {
+  it('deutsch „So 04.01.", englisch „Sun 04 Jan" — ohne Zonenversatz', () => {
+    expect(tagKurz('2026-01-04', 'de')).toBe('So 04.01.');
+    expect(tagKurz('2026-01-04')).toBe('So 04.01.');
+    expect(tagKurz('2026-01-04', 'en')).toBe('Sun 04 Jan');
+    // Der Tag der Zeitumstellung ist ein Kalendertag wie jeder andere.
+    expect(tagKurz('2026-03-29', 'de')).toBe('So 29.03.');
+    expect(tagKurz('2026-03-29', 'en')).toBe('Sun 29 Mar');
+  });
+
+  it('was kein Kalendertag ist, kommt unverändert zurück', () => {
+    expect(tagKurz('2026-02-31', 'en')).toBe('2026-02-31');
+    expect(tagKurz('morgen', 'de')).toBe('morgen');
   });
 });

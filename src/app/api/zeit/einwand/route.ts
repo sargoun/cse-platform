@@ -8,8 +8,8 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/index';
 import { berlinFormularZeitpunkt } from '@/lib/datum/formularzeit';
 import {
-  EinwandOhneBezugFehler, KeineAnstellungFehler, mandantDerAnstellung, reicheEinwandEin,
-  type EinwandArt,
+  EinwandOhneBezugFehler, EinwandZeitFehler, KeineAnstellungFehler, mandantDerAnstellung,
+  reicheEinwandEin, type EinwandArt,
 } from '@/server/services/zeit/einwand';
 
 /**
@@ -173,6 +173,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const auth = autorisierungsAntwort(fehler);
     if (auth !== null) return auth;
     if (fehler instanceof EinwandOhneBezugFehler) return abweisen('kein_zeiteintrag');
+    // Tag und behauptete Zeit gegen die Uhr der Datenbank (V-193, Invariante 5).
+    if (fehler instanceof EinwandZeitFehler) return abweisen(fehler.grund, 422);
     // Die zweite Linie: Pruefbedingung, Fremdschluessel (ein Eintrag einer
     // anderen Beschaeftigung), ein Tag, den es nicht gibt.
     const ausDatenbank = datenbankGrund(fehler);

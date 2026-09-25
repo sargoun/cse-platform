@@ -672,6 +672,14 @@ export interface MeinTexte {
   readonly naechsteSchicht: string;
   readonly keineSchicht: string;
   readonly gesellschaft: string;
+  /**
+   * Der leere erste Eintrag der Pflichtwahl „Gesellschaft" (D-09, V-193): die
+   * Auswahl wählt nichts vor, auch bei nur einer Beschäftigung — eine
+   * geratene Gesellschaft wäre ein Antrag bei der falschen GmbH.
+   */
+  readonly gesellschaftWaehlen: string;
+  /** Die Pause eines Einwands, mit ihrer Einheit (V-193). */
+  readonly pauseMinuten: string;
   readonly objekt: string;
   readonly beginn: string;
   readonly ende: string;
@@ -1163,6 +1171,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     naechsteSchicht: 'Nächste Schicht',
     keineSchicht: 'Für Sie ist derzeit keine Schicht eingeteilt.',
     gesellschaft: 'Gesellschaft',
+    gesellschaftWaehlen: 'Gesellschaft wählen',
+    pauseMinuten: 'Pause (Minuten)',
     objekt: 'Objekt',
     beginn: 'Beginn',
     ende: 'Ende',
@@ -1524,6 +1534,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     naechsteSchicht: 'Next shift',
     keineSchicht: 'You are not scheduled for a shift at the moment.',
     gesellschaft: 'Company',
+    gesellschaftWaehlen: 'Choose the company',
+    pauseMinuten: 'Break (minutes)',
     objekt: 'Site',
     beginn: 'Start',
     ende: 'End',
@@ -1880,6 +1892,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     naechsteSchicht: 'المناوبة القادمة',
     keineSchicht: 'لا توجد مناوبة مجدولة لك حالياً.',
     gesellschaft: 'الشركة',
+    gesellschaftWaehlen: 'اختر الشركة',
+    pauseMinuten: 'الاستراحة (بالدقائق)',
     objekt: 'الموقع',
     beginn: 'البداية',
     ende: 'النهاية',
@@ -2220,6 +2234,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     naechsteSchicht: 'Sonraki vardiya',
     keineSchicht: 'Şu anda size atanmış bir vardiya yok.',
     gesellschaft: 'Şirket',
+    gesellschaftWaehlen: 'Şirketi seçin',
+    pauseMinuten: 'Mola (dakika)',
     objekt: 'Nesne',
     beginn: 'Başlangıç',
     ende: 'Bitiş',

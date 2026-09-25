@@ -117,7 +117,9 @@ export default async function EintragFehlt(
               <span className="sr-only">{t.pflichtfeld}</span>
             </label>
             <select id="fehlt-anstellung" name="anstellung" required className={eingabe}
-              defaultValue={gewaehlt}>
+              defaultValue={gewaehlt ?? ''}>
+              {/* Keine Vorauswahl (D-09): `required` verlangt die Wahl. */}
+              <option value="">{t.gesellschaftWaehlen}</option>
               {basis.anstellungen.map((a) => (
                 <option key={a.anstellungId} value={a.anstellungId}>
                   {a.mandantName}
@@ -151,7 +153,7 @@ export default async function EintragFehlt(
               </div>
             </div>
             <div className="flex flex-col gap-s2">
-              <label htmlFor="fehlt-pause" className="text-base text-text">{t.pause} (min)</label>
+              <label htmlFor="fehlt-pause" className="text-base text-text">{t.pauseMinuten}</label>
               <input id="fehlt-pause" name="pause" type="number" min={0} step={1}
                 inputMode="numeric" className={eingabe} defaultValue={pause} />
             </div>

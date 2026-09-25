@@ -3,9 +3,10 @@
  * TIM-04, V-186, D-592).
  *
  * **Die Fachbegriffe bleiben deutsch, auch im englischen Text** — wie in
- * `dienstplan-schicht.ts`. Die Tagesbeschriftung („Mo 04.01.") und der Name
- * eines Feiertags kommen fertig aus `dienstplan/daten.ts` und werden hier
- * nicht übersetzt: der Feiertag ist der Name, den das Land ihm gibt.
+ * `dienstplan-schicht.ts`. Der Name eines Feiertags kommt fertig aus
+ * `dienstplan/daten.ts` und wird nicht übersetzt: er ist der Name, den das
+ * Land ihm gibt. Die Tagesbeschriftung („Mo 04.01." / „Sun 04 Jan") schreibt
+ * die Monatsseite mit `tagKurz` (`@/lib/datum/kalendertag`, V-193).
  */
 import { INTERN_BCP47, type InternSprache } from '../intern.js';
 

@@ -182,7 +182,7 @@ export default async function EinwandFormular(
 
         <div className="flex flex-col gap-s2">
           <label htmlFor="einwand-pause" className="text-base text-text">
-            {t.pause} (min)
+            {t.pauseMinuten}
           </label>
           <input
             id="einwand-pause" name="pause" type="number" min={0} step={1}
