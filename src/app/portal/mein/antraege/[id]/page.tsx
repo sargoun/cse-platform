@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { zeitpunktInSprache } from '@/lib/datum/zeitpunkt';
 import { tagInSprache } from '@/lib/datum/kalendertag';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
@@ -75,13 +76,10 @@ export default async function MeinAntrag(
 
   /*
    * Die Zeitpunkte kommen als `Date` aus dem Dienst und werden HIER in
-   * Berliner Ortszeit gezeigt (Invariante 2) — mit derselben Formatierung wie
-   * der Posteingang, damit zwei Seiten desselben Portals dieselbe Uhrzeit
-   * gleich schreiben.
+   * Berliner Ortszeit gezeigt (Invariante 2) — über `zeitpunktInSprache`, wie
+   * der Posteingang: `TT.MM.JJJJ HH:MM` in jeder Sprache ausser Englisch,
+   * nie mit der 12-Stunden-Uhr der Portalsprache (SEITENKARTE §12, V-201).
    */
-  const zeitpunkt = new Intl.DateTimeFormat(basis.sprache === 'de' ? 'de-DE' : basis.sprache, {
-    timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
-  });
 
   return (
     <MeinRahmen basis={basis} titel={t.antraege} aktiverTab="heute"
@@ -118,13 +116,13 @@ export default async function MeinAntrag(
           <Feld label={t.nachricht}>{a.nachricht ?? '—'}</Feld>
           <Feld label={t.eingereichtAm}>
             <time dateTime={a.eingereichtAm.toISOString()} className="cse-zahl">
-              {zeitpunkt.format(a.eingereichtAm)}
+              {zeitpunktInSprache(a.eingereichtAm, basis.sprache)}
             </time>
           </Feld>
           {a.entschiedenAm !== null && (
             <Feld label={t.entschiedenAm}>
               <time dateTime={a.entschiedenAm.toISOString()} className="cse-zahl">
-                {zeitpunkt.format(a.entschiedenAm)}
+                {zeitpunktInSprache(a.entschiedenAm, basis.sprache)}
               </time>
             </Feld>
           )}

@@ -19415,12 +19415,16 @@ umgestellt; die übrigen Seiten blieben ISO.
    ISO, weil dort ein Programm liest.
 2. **Der Monatsnachweis bleibt deutsch** (`tagDeutsch`, V-210): er ist das
    Blatt nach § 17 MiLoG.
-3. **Zeitpunkte bleiben, wie SEITENKARTE §12 sie festlegt** — Europe/Berlin
-   in der gesetzlichen Form, in jeder Sprache; die Browserprüfung „Zahlen,
-   Geld und Zeit bleiben in der gesetzlichen Form" hält das. Diese
-   Entscheidung betrifft Kalendertage. Auf Deutsch, Arabisch und Türkisch
-   stehen Tag und Zeitpunkt damit in derselben Schreibweise; auf Englisch
-   steht der Tag wie auf den Schichtseiten seit V-210.
+3. **Zeitpunkte gehören in die gesetzliche Form, wie SEITENKARTE §12 sie
+   festlegt** — Europe/Berlin, in jeder Sprache. Diese Entscheidung betrifft
+   Kalendertage. **Berichtigt (V-201, D-695):** hier stand, die Zeitpunkte
+   seien schon so und Tag und Zeitpunkt stünden auf Deutsch, Arabisch und
+   Türkisch in derselben Schreibweise. Das stimmte nicht: fünf Blätter
+   formatierten mit `Intl.DateTimeFormat(<Portalsprache>, …)` — Arabisch mit
+   12-Stunden-Uhr, Englisch als `en-US` („Sep 11, 2026, 10:30 PM",
+   „09/11/2026"), Türkisch „11 Eyl 2026 22:30". Erst `zeitpunktInSprache`
+   (D-695) macht die Aussage wahr. Der englische Tag lautet mit der
+   ICU-Fassung der Laufzeit „11 Sept 2026", nicht „11 Sep 2026".
 4. **Geprüft am Quellbaum, nicht an einer Liste:**
    `tests/kern/mein-kalendertage.test.ts` liest jede `.tsx` unter
    `src/app/portal/mein` — auch eine künftige — und schlägt fehl, sobald ein
@@ -19508,4 +19512,44 @@ D-557; die Benachrichtigungseinstellungen trugen den Schlüssel jeder Art
    anderen Sprachen prüft `tests/e2e/arbeiter-sprache.spec.ts` ausdrücklich.
 
 | Betrifft | EMP-01, EMP-12, TIM-07, TIM-10, AUT-06, D-84, D-135, D-419, D-557, D-738, V-102, V-200, SEITENKARTE §12, DESIGN §5 „Filter pills", `src/lib/i18n/{geraetesprache,vor-anmeldung,vorlage,konto}.ts`, `src/app/check-in/[token]/{page,Stempeluhr,Schichtfoto}.tsx`, `src/app/auth/{AuthSchale.tsx,mitarbeiter/page.tsx,mitarbeiter/code/page.tsx}`, `src/app/api/geraetesprache/route.ts`, `src/app/api/konto/sprache/route.ts`, `src/server/konto/sprach-keks.ts`, `src/components/sprache/GeraeteSprachwahl.tsx`, `src/app/portal/konto/{[[...rest]],benachrichtigungen}/page.tsx`, `src/app/portal/konto/konto.ts`, `scripts/guards/run-all.ts`, `playwright.config.ts`, `tests/kern/{geraetesprache,konto-sprachen}.test.ts`, `tests/e2e/arbeiter-sprache.spec.ts` |
+|---|---|
+
+### D-695 · Ein Zeitpunkt steht auf den Flächen der Beschäftigten in der gesetzlichen Form — die Portalsprache wählt Wörter, nicht die Uhr (V-201)
+
+**Der Befund** (V-201; Prüfer der Gruppe arbeiterportal, Nebenbefund des
+umsetzenden Agenten): Abwesenheits- und Antragsblatt, Posteingang, Faden
+und die Sicherheitsseite des Kontos formatierten Zeitpunkte mit
+`new Intl.DateTimeFormat(<Portalsprache>, …)`. Die Sprache wählt in Intl
+nicht nur Wörter, sondern Uhr und Reihenfolge: Arabisch „11‏/09‏/2026،
+10:30 م" mit 12-Stunden-Uhr, Englisch — `PORTAL_BCP47.en` ist `en`, also
+`en-US` — „Sep 11, 2026, 10:30 PM", Türkisch „11 Eyl 2026 22:30". Das
+Einwandblatt schrieb Eingangs- und Entscheidungsdatum englisch „09/11/2026",
+in Europa der 9. November, unter dem betroffenen Tag „11 Sept 2026". Daneben
+stand auf denselben Blättern der Kalendertag über `tagInSprache` als
+„11.09.2026". D-693 Nr. 3 bescheinigte, die Zeitpunkte folgten schon
+SEITENKARTE §12. Die arabisch-indischen Ziffern, die der Nebenbefund
+nannte, gibt es auf dem Server nicht: `ar` rechnet dort mit `latn`.
+
+**Die Entscheidung.**
+
+1. **Eine Funktion für den Zeitpunkt, nach dem Muster von `tagInSprache`**
+   (`src/lib/datum/zeitpunkt.ts`): `zeitpunktInSprache` schreibt Deutsch,
+   Arabisch und Türkisch `TT.MM.JJJJ HH:MM` — die Form der
+   MiLoG-Aufzeichnung und der Zeitenliste, die die Browserprüfung „Zahlen,
+   Geld und Zeit bleiben in der gesetzlichen Form" misst —, Englisch
+   britisch „11 Sept 2026, 22:30" wie `fristInWorten(…, 'en')` (V-240).
+   `tagVonZeitpunktInSprache` schreibt den Berliner Kalendertag eines
+   Zeitpunkts in derselben Form wie `tagInSprache`. Immer Europe/Berlin,
+   immer 24-Stunden-Uhr, immer lateinische Ziffern.
+2. **Die Wörter übersetzt die Seite, die Zahl nicht.** Auf Arabisch steht
+   das Datum in einem `dir="rtl"`-Satz von links nach rechts, wie jede Zahl
+   dort (`cse-zahl`); das ist die Regel für Geld und Stunden seit D-419.
+3. **Geprüft am Quellbaum:** unter `portal/mein`, `portal/konto`,
+   `check-in` und `auth/mitarbeiter` steht kein `Intl.DateTimeFormat` mit
+   einer anderen Sprache als der festen deutschen Form (Stempeluhr und
+   Monatsnachweis) und kein `toLocale…String`; eine Gegenprobe beweist,
+   dass das Muster die alten Zeilen trifft.
+4. **D-693 Nr. 3 ist berichtigt**, ebenso V-199 im Register.
+
+| Betrifft | EMP-07, EMP-10, EMP-12, AUT-05, SEITENKARTE §12, D-419, D-693, D-733, V-199, V-201, V-240, `src/lib/datum/zeitpunkt.ts`, `src/app/portal/mein/{abwesenheit/[id],antraege/[id],nachrichten,nachrichten/[id],zeiten/[id]/einwand}/page.tsx`, `src/app/portal/konto/sicherheit/page.tsx`, `tests/kern/zeitpunkt-sprache.test.ts` |
 |---|---|

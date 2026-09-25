@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import { tagInSprache } from '@/lib/datum/kalendertag';
+import { tagVonZeitpunktInSprache } from '@/lib/datum/zeitpunkt';
 import {
-  EINWAND_ARTEN, EINWAND_ART_TEXTE, EINWAND_STATUS_TEXTE, PORTAL_BCP47,
+  EINWAND_ARTEN, EINWAND_ART_TEXTE, EINWAND_STATUS_TEXTE,
   type EinwandStatusSchluessel,
 } from '@/lib/i18n/texte';
 import {
@@ -77,17 +78,16 @@ export default async function EinwandFormular(
   const arten = EINWAND_ART_TEXTE[basis.sprache];
   const statusWort = EINWAND_STATUS_TEXTE[basis.sprache];
   /*
-   * Das Datum in der Zeitzone, die zaehlt (Invariante 2), und im Kalender der
-   * gewaehlten Sprache. `Intl` faellt fuer `ar` auf den gregorianischen
-   * Kalender zurueck, wenn die Umgebung keinen anderen kennt — was hier
-   * richtig ist: ein Entscheidungsdatum ist eine AKTENANGABE und muss mit der
-   * Akte uebereinstimmen.
+   * Das Datum in der Zeitzone, die zaehlt (Invariante 2), und in der
+   * gesetzlichen Form: ein Eingangs- oder Entscheidungsdatum ist eine
+   * AKTENANGABE und muss mit der Akte uebereinstimmen. Hier stand
+   * `Intl.DateTimeFormat(PORTAL_BCP47[sprache], …)` — auf Englisch (`en` ist
+   * `en-US`) „09/11/2026", in Europa der 9. November, neben dem betroffenen
+   * Tag „11 Sept 2026" darueber (V-201). `tagVonZeitpunktInSprache` schreibt
+   * denselben Tag wie `tagInSprache`: `TT.MM.JJJJ`, englisch britisch.
    */
-  const tagFormat = new Intl.DateTimeFormat(PORTAL_BCP47[basis.sprache], {
-    timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit',
-  });
   const tagText = (wert: Date | null): string =>
-    wert === null ? '—' : tagFormat.format(wert);
+    wert === null ? '—' : tagVonZeitpunktInSprache(wert, basis.sprache);
   const zuDiesem = daten.eigene.filter((e) => e.zeiteintragId === z.id);
   const eingabe =
     'min-h-11 w-full rounded-md border border-line-strong bg-surface px-s3 py-s2 '

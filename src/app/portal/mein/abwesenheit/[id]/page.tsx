@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { zeitpunktInSprache } from '@/lib/datum/zeitpunkt';
 import { notFound } from 'next/navigation';
 import { tagInSprache } from '@/lib/datum/kalendertag';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
@@ -68,11 +69,6 @@ export default async function MeineAbwesenheit(
   const a = daten.abwesenheit;
   const t = basis.texte;
 
-  /* Berliner Ortszeit (Invariante 2) — dieselbe Formatierung wie auf dem
-     Antragsblatt, damit zwei Seiten desselben Portals gleich schreiben. */
-  const zeitpunkt = new Intl.DateTimeFormat(basis.sprache === 'de' ? 'de-DE' : basis.sprache, {
-    timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
-  });
   const halbe = [a.vonHalbtags ? t.halberTagBeginn : null, a.bisHalbtags ? t.halberTagEnde : null]
     .filter((x): x is string => x !== null).join(' · ');
 
@@ -118,13 +114,14 @@ export default async function MeineAbwesenheit(
           {halbe !== '' && <Feld label={t.halbeTage}>{halbe}</Feld>}
           <Feld label={t.gemeldetAm}>
             <time dateTime={a.gemeldetAm.toISOString()} className="cse-zahl">
-              {zeitpunkt.format(a.gemeldetAm)}
+              {/* Berliner Ortszeit, gesetzliche Form (SEITENKARTE §12, V-201). */}
+              {zeitpunktInSprache(a.gemeldetAm, basis.sprache)}
             </time>
           </Feld>
           {a.storniertAm !== null && (
             <Feld label={t.storniertAm}>
               <time dateTime={a.storniertAm.toISOString()} className="cse-zahl">
-                {zeitpunkt.format(a.storniertAm)}
+                {zeitpunktInSprache(a.storniertAm, basis.sprache)}
               </time>
             </Feld>
           )}

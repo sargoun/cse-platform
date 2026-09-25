@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { zeitpunktInSprache } from '@/lib/datum/zeitpunkt';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
 import { ladePosteingang, type Eintrag } from '@/server/benachrichtigung/posteingang';
@@ -94,9 +95,6 @@ export default async function MeineNachrichten() {
   const { basis, daten } = ergebnis;
   const t = basis.texte;
 
-  const zeitpunkt = new Intl.DateTimeFormat(basis.sprache === 'de' ? 'de-DE' : basis.sprache, {
-    timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
-  });
 
   const zeilen = mischePosteingang(
     daten.meldungen.map(ausMeldung),
@@ -193,7 +191,7 @@ export default async function MeineNachrichten() {
 
               <p className="mt-s2 text-sm text-text-subtle">
                 <time dateTime={z.zeitpunkt.toISOString()} className="tabular-nums">
-                  {zeitpunkt.format(z.zeitpunkt)}
+                  {zeitpunktInSprache(z.zeitpunkt, basis.sprache)}
                 </time>
                 {z.ungelesen === 0
                   ? <> · {t.gelesen}</>
