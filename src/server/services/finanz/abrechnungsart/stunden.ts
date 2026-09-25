@@ -145,6 +145,8 @@ export const STUNDENBASIERT: Abrechnungsart = {
   schluessel: 'stundenbasiert',
   bezeichnung: 'Stundenlohn',
   istProvisorisch: true,
+  // V-207: jeder Zeiteintrag sperrt sich selbst (quelle_zeiteintrag_uk, D-700).
+  sperrtUeberBeleg: true,
   offeneParameter: [
     {
       schluessel: 'minuten_rundung',

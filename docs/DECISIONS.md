@@ -3350,6 +3350,7 @@ Beantworten helfen:
 | O-920 | **Sollen Angebote von Hand (Sicherheit, Bau) eine Kalkulation mit den fünf Kostenblöcken aus OPS-07 bekommen — und wenn ja, woraus entsteht der Lohn?** OPS-07 nennt Lohn, Material, Gerät, Gemeinkosten und Wagnis/Gewinn. Das Angebot der Reinigung entsteht aus dem Raumbuch und rechnet alle fünf (D-668). Ein Angebot von Hand (`angebot/von-hand.ts`, V-005) trägt je Position den Einzelpreis, den ein Mensch einträgt; woraus er entstanden ist, weiss die Plattform nicht, und sie rechnet ihn nicht nach. **Zu entscheiden:** (1) ob Sicherheit und Bau überhaupt eine Kalkulation in der Plattform führen oder ihre Preise weiter ausserhalb bilden; (2) wenn ja, die Grundlage des Lohns — in der Sicherheit etwa Stunden je Posten und Schicht mal Stundenverrechnungssatz, mit welchen Zuschlägen für Nacht, Sonn- und Feiertag; im Bau Einheitspreise je Position des Leistungsverzeichnisses; (3) welche Zuschläge je Bereich gelten (das ist O-16). **Ausgeliefert ist der ehrliche Zustand:** keine Kalkulation, und Maske wie Kalkulationsblatt sagen das mit dieser Nummer (`HAND_ANGEBOT_KALKULATION`). Eine erfundene Formel wäre eine Preisregel, die niemand aufgestellt hat, und ein Preis sähe dann geprüft aus, der es nicht ist. | OPS-07, O-16, D-668, D-671, V-238, `src/server/services/angebot/von-hand.ts`, `src/app/portal/[mandant]/angebote/{neu,[id]/kalkulation}/page.tsx` |
 | O-921 | **Wie wird der Vertragswert eines Auftrags aus einem angenommenen Angebot in Reinigung und Sicherheit berichtigt oder angepasst?** Der Wert eines solchen Auftrags ist `angebot.netto_cent`; die Auftragspflege überschreibt ihn nicht (D-667 Punkt 5), weil sie sonst eine zweite Wahrheit über den Betrag führte, den der Kunde angenommen hat. Im Bau ändert ein Nachtrag nach § 2 VOB/B den Vertrag (0080). **Reinigung und Sicherheit kennen keinen Nachtrag** — ein Tippfehler im Angebot, eine Preisanpassung nach einer Tariferhöhung oder ein geänderter Leistungsumfang hat dort heute keinen Weg in den Auftrag. Drei Wege sind denkbar: (a) eine neue Angebotsfassung und ein neuer Auftrag; (b) eine eigene Vertragsänderung am Auftrag mit Betrag, Grund, Datum und Zustimmung des Kunden, wie der Nachtrag im Bau; (c) eine Berichtigung in der Auftragspflege mit Grund und Protokoll. Und: gilt für eine Preisanpassung derselbe Weg wie für einen Tippfehler? **Ausgeliefert ist der gesperrte Wert mit dem ehrlichen Satz:** die Pflegeseite sagt im Bau „Nachtrag", sonst „noch nicht entschieden (O-921)". Die Antwort ändert `wertAenderungsweg`, nicht ihre Aufrufer. | OPS-05, D-667, D-732, V-239, `src/server/services/auftrag/aendern.ts` (`wertAenderungsweg`), `src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx`, `drizzle/0080` |
 | O-931 | **Wird Material aus einer Ausgabe zum Einstandspreis weiterberechnet oder mit Aufschlag — und wenn mit Aufschlag, mit welchem Satz, je Gesellschaft, je Kunde oder je Vertrag?** Seit V-206 hat eine weiterberechenbare, freigegebene Ausgabe einen Weg auf die Rechnung: eine Materialzeile mit der Ausgabe als Beleg (FIN-07, Quelle `material`, höchstens eine wirksame Zeile je Ausgabe über `quelle_ausgabe_uk`). Welcher PREIS darauf steht, ist eine Kalkulationsregel, die niemand festgelegt hat: ein vorbelegter Einstand wäre die stille Antwort „ohne Aufschlag“, ein vorbelegter Aufschlag eine erfundene Marge. **Bis zur Antwort setzt der Mensch den Einzelpreis selbst**; die Maske zeigt den Einstand (Netto der Ausgabe) daneben nur als Auskunft, und `MATERIAL_PREISREGEL` steht als Platzhalter `offen`. Die Antwort ist eine Preisregel hinter dieser Konstante (und gegebenenfalls ein Feld an Gesellschaft, Kunde oder Abrechnungsvereinbarung), plus ein Test. | FIN-07, V-206, D-699, `src/server/services/finanz/entwurf.ts` (`MATERIAL_PREISREGEL`, `fuegeMaterialPositionHinzu`), `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `drizzle/0107` (`quelle_ausgabe_uk`) |
+| O-932 | **Ist der Fertigstellungsgrad einer anteiligen Festpreis-Abrechnung der GESAMTSTAND der Leistung (bisher Berechnetes wird abgezogen) oder der ZUWACHS seit der letzten Rechnung?** Seit V-206 lässt sich ein Pauschalpreis-Los mit `teilleistung = anteilig` über das Rechnungsblatt abrechnen; der Grad kommt von einem Menschen (O-04: er wird nicht geschätzt). Bis V-207 rechnete jede Rechnung Grad × Festpreis, ohne bisher Berechnetes abzuziehen — 30 % und danach 60 % ergaben 90 % des Festpreises. **Ausgeliefert ist der Gesamtstand** (`anteiligerRest`): die Zeile trägt `anteil(Festpreis, Grad) − Summe der wirksamen Zeilen derselben Vereinbarung`, einmal gerundet über den ganzen Stand, und ein Stand ohne Zuwachs blockiert mit einem Befund. Diese Lesart macht aus einer Verwechslung eine sichtbare Unterberechnung (die Vorschau zeigt das bisher Berechnete), die andere eine stille Doppelberechnung. Eine Schlussrechnung zählt die festgeschriebenen Abschläge ihres Auftrags nicht mit, weil sie sie abzieht (FIN-08, D-700 Nr. 5). Zu bestätigen: (1) Gesamtstand oder Zuwachs; (2) ob eine Abschlagsrechnung den Abschlag als kumulierten Stand mit Abzug der Vorabschläge ausweisen soll (§ 16 VOB/B lässt beides zu) — dann gehört die Aufstellung auf den Beleg und nicht nur in die Vorschau. Die Antwort ändert `anteiligerRest` und den Satz der Maske, nicht ihre Aufrufer. | FIN-01, FIN-08, O-04, V-207, D-700, `src/server/services/finanz/abrechnungsart/festpreis-los.ts` (`anteiligerRest`), `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts` (`abrFertigstellung`) |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
 | O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
@@ -18256,6 +18257,9 @@ Ausgabe- und die Sonderleistungsseite genau das versprachen.
    (dort dürfen mehrere Blätter nacheinander kommen; die Summe über Belege
    hinweg hält 0107). Ein zweiter Klick schriebe sonst dieselbe Pauschale
    doppelt. Das ist eine Ablaufregel der Maske, keine Abrechnungsregel.
+   *Berichtigt mit V-207:* über den einen Entwurf hinaus sperrte das nichts —
+   derselbe Monat ließ sich auf jeder weiteren Rechnung abrechnen. Die Sperre
+   über alle Belege steht in D-700.
 4. **Die Herkunft ist lesbar.** Eine Zeile aus einer Vereinbarung ohne Beleg
    (Monatspauschale) trägt die Art beim Namen und den Zeitraum deutsch
    („Monatspauschale laut Abrechnungsvereinbarung des Auftrags (01.08.2026 bis
@@ -18268,11 +18272,89 @@ Ausgabe- und die Sonderleistungsseite genau das versprachen.
    sichtbar unter `eingang.lesen` (sonst `<Recht>`). **Den Preis setzt der
    Mensch** — ob zum Einstand oder mit Aufschlag, ist offen (O-931); die Maske
    zeigt den Einstand nur als Auskunft. Nach einem Storno ist die Ausgabe
-   wieder frei (`gibQuellenFrei`).
+   wieder frei (`gibQuellenFrei`) — nach dem Verwerfen eines Entwurfs erst
+   seit V-207 (D-700 Nr. 8).
 6. **Einzelabrufe** laufen denselben Weg (Art `einzelabruf`); Sonderleistungs-,
    Ausgabe- und Abrechnungsseite nennen ihn jetzt. Einen automatischen
    Abrechnungslauf gibt es weiterhin nicht — die Übernahme ist ein Schritt
    eines Menschen am Entwurf.
 
 | Betrifft | FIN-01, FIN-05, FIN-07, O-04, O-53, O-931, D-350, D-697, D-698, V-206, `src/server/services/finanz/entwurf.ts`, `src/server/services/finanz/abrechnungsart/{index,typen}.ts`, `src/app/api/rechnungen/route.ts`, `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `src/app/portal/[mandant]/{auftraege/[id]/abrechnung,reinigung/sonderleistungen}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/belege.ts`, `tests/isolation/rechnung-entwurf.test.ts` §5, §6 |
+|---|---|
+
+### D-700 · Dieselbe Vereinbarung wird über alle Belege hinweg einmal berechnet — und ein verworfener Entwurf gibt frei (V-207)
+
+**Der Befund** (V-207, FIN-01, FIN-07, FIN-08): seit V-206 ist die
+Übernahme nach Abrechnungsart erreichbar, und ihre Sperre `schon_uebernommen`
+fragte nur DIESEN Entwurf. Stunde, Abruf und Ausgabe sperren sich in der
+Datenbank selbst (`quelle_zeiteintrag_uk`, `quelle_sonderleistung_uk`,
+`quelle_ausgabe_uk`), das Aufmaßblatt über seine Summe (0107). Eine
+Monatspauschale und ein Festpreis-Los haben keinen solchen Beleg: ihre Zeile
+trägt die Vereinbarung (`vertrag_abrechnung_id`), die Herkunft ist `manuell`
+mit Notiz, und keine Strategie las, was schon berechnet war. Derselbe August
+ließ sich auf beliebig vielen Rechnungen abrechnen, der volle Festpreis
+„nach Abnahme" stand auf jeder Rechnung, deren Zeitraum die Abnahme
+enthielt, und „anteilig" rechnete Grad × Festpreis, ohne bisher Berechnetes
+abzuziehen. Beim Nachprüfen fiel dazu auf: `verwerfe()` gab die Ansprüche
+eines Entwurfs nie frei — nur das Storno tat es —, obwohl 0107, die
+Verwerfen-Seite und D-699 Nr. 5 das Gegenteil sagten.
+
+**Die Entscheidung.**
+
+1. **Jede Strategie ohne eigenen Beleg bekommt die bisherigen Ansprüche**
+   (`AbrechnungsEingabe.bisher`, Pflichtfeld, geladen an EINER Stelle in
+   `berechneMitKonfiguration`): jede Zeile derselben Vereinbarung mit
+   WIRKSAMER Herkunft — festgeschrieben oder Entwurf, auch der eigene. Ein
+   Entwurf beansprucht wie bei der Stunde; frei wird der Anspruch mit Storno
+   oder Verwerfen. Arten mit eigenem Beleg (`stundenbasiert`, `einzelabruf`,
+   `einheitspreis_aufmass`) erklären `sperrtUeberBeleg: true` und bekommen
+   eine leere Liste; eine sechste Art ohne die Angabe bekommt die Liste.
+2. **Monatspauschale: ein Zeitraum einmal.** Überschneidet ein Abschnitt einen
+   bisherigen Anspruch, blockiert ein Befund mit Monat, Tagen und dem Beleg
+   (Nummer, oder „Entwurf vom …") — die ganze Übernahme, nicht still der eine
+   Monat. Eine VOLLE Pauschale (voller Monat oder `teilmonat = keine`)
+   beansprucht den ganzen Kalendermonat, sonst wären zwei halbe Novemberrechnungen
+   zwei volle Novemberpauschalen; anteilig nach Kalendertagen nur ihre Tage.
+   Das folgt aus dem hinterlegten Parameter, es ist keine neue Regel.
+3. **Festpreis-Los nach Abnahme: einmal.** Steht das Los schon auf einem
+   lebenden Beleg, blockiert ein Befund — auch auf einer Rechnung für einen
+   späteren Zeitraum.
+4. **Festpreis-Los anteilig: der Grad ist der Gesamtstand** (O-932). Die
+   Zeile trägt `anteil(Festpreis, Grad) − bisher Berechnetes`
+   (`anteiligerRest`, eine Rundung über den ganzen Stand: 30 %, 60 %, 100 %
+   ergeben zusammen genau den Festpreis). Ergibt der Stand nichts Neues,
+   blockiert ein Befund. Die Lesart „Zuwachs seit der letzten Rechnung" wäre
+   ebenso denkbar; ausgeliefert ist die, bei der eine Verwechslung eine
+   sichtbare Unterberechnung ergibt (die Vorschau zeigt das bisher Berechnete)
+   und keine stille Doppelberechnung. Maske und Befund sagen „Gesamtstand".
+5. **Die eine Ausnahme ist FIN-08.** Eine Schlussrechnung führt die
+   Gesamtleistung und zieht die festgeschriebenen Abschläge und Anzahlungen
+   ihres Auftrags ab; die Festschreibung hält an, solange einer nicht
+   abgezogen ist (`offeneAbschlaege`). Für sie zählen deren Ansprüche nicht —
+   sonst stünde derselbe Betrag zweimal gegen den Kunden, einmal weggelassen
+   und einmal abgezogen. Ein Abschlag im Entwurf zählt weiter (abziehen lässt
+   er sich erst mit Nummer).
+6. **Nebenläufigkeit.** Die Übernahme sperrt den Entwurf (`for update`) und
+   die Vereinbarung (`pg_advisory_xact_lock`, dieselbe Machart wie
+   Firmenanlage und Dienstplangenerator), bevor sie liest, was schon
+   berechnet ist. Eine Datenbanksperre wie bei der Stunde gibt es nicht: die
+   Regel hängt an Art, Parameter und Rechnungsart, und eine zweite Fassung
+   davon in SQL liefe auseinander. Der Schreibweg ist einer
+   (`bestueckeAusAbrechnungsart`).
+7. **Das Rechnungsblatt zeigt, was schon berechnet ist** („Aus dieser
+   Vereinbarung schon berechnet": Beleg als Link, Zeitraum, Netto) vor den
+   Befunden, zweisprachig.
+8. **Ein verworfener Entwurf gibt frei.** `verwerfe()` ruft jetzt
+   `gibQuellenFrei()` und nimmt die Abzüge eines verworfenen
+   Schlussrechnungsentwurfs zurück. Weil verwerfen darf, wer
+   `finanzen.entwurf_verwerfen` hält (für `leitung` bindbar, ohne
+   `finanzen.schreiben`), trägt 0442 je eine enge Update-Policy
+   `t_verwerfen_gibt_frei` (nur am verworfenen Beleg, nur `wirksam` nach
+   unten) und holt die Freigabe für schon Verworfenes nach. 0441 lässt die
+   reine Rücknahme eines Abzugs durch `fin.abschlag_pruefen`, auch wenn der
+   Abschlag inzwischen storniert ist.
+
+D-699 Nr. 3 und Nr. 5 an Ort und Stelle mit Verweis berichtigt.
+
+| Betrifft | FIN-01, FIN-07, FIN-08, O-04, O-932, D-362, D-699, V-206, V-207, `src/server/services/finanz/abrechnungsart/{typen,index,monatspauschale,festpreis-los,stunden,einzelabruf,einheitspreis-aufmass}.ts`, `src/server/services/finanz/{entwurf,rechnung}.ts`, `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts`, `drizzle/0441`, `drizzle/0442`, `tests/isolation/rechnung-entwurf.test.ts` §4, §7, `tests/kern/abrechnungsart.test.ts` |
 |---|---|

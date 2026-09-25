@@ -869,6 +869,25 @@ export async function verwerfe(
       'kein_entwurf',
     );
   }
+
+  /**
+   * **Und seine Ansprüche werden frei** (V-207, D-700). Die Verwerfen-Seite
+   * und D-699 sagten es seit jeher — getan hat es bis V-207 nur das Storno:
+   * ein verworfener Entwurf hielt seine Zeiteinträge (`abgerechnet_am`),
+   * seine Abrufe, seine Ausgabe und — seit V-207 — seinen Monat aus der
+   * Pauschale für immer fest, und niemand konnte sie je wieder berechnen.
+   * Die Zeilen bleiben stehen (Invariante 8); `wirksam` fällt, wie 0107 es
+   * für einen verworfenen Beleg ausdrücklich zulässt.
+   *
+   * Dasselbe für die Abschläge, die ein verworfener SCHLUSSRECHNUNGSentwurf
+   * abgezogen hatte: sonst hielte er sie gegen die nächste Schlussrechnung
+   * fest („wird bereits von einer anderen Schlussrechnung abgezogen").
+   */
+  await gibQuellenFrei(db, rechnungId);
+  await db.abfrage(
+    `update abschlagsrechnung_bezug set wirksam = false
+      where schluss_rechnung_id = $1::uuid and wirksam`,
+    [rechnungId]);
 }
 
 // ---------------------------------------------------------------------------

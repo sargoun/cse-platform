@@ -11,7 +11,7 @@ import { schreibeSteuerfall } from './steuerfall.js';
 import { zahlungsmittelCode } from './zahlungsmittel.js';
 import {
   AbrechnungFehler, berechneAbrechnung, bestueckeAusAbrechnungsart, hole, ladeKonfiguration,
-  type AbrechnungsBefund, type RechnungspositionEntwurf,
+  type AbrechnungsBefund, type BisherigerAnspruch, type RechnungspositionEntwurf,
 } from './abrechnungsart/index.js';
 
 /**
@@ -334,14 +334,19 @@ interface EntwurfZeitraum {
  * Abrechnungsart rechnen kann. Beide stehen im Kopf und nirgends sonst: die
  * Periode der Abrechnung IST der Leistungszeitraum des Belegs (FIN-05).
  */
-async function ladeZeitraum(db: Abfrage, rechnungId: string): Promise<{
+async function ladeZeitraum(db: Abfrage, rechnungId: string, sperren = false): Promise<{
   auftragId: string; periode: { von: string; bis: string };
 }> {
+  /*
+   * Die Übernahme SPERRT den Entwurf (V-207): zwei gleichzeitige Absendungen
+   * — ein Doppelklick — lasen sonst beide „noch nicht übernommen" und
+   * schrieben beide. Die Vorschau liest ohne Sperre; sie schreibt nichts.
+   */
   const [r] = await db.abfrage<EntwurfZeitraum>(
     `select status::text as status, auftrag_id::text as auftrag_id,
             to_char(leistung_von, 'YYYY-MM-DD') as von,
             to_char(leistung_bis, 'YYYY-MM-DD') as bis
-       from rechnung where id = $1::uuid`,
+       from rechnung where id = $1::uuid${sperren ? ' for update' : ''}`,
     [rechnungId]);
   if (r === undefined) {
     throw new RechnungFehler(`Rechnung ${rechnungId} nicht gefunden`, 'nicht_gefunden');
@@ -396,10 +401,16 @@ export interface AbrechnungsVorschau {
   readonly positionen: readonly RechnungspositionEntwurf[];
   /** Zeilen dieses Entwurfs aus derselben Vereinbarung. */
   readonly schonUebernommen: number;
+  /**
+   * Was aus derselben Vereinbarung schon auf ANDEREN lebenden Belegen steht
+   * (V-207) — das Blatt nennt es, bevor jemand übernimmt.
+   */
+  readonly bisherAnderswo: readonly BisherigerAnspruch[];
 }
 
 const LEER_VORSCHAU = {
   art: null, gueltigAb: null, befunde: [], positionen: [], schonUebernommen: 0,
+  bisherAnderswo: [],
 } as const;
 
 /**
@@ -427,13 +438,14 @@ export async function vorschauAbrechnungsart(
   try {
     await pruefeLeistungszeile(db, zeitraum.auftragId, auftragLeistungId);
     const ergebnis = await berechneAbrechnung(db, {
-      auftragId: zeitraum.auftragId, auftragLeistungId, periode: zeitraum.periode,
+      auftragId: zeitraum.auftragId, auftragLeistungId, periode: zeitraum.periode, rechnungId,
     });
     const [schon] = await db.abfrage<{ n: string }>(
       `select count(*)::text as n from rechnungsposition
         where rechnung_id = $1::uuid and vertrag_abrechnung_id = $2::uuid`,
       [rechnungId, ergebnis.konfiguration.id]);
     return {
+      bisherAnderswo: ergebnis.bisher.filter((a) => a.rechnungId !== rechnungId),
       auftragId: zeitraum.auftragId,
       grund: null,
       meldung: null,
@@ -478,6 +490,11 @@ export async function vorschauAbrechnungsart(
  *    dieselbe Pauschale ein zweites Mal. Eine Vereinbarung wird deshalb je
  *    Entwurf einmal übernommen (D-699 Nr. 3); beim Aufmaß je Blatt einmal,
  *    weil dort mehrere Blätter nacheinander kommen dürfen.
+ *  - **Schon auf einem ANDEREN Beleg?** Das beantwortet die Strategie
+ *    (V-207, D-700): sie bekommt jeden lebenden Anspruch derselben
+ *    Vereinbarung und weist denselben Monat, dasselbe Los ein zweites Mal
+ *    mit einem Befund ab. `bestueckeAusAbrechnungsart` sperrt dafür die
+ *    Vereinbarung, dieser Entwurf ist hier schon gesperrt.
  *
  * Blockiert die Strategie mit einem Befund, entsteht keine Zeile, und der
  * Fehler nennt die Befunde — eine Übernahme, die „erfolgreich nichts"
@@ -486,11 +503,11 @@ export async function vorschauAbrechnungsart(
 export async function uebernimmAbrechnungsart(
   db: Abfrage, rechnungId: string, eingabe: Uebernahme,
 ): Promise<{ readonly positionIds: readonly string[] }> {
-  const { auftragId, periode } = await ladeZeitraum(db, rechnungId);
+  const { auftragId, periode } = await ladeZeitraum(db, rechnungId, true);
   const zeile = eingabe.auftragLeistungId ?? null;
   await pruefeLeistungszeile(db, auftragId, zeile);
   const auftrag = {
-    auftragId, auftragLeistungId: zeile, periode,
+    auftragId, auftragLeistungId: zeile, periode, rechnungId,
     aufmassIds: eingabe.aufmassIds, fertigstellungBp: eingabe.fertigstellungBp,
   };
 

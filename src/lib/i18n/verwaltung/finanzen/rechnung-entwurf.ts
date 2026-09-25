@@ -53,6 +53,10 @@ export interface RechnungEntwurfTexte {
   readonly abrZeitraum: string;
   readonly abrKeineZeilen: string;
   readonly abrSchonUebernommen: string;
+  /* V-207: was aus derselben Vereinbarung schon auf anderen Belegen steht. */
+  readonly abrBisherTitel: string;
+  readonly abrBisherEntwurf: string;
+  readonly abrBisherHinweis: string;
   readonly abrLeistungszeile: string;
   readonly abrGanzerAuftrag: string;
   readonly abrVorschauFuerZeile: string;
@@ -137,6 +141,12 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
     abrSchonUebernommen:
       'Aus dieser Vereinbarung stehen schon Zeilen auf dem Entwurf. Ein zweites Mal '
       + 'wird sie nicht übernommen.',
+    abrBisherTitel: 'Aus dieser Vereinbarung schon berechnet',
+    abrBisherEntwurf: 'Entwurf vom',
+    abrBisherHinweis:
+      'Derselbe Monat, dasselbe Los wird nicht ein zweites Mal berechnet. Frei wird ein '
+      + 'Anspruch erst, wenn sein Beleg storniert oder verworfen ist. Eine Schlussrechnung '
+      + 'sieht die festgeschriebenen Abschläge ihres Auftrags hier nicht — sie zieht sie ab.',
     abrLeistungszeile: 'Leistungszeile',
     abrGanzerAuftrag: '— ganzer Auftrag —',
     abrVorschauFuerZeile: 'Vorschau für diese Zeile',
@@ -145,8 +155,12 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       'Abgerechnet wird nur, was ausdrücklich gewählt ist — ein still '
       + 'übersprungenes Blatt wäre eine Rechnung mit fehlender Leistung.',
     abrKeineAufmasse: 'Zu diesem Auftrag gibt es kein Aufmaßblatt.',
-    abrFertigstellung: 'Fertigstellungsgrad in % (nur bei anteiliger Abrechnung)',
-    abrFertigstellungHinweis: 'Zum Beispiel „40" oder „62,5". Leer bei Abrechnung nach Abnahme.',
+    abrFertigstellung:
+      'Fertigstellungsgrad in %, Gesamtstand (nur bei anteiliger Abrechnung)',
+    abrFertigstellungHinweis:
+      'Zum Beispiel „40" oder „62,5": der Stand der ganzen Leistung, nicht der Zuwachs '
+      + 'seit der letzten Rechnung — bisher Berechnetes wird abgezogen (O-932). Leer bei '
+      + 'Abrechnung nach Abnahme.',
     abrUebernehmen: 'Zeilen übernehmen',
     aufmassStatus: {
       entwurf: 'Entwurf',
@@ -289,6 +303,13 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
     abrSchonUebernommen:
       'Lines from this agreement are already on the draft. It is not taken over a '
       + 'second time.',
+    abrBisherTitel: 'Already billed from this agreement',
+    abrBisherEntwurf: 'Draft of',
+    abrBisherHinweis:
+      'The same month, the same lot is not billed a second time. A claim becomes free '
+      + 'again only when its document is cancelled (Storno) or discarded. A '
+      + 'Schlussrechnung does not see the finalised Abschläge of its order here — it '
+      + 'deducts them.',
     abrLeistungszeile: 'Contract line',
     abrGanzerAuftrag: '— whole order —',
     abrVorschauFuerZeile: 'Preview for this line',
@@ -297,9 +318,11 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       'Only what is explicitly selected is billed — a silently skipped sheet would '
       + 'be an invoice with missing work.',
     abrKeineAufmasse: 'There is no Aufmaß sheet for this order.',
-    abrFertigstellung: 'Degree of completion in % (partial billing only)',
+    abrFertigstellung: 'Degree of completion in %, overall (partial billing only)',
     abrFertigstellungHinweis:
-      'For example “40” or “62,5” (German decimal comma). Blank when billing on acceptance.',
+      'For example “40” or “62,5” (German decimal comma): the state of the whole work, '
+      + 'not the increase since the last invoice — what was billed before is deducted '
+      + '(O-932). Blank when billing on acceptance.',
     abrUebernehmen: 'Take over lines',
     aufmassStatus: {
       entwurf: 'draft',

@@ -1221,6 +1221,32 @@ export default async function Rechnungsblatt(
                         {tagInSprache(ent.vorschau.gueltigAb, zugang.sprache)}
                       </dd></div>
                   </dl>
+                  {/*
+                    * V-207 (D-700): was aus derselben Vereinbarung schon auf
+                    * anderen lebenden Belegen steht — VOR den Befunden, damit
+                    * „ist schon berechnet" einen Beleg hat, den man öffnen kann.
+                    */}
+                  {ent.vorschau.bisherAnderswo.length === 0 ? null : (
+                    <div className="mt-s3" data-cse="abrechnung-bisher">
+                      <h3 className="mb-s2 text-sm text-text">{e.abrBisherTitel}</h3>
+                      <ul className="list-disc pl-s5 text-sm text-text">
+                        {ent.vorschau.bisherAnderswo.map((a) => (
+                          <li key={`${a.rechnungId}-${a.leistungVon ?? ''}-${String(a.nettoCent)}`}>
+                            <Link
+                              href={`/portal/${mandant}/finanzen/rechnungen/${a.rechnungId}`}
+                              className="underline underline-offset-2"
+                            >
+                              {a.nummer ?? `${e.abrBisherEntwurf} ${tagInSprache(a.angelegtAm, zugang.sprache)}`}
+                            </Link>
+                            {a.leistungVon === null ? '' : ` · ${tagInSprache(a.leistungVon, zugang.sprache)} – ${
+                              tagInSprache(a.leistungBis, zugang.sprache)}`}
+                            {' · '}{formatiereGeldIn(a.nettoCent, zugang.sprache)}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-s1 text-xs text-text-muted">{e.abrBisherHinweis}</p>
+                    </div>
+                  )}
                   {ent.vorschau.befunde.length === 0 ? null : (
                     <Hinweis art="warnung" cse="abrechnung-befunde" className="mt-s3">
                       <p className="font-semibold">{e.abrBefunde}</p>

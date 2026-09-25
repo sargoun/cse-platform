@@ -22,6 +22,7 @@
 import { type Cent, cent } from '../geld.js';
 import { type MilliMenge, mengeAusPostgres, milliMenge } from '../menge.js';
 import type { Abfrage } from '../rechnung.js';
+import { tagDeutsch } from '../../../../lib/datum/kalendertag.js';
 
 /**
  * Die fuenf Schluessel — WOERTLICH die Werte des Aufzaehlungstyps
@@ -162,10 +163,66 @@ export interface VertragAbrechnung {
   readonly gueltigBis: string | null;
 }
 
+/**
+ * **Ein Anspruch aus DIESER Vereinbarung, der schon auf einem lebenden Beleg
+ * steht** (V-207, D-700).
+ *
+ * Eine Stunde, ein Abruf, eine Ausgabe sperren sich in der Datenbank selbst
+ * (`quelle_zeiteintrag_uk`, `quelle_sonderleistung_uk`, `quelle_ausgabe_uk`),
+ * ein Aufmaßblatt über seine Summe (0107). Eine Monatspauschale und ein
+ * Festpreis-Los haben keinen solchen Beleg — ihre Zeile trägt die
+ * Vereinbarung selbst (`rechnungsposition.vertrag_abrechnung_id`). Was davon
+ * schon berechnet ist, kann deshalb nur die Strategie beurteilen, und dafür
+ * bekommt sie diese Liste.
+ *
+ * „Lebend" heisst: die Zeile hat eine WIRKSAME Herkunft — derselbe Maßstab
+ * wie bei jeder anderen Doppelabrechnungssperre. Ein Storno oder ein
+ * verworfener Entwurf setzt `wirksam` auf `false` (`gibQuellenFrei`), und der
+ * Anspruch ist wieder frei (Invariante 8: die Zeile bleibt stehen).
+ */
+export interface BisherigerAnspruch {
+  readonly rechnungId: string;
+  /** Die Nummer des Belegs — `null` bei einem Entwurf (Invariante 4). */
+  readonly nummer: string | null;
+  /** Nur für einen Entwurf: der Tag, an dem er angelegt wurde (`JJJJ-MM-TT`). */
+  readonly angelegtAm: string;
+  readonly leistungVon: string | null;
+  readonly leistungBis: string | null;
+  readonly nettoCent: Cent;
+}
+
+/**
+ * Überschneidet sich ein Anspruch mit diesem Abschnitt — um mindestens einen
+ * Kalendertag, beide Grenzen einschließlich?
+ *
+ * Ein Anspruch ohne Zeitraum (den eine Strategie nie schreibt, weil
+ * `nach_leistungsnachweis` blockiert) gilt als überall: wer nicht weiss,
+ * welche Tage er deckt, darf keinen Tag freigeben.
+ */
+export function ueberschneidet(anspruch: BisherigerAnspruch, abschnitt: Periode): boolean {
+  if (anspruch.leistungVon === null || anspruch.leistungBis === null) return true;
+  return anspruch.leistungVon <= abschnitt.bis && abschnitt.von <= anspruch.leistungBis;
+}
+
+/** Wie ein Befund den Beleg nennt — mit Nummer, oder als Entwurf mit Tag. */
+export function belegBenannt(anspruch: BisherigerAnspruch): string {
+  return anspruch.nummer !== null
+    ? `Rechnung ${anspruch.nummer}`
+    : `einem Entwurf vom ${tagDeutsch(anspruch.angelegtAm)}`;
+}
+
 /** Was eine Strategie zum Rechnen bekommt. */
 export interface AbrechnungsEingabe {
   readonly konfiguration: VertragAbrechnung;
   readonly periode: Periode;
+  /**
+   * Was aus dieser Vereinbarung schon auf lebenden Belegen steht (V-207,
+   * D-700) — ohne die festgeschriebenen Abschläge und Anzahlungen, die eine
+   * SCHLUSSRECHNUNG ohnehin abzieht (FIN-08). Pflicht und nicht optional:
+   * eine Strategie ohne eigenen Beleg, die diese Liste nicht liest, rechnet
+   * denselben Monat auf jeder weiteren Rechnung noch einmal ab.
+   */
+  readonly bisher: readonly BisherigerAnspruch[];
   /**
    * Die AUSDRUECKLICH abzurechnenden Aufmassblaetter (`einheitspreis_aufmass`).
    * Ausdruecklich und nicht gesucht: ein Blatt, das die Strategie still
@@ -198,6 +255,17 @@ export interface Abrechnungsart {
   readonly istProvisorisch: boolean;
   /** Die Parameterschluessel, die auf `vertrag_abrechnung.parameter` stehen muessen. */
   readonly offeneParameter: readonly OffenerParameter[];
+  /**
+   * `true`: jede Zeile dieser Art hängt an einem Beleg, den die DATENBANK
+   * gegen eine zweite Abrechnung sperrt — der Zeiteintrag
+   * (`quelle_zeiteintrag_uk`), der Abruf (`quelle_sonderleistung_uk`), das
+   * Aufmaßblatt über seine Summe (0107). Dann bleibt `eingabe.bisher` leer.
+   *
+   * Fehlt die Angabe, bekommt die Strategie die Liste (V-207, D-700): eine
+   * sechste Art ohne eigenen Beleg ist damit von Anfang an gegen denselben
+   * Anspruch auf zwei Rechnungen gewappnet — sofern sie die Liste liest.
+   */
+  readonly sperrtUeberBeleg?: boolean;
   positionen(db: Abfrage, eingabe: AbrechnungsEingabe):
   Promise<readonly RechnungspositionEntwurf[]>;
   pruefe(db: Abfrage, eingabe: AbrechnungsEingabe): Promise<readonly AbrechnungsBefund[]>;

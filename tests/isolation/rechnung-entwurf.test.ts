@@ -4,7 +4,7 @@ import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import { cent } from '../../src/server/services/finanz/geld.js';
 import { milliMenge } from '../../src/server/services/finanz/menge.js';
 import {
-  finalisiere, fuegePositionHinzu, legeEntwurfAn, storniere, vonHand, type Abfrage,
+  finalisiere, fuegePositionHinzu, legeEntwurfAn, storniere, verwerfe, vonHand, type Abfrage,
   type EntwurfRechnungsart,
 } from '../../src/server/services/finanz/rechnung.js';
 import { pruefeZeiterfassung } from '../../src/server/services/finanz/positionsquelle.js';
@@ -31,6 +31,10 @@ import {
  *     Wechsel der Art, und die festgeschriebene Schlussrechnung.
  *  §5 Die Abrechnungsart rechnet auf einer Rechnung — einmal je Entwurf.
  *  §6 Material aus einer Ausgabe — genau einmal, und nur die passende.
+ *  §7 Dieselbe Vereinbarung auf ZWEI Belegen (V-207, D-700): derselbe
+ *     Monat, dasselbe Los wird nicht noch einmal berechnet — frei erst nach
+ *     Storno oder Verwerfen; der Fertigstellungsgrad ist der Gesamtstand;
+ *     eine Schlussrechnung führt, was ihre Abschläge schon trugen.
  */
 
 let f: Fixtur;
@@ -431,6 +435,42 @@ describe('§4 Abschlag und Schlussrechnung am Auftrag (V-205, FIN-08)', () => {
     expect(fest.abzug).toBe('1190000');
     expect(BigInt(fest.zahlbetrag)).toBe(BigInt(fest.brutto) - 1_190_000n);
   });
+
+  it('ein inzwischen stornierter Abschlag hält den Kopf nicht fest (0441) — der Abzug '
+    + 'fällt mit dem Wechsel, statt als Datenbankfehler zu enden', async () => {
+    const auftrag = await legeAuftragAn(kundeId);
+    /* Mit Zeitraum: ein Abschlag nur mit Vereinnahmung lässt sich nicht stornieren. */
+    const abschlag = await entwurf({
+      auftrag, art: 'abschlag', von: '2026-07-01', bis: '2026-07-31',
+    });
+    await festschreiben(abschlag);
+    const schluss = await entwurf({ auftrag, art: 'schluss', netto: 3_000_000n });
+    await imDienst((d) => schreibeVerrechnung(d, schluss));
+    await imDienst((d) => storniere(d, abschlag, 'Abschlag mit falschem Betrag gestellt'));
+
+    const zurueck = await imDienst(async (d) => aendereEntwurfKopf(d, schluss,
+      await kopfMit(schluss, { rechnungsart: 'standard' })));
+    expect(zurueck.abzugZurueckgenommen).toBe(true);
+    expect((await kopf(schluss)).abzug).toBe('0');
+  });
+
+  it('ein verworfener Schlussrechnungsentwurf gibt seine Abschläge frei (0442)', async () => {
+    const auftrag = await legeAuftragAn(kundeId);
+    await festschreiben(await entwurf({
+      auftrag, art: 'abschlag', von: null, bis: null, vereinnahmung: '2026-07-15',
+    }));
+    const erste = await entwurf({ auftrag, art: 'schluss', netto: 3_000_000n });
+    await imDienst((d) => schreibeVerrechnung(d, erste));
+    await imDienst((d) => verwerfe(d, erste, 'Falsche Leistungsbeschreibung'));
+
+    const zweite = await entwurf({ auftrag, art: 'schluss', netto: 3_000_000n });
+    await imDienst((d) => schreibeVerrechnung(d, zweite));
+    expect((await kopf(zweite)).abzug).toBe('1190000');
+    const [alt] = await sql.unsafe<{ n: string }[]>(
+      `select count(*) filter (where wirksam)::text as n from abschlagsrechnung_bezug
+        where schluss_rechnung_id = $1`, [erste]);
+    expect(alt!.n).toBe('0');
+  });
 });
 
 describe('§5 die Abrechnungsart rechnet auf einer Rechnung (V-206, FIN-01)', () => {
@@ -623,5 +663,235 @@ describe('§6 Material aus einer Ausgabe (V-206, FIN-07)', () => {
         order by erstellt_am`, [a]);
     expect(zeilen.map((z) => z.wirksam)).toContain(true);
     expect(zeilen.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('§7 dieselbe Vereinbarung auf zwei Belegen (V-207, D-700)', () => {
+  /** Ein Auftrag mit EINER Vereinbarung und einer Vertragszeile für den Satz. */
+  async function vereinbarung(
+    art: 'monatspauschale' | 'festpreis_los', parameter: Record<string, string>,
+  ): Promise<string> {
+    const auftrag = await legeAuftragAn(kundeId);
+    const pauschal = art === 'monatspauschale';
+    await sql.unsafe(
+      `insert into vertrag_abrechnung
+         (mandant_id, auftrag_id, abrechnungsart, parameter, pauschale_netto_cent,
+          festpreis_netto_cent, abrechnungsintervall, leistungszeitraum_modus, gueltig_ab)
+       values ($1,$2,$3::abrechnungsart,($4::text)::jsonb,$5::bigint,$6::bigint,
+               $7::abrechnungsintervall,$8::leistungszeitraum_modus,'2026-01-01')`,
+      [f.reinigung, auftrag, art, JSON.stringify(parameter),
+       pauschal ? 240_000 : null, pauschal ? null : 1_000_000,
+       pauschal ? 'monatlich' : 'einmalig', pauschal ? 'kalendermonat' : 'manuell'] as never[]);
+    await sql.unsafe(
+      `insert into auftrag_leistung (mandant_id, auftrag_id, position_nr, bezeichnung, einheit,
+                                     einzelpreis_cent, steuersatz_bp, steuer_kennzeichen,
+                                     gueltig_ab)
+       values ($1,$2,1,'Leistung laut Vereinbarung','psch',240000,1900,'regelsatz',
+               '2026-01-01')`,
+      [f.reinigung, auftrag] as never[]);
+    return auftrag;
+  }
+
+  /** Ein leerer Entwurf am Auftrag — ohne Zeile von Hand. */
+  async function leer(
+    auftrag: string, von: string, bis: string, art: EntwurfRechnungsart = 'standard',
+  ): Promise<string> {
+    return imDienst((d) => legeEntwurfAn(d, {
+      kundeId, auftragId: auftrag, rechnungsart: art, leistungVon: von, leistungBis: bis,
+      zahlungszielTage: 30,
+    }));
+  }
+
+  async function netto(rechnungId: string): Promise<readonly string[]> {
+    return (await sql.unsafe<{ n: string }[]>(
+      `select netto_cent::text as n from rechnungsposition where rechnung_id = $1
+        order by position_nr`, [rechnungId])).map((z) => z.n);
+  }
+
+  it('Monatspauschale: derselbe August auf einer zweiten Rechnung wird abgewiesen — '
+    + 'der September nicht, und nach dem Storno ist der August wieder frei', async () => {
+    const auftrag = await vereinbarung('monatspauschale', { teilmonat: 'keine' });
+    const a = await leer(auftrag, '2026-08-01', '2026-08-31');
+    await imDienst((d) => uebernimmAbrechnungsart(d, a, {}));
+    const nummerA = await festschreiben(a);
+
+    const b = await leer(auftrag, '2026-08-01', '2026-08-31');
+    const vorschau = await imDienst((d) => vorschauAbrechnungsart(d, b));
+    expect(vorschau.positionen).toEqual([]);
+    expect(vorschau.bisherAnderswo.map((x) => x.nummer)).toEqual([nummerA]);
+    const befund = vorschau.befunde.find((x) => x.art === 'fehler');
+    expect(befund?.textDe).toContain(nummerA);
+    expect(befund?.textDe).toMatch(/01\.08\.2026 bis 31\.08\.2026/u);
+    const fehler = await fehlerVon(imDienst((d) => uebernimmAbrechnungsart(d, b, {})));
+    expect(fehler?.grund).toBe('befund_blockiert');
+    expect(await netto(b)).toEqual([]);
+
+    /* Juli bis September: der August steckt mittendrin — die ganze Übernahme hält an. */
+    const quartal = await leer(auftrag, '2026-07-01', '2026-09-30');
+    expect((await fehlerVon(imDienst((d) => uebernimmAbrechnungsart(d, quartal, {}))))?.grund)
+      .toBe('befund_blockiert');
+    expect(await netto(quartal)).toEqual([]);
+
+    const september = await leer(auftrag, '2026-09-01', '2026-09-30');
+    await imDienst((d) => uebernimmAbrechnungsart(d, september, {}));
+    expect(await netto(september)).toEqual(['240000']);
+
+    await imDienst((d) => storniere(d, a, 'Pauschale mit falschem Leistungsempfänger'));
+    await imDienst((d) => uebernimmAbrechnungsart(d, b, {}));
+    expect(await netto(b)).toEqual(['240000']);
+  });
+
+  it('„teilmonat = keine": zwei Hälften desselben Monats sind nicht zwei Pauschalen', async () => {
+    const auftrag = await vereinbarung('monatspauschale', { teilmonat: 'keine' });
+    const ersteHaelfte = await leer(auftrag, '2026-10-01', '2026-10-15');
+    await imDienst((d) => uebernimmAbrechnungsart(d, ersteHaelfte, {}));
+    expect(await netto(ersteHaelfte)).toEqual(['240000']);
+    const zweiteHaelfte = await leer(auftrag, '2026-10-16', '2026-10-31');
+    expect((await fehlerVon(imDienst((d) =>
+      uebernimmAbrechnungsart(d, zweiteHaelfte, {}))))?.grund).toBe('befund_blockiert');
+  });
+
+  it('anteilig nach Kalendertagen deckt nur seine Tage — die zweite Hälfte bleibt abrechenbar',
+    async () => {
+      const auftrag = await vereinbarung('monatspauschale', { teilmonat: 'kalendertage' });
+      const ersteHaelfte = await leer(auftrag, '2026-11-01', '2026-11-15');
+      await imDienst((d) => uebernimmAbrechnungsart(d, ersteHaelfte, {}));
+      const zweiteHaelfte = await leer(auftrag, '2026-11-16', '2026-11-30');
+      await imDienst((d) => uebernimmAbrechnungsart(d, zweiteHaelfte, {}));
+      /* 15/30 und 15/30 von 2.400,00 € — zusammen genau eine Pauschale. */
+      expect([...await netto(ersteHaelfte), ...await netto(zweiteHaelfte)])
+        .toEqual(['120000', '120000']);
+      const nochmal = await leer(auftrag, '2026-11-10', '2026-11-20');
+      expect((await fehlerVon(imDienst((d) => uebernimmAbrechnungsart(d, nochmal, {}))))
+        ?.grund).toBe('befund_blockiert');
+    });
+
+  it('ein ENTWURF beansprucht den Monat schon — verworfen gibt er ihn frei', async () => {
+    const auftrag = await vereinbarung('monatspauschale', { teilmonat: 'keine' });
+    const erster = await leer(auftrag, '2026-12-01', '2026-12-31');
+    await imDienst((d) => uebernimmAbrechnungsart(d, erster, {}));
+    const zweiter = await leer(auftrag, '2026-12-01', '2026-12-31');
+    const vorschau = await imDienst((d) => vorschauAbrechnungsart(d, zweiter));
+    expect(vorschau.bisherAnderswo.map((x) => x.nummer)).toEqual([null]);
+    expect(vorschau.befunde.find((x) => x.art === 'fehler')?.textDe).toMatch(/Entwurf vom/u);
+
+    await imDienst((d) => verwerfe(d, erster, 'Doppelt angelegt'));
+    await imDienst((d) => uebernimmAbrechnungsart(d, zweiter, {}));
+    expect(await netto(zweiter)).toEqual(['240000']);
+    /* Die Zeile des verworfenen Entwurfs steht noch da (Invariante 8) — unwirksam. */
+    const alt = await sql.unsafe<{ wirksam: boolean }[]>(
+      `select q.wirksam from rechnungsposition_quelle q where q.rechnung_id = $1`, [erster]);
+    expect(alt.map((z) => z.wirksam)).toEqual([false]);
+  });
+
+  it('verwerfen darf auch, wer nur das Verwerfen hält — und die Ansprüche werden frei (0442)',
+    async () => {
+      const auftrag = await vereinbarung('monatspauschale', { teilmonat: 'keine' });
+      const entwurfId = await leer(auftrag, '2027-01-01', '2027-01-31');
+      await imDienst((d) => uebernimmAbrechnungsart(d, entwurfId, {}));
+
+      const email = `verwerfen-${zufall()}@cse.test`;
+      const [u] = await sql.unsafe<{ id: string }[]>(
+        `insert into auth.users (email) values ($1) returning id`, [email]);
+      await sql.unsafe(
+        `insert into benutzer (id, email, name, status) values ($1,$2,'Leitung','aktiv')`,
+        [u!.id, email]);
+      const [r] = await sql.unsafe<{ id: string }[]>(
+        `insert into rolle (mandant_id, schluessel, bezeichnung, geltungsbereich, portal)
+         values ($1, $2, $2, 'mandant', 'intern') returning id`,
+        [f.reinigung, `nur_verwerfen_${zufall()}`]);
+      await sql.unsafe(
+        `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+         select $1, b.id, $2, true from berechtigung b
+          where b.schluessel = any($3::text[])`,
+        [r!.id, f.reinigung, ['finanzen.lesen', 'finanzen.entwurf_verwerfen']]);
+      await sql.unsafe(
+        `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab)
+         values ($1,$2,$3,current_date - 1)`, [u!.id, f.reinigung, r!.id]);
+
+      await alsApp({
+        scope: 'mandant', mandantId: f.reinigung, benutzerId: u!.id, portal: 'intern',
+        readonly: false,
+      }, (tx) => verwerfe(alsDienst(tx), entwurfId, 'Kunde hat gekündigt'));
+
+      expect((await kopf(entwurfId)).status).toBe('verworfen');
+      const quellen = await sql.unsafe<{ wirksam: boolean }[]>(
+        `select wirksam from rechnungsposition_quelle where rechnung_id = $1`, [entwurfId]);
+      expect(quellen.map((q) => q.wirksam)).toEqual([false]);
+      const neu = await leer(auftrag, '2027-01-01', '2027-01-31');
+      await imDienst((d) => uebernimmAbrechnungsart(d, neu, {}));
+      expect(await netto(neu)).toEqual(['240000']);
+    });
+
+  it('Festpreis-Los nach Abnahme: EINMAL — auch nicht auf einer Rechnung für später', async () => {
+    const auftrag = await vereinbarung('festpreis_los', { teilleistung: 'erst_bei_abnahme' });
+    await sql.unsafe(`update auftrag set abnahme_am = '2026-08-15' where id = $1`, [auftrag]);
+    const august = await leer(auftrag, '2026-08-01', '2026-08-31');
+    await imDienst((d) => uebernimmAbrechnungsart(d, august, {}));
+    expect(await netto(august)).toEqual(['1000000']);
+    const nummer = await festschreiben(august);
+
+    const september = await leer(auftrag, '2026-09-01', '2026-09-30');
+    const vorschau = await imDienst((d) => vorschauAbrechnungsart(d, september));
+    expect(vorschau.befunde.find((x) => x.art === 'fehler')?.textDe).toContain(nummer);
+    expect((await fehlerVon(imDienst((d) => uebernimmAbrechnungsart(d, september, {}))))
+      ?.grund).toBe('befund_blockiert');
+    expect(await netto(september)).toEqual([]);
+  });
+
+  it('Festpreis-Los anteilig: der Grad ist der Gesamtstand — 30 %, dann 60 %, dann 100 % '
+    + 'ergeben zusammen genau den Festpreis', async () => {
+    const auftrag = await vereinbarung('festpreis_los', { teilleistung: 'anteilig' });
+    const erste = await leer(auftrag, '2026-06-01', '2026-06-30');
+    await imDienst((d) => uebernimmAbrechnungsart(d, erste, { fertigstellungBp: 3000 }));
+    const zweite = await leer(auftrag, '2026-07-01', '2026-07-31');
+    await imDienst((d) => uebernimmAbrechnungsart(d, zweite, { fertigstellungBp: 6000 }));
+    expect([...await netto(erste), ...await netto(zweite)]).toEqual(['300000', '300000']);
+
+    /* Kein Zuwachs: 50 % sind weniger als die berechneten 60 % — keine Zeile. */
+    const rueckschritt = await leer(auftrag, '2026-08-01', '2026-08-31');
+    const fehler = await fehlerVon(imDienst((d) =>
+      uebernimmAbrechnungsart(d, rueckschritt, { fertigstellungBp: 5000 })));
+    expect(fehler?.grund).toBe('befund_blockiert');
+    expect(fehler?.message).toMatch(/Gesamtstand/u);
+    expect(await netto(rueckschritt)).toEqual([]);
+
+    await imDienst((d) => uebernimmAbrechnungsart(d, rueckschritt, { fertigstellungBp: 10_000 }));
+    expect(await netto(rueckschritt)).toEqual(['400000']);
+    const summe = (await sql.unsafe<{ s: string }[]>(
+      `select sum(p.netto_cent)::text as s from rechnungsposition p
+         join vertrag_abrechnung v on v.id = p.vertrag_abrechnung_id
+        where v.auftrag_id = $1`, [auftrag]))[0]!.s;
+    expect(summe).toBe('1000000');
+  });
+
+  it('eine Schlussrechnung führt die Gesamtleistung — die Abschläge zieht sie ab, '
+    + 'statt sie wegzulassen (FIN-08)', async () => {
+    const auftrag = await vereinbarung('festpreis_los', { teilleistung: 'anteilig' });
+    const abschlag = await leer(auftrag, '2026-05-01', '2026-05-31', 'abschlag');
+    await imDienst((d) => uebernimmAbrechnungsart(d, abschlag, { fertigstellungBp: 4000 }));
+    await festschreiben(abschlag);
+
+    /* Ein zweiter Abschlag sieht den ersten: 70 % Gesamtstand ergeben 30 % neu. */
+    const zweiterAbschlag = await leer(auftrag, '2026-06-01', '2026-06-30', 'abschlag');
+    await imDienst((d) =>
+      uebernimmAbrechnungsart(d, zweiterAbschlag, { fertigstellungBp: 7000 }));
+    expect(await netto(zweiterAbschlag)).toEqual(['300000']);
+    await festschreiben(zweiterAbschlag);
+
+    const schluss = await leer(auftrag, '2026-05-01', '2026-07-31', 'schluss');
+    expect((await imDienst((d) => vorschauAbrechnungsart(d, schluss))).bisherAnderswo)
+      .toEqual([]);
+    await imDienst((d) => uebernimmAbrechnungsart(d, schluss, { fertigstellungBp: 10_000 }));
+    expect(await netto(schluss)).toEqual(['1000000']);
+    await imDienst((d) => schreibeVerrechnung(d, schluss));
+    /* Zahlbetrag: 11.900,00 € brutto minus 4.760,00 € und 3.570,00 € Abschläge. */
+    expect((await kopf(schluss)).zahlbetrag).toBe(String(1_190_000 - 476_000 - 357_000));
+
+    /* Eine STANDARDrechnung danach sieht alles: 100 % sind längst berechnet. */
+    const danach = await leer(auftrag, '2026-08-01', '2026-08-31');
+    expect((await fehlerVon(imDienst((d) =>
+      uebernimmAbrechnungsart(d, danach, { fertigstellungBp: 10_000 }))))?.grund)
+      .toBe('befund_blockiert');
   });
 });
