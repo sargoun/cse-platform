@@ -19825,3 +19825,62 @@ der iCal-Ausgang `STATUS:CANCELLED` schreibt.
 
 | Betrifft | CAL-01, CAL-02, CAL-03, Invariante 2, Invariante 5, Invariante 7, Invariante 8, V-221, D-599, V-240, `src/server/services/kalender/termin.ts`, `src/app/api/kalender/eintraege/{route,termin-rumpf}.ts`, `src/app/api/kalender/eintraege/[id]/route.ts`, `src/app/portal/[mandant]/kalender/{page,TerminFormular}.tsx`, `src/app/portal/[mandant]/kalender/neu/page.tsx`, `src/app/portal/[mandant]/kalender/[id]/page.tsx`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/termine.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/kalender-termin.test.ts` |
 |---|---|
+
+### D-716 · Der Back-office-Agent entwirft eine Stellenanzeige, ein Mensch bearbeitet den Entwurf — und legt ihn selbst vor (V-222)
+
+**Der Befund** (V-222; Audit-Befund 50, REC-02 „AI drafts, a human edits and
+approves", SPEC §17 „drafts job ads"): `/recruiting/stellen/neu` war ein
+reines Handformular. Kein Weg liess den Agenten eine Anzeige entwerfen —
+`entwurf_von_art = 'agent'` setzte nur der Seed, obwohl die Vorlage
+`stellenanzeige_entwurf` im Demobetrieb seit je bereitlag —, und Titel,
+Beschreibung und Anforderungen einer angelegten Stelle konnte niemand mehr
+ändern.
+
+**Die Entscheidung.**
+
+1. **Die vorhandene Laufzeit, kein zweiter Weg zum Modell.**
+   `entwirfStellenanzeige` (`services/recruiting/stellenentwurf.ts`) ruft
+   `fuehreLaufAus` mit dem Auftrag `STELLENANZEIGE_AUFTRAG`
+   (`agent/auftraege.ts`): Modell aus dem Register, Budget reserviert,
+   Schritt protokolliert, Zahlenherkunft geprüft, Entwurf als Artefakt.
+   Ohne freigegebenes Modell, ohne Budget oder mit ausgeschaltetem Agenten
+   endet der Lauf sichtbar — die Aufgabe steht mit ihrem Grund im
+   Agentenzentrum, die Seite nennt ihn (`ki_…`), und die Anzeige entsteht von
+   Hand. Kein neuer Anbieter, keine Attrappe.
+2. **Die Tatsachen kommen von Menschen und aus der Datenbank**
+   (Invariante 6, `fuelleStellenTatsachen`): Titel, Einsatzort, Beginn und
+   Aufgaben gibt ein Mensch an; der Name der Gesellschaft kommt aus
+   `mandant`, der Bedarf eines gewählten Objekts aus `bedarf()` (gezählte
+   Zusagen). Das Modell formuliert nur den Fliesstext; jede Ziffer darin
+   muss in den Tatsachen stehen.
+3. **Die Anforderungen schreibt der Mensch.** Gegen sie läuft die Bewertung
+   (REC-05), und im AGG-Streit muss jede begründet werden; der Agent
+   übernimmt sie unverändert.
+4. **Der Lauf endet beim Artefakt** (`vorlegen: false`, neu im
+   Orchestrator): daraus entsteht ein Stellenentwurf mit
+   `entwurf_von_art = 'agent'`, und die Aufgabe trägt die Kennung der
+   Stelle. Keine zweite Freigabe im Posteingang für denselben Text — die
+   Freigabe der Anzeige erbittet ein Mensch mit „Zur Freigabe vorlegen"
+   (`legeStelleVor`), nachdem er den Entwurf gelesen hat (Invariante 7).
+   Ein Doppelklick legt keine zweite Stelle an (Idempotenzschlüssel des
+   Formulars).
+5. **Bearbeiten nur, solange der Entwurf keine Freigabe trägt**
+   (`aendereStelle`, `POST /api/recruiting/stellen/[id]`): die Freigabe
+   bindet ihren Abdruck an genau den vorgelegten Text; nach einer Ablehnung
+   ist der Entwurf wieder frei (0167). Die Bedingung steht IM `update`, die
+   Änderung im Prüfprotokoll. `entwurf_von_art` bleibt — es sagt, wer
+   entworfen hat, `geaendert_von`, wer zuletzt bearbeitet hat.
+6. **Eine Feldprüfung für drei Wege** (`api/recruiting/stellen/felder.ts`):
+   Stunden, Frist und Anforderungen liest dieselbe Funktion beim Anlegen von
+   Hand, beim Agentenentwurf und beim Bearbeiten.
+7. **Rechte:** Agentenentwurf `recruiting.stelle_schreiben` UND
+   `agent.aufgabe_starten`; Bearbeiten `recruiting.stelle_schreiben`. Wer das
+   zweite Recht nicht hält, sieht den Abschnitt mit dem fehlenden Recht.
+8. **Oberfläche:** „Vom Agenten entwerfen lassen" und „Von Hand anlegen" auf
+   `/stellen/neu`; „Entwurf bearbeiten" auf dem Stellenblatt; neue Teile
+   zweisprachig; die Abweisungen des Stellenblatts werden über
+   `eigenerEintrag` nachgeschlagen (D-728). Der Seed bearbeitet den
+   Agentenentwurf der Reinigung über `aendereStelle`.
+
+| Betrifft | REC-02, REC-05, SPEC §17, AGT-01, Invariante 6, Invariante 7, V-222, D-728, `src/server/agent/{orchestrator,auftraege}.ts`, `src/server/services/recruiting/stellenentwurf.ts`, `src/app/api/recruiting/stellen/{route,felder}.ts`, `src/app/api/recruiting/stellen/entwurf/route.ts`, `src/app/api/recruiting/stellen/[id]/route.ts`, `src/app/portal/[mandant]/recruiting/stellen/neu/page.tsx`, `src/app/portal/[mandant]/recruiting/stellen/[id]/page.tsx`, `src/lib/i18n/verwaltung/{recruiting-stellenentwurf,recruiting-rueckmeldung}.ts`, `tests/kern/stellenentwurf.test.ts`, `tests/isolation/recruiting-stellenentwurf.test.ts` |
+|---|---|

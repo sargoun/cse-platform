@@ -36,6 +36,7 @@ import { seedSocial } from './social.js';
 import { seedReferenzAusAuftrag } from './referenzauftrag.js';
 import { seedRecruiting } from './recruiting.js';
 import { seedGespraeche } from './gespraech.js';
+import { seedStellenentwurf } from './stellenentwurf.js';
 import { seedTermine } from './termine.js';
 import { seedAkquise } from './akquise.js';
 import { seedBerichtsdaten } from './berichtsdaten.js';
@@ -2047,6 +2048,13 @@ async function main(): Promise<void> {
    * Gespräche in allen drei Ständen (V-220, D-714) — NACH den Bewerbungen,
    * über die Dienste: geplant, abgesagt mit Grund, als geführt vermerkt.
    */
+  /* Ein Mensch bearbeitet den Entwurf des Agenten — über den Dienst (V-222, D-716). */
+  const stellenentwurf = await seedStellenentwurf(sql, ids, demodaten);
+  if (stellenentwurf.bearbeitet > 0) {
+    process.stdout.write('  Stellenentwurf des Agenten: von einem Menschen bearbeitet '
+      + '(Anforderung ergänzt, im Prüfprotokoll)\n');
+  }
+
   const gespraeche = await seedGespraeche(sql, ids, demodaten);
   process.stdout.write(
     `  Gespräche: ${String(gespraeche.geplant)} geplant, ${String(gespraeche.abgesagt)} `

@@ -2944,6 +2944,13 @@ export const ROUTEN: readonly RouteEintrag[] = [
    */
   { pfad: 'api/recruiting/gespraeche', recht: 'recruiting.bewerbung_lesen' },
   /*
+   * Der Stellenentwurf durch den Agenten und das Bearbeiten eines Entwurfs
+   * (REC-02, V-222, D-716). Der Agentenweg prüft `agent.aufgabe_starten`
+   * dazu (`weitereRechte`).
+   */
+  { pfad: 'api/recruiting/stellen/entwurf', recht: 'recruiting.stelle_schreiben' },
+  { pfad: 'api/recruiting/stellen/[id]', recht: 'recruiting.stelle_schreiben' },
+  /*
    * Eigene Termine des Kalenders anlegen, ändern und absagen (CAL-01, V-221,
    * D-715) — dasselbe Recht, das `t_kalender_schreiben` (0160) prüft.
    */

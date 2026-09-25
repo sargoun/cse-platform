@@ -8,10 +8,14 @@ import {
   ladeStelle, rangliste, leseVeroeffentlichungen, type StelleStatus,
 } from '@/server/services/recruiting/dienst';
 import { punkteText } from '@/server/services/recruiting/rangfolge';
+import { internSprache } from '@/lib/i18n/intern';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { RECRUITING_STELLENENTWURF_TEXTE } from '@/lib/i18n/verwaltung/recruiting-stellenentwurf';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '../../../../rechte';
 import { RecruitingSeite, leseImMandanten } from '../../rahmen';
-import { KNOPF } from '../../felder';
+import { FELD, KNOPF } from '../../felder';
 import { BEWERBUNG_MARKE, berlinZeit } from '../../marken';
 
 /**
@@ -27,18 +31,6 @@ export const dynamic = 'force-dynamic';
 const STATUS: Readonly<Record<StelleStatus, PillZustand>> = {
   entwurf: 'Entwurf', freigegeben: 'Bereit',
   veroeffentlicht: 'Aktiv', geschlossen: 'Abgeschlossen',
-};
-
-/** Die Abweisungen der Vorlage-Route — als Satz, nicht als Schlüssel. */
-const FEHLER: Readonly<Record<string, string>> = {
-  falscher_status: 'Vorgelegt wird ein Entwurf. Was schon freigegeben oder '
-    + 'veröffentlicht ist, geht nicht noch einmal durch dieselbe Entscheidung.',
-  gleichzeitig: 'Jemand anderes war einen Augenblick schneller. Bitte die Seite neu laden.',
-  kein_schreibrecht: 'Die Freigabe wurde nicht angelegt. Fehlt Ihnen das Recht dazu, '
-    + 'sagt es Ihnen die Person, die Ihre Rolle vergeben hat.',
-  schon_vorgelegt: 'Diese Anzeige liegt schon im Freigabe-Posteingang. Zwei Bitten '
-    + 'um dieselbe Entscheidung sind eine zu viel.',
-  unbekannt: 'Diese Stelle gibt es nicht.',
 };
 
 const ERGEBNIS: Readonly<Record<string, string>> = {
@@ -57,7 +49,9 @@ export default async function Stellenblatt(
   const { mandant, id } = await params;
   kennungOder404(id);
   const suche = await searchParams;
-  const abgewiesen = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  /* Ein Schlüssel oder nichts — nachgeschlagen nur über `eigenerEintrag` (D-728, V-222). */
+  const abgewiesen = typeof suche['fehler'] === 'string' && /^[a-z_]{1,64}$/u.test(suche['fehler'])
+    ? suche['fehler'] : null;
   return (
     <RecruitingSeite
       mandant={mandant}
@@ -106,6 +100,13 @@ export default async function Stellenblatt(
         }));
         if (d.stelle === null) notFound();
         const s = d.stelle;
+        const t = nachSprache(RECRUITING_STELLENENTWURF_TEXTE, internSprache(zugang.sprache));
+        /*
+         * V-222: bearbeitet wird ein Entwurf ohne Freigabe — dieselbe
+         * Bedingung, die `aendereStelle` IM `update` trägt.
+         */
+        const bearbeitbar = s.status === 'entwurf' && s.freigabeId === null
+          && darf['recruiting.stelle_schreiben'] === true;
 
         return (
           <>
@@ -185,7 +186,18 @@ export default async function Stellenblatt(
 
             {abgewiesen !== null && (
               <Hinweis art="warnung" cse="stelle-fehler" className="mb-s5 max-w-prose">
-                {FEHLER[abgewiesen] ?? 'Der Vorgang wurde abgewiesen.'}
+                {eigenerEintrag(t.fehler, abgewiesen) ?? t.fehlerSonst}
+              </Hinweis>
+            )}
+
+            {suche['entworfen'] === '1' && (
+              <Hinweis art="hinweis" cse="stelle-entworfen" className="mb-s5 max-w-prose">
+                {t.entworfen}
+              </Hinweis>
+            )}
+            {suche['bearbeitet'] === '1' && (
+              <Hinweis art="erfolg" cse="stelle-bearbeitet" className="mb-s5 max-w-prose">
+                {t.bearbeitet}
               </Hinweis>
             )}
 
@@ -229,6 +241,71 @@ export default async function Stellenblatt(
               <ul className="mb-s6 m-0 max-w-prose list-disc pl-s5 text-sm text-text">
                 {s.anforderungen.map((a) => <li key={a}>{a}</li>)}
               </ul>
+            )}
+
+            {/* ------------------------------ Entwurf bearbeiten (V-222, D-716) */}
+            {bearbeitbar && (
+              <section aria-labelledby="stelle-bearbeiten" className="mb-s7 max-w-prose"
+                       data-cse="stelle-bearbeiten">
+                <h2 id="stelle-bearbeiten" className="mb-s3 text-h3 text-text">
+                  {t.bearbeitenTitel}
+                </h2>
+                <p className="mb-s4 text-sm text-text-muted">{t.bearbeitenErklaerung}</p>
+                <form method="post" action={`/api/recruiting/stellen/${id}`}
+                      data-cse="stelle-bearbeiten-formular"
+                      className="flex flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+                  <input type="hidden" name="zurueck"
+                         value={`/portal/${mandant}/recruiting/stellen/${id}`} />
+                  <div className="flex flex-col gap-s2">
+                    <label htmlFor="b-titel" className="text-xs text-text-muted">{t.titel}</label>
+                    <input id="b-titel" name="titel" required maxLength={160}
+                           defaultValue={s.titel} className={FELD}
+                           data-cse="stelle-bearbeiten-titel" />
+                  </div>
+                  <div className="flex flex-col gap-s2">
+                    <label htmlFor="b-beschreibung" className="text-xs text-text-muted">
+                      {t.beschreibung}
+                    </label>
+                    <textarea id="b-beschreibung" name="beschreibung" required rows={10}
+                              defaultValue={s.beschreibung} className={FELD}
+                              data-cse="stelle-bearbeiten-beschreibung" />
+                    <p className="text-xs text-text-subtle">{t.beschreibungHinweis}</p>
+                  </div>
+                  <div className="flex flex-col gap-s2">
+                    <label htmlFor="b-anforderungen" className="text-xs text-text-muted">
+                      {t.anforderungen}
+                    </label>
+                    <textarea id="b-anforderungen" name="anforderungen" rows={5}
+                              defaultValue={s.anforderungen.join('\n')} className={FELD}
+                              data-cse="stelle-bearbeiten-anforderungen" />
+                  </div>
+                  <div className="flex flex-col gap-s2">
+                    <label htmlFor="b-ort" className="text-xs text-text-muted">
+                      {t.einsatzort}
+                    </label>
+                    <input id="b-ort" name="einsatzort" maxLength={120}
+                           defaultValue={s.einsatzort ?? ''} className={FELD} />
+                  </div>
+                  <div className="flex flex-col gap-s2">
+                    <label htmlFor="b-stunden" className="text-xs text-text-muted">
+                      {t.wochenstunden}
+                    </label>
+                    <input id="b-stunden" name="wochenstunden" type="number" min="1" max="60"
+                           step="0.5" defaultValue={s.wochenstunden ?? ''} className={FELD} />
+                  </div>
+                  <div className="flex flex-col gap-s2">
+                    <label htmlFor="b-frist" className="text-xs text-text-muted">{t.frist}</label>
+                    <input id="b-frist" name="bewerbungsfrist" type="date"
+                           defaultValue={s.bewerbungsfrist ?? ''} className={FELD} />
+                    <p className="text-xs text-text-subtle">{t.fristHinweis}</p>
+                  </div>
+                  <div>
+                    <Button type="submit" variante="secondary" data-cse="stelle-bearbeiten-speichern">
+                      {t.speichern}
+                    </Button>
+                  </div>
+                </form>
+              </section>
             )}
 
             <h2 className="mb-s3 text-h3 text-text">Wohin sie gegangen ist</h2>

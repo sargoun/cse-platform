@@ -213,10 +213,16 @@ test('eine Stelle legt sich zur Freigabe vor und liegt danach im Posteingang', a
   await page.goto('/portal/reinigung/recruiting/stellen/neu');
 
   const titel = `Objektleitung Probe ${String(Date.now())}`;
-  await page.locator('[name="titel"]').fill(titel);
-  await page.locator('[name="beschreibung"]').fill(
+  /*
+   * V-222: die Seite trägt seitdem ZWEI Formulare — „Vom Agenten entwerfen
+   * lassen" und „Von Hand anlegen" — mit gleichnamigen Feldern. Dieser Weg ist
+   * der von Hand; die Felder werden in seinem Formular gesucht.
+   */
+  const handformular = page.locator('[data-cse="stelle-formular"]');
+  await handformular.locator('[name="titel"]').fill(titel);
+  await handformular.locator('[name="beschreibung"]').fill(
     'Führung eines Reinigungsteams in Berlin-Mitte, Früh- und Spätschicht.');
-  await page.locator('[name="anforderungen"]').fill('Führerschein\nDeutsch B2');
+  await handformular.locator('[name="anforderungen"]').fill('Führerschein\nDeutsch B2');
   /*
    * **`[data-cse="stelle-anlegen"]` und nicht `button[type="submit"]`.first().**
    *

@@ -66,6 +66,29 @@ export const RECRUITING_RUECKMELDUNG: Readonly<Record<InternSprache, RecruitingR
       unbrauchbare_stunden: 'Wochenstunden zwischen 1 und 60, in halben Stunden.',
       unbrauchbare_frist: 'Die Bewerbungsfrist ist kein Tag, den der Kalender kennt.',
       kein_schreibrecht: 'Die Stelle wurde nicht angelegt.',
+      /* V-222: der Entwurf durch den Agenten — dieselbe Seite, derselbe Rückweg. */
+      angaben_fehlen:
+        'Titel, Einsatzort und Beginn geben Sie an — der Agent setzt keinen davon selbst.',
+      kein_bedarf: 'Für dieses Objekt zeigt der Dienstplan keinen offenen Bedarf.',
+      kein_schluessel: 'Das Formular war veraltet. Bitte die Seite neu laden und erneut absenden.',
+      gleichzeitig: 'Dieser Entwurf läuft schon — bitte die Seite neu laden.',
+      ki_nicht_verfuegbar:
+        'Kein Modell ist freigegeben oder verbunden — der Agent hat nichts entworfen. Die '
+        + 'Aufgabe steht mit ihrem Grund im Agentenzentrum; die Anzeige lässt sich von Hand '
+        + 'anlegen.',
+      ki_budget:
+        'Das Monatsbudget der KI ist erschöpft oder nicht angelegt — es wurde nichts entworfen.',
+      ki_preis_fehlt:
+        'Für das freigegebene Modell ist kein Preis hinterlegt. Ohne ihn reserviert die '
+        + 'Plattform kein Budget, und es wurde nichts entworfen.',
+      ki_zahl_erfunden:
+        'Der Entwurf enthielt eine Zahl, die in Ihren Angaben nicht stand. Er wurde verworfen '
+        + '(Invariante 6).',
+      ki_agent_aus:
+        'Der Back-office-Agent ist ausgeschaltet. Eingeschaltet wird er im Agentenzentrum.',
+      ki_gestoert:
+        'Der Agent hat keinen Entwurf geliefert. Die Aufgabe steht mit ihrem Grund im '
+        + 'Agentenzentrum; die Anzeige lässt sich von Hand anlegen.',
     },
     veroeffentlichung: {
       nicht_gefunden: 'Diese Stelle gibt es nicht.',
@@ -118,6 +141,25 @@ export const RECRUITING_RUECKMELDUNG: Readonly<Record<InternSprache, RecruitingR
       unbrauchbare_stunden: 'Weekly hours between 1 and 60, in half hours.',
       unbrauchbare_frist: 'The application deadline is not a calendar day.',
       kein_schreibrecht: 'The position was not created.',
+      angaben_fehlen:
+        'You give the title, place of work and start — the agent sets none of them itself.',
+      kein_bedarf: 'The roster shows no open demand for this site.',
+      kein_schluessel: 'The form was out of date. Please reload the page and submit again.',
+      gleichzeitig: 'This draft is already running — please reload the page.',
+      ki_nicht_verfuegbar:
+        'No model is approved or connected — the agent drafted nothing. The task is listed '
+        + 'with its reason in the agent centre; the advertisement can be created by hand.',
+      ki_budget: 'The monthly AI budget is used up or not set — nothing was drafted.',
+      ki_preis_fehlt:
+        'No price is recorded for the approved model. Without it the platform reserves no '
+        + 'budget, and nothing was drafted.',
+      ki_zahl_erfunden:
+        'The draft contained a figure that was not in your details. It was discarded '
+        + '(invariant 6).',
+      ki_agent_aus: 'The back-office agent is switched off. It is switched on in the agent centre.',
+      ki_gestoert:
+        'The agent delivered no draft. The task is listed with its reason in the agent centre; '
+        + 'the advertisement can be created by hand.',
     },
     veroeffentlichung: {
       nicht_gefunden: 'This position does not exist.',

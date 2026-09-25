@@ -4,7 +4,7 @@ import { kanonisiere } from '../services/finanz/kanonisch.js';
 import { risikoPunkte, stufeRisikoEin, type VorgangTyp }
   from '../services/freigabe/posteingang.js';
 import { fordereModell } from './modell/auswahl.js';
-import { ModellFehler, type ModellPort } from './modell/port.js';
+import { ModellFehler, type Faehigkeit, type ModellPort } from './modell/port.js';
 import { beginneSchritt, protokolliereSchritt, starteAufgabe } from './laufzeit.js';
 import { BudgetErschoepft, bucheKosten, gibReservierungFrei, reserviere, vermerkeStopp }
   from './budget.js';
@@ -79,6 +79,27 @@ export interface LaufAuftrag {
   readonly idempotenzSchluessel?: string;
   readonly angefordertVon?: string;
   readonly codeVersion: string;
+  /**
+   * **Wohin das Ergebnis geht** (V-222, V-223, D-716, D-717). Ohne Angabe —
+   * wie bisher — in eine `freigabe` im Posteingang: der Entwurf ist etwas,
+   * das hinausgehen soll, und darüber entscheidet ein Mensch dort.
+   *
+   * `false` heisst: der Lauf endet beim ARTEFAKT, und der Aufrufer legt
+   * daraus einen internen Entwurf an, der seinen eigenen Freigabeweg hat —
+   * die Stellenanzeige (`legeStelleVor`) oder der Kandidatendatensatz, den
+   * ein Mensch bestätigt. Eine zweite Freigabe für denselben Text im
+   * Posteingang wäre eine Entscheidung, die niemand braucht und die nichts
+   * auslöst. Hinaus geht auch dann nichts (Invariante 7): was entsteht, ist
+   * ein Entwurf im Haus.
+   */
+  readonly vorlegen?: boolean;
+  /**
+   * Die Fähigkeit, für die das Modell gewählt wird — `entwurf_text`, wenn
+   * nichts steht. Eine Extraktion fragt `extraktion_dokument`: das Register
+   * (0154) gibt je Fähigkeit frei, und eine Freigabe zum Formulieren ist
+   * keine zum Auslesen personenbezogener Unterlagen.
+   */
+  readonly faehigkeit?: Faehigkeit;
 }
 
 export interface LaufErgebnis {
@@ -102,6 +123,8 @@ export interface LaufErgebnis {
    * und der Aufrufer entscheidet, was er damit anzeigt.
    */
   readonly gestoert: { readonly code: string; readonly nachricht: string } | null;
+  /** Das Artefakt des Entwurfs — gesetzt, wenn der Lauf einen hinterlassen hat. */
+  readonly artefaktId?: string | null;
 }
 
 /**
@@ -164,7 +187,7 @@ async function laufeAlsAgent(
 
   let port: ModellPort;
   try {
-    port = await fordereModell(kontext, 'entwurf_text');
+    port = await fordereModell(kontext, auftrag.faehigkeit ?? 'entwurf_text');
   } catch (fehler) {
     if (!(fehler instanceof ModellFehler)) throw fehler;
     return await scheitern(kontext, aufgabe.id, fehler.code, fehler.message);
@@ -379,6 +402,30 @@ async function laufeAlsAgent(
       NUTZLAST_FRIST_TAGE_PLATZHALTER]);
 
   /*
+   * **Kein Posteingang, wo der Aufrufer den Entwurf selbst ablegt** (V-222,
+   * V-223, D-716, D-717). Die Aufgabe ist erledigt, sobald das Artefakt steht; was daraus
+   * wird, entscheidet ein Mensch am Entwurf selbst.
+   */
+  if (auftrag.vorlegen === false) {
+    await kontext.schreibe(
+      `update agent_aufgabe
+          set status = 'abgeschlossen', beendet_am = now(),
+              ergebnis = jsonb_build_object('artefakt_id', $2::text)
+        where id = $1::uuid`,
+      [aufgabe.id, artefakt?.id ?? '']);
+    return {
+      aufgabeId: aufgabe.id,
+      freigabeId: null,
+      entwurf: entwurf.text,
+      modell: entwurf.verbrauch.modell,
+      schritte: 1,
+      bestand: false,
+      gestoert: null,
+      artefaktId: artefakt?.id ?? null,
+    };
+  }
+
+  /*
    * **Das Risiko urteilt der Code** (§14.4). Die Lage besteht aus Tatsachen,
    * nicht aus Einschätzungen: kein Betrag im Spiel, keine Gegenpartei geprüft,
    * kein Vergleich vorhanden — und „kein Vergleich vorhanden" heisst nach
@@ -435,6 +482,7 @@ async function laufeAlsAgent(
     schritte: 1,
     bestand: false,
     gestoert: null,
+    artefaktId: artefakt?.id ?? null,
   };
 }
 

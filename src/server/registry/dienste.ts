@@ -1727,6 +1727,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'recruiting', pfad: 'recruiting/gespraech', schreibend: true,
     schreibRecht: 'kalender.schreiben',
   },
+  /* Stellenentwurf durch den Agenten, Entwurf bearbeiten (REC-02, V-222, D-716). */
+  {
+    modul: 'recruiting', pfad: 'recruiting/stellenentwurf', schreibend: true,
+    schreibRecht: 'recruiting.stelle_schreiben',
+  },
   /* Die eigenen Termine des Kalenders (CAL-01, V-221, D-715). */
   {
     modul: 'kalender', pfad: 'kalender/termin', schreibend: true,

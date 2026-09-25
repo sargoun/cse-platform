@@ -125,9 +125,20 @@ describe('(b) jeder Grund der Route hat einen Satz — de und en', () => {
         'RecruitingFehler'),
       ...gruende(funktion(dienst, 'entscheide'), 'RecruitingFehler'),
     ],
+    /*
+     * V-222: auf `stellen/neu` kommen zwei Formulare zurück — von Hand und
+     * vom Agenten. Die Feldprüfung steht seitdem in `stellen/felder.ts`, und
+     * ein gestörter Lauf kommt als `ki_…` aus `kiGrund`.
+     */
     stelleNeu: [
       ...gruende(lies('src/app/api/recruiting/stellen/route.ts'), 'RecruitingFehler'),
+      ...gruende(lies('src/app/api/recruiting/stellen/felder.ts'), 'RecruitingFehler'),
+      ...gruende(lies('src/app/api/recruiting/stellen/entwurf/route.ts'), 'RecruitingFehler'),
       ...gruende(funktion(dienst, 'legeStelleAn'), 'RecruitingFehler'),
+      ...gruende(funktion(lies('src/server/services/recruiting/stellenentwurf.ts'),
+        'entwirfStellenanzeige'), 'RecruitingFehler'),
+      ...[...lies('src/server/services/recruiting/stellenentwurf.ts')
+        .matchAll(/return '(ki_[a-z_]+)'/gu)].map((m) => m[1] ?? ''),
     ],
     veroeffentlichung: [
       ...gruende(lies('src/app/api/recruiting/stellen/[id]/veroeffentlichen/route.ts'),

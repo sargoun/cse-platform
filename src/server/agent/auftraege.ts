@@ -74,6 +74,27 @@ export const ENTWURF_AUFTRAEGE: Readonly<Record<string, EntwurfAuftrag>> = {
   },
 };
 
+/**
+ * **Der Entwurf einer Stellenanzeige — ein Auftrag des Back-office-Agenten**
+ * (REC-02, SPEC §17 „drafts job ads", V-222, D-716).
+ *
+ * Er steht NICHT in `ENTWURF_AUFTRAEGE`: das ist die Liste der Aufträge, die
+ * das Agentenzentrum je Agent von Hand startet, und ihr Ergebnis geht in den
+ * Posteingang. Dieser Auftrag wird vom Stellenformular gestartet, und sein
+ * Ergebnis ist ein STELLENENTWURF (`entwurf_von_art = 'agent'`), der seinen
+ * eigenen Freigabeweg hat (`legeStelleVor`, Invariante 7).
+ *
+ * Die Tatsachen füllt `fuelleStellenTatsachen` — aus den Angaben eines
+ * Menschen und aus der Datenbank, nie aus dem Modell (Invariante 6).
+ */
+export const STELLENANZEIGE_AUFTRAG: EntwurfAuftrag = {
+  vorgangTyp: 'stellenanzeige_entwurf',
+  aktion: 'stelle_entwurf_anlegen',
+  titel: 'Entwurf einer Stellenanzeige',
+  vorlage: 'stellenanzeige_entwurf',
+  tatsachen: {},
+};
+
 export interface Leser {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
 }
@@ -208,5 +229,50 @@ export async function fuelleTatsachen(
     zusammenfassung: `${forderungen} Forderungen sind überfällig, und `
       + `${eingang} Eingangsrechnungen sind fällig.`,
     empfehlung: 'Fällige Posten vor dem Monatsende ansehen.',
+  };
+}
+
+/** Was ein Mensch für den Entwurf einer Stellenanzeige angibt (V-222). */
+export interface StellenAngaben {
+  readonly titel: string;
+  readonly einsatzort: string;
+  /** Freier Text eines Menschen — „ab sofort" oder ein Tag. Das Modell setzt keinen. */
+  readonly beginn: string;
+  /** Stichpunkte zur Aufgabe, je Zeile einer. */
+  readonly aufgaben: readonly string[];
+  /** Ein Objekt aus dem Bedarf des Dienstplans — oder `null`. */
+  readonly objektId: string | null;
+}
+
+/**
+ * **Die Tatsachen einer Stellenanzeige** (V-222, Invariante 6).
+ *
+ * Die Gesellschaft kommt aus `mandant`, der Bedarf aus `bedarf()` (Dienstplan,
+ * gezählte Zusagen — `services/recruiting/dienst.ts`); alles andere hat ein
+ * Mensch eingegeben. Das Modell bekommt fertige Sätze und rechnet nichts; jede
+ * Ziffer im Entwurf muss hier stehen (`pruefeZahlenherkunft`).
+ *
+ * Die Schlüssel sind die der Vorlage `stellenanzeige_entwurf`
+ * (`modell/demo.ts`): titel, gesellschaft, zusammenfassung, ort, beginn.
+ */
+export async function fuelleStellenTatsachen(
+  db: Leser, angaben: StellenAngaben,
+  bedarfZeile: { readonly objektName: string | null; readonly schichten: number;
+    readonly fehlendeZusagen: number } | null,
+): Promise<Readonly<Record<string, string>>> {
+  const [m] = await db.abfrage<{ name: string }>(
+    `select name from mandant where id = app.aktiver_mandant()`);
+  const aufgaben = angaben.aufgaben.map((a) => a.trim()).filter((a) => a !== '');
+  const satzAufgaben = aufgaben.length === 0 ? '' : `Die Aufgaben: ${aufgaben.join('; ')}.`;
+  const satzBedarf = bedarfZeile === null ? ''
+    : ` Im Dienstplan fehlen für ${bedarfZeile.objektName ?? 'ein Objekt ohne Namen'} in den `
+      + `nächsten vier Wochen ${String(bedarfZeile.fehlendeZusagen)} Zusagen in `
+      + `${String(bedarfZeile.schichten)} Schichten.`;
+  return {
+    titel: angaben.titel.trim(),
+    gesellschaft: m?.name ?? '',
+    zusammenfassung: `${satzAufgaben}${satzBedarf}`.trim(),
+    ort: angaben.einsatzort.trim(),
+    beginn: angaben.beginn.trim(),
   };
 }
