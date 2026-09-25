@@ -87,9 +87,19 @@ export async function POST(
     return NextResponse.json({ fehler: 'unbekannter_vorgang' }, { status: 400 });
   }
   const koerper = feld('koerper');
-  if (was === 'antworten' && koerper === null) {
-    return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
-  }
+  /*
+   * **Ein abgewiesenes Formular endet auf seinem Faden** (V-198, D-599) — wie
+   * der Erfolg unten, nur mit `?fehler=` statt `?getan=`. Eine Antwort aus
+   * Leerzeichen besteht `required` und ist trotzdem keine; ein Faden, den die
+   * Leitung geschlossen hat, während die Antwort getippt wurde, ist der
+   * häufige Wettlauf. Beides endete als JSON auf weissem Grund.
+   */
+  const zurueckMit = (grund: string): NextResponse => NextResponse.redirect(
+    new URL(`/portal/mein/nachrichten/${id}?fehler=${encodeURIComponent(grund)}`,
+            erwarteterUrsprung(anfrage)),
+    303,
+  );
+  if (was === 'antworten' && koerper === null) return zurueckMit('unvollstaendig');
 
   const ergebnis = await (db().begin(async (tx: postgres.TransactionSql) => {
     const vorbereitung = await withPersonScope(tx, sitzung, async (k) => {
@@ -152,9 +162,7 @@ export async function POST(
     });
   }) as Promise<Ergebnis>);
 
-  if (ergebnis.art === 'fehler') {
-    return NextResponse.json({ fehler: ergebnis.code }, { status: ergebnis.status });
-  }
+  if (ergebnis.art === 'fehler') return zurueckMit(ergebnis.code);
   /*
    * Zurück auf den Faden, mit der Auskunft, was geschehen ist — dieselbe Form
    * wie `/api/nachrichten` (`?getan=…`). Das Ziel wird HIER gebaut und nicht

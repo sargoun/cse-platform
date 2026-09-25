@@ -9,6 +9,7 @@ import {
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
 import { Feld, Felder, Gesellschaft } from '../../bausteine';
+import { FormularFehler } from '../../FormularAntwort';
 
 /**
  * `/portal/mein/abwesenheit/[id]` — eine einzelne eigene Abwesenheit
@@ -47,9 +48,14 @@ function abwesenheitPille(status: string): PillZustand {
 }
 
 export default async function MeineAbwesenheit(
-  { params }: { params: Promise<{ id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { id } = await params;
+  /* Der Grund einer Abweisung, zurückgeschickt von der Route (V-198, D-692). */
+  const fehler = (await searchParams)['fehler'];
   const ergebnis = await meinPortal<EigeneAbwesenheit | null>(
     `/portal/mein/abwesenheit/${id}`,
     async (kontext, teil) => findeEigeneAbwesenheit(kontext, teil.anstellungen, id),
@@ -82,6 +88,8 @@ export default async function MeineAbwesenheit(
         <h1 className="m-0 text-h1 text-text">{t.abwesenheitBlatt}</h1>
         <StatusPill sprache={basis.sprache} zustand={abwesenheitPille(a.status)} />
       </div>
+
+      <FormularFehler sprache={basis.sprache} grund={fehler} />
 
       <section
         data-cse="abwesenheit"
@@ -134,6 +142,8 @@ export default async function MeineAbwesenheit(
           */}
           <form method="post" action={`/api/mein/abwesenheit/${a.id}/zurueckziehen`}>
             <input type="hidden" name="zurueck" value="/portal/mein/antraege" />
+            {/* Entschieden, während das Blatt offen war? Zurück HIERHER (V-198). */}
+            <input type="hidden" name="fehlerweg" value={`/portal/mein/abwesenheit/${a.id}`} />
             <Button type="submit" variante="secondary" data-cse="abwesenheit-zurueckziehen">
               {t.abwesenheitRuecknahme}
             </Button>

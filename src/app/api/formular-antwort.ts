@@ -61,6 +61,36 @@ export function grundAufsFormular(
 }
 
 /**
+ * Der Grund eines abgewiesenen FORMULARS, aus dem Formular selbst gelesen —
+ * mit `fehlerweg` vor `zurueck` (V-198, D-692).
+ *
+ * **Zwei Felder, weil es zwei Ziele sind.** `zurueck` ist das Ziel des
+ * ERFOLGS — nach einer Abwesenheitsmeldung die Liste der Anträge. Ein
+ * Fehlschlag gehört dorthin, wo das Formular steht, sonst steht der Satz über
+ * einer Liste, in der die Eingabe fehlt; das sagt `fehlerweg`. Fehlt es, ist
+ * `zurueck` die Seite des Formulars selbst (Wachbuch, Fotos, Bautagebuch).
+ *
+ * **Ohne beide Felder ist der Aufrufer kein Portalformular**, sondern ein
+ * Programm — und das bekommt JSON mit dem Status (D-599: „ein Browser bekommt
+ * eine Seite, ein Programm bekommt JSON"). Nie wird ein Satz mitgeschickt: die
+ * Seite schlägt den Grund in IHRER Sprache nach, und ein Satz eines Dienstes
+ * ist deutsch.
+ */
+export function grundAufsFormularweg(
+  anfrage: NextRequest, daten: FormData, grund: string, status: number,
+): NextResponse {
+  const feld = (name: string): string | undefined => {
+    const wert = daten.get(name);
+    return typeof wert === 'string' && wert !== '' ? wert : undefined;
+  };
+  const weg = feld('fehlerweg') ?? feld('zurueck');
+  if (weg === undefined) return NextResponse.json({ fehler: grund }, { status });
+  const ziel = internesZiel(weg, HEIMWEG, anfrage);
+  ziel.searchParams.set('fehler', grund);
+  return NextResponse.redirect(ziel, 303);
+}
+
+/**
  * Die Antwort auf einen FACHLICHEN Fehler — als Umleitung fuer ein Formular,
  * als JSON fuer einen JSON-Aufrufer.
  *

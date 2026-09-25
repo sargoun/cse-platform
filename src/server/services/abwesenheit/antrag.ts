@@ -247,6 +247,36 @@ export interface AntragEingabe {
 }
 
 /**
+ * Der Grund einer `check_violation` aus `antrag` — oder `null`, wenn es keine
+ * ist (V-198).
+ *
+ * `antrag_pflichtfelder` (0074) nennt das fehlende Feld im Hinweis
+ * („Fehlendes Feld: von_datum"), `an_zeitraum` ist die Prüfung „bis nicht vor
+ * von". Der Fehler des Treibers trägt keinen numerischen `status`, und so
+ * endete ein Urlaubsantrag ohne Datum als 500 ohne Text. Was hier nicht
+ * erkannt wird, bleibt ein Fehler, den der Aufrufer weiterwirft.
+ */
+export type AntragPflichtGrund =
+  | 'zeitraum' | 'fehlt_zeitraum' | 'fehlt_abwesenheitsart' | 'fehlt_einsatz'
+  | 'fehlt_tauschpartner';
+
+export function pflichtfeldGrund(fehler: unknown): AntragPflichtGrund | null {
+  if (fehler === null || typeof fehler !== 'object') return null;
+  const f = fehler as { code?: unknown; hint?: unknown; constraint_name?: unknown };
+  if (f.code !== '23514') return null;
+  if (f.constraint_name === 'an_zeitraum') return 'zeitraum';
+  const feld = typeof f.hint === 'string'
+    ? /Fehlendes Feld: (\w+)/u.exec(f.hint)?.[1] : undefined;
+  switch (feld) {
+    case 'von_datum': return 'fehlt_zeitraum';
+    case 'abwesenheitsart_id': return 'fehlt_abwesenheitsart';
+    case 'einsatz_id': return 'fehlt_einsatz';
+    case 'tausch_partner_anstellung_id': return 'fehlt_tauschpartner';
+    default: return null;
+  }
+}
+
+/**
  * Reicht einen Antrag ein.
  *
  * Die Pflichtfelder prüft der Auslöser `antrag_pflichtfelder` (0074) — nicht,

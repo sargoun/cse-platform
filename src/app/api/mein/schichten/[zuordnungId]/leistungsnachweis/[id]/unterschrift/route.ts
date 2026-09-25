@@ -1,6 +1,7 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import type { NextRequest, NextResponse } from 'next/server';
 import { signiere } from '@/server/services/reinigung/leistungsnachweis';
 import { aufDerSchicht, dienstFehlerAntwort, zurueckZu } from '../../../../bruecke';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 
 /**
  * `POST /api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift`
@@ -49,12 +50,12 @@ export async function POST(
   const name = textOder(daten, 'name');
   const pruefsumme = textOder(daten, 'pruefsumme');
   if (name === null) {
-    return NextResponse.json({ fehler: 'kein_name' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'kein_name', 400);
   }
   if (pruefsumme === null || !HASH.test(pruefsumme)) {
     // Ohne Pruefsumme wird nicht unterschrieben: sie ist die Verbindung
     // zwischen dem, was angezeigt wurde, und dem, was gespeichert wird.
-    return NextResponse.json({ fehler: 'keine_pruefsumme' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_pruefsumme', 400);
   }
 
   try {
@@ -69,7 +70,7 @@ export async function POST(
     }));
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
   } catch (fehler: unknown) {
-    const antwort = dienstFehlerAntwort(fehler);
+    const antwort = dienstFehlerAntwort(fehler, { anfrage, daten });
     if (antwort !== null) return antwort;
     throw fehler;
   }

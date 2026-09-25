@@ -52,10 +52,22 @@ export class KeinUrheber extends Error {
   }
 }
 
+/**
+ * Was an einer Eingabe fehlt — als SCHLÜSSEL neben dem Satz (V-198).
+ *
+ * Der Satz ist deutsch und gehört ins Protokoll und in die Verwaltung; das
+ * Arbeiterportal spricht vier Sprachen und schlägt den Grund in seiner
+ * nach. Fünf Fälle tragen denselben `code`, und „Präsenz ohne Kontrollpunkt"
+ * ist ein anderer Satz als „Betreff fehlt".
+ */
+export type WachbuchEingabeGrund =
+  | 'kein_betreff' | 'kein_text' | 'schluessel_art' | 'praesenz_ohne_kontrollpunkt'
+  | 'kein_korrekturgrund';
+
 export class WachbuchEingabeFehlt extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
-  constructor(nachricht: string) {
+  constructor(nachricht: string, readonly grund?: WachbuchEingabeGrund) {
     super(nachricht);
     this.name = 'WachbuchEingabeFehlt';
   }
@@ -138,11 +150,11 @@ async function urheber(kontext: SchreibKontext): Promise<UrheberZeile> {
 
 function pruefeText(eingabe: EintragEingabe): void {
   if (eingabe.betreff.trim() === '') {
-    throw new WachbuchEingabeFehlt('Ein Eintrag braucht einen Betreff.');
+    throw new WachbuchEingabeFehlt('Ein Eintrag braucht einen Betreff.', 'kein_betreff');
   }
   if (eingabe.eintragstext.trim() === '') {
     throw new WachbuchEingabeFehlt(
-      'Ein Eintrag ohne Text ist keine Dokumentation. Was ist passiert?',
+      'Ein Eintrag ohne Text ist keine Dokumentation. Was ist passiert?', 'kein_text',
     );
   }
   /**
@@ -156,13 +168,14 @@ function pruefeText(eingabe: EintragEingabe): void {
     throw new WachbuchEingabeFehlt(
       'Schlüsselbewegungen werden mit der Schlüsselverwaltung erfasst, und die ist '
       + 'noch nicht gebaut (SEC-07). Bis dahin: als „Übergabe" eintragen und den '
-      + 'Schlüssel im Text benennen.',
+      + 'Schlüssel im Text benennen.', 'schluessel_art',
     );
   }
   if (eingabe.praesenzBestaetigt === true
       && (eingabe.kontrollpunktId ?? '') === '') {
     throw new WachbuchEingabeFehlt(
       'Ein Präsenznachweis braucht den Kontrollpunkt, an dem er entstanden ist.',
+      'praesenz_ohne_kontrollpunkt',
     );
   }
 }
@@ -322,7 +335,7 @@ export async function korrigiereEintrag(
   if (eingabe.grund.trim().length < GRUND_MINDESTLAENGE) {
     throw new WachbuchEingabeFehlt(
       'Eine Korrektur ohne Grund ist im Streitfall keine Auskunft. Warum war der '
-      + 'Eintrag falsch?',
+      + 'Eintrag falsch?', 'kein_korrekturgrund',
     );
   }
 

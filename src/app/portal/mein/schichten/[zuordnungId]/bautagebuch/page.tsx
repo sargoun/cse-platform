@@ -19,6 +19,7 @@ import { findeSchichtBezug } from '@/server/services/mitarbeiter/schicht-zugang'
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
 import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
+import { FormularFehler } from '../../../FormularAntwort';
 
 /**
  * `/portal/mein/schichten/[zuordnungId]/bautagebuch` — der Bautag der Kolonne
@@ -68,9 +69,14 @@ interface Blatt {
 const ARTEN: readonly PositionArt[] = ['geraet', 'lieferung', 'vorkommnis'];
 
 export default async function MeinBautagebuch(
-  { params }: { params: Promise<{ zuordnungId: string }> },
+  { params, searchParams }: {
+    params: Promise<{ zuordnungId: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { zuordnungId } = await params;
+  /* Der Grund einer Abweisung, zurückgeschickt von der Route (V-198, D-692). */
+  const fehler = (await searchParams)['fehler'];
   const ergebnis = await meinPortal<Blatt | null>(
     `/portal/mein/schichten/${zuordnungId}/bautagebuch`,
     async (kontext) => {
@@ -183,6 +189,8 @@ export default async function MeinBautagebuch(
       <p className="mb-s5 text-base text-text-muted">
         {schicht.objekt ?? '—'} · <span className="cse-zahl">{tagInSprache(schicht.planDatum, basis.sprache)}</span>
       </p>
+
+      <FormularFehler sprache={basis.sprache} grund={fehler} />
 
       {schicht.projektId === null ? (
         /*

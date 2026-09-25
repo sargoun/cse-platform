@@ -6,7 +6,8 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/index';
 import { KeineAnstellungFehler, mandantDerAnstellung }
   from '@/server/services/zeit/einwand';
-import { reicheAntragEin } from '@/server/services/abwesenheit/antrag';
+import { pflichtfeldGrund, reicheAntragEin } from '@/server/services/abwesenheit/antrag';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 
 /**
  * `POST /api/mein/antraege` — der Mensch reicht einen Antrag ein (EMP-10).
@@ -70,15 +71,15 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const anstellungId = uuidOder(daten, 'anstellung');
   const antragsartId = uuidOder(daten, 'antragsart');
   if (anstellungId === null) {
-    return NextResponse.json({ fehler: 'keine_anstellung' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_anstellung', 400);
   }
   if (antragsartId === null) {
-    return NextResponse.json({ fehler: 'keine_antragsart' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_antragsart', 400);
   }
   const von = textOder(daten, 'von');
   const bis = textOder(daten, 'bis');
   if ((von !== null && !DATUM.test(von)) || (bis !== null && !DATUM.test(bis))) {
-    return NextResponse.json({ fehler: 'kein_datum' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'kein_datum', 400);
   }
 
   try {
@@ -102,14 +103,27 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     });
   } catch (fehler) {
     if (fehler instanceof KeineAnstellungFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
+      /*
+       * Eine Beschäftigung, die es für diese Anmeldung nicht (mehr) gibt —
+       * fremd (AUT-06: dieselbe Antwort wie „gibt es nicht") oder beendet,
+       * während das Formular offen war. Zurück aufs Formular (V-198).
+       */
+      return grundAufsFormularweg(anfrage, daten, 'nicht_gefunden', 404);
     }
     const status = (fehler as { status?: number }).status;
     const code = (fehler as { code?: string }).code;
     if (typeof status === 'number' && typeof code === 'string') {
-      return NextResponse.json(
-        { fehler: code, meldung: (fehler as Error).message }, { status });
+      return grundAufsFormularweg(anfrage, daten, code, status);
     }
+    /*
+     * **Was die Art verlangt, prüft die Datenbank** (`antrag_pflichtfelder`,
+     * 0074) — und sie wirft `check_violation` mit dem fehlenden Feld im
+     * Hinweis. Der Fehler trägt keinen numerischen `status`; hier wurde er
+     * weitergeworfen, und ein Urlaubsantrag ohne Datum endete als 500 ohne
+     * Text (V-198). Er ist eine Auskunft über das Formular.
+     */
+    const grund = pflichtfeldGrund(fehler);
+    if (grund !== null) return grundAufsFormularweg(anfrage, daten, grund, 400);
     throw fehler;
   }
 

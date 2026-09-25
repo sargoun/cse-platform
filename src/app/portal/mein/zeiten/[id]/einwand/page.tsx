@@ -11,6 +11,7 @@ import { listeEigeneEinwaende, type EinwandZeile }
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
 import { Feld, Felder, Leer } from '../../../bausteine';
+import { EinwandGesendet, FormularFehler } from '../../../FormularAntwort';
 
 /**
  * `/portal/mein/zeiten/[id]/einwand` — der EINZIGE Schreibweg des Menschen in
@@ -43,9 +44,21 @@ interface Daten {
 }
 
 export default async function EinwandFormular(
-  { params }: { params: Promise<{ id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { id } = await params;
+  /*
+   * **Wohin ein abgeschickter Einwand führt** (V-198, D-692, D-599). Die Route
+   * antwortete auch bei ERFOLG mit `{"einwand":"<uuid>"}` — eine weisse Seite
+   * mit einer Kennung. Jetzt kommt sie hierher zurück: `?gesendet=1` nach dem
+   * Eingang, `?fehler=<grund>` nach einer Abweisung.
+   */
+  const suche = await searchParams;
+  const gesendet = suche['gesendet'] === '1';
+  const fehler = suche['fehler'];
   const ergebnis = await meinPortal<Daten>(
     `/portal/mein/zeiten/${id}/einwand`,
     async (kontext) => ({
@@ -86,6 +99,9 @@ export default async function EinwandFormular(
 
       <h1 className="mb-s4 text-h1 text-text">{t.einwandMelden}</h1>
 
+      {gesendet && <EinwandGesendet sprache={basis.sprache} />}
+      <FormularFehler sprache={basis.sprache} grund={fehler} />
+
       <section className="mb-s5 rounded-lg border border-line bg-surface p-s4">
         <Felder>
           <Feld label={t.datum}><span className="cse-zahl">{z.tag}</span></Feld>
@@ -111,6 +127,13 @@ export default async function EinwandFormular(
         <input type="hidden" name="anstellung" value={z.anstellungId} />
         <input type="hidden" name="zeiteintrag" value={z.id} />
         <input type="hidden" name="datum" value={z.tag} />
+        {/*
+          Nach dem Absenden zurück auf DIESE Seite (V-198): sie bestätigt den
+          Eingang und zeigt die Meldung unten in der Liste — oder den Grund,
+          warum sie nicht gespeichert wurde.
+        */}
+        <input type="hidden" name="zurueck" value={`/portal/mein/zeiten/${z.id}/einwand?gesendet=1`} />
+        <input type="hidden" name="fehlerweg" value={`/portal/mein/zeiten/${z.id}/einwand`} />
 
         <div className="flex flex-col gap-s2">
           <label htmlFor="einwand-art" className="text-base text-text">

@@ -1,6 +1,7 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/index';
@@ -83,24 +84,24 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const begruendung = textOder(daten, 'begruendung');
 
   if (anstellungId === null) {
-    return NextResponse.json({ fehler: 'keine_anstellung' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_anstellung', 400);
   }
   if (art === null || !ARTEN.includes(art as EinwandArt)) {
-    return NextResponse.json({ fehler: 'unbekannte_art' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'unbekannte_art', 400);
   }
   if (betrifftDatum === null || !DATUM.test(betrifftDatum)) {
-    return NextResponse.json({ fehler: 'kein_datum' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'kein_datum', 400);
   }
   if (begruendung === null) {
     // Ohne Begruendung ist es keine Meldung, sondern ein Klick — und die
     // Planung haette nichts, worueber sie entscheiden koennte.
-    return NextResponse.json({ fehler: 'keine_begruendung' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_begruendung', 400);
   }
 
   const pauseRoh = textOder(daten, 'pause');
   const pause = pauseRoh === null ? null : Number(pauseRoh);
   if (pause !== null && (!Number.isInteger(pause) || pause < 0)) {
-    return NextResponse.json({ fehler: 'pause_ungueltig' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'pause_ungueltig', 400);
   }
 
   try {
@@ -129,13 +130,25 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         eingereichtVonBenutzerId: sitzung.benutzerId,
       }));
     });
+    /*
+     * **Ein Browser bekommt eine Seite** (V-198, D-599). Hier stand auch im
+     * ERFOLGSfall `{"einwand":"<uuid>"}` mit 201 — der einzige Aufrufer ist
+     * ein gewöhnliches Formular, und der Mensch sah nach dem Absenden eine
+     * weisse Seite mit einer Kennung. Das Formular schickt `zurueck`; ohne
+     * das Feld ist der Aufrufer ein Programm und bekommt weiter JSON.
+     */
+    const zurueck = daten.get('zurueck');
+    if (typeof zurueck === 'string' && zurueck !== '') {
+      return NextResponse.redirect(internesZiel(zurueck, '/portal/mein/zeiten', anfrage), 303);
+    }
     return NextResponse.json({ einwand: id }, { status: 201 });
   } catch (fehler) {
     if (fehler instanceof KeineAnstellungFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
+      /* Eine fremde Beschäftigung ist für diese Anmeldung nicht vorhanden (AUT-06). */
+      return grundAufsFormularweg(anfrage, daten, 'nicht_gefunden', 404);
     }
     if (fehler instanceof EinwandOhneBezugFehler) {
-      return NextResponse.json({ fehler: 'kein_zeiteintrag' }, { status: 400 });
+      return grundAufsFormularweg(anfrage, daten, 'kein_zeiteintrag', 400);
     }
     throw fehler;
   }

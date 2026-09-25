@@ -8,6 +8,7 @@ import { artInSprache } from '@/server/services/abwesenheit/antrag';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
 import { Feld, Felder, Gesellschaft } from '../../bausteine';
+import { FormularFehler } from '../../FormularAntwort';
 
 /**
  * `/portal/mein/antraege/[id]` — ein einzelner Antrag (EMP-10, EMP-15, NOT-03).
@@ -44,9 +45,14 @@ function antragPille(status: string): PillZustand {
 }
 
 export default async function MeinAntrag(
-  { params }: { params: Promise<{ id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { id } = await params;
+  /* Der Grund einer Abweisung, zurückgeschickt von der Route (V-198, D-692). */
+  const fehler = (await searchParams)['fehler'];
   const ergebnis = await meinPortal<EigenerAntrag | null>(
     `/portal/mein/antraege/${id}`,
     async (kontext, teil) => findeEigenenAntrag(kontext, teil.anstellungen, id),
@@ -85,6 +91,8 @@ export default async function MeinAntrag(
         <h1 className="m-0 text-h1 text-text">{artName}</h1>
         <StatusPill sprache={basis.sprache} zustand={antragPille(a.status)} />
       </div>
+
+      <FormularFehler sprache={basis.sprache} grund={fehler} />
 
       <section
         data-cse="antrag"
@@ -133,6 +141,8 @@ export default async function MeinAntrag(
           */}
           <form method="post" action={`/api/mein/antraege/${a.id}/zurueckziehen`}>
             <input type="hidden" name="zurueck" value="/portal/mein/antraege" />
+            {/* Entschieden, während das Blatt offen war? Zurück HIERHER (V-198). */}
+            <input type="hidden" name="fehlerweg" value={`/portal/mein/antraege/${a.id}`} />
             <Button type="submit" variante="secondary" data-cse="antrag-zurueckziehen">
               {t.zurueckziehen}
             </Button>

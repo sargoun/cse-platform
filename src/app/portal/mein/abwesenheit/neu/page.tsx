@@ -5,6 +5,7 @@ import {
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
 import { Leer } from '../../bausteine';
+import { FormularFehler } from '../../FormularAntwort';
 
 /**
  * `/portal/mein/abwesenheit/neu` — Krankheit oder Abwesenheit melden (EMP-10).
@@ -25,7 +26,19 @@ import { Leer } from '../../bausteine';
  */
 export const dynamic = 'force-dynamic';
 
-export default async function NeueAbwesenheit() {
+export default async function NeueAbwesenheit(
+  { searchParams }: {
+    readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
+) {
+  /*
+   * **Der Rückweg eines abgewiesenen Formulars** (V-198, D-692). Eine Art mit
+   * ungeklärter Lohnwirkung (O-139), ein Zeitraum mit dem Ende vor dem Beginn
+   * — die Route schickt den Grund als `?fehler=` hierher zurück, und der Satz
+   * steht in der Sprache der Person über dem Formular. Hier stand JSON mit dem
+   * deutschen Satz des Dienstes.
+   */
+  const fehler = (await searchParams)['fehler'];
   const ergebnis = await meinPortal<readonly AbwesenheitsartWahl[]>(
     '/portal/mein/abwesenheit/neu',
     async (kontext, basis) => leseAbwesenheitsarten(kontext, basis.sprache),
@@ -48,6 +61,8 @@ export default async function NeueAbwesenheit() {
       </Link>
       <h1 className="mb-s5 text-h1 text-text">{t.abwesenheitMelden}</h1>
 
+      <FormularFehler sprache={basis.sprache} grund={fehler} />
+
       {basis.anstellungen.length === 0 ? <Leer text={t.keineEintraege} /> : (
         <form
           method="post"
@@ -56,6 +71,8 @@ export default async function NeueAbwesenheit() {
           className="flex max-w-prose flex-col gap-s4"
         >
           <input type="hidden" name="zurueck" value="/portal/mein/antraege" />
+          {/* Ein Fehlschlag kommt HIERHER zurück, nicht auf die Liste (D-692). */}
+          <input type="hidden" name="fehlerweg" value="/portal/mein/abwesenheit/neu" />
 
           <div className="flex flex-col gap-s2">
             <label htmlFor="abw-anstellung" className="text-base text-text">

@@ -11,6 +11,7 @@ import {
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
 import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
+import { FormularFehler } from '../../../FormularAntwort';
 
 /**
  * `/portal/mein/schichten/[zuordnungId]/fotos` — die Aufnahmen der Schicht
@@ -54,9 +55,14 @@ interface Blatt {
 }
 
 export default async function MeineSchichtfotos(
-  { params }: { params: Promise<{ zuordnungId: string }> },
+  { params, searchParams }: {
+    params: Promise<{ zuordnungId: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { zuordnungId } = await params;
+  /* Der Grund einer abgewiesenen Aufnahme — zu gross, nicht verbunden … (V-198). */
+  const fehler = (await searchParams)['fehler'];
   const speicher = waehleSpeicher();
 
   const ergebnis = await meinPortal<Blatt | null>(
@@ -118,6 +124,8 @@ export default async function MeineSchichtfotos(
       <p className="mb-s5 text-base text-text-muted">
         {schicht.objekt ?? '—'} · <span className="cse-zahl">{tagInSprache(schicht.planDatum, basis.sprache)}</span>
       </p>
+
+      <FormularFehler sprache={basis.sprache} grund={fehler} />
 
       {!verbunden && (
         <p data-cse="speicher-nicht-verbunden" className="mb-s5 max-w-prose text-base text-warning">

@@ -19313,3 +19313,82 @@ lesen `?meldung=`". Das Schichtblatt (`dienstplan/einsatz/[id]`) liest
 | Betrifft | D-599, D-562, D-728, EMP-10, TIM-02, ACC-03, V-158, V-197, `src/app/portal/[mandant]/personal/{antraege,abwesenheiten,nachweise/[id],nachweise/erfassen}/page.tsx`, `src/app/portal/[mandant]/finanzen/ausgaben/{[id],erfassen}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/ausgabe-erfassen.ts`, `src/lib/i18n/verwaltung/personal-nachweis.ts`, `tests/kern/fehler-rueckweg-seiten.test.ts` |
 |---|---|
 
+### D-692 · Ein Formular des Arbeiterportals endet auf einer Seite in der Sprache der Person — der Erfolg wie die Abweisung (V-198)
+
+**Der Befund** (V-198; Audit Befund 63): Die Arbeiterseiten schicken bewusst
+echte `<form method="post">` ohne JavaScript (SEITENKARTE §13), und mehrere
+Routen antworteten darauf mit JSON — der Browser zeigte es als weisse Seite.
+(1) Ein Einwand gegen einen Zeiteintrag endete auch im ERFOLG in
+`{"einwand":"<uuid>"}` (201). (2) Eine Krankmeldung mit einer Art, deren
+Lohnwirkung offen ist (O-139), endete in JSON mit dem deutschen Satz des
+Dienstes — das Formular bietet genau diese Arten an. (3) Wachbuch: „Präsenz
+bestätigt" ohne Kontrollpunkt → JSON mit deutschem Satz. (4) Ein
+Urlaubsantrag ohne Datum scheiterte am Auslöser `antrag_pflichtfelder`
+(0074); der Fehler trägt keinen numerischen `status`, die Route warf ihn
+weiter, und es blieb ein 500 ohne Text. Dieselbe Form hatten die übrigen
+Schreibwege unter `api/mein`: Kenntnisnahme einer Dienstanweisung (neuere
+Fassung), Rücknahme von Abwesenheit und Antrag, Antwort im Faden,
+Leistungsnachweis, Bautagebuch und Fotos über `dienstFehlerAntwort`.
+
+**Die Entscheidung.**
+
+1. **Die Route schickt einen GRUND, die Seite den Satz.**
+   `grundAufsFormularweg(anfrage, daten, grund, status)`
+   (`src/app/api/formular-antwort.ts`) leitet mit 303 auf das Formularfeld
+   `fehlerweg`, sonst auf `zurueck`, und hängt `?fehler=<grund>` an — über
+   `internesZiel`, also nie nach draussen. Trägt der Aufruf keines der beiden
+   Felder, ist er ein Programm und bekommt JSON mit Status wie bisher (D-599).
+2. **`fehlerweg` ist die Seite des Formulars**, wo der Erfolg woanders
+   hinführt: Abwesenheit melden und Antrag stellen führen im Erfolg auf die
+   Liste, im Fehlschlag zurück auf das Formular; Rücknahme und Kenntnisnahme
+   zurück auf ihr Blatt (meist ein Wettlauf — entschieden oder neu gefasst,
+   während die Seite offen war); die Unterschrift unter einem
+   Leistungsnachweis auf dasselbe Blatt (`?nachweis=`). Schichtwege, deren
+   `zurueck` schon die eigene Seite ist, brauchen kein zweites Feld.
+3. **Der Einwand endet auf seinem Blatt**:
+   `/portal/mein/zeiten/<id>/einwand?gesendet=1` bestätigt den Eingang
+   („eingegangen, nicht entschieden", EMP-07) und zeigt die Meldung in der
+   Liste darunter; ohne `zurueck` antwortet die Route einem Programm weiter
+   mit 201 und der Kennung.
+4. **Was die Datenbank abweist, wird ein Grund, wo er sicher erkennbar ist.**
+   `pflichtfeldGrund` (`services/abwesenheit/antrag.ts`) liest aus einer
+   `check_violation` den Hinweis des Auslösers („Fehlendes Feld: …") bzw.
+   die Prüfung `an_zeitraum` und gibt `fehlt_zeitraum`,
+   `fehlt_abwesenheitsart`, `fehlt_einsatz`, `fehlt_tauschpartner` oder
+   `zeitraum` zurück; alles andere bleibt ein Fehler, den die Route
+   weiterwirft. Die Krankmeldung bildet `ArtUngeklaertFehler` auf
+   `art_ungeklaert` und `ZeitraumFehler` auf `zeitraum` ab; das Wachbuch
+   trägt neben seinem deutschen Satz einen Schlüssel
+   (`WachbuchEingabeFehlt.grund`), denn fünf Fälle teilen denselben `code`.
+   Überschneidung und Prüfungen der Abwesenheitsmeldung selbst (23P01/23514)
+   sind Befund 81 einer anderen Gruppe und hier bewusst nicht angefasst.
+5. **Das Antragsformular sagt VOR dem Absenden, was eine Art verlangt** —
+   „Pflicht bei: …" unter Zeitraum und Abwesenheitsart, gelesen aus
+   denselben Spalten `antragsart.erfordert_*`, die der Auslöser prüft. Ohne
+   JavaScript kann ein Feld nicht je nach Auswahl `required` werden. Eine
+   Art, deren Pflichtfelder das Formular nicht anbietet (Schicht und
+   Tauschpartner beim Schichttausch), bleibt sichtbar, ist aber nicht wählbar
+   („hier noch nicht möglich"): angeboten wäre sie ein sicherer Fehlschlag.
+   Welche Art was verlangt, entscheidet weiter allein die Datenbank.
+6. **Der Satz steht in der Sprache der Person** — `MEIN_FORMULAR_TEXTE`
+   (de/en/ar/tr, `src/lib/i18n/mein-formular.ts`), nachgeschlagen nur als
+   eigener Eintrag (D-728); ein Grund, den die Tabelle nicht kennt, bekommt
+   den allgemeinen Satz, nie den Schlüssel. Kein Satz verspricht eine Frist,
+   Zuständigkeit oder Rechtsfolge; „an die Einsatzleitung wenden" steht nur,
+   wo das Portal keinen Weg hat (O-139, Schichttausch). Der Kasten ist
+   `components/ui/Hinweis` (`warnung` mit `role="alert"`, die Bestätigung
+   `erfolg` mit `role="status"`) — mit der neuen Grösse `groesse="base"`,
+   weil DESIGN §5 Hinweise in `sm` setzt und Fliesstext im Arbeiterportal nie
+   unter 16 px liegt (§8, D-738); §5 nennt die Ausnahme jetzt. Er steht über
+   dem Formular im `MeinRahmen`, der `lang` und `dir` (Arabisch `rtl`) setzt.
+7. **Was bleibt JSON**: die Wächter VOR dem Lesen des Formulars (fremder
+   Ursprung 403, keine Sitzung 401, Konto ohne Person 404) — wie auf allen
+   Schreibwegen der Plattform — und Eingaben, die kein Formular dieses
+   Portals erzeugt (unbekannte Handlung, keine UUID). Eine Beschäftigung, die
+   es für die Anmeldung nicht (mehr) gibt, geht dagegen zurück aufs Formular
+   („gibt es für Ihre Anmeldung nicht (mehr)") — dieselbe Auskunft wie das
+   bisherige 404, also kein neues Orakel (AUT-06).
+
+| Betrifft | D-599, D-728, D-691, EMP-07, EMP-09, EMP-10, EMP-11, EMP-12, SEC-05, CLN-04, BAU-07, TIM-10, O-139, V-198, `src/app/api/formular-antwort.ts`, `src/app/api/zeit/einwand/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/[id]/zurueckziehen/route.ts`, `src/app/api/mein/dienstanweisungen/[id]/kenntnisnahme/route.ts`, `src/app/api/mein/nachrichten/[id]/route.ts`, `src/app/api/mein/schichten/**`, `src/server/services/abwesenheit/antrag.ts` (`pflichtfeldGrund`), `src/server/services/security/wachbuch.ts`, `src/lib/i18n/mein-formular.ts`, `src/app/portal/mein/FormularAntwort.tsx`, `src/components/ui/Hinweis.tsx` (`groesse`), DESIGN §5 „Notices", `tests/kern/mein-formular-rueckweg.test.ts`, `tests/e2e/mitarbeiter.spec.ts` |
+|---|---|
+

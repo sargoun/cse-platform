@@ -9,6 +9,7 @@ import { AnmeldungNoetig } from '../../../Anmeldung';
 import { kennungOder404 } from '../../../kennung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
 import { Feld, Felder, Gesellschaft, Hinweis } from '../../bausteine';
+import { FormularFehler } from '../../FormularAntwort';
 
 /**
  * `/portal/mein/nachrichten/[id]` — EIN Eintrag, und es gibt zwei Arten davon
@@ -177,6 +178,9 @@ export default async function MeineNachricht(
               : t.gespeichert}
         </p>
       )}
+
+      {/* Eine abgewiesene Antwort — leer, oder der Faden ist inzwischen zu (V-198). */}
+      <FormularFehler sprache={basis.sprache} grund={suche['fehler']} />
 
       <div className="mb-s5 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{titel}</h1>

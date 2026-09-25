@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
@@ -76,7 +77,11 @@ export async function POST(
     });
   } catch (fehler: unknown) {
     if (fehler instanceof AntragNichtGefunden || fehler instanceof KeineAnstellungFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
+      /*
+       * Meist ein Wettlauf: die Personalstelle hat entschieden, während das
+       * Blatt offen war. Zurück aufs Blatt, das jetzt den Stand zeigt (V-198).
+       */
+      return grundAufsFormularweg(anfrage, daten, 'nicht_gefunden', 404);
     }
     throw fehler;
   }

@@ -639,7 +639,9 @@ carries `rolle` — `alert` for a rejection, `status` for a confirmation — so 
 is announced (§9, errors announced via `aria-live`). A page does not rebuild a
 notice from its classes (`border-warning bg-warning-soft …`); it uses the
 component. Older pages that still do are moved over when they are touched
-(V-217).
+(V-217). On the worker screens (`/portal/mein/**`) a notice sets `base` type
+instead of `sm` — `groesse="base"` — because body text there is never below
+`16px` (§8, D-738); everything else about it stays the same (V-198).
 
 ### Status pages — 404 and error
 

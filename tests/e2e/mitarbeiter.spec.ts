@@ -321,6 +321,14 @@ test.describe('(2) kein Bearbeitungsfeld auf einem Zeiteintrag (EMP-07)', () => 
     await page.selectOption('#einwand-art', 'zeit_falsch');
     await page.fill('#einwand-begruendung', 'Ich habe früher angefangen.');
     await page.click('[data-cse="einwand-formular"] button[type="submit"]');
+    /*
+     * Der Mensch landet auf einer SEITE (V-198, D-599): dem Blatt seines
+     * Einwands, mit der Bestätigung und der Meldung in der Liste. Hier stand
+     * nach dem Absenden `{"einwand":"<uuid>"}` auf einer weissen Seite.
+     */
+    await expect(page).toHaveURL(new RegExp(`/portal/mein/zeiten/${vorher}/einwand\\?gesendet=1$`, 'u'));
+    await expect(page.locator('[data-cse="einwand-gesendet"]')).toBeVisible();
+    await expect(page.locator('[data-cse="einwand-zeile"]').first()).toBeVisible();
     await page.waitForLoadState('networkidle');
 
     const [, abbildNachher] = await abbild(vorher);

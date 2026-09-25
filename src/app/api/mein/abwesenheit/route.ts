@@ -10,7 +10,9 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
 import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/index';
 import { KeineAnstellungFehler, mandantDerAnstellung }
   from '@/server/services/zeit/einwand';
-import { meldeAbwesenheit } from '@/server/services/abwesenheit/index';
+import { ArtUngeklaertFehler, meldeAbwesenheit } from '@/server/services/abwesenheit/index';
+import { ZeitraumFehler } from '@/server/services/abwesenheit/tage';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 
 /**
  * `POST /api/mein/abwesenheit` — der Mensch meldet eine Abwesenheit (EMP-10).
@@ -72,13 +74,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const von = textOder(daten, 'von');
   const bis = textOder(daten, 'bis');
   if (anstellungId === null) {
-    return NextResponse.json({ fehler: 'keine_anstellung' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_anstellung', 400);
   }
   if (abwesenheitsartId === null) {
-    return NextResponse.json({ fehler: 'keine_art' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_art', 400);
   }
   if (von === null || bis === null || !DATUM.test(von) || !DATUM.test(bis)) {
-    return NextResponse.json({ fehler: 'kein_datum' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'kein_datum', 400);
   }
 
   try {
@@ -118,7 +120,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     });
   } catch (fehler) {
     if (fehler instanceof KeineAnstellungFehler || fehler instanceof NichtGefundenFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
+      /*
+       * Eine Beschäftigung, die es für diese Anmeldung nicht (mehr) gibt —
+       * fremd (AUT-06: dieselbe Antwort wie „gibt es nicht") oder beendet,
+       * während das Formular offen war. Zurück aufs Formular (V-198).
+       */
+      return grundAufsFormularweg(anfrage, daten, 'nicht_gefunden', 404);
     }
     if (fehler instanceof NichtAngemeldetFehler) {
       return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
@@ -129,10 +136,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const status = (fehler as { status?: number }).status;
     const code = (fehler as { code?: string }).code;
     if (typeof status === 'number' && typeof code === 'string') {
-      // „Fuer diese Abwesenheitsart ist nicht hinterlegt, ob sie bezahlt ist"
-      // (O-139) ist eine Auskunft und kein Serverfehler.
-      return NextResponse.json(
-        { fehler: code, meldung: (fehler as Error).message }, { status });
+      /*
+       * „Für diese Abwesenheitsart ist nicht hinterlegt, ob sie bezahlt ist"
+       * (O-139) ist eine Auskunft und kein Serverfehler — und sie gehört auf
+       * die Seite des Formulars, in der Sprache der Person (V-198, D-599).
+       * Hier stand JSON mit dem deutschen Satz des Dienstes: das Formular
+       * bietet genau diese Arten an, als ungeklärt markiert.
+       */
+      const grund = fehler instanceof ArtUngeklaertFehler ? 'art_ungeklaert'
+        : fehler instanceof ZeitraumFehler ? 'zeitraum' : code;
+      return grundAufsFormularweg(anfrage, daten, grund, status);
     }
     throw fehler;
   }
