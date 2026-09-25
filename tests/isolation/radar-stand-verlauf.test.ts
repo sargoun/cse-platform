@@ -9,7 +9,8 @@
  * hatte; auf einer Datenbank ohne Vorgang fiel nichts auf. Geprüft wird hier
  * der ganze Weg, den die Seite nimmt — der Leser aus `daten.ts` über den
  * Definer `app.radar_stand_verlauf` —, und die vier Grenzen des Definers:
- * Spaltenrecht bleibt zu, Mandant, Recht, Portal.
+ * Spaltenrecht bleibt zu, Mandant, Recht, Portal. Die vierte stand bis V-253
+ * nur in diesem Satz; jetzt hat jede ihren Fall.
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
@@ -43,25 +44,32 @@ async function mitglied(benutzer: string, mandant: string, rolle: string): Promi
     [benutzer, mandant, rolle]);
 }
 
+type Portal = 'intern' | 'mitarbeiter' | 'kunde';
+
 function kontextAus(
-  tx: postgres.TransactionSql, mandant: string, benutzer: string,
+  tx: postgres.TransactionSql, mandant: string, benutzer: string, portal: Portal,
 ): SchreibKontext {
   const abfrage = async <T,>(anweisung: string, werte?: readonly unknown[]): Promise<readonly T[]> =>
     (await tx.unsafe(anweisung, (werte ?? []) as never[])) as unknown as readonly T[];
   return {
-    scope: 'mandant', portal: 'intern', benutzerId: benutzer,
+    scope: 'mandant', portal, benutzerId: benutzer,
     aktiverMandantId: mandant, mandantIds: [mandant], abfrage, schreibe: abfrage,
   };
 }
 
-/** Eine Sitzung im internen Portal — dort, wo die Stand-Seite liegt. */
+/**
+ * Eine Sitzung im Mandanten-Scope — vorgegeben im internen Portal, dort, wo
+ * die Stand-Seite liegt. `portal` setzt die K-04-Decke anders, und nur sie:
+ * Mitgliedschaft, Rolle und Rechte bleiben dieselben (V-253).
+ */
 function als<T>(
   benutzer: string, mandant: string, fn: (k: SchreibKontext) => Promise<T>,
+  portal: Portal = 'intern',
 ): Promise<T> {
   return alsApp({
     scope: 'mandant', mandantId: mandant, mandantIds: [mandant], benutzerId: benutzer,
-    readonly: false, portal: 'intern',
-  }, (tx) => fn(kontextAus(tx, mandant, benutzer)));
+    readonly: false, portal,
+  }, (tx) => fn(kontextAus(tx, mandant, benutzer, portal)));
 }
 
 async function bekanntmachung(): Promise<string> {
@@ -135,6 +143,32 @@ describe('(2) die Grenzen des Definers', () => {
       `select status from app.radar_stand_verlauf($1::uuid)`, [vorgang])));
     expect((ohne as { code?: string }).code).toBe('42501');
   });
+
+  /**
+   * **Die vierte Grenze: das Portal** (K-04, V-253).
+   *
+   * Der Kopf dieser Datei verspricht vier Grenzen, geprüft waren drei — die
+   * Portalprüfung des Definers liess sich streichen, und alles blieb grün.
+   * Deshalb hier DERSELBE Mensch mit derselben Mitgliedschaft (`admin`, hält
+   * `radar.lesen`), nur mit einer anderen Decke. Dass das Recht in derselben
+   * Sitzung wirklich gilt, steht mit im Fall: sonst bewiese die Abweisung
+   * nur die Rechteprüfung ein zweites Mal, und die Portalzeile bliebe so
+   * ungeprüft wie vorher.
+   */
+  for (const portal of ['mitarbeiter', 'kunde'] as const) {
+    it(`aus dem Portal „${portal}" eine Abweisung — auch mit radar.lesen`, async () => {
+      const vorgang = await vorgangMitZweiStaenden();
+      const [recht] = await als(admin, f.reinigung, (k) => k.abfrage<{ ok: boolean }>(
+        `select app.hat_recht('radar.lesen', app.aktiver_mandant()) as ok`), portal);
+      expect(recht?.ok, 'das Recht gilt in dieser Sitzung — nur die Decke ist anders')
+        .toBe(true);
+
+      const aussen = await fehlerVon(als(admin, f.reinigung, (k) => k.abfrage(
+        `select status from app.radar_stand_verlauf($1::uuid)`, [vorgang]), portal));
+      expect((aussen as { code?: string }).code).toBe('42501');
+      expect(String((aussen as { message?: string }).message)).toMatch(/internen Portal/u);
+    });
+  }
 
   it('gehört cse_definer, und public darf ihn nicht ausführen', async () => {
     const [z] = await sql.unsafe<{ eigentuemer: string; oeffentlich: boolean }[]>(

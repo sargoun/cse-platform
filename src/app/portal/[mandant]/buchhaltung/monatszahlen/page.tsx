@@ -13,6 +13,8 @@ import { liesWirtschaftsjahr, wirtschaftsjahrVon } from '@/server/services/buchh
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { gruppenverweisOffen } from '@/server/services/gruppe/verweis';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 
 /**
  * `/portal/[mandant]/buchhaltung/monatszahlen` — Erloese, Aufwand, Ergebnis
@@ -48,32 +50,33 @@ export default async function MonatszahlenSeite(
    * und verriete, was sie nicht zeigen darf (AUT-06, Copilot-Runde auf PR 16 /
    * D-581). Ohne das Recht steht der Betrag ohne Verweis.
    */
-  const darf = await haeltRechte(
-    zugang.sitzung, 'finanzen.lesen', 'eingang.lesen', 'gruppe.finanzen.lesen');
+  const darf = await haeltRechte(zugang.sitzung, 'finanzen.lesen', 'eingang.lesen');
   const suche = await searchParams;
   const jahrRoh = typeof suche['jahr'] === 'string' ? suche['jahr'] : null;
   const gewaehlt = jahrRoh !== null && /^\d{4}$/u.test(jahrRoh) ? Number(jahrRoh) : null;
 
   /*
-   * **Der Verweis in die Gruppensicht haengt an ZWEI Bedingungen** (V-243,
-   * D-737). `/portal/gruppe/finanzen` verlangt laut Manifest
-   * `gruppe.finanzen.lesen`, und ihr Tor oeffnet nur, wem
-   * `app.darf_gruppenansicht()` die Gruppenuebersicht erlaubt — sonst 404.
-   * Der Verweis stand unbedingt da: eine Administration der Reinigung ohne
-   * Gruppenrecht klickte ins Nichts (gefunden vom Verweislauf der
-   * Browsersuite). Dieselbe Regel wie oben fuer die Monatslisten (AUT-06,
+   * **Der Verweis in die Gruppensicht haengt an denselben Bedingungen wie
+   * ihr Tor** (V-243, D-737; V-253, D-745). Der Satz stand unbedingt da:
+   * eine Administration der Reinigung ohne Gruppenrecht klickte ins Nichts
+   * (gefunden vom Verweislauf der Browsersuite). Die Regel — Leserechte der
+   * Zielroute im aktiven Mandanten UND `app.darf_gruppenansicht()` — steht
+   * EINMAL in `gruppenverweisOffen` und ist dort geprueft
+   * (`tests/isolation/gruppenverweis.test.ts`), nicht als zwei Abfragen in
+   * dieser Seite. Dieselbe Absicht wie oben fuer die Monatslisten (AUT-06,
    * D-581): ohne beide Bedingungen steht der Satz nicht da.
    */
-  const { z, gruppeOffen } = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+  const GRUPPENZIEL = '/portal/gruppe/finanzen';
+  const { z, darfGruppe } = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
       const wj = await liesWirtschaftsjahr(kontext);
       const [heute] = await kontext.abfrage<{ tag: string }>(`select app.berlin_heute()::text as tag`);
       const jahr = gewaehlt ?? wirtschaftsjahrVon(heute?.tag ?? '2026-01-01', wj);
-      const [gruppe] = await kontext.abfrage<{ ok: boolean }>(
-        `select app.darf_gruppenansicht() as ok`);
-      return { z: await monatszahlen(kontext, jahr, wj), gruppeOffen: gruppe?.ok === true };
-    })) as Promise<{ z: Monatszahlen; gruppeOffen: boolean }>);
-  const darfGruppe = gruppeOffen && darf['gruppe.finanzen.lesen'] === true;
+      return {
+        z: await monatszahlen(kontext, jahr, wj),
+        darfGruppe: await gruppenverweisOffen(kontext, GRUPPENZIEL),
+      };
+    })) as Promise<{ z: Monatszahlen; darfGruppe: boolean }>);
 
   const basis = `/portal/${mandant}/buchhaltung/monatszahlen`;
   const knopf = 'inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2';
@@ -169,7 +172,7 @@ export default async function MonatszahlenSeite(
       />
       {darfGruppe ? (
         <p className="mt-s4 text-xs text-text-subtle" data-cse="monatszahlen-gruppe">
-          Gruppensicht: <Link href={`/portal/gruppe/finanzen?jahr=${String(z.jahr)}`} className="underline underline-offset-2">Finanzen der Gruppe</Link> — die Summe der Gesellschaften, nach Kalenderjahr.
+          Gruppensicht: <Link href={alsRoute(`${GRUPPENZIEL}?jahr=${String(z.jahr)}`)} className="underline underline-offset-2">Finanzen der Gruppe</Link> — die Summe der Gesellschaften, nach Kalenderjahr.
         </p>
       ) : null}
     </PortalRahmen>

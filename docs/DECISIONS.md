@@ -19013,3 +19013,128 @@ und sagt dazu, wer sie einträgt. Kein Vorgabewert, O-195 bleibt offen.
 
 | Betrifft | V-245, V-015, O-195, AGT-05, `src/app/portal/[mandant]/agenten/budget/page.tsx`, `src/lib/i18n/verwaltung/agent-budget.ts`, `tests/e2e/agenten.spec.ts` |
 |---|---|
+
+### D-745 · Ein Verweis in die Gruppensicht fragt, was ihr Tor fragt — Rechte aus dem Manifest, im aktiven Mandanten (V-253)
+
+**Der Befund** (V-253; Prüfung von V-243): Die Bedingung, unter der
+`/buchhaltung/monatszahlen` auf `/portal/gruppe/finanzen` verweist (D-737),
+stand als zwei Abfragen und ein fest geschriebener Rechteschlüssel in der
+Seite — und hatte keinen eigenen Test. Weder „ohne Recht fehlt der Satz"
+noch „mit Recht und Gruppenzugang steht er" war geprüft; den ersten Fall fing
+nur der Verweislauf der Browsersuite indirekt ab, den zweiten nichts. Ein
+Satz, der künftig für jede Rolle verschwände, fiele keinem Test auf.
+
+**Die Entscheidung.**
+
+1. **Eine Stelle:** `gruppenverweisOffen(kontext, ziel)`
+   (`src/server/services/gruppe/verweis.ts`) beantwortet, ob eine Seite einer
+   Gesellschaft auf eine Seite der Gruppensicht verweisen darf. Sie stellt
+   dieselben Fragen wie das Ziel, wenn es aus einer Mandantensitzung
+   aufgerufen wird: die Leserechte der Zielroute im AKTIVEN Mandanten (so
+   fragt `pruefeZugang`), den zweiten Faktor, wenn die Route ihn verlangt,
+   und `app.darf_gruppenansicht()` (sonst antwortet `gruppenTor` mit 404).
+2. **Die Rechte kommen aus dem Manifest**, nicht aus der Seite: ändert es
+   den Schlüssel der Zielroute, folgt der Verweis. Eine Adresse, die keine
+   Gruppenroute ist oder die das Manifest nicht kennt, bekommt nie einen
+   Verweis — lieber keiner als einer auf 404.
+3. **Geprüft:** `tests/isolation/gruppenverweis.test.ts` — ein Fall mit allen
+   Bedingungen (ja), je einer ohne das Recht bei offener Gruppenansicht, mit
+   dem Recht nur in einem anderen Bereich und ohne Gruppenansicht (nein), ein
+   Ziel mit zwei Leserechten, keine und eine unbekannte Gruppenroute;
+   `tests/e2e/buchhaltung.spec.ts`: die Administration der Reinigung sieht
+   den Satz nicht, die Plattformverwaltung sieht ihn, und sein Ziel
+   antwortet mit 200.
+
+| Betrifft | V-243, V-253, D-581, D-737, AUT-06, `src/server/services/gruppe/verweis.ts`, `src/app/portal/[mandant]/buchhaltung/monatszahlen/page.tsx`, `tests/isolation/gruppenverweis.test.ts`, `tests/e2e/buchhaltung.spec.ts` |
+|---|---|
+
+### D-746 · Arbeiterportal: jedes Häkchen hat 44 px, geprüft am Quellbaum — und die Warnschwelle des KI-Budgets ist in beiden Zweigen geprüft, ohne dass der Seed eine erfindet (V-254)
+
+**Der Befund** (V-254; Prüfung von V-244 und V-245):
+
+1. V-244 brachte die drei Häkchen der Abwesenheit auf 44 × 44 px. Das
+   vierte, das derselbe Zweig ins Arbeiterportal brachte — „nachgetragen"
+   im Wachbuch —, behielt seine native Grösse; nur die Beschriftung darum
+   war 44 px hoch. Ebenso „Präsenz bestätigt" und „Polizei informiert" auf
+   derselben Seite (älter als der Zweig). `mitarbeiter.spec.ts` (6) misst
+   jedes `input`, aber nur auf den Seiten seiner Liste, und die
+   Wachbuchseite hängt an einer Security-Schicht, die die gemessene Person
+   nicht hat.
+2. Der Zweig „Warnung ab N %" der Budgetseite und das Verschwinden des
+   O-195-Satzes, sobald jede Zeile eine Schwelle hat, liefen in keinem Test
+   und in keiner Seed-Zeile: der Seed setzt `warnschwelle_prozent` mit
+   Absicht nicht (eine gesetzte Zahl wäre eine still erfundene Finanzregel,
+   O-195). Dazu zwei kleine Punkte: englisch stand „Warning from 80 %"
+   (V-213: englisch ohne Leerzeichen vor dem Prozentzeichen), und der
+   mehrsätzige Erklärsatz stand in `text-xs text-text-subtle`, das DESIGN §9
+   Meta, Zeitstempeln und Platzhaltern vorbehält.
+
+**Die Entscheidung.**
+
+1. Alle drei Häkchen des Wachbuchs sind `min-h-11 min-w-11 shrink-0` —
+   dieselbe Regel wie D-738 Nr. 2. Eine Wache über den QUELLBAUM
+   (`tests/kern/mein-haekchen.test.ts`) prüft jedes `checkbox` und `radio`
+   unter `src/app/portal/mein`: ein neues Häkchen auf einer neuen Seite ist
+   damit geprüft, bevor eine Seitenliste der Browsersuite es kennt.
+2. Die Bedingung des O-195-Satzes ist eine reine Funktion
+   (`warnschwelleOffen` in `src/server/agent/budget.ts`), in beiden Zweigen
+   geprüft (`tests/kern/agent-budget-warnschwelle.test.ts`). **Der Seed
+   bekommt bewusst KEINE Schwelle.** Die Definition of done („seed data
+   exercises it") erfüllen für diesen Zweig der Test und eine
+   Browserprüfung, die selbst eine Schwelle über die Maske setzt — für
+   Dezember 2099, einen Monat, den kein Agent bucht, damit die Zeile des
+   laufenden Monats unberührt bleibt; die Zahl ist Testeingabe, keine
+   Vorgabe. Eine Seed-Zeile mit Schwelle sähe abgestimmt aus, und genau das
+   schliesst O-195 aus.
+3. `warnungAb` ist eine Funktion der Sprache: „Warnung ab 80 %", „Warns at
+   80%". Der Erklärsatz steht in `text-sm text-text-muted` mit
+   `max-w-prose`, wie die Erklärung der Maske darunter.
+
+| Betrifft | V-244, V-245, V-254, D-738, D-739, O-195, DESIGN §8, §9, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/app/portal/[mandant]/agenten/budget/page.tsx`, `src/server/agent/budget.ts`, `src/lib/i18n/verwaltung/agent-budget.ts`, `tests/kern/mein-haekchen.test.ts`, `tests/kern/agent-budget-warnschwelle.test.ts`, `tests/e2e/agenten.spec.ts` |
+|---|---|
+
+### D-747 · Ein Muster ist keine Adresse: daraus entsteht kein Rückweg — und die Wache davor sieht alle fünf Eingänge des Tors (V-255)
+
+**Der Befund** (V-255; Prüfung von V-248): V-248 hat zwei Dinge eingeführt
+und keines davon festgehalten. (1) Eine Verhaltensregel: `rueckwegFuer`
+gibt für einen Pfad mit einem `[…]`-Segment `null` zurück
+(`src/server/registry/rueckweg.ts`) — V-241 bis V-245 bekamen je eine
+Entscheidung, diese Regel keine. (2) Eine statische Wache
+(`tests/kern/rueckweg.test.ts` (7)), die nur `portalZugang` und `mandantTor`
+mit einem Literal als erstem Argument erfasste — nicht `meinPortal`,
+`kundePortal` und `gruppenTor`, nicht die rund 160 Aufrufe mit einer
+Variablen (`const pfad = …`) und nicht den Weiterreicher
+`RecruitingSeite({ unterpfad })`. Gäbe dort jemand ein Muster weiter,
+blendete die Regel (1) den Pfeil still aus, und der Verweislauf der
+Browsersuite fände nichts mehr — aber das `zurueck` des Sprachumschalters,
+das Wechselblatt und das `weiter=` nach der Zwei-Faktor-Anmeldung bekämen
+das Muster weiterhin. Heute gibt es keinen solchen Aufruf; die neue Wache
+bestätigt das über alle Eingänge.
+
+**Die Entscheidung.**
+
+1. **Die Regel bleibt, und sie ist die zweite Linie.** Aus einem Pfad mit
+   `[…]`-Segment leitet `rueckwegFuer` keinen Rückweg ab: welcher Datensatz
+   gemeint war, steht in einem Muster nicht, und einen Vorfahren daraus zu
+   raten hiesse, ins Leere zu zeigen — lieber kein Pfeil als einer auf 404
+   (AUT-06, D-613). Sie ersetzt nicht, dem Tor die Adresse zu geben: sie
+   deckt nur den Pfeil.
+2. **Die erste Linie ist die Wache, und sie liest den Syntaxbaum**
+   (`tests/kern/hilfen/tor-adresse.ts`): jeder Aufruf der fünf Eingänge,
+   das erste Argument aufgelöst über Literale, Vorlagen, `?:`, `+` und
+   Deklarationen im Gültigkeitsbereich. Die Weitergabe innerhalb der Tore
+   wird an deren Aufrufern geprüft, ein Weiterreicher (Parameter einer
+   anderen Funktion, auch nur in `${…}` eingesetzt) an jedem Aufruf und
+   jedem JSX-Element. Ein erstes Argument, das sich nicht auflösen lässt,
+   wird als „unprüfbar" gemeldet und nicht übergangen.
+3. **Die Wache wird selbst geprüft** (Gegenprobe im selben Abschnitt): ein
+   Muster über jeden Eingang, über eine Variable und über einen
+   Weiterreicher wird gefunden, ein unauflösbares Argument gemeldet; die
+   Adresse und die Weitergabe im Tor bleiben ohne Befund.
+4. **Keine Laufzeitsperre im Tor.** Ein Muster im Tor ist ein
+   Programmierfehler, den die Wache vor dem Zusammenführen findet; ein Wurf
+   zur Laufzeit machte aus einem falschen Pfeil eine 500 für den Menschen
+   davor.
+
+| Betrifft | V-248, V-255, D-613, AUT-06, `src/server/registry/rueckweg.ts`, `tests/kern/rueckweg.test.ts` (7), `tests/kern/hilfen/tor-adresse.ts` |
+|---|---|

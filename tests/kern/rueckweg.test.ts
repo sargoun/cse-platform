@@ -5,6 +5,7 @@ import { rueckwegFuer, rueckwegRechte } from '../../src/server/registry/rueckweg
 import {
   BEKANNTE_RUECKZIELE, rueckzielName,
 } from '../../src/lib/i18n/verwaltung/rueckziele';
+import { pruefeTorAdressen } from './hilfen/tor-adresse';
 
 /**
  * Der Rückweg — abgeleitet statt geschrieben (DESIGN §5, D-613, V-108).
@@ -250,5 +251,96 @@ describe('(7) das Tor bekommt die Adresse, nicht das Muster', () => {
     const muster = /\b(?:portalZugang|mandantTor)\(\s*[`'"][^`'"]*\/\[[^\]/]+\]/u;
     const treffer = alle.filter((d) => muster.test(readFileSync(d, 'utf8')));
     expect(treffer).toEqual([]);
+  });
+
+  /*
+   * **Alle fünf Eingänge, und durch Variablen hindurch** (V-255, D-747).
+   *
+   * Die Zeilensuche darüber erfasst nur `portalZugang`/`mandantTor` mit einem
+   * Literal als erstem Argument. `meinPortal`, `kundePortal`, `gruppenTor`
+   * und die 160 Aufrufe mit einer Variablen (`const pfad = …`) sah sie nicht.
+   * Gäbe dort jemand ein Muster weiter, blendete `rueckwegFuer` den Pfeil
+   * still aus — der Verweislauf fände nichts mehr —, aber Sprachumschalter,
+   * Wechselblatt und `weiter=` bekämen das Muster trotzdem. Deshalb liest
+   * diese Prüfung den Syntaxbaum (`hilfen/tor-adresse.ts`) und meldet auch,
+   * was sie NICHT auflösen kann.
+   */
+  it('jedes der fünf Tore bekommt eine Adresse — auch über Variablen und Weiterreicher', async () => {
+    const { readdirSync, statSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const dateien: [string, string][] = [];
+    const gehe = (verzeichnis: string): void => {
+      for (const eintrag of readdirSync(verzeichnis)) {
+        const voll = join(verzeichnis, eintrag);
+        if (statSync(voll).isDirectory()) gehe(voll);
+        else if (voll.endsWith('.tsx') || voll.endsWith('.ts')) {
+          dateien.push([voll, readFileSync(voll, 'utf8')]);
+        }
+      }
+    };
+    gehe('src/app');
+
+    const { befunde, aufrufe } = pruefeTorAdressen(dateien);
+    // Die Prüfung sieht die Aufrufe überhaupt — sonst wäre „keine Befunde" billig.
+    expect(aufrufe).toBeGreaterThan(300);
+    expect(befunde.map((b) => `${b.datei}:${String(b.zeile)} ${b.art}: ${b.text}`)).toEqual([]);
+  });
+
+  it('die Gegenprobe: jeder Weg eines Musters ins Tor wird gefunden', () => {
+    const art = (...dateien: [string, string][]): readonly string[] =>
+      pruefeTorAdressen(dateien).befunde.map((b) => `${b.datei} ${b.art}`);
+
+    // Ein Literal an jedem der drei Eingänge, die die Zeilensuche nicht kannte.
+    expect(art(['a.tsx', `meinPortal('/portal/mein/schichten/[zuordnungId]/wachbuch', lade);`]))
+      .toEqual(['a.tsx muster']);
+    expect(art(['a.tsx', 'kundePortal(`/portal/kunde/rechnungen/[id]`, lade);']))
+      .toEqual(['a.tsx muster']);
+    expect(art(['a.tsx', `gruppenTor(offen ? '/portal/gruppe/a' : '/portal/gruppe/[x]');`]))
+      .toEqual(['a.tsx muster']);
+
+    // Durch eine Variable hindurch.
+    expect(art(['a.tsx', [
+      'export default async function S({ params }) {',
+      '  const { mandant, id } = await params;',
+      '  const pfad = `/portal/${mandant}/agenten/[agent]/aufgaben/${id}`;',
+      '  return portalZugang(pfad);',
+      '}',
+    ].join('\n')])).toEqual(['a.tsx muster']);
+
+    // Über einen Weiterreicher, der den Pfad nur einsetzt — gemeldet am Aufrufer.
+    expect(art(
+      ['rahmen.tsx', [
+        'export async function Rahmen({ mandant, unterpfad }) {',
+        '  const pfad = `/portal/${mandant}/recruiting/${unterpfad}`;',
+        '  return mandantTor(pfad, mandant);',
+        '}',
+      ].join('\n')],
+      ['seite.tsx', 'const x = <Rahmen mandant={m} unterpfad={`stellen/[id]`} />;'],
+    )).toEqual(['seite.tsx muster']);
+
+    // Jeder eingesetzte Parameter wird bis zu seinen Aufrufern verfolgt — ein Wert
+    // aus der Anfrage ist dort ein Wert, ein Literal mit `[…]` ein Muster.
+    const blatt: [string, string] = ['blatt.tsx',
+      'export async function Blatt({ ziel }) { return gruppenTor(`/portal/gruppe/${ziel}`); }'];
+    expect(art(blatt, ['seite.tsx', 'const x = <Blatt ziel="berichte/[bericht]" />;']))
+      .toEqual(['seite.tsx muster']);
+    expect(art(blatt, ['seite.tsx', [
+      'export default async function S({ params }) {',
+      '  const { bericht } = await params;',
+      '  return <Blatt ziel={bericht} />;',
+      '}',
+    ].join('\n')])).toEqual([]);
+
+    // Was sich nicht auflösen lässt, wird gemeldet und nicht übergangen.
+    expect(art(['a.tsx', 'mandantTor(pfadFuer(id), mandant);'])).toEqual(['a.tsx unpruefbar']);
+    expect(art(['a.tsx', 'for (const pfad of SEITEN) await portalZugang(pfad);']))
+      .toEqual(['a.tsx unpruefbar']);
+
+    // Und die Adresse selbst ist kein Befund — auch nicht ihre Weitergabe im Tor.
+    expect(art(
+      ['a.tsx', 'mandantTor(`/portal/${mandant}/objekte/${id}`, mandant);'],
+      ['b.tsx', 'export async function meinPortal(pfad, laden) { return portalZugang(pfad); }'],
+      ['c.tsx', `const pfad = '/portal/mein/zeiten'; meinPortal(pfad, lade);`],
+    )).toEqual([]);
   });
 });
