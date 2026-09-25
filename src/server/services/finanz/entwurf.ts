@@ -591,11 +591,21 @@ interface AusgabeZeile {
   readonly auftrag_id: string | null;
   readonly kunde_id: string | null;
   readonly weiterberechnet: boolean;
+  /**
+   * Die Ausgabe hängt an einem Auftrag, Projekt oder Objekt, das dieser
+   * Mensch nicht sieht (V-208). Dann ist `kunde_id` hier `null`, OBWOHL es
+   * einen Kunden gibt — und `null` hiesse sonst „passt zu jedem".
+   */
+  readonly bezug_verdeckt: boolean;
 }
 
 /**
  * Die Ausgabe mit dem, woran sie hängt. Gelesen unter `eingang.lesen` (die
  * Policy auf `ausgabe`, 0180) — ohne das Recht gibt es sie hier nicht.
+ *
+ * Auftrag, Projekt und Objekt stehen unter ihrer eigenen RLS. Ein Bezug, der
+ * gesetzt ist, aber nicht gelesen werden kann, heisst `bezug_verdeckt` und
+ * passt nie (V-208, D-701 Nr. 2) — fail closed statt „kein Kunde".
  */
 const AUSGABE_SQL = `
   select a.id::text as id, a.bezeichnung, to_char(a.ausgabedatum, 'YYYY-MM-DD') as ausgabedatum,
@@ -604,24 +614,35 @@ const AUSGABE_SQL = `
          coalesce(au.kunde_id, p.kunde_id, o.kunde_id)::text as kunde_id,
          exists (select 1 from rechnungsposition_quelle q
                   where q.mandant_id = a.mandant_id and q.ausgabe_id = a.id
-                    and q.quelle_typ = 'material' and q.wirksam) as weiterberechnet
+                    and q.quelle_typ = 'material' and q.wirksam) as weiterberechnet,
+         ((a.projekt_id is not null and p.id is null)
+          or (coalesce(a.auftrag_id, p.auftrag_id) is not null and au.id is null)
+          or (a.objekt_id is not null and o.id is null)) as bezug_verdeckt
     from ausgabe a
     left join projekt p on p.mandant_id = a.mandant_id and p.id = a.projekt_id
     left join auftrag au on au.mandant_id = a.mandant_id
                         and au.id = coalesce(a.auftrag_id, p.auftrag_id)
     left join objekt o on o.mandant_id = a.mandant_id and o.id = a.objekt_id`;
 
+/**
+ * **Passt die Ausgabe `x` zu Kunde (`$2`) und Auftrag (`$3`) der Rechnung?**
+ *
+ * EINE Fassung, in SQL, für Auswahl und Übernahme (V-208): kein verdeckter
+ * Bezug, kein anderer Auftrag (eine Rechnung ohne Auftrag widerspricht keinem),
+ * kein anderer Kunde (eine Ausgabe ohne Kunde widerspricht keinem).
+ */
+const PASST_ZUM_BELEG = `(not x.bezug_verdeckt
+   and ($3::text is null or x.auftrag_id is null or x.auftrag_id = $3::text)
+   and (x.kunde_id is null or x.kunde_id = $2::text))`;
+
 /** Die Zustände, in denen eine Ausgabe belegt und freigegeben ist (0180). */
 const WEITERBERECHENBAR_IM_ZUSTAND = ['freigegeben', 'gebucht'] as const;
 
-function passtZurRechnung(
-  a: AusgabeZeile, r: { kunde_id: string; auftrag_id: string | null },
-): boolean {
-  if (r.auftrag_id !== null && a.auftrag_id !== null && a.auftrag_id !== r.auftrag_id) {
-    return false;
-  }
-  return a.kunde_id === null || a.kunde_id === r.kunde_id;
-}
+/**
+ * So viele PASSENDE Ausgaben bietet die Auswahl an. Gezählt wird erst nach der
+ * Prüfung — und wird die Grenze erreicht, sagt das Blatt es (`abgeschnitten`).
+ */
+export const AUSGABEN_HOECHSTENS = 500;
 
 export interface AusgabeAuswahl {
   readonly id: string;
@@ -630,31 +651,57 @@ export interface AusgabeAuswahl {
   readonly nettoCent: Cent;
 }
 
+export interface AusgabenAngebot {
+  readonly ausgaben: readonly AusgabeAuswahl[];
+  /** Es gibt mehr passende Ausgaben, als die Auswahl zeigt. */
+  readonly abgeschnitten: boolean;
+  /**
+   * Offene, weiterberechenbare Ausgaben mit einem Bezug, den dieser Mensch
+   * nicht sieht — nicht angeboten, aber gezählt, damit niemand sie sucht.
+   */
+  readonly verdeckt: number;
+}
+
+const KEIN_ANGEBOT: AusgabenAngebot = { ausgaben: [], abgeschnitten: false, verdeckt: 0 };
+
 /**
  * Die Ausgaben, die auf DIESEN Entwurf passen: weiterberechenbar, belegt und
  * freigegeben, noch auf keiner wirksamen Zeile, und keinem anderen Auftrag
- * oder Kunden zugeordnet. Dieselbe Regel wie `fuegeMaterialPositionHinzu` —
- * die Maske bietet nichts an, was der Dienst danach abweist.
+ * oder Kunden zugeordnet. Dieselbe Regel wie `fuegeMaterialPositionHinzu`
+ * (`PASST_ZUM_BELEG`) — die Maske bietet nichts an, was der Dienst danach
+ * abweist.
+ *
+ * **Erst prüfen, dann begrenzen** (V-208). Hier stand `limit 200` über ALLE
+ * weiterberechenbaren Ausgaben der Gesellschaft und der Filter danach in
+ * Javascript; weiterberechnete bleiben für immer in dieser Menge, und ab der
+ * zweihundertsten fiel jede ältere, noch offene Ausgabe still aus der Auswahl.
  */
 export async function weiterberechenbareAusgaben(
   db: Abfrage, rechnungId: string,
-): Promise<readonly AusgabeAuswahl[]> {
+): Promise<AusgabenAngebot> {
   const [r] = await db.abfrage<{ kunde_id: string; auftrag_id: string | null }>(
     `select kunde_id::text as kunde_id, auftrag_id::text as auftrag_id
        from rechnung where id = $1::uuid`, [rechnungId]);
-  if (r === undefined) return [];
+  if (r === undefined) return KEIN_ANGEBOT;
+  const offen = `x.weiterberechenbar and x.status = any($1::text[]) and not x.weiterberechnet`;
   const zeilen = await db.abfrage<AusgabeZeile>(
-    `${AUSGABE_SQL}
-      where a.weiterberechenbar and a.status::text = any($1::text[])
-      order by a.ausgabedatum desc, a.id
-      limit 200`,
+    `select x.* from (${AUSGABE_SQL}) x
+      where ${offen} and ${PASST_ZUM_BELEG}
+      order by x.ausgabedatum desc, x.id
+      limit $4`,
+    [[...WEITERBERECHENBAR_IM_ZUSTAND], r.kunde_id, r.auftrag_id, AUSGABEN_HOECHSTENS + 1]);
+  const [verdeckt] = await db.abfrage<{ n: string }>(
+    `select count(*)::text as n from (${AUSGABE_SQL}) x
+      where ${offen} and x.bezug_verdeckt`,
     [[...WEITERBERECHENBAR_IM_ZUSTAND]]);
-  return zeilen
-    .filter((a) => !a.weiterberechnet && passtZurRechnung(a, r))
-    .map((a) => ({
+  return {
+    ausgaben: zeilen.slice(0, AUSGABEN_HOECHSTENS).map((a) => ({
       id: a.id, bezeichnung: a.bezeichnung, ausgabedatum: a.ausgabedatum,
       nettoCent: BigInt(a.netto_cent) as Cent,
-    }));
+    })),
+    abgeschnitten: zeilen.length > AUSGABEN_HOECHSTENS,
+    verdeckt: Number(verdeckt?.n ?? '0'),
+  };
 }
 
 /**
@@ -678,8 +725,11 @@ export async function fuegeMaterialPositionHinzu(
     throw new RechnungFehler('Nur ein Entwurf nimmt Zeilen auf (Invariante 4).', 'kein_entwurf');
   }
 
-  const [a] = await db.abfrage<AusgabeZeile>(
-    `${AUSGABE_SQL} where a.id = $1::uuid`, [eingabe.ausgabeId]);
+  const [a] = await db.abfrage<AusgabeZeile & { readonly passt: boolean }>(
+    `select x.*, ${PASST_ZUM_BELEG} as passt
+       from (${AUSGABE_SQL}) x
+      where x.id = $1::text`,
+    [eingabe.ausgabeId, r.kunde_id, r.auftrag_id]);
   if (a === undefined) {
     throw new QuellenFehler(
       'Diese Ausgabe gibt es nicht — oder sie ist für Sie nicht sichtbar.', 'quelle_fehlt');
@@ -696,7 +746,13 @@ export async function fuegeMaterialPositionHinzu(
     throw new QuellenFehler(
       'Diese Ausgabe ist schon auf einer Rechnungszeile weiterberechnet.', 'schon_abgerechnet');
   }
-  if (!passtZurRechnung(a, r)) {
+  if (a.bezug_verdeckt) {
+    throw new RechnungFehler(
+      'Diese Ausgabe hängt an einem Auftrag, Projekt oder Objekt, das Sie nicht sehen dürfen. '
+      + 'Ob sie zu dieser Rechnung gehört, lässt sich so nicht prüfen.',
+      'quelle_passt_nicht');
+  }
+  if (!a.passt) {
     throw new RechnungFehler(
       'Diese Ausgabe gehört zu einem anderen Auftrag oder Kunden als diese Rechnung.',
       'quelle_passt_nicht');

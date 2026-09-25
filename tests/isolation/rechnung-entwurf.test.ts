@@ -615,7 +615,7 @@ describe('§6 Material aus einer Ausgabe (V-206, FIN-07)', () => {
   it('eine freigegebene, weiterberechenbare Ausgabe wird Materialzeile — genau einmal', async () => {
     const id = await entwurf({ auftrag: auftragId });
     const a = await ausgabe({ auftrag: auftragId });
-    const angeboten = await imDienst((d) => weiterberechenbareAusgaben(d, id));
+    const angeboten = await imDienst((d) => weiterberechenbareAusgaben(d, id)).then((x) => x.ausgaben);
     expect(angeboten.map((x) => x.id)).toContain(a);
 
     await imDienst((d) => fuegeMaterialPositionHinzu(d, zeile(id, a)));
@@ -628,7 +628,7 @@ describe('§6 Material aus einer Ausgabe (V-206, FIN-07)', () => {
     expect(q).toEqual({ typ: 'material', netto: '12500' });
 
     const zweites = await entwurf({ auftrag: auftragId });
-    expect((await imDienst((d) => weiterberechenbareAusgaben(d, zweites))).map((x) => x.id))
+    expect((await imDienst((d) => weiterberechenbareAusgaben(d, zweites))).ausgaben.map((x) => x.id))
       .not.toContain(a);
     const fehler = await fehlerVon(imDienst((d) =>
       fuegeMaterialPositionHinzu(d, zeile(zweites, a))));
@@ -644,10 +644,72 @@ describe('§6 Material aus einer Ausgabe (V-206, FIN-07)', () => {
       const fehler = await fehlerVon(imDienst((d) => fuegeMaterialPositionHinzu(d, zeile(id, a))));
       expect(fehler?.grund).toBe('quelle_passt_nicht');
     }
-    const angeboten = (await imDienst((d) => weiterberechenbareAusgaben(d, id))).map((x) => x.id);
+    const angeboten = (await imDienst((d) => weiterberechenbareAusgaben(d, id)))
+      .ausgaben.map((x) => x.id);
     expect(angeboten).not.toContain(nichtWeiter);
     expect(angeboten).not.toContain(erfasst);
     expect(angeboten).not.toContain(fremd);
+  });
+
+  it('erst prüfen, dann begrenzen: 250 neuere FREMDE Ausgaben verdrängen die alte passende '
+    + 'nicht (V-208)', async () => {
+    const id = await entwurf({ auftrag: auftragId });
+    const alt = await ausgabe({ auftrag: auftragId });
+    await sql.unsafe(`update ausgabe set ausgabedatum = '2026-01-05' where id = $1`, [alt]);
+    /* 250 neuere, weiterberechenbare Ausgaben am Auftrag eines ANDEREN Kunden. */
+    const fremd = await legeAuftragAn(fremderKundeId);
+    const vorlage = await ausgabe({ auftrag: fremd });
+    await sql.unsafe(
+      `insert into ausgabe (mandant_id, kategorie_id, bezeichnung, ausgabedatum, netto_cent,
+                            steuer_cent, brutto_cent, zahlungsmittel, beleg_id,
+                            weiterberechenbar, status, auftrag_id, freigegeben_von,
+                            freigegeben_am, erstellt_von_art, erstellt_von)
+       select v.mandant_id, v.kategorie_id, 'Fremdes Material ' || g, date '2026-09-01' + g % 20,
+              v.netto_cent, v.steuer_cent, v.brutto_cent, v.zahlungsmittel, v.beleg_id,
+              true, v.status, v.auftrag_id, v.freigegeben_von, v.freigegeben_am,
+              'mensch', v.erstellt_von
+         from ausgabe v, generate_series(1, 250) g
+        where v.id = $1`, [vorlage]);
+
+    const angebot = await imDienst((d) => weiterberechenbareAusgaben(d, id));
+    expect(angebot.ausgaben.map((x) => x.id)).toContain(alt);
+    expect(angebot.ausgaben.map((x) => x.id)).not.toContain(vorlage);
+    expect(angebot.abgeschnitten).toBe(false);
+  });
+
+  it('ein Bezug, den der Mensch nicht sieht, passt nie — statt „kein Kunde" (V-208)', async () => {
+    /* Eine Ausgabe am Auftrag eines ANDEREN Kunden. */
+    const fremd = await ausgabe({ auftrag: await legeAuftragAn(fremderKundeId) });
+    const id = await entwurf();
+
+    const email = `buchhaltung-ohne-auftrag-${zufall()}@cse.test`;
+    const [u] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ($1) returning id`, [email]);
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status) values ($1,$2,'Buchhaltung','aktiv')`,
+      [u!.id, email]);
+    const [r] = await sql.unsafe<{ id: string }[]>(
+      `insert into rolle (mandant_id, schluessel, bezeichnung, geltungsbereich, portal)
+       values ($1, $2, $2, 'mandant', 'intern') returning id`,
+      [f.reinigung, `ohne_auftrag_${zufall()}`]);
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       select $1, b.id, $2, true from berechtigung b where b.schluessel = any($3::text[])`,
+      [r!.id, f.reinigung, ['finanzen.lesen', 'finanzen.schreiben', 'eingang.lesen']]);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab)
+       values ($1,$2,$3,current_date - 1)`, [u!.id, f.reinigung, r!.id]);
+    const ohneAuftrag = <T,>(fn: (d: Abfrage) => Promise<T>): Promise<T> => alsApp({
+      scope: 'mandant', mandantId: f.reinigung, benutzerId: u!.id, portal: 'intern',
+      readonly: false,
+    }, (tx) => fn(alsDienst(tx))) as Promise<T>;
+
+    const angebot = await ohneAuftrag((d) => weiterberechenbareAusgaben(d, id));
+    expect(angebot.ausgaben.map((x) => x.id)).not.toContain(fremd);
+    expect(angebot.verdeckt).toBeGreaterThan(0);
+    const fehler = await fehlerVon(ohneAuftrag((d) => fuegeMaterialPositionHinzu(d, zeile(id, fremd))));
+    expect(fehler?.grund).toBe('quelle_passt_nicht');
+    expect(fehler?.message).toMatch(/nicht sehen/u);
   });
 
   it('nach einem Storno ist die Ausgabe wieder frei (Invariante 8: die Zeile bleibt)', async () => {

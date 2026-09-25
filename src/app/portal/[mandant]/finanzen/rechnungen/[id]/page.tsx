@@ -34,8 +34,8 @@ import { ZAHLUNGSMITTEL } from '@/server/services/finanz/zahlungsmittel';
 import { ENTWURF_RECHNUNGSARTEN, istVorauszahlung } from '@/server/services/finanz/rechnung';
 import {
   aufmasseZumAuftrag, auftraegeZurAuswahl, grundOhneLeistungszeitpunkt,
-  vorschauAbrechnungsart, weiterberechenbareAusgaben,
-  type AbrechnungsVorschau, type AufmassAuswahl, type AuftragAuswahl, type AusgabeAuswahl,
+  vorschauAbrechnungsart, weiterberechenbareAusgaben, AUSGABEN_HOECHSTENS,
+  type AbrechnungsVorschau, type AufmassAuswahl, type AuftragAuswahl, type AusgabenAngebot,
 } from '@/server/services/finanz/entwurf';
 
 /**
@@ -411,14 +411,15 @@ export default async function Rechnungsblatt(
         vorschau,
         aufmasse: vorschau.art?.schluessel === 'einheitspreis_aufmass' && k.auftrag_id !== null
           ? await aufmasseZumAuftrag(d, k.auftrag_id) : [],
-        ausgaben: darf['eingang.lesen'] === true ? await weiterberechenbareAusgaben(d, k.id) : [],
+        material: darf['eingang.lesen'] === true ? await weiterberechenbareAusgaben(d, k.id)
+          : { ausgaben: [], abgeschnitten: false, verdeckt: 0 },
       };
     }))) as {
       objekte: readonly { id: string; name: string }[];
       auftraege: readonly AuftragAuswahl[];
       vorschau: AbrechnungsVorschau;
       aufmasse: readonly AufmassAuswahl[];
-      ausgaben: readonly AusgabeAuswahl[];
+      material: AusgabenAngebot;
     } | null;
 
   /*
@@ -447,7 +448,7 @@ export default async function Rechnungsblatt(
   /* Die Herkünfte, die diese Zeile haben KANN — von Hand gibt es immer. */
   const herkuenfte: readonly ('vertrag' | 'material' | 'manuell')[] = [
     ...(daten.leistungen.length > 0 ? ['vertrag' as const] : []),
-    ...(ent !== null && ent.ausgaben.length > 0 ? ['material' as const] : []),
+    ...(ent !== null && ent.material.ausgaben.length > 0 ? ['material' as const] : []),
     'manuell' as const,
   ];
 
@@ -1552,9 +1553,17 @@ export default async function Rechnungsblatt(
               ) : (
                 <>
                   <label className="block text-sm text-text" htmlFor="herkunft">{t.beleg}</label>
+                  {/*
+                    * Vorgewählt ist nie „Material" (V-208): mit ihm wäre die
+                    * erste Ausgabe der Liste gebunden, und wer wie gewohnt eine
+                    * Zeile von Hand erfasst, hätte unbemerkt einen fremden Beleg
+                    * darunter. Die Vertragszeile bleibt die Vorwahl, wo es sie
+                    * gibt — sonst „von Hand".
+                    */}
                   <select
                     id="herkunft" name="herkunft" className={feld} data-cse="herkunft"
-                    defaultValue={herkuenfte.find((h) => h === herkunftVor) ?? herkuenfte[0]}
+                    defaultValue={herkuenfte.find((h) => h === herkunftVor)
+                      ?? (herkuenfte.includes('vertrag') ? 'vertrag' : 'manuell')}
                   >
                     {herkuenfte.map((h) => (
                       <option key={h} value={h}>
@@ -1589,17 +1598,23 @@ export default async function Rechnungsblatt(
                 * oben — ob zum Einstand oder mit Aufschlag, ist offen (O-931);
                 * der Einstand steht hier nur als Auskunft.
                 */}
-              {ent === null || ent.ausgaben.length === 0 ? null : (
+              {ent === null || ent.material.ausgaben.length === 0 ? null : (
                 <>
                   <label className="mt-s4 block text-sm text-text" htmlFor="ausgabeId">
                     {e.ausgabe}
                   </label>
+                  {/*
+                    * Keine Ausgabe vorgewählt (V-208): wer „Material" nimmt,
+                    * wählt den Beleg selbst — fehlt er, weist der Dienst mit
+                    * „Pflichtangabe" ab, statt die erste der Liste zu binden.
+                    */}
                   <select
                     id="ausgabeId" name="ausgabeId" className={feld} data-cse="material-ausgabe"
-                    defaultValue={ent.ausgaben.some((a) => a.id === posZurueck('ausgabeId'))
-                      ? posZurueck('ausgabeId') : ent.ausgaben[0]?.id}
+                    defaultValue={ent.material.ausgaben.some((a) => a.id === posZurueck('ausgabeId'))
+                      ? posZurueck('ausgabeId') : ''}
                   >
-                    {ent.ausgaben.map((a) => (
+                    <option value="">{e.ausgabeWaehlen}</option>
+                    {ent.material.ausgaben.map((a) => (
                       <option key={a.id} value={a.id}>
                         {tagInSprache(a.ausgabedatum, zugang.sprache)} · {a.bezeichnung} · {e.einstandNetto}{' '}
                         {formatiereGeldIn(a.nettoCent, zugang.sprache)}
@@ -1607,7 +1622,19 @@ export default async function Rechnungsblatt(
                     ))}
                   </select>
                   <p className="mt-s1 text-xs text-text-muted">{e.materialHinweis}</p>
+                  {ent.material.abgeschnitten && (
+                    <p className="mt-s1 text-xs text-warning">{e.ausgabenAbgeschnitten(AUSGABEN_HOECHSTENS)}</p>
+                  )}
                 </>
+              )}
+              {/*
+                * V-208: Ausgaben mit einem Bezug, den dieser Mensch nicht
+                * sieht, passen nie — gezählt, damit niemand sie sucht.
+                */}
+              {ent === null || ent.material.verdeckt === 0 ? null : (
+                <p className="mt-s4 text-xs text-text-muted" data-cse="material-verdeckt">
+                  {e.ausgabenBezugVerdeckt(ent.material.verdeckt)}
+                </p>
               )}
               {darf['eingang.lesen'] === true ? null : (
                 <p className="mt-s4 text-xs text-text-muted">

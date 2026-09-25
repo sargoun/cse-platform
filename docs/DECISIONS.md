@@ -18273,7 +18273,9 @@ Ausgabe- und die Sonderleistungsseite genau das versprachen.
    Mensch** — ob zum Einstand oder mit Aufschlag, ist offen (O-931); die Maske
    zeigt den Einstand nur als Auskunft. Nach einem Storno ist die Ausgabe
    wieder frei (`gibQuellenFrei`) — nach dem Verwerfen eines Entwurfs erst
-   seit V-207 (D-700 Nr. 8).
+   seit V-207 (D-700 Nr. 8). *Berichtigt mit V-208:* geprüft wurde erst NACH
+   einer Begrenzung auf 200 Ausgaben der ganzen Gesellschaft, und ein
+   verdeckter Auftrag passte auf jeden Kunden — D-701.
 6. **Einzelabrufe** laufen denselben Weg (Art `einzelabruf`); Sonderleistungs-,
    Ausgabe- und Abrechnungsseite nennen ihn jetzt. Einen automatischen
    Abrechnungslauf gibt es weiterhin nicht — die Übernahme ist ein Schritt
@@ -18357,4 +18359,44 @@ Verwerfen-Seite und D-699 Nr. 5 das Gegenteil sagten.
 D-699 Nr. 3 und Nr. 5 an Ort und Stelle mit Verweis berichtigt.
 
 | Betrifft | FIN-01, FIN-07, FIN-08, O-04, O-932, D-362, D-699, V-206, V-207, `src/server/services/finanz/abrechnungsart/{typen,index,monatspauschale,festpreis-los,stunden,einzelabruf,einheitspreis-aufmass}.ts`, `src/server/services/finanz/{entwurf,rechnung}.ts`, `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts`, `drizzle/0441`, `drizzle/0442`, `tests/isolation/rechnung-entwurf.test.ts` §4, §7, `tests/kern/abrechnungsart.test.ts` |
+|---|---|
+
+### D-701 · Die Materialauswahl prüft, bevor sie begrenzt — und ein verdeckter Bezug passt nicht (V-208)
+
+**Der Befund** (V-208, FIN-07): `weiterberechenbareAusgaben` holte die 200
+neuesten weiterberechenbaren, freigegebenen oder gebuchten Ausgaben der
+GANZEN Gesellschaft und prüfte erst danach in Javascript, ob eine schon
+weiterberechnet ist und ob sie zu Kunde und Auftrag passt. Weiterberechnete
+Ausgaben bleiben für immer in dieser Menge. Mit mehr als 200 davon fiel jede
+ältere, noch offene Ausgabe still aus der Auswahl — und mit der letzten auch
+die Herkunft „Material". D-699 Nr. 5 („angeboten und geprüft nach derselben
+Regel") stimmte damit nicht. Dazu: Kunde und Auftrag einer Ausgabe kamen
+aus Auftrag, Projekt und Objekt UNTER RLS. Wer den Auftrag nicht sehen darf,
+las dort `null` — und eine Ausgabe am Auftrag von Kunde B passte damit auf
+einen Entwurf von Kunde A.
+
+**Die Entscheidung.**
+
+1. **Erst prüfen, dann begrenzen.** Weiterberechnet, verdeckter Bezug,
+   anderer Auftrag, anderer Kunde stehen im `WHERE`; die Begrenzung
+   (`AUSGABEN_HOECHSTENS = 500`) greift erst auf die passenden, und wird sie
+   erreicht, sagt das Blatt es (`abgeschnitten`) — nie still. Die Regel steht
+   einmal in SQL (`PASST_ZUM_BELEG`) und wird von Auswahl und Übernahme
+   (`fuegeMaterialPositionHinzu`) gleich gelesen.
+2. **Ein verdeckter Bezug passt nicht** (fail closed). Hängt eine Ausgabe an
+   einem Auftrag, Projekt oder Objekt, das der Mensch nicht sieht, lässt sich
+   nicht prüfen, ob sie zu dieser Rechnung gehört: die Auswahl bietet sie
+   nicht an und nennt, wie viele es sind; die Übernahme weist sie mit Satz
+   ab. Ein Definer, der den Kunden an der RLS vorbei liest, wäre eine zweite
+   Lesart des Auftrags neben `auftrag.lesen` — dieselbe Abwägung wie D-698
+   Nr. 2 („wer zuordnet, muss sehen können, was er zuordnet").
+3. **Nichts bindet sich von selbst.** Das Positionsformular wählt „Material"
+   nie vor (die Vertragszeile, wo es sie gibt, sonst „von Hand" — wie vor
+   V-206), und die Ausgabe hat keine Vorwahl. Sonst hing unter einer von Hand
+   erfassten Zeile unbemerkt die erste Ausgabe der Liste, und die Begründung
+   fiel weg; eine Entwurfsposition lässt sich nicht einzeln entfernen.
+
+D-699 Nr. 5 an Ort und Stelle mit Verweis berichtigt.
+
+| Betrifft | FIN-07, D-698, D-699, V-206, V-208, `src/server/services/finanz/entwurf.ts` (`weiterberechenbareAusgaben`, `fuegeMaterialPositionHinzu`), `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts`, `tests/isolation/rechnung-entwurf.test.ts` §6 |
 |---|---|

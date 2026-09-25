@@ -75,6 +75,10 @@ export interface RechnungEntwurfTexte {
   readonly materialHinweis: string;
   /** Vor dem Namen des fehlenden Rechts (`<Recht>`). */
   readonly ausgabenVerdeckt: string;
+  /* V-208: keine Vorwahl, die Grenze, der verdeckte Bezug. */
+  readonly ausgabeWaehlen: string;
+  readonly ausgabenAbgeschnitten: (hoechstens: number) => string;
+  readonly ausgabenBezugVerdeckt: (n: number) => string;
 
   /* ── Rückmeldungen ───────────────────────────────────────────────── */
   readonly nichtsGespeichert: string;
@@ -180,6 +184,18 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       + 'Ausgabe steht auf höchstens einer Rechnungszeile.',
     ausgabenVerdeckt:
       'Weiterberechenbare Ausgaben sind für Sie nicht sichtbar. Dafür fehlt das Recht',
+    ausgabeWaehlen: '— Ausgabe wählen —',
+    ausgabenAbgeschnitten: (hoechstens) =>
+      'Es passen mehr Ausgaben, als diese Auswahl zeigt; angeboten sind die '
+      + `${String(hoechstens)} neuesten. Sobald davon welche weiterberechnet sind, rücken `
+      + 'ältere nach.',
+    ausgabenBezugVerdeckt: (n) => (n === 1
+      ? 'Eine weitere offene Ausgabe hängt an einem Auftrag, Projekt oder Objekt, das Sie '
+        + 'nicht sehen dürfen. Ob sie zu dieser Rechnung passt, lässt sich so nicht prüfen — '
+        + 'sie wird nicht angeboten.'
+      : `${String(n)} weitere offene Ausgaben hängen an Aufträgen, Projekten oder Objekten, `
+        + 'die Sie nicht sehen dürfen. Ob sie zu dieser Rechnung passen, lässt sich so nicht '
+        + 'prüfen — sie werden nicht angeboten.'),
 
     nichtsGespeichert: 'Nichts wurde gespeichert.',
     abgewiesen: 'Der Vorgang wurde abgewiesen.',
@@ -342,6 +358,16 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       + 'one invoice line.',
     ausgabenVerdeckt:
       'Expenses that can be passed on are not visible to you. The missing permission is',
+    ausgabeWaehlen: '— choose an expense —',
+    ausgabenAbgeschnitten: (hoechstens) =>
+      'More expenses fit than this selection shows; the '
+      + `${String(hoechstens)} most recent are offered. Once some of them have been passed `
+      + 'on, older ones move up.',
+    ausgabenBezugVerdeckt: (n) => (n === 1
+      ? 'One more open expense is linked to an order, project or site you may not see. '
+        + 'Whether it fits this invoice cannot be checked — it is not offered.'
+      : `${String(n)} more open expenses are linked to orders, projects or sites you may `
+        + 'not see. Whether they fit this invoice cannot be checked — they are not offered.'),
 
     nichtsGespeichert: 'Nothing was saved.',
     abgewiesen: 'The request was rejected.',
