@@ -18118,3 +18118,23 @@ anlegte, fiel das nicht auf; seither traf der Verweislauf der Browsersuite
 
 | Betrifft | V-241, RAD-06, REP-06, K-01, K-04, Invariante 3, `drizzle/0463_radar_stand_verlauf.sql`, `src/app/portal/[mandant]/radar/daten.ts`, `tests/isolation/radar-stand-verlauf.test.ts` |
 |---|---|
+
+### D-736 · Zwei Felder mit derselben Beschriftung sind ein Mangel — der Ausgleichsbetrag heisst „Ausgleichsbetrag (€)" (V-242)
+
+**Der Befund** (V-242): `/portal/[mandant]/finanzen/zahlungen` trägt seit
+V-091 zwei Formulare: „Posten gegen Posten ausgleichen" und „Zahlungseingang
+erfassen". Beide Betragsfelder hiessen „Betrag in Euro" (`t.betragInEuro`).
+Sobald ein Guthaben und eine offene Forderung zugleich dastehen, erscheint das
+Ausgleichsformular — und ein Screenreader bot zwei gleichnamige Felder an, ohne
+dass zu hören war, welches Geld wohin geht (WCAG 1.3.1, 2.4.6). Die
+Browsersuite fiel daran im strikten Modus (drei Fälle in `zahlung.spec.ts`).
+
+**Die Entscheidung.** Das Ausgleichsfeld bekommt eine eigene Beschriftung,
+`ausgleichBetrag`: „Ausgleichsbetrag (€)" / „Offset amount (€)" — dieselbe
+Form wie „Auftragswert netto (€)". Bewusst NICHT „Ausgleichsbetrag in Euro":
+die Beschriftung des einen Feldes darf die des anderen nicht enthalten, sonst
+bleibt die Verwechslung für jede Suche nach Teilnamen bestehen. Die Prüfung
+der Browsersuite bleibt, wie sie war.
+
+| Betrifft | V-242, V-091, FIN-14, WCAG 1.3.1/2.4.6, `src/app/portal/[mandant]/finanzen/zahlungen/page.tsx`, `src/lib/i18n/verwaltung/finanzen/zahlungen.ts`, `tests/e2e/zahlung.spec.ts` |
+|---|---|

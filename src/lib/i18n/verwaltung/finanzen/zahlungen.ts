@@ -58,6 +58,12 @@ export interface ZahlungenTexte {
   readonly ausgleichErklaerung: string;
   readonly ausgleichForderung: string;
   readonly ausgleichGuthaben: string;
+  /**
+   * Eine EIGENE Beschriftung, nicht `betragInEuro`: das Erfassungsformular
+   * steht auf derselben Seite, und zwei Felder mit demselben Namen sind fuer
+   * einen Screenreader nicht zu unterscheiden (WCAG 1.3.1, 2.4.6).
+   */
+  readonly ausgleichBetrag: string;
   readonly ausgleichGrund: string;
   readonly ausgleichGrundBeispiel: string;
   readonly ausgleichBuchen: string;
@@ -106,6 +112,7 @@ export const ZAHLUNGEN_TEXTE: Readonly<Record<InternSprache, ZahlungenTexte>> = 
       + 'Posten bleiben stehen; was entsteht, ist die Verbindung zwischen ihnen.',
     ausgleichForderung: 'Forderung (Soll)',
     ausgleichGuthaben: 'Guthaben (Haben)',
+    ausgleichBetrag: 'Ausgleichsbetrag (€)',
     ausgleichGrund: 'Grund',
     ausgleichGrundBeispiel: 'z. B. Überzahlung aus R-2026-00012 verrechnet',
     ausgleichBuchen: 'Ausgleich buchen',
@@ -184,6 +191,7 @@ export const ZAHLUNGEN_TEXTE: Readonly<Record<InternSprache, ZahlungenTexte>> = 
       + 'link between them.',
     ausgleichForderung: 'Receivable (debit)',
     ausgleichGuthaben: 'Credit',
+    ausgleichBetrag: 'Offset amount (€)',
     ausgleichGrund: 'Reason',
     ausgleichGrundBeispiel: 'e.g. overpayment from R-2026-00012 applied',
     ausgleichBuchen: 'Book the offset',
