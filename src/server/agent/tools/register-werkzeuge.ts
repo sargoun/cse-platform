@@ -13,10 +13,13 @@ import type { Nebenwirkung } from './typen.js';
  * **Die letzte Spalte ist die ehrlichste.** Zwei der neun brauchen kein
  * Modell: `berechne_preis` ruft die getestete Kalkulation, `suche_bestand`
  * eine Katalogabfrage. Die anderen sieben brauchen eines — und es gibt
- * keinen Anbieter (D-435). Sie sind deshalb registriert, beschrieben und
- * abrufbar, aber ihr Ausführer gibt `kein_modellzugang` zurück, statt etwas
- * zu erfinden. Ein Werkzeug, das ohne Modell „irgendetwas" liefert, ist
- * schlimmer als eines, das schweigt: das Ergebnis sähe echt aus.
+ * keinen Anbieter (D-435). Sie sind registriert und beschrieben, aber sie
+ * haben KEINEN Ausführer (V-228, D-722): `tools/ausfuehrer.ts` hält fest,
+ * welche zwei einen haben, und `ohneAusfuehrer` antwortet für die sieben mit
+ * `kein_modellzugang`, statt etwas zu erfinden. Ein Werkzeug, das ohne Modell
+ * „irgendetwas" liefert, ist schlimmer als eines, das schweigt: das Ergebnis
+ * sähe echt aus. Die Agentenseite zeigt sie deshalb nie als „bereit", auch
+ * wenn eine Gesellschaft sie freigeschaltet hat (`tools/freischaltung.ts`).
  */
 
 export const WERKZEUGE = [

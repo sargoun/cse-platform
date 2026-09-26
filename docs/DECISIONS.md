@@ -19718,3 +19718,52 @@ nur CSV, und die ROADMAP hakte REP-07 trotzdem ab.
 
 | Betrifft | REP-07, D-204, D-506, V-227, DESIGN §11, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/app/api/berichte/[bericht]/csv/route.ts`, `src/app/portal/[mandant]/berichte/{rahmen.tsx,projekte/page.tsx,druck/[bericht]/page.tsx}`, `src/components/ui/DruckKnopf.tsx`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `docs/architecture/04-SEITENKARTE.md`, `docs/ROADMAP.md`, `tests/kern/bericht-export.test.ts`, `tests/isolation/bericht.test.ts` (8), `tests/e2e/berichte.spec.ts` |
 |---|---|
+
+### D-722 · Werkzeuge sind je Gesellschaft pflegbar, die Laufzeit fragt ihren Stand, und „bereit" heisst: es gibt einen Ausführer (V-228)
+
+**Der Befund** (Audit Befund 57, AGT-01, AGT-02): das Agentenblatt zeigte je
+Werkzeug „freigeschaltet / nicht freigeschaltet" aus `agent_werkzeug`, aber
+kein Dienst, keine Route und kein Formular pflegte die Tabelle — Zeilen
+entstanden nur im Seed. Keine Laufzeit las sie: der CEO-Assistent benutzte
+`suche_bestand` auch dann, wenn das Blatt es als nicht freigeschaltet
+auswies. Und sieben der neun Werkzeuge hatten keinen Ausführer; D-495 und der
+Kommentar im Register versprachen `kein_modellzugang`, gebaut war es nicht.
+
+**Die Entscheidung.**
+
+1. **Pflegbar:** `setzeWerkzeug` (`services/agent/werkzeug-pflege.ts`) hinter
+   `POST /api/agenten/werkzeug` unter `agent.werkzeug_verbinden` (dasselbe
+   Recht wie die Policy `t_werkzeug_schreiben`), je Werkzeugzeile auf dem
+   Agentenblatt ein Formular mit zwei Schaltern (freigeschaltet, nur mit
+   Freigabe). Nur Paare aus `WERKZEUG_REGISTER` (D-513); ein Werkzeug der
+   Nebenwirkung `versand` weist der Dienst ohne Freigabe ab, bevor die
+   Datenbank es mit `aw_versand_immer_freigabe` tut (Invariante 7) — auf dem
+   Blatt ist dieser Schalter gesetzt und gesperrt. Jedes Setzen steht als
+   `agent.werkzeug_gesetzt` im Protokoll. Ein abgewiesener Wunsch kehrt als
+   Satz auf das Blatt zurück (D-599).
+2. **Die Laufzeit fragt den Stand:** `werkzeugStand` / `verlangeWerkzeug`
+   (`agent/tools/freischaltung.ts`) lesen die Zeile der aktiven Gesellschaft
+   mit RLS; keine Zeile heisst „aus". Der CEO-Assistent fragt vor jeder
+   Antwort und antwortet sonst „nicht freigeschaltet". Der Orchestrator ruft
+   heute kein Werkzeug des Registers auf (sein Formulierungsschritt geht über
+   den Modellport, `werkzeug` = null) — das Tor steht für den ersten
+   Werkzeugaufruf bereit, eine Attrappe davor gibt es nicht.
+3. **Ehrlich ohne Ausführer:** `tools/ausfuehrer.ts` hält fest, welche
+   Werkzeuge einen Ausführer haben (die zwei mit `ohneModell`), und
+   `ohneAusfuehrer` antwortet für die sieben mit `kein_modellzugang` ohne
+   Daten. Das Blatt zeigt drei Stände: „bereit" (freigeschaltet UND
+   ausführbar), „freigeschaltet, aber ohne Ausführer — braucht Modellzugang",
+   „nicht freigeschaltet". Ein Modellwerkzeug lässt sich freischalten — das
+   ist die Entscheidung der Gesellschaft, es zu erlauben, sobald es läuft —,
+   wird dadurch aber nicht „bereit".
+4. **Wörter statt Schlüssel:** Werkzeug, Wirkung und Untergrenze stehen als
+   Wort (`i18n/beschriftung/agent.ts`, de/en); die Kennung bleibt im `title`.
+5. **Der Seed legt nur Paare aus dem Register an** (vorher alle neun für alle
+   vier, auch `sende_email` für den CEO-Assistenten) und schaltet die zwei mit
+   Ausführer frei.
+6. **Nicht Teil:** `agent.ist_aktiv` pflegbar zu machen. Der Schalter ist
+   global (Tabelle `agent`, 0128), AGT-01 verlangt seine Anzeige, und das
+   Audit hat diesen Teil ausdrücklich nicht als Befund gewertet.
+
+| Betrifft | AGT-01, AGT-02, AGT-07, D-435, D-495, D-513, D-599, V-228, Invariante 7, `src/server/services/agent/werkzeug-pflege.ts`, `src/server/agent/tools/{ausfuehrer,freischaltung,register-werkzeuge}.ts`, `src/app/api/agenten/werkzeug/route.ts`, `src/server/auth/route-manifest.ts`, `src/app/portal/[mandant]/agenten/{[agent],assistent}/page.tsx`, `src/lib/i18n/beschriftung/{basis,agent}.ts`, `src/server/db/seed/index.ts`, `tests/kern/agent-werkzeug-pflege.test.ts`, `tests/isolation/agent-werkzeug-pflege.test.ts` |
+|---|---|

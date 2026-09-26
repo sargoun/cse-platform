@@ -37,6 +37,10 @@ import { seedRecruiting } from './recruiting.js';
 import { seedAkquise } from './akquise.js';
 import { seedBerichtsdaten } from './berichtsdaten.js';
 import { seedRadar, seedRadarLead } from './radar.js';
+import {
+  AGENTEN, fuerAgent, type AgentKennung,
+} from '../../agent/tools/register-werkzeuge.js';
+import { MIT_AUSFUEHRER } from '../../agent/tools/ausfuehrer.js';
 import { DEMO_KENNWORT, seedZugangsdaten } from './zugang.js';
 import { seedBenachrichtigungen } from './benachrichtigung.js';
 import { seedKern } from './kern.js';
@@ -1247,26 +1251,28 @@ async function main(): Promise<void> {
    * die Feineinstellung: wer sie lockern will, tut es bewusst, je Werkzeug.
    */
   let werkzeuge = 0;
-  const OHNE_MODELL = new Set(['berechne_preis', 'suche_bestand']);
   /*
-   * **Auch fuer die abgeschalteten vier.** `agent.ist_aktiv` ist `false`,
-   * solange es keinen Modellzugang gibt (D-435) — aber die Werkzeugzeilen
-   * gehoeren trotzdem angelegt: die Agentenseite zeigt sie, und ein leerer
-   * Abschnitt saehe aus, als gaebe es die Werkzeuge nicht.
+   * **Nur die Paare aus dem Register** (D-513, V-228): welcher Agent welches
+   * Werkzeug fuehrt, steht in `WERKZEUG_REGISTER`, und der Pflegedienst
+   * (`werkzeug-pflege.ts`) nimmt kein anderes Paar an. Vorher legte der Seed
+   * alle neun fuer alle vier an — auch `sende_email` fuer den CEO-Assistenten,
+   * eine Zeile, die kein Mensch je setzen koennte. Freigeschaltet sind die,
+   * die einen Ausfuehrer haben (`MIT_AUSFUEHRER`): dieselbe Menge wie vorher
+   * („ohne Modell"), jetzt aus derselben Quelle wie die Agentenseite.
+   *
+   * **Auch fuer abgeschaltete Agenten.** Die Agentenseite zeigt die Zeilen,
+   * und ein leerer Abschnitt saehe aus, als gaebe es die Werkzeuge nicht.
    */
   const agenten = await sql<{ id: string; kennung: string }[]>`select id, kennung from agent`;
   for (const b of BEREICHE) {
     for (const a of agenten) {
-      for (const w of [
-        'lies_dokument', 'extrahiere_lv', 'suche_bestand', 'berechne_preis',
-        'pruefe_nachweise', 'pruefe_bilder', 'entwirf_text', 'sende_email',
-        'erstelle_vorgang',
-      ]) {
+      if (!(AGENTEN as readonly string[]).includes(a.kennung)) continue;
+      for (const d of fuerAgent(a.kennung as AgentKennung)) {
         const ergebnis = await sql<{ id: string }[]>`
           insert into agent_werkzeug
             (mandant_id, agent_id, werkzeug, ist_aktiv, erfordert_freigabe, erstellt_von_art)
-          values (${ids.get(b.slug)!}, ${a.id}, ${w}::agent_werkzeug_name,
-                  ${OHNE_MODELL.has(w)}, true, 'system')
+          values (${ids.get(b.slug)!}, ${a.id}, ${d.name}::agent_werkzeug_name,
+                  ${MIT_AUSFUEHRER.has(d.name)}, true, 'system')
           on conflict (mandant_id, agent_id, werkzeug) do nothing
           returning id`;
         werkzeuge += ergebnis.length;
@@ -1274,8 +1280,9 @@ async function main(): Promise<void> {
     }
   }
   process.stdout.write(
-    `  ${String(werkzeuge)} Werkzeugzeilen (AGT-02) — freigeschaltet sind die zwei, die ohne `
-    + 'Modell rechnen; die uebrigen sieben warten auf einen Anbieter (D-435)\n',
+    `  ${String(werkzeuge)} Werkzeugzeilen (AGT-02, nur Paare aus dem Register) — `
+    + 'freigeschaltet sind die zwei mit Ausfuehrer; die uebrigen sieben warten auf einen '
+    + 'Anbieter (D-435)\n',
   );
 
   // --------------------------------------------------------- Agent-Budgets

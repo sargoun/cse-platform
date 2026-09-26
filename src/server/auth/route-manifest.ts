@@ -2686,6 +2686,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Ein Werkzeug fuer einen Agenten in dieser Gesellschaft ein- oder
+     * ausschalten (AGT-01, AGT-02, V-228, D-722). Dasselbe Recht wie die
+     * Schreibpolicy `t_werkzeug_schreiben` (0150); nur Paare aus dem Register
+     * (D-513), und ein Versandwerkzeug nie ohne Freigabe (Invariante 7).
+     */
+    pfad: 'api/agenten/werkzeug',
+    recht: 'agent.werkzeug_verbinden',
+  },
+  {
+    /**
      * Stapelfreigabe (APR-04) — `freigabe.stapel_entscheiden`, NICHT
      * `freigabe.entscheiden`.
      *

@@ -21,7 +21,13 @@ import { haeltRechte } from '../../../rechte';
 import {
   WERKZEUG_REGISTER, fuerAgent, untergrenze, type AgentKennung,
 } from '@/server/agent/tools/register-werkzeuge';
+import { standAus } from '@/server/agent/tools/freischaltung';
 import { Recht } from '@/components/ui/Recht';
+import { beschriftung } from '@/lib/i18n/beschriftung/basis';
+import {
+  NEBENWIRKUNG_TEXT, UNTERGRENZE_TEXT, WERKZEUG_TEXT,
+} from '@/lib/i18n/beschriftung/agent';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/agenten/[agent]` — was dieser Agent tut, was er darf und
@@ -45,6 +51,18 @@ const PILLE: Readonly<Record<string, PillZustand>> = {
   abgebrochen: 'Abgelehnt',
   fehler: 'Fehler',
   wartet_freigabe: 'In Prüfung',
+};
+
+/** Warum ein Werkzeug nicht gesetzt wurde — ein Satz je Grund aus `werkzeug-pflege.ts`. */
+const WERKZEUG_FEHLER: Readonly<Record<string, string>> = {
+  unbekannt: 'Dieses Werkzeug gibt es nicht. Es wurde nichts geändert.',
+  kein_agent: 'Diesen Agenten gibt es nicht. Es wurde nichts geändert.',
+  nicht_im_register: 'Dieser Agent führt dieses Werkzeug nicht — welcher Agent welches '
+    + 'Werkzeug führen darf, steht im Register (D-513). Es wurde nichts geändert.',
+  freigabe_pflicht: 'Was das Haus verlässt, geht nie ohne menschliche Freigabe hinaus '
+    + '(Invariante 7). Es wurde nichts geändert.',
+  abgewiesen: 'Nicht gespeichert — dafür fehlt in dieser Gesellschaft das Recht, '
+    + 'Werkzeuge zu verbinden.',
 };
 
 interface AgentKopf {
@@ -85,6 +103,9 @@ export default async function AgentDetail(
   const suche = await searchParams;
   const lauf = typeof suche['lauf'] === 'string' ? suche['lauf'] : null;
   const laufCode = typeof suche['code'] === 'string' ? suche['code'] : null;
+  const werkzeugGesetzt = suche['werkzeug'] === 'gesetzt';
+  const werkzeugFehler = typeof suche['werkzeug_fehler'] === 'string'
+    ? suche['werkzeug_fehler'] : null;
   const kennung = kennungFuer(agent);
   if (kennung === undefined) notFound();
   /*
@@ -106,6 +127,7 @@ export default async function AgentDetail(
      verraet die Existenz dessen, was er nicht zeigen darf. */
   const darf = await haeltRechte(
     sitzung, 'agent.budget_verwalten', 'agent.protokoll_lesen', 'freigabe.lesen',
+    'agent.werkzeug_verbinden',
   );
   if (sitzung.aktiverMandantId === null) notFound();
 
@@ -430,21 +452,55 @@ export default async function AgentDetail(
         * anfassen darf. Die Liste kommt aus dem Register (AGT-02, neun
         * Namen), der Stand aus `agent_werkzeug`; eine fehlende Zeile heisst
         * „nicht freigeschaltet", nicht „gibt es nicht".
+        *
+        * **Drei Stände, nicht zwei** (V-228, D-722): „bereit" steht nur da,
+        * wo das Werkzeug freigeschaltet ist UND einen Ausführer hat. Ein
+        * freigeschaltetes Modellwerkzeug ohne Ausführer sagt das, statt wie
+        * die zwei auszusehen, die wirklich laufen. Und derselbe Stand gilt
+        * zur Laufzeit: der CEO-Assistent fragt ihn vor jeder Antwort
+        * (`verlangeWerkzeug`).
+        *
+        * **Pflegbar mit `agent.werkzeug_verbinden`** — je Werkzeug ein
+        * Formular mit zwei Schaltern. Ein Versandwerkzeug trägt die
+        * Freigabepflicht fest (Invariante 7): der Schalter ist gesetzt und
+        * gesperrt, und der Dienst weist „ohne Freigabe" ab, bevor die
+        * Datenbank es tut.
         */}
-      <h2 className="mb-s3 text-h2 text-text">Werkzeuge</h2>
+      <h2 id="werkzeuge" className="mb-s3 text-h2 text-text">Werkzeuge</h2>
+      {werkzeugGesetzt ? (
+        <Hinweis art="erfolg" cse="werkzeug-gesetzt" className="mb-s4 max-w-prose">
+          Gespeichert. Der Stand gilt ab sofort, für jeden Aufruf dieses Werkzeugs.
+        </Hinweis>
+      ) : werkzeugFehler !== null ? (
+        <Hinweis art="warnung" cse="werkzeug-abgewiesen" className="mb-s4 max-w-prose">
+          {eigenerEintrag(WERKZEUG_FEHLER, werkzeugFehler) ?? WERKZEUG_FEHLER['unbekannt']}
+        </Hinweis>
+      ) : null}
       <ul className="mb-s6 flex flex-col gap-s3" data-cse="agent-werkzeuge">
         {fuerAgent(kopf.kennung as AgentKennung).map((w) => {
-          const zeile = daten.stand.find((z) => z.werkzeug === w.name);
-          const aktiv = zeile?.ist_aktiv === true;
+          const stand = standAus(w.name, daten.stand.find((z) => z.werkzeug === w.name));
+          const zustand = stand.bereit ? 'bereit' : stand.freigeschaltet ? 'ohne_ausfuehrer' : 'aus';
+          const versand = untergrenze(w.nebenwirkung) === 'freigabe_erforderlich';
           return (
             <li key={w.name} data-cse="agent-werkzeug" data-werkzeug={w.name}
-                data-aktiv={aktiv ? '1' : '0'}
+                data-aktiv={stand.freigeschaltet ? '1' : '0'}
+                data-bereit={stand.bereit ? '1' : '0'}
                 className="rounded-lg border border-line bg-surface p-s4">
               <div className="flex flex-wrap items-baseline justify-between gap-s2">
-                <span className="font-mono text-sm text-text">{w.name}</span>
-                <span className={`text-xs ${aktiv ? 'text-success' : 'text-text-muted'}`}>
-                  {aktiv ? 'freigeschaltet' : 'nicht freigeschaltet'}
-                  {w.ohneModell ? '' : ' · braucht Modellzugang'}
+                <span className="text-sm font-medium text-text" title={w.name}>
+                  {beschriftung(WERKZEUG_TEXT, w.name)}
+                </span>
+                <span data-cse="werkzeug-zustand" data-zustand={zustand}
+                      className={`text-xs ${zustand === 'bereit'
+                        ? 'text-success'
+                        : zustand === 'ohne_ausfuehrer' ? 'text-warning' : 'text-text-muted'}`}>
+                  {zustand === 'bereit'
+                    ? 'bereit'
+                    : zustand === 'ohne_ausfuehrer'
+                      ? 'freigeschaltet, aber ohne Ausführer — braucht Modellzugang'
+                      : stand.ausfuehrbar
+                        ? 'nicht freigeschaltet'
+                        : 'nicht freigeschaltet · braucht Modellzugang'}
                 </span>
               </div>
               <p className="mt-s2 max-w-prose text-sm text-text">{w.zweck}</p>
@@ -452,27 +508,65 @@ export default async function AgentDetail(
                 <strong>Nicht:</strong> {w.abgrenzung}
               </p>
               <p className="mt-s2 text-xs text-text-subtle">
-                Nebenwirkung: {w.nebenwirkung} · Untergrenze der Richtlinie:{' '}
-                {untergrenze(w.nebenwirkung)}
-                {zeile?.erfordert_freigabe === true ? ' · in dieser Gesellschaft: Freigabe' : ''}
+                {`Wirkung: ${beschriftung(NEBENWIRKUNG_TEXT, w.nebenwirkung)} · `}
+                {`Richtlinie: ${beschriftung(UNTERGRENZE_TEXT, untergrenze(w.nebenwirkung))} · `}
+                {stand.erfordertFreigabe
+                  ? 'in dieser Gesellschaft: nur mit Freigabe'
+                  : 'in dieser Gesellschaft: ohne eigene Freigabe'}
               </p>
+              {darf['agent.werkzeug_verbinden'] !== true ? null : (
+                <form method="post" action="/api/agenten/werkzeug"
+                      data-cse="werkzeug-formular"
+                      className="mt-s3 flex flex-wrap items-center gap-s4">
+                  <input type="hidden" name="agent" value={kopf.id} />
+                  <input type="hidden" name="werkzeug" value={w.name} />
+                  <label className="flex min-h-11 items-center gap-s2 text-sm text-text">
+                    <input type="checkbox" name="aktiv" value="1"
+                           data-cse="werkzeug-aktiv" defaultChecked={stand.freigeschaltet} />
+                    Für diesen Agenten freigeschaltet
+                  </label>
+                  {versand ? (
+                    <>
+                      {/* Ein gesperrtes Feld wird nicht gesendet — die Pflicht geht als
+                          verstecktes Feld mit, und der Dienst prüft sie ohnehin. */}
+                      <input type="hidden" name="freigabe" value="1" />
+                      <label className="flex min-h-11 items-center gap-s2 text-sm text-text-muted">
+                        <input type="checkbox" checked disabled readOnly
+                               data-cse="werkzeug-freigabe" />
+                        Nur mit Freigabe (Pflicht, Invariante 7)
+                      </label>
+                    </>
+                  ) : (
+                    <label className="flex min-h-11 items-center gap-s2 text-sm text-text">
+                      <input type="checkbox" name="freigabe" value="1"
+                             data-cse="werkzeug-freigabe" defaultChecked={stand.erfordertFreigabe} />
+                      Ergebnis nur mit Freigabe
+                    </label>
+                  )}
+                  <Button type="submit" variante="secondary" data-cse="werkzeug-speichern">
+                    Speichern
+                  </Button>
+                </form>
+              )}
             </li>
           );
         })}
       </ul>
       <p className="mb-s6 max-w-prose text-xs text-text-muted" data-cse="agent-werkzeuge-hinweis">
-        Zwei der neun rechnen ohne Modell:{' '}
-        <span className="font-mono">{WERKZEUG_REGISTER.berechne_preis.name}</span> ruft dieselbe
-        getestete Kalkulation wie die Angebotsseite (Invariante 6), und{' '}
-        <span className="font-mono">{WERKZEUG_REGISTER.suche_bestand.name}</span> beantwortet
-        Fragen aus einem geprüften Katalog. Die übrigen sieben formulieren — und auch sie
-        rechnen nichts: jede Zahl, die in einem Entwurf steht, kommt aus einer geprüften
-        Funktion und wird nur in Sätze gesetzt.{' '}
+        Zwei der neun haben einen Ausführer und rechnen ohne Modell:{' '}
+        <strong>{beschriftung(WERKZEUG_TEXT, WERKZEUG_REGISTER.berechne_preis.name)}</strong>{' '}
+        ruft dieselbe getestete Kalkulation wie die Angebotsseite (Invariante 6), und{' '}
+        <strong>{beschriftung(WERKZEUG_TEXT, WERKZEUG_REGISTER.suche_bestand.name)}</strong>{' '}
+        beantwortet Fragen aus einem geprüften Katalog. Für die übrigen sieben gibt es noch
+        keinen Ausführer: sie brauchen einen Modellanbieter mit EU-Verarbeitung und
+        Nullspeicherung (D-435) und antworten bis dahin „kein Modellzugang", statt etwas zu
+        erfinden — auch wenn sie freigeschaltet sind.{' '}
         {modell === null
-          ? 'Solange kein Modell freigegeben ist, geben sie „kein Modellzugang" zurück, statt etwas zu erfinden.'
+          ? 'Ein Modell für Entwürfe ist derzeit nicht freigegeben.'
           : anbieter === 'demo'
-            ? 'Sie laufen derzeit auf dem hausinternen Demobetrieb — deterministisch, ohne Anbieter.'
-            : 'Sie laufen auf dem freigegebenen Modell aus dem Register.'}
+            ? 'Den Entwurf eines Laufs formuliert derzeit der hausinterne Demobetrieb — '
+              + 'deterministisch, ohne Anbieter; er ist kein Werkzeug dieser Liste.'
+            : 'Den Entwurf eines Laufs formuliert das freigegebene Modell aus dem Register.'}
       </p>
 
       <h2 className="mb-s3 text-h2 text-text">Was hinausgehen darf</h2>

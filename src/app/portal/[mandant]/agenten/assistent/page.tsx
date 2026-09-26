@@ -11,6 +11,7 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import { KATALOG, sucheBestand } from '@/server/agent/tools/suche-bestand';
+import { werkzeugStand } from '@/server/agent/tools/freischaltung';
 import { Wertregister } from '@/server/agent/tools/register';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -81,6 +82,20 @@ export default async function Assistent(
    */
   const antwort = eintrag === null ? null : await db().begin(SCHNAPPSCHUSS,
     async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => {
+      /*
+       * **Das Werkzeug muss in DIESER Gesellschaft freigeschaltet sein**
+       * (V-228, D-722). Die Agentenseite zeigt den Stand aus `agent_werkzeug`;
+       * vorher antwortete der Assistent auch dann, wenn dort „nicht
+       * freigeschaltet" stand. Jetzt gilt, was dort steht.
+       */
+      const freischaltung = await werkzeugStand(kontext, 'ceo_assistent', 'suche_bestand');
+      if (!freischaltung.bereit) {
+        return {
+          fehler: 'Das Werkzeug „Bestand abfragen" ist in dieser Gesellschaft für den '
+            + 'CEO-Assistenten nicht freigeschaltet. Freischalten lässt es sich auf dem Blatt '
+            + 'des Agenten, von einer Person mit dem Recht, Werkzeuge zu verbinden.',
+        } as const;
+      }
       const register = new Wertregister();
       const ergebnis = await sucheBestand(
         { abfrage: <T,>(sql: string, werte?: readonly unknown[]) =>

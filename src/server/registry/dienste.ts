@@ -1381,6 +1381,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'agent', pfad: 'agent/budget-pflege',
     schreibend: true, schreibRecht: 'agent.budget_verwalten',
   },
+  /* Werkzeuge je Gesellschaft ein- und ausschalten (AGT-01, AGT-02, V-228, D-722):
+     dasselbe Recht wie die Schreibpolicy `t_werkzeug_schreiben` (0150). */
+  {
+    modul: 'agent', pfad: 'agent/werkzeug-pflege',
+    schreibend: true, schreibRecht: 'agent.werkzeug_verbinden',
+  },
   {
     modul: 'dokument', pfad: 'dokument/aufbewahrung',
     schreibend: true, schreibRecht: 'dokument.aufbewahrung_verwalten',
