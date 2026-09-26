@@ -175,8 +175,9 @@ async function bewerbung(mandant: string, name: string): Promise<string> {
   const [b] = await sql.unsafe<{ id: string }[]>(
     /*
       * `quelle = 'initiativ'` und damit ohne `stelle_id`:
-      * `bewerbung_initiativ_ohne_stelle` verlangt genau dieses Paar, und eine
-      * Stelle anzulegen hiesse, fuer diesen Test zwei Dinge zu pruefen.
+      * `bewerbung_quelle_und_stelle` (0472, vorher `bewerbung_initiativ_ohne_stelle`)
+      * verlangt fuer `initiativ` genau dieses Paar, und eine Stelle anzulegen
+      * hiesse, fuer diesen Test zwei Dinge zu pruefen.
       */
     `insert into bewerbung (mandant_id, name, email, quelle, aufbewahrung_bis)
      values ($1, $2, $3, 'initiativ', current_date + 180) returning id`,

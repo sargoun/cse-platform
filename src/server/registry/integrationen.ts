@@ -4,6 +4,7 @@ import { OrdnerSpeicher } from '../storage/ordner.js';
 import { waehleSpeicher } from '../storage/waehle.js';
 import { wetterPort } from '../versand/dwd.js';
 import { ALTSYSTEME, migrationPort } from '../integrationen/migration.js';
+import { bewerbungsPostfach } from '../integrationen/bewerbungspostfach.js';
 
 /**
  * Das Register der Anbindungen — und ihr WAHRER Zustand (CLAUDE.md, „No fake
@@ -55,6 +56,7 @@ export function anbindungen(): readonly Anbindung[] {
   const speicher = waehleSpeicher();
   const wetter = wetterPort();
   const sms = smsDienst(devFlaechenAn());
+  const postfach = bewerbungsPostfach();
   return [
     /*
      * V-131, D-623: der Vorführordner heisst hier „Entwicklung" und nicht
@@ -140,6 +142,18 @@ export function anbindungen(): readonly Anbindung[] {
       stand: 'nicht_verbunden',
       hinweis: 'Keine Zugangsdaten hinterlegt; ein Beitrag bleibt Entwurf.',
       offen: null,
+    },
+    /*
+     * V-224, D-718: das Postfach, über das Bewerbungen kommen (REC-03). Der
+     * Zustand kommt aus dem Adapter selbst; heute ist es der, der nichts
+     * holt — und eine Bewerbung per E-Mail überträgt ein Mensch.
+     */
+    {
+      schluessel: 'bewerbungspostfach', name: 'Bewerbungspostfach',
+      zweck: 'Bewerbungen, die per E-Mail kommen, ins Recruiting übernehmen (REC-03)',
+      stand: postfach.verbunden ? 'verbunden' : 'nicht_verbunden',
+      hinweis: postfach.hinweis,
+      offen: postfach.verbunden ? null : postfach.offen,
     },
     {
       schluessel: 'jobboerse', name: 'Jobbörsen',

@@ -158,6 +158,12 @@ export default async function Bewerbungsblatt(
               )}
             </nav>
 
+            {suche['erfasst'] === '1' && (
+              <Hinweis art="erfolg" cse="bewerbung-erfasst" className="mb-s5 max-w-prose">
+                {kt.pErfasst}
+              </Hinweis>
+            )}
+
             <dl className="mb-s6 grid max-w-prose grid-cols-1 gap-s2 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-s5">
               <dt className="text-text-muted">Stelle</dt>
               <dd className="m-0 min-w-0 break-words text-text">

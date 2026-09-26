@@ -3363,6 +3363,7 @@ Beantworten helfen:
 | O-889 | **Soll eine Benachrichtigung in der Sprache der Empfängerin entstehen (`person.sprache`) oder in der Sprache der Gesellschaft, die sie versendet?** `benachrichtigung` trägt **gespeicherten** Text: Titel und Text entstehen beim Erzeugen und stehen danach fest — eine Meldung, deren Sprache sich später ändert, gibt es nicht. **Ausgeliefert ist seit V-102 die Sprache der EMPFÄNGERIN**, und der Grund ist der Zweck der Meldung: sie soll gelesen werden. Eine Ablaufwarnung kündigt eine Sperre nach § 34a GewO an; wer sie nicht lesen kann, erscheint zur Schicht und wird weggeschickt. Betroffen sind **genau die drei Arten, die in `/portal/mein` landen** (`nachweis.ablauf_60/30/7`, `zeit.einwand_entschieden`, `dienstplan.plan_veroeffentlicht`); alle übrigen bleiben deutsch, weil das interne Portal deutsch ist und seine Begriffe juristische Bedeutung tragen — `tests/kern/benachrichtigung-sprachen.test.ts` §5 hält diesen Umfang fest. **Eingesetzter Text wird NICHT übersetzt**: die Bezeichnung einer Qualifikation, die Begründung der Planung, der Name der Gesellschaft — sie zu übersetzen hiesse, sie zu erfinden. Übersetzt wird dagegen, was die Plattform selbst formuliert, bis hin zur Fügung zwischen zwei Kalendertagen. **Offen bleibt die Bestätigung**: sagt der Auftraggeber, es solle die Sprache der Gesellschaft sein, ist die Änderung eine Zeile je Erzeuger — die Sprache steht als `sprache` im `BenachrichtigungsKontext` und nicht in den Texten. | NOT-01, NOT-02, SPEC §10, D-419, V-102, `src/lib/i18n/benachrichtigung.ts`, `src/server/benachrichtigung/registry.ts` |
 | O-888 | **Kodiert die Tausenderstelle der Objektnummer die Gesellschaft?** Der Bestand legt es nahe: die Reinigung führt `OBJ-1001 … OBJ-1003`, SSE Security `OBJ-2001`, REALTIME Bau `OBJ-3001` (`src/server/db/seed/operations.ts`). Ist das eine Hausregel oder ein Zufall der Demo-Daten? **Die Plattform erfindet dazu nichts**: `legeObjektAn` zählt aus dem Bestand DIESER Gesellschaft weiter und übernimmt damit von selbst, was dort schon gilt — ohne die Regel je auszusprechen. Nur der allererste Fall, eine Gesellschaft ohne ein einziges Objekt, hat keinen Bestand; dort steht `OBJ-1001` als **klar bezeichneter Platzhalter**. Das Feld ist im Formular von Hand überschreibbar, damit niemand an der Vorgabe hängenbleibt. Sagt der Auftraggeber eine Maske zu, ist die Änderung **eine Zeile** im Dienst. | OPS-01, V-001, `src/server/services/objekt/anlegen.ts` |
 | O-937 | **Welche Dokumentkategorien sollen Fassungen führen — DOC-05 sagt „versioning where the document type warrants it" und nennt die Typen nicht?** Seit V-219 lässt sich zu einem abgelegten Dokument eine zweite Fassung ablegen (`legeFassungAn`, `POST /api/dokumente/[id]/version`): neue Zeile in `dokument_version`, neues Objekt im Speicher, die alte Fassung bleibt Zeile und Datei. Fest steht eine Seite: Rechnung, Beleg und Buchhaltungsunterlage bekommen KEINE (GoBD, § 147 AO; berichtigt wird durch Gegenbuchung bzw. Storno) — das prüfen Dienst und Datenbank (0470). Offen sind die übrigen sechs: Kundenunterlage, Vertrag, Angebot, Personalunterlage, Projektunterlage, Unternehmensunterlage. Denkbar sind (a) alle sechs, (b) nur Vertrag, Angebot und Projektunterlage (die Unterlagen, die typischerweise überarbeitet werden), (c) je Kategorie einstellbar. Bei der Personalunterlage kommt hinzu, dass eine ältere Fassung personenbezogene Angaben weiter vorhält, die die neue berichtigt hat (Art. 16 DSGVO). **Ausgeliefert ist (a) als Platzhalter** (`FASSUNG_ERLAUBT_PLATZHALTER`): gesperrt wird nur, was GoBD sperrt. Die Antwort ändert diese eine Liste (und, falls enger, den Auslöser in 0470), nicht die Aufrufer. | DOC-05, DOC-07, Art. 16 DSGVO, V-219, D-713, `src/server/services/dokument/kategorie.ts` (`FASSUNG_ERLAUBT_PLATZHALTER`, `fassungMoeglich`), `drizzle/0470` |
+| O-938 | **Welches Postfach nimmt Bewerbungen an — und ab wann läuft ihre Löschfrist?** REC-03 verlangt Bewerbungen über das Karriereformular UND über ein überwachtes Postfach. Seit V-224 gibt es den Anschluss als Vertrag (`BewerbungsPostfach`) mit genau einem Adapter, `NichtVerbundenesPostfach`, der nichts holt und das sagt; unter Einstellungen › Integrationen steht „Bewerbungspostfach: nicht verbunden". Eine Bewerbung, die per E-Mail kam, überträgt bis dahin ein Mensch (`/recruiting/bewerbungen/neu`, Quelle `mail`). Zu entscheiden: (1) welche Adresse und welcher Anbieter (IMAP bei welchem Hoster, Microsoft 365 per Graph, ein Weiterleitungsdienst) — in welcher Region und unter welchem Auftragsverarbeitungsvertrag, denn das Postfach enthält Lebensläufe; (2) beginnt die Löschfrist (REC-07, `recruiting.aufbewahrung_tage`) mit dem Eingang im Postfach oder mit der Übernahme in die Plattform — **ausgeliefert ist die Übernahme als Platzhalter**, weil beim Formular beides zusammenfällt; (3) ob nach der Übernahme die Nachricht im Postfach gelöscht wird (berührt O-117). Die Antwort ändert `bewerbungsPostfach()` und, falls (2) anders entschieden wird, die eine Zeile in `erfasseBewerbungAusPostfach`. | REC-03, REC-07, LEG-11, O-117, O-375, V-224, D-718, `src/server/integrationen/bewerbungspostfach.ts`, `src/server/services/recruiting/postfach.ts` |
 
 
 ### D-619 — Ein Objekt entsteht in der Anwendung, nicht im Seed
@@ -19939,4 +19940,44 @@ record" als erledigt.
    nichts aus, und ein im Seed behaupteter Lauf wäre keiner).
 
 | Betrifft | REC-04, REC-05, O-375, Invariante 5, Invariante 6, V-223, `src/server/services/recruiting/kandidat.ts`, `src/server/agent/orchestrator.ts`, `src/app/api/recruiting/bewerbungen/[id]/kandidat/route.ts`, `src/app/api/recruiting/bewerbungen/[id]/kandidat/vorschlag/route.ts`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/recruiting-kandidat.ts`, `src/server/db/seed/kandidat.ts`, `docs/ROADMAP.md`, `tests/kern/kandidat-extraktion.test.ts`, `tests/isolation/recruiting-kandidat.test.ts` |
+|---|---|
+
+### D-718 · Das Bewerbungspostfach ist ein Vertrag mit dem Stand „nicht verbunden" — bis dahin erfasst ein Mensch, was per E-Mail kam (V-224)
+
+**Der Befund** (V-224; Audit-Befund 51, REC-03): REC-03 verlangt Bewerbungen
+über das Karriereformular UND über ein überwachtes Postfach. Gebaut war nur
+das Formular — kein Anschluss, keine Zeile „nicht verbunden" unter den
+Integrationen und keine Erfassung von Hand. Eine per E-Mail eingegangene
+Bewerbung konnte weder ankommen noch angelegt werden und bekam damit auch
+keine Löschfrist (REC-07); `bewerbung_quelle = 'mail'` setzte niemand.
+
+**Die Entscheidung.**
+
+1. **Der Anschluss als Vertrag, nicht als Zusage** (CLAUDE.md „No fake
+   integrations"): `BewerbungsPostfach` mit genau einem Adapter,
+   `NichtVerbundenesPostfach` (`integrationen/bewerbungspostfach.ts`). Er
+   holt nichts und WIRFT beim Abholen — eine leere Liste sähe aus wie ein
+   Postfach ohne Post. Das Register der Anbindungen liest den Zustand aus
+   demselben Adapter: „Bewerbungspostfach: nicht verbunden", O-938.
+2. **Die Erfassung von Hand** (`erfasseBewerbungAusPostfach`,
+   `POST /api/recruiting/bewerbungen`, Seite `/recruiting/bewerbungen/neu`,
+   ganz zweisprachig): Quelle `mail`, Löschfrist aus derselben Einstellung
+   und nach derselben Uhr (`app.berlin_heute()`) wie beim Formular — die
+   Frist beginnt mit der Erfassung (Platzhalter, O-938). Eine Stelle muss in
+   dieser Gesellschaft stehen und offen sein; ohne Stelle ist es eine
+   Initiativbewerbung per E-Mail. Recht: `recruiting.bewerbung_bewerten` —
+   ein Schreibrecht, kein Leserecht (Invariante 10, wie D-717); der Verweis
+   auf der Bewerbungsliste steht nur mit ihm.
+3. **Die Herkunft bleibt erhalten** (`0472`): `bewerbung_initiativ_ohne_stelle`
+   wird `bewerbung_quelle_und_stelle` — `initiativ` weiter nur ohne,
+   Karriereseite und Import weiter nur mit Stelle, `mail` mit und ohne. Jede
+   vorhandene Zeile erfüllt die neue Regel.
+4. **Nichts geht an die Bewerberin** (Invariante 7): eine Antwort entsteht
+   als Entwurf auf der Antwortseite und geht durch die Freigabe.
+5. **Keine Kaltakquise, kein Scraping** (CLAUDE.md): erfasst wird, was jemand
+   von sich aus geschickt hat; es gibt keinen Weg, der ein Postfach oder
+   eine Börse nach Menschen durchsucht.
+6. **Der Seed** erfasst eine Bewerbung aus dem Postfach über den Dienst.
+
+| Betrifft | REC-03, REC-07, LEG-11, O-117, O-375, O-938, Invariante 7, V-224, `drizzle/0472_bewerbung_aus_dem_postfach.sql`, `src/server/integrationen/bewerbungspostfach.ts`, `src/server/registry/integrationen.ts`, `src/server/services/recruiting/postfach.ts`, `src/app/api/recruiting/bewerbungen/route.ts`, `src/app/portal/[mandant]/recruiting/bewerbungen/{page,neu/page}.tsx`, `src/app/portal/[mandant]/recruiting/rahmen.tsx`, `src/server/db/seed/postfach.ts`, `tests/kern/{bewerbungspostfach,integrationen}.test.ts`, `tests/isolation/recruiting-postfach.test.ts` |
 |---|---|

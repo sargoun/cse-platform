@@ -1727,6 +1727,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'recruiting', pfad: 'recruiting/gespraech', schreibend: true,
     schreibRecht: 'kalender.schreiben',
   },
+  /* Eine Bewerbung aus dem Postfach von Hand erfassen (REC-03, V-224, D-718). */
+  {
+    modul: 'recruiting', pfad: 'recruiting/postfach', schreibend: true,
+    schreibRecht: 'recruiting.bewerbung_bewerten',
+  },
   /* Der Kandidatendatensatz — erfassen, bestätigen, auslesen lassen (REC-04, V-223, D-717). */
   {
     modul: 'recruiting', pfad: 'recruiting/kandidat', schreibend: true,

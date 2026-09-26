@@ -42,8 +42,12 @@ describe('anbindungen()', () => {
        * Zustand kommt aus demselben Port, der eine Datei annehmen wuerde —
        * eine zweite Liste verpasste den Tag, an dem ein Parser dazukommt.
        */
+      /*
+       * `bewerbungspostfach` kam mit V-224 dazu (REC-03, O-938): der Eingang
+       * über ein Postfach ist eine Anbindung, und sie ist nicht verbunden.
+       */
       expect(mitFrage).toEqual(
-        ['altsystem', 'email', 'karte', 'modell', 'n8n', 'ocr', 'sms']);
+        ['altsystem', 'bewerbungspostfach', 'email', 'karte', 'modell', 'n8n', 'ocr', 'sms']);
       for (const z of zeilen.filter((z) => z.offen !== null)) expect(z.offen).toMatch(/^O-\d+$/u);
     } finally {
       if (vorher.url !== undefined) process.env['SUPABASE_URL'] = vorher.url;

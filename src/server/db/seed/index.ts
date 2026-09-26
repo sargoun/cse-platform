@@ -36,6 +36,7 @@ import { seedSocial } from './social.js';
 import { seedReferenzAusAuftrag } from './referenzauftrag.js';
 import { seedRecruiting } from './recruiting.js';
 import { seedGespraeche } from './gespraech.js';
+import { seedPostfach } from './postfach.js';
 import { seedKandidat } from './kandidat.js';
 import { seedStellenentwurf } from './stellenentwurf.js';
 import { seedTermine } from './termine.js';
@@ -2062,6 +2063,13 @@ async function main(): Promise<void> {
     process.stdout.write(
       `  Kandidatendatensätze: ${String(kandidaten.erfasst)} erfasst, davon `
       + `${String(kandidaten.bestaetigt)} von einem Menschen bestätigt\n`);
+  }
+
+  /* Eine Bewerbung aus dem Postfach, von Hand über den Dienst erfasst (V-224, D-718). */
+  const postfach = await seedPostfach(sql, ids, demodaten);
+  if (postfach.erfasst > 0) {
+    process.stdout.write('  Bewerbungspostfach: nicht verbunden (O-938) — eine Bewerbung per '
+      + 'E-Mail von Hand erfasst\n');
   }
 
   const gespraeche = await seedGespraeche(sql, ids, demodaten);

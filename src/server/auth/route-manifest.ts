@@ -2944,6 +2944,11 @@ export const ROUTEN: readonly RouteEintrag[] = [
    */
   { pfad: 'api/recruiting/gespraeche', recht: 'recruiting.bewerbung_lesen' },
   /*
+   * Eine Bewerbung aus dem Postfach von Hand erfassen (REC-03, V-224, D-718) —
+   * ein Schreibrecht, kein Leserecht (Invariante 10).
+   */
+  { pfad: 'api/recruiting/bewerbungen', recht: 'recruiting.bewerbung_bewerten' },
+  /*
    * Der strukturierte Kandidatendatensatz (REC-04, V-223, D-717): ein
    * SCHREIBrecht — ein Leserecht ist in der Gruppenansicht erreichbar. Der
    * Vorschlag des Agenten prüft `agent.aufgabe_starten` dazu.
