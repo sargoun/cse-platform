@@ -13,8 +13,8 @@ import { mikrocentNachCent } from '@/server/agent/kosten';
 import {
   ENTWURF_AUFTRAEGE, KeineOffeneAnfrage, fuelleTatsachen,
 } from '@/server/agent/auftraege';
-import { VORGANG_LABEL } from '../../../freigaben/darstellung';
-import type { VorgangTyp } from '@/server/services/freigabe/posteingang';
+import { beschriftung } from '@/lib/i18n/beschriftung/basis';
+import { VORGANG_TEXT } from '@/lib/i18n/beschriftung/agent';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '../../../../rechte';
@@ -253,8 +253,7 @@ export default async function AgentStart(
         <h2 className="text-h2 text-text">Was dieser Lauf tut</h2>
         {auftrag === undefined ? (
           <p className="mt-s3 text-sm text-text-muted" data-cse="start-ohne-auftrag">
-            Für diesen Agenten ist kein von Hand auslösbarer Auftrag hinterlegt
-            (<code className="text-xs">server/agent/auftraege.ts</code>). Solange keiner
+            Für diesen Agenten ist kein von Hand auslösbarer Auftrag hinterlegt. Solange keiner
             eingetragen ist, gibt es hier nichts zu starten — die Liste der Aufträge ist
             der geschlossene Satz, und ein Formular, das eine Vorlage mitgäbe, wäre ein
             Weg, das Modell an den Diensten vorbei zu füttern.
@@ -265,11 +264,11 @@ export default async function AgentStart(
             <dd className="text-text" data-cse="start-titel">{auftrag.titel}</dd>
             <dt className="text-text-muted">Vorgangsart</dt>
             <dd className="text-text" data-cse="start-vorgang" data-typ={auftrag.vorgangTyp}>
-              {VORGANG_LABEL[auftrag.vorgangTyp as VorgangTyp] ?? auftrag.vorgangTyp}
+              {beschriftung(VORGANG_TEXT, auftrag.vorgangTyp)}
             </dd>
             <dt className="text-text-muted">Was eine Genehmigung auslöst</dt>
             <dd className="text-text">
-              <code className="text-xs">{auftrag.aktion}</code>
+              {beschriftung(VORGANG_TEXT, auftrag.aktion)}
               {auftrag.aktion === 'interner_hinweis'
                 ? ' — eine Handlung im Haus, kein Versand.'
                 : ' — ein Mensch übernimmt den Text und verschickt ihn selbst.'}
@@ -298,9 +297,8 @@ export default async function AgentStart(
           Genau diese Werte gehen in den Entwurf. Sie sind aus den Tabellen dieser
           Gesellschaft gezählt — <strong>gerechnet, nicht vom Modell geschätzt</strong>
           {' '}(Invariante 6). Das Modell setzt sie in Sätze und rechnet nichts; nach dem
-          Lauf prüft <code className="text-xs">pruefeZahlenherkunft</code>, dass keine Zahl
-          dazugekommen ist. Das Datum kommt von der Serveruhr
-          (<code className="text-xs">app.berlin_heute()</code>), nie aus dem Browser.
+          Lauf prüft die Plattform, dass keine Zahl dazugekommen ist. Das Datum kommt von
+          der Uhr der Datenbank (Berliner Kalendertag), nie aus dem Browser.
         </p>
         {tatsachen === null ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted"
@@ -310,8 +308,8 @@ export default async function AgentStart(
           </p>
         ) : Object.keys(tatsachen).length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Für diesen Agenten füllt <code className="text-xs">fuelleTatsachen()</code>
-            {' '}keine Werte. Ein Platzhalter ohne Tatsache bleibt im Entwurf STEHEN und
+            Für diesen Agenten liest die Plattform keine Werte. Ein Platzhalter ohne
+            Tatsache bleibt im Entwurf STEHEN und
             fällt auf — er wird nicht stillschweigend leer.
           </p>
         ) : (

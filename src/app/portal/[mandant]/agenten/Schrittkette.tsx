@@ -2,6 +2,9 @@ import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { formatiereGeld, cent } from '@/server/services/finanz/geld';
 import type { SchrittZeile } from '@/server/agent/laufzeit';
+import { beschriftung } from '@/lib/i18n/beschriftung/basis';
+import { WERKZEUG_TEXT } from '@/lib/i18n/beschriftung/agent';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * Die Schrittkette als Tabelle — dieselbe auf dem Aufgaben- und auf dem
@@ -31,8 +34,7 @@ export function Schrittkette({ zeilen }: { readonly zeilen: readonly SchrittZeil
   if (zeilen.length === 0) {
     return (
       <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-        Kein Schritt protokolliert. Solange kein Modellzugang eingerichtet ist,
-        bleibt das so.
+        Kein Schritt protokolliert.
       </p>
     );
   }
@@ -47,7 +49,9 @@ export function Schrittkette({ zeilen }: { readonly zeilen: readonly SchrittZeil
         {
           schluessel: 'werkzeug',
           kopf: 'Werkzeug',
-          zelle: (s) => s.werkzeug ?? <span className="text-text-subtle">—</span>,
+          zelle: (s) => (s.werkzeug === null
+            ? <span className="text-text-subtle">—</span>
+            : <span title={s.werkzeug}>{beschriftung(WERKZEUG_TEXT, s.werkzeug)}</span>),
         },
         {
           schluessel: 'modell',
@@ -73,7 +77,7 @@ export function Schrittkette({ zeilen }: { readonly zeilen: readonly SchrittZeil
           kopf: 'Zustand',
           zelle: (s) => (
             <span className="inline-flex flex-wrap items-center gap-s2">
-              <StatusPill zustand={PILLE[s.status] ?? 'Abgeschlossen'} />
+              <StatusPill zustand={eigenerEintrag(PILLE, s.status) ?? 'Abgeschlossen'} />
               {s.injektionsverdacht
                 ? <span className="text-xs text-danger">Injektionsverdacht</span>
                 : null}

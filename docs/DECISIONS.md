@@ -19853,3 +19853,41 @@ Anfragen" legte einem Interessenten das interne Auftragsvolumen offen.
 
 | Betrifft | §17, AGT-07, Invariante 6, Invariante 7, O-940, V-230, `src/server/agent/{auftraege.ts,modell/demo.ts}`, `src/server/services/lead/einsendung.ts`, `src/app/api/agenten/lauf/route.ts`, `src/app/portal/[mandant]/agenten/[agent]/{page,start/page}.tsx`, `tests/kern/akquise-entwurf.test.ts`, `tests/isolation/{akquise-tatsachen,agent-lauf}.test.ts` |
 |---|---|
+
+### D-725 · Die Agentenblätter zeigen Wörter aus gemeinsamen Karten, und der Zustand einer Aufgabe hat eine Pille, die stimmt (V-231)
+
+**Der Befund** (Audit Befund 61, AGT-01): unter „Was hinausgehen darf"
+standen die Aktionen roh (`email_senden`, `rechnung_senden`), in der
+Läufe-Tabelle und auf dem Aufgabenblatt die Vorgangsart (`interner_hinweis`,
+`anfrage_antwort_entwurf`), obwohl `AKTION_TEXT` (`services/agent/richtlinie.ts`)
+und `VORGANG_LABEL` (`freigaben/darstellung.ts`) sie als Wort kannten. Beim
+Gegenprüfen kamen dazu: der Störungscode eines Laufs im Satz („endete mit
+‚RATE_LIMITED‘"), das Recht `agent.aufgabe_starten` in Anführungszeichen,
+das Werkzeug roh in der Schrittkette, Quelltext im Vorschaltblatt
+(`server/agent/auftraege.ts`, `pruefeZahlenherkunft`, `app.berlin_heute()`,
+`fuelleTatsachen()`) — und eine Pillenkarte, die `wartet_freigabe` und
+`fehler` kannte, Werte, die `agent_aufgabe_status` gar nicht hat: ein
+`fehlgeschlagen`er Lauf stand als „Wartet" da. `bewerbung_antwort_entwurf`
+(0173) fehlte in der Vorgangskarte ganz.
+
+**Die Entscheidung.**
+
+1. **Gemeinsame Karten** in `src/lib/i18n/beschriftung/` (`basis.ts`:
+   `beschriftung()` schlägt nur eigene Einträge nach, D-728, und macht einen
+   unbekannten Wert lesbar statt roh; `agent.ts`: Werkzeug, Wirkung,
+   Untergrenze, `VORGANG_TEXT`, `VERSAND_AKTION_TEXT`, `LAUF_STOERUNG_TEXT`,
+   je deutsch und englisch). `VORGANG_LABEL` und `AKTION_TEXT` bleiben unter
+   ihrem Namen als deutsche Sicht auf diese Karten — ihre Aufrufer ändern sich
+   nicht, und es gibt nur noch eine Liste.
+2. **Eine Pillenkarte für beide Blätter** (`agenten/darstellung.ts`
+   `AUFGABE_PILLE`) mit genau den sieben Zuständen des Enums;
+   `fehlgeschlagen` ist „Fehler", `wartet_auf_freigabe` „In Prüfung",
+   `gestoppt_budget` „Abgelehnt" (das Blatt schreibt „Budget" dazu).
+3. **Ein Satz je Störungscode**, der Code bleibt nur im Adressparameter; ein
+   unbekannter Code sagt, wo der Grund steht.
+4. **Der Rechteschlüssel als `<Recht>`**, kein Quelltext im sichtbaren Text.
+5. `tests/kern/beschriftung.test.ts` hält jede Karte gegen ihre Migration
+   (`enumWerte`) und die Blätter gegen die rohen Ausdrücke.
+
+| Betrifft | AGT-01, AGT-04, D-722, D-728, V-231, `src/lib/i18n/beschriftung/{basis,agent}.ts`, `src/app/portal/[mandant]/agenten/{darstellung.ts,Schrittkette.tsx,[agent]/page.tsx,[agent]/aufgaben/[id]/page.tsx,[agent]/start/page.tsx}`, `src/app/portal/[mandant]/freigaben/darstellung.ts`, `src/server/services/agent/richtlinie.ts`, `tests/kern/beschriftung.test.ts`, `tests/kern/hilfen/beschriftung.ts` |
+|---|---|
