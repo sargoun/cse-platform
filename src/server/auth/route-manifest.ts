@@ -2696,6 +2696,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Eine Katalogfrage an den CEO-Assistenten (AGT-04, AGT-07, V-229, D-723).
+     * `agent.aufgabe_starten`, das Recht der Seite: jede Frage wird eine
+     * Aufgabe mit Schritt, und die Schreibpolicy `t_mandant` auf
+     * `agent_aufgabe` fragt genau dieses Recht. Nichts verlaesst das Haus.
+     */
+    pfad: 'api/agenten/assistent',
+    recht: 'agent.aufgabe_starten',
+  },
+  {
+    /**
      * Stapelfreigabe (APR-04) — `freigabe.stapel_entscheiden`, NICHT
      * `freigabe.entscheiden`.
      *

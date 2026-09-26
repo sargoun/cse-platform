@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import Link from 'next/link';
+import { randomUUID } from 'node:crypto';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -9,11 +10,15 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '../../../rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
-import { KATALOG, sucheBestand } from '@/server/agent/tools/suche-bestand';
+import { KATALOG } from '@/server/agent/tools/suche-bestand';
 import { werkzeugStand } from '@/server/agent/tools/freischaltung';
-import { Wertregister } from '@/server/agent/tools/register';
+import { leseFrage, type ProtokollierteFrage } from '@/server/services/agent/assistent';
+import { istUuid } from '@/lib/uuid';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 
 /**
  * `/portal/[mandant]/agenten/assistent` — der CEO-Assistent (AGT-07, SPEC §21).
@@ -34,19 +39,31 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  * beantwortet — und genau das sagt AGT-07: „When it cannot answer from the
  * schema, it says so."
  *
- * **Und deshalb ist der Katalog kurz.** Neun Fragen, jede nachgerechnet. Ein
- * langer Katalog aus erfundenen Fragen wäre dasselbe wie ein Modell, das SQL
- * schreibt — nur langsamer.
+ * **Jede Frage ist eine protokollierte Aufgabe** (AGT-04, V-229, D-723). Die
+ * Karten sind Formulare: ein Klick schickt die Frage an
+ * `POST /api/agenten/assistent`, dort entstehen Aufgabe und Schritt
+ * (Werkzeug, Eingabe, Ausgabe, Dauer), und die Seite zeigt danach die Antwort
+ * DIESER Aufgabe (`?aufgabe=`). Vorher rechnete die Seite beim Anzeigen und
+ * hinterliess keine Spur; im Agentenzentrum standen nur die Knopf-Läufe.
+ * Geschrieben wird nie beim Anzeigen — ein GET, der eine Zeile anlegt, legte
+ * sie auch beim Vorladen eines Links an.
  *
- * **Ohne Modell, und trotzdem vollständig.** Diese Seite braucht keinen
- * Anbieter: die Zahl kommt aus der Datenbank, der Satz daneben aus einer
- * Vorlage. Ein Modell würde den Satz später schöner formulieren — es würde die
- * Zahl nicht besser machen, denn es darf sie ohnehin nicht anfassen
- * (Invariante 6).
+ * **Ohne Modell, und trotzdem vollständig.** Die Zahl kommt aus der
+ * Datenbank, der Satz daneben aus einer Vorlage. Ein Modell würde den Satz
+ * später schöner formulieren — es würde die Zahl nicht besser machen, denn es
+ * darf sie ohnehin nicht anfassen (Invariante 6).
  */
 export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'CEO-Assistent' };
+
+/** Warum eine Frage nicht angenommen wurde — ein Satz je Grund der Route. */
+const FEHLER_TEXT: Readonly<Record<string, string>> = {
+  unbekannt: 'Diese Frage steht nicht im Katalog. Beantwortet wird nur, was jemand als '
+    + 'Abfrage geschrieben und nachgerechnet hat.',
+  schluessel: 'Das Formular war unvollständig. Bitte die Frage noch einmal antippen.',
+  agent_aus: 'Der CEO-Assistent ist abgeschaltet und beantwortet keine Fragen.',
+};
 
 export default async function Assistent(
   { params, searchParams }: {
@@ -56,7 +73,9 @@ export default async function Assistent(
 ) {
   const { mandant } = await params;
   const suche = await searchParams;
-  const gefragt = typeof suche['frage'] === 'string' ? suche['frage'] : null;
+  const aufgabeId = typeof suche['aufgabe'] === 'string' && istUuid(suche['aufgabe'])
+    ? suche['aufgabe'] : null;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
 
   const zugang = await portalZugang(`/portal/${mandant}/agenten/assistent`);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -68,50 +87,23 @@ export default async function Assistent(
     );
   }
   const { sitzung } = zugang;
-  const mandantId = sitzung.aktiverMandantId;
-  if (mandantId === null) notFound();
-
-  const eintrag = gefragt === null ? null : KATALOG.find((k) => k.id === gefragt) ?? null;
+  if (sitzung.aktiverMandantId === null) notFound();
+  const darf = await haeltRechte(sitzung, 'agent.protokoll_lesen', 'agent.werkzeug_verbinden');
 
   /*
-   * **Die Antwort entsteht auf dem Server, in der Sitzung des Fragenden.**
-   * `withTenant` bindet den Mandanten; RLS ist die zweite Linie, die
-   * Bedingung im Katalog-SQL die erste. Wer eine fremde Abfragekennung in die
-   * Adresse tippt, bekommt sie gegen SEINE Gesellschaft ausgeführt — es gibt
-   * keinen Parameter, mit dem sich das verschieben liesse.
+   * **Gelesen wird, was protokolliert ist** — die Antwort der Aufgabe, nicht
+   * eine neu gerechnete. Und der Stand des Werkzeugs, damit die Seite sagt,
+   * wenn der Assistent in dieser Gesellschaft gar nicht antworten darf.
    */
-  const antwort = eintrag === null ? null : await db().begin(SCHNAPPSCHUSS,
-    async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => {
-      /*
-       * **Das Werkzeug muss in DIESER Gesellschaft freigeschaltet sein**
-       * (V-228, D-722). Die Agentenseite zeigt den Stand aus `agent_werkzeug`;
-       * vorher antwortete der Assistent auch dann, wenn dort „nicht
-       * freigeschaltet" stand. Jetzt gilt, was dort steht.
-       */
-      const freischaltung = await werkzeugStand(kontext, 'ceo_assistent', 'suche_bestand');
-      if (!freischaltung.bereit) {
-        return {
-          fehler: 'Das Werkzeug „Bestand abfragen" ist in dieser Gesellschaft für den '
-            + 'CEO-Assistenten nicht freigeschaltet. Freischalten lässt es sich auf dem Blatt '
-            + 'des Agenten, von einer Person mit dem Recht, Werkzeuge zu verbinden.',
-        } as const;
-      }
-      const register = new Wertregister();
-      const ergebnis = await sucheBestand(
-        { abfrage: <T,>(sql: string, werte?: readonly unknown[]) =>
-            kontext.abfrage<T>(sql, werte) },
-        mandantId, eintrag.id, register,
-      );
-      if (!ergebnis.ok) return { fehler: ergebnis.fehler.nachricht } as const;
-      const wert = register.lies(ergebnis.daten.antwortToken);
-      const stand = register.lies(ergebnis.daten.standToken);
-      return {
-        frage: ergebnis.daten.frage,
-        anzeige: wert.anzeige,
-        stand: stand.anzeige,
-        abfrageId: ergebnis.daten.abfrageId,
-      } as const;
-    }));
+  const { frage, freigeschaltet } = await (db().begin(SCHNAPPSCHUSS,
+    async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => ({
+      frage: aufgabeId === null ? null : await leseFrage(kontext, aufgabeId),
+      freigeschaltet: (await werkzeugStand(kontext, 'ceo_assistent', 'suche_bestand')).bereit,
+    })))) as { frage: ProtokollierteFrage | null; freigeschaltet: boolean };
+
+  const aufgabeLink = frage === null || darf['agent.protokoll_lesen'] !== true
+    ? null
+    : alsRoute(`/portal/${mandant}/agenten/ceo-assistent/aufgaben/${frage.aufgabeId}`);
 
   return (
     <PortalRahmen
@@ -129,26 +121,69 @@ export default async function Assistent(
 
       <Hinweis art="hinweis" cse="assistent-erklaerung" className="mb-s5 max-w-prose">
         <strong className="block">Er liest die echten Daten dieser Gesellschaft.</strong>
-        Jede Antwort ist eine Abfrage gegen die Datenbank, kein Modell — und sie trägt
-        den Zeitpunkt, zu dem sie gelesen wurde. Was nicht im Katalog steht, wird
-        nicht beantwortet, statt geraten zu werden: eine Zahl, die entsteht, weil eine
-        Zahl erwartet wurde, ist schlimmer als keine Antwort (AGT-07).
+        Jede Antwort ist eine Abfrage gegen die Datenbank, kein Modell — sie trägt den
+        Zeitpunkt, zu dem sie gelesen wurde, und steht als Aufgabe im Protokoll des
+        Agenten. Was nicht im Katalog steht, wird nicht beantwortet, statt geraten zu
+        werden: eine Zahl, die entsteht, weil eine Zahl erwartet wurde, ist schlimmer als
+        keine Antwort (AGT-07).
       </Hinweis>
 
-      {antwort !== null && (
-        'fehler' in antwort ? (
+      {!freigeschaltet ? (
+        <Hinweis art="warnung" cse="assistent-gesperrt" className="mb-s5 max-w-prose">
+          Das Werkzeug „Bestand abfragen" ist in dieser Gesellschaft für den CEO-Assistenten
+          nicht freigeschaltet — er beantwortet deshalb keine Frage. Eine Frage wird trotzdem
+          protokolliert, mit dem Grund, warum sie unbeantwortet blieb.
+          {darf['agent.werkzeug_verbinden'] === true && (
+            <>
+              {' '}
+              <Link href={alsRoute(`/portal/${mandant}/agenten/ceo-assistent#werkzeuge`)}
+                    data-cse="assistent-zum-werkzeug"
+                    className="underline underline-offset-2">
+                Werkzeug freischalten
+              </Link>
+            </>
+          )}
+        </Hinweis>
+      ) : null}
+
+      {fehler !== null && (
+        <Hinweis art="warnung" cse="assistent-abgewiesen" className="mb-s5 max-w-prose">
+          {eigenerEintrag(FEHLER_TEXT, fehler) ?? FEHLER_TEXT['unbekannt']}
+        </Hinweis>
+      )}
+
+      {frage !== null && (
+        frage.antwort === null ? (
           <Hinweis art="warnung" cse="assistent-keine-antwort" className="mb-s5 max-w-prose">
-            {antwort.fehler}
+            {frage.fehlerText ?? 'Diese Frage blieb ohne Antwort.'}
+            {aufgabeLink === null ? null : (
+              <>
+                {' '}
+                <Link href={aufgabeLink} data-cse="assistent-zur-aufgabe"
+                      className="underline underline-offset-2">
+                  Zum Protokoll
+                </Link>
+              </>
+            )}
           </Hinweis>
         ) : (
           <Card className="mb-s5" data-cse="assistent-antwort">
-            <p className="m-0 mb-s2 text-sm text-text-muted">{antwort.frage}</p>
+            <p className="m-0 mb-s2 text-sm text-text-muted">{frage.antwort.frage}</p>
             <p className="m-0 cse-zahl text-h1 text-text" data-cse="assistent-zahl">
-              {antwort.anzeige}
+              {frage.antwort.anzeige}
             </p>
             <p className="m-0 mt-s3 text-xs text-text-subtle">
-              {`Gelesen am ${antwort.stand} · Abfrage „${antwort.abfrageId}" · `}
-              gerechnet hat die Datenbank, nicht ein Modell.
+              {`Gelesen am ${frage.antwort.stand} · gerechnet hat die Datenbank, nicht ein `
+                + 'Modell · protokolliert als Aufgabe des Agenten.'}
+              {aufgabeLink === null ? null : (
+                <>
+                  {' '}
+                  <Link href={aufgabeLink} data-cse="assistent-zur-aufgabe"
+                        className="underline underline-offset-2">
+                    Zum Protokoll
+                  </Link>
+                </>
+              )}
             </p>
           </Card>
         )
@@ -163,9 +198,6 @@ export default async function Assistent(
         * Eingabefeld. Es gibt keines, und das ist Absicht (AGT-07); die Liste
         * IST die Eingabe. Nur sagte das niemand, und eine Karte mit einem
         * Rahmen sieht aus wie ein Schild, nicht wie ein Knopf.
-        *
-        * Zwei Dinge dagegen: dieser Satz, und das `›` auf jeder Karte. Beides
-        * kostet nichts und ersetzt die Frage „wie frage ich denn nun?".
         */}
       <p className="mb-s4 mt-0 max-w-prose text-sm text-text-muted"
          data-cse="assistent-anleitung">
@@ -174,42 +206,51 @@ export default async function Assistent(
         jemand als Abfrage geschrieben und nachgerechnet hat.
       </p>
       <ul className="m-0 grid list-none grid-cols-1 gap-s3 p-0 md:grid-cols-2">
-        {KATALOG.map((k) => (
-          <li key={k.id}>
-            {/*
-              * Ein Verweis und kein Formular: die Frage ändert nichts, sie
-              * liest. Damit ist die Antwort eine Adresse, die sich
-              * weitergeben, lesezeichen und im Protokoll wiederfinden lässt.
-              */}
-            <Link
-              href={{ pathname: `/portal/${mandant}/agenten/assistent`, query: { frage: k.id } }}
-              data-cse="assistent-frage"
-              data-frage={k.id}
-              className={[
-                'block rounded-lg border p-s4 text-sm transition-colors duration-fast',
-                k.id === gefragt
-                  ? 'border-line-strong bg-surface-2 text-text'
-                  : 'border-line bg-surface text-text hover:bg-surface-2',
-              ].join(' ')}
-              aria-current={k.id === gefragt ? 'page' : undefined}
-            >
+        {KATALOG.map((k) => {
+          const aktuell = frage?.antwort?.abfrageId === k.id;
+          return (
+            <li key={k.id}>
               {/*
-                * Das `›` macht aus der Karte sichtbar einen Weg. `aria-hidden`,
-                * weil der Verweis seinen Namen schon traegt — ein vorgelesenes
-                * „groesser als" waere Laerm (DESIGN §5).
+                * **Ein Formular und kein Verweis** (V-229): die Frage legt eine
+                * Aufgabe an, und das tut nur ein POST. Der Schlüssel entsteht
+                * einmal je Anzeige dieser Seite — ein Doppelklick schickt
+                * denselben, und es bleibt bei einer Aufgabe.
                 */}
-              <span className="flex items-start justify-between gap-s3">
-                <span>{k.frage}</span>
-                <span aria-hidden="true" className="shrink-0 text-text-subtle">›</span>
-              </span>
-              {k.einheit === null ? null : (
-                <span className="mt-s1 block text-xs text-text-muted">
-                  {`Antwort in ${k.einheit}`}
-                </span>
-              )}
-            </Link>
-          </li>
-        ))}
+              <form method="post" action="/api/agenten/assistent" className="m-0">
+                <input type="hidden" name="frage" value={k.id} />
+                <input type="hidden" name="schluessel" value={randomUUID()} />
+                <button
+                  type="submit"
+                  data-cse="assistent-frage"
+                  data-frage={k.id}
+                  aria-current={aktuell ? 'true' : undefined}
+                  className={[
+                    'block w-full rounded-lg border p-s4 text-start text-sm transition-colors',
+                    'duration-fast',
+                    aktuell
+                      ? 'border-line-strong bg-surface-2 text-text'
+                      : 'border-line bg-surface text-text hover:bg-surface-2',
+                  ].join(' ')}
+                >
+                  {/*
+                    * Das `›` macht aus der Karte sichtbar einen Weg. `aria-hidden`,
+                    * weil der Knopf seinen Namen schon trägt — ein vorgelesenes
+                    * „grösser als" wäre Lärm (DESIGN §5).
+                    */}
+                  <span className="flex items-start justify-between gap-s3">
+                    <span>{k.frage}</span>
+                    <span aria-hidden="true" className="shrink-0 text-text-subtle">›</span>
+                  </span>
+                  {k.einheit === null ? null : (
+                    <span className="mt-s1 block text-xs text-text-muted">
+                      {`Antwort in ${k.einheit}`}
+                    </span>
+                  )}
+                </button>
+              </form>
+            </li>
+          );
+        })}
       </ul>
 
       <p className="mt-s5 max-w-prose text-sm text-text-muted">

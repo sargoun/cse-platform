@@ -1387,6 +1387,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'agent', pfad: 'agent/werkzeug-pflege',
     schreibend: true, schreibRecht: 'agent.werkzeug_verbinden',
   },
+  /* Jede Frage an den CEO-Assistenten ist eine Aufgabe mit Schritt (AGT-04, V-229,
+     D-723). Schreibt `agent_aufgabe`/`agent_schritt` unter `agent.aufgabe_starten`. */
+  {
+    modul: 'agent', pfad: 'agent/assistent',
+    schreibend: true, schreibRecht: 'agent.aufgabe_starten',
+  },
   {
     modul: 'dokument', pfad: 'dokument/aufbewahrung',
     schreibend: true, schreibRecht: 'dokument.aufbewahrung_verwalten',

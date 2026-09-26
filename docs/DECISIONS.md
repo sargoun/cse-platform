@@ -19767,3 +19767,43 @@ Kommentar im Register versprachen `kein_modellzugang`, gebaut war es nicht.
 
 | Betrifft | AGT-01, AGT-02, AGT-07, D-435, D-495, D-513, D-599, V-228, Invariante 7, `src/server/services/agent/werkzeug-pflege.ts`, `src/server/agent/tools/{ausfuehrer,freischaltung,register-werkzeuge}.ts`, `src/app/api/agenten/werkzeug/route.ts`, `src/server/auth/route-manifest.ts`, `src/app/portal/[mandant]/agenten/{[agent],assistent}/page.tsx`, `src/lib/i18n/beschriftung/{basis,agent}.ts`, `src/server/db/seed/index.ts`, `tests/kern/agent-werkzeug-pflege.test.ts`, `tests/isolation/agent-werkzeug-pflege.test.ts` |
 |---|---|
+
+### D-723 · Jede Frage an den CEO-Assistenten ist eine Aufgabe mit einem protokollierten Schritt (V-229)
+
+**Der Befund** (Audit Befund 59, AGT-04, AGT-01 „activity, logs"): der
+CEO-Assistent beantwortete Fragen über das Agentenwerkzeug `suche_bestand`,
+aber die Seite rief es in einer Lesetransaktion auf und legte weder
+`agent_aufgabe` noch `agent_schritt` an. Die tägliche Hauptfunktion dieses
+Agenten hinterliess keine Spur; im Agentenzentrum und im Schrittprotokoll
+standen nur die Knopf-Läufe.
+
+**Die Entscheidung.**
+
+1. **Geschrieben wird auf einen POST, nie beim Anzeigen.** Die Katalogkarten
+   sind Formulare an `POST /api/agenten/assistent` (Recht der Seite:
+   `agent.aufgabe_starten`; die Schreibpolicy auf `agent_aufgabe` fragt
+   dasselbe). Ein GET, der eine Zeile anlegt, legte sie auch beim Vorladen
+   eines Links an. Die Route leitet mit 303 auf `?aufgabe=` zurück (D-599),
+   und die Seite zeigt die Antwort DIESER Aufgabe (`agent_aufgabe.ergebnis`),
+   nicht eine neu gerechnete.
+2. **Dieselben Funktionen wie der Orchestrator** (`beantworteFrage`,
+   `services/agent/assistent.ts`): `starteAufgabe` (Agent `ceo_assistent`,
+   Vorgangsart `interner_hinweis`, ausgelöst durch `mensch`, angefordert von
+   der Person), `protokolliereSchritt` (Werkzeug `suche_bestand`, Eingabe die
+   Abfragekennung, Ausgabe Frage, Antwort und Stand, Quellen aus dem
+   Wertregister, kein Modell, null Tokens und Kosten — gerechnet hat die
+   Datenbank —, gemessene Dauer) und `beendeAufgabe`.
+3. **Ein Schlüssel je Anzeige des Formulars** (`idempotenz_schluessel`
+   `assistent:<schlüssel>`): ein Doppelklick bleibt eine Aufgabe.
+4. **Auch die abgewiesene Frage steht im Protokoll.** Ist `suche_bestand` für
+   den Assistenten nicht freigeschaltet (D-722), entsteht die Aufgabe mit
+   einem Schritt `abgelehnt_richtlinie` und endet `abgebrochen` mit dem Satz,
+   warum; eine Katalogabfrage, die nichts liefert, endet `fehlgeschlagen`.
+   Eine Frage ausserhalb des Katalogs legt nichts an.
+5. **Kein roher Schlüssel auf der Seite:** die Abfragekennung stand als
+   „Abfrage ‚offene_rechnungen_anzahl‘" unter der Antwort; jetzt steht dort
+   der Verweis auf die protokollierte Aufgabe (nur mit
+   `agent.protokoll_lesen`).
+
+| Betrifft | AGT-01, AGT-04, AGT-07, D-599, D-722, V-229, `src/server/services/agent/assistent.ts`, `src/app/api/agenten/assistent/route.ts`, `src/app/portal/[mandant]/agenten/assistent/page.tsx`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts`, `tests/isolation/agent-assistent.test.ts` |
+|---|---|
