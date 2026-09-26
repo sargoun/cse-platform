@@ -2944,6 +2944,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
    */
   { pfad: 'api/recruiting/gespraeche', recht: 'recruiting.bewerbung_lesen' },
   /*
+   * Der strukturierte Kandidatendatensatz (REC-04, V-223, D-717): ein
+   * SCHREIBrecht — ein Leserecht ist in der Gruppenansicht erreichbar. Der
+   * Vorschlag des Agenten prüft `agent.aufgabe_starten` dazu.
+   */
+  { pfad: 'api/recruiting/bewerbungen/[id]/kandidat', recht: 'recruiting.bewerbung_bewerten' },
+  {
+    pfad: 'api/recruiting/bewerbungen/[id]/kandidat/vorschlag',
+    recht: 'recruiting.bewerbung_bewerten',
+  },
+  /*
    * Der Stellenentwurf durch den Agenten und das Bearbeiten eines Entwurfs
    * (REC-02, V-222, D-716). Der Agentenweg prüft `agent.aufgabe_starten`
    * dazu (`weitereRechte`).

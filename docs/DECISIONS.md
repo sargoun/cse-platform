@@ -19884,3 +19884,59 @@ Beschreibung und Anforderungen einer angelegten Stelle konnte niemand mehr
 
 | Betrifft | REC-02, REC-05, SPEC §17, AGT-01, Invariante 6, Invariante 7, V-222, D-728, `src/server/agent/{orchestrator,auftraege}.ts`, `src/server/services/recruiting/stellenentwurf.ts`, `src/app/api/recruiting/stellen/{route,felder}.ts`, `src/app/api/recruiting/stellen/entwurf/route.ts`, `src/app/api/recruiting/stellen/[id]/route.ts`, `src/app/portal/[mandant]/recruiting/stellen/neu/page.tsx`, `src/app/portal/[mandant]/recruiting/stellen/[id]/page.tsx`, `src/lib/i18n/verwaltung/{recruiting-stellenentwurf,recruiting-rueckmeldung}.ts`, `tests/kern/stellenentwurf.test.ts`, `tests/isolation/recruiting-stellenentwurf.test.ts` |
 |---|---|
+
+### D-717 · Der Kandidatendatensatz entsteht von Hand oder als Vorschlag des Agenten — und gilt erst, wenn ein Mensch ihn bestätigt (V-223)
+
+**Der Befund** (V-223; Audit-Befund 52, REC-04): `kandidat` (0166:
+Qualifikationen, Sprachen, Erfahrungsjahre, `quelle_art`, Bestätigung durch
+einen Menschen) hatte im ganzen Baum keinen Schreiber, auch nicht im Seed,
+und keine Seite zeigte seine Felder. ROADMAP führte „the parsed candidate
+record" als erledigt.
+
+**Die Entscheidung.**
+
+1. **Drei Wege, eine Regel** (`services/recruiting/kandidat.ts`):
+   `erfasseKandidat` (ein Mensch trägt ein oder berichtigt),
+   `schlageKandidatVor` (der Agent liest aus), `bestaetigeKandidat` (ein
+   Mensch bestätigt). Gespeichert wird IMMER unbestätigt; jede Änderung nimmt
+   eine frühere Bestätigung zurück — bestätigt war der alte Stand. Die
+   Bestätigung setzt `bestaetigt_am` mit der Uhr der DATENBANK und
+   `bestaetigt_von` aus der Sitzung (CHECK
+   `kandidat_bestaetigung_vollstaendig`). Je Bewerbung genau ein Datensatz.
+2. **Der Agent liest aus, über die vorhandene Laufzeit** (`fuehreLaufAus`,
+   Fähigkeit `extraktion_dokument`, `vorlegen: false`): das Register
+   entscheidet, ob ein Modell dafür freigegeben ist — eine Freigabe zum
+   Formulieren ist keine zum Auslesen personenbezogener Unterlagen. Das
+   Ergebnis steht als `quelle_art = 'agent'` UNBESTÄTIGT da. Ohne Modell,
+   ohne Budget, mit ausgeschaltetem Agenten oder mit einer Antwort, die kein
+   Datensatz ist, entsteht NICHTS; die Aufgabe steht mit Grund im
+   Agentenzentrum. Der Demobetrieb hat für diese Vorgangsart keine Vorlage
+   und sagt das — die Seite nennt es. Kein neuer Anbieter, keine Attrappe.
+3. **Das Modell rechnet nicht und bewertet nicht** (Invariante 6, REC-05):
+   Erfahrungsjahre übernimmt `leseExtraktion` nur, wenn die Zahl WÖRTLICH in
+   der Nachricht der Bewerbung steht; sonst bleiben sie leer („nicht
+   bekannt", nie „null Jahre"). Kein Rang, keine Punkte.
+4. **Die Quelle ist die Nachricht der Bewerbung**, nicht der Lebenslauf —
+   eine Datei kommt nicht an, solange O-375 offen ist; die Seite sagt das.
+5. **Recht:** `recruiting.bewerbung_bewerten` für Erfassen, Bestätigen und
+   Vorschlag, für den Vorschlag zusätzlich `agent.aufgabe_starten`. Die
+   zweite Linie (`t_kandidat_schreiben`, 0166) lässt schreiben, wer
+   `recruiting.bewerbung_lesen` hält — ein LESErecht ist aber in der
+   Gruppenansicht erreichbar (`hat_recht_fuer`: dort gelten nur lesen und
+   exportieren) und kann deshalb keinen Schreibweg tragen (Invariante 10,
+   Dienstregister). Die Arbeit an den Angaben einer Bewerberin ist Teil ihrer
+   Bewertung; dieselben drei Rollen halten beide Rechte (0008), es verliert
+   also niemand etwas. Wer das Recht nicht hält, sieht den Datensatz und den
+   Satz, welches Recht fehlt.
+6. **Oberfläche:** Abschnitt „Strukturierte Angaben" auf dem
+   Bewerbungsblatt (`/kandidaten/[id]` leitet dorthin): Quelle, Stand der
+   Bestätigung mit Zeitpunkt und Person, die Felder; Erfassen, Bestätigen und
+   Auslesen-Lassen; zweisprachig. Die Abweisung kommt mit
+   `vorgang=kandidat` zurück und steht im Abschnitt, nicht unter „Gespräch
+   planen".
+7. **Der Seed** legt über die Dienste zwei Datensätze an — einen bestätigten,
+   einen noch unbestätigten; keinen Agentenvorschlag (der Demobetrieb liest
+   nichts aus, und ein im Seed behaupteter Lauf wäre keiner).
+
+| Betrifft | REC-04, REC-05, O-375, Invariante 5, Invariante 6, V-223, `src/server/services/recruiting/kandidat.ts`, `src/server/agent/orchestrator.ts`, `src/app/api/recruiting/bewerbungen/[id]/kandidat/route.ts`, `src/app/api/recruiting/bewerbungen/[id]/kandidat/vorschlag/route.ts`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/recruiting-kandidat.ts`, `src/server/db/seed/kandidat.ts`, `docs/ROADMAP.md`, `tests/kern/kandidat-extraktion.test.ts`, `tests/isolation/recruiting-kandidat.test.ts` |
+|---|---|

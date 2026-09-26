@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { StatusPill } from '@/components/ui/StatusPill';
@@ -6,11 +7,18 @@ import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { ladeBewerbung, leseBewertung } from '@/server/services/recruiting/dienst';
 import { punktzahlZehntel, punkteText } from '@/server/services/recruiting/rangfolge';
+import { ladeKandidat } from '@/server/services/recruiting/kandidat';
+import { modellStand } from '@/server/agent/modell/auswahl';
+import { Recht } from '@/components/ui/Recht';
+import { internSprache } from '@/lib/i18n/intern';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { RECRUITING_KANDIDAT_TEXTE } from '@/lib/i18n/verwaltung/recruiting-kandidat';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '../../../../rechte';
 import { RecruitingSeite, leseImMandanten } from '../../rahmen';
 import { KNOPF } from '../../felder';
-import { BEWERBUNG_MARKE, BEWERBUNG_TEXT, berlinZeit } from '../../marken';
+import { BEWERBUNG_MARKE, BEWERBUNG_TEXT, berlinZeit, berlinZeitIn } from '../../marken';
 
 /**
  * `/portal/[mandant]/recruiting/bewerbungen/[id]` — eine Bewerbung (REC-03,
@@ -57,7 +65,18 @@ export default async function Bewerbungsblatt(
   const { mandant, id } = await params;
   kennungOder404(id);
   const suche = await searchParams;
-  const abgewiesen = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  /* Ein Schlüssel oder nichts — nachgeschlagen nur über `eigenerEintrag` (D-728). */
+  const abgewiesen = typeof suche['fehler'] === 'string' && /^[a-z_]{1,64}$/u.test(suche['fehler'])
+    ? suche['fehler'] : null;
+  /*
+   * V-223: zwei Formulare schicken ihre Abweisung auf diese Seite — das
+   * Gespräch und der Kandidatendatensatz. `vorgang=kandidat` sagt, wohin der
+   * Satz gehört; sonst stünde eine Abweisung der Angaben unter „Gespräch
+   * planen".
+   */
+  const kandidatVorgang = suche['vorgang'] === 'kandidat';
+  const kandidatErledigt = suche['kandidat'] === 'erfasst' || suche['kandidat'] === 'bestaetigt'
+    || suche['kandidat'] === 'vorgeschlagen' ? suche['kandidat'] : null;
   return (
     <RecruitingSeite
       mandant={mandant}
@@ -66,13 +85,22 @@ export default async function Bewerbungsblatt(
       kinder={async (zugang) => {
         const darf = await haeltRechte(
           zugang.sitzung, 'recruiting.bewerbung_bewerten', 'recruiting.entscheiden',
-          'kalender.schreiben', 'recruiting.stelle_lesen');
+          'kalender.schreiben', 'recruiting.stelle_lesen', 'agent.aufgabe_starten');
         const d = await leseImMandanten(zugang, async (kontext) => ({
           b: await ladeBewerbung(kontext, id),
           kriterien: await leseBewertung(kontext, id),
+          kandidat: await ladeKandidat(kontext, id),
+          auslesen: (await modellStand(kontext))
+            .find((m) => m.faehigkeit === 'extraktion_dokument') ?? null,
         }));
         if (d.b === null) notFound();
         const b = d.b;
+        const sprache = internSprache(zugang.sprache);
+        const kt = nachSprache(RECRUITING_KANDIDAT_TEXTE, sprache);
+        const k = d.kandidat;
+        const kZurueck = `/portal/${mandant}/recruiting/bewerbungen/${id}?vorgang=kandidat`;
+        /* Einmal je gezeichnetem Formular: ein zweiter Klick trägt denselben Schlüssel. */
+        const laufSchluessel = randomUUID();
 
         return (
           <>
@@ -188,6 +216,182 @@ export default async function Bewerbungsblatt(
               O-375 offen.
             </Hinweis>
 
+            {/* ------------------- Strukturierte Angaben (REC-04, V-223, D-717) */}
+            <section id="kandidat" aria-labelledby="kandidat-titel" className="mb-s6 max-w-prose"
+                     data-cse="kandidat">
+              <h2 id="kandidat-titel" className="mb-s3 text-h3 text-text">{kt.kTitel}</h2>
+              <p className="mb-s4 text-sm text-text-muted">{kt.kErklaerung}</p>
+
+              {kandidatErledigt !== null && (
+                <Hinweis art="erfolg" cse="kandidat-erledigt" className="mb-s4">
+                  {kt.kErledigt[kandidatErledigt]}
+                </Hinweis>
+              )}
+              {kandidatVorgang && abgewiesen !== null && (
+                <Hinweis art="warnung" cse="kandidat-fehler" className="mb-s4">
+                  <strong>{kt.kNichtGespeichert}</strong>{' '}
+                  {eigenerEintrag(kt.kFehler, abgewiesen) ?? kt.kFehlerSonst}
+                </Hinweis>
+              )}
+
+              {k === null ? (
+                <p className="mb-s4 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted"
+                   data-cse="kandidat-keiner">
+                  {kt.kKeiner}
+                </p>
+              ) : (
+                <div className="mb-s4 rounded-lg border border-line bg-surface p-s5"
+                     data-cse="kandidat-datensatz">
+                  <p className="m-0 mb-s3 text-xs text-text-muted" data-cse="kandidat-quelle">
+                    {k.quelleArt === 'agent' ? kt.kQuelleAgent : kt.kQuelleMensch}
+                  </p>
+                  {k.bestaetigtAm === null ? (
+                    <p className="m-0 mb-s3 text-sm text-warning" data-cse="kandidat-unbestaetigt">
+                      {kt.kUnbestaetigt}
+                    </p>
+                  ) : (
+                    <p className="m-0 mb-s3 text-sm text-success" data-cse="kandidat-bestaetigt">
+                      {kt.kBestaetigt.replace('{wann}', berlinZeitIn(k.bestaetigtAm, sprache))
+                        .replace('{wer}', k.bestaetigtVon ?? '—')}
+                    </p>
+                  )}
+                  <dl className="m-0 grid grid-cols-1 gap-s2 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-s5">
+                    <dt className="text-text-muted">{kt.kQualifikationen}</dt>
+                    <dd className="m-0 min-w-0 break-words text-text">
+                      {k.qualifikationen.length === 0 ? kt.kKeineEintraege
+                        : k.qualifikationen.join(' · ')}
+                    </dd>
+                    <dt className="text-text-muted">{kt.kSprachen}</dt>
+                    <dd className="m-0 min-w-0 break-words text-text">
+                      {k.sprachen.length === 0 ? kt.kKeineEintraege : k.sprachen.join(' · ')}
+                    </dd>
+                    <dt className="text-text-muted">{kt.kErfahrung}</dt>
+                    <dd className="m-0 min-w-0 tabular-nums text-text">
+                      {k.erfahrungJahre === null ? kt.kErfahrungUnbekannt
+                        : `${String(k.erfahrungJahre)} ${kt.kJahre}`}
+                    </dd>
+                    <dt className="text-text-muted">{kt.kNotiz}</dt>
+                    <dd className="m-0 min-w-0 whitespace-pre-line break-words text-text">
+                      {k.notiz ?? kt.kKeineEintraege}
+                    </dd>
+                  </dl>
+                </div>
+              )}
+
+              {darf['recruiting.bewerbung_bewerten'] !== true ? (
+                <p className="m-0 text-sm text-text-muted" data-cse="kandidat-ohne-recht">
+                  {kt.kErfassenOhneRecht}{' '}
+                  <Recht schluessel="recruiting.bewerbung_bewerten" sprache={sprache} />
+                </p>
+              ) : (
+              <>
+              {k !== null && k.bestaetigtAm === null && (
+                <form method="post" action={`/api/recruiting/bewerbungen/${id}/kandidat`}
+                      data-cse="kandidat-bestaetigen"
+                      className="mb-s4 flex flex-col gap-s3">
+                  <input type="hidden" name="aktion" value="bestaetigen" />
+                  <input type="hidden" name="zurueck" value={kZurueck} />
+                  <p className="m-0 text-xs text-text-muted">{kt.kBestaetigenHinweis}</p>
+                  <div>
+                    <Button type="submit" variante="primary" data-cse="kandidat-bestaetigen-knopf">
+                      {kt.kBestaetigen}
+                    </Button>
+                  </div>
+                </form>
+              )}
+
+              <details className="mb-s4 rounded-lg border border-line bg-surface p-s5"
+                       data-cse="kandidat-erfassen">
+                <summary className="cursor-pointer text-sm font-semibold text-text">
+                  {kt.kErfassenTitel}
+                </summary>
+                <form method="post" action={`/api/recruiting/bewerbungen/${id}/kandidat`}
+                      className="mt-s4 flex flex-col gap-s4">
+                  <input type="hidden" name="aktion" value="erfassen" />
+                  <input type="hidden" name="zurueck" value={kZurueck} />
+                  <div className="flex flex-col gap-s2">
+                    <label htmlFor="k-qualifikationen" className="text-xs text-text-muted">
+                      {kt.kQualifikationen} — {kt.kJeZeile}
+                    </label>
+                    <textarea id="k-qualifikationen" name="qualifikationen" rows={4}
+                              defaultValue={k?.qualifikationen.join('\n') ?? ''} className={FELD}
+                              data-cse="kandidat-qualifikationen" />
+                  </div>
+                  <div className="flex flex-col gap-s2">
+                    <label htmlFor="k-sprachen" className="text-xs text-text-muted">
+                      {kt.kSprachen} — {kt.kJeZeile}
+                    </label>
+                    <textarea id="k-sprachen" name="sprachen" rows={3}
+                              defaultValue={k?.sprachen.join('\n') ?? ''} className={FELD}
+                              data-cse="kandidat-sprachen" />
+                  </div>
+                  <div className="flex flex-col gap-s2">
+                    <label htmlFor="k-jahre" className="text-xs text-text-muted">
+                      {kt.kErfahrung} ({kt.kJahre})
+                    </label>
+                    <input id="k-jahre" name="erfahrung_jahre" type="number" min="0" max="60"
+                           step="1"
+                           defaultValue={k === null || k.erfahrungJahre === null ? ''
+                             : String(k.erfahrungJahre)}
+                           className={FELD} data-cse="kandidat-jahre" />
+                    <p className="text-xs text-text-subtle">{kt.kErfahrungHinweis}</p>
+                  </div>
+                  <div className="flex flex-col gap-s2">
+                    <label htmlFor="k-notiz" className="text-xs text-text-muted">{kt.kNotiz}</label>
+                    <textarea id="k-notiz" name="notiz" rows={2} defaultValue={k?.notiz ?? ''}
+                              className={FELD} />
+                  </div>
+                  <p className="m-0 text-xs text-text-muted">{kt.kSpeichernHinweis}</p>
+                  <div>
+                    <Button type="submit" variante="secondary" data-cse="kandidat-speichern">
+                      {kt.kSpeichern}
+                    </Button>
+                  </div>
+                </form>
+              </details>
+
+              {(k === null || k.bestaetigtAm === null) && (
+                <div className="rounded-lg border border-line bg-surface p-s5"
+                     data-cse="kandidat-vorschlag">
+                  <h3 className="m-0 mb-s2 text-base font-semibold text-text">
+                    {kt.kVorschlagTitel}
+                  </h3>
+                  <p className="m-0 mb-s3 text-sm text-text-muted">{kt.kVorschlagErklaerung}</p>
+                  <p className="m-0 mb-s3 text-xs text-text-muted">{kt.kLebenslauf}</p>
+                  {darf['agent.aufgabe_starten'] !== true ? (
+                    <p className="m-0 text-sm text-text-muted" data-cse="kandidat-vorschlag-ohne-recht">
+                      {kt.kOhneRecht}{' '}
+                      <Recht schluessel="agent.aufgabe_starten" sprache={sprache} />
+                    </p>
+                  ) : d.auslesen === null || d.auslesen.modell === null ? (
+                    <Hinweis art="warnung" cse="kandidat-ki-nicht-verfuegbar">
+                      {kt.kVorschlagNichtVerfuegbar}
+                    </Hinweis>
+                  ) : (
+                    <form method="post"
+                          action={`/api/recruiting/bewerbungen/${id}/kandidat/vorschlag`}
+                          className="flex flex-col gap-s3">
+                      <input type="hidden" name="zurueck" value={kZurueck} />
+                      <input type="hidden" name="schluessel" value={laufSchluessel} />
+                      {d.auslesen.demo && (
+                        <p className="m-0 text-xs text-text-muted" data-cse="kandidat-demo">
+                          {kt.kVorschlagDemo}
+                        </p>
+                      )}
+                      <div>
+                        <Button type="submit" variante="secondary"
+                                data-cse="kandidat-vorschlag-knopf">
+                          {kt.kVorschlagKnopf}
+                        </Button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              )}
+              </>
+              )}
+            </section>
+
             <h2 className="mb-s3 text-h3 text-text">Bewertung</h2>
             {d.kriterien.length === 0 ? (
               <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
@@ -256,9 +460,9 @@ export default async function Bewerbungsblatt(
                     Gesprächsliste und im Kalender dieser Gesellschaft.
                   </Hinweis>
                 )}
-                {abgewiesen !== null && (
+                {abgewiesen !== null && !kandidatVorgang && (
                   <Hinweis art="warnung" cse="termin-fehler" className="mb-s5 max-w-prose">
-                    {FEHLER[abgewiesen] ?? 'Der Termin wurde abgewiesen.'}
+                    {eigenerEintrag(FEHLER, abgewiesen) ?? 'Der Termin wurde abgewiesen.'}
                   </Hinweis>
                 )}
                 <form method="post" action="/api/recruiting/gespraeche"

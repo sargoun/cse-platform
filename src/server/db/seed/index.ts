@@ -36,6 +36,7 @@ import { seedSocial } from './social.js';
 import { seedReferenzAusAuftrag } from './referenzauftrag.js';
 import { seedRecruiting } from './recruiting.js';
 import { seedGespraeche } from './gespraech.js';
+import { seedKandidat } from './kandidat.js';
 import { seedStellenentwurf } from './stellenentwurf.js';
 import { seedTermine } from './termine.js';
 import { seedAkquise } from './akquise.js';
@@ -2053,6 +2054,14 @@ async function main(): Promise<void> {
   if (stellenentwurf.bearbeitet > 0) {
     process.stdout.write('  Stellenentwurf des Agenten: von einem Menschen bearbeitet '
       + '(Anforderung ergänzt, im Prüfprotokoll)\n');
+  }
+
+  /* Kandidatendatensätze über die Dienste — einer bestätigt, einer nicht (V-223, D-717). */
+  const kandidaten = await seedKandidat(sql, ids, demodaten);
+  if (kandidaten.erfasst > 0) {
+    process.stdout.write(
+      `  Kandidatendatensätze: ${String(kandidaten.erfasst)} erfasst, davon `
+      + `${String(kandidaten.bestaetigt)} von einem Menschen bestätigt\n`);
   }
 
   const gespraeche = await seedGespraeche(sql, ids, demodaten);

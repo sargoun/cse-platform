@@ -1727,6 +1727,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'recruiting', pfad: 'recruiting/gespraech', schreibend: true,
     schreibRecht: 'kalender.schreiben',
   },
+  /* Der Kandidatendatensatz — erfassen, bestätigen, auslesen lassen (REC-04, V-223, D-717). */
+  {
+    modul: 'recruiting', pfad: 'recruiting/kandidat', schreibend: true,
+    schreibRecht: 'recruiting.bewerbung_bewerten',
+  },
   /* Stellenentwurf durch den Agenten, Entwurf bearbeiten (REC-02, V-222, D-716). */
   {
     modul: 'recruiting', pfad: 'recruiting/stellenentwurf', schreibend: true,
