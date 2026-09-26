@@ -4,6 +4,8 @@ import type postgres from 'postgres';
 import { devFlaechenAn } from '@/lib/dev-flaechen';
 import { db } from '@/server/db/pool';
 import { SITZUNG_COOKIE, devSitzungAusstellen, sitzungsKeksOptionen } from '@/server/auth/sitzung';
+import { Marke } from '@/components/marke/Marke';
+import { istBereich } from '@/lib/design/theme';
 
 /**
  * `/dev/anmelden` — eine Sitzung ausstellen, OHNE Anmeldung.
@@ -159,9 +161,23 @@ export default async function DevAnmeldung() {
   }
 
   return (
-    <main className="mx-auto flex max-w-content flex-col gap-s5 p-s6">
-      <h1 className="text-h1 text-text">Entwicklungsanmeldung</h1>
-      <p className="max-w-[72ch] text-base text-text-muted">
+    <div className="relative min-h-dvh">
+      <div aria-hidden="true"
+           className="pointer-events-none fixed inset-0 bg-wash-brand" />
+    <main className="relative mx-auto flex w-full max-w-wahl flex-col gap-s5 p-s5 sm:p-s6">
+      <a href="/" data-cse="dev-zurueck"
+         className="group inline-flex items-center gap-s3 self-start rounded-md p-s1">
+        <Marke art="gruppe" groesse="lg" />
+        <span className="flex flex-col">
+          <span className="text-base font-semibold text-text">CSE Gruppe</span>
+          <span className="text-xs text-text-subtle transition-colors duration-fast
+                           ease-brand group-hover:text-text-muted">
+            <span aria-hidden="true">←</span> Zur Website
+          </span>
+        </span>
+      </a>
+      <h1 className="m-0 text-h1 text-text">Entwicklungsanmeldung</h1>
+      <p className="m-0 max-w-[72ch] text-base text-text-muted">
         Stellt eine echte Sitzung aus, ohne nach einem Kennwort zu fragen. Nur
         auf den Entwicklungsflächen; ein Deployment liefert hier 404.{' '}
         <strong className="text-text">
@@ -202,10 +218,23 @@ export default async function DevAnmeldung() {
         </section>
       )}
 
-      <ul className="flex flex-col gap-s3">
+      {/*
+        * **Die ganze ZEILE ist der Knopf** (DESIGN §5 „Chooser rows").
+        *
+        * Hier standen neun rote Knoepfe untereinander. §5 sagt „one primary
+        * button per view", und der Grund steht dort daneben: Rot ist knapp,
+        * und ein Bildschirm mit neun roten Knoepfen hat gar keine
+        * Hauptaktion — das Auge findet keine Ruhe und muss jede Zeile einzeln
+        * lesen. Eine Auswahl hat ohnehin KEINE Hauptaktion: jede Zeile ist
+        * gleich sehr der Punkt.
+        *
+        * Also traegt die Zeile selbst die Handlung. Das ist zugleich die
+        * groessere Trefferflaeche (§9) und die ruhigere Flaeche.
+        */}
+      <ul className="m-0 flex list-none flex-col gap-s3 p-0">
         {liste.map((k) => (
-          <li key={k.id} className="rounded-lg border border-line bg-surface p-s4">
-            <form action={anmelden} className="flex flex-wrap items-center gap-s3">
+          <li key={k.id}>
+            <form action={anmelden} className="m-0">
               <input type="hidden" name="benutzer" value={k.id} />
               <input type="hidden" name="mandant" value={k.mandant_id ?? ''} />
               {/* Der Slug fuer das Ziel: die Handlung kennt sonst nur die id. */}
@@ -229,11 +258,6 @@ export default async function DevAnmeldung() {
                   : k.rolle === 'kunde' ? 'kunde'
                     : k.mandant_id === null ? 'gruppe' : 'mandant'}
               />
-              <span className="text-base text-text">{k.name}</span>
-              <span className="text-sm text-text-muted">
-                {k.rolle ?? 'ohne Rolle'}
-                {k.mandant === null ? '' : ` · ${k.mandant}`}
-              </span>
               <button
                 type="submit"
                 data-cse="dev-anmelden"
@@ -247,14 +271,35 @@ export default async function DevAnmeldung() {
                  * andere Person, ohne dass irgendetwas rot wird.
                  */
                 data-email={k.email ?? ''}
-                className="ml-auto min-h-[44px] rounded-md bg-brand px-s4 text-base text-white"
+                className="flex min-h-16 w-full items-center gap-s4 rounded-lg border
+                           border-line bg-surface-2 p-s4 text-left transition-all
+                           duration-base ease-brand hover:-translate-y-px
+                           hover:border-line-strong"
               >
-                Anmelden
+                <Marke art={istBereich(k.slug) ? k.slug : 'gruppe'} groesse="md" />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-base font-semibold text-text">{k.name}</span>
+                  <span className="truncate text-sm text-text-muted">
+                    {k.mandant ?? 'Gruppe'}
+                  </span>
+                </span>
+                {/*
+                  * Die Rolle als Etikett und nicht als Fliesstext: sie ist der
+                  * SCHLUESSEL aus `rolle.schluessel` und steht so auch in
+                  * jedem Protokolleintrag. Eine Pruefung greift sie ueber
+                  * `data-rolle` am Knopf, nicht ueber diesen Text.
+                  */}
+                <span className="shrink-0 rounded-full border border-line-strong
+                                 px-s3 py-s1 font-mono text-xs text-text-muted">
+                  {k.rolle ?? 'ohne Rolle'}
+                </span>
+                <span aria-hidden="true" className="shrink-0 text-text-subtle">→</span>
               </button>
             </form>
           </li>
         ))}
       </ul>
     </main>
+    </div>
   );
 }

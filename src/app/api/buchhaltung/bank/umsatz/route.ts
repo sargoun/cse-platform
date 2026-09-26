@@ -5,13 +5,13 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
-  from '@/server/auth/fehler';
+import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { withTenant } from '@/server/kontext/index';
 import { istUuid } from '@/lib/uuid';
 import {
   ImportFehler, bestaetigeZuordnung, markiereOhneBezug, type KlaerungErgebnis,
 } from '@/server/services/finanz/bank/import';
+import { ZahlungFehler } from '@/server/services/finanz/zahlung/index';
 
 /**
  * `POST /api/buchhaltung/bank/umsatz` — die Klaerung eines Umsatzes (ACC-04).
@@ -24,6 +24,13 @@ import {
  * Die Route rechnet nichts: der Betrag ist der der Bank, der Posten der, den
  * der Mensch gewaehlt hat. Sie leitet zurueck auf den Auszug, mit einem Wort
  * darueber, was geschehen ist.
+ *
+ * **Das Wort ist ein SCHLÜSSEL** (V-217, D-710): `?meldung=zugeordnet`,
+ * `?fehler=<grund>`. Vorher reiste bei einer Abweisung der deutsche Satz des
+ * Dienstes als `?meldung=` mit, und das Blatt zeigte ihn so, wie er in der
+ * Adresse stand — in jeder Sprache deutsch, und mit jedem Text, den jemand
+ * in einen Link schrieb. Die Gründe der Klärung kommen aus `ImportFehler`,
+ * die des Zahlungsausgangs aus `ZahlungFehler` (Vorsatz `zahlung_`).
  */
 export const dynamic = 'force-dynamic';
 
@@ -59,8 +66,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const postenId = text('postenId');
   if (aktion === 'zuordnen' && !istUuid(postenId)) {
-    return zurueck(anfrage, slug, auszugId,
-      { fehler: 'klaerung', meldung: 'Bitte einen offenen Posten wählen.' });
+    return zurueck(anfrage, slug, auszugId, { fehler: 'posten_waehlen' });
   }
 
   try {
@@ -80,17 +86,22 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     });
   } catch (fehler: unknown) {
     if (fehler instanceof ImportFehler) {
-      return zurueck(anfrage, slug, auszugId, { fehler: 'klaerung', meldung: fehler.message });
+      return zurueck(anfrage, slug, auszugId, { fehler: fehler.grund });
     }
-    if (fehler instanceof NichtAngemeldetFehler) {
-      return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    /*
+     * V-216: ein Ausgang geht über `verbucheZahlungsausgang` — dessen
+     * Abweisungen (kein Posten, schon bezahlt) sind ein Satz auf der Seite,
+     * kein 500.
+     */
+    if (fehler instanceof ZahlungFehler) {
+      return zurueck(anfrage, slug, auszugId, { fehler: `zahlung_${fehler.grund}` });
     }
-    if (fehler instanceof ZweiterFaktorFehler) {
-      return NextResponse.json({ fehler: 'zweiter_faktor' }, { status: 403 });
-    }
-    if (fehler instanceof NichtGefundenFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
-    }
+    /*
+     * Auth-Würfe an EINER Stelle (V-217): von Hand übersetzt fehlten
+     * `KontoGesperrtFehler` und `ZuVieleVersucheFehler`, sie endeten als 500.
+     */
+    const auth = autorisierungsAntwort(fehler);
+    if (auth !== null) return auth;
     throw fehler;
   }
 }

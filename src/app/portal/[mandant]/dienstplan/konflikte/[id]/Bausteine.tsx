@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
 import type { ArbzgBlatt, KonfliktBlatt } from '@/server/services/dienstplan/konflikt';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * Die Bausteine, die sich Quittung und Uebersteuerung TEILEN.
@@ -191,7 +192,7 @@ export function ArbzgBlock({ verstoss, sichtbar, artIstArbzg }: {
           className="rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning"
         >
           Der Arbeitszeitbefund ist <strong>nicht einsehbar</strong> — dafür fehlt
-          das Recht <code className="text-xs">dienstplan.arbzg_lesen</code>. Das
+          das Recht <Recht schluessel="dienstplan.arbzg_lesen" />. Das
           heißt <strong>nicht</strong>, dass keiner vorliegt.
         </p>
       ) : verstoss === null ? (

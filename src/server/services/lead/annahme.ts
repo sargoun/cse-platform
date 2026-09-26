@@ -18,6 +18,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { eingabeSchema, fehlerAbbilden, FormularFehler, type FormularFeld }
   from '../../../lib/formular/schema.js';
 import { slaFrist } from './sla.js';
+import { ART_NEUER_LEAD, registriereLeadArten } from './benachrichtigung.js';
+import { erzeuge } from '../../benachrichtigung/registry.js';
 
 export interface Abfrage {
   unsafe(sql: string, werte?: readonly unknown[]): Promise<readonly unknown[]>;
@@ -52,6 +54,13 @@ export interface Einsendung {
   readonly userAgent?: string | undefined;
   /** Die geprüfte LV-Datei, falls eine kam (REQ-04). */
   readonly datei?: { readonly dokumentId: string; readonly dateiname: string } | undefined;
+  /**
+   * Die Kennung des Eingangs, wenn der Aufrufer sie schon braucht (V-137):
+   * das hochgeladene Leistungsverzeichnis entsteht VOR dem Eingang und soll
+   * ihn als Bezug tragen (`dokument.formular_eingang_id`). Fehlt sie, entsteht
+   * sie hier — wie bisher.
+   */
+  readonly eingangId?: string | undefined;
 }
 
 export interface AnnahmeErgebnis {
@@ -70,7 +79,30 @@ export interface AnnahmeErgebnis {
  * nicht vor, und ein Formularausfueller-Bot fuellt es aus. Es ersetzt kein
  * CAPTCHA — es kostet nur niemanden etwas, und ein CAPTCHA kostet genau die
  * Menschen etwas, fuer die BFSG gilt.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Warum ein Treffer NICHT aufgezeichnet wird** (V-086, O-905).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `formular_eingang_status` fuehrt `neu`, `spam` und `verworfen`, und keiner
+ * der drei hat einen Erzeuger. Der naheliegende Griff waere, hier eine Zeile
+ * mit `status = 'spam'` zu schreiben — und er waere falsch: die Pruefung in
+ * `api/anfrage` steht VOR jeder Datenbankberuehrung, ausdruecklich, damit ein
+ * Bot nicht einmal eine Abfrage kostet. Eine Aufzeichnung machte daraus einen
+ * Verstaerker: ein Ansturm, der heute nichts kostet, schriebe dann je Treffer
+ * eine Zeile. Fuer das Ratenlimit gilt dasselbe doppelt — sein Zweck IST das
+ * Begrenzen von Schreibvorgaengen.
+ *
+ * **Der Preis steht trotzdem, und er wird nicht verschwiegen:** ein falsch
+ * positiver Treffer (Passwortverwalter, Browser-Autofill in einem versteckten
+ * Feld) verschwindet spurlos, und der Absender bekommt dieselbe Dankseite wie
+ * bei Erfolg — OHNE Vorgangsnummer, denn es gibt keinen Vorgang (D-651). Ein
+ * Programm, das Antworten vergleicht, erkennt den Treffer daran weiterhin;
+ * eine erfundene Nummer waere der teurere Preis. Ob das so bleibt, ist eine
+ * Abwaegung zwischen einer verlorenen Anfrage und einer Angriffsflaeche — sie
+ * steht als O-905 beim Auftraggeber und wird hier nicht nebenbei entschieden.
  */
+// TODO(client, O-905): Soll eine als automatisiert abgewiesene Einsendung aufbewahrt werden — oder nur gezaehlt, oder gar nicht?
 export function istBot(honigtopf: string | undefined): boolean {
   return honigtopf !== undefined && honigtopf.trim() !== '';
 }
@@ -87,6 +119,7 @@ export function ipHash(ip: string, pfeffer: string): string {
     throw new FormularFehler(
       'Kein IP-Pfeffer gesetzt (CSE_IP_PFEFFER). Ohne ihn wäre der Hash über den '
       + 'gesamten IPv4-Raum an einem Nachmittag umkehrbar — das ist kein Schutz.',
+      {}, 'sonst',
     );
   }
   return createHash('sha256').update(`${ip}:${pfeffer}`).digest('hex');
@@ -94,10 +127,15 @@ export function ipHash(ip: string, pfeffer: string): string {
 
 export class RatenlimitFehler extends FormularFehler {
   constructor(readonly wartenSekunden: number) {
-    super('Zu viele Anfragen von dieser Verbindung. Bitte versuchen Sie es später erneut.');
+    super('Zu viele Anfragen von dieser Verbindung. Bitte versuchen Sie es später erneut.',
+      {}, 'zu_viele');
     this.name = 'RatenlimitFehler';
   }
 }
+
+/** Der Sammelsatz, wenn die Bestätigung der Datenschutzhinweise fehlt. */
+const DATENSCHUTZ_BESTAETIGEN =
+  'Bitte bestätigen Sie, dass Sie die Datenschutzhinweise gelesen haben.';
 
 /** Wie viele Einsendungen je IP-Hash im Fenster. VORLAEUFIG — siehe O-80. */
 export const LIMIT_JE_IP = 5;
@@ -140,23 +178,37 @@ export async function nimmAn(
   einsendung: Einsendung,
 ): Promise<AnnahmeErgebnis> {
   if (istBot(einsendung.honigtopf)) {
-    throw new FormularFehler('Diese Anfrage wurde als automatisiert erkannt.');
+    throw new FormularFehler(
+      'Diese Anfrage wurde als automatisiert erkannt.', {}, 'automatisiert');
   }
 
   const geprueft = eingabeSchema(formular.felder).safeParse(einsendung.werte);
   if (!geprueft.success) {
-    throw new FormularFehler(
-      'Bitte prüfen Sie die markierten Felder.',
-      fehlerAbbilden(formular.felder, geprueft.error),
-    );
+    const felder = fehlerAbbilden(formular.felder, geprueft.error);
+    /*
+     * **Fehlt NUR die Bestätigung, ist das der Grund — in beiden Sprachen**
+     * (V-160). Die Formularversion führt `datenschutz_hinweis` als
+     * Pflicht-Checkbox; ihr Fehlen fiel deshalb schon hier auf, unter dem
+     * Sammelsatz „prüfen", während die englische Seite aus den Feldern
+     * „Datenschutz bestätigen" las. Jetzt entscheidet diese Stelle die
+     * Ursache, und beide Sätze folgen ihr: allein die Bestätigung →
+     * „bestätigen", mehrere Felder → „prüfen".
+     */
+    const nurBestaetigung = Object.keys(felder).length === 1
+      && Object.hasOwn(felder, 'datenschutz_hinweis');
+    if (nurBestaetigung) {
+      throw new FormularFehler(DATENSCHUTZ_BESTAETIGEN, felder, 'datenschutz');
+    }
+    throw new FormularFehler('Bitte prüfen Sie die markierten Felder.', felder, 'pruefen');
   }
   const werte = geprueft.data;
 
   const bestaetigt = werte['datenschutz_hinweis'] === true;
   if (!bestaetigt) {
     throw new FormularFehler(
-      'Bitte bestätigen Sie, dass Sie die Datenschutzhinweise gelesen haben.',
+      DATENSCHUTZ_BESTAETIGEN,
       { datenschutz_hinweis: 'Bitte bestätigen Sie die Datenschutzhinweise.' },
+      'datenschutz',
     );
   }
   const werbung = werte['einwilligung_werbung'] === true;
@@ -174,7 +226,7 @@ export async function nimmAn(
    * Ein `RETURNING` haette ihn gezwungen, Leserechte zu bekommen, und damit
    * waere die ganze Trennung hinfaellig gewesen.
    */
-  const eingangId = randomUUID();
+  const eingangId = einsendung.eingangId ?? randomUUID();
   const leadId = randomUUID();
 
   /**
@@ -259,6 +311,48 @@ export async function nimmAn(
     ],
   );
 
+  /**
+   * **Der Anfragende wird Ansprechpartner** (V-137, 0396). Ohne ihn liess sich
+   * die erste Reaktion nie belegen: eine ausgehende E-Mail oder ein Anruf
+   * verlangt am UWG-Tor einen Kontakt, und die SLA-Uhr stand deshalb nie.
+   * Gesucht und angelegt wird in der Datenbank — der Eingangs-Prinzipal darf
+   * Kontakte nicht lesen, und das soll so bleiben.
+   */
+  const text = (w: unknown): string | null =>
+    typeof w === 'string' && w.trim() !== '' ? w.trim() : null;
+  await db.unsafe(
+    `select app.lead_kontakt_aus_anfrage($1::uuid, $2, $3, $4, $5)`,
+    [leadId, text(werte['name']), text(werte['email']), text(werte['telefon']),
+      `Webformular ${formular.schluessel}, Eingang ${eingangId}`],
+  );
+
+  /**
+   * **Und der Besitzer erfährt es** (V-137, REQ-05, NOT-01). Die Art stand seit
+   * PR 18 im Register und entstand nur im Seed; `cse_app` darf keine
+   * Benachrichtigung anlegen. `app.lead_eingang_melden` legt genau diese eine
+   * an — für diesen Lead, an seinen Besitzer, den hier niemand wählt.
+   */
+  registriereLeadArten();
+  const [m] = (await db.unsafe(
+    `select slug from mandant where id = $1::uuid`, [formular.mandantId],
+  )) as { slug: string }[];
+  if (m !== undefined) {
+    const meldung = erzeuge(ART_NEUER_LEAD, {
+      mandantId: formular.mandantId,
+      mandantSlug: m.slug,
+      objektTyp: 'lead',
+      objektId: leadId,
+      daten: {
+        betreff, firma,
+        slaFrist: frist === null ? null : berlinFormat(frist),
+      },
+    });
+    await db.unsafe(
+      `select app.lead_eingang_melden($1::uuid, $2, $3, $4)`,
+      [leadId, meldung.titel, meldung.text, meldung.ziel],
+    );
+  }
+
   return {
     eingangId,
     leadId,
@@ -266,6 +360,14 @@ export async function nimmAn(
     slaFristAm: frist,
     besitzerBenutzerId: formular.standardBesitzerBenutzerId,
   };
+}
+
+/** `2026-09-24T08:00:00Z` → `24.09.2026, 10:00` — Berliner Wanduhr (Invariante 2). */
+export function berlinFormat(zeitpunkt: Date): string {
+  return new Intl.DateTimeFormat('de-DE', {
+    timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).format(zeitpunkt);
 }
 
 /**

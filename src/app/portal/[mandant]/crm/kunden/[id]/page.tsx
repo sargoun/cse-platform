@@ -5,7 +5,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
-import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
@@ -15,6 +15,21 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Unternavigation } from './Unternavigation';
+import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
+import { LEAD_TEXTE } from '@/lib/i18n/verwaltung/crm-lead';
+import { ANGEBOT_PILLE, AUFTRAG_PILLE, LEAD_PILLE, RECHNUNG_PILLE } from '@/lib/vorgang-pille';
+import { leseKundeVorgaenge, type KundeVorgaenge } from '@/server/services/crm/lead-kette';
+import {
+  Kommunikationsverlauf, NotizFormular, NotizKeinRecht, NotizRueckmeldung,
+} from '@/components/portal/Kommunikationsverlauf';
+import { VERLAUF_TEXTE } from '@/lib/i18n/verwaltung/crm-verlauf';
+import { KUNDE_RUECKMELDUNG } from '@/lib/i18n/verwaltung/crm-kunde';
+import { Hinweis } from '@/components/ui/Hinweis';
+import {
+  leseKundenVerlauf, VERLAUF_GRENZE, type VerlaufEintrag,
+} from '@/server/services/crm/verlauf';
 
 /**
  * `/portal/[mandant]/crm/kunden/[id]` — ein Kunde, seine Kontakte, seine
@@ -72,16 +87,36 @@ interface ObjektZeile { readonly id: string; readonly bezeichnung: string;
 interface AuftragZeile { readonly id: string; readonly auftragsnummer: string;
   readonly bezeichnung: string; readonly status: string; readonly wert: string | null; }
 
-const AUFTRAG_PILLE: Readonly<Record<string, PillZustand>> = {
-  angelegt: 'Geplant', aktiv: 'In Arbeit', pausiert: 'Wartet',
-  abgeschlossen: 'Abgeschlossen', storniert: 'Abgelehnt',
-};
-
 export default async function KundeDetail(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
+  const suche = await searchParams;
+  /* Die Rückmeldung von `POST /api/crm/notiz` (V-147) — Schlüssel, nie Satz. */
+  const notizGrund = typeof suche['notiz'] === 'string' ? suche['notiz'] : null;
+  const notiert = suche['notiert'] === '1';
+  /*
+   * **Die Abweisung des Kontaktformulars** (V-148, D-562). `POST
+   * /api/crm/kunde` leitet einen `CrmFehler` mit `?meldung=` (Satz) und
+   * `?grund=` (Schlüssel) hierher zurück — und dieses Blatt nahm bis hierher
+   * gar keine Suchparameter an. Wer „Bestandskunde" wählte und nicht sagte,
+   * woher sie stammt, bekam keinen Kontakt und keinen Satz.
+   */
+  const meldung = typeof suche['meldung'] === 'string' && suche['meldung'] !== ''
+    ? suche['meldung'] : null;
+  const meldungGrund = typeof suche['grund'] === 'string' ? suche['grund'] : null;
+  /*
+   * **Gezeigt wird nur, was diese Seite selbst sagt** (V-153). Hier stand als
+   * Rückfall der Satz aus der Adresse (`?meldung=`) — damit liess sich mit
+   * einem Verweis beliebiger Text in einen Warnkasten des Portals setzen.
+   * Ein bekannter Schlüssel wird übersetzt; alles andere wird ein
+   * allgemeiner Satz, nie Text aus der Adresse (wie `grundAus` im Recruiting).
+   */
+  const abgewiesen = meldung !== null || meldungGrund !== null;
   const zugang = await portalZugang(`/portal/${mandant}/crm/kunden/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -96,8 +131,23 @@ export default async function KundeDetail(
    * Unternavigation keinen Reiter zeigt, hinter dem ein 404 steht (AUT-06).
    * Dieselbe eine Abfrage fuer alle drei Schluessel (`app/portal/rechte.ts`).
    */
+  /*
+   * Dazu die zwei Rechte, die der Kommunikationsverlauf NICHT verlangt, aber
+   * braucht (V-147): Namen der Handelnden stehen in `benutzer`
+   * (`system.benutzer_lesen`), Nachrichten hinter `nachricht.lesen`. Fehlt
+   * eines, sagt der Verlauf, was fehlt — statt eine kürzere Liste als die
+   * ganze auszugeben. Eine Abfrage für alle.
+   */
   const unterrechte = await haeltRechte(sitzung,
-    'crm_entgelt.lesen', 'abrechnung.lesen', 'system.benutzer_verwalten');
+    'crm_entgelt.lesen', 'abrechnung.lesen', 'system.benutzer_verwalten',
+    /*
+     * V-138: die Abschnitte Angebote, Rechnungen und Dokumente verweisen auf
+     * Seiten mit eigenem Recht — ohne es stünde dort der Satz, nicht der Link.
+     */
+    'angebot.lesen', 'finanzen.lesen', 'dokument.lesen',
+    'system.benutzer_lesen', 'nachricht.lesen');
+  const tv = nachSprache(VERLAUF_TEXTE, zugang.sprache);
+  const tk = nachSprache(KUNDE_RUECKMELDUNG, zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -152,15 +202,39 @@ export default async function KundeDetail(
                 auftragswert_netto_cent::text as wert
            from auftrag where kunde_id = $1 order by start_datum desc`, [id]);
 
-      return { kopf, kontakte, objekte, auftraege, rechte };
+      /*
+       * **Was am Kundenblatt fehlte** (V-138, CRM-05, 04-SEITENKARTE §5.2):
+       * Anfragen, Angebote, Rechnungen und Dokumente — je mit dem Recht der
+       * Seite, auf die sie verweisen. Den Verlauf zeigt EIN Abschnitt, die
+       * Kommunikation darunter (V-147): beide Gruppen hatten einen gebaut, und
+       * zwei Listen desselben Verlaufs widersprechen sich beim ersten Eintrag,
+       * den nur eine kennt (Zusammenführung, D-632/D-641).
+       */
+      const vorgaenge = await leseKundeVorgaenge(kontext, id);
+
+      /*
+       * **Der Reiter „Kommunikation" (CRM-03, 04-SEITENKARTE, V-147).** Das
+       * Blatt zeigte bis hierher keinen Verlauf, obwohl `0017` eigens
+       * `lead_aktivitaet_kunde_idx` dafür anlegte. Gelesen werden
+       * Aktivitäten am Kunden, an seinen Leads und an seinen
+       * Ansprechpartnern, und die Nachrichten an sie — eine Liste, nach der
+       * Zeit.
+       */
+      const verlauf = await leseKundenVerlauf(kontext, id);
+
+      return { kopf, kontakte, objekte, auftraege, rechte, vorgaenge, verlauf };
     })) as Promise<{
       kopf: Kopf; kontakte: readonly KontaktZeile[];
       objekte: readonly ObjektZeile[]; auftraege: readonly AuftragZeile[];
       rechte: { objekt: boolean; auftrag: boolean; schreiben: boolean } | undefined;
+      vorgaenge: KundeVorgaenge;
+      verlauf: readonly VerlaufEintrag[];
     } | null>);
 
   if (daten === null) notFound();
-  const { kopf, kontakte, objekte, auftraege } = daten;
+  const { kopf, kontakte, objekte, auftraege, vorgaenge, verlauf } = daten;
+  const k = nachSprache(KETTE_TEXTE, zugang.sprache);
+  const standWerte = nachSprache(LEAD_TEXTE, zugang.sprache).standWerte;
   // Fehlt die Zeile, ist die engste Annahme die sichere: nichts behaupten.
   const darfObjekt = daten.rechte?.objekt === true;
   const darfAuftrag = daten.rechte?.auftrag === true;
@@ -173,19 +247,11 @@ export default async function KundeDetail(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="crm"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/crm/kunden`, text: 'Alle Kunden' }}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/crm/kunden`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Alle Kunden
-        </Link>
-      </nav>
-
       <Unternavigation
         mandant={mandant}
         kundeId={id}
@@ -199,6 +265,18 @@ export default async function KundeDetail(
           <span className="text-xs text-text-muted">öffentlicher Auftraggeber</span>
         ) : null}
       </div>
+
+      {!abgewiesen ? null : (
+        <Hinweis art="warnung" cse="kunde-meldung" className="mb-s5 max-w-prose">
+          {meldungGrund !== null && tk.kontaktFehler[meldungGrund] !== undefined ? (
+            <>
+              <strong>{tk.nichtGespeichert}</strong>{' '}{tk.kontaktFehler[meldungGrund]}
+            </>
+          ) : (
+            <strong>{tk.abgewiesen}</strong>
+          )}
+        </Hinweis>
+      )}
 
       <dl className="m-0 mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
@@ -293,8 +371,8 @@ export default async function KundeDetail(
           * einer Liste, in der man gerade stand.
           */}
         {darfSchreiben && (
-          <details className="mt-s5" data-cse="kontakt-anlegen">
-            <summary className="cursor-pointer text-sm text-brand">
+          <details className="mt-s5" data-cse="kontakt-anlegen" open={abgewiesen}>
+            <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">
               Ansprechpartner hinzufügen
             </summary>
             <form method="post" action="/api/crm/kunde" data-cse="kontakt-formular"
@@ -383,8 +461,8 @@ export default async function KundeDetail(
         <h2 id="objekte" className="text-h2 text-text">Objekte</h2>
         {!darfObjekt ? (
           <p data-cse="objekte-verdeckt" className="text-sm text-text-muted">
-            Die Objekte dieses Kunden sind Ihnen nicht sichtbar — dafür fehlt
-            <code className="text-text"> objekt.lesen</code>. Das heißt nicht,
+            Die Objekte dieses Kunden sind Ihnen nicht sichtbar — dafür fehlt{' '}
+            <Recht schluessel="objekt.lesen" />. Das heißt nicht,
             dass es keine gibt.
           </p>
         ) : objekte.length === 0 ? (
@@ -410,8 +488,8 @@ export default async function KundeDetail(
         <h2 id="auftraege" className="text-h2 text-text">Aufträge</h2>
         {!darfAuftrag ? (
           <p data-cse="auftraege-verdeckt" className="text-sm text-text-muted">
-            Die Aufträge dieses Kunden sind Ihnen nicht sichtbar — dafür fehlt
-            <code className="text-text"> auftrag.lesen</code>. Das heißt nicht,
+            Die Aufträge dieses Kunden sind Ihnen nicht sichtbar — dafür fehlt{' '}
+            <Recht schluessel="auftrag.lesen" />. Das heißt nicht,
             dass es keine gibt.
           </p>
         ) : auftraege.length === 0 ? (
@@ -422,7 +500,15 @@ export default async function KundeDetail(
             zeilen={auftraege}
             schluessel={(z) => z.id}
             spalten={[
-              { schluessel: 'nummer', kopf: 'Nummer', zelle: (z) => z.auftragsnummer },
+              /* Verlinkt (V-138): die Zeile nannte den Auftrag und führte nicht hin. */
+              { schluessel: 'nummer', kopf: 'Nummer',
+                zelle: (z) => (
+                  <Link href={`/portal/${mandant}/auftraege/${z.id}`}
+                        data-cse="kunde-auftrag"
+                        className="text-text underline-offset-2 hover:text-brand hover:underline">
+                    {z.auftragsnummer}
+                  </Link>
+                ) },
               { schluessel: 'bezeichnung', kopf: 'Auftrag', zelle: (z) => z.bezeichnung },
               {
                 schluessel: 'wert', kopf: 'Wert netto', numerisch: true,
@@ -437,6 +523,154 @@ export default async function KundeDetail(
             ]}
           />
         )}
+      </section>
+
+      <section aria-labelledby="anfragen" className="mt-s7" data-cse="kunde-anfragen">
+        <h2 id="anfragen" className="text-h2 text-text">{k.anfragenTitel}</h2>
+        {vorgaenge.anfragen.length === 0 ? (
+          <p className="text-sm text-text-muted">{k.keineAnfragen}</p>
+        ) : (
+          <DataTable
+            beschriftung={k.beschriftungAnfragen}
+            zeilen={vorgaenge.anfragen}
+            schluessel={(z) => z.id}
+            spalten={[
+              { schluessel: 'nummer', kopf: k.nummer,
+                zelle: (z) => (
+                  <Link href={`/portal/${mandant}/crm/leads/${z.id}`}
+                        className="text-text underline-offset-2 hover:text-brand hover:underline">
+                    {z.leadnummer}
+                  </Link>
+                ) },
+              { schluessel: 'titel', kopf: k.titel, zelle: (z) => z.betreff },
+              { schluessel: 'herkunft', kopf: k.herkunft,
+                zelle: (z) => k.quelleWerte[z.quelle] ?? k.quelleWerte['manuell'] },
+              { schluessel: 'angelegt', kopf: k.angelegt, zelle: (z) => z.angelegt },
+              { schluessel: 'status', kopf: k.status,
+                zelle: (z) => (
+                  <span className="flex items-center gap-s2">
+                    <StatusPill zustand={LEAD_PILLE[z.status] ?? 'Offen'} sprache={zugang.sprache} />
+                    <span className="text-xs text-text-muted">{standWerte[z.status] ?? ''}</span>
+                  </span>
+                ) },
+            ]}
+          />
+        )}
+      </section>
+
+      <section aria-labelledby="angebote" className="mt-s7" data-cse="kunde-angebote">
+        <h2 id="angebote" className="text-h2 text-text">{k.angeboteTitel}</h2>
+        {unterrechte['angebot.lesen'] !== true ? (
+          <p className="text-sm text-text-muted">
+            {k.ohneRecht} <Recht schluessel="angebot.lesen" sprache={zugang.sprache} />.
+          </p>
+        ) : vorgaenge.angebote.length === 0 ? (
+          <p className="text-sm text-text-muted">{k.keineAngeboteKunde}</p>
+        ) : (
+          <DataTable
+            beschriftung={k.beschriftungAngebote}
+            zeilen={vorgaenge.angebote}
+            schluessel={(z) => z.id}
+            spalten={[
+              { schluessel: 'titel', kopf: k.titel,
+                zelle: (z) => (
+                  <Link href={`/portal/${mandant}/angebote/${z.id}`}
+                        className="text-text underline-offset-2 hover:text-brand hover:underline">
+                    {z.titel}
+                  </Link>
+                ) },
+              { schluessel: 'nummer', kopf: k.nummer,
+                zelle: (z) => z.angebotsnummer
+                  ?? <span className="text-text-subtle">{k.ohneNummer}</span> },
+              { schluessel: 'angelegt', kopf: k.angelegt, zelle: (z) => z.angelegt },
+              { schluessel: 'netto', kopf: k.netto, numerisch: true,
+                zelle: (z) => formatiereGeld(cent(BigInt(z.netto_cent))) },
+              { schluessel: 'status', kopf: k.status,
+                zelle: (z) => <StatusPill zustand={ANGEBOT_PILLE[z.status] ?? 'Entwurf'} sprache={zugang.sprache} /> },
+            ]}
+          />
+        )}
+      </section>
+
+      <section aria-labelledby="rechnungen" className="mt-s7" data-cse="kunde-rechnungen">
+        <h2 id="rechnungen" className="text-h2 text-text">{k.rechnungenTitel}</h2>
+        {unterrechte['finanzen.lesen'] !== true ? (
+          <p className="text-sm text-text-muted">
+            {k.ohneRecht} <Recht schluessel="finanzen.lesen" sprache={zugang.sprache} />.
+          </p>
+        ) : vorgaenge.rechnungen.length === 0 ? (
+          <p className="text-sm text-text-muted">{k.keineRechnungenKunde}</p>
+        ) : (
+          <DataTable
+            beschriftung={k.rechnungenTitel}
+            zeilen={vorgaenge.rechnungen}
+            schluessel={(z) => z.id}
+            spalten={[
+              { schluessel: 'nummer', kopf: k.nummer,
+                zelle: (z) => (
+                  <Link href={`/portal/${mandant}/finanzen/rechnungen/${z.id}`}
+                        className="text-text underline-offset-2 hover:text-brand hover:underline">
+                    {z.nummer ?? k.ohneNummer}
+                  </Link>
+                ) },
+              { schluessel: 'datum', kopf: k.datum, zelle: (z) => z.datum ?? '—' },
+              { schluessel: 'brutto', kopf: k.brutto, numerisch: true,
+                zelle: (z) => formatiereGeld(cent(BigInt(z.brutto_cent))) },
+              { schluessel: 'status', kopf: k.status,
+                zelle: (z) => <StatusPill zustand={RECHNUNG_PILLE[z.status] ?? 'Entwurf'} sprache={zugang.sprache} /> },
+            ]}
+          />
+        )}
+      </section>
+
+      <section aria-labelledby="dokumente" className="mt-s7" data-cse="kunde-dokumente">
+        <h2 id="dokumente" className="text-h2 text-text">{k.dokumenteTitel}</h2>
+        {unterrechte['dokument.lesen'] !== true ? (
+          <p className="text-sm text-text-muted">
+            {k.ohneRecht} <Recht schluessel="dokument.lesen" sprache={zugang.sprache} />.
+          </p>
+        ) : vorgaenge.dokumente.length === 0 ? (
+          <p className="text-sm text-text-muted">{k.keineDokumente}</p>
+        ) : (
+          <ul className="m-0 list-none p-0">
+            {vorgaenge.dokumente.map((d) => (
+              <li key={d.id} className="border-b border-line py-s3">
+                <Link href={`/portal/${mandant}/dokumente/${d.id}`}
+                      className="text-sm text-text underline-offset-2 hover:text-brand hover:underline">
+                  {d.titel}
+                </Link>
+                <span className="ml-s3 text-xs text-text-muted">
+                  {`${k.kategorieWerte[d.kategorie] ?? k.kategorieWerte['kunde'] ?? ''}${d.datum === null ? '' : ` · ${d.datum}`}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section aria-labelledby="kommunikation-titel" id="kommunikation" className="mt-s7"
+               data-cse="kunde-kommunikation">
+        <h2 id="kommunikation-titel" className="text-h2 text-text">{tv.titel}</h2>
+        <p className="mt-s2 max-w-prose text-sm text-text-muted">{tv.erklaerungKunde}</p>
+        <NotizRueckmeldung sprache={zugang.sprache} grund={notizGrund} notiert={notiert} />
+        <Kommunikationsverlauf
+          eintraege={verlauf}
+          sprache={zugang.sprache}
+          mandant={mandant}
+          blatt="kunde"
+          darfNamen={unterrechte['system.benutzer_lesen'] === true}
+          darfNachrichten={unterrechte['nachricht.lesen'] === true}
+          grenze={VERLAUF_GRENZE}
+        />
+        {darfSchreiben ? (
+          <NotizFormular
+            sprache={zugang.sprache}
+            zurueck={`/portal/${mandant}/crm/kunden/${id}`}
+            kundeId={id}
+            ansprechpartnerId={null}
+            kontakte={kontakte.map((k) => ({ id: k.id, name: k.name }))}
+          />
+        ) : <NotizKeinRecht sprache={zugang.sprache} />}
       </section>
     </PortalRahmen>
   );

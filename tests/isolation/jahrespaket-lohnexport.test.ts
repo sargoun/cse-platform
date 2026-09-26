@@ -28,6 +28,7 @@ import {
 import { archiviereRechnungsbeleg } from '../../src/server/services/buchhaltung/belegarchiv.js';
 import { erzeugeDatevExport } from '../../src/server/services/buchhaltung/datev/export.js';
 import { erstelleJahrespaket } from '../../src/server/services/buchhaltung/jahrespaket.js';
+import { TABELLEN } from '../../src/server/services/buchhaltung/z3.js';
 import { erstelleLohnexport } from '../../src/server/services/zeit/lohnexport.js';
 import { bucheKorrektur, eroeffneKonto } from '../../src/server/services/zeit/stundenkonto.js';
 import { leseZipEintrag, leseZipVerzeichnis } from '../../src/server/services/archiv/zip.js';
@@ -227,7 +228,9 @@ describe('(1) das Jahrespaket', () => {
     }
 
     /* Tabellen und Auswertungen. */
-    expect(pfade.filter((p) => p.startsWith('daten/'))).toHaveLength(14);
+    /* Jede Z3-Tabelle eine Datei — seit V-215 auch ausgaben und ausgabensteuer. */
+    expect(pfade.filter((p) => p.startsWith('daten/'))).toHaveLength(TABELLEN.length);
+    expect(pfade).toContain('daten/ausgaben.csv');
     expect(cp1252.decode(dateien.get('daten/rechnungen.csv')!)).toContain(j.rechnung);
     const monate = cp1252.decode(dateien.get('auswertung/monatszahlen.csv')!).trim().split('\r\n');
     expect(monate).toHaveLength(13);

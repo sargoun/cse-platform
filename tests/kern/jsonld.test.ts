@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   breadcrumb, faqAus, faqPage, JsonLdFehler, leistungenAus, localBusiness,
-  localBusinessId, organisation, pruefeJsonLd, services, webSite,
+  localBusinessId, organisation, pruefeJsonLd, seitenService, services, webSite,
   type BereichsQuelle,
 } from '../../src/server/services/inhalt/jsonld.js';
 
@@ -131,5 +131,32 @@ describe('O-206: ohne gepflegten Rechtsträger entsteht kein Dach über den vier
     expect(dach['subOrganization']).toEqual(
       BEREICHE.map((b) => ({ '@id': localBusinessId(BASIS, b.slug) })),
     );
+  });
+});
+
+/**
+ * Gefunden, als der Durchlauf durch den Produktionsbau jede Adresse der
+ * Sitemap aufrief: `/leistungen/unterhaltsreinigung` endete auf Deutsch und
+ * Englisch mit 500. `seitenService` lässt `provider` weg, solange keine
+ * Gesellschaft die Seite verantwortet (O-652) — und die Formprüfung verlangte
+ * ihn. Beide Seiten der Zusage stehen jetzt hier.
+ */
+describe('Service einer Leistungsseite: ohne entschiedene Gesellschaft kein provider — und kein Fehler', () => {
+  it('ohne Gesellschaft: gültig, ohne provider', () => {
+    const block = seitenService('Unterhaltsreinigung', 'Täglich, wöchentlich', BASIS, null);
+    expect(block['provider']).toBeUndefined();
+    expect(() => pruefeJsonLd(block)).not.toThrow();
+  });
+
+  it('mit Gesellschaft: provider zeigt auf ihr LocalBusiness', () => {
+    const block = seitenService('Unterhaltsreinigung', null, BASIS, 'reinigung');
+    expect(block['provider']).toEqual({ '@id': localBusinessId(BASIS, 'reinigung') });
+    expect(() => pruefeJsonLd(block)).not.toThrow();
+  });
+
+  it('ein provider OHNE gültige Adresse fällt weiter durch', () => {
+    const block = seitenService('Unterhaltsreinigung', null, BASIS, 'reinigung');
+    block['provider'] = { '@id': 'keine adresse' };
+    expect(() => pruefeJsonLd(block)).toThrow(JsonLdFehler);
   });
 });

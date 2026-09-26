@@ -34,6 +34,33 @@ kann:
 
 Schalter: `-Port 3002` · `-DatenBehalten` · `-OhneBau`.
 
+**Speicher.** Das Skript setzt `NODE_OPTIONS=--max-old-space-size=6144`, wenn
+nichts anderes gesetzt ist. Ohne das stirbt `pnpm build` auf einem frischen
+Rechner im letzten Schritt mit `JavaScript heap out of memory` — Node gibt
+einem Prozess von sich aus rund 2 GB, und die Typprüfung des ganzen Projekts
+braucht gemessen rund 3,3 GB. Wer die Befehle von Hand ausführt, setzt es
+vorher selbst:
+
+```powershell
+$env:NODE_OPTIONS = "--max-old-space-size=6144"
+```
+
+**Dateien.** Das Skript setzt `CSE_SPEICHER_ORDNER` auf den Ordner `.speicher`
+im Projekt (von git ignoriert), wenn nichts anderes gesetzt ist. Ohne ihn — und
+ohne Supabase-Zugang — lehnt die Plattform jede Datei ab: Belege,
+Baustellenfotos, Unterlagen, Logos enden bei „nicht verbunden". Mit ihm liegen
+sie wirklich im Ordner und kommen nur über ablaufende, signierte Adressen
+heraus. Einstellungen › Integrationen nennt ihn „Entwicklung", nicht
+„verbunden"; auf Vercel und ohne `CSE_DEV_FLAECHEN=1` gibt es ihn nicht, und
+ist `SUPABASE_URL` gesetzt, gewinnt Supabase (D-623). Von Hand:
+
+```powershell
+$env:CSE_SPEICHER_ORDNER = "$PWD\.speicher"
+```
+
+Das Skript wechselt ausserdem selbst in die Projektwurzel — es lässt sich also
+auch aus `scripts\` heraus starten.
+
 Am Ende nennt er die Adresse fuer das Telefon und die Konten zum Anmelden.
 
 ---
@@ -44,6 +71,8 @@ Derselbe Weg von Hand, Windows (PowerShell):
 $env:DATABASE_URL   = "postgres://postgres@localhost:5433/postgres"
 $env:CSE_DEV_FLAECHEN = "1"
 $env:PORT           = "3001"
+$env:CSE_SPEICHER_ORDNER = "$PWD\.speicher"
+$env:NODE_OPTIONS   = "--max-old-space-size=6144"
 
 # Alten Build und Cache verwerfen — sie tragen geloeschte Routen
 Remove-Item -Recurse -Force .next, node_modules\.cache -ErrorAction SilentlyContinue
@@ -57,10 +86,26 @@ pnpm install
 docker rm -f cse-db
 docker run -d --name cse-db -e POSTGRES_USER=postgres -e POSTGRES_HOST_AUTH_METHOD=trust `
   -p 5433:5432 pgvector/pgvector:pg16
-Start-Sleep -Seconds 6
+
+# Warten, bis der ECHTE Server antwortet — und zwar ueber TCP.
+# Hier stand `Start-Sleep -Seconds 6`, und das ist ein Muenzwurf: das Abbild
+# faehrt fuer `initdb` erst einen VORUEBERGEHENDEN Server hoch, der nur auf
+# dem Unix-Socket horcht, und faehrt ihn danach wieder herunter. Wer in die
+# Luecke zwischen beiden trifft, bekommt
+#   „connection to server on socket .../.s.PGSQL.5432 failed: No such file or directory"
+# Der voruebergehende Server horcht GAR NICHT auf TCP — ein Treffer ueber
+# 127.0.0.1 kann deshalb nur der echte sein.
+# Die Umleitung steht INNERHALB des Behaelters: sonst macht Windows
+# PowerShell aus „the database system is starting up" einen terminierenden
+# Fehler — und das ist genau die Meldung, auf die diese Schleife wartet.
+foreach ($i in 1..60) {
+  Start-Sleep -Seconds 1
+  docker exec cse-db sh -c 'psql -h 127.0.0.1 -U postgres -tAc "select 1" >/dev/null 2>&1'
+  if ($LASTEXITCODE -eq 0) { break }
+}
 
 # K-06-Schluessel — siehe Abschnitt 3. OHNE DIESE ZEILE bleibt der Seed unvollstaendig.
-docker exec cse-db psql -U postgres -c `
+docker exec cse-db psql -h 127.0.0.1 -U postgres -c `
   "alter database postgres set cse.fenster_schluessel = 'VEVTVC1LRVktTklDSFQtRlVFUi1QUk9EVUtUSU9O'"
 
 pnpm db:migrate
@@ -76,6 +121,7 @@ macOS/Linux (bash) — dieselbe Reihenfolge:
 ```bash
 export DATABASE_URL="postgres://postgres@localhost:5433/postgres"
 export CSE_DEV_FLAECHEN=1 PORT=3001
+export CSE_SPEICHER_ORDNER="$PWD/.speicher" NODE_OPTIONS="--max-old-space-size=6144"
 
 rm -rf .next node_modules/.cache
 pnpm install
@@ -83,9 +129,16 @@ pnpm install
 docker rm -f cse-db 2>/dev/null || true
 docker run -d --name cse-db -e POSTGRES_USER=postgres -e POSTGRES_HOST_AUTH_METHOD=trust \
   -p 5433:5432 pgvector/pgvector:pg16
-sleep 6
 
-docker exec cse-db psql -U postgres -c \
+# Warten, bis der ECHTE Server antwortet — ueber TCP, nicht ueber den Socket.
+# Begruendung siehe die PowerShell-Fassung darueber: `sleep 6` ist ein
+# Muenzwurf gegen den voruebergehenden initdb-Server.
+for i in $(seq 60); do
+  docker exec cse-db psql -h 127.0.0.1 -U postgres -tAc 'select 1' >/dev/null 2>&1 && break
+  sleep 1
+done
+
+docker exec cse-db psql -h 127.0.0.1 -U postgres -c \
   "alter database postgres set cse.fenster_schluessel = 'VEVTVC1LRVktTklDSFQtRlVFUi1QUk9EVUtUSU9O'"
 
 pnpm db:migrate && pnpm db:seed && pnpm content:import
@@ -94,6 +147,20 @@ pnpm build && pnpm start
 
 Danach: <http://localhost:3001> (oeffentliche Website) und
 <http://localhost:3001/dev/anmelden> (Rollenkonten der Demo).
+
+---
+
+## 1b. Schlüssel und Anbindungen
+
+Was hier steht, bringt die Demo zum Laufen. **Welche Schlüssel es sonst gibt,
+wo sie hingehören und was ohne sie passiert**, steht in einem eigenen Blatt —
+in zwei Sprachen, weil es auch der Betreiber lesen können muss:
+
+- `docs/EINRICHTEN-DE.md`
+- `docs/EINRICHTEN-AR.md`
+
+Die vollständige Liste der Umgebungsvariablen liegt als `.env.example` im
+Projektordner. Anfangen: `cp .env.example .env.local`.
 
 ---
 
@@ -197,6 +264,7 @@ gewechselt.
 |---|---|---|
 | `listen EADDRINUSE: address already in use :::3001` | Eine frueher gestartete Instanz haelt den Port. | PowerShell: `Get-NetTCPConnection -LocalPort 3001 -State Listen \| ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }` · bash: `kill $(lsof -ti tcp:3001)` |
 | Seite kommt **ohne Gestaltung** (Times New Roman, blaue unterstrichene Verweise, kein Menue) | Ein zweiter Next-Server hat `.next` ueberschrieben — siehe Abschnitt 5. | Alle laufenden Server beenden, dann `pnpm build` und `pnpm start` erneut. |
+| `psql: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory` — meist beim Schritt **ArbZG-Fensterschluessel (K-06)** | **Nicht** Ihr Rechner, und der Behaelter laeuft. Das Postgres-Abbild faehrt fuer `initdb` einen **voruebergehenden** Server hoch, der nur auf dem Unix-Socket horcht, und faehrt ihn danach wieder herunter. `pg_isready` meldet in diesem Fenster Erfolg — der naechste Befehl trifft dann die Luecke zwischen beiden Servern. | Behoben: `windows-start.ps1` und die Handfassungen oben warten jetzt ueber **TCP** (`psql -h 127.0.0.1 -tAc 'select 1'`). Der voruebergehende Server horcht gar nicht auf TCP, ein Treffer kann also nur der echte sein. Bei einem alten Stand des Skripts: `docker rm -f cse-db` und erneut starten. |
 | `unrecognized configuration parameter "cse.fenster_schluessel"` | Abschnitt 3. | Einstellung setzen, dann `pnpm db:seed` erneut. |
 | `/` antwortet mit 404 | `content:import` fehlt. | `pnpm content:import` |
 | `Ignored build scripts: esbuild@…` | pnpm fuehrt Installationsskripte nicht ungefragt aus. | Folgenlos fuer die Demo. |

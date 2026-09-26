@@ -13,6 +13,8 @@ import { liesWirtschaftsjahr, wirtschaftsjahrVon } from '@/server/services/buchh
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { gruppenverweisOffen } from '@/server/services/gruppe/verweis';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 
 /**
  * `/portal/[mandant]/buchhaltung/monatszahlen` — Erloese, Aufwand, Ergebnis
@@ -53,13 +55,28 @@ export default async function MonatszahlenSeite(
   const jahrRoh = typeof suche['jahr'] === 'string' ? suche['jahr'] : null;
   const gewaehlt = jahrRoh !== null && /^\d{4}$/u.test(jahrRoh) ? Number(jahrRoh) : null;
 
-  const z = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+  /*
+   * **Der Verweis in die Gruppensicht haengt an denselben Bedingungen wie
+   * ihr Tor** (V-243, D-737; V-253, D-745). Der Satz stand unbedingt da:
+   * eine Administration der Reinigung ohne Gruppenrecht klickte ins Nichts
+   * (gefunden vom Verweislauf der Browsersuite). Die Regel — Leserechte der
+   * Zielroute im aktiven Mandanten UND `app.darf_gruppenansicht()` — steht
+   * EINMAL in `gruppenverweisOffen` und ist dort geprueft
+   * (`tests/isolation/gruppenverweis.test.ts`), nicht als zwei Abfragen in
+   * dieser Seite. Dieselbe Absicht wie oben fuer die Monatslisten (AUT-06,
+   * D-581): ohne beide Bedingungen steht der Satz nicht da.
+   */
+  const GRUPPENZIEL = '/portal/gruppe/finanzen';
+  const { z, darfGruppe } = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
       const wj = await liesWirtschaftsjahr(kontext);
       const [heute] = await kontext.abfrage<{ tag: string }>(`select app.berlin_heute()::text as tag`);
       const jahr = gewaehlt ?? wirtschaftsjahrVon(heute?.tag ?? '2026-01-01', wj);
-      return monatszahlen(kontext, jahr, wj);
-    })) as Promise<Monatszahlen>);
+      return {
+        z: await monatszahlen(kontext, jahr, wj),
+        darfGruppe: await gruppenverweisOffen(kontext, GRUPPENZIEL),
+      };
+    })) as Promise<{ z: Monatszahlen; darfGruppe: boolean }>);
 
   const basis = `/portal/${mandant}/buchhaltung/monatszahlen`;
   const knopf = 'inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2';
@@ -73,7 +90,7 @@ export default async function MonatszahlenSeite(
       nurLesen
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="buchhaltung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -86,8 +103,8 @@ export default async function MonatszahlenSeite(
       </div>
       <Hinweis cse="monatszahlen-lesart" className="mb-s5 max-w-prose">
         <strong>BWA-artig — keine Betriebswirtschaftliche Auswertung.</strong> Erlöse sind die festgeschriebenen Ausgangsrechnungen nach
-        Rechnungsdatum (netto), Aufwand die freigegebenen und gebuchten Eingangsrechnungen (netto),
-        Ergebnis die Differenz. Personal, Abschreibungen, Abgrenzungen und Steuern fehlen — die
+        Rechnungsdatum (netto), Aufwand die freigegebenen und gebuchten Eingangsrechnungen nach
+        Rechnungsdatum und Betriebsausgaben nach Belegdatum (netto), Ergebnis die Differenz. Personal, Abschreibungen, Abgrenzungen und Steuern fehlen — die
         Betriebswirtschaftliche Auswertung erstellt der Steuerberater aus dem DATEV-Export.
         Wirtschaftsjahr ab {String(z.wirtschaftsjahr.beginnTag)}.{String(z.wirtschaftsjahr.beginnMonat)}.
         {z.wirtschaftsjahr.istPlatzhalter ? ' — angenommen (O-05).' : '.'}
@@ -114,13 +131,28 @@ export default async function MonatszahlenSeite(
               </Link>
             ) : geld(m.erloeseCent)) },
           { schluessel: 'rechnungen', kopf: 'Rechnungen', numerisch: true, zelle: (m) => String(m.rechnungen) },
-          { schluessel: 'aufwand', kopf: 'Aufwand netto', numerisch: true,
+          /*
+            * **Aufwand aus zwei Quellen** (V-215): Eingangsrechnungen und
+            * Betriebsausgaben — je mit ihrem Verweis, und die Summe daneben.
+            * Vorher stand hier nur die erste, und das Ergebnis war um jede
+            * gebuchte Tankquittung zu hoch.
+            */
+          { schluessel: 'eingang', kopf: 'Eingangsrechnungen netto', numerisch: true,
             zelle: (m) => (darf['eingang.lesen'] === true ? (
-              <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen?monat=${m.monat}`} data-cse="monat-aufwand"
+              <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen?monat=${m.monat}`} data-cse="monat-eingang"
                     className="underline-offset-2 hover:text-brand hover:underline">
-                {geld(m.aufwandCent)}
+                {geld(m.aufwandEingangCent)}
               </Link>
-            ) : geld(m.aufwandCent)) },
+            ) : geld(m.aufwandEingangCent)) },
+          { schluessel: 'ausgaben', kopf: 'Betriebsausgaben netto', numerisch: true,
+            zelle: (m) => (darf['eingang.lesen'] === true ? (
+              <Link href={`/portal/${mandant}/finanzen/ausgaben?monat=${m.monat}&aufwand=ja`} data-cse="monat-ausgaben"
+                    className="underline-offset-2 hover:text-brand hover:underline">
+                {geld(m.aufwandAusgabenCent)}
+              </Link>
+            ) : geld(m.aufwandAusgabenCent)) },
+          { schluessel: 'aufwand', kopf: 'Aufwand netto', numerisch: true,
+            zelle: (m) => <span data-cse="monat-aufwand" data-cent={m.aufwandCent.toString()}>{geld(m.aufwandCent)}</span> },
           { schluessel: 'ergebnis', kopf: 'Ergebnis', numerisch: true,
             zelle: (m) => <strong data-cse="monat-ergebnis" data-cent={m.ergebnisCent.toString()}>{geld(m.ergebnisCent)}</strong> },
           { schluessel: 'periode', kopf: 'Monat',
@@ -138,9 +170,11 @@ export default async function MonatszahlenSeite(
             )) },
         ]}
       />
-      <p className="mt-s4 text-xs text-text-subtle">
-        Gruppensicht: <Link href={`/portal/gruppe/finanzen?jahr=${String(z.jahr)}`} className="underline underline-offset-2">Finanzen der Gruppe</Link> — die Summe der Gesellschaften, nach Kalenderjahr.
-      </p>
+      {darfGruppe ? (
+        <p className="mt-s4 text-xs text-text-subtle" data-cse="monatszahlen-gruppe">
+          Gruppensicht: <Link href={alsRoute(`${GRUPPENZIEL}?jahr=${String(z.jahr)}`)} className="underline underline-offset-2">Finanzen der Gruppe</Link> — die Summe der Gesellschaften, nach Kalenderjahr.
+        </p>
+      ) : null}
     </PortalRahmen>
   );
 }

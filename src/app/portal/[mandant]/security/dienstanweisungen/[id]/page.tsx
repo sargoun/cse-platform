@@ -76,21 +76,16 @@ export default async function Dienstanweisung(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/security/dienstanweisungen`, text: 'Dienstanweisungen' }}
       titel={kopf.titel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="dienstanweisungen"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <Link
-        href={`/portal/${mandant}/security/dienstanweisungen`}
-        className="mb-s4 inline-block min-h-11 text-sm text-text underline"
-      >
-        ← Dienstanweisungen
-      </Link>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{kopf.titel}</h1>
@@ -171,7 +166,7 @@ export default async function Dienstanweisung(
               >
                 <input type="hidden" name="mandant" value={mandant} />
                 <input type="hidden" name="fassung" value={f.id} />
-                <Button type="submit" variante="primary">Fassung freigeben</Button>
+                <Button type="submit" variante="secondary">Fassung freigeben</Button>
               </form>
             )}
           </li>

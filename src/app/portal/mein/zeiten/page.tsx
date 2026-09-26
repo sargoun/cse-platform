@@ -9,7 +9,8 @@ import {
 } from '@/server/services/mitarbeiter/zeiten';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../rahmen';
-import { Gesellschaft, Leer } from '../bausteine';
+import { Gesellschaft, Leer, Monatswechsler } from '../bausteine';
+import { EINWAND_FORM_TEXTE } from '@/lib/i18n/mein-formulare';
 
 /**
  * `/portal/mein/zeiten` — die eigene Aufzeichnung, LESEND (EMP-03, EMP-07,
@@ -128,10 +129,21 @@ export default async function MeineZeiten({
         </p>
       </div>
 
+      <Monatswechsler pfad="/portal/mein/zeiten" monat={grenzen.von}
+                      heute={heute} texte={t} />
+
       {/* EMP-07 als Satz auf dem Bildschirm, nicht nur als fehlender Knopf. */}
-      <p data-cse="kein-bearbeiten" className="mb-s5 max-w-prose text-base text-text-muted">
+      <p data-cse="kein-bearbeiten" className="mb-s4 max-w-prose text-base text-text-muted">
         {t.keinBearbeiten}
       </p>
+      {/*
+        Der Weg fuer den Tag OHNE Eintrag (V-189): der Einwand zu einem
+        Eintrag steht an der Zeile, dieser hier fuer die Zeile, die fehlt.
+      */}
+      <Link href="/portal/mein/zeiten/einwand" data-cse="zeit-fehlt"
+            className="mb-s5 inline-flex min-h-11 items-center text-base text-text underline">
+        {EINWAND_FORM_TEXTE[basis.sprache].zeitFehlt}
+      </Link>
 
       {daten.length === 0 ? <Leer text={t.keineEintraege} /> : (
         <DataTable

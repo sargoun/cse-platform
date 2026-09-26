@@ -11,6 +11,7 @@ import { join, relative } from 'node:path';
 import { pruefeXml } from './xml-wohlgeformt.js';
 import { compilerOderNichts, festeZeichenketten } from './seite-ohne-uebersetzung.js';
 import { UEBERSETZUNG_AUSNAHMEN } from './uebersetzung-ausnahmen.js';
+import { FUNKTION_ALTLAST } from './funktion-altlast.js';
 
 const WURZEL = process.cwd();
 
@@ -612,6 +613,21 @@ function wacheTailwindFarben(): void {
   const schatten = new Set(Object.keys(extend['boxShadow'] ?? {}));
 
   /**
+   * **`bg-` traegt nicht nur Farben, sondern auch Hintergrundbilder.**
+   *
+   * DESIGN §5 „Standalone pages" hat `bg-wash-brand` gebracht — den einen
+   * Lichthauch hinter einer alleinstehenden Flaeche. Er steht in
+   * `backgroundImage`, nicht in `colors`, und die Wache meldete ihn als
+   * „keine Farbe im Thema". Das war eine Falschmeldung der teuersten Sorte:
+   * die Klasse ist gueltig, Tailwind erzeugt sie, und wer die Wache ein paar
+   * Mal irrtuemlich rot sieht, faengt an, sie zu umgehen.
+   *
+   * Geprueft wird trotzdem — nur gegen die RICHTIGE Tabelle: ein
+   * `bg-wash-irgendwas`, das im Thema nicht steht, faellt weiter durch.
+   */
+  const hintergrundbilder = new Set(Object.keys(extend['backgroundImage'] ?? {}));
+
+  /**
    * Präfixe, deren Rest eine FARBE sein muss. `text-` und `border-` stehen
    * nicht dabei: `text-sm` ist eine Schriftgrösse und `border-t` eine Seite,
    * beide völlig gültig — sie werden unten gesondert behandelt.
@@ -736,10 +752,106 @@ function wacheTailwindFarben(): void {
         }
         if (!FARBPRAEFIX.includes(praefix)) continue;
         if (farben.has(rest)) continue;
+        if (praefix === 'bg' && hintergrundbilder.has(rest)) continue;
         melde('tailwind-farbe', datei, i + 1,
           `\`${praefix}-${rest}\` — keine Farbe im Thema.`);
       }
     });
+  }
+}
+
+/**
+ * Wache — **kein roter Knopf in einer Schleife** (DESIGN §5).
+ *
+ * „One primary button per view", und der Grund steht daneben: Rot ist knapp,
+ * und ein Bildschirm mit neun roten Knoepfen hat GAR KEINE Hauptaktion. Ein
+ * `variante="primary"` INNERHALB einer `.map()`-Schleife ist nie einer —
+ * es ist einer je Zeile, also so viele, wie die Liste lang ist.
+ *
+ * **Gemessen, als diese Wache entstand: dreizehn Stellen.** Zwoelf rote
+ * „Schliessen" in der Periodenliste, eines je Monat. Ein rotes „Link
+ * ausgeben" je Einteilung. Ein rotes „Ansehen" je Benachrichtigung. Keine
+ * davon ist falsch gebaut — sie sind nur alle gleich laut, und das Auge
+ * findet keinen Halt.
+ *
+ * **Warum eine Klammerbilanz und kein `grep`.** Der erste Anlauf zaehlte
+ * `.map(` und suchte das Ende an einer Zeile, die auf `))}` endet. Das fand
+ * 33 Stellen, von denen 20 laengst ausserhalb der Schleife lagen — eine
+ * Wache, die zu zwei Dritteln irrt, wird umgangen. Diese hier faehrt die
+ * Klammern mit und kennt Zeichenketten, also auch die Klammer in einem Text.
+ *
+ * Die Behebung ist nie „das Rot wegnehmen", sondern die Frage: was ist hier
+ * die eine Handlung? Traegt die Zeile ein JA/NEIN-Paar, faellt das NEIN auf
+ * `ghost` — sonst stehen zwei gleich aussehende Knoepfe nebeneinander.
+ */
+function wacheRoterKnopfInSchleife(): void {
+  for (const datei of mussLesen('src', ['.tsx'])) {
+    const inhalt = readFileSync(datei, 'utf8');
+    if (!inhalt.includes('variante="primary"')) continue;
+
+    /** Jede `.map(`-Klammer mit ihrem ECHTEN Ende. */
+    const spannen: readonly (readonly [number, number])[] = [
+      ...inhalt.matchAll(/\.map\(/gu),
+    ].map((m) => {
+      let j = (m.index ?? 0) + m[0].length - 1;
+      let tiefe = 0;
+      let zeichenkette: string | null = null;
+      let flucht = false;
+      /** `block` fuer `/* … *\/`, `zeile` fuer `// …` bis zum Zeilenende. */
+      let kommentar: 'block' | 'zeile' | null = null;
+      const start = j;
+      for (; j < inhalt.length; j += 1) {
+        const c = inhalt[j] ?? '';
+        /*
+         * **Kommentare werden MITGEFAHREN, nicht vorher entfernt.**
+         *
+         * Zweimal hat diese Wache an derselben Stelle falschen Alarm
+         * geschlagen: ein gewoehnliches `"` in einem deutschen Satz INNERHALB
+         * eines Kommentars („82,50") eroeffnete hier eine Zeichenkette, die
+         * nie wieder zuging — und von da an zaehlte die Klammerbilanz
+         * irrefuehrend weiter. Der Knopf am Ende der Datei lag dann
+         * scheinbar in einer `.map()`, die hundertsechzig Zeilen frueher
+         * geschlossen hatte.
+         *
+         * Vorher zu entfernen ginge nicht: `ohneKommentare` ersetzt einen
+         * Blockkommentar durch EIN Leerzeichen, und damit stimmt die
+         * Zeilennummer im Befund nicht mehr. Die Meldung zeigte dann auf
+         * eine fremde Zeile — und eine Wache, der man die Stelle nicht
+         * glaubt, wird umgangen (derselbe Grund, aus dem hier ueberhaupt
+         * eine Klammerbilanz steht und kein `grep`).
+         */
+        if (kommentar === 'block') {
+          if (c === '*' && inhalt[j + 1] === '/') { kommentar = null; j += 1; }
+          continue;
+        }
+        if (kommentar === 'zeile') {
+          if (c === '\n') kommentar = null;
+          continue;
+        }
+        if (zeichenkette !== null) {
+          if (flucht) flucht = false;
+          else if (c === '\\') flucht = true;
+          else if (c === zeichenkette) zeichenkette = null;
+          continue;
+        }
+        if (c === '/' && inhalt[j + 1] === '*') { kommentar = 'block'; j += 1; continue; }
+        if (c === '/' && inhalt[j + 1] === '/') { kommentar = 'zeile'; j += 1; continue; }
+        if (c === "'" || c === '"' || c === '`') { zeichenkette = c; continue; }
+        if (c === '(') tiefe += 1;
+        else if (c === ')') { tiefe -= 1; if (tiefe === 0) break; }
+      }
+      return [start, j] as const;
+    });
+
+    for (const m of inhalt.matchAll(/variante="primary"/gu)) {
+      const i = m.index ?? 0;
+      const drin = spannen.some(([a, b]) => a < i && i < b);
+      if (!drin) continue;
+      const zeile = inhalt.slice(0, i).split('\n').length;
+      melde('roter-knopf-in-schleife', datei, zeile,
+        'variante="primary" steht in einer .map()-Schleife — das ist ein roter '
+        + 'Knopf JE ZEILE. DESIGN §5: einer je Bildschirm.');
+    }
   }
 }
 
@@ -988,6 +1100,87 @@ function wacheMigrationsnummer(): void {
   }
 }
 
+
+
+/**
+ * **`create or replace function` darf keine spätere Schicht verschlucken.**
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Der Ausfall, gegen den das geschrieben ist — er ist wirklich passiert.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `kern.angebot_versand_pruefen` wurde in `0024` angelegt (Platzhalterwerte)
+ * und in `0295` ERSETZT, um Invariante 7 hineinzulegen: ohne benannten
+ * Menschen verlässt nichts das Haus. `0392` brauchte zwei weitere Prüfungen
+ * darin, ging von der 0024-Fassung aus — und löschte damit die Preisfreigabe.
+ *
+ * Danach fiel der Versand ohne Freigabe nur noch am CHECK
+ * `angebot_freigabe_vor_versand` auf, mit „violates check constraint" statt
+ * dem Satz über den fehlenden Arbeitsschritt; und ein Versand aus
+ * `status = 'in_pruefung'` wäre am CHECK ganz vorbeigelaufen, weil dessen
+ * erster Zweig diesen Status erlaubt. `0295` sagt das an genau dieser Stelle
+ * selbst — im Kommentar, den der Ersetzende nicht mehr sah.
+ *
+ * **`create or replace` kennt keine halbe Fassung.** Wer eine Funktion
+ * ersetzt, ersetzt sie GANZ; was in einer späteren Migration dazukam, ist weg,
+ * ohne dass Postgres, TypeScript oder ein Linter etwas dazu sagt. Gefunden hat
+ * es eine Isolationsprüfung — nach der Migration, nach dem Typecheck, nach dem
+ * Lint.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Was diese Wache verlangt.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Definiert mehr als eine Migration dieselbe Funktion, muss die NEUESTE die
+ * Nummern aller älteren irgendwo in ihrem Text nennen. Das ist keine Formalie:
+ * wer sie nennt, hat sie gelesen. Ein Kommentar wie „0024 legte sie an, 0295
+ * fügte die Freigabe hinzu" kostet eine Zeile und ist die einzige Stelle, an
+ * der ein Mensch merkt, dass da noch etwas war.
+ *
+ * **Sie prüft NICHT, ob der Inhalt vollständig ist** — das kann sie nicht.
+ * Sie erzwingt den Blick, nicht das Ergebnis.
+ */
+function wacheFunktionMehrfachErsetzt(): void {
+  const verzeichnis = join(WURZEL, 'drizzle');
+  if (!existsSync(verzeichnis)) return;
+  const dateien = readdirSync(verzeichnis).filter((d) => d.endsWith('.sql')).sort();
+
+  /** Funktionsname → Migrationsnummern, in Reihenfolge. */
+  const jeFunktion = new Map<string, string[]>();
+  const inhalt = new Map<string, string>();
+  for (const name of dateien) {
+    const nummer = /^(\d{4})_/u.exec(name)?.[1];
+    if (nummer === undefined) continue;
+    const text = readFileSync(join(verzeichnis, name), 'utf8');
+    inhalt.set(nummer, text);
+    /* `create [or replace] function <schema>.<name>(` — ohne Rücksicht auf
+       Zeilenumbrüche zwischen Name und Klammer. */
+    const muster = /create\s+(?:or\s+replace\s+)?function\s+([a-z_]+\.[a-z_0-9]+)\s*\(/giu;
+    const gesehen = new Set<string>();
+    for (const treffer of text.matchAll(muster)) {
+      const fn = treffer[1]!.toLowerCase();
+      if (gesehen.has(fn)) continue;
+      gesehen.add(fn);
+      jeFunktion.set(fn, [...(jeFunktion.get(fn) ?? []), nummer]);
+    }
+  }
+
+  for (const [fn, nummern] of jeFunktion) {
+    if (nummern.length < 2) continue;
+    const neueste = nummern[nummern.length - 1]!;
+    const aeltere = nummern.slice(0, -1);
+    const text = inhalt.get(neueste) ?? '';
+    const ungenannt = aeltere.filter((n) => !text.includes(n));
+    if (ungenannt.length === 0) continue;
+    if (FUNKTION_ALTLAST.has(`${neueste}:${fn}`)) continue;
+    const datei = dateien.find((d) => d.startsWith(`${neueste}_`)) ?? neueste;
+    melde('funktion-mehrfach-ersetzt', `drizzle/${datei}`, 1,
+      `\`${fn}\` wird auch in ${ungenannt.map((n) => `${n}`).join(', ')} definiert, und `
+      + 'diese Migration nennt sie nicht. `create or replace` ersetzt die Funktion GANZ — '
+      + 'was dort dazukam, ist danach weg, ohne dass jemand etwas sagt. Die aeltere '
+      + 'Fassung lesen und ihre Nummer im Kommentar nennen.');
+  }
+}
 
 /**
  * Jede SVG unter `public/` ist wohlgeformtes XML.
@@ -1287,10 +1480,12 @@ async function main(): Promise<void> {
   wacheAnzeigeZeitzone();
   wacheValidator();
   wacheMigrationsnummer();
+  wacheFunktionMehrfachErsetzt();
   wacheSvgWohlgeformt();
   wacheKonformitaetsauftrag();
   wacheInternerUrsprung();
   wacheSeiteOhneUebersetzung();
+  wacheRoterKnopfInSchleife();
   await wacheKonfigAdressen();
 
   if (befunde.length > 0) {

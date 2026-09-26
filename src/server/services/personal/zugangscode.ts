@@ -57,6 +57,16 @@ export interface Zugangsstand {
   readonly hatAnstellung: boolean;
   readonly hatZugang: boolean;
   readonly gesperrt: boolean;
+  /**
+   * Seit wann und WARUM (0384).
+   *
+   * `gesperrt` allein war vollstaendig, solange sich kein Zugang sperren
+   * liess — gesperrt wurde nichts. Seit es den Weg gibt (V-014), ist
+   * „gesperrt: ja" ohne den Grund genau die Auskunft, die den Anruf erzeugt,
+   * den diese Seite ersparen soll.
+   */
+  readonly gesperrtAm: Date | null;
+  readonly sperrgrund: string | null;
   readonly telefonMaskiert: string | null;
   /** Ein Konto, mit dem die Anmeldung auch wirklich durchkommt (0115). */
   readonly hatKonto: boolean;
@@ -69,15 +79,18 @@ export async function leseZugangsstand(
 ): Promise<Zugangsstand> {
   const [z] = await kontext.abfrage<{
     hat_anstellung: boolean; hat_zugang: boolean; gesperrt: boolean;
+    gesperrt_am: Date | null; sperrgrund: string | null;
     telefon_maskiert: string | null; hat_konto: boolean; offene_codes: number;
     letzte_anmeldung: Date | null;
-  }>(`select hat_anstellung, hat_zugang, gesperrt, telefon_maskiert, hat_konto,
-             offene_codes, letzte_anmeldung
+  }>(`select hat_anstellung, hat_zugang, gesperrt, gesperrt_am, sperrgrund,
+             telefon_maskiert, hat_konto, offene_codes, letzte_anmeldung
         from app.zugang_stand($1::uuid)`, [personId]);
   return {
     hatAnstellung: z?.hat_anstellung ?? false,
     hatZugang: z?.hat_zugang ?? false,
     gesperrt: z?.gesperrt ?? false,
+    gesperrtAm: z?.gesperrt_am ?? null,
+    sperrgrund: z?.sperrgrund ?? null,
     telefonMaskiert: z?.telefon_maskiert ?? null,
     hatKonto: z?.hat_konto ?? false,
     offeneCodes: z?.offene_codes ?? 0,

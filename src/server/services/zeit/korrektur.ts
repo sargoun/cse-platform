@@ -27,6 +27,21 @@
  * Spur beginnt, wenn der Datensatz geschlossen ist.
  */
 import type { SchreibKontext } from '../../kontext/index.js';
+import { istPortalSprache, type PortalSprache } from '../../../lib/i18n/texte.js';
+import { berlinKalendertag } from './dauer.js';
+import { bucheKorrektur } from './stundenkonto.js';
+import { rechteImKontext } from '../../auth/kontext-rechte.js';
+import { korrekturNachricht } from '../../../lib/i18n/zeitkorrektur.js';
+import { eroeffneFaden } from '../kern/nachricht.js';
+
+export class KeinNachrichtenRechtFehler extends Error {
+  constructor() {
+    super('Diese Gesellschaft hat der korrigierenden Rolle `nachricht.versenden` '
+      + 'entzogen. Eine Korrektur ohne Nachricht an die Mitarbeiterin gibt es nicht '
+      + '(TIM-11) — entweder das Recht binden oder nicht korrigieren.');
+    this.name = 'KeinNachrichtenRechtFehler';
+  }
+}
 
 export type KorrekturArt =
   | 'zeit_korrektur' | 'pause_korrektur' | 'zuordnung_korrektur'
@@ -88,6 +103,38 @@ export class KeinAktuellerEintragFehler extends Error {
   }
 }
 
+/**
+ * Der Monat ist gesperrt, und die Hand, die korrigiert, darf das Konto nicht
+ * bewegen (V-065, EMP-04).
+ *
+ * **Warum das eine eigene Absage ist und kein stiller Durchgriff.** Einen
+ * ZEITEINTRAG zu korrigieren (`zeit.korrigieren`) und MINUTEN AUF EINEM
+ * KONTO zu verschieben (`zeit.konto_korrigieren`) sind zwei Entscheidungen —
+ * die Policy `t_mandant_buchen` trennt sie seit je, und
+ * `zeit.konto_korrigieren` ist im Katalog nur an `super_admin` gebunden.
+ *
+ * Bei einem OFFENEN Monat fallen beide nicht zusammen: die Stunde wandert
+ * ueber den gewoehnlichen Buchungsweg. Erst bei einem GESPERRTEN Monat
+ * verlangt `kern.korrektur_sperre_ausgleich` zwingend eine Gegenbuchung —
+ * und wer sie nicht schreiben darf, kann hier nicht korrigieren.
+ *
+ * Ohne diese Klasse liefe der Fall in
+ * `new row violates row-level security policy` — eine Meldung, die dem
+ * Menschen weder sagt, was fehlt, noch wen er fragen muss.
+ */
+export class KeinKontorechtFehler extends Error {
+  readonly code = 'kein_kontorecht';
+  readonly status = 403;
+  constructor(jahr: number, monat: number) {
+    super(
+      `Der Monat ${String(monat).padStart(2, '0')}/${String(jahr)} ist abgeschlossen. `
+      + 'Eine Korrektur daran verschiebt Minuten auf dem Stundenkonto und verlangt '
+      + 'deshalb zusätzlich das Recht zeit.konto_korrigieren.',
+    );
+    this.name = 'KeinKontorechtFehler';
+  }
+}
+
 export class LaufenderEintragFehler extends Error {
   readonly code = 'ungueltiger_zustand';
   readonly status = 409;
@@ -118,6 +165,8 @@ interface EintragZeile {
   checkout_token_id: string | null;
   geraete_zeit_beginn: Date | null;
   geraete_zeit_ende: Date | null;
+  gesperrt_am: Date | null;
+  dauer_netto_minuten: number | null;
 }
 
 export interface KorrekturErgebnis {
@@ -135,7 +184,8 @@ export async function korrigiereZeiteintrag(
             einsatz_id, einsatz_zuordnung_id, objekt_id, auftrag_leistung_id,
             revier_id, beginn_zeitpunkt, ende_zeitpunkt, pause_minuten, status,
             ersetzt_am, checkin_token_id, checkout_token_id,
-            geraete_zeit_beginn, geraete_zeit_ende
+            geraete_zeit_beginn, geraete_zeit_ende,
+            gesperrt_am, dauer_netto_minuten
        from zeiteintrag where id = $1`,
     [eingabe.zeiteintragId],
   );
@@ -165,8 +215,9 @@ export async function korrigiereZeiteintrag(
    * beiden Seiten.
    */
   let neueFassungId: string | null = null;
+  let neueNettoMinuten: number | null = null;
   if (!storno) {
-    const [neu] = await kontext.schreibe<{ id: string }>(
+    const [neu] = await kontext.schreibe<{ id: string; dauer_netto_minuten: number | null }>(
       `insert into zeiteintrag
          (mandant_id, kette_id, version, ersetzt_zeiteintrag_id,
           anstellung_id, person_id, einsatz_id, einsatz_zuordnung_id, objekt_id,
@@ -188,7 +239,7 @@ export async function korrigiereZeiteintrag(
                $17::timestamptz, $18::timestamptz, true,
                $19, $20, $21::zeiteintrag_status,
                'mensch', $22, $23)
-       returning id`,
+       returning id, dauer_netto_minuten`,
       [
         alt.mandant_id, alt.kette_id, alt.version + 1, alt.id,
         alt.anstellung_id, alt.person_id, alt.einsatz_id, alt.einsatz_zuordnung_id,
@@ -208,6 +259,77 @@ export async function korrigiereZeiteintrag(
     );
     neueFassungId = neu?.id ?? null;
     if (neueFassungId === null) throw new Error('Die Ersatzfassung wurde nicht geschrieben.');
+    neueNettoMinuten = neu?.dauer_netto_minuten === null || neu?.dauer_netto_minuten === undefined
+      ? null : Number(neu.dauer_netto_minuten);
+  }
+
+  /**
+   * ═════════════════════════════════════════════════════════════════════════
+   * **Die Gegenbuchung in einem GESPERRTEN Monat** (V-065, EMP-04, §12.2).
+   * ═════════════════════════════════════════════════════════════════════════
+   *
+   * **Der Befund: `bucheKorrektur` hatte keinen einzigen Aufrufer.** Der
+   * Ausloeser `kern.korrektur_sperre_ausgleich` weist eine Korrektur an einem
+   * gesperrten Eintrag ab, solange `ausgleich_bewegung_id` fehlt — mit genau
+   * dem richtigen Satz: „Eine Korrektur ohne Gegenbuchung verschoebe die
+   * Differenz ins Nichts." Nur konnte ihn niemand befolgen: weder Route noch
+   * Seite noch Dienst rief die Funktion, die diese Buchung erzeugt. Damit war
+   * **jede** Korrektur an einem abgeschlossenen Monat unmoeglich — und das
+   * ist der haeufigste Fall, weil eine falsche Stunde meistens auffaellt,
+   * wenn der Lohn da ist.
+   *
+   * **Die Differenz entsteht HIER und nicht im Formular.** Sie ist
+   * `neue Nettominuten − alte Nettominuten`; beim Storno faellt die ganze
+   * Zeit weg, also `−alt`. Beide Zahlen kommen aus `dauer_netto_minuten`,
+   * das `kern.zeiteintrag_dauer` aus dem Abstand zweier Instants bildet
+   * (Invariante 2) — eine im Browser gerechnete Differenz waere eine zweite
+   * Fassung derselben Regel.
+   *
+   * **Der ZIELmonat ist nicht der betroffene.** `bucheKorrektur` sucht den
+   * ersten offenen Monat ab dem betroffenen; der gesperrte bleibt gesperrt.
+   * Welcher es war, steht in `korrektur_fuer_stundenkonto_id`.
+   *
+   * **Null Minuten bucht nichts.** Eine Korrektur, die nur das Objekt
+   * richtigstellt, bewegt keine Stunde — und `bucheKorrektur` wiese eine
+   * Buchung ueber null ohnehin ab. Der Ausloeser verlangt in diesem Fall
+   * trotzdem eine Bewegung; deshalb bucht diese Stelle dann **eine Zeile
+   * ueber eine Minute nicht**, sondern laesst den Ausloeser sprechen. Genau
+   * hier ist die Grenze zwischen „nichts zu verschieben" und „Differenz ins
+   * Nichts": die erste Lage kommt vor, und sie braucht eine Antwort.
+   *
+   * // TODO(client, O-891): Wie wird eine Korrektur an einem gesperrten Monat gebucht, die KEINE Minuten bewegt (nur Objekt, Revier oder Auftragszuordnung)?
+   */
+  let ausgleich = eingabe.ausgleichBewegungId ?? null;
+  if (ausgleich === null && alt.gesperrt_am !== null) {
+    const altMinuten = alt.dauer_netto_minuten === null ? 0 : Number(alt.dauer_netto_minuten);
+    const differenz = storno ? -altMinuten : (neueNettoMinuten ?? 0) - altMinuten;
+    if (differenz !== 0) {
+      const tag = berlinKalendertag(alt.beginn_zeitpunkt);
+      /*
+       * **Das Recht wird HIER geprueft, nicht von der Policy** (V-065).
+       *
+       * `t_mandant_buchen` verlangt `zeit.konto_korrigieren` fuer eine
+       * Bewegung der Art `korrektur`. Ohne die Vorpruefung faellt der Fall
+       * in `new row violates row-level security policy` — richtig
+       * abgewiesen, aber mit einer Meldung, die dem Menschen weder sagt,
+       * was fehlt, noch wen er fragen muss. Die Policy bleibt die zweite
+       * Linie; diese Zeile ist der Satz davor.
+       */
+      const rechte = await rechteImKontext(kontext, 'zeit.konto_korrigieren');
+      if (rechte['zeit.konto_korrigieren'] !== true) {
+        throw new KeinKontorechtFehler(
+          Number(tag.slice(0, 4)), Number(tag.slice(5, 7)));
+      }
+      const gebucht = await bucheKorrektur(kontext, {
+        anstellungId: alt.anstellung_id,
+        jahr: Number(tag.slice(0, 4)),
+        monat: Number(tag.slice(5, 7)),
+        minuten: differenz,
+        begruendung: eingabe.begruendung,
+        zeiteintragId: alt.id,
+      });
+      ausgleich = gebucht.bewegungId;
+    }
   }
 
   /**
@@ -233,12 +355,20 @@ export async function korrigiereZeiteintrag(
     [
       alt.mandant_id, alt.kette_id, alt.id, neueFassungId,
       eingabe.art, eingabe.grundKategorie, eingabe.begruendung,
-      eingabe.ausgleichBewegungId ?? null, eingabe.durchgefuehrtVon,
+      ausgleich, eingabe.durchgefuehrtVon,
       eingabe.ipAdresse ?? null,
       eingabe.zeitEinwandId ?? null,
     ],
   );
   if (korrektur === undefined) throw new Error('Die Korrekturzeile wurde nicht geschrieben.');
+
+  await meldeDerMitarbeiterin(kontext, {
+    personId: alt.person_id,
+    zeiteintragId: neueFassungId ?? alt.id,
+    art: eingabe.art,
+    grundKategorie: eingabe.grundKategorie,
+    begruendung: eingabe.begruendung,
+  });
 
   return {
     korrekturId: korrektur.id,
@@ -279,4 +409,84 @@ export async function leseKorrekturSpur(
     durchgefuehrtVon: z.durchgefuehrt_von,
     durchgefuehrtAm: z.durchgefuehrt_am,
   }));
+}
+
+/**
+ * Sagt der Mitarbeiterin, dass ihre Zeit korrigiert wurde — und warum.
+ *
+ * **Der Befund, der das ausgeloest hat.** `/portal/[mandant]/zeiten/[id]/korrektur`
+ * verlangt Art, Grund und Begruendung als PFLICHTFELDER. Der Dienst schrieb sie
+ * sauber in `zeiteintrag_korrektur` — und schwieg. Der Mensch, dessen Stunden
+ * sich aenderten, erfuhr davon nur, wenn er zufaellig nachsah. Der Mandant hat
+ * es woertlich verlangt: „التعديل مع رسالة للموظف بتكون ليعرف ليش هيك صار."
+ *
+ * **In DERSELBEN Transaktion wie die Korrektur, und das ist die Entscheidung.**
+ * Eine Korrektur, deren Nachricht scheitert, waere wieder genau der Zustand,
+ * den dieser Code behebt — nur diesmal mit dem guten Gewissen, es versucht zu
+ * haben. Entweder beides oder keines.
+ *
+ * **Das Recht wird VORHER geprueft, damit der Fehlschlag lesbar ist.**
+ * `nachricht.versenden` haelt per Vorgabe jede Rolle, die auch korrigieren
+ * darf (0008); eine Gesellschaft kann es ihr aber entziehen. Ohne diese
+ * Pruefung meldete die Policy „new row violates row-level security" — ein
+ * Satz, der auf die Zeiterfassung zeigt und die Ursache verschweigt.
+ *
+ * **`richtung = intern`, `kanal = portal`** (ueber `eroeffneFaden`): das
+ * verlaesst die Plattform nicht und beruehrt Invariante 7 nicht. Was nach
+ * draussen geht, laeuft ueber `sendeNachAussen` und die Freigabekette.
+ */
+async function meldeDerMitarbeiterin(
+  kontext: SchreibKontext,
+  eingabe: {
+    readonly personId: string | null;
+    readonly zeiteintragId: string;
+    readonly art: KorrekturArt;
+    readonly grundKategorie: KorrekturGrund;
+    readonly begruendung: string;
+  },
+): Promise<void> {
+  /* Ohne Menschen gibt es niemanden zu benachrichtigen. Die Spalte ist
+     `not null` im Normalfall; die Zeile hier ist der Guertel dazu. */
+  if (eingabe.personId === null) return;
+
+  /**
+   * Sprache und Tag in EINER Abfrage — und den Tag aus der DATENBANK.
+   *
+   * `(beginn_zeitpunkt at time zone 'Europe/Berlin')::date` ist Invariante 2:
+   * eine Schicht, die um 23:30 UTC beginnt, gehoert in Berlin zum FOLGETAG,
+   * und ein in JavaScript gebildetes Datum haette genau an den Naechten
+   * gelogen, um die es bei Korrekturen am haeufigsten geht.
+   */
+  const [z] = await kontext.abfrage<{ sprache: string | null; tag: string }>(
+    `select p.sprache,
+            to_char((e.beginn_zeitpunkt at time zone 'Europe/Berlin')::date,
+                    'DD.MM.YYYY') as tag
+       from zeiteintrag e
+       join person p on p.id = e.person_id
+      where e.id = $1`,
+    [eingabe.zeiteintragId],
+  );
+  if (z === undefined) return;
+
+  const [recht] = await kontext.abfrage<{ hat: boolean }>(
+    `select app.hat_recht('nachricht.versenden', app.aktiver_mandant()) as hat`);
+  if (recht?.hat !== true) throw new KeinNachrichtenRechtFehler();
+
+  const sprache: PortalSprache =
+    typeof z.sprache === 'string' && istPortalSprache(z.sprache) ? z.sprache : 'de';
+
+  const { betreff, koerper } = korrekturNachricht(sprache, {
+    art: eingabe.art,
+    grund: eingabe.grundKategorie,
+    begruendung: eingabe.begruendung,
+    datum: z.tag,
+  });
+
+  await eroeffneFaden(kontext, {
+    betreff,
+    koerper,
+    empfaenger: [{ typ: 'person', id: eingabe.personId, art: 'an' }],
+    bezugTyp: 'zeiteintrag',
+    bezugId: eingabe.zeiteintragId,
+  });
 }

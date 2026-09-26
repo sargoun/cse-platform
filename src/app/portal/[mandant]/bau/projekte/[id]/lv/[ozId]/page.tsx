@@ -24,6 +24,7 @@ import { slugTor } from '../../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../../kennung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/lv/[ozId]` — eine LV-Position im
@@ -144,6 +145,7 @@ export default async function LvPositionSeite(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/bau/projekte/${id}/lv`, text: `${p.lv_bezeichnung} · Fassung ${String(p.lv_fassung)}` }}
       titel={`LV-Position ${p.oz}`}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -154,12 +156,6 @@ export default async function LvPositionSeite(
       navigationsRechte={zugang.navigationsRechte}
     >
       <nav aria-label="Pfad im Leistungsverzeichnis" className="mb-s3 text-sm text-text-muted">
-        <Link
-          href={`/portal/${mandant}/bau/projekte/${id}/lv`}
-          className="underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {p.lv_bezeichnung} · Fassung {String(p.lv_fassung)}
-        </Link>
         {daten.ahnen.map((a) => (
           <span key={a.id}>
             {' · '}
@@ -226,7 +222,7 @@ export default async function LvPositionSeite(
         {!p.darf_preis_lesen && (
           <p className="mt-s3 text-sm text-warning">
             Einheitspreis und Betrag sind für Ihre Rolle nicht lesbar (Recht{' '}
-            <code>bau.preis_lesen</code>). Es steht hier deshalb „nicht lesbar" und
+            <Recht schluessel="bau.preis_lesen" />). Es steht hier deshalb „nicht lesbar" und
             keine 0 € — eine Null wäre eine Angabe, und sie wäre falsch.
           </p>
         )}
@@ -507,7 +503,7 @@ export default async function LvPositionSeite(
                   </form>
                 ) : (
                   <p className="mt-s4 text-sm text-text-muted">
-                    Bestätigen darf, wer <code>bau.schreiben</code> hält. Die Kraft
+                    Bestätigen darf, wer <Recht schluessel="bau.schreiben" /> hält. Die Kraft
                     auf der Baustelle bestätigt keine Vertragsposition — das ist
                     die Bauleitung.
                   </p>

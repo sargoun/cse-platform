@@ -53,6 +53,29 @@ function kontextMit(lage: {
     if (sql.includes('update zeit_einwand')) {
       return (lage.treffer === 0 ? [] : [{ id: 'ew-1' }]) as unknown as readonly T[];
     }
+    /*
+     * V-051: nach dem `update` holt der Dienst den Kopf und stellt die
+     * Entscheidung zu. Beides gehoert in diesen Stellvertreter, damit die
+     * Pruefung der SELBSTENTSCHEIDUNG weiter genau das prueft — und die
+     * Zusicherung unten haelt fest, dass die Meldung nicht wieder
+     * verschwindet.
+     */
+    /*
+     * Seit V-102 holt derselbe Kopf auch `person.sprache` — die Meldung
+     * entsteht in der Sprache der Empfaengerin (O-889). Erkannt wird die
+     * Abfrage deshalb an `from zeit_einwand` und nicht an ihrer Spaltenliste:
+     * ein Stellvertreter, der den Wortlaut nachspricht, faellt bei jeder
+     * zusaetzlichen Spalte um und hat dabei nichts geprueft.
+     */
+    if (sql.includes('from zeit_einwand')) {
+      return [{
+        mandant_id: 'm-1', zeiteintrag_id: 'z-1', betrifft_datum: '11.03.2026',
+        sprache: 'de',
+      }] as unknown as readonly T[];
+    }
+    if (sql.includes('app.einwand_entscheidung_melden')) {
+      return [{ einwand_entscheidung_melden: 'ben-1' }] as unknown as readonly T[];
+    }
     throw new Error(`Unerwartete Abfrage: ${sql.slice(0, 60)}`);
   };
   return {
@@ -111,6 +134,12 @@ describe('die Selbstentscheidung wird VOR dem update abgefangen', () => {
       einwandId: 'ew-1', status: 'in_pruefung', entschiedenVon: 'b-fatima',
     })).resolves.toBeUndefined();
     expect(gelaufen.some((s) => s.includes('update zeit_einwand'))).toBe(true);
+    /*
+     * V-051: und die MELDUNG laeuft hier gerade NICHT. „In Pruefung" ist die
+     * Auskunft, dass jemand hinsieht — eine Nachricht „Ihre Zeitmeldung wurde
+     * entschieden", waehrend geprueft wird, waere falsch.
+     */
+    expect(gelaufen.some((s) => s.includes('app.einwand_entscheidung_melden'))).toBe(false);
     // Die Selbstpruefung laeuft dabei GAR NICHT — eine Abfrage, die nichts
     // entscheidet, soll auch nicht kosten.
     expect(gelaufen.some((s) => s.includes('as eigener'))).toBe(false);
@@ -132,6 +161,11 @@ describe('die Selbstentscheidung wird VOR dem update abgefangen', () => {
     })).resolves.toBeUndefined();
     expect(gelaufen.some((s) => s.includes('as eigener'))).toBe(true);
     expect(gelaufen.some((s) => s.includes('update zeit_einwand'))).toBe(true);
+    /*
+     * V-051: und die Person erfaehrt es. Eine Entscheidung, die niemanden
+     * erreicht, ist eine, der niemand widerspricht — und die Frist laeuft.
+     */
+    expect(gelaufen.some((s) => s.includes('app.einwand_entscheidung_melden'))).toBe(true);
   });
 });
 

@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -6,6 +5,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/crm/kunden/neu` — einen Kunden anlegen (CRM-01, OPS-01).
@@ -45,23 +45,16 @@ export default async function KundeNeu(
 
   return (
     <PortalRahmen
+      {...(darf['crm.lesen'] === true ? { zurueck: { ziel: `/portal/${mandant}/crm/kunden`, text: 'Kunden' } } : {})}
       titel="Neuer Kunde"
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="crm"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      {darf['crm.lesen'] === true && (
-        <p className="mb-s3 text-sm">
-          <Link href={`/portal/${mandant}/crm/kunden`}
-                className="text-text-muted underline-offset-2 hover:underline">
-            ← Kunden
-          </Link>
-        </p>
-      )}
       <h1 className="mb-s5 mt-0 text-h1 text-text">Neuer Kunde</h1>
 
       {meldung !== null && (
@@ -72,7 +65,7 @@ export default async function KundeNeu(
 
       {darf['crm.schreiben'] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
-          Zum Anlegen fehlt Ihnen <code className="font-mono">crm.schreiben</code>.
+          Zum Anlegen fehlt Ihnen <Recht schluessel="crm.schreiben" />.
         </Hinweis>
       ) : (
         <form method="post" action="/api/crm/kunde" data-cse="kunde-formular"

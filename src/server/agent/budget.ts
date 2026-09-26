@@ -61,6 +61,29 @@ interface UrteilRoh {
   readonly budget_id: string | null;
 }
 
+/**
+ * Steht unter der Budgettabelle der Satz „Warnschwelle: nicht hinterlegt
+ * (O-195)"? (V-245, D-739; V-254, D-746)
+ *
+ * Ja, solange es keine Zeile gibt oder eine gezeigte Zeile keine Schwelle
+ * trägt; nein erst, wenn JEDE eine hat — dann steht die Schwelle in jeder
+ * Zeile, und der Satz wäre falsch.
+ *
+ * **Warum das hier steht und nicht in der Seite.** Die Bedingung war ein
+ * Ausdruck im JSX, und ihr zweiter Zweig — der Satz verschwindet — lief nie:
+ * der Seed setzt mit Absicht keine Schwelle (eine gesetzte Zahl wäre eine
+ * still erfundene Finanzregel, O-195), also sah keine Seed-Zeile und kein
+ * Test den Fall. Hier ist sie eine reine Funktion und in
+ * `tests/kern/agent-budget-warnschwelle.test.ts` in beiden Zweigen geprüft.
+ * Sie rechnet nichts und schlägt nichts vor: sie sagt nur, ob eine
+ * Entscheidung fehlt.
+ */
+export function warnschwelleOffen(
+  zeilen: readonly { readonly warnschwelle_prozent: number | null }[],
+): boolean {
+  return zeilen.length === 0 || zeilen.some((z) => z.warnschwelle_prozent === null);
+}
+
 /** Fragt das Urteil ab — ohne etwas zu ändern. */
 export async function pruefeBudget(
   db: Abfrage, mandantId: string, agentId: string, betragMikrocent: bigint,

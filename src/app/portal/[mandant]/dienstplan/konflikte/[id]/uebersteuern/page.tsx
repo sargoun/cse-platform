@@ -14,6 +14,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { leseKonflikt, type KonfliktBlatt } from '@/server/services/dienstplan/konflikt';
 import { ArbzgBlock, KonfliktKopf, STATUS_TEXT } from '../Bausteine';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/dienstplan/konflikte/[id]/uebersteuern` — eine
@@ -149,7 +150,7 @@ export default async function ArbzgUebersteuern(
 
         {!arbzgSichtbar ? (
           <p className="max-w-prose rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-warning">
-            Ohne das Recht <code className="text-xs">dienstplan.arbzg_lesen</code> ist
+            Ohne das Recht <Recht schluessel="dienstplan.arbzg_lesen" /> ist
             der Befund nicht einsehbar — und was man nicht sehen kann, kann man
             nicht übersteuern.
           </p>

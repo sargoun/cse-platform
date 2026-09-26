@@ -116,6 +116,14 @@ describe('pruefeFelder', () => {
     expect(g.objektId).toBe(id);
   });
 
+  it('der Auftrag (V-176, OPS-11): freiwillig, eine Kennung oder keiner', () => {
+    const id = '11111111-2222-3333-4444-555555555555';
+    expect(pruefeFelder(eingabe()).auftragId).toBeNull();
+    expect(pruefeFelder(eingabe({ auftragId: '  ' })).auftragId).toBeNull();
+    expect(pruefeFelder(eingabe({ auftragId: id })).auftragId).toBe(id);
+    expect(() => pruefeFelder(eingabe({ auftragId: 'AU-2026-00001' }))).toThrow(/Auftrag/u);
+  });
+
   it('und keine leere Datei', () => {
     expect(() => pruefeFelder(eingabe({ daten: new Uint8Array(0) })))
       .toThrow(/keine Datei/u);

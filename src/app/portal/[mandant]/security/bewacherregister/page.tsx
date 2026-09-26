@@ -18,6 +18,7 @@ import {
   BEWACHER_STATUS, BEWACHER_VORWARNUNG_TAGE, bewacherregisterErreichbar, leseRegister,
   STATUS_TEXT, type BewacherStatus, type RegisterAusschnitt,
 } from '@/server/services/security/bewacherregister';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/security/bewacherregister` — § 34a GewO, handerfasst
@@ -133,25 +134,17 @@ export default async function Bewacherregister(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="security"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['security.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/security`, text: 'Sicherheit' } }
+        : {})}
     >
       {/* Auch der RUECKWEG steht unter dem Recht seines Ziels: der Modulkopf
           verlangt `security.lesen`, diese Route nur
           `personal.bewacher_verwalten`. Ohne das erste fuehrte „← Sicherheit"
           auf ein 404 (AUT-06). */}
-      {darf['security.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s4">
-          <Link
-            href={`/portal/${mandant}/security`}
-            className="text-sm text-text-muted underline hover:text-text"
-          >
-            ← Sicherheit
-          </Link>
-        </nav>
-      )}
-
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">Bewacherregister</h1>
         <p className="m-0 text-sm tabular-nums text-text-muted">Stichtag {daten.stichtag}</p>
@@ -194,8 +187,8 @@ export default async function Bewacherregister(
       {daten.geprueft['personal.nachweis_lesen'] !== true && (
         <Hinweis art="hinweis" cse="register-lesepfad" className="mb-s5 max-w-prose">
           <strong>Der Lesepfad hängt an einem anderen Recht als diese Seite.</strong>{' '}
-          Die Route verlangt <code>personal.bewacher_verwalten</code>, die
-          Lesepolitik der Tabelle verlangt <code>personal.nachweis_lesen</code>.
+          Die Route verlangt <Recht schluessel="personal.bewacher_verwalten" />, die
+          Lesepolitik der Tabelle verlangt <Recht schluessel="personal.nachweis_lesen" />.
           Dieses Konto hält das zweite nicht — erfasste Einträge bleiben deshalb
           unsichtbar, und die Spalten unten stehen leer. Das ist nicht dasselbe
           wie „kein Eintrag erfasst".

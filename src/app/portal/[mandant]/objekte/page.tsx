@@ -11,6 +11,9 @@ import { formatiereMenge, mengeAusPostgresOderNull }
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { portalZugang } from '../../zugang';
 import { slugTor } from '../../unterseite';
+import { haeltRechte } from '../../rechte';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { OBJEKTE_TEXTE } from '@/lib/i18n/verwaltung/objekte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -57,6 +60,8 @@ export default async function Objektliste(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+  const darf = await haeltRechte(sitzung, 'objekt.schreiben');
+  const t = nachSprache(OBJEKTE_TEXTE, zugang.sprache);
 
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => kontext.abfrage<ObjektZeile>(
@@ -96,12 +101,33 @@ export default async function Objektliste(
         <p className="m-0 text-sm text-text-muted">
           {zeilen.length === 1 ? '1 Objekt' : `${String(zeilen.length)} Objekte`}
         </p>
+        {darf['objekt.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/objekte/neu`}
+            data-cse="objekt-neu"
+            className="ml-auto inline-flex min-h-11 items-center rounded-md bg-brand
+                       px-s4 text-sm text-white hover:bg-brand-hover"
+          >
+            {t.neuesObjekt}
+          </Link>
+        )}
       </div>
 
       {zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Noch kein Objekt erfasst. Objekte sind Orte — ein Gebäude oder ein
           Gelände; die kaufmännische Beziehung hängt am Auftrag, nicht am Ort.
+          {darf['objekt.schreiben'] === true && (
+            <>
+              {' '}
+              <Link
+                href={`/portal/${mandant}/objekte/neu`}
+                className="text-brand underline-offset-2 hover:underline"
+              >
+                {t.ersteAnlegen}
+              </Link>
+            </>
+          )}
         </p>
       ) : (
         <DataTable

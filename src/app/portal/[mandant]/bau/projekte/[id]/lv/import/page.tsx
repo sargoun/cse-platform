@@ -22,6 +22,7 @@ import { slugTor } from '../../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../../kennung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/lv/import` — hochladen und VORSCHAU
@@ -133,18 +134,10 @@ export default async function LvImportSeite(
       aktiverTab="bau"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['bau.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/bau/projekte/${id}/lv`, text: 'Leistungsverzeichnis' } }
+        : {})}
     >
-      {darf['bau.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/bau/projekte/${id}/lv`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← Leistungsverzeichnis
-          </Link>
-        </nav>
-      )}
-
       <h1 className="mb-s2 text-h1 text-text">Leistungsverzeichnis importieren</h1>
       <p className="mb-s5 text-sm text-text-muted">
         {daten.projekt.nummer} · {daten.projekt.bezeichnung} · {daten.projekt.kunde}
@@ -367,7 +360,7 @@ export default async function LvImportSeite(
           {!kopf.preis_verglichen && (
             <p className="mb-s4 max-w-prose text-sm text-warning" data-cse="preis-nicht-verglichen">
               Die Einheitspreise konnten beim Vergleich nicht beurteilt werden
-              (Recht <code>bau.preis_lesen</code> fehlte beim Hochladen). „Unverändert"
+              (Recht <Recht schluessel="bau.preis_lesen" /> fehlte beim Hochladen). „Unverändert"
               heisst hier deshalb: Text, Einheit und Menge sind gleich — über den
               Preis sagt die Vorschau nichts.
             </p>
@@ -442,7 +435,7 @@ export default async function LvImportSeite(
           </p>
           <p className="mt-s2 max-w-prose text-xs text-text-subtle">
             Die Einheitspreise wandern in die neue Fassung — aber nur durch den
-            geprüften Leser: wer <code>bau.preis_lesen</code> nicht hält, überträgt
+            geprüften Leser: wer <Recht schluessel="bau.preis_lesen" /> nicht hält, überträgt
             sie nicht, und die Fassung bleibt in Mengen und Texten vollständig und
             ohne Preise. Einen Preis zu schreiben, den niemand gesehen hat, wäre
             eine Kalkulation aus zweiter Hand (K-05). Ob die Preise des

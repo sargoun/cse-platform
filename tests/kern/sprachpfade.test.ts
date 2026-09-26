@@ -64,21 +64,47 @@ describe('Sprachpfade (D-82, D-583)', () => {
     expect(englisch.size).toBeGreaterThan(3);
   });
 
-  it('jeder deutsche Baum ist englisch gebaut oder steht in NUR_DEUTSCH', () => {
-    const offen = [...new Set(deutsch.map(baum))].filter((b) => {
-      if (NUR_DEUTSCH.includes(b)) return false;
-      if (b === '/') return !englisch.has('/');
-      if (ueberSammelroute.has(b)) return false;
-      /*
-       * Ein dynamischer englischer Zweig (`/en/unternehmen/[bereich]`) deckt
-       * den deutschen Baum ab; verglichen wird deshalb der Baum, nicht der
-       * einzelne Pfad.
-       */
-      return ![...englisch].some((e) => baum(e) === b);
+  it('jede deutsche SEITE ist englisch gebaut oder steht in NUR_DEUTSCH — Pfad für Pfad', () => {
+    /*
+     * **Verglichen wird der volle Pfad, nicht mehr der Baum (V-156).**
+     *
+     * Hier stand `baum()` — das erste Segment. `/datenschutz` war über
+     * `/en/[seite]` englisch, also galt der ganze Baum `/datenschutz/*` als
+     * übersetzt; `/barrierefreiheit` hatte eine englische Seite, also auch
+     * `/barrierefreiheit/feedback`. Beide Formulare trugen vollständige
+     * englische Texte, ihre Routen leiteten auf `/en/…` um, die Sprachwahl
+     * bot `/en/…` an — und dahinter lag ein 404. Die Prüfung sah es nicht,
+     * weil sie eine Ebene zu hoch hinsah.
+     *
+     * Ein dynamisches Segment deckt sich nur mit einem dynamischen an
+     * derselben Stelle: `/unternehmen/[bereich]/projekte/[slug]` verlangt
+     * genau diese Datei unter `/en`. `/en/[seite]` deckt nur Pfade mit EINEM
+     * Segment, die `OEFFENTLICHE_ROUTEN` führt — dieselbe Liste, die die
+     * Route fragt.
+     */
+    const offen = deutsch.filter((p) => {
+      if (!gibtEsIn(p, 'en')) return false;
+      if (p === '/') return !englisch.has('/');
+      if (englisch.has(p)) return false;
+      return !ueberSammelroute.has(p);
     });
     expect(offen,
-      'deutsche Seitenbaeume ohne englische Entsprechung und ohne Eintrag in NUR_DEUTSCH')
+      'deutsche Seiten ohne englische Entsprechung und ohne Eintrag in NUR_DEUTSCH')
       .toEqual([]);
+  });
+
+  it('die drei Pflichtformulare gibt es englisch — die Seiten, an denen es zuerst fehlte', () => {
+    for (const p of ['/datenschutz/anfrage', '/datenschutz/anfrage/danke',
+      '/barrierefreiheit/feedback']) {
+      expect(gibtEsIn(p, 'en'), p).toBe(true);
+      expect(englisch.has(p), `/en${p} fehlt als Datei`).toBe(true);
+    }
+  });
+
+  it('keine englische Seite ohne deutsche — dieselben Pfade (D-82)', () => {
+    const deutschePfade = new Set(deutsch);
+    const verwaist = [...englisch].filter((e) => !deutschePfade.has(e));
+    expect(verwaist, 'englische Seiten, deren deutscher Pfad fehlt').toEqual([]);
   });
 
   it('jeder Eintrag in NUR_DEUTSCH betrifft einen Baum, den es wirklich gibt', () => {

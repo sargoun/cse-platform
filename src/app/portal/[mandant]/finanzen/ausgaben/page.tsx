@@ -17,6 +17,9 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
 import { BELEGE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/belege';
+import { Recht } from '@/components/ui/Recht';
+import { haeltRechte } from '@/app/portal/rechte';
+import { AUSGABE_ERFASSEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/ausgabe-erfassen';
 
 /**
  * `/portal/[mandant]/finanzen/ausgaben` — die Ausgaben einer Gesellschaft
@@ -82,6 +85,9 @@ export default async function Ausgabenliste(
   const jahrRoh = typeof suche['jahr'] === 'string' ? suche['jahr'] : null;
   const statusRoh = typeof suche['status'] === 'string' ? suche['status'] : null;
   const kategorieRoh = typeof suche['kategorie'] === 'string' ? suche['kategorie'] : null;
+  /* Der Monat aus den Monatszahlen (V-215) — nur in genau dieser Form. */
+  const monatRoh = typeof suche['monat'] === 'string' ? suche['monat'] : null;
+  const monat = monatRoh !== null && /^\d{4}-(?:0[1-9]|1[0-2])$/u.test(monatRoh) ? monatRoh : null;
   const KENNUNG = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
   const filter = {
     jahr: jahrRoh !== null && /^\d{4}$/u.test(jahrRoh) ? Number(jahrRoh) : null,
@@ -93,6 +99,9 @@ export default async function Ausgabenliste(
      */
     kategorieId: kategorieRoh !== null && KENNUNG.test(kategorieRoh) ? kategorieRoh : null,
     nurWeiterberechenbar: suche['weiterberechenbar'] === 'ja',
+    monat,
+    /* Wie die Spalte „Betriebsausgaben" zählt (V-217) — Monatszahlen und Übersicht verlinken so. */
+    nurAufwand: suche['aufwand'] === 'ja',
   };
 
   const tor = await mandantTor(`/portal/${mandant}/finanzen/ausgaben`, mandant);
@@ -102,6 +111,14 @@ export default async function Ausgabenliste(
   /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
   const t = nachSprache(BELEGE_TEXTE, zugang.sprache);
   const g = verwaltungTexte(zugang.sprache);
+  const e = nachSprache(AUSGABE_ERFASSEN_TEXTE, zugang.sprache);
+
+  /*
+   * Das Recht der Erfassungsseite — VOR dem Rendern (AUT-06). Diese Liste
+   * oeffnet mit `eingang.lesen`; erfassen verlangt `eingang.schreiben`, und
+   * ein Knopf, den jeder sieht, fuehrte fuer den Rest auf 404.
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'eingang.schreiben');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => ({
@@ -133,7 +150,8 @@ export default async function Ausgabenliste(
   const feld = 'min-h-11 max-w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
   const gefiltert = filter.jahr !== null || filter.status !== null
-    || filter.kategorieId !== null || filter.nurWeiterberechenbar;
+    || filter.kategorieId !== null || filter.nurWeiterberechenbar || filter.monat !== null
+    || filter.nurAufwand;
   const belegLuecken = daten.zeilen.filter((z) => z.belegPflichtVerletzt);
   const platzhalterKategorien = daten.zeilen.filter((z) => z.kategorieIstPlatzhalter);
 
@@ -144,13 +162,40 @@ export default async function Ausgabenliste(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="eingangsrechnungen"
+      aktiverTab="finanzen"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="text-h1 text-text">{t.ausgabenTitel}</h1>
+        <span className="flex flex-wrap items-baseline gap-s4">
+          <h1 className="m-0 text-h1 text-text">{t.ausgabenTitel}</h1>
+          {/*
+            * **Der Weg zur Erfassung — bis V-011 gab es ihn nicht**, und
+            * dahinter auch keine Seite: `0180` baute die ganze
+            * Zustandsmaschine, und schreiben konnte sie niemand.
+            */}
+          {darf['eingang.schreiben'] === true ? (
+            <Link
+              href={`/portal/${mandant}/finanzen/ausgaben/erfassen`}
+              data-cse="zur-erfassung"
+              className="inline-flex min-h-11 items-center rounded-md border
+                         border-line-strong px-s4 text-sm text-text no-underline
+                         hover:bg-surface-2"
+            >
+              {e.titel}
+            </Link>
+          ) : null}
+        </span>
+        {monat === null ? null : (
+          <p data-cse="monat-filter" className="text-sm text-text-muted">
+            {t.belegdatumImMonat}{' '}
+            <strong>{monat.slice(5, 7)}/{monat.slice(0, 4)}</strong>{' '}
+            <Link href={`/portal/${mandant}/finanzen/ausgaben`} className="underline underline-offset-2">{t.alleZeigen}</Link>
+          </p>
+        )}
         <form method="get" className="flex min-w-0 flex-wrap items-end gap-s3">
+          {/* Der Monat bleibt beim Verfeinern stehen; „alle zeigen" hebt ihn auf. */}
+          {monat === null ? null : <input type="hidden" name="monat" value={monat} />}
           <div className="min-w-0">
             <label className="block text-xs text-text-muted" htmlFor="jahr">{t.jahr}</label>
             <input
@@ -185,12 +230,19 @@ export default async function Ausgabenliste(
               ))}
             </select>
           </div>
-          <label className="flex min-w-0 items-center gap-s2 text-sm text-text">
+          <label className="flex min-h-11 min-w-0 items-center gap-s2 text-sm text-text">
             <input
               type="checkbox" name="weiterberechenbar" value="ja"
               defaultChecked={filter.nurWeiterberechenbar}
             />
             {t.nurWeiterberechenbar}
+          </label>
+          <label className="flex min-h-11 min-w-0 items-center gap-s2 text-sm text-text">
+            <input
+              type="checkbox" name="aufwand" value="ja" data-cse="filter-aufwand"
+              defaultChecked={filter.nurAufwand}
+            />
+            {t.nurAufwand}
           </label>
           <button
             type="submit"
@@ -385,7 +437,7 @@ export default async function Ausgabenliste(
 
       <p className="mt-s5 max-w-prose text-xs text-text-muted">
         {t.ausgabenFussnoteVor}
-        <code>{RECHT_ERSTATTUNG_LESEN}</code>
+        <Recht schluessel={RECHT_ERSTATTUNG_LESEN} sprache={zugang.sprache} />
         {t.ausgabenFussnoteNach}
       </p>
     </PortalRahmen>

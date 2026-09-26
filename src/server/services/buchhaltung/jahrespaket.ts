@@ -114,7 +114,7 @@ const MONATE_SPALTEN: readonly Spalte[] = [
   { name: 'bis', typ: 'datum', text: 'Ende' },
   { name: 'erloese', typ: 'betrag', text: 'Erlöse netto EUR (festgeschriebene Ausgangsrechnungen)' },
   { name: 'rechnungen', typ: 'zahl', text: 'Ausgangsrechnungen' },
-  { name: 'aufwand', typ: 'betrag', text: 'Aufwand netto EUR (freigegebene/gebuchte Eingangsrechnungen)' },
+  { name: 'aufwand', typ: 'betrag', text: 'Aufwand netto EUR (freigegebene/gebuchte Eingangsrechnungen und Betriebsausgaben)' },
   { name: 'eingangsrechnungen', typ: 'zahl', text: 'Eingangsrechnungen' },
   { name: 'ergebnis', typ: 'betrag', text: 'Ergebnis EUR' },
   { name: 'periode_status', typ: 'text', text: 'offen, vorlaeufig_geschlossen, geschlossen, keine' },
@@ -122,6 +122,13 @@ const MONATE_SPALTEN: readonly Spalte[] = [
   { name: 'eingefroren_aufwand', typ: 'betrag', text: 'Beim Schließen eingefroren' },
   { name: 'eingefroren_ergebnis', typ: 'betrag', text: 'Beim Schließen eingefroren' },
   { name: 'abweichung', typ: 'text', text: 'ja, wenn die eingefrorenen Zahlen von den heutigen abweichen' },
+  /*
+   * V-215: der Aufwand aus zwei Quellen, einzeln — am ENDE angehängt, damit
+   * wer die Datei nach Spaltenposition liest, dieselben Spalten dort findet.
+   */
+  { name: 'aufwand_eingangsrechnungen', typ: 'betrag', text: 'Davon aus Eingangsrechnungen, netto EUR' },
+  { name: 'aufwand_ausgaben', typ: 'betrag', text: 'Davon aus Betriebsausgaben (nach Belegdatum), netto EUR' },
+  { name: 'ausgaben', typ: 'zahl', text: 'Betriebsausgaben' },
 ];
 
 const POSTEN_SPALTEN: readonly Spalte[] = [
@@ -199,6 +206,9 @@ export async function erstelleJahrespaket(
     eingefroren_aufwand: m.periode?.eingefroren === null || m.periode?.eingefroren === undefined ? null : String(m.periode.eingefroren.aufwandCent),
     eingefroren_ergebnis: m.periode?.eingefroren === null || m.periode?.eingefroren === undefined ? null : String(m.periode.eingefroren.ergebnisCent),
     abweichung: m.periode?.abweichung === true ? 'ja' : 'nein',
+    aufwand_eingangsrechnungen: String(m.aufwandEingangCent),
+    aufwand_ausgaben: String(m.aufwandAusgabenCent),
+    ausgaben: m.ausgaben,
   }))) });
 
   /* Offene Posten zum letzten Tag des Wirtschaftsjahrs, mit Altersstruktur. */

@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import { erwarteterUrsprung } from '@/server/auth/ursprung';
 import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
@@ -8,9 +9,8 @@ import { authorize } from '@/server/auth/authorize';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { istUuid } from '@/lib/uuid';
-import {
-  NichtVerbundenFehler, SIGNATUR_SEKUNDEN, SupabaseSpeicher, type Bucket,
-} from '@/server/storage/adapter';
+import { NichtVerbundenFehler, SIGNATUR_SEKUNDEN, type Bucket } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 
 /**
  * `GET /api/dokumente/[id]/datei` — der Abruf einer Datei aus der Ablage
@@ -36,7 +36,7 @@ interface OrtRoh {
 }
 
 export async function GET(
-  _anfrage: NextRequest,
+  anfrage: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
@@ -46,7 +46,7 @@ export async function GET(
     return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
   }
 
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
   try {
     const ort = await (db().begin(
       async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => {
@@ -75,7 +75,9 @@ export async function GET(
 
     const url = await speicher.signierteUrl(
       ort.bucket as Bucket, ort.objekt_schluessel, SIGNATUR_SEKUNDEN);
-    return NextResponse.redirect(url, 303);
+    /* Eine relative Adresse (Vorführspeicher, V-131) wird gegen den eigenen
+       Ursprung aufgelöst; eine absolute (Supabase) bleibt, wie sie ist. */
+    return NextResponse.redirect(new URL(url, erwarteterUrsprung(anfrage)), 303);
   } catch (fehler: unknown) {
     if (fehler instanceof NichtVerbundenFehler) {
       return NextResponse.json(

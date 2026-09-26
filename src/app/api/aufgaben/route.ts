@@ -9,6 +9,44 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import { istKennung } from '@/app/portal/kennung';
+
+/**
+ * **Das Auswahlfeld des Anlegeformulars auflösen** (V-096).
+ *
+ * Es schickt EIN Feld, `<typ>:<kennung>` — zwei Felder waeren zwei Zustaende,
+ * die auseinanderlaufen koennen (Typ gesetzt, Kennung leer), und genau das
+ * weist `aufgabe_bezug_paarweise` in der Datenbank ab.
+ *
+ * **Fuer die drei Arten mit echtem Fremdschluessel wird BEIDES gesetzt.**
+ * `auftrag_id`, `objekt_id` und `lead_id` tragen zusammengesetzte
+ * Fremdschluessel und werden von der LISTE ueber Joins gezeigt; das
+ * polymorphe Paar traegt die Detailseite (`loeseBezugAuf`). Nur eines zu
+ * setzen liesse die jeweils andere Ansicht leer — und zwar still.
+ *
+ * Ein unbekannter oder verstuemmelter Wert ergibt KEINEN Bezug und keinen
+ * Fehler: das Feld ist freiwillig, und `legeAn` prueft den Typ ohnehin noch
+ * einmal.
+ */
+function gewaehlterBezug(roh: string | null): {
+  readonly bezugTyp?: string | null;
+  readonly bezugId?: string | null;
+  readonly auftragId?: string | null;
+  readonly objektId?: string | null;
+  readonly leadId?: string | null;
+} {
+  if (roh === null || roh === '') return {};
+  const trenner = roh.indexOf(':');
+  if (trenner < 1) return {};
+  const typ = roh.slice(0, trenner);
+  const kennung = roh.slice(trenner + 1);
+  if (!istBezugTyp(typ) || !istKennung(kennung)) return {};
+  return {
+    bezugTyp: typ, bezugId: kennung,
+    ...(typ === 'auftrag' ? { auftragId: kennung } : {}),
+    ...(typ === 'objekt' ? { objektId: kennung } : {}),
+    ...(typ === 'lead' ? { leadId: kennung } : {}),
+  };
+}
 import {
   brichAb, erledige, istBezugTyp, legeAn, setzeStatus, weiseZu,
 } from '@/server/services/kern/aufgabe';
@@ -138,6 +176,15 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             leadId: istKennung(text('leadId') ?? undefined) ? text('leadId') : null,
             bezugTyp,
             bezugId: bezugKennung,
+            /*
+             * **Das EINE Feld des Formulars** (V-096) — `<typ>:<kennung>`.
+             *
+             * Es überschreibt die fünf Einzelfelder oben, wenn es kommt: die
+             * bleiben für Aufrufer, die einen Bezug schon kennen (ein Knopf
+             * auf einem Vorgangsblatt), das Auswahlfeld ist der Weg für den
+             * Menschen, der die Aufgabe auf der Aufgabenseite anlegt.
+             */
+            ...gewaehlterBezug(text('bezug')),
           });
           return { art: 'neu' as const, id: neueId };
         }

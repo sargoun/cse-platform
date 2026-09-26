@@ -11,6 +11,8 @@ import { SITZUNG_COOKIE } from '@/server/auth/sitzung';
 import { bindeAnfrage } from '@/server/kontext';
 import { db } from '@/server/db/pool';
 import { AuthFehler, AuthSchale } from '../../AuthSchale';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { devFlaechenAn } from '@/lib/dev-flaechen';
 
 /**
  * `/auth/zwei-faktor/pruefen` — der zweite Schritt (AUT-02).
@@ -113,6 +115,22 @@ export default async function FaktorPruefen({ searchParams }: {
           richtiger Code wird jetzt abgewiesen. Warten Sie einige Minuten, oder melden
           Sie sich mit einem Wiederherstellungscode an.
         </AuthFehler>
+      )}
+
+      {/*
+        * Vorführbetrieb (V-136): die Konten aus dem Seed tragen einen
+        * Platzhalter-Faktor, zu dem es keinen Code gibt — sie erfüllen AUT-02
+        * als Konten, eine echte Authenticator-App steht nicht dahinter. Statt
+        * einer Seite, an der jeder Code scheitert, der Weg, der funktioniert.
+        * Ohne `CSE_DEV_FLAECHEN` steht hier nichts.
+        */}
+      {devFlaechenAn() && (
+        <Hinweis art="hinweis" cse="faktor-vorfuehrung">
+          <strong>Vorführbetrieb:</strong> Die Konten aus den Demodaten haben keinen
+          echten zweiten Faktor. Melden Sie sich über{' '}
+          <a href="/dev/anmelden" className="underline underline-offset-4">/dev/anmelden</a>{' '}
+          an — dort entsteht die Sitzung mit beiden Stufen.
+        </Hinweis>
       )}
 
       <form action={pruefen} data-cse="faktor-pruefen" className="flex flex-col gap-s4">

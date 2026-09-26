@@ -85,6 +85,14 @@ async function identitaet(mandant: string, token: string, o: {
       o.cover ?? null, o.coverAlt ?? null, o.absender ?? null, o.domain ?? null] as never[]);
 }
 
+/**
+ * Ein Titelbildpfad im Format, das 0393 verlangt (`mi_bildpfad_eigen`): im
+ * eigenen Ordner, mit dem Inhalt als Namen.
+ */
+function titelbild(mandant: string, ziffer = 'a'): string {
+  return `${mandant}/cover/${ziffer.repeat(64)}.jpg`;
+}
+
 beforeEach(async () => {
   f = await seed();
   await identitaet(f.reinigung, 'area-reinigung');
@@ -253,19 +261,34 @@ describe('Der prinzipallose Renderpfad (§6.2)', () => {
 describe('Der Alt-Text-CHECK (PUB-09, LEG-07)', () => {
   it('ein oeffentlich sichtbares Titelbild ohne Alternativtext wird abgewiesen', async () => {
     await expect(identitaet(f.reinigung, 'area-reinigung', {
-      oeffentlich: true, cover: 'marke/cover.jpg', coverAlt: null,
+      oeffentlich: true, cover: titelbild(f.reinigung), coverAlt: null,
     })).rejects.toThrow(/mi_alt_text/u);
   });
 
   it('mit Alternativtext geht es', async () => {
     await expect(identitaet(f.reinigung, 'area-reinigung', {
-      oeffentlich: true, cover: 'marke/cover.jpg', coverAlt: 'Treppenhaus im Gegenlicht',
+      oeffentlich: true, cover: titelbild(f.reinigung), coverAlt: 'Treppenhaus im Gegenlicht',
     })).resolves.toBeUndefined();
+  });
+
+  it('ein Pfad in den Ordner einer ANDEREN Gesellschaft wird abgewiesen (0393, V-100)', async () => {
+    await expect(identitaet(f.reinigung, 'area-reinigung', {
+      oeffentlich: false, cover: titelbild(f.bau), coverAlt: 'Fremdes Bild',
+    })).rejects.toThrow(/mi_bildpfad_eigen/u);
+  });
+
+  it('ebenso ein Pfad, der nicht aus dem Inhalt gebildet ist, oder ein SVG als Titelbild', async () => {
+    await expect(identitaet(f.reinigung, 'area-reinigung', {
+      cover: `${f.reinigung}/cover/titelbild.jpg`, coverAlt: 'x',
+    })).rejects.toThrow(/mi_bildpfad_eigen/u);
+    await expect(identitaet(f.reinigung, 'area-reinigung', {
+      cover: `${f.reinigung}/cover/${'b'.repeat(64)}.svg`, coverAlt: 'x',
+    })).rejects.toThrow(/mi_bildpfad_eigen/u);
   });
 
   it('ein NICHT veroeffentlichtes Bild braucht ihn nicht — noch nicht', async () => {
     await expect(identitaet(f.reinigung, 'area-reinigung', {
-      oeffentlich: false, cover: 'marke/cover.jpg', coverAlt: null,
+      oeffentlich: false, cover: titelbild(f.reinigung), coverAlt: null,
     })).resolves.toBeUndefined();
   });
 });

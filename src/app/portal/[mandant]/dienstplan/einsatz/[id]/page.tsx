@@ -5,7 +5,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { StatusPill } from '@/components/ui/StatusPill';
-import { Icon } from '@/components/ui/Icon';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
@@ -18,6 +18,14 @@ import { pruefeEinteilung, type Vorschau } from '@/server/services/dienstplan/ei
 import type { ArbzgBefund } from '@/server/services/zeit/arbzg';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { LeistungsankerFeld } from '@/components/portal/LeistungsankerFeld';
+import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
+import {
+  listeAnkerbareLeistungen, type AnkerbareLeistung,
+} from '@/server/services/dienstplan/leistungsanker';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { SCHICHT_TEXTE } from '@/lib/i18n/verwaltung/dienstplan-schicht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/dienstplan/einsatz/[id]` — die einzelne Schicht.
@@ -55,6 +63,23 @@ interface Kopf {
   readonly revier: string | null;
   readonly feiertag: string | null;
   readonly storno_grund: string | null;
+  /**
+   * Die Mischung gegen den Schnappschuss (V-129, D-624, §9.4): `null`
+   * unbesetzt, `true` erfüllt, `false` falsch gemischt. Sie MELDET — gesperrt
+   * wird je Zuordnung.
+   */
+  readonly anforderung_erfuellt: boolean | null;
+  /** Die Anforderungen des Schnappschusses, lesbar — `[]`, wenn keine galt. */
+  readonly anforderungen: readonly {
+    readonly bezeichnung: string; readonly geltung: string; readonly mindestanzahl: number;
+    readonly zwingend: boolean;
+  }[];
+  /** Hat die Schicht begonnen? Dann ist der Schnappschuss eingefroren. */
+  readonly begonnen: boolean;
+  /** Der Abrechnungsanker (TIM-12, V-191) — `null` ohne Leistungszeile. */
+  readonly auftrag_leistung_id: string | null;
+  /** Ist auf der Schicht schon Zeit erfasst? Dann bleibt ihr Anker, wie er ist. */
+  readonly hat_zeit: boolean;
 }
 
 interface Kandidat {
@@ -99,7 +124,15 @@ export default async function Einsatzblatt({
      Sperre im Pruefblatt sah, bekam hinter „Nachweisregister oeffnen" ein 404.
      Ein Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf
      PR 16 / D-581). */
-  const darf = await haeltRechte(sitzung, 'personal.nachweis_lesen');
+  const darf = await haeltRechte(
+    sitzung, 'personal.nachweis_lesen', 'dienstplan.schreiben', 'auftrag.lesen');
+  /*
+   * Nur die Absage unten spricht beide Sprachen (V-013). Der uebrige Rumpf
+   * dieser Seite ist deutsch fest verdrahtet und steht dafuer in der
+   * Ausnahmeliste der Uebersetzungswache; ein neuer Block laesst sich nicht
+   * dorthin nachtragen, ohne die Sperrklinke rueckwaerts zu drehen.
+   */
+  const t = nachSprache(SCHICHT_TEXTE, zugang.sprache);
 
   const frage = await searchParams;
   const rohPruefling = typeof frage['pruefe'] === 'string' ? frage['pruefe'] : null;
@@ -116,6 +149,17 @@ export default async function Einsatzblatt({
    */
   const rohFunktion = typeof frage['funktion'] === 'string' ? frage['funktion'] : '';
   const funktion = rohFunktion.trim().slice(0, 80);
+  /**
+   * Der Grund einer Abweisung — aus den drei Formularen dieser Seite
+   * (Einteilung absagen, Einteilen, Schicht absagen; V-158).
+   *
+   * Die Routen schickten `?fehler=` hierher (die Schicht-Absage) bzw.
+   * antworteten mit rohem JSON (die beiden Einteilungsrouten) — und diese
+   * Seite las keines von beiden. Nachgeschlagen wird in `SCHICHT_TEXTE.fehler`,
+   * in der Sprache der Sitzung; ein unbekannter Grund bekommt einen
+   * allgemeinen Satz und erscheint nie roh.
+   */
+  const abgewiesen = typeof frage['fehler'] === 'string' ? frage['fehler'] : null;
 
   const daten = await db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -130,7 +174,24 @@ export default async function Einsatzblatt({
                 e.soll_besetzung::int as soll, e.besetzt_anzahl::int as besetzt,
                 o.bezeichnung as objekt, o.id as objekt_id,
                 k.name as kunde, r.bezeichnung as revier,
-                f.bezeichnung as feiertag, e.storno_grund
+                f.bezeichnung as feiertag, e.storno_grund,
+                e.anforderung_erfuellt,
+                (e.beginn_zeitpunkt <= now()) as begonnen,
+                e.auftrag_leistung_id::text as auftrag_leistung_id,
+                app.einsatz_hat_zeiterfassung(e.id) as hat_zeit,
+                -- V-129: die Anforderungen aus dem SCHNAPPSCHUSS, nicht aus
+                -- dem Katalog von heute. Kein Backtick in diesem Kommentar.
+                coalesce((select jsonb_agg(jsonb_build_object(
+                                   'bezeichnung', coalesce(q.bezeichnung, 'Qualifikation'),
+                                   'geltung', a->>'geltung',
+                                   'mindestanzahl', coalesce((a->>'mindestanzahl')::int, 1),
+                                   'zwingend', coalesce((a->>'zwingend')::boolean, true))
+                                 order by q.bezeichnung)
+                            from jsonb_array_elements(
+                                   case when jsonb_typeof(e.anforderung_snapshot) = 'array'
+                                        then e.anforderung_snapshot else '[]'::jsonb end) a
+                            left join qualifikation q on q.id = (a->>'qualifikation_id')::uuid),
+                         '[]'::jsonb) as anforderungen
            from einsatz e
            join objekt o on o.mandant_id = e.mandant_id and o.id = e.objekt_id
            left join kunde  k on k.mandant_id = e.mandant_id and k.id = e.kunde_id
@@ -191,12 +252,22 @@ export default async function Einsatzblatt({
         ? null
         : await pruefeEinteilung(kontext, id, pruefling);
 
-      return { kopf, besetzung, kandidaten, vorschau };
+      /*
+       * Die Leistungszeilen — nur für eine Einzelschicht, die ihren Anker noch
+       * ändern darf, und nur für den, der Aufträge lesen darf (V-191).
+       */
+      const leistungen: readonly AnkerbareLeistung[] | null =
+        kopf.quelle === 'manuell' && darf['auftrag.lesen'] === true
+          ? await listeAnkerbareLeistungen(kontext, kopf.auftrag_leistung_id)
+          : null;
+
+      return { kopf, besetzung, kandidaten, vorschau, leistungen };
     }));
 
   // AUT-06: eine fremde oder nicht vorhandene Zeile ist 404, nie 403.
   if (daten === null) notFound();
-  const { kopf, besetzung, kandidaten, vorschau } = daten;
+  const { kopf, besetzung, kandidaten, vorschau, leistungen } = daten;
+  const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
   const dauer = stundenText({ id: kopf.id, beginn: new Date(kopf.beginn), ende: new Date(kopf.ende) });
 
   return (
@@ -209,21 +280,32 @@ export default async function Einsatzblatt({
       aktiverTab="dienstplan"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      /*
+       * **Der Rückweg trägt die WOCHE mit** — und deshalb steht er hier und
+       * nicht in der Ableitung (D-613). Der Vorfahr dieser Adresse wäre
+       * `/dienstplan`; wer aus der Woche des 14. Mai in eine Schicht klickt,
+       * will aber in genau diese Woche zurück, nicht in die laufende. Eine
+       * Hülle, die das erriete, erfände eine Regel.
+       */
+      zurueck={{
+        ziel: `/portal/${mandant}/dienstplan/woche?woche=${kopf.plan_datum}`,
+        text: 'Zurück zum Dienstplan',
+      }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/dienstplan/woche?woche=${kopf.plan_datum}`}
-          className="inline-flex flex-wrap items-center gap-s2 text-sm text-text-muted hover:text-text"
-        >
-          <Icon name="pfeil-rechts" groesse="sm" className="rotate-180" />
-          Zurück zum Dienstplan
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{kopf.objekt}</h1>
         <StatusPill zustand={statusPille(kopf.status)} />
       </div>
+
+      {abgewiesen !== null && (
+        <Hinweis art="warnung" cse="einsatz-fehler" className="mb-s5 max-w-prose">
+          <strong className="block">{t.nichtGespeichert}</strong>
+          <span role="alert">
+            {eigenerEintrag(t.fehler, abgewiesen)
+              ?? eigenerEintrag(tL.fehler, abgewiesen) ?? t.fehlerSonst}
+          </span>
+        </Hinweis>
+      )}
 
       <dl className="m-0 grid gap-s4 sm:grid-cols-2 lg:grid-cols-3">
         <Feld beschriftung="Tag" wert={beschriftung(kopf.plan_datum)} />
@@ -239,7 +321,43 @@ export default async function Einsatzblatt({
           wert={`${String(kopf.besetzt)} von ${String(kopf.soll)}`}
           hinweis={kopf.besetzt < kopf.soll ? 'unterbesetzt' : null}
         />
+        <Feld
+          beschriftung="Qualifikationsmischung"
+          wert={kopf.anforderungen.length === 0
+            ? 'keine Anforderung hinterlegt'
+            : kopf.anforderung_erfuellt === null ? 'nicht bewertet — niemand eingeteilt'
+              : kopf.anforderung_erfuellt ? 'erfüllt' : 'nicht erfüllt'}
+          hinweis={kopf.anforderung_erfuellt === false ? 'falsch gemischt' : null}
+        />
       </dl>
+
+      {/*
+        * V-129, D-624: was diese Schicht verlangt — aus ihrem Schnappschuss.
+        * Ab Beginn eingefroren: ein später geänderter Katalog macht eine
+        * vergangene Schicht nicht rückwirkend falsch besetzt (0028).
+        */}
+      {kopf.anforderungen.length > 0 && (
+        <section data-cse="einsatz-anforderungen" className="mt-s5">
+          <h2 className="mb-s2 text-sm uppercase tracking-[0.08em] text-text-muted">
+            Anforderungen dieser Schicht
+          </h2>
+          <ul className="m-0 flex list-none flex-col gap-s1 p-0 text-sm text-text">
+            {kopf.anforderungen.map((a) => (
+              <li key={`${a.bezeichnung}-${a.geltung}`}>
+                {a.bezeichnung} — {a.geltung === 'jeder'
+                  ? 'jede eingeteilte Kraft'
+                  : `mindestens ${String(a.mindestanzahl)}`}
+                {a.zwingend ? '' : ' (Warnung, keine Sperre)'}
+              </li>
+            ))}
+          </ul>
+          <p className="mb-0 mt-s2 text-xs text-text-subtle">
+            {kopf.begonnen
+              ? 'Stand zum Beginn der Schicht — eingefroren.'
+              : 'Folgt dem Anforderungskatalog bis zum Beginn der Schicht; ab dann eingefroren.'}
+          </p>
+        </section>
+      )}
 
       {kopf.zeitanomalie !== 'keine' && (
         <p
@@ -292,26 +410,36 @@ export default async function Einsatzblatt({
                   Absagen mit Grund, in derselben Zeile. Die Zeile bleibt danach
                   stehen (Invariante 8) — sie wandert nur aus der Besetzung
                   heraus, und die ausgegebenen Check-in-Marken verfallen.
+
+                  V-158: `minLength={3}` — der Dienst verlangt drei Zeichen
+                  (GRUND_MINDESTLAENGE), das Feld verlangte nur `required`, und
+                  „ok" endete als rohes JSON. Und das Formular steht nur, wo
+                  `dienstplan.schreiben` da ist: die Route verlangt es, und ein
+                  Knopf, dessen Route abweist, verrät mehr, als er hilft.
                 */}
-                <form
-                  action={`/api/einsaetze/${kopf.id}/absagen`}
-                  method="post"
-                  className="flex flex-wrap items-center gap-s2"
-                >
-                  <input type="hidden" name="zuordnung" value={b.id} />
-                  <input type="hidden" name="mandant" value={mandant} />
-                  <input type="hidden" name="zurueck" value={pfad} />
-                  <label>
-                    <span className="sr-only">Grund der Absage</span>
-                    <input
-                      name="grund"
-                      required
-                      placeholder="Grund"
-                      className="min-h-11 rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
-                    />
-                  </label>
-                  <Button type="submit" variante="ghost">Absagen</Button>
-                </form>
+                {darf['dienstplan.schreiben'] === true && (
+                  <form
+                    action={`/api/einsaetze/${kopf.id}/absagen`}
+                    method="post"
+                    className="flex flex-wrap items-center gap-s2"
+                  >
+                    <input type="hidden" name="zuordnung" value={b.id} />
+                    <input type="hidden" name="mandant" value={mandant} />
+                    <input type="hidden" name="zurueck" value={pfad} />
+                    <label>
+                      <span className="sr-only">Grund der Absage</span>
+                      <input
+                        name="grund"
+                        required
+                        minLength={3}
+                        maxLength={300}
+                        placeholder="Grund"
+                        className="min-h-11 rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
+                      />
+                    </label>
+                    <Button type="submit" variante="ghost">Absagen</Button>
+                  </form>
+                )}
               </span>
             </li>
           ))}
@@ -333,7 +461,7 @@ export default async function Einsatzblatt({
               Keine weitere aktive Beschäftigung in dieser Gesellschaft, die
               nicht schon eingeteilt wäre.
             </p>
-          ) : (
+          ) : darf['dienstplan.schreiben'] !== true ? null : (
             <form
               action={`/api/einsaetze/${kopf.id}/besetzen`}
               method="post"
@@ -383,6 +511,7 @@ export default async function Einsatzblatt({
               funktion={funktion}
               name={kandidaten.find((k) => k.id === pruefling)?.name ?? 'die Beschäftigung'}
               darfNachweise={darf['personal.nachweis_lesen'] === true}
+              darfEinteilen={darf['dienstplan.schreiben'] === true}
             />
           )}
         </section>
@@ -394,6 +523,86 @@ export default async function Einsatzblatt({
         „keine Verstöße" wäre eine Aussage, die niemand geprüft hat, und genau
         die Sorte stiller Falschauskunft, gegen die K-06 geschrieben ist.
       */}
+      {/*
+        **Die Schicht absagen** (V-013). Bis dahin setzte `storniert` nur der
+        Generator, wenn die Serie das Vorkommnis nicht mehr wollte — eine von
+        Hand geplante Schicht liess sich nie wieder abstellen, und die Absage
+        einer Serienschicht ging nur ueber das Aendern der Serie.
+
+        Der Knopf steht NUR, solange die Schicht lebt: fuer eine schon
+        abgesagte gibt es oben den Grund, und ein zweiter Knopf daneben waere
+        ein Weg, der auf 409 fuehrt.
+      */}
+      {kopf.storno_grund === null && darf['dienstplan.schreiben'] === true && (
+        <section data-cse="schicht-absagen"
+                 className="mt-s6 rounded-lg border border-line bg-surface p-s5">
+          <h3 className="mb-s2 mt-0 text-base text-text">{t.absagenTitel}</h3>
+          <p className="mb-s4 max-w-prose text-sm text-text-muted">{t.absagenErklaerung}</p>
+          <form method="post" action="/api/dienstplan/einsatz"
+                className="flex flex-wrap items-end gap-s3">
+            <input type="hidden" name="aktion" value="absagen" />
+            <input type="hidden" name="einsatz" value={kopf.id} />
+            <input type="hidden" name="mandant" value={mandant} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <input type="hidden" name="fehlerweg" value={pfad} />
+            <label className="flex min-w-[24ch] flex-1 flex-col gap-s2 text-sm text-text">
+              {t.absageGrund}
+              <input name="grund" required minLength={3} maxLength={300}
+                     placeholder={t.absageGrundBeispiel}
+                     className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
+                     data-cse="schicht-absage-grund" />
+            </label>
+            <Button type="submit" variante="danger" data-cse="schicht-absage-knopf">
+              {t.absagen}
+            </Button>
+          </form>
+        </section>
+      )}
+
+      {/*
+        **Die Leistungszeile einer Einzelschicht** (V-191, TIM-12). Ohne sie
+        landet jede Stunde dieser Schicht in „Zeit ohne Auftrag". Sie lässt
+        sich setzen, solange auf der Schicht keine Zeit erfasst ist — danach
+        tragen die Einträge den Anker, den die Schicht damals hatte. Eine
+        Serienschicht trägt den Anker ihres Turnus oder Postens; dort wird er
+        geändert, und der Generator schreibt ihn auf die künftigen Schichten.
+      */}
+      {kopf.quelle === 'manuell' && kopf.storno_grund === null
+        && darf['dienstplan.schreiben'] === true && (
+        <section data-cse="schicht-leistung"
+                 className="mt-s6 rounded-lg border border-line bg-surface p-s5">
+          <h3 className="mb-s2 mt-0 text-base text-text">{tL.feld}</h3>
+          {frage['leistung'] === 'gesetzt' && (
+            <p role="status" className="mb-s4 max-w-prose text-sm text-success"
+               data-cse="schicht-leistung-gesetzt">{tL.gesetztEinzeln}</p>
+          )}
+          {kopf.hat_zeit ? (
+            <p className="m-0 max-w-prose text-sm text-text-muted"
+               data-cse="schicht-leistung-hat-zeiten">{tL.hatZeiten}</p>
+          ) : (
+            <form method="post" action="/api/dienstplan/einsatz"
+                  className="flex max-w-[60ch] flex-col gap-s4">
+              <input type="hidden" name="aktion" value="leistung" />
+              <input type="hidden" name="einsatz" value={kopf.id} />
+              <input type="hidden" name="mandant" value={mandant} />
+              <input type="hidden" name="zurueck" value={`${pfad}?leistung=gesetzt`} />
+              <input type="hidden" name="fehlerweg" value={pfad} />
+              <LeistungsankerFeld leistungen={leistungen} gewaehlt={kopf.auftrag_leistung_id}
+                                  sprache={zugang.sprache}
+                                  feldKlasse="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text" />
+              {leistungen !== null && (
+                <div>
+                  <Button type="submit" variante="secondary" data-cse="schicht-leistung-knopf">
+                    {tL.speichern}
+                  </Button>
+                </div>
+              )}
+              <p className="m-0 max-w-prose text-xs text-text-muted">{tL.nurOhneZeit}</p>
+            </form>
+          )}
+        </section>
+      )}
+
       <p className="mt-s6 text-micro text-text-subtle">
         Herkunft: {kopf.quelle} · Schlüssel <code className="tabular-nums">{kopf.quell_schluessel}</code>
       </p>
@@ -454,6 +663,7 @@ const REGEL_TEXT: Readonly<Record<string, string>> = {
  */
 function Pruefblatt({
   vorschau, einsatzId, anstellungId, mandant, pfad, funktion, name, darfNachweise,
+  darfEinteilen,
 }: {
   readonly vorschau: Vorschau;
   readonly einsatzId: string;
@@ -464,6 +674,11 @@ function Pruefblatt({
   readonly name: string;
   /** Haelt die Sitzung `personal.nachweis_lesen`? Sonst gibt es den Weg ins Register nicht (AUT-06). */
   readonly darfNachweise: boolean;
+  /**
+   * Haelt sie `dienstplan.schreiben`? Sonst steht die Vorschau ohne Knopf da
+   * — die Route wiese ihn ab (V-158).
+   */
+  readonly darfEinteilen: boolean;
 }) {
   const gesperrt = vorschau.qualifikationsfehler !== null;
   const befunde: readonly ArbzgBefund[] = vorschau.arbzg ?? [];
@@ -639,7 +854,7 @@ function Pruefblatt({
         </ul>
       )}
 
-      {!gesperrt && (
+      {!gesperrt && darfEinteilen && (
         <form
           action={`/api/einsaetze/${einsatzId}/besetzen`}
           method="post"

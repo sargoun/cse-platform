@@ -12,8 +12,16 @@
  *    null`. Der Schluessel nennt die urspruengliche Identitaet des
  *    Vorkommnisses, nicht seinen aktuellen Termin — deshalb ueberlebt er auch
  *    eine Verschiebung (§8.3).
- * 2. **Die Vergangenheit wird nicht angefasst.** `where einsatz.beginn_zeitpunkt
- *    > now()`. Ein Dienstplan von gestern ist ein Beleg, kein Entwurf.
+ * 2. **Die Vergangenheit wird nicht angefasst** — weder geändert noch neu
+ *    angelegt. `where einsatz.beginn_zeitpunkt > now()` am Update und
+ *    `where anfang.zeitpunkt > now()` am Insert. Ein Dienstplan von gestern
+ *    ist ein Beleg, kein Entwurf; und eine Schicht, die um 22 Uhr für
+ *    „heute 06:00" neu entsteht, kann niemand mehr besetzen — sie stünde als
+ *    unbesetzt im Plan und daneben die, die gerade läuft. Der Insert-Wächter
+ *    fehlte bis V-135: wer abends den Beginn eines Turnus änderte oder
+ *    tagsüber eine Serie anlegte, bekam genau diese Schicht. Allein der Seed
+ *    legt Vergangenes an, und er sagt es ausdrücklich
+ *    (`Lauflage.vergangenheitAnlegen`).
  * 3. **Was schon gearbeitet wurde, erst recht nicht.** Sobald ein
  *    `zeiteintrag` an der Schicht haengt, bleibt sie, wie sie ist — auch wenn
  *    die Serie sich geaendert hat. Gefragt wird ueber
@@ -64,6 +72,13 @@ export interface Lauflage {
   /** Der Tag, ab dem materialisiert wird — **Berliner** Kalendertag, vom Server. */
   readonly heute: string;
   readonly laufId: string | null;
+  /**
+   * Auch Schichten anlegen, deren Beginn schon vorbei ist — **nur der Seed**
+   * (V-135). Er baut drei Wochen Vergangenheit auf, an denen Zeiteinträge
+   * und Nachweise der Vorführung hängen. Ein Lauf im Betrieb, der Nachtlauf
+   * wie jede Pflege einer Serie, legt nie eine Schicht in die Vergangenheit.
+   */
+  readonly vergangenheitAnlegen?: true;
 }
 
 export interface SerienBericht {
@@ -86,7 +101,9 @@ export async function berlinHeute(db: Abfrage): Promise<string> {
   const [z] = (await db.unsafe(
     `select to_char((now() at time zone 'Europe/Berlin')::date, 'YYYY-MM-DD') as tag`,
   )) as { tag: string }[];
-  return z!.tag;
+  // Ohne Antwort kein Tag — und kein erfundener an seiner Stelle (V-192).
+  if (z === undefined) throw new Error('Die Datenbank nannte keinen Berliner Tag.');
+  return z.tag;
 }
 
 /**
@@ -146,7 +163,7 @@ export async function materialisiereSerie(
   for (const e of einsaetze) {
     const zeilen = (await db.unsafe(
       upsertText(),
-      werte(serie, e, feiertage.ids, lage.laufId),
+      werte(serie, e, feiertage.ids, lage),
     )) as EinsatzZeile[];
     if (zeilen.length === 0) {
       // Der `where`-Wachtposten hat zugeschlagen: die Schicht liegt in der
@@ -221,6 +238,15 @@ export async function ladeFeiertage(
  *
  * `zeitanomalie` kommt vom ANFANG. Nur der ist der Anker, den die Serie nennt;
  * ein Ende in der Luecke ist eine Folge, kein eigener Befund.
+ *
+ * **Der Abrechnungsanker geht mit** (V-191, TIM-12). Bekommt ein Turnus oder
+ * Posten eine Leistungszeile — oder eine andere —, schreibt der Lauf sie auf
+ * die KUENFTIGEN Schichten ohne erfasste Zeit, dieselben, deren Uhrzeit er
+ * umschreiben darf. Vorher blieb eine einmal erzeugte Schicht fuer immer
+ * ohne Anker, und jede Stunde auf ihr landete in `zeiteintrag_ohne_auftrag`.
+ * `auftrag_id` folgt der Zeile: bei einer neuen Zeile wird er geleert, und
+ * `kern.einsatz_auftrag_ableiten` setzt ihn aus ihr; bei derselben Zeile
+ * bleibt er, und der Ausloeser kehrt ohne Abfrage zurueck.
  */
 function upsertText(): string {
   return `
@@ -242,6 +268,8 @@ function upsertText(): string {
            $18, $19, $20, $21,
            'system', 'geplant'
       from anfang, ende
+     -- V-135: nichts NEU anlegen, was schon begonnen hat (ausser im Seed).
+     where $22::boolean or anfang.zeitpunkt > now()
     on conflict (mandant_id, quell_schluessel) where storniert_am is null
     do update set
         plan_datum        = excluded.plan_datum,
@@ -254,7 +282,14 @@ function upsertText(): string {
         soll_besetzung    = excluded.soll_besetzung,
         min_besetzung     = excluded.min_besetzung,
         feiertag_id       = excluded.feiertag_id,
-        generator_lauf_id = excluded.generator_lauf_id
+        generator_lauf_id = excluded.generator_lauf_id,
+        auftrag_id        = case
+                              when einsatz.auftrag_leistung_id
+                                   is not distinct from excluded.auftrag_leistung_id
+                              then einsatz.auftrag_id
+                              else excluded.auftrag_id
+                            end,
+        auftrag_leistung_id = excluded.auftrag_leistung_id
       where einsatz.beginn_zeitpunkt > now()
         and not app.einsatz_hat_zeiterfassung(einsatz.id)
     returning id, quell_schluessel, (xmax = 0) as neu`;
@@ -262,7 +297,7 @@ function upsertText(): string {
 
 function werte(
   serie: SerienZeile, e: GeplanterEinsatz, feiertagIds: ReadonlyMap<string, string>,
-  laufId: string | null,
+  lage: Lauflage,
 ): readonly unknown[] {
   return [
     serie.mandantId, serie.planungsserieId, serie.quelle,
@@ -271,7 +306,8 @@ function werte(
     e.planDatum, e.beginnLokal, serie.zeitzone, e.endeLokal, e.endetAmFolgetag,
     e.quellSchluessel, e.sollBesetzung, e.minBesetzung,
     e.feiertagDatum === null ? null : (feiertagIds.get(e.feiertagDatum) ?? null),
-    laufId,
+    lage.laufId,
+    lage.vergangenheitAnlegen === true,
   ];
 }
 
@@ -448,6 +484,24 @@ export async function ladeAusnahmen(
     ersatzBesetzung: z['ersatz_besetzung'] === null || z['ersatz_besetzung'] === undefined
       ? null : Number(z['ersatz_besetzung']),
   }));
+}
+
+/**
+ * Ein Lauf SOFORT — fuer die aktive Gesellschaft und unter dem Recht des
+ * Menschen, der gerade geplant hat (`app.planungsbedarf_eigen`,
+ * `dienstplan.schreiben`): nach dem Anlegen oder Aendern einer Serie, einer
+ * Ausnahme oder eines Postens.
+ *
+ * Der Tag kommt aus der Datenbank (Invariante 5). Vorher stand an drei
+ * Stellen `heute?.tag ?? '2026-01-01'`: fehlte die Antwort, lief der
+ * Generator still ab einem festen Tag — eine erfundene Angabe statt eines
+ * Fehlers (V-192).
+ */
+export async function generiereSofort(
+  db: Abfrage, mandantId: string,
+): Promise<readonly SerienBericht[]> {
+  return generiereEinsaetze(
+    db, mandantId, { heute: await berlinHeute(db), laufId: null }, { eigen: true });
 }
 
 /** Ein ganzer Lauf fuer einen Mandanten — alle faelligen Serien. */

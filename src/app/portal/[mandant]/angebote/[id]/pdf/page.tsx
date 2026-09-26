@@ -4,12 +4,16 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
+import { prozentText } from '@/server/services/finanz/prozent';
+import { positionenFuerDokument, type DokumentPosition } from '@/server/services/angebot/lebend';
 import { FARBEN_DRUCK, FARBEN_MARKE, MASSE_DRUCK } from '@/lib/design/theme';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import { kennungOder404 } from '../../../../kennung';
+import { MarkenLogo } from '@/components/marke/Marke';
+import { markenbildAdresse } from '@/server/services/mandant/markenbild';
 
 /**
  * `/portal/[mandant]/angebote/[id]/pdf` — das Angebotsdokument (OPS-08).
@@ -53,6 +57,23 @@ interface Kopf {
   readonly m_telefon: string | null;
   readonly m_email: string | null;
   readonly m_web: string | null;
+  /**
+   * `mandant_identitaet.angebot_fuss` — die stehende Fusszeile der
+   * Gesellschaft (V-099, K-12).
+   *
+   * Sie ist etwas anderes als `angebot.schlusstext`: der steht auf DIESEM
+   * Angebot und wird je Vorgang geschrieben; diese Zeile steht unter jedem
+   * Angebot dieser Gesellschaft. Beide zusammen ergeben das Blatt.
+   */
+  readonly m_angebot_fuss: string | null;
+  /**
+   * Das Logo des Blatts (V-100, DESIGN §11 „each entity prints its own
+   * logo"): das Drucklogo, sonst das für helle Flächen — Papier ist hell.
+   * Das für dunkle Flächen nie: es verschwände auf Weiss.
+   */
+  readonly m_logo_druck_pfad: string | null;
+  readonly m_logo_hell_pfad: string | null;
+  readonly m_logo_alt: string | null;
   readonly m_gericht: string | null;
   readonly m_hrb: string | null;
   readonly m_gf: string | null;
@@ -63,17 +84,8 @@ interface Kopf {
   readonly m_bank: string | null;
 }
 
-interface PositionZeile {
-  readonly id: string;
-  readonly position_nr: number;
-  readonly typ: string;
-  readonly kurztext: string;
-  readonly langtext: string | null;
-  readonly menge: string | null;
-  readonly einheit: string | null;
-  readonly einzelpreis_cent: string | null;
-  readonly gesamtpreis_cent: string;
-}
+/** Nur lebende Positionen — eine entfernte gehört nicht aufs Blatt (V-203). */
+type PositionZeile = DokumentPosition;
 
 interface SteuerZeile {
   readonly steuersatz_bp: number;
@@ -114,18 +126,28 @@ export default async function Angebotsdokument(
                 m.handelsregister_gericht as m_gericht, m.handelsregister_nummer as m_hrb,
                 m.geschaeftsfuehrer as m_gf, m.ust_id as m_ustid,
                 m.steuernummer as m_steuernummer,
-                m.iban as m_iban, m.bic as m_bic, m.bank as m_bank
+                m.iban as m_iban, m.bic as m_bic, m.bank as m_bank,
+                mi.angebot_fuss as m_angebot_fuss,
+                mi.logo_druck_pfad as m_logo_druck_pfad,
+                mi.logo_hell_pfad as m_logo_hell_pfad, mi.logo_alt as m_logo_alt
            from angebot a
            join kunde k on k.id = a.kunde_id
            join mandant m on m.id = a.mandant_id
+           -- LINKS verbunden und nicht innen (V-099). Die Identitaetszeile
+           -- entsteht mit dem Mandanten (Ausloeser in 0200) und sollte immer
+           -- da sein — aber ein Angebot, das wegen einer fehlenden Fusszeile
+           -- gar kein Blatt ergibt, waere der teurere Fehler. Fehlt sie,
+           -- steht die Fusszeile eben nicht da.
+           --
+           -- KEIN Backtick in diesem Kommentar: er steht in einem
+           -- Template-Literal, und ein Backtick beendet es (vierter Fall
+           -- dieser Art im Projekt; wacheBacktickImSql prueft darauf).
+           left join mandant_identitaet mi on mi.mandant_id = a.mandant_id
            left join ansprechpartner ap on ap.id = a.ansprechpartner_id
            left join objekt o on o.id = a.objekt_id
           where a.id = $1`, [id]);
       if (kopf === undefined) return null;
-      const positionen = await kontext.abfrage<PositionZeile>(
-        `select id, position_nr, typ::text as typ, kurztext, langtext, menge::text,
-                einheit, einzelpreis_cent::text, gesamtpreis_cent::text
-           from angebotsposition where angebot_id = $1 order by position_nr`, [id]);
+      const positionen = await positionenFuerDokument(kontext, id);
       const steuer = await kontext.abfrage<SteuerZeile>(
         `select steuersatz_bp, netto_cent::text, steuer_cent::text, hinweistext
            from angebot_steuer where angebot_id = $1 order by steuersatz_bp`, [id]);
@@ -183,6 +205,14 @@ export default async function Angebotsdokument(
       `}</style>
 
       <header>
+        {kopf.m_logo_druck_pfad !== null || kopf.m_logo_hell_pfad !== null ? (
+          <MarkenLogo groesse="xl" bild={{
+            adresse: kopf.m_logo_druck_pfad !== null
+              ? markenbildAdresse(sitzung.aktiverMandantId, 'logo_druck', kopf.m_logo_druck_pfad)
+              : markenbildAdresse(sitzung.aktiverMandantId, 'logo_hell', kopf.m_logo_hell_pfad ?? ''),
+            alt: kopf.m_logo_alt ?? kopf.m_firma,
+          }} />
+        ) : null}
         <p style={{ margin: 0, fontSize: '14pt', fontWeight: 600 }}>{kopf.m_firma}</p>
         <hr className="kopflinie" />
       </header>
@@ -266,7 +296,7 @@ export default async function Angebotsdokument(
           {steuer.map((z) => (
             <tr key={z.steuersatz_bp}>
               <td colSpan={4} className="zahl">
-                {`Umsatzsteuer ${(z.steuersatz_bp / 100).toLocaleString('de-DE')} %`}
+                {`Umsatzsteuer ${prozentText(z.steuersatz_bp)}`}
               </td>
               <td className="zahl">{formatiereGeld(cent(BigInt(z.steuer_cent)))}</td>
             </tr>
@@ -284,6 +314,25 @@ export default async function Angebotsdokument(
       {kopf.schlusstext === null ? null : <p>{kopf.schlusstext}</p>}
 
       <footer className="fuss">
+        {/*
+          * **Die stehende Fusszeile der Gesellschaft** (V-099, K-12).
+          *
+          * Sie war pflegbar unter Einstellungen › Identitaet und erreichte
+          * kein einziges Dokument: `angebot_fuss` kam im ganzen Baum nur in
+          * der Anzeige derselben Einstellungsseite vor. Wer dort etwas
+          * eintrug, sah es genau dort wieder — und nirgends sonst.
+          *
+          * Sie steht VOR den Pflichtangaben und nicht dazwischen: darunter
+          * kommen Firmierung, Registergericht und Steuernummern, und die sind
+          * gesetzlich gefordert (§ 35a GmbHG). Ein freier Text mitten darin
+          * liesse sie wie eine Auswahl aussehen.
+          */}
+        {kopf.m_angebot_fuss === null || kopf.m_angebot_fuss.trim() === '' ? null : (
+          <p data-cse="angebot-fusszeile"
+             style={{ margin: '0 0 4pt 0', whiteSpace: 'pre-line' }}>
+            {kopf.m_angebot_fuss}
+          </p>
+        )}
         <p style={{ margin: 0 }}>
           {[kopf.m_firma,
             `${kopf.m_strasse ?? ''}, ${kopf.m_plz ?? ''} ${kopf.m_ort ?? ''}`,

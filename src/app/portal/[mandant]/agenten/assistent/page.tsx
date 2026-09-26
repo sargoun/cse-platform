@@ -100,6 +100,7 @@ export default async function Assistent(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/agenten`, text: 'Agenten' }}
       titel="CEO-Assistent"
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -109,12 +110,6 @@ export default async function Assistent(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <p className="mb-s3 text-sm">
-        <Link href={`/portal/${mandant}/agenten`}
-              className="text-text-muted underline-offset-2 hover:underline">
-          ← Agenten
-        </Link>
-      </p>
       <h1 className="mb-s5 mt-0 text-h1 text-text">CEO-Assistent</h1>
 
       <Hinweis art="hinweis" cse="assistent-erklaerung" className="mb-s5 max-w-prose">
@@ -144,7 +139,25 @@ export default async function Assistent(
         )
       )}
 
-      <h2 className="mb-s4 mt-0 text-h3 text-text">Fragen, die er beantworten kann</h2>
+      <h2 className="mb-s2 mt-0 text-h3 text-text">Fragen, die er beantworten kann</h2>
+      {/*
+        * **Die Anleitung steht hier und nicht in der Erklärung darüber.**
+        *
+        * Der Mandant hat es am Telefon gefunden: er tippte im Agentenzentrum
+        * auf „Fragen stellen", landete hier, sah eine Liste — und suchte ein
+        * Eingabefeld. Es gibt keines, und das ist Absicht (AGT-07); die Liste
+        * IST die Eingabe. Nur sagte das niemand, und eine Karte mit einem
+        * Rahmen sieht aus wie ein Schild, nicht wie ein Knopf.
+        *
+        * Zwei Dinge dagegen: dieser Satz, und das `›` auf jeder Karte. Beides
+        * kostet nichts und ersetzt die Frage „wie frage ich denn nun?".
+        */}
+      <p className="mb-s4 mt-0 max-w-prose text-sm text-text-muted"
+         data-cse="assistent-anleitung">
+        Tippen Sie eine Frage an — die Antwort steht dann oben auf dieser Seite.
+        Ein freies Eingabefeld gibt es bewusst nicht: beantwortet wird, was
+        jemand als Abfrage geschrieben und nachgerechnet hat.
+      </p>
       <ul className="m-0 grid list-none grid-cols-1 gap-s3 p-0 md:grid-cols-2">
         {KATALOG.map((k) => (
           <li key={k.id}>
@@ -165,7 +178,15 @@ export default async function Assistent(
               ].join(' ')}
               aria-current={k.id === gefragt ? 'page' : undefined}
             >
-              {k.frage}
+              {/*
+                * Das `›` macht aus der Karte sichtbar einen Weg. `aria-hidden`,
+                * weil der Verweis seinen Namen schon traegt — ein vorgelesenes
+                * „groesser als" waere Laerm (DESIGN §5).
+                */}
+              <span className="flex items-start justify-between gap-s3">
+                <span>{k.frage}</span>
+                <span aria-hidden="true" className="shrink-0 text-text-subtle">›</span>
+              </span>
               {k.einheit === null ? null : (
                 <span className="mt-s1 block text-xs text-text-muted">
                   {`Antwort in ${k.einheit}`}

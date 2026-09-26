@@ -7,7 +7,8 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { alleJobs } from '@/server/jobs/bootstrap';
 import { JahrespaketFehler, erstelleJahrespaket, type Jahrespaket } from '@/server/services/buchhaltung/jahrespaket';
 import { auslieferungAusUmgebung } from '@/server/services/buchhaltung/verfahrensdokumentation';
@@ -35,7 +36,7 @@ export async function GET(anfrage: NextRequest): Promise<NextResponse> {
   const jahrRoh = p.get('jahr') ?? '';
   if (!/^\d{4}$/u.test(jahrRoh)) return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
   const jahr = Number(jahrRoh);
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
 
   try {
     const jobs = alleJobs(db());

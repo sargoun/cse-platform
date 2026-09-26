@@ -215,6 +215,7 @@ export default async function Freigabeblatt(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/finanzen/eingangsrechnungen/${id}`, text: k.interne_belegnummer ?? k.rechnungsnummer_lieferant ?? t.eingangsrechnung }}
       titel={t.freigabe}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -224,14 +225,6 @@ export default async function Freigabeblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label={g.zurueck} className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/finanzen/eingangsrechnungen/${id}`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {k.interne_belegnummer ?? k.rechnungsnummer_lieferant ?? t.eingangsrechnung}
-        </Link>
-      </nav>
 
       <h1 className="mb-s3 text-h1 text-text">{t.freigabeZurBuchung}</h1>
 

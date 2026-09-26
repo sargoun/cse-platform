@@ -250,7 +250,7 @@ export default async function BehinderungAnlegen(
               </span>
             )}
           </h2>
-          <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
+          <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg border border-line bg-surface p-s5 font-sans text-sm text-text-muted">
             {v.betreff}
             {'\n\n'}
             {v.rumpf}

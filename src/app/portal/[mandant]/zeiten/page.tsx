@@ -12,7 +12,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import type { IconName } from '@/lib/design/icons';
 import { berlinHeute } from '@/server/db/heute';
-import { montag, tagePlus } from '@/lib/datum/kalendertag';
+import { monatVerschieben, montag, tagePlus } from '@/lib/datum/kalendertag';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
 import { haeltRechte } from '../../rechte';
 import {
@@ -80,15 +80,51 @@ export default async function Zeitliste({
   /* AUT-06: der MiLoG-Nachweis haengt an `zeit.exportieren`, und eine
      `leitung` haelt es nicht. Ein Knopf dorthin verriete die Seite, die
      er nicht zeigen darf. */
-  const darf = await haeltRechte(sitzung, 'zeit.exportieren', 'zeit.abrechnung_freigeben');
+  /*
+   * V-033, V-034, V-048: zwei gebaute Schaltstellen standen in keiner Leiste.
+   *
+   * `/zeiten/checkin-links` gibt die Marken aus, mit denen eine Kraft OHNE
+   * Portalkonto ueberhaupt stempeln kann (TIM-07, EMP-01);
+   * `/zeiten/nacherfassung` entscheidet ueber Offline-Ansprueche (TIM-09).
+   * Beide waren nur ueber die getippte Adresse erreichbar — bezahlt, gebaut,
+   * unbenutzt.
+   *
+   * Jeder Punkt haengt am Recht SEINES ZIELS und nicht an `zeit.lesen`
+   * (AUT-06, D-581): ein Knopf auf eine 404 verraet, was er nicht zeigen
+   * darf.
+   */
+  const darf = await haeltRechte(
+    sitzung, 'zeit.exportieren', 'zeit.abrechnung_freigeben',
+    'zeit.checkin_verwalten', 'zeit.nacherfassung_pruefen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const frage = await searchParams;
   const heute = await berlinHeute();
   const rohWoche = einzeln(frage['woche']);
+  /**
+   * **Ein MONAT statt einer Woche** (V-070).
+   *
+   * Der Monatsabschluss meldet „3 Zeiteinträge sind nicht freigegeben" und
+   * konnte auf nichts zeigen: diese Liste kannte nur Wochen, und ein Verweis
+   * auf die erste Woche des Monats zeigte einen Teil der drei und behauptete,
+   * es seien alle. Mit `?monat=` spannt das Fenster über den ganzen Monat;
+   * die Wochennavigation weicht dann einem Weg zurück in die Wochenansicht.
+   *
+   * Der Wert wird auf `JJJJ-MM` gezwungen, bevor er ein Datum wird: was aus
+   * der Adresszeile kommt, ist eine Behauptung und keine Angabe.
+   */
+  const rohMonat = einzeln(frage['monat']);
+  const monat = rohMonat !== null && /^\d{4}-\d{2}$/u.test(rohMonat) ? rohMonat : null;
   const anker = rohWoche !== null && /^\d{4}-\d{2}-\d{2}$/u.test(rohWoche) ? rohWoche : heute;
-  const von = montag(anker);
-  const bis = tagePlus(von, 6);
+  const von = monat === null ? montag(anker) : `${monat}-01`;
+  /*
+   * Der letzte Tag des Monats: der Tag vor dem Ersten des Folgemonats — in
+   * Kalenderarithmetik und nicht mit einer Tabelle „30 Tage hat September",
+   * damit der Februar im Schaltjahr stimmt.
+   */
+  const bis = monat === null
+    ? tagePlus(von, 6)
+    : tagePlus(monatVerschieben(`${monat}-01`, 1), -1);
 
   /**
    * Ein unbekannter Wert wird VERWORFEN, nicht durchgereicht: `person=';--`
@@ -116,7 +152,10 @@ export default async function Zeitliste({
   const mitFilter = (aenderung: Readonly<Record<string, string | null>>): string => {
     const p = new URLSearchParams();
     const basis: Record<string, string | null> = {
-      woche: von,
+      /* Im Monatsfenster wandert `monat` mit, sonst `woche` — nie beide: zwei
+         Fensterangaben in einer Adresse wären zwei Antworten auf dieselbe
+         Frage, und welche gilt, entschiede die Reihenfolge im Rumpf. */
+      ...(monat === null ? { woche: von } : { monat }),
       person: filter.personId,
       objekt: filter.objektId,
       merkmal: filter.merkmal,
@@ -146,22 +185,52 @@ export default async function Zeitliste({
         </p>
       </div>
 
-      <nav aria-label="Woche wechseln" className="mb-s4 flex flex-wrap items-center gap-s2">
-        <Sprung ziel={mitFilter({ woche: tagePlus(von, -7) })} text="← Vorige Woche" />
-        <Sprung ziel={mitFilter({ woche: montag(heute) })} text="Diese Woche" />
-        <Sprung ziel={mitFilter({ woche: tagePlus(von, 7) })} text="Nächste Woche →" />
+      <nav aria-label={monat === null ? 'Woche wechseln' : 'Monat wechseln'}
+           className="mb-s4 flex flex-wrap items-center gap-s2">
+        {monat === null ? (
+          <>
+            <Sprung ziel={mitFilter({ woche: tagePlus(von, -7) })} text="← Vorige Woche" />
+            <Sprung ziel={mitFilter({ woche: montag(heute) })} text="Diese Woche" />
+            <Sprung ziel={mitFilter({ woche: tagePlus(von, 7) })} text="Nächste Woche →" />
+          </>
+        ) : (
+          <>
+            {/* Im Monatsfenster (V-070) blättert man Monate, nicht Wochen —
+                und findet zurück in die Wochenansicht, die der Regelfall
+                dieser Seite ist. */}
+            <Sprung
+              ziel={mitFilter({ monat: monatVerschieben(`${monat}-01`, -1).slice(0, 7) })}
+              text="← Voriger Monat"
+            />
+            <Sprung
+              ziel={mitFilter({ monat: monatVerschieben(`${monat}-01`, 1).slice(0, 7) })}
+              text="Nächster Monat →"
+            />
+            <Sprung
+              ziel={mitFilter({ monat: null, woche: montag(von) })}
+              text="Zur Wochenansicht"
+            />
+          </>
+        )}
         <span className="grow" />
         <Sprung ziel={`${pfad}/live`} text="Aktuell im Einsatz" icon="uhr" />
         <Sprung ziel={`${pfad}/korrekturen`} text="Korrekturen" icon="stift" />
         <Sprung ziel={`${pfad}/einwaende`} text="Einwände" icon="warnung" />
+        {darf['zeit.checkin_verwalten'] === true && (
+          <Sprung ziel={`${pfad}/checkin-links`} text="Check-in-Links" icon="schloss" />
+        )}
+        {darf['zeit.nacherfassung_pruefen'] === true && (
+          <Sprung ziel={`${pfad}/nacherfassung`} text="Nacherfassung" icon="stift" />
+        )}
         {darf['zeit.exportieren'] === true && (
           <Sprung ziel={`${pfad}/milog`} text="MiLoG" icon="dokument" />
         )}
         {/* Die Freigabe zur Abrechnung haengt an `zeit.abrechnung_freigeben` —
-            nicht geseedet und an keine Rolle gebunden, solange O-39 offen ist
-            (03-AUTH §12.4). Der Verweis erscheint deshalb heute fuer niemanden,
-            und das ist richtig: ein Knopf auf eine 404 verraet, was er nicht
-            zeigen darf (AUT-06, D-581). */}
+            seit D-611/0371 an `super_admin` und `admin` gebunden, fuer
+            `leitung` je Gesellschaft anlegbar (D-612, 03-AUTH §12.4). Die
+            Bedingung bleibt trotzdem stehen und wird es: ein Knopf auf eine
+            404 verraet, was er nicht zeigen darf (AUT-06, D-581) — und fuer
+            eine `leitung` ohne die Bindung ist genau das der Fall. */}
         {darf['zeit.abrechnung_freigeben'] === true && (
           <Sprung ziel={`${pfad}/freigabe`} text="Freigabe" icon="freigabe" />
         )}
@@ -247,12 +316,47 @@ export default async function Zeitliste({
         )}
       </form>
 
+      {/*
+        * **Ein Merkmal, das heute keine Zeile trifft — und warum das so
+        * bleibt** (V-083).
+        *
+        * `zeiteintrag_status` führt `offen_nacherfassung` seit `0034`, und
+        * NICHTS im Baum schreibt den Wert. Das ist kein Versehen: er wäre der
+        * ehrliche Zustand für „von der Planung gesetzt, aber noch nicht
+        * bestätigt" — nur beschreibt kein Dokument, wer ihn wieder wegnimmt
+        * und was bis dahin gilt (zählt die Stunde ins Stundenkonto? steht sie
+        * im Monatsnachweis? darf sie abgerechnet werden?). Ein Eintrag in
+        * einem Zustand, aus dem kein Weg herausführt, ist schlimmer als
+        * keiner, und die Frage steht als O-890 beim Auftraggeber.
+        *
+        * Das Merkmal BLEIBT in der Liste: der Satz der Merkmale ist der Satz
+        * der Zustände, und eines herauszunehmen hiesse, die Auswahl bei der
+        * Antwort wieder zu ändern und bis dahin zu verschweigen, dass es den
+        * Zustand gibt. Was fehlte, war der Satz daneben — eine leere Liste
+        * sagt nicht, ob niemand gearbeitet hat oder ob dieser Zustand gar
+        * nicht entstehen kann.
+        */}
+      {filter.merkmal === 'offen_nacherfassung' ? (
+        <p data-cse="merkmal-ohne-erzeuger"
+           className="mb-s4 max-w-prose rounded-lg border border-line bg-surface-2 p-s4 text-sm text-text">
+          <strong>Diesen Zustand erzeugt heute nichts.</strong> Ob eine von der
+          Verwaltung gesetzte Zeit gegengezeichnet werden muss, bevor sie abrechenbar
+          ist, ist offen (O-890) — bis zur Antwort schliesst die Verwaltung nach
+          „Abgeschlossen", und die gesetzte Zeit bleibt als solche erkennbar. Wer
+          nachgetragene Einträge sucht, filtert nach{' '}
+          <strong>{MERKMAL_TEXT['nacherfasst']}</strong>.
+        </p>
+      ) : null}
+
       {zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Für diese Woche ist nichts erfasst
-          {filter.personId !== null || filter.objektId !== null || filter.merkmal !== null
-            ? ' — jedenfalls nichts, das dem Filter entspricht.'
-            : '. Das heißt: niemand hat gestempelt — nicht, dass niemand gearbeitet hätte.'}
+          {filter.merkmal === 'offen_nacherfassung'
+            ? ' — und nach diesem Merkmal wird auch in keiner anderen Woche etwas stehen,'
+              + ' solange O-890 offen ist.'
+            : filter.personId !== null || filter.objektId !== null || filter.merkmal !== null
+              ? ' — jedenfalls nichts, das dem Filter entspricht.'
+              : '. Das heißt: niemand hat gestempelt — nicht, dass niemand gearbeitet hätte.'}
         </p>
       ) : (
         <DataTable

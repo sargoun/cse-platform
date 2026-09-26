@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -20,6 +19,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/crm/kontakte/[id]/rechtsgrundlage` — die Grundlage nach
@@ -145,19 +145,11 @@ export default async function Rechtsgrundlage(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="crm"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: alsRoute(blatt), text: kopf.name }}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={alsRoute(blatt)}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {kopf.name}
-        </Link>
-      </nav>
-
       <h1 className="mb-s2 text-h1 text-text">Rechtsgrundlage — {kopf.name}</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         {kopf.kunde_id === null ? null : <>Kunde: {kopf.kunde_name ?? '—'}. </>}
@@ -179,9 +171,9 @@ export default async function Rechtsgrundlage(
       {!darfSchreiben ? (
         <Hinweis art="warnung" cse="grundlage-kein-schreibrecht" className="mb-s5 max-w-prose">
           <strong>Speichern geht so nicht durch.</strong> Diese Seite öffnet mit
-          <code className="text-text"> crm.rechtsgrundlage_setzen</code>, die Policy auf
+          <Recht schluessel="crm.rechtsgrundlage_setzen" />, die Policy auf
           <code className="text-text"> ansprechpartner</code> verlangt zum Schreiben
-          zusätzlich <code className="text-text">crm.schreiben</code>. Beide Rechte
+          zusätzlich <Recht schluessel="crm.schreiben" />. Beide Rechte
           gehören zusammen erteilt — bis dahin ist das Formular unten nur Anzeige.
         </Hinweis>
       ) : null}
@@ -204,7 +196,7 @@ export default async function Rechtsgrundlage(
           {stand === null ? (
             <Hinweis art="hinweis" cse="stand-verdeckt" className="mt-s3">
               <strong>Der heutige Nachweis ist Ihnen nicht sichtbar.</strong> Dafür
-              fehlt <code className="text-text">crm.rechtsgrundlage_lesen</code> — ein
+              fehlt <Recht schluessel="crm.rechtsgrundlage_lesen" /> — ein
               eigenes Recht neben dem Setzen. Sie können damit eine neue Grundlage
               eintragen, ohne die alte zu sehen; was danach gilt, steht dann in der
               Antwort des Tores darunter.
@@ -472,7 +464,7 @@ export default async function Rechtsgrundlage(
               <p className="m-0 text-xs text-text-muted">
                 Der Vollwiderspruch. Er setzt die Rechtsgrundlage zwingend auf „keine"
                 und ist unwiderruflich. Er läuft über
-                <code className="text-text"> datenschutz.auskunft_erstellen</code> —
+                <Recht schluessel="datenschutz.auskunft_erstellen" /> —
                 die Entscheidung der Datenschutzstelle, nicht des Vertriebs.
               </p>
               <label className="flex flex-col gap-s2 text-sm text-text">
@@ -496,7 +488,7 @@ export default async function Rechtsgrundlage(
           ) : (
             <Hinweis art="hinweis" cse="widerspruch-voll-verdeckt">
               <strong>Den Vollwiderspruch nach Art. 21 DSGVO erfasst hier niemand.</strong>{' '}
-              Dafür braucht es <code className="text-text">datenschutz.auskunft_erstellen</code> —
+              Dafür braucht es <Recht schluessel="datenschutz.auskunft_erstellen" /> —
               ein anderes Recht als das Setzen der Grundlage, weil der Vorgang
               unwiderruflich ist. Er wird von der Datenschutzstelle erfasst.
             </Hinweis>

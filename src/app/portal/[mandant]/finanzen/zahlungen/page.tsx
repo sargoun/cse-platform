@@ -4,7 +4,9 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Button } from '@/components/ui/Button';
 import { DataTable } from '@/components/ui/DataTable';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { bankkonten, offenePosten } from '@/server/services/finanz/zahlung/index';
@@ -38,6 +40,14 @@ import { ZAHLUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/zahlungen';
  */
 export const dynamic = 'force-dynamic';
 
+/** Eine Rechnung mit noch nicht gebuchtem § 48-EStG-Einbehalt (V-090). */
+interface EinbehaltZeile {
+  readonly id: string;
+  readonly nummer: string | null;
+  readonly einbehalt_cent: string;
+  readonly kunde_name: string | null;
+}
+
 interface ZahlungZeile {
   readonly id: string;
   readonly zahlungsdatum: string;
@@ -49,9 +59,14 @@ interface ZahlungZeile {
 }
 
 export default async function Zahlungen(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  const suche = await searchParams;
+  const hinweis = typeof suche['hinweis'] === 'string' ? suche['hinweis'] : null;
   const zugang = await portalZugang(`/portal/${mandant}/finanzen/zahlungen`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -78,6 +93,29 @@ export default async function Zahlungen(
     withTenant(tx, sitzung, async (kontext) => ({
       posten: await offenePosten(kontext, { nurOffene: true }),
       konten: await bankkonten(kontext),
+      /*
+       * **Die Rechnungen mit offenem § 48-Einbehalt** (V-090). Sie stehen
+       * NICHT in `offenePosten`: der Posten kennt nur seinen Restbetrag, nicht
+       * dessen Herkunft. Was hier fehlt, ist die Frage, ob der Einbehalt schon
+       * gebucht wurde — `zz_bauabzug_je_posten` (0130) laesst genau einen zu,
+       * und ein Knopf, der zuverlaessig „schon gebucht" antwortet, ist ein
+       * Knopf, den niemand mehr liest.
+       */
+      einbehalte: await kontext.abfrage<EinbehaltZeile>(
+        `select r.id, r.nummer,
+                r.einbehalt_bauabzugsteuer_cent::text as einbehalt_cent,
+                k.name as kunde_name
+           from rechnung r
+           join offener_posten op
+             on op.rechnung_id = r.id and op.mandant_id = r.mandant_id
+           left join kunde k on k.id = op.kunde_id and k.mandant_id = op.mandant_id
+          where r.mandant_id = app.aktiver_mandant()
+            and r.einbehalt_bauabzugsteuer_cent > 0
+            and op.ausgeglichen_am is null
+            and not exists (select 1 from zahlung_zuordnung zz
+                             where zz.offener_posten_id = op.id
+                               and zz.art = 'bauabzugsteuer_einbehalt')
+          order by r.nummer`),
       zahlungen: await kontext.abfrage<ZahlungZeile>(
         /**
          * `verteilt_cent` steht daneben, damit eine Zahlung sichtbar wird,
@@ -98,6 +136,7 @@ export default async function Zahlungen(
     }))) as Promise<{
       posten: Awaited<ReturnType<typeof offenePosten>>;
       konten: Awaited<ReturnType<typeof bankkonten>>;
+      einbehalte: readonly EinbehaltZeile[];
       zahlungen: readonly ZahlungZeile[];
     }>);
 
@@ -118,7 +157,35 @@ export default async function Zahlungen(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <h1 className="mb-s5 text-h1 text-text">{t.titel}</h1>
+      <div className="mb-s5 flex flex-wrap items-center justify-between gap-s3">
+        <h1 className="m-0 text-h1 text-text">{t.titel}</h1>
+        {/*
+          * **Der Weg zu den Bankkonten** (V-007). `legeBankkontoAn` gibt es
+          * seit `0121` und rief niemand: „Eingegangen auf" unten kannte nur,
+          * was der Seed angelegt hatte.
+          */}
+        <Link
+          href={`/portal/${mandant}/finanzen/bankkonten`}
+          data-cse="zu-den-bankkonten"
+          className="inline-flex min-h-11 items-center rounded-md border border-line
+                     px-s3 text-sm text-text-muted transition-colors duration-fast
+                     hover:border-line-strong hover:text-text"
+        >
+          {t.zuDenBankkonten}
+        </Link>
+      </div>
+
+      {hinweis === null ? null : (
+        <Hinweis
+          art={hinweis === 'bauabzug' || hinweis === 'ausgeglichen' ? 'erfolg' : 'hinweis'}
+          cse="zahlung-hinweis"
+          className="mb-s5 max-w-prose"
+        >
+          {hinweis === 'bauabzug' ? t.bauabzugGebucht
+            : hinweis === 'ausgeglichen' ? t.ausgeglichen
+            : hinweis}
+        </Hinweis>
+      )}
 
       <section aria-labelledby="forderungen-titel" className="mb-s7">
         <div className="mb-s3 flex flex-wrap items-baseline justify-between gap-s3">
@@ -181,6 +248,122 @@ export default async function Zahlungen(
           />
         )}
       </section>
+
+      {/*
+        * **Der Einbehalt nach § 48 EStG** (V-090). `bucheBauabzug` gibt es
+        * seit `0130`, mit Sperre gegen die Doppelbuchung — und hatte weder
+        * Route noch Knopf. Ohne ihn bleibt auf jeder Rechnung eines
+        * bauabzugspflichtigen Kunden genau dieser Betrag offen: 15 % der
+        * Summe, dauerhaft, in jeder Altersliste und in jedem Mahnlauf. Der
+        * Kunde hat ihn ans Finanzamt abgeführt und schuldet ihn nicht mehr.
+        */}
+      {daten.einbehalte.length === 0 ? null : (
+        <section aria-labelledby="bauabzug-titel" className="mb-s7">
+          <h2 id="bauabzug-titel" className="mb-s3 text-h2 text-text">
+            {t.bauabzugTitel}
+          </h2>
+          <p className="mb-s3 max-w-prose text-sm text-text-muted">
+            {t.bauabzugErklaerung}
+          </p>
+          <ul className="m-0 list-none p-0" data-cse="bauabzug-liste">
+            {daten.einbehalte.map((e) => (
+              <li key={e.id} data-cse="bauabzug-zeile" data-rechnung={e.id}
+                  className="mb-s3 flex flex-wrap items-center justify-between gap-s3
+                             rounded-lg border border-line bg-surface p-s4">
+                <span className="text-sm text-text">
+                  {e.nummer ?? '—'}
+                  <span className="block text-xs text-text-muted">
+                    {e.kunde_name ?? '—'}
+                  </span>
+                </span>
+                <span className="text-sm tabular-nums text-text">
+                  {t.einbehalt}{': '}
+                  <strong>{formatiereGeld(cent(BigInt(e.einbehalt_cent)))}</strong>
+                </span>
+                <form method="post" action={`/api/finanzen/zahlungen?mandant=${mandant}`}>
+                  <input type="hidden" name="aktion" value="bauabzug" />
+                  <input type="hidden" name="rechnungId" value={e.id} />
+                  {/*
+                    * `secondary` und nicht `primary`: der rote Knopf steht
+                    * einmal je Seite, und auf dieser gehoert er dem Erfassen
+                    * eines Zahlungseingangs (DESIGN §6).
+                    */}
+                  <Button type="submit" variante="secondary" data-cse="bauabzug-buchen">
+                    {t.bauabzugBuchen}
+                  </Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/*
+        * **Posten gegen Posten** (V-091, §7.4). `gleicheAus` gibt es seit
+        * `0121` und war nicht auslösbar. Der Fall: ein Kunde hat überzahlt
+        * oder eine Rechnung wurde storniert, und das Guthaben soll die
+        * nächste Forderung decken — ohne dass eine Zahlung erfunden wird,
+        * die nie geflossen ist.
+        */}
+      {forderungen.length === 0 || guthaben.length === 0 ? null : (
+        <section aria-labelledby="ausgleich-titel" className="mb-s7">
+          <h2 id="ausgleich-titel" className="mb-s3 text-h2 text-text">
+            {t.ausgleichTitel}
+          </h2>
+          <p className="mb-s3 max-w-prose text-sm text-text-muted">
+            {t.ausgleichErklaerung}
+          </p>
+          <form
+            method="post"
+            action={`/api/finanzen/zahlungen?mandant=${mandant}`}
+            data-cse="ausgleich-formular"
+            className="flex max-w-[56ch] flex-col gap-s4"
+          >
+            <input type="hidden" name="aktion" value="ausgleichen" />
+            <label className="text-sm text-text">
+              {t.ausgleichForderung}
+              <select name="sollPostenId" required className={feld}
+                      defaultValue="" data-cse="ausgleich-soll">
+                <option value="" disabled>{t.ausgleichForderung}</option>
+                {forderungen.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {`${p.rechnungsnummer ?? '—'} · ${p.kundeName ?? '—'} · `
+                     + formatiereGeld(p.offenCent)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm text-text">
+              {t.ausgleichGuthaben}
+              <select name="habenPostenId" required className={feld}
+                      defaultValue="" data-cse="ausgleich-haben">
+                <option value="" disabled>{t.ausgleichGuthaben}</option>
+                {guthaben.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {`${p.kundeName ?? '—'} · ${formatiereGeld(p.offenCent)}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm text-text">
+              {t.ausgleichBetrag}
+              <input type="text" name="ausgleichBetrag" required inputMode="decimal"
+                     className={feld} data-cse="ausgleich-betrag" />
+            </label>
+            <label className="text-sm text-text">
+              {t.ausgleichGrund}
+              <input type="text" name="grund" required minLength={5} maxLength={500}
+                     className={feld} placeholder={t.ausgleichGrundBeispiel}
+                     data-cse="ausgleich-grund" />
+            </label>
+            <div>
+              <Button type="submit" variante="secondary" data-cse="ausgleich-buchen">
+                {t.ausgleichBuchen}
+              </Button>
+            </div>
+          </form>
+        </section>
+      )}
 
       {guthaben.length === 0 ? null : (
         <section aria-labelledby="guthaben-titel" className="mb-s7">

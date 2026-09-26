@@ -6,7 +6,9 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/index';
 import { KeineAnstellungFehler, mandantDerAnstellung }
   from '@/server/services/zeit/einwand';
-import { reicheAntragEin } from '@/server/services/abwesenheit/antrag';
+import { AntragAbgewiesen, reicheAntragEin } from '@/server/services/abwesenheit/antrag';
+import { autorisierungsAntwort } from '@/server/auth/antwort';
+import { datenbankGrund, zurMaske } from '../formular';
 
 /**
  * `POST /api/mein/antraege` — der Mensch reicht einen Antrag ein (EMP-10).
@@ -31,13 +33,22 @@ import { reicheAntragEin } from '@/server/services/abwesenheit/antrag';
  * diesem Mandanten betreten, mit `portal: 'mitarbeiter'`, damit die Decke
  * weiter gilt.
  *
- * **303 und kein JSON.** Das Formular ist ein echtes `<form method="post">`,
- * damit es auf einem alten Diensttelefon ohne JavaScript funktioniert; eine
- * JSON-Antwort waere dort eine Sackgasse.
+ * **303 und kein JSON — auch nicht bei einer Abweisung** (V-187, D-599).
+ * Das Formular ist ein echtes `<form method="post">`, damit es auf einem
+ * alten Diensttelefon ohne JavaScript funktioniert; eine JSON-Antwort waere
+ * dort eine Sackgasse. Vorher kam jede Abweisung als JSON zurueck, und die
+ * des Ausloesers `antrag_pflichtfelder` (0074) — etwa jeder Tauschantrag,
+ * weil das Formular weder Schicht noch Partner schickte — als rohe 500. Jetzt
+ * fuehrt jede Abweisung auf die Maske, mit dem Grund als Schluessel und den
+ * gewaehlten Werten (`zurMaske`). Nur eine FREMDE Beschaeftigung bleibt 404:
+ * das Formular bietet sie nicht an, und wer sie schickt, hat die Anfrage
+ * nachgebaut (AUT-06).
  */
 export const dynamic = 'force-dynamic';
 
 const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
+/** Die Maske, auf die jede Abweisung zurueckfuehrt — das einzige Formular dieses Wegs. */
+const MASKE = '/portal/mein/antraege/neu';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 function textOder(daten: FormData, feld: string): string | null {
@@ -69,16 +80,25 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const daten = await anfrage.formData();
   const anstellungId = uuidOder(daten, 'anstellung');
   const antragsartId = uuidOder(daten, 'antragsart');
-  if (anstellungId === null) {
-    return NextResponse.json({ fehler: 'keine_anstellung' }, { status: 400 });
-  }
-  if (antragsartId === null) {
-    return NextResponse.json({ fehler: 'keine_antragsart' }, { status: 400 });
-  }
   const von = textOder(daten, 'von');
   const bis = textOder(daten, 'bis');
+  const abwesenheitsartId = uuidOder(daten, 'abwesenheitsart');
+  const einsatzId = uuidOder(daten, 'einsatz');
+  const tauschPartnerAnstellungId = uuidOder(daten, 'tauschpartner');
+  /*
+   * Was zurueckreist: Auswahlen und Tage — die Nachricht nicht. Sie kann
+   * sagen, WARUM jemand frei braucht, und eine Adresse landet in Verlauf und
+   * Protokollen; die Maske bittet darum, sie noch einmal einzugeben.
+   */
+  const maske = (grund: string): NextResponse => zurMaske(anfrage, MASKE, grund, {
+    anstellung: anstellungId, antragsart: antragsartId, abwesenheitsart: abwesenheitsartId,
+    von, bis, einsatz: einsatzId, tauschpartner: tauschPartnerAnstellungId,
+    nachricht_neu: textOder(daten, 'nachricht') === null ? null : 'ja',
+  });
+  if (anstellungId === null) return maske('keine_anstellung');
+  if (antragsartId === null) return maske('keine_antragsart');
   if ((von !== null && !DATUM.test(von)) || (bis !== null && !DATUM.test(bis))) {
-    return NextResponse.json({ fehler: 'kein_datum' }, { status: 400 });
+    return maske('kein_datum');
   }
 
   try {
@@ -94,9 +114,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         antragsartId,
         vonDatum: von,
         bisDatum: bis,
-        abwesenheitsartId: uuidOder(daten, 'abwesenheitsart'),
-        einsatzId: uuidOder(daten, 'einsatz'),
-        tauschPartnerAnstellungId: uuidOder(daten, 'tauschpartner'),
+        abwesenheitsartId,
+        einsatzId,
+        tauschPartnerAnstellungId,
         nachricht: textOder(daten, 'nachricht'),
       }));
     });
@@ -104,12 +124,21 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (fehler instanceof KeineAnstellungFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }
+    const auth = autorisierungsAntwort(fehler);
+    if (auth !== null) return auth;
+    // Die Vorpruefung des Dienstes nennt das Feld (V-187).
+    if (fehler instanceof AntragAbgewiesen) return maske(fehler.grund);
+    // Die zweite Linie: Ausloeser, Pruefbedingung, Fremdschluessel, Kalender.
+    const ausDatenbank = datenbankGrund(fehler);
+    if (ausDatenbank !== null) {
+      return maske(ausDatenbank === 'ueberlappt' ? 'ungueltige_eingabe' : ausDatenbank);
+    }
     const status = (fehler as { status?: number }).status;
     const code = (fehler as { code?: string }).code;
-    if (typeof status === 'number' && typeof code === 'string') {
-      return NextResponse.json(
-        { fehler: code, meldung: (fehler as Error).message }, { status });
+    if (status === 404) {
+      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }
+    if (typeof status === 'number' && typeof code === 'string') return maske('ungueltige_eingabe');
     throw fehler;
   }
 

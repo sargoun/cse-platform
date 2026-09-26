@@ -162,6 +162,8 @@ describe('(2) es gibt keinen Weg, der einen Zeiteintrag aendert (EMP-07)', () =>
    */
   const MEINE_SCHREIBROUTEN: readonly string[] = [
     'api/mein/abwesenheit',
+    /* V-056 — die eigene Ruecknahme, in derselben Form wie beim Antrag (0386). */
+    'api/mein/abwesenheit/[id]/zurueckziehen',
     'api/mein/antraege',
     'api/mein/antraege/[id]/zurueckziehen',
     'api/mein/dienstanweisungen/[id]/kenntnisnahme',
@@ -176,12 +178,66 @@ describe('(2) es gibt keinen Weg, der einen Zeiteintrag aendert (EMP-07)', () =>
     'api/mein/dokumente/[id]/datei',
     /* Die Antwort im eigenen Faden (0350, EMP-11). */
     'api/mein/nachrichten/[id]',
+    /*
+     * **Die Antwort auf die eigene Einteilung (V-049, D-622, Migration 0374)
+     * — die fuenfzehnte Schreibroute, und hier steht, warum sie eine sein darf.**
+     *
+     * Sie schreibt `einsatz_zuordnung.status`, und das Arbeiterportal hat auf
+     * diese Tabelle ueber `cse_app` gar keinen Schreibweg: `t_selbst_m1` gibt
+     * nur `r`, `t_mandant` verlangt `dienstplan.schreiben`, `p_ma_decke`
+     * deckelt restriktiv auf die eigene Anstellung. Dieselbe Aufloesung wie
+     * bei der Stempeluhr darunter: der Schreibweg laeuft ueber
+     * `cse_definer` (`app.schicht_zusagen` / `app.schicht_absagen`), und die
+     * Funktionen pruefen PORTAL und PERSONENZUGEHOERIGKEIT statt eines
+     * Rechts. `dienstplan.schreiben` ist das Recht, den Plan zu MACHEN — wer
+     * es einer Reinigungskraft gaebe, gaebe ihr den Plan.
+     *
+     * Der Fall „KEINE Route unter `api/mein/` schreibt einen Zeiteintrag"
+     * bleibt unberuehrt: hier wird keiner geschrieben.
+     */
+    'api/mein/schicht',
+    /*
+     * **Zwei Wege am eigenen Bautag (V-063) — und keiner schreibt einen
+     * Zeiteintrag.**
+     *
+     * `korrektur` storniert die EIGENE Mannstundenzeile und setzt einen Ersatz
+     * daneben; `t_selbst_m1_storno` (0303) lässt genau diesen einen Übergang
+     * zu und sonst nichts. `foto` hängt eine Aufnahme an den Bautag;
+     * `t_selbst_schichtmedien` (0303) nennt `bezug_tabelle = 'bautagebuch'`
+     * ausdrücklich. Beide Policies standen seit 0303 da — die Routen fehlten.
+     *
+     * `bautagebuch_mannstunden` ist eine Tagebuchzeile und keine Arbeitszeit:
+     * der Abgleich GEGEN die Zeiterfassung liest sie, er schreibt nicht
+     * zurück. EMP-07 bleibt damit unberührt.
+     */
+    'api/mein/schichten/[zuordnungId]/bautagebuch/foto',
+    'api/mein/schichten/[zuordnungId]/bautagebuch/korrektur',
     'api/mein/schichten/[zuordnungId]/bautagebuch/mannstunden',
     'api/mein/schichten/[zuordnungId]/bautagebuch/position',
     'api/mein/schichten/[zuordnungId]/fotos',
     'api/mein/schichten/[zuordnungId]/leistungsnachweis',
     'api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift',
     'api/mein/schichten/[zuordnungId]/wachbuch',
+    /*
+     * **Die Stempeluhr (D-618, O-93, Migration 0373) — und sie ist der
+     * Grenzfall, den diese Liste festhalten soll.**
+     *
+     * Sie schreibt einen `zeiteintrag`, und genau das verbietet EMP-07 dem
+     * Portal. Der Widerspruch loest sich an der Stelle auf, die der Kommentar
+     * zu `p_ma_kein_update` (0052) schon nennt: verboten ist das AENDERN ueber
+     * `cse_app`; der Check-in schreibt seit jeher ueber `cse_definer` (K-08),
+     * und diese Route ruft mit `app.checkin_aus_der_sitzung` genau denselben
+     * Weg wie der Token-Link — sie muendet in `app.checkin_verbrauchen`, den
+     * einen Schreiber.
+     *
+     * Der Fall darunter („KEINE Route unter `api/mein/` schreibt einen
+     * Zeiteintrag") bleibt deshalb gruen: er sucht nach `insert into
+     * zeiteintrag` IM PORTALCODE, und den gibt es hier nicht.
+     *
+     * Was diese Zeile kostet, ist der Grund, aus dem sie hier steht: wer eine
+     * vierzehnte Schreibroute dazunimmt, muss sie benennen und begruenden.
+     */
+    'api/mein/stempeluhr',
   ];
 
   it('jede Schreibroute des Portals steht namentlich in der Liste', () => {
@@ -303,17 +359,25 @@ describe('(2) es gibt keinen Weg, der einen Zeiteintrag aendert (EMP-07)', () =>
     expect(quelle).toContain('zeit.abwesenheit_melden');
   });
 
-  it('unter `/portal/mein/zeiten` steht GENAU EIN Formular — der Einwand', () => {
+  /*
+   * Seit V-189 sind es ZWEI — beide der Einwand: zu einem Eintrag und
+   * „Eine Zeit fehlt" ohne Eintrag (der Fall, fuer den
+   * `zeit_einwand.zeiteintrag_id` nullbar ist). Kein Formular bearbeitet eine
+   * Zeit.
+   */
+  it('unter `/portal/mein/zeiten` stehen nur die zwei Einwandformulare', () => {
     const mitFormular = dateien(join(MEIN, 'zeiten'))
       .filter((d) => /<form/u.test(readFileSync(d, 'utf8')))
-      .map((d) => d.replace(`${MEIN}/`, ''));
-    expect(mitFormular).toEqual(['zeiten/[id]/einwand/page.tsx']);
+      .map((d) => d.replace(`${MEIN}/`, ''))
+      .sort();
+    expect(mitFormular).toEqual(['zeiten/[id]/einwand/page.tsx', 'zeiten/einwand/page.tsx']);
   });
 
-  it('und dieses Formular zeigt auf die vorhandene Einwandroute, nicht auf eine zweite', () => {
-    const quelle = readFileSync(
-      join(MEIN, 'zeiten/[id]/einwand/page.tsx'), 'utf8');
-    expect(quelle).toContain('action="/api/zeit/einwand"');
+  it('und beide zeigen auf die vorhandene Einwandroute, nicht auf eine zweite', () => {
+    for (const seite of ['zeiten/[id]/einwand/page.tsx', 'zeiten/einwand/page.tsx']) {
+      const quelle = readFileSync(join(MEIN, seite), 'utf8');
+      expect(quelle).toContain('action="/api/zeit/einwand"');
+    }
   });
 
   it('keine Seite unter `/portal/mein` ruft eine Schreibfunktion der Zeitdomaene', () => {

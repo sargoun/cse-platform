@@ -19,6 +19,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '@/app/portal/rechte';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/crm/wiedervorlagen` — die Arbeitsliste des Vertriebs
@@ -207,7 +208,7 @@ export default async function Wiedervorlagen(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="crm"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -318,7 +319,7 @@ export default async function Wiedervorlagen(
       {darf['system.benutzer_lesen'] === true ? null : (
         <p className="mt-s5 max-w-prose text-xs text-text-muted" data-cse="wv-namen-hinweis">
           Die Namen der Zuständigen sind Ihnen nicht sichtbar — dafür fehlt
-          <code className="text-text"> system.benutzer_lesen</code>. Ein „—" in dieser
+          <Recht schluessel="system.benutzer_lesen" />. Ein „—" in dieser
           Spalte heisst deshalb nicht „niemand zuständig"; wo wirklich niemand
           eingetragen ist, steht es in Worten.
         </p>
@@ -326,7 +327,7 @@ export default async function Wiedervorlagen(
 
       {!darfSchreiben ? (
         <p className="mt-s5 max-w-prose text-xs text-text-muted">
-          Erledigen und Verschieben brauchen <code className="text-text">crm.schreiben</code>.
+          Erledigen und Verschieben brauchen <Recht schluessel="crm.schreiben" />.
         </p>
       ) : (
         <p className="mt-s5 max-w-prose text-xs text-text-muted">

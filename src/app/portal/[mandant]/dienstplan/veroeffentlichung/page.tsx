@@ -18,6 +18,7 @@ import {
   UMFANG_TEXT, letzteVorgaenge, vorschau, zeitraumText,
   type Vorschau, type VorgangZeile,
 } from '@/server/services/dienstplan/veroeffentlichung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/dienstplan/veroeffentlichung` — einen Zeitraum bekannt
@@ -248,7 +249,7 @@ export default async function Veroeffentlichung(
             </Link>
           ) : (
             <span>
-              Der Konflikteingang selbst braucht <code>dienstplan.arbzg_lesen</code>.
+              Der Konflikteingang selbst braucht <Recht schluessel="dienstplan.arbzg_lesen" />.
             </span>
           )}
         </p>
@@ -340,7 +341,7 @@ export default async function Veroeffentlichung(
         {darf['dienstplan.veroeffentlichen'] !== true ? (
           <p className="max-w-prose rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
             Zum Veröffentlichen fehlt das Recht{' '}
-            <code className="text-xs">dienstplan.veroeffentlichen</code>. Die
+            <Recht schluessel="dienstplan.veroeffentlichen" />. Die
             Vorschau oben steht trotzdem — wer den Plan lesen darf, darf sehen, was
             bekanntgegeben würde.
           </p>
@@ -353,7 +354,7 @@ export default async function Veroeffentlichung(
            * den Weg deshalb auch serverseitig ab.
            */
           <p className="max-w-prose rounded-lg border border-warning bg-surface p-s4 text-sm text-text">
-            Diese Sitzung darf Objekte nicht lesen (<code className="text-xs">objekt.lesen</code>).
+            Diese Sitzung darf Objekte nicht lesen (<Recht schluessel="objekt.lesen" />).
             Die Empfängerliste oben bliebe damit leer, ohne dass jemand fehlt —
             und der Beleg behauptete eine Bekanntgabe, die niemanden erreicht
             hat. Der Weg ist bis dahin gesperrt.

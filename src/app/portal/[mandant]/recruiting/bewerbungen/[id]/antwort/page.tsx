@@ -186,7 +186,7 @@ export default async function Antwortseite(
                           <input type="hidden" name="handlung" value="vorlegen" />
                           <input type="hidden" name="antwort" value={a.id} />
                           <input type="hidden" name="zurueck" value={pfad} />
-                          <Button type="submit" variante="primary" data-cse="antwort-vorlegen">
+                          <Button type="submit" variante="secondary" data-cse="antwort-vorlegen">
                             Zur Freigabe geben
                           </Button>
                         </form>
@@ -196,7 +196,7 @@ export default async function Antwortseite(
                           <input type="hidden" name="handlung" value="senden" />
                           <input type="hidden" name="antwort" value={a.id} />
                           <input type="hidden" name="zurueck" value={pfad} />
-                          <Button type="submit" variante="primary" data-cse="antwort-senden">
+                          <Button type="submit" variante="secondary" data-cse="antwort-senden">
                             Jetzt senden
                           </Button>
                         </form>

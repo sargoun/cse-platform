@@ -857,13 +857,16 @@ of that assignment and enqueues re-issue by trigger, so a token can never outliv
 it was minted for.
 
 ```ts
-// TODO(client): O-93 `zeit-checkin-kanal` — how does the check-in link reach the worker —
-// SMS, e-mail, a QR code posted at the object, or a portal link — and who carries the SMS
-// cost? The dispatch adapter records which channel it used in `checkin_token.ausgabe_kanal`,
-// validated against the adapters actually registered; an unregistered adapter renders
-// "nicht verbunden" and sends nothing. Answer it together with O-82 `auth-sms-anbieter`,
-// which names the provider: the channel and the provider are two halves of one decision and
-// must not be answered twice under two numbers (§17).
+// O-93 `zeit-checkin-kanal` is ANSWERED — D-618: two doors to the same clock. The token
+// link stays exactly as it is for everyone WITHOUT a session (QR code at the Objekt, a link
+// from planning, a shared device). A signed-in worker clocks in from the portal, because the
+// session is the stronger proof: a token is a bearer credential — forwardable,
+// photographable, readable over a shoulder — while a session is bound to an account created
+// from phone number and one-time code (EMP-01). What the session replaces is the DELIVERY of
+// the mark, not the mark. `checkin_token.ausgabe_kanal` then carries `portal`.
+//
+// O-82 `auth-sms-anbieter` stays open, and that is no longer a blocker: SMS is now the
+// exception path, not the daily one.
 ```
 
 ---
@@ -924,6 +927,7 @@ eventually two addresses on one invoice.
 | `/portal/[mandant]/crm/kontakte/[id]` | `crm.lesen` | `M1` | CRM-03, CRM-08, LEG-08 | 4 |
 | `/portal/[mandant]/crm/kontakte/[id]/rechtsgrundlage` — set, with evidence and date | `crm.rechtsgrundlage_setzen` | `M1` | CRM-08, LEG-08 | 4 |
 | `/portal/[mandant]/crm/wiedervorlagen` — follow-ups due | `crm.lesen` | `M1` | CRM-03, CRM-04 | 4 |
+| `/portal/[mandant]/crm/aktivitaet` — activity of the last seven days, the list behind the dashboard figure (V-149) | `crm.lesen` | `M1` | CRM-03, DSH-04 | 4 |
 | `/portal/[mandant]/crm/akquise` — researched companies, scored, not yet contacted | `crm.lesen` | `M1` | §12 | 4 |
 | `/portal/[mandant]/crm/akquise/[id]` — one company: score breakdown, outreach draft, hand-over to a lead | `crm.lesen` (+ `crm.schreiben` to act) | `M1` | §12, CRM-08, LEG-08 | 4 |
 | `/portal/[mandant]/crm/akquise/quellen` — research sources and the nightly run log | `crm.lesen` | `M1` | §12, O-596 | 4 |
@@ -1032,8 +1036,10 @@ in the public tenders the Radar module exists to win.
 | `/portal/[mandant]/objekte` — list + map | `objekt.lesen` | `M1` | OPS-01 | 4 |
 | `/portal/[mandant]/objekte/neu` | `objekt.schreiben` | `M1` | OPS-01 | 4 |
 | `/portal/[mandant]/objekte/[id]` — tabs: Übersicht · Raumbuch · Reviere · Posten · Dienstanweisungen · Schlüssel · Aufträge · Einsätze · Dokumente · Qualität (each tab rendered only where its module is enabled and its `lesen` right held) | `objekt.lesen` | `M1` | OPS-01, OPS-11 | 4 |
+| `/portal/[mandant]/objekte/[id]/bearbeiten` — edit address, Kunde, access notes; archive. The **Objektnummer is not editable**: it is printed on key tags, Dienstanweisungen and every signed Leistungsnachweis | `objekt.schreiben` | `M1` | OPS-01 | 4 |
 | `/portal/[mandant]/objekte/[id]/raumbuch` — rooms with m², floor type, cleaning class | `objekt.lesen` | `M1` | OPS-02 | 4 |
 | `/portal/[mandant]/objekte/[id]/raumbuch/[raumId]` | `objekt.schreiben` | `M1` | OPS-02, OPS-03 | 4 |
+| `/portal/[mandant]/objekte/[id]/raumbuch/neu` — **one** room by hand; the file import stays the way in for a whole building | `objekt.schreiben` | `M1` | OPS-02, OPS-03 | 4 |
 | `/portal/[mandant]/objekte/[id]/raumbuch/import` — Excel/CSV, **preview before commit** | `objekt_import.schreiben` | `M1` | OPS-04, DOC-06 | 4 |
 
 The import is a two-step route by design: the upload parses into a staged diff — new rooms,
@@ -1063,7 +1069,8 @@ DSH-01's two counters are "`auftrag` without a `projekt` row" and "`auftrag` wit
 |---|---|---|---|---|
 | `/portal/[mandant]/auftraege` | `auftrag.lesen` | `M1` | OPS-05, CRM-05 | 4 |
 | `/portal/[mandant]/auftraege/neu` — contract wizard: location · staff needed · hours · equipment · start date · responsible manager | `auftrag.schreiben` | `M1` | OPS-10, OPS-05 | 4 |
-| `/portal/[mandant]/auftraege/[id]` — tabs: Übersicht · Leistungen · Einsätze · Zeiten · Nachweise · Dokumente · Rechnungen · Aufgaben | `auftrag.lesen` | `M1` | OPS-05, OPS-11, FIN-07, FIN-18 | 4 |
+| `/portal/[mandant]/auftraege/[id]` — tabs: Übersicht · Leistungen · Einsätze · Zeiten · Nachweise · Dokumente · Rechnungen · Aufgaben. Aufgaben and Dokumente stand on the sheet as sections, each under its own read right; the construction project sheet shows the same for its order (V-176) | `auftrag.lesen` | `M1` | OPS-05, OPS-11, FIN-07, FIN-18 | 4 |
+| `/portal/[mandant]/auftraege/[id]/bearbeiten` — maintain name, manager, term, value, staff needed, hours, equipment. Number, customer, type, start and site are not editable; the value of an order from an offer changes only by Nachtrag (V-173) | `auftrag.schreiben` | `M1` | OPS-05, OPS-10 | 4 |
 | `/portal/[mandant]/auftraege/[id]/abrechnung` — billing type and its parameters per contract | `abrechnung.schreiben` | `M1` | FIN-01, FIN-05, FIN-08 | 6 |
 | `/portal/[mandant]/auftraege/[id]/abschluss` — mark complete; FIN-18 warnings shown first | `auftrag.abschliessen` | `M1` | OPS-05, FIN-18 | 6 |
 | `/portal/[mandant]/auftraege/[id]/kundenfreigabe` — record the customer's written release for public use | `referenz.kundenfreigabe_erfassen` | `M1` | PRO-05 | 4 |
@@ -1135,6 +1142,7 @@ any other service.
 | `/portal/[mandant]/security` — posts staffed today, expiring certificates, open incidents | `security.lesen` | `M1` | SEC-01, SEC-02, SEC-05 | 5 |
 | `/portal/[mandant]/security/posten` , `/neu` , `/[id]` — required qualifications, minimum staffing, 24/7 coverage grid | `security.lesen` / `security.schreiben` | `M1` | SEC-01, SEC-04, TIM-04 | 5 |
 | `/portal/[mandant]/security/veranstaltungen` , `/[id]` — event jobs | `security.lesen` | `M1` | SEC-08 | 5 |
+| `/portal/[mandant]/security/veranstaltungen/neu` — place, window and required headcount; the place is an `objekt` **or** free text, never neither | `security.lesen` / `security.schreiben` | `M1` | SEC-08 | 5 |
 | `/portal/[mandant]/security/veranstaltungen/[id]/besetzung` — short-notice staffing board | `dienstplan.schreiben` | `M1` | SEC-08, SEC-04, TIM-05 | 5 |
 | `/portal/[mandant]/security/wachbuch` — journal across objects; filter by object, type, date | `wachbuch.lesen` | `M1` | SEC-05, LEG-01 | 5 |
 | `/portal/[mandant]/security/wachbuch/neu` — Streife · Vorfall · Übergabe · Schlüssel · Alarm | `wachbuch.schreiben` | `M1` | SEC-05 | 5 |
@@ -1176,6 +1184,7 @@ still unsubmitted", not "which of project 14's".
 |---|---|---|---|---|
 | `/portal/[mandant]/bau` — module overview | `bau.lesen` | `M1` | BAU-04, BAU-06, BAU-07 | 5 |
 | `/portal/[mandant]/bau/projekte` , `/[id]` — the `auftrag` with its `projekt` extension | `bau.lesen` | `M1` | OPS-05, REP-05 | 5 |
+| `/portal/[mandant]/bau/projekte/neu` — a `projekt` is an extension of an `auftrag`: the order is picked, never invented | `bau.lesen` / `bau.schreiben` | `M1` | OPS-05, BAU-01 | 5 |
 | `/portal/[mandant]/bau/projekte/[id]/lv` — hierarchical OZ tree | `bau.lesen` | `M1` | BAU-01 | 5 |
 | `/portal/[mandant]/bau/projekte/[id]/lv/[ozId]` | `bau.lesen` | `M1` | BAU-01, BAU-05 | 5 |
 | `/portal/[mandant]/bau/projekte/[id]/lv/import` — preview before commit, same pattern as OPS-04 | `bau.schreiben` | `M1` | BAU-01, REQ-04, OPS-04 | 5 |
@@ -1225,6 +1234,7 @@ LV position, and creates a task for the project manager.
 | `/portal/[mandant]/dienstplan/monat` | `dienstplan.lesen` | `M1` | TIM-01 | 5 |
 | `/portal/[mandant]/dienstplan/tag` — dispatch view | `dienstplan.lesen` | `M1` | TIM-01, TIM-04, DSH-05 | 5 |
 | `/portal/[mandant]/dienstplan/serien` , `/neu` , `/[id]` — RRULE builder, single-occurrence overrides | `dienstplan.lesen` / `dienstplan.schreiben` | `M1` | TIM-02, TIM-03, CLN-02 | 5 |
+| `/portal/[mandant]/dienstplan/einsatz/neu` — one single shift, no series (V-013) | `dienstplan.lesen` (write: `dienstplan.schreiben`) | `M1` | TIM-01, TIM-04 | 5 |
 | `/portal/[mandant]/dienstplan/einsatz/[id]` — assignment detail: qualification check, ArbZG panel, conflicts | `dienstplan.lesen`; the ArbZG panel additionally `dienstplan.arbzg_pruefen` (K-06) | `M1` | TIM-05, TIM-06, TIM-14, SEC-04, LEG-03, LEG-04 | 5 |
 | `/portal/[mandant]/dienstplan/konflikte` — conflict inbox | `dienstplan.lesen` + `dienstplan.arbzg_lesen` | `M1` | TIM-05, TIM-06, TIM-14, SEC-04 | 5 |
 | `/portal/[mandant]/dienstplan/konflikte/[id]/quittung` — acknowledge a conflict | `dienstplan.konflikt_quittieren` | `M1` | TIM-05 | 5 |
@@ -1302,7 +1312,7 @@ mandant B; `arbeitszeit_verstoss` has no INSERT policy for `cse_app` at all.
 | `/portal/[mandant]/zeiten/einwaende` , `/[id]` — objection inbox; the employee raises, the planner decides | `zeit.einwand_entscheiden` | `M1` | EMP-07, TIM-11 | 5 |
 | `/portal/[mandant]/zeiten/nacherfassung` — offline claims awaiting a human decision | `zeit.nacherfassung_pruefen` | `M1` | TIM-09, TIM-11 | 5 |
 | `/portal/[mandant]/zeiten/checkin-links` — issue, re-issue, revoke; who has a link, who used it | `zeit.checkin_verwalten` | `M1` | TIM-07 | 5 |
-| `/portal/[mandant]/zeiten/freigabe` — release worked time for billing — **blocked on O-39** | `zeit.abrechnung_freigeben` (blocked on O-39) | `M1` | TIM-12, FIN-07, FIN-18 | 6 |
+| `/portal/[mandant]/zeiten/freigabe` — release worked time for billing (weekly, before invoicing — D-611) | `zeit.abrechnung_freigeben` | `M1` | TIM-12, FIN-07, FIN-18 | 6 |
 | `/portal/[mandant]/zeiten/milog` — §17 MiLoG record; start, end, duration; two-year retention view; export | `zeit.exportieren` | `M1` | TIM-13, LEG-02, ACC-12 | 5 |
 
 **`/zeiten/freigabe` and its right are blocked on O-39, and the row says so rather than
@@ -1351,9 +1361,12 @@ and `zeiteintrag` attaches to the `auftrag` directly (TIM-12), which is why
 | `/portal/[mandant]/personal/personen/[id]/zugang` — invite, re-bind the mobile number, revoke | `personal.zugang_verwalten` | `M1` | EMP-01, AUT-08 | 3 |
 | `/portal/[mandant]/personal/nachweise` — certificate register with 60/30/7-day expiry escalation | `personal.nachweis_lesen` | `M1` | SEC-02, EMP-08, LEG-04 | 5 |
 | `/portal/[mandant]/personal/nachweise/[id]` | `personal.nachweis_verwalten` | `M1` | SEC-02, SEC-03, SEC-04 | 5 |
+| `/portal/[mandant]/personal/nachweise/erfassen` — record a qualification certificate: Sachkunde § 34a, Erste Hilfe, Führungszeugnis. It hangs off the **person**, never the Anstellung (employment) — a Sachkunde belongs to the human, and somebody employed by two entities holds it once (invariant 9, D-09). `erfasst_von_mandant_id` carries who recorded it, not who may see it. Where the qualification carries a standard validity, leaving the end date blank derives it from that configured value — and the form says so beside the field. Until this page existed `0030` carried the whole register and only the seed could write a row (V-010): the platform could warn about an expiring Sachkunde and block a shift without one, and the row it warns about arose nowhere | `personal.nachweis_lesen` (write: `personal.nachweis_verwalten`) | `M1` | SEC-02, SEC-03, EMP-08, LEG-04, DOC-01 | 5 |
 | `/portal/[mandant]/personal/abwesenheiten` , `/[id]` — calendar + list | `zeit.abwesenheit_lesen` | `M1` | EMP-05, EMP-10 | 5 |
+| `/portal/[mandant]/personal/abwesenheiten/erfassen` — record an absence reported by phone or in person. The service behind it is the one the worker's own path uses; what differs is who fills it in, and `erstellt_von` says so. Status is **erfasst** (noted), never `beantragt`: nobody decides about an illness | `zeit.abwesenheit_melden` | `M1` | EMP-05, EMP-09 | 5 |
 | `/portal/[mandant]/personal/antraege` , `/[id]` — leave, swap and sickness inbox; approve or decline | `zeit.antrag_entscheiden` | `M1` | EMP-10, NOT-01 | 5 |
 | `/portal/[mandant]/personal/stundenkonten` — target versus actual per employment, monthly lock state | `zeit.konto_lesen` | `M1` | EMP-04, EMP-15, REP-04 | 5 |
+| `/portal/[mandant]/personal/urlaubskonten` — holiday entitlement per Anstellung and year. The platform does **not** derive it: § 3 BUrlG's twenty working days are the statutory minimum, almost never the agreed figure, and a derived number would become the basis of a remaining entitlement nobody promised (O-18). “not recorded” and “0 days” are shown as two different statements | `zeit.konto_lesen` (write: `zeit.schreiben`) | `M1` | EMP-05 | 9 |
 | `/portal/[mandant]/personal/stundenkonten/[anstellungId]` — balance, carry-forward, month history | `zeit.konto_lesen` | `M1` | EMP-04, EMP-15 | 5 |
 | `/portal/[mandant]/personal/stundenkonten/abschluss` — lock a month (§5.12.2) | `zeit.konto_abschliessen` | `M1` | EMP-04, LEG-01 | 5 |
 | `/portal/[mandant]/personal/zusammenfuehren` — merge two `person` rows that are one human | `personal.zusammenfuehren` | `M1` | D-09, LEG-09 | 5 |
@@ -1457,13 +1470,16 @@ requirement it has no way to create. An earlier draft had no such route at all.
 | `/portal/[mandant]/finanzen/rechnungen/[id]/zugferd` — PDF/A-3 preview | `finanzen.herunterladen` | `M1` | FIN-12 | 6 |
 | `/portal/[mandant]/finanzen/ausgangsbuch` — per number circle, gapless, hash-chain state | `nummernkreis.lesen` | `M1` | FIN-16, FIN-06, TEN-02, LEG-01 | 6 |
 | `/portal/[mandant]/finanzen/hashkette` — the nightly verification report | `finanzen.lesen` | `M1` | FIN-06, LEG-01 | 6 |
+| `/portal/[mandant]/finanzen/lieferanten` , `/neu` , `/[id]` — accounts-payable master data. Every incoming invoice requires one; the table carried policy, grant, number index, IBAN check and the § 48 EStG date since `0123` and had no creator at all. The bank details are **not** shown on the sheet: they are withheld from the application column by column and readable only through the logged `app.lieferant_konditionen` | `eingang.lesen` (write: `eingang.schreiben`) | `M1` | FIN-14, ACC-05, ACC-07 | 8 |
 | `/portal/[mandant]/finanzen/eingangsrechnungen` , `/neu` — upload; the OCR proposal appears in Freigaben | `eingang.lesen` / `eingang.schreiben` | `M1` | FIN-14, ACC-05, DOC-06 | 6 |
 | `/portal/[mandant]/finanzen/eingangsrechnungen/[id]` — extracted fields with source and confidence | `eingang.lesen` | `M1` | ACC-05, APR-03 | 6 |
 | `/portal/[mandant]/finanzen/eingangsrechnungen/[id]/steuer` — the supplier's §48b certificate, validated at the service date | `abrechnung.freistellung_pflegen` | `M1` | FIN-10, LEG-06 | 6 |
 | `/portal/[mandant]/finanzen/eingangsrechnungen/[id]/freigabe` — release for payment | `eingang.freigeben` | `M1` | FIN-14, invariant 7 | 6 |
 | `/portal/[mandant]/finanzen/belege` , `/[id]` | `eingang.lesen` | `M1` | FIN-14, ACC-03 | 6 |
 | `/portal/[mandant]/finanzen/ausgaben` , `/[id]` | `eingang.lesen` | `M1` | FIN-14, FIN-17 | 6 |
+| `/portal/[mandant]/finanzen/ausgaben/erfassen` — record an expense: category, date, means of payment, and the **net amount per tax-rate group**. The tax is computed by a tested function, never derived back from a gross total — a rate derived from gross is a blended rate, and invariant 1 forbids it. Until this page existed `0180` carried the whole state machine and nothing could write a row (V-011): a fuel receipt, a parking fee, a builders’ merchant invoice — the most common document in the business — could not be entered | `eingang.lesen` (write: `eingang.schreiben`) | `M1` | FIN-14, FIN-17, ACC-01, ACC-03 | 6 |
 | `/portal/[mandant]/finanzen/zahlungen` , `/[id]` | `zahlung.lesen` | `M1` | FIN-14, ACC-04 | 6 |
+| `/portal/[mandant]/finanzen/bankkonten` — the Gesellschaft's own bank accounts. One of them is frozen into every finalised invoice as BT-85, so the IBAN is checked on its check digits and not only its shape. `legeBankkontoAn` existed since `0121` with no caller but tests — “received on” knew only what the seed had created | `zahlung.lesen` (write: `zahlung.schreiben`) | `M1` | FIN-15, ACC-04 | 8 |
 | `/portal/[mandant]/finanzen/mahnungen` , `/[id]` — escalation level, fee, interest | `mahnung.lesen` | `M1` | FIN-15 | 6 |
 | `/portal/[mandant]/finanzen/mahnungen/vorschlaege` — agent-proposed dunning awaiting approval | `mahnung.freigeben` | `M1` | FIN-15, APR-01, AGT-03 | 8 |
 | `/portal/[mandant]/finanzen/nummernkreise` — number circles; counters read-only | `nummernkreis.lesen` / `nummernkreis.verwalten` | `M1` | TEN-02, FIN-03, FIN-16 | 6 |
@@ -1586,7 +1602,7 @@ ships Z3 only, and no read-only auditor role exists.
 | Path | Right | Scope | SPEC | Phase |
 |---|---|---|---|---|
 | `/portal/[mandant]/dokumente` — categories, search, filter, tags | `dokument.lesen` | `M1` | DOC-01, DOC-02, DOC-04 | 4 |
-| `/portal/[mandant]/dokumente/upload` — MIME sniffed from the bytes, size limits, EXIF stripped | `dokument.schreiben` | `M1` | DOC-06, TIM-10 | 4 |
+| `/portal/[mandant]/dokumente/upload` — MIME sniffed from the bytes, size limits, EXIF stripped; an order can be named, and the order sheet preselects its own (V-176) | `dokument.schreiben` | `M1` | DOC-06, TIM-10 | 4 |
 | `/portal/[mandant]/dokumente/[id]` — metadata, versions, access log | `dokument.lesen` | `M1` | DOC-05, DOC-07, SEC-A9 | 4 |
 | `/portal/[mandant]/dokumente/[id]/kundenfreigabe` — flip `sichtbar_fuer_kunde` | `dokument.kunde_freigeben` | `M1` | DOC-04 | 4 |
 | `/portal/[mandant]/dokumente/buendel` — one-click bundle for an audit or inspection | `dokument.buendel_exportieren` | `M1` | DOC-08, ACC-09, LEG-01 | 7 |
@@ -1654,7 +1670,7 @@ firing. Per-user channel preferences (NOT-02) arrive with Phase 9 at
 | `/portal/[mandant]/radar/[id]/mappe` — Vergabemappe assembly, completeness gaps named | `vergabe.schreiben` | `M1` | RAD-07, AGT-02, APR-03, D-07 | 8 |
 | `/portal/[mandant]/radar/[id]/mappe/einreichung` — record that a human submitted, with when and by whom | `vergabe.einreichung_erfassen` | `M1` | RAD-07, D-07, REP-06 | 8 |
 | `/portal/[mandant]/radar/profile` , `/[id]` — CPV codes, NUTS DE3/DE300, positive and negative keywords, value bounds | `radar.profil_schreiben` | `M1` | RAD-04 | 8 |
-| `/portal/[mandant]/radar/plattformen` — registration status per procurement platform | `radar.plattform_verwalten` | `M1` | RAD-09 | 8 |
+| `/portal/[mandant]/radar/plattformen` — registration status per procurement platform; the super administration maintains the catalogue, and a new platform also assigns the notices already read in (V-175) | `radar.plattform_verwalten` | `M1` | RAD-09 | 8 |
 
 **RAD-07's vocabulary is rendered as an explicit transition control**, because D-07 correctly
 removes any submit button and without a control `eingereicht` and `verworfen` could never be
@@ -1823,7 +1839,7 @@ per-person review-duration distribution is performance monitoring.
 | `/portal/[mandant]/website/profil` — logo, cover, description of this area's public profile | `referenz.schreiben` + `system.identitaet_verwalten` | `M1` | PRO-01, PRO-02, TEN-07 | 2 |
 | `/portal/[mandant]/website/seiten` , `/[id]` | `referenz.schreiben` | `M1` | PUB-07, PUB-08 | 2 |
 | `/portal/[mandant]/website/leistungen` , `/[id]` | `referenz.schreiben` | `M1` | PRO-02, PUB-07, OPS-06 | 2 |
-| `/portal/[mandant]/website/referenzen` , `/[id]` — created from an `auftrag` whose customer release is on file | `referenz.schreiben` | `M1` | PRO-05 | 2 |
+| `/portal/[mandant]/website/referenzen` , `/[id]` , `/neu` — created from a completed `auftrag` whose customer release is on file, and it keeps that origin | `referenz.schreiben` | `M1` | PRO-05 | 2 |
 | `/portal/[mandant]/website/referenzen/[id]/veroeffentlichen` | `referenz.veroeffentlichen` | `M1` | PRO-05, PUB-07 | 2 |
 | `/portal/[mandant]/website/news` , `/[id]` | `referenz.schreiben` | `M1` | PRO-02, SOC-05 | 2 |
 | `/portal/[mandant]/website/galerie` | `referenz.schreiben` | `M1` | PRO-02, PUB-04 | 2 |
@@ -1902,6 +1918,7 @@ the back door into the cost base that the module ceiling closes elsewhere.
 | `/portal/[mandant]/einstellungen/mandant` — name, legal form, address, register court, HRB, Geschäftsführer, tax number, bank details, invoice footer | `system.mandant_lesen` / `system.mandant_verwalten` | `M1` | TEN-01, TEN-02, DESIGN §11 | 1 |
 | `/portal/[mandant]/einstellungen/identitaet` — logo, identity hue, cover | `system.identitaet_verwalten` | `M1` | TEN-07, D-10, D-11 | 1 |
 | `/portal/[mandant]/einstellungen/benutzer` , `/[id]` — users of this mandant, invitations, session list, 2FA state | `system.benutzer_lesen` / `system.benutzer_verwalten` | `M1` | AUT-01, AUT-02, AUT-08 | 1 |
+| `/portal/[mandant]/einstellungen/benutzer/einladen` — invite an administration account (creates the account, issues a one-time invitation link; the link is displayed, never sent — no mail provider is connected, O-501) | `system.verwaltungskonto_erstellen` | `M1` | AUT-04, D-610 | 1 |
 | `/portal/[mandant]/einstellungen/rollen` , `/[rolle]` — the permission matrix, editable per mandant | `system.rolle_lesen` / `system.rolle_verwalten` (**write requires `aal2`**, K-15) | `M1` | AUT-03, AUT-05 | 1 |
 | `/portal/[mandant]/einstellungen/module` — which modules an admin holds in this mandant | `system.module_zuweisen` (**`aal2`**) | `M1` | AUT-01, AUT-03, TEN-08 | 1 |
 | `/portal/[mandant]/einstellungen/steuer` — tax-rate groups and this entity's own tax identity (§5.3) | `buchhaltung_konfiguration.verwalten` | `M1` | LEG-05, FIN-09 | 6 |
@@ -1911,6 +1928,7 @@ the back door into the cost base that the module ceiling closes elsewhere.
 | `/portal/[mandant]/einstellungen/agent-richtlinien` | `agent.richtlinie_verwalten` | `M1` | AGT-03, APR-01 | 8 |
 | `/portal/[mandant]/einstellungen/vorlagen` — offer PDF, Behinderungsanzeige, dunning and e-mail templates | `system.einstellung_verwalten` | `M1` | OPS-08, BAU-06, FIN-15 | 4 |
 | `/portal/[mandant]/einstellungen/integrationen` — DATEV · social · job boards · DWD · SMS · e-mail · map · radar sources, each **verbunden / nicht verbunden** | `system.einstellung_lesen` / `system.einstellung_verwalten` | `M1` | ACC-02, SOC-06, SOC-07, REC-09, BAU-08, RAD-01, RAD-02, EMP-01 | **2** |
+| `/portal/[mandant]/einstellungen/modelle` — the model register: which language model may be called, and who attested to it. A model is callable only when EU processing, zero retention and approval all stand. `geprueft_von` is set by the database, never by the form — a name somebody types about themselves is not an attestation. Until this page existed the only way in was a hand-written `insert` (V-120) | `system.einstellung_lesen` (write: `system.einstellung_verwalten`) | `M1` | D-04, LEG-09 | 9 |
 | `/portal/[mandant]/einstellungen/betrieb` — the operations view: every scheduled run against its protocol — **failed**, **hanging**, **absent**, never run — plus whether a trigger is installed at all | `system.betrieb_lesen` | `M1` | SPEC §14, D-540 | 10 |
 | `/portal/[mandant]/einstellungen/dpa` — the processor register: service, purpose, region, DPA date | `system.einstellung_lesen` | `M1` | LEG-09, D-04 | 7 |
 | `/portal/[mandant]/einstellungen/protokoll` — the audit log: actor (human · agent · system), action, before, after, instant, IP | `system.audit_lesen` | `M1` | SEC-A9, AUT-08, TEN-09, LEG-01 | 1 |
@@ -1961,6 +1979,7 @@ the active mandant only**; platform rows are readable by `super_admin` alone, an
 | Path | Right | Scope | SPEC | Phase |
 |---|---|---|---|---|
 | `/portal/[mandant]/datenschutz` — data-subject request inbox with the Art. 12(3) one-month clock | `datenschutz.auskunft_erstellen` | `M1` | LEG-09 | 7 |
+| `/portal/[mandant]/datenschutz/aufnehmen` — record a request that arrived by letter, telephone, email or in person (Art. 12(1) names all three forms). The receipt instant is an **entry**, not the clock: the Art. 12(3) deadline runs from the postmark, not from the day someone typed it in — and never from a moment in the future | `datenschutz.auskunft_erstellen` | `M1` | LEG-09 | 7 |
 | `/portal/[mandant]/datenschutz/[id]` — the request, its subject match and its deadline | `datenschutz.auskunft_erstellen` | `M1` | LEG-09 | 7 |
 | `/portal/[mandant]/datenschutz/[id]/auskunft` — assemble the Art. 15 export for a person, an applicant or a customer contact | `datenschutz.auskunft_erstellen` | `M1` | LEG-09 | 7 |
 | `/portal/[mandant]/datenschutz/[id]/berichtigung` — Art. 16 | `datenschutz.berichtigung_bearbeiten` | `M1` | LEG-09 | 7 |
@@ -2030,6 +2049,8 @@ user the action exists here, and it does not.
 | `/portal/gruppe/kunden` — customer history across all four areas (CRM-06) | `gruppe.crm.lesen` | `GRP` | CRM-06, CRM-01 | 4 |
 | `/portal/gruppe/leads` — pipeline across areas | `gruppe.crm.lesen` | `GRP` | CRM-01, REP-02 | 4 |
 | `/portal/gruppe/auftraege` — orders across areas | `gruppe.auftrag.lesen` | `GRP` | OPS-05, DSH-01 | 4 |
+| `/portal/gruppe/angebote` — offers across areas, the list behind the overview figure (V-149) | `gruppe.angebot.lesen` | `GRP` | OPS-08, DSH-01, DSH-04 | 4 |
+| `/portal/gruppe/aufgaben` — open tasks across areas, the list behind the overview figure (V-150) | `gruppe.aufgabe.lesen` | `GRP` | OPS-11, DSH-01, DSH-04 | 4 |
 | `/portal/gruppe/projekte` — projects across areas | `gruppe.bau.lesen` | `GRP` | OPS-05, REP-05 | 4 |
 | `/portal/gruppe/objekte` — objects across areas, one map | `gruppe.objekt.lesen` | `GRP` | OPS-01 | 4 |
 | `/portal/gruppe/personen` — people and their employments per entity; certificate expiry; **identity only** | `gruppe.personal.lesen` | `GRP` | D-09, EMP-14, SEC-02, SEC-03, LEG-04 | 3 |
@@ -2138,12 +2159,14 @@ tr with `dir="rtl"` for Arabic (DESIGN §8, EMP-12).
 | `/portal/mein/zeiten` — my time entries, **read-only** | `S` | `PER` | EMP-03, TIM-13, LEG-02 | 5 |
 | `/portal/mein/zeiten/[id]` — server time shown, device deviation shown | `S` | `PER` | TIM-08, TIM-11 | 5 |
 | `/portal/mein/zeiten/[id]/einwand` — raise a `zeit_einwand` | `S` | `PER→M1` | EMP-07 | 5 |
+| `/portal/mein/zeiten/einwand` — hours missing: a `zeit_einwand` of kind `eintrag_fehlt` WITHOUT an entry (V-189) | `S` | `PER→M1` | EMP-07, TIM-11 | 5 |
 | `/portal/mein/stundenkonto` — one tab per employment: target versus actual, overtime, carry-forward, lock state | `S` | `PER` | EMP-04, EMP-15 | 5 |
 | `/portal/mein/monatsnachweis` — the monthly hours statement as PDF, per employment | `S` | `PER` | EMP-06, TIM-13, LEG-02 | 5 |
 | `/portal/mein/urlaub` — balance and used days, per employment | `S` | `PER` | EMP-05, EMP-15 | 5 |
 | `/portal/mein/antraege` , `/[id]` — leave, swap and sickness requests with status | `S` | `PER` | EMP-10, NOT-03 | 5 |
 | `/portal/mein/antraege/neu` — leave request or shift swap | `S` | `PER→M1` | EMP-10 | 5 |
 | `/portal/mein/abwesenheit/neu` — sickness or absence report | `zeit.abwesenheit_melden` | `PER→M1` | EMP-10 | 5 |
+| `/portal/mein/abwesenheit/[id]` — one own absence, with self-withdrawal while undecided (V-056) | `S` | `PER` | EMP-10 | 5 |
 | `/portal/mein/nachweise` — my certificates with personal expiry warnings | `S` | `PER` (person-level, D-09) | EMP-08, SEC-02, SEC-03 | 5 |
 | `/portal/mein/dienstanweisungen` , `/[id]` — read and acknowledge from the phone | `S` | `PER` / `PER→M1` | EMP-09, SEC-06 | 5 |
 | `/portal/mein/dokumente` , `/[id]` — documents relevant to me, via signed URLs | `S` | `PER` | EMP-11, DOC-03, DOC-04 | 3 |
@@ -2512,7 +2535,7 @@ a horizontal scrollbar on a phone.
 ### 11.4 Public navigation (DESIGN §5)
 
 Header `72px`, `--ink` at 85 % opacity with `backdrop-filter: blur(12px)` once scrolled. Logo
-left; centre nav **Unternehmen · Leistungen · Projekte · Über uns · News · Kontakt**; right a
+left; centre nav **Unternehmen · Leistungen · Projekte · Kontakt** (DESIGN §5, D-417 — **Über uns · News · Karriere** do not fit the row; they sit in the overlay menu and in a footer column *Die Gruppe*, D-649); right a
 red `Angebot anfragen` — the one primary button on the page — and a ghost `Login` pointing at
 `/auth/login`. Mobile: a full-screen overlay menu. The footer carries the four entities' NAP
 (PUB-12), the legal trio **Impressum · Datenschutz · Barrierefreiheit**, and — only on pages

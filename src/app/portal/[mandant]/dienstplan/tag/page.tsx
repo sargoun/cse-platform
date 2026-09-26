@@ -9,6 +9,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenText } from '@/server/services/dienstplan/wochenraster';
 import { beschriftung, ladePlanfenster, tagePlus } from '../daten';
 import { berlinHeute } from '@/server/db/heute';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/dienstplan/tag` — die Disposition (TIM-01, TIM-04, DSH-05).
@@ -48,6 +49,9 @@ export default async function Tagesansicht({
   // Der Berliner Tag kommt aus der Datenbank — siehe `@/server/db/heute`.
   const heuteTag = await berlinHeute();
   const tag = roh !== null && /^\d{4}-\d{2}-\d{2}$/u.test(roh) ? roh : heuteTag;
+
+  const darf = await haeltRechte(sitzung, 'dienstplan.schreiben');
+  const darfPlanen = darf['dienstplan.schreiben'] === true;
 
   const { tage, schichten, abwesenheitGeprueft } = await ladePlanfenster(sitzung, tag, tag);
   const heute = tage[0];
@@ -105,6 +109,29 @@ export default async function Tagesansicht({
           Wochenansicht
         </Link>
       </nav>
+
+      {/*
+        **Der Eingang zur einzelnen Schicht** (V-013). Bis dahin entstand ein
+        Einsatz nur aus einer Serie oder einer Veranstaltung — wer eine
+        Grundreinigung fuer genau diesen Samstag ansetzen wollte, musste eine
+        Serie anlegen, die ab Montag weitergeneriert. Der angezeigte Tag reist
+        mit: wer im 14. Mai steht, plant fuer den 14. Mai.
+
+        Der Verweis steht nur unter `dienstplan.schreiben`. Ein Link auf eine
+        Seite, die mit 404 antwortet, verraet ihre Existenz und ist derselbe
+        Verstoss wie die 404 selbst (AUT-06).
+      */}
+      {darfPlanen && (
+        <p className="mb-s4">
+          <Link
+            href={`/portal/${mandant}/dienstplan/einsatz/neu?tag=${tag}`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s4 py-s2 text-sm text-text hover:bg-surface-2"
+            data-cse="schicht-neu"
+          >
+            Neue Schicht
+          </Link>
+        </p>
+      )}
 
       {heute?.feiertag != null && (
         <p className="mb-s4 rounded-md bg-info-soft px-s3 py-s2 text-sm text-info">

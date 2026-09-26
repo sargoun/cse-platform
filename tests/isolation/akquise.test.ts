@@ -304,14 +304,60 @@ describe('§6 verwerfen und prüfen', () => {
       verwirf(tx, f.reinigung, ziel.id!, '   '))).rejects.toThrow(AkquiseFehler);
   });
 
-  it('merkt sich, wer geprüft hat', async () => {
+  it('merkt sich, wer geprüft hat — und gibt es auch HERAUS (V-080)', async () => {
+    /*
+     * **Der Befund hinter dieser Prüfung.** `markiereGeprueft` stempelte
+     * `angesehen_am` und `angesehen_von` seit je, die Route nahm die Handlung
+     * entgegen — und kein Formular schickte sie; der Zustand `geprueft` wurde
+     * auf dem Blatt als „In Arbeit" beschriftet und entstand nie. Und selbst
+     * wenn: der Blick gab die beiden Felder nicht heraus, die Seite konnte
+     * also gar nicht zeigen, WER hingesehen hat.
+     */
     const ziel = await alsApp(sitzung(f.reinigung), (tx) => nimmAuf(tx, f.reinigung, {
-      firmenname: 'Angesehen GmbH', ort: 'Berlin',
+      firmenname: `Angesehen ${String(Math.random()).slice(2, 10)} GmbH`, ort: 'Berlin',
     }));
+    expect(ziel.zustand).toBe('neu');
+    const vorher = await alsApp(sitzung(f.reinigung),
+      (tx) => lade(tx, f.reinigung, ziel.id!));
+    expect(vorher!.status).toBe('neu');
+    expect(vorher!.angesehenAm).toBeNull();
+
     await alsApp(sitzung(f.reinigung), (tx) =>
       markiereGeprueft(tx, f.reinigung, ziel.id!, benutzer));
     const nach = await alsApp(sitzung(f.reinigung), (tx) => lade(tx, f.reinigung, ziel.id!));
     expect(nach!.status).toBe('geprueft');
+    expect(nach!.angesehenAm).toBeInstanceOf(Date);
+    expect(nach!.angesehenVon).toBe('Vertrieb');
+  });
+
+  it('holt ein übernommenes Ziel NICHT auf `geprueft` zurück', async () => {
+    /*
+     * `case when status = 'neu' then 'geprueft'` — der Zustand geht nur aus
+     * `neu` heraus. Ein übernommenes Ziel, das noch einmal jemand ansieht,
+     * fiele sonst hinter den Vertrieb zurück, und die Liste zeigte es wieder
+     * als unentschieden.
+     */
+    /*
+     * Der Name traegt eine Zufallsendung: `nimmAuf` legt mit `on conflict do
+     * nothing` an und gibt dann `{ id: null, zustand: 'bekannt' }` zurueck —
+     * ein zweiter Lauf gegen dieselbe Datenbank fiele sonst mit „Dieses
+     * Akquiseziel gibt es nicht" um, und zwar an einer Stelle, die nichts
+     * damit zu tun hat.
+     */
+    const ziel = await alsApp(sitzung(f.reinigung), (tx) => nimmAuf(tx, f.reinigung, {
+      firmenname: `Schon im Vertrieb ${String(Math.random()).slice(2, 10)} GmbH`,
+      ort: 'Berlin',
+    }));
+    expect(ziel.zustand, 'die Fixtur legt wirklich an').toBe('neu');
+    await alsApp(sitzung(f.reinigung), (tx) => uebernehmen(tx, f.reinigung, {
+      zielId: ziel.id!, besitzerBenutzerId: benutzer,
+    }));
+    await alsApp(sitzung(f.reinigung), (tx) =>
+      markiereGeprueft(tx, f.reinigung, ziel.id!, benutzer));
+    const nach = await alsApp(sitzung(f.reinigung), (tx) => lade(tx, f.reinigung, ziel.id!));
+    expect(nach!.status).toBe('uebernommen');
+    /* Der Zeitstempel wird trotzdem erneuert — wann zuletzt jemand hinsah. */
+    expect(nach!.angesehenAm).toBeInstanceOf(Date);
   });
 
   it('löscht nicht — es gibt keinen harten Löschweg (Invariante 8)', async () => {

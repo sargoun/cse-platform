@@ -2,16 +2,17 @@
  * Die Freigabe erfasster Zeit zur Abrechnung gegen echtes Postgres
  * (TIM-12, FIN-07, FIN-18, §3.3/§7.3, Invariante 3, Invariante 8, 0366).
  *
- * **Warum diese Datei trotz O-39 existiert.** O-39 fragt, ob es den Schritt
- * als eigenen menschlichen Akt gibt; `zeit.abrechnung_freigeben` ist deshalb
- * an keine Rolle gebunden, und im Betrieb kommt heute niemand hierher. Der
- * WEG dorthin ist aber gebaut und wird von zwei fertigen Lesern benutzt
- * (Stundenkonto §7.3, Rechnungsstellung §3.3). Eine gebaute Funktion ohne
- * Pruefung ist die teuerste Sorte: sie sieht richtig aus, bis jemand das
- * Recht bindet.
+ * **Diese Datei entstand, als O-39 noch offen war** — `zeit.abrechnung_freigeben`
+ * war an keine Rolle gebunden, und im Betrieb kam niemand hierher. Geprueft
+ * wurde deshalb mit einer EIGENS gebundenen Rolle: genau der Handgriff, den
+ * die Antwort des Mandanten spaeter im Seed tat.
  *
- * Geprueft wird deshalb mit einer EIGENS gebundenen Rolle — genau der
- * Handgriff, den die Antwort des Mandanten spaeter im Seed tut.
+ * **D-611 hat geantwortet, `0371` hat gebunden** — und die eigens gebundene
+ * Rolle bleibt trotzdem stehen. Sie prueft die Funktion gegen ein Recht,
+ * nicht gegen einen Rollennamen, und wuerde einen Defekt auch dann noch
+ * finden, wenn die Vorgabe sich einmal aendert. Was dazukommt, ist Block (5):
+ * die PLATTFORM-Vorgabe selbst — haelt `admin` das Recht wirklich, und haelt
+ * `leitung` es wirklich nicht (D-612)?
  */
 import type postgres from 'postgres';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
@@ -270,12 +271,107 @@ describe('(3) die Liste zeigt genau das, was freigebbar ist', () => {
     expect(amFolgetag.zeilen.find((z) => z.id === nacht)?.endeFolgetag).toBe(true);
   });
 
-  it('`darfFreigeben` ist falsch, wo das Recht fehlt (O-39)', async () => {
+  it('`darfFreigeben` ist falsch, wo das Recht fehlt (AUT-06)', async () => {
     const liste = await als(planer, (tx) =>
       ladeFreigabeliste(kontextAus(tx, planer, f.reinigung), {
         von: '2026-03-01', bis: '2026-03-31',
         personId: null, objektId: null, nurOhneAuftrag: false,
       }));
     expect(liste.darfFreigeben).toBe(false);
+  });
+});
+
+/**
+ * **(5) Die Plattform-Vorgabe selbst — D-611 und D-612 als Zusicherung.**
+ *
+ * Die Bloecke (1) bis (4) binden das Recht EIGENS und pruefen die Funktion.
+ * Das ist die richtige Pruefung fuer die Funktion und die falsche fuer die
+ * VORGABE: sie liefe genauso gruen, wenn `0371` nie geschrieben worden waere.
+ * Und genau dieser Unterschied ist der Befund, der die Seite ein halbes Jahr
+ * lang unerreichbar gelassen hat — gebaut, geprueft, an keine Rolle gebunden.
+ *
+ * Hier steht deshalb die andere Haelfte: nicht „die Funktion haelt das Recht",
+ * sondern „die Rollen, die der Mandant benannt hat, halten es — und die
+ * anderen nicht".
+ */
+describe('(5) die Plattform-Vorgabe: wer haelt `zeit.abrechnung_freigeben` (D-611, D-612)', () => {
+  /**
+   * Ein Konto in der Standardrolle `schluessel`, ohne eigens gebaute Rechte.
+   *
+   * **`super_admin` haengt anders als die anderen vier.** Sein
+   * `geltungsbereich` ist `global`, und `benutzer_mandant` besteht auf
+   * `mandant` — die Zeile wird mit genau dieser Meldung abgewiesen. Die
+   * globale Rolle steht deshalb auf dem BENUTZER (`globale_rolle_id`, `0007`),
+   * so wie der Seed sie setzt, und nicht auf einer Mitgliedschaft.
+   */
+  async function inSystemrolle(schluessel: string): Promise<string> {
+    const benutzer = await konto(schluessel);
+    const [r] = await sql.unsafe<{ id: string, bereich: string }[]>(
+      `select id, geltungsbereich::text as bereich
+         from rolle where schluessel = $1 and mandant_id is null`, [schluessel]);
+    if (r!.bereich === 'global') {
+      /*
+       * **Erst der zweite Faktor, dann die Rolle.** `0007` Zeile 588 laesst ein
+       * Konto mit globaler Rolle nicht aktiv werden, solange kein
+       * `auth.mfa_factors`-Satz dazu steht (AUT-02) — dieselbe Reihenfolge,
+       * die der Seed beim Super-Admin einhaelt. Andersherum stirbt die Zeile,
+       * und zwar zu Recht.
+       */
+      await sql.unsafe(`insert into auth.mfa_factors (user_id) values ($1)`, [benutzer]);
+      await sql.unsafe(
+        `update benutzer set globale_rolle_id = $1 where id = $2`, [r!.id, benutzer]);
+    } else {
+      await mitglied(benutzer, f.reinigung, r!.id);
+    }
+    return benutzer;
+  }
+
+  const haeltRecht = (benutzer: string): Promise<boolean> =>
+    als(benutzer, async (tx) => {
+      const [z] = await tx.unsafe<{ hat: boolean }[]>(
+        `select app.hat_recht('zeit.abrechnung_freigeben', app.aktiver_mandant()) as hat`);
+      return z!.hat;
+    });
+
+  it('`admin` haelt es — das ist D-611', async () => {
+    expect(await haeltRecht(await inSystemrolle('admin'))).toBe(true);
+  });
+
+  it('`super_admin` haelt es', async () => {
+    expect(await haeltRecht(await inSystemrolle('super_admin'))).toBe(true);
+  });
+
+  /*
+   * **Die Zusicherung, auf die es bei D-612 ankommt.** `leitung` steht in der
+   * Matrix als `○` und nicht als `✔`: bindbar, nicht vorgegeben. Ein spaeterer
+   * Lauf von `pnpm katalog` ueber eine geaenderte Matrixzeile wuerde das hier
+   * umwerfen — und soll es, denn dann waere aus einer Entscheidung je
+   * Gesellschaft eine Vorgabe fuer alle vier geworden, ohne dass jemand sie
+   * getroffen hat.
+   */
+  it('`leitung` haelt es NICHT per Vorgabe — das ist D-612', async () => {
+    expect(await haeltRecht(await inSystemrolle('leitung'))).toBe(false);
+  });
+
+  it('`mitarbeiter` haelt es nicht — und kann es auch nicht bekommen', async () => {
+    expect(await haeltRecht(await inSystemrolle('mitarbeiter'))).toBe(false);
+  });
+
+  /*
+   * Die andere Haelfte von D-612: `○` ist kein Nein, sondern eine
+   * Entscheidung, die jede Gesellschaft selbst trifft. Ohne diese Zusage
+   * waere „bindbar" eine Behauptung der Matrix, die niemand nachgerechnet hat.
+   */
+  it('eine Gesellschaft KANN es ihrer `leitung` erteilen (D-612, `○`)', async () => {
+    const benutzer = await inSystemrolle('leitung');
+    const [r] = await sql.unsafe<{ id: string }[]>(
+      `select id from rolle where schluessel = 'leitung' and mandant_id is null`);
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       select $1, b.id, $2, true from berechtigung b
+        where b.schluessel = 'zeit.abrechnung_freigeben'`,
+      [r!.id, f.reinigung]);
+
+    expect(await haeltRecht(benutzer)).toBe(true);
   });
 });

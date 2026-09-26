@@ -8,7 +8,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { Button } from '@/components/ui/Button';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { DataTable } from '@/components/ui/DataTable';
-import { SETZBAR } from '@/server/services/radar/vorgang';
+import { PLATTFORM_PRUEFUNGEN, SETZBAR } from '@/server/services/radar/vorgang';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '../../../../rechte';
@@ -18,6 +18,10 @@ import {
   type RadarZeile, type StandEreignis, type VorgangBlick,
 } from '../../daten';
 import { fristKlasse, fristText, istKnapp } from '../../frist';
+import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { RADAR_PLATTFORM_TEXTE } from '@/lib/i18n/verwaltung/radar-plattform';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/radar/[id]/status` — die Übergangssteuerung (RAD-06,
@@ -95,10 +99,13 @@ export default async function Standseite(
   kennungOder404(id);
   const suche = await searchParams;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  /* Nur dieser eine Wert zählt — die Plattformprüfung bleibt auf dieser Seite (V-175). */
+  const pruefungVermerkt = suche['vermerkt'] === 'plattform';
 
   const tor = await mandantTor(`/portal/${mandant}/radar/${id}/status`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+  const tp = nachSprache(RADAR_PLATTFORM_TEXTE, zugang.sprache);
 
   /*
    * `/radar/[id]/mappe` verlangt `vergabe.schreiben`,
@@ -162,7 +169,7 @@ export default async function Standseite(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="radar"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -188,7 +195,11 @@ export default async function Standseite(
             : fehler === 'mappe_recht'
               ? '„In Bearbeitung" legt die Vergabemappe an — dafür fehlt das Recht '
                 + 'vergabe.schreiben.'
-              : 'Die Handlung wurde abgewiesen.'}
+              : eigenerEintrag(tp.fehler, fehler) ?? 'Die Handlung wurde abgewiesen.'}
+        </Hinweis>
+      ) : pruefungVermerkt ? (
+        <Hinweis art="erfolg" cse="status-plattform-vermerkt" className="mb-s5 max-w-prose">
+          {tp.pruefungVermerkt}
         </Hinweis>
       ) : null}
 
@@ -284,7 +295,7 @@ export default async function Standseite(
                 {gesperrt ? (
                   <span className="mt-s1 block text-xs text-warning"
                         data-cse="status-ziel-gesperrt">
-                    Dafür fehlt das Recht <code>vergabe.schreiben</code> — die Mappe anzulegen
+                    Dafür fehlt das Recht <Recht schluessel="vergabe.schreiben" /> — die Mappe anzulegen
                     ist eine eigene Befugnis. Die beiden anderen Stände bleiben möglich.
                   </span>
                 ) : null}
@@ -337,12 +348,62 @@ export default async function Standseite(
         </form>
       </section>
 
+      {/* ------------------------------------------ Die Plattformprüfung (V-175) */}
+      <section className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5"
+               data-cse="status-plattform">
+        <h2 className="mb-s2 text-h2 text-text">{tp.pruefungTitel}</h2>
+        <p className="mb-s3 text-sm text-text-muted">{tp.pruefungErklaerung}</p>
+        {kopf.plattformName !== null ? (
+          <p className="mb-s3 text-sm text-text" data-cse="status-plattform-katalog">
+            {tp.pruefungPlattform(kopf.plattformName,
+              eigenerEintrag(tp.stand, kopf.registrierung ?? 'unbekannt') ?? tp.stand.unbekannt)}
+          </p>
+        ) : kopf.plattformHinweis !== null ? (
+          <p className="mb-s3 text-sm text-text" data-cse="status-plattform-hinweis">
+            {tp.pruefungOhnePlattform(kopf.plattformHinweis)}
+          </p>
+        ) : null}
+        {vorgang === null ? (
+          <p className="text-sm text-text-muted" data-cse="status-plattform-ohne-vorgang">
+            {tp.pruefungOhneVorgang}
+          </p>
+        ) : (
+          <form method="post" action="/api/radar/vorgang" data-cse="status-plattform-formular"
+                className="flex flex-col gap-s3">
+            {/* `zurueck` wie oben: Absage UND Erfolg kommen hierher zurück. */}
+            <input type="hidden" name="was" value="plattform" />
+            <input type="hidden" name="zurueck" value="status" />
+            <input type="hidden" name="ausschreibung" value={id} />
+            <label className="flex flex-col gap-s2 text-sm text-text" htmlFor="plattformPruefung">
+              {tp.pruefungStand}
+              <select id="plattformPruefung" name="plattformPruefung" className={feld}
+                      defaultValue={vorgang.plattformPruefung}
+                      data-cse="status-plattform-wert">
+                {PLATTFORM_PRUEFUNGEN.map((p) => (
+                  <option key={p} value={p}>{tp.pruefung[p]}</option>
+                ))}
+              </select>
+            </label>
+            <p className="m-0 text-xs text-text-subtle" data-cse="status-plattform-geprueft">
+              {vorgang.plattformGeprueftAm === null
+                ? tp.pruefungNie
+                : tp.pruefungGeprueftAm(BERLIN.format(vorgang.plattformGeprueftAm))}
+            </p>
+            <div>
+              <Button type="submit" variante="secondary" data-cse="status-plattform-speichern">
+                {tp.pruefungSpeichern}
+              </Button>
+            </div>
+          </form>
+        )}
+      </section>
+
       {/* ------------------------------------------------- Was hier NICHT steht */}
       <Hinweis art="hinweis" cse="status-kein-einreichen" className="mb-s6 max-w-prose">
         <strong>„Eingereicht" ist hier nicht setzbar</strong> — und einen Knopf „jetzt
         einreichen" gibt es nirgends (D-07): keine der deutschen Vergabeplattformen bietet
         dafür eine Schnittstelle an, die Abgabe läuft von Hand. Festgehalten wird sie
-        unter dem eigenen Recht <code className="text-xs">vergabe.einreichung_erfassen</code>
+        unter dem eigenen Recht <Recht schluessel="vergabe.einreichung_erfassen" />
         {' '}als Nachweis — wer, wann, wo.
         {darf['vergabe.einreichung_erfassen'] === true && vorgang !== null
           && vorgang.hatMappe ? (

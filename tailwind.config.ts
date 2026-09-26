@@ -74,7 +74,11 @@ const config: Config = {
       transitionDuration: { fast: '150ms', base: '220ms', slow: '400ms' },
       // `form`: DESIGN §3 — Seiten, die nur ein Formular tragen (Anmeldung,
       // Einmalcode). 32rem Feld plus die --s6-Rinne beidseits.
-      maxWidth: { content: '1280px', prose: '72ch', form: '608px' },
+      maxWidth: { content: '1280px', prose: '72ch', form: '608px', wahl: '44rem' },
+      // DESIGN §5 „Standalone pages": der eine Lichthauch hinter einer
+      // alleinstehenden Flaeche. Als Hintergrundbild, damit `bg-wash-brand`
+      // ihn traegt und keine Seite ihn als `style=` nachbaut.
+      backgroundImage: { 'wash-brand': 'var(--wash-brand)' },
       // `quelltext`: DESIGN §5 — die Hoehe eines rollenden Quelltextfeldes
       // (XRechnung-Vorschau). Als Token und nicht als Einzelwert in der Seite:
       // die naechste Vorschau bekaeme sonst eine leicht andere Hoehe.

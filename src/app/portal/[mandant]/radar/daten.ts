@@ -1,5 +1,6 @@
 import 'server-only';
 import type { LeseKontext } from '@/server/kontext/index';
+import { freischaltungSql, registrierungAbgelaufenSql } from '@/server/services/radar/plattform';
 
 /**
  * Was die Radarseiten lesen (RAD-05 … RAD-09).
@@ -42,6 +43,15 @@ export interface RadarZeile {
   readonly plattformHinweis: string | null;
   /** `null` = keine Plattform zugeordnet; sonst der Registrierungsstand dieser Gesellschaft. */
   readonly registrierung: string | null;
+  /**
+   * Freigeschaltet? `null` ohne Plattform; sonst die Antwort von
+   * `freischaltungSql` — Registrierungspflicht und Gültigkeit eingerechnet (V-240).
+   */
+  readonly freigeschaltet: boolean | null;
+  /** Registriert, aber „gültig bis" liegt vor heute (V-240). */
+  readonly registrierungAbgelaufen: boolean;
+  /** „Gültig bis" der Registrierung, `JJJJ-MM-TT`, oder `null`. */
+  readonly registrierungGueltigBis: string | null;
   readonly vorgangStatus: string | null;
 }
 
@@ -63,6 +73,9 @@ const ZEILEN_SQL = `
          k.begruendung, p.name as profil_name, p.id as profil_id, p.ist_platzhalter,
          vp.name as plattform_name, a.plattform_hinweis,
          mpr.status::text as registrierung,
+         ${freischaltungSql('vp', 'mpr')} as freigeschaltet,
+         ${registrierungAbgelaufenSql('mpr')} as registrierung_abgelaufen,
+         mpr.gueltig_bis::text as registrierung_gueltig_bis,
          v.status::text as vorgang_status
     from aktuell k
     join ausschreibung a on a.id = k.ausschreibung_id
@@ -70,6 +83,7 @@ const ZEILEN_SQL = `
     left join vergabeplattform vp on vp.id = a.vergabeplattform_id
     left join mandant_plattform_registrierung mpr
            on mpr.vergabeplattform_id = a.vergabeplattform_id and mpr.geloescht_am is null
+          and mpr.mandant_id = app.aktiver_mandant()
     left join ausschreibung_vorgang v
            on v.ausschreibung_id = a.id and v.geloescht_am is null`;
 
@@ -99,6 +113,9 @@ function alsZeile(z: Record<string, unknown>): RadarZeile {
     plattformName: (z['plattform_name'] as string | null) ?? null,
     plattformHinweis: (z['plattform_hinweis'] as string | null) ?? null,
     registrierung: (z['registrierung'] as string | null) ?? null,
+    freigeschaltet: typeof z['freigeschaltet'] === 'boolean' ? z['freigeschaltet'] : null,
+    registrierungAbgelaufen: z['registrierung_abgelaufen'] === true,
+    registrierungGueltigBis: (z['registrierung_gueltig_bis'] as string | null) ?? null,
     vorgangStatus: (z['vorgang_status'] as string | null) ?? null,
   };
 }
@@ -151,8 +168,9 @@ export async function leseRadarKennzahlen(kontext: LeseKontext): Promise<RadarKe
           join vergabeplattform vp on vp.id = a.vergabeplattform_id
           left join mandant_plattform_registrierung m
                  on m.vergabeplattform_id = vp.id and m.geloescht_am is null
+                and m.mandant_id = app.aktiver_mandant()
          where a.quell_status = 'aktiv' and a.frist_angebot > now()
-           and coalesce(m.status::text, 'unbekannt') <> 'registriert')::int as ohne_registrierung,
+           and not ${freischaltungSql('vp', 'm')})::int as ohne_registrierung,
        (select count(*) from radar_profil where ist_aktiv and geloescht_am is null)::int as profile`);
   const [lauf] = await kontext.abfrage<{ quelle: string; status: string; am: Date | null }>(
     `select quelle::text as quelle, status::text as status, coalesce(beendet_am, gestartet_am) as am
@@ -238,40 +256,73 @@ export async function leseProfile(kontext: LeseKontext): Promise<readonly Profil
 export interface PlattformZeile {
   readonly id: string;
   readonly name: string;
+  readonly slug: string;
   readonly betreiber: string | null;
+  readonly basisUrl: string | null;
+  /** Die Hostnamen, über die der Auslöser zuordnet (0145). */
+  readonly hostMuster: readonly string[];
+  readonly registrierungErforderlich: boolean;
   readonly istPlatzhalter: boolean;
   readonly registrierung: string;
   readonly registriertAm: string | null;
   readonly gueltigBis: string | null;
+  /** Liegt `gueltigBis` vor dem heutigen Berliner Kalendertag? Die Datenbank sagt es. */
+  readonly gueltigkeitVorbei: boolean;
+  /** Freigeschaltet — Registrierungspflicht und Gültigkeit eingerechnet (`freischaltungSql`, V-240). */
+  readonly freigeschaltet: boolean;
   readonly benutzerkennung: string | null;
+  readonly verantwortlichBenutzerId: string | null;
+  readonly notiz: string | null;
+  readonly zuletztBestaetigtAm: Date | null;
   readonly hinweis: string | null;
   readonly offeneBekanntmachungen: number;
 }
 
+/**
+ * Der Katalog mit dem Registrierungsstand DIESER Gesellschaft (RAD-09).
+ *
+ * Die Registrierung wird ausdrücklich auf den aktiven Mandanten gebunden und
+ * nicht nur der RLS überlassen: in einer Sitzung mit mehreren sichtbaren
+ * Bereichen stünde eine Plattform sonst je Bereich einmal da.
+ */
 export async function lesePlattformen(kontext: LeseKontext): Promise<readonly PlattformZeile[]> {
   const zeilen = await kontext.abfrage<Record<string, unknown>>(
-    `select vp.id, vp.name, vp.betreiber, vp.ist_platzhalter,
+    `select vp.id, vp.name, vp.slug, vp.betreiber, vp.basis_url, vp.host_muster,
+            vp.registrierung_erforderlich, vp.ist_platzhalter,
             vp.registrierung_dauer_hinweis,
             coalesce(m.status::text, 'unbekannt') as registrierung,
             m.registriert_am::text as registriert_am, m.gueltig_bis::text as gueltig_bis,
-            m.benutzerkennung,
+            coalesce(m.gueltig_bis < app.berlin_heute(), false) as gueltigkeit_vorbei,
+            ${freischaltungSql('vp', 'm')} as freigeschaltet,
+            m.benutzerkennung, m.verantwortlich_benutzer_id::text as verantwortlich,
+            m.notiz, m.zuletzt_bestaetigt_am,
             (select count(*) from ausschreibung a
               where a.vergabeplattform_id = vp.id and a.quell_status = 'aktiv'
                 and a.frist_angebot > now())::int as offene
        from vergabeplattform vp
        left join mandant_plattform_registrierung m
               on m.vergabeplattform_id = vp.id and m.geloescht_am is null
+             and m.mandant_id = app.aktiver_mandant()
       where vp.archiviert_am is null
       order by vp.name`);
   return zeilen.map((z) => ({
     id: String(z['id']),
     name: String(z['name']),
+    slug: String(z['slug']),
     betreiber: (z['betreiber'] as string | null) ?? null,
+    basisUrl: (z['basis_url'] as string | null) ?? null,
+    hostMuster: (z['host_muster'] as string[] | null) ?? [],
+    registrierungErforderlich: z['registrierung_erforderlich'] !== false,
     istPlatzhalter: z['ist_platzhalter'] === true,
     registrierung: String(z['registrierung']),
     registriertAm: (z['registriert_am'] as string | null) ?? null,
     gueltigBis: (z['gueltig_bis'] as string | null) ?? null,
+    gueltigkeitVorbei: z['gueltigkeit_vorbei'] === true,
+    freigeschaltet: z['freigeschaltet'] === true,
     benutzerkennung: (z['benutzerkennung'] as string | null) ?? null,
+    verantwortlichBenutzerId: (z['verantwortlich'] as string | null) ?? null,
+    notiz: (z['notiz'] as string | null) ?? null,
+    zuletztBestaetigtAm: (z['zuletzt_bestaetigt_am'] as Date | null) ?? null,
     hinweis: (z['registrierung_dauer_hinweis'] as string | null) ?? null,
     offeneBekanntmachungen: Number(z['offene']),
   }));
@@ -292,6 +343,9 @@ export interface VorgangBlick {
   readonly fristSnapshot: Date | null;
   readonly fristAbweichungSeit: Date | null;
   readonly hatMappe: boolean;
+  /** Was ein Mensch über die Plattform geprüft hat (RAD-09, V-175). */
+  readonly plattformPruefung: string;
+  readonly plattformGeprueftAm: Date | null;
 }
 
 /**
@@ -310,6 +364,7 @@ export async function leseVorgang(
     `select v.id, v.status::text as status, v.verworfen_grund, v.status_geaendert_am,
             b.name as geaendert_von_name, v.frist_angebot_snapshot,
             v.frist_abweichung_seit,
+            v.plattform_pruefung::text as plattform_pruefung, v.plattform_geprueft_am,
             exists (select 1 from vergabemappe m
                      where m.ausschreibung_vorgang_id = v.id
                        and m.mandant_id = v.mandant_id
@@ -328,6 +383,8 @@ export async function leseVorgang(
     fristSnapshot: (z['frist_angebot_snapshot'] as Date | null) ?? null,
     fristAbweichungSeit: (z['frist_abweichung_seit'] as Date | null) ?? null,
     hatMappe: z['hat_mappe'] === true,
+    plattformPruefung: String(z['plattform_pruefung'] ?? 'unbekannt'),
+    plattformGeprueftAm: (z['plattform_geprueft_am'] as Date | null) ?? null,
   };
 }
 
@@ -360,22 +417,26 @@ export interface StandEreignis {
  * Verwerfungsgrundes steht in `ausschreibung_vorgang.verworfen_grund`; ältere
  * sind mit ihrem Stand überschrieben, und die Seite sagt das, statt eine
  * Lücke als „ohne Grund" auszugeben.
+ *
+ * **Gelesen über `app.radar_stand_verlauf` (0463), nicht aus `audit_log`
+ * direkt** (V-241, D-735). Hier stand `select … a.nachher ->> 'status' from
+ * audit_log` als `cse_app` — und `cse_app` hält `vorher`/`nachher` seit 0005
+ * mit Absicht nicht. Jeder Vorgang mit einem Stand endete deshalb in
+ * „permission denied for table audit_log" und einer Fehlerseite. Der Definer
+ * gibt genau Stand und `mitGrund` heraus, gebunden an den aktiven Mandanten
+ * und an `radar.lesen`; den NAMEN verbindet diese Abfrage weiter als
+ * `cse_app` mit `benutzer`, damit dessen Policy entscheidet, ob er sichtbar
+ * ist.
  */
 export async function leseStandHistorie(
   kontext: LeseKontext, vorgangId: string,
 ): Promise<readonly StandEreignis[]> {
   const zeilen = await kontext.abfrage<Record<string, unknown>>(
-    `select a.id::text as id, a.erstellt_am, a.akteur_typ::text as akteur_typ,
-            a.nachher ->> 'status' as status,
-            (a.nachher -> 'mitGrund') = 'true'::jsonb as mit_grund,
-            b.name as akteur_name
-       from audit_log a
-       left join benutzer b on b.id = a.akteur_id
-      where a.aktion = 'radar.stand_gesetzt'
-        and a.objekt_typ = 'ausschreibung_vorgang'
-        and a.objekt_id = $1
-      order by a.erstellt_am desc, a.id desc
-      limit 50`,
+    `select h.audit_id::text as id, h.erstellt_am, h.akteur_typ::text as akteur_typ,
+            h.status, h.mit_grund, b.name as akteur_name
+       from app.radar_stand_verlauf($1::uuid) h
+       left join benutzer b on b.id = h.akteur_id
+      order by h.erstellt_am desc, h.audit_id desc`,
     [vorgangId]);
   return zeilen.map((z) => ({
     id: String(z['id']),

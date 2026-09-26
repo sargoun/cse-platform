@@ -22,6 +22,9 @@
  *    `mandantDerAnstellung` serverseitig aufloest (K-02, Invariante 3).
  */
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
+import { erzeuge } from '../../benachrichtigung/registry.js';
+import { registriereZeitArten } from './benachrichtigung.js';
+import { ART_EINWAND_ENTSCHIEDEN } from './benachrichtigung.js';
 
 export type EinwandArt =
   'eintrag_fehlt' | 'zeit_falsch' | 'pause_falsch' | 'zuordnung_falsch' | 'sonstiges';
@@ -38,10 +41,23 @@ export const ENTSCHIEDEN: readonly EinwandStatus[] = [
 /**
  * Die drei, die eine ENTSCHEIDUNG der Planung sind.
  *
- * `zurueckgezogen` steht ausdruecklich NICHT dabei: das zieht die betroffene
- * Person selbst zurueck, und `in_pruefung` ist ein Zwischenstand. Nur diese
- * drei loesen das Selbstentscheidungsverbot aus (EMP-07) — dieselbe Liste wie
- * in `kern.zeit_einwand_status`.
+ * Nur sie loesen das Selbstentscheidungsverbot aus (EMP-07) — dieselbe Liste
+ * wie in `kern.zeit_einwand_status`. `in_pruefung` ist ein Zwischenstand, und
+ * `zurueckgezogen` ist keine Entscheidung UEBER den Einwand, sondern die
+ * Feststellung, dass er keine mehr braucht.
+ *
+ * **Richtigstellung (V-052).** Hier stand, `zurueckgezogen` ziehe „die
+ * betroffene Person selbst" zurueck. Das stimmte nicht und widersprach der
+ * Migration, die es baut: `0052` gibt der betroffenen Person ausdrücklich NUR
+ * `t_selbst_einreichen` (INSERT) und kein UPDATE-Gegenstueck, mit der
+ * Begruendung, einen eingereichten Einwand zurueckzuziehen sei „eine
+ * Entscheidung der Planung … nicht ein zweiter Griff des Menschen in seinen
+ * eigenen Vorgang". Ein Kommentar, der das Gegenteil der Policy behauptet,
+ * ist schlimmer als keiner: er laesst eine Oberflaeche bauen, die an einer
+ * Regel scheitert, die niemand gesucht haette.
+ *
+ * Ob es so bleiben soll, ist offen — siehe **O-901**. Erfunden wird hier
+ * nichts; gebaut ist der Weg, den die Datenbank heute erlaubt.
  */
 export const ENTSCHEIDUNG: readonly EinwandStatus[] = [
   'anerkannt', 'teilweise_anerkannt', 'abgelehnt',
@@ -171,6 +187,26 @@ export async function mandantDerAnstellung(
 }
 
 /**
+ * Warum ein Einwand gegen die Uhr der Datenbank nicht passt (V-193) — als
+ * Schlüssel, den das Formular in der Sprache der Kraft nachschlägt.
+ *
+ *  - `tag_in_zukunft`: der Tag liegt nach dem heutigen Berliner Tag.
+ *  - `zeit_in_zukunft`: der behauptete Beginn oder das Ende liegt nach jetzt.
+ *  - `beginn_nicht_am_tag`: bei „Eine Zeit fehlt" beginnt die behauptete Zeit
+ *    nicht an dem gewählten Tag.
+ */
+export type EinwandZeitGrund = 'tag_in_zukunft' | 'zeit_in_zukunft' | 'beginn_nicht_am_tag';
+
+export class EinwandZeitFehler extends Error {
+  readonly code = 'ungueltige_eingabe';
+  readonly status = 422;
+  constructor(readonly grund: EinwandZeitGrund) {
+    super(`Der Einwand passt nicht zur Uhr der Datenbank: ${grund}`);
+    this.name = 'EinwandZeitFehler';
+  }
+}
+
+/**
  * Der Einwand wird eingereicht.
  *
  * Kein Rechteschluessel: EMP-07 fuehrt das Einreichen als Selbstzugriff (`S`)
@@ -178,12 +214,41 @@ export async function mandantDerAnstellung(
  * `t_selbst_einreichen` — sie trifft nur Zeilen, deren Anstellung dem
  * angemeldeten Menschen gehoert, und sie ist die einzige Schreiboperation,
  * die ein Mitarbeitender in dieser Domaene besitzt.
+ *
+ * **Tag und behauptete Zeit gelten gegen die Uhr der Datenbank** (V-193,
+ * Invariante 5). Die Seite „Eine Zeit fehlt" setzte `max={heute}` nur im
+ * Browser; eine nachgebaute Anfrage legte einen Einwand für einen künftigen
+ * Tag an. Ein Einwand behauptet, dass gearbeitet WURDE: ein Tag nach heute
+ * oder eine Zeit nach jetzt ist keine Behauptung über geleistete Arbeit. Und
+ * der Tag eines Einwands ist der Berliner Kalendertag, an dem die Arbeit
+ * begann (0052, K-11 — dieselbe Zuordnung wie beim Eintrag, dessen Tag der
+ * seines Beginns ist). Bei „Eine Zeit fehlt" wählt die Kraft Tag UND Zeit
+ * selbst, also muss der behauptete Beginn an diesem Tag liegen; beim Einwand
+ * zu einem Eintrag nicht — dort kann gerade der Beginn falsch erfasst sein.
  */
 export async function reicheEinwandEin(
   kontext: SchreibKontext, eingabe: EinwandEingabe,
 ): Promise<string> {
   const bezug = eingabe.zeiteintragId ?? null;
   if (bezug === null && eingabe.art !== 'eintrag_fehlt') throw new EinwandOhneBezugFehler();
+
+  const beginn = eingabe.behauptetBeginn ?? null;
+  const ende = eingabe.behauptetEnde ?? null;
+  const [uhr] = await kontext.abfrage<{
+    tag_zukunft: boolean; zeit_zukunft: boolean; beginn_tag: string | null;
+  }>(
+    `select ($1::date > app.berlin_heute())                              as tag_zukunft,
+            (coalesce($2::timestamptz > now(), false)
+             or coalesce($3::timestamptz > now(), false))                 as zeit_zukunft,
+            to_char($2::timestamptz at time zone 'Europe/Berlin', 'YYYY-MM-DD') as beginn_tag`,
+    [eingabe.betrifftDatum, beginn?.toISOString() ?? null, ende?.toISOString() ?? null],
+  );
+  if (uhr?.tag_zukunft === true) throw new EinwandZeitFehler('tag_in_zukunft');
+  if (uhr?.zeit_zukunft === true) throw new EinwandZeitFehler('zeit_in_zukunft');
+  if (eingabe.art === 'eintrag_fehlt' && beginn !== null
+      && uhr?.beginn_tag !== eingabe.betrifftDatum) {
+    throw new EinwandZeitFehler('beginn_nicht_am_tag');
+  }
 
   const [zeile] = await kontext.schreibe<{ id: string }>(
     `insert into zeit_einwand
@@ -282,6 +347,82 @@ export async function entscheideEinwand(
   // Recht `zeit.einwand_entscheiden` fehlt. Von aussen dieselbe Antwort wie
   // „gibt es nicht" (AUT-06).
   if (zeilen.length === 0) throw new EinwandNichtGefundenFehler(eingabe.einwandId);
+
+  /*
+   * ═════════════════════════════════════════════════════════════════════════
+   * **Und jetzt erfaehrt es die Person** (V-051, NOT-01).
+   * ═════════════════════════════════════════════════════════════════════════
+   *
+   * Bis hierher setzte diese Funktion Zustand, Zeitpunkt und Begruendung —
+   * und danach passierte nichts. Die betroffene Person erfuhr es nur, wenn
+   * sie von sich aus dieselbe Seite noch einmal oeffnete. Bei einer Meldung
+   * ueber falsch erfasste ARBEITSZEIT ist das die eine Stelle, an der
+   * Schweigen teuer ist.
+   *
+   * **`in_pruefung` meldet sich NICHT.** Das ist keine Entscheidung, sondern
+   * die Auskunft, dass jemand hinsieht; 0377 liefert dafuer ohnehin NULL,
+   * weil `entschieden_am` dabei ungesetzt bleibt. Eine Meldung „es wurde
+   * entschieden", waehrend geprueft wird, waere falsch.
+   *
+   * **`zurueckgezogen` meldet sich auch nicht** — das tut die Person selbst,
+   * und niemand muss sich selbst mitteilen, was er gerade getan hat.
+   *
+   * **Die Zustellung schreibt `cse_app` nicht selbst.** `benachrichtigung`
+   * hat fuer diese Rolle keine INSERT-Policy, mit Absicht: wer dem
+   * Posteingang eines anderen Menschen etwas hinzufuegen kann, kann ihm
+   * alles hinzufuegen. Migration 0377 stellt dafuer
+   * `app.einwand_entscheidung_melden` bereit — Empfaenger abgeleitet, Art
+   * festgeschrieben, Ziel auf `/portal/mein/` begrenzt.
+   *
+   * **Ein Mensch ohne Zugang bekommt nichts, und das bricht nichts ab.** Die
+   * Funktion liefert dann NULL (D-09). Die Entscheidung gilt trotzdem; sie
+   * ist die Aufzeichnung, die Meldung ist ihr Weg. Beides zu verbinden
+   * hiesse, eine Entscheidung daran scheitern zu lassen, dass die Kraft kein
+   * Telefon hat.
+   */
+  if (!ENTSCHEIDUNG.includes(eingabe.status)) return;
+
+  const [kopf] = await kontext.abfrage<{
+    mandant_id: string; zeiteintrag_id: string | null; betrifft_datum: string;
+    sprache: string | null;
+  }>(
+    /*
+     * Die Sprache der Empfaengerin steht an der Person, nicht am Einwand
+     * (V-102, O-889). Beide Verbuende sind LINKS: die Sprache ist ein
+     * Zusatz, kein Filter. Ein innerer Verbund liesse die Meldung ausfallen,
+     * sobald eine Policy `anstellung` oder `person` ausblendet — und eine
+     * Entscheidung ueber die eigene Arbeitszeit, von der niemand erfaehrt,
+     * ist genau der Befund, den V-051 geschlossen hat.
+     */
+    `select e.mandant_id, e.zeiteintrag_id,
+            to_char(e.betrifft_datum, 'DD.MM.YYYY') as betrifft_datum,
+            p.sprache
+       from zeit_einwand e
+       left join anstellung a on a.mandant_id = e.mandant_id and a.id = e.anstellung_id
+       left join person     p on p.id = a.person_id
+      where e.id = $1`,
+    [eingabe.einwandId],
+  );
+  if (kopf === undefined) return;
+
+  registriereZeitArten();
+  const meldung = erzeuge(ART_EINWAND_ENTSCHIEDEN, {
+    mandantId: kopf.mandant_id,
+    sprache: kopf.sprache,
+    objektTyp: 'zeit_einwand',
+    objektId: eingabe.einwandId,
+    daten: {
+      status: eingabe.status,
+      betrifftDatum: kopf.betrifft_datum,
+      begruendung: eingabe.begruendung ?? '',
+      zeiteintragId: kopf.zeiteintrag_id ?? '',
+    },
+  });
+
+  await kontext.schreibe(
+    `select app.einwand_entscheidung_melden($1::uuid, $2, $3, $4)`,
+    [eingabe.einwandId, meldung.titel, meldung.text, meldung.ziel],
+  );
 }
 
 const SPALTEN = `

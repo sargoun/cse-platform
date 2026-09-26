@@ -7,7 +7,7 @@ import { DataTable } from '@/components/ui/DataTable';
 import { KpiStat } from '@/components/ui/KpiStat';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { offeneArchivierungen } from '@/server/services/buchhaltung/belegarchiv';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
@@ -127,7 +127,7 @@ export default async function Archiv(
       offeneLaeufe: number;
     }>);
 
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
   const basis = `/portal/${mandant}/buchhaltung/archiv`;
   const feld = 'min-h-11 rounded-md border border-line bg-surface-3 px-s3 text-sm text-text';
 
@@ -138,7 +138,7 @@ export default async function Archiv(
       nurLesen
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="buchhaltung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >

@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { anfrageAdresse } from '@/server/auth/adresse';
 import { db } from '@/server/db/pool';
 import {
   KeinBenutzerkontoFehler, KeinOffenerEintragFehler, TokenAbgelehntFehler,
@@ -67,13 +68,6 @@ function geoAus(rumpf: Rumpf): GeoPunkt | null {
   };
 }
 
-/** Die erste Adresse aus `x-forwarded-for` — die des Geraets, nicht die des Proxys. */
-function ipAus(anfrage: NextRequest): string | null {
-  const kopf = anfrage.headers.get('x-forwarded-for');
-  const erste = kopf?.split(',')[0]?.trim();
-  return erste === undefined || erste === '' ? null : erste;
-}
-
 export async function POST(
   anfrage: NextRequest,
   kontext: { params: Promise<{ token: string }> },
@@ -110,7 +104,12 @@ export async function POST(
       loeseCheckinEin(tx as never, {
         token,
         geraeteZeit: geraeteZeitAus(rumpf),
-        ip: ipAus(anfrage),
+        /*
+         * Dieselbe Lesart wie jede Sitzung (`anfrageAdresse`, D-661 Nr. 6):
+         * nur, was eine Adresse IST. Sie steht in der Marke und, ueber
+         * `withCheckin`, in jeder Protokollzeile des Check-ins (V-235).
+         */
+        ip: anfrageAdresse(anfrage.headers),
         userAgent: anfrage.headers.get('user-agent'),
         geo: geoAus(rumpf),
       })) as Promise<Awaited<ReturnType<typeof loeseCheckinEin>>>);

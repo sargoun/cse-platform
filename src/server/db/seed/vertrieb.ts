@@ -50,10 +50,13 @@ import { kalkuliere } from '../../services/kalkulation/index.js';
 import { PLATZHALTER_FREQUENZ, PLATZHALTER_TARIF }
   from '../../services/kalkulation/tarif.js';
 import { bestaetigeKalkulation } from '../../services/kalkulation/bestaetigung.js';
+import { setzeKostenposition } from '../../services/kalkulation/kostenposition.js';
 import {
   gibPreisFrei, legeAngebotAn, uebernimmKalkulation, versendeAngebot, wandleInAuftrag,
 } from '../../services/angebot/index.js';
 import { erfasseKundenfreigabe } from '../../services/auftrag/kundenfreigabe.js';
+import { legeLeadAn } from '../../services/crm/anlegen.js';
+import { leseLeadKontaktWahl, waehleLeadKontakt } from '../../services/crm/lead-kontakt.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -80,12 +83,39 @@ export interface VertriebErgebnis {
   readonly zurFreigabe: number;
   /** Ein Kundendokument mit `kunde_id` — die Pflichtangabe der Kundenfreigabe. */
   readonly kundendokument: string | null;
+  /** Die Anfrage, aus der Angebot und Auftrag kommen (V-138) — ihre Leadnummer. */
+  readonly anfrage: string | null;
+  /** Material- und Gerätezeilen im Entwurf (V-174, OPS-07). */
+  readonly kostenzeilen: number;
 }
 
 const LEER: VertriebErgebnis = {
   angebote: 0, positionen: 0, angebotsnummer: null, auftragsnummer: null,
-  entwuerfe: 0, offeneFragen: [], zurFreigabe: 0, kundendokument: null,
+  entwuerfe: 0, offeneFragen: [], zurFreigabe: 0, kundendokument: null, anfrage: null,
+  kostenzeilen: 0,
 };
+
+/**
+ * **Material und Gerät im Entwurf** (V-174, OPS-07) — eingetragen über den
+ * Dienst, wie ein Mensch auf der Kalkulationsseite.
+ *
+ * Die Beträge sind DEMODATEN, und die Bezeichnung sagt es: sie sind keine
+ * Katalogpreise und kein Satz, den die Plattform kennt. Material und Gerät
+ * haben mit Absicht keine Vorgabe (D-668) — wer kalkuliert, trägt ein, was
+ * er einkauft oder mietet. Der Entwurf zeigt damit alle fünf Blöcke von
+ * OPS-07 und den Preis, der sie enthält; er bleibt unbestätigt und damit
+ * gesperrt (O-16).
+ */
+const ENTWURF_KOSTEN = [
+  {
+    kostenart: 'material', bezeichnung: 'Grundreiniger, alkalisch (Demodaten)',
+    menge: '20', einheit: 'l', einzelpreisEuro: '4,80',
+  },
+  {
+    kostenart: 'geraet', bezeichnung: 'Einscheibenmaschine, Tagesmiete (Demodaten)',
+    menge: '1', einheit: 'Tag', einzelpreisEuro: '65,00',
+  },
+] as const;
 
 /**
  * Die zwei Angebote — und der Unterschied zwischen ihnen ist die Aussage.
@@ -297,11 +327,54 @@ export async function seedVertrieb(
     });
     if (kalkulation.zeilen.length === 0) return LEER;
 
+    /**
+     * **Die Anfrage, aus der dieses Angebot kommt** (V-138, V-139, CRM-05,
+     * CRM-07, REP-03).
+     *
+     * Bis hierher verknüpfte der Seed keinen einzigen Auftrag mit einem Lead,
+     * und der Herkunftsbericht zeigte schon in der Demo für jeden Kanal null
+     * Aufträge. Jetzt geht die ganze Kette durch die echten Dienste: eine
+     * Empfehlung eines anderen Kunden → Angebot mit `lead_id` → Versand
+     * (der Lead folgt auf „Angebot abgegeben") → Auftrag (der Lead folgt auf
+     * „gewonnen", 0400).
+     *
+     * **Eine Empfehlung und kein Webformular:** ein Web-Lead verlangt einen
+     * echten Formulareingang (`lead_herkunft_stimmig`), und einen zu
+     * erfinden hiesse, eine Anfrage zu behaupten, die niemand gestellt hat
+     * (siehe `operations.ts`). Die Empfehlung braucht nur einen zweiten
+     * Kunden — gibt es keinen, bleibt es eine Erfassung von Hand.
+     */
+    const [empfehler] = await db.abfrage<{ id: string }>(
+      `select id::text as id from kunde
+        where mandant_id = app.aktiver_mandant() and id <> $1::uuid
+          and archiviert_am is null
+        order by kundennummer limit 1`, [objekt.kunde_id]);
+    const anfrage = await legeLeadAn(kontext, {
+      betreff: 'Unterhaltsreinigung Bürohaus Kurfürstendamm',
+      kundeId: objekt.kunde_id,
+      bedarf: 'Demodaten: Empfehlung einer Bestandskundin — Büroflächen, fünfmal wöchentlich.',
+      besitzerBenutzerId: freigeber.id,
+      ...(empfehler === undefined
+        ? { quelle: 'manuell' as const }
+        : { quelle: 'empfehlung' as const, empfehlungVonKundeId: empfehler.id }),
+    });
+    /*
+     * **Der Mensch hinter der Anfrage** (V-141, D-635): ein Kontakt des
+     * Kunden, über denselben Dienst wie der Knopf auf dem Leadblatt. Ohne
+     * ihn stünde die Empfehlung ohne Ansprechpartner da — und jeder
+     * ausgehende Anruf, den jemand in der Demo festhält, bräche ab.
+     */
+    const [ansprechpartner] = await leseLeadKontaktWahl(kontext, anfrage.id);
+    if (ansprechpartner !== undefined) {
+      await waehleLeadKontakt(kontext, anfrage.id, ansprechpartner.id);
+    }
+
     const angebotId = await legeAngebotAn(db, {
       kundeId: objekt.kunde_id,
       titel: VERSENDET.titel,
       objektId: objekt.id,
       einleitungstext: VERSENDET.einleitung,
+      leadId: anfrage.id,
       /**
        * `gueltigBis` bleibt LEER.
        *
@@ -393,6 +466,9 @@ export async function seedVertrieb(
       tarif,
       frequenz: entwurfFrequenz,
     });
+    for (const zeile of ENTWURF_KOSTEN) {
+      await setzeKostenposition(db, entwurfId, zeile);
+    }
 
     /* ------------------------------------------------------------------ */
     /* 3 — das Angebot, das auf die PREISFREIGABE wartet                   */
@@ -459,20 +535,24 @@ export async function seedVertrieb(
      * `sichtbar_fuer_kunde` bleibt FALSE. Die Freigabe ist der Vorgang, den
      * `/dokumente/[id]/kundenfreigabe` vorfuehrt — ein Seed, der sie schon
      * gesetzt hat, nimmt der Seite ihren einen Knopf.
+     *
+     * **Und es haengt am AUFTRAG** (V-176, OPS-11): das Auftragsblatt zeigt
+     * seine Dokumente, und das Schreiben ist der Beleg genau dieses Auftrags.
      */
     const [schreiben] = await db.abfrage<{ id: string }>(
       `insert into dokument
          (mandant_id, kategorie, titel, beschreibung, kunde_id, objekt_id,
           bucket, objekt_schluessel, mime_typ, mime_verifiziert, groesse_bytes,
           exif_entfernt, sichtbar_fuer_kunde, sichtbar_fuer_mitarbeiter,
-          entstanden_am)
+          entstanden_am, auftrag_id)
        values (app.aktiver_mandant(), 'kunde', $1, $2, $3, $4,
                'dokumente', $5, 'application/pdf', true, 24576, true, false, false,
-               app.berlin_heute())
+               app.berlin_heute(), $6::uuid)
        returning id`,
       [KUNDENSCHREIBEN.titel, KUNDENSCHREIBEN.beschreibung,
        objekt.kunde_id, objekt.id,
-       `demo/referenzfreigabe/${auftrag.auftragsnummer}.pdf`]);
+       `demo/referenzfreigabe/${auftrag.auftragsnummer}.pdf`,
+       auftrag.auftragId]);
 
     /**
      * Und die Freigabe selbst — am Auftrag, der gerade entstanden ist.
@@ -510,6 +590,8 @@ export async function seedVertrieb(
       offeneFragen: kalkulation.offeneFragen,
       zurFreigabe: 1,
       kundendokument: freigabeErfasst ? KUNDENSCHREIBEN.titel : null,
+      anfrage: anfrage.leadnummer,
+      kostenzeilen: ENTWURF_KOSTEN.length,
     };
   });
 

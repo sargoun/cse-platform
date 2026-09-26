@@ -7,14 +7,26 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { LeistungsankerFeld } from '@/components/portal/LeistungsankerFeld';
+import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import {
+  listeAnkerbareLeistungen, type AnkerbareLeistung,
+} from '@/server/services/dienstplan/leistungsanker';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { Nutzlastblatt } from '@/components/ui/Nutzlastblatt';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { NUTZLAST_TEXTE } from '@/lib/i18n/verwaltung/nutzlast';
+import { SERIE_PFLEGE_TEXTE } from '@/lib/i18n/verwaltung/dienstplan-serie-pflege';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
+import { WOCHENTAGE } from '@/lib/datum/rrule';
 import {
   ausnahmeLeserecht, ausnahmeSchreibrecht, leseAusnahmen, leseSerie, leseSerienEinsaetze,
   type AusnahmeZeile, type SerienBlatt, type SerienEinsatzZeile,
@@ -24,6 +36,7 @@ import { MAX_DAUER_MINUTEN } from '@/server/services/dienstplan/vorkommnisse';
 import {
   ANOMALIE_TEXT, AUSNAHME_TEXT, Feld, QUELLE_TEXT,
 } from './Bausteine';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/dienstplan/serien/[id]` — das Blatt einer Serie
@@ -83,26 +96,38 @@ export default async function Serienblatt(
   const angelegt = typeof frage['ausnahme'] === 'string' ? frage['ausnahme'] : null;
   const erzeugt = typeof frage['erzeugt'] === 'string' ? frage['erzeugt'] : null;
   const storniert = typeof frage['storniert'] === 'string' ? frage['storniert'] : null;
+  const gepflegt = typeof frage['gepflegt'] === 'string' ? frage['gepflegt'] : null;
+  const pflegeFehler = typeof frage['fehler'] === 'string' ? frage['fehler'] : null;
 
   const gelesen = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
         const blatt = await leseSerie(kontext, id);
         if (blatt === null) return null;
+        /*
+         * Die Leistungszeilen fuer den Anker des Turnus (V-191) — unter der
+         * RLS des Betrachters: ohne `auftrag.lesen` ist die Liste leer, und
+         * die Maske zeigt dann KEIN Feld (siehe unten).
+         */
+        const [lesen] = await kontext.abfrage<{ darf: boolean }>(
+          `select app.hat_recht('auftrag.lesen', app.aktiver_mandant()) as darf`);
         return {
           blatt,
           einsaetze: await leseSerienEinsaetze(kontext, id),
           ausnahmen: await leseAusnahmen(kontext, blatt),
+          anker: blatt.turnusId !== null && lesen?.darf === true
+            ? await listeAnkerbareLeistungen(kontext, blatt.auftragLeistungId) : null,
         };
       }),
   ) as Promise<{
     blatt: SerienBlatt;
     einsaetze: readonly SerienEinsatzZeile[];
     ausnahmen: readonly AusnahmeZeile[];
+    anker: readonly AnkerbareLeistung[] | null;
   } | null>);
   // AUT-06: eine fremde Zeile ist nicht vorhanden, nicht verboten.
   if (gelesen === null) notFound();
-  const { blatt, einsaetze, ausnahmen } = gelesen;
+  const { blatt, einsaetze, ausnahmen, anker } = gelesen;
 
   const leserecht = ausnahmeLeserecht(blatt);
   const schreibrecht = ausnahmeSchreibrecht(blatt);
@@ -116,6 +141,11 @@ export default async function Serienblatt(
   const darfAusnahmeAnlegen = schreibrecht !== null
     && darf['dienstplan.schreiben'] === true && darf[schreibrecht] === true;
   const istPosten = blatt.postenId !== null;
+  const tNutzlast = nachSprache(NUTZLAST_TEXTE, zugang.sprache);
+  const tP = nachSprache(SERIE_PFLEGE_TEXTE, zugang.sprache);
+  const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
+  /* Was die Adresse meldet, steht nur als eigener Satz da — nie ihr Wortlaut (V-192). */
+  const erledigtText = gepflegt === null ? undefined : eigenerEintrag(tP.erledigt, gepflegt);
 
   return (
     <PortalRahmen
@@ -243,16 +273,26 @@ export default async function Serienblatt(
             nicht gelaufen ist.
           </p>
         )}
+        {/*
+          * **Die Meldung des Laufs als BLATT, nicht als JSON.** Hier stand
+          * `JSON.stringify(...)` in einem `code`-Element: `{"uebersprungen":3,
+          * "grund":"kein_posten"}`. Was der Lauf übersprungen hat, gehört
+          * einer Objektleitung gesagt und nicht einem Entwickler (§8.4) —
+          * und wer es nicht liest, sucht den Fehler bei sich.
+          */}
         {Object.keys(blatt.letzteMeldung).length > 0 && (
-          <p
-            data-cse="letzte-meldung"
-            className="m-0 mt-s4 max-w-prose text-sm text-text-muted"
-          >
-            Letzte Meldung des Laufs:{' '}
-            <code className="text-xs">{JSON.stringify(blatt.letzteMeldung)}</code>{' '}
-            — was der Lauf übersprungen hat, steht hier und wird nicht
-            verschluckt (§8.4).
-          </p>
+          <div className="mt-s4 max-w-prose">
+            <p className="m-0 mb-s2 text-sm text-text-muted">
+              Letzte Meldung des Laufs — was er übersprungen hat, steht hier und
+              wird nicht verschluckt (§8.4).
+            </p>
+            <Nutzlastblatt
+              nutzlast={blatt.letzteMeldung}
+              sprache={zugang.sprache ?? 'de'}
+              texte={tNutzlast}
+              cse="letzte-meldung"
+            />
+          </div>
         )}
       </section>
 
@@ -432,8 +472,8 @@ export default async function Serienblatt(
         ) : !darfAusnahmeAnlegen ? (
           <p className="mt-s5 max-w-prose rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
             Zum Anlegen einer Ausnahme fehlt ein Recht: verlangt werden{' '}
-            <code className="text-xs">dienstplan.schreiben</code> und{' '}
-            <code className="text-xs">{schreibrecht}</code> — das zweite, weil die
+            <Recht schluessel="dienstplan.schreiben" sprache={zugang.sprache} /> und{' '}
+            <Recht schluessel={schreibrecht} sprache={zugang.sprache} /> — das zweite, weil die
             Ausnahmetabelle dem Gewerk gehört und nicht dem Dienstplan.
           </p>
         ) : (
@@ -555,6 +595,191 @@ export default async function Serienblatt(
           </form>
         )}
       </section>
+
+      {/*
+        **Die Serie pflegen** (V-021). `serie.ts` legte Serien an, `leseSerie`
+        zeigte sie, `legeAusnahmeAn` setzte Ausnahmen fuer einzelne Tage — und
+        keine Zeile aenderte je eine bestehende Serie. `archiviert_am` stand
+        seit 0028 da und wurde nie geschrieben.
+
+        Drei getrennte Formulare, weil es drei getrennte Handlungen sind: die
+        REGEL liegt auf dem Traeger, der LAUF auf der Serie, und das Beenden
+        ist ein Datum, waehrend das Archivieren ein Zustand ist.
+      */}
+      <section className="mt-s6" data-cse="serie-pflege">
+        <h2 className="mb-s2 text-h2 text-text">{tP.pflegeTitel}</h2>
+        <p className="mb-s4 max-w-prose text-sm text-text-muted">{tP.pflegeErklaerung}</p>
+
+        {pflegeFehler !== null && (
+          <Hinweis art="warnung" cse="pflege-fehler" className="mb-s4 max-w-prose">
+            {eigenerEintrag(tP.fehler, pflegeFehler)
+              ?? eigenerEintrag(tL.fehler, pflegeFehler) ?? tP.fehlerSonst}
+          </Hinweis>
+        )}
+        {erledigtText !== undefined && pflegeFehler === null && (
+          <Hinweis art="erfolg" cse="pflege-erledigt" className="mb-s4 max-w-prose">
+            {erledigtText}
+            {erzeugt !== null && storniert !== null
+              && /^\d{1,6}$/u.test(erzeugt) && /^\d{1,6}$/u.test(storniert)
+              ? ` — ${erzeugt} / ${storniert} ${tP.bilanz}.` : ''}
+          </Hinweis>
+        )}
+
+        {blatt.archiviert ? (
+          <Hinweis art="hinweis" cse="serie-archiviert" className="max-w-prose">
+            {tP.schonArchiviert}
+          </Hinweis>
+        ) : darf['dienstplan.schreiben'] !== true ? (
+          <Hinweis art="hinweis" cse="pflege-kein-recht" className="max-w-prose">
+            {tP.keinSchreibrecht}{' '}
+            <Recht schluessel="dienstplan.schreiben" sprache={zugang.sprache} />.
+          </Hinweis>
+        ) : (
+          <div className="flex flex-col gap-s5">
+            {/* Die Regel — nur ein Turnus traegt eine. */}
+            {blatt.turnusId === null ? (
+              <Hinweis art="hinweis" cse="pflege-kein-turnus" className="max-w-prose">
+                {tP.nurTurnus}
+              </Hinweis>
+            ) : darfAusnahmeAnlegen && (
+              <form method="post" action={`/api/dienstplan/serien/${id}`}
+                    data-cse="pflege-regel"
+                    className="flex max-w-[60ch] flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+                <input type="hidden" name="aktion" value="regel" />
+                <input type="hidden" name="mandant" value={mandant} />
+                <h3 className="m-0 text-base text-text">{tP.regelTitel}</h3>
+                <p className="m-0 text-sm text-text-muted">{tP.regelErklaerung}</p>
+                <label className="flex flex-col gap-s2 text-sm text-text">
+                  {tP.bezeichnung}
+                  <input name="bezeichnung" maxLength={120} defaultValue={blatt.bezeichnung}
+                         className={PFLEGEFELD} data-cse="pflege-bezeichnung" />
+                </label>
+                <fieldset className="m-0 border-0 p-0">
+                  <legend className="mb-s2 p-0 text-sm text-text">{tP.wochentage}</legend>
+                  <div className="flex flex-wrap gap-s3">
+                    {WOCHENTAGE.map((w) => (
+                      <label key={w} className="flex items-center gap-s2 text-sm text-text">
+                        <input type="checkbox" name="tag" value={w} className="min-h-5 min-w-5"
+                               defaultChecked={(blatt.rrule ?? '').includes(w)} />
+                        {w}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <div className="flex flex-wrap gap-s4">
+                  <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                    {tP.beginn}
+                    <input type="time" name="beginn" defaultValue={blatt.beginnLokal ?? ''}
+                           className={PFLEGEFELD} data-cse="pflege-beginn" />
+                  </label>
+                  <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                    {tP.dauer} <span className="text-text-muted">{tP.minuten}</span>
+                    <input type="number" name="dauer" min={15} max={1439}
+                           defaultValue={blatt.dauerMinuten}
+                           className={PFLEGEFELD} data-cse="pflege-dauer" />
+                  </label>
+                  <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                    {tP.feiertage}
+                    <select name="feiertage" defaultValue={blatt.feiertagsregel}
+                            className={PFLEGEFELD} data-cse="pflege-feiertage">
+                      <option value="ausfall">{tP.feiertageAusfall}</option>
+                      <option value="unveraendert">{tP.feiertageUnveraendert}</option>
+                    </select>
+                  </label>
+                </div>
+                {/*
+                  Der Abrechnungsanker (V-191, TIM-12). Ohne `auftrag.lesen`
+                  steht hier ein Satz und KEIN Feld — die Route aendert den
+                  Anker nur, wenn das Feld geschickt wurde.
+                */}
+                <LeistungsankerFeld leistungen={anker} gewaehlt={blatt.auftragLeistungId}
+                                    sprache={zugang.sprache} feldKlasse={PFLEGEFELD} />
+                <div>
+                  <Button type="submit" variante="primary" data-cse="pflege-regel-knopf">
+                    {tP.regelSpeichern}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {/* Der Lauf — gehoert der Serie und nicht dem Gewerk. */}
+            <form method="post" action={`/api/dienstplan/serien/${id}`}
+                  data-cse="pflege-lauf"
+                  className="flex max-w-[60ch] flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+              <input type="hidden" name="aktion" value="lauf" />
+              <input type="hidden" name="mandant" value={mandant} />
+              <h3 className="m-0 text-base text-text">{tP.laufTitel}</h3>
+              <p className="m-0 text-sm text-text-muted">{tP.laufErklaerung}</p>
+              <div className="flex flex-wrap gap-s4">
+                <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                  {tP.horizont}
+                  <input type="number" name="horizont" min={1} max={400}
+                         defaultValue={blatt.horizontTage}
+                         className={PFLEGEFELD} data-cse="pflege-horizont" />
+                  <span className="text-xs text-text-muted">{tP.horizontErklaerung}</span>
+                </label>
+                <label className="flex min-w-0 flex-1 flex-col gap-s2 text-sm text-text">
+                  {tP.bundesland}
+                  <input name="bundesland" maxLength={2} pattern="[A-Za-z]{2}"
+                         defaultValue={blatt.feiertagBundesland}
+                         className={PFLEGEFELD} data-cse="pflege-bundesland" />
+                </label>
+              </div>
+              <div>
+                <Button type="submit" variante="secondary" data-cse="pflege-lauf-knopf">
+                  {tP.laufSpeichern}
+                </Button>
+              </div>
+            </form>
+
+            {/* Beenden — ein Datum. */}
+            {blatt.veranstaltungId === null && darfAusnahmeAnlegen && (
+              <form method="post" action={`/api/dienstplan/serien/${id}`}
+                    data-cse="pflege-beenden"
+                    className="flex max-w-[60ch] flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+                <input type="hidden" name="aktion" value="beenden" />
+                <input type="hidden" name="mandant" value={mandant} />
+                <h3 className="m-0 text-base text-text">{tP.beendenTitel}</h3>
+                <p className="m-0 text-sm text-text-muted">{tP.beendenErklaerung}</p>
+                <label className="flex flex-col gap-s2 text-sm text-text">
+                  {tP.beendenBis}
+                  <input type="date" name="bis" required defaultValue={blatt.gueltigBis ?? ''}
+                         className={PFLEGEFELD} data-cse="pflege-bis" />
+                </label>
+                <div>
+                  <Button type="submit" variante="secondary" data-cse="pflege-beenden-knopf">
+                    {tP.beenden}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {/* Archivieren — ein Zustand, mit Grund. */}
+            <form method="post" action={`/api/dienstplan/serien/${id}`}
+                  data-cse="pflege-archivieren"
+                  className="flex max-w-[60ch] flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+              <input type="hidden" name="aktion" value="archivieren" />
+              <input type="hidden" name="mandant" value={mandant} />
+              <h3 className="m-0 text-base text-text">{tP.archivTitel}</h3>
+              <p className="m-0 text-sm text-text-muted">{tP.archivErklaerung}</p>
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                {tP.archivGrund}
+                <input name="grund" required minLength={3} maxLength={300}
+                       placeholder={tP.archivGrundBeispiel}
+                       className={PFLEGEFELD} data-cse="pflege-archiv-grund" />
+              </label>
+              <div>
+                <Button type="submit" variante="danger" data-cse="pflege-archiv-knopf">
+                  {tP.archivieren}
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
+      </section>
     </PortalRahmen>
   );
 }
+
+const PFLEGEFELD = 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 '
+  + 'text-sm text-text';

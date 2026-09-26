@@ -210,9 +210,15 @@ describe('ausstellen · vier Zeilen, die nur zusammen einen Sinn haben', () => {
 describe('ausstellen · was NICHT geht, und warum', () => {
   it('ohne zweiten Faktor nicht — auch wenn das Manifest aal2:false führt', async () => {
     const kd = await kunde(f.reinigung);
+    /*
+     * Seit V-136 (0395) gewährt die Rolle `admin` ohne aal2 gar nichts, also
+     * weist schon die Rechtefrage vor der Stufenprüfung ab. Beides ist die
+     * Abweisung nach AUT-02; welcher Satz zuerst kommt, ist die Reihenfolge
+     * in `app.kundenzugang_ausstellen`.
+     */
     await expect(ausstellen(f.reinigung, kd, `portal-${zufall()}@hv.test`,
       'B', token(), { aal: 'aal1' }))
-      .rejects.toThrow(/zweitem Faktor/u);
+      .rejects.toThrow(/zweitem Faktor|system\.benutzer_verwalten fehlt/u);
   });
 
   it('ohne `system.benutzer_verwalten` nicht', async () => {

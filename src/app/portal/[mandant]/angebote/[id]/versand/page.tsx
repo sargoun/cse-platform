@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import { lebendeLeistungenZahl } from '@/server/services/angebot/lebend';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
@@ -13,6 +14,8 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { FEHLERTEXT, type VersandKopf } from './daten';
+import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/angebote/[id]/versand` — das eine Tor, durch das ein
@@ -78,8 +81,7 @@ export default async function Versand(
                 to_char(a.versendet_am at time zone 'Europe/Berlin',
                         'DD.MM.YYYY HH24:MI') as versendet_am,
                 vb.name as versendet_von,
-                (select count(*) from angebotsposition p
-                  where p.angebot_id = a.id and p.typ = 'leistung')::text as positionen,
+                ${lebendeLeistungenZahl('a')}::text as positionen,
                 exists (select 1 from kalkulation_platzhalter kp
                          where kp.angebot_id = a.id) as kalkulation_offen,
                 (select app.hat_recht('kalkulation.lesen', app.aktiver_mandant()))
@@ -138,18 +140,10 @@ export default async function Versand(
       aktiverTab="angebote"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['angebot.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/angebote/${id}`, text: 'Zum Angebot' } }
+        : {})}
     >
-      {darf['angebot.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/angebote/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← Zum Angebot
-          </Link>
-        </nav>
-      )}
-
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">Versand</h1>
         <StatusPill zustand={versendet ? 'Angebot' : versandMoeglich ? 'Bereit' : 'Wartet'} />
@@ -158,7 +152,7 @@ export default async function Versand(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="versand-fehler" className="mb-s5">
           <strong>Das Angebot ist nicht hinausgegangen.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 
@@ -257,7 +251,7 @@ export default async function Versand(
             <strong>1 · Unbestätigte Kalkulationswerte.</strong>{' '}
             {sichtFehlt ? (
               <>
-                Ihnen fehlt <code className="text-text">kalkulation.lesen</code>;
+                Ihnen fehlt <Recht schluessel="kalkulation.lesen" />;
                 die Datenbank antwortet mit nichts, und das heißt nicht „alles
                 bestätigt". Der Versand bleibt gesperrt, weil sich seine
                 Voraussetzung von hier aus nicht prüfen lässt (AUT-05).
@@ -287,7 +281,7 @@ export default async function Versand(
           <Hinweis art="warnung" cse="sperre-freigabe" className="mt-s3">
             <strong>2 · Keine Preisfreigabe.</strong> Den Preis hat niemand
             verantwortet. Das ist ein eigener Vorgang mit eigenem Recht{' '}
-            (<code className="text-text">angebot.preis_freigeben</code>) — und
+            (<Recht schluessel="angebot.preis_freigeben" />) — und
             genau deshalb nicht dieser Klick.{' '}
             {darf['angebot.preis_freigeben'] === true ? (
               <Link

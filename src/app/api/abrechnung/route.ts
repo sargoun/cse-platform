@@ -34,10 +34,25 @@ import {
  */
 export const dynamic = 'force-dynamic';
 
-function zurueck(anfrage: NextRequest, auftragId: string): NextResponse {
+/**
+ * Zurueck auf die Abrechnungsseite — im Erfolgsfall ohne, im Fehlerfall MIT
+ * Grund.
+ *
+ * **Warum der Fehlerfall nicht mehr JSON ist** (V-024, D-562). Diese Route
+ * liest ausschliesslich `formData`, also kommt jeder Aufruf aus einem
+ * Formular. Eine 409 mit `{"fehler":"keine_abrechnungsart"}` war deshalb
+ * immer eine weisse Seite mit einem Datenfeld: der Satz, den ein Mensch lesen
+ * soll, ohne Formular und ohne Rueckweg. Die Seite fuehrt fuer genau diese
+ * Gruende eine Satztabelle.
+ */
+function zurueck(
+  anfrage: NextRequest, auftragId: string, grund?: string,
+): NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-  return NextResponse.redirect(
-    new URL(`/portal/${slug}/auftraege/${auftragId}/abrechnung`, erwarteterUrsprung(anfrage)), 303);
+  const ziel = new URL(
+    `/portal/${slug}/auftraege/${auftragId}/abrechnung`, erwarteterUrsprung(anfrage));
+  if (grund !== undefined) ziel.searchParams.set('fehler', grund);
+  return NextResponse.redirect(ziel, 303);
 }
 
 /**
@@ -143,10 +158,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const zahlungszielTage = ganzzahlOderNull('zahlungszielTage', 0, 3650);
 
   if (fehlend.length > 0 || ungueltig.length > 0) {
-    return NextResponse.json(
-      { fehler: fehlend.length > 0 ? 'unvollstaendig' : 'ungueltig', felder: [...fehlend, ...ungueltig] },
-      { status: 400 },
-    );
+    return zurueck(
+      anfrage, auftragId, fehlend.length > 0 ? 'unvollstaendig' : 'ungueltig');
   }
 
   try {
@@ -198,7 +211,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      * nennt — und nicht 500.
      */
     if (fehler instanceof AbrechnungFehler) {
-      return NextResponse.json({ fehler: fehler.grund, text: fehler.message }, { status: 409 });
+      return zurueck(anfrage, auftragId, fehler.grund);
     }
     throw fehler;
   }

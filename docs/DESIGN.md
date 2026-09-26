@@ -98,8 +98,27 @@ comes from `mandant.name` or `plattform_einstellung`, never from the component.
 Clear space around the lockup is at least the tile's radius. On a phone header
 the name may collapse to `sr-only` while the mark stays.
 
-Component: `src/components/marke/Marke.tsx` (`Marke`, `Logo`). The favicon
-`src/app/icon.svg` is the `gruppe` mark.
+Component: `src/components/marke/Marke.tsx` (`Marke`, `Logo`, `MarkenLogo`).
+The favicon `src/app/icon.svg` is the `gruppe` mark.
+
+**Uploaded brand images (V-100, D-628).** Once a company uploads its own files
+under *Einstellungen › Identität*, they replace the provisional mark — in the
+same places, at the same sizes, with the same clear space. Nothing about the
+layout changes when a logo arrives, and nothing is shown until the company's
+identity is published (`oeffentlich_sichtbar`).
+
+| Image | Replaces | Size | Shape |
+|---|---|---|---|
+| Avatar | the mark tile wherever that company's mark appears on the public site — card, footer, company picker, imprint, hero | the mark's size token (`marke-sm` … `marke-xl`) | circle, `object-cover` |
+| Logo for dark surfaces | the lockup on the company hero (it sits on the §4.4 gradient) and next to the name in the profile header — the site is dark-first | height = `marke-lg` on the hero, `marke-sm` in the header; width follows the file | `object-contain`, never cropped or stretched |
+| Logo for light surfaces | the letterhead of a printed offer when no print logo exists — paper is light | `marke-xl` height | as above |
+| Logo for print | the letterhead of a printed offer (§11) | `marke-xl` height | as above |
+| Cover | the photograph of the company card (§4.4) and of the company hero (§4.5) | the card's and the hero's aspect ratios | `object-cover`; the gradient stays mandatory |
+
+The light-surface logo never appears on a dark surface, and the dark-surface
+logo never on paper — each would disappear. A missing logo falls back to the
+avatar or the provisional mark plus the name, never to the other logo. A cover
+never replaces an image an editor assigned to one specific section.
 
 ### Semantic
 
@@ -347,6 +366,22 @@ One primary button per view.
 Hover on interactive cards: border → `--border-strong`, `translateY(-2px)`,
 200ms. No shadow.
 
+**An interactive card says so AT REST, not only on hover.** This rule exists
+because of a user report with two screenshots: a KPI card labelled *Neue
+Anfragen* opens a page when clicked, one labelled *Vorgänge* does nothing, and
+the two were pixel-identical — same surface, same border, no cursor change
+until the pointer was already on them. A card that leads somewhere must be
+distinguishable from one that does not **before** the reader tries it; hover
+is an answer that arrives too late, and on a touch screen it never arrives.
+
+The resting signal is a **`pfeil-rechts` glyph in the top-right corner**, at
+`icon-sm`, in `--text-subtle`. A glyph and not a colour, because §9 forbids
+colour as the only signal; the arrow is already in the closed icon set, so no
+new asset. On hover it inherits the card's transition and moves with it.
+
+Non-interactive cards carry no arrow — the absence is the other half of the
+signal, and it is only readable if the presence is consistent.
+
 ### Icons
 
 One set, drawn in the repo, no icon dependency. `24×24` viewBox, stroke
@@ -417,6 +452,28 @@ forty lines — enough to recognise the document and see that the totals are
 where they belong, short enough that the page still scrolls as a page. A
 preview that grows with its content pushes every control below it off the
 screen, and the one control that matters here is the download.
+
+### Machine words in a sentence
+
+A sentence addressed to a person never carries a machine word raw. Three
+things kept appearing in body copy and are now each rendered, never printed:
+
+| What | Component | Reads as |
+|---|---|---|
+| A permission key | `<Recht schluessel="kalkulation.lesen" />` | „Kalkulationen lesen“ / “read costings” |
+| A stored payload | `<Nutzlastblatt nutzlast={…} />` | a definition list — labels, Berlin timestamps, shortened ids |
+| A generated letter or mail | `<pre class="font-sans …">` | the letter, in the page's own face |
+
+Monospace is a claim: *this is machine text, copy it exactly.* It is right
+for the **Source preview** above (UBL, ZUGFeRD, DATEV — text a person really
+does hand to a machine) and wrong for everything a person only has to
+understand. „Ihnen fehlt `kalkulation.lesen`“ tells the reader that something
+is missing but not **what**, so they cannot even ask for it; a VOB letter set
+in monospace reads like a log file, not like the letter it is.
+
+The machine word does not disappear — it moves to `title` and a `data-`
+attribute. Administration grants a permission by its exact key, and the
+browser runs must not hang on a word that changes with the language.
 
 ### Status pills
 
@@ -535,6 +592,19 @@ survive a middle-click and a copied link; and the current one carries
 reader **is**, not what they have switched on. Colour alone never marks it
 (§9) — `aria-current` is the second signal.
 
+### Filter line
+
+A list that opens **already filtered** — from a dashboard figure (DSH-04) or a
+month selection — says so in one line above the list: `text-sm` in
+`--text-muted`, the filter value in `<strong>` with `--text`, then ` · ` and
+an `<a>` back to the unfiltered list („Alle anzeigen" / "Show all"),
+underlined with a 2px offset, `--text` on hover; `--s5` below. It is a
+sentence, not a pill: it states what the reader is looking at, it does not
+switch anything on. Without it a filtered list looks like the whole list, and
+a figure of fourteen reads as "all there are". Component:
+`components/portal/Listenfilter.tsx` (`data-cse="listen-filter"`); the month
+filters of the invoice lists (`monat-filter`) have the same form.
+
 ### Tables
 
 Header row `micro` uppercase `--text-subtle`, `1px solid --border` beneath.
@@ -564,7 +634,12 @@ A notice is one sentence with weight, in a frame: `--r-lg`, `1px` border,
 `danger` notice: an error belongs at the field (Forms) or in a status pill.
 The first words carry the meaning in bold, so the colour never carries it
 alone (§9). Component: `components/ui/Hinweis.tsx`; every notice carries a
-`data-cse` anchor.
+`data-cse` anchor. A notice that reports the outcome of a submitted form
+carries `rolle` — `alert` for a rejection, `status` for a confirmation — so it
+is announced (§9, errors announced via `aria-live`). A page does not rebuild a
+notice from its classes (`border-warning bg-warning-soft …`); it uses the
+component. Older pages that still do are moved over when they are touched
+(V-217).
 
 ### Status pages — 404 and error
 
@@ -651,9 +726,126 @@ tidy, and the 375px overflow test stayed green precisely BECAUSE the name was
 being cut. **The wordmark is never truncated at `360px` or wider**; that is the
 testable half of this rule.
 
+**The four header links are not the whole site — the group pages live in the
+footer and the overlay menu.** *Über uns*, *Aktuelles* (`/news`) and *Karriere*
+are built, filled and in the sitemap, and with four header links and nowhere
+else to go they were reachable only by typing the address (V-155). They do not
+join the header row — five to seven links break the `lg` tier measured above.
+Instead they stand (1) in the overlay menu directly after the four links, same
+row style, before the companies and *Angebot anfragen*; and (2) in the footer as
+their own `nav` headed *Die Gruppe* / *The group*, stacked above *Rechtliches*
+in the third column, same link style as the legal trio (`min-h-11`, `sm`,
+`--text-muted`). A page that exists only in German (`/karriere`, `NUR_DEUTSCH`)
+is linked from an English page to its German address with `hreflang="de"` and
+the visible suffix *(in German)* — never to an `/en/…` address that 404s.
+**D-649.**
+
 **Portal sidebar:** width `248px`, `--surface`. Active item: `--surface-2` bg +
 3px left bar in the **current area's identity hue**. Icons `18px`, label `sm`.
 Collapsible to `64px`. Mobile: bottom tab bar with the five main destinations.
+
+### The way back
+
+**Every page below a portal root carries one back link, in the same place, as
+the first element inside `<main>`.**
+
+| Property | Value |
+|---|---|
+| Mark | `←` then the label, one text node |
+| Type | `sm`, `--text-muted`, underlined; hover `--text` |
+| Spacing | `mb-s4` below it, nothing above |
+| Semantics | `<nav aria-label="Zurück">` wrapping one `<a>` |
+| Target | the **list the page came from**, never `history.back()` |
+| Touch target | the whole row, min `44px` tall (§9) |
+
+**Why a link and not the browser's back button.** The browser's back is a
+history step, not a place: after a form post it re-asks, after a redirect it
+lands two pages up, and on a phone in a saved-to-homescreen window there is
+no chrome to press. A link to the list is the same destination every time, and
+it survives being opened in a new tab — which is how a dispatcher opens six
+objects at once.
+
+**Why the list and never `history.back()`.** Two people reach
+`personal/anstellungen/[id]` from different places; the one thing they share is
+where the record *lives*. A back that depends on how you arrived sends the
+same button to two destinations, and neither is predictable.
+
+**On `/auth`, the shell carries it, not the page.** `AuthSchale` renders
+`← CSE Gruppe` as its first element, so every screen built on it has the way
+back for free. A sign-in page that renders its own `<main>` is therefore not a
+style choice but a **missing back link** — which is exactly how the employee
+sign-in lost one: it copied the shell's classes without its head. Build every
+`/auth` screen on `AuthSchale`; the two exceptions are `/auth/bereich`, which
+carries its own footer navigation, and `/auth/einladung/[token]`, which is a
+bare redirect.
+
+**Measured, this is a rule about 350 pages, not a detail.** When it was
+written, the component existed and was typed to nine paths in one portal: it
+stood on 2 of 309 admin pages, 2 of 27 worker pages and 0 of 26 group pages.
+**D-613.**
+
+
+### Standalone pages — sign-in, choosers, decisions
+
+Three kinds of screen stand alone: **sign-in** (`/auth/*`), a **chooser**
+(pick an account, pick an area) and a **decision** (confirm before something
+changes). They share one problem the rest of the platform does not have:
+there is no navigation, no sidebar, no table — so if the page does not build
+its own centre of gravity, the content floats in the top-left of a black
+rectangle and reads as unfinished.
+
+Measured on a 1080p screen, the area-switch sheet used **9 %** of the viewport
+and left the rest empty.
+
+**The frame.**
+
+| Property | Value |
+|---|---|
+| Page | `min-h-dvh`, flex column, **centred on both axes** at `≥640px`; top-aligned below that so the keyboard does not push the panel off-screen |
+| Gutter | `--s6`; `--s5` below `640px` |
+| Panel width | `max-w-form` (608px) for forms · `max-w-[44rem]` for choosers with rows |
+| Panel | `--surface` bg, `1px solid --border`, `--r-xl`, padding `--s6` |
+| Lockup | brand mark `marke-lg` + wordmark, above the panel, `--s5` below it |
+| Ambient | one radial brand wash behind the panel (below) |
+
+**The ambient wash.** §3 says elevation on dark comes from borders, not
+shadow — that rule is about *stacking*. A standalone page has nothing to stack
+against, so it gets one wash instead: a single radial gradient in `--red-soft`,
+behind everything, `pointer-events: none`, `aria-hidden`. It never moves, never
+animates, and there is exactly one per page.
+
+```css
+--wash-brand: radial-gradient(
+  60rem 40rem at 50% -10%,
+  rgba(227, 6, 19, 0.10) 0%,
+  rgba(227, 6, 19, 0.04) 35%,
+  transparent 70%
+);
+```
+
+Reason: a flat `--ink` field behind a single card reads as a page that failed
+to load. The wash costs nothing, carries the brand, and gives the eye a top.
+
+**Chooser rows.** A list where every row is an action — accounts, areas,
+entities.
+
+| Property | Value |
+|---|---|
+| Row | `--surface-2` bg, `1px solid --border`, `--r-lg`, padding `--s4`, min-height `64px` |
+| Hover | border → `--border-strong`, `translateY(-1px)`, 200ms |
+| Identity | area hue as a `3px` left bar (`AreaBadge`), never as a fill |
+| Action | the **whole row** is the button. No trailing button per row. |
+| Type | name `base`/600, meta `sm`/`--text-muted` |
+
+> **No primary button in a chooser.** §5 says one primary per view, and a
+> chooser has *no* primary: every row is equally the point. Nine red buttons
+> in a column do not make nine primaries — they make none, and the eye has
+> nowhere to rest. The row itself is the target, which is also the larger
+> touch area (§9).
+
+**Decision pages** — "you are in A, switch to B?" — show **both sides**, each
+with its identity hue, and an arrow between them. A sentence alone makes the
+reader reconstruct what they are leaving; two labelled chips do not.
 
 ---
 
@@ -671,28 +863,51 @@ Circular brand avatar `32px` with a 2px ring in the area's identity hue · name
 in `sm` 600 · chevron in `--text-muted`. Whole control is one button, `44px`
 tall, hover `--surface-2`.
 
+**In the portal header the name appears from `lg`.** Below `lg` the trigger
+carries avatar and chevron only; the page title beside it names the area, and
+the button's accessible name always does. Between `sm` and `lg` the whole
+session navigation stands on the right of the same row, and a full company
+name on the left pushed the row off the edge (§8). A name that is still too
+long at `lg` is truncated, never allowed to push (a fifth area, TEN-08).
+
 **Dropdown:** `--surface-2`, `--r-lg`, `--shadow-pop`, width `320px`,
-enters with `opacity 0→1` + `translateY(-4px→0)` over 180ms.
+enters with `opacity 0→1` + `translateY(-4px→0)` over `--base` with `--ease`
+— §7: dropdowns and modals move at `--base`. (This line said 180ms before;
+that is not a token, and §7 is the table the durations come from.) Under
+`prefers-reduced-motion` the offset is dropped (§7). The class is
+`.cse-klappmenue` in `globals.css`, the sibling of `.cse-auftritt`.
 
 ```
 ┌──────────────────────────────────────┐
 │  BEREICH WECHSELN                    │  micro, --text-subtle
 ├──────────────────────────────────────┤
 │ ◉  CSE Dienstleistung        ✓       │  active: red ring, --surface-3
-│    Reinigung · 24 Aufträge           │
+│    Reinigung · 24 laufende Aufträge  │
 │                                      │
 │ ◉  SSE Security                      │  blue ring
-│    Sicherheit · 8 Aufträge           │
+│    Security · 8 laufende Aufträge    │
 │                                      │
 │ ◉  REALTIME Service GmbH             │  amber ring
-│    Bau · 12 Projekte                 │
+│    Bau · 12 laufende Projekte        │
 │                                      │
 │ ◉  CSE Operations                    │  violet ring
-│    Digital & KI                      │
+│                                      │  no second line: no trade, no count
 ├──────────────────────────────────────┤
 │ ⊞  Gruppenübersicht      NUR LESEN   │  --text-muted + warning pill
 └──────────────────────────────────────┘
 ```
+
+**The second line is data, not copy.** It is the area's booked trades
+(`mandant.module`) under their module names — the same words the module
+assignment uses (`Reinigung`, `Security`, `Bau`), because a trade that is
+called one thing in the switcher and another on the user sheet reads as two
+trades — followed by the live counter: running projects where `bau` is booked,
+active orders otherwise. **CSE Operations books no trade**, so its row has no
+second line: „Digital & KI", which this mockup showed before, was a label no
+booking carries, and a zero counter would be decoration, not information
+(D-659 Nr. 3). An area whose booking was never maintained shows no trade word,
+only the counter — unknown is not empty, and not a trade either (O-355).
+D-731.
 
 **Rules:**
 

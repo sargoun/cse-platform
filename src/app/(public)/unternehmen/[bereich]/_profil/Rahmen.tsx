@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { bereicheLesen, oeffentlichLesen, type BereichZeile } from '@/server/inhalt/lesen';
 import { ProfilTabs } from '@/components/oeffentlich/ProfilTabs';
+import { MarkenLogo } from '@/components/marke/Marke';
 import { praefix, type Sprache } from '@/lib/sprache';
 
 /**
@@ -60,8 +61,16 @@ export async function ProfilRahmen(
         <a
           href={`${praefix(sprache)}/unternehmen/${daten.slug}`}
           data-cse="profil-wurzel"
-          className="text-text-muted underline hover:text-text"
+          className="inline-flex items-center gap-s2 text-text-muted underline hover:text-text"
         >
+          {/*
+            * V-100: das Logo für DUNKLE Flächen — die Website ist dark-first
+            * (DESIGN §1). Das Logo trägt den Namen im Alternativtext; der
+            * sichtbare Name bleibt trotzdem daneben, weil dieser Verweis
+            * „zurück zu …" heisst und kein Kopf ist.
+            */}
+          {daten.marke.logoDunkel === null ? null
+            : <MarkenLogo bild={{ adresse: daten.marke.logoDunkel.adresse, alt: '' }} groesse="sm" />}
           {daten.name}
         </a>
       </p>

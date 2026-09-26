@@ -299,6 +299,7 @@ describe('(3) fünfzig GLEICHZEITIGE Festschreibungen: fünfzig Nummern, keine d
           await tx.unsafe(`select set_config('app.benutzer_id',$1,true)`, [benutzer]);
           await tx.unsafe(`select set_config('app.portal','intern',true)`);
           await tx.unsafe(`select set_config('app.readonly','off',true)`);
+          await tx.unsafe(`select set_config('app.aal','aal2',true)`); // V-136
           const k = await finalisiere(alsDienst(tx as postgres.TransactionSql), id);
           return k.nummerLaufend;
         }) as Promise<number>));
@@ -343,6 +344,7 @@ describe('(7) zwei Mandanten schreiben gleichzeitig fest und behalten je ihren l
         await tx.unsafe(`select set_config('app.benutzer_id',$1,true)`, [benutzer]);
         await tx.unsafe(`select set_config('app.portal','intern',true)`);
         await tx.unsafe(`select set_config('app.readonly','off',true)`);
+        await tx.unsafe(`select set_config('app.aal','aal2',true)`); // V-136
         const k = await finalisiere(alsDienst(tx as postgres.TransactionSql), id);
         return k.nummerLaufend;
       }) as Promise<number>;
@@ -777,7 +779,9 @@ describe('Ohne Zahlungsziel geht kein Beleg hinaus (§4.2, O-66)', () => {
      * Aufrufer, der den Dienst uebergeht.
      */
     expect((fehler as Error).message).toMatch(/kein Zahlungsziel hinterlegt/u);
-    expect((fehler as Error).message).toMatch(/zahlungsziel_tage_standard/u);
+    // V-209: die Stelle beim Namen, nicht als Schlüssel `finanzen.zahlungsziel_tage_standard`.
+    expect((fehler as Error).message).toMatch(/Vorgabe der Gesellschaft für das Zahlungsziel/u);
+    expect((fehler as Error).message).not.toMatch(/zahlungsziel_tage_standard/u);
   });
 });
 

@@ -4,6 +4,7 @@ import { oeffentlichLesen } from '@/server/inhalt/lesen';
 import { aufbewahrungTage } from '@/server/services/recruiting/dienst';
 import { bereiche } from '../daten';
 import { Bewerbungsformular } from '../Formular';
+import { bewerbungsMeldung } from '../meldung';
 
 /**
  * `/karriere/initiativbewerbung` — ohne Stelle (REC-03, REC-07).
@@ -17,11 +18,17 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: 'Initiativbewerbung — CSE Gruppe' };
 
-export default async function InitiativSeite() {
+export default async function InitiativSeite(
+  { searchParams }: {
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
+) {
   const [tage, liste] = await Promise.all([
     oeffentlichLesen((kontext) => aufbewahrungTage(kontext)),
     bereiche(),
   ]);
+  // V-158: eine Abweisung kommt als Grund zurück, nicht als JSON.
+  const meldung = bewerbungsMeldung((await searchParams)['fehler']);
 
   return (
     <main className="mx-auto flex max-w-content flex-col gap-s6 px-s5 py-s7">
@@ -37,7 +44,8 @@ export default async function InitiativSeite() {
           uns, wenn eine Stelle dazu passt.
         </p>
       </header>
-      <Bewerbungsformular stelleId={null} aufbewahrungTage={tage} bereiche={liste} />
+      <Bewerbungsformular stelleId={null} aufbewahrungTage={tage} bereiche={liste}
+                          meldung={meldung} />
     </main>
   );
 }

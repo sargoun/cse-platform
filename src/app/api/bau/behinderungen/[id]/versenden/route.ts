@@ -8,7 +8,8 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { FreigabeErforderlich, RechtsgrundlageFehlt } from '@/server/agent/policy';
 import {
   BehinderungFehler, KanalNichtVerbundenFehler, dokumentiereVersand,
@@ -85,7 +86,7 @@ export async function POST(
       + 'Es wurde nichts versendet und nichts dokumentiert.', 409);
   }
 
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
   let ergebnis: { readonly dokumentId: string; readonly angezeigtAm: string };
   try {
     ergebnis = await (db().begin(async (tx: postgres.TransactionSql) =>

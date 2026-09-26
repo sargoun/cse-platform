@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -106,9 +105,20 @@ export default async function AufmassFreigabe(
   if (daten === null) notFound();
 
   const gesperrt = daten.kopf.gesperrt_lokal !== null;
+  const einseitig = daten.kopf.erhebungsart === 'einseitig';
+  /*
+   * **`keine_ankuendigung` ist kein Hindernis mehr, sondern ein Feld**
+   * (V-093). Es blieb stehen, bis das Blatt verjährte: die Erhebungsart war
+   * im Anlegeformular wählbar, die Ankündigung nirgends eintragbar, und
+   * `einseitig_festgestellt` damit unerreichbar. Das Formular unten trägt
+   * sie jetzt — herausgefiltert wird sie hier, damit sie nicht zugleich als
+   * Sperre und als Eingabe erscheint.
+   */
   const hindernisse: readonly VorlageHindernis[] = daten.stand === null
     ? []
-    : pruefeVorlage(daten.stand).filter((h) => h !== 'nicht_entwurf');
+    : pruefeVorlage(daten.stand)
+      .filter((h) => h !== 'nicht_entwurf')
+      .filter((h) => !(einseitig && h === 'keine_ankuendigung'));
   /*
    * Ohne `bau.lesen` fuehrt der Rueckweg nach der Unterschrift auf diese Seite
    * zurueck — sie zeigt dann den festgeschriebenen Stand. Ein Rueckweg auf ein
@@ -129,18 +139,10 @@ export default async function AufmassFreigabe(
       aktiverTab="bau"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['bau.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/bau/projekte/${id}/aufmass/${aufmassId}`, text: 'Aufmaßblatt' } }
+        : {})}
     >
-      {darf['bau.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/bau/projekte/${id}/aufmass/${aufmassId}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← Aufmaßblatt
-          </Link>
-        </nav>
-      )}
-
       <div className="mb-s5 flex flex-wrap items-start justify-between gap-s3">
         <div>
           <h1 className="m-0 text-h1 text-text">
@@ -244,13 +246,62 @@ export default async function AufmassFreigabe(
                 />
               </label>
             </div>
+            {/*
+              **Die einseitige Feststellung** (V-093, § 14 Abs. 2 VOB/B). Sie
+              erscheint NUR bei einem Blatt mit der Erhebungsart `einseitig` —
+              für eine gemeinsame Feststellung wäre sie eine andere Tatsache
+              und nicht ein anderer Unterzeichner.
+
+              `kern.aufmass_status_setzen` (0072) hebt das Blatt auf
+              `einseitig_festgestellt`, sobald der AUFTRAGNEHMER unterschreibt
+              UND `ankuendigung_am` steht. Ohne die Ankündigung tut der
+              Auslöser nichts, und das Blatt bliebe mit einer Unterschrift
+              darunter auf `vorgelegt` liegen.
+            */}
+            {einseitig && (
+              <div className="mt-s4 rounded-md border border-warning bg-warning-soft p-s4"
+                   data-cse="einseitig-block">
+                <p className="m-0 mb-s3 max-w-prose text-sm text-text">
+                  <strong>Einseitige Feststellung (§ 14 Abs. 2 VOB/B).</strong> Der
+                  Auftraggeber ist trotz Aufforderung nicht erschienen. Das Blatt trägt
+                  danach <strong>anderes Beweisgewicht</strong> als eine gemeinsame
+                  Feststellung — es heisst nicht „gegengezeichnet". Unter welchen
+                  Voraussetzungen ein einseitiges Aufmaß abgerechnet wird
+                  (Ankündigungsfrist, Widerspruchsfrist), ist <strong>offen (O-156)</strong>;
+                  die Plattform prüft keine Frist und erfindet keine.
+                </p>
+                <label className="block">
+                  <span className="mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted">
+                    Tag der Aufforderung zur gemeinsamen Feststellung
+                  </span>
+                  <input
+                    type="date"
+                    name="ankuendigung_am"
+                    defaultValue={daten.stand?.ankuendigungAm ?? ''}
+                    className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
+                    data-cse="ankuendigung-am"
+                  />
+                </label>
+                <label className="mt-s3 flex items-start gap-s3 text-sm text-text">
+                  <input type="checkbox" name="rolle" value="auftragnehmer"
+                         className="mt-s1 min-h-5 min-w-5" data-cse="rolle-auftragnehmer" />
+                  <span>
+                    Ich stelle einseitig fest — ich unterschreibe als
+                    <strong> Auftragnehmer</strong>, nicht für den Auftraggeber.
+                  </span>
+                </label>
+              </div>
+            )}
+
             <p className="mt-s3 max-w-prose text-xs text-text-subtle">
               Mit der Gegenzeichnung wird das Blatt festgeschrieben: die Zeilen
               werden als Abzug eingefroren und mit SHA-256 gesiegelt. Danach
               ändert sich daran nichts mehr.
             </p>
             <div className="mt-s4">
-              <Button type="submit" variante="primary">Gegenzeichnen</Button>
+              <Button type="submit" variante="primary">
+                {einseitig ? 'Feststellen' : 'Gegenzeichnen'}
+              </Button>
             </div>
           </form>
         )}

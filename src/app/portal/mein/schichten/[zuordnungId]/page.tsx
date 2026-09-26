@@ -1,13 +1,36 @@
 import Link from 'next/link';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { notFound } from 'next/navigation';
 import { findeEigeneSchicht, type EigeneSchicht }
   from '@/server/services/mitarbeiter/schichten';
 import {
   listeEigeneDienstanweisungen, type EigeneDienstanweisung,
 } from '@/server/services/mitarbeiter/dienstanweisungen';
+import { eigenerEintragZurSchicht } from '@/server/services/mitarbeiter/zeiten';
+import { EINWAND_FORM_TEXTE } from '@/lib/i18n/mein-formulare';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
-import { Feld, Felder, SchichtKarte } from '../../bausteine';
+import { Feld, Felder, SchichtKarte, Zusagefeld } from '../../bausteine';
+import type { MeinTexte } from '@/lib/i18n/texte';
+
+/**
+ * Die acht Ausgaenge von `POST /api/mein/schicht`, beschriftet.
+ *
+ * Ein `Record` und kein `switch` im JSX: eine Antwort, die hier fehlt, ist
+ * damit ein Tippfehler und keine stille leere Zeile — und `?antwort=` kommt
+ * aus der Adresszeile, also aus der Hand eines beliebigen Menschen.
+ */
+const ANTWORT_TEXT: Readonly<Record<string, (t: MeinTexte) => string>> = {
+  zugesagt: (t) => t.antwortZugesagt,
+  abgesagt: (t) => t.antwortAbgesagt,
+  schon_zugesagt: (t) => t.antwortSchonZugesagt,
+  schon_abgesagt: (t) => t.antwortSchonAbgesagt,
+  vorbei: (t) => t.antwortVorbei,
+  nicht_moeglich: (t) => t.antwortNichtMoeglich,
+  grund_fehlt: (t) => t.antwortGrundFehlt,
+  unbekannt: (t) => t.antwortUnbekannt,
+};
 
 /**
  * `/portal/mein/schichten/[zuordnungId]` — die einzelne Schicht (EMP-02).
@@ -24,16 +47,38 @@ import { Feld, Felder, SchichtKarte } from '../../bausteine';
  */
 export const dynamic = 'force-dynamic';
 
+/**
+ * Kann zu dieser Schicht eine Zeit fehlen (V-189)? Nur zu einer BEENDETEN,
+ * die weder abgesagt noch an jemand anderen gegangen ist und selbst nicht
+ * ausfiel. „Nicht erschienen" gehört dazu: genau dort widerspricht jemand,
+ * der da war.
+ */
+function zeitFrage(s: EigeneSchicht): boolean {
+  return s.beendet && s.status !== 'abgesagt' && s.status !== 'ersetzt'
+    && s.einsatzStatus !== 'storniert';
+}
+
 /** Was diese Seite in EINER Transaktion liest — Schicht plus ihre Anweisungen. */
 interface Blatt {
   readonly schicht: EigeneSchicht;
   readonly anweisungen: readonly EigeneDienstanweisung[];
+  /**
+   * Der eigene Eintrag zu dieser Schicht — nur fuer eine BEENDETE Schicht
+   * gefragt (V-189). `null` heisst: es gibt keinen, und das Blatt fuehrt zu
+   * „Eine Zeit fehlt".
+   */
+  readonly eintragId: string | null;
 }
 
 export default async function MeineSchicht(
-  { params }: { params: Promise<{ zuordnungId: string }> },
+  { params, searchParams }: {
+    params: Promise<{ zuordnungId: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { zuordnungId } = await params;
+  const suche = await searchParams;
+  const antwort = typeof suche['antwort'] === 'string' ? suche['antwort'] : null;
   const ergebnis = await meinPortal<Blatt | null>(
     `/portal/mein/schichten/${zuordnungId}`,
     async (kontext, teil) => {
@@ -47,7 +92,10 @@ export default async function MeineSchicht(
       const anweisungen = schicht.objektId === null ? [] as const
         : await listeEigeneDienstanweisungen(kontext, teil.sprache,
           { objektId: schicht.objektId });
-      return { schicht, anweisungen };
+      const eintragId = zeitFrage(schicht)
+        ? await eigenerEintragZurSchicht(kontext, schicht.einsatzId, schicht.anstellungId)
+        : null;
+      return { schicht, anweisungen, eintragId };
     },
   );
   if (ergebnis.art === 'anmeldung') return <AnmeldungNoetig />;
@@ -58,26 +106,44 @@ export default async function MeineSchicht(
   const anweisungen = ergebnis.daten.anweisungen;
   const offene = anweisungen.filter((a) => a.offen);
   const t = basis.texte;
+  const ft = EINWAND_FORM_TEXTE[basis.sprache];
+  const eintragId = ergebnis.daten.eintragId;
   const zielKnopf =
     'inline-flex min-h-11 items-center justify-center rounded-md border '
     + 'border-line-strong px-s5 py-s3 text-base text-text no-underline hover:bg-surface-2';
 
   return (
-    <MeinRahmen basis={basis} titel={t.schichten} aktiverTab="schichten">
-      <Link
-        href="/portal/mein/schichten"
-        className="mb-s4 inline-block min-h-11 text-base text-text underline"
-      >
-        ← {t.schichten}
-      </Link>
+    <MeinRahmen basis={basis} titel={t.schichten} aktiverTab="schichten"
+      zurueck={{ ziel: "/portal/mein/schichten", text: t.schichten }}
+    >
 
       <h1 className="mb-s5 text-h1 text-text">
-        <span className="cse-zahl">{daten.planDatum}</span>
+        <span className="cse-zahl">{tagInSprache(daten.planDatum, basis.sprache)}</span>
       </h1>
 
       <div className="mb-s5">
         <SchichtKarte schicht={daten} texte={t} sprache={basis.sprache} alsLink={false} />
       </div>
+
+      {/*
+        **Die Antwort auf den letzten Knopfdruck** (V-049). Sie kommt als
+        `?antwort=` von `POST /api/mein/schicht` zurueck — nicht als JSON und
+        nicht als Fehlerseite: von acht moeglichen Ausgaengen ist keiner ein
+        Programmfehler, und „Sie hatten schon zugesagt" gehoert in einen Satz,
+        nicht in ein rotes Fenster.
+      */}
+      {antwort !== null && ANTWORT_TEXT[antwort] !== undefined && (
+        <p
+          data-cse="schicht-antwort"
+          data-antwort={antwort}
+          className={`mb-s4 rounded-lg border p-s4 text-base ${
+            antwort === 'zugesagt' || antwort === 'abgesagt'
+              ? 'border-success bg-success-soft text-text'
+              : 'border-warning bg-warning-soft text-text'}`}
+        >
+          {ANTWORT_TEXT[antwort]!(t)}
+        </p>
+      )}
 
       <section className="rounded-lg border border-line bg-surface p-s4">
         <Felder>
@@ -90,6 +156,8 @@ export default async function MeineSchicht(
         </Felder>
       </section>
 
+      <Zusagefeld schicht={daten} texte={t} />
+
       {/*
         Was AUF dieser Schicht dokumentiert wird (SEC-05, CLN-04, TIM-10,
         BAU-07). Angeboten wird, wofuer die Schicht die Voraussetzung TRAEGT —
@@ -98,6 +166,27 @@ export default async function MeineSchicht(
         ist ein Link, den man einmal folgt und danach nicht mehr glaubt.
       */}
       <nav aria-label={t.weiteres} className="mt-s5 flex flex-wrap gap-s3">
+        {/*
+          **Die Zeit zu einer vergangenen Schicht** (V-189, EMP-07). Gibt es
+          einen Eintrag, fuehrt der Weg zu ihm — dort steht der Einwand. Gibt
+          es KEINEN, fuehrt er zu „Eine Zeit fehlt", vorbelegt mit Tag und
+          Beschaeftigung; vorher gab es fuer diesen Fall keinen Weg.
+        */}
+        {zeitFrage(daten) && eintragId !== null && (
+          <Link href={`/portal/mein/zeiten/${eintragId}`} data-cse="zur-zeit" className={zielKnopf}>
+            {ft.zurZeitDerSchicht}
+          </Link>
+        )}
+        {zeitFrage(daten) && eintragId === null && (
+          <Link
+            href={alsRoute(
+              `/portal/mein/zeiten/einwand?anstellung=${daten.anstellungId}&datum=${daten.planDatum}`)}
+            data-cse="zeit-fehlt"
+            className={zielKnopf}
+          >
+            {ft.schichtOhneEintrag}
+          </Link>
+        )}
         <Link
           href={`/portal/mein/schichten/${daten.zuordnungId}/fotos`}
           data-cse="zu-fotos"

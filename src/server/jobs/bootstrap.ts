@@ -21,8 +21,13 @@ import { jobs, type JobDefinition } from './registry.js';
 import { registriereEinsatzGenerator } from './einsaetzeGenerieren.js';
 import { registriereKonfliktDetektor } from './konflikteErkennen.js';
 import { registriereLeadSlaJob } from './lead-sla.js';
+import { registriereWiedervorlageErinnerung } from './wiedervorlageErinnerung.js';
 import { registriereNachweisWarnungen } from './nachweisWarnungen.js';
 import { registriereKettenpruefer } from './kettenpruefer.js';
+import { registriereStundenkontoAbgleich } from './stundenkontoAbgleich.js';
+import {
+  registriereAngebotAblauf, registriereEinsatzAbschluss, registriereNachweisAblauf,
+} from './statuslaeufe.js';
 import { registrierePostenabgleich } from './postenabgleich.js';
 import { registriereMahnlauf } from './mahnlauf.js';
 import { registriereBasiszinssatzWaechter } from './basiszinssatz.js';
@@ -37,6 +42,9 @@ import { registriereNachtragWache } from './nachtragWache.js';
 import { registriereFreigabeFenster } from './freigabeFenster.js';
 import { registriereSocialPlan } from './socialPlan.js';
 import { registriereBewerberLoeschung } from './bewerberLoeschung.js';
+import { registriereDokumentAufbewahrung } from './dokumentAufbewahrung.js';
+import { registriereKontenRollover } from './kontenRollover.js';
+import { registriereUrlaubskontenJahr } from './urlaubskontenJahr.js';
 
 /*
  * Methodensyntax, nicht Eigenschaftssyntax — wie ueberall sonst im Baum
@@ -73,8 +81,15 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereEinsatzGenerator(db);
     registriereKonfliktDetektor(db);
     registriereLeadSlaJob(db);
+    /* V-146 — die Erinnerung, die im Wiedervorlageformular verlangt wird (CRM-04). */
+    registriereWiedervorlageErinnerung(db);
     registriereNachweisWarnungen(db);
     registriereKettenpruefer(db);
+    registriereStundenkontoAbgleich(db);
+    registriereAngebotAblauf(db);
+    registriereNachweisAblauf(db);
+    /* V-082 — der Schwanz des Einsatzstatus: die Uhr, die der Ausloeser nicht sieht. */
+    registriereEinsatzAbschluss(db);
     registrierePostenabgleich(db);
     registriereMahnlauf(db);
     registriereBasiszinssatzWaechter(db);
@@ -86,6 +101,9 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereFreigabeFenster(db);
     registriereSocialPlan(db);
     registriereBewerberLoeschung(db);
+    registriereDokumentAufbewahrung(db);
+    registriereKontenRollover(db);
+    registriereUrlaubskontenJahr(db);
     registriereRadar(db);
     registriereAkquise(db);
     geschehen = true;

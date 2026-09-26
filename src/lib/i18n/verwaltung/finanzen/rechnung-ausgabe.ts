@@ -201,6 +201,8 @@ export interface RechnungAusgabeTexte {
   readonly dokumentMitLuecken: string;
   readonly xrechnungHerunterladen: string;
   readonly vorschau: string;
+  /** Ein Satz über dem Quelltextkasten — was der Kasten IST. */
+  readonly vorschauErklaerung: string;
 
   /* ── `/zugferd` ────────────────────────────────────────────────────── */
   readonly zugferdH1: string;
@@ -464,6 +466,11 @@ const DE: RechnungAusgabeTexte = {
     + 'Empfänger abgewiesen. Es entsteht deshalb gar nicht erst.',
   xrechnungHerunterladen: 'XRechnung herunterladen',
   vorschau: 'Vorschau',
+  vorschauErklaerung:
+    'Das ist die Datei selbst, so wie sie beim Empfänger ankommt — sie wird '
+    + 'von dessen Buchhaltungsprogramm gelesen, nicht von einem Menschen. Was '
+    + 'darin steht, zeigt die Rechnung oben in lesbarer Form; hier steht es, '
+    + 'damit im Streitfall nachprüfbar ist, was tatsächlich versendet wurde.',
 
   zugferdH1: 'ZUGFeRD 2.x (PDF/A-3 mit CII)',
   veraPdfVor: 'Geprüft wird das PDF/A-3 mit veraPDF im Bau (',
@@ -740,6 +747,11 @@ const EN: RechnungAusgabeTexte = {
     + 'recipient. It is therefore not produced at all.',
   xrechnungHerunterladen: 'Download XRechnung',
   vorschau: 'Preview',
+  vorschauErklaerung:
+    'This is the file itself, exactly as the recipient receives it — read by '
+    + 'their accounting software, not by a person. What it contains is shown '
+    + 'in readable form on the invoice above; it stands here so that what was '
+    + 'actually sent can be verified in a dispute.',
 
   zugferdH1: 'ZUGFeRD 2.x (PDF/A-3 with CII)',
   veraPdfVor: 'The PDF/A-3 is checked with veraPDF in the build (',

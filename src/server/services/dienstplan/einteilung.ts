@@ -767,3 +767,162 @@ export async function sageZuordnungAb(
   // `einsatz_zuordnung` und darf die soeben abgesagte Zeile nicht mehr finden.
   await ueberholeUeberschneidungsKonflikte(kontext, zuordnungId);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Die andere Seite derselben Zeile: die Kraft antwortet auf ihre Einteilung
+ * (V-049, V-050, D-622, EMP-02, REC-01).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * **Der Befund, der diese Hälfte gebracht hat.** `zuordnung_status` kennt seit
+ * 0028 den Wert `zugesagt`, **siebzehn Stellen lesen ihn**, und bis hierher
+ * schrieb ihn **keine einzige**. Gegenprobe: der einzige `UPDATE` auf
+ * `einsatz_zuordnung.status` war `sageZuordnungAb` darüber — das Büro.
+ *
+ * Das ist keine Kosmetik. `dienstplan/besetzungsluecke.ts` und der
+ * Nachtwächter `dienstplan.morgen_unbesetzt` zählen ausdrücklich **Zusagen**
+ * und nicht Einteilungen („Gezählt werden ZUSAGEN, nicht Einteilungen",
+ * `waechter/benachrichtigung.ts`). Ohne Schreiber meldete die
+ * Besetzungswarnung für **jede** Schicht null Zusagen — sie warnte immer, also
+ * warnte sie nie.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * **Warum das hier steht und nicht in einem eigenen Dienst.**
+ * ───────────────────────────────────────────────────────────────────────────
+ *
+ * Diese Datei ist der Ort, an dem `einsatz_zuordnung.status` seinen Wert
+ * ändert — bisher an einer Stelle, jetzt an dreien. Ein zweiter Dienst dafür
+ * hieße, dass die Zustandsübergänge einer Zeile an zwei Orten stehen, und der
+ * zweite ist der, den beim nächsten Umbau niemand liest.
+ *
+ * Unter `services/mitarbeiter/` darf er ohnehin nicht liegen:
+ * `tests/kern/mitarbeiter.test.ts` besteht darauf, dass dort **kein** Dienst
+ * schreibt — das Arbeiterportal hat drei geprüfte Schreibwege, und ein
+ * vierter, im Portaldienst angelegter, wäre genau der, der an ihnen
+ * vorbeiführt. (Derselbe Fehler ist bei der Stempeluhr schon einmal gemacht
+ * und von diesem Test gefangen worden.)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * **Diese beiden Wege verlangen `dienstplan.schreiben` NICHT.**
+ * ───────────────────────────────────────────────────────────────────────────
+ *
+ * Das Register nennt für diese Datei `dienstplan.schreiben`, und für alles
+ * darüber stimmt das. Hier nicht — und das ist der Punkt: `dienstplan.schreiben`
+ * ist das Recht, den Plan zu **machen**. Wer es einer Reinigungskraft gäbe,
+ * gäbe ihr den Plan.
+ *
+ * Gemessen an `pg_policy` hat das Arbeiterportal über `cse_app` auch gar
+ * keinen Schreibweg auf diese Tabelle: `t_selbst_m1` gibt nur `r`,
+ * `t_mandant` verlangt `dienstplan.schreiben`, `p_ma_decke` deckelt
+ * restriktiv auf die eigene Anstellung. Beide Funktionen unten laufen deshalb
+ * über `app.schicht_zusagen` / `app.schicht_absagen` (Migration 0374) —
+ * `SECURITY DEFINER`, und was sie prüfen, ist **Portal und
+ * Personenzugehörigkeit** statt eines Rechts. Dasselbe Muster wie die
+ * Stempeluhr aus 0373.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * **Die Absage der Kraft setzt `entfernt_am` NICHT — die des Büros schon.**
+ * ───────────────────────────────────────────────────────────────────────────
+ *
+ * `sageZuordnungAb` oben setzt beides: den Status **und** `entfernt_am`, was
+ * die Check-in-Marken verbrennt und die Zeile aus dem Plan nimmt. Das ist
+ * richtig für das Büro — es entscheidet, wer im Plan steht.
+ *
+ * Die Kraft entscheidet das nicht. Ihre Absage ist ein **Signal**, kein
+ * Ausbuchen: die Zeile bleibt im Plan, `besetzt_anzahl` bleibt unverändert
+ * (der Zähler zählt `entfernt_am is null`, gleich welchen Status), und die
+ * Lücke erscheint genau dort, wo sie hingehört — in der Zahl der **Zusagen**,
+ * die `besetzungsluecke.ts` gegen `min_besetzung` hält. Das Büro sieht sie
+ * und besetzt nach.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * **D-622: eine Absage lässt sich nicht zurücknehmen.**
+ * ───────────────────────────────────────────────────────────────────────────
+ *
+ * Vom Auftraggeber entschieden, und die Begründung ist betrieblich: sagt eine
+ * Kraft ab, besetzt das Büro den Platz nach. Nähme sie die Absage zwei
+ * Stunden später mit einem Knopfdruck zurück, stünden **vier** Menschen auf
+ * einer Schicht für drei — und einer wird vor Ort weggeschickt. Der Weg
+ * zurück läuft über das Büro, das als einziges weiß, ob der Platz noch frei
+ * ist.
+ */
+
+/**
+ * Wie eine Antwort auf eine Einteilung ausgehen kann.
+ *
+ * **Warum das keine Ausnahmen sind.** Von den acht Ausgängen ist keiner ein
+ * Fehler des Programms — es sind Sätze, die ein Mensch lesen soll: „die
+ * Schicht ist vorbei", „Sie haben schon zugesagt", „dafür brauche ich einen
+ * Grund". Eine `throw`-Kette zwänge die Route, acht Fehlerklassen
+ * auseinanderzuhalten, um acht normale Ausgänge zu beschreiben.
+ */
+export type ZusageErgebnis =
+  | { readonly art: 'zugesagt' }
+  | { readonly art: 'abgesagt' }
+  | { readonly art: 'schon_zugesagt' }
+  | { readonly art: 'schon_abgesagt' }
+  /** Die Schicht ist vorbei — `ende_zeitpunkt <= now()`. */
+  | { readonly art: 'vorbei' }
+  /**
+   * Der Zustand lässt den Schritt nicht zu. Der wichtigste Fall: aus
+   * `abgesagt` führt kein Weg zurück (D-622).
+   */
+  | { readonly art: 'nicht_moeglich'; readonly status: string }
+  /** Kein Grund angegeben — die Datenbank verlangt ihn (`ez_absage_begruendet`). */
+  | { readonly art: 'grund_fehlt' }
+  /**
+   * Gibt es nicht ODER gehört nicht dieser Person — **ein** Ausgang für
+   * beides (AUT-06). Zwei unterscheidbare Antworten machten das
+   * Durchprobieren von Kennungen lohnend.
+   */
+  | { readonly art: 'unbekannt' };
+
+interface ZusageRoh {
+  readonly ergebnis: string;
+  readonly neuer_status: string | null;
+}
+
+function zusageAbbilden(z: ZusageRoh | undefined): ZusageErgebnis {
+  if (z === undefined) return { art: 'unbekannt' };
+  switch (z.ergebnis) {
+    case 'zugesagt': return { art: 'zugesagt' };
+    case 'abgesagt': return { art: 'abgesagt' };
+    case 'schon_zugesagt': return { art: 'schon_zugesagt' };
+    case 'schon_abgesagt': return { art: 'schon_abgesagt' };
+    case 'vorbei': return { art: 'vorbei' };
+    case 'grund_fehlt': return { art: 'grund_fehlt' };
+    case 'nicht_moeglich':
+      return { art: 'nicht_moeglich', status: z.neuer_status ?? 'unbekannt' };
+    default: return { art: 'unbekannt' };
+  }
+}
+
+/**
+ * Die eigene Schicht zusagen. Geht **nur** aus `geplant` (D-622).
+ */
+export async function sageSchichtZu(
+  kontext: SchreibKontext, zuordnungId: string,
+): Promise<ZusageErgebnis> {
+  const [z] = await kontext.schreibe<ZusageRoh>(
+    `select ergebnis, neuer_status from app.schicht_zusagen($1::uuid)`,
+    [zuordnungId]);
+  return zusageAbbilden(z);
+}
+
+/**
+ * Die eigene Schicht absagen, mit Grund. Geht aus `geplant` **und** aus
+ * `zugesagt`: wer zusagt und dann krank wird, muss absagen können.
+ *
+ * Der Grund ist Pflicht — nicht aus Bürokratie, sondern weil die Disposition
+ * um 05:40 zwischen „krank" und „Bus verpasst" unterscheiden muss: das eine
+ * besetzt sie nach, das andere ruft sie an. `ez_absage_begruendet` erzwingt
+ * ihn ohnehin; die Prüfung in der Funktion sorgt dafür, dass der Mensch davor
+ * einen Satz liest und keinen Constraint-Namen.
+ */
+export async function sageSchichtAb(
+  kontext: SchreibKontext, zuordnungId: string, grund: string,
+): Promise<ZusageErgebnis> {
+  const [z] = await kontext.schreibe<ZusageRoh>(
+    `select ergebnis, neuer_status from app.schicht_absagen($1::uuid, $2)`,
+    [zuordnungId, grund]);
+  return zusageAbbilden(z);
+}

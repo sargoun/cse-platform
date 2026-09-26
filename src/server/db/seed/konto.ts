@@ -8,8 +8,8 @@
  * ein gruenes Feld.
  *
  * **Freigegeben wird hier mit Ansage.** Auf das Konto flieszt nur Zeit, die
- * jemand freigegeben hat (§ 7.3) — den Bildschirm dafuer baut PR 47
- * (`zeiten/freigabe`, Phase 6, O-39). Bis dahin setzt dieser Seed die Freigabe
+ * jemand freigegeben hat (§ 7.3) — den Bildschirm dafuer gibt es seit PR 50
+ * (`zeiten/freigabe`), erreichbar seit D-611/0371. Der Seed setzt die Freigabe
  * fuer ABGESCHLOSSENE Eintraege, die mindestens zwei Tage zurueckliegen, und
  * sagt genau das: es ist eine Demo-Annahme ueber die Vergangenheit, keine
  * Abkuerzung um ein Tor herum. Was juenger ist, bleibt offen — und zeigt damit
@@ -73,13 +73,18 @@ export async function seedKonten(
 async function seedKontenEinesBereichs(
   sql: Sql, mandantId: string,
 ): Promise<KontoErgebnis> {
+  /*
+   * Unter mehreren Administrationen (seit V-164 traegt die Reinigung zwei)
+   * zuerst eine OHNE Modulliste, dann die E-Mail — sonst waere die Freigabe
+   * der Zeiten mal hier, mal dort, je nach Reihenfolge der Tabelle (V-168).
+   */
   const [verantwortlich] = await sql<{ id: string }[]>`
     select b.id from benutzer b
      join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${mandantId}
      join rolle r on r.id = bm.rolle_id
     where r.schluessel in ('admin', 'leitung') and b.status = 'aktiv'
       and bm.entzogen_am is null
-    order by r.schluessel limit 1`;
+    order by r.schluessel, bm.module is not null, b.email limit 1`;
   if (verantwortlich === undefined) return leer();
 
   /**

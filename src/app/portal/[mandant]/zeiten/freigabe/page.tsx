@@ -17,19 +17,26 @@ import {
   FREIGABE_HOECHSTZAHL, ladeFreigabeliste, summeMinuten, type Freigabeliste,
 } from '@/server/services/zeit/abrechnungsfreigabe';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/zeiten/freigabe` — erfasste Zeit zur Abrechnung
  * freigeben (TIM-12, FIN-07, FIN-18, `04-SEITENKARTE.md` §5.11).
  *
- * **Diese Seite ist gebaut und auf O-39 blockiert — beides zugleich.**
- * `zeit.abrechnung_freigeben` ist nicht geseedet und an keine Rolle gebunden
- * (03-AUTH §12.4), weil offen ist, ob es diesen Schritt als eigenen
+ * **Diese Seite war gebaut und auf O-39 blockiert — beides zugleich.**
+ * `zeit.abrechnung_freigeben` war nicht geseedet und an keine Rolle gebunden
+ * (03-AUTH §12.4), weil offen war, ob es diesen Schritt als eigenen
  * menschlichen Akt überhaupt gibt: entweder gibt ein Mensch eine Woche frei,
  * bevor sie abgerechnet werden darf — oder eine festgeschriebene Rechnung
- * nimmt sich die Zeilen direkt. Bis der Mandant das beantwortet, antwortet
- * das Tor mit 404 (AUT-06), und die Antwort öffnet die Seite mit einer
- * Rechtebindung statt mit einem Umbau.
+ * nimmt sich die Zeilen direkt.
+ *
+ * **D-611 hat geantwortet: ja, wöchentlich, vor der Fakturierung.** Die
+ * Antwort war deshalb eine BINDUNG und kein Umbau — `0371` bindet das Recht
+ * an `super_admin` und `admin`; `leitung` ist je Gesellschaft anlegbar und
+ * nicht vorgegeben (D-612), weil die Freigabe zur Abrechnung ein
+ * kaufmännischer Akt ist und kein Schichtakt. Wer das Recht nicht hält,
+ * bekommt weiterhin 404 (AUT-06) — daran hat sich nichts geändert ausser der
+ * Zahl der Menschen, für die es zutrifft.
  *
  * **Was NICHT offen ist.** `freigegeben_am` steht seit 0034 im Schema und hat
  * zwei gebaute Leser: das Stundenkonto nimmt nur Freigegebenes (§7.3, EMP-04),
@@ -130,6 +137,7 @@ export default async function Abrechnungsfreigabe({
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `${pfad}?${mitFilter({ woche: tagePlus(von, -7) })}`, text: 'Vorwoche' }}
       titel="Freigabe zur Abrechnung"
       wurzelTitel="Zeiterfassung"
       bereich={mandant as BereichSchluessel}
@@ -162,17 +170,24 @@ export default async function Abrechnungsfreigabe({
         * **Der offene Punkt steht oben und nicht in einer Fussnote.** Eine
         * Seite, die eine unbeantwortete Geschäftsregel umsetzt, muss das
         * sagen — sonst wird aus einem Platzhalter eine Gewohnheit (K-17).
+        *
+        * **O-39 ist beantwortet (D-611) und steht hier nicht mehr.** Was der
+        * Hinweis verloren hat, war der ganze erste Teil: ob es diesen Schritt
+        * überhaupt gibt. Was er BEHÄLT, ist O-861 — eine andere Frage, die
+        * dieselbe Seite betrifft und weiterhin offen ist. Beide zusammen
+        * stehen zu lassen wäre bequem und falsch: ein Hinweis, der eine
+        * beantwortete Frage weiter als offen zeigt, wird überlesen, und mit
+        * ihm die eine, die es noch ist.
         */}
-      <Hinweis art="hinweis" cse="o39-offen" className="mb-s5 max-w-prose">
-        <strong>Offen: O-39 — gibt es diesen Schritt überhaupt?</strong> Entweder gibt
-        ein Mensch erfasste Zeit frei, bevor sie abgerechnet werden darf, oder eine
-        festgeschriebene Rechnung nimmt sich die Zeilen direkt. Bis der Mandant das
-        beantwortet, ist das Recht <code>zeit.abrechnung_freigeben</code> an keine Rolle
-        gebunden: diese Seite ist gebaut und geprüft, und sie wird durch eine
-        Rechtebindung erreichbar — nicht durch einen Umbau. Offen ist zudem die
-        <strong> Einheit</strong> (je Eintrag, je Woche, je Person, je Monat) und ob eine
-        erteilte Freigabe zurücknehmbar ist; ausgeliefert ist die feinste Einheit — je
-        Eintrag — und keine Rücknahme (O-861, Invariante 8).
+      <Hinweis art="hinweis" cse="o861-offen" className="mb-s5 max-w-prose">
+        <strong>Offen: O-861 — in welcher Einheit wird freigegeben?</strong> Dass ein
+        Mensch wöchentlich freigibt, bevor abgerechnet wird, ist entschieden (D-611) —
+        <Recht schluessel="zeit.abrechnung_freigeben" /> ist seither an <code>super_admin</code> und
+        <code>admin</code> gebunden und für <code>leitung</code> je Gesellschaft
+        anlegbar (D-612). Offen bleibt die <strong>Einheit</strong> (je Eintrag, je Woche,
+        je Person, je Monat) und ob eine erteilte Freigabe zurücknehmbar ist;
+        ausgeliefert ist die feinste Einheit — je Eintrag — und keine Rücknahme
+        (O-861, Invariante 8).
         {/* TODO(client, O-861): In welcher Einheit wird Zeit zur Abrechnung freigegeben — je Eintrag, je Woche, je Person, je Monat —, und laesst sich eine erteilte Freigabe zuruecknehmen, solange nichts abgerechnet ist? */}
       </Hinweis>
 
@@ -243,8 +258,6 @@ export default async function Abrechnungsfreigabe({
       </form>
 
       <nav aria-label="Woche" className="mb-s5 flex flex-wrap gap-s3 text-sm">
-        <a href={`${pfad}?${mitFilter({ woche: tagePlus(von, -7) })}`}
-           className="text-text underline underline-offset-2">← Vorwoche</a>
         <a href={`${pfad}?${mitFilter({ woche: montag(heute) })}`}
            className="text-text underline underline-offset-2">Diese Woche</a>
         <a href={`${pfad}?${mitFilter({ woche: tagePlus(von, 7) })}`}

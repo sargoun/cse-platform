@@ -258,11 +258,21 @@ const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
     url: z.string().url(),
     name: z.string().min(1),
   }).passthrough(),
+  /*
+   * `provider` ist OPTIONAL, und das ist die Zusage von `seitenService`
+   * darueber: ohne entschiedene Gesellschaft (O-652) bleibt er weg, statt auf
+   * ein Dach zu zeigen, das kein Rechtstraeger ist. Die Pruefung verlangte ihn
+   * trotzdem — und `/leistungen/unterhaltsreinigung` endete deshalb auf
+   * Deutsch und Englisch mit 500 (gefunden, als der Durchlauf durch den
+   * Produktionsbau jede Adresse der Sitemap aufrief). Steht er da, muss er
+   * eine gueltige Adresse tragen; `services()` setzt ihn immer, und
+   * `tests/kern/jsonld.test.ts` haelt das fest.
+   */
   Service: z.object({
     '@context': z.literal('https://schema.org'),
     '@type': z.literal('Service'),
     name: z.string().min(1),
-    provider: z.object({ '@id': z.string().url() }),
+    provider: z.object({ '@id': z.string().url() }).optional(),
   }).passthrough(),
   FAQPage: z.object({
     '@context': z.literal('https://schema.org'),

@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   darfAutomatischBuchen, gleicheIban, normalisiere, nummerImZweck, schlageVor,
-  type AbgleichUmsatz, type OffenerPosten,
+  schlageVorAusgang, type AbgleichUmsatz, type KreditorKandidat, type OffenerPosten,
 } from '../../src/server/services/finanz/bank/abgleich.js';
 
 const IBAN_KUNDE = 'DE89370400440532013000';
@@ -157,5 +157,84 @@ describe('(6) nur EIN Zustand darf ohne Menschen gebucht werden', () => {
     const erlaubt = alle.filter((art) =>
       darfAutomatischBuchen({ art, kandidaten: [], begruendung: '' }));
     expect(erlaubt).toEqual(['eindeutig']);
+  });
+});
+
+/*
+ * V-216: ein Ausgang an einen Lieferanten. Kandidaten sind die offenen
+ * Verbindlichkeiten — und keiner wird je automatisch gebucht (D-707).
+ */
+describe('(7) ein Ausgang bekommt Verbindlichkeiten vorgeschlagen, nie gebucht', () => {
+  function kreditor(nummer: string | null, offenCent: bigint, beleg: string | null = null): KreditorKandidat {
+    return {
+      id: `op-${nummer ?? beleg ?? 'x'}`, eingangsrechnungId: `er-${nummer ?? 'x'}`,
+      nummerLieferant: nummer, belegnummer: beleg, lieferant: 'Hygiene Nord', offenCent,
+    };
+  }
+  const ausgang = (teil: Partial<AbgleichUmsatz> = {}): AbgleichUmsatz =>
+    umsatz({ richtung: 'ausgang', verwendungszweck: 'Rechnung HN-4711', gegenIban: null, ...teil });
+
+  it('Betrag und Rechnungsnummer des Lieferanten: mehrdeutig mit genau diesem Kandidaten', () => {
+    const v = schlageVorAusgang(ausgang(), [kreditor('HN-4711', 119_000n), kreditor('HN-4712', 119_000n)]);
+    expect(v.art).toBe('mehrdeutig');
+    expect(v.kandidaten.map((k) => k.nummerLieferant)).toEqual(['HN-4711']);
+    expect(v.begruendung).toContain('Hygiene Nord HN-4711');
+  });
+
+  /*
+   * V-217: vorher stand hier `darfAutomatischBuchen({ ...v, kandidaten: [] })`
+   * — bei `mehrdeutig` trivial falsch, geprüft war damit nichts. Was zu
+   * beweisen ist: auch der EINE Kandidat, bei dem Betrag und Nummer passen,
+   * wird nicht `eindeutig` (der Typ sagt es, die Laufzeit muss es halten).
+   */
+  it('auch ein einziger, genau passender Kandidat bleibt mehrdeutig — ein Mensch bestätigt', () => {
+    const v = schlageVorAusgang(ausgang(), [kreditor('HN-4711', 119_000n)]);
+    expect(v.art).toBe('mehrdeutig');
+    expect(v.kandidaten.map((k) => k.nummerLieferant)).toEqual(['HN-4711']);
+    const arten = new Set<string>([v.art]);
+    for (const zweck of ['Rechnung HN-4711', 'HN-4711', 'Sammelzahlung', '']) {
+      for (const betrag of [119_000n, 100_000n, 1n]) {
+        arten.add(schlageVorAusgang(ausgang({ verwendungszweck: zweck, betragCent: betrag }),
+          [kreditor('HN-4711', 119_000n)]).art);
+      }
+    }
+    expect([...arten].filter((a) => a !== 'mehrdeutig' && a !== 'kein_treffer')).toEqual([]);
+  });
+
+  it('die eigene Belegnummer im Zweck zaehlt ebenso', () => {
+    const v = schlageVorAusgang(ausgang({ verwendungszweck: 'Zahlung EB-2026-00012' }),
+      [kreditor(null, 119_000n, 'EB-2026-00012')]);
+    expect(v.art).toBe('mehrdeutig');
+    expect(v.kandidaten).toHaveLength(1);
+  });
+
+  it('ein Betrag allein ordnet nichts zu — er nennt nur die Kandidaten', () => {
+    const v = schlageVorAusgang(ausgang({ verwendungszweck: 'Sammelzahlung' }),
+      [kreditor('HN-1', 119_000n), kreditor('HN-2', 119_000n)]);
+    expect(v.art).toBe('mehrdeutig');
+    expect(v.kandidaten).toHaveLength(2);
+    expect(v.begruendung).toContain('Ein Betrag allein ordnet nichts zu');
+  });
+
+  it('die Nummer mit abweichendem Betrag — Teilzahlung oder Skonto', () => {
+    const v = schlageVorAusgang(ausgang({ betragCent: 100_000n }), [kreditor('HN-4711', 119_000n)]);
+    expect(v.art).toBe('mehrdeutig');
+    expect(v.begruendung).toContain('Teilzahlung');
+  });
+
+  it('nichts passt — kein Treffer, der Umsatz bleibt in der Klaerung', () => {
+    const v = schlageVorAusgang(ausgang({ verwendungszweck: 'Lohn September' }), [kreditor('HN-4711', 5_000n)]);
+    expect(v.art).toBe('kein_treffer');
+    expect(v.kandidaten).toHaveLength(0);
+  });
+
+  it('ein Eingang ist kein Fall fuer diese Funktion', () => {
+    expect(schlageVorAusgang(umsatz(), [kreditor('RE-2026-00017', 119_000n)]).art).toBe('kein_treffer');
+  });
+
+  it('und schlageVor ordnet einen Ausgang weiterhin keiner Ausgangsrechnung zu', () => {
+    const v = schlageVor(ausgang({ verwendungszweck: 'Rechnung RE-2026-00017' }),
+      [posten('RE-2026-00017', 119_000n)]);
+    expect(v.art).toBe('kein_treffer');
   });
 });

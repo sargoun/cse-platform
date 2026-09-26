@@ -1,9 +1,11 @@
 import Link from 'next/link';
+import { Geraetezeit } from '@/app/portal/mein/Geraetezeit';
 import { notFound } from 'next/navigation';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { AnmeldungNoetig } from '../../../../../Anmeldung';
 import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
@@ -53,7 +55,7 @@ export default async function Unterschriftsblatt({
   const { mandant, id } = await params;
   kennungOder404(id);
   const zugang = await portalZugang(
-    `/portal/${mandant}/reinigung/leistungsnachweise/[id]/unterschrift`,
+    `/portal/${mandant}/reinigung/leistungsnachweise/${id}/unterschrift`,
   );
   if (zugang === null) return <AnmeldungNoetig />;
 
@@ -75,6 +77,28 @@ export default async function Unterschriftsblatt({
     bereiteUnterschriftVor(k, id).catch(() => null));
   if (vorschau === null) notFound();
 
+  /*
+   * **Die Gegenzeichnung des AUFTRAGNEHMERS** (V-094, CLN-04). `signiere`
+   * kennt beide Rollen, `POST /api/reinigung/leistungsnachweise` liest
+   * `rolle` und `anstellung` — und dieses Formular schickte
+   * `value="auftraggeber"` fest verdrahtet. Die Unterschrift der eigenen
+   * Objektleitung, die `leistungsnachweis_signatur` mit
+   * `lns_auftragnehmer_hat_anstellung` eigens vorsieht und die die
+   * Kundenansicht anzeigt, konnte nie entstehen.
+   *
+   * `anstellung_id` ist bei `auftragnehmer` PFLICHT (0066): der Auftragnehmer
+   * sind wir, und wir unterschreiben mit einer Beschäftigung — der
+   * Auftraggeber hat keine bei uns (D-09).
+   */
+  const anstellungen = await mitLesekontext(sitzung, async (k) =>
+    k.abfrage<{ id: string; name: string }>(
+      `select a.id, btrim(p.vorname || ' ' || p.nachname) as name
+         from anstellung a
+         join person p on p.id = a.person_id
+        where a.mandant_id = app.aktiver_mandant()
+          and a.geloescht_am is null and a.status = 'aktiv'
+        order by p.nachname, p.vorname limit 300`));
+
   const bereit = vorschau.kopf.status === 'vorgelegt';
 
   return (
@@ -87,25 +111,17 @@ export default async function Unterschriftsblatt({
       aktiverTab="reinigung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['nachweis.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/reinigung/leistungsnachweise/${id}`, text: 'Zum Nachweis' } }
+        : {})}
     >
-      {darf['nachweis.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s4">
-          <Link
-            href={`/portal/${mandant}/reinigung/leistungsnachweise/${id}`}
-            className="text-sm text-text-muted underline hover:text-text"
-          >
-            ← Zum Nachweis
-          </Link>
-        </nav>
-      )}
-
       <h1 className="mb-s3 text-h1 text-text">
         Leistungsnachweis {vorschau.kopf.nummer ?? ''}
       </h1>
       <p className="mb-s5 text-sm text-text-muted">
         {vorschau.kopf.kunde} · {vorschau.kopf.objekt ?? '—'} ·{' '}
         <span className="tabular-nums">
-          {vorschau.kopf.leistungszeitraumVon} – {vorschau.kopf.leistungszeitraumBis}
+          {tagDeutsch(vorschau.kopf.leistungszeitraumVon)} – {tagDeutsch(vorschau.kopf.leistungszeitraumBis)}
         </span>
       </p>
 
@@ -146,7 +162,53 @@ export default async function Unterschriftsblatt({
       >
         <input type="hidden" name="mandant" value={mandant} />
         <input type="hidden" name="nachweis" value={id} />
-        <input type="hidden" name="rolle" value="auftraggeber" />
+        {/*
+          **Die Rolle war fest verdrahtet** (V-094). Sie ist jetzt eine Wahl —
+          und die Vorgabe bleibt der Auftraggeber: das ist der Bildschirm, den
+          der Kunde vor Ort sieht, und der Regelfall.
+        */}
+        <div className="mb-s4">
+          <label htmlFor="rolle" className="mb-s2 block text-sm text-text">
+            Wer unterschreibt
+          </label>
+          <select
+            id="rolle"
+            name="rolle"
+            defaultValue="auftraggeber"
+            data-cse="unterschrift-rolle"
+            className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s4 py-s3 text-base text-text"
+          >
+            <option value="auftraggeber">Auftraggeber (Kunde) — er erkennt die Leistung an</option>
+            <option value="auftragnehmer">Auftragnehmer (wir) — Gegenzeichnung der Objektleitung</option>
+          </select>
+          <p className="m-0 mt-s2 max-w-prose text-sm text-text-muted">
+            Je Rolle genau eine Unterschrift. Die Gegenzeichnung des Auftragnehmers
+            ersetzt die des Kunden nicht — sie steht daneben.
+          </p>
+        </div>
+
+        <div className="mb-s4">
+          <label htmlFor="anstellung" className="mb-s2 block text-sm text-text">
+            Beschäftigung des Unterzeichners (nur beim Auftragnehmer)
+          </label>
+          <select
+            id="anstellung"
+            name="anstellung"
+            defaultValue=""
+            data-cse="unterschrift-anstellung"
+            className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s4 py-s3 text-base text-text"
+          >
+            <option value="">— keine (Auftraggeber) —</option>
+            {anstellungen.map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+          <p className="m-0 mt-s2 max-w-prose text-sm text-text-muted">
+            Pflicht bei der Gegenzeichnung: der Auftragnehmer sind wir, und wir
+            unterschreiben mit einer Beschäftigung — der Auftraggeber hat keine bei uns
+            (D-09).
+          </p>
+        </div>
         {/* Der Digest genau dieser Zeilen. Ohne ihn wird nicht unterschrieben. */}
         <input type="hidden" name="pruefsumme" value={vorschau.pruefsumme} />
         <input
@@ -158,7 +220,7 @@ export default async function Unterschriftsblatt({
           Die Behauptung des Geräts. Sie bleibt leer, wenn kein Skript läuft —
           und das ist in Ordnung: maßgeblich ist ohnehin die Serverzeit.
         */}
-        <input type="hidden" name="geraete_zeit" value="" />
+        <Geraetezeit marke="geraetezeit" />
 
         <p className="mb-s4 max-w-prose text-base text-text">
           {vorschau.bestaetigungstext}
@@ -204,6 +266,32 @@ export default async function Unterschriftsblatt({
         </p>
 
         <div className="mt-s5 flex flex-wrap gap-s3">
+          {/*
+            * **Nachgetragen** (V-078, TIM-09).
+            *
+            * `leistungsnachweis_signatur.nachgetragen` steht seit `0066` da
+            * und wurde nie geschrieben. Der Fall ist alltäglich: das Tablet
+            * ist leer, der Kunde quittiert auf Papier, und die Aufnahme
+            * geschieht am Abend im Büro. Ohne diesen Vermerk sähe die
+            * Unterschrift aus, als wäre sie um 18:40 am Objekt geleistet
+            * worden.
+            *
+            * Keine Uhrabweichung — die misst die Gerätezeit daneben.
+            */}
+          <label className="mb-s4 flex min-h-11 items-start gap-s3 text-sm text-text">
+            <input type="checkbox" name="nachgetragen" value="1" className="mt-s1"
+                   data-cse="unterschrift-nachgetragen" />
+            <span>
+              Nachgetragen
+              <span className="mt-s1 block text-xs text-text-muted">
+                Die Unterschrift wurde früher geleistet — auf Papier oder auf
+                einem anderen Gerät — und wird jetzt erst erfasst. Die Zeit
+                bleibt die des Servers; dieses Häkchen sagt nur, dass sie nicht
+                die Zeit der Unterschrift ist.
+              </span>
+            </span>
+          </label>
+
           <Button type="submit" variante="primary" disabled={!bereit}>
             Unterschreiben
           </Button>

@@ -1,4 +1,5 @@
-import Link from 'next/link';
+import { Geraetezeit } from '../../../Geraetezeit';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { notFound } from 'next/navigation';
 import { StatusPill } from '@/components/ui/StatusPill';
 import {
@@ -99,17 +100,13 @@ export default async function MeinWachbuch(
     + 'text-base text-text';
 
   return (
-    <MeinRahmen basis={basis} titel={t.wachbuch} aktiverTab="schichten">
-      <Link
-        href={`/portal/mein/schichten/${zuordnungId}`}
-        className="mb-s4 inline-block min-h-11 text-base text-text underline"
-      >
-        ← {t.schichten}
-      </Link>
+    <MeinRahmen basis={basis} titel={t.wachbuch} aktiverTab="schichten"
+      zurueck={{ ziel: `/portal/mein/schichten/${zuordnungId}`, text: t.schichten }}
+    >
 
       <h1 className="mb-s2 text-h1 text-text">{t.wachbuch}</h1>
       <p className="mb-s5 text-base text-text-muted">
-        {schicht.objekt ?? '—'} · <span className="cse-zahl">{schicht.planDatum}</span>
+        {schicht.objekt ?? '—'} · <span className="cse-zahl">{tagInSprache(schicht.planDatum, basis.sprache)}</span>
       </p>
 
       {schicht.objektId === null ? (
@@ -244,15 +241,47 @@ export default async function MeinWachbuch(
                     </select>
                   </div>
                   <label className="flex min-h-11 items-center gap-s3 text-base text-text">
-                    <input type="checkbox" name="praesenz" value="ja" />
+                    <input type="checkbox" name="praesenz" value="ja"
+                           className="min-h-11 min-w-11 shrink-0" />
                     {t.praesenz}
                   </label>
                 </>
               )}
 
               <label className="flex min-h-11 items-center gap-s3 text-base text-text">
-                <input type="checkbox" name="polizei" value="ja" />
+                <input type="checkbox" name="polizei" value="ja"
+                       className="min-h-11 min-w-11 shrink-0" />
                 {t.polizei}
+              </label>
+
+              {/*
+                * **Nachgetragen** (V-078, TIM-09).
+                *
+                * `wachbuch_eintrag.nachgetragen` steht seit `0070` da, der
+                * Dienst nimmt es entgegen, die Route reicht es durch, und
+                * ZWEI Seiten zeigen „· nachgetragen" an — geschickt hat es
+                * nie ein Formular. Was auf dem Bildschirm stand, war also nie
+                * die Aussage eines Menschen, sondern der Vorgabewert der
+                * Spalte.
+                *
+                * **Das ist KEINE Uhrabweichung**, und die Spalte sagt das
+                * ausdrücklich: „wer beides in eine Spalte legt, kann eine um
+                * 14:00 verfasste und um 22:00 uebertragene Seite nicht mehr
+                * von einer um 22:00 verfassten unterscheiden". Die Abweichung
+                * misst die Gerätezeit; DIESES Häkchen ist die Aussage der
+                * Wache, dass der Vorgang früher geschehen ist — aus dem Buch
+                * am Objekt, nach der Schicht getippt.
+                */}
+              <label className="flex min-h-11 items-start gap-s3 text-base text-text">
+                <input type="checkbox" name="nachgetragen" value="1"
+                       className="min-h-11 min-w-11 shrink-0"
+                       data-cse="wachbuch-nachgetragen" />
+                <span>
+                  {t.nachgetragen}
+                  <span className="mt-s1 block text-base text-text-muted">
+                    {t.nachgetragenHinweis}
+                  </span>
+                </span>
               </label>
 
               {/*
@@ -263,7 +292,7 @@ export default async function MeinWachbuch(
                 Ohne JavaScript bleibt das Feld leer; dann steht in der Zeile
                 keine Geraetezeit — richtig, denn behauptet hat niemand etwas.
               */}
-              <input type="hidden" name="geraete_zeit" value="" data-cse="geraetezeit" />
+              <Geraetezeit marke="geraetezeit" />
 
               <button
                 type="submit"

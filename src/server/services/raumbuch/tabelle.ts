@@ -12,15 +12,76 @@
  * **Was hier NICHT steht: `.xlsx`.** Eine Excel-Datei ist ein ZIP mit XML,
  * und ein halbfertiger Leser dafuer ist schlimmer als keiner — er liest die
  * erste Tabelle, uebersieht Formeln und verdichtete Zellen und meldet
- * trotzdem Erfolg. Bis eine geprueft Bibliothek dafuer eingerichtet ist,
- * nimmt der Import CSV und sagt das; eine `.xlsx` wird ABGEWIESEN, nicht
- * stillschweigend halb gelesen.
+ * trotzdem Erfolg. Die Plattform bringt keine Bibliothek dafuer mit, und eine
+ * neue Abhaengigkeit, die fremde ZIP- und XML-Dateien entpackt, ist eine
+ * Entscheidung mit Pruefaufwand und kein Nebenbei (D-665, O-919). Bis sie
+ * gefallen ist, nimmt der Import CSV und sagt das auf der Seite: eine
+ * Excel-Datei wird am INHALT erkannt (`istTabellenkalkulation`) und
+ * ABGEWIESEN, nicht stillschweigend halb gelesen.
+ *
+ * **Und die CSV, die Excel wirklich schreibt, kommt an.** „CSV
+ * (Trennzeichen-getrennt)" speichert ein deutsches Excel in Windows-1252,
+ * nicht in UTF-8; als UTF-8 gelesen wird aus „Fläche" ein „Fl�che", und die
+ * Spalte findet keine Zuordnung. `leseTextDatei` liest deshalb UTF-8 streng
+ * und faellt nur bei ungueltigem UTF-8 auf Windows-1252 zurueck.
  */
 
+export type TabellenFehlerGrund =
+  | 'leer' | 'format' | 'kopfzeile' | 'anfuehrung' | 'feldzahl'
+  /** Der zweite Klick auf „Übernehmen" (V-171: ein eigener Satz statt „Format"). */
+  | 'schon_uebernommen';
+
 export class TabellenFehler extends Error {
-  constructor(nachricht: string, readonly grund: 'leer' | 'format' | 'kopfzeile' | 'anfuehrung' | 'feldzahl') {
+  constructor(
+    nachricht: string,
+    readonly grund: TabellenFehlerGrund,
+    /** Die Zeile der Datei, an der es scheiterte — fuer den Satz auf der Seite. */
+    readonly zeile: number | null = null,
+  ) {
     super(nachricht);
     this.name = 'TabellenFehler';
+  }
+}
+
+/**
+ * Ist diese Datei eine Tabellenkalkulation statt Text (D-665)?
+ *
+ * Erkannt am INHALT, nicht nur am Namen: eine `raumbuch.csv`, die in
+ * Wahrheit ein Excel-Arbeitsbuch ist, wuerde als Text gelesen zu einer
+ * Kopfzeile aus Binaerzeichen — und die Abweisung dafuer kaeme als
+ * „Kopfzeile leer" statt als der Satz, der hilft. Geprueft werden:
+ *
+ *  - `PK\x03\x04` — ein ZIP: `.xlsx`, `.xlsm` und `.ods` sind welche,
+ *  - `D0 CF 11 E0 A1 B1 1A E1` — das alte Verbunddateiformat von `.xls`,
+ *  - und der Dateiname (`.xlsx`, `.xlsm`, `.xls`, `.ods`) fuer den Fall, dass
+ *    der Anfang fehlt oder abgeschnitten ist.
+ *
+ * // TODO(client, O-919): Soll der Import Excel-Arbeitsmappen direkt lesen —
+ * und welche Bibliothek darf dafuer ungepruefte ZIP/XML-Dateien entpacken
+ * (Formeln: berechneter Wert oder Abweisung; welches Blatt)? Bis zur Antwort
+ * wird eine erkannte Tabellenkalkulation abgewiesen, nie halb gelesen.
+ */
+export function istTabellenkalkulation(dateiname: string, anfang: Uint8Array): boolean {
+  if (/\.(xlsx|xlsm|xls|ods)$/iu.test(dateiname.trim())) return true;
+  const zip = [0x50, 0x4b, 0x03, 0x04];
+  const ole = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+  const beginntMit = (muster: readonly number[]): boolean =>
+    anfang.length >= muster.length && muster.every((b, i) => anfang[i] === b);
+  return beginntMit(zip) || beginntMit(ole);
+}
+
+/**
+ * Die Bytes einer Textdatei als Text — UTF-8, sonst Windows-1252 (D-665).
+ *
+ * UTF-8 wird STRENG gelesen (`fatal`): nur eine Datei, die kein gueltiges
+ * UTF-8 ist, geht an Windows-1252. Umgekehrt waere falsch — jede UTF-8-Datei
+ * ist auch gueltiges Windows-1252, und „Fläche" kaeme als „FlÃ¤che" an.
+ */
+export function leseTextDatei(bytes: Uint8Array): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder('windows-1252').decode(bytes);
   }
 }
 
@@ -83,6 +144,16 @@ export function leseCsv(text: string): Tabelle {
   const trenner = trennzeichenAus(ersteZeile);
 
   const felder: string[][] = [];
+  /**
+   * Die Zeile der DATEI, in der ein Datensatz beginnt (V-240). Vorher nannte
+   * die Abweisung `feldzahl` den Index nach dem Wegfiltern leerer Zeilen plus
+   * zwei — nach einer Leerzeile oder einem Feld mit Zeilenumbruch zeigte sie
+   * auf die falsche Zeile, und wer die Datei danach absuchte, fand dort
+   * nichts. Gezählt wird jeder Zeilenumbruch, auch der in Anführungszeichen.
+   */
+  const anfaenge: number[] = [];
+  let physisch = 1;
+  let anfang = 1;
   let zeile: string[] = [];
   let feld = '';
   let inAnfuehrung = false;
@@ -93,6 +164,7 @@ export function leseCsv(text: string): Tabelle {
       if (z === '"') {
         if (ohneBom[i + 1] === '"') { feld += '"'; i += 1; } else { inAnfuehrung = false; }
       } else {
+        if (z === '\n') physisch += 1;
         feld += z;
       }
       continue;
@@ -102,6 +174,9 @@ export function leseCsv(text: string): Tabelle {
     if (z === '\n') {
       zeile.push(feld.replace(/\r$/u, ''));
       felder.push(zeile);
+      anfaenge.push(anfang);
+      physisch += 1;
+      anfang = physisch;
       zeile = []; feld = '';
       continue;
     }
@@ -121,7 +196,7 @@ export function leseCsv(text: string): Tabelle {
       'Ein Anfuehrungszeichen wurde nicht geschlossen — die Datei laesst sich '
       + 'nicht sicher lesen', 'anfuehrung');
   }
-  if (feld !== '' || zeile.length > 0) { zeile.push(feld); felder.push(zeile); }
+  if (feld !== '' || zeile.length > 0) { zeile.push(feld); felder.push(zeile); anfaenge.push(anfang); }
 
   const [kopfRoh, ...rest] = felder;
   if (kopfRoh === undefined) throw new TabellenFehler('Keine Kopfzeile', 'kopfzeile');
@@ -131,11 +206,12 @@ export function leseCsv(text: string): Tabelle {
   }
 
   const zeilen = rest
+    .map((z, i) => ({ z, dateizeile: anfaenge[i + 1] ?? i + 2 }))
     // Eine Zeile, die nur aus Trennzeichen besteht, ist keine Zeile — Excel
     // haengt sie ans Dateiende, und ohne diese Bedingung entstuende bei jedem
     // Import ein leerer Raum.
-    .filter((z) => z.some((w) => w.trim() !== ''))
-    .map((z, i) => {
+    .filter(({ z }) => z.some((w) => w.trim() !== ''))
+    .map(({ z, dateizeile }) => {
       /**
        * Eine Zeile mit ANDERER Feldzahl wurde bisher still aufgefuellt oder
        * abgeschnitten. Genau dann ist die Datei verschoben — und die Spalten,
@@ -144,8 +220,8 @@ export function leseCsv(text: string): Tabelle {
        */
       if (z.length !== kopf.length) {
         throw new TabellenFehler(
-          `Zeile ${i + 2} hat ${z.length} Felder, die Kopfzeile ${kopf.length} — `
-          + 'die Datei ist verschoben', 'feldzahl');
+          `Zeile ${dateizeile} hat ${z.length} Felder, die Kopfzeile ${kopf.length} — `
+          + 'die Datei ist verschoben', 'feldzahl', dateizeile);
       }
       const satz: Record<string, string> = {};
       kopf.forEach((name, j) => { satz[name] = (z[j] ?? '').trim(); });

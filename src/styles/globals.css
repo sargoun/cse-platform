@@ -76,6 +76,22 @@
   --bild-overlay: linear-gradient(180deg, rgba(8,8,10,0.15) 0%, rgba(8,8,10,0.55) 55%, rgba(8,8,10,0.92) 100%);
   --shadow-pop: 0 12px 32px rgba(0,0,0,0.55);
 
+  /*
+   * §5 „Standalone pages" — der EINE Lichthauch hinter einer alleinstehenden
+   * Flaeche (Anmeldung, Auswahl, Entscheidung).
+   *
+   * §3 sagt, Erhebung kommt auf Dunkel aus Raendern und nicht aus Schatten —
+   * und diese Regel gilt dem STAPELN. Eine Seite, die nichts hat, worauf sie
+   * sich stapeln koennte, bekommt stattdessen diesen einen Hauch: ein
+   * radialer Verlauf in der Markenfarbe, hinter allem, ohne Ereignisse, ohne
+   * Bewegung, genau EINER je Seite.
+   *
+   * Der Grund ist gemessen: ein glattes `--ink`-Feld hinter einer einzelnen
+   * Karte liest sich wie eine Seite, die nicht fertig geladen hat. Das
+   * Wechselblatt belegte 9 % des Bildschirms, der Rest war schwarz.
+   */
+  --wash-brand: radial-gradient(60rem 40rem at 50% -10%, rgba(227, 6, 19, 0.10) 0%, rgba(227, 6, 19, 0.04) 35%, transparent 70%);
+
   /* §7 Motion */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --fast: 150ms;
@@ -95,6 +111,130 @@ body {
   margin: 0;
   background: var(--ink);
   color: var(--text);
+}
+
+/**
+ * DESIGN §5 „Forms" — die Grundgestalt JEDES Bedienfelds.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Der Befund: die Plattform hatte keine.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * §5 beschreibt das Feld seit jeher — `--surface-3`, Rand, `--r-md`, 44px —
+ * aber nirgends stand es als Regel. Jede Seite schrieb ihre eigene
+ * Klassenkette (`const FELD = '…'`, in Dutzenden Dateien), und was keine
+ * Kette bekam, zeigte die Bordmittel des Browsers:
+ *
+ *   * `<select>` mit dem grauen Systempfeil und heller Systemflaeche —
+ *     gemessen in **84** Dateien;
+ *   * `<input type="date">` mit `tt.mm.jjjj` und einem Kalendersymbol, das
+ *     auf dunklem Grund **schwarz auf schwarz** steht und damit unsichtbar
+ *     ist — **55** Dateien;
+ *   * Haekchen und Punkte im Systemblau statt im Markenrot.
+ *
+ * Der Mandant hat beides fotografiert. Es sah nicht nach einer Plattform aus,
+ * sondern nach einem Formular von 2004 — und das zu Recht.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Warum hier und nicht in einem Bauteil.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Ein `<Feld>`-Bauteil haette 139 Dateien zu aendern verlangt und die
+ * naechste neue Seite wieder frei gelassen. Eine Grundregel greift sofort,
+ * ueberall und auch morgen.
+ *
+ * **Und sie ueberschreibt nichts.** Das sind Elementselektoren; jede
+ * Tailwind-Klasse auf einem Feld hat hoehere Spezifitaet und gewinnt. Seiten,
+ * die ihre Kette schon schreiben, sehen aus wie vorher — nur alles andere
+ * sieht jetzt auch so aus.
+ *
+ * `:where()` haelt die Spezifitaet bei null, damit das garantiert gilt.
+ */
+:where(
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  select,
+  textarea
+) {
+  min-height: 44px;                 /* §9: Tippziel, nicht Verhandlungssache */
+  width: 100%;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background-color: var(--surface-3);
+  color: var(--text);
+  padding: 10px 14px;
+  transition: border-color var(--fast) var(--ease);
+}
+
+:where(input, select, textarea)::placeholder {
+  color: var(--text-subtle);
+}
+
+:where(input, select, textarea):hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+:where(input, select, textarea):disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/**
+ * Der eigene Pfeil.
+ *
+ * `appearance: none` nimmt die Systemflaeche weg — und mit ihr den Pfeil, der
+ * dann selbst gestellt werden muss. Er ist als `background-image` gezeichnet,
+ * in derselben Zeichensprache wie die Icons (§5: Strich 1.75, runde Enden),
+ * und in `--text-muted`: er gehoert zum Feld, nicht zum Wert.
+ *
+ * `padding-inline-end` haelt den Text vom Pfeil weg — auch auf Arabisch, wo
+ * das Feld von rechts laeuft (SPEC §10).
+ */
+:where(select) {
+  appearance: none;
+  padding-inline-end: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23A1A1AA' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 20px 20px;
+}
+
+:where(select:dir(rtl)) {
+  background-position: left 12px center;
+}
+
+/**
+ * Das Kalendersymbol war **schwarz auf schwarz**.
+ *
+ * Chromium zeichnet `::-webkit-calendar-picker-indicator` als dunkles
+ * Bildzeichen — auf `--ink` praktisch unsichtbar. Das Feld sah aus, als
+ * liesse es sich nur tippen, und der Kalender blieb unentdeckt. `invert(1)`
+ * dreht es ins Helle; `opacity` haelt es unter dem Wert, den es oeffnet.
+ */
+:where(input[type='date'], input[type='time'], input[type='datetime-local'],
+       input[type='month'], input[type='week'])::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+:where(input[type='date'], input[type='time'], input[type='datetime-local'],
+       input[type='month'], input[type='week'])::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+/**
+ * Haekchen, Punkte und Regler tragen die Markenfarbe.
+ *
+ * `accent-color` ist die eine Zeile, mit der ein Browser sein Systemblau
+ * gegen eine eigene Farbe tauscht — ohne das Bauteil nachzubauen und ohne
+ * seine Tastaturbedienung zu verlieren. §1: Rot ist die Handlung.
+ *
+ * Die Trefferflaeche steht hier NICHT auf 44px: ein Haekchen ist 16px gross,
+ * und sein Tippziel ist das `<label>` um es herum (§9).
+ */
+:where(input[type='checkbox'], input[type='radio'], input[type='range']) {
+  accent-color: var(--red);
+  cursor: pointer;
 }
 
 /**
@@ -176,6 +316,23 @@ body {
  * die Regel oben setzt `transform: none !important`, und `opacity` steht in
  * ihrer Ausnahmeliste. Vestibulaere Stoerungen sind keine Vorliebe (§7).
  */
+
+/**
+ * §6 „Dropdown": das Klappmenue des Bereichsumschalters blendet ein —
+ * `opacity 0→1` und `translateY(-4px→0)` ueber `--base` mit `--ease` (§7:
+ * Klappmenues und Dialoge laufen mit `--base`). Eine Animation und keine
+ * Transition: das Menue wird beim Oeffnen eingehaengt, und eine Transition
+ * haette keinen Anfangszustand, von dem sie liefe. Bei
+ * `prefers-reduced-motion` gilt die Regel oben (V-237, D-731).
+ */
+@keyframes cse-klappmenue {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.cse-klappmenue {
+  animation: cse-klappmenue var(--base) var(--ease) both;
+}
 
 /**
  * §2 Mobile — „display → 36/40, h1 → 30/36, h2 → 24/30".

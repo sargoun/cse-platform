@@ -11,10 +11,13 @@
  *  3. Der persönliche Kalender ist persönlich: fremde Schichten fehlen.
  *  4. Ohne `kalender.lesen` ist er leer — und zwar leer, nicht fehlerhaft.
  */
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
-import { kalenderZeilen } from '../../src/server/services/kalender/eintraege.js';
+import { kalenderZeilen, type Quelle } from '../../src/server/services/kalender/eintraege.js';
 
 let f: Fixtur;
 const zufall = (): string => Math.random().toString(36).slice(2, 10);
@@ -385,6 +388,206 @@ describe('(6) der Weg kommt aus der Zeile, nicht aus einem Textbaustein', () => 
     expect(zeilen.length).toBeGreaterThan(0);
     for (const e of zeilen) {
       expect(e.weg, e.titel).toMatch(/^\/portal\/bau\//u);
+    }
+  });
+});
+
+/**
+ * **Jeder Weg ist eine gebaute Seite** (V-243, D-737).
+ *
+ * `(3)` prüfte, DASS jede Zeile einen Weg trägt, und `(6)`, dass er in die
+ * richtige Gesellschaft zeigt — nicht, dass es die Seite am Ende gibt. So
+ * standen zwei tote Ziele unbemerkt im Dienst: eine Schicht führte auf
+ * `/dienstplan` (keine Wurzelseite), eine Vergabefrist auf
+ * `/radar/vorgaenge/<id>` (nie gebaut). Gefunden hat es erst der Verweislauf
+ * der Browsersuite. Hier wird jede Zeile auf eine Datei unter `src/app`
+ * abgebildet — eine Kennung wird `[id]`, der Slug `[mandant]` —, und die
+ * Schicht und die Frist tragen ihr genaues Ziel.
+ */
+describe('(7) jeder Weg führt auf eine Seite, die es gibt', () => {
+  it('Schicht → ihre Einsatzseite, Vergabefrist → die Bekanntmachung', async () => {
+    const wer = await legeKontoAn(f.reinigung, 'admin');
+    await legeTerminAn(f.reinigung, wer, 'Mit Seite');
+    const [k] = await sql.unsafe<{ id: string }[]>(
+      `insert into kunde (mandant_id, kundennummer, name)
+       values ($1::uuid, $2, 'Bezirksamt') returning id`, [f.reinigung, `K-${zufall()}`]);
+    const [o] = await sql.unsafe<{ id: string }[]>(
+      `insert into objekt (mandant_id, objektnummer, bezeichnung, strasse, plz, ort, kunde_id)
+       values ($1::uuid, $2, 'Dienstgebäude Süd', 'Musterweg 2', '10178', 'Berlin', $3::uuid)
+       returning id`, [f.reinigung, `OBJ-${zufall()}`, k!.id]);
+    const [e] = await sql.unsafe<{ id: string }[]>(
+      `insert into einsatz
+         (mandant_id, quelle, quell_schluessel, plan_datum, beginn_zeitpunkt, ende_zeitpunkt,
+          zeitzone, beginn_lokal, ende_lokal, endet_am_folgetag, objekt_id,
+          soll_besetzung, min_besetzung, status, erstellt_von_art)
+       select $1::uuid, 'manuell', $2, app.berlin_heute(),
+              (app.berlin_heute()::timestamp + interval '8 hours') at time zone 'Europe/Berlin',
+              (app.berlin_heute()::timestamp + interval '12 hours') at time zone 'Europe/Berlin',
+              'Europe/Berlin',
+              app.berlin_heute()::timestamp + interval '8 hours',
+              app.berlin_heute()::timestamp + interval '12 hours',
+              false, $3::uuid, 1, 1, 'geplant', 'system'
+       returning id`, [f.reinigung, `k-${zufall()}`, o!.id]);
+    const [a] = await sql.unsafe<{ id: string }[]>(
+      `insert into ausschreibung (quelle, quell_id, titel, sprache, rohdaten_hash, frist_angebot)
+       values ('oeffentlichevergabe', $1, 'Glasreinigung Rathaus', 'de', $2,
+               now() + interval '3 days')
+       returning id`, [`kal-${zufall()}`, `${zufall()}${zufall()}`]);
+    await sql.unsafe(
+      `insert into ausschreibung_vorgang (mandant_id, ausschreibung_id)
+       values ($1::uuid, $2::uuid)`, [f.reinigung, a!.id]);
+
+    const z = await fenster();
+    const zeilen = await alsBereich(f.reinigung, wer,
+      (kk) => kalenderZeilen(kk, { zeitraum: z }));
+
+    const schicht = zeilen.find((x) => x.quelle === 'einsatz' && x.id === e!.id);
+    expect(schicht?.weg).toBe(`/portal/reinigung/dienstplan/einsatz/${e!.id}`);
+    const frist = zeilen.find((x) => x.quelle === 'vergabe' && x.weg?.endsWith(a!.id) === true);
+    expect(frist?.weg).toBe(`/portal/reinigung/radar/${a!.id}`);
+
+    const KENNUNG = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+    const wurzel = fileURLToPath(new URL('../../src/app', import.meta.url));
+    expect(zeilen.length).toBeGreaterThanOrEqual(3);
+    for (const zeile of zeilen) {
+      const teile = zeile.weg!.split('/').filter((t) => t !== '');
+      expect(teile[0], zeile.weg!).toBe('portal');
+      const form = ['portal', '[mandant]',
+        ...teile.slice(2).map((t) => (KENNUNG.test(t) ? '[id]' : t))];
+      expect(existsSync(join(wurzel, ...form, 'page.tsx')), `${zeile.quelle}: ${zeile.weg!}`)
+        .toBe(true);
+    }
+  });
+
+  /**
+   * **Alle sieben Quellen — nicht die drei, die zufällig da sind** (V-253).
+   *
+   * Der Fall darüber legt Termin, Schicht und Frist an und prüft danach
+   * „jede Zeile". Projektende, Freigabe, Anfrage und Gespräch kamen darin
+   * nur vor, wenn der Seed des Harness zufällig eine solche Zeile im Fenster
+   * hatte — die Überschrift versprach mehr, als der Fall prüfte. Hier legt
+   * die Fixtur jede Quelle selbst an, im Bau (dort gibt es Projekte), und
+   * `ZIEL` ist ein `Record<Quelle, …>`: eine achte Quelle ohne Eintrag ist
+   * ein Typfehler dieser Datei (tsc) und kein stilles Auslassen.
+   */
+  it('jede der sieben Quellen führt auf ihr genaues Ziel, und das Ziel ist gebaut', async () => {
+    /*
+     * `gueltig_ab` ausdrücklich gestern: der Auftrag des Projekts verlangt
+     * einen Verantwortlichen, und dessen Prüfung (0025) fragt mit
+     * `current_date` — zwischen 22:00 und 24:00 UTC ist der Berliner
+     * Vorgabewert der Mitgliedschaft schon morgen (siehe bau-abnahme.test.ts).
+     */
+    const email = `kal-${zufall()}@cse.test`;
+    const [u] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ($1) returning id`, [email]);
+    const wer = u!.id;
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status) values ($1, $2, 'Bauleitung', 'aktiv')`,
+      [wer, email]);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, ist_standard, gueltig_ab)
+       values ($1, $2, (select id from rolle where schluessel = 'admin' and mandant_id is null),
+               true, current_date - 1)`, [wer, f.bau]);
+
+    const termin = await legeTerminAn(f.bau, wer, 'Baubesprechung');
+
+    const [k] = await sql.unsafe<{ id: string }[]>(
+      `insert into kunde (mandant_id, kundennummer, name)
+       values ($1::uuid, $2, 'Bauherr Nord') returning id`, [f.bau, `K-${zufall()}`]);
+    const [o] = await sql.unsafe<{ id: string }[]>(
+      `insert into objekt (mandant_id, objektnummer, bezeichnung, strasse, plz, ort, kunde_id)
+       values ($1::uuid, $2, 'Baustelle Nord', 'Musterweg 3', '10178', 'Berlin', $3::uuid)
+       returning id`, [f.bau, `OBJ-${zufall()}`, k!.id]);
+    const [e] = await sql.unsafe<{ id: string }[]>(
+      `insert into einsatz
+         (mandant_id, quelle, quell_schluessel, plan_datum, beginn_zeitpunkt, ende_zeitpunkt,
+          zeitzone, beginn_lokal, ende_lokal, endet_am_folgetag, objekt_id,
+          soll_besetzung, min_besetzung, status, erstellt_von_art)
+       select $1::uuid, 'manuell', $2, app.berlin_heute(),
+              (app.berlin_heute()::timestamp + interval '8 hours') at time zone 'Europe/Berlin',
+              (app.berlin_heute()::timestamp + interval '12 hours') at time zone 'Europe/Berlin',
+              'Europe/Berlin',
+              app.berlin_heute()::timestamp + interval '8 hours',
+              app.berlin_heute()::timestamp + interval '12 hours',
+              false, $3::uuid, 1, 1, 'geplant', 'system'
+       returning id`, [f.bau, `k-${zufall()}`, o!.id]);
+
+    const [au] = await sql.unsafe<{ id: string }[]>(
+      `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, status, bezeichnung,
+                            verantwortlich_benutzer_id, start_datum)
+       values ($1::uuid, $2, $3::uuid, 'projekt', 'aktiv', 'Rohbau Nord', $4::uuid,
+               '2026-01-01')
+       returning id`, [f.bau, `AU-${zufall()}`, k!.id, wer]);
+    const [p] = await sql.unsafe<{ id: string }[]>(
+      `insert into projekt (mandant_id, auftrag_id, nummer, bezeichnung, kunde_id, art,
+                            vertragsgrundlage, soll_ende)
+       values ($1::uuid, $2::uuid, $3, 'Rohbau Nord', $4::uuid, 'hochbau', 'vob_b',
+               app.berlin_heute() + 2)
+       returning id`, [f.bau, au!.id, `P-${zufall()}`, k!.id]);
+
+    const [a] = await sql.unsafe<{ id: string }[]>(
+      `insert into ausschreibung (quelle, quell_id, titel, sprache, rohdaten_hash, frist_angebot)
+       values ('oeffentlichevergabe', $1, 'Rohbau Schule', 'de', $2, now() + interval '3 days')
+       returning id`, [`kal-${zufall()}`, `${zufall()}${zufall()}`]);
+    const [v] = await sql.unsafe<{ id: string }[]>(
+      `insert into ausschreibung_vorgang (mandant_id, ausschreibung_id)
+       values ($1::uuid, $2::uuid) returning id`, [f.bau, a!.id]);
+
+    const [fr] = await sql.unsafe<{ id: string }[]>(
+      `insert into freigabe (mandant_id, aktion, titel, status, frist)
+       values ($1::uuid, 'pruefen', 'Nachtrag prüfen', 'offen', now() + interval '2 days')
+       returning id`, [f.bau]);
+
+    const [l] = await sql.unsafe<{ id: string }[]>(
+      `insert into lead (mandant_id, leadnummer, betreff, firma_name, akteur_art, quelle,
+                         besitzer_benutzer_id, sla_frist_am)
+       values ($1::uuid, $2, 'Anfrage Rohbau', 'Bauherr GmbH', 'mensch', 'manuell', $3::uuid,
+               now() + interval '1 day')
+       returning id`, [f.bau, `LD-${zufall()}`, wer]);
+
+    const [st] = await sql.unsafe<{ id: string }[]>(
+      `insert into stelle (mandant_id, titel, beschreibung, einsatzort, wochenstunden,
+                           status, entwurf_von_art)
+       values ($1::uuid, 'Polier', 'Beschreibung', 'Berlin', 40,
+               'entwurf'::stelle_status, 'mensch'::akteur_art)
+       returning id`, [f.bau]);
+    const [bw] = await sql.unsafe<{ id: string }[]>(
+      `insert into bewerbung (mandant_id, stelle_id, quelle, status, name, email,
+                              eingegangen_am, aufbewahrung_bis)
+       values ($1::uuid, $2::uuid, 'karriereseite'::bewerbung_quelle,
+               'eingegangen'::bewerbung_status, 'Jonas Probe', 'probe@example.org',
+               now(), app.berlin_heute() + 180)
+       returning id`, [f.bau, st!.id]);
+    const [g] = await sql.unsafe<{ id: string }[]>(
+      `insert into gespraech (mandant_id, bewerbung_id, termin, dauer_minuten, ort, erstellt_von)
+       values ($1::uuid, $2::uuid, now() + interval '2 days', 45, 'Baubüro', $3::uuid)
+       returning id`, [f.bau, bw!.id, wer]);
+
+    const ZIEL: Readonly<Record<Quelle, { readonly id: string; readonly weg: string }>> = {
+      termin: { id: termin, weg: `/portal/bau/kalender/${termin}` },
+      einsatz: { id: e!.id, weg: `/portal/bau/dienstplan/einsatz/${e!.id}` },
+      projekt: { id: p!.id, weg: `/portal/bau/bau/projekte/${p!.id}` },
+      vergabe: { id: v!.id, weg: `/portal/bau/radar/${a!.id}` },
+      freigabe: { id: fr!.id, weg: `/portal/bau/freigaben/${fr!.id}` },
+      gespraech: { id: g!.id, weg: `/portal/bau/recruiting/bewerbungen/${bw!.id}` },
+      lead: { id: l!.id, weg: `/portal/bau/crm/leads/${l!.id}` },
+    };
+
+    const z = await fenster();
+    const zeilen = await alsBereich(f.bau, wer, (kk) => kalenderZeilen(kk, { zeitraum: z }));
+
+    const KENNUNG = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+    const wurzel = fileURLToPath(new URL('../../src/app', import.meta.url));
+    for (const [quelle, ziel] of Object.entries(ZIEL) as [Quelle, typeof ZIEL[Quelle]][]) {
+      const zeile = zeilen.find((x) => x.quelle === quelle && x.id === ziel.id);
+      expect(zeile, `${quelle}: die Zeile der Fixtur fehlt im Kalender`).toBeDefined();
+      expect(zeile!.weg, quelle).toBe(ziel.weg);
+
+      const teile = ziel.weg.split('/').filter((t) => t !== '');
+      const form = ['portal', '[mandant]',
+        ...teile.slice(2).map((t) => (KENNUNG.test(t) ? '[id]' : t))];
+      expect(existsSync(join(wurzel, ...form, 'page.tsx')), `${quelle}: ${ziel.weg}`)
+        .toBe(true);
     }
   });
 });

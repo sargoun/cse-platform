@@ -6,7 +6,8 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { MimeFehler } from '@/server/storage/mime';
 import { legeAb } from '@/server/services/dokument/ablage';
 import { alsAntwort } from '../../sicherheit/antwort';
@@ -49,7 +50,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
   const daten = await anfrage.formData();
   const datei = daten.get('datei');
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
 
   let slug = '';
   let dokumentId = '';
@@ -71,6 +72,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           tags: feld(daten, 'tags'),
           kundeId: feld(daten, 'kunde'),
           objektId: feld(daten, 'objekt'),
+          /*
+           * V-176 (OPS-11): der Auftrag, an dem das Dokument hängt — geprüft
+           * wie Kunde und Objekt (Form, dann Sichtbarkeit unter RLS), und
+           * zusätzlich vom Fremdschlüssel aus 0421 gehalten.
+           */
+          auftragId: feld(daten, 'auftrag'),
           sichtbarFuerMitarbeiter: feld(daten, 'fuer_mitarbeiter') !== '',
           dateiname: datei.name,
           daten: bytes,

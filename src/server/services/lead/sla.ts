@@ -82,6 +82,11 @@ export function entscheideEskalation(
   return {
     eskalieren: true,
     neueStufe: lage.eskalationsstufe + 1,
-    grund: `SLA seit ${lage.slaFristAm.toISOString()} überschritten`,
+    /* Berliner Wanduhr, nicht ISO-UTC (Invariante 2, V-137): diese Zeile liest
+       ein Mensch im Verlauf des Leads. */
+    grund: `Reaktionszeit seit ${new Intl.DateTimeFormat('de-DE', {
+      timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    }).format(lage.slaFristAm)} Uhr überschritten`,
   };
 }

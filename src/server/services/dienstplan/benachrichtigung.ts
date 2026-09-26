@@ -1,5 +1,7 @@
 import 'server-only';
-import { sicherRegistriert, type ArtDefinition } from '../../benachrichtigung/registry.js';
+import { sicherRegistriert, type ArtDefinition, type BenachrichtigungsKontext }
+  from '../../benachrichtigung/registry.js';
+import { setze, texteFuer, type PlanTexte } from '../../../lib/i18n/benachrichtigung.js';
 
 /**
  * Die Meldung, die NOT-01 unter „schedule change" fuehrt (TIM-01, NOT-01,
@@ -38,21 +40,60 @@ export const ART_PLAN_VEROEFFENTLICHT = `${DIENSTPLAN}.plan_veroeffentlicht`;
 /** Das eine Ziel — Personen-Scope, ohne Bereichssegment. */
 export const ZIEL_MEINE_SCHICHTEN = '/portal/mein/schichten';
 
+/**
+ * **Der Plan steht in der Sprache der Empfaengerin** (V-102, O-889, SPEC §10).
+ *
+ * Diese Meldung geht an einen ARBEITER: sie sagt ihm, wann er zu arbeiten hat.
+ * `/portal/mein/schichten` steht in vier Sprachen — die Meldung, die dorthin
+ * fuehrt, stand nur auf Deutsch da. `person.sprache` kommt vom Erzeuger
+ * herein (`veroeffentlichung.ts`); fehlt sie, gilt Deutsch.
+ *
+ * Der NAME der Gesellschaft bleibt, wie er ist: „REALTIME Service GmbH" ist
+ * eine Firmierung im Handelsregister und keine Beschriftung.
+ */
+/**
+ * Der Zeitraum als Text — aus ZWEI Tagen, nicht aus einer fertigen Zeile.
+ *
+ * `zeitraumText()` fügt sie mit dem deutschen Wort „bis" zusammen; in einem
+ * arabischen Satz stand das mitten drin. Die beiden Tage kommen deshalb
+ * einzeln herein und werden je Sprache gefügt. `zeitraum` bleibt als Rückfall
+ * stehen: die Vorschau auf der Einstellungsseite ruft mit leeren Daten, und
+ * eine ältere Meldung im Posteingang ist ohnehin längst geschrieben.
+ */
+function zeitraumAus(t: PlanTexte, k: BenachrichtigungsKontext): string {
+  const von = String(k.daten['von'] ?? '');
+  const bis = String(k.daten['bis'] ?? '');
+  if (von === '' || bis === '') return String(k.daten['zeitraum'] ?? '');
+  return von === bis ? von : setze(t.zeitraum, { von, bis });
+}
+
 function planVeroeffentlicht(): ArtDefinition {
   return ({
     schluessel: ART_PLAN_VEROEFFENTLICHT,
-    titel: (k) => `Dienstplan veröffentlicht: ${String(k.daten['zeitraum'] ?? '')}`,
+    titel: (k) => {
+      const t = texteFuer(k.sprache).plan;
+      return setze(t.titel, { zeitraum: zeitraumAus(t, k) });
+    },
     text: (k) => {
+      const t = texteFuer(k.sprache).plan;
       const schichten = Number(k.daten['schichten'] ?? 0);
       const gesellschaft = k.daten['gesellschaft'];
-      return `Der Dienstplan für ${String(k.daten['zeitraum'] ?? 'den Zeitraum')} ist `
-        + 'veröffentlicht'
-        + (typeof gesellschaft === 'string' && gesellschaft !== ''
-          ? ` (${gesellschaft})` : '')
-        + '. Für Sie sind darin '
-        + (schichten === 1 ? '1 Schicht' : `${String(schichten)} Schichten`)
-        + ' eingeteilt. Die Zeiten stehen in Europe/Berlin; eine Nachtschicht steht '
-        + 'an dem Abend, an dem sie beginnt.';
+      /*
+       * Die Zahl der Schichten in DREI Formen (siehe `PlanTexte`). Die
+       * fruehere Fassung kannte zwei — Ein- und Mehrzahl — und schrieb bei
+       * null „0 Schichten eingeteilt"; die Empfaengerliste enthaelt zwar nur
+       * Menschen mit mindestens einer Schicht, aber ein Text, der bei null
+       * Unsinn ergibt, ist einer, der auf die naechste Aufrufstelle wartet.
+       */
+      const zahl = schichten === 0 ? t.keine
+        : schichten === 1 ? t.eine
+          : setze(t.mehrere, { schichten });
+      return setze(t.text, {
+        zeitraum: zeitraumAus(t, k),
+        gesellschaft: typeof gesellschaft === 'string' && gesellschaft !== ''
+          ? setze(t.gesellschaft, { name: gesellschaft })
+          : '',
+      }) + zahl + t.zeitzone;
     },
     ziel: () => ZIEL_MEINE_SCHICHTEN,
     kanaeleVorgabe: ['app'],

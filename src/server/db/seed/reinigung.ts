@@ -480,6 +480,9 @@ export async function seedReinigung(
    * `qualitaet.schreiben` — alle drei haengen an `admin` und `leitung` (0008).
    * Ohne ihn laeuft nichts, und der Seed steigt aus, statt als Eigentuemer an
    * jeder Policy vorbeizuschreiben.
+   *
+   * Unter mehreren Administrationen zuerst eine ohne Modulliste, dann die
+   * E-Mail — nie die Reihenfolge der Tabelle (V-168).
    */
   const [planer] = await sql<{ id: string }[]>`
     select b.id from benutzer b
@@ -487,7 +490,7 @@ export async function seedReinigung(
      join rolle r on r.id = bm.rolle_id
     where r.schluessel in ('admin', 'leitung', 'super_admin') and b.status = 'aktiv'
       and bm.entzogen_am is null
-    order by r.schluessel limit 1`;
+    order by r.schluessel, bm.module is not null, b.email limit 1`;
   if (planer === undefined) return LEER;
 
   const zuschnittLauf = await schneideReviere(sql, mandantId, planer.id);
@@ -932,13 +935,15 @@ export async function seedSonderUndQualitaet(
   const mandantId = ids.get('reinigung');
   if (mandantId === undefined) return leer;
 
+  /* Unter mehreren Administrationen zuerst eine ohne Modulliste, dann die
+     E-Mail — nie die Reihenfolge der Tabelle (V-168). */
   const [planer] = await sql<{ id: string }[]>`
     select b.id from benutzer b
      join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${mandantId}
      join rolle r on r.id = bm.rolle_id
     where r.schluessel in ('admin', 'leitung', 'super_admin') and b.status = 'aktiv'
       and bm.entzogen_am is null
-    order by r.schluessel limit 1`;
+    order by r.schluessel, bm.module is not null, b.email limit 1`;
   if (planer === undefined) return leer;
 
   const [tag] = await sql<{ t: string }[]>`select app.berlin_heute()::text as t`;

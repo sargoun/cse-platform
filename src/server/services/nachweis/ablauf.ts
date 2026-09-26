@@ -70,6 +70,8 @@ interface Kandidat {
   blockiert_einsatz: boolean;
   erfasst_von_mandant_id: string;
   mandant_slug: string | null;
+  /** `person.sprache` — die Sprache, in der die Warnung entsteht (V-102). */
+  sprache: string | null;
 }
 
 const alsTag = (wert: string | Date): string =>
@@ -95,11 +97,21 @@ export async function meldeAblaufwarnungen(
    * eine Konstante im Code.
    */
   const kandidaten = (await db.unsafe(
+    /*
+     * `left join person` und nicht `join` — die Sprache ist ein ZUSATZ, kein
+     * Filter (V-102). Faende ein innerer Verbund die Zeile nicht, weil eine
+     * Policy sie ausblendet oder weil der Mensch geloescht wurde, fiele die
+     * Ablaufwarnung stillschweigend aus. Eine Sperre nach § 34a GewO darf
+     * nicht daran scheitern, dass niemand weiss, in welcher Sprache man sie
+     * ankuendigt: ohne Treffer steht NULL, und `texteFuer` nimmt Deutsch.
+     */
     `select n.id, n.person_id, n.gueltig_bis, q.warnung_tage, q.bezeichnung,
-            q.blockiert_einsatz, n.erfasst_von_mandant_id, m.slug as mandant_slug
+            q.blockiert_einsatz, n.erfasst_von_mandant_id, m.slug as mandant_slug,
+            p.sprache
        from nachweis n
        join qualifikation q on q.id = n.qualifikation_id
        left join mandant m on m.id = n.erfasst_von_mandant_id
+       left join person  p on p.id = n.person_id
       where n.status = 'gueltig'
         and n.widerrufen_am is null
         and n.gueltig_bis is not null
@@ -150,6 +162,9 @@ export async function meldeAblaufwarnungen(
              */
             mandantId: k.erfasst_von_mandant_id,
             mandantSlug: k.mandant_slug,
+            /* Die Sprache der EMPFAENGERIN, nicht die der Gesellschaft
+               (V-102, O-889). Fehlt sie, gilt Deutsch. */
+            sprache: k.sprache,
             objektTyp: 'nachweis',
             objektId: k.id,
             daten: {

@@ -3,8 +3,10 @@ import { arten, type ArtDefinition } from './registry.js';
 import { registriereWaechterArten } from '../services/waechter/benachrichtigung.js';
 import { registriereDienstplanArten } from '../services/dienstplan/benachrichtigung.js';
 import { registriereLeadArten } from '../services/lead/benachrichtigung.js';
+import { registriereWiedervorlageArten } from '../services/crm/benachrichtigung.js';
 import { registriereNachweisArten } from '../services/nachweis/benachrichtigung.js';
 import { registriereRadarArten } from '../services/radar/benachrichtigung.js';
+import { registriereZeitArten } from '../services/zeit/benachrichtigung.js';
 import { registriereAgentArten } from '../agent/benachrichtigung.js';
 
 /**
@@ -30,8 +32,11 @@ export function alleArten(): readonly ArtDefinition[] {
   registriereWaechterArten();
   registriereDienstplanArten();
   registriereLeadArten();
+  /* V-146 — die Erinnerung an eine Wiedervorlage (CRM-04). */
+  registriereWiedervorlageArten();
   registriereNachweisArten();
   registriereRadarArten();
+  registriereZeitArten();
   registriereAgentArten();
   return arten();
 }
@@ -52,6 +57,7 @@ export const MODUL_TITEL: Readonly<Record<string, string>> = {
   dienstplan: 'Dienstplan',
   personal: 'Personal',
   radar: 'Vergaberadar',
+  zeit: 'Zeiterfassung',
 };
 
 export function modulVon(schluessel: string): string {

@@ -18,12 +18,16 @@ import { portalZugang } from '../../../zugang';
 import { haeltRechte } from '../../../rechte';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
+import { Nutzlastblatt } from '@/components/ui/Nutzlastblatt';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { NUTZLAST_TEXTE } from '@/lib/i18n/verwaltung/nutzlast';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../kennung';
 import {
   FEHLER_TEXT, RISIKO_LABEL, STATUS_LABEL, STATUS_PILL, VORGANG_LABEL,
   ausfuehrungText, zeitpunkt,
 } from '../darstellung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/freigaben/[id]` — die Prüfung (APR-02, APR-03, APR-07,
@@ -149,6 +153,7 @@ export default async function Freigabe(
    * verriet, was er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581).
    */
   const darfPosteingang = darf['freigabe.lesen'] === true;
+  const tNutzlast = nachSprache(NUTZLAST_TEXTE, zugang.sprache);
   const uebernommen = istERechnung && f.bezugTyp === 'eingangsrechnung' && f.bezugId !== null
     ? f.bezugId : null;
   const titel = f.titel ?? 'Freigabe';
@@ -256,7 +261,7 @@ export default async function Freigabe(
             <strong>Nicht entschieden.</strong>{' '}
             {fehler === 'ausfuehrung' && fehlerMeldung !== null
               ? fehlerMeldung
-              : (FEHLER_TEXT[fehler] ?? 'Die Entscheidung wurde abgewiesen.')}
+              : (eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Entscheidung wurde abgewiesen.')}
           </>
         )}
         />
@@ -490,20 +495,38 @@ export default async function Freigabe(
         )}
       </section>
 
-      {/* Die Nutzlast selbst — vollständig, nicht ausgewählt */}
-      <details className="mb-s7 rounded-lg border border-line bg-surface p-s5">
-        <summary className="cursor-pointer text-sm text-text">Vorschau der Nutzlast</summary>
-        <div className="mt-s3 overflow-x-auto">
-          <pre className="font-mono text-xs text-text-muted" data-cse="nutzlast-vorschau">
-            {JSON.stringify(ansicht.vorschau, null, 2)}
-          </pre>
-        </div>
-        {f.payloadHash === null ? null : (
-          <p className="mt-s3 break-all font-mono text-xs text-text-subtle">
-            SHA-256 {f.payloadHash}
-          </p>
-        )}
-      </details>
+      {/*
+        * **Die Nutzlast — vollständig, und als Blatt statt als JSON.**
+        *
+        * Hier stand `JSON.stringify(…, null, 2)`: geschweifte Klammern, ein
+        * Zeitstempel in UTC-Schreibweise und eine 36-stellige Kennung. Das
+        * ist der Bildschirm, auf dem ein Mensch ENTSCHEIDET — wer ihn nicht
+        * lesen kann, drückt trotzdem auf „Freigeben", und damit ist die
+        * Freigabe wertlos. Sie ist der einzige Riegel vor allem, was das
+        * Haus verlässt (Invariante 7).
+        *
+        * **Weggelassen wird nichts.** Die naheliegende Lösung wäre eine
+        * Auswahl der „wichtigen" Felder; sie wäre falsch. Eine Freigabe ist
+        * die Zusage, dass der Mensch gesehen hat, was er freigibt — ein
+        * Feld, das die Oberfläche für unwichtig hält und verschweigt, ist
+        * genau das Feld, mit dem sich später etwas anderes belegen lässt,
+        * als gemeint war. Geändert ist die Darstellung, nicht der Inhalt.
+        *
+        * **Und offen statt zugeklappt.** Ein `details`, das man erst
+        * aufklappen muss, ist eine Einladung, ohne Lesen zu entscheiden.
+        */}
+      <section className="mb-s7" aria-labelledby="nutzlast-titel">
+        <h2 id="nutzlast-titel" className="mb-s3 text-h2 text-text">
+          {tNutzlast.ueberschrift}
+        </h2>
+        <Nutzlastblatt
+          nutzlast={ansicht.vorschau}
+          pruefsumme={f.payloadHash}
+          sprache={zugang.sprache ?? 'de'}
+          texte={tNutzlast}
+          cse="nutzlast-vorschau"
+        />
+      </section>
 
       {/*
         * **Die Eingänge zu den beiden Fensterseiten.** Beide Unterseiten waren

@@ -74,6 +74,8 @@ async function inSitzung<T>(
     await tx.unsafe(`select set_config('app.readonly', 'off', true)`);
     await tx.unsafe(`select set_config('app.portal', $1, true)`, [opts.portal ?? 'intern']);
     await tx.unsafe(`select set_config('app.akteur_typ', 'mensch', true)`);
+    /* Vollständig angemeldet — ein admin-Konto hält ohne aal2 nichts (V-136). */
+    await tx.unsafe(`select set_config('app.aal', 'aal2', true)`);
     return fn(tx);
   }) as Promise<T>;
 }

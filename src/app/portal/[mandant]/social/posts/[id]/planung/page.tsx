@@ -11,6 +11,7 @@ import { type BeitragZeile, ladeBeitrag } from '@/server/services/social/dienst'
 import { STATUS_TEXT, naechsterStatus } from '@/server/services/social/weg';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { kennungOder404 } from '../../../../../kennung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/social/posts/[id]/planung` — einen freigegebenen Beitrag
@@ -54,7 +55,7 @@ export default async function Planung(
   const { mandant, id } = await params;
   kennungOder404(id);
   if (!UUID.test(id)) notFound();
-  const tor = await mandantTor(`/portal/${mandant}/social/posts/[id]/planung`, mandant);
+  const tor = await mandantTor(`/portal/${mandant}/social/posts/${id}/planung`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
   const suche = await searchParams;
@@ -75,7 +76,7 @@ export default async function Planung(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="social"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -93,7 +94,7 @@ export default async function Planung(
 
       {fehler !== null ? (
         <Hinweis art="warnung" cse="planung-fehler" className="mb-s5 max-w-prose">
-          {FEHLER[fehler] ?? 'Die Planung wurde abgewiesen.'}
+          {eigenerEintrag(FEHLER, fehler) ?? 'Die Planung wurde abgewiesen.'}
         </Hinweis>
       ) : null}
 

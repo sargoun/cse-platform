@@ -104,13 +104,15 @@ export async function seedSecurity(
      order by objektnummer limit 1`;
   if (objekt === undefined) return leer;
 
+  /* Unter mehreren Administrationen zuerst eine ohne Modulliste, dann die
+     E-Mail — nie die Reihenfolge der Tabelle (V-168). */
   const [planer] = await sql<{ id: string }[]>`
     select b.id from benutzer b
      join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${mandantId}
      join rolle r on r.id = bm.rolle_id
     where r.schluessel in ('admin', 'leitung', 'super_admin') and b.status = 'aktiv'
       and bm.entzogen_am is null
-    order by r.schluessel limit 1`;
+    order by r.schluessel, bm.module is not null, b.email limit 1`;
   if (planer === undefined) return leer;
 
   /**
@@ -159,6 +161,9 @@ export async function seedSecurity(
 
   const berichte = await generiereEinsaetze(sql as unknown as Abfrage, mandantId, {
     heute: anker, laufId: null,
+    /* Vom Anker aus, und der liegt drei Wochen zurück: nur der Seed legt
+       Vergangenes an (V-135) — daran hängen Zeiteinträge und Nachweise. */
+    vergangenheitAnlegen: true,
   });
   const einsaetze = berichte.reduce((a, b) => a + b.erzeugt + b.aktualisiert, 0);
 
@@ -399,13 +404,15 @@ export async function seedBewacherUndEvents(
   const mandantId = ids.get('security');
   if (mandantId === undefined || objektId === null) return leer;
 
+  /* Unter mehreren Administrationen zuerst eine ohne Modulliste, dann die
+     E-Mail — nie die Reihenfolge der Tabelle (V-168). */
   const [planer] = await sql<{ id: string }[]>`
     select b.id from benutzer b
      join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${mandantId}
      join rolle r on r.id = bm.rolle_id
     where r.schluessel in ('admin', 'leitung', 'super_admin') and b.status = 'aktiv'
       and bm.entzogen_am is null
-    order by r.schluessel limit 1`;
+    order by r.schluessel, bm.module is not null, b.email limit 1`;
   if (planer === undefined) return leer;
 
   const heute = await berlinHeute(sql as unknown as Abfrage);

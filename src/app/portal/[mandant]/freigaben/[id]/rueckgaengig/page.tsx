@@ -20,6 +20,8 @@ import { leseFensterKopf, type FensterKopf } from '../fenster-daten';
 import {
   FEHLER_TEXT, STATUS_LABEL, STATUS_PILL, VORGANG_LABEL, ausfuehrungText, zeitpunkt,
 } from '../../darstellung';
+import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/freigaben/[id]/rueckgaengig` — die Ausführung
@@ -131,7 +133,7 @@ export default async function Rueckgaengig(
       {fehler !== null ? (
         <Hinweis art="warnung" cse="ruecknahme-abgewiesen" className="mb-s5 max-w-prose">
           <strong>Nicht zurückgenommen.</strong>{' '}
-          {FEHLER_TEXT[fehler] ?? 'Die Handlung wurde abgewiesen.'}
+          {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Handlung wurde abgewiesen.'}
         </Hinweis>
       ) : null}
 
@@ -195,7 +197,7 @@ export default async function Rueckgaengig(
           <strong>Das Fenster läuft — aber nicht für dieses Konto.</strong> Eine Rücknahme
           verlangt zusätzlich das Recht, das dieser Vorgang selbst fordert
           (<code className="text-xs">{f.erforderlichesRecht ?? 'freigabe.entscheiden'}</code>).
-          Die eigene Befugnis <code className="text-xs">freigabe.rueckgaengig</code> genügt
+          Die eigene Befugnis <Recht schluessel="freigabe.rueckgaengig" /> genügt
           dafür nicht (offene Frage O-367).
         </Hinweis>
       ) : lage.art === 'abgelaufen' ? (

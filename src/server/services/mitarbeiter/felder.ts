@@ -37,6 +37,7 @@ import { SCHICHT_MEDIUM_FELDER } from './medien.js';
 import { SCHICHT_KONTROLLPUNKT_FELDER } from './schichtbuch.js';
 import { MEIN_DOKUMENT_FELDER } from './dokumente.js';
 import { EIGENES_OBJEKT_FELDER, OBJEKT_ZUGANG_FELDER } from './objekte.js';
+import { TAUSCHBARE_SCHICHT_FELDER } from './tausch.js';
 
 /**
  * Jede Nutzlast, die das Mitarbeiterportal einer Seite gibt, mit ihrer
@@ -75,6 +76,12 @@ export const MITARBEITER_NUTZLASTEN: Readonly<Record<string, readonly string[]>>
   meinDokument: MEIN_DOKUMENT_FELDER,
   eigenesObjekt: EIGENES_OBJEKT_FELDER,
   objektZugang: OBJEKT_ZUGANG_FELDER,
+  /*
+   * Die Schichtauswahl des Antragsformulars (V-187). Sie zeigt eigene
+   * kommende Schichten — Gesellschaft, Tag, Uhrzeit, Objekt; kein Kunde,
+   * kein Auftrag.
+   */
+  tauschbareSchicht: TAUSCHBARE_SCHICHT_FELDER,
 };
 
 /**

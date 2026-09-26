@@ -224,6 +224,88 @@ describe('erledigen und verschieben fassen den Spiegel mit an', () => {
   });
 });
 
+/**
+ * **V-079 — die Wiedervorlage liess sich niemandem zuweisen.**
+ *
+ * `legeWiedervorlageAn` nimmt `zustaendigBenutzerId` und `leadId` seit je
+ * entgegen, und `POST /api/crm/wiedervorlage` reicht beide durch. Das
+ * einzige Anlegeformular stand auf dem Kontaktblatt und schickte **weder das
+ * eine noch das andere** — jede Wiedervorlage entstand ohne Zustaendigen und
+ * ohne Leadbezug. In der Liste stand „niemand zugewiesen", und sie wartete
+ * auf niemanden.
+ *
+ * Gemessen wird hier, dass beides bis in die Zeile UND in den Spiegel
+ * durchschlaegt: eine Aufgabe, die auf niemanden zeigt, taucht in keiner
+ * persoenlichen Arbeitsliste auf.
+ */
+describe('V-079 — Zustaendige und Leadbezug kommen an', () => {
+  it('der Zustaendige steht in der Aktivitaet UND in der gespiegelten Aufgabe', async () => {
+    const k = await kunde(f.reinigung);
+    const spiegel = await alsIntern(f.reinigung, async (tx) =>
+      legeWiedervorlageAn(kontextAus(tx, f.reinigung), {
+        betreff: 'Zuweisung prüfen', faelligAm: '2026-10-01T09:00', kundeId: k,
+        zustaendigBenutzerId: chef,
+      }));
+
+    const [a] = await sql.unsafe<{ wer: string | null }[]>(
+      `select zustaendig_benutzer_id::text as wer from lead_aktivitaet where id = $1`,
+      [spiegel.aktivitaetId]);
+    expect(a!.wer).toBe(chef);
+
+    /* Die Aufgabe nennt ihre Spalte `zugewiesen_an` (0230) — dieselbe
+       Tatsache, ein anderer Name. Ohne Zuweisung setzt der Dienst dort
+       `app.aktueller_benutzer()`, damit die Aufgabe nie auf niemanden zeigt. */
+    const [auf] = await sql.unsafe<{ wer: string | null }[]>(
+      `select zugewiesen_an::text as wer from aufgabe where id = $1`,
+      [spiegel.aufgabeId]);
+    expect(auf!.wer).toBe(chef);
+  });
+
+  /**
+   * **Und die Richtigstellung zum Register.** V-079 sagt „lässt sich
+   * niemandem zuweisen". Gemessen stimmt das so nicht: ohne Angabe setzt der
+   * Dienst `coalesce($8, app.aktueller_benutzer())` — eine Wiedervorlage
+   * fällt an den, der sie anlegt, und liegt nie bei niemandem. Die Lücke war
+   * enger und trotzdem echt: sie liess sich niemand ANDEREM zuweisen, weil
+   * kein Formular das Feld schickte, und zu einem LEAD gar nicht anlegen.
+   */
+  it('ohne Angabe fällt sie an den, der sie anlegt — nie an niemanden', async () => {
+    const k = await kunde(f.reinigung);
+    const spiegel = await alsIntern(f.reinigung, async (tx) =>
+      legeWiedervorlageAn(kontextAus(tx, f.reinigung), {
+        betreff: 'Ohne Zuweisung', faelligAm: '2026-10-01T09:00', kundeId: k,
+      }));
+    const [a] = await sql.unsafe<{ wer: string | null }[]>(
+      `select zustaendig_benutzer_id::text as wer from lead_aktivitaet where id = $1`,
+      [spiegel.aktivitaetId]);
+    expect(a!.wer).toBe(chef);
+  });
+
+  it('eine Wiedervorlage ZUM LEAD traegt seinen Bezug', async () => {
+    /* `quelle = 'manuell'`: `lead_herkunft_stimmig` verlangt bei
+       `webformular` einen `formular_eingang_id`, bei `vergabe_radar` eine
+       Ausschreibung und bei `empfehlung` einen Kunden. Die Fixtur braucht
+       keine Herkunft, sondern einen Lead. */
+    const [l] = await sql.unsafe<{ id: string }[]>(
+      `insert into lead (mandant_id, leadnummer, betreff, quelle, status,
+                         besitzer_benutzer_id, firma_name)
+       values ($1, $2, 'Anfrage Treppenhaus', 'manuell', 'neu', $3,
+               'Hausverwaltung Probe')
+       returning id`,
+      [f.reinigung, `L-${zufall()}`, chef]);
+    const spiegel = await alsIntern(f.reinigung, async (tx) =>
+      legeWiedervorlageAn(kontextAus(tx, f.reinigung), {
+        betreff: 'Angebot nachfassen', faelligAm: '2026-10-01T09:00',
+        leadId: l!.id, zustaendigBenutzerId: chef,
+      }));
+    const [a] = await sql.unsafe<{ lead: string | null; wer: string | null }[]>(
+      `select lead_id::text as lead, zustaendig_benutzer_id::text as wer
+         from lead_aktivitaet where id = $1`, [spiegel.aktivitaetId]);
+    expect(a!.lead).toBe(l!.id);
+    expect(a!.wer).toBe(chef);
+  });
+});
+
 describe('ohne Bezug gibt es keine Wiedervorlage', () => {
   it('weder Lead noch Kunde wird mit einem Satz abgewiesen', async () => {
     await expect(alsIntern(f.reinigung, async (tx) =>
@@ -238,5 +320,62 @@ describe('ohne Bezug gibt es keine Wiedervorlage', () => {
       legeWiedervorlageAn(kontextAus(tx, f.reinigung), {
         betreff: 'Ohne Frist', faelligAm: '', kundeId: k,
       }))).rejects.toThrow(/Frist|Fälligkeit/u);
+  });
+});
+
+/**
+ * V-153 — die Kennungen des Formulars werden geprüft, BEVOR geschrieben wird.
+ *
+ * `lead_aktivitaet.kunde_id` und `ansprechpartner_id` tragen keinen
+ * Fremdschlüssel (0017): ein verändertes verstecktes Feld legte eine
+ * Wiedervorlage am Kunden einer anderen Gesellschaft an, eine Kennung ohne
+ * UUID-Form endete als 500. Und zuständig kann nur sein, wer sie lesen darf.
+ */
+describe('V-153 — Bezug und Zuständiger kommen geprüft an', () => {
+  async function grund(e: Record<string, string>): Promise<string> {
+    try {
+      await alsIntern(f.reinigung, async (tx) =>
+        legeWiedervorlageAn(kontextAus(tx, f.reinigung), {
+          betreff: 'Geprüft', faelligAm: '2026-10-01T09:00', ...e,
+        }));
+    } catch (fehler) {
+      if (fehler instanceof CrmFehler) return fehler.grund;
+      throw fehler;
+    }
+    return 'angelegt';
+  }
+
+  it('ein Kunde einer anderen Gesellschaft, oder keiner: abgewiesen, nichts geschrieben', async () => {
+    const fremd = await kunde(f.bau);
+    expect(await grund({ kundeId: fremd })).toBe('kein_kunde');
+    expect(await grund({ kundeId: '00000000-0000-4000-8000-000000000000' })).toBe('kein_kunde');
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from lead_aktivitaet where kunde_id = $1`, [fremd]);
+    expect(n?.n).toBe(0);
+  });
+
+  it('eine Kennung, die keine UUID ist — ein Satz statt 22P02', async () => {
+    const k = await kunde(f.reinigung);
+    expect(await grund({ kundeId: 'kein-kunde' })).toBe('ungueltiger_bezug');
+    expect(await grund({ kundeId: k, zustaendigBenutzerId: '1; drop' })).toBe('ungueltiger_bezug');
+    expect(await grund({ kundeId: k, ansprechpartnerId: 'x' })).toBe('ungueltiger_bezug');
+    expect(await grund({ leadId: 'x' })).toBe('ungueltiger_bezug');
+  });
+
+  it('ein Lead, den es hier nicht gibt — 404 statt Fremdschlüsselfehler', async () => {
+    expect(await grund({ leadId: '00000000-0000-4000-8000-000000000000' })).toBe('kein_lead');
+  });
+
+  it('zuständig nur, wer das CRM hier lesen darf', async () => {
+    const k = await kunde(f.reinigung);
+    // Aktiv, aber Mitglied nur der Security — in der Reinigung ohne `crm.lesen`.
+    const fremd = await konto();
+    await mitgliedschaft(fremd, f.security);
+    expect(await grund({ kundeId: k, zustaendigBenutzerId: fremd }))
+      .toBe('zustaendig_ohne_zugang');
+    // Mitglied der Reinigung: angelegt.
+    const kollegin = await konto();
+    await mitgliedschaft(kollegin, f.reinigung);
+    expect(await grund({ kundeId: k, zustaendigBenutzerId: kollegin })).toBe('angelegt');
   });
 });

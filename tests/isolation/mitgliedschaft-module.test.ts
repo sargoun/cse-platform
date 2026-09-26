@@ -1,0 +1,599 @@
+/**
+ * **Die Module einer Administration** (AUT-01, V-164, D-658, 0416).
+ *
+ * `benutzer_mandant.module` wirkt seit 0008 als Schnittmenge in
+ * `app.hat_recht_fuer` — und niemand konnte sie setzen. Jede Administration
+ * hielt alle Module ihrer Rolle. 0416 baut den einen Weg dorthin und sperrt
+ * den Anwendungsweg an der Spalte vorbei.
+ *
+ * Gemessen wird vor allem, was NICHT geht: das eigene Konto erweitern, ohne
+ * Recht, ohne zweiten Faktor, in einer fremden Gesellschaft, an einer Rolle,
+ * die keine Administration ist, mit einem Modul, das es nicht gibt — und der
+ * Umweg über das UPDATE, das `t_bm_entziehen` (0102) jeder Kontoverwaltung
+ * gibt. Seit 0419 (V-168, D-662) auch die Umwege über die ZEILE: entziehen
+ * und ohne Liste neu anlegen, wiederbeleben, umwidmen (§4).
+ */
+import type postgres from 'postgres';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
+import { eigeneDatenbank } from './eigene-datenbank.js';
+import type { SchreibKontext } from '../../src/server/kontext/index.js';
+import {
+  ModulZuweisungFehler, administrationenMitModulen, modulKatalog, setzeMitgliedschaftModule,
+} from '../../src/server/services/system/mitgliedschaft-module.js';
+
+let f: Fixtur;
+/** Hält `system.module_zuweisen` — die Plattformverwaltung. */
+let chef = '';
+/** Eine Administration der Reinigung: das Ziel. */
+let admin = '';
+let adminBm = '';
+/** Eine Leitung der Reinigung — keine Administration. */
+let leitungBm = '';
+/** Eine Administration der Security: fremde Gesellschaft. */
+let fremdBm = '';
+
+async function konto(email: string, global = false): Promise<string> {
+  const [u] = await sql.unsafe<{ id: string }[]>(
+    `insert into auth.users (email) values ($1) returning id`, [email]);
+  await sql.unsafe(`insert into auth.mfa_factors (user_id) values ($1)`, [u!.id]);
+  await sql.unsafe(
+    `insert into benutzer (id, email, name, status, globale_rolle_id)
+     values ($1, $2, $2, 'aktiv',
+             case when $3 then (select id from rolle
+                                 where schluessel = 'super_admin' and mandant_id is null) end)`,
+    [u!.id, email, global]);
+  return u!.id;
+}
+
+async function mitglied(benutzer: string, mandant: string, rolle: string): Promise<string> {
+  const [bm] = await sql.unsafe<{ id: string }[]>(
+    `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+     values ($1, $2, (select id from rolle where schluessel = $3 and mandant_id is null))
+     returning id`, [benutzer, mandant, rolle]);
+  return bm!.id;
+}
+
+function kontext(tx: postgres.TransactionSql, benutzerId: string): SchreibKontext {
+  const abfrage = async <T,>(a: string, w?: readonly unknown[]): Promise<readonly T[]> =>
+    (await tx.unsafe(a, (w ?? []) as never[])) as unknown as readonly T[];
+  return {
+    scope: 'mandant', portal: 'intern', benutzerId,
+    aktiverMandantId: f.reinigung, mandantIds: [f.reinigung],
+    abfrage, schreibe: abfrage,
+  };
+}
+
+async function als<T>(
+  benutzerId: string, fn: (k: SchreibKontext) => Promise<T>,
+  optionen: { aal?: 'aal1' | 'aal2'; scope?: 'mandant' | 'gruppe' } = {},
+): Promise<T> {
+  return alsApp({
+    scope: optionen.scope ?? 'mandant', mandantId: f.reinigung, mandantIds: [f.reinigung],
+    benutzerId, portal: 'intern', readonly: false, aal: optionen.aal ?? 'aal2',
+  }, (tx) => fn(kontext(tx, benutzerId))) as Promise<T>;
+}
+
+async function setze(
+  benutzerId: string, bm: string, module: readonly string[] | null,
+  optionen: { aal?: 'aal1' | 'aal2'; scope?: 'mandant' | 'gruppe' } = {},
+): Promise<boolean> {
+  return (await als(benutzerId, (k) => setzeMitgliedschaftModule(
+    k, { mitgliedschaftId: bm, module }), optionen)).geaendert;
+}
+
+async function grund(p: Promise<unknown>): Promise<string> {
+  try {
+    await p;
+  } catch (fehler) {
+    if (fehler instanceof ModulZuweisungFehler) return fehler.grund;
+    throw fehler;
+  }
+  return 'kein_fehler';
+}
+
+async function recht(benutzerId: string, schluessel: string): Promise<boolean> {
+  return als(benutzerId, async (k) => {
+    const [z] = await k.abfrage<{ ok: boolean }>(
+      `select app.hat_recht($1, $2::uuid) as ok`, [schluessel, f.reinigung]);
+    return z!.ok;
+  });
+}
+
+/**
+ * Bindet `system.module_zuweisen` fuer die Rolle `admin` in der Reinigung —
+ * so, wie O-76 es einmal tun koennte — und nimmt es danach wieder.
+ */
+async function mitAdminRecht<T>(fn: () => Promise<T>): Promise<T> {
+  await sql.unsafe(
+    `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+     values ((select id from rolle where schluessel = 'admin' and mandant_id is null),
+             (select id from berechtigung where schluessel = 'system.module_zuweisen'),
+             $1, true)
+     on conflict (rolle_id, berechtigung_id, mandant_id) do update set gewaehrt = true`,
+    [f.reinigung]);
+  try {
+    return await fn();
+  } finally {
+    await sql.unsafe(
+      `update rolle_berechtigung set gewaehrt = false
+        where rolle_id = (select id from rolle where schluessel = 'admin' and mandant_id is null)
+          and berechtigung_id = (select id from berechtigung
+                                  where schluessel = 'system.module_zuweisen')
+          and mandant_id = $1`, [f.reinigung]);
+  }
+}
+
+async function module(bm: string): Promise<readonly string[] | null> {
+  const [z] = await sql.unsafe<{ module: string[] | null }[]>(
+    `select module from benutzer_mandant where id = $1`, [bm]);
+  return z!.module;
+}
+
+beforeAll(async () => {
+  f = await seed();
+  chef = await konto('modul-chef@test.invalid', true);
+  await mitglied(chef, f.reinigung, 'admin');
+  admin = await konto('modul-admin@test.invalid');
+  adminBm = await mitglied(admin, f.reinigung, 'admin');
+  const leitung = await konto('modul-leitung@test.invalid');
+  leitungBm = await mitglied(leitung, f.reinigung, 'leitung');
+  const fremd = await konto('modul-fremd@test.invalid');
+  fremdBm = await mitglied(fremd, f.security, 'admin');
+});
+afterAll(schliessen);
+
+describe('(1) die Schnittmenge wirkt — und jetzt laesst sie sich setzen', () => {
+  it('admin mit module = {crm}: crm.lesen ja, finanzen.lesen nein', async () => {
+    expect(await recht(admin, 'finanzen.lesen'), 'vorher: alle Module der Rolle').toBe(true);
+
+    expect(await setze(chef, adminBm, ['crm'])).toBe(true);
+    expect(await module(adminBm)).toEqual(['crm']);
+    expect(await recht(admin, 'crm.lesen')).toBe(true);
+    expect(await recht(admin, 'finanzen.lesen')).toBe(false);
+    expect(await recht(admin, 'system.benutzer_lesen'),
+      'auch System gilt nur, wenn es gewaehlt ist').toBe(false);
+  });
+
+  it('dieselbe Menge noch einmal: unveraendert, kein Fehler', async () => {
+    expect(await setze(chef, adminBm, ['crm'])).toBe(false);
+  });
+
+  it('sortiert und ohne Doppel gespeichert — dieselbe Menge ist dieselbe Zeile', async () => {
+    expect(await setze(chef, adminBm, ['finanzen', 'crm', 'crm'])).toBe(true);
+    expect(await module(adminBm)).toEqual(['crm', 'finanzen']);
+    expect(await setze(chef, adminBm, ['crm', 'finanzen'])).toBe(false);
+  });
+
+  it('NULL heisst wieder „alle Module der Rolle"', async () => {
+    expect(await setze(chef, adminBm, null)).toBe(true);
+    expect(await module(adminBm)).toBeNull();
+    expect(await recht(admin, 'finanzen.lesen')).toBe(true);
+  });
+
+  it('jede Aenderung steht im Protokoll, mit vorher und nachher', async () => {
+    await setze(chef, adminBm, ['bericht', 'crm']);
+    const [z] = await sql.unsafe<{
+      akteur_id: string; geaendert_felder: string[] | null;
+      vorher: { module: string[] | null; benutzer_id: string };
+      nachher: { module: string[]; benutzer_id: string };
+    }[]>(
+      `select akteur_id::text as akteur_id, geaendert_felder, vorher, nachher from audit_log
+        where aktion = 'system.module_zugewiesen' and objekt_id = $1
+        order by id desc limit 1`, [adminBm]);
+    expect(z!.akteur_id).toBe(chef);
+    expect(z!.vorher.module).toBeNull();
+    expect(z!.nachher.module).toEqual(['bericht', 'crm']);
+    /*
+     * Das Konto ist der Bezug der Zeile, keine Aenderung (0461, V-237): es
+     * steht auf beiden Seiten, und geaendert ist nur die Liste. Bis 0461 stand
+     * es nur in nachher, und app.protokolliere meldete {benutzer_id, module}.
+     */
+    expect(z!.vorher.benutzer_id).toBe(admin);
+    expect(z!.nachher.benutzer_id).toBe(admin);
+    expect(z!.geaendert_felder).toEqual(['module']);
+    await setze(chef, adminBm, null);
+  });
+
+  it('die Auswahl der Seite kommt aus dem Katalog', async () => {
+    const katalog = await als(chef, (k) => modulKatalog(k));
+    expect(katalog).toContain('crm');
+    expect(katalog).toContain('finanzen');
+    expect([...katalog].sort()).toEqual(katalog);
+  });
+
+  it('die Uebersicht nennt jede Administration dieser Gesellschaft mit ihrer Liste', async () => {
+    await setze(chef, adminBm, ['crm']);
+    const liste = await als(chef, (k) => administrationenMitModulen(k));
+    const ziel = liste.find((a) => a.mitgliedschaftId === adminBm);
+    expect(ziel?.benutzerId).toBe(admin);
+    expect(ziel?.module).toEqual(['crm']);
+    expect(liste.some((a) => a.mitgliedschaftId === leitungBm), 'keine Leitung').toBe(false);
+    expect(liste.some((a) => a.mitgliedschaftId === fremdBm), 'keine fremde Gesellschaft')
+      .toBe(false);
+    await setze(chef, adminBm, null);
+  });
+});
+
+describe('(2) was NICHT geht', () => {
+  it('ein Modul, das es nicht gibt', async () => {
+    expect(await grund(setze(chef, adminBm, ['crm', 'lohnbuchhaltung'])))
+      .toBe('unbekanntes_modul');
+    expect(await module(adminBm)).toBeNull();
+  });
+
+  it('eine leere Liste — dafuer gibt es den Entzug', async () => {
+    expect(await grund(setze(chef, adminBm, []))).toBe('keine_module');
+  });
+
+  it('eine Rolle, die keine Administration ist', async () => {
+    expect(await grund(setze(chef, leitungBm, ['crm']))).toBe('nur_admin');
+  });
+
+  it('eine Mitgliedschaft einer fremden Gesellschaft sieht aus wie keine', async () => {
+    expect(await grund(setze(chef, fremdBm, ['crm']))).toBe('nicht_gefunden');
+    expect(await grund(setze(chef, '00000000-0000-4000-8000-000000000000', ['crm'])))
+      .toBe('nicht_gefunden');
+  });
+
+  it('ohne system.module_zuweisen — auch nicht fuer eine Administration', async () => {
+    const zweiter = await konto('modul-zweiter@test.invalid');
+    await mitglied(zweiter, f.reinigung, 'admin');
+    expect(await grund(setze(zweiter, adminBm, ['crm']))).toBe('nicht_erlaubt');
+  });
+
+  it('ohne zweiten Faktor nicht (K-15)', async () => {
+    expect(await grund(setze(chef, adminBm, ['crm'], { aal: 'aal1' }))).toBe('nicht_erlaubt');
+  });
+
+  it('nicht in der Gruppenansicht (Invariante 10)', async () => {
+    expect(await grund(setze(chef, adminBm, ['crm'], { scope: 'gruppe' })))
+      .toBe('nicht_erlaubt');
+  });
+
+  it('nicht am eigenen Konto — wer seine Liste erweitern kann, hat keine', async () => {
+    await mitAdminRecht(async () => {
+      expect(await grund(setze(admin, adminBm, null))).toBe('eigenes_konto');
+    });
+  });
+
+  /**
+   * **Niemand vergibt mehr, als er selbst haelt.** Zwei beschraenkte
+   * Administrationen mit `system.module_zuweisen` koennten einander sonst
+   * ueber Kreuz alles geben — die Selbstsperre allein haelt das nicht auf.
+   */
+  it('eine beschraenkte Administration vergibt nur ihre eigenen Module', async () => {
+    const dritter = await konto('modul-dritter@test.invalid');
+    const dritterBm = await mitglied(dritter, f.reinigung, 'admin');
+    await setze(chef, dritterBm, ['crm', 'system']);
+    await setze(chef, adminBm, ['crm']);
+    await mitAdminRecht(async () => {
+      expect(await grund(setze(dritter, adminBm, ['finanzen']))).toBe('ueber_eigene_module');
+      expect(await grund(setze(dritter, adminBm, ['crm', 'finanzen'])))
+        .toBe('ueber_eigene_module');
+      expect(await grund(setze(dritter, adminBm, null)), '„alle" nur, wer alle haelt')
+        .toBe('ueber_eigene_module');
+      expect(await module(adminBm), 'nichts geschrieben').toEqual(['crm']);
+      /* Innerhalb der eigenen Liste geht es — die Regel sperrt nur das Mehr. */
+      expect(await setze(dritter, adminBm, ['crm', 'system'])).toBe(true);
+      expect(await module(adminBm)).toEqual(['crm', 'system']);
+    });
+    await setze(chef, adminBm, null);
+  });
+
+  it('die Plattformverwaltung (globale Rolle) ist nicht beschraenkt', async () => {
+    /* `chef` traegt eine Mitgliedschaft MIT Liste — die globale Rolle gilt trotzdem. */
+    const chefBm = await sql.unsafe<{ id: string }[]>(
+      `select id from benutzer_mandant where benutzer_id = $1 and mandant_id = $2`,
+      [chef, f.reinigung]);
+    await sql.unsafe(`update benutzer_mandant set module = '{crm}' where id = $1`,
+      [chefBm[0]!.id]);
+    try {
+      expect(await setze(chef, adminBm, ['finanzen'])).toBe(true);
+      expect(await setze(chef, adminBm, null)).toBe(true);
+    } finally {
+      await sql.unsafe(`update benutzer_mandant set module = null where id = $1`,
+        [chefBm[0]!.id]);
+    }
+  });
+
+  /**
+   * **Die Ausnahme gilt der Rolle, aus der das Recht kommt** (0462, V-237).
+   * Bis 0462 war jeder mit IRGENDEINER globalen Rolle von der Decke
+   * ausgenommen. super_admin haelt das Recht immer (0008: dem super_admin
+   * laesst sich kein Recht entziehen) — der Fall ist eine ANDERE globale
+   * Rolle, die es nicht gewaehrt. Dann kommt das Recht aus der
+   * Administration (so, wie O-76 es binden koennte), und deren Liste ist die
+   * Decke.
+   */
+  it('eine globale Rolle ist nur ausgenommen, wenn das Recht AUS ihr kommt', async () => {
+    const [rolle] = await sql.unsafe<{ id: string }[]>(
+      `insert into rolle (schluessel, bezeichnung, geltungsbereich, portal, erfordert_2fa)
+       values ('pruef_global', 'Pruefrolle ohne Modulzuweisung', 'global', 'intern', true)
+       returning id`);
+    const email = 'modul-global-liste@test.invalid';
+    const [u] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ($1) returning id`, [email]);
+    await sql.unsafe(`insert into auth.mfa_factors (user_id) values ($1)`, [u!.id]);
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status, globale_rolle_id)
+       values ($1, $2, $2, 'aktiv', $3)`, [u!.id, email, rolle!.id]);
+    const global = u!.id;
+    const globalBm = await mitglied(global, f.reinigung, 'admin');
+    await setze(chef, globalBm, ['crm', 'system']);
+    await setze(chef, adminBm, ['crm']);
+
+    await mitAdminRecht(async () => {
+      expect(await grund(setze(global, adminBm, ['crm', 'finanzen'])))
+        .toBe('ueber_eigene_module');
+      expect(await grund(setze(global, adminBm, null)), '„alle" nur, wer alle haelt')
+        .toBe('ueber_eigene_module');
+      expect(await module(adminBm), 'nichts geschrieben').toEqual(['crm']);
+      expect(await setze(global, adminBm, ['crm', 'system'])).toBe(true);
+    });
+
+    /* Gegenprobe: gewaehrt die globale Rolle das Recht selbst, gilt keine Decke. */
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       values ($1, (select id from berechtigung where schluessel = 'system.module_zuweisen'),
+               null, true)`, [rolle!.id]);
+    expect(await setze(global, adminBm, ['finanzen'])).toBe(true);
+    await setze(chef, adminBm, null);
+  });
+
+  /**
+   * **Der Umweg.** `t_bm_entziehen` (0102) gibt jeder Kontoverwaltung ein
+   * UPDATE auf die ganze Zeile. Ohne den Ausloeser aus 0416 setzte eine
+   * Administration mit `system.benutzer_verwalten` ihre eigene Liste mit
+   * einer Anweisung auf NULL.
+   */
+  it('kein direktes UPDATE der Spalte aus dem Anwendungsweg', async () => {
+    await setze(chef, adminBm, ['crm']);
+    await expect(als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set module = null where id = $1`, [adminBm])))
+      .rejects.toThrow(/mitgliedschaft_module_setzen/u);
+    expect(await module(adminBm)).toEqual(['crm']);
+    await setze(chef, adminBm, null);
+  });
+
+  /**
+   * **Der INSERT-Zweig des Ausloesers — und nur er** (V-168). Hier stand ein
+   * INSERT fuer `f.bau` mit `.rejects.toThrow()` ohne Meldung: die Sitzung
+   * steht in der Reinigung, `t_bm_schreiben` verlangt den aktiven Mandanten,
+   * und welcher Grund den Wurf ausloeste, sagte die Pruefung nicht. Jetzt: im
+   * AKTIVEN Mandanten, fuer ein Konto ohne lebende Mitgliedschaft dort, mit
+   * einer Rolle, die 0419 nicht sperrt — und die Gegenprobe ohne Liste geht
+   * durch. Es bleibt nur die Liste als Grund.
+   */
+  it('kein INSERT mit Liste aus dem Anwendungsweg — die Gegenprobe ohne Liste geht durch', async () => {
+    const neu = await konto('modul-insert@test.invalid');
+    const LEITUNG = `(select id from rolle where schluessel = 'leitung' and mandant_id is null)`;
+    await expect(als(chef, (k) => k.schreibe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, module)
+       values ($1, $2, ${LEITUNG}, '{crm}')`, [neu, f.reinigung])))
+      .rejects.toThrow(/mitgliedschaft_module_setzen/u);
+    await als(chef, (k) => k.schreibe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+       values ($1, $2, ${LEITUNG})`, [neu, f.reinigung]));
+    const [z] = await sql.unsafe<{ module: string[] | null }[]>(
+      `select module from benutzer_mandant
+        where benutzer_id = $1 and mandant_id = $2 and entzogen_am is null`, [neu, f.reinigung]);
+    expect(z, 'die Gegenprobe legt die Mitgliedschaft an').toBeDefined();
+    expect(z!.module).toBeNull();
+  });
+
+  it('der Ausloeser prueft auch Seed und Migration — ein falsches Modul kommt nirgends hinein', async () => {
+    await expect(sql.unsafe(
+      `update benutzer_mandant set module = '{nichtda}' where id = $1`, [adminBm]))
+      .rejects.toThrow(/Unbekannte Module/u);
+  });
+});
+
+/**
+ * **Der Seed fuehrt es vor** (Definition of done): die Vertriebsadministration
+ * der Reinigung traegt eine Liste, und die Rechte folgen ihr — am ECHTEN
+ * Seed, nicht an einer Fixtur dieser Datei.
+ */
+describe('(3) der Seed: admin.vertrieb haelt nur seine Module', () => {
+  const eigen = eigeneDatenbank('cse_modul_seed');
+  let benutzer = '';
+  let reinigung = '';
+
+  beforeAll(async () => {
+    eigen.baueAuf();
+    const [z] = await eigen.sql<{ id: string; mandant_id: string; module: string[] | null }[]>`
+      select b.id, bm.mandant_id, bm.module
+        from benutzer b
+        join benutzer_mandant bm on bm.benutzer_id = b.id and bm.entzogen_am is null
+       where b.email = 'admin.vertrieb@cse-gruppe.de'`;
+    expect(z, 'Seed-Konto admin.vertrieb fehlt').toBeDefined();
+    expect(z!.module).toEqual(
+      ['angebot', 'auftrag', 'bericht', 'crm', 'kalkulation', 'katalog', 'objekt']);
+    benutzer = z!.id;
+    reinigung = z!.mandant_id;
+  }, 240_000);
+
+  async function haelt(schluessel: string): Promise<boolean> {
+    return eigen.alsApp({
+      scope: 'mandant', mandantId: reinigung, mandantIds: [reinigung], benutzerId: benutzer,
+      portal: 'intern', readonly: false, aal: 'aal2',
+    }, async (tx) => {
+      const [z] = (await tx.unsafe(`select app.hat_recht($1, $2::uuid) as ok`,
+        [schluessel, reinigung])) as unknown as { ok: boolean }[];
+      return z!.ok;
+    });
+  }
+
+  it.each(['crm.lesen', 'angebot.schreiben', 'auftrag.lesen', 'objekt.lesen'])(
+    'haelt %s', async (schluessel) => {
+      expect(await haelt(schluessel)).toBe(true);
+    });
+
+  it.each(['finanzen.lesen', 'personal.lesen', 'system.benutzer_lesen', 'zeit.lesen'])(
+    'haelt %s NICHT — das Modul ist nicht zugewiesen', async (schluessel) => {
+      expect(await haelt(schluessel)).toBe(false);
+    });
+});
+
+/**
+ * **Keine Administration am Anwendungsweg vorbei** (V-168, D-662, 0419;
+ * Konto und Fenster: V-236, D-730, 0460).
+ *
+ * Der Ausloeser aus 0416 sperrt nur das SETZEN einer Liste. Mit
+ * `system.benutzer_verwalten` gab es drei Umwege zu einer Administration mit
+ * allen Modulen der Rolle — ohne `system.module_zuweisen` und ohne die Decke
+ * der eigenen Module: entziehen und ohne Liste neu anlegen, eine entzogene
+ * wiederbeleben, eine andere Mitgliedschaft umwidmen. Heute nimmt sie kein
+ * Code; die zweite Linie soll halten, wenn einmal einer es tut.
+ */
+describe('(4) keine Administration am Anwendungsweg vorbei (0419)', () => {
+  const ADMIN = `(select id from rolle where schluessel = 'admin' and mandant_id is null)`;
+  const WEG = /verwaltungskonto_einladen/u;
+
+  async function lebt(bm: string): Promise<boolean> {
+    const [z] = await sql.unsafe<{ lebt: boolean }[]>(
+      `select entzogen_am is null as lebt from benutzer_mandant where id = $1`, [bm]);
+    return z!.lebt;
+  }
+
+  it('entziehen und ohne Liste neu anlegen hebt die Beschraenkung nicht auf', async () => {
+    await setze(chef, adminBm, ['crm']);
+    await expect(als(chef, async (k) => {
+      await k.schreibe(
+        `update benutzer_mandant set entzogen_am = now(), entzugsgrund = 'Umweg'
+          where id = $1`, [adminBm]);
+      await k.schreibe(
+        `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+         values ($1, $2, ${ADMIN})`, [admin, f.reinigung]);
+    })).rejects.toThrow(WEG);
+    /* Die Transaktion ist zurueckgerollt: die Zeile lebt, die Beschraenkung steht. */
+    expect(await lebt(adminBm)).toBe(true);
+    expect(await module(adminBm)).toEqual(['crm']);
+    expect(await recht(admin, 'finanzen.lesen')).toBe(false);
+    await setze(chef, adminBm, null);
+  });
+
+  it('eine entzogene Administration laesst sich nicht wiederbeleben', async () => {
+    const frueher = await konto('modul-frueher@test.invalid');
+    const [bm] = await sql.unsafe<{ id: string }[]>(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, entzogen_am, entzugsgrund)
+       values ($1, $2, ${ADMIN}, now(), 'frueher') returning id`, [frueher, f.reinigung]);
+    await expect(als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set entzogen_am = null, entzugsgrund = null where id = $1`,
+      [bm!.id]))).rejects.toThrow(WEG);
+    expect(await lebt(bm!.id)).toBe(false);
+  });
+
+  it('eine Leitung wird nicht per UPDATE zur Administration', async () => {
+    await expect(als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set rolle_id = ${ADMIN} where id = $1`, [leitungBm])))
+      .rejects.toThrow(WEG);
+    const [z] = await sql.unsafe<{ schluessel: string }[]>(
+      `select r.schluessel from benutzer_mandant bm join rolle r on r.id = bm.rolle_id
+        where bm.id = $1`, [leitungBm]);
+    expect(z!.schluessel).toBe('leitung');
+  });
+
+  it('auch die Plattformverwaltung legt eine Administration nicht direkt an', async () => {
+    const neu = await konto('modul-direkt@test.invalid');
+    await expect(als(chef, (k) => k.schreibe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1, $2, ${ADMIN})`,
+      [neu, f.reinigung]))).rejects.toThrow(WEG);
+  });
+
+  it('entziehen bleibt moeglich, und eine lebende Administration laesst sich weiter pflegen', async () => {
+    const weg = await konto('modul-weg@test.invalid');
+    const bm = await mitglied(weg, f.reinigung, 'admin');
+    await als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set gueltig_bis = '2099-12-31' where id = $1`, [bm]));
+    await als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set entzogen_am = now(), entzugsgrund = 'Probe' where id = $1`,
+      [bm]));
+    const [z] = await sql.unsafe<{ gueltig_bis: string }[]>(
+      `select gueltig_bis::text as gueltig_bis from benutzer_mandant where id = $1`, [bm]);
+    expect(z!.gueltig_bis).toBe('2099-12-31');
+    expect(await lebt(bm)).toBe(false);
+  });
+
+  it('die Sperre gilt dem Anwendungsweg — der Eigentuemer (Seed, Migration) legt weiter an', async () => {
+    const seedKonto = await konto('modul-seedweg@test.invalid');
+    expect(await lebt(await mitglied(seedKonto, f.reinigung, 'admin'))).toBe(true);
+  });
+
+  /*
+   * **Die zwei Wege, die 0419 offen liess** (V-236, D-730, 0460): das Konto
+   * einer lebenden Administration austauschen und das Fenster einer
+   * abgelaufenen wieder oeffnen. Beide liefen an allen Ausloesern vorbei,
+   * weil die an einzelnen Spalten hingen.
+   */
+  async function besitzer(bm: string): Promise<string> {
+    const [z] = await sql.unsafe<{ benutzer_id: string }[]>(
+      `select benutzer_id::text as benutzer_id from benutzer_mandant where id = $1`, [bm]);
+    return z!.benutzer_id;
+  }
+
+  it('eine Mitgliedschaft wechselt nicht das Konto — schon das Spaltenrecht fehlt', async () => {
+    const x = await konto('modul-uebernahme@test.invalid');
+    await expect(als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set benutzer_id = $1 where id = $2`, [x, adminBm])))
+      .rejects.toThrow(/permission denied/u);
+    await expect(als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set benutzer_id = $1 where id = $2`, [x, leitungBm])))
+      .rejects.toThrow(/permission denied/u);
+    expect(await besitzer(adminBm)).toBe(admin);
+    expect(await recht(x, 'finanzen.lesen')).toBe(false);
+  });
+
+  it('und gaebe jemand das Spaltenrecht zurueck, haelt der Ausloeser allein', async () => {
+    const x = await konto('modul-uebernahme-zwei@test.invalid');
+    await expect(alsApp({
+      scope: 'mandant', mandantId: f.reinigung, mandantIds: [f.reinigung], benutzerId: chef,
+      portal: 'intern', readonly: false, aal: 'aal2',
+    }, async (tx) => {
+      /* Als Eigentuemer das Recht zurueckgeben, das 0460 nimmt — nur in dieser
+         Transaktion; der Wurf rollt es mit zurueck. */
+      await tx.unsafe(`reset role`);
+      await tx.unsafe(`grant update (benutzer_id) on benutzer_mandant to cse_app`);
+      await tx.unsafe(`set local role cse_app`);
+      await tx.unsafe(`update benutzer_mandant set benutzer_id = $1 where id = $2`, [x, adminBm]);
+    })).rejects.toThrow(WEG);
+    expect(await besitzer(adminBm)).toBe(admin);
+    const [g] = await sql.unsafe<{ darf: boolean }[]>(
+      `select has_column_privilege('cse_app', 'benutzer_mandant', 'benutzer_id', 'UPDATE') as darf`);
+    expect(g!.darf, 'das Recht ist mit der Transaktion zurueckgerollt').toBe(false);
+  });
+
+  it('eine abgelaufene Administration gilt nicht wieder, weil ihr Fenster aufgeht', async () => {
+    const frueher = await konto('modul-abgelaufen@test.invalid');
+    const [bm] = await sql.unsafe<{ id: string }[]>(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab, gueltig_bis)
+       values ($1, $2, ${ADMIN}, '2020-01-01', '2020-12-31') returning id`,
+      [frueher, f.reinigung]);
+    expect(await recht(frueher, 'finanzen.lesen'), 'abgelaufen gilt nichts').toBe(false);
+
+    for (const satz of [`gueltig_bis = null`, `gueltig_bis = '2099-12-31'`,
+                        `gueltig_ab = '2019-01-01'`]) {
+      await expect(als(chef, (k) => k.schreibe(
+        `update benutzer_mandant set ${satz} where id = $1`, [bm!.id])), satz).rejects.toThrow(WEG);
+    }
+    expect(await recht(frueher, 'finanzen.lesen')).toBe(false);
+  });
+
+  it('das Fenster einer lebenden Administration wird verkuerzt, nie verlaengert', async () => {
+    const befristet = await konto('modul-befristet@test.invalid');
+    const [bm] = await sql.unsafe<{ id: string }[]>(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab, gueltig_bis)
+       values ($1, $2, ${ADMIN}, current_date - 10, current_date + 30) returning id`,
+      [befristet, f.reinigung]);
+    for (const satz of [`gueltig_bis = null`, `gueltig_bis = current_date + 31`,
+                        `gueltig_ab = current_date - 11`]) {
+      await expect(als(chef, (k) => k.schreibe(
+        `update benutzer_mandant set ${satz} where id = $1`, [bm!.id])), satz).rejects.toThrow(WEG);
+    }
+    /* Verkuerzen ist Pflege — und dieselbe Zeile gilt weiter. */
+    await als(chef, (k) => k.schreibe(
+      `update benutzer_mandant set gueltig_bis = current_date + 5, ist_standard = false
+        where id = $1`, [bm!.id]));
+    expect(await recht(befristet, 'finanzen.lesen')).toBe(true);
+  });
+});

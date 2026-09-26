@@ -5,14 +5,20 @@ import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
  * Erfasste Zeit zur Abrechnung freigeben (TIM-12, FIN-07, FIN-18, EMP-04,
  * 04-PLANUNG-ZEIT §3.3/§7.3, `04-SEITENKARTE.md` §5.11).
  *
- * **Der Schritt ist auf O-39 blockiert — und das heisst nicht „ungebaut".**
- * O-39 fragt, ob es zwischen erfasster Zeit und Abrechnung einen eigenen
+ * **Der Schritt WAR auf O-39 blockiert — und das hiess nie "ungebaut".**
+ * O-39 fragte, ob es zwischen erfasster Zeit und Abrechnung einen eigenen
  * menschlichen Freigabeschritt ueberhaupt gibt, oder ob eine festgeschriebene
- * Rechnung sich die Zeilen direkt nimmt. Solange das offen ist, wird
+ * Rechnung sich die Zeilen direkt nimmt. Solange das offen war, wurde
  * `zeit.abrechnung_freigeben` NICHT geseedet und an keine Rolle gebunden
- * (03-AUTH §12.4): die Seite und dieser Dienst sind vollstaendig da, geprueft,
- * und fuer jede heutige Sitzung unerreichbar. Die Antwort des Mandanten
- * oeffnet sie mit einer Rechtebindung statt mit einem Umbau.
+ * (03-AUTH §12.4): die Seite und dieser Dienst waren vollstaendig da,
+ * geprueft, und fuer jede Sitzung unerreichbar.
+ *
+ * **D-611 hat geantwortet — ein Mensch gibt woechentlich frei, vor der
+ * Fakturierung.** `0371` bindet das Recht an `super_admin` und `admin`;
+ * `leitung` bleibt je Gesellschaft anlegbar statt vorgegeben (D-612), weil
+ * die Freigabe zur Abrechnung ein kaufmaennischer Akt ist und kein
+ * Schichtakt. An diesem Dienst hat sich dadurch keine Zeile geaendert — das
+ * war der Sinn der Bauweise.
  *
  * **Was NICHT offen ist, ist die Bedeutung der Spalte.** `freigegeben_am`
  * steht seit 0034 im Schema und hat zwei gebaute Leser:
@@ -75,7 +81,7 @@ export interface FreigabeAuswahl {
 export interface Freigabeliste {
   readonly zeilen: readonly FreigabeZeile[];
   readonly auswahl: FreigabeAuswahl;
-  /** Haelt diese Sitzung das (heute ungebundene) Recht (O-39)? */
+  /** Haelt diese Sitzung das Recht (D-611: gebunden, D-612: fuer `leitung` anlegbar)? */
   readonly darfFreigeben: boolean;
 }
 

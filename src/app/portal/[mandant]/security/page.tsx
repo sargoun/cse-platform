@@ -16,6 +16,7 @@ import {
   ladeSecurityKopf, POSTEN_FENSTER_TAGE, WACHBUCH_FENSTER_TAGE,
   type SecurityKopf,
 } from '@/server/services/security/uebersicht';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/security` — der Modulkopf der Sicherheits- und
@@ -134,7 +135,7 @@ export default async function SecurityKopfSeite(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="security"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -205,7 +206,7 @@ export default async function SecurityKopfSeite(
         {kopf.luecken === null || kopf.posten === null ? (
           <Hinweis art="hinweis" cse="posten-ungeprueft" className="max-w-prose">
             <strong>Nicht geprüft.</strong> Die Besetzung eines Postens steht in
-            den Schichten, und die liegen hinter <code>dienstplan.lesen</code>.
+            den Schichten, und die liegen hinter <Recht schluessel="dienstplan.lesen" />.
             Die Posten selbst sind unter „Alle Posten" sichtbar — ob sie besetzt
             sind, sagt diese Ansicht nicht. „0 unterbesetzt" wäre hier die
             gefährlichste Zahl auf dem Bildschirm.
@@ -275,7 +276,7 @@ export default async function SecurityKopfSeite(
         {kopf.nachweise === null ? (
           <Hinweis art="hinweis" cse="nachweise-ungeprueft" className="max-w-prose">
             <strong>Nicht geprüft.</strong> Nachweise hängen am Menschen und liegen
-            hinter <code>personal.nachweis_lesen</code> — ein Recht, das eine reine
+            hinter <Recht schluessel="personal.nachweis_lesen" /> — ein Recht, das eine reine
             Sicherheitsrolle nicht hält. Das ist nicht dasselbe wie „alle
             Nachweise sind gültig".
           </Hinweis>
@@ -373,7 +374,7 @@ export default async function SecurityKopfSeite(
         {kopf.vorkommnisse === null ? (
           <Hinweis art="hinweis" cse="wachbuch-ungeprueft" className="max-w-prose">
             <strong>Nicht geprüft.</strong> Das Wachbuch liegt hinter
-            <code> wachbuch.lesen</code>, das dieses Konto hier nicht hält.
+            <Recht schluessel="wachbuch.lesen" />, das dieses Konto hier nicht hält.
           </Hinweis>
         ) : kopf.vorkommnisse.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">

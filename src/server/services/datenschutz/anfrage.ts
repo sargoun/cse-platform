@@ -151,17 +151,41 @@ export interface AnfrageZeile {
   readonly fristAm: Date;
   readonly verlaengertBis: Date | null;
   readonly verlaengertGrund: string | null;
+  /**
+   * Die Rückfrage nach der Identität (V-088, Art. 12 Abs. 6).
+   *
+   * Sie bleibt stehen, auch wenn die Identität später geklärt ist: sie ist
+   * der Beleg dafür, dass nachgefragt wurde, und verschwindet nicht mit der
+   * Antwort.
+   */
+  readonly identitaetAngefordertAm: Date | null;
+  readonly identitaetGrund: string | null;
   readonly beantwortetAm: Date | null;
   readonly entscheidung: string | null;
   /** Tage bis zur wirksamen Frist — negativ heisst überfällig. */
   readonly tageBisFrist: number;
+  /**
+   * Auf welchem Weg der Antrag einkam (Art. 12 Abs. 1) und wer ihn aufnahm.
+   *
+   * Beim Formular ist `erfasstVon` leer, denn dort war es niemand. Steht dort
+   * ein Name, hat ein Mensch eine mündliche oder schriftliche Anfrage
+   * protokolliert — und das ist im Streitfall der Beleg dafür, dass die Frist
+   * an dem Tag zu laufen begann, der oben steht.
+   */
+  readonly eingangsweg: Eingangsweg;
+  readonly erfasstVon: string | null;
 }
 
 const FELDER = `id, art::text as art, status::text as status, name, email, nachricht,
                 rolle_angabe as "rolleAngabe", eingegangen_am as "eingegangenAm",
                 frist_am as "fristAm", verlaengert_bis as "verlaengertBis",
                 verlaengert_grund as "verlaengertGrund",
+                identitaet_angefordert_am as "identitaetAngefordertAm",
+                identitaet_grund as "identitaetGrund",
                 beantwortet_am as "beantwortetAm", entscheidung,
+                eingangsweg::text as eingangsweg,
+                (select b.name from benutzer b
+                  where b.id = betroffenenanfrage.erfasst_von) as "erfasstVon",
                 /*
                  * Die Tage rechnet die DATENBANK, gegen ihre eigene Uhr
                  * (Invariante 5) — und gegen die WIRKSAME Frist, also die
@@ -219,6 +243,87 @@ export async function entscheide(
     throw new AnfrageFehler(
       'Diese Anfrage gibt es nicht — oder sie ist bereits entschieden.',
       'nicht_gefunden', 404);
+  }
+}
+
+/**
+ * **Zusätzliche Angaben zur Identität anfordern** (V-088, Art. 12 Abs. 6).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Der Befund.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `identitaet_offen` steht seit `0176` im Aufzählungstyp, der Fristindex
+ * zählt ihn zu den offenen Zuständen, zwei Oberflächen beschriften ihn — und
+ * **kein Weg setzte ihn**. Wer an der Identität zweifelte, hatte die Wahl
+ * zwischen „in Bearbeitung" (was nicht stimmt) und „abgelehnt" (was zu früh
+ * wäre).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Ohne Grund geschieht nichts — und das ist nicht Förmlichkeit.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Art. 12 Abs. 6 erlaubt die Nachfrage NUR „bei begründeten Zweifeln an der
+ * Identität". Wer nachfragt, verarbeitet dafür weitere Daten — eine
+ * Ausweiskopie ist mehr, als das Auskunftsersuchen selbst enthält — und muss
+ * belegen können, worauf sich die Zweifel stützten. `0388` hält beides
+ * zusammen, in derselben Form wie bei der Fristverlängerung.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Die FRIST läuft weiter** (O-903).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Art. 12 Abs. 3 lässt den Monat mit dem EINGANG laufen; ob eine Rückfrage
+ * nach Absatz 6 ihn hemmt, sagt die Verordnung nicht, und die Ansichten gehen
+ * auseinander. Sie hier still anzuhalten wäre eine Rechtsauffassung, die sich
+ * als Spaltenwert tarnt. Die Anfrage bleibt also in der Fälligkeitsliste —
+ * sichtbar, und damit im Blick.
+ */
+export async function fordereIdentitaetsnachweis(
+  kontext: SchreibKontext, id: string, grund: string,
+): Promise<void> {
+  if (grund.trim() === '') {
+    throw new AnfrageFehler(
+      'Art. 12 Abs. 6 erlaubt die Nachfrage nur bei BEGRÜNDETEN Zweifeln. Worauf '
+      + 'stützen sie sich? Der Satz steht später allein da, wenn eine Aufsicht '
+      + 'fragt, warum eine Ausweiskopie verlangt wurde.', 'ohne_begruendung');
+  }
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update betroffenenanfrage
+        set status = 'identitaet_offen',
+            identitaet_angefordert_am = now(),
+            identitaet_grund = $2
+      where mandant_id = app.aktiver_mandant() and id = $1::uuid
+        and status in ('neu', 'in_bearbeitung')
+      returning id`,
+    [id, grund.trim()]);
+  if (zeilen[0] === undefined) {
+    throw new AnfrageFehler(
+      'Diese Anfrage gibt es nicht — oder sie ist bereits entschieden, und dann '
+      + 'wird nicht mehr nach der Identität gefragt.',
+      'nicht_gefunden', 404);
+  }
+}
+
+/**
+ * **Die Identität ist geklärt** (V-088).
+ *
+ * Der Vermerk BLEIBT stehen: er ist der Beleg dafür, dass nachgefragt wurde,
+ * und verschwindet nicht mit der Antwort. Nur der Zustand geht zurück auf
+ * „in Bearbeitung" — die Anfrage ist wieder eine gewöhnliche.
+ */
+export async function identitaetGeklaert(
+  kontext: SchreibKontext, id: string,
+): Promise<void> {
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update betroffenenanfrage
+        set status = 'in_bearbeitung'
+      where mandant_id = app.aktiver_mandant() and id = $1::uuid
+        and status = 'identitaet_offen'
+      returning id`, [id]);
+  if (zeilen[0] === undefined) {
+    throw new AnfrageFehler(
+      'Bei dieser Anfrage ist die Identität nicht offen.', 'nicht_gefunden', 404);
   }
 }
 
@@ -501,4 +606,175 @@ export async function ladeZuordnung(
     };
   }
   return { art: 'keine', id: null, name: null, pfad: null };
+}
+
+/* ------------------------------------------------------------------------- *
+ * Die Aufnahme im Büro — der Brief, der Anruf, die E-Mail (V-031)
+ * ------------------------------------------------------------------------- */
+
+/** Wie ein Antrag eingegangen ist — die Aufzählung des Art. 12 Abs. 1. */
+export type Eingangsweg = 'formular' | 'email' | 'brief' | 'telefon' | 'persoenlich';
+
+/**
+ * Die Wege, die ein MENSCH aufnehmen kann — `formular` fehlt mit Absicht.
+ *
+ * Das Formular legt der Eingangsprinzipal an, und nur er; die Policy
+ * `t_betroffenenanfrage_aufnahme` (0378) schliesst diesen Wert aus. Stünde er
+ * hier in der Liste, böte die Oberfläche eine Wahl an, die die Datenbank
+ * ablehnt.
+ */
+/** Ein Weg, den ein Mensch aufnehmen kann — `formular` ist keiner. */
+export type AufnahmeWeg = Exclude<Eingangsweg, 'formular'>;
+
+export const AUFNAHME_WEGE: readonly AufnahmeWeg[] = [
+  'brief', 'telefon', 'email', 'persoenlich',
+];
+
+/**
+ * Ob ein Weg vom BUERO aufgenommen werden darf.
+ *
+ * Die Route nimmt eine Zeichenkette aus einem Formular entgegen; der Typ
+ * `Eingangsweg` ist dort eine Behauptung. Diese Wache macht daraus eine
+ * Feststellung — und schliesst `formular` aus, das nur dem Eingangsprinzipal
+ * gehoert. Die Policy `t_betroffenenanfrage_aufnahme` (0378) sagt dasselbe
+ * noch einmal in der Datenbank: eine Prüfung im Dienst gibt einen Satz, die
+ * Policy gibt die Gewissheit.
+ */
+export function istAufnahmeWeg(weg: Eingangsweg): weg is AufnahmeWeg {
+  return (AUFNAHME_WEGE as readonly Eingangsweg[]).includes(weg);
+}
+
+export const WEG_TEXT: Readonly<Record<Eingangsweg, string>> = {
+  formular: 'Öffentliches Formular',
+  email: 'E-Mail',
+  brief: 'Brief',
+  telefon: 'Telefon',
+  persoenlich: 'Persönlich vor Ort',
+};
+
+export const WEG_TEXT_EN: Readonly<Record<Eingangsweg, string>> = {
+  formular: 'Public form',
+  email: 'Email',
+  brief: 'Letter',
+  telefon: 'Telephone',
+  persoenlich: 'In person',
+};
+
+export interface AufzunehmendeAnfrage extends NeueAnfrage {
+  readonly eingangsweg: Eingangsweg;
+  /**
+   * Der Eingang als Berliner Ortszeit-Angabe (`YYYY-MM-DDTHH:mm`), so wie ein
+   * `datetime-local`-Feld sie liefert. Leer heisst: jetzt.
+   */
+  readonly eingegangenAm?: string | undefined;
+}
+
+/**
+ * Eine Anfrage aufnehmen, die NICHT durch das Formular kam (Art. 12 Abs. 1).
+ *
+ * **Warum das nicht `nimmAn` mit einem Feld mehr ist.** Die beiden Wege
+ * unterscheiden sich in dem, was die Frist auslöst. Beim Formular ist der
+ * Eingang der Augenblick des Absendens — `now()`, und niemand kann ihn
+ * behaupten. Beim Brief ist der Eingang der Posteingangsstempel, er liegt
+ * hinter uns, und ein Mensch trägt ihn ein. Das ist keine Variante derselben
+ * Handlung, sondern eine andere: die eine nimmt entgegen, die andere
+ * PROTOKOLLIERT eine Entgegennahme.
+ *
+ * **Und deshalb wandert der Eingangszeitpunkt hier durch die Hand eines
+ * Menschen, ohne Invariante 5 zu brechen.** Die Regel sagt, dass die Uhr des
+ * GERÄTS nie die Wahrheit ist — sie sagt nicht, dass eine Tatsache der
+ * Vergangenheit nicht erfasst werden darf. Der Unterschied liegt in der
+ * Richtung: `zeiteintrag` misst, was gerade geschieht, und eine Gerätezeit
+ * wäre dort eine unüberprüfbare Behauptung über die Gegenwart. Hier wird ein
+ * Briefdatum abgeschrieben. Die Datenbank hält dagegen, was sie halten kann:
+ * der Eingang darf nicht in der ZUKUNFT liegen (0378), denn nur diese Richtung
+ * verschafft eine längere Frist.
+ *
+ * Die Frist rechnet danach `kern.betroffenenanfrage_frist()` aus genau diesem
+ * Wert — dieselbe Funktion wie beim Formular. Der Brief vom Ersten steht am
+ * Zwanzigsten als „noch zehn Tage" da, nicht als „noch ein Monat".
+ */
+export async function nimmAnfrageAuf(
+  kontext: SchreibKontext, eingabe: AufzunehmendeAnfrage,
+): Promise<{ readonly id: string; readonly fristAm: Date }> {
+  const name = eingabe.name.trim();
+  const email = eingabe.email.trim().toLowerCase();
+
+  if (name === '') {
+    throw new AnfrageFehler('Bitte nennen Sie den Namen der anfragenden Person.',
+      'name_fehlt');
+  }
+  /*
+   * **Die E-Mail-Adresse bleibt Pflicht, auch beim Brief.** An sie geht die
+   * Antwort, und die Spalte verlangt sie (0176). Wer nur eine Anschrift hat,
+   * beantwortet die Anfrage postalisch — dann gehört die Anschrift in die
+   * Nachricht, und die Zeile braucht trotzdem eine erreichbare Adresse.
+   * TODO(client, O-892): Soll eine rein postalische Anfrage ohne E-Mail-Adresse
+   * erfassbar sein, und wohin geht dann die Antwort?
+   */
+  if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/iu.test(email)) {
+    throw new AnfrageFehler(
+      'Bitte prüfen Sie die E-Mail-Adresse — an sie geht die Antwort.',
+      'email_ungueltig');
+  }
+  if (!ANFRAGE_ARTEN.includes(eingabe.art)) {
+    throw new AnfrageFehler('Bitte wählen Sie das Anliegen.', 'art_fehlt');
+  }
+  if (!istAufnahmeWeg(eingabe.eingangsweg)) {
+    throw new AnfrageFehler(
+      'Bitte wählen Sie, auf welchem Weg die Anfrage eingegangen ist.',
+      'weg_fehlt');
+  }
+
+  const roh = eingabe.eingegangenAm?.trim() ?? '';
+  if (roh !== '' && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/u.test(roh)) {
+    throw new AnfrageFehler(
+      'Der Eingangszeitpunkt ist nicht lesbar. Erwartet wird Datum und Uhrzeit.',
+      'eingang_unlesbar');
+  }
+
+  let zeilen: readonly { id: string; frist_am: Date }[];
+  try {
+    zeilen = await kontext.schreibe<{ id: string; frist_am: Date }>(
+      /*
+       * Der Eingang wird als BERLINER Ortszeit gelesen (`at time zone`) —
+       * genau das, was auf dem Stempel steht. Ohne die Zone wäre „02.11. 09:00"
+       * in der Nacht der Zeitumstellung eine andere Stunde als gemeint
+       * (Invariante 2).
+       */
+      `insert into betroffenenanfrage
+         (mandant_id, art, name, email, nachricht, rolle_angabe,
+          eingangsweg, erfasst_von, eingegangen_am)
+       values (app.aktiver_mandant(), $1::betroffenenanfrage_art, $2, $3, $4, $5,
+               $6::betroffenenanfrage_eingangsweg, app.aktueller_benutzer(),
+               coalesce(($7::text)::timestamp at time zone 'Europe/Berlin', now()))
+       returning id, frist_am`,
+      [eingabe.art, name, email,
+        eingabe.nachricht?.trim() === undefined || eingabe.nachricht.trim() === ''
+          ? null : eingabe.nachricht.trim(),
+        eingabe.rolleAngabe?.trim() === undefined || eingabe.rolleAngabe.trim() === ''
+          ? null : eingabe.rolleAngabe.trim(),
+        eingabe.eingangsweg, roh === '' ? null : roh],
+    );
+  } catch (fehler) {
+    /*
+     * Der Ausloeser aus 0378 wirft `check_violation`, wenn der Eingang in der
+     * Zukunft liegt. Die Oberfläche bekommt daraus einen Satz — eine
+     * Datenbankmeldung auf einem Formular ist für die Aufnehmende kein Hinweis.
+     */
+    const code = (fehler as { code?: string }).code;
+    if (code === '23514') {
+      throw new AnfrageFehler(
+        'Der Eingang liegt in der Zukunft. Die Frist des Art. 12 Abs. 3 läuft ab '
+        + 'Eingang — ein späteres Datum verlängerte sie.', 'eingang_zukunft');
+    }
+    throw fehler;
+  }
+
+  const z = zeilen[0];
+  if (z === undefined) {
+    throw new AnfrageFehler(
+      'Die Anfrage konnte nicht gespeichert werden.', 'nicht_gespeichert', 500);
+  }
+  return { id: z.id, fristAm: z.frist_am };
 }

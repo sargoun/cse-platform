@@ -14,6 +14,7 @@ import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
 import { RECHNUNG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-akte';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]/verwerfen` — der Entwurf wird
@@ -127,6 +128,12 @@ export default async function Verwerfenblatt(
 
   return (
     <PortalRahmen
+      /* Auch der RUECKWEG steht unter dem Recht seines Ziels (AUT-06):
+         ein Pfeil auf eine Seite, die der Benutzer nicht oeffnen darf,
+         fuehrt auf ein 404 — und verraet damit, dass es sie gibt. */
+      {...(darf['finanzen.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/finanzen/rechnungen/${id}`, text: k.nummer ?? t.entwurfOhneNummer } }
+        : {})}
       titel={t.entwurfVerwerfen}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -136,16 +143,6 @@ export default async function Verwerfenblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      {darf['finanzen.lesen'] === true ? (
-        <nav aria-label={g.zurueck} className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← {k.nummer ?? t.entwurfOhneNummer}
-          </Link>
-        </nav>
-      ) : null}
 
       <h1 className="mb-s3 text-h1 text-text">{t.entwurfVerwerfen}</h1>
 
@@ -277,7 +274,7 @@ export default async function Verwerfenblatt(
           ) : k.status === 'festgeschrieben' ? (
             <p className="m-0 mt-s2 text-sm text-text-muted">
               {t.stornoLaeuftUeber} <code>{PFAD_STORNO}</code> {t.undVerlangt}{' '}
-              <code>{RECHT_STORNIEREN}</code>{t.rechtFehltErklaerung}
+              <Recht schluessel={RECHT_STORNIEREN} sprache={zugang.sprache} />{t.rechtFehltErklaerung}
             </p>
           ) : null}
         </Hinweis>

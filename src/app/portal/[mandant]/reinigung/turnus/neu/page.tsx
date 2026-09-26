@@ -14,6 +14,10 @@ import { lesbareRegel } from '@/lib/datum/regeltext';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '@/app/portal/rechte';
+import { LeistungsankerFeld } from '@/components/portal/LeistungsankerFeld';
+import {
+  listeAnkerbareLeistungen, type AnkerbareLeistung,
+} from '@/server/services/dienstplan/leistungsanker';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { rechteImKontext } from '@/server/auth/kontext-rechte';
 import { ladeFeiertage } from '@/server/services/dienstplan/generator';
@@ -24,6 +28,10 @@ import { MAX_DAUER_MINUTEN } from '@/server/services/dienstplan/vorkommnisse';
 import {
   turnusVorschau, type VorschauTermin,
 } from '@/server/services/reinigung/turnusvorschau';
+import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/reinigung/turnus/neu` — eine Regel bauen und VORHER
@@ -110,6 +118,13 @@ export default async function TurnusNeu(
 
   const heute = await berlinHeute();
   const fehlerAusApi = einer(suche['fehler']);
+  /*
+   * Ein abgewiesener Anker kommt als SCHLÜSSEL (V-192) und wird hier ein Satz
+   * in der Sprache der Sitzung. Die übrigen Abweisungen der Route kommen noch
+   * als Satz (D-599-Altlast, D-686 Nr. 7).
+   */
+  const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
+  const ankerFehler = fehlerAusApi === null ? undefined : eigenerEintrag(tL.fehler, fehlerAusApi);
 
   /* ---- die Eingabe, wie sie aus der Vorschaurunde zurückkommt ----------- */
   const istVorschau = einer(suche['vorschau']) !== null;
@@ -127,6 +142,8 @@ export default async function TurnusNeu(
   const gueltigAb = einer(suche['gueltig_ab']) ?? heute;
   const gueltigBis = einer(suche['gueltig_bis']);
   const feiertage = einer(suche['feiertage']) === 'unveraendert' ? 'unveraendert' : 'ausfall';
+  /** Der Abrechnungsanker (V-191, TIM-12) — reist durch die Vorschau mit. */
+  const ankerRoh = einer(suche['auftrag_leistung']);
 
   /* ---- die Regel: gebaut vom Dienst, gegengelesen vom Parser ------------ */
   let rrule: string | null = null;
@@ -151,7 +168,7 @@ export default async function TurnusNeu(
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
       const rechte = await rechteImKontext(
-        kontext, 'objekt.lesen', 'katalog.lesen', 'dienstplan.schreiben',
+        kontext, 'objekt.lesen', 'katalog.lesen', 'dienstplan.schreiben', 'auftrag.lesen',
       );
       /*
        * `left join objekt` und nicht `join`: `objekt` liegt hinter
@@ -182,13 +199,20 @@ export default async function TurnusNeu(
         { unsafe: (sql, werte) => kontext.abfrage<unknown>(sql, werte) },
         'BE', fenster.vonDatum, fenster.bisDatum,
       )).namen;
-      return { rechte, reviere, leistungen, feiertagsKarte: karte };
+      /* Die Leistungszeilen des Auftrags — nur mit `auftrag.lesen` (V-191). */
+      const anker = rechte['auftrag.lesen'] === true
+        ? await listeAnkerbareLeistungen(kontext) : null;
+      return { rechte, reviere, leistungen, feiertagsKarte: karte, anker };
     })) as Promise<{
       rechte: Readonly<Record<string, boolean>>;
       reviere: readonly RevierWahl[];
       leistungen: readonly LeistungWahl[];
       feiertagsKarte: ReadonlyMap<string, string>;
+      anker: readonly AnkerbareLeistung[] | null;
     }>);
+  /* Vorbelegt wird nur, was die Auswahl anbietet (D-733 Nr. 4). */
+  const gewaehlterAnker = ankerRoh !== null && daten.anker !== null
+    && daten.anker.some((l) => l.id === ankerRoh && l.lebt) ? ankerRoh : null;
 
   /* ---- die Vorschau, mit echten Feiertagen ----------------------------- */
   let termine: readonly VorschauTermin[] = [];
@@ -235,16 +259,8 @@ export default async function TurnusNeu(
       aktiverTab="reinigung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/reinigung/turnus`, text: 'Alle Turnusse' }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/reinigung/turnus`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Alle Turnusse
-        </Link>
-      </nav>
-
       <h1 className="mb-s2 text-h1 text-text">Turnus anlegen</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Erst die Regel, dann die Vorschau, dann das Anlegen. Der Knopf, der
@@ -256,13 +272,17 @@ export default async function TurnusNeu(
 
       {fehlerAusApi !== null && (
         <Hinweis art="warnung" cse="turnus-api-fehler" className="mb-s5 max-w-prose">
-          <strong>Nicht angelegt.</strong> {fehlerAusApi}
+          {ankerFehler !== undefined ? (
+            <><strong>{tL.nichtAngelegt}</strong>{' '}{ankerFehler}</>
+          ) : (
+            <><strong>Nicht angelegt.</strong> {fehlerAusApi}</>
+          )}
         </Hinweis>
       )}
 
       {!darfPlanen && (
         <Hinweis art="warnung" cse="turnus-kein-dienstplanrecht" className="mb-s5 max-w-prose">
-          <strong>Anlegen ist hier nicht möglich — es fehlt <code>dienstplan.schreiben</code>.</strong>{' '}
+          <strong>Anlegen ist hier nicht möglich — es fehlt <Recht schluessel="dienstplan.schreiben" />.</strong>{' '}
           Ein Turnus ohne Planungsserie erzeugt keine Schicht, und die Serie
           sowie die Schichten liegen hinter dem Schreibrecht des Dienstplans.
           Die Anwendung legt deshalb auch den Turnus nicht an, statt ihn ohne
@@ -273,7 +293,7 @@ export default async function TurnusNeu(
 
       {daten.rechte['katalog.lesen'] !== true && (
         <Hinweis art="warnung" cse="turnus-kein-katalogrecht" className="mb-s5 max-w-prose">
-          <strong>Die Leistungsauswahl ist leer, weil <code>katalog.lesen</code> fehlt.</strong>{' '}
+          <strong>Die Leistungsauswahl ist leer, weil <Recht schluessel="katalog.lesen" /> fehlt.</strong>{' '}
           Ein Turnus hängt zwingend an einer Katalogposition — ohne Leserecht auf
           den Leistungskatalog lässt sich keine auswählen. Das ist kein leerer
           Katalog.
@@ -311,7 +331,7 @@ export default async function TurnusNeu(
           )}
           {daten.rechte['objekt.lesen'] !== true && (
             <span className="mt-s1 block text-xs text-warning">
-              Ohne <code>objekt.lesen</code> lässt sich nicht prüfen, ob am Objekt
+              Ohne <Recht schluessel="objekt.lesen" /> lässt sich nicht prüfen, ob am Objekt
               ein Kunde hängt. Der Generator überspringt Objekte ohne Kunden und
               meldet es — die Zahl der erzeugten Schichten wäre dann 0.
             </span>
@@ -468,6 +488,11 @@ export default async function TurnusNeu(
               <option value="unveraendert">findet statt</option>
             </select>
           </label>
+        </div>
+
+        <div className="mt-s4 max-w-[60ch]">
+          <LeistungsankerFeld leistungen={daten.anker} gewaehlt={gewaehlterAnker}
+                              sprache={zugang.sprache} feldKlasse={feld} />
         </div>
 
         <div>
@@ -631,8 +656,11 @@ export default async function TurnusNeu(
                 <input type="hidden" name="gueltig_ab" value={gueltigAb} />
                 <input type="hidden" name="gueltig_bis" value={gueltigBis ?? ''} />
                 <input type="hidden" name="feiertage" value={feiertage} />
+                <input type="hidden" name="auftrag_leistung" value={gewaehlterAnker ?? ''} />
                 <p className="m-0 mb-s4 max-w-prose text-sm text-text-muted">
-                  Angelegt wird genau die Regel <code className="text-text">{rrule}</code> mit
+                  Angelegt wird genau die Regel
+                  {' „'}{rrule === null ? '' : lesbareRegel(rrule)}{'“ '}
+                  (<code className="text-xs text-text-muted">{rrule}</code>) mit
                   Beginn <span className="tabular-nums">{beginn}</span> und Solldauer{' '}
                   {stundenAusMinuten(dauer)}. Der Generator läuft unmittelbar
                   danach; die Serienliste meldet die Zahl der erzeugten Schichten

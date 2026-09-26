@@ -51,6 +51,23 @@ export interface EigenerZeiteintrag {
   readonly storniert: boolean;
   readonly freigegeben: boolean;
   readonly gesperrt: boolean;
+  /**
+   * Die Fassung der Kette. `> 1` heisst: dieser Eintrag ist eine KORREKTUR
+   * einer frueheren Fassung.
+   *
+   * **Warum die Zahl und nicht die Korrekturzeile.** `zeiteintrag_korrektur`
+   * traegt Art, Grund und Begruendung — und `p_ma_decke` (0036:403) sperrt
+   * die Tabelle fuer das Arbeiterportal ausdruecklich: „Der Arbeitnehmer sieht
+   * seine STUNDEN; die Spur darueber bekommt er auf Auskunft, nicht als
+   * Bildschirm." Das bleibt so.
+   *
+   * Die Fassungsnummer steht dagegen auf dem Eintrag SELBST, den die
+   * Mitarbeiterin ohnehin sieht. Sie verraet keine Begruendung und keinen
+   * Namen — nur, DASS korrigiert wurde. Zusammen mit der Nachricht, die den
+   * Grund traegt (`services/zeit/korrektur.ts`), ist die Schleife geschlossen,
+   * ohne die Decke anzuheben.
+   */
+  readonly fassung: number;
 }
 
 /**
@@ -68,6 +85,9 @@ export const ZEITEINTRAG_FELDER = [
   'quelleBeginn', 'quelleEnde', 'geraeteZeitBeginnLokal', 'geraeteZeitEndeLokal',
   'zeitabweichungBeginnSek', 'zeitabweichungEndeSek', 'nacherfasst', 'storniert',
   'freigegeben', 'gesperrt',
+  /* Die Fassungsnummer der Kette — `> 1` heisst korrigiert. Kein Lohnfeld:
+     eine Zahl ueber die Zeile selbst, ohne Grund, ohne Namen, ohne Betrag. */
+  'fassung',
 ] as const;
 
 interface ZeitRoh {
@@ -96,6 +116,7 @@ interface ZeitRoh {
   readonly storniert: boolean;
   readonly freigegeben: boolean;
   readonly gesperrt: boolean;
+  readonly fassung: number;
 }
 
 const SPALTEN = `
@@ -128,7 +149,8 @@ const SPALTEN = `
   z.nacherfasst,
   (z.storniert_am   is not null)           as storniert,
   (z.freigegeben_am is not null)           as freigegeben,
-  (z.gesperrt_am    is not null)           as gesperrt`;
+  (z.gesperrt_am    is not null)           as gesperrt,
+  z.version                                as fassung`;
 
 const QUELLE = `
   from zeiteintrag z
@@ -161,6 +183,7 @@ function abbilden(z: ZeitRoh): EigenerZeiteintrag {
     zeitabweichungEndeSek:
       z.zeitabweichung_ende_sek === null ? null : Number(z.zeitabweichung_ende_sek),
     nacherfasst: z.nacherfasst,
+    fassung: Number(z.fassung),
     storniert: z.storniert,
     freigegeben: z.freigegeben,
     gesperrt: z.gesperrt,
@@ -202,4 +225,31 @@ export async function findeEigenenZeiteintrag(
     `select ${SPALTEN} ${QUELLE} where z.id = $1::uuid`, [id],
   );
   return z === undefined ? null : abbilden(z);
+}
+
+/**
+ * Der eigene Eintrag zu EINER Schicht — seine Kennung, oder `null`, wenn es
+ * keinen gibt (V-189).
+ *
+ * Das Blatt einer vergangenen Schicht fragt das, um den richtigen Weg zu
+ * zeigen: gibt es einen Eintrag, fuehrt es zu ihm (und dort zum Einwand);
+ * gibt es keinen, fuehrt es zu „Eine Zeit fehlt" — vorbelegt mit Tag und
+ * Beschaeftigung. Gefragt wird die aktuelle Fassung (`ersetzt_am is null`),
+ * auch eine stornierte: ein stornierter Eintrag ist einer, ueber den man mit
+ * seinem eigenen Einwand streitet, nicht einer, der fehlt.
+ *
+ * Laeuft im Personen-Scope; die RLS gibt nur eigene Eintraege heraus.
+ */
+export async function eigenerEintragZurSchicht(
+  kontext: LeseKontext, einsatzId: string, anstellungId: string,
+): Promise<string | null> {
+  const [z] = await kontext.abfrage<{ id: string }>(
+    `select z.id from zeiteintrag z
+      where z.einsatz_id = $1::uuid and z.anstellung_id = $2::uuid
+        and z.ersetzt_am is null
+      order by z.beginn_zeitpunkt asc, z.id asc
+      limit 1`,
+    [einsatzId, anstellungId],
+  );
+  return z?.id ?? null;
 }

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { offeneStellen } from './daten';
+import { bewerbungsMeldung } from './meldung';
 
 /**
  * `/karriere` — die offenen Stellen der Gruppe (REC-03).
@@ -28,8 +29,19 @@ export const metadata: Metadata = {
     + 'Digital Operations. Bewerbung direkt über die Seite.',
 };
 
-export default async function KarriereSeite() {
+export default async function KarriereSeite(
+  { searchParams }: {
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
+) {
   const stellen = await offeneStellen();
+  /*
+   * V-158: eine Bewerbung auf eine Stelle, die inzwischen geschlossen ist,
+   * landet hier — mit einem Satz, statt `{"fehler":"nicht_gefunden"}` auf
+   * weissem Grund. Das Stellenblatt selbst wäre dafür der falsche Ort: es
+   * antwortet für eine geschlossene Stelle mit 404.
+   */
+  const meldung = bewerbungsMeldung((await searchParams)['fehler']);
 
   return (
     <main className="mx-auto flex max-w-content flex-col gap-s6 px-s5 py-s7">
@@ -40,6 +52,13 @@ export default async function KarriereSeite() {
           Gesellschaft einstellt — mit ihr kommt der Arbeitsvertrag zustande.
         </p>
       </header>
+
+      {meldung !== undefined && (
+        <p role="alert" data-cse="bewerbung-meldung"
+           className="m-0 max-w-[72ch] rounded-md border border-danger bg-danger-soft p-s4 text-base text-text">
+          {meldung}
+        </p>
+      )}
 
       <section className="flex flex-col gap-s4">
         <h2 className="m-0 text-h2 text-text">

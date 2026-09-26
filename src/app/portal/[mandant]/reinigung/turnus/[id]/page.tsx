@@ -23,6 +23,7 @@ import {
   type AusnahmeZeile, type TurnusBlatt, type TurnusEinsatzZeile,
 } from '@/server/services/reinigung/turnus';
 import type { VorschauTermin } from '@/server/services/reinigung/turnusvorschau';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/reinigung/turnus/[id]` — eine Regel und was aus ihr
@@ -96,7 +97,7 @@ export default async function TurnusBlattSeite(
   const ausnahmeAngelegt = suche['ausnahme'] === '1';
   const fehlerText = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   kennungOder404(id);
-  const tor = await mandantTor(`/portal/${mandant}/reinigung/turnus/[id]`, mandant);
+  const tor = await mandantTor(`/portal/${mandant}/reinigung/turnus/${id}`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
   const { sitzung } = zugang;
@@ -159,16 +160,8 @@ export default async function TurnusBlattSeite(
       aktiverTab="reinigung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/reinigung/turnus`, text: 'Alle Turnusse' }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/reinigung/turnus`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Alle Turnusse
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{t.bezeichnung}</h1>
         <div className="flex flex-wrap items-baseline gap-s3">
@@ -567,7 +560,7 @@ export default async function TurnusBlattSeite(
         {einsaetze === null ? (
           <Hinweis art="hinweis" cse="einsaetze-ungeprueft" className="max-w-prose">
             <strong>Nicht geprüft.</strong> Die Schichten liegen hinter dem Recht
-            <code> dienstplan.lesen</code>, das dieses Konto hier nicht hält. Eine
+            <Recht schluessel="dienstplan.lesen" />, das dieses Konto hier nicht hält. Eine
             leere Liste hiesse „keine Schicht" und wäre an dieser Stelle falsch.
           </Hinweis>
         ) : einsaetze.length === 0 ? (

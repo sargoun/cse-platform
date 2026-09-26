@@ -7,7 +7,7 @@ import { DataTable } from '@/components/ui/DataTable';
 import { KpiStat } from '@/components/ui/KpiStat';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { erstellePruefbuendel, type Pruefbuendel } from '@/server/services/buchhaltung/pruefbuendel';
 import { liesWirtschaftsjahr, wirtschaftsjahrVon } from '@/server/services/buchhaltung/wirtschaftsjahr';
@@ -67,7 +67,7 @@ export default async function Buendel(
     })) as Promise<{ buendel: Pruefbuendel; jahre: readonly number[] }>);
 
   const b = daten.buendel;
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
   const basis = `/portal/${mandant}/dokumente/buendel`;
   const api = `/api/dokumente/buendel?mandant=${mandant}&jahr=${String(b.jahr)}`;
   const zipMoeglich = speicher.verbunden && b.sperre === null;
@@ -82,7 +82,7 @@ export default async function Buendel(
       nurLesen
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="dokumente"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >

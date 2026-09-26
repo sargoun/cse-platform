@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { dokumentKategorieText } from '@/lib/i18n/texte';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import {
   findeEigenesDokument, groesseText, SIGNATUR_MINUTEN, type MeinDokument,
 } from '@/server/services/mitarbeiter/dokumente';
@@ -48,7 +48,7 @@ export default async function MeinDokumentBlatt(
 ) {
   const { id } = await params;
   kennungOder404(id);
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
 
   const ergebnis = await meinPortal<MeinDokument | null>(
     `/portal/mein/dokumente/${id}`,
@@ -63,13 +63,9 @@ export default async function MeinDokumentBlatt(
   const t = basis.texte;
 
   return (
-    <MeinRahmen basis={basis} titel={d.titel} aktiverTab="heute">
-      <Link
-        href="/portal/mein/dokumente"
-        className="mb-s4 inline-flex min-h-11 items-center text-base text-text underline"
-      >
-        ← {t.dokumente}
-      </Link>
+    <MeinRahmen basis={basis} titel={d.titel} aktiverTab="heute"
+      zurueck={{ ziel: "/portal/mein/dokumente", text: t.dokumente }}
+    >
 
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <Gesellschaft slug={d.mandantSlug} name={d.mandantName} />

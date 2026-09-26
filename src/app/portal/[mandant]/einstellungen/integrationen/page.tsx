@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import Link from 'next/link';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
@@ -97,7 +98,7 @@ export default async function Integrationen(
       nurLesen
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="einstellungen"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -109,6 +110,25 @@ export default async function Integrationen(
         nichts geht hinaus. Jede externe Verbindung braucht eine EU-Region und einen
         Vertrag zur Auftragsverarbeitung — siehe Auftragsverarbeiter.
       </p>
+      {/*
+        * **Der Weg zum Modellregister** (V-120). Diese Seite sagt, ob das
+        * Sprachmodell verbunden IST; sie sagt nicht, wo man es freigibt. Bis
+        * es die Seite gab, war die Antwort auf diese Frage eine
+        * handgeschriebene SQL-Anweisung in `docs/EINRICHTEN-*.md` §9 — und
+        * genau dort ist ein Betreiber stehengeblieben.
+        */}
+      <nav aria-label="Weiter" className="mb-s5 flex flex-wrap gap-s2">
+        <Link
+          href={`/portal/${mandant}/einstellungen/modelle`}
+          data-cse="zum-modellregister"
+          className="inline-flex min-h-11 items-center rounded-md border border-line
+                     px-s3 text-sm text-text-muted transition-colors duration-fast
+                     hover:border-line-strong hover:text-text"
+        >
+          Sprachmodelle freigeben
+        </Link>
+      </nav>
+
       <div data-cse="integrationen">
         <DataTable
           beschriftung="Anbindungen und ihr Zustand"

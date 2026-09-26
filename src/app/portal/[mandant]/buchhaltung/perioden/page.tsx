@@ -72,7 +72,7 @@ export default async function Perioden(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="buchhaltung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -135,7 +135,7 @@ export default async function Perioden(
                 ) : status === 'vorlaeufig_geschlossen' ? (
                   <>
                     <Button type="submit" name="art" value="oeffnen" variante="ghost">Wieder öffnen</Button>
-                    <Button type="submit" name="art" value="endgueltig" variante="primary" disabled={!vorbei}
+                    <Button type="submit" name="art" value="endgueltig" variante="secondary" disabled={!vorbei}
                             title={vorbei ? undefined : 'Der Monat läuft noch'}>
                       Schließen
                     </Button>
@@ -143,7 +143,7 @@ export default async function Perioden(
                 ) : (
                   <>
                     <Button type="submit" name="art" value="vorlaeufig" variante="secondary">Vorläufig schließen</Button>
-                    <Button type="submit" name="art" value="endgueltig" variante="primary" disabled={!vorbei}
+                    <Button type="submit" name="art" value="endgueltig" variante="secondary" disabled={!vorbei}
                             title={vorbei ? undefined : 'Der Monat läuft noch'}>
                       Schließen
                     </Button>

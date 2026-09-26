@@ -18,6 +18,7 @@
  * eigenen Zertifikate mit persoenlicher Ablaufwarnung sieht.
  */
 import { sicherRegistriert, type ArtDefinition } from '../../benachrichtigung/registry.js';
+import { setze, texteFuer } from '../../../lib/i18n/benachrichtigung.js';
 
 /**
  * Die drei Stufen, die SPEC §14 woertlich nennt.
@@ -47,22 +48,35 @@ export function artSchluessel(stufe: number): string {
 
 const ZIEL = '/portal/mein/nachweise';
 
+/**
+ * **Die Warnung steht in der Sprache der Empfängerin** (V-102, O-889).
+ *
+ * Diese Meldung geht an einen ARBEITER, und sie kündigt eine Sperre nach
+ * § 34a GewO an: ab dem genannten Tag ist keine Einteilung mehr möglich. Das
+ * Arbeiterportal steht in vier Sprachen, weil die Menschen dort nicht alle
+ * Deutsch lesen — die eine Meldung, die ihnen sagt, dass sie nicht mehr
+ * arbeiten können, stand nur auf Deutsch da.
+ *
+ * `person.sprache` kommt vom Erzeuger herein (`ablauf.ts`); fehlt sie, gilt
+ * Deutsch. Die Bezeichnung der Qualifikation bleibt, wie sie ist: sie zu
+ * übersetzen hiesse, sie zu erfinden.
+ */
 function stufenArt(stufe: Warnstufe): ArtDefinition {
   return ({
     schluessel: artSchluessel(stufe),
-    titel: (k) =>
-      `Nachweis läuft in ${String(stufe)} Tagen ab: `
-      + `${String(k.daten['bezeichnung'] ?? 'unbenannt')}`,
+    titel: (k) => setze(texteFuer(k.sprache).nachweisAblauf.titel, {
+      tage: stufe,
+      nachweis: String(k.daten['bezeichnung'] ?? 'unbenannt'),
+    }),
     text: (k) => {
-      const bis = String(k.daten['gueltigBis'] ?? 'unbekannt');
+      const t = texteFuer(k.sprache).nachweisAblauf;
       const sperrt = k.daten['blockiertEinsatz'] === true;
-      return `Der Nachweis „${String(k.daten['bezeichnung'] ?? 'unbenannt')}" ist nur noch `
-        + `bis zum ${bis} gültig.`
-        + (sperrt
-          // Kein Schoenreden: SEC-04 ist eine Hartsperre, keine Warnung.
-          ? ' Ohne gültigen Nachweis ist ab diesem Tag keine Einteilung mehr möglich '
-            + '(§34a GewO).'
-          : ' Bitte rechtzeitig verlängern.');
+      return setze(t.text, {
+        nachweis: String(k.daten['bezeichnung'] ?? 'unbenannt'),
+        bis: String(k.daten['gueltigBis'] ?? 'unbekannt'),
+      })
+        // Kein Schoenreden: SEC-04 ist eine Hartsperre, keine Warnung.
+        + (sperrt ? t.sperrt : t.verlaengern);
     },
     ziel: () => ZIEL,
     kanaeleVorgabe: ['app', 'email'],

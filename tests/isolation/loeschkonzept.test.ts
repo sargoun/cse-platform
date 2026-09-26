@@ -18,6 +18,7 @@ import {
   alsMarkdown, erstelleLoeschkonzept,
 } from '../../src/server/services/datenschutz/loeschkonzept.js';
 import { registriereBewerberLoeschung } from '../../src/server/jobs/bewerberLoeschung.js';
+import { registriereDokumentAufbewahrung } from '../../src/server/jobs/dokumentAufbewahrung.js';
 import { jobs as register, leereRegister, type JobDefinition } from '../../src/server/jobs/registry.js';
 import { KEIN_HARD_DELETE } from '../../src/server/db/schema/rls.js';
 
@@ -65,6 +66,7 @@ beforeEach(async () => {
   benutzer = await legeAdministrationAn(f.reinigung);
   leereRegister();
   registriereBewerberLoeschung(sql);
+  registriereDokumentAufbewahrung(sql);
   jobs = register();
 });
 
@@ -79,6 +81,31 @@ describe('das Löschkonzept (LEG-09)', () => {
     expect(lauf?.zeitplan).toBe(
       jobs.find((j) => j.schluessel === 'bewerber_loeschung')?.zeitplan);
     expect(lauf?.wirkung).toMatch(/anonymisiert/iu);
+  });
+
+  /**
+   * **Und den Lauf, der die Dokumentfrist einlöst** (V-116).
+   *
+   * Er fehlte, und das Konzept nannte trotzdem je Klasse eine Frist. Wer das
+   * liest, liest eine Zusage: nach dieser Frist ist das Dokument fort. Es
+   * war niemand da, der sie einlöst — und eine Frist, die nur ABLÄUFT, ist
+   * nach Art. 5 Abs. 1 lit. e DSGVO genau der Zustand, den man nicht haben
+   * darf.
+   */
+  it('nennt auch den Lauf, der die abgelaufene Dokumentfrist einlöst', async () => {
+    const k = await alsApp(sitzung(), (tx) =>
+      erstelleLoeschkonzept(kontextAus(tx), jobs, JETZT));
+    const lauf = k.laeufe.find((l) => l.schluessel === 'dokument_aufbewahrung');
+    expect(lauf, 'der Aufbewahrungslauf fehlt').toBeDefined();
+    expect(lauf?.zeitplan).toBe(
+      jobs.find((j) => j.schluessel === 'dokument_aufbewahrung')?.zeitplan);
+    /*
+     * Die Wirkung muss die GRENZE mitnennen und nicht nur die Löschung:
+     * „was NICHT gelöscht wird, und warum“ ist die Hälfte, an der eine
+     * Auskunft scheitert.
+     */
+    expect(lauf?.wirkung).toMatch(/Löschsperre/u);
+    expect(lauf?.wirkung).toMatch(/Buchungszeile/u);
   });
 
   /**

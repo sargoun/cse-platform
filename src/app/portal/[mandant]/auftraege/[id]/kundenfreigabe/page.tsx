@@ -4,8 +4,11 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import {
-  ladeFreigabestand, listeAnsprechpartner, listeKundendokumente,
+  freigabeGilt, ladeFreigabestand, listeAnsprechpartner, listeKundendokumente,
+  referenzfaehig, referenzHindernis,
 } from '@/server/services/auftrag/kundenfreigabe';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { WEBSITE_REFERENZ_TEXTE } from '@/lib/i18n/verwaltung/website-referenz';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
@@ -14,6 +17,8 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { FELD, FEHLERTEXT, PLATZHALTER_WORTLAUT } from './daten';
+import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/auftraege/[id]/kundenfreigabe` — die schriftliche
@@ -83,7 +88,8 @@ export default async function Kundenfreigabe(
   const { stand, ansprechpartner, dokumente } = daten;
 
   const widerrufen = stand.widerrufen_am !== null;
-  const gilt = stand.freigegeben && !widerrufen;
+  const gilt = freigabeGilt(stand);
+  const tReferenz = nachSprache(WEBSITE_REFERENZ_TEXTE, zugang.sprache);
   /**
    * Erfassen darf, wer KEINE GELTENDE Freigabe vor sich hat — nicht: wer keine
    * Freigabe vor sich hat.
@@ -107,18 +113,10 @@ export default async function Kundenfreigabe(
       aktiverTab="auftraege"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['auftrag.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/auftraege/${id}`, text: stand.auftragsnummer } }
+        : {})}
     >
-      {darf['auftrag.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/auftraege/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← {stand.auftragsnummer}
-          </Link>
-        </nav>
-      )}
-
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">Kundenfreigabe</h1>
         <StatusPill
@@ -135,7 +133,7 @@ export default async function Kundenfreigabe(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="freigabe-fehler" className="mb-s5">
           <strong>Nichts wurde erfasst.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 
@@ -322,7 +320,7 @@ export default async function Kundenfreigabe(
             )}
             {!stand.darf_dokument_lesen && (
               <li>
-                Ihnen fehlt <code className="text-text">dokument.lesen</code>; ob
+                Ihnen fehlt <Recht schluessel="dokument.lesen" />; ob
                 ein Schreiben hinterlegt ist, lässt sich von hier aus nicht
                 sehen — und das heißt nicht, dass keines da ist.
               </li>
@@ -388,13 +386,44 @@ export default async function Kundenfreigabe(
         entscheidet dabei, <em>was</em> öffentlich wird — übernommen werden nur
         Titel, Bereich, Stadt, Beschreibung und freigegebene Fotos, nie
         Auftragswert, Ansprechpartner oder Vertragsinhalte.
+        {/*
+          * **Der Weg dorthin (V-154, V-161).** Dieser Absatz versprach die
+          * Anlage, und es gab sie nicht. Jetzt führt er hin — nur, wenn aus
+          * dem Auftrag eine Referenz entstehen DARF (`referenzfaehig`:
+          * geltende Freigabe UND abgeschlossen, PRO-05), nur mit
+          * `referenz.schreiben` (das Tor der Zielseite) und nicht in der
+          * Gruppenansicht. Gilt die Freigabe, läuft der Auftrag aber noch,
+          * sagt der Absatz, wann der Weg aufgeht, statt ihn stumm
+          * wegzulassen. Vorbelegt werden Titel und Kundenname; die Freigabe
+          * der Referenz trägt ein Mensch selbst ein.
+          */}
+        {referenzfaehig(stand) && darf['referenz.schreiben'] === true
+          && sitzung.ansicht !== 'gruppe' && (
+          <p className="mt-s3 mb-0">
+            <Link
+              href={`/portal/${mandant}/website/referenzen/neu?auftrag=${id}`}
+              data-cse="referenz-aus-auftrag"
+              className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2"
+            >
+              {tReferenz.ausAuftragAnlegen}
+            </Link>
+          </p>
+        )}
+        {gilt && referenzHindernis(stand) === 'nicht_abgeschlossen' && (
+          <p className="mt-s3 mb-0 text-text-muted" data-cse="referenz-erst-nach-abschluss">
+            {tReferenz.erstNachAbschluss}
+          </p>
+        )}
         {stand.darf_referenz_lesen ? (
           <p className="mt-s3 mb-0">
+            <span className="block" data-cse="referenzen-aus-auftrag">
+              {tReferenz.ausDiesemAuftragAnzahl(Number(stand.referenzen_aus_auftrag))}
+            </span>
             Es {Number(stand.referenz_gleichnamig) === 1 ? 'gibt' : 'gibt'}{' '}
             <strong>{stand.referenz_gleichnamig}</strong> Referenz(en) mit dem
             Kundennamen „{stand.kunde}". Das ist ein <em>Hinweis</em>, keine
             Zuordnung: <code>referenz</code> führt den Kundennamen als freien
-            Text und keinen Verweis auf den Auftrag.
+            Text — zugeordnet ist nur, was aus diesem Auftrag angelegt wurde.
             {darf['referenz.schreiben'] === true ? (
               <>
                 {' '}
@@ -411,7 +440,7 @@ export default async function Kundenfreigabe(
         ) : (
           <p className="mt-s3 mb-0 text-text-muted">
             Ob es schon eine öffentliche Referenz gibt, ist Ihnen nicht sichtbar —
-            dafür fehlt <code className="text-text">referenz.lesen</code>.
+            dafür fehlt <Recht schluessel="referenz.lesen" />.
           </p>
         )}
       </Hinweis>

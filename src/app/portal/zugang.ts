@@ -4,15 +4,22 @@ import type postgres from 'postgres';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { pruefeZugang, rechtepruefer, PORTAL_START } from '@/server/auth/zugang';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import { bindeAnfrage, gruppenMandanten, rolleImMandanten } from '@/server/kontext/index';
-import { GRUPPEN_NAVIGATION, NAVIGATION } from '@/server/registry/navigation';
+import {
+  GRUPPEN_NAVIGATION, KUNDEN_NAVIGATION, NAVIGATION,
+} from '@/server/registry/navigation';
 import { modulAktiv, type Modulbuchung } from '@/server/registry/modul';
-import { familie, findeRoute } from '@/server/registry/routen';
-import { leisteFuer, tableiste, type LeistenSchluessel }
+import { familie, findeRoute, routeGesperrt } from '@/server/registry/routen';
+import { istInterneLeiste, leisteFuer, tableiste, type LeistenSchluessel }
   from '@/server/registry/tableiste';
-import { istPortalSprache, type PortalSprache } from '@/lib/i18n/texte';
+import { umschalterStand, type UmschalterStand } from '@/server/services/mandant/umschalter';
+import type { PortalSprache } from '@/lib/i18n/texte';
+import { leseEigeneSprache } from '@/server/konto/sprache';
 import type { Sitzung } from '@/server/kontext/index';
 import { merkeHuelle } from './huellen-speicher';
+import { rueckwegFuer, rueckwegRechte, type RueckwegZiel }
+  from '@/server/registry/rueckweg';
 
 /**
  * Was jede Portalseite zuerst tut: Sitzung holen, Tor fragen, Antwort befolgen.
@@ -100,6 +107,15 @@ export interface PortalZugang {
    * Wechselblatt; die Seite selbst rendert nichts von ihrem Inhalt.
    */
   readonly wechselZiel: WechselZiel | null;
+  /**
+   * Der Weg zurueck — abgeleitet aus der Adresse, geprueft gegen die Rechte
+   * seines Ziels (DESIGN §5 „The way back", D-613, V-108).
+   *
+   * `null` heisst „hier gehoert keiner hin" ODER „das Ziel darf diese Sitzung
+   * nicht oeffnen". Die Huelle unterscheidet beides nicht und soll es auch
+   * nicht: in beiden Faellen steht kein Pfeil da.
+   */
+  readonly rueckweg: RueckwegZiel | null;
 }
 
 export interface WechselZiel {
@@ -117,6 +133,11 @@ interface Befund {
   readonly modulGesperrt: boolean;
   readonly sprache: PortalSprache | null;
   readonly wechselZiel: WechselZiel | null;
+  readonly rueckweg: RueckwegZiel | null;
+  /** Gesetzt, wenn die Rolle den zweiten Faktor verlangt und er fehlt (V-136). */
+  readonly faktorSchritt?: 'pruefen' | 'einrichten';
+  /** Die Bereiche dieser Anmeldung fuer die Kopfzeile (V-165); nur bei `erlaubt`. */
+  readonly umschalter?: UmschalterStand;
 }
 
 /**
@@ -153,6 +174,34 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
       (await tx.unsafe(q, w as never[])) as readonly T[];
 
     await bindeAnfrage(tx, sitzung);
+    /**
+     * **Erst der zweite Faktor, dann alles andere** (AUT-02, V-136).
+     *
+     * Die Anmeldung leitet ein Konto mit `admin` oder `super_admin` nach dem
+     * Kennwort auf den Faktor-Schritt — aber eine Weiterleitung ist keine
+     * Pflicht: wer statt dessen eine Portaladresse aufrief, arbeitete bis
+     * V-136 mit `aal1` und allen Rechten seiner Rolle. Die Datenbank gewährt
+     * einer solchen Rolle ohne `aal2` jetzt nichts mehr (0395); hier bekommt
+     * der Mensch dazu die richtige Antwort: den Faktor-Schritt mit Rückweg,
+     * nicht ein 404 auf jeder Seite. Eine Auskunft über die Seite ist das
+     * nicht — die Antwort ist für jede Adresse dieselbe.
+     *
+     * Nur für `aal1`: eine `aal2`-Sitzung spart sich die Frage, und `leitung`,
+     * `mitarbeiter` und `kunde` verlangen keinen Faktor (K-15).
+     */
+    if (sitzung.aal !== 'aal2') {
+      const [f] = await abfrage<{ pflicht: boolean; faktor: boolean }>(
+        `select app.faktor_pflicht() as pflicht,
+                app.hat_zweiten_faktor(app.aktueller_benutzer()) as faktor`);
+      if (f?.pflicht === true) {
+        return {
+          entscheidung: { art: 'zweiter_faktor' }, rolle: null, mandanten: [],
+          sichtbareTabs: {}, navigationsRechte: {}, mandantSlug: null, modulGesperrt: false,
+          sprache: null, wechselZiel: null, rueckweg: null,
+          faktorSchritt: f.faktor ? 'pruefen' : 'einrichten',
+        } satisfies Befund;
+      }
+    }
     /**
      * Im Gruppen-Scope IST `app.mandant_ids` die sichtbare Menge
      * (`0004_rls_baseline.sql`). Sie muss also stehen, BEVOR das Tor fragt —
@@ -196,7 +245,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
         return {
           entscheidung: { art: 'erlaubt' }, rolle: null, mandanten, sichtbareTabs: {},
           navigationsRechte: {}, mandantSlug: null, modulGesperrt: false, sprache: null,
-          wechselZiel: { slug: zielSlug, name: z.name ?? zielSlug },
+          wechselZiel: { slug: zielSlug, name: z.name ?? zielSlug }, rueckweg: null,
         } satisfies Befund;
       }
     }
@@ -207,28 +256,34 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
       return {
         entscheidung, rolle: null, mandanten, sichtbareTabs: {}, navigationsRechte: {},
         mandantSlug: null, modulGesperrt: false, sprache: null, wechselZiel: null,
+        rueckweg: null,
       } satisfies Befund;
     }
 
     const rolle = await rolleImMandanten(tx, sitzung);
     /*
+     * **Die Bereiche fuer die Kopfzeile — in DIESER Transaktion** (TEN-06,
+     * TEN-10, DESIGN §6, V-165).
+     *
+     * Der Rahmen zeigt den Umschalter nur bei mehr als einem Bereich und den
+     * Verweis auf die Bereichswahl ebenso; beides fragt er hier ab und nicht
+     * selbst — die Bindung steht nur hier. Zaehler und Gruppenrecht nur fuer
+     * die internen Leisten: das Mitarbeiter- und das Kundenportal tragen
+     * keinen Umschalter, nur den Verweis (D-659 Nr. 4, D-660).
+     */
+    const intern = istInterneLeiste(leisteFuer(sitzung.portal, sitzung.ansicht, rolle));
+    const umschalter = await umschalterStand({ abfrage }, { gruppe: intern, zaehler: intern });
+    /*
      * Die Sprache der Person — in DERSELBEN gebundenen Transaktion, unter
      * `t_person_lesen`: die eigene Zeile darf jede Sitzung lesen. Faellt die
-     * Abfrage leer aus, bleibt es bei Deutsch statt bei einem Fehler.
+     * Abfrage leer aus, bleibt es bei Deutsch statt bei einem Fehler. Kein
+     * Mensch hinter dem Konto: dann ist `benutzer.sprache` die Quelle — die
+     * Regel steht EINMAL, in `konto/sprache.ts`, denn die Bereichswahl fragt
+     * seit V-165 dasselbe.
      */
-    const [sp] = sitzung.personId !== null
-      ? await abfrage<{ sprache: string | null }>(
-        `select sprache from person where id = $1`, [sitzung.personId])
-      /*
-       * Kein Mensch hinter dem Konto: dann ist `benutzer.sprache` die Quelle.
-       * Die eigene Zeile darf jede Sitzung lesen (`t_benutzer_lesen`,
-       * `id = app.aktueller_benutzer()`) — und nur die eigene, weshalb hier
-       * kein `where` auf eine fremde id moeglich waere.
-       */
-      : await abfrage<{ sprache: string | null }>(
-        `select sprache from benutzer where id = $1`, [sitzung.benutzerId]);
-    const rohSprache = sp?.sprache ?? '';
-    const sprache = istPortalSprache(rohSprache) ? rohSprache : null;
+    const sprache = await leseEigeneSprache({
+      abfrage, personId: sitzung.personId, benutzerId: sitzung.benutzerId,
+    });
     /**
      * Slug UND gebuchte Module in EINER Abfrage — sie stehen in derselben
      * Zeile, und eine zweite Rundreise fuer eine Spalte daneben waere eine
@@ -255,6 +310,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * zweite Rundreise auf jedem Seitenaufruf, und ausserhalb dieser
      * gebundenen Transaktion antwortete `app.hat_recht` ohnehin `false`.
      */
+    const rueckweg = rueckwegFuer(pfad);
     const gefragt = [...new Set([
       ...ziele.map((z) => z.recht).filter((r): r is string => r !== null),
       ...NAVIGATION.map((n) => n.recht),
@@ -267,6 +323,32 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
        * dazukaeme, waere es leer, und niemand saehe warum.
        */
       ...GRUPPEN_NAVIGATION.map((n) => n.recht),
+      /*
+       * **Und die Rechte des KUNDENbaums** (V-043).
+       *
+       * Er war der dritte, den niemand fragte — und die Folge war dieselbe
+       * wie bei den Gruppenrechten: jeder Punkt `undefined`, also
+       * unsichtbar. `zusatzRecht` kommt mit, weil zwei Kundenrouten ZWEI
+       * Leserechte verlangen (`rechnungen`, `nachweise`) und `pruefeZugang`
+       * sie mit UND verknuepft; ein Punkt, der nur das erste prueft, fuehrte
+       * auf 404 (AUT-06, D-581).
+       */
+      ...KUNDEN_NAVIGATION.flatMap(
+        (n) => (n.zusatzRecht === undefined ? [n.recht] : [n.recht, n.zusatzRecht])),
+      /*
+       * **Und die Rechte des RUECKWEGZIELS** (AUT-06, D-613, V-108).
+       *
+       * Der Rueckweg wird aus der Adresse abgeleitet (`rueckwegFuer`), nicht
+       * je Seite geschrieben. Sein Ziel ist aber eine echte Seite mit einem
+       * echten Recht — ein Pfeil darauf, den der Benutzer nicht oeffnen darf,
+       * fuehrt auf einen 404 und verraet damit, dass es sie gibt.
+       *
+       * Gefragt wird HIER und nicht in der Huelle: das Tor haelt die Sitzung
+       * und die gebundene Transaktion, die Huelle keines von beiden. Und es
+       * kostet nichts — die Schluessel wandern in dieselbe Rundreise, die
+       * ohnehin laeuft.
+       */
+      ...(rueckweg === null ? [] : rueckwegRechte(rueckweg.muster)),
     ])];
     const gehalten = await pruefer.hatRechte(gefragt, sitzung.aktiverMandantId);
     /**
@@ -326,8 +408,20 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * deshalb die Liste, die zu ihr gehoert — und nicht beide in eine Karte.
      */
     const navigationsRechte: Record<string, boolean> = {};
-    for (const n of sitzung.ansicht === 'gruppe' ? GRUPPEN_NAVIGATION : NAVIGATION) {
-      navigationsRechte[n.schluessel] = gehalten.has(n.recht) && frei(n.recht);
+    /*
+     * DREI Baeume, nicht zwei (V-043). Eine Sitzung gehoert zu genau einem:
+     * Gruppenansicht, Kundenportal oder internes Portal. Beide anderen in
+     * dieselbe Karte zu legen waere ein Punkt, der in der falschen Leiste
+     * auftaucht.
+     */
+    const baum = sitzung.ansicht === 'gruppe' ? GRUPPEN_NAVIGATION
+      : sitzung.portal === 'kunde' ? KUNDEN_NAVIGATION
+      : NAVIGATION;
+    for (const n of baum) {
+      navigationsRechte[n.schluessel] = gehalten.has(n.recht) && frei(n.recht)
+        /* Beide Rechte, wo die Route beide verlangt — UND, nicht ODER. */
+        && (n.zusatzRecht === undefined
+          || (gehalten.has(n.zusatzRecht) && frei(n.zusatzRecht)));
     }
 
     /**
@@ -351,17 +445,32 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * ungebuchtes Modul, um die Seite unerreichbar zu machen. Dieselbe
      * Semantik, nur eine Frage frueher.
      */
-    const route = findeRoute(pfad);
-    const bewachung = route?.bewachung;
-    const modulGesperrt = bewachung !== undefined && bewachung.art === 'recht'
-      && [...bewachung.lesen, ...bewachung.schreiben].some((r) => !modulAktiv(buchung, r));
+    /*
+     * Der Rueckweg gilt nur, wenn ALLE Leserechte seines Ziels gehalten
+     * werden UND das Modul gebucht ist — dieselbe UND-Verknuepfung wie beim
+     * Menuepunkt. Faellt eines, gibt es keinen Pfeil; eine Seite ohne
+     * Rueckweg ist unbequem, ein Pfeil auf einen 404 ist eine Auskunft.
+     */
+    const rueckwegErlaubt = rueckweg !== null
+      && rueckwegRechte(rueckweg.muster).every((r) => gehalten.has(r) && frei(r));
+
+    /*
+     * Dieselbe Funktion fragt die Übersicht, bevor sie eine Kachel zeigt
+     * (V-151, D-645) — eine Regel an zwei Stellen liefe auseinander.
+     */
+    const modulGesperrt = routeGesperrt(findeRoute(pfad), buchung);
     return {
       entscheidung, rolle, mandanten, sichtbareTabs, navigationsRechte,
       mandantSlug: m?.slug ?? null, modulGesperrt, sprache, wechselZiel: null,
+      rueckweg: rueckwegErlaubt ? rueckweg : null, umschalter,
     } satisfies Befund;
   }) as Promise<Befund>);
 
   const { entscheidung } = befund;
+  if (befund.faktorSchritt !== undefined) {
+    redirect(alsRoute(
+      `/auth/zwei-faktor/${befund.faktorSchritt}?weiter=${encodeURIComponent(pfad)}`));
+  }
   /**
    * **Ein nicht gebuchtes Modul sieht aus wie eine Seite, die es nicht gibt**
    * — und fuer diese Gesellschaft ist es das auch (D-377, AUT-06).
@@ -410,7 +519,13 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
    * faellt, rendert keine Huelle, und ein Wert im Kasten waere dort nur ein
    * Rest der vorigen Zeile im Code.
    */
-  merkeHuelle(befund.sprache, pfad);
+  merkeHuelle(befund.sprache, pfad, befund.rueckweg === null ? null : {
+    ziel: befund.rueckweg.ziel, segment: befund.rueckweg.segment,
+  }, befund.umschalter === undefined ? null : {
+    stand: befund.umschalter,
+    aktiverMandantId: sitzung.aktiverMandantId,
+    gruppenansicht: sitzung.ansicht === 'gruppe',
+  });
 
   return {
     sitzung,
@@ -419,6 +534,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     gruppenMandanten: befund.mandanten,
     sichtbareTabs: befund.sichtbareTabs,
     navigationsRechte: befund.navigationsRechte,
+    rueckweg: befund.rueckweg,
     mandantSlug: befund.mandantSlug,
     modulGesperrt: befund.modulGesperrt,
     sprache: befund.sprache,

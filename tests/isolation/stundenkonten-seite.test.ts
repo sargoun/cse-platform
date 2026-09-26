@@ -227,3 +227,30 @@ describe('Liste, Einzelzeile und Jahr sagen dasselbe', () => {
     expect(ausListe.saldoMinuten).toBe(ausJahr.saldoMinuten);
   });
 });
+
+describe('der Weg von der Zahl zu den Einträgen (V-070)', () => {
+  it('die Liste trägt die PERSON, nicht nur die Beschäftigung', async () => {
+    /*
+     * Der Abschluss meldete „3 Zeiteinträge sind nicht freigegeben" und
+     * konnte auf nichts zeigen: die Zeitliste filtert über `person_id`, und
+     * die Kontozeile führte nur `anstellung_id`. Ohne die Person liesse sich
+     * der Verweis nicht bauen — und ein Satz ohne Weg ist genau der Befund.
+     *
+     * **Die Person und nicht die Beschäftigung ist auch fachlich richtig:**
+     * wer zwei Beschäftigungen hat (D-09), soll beide Reihen sehen. Das
+     * Arbeitszeitgesetz rechnet über den Menschen.
+     */
+    const b = await planer(f.reinigung);
+    await zeiteintrag({
+      anstellung: f.fatimaReinigung, person: f.fatima,
+      von: '2026-05-06T06:00:00Z', bis: '2026-05-06T14:00:00Z' });
+
+    const liste = await alsApp(sitzung(b), async (tx) =>
+      leseMonatsliste(kontextAus(tx, b), ERSTER));
+    const zeile = liste.find((z) => z.anstellungId === f.fatimaReinigung);
+    expect(zeile).toBeDefined();
+    expect(zeile!.personId).toBe(f.fatima);
+    // Und die Zahl, auf die der Verweis zeigt, ist wirklich > 0.
+    expect(zeile!.offeneZeiten).toBeGreaterThan(0);
+  });
+});

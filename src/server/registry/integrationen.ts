@@ -1,6 +1,7 @@
 import { devFlaechenAn } from '../../lib/dev-flaechen.js';
 import { smsDienst } from '../auth/sms.js';
-import { SupabaseSpeicher } from '../storage/adapter.js';
+import { OrdnerSpeicher } from '../storage/ordner.js';
+import { waehleSpeicher } from '../storage/waehle.js';
 import { wetterPort } from '../versand/dwd.js';
 import { ALTSYSTEME, migrationPort } from '../integrationen/migration.js';
 
@@ -51,19 +52,35 @@ export interface Anbindung {
 }
 
 export function anbindungen(): readonly Anbindung[] {
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
   const wetter = wetterPort();
   const sms = smsDienst(devFlaechenAn());
   return [
-    {
-      schluessel: 'speicher', name: 'Supabase Storage (EU, Frankfurt)',
-      zweck: 'Dokumente, Archiv, Einsatzmedien — private Buckets, signierte Adressen (DOC-03)',
-      stand: speicher.verbunden ? 'verbunden' : 'nicht_verbunden',
-      hinweis: speicher.verbunden
-        ? 'Adresse und Dienstschlüssel sind gesetzt; Dateien gehen in private Buckets.'
-        : 'Ohne SUPABASE_URL und Dienstschlüssel lehnt der Speicher jede Ablage ab — es wird nichts lokal vorgetäuscht.',
-      offen: null,
-    },
+    /*
+     * V-131, D-623: der Vorführordner heisst hier „Entwicklung" und nicht
+     * „verbunden". Die Datei liegt wirklich da — aber auf DIESEM Rechner, in
+     * keiner gewählten Region und unter keinem Vertrag. Wer den Bildschirm
+     * liest, soll das nicht für Supabase halten.
+     */
+    speicher instanceof OrdnerSpeicher
+      ? {
+        schluessel: 'speicher', name: 'Vorführspeicher (Ordner auf diesem Rechner)',
+        zweck: 'Dokumente, Archiv, Einsatzmedien, Markenbilder — nur für die Vorführung',
+        stand: 'entwicklung',
+        hinweis: 'CSE_SPEICHER_ORDNER ist gesetzt: Dateien liegen im Ordner dieses Rechners und '
+          + 'kommen nur über ablaufende, signierte Adressen heraus. Kein Ersatz für Supabase — '
+          + 'auf Vercel und ohne CSE_DEV_FLAECHEN gibt es ihn nicht.',
+        offen: null,
+      }
+      : {
+        schluessel: 'speicher', name: 'Supabase Storage (EU, Frankfurt)',
+        zweck: 'Dokumente, Archiv, Einsatzmedien, Markenbilder — private Buckets, signierte Adressen (DOC-03)',
+        stand: speicher.verbunden ? 'verbunden' : 'nicht_verbunden',
+        hinweis: speicher.verbunden
+          ? 'Adresse und Dienstschlüssel sind gesetzt; Dateien gehen in private Buckets.'
+          : 'Ohne SUPABASE_URL und Dienstschlüssel lehnt der Speicher jede Ablage ab — es wird nichts vorgetäuscht.',
+        offen: null,
+      },
     {
       schluessel: 'datev', name: 'DATEV',
       zweck: 'Buchungsstapel und Belege für den Steuerberater (ACC-08)',

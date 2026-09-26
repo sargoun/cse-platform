@@ -15,6 +15,7 @@ import {
 } from '@/server/services/kern/nachricht';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../unterseite';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/nachrichten` — der Fadenposteingang (EMP-11, CRM-03,
@@ -138,7 +139,7 @@ export default async function Nachrichtenliste(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="nachrichten"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -205,7 +206,7 @@ export default async function Nachrichtenliste(
         {!darfVersenden ? (
           <p data-cse="eroeffnen-fehlt" className="mt-s3 max-w-prose text-sm text-text-muted">
             Zum Eröffnen eines Fadens fehlt das Recht{' '}
-            <code>nachricht.versenden</code>. Mitlesen bleibt möglich — wer in
+            <Recht schluessel="nachricht.versenden" />. Mitlesen bleibt möglich — wer in
             einem Vorgang steht, soll den Schriftverkehr kennen.
           </p>
         ) : (

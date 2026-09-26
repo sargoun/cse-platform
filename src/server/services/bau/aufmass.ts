@@ -561,6 +561,8 @@ export async function hefteFotoAn(
  * das der Browser mitschickt (CLN-04-Muster, Review B25): nur so bezeugt der
  * Digest, was der Server angezeigt hat.
  */
+export type SignaturRolle = 'auftraggeber' | 'auftragnehmer';
+
 export async function gegenzeichne(
   kontext: SchreibKontext,
   eingabe: {
@@ -570,10 +572,65 @@ export async function gegenzeichne(
     readonly vorbehalt?: string | null;
     readonly signaturMedienId?: string | null;
     readonly geraeteZeit?: string | null;
+    /**
+     * **Wer unterschreibt** (V-093). Vorgabe `auftraggeber` — die gemeinsame
+     * Feststellung nach § 14 Abs. 1 VOB/B ist der Regelfall, und jeder
+     * bisherige Aufrufer meint sie.
+     *
+     * `auftragnehmer` ist die EINSEITIGE Feststellung nach § 14 Abs. 2: der
+     * Auftraggeber ist trotz Aufforderung nicht erschienen, und der
+     * Auftragnehmer stellt allein fest. `kern.aufmass_status_setzen` (0072)
+     * hebt das Blatt dann auf `einseitig_festgestellt` — **aber nur, wenn
+     * `erhebungsart = 'einseitig'` UND `ankuendigung_am` gesetzt ist.** Ohne
+     * beides passiert nichts, und genau das war die Sackgasse: die
+     * Erhebungsart war im Anlegeformular wählbar, die Ankündigung nirgends
+     * eintragbar, und der Zustand damit unerreichbar.
+     */
+    readonly rolle?: SignaturRolle;
+    /**
+     * Der Tag, an dem zur gemeinsamen Feststellung aufgefordert wurde
+     * (§ 14 Abs. 2 VOB/B). Er wird VOR der Unterschrift auf den Kopf
+     * geschrieben, weil der Auslöser ihn dort liest.
+     *
+     * **Eine Frist prüft die Plattform nicht** — wie lange vorher
+     * aufgefordert werden muss, ist offen (O-156), und eine hier erfundene
+     * Frist sähe im Werklohnprozess wie eine vereinbarte aus.
+     */
+    readonly ankuendigungAm?: string | null;
+    /**
+     * Die Beschäftigung des Unterzeichners — nur bei `auftragnehmer`, und
+     * dort PFLICHT: `as_auftragnehmer_hat_anstellung` (0072) verlangt sie,
+     * weil ein Auftraggeber keine Beschäftigung bei uns hat (D-09).
+     *
+     * Bleibt sie leer, greift `aufmass.aufgenommen_von_anstellung_id` — wer
+     * gemessen hat, ist der naheliegende Feststellende. Fehlt auch die, weist
+     * die Bedingung ab, und der Satz unten sagt warum.
+     */
+    readonly anstellungId?: string | null;
   },
 ): Promise<{ readonly status: AufmassStatus; readonly hash: string }> {
-  const stand = await ladeVorlageStand(kontext, eingabe.aufmassId);
+  let stand = await ladeVorlageStand(kontext, eingabe.aufmassId);
   if (stand === null) throw new AufmassFehler('nicht_gefunden', 'Aufmass nicht gefunden.');
+
+  /*
+   * **Die Ankündigung wird VOR `pruefeVorlage` geschrieben** (V-093), und das
+   * ist die ganze Pointe: `pruefeVorlage` meldet `keine_ankuendigung` als
+   * Hindernis, die Seite zeigt den Satz, und **es gab keinen Weg, ihn
+   * abzustellen.** Die Erhebungsart war im Anlegeformular wählbar, die
+   * Ankündigung nirgends eintragbar — das Blatt lag fest, mit einem
+   * korrekten Hinweis darauf, was fehlte.
+   *
+   * Geschrieben wird nur, wenn noch keine dasteht: eine einmal erklärte
+   * Aufforderung wird nicht umdatiert.
+   */
+  const angekuendigt = (eingabe.ankuendigungAm ?? '').trim();
+  if (angekuendigt !== '' && stand.ankuendigungAm === null && stand.erhebungsart === 'einseitig') {
+    await kontext.schreibe(
+      `update aufmass set ankuendigung_am = $2::date
+        where id = $1::uuid and gesperrt_am is null`,
+      [eingabe.aufmassId, angekuendigt]);
+    stand = { ...stand, ankuendigungAm: angekuendigt };
+  }
 
   /**
    * Ein bereits festgestelltes Blatt wird nicht ein zweites Mal unterschrieben.
@@ -597,6 +654,31 @@ export async function gegenzeichne(
       hindernisse[0] as VorlageHindernis,
       hindernisse.map((h) => HINDERNIS_TEXT[h]).join(' '),
     );
+  }
+
+  const rolle: SignaturRolle = eingabe.rolle ?? 'auftraggeber';
+  if (rolle === 'auftragnehmer') {
+    /*
+     * **Die einseitige Feststellung setzt beides voraus** — die Erhebungsart
+     * und die Ankündigung. Der Auslöser prüft sie ebenfalls und täte sonst
+     * einfach nichts: das Blatt bliebe auf `vorgelegt` stehen, mit einer
+     * Unterschrift darunter und ohne dass jemand erführe, warum.
+     */
+    if (stand.erhebungsart !== 'einseitig') {
+      throw new AufmassFehler(
+        'gesperrt',
+        'Dieses Blatt ist als gemeinsame Feststellung angelegt (§ 14 Abs. 1 VOB/B). '
+        + 'Eine einseitige Feststellung ist eine andere Tatsache und kein anderer '
+        + 'Unterzeichner — legen Sie dafür ein Blatt mit der Erhebungsart „einseitig" an.',
+      );
+    }
+    if (stand.ankuendigungAm === null) {
+      throw new AufmassFehler(
+        'keine_ankuendigung',
+        'Ohne Ankündigung keine einseitige Feststellung (§ 14 Abs. 2 VOB/B): Es muss '
+        + 'der Tag feststehen, an dem zur gemeinsamen Feststellung aufgefordert wurde.',
+      );
+    }
   }
 
   if (stand.status === 'entwurf') {
@@ -633,12 +715,17 @@ export async function gegenzeichne(
   const hash = aufmassSchnappschussHash(schnappschuss);
 
   await kontext.schreibe(
-    `insert into aufmass_signatur (mandant_id, aufmass_id, kunde_id, rolle,
+    `insert into aufmass_signatur (mandant_id, aufmass_id, kunde_id, rolle, anstellung_id,
                                    unterzeichner_name, unterzeichner_funktion, vorbehalt,
                                    signatur_medien_id, geraete_zeit, snapshot, snapshot_hash,
                                    erstellt_von, erstellt_von_person_id)
-     select $1, a.id, a.kunde_id, 'auftraggeber', $3, $4, $5, $6::uuid, $7::timestamptz,
-            $8::text::jsonb, $9, app.aktueller_benutzer(), app.aktuelle_person()
+     select $1, a.id, a.kunde_id, $10::unterschrift_rolle,
+            case when $10 = 'auftragnehmer'
+                 then coalesce($11::uuid, a.aufgenommen_von_anstellung_id)
+                 else null end,
+            $3, $4, $5, $6::uuid,
+            $7::timestamptz, $8::text::jsonb, $9,
+            app.aktueller_benutzer(), app.aktuelle_person()
        from aufmass a
       where a.id = $2 and a.mandant_id = $1`,
     [
@@ -654,7 +741,7 @@ export async function gegenzeichne(
        * `tests/isolation/bau-aufmass.test.ts`, weil er den Schnappschuss
        * wieder ausliest statt nur zu pruefen, dass er da ist.
        */
-      JSON.stringify(schnappschuss), hash,
+      JSON.stringify(schnappschuss), hash, rolle, eingabe.anstellungId ?? null,
     ],
   );
 

@@ -1,16 +1,19 @@
 import 'server-only';
 import { maskiere } from '../xrechnung/xml.js';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   AFRelationship, PDFDocument, PDFHexString, PDFName, PDFRawStream, PDFString,
-  rgb, type PDFFont, type PDFPage,
+  type PDFImage,
 } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import type { RechnungVollstaendig } from '../kanonisch.js';
-import { formatiereGeld } from '../geld.js';
 import { CII_DATEINAME, baueCii } from './cii.js';
 import { PROFIL_BESCHREIBUNG, sRgbProfil } from './icc.js';
+import { istCmykJpeg } from '../../../storage/raster.js';
+import { blattInhalt } from './blatt-inhalt.js';
+import { zeichneBlatt, type Schriften } from './blatt.js';
 
 /**
  * ZUGFeRD 2.x — die Rechnung als PDF/A-3 mit eingebetteter CII (FIN-12, PR 53).
@@ -43,17 +46,11 @@ import { PROFIL_BESCHREIBUNG, sRgbProfil } from './icc.js';
  * eigene Konformität behauptet, behauptet sie auch dann, wenn sie fehlt.
  */
 
-/** A4 in PDF-Punkten (72 dpi) und der Rand aus DESIGN §11 (20 mm). */
-const SEITE = { breite: 595.28, hoehe: 841.89 } as const;
-const RAND = 56.69;
-const SATZ = 10;      // DESIGN §11: 10pt Grundschrift
-const ZEILE = 14;
-
-/** DESIGN §11 — die Druckfarben, und keine Bildschirmfarbe darf hier hinein. */
-const PAPIER = rgb(1, 1, 1);
-const TINTE = rgb(0x11 / 255, 0x11 / 255, 0x11 / 255);
-const GRAU = rgb(0x55 / 255, 0x55 / 255, 0x55 / 255);
-const ROT = rgb(0xe3 / 255, 0x06 / 255, 0x13 / 255);
+/*
+ * Wie das Blatt aussieht — Seite, Rand, Farben, Masse, Spalten, Umbruch —
+ * steht in `blatt.ts`, was darauf steht in `blatt-inhalt.ts` (V-134). Diese
+ * Datei macht daraus ein PDF/A-3: Schriften, XMP, Ausgabeprofil, Anhang.
+ */
 
 const SCHRIFTEN = join(process.cwd(), 'assets', 'pdf');
 
@@ -61,6 +58,20 @@ export class PdfFehler extends Error {
   constructor(nachricht: string) {
     super(nachricht);
     this.name = 'PdfFehler';
+  }
+}
+
+/**
+ * Das festgeschriebene Logo ist nicht zu haben oder nicht dasselbe (V-132).
+ *
+ * Eigene Klasse, weil die Antwort eine andere ist als bei einer fehlenden
+ * Schrift: das ist kein Defekt des Servers, sondern ein Zustand des
+ * Speichers, und der Satz sagt, welcher.
+ */
+export class RechnungslogoFehler extends PdfFehler {
+  constructor(nachricht: string) {
+    super(nachricht);
+    this.name = 'RechnungslogoFehler';
   }
 }
 
@@ -82,27 +93,6 @@ function schrift(datei: string): Uint8Array {
       + 'gibt es kein PDF/A — und ein Dokument, das PDF/A behauptet und keines '
       + 'ist, fällt erst beim Empfänger auf.');
   }
-}
-
-interface Zeug {
-  readonly normal: PDFFont;
-  readonly fett: PDFFont;
-}
-
-function zeile(
-  seite: PDFPage, text: string, x: number, y: number,
-  f: PDFFont, groesse = SATZ, farbe = TINTE,
-): void {
-  seite.drawText(text, { x, y, size: groesse, font: f, color: farbe });
-}
-
-/** Rechtsbündig — für Beträge, wie DESIGN §11 es verlangt. */
-function rechts(
-  seite: PDFPage, text: string, rechterRand: number, y: number,
-  f: PDFFont, groesse = SATZ, farbe = TINTE,
-): void {
-  const breite = f.widthOfTextAtSize(text, groesse);
-  seite.drawText(text, { x: rechterRand - breite, y, size: groesse, font: f, color: farbe });
 }
 
 /**
@@ -200,143 +190,6 @@ function xmp(r: RechnungVollstaendig, erzeugtAm: string): string {
 <?xpacket end="w"?>`;
 }
 
-/** Der Kopf: Absender, Empfänger, die roten Linie und die Eckdaten. */
-function zeichneKopf(seite: PDFPage, r: RechnungVollstaendig, z: Zeug): number {
-  let y = SEITE.hoehe - RAND;
-
-  zeile(seite, r.leistender.name, RAND, y, z.fett, 14);
-  y -= 6;
-  seite.drawLine({
-    start: { x: RAND, y }, end: { x: SEITE.breite - RAND, y },
-    thickness: 2, color: ROT,
-  });
-
-  y -= ZEILE * 1.5;
-  for (const t of [
-    r.leistender.anschrift.strasse, 
-    `${r.leistender.anschrift.plz ?? ''} ${r.leistender.anschrift.ort ?? ''}`.trim(),
-  ]) {
-    if (t !== null && t !== '') { zeile(seite, t, RAND, y, z.normal, 8, GRAU); y -= 10; }
-  }
-
-  y -= ZEILE;
-  zeile(seite, r.empfaenger.name, RAND, y, z.fett); y -= ZEILE;
-  for (const t of [
-    r.empfaenger.anschrift.strasse,
-    `${r.empfaenger.anschrift.plz ?? ''} ${r.empfaenger.anschrift.ort ?? ''}`.trim(),
-  ]) {
-    if (t !== null && t !== '') { zeile(seite, t, RAND, y, z.normal); y -= ZEILE; }
-  }
-
-  const rechterRand = SEITE.breite - RAND;
-  let yr = SEITE.hoehe - RAND - ZEILE * 3;
-  for (const [k, v] of [
-    ['Rechnungsnummer', r.nummer],
-    ['Rechnungsdatum', r.rechnungsdatum],
-    ['Leistungszeitraum', r.leistungVon === null ? '—'
-      : `${r.leistungVon} – ${r.leistungBis ?? r.leistungVon}`],
-    ['Fällig am', r.zahlung.faelligAm ?? '—'],
-  ] as const) {
-    zeile(seite, k, rechterRand - 200, yr, z.normal, 8, GRAU);
-    rechts(seite, v, rechterRand, yr, z.normal, 9);
-    yr -= 12;
-  }
-
-  y -= ZEILE * 2;
-  zeile(seite, `Rechnung ${r.nummer}`, RAND, y, z.fett, 16);
-  return y - ZEILE * 2;
-}
-
-/** Die Positionen — Bezeichnung, Menge, Einzelpreis, Betrag. */
-function zeichnePositionen(
-  seite: PDFPage, r: RechnungVollstaendig, z: Zeug, start: number,
-): number {
-  const rechterRand = SEITE.breite - RAND;
-  let y = start;
-
-  zeile(seite, 'Leistung', RAND, y, z.fett, 9);
-  rechts(seite, 'Menge', RAND + 330, y, z.fett, 9);
-  rechts(seite, 'Einzelpreis', RAND + 410, y, z.fett, 9);
-  rechts(seite, 'Betrag', rechterRand, y, z.fett, 9);
-  y -= 6;
-  seite.drawLine({
-    start: { x: RAND, y }, end: { x: rechterRand, y }, thickness: 0.5, color: GRAU,
-  });
-  y -= ZEILE;
-
-  for (const p of r.positionen.filter((x) => x.art === 'leistung')) {
-    zeile(seite, p.bezeichnung.slice(0, 60), RAND, y, z.normal);
-    rechts(seite, `${(Number(p.menge) / 1000).toFixed(3)} ${p.einheit ?? ''}`.trim(),
-      RAND + 330, y, z.normal, 9);
-    rechts(seite, p.einzelpreisCent === null ? '—' : formatiereGeld(p.einzelpreisCent),
-      RAND + 410, y, z.normal, 9);
-    rechts(seite, p.nettoCent === null ? '—' : formatiereGeld(p.nettoCent),
-      rechterRand, y, z.normal);
-    y -= ZEILE;
-  }
-  return y - ZEILE;
-}
-
-/** Die Summen — und die Zahlungsangaben darunter. */
-function zeichneSummen(
-  seite: PDFPage, r: RechnungVollstaendig, z: Zeug, start: number,
-): void {
-  const rechterRand = SEITE.breite - RAND;
-  let y = start;
-  seite.drawLine({
-    start: { x: RAND + 300, y: y + 8 }, end: { x: rechterRand, y: y + 8 },
-    thickness: 0.5, color: GRAU,
-  });
-
-  zeile(seite, 'Nettobetrag', RAND + 300, y, z.normal, 9, GRAU);
-  rechts(seite, formatiereGeld(r.nettoGesamtCent), rechterRand, y, z.normal);
-  y -= ZEILE;
-
-  for (const s of r.steuerzeilen) {
-    zeile(seite, `Umsatzsteuer ${(s.satzBp / 100).toFixed(0)} %`,
-      RAND + 300, y, z.normal, 9, GRAU);
-    rechts(seite, formatiereGeld(s.steuerCent), rechterRand, y, z.normal);
-    y -= ZEILE;
-  }
-
-  seite.drawLine({
-    start: { x: RAND + 300, y: y + 8 }, end: { x: rechterRand, y: y + 8 },
-    thickness: 1, color: TINTE,
-  });
-  zeile(seite, 'Gesamtbetrag', RAND + 300, y, z.fett);
-  rechts(seite, formatiereGeld(r.bruttoCent), rechterRand, y, z.fett);
-  y -= ZEILE * 2;
-
-  if (r.zahlung.zahlungsbedingungText !== null) {
-    zeile(seite, r.zahlung.zahlungsbedingungText, RAND, y, z.normal, 9); y -= ZEILE;
-  }
-  if (r.zahlung.bankkonto !== null) {
-    zeile(seite, `IBAN ${r.zahlung.bankkonto.iban}`
-      + (r.zahlung.bankkonto.bic === null ? '' : ` · BIC ${r.zahlung.bankkonto.bic}`),
-    RAND, y, z.normal, 9); y -= ZEILE;
-  }
-}
-
-/**
- * Der feste Fussbereich (DESIGN §11): Gesellschaft, Registergericht, HRB,
- * Geschäftsführung — und die Steuernummern, die §14 UStG verlangt.
- */
-function zeichneFuss(seite: PDFPage, r: RechnungVollstaendig, z: Zeug): void {
-  const zeilen = [
-    [r.leistender.name, r.leistender.gericht, r.leistender.hrb]
-      .filter((t): t is string => t !== null && t !== '').join(' · '),
-    [r.leistender.geschaeftsfuehrer === null ? null
-      : `Geschäftsführung: ${r.leistender.geschaeftsfuehrer}`,
-    r.leistender.ustid === null ? null : `USt-IdNr. ${r.leistender.ustid}`,
-    r.leistender.steuernummer === null ? null : `Steuernummer ${r.leistender.steuernummer}`]
-      .filter((t): t is string => t !== null).join(' · '),
-  ];
-  let y = RAND;
-  for (const t of [...zeilen].reverse()) {
-    if (t !== '') { zeile(seite, t, RAND, y, z.normal, 7, GRAU); y += 9; }
-  }
-}
-
 export interface PdfOptionen {
   /**
    * Der Zeitstempel im Dokument — HEREINGEREICHT (Invariante 5, K-11).
@@ -348,6 +201,50 @@ export interface PdfOptionen {
    * „irgendwann einmal erzeugt".
    */
   readonly erzeugtAm: Date;
+  /**
+   * Die Bytes des Logos, das die Nutzlast nennt (`r.leistender.logo`, V-132) —
+   * geholt vom Aufrufer, geprüft HIER.
+   *
+   * Das Blatt entsteht nur mit genau dem Bild, dessen Prüfsumme in der
+   * Hashkette steht. Fehlen die Bytes oder weichen sie ab, entsteht KEIN
+   * Blatt: eine Rechnung, die heute ohne Logo und morgen mit Logo aus
+   * demselben Snapshot kommt, wären zwei Dokumente zu einer Nummer — genau
+   * das, wogegen der Snapshot gebaut ist (K-12).
+   */
+  readonly logo?: Uint8Array;
+}
+
+/** Das Logo der Nutzlast, geprüft und eingebettet — oder `null`, wenn sie keines nennt. */
+async function bettetLogoEin(
+  doc: PDFDocument, r: RechnungVollstaendig, bytes: Uint8Array | undefined,
+): Promise<PDFImage | null> {
+  const logo = r.leistender.logo;
+  if (logo === null) {
+    if (bytes !== undefined) {
+      throw new RechnungslogoFehler(
+        'Logo-Bytes übergeben, aber die Nutzlast nennt kein Logo. Das Blatt zeigt nur, '
+        + 'was festgeschrieben wurde.');
+    }
+    return null;
+  }
+  if (bytes === undefined) {
+    throw new RechnungslogoFehler(
+      `Diese Rechnung wurde mit Logo festgeschrieben (${logo.schluessel}), die Bytes `
+      + 'fehlen. Ohne sie entstünde ein anderes Blatt als das festgeschriebene.');
+  }
+  const summe = createHash('sha256').update(bytes).digest('hex');
+  if (summe !== logo.sha256) {
+    throw new RechnungslogoFehler(
+      `Das Logo im Speicher ist nicht das festgeschriebene (SHA-256 ${summe}, `
+      + `erwartet ${logo.sha256}). Das Blatt entsteht nicht.`);
+  }
+  if (logo.mime === 'image/png') return doc.embedPng(bytes);
+  if (istCmykJpeg(bytes)) {
+    throw new RechnungslogoFehler(
+      'Das Logo ist ein CMYK-JPEG. Ein PDF/A-3 mit sRGB-Profil darf kein DeviceCMYK '
+      + 'enthalten (ISO 19005-3, 6.2.4.3); die Rechnung wäre mit diesem Logo kein PDF/A.');
+  }
+  return doc.embedJpg(bytes);
 }
 
 /**
@@ -366,19 +263,13 @@ export async function baueZugferdPdf(
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
 
-  const z: Zeug = {
+  const z: Schriften = {
     normal: await doc.embedFont(schrift('NotoSans-Regular.ttf'), { subset: true }),
     fett: await doc.embedFont(schrift('NotoSans-Bold.ttf'), { subset: true }),
   };
 
-  const seite = doc.addPage([SEITE.breite, SEITE.hoehe]);
-  seite.drawRectangle({
-    x: 0, y: 0, width: SEITE.breite, height: SEITE.hoehe, color: PAPIER,
-  });
-  const nachKopf = zeichneKopf(seite, r, z);
-  const nachPositionen = zeichnePositionen(seite, r, z, nachKopf);
-  zeichneSummen(seite, r, z, nachPositionen);
-  zeichneFuss(seite, r, z);
+  const logo = await bettetLogoEin(doc, r, optionen.logo);
+  zeichneBlatt(doc, blattInhalt(r), z, logo);
 
   /* --- Die eingebettete Rechnung (AFRelationship /Alternative) --- */
   await doc.attach(new TextEncoder().encode(cii), CII_DATEINAME, {

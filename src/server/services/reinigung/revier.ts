@@ -295,3 +295,187 @@ function mengeNachText(menge: MilliMenge): string {
   const abs = negativ ? -menge : menge;
   return `${negativ ? '-' : ''}${String(abs / 1000n)}.${String(abs % 1000n).padStart(3, '0')}`;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Ein Revier ANLEGEN und archivieren (V-002, CLN-02).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * **Der Befund stand in dieser Datei selbst.** `RaumNichtEntfernbar` nennt
+ * als Lösung, das Revier „neu anzulegen" oder „zu archivieren" — und beides
+ * gab es nicht. Die Fehlermeldung verwies auf zwei Wege, die niemand gehen
+ * konnte, und `reinigung/reviere/neu` war ein Platzhalter.
+ *
+ * Damit war der gesamte Reinigungs-Dienstplan für neue Flächen unerreichbar:
+ * ein Turnus hängt an einem Revier, ein Einsatz am Turnus.
+ *
+ * **Die Sollzeit ist Pflicht und muss grösser als null sein**
+ * (`revier_sollzeit_positiv`). Sie ist die Zahl, aus der die Einsatzdauer und
+ * damit die Besetzung entsteht — ein Revier mit `0` wäre eine Fläche, für die
+ * niemand eingeteilt wird, und das fiele erst auf, wenn sie schmutzig bleibt.
+ *
+ * **`aktiv_ab` ist der BERLINER Tag** (V-103): die Spalte ist ein
+ * Geschäftstag, kein Zeitpunkt.
+ */
+
+export class RevierFehler extends Error {
+  constructor(nachricht: string, readonly grund: string, readonly status = 400) {
+    super(nachricht);
+    this.name = 'RevierFehler';
+  }
+}
+
+export interface NeuesRevier {
+  readonly objektId: string;
+  readonly bezeichnung: string;
+  /** Minuten je Durchgang — Pflicht und grösser als null. */
+  readonly sollzeitMinuten: string;
+  readonly kurzzeichen?: string | undefined;
+  readonly beschreibung?: string | undefined;
+  readonly aktivAb?: string | undefined;
+}
+
+function revierLeer(wert: string | undefined): string | null {
+  const t = wert?.trim() ?? '';
+  return t === '' ? null : t;
+}
+
+/**
+ * Die Sollzeit kommt als Text aus einem Formular. Sie HIER zu pruefen statt in
+ * Postgres ist der Unterschied zwischen einem Satz, den jemand lesen kann, und
+ * `invalid input syntax for type numeric`. Das Komma der deutschen Eingabe
+ * wird dabei zum Punkt — `4,5` ist eine gueltige Eingabe, `numeric` kennt sie
+ * nicht.
+ */
+function pruefeSollzeit(roheingabe: string): number {
+  const roh = roheingabe.trim().replace(',', '.');
+  const minuten = Number(roh);
+  if (roh === '' || !Number.isFinite(minuten) || minuten <= 0) {
+    throw new RevierFehler(
+      'Die Sollzeit ist eine Zahl grösser als null — sie ist die Minutenzahl, '
+      + 'aus der die Einsatzdauer und damit die Besetzung entsteht.',
+      'sollzeit_ungueltig');
+  }
+  return minuten;
+}
+
+export async function legeRevierAn(
+  kontext: SchreibKontext, eingabe: NeuesRevier,
+): Promise<{ readonly id: string }> {
+  const bezeichnung = eingabe.bezeichnung.trim();
+  if (bezeichnung === '') {
+    throw new RevierFehler('Ein Revier braucht eine Bezeichnung.', 'bezeichnung_fehlt');
+  }
+  if (eingabe.objektId.trim() === '') {
+    throw new RevierFehler('Ein Revier gehört zu einem Objekt.', 'objekt_fehlt');
+  }
+  const minuten = pruefeSollzeit(eingabe.sollzeitMinuten);
+
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `insert into revier
+       (mandant_id, objekt_id, bezeichnung, kurzzeichen, beschreibung,
+        sollzeit_minuten, aktiv_ab, erstellt_von_art, erstellt_von)
+     values (app.aktiver_mandant(), $1::uuid, $2, $3, $4, $5::numeric,
+             coalesce($6::date, app.berlin_heute()),
+             case when app.aktueller_benutzer() is null then 'system'
+                  else 'mensch' end::akteur_art,
+             app.aktueller_benutzer())
+     returning id`,
+    [eingabe.objektId, bezeichnung, revierLeer(eingabe.kurzzeichen),
+      revierLeer(eingabe.beschreibung), String(minuten), revierLeer(eingabe.aktivAb)],
+  );
+  const z = zeilen[0];
+  if (z === undefined) {
+    throw new RevierFehler(
+      'Das Revier wurde nicht angelegt — gibt es dieses Objekt in dieser '
+      + 'Gesellschaft, und halten Sie reinigung.schreiben?',
+      'nicht_angelegt', 403);
+  }
+  return z;
+}
+
+/**
+ * Ein Revier archivieren — der zweite Weg, den `RaumNichtEntfernbar` nennt.
+ *
+ * **Nicht gelöscht:** an einem Revier hängen Turnusse, Einsätze und
+ * Leistungsnachweise. `aktiv_bis` wird mitgesetzt, damit die Fläche auch in
+ * jeder zeitraumbezogenen Abfrage endet und nicht nur aus der Liste
+ * verschwindet.
+ */
+export async function archiviereRevier(
+  kontext: SchreibKontext, id: string,
+): Promise<void> {
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update revier
+        set archiviert_am = now(), archiviert_von = app.aktueller_benutzer(),
+            aktiv_bis = coalesce(aktiv_bis, greatest(app.berlin_heute(), aktiv_ab)),
+            geaendert_von = app.aktueller_benutzer(),
+            geaendert_von_art = case when app.aktueller_benutzer() is null
+                                     then 'system' else 'mensch' end::akteur_art
+      where id = $1::uuid and archiviert_am is null
+     returning id`,
+    [id],
+  );
+  if (zeilen[0] === undefined) {
+    throw new RevierFehler(
+      'Dieses Revier gibt es nicht mehr, oder es ist bereits archiviert.',
+      'revier_unbekannt', 404);
+  }
+}
+
+/**
+ * Eine bestehende Zone ändern — Bezeichnung, Kurzzeichen, Beschreibung,
+ * Sollzeit und Aktivfenster.
+ *
+ * **Das Objekt ist NICHT dabei, und das ist Absicht.** An einem Revier hängen
+ * `revier_raum`-Zeilen, die ihrerseits auf `objekt_id` zeigen (0065), dazu
+ * Turnusse, Einsätze und Leistungsnachweise. Ein Revier auf ein anderes
+ * Objekt umzuhängen hiesse, Räume eines fremden Gebäudes zu erben — die Zone
+ * gehört dann einer Adresse, an der ihre Räume nicht liegen. Wer die Fläche
+ * verlegt, archiviert und schneidet neu zu; das ist derselbe Weg, den
+ * `RaumNichtEntfernbar` nennt.
+ *
+ * **Die Sollzeit darf hier von Hand gesetzt werden, und die Seite sagt, was
+ * das kostet:** `setzeRaeume` rechnet sie aus `Σ m² ÷ Leistungswert` und
+ * überschreibt sie beim nächsten Lauf. Ein Revier, dessen Räume eine andere
+ * Summe ergeben, steht in der Liste mit roter Abweichungsspalte — genau dafür
+ * ist sie da.
+ */
+export async function aendereRevier(
+  kontext: SchreibKontext,
+  eingabe: {
+    readonly id: string;
+    readonly bezeichnung: string;
+    readonly sollzeitMinuten: string;
+    readonly kurzzeichen?: string | undefined;
+    readonly beschreibung?: string | undefined;
+    readonly aktivAb?: string | undefined;
+    readonly aktivBis?: string | undefined;
+  },
+): Promise<void> {
+  const bezeichnung = eingabe.bezeichnung.trim();
+  if (bezeichnung === '') {
+    throw new RevierFehler('Ein Revier braucht eine Bezeichnung.', 'bezeichnung_fehlt');
+  }
+  const minuten = pruefeSollzeit(eingabe.sollzeitMinuten);
+
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update revier
+        set bezeichnung = $2, kurzzeichen = $3, beschreibung = $4,
+            sollzeit_minuten = $5::numeric,
+            aktiv_ab = coalesce($6::date, aktiv_ab),
+            aktiv_bis = $7::date,
+            geaendert_von = app.aktueller_benutzer(),
+            geaendert_von_art = case when app.aktueller_benutzer() is null
+                                     then 'system' else 'mensch' end::akteur_art
+      where id = $1::uuid and archiviert_am is null
+     returning id`,
+    [eingabe.id, bezeichnung, revierLeer(eingabe.kurzzeichen),
+      revierLeer(eingabe.beschreibung), String(minuten),
+      revierLeer(eingabe.aktivAb), revierLeer(eingabe.aktivBis)],
+  );
+  if (zeilen[0] === undefined) {
+    throw new RevierFehler(
+      'Dieses Revier gibt es in dieser Gesellschaft nicht, oder es ist archiviert.',
+      'revier_unbekannt', 404);
+  }
+}

@@ -75,7 +75,6 @@ describe('jede Mandantsseite hat überhaupt ein Slug-Tor', () => {
   const OHNE_EIGENES_TOR: readonly string[] = [
   '[...rest]/page.tsx',
   'agenten/[agent]/aufgaben/page.tsx',
-  'angebote/neu/page.tsx',
   'berichte/attribution/page.tsx',
   'berichte/auftraege/page.tsx',
   'berichte/mitarbeiter/page.tsx',
@@ -83,7 +82,6 @@ describe('jede Mandantsseite hat überhaupt ein Slug-Tor', () => {
   'berichte/projekte/page.tsx',
   'berichte/umsatz/page.tsx',
   'finanzen/mahnungen/vorschlaege/page.tsx',
-  'objekte/neu/page.tsx',
   'recruiting/bedarf/page.tsx',
   'recruiting/bewerbungen/[id]/antwort/page.tsx',
   'recruiting/bewerbungen/[id]/page.tsx',
@@ -100,7 +98,6 @@ describe('jede Mandantsseite hat überhaupt ein Slug-Tor', () => {
   'recruiting/stellen/[id]/veroeffentlichung/page.tsx',
   'recruiting/stellen/neu/page.tsx',
   'recruiting/stellen/page.tsx',
-  'reinigung/reviere/neu/page.tsx',
 ];
 
   it('und wo nicht, reicht sie an eine Hülle weiter, die eines hat', () => {

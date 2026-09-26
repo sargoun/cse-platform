@@ -6,7 +6,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { DataTable } from '@/components/ui/DataTable';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { ERLAUBTE_MIME, MAX_BYTES } from '@/server/storage/mime';
 import { TAG_HOECHSTZAHL } from '@/server/services/dokument/ablage';
 import { liesAufbewahrung, type AufbewahrungZeile }
@@ -15,6 +15,10 @@ import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { KATEGORIE, KATEGORIEN } from '../darstellung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { istKennung } from '../../../kennung';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { VORGANG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/vorgang-akte';
 
 /**
  * `/portal/[mandant]/dokumente/upload` — eine Datei ablegen (DOC-01, DOC-03,
@@ -80,6 +84,14 @@ export default async function DokumentHochladen({
   const fehler = wort(suche, 'fehler', 30);
   const meldung = wort(suche, 'meldung', 500);
   const vorgabeKategorie = wort(suche, 'kategorie', 30);
+  /*
+   * V-176 (OPS-11): „Dokument ablegen" auf dem Auftrags- oder Projektblatt
+   * bringt den Auftrag mit. Die Kennung wird geprüft, bevor sie in eine
+   * Abfrage geht; vorgewählt wird sie nur, wenn die Sitzung den Auftrag
+   * auch sieht — sonst stünde ein Wert ohne Option da.
+   */
+  const auftragRoh = wort(suche, 'auftrag', 40);
+  const auftragWahl = istKennung(auftragRoh) ? auftragRoh : null;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => ({
@@ -91,13 +103,33 @@ export default async function DokumentHochladen({
       objekte: await kontext.abfrage<Auswahl>(
         `select id, bezeichnung as name from objekt
           where archiviert_am is null order by bezeichnung limit 500`),
+      /*
+       * Die Aufträge dieser Gesellschaft — laufende zuerst, und der
+       * mitgebrachte immer dabei, auch wenn er abgeschlossen oder
+       * archiviert ist: ein Abnahmeprotokoll kommt nach dem Ende.
+       */
+      auftraege: await kontext.abfrage<Auswahl>(
+        `select a.id::text as id, a.auftragsnummer || ' — ' || a.bezeichnung as name
+           from auftrag a
+          where a.mandant_id = app.aktiver_mandant()
+            and (a.archiviert_am is null or a.id = $1::uuid)
+          order by coalesce(a.id = $1::uuid, false) desc,
+                   (a.status in ('abgeschlossen', 'storniert')),
+                   a.erstellt_am desc
+          limit 500`, [auftragWahl]),
       regeln: await liesAufbewahrung(kontext),
     })))) as {
       kunden: readonly Auswahl[]; objekte: readonly Auswahl[];
+      auftraege: readonly Auswahl[];
       regeln: readonly AufbewahrungZeile[];
     };
+  const akte = nachSprache(VORGANG_AKTE_TEXTE, zugang.sprache);
+  const vorgewaehlterAuftrag = auftragWahl !== null
+    && daten.auftraege.some((a) => a.id === auftragWahl) ? auftragWahl : '';
+  /** Der Rückweg nach einem Fehler trägt den Auftrag mit — sonst wäre er weg. */
+  const rueckweg = vorgewaehlterAuftrag === '' ? pfad : `${pfad}?auftrag=${vorgewaehlterAuftrag}`;
 
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
   const feld = 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 '
     + 'text-sm text-text';
   const grenzeMb = Math.trunc(MAX_BYTES / (1024 * 1024));
@@ -110,7 +142,7 @@ export default async function DokumentHochladen({
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="dokumente"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -135,7 +167,7 @@ export default async function DokumentHochladen({
       {fehler !== '' && (
         <Hinweis art="warnung" cse="upload-fehler" className="mb-s5 max-w-prose">
           <strong>Nichts abgelegt.</strong>{' '}
-          {meldung !== '' ? meldung : FEHLER_TEXT[fehler] ?? 'Die Ablage ist nicht erfolgt.'}
+          {meldung !== '' ? meldung : eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Ablage ist nicht erfolgt.'}
         </Hinweis>
       )}
 
@@ -165,7 +197,7 @@ export default async function DokumentHochladen({
         data-cse="upload-formular"
         className="mb-s6 flex max-w-prose flex-col gap-s4 rounded-lg border border-line bg-surface p-s5"
       >
-        <input type="hidden" name="zurueck" value={pfad} />
+        <input type="hidden" name="zurueck" value={rueckweg} />
 
         <label className="flex flex-col gap-s2 text-sm text-text">
           Datei
@@ -238,6 +270,20 @@ export default async function DokumentHochladen({
             ))}
           </select>
         </label>
+
+        {daten.auftraege.length === 0 ? null : (
+          <label className="flex flex-col gap-s2 text-sm text-text">
+            {akte.feldAuftrag}
+            <select name="auftrag" defaultValue={vorgewaehlterAuftrag} className={feld}
+                    data-cse="upload-auftrag">
+              <option value="">{akte.keinAuftrag}</option>
+              {daten.auftraege.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+            <span className="text-xs text-text-subtle">{akte.feldAuftragHinweis}</span>
+          </label>
+        )}
 
         <label className="flex items-start gap-s3 text-sm text-text">
           <input type="checkbox" name="fuer_mitarbeiter" value="1"

@@ -39,6 +39,36 @@ const CP1252_SONDER: Readonly<Record<string, number>> = {
   'ž': 0x9e, 'Ÿ': 0x9f,
 };
 
+/**
+ * **Zeichen, die in cp1252 fehlen, aber dort ein GLEICHBEDEUTENDES haben**
+ * (V-131, gefunden vom Seed mit Vorführspeicher).
+ *
+ * Word, Pages und jede Tastatur mit Typografie setzen „−5 °C" mit einem
+ * echten Minuszeichen (U+2212) und oft einem schmalen Leerzeichen davor. Der
+ * Schreiber zählte das als „nicht darstellbar", und `dokumentiereVersand`
+ * brach eine Behinderungsanzeige deshalb zu Recht ab — nur war der Grund
+ * keiner: ein Minuszeichen IST ein Bindestrich-Minus, ein schmales
+ * Leerzeichen IST ein Leerzeichen. Ein Mensch, der das Schreiben liest, sieht
+ * keinen Unterschied, und der Wortlaut ändert sich nicht.
+ *
+ * Die Liste ist geschlossen und klein, und sie enthält NUR Zeichen gleicher
+ * Bedeutung. Was eine andere Bedeutung hätte — ein arabischer Name, ein
+ * kyrillischer Buchstabe, ein Pfeil — bleibt „nicht darstellbar" und wird
+ * weiter gezählt: dort wäre jede Ersetzung eine Änderung des Schreibens.
+ */
+const GLEICHWERTIG: Readonly<Record<string, string>> = {
+  '\u2212': '-',       // MINUS SIGN → HYPHEN-MINUS
+  '\u2010': '-',       // HYPHEN
+  '\u2011': '-',       // NON-BREAKING HYPHEN
+  '\u2012': '\u2013',  // FIGURE DASH → EN DASH
+  '\u2009': ' ',       // THIN SPACE
+  '\u200A': ' ',       // HAIR SPACE
+  '\u2007': '\u00A0',  // FIGURE SPACE → NO-BREAK SPACE
+  '\u202F': '\u00A0',  // NARROW NO-BREAK SPACE → NO-BREAK SPACE
+  '\u2002': ' ',       // EN SPACE
+  '\u2003': ' ',       // EM SPACE
+};
+
 export interface WinAnsiErgebnis {
   readonly bytes: readonly number[];
   /** Wie viele Zeichen nicht darstellbar waren. `0` ist die Zusage. */
@@ -49,7 +79,8 @@ export interface WinAnsiErgebnis {
 export function nachWinAnsi(text: string): WinAnsiErgebnis {
   const bytes: number[] = [];
   let ersetzt = 0;
-  for (const zeichen of text) {
+  for (const roh of text) {
+    const zeichen = GLEICHWERTIG[roh] ?? roh;
     const punkt = zeichen.codePointAt(0) ?? 0x3f;
     const sonder = CP1252_SONDER[zeichen];
     if (sonder !== undefined) bytes.push(sonder);

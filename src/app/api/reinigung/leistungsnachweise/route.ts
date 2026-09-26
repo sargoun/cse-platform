@@ -91,6 +91,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         await signiere(kontext, {
           nachweisId,
           rolle: text('rolle') === 'auftragnehmer' ? 'auftragnehmer' : 'auftraggeber',
+          /* V-078: die Unterschrift wurde früher geleistet und wird jetzt erfasst. */
+          nachgetragen: daten.get('nachgetragen') === '1',
           unterzeichnerName: name,
           unterzeichnerFunktion: text('funktion'),
           bestaetigtePruefsumme: pruefsumme,

@@ -19,6 +19,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '../../../../rechte';
 import { kennungOder404 } from '../../../../kennung';
+import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/radar/profile/[id]` — ein Suchprofil bearbeiten
@@ -86,6 +88,16 @@ const VERMERKT_TEXT: Readonly<Record<string, string>> = {
   empfaenger_hinzu: 'Der Empfänger ist eingetragen — ohne Schwelle, also ohne '
     + 'Treffermeldung, bis O-15 beantwortet ist.',
   empfaenger_weg: 'Der Empfänger ist entfernt.',
+  /*
+   * Die Umleitung nach dem Anlegen (V-016) landet HIER, auf dem Blatt des
+   * neuen Profils — und der Satz sagt, was als Nächstes fehlt. Ein „Gespeichert."
+   * an dieser Stelle wäre die Unwahrheit: gespeichert ist ein Name, gesucht
+   * wird damit noch nichts.
+   */
+  anlegen: 'Das Profil ist angelegt — und ABGESCHALTET. Trage zuerst ein, was es '
+    + 'suchen soll (CPV, Region, Stichwörter); ein Profil ohne diese Angaben '
+    + 'bewertet sonst jede Bekanntmachung mit dem vollen Wert- und Fristkriterium. '
+    + 'Zum Einschalten unten „aktiv" auf ja setzen und speichern.',
 };
 
 /**
@@ -153,7 +165,7 @@ export default async function ProfilBearbeiten(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="radar"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -185,7 +197,7 @@ export default async function ProfilBearbeiten(
       {fehler !== null ? (
         <Hinweis art="warnung" cse="profil-fehler" className="mb-s5 max-w-prose">
           <strong>Nicht gespeichert.</strong>{' '}
-          {FEHLER_TEXT[fehler] ?? 'Die Eingabe wurde abgewiesen.'}
+          {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Eingabe wurde abgewiesen.'}
         </Hinweis>
       ) : null}
       {vermerkt !== null ? (
@@ -485,7 +497,7 @@ export default async function ProfilBearbeiten(
         {!namenSichtbar ? (
           <Hinweis art="hinweis" cse="profil-empfaenger-unsichtbar" className="mb-s3">
             <strong>Die Empfänger sind hier nicht sichtbar</strong> — dafür braucht es das
-            Recht <code className="text-xs">system.benutzer_lesen</code>. Das heisst nicht,
+            Recht <Recht schluessel="system.benutzer_lesen" />. Das heisst nicht,
             dass keine eingetragen sind.
           </Hinweis>
         ) : null}

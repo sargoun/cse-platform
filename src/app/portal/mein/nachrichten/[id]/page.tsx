@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
@@ -88,20 +87,20 @@ export default async function MeineNachricht(
     timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
   });
 
-  const zurueck = (
-    <Link
-      href="/portal/mein/nachrichten"
-      className="mb-s4 inline-block min-h-11 text-base text-text underline"
-    >
-      ← {t.nachrichten}
-    </Link>
-  );
+  /*
+   * Der Rueckweg als EIGENSCHAFT der Huelle, nicht als Knoten im Rumpf
+   * (DESIGN §5, D-613). Beide Zweige dieser Seite gaben ihn hier aus — und
+   * seit die Huelle ihn aus der Adresse ableitet, standen zwei Pfeile
+   * untereinander. Als Eigenschaft ersetzt er den abgeleiteten, statt sich
+   * daneben zu stellen; die Beschriftung bleibt dieselbe.
+   */
+  const zurueck = { ziel: '/portal/mein/nachrichten', text: t.nachrichten };
 
   if (ergebnis.daten.art === 'meldung') {
     const e = ergebnis.daten.meldung;
     return (
-      <MeinRahmen basis={basis} titel={t.nachrichten} aktiverTab="nachrichten">
-        {zurueck}
+      <MeinRahmen basis={basis} titel={t.nachrichten} aktiverTab="nachrichten"
+                  zurueck={zurueck}>
 
         <div className="mb-s5 flex flex-wrap items-center gap-s3">
           <h1 className="m-0 text-h1 text-text">{e.titel}</h1>
@@ -166,8 +165,8 @@ export default async function MeineNachricht(
   const titel = f.betreff ?? t.nachricht;
 
   return (
-    <MeinRahmen basis={basis} titel={t.nachrichten} aktiverTab="nachrichten">
-      {zurueck}
+    <MeinRahmen basis={basis} titel={t.nachrichten} aktiverTab="nachrichten"
+                zurueck={zurueck}>
 
       {getan !== null && (
         <p data-cse="getan" data-was={getan} className="mb-s4 m-0 text-base text-text">
@@ -286,7 +285,7 @@ export default async function MeineNachricht(
             className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3
                        text-base text-text"
           />
-          <Button type="submit" variante="primary" data-cse="faden-antworten"
+          <Button type="submit" variante="secondary" data-cse="faden-antworten"
                   className="mt-s4">
             {t.antworten}
           </Button>

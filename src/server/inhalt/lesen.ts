@@ -4,6 +4,9 @@ import { db } from '@/server/db/pool';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 import type { LeseKontext } from '@/server/kontext';
+import {
+  oeffentlicheMarkeAus, type OeffentlicheMarke,
+} from '@/server/services/mandant/markenbild';
 
 /**
  * Der eine Einstieg, ueber den eine oeffentliche Seite liest.
@@ -54,6 +57,23 @@ export interface BereichZeile {
    * auszugeben (O-353).
    */
   readonly angabenBestaetigt: boolean;
+  /**
+   * Logo, Avatar und Titelbild — nur aus einer VERÖFFENTLICHTEN Identität
+   * (V-100, D-628). Jedes Feld ist `null`, solange nichts hochgeladen oder
+   * nichts freigegeben ist; die Website zeigt dann das vorläufige Zeichen
+   * aus DESIGN §1 und die Motivtafel, wie bisher.
+   */
+  readonly marke: OeffentlicheMarke;
+}
+
+interface BereichRoh extends Omit<BereichZeile, 'marke'> {
+  readonly logo_hell_pfad: string | null;
+  readonly logo_dunkel_pfad: string | null;
+  readonly logo_alt: string | null;
+  readonly avatar_pfad: string | null;
+  readonly avatar_alt: string | null;
+  readonly cover_pfad: string | null;
+  readonly cover_alt: string | null;
 }
 
 /**
@@ -78,7 +98,13 @@ export async function bereicheLesen(
    * traegt seit 0019 eine `sprache`, genau wie `seite` — eine Zeile je
    * Sprache, kein Spaltenpaar.
    */
-  return kontext.abfrage<BereichZeile>(
+  /*
+   * Die Bilder aus der PROJEKTIONS-View und nur mit `oeffentlich_sichtbar`
+   * (V-100): der Renderer ist ein angemeldeter Dienstprinzipal und saehe
+   * ueber `t_mi_lesen` auch eine unveroeffentlichte Identitaet. Die Bedingung
+   * steht deshalb im `join`, nicht nur in einer Policy.
+   */
+  const roh = await kontext.abfrage<BereichRoh>(
     `select m.id, m.slug, m.name, m.firma, m.strasse, m.plz, m.ort, m.land,
             m.telefon, m.email,
             m.rechtsform,
@@ -87,8 +113,12 @@ export async function bereicheLesen(
             coalesce(m.geschaeftsfuehrer, '{}') as geschaeftsfuehrer,
             m.ust_id                  as "ustId",
             (m.angaben_bestaetigt_am is not null) as "angabenBestaetigt",
-            coalesce(p.kurzbeschreibung, d.kurzbeschreibung) as kurzbeschreibung
+            coalesce(p.kurzbeschreibung, d.kurzbeschreibung) as kurzbeschreibung,
+            mi.logo_hell_pfad, mi.logo_dunkel_pfad, mi.logo_alt,
+            mi.avatar_pfad, mi.avatar_alt, mi.cover_pfad, mi.cover_alt
        from mandant m
+       left join mandant_identitaet_oeffentlich mi
+              on mi.mandant_id = m.id and mi.oeffentlich_sichtbar
        left join unternehmensprofil p
               on p.mandant_id = m.id and p.sprache = $1
              and p.status = 'veroeffentlicht' and p.geloescht_am is null
@@ -99,6 +129,15 @@ export async function bereicheLesen(
       order by m.sortierung, m.slug`,
     [sprache],
   );
+  return roh.map(({
+    logo_hell_pfad, logo_dunkel_pfad, logo_alt, avatar_pfad, avatar_alt, cover_pfad, cover_alt,
+    ...zeile
+  }) => ({
+    ...zeile,
+    marke: oeffentlicheMarkeAus(zeile.id, {
+      logo_hell_pfad, logo_dunkel_pfad, logo_alt, avatar_pfad, avatar_alt, cover_pfad, cover_alt,
+    }),
+  }));
 }
 
 /**

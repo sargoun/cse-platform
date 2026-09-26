@@ -23,11 +23,11 @@ import { leseNachweis, summeDerEintraege, type MiLoGNachweis }
 /** Ein Merkmal, nach dem die Liste gefiltert werden kann — ein GESCHLOSSENER Satz. */
 export type Merkmal =
   | 'laufend' | 'abgeschlossen' | 'offen_nacherfassung' | 'storniert'
-  | 'nacherfasst' | 'ohne_auftrag' | 'freigegeben';
+  | 'nacherfasst' | 'ohne_auftrag' | 'freigegeben' | 'nicht_freigegeben';
 
 export const MERKMALE: readonly Merkmal[] = [
   'laufend', 'abgeschlossen', 'offen_nacherfassung', 'storniert',
-  'nacherfasst', 'ohne_auftrag', 'freigegeben',
+  'nacherfasst', 'ohne_auftrag', 'freigegeben', 'nicht_freigegeben',
 ];
 
 export const MERKMAL_TEXT: Readonly<Record<Merkmal, string>> = {
@@ -38,6 +38,15 @@ export const MERKMAL_TEXT: Readonly<Record<Merkmal, string>> = {
   nacherfasst: 'Nacherfasst',
   ohne_auftrag: 'Ohne Auftrag',
   freigegeben: 'Freigegeben',
+  /*
+   * Die Gegenprobe zu `freigegeben` (V-070).
+   *
+   * Der Monatsabschluss nennt „3 Zeiteinträge sind nicht freigegeben" und
+   * konnte auf nichts zeigen: die Liste kannte nur das Merkmal „freigegeben",
+   * und dessen Gegenteil liess sich nicht auswählen. Wer die drei sehen
+   * wollte, musste sie in einer Wochenliste suchen.
+   */
+  nicht_freigegeben: 'Nicht freigegeben',
 };
 
 export function istMerkmal(wert: unknown): wert is Merkmal {
@@ -199,6 +208,7 @@ function merkmalsBedingung(merkmal: Merkmal): string {
     case 'nacherfasst': return 'z.nacherfasst';
     case 'ohne_auftrag': return 'z.auftrag_leistung_id is null';
     case 'freigegeben': return 'z.freigegeben_am is not null';
+    case 'nicht_freigegeben': return 'z.freigegeben_am is null';
     default: return `z.status = '${merkmal}'::zeiteintrag_status`;
   }
 }
@@ -394,6 +404,17 @@ export interface Zeiteintrag extends ZeitZeile {
   readonly stornoGrund: string | null;
   readonly ersetztDurchId: string | null;
   readonly ersetztZeiteintragId: string | null;
+  /**
+   * Freigabe, Abrechnung und Sperre als ZEITPUNKT, nicht nur als Ja/Nein
+   * (V-071).
+   *
+   * Die drei Merker kamen schon als Wahrheitswerte mit — und keine Seite
+   * zeigte sie. „Freigegeben: ja" ist die halbe Auskunft; die Frage, die im
+   * Lohnstreit gestellt wird, lautet WANN.
+   */
+  readonly freigegebenAmLokal: string | null;
+  readonly abgerechnetAmLokal: string | null;
+  readonly gesperrtAmLokal: string | null;
   readonly spur: readonly SpurZeile[];
   readonly medien: readonly MediumZeile[];
 }
@@ -431,9 +452,18 @@ export async function ladeZeiteintrag(
         storno_grund: string | null;
         ersetzt_durch_zeiteintrag_id: string | null;
         ersetzt_zeiteintrag_id: string | null;
+        freigegeben_am_lokal: string | null;
+        abgerechnet_am_lokal: string | null;
+        gesperrt_am_lokal: string | null;
       }>(
         `select ${ZEILE_SPALTEN},
                 z.mandant_id, z.einsatz_id,
+                to_char(z.freigegeben_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
+                                                            as freigegeben_am_lokal,
+                to_char(z.abgerechnet_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
+                                                            as abgerechnet_am_lokal,
+                to_char(z.gesperrt_am    at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
+                                                            as gesperrt_am_lokal,
                 to_char(z.beginn_zeitpunkt at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
                                                             as beginn_voll_lokal,
                 to_char(z.ende_zeitpunkt   at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
@@ -551,6 +581,9 @@ export async function ladeZeiteintrag(
         stornoGrund: roh.storno_grund,
         ersetztDurchId: roh.ersetzt_durch_zeiteintrag_id,
         ersetztZeiteintragId: roh.ersetzt_zeiteintrag_id,
+        freigegebenAmLokal: roh.freigegeben_am_lokal,
+        abgerechnetAmLokal: roh.abgerechnet_am_lokal,
+        gesperrtAmLokal: roh.gesperrt_am_lokal,
         spur: spur.map((s) => ({
           id: s.id,
           art: s.art,

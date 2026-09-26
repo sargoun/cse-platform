@@ -285,6 +285,42 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Ein Angebot VON HAND — der Weg, der nicht durch ein Raumbuch führt
+     * (V-005, SEC-01, BAU-01).
+     *
+     * `angebot.schreiben` und nicht `angebot.versenden`: hier entsteht ein
+     * ENTWURF ohne Nummer, und er verlässt das Haus nicht. Der Versand bleibt
+     * mit seinem eigenen Schlüssel auf `api/angebot`, die Preisfreigabe auf
+     * `api/angebot/freigabe` — drei verschieden schwere Handlungen, drei
+     * Adressen, drei Rechte.
+     *
+     * **Warum nicht ein viertes `aktion=` auf `api/angebot`.** Das Manifest
+     * führt EIN Recht je Pfad. Ein weiterer Zweig in einem Handler, der nach
+     * aussen `angebot.versenden` heisst, machte aus dem Schreibrecht eine
+     * Angabe, die die Aufzählungsprobe nicht mehr sehen kann — dieselbe
+     * Begründung wie bei `api/angebot/freigabe`.
+     *
+     * `t_mandant` auf `angebot` und `angebotsposition` (0024) verlangt
+     * `angebot.schreiben` bei jedem Schreibvorgang ein zweites Mal.
+     */
+    pfad: 'api/angebot/von-hand',
+    recht: 'angebot.schreiben',
+  },
+  {
+    /**
+     * Die Berichtigung eines ENTWURFS (V-130, D-626): eine Position ändern
+     * oder entfernen, den ganzen Entwurf zurückziehen.
+     *
+     * `angebot.schreiben` und nicht `angebot.versenden`, aus demselben Grund
+     * wie bei `von-hand`: hier verlässt nichts das Haus. Die Trennlinie ist
+     * `versendet_am`, und `ap_unveraenderlich` (0024) hält sie in der
+     * Datenbank — was danach kommt, ist eine neue Version mit Rückverweis.
+     */
+    pfad: 'api/angebot/entwurf',
+    recht: 'angebot.schreiben',
+  },
+  {
+    /**
      * Hochladen UND uebernehmen tragen dasselbe Recht: die Vorschau legt
      * bereits Zwischenzeilen an, und wer eine Datei in den Mandanten schiebt,
      * schreibt — auch wenn das lebende Raumbuch erst der zweite Schritt
@@ -337,6 +373,31 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/auftrag/abschluss',
     recht: 'auftrag.abschliessen',
+  },
+  {
+    /**
+     * Der Auftrag laeuft, ruht oder ist storniert (V-081, OPS-05).
+     *
+     * **`auftrag.schreiben` und ausdruecklich NICHT `auftrag.abschliessen`.**
+     * Pausieren und Stornieren sind Auftragspflege; der Abschluss stellt nach
+     * D-366 die FIN-18-Warnung im Rechnungsweg scharf und traegt deshalb sein
+     * eigenes Recht (0296). `abgeschlossen` ist hier gar nicht waehlbar.
+     *
+     * Die zweite Linie ist der Ausloeser `kern.auftrag_status_pruefen` (0389)
+     * mit der Tabelle der erlaubten Wege; `storniert` ist dort einwegig.
+     */
+    pfad: 'api/auftrag/status',
+    recht: 'auftrag.schreiben',
+  },
+  {
+    /**
+     * Stammdaten eines Auftrags pflegen (V-173, OPS-05, OPS-10): Leitung,
+     * Laufzeit, Wert, Personalbedarf, Stunden, Ausstattung. Dasselbe Recht
+     * wie Anlegen und Zustand; die zweite Linie ist `t_mandant`, die der
+     * Dienst mit `for update` befragt.
+     */
+    pfad: 'api/auftrag/aendern',
+    recht: 'auftrag.schreiben',
   },
   {
     /**
@@ -449,11 +510,45 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'crm.schreiben',
   },
   {
+    /**
+     * Die Nachricht an einen Kontakt (V-101, CRM-08, D-627).
+     *
+     * Das Kontaktblatt nannte diesen Endpunkt seit je als „nicht gebaut".
+     * `crm.kommunikation_versenden` statt `crm.schreiben`: hier soll etwas das
+     * Haus VERLASSEN (Invariante 7), und das Recht dazu ist ein anderes als
+     * das, einen Kontakt zu pflegen. Im Katalog an super_admin, admin und
+     * leitung gebunden — dieselben drei, die `freigabe.entscheiden` halten,
+     * sodass wer schreibt auch benannt freigeben kann.
+     */
+    pfad: 'api/crm/nachrichten',
+    recht: 'crm.kommunikation_versenden',
+  },
+  {
+    /*
+     * OPS-01/V-001/V-020. Anlegen ODER aendern ODER archivieren — welches,
+     * entscheidet das Feld `aktion`. Eine Route fuer alle drei, weil alle drei
+     * `objekt.schreiben` verlangen und aus Formularen derselben Flaeche
+     * entstehen; drei Routen waeren drei Stellen, an denen dieses Recht steht,
+     * und die dritte ist die, die beim naechsten Umbau vergessen wird.
+     */
+    pfad: 'api/objekt',
+    recht: 'objekt.schreiben',
+  },
+  {
     /*
      * CRM-02/CRM-07. Anlegen ODER den Stand aendern. Ein Verlust traegt einen
      * Grund — beide Verlustzustaende, `verloren` wie `kein_bedarf`: eine
      * Pipeline, in der die Haelfte der Verluste „ohne Grund" heisst,
      * beantwortet keine einzige Frage.
+     *
+     * V-138/V-139 (CRM-05, CRM-07): dazu den Kunden der Anfrage setzen und
+     * einen Radartreffer als Lead uebernehmen. Die Bekanntmachung liest der
+     * Dienst unter `radar.lesen` (RLS); ohne das Recht ist sie „nicht
+     * gefunden".
+     *
+     * V-141 (D-635): den Ansprechpartner der Anfrage waehlen oder anlegen —
+     * derselbe Datenbestand, dasselbe Recht. Seine Rechtsgrundlage setzt
+     * dieser Weg nie; sie hat ihr eigenes Recht und ihren eigenen Weg.
      */
     pfad: 'api/crm/lead',
     recht: 'crm.schreiben',
@@ -491,6 +586,23 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /*
+     * AUT-04/D-610. Ein Verwaltungskonto einladen — die absendende Haelfte,
+     * die bis 0372 fehlte: die einzige Stelle, die in `benutzer` schrieb, war
+     * der SEED.
+     *
+     * **`system.verwaltungskonto_erstellen` ist `nur_global`** — auch ein
+     * Admin seiner eigenen Gesellschaft bekommt hier 404, weil `app.hat_recht`
+     * fuer ein `nur_global`-Recht nur die globale Rolle auswertet (0169). Das
+     * ist D-610: was bei Missbrauch die GRUPPE trifft, gehoert nach oben.
+     *
+     * Die Pruefung steht zweifach — hier und in
+     * `app.verwaltungskonto_einladen` (0372), die zusaetzlich `aal2` verlangt.
+     */
+    pfad: 'api/system/verwaltungskonto',
+    recht: 'system.verwaltungskonto_erstellen',
+  },
+  {
+    /*
      * CRM-08/LEG-08. Die Rechtsgrundlage eines Ansprechpartners. Der Dienst
      * verlangt zusaetzlich `crm.schreiben`: die WITH-CHECK-Klausel von
      * `t_mandant` auf `ansprechpartner` gibt sonst „new row violates row-level
@@ -524,7 +636,130 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'crm.schreiben',
   },
   {
+    /*
+     * CRM-03, V-147. Eine Notiz, einen Anruf, eine E-Mail oder einen Termin
+     * am Kunden oder am Ansprechpartner festhalten. Ausgehendes geht durch
+     * das UWG-Tor der Datenbank (0020) — hier steht nur das Recht, zu
+     * schreiben.
+     */
+    pfad: 'api/crm/notiz',
+    recht: 'crm.schreiben',
+  },
+  {
+    /*
+     * V-022, V-074, V-075, V-076. Ein fremdes Konto entsperren, entziehen,
+     * wiedergeben oder seine Anmeldungen widerrufen.
+     *
+     * **Das Manifest nennt das GROESSERE der zwei Rechte.** Drei der vier
+     * Handlungen verlangen `system.benutzer_verwalten`; der Sitzungswiderruf
+     * verlangt `system.sitzung_widerrufen`, das bis `leitung` bindbar ist.
+     * Welches im Einzelfall gilt, entscheidet die Route je Handlung — ein
+     * festes Recht waere entweder zu eng (eine `leitung` kaeme nicht an den
+     * Widerruf, fuer den sie gebunden ist) oder zu weit (der Zugangsentzug
+     * hinge am kleineren Recht). Die vier Funktionen in `0379` fragen ihr
+     * Recht ein zweites Mal, gegen den aktiven Mandanten.
+     */
+    pfad: 'api/konto/verwaltung',
+    recht: 'system.benutzer_verwalten',
+  },
+  {
+    /*
+     * V-025, EMP-09. Die Krankmeldung am Telefon um 05:40.
+     *
+     * `zeit.abwesenheit_melden` ist DASSELBE Recht wie auf dem Weg der
+     * Arbeiterin — die INSERT-Policy auf `abwesenheit` (0073) verlangt es von
+     * beiden, und `admin` wie `leitung` halten es seit je. Was hier anders
+     * ist, ist nicht das Recht, sondern WESSEN Anstellung eingetragen wird:
+     * der zusammengesetzte Fremdschluessel haelt sie im Mandanten.
+     */
+    pfad: 'api/personal/abwesenheit',
+    recht: 'zeit.abwesenheit_melden',
+  },
+  {
+    /*
+     * V-010, SEC-02, SEC-03, EMP-08, § 34a GewO. Die Sachkunde, das
+     * Führungszeugnis, der Erste-Hilfe-Kurs — aufnehmen, bestätigen,
+     * widerrufen.
+     *
+     * Ein Recht für alle drei: es ist dieselbe Personalstelle, die die
+     * Urkunde in der Hand hält. `n_schreiben` und `n_aendern` (0030) pruefen
+     * es ein zweites Mal, gegen den aktiven Mandanten.
+     */
+    pfad: 'api/personal/nachweise',
+    recht: 'personal.nachweis_verwalten',
+  },
+  {
+    /*
+     * V-006, FIN-14, ACC-05. Lieferantenstammdaten anlegen, aendern, sperren,
+     * archivieren.
+     *
+     * **Eine Route fuer vier Handlungen, weil es EIN Recht ist.**
+     * `eingang.schreiben` deckt alle vier, und `t_mandant` auf `lieferant`
+     * (0123) prueft es bei jeder. Anders als bei `api/konto/verwaltung`, wo
+     * die Handlungen tatsaechlich an zwei verschiedenen Rechten haengen.
+     */
+    pfad: 'api/finanzen/lieferanten',
+    recht: 'eingang.schreiben',
+  },
+  {
+    /*
+     * V-011, FIN-14, FIN-17, ACC-01, ACC-03. Eine Ausgabe erfassen,
+     * freigeben, ablehnen oder buchen.
+     *
+     * **Das Manifest nennt das KLEINERE der zwei Rechte**, weil es das ist,
+     * mit dem man die Route ueberhaupt betritt: erfassen ist Belegarbeit
+     * (`eingang.schreiben`). Freigeben, ablehnen und buchen sind
+     * Entscheidungen ueber Geld und verlangen `eingang.freigeben` — die
+     * Route prueft das je Handlung. Ein gemeinsames Recht hiesse: wer eine
+     * Quittung eintippen darf, gibt sie auch frei, und genau diese Trennung
+     * ist das Vieraugenprinzip.
+     */
+    pfad: 'api/finanzen/ausgaben',
+    recht: 'eingang.schreiben',
+  },
+  {
+    /*
+     * V-117, V-118, EMP-05. Den Urlaubsanspruch aus dem Arbeitsvertrag
+     * nachtragen — und das Konto anlegen, falls der Nachtlauf noch nicht
+     * durch war.
+     *
+     * `zeit.schreiben` und nicht `zeit.konto_abschliessen`: der Anspruch ist
+     * eine Stammangabe, kein Abschluss. Wer ihn eintraegt, entscheidet nichts
+     * ueber einen Monat — er schreibt auf, was im Vertrag steht.
+     */
+    pfad: 'api/personal/urlaubsanspruch',
+    recht: 'zeit.schreiben',
+  },
+  {
+    /*
+     * V-120, D-04. Ein Sprachmodell freigeben — der Weg, den
+     * `docs/EINRICHTEN-*.md` §9 bis hierher als handgeschriebene
+     * SQL-Anweisung beschreiben musste.
+     *
+     * `system.einstellung_verwalten`, dasselbe Recht wie fuer die uebrigen
+     * Plattformeinstellungen. Der ZEUGE kommt nicht aus dem Formular: den
+     * setzt `trg_modell_register_zeuge` (0381) auf den, der schreibt.
+     */
+    pfad: 'api/system/modelle',
+    recht: 'system.einstellung_verwalten',
+  },
+  {
     pfad: 'api/datenschutz/bearbeiten',
+    recht: 'datenschutz.auskunft_erstellen',
+  },
+  {
+    /*
+     * V-031, Art. 12 Abs. 1. Eine Anfrage protokollieren, die NICHT durch das
+     * oeffentliche Formular kam — Brief, Anruf, E-Mail, persoenlich.
+     *
+     * **Dasselbe Recht wie /bearbeiten, und das ist kein Versehen.** Wer den
+     * Vorgang fuehren darf, nimmt den Brief auf, der ihn ausloest; ein eigenes
+     * Recht braeuchten genau die Menschen zusaetzlich, die die Arbeit ohnehin
+     * tun (K-19). Vom oeffentlichen Eingang daneben trennt sie die Policy
+     * `t_betroffenenanfrage_aufnahme` (0378): dieser Weg kann `eingangsweg =
+     * formular` nicht schreiben, und der oeffentliche Prinzipal nichts anderes.
+     */
+    pfad: 'api/datenschutz/aufnehmen',
     recht: 'datenschutz.auskunft_erstellen',
   },
   {
@@ -668,12 +903,14 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
-     * Die Felder und die Kundenfreigabe EINER Referenz (§5.21, PRO-05).
+     * Eine Referenz ANLEGEN (V-154), ihre Felder und ihre Kundenfreigabe
+     * (§5.21, PRO-05).
      *
      * `referenz.schreiben` steht hier; die Policy `t_referenz_pflege` verlangt
      * in ihrer `with check` zusaetzlich `referenz.kundenfreigabe_erfassen`, und
-     * zwar fuer JEDEN Schreibvorgang auf dieser Tabelle. Das zweite prueft der
-     * DIENST vor jedem `update` und weist es mit einem Satz ab — eine
+     * zwar fuer JEDEN Schreibvorgang auf dieser Tabelle — das `insert` der
+     * Anlage eingeschlossen. Das zweite prueft der
+     * DIENST vor jedem Schreiben und weist es mit einem Satz ab — eine
      * `with check` wirft, sie filtert nicht, und ein 500 waere die falsche
      * Auskunft fuer eine Handlung, die jemand einfach nicht darf.
      *
@@ -712,6 +949,20 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/akquise/ziel',
     recht: 'crm.schreiben',
+  },
+  {
+    pfad: 'api/konto/sitzung',
+    recht: null,
+    grund:
+      'AUT-05, V-039. Eine EIGENE Anmeldung beenden. Wie bei `api/konto/sprache` fuehrt '
+      + 'der Rechtekatalog dafuer keinen Schluessel, und §12.4 markiert den Zugriff auf '
+      + 'das eigene Konto als Selbstzugriff (S). Einen Schluessel zu erfinden, den man '
+      + 'anschliessend jeder Rolle bindet, pruefte nichts und behauptete zu pruefen '
+      + '(K-19). `system.sitzung_widerrufen` ist etwas anderes: das Recht, FREMDE '
+      + 'Sitzungen zu beenden (V-076). Bewacht wird der Weg durch die Sitzung, den '
+      + 'Ursprungsvergleich und `t_sitzung_eigene_schreiben`, die ausschliesslich Zeilen '
+      + 'mit `benutzer_id = app.aktueller_benutzer()` zulaesst — die Kennung kommt aus '
+      + 'der Datenbanksitzung und nie aus einem Feld der Anfrage (K-02).',
   },
   {
     pfad: 'api/konto/sprache',
@@ -798,12 +1049,13 @@ export const ROUTEN: readonly RouteEintrag[] = [
     /**
      * Erfasste Zeit zur Abrechnung freigeben (TIM-12, FIN-07, FIN-18).
      *
-     * **`zeit.abrechnung_freigeben` ist nicht geseedet und an keine Rolle
-     * gebunden** (03-AUTH §12.4, O-39): diese Route ist gebaut, geprueft und
-     * fuer jede heutige Sitzung unerreichbar. Das ist der gewollte Zustand —
-     * die Antwort des Mandanten oeffnet sie mit einer Rechtebindung statt mit
-     * einem Umbau. Die Pruefung steht dreifach: hier, in
-     * `app.zeit_zur_abrechnung_freigeben` (0366) und im Manifest der Seite.
+     * **`zeit.abrechnung_freigeben` ist seit D-611/0371 gebunden** — an
+     * `super_admin` und `admin`, fuer `leitung` je Gesellschaft anlegbar
+     * (D-612, 03-AUTH §12.4). Bis dahin war die Route gebaut, geprueft und
+     * fuer jede Sitzung unerreichbar; die Antwort des Mandanten hat sie mit
+     * einer Rechtebindung geoeffnet und nicht mit einem Umbau. Die Pruefung
+     * steht weiterhin dreifach: hier, in `app.zeit_zur_abrechnung_freigeben`
+     * (0366) und im Manifest der Seite.
      */
     pfad: 'api/zeit/abrechnungsfreigabe',
     recht: 'zeit.abrechnung_freigeben',
@@ -906,6 +1158,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/medien/[id]',
     recht: 'zeit.lesen',
+  },
+  {
+    pfad: 'api/speicher/[bucket]/[...schluessel]',
+    recht: null,
+    grund:
+      'V-131, D-623. Die Auslieferung des Vorführspeichers — offen wie eine signierte '
+      + 'Supabase-Adresse offen ist: wer sie hat, hat sie von einer Route bekommen, die '
+      + 'Sitzung, Recht und Mandant geprüft und den Abruf vermerkt hat. Die Route selbst '
+      + 'prüft Ablauf und HMAC der Adresse (15 Minuten, DOC-03) und antwortet 404, wenn '
+      + 'kein Vorführordner aktiv ist — also in jedem Deployment.',
   },
   {
     /**
@@ -1296,6 +1558,86 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Eine Arbeitszeit NACHERFASSEN, zu der es kein Geraetereignis gibt
+     * (V-066, V-067, TIM-09).
+     *
+     * `zeit.nacherfassung_pruefen` — dasselbe Recht wie die Seite, auf der
+     * dieser Weg steht, und dasselbe, das die Uebernahme eines
+     * Offline-Anspruchs verlangt. Der Unterschied zu `api/zeit/offline` ist
+     * der, auf den es im Streit ankommt: dort hat eine MASCHINE eine Zeit
+     * behauptet, hier ein MENSCH.
+     */
+    pfad: 'api/zeit/nacherfassung',
+    recht: 'zeit.nacherfassung_pruefen',
+  },
+  {
+    /**
+     * Einen LAUFENDEN Zeiteintrag schliessen oder stornieren (V-064, TIM-11).
+     *
+     * `zeit.korrigieren` und nicht `zeit.schreiben`: es ist derselbe Vorgang
+     * wie die Korrektur eines abgeschlossenen Eintrags, nur eine Phase
+     * frueher — und er setzt die Arbeitszeit eines ANDEREN Menschen fest.
+     *
+     * Was hier entsteht, ist keine Stempelzeit, sondern eine Behauptung der
+     * Verwaltung (Invariante 5). Sie wird als solche gespeichert:
+     * `quelle_ende = 'planer_entscheidung'`, `nacherfasst = true`,
+     * `behauptet_ende` gesetzt — erzwungen von `z_quelle_ende_belegt` und
+     * `z_anspruch_je_ereignis`.
+     */
+    pfad: 'api/zeit/laufend',
+    recht: 'zeit.korrigieren',
+  },
+  {
+    /**
+     * Eine Veranstaltung anlegen, aendern oder archivieren (V-004, SEC-08).
+     *
+     * `security.schreiben` — dasselbe Recht, das die RLS von `veranstaltung`
+     * verlangt. Die BESETZUNG derselben Veranstaltung liegt dagegen hinter
+     * `dienstplan.schreiben` (Seitenkarte §5.8): wer das Event erfasst, teilt
+     * damit noch niemanden ein.
+     *
+     * Woher ein Veranstaltungsauftrag ueberhaupt entsteht, ist offen (O-703);
+     * diese Adresse baut den Weg, der am wenigsten erfindet — handerfasst,
+     * mit optionaler Verbindung zu einer Auftragsleistung.
+     */
+    pfad: 'api/security/veranstaltungen',
+    recht: 'security.schreiben',
+  },
+  {
+    /**
+     * Ein Bauvorhaben anlegen, aendern oder archivieren (V-003, OPS-05).
+     *
+     * `bau.schreiben` und nicht `bau.aufmass_erfassen`: ein Vorhaben ANLEGEN
+     * ist die Handlung der Bauleitung, ein Aufmass aufnehmen die der Kraft
+     * vor Ort. Beides zu vermischen gaebe jeder Kraft, die ein Blatt
+     * aufnehmen darf, auch das Recht, ein Projekt zu archivieren.
+     *
+     * Der AUFTRAG wird gewaehlt, nie erfunden: `projekt_auftrag_uk` laesst
+     * genau ein Projekt je Auftrag zu, und Kunde, Objekt und Nummer liest der
+     * Dienst aus dessen Zeile statt aus dem Formular.
+     */
+    pfad: 'api/bau/projekte',
+    recht: 'bau.schreiben',
+  },
+  {
+    /**
+     * Eine Reinigungszone anlegen, aendern oder archivieren (V-002, CLN-01).
+     *
+     * `reinigung.schreiben` — dasselbe Recht, das die RLS von `revier`
+     * verlangt und das `dienste.ts` fuer `reinigung/revier` fuehrt. Ohne
+     * diese Adresse konnte KEINE neue Flaeche entstehen: der Turnus haengt am
+     * Revier, der Einsatz am Turnus, der Nachweis am Einsatz.
+     *
+     * Das OBJEKT einer bestehenden Zone laesst sich hier nicht umhaengen; der
+     * Dienst nimmt das Feld beim Aendern gar nicht erst entgegen. Eine Zone
+     * mit Raeumen eines fremden Gebaeudes waere eine Flaeche an einer Adresse,
+     * an der sie nicht liegt.
+     */
+    pfad: 'api/reinigung/reviere',
+    recht: 'reinigung.schreiben',
+  },
+  {
+    /**
      * Den Turnus eines Reviers anlegen, aendern oder stilllegen (CLN-02).
      *
      * `reinigung.schreiben` — dasselbe Recht, das der Handler mit
@@ -1388,6 +1730,76 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'zeit.abwesenheit_melden',
   },
   {
+    /**
+     * Die eigene Zeit stempeln (D-618, O-93, TIM-07, Migration 0373).
+     *
+     * **Kein Recht, und das ist die Entscheidung.** `zeit.checkin_verwalten`
+     * ist das Recht der PLANUNG, Marken fuer FREMDE auszugeben; eine
+     * Reinigungskraft haelt es nicht und soll es nicht halten. Die eigene
+     * Zeit zu stempeln ist Selbstzugriff und kein Modulrecht (K-19).
+     *
+     * Die Wache ist die Sitzung, der Ursprungsvergleich, der aus der
+     * EINTEILUNG serverseitig aufgeloeste Mandant (K-02) — und vor allem
+     * `app.checkin_aus_der_sitzung` (0373) selbst, die auf `app.portal() =
+     * 'mitarbeiter'` (K-04) und auf der Personenzugehoerigkeit der Einteilung
+     * besteht. Beides kann diese Route nicht umgehen (Invariante 3).
+     *
+     * Geschrieben wird am Ende ueber `app.checkin_verbrauchen`, den einen
+     * Schreiber des Check-in-Pfades (K-08) — EMP-07 bleibt unberuehrt, weil
+     * `p_ma_kein_update` das AENDERN ueber `cse_app` verbietet und der
+     * Check-in seit jeher ueber `cse_definer` schreibt.
+     */
+    pfad: 'api/mein/stempeluhr',
+    recht: null,
+    grund:
+      'TIM-07, EMP-01, D-618. Die EIGENE Zeit zu stempeln ist Selbstzugriff und kein '
+      + 'Modulrecht (K-19); `zeit.checkin_verwalten` gehoert der Planung, die Marken fuer '
+      + 'FREMDE ausgibt. Die Wache ist die Sitzung, der Ursprungsvergleich, der aus der '
+      + 'Einteilung serverseitig aufgeloeste Mandant (K-02) und '
+      + '`app.checkin_aus_der_sitzung` (0373), die Portal UND Personenzugehoerigkeit selbst '
+      + 'prueft. Der Schreibvorgang muendet in `app.checkin_verbrauchen` (K-08).',
+  },
+  {
+    /**
+     * Die eigene Einteilung zusagen oder absagen (V-049, D-622, Migration 0374).
+     *
+     * **Kein Recht, und das ist die Entscheidung — aus demselben Grund wie
+     * bei der Stempeluhr darueber.** `dienstplan.schreiben` ist das Recht,
+     * den Plan zu MACHEN. Wer es einer Reinigungskraft gaebe, gaebe ihr den
+     * Plan. Auf die eigene Einteilung zu antworten ist Selbstzugriff und kein
+     * Modulrecht (K-19).
+     *
+     * Die Wache ist die Sitzung, der Ursprungsvergleich, der aus der
+     * EINTEILUNG serverseitig aufgeloeste Mandant (K-02) — und vor allem
+     * `app.schicht_zusagen` / `app.schicht_absagen` (0374) selbst, die auf
+     * `app.portal() = 'mitarbeiter'` (K-04) und auf der
+     * Personenzugehoerigkeit der Einteilung bestehen. Beides kann diese Route
+     * nicht umgehen (Invariante 3).
+     */
+    pfad: 'api/mein/schicht',
+    recht: null,
+    grund:
+      'EMP-02, V-049, D-622. Auf die EIGENE Einteilung zu antworten ist Selbstzugriff und '
+      + 'kein Modulrecht (K-19); `dienstplan.schreiben` gehoert dem Buero, das den Plan '
+      + 'macht. Die Wache ist die Sitzung, der Ursprungsvergleich, der aus der Einteilung '
+      + 'serverseitig aufgeloeste Mandant (K-02) und `app.schicht_zusagen` / '
+      + '`app.schicht_absagen` (0374), die Portal UND Personenzugehoerigkeit selbst pruefen. '
+      + 'Das Arbeiterportal hat auf `einsatz_zuordnung` ueber `cse_app` keinen Schreibweg: '
+      + '`t_selbst_m1` gibt nur `r`.',
+  },
+  {
+    pfad: 'api/mein/abwesenheit/[id]/zurueckziehen',
+    recht: null,
+    grund:
+      'V-056, EMP-10, SEITENKARTE §7. Die EIGENE Abwesenheit zuruecknehmen ist Selbstzugriff '
+      + 'und kein Modulrecht (K-19) — dieselbe Begruendung wie beim Antrag daneben. Die '
+      + 'Wache ist die Sitzung, der Ursprungsvergleich, der aus der Beschaeftigung '
+      + 'serverseitig aufgeloeste Mandant (K-02) und die Policy `t_selbst_zurueckziehen` '
+      + '(0386), deren USING nur erfasst/beantragt und deren WITH CHECK nur storniert '
+      + 'zulaesst — eine Selbstgenehmigung ist damit nicht formulierbar, und eine schon '
+      + 'entschiedene Abwesenheit bleibt der Planung.',
+  },
+  {
     pfad: 'api/mein/antraege/[id]/zurueckziehen',
     recht: null,
     grund:
@@ -1428,6 +1840,25 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + '`bautagebuch_mannstunden.t_selbst_m1_erfassen` (0303), Selbstzugriff ueber '
       + '`app.ist_eingesetzt_auf_projekt` und `app.aktuelle_person()`. Abschluss und '
       + 'Gegenzeichnung bleiben `bau.schreiben` und damit der Bauleitung.',
+  },
+  {
+    pfad: 'api/mein/schichten/[zuordnungId]/bautagebuch/korrektur',
+    recht: null,
+    grund:
+      'V-063, BAU-07, LEG-01. Die EIGENE Mannstundenzeile stornieren und ersetzen: '
+      + '`bautagebuch_mannstunden.t_selbst_m1_storno` (0303) laesst nur die eigene, '
+      + 'lebende Zeile zu und nur den Uebergang auf storniert MIT Ersatz '
+      + '(`ersetzt_durch_id is not null`). Ein Fachrecht davor waere eines, das die '
+      + 'Kolonne gar nicht halten soll — die Grenze ist die Person, nicht die Rolle.',
+  },
+  {
+    pfad: 'api/mein/schichten/[zuordnungId]/bautagebuch/foto',
+    recht: null,
+    grund:
+      'V-063, BAU-07, TIM-10. Ein Tagesfoto am Bautag der eigenen Schicht: '
+      + '`einsatz_medien.t_selbst_schichtmedien` (0303) nennt '
+      + '`bezug_tabelle = bautagebuch` ausdruecklich und bindet an '
+      + '`app.aktuelle_person()`. Der Tag kommt aus der SCHICHT, nie aus der Anfrage.',
   },
   {
     /**
@@ -1742,6 +2173,55 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Eine Abweichung dieser Gesellschaft an der Rechtematrix setzen (V-023,
+     * AUT-03).
+     *
+     * **`system.rolle_verwalten` und ausdruecklich `erfordert2fa`.** Die
+     * restriktive Policy `p_rb_aal2` (0008) weist eine `aal1`-Sitzung ab —
+     * mit „new row violates row-level security policy", also einem 500er an
+     * einer Stelle, an der „zeig den zweiten Faktor" die Wahrheit ist. Der
+     * Handler sagt denselben Satz vorher und verstaendlich (AUT-02, K-15).
+     *
+     * **`system.rolle_lesen` reicht NICHT.** Wer die Matrix ansehen darf,
+     * verstellt sie damit nicht — `rolle_lesen` ist bis `leitung` bindbar,
+     * `rolle_verwalten` nur bis `admin`.
+     */
+    pfad: 'api/einstellungen/rollenrecht',
+    recht: 'system.rolle_verwalten',
+  },
+  {
+    /**
+     * Die Module einer Administration setzen (AUT-01, V-164, D-658).
+     *
+     * **`system.module_zuweisen` und ausdruecklich `erfordert2fa`** — nicht
+     * `system.benutzer_verwalten`. Wer Konten verwaltet, bestimmt damit nicht,
+     * welche Module eine Administration haelt; 03-AUTH §12.1 bindet das Recht
+     * nur an `super_admin` (bindbar bis `admin`, O-76). Die Datenbank
+     * (`app.mitgliedschaft_module_setzen`, 0416) fragt Recht, Faktor, Rolle
+     * und ein fremdes Konto noch einmal.
+     */
+    pfad: 'api/einstellungen/mitgliedschaft-module',
+    recht: 'system.module_zuweisen',
+  },
+  {
+    /**
+     * Ein Dokument samt Datei entfernen (V-026, DOC-07, LEG-01).
+     *
+     * **`dokument.archivieren` und nicht `dokument.schreiben`.** Wer ablegen
+     * darf, raeumt damit nicht auf: das eine legt etwas hinzu, das andere
+     * nimmt etwas fort, und in einem Archiv ist das nicht dieselbe Handlung.
+     * Der Katalog trennt sie seit `0008`; gefragt hat bis hierher niemand
+     * danach.
+     *
+     * Was bleiben MUSS, entscheidet nicht diese Route: `kern.dokument_
+     * loeschsperre` (0009) und `fin.dokument_haengt_an_buchung` (0132) stehen
+     * vor der Zeile und gelten fuer jeden Weg.
+     */
+    pfad: 'api/dokumente/loeschen',
+    recht: 'dokument.archivieren',
+  },
+  {
+    /**
      * Eine Richtlinie des Ausgangs-Gates setzen (AGT-03, APR-01,
      * Invariante 7).
      *
@@ -1784,6 +2264,25 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/einstellungen/identitaet',
     recht: 'system.identitaet_verwalten',
+  },
+  {
+    /**
+     * Logo, Avatar und Titelbild setzen oder die Zuordnung wegnehmen (V-100,
+     * D-628). Dasselbe Recht wie die uebrige Identitaet: wer das
+     * Erscheinungsbild pflegt, pflegt auch seine Bilder.
+     */
+    pfad: 'api/einstellungen/identitaet/bild',
+    recht: 'system.identitaet_verwalten',
+  },
+  {
+    pfad: 'api/marke/[mandant]/[art]/[version]',
+    recht: null,
+    grund:
+      'V-100, D-628, PUB-09, PUB-14, PRO-01. Logo, Avatar und Titelbild stehen auf der '
+      + 'öffentlichen Website — hinter einer Anmeldung sähe sie niemand. Offen ist die Route '
+      + 'trotzdem nur für eine VERÖFFENTLICHTE Identität (`oeffentlich_sichtbar`, gelesen über '
+      + 'die Projektions-View); sonst nur für eine Sitzung in genau dieser Gesellschaft, und '
+      + 'sonst 404. Der Behälter `marke` bleibt privat.',
   },
   {
     /**
@@ -1871,6 +2370,22 @@ export const ROUTEN: readonly RouteEintrag[] = [
      * (D-445).
      */
     pfad: 'api/buchhaltung/datev/[id]/datei',
+    recht: 'buchhaltung.exportieren',
+  },
+  {
+    /**
+     * Der VERMERK am Buchungsstapel (V-027): übergeben oder verworfen.
+     *
+     * `buchhaltung.exportieren` — dasselbe Recht, das den Stapel erzeugt und
+     * das `t_mandant` auf `datev_export` im WITH CHECK verlangt. Wer eine
+     * Datei erzeugen darf, vermerkt auch, was aus ihr geworden ist; ein
+     * eigenes Recht trennte zwei Hälften desselben Vorgangs.
+     *
+     * **Sie sendet nichts.** Es gibt keinen DATEV-Endpunkt und keine
+     * Zugangsdaten (O-05). Was hier entsteht, ist der Vermerk eines Menschen
+     * über etwas, das er selbst getan hat.
+     */
+    pfad: 'api/buchhaltung/datev/[id]/stand',
     recht: 'buchhaltung.exportieren',
   },
   {
@@ -2051,6 +2566,34 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * V-021, TIM-02, TIM-03. Eine Serie AENDERN, BEENDEN oder ARCHIVIEREN.
+     *
+     * Dasselbe Rechtepaar wie bei den Ausnahmen daneben und aus demselben
+     * Grund: die Route gehoert dem Dienstplan, die Schreibpolicy der Tabelle
+     * fragt das Gewerk (`turnus` → `reinigung.schreiben` (0029), `posten` →
+     * `security.schreiben` (0069)). `horizont` und `archivieren` schreiben
+     * nur auf `planungsserie` und brauchen nur `dienstplan.schreiben` — das
+     * Ausfuehrungsprotokoll des Generators gehoert dem Dienstplan.
+     */
+    pfad: 'api/dienstplan/serien/[id]',
+    recht: 'dienstplan.schreiben',
+  },
+  {
+    /**
+     * V-015, AGT-05. Die Obergrenze eines Monats setzen.
+     *
+     * **`agent.budget_verwalten` und ausdruecklich NICHT
+     * `agent.aufgabe_starten`.** Das zweite haelt auch eine `leitung`; wer
+     * damit auch die Obergrenze setzen duerfte, verstellte seine eigene
+     * Grenze, und AGT-05 haette keine. `0385` zieht die Schreibpolicy auf
+     * `agent_budget` auf dasselbe Recht nach — die Route prueft es, damit
+     * der Mensch einen Satz bekommt statt „null Zeilen betroffen".
+     */
+    pfad: 'api/agenten/budget',
+    recht: 'agent.budget_verwalten',
+  },
+  {
+    /**
      * Einen Zeitraum bekanntgeben (TIM-01, NOT-01). Geschrieben wird ueber
      * `app.dienstplan_veroeffentlichung_anlegen` (0266) — `cse_app` haelt auf
      * `benachrichtigung` kein Tabellenrecht INSERT. Die Leserechte
@@ -2085,6 +2628,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/radar/profil',
     recht: 'radar.profil_schreiben',
+  },
+  {
+    /**
+     * Den Plattformkatalog und den Registrierungsstand pflegen (RAD-09,
+     * V-175, D-669). Das Tor ist das Recht der Seite; den KATALOG selbst
+     * aendert nur die Super-Administration — das fragt der Dienst, und die
+     * Policy `r_plattform_schreiben` (0145, 0146) fragt es ein zweites Mal.
+     */
+    pfad: 'api/radar/plattform',
+    recht: 'radar.plattform_verwalten',
   },
   {
     /**
@@ -2166,6 +2719,41 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/personal/zugang-code',
     recht: 'personal.zugang_verwalten',
+  },
+  {
+    /**
+     * V-014, EMP-01, EMP-14, AUT-08. Den Telefonzugang einrichten, die
+     * Anmeldenummer umschreiben, sperren, entsperren.
+     *
+     * **Dasselbe Recht wie die Codeausstellung daneben**, und das ist hier
+     * richtig: es ist dieselbe Personalstelle, die die Nummer entgegennimmt
+     * und den verlorenen Zugang anhaelt. `t_zugang_anlegen` und
+     * `t_zugang_aendern` (0113/0384) pruefen den Mandanten und die
+     * Beschaeftigung ein zweites Mal.
+     *
+     * **Das Sperren braucht ausdruecklich keinen zweiten Schluessel.** Ein
+     * verlorenes Diensttelefon wird gemeldet, waehrend jemand im Treppenhaus
+     * steht; eine Sperre, die auf ein zweites Augenpaar wartet, kommt zu
+     * spaet. Ob umgekehrt das UMSCHREIBEN vier Augen braucht, ist offen
+     * (O-86) und wird nicht erfunden.
+     */
+    pfad: 'api/personal/zugang',
+    recht: 'personal.zugang_verwalten',
+  },
+  {
+    /**
+     * V-013, TIM-01, TIM-04. Eine EINZELNE Schicht anlegen oder absagen.
+     *
+     * `dienstplan.schreiben` fuer beides — es ist dieselbe Disposition, die
+     * eine Sonderreinigung ansetzt und sie wieder absagt. `t_mandant` auf
+     * `einsatz` (0028) prueft den Schluessel bei jedem Schreibvorgang ein
+     * zweites Mal.
+     *
+     * Nicht zu verwechseln mit `api/einsaetze/[id]/absagen`: dort sagt EINE
+     * Eingeteilte ihre Zuordnung ab, hier faellt die ganze Schicht aus.
+     */
+    pfad: 'api/dienstplan/einsatz',
+    recht: 'dienstplan.schreiben',
   },
   {
     /**

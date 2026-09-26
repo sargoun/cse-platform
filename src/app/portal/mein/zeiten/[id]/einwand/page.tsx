@@ -1,6 +1,8 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EINWAND_ARTEN, EINWAND_ART_TEXTE } from '@/lib/i18n/texte';
+import { EINWAND_FORM_TEXTE } from '@/lib/i18n/mein-formulare';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { vorbelegt } from '@/lib/formular/maske';
 import {
   findeEigenenZeiteintrag, type EigenerZeiteintrag,
 } from '@/server/services/mitarbeiter/zeiten';
@@ -8,7 +10,7 @@ import { listeEigeneEinwaende, type EinwandZeile }
   from '@/server/services/zeit/einwand';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
-import { Feld, Felder, Leer } from '../../../bausteine';
+import { Abgewiesen, EinwandListe, Feld, Felder } from '../../../bausteine';
 
 /**
  * `/portal/mein/zeiten/[id]/einwand` — der EINZIGE Schreibweg des Menschen in
@@ -32,6 +34,15 @@ import { Feld, Felder, Leer } from '../../../bausteine';
  * Ein echtes `<form method="post">`: das Formular muss auf einem alten
  * Diensttelefon in einem Treppenhaus funktionieren, und das heisst ohne
  * JavaScript (SEITENKARTE §13).
+ *
+ * **Nach dem Absenden kommt diese Seite zurueck** (V-189): das Formular
+ * schickt `maske` und `zurueck`, die Route leitet mit `?gemeldet=1` hierher
+ * und eine Abweisung mit `?fehler=`. Vorher endete das Absenden auf einer
+ * weissen Seite mit `{"einwand": "…"}`.
+ *
+ * **Fuer eine Schicht OHNE Eintrag gibt es diese Seite nicht** — sie braucht
+ * einen Eintrag. Dafuer steht `/portal/mein/zeiten/einwand` („Eine Zeit
+ * fehlt"), verlinkt von „Meine Zeiten" und vom Blatt der Schicht.
  */
 export const dynamic = 'force-dynamic';
 
@@ -41,9 +52,13 @@ interface Daten {
 }
 
 export default async function EinwandFormular(
-  { params }: { params: Promise<{ id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { id } = await params;
+  const suche = await searchParams;
   const ergebnis = await meinPortal<Daten>(
     `/portal/mein/zeiten/${id}/einwand`,
     async (kontext) => ({
@@ -58,22 +73,33 @@ export default async function EinwandFormular(
   // Ein fremder Eintrag ist fuer diese Anmeldung nicht vorhanden (AUT-06).
   if (z === null) notFound();
   const t = basis.texte;
+  const ft = EINWAND_FORM_TEXTE[basis.sprache];
   const arten = EINWAND_ART_TEXTE[basis.sprache];
   const zuDiesem = daten.eigene.filter((e) => e.zeiteintragId === z.id);
+  const pfad = `/portal/mein/zeiten/${z.id}/einwand`;
+  const fehler = vorbelegt(suche, 'fehler');
+  const satz = fehler === undefined ? null : (eigenerEintrag(ft.gruende, fehler) ?? ft.unbekannt);
   const eingabe =
     'min-h-11 w-full rounded-md border border-line-strong bg-surface px-s3 py-s2 '
     + 'text-base text-text';
 
   return (
-    <MeinRahmen basis={basis} titel={t.einwandMelden} aktiverTab="stunden">
-      <Link
-        href={`/portal/mein/zeiten/${z.id}`}
-        className="mb-s4 inline-block min-h-11 text-base text-text underline"
-      >
-        ← {t.zeiten}
-      </Link>
+    <MeinRahmen basis={basis} titel={t.einwandMelden} aktiverTab="stunden"
+      zurueck={{ ziel: `/portal/mein/zeiten/${z.id}`, text: t.zeiten }}
+    >
 
       <h1 className="mb-s4 text-h1 text-text">{t.einwandMelden}</h1>
+
+      {satz !== null && (
+        <Abgewiesen marke="einwand-abgewiesen" titel={ft.nichtGesendet} text={satz}
+          zusatz={vorbelegt(suche, 'begruendung_neu') === 'ja' ? ft.begruendungErneut : null} />
+      )}
+      {satz === null && vorbelegt(suche, 'gemeldet') === '1' && (
+        <p role="status" data-cse="einwand-gemeldet"
+           className="mb-s4 max-w-prose rounded-lg border border-success bg-success-soft p-s4 text-base text-text">
+          {ft.gemeldet}
+        </p>
+      )}
 
       <section className="mb-s5 rounded-lg border border-line bg-surface p-s4">
         <Felder>
@@ -100,6 +126,8 @@ export default async function EinwandFormular(
         <input type="hidden" name="anstellung" value={z.anstellungId} />
         <input type="hidden" name="zeiteintrag" value={z.id} />
         <input type="hidden" name="datum" value={z.tag} />
+        <input type="hidden" name="maske" value={pfad} />
+        <input type="hidden" name="zurueck" value={pfad} />
 
         <div className="flex flex-col gap-s2">
           <label htmlFor="einwand-art" className="text-base text-text">
@@ -154,7 +182,7 @@ export default async function EinwandFormular(
 
         <div className="flex flex-col gap-s2">
           <label htmlFor="einwand-pause" className="text-base text-text">
-            {t.pause} (min)
+            {t.pauseMinuten}
           </label>
           <input
             id="einwand-pause" name="pause" type="number" min={0} step={1}
@@ -171,21 +199,23 @@ export default async function EinwandFormular(
         </button>
       </form>
 
+      {/*
+        * **Was aus der Meldung wurde** (V-051, EMP-07).
+        *
+        * Vorher stand hier der rohe Enum-Wert — `teilweise_anerkannt` — und
+        * sonst nichts. Wann entschieden wurde und mit welcher Begruendung
+        * lag in `zeit_einwand`, wurde von `listeEigeneEinwaende` geladen und
+        * nie gezeigt. Eine Person, die einen falschen Lohn meldet, las damit
+        * ein Wort ihrer Datenbank und erfuhr nie, warum.
+        *
+        * Die Begruendung steht in der Sprache, in der die Planung sie
+        * geschrieben hat, und wird NICHT uebersetzt: sie ist eine Aussage
+        * eines Menschen ueber einen Einzelfall, keine Beschriftung. Was
+        * uebersetzt wird, sind die Woerter darum herum.
+        */}
       <section className="mt-s6">
         <h2 className="mb-s3 text-h3 text-text">{t.meineMeldungen}</h2>
-        {zuDiesem.length === 0 ? <Leer text={t.keineEintraege} /> : (
-          <ul data-cse="eigene-einwaende" className="m-0 flex list-none flex-col gap-s3 p-0">
-            {zuDiesem.map((e) => (
-              <li key={e.id} className="rounded-lg border border-line bg-surface p-s4">
-                <Felder>
-                  <Feld label={t.status}>{e.status}</Feld>
-                  <Feld label={t.einwandArt}>{arten[e.art]}</Feld>
-                  <Feld label={t.einwandBegruendung}>{e.begruendung}</Feld>
-                </Felder>
-              </li>
-            ))}
-          </ul>
-        )}
+        <EinwandListe einwaende={zuDiesem} texte={t} sprache={basis.sprache} />
       </section>
     </MeinRahmen>
   );

@@ -120,7 +120,7 @@ export default async function NachweisBlatt({
   const { mandant, id } = await params;
   kennungOder404(id);
   const zugang = await portalZugang(
-    `/portal/${mandant}/reinigung/leistungsnachweise/[id]`,
+    `/portal/${mandant}/reinigung/leistungsnachweise/${id}`,
   );
   if (zugang === null) return <AnmeldungNoetig />;
 
@@ -169,16 +169,8 @@ export default async function NachweisBlatt({
       aktiverTab="reinigung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/reinigung/leistungsnachweise`, text: 'Alle Leistungsnachweise' }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/reinigung/leistungsnachweise`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Alle Leistungsnachweise
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{kopf.nummer ?? 'Ohne Nummer'}</h1>
         <StatusPill zustand={PILLE[kopf.status] ?? 'Entwurf'} />

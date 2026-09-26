@@ -1562,7 +1562,7 @@ die rechtliche Fußzeile, die auf jedem Angebot und jeder Rechnung dieser Entit�
 |---|---|---|---|---|
 | id | uuid | NOT NULL | `gen_random_uuid()` | PK |
 | mandant_id | uuid | NOT NULL | — | FK → `mandant.id`, UNIQUE (1:1) |
-| kurzname | text | NOT NULL | — | Zeile 2 im Switcher: `Reinigung`, `Sicherheit`, `Bau`, `Digital & KI` (DESIGN §6) |
+| kurzname | text | NOT NULL | — | Kurzname der Gesellschaft; beim Anlegen der Name (0200). *Nicht* Zeile 2 im Switcher: die zeigt die gebuchten Gewerke aus `mandant.module` unter ihren Modulnamen und den Live-Zähler (DESIGN §6, D-659, D-731) |
 | identitaets_token | text | NOT NULL | — | **Token-Name, kein Hex.** `CHECK (identitaets_token IN ('area-reinigung','area-security','area-bau','area-operations'))` |
 | logo_hell_pfad · logo_dunkel_pfad · logo_druck_pfad | text | NULL | — | Storage-Keys; SVG. `// TODO(client): O-12 Logodateien` |
 | logo_alt | text | NULL | — | Alternativtext für alle Logovarianten (PUB-09, LEG-07, DESIGN §9) |
@@ -1618,6 +1618,18 @@ die rechtliche Fußzeile, die auf jedem Angebot und jeder Rechnung dieser Entit�
 - **SPEC:** TEN-07, TEN-10, PUB-03, PUB-09, PUB-14, PRO-01, PRO-02, LEG-07, DESIGN §1/§6/§9/§11, D-10, K-12.
 
 ### 6.3 mandant_kennzahl
+
+> **Stand D-659 (V-165, `drizzle/0417`):** gebaut ist der Lesepfad
+> `app.mandant_kennzahlen() returns table (mandant_id uuid, schluessel text, wert integer)` —
+> LIVE gezählt über vorhandene Indizes, ohne die Tabelle unten und ohne Job, und gefiltert nach dem
+> Leserecht des Betrachters je Bereich (`auftrag.lesen`, `bau.lesen`). Die Tabelle bleibt hier als
+> Entwurf stehen, falls die Zählung je einmal zu teuer wird; dann ändert sich nur der Körper der
+> Funktion, nicht ihr Vertrag.
+>
+> **Stand D-660 (V-166, `drizzle/0418`):** das Leserecht allein genügt nicht — `kunde` hält
+> `auftrag.lesen` plattformweit, und die Kundendecke der RLS sieht eine Definer-Zählung nicht.
+> Gezählt wird nur in einer internen Sitzung und je Bereich nur, wo das Portal nach einem Wechsel
+> dorthin intern wäre (wie `app.sitzung_aufloesen`). Ein Kundenkonto bekommt keine Zeile.
 
 Der Zählerstand je Bereich für das Switcher-Dropdown — „Reinigung · 24 Aufträge" —, als Cache
 berechnet, damit das Dropdown keine vier mandantenübergreifenden Aggregate pro Render auslöst.

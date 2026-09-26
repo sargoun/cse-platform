@@ -9,7 +9,8 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { ladeHoch } from '@/server/services/dokument/upload';
 import { GeldFehler, cent, parseGeld } from '@/server/services/finanz/geld';
 import { FreigabeFehler, erteileFreigabe } from '@/server/services/freigabe/erteilen';
@@ -149,7 +150,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
                `undefined` zu tragen — der Typ sagt „nicht behauptet", nicht
                „als undefiniert behauptet". */
             ...(datei.type === '' ? {} : { behaupteterTyp: datei.type }),
-          }, new SupabaseSpeicher(), Number(rechnungsdatum.slice(0, 4)));
+          }, waehleSpeicher(), Number(rechnungsdatum.slice(0, 4)));
           waise.wert = { bucket: hoch.bucket, pfad: hoch.objektSchluessel };
 
           await kontext.schreibe(
@@ -201,7 +202,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   } catch (fehler) {
     if (waise.wert !== null) {
       try {
-        await new SupabaseSpeicher().entferne(waise.wert.bucket, waise.wert.pfad);
+        await waehleSpeicher().entferne(waise.wert.bucket, waise.wert.pfad);
       } catch {
         /*
          * Auch das Aufräumen kann scheitern — dann bleibt ein verwaistes
@@ -275,7 +276,7 @@ async function liesERechnung(
         sitzung, { recht: 'eingang.schreiben', schreibend: true },
         rechtepruefer(kontext.abfrage.bind(kontext)),
       );
-      const abgelegt = await legeERechnungAb(kontext, new SupabaseSpeicher(), {
+      const abgelegt = await legeERechnungAb(kontext, waehleSpeicher(), {
         dateiname: datei.name,
         bytes,
         ...(datei.type === '' || datei.type === 'text/xml' ? {} : { behaupteterTyp: datei.type }),

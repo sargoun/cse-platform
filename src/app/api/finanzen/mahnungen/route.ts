@@ -8,12 +8,14 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { FreigabeErforderlich, RechtsgrundlageFehlt } from '@/server/agent/policy';
 import { ermittleVorschlaege, legeMahnentwurfAn }
   from '@/server/services/finanz/mahnung/lauf';
 import {
-  KanalNichtVerbundenFehler, MahnungFehler, dokumentiereVersand, gibFrei, verwirf,
+  KanalNichtVerbundenFehler, MahnungFehler, dokumentiereVersand, erledige, gibFrei,
+  verwirf,
   type Versandart,
 } from '@/server/services/finanz/mahnung/index';
 
@@ -56,6 +58,8 @@ const STATUS: Readonly<Record<MahnungFehler['grund'], number>> = {
   ohne_position: 422,
   ohne_grund: 422,
   zeichen_nicht_darstellbar: 422,
+  /* Ein Entwurf, den jemand erledigen will: Zustandskonflikt, kein Tippfehler. */
+  nicht_versendet: 409,
 };
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
@@ -73,7 +77,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return typeof wert === 'string' && wert.trim() !== '' ? wert.trim() : null;
   };
   const aktion = text('aktion') ?? '';
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
 
   try {
     return await (db().begin(async (tx: postgres.TransactionSql) =>
@@ -112,6 +116,23 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           return zurueck(anfrage, `/${mahnungId}`, 'Der Entwurf ist verworfen.');
         }
 
+        /*
+         * **Erledigen steht VOR dem engeren Recht** (V-084).
+         *
+         * Es lässt nichts aus dem Haus — im Gegenteil: es schliesst einen
+         * Vorgang, der längst heraus ist. Wer Mahnläufe führt
+         * (`mahnung.schreiben`), soll auch vermerken können, dass eine Sache
+         * beigelegt ist; ihn dafür auf `mahnung.freigeben` zu verweisen,
+         * hiesse, dass die Mahnliste wächst, weil das Recht zum Abhaken beim
+         * Vieraugenprinzip liegt.
+         */
+        if (aktion === 'erledigen') {
+          await erledige(kontext, mahnungId);
+          return zurueck(anfrage, `/${mahnungId}`,
+            'Erledigt. Die Mahnung bleibt vollständig stehen — nur ihr Zustand sagt '
+            + 'jetzt, dass die Sache beigelegt ist.');
+        }
+
         /* Ab hier: das zweite, engere Recht (Invariante 7). */
         await authorize(
           sitzung,
@@ -142,9 +163,15 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             /* Fail-closed: keine Richtlinie, also niemals ohne Menschen. */
             null,
           );
+          /*
+           * `versendetAm` kommt als Berliner Ortszeit `TT.MM.JJJJ HH:MM`
+           * (V-213) — vorher der rohe UTC-Text mit Mikrosekunden. Und der
+           * Satz sagt, was die Plattform tut: der Posten trägt den
+           * VERSANDtag als Beginn, nicht das Mahndatum (0125).
+           */
           return zurueck(anfrage, `/${mahnungId}`,
-            `Versand dokumentiert am ${ergebnis.versendetAm}. Ab dem Mahndatum läuft `
-            + 'der Verzug.');
+            `Versand dokumentiert am ${ergebnis.versendetAm} Uhr. Ab dem Versandtag `
+            + 'läuft der Verzug; das Schreiben ist abgelegt.');
         }
 
         return NextResponse.json({ fehler: 'unbekannte_aktion' }, { status: 400 });

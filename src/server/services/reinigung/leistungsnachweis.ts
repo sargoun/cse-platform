@@ -593,6 +593,16 @@ export interface UnterschriftEingabe {
   readonly bestaetigtePruefsumme: string;
   /** Die Behauptung des Geräts. Nie maßgeblich, immer gespeichert (TIM-08). */
   readonly geraeteZeit?: Date | null;
+  /**
+   * Die Unterschrift wurde früher geleistet und wird jetzt erst erfasst
+   * (V-078, TIM-09).
+   *
+   * Der Fall ist alltäglich: das Tablet ist leer, der Kunde quittiert auf
+   * Papier, und die Aufnahme geschieht am Abend im Büro. **Keine
+   * Uhrabweichung** — die misst die Gerätezeit daneben; dies ist die Aussage
+   * eines Menschen über den VORGANG.
+   */
+  readonly nachgetragen?: boolean;
   /** Nur bei `auftragnehmer` — die eigene Gegenzeichnung (D-09). */
   readonly anstellungId?: string | null;
   /** Die id einer bereits abgelegten Medienzeile, oder `null`. */
@@ -656,11 +666,11 @@ export async function signiere(
   }>(
     `insert into leistungsnachweis_signatur
        (mandant_id, leistungsnachweis_id, kunde_id, rolle, anstellung_id,
-        unterzeichner_name, unterzeichner_funktion, geraete_zeit,
+        unterzeichner_name, unterzeichner_funktion, geraete_zeit, nachgetragen,
         breitengrad, laengengrad, geo_genauigkeit_m,
         signatur_medien_id, snapshot, snapshot_hash, ip, user_agent, erstellt_von)
      values (app.aktiver_mandant(), $1::uuid, $2::uuid, $3::unterschrift_rolle, $4::uuid,
-             $5, $6, $7::timestamptz,
+             $5, $6, $7::timestamptz, $16::boolean,
              $8::numeric, $9::numeric, $10::numeric,
              $11::uuid, $12::jsonb, $13, $14::inet, $15, app.aktueller_benutzer())
      returning id,
@@ -696,6 +706,7 @@ export async function signiere(
       vorschau.schnappschuss,
       vorschau.pruefsumme,
       eingabe.ip ?? null, eingabe.userAgent ?? null,
+      eingabe.nachgetragen === true,
     ],
   );
 

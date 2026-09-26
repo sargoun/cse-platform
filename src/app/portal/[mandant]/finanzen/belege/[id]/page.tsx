@@ -122,23 +122,16 @@ export default async function Belegblatt(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/finanzen/belege`, text: t.titel }}
       titel={t.belegTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="eingangsrechnungen"
+      aktiverTab="finanzen"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label={g.zurueck} className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/finanzen/belege`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {t.titel}
-        </Link>
-      </nav>
 
       <h1 className="mb-s3 text-h1 text-text">
         {b.belegnummer ?? t.belegOhneNummer}

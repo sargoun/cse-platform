@@ -65,7 +65,8 @@ export default async function Abwesenheitsliste({
      führte der Knopf auf 404 und verriet, was er nicht zeigen darf
      (Copilot-Runde auf PR 16 / D-581). */
   const darf = await haeltRechte(
-    sitzung, 'zeit.antrag_entscheiden', 'zeit.konto_lesen', 'personal.nachweis_lesen');
+    sitzung, 'zeit.antrag_entscheiden', 'zeit.konto_lesen', 'personal.nachweis_lesen',
+    'zeit.abwesenheit_melden');
 
   const frage = await searchParams;
   const heute = await berlinHeute();
@@ -96,6 +97,7 @@ export default async function Abwesenheitsliste({
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
+      aktiverTab="personal"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -107,6 +109,26 @@ export default async function Abwesenheitsliste({
           <span className="tabular-nums">{von}</span> bis <span className="tabular-nums">{bis}</span>
         </p>
       </div>
+
+      {/*
+        * **Die Krankmeldung am Telefon um 05:40** (V-025).
+        *
+        * `meldeAbwesenheit` trägt diesen Satz im Kopf und hing doch an einem
+        * einzigen Aufrufer: der Route der Arbeiterin selbst. Wer um 05:40
+        * anruft, hat kein Telefon in der Hand, mit dem er sich meldet — das
+        * ist der Grund, warum er anruft. Diese Liste konnte genehmigen,
+        * ablehnen, stornieren und nichts aufnehmen.
+        */}
+      {darf['zeit.abwesenheit_melden'] === true && (
+        <Link
+          href={`/portal/${mandant}/personal/abwesenheiten/erfassen`}
+          data-cse="abwesenheit-erfassen"
+          className="mb-s5 inline-flex min-h-11 items-center rounded-md bg-brand
+                     px-s4 text-sm font-semibold text-white hover:bg-brand-hover"
+        >
+          Abwesenheit aufnehmen
+        </Link>
+      )}
 
       <nav aria-label="Zeitraum wechseln" className="mb-s5 flex flex-wrap items-center gap-s2">
         <Sprung mandant={mandant} ziel={tagePlus(von, -28)} text="← Früher" />
@@ -129,6 +151,21 @@ export default async function Abwesenheitsliste({
             className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
           >
             Stundenkonten
+          </Link>
+        )}
+        {/*
+          * **Der Weg zu den Urlaubskonten** (V-117, V-118). Er steht neben
+          * den Stundenkonten, weil er dieselbe Frage beantwortet, eine
+          * Tabelle weiter: wie viel steht dieser Person zu. Am Recht der
+          * KONTEN, nicht dem dieser Liste — sonst führte er auf 404 (AUT-06).
+          */}
+        {darf['zeit.konto_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/urlaubskonten`}
+            data-cse="zu-den-urlaubskonten"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Urlaubskonten
           </Link>
         )}
         {darf['personal.nachweis_lesen'] === true && (

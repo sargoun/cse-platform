@@ -11,6 +11,7 @@ import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { leseMappe, lesePlattformwahl, type MappenBlick } from '../daten';
 import { kennungOder404 } from '../../../../../kennung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/radar/[id]/mappe/einreichung` — festhalten, dass ein
@@ -91,7 +92,7 @@ export default async function Einreichung(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="radar"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -110,7 +111,7 @@ export default async function Einreichung(
 
       {fehler !== null ? (
         <Hinweis art="warnung" cse="einreichung-fehler" className="mb-s5 max-w-prose">
-          <strong>Nicht erfasst.</strong> {FEHLER_TEXT[fehler] ?? 'Die Handlung wurde abgewiesen.'}
+          <strong>Nicht erfasst.</strong> {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Handlung wurde abgewiesen.'}
         </Hinweis>
       ) : null}
 

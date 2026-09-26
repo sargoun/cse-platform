@@ -68,20 +68,28 @@ describe('(2) eine Kachel ohne Abfrage oder Linkziel lässt sich nicht registrie
 });
 
 describe('die heutigen Kacheln sind vollständig und rechtlich verankert', () => {
-  it('zwölf Kacheln — die sieben des Plans plus die fünf aus Phase 5', () => {
+  it('achtzehn Kacheln — sieben aus dem Plan, fünf aus Phase 5, eine aus V-072, fünf aus V-150', () => {
     // Die Liste steht ausgeschrieben da und nicht als Zahl: eine Kachel, die
     // jemand still hinzufuegt, aendert sonst nur eine Zahl, und dass sie ein
     // Recht nennt, das es nicht gibt, faellt erst auf einem leeren Dashboard
     // auf. Phase 5 bringt `schichten_unbesetzt` und `konflikte_offen` aus dem
     // Dienstplan, `antraege_offen`/`abwesend_heute` aus der Abwesenheit und
-    // `nachweise_abgelaufen` aus dem Nachweisregister.
+    // `nachweise_abgelaufen` aus dem Nachweisregister. `aktuell_im_einsatz`
+    // kam mit V-072 dazu — DSH-05 nennt sie namentlich, und sie stand
+    // nirgends.
+    //
+    // V-150 (DSH-01): Aufträge, Bauprojekte, Angebote, Forderungen und
+    // Aufgaben waren gebaut und erreichbar — und die Übersicht jeder
+    // Gesellschaft zeigte keine ihrer Zahlen.
     const angelegt = registriereBerichtKacheln();
-    expect(angelegt.length).toBe(12);
+    expect(angelegt.length).toBe(18);
     expect(kacheln().map((k) => k.schluessel).sort()).toEqual([
-      'abwesend_heute', 'anstellungen', 'antraege_offen', 'benutzer_aktiv',
+      'abwesend_heute', 'aktuell_im_einsatz', 'angebote_offen', 'anstellungen',
+      'antraege_offen', 'aufgaben_offen', 'auftraege_aktiv',
+      'benutzer_aktiv', 'forderungen_offen',
       'konflikte_offen', 'leads_ueber_sla', 'letzte_aktivitaet',
       'nachweise_abgelaufen', 'neue_leads', 'offene_wiedervorlagen', 'personen',
-      'schichten_unbesetzt',
+      'projekte_in_arbeit', 'schichten_unbesetzt',
     ]);
   });
 
@@ -127,12 +135,19 @@ describe('(4) ein Modul, das nicht gemergt ist, hat KEINE Kachel', () => {
     // `dienstplan` und `zeit` seit Phase 5 — beide SIND gemergt, also duerfen
     // sie Kacheln haben. Die Liste waechst mit den Phasen; was fehlt, ist die
     // Zusage.
+    //
+    // Seit V-150 kommen `angebot`, `auftrag`, `aufgabe`, `bau` und
+    // `buchhaltung` dazu — alle gebaut. `finanzen`, `zahlung` und `mahnung`
+    // sind inzwischen ebenfalls gebaut und haben trotzdem keine Kachel: Umsatz
+    // und Aufwand sind Geld und stehen auf `/finanzen` (D-479), die offenen
+    // Forderungen zählt `buchhaltung`. `vergabe` gibt es als Modul nicht.
     expect(belegteModule())
-      .toEqual(['bericht', 'crm', 'dienstplan', 'personal', 'system', 'zeit']
+      .toEqual(['angebot', 'aufgabe', 'auftrag', 'bau', 'bericht', 'buchhaltung', 'crm',
+        'dienstplan', 'personal', 'system', 'zeit']
         .filter((m) => belegteModule().includes(m)));
-    for (const nichtGebaut of ['finanzen', 'zahlung', 'mahnung', 'vergabe', 'radar']) {
-      expect(belegteModule(), `${nichtGebaut} ist noch nicht gemergt`)
-        .not.toContain(nichtGebaut);
+    for (const ohneKachel of ['finanzen', 'zahlung', 'mahnung', 'vergabe', 'radar']) {
+      expect(belegteModule(), `${ohneKachel} hat keine Kachel`)
+        .not.toContain(ohneKachel);
     }
   });
 });

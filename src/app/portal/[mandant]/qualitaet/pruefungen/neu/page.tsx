@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import { Geraetezeit } from '@/app/portal/mein/Geraetezeit';
 import Link from 'next/link';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -12,6 +13,7 @@ import {
   ladePruefungAuswahl, PRUEFERGEBNISSE, ERGEBNIS_TEXT,
   type PruefungAuswahl,
 } from '@/server/services/reinigung/qualitaet';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/qualitaet/pruefungen/neu` — eine Prüfung erfassen
@@ -125,16 +127,8 @@ export default async function PruefungNeu(
       aktiverTab="qualitaet"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/qualitaet/pruefungen`, text: 'Alle Prüfungen' }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/qualitaet/pruefungen`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Alle Prüfungen
-        </Link>
-      </nav>
-
       <h1 className="mb-s2 text-h1 text-text">Prüfung erfassen</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Bezug, Verfahren, Prüfer — dann die Befunde. Nummer und Prüfzeitpunkt
@@ -164,7 +158,7 @@ export default async function PruefungNeu(
 
       {auswahl.geprueft['objekt.lesen'] !== true && (
         <Hinweis art="warnung" cse="pruefung-kein-objektrecht" className="mb-s5 max-w-prose">
-          <strong>Die Objektauswahl ist leer, weil <code>objekt.lesen</code> fehlt.</strong>{' '}
+          <strong>Die Objektauswahl ist leer, weil <Recht schluessel="objekt.lesen" /> fehlt.</strong>{' '}
           Eine Prüfung braucht zwingend ein Objekt (oder ein Projekt) als Bezug —
           <code> qp_ein_anker</code> lässt nichts anderes zu.
         </Hinweis>
@@ -173,7 +167,7 @@ export default async function PruefungNeu(
       {auswahl.geprueft['reinigung.lesen'] !== true && (
         <Hinweis art="hinweis" cse="pruefung-kein-revierrecht" className="mb-s5 max-w-prose">
           <strong>Reviere und Revierräume sind nicht wählbar, weil{' '}
-          <code>reinigung.lesen</code> fehlt.</strong>{' '}
+          <Recht schluessel="reinigung.lesen" /> fehlt.</strong>{' '}
           Qualität ist ein Querschnittsmodul: eine Prüferin der Sicherheit hält
           das Recht der Reinigung nicht. Die Prüfung lässt sich trotzdem am
           Objekt erfassen — nur ohne Revierbezug.
@@ -192,7 +186,7 @@ export default async function PruefungNeu(
           und das ist in Ordnung: maßgeblich ist ohnehin die Serverzeit, und
           eine hier erfundene Gerätezeit wäre schlimmer als keine.
         */}
-        <input type="hidden" name="geraete_zeit" value="" />
+        <Geraetezeit marke="geraetezeit" />
 
         {/* ---- Schritt 1: der Bezug ---------------------------------------- */}
         <fieldset className="m-0 rounded-lg border border-line bg-surface p-s5">
@@ -299,6 +293,32 @@ export default async function PruefungNeu(
             <label className="inline-flex min-h-11 items-center gap-s2 text-sm text-text">
               <input type="checkbox" name="mit_kunde" value="ja" />
               Der Kunde war bei der Prüfung anwesend
+            </label>
+            {/*
+              * **Nachgetragen** (V-078, TIM-09).
+              *
+              * `qualitaetspruefung.nachgetragen` steht seit `0068` da, und
+              * ZWEI Seiten zeigen den Vermerk an — geschrieben hat ihn nie
+              * jemand: weder der Dienst noch die Route kannten das Feld. Was
+              * dort stand, war der Vorgabewert der Spalte.
+              *
+              * **Keine Uhrabweichung.** Die misst `zeitabweichung_sek` aus
+              * der Gerätezeit daneben. Zwei Dinge in einer Spalte hiessen,
+              * dass sich eine um 09:00 begangene und um 17:00 getippte
+              * Prüfung nicht mehr von einer um 17:00 begangenen unterscheiden
+              * lässt.
+              */}
+            <label className="flex min-h-11 items-start gap-s3 text-sm text-text">
+              <input type="checkbox" name="nachgetragen" value="1" className="mt-s1"
+                     data-cse="pruefung-nachgetragen" />
+              <span>
+                Nachgetragen
+                <span className="mt-s1 block text-xs text-text-muted">
+                  Die Prüfung ist früher begangen worden und wird jetzt erst
+                  erfasst. Die Zeit bleibt die des Servers; dieses Häkchen sagt
+                  nur, dass sie nicht die Zeit der Begehung ist.
+                </span>
+              </span>
             </label>
             <label className="block">
               <span className="mb-s1 block text-sm text-text">Bemerkung (optional)</span>

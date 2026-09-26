@@ -11,9 +11,11 @@ import { leseStundenFenster, type StundenFenster }
   from '@/server/services/mitarbeiter/stunden';
 import { leseEigeneNachweise, type EigeneNachweislage }
   from '@/server/services/mitarbeiter/nachweise';
+import { findeOffenenEintrag, type OffenerEintrag }
+  from '@/server/services/mitarbeiter/stempeluhr';
 import { AnmeldungNoetig } from '../Anmeldung';
 import { meinPortal, MeinRahmen } from './rahmen';
-import { Gesellschaft, Leer, SchichtKarte } from './bausteine';
+import { Gesellschaft, Leer, SchichtKarte, StempelUhr } from './bausteine';
 
 /**
  * `/portal/mein` — „Heute" (EMP-02, EMP-03, EMP-08, EMP-12, EMP-14, EMP-15).
@@ -39,6 +41,8 @@ export const dynamic = 'force-dynamic';
 
 interface Daten {
   readonly schicht: EigeneSchicht | null;
+  /** Der laufende Eintrag — `null`, wenn gerade nicht gestempelt ist. */
+  readonly offen: OffenerEintrag | null;
   readonly stunden: StundenFenster;
   readonly nachweise: EigeneNachweislage;
 }
@@ -57,6 +61,7 @@ export default async function MeinPortal(
 
   const ergebnis = await meinPortal<Daten>('/portal/mein', async (kontext, basis) => ({
     schicht: await laufendeOderNaechsteSchicht(kontext),
+    offen: await findeOffenenEintrag(kontext),
     stunden: await leseStundenFenster(kontext, { heute, wochenBeginn, monatsBeginn }),
     nachweise: await leseEigeneNachweise(kontext, heute, basis.sprache),
   }));
@@ -78,6 +83,26 @@ export default async function MeinPortal(
   return (
     <MeinRahmen basis={basis} titel={t.heute} aktiverTab="heute">
       <h1 className="mb-s5 text-h1 text-text">{t.heute}</h1>
+
+      {/*
+        * **Die Stempeluhr steht GANZ OBEN** (D-618, O-93).
+        *
+        * Sie ist der haeufigste Handgriff des Tages und war bis hierher gar
+        * nicht erreichbar: die Uhr selbst (`src/app/check-in/[token]/`) war
+        * fertig, aber nur ueber einen Token-Link, den die Planung ausgibt.
+        * Eine Suche nach `check-in` unter `src/app/portal/mein/` lieferte NULL
+        * Treffer — wer sich anmeldete, sah `0:00 h` und keinen Weg, daran
+        * etwas zu aendern.
+        *
+        * Oben, nicht unter der Schicht: wer im Treppenhaus das Telefon
+        * herausholt, soll nicht scrollen muessen.
+        */}
+      <StempelUhr
+        offen={daten.offen}
+        schicht={daten.schicht}
+        texte={t}
+        meldung={typeof kam['stempel'] === 'string' ? kam['stempel'] : null}
+      />
 
       {/* EMP-08: die Warnung steht oben, nicht in einem Reiter. */}
       {(gesperrt.length > 0 || ablaufend.length > 0) && (

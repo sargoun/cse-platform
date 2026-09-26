@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
@@ -53,16 +52,8 @@ export default async function ReklamationAufnehmen({
       aktiverTab="qualitaet"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/qualitaet/reklamationen`, text: 'Alle Reklamationen' }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/qualitaet/reklamationen`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Alle Reklamationen
-        </Link>
-      </nav>
-
       <h1 className="mb-s5 text-h1 text-text">Beanstandung aufnehmen</h1>
 
       <form

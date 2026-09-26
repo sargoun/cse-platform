@@ -99,10 +99,17 @@ async function kalkulationBestaetigen(page: Page): Promise<void> {
    * Die Freigabe fuehrt auf die VERSANDSEITE (das ist der naechste Schritt),
    * nicht auf die Detailseite. Von dort zurueck zum Angebot — die uebrigen
    * Faelle dieser Datei klicken `[data-cse="versenden"]` dort.
+   *
+   * **Der Rueckweg ist `<Zurueck>` (D-613)**: ein `<nav aria-label="Zurück">`
+   * mit dem Pfeil als `aria-hidden` — der Name des Verweises ist „Zum
+   * Angebot", nicht „← Zum Angebot". Hier stand der Name der alten,
+   * handgeschriebenen Verweiszeile mit dem Pfeil im Text. Gesucht wird
+   * jetzt genau DIESER Verweis: im Rueckweg der Seite, mit exaktem Namen.
    */
   await expect(page.locator('h1')).toHaveText('Versand');
   await expect(page.locator('[data-cse="sperre-freigabe-frei"]')).toBeVisible();
-  await page.getByRole('link', { name: '← Zum Angebot' }).click();
+  await page.getByRole('navigation', { name: 'Zurück' })
+    .getByRole('link', { name: 'Zum Angebot', exact: true }).click();
   await expect(page.locator('[data-cse="freigabe-erteilt"]')).toBeVisible();
   await expect(page.locator('[data-cse="versenden"]')).toBeEnabled();
 }
@@ -148,8 +155,9 @@ test.describe('(2) Der Versand — und was er erzeugt', () => {
     // Die Nummer steht jetzt da, und der Versandknopf ist fort.
     await expect(page.getByText(/AN-\d{4}-\d{5}/u).first()).toBeVisible();
     await expect(page.locator('[data-cse="versenden"]')).toHaveCount(0);
-    // Die Umsatzsteuerzeile ist beim Versand entstanden.
-    await expect(page.getByText(/Umsatzsteuer 19 %/u)).toBeVisible();
+    // Die Umsatzsteuerzeile ist beim Versand entstanden — geschrieben wie im
+    // Kundenportal und im Beleg (prozentText, V-202/D-696 Nr. 4).
+    await expect(page.getByText(/Umsatzsteuer 19,0 %/u)).toBeVisible();
   });
 
   test('das Angebotsdokument trägt die Identität DIESER Gesellschaft', async ({ page }) => {

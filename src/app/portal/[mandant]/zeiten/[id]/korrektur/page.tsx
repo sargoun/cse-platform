@@ -15,6 +15,8 @@ import { stundenAusMinuten } from '@/lib/datum/stunden';
 import { darfKorrigieren, ladeZeiteintrag } from '../../daten';
 import { istKennung, kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/zeiten/[id]/korrektur` — wer korrigiert, wann und
@@ -81,8 +83,18 @@ const FEHLER_TEXT: Readonly<Record<string, string>> = {
   nicht_selbst:
     'Das ist Ihr eigener Zeiteintrag. Niemand korrigiert die eigene Aufzeichnung '
     + '(EMP-07): Sie melden eine Abweichung, eine andere Person entscheidet darüber.',
+  /*
+   * V-065: seit die Gegenbuchung entsteht, ist der gesperrte Monat NICHT mehr
+   * der haeufigste Grund fuer diese Abweisung — er hat seinen eigenen Text.
+   */
+  kein_kontorecht:
+    'Der Monat dieses Eintrags ist abgeschlossen. Eine Korrektur daran verschiebt '
+    + 'Minuten auf dem Stundenkonto in den nächsten offenen Monat, und das verlangt '
+    + 'zusätzlich das Recht zeit.konto_korrigieren (§12.2). Wer es hält, kann die '
+    + 'Korrektur ausführen — es ist bewusst ein zweites Recht: eine Zeit '
+    + 'richtigstellen und ein Konto bewegen sind zwei Entscheidungen.',
   nicht_zulaessig:
-    'Die Datenbank hat die Korrektur abgewiesen. Der häufigste Grund ist ein bereits '
+    'Die Datenbank hat die Korrektur abgewiesen. Ein möglicher Grund ist ein bereits '
     + 'gesperrter Monat: dort braucht die Differenz eine Gegenbuchung, sonst käme sie '
     + 'nirgends an (§12.2).',
   nicht_gefunden: 'Diesen Zeiteintrag gibt es in dieser Gesellschaft nicht.',
@@ -202,7 +214,7 @@ export default async function Korrekturblatt({
           data-cse="korrektur-fehler"
           className="mb-s5 max-w-prose rounded-lg border border-danger bg-danger-soft p-s4 text-sm text-danger"
         >
-          {FEHLER_TEXT[fehler] ?? `Die Korrektur wurde nicht geschrieben: ${fehler}`}
+          {eigenerEintrag(FEHLER_TEXT, fehler) ?? `Die Korrektur wurde nicht geschrieben: ${fehler}`}
         </p>
       )}
 
@@ -319,7 +331,7 @@ export default async function Korrekturblatt({
             >
               <strong className="text-text">Die angegebene Meldung ist nicht
               einsehbar.</strong> Sie gehört einer anderen Gesellschaft, es gibt sie
-              nicht, oder dieser Sitzung fehlt <code>zeit.lesen</code>. Die Korrektur
+              nicht, oder dieser Sitzung fehlt <Recht schluessel="zeit.lesen" />. Die Korrektur
               entsteht <strong>ohne</strong> Verknüpfung — sie wird nicht stillschweigend
               angehängt.
             </p>

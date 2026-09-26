@@ -13,6 +13,7 @@
  * kein Deutsch kann.
  */
 import type { Sprache } from '../sprache.js';
+import { eigenerEintrag } from '../nachschlagen.js';
 
 export interface ShellTexte {
   readonly hauptnavigation: string;
@@ -54,6 +55,21 @@ export interface ShellTexte {
    */
   readonly anmelden: string;
   readonly navigation: Readonly<Record<'unternehmen' | 'leistungen' | 'projekte' | 'kontakt', string>>;
+  /**
+   * Die drei Seiten der GRUPPE, die nicht in die Kopfzeile passen (V-155,
+   * D-649): „Über uns", „Aktuelles" und „Karriere". Sie waren gebaut, befüllt
+   * und in der Sitemap — und von keiner Seite aus verlinkt. DESIGN §5 hält
+   * die Kopfzeile bei vier Punkten; ihr Ort ist der Fuss und das Menü.
+   */
+  readonly gruppeNav: string;
+  readonly gruppe: Readonly<Record<'ueberUns' | 'news' | 'karriere', string>>;
+  /**
+   * Der Hinweis an einem Verweis, der in eine ANDERE Sprache führt — heute
+   * nur `/karriere` von einer englischen Seite aus (`verweisIn`, NUR_DEUTSCH).
+   * Leer, wo er nie gebraucht wird: von einer deutschen Seite führt jeder
+   * Verweis auf Deutsch.
+   */
+  readonly aufDeutsch: string;
   readonly rechtlich: Readonly<Record<'impressum' | 'datenschutz' | 'barrierefreiheit', string>>;
   /**
    * Der Hinweis auf der englischen Fassung.
@@ -92,6 +108,13 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
       projekte: 'Projekte',
       kontakt: 'Kontakt',
     },
+    gruppeNav: 'Die Gruppe',
+    gruppe: {
+      ueberUns: 'Über uns',
+      news: 'Aktuelles',
+      karriere: 'Karriere',
+    },
+    aufDeutsch: '',
     rechtlich: {
       impressum: 'Impressum',
       datenschutz: 'Datenschutz',
@@ -121,6 +144,13 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
       projekte: 'Projects',
       kontakt: 'Contact',
     },
+    gruppeNav: 'The group',
+    gruppe: {
+      ueberUns: 'About us',
+      news: 'News',
+      karriere: 'Careers',
+    },
+    aufDeutsch: '(in German)',
     rechtlich: {
       impressum: 'Legal notice',
       datenschutz: 'Privacy',
@@ -162,6 +192,15 @@ export interface BarriereTexte {
   readonly offenText: string;
   readonly meldenTitel: string;
   readonly meldenText: string;
+  /**
+   * Der Verweis auf das Meldeformular (V-156). Es gibt `/barrierefreiheit/feedback`
+   * seit D-600, und die Erklärung nannte unter „Barriere melden" nur eine
+   * E-Mail-Adresse — der Pflichtweg war von keiner Seite aus verlinkt.
+   */
+  readonly meldenFormular: string;
+  readonly meldenFormularHinweis: string;
+  /** Die Zeile vor E-Mail und Telefon: der zweite Weg, nicht der einzige. */
+  readonly meldenAndererWeg: string;
   readonly keinMeldeweg: string;
   readonly telefon: string;
   readonly metaBeschreibung: string;
@@ -194,7 +233,14 @@ export const BARRIERE_TEXTE: Readonly<Record<Sprache, BarriereTexte>> = {
     meldenText:
       'Wenn Ihnen eine Barriere auffällt, melden Sie sie bitte — auch formlos. Wir '
       + 'antworten und beheben, was wir beheben können.',
-    keinMeldeweg: 'Ein Meldeweg ist derzeit nicht hinterlegt.',
+    meldenFormular: 'Zum Meldeformular',
+    meldenFormularHinweis:
+      'Ohne Anmeldung und ohne JavaScript. Eine E-Mail-Adresse ist freiwillig — nur, '
+      + 'wenn Sie eine Antwort möchten.',
+    meldenAndererWeg: 'Oder direkt:',
+    keinMeldeweg:
+      'Eine E-Mail-Adresse für Meldungen ist derzeit nicht hinterlegt — das Formular '
+      + 'nimmt Ihre Meldung trotzdem an.',
     telefon: 'Telefon',
     metaBeschreibung: 'Erklärung zur Barrierefreiheit dieser Website.',
   },
@@ -224,9 +270,113 @@ export const BARRIERE_TEXTE: Readonly<Record<Sprache, BarriereTexte>> = {
     meldenText:
       'If you come across a barrier, please tell us — informally is fine. We will '
       + 'reply and fix what we can fix.',
-    keinMeldeweg: 'No reporting channel is on file at the moment.',
+    meldenFormular: 'To the reporting form',
+    meldenFormularHinweis:
+      'No sign-in and no JavaScript needed. An e-mail address is optional — only if you '
+      + 'would like a reply.',
+    meldenAndererWeg: 'Or directly:',
+    keinMeldeweg:
+      'No e-mail address for reports is on file at the moment — the form still accepts '
+      + 'your report.',
     telefon: 'Phone',
     metaBeschreibung: 'Accessibility statement for this website.',
+  },
+};
+
+/**
+ * Die Meldungen der zwei öffentlichen Pflichtformulare — englisch (V-156).
+ *
+ * **Der Befund.** Mit den englischen Routen (`/en/datenschutz/anfrage`,
+ * `/en/barrierefreiheit/feedback`) kam ein zweiter Fehler ans Licht: die
+ * Dienste (`services/datenschutz/{anfrage,barriere}.ts`) sprechen deutsch, und
+ * die Routen reichten `fehler.message` unverändert zurück. Eine englische
+ * Seite hätte „Bitte prüfen Sie die E-Mail-Adresse" als `role="alert"`
+ * gezeigt — genau dem Menschen, der die englische Fassung geöffnet hat, weil
+ * er kein Deutsch liest.
+ *
+ * **Übersetzt wird über den GRUND, nicht über den Satz.** Die Dienste tragen
+ * je Fehler einen festen Schlüssel (`grund`); ein Abgleich auf den deutschen
+ * Wortlaut bräche beim ersten Komma, das jemand ändert. Ein unbekannter Grund
+ * bekommt einen allgemeinen englischen Satz — nie den deutschen.
+ */
+const PFLICHTWEG_FEHLER_EN: Readonly<Record<'anfrage' | 'barriere',
+  Readonly<Record<string, string>>>> = {
+  anfrage: {
+    name_fehlt: 'Please give your name.',
+    email_ungueltig: 'Please check the e-mail address — our reply goes to it.',
+    art_fehlt: 'Please choose what you would like us to do.',
+    nicht_gespeichert: 'Your request could not be saved. Please try again.',
+    sonst: 'Your request could not be accepted. Please check your entries.',
+  },
+  barriere: {
+    ohne_beschreibung: 'Please describe briefly what did not work.',
+    email_ungueltig: 'Please check the e-mail address — or leave the field empty.',
+    nicht_gespeichert: 'Your report could not be saved. Please try again.',
+    sonst: 'Your report could not be accepted. Please check your entries.',
+  },
+};
+
+/**
+ * Der Satz für die Seite eines Pflichtformulars — deutsch aus dem Dienst,
+ * englisch aus der Tabelle oben.
+ */
+export function pflichtwegMeldung(
+  weg: 'anfrage' | 'barriere', sprache: Sprache, grund: string, deutsch: string,
+): string {
+  if (sprache === 'de') return deutsch;
+  const tabelle = PFLICHTWEG_FEHLER_EN[weg];
+  // Nur ein EIGENER Schlüssel (V-159): `tabelle['toString']` wäre eine Funktion.
+  return eigenerEintrag(tabelle, grund) ?? tabelle['sonst'] ?? '';
+}
+
+/**
+ * Die zwei Pflichtwege unter der Datenschutzerklärung (V-156, D-650, LEG-09).
+ *
+ * **Der Befund.** `/datenschutz/anfrage` (Auskunft, Berichtigung, Löschung —
+ * mit laufender Monatsfrist in einem internen Eingang) war von genau EINER
+ * Seite aus verlinkt: vom Werbewiderspruch. Die Datenschutzerklärung zählte
+ * die Rechte auf und schickte den Leser an „die oben angegebene
+ * Kontaktadresse". Art. 12 Abs. 2 DSGVO verlangt, die Ausübung zu
+ * ERLEICHTERN; ein Formular, das es gibt und das niemand findet, erleichtert
+ * nichts.
+ *
+ * Der Erklärungstext selbst ist redaktioneller Inhalt (`seite`/`abschnitt`)
+ * und bleibt, wie er ist — die Wege hängen darunter, aus dem Code, wie die
+ * Pflichtangaben unter dem Impressum (dieselbe Bauart, `OeffentlicheSeite`).
+ */
+export interface BetroffenenwegeTexte {
+  readonly ueberschrift: string;
+  readonly text: string;
+  readonly anfrage: string;
+  readonly anfrageHinweis: string;
+  readonly werbewiderspruch: string;
+  readonly werbewiderspruchHinweis: string;
+  /** Der Hinweis an einem Verweis, der auf eine NUR deutsche Seite führt. */
+  readonly aufDeutsch: string;
+}
+
+export const BETROFFENENWEGE_TEXTE: Readonly<Record<Sprache, BetroffenenwegeTexte>> = {
+  de: {
+    ueberschrift: 'Ihre Rechte ausüben',
+    text:
+      'Zwei Formulare, ohne Anmeldung und ohne JavaScript. Was Sie dort absenden, landet '
+      + 'mit Datum im Eingang der Gesellschaft, die Sie wählen — und wird dort bearbeitet.',
+    anfrage: 'Auskunft, Berichtigung, Löschung beantragen',
+    anfrageHinweis: 'Art. 15 bis 21 DSGVO — wir antworten innerhalb eines Monats.',
+    werbewiderspruch: 'Werbung widersprechen',
+    werbewiderspruchHinweis: 'Ohne Angabe von Gründen, ein Knopf genügt.',
+    aufDeutsch: '',
+  },
+  en: {
+    ueberschrift: 'Exercising your rights',
+    text:
+      'Two forms, no sign-in and no JavaScript needed. What you send there reaches the '
+      + 'inbox of the company you choose, with a date — and is handled there.',
+    anfrage: 'Request access, rectification or erasure',
+    anfrageHinweis: 'Art. 15 to 21 GDPR — we reply within one month.',
+    werbewiderspruch: 'Object to advertising',
+    werbewiderspruchHinweis: 'No reason needed, one button is enough.',
+    aufDeutsch: '(in German)',
   },
 };
 
@@ -278,6 +428,18 @@ export interface ApiTexte {
   readonly nichtGespeichert: string;
   /** Kein simulierter Erfolg: der Speicher ist nicht verbunden, und das steht da. */
   readonly uploadNichtVerbunden: string;
+  /**
+   * Die drei Sammelsätze über dem Formular (V-157).
+   *
+   * Sie kamen bisher als `fehler.message` aus `lead/annahme.ts` — deutsch, auch
+   * auf `/en/angebot/<bereich>`: dort stand über englischen Feldmeldungen
+   * „Bitte prüfen Sie die markierten Felder." im `role="alert"`, und nach dem
+   * Ratenlimit „Zu viele Anfragen von dieser Verbindung…". Die Feldmeldungen
+   * wurden seit D-83 übersetzt, der Satz darüber nicht.
+   */
+  readonly pruefen: string;
+  readonly datenschutzBestaetigen: string;
+  readonly zuVieleAnfragen: string;
 }
 
 export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
@@ -292,6 +454,11 @@ export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
     uploadNichtVerbunden:
       'Der Datei-Upload ist derzeit nicht verfügbar. Bitte senden Sie die Anfrage '
       + 'ohne Leistungsverzeichnis — wir melden uns und holen die Datei nach.',
+    pruefen: 'Bitte prüfen Sie die markierten Felder.',
+    datenschutzBestaetigen:
+      'Bitte bestätigen Sie, dass Sie die Datenschutzhinweise gelesen haben.',
+    zuVieleAnfragen:
+      'Zu viele Anfragen von dieser Verbindung. Bitte versuchen Sie es später erneut.',
   },
   en: {
     unlesbar: 'The request could not be read.',
@@ -304,8 +471,47 @@ export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
     uploadNichtVerbunden:
       'File upload is currently unavailable. Please send the enquiry without the bill '
       + 'of quantities — we will get in touch and collect the file afterwards.',
+    pruefen: 'Please check the highlighted fields.',
+    datenschutzBestaetigen: 'Please confirm that you have read the privacy notice.',
+    zuVieleAnfragen:
+      'Too many enquiries from this connection. Please try again later.',
   },
 };
+
+/**
+ * Der Sammelsatz über einem abgewiesenen Anfrageformular (V-157, V-160).
+ *
+ * **Über die URSACHE und nicht über `fehler.message`** — und seit V-160 auch
+ * nicht mehr über die Felder. Die erste Fassung las die Ursache aus den
+ * FELDERN (`datenschutz_hinweis` darunter → „bestätigen"). Die Prüfung gegen
+ * die Formularversion meldet die Pflicht-Checkbox aber zusammen mit allen
+ * anderen Feldern; bei drei leeren Feldern und fehlendem Häkchen stand dann
+ * auf Deutsch „Bitte prüfen Sie die markierten Felder." und auf Englisch
+ * „Please confirm that you have read the privacy notice". Jetzt trägt der
+ * Fehler seinen Grund (`FormularFehler.grund`), gesetzt an derselben Stelle
+ * wie der deutsche Satz — beide Sprachen sagen dasselbe.
+ *
+ * Auf Deutsch bleibt es beim Satz des Dienstes: er IST der Satz zu diesem
+ * Grund. Ein Grund ohne eigenen Satz bekommt den allgemeinen, nie den
+ * Sammelsatz einer anderen Ursache.
+ */
+export function formularSammelmeldung(
+  sprache: Sprache,
+  fehler: {
+    readonly message: string;
+    readonly felder: Readonly<Record<string, string>>;
+    readonly grund?: string;
+  },
+): string {
+  if (sprache === 'de') return fehler.message;
+  const t = API_TEXTE[sprache];
+  switch (fehler.grund ?? 'pruefen') {
+    case 'pruefen': return t.pruefen;
+    case 'datenschutz': return t.datenschutzBestaetigen;
+    case 'zu_viele': return t.zuVieleAnfragen;
+    default: return t.nichtGespeichert;
+  }
+}
 
 /**
  * Die Dankseite `/angebot/[bereich]/danke` (§2.3, REQ-01).
@@ -466,6 +672,14 @@ export interface MeinTexte {
   readonly naechsteSchicht: string;
   readonly keineSchicht: string;
   readonly gesellschaft: string;
+  /**
+   * Der leere erste Eintrag der Pflichtwahl „Gesellschaft" (D-09, V-193): die
+   * Auswahl wählt nichts vor, auch bei nur einer Beschäftigung — eine
+   * geratene Gesellschaft wäre ein Antrag bei der falschen GmbH.
+   */
+  readonly gesellschaftWaehlen: string;
+  /** Die Pause eines Einwands, mit ihrer Einheit (V-193). */
+  readonly pauseMinuten: string;
   readonly objekt: string;
   readonly beginn: string;
   readonly ende: string;
@@ -485,6 +699,24 @@ export interface MeinTexte {
   readonly saldo: string;
   readonly vortrag: string;
   readonly monat: string;
+  /**
+   * Die drei Woerter des Monatswechslers (V-053).
+   *
+   * **Warum sie hier stehen und nicht als Pfeile auskommen.** Ein blosses
+   * `←` und `→` ueber einer Tabelle sagt nicht, was sich aendert — und auf
+   * Arabisch laeuft die Schrift von rechts nach links, sodass derselbe Pfeil
+   * das Gegenteil bedeutet. Die Beschriftung nennt deshalb den Monat, die
+   * Pfeile sind `aria-hidden` und die Richtung uebernimmt das Schriftsystem.
+   */
+  readonly monatVorher: string;
+  readonly monatSpaeter: string;
+  readonly monatHeute: string;
+
+  /* ── Der Jahreswechsler auf dem Urlaubskonto (V-054) ────────────────── */
+  readonly jahr: string;
+  readonly jahrVorher: string;
+  readonly jahrSpaeter: string;
+  readonly jahrHeute: string;
   readonly gesperrt: string;
   readonly offen: string;
   readonly vorlaeufig: string;
@@ -499,9 +731,45 @@ export interface MeinTexte {
   readonly tage: string;
 
   readonly keinBearbeiten: string;
+  /**
+   * Der Hinweis auf einer Zeile, deren Fassung `> 1` ist — sie wurde
+   * korrigiert.
+   *
+   * **Er nennt den Grund NICHT, und das ist Absicht.** `zeiteintrag_korrektur`
+   * traegt Art, Grund und Begruendung, und `p_ma_decke` (0036:403) sperrt die
+   * Tabelle fuer dieses Portal ausdruecklich. Der Grund kommt auf dem Weg, der
+   * dafuer gebaut ist: als Nachricht (`services/zeit/korrektur.ts`). Dieser
+   * Satz sagt, DASS korrigiert wurde, und wohin man fuer das Warum sieht.
+   */
+  /**
+   * Die Stempeluhr im Portal (D-618, O-93).
+   *
+   * **`laeuftSeit` traegt den Zaehler, nicht die Dauer.** Was dort steht, ist
+   * Anzeige: der Nullpunkt kommt aus der Serveruhr, und die abgerechnete
+   * Dauer entsteht beim Ausstempeln in der Datenbank aus zwei UTC-Instants
+   * (Invariante 2 und 5). Deshalb sagt `serverUhrHinweis` es auch laut — wer
+   * eine Minute Unterschied zur eigenen Uhr sieht, soll wissen, welche zaehlt.
+   */
+  readonly stempeluhr: Readonly<Record<
+    'titel' | 'beginnen' | 'beenden' | 'laeuftSeit' | 'seit' | 'keineSchichtJetzt'
+    | 'serverUhrHinweis' | 'eingecheckt' | 'ausgecheckt' | 'abgelehnt'
+    | 'schonOffen', string>>;
+  readonly korrigiertHinweis: string;
+  readonly korrigiertFassung: string;
   readonly einwandMelden: string;
   readonly einwandArt: string;
   readonly einwandBegruendung: string;
+  /**
+   * Die Woerter der ENTSCHEIDUNG (V-051, EMP-07).
+   *
+   * Ohne sie war „Meine Meldungen" eine Liste dessen, was man geschrieben
+   * hat — und nie dessen, was daraus wurde.
+   */
+  readonly einwandEntscheidung: string;
+  readonly einwandEntschiedenAm: string;
+  readonly einwandOhneBegruendung: string;
+  readonly einwandWartet: string;
+  readonly einwandEingereichtAm: string;
   readonly serverZeit: string;
   readonly geraeteZeit: string;
   readonly abweichung: string;
@@ -515,6 +783,21 @@ export interface MeinTexte {
   readonly zurueckziehen: string;
   readonly abwesenheitMelden: string;
   readonly abwesenheitArt: string;
+  /**
+   * Halbe Tage und die AU-Bescheinigung (V-057, EMP-10, § 5 EFZG).
+   *
+   * Die Spalten, die Regel (`rechneTage` zieht je halbem Randtag 0,5 ab) und
+   * der Lohnexport standen seit `0073`; die Route las alle vier Felder —
+   * **und kein Formular schickte sie.** Wer einen halben Tag krank war,
+   * meldete einen ganzen, und die Sollzeitgutschrift im Stundenkonto war um
+   * einen halben Tag falsch (EMP-04).
+   */
+  readonly halberTagBeginn: string;
+  readonly halberTagEnde: string;
+  readonly halberTagHinweis: string;
+  readonly auVorliegt: string;
+  readonly auBis: string;
+  readonly auHinweis: string;
   readonly absenden: string;
 
   readonly gueltigBis: string;
@@ -522,6 +805,16 @@ export interface MeinTexte {
   readonly abgelaufen: string;
   readonly laeuftAb: string;
   readonly sperrtEinteilung: string;
+
+  /* ── Mehr Positionszeilen im Leistungsnachweis (V-059) ──────────────── */
+  readonly mehrZeilen: string;
+  readonly mehrZeilenHinweis: string;
+
+  /* ── Was nach einem gesperrten Nachweis zu tun ist (V-061) ──────────── */
+  readonly nachweisWasTun: string;
+  readonly nachweisWasTunText: string;
+  readonly nachweisKeinUpload: string;
+  readonly nachweisZuNachrichten: string;
   readonly registerBewacher: string;
   readonly nichtVerbunden: string;
 
@@ -631,6 +924,37 @@ export interface MeinTexte {
   readonly entscheidung: string;
   readonly zurueckgezogen: string;
   readonly zurueckziehenHinweis: string;
+  /**
+   * Die eigene Abwesenheit (V-056, EMP-10).
+   *
+   * `abwesenheitRuecknahmeHinweis` sagt AUSDRÜCKLICH, was die Rücknahme NICHT
+   * kann: eine schon entschiedene Abwesenheit bleibt der Personalstelle. Ein
+   * Knopf, der still nichts tut, ist schlimmer als keiner.
+   *
+   * `abwesenheitArtVerdeckt` erklärt, warum die ART hier nicht steht:
+   * `abwesenheitsart_id`, `au_*` und `bemerkung` gibt `abwesenheit` der
+   * Anwendungsrolle gar nicht zu lesen (0073, Art. 9 DSGVO) — auch nicht für
+   * die eigene Zeile. Ohne den Satz sieht die Lücke aus wie ein Fehler.
+   */
+  readonly abwesenheitBlatt: string;
+  readonly abwesenheitRuecknahme: string;
+  readonly abwesenheitRuecknahmeHinweis: string;
+  readonly abwesenheitNichtRuecknehmbar: string;
+  readonly abwesenheitArtVerdeckt: string;
+  readonly gemeldetAm: string;
+  readonly storniertAm: string;
+  readonly halbeTage: string;
+  /**
+   * Zwei offene Leistungsnachweise auf einer Schicht (V-058, CLN-04).
+   *
+   * Bis dahin war das eine Sackgasse: die Seite zeigte das Unterschriftsblatt
+   * nur bei GENAU EINEM offenen Nachweis — und darunter, bei zweien, das
+   * ANLEGEFORMULAR. Jeder Klick ein dritter. Jetzt wählt der Mensch, der die
+   * Schicht gearbeitet hat.
+   */
+  readonly mehrereOffen: string;
+  readonly mehrereOffenHinweis: string;
+  readonly diesenUnterschreiben: string;
 
   readonly wachbuch: string;
   readonly wachbuchNeu: string;
@@ -654,6 +978,10 @@ export interface MeinTexte {
   readonly kontrollpunkt: string;
   readonly praesenz: string;
   readonly polizei: string;
+
+  /* ── Nachgetragen: später getippt, nicht später geschehen (V-078) ────── */
+  readonly nachgetragen: string;
+  readonly nachgetragenHinweis: string;
   readonly nummer: string;
   readonly erfasstAm: string;
   readonly unveraenderlich: string;
@@ -670,6 +998,24 @@ export interface MeinTexte {
   readonly unterschreiben: string;
   readonly unterschrieben: string;
 
+  /* ── Zusagen und Absagen (V-049, D-622) ─────────────────────────────── */
+  readonly zusagen: string;
+  readonly absagen: string;
+  readonly zusageFrage: string;
+  readonly absageGrund: string;
+  readonly absageGrundHinweis: string;
+  readonly zugesagtHinweis: string;
+  readonly abgesagtHinweis: string;
+  readonly absageEndgueltig: string;
+  readonly antwortZugesagt: string;
+  readonly antwortAbgesagt: string;
+  readonly antwortSchonZugesagt: string;
+  readonly antwortSchonAbgesagt: string;
+  readonly antwortVorbei: string;
+  readonly antwortNichtMoeglich: string;
+  readonly antwortGrundFehlt: string;
+  readonly antwortUnbekannt: string;
+
   readonly fotos: string;
   readonly aufnahmeHinzufuegen: string;
   readonly beschreibung: string;
@@ -685,6 +1031,18 @@ export interface MeinTexte {
   readonly vorkommnis: string;
   readonly bezeichnung: string;
   readonly hinzufuegen: string;
+  /**
+   * Die Korrektur der EIGENEN Mannstundenzeile (V-063) — Storno und Ersatz in
+   * EINEM Schritt. Die Zeile verschwindet nicht; sie steht durchgestrichen
+   * neben ihrer Richtigstellung (LEG-01).
+   */
+  readonly korrigieren: string;
+  readonly korrekturGrund: string;
+  readonly stornierenUndErsetzen: string;
+  readonly korrekturHinweis: string;
+  /** Das Tagesfoto am Bautag (V-063). */
+  readonly tagesfotoHinzufuegen: string;
+  readonly tagesfotoHinweis: string;
   readonly tagGeschlossen: string;
   readonly abgleich: string;
   /**
@@ -813,6 +1171,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     naechsteSchicht: 'Nächste Schicht',
     keineSchicht: 'Für Sie ist derzeit keine Schicht eingeteilt.',
     gesellschaft: 'Gesellschaft',
+    gesellschaftWaehlen: 'Gesellschaft wählen',
+    pauseMinuten: 'Pause (Minuten)',
     objekt: 'Objekt',
     beginn: 'Beginn',
     ende: 'Ende',
@@ -830,6 +1190,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     saldo: 'Saldo',
     vortrag: 'Vortrag',
     monat: 'Monat',
+    monatVorher: 'Voriger Monat',
+    monatSpaeter: 'Nächster Monat',
+    monatHeute: 'Aktueller Monat',
+    jahr: 'Jahr',
+    jahrVorher: 'Voriges Jahr',
+    jahrSpaeter: 'Nächstes Jahr',
+    jahrHeute: 'Aktuelles Jahr',
     gesperrt: 'Abgeschlossen',
     offen: 'Offen',
     vorlaeufig: 'Vorläufig',
@@ -846,9 +1213,31 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinBearbeiten:
       'Zeiten lassen sich hier nicht ändern. Wenn etwas nicht stimmt, melden Sie '
       + 'einen Einwand — die Planung entscheidet darüber.',
+    stempeluhr: {
+      titel: 'Arbeitszeit',
+      beginnen: 'Arbeit beginnen',
+      beenden: 'Arbeit beenden',
+      laeuftSeit: 'Läuft',
+      seit: 'seit',
+      keineSchichtJetzt: 'Gerade läuft keine Schicht, in die Sie einstempeln können. '
+        + 'Der Knopf erscheint, sobald Ihre Schicht beginnt.',
+      serverUhrHinweis: 'Gezählt wird die Zeit des Servers, nicht die Ihres Geräts.',
+      eingecheckt: 'Eingestempelt. Die Zeit läuft.',
+      ausgecheckt: 'Ausgestempelt. Ihre Stunden gehen an die Leitung.',
+      abgelehnt: 'Das hat nicht geklappt. Prüfen Sie, ob Ihre Schicht schon begonnen hat.',
+      schonOffen: 'Sie sind bereits eingestempelt.',
+    },
+    korrigiertHinweis: 'Dieser Eintrag wurde korrigiert. Den Grund hat Ihnen die Leitung als Nachricht geschickt — sie steht in Ihrem Posteingang.',
+    korrigiertFassung: 'Fassung',
     einwandMelden: 'Einwand melden',
     einwandArt: 'Art des Einwands',
     einwandBegruendung: 'Was stimmt nicht?',
+    einwandEntscheidung: 'Entscheidung',
+    einwandEntschiedenAm: 'Entschieden am',
+    einwandOhneBegruendung: 'Ohne Begründung eingetragen — fragen Sie die Planung.',
+    einwandWartet: 'Ihre Meldung liegt bei der Planung. Sobald entschieden ist, '
+      + 'steht die Begründung hier und Sie bekommen eine Nachricht.',
+    einwandEingereichtAm: 'Gemeldet am',
     serverZeit: 'Serverzeit',
     geraeteZeit: 'Gerätezeit',
     abweichung: 'Abweichung',
@@ -861,12 +1250,35 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     zurueckziehen: 'Zurückziehen',
     abwesenheitMelden: 'Abwesenheit melden',
     abwesenheitArt: 'Art der Abwesenheit',
+    halberTagBeginn: 'Erster Tag nur halb',
+    halberTagEnde: 'Letzter Tag nur halb',
+    halberTagHinweis:
+      'Wenn Sie am ersten oder letzten Tag noch bzw. schon gearbeitet haben. '
+      + 'Ein halber Tag zählt als 0,5.',
+    auVorliegt: 'Arbeitsunfähigkeitsbescheinigung liegt vor',
+    auBis: 'Bescheinigung gültig bis',
+    auHinweis:
+      'Nur ankreuzen, wenn Sie die Bescheinigung schon abgegeben haben. Ohne sie bleibt '
+      + 'die Meldung gültig — die Personalstelle fragt nach.',
     absenden: 'Absenden',
     gueltigBis: 'Gültig bis',
     unbefristet: 'unbefristet',
     abgelaufen: 'Abgelaufen',
     laeuftAb: 'Läuft ab',
     sperrtEinteilung: 'Ohne diesen Nachweis darf Sie niemand einteilen.',
+    mehrZeilen: 'Mehr Zeilen',
+    mehrZeilenHinweis:
+      'Lädt das Blatt mit drei weiteren Zeilen neu. Getipptes geht dabei verloren — '
+      + 'bitte vor dem Ausfüllen.',
+    nachweisWasTun: 'Was jetzt zu tun ist',
+    nachweisWasTunText:
+      'Bringen oder senden Sie den neuen Nachweis an das Büro Ihrer Gesellschaft. '
+      + 'Dort wird er eingetragen; danach steht er hier. Bis dahin bleibt die '
+      + 'Einteilung gesperrt.',
+    nachweisKeinUpload:
+      'Hochladen geht hier nicht — das Portal hat keine Ablage für Nachweise, und '
+      + 'ein Feld, das nichts speichert, wäre schlimmer als keines.',
+    nachweisZuNachrichten: 'Zu den Nachrichten',
     registerBewacher: 'Bewacherregister',
     nichtVerbunden: 'nicht verbunden',
     keineEintraege: 'Keine Einträge.',
@@ -925,6 +1337,28 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     entschiedenAm: 'Entschieden am',
     entscheidung: 'Entscheidung',
     zurueckgezogen: 'Zurückgezogen',
+    abwesenheitBlatt: 'Meine Abwesenheit',
+    abwesenheitRuecknahme: 'Abwesenheit zurücknehmen',
+    abwesenheitRuecknahmeHinweis:
+      'Solange niemand darüber entschieden hat, können Sie eine Abwesenheit selbst '
+      + 'zurücknehmen — zum Beispiel, wenn Sie sich im Datum vertan haben. Die Zeile bleibt '
+      + 'lesbar, mit Meldung und Rücknahme.',
+    abwesenheitNichtRuecknehmbar:
+      'Diese Abwesenheit ist entschieden oder schon zurückgenommen. Eine Änderung nimmt '
+      + 'jetzt die Personalstelle vor.',
+    abwesenheitArtVerdeckt:
+      'Die Art der Abwesenheit steht hier nicht: Gesundheitsdaten sind eng geführt, und die '
+      + 'Datenbank gibt sie dem Portal auch für die eigene Zeile nicht heraus. Die '
+      + 'Personalstelle nennt sie Ihnen.',
+    gemeldetAm: 'Gemeldet am',
+    storniertAm: 'Zurückgenommen am',
+    halbeTage: 'Halbe Tage',
+    mehrereOffen: 'Mehrere offene Nachweise',
+    mehrereOffenHinweis:
+      'Auf dieser Schicht sind mehrere Nachweise offen. Welcher jetzt unterschrieben wird, '
+      + 'kann der Bildschirm nicht wissen — Sie waren da. Wählen Sie ihn aus. Ein weiterer '
+      + 'Nachweis lässt sich hier nicht anlegen, solange mehrere offen sind.',
+    diesenUnterschreiben: 'Diesen unterschreiben',
     zurueckziehenHinweis:
       'Zurückziehen geht, solange niemand entschieden hat. Der Antrag bleibt lesbar.',
     wachbuch: 'Wachbuch',
@@ -942,6 +1376,11 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     kontrollpunkt: 'Kontrollpunkt',
     praesenz: 'Präsenz bestätigt',
     polizei: 'Polizei informiert',
+    nachgetragen: 'Nachgetragen',
+    nachgetragenHinweis:
+      'Der Vorgang ist früher geschehen und wird jetzt erst eingetippt — etwa aus '
+      + 'dem Buch am Objekt nach der Schicht. Die Zeit des Eintrags bleibt die des '
+      + 'Servers; dieses Häkchen sagt nur, dass sie nicht die Zeit des Vorgangs ist.',
     nummer: 'Nummer',
     erfasstAm: 'Erfasst am',
     unveraenderlich:
@@ -957,6 +1396,26 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     unterzeichnerName: 'Name des Unterzeichners',
     unterschreiben: 'Unterschreiben',
     unterschrieben: 'Unterschrieben',
+    zusagen: 'Zusagen',
+    absagen: 'Absagen',
+    zusageFrage: 'Können Sie diese Schicht übernehmen?',
+    absageGrund: 'Warum können Sie nicht?',
+    absageGrundHinweis:
+      'Ein Grund ist nötig. Die Disposition muss unterscheiden können zwischen '
+      + '„krank" und „Bus verpasst" — das eine besetzt sie nach, das andere ruft sie an.',
+    zugesagtHinweis: 'Sie haben zugesagt. Das Büro sieht es.',
+    abgesagtHinweis: 'Sie haben abgesagt. Das Büro sieht es und besetzt nach.',
+    absageEndgueltig:
+      'Eine Absage lässt sich hier nicht zurücknehmen — das Büro hat den Platz '
+      + 'möglicherweise schon neu besetzt. Rufen Sie an, wenn es sich geändert hat.',
+    antwortZugesagt: 'Zugesagt.',
+    antwortAbgesagt: 'Abgesagt. Das Büro ist unterrichtet.',
+    antwortSchonZugesagt: 'Sie hatten schon zugesagt — es bleibt dabei.',
+    antwortSchonAbgesagt: 'Sie hatten schon abgesagt — es bleibt dabei.',
+    antwortVorbei: 'Diese Schicht ist vorbei.',
+    antwortNichtMoeglich: 'In diesem Stand geht das nicht mehr. Bitte im Büro melden.',
+    antwortGrundFehlt: 'Bitte schreiben Sie dazu, warum.',
+    antwortUnbekannt: 'Diese Schicht gibt es nicht.',
     fotos: 'Fotos',
     aufnahmeHinzufuegen: 'Aufnahme hinzufügen',
     beschreibung: 'Beschreibung',
@@ -971,6 +1430,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     vorkommnis: 'Vorkommnis',
     bezeichnung: 'Bezeichnung',
     hinzufuegen: 'Hinzufügen',
+    korrigieren: 'Korrigieren',
+    korrekturGrund: 'Grund der Korrektur',
+    stornierenUndErsetzen: 'Stornieren und ersetzen',
+    korrekturHinweis: 'Die falsche Zeile verschwindet nicht — sie bleibt durchgestrichen '
+      + 'neben der neuen stehen. So sieht jeder, was zuerst dastand.',
+    tagesfotoHinzufuegen: 'Foto hinzufügen',
+    tagesfotoHinweis: 'Ortsdaten werden vor dem Ablegen aus dem Bild entfernt.',
     tagGeschlossen: 'Dieser Bautag ist geschlossen — es kommt nichts mehr hinzu.',
     abgleich: 'Abgleich mit der Zeiterfassung',
     abgleichDeckungsgleich: 'Die eigenen Stunden decken sich mit der Zeiterfassung dieses Tages.',
@@ -1068,6 +1534,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     naechsteSchicht: 'Next shift',
     keineSchicht: 'You are not scheduled for a shift at the moment.',
     gesellschaft: 'Company',
+    gesellschaftWaehlen: 'Choose the company',
+    pauseMinuten: 'Break (minutes)',
     objekt: 'Site',
     beginn: 'Start',
     ende: 'End',
@@ -1085,6 +1553,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     saldo: 'Balance',
     vortrag: 'Carried forward',
     monat: 'Month',
+    monatVorher: 'Previous month',
+    monatSpaeter: 'Next month',
+    monatHeute: 'Current month',
+    jahr: 'Year',
+    jahrVorher: 'Previous year',
+    jahrSpaeter: 'Next year',
+    jahrHeute: 'Current year',
     gesperrt: 'Closed',
     offen: 'Open',
     vorlaeufig: 'Provisional',
@@ -1100,9 +1575,31 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinBearbeiten:
       'Time records cannot be edited here. If something is wrong, raise an '
       + 'objection — the planning team decides on it.',
+    stempeluhr: {
+      titel: 'Working time',
+      beginnen: 'Start work',
+      beenden: 'End work',
+      laeuftSeit: 'Running',
+      seit: 'since',
+      keineSchichtJetzt: 'No shift is running that you could clock into right now. '
+        + 'The button appears once your shift starts.',
+      serverUhrHinweis: 'The server clock is counted, not your device clock.',
+      eingecheckt: 'Clocked in. The time is running.',
+      ausgecheckt: 'Clocked out. Your hours go to management.',
+      abgelehnt: 'That did not work. Check whether your shift has already started.',
+      schonOffen: 'You are already clocked in.',
+    },
+    korrigiertHinweis: 'This entry was corrected. Management sent you the reason as a message — it is in your inbox.',
+    korrigiertFassung: 'Version',
     einwandMelden: 'Raise an objection',
     einwandArt: 'Type of objection',
     einwandBegruendung: 'What is wrong?',
+    einwandEntscheidung: 'Decision',
+    einwandEntschiedenAm: 'Decided on',
+    einwandOhneBegruendung: 'Recorded without a reason — ask the planners.',
+    einwandWartet: 'Your report is with the planners. Once it is decided, the '
+      + 'reason appears here and you get a message.',
+    einwandEingereichtAm: 'Reported on',
     serverZeit: 'Server time',
     geraeteZeit: 'Device time',
     abweichung: 'Deviation',
@@ -1115,12 +1612,35 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     zurueckziehen: 'Withdraw',
     abwesenheitMelden: 'Report an absence',
     abwesenheitArt: 'Type of absence',
+    halberTagBeginn: 'First day only half',
+    halberTagEnde: 'Last day only half',
+    halberTagHinweis:
+      'If you still worked on the first day, or already worked again on the last. '
+      + 'Half a day counts as 0.5.',
+    auVorliegt: 'Medical certificate has been handed in',
+    auBis: 'Certificate valid until',
+    auHinweis:
+      'Only tick this if you have already handed the certificate in. Without it the report '
+      + 'still stands — the personnel office will ask.',
     absenden: 'Submit',
     gueltigBis: 'Valid until',
     unbefristet: 'no expiry',
     abgelaufen: 'Expired',
     laeuftAb: 'Expiring',
     sperrtEinteilung: 'Without this certificate nobody may schedule you.',
+    mehrZeilen: 'More rows',
+    mehrZeilenHinweis:
+      'Reloads the sheet with three more rows. Anything typed is lost — so do this '
+      + 'before filling it in.',
+    nachweisWasTun: 'What to do now',
+    nachweisWasTunText:
+      'Bring or send the new certificate to the office of your company. It is '
+      + 'entered there; after that it appears here. Until then you cannot be '
+      + 'scheduled.',
+    nachweisKeinUpload:
+      'Uploading is not possible here — the portal has no store for certificates, '
+      + 'and a field that saves nothing would be worse than none.',
+    nachweisZuNachrichten: 'To the messages',
     registerBewacher: 'Guard register',
     nichtVerbunden: 'not connected',
     keineEintraege: 'No entries.',
@@ -1179,6 +1699,28 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     entschiedenAm: 'Decided on',
     entscheidung: 'Decision',
     zurueckgezogen: 'Withdrawn',
+    abwesenheitBlatt: 'My absence',
+    abwesenheitRuecknahme: 'Withdraw absence',
+    abwesenheitRuecknahmeHinweis:
+      'As long as nobody has decided on it, you can withdraw an absence yourself — for '
+      + 'example if you got the date wrong. The record stays readable, with the report and '
+      + 'the withdrawal.',
+    abwesenheitNichtRuecknehmbar:
+      'This absence has been decided on, or already withdrawn. Any change is now made by '
+      + 'the personnel office.',
+    abwesenheitArtVerdeckt:
+      'The type of absence is not shown here: health data is kept narrow, and the database '
+      + 'does not hand it to the portal even for your own record. The personnel office will '
+      + 'tell you.',
+    gemeldetAm: 'Reported on',
+    storniertAm: 'Withdrawn on',
+    halbeTage: 'Half days',
+    mehrereOffen: 'Several open records',
+    mehrereOffenHinweis:
+      'Several records are open on this shift. Which one is being signed now is not '
+      + 'something the screen can know — you were there. Pick it. No further record can be '
+      + 'created here while several are open.',
+    diesenUnterschreiben: 'Sign this one',
     zurueckziehenHinweis:
       'You can withdraw while nobody has decided. The request stays readable.',
     wachbuch: 'Security log',
@@ -1196,6 +1738,11 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     kontrollpunkt: 'Checkpoint',
     praesenz: 'Presence confirmed',
     polizei: 'Police informed',
+    nachgetragen: 'Entered later',
+    nachgetragenHinweis:
+      'The event happened earlier and is only being typed in now — for example from '
+      + 'the logbook on site after the shift. The entry keeps the server’s time; this '
+      + 'checkbox only says that it is not the time of the event.',
     nummer: 'Number',
     erfasstAm: 'Recorded on',
     unveraenderlich:
@@ -1211,6 +1758,26 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     unterzeichnerName: 'Name of the signatory',
     unterschreiben: 'Sign',
     unterschrieben: 'Signed',
+    zusagen: 'Accept',
+    absagen: 'Decline',
+    zusageFrage: 'Can you take this shift?',
+    absageGrund: 'Why can you not?',
+    absageGrundHinweis:
+      'A reason is required. Scheduling has to tell "off sick" from "missed the bus" — '
+      + 'one they re-staff, the other they call you about.',
+    zugesagtHinweis: 'You have accepted. The office can see it.',
+    abgesagtHinweis: 'You have declined. The office can see it and will re-staff.',
+    absageEndgueltig:
+      'A decline cannot be taken back here — the office may already have filled the '
+      + 'place. Call them if something has changed.',
+    antwortZugesagt: 'Accepted.',
+    antwortAbgesagt: 'Declined. The office has been told.',
+    antwortSchonZugesagt: 'You had already accepted — it stands.',
+    antwortSchonAbgesagt: 'You had already declined — it stands.',
+    antwortVorbei: 'This shift is over.',
+    antwortNichtMoeglich: 'That is no longer possible at this stage. Please contact the office.',
+    antwortGrundFehlt: 'Please write why.',
+    antwortUnbekannt: 'There is no such shift.',
     fotos: 'Photos',
     aufnahmeHinzufuegen: 'Add a photo',
     beschreibung: 'Description',
@@ -1225,6 +1792,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     vorkommnis: 'Incident',
     bezeichnung: 'Designation',
     hinzufuegen: 'Add',
+    korrigieren: 'Correct',
+    korrekturGrund: 'Reason for the correction',
+    stornierenUndErsetzen: 'Cancel and replace',
+    korrekturHinweis: 'The wrong line does not disappear — it stays crossed out next '
+      + 'to the new one. Everyone can see what was there first.',
+    tagesfotoHinzufuegen: 'Add photo',
+    tagesfotoHinweis: 'Location data is removed from the image before it is stored.',
     tagGeschlossen: 'This site day is closed — nothing more is added.',
     abgleich: 'Comparison with time tracking',
     abgleichDeckungsgleich: 'Your own hours match this day\u2019s time tracking.',
@@ -1318,6 +1892,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     naechsteSchicht: 'المناوبة القادمة',
     keineSchicht: 'لا توجد مناوبة مجدولة لك حالياً.',
     gesellschaft: 'الشركة',
+    gesellschaftWaehlen: 'اختر الشركة',
+    pauseMinuten: 'الاستراحة (بالدقائق)',
     objekt: 'الموقع',
     beginn: 'البداية',
     ende: 'النهاية',
@@ -1335,6 +1911,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     saldo: 'الرصيد',
     vortrag: 'المرحّل',
     monat: 'الشهر',
+    monatVorher: 'الشهر السابق',
+    monatSpaeter: 'الشهر التالي',
+    monatHeute: 'الشهر الحالي',
+    jahr: 'السنة',
+    jahrVorher: 'السنة السابقة',
+    jahrSpaeter: 'السنة التالية',
+    jahrHeute: 'السنة الحالية',
     gesperrt: 'مُقفل',
     offen: 'مفتوح',
     vorlaeufig: 'مبدئي',
@@ -1350,9 +1933,31 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinBearbeiten:
       'لا يمكن تعديل سجلات الوقت هنا. إذا كان هناك خطأ، قدّم اعتراضاً — قسم التخطيط '
       + 'هو من يبتّ فيه.',
+    stempeluhr: {
+      titel: 'وقت العمل',
+      beginnen: 'ابدأ العمل',
+      beenden: 'أنهِ العمل',
+      laeuftSeit: 'جارٍ',
+      seit: 'منذ',
+      keineSchichtJetzt: 'لا توجد مناوبة جارية يمكنك تسجيل الدخول إليها الآن. '
+        + 'يظهر الزرّ فور بدء مناوبتك.',
+      serverUhrHinweis: 'المحتسَب هو وقت الخادم، لا وقت جهازك.',
+      eingecheckt: 'تم تسجيل البدء. الوقت يجري.',
+      ausgecheckt: 'تم تسجيل الانتهاء. ساعاتك تذهب إلى الإدارة.',
+      abgelehnt: 'لم ينجح ذلك. تحقّق ممّا إذا كانت مناوبتك قد بدأت.',
+      schonOffen: 'أنت مسجَّل البدء أصلاً.',
+    },
+    korrigiertHinweis: 'تم تصحيح هذا السجلّ. أرسلت لك الإدارة السبب في رسالة — تجدها في صندوق الوارد.',
+    korrigiertFassung: 'النسخة',
     einwandMelden: 'تقديم اعتراض',
     einwandArt: 'نوع الاعتراض',
     einwandBegruendung: 'ما الخطأ؟',
+    einwandEntscheidung: 'القرار',
+    einwandEntschiedenAm: 'تاريخ القرار',
+    einwandOhneBegruendung: 'سُجّل دون تعليل — اسأل قسم التخطيط.',
+    einwandWartet: 'بلاغك لدى قسم التخطيط. عند صدور القرار سيظهر التعليل هنا '
+      + 'وستصلك رسالة.',
+    einwandEingereichtAm: 'تاريخ البلاغ',
     serverZeit: 'وقت الخادم',
     geraeteZeit: 'وقت الجهاز',
     abweichung: 'الفارق',
@@ -1365,12 +1970,33 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     zurueckziehen: 'سحب الطلب',
     abwesenheitMelden: 'الإبلاغ عن غياب',
     abwesenheitArt: 'نوع الغياب',
+    halberTagBeginn: 'اليوم الأول نصف يوم فقط',
+    halberTagEnde: 'اليوم الأخير نصف يوم فقط',
+    halberTagHinweis:
+      'إذا كنت قد عملت في اليوم الأول، أو عدت للعمل في اليوم الأخير. '
+      + 'نصف اليوم يُحتسب 0,5.',
+    auVorliegt: 'تم تسليم التقرير الطبي',
+    auBis: 'التقرير الطبي صالح حتى',
+    auHinweis:
+      'ضع علامة فقط إذا كنت قد سلّمت التقرير فعلاً. بدونه يبقى البلاغ ساري المفعول — '
+      + 'قسم شؤون الموظفين سيسأل عنه.',
     absenden: 'إرسال',
     gueltigBis: 'صالحة حتى',
     unbefristet: 'بدون تاريخ انتهاء',
     abgelaufen: 'منتهية',
     laeuftAb: 'توشك على الانتهاء',
     sperrtEinteilung: 'بدون هذه الشهادة لا يجوز لأحد جدولتك.',
+    mehrZeilen: 'صفوف إضافية',
+    mehrZeilenHinweis:
+      'يعيد تحميل الورقة بثلاثة صفوف إضافية. ما كُتب يضيع عندها — لذلك قبل التعبئة.',
+    nachweisWasTun: 'ما الذي يجب فعله الآن',
+    nachweisWasTunText:
+      'أحضر الشهادة الجديدة إلى مكتب شركتك أو أرسلها إليه. يتم تسجيلها هناك، وبعد '
+      + 'ذلك تظهر هنا. حتى ذلك الحين يبقى إدراجك في الجدول متوقفاً.',
+    nachweisKeinUpload:
+      'الرفع غير ممكن هنا — لا يوجد في البوابة مكان لحفظ الشهادات، وحقل لا يحفظ '
+      + 'شيئاً أسوأ من عدم وجوده.',
+    nachweisZuNachrichten: 'إلى الرسائل',
     registerBewacher: 'سجل الحراسة',
     nichtVerbunden: 'غير متصل',
     keineEintraege: 'لا توجد إدخالات.',
@@ -1429,6 +2055,24 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     entschiedenAm: 'تاريخ القرار',
     entscheidung: 'القرار',
     zurueckgezogen: 'مسحوب',
+    abwesenheitBlatt: 'غيابي',
+    abwesenheitRuecknahme: 'سحب بلاغ الغياب',
+    abwesenheitRuecknahmeHinweis:
+      'ما دام لم يتّخذ أحد قراراً بشأنه، يمكنك سحب بلاغ الغياب بنفسك — مثلاً إذا أخطأت في '
+      + 'التاريخ. يبقى السجل قابلاً للقراءة، مع البلاغ والسحب.',
+    abwesenheitNichtRuecknehmbar:
+      'تم البتّ في هذا الغياب أو سُحب من قبل. أي تعديل الآن يجريه قسم شؤون الموظفين.',
+    abwesenheitArtVerdeckt:
+      'نوع الغياب غير معروض هنا: البيانات الصحية محدودة التداول، وقاعدة البيانات لا تمنحها '
+      + 'للبوابة حتى لسجلك أنت. قسم شؤون الموظفين سيخبرك به.',
+    gemeldetAm: 'أُبلغ في',
+    storniertAm: 'سُحب في',
+    halbeTage: 'أنصاف الأيام',
+    mehrereOffen: 'عدة إثباتات مفتوحة',
+    mehrereOffenHinweis:
+      'على هذه الوردية أكثر من إثبات مفتوح. الشاشة ما بتعرف أي واحد بدّو يتوقّع الآن — إنت كنت '
+      + 'هناك. اختار الواحد الصحيح. ما بينفع تنشئ إثبات جديد هون طالما في أكتر من واحد مفتوح.',
+    diesenUnterschreiben: 'وقّع هذا',
     zurueckziehenHinweis: 'يمكن سحب الطلب ما لم يُتخذ قرار بعد. ويبقى الطلب قابلاً للقراءة.',
     wachbuch: 'دفتر الحراسة',
     wachbuchNeu: 'كتابة قيد',
@@ -1443,6 +2087,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     kontrollpunkt: 'نقطة التفتيش',
     praesenz: 'تم تأكيد الحضور',
     polizei: 'تم إبلاغ الشرطة',
+    nachgetragen: 'مُدرج لاحقاً',
+    nachgetragenHinweis:
+      'الحدث وقع سابقاً ويُكتب الآن فقط — مثلاً من الدفتر في الموقع بعد الوردية. '
+      + 'يبقى وقت القيد هو وقت الخادم؛ هذه العلامة تقول فقط إنه ليس وقت الحدث.',
     nummer: 'الرقم',
     erfasstAm: 'تاريخ التسجيل',
     unveraenderlich: 'القيد يبقى. الخطأ يُصحَّح إلى جانبه ولا يُحذف.',
@@ -1457,6 +2105,26 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     unterzeichnerName: 'اسم الموقِّع',
     unterschreiben: 'توقيع',
     unterschrieben: 'موقَّع',
+    zusagen: 'أوافق',
+    absagen: 'أعتذر',
+    zusageFrage: 'هل يمكنك تولّي هذه المناوبة؟',
+    absageGrund: 'لماذا لا تستطيع؟',
+    absageGrundHinweis:
+      'السبب مطلوب. على قسم التوزيع أن يفرّق بين «مريض» و«فاتني الباص» — '
+      + 'الأول يجد بديلاً، والثاني يتّصل بك.',
+    zugesagtHinweis: 'وافقت. المكتب يرى ذلك.',
+    abgesagtHinweis: 'اعتذرت. المكتب يرى ذلك ويضع بديلاً.',
+    absageEndgueltig:
+      'لا يمكن سحب الاعتذار من هنا — ربما يكون المكتب قد ملأ المكان. '
+      + 'اتّصل بهم إن تغيّر شيء.',
+    antwortZugesagt: 'تمّت الموافقة.',
+    antwortAbgesagt: 'تمّ الاعتذار. أُبلغ المكتب.',
+    antwortSchonZugesagt: 'كنت قد وافقت — تبقى الموافقة.',
+    antwortSchonAbgesagt: 'كنت قد اعتذرت — يبقى الاعتذار.',
+    antwortVorbei: 'هذه المناوبة انتهت.',
+    antwortNichtMoeglich: 'لم يعد ذلك ممكناً في هذه الحالة. راجع المكتب.',
+    antwortGrundFehlt: 'اكتب السبب من فضلك.',
+    antwortUnbekannt: 'لا توجد مناوبة بهذا الرقم.',
     fotos: 'الصور',
     aufnahmeHinzufuegen: 'إضافة صورة',
     beschreibung: 'الوصف',
@@ -1471,6 +2139,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     vorkommnis: 'حادثة',
     bezeichnung: 'التسمية',
     hinzufuegen: 'إضافة',
+    korrigieren: 'تصحيح',
+    korrekturGrund: 'سبب التصحيح',
+    stornierenUndErsetzen: 'إلغاء واستبدال',
+    korrekturHinweis: 'السطر الخاطئ لا يختفي — يبقى مشطوباً بجانب السطر الجديد، '
+      + 'فيرى الجميع ما كان مكتوباً أولاً.',
+    tagesfotoHinzufuegen: 'إضافة صورة',
+    tagesfotoHinweis: 'تُزال بيانات الموقع من الصورة قبل حفظها.',
     tagGeschlossen: 'أُغلق يوم الموقع هذا — لا يُضاف إليه شيء بعد الآن.',
     abgleich: 'المقارنة مع تسجيل الوقت',
     abgleichDeckungsgleich: 'ساعاتك تطابق تسجيل الوقت لهذا اليوم.',
@@ -1559,6 +2234,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     naechsteSchicht: 'Sonraki vardiya',
     keineSchicht: 'Şu anda size atanmış bir vardiya yok.',
     gesellschaft: 'Şirket',
+    gesellschaftWaehlen: 'Şirketi seçin',
+    pauseMinuten: 'Mola (dakika)',
     objekt: 'Nesne',
     beginn: 'Başlangıç',
     ende: 'Bitiş',
@@ -1576,6 +2253,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     saldo: 'Bakiye',
     vortrag: 'Devir',
     monat: 'Ay',
+    monatVorher: 'Önceki ay',
+    monatSpaeter: 'Sonraki ay',
+    monatHeute: 'Bu ay',
+    jahr: 'Yıl',
+    jahrVorher: 'Önceki yıl',
+    jahrSpaeter: 'Sonraki yıl',
+    jahrHeute: 'Bu yıl',
     gesperrt: 'Kapatıldı',
     offen: 'Açık',
     vorlaeufig: 'Geçici',
@@ -1591,9 +2275,31 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     keinBearbeiten:
       'Zaman kayıtları burada değiştirilemez. Bir yanlışlık varsa itiraz bildirin — '
       + 'kararı planlama birimi verir.',
+    stempeluhr: {
+      titel: 'Çalışma saati',
+      beginnen: 'İşe başla',
+      beenden: 'İşi bitir',
+      laeuftSeit: 'Sürüyor',
+      seit: 'başlangıç',
+      keineSchichtJetzt: 'Şu anda giriş yapabileceğiniz bir vardiya yok. '
+        + 'Vardiyanız başlar başlamaz düğme görünür.',
+      serverUhrHinweis: 'Cihazınızın saati değil, sunucunun saati sayılır.',
+      eingecheckt: 'Giriş yapıldı. Süre işliyor.',
+      ausgecheckt: 'Çıkış yapıldı. Saatleriniz yönetime gidiyor.',
+      abgelehnt: 'Bu işe yaramadı. Vardiyanızın başlayıp başlamadığını kontrol edin.',
+      schonOffen: 'Zaten giriş yapmış durumdasınız.',
+    },
+    korrigiertHinweis: 'Bu kayıt düzeltildi. Yönetim size nedenini mesaj olarak gönderdi — gelen kutunuzda.',
+    korrigiertFassung: 'Sürüm',
     einwandMelden: 'İtiraz bildir',
     einwandArt: 'İtiraz türü',
     einwandBegruendung: 'Ne yanlış?',
+    einwandEntscheidung: 'Karar',
+    einwandEntschiedenAm: 'Karar tarihi',
+    einwandOhneBegruendung: 'Gerekçesiz kaydedildi — planlamaya sorun.',
+    einwandWartet: 'Bildiriminiz planlamada. Karar verildiğinde gerekçe burada '
+      + 'görünür ve size bir mesaj gelir.',
+    einwandEingereichtAm: 'Bildirim tarihi',
     serverZeit: 'Sunucu saati',
     geraeteZeit: 'Cihaz saati',
     abweichung: 'Sapma',
@@ -1606,12 +2312,34 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     zurueckziehen: 'Geri çek',
     abwesenheitMelden: 'Devamsızlık bildir',
     abwesenheitArt: 'Devamsızlık türü',
+    halberTagBeginn: 'İlk gün yalnızca yarım',
+    halberTagEnde: 'Son gün yalnızca yarım',
+    halberTagHinweis:
+      'İlk gün hâlâ çalıştıysanız ya da son gün tekrar çalıştıysanız. '
+      + 'Yarım gün 0,5 sayılır.',
+    auVorliegt: 'İş göremezlik raporu teslim edildi',
+    auBis: 'Rapor şu tarihe kadar geçerli',
+    auHinweis:
+      'Yalnızca raporu gerçekten teslim ettiyseniz işaretleyin. Rapor olmadan da bildirim '
+      + 'geçerlidir — personel birimi soracaktır.',
     absenden: 'Gönder',
     gueltigBis: 'Geçerlilik',
     unbefristet: 'süresiz',
     abgelaufen: 'Süresi doldu',
     laeuftAb: 'Süresi doluyor',
     sperrtEinteilung: 'Bu belge olmadan kimse sizi vardiyaya yazamaz.',
+    mehrZeilen: 'Daha fazla satır',
+    mehrZeilenHinweis:
+      'Sayfayı üç satır daha ekleyerek yeniden yükler. Yazılanlar kaybolur — bu '
+      + 'yüzden doldurmadan önce yapın.',
+    nachweisWasTun: 'Şimdi ne yapmalı',
+    nachweisWasTunText:
+      'Yeni belgeyi şirketinizin bürosuna getirin veya gönderin. Belge orada '
+      + 'kaydedilir, sonra burada görünür. O zamana kadar vardiyaya yazılamazsınız.',
+    nachweisKeinUpload:
+      'Buradan yükleme yapılamaz — portalda belgeler için bir depo yok ve hiçbir şey '
+      + 'kaydetmeyen bir alan, hiç olmamasından kötüdür.',
+    nachweisZuNachrichten: 'Mesajlara',
     registerBewacher: 'Güvenlik sicili',
     nichtVerbunden: 'bağlı değil',
     keineEintraege: 'Kayıt yok.',
@@ -1670,6 +2398,26 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     entschiedenAm: 'Karar tarihi',
     entscheidung: 'Karar',
     zurueckgezogen: 'Geri çekildi',
+    abwesenheitBlatt: 'Devamsızlığım',
+    abwesenheitRuecknahme: 'Devamsızlık bildirimini geri çek',
+    abwesenheitRuecknahmeHinweis:
+      'Henüz kimse karar vermediği sürece devamsızlığı kendiniz geri çekebilirsiniz — '
+      + 'örneğin tarihi yanlış girdiyseniz. Kayıt okunabilir kalır; bildirim ve geri çekme '
+      + 'birlikte görünür.',
+    abwesenheitNichtRuecknehmbar:
+      'Bu devamsızlık karara bağlandı ya da zaten geri çekildi. Değişikliği artık personel '
+      + 'birimi yapar.',
+    abwesenheitArtVerdeckt:
+      'Devamsızlığın türü burada gösterilmez: sağlık verileri dar tutulur ve veritabanı '
+      + 'bunu kendi kaydınız için bile portala vermez. Personel birimi size söyleyecektir.',
+    gemeldetAm: 'Bildirim tarihi',
+    storniertAm: 'Geri çekilme tarihi',
+    halbeTage: 'Yarım günler',
+    mehrereOffen: 'Birden fazla açık kayıt',
+    mehrereOffenHinweis:
+      'Bu vardiyada birden fazla kayıt açık. Şimdi hangisinin imzalanacağını ekran bilemez — '
+      + 'oradaydınız. Siz seçin. Birden fazlası açıkken burada yeni kayıt oluşturulamaz.',
+    diesenUnterschreiben: 'Bunu imzala',
     zurueckziehenHinweis:
       'Kimse karar vermediği sürece geri çekebilirsiniz. Talep okunabilir kalır.',
     wachbuch: 'Güvenlik defteri',
@@ -1687,6 +2435,11 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     kontrollpunkt: 'Kontrol noktası',
     praesenz: 'Mevcudiyet onaylandı',
     polizei: 'Polis bilgilendirildi',
+    nachgetragen: 'Sonradan girildi',
+    nachgetragenHinweis:
+      'Olay daha önce gerçekleşti ve şimdi giriliyor — örneğin vardiyadan sonra '
+      + 'sahadaki defterden. Kaydın saati sunucunun saati olarak kalır; bu kutucuk '
+      + 'yalnızca bunun olayın saati olmadığını söyler.',
     nummer: 'Numara',
     erfasstAm: 'Kaydedildiği tarih',
     unveraenderlich: 'Bir kayıt kalır. Yanlış olan yanında düzeltilir, silinmez.',
@@ -1701,6 +2454,26 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     unterzeichnerName: 'İmzalayanın adı',
     unterschreiben: 'İmzala',
     unterschrieben: 'İmzalandı',
+    zusagen: 'Kabul et',
+    absagen: 'Reddet',
+    zusageFrage: 'Bu vardiyayı üstlenebilir misiniz?',
+    absageGrund: 'Neden üstlenemiyorsunuz?',
+    absageGrundHinweis:
+      'Bir gerekçe gerekli. Planlama, „hastayım" ile „otobüsü kaçırdım" arasını '
+      + 'ayırabilmeli — biri için yerinize birini bulur, diğeri için sizi arar.',
+    zugesagtHinweis: 'Kabul ettiniz. Ofis bunu görüyor.',
+    abgesagtHinweis: 'Reddettiniz. Ofis bunu görüyor ve yerinize birini bulacak.',
+    absageEndgueltig:
+      'Bir ret buradan geri alınamaz — ofis yeri çoktan doldurmuş olabilir. '
+      + 'Bir şey değiştiyse arayın.',
+    antwortZugesagt: 'Kabul edildi.',
+    antwortAbgesagt: 'Reddedildi. Ofise bildirildi.',
+    antwortSchonZugesagt: 'Zaten kabul etmiştiniz — öyle kalıyor.',
+    antwortSchonAbgesagt: 'Zaten reddetmiştiniz — öyle kalıyor.',
+    antwortVorbei: 'Bu vardiya bitti.',
+    antwortNichtMoeglich: 'Bu aşamada artık mümkün değil. Lütfen ofisle görüşün.',
+    antwortGrundFehlt: 'Lütfen nedenini yazın.',
+    antwortUnbekannt: 'Böyle bir vardiya yok.',
     fotos: 'Fotoğraflar',
     aufnahmeHinzufuegen: 'Fotoğraf ekle',
     beschreibung: 'Açıklama',
@@ -1715,6 +2488,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     vorkommnis: 'Olay',
     bezeichnung: 'Tanım',
     hinzufuegen: 'Ekle',
+    korrigieren: 'Düzelt',
+    korrekturGrund: 'Düzeltme nedeni',
+    stornierenUndErsetzen: 'İptal et ve değiştir',
+    korrekturHinweis: 'Yanlış satır kaybolmaz — yenisinin yanında üstü çizili olarak '
+      + 'kalır. Böylece önce ne yazdığını herkes görür.',
+    tagesfotoHinzufuegen: 'Fotoğraf ekle',
+    tagesfotoHinweis: 'Konum bilgileri kaydedilmeden önce fotoğraftan silinir.',
     tagGeschlossen: 'Bu şantiye günü kapatıldı — artık hiçbir şey eklenmez.',
     abgleich: 'Zaman kaydıyla karşılaştırma',
     abgleichDeckungsgleich: 'Kendi saatleriniz bu günün zaman kaydıyla örtüşüyor.',
@@ -1847,6 +2627,66 @@ Readonly<Record<PortalSprache, Readonly<Record<EinwandArtSchluessel, string>>>> 
     pause_falsch: 'Mola süresi yanlış',
     zuordnung_falsch: 'Yanlış nesne veya yanlış vardiya',
     sonstiges: 'Başka bir şey',
+  },
+};
+
+/**
+ * Der ZUSTAND eines Einwands, in vier Sprachen (V-051, EMP-07, TIM-11).
+ *
+ * **Der Befund: die Entscheidung erreichte die Meldende nirgends.** Auf
+ * `/portal/mein/zeiten/[id]/einwand` stand unter „Meine Meldungen" der rohe
+ * Enum-Wert — `teilweise_anerkannt` — und weder wann entschieden wurde noch
+ * mit welcher Begründung. Beides lag in `zeit_einwand` und wurde von
+ * `listeEigeneEinwaende` sogar geladen; nur gezeigt wurde es nicht. Eine
+ * Person, die einen falschen Lohn meldet, las damit ein Wort ihrer
+ * Datenbank und erfuhr nie, warum.
+ *
+ * **Wie bei den Einwandarten: die SCHLUESSEL sind das Vokabular des Enums**
+ * (`einwand_status`) und reisen unübersetzt in die Datenbank; übersetzt wird
+ * nur, was auf dem Bildschirm steht (D-83).
+ *
+ * **`zurueckgezogen` steht mit dabei, obwohl die Planung es nie setzt.** Es
+ * ist der eine Zustand, den die betroffene Person selbst herstellt — und ein
+ * Zustandswort, das für genau ihren Fall fehlt, wäre die Lücke an der
+ * teuersten Stelle.
+ */
+export type EinwandStatusSchluessel =
+  'offen' | 'in_pruefung' | 'anerkannt' | 'teilweise_anerkannt'
+  | 'abgelehnt' | 'zurueckgezogen';
+
+export const EINWAND_STATUS_TEXTE:
+Readonly<Record<PortalSprache, Readonly<Record<EinwandStatusSchluessel, string>>>> = {
+  de: {
+    offen: 'Offen — noch nicht angesehen',
+    in_pruefung: 'In Prüfung',
+    anerkannt: 'Anerkannt',
+    teilweise_anerkannt: 'Teilweise anerkannt',
+    abgelehnt: 'Abgelehnt',
+    zurueckgezogen: 'Von Ihnen zurückgezogen',
+  },
+  en: {
+    offen: 'Open — not yet reviewed',
+    in_pruefung: 'Under review',
+    anerkannt: 'Accepted',
+    teilweise_anerkannt: 'Partly accepted',
+    abgelehnt: 'Rejected',
+    zurueckgezogen: 'Withdrawn by you',
+  },
+  ar: {
+    offen: 'مفتوح — لم يُنظر فيه بعد',
+    in_pruefung: 'قيد المراجعة',
+    anerkannt: 'مقبول',
+    teilweise_anerkannt: 'مقبول جزئياً',
+    abgelehnt: 'مرفوض',
+    zurueckgezogen: 'سحبته بنفسك',
+  },
+  tr: {
+    offen: 'Açık — henüz incelenmedi',
+    in_pruefung: 'İnceleniyor',
+    anerkannt: 'Kabul edildi',
+    teilweise_anerkannt: 'Kısmen kabul edildi',
+    abgelehnt: 'Reddedildi',
+    zurueckgezogen: 'Tarafınızdan geri çekildi',
   },
 };
 

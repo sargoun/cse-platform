@@ -48,16 +48,49 @@ afterEach(() => {
 });
 
 describe('der Bootstrap verdrahtet ALLE Jobs', () => {
-  it('registriert die achtzehn Jobs, die es gibt', () => {
+  it('registriert die sechsundzwanzig Jobs, die es gibt', () => {
     const schluessel = alleJobs(db).map((j) => j.schluessel).sort();
     expect(schluessel).toEqual([
-      'akquise_recherche', 'basiszinssatz_pruefen', 'belegarchiv_ausgangsrechnung',
-      'bewerber_loeschung',
-      'einsaetze_generieren', 'freigabe_fenster', 'kette_pruefen',
-      'konflikte_erkennen', 'lead_sla_eskalation', 'mahnvorschlaege_erzeugen',
-      'morgen_unbesetzt', 'nachtrag_ueberfaellig', 'nachweis_warnungen',
+      'akquise_recherche',
+      /*
+       * `angebot_ablauf` und `nachweis_ablauf` kamen mit V-085/V-089 dazu.
+       * Beide Zustände beschreiben etwas, das der Kalender auslöst — `0024`
+       * legte für den ersten eigens einen Teilindex an, `0030` schrieb den
+       * zweiten wörtlich in eine Policy. Gesetzt hat sie nie jemand.
+       */
+      'angebot_ablauf',
+      'basiszinssatz_pruefen', 'belegarchiv_ausgangsrechnung',
+      'bewerber_loeschung', 'dokument_aufbewahrung',
+      /*
+       * `einsatz_abschluss` kam mit V-082 dazu und ist der einzige Lauf der
+       * drei, der stuendlich geht: er schliesst das eine Fenster, das der
+       * Ausloeser `kern.einsatz_status_ableiten` (0390) nicht sehen kann —
+       * die Uhr, die ueber das Schichtende laeuft, nachdem der letzte Mensch
+       * schon ausgestempelt hat. Er rechnet nichts Eigenes, er ruft dieselbe
+       * Ableitung.
+       */
+      'einsaetze_generieren',
+      'einsatz_abschluss',
+      'freigabe_fenster', 'kette_pruefen',
+      'konflikte_erkennen', 'konten_rollover', 'lead_sla_eskalation',
+      'mahnvorschlaege_erzeugen',
+      'morgen_unbesetzt', 'nachtrag_ueberfaellig', 'nachweis_ablauf',
+      'nachweis_warnungen',
       'offene_posten_abgleichen', 'radar_einlesen', 'radar_warnungen',
       'schicht_ohne_zeiteintrag', 'social_plan',
+      /*
+       * `stundenkonto_abgleich` kam mit V-073 dazu: `pruefeAbgleich` stand
+       * seit `0060` im Dienst, trug „(job:stundenkonto_abgleich, naechtlich)"
+       * im Kopf — und den Lauf gab es nicht.
+       */
+      'stundenkonto_abgleich',
+      'urlaubskonten_jahr',
+      /*
+       * `wiedervorlage_erinnerung` kam mit V-146 dazu: das Formular nahm eine
+       * Erinnerung entgegen, `erinnerung_am` stand in der Tabelle — und kein
+       * Lauf las sie (CRM-04, D-640).
+       */
+      'wiedervorlage_erinnerung',
     ]);
   });
 

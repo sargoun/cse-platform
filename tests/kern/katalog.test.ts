@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 import { KATALOG } from '../../src/server/auth/katalog.generiert.js';
 import { AKTIONEN, MODULE, erzeugeDatei, ZIEL, zerlege } from '../../scripts/katalog/extrahiere.js';
 import { blockAus, erzeugeSeed, MIGRATION } from '../../scripts/katalog/seed-sql.js';
-import { funde } from '../../scripts/katalog/benutzung.js';
+import { funde, ohneSqlRegister } from '../../scripts/katalog/benutzung.js';
 import { NOCH_UNBENUTZT } from './katalog-unbenutzt.js';
 
 const SCHLUESSEL = new Set(KATALOG.map((e) => e.schluessel));
@@ -37,6 +37,28 @@ describe('(7) K-19 — kein Schlüssel ohne Katalogzeile, keine Katalogzeile ohn
       fehlend.map((f) => `${f.schluessel} (${f.datei})`),
       'Ein Schlüssel ohne Katalogzeile ist ein dauerhaft leerer Bildschirm, kein Fehler',
     ).toEqual([]);
+  });
+
+  /**
+   * **Die Ausnahme für Auditaktionen als Konstante — in BEIDEN Richtungen.**
+   *
+   * Filter (2) deckt `app.protokolliere('zeit.eingestempelt', …)`, also die
+   * Aktion als Literal IM Aufruf. Sobald ein Dienst mehr als eine Aktion
+   * schreibt, wandert der Aufruf in einen Helfer und der Name in einen
+   * Parameter — und die Aktion meldete sich als unregistriertes Recht,
+   * obwohl sie nie eines war (`services/dienstplan/serie-pflege.ts`).
+   *
+   * Die Gegenprobe ist der wichtigere Teil: nur das Präfix `AUDIT_`
+   * entscheidet. Ein Recht heisst `RECHT_…` und bleibt ungedeckt.
+   */
+  it('eine Auditaktion als `AUDIT_`-Konstante gilt nicht als Rechteschlüssel', () => {
+    const quelle = "const AUDIT_BEENDET = 'dienstplan.serie_beendet';";
+    expect(ohneSqlRegister(quelle)).not.toContain('dienstplan.serie_beendet');
+  });
+
+  it('und ein `RECHT_`-Literal bleibt geprüft — sonst deckte die Ausnahme zu viel', () => {
+    const quelle = "const RECHT_ERFUNDEN = 'dienstplan.gibtesnicht';";
+    expect(ohneSqlRegister(quelle)).toContain('dienstplan.gibtesnicht');
   });
 
   it('die Prüfung findet überhaupt Schlüssel — sonst prüft sie nichts', () => {

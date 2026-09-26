@@ -3,7 +3,9 @@ import { shellTexte } from '@/lib/i18n/texte';
 import { GesellschaftsWahl } from './GesellschaftsWahl';
 import { Logo, Marke } from '@/components/marke/Marke';
 import { EIGENNAME, SPRACHEN, gibtEsIn, mitSprache, type Sprache } from '@/lib/sprache';
+import { gruppenVerweise } from '@/lib/oeffentliche-navigation';
 import { berlinKalendertag } from '@/server/services/zeit/dauer';
+import type { OeffentlicheMarke } from '@/server/services/mandant/markenbild';
 
 /**
  * Die oeffentliche Shell — Kopf 72px, Fussbereich, Markenavatar-Reihe (PUB-14).
@@ -26,6 +28,12 @@ export interface ShellBereich {
    * Unternehmen. Ein Literal im Fussbereich war genau dieser zweite Eintrag.
    */
   readonly nap: string;
+  /**
+   * Logo, Avatar und Titelbild aus einer VERÖFFENTLICHTEN Identität (V-100,
+   * D-628) — jedes Feld `null`, solange keines da ist. Dann bleibt es beim
+   * vorläufigen Zeichen und der Motivtafel.
+   */
+  readonly marke: OeffentlicheMarke;
 }
 
 /** §5 TMG und LEG-07: von jeder Seite aus erreichbar, nicht nur von der Startseite. */
@@ -85,6 +93,17 @@ export function OeffentlicheShell(
   OeffentlicheShellProps,
 ) {
   const t = shellTexte(sprache);
+  /*
+   * **Über uns, Aktuelles, Karriere** (V-155, D-649). Gebaut, befüllt, in der
+   * Sitemap — und von keiner Seite aus verlinkt. Die Kopfzeile bleibt bei
+   * vier Punkten (DESIGN §5, D-417); die drei stehen im Telefonmenü nach den
+   * vier und im Fuss als eigenes `nav` über dem Rechtlichen. `/karriere` gibt
+   * es nur deutsch: von
+   * einer englischen Seite führt der Verweis dorthin und sagt es
+   * (`verweisIn`), statt auf `/en/karriere` ins 404 zu zeigen.
+   */
+  const gruppe = gruppenVerweise(sprache);
+  const istOffen = (ziel: string): boolean => pfad === ziel || pfad.startsWith(`${ziel}/`);
   /*
    * **Das Jahr in BERLINER Zeit, nicht in der des Servers** (Invariante 2).
    *
@@ -274,6 +293,28 @@ export function OeffentlicheShell(
                 </li>
               ))}
               {/*
+                * Die drei Seiten der Gruppe (V-155) — nach den vier, in
+                * derselben Form. Sie gehören zu den Seiten, nicht zur
+                * Handlung, und stehen deshalb VOR „Angebot anfragen".
+                */}
+              {gruppe.map((v) => (
+                <li key={v.schluessel} className="border-b border-line">
+                  <a
+                    href={v.href}
+                    hrefLang={v.sprache === sprache ? undefined : v.sprache}
+                    aria-current={istOffen(v.pfad) ? 'page' : undefined}
+                    data-cse="menue-gruppe"
+                    data-ziel={v.pfad}
+                    className="flex min-h-11 items-center gap-s2 py-s3 text-base text-text"
+                  >
+                    {t.gruppe[v.schluessel]}
+                    {v.sprache !== sprache && (
+                      <span className="text-sm text-text-muted">{t.aufDeutsch}</span>
+                    )}
+                  </a>
+                </li>
+              ))}
+              {/*
                 * **Die vier Gesellschaften — auf dem Telefon HIER und nicht im
                 * Kopf** (DESIGN §6, D-381).
                 *
@@ -377,12 +418,22 @@ export function OeffentlicheShell(
           * `min-h-11` sind 44px: DESIGN §8 nennt das Tap-Ziel nicht als
           * Richtwert, sondern als Untergrenze.
           */}
+        {/*
+          * **Kein eigener Aussenabstand neben `gap-s5`** (gemessen am
+          * Produktionsbau, 1280px): roter Knopf, „Anmelden" und Sprachwahl
+          * trugen zusaetzlich `ml-s4`/`ml-s3`/`ml-s4` — 44px doppelter
+          * Abstand. Bei 1280px fehlten der Zeile damit 34px: „Angebot
+          * anfragen" brach zweizeilig um, und der Auftrittsname wurde
+          * gekuerzt, obwohl D-417 zusagt, dass beides ab `xl` nicht geschieht.
+          * Der Abstand kommt jetzt allein aus `gap`, und `whitespace-nowrap`
+          * haelt die Knopftexte einzeilig.
+          */}
         <a
           href={mitSprache('/angebot', sprache)}
           data-cse="angebot-anfragen"
-          className="ml-auto hidden min-h-11 items-center rounded-sm bg-brand px-s4
-                     text-sm font-semibold text-white transition-colors duration-fast ease-brand
-                     hover:bg-brand-hover lg:ml-s4 lg:flex"
+          className="ml-auto hidden min-h-11 shrink-0 items-center whitespace-nowrap rounded-sm
+                     bg-brand px-s4 text-sm font-semibold text-white transition-colors
+                     duration-fast ease-brand hover:bg-brand-hover lg:ml-0 lg:flex"
         >
           {t.angebotAnfragen}
         </a>
@@ -391,9 +442,9 @@ export function OeffentlicheShell(
           <a
             href={anmeldePfad}
             data-cse="anmelden"
-            className="ml-s3 hidden min-h-11 items-center rounded-sm border border-line
-                       px-s4 text-sm text-text transition-colors duration-fast ease-brand
-                       hover:bg-surface-2 xl:flex"
+            className="hidden min-h-11 shrink-0 items-center whitespace-nowrap rounded-sm border
+                       border-line px-s4 text-sm text-text transition-colors duration-fast
+                       ease-brand hover:bg-surface-2 xl:flex"
           >
             {t.anmelden}
           </a>
@@ -424,7 +475,7 @@ export function OeffentlicheShell(
         <nav
           aria-label={t.sprachwahl}
           data-cse="sprachwahl"
-          className="ml-s4 hidden items-center gap-s2 xl:flex"
+          className="hidden shrink-0 items-center gap-s2 xl:flex"
         >
           {/*
             * Nur Sprachen, in denen es diese Seite gibt: `/karriere` ist
@@ -472,7 +523,8 @@ export function OeffentlicheShell(
         <div className="mx-auto max-w-content px-s5 py-s7">
           {/*
             * Drei Spalten ab `md`: die Marke mit ihrem Satz, die vier
-            * Gesellschaften mit ihren Anschriften, das Rechtliche. Darunter
+            * Gesellschaften mit ihren Anschriften, die Gruppe (Über uns,
+            * Aktuelles, Karriere — V-155) über dem Rechtlichen. Darunter
             * die Zeile mit Jahr und Hinweis. Vorher standen vier Anschriften
             * als lose Zeilen am linken Rand — kein Bild, keine Ordnung.
             *
@@ -501,7 +553,7 @@ export function OeffentlicheShell(
                         aria-current={b.slug === aktiv ? 'page' : undefined}
                         className="flex min-h-11 items-center gap-s2 text-sm text-text-muted transition-colors duration-fast ease-brand hover:text-text"
                       >
-                        <Marke art={b.bereich} groesse="sm" />
+                        <Marke art={b.bereich} groesse="sm" bild={b.marke.avatar} />
                         <span className="truncate">{b.name}</span>
                       </a>
                     </li>
@@ -518,7 +570,40 @@ export function OeffentlicheShell(
             </div>
 
             <div className="min-w-0">
+              {/*
+                * **Die Gruppe** (V-155, D-649, DESIGN §5 Navigation). Dieselbe
+                * Spalte wie das Rechtliche und kein vierter Rasterplatz: die
+                * drei Verweise sind kurz, und eine vierte Spalte hätte die
+                * Anschriften daneben ab `md` in eine Breite gedrückt, in der
+                * jede NAP-Zeile umbricht. Eigene Beschriftung, eigenes `nav` —
+                * zwei gleich benannte Landmarken wären für einen Screenreader
+                * nicht zu unterscheiden.
+                */}
               <h2 className="mb-s3 text-micro uppercase tracking-[0.08em] text-text-subtle">
+                {t.gruppeNav}
+              </h2>
+              <nav aria-label={t.gruppeNav}>
+                <ul className="m-0 flex list-none flex-col gap-s1 p-0">
+                  {gruppe.map((v) => (
+                    <li key={v.schluessel}>
+                      <a
+                        href={v.href}
+                        hrefLang={v.sprache === sprache ? undefined : v.sprache}
+                        aria-current={istOffen(v.pfad) ? 'page' : undefined}
+                        data-cse="fuss-gruppe"
+                        data-ziel={v.pfad}
+                        className="flex min-h-11 items-center gap-s2 text-sm text-text-muted transition-colors duration-fast ease-brand hover:text-text"
+                      >
+                        {t.gruppe[v.schluessel]}
+                        {v.sprache !== sprache && (
+                          <span className="text-xs text-text-subtle">{t.aufDeutsch}</span>
+                        )}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+              <h2 className="mb-s3 mt-s4 text-micro uppercase tracking-[0.08em] text-text-subtle">
                 {t.rechtlichesNav}
               </h2>
               <nav aria-label={t.rechtlichesNav}>

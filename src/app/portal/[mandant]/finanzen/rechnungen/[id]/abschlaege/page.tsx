@@ -8,6 +8,7 @@ import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld, subtrahiere, type Cent } from '@/server/services/finanz/geld';
+import { prozentText } from '@/server/services/finanz/prozent';
 import {
   AbschlagFehler, abschlaegeZumAuftrag, berechneVerrechnung, jeSteuergruppe,
   offeneAbschlaege, offeneAbschlaegeSatz,
@@ -199,6 +200,7 @@ export default async function Abschlagsblatt(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/finanzen/rechnungen/${id}`, text: k.nummer ?? t.entwurfOhneNummer }}
       titel={t.abschlaegeTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -208,14 +210,6 @@ export default async function Abschlagsblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label={g.zurueck} className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {k.nummer ?? t.entwurfOhneNummer}
-        </Link>
-      </nav>
 
       <h1 className="mb-s3 text-h1 text-text">{t.abschlaegeTitel}</h1>
 
@@ -326,7 +320,7 @@ export default async function Abschlagsblatt(
               { schluessel: 'gruppe', kopf: t.steuersatzgruppe, zelle: (z) => z.gruppe },
               {
                 schluessel: 'satz', kopf: t.satz, numerisch: true,
-                zelle: (z) => `${(z.satzBp / 100).toLocaleString('de-DE')} %`,
+                zelle: (z) => prozentText(z.satzBp),
               },
               {
                 schluessel: 'netto', kopf: t.netto, numerisch: true,
@@ -403,11 +397,11 @@ export default async function Abschlagsblatt(
                 data-cse="abschlaege-einbehalt-auftrag">
               {t.imAuftragHinterlegt}
               {k.auftrag_einbehalt_bp !== null && k.auftrag_einbehalt_cent !== null
-                ? `${(k.auftrag_einbehalt_bp / 100).toLocaleString('de-DE')} % `
+                ? `${prozentText(k.auftrag_einbehalt_bp)} `
                   + `${t.bzw} ${formatiereGeld(cent(BigInt(k.auftrag_einbehalt_cent)))}`
                 : k.auftrag_einbehalt_bp === null
                   ? formatiereGeld(cent(BigInt(k.auftrag_einbehalt_cent ?? '0')))
-                  : `${(k.auftrag_einbehalt_bp / 100).toLocaleString('de-DE')} %`}
+                  : prozentText(k.auftrag_einbehalt_bp)}
               {t.nichtsAbgezogenSolangeOffen}
               {k.auftrag_einbehalt_bp !== null && k.auftrag_einbehalt_cent !== null ? (
                 <span className="mt-s1 block text-warning">

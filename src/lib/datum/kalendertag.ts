@@ -29,6 +29,21 @@ export function montag(datum: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Ist `wert` ein Kalendertag `JJJJ-MM-TT`, den es gibt (V-217)?
+ *
+ * Das Muster allein lässt den 31. Februar durch; die Datenbank antwortet
+ * darauf mit `22008`, und eine Route, die nur das Muster prüft, zeigt dem
+ * Menschen einen Fehler 500 statt eines Satzes am Formular. Geprüft wird
+ * über die Rundreise durch UTC-Mitternacht: ein Tag, den es nicht gibt,
+ * kommt als ein anderer zurück.
+ */
+export function istGueltigerKalendertag(wert: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(wert)) return false;
+  const t = Date.parse(`${wert}T00:00:00Z`);
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === wert;
+}
+
 /** `datum` plus `tage` Kalendertage — negative Werte gehen zurück. */
 export function tagePlus(datum: string, tage: number): string {
   const d = new Date(`${datum}T00:00:00Z`);
@@ -103,4 +118,64 @@ export function tagDeutsch(datum: string | null | undefined): string {
   const treffer = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(datum.slice(0, 10));
   if (treffer === null) return datum;
   return `${treffer[3] ?? ''}.${treffer[2] ?? ''}.${treffer[1] ?? ''}`;
+}
+
+/**
+ * Britisches Englisch, mittlere Länge („29 Mar 2026") — dieselbe Form, die
+ * ein Zeitpunkt mit `dateStyle: 'medium'` bekommt, damit Tag und Zeitpunkt
+ * auf einem Blatt gleich aussehen. Gerechnet in UTC hin UND zurück: ein
+ * Kalendertag als UTC-Mitternacht, formatiert in UTC, ist derselbe Tag in
+ * jeder Zone des Prozesses.
+ */
+const EN_TAG = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' });
+
+/**
+ * Ein Kalendertag in der Sprache der Seite (V-240): deutsch `TT.MM.JJJJ`,
+ * englisch „29 Mar 2026" — weder das amerikanische Monat-Tag noch der
+ * deutsche Punkt. Was nicht wie ein Kalendertag aussieht, kommt unverändert
+ * zurück, wie bei `tagDeutsch`.
+ */
+export function tagInSprache(
+  datum: string | null | undefined, sprache: string | null | undefined,
+): string {
+  if (sprache !== 'en') return tagDeutsch(datum);
+  if (typeof datum !== 'string') return '';
+  const treffer = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(datum.slice(0, 10));
+  if (treffer === null) return datum;
+  const t = Date.UTC(Number(treffer[1]), Number(treffer[2]) - 1, Number(treffer[3]));
+  const d = new Date(t);
+  if (Number.isNaN(t) || d.toISOString().slice(0, 10) !== datum.slice(0, 10)) return datum;
+  return EN_TAG.format(d);
+}
+
+/** Die Wochentage der deutschen Tagesbeschriftung, ab Montag. */
+const WOCHENTAGE_KURZ = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as const;
+
+/** Britisches Englisch, kurz („Sun 04 Jan") — gerechnet in UTC hin und zurück. */
+const EN_TAG_KURZ = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short', day: '2-digit', month: 'short', timeZone: 'UTC',
+});
+
+/**
+ * Die kurze Tagesbeschriftung des Dienstplans in der Sprache der Seite
+ * (V-193): deutsch „Mo 04.01.", englisch „Sun 04 Jan".
+ *
+ * **Deutsch ohne `Intl` und ohne `to_char(… 'TMDy')`**: `TM` nimmt die Namen
+ * aus `lc_time` der Verbindung, und steht die auf `C`, liest der Dienstplan
+ * „Tue" auf einem deutschen Bildschirm (`dienstplan/daten.ts` hat das
+ * begründet und benutzt jetzt diese Funktion). Der Wochentag wird aus dem
+ * Kalendertag gerechnet und aus einer festen Liste benannt. Englisch folgt
+ * `tagInSprache` (D-733): britisch, über UTC, ohne Zonenversatz.
+ *
+ * Was nicht wie ein Kalendertag aussieht, kommt unverändert zurück.
+ */
+export function tagKurz(datum: string, sprache?: string | null): string {
+  const treffer = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(datum.slice(0, 10));
+  if (treffer === null) return datum;
+  const t = Date.UTC(Number(treffer[1]), Number(treffer[2]) - 1, Number(treffer[3]));
+  const d = new Date(t);
+  if (Number.isNaN(t) || d.toISOString().slice(0, 10) !== datum.slice(0, 10)) return datum;
+  if (sprache === 'en') return EN_TAG_KURZ.format(d);
+  const tag = WOCHENTAGE_KURZ[(d.getUTCDay() + 6) % 7] ?? '';
+  return `${tag} ${treffer[3] ?? ''}.${treffer[2] ?? ''}.`;
 }

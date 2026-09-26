@@ -13,6 +13,7 @@ import {
 } from '@/server/services/stammdaten/belagsart';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/stammdaten/belagsarten` — die Leistungswerte, aus denen
@@ -138,8 +139,8 @@ export default async function Belagsarten(
         ) : (
           <>
             <strong>Speichern ist mit Ihrer Rolle nicht möglich.</strong> Gelesen wird
-            dieser Katalog mit <code>stammdaten.verwalten</code>, geschrieben verlangt
-            die Tabellen-Policy zusätzlich <code>objekt.lesen</code> (0021). Ihrer Rolle
+            dieser Katalog mit <Recht schluessel="stammdaten.verwalten" />, geschrieben verlangt
+            die Tabellen-Policy zusätzlich <Recht schluessel="objekt.lesen" /> (0021). Ihrer Rolle
             fehlt das zweite Recht; die Formulare sind deshalb ausgeblendet, statt beim
             Speichern abzuweisen.
           </>
@@ -205,7 +206,7 @@ export default async function Belagsarten(
                     ? <span className="text-text-subtle">—</span>
                     : (
                       <details data-cse="belagsart-bearbeiten">
-                        <summary className="cursor-pointer text-sm text-brand">Bearbeiten</summary>
+                        <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">Bearbeiten</summary>
 
                         <form method="post"
                               action={`/api/stammdaten/belagsarten?was=richtigstellen&mandant=${mandant}`}

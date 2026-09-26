@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -21,6 +20,7 @@ import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
 import { EINGANGSRECHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/eingangsrechnungen';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/finanzen/eingangsrechnungen/[id]/steuer` — die
@@ -359,6 +359,7 @@ export default async function Steuerblatt(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/finanzen/eingangsrechnungen/${id}`, text: k.interne_belegnummer ?? k.rechnungsnummer_lieferant ?? t.eingangsrechnung }}
       titel={t.steuerlicheLage}
       bereich={mandant as BereichSchluessel}
       nurLesen
@@ -368,14 +369,6 @@ export default async function Steuerblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label={g.zurueck} className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/finanzen/eingangsrechnungen/${id}`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {k.interne_belegnummer ?? k.rechnungsnummer_lieferant ?? t.eingangsrechnung}
-        </Link>
-      </nav>
 
       <h1 className="mb-s3 text-h1 text-text">{t.steuerH1}</h1>
 
@@ -677,8 +670,8 @@ export default async function Steuerblatt(
           <p className="m-0 max-w-prose">
             <strong>{t.pflegeOffenBetont}</strong> {t.pflegeOffenVor}{' '}
             <code>{TABELLE_FREISTELLUNG}</code> {t.pflegeOffenZwei}{' '}
-            <code>{RECHT_FINANZEN_SCHREIBEN}</code>{t.pflegeOffenDrei}{' '}
-            <code>{RECHT_FREISTELLUNG_PFLEGEN}</code>{t.pflegeOffenNach}
+            <Recht schluessel={RECHT_FINANZEN_SCHREIBEN} sprache={zugang.sprache} />{t.pflegeOffenDrei}{' '}
+            <Recht schluessel={RECHT_FREISTELLUNG_PFLEGEN} sprache={zugang.sprache} />{t.pflegeOffenNach}
           </p>
         </Hinweis>
       </section>

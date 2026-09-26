@@ -99,6 +99,9 @@ export function eigeneDatenbank(name: string): EigeneDatenbank {
           [sitzung.readonly === false ? 'off' : 'on']);
         await tx.unsafe(`select set_config('app.portal', $1, true)`, [sitzung.portal ?? '']);
         await tx.unsafe(`select set_config('app.akteur_typ', 'mensch', true)`);
+        /* Wie `harness.ts`: eine vollständige Anmeldung — aal2, wo die Rolle
+           es verlangt (V-136). Den halben Zustand sagt ein Test ausdrücklich. */
+        await tx.unsafe(`select set_config('app.aal', $1, true)`, [sitzung.aal ?? 'aal2']);
         return fn(tx);
       }) as Promise<T>;
     },

@@ -101,11 +101,31 @@ export interface EigeneAbwesenheit {
   readonly abwesenheit: AbwesenheitZeile;
   readonly mandantSlug: string;
   readonly mandantName: string;
+  /**
+   * Lässt sie sich noch zurücknehmen? (V-056)
+   *
+   * Dieselbe Frage wie beim Antrag daneben und dieselbe Antwort: solange
+   * niemand entschieden hat. `abwesenheit.t_selbst_zurueckziehen` (0386) hält
+   * genau diese Menge — die Oberfläche fragt sie hier, damit der Knopf nicht
+   * an einer Policy scheitert, die der Mensch nicht sieht.
+   */
+  readonly zurueckziehbar: boolean;
 }
 
 export const EIGENE_ABWESENHEIT_FELDER = [
-  'abwesenheit', 'mandantSlug', 'mandantName',
+  'abwesenheit', 'mandantSlug', 'mandantName', 'zurueckziehbar',
 ] as const;
+
+/**
+ * Die Zustände, in denen bei einer Abwesenheit noch niemand entschieden hat.
+ *
+ * `erfasst` ist der Endzustand der Krankmeldung (sie wird zur Kenntnis
+ * genommen), `beantragt` der einer Abwesenheit, über die noch entschieden
+ * wird. Aus `genehmigt` führt die Rücknahme nur noch über die Personalstelle:
+ * dort hat jemand über Lohnfortzahlung und Urlaubskonto entschieden, und das
+ * still zu entwerten ist keine Rücknahme.
+ */
+const ABWESENHEIT_OFFEN: readonly string[] = ['erfasst', 'beantragt'];
 
 /**
  * Die eigenen Abwesenheiten — ohne Grund und ohne Diagnose.
@@ -127,8 +147,26 @@ export async function listeEigeneAbwesenheiten(
       abwesenheit,
       mandantSlug: a?.mandantSlug ?? '',
       mandantName: a?.mandantName ?? '',
+      zurueckziehbar: ABWESENHEIT_OFFEN.includes(abwesenheit.status)
+        && abwesenheit.storniertAm === null,
     };
   });
+}
+
+/**
+ * EINE eigene Abwesenheit — in genau der Gestalt, die auch die Liste liefert.
+ *
+ * Über dieselbe Liste und nicht über eine zweite, engere Abfrage: eine
+ * eigene wäre eine zweite Fassung derselben Zeilenform, und die erste, die
+ * auseinanderläuft, sobald `abwesenheit/index.ts` eine Spalte dazubekommt.
+ * Die Liste ist im Personen-Scope ohnehin auf die eigenen Zeilen verengt
+ * (`t_person`), also ist die Suche darin kein Leseweg an der RLS vorbei.
+ */
+export async function findeEigeneAbwesenheit(
+  kontext: LeseKontext, anstellungen: readonly EigeneAnstellung[], id: string,
+): Promise<EigeneAbwesenheit | null> {
+  const alle = await listeEigeneAbwesenheiten(kontext, anstellungen);
+  return alle.find((a) => a.abwesenheit.id === id) ?? null;
 }
 
 /** Eine Antragsart, wie das Formular sie anbietet. */

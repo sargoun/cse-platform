@@ -18,6 +18,7 @@ import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../../kennung';
 import { FELD, FEHLERTEXT, deutscheAnzeige } from './daten';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/objekte/[id]/raumbuch/[raumId]` — ein Raum als
@@ -102,6 +103,9 @@ export default async function Raumblatt(
       aktiverTab="objekte"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['objekt.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/objekte/${id}/raumbuch`, text: `Raumbuch ${raum.objekt}` } }
+        : {})}
     >
       {/*
         * Der Rueckverweis haengt an `objekt.lesen` — dem Recht, mit dem das
@@ -112,17 +116,6 @@ export default async function Raumblatt(
         * Seite) und ohne `objekt.lesen` waere auf ein 404 gelaufen. Ein
         * Menuepunkt, der auf 404 fuehrt, ist schlechter als keiner (AUT-06).
         */}
-      {darf['objekt.lesen'] === true ? (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/objekte/${id}/raumbuch`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← Raumbuch {raum.objekt}
-          </Link>
-        </nav>
-      ) : null}
-
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{titel}</h1>
         {archiviert ? <StatusPill zustand="Archiviert" /> : null}
@@ -131,7 +124,7 @@ export default async function Raumblatt(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="raum-fehler" className="mb-s5">
           <strong>Nichts wurde gespeichert.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 

@@ -49,6 +49,12 @@ param(
 # unten `Schritt`.
 $ErrorActionPreference = 'Stop'
 
+# Immer aus der Projektwurzel, egal von wo das Skript gestartet wurde. Ein
+# Aufruf aus `scripts\` (`.\windows-start.ps1`) liess `pnpm` sonst im falschen
+# Ordner suchen -- genau so wurde es auf dem ersten Windows-Rechner versucht.
+$Wurzel = Split-Path -Parent $PSScriptRoot
+Set-Location $Wurzel
+
 $DatenbankUrl = 'postgres://postgres@localhost:5433/postgres'
 $Behaelter    = 'cse-db'
 # Base64 von `TEST-KEY-NICHT-FUER-PRODUKTION`. Gehoert in keine echte
@@ -94,10 +100,45 @@ $env:DATABASE_URL     = $DatenbankUrl
 $env:CSE_DEV_FLAECHEN = '1'
 $env:PORT             = "$Port"
 
+# -- Der Vorfuehrspeicher (V-131, D-623) ------------------------------------
+# Ohne Supabase-Zugang lehnte die Plattform jede Datei ab: Belege,
+# Baustellenfotos, Unterlagen, Logos -- ueberall "nicht verbunden". Auf dem
+# Vorfuehrrechner liegen sie jetzt in einem Ordner neben dem Projekt
+# (`.speicher`, von git ignoriert) und kommen nur ueber ablaufende, signierte
+# Adressen heraus. Einstellungen > Integrationen nennt ihn "Entwicklung", nicht
+# "verbunden". Ist SUPABASE_URL gesetzt, gewinnt Supabase.
+if (-not $env:CSE_SPEICHER_ORDNER) {
+  $env:CSE_SPEICHER_ORDNER = Join-Path $Wurzel '.speicher'
+}
+
+# -- Speicher fuer den Bau --------------------------------------------------
+# Gemeldet von einem frischen Windows-Rechner, nach einer Stunde Laufzeit:
+# Abhaengigkeiten, Datenbank, 391 Migrationen, Seed und Texte liefen durch --
+# und `pnpm build` starb im letzten Schritt mit
+#
+#   FATAL ERROR: Ineffective mark-compacts near heap limit
+#   Allocation failed - JavaScript heap out of memory
+#   [...] Mark-Compact 2037.7 (2050.7) MB
+#
+# Node gibt einem Prozess von sich aus rund 2 GB. `next build` prueft dabei die
+# Typen des GANZEN Projekts, und das braucht mehr: `tsc --noEmit` ueber
+# denselben Baum belegt gemessen rund 3,3 GB. Der Bau scheiterte also nicht an
+# einem Fehler im Code, sondern an einer Grenze, die niemand gesetzt hatte.
+#
+# 6144 MB ist eine OBERGRENZE, keine Reservierung: V8 nimmt nur, was es
+# braucht, und hat damit fast das Doppelte des Gemessenen als Luft -- ohne einen
+# Rechner mit 8 GB zu ueberfordern. Hat jemand NODE_OPTIONS schon mit einer
+# eigenen Grenze gesetzt, gewinnt seine.
+if (-not ("$env:NODE_OPTIONS" -match 'max-old-space-size')) {
+  $env:NODE_OPTIONS = ("$env:NODE_OPTIONS --max-old-space-size=6144").Trim()
+}
+
 Titel 'Umgebung'
 Hinweis "DATABASE_URL     = $env:DATABASE_URL"
 Hinweis "CSE_DEV_FLAECHEN = $env:CSE_DEV_FLAECHEN  (Demodaten, Code auf dem Bildschirm, Kekse ohne Secure)"
 Hinweis "PORT             = $env:PORT"
+Hinweis "NODE_OPTIONS     = $env:NODE_OPTIONS  (Speicher fuer den Bau)"
+Hinweis "CSE_SPEICHER_ORDNER = $env:CSE_SPEICHER_ORDNER  (Dateien der Vorfuehrung)"
 
 # -- Einen laufenden Server ZUERST beenden ---------------------------------
 # Das ist der Schritt, dessen Fehlen das Protokoll oben erzeugt hat.
@@ -155,23 +196,83 @@ if ($DatenBehalten) {
   }
 
   Hinweis 'warte auf die Datenbank ...'
+  # ---------------------------------------------------------------------
+  # `pg_isready` LUEGT waehrend der Erstinitialisierung -- und das ist kein
+  # Fehler des Werkzeugs, sondern die Bauart des Abbilds.
+  #
+  # Der Einstiegspunkt von `postgres:16` faehrt fuer `initdb` und die
+  # Init-Skripte einen VORUEBERGEHENDEN Server hoch. Der horcht mit
+  # `listen_addresses=''` ausschliesslich auf dem Unix-Socket. Danach faehrt
+  # der Einstiegspunkt ihn wieder HERUNTER und startet den echten.
+  #
+  # `pg_isready` spricht ueber genau diesen Socket und meldet in diesem
+  # Fenster Erfolg. Wer dann zuschlaegt, trifft die Luecke zwischen beiden
+  # Servern und bekommt:
+  #
+  #   psql: error: connection to server on socket
+  #   "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory
+  #
+  # Gemeldet von einem frischen Windows-Rechner, abgebrochen bei
+  # 'ArbZG-Fensterschluessel (K-06)' -- dem ersten Befehl nach dieser
+  # Schleife. Das Skript lief also richtig; die Frage war falsch.
+  #
+  # ZWEI Aenderungen, und beide zaehlen:
+  #   1. Ueber TCP statt ueber den Socket. Der voruebergehende Server horcht
+  #      GAR NICHT auf TCP -- ein Treffer ueber 127.0.0.1 kann deshalb nur
+  #      der echte sein. Das ist der eigentliche Riegel.
+  #   2. Mit einer ABFRAGE statt mit `pg_isready`. Wer `select 1` beantwortet,
+  #      beantwortet auch das naechste `alter database`.
+  # ---------------------------------------------------------------------
+  #
+  # NACHTRAG, gemeldet am zweiten Anlauf. Die Schleife war richtig, und sie
+  # starb trotzdem -- an PowerShell, nicht an der Datenbank:
+  #
+  #   psql: error: connection to server at "127.0.0.1", port 5432 failed:
+  #   FATAL:  the database system is starting up
+  #   + CategoryInfo : NotSpecified: (...) [], RemoteException
+  #   + FullyQualifiedErrorId : NativeCommandError
+  #
+  # "the database system is starting up" IST die erwartete Antwort im ersten
+  # Versuch -- genau darauf wartet die Schleife. Windows PowerShell 5.1 macht
+  # aber aus JEDER stderr-Zeile eines nativen Befehls einen ErrorRecord,
+  # sobald sie umgeleitet wird, und mit `$ErrorActionPreference = 'Stop'`
+  # (oben, mit gutem Grund gesetzt) ist dieser Record TERMINIEREND. Das
+  # Skript brach also im ersten Schleifendurchlauf ab, mit der Meldung, auf
+  # die es gerade wartete.
+  #
+  # ZWEI Aenderungen, und beide sind noetig:
+  #   1. Die Umleitung wandert IN den Behaelter (`sh -c '... 2>&1'`). Damit
+  #      schreibt `docker` auf der Windows-Seite gar nichts nach stderr, und
+  #      es entsteht kein Record, den PowerShell deuten koennte.
+  #   2. Fuer die Dauer der Schleife gilt `Continue` statt `Stop` -- ein
+  #      fehlgeschlagener Versuch ist hier der Normalfall, nicht der Abbruch.
+  #      Danach wird die alte Einstellung zurueckgesetzt; sie schuetzt die
+  #      Schritte danach weiter.
   $bereit = $false
-  foreach ($versuch in 1..30) {
+  $fehlerVorher = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  foreach ($versuch in 1..60) {
     Start-Sleep -Seconds 1
-    docker exec $Behaelter pg_isready -U postgres 2>$null | Out-Null
+    docker exec $Behaelter sh -c 'psql -h 127.0.0.1 -U postgres -tAc "select 1" >/dev/null 2>&1'
     if ($LASTEXITCODE -eq 0) { $bereit = $true; break }
   }
+  $ErrorActionPreference = $fehlerVorher
   if (-not $bereit) {
-    Write-Host '  Die Datenbank antwortet nach 30 Sekunden nicht.' -ForegroundColor Red
+    Write-Host '  Die Datenbank antwortet nach 60 Sekunden nicht.' -ForegroundColor Red
+    Write-Host '  Was der Behaelter selbst sagt:' -ForegroundColor Red
+    docker logs --tail 30 $Behaelter
     exit 1
   }
-  Hinweis 'bereit.'
+  Hinweis 'bereit -- und zwar der echte Server, nicht der Init-Server.'
 
   # MUSS vor dem Seed gesetzt sein: `alter database ... set` wirkt erst fuer NEUE
   # Verbindungen. Danach gesetzt, kommt der Schluessel fuer diesen Seed zu
   # spaet, und der Besetzungslauf endet mit 0 Einteilungen.
   Schritt 'ArbZG-Fensterschluessel (K-06)' {
-    docker exec $Behaelter psql -U postgres -c "alter database postgres set cse.fenster_schluessel = '$FensterKey'" | Out-Null
+    # `-h 127.0.0.1` aus demselben Grund wie in der Schleife darueber: ueber
+    # TCP kann nur der echte Server antworten.
+    docker exec $Behaelter psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 `
+      -c "alter database postgres set cse.fenster_schluessel = '$FensterKey'" | Out-Null
   }
 }
 

@@ -18,6 +18,18 @@ select cron.schedule('cse_akquise_recherche', '10 5 * * *', $cse$
   );
 $cse$);
 
+-- Versendete Angebote nach Fristablauf auf „abgelaufen" setzen (OPS-08) (uebergreifend)
+select cron.unschedule('cse_angebot_ablauf')
+  where exists (select 1 from cron.job where jobname = 'cse_angebot_ablauf');
+select cron.schedule('cse_angebot_ablauf', '10 2 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/angebot_ablauf',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
 -- Deckt ein Basiszinssatz die kommende Jahreshälfte? (§ 247 BGB) (plattform)
 select cron.unschedule('cse_basiszinssatz_pruefen')
   where exists (select 1 from cron.job where jobname = 'cse_basiszinssatz_pruefen');
@@ -54,12 +66,36 @@ select cron.schedule('cse_bewerber_loeschung', '0 4 * * *', $cse$
   );
 $cse$);
 
+-- Dokumente nach Ablauf der Aufbewahrungsfrist löschen (DOC-07, LEG-01) (je_mandant)
+select cron.unschedule('cse_dokument_aufbewahrung')
+  where exists (select 1 from cron.job where jobname = 'cse_dokument_aufbewahrung');
+select cron.schedule('cse_dokument_aufbewahrung', '10 5 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/dokument_aufbewahrung',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
 -- Dienstplan aus den Serien materialisieren (acht Wochen) (je_mandant)
 select cron.unschedule('cse_einsaetze_generieren')
   where exists (select 1 from cron.job where jobname = 'cse_einsaetze_generieren');
 select cron.schedule('cse_einsaetze_generieren', '15 2 * * *', $cse$
   select net.http_post(
     url     := 'https://basis-einsetzen.invalid/api/jobs/einsaetze_generieren',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
+-- Beendete Schichten auf „abgeschlossen" nachziehen (V-082, TIM-01) (uebergreifend)
+select cron.unschedule('cse_einsatz_abschluss')
+  where exists (select 1 from cron.job where jobname = 'cse_einsatz_abschluss');
+select cron.schedule('cse_einsatz_abschluss', '15 * * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/einsatz_abschluss',
     headers := jsonb_build_object('content-type', 'application/json',
                                   'x-job-token', current_setting('cse.job_token')),
     body    := '{}'::jsonb
@@ -96,6 +132,18 @@ select cron.unschedule('cse_konflikte_erkennen')
 select cron.schedule('cse_konflikte_erkennen', '45 2 * * *', $cse$
   select net.http_post(
     url     := 'https://basis-einsetzen.invalid/api/jobs/konflikte_erkennen',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
+-- Stundenkonten des laufenden Monats öffnen und Vortrag setzen (EMP-04) (uebergreifend)
+select cron.unschedule('cse_konten_rollover')
+  where exists (select 1 from cron.job where jobname = 'cse_konten_rollover');
+select cron.schedule('cse_konten_rollover', '30 0 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/konten_rollover',
     headers := jsonb_build_object('content-type', 'application/json',
                                   'x-job-token', current_setting('cse.job_token')),
     body    := '{}'::jsonb
@@ -144,6 +192,18 @@ select cron.unschedule('cse_nachtrag_ueberfaellig')
 select cron.schedule('cse_nachtrag_ueberfaellig', '0 * * * *', $cse$
   select net.http_post(
     url     := 'https://basis-einsetzen.invalid/api/jobs/nachtrag_ueberfaellig',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
+-- Nachweise nach Fristablauf auf „abgelaufen" setzen (§12.3, EMP-08) (uebergreifend)
+select cron.unschedule('cse_nachweis_ablauf')
+  where exists (select 1 from cron.job where jobname = 'cse_nachweis_ablauf');
+select cron.schedule('cse_nachweis_ablauf', '10 2 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/nachweis_ablauf',
     headers := jsonb_build_object('content-type', 'application/json',
                                   'x-job-token', current_setting('cse.job_token')),
     body    := '{}'::jsonb
@@ -216,6 +276,42 @@ select cron.unschedule('cse_social_plan')
 select cron.schedule('cse_social_plan', '*/5 * * * *', $cse$
   select net.http_post(
     url     := 'https://basis-einsetzen.invalid/api/jobs/social_plan',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
+-- Nächtlicher Abgleich Stundenkonto ↔ Journal (EMP-04, §12.2) (je_mandant)
+select cron.unschedule('cse_stundenkonto_abgleich')
+  where exists (select 1 from cron.job where jobname = 'cse_stundenkonto_abgleich');
+select cron.schedule('cse_stundenkonto_abgleich', '40 3 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/stundenkonto_abgleich',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
+-- Urlaubskonten des laufenden Jahres öffnen (EMP-05, § 3 BUrlG) (uebergreifend)
+select cron.unschedule('cse_urlaubskonten_jahr')
+  where exists (select 1 from cron.job where jobname = 'cse_urlaubskonten_jahr');
+select cron.schedule('cse_urlaubskonten_jahr', '45 0 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/urlaubskonten_jahr',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
+-- Erinnerungen an Wiedervorlagen zustellen (CRM-04) (je_mandant)
+select cron.unschedule('cse_wiedervorlage_erinnerung')
+  where exists (select 1 from cron.job where jobname = 'cse_wiedervorlage_erinnerung');
+select cron.schedule('cse_wiedervorlage_erinnerung', '*/15 * * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/wiedervorlage_erinnerung',
     headers := jsonb_build_object('content-type', 'application/json',
                                   'x-job-token', current_setting('cse.job_token')),
     body    := '{}'::jsonb

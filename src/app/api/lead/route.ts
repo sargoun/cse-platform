@@ -9,6 +9,8 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import { berlinTagesZeitpunkt } from '@/server/services/zeit/dauer';
+import { CrmFehler } from '@/server/services/crm/anlegen';
+import { AKTIVITAET_TYPEN, halteLeadAktivitaetFest } from '@/server/services/crm/lead-kontakt';
 
 /**
  * `POST /api/lead` — eine Notiz festhalten und die naechste Aktion setzen
@@ -23,8 +25,6 @@ import { berlinTagesZeitpunkt } from '@/server/services/zeit/dauer';
  * eine Absicht ueber die Zukunft, kein Ereignis der Vergangenheit.
  */
 export const dynamic = 'force-dynamic';
-
-const TYPEN = new Set(['notiz', 'anruf', 'email', 'termin', 'aufgabe']);
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
@@ -44,7 +44,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (leadId === null) return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
 
   const typ = text('typ') ?? 'notiz';
-  if (!TYPEN.has(typ)) return NextResponse.json({ fehler: 'typ' }, { status: 400 });
+  if (!(AKTIVITAET_TYPEN as readonly string[]).includes(typ)) {
+    return NextResponse.json({ fehler: 'typ' }, { status: 400 });
+  }
 
   try {
     const getroffen = await (db().begin(async (tx: postgres.TransactionSql) =>
@@ -63,28 +65,22 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
 
+        /*
+         * **Die Aktivität hält der Dienst fest** (V-141, D-635): welcher Kanal,
+         * welcher Ansprechpartner und — seit jeder Lead einen bekommen kann —
+         * mit welchem ZWECK sie durch das UWG-Tor geht. Die Route schrieb
+         * jede ausgehende Zeile als `vertraglich`; für eine Anfrage, die
+         * niemand gestellt hat, wäre das ein Weg am Werbetor vorbei.
+         */
         const notiz = text('inhalt');
         if (notiz !== null) {
-          /**
-           * `betreff` ist NOT NULL, und das Formular fragt ihn nicht.
-           *
-           * Ein Pflichtfeld, das die Oberflaeche nicht erhebt, muss VOR dem
-           * INSERT einen Wert bekommen — sonst antwortet die Datenbank mit
-           * `23502` und der Benutzer sieht eine Fehlerseite fuer eine Notiz,
-           * die er geschrieben hat. Fehlt er, traegt der Eintrag die ERSTE
-           * ZEILE der Notiz: das ist es, was in einer Liste gelesen wird.
-           */
-          const ersteZeile = notiz.split('\n')[0] ?? notiz;
-          const betreff = text('betreff')
-            ?? (ersteZeile.length > 80 ? `${ersteZeile.slice(0, 79)}…` : ersteZeile);
-          await kontext.abfrage(
-            `insert into lead_aktivitaet
-               (mandant_id, lead_id, typ, richtung, betreff, inhalt, geschehen_am,
-                benutzer_id, zweck)
-             values (app.aktiver_mandant(), $1, $2::aktivitaet_typ, 'intern'::aktivitaet_richtung,
-                     $3, $4, now(), $5, 'intern'::kommunikationszweck)`,
-            [leadId, typ, betreff, notiz, sitzung.benutzerId],
-          );
+          await halteLeadAktivitaetFest(kontext, leadId, {
+            typ,
+            richtung: text('richtung') ?? 'intern',
+            inhalt: notiz,
+            betreff: text('betreff') ?? undefined,
+            benutzerId: sitzung.benutzerId,
+          });
         }
 
         const aktion = text('naechsteAktion');
@@ -118,6 +114,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(
       new URL(`/portal/${slug}/crm/leads/${leadId}`, erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
+    /* Ein Fehler, der als Satz auf dem Leadblatt ankommt, nicht als 500. */
+    if (fehler instanceof CrmFehler) {
+      const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
+      return NextResponse.redirect(new URL(
+        `/portal/${slug}/crm/leads/${leadId}?fehler=${encodeURIComponent(fehler.grund)}`,
+        erwarteterUrsprung(anfrage)), 303);
+    }
     if (fehler instanceof NichtAngemeldetFehler) {
       return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
     }

@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
 import {
-  ART_TEXT, ZUORDNUNG_TEXT, type AnfrageZeile, type Zuordnung,
+  ART_TEXT, WEG_TEXT, ZUORDNUNG_TEXT, type AnfrageZeile, type Zuordnung,
 } from '@/server/services/datenschutz/anfrage';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * Der Kopf der vier Vorgangsseiten — EINMAL gebaut, nicht viermal.
@@ -100,30 +101,25 @@ export function Vorgangskopf({ mandant, z, zuordnung, aktiv, darf }: {
   return (
     <>
       {/*
-        * **Der Rücklink führt nur dorthin, wo die Sitzung auch hindarf.**
+        * **Der Rückweg steht nicht mehr hier, sondern in der Hülle** (D-613).
         *
-        * Das Tor des Posteingangs verlangt `datenschutz.auskunft_erstellen`
-        * (Register, §5.25) und antwortet sonst mit 404. Wer seit 0220 als
-        * Träger von `berichtigung_bearbeiten` den VORGANG lesen darf, wurde
-        * von diesem Link also auf eine 404 geschickt — ein Menüpunkt, der auf
-        * 404 führt, ist schlechter als keiner (AUT-06).
+        * Er wurde aus der Adresse abgeleitet, gegen die Rechte seines ZIELS
+        * geprüft und einmal gezeichnet — oben im `main`, wo er auf jeder
+        * Portalseite steht. Zwei Rückwege untereinander waren die Folge davon,
+        * dass diese Datei ihren eigenen behielt.
         *
-        * Das ist die halbe Reparatur: dass der Posteingang selbst für diese
-        * Zuständigkeit nicht erreichbar ist, steht im Register und nicht hier.
+        * **Was bleibt, ist die Auskunft für den Fall ohne Rückweg.** Das Tor
+        * des Posteingangs verlangt `datenschutz.auskunft_erstellen` (Register,
+        * §5.25) und antwortet sonst mit 404; wer als Träger von
+        * `berichtigung_bearbeiten` den VORGANG lesen darf, sieht deshalb keinen
+        * Pfeil — ein Menüpunkt, der auf 404 führt, ist schlechter als keiner
+        * (AUT-06). Ohne diesen Satz sähe er stattdessen ein Blatt ohne Ausgang
+        * und wüsste nicht, warum.
         */}
-      {darf['datenschutz.auskunft_erstellen'] === true ? (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/datenschutz`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← Alle Betroffenenanfragen
-          </Link>
-        </nav>
-      ) : (
+      {darf['datenschutz.auskunft_erstellen'] === true ? null : (
         <p className="mb-s3 text-sm text-text-subtle" data-cse="ohne-posteingang">
           Der gemeinsame Posteingang verlangt
-          {' '}<code className="font-mono">datenschutz.auskunft_erstellen</code>.
+          {' '}<Recht schluessel="datenschutz.auskunft_erstellen" />.
           Dieser Vorgang ist über seine Adresse erreichbar.
         </p>
       )}
@@ -142,7 +138,22 @@ export function Vorgangskopf({ mandant, z, zuordnung, aktiv, darf }: {
           {z.name}
           <span className="block text-xs text-text-muted">{z.email}</span>
         </Feld>
-        <Feld kopf="Eingegangen">{BERLIN.format(new Date(z.eingegangenAm))}</Feld>
+        {/*
+          * **Der Eingang nennt seinen WEG** (V-031, Art. 12 Abs. 1).
+          *
+          * Solange das öffentliche Formular die einzige Quelle war, war der
+          * Weg selbstverständlich und musste nirgends stehen. Seit das Büro
+          * Brief, Anruf und E-Mail aufnehmen kann, ist er die Angabe, an der
+          * die Frist hängt: beim Formular ist der Eingang gemessen, sonst
+          * protokolliert — und wer ihn protokolliert hat, steht daneben.
+          */}
+        <Feld kopf="Eingegangen">
+          {BERLIN.format(new Date(z.eingegangenAm))}
+          <span className="block text-xs text-text-muted" data-cse="eingangsweg">
+            {WEG_TEXT[z.eingangsweg]}
+            {z.erfasstVon === null ? null : ` · aufgenommen von ${z.erfasstVon}`}
+          </span>
+        </Feld>
         <Feld kopf="Frist (Art. 12 Abs. 3)"><Fristanzeige z={z} /></Feld>
         <Feld kopf="Zuordnung">
           {zuordnung.art === 'keine' ? (

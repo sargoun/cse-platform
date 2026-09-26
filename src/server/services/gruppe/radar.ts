@@ -1,6 +1,7 @@
 import type { LeseKontext } from '../../kontext/index.js';
 import { cent, NULL_CENT, type Cent } from '../finanz/geld.js';
 import { rechteJeBereich } from './uebersicht.js';
+import { freischaltungSql } from '../radar/plattform.js';
 
 /**
  * Die Vergabepipeline über alle Gesellschaften (RAD-07, REP-06, TEN-05).
@@ -88,6 +89,11 @@ export interface RadarZelle {
   readonly vorgangId: string | null;
   /** Der Freischaltungsstand DIESES Bereichs auf der Plattform der Vergabe (RAD-09). */
   readonly registrierung: string | null;
+  /**
+   * Freigeschaltet — Registrierungspflicht und Gültigkeit eingerechnet
+   * (`freischaltungSql`, V-240); `null` ohne Plattform.
+   */
+  readonly freigeschaltet: boolean | null;
 }
 
 export interface GruppenRadarZeile {
@@ -171,7 +177,7 @@ const BEREICHE_SQL = `
                   and r.geloescht_am is null
            where b.mandant_id = m.id and a.quell_status = 'aktiv'
              and a.frist_angebot > now()
-             and coalesce(r.status::text, 'unbekannt') <> 'registriert')::int
+             and not ${freischaltungSql('vp', 'r')})::int
            as ohne_freischaltung,
          (select count(*) from radar_profil p
            where p.mandant_id = m.id and p.ist_aktiv and p.geloescht_am is null)::int
@@ -279,7 +285,8 @@ const MATRIX_SQL = `${BEZUG_CTE},
          j.punkte, j.skala_max, j.ausgeschlossen, j.begruendung,
          p.name as profil_name, p.ist_platzhalter,
          v.id::text as vorgang_id, v.status::text as vorgang_status,
-         r.status::text as registrierung
+         r.status::text as registrierung,
+         ${freischaltungSql('vp', 'r')} as freigeschaltet
     from sichtbar s
     join ausgewaehlt g on g.id = s.ausschreibung_id
     join ausschreibung a on a.id = s.ausschreibung_id
@@ -363,6 +370,7 @@ interface MatrixRoh {
   readonly vorgang_id: string | null;
   readonly vorgang_status: string | null;
   readonly registrierung: string | null;
+  readonly freigeschaltet: boolean | null;
 }
 
 interface BereichRoh {
@@ -444,7 +452,7 @@ export async function gruppenRadar(
           mandantId: b.mandantId, slug: b.slug, name: b.name, sichtbar,
           punkte: null, skalaMax: null, ausgeschlossen: false, begruendung: null,
           profilName: null, istPlatzhalterProfil: false,
-          vorgangStatus: null, vorgangId: null, registrierung: null,
+          vorgangStatus: null, vorgangId: null, registrierung: null, freigeschaltet: null,
         };
       }
       return {
@@ -461,6 +469,7 @@ export async function gruppenRadar(
         vorgangStatus: z.vorgang_status,
         vorgangId: z.vorgang_id,
         registrierung: z.registrierung,
+        freigeschaltet: z.freigeschaltet,
       };
     });
 

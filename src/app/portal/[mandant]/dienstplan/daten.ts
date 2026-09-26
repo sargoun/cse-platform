@@ -3,6 +3,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import type { Sitzung } from '@/server/kontext/index';
 import type { PlanSchicht, PlanTag } from '@/components/portal/Wochenplan';
+import { tagKurz } from '@/lib/datum/kalendertag';
 
 /**
  * Die Daten des Dienstplans — und wo die Zeit gerechnet wird.
@@ -284,15 +285,13 @@ export async function ladePlanfenster(
  * Fehlermeldung, und je nach Serverbild anders. Eine Anzeige, die von einer
  * Umgebungsvariablen abhaengt, ist keine Anzeige, sondern ein Zufall.
  *
- * Der Wochentag wird aus dem Kalendertag gerechnet (Zeller ueber `Date.UTC`,
- * also ohne Zonenanteil) und aus einer festen Liste benannt.
+ * Der Wochentag wird aus dem Kalendertag gerechnet (ueber `Date.UTC`, also
+ * ohne Zonenanteil) und aus einer festen Liste benannt — in
+ * `@/lib/datum/kalendertag` (`tagKurz`), wo auch die englische Fassung der
+ * Monatsansicht steht (V-193). Eine Beschriftung, zwei Sprachen, eine Stelle.
  */
-const WOCHENTAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as const;
-
 export function beschriftung(datum: string): string {
-  const d = new Date(`${datum}T00:00:00Z`);
-  const tag = WOCHENTAGE[(d.getUTCDay() + 6) % 7] ?? '';
-  return `${tag} ${datum.slice(8, 10)}.${datum.slice(5, 7)}.`;
+  return tagKurz(datum, 'de');
 }
 
 /** Der Montag der Woche, in der `datum` liegt. */

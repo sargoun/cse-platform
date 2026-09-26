@@ -5,9 +5,9 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { NichtGefundenFehler } from '@/server/auth/fehler';
+import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { withTenant } from '@/server/kontext/index';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { ExportFehler, erzeugeDatevExport }
   from '@/server/services/buchhaltung/datev/export';
 
@@ -50,14 +50,29 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   };
   const von = text('von');
   const bis = text('bis');
+
+  /*
+   * **Ein Browser bekommt eine Seite, ein Programm bekommt JSON (D-599,
+   * V-212).** Das Formular der Seite schickt `mandant` mit; eine Abweisung
+   * führt dann zurück auf die Vorschau, mit dem Zeitraum und dem Grund als
+   * Schlüssel (`?fehler=`), den die Seite über `eigenerEintrag()` in einen
+   * Satz übersetzt. Vorher sah, wer einen Stapel über die Jahresgrenze
+   * erzeugen wollte, eine weisse Seite mit einer geschweiften Klammer.
+   */
+  const abweisen = (grund: string, text: string, status: number): NextResponse => {
+    if (slug === '') return NextResponse.json({ fehler: grund, text }, { status });
+    const ziel = new URL(`/portal/${slug}/buchhaltung/datev/neu`, erwarteterUrsprung(anfrage));
+    if (von !== null && ISO.test(von)) ziel.searchParams.set('von', von);
+    if (bis !== null && ISO.test(bis)) ziel.searchParams.set('bis', bis);
+    ziel.searchParams.set('fehler', grund);
+    return NextResponse.redirect(ziel, 303);
+  };
+
   if (von === null || bis === null || !ISO.test(von) || !ISO.test(bis)) {
-    return NextResponse.json(
-      { fehler: 'zeitraum', text: 'Von und Bis sind Pflicht, als JJJJ-MM-TT.' },
-      { status: 400 });
+    return abweisen('zeitraum', 'Von und Bis sind Pflicht, als JJJJ-MM-TT.', 400);
   }
   if (bis < von) {
-    return NextResponse.json(
-      { fehler: 'zeitraum', text: 'Das Ende liegt vor dem Anfang.' }, { status: 400 });
+    return abweisen('zeitraum', 'Das Ende liegt vor dem Anfang.', 400);
   }
 
   try {
@@ -78,7 +93,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         );
 
         return erzeugeDatevExport(
-          kontext, new SupabaseSpeicher(), von, bis,
+          kontext, waehleSpeicher(), von, bis,
           new Date(), sitzung.benutzerId);
       }));
 
@@ -116,12 +131,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       archiviert: ergebnis.dokumentId !== null,
     });
   } catch (fehler) {
-    if (fehler instanceof NichtGefundenFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
-    }
+    const auth = autorisierungsAntwort(fehler);
+    if (auth !== null) return auth;
     if (fehler instanceof ExportFehler) {
-      return NextResponse.json(
-        { fehler: fehler.grund, text: fehler.message }, { status: 422 });
+      /* Ein Zeitraum über zwei Wirtschaftsjahre ist eine falsche EINGABE (V-212). */
+      return abweisen(fehler.grund, fehler.message,
+        fehler.grund === 'wirtschaftsjahr' ? 400 : 422);
     }
     /*
      * Die fachlichen Riegel dieser Kette sind `raise exception` in der
@@ -132,7 +147,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      */
     const meldung = fehler instanceof Error ? fehler.message : '';
     if (/Stammdaten|ohne Beleg oder ohne Konto|PLATZHALTER/u.test(meldung)) {
-      return NextResponse.json({ fehler: 'nicht_bereit', text: meldung }, { status: 422 });
+      return abweisen('nicht_bereit', meldung, 422);
     }
     throw fehler;
   }

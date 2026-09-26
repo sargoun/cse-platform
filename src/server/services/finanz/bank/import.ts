@@ -4,8 +4,11 @@ import type { Speicher } from '../../../storage/adapter.js';
 import { legeErzeugtAb } from '../../dokument/erzeugt.js';
 import { leseCamt053, type CamtAuszug } from './camt.js';
 import {
-  schlageVor, darfAutomatischBuchen, type OffenerPosten, type Vorschlag,
+  schlageVor, schlageVorAusgang, darfAutomatischBuchen,
+  type AusgangVorschlag, type KreditorKandidat, type OffenerPosten, type Vorschlag,
 } from './abgleich.js';
+import { cent } from '../geld.js';
+import { verbucheZahlungsausgang } from '../zahlung/index.js';
 
 /**
  * Einen Kontoauszug einlesen und abgleichen (ACC-04, PR 61).
@@ -30,10 +33,29 @@ export interface Abfrage {
   readonly aktiverMandantId: string;
 }
 
+/**
+ * Die Gründe, aus denen eine KLÄRUNG abgewiesen wird (V-217, D-710).
+ *
+ * Vorher hiessen alle sieben `klaerung`, und die Route schickte den deutschen
+ * Satz des Dienstes als `?meldung=` zurück. Das Kontoauszugsblatt spricht
+ * seitdem zwei Sprachen und schlägt den Satz zum Grund nach
+ * (`KONTOAUSZUG_TEXTE.fehler`); ein Grund ohne Satz fiele dort auf den
+ * allgemeinen — `tests/kern/kontoauszug-texte.test.ts` hält fest, dass
+ * keiner fehlt.
+ */
+export type KlaerungGrund =
+  | 'umsatz_fehlt'
+  | 'schon_entschieden'
+  | 'vormerkung'
+  | 'nur_eingang'
+  | 'posten_nicht_offen'
+  | 'verbindlichkeit_nicht_offen'
+  | 'begruendung_fehlt';
+
 export class ImportFehler extends Error {
   constructor(
     nachricht: string,
-    readonly grund: 'kein_bankkonto' | 'falsches_konto' | 'leer' | 'klaerung',
+    readonly grund: 'kein_bankkonto' | 'falsches_konto' | 'leer' | KlaerungGrund,
   ) {
     super(nachricht);
     this.name = 'ImportFehler';
@@ -123,6 +145,8 @@ export async function importiereAuszug(
   }
 
   const offene = await ladeOffenePosten(db);
+  /* V-216: die offenen Verbindlichkeiten — Kandidaten für einen Ausgang. */
+  const kreditoren = await ladeOffeneKreditorposten(db);
   let automatisch = 0;
   let klaerung = 0;
 
@@ -133,15 +157,24 @@ export async function importiereAuszug(
      * Eine Rechnung darauf als bezahlt zu setzen wäre eine Aussage über Geld,
      * das noch nicht da ist.
      */
-    const vorschlag: Vorschlag = u.gebucht
-      ? schlageVor(u, offene)
-      : {
+    /*
+     * Ein Ausgang bekommt seine Kandidaten unter den Verbindlichkeiten
+     * (V-216) — als Satz an der Zeile. Gebucht wird er trotzdem nie
+     * automatisch: `schlageVorAusgang` liefert nie `eindeutig`, und seine
+     * Kandidaten sind keine Debitorposten, also reicht `vorschlag` hier nur
+     * Art und Begründung weiter.
+     */
+    const vorschlag: Vorschlag = !u.gebucht
+      ? {
         art: 'kein_treffer',
         kandidaten: [],
         begruendung:
           'Eine Vormerkung (PDNG) wird nicht zugeordnet — die Bank hat noch '
           + 'nicht gebucht, und der Betrag kann sich noch ändern.',
-      };
+      }
+      : u.richtung === 'ausgang'
+        ? alsKlaerung(schlageVorAusgang(u, kreditoren))
+        : schlageVor(u, offene);
 
     const zustand = darfAutomatischBuchen(vorschlag) ? 'zugeordnet' : 'in_klaerung';
     if (zustand === 'zugeordnet') automatisch += 1; else klaerung += 1;
@@ -271,6 +304,35 @@ async function ladeOffenePosten(db: Abfrage): Promise<readonly OffenerPosten[]> 
   }));
 }
 
+/** Ein Ausgangsvorschlag als Zeilenvorschlag: Art und Satz, keine Debitorkandidaten. */
+function alsKlaerung(v: AusgangVorschlag): Vorschlag {
+  return { art: v.art, begruendung: v.begruendung, kandidaten: [] };
+}
+
+/**
+ * Die offenen Verbindlichkeiten gegenüber Lieferanten (V-216) — mit der
+ * Rechnungsnummer des Lieferanten, die im Verwendungszweck eines Ausgangs
+ * steht, und dem Lieferantennamen für den Satz an der Zeile.
+ */
+async function ladeOffeneKreditorposten(db: Abfrage): Promise<readonly KreditorKandidat[]> {
+  const roh = await db.abfrage<{
+    id: string; eingangsrechnung_id: string; nummer_lieferant: string | null;
+    belegnummer: string | null; lieferant: string | null; offen_cent: string;
+  }>(
+    `select op.id, op.eingangsrechnung_id, er.rechnungsnummer_lieferant as nummer_lieferant,
+            er.interne_belegnummer as belegnummer, l.name as lieferant,
+            op.offen_cent::text as offen_cent
+       from offener_posten op
+       join eingangsrechnung er on er.id = op.eingangsrechnung_id and er.mandant_id = op.mandant_id
+       left join lieferant l on l.id = op.lieferant_id and l.mandant_id = op.mandant_id
+      where op.art = 'kreditor' and op.offen_cent > 0 and op.ausgeglichen_am is null`);
+  return roh.map((z) => ({
+    id: z.id, eingangsrechnungId: z.eingangsrechnung_id,
+    nummerLieferant: z.nummer_lieferant, belegnummer: z.belegnummer,
+    lieferant: z.lieferant ?? '—', offenCent: BigInt(z.offen_cent),
+  }));
+}
+
 /**
  * Legt die Zahlung an und verbindet sie mit dem Umsatz.
  *
@@ -371,13 +433,13 @@ async function ladeOffenenUmsatz(db: Abfrage, umsatzId: string): Promise<Offener
       for update of u`,
     [umsatzId]);
   if (u === undefined) {
-    throw new ImportFehler('Diesen Umsatz gibt es nicht.', 'klaerung');
+    throw new ImportFehler('Diesen Umsatz gibt es nicht.', 'umsatz_fehlt');
   }
   if (u.zustand !== 'offen' && u.zustand !== 'in_klaerung') {
     throw new ImportFehler(
       `Der Umsatz ist bereits entschieden (${u.zustand}). Eine Entscheidung wird `
       + 'nicht ueberschrieben; eine falsche Zuordnung wird widerrufen.',
-      'klaerung');
+      'schon_entschieden');
   }
   return u;
 }
@@ -402,13 +464,16 @@ export async function bestaetigeZuordnung(
   if (!u.gebucht) {
     throw new ImportFehler(
       'Eine Vormerkung (PDNG) wird nicht zugeordnet — die Bank hat noch nicht gebucht.',
-      'klaerung');
+      'vormerkung');
+  }
+  if (u.richtung === 'ausgang') {
+    return bestaetigeAusgang(db, u, offenerPostenId);
   }
   if (u.richtung !== 'eingang') {
     throw new ImportFehler(
       'Nur ein Zahlungseingang wird einer Forderung zugeordnet. Ein Ausgang ist '
       + 'keine Kundenzahlung.',
-      'klaerung');
+      'nur_eingang');
   }
   const [posten] = await db.abfrage<{
     id: string; rechnung_id: string; nummer: string; offen_cent: string;
@@ -421,7 +486,7 @@ export async function bestaetigeZuordnung(
   if (posten === undefined) {
     throw new ImportFehler(
       'Dieser Posten ist nicht offen — er ist ausgeglichen oder gehoert nicht hierher.',
-      'klaerung');
+      'posten_nicht_offen');
   }
 
   await ordneZu(db, u.id, {
@@ -450,6 +515,72 @@ export async function bestaetigeZuordnung(
 }
 
 /**
+ * **Ein Ausgang an einen Lieferanten** (V-216) — bestätigt von einem Menschen.
+ *
+ * Bis hierher wies die Klärung jeden Ausgang ab („ein Ausgang ist keine
+ * Kundenzahlung"), und eine gebuchte Eingangsrechnung blieb für immer offen,
+ * auch wenn der Auszug die Überweisung zeigte. Die Zahlung entsteht über
+ * denselben Dienst wie aus dem Formular der Eingangsrechnung
+ * (`verbucheZahlungsausgang`) — mit Überzahlung als Guthaben beim
+ * Lieferanten —, und der Umsatz wird mit ihr verbunden.
+ *
+ * Nur ein Kreditorposten kommt in Frage: eine Ausgangsrechnung ist keine
+ * Verbindlichkeit (die Datenbank weist das zusätzlich ab, 0130).
+ */
+async function bestaetigeAusgang(
+  db: Abfrage, u: OffenerUmsatzRoh, offenerPostenId: string,
+): Promise<KlaerungErgebnis> {
+  const [posten] = await db.abfrage<{
+    eingangsrechnung_id: string; nummer: string | null; lieferant: string | null;
+  }>(
+    `select op.eingangsrechnung_id,
+            coalesce(er.rechnungsnummer_lieferant, er.interne_belegnummer) as nummer,
+            l.name as lieferant
+       from offener_posten op
+       join eingangsrechnung er on er.id = op.eingangsrechnung_id and er.mandant_id = op.mandant_id
+       left join lieferant l on l.id = op.lieferant_id and l.mandant_id = op.mandant_id
+      where op.id = $1::uuid and op.art = 'kreditor'
+        and op.ausgeglichen_am is null and op.offen_cent > 0`,
+    [offenerPostenId]);
+  if (posten === undefined) {
+    throw new ImportFehler(
+      'Diese Verbindlichkeit ist nicht offen — sie ist bezahlt, oder der Posten ist '
+      + 'keiner gegenüber einem Lieferanten.',
+      'verbindlichkeit_nicht_offen');
+  }
+
+  const ergebnis = await verbucheZahlungsausgang(db, {
+    eingangsrechnungId: posten.eingangsrechnung_id,
+    betragCent: cent(BigInt(u.betrag_cent)),
+    zahlungsdatum: u.buchungsdatum,
+    valuta: u.valuta,
+    zahlungsmittel: 'ueberweisung',
+    bankkontoId: u.bankkonto_id,
+    referenz: u.referenz,
+  });
+
+  const text = `Von Hand zugeordnet: Zahlung an ${posten.lieferant ?? '—'}, `
+    + `Rechnung ${posten.nummer ?? '—'}`;
+  await db.schreibe(
+    `insert into umsatz_zuordnung
+       (mandant_id, kontoumsatz_id, zahlung_id, automatisch, begruendung,
+        erstellt_von_art, erstellt_von)
+     values ($1::uuid, $2::uuid, $3::uuid, false, $4, 'mensch', app.aktueller_benutzer())`,
+    [db.aktiverMandantId, u.id, ergebnis.zahlungId, text]);
+  await db.schreibe(
+    `update kontoumsatz
+        set zustand = 'zugeordnet', klaerungsnotiz = $2,
+            geaendert_von_art = 'mensch', geaendert_von = app.aktueller_benutzer()
+      where id = $1::uuid`,
+    [u.id, text]);
+
+  return {
+    umsatzId: u.id, auszugId: u.kontoauszug_id,
+    auszugAbgeglichen: await schliesseAuszugWennFertig(db, u.kontoauszug_id),
+  };
+}
+
+/**
  * **Ein Mensch sagt: gehoert zu keiner Rechnung** — Gebuehr, Zins, Privat,
  * Fehlueberweisung. Die Notiz ist Pflicht (0135 erzwingt fuenf Zeichen), weil
  * ein Umsatz ohne Bezug und ohne Grund spaeter niemandem mehr etwas sagt.
@@ -462,7 +593,7 @@ export async function markiereOhneBezug(
     throw new ImportFehler(
       'Ohne Begruendung bleibt der Umsatz in Klaerung — „ohne Bezug" braucht '
       + 'einen Satz, der spaeter allein steht.',
-      'klaerung');
+      'begruendung_fehlt');
   }
   const u = await ladeOffenenUmsatz(db, umsatzId);
   await db.schreibe(

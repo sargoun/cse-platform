@@ -7,7 +7,8 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import {
   PruefbuendelFehler, erstellePruefbuendel, packePruefbuendel, type Pruefbuendel,
 } from '@/server/services/buchhaltung/pruefbuendel';
@@ -41,7 +42,7 @@ export async function GET(anfrage: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
   }
   const jahr = Number(jahrRoh);
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
 
   try {
     const { buendel, bytes } = await (db().begin(async (tx: postgres.TransactionSql) =>

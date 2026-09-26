@@ -8,6 +8,12 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenMinutenText } from '@/lib/datum/stunden';
 import { ladeLaufende } from '../daten';
+import { haeltRechte } from '@/app/portal/rechte';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { BEGRUENDUNG_MINDESTLAENGE } from '@/server/services/zeit/laufender-eintrag';
+import { LaufendSchliessen } from './LaufendSchliessen';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { LAUFEND_TEXTE } from '@/lib/i18n/verwaltung/zeit';
 
 /**
  * `/portal/[mandant]/zeiten/live` — „Aktuell im Einsatz" (DSH-05, TIM-08).
@@ -41,9 +47,14 @@ const ERFASSUNGSART_TEXT: Readonly<Record<string, string>> = {
 };
 
 export default async function LiveBrettSeite(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  const suche = await searchParams;
+  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   const pfad = `/portal/${mandant}/zeiten/live`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -54,6 +65,14 @@ export default async function LiveBrettSeite(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /*
+   * `zeit.korrigieren` — dasselbe Recht wie fuer die Korrektur eines
+   * abgeschlossenen Eintrags (TIM-11). Wer Zeiten nur ERFASST, setzt damit
+   * noch keine fremde Arbeitszeit fest.
+   */
+  const darf = await haeltRechte(sitzung, 'zeit.korrigieren');
+  const t = nachSprache(LAUFEND_TEXTE, zugang.sprache);
 
   const { standLokal, zeilen } = await ladeLaufende(sitzung);
   const auffaellig = zeilen.filter((z) => z.minuten >= AUFFAELLIG_AB_MINUTEN);
@@ -77,6 +96,12 @@ export default async function LiveBrettSeite(
           {zeilen.length === 1 ? '1 Eintrag' : `${String(zeilen.length)} Einträge`}
         </p>
       </div>
+
+      {meldung !== null && (
+        <Hinweis art="warnung" cse="laufend-meldung" className="mb-s4 max-w-prose">
+          {meldung}
+        </Hinweis>
+      )}
 
       <nav aria-label="Weiter im Zeitbereich" className="mb-s4 flex flex-wrap gap-s2">
         <a
@@ -139,6 +164,15 @@ export default async function LiveBrettSeite(
                 <p className="m-0 mt-s1 text-xs text-text-subtle">
                   {ERFASSUNGSART_TEXT[z.erfassungsart] ?? z.erfassungsart}
                 </p>
+                {darf['zeit.korrigieren'] === true && (
+                  <LaufendSchliessen
+                    eintragId={z.id}
+                    person={z.person}
+                    zurueck={pfad}
+                    mindestlaenge={BEGRUENDUNG_MINDESTLAENGE}
+                    t={t}
+                  />
+                )}
               </li>
             ))}
           </ul>
@@ -151,6 +185,12 @@ export default async function LiveBrettSeite(
         der Nacht der Zeitumstellung endet, ist eine Stunde kürzer oder länger
         als der Blick auf die Uhr sagt (Invariante 2).
       </p>
+
+      {darf['zeit.korrigieren'] !== true && zeilen.length > 0 && (
+        <p className="mt-s3 max-w-prose text-sm text-text-subtle" data-cse="ohne-korrekturrecht">
+          {t.ohneRecht}
+        </p>
+      )}
     </PortalRahmen>
   );
 }

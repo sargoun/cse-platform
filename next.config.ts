@@ -1,6 +1,6 @@
 import type { NextConfig } from 'next';
 import { weiterleitungenMitSprachen } from './src/lib/weiterleitungen';
-import { SICHERHEITSKOEPFE } from './src/lib/sicherheitskoepfe';
+import { MARKENBILD_KOEPFE, SICHERHEITSKOEPFE } from './src/lib/sicherheitskoepfe';
 
 const config: NextConfig = {
   reactStrictMode: true,
@@ -49,7 +49,11 @@ const config: NextConfig = {
    * Die Werte stehen in `src/lib/sicherheitskoepfe.ts`, damit ein Test sie
    * lesen kann, ohne diese Konfiguration zu laden (D-416).
    */
-  headers: () => Promise.resolve([{ source: '/(.*)', headers: [...SICHERHEITSKOEPFE] }]),
+  headers: () => Promise.resolve([
+    { source: '/(.*)', headers: [...SICHERHEITSKOEPFE] },
+    /* V-100: die strengere Richtlinie der Markenbilder — NACH der allgemeinen, damit sie gewinnt. */
+    { source: '/api/marke/:pfad*', headers: [...MARKENBILD_KOEPFE] },
+  ]),
 
   /**
    * Das Telefon im selben WLAN darf den Entwicklungsserver aufrufen.

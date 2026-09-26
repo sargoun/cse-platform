@@ -36,6 +36,11 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  */
 export const dynamic = 'force-dynamic';
 
+/** Berliner Zeit, wie überall im Portal (Invariante 2). */
+const BERLIN = new Intl.DateTimeFormat('de-DE', {
+  timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
+});
+
 const GEWERK: Readonly<Record<string, string>> = {
   reinigung: 'Gebäudereinigung',
   security: 'Sicherheits- und Objektschutzdienste',
@@ -104,21 +109,16 @@ export default async function Akquiseziel(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/crm/akquise`, text: 'Akquise' }}
       titel={ziel.firmenname}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="crm"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <p className="mb-s3 text-sm">
-        <Link href={`/portal/${mandant}/crm/akquise`}
-              className="text-text-muted underline-offset-2 hover:underline">
-          ← Akquise
-        </Link>
-      </p>
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{ziel.firmenname}</h1>
         <StatusPill zustand={ziel.status === 'uebernommen' ? 'Abgeschlossen'
@@ -234,6 +234,53 @@ export default async function Akquiseziel(
               </Button>
             </form>
           </Card>
+
+          {/*
+            * **Angesehen — und sonst nichts** (V-080).
+            *
+            * `markiereGeprueft` stempelt seit je `angesehen_am` und
+            * `angesehen_von` und hebt `neu` auf `geprueft`; die Route nimmt
+            * die Handlung entgegen, und **kein Formular schickte sie**. Der
+            * Zustand `geprueft` wurde auf dem Blatt als „In Arbeit"
+            * beschriftet und entstand nie.
+            *
+            * **Warum ein Knopf und nicht der Seitenaufruf.** Der
+            * naheliegende Weg wäre, beim Öffnen zu stempeln — „angesehen
+            * heisst angesehen". Ein Seitenaufruf ist aber ein GET, und ein
+            * GET, der schreibt, wird von jedem Vorschau-Abruf, jedem
+            * Linkprüfer und jedem zweiten Reiter ausgelöst. Der Stempel
+            * hiesse dann nicht „ein Mensch hat entschieden".
+            */}
+          {ziel.angesehenAm === null ? (
+            <Card>
+              <h2 className="mb-s3 mt-0 text-h3 text-text">Als angesehen vermerken</h2>
+              <p className="mb-s4 mt-0 text-sm text-text-muted">
+                Für den Fall dazwischen: geprüft, aber weder übernommen noch verworfen.
+                Die Firma bleibt in der Liste und steht nicht mehr unter „neu" — und es
+                ist nachlesbar, wer wann hingesehen hat, damit niemand dieselbe Recherche
+                ein zweites Mal macht.
+              </p>
+              <form method="post" action="/api/akquise/ziel"
+                    data-cse="akquise-ansehen"
+                    className="flex flex-col gap-s3">
+                <input type="hidden" name="id" value={ziel.id} />
+                <input type="hidden" name="handlung" value="ansehen" />
+                <input type="hidden" name="zurueck" value={pfad} />
+                <Button type="submit" variante="secondary" className="self-start">
+                  Als angesehen vermerken
+                </Button>
+              </form>
+            </Card>
+          ) : (
+            <Card>
+              <h2 className="mb-s3 mt-0 text-h3 text-text">Angesehen</h2>
+              <p className="m-0 text-sm text-text" data-cse="akquise-angesehen">
+                {BERLIN.format(ziel.angesehenAm)}
+                {ziel.angesehenVon === null ? '' : ` von ${ziel.angesehenVon}`}. Diese
+                Firma ist geprüft und wartet auf eine Entscheidung.
+              </p>
+            </Card>
+          )}
 
           <Card>
             <h2 className="mb-s3 mt-0 text-h3 text-text">Verwerfen</h2>

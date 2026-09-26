@@ -2805,6 +2805,9 @@ lost between phases:
    `app.switcher_mandanten()`, and is silent on whether the counts respect the caller's
    per-module rights — a `leitung` with no `finanzen` module would still see a finance
    counter in the switcher. Settle it before the switcher ships (TEN-10).
+   **Settled in D-659 (V-165):** the counts respect the viewer's read right
+   per area — module list, second factor and group view included — and an
+   area without that right gets no row, not a zero.
 
 The third item recorded here in an earlier pass — that `02-CRM-OPERATIONS.md` must add
 `dokument.sichtbar_fuer_mitarbeiter` — was **wrong and is withdrawn**. The column is
@@ -2947,8 +2950,8 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 
 | # | Slug | Question |
 |---|---|---|
-| O-39 | `zeit-freigabeschritt` | Is there a professional release of recorded time before the Stundenkonto and billing at all, and who grants it? **Until answered, `zeit.abrechnung_freigeben` is bound to no role** — it stands in the catalogue and `rolle_berechtigung` holds zero rows for it (measured, not assumed), so nobody can execute the step. The screen `/portal/[mandant]/zeiten/freigabe` and `0366` DO ship since the Routenbau wave and say the question is open on their face; the earlier wording "the screen does not ship" was true when this row was written and is no longer. See **O-861** for the unit and the withdrawal. |
-| O-93 | `zeit-checkin-kanal` | How does the check-in link reach the worker — SMS, e-mail, a QR code posted at the object, or a portal link — and who bears the SMS cost? |
+| ~~O-39~~ **answered — D-611** | `zeit-freigabeschritt` | Is there a professional release of recorded time before the Stundenkonto and billing at all, and who grants it? **Yes — a human releases weekly, before invoicing; the responsible Admin confirms, corrects or rejects.** `drizzle/0371` binds `zeit.abrechnung_freigeben` to `super_admin` and `admin`, and makes it grantable per Gesellschaft for `leitung` (D-612). Before that the key stood in the catalogue with zero rows in `rolle_berechtigung` (measured, not assumed) and nobody could execute the step; the screen `/portal/[mandant]/zeiten/freigabe` and `0366` shipped anyway and said so on their face. See **O-861**, still open, for the unit and the withdrawal. |
+| ~~O-93~~ **beantwortet — D-618** | `zeit-checkin-kanal` | How does the check-in link reach the worker? **For a signed-in worker it does not have to.** The token link stays exactly as it is, for everyone WITHOUT a session (QR code at the Objekt, a link from planning, a shared device). A signed-in worker clocks in from the portal: the session is the stronger proof — a token is a bearer credential that can be forwarded, photographed and read over a shoulder, while a session is bound to an account created from phone number and one-time code (EMP-01). What the session replaces is the DELIVERY of the mark, not the mark: the portal issues and redeems it server-side in one step, so `app.checkin_verbrauchen` stays the single writer (K-08, EMP-07 untouched). The SMS cost question falls away for the daily path. | D-618, EMP-01, EMP-07, K-08, O-82, `services/zeit/checkin.ts` |
 | O-162 | `zeit-milog-aufbewahrungsbeginn` | When does the two-year retention of §17 Abs. 1 MiLoG start — the day worked, the day the record was created, or a month/year end? |
 | O-163 | `zeit-dst-verguetung` | How are the two transition nights paid — by time actually worked (7 h / 9 h) or by planned shift length? |
 | O-164 | `zeit-checkout-toleranz` | How long after the shift ends does the check-out link stay valid, and what happens when someone works substantially longer than planned? |
@@ -3020,7 +3023,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-83 | `auth-2fa-wiederherstellung` | 2FA recovery: how many super_admin accounts, who holds each second factor, and what is the break-glass procedure? |
 | O-84 | `auth-2fa-uebergangsfrist` | Grace period for 2FA enrolment on existing admin accounts, and what happens on expiry |
 | O-85 | `auth-rollen-delegation` | Are roles beyond the five required, and may an Admin appoint another Admin, a Leitung a deputy? |
-| O-86 | `auth-mobilnummer-vieraugen` | Should a second approver be required to re-bind a worker's mobile number? |
+| O-86 | `auth-mobilnummer-vieraugen` | Should a second approver be required to re-bind a worker's mobile number? **Live seit V-014** — der Schreibweg existiert jetzt; siehe die ausführliche Fassung unter „Personal". |
 | O-87 | `auth-austritt-login` | On `austritt`, is the worker login disabled at once or kept for N days so the person can download their Stundennachweise (EMP-06)? |
 | O-88 | `auth-doppelrolle-login` | Confirm the dual-role login path for someone who is both a manager and employed |
 | O-89 | `auth-nachweis-gegenzeichnung` | Does the customer portal need a counter-signature flow for the Leistungsnachweis (CLN-04)? |
@@ -3169,6 +3172,7 @@ Beantworten helfen:
 | O-614 | **Verlangt der Zugriff auf Entgeltdaten eine zweite Anmeldestufe?** 05-API-KARTE fuehrt `…/anstellungen/[id]/entgelt` und `…/konditionen` als „sitzung+2fa"; das Routen-Manifest (`registry/routen.generiert.ts`) fuehrt dieselbe Route mit `aal2: false`. Zwei Dokumente, zwei Antworten — und es ist keine technische Frage, sondern eine ueber Zugangssicherheit: `personal.entgelt_lesen` ist fuer `admin` und `leitung` bindbar, eine 2FA-Pflicht traefe damit Konten, die nach AUT-02/K-15 heute auf `aal1` laufen (`leitung` hat keinen zweiten Faktor, und K-15 warnt ausdruecklich davor, eine `aal2`-Bedingung an einen Lesepfad zu haengen, von dem die Mitgliedschaftsaufloesung abhaengt). **Heute ausgeliefert:** der Stand des Manifests (`aal2: false`); das Recht und die Auditzeile tragen die Absicherung, und die Entgeltseite nennt die Abweichung sichtbar. | K-05, K-15, AUT-02, D-09 §6, 05-API-KARTE §C.8, `registry/routen.generiert.ts`, `drizzle/0193` |
 | O-615 | **Soll eine Wiedereinstellung einen zuvor von Hand entzogenen Portalzugang automatisch wiederherstellen, oder bleibt die Wiedererteilung eine ausdrückliche Handlung der Leitung?** `kern.bm_aus_anstellung` legt seit dieser Runde keine abgeleitete Mitgliedschaft mehr an, wenn für (benutzer_id, mandant_id) eine Zeile mit einem FREMDEN Entzugsgrund steht — ein Entzug, den jemand aus einem Grund verhängt hat, den die Datenbank nicht kennt, überlebt damit eine Datumsänderung und eine neue Beschäftigung. Das ist die sichere Richtung (ein fehlender Zugang wird gemeldet, ein unbemerkt wiederkommender nicht) und ausdrücklich eine Annahme. | K-14, AUT-08, `0191`, `kern.bm_aus_anstellung`, `benutzer_mandant.entzugsgrund` |
 | O-616 | **Was soll die Genehmigung einer kundeneigenen Antragsart bewirken, die keine Abwesenheit erzeugt — Stammdatenänderung, Schichtabgabe, unbezahlte Freistellung?** Der Katalog `antragsart` ist nach K-17 kundenpflegbar (0275 gibt `insert`), und O-142 nennt diese Arten namentlich als kommende. `entscheideAntrag` läuft nur in den Abwesenheitszweig, wenn `erzeugt_abwesenheit` UND eine Abwesenheitsart UND ein Zeitraum da sind; für alles andere legte eine „Genehmigung" nur den Status um. Bis zur Antwort zeigt die Antragsseite für solche Arten keinen Knopf, sondern den Satz, dass hier nichts geschähe. | K-17, EMP-10, O-142, `0074`, `0275`, `services/abwesenheit/antrag.ts` |
+| O-86 | **Braucht das Umschreiben der Anmeldenummer einer Mitarbeiterin ein zweites Augenpaar?** Die Frage stand seit `0113` im Register und war bis V-014 theoretisch: es gab keinen Weg, eine Nummer umzuschreiben. Seit `services/personal/zugang.ts` gibt es ihn, und damit wird sie scharf — **wer die Nummer hat, bekommt den Einmalcode**; ein Umschreiben ist fachlich eine Übergabe des Kontos, ohne dass ein Kennwort gebrochen würde. **Ausgeliefert ist die schwächere Annahme, und zwar ausdrücklich:** EIN Recht (`personal.zugang_verwalten`), kein zweiter Freigebender — dafür seit `0384` die volle Spur im Protokoll, mit alter UND neuer Nummer (AUT-08; die Werte stehen in `vorher`/`nachher`, deren Leseweg auf `system.audit_sensitiv_lesen` verengt ist, dieselbe Abwägung wie bei `person` in `0005`). Die Seite sagt beides hin: dass jede Änderung im Protokoll steht, und dass die Vieraugenfrage offen ist. **Das SPERREN ist bewusst ausgenommen** und braucht keinen zweiten Schlüssel: es ist der Notknopf — ein verlorenes Diensttelefon wird gemeldet, während jemand im Treppenhaus steht, und eine Sperre, die auf ein zweites Augenpaar wartet, kommt zu spät. Sie wirkt sofort und auch auf schon ausgestellte Codes (`app.zugang_code_einloesen` findet einen gesperrten Zugang nicht mehr). | EMP-01, EMP-14, AUT-08, V-014, `drizzle/0113`, `drizzle/0384`, `services/personal/zugang.ts`, `portal/[mandant]/personal/personen/[id]/zugang` |
 | O-860 | **Darf die Einstellungsmaske einer Gesellschaft mehr sehen als die ZAHL gleichnamiger Menschen in der Gruppe — Name, Kennung, beschäftigende Gesellschaft — und darf sie eine bestehende `person` übernehmen, statt eine zweite anzulegen?** `person` trägt keinen Mandanten (D-09), ist aber nur dort lesbar, wo der Mensch beschäftigt ist: die Dublette bei einer Schwestergesellschaft ist unsichtbar, und ohne Gegenmassnahme erzeugt jede Einstellung genau sie. Ausgeliefert ist die engste Annahme: `app.person_dublettenpruefung` (0365) gibt `hier` und `fremd` als ZAHLEN zurück, nie einen Namen, nie eine Kennung, nie eine Gesellschaft — dieselbe Linie wie `app.arbzg_belastung`. Jede Probe schreibt eine Auditzeile; die Maske bittet um Rückfrage in der Personalstelle der Gruppe, statt zu blockieren (Einstellen muss möglich bleiben) oder zu verschweigen. Getrennte Verantwortliche nach Art. 4 Nr. 7 DSGVO. | D-09, EMP-14, LEG-09, Invariante 9, `drizzle/0365`, `services/personal/einstellung.ts`, `portal/[mandant]/personal/anstellungen/neu` |
 
 **Einstellungen**
@@ -3263,7 +3267,7 @@ Beantworten helfen:
 | O-700 | **Ist ein Ausfall eines Reinigungsturnus vom Pauschalbetrag abzuziehen und ein Zusatztermin zusaetzlich zu berechnen, oder gleicht die Pauschale beides aus?** (aus dem Bauschritt, unveraendert) `turnus_ausnahme.abrechnungsrelevant` bleibt `null` — UNBEANTWORTET, nicht „nein": ein vorausgewaehltes „nein" waere eine Vertragsaussage, die niemand getroffen hat. Das Feld im Formular fuehrt „offen — noch nicht entschieden (O-700)" als Vorgabe. | CLN-02, CLN-03, `services/reinigung/turnus.ts`, `api/reinigung/turnus/route.ts` |
 | O-701 | **Was geschieht mit den bereits erzeugten Schichten, wenn Regel, Beginn oder Dauer eines laufenden Turnus geaendert werden — werden kuenftige Schichten nachgezogen, bleibt der Bestand unveraendert, oder wird die Serie beendet und eine neue angelegt?** (aus dem Bauschritt, unveraendert) An den erzeugten Schichten haengen Check-in-Links, Leistungsnachweise und Rechnungen; eine still gewaehlte Variante veraenderte rueckwirkend bezahlte Schichten. Regel, Beginn und Dauer sind auf dem Turnusblatt deshalb NICHT aenderbar, sichtbar als „offen (O-701)"; fuer einen einzelnen Tag gibt es die Ausnahme. | CLN-02, TIM-02, `portal/[mandant]/reinigung/turnus/[id]/page.tsx` |
 | O-702 | **Pflegt die Seite „Sonderleistungen" die Katalogzeilen oder die einzelnen Abrufe je Objekt — oder beides, und wer pflegt dann den Leistungskatalog?** (aus dem Bauschritt, unveraendert) Die Seite fuehrt bis zur Antwort BEIDE Haelften getrennt und beschriftet, jede hinter dem Recht ihrer Tabelle (`leistungskatalog_position` → `katalog.schreiben`, `sonderleistung` → `reinigung.schreiben`). Der Registereintrag der Route fuehrt darum jetzt beide Schreibrechte. | CLN-05, OPS-06, `services/reinigung/sonderleistung.ts` |
-| O-703 | **Woher entsteht ein Veranstaltungsauftrag — aus einer Auftragsleistung, aus dem Vertrieb oder handerfasst von der Wachleitung, und wer darf ihn anlegen?** (aus dem Bauschritt, unveraendert) Es gibt weiterhin keine Route `/security/veranstaltungen/neu`; der Seed legt zwei Veranstaltungen an, eine davon mit Ort nur als Text. | SEC-08, `services/security/veranstaltung.ts`, SEITENKARTE §5.8 |
+| O-703 | **Woher entsteht ein Veranstaltungsauftrag — aus einer Auftragsleistung, aus dem Vertrieb oder handerfasst von der Wachleitung, und wer darf ihn anlegen?** (aus dem Bauschritt) **Seit V-004 gibt es die Route `/security/veranstaltungen/neu`** — gebaut als der Weg, der am wenigsten erfindet: handerfasst hinter `security.schreiben`, mit OPTIONALER Verbindung zu einer `auftrag_leistung`. Aus der Position ein Pflichtfeld zu machen hiesse zu entscheiden, dass ein Event ohne kaufmännische Position nicht bewacht werden darf — genau der kurzfristige Fall, für den SEC-08 gebaut ist. Die Frage, WER ihn anlegen darf, bleibt offen; heute ist es, wer `security.schreiben` hält. | SEC-08, `services/security/veranstaltung.ts`, SEITENKARTE §5.8 |
 | O-704 | **Wie wird eine falsch erfasste Qualitaetspruefung berichtigt — durch eine ersetzende Pruefung mit Verweis auf die alte (wie im Wachbuch), durch Archivieren mit Grund, oder ist eine Korrektur der Felder zulaessig?** (aus dem Bauschritt, unveraendert) Das Pruefblatt ist lesend; die Tabelle traegt keinen Korrekturweg. | OPS-11, `portal/[mandant]/qualitaet/pruefungen/[id]/page.tsx` |
 | O-705 | **Was folgt auf einen Mangel mit Frist — entsteht daraus automatisch eine Reklamation oder eine Aufgabe, und wer ist verantwortlich, wenn die Frist verstreicht?** (aus dem Bauschritt, unveraendert) Es entsteht heute NICHTS von selbst; die ueberfaellige Frist wird farbig UND im Text gezeigt, mehr nicht. | OPS-11, OPS-12, `portal/[mandant]/qualitaet/pruefungen/[id]/page.tsx`, `db/seed/reinigung.ts` |
 | O-706 | **Zeigt der Sicherheits-Modulkopf nur die Bewachernachweise oder alle Nachweise mit Frist?** Die Liste hiess „§ 34a-Nachweise mit Frist" und war auf nichts eingegrenzt: `leseRegister` kennt keinen Qualifikationsfilter und liefert jede Zeile der Gesellschaft. Die dafuer angelegte Konstante `BEWACHER_QUALIFIKATION = '34a'` wurde nirgends benutzt — und haette, benutzt, KEINE Katalogzeile getroffen: im plattformweiten Katalog heissen sie `34a_sachkunde`, `34a_unterrichtung` und `bewacherausweis`. Ein Filter darauf haette die Liste still geleert und „nichts abgelaufen" gemeldet. **Heute gebaut:** die Liste zeigt weiter ALLE Nachweise mit Frist — weil SEC-04 nicht an der Qualifikation haengt, sondern an `einsatzanforderung.zwingend` des jeweiligen Postens (`app.einsatz_qualifikation_erfuellt`), also auch eine abgelaufene Unterweisung sperren kann —, Ueberschrift und Kachel sagen das jetzt, der unbelegte Zusatz „N sperren die Einteilung" ist weg, und `BEWACHER_QUALIFIKATIONEN` traegt die drei echten Schluessel und MARKIERT die betroffenen Zeilen mit „§ 34a". Die Frage ist fachlich: soll der Modulkopf der Sicherheit auf die Bewacherqualifikationen verengt werden — mit dem Preis, dass eine abgelaufene, aber zwingend geforderte Erste-Hilfe- oder Unterweisungszeile dort nicht mehr auffaellt? | SEC-02, SEC-04, `services/security/uebersicht.ts`, `services/nachweis/register.ts`, `db/seed/qualifikation.ts` |
@@ -3296,7 +3300,7 @@ Beantworten helfen:
 | O-731 | **Which Zeitwerte (minutes per unit) and which Standardeinzelpreise apply per Leistungskatalog position, and who releases them?** This is the position side of the same gap as O-17 (Leistungswerte per Belagsart) and additionally covers the time value and the standard price. The CHECK `lkp_kalkulierbar` does not allow a position without any of the three values, so „do not invent a value" cannot mean „leave it NULL": every position carries a clearly marked placeholder with `ist_platzhalter = true` (the column's default), the list shows the placeholder share per Fassung, and the confirm tick says explicitly „for THIS Fassung" — it does not answer O-17 or this row. | `services/katalog/index.ts`, `/leistungskatalog`, `/leistungskatalog/[id]`, OPS-06, CLN-05, O-17, O-16, O-37 |
 | O-732 | **May a granted Preisfreigabe be revoked while the offer has not yet been sent — and if so, by whom and under what logging duty?** The release became its own step when `versendeAngebot` was split (`angebot.preis_freigeben` vs `angebot.versenden`), and with it the question of taking it back. Until answered it is **immutable**: `kern.angebot_preisfreigabe_pruefen` rejects any change to `freigegeben_von`/`freigegeben_am` once set, and a different price needs a new offer version — the same shape as invariant 4. Allowing a revocation would be an invented rule; allowing it silently would be an invented rule without a trace. | `drizzle/0295`, `services/angebot/index.ts` (`gibPreisFrei`), `/angebote/[id]/freigabe`, invariant 4, invariant 7 |
 | O-734 | **Must a closed order be re-openable (Nachtrag, warranty case) — and what then happens to the FIN-18 warning the closure armed?** `pruefeZeiterfassung` reads `status = 'abgeschlossen' or abgeschlossen_am is not null` as the signal that arms the FIN-18 block in the invoice path (D-366). A silent re-opening would therefore disarm a warning somebody deliberately decided on, and leave no trace. Until answered the closure is **one-way**: `abgeschlossen_am` is immutable and the status cannot leave `abgeschlossen`; correction runs through a Nachtrag or a new order. | `drizzle/0296`, `services/auftrag/abschluss.ts`, `/auftraege/[id]/abschluss`, FIN-18, D-366, D-367 |
-| O-735 | **Is the customer's Referenzfreigabe time-limited (how long does the permission hold), and does a revocation work retroactively** — must already-published references be taken down, or only no new ones created? The order row keeps the proof either way: `freigabe_widerrufen_am` is the field that counts, and `auftrag_referenz_idx` reads it that way (`freigegeben_vom_kunden AND freigabe_widerrufen_am IS NULL`). Until answered, a revocation removes **no** `referenz` row — PRO-05 keeps the two acts apart, and `referenz` deliberately carries no foreign key to `auftrag`. A revocation is not a dead end either: `freigegeben_vom_kunden` stays `true` (the CHECK requires it), and a fresh customer statement clears `freigabe_widerrufen_am` and takes effect again — the customer may change their mind twice. The revocation reason goes to the audit log (`auftrag.kundenfreigabe_widerrufen`), never into `freigabe_text`: that column holds the customer's own wording and is the proof PRO-05 relies on. | `drizzle/0296`, `services/auftrag/kundenfreigabe.ts`, `/auftraege/[id]/kundenfreigabe`, PRO-05 |
+| O-735 | **Is the customer's Referenzfreigabe time-limited (how long does the permission hold), and does a revocation work retroactively** — must already-published references be taken down, or only no new ones created? The order row keeps the proof either way: `freigabe_widerrufen_am` is the field that counts, and `auftrag_referenz_idx` reads it that way (`freigegeben_vom_kunden AND freigabe_widerrufen_am IS NULL`). Until answered, a revocation removes **no** `referenz` row — PRO-05 keeps the two acts apart. Since V-161 (`drizzle/0410`, D-654) a new `referenz` records the `auftrag` it was created from (`auftrag_id`, composite FK over the Gesellschaft, immutable) — as PROVENANCE, not coupling: nothing cascades, no trigger on `auftrag` reads it, and the reference keeps its own release; the reference sheet shows a revocation on its origin order as information. A revocation is not a dead end either: `freigegeben_vom_kunden` stays `true` (the CHECK requires it), and a fresh customer statement clears `freigabe_widerrufen_am` and takes effect again — the customer may change their mind twice. The revocation reason goes to the audit log (`auftrag.kundenfreigabe_widerrufen`), never into `freigabe_text`: that column holds the customer's own wording and is the proof PRO-05 relies on. | `drizzle/0296`, `services/auftrag/kundenfreigabe.ts`, `/auftraege/[id]/kundenfreigabe`, PRO-05 |
 | O-736 | **Which document categories may EVER be released to a customer?** DOC-01 lists `mitarbeiter` and `buchhaltung` alongside the customer-facing ones; releasing a payslip or a bank statement to a customer must be impossible, not merely unusual. Today the database checks only the right (`dokument.kunde_freigeben`, `drizzle/0297`), so the release screen names the category prominently and the audit entry records it with every switch. A release without `kunde_id` is rejected outright. | `drizzle/0297`, `services/dokument/kundenfreigabe.ts`, `/dokumente/[id]/kundenfreigabe`, DOC-01, DOC-03, DOC-04, O-671 |
 | O-737 | **Does a later change to `raum.flaeche_qm` or `raum.belagsart_id` affect running offers and orders** — must the Kalkulation be recomputed and the customer informed — **or does it apply only to future calculations?** Both values feed every cleaning price (OPS-02, OPS-07) and every Revier target time, so one measurement moves numbers in several other places. Until answered the room sheet changes only the room, and it shows underneath **what hangs on it**: the Richtzeit this room contributes, its Reviere with their overrides, and its import history. Blocking the change would be wrong — a re-measured room is the truth, and the numbers beside it are what must follow. | `services/raumbuch/raum.ts`, `services/kalkulation/raumbuch.ts` (`ladeRaumRichtzeit`), `/objekte/[id]/raumbuch/[raumId]`, OPS-02, OPS-03, OPS-07 |
 
@@ -3326,7 +3330,180 @@ Beantworten helfen:
 
 | Nr. | Frage | Bezug |
 |---|---|---|
+| ~~O-887~~ **beantwortet — D-617** | **Darf ein Super-Admin einen zweiten Super-Admin einladen?** **Nein — gar nicht in der Anwendung.** Der Mandant: der Super-Admin soll nur über die UMGEBUNG entstehen. Das löst beide Hälften der Frage: das Konto lässt sich jederzeit wiederherstellen (kein operatives Risiko mehr), aber nur von dem, der die Bereitstellung kontrolliert — es entsteht kein Weg, der über eine Anmeldung führt, und damit keiner, den eine gekaperte Sitzung nehmen kann. `0372` lässt `super_admin` weiterhin nicht zu, auf Funktions- UND Policy-Ebene. | D-617, D-610, AUT-02, `drizzle/0372` |
 | O-886 | **Darf der Stundennachweis nach § 17 MiLoG in der Sprache der Arbeiterin stehen — oder muss er deutsch sein, um als Aufzeichnung zu gelten?** § 17 Abs. 1 MiLoG verlangt vom Arbeitgeber die Aufzeichnung von Beginn, Ende und Dauer; eine Sprache nennt das Gesetz nicht, und die Aufzeichnung, die der Prüfung standhalten muss, ist die im System — nicht das Blatt, das die Arbeiterin abruft. Gebaut ist deshalb die **Lesehilfe**: Spalten und erklärende Sätze folgen `person.sprache` (de/en/ar/tr), die Fundstellen (`§ 17 MiLoG`, `§ 17 Abs. 1 MiLoG`) bleiben unübersetzt, und der Prüfsummen-Hash bleibt unverändert — er hängt an den Daten, nicht an der Anzeige. Das folgt **D-84** (Impressum und Datenschutz sind deutsch bindend, die englische Fassung sagt es dazu) und ist damit kein erfundener Weg, sondern der schon entschiedene. Sagt der Auftraggeber, das Blatt müsse deutsch bleiben, ist die Umkehr **eine Zeile**: `meinTexte('de')` statt `basis.texte`. | § 17 MiLoG, D-84, EMP-12, SPEC §10, `src/app/portal/mein/monatsnachweis/page.tsx` |
+| O-905 | **Soll eine als automatisiert abgewiesene Einsendung aufbewahrt werden — und wer arbeitet sie ab?** `formular_eingang_status` führt seit `0016` vier Werte; geschrieben wird genau einer, `verarbeitet`. Die drei anderen haben keinen Erzeuger, und das ist **kein Versehen, sondern dreimal dieselbe Entscheidung:** (1) `neu` — Eingang und Lead entstehen in EINER Transaktion mit aufgeschobenen Fremdschlüsseln (`0017`); es gibt kein Fenster, in dem ein Eingang ohne Lead steht. (2) `spam` — der Honigtopf prüft in `api/anfrage` **vor jeder Datenbankberührung**, ausdrücklich, damit ein Bot nicht einmal eine Abfrage kostet; jede Aufzeichnung machte daraus einen Verstärker: ein Ansturm, der heute nichts kostet, schriebe dann je Treffer eine Zeile. Für das Ratenlimit gilt dasselbe doppelt — sein Zweck IST das Begrenzen von Schreibvorgängen. (3) `verworfen` — es gibt keine Liste von Einsendungen; die Arbeitsliste ist der Lead. **Der Preis der heutigen Lage steht trotzdem:** ein falsch positiver Honigtopftreffer (Passwortverwalter, Browser-Autofill in einem versteckten Feld) verschwindet SPURLOS, und der Absender bekommt dieselbe Dankseite wie bei Erfolg — die Anfrage ist verloren, und niemand erfährt es. Drei Wäge sind denkbar: (a) jede abgewiesene Einsendung aufzeichnen (rettet den Fehlalarm, baut den Verstärker), (b) nur ZÄHLEN je Formular und Tag — eine Zeile, kein Inhalt, kein Verstärker, aber die verlorene Anfrage bleibt verloren, (c) so lassen. **Das ist eine Abwägung zwischen einer verlorenen Anfrage und einer Angriffsfläche und wird nicht nebenbei entschieden.** | REQ-01, LEG-09, `drizzle/0016`, `src/app/api/anfrage/route.ts`, `services/lead/annahme.ts`, V-086 |
+| O-904 | **Gegen welche Rechteliste wird eine Rolle gebunden, die es nur in EINER Gesellschaft gibt?** Die Matrix in 03-AUTH §12 hat fünf Spalten — `super_admin`, `admin`, `leitung`, `mitarbeiter`, `kunde` — und der Katalog (`pnpm katalog`) trägt je Recht, welche davon es per Vorgabe halten (`✔`) und für welche es in der Oberfläche bindbar ist (`○`). **Eine eigene Rolle einer Gesellschaft steht in keiner dieser Spalten.** Solange es keinen Weg gibt, eine anzulegen, ist das theoretisch; `rolle.mandant_id` gibt es aber seit `0008`, und die Rollenliste zeigt solche Zeilen bereits mit dem Vermerk „eigene". Drei Wege sind denkbar: (a) eine eigene Rolle erbt die bindbare Menge einer Systemrolle, die beim Anlegen zu nennen wäre; (b) sie darf jedes Recht binden, das nicht `nur_global` ist — bequem, und der Weg, auf dem sich eine Gesellschaft `system.rolle_verwalten` selbst vervielfältigt; (c) eigene Rollen bleiben Vorlagen ohne eigene Rechtematrix. **Ausgeliefert ist die Abweisung mit dem Grund** (`services/system/rollenrecht.ts`): die Rechte einer solchen Rolle lassen sich hier nicht setzen, und die Seite sagt warum. Eine Vermutung an dieser Stelle wäre eine Rechteregel, die niemand aufgestellt hat. | AUT-03, 03-AUTH §12, `drizzle/0008`, `services/system/rollenrecht.ts`, V-023 |
+| O-903 | **Hemmt eine Rückfrage nach Art. 12 Abs. 6 DSGVO die Monatsfrist des Art. 12 Abs. 3?** Die Verordnung sagt es NICHT. Absatz 3 lässt den Monat mit dem Eingang des Antrags laufen; Absatz 6 erlaubt bei begründeten Zweifeln die Nachfrage nach zusätzlichen Angaben zur Identität — ob die Frist währenddessen ruht, steht in keinem der beiden, und die Ansichten in Literatur und Aufsichtspraxis gehen auseinander. **Ausgeliefert ist die vorsichtige Lesart: die Frist läuft weiter** (`0388` rührt `frist_am` nicht an), und die Anfrage bleibt in der Fälligkeitsliste sichtbar. Die andere Lesart wäre bequemer und im Streitfall die riskantere: eine still angehaltene Frist ist eine Rechtsauffassung, die sich als Spaltenwert tarnt, und wenn die Aufsicht sie nicht teilt, war die Auskunft verspätet, ohne dass es jemand gemerkt hat. Wer anders entscheidet, braucht dafür eine anwaltliche Aussage — nicht eine Zeile Code. | LEG-08, Art. 12 Abs. 3 und 6 DSGVO, `drizzle/0388`, `services/datenschutz/anfrage.ts`, V-088 |
+| O-902 | **Schliesst ein bezahlter offener Posten seine Mahnung von selbst — und was gilt bei Teilzahlung, Storno und den Mahngebühren?** `mahnung_position` zeigt auf `offener_posten`, ein Nachtlauf könnte den Zustand also nachziehen; `offene_posten_abgleichen` läuft ohnehin jede Nacht. Drei Fragen stehen davor und keine hat eine Antwort im Haus: reicht eine TEILzahlung (der Kunde zahlt die Rechnung, nicht die Mahngebühr — ist die Mahnung dann erledigt?), was geschieht mit einer Mahnung, deren Rechnung nachträglich storniert wurde, und zählen Verzugszinsen und Gebühr zur offenen Forderung, die den Abschluss auslöst? Ausgeliefert ist deshalb die HANDLUNG eines Menschen: `versendet → erledigt` auf dem Mahnungsblatt, unter `mahnung.schreiben` — wer Mahnläufe führt, soll auch abhaken können, und er sieht dabei den Betrag. **Ein Automatismus, der bei Teilzahlung falsch schliesst, ist schlimmer als keiner:** eine geschlossene Mahnung wird nicht weiterverfolgt. | FIN-15, `drizzle/0125`, `drizzle/0130`, `services/finanz/mahnung/index.ts`, V-084 |
+| O-901 | **Darf die betroffene Person ihren eigenen Zeit-Einwand selbst zurückziehen — oder bleibt das die Feststellung der Planung?** Zwei Stellen im Haus sagten das Gegenteil voneinander. `drizzle/0052` gibt der Person ausdrücklich NUR `t_selbst_einreichen` (INSERT) und begründet das fehlende UPDATE: „einen eingereichten Einwand zurueckzuziehen ist eine Entscheidung der Planung …, nicht ein zweiter Griff des Menschen in seinen eigenen Vorgang". `services/zeit/einwand.ts` schrieb daneben, `zurueckgezogen` ziehe „die betroffene Person selbst" zurück — und keine Oberfläche tat beides. Ausgeliefert ist, was die Datenbank heute erlaubt: die Planung vermerkt den Rückzug, mit Begründung, und das ist etwas anderes als eine Ablehnung (die eine Entscheidung GEGEN die Person wäre). Für den anderen Weg spricht, dass „zurückziehen" im Wortsinn dem gehört, der eingereicht hat, und dass der Aufwand für die Planung entfällt; dagegen spricht der Beweiswert der Aufzeichnung, denselben Grund, aus dem EMP-07 die Entscheidung über den eigenen Vorgang verbietet. **Eine Policy, die das ändert, ist eine Migration und keine Oberfläche** — deshalb wird sie nicht nebenbei geschrieben. | EMP-07, 01-KERN §6.27, `drizzle/0052`, `services/zeit/einwand.ts`, V-052 |
+| ~~O-900~~ | **BEANTWORTET → D-626.** Wie wird ein Angebotsentwurf berichtigt oder verworfen? **Die Trennlinie ist `versendet_am`** — dieselbe, die `angebot_nummer_bei_versand` in derselben Tabelle schon zieht und die Invariante 4 für die Rechnung längst setzt: ohne Nummer frei änderbar, mit Nummer unveränderlich. Eine Position eines Entwurfs lässt sich berichtigen und entfernen (`entfernt_am`, nie gelöscht — Invariante 8), der ganze Entwurf zurückziehen. Ein VERSENDETES Angebot bleibt unverändert unveränderlich; dort ist eine Änderung weiterhin eine neue Version mit Rückverweis. Die strengere Lesart — neue Version auch am Entwurf — bleibt erreichbar und kostet einen Dienst weniger. | OPS-08, FIN-07, Invariante 4, Invariante 8, `drizzle/0392`, D-626, V-130 |
+| O-895 | **Darf ein Mensch seine eigene Abwesenheit noch zurücknehmen, wenn ihre Tage bereits in einen Lohnexport oder einen abgeschlossenen Stundenkonto-Monat geflossen sind?** `abwesenheit` trägt keine Spalte, die das sagt — weder ein `exportiert_am` noch einen Bezug auf den Lauf. Ausgeliefert ist deshalb, was die Zustandsmaschine seit `0073` sagt und was `antrag.t_selbst_zurueckziehen` (0301) für den Antrag schon entschieden hat: **unentschieden heisst rücknehmbar** — `t_selbst_zurueckziehen` auf `abwesenheit` (0386) lässt `erfasst` und `beantragt` heran, `genehmigt` nicht. Der wahrscheinliche Konfliktfall ist die Krankmeldung: sie steht dauerhaft auf `erfasst` (sie wird nicht genehmigt, sondern zur Kenntnis genommen), und ihre Tage buchen über `abwesenheit_urlaubskonto` und die Sollzeitgutschrift weiter. Eine Rücknahme nach dem Lohnlauf dreht damit eine Zahl zurück, die ein Mensch schon in der Hand hatte — dieselbe Frage wie bei O-861 für die Zeitfreigabe, und dieselbe Antwort ist keine Selbstverständlichkeit. Zwei Wege sind denkbar: (a) eine Sperrspalte auf `abwesenheit`, die der Lohnexport setzt und die die Policy mitliest; (b) die Rücknahme bleibt offen und die Korrektur läuft über die Personalstelle, die den Export kennt. **Erfunden wird keiner von beiden.** | EMP-10, EMP-04, O-861, Invariante 8, `drizzle/0073`, `drizzle/0386`, `services/abwesenheit/index.ts` |
+| O-894 | **Darf eine Rechnung, ein Buchungsbeleg, ein Vertrag oder eine Buchhaltungsunterlage nach Ablauf der zehn Jahre gelöscht werden — oder bleibt die Aufbewahrung dauerhaft?** Die vier GoBD-Klassen tragen in `dokument_aufbewahrung` eine ENTSCHIEDENE Frist (10 Jahre, § 147 AO, § 14b UStG, § 257 HGB) **und in derselben Zeile `loeschsperre = true`** (0009:275). `kern.setze_aufbewahrung` schreibt die Sperre beim Anlegen fest, und lösen lässt sie sich nie (D-49). Eine Rechnung ist damit nicht zehn Jahre unlöschbar, sondern **dauerhaft** — während `08-PR-PLAN.md` PR 64 als Zusage „for the full ten years" führt und Art. 5 Abs. 1 lit. e DSGVO eine Obergrenze verlangt, nicht nur eine Untergrenze. Drei Antworten sind denkbar: (a) die Sperre läuft mit der Frist ab, und der Aufbewahrungslauf nimmt die vier Klassen mit; (b) sie bleibt, und das Konzept sagt „dauerhaft" statt „zehn Jahre"; (c) sie bleibt, aber ein Mensch kann je Dokument einzeln freigeben, mit Grund und Protokoll. **Die Plattform erfindet keine davon**: der Lauf `dokument_aufbewahrung` (V-116) erreicht heute nur `angebot` und `kunde` — die beiden Klassen ohne Sperre —, und das Löschkonzept nennt genau diese zwei, statt eine Reichweite zu behaupten, die die Tabelle nicht hergibt. | DOC-07, LEG-01, V-116, D-49, `drizzle/0009`, `drizzle/0141`, `drizzle/0382`, `src/server/jobs/dokumentAufbewahrung.ts` |
+| O-906 | **Gilt für Rechnungen und Buchungsbelege seit dem 1. Januar 2025 die Aufbewahrungsfrist von ACHT statt zehn Jahren?** Das Vierte Bürokratieentlastungsgesetz (BEG IV) hat die Frist für Buchungsbelege in § 147 Abs. 3 AO, § 257 Abs. 4 HGB und § 14b Abs. 1 UStG auf acht Jahre verkürzt; Bücher, Inventare, Jahresabschlüsse und Lageberichte bleiben bei zehn. Die Plattform führt in `dokument_aufbewahrung` für `rechnung` und `beleg` weiter **zehn** Jahre und zeigt das auf der Ablageseite als „§ 147 AO, § 14b UStG — 10 Jahre“. **Nicht geändert, mit Absicht:** eine zu LANGE Frist kostet nichts, was sich nicht nachholen liesse — eine zu KURZE ist ein Beleg, der fehlt, wenn die Betriebsprüfung kommt, und gelöscht ist gelöscht. Und die Übergangsregel (für welche Belege die kürzere Frist schon gilt) ist eine Frage an den Steuerberater, keine Zahl, die die Plattform setzt. Hängt mit O-894 zusammen: solange die Sperre dauerhaft ist, ändert die kürzere Frist heute nichts am Löschen — sie ändert die Aussage auf dem Bildschirm und im Löschkonzept. | DOC-07, LEG-01, O-894, V-116, `drizzle/0009`, `src/app/portal/[mandant]/dokumente/upload/page.tsx` |
+| O-907 | **Welche Leadquellen begründen eine Anfrage des Kontakts, sodass die Antwort vertraglich ist und keine Werbung?** Seit V-141 kann jeder Lead einen Ansprechpartner bekommen, und ein ausgehender Anruf oder eine ausgehende E-Mail geht mit einem ZWECK durch das UWG-Tor. Entschieden sind zwei Ränder: das Webformular ist eine Anfrage (D-631, Zweck `vertraglich`), die Akquise ist keine (recherchiert, Zweck `werbung`). Offen sind drei: (a) **von Hand erfasst** — meist nach einem Gespräch, aber das Formular sagt nicht, wer wen angerufen hat; (b) **Empfehlung** — ein Kunde nennt jemanden, der selbst vielleicht nie gefragt hat; (c) **Vergaberadar** — die Vergabestelle bittet öffentlich um Angebote, spricht aber über die Vergabeplattform (D-07). Ist die Kontaktaufnahme dort eine vorvertragliche Maßnahme auf Anfrage der betroffenen Person (Art. 6 Abs. 1 lit. b DSGVO) — oder Werbung, die eine festgestellte Grundlage braucht (§ 7 Abs. 2 UWG, auch B2B)? Bis zur Antwort gehen alle drei den restriktiven Weg `werbung`: der Kontakt braucht eine Grundlage mit Quelle und Datum, sonst hält das Tor den Anruf nicht fest. Die Antwort tauscht die Umsetzung von `LEAD_ZWECK_REGEL`, nicht ihre Aufrufer; das Leadblatt nennt die Frage. | D-631, D-635, § 7 UWG, Art. 6 Abs. 1 lit. b DSGVO, `services/crm/lead-kontakt.ts` (`PLATZHALTER_LEAD_ZWECK`), `api/lead`, `crm/leads/[id]` |
+| O-908 | **Gilt ein Widerspruch (Art. 21 DSGVO) oder ein Werbewiderspruch, der an EINEM Kontakt festgehalten ist, für jeden Kontaktdatensatz derselben E-Mail-Adresse im Bereich?** Das Tor (`app.darf_kontaktiert_werden`) prüft den einen Datensatz, an den eine Nachricht geht. Das Datenmodell hält „ein Mensch, ein Kontakt" je Kunde (`ansprechpartner_email_uk`): derselbe Mensch kann als Anfragender ohne Kunden (0396) und als Kontakt eines oder mehrerer Kunden geführt sein — etwa eine Hausverwaltung für mehrere Eigentümer, oder die Anfrage, deren Kunde die Adresse schon kennt (D-635 Punkt 5). Ein Widerspruch am einen Datensatz sperrt den anderen heute nicht. Soll er es — über alle Datensätze derselben Adresse im Bereich, auch über Kunden hinweg, und für beide Widerspruchsarten? Bis zur Antwort übernimmt der Weg „Kunden zuordnen" keinen Zwilling für einen Anfragenden, dem widersprochen wurde; sonst bleibt jeder Vermerk an seinem Datensatz. | D-631, D-635, Art. 21 DSGVO, § 7 UWG, `drizzle/0020` (`ansprechpartner_email_uk`, Tor), `services/crm/lead-kette.ts` (`nimmKontaktMit`) |
+| O-910 | **Darf die Gruppenansicht die CRM-Aktivitäten aller Gesellschaften lesen — Notizen, Anrufe, Termine, mit Inhalt?** DSH-01 nennt für die Gruppenübersicht „letzte Aktivität“. `lead_aktivitaet` kennt seit `0017` **keinen Gruppenleseweg**: `t_aktivitaet_lesen` bindet an den aktiven Mandanten, eine `t_gruppe`-Policy wie auf `lead` oder `kunde` gibt es nicht — und das ist die einzige CRM-Tabelle, in der der WORTLAUT eines Gesprächs steht (`betreff`, `inhalt`). Eine Zahl allein ließe sich über eine Definer-Funktion zählen, ohne den Inhalt zu öffnen; sie wäre aber eine tote Zahl (DSH-04), denn die Liste dahinter müsste genau diese Zeilen zeigen. Drei Wege: (a) `t_gruppe` auf `lead_aktivitaet` mit `gruppe.crm.lesen` — dieselbe Reichweite wie für Leads und Kunden, also auch jede Gesprächsnotiz der anderen Gesellschaften; (b) ein eigenes Recht (etwa `gruppe.crm.aktivitaet_lesen`), das keine Rolle per Vorgabe hält; (c) so lassen — die Aktivität bleibt im Bereich. **Ausgeliefert ist (c):** die Kachel „Aktivität (7 Tage)“ führt im Bereich auf `/crm/aktivitaet` (V-149), in der Gruppe auf die Übersicht; die Gruppenübersicht hat keine Spalte dafür. Wer Gesprächsinhalte gesellschaftsübergreifend lesbar macht, entscheidet über eine Weitergabe personenbezogener Gesprächsinhalte zwischen rechtlich getrennten Gesellschaften — eine Datenschutzfrage an die Geschäftsführung, keine, die eine Spalte nebenbei beantwortet. | DSH-01, DSH-04, CRM-03, TEN-05, `drizzle/0017`, `services/gruppe/uebersicht.ts`, V-150, D-644 |
+| O-913 | **Deckt die Kundenfreigabe am Auftrag die öffentliche Referenz — oder braucht die Referenz eine eigene Zustimmung des Kunden zu Titel, Beschreibung und Bild?** PRO-05 trennt den Beleg (am Auftrag: Ansprechpartner, Schreiben, Wortlaut) von der Veröffentlichung (die `referenz`-Zeile mit eigener Freigabe, Datum und Beleg). Seit V-154 lässt sich eine Referenz anlegen, seit V-161 nur aus einem ABGESCHLOSSENEN Auftrag mit GELTENDER Freigabe, und sie hält fest, aus welchem (`referenz.auftrag_id`, 0410): übernommen werden Titel und Kundenname, und das Blatt der Referenz SCHLÄGT Datum und Beleg der Freigabe GENAU dieses Auftrags vor — der Haken „Der Kunde hat schriftlich zugestimmt" bleibt leer, gespeichert wird durch einen Menschen. Offen ist die Rechtsfrage dahinter: erlaubt ein Satz wie „Sie dürfen uns als Referenz nennen" auch die Beschreibung, das Bild und die Namensform, die die Redaktion wählt, oder muss der Kunde die Referenz in ihrer veröffentlichten Fassung gesehen haben? Und gilt eine am Auftrag erteilte Freigabe für mehrere Referenzen aus demselben Auftrag? **Ausgeliefert ist die vorsichtige Lesart:** keine automatische Übernahme, kein vorgesetzter Haken; die Referenz bleibt Entwurf, bis ein Mensch ihre eigene Freigabe einträgt, und veröffentlicht wird mit eigenem Recht. Wer die Übernahme automatisieren will, braucht dafür eine anwaltliche Aussage — nicht eine Zeile Code. Hängt mit O-735 (Widerruf) zusammen. | PRO-05, O-735, V-154, V-161, D-648, D-654, `services/inhalt/redaktion.ts` (`legeReferenzAn`), `src/app/portal/[mandant]/website/referenzen/{neu,[id]}/page.tsx` |
+| O-914 | **Darf auch ein LAUFENDER Auftrag mit geltender Kundenfreigabe zur öffentlichen Referenz werden — oder nur ein abgeschlossener?** SPEC PRO-05 sagt es wörtlich: „a reference is a completed `auftrag` with customer release on file, not a marketing entry typed by hand". Seit V-161 gilt genau das (`REFERENZFAEHIGE_ZUSTAENDE = ['abgeschlossen']` in `services/auftrag/kundenfreigabe.ts`, geprüft in `legeReferenzAn`). In der Gebäudereinigung und im Objektschutz laufen Aufträge aber als Dauerauftrag oder Rahmenvertrag über Jahre, und „wir reinigen seit 2019 die Zentrale der X AG" ist dort die übliche Referenz — nach der wörtlichen Lesart entsteht sie erst mit dem Ende des Vertrags. Dazu die Nachbarfrage: ein Projekt aus der Zeit vor der Plattform wird heute als Auftrag angelegt, mit Kundenfreigabe versehen und abgeschlossen, bevor daraus eine Referenz werden kann; reicht dem Auftraggeber dieser Weg? **Ausgeliefert ist die wörtliche Lesart:** nur ein abgeschlossener Auftrag; laufende stehen unter `/website/referenzen/neu` sichtbar als „noch nicht abgeschlossen", ein stornierter nie. Die Antwort ist eine Zeile (die Liste der Zustände), keine Umbauarbeit. | PRO-05, V-161, D-654, O-913, `src/server/services/auftrag/kundenfreigabe.ts` (`REFERENZFAEHIGE_ZUSTAENDE`, `referenzHindernis`), `src/app/portal/[mandant]/website/referenzen/neu/page.tsx` |
+| O-919 | **Soll der Raumbuch-Import Excel-Arbeitsmappen (.xlsx, gegebenenfalls .xls/.ods) direkt lesen — und welche Bibliothek darf dafür fremde Dateien entpacken?** OPS-04 sagt „Excel/CSV". Gebaut ist CSV (UTF-8 und die Windows-1252-CSV eines deutschen Excel); eine Arbeitsmappe wird am Inhalt erkannt und mit dem Weg über „Speichern unter › CSV" abgewiesen (D-665). Die Plattform bringt keine Bibliothek dafür mit, und ein selbstgebauter Leser für ein ZIP mit XML ist genau der halbe Leser, der Formeln und verbundene Zellen übersieht und Erfolg meldet. **Zu entscheiden sind vier Dinge:** (1) ob eine Bibliothek aufgenommen wird und welche (Lizenz, Pflege, Prüfung gegen präparierte ZIP-/XML-Dateien), (2) was mit einer Formelzelle geschieht — berechneten Wert übernehmen oder abweisen, (3) welches Blatt gilt, wenn die Mappe mehrere hat, (4) ob das alte `.xls` aus Altsystemen überhaupt vorkommt. Bis dahin bleibt CSV der Weg, und die Seite sagt es. | OPS-04, D-665, V-171, `src/server/services/raumbuch/tabelle.ts`, `src/app/api/raumbuch-import/route.ts` |
+| O-920 | **Sollen Angebote von Hand (Sicherheit, Bau) eine Kalkulation mit den fünf Kostenblöcken aus OPS-07 bekommen — und wenn ja, woraus entsteht der Lohn?** OPS-07 nennt Lohn, Material, Gerät, Gemeinkosten und Wagnis/Gewinn. Das Angebot der Reinigung entsteht aus dem Raumbuch und rechnet alle fünf (D-668). Ein Angebot von Hand (`angebot/von-hand.ts`, V-005) trägt je Position den Einzelpreis, den ein Mensch einträgt; woraus er entstanden ist, weiss die Plattform nicht, und sie rechnet ihn nicht nach. **Zu entscheiden:** (1) ob Sicherheit und Bau überhaupt eine Kalkulation in der Plattform führen oder ihre Preise weiter ausserhalb bilden; (2) wenn ja, die Grundlage des Lohns — in der Sicherheit etwa Stunden je Posten und Schicht mal Stundenverrechnungssatz, mit welchen Zuschlägen für Nacht, Sonn- und Feiertag; im Bau Einheitspreise je Position des Leistungsverzeichnisses; (3) welche Zuschläge je Bereich gelten (das ist O-16). **Ausgeliefert ist der ehrliche Zustand:** keine Kalkulation, und Maske wie Kalkulationsblatt sagen das mit dieser Nummer (`HAND_ANGEBOT_KALKULATION`). Eine erfundene Formel wäre eine Preisregel, die niemand aufgestellt hat, und ein Preis sähe dann geprüft aus, der es nicht ist. | OPS-07, O-16, D-668, D-671, V-238, `src/server/services/angebot/von-hand.ts`, `src/app/portal/[mandant]/angebote/{neu,[id]/kalkulation}/page.tsx` |
+| O-921 | **Wie wird der Vertragswert eines Auftrags aus einem angenommenen Angebot in Reinigung und Sicherheit berichtigt oder angepasst?** Der Wert eines solchen Auftrags ist `angebot.netto_cent`; die Auftragspflege überschreibt ihn nicht (D-667 Punkt 5), weil sie sonst eine zweite Wahrheit über den Betrag führte, den der Kunde angenommen hat. Im Bau ändert ein Nachtrag nach § 2 VOB/B den Vertrag (0080). **Reinigung und Sicherheit kennen keinen Nachtrag** — ein Tippfehler im Angebot, eine Preisanpassung nach einer Tariferhöhung oder ein geänderter Leistungsumfang hat dort heute keinen Weg in den Auftrag. Drei Wege sind denkbar: (a) eine neue Angebotsfassung und ein neuer Auftrag; (b) eine eigene Vertragsänderung am Auftrag mit Betrag, Grund, Datum und Zustimmung des Kunden, wie der Nachtrag im Bau; (c) eine Berichtigung in der Auftragspflege mit Grund und Protokoll. Und: gilt für eine Preisanpassung derselbe Weg wie für einen Tippfehler? **Ausgeliefert ist der gesperrte Wert mit dem ehrlichen Satz:** die Pflegeseite sagt im Bau „Nachtrag", sonst „noch nicht entschieden (O-921)". Die Antwort ändert `wertAenderungsweg`, nicht ihre Aufrufer. | OPS-05, D-667, D-732, V-239, `src/server/services/auftrag/aendern.ts` (`wertAenderungsweg`), `src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx`, `drizzle/0080` |
+| O-931 | **Wird Material aus einer Ausgabe zum Einstandspreis weiterberechnet oder mit Aufschlag — und wenn mit Aufschlag, mit welchem Satz, je Gesellschaft, je Kunde oder je Vertrag?** Seit V-206 hat eine weiterberechenbare, freigegebene Ausgabe einen Weg auf die Rechnung: eine Materialzeile mit der Ausgabe als Beleg (FIN-07, Quelle `material`, höchstens eine wirksame Zeile je Ausgabe über `quelle_ausgabe_uk`). Welcher PREIS darauf steht, ist eine Kalkulationsregel, die niemand festgelegt hat: ein vorbelegter Einstand wäre die stille Antwort „ohne Aufschlag“, ein vorbelegter Aufschlag eine erfundene Marge. **Bis zur Antwort setzt der Mensch den Einzelpreis selbst**; die Maske zeigt den Einstand (Netto der Ausgabe) daneben nur als Auskunft, und `MATERIAL_PREISREGEL` steht als Platzhalter `offen`. Die Antwort ist eine Preisregel hinter dieser Konstante (und gegebenenfalls ein Feld an Gesellschaft, Kunde oder Abrechnungsvereinbarung), plus ein Test. | FIN-07, V-206, D-699, `src/server/services/finanz/entwurf.ts` (`MATERIAL_PREISREGEL`, `fuegeMaterialPositionHinzu`), `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `drizzle/0107` (`quelle_ausgabe_uk`) |
+| O-932 | **Ist der Fertigstellungsgrad einer anteiligen Festpreis-Abrechnung der GESAMTSTAND der Leistung (bisher Berechnetes wird abgezogen) oder der ZUWACHS seit der letzten Rechnung?** Seit V-206 lässt sich ein Pauschalpreis-Los mit `teilleistung = anteilig` über das Rechnungsblatt abrechnen; der Grad kommt von einem Menschen (O-04: er wird nicht geschätzt). Bis V-207 rechnete jede Rechnung Grad × Festpreis, ohne bisher Berechnetes abzuziehen — 30 % und danach 60 % ergaben 90 % des Festpreises. **Ausgeliefert ist der Gesamtstand** (`anteiligerRest`): die Zeile trägt `anteil(Festpreis, Grad) − Summe der wirksamen Zeilen derselben Vereinbarung`, einmal gerundet über den ganzen Stand, und ein Stand ohne Zuwachs blockiert mit einem Befund. Diese Lesart macht aus einer Verwechslung eine sichtbare Unterberechnung (die Vorschau zeigt das bisher Berechnete), die andere eine stille Doppelberechnung. Eine Schlussrechnung zählt die festgeschriebenen Abschläge ihres Auftrags nicht mit, weil sie sie abzieht (FIN-08, D-700 Nr. 5). Zu bestätigen: (1) Gesamtstand oder Zuwachs; (2) ob eine Abschlagsrechnung den Abschlag als kumulierten Stand mit Abzug der Vorabschläge ausweisen soll (§ 16 VOB/B lässt beides zu) — dann gehört die Aufstellung auf den Beleg und nicht nur in die Vorschau. Die Antwort ändert `anteiligerRest` und den Satz der Maske, nicht ihre Aufrufer. | FIN-01, FIN-08, O-04, V-207, D-700, `src/server/services/finanz/abrechnungsart/festpreis-los.ts` (`anteiligerRest`), `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts` (`abrFertigstellung`) |
+| O-933 | **Darf der Leistungsort (Objekt) einer Rechnung einem ANDEREN Kunden zugeordnet sein als dem Rechnungsempfänger — oder muss `objekt.kunde_id` dem Kunden der Rechnung entsprechen?** Übliche Fälle, in denen beides auseinanderfällt: eine Hausverwaltung empfängt die Rechnung für das Haus eines Eigentümers, ein Generalunternehmer für die Baustelle seines Bauherrn, eine Muttergesellschaft für die Niederlassung der Tochter. Bis V-209 prüfte die Plattform beim Leistungsort gar nichts, nicht einmal, ob der Mensch das Objekt sehen darf. **Ausgeliefert ist:** geprüft wird die Sichtbarkeit (`objekt_passt_nicht`, wie beim Auftrag D-698 Nr. 2); die Zugehörigkeit zum Kunden NICHT (`OBJEKT_KUNDE_REGEL = offen`). Die Masken ordnen die Objekte nach Kunden bzw. „dieses Kunden" zuerst, damit eine fremde Wahl sichtbar ist. Zu entscheiden: (1) Sperre, Warnung in der Vorabprüfung oder frei; (2) falls frei, ob der Beleg den abweichenden Leistungsort mit dem Namen seines Kunden ausweisen soll. Die Antwort ändert `pruefeObjektZuordnung` und die Konstante, nicht ihre Aufrufer. | FIN-04, V-209, D-702, `src/server/services/finanz/rechnung.ts` (`OBJEKT_KUNDE_REGEL`, `pruefeObjektZuordnung`), `src/app/portal/[mandant]/finanzen/rechnungen/{neu,[id]}/page.tsx` |
+| O-934 | **Darf eine Mahnung hinausgehen, solange im Briefkopf Pflichtangaben fehlen — und welche gelten für eine Gesellschaft, die keine GmbH ist?** Seit V-213 trägt das Mahnschreiben Absender, Empfängeranschrift und die Angaben aus `mandant` (Firma, Anschrift, Registergericht, Registernummer, Geschäftsführung, USt-IdNr./Steuernummer, Bankverbindung) — dieselben wie das Angebotsblatt. Fehlt eine davon in den Unternehmensdaten, fehlt sie im Brief, und das Mahnungsblatt sagt, welche (`fehlendeBriefkopfangaben`). **Gesperrt wird der Versand nicht:** ob ein unvollständiger Briefkopf den Versand verhindern soll (§ 35a GmbHG verlangt Rechtsform, Sitz, Registergericht, Registernummer und alle Geschäftsführer auf Geschäftsbriefen; die Folge eines Verstosses ist ein Zwangsgeld, nicht die Unwirksamkeit der Mahnung), und welche Angaben für CSE Operations gelten, solange O-01 offen ist, ist eine Entscheidung der Geschäftsführung und keine, die eine Prüfung im Code nebenbei trifft. Die Antwort ändert die Freigabe (`gibFrei`) oder den Versand (`dokumentiereVersand`), nicht das Schreiben. | FIN-15, § 35a GmbHG, O-01, V-213, D-705, `services/finanz/mahnung/index.ts` |
+| O-925 | **Wen darf eine Beschäftigte beim Schichttausch als Tauschpartner sehen und wählen — und auf welcher Grundlage?** Die Systemart `schichttausch` (0074) verlangt Schicht UND Tauschpartner (`erfordert_tauschpartner`, Auslöser `antrag_pflichtfelder`). Die Schicht ist eigene Sache der Kraft (EMP-02) und wird seit V-187 angeboten: ihre kommenden, nicht abgesagten Einteilungen, geprüft im Dienst. Der Partner ist dagegen eine Liste ANDERER Beschäftigter, und EMP-13 sagt „Employees never see … other employees' data". **Zu entscheiden:** (1) der Kreis — alle aktiven Beschäftigten derselben Gesellschaft, nur die am selben Objekt oder Revier Eingesetzten, nur die mit derselben Qualifikation (SEC-04), oder gar keine Liste und der Partner wird von der Planung gesucht; (2) die Namensform — Vor- und Nachname, Vorname und Initial, Personalnummer; (3) die Grundlage — reicht § 26 BDSG, braucht es eine Einwilligung oder eine Betriebsvereinbarung (hängt mit O-06 zusammen). **Ausgeliefert ist die vorsichtige Lesart:** `TAUSCHPARTNER_QUELLE` ist der Platzhalter `TAUSCHPARTNER_NICHT_FESTGELEGT`, das Formular führt den Schichttausch nicht in der Auswahl, sondern sagt in vier Sprachen, dass er dort noch nicht beantragt werden kann und die Planung ihn aufnimmt; der Dienst nimmt keinen Partner an, auch keinen aus einer nachgebauten Anfrage. Die Antwort ersetzt eine Zeile (die Quelle) und liefert eine Lesefunktion — Formular, Dienst und Prüfungen stehen. Die GENEHMIGUNG eines Tauschs ist O-613. | EMP-10, EMP-13, O-06, O-613, D-681, V-187, `src/server/services/mitarbeiter/tausch.ts` (`TAUSCHPARTNER_QUELLE`), `src/server/services/abwesenheit/antrag.ts` (`reicheAntragEin`), `src/app/portal/mein/antraege/neu/page.tsx` |
+| O-926 | **Wo endet ein Arbeitstag im Sinne der §§ 3 und 5 ArbZG — am Berliner Kalendertag oder 24 Stunden nach Arbeitsbeginn (individueller Werktag) —, und wie wird ein geteilter Dienst über Mitternacht behandelt?** § 5 Abs. 1 verlangt elf Stunden Ruhe „nach Beendigung der täglichen Arbeitszeit"; die Unterbrechung eines geteilten Dienstes (Früh- und Abendreinigung) ist keine Ruhezeit. Das folgt aus dem Gesetz und ist seit V-190 gebaut. Offen ist die GRENZE des Arbeitstags: nach der Kalendertag-Lesart beginnt um 00:00 Berliner Zeit ein neuer, nach der Werktag-Lesart 24 Stunden nach dem ersten Arbeitsbeginn. Die Lesarten gehen auseinander bei (a) einem geteilten Dienst über Mitternacht (22:00–23:30 und 00:30–06:00 — nach der Kalendertag-Lesart zwei Arbeitstage mit einer Stunde Ruhe, nach der Werktag-Lesart einer), (b) einer Kette kurzer Pausen über mehr als 24 Stunden, (c) der klassischen Folge 14:00–23:00 und 07:00 am nächsten Tag, die nach der reinen Werktag-Lesart gar keine Ruhezeit auslöste. Dieselbe Frage trägt die § 3-Summe, die heute je Berliner Kalendertag des Schichtbeginns gebildet und in jeder Begründung so benannt wird. **Ausgeliefert ist der vorsichtige Platzhalter** `ARBEITSTAG_BEIDE_LESARTEN`: zwei Blöcke gelten nur als EIN Arbeitstag, wenn beide Lesarten es sagen (gleicher Kalendertag UND weniger als 24 Stunden nach Beginn des Arbeitstags); sonst misst die Prüfung wie bisher und meldet einen Verstoss, dessen Begründung die Lesart und diese Nummer nennt. Verschwiegen wird nur, was nach keiner Lesart ein Verstoss ist. Die Antwort ersetzt die `Arbeitstagsgrenze` (und gegebenenfalls die § 3-Zuordnung), nicht die Rechnung. Hängt mit O-18 (Zehn-Stunden-Ausnahme) und O-50 (strengere Tarifregeln) zusammen. | TIM-05, TIM-06, TIM-14, D-09, D-684, V-190, O-18, O-50, `src/server/services/zeit/arbzg.ts` (`Arbeitstagsgrenze`, `ARBEITSTAG_BEIDE_LESARTEN`) |
+| O-927 | **Welche Leistungszeile darf die Zeit einer Schicht tragen — über die Wahl eines Menschen beim Planen hinaus?** Seit V-191 setzt ein Mensch die Leistungszeile an Einzelschicht, Turnus und Posten; der Zeiteintrag erbt sie beim Erfassen (`z_erben`, 0034) und hält sie danach fest (`z_unveraenderlich`). Jede der vier Fragen entscheidet, bei welchem Kunden eine geleistete Stunde abgerechnet wird, und keine davon beantwortet SPEC oder das Datenmodell: **(1) Nachträgliche Zuordnung.** Darf Zeit, die schon OHNE Leistungszeile erfasst ist (`zeiteintrag_ohne_auftrag`, Ursache `einsatz_ohne_leistung`), einer Leistungszeile zugeordnet werden — und bis wann: vor der Freigabe, nach der Freigabe, nach der Abrechnung, in einem gesperrten Monat (dort verlangt jede Korrektur eine Gegenbuchung, O-891)? Heute übernimmt eine Korrektur die Zeile der alten Fassung, und die Zeit bleibt ohne Auftrag; für den Abruf stellt O-708 dieselbe Frage. **(2) Der Anker des Reviers.** `revier.auftrag_leistung_id` (0029) liest niemand; der Generator nimmt den des Turnus. Soll ein Turnus ohne eigene Zeile die seines Reviers übernehmen, und welche gilt, wenn beide gesetzt sind und auseinandergehen? **(3) Der Kunde.** Muss der Auftrag der gewählten Zeile dem Kunden des Objekts (Reviers, Postens) gehören, an dem die Schicht stattfindet? Die Datenbank prüft nur, dass Zeile und Auftrag zusammengehören (`einsatz_leistung_fk`); seit V-192 nennt die Auswahl Kunde und Objekt jeder Zeile, verhindert aber nichts — eine Hausverwaltung, die für einen Eigentümer bestellt, wäre ein Fall, in dem beide auseinandergehen dürfen. **(4) Der Zustand des Auftrags.** In welchen Zuständen nimmt ein Auftrag neue Zeit an? `storniert` nie (einwegig, 0389), `abgeschlossen` nicht, solange O-734 offen ist. Offen sind `angelegt` (ein neuer Auftrag steht dort, bis jemand ihn aktiviert) und `pausiert`. Der Platzhalter `ANKERBARE_AUFTRAGSZUSTAENDE` nimmt `aktiv` und `pausiert` — dieselbe Menge wie die Auftragsauswahl der Einzelschicht (V-013); die Antwort ersetzt nur ihn. | TIM-12, FIN-07, O-708, O-734, O-891, D-685, D-686, V-191, V-192, `src/server/services/dienstplan/leistungsanker.ts` (`ANKERBARE_AUFTRAGSZUSTAENDE`), `drizzle/0029`, `drizzle/0034`, `drizzle/0050` |
+| O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
+| O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
+| O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
+| O-890 | **Muss ein von der Verwaltung geschlossener Zeiteintrag gegengezeichnet werden, bevor er abrechenbar ist?** `zeiteintrag_status` führt seit `0034` den Wert `offen_nacherfassung`, und **nichts im Baum schreibt ihn**. Er wäre der ehrliche Zustand für „von der Planung gesetzt, aber noch nicht bestätigt" — nur beschreibt kein Dokument, **wer** ihn wieder wegnimmt und was bis dahin gilt: zählt die Stunde ins Stundenkonto? Steht sie im Monatsnachweis? Darf sie abgerechnet werden? Ein Eintrag in einem Zustand, aus dem kein Weg herausführt, ist schlimmer als keiner. Gebaut ist deshalb der Weg, der am wenigsten erfindet: `schliesseLaufendenEintrag` schliesst nach `abgeschlossen`, und die Spur bleibt vollständig (`quelle_ende = 'planer_entscheidung'`, `nacherfasst = true`, `behauptet_ende`, Begründung in `notiz`). Das Recht `zeit.nacherfassung_pruefen` existiert bereits — sobald die Antwort da ist, ist die Umkehr **eine Zeile** im Dienst plus ein Filter auf der Prüfseite. | TIM-11, V-064, `drizzle/0034`, `src/server/services/zeit/laufender-eintrag.ts` |
+| O-889 | **Soll eine Benachrichtigung in der Sprache der Empfängerin entstehen (`person.sprache`) oder in der Sprache der Gesellschaft, die sie versendet?** `benachrichtigung` trägt **gespeicherten** Text: Titel und Text entstehen beim Erzeugen und stehen danach fest — eine Meldung, deren Sprache sich später ändert, gibt es nicht. **Ausgeliefert ist seit V-102 die Sprache der EMPFÄNGERIN**, und der Grund ist der Zweck der Meldung: sie soll gelesen werden. Eine Ablaufwarnung kündigt eine Sperre nach § 34a GewO an; wer sie nicht lesen kann, erscheint zur Schicht und wird weggeschickt. Betroffen sind **genau die drei Arten, die in `/portal/mein` landen** (`nachweis.ablauf_60/30/7`, `zeit.einwand_entschieden`, `dienstplan.plan_veroeffentlicht`); alle übrigen bleiben deutsch, weil das interne Portal deutsch ist und seine Begriffe juristische Bedeutung tragen — `tests/kern/benachrichtigung-sprachen.test.ts` §5 hält diesen Umfang fest. **Eingesetzter Text wird NICHT übersetzt**: die Bezeichnung einer Qualifikation, die Begründung der Planung, der Name der Gesellschaft — sie zu übersetzen hiesse, sie zu erfinden. Übersetzt wird dagegen, was die Plattform selbst formuliert, bis hin zur Fügung zwischen zwei Kalendertagen. **Offen bleibt die Bestätigung**: sagt der Auftraggeber, es solle die Sprache der Gesellschaft sein, ist die Änderung eine Zeile je Erzeuger — die Sprache steht als `sprache` im `BenachrichtigungsKontext` und nicht in den Texten. | NOT-01, NOT-02, SPEC §10, D-419, V-102, `src/lib/i18n/benachrichtigung.ts`, `src/server/benachrichtigung/registry.ts` |
+| O-888 | **Kodiert die Tausenderstelle der Objektnummer die Gesellschaft?** Der Bestand legt es nahe: die Reinigung führt `OBJ-1001 … OBJ-1003`, SSE Security `OBJ-2001`, REALTIME Bau `OBJ-3001` (`src/server/db/seed/operations.ts`). Ist das eine Hausregel oder ein Zufall der Demo-Daten? **Die Plattform erfindet dazu nichts**: `legeObjektAn` zählt aus dem Bestand DIESER Gesellschaft weiter und übernimmt damit von selbst, was dort schon gilt — ohne die Regel je auszusprechen. Nur der allererste Fall, eine Gesellschaft ohne ein einziges Objekt, hat keinen Bestand; dort steht `OBJ-1001` als **klar bezeichneter Platzhalter**. Das Feld ist im Formular von Hand überschreibbar, damit niemand an der Vorgabe hängenbleibt. Sagt der Auftraggeber eine Maske zu, ist die Änderung **eine Zeile** im Dienst. | OPS-01, V-001, `src/server/services/objekt/anlegen.ts` |
+
+
+### D-619 — Ein Objekt entsteht in der Anwendung, nicht im Seed
+
+**Der Befund.** Bis hierher war `insert into objekt` an **genau einer** Stelle
+im Baum zu finden: `src/server/db/seed/operations.ts:459`. Die Plattform konnte
+Objekte zeigen, filtern, bebuchen, kalkulieren und in Dienstpläne einteilen —
+aber kein einziges erfassen. `/portal/[mandant]/objekte/neu` war ein Platzhalter
+mit einer ehrlichen Begründung (ohne die Datei hätte Next.js die Nachbarroute
+`[id]` gegriffen und `neu` in ein `$1::uuid` gereicht: **500** statt „noch nicht
+da"). Die Begründung stimmte; die Lücke blieb.
+
+**Die Entscheidung.** Ein Dienst `objekt/anlegen` mit drei Funktionen —
+anlegen, ändern, archivieren — und **eine** Route `POST /api/objekt`, die
+zwischen ihnen über das Feld `aktion` unterscheidet. Drei Routen wären drei
+Stellen, an denen `objekt.schreiben` steht, und die dritte ist die, die beim
+nächsten Umbau vergessen wird.
+
+**Drei Festlegungen, die keine Erfindung sind.**
+
+1. **Die Anschrift ist Pflicht.** Nicht aus Formularstrenge: `strasse`, `plz`
+   und `ort` sind seit `drizzle/0021` `NOT NULL`, und der Grund steht dort wie
+   hier — eine Schicht, die auf ein Objekt ohne Anschrift eingeteilt wird,
+   schickt jemanden an keinen Ort.
+2. **Der Kunde ist freiwillig.** `kunde_id` ist seit je nullbar, mit
+   ausdrücklicher Begründung in der Migration: ein Objekt ist ein ORT, die
+   kaufmännische Beziehung hängt am Auftrag. Ein Pflichtfeld hier zwänge den
+   Erfasser, sich einen Kunden auszudenken — und eine erfundene Zuordnung ist
+   schlimmer als keine.
+3. **Die Nummer wird im `insert` gebildet**, wie die Kundennummer in
+   `crm/anlegen.ts`. Liefen Zählen und Einfügen getrennt, bekämen zwei
+   gleichzeitige Anlagen dieselbe Zahl, und die zweite fiele auf
+   `objekt_nummer_uk` — mit einem Fehler, den der Mensch davor nicht versteht.
+   Die Prüfung dafür ist nicht „sie ist eindeutig", sondern „sie ist es auch
+   unter Gleichzeitigkeit" (`tests/isolation/objekt-anlegen.test.ts` §1).
+
+**Die Objektnummer ist nicht änderbar.** Sie steht auf Schlüsselschildern, in
+Dienstanweisungen und auf jedem unterschriebenen Leistungsnachweis. Sie
+nachträglich zu ändern machte all diese Papiere still falsch — und zwar ohne
+Spur, weil kein Beleg die alte Nummer mitführt. Das Formular bietet sie deshalb
+nur beim Anlegen an.
+
+### D-620 — Archiviert wird, gelöscht nicht — und nicht unter laufenden Einsätzen
+
+Invariante 8 nennt Finanzen, Zeiterfassung und Audit. Ein Objekt steht in
+keiner der drei Domänen, und trotzdem gilt hier dieselbe Regel: an einem Objekt
+hängen Leistungsnachweise, Wachbücher und Zeiteinträge, und ein `delete` machte
+aus jedem davon eine Zeile ohne Ort.
+
+**Die Nummer wird beim Archivieren frei.** `objekt_nummer_uk` ist ein
+Teilindex (`where archiviert_am is null`), also darf dieselbe Nummer danach neu
+vergeben werden. Das ist beabsichtigt und keine Nachlässigkeit: ein verkauftes
+Gebäude gibt seine Nummer ab, und das Schlüsselschild, das noch existiert,
+gehört zum archivierten Objekt — auffindbar, nur nicht mehr in den Listen.
+
+**Ein Objekt mit Einsätzen in der Zukunft wird nicht archiviert.** Der Dienst
+zählt sie und weist ab, mit der Zahl im Satz. Sonst verschwände der Ort unter
+den Füßen einer Kraft, die morgen früh dorthin fährt — und die Plattform hätte
+ihr das ohne ein Wort angetan.
+
+### D-621 — Das Vollständigkeitsregister ist ein Register, keine Liste
+
+`docs/VOLLSTAENDIGKEIT.md` führt 136 belegte Lücken unter Nummern `V-NNN`. Drei
+Regeln machen es zu einem Register statt zu einer Erinnerung:
+
+1. **Eine Nummer wird nie wiederverwendet.**
+2. **Erledigtes wird nicht gelöscht, sondern umgestellt** — mit dem Commit
+   daneben. Ein Register, aus dem man Zeilen entfernt, ist nach drei Wochen eine
+   Liste der Dinge, an die sich jemand erinnert hat.
+3. **Jede Zeile trägt Datei und Zeile.** Ein Befund ohne Fundstelle ist eine
+   Meinung, und Meinungen altern schlechter als Code.
+
+Widerlegte Beobachtungen stehen in §9 des Registers, nicht im Papierkorb —
+damit sie nicht in drei Monaten erneut als Befund auftauchen.
+
+
+### D-622 — Die Kraft antwortet auf ihre Einteilung; eine Absage gilt
+
+**Der Befund, der das gebracht hat.** `zuordnung_status` kennt seit
+`drizzle/0028` den Wert `zugesagt`. **Siebzehn Stellen lesen ihn** — die
+Besetzungslücke, der Nachtwächter, der Kalender, die Gruppensicht, die
+Agentenwerkzeuge, das Arbeiterportal. **Keine einzige schrieb ihn.** Der
+einzige `UPDATE` auf `einsatz_zuordnung.status` war `sageZuordnungAb` — das
+Büro.
+
+Das war keine fehlende Bequemlichkeit, sondern eine **falsche Zahl an einer
+Stelle, an der sie weh tut**: `besetzungsluecke.ts` und der Wächter
+`dienstplan.morgen_unbesetzt` zählen ausdrücklich Zusagen und nicht
+Einteilungen („Gezählt werden ZUSAGEN, nicht Einteilungen"). Ohne Schreiber
+meldete die Besetzungswarnung für **jede** Schicht null Zusagen — sie warnte
+immer, also warnte sie nie.
+
+**Die Entscheidung des Auftraggebers: eine Absage lässt sich nicht
+zurücknehmen.** Vorgelegt wurden drei Wege; gewählt ist der erste, und die
+Begründung ist betrieblich, nicht technisch:
+
+> Sagt eine Kraft ab, besetzt das Büro den Platz nach. Nähme sie die Absage
+> zwei Stunden später mit einem Knopfdruck zurück, stünden **vier** Menschen
+> auf einer Schicht für drei — und einer wird vor Ort weggeschickt. Der Weg
+> zurück läuft über das Büro, das als einziges weiß, ob der Platz noch frei
+> ist.
+
+Daraus folgen die Zustandsübergänge: `zusagen` nur aus `geplant`; `absagen`
+aus `geplant` **und** aus `zugesagt` (wer zusagt und dann krank wird, muss
+absagen können). `ersetzt` und `nicht_erschienen` sind Feststellungen des
+Büros und keine Zustände, aus denen die Kraft handelt.
+
+**Die Absage der Kraft setzt `entfernt_am` NICHT — die des Büros schon.**
+`sageZuordnungAb` setzt beides und verbrennt damit die Check-in-Marken; das
+ist richtig für das Büro, das entscheidet, wer im Plan steht. Die Kraft
+entscheidet das nicht: ihre Absage ist ein **Signal**. Die Zeile bleibt im
+Plan, `besetzt_anzahl` bleibt unverändert (der Zähler zählt `entfernt_am is
+null`, gleich welchen Status), und die Lücke erscheint genau dort, wo sie
+hingehört — in der Zahl der **Zusagen**, die gegen `min_besetzung` gehalten
+wird.
+
+**Kein Recht, und das ist die Entscheidung.** `dienstplan.schreiben` ist das
+Recht, den Plan zu **machen**; wer es einer Reinigungskraft gäbe, gäbe ihr den
+Plan. Gemessen an `pg_policy` hat das Arbeiterportal über `cse_app` auch gar
+keinen Schreibweg auf `einsatz_zuordnung`: `t_selbst_m1` gibt nur `r`,
+`t_mandant` verlangt das Schreibrecht, `p_ma_decke` deckelt restriktiv auf die
+eigene Anstellung. Der Weg läuft deshalb über `app.schicht_zusagen` /
+`app.schicht_absagen` (`drizzle/0374`) — `SECURITY DEFINER`, und geprüft
+werden **Portal** (K-04) und **Personenzugehörigkeit**, nicht ein Modulrecht
+(K-19). Dasselbe Muster wie die Stempeluhr aus `0373`.
+
+**Der Grund einer Absage ist Pflicht** — nicht aus Bürokratie: die Disposition
+muss um 05:40 zwischen „krank" und „Bus verpasst" unterscheiden können; das
+eine besetzt sie nach, das andere ruft sie an. `ez_absage_begruendet` erzwingt
+ihn ohnehin; die Prüfung in der Funktion sorgt dafür, dass der Mensch davor
+einen Satz liest und keinen Constraint-Namen.
+
+**Zwei Rechte musste `cse_definer` dazubekommen, und das zweite ist die
+Lektion.** `update` auf `einsatz_zuordnung` war erwartbar. Dass der Auslöser
+`kern.einsatz_besetzung_zaehlen` als `SECURITY INVOKER` läuft und damit
+**`einsatz` unter demselben Benutzer** schreibt, war es nicht — der Fehler
+(„permission denied for table einsatz") fiel erst in der Isolationssuite, nach
+dem erfolgreichen `UPDATE`. Eine Definer-Funktion braucht Rechte nicht nur auf
+die Tabelle, die sie nennt, sondern auf alles, was ihre Auslöser anfassen.
+Das Recht auf `einsatz` ist deshalb **spaltenweise** vergeben
+(`grant update (besetzt_anzahl)`): ein blankes `grant update` hätte jeder
+künftigen Definer-Funktion still den ganzen Dienstplan geöffnet.
 
 ---
 
@@ -5195,7 +5372,7 @@ erfundene.
 | # | Question | Blocks |
 |---|---|---|
 | O-350 | **Wie lange ist ein Angebot bindend, und wird `gueltig_bis` beim Versand aus dieser Frist gesetzt?** Der Seed lässt `angebot.gueltig_bis` leer. Ein geratenes Datum stünde auf einem Dokument, das der Kunde als Zusage liest (§ 145 BGB), und der Ablaufbericht (`angebot_ablauf_idx`) mahnte danach zu einem Termin, den niemand vereinbart hat. Die Antwort ist eine Frist je Gesellschaft oder je Angebotsart und eine Zeile im Versanddienst. | OPS-08, `angebot.gueltig_bis`, `versendeAngebot` |
-| O-351 | **Nach welchem Schlüssel werden Bauprojekte nummeriert — ein eigener Nummernkreis je Gesellschaft, die Auftragsnummer oder eine Bauvorhabenskennung des Auftraggebers?** `projekt.nummer` hat keinen Kreis hinter sich. Der Seed setzt die AUFTRAGSNUMMER ein, weil das Projekt der Auftrag ist (§7.1, `projekt_auftrag_uk`) und diese Wahl am wenigsten erfindet; ein ausgedachtes Format „BV-2026-001" sähe dagegen aus wie ein bestätigter Nummernkreis und wäre keiner. | BAU-01, FIN-03, `projekt.nummer`, `nummernkreis` |
+| O-351 | **Nach welchem Schlüssel werden Bauprojekte nummeriert — ein eigener Nummernkreis je Gesellschaft, die Auftragsnummer oder eine Bauvorhabenskennung des Auftraggebers?** `projekt.nummer` hat keinen Kreis hinter sich. Der Seed setzt die AUFTRAGSNUMMER ein, weil das Projekt der Auftrag ist (§7.1, `projekt_auftrag_uk`) und diese Wahl am wenigsten erfindet; ein ausgedachtes Format „BV-2026-001" sähe dagegen aus wie ein bestätigter Nummernkreis und wäre keiner. **Seit V-003 gilt dieselbe Wahl auch im Anlegeweg** (`services/bau/projekt.ts`): das Formular bietet kein Nummernfeld an, die Nummer wird aus dem gewählten Auftrag gelesen. Eine Antwort ändert damit genau eine Zeile in einer Funktion — nicht die Bestandsdaten. | BAU-01, FIN-03, `projekt.nummer`, `nummernkreis` |
 
 ## Entschieden beim Phase-5-Abschluss — die Stempelfläche, ihre Warteschlange und die Medienroute
 
@@ -8637,6 +8814,13 @@ ist keine gesetzliche Vorgabe und wird nicht erfunden.
 **Kontenrahmen lesend.** `/buchhaltung/konten` zeigt Kontenrahmen, Sach-
 kontenlänge, Wirtschaftsjahr und jede Zuordnung mit Platzhalterstand — und
 keinen Editor: welche Zuordnung gilt, bestätigt der Steuerberater (O-05).
+
+**Nachtrag (V-215, D-706):** Aufwand sind die freigegebenen und gebuchten
+Eingangsrechnungen UND die freigegebenen und gebuchten Betriebsausgaben
+(`ausgabe`, nach Belegdatum, netto). Als D-484 entstand, waren Ausgaben nicht
+erfassbar; seit V-011 werden sie gebucht, und ohne sie war das Ergebnis um
+jede Tankquittung zu hoch. Die Ausnahmen oben (Personal, Abschreibung,
+Abgrenzung, Steuern) bleiben.
 
 ### D-485 · Z3-Datenträgerüberlassung und Verfahrensdokumentation aus der lebenden Konfiguration (PR 66)
 
@@ -14329,6 +14513,385 @@ menschliche Anfang.
 
 ---
 
+### D-612 · `leitung` bekommt die Abrechnungsfreigabe anlegbar, nicht vorgegeben
+
+**Die Frage stellte sich beim Umsetzen von D-611** und ist keine Ableitung
+daraus: D-611 sagt, WER freigibt („die Stunden gehen an den zuständigen
+Admin"), und beantwortet damit nicht, ob eine Objekt- oder Bereichsleitung es
+AUCH dürfen soll. Der Entwicklungsplan schlug vor, `leitung` ganz
+auszuschließen. Der Mandant hat den Mittelweg gewählt.
+
+**Entschieden: `gebunden` für `super_admin` und `admin`, `bindbar` für
+`leitung`.** In der Matrix (§12.4) heißt das `✔ | ✔ | ○ | — | —` — dieselbe
+Form, die `zeit.exportieren` und `zahlung.schreiben` schon tragen.
+
+**Warum nicht vorgegeben.** Die Freigabe zur Abrechnung ist ein
+kaufmännischer Akt und kein Schichtakt: was hier freigegeben wird, fließt in
+das Stundenkonto (EMP-04) und in eine Rechnung (FIN-07) — beides trägt die
+Gesellschaft, nicht die Schicht. Eine Vorgabe für alle vier Gesellschaften
+wäre eine Entscheidung, die keine von ihnen getroffen hat.
+
+**Warum nicht ausgeschlossen.** In der Gebäudereinigung und im Objektschutz
+ist die Objektleitung oft die einzige Person, die weiß, ob eine Schicht so
+gelaufen ist, wie sie dasteht. Ihr das Recht bauartbedingt zu verwehren
+hieße, die Freigabe zu einer Unterschrift ohne Kenntnis zu machen — und
+Sichtbarkeit ist genau das, was D-611 mit dem wöchentlichen Takt sichern
+will.
+
+**Der Unterschied zu einer erfundenen Regel:** `○` erfindet nichts, sondern
+verlegt die Entscheidung dorthin, wo sie hingehört — in die
+Rechte-Oberfläche jeder Gesellschaft, ausdrücklich und sichtbar. Wer sie
+nicht trifft, hat sie nicht getroffen: ohne Bindung antwortet die Seite einer
+`leitung` weiterhin mit 404 (AUT-06).
+
+---
+
+### D-613 · Der Rückweg ist eine Regel der Plattform, kein Baustein eines Portals
+
+**Der Befund kam vom Mandanten und war mechanisch nachweisbar:** „viele
+Admin-Optionen öffnen eine neue Seite ohne Rückweg", und „alles wirkt
+versteckt".
+
+Gemessen am 21.09. — und die Zahl musste **viermal** korrigiert werden, was
+zur Entscheidung gehört:
+
+| Fläche | Detailseiten | mit Rückweg | **ohne** |
+|---|---|---|---|
+| `portal/[mandant]` | 278 | 84 | **194** |
+| `portal/gruppe` | 26 | 0 | **26** |
+| `portal/mein` | 26 | 13 | **13** |
+| `portal/kunde` | 20 | 8 | **12** |
+| **gesamt** | **350** | **105** | **245** |
+
+Die drei Fehlmessungen davor: `grep "Zurueck"` zählte das Wort in Kommentaren
+mit (`zurückziehen`); `<Zurueck` sah nur die Komponente und nicht den
+handgebauten `← {t.zeiten}`; und `<Link` je Seitendatei sah keine Hülle. Jede
+Fassung war zu hoch, und jede hätte zu Arbeit geführt, die schon getan war —
+im Arbeiterportal standen die Rückwege bereits auf 13 von 13 Unterseiten, und
+ein automatischer Lauf hätte sie verdoppelt.
+
+**Die Ursache war kein fehlender Entwurf.** Die Komponente stand seit langem
+in `src/app/portal/kunde/bausteine.tsx:197` — sauber gebaut, mit
+`aria-label`, Pfeil an fester Stelle, Tokens aus dem Thema. Sie war nur
+**unbenutzbar ausserhalb ihres Portals**, weil ihr `ziel` auf neun feste
+Kundenpfade typisiert war:
+
+```ts
+ziel: '/portal/kunde/nachrichten' | '/portal/kunde/reklamationen' | …
+```
+
+**Diese Enge sah nach einem Versehen aus und war keines.** Die Plattform
+fährt `typedRoutes: true` (`next.config.ts:7`) — `Link` nimmt nur einen Pfad,
+den Next als Route kennt, und die Aufzählung war die Antwort darauf mit den
+Mitteln einer Datei, die neun Ziele kennt. Der Versuch, sie schlicht durch
+`string` zu ersetzen, kam durch `pnpm typecheck` ohne eine Meldung und brach
+in `pnpm build` (`Type 'string' is not assignable to type 'UrlObject |
+RouteImpl<string>'`). Richtig ist `Route` aus `next`, wie
+`components/ui/Zustandsseite.tsx:68` es schon tut: dieselbe Zusage ohne die
+Liste.
+
+**Die Lehre gehoert zur Entscheidung**, weil sie sich wiederholen wird: wer
+an einem `href` etwas lockert, hat es erst bewiesen, wenn `pnpm build`
+gelaufen ist — `tsc --noEmit` sieht die Routentypen nicht.
+
+307 Verwaltungsseiten standen ohne Rückweg da — und 142 von ihnen liegen drei
+Ebenen oder tiefer, während die Navigation nur auf 26 Wurzeln führt.
+
+**Der eigentliche Befund ist nicht die Zahl, sondern die Uneinheitlichkeit.**
+Es gibt DREI Bauarten für dieselbe Sache: die Komponente `<Zurueck>` (nur im
+Kundenportal), einen handgebauten `← {t.zeiten}` mit eigenen Klassen
+(Arbeiterportal und Teile der Verwaltung), und auf 245 Seiten gar nichts.
+Drei Bauarten heissen drei Stellen, an denen eine Änderung hängenbleibt —
+genau das, was DESIGN §12 mit „no component invented ad hoc" meint.
+
+**Entschieden: der Rückweg gehört nach `DESIGN.md` §5 und nach
+`src/components/portal/`, nicht neben die Seiten eines Portals.**
+
+**Warum die Liste und nie `history.back()`.** Zwei Menschen erreichen
+`personal/anstellungen/[id]` auf verschiedenen Wegen; das Einzige, was sie
+teilen, ist der Ort, an dem der Datensatz **wohnt**. Ein Rückweg, der vom
+Anreiseweg abhängt, schickt denselben Knopf an zwei Ziele, und keines davon
+ist vorhersagbar. Dazu kommt das Praktische: nach einem Formular-POST fragt
+die Verlaufstaste neu, nach einer Weiterleitung landet sie zwei Seiten zu
+hoch, und in einem auf den Startbildschirm gelegten Fenster gibt es sie gar
+nicht.
+
+**Auf `/auth` trägt ihn die Hülle, nicht die Seite — und genau daran lag
+der gemeldete Fehler.** `AuthSchale` rendert `← CSE Gruppe` als erstes
+Element; neun von zwölf Anmeldeseiten haben den Rückweg dadurch immer gehabt.
+**Die beiden Mitarbeiterseiten hatten ihn nicht**, weil sie ein eigenes
+`<main>` mit denselben Klassen rendern — eine Kopie der Hülle ohne ihren
+Kopf. Die Verwaltung kam zurück, die Arbeiterin nicht.
+
+Mit ihnen fehlte auch der Schrittzähler, den `AuthSchale` ausdrücklich
+begründet: wer weiss, dass noch ein Schritt kommt, bricht beim zweiten nicht
+ab. Beide Seiten rendern jetzt durch die Hülle.
+
+**Eine Randnotiz zur Messung, weil sie sich wiederholen wird.** Der erste
+Befund lautete „neun von zwölf Anmeldeseiten ohne Weg hinaus" und war falsch:
+gezählt wurde `<Link>` je Seitendatei, während `/auth` `<a href>` benutzt —
+und vor allem, während eine Hülle nicht in der Datei steht, die sie umgibt.
+**Wer Abdeckung zählt, muss die Hülle mitzählen.** Für `portal/[mandant]`
+wurde das danach gegengeprüft: `PortalShell` und `PortalRahmen` tragen keinen
+Rückweg zur Liste, die 2 von 309 stehen.
+
+**Und eine Wache dazu**, nach dem Muster der `seite-ohne-uebersetzung`-Klinke:
+eine neue Detailseite ohne Rückweg ist ein roter Build. Ohne sie steht diese
+Entscheidung in einem Dokument und verfällt in dem Tempo, in dem Seiten
+dazukommen — genau so, wie sie beim ersten Mal verfallen ist.
+
+---
+### D-614 · Eine Korrektur der Arbeitszeit geht nie ohne Nachricht hinaus
+
+**Der Mandant hat es wörtlich verlangt:** „التعديل مع رسالة للموظف بتكون
+ليعرف ليش هيك صار" — die Änderung mit einer Nachricht an den Mitarbeiter,
+damit er weiss, warum das so geschah.
+
+**Der Befund dazu.** `/portal/[mandant]/zeiten/[id]/korrektur` verlangt Art,
+Grund und Begründung als Pflichtfelder — sorgfältig gebaut. Der Dienst
+schrieb sie sauber in `zeiteintrag_korrektur` und **schwieg**: 282 Zeilen
+ohne eine einzige Erwähnung von `nachricht`. Wer seine Stunden nicht zufällig
+nachsah, erfuhr von der Änderung nie.
+
+**Entschieden: die Nachricht gehört in dieselbe Transaktion wie die
+Korrektur.** Nicht daneben, nicht als Nachlauf, nicht als Auftrag an einen
+Job. Eine Korrektur, deren Nachricht scheitert, wäre wieder genau der
+Zustand, den diese Entscheidung behebt — nur diesmal mit dem guten Gewissen,
+es versucht zu haben.
+
+**Die Sprache ist die der Mitarbeiterin** (`person.sprache`, 0165), nicht die
+des Planers. Die Korrektur ändert eine Zahl, aus der am Monatsende Geld wird;
+ein deutscher Satz an eine Reinigungskraft, die Arabisch eingestellt hat, ist
+derselbe Fall wie die Statuspille ohne `sprache`: formal zugestellt,
+tatsächlich nicht angekommen.
+
+**Die Begründung wird NICHT übersetzt.** Sie steht wörtlich, in
+Anführungszeichen. Sie ist der Wortlaut eines Menschen und kann in einem
+Streit über Lohn zitiert werden; sie maschinell zu übertragen hiesse, ihm
+Worte zuzuschreiben, die er nicht gesagt hat. Übersetzt wird der RAHMEN,
+nicht die Aussage — und `Storno` und `Objekt` bleiben auch darin deutsch mit
+Erklärung.
+
+**Was ausdrücklich NICHT geändert wurde: die K-04-Decke.** `p_ma_decke`
+(`drizzle/0036:403`) sperrt `zeiteintrag_korrektur` für das Arbeiterportal,
+mit einer Begründung, die im Code steht: *„Der Arbeitnehmer sieht seine
+STUNDEN; die Spur darüber bekommt er auf Auskunft, nicht als Bildschirm."*
+Es wäre bequem gewesen, sie für diesen Wunsch anzuheben — und falsch: der
+Mandant wollte, dass die Mitarbeiterin den Grund ERFÄHRT, nicht dass das
+Portal zum Auskunftsersuchen wird. Die Nachricht liefert den Grund; die Seite
+zeigt nur die **Fassungsnummer** (`> 1` heisst korrigiert), die ohnehin auf
+der eigenen Zeile steht. Kein Grund, kein Name, kein Betrag. Die Schleife ist
+geschlossen, die Decke steht.
+
+**Und wenn das Recht fehlt, scheitert es laut.** `nachricht.versenden` hält
+per Vorgabe jede Rolle, die korrigieren darf; eine Gesellschaft kann es
+entziehen. Dann bricht die Korrektur ab mit einem Satz, der das sagt — statt
+mit „new row violates row-level security", das auf die Zeiterfassung zeigt
+und die Ursache verschweigt.
+
+---
+
+### D-615 · Das Einladen eines Verwaltungskontos steigt auf — und bleibt eng
+
+**D-610 hat die Linie gezogen**, diese Entscheidung setzt sie um und
+beantwortet die drei Fragen, die beim Bauen aufkamen.
+
+**Der Befund.** Die einzige Stelle, die in `benutzer` schrieb, war der SEED
+(Zeilen 391, 468, 542, 1475). Keine Einladungsroute, kein Formular, keine
+API — ein neuer Admin liess sich nur durch einen erneuten Seed-Lauf
+einsetzen, auf einer Produktionsdatenbank also gar nicht. Und das Schema
+erwartete die Einladung die ganze Zeit: `benutzer.status` steht auf
+`'eingeladen'`, ein Zustand, den nichts erzeugen konnte.
+
+**Entschieden 1: ein eigenes Recht, `nur_global`.**
+`system.verwaltungskonto_erstellen` statt des vorhandenen
+`system.benutzer_verwalten`. Letzteres bleibt bei der Gesellschaft und deckt
+weiter, was es immer deckte — Mitarbeiter- und Kundenzugänge, Bearbeiten,
+Deaktivieren. Ein Konto mit INTERNER Rolle ist etwas anderes: es sieht
+Personal, Zeiten und Finanzen, und wer solche Konten anlegen darf, kann sich
+die Gruppe erschliessen. Das ist genau D-610s Satz: was bei Missbrauch die
+GRUPPE trifft, gehört nach oben.
+
+Die Wirkung ist mechanisch und nicht nur gemeint: `app.hat_recht` wertet für
+ein `nur_global`-Recht ausschliesslich `benutzer.globale_rolle_id` aus
+(0169). Ein Admin bekommt `false` **auch in seiner eigenen Gesellschaft** —
+und genau dieser Fall ist der Test, der die Entscheidung trägt.
+
+**Entschieden 2: das Verb ist `erstellen`, nicht `einladen`.** §7.2 führt ein
+geschlossenes Aktionsvokabular, und `berechtigung_aktion` kennt `einladen`
+nicht. Die Wache hat das gemeldet, bevor der erste Seed lief (K-19). Die
+Einladung IST das Anlegen — sie zu einem zweiten Verb zu machen hiesse, das
+Vokabular für eine Formulierung zu erweitern.
+
+**Entschieden 3: die Rollenliste steht ZWEIMAL, und das ist Absicht.** Die
+Funktion prüft `admin`/`leitung`, damit der Fehlschlag einen lesbaren Satz
+bekommt; die Policy `d_bm_verwaltungsrolle` prüft dasselbe, damit die Sperre
+auch dann hält, wenn später eine zweite Definer-Funktion auf dieselbe Tabelle
+schreibt. 0249 sagt den Grund in einem Satz, der hier wörtlich gilt: *„Eine
+Definer-Funktion, die jede Rolle vergeben koennte, waere ein Weg zu `admin`
+ohne Rechtepruefung."*
+
+**Was ausdrücklich NICHT entschieden wurde: O-887.** Ein `super_admin` ist
+über diesen Weg nicht einladbar, und damit entsteht er weiterhin nur im Seed.
+Das ist ein benanntes operatives Risiko — geht das einzige Konto verloren,
+ist die Plattform nicht mehr verwaltbar. Es hier still zu schliessen wäre
+bequem und falsch: eine Einladung, die Super-Admins erzeugen kann, ist ein
+Weg zur vollen Gruppenmacht, und ob sie ein Vier-Augen-Prinzip verlangt, ist
+eine Entscheidung des Mandanten (K-17). Die Frage steht im Register, im
+Migrationskopf **und auf dem Bildschirm** — wer dort eine zweite
+Super-Administration sucht, soll erfahren, dass die Frage offen IST, und
+nicht, dass der Knopf fehlt.
+
+**Kein vorgetäuschter Versand.** Es ist kein Mailanbieter verbunden (O-501),
+also steht der Einladungslink genau einmal auf dem Bildschirm und wird von
+Hand übergeben — dasselbe Muster wie beim Kundenzugang und beim
+Mitarbeiter-Anmeldecode (D-487). Der Klartext geht über einen fünf Minuten
+lebenden `httpOnly`-Keks, nie über die Adresse: ein Token in der URL steht in
+jedem Zugriffsprotokoll.
+
+---
+
+### D-616 · Die Gesellschaftsleiste bekommt sieben Gruppen
+
+**Der Mandant:** „حاسس المنصة كتير معقدة وكلشي داخل ببعضو" — und, konkreter:
+„die Admins können keinen neuen Mitarbeiter einstellen."
+
+**Der zweite Satz war der aufschlussreichere.**
+`/personal/anstellungen/neu` existiert und legt Person UND Anstellung an
+(`services/personal/einstellung.ts:329`, mit Dublettenprüfung über
+Gesellschaftsgrenzen, `app.person_dublettenpruefung`, D-09). Nicht die
+Funktion fehlte, sondern der Weg: sie liegt auf Tiefe 3 und stand in keinem
+der 32 Navigationseinträge. **Hätte man den Befund für bare Münze genommen,
+wäre eine zweite Einstellungsmaske entstanden statt eines Menüpunkts** — und
+danach gäbe es zwei Wege, einen Menschen einzustellen, von denen einer
+gepflegt wird.
+
+**Die mechanische Ursache war ein fehlendes Feld.** `NaviEintrag` trug
+`schluessel · label · pfad · recht · icon` und nichts, was Punkte gruppiert.
+`DESIGN-PLAN.md` §4 nennt die sieben Gruppen seit langem; gebaut waren sie
+nie:
+
+> Heute · Kunden & Aufträge · Einsatz · Personal · Geld · Aussenauftritt ·
+> Werkzeuge
+
+**Die Namen sind Arbeitsbegriffe der Gewerke, keine Modulnamen.** „Geld" steht
+über dem Rechnungskreis, weil danach gesucht wird — „Abrechnung" wäre
+richtiger und würde seltener gefunden.
+
+**Gruppiert wird nur die Gesellschaftsleiste.** Die Gruppen- und die
+Kundenleiste haben 18 und 11 Punkte; eine Überschrift über zwei Punkten
+gliedert nichts. Dass sie flach BLEIBEN, ist damit eine Entscheidung und kein
+Rückstand — und ein Testfall hält sie fest.
+
+**Gefiltert wird vorher, gruppiert danach.** Eine Gruppe, von der nach der
+Rechteprüfung nichts übrig bleibt, fällt ganz weg: eine Überschrift ohne
+Punkte verriete genau das, was der Filter verbirgt (AUT-06).
+
+**Das Präfix heisst `leiste.` und nicht `gruppe.` — das hat die Wache
+entschieden.** `gruppe` IST ein Modul (§7.4), und der Rechte-Scanner liest
+jedes `'<modul>.<wort>'` als Rechteschlüssel; `'gruppe.heute'` meldete K-19
+prompt als „Schlüssel ohne Katalogzeile". Dieselbe Falle umgehen die
+Hüllenschlüssel seit langem (`sitzung.label`, `pfad.label`, `sprache.label`).
+
+**Und eine Wache dazu**, nach dem Muster der Übersetzungsklinke: ein neuer
+Eintrag ohne Gruppe fällt wortlos ans Ende der Leiste, und das sieht aus wie
+eine Entscheidung. `tests/kern/navigation-gruppen.test.ts` besteht deshalb
+darauf, dass jeder Eintrag eine Gruppe trägt, dass sie aus dem geschlossenen
+Satz kommt, dass keine Gruppe leer ist und dass beide Sprachen eine
+Beschriftung haben.
+
+---
+
+### D-617 · Ein Super-Admin entsteht nur aus der Umgebung — O-887 ist beantwortet
+
+**Die Frage** (O-887) lautete: darf ein Super-Admin einen zweiten Super-Admin
+einladen, und unter welcher zusätzlichen Bedingung?
+
+**Die Antwort des Mandanten: gar nicht in der Anwendung.** „السوبر ادمن لازم
+يكون مأمن انا بشوف منخليه يولد بال ENV بس" — der Super-Admin muss gesichert
+sein; er soll nur über die Umgebung entstehen.
+
+**Das ist die stärkere Antwort, und sie löst beide Hälften des Problems.**
+O-887 hatte zwei Seiten, die einander widersprachen:
+
+- **Das operative Risiko:** entsteht ein `super_admin` nur im Seed, ist die
+  Plattform nach dem Verlust des einzigen Kontos nicht mehr verwaltbar.
+- **Das Sicherheitsrisiko:** eine Einladung, die Super-Admins erzeugen kann,
+  ist ein Weg zur vollen Gruppenmacht — erreichbar über eine gekaperte
+  Sitzung, ein vergessenes Gerät, einen Fehler in der Rechteprüfung.
+
+Ein Einladungsweg mit Vier-Augen-Prinzip hätte das erste gelöst und das
+zweite nur verkleinert. **Die Umgebung löst beide:** das Konto lässt sich
+jederzeit neu herstellen — aber nur von dem, der die Bereitstellung
+kontrolliert, und der hat ohnehin Zugriff auf die Datenbank. Es entsteht kein
+Weg, der über eine ANMELDUNG führt, und damit keiner, den eine gekaperte
+Sitzung nehmen kann.
+
+**Daraus folgt für die Umsetzung:**
+
+1. `app.verwaltungskonto_einladen` (0372) lässt `super_admin` weiterhin nicht
+   zu — auf Funktions- UND Policy-Ebene (`d_bm_verwaltungsrolle`). Das bleibt
+   wie es ist; O-887 bestätigt es, statt es zu öffnen.
+2. Der Weg über die Umgebung ist **kein Bildschirm und keine Route**. Er ist
+   ein Vorgang der Bereitstellung, und er gehört damit dorthin, wo `pnpm
+   db:migrate` und `pnpm db:seed` schon stehen.
+3. Er ist **wiederholbar und nicht additiv**: derselbe Aufruf mit derselben
+   Adresse stellt dasselbe Konto wieder her, statt ein zweites anzulegen.
+4. Der zweite Faktor bleibt Pflicht (AUT-02): `0007` lässt ein Konto mit
+   globaler Rolle nicht aktiv werden, solange kein `auth.mfa_factors`-Satz
+   dazu steht. Ein aus der Umgebung erzeugtes Konto ist damit **eingeladen**,
+   nicht angemeldet — die Umgebung erzeugt einen Anspruch, keine Sitzung.
+
+---
+
+### D-618 · Zwei Türen zu derselben Uhr — O-93 ist beantwortet
+
+**Die Frage** (O-93) lautete: wie erreicht der Check-in-Link den
+Mitarbeitenden — SMS, E-Mail, ein QR-Code am Objekt oder ein Portal-Link?
+
+**Der Mandant hat die Entscheidung übergeben** („انت شوف افضل واذكى جواب
+وطبقه") — mit der Vorgabe, dass es richtig sein muss. Die Antwort liegt im
+schon Gebauten, nicht in einer neuen Zustellung.
+
+**Der Befund, der die Frage auflöst.** Die Marke wird EINMAL im Klartext
+zurückgegeben und danach nirgends gespeichert (`services/zeit/checkin.ts:209`;
+in der Datenbank steht nur `sha256`). Es gibt deshalb keinen bestehenden
+Token, auf den ein Portal verweisen könnte — die Frage „wie kommt der Link zur
+Arbeiterin" stellt sich für eine ANGEMELDETE Arbeiterin aber gar nicht.
+
+**Entschieden: die Marke behält ihren Weg, und die Sitzung wird ein zweiter.**
+
+| Tür | Für wen | Beweis |
+|---|---|---|
+| Token-Link (bestehend, unverändert) | wer KEINE Sitzung hat — QR am Objekt, Link der Planung, geteiltes Gerät | der Besitz der Marke |
+| Portal (neu) | wer im Arbeiterportal angemeldet ist | die Sitzung |
+
+**Warum die Sitzung der stärkere Beweis ist.** Ein Token ist ein
+Inhaberpapier: wer ihn hat, ist wer. Er lässt sich weiterleiten,
+abfotografieren und über die Schulter lesen. Eine Sitzung ist an ein Konto
+gebunden, das über Telefonnummer und Einmalcode entstanden ist (EMP-01).
+**Von einer angemeldeten Arbeiterin zusätzlich einen Token zu verlangen, den
+sie sich im selben Browser besorgt, fügt keine Sicherheit hinzu und hält sie
+von der Arbeit ab** — und genau das war der gemeldete Zustand: „der
+Mitarbeiter meldet sich an und findet keinen Knopf «Arbeit beginnen»."
+
+**Was NICHT passiert: ein zweiter Schreibweg.** EMP-07 (`p_ma_kein_update`,
+0052) verbietet dem Arbeiterportal das ÄNDERN von `zeiteintrag` über
+`cse_app`. Der Kommentar dort sagt, warum INSERT nicht mitverboten ist: *„der
+Check-in schreibt ueber `cse_definer` (K-08) und nicht ueber `cse_app`."* Die
+neue Tür läuft über denselben Definer und mündet in denselben einzigen
+Schreiber (`app.checkin_verbrauchen`). Die Marke bleibt dabei die Einheit der
+Aufzeichnung — das Portal stellt sie serverseitig aus und löst sie im selben
+Vorgang ein. **Was die Sitzung ersetzt, ist die ZUSTELLUNG der Marke, nicht
+die Marke.**
+
+**Und die Kostenfrage aus O-93 entfällt damit für den Normalfall.** SMS
+bleibt eine Option für den, der kein Portal offen hat (O-82: es ist ohnehin
+kein Gateway verbunden); der tägliche Weg kostet nichts.
+
+---
+
+
 ### D-609 · Fünf Seiten liefen über den Rand — und viermal war es dieselbe Ursache eine Ebene tiefer
 
 **Der Befund.** `tests/e2e/abmessungen.spec.ts` meldete zehn Klagen am Telefon
@@ -14439,4 +15002,4619 @@ in anderen Dateien sitzen:
   `PortalRahmen` und damit in eine eigene Runde.
 
 | Betrifft | WCAG 1.4.10, DESIGN §2, §5, §8, D-420, D-569, D-594, `tests/e2e/abmessungen.spec.ts`, 5 Portalseiten |
+|---|---|
+
+---
+
+### D-626 · Ein Angebotsentwurf lässt sich berichtigen — O-900 ist beantwortet
+
+_Nummer berichtigt am 2026-09-23: diese Entscheidung stand zuerst als D-620 da — eine Nummer, die schon vergeben war (die ältere D-620 betrifft das Archivieren von Objekten). Die ältere behält ihre Nummer, weil auf sie schon länger verwiesen wird. In einer Datenbank, auf die `0392` bereits angewendet ist, trägt der Spaltenkommentar noch die alte Nummer; eine angewendete Migration wird nicht nachträglich umgeschrieben._
+
+**Die Frage** (O-900) lautete: wie wird ein Angebotsentwurf berichtigt oder
+verworfen — als neue Version oder als Rückzug?
+
+**Der Mandant hat die Entscheidung übergeben** („والاسئلة المفتوحة جاوب انت
+عنهن بذكاء بدالي") — mit der Vorgabe, dass die Plattform vollständig und
+widerspruchsfrei sein muss. Die Antwort steht im schon Entschiedenen, nicht in
+einer neuen Regel.
+
+**Der Befund.** `angebotsposition` trägt `revoke delete` (`0024:529`) und
+hatte keine Archivspalte; das einzige `update` im ganzen Projekt setzte den
+Einzelpreis nach einer bestätigten Kalkulation. Der Kopf stand genauso da:
+`archiviert_am` schrieb niemand, und `zurueckgezogen` stand seit `0024:27` im
+Aufzählungstyp, ohne dass ein Dienst ihn je setzte. **Ein Tippfehler in einem
+Entwurf stand damit dauerhaft in der Angebotsliste** — in einem Blatt ohne
+Nummer, das ausser dem Haus niemand gesehen hat.
+
+**Die Entscheidung: die Trennlinie ist `versendet_am`.**
+
+Ein Angebot, das das Haus VERLASSEN hat, bleibt unveränderlich; eine Änderung
+ist eine neue Version mit Rückverweis (`ersetzt_angebot_id`,
+`angebot_nachfolger_uk` lagen dafür bereit und werden nicht angefasst). Für
+den ENTWURF gilt, was Invariante 4 für die Rechnung längst sagt: ohne Nummer
+frei änderbar, mit Nummer unveränderlich.
+
+**Warum das keine erfundene Geschäftsregel ist.** Die Plattform hat diese
+Unterscheidung schon getroffen, und zwar in derselben Tabelle:
+`angebot_nummer_bei_versand` verlangt `(angebotsnummer is null) =
+(versendet_am is null)` — Nummer und Versand sind dasselbe Ereignis. Die
+Härte auf den Entwurf auszudehnen war kein Entschluss, sondern eine Lücke:
+niemand hat je entschieden, dass ein ungesehener Entwurf so behandelt wird wie
+ein abgegebenes Vertragsangebot.
+
+**Was ein Prüfer sieht, bleibt vollständig.** Gelöscht wird nichts
+(Invariante 8): eine entfernte Position behält ihre Zeile und trägt
+`entfernt_am` und `entfernt_von`; ein zurückgezogener Entwurf verschwindet aus
+der Arbeitsliste, nicht aus der Datenbank. Wer später fragt, was dastand,
+bekommt eine Antwort.
+
+**Drei Riegel, die dabei entstanden sind — jeder gegen einen Weg, der beim
+Kunden endet:**
+
+1. **Die letzte Leistungsposition bleibt.** Ein Angebot ohne Leistung wäre ein
+   Blatt mit Briefkopf, Nummer und Bindefrist und nichts darin. Der Dienst
+   weist das Entfernen ab, und die Datenbank weist den Versand eines solchen
+   Angebots ab — ein Zustand, aus dem der einzige Ausweg ein Fehler ist,
+   gehört gar nicht erst erzeugt.
+2. **Ein zurückgezogener Entwurf geht nicht mehr hinaus.** `status` und
+   `versendet_am` sind getrennte Spalten, und `angebot_rueckzug_ehrlich`
+   erlaubt `zurueckgezogen` für ein unversendetes Angebot ausdrücklich — sie
+   kann die Gegenrichtung nicht auch noch abdecken.
+3. **Der Rückzug wird nicht wiederbelebt** (`angebot_05_rueckzug`). Er ist
+   eine Entscheidung, kein Zwischenstand; wer das Blatt doch will, legt ein
+   neues an.
+
+**Und zwei Summen, die sonst still falsch geworden wären:**
+`kern.aktualisiere_angebot_summen` und `kern.angebot_versand_festschreiben`
+zählen nur noch lebende Positionen. Ohne das erste zeigte der Bildschirm eine
+Summe, die sich aus den sichtbaren Zeilen nicht nachrechnen lässt; ohne das
+zweite wiese `angebot_steuer` dem Kunden Umsatzsteuer auf eine Leistung aus,
+die im Angebot gar nicht mehr steht — eingefroren, wo sie niemand nachrechnet.
+
+**Kein zweites Augenpaar vor dem Rückzug**, und das ist kein Versehen: ein
+Entwurf ohne Nummer hat das Haus nie verlassen, es gibt keinen Empfänger, der
+sich darauf verlassen hätte, und der Vermerk bleibt stehen. Das VERSENDETE
+Angebot ist der andere Fall — dort verlangt `angebot_rueckzug_ehrlich` eine
+Freigabe.
+
+**Die strengere Lesart bleibt erreichbar.** Sagt der Auftraggeber, auch am
+Entwurf müsse jede Korrektur eine neue Version erzeugen, kostet das einen
+Dienst weniger statt mehr: sie fügt Zeilen hinzu, statt welche zu ändern.
+
+| Betrifft | OPS-08, FIN-07, Invariante 4, Invariante 8, AUT-06, `drizzle/0024`, `drizzle/0392`, `src/server/services/angebot/entwurf.ts`, V-005, V-130, O-900 |
+|---|---|
+
+### D-627 · Eine Nachricht an einen Kontakt geht durch das UWG-Tor und die Freigabe des Verfassers — V-101
+
+_Nummer berichtigt am 2026-09-23: diese Entscheidung stand zuerst als D-621 da — eine Nummer, die schon vergeben war (die ältere D-621 betrifft das Vollständigkeitsregister). Die ältere behält ihre Nummer, weil auf sie schon länger verwiesen wird._
+
+**Der Befund** (V-101): `sendeNachAussen` (`services/kern/nachricht.ts`) war
+gebaut und geprüft — Kanal, Zweck, Kontakt, das UWG-Tor in der Datenbank, der
+Pflichthinweis nach § 7 Abs. 3 Nr. 4 UWG —, und keine Route rief es. Das
+Kontaktblatt sagte es selbst: „Es gibt hier keinen Sendeknopf. Der Endpunkt
+`POST /api/crm/nachrichten` ist nicht gebaut." Das Recht dazu,
+`crm.kommunikation_versenden`, stand seit `0008` im Katalog und wurde von
+keiner einzigen Route benutzt.
+
+**Der Mandant hat die Entscheidung übergeben** („والاسئلة المفتوحة جاوب انت
+عنهن بذكاء بدالي"). Offen war nur die Reihenfolge — wer die Freigabe erteilt
+und wann. Die Antwort steht wieder im schon Entschiedenen.
+
+**Die Entscheidung: fünf Schritte, in dieser Reihenfolge, im Dienst
+`services/crm/nachricht-an-kontakt.ts` und nirgends sonst.**
+
+1. **Das UWG-Tor zuerst** (`app.darf_kontaktiert_werden`). Ein Kontakt ohne
+   Rechtsgrundlage für diesen Kanal und diesen Zweck ist ein „nein", das kein
+   Anbieter und keine Freigabe aufhebt (LEG-08). Käme „nicht verbunden"
+   zuerst, hielte man die Werbemail für einen Konfigurationsfehler — und
+   schickte sie ab, sobald der Anbieter da ist.
+2. **Dann der Versender.** Ist keiner verbunden (O-36), wird NICHTS
+   geschrieben — keine Freigabe, keine Nachricht, kein Widerspruchsschlüssel.
+   Eine Zeile „gesendet" ohne Versand wäre eine falsche Behauptung in genau
+   dem Nachweis, den eine Abmahnung liest. Die Seite stellt den Knopf gar
+   nicht erst scharf und sagt „Versand: nicht verbunden (O-36)".
+3. **Dann die benannte Freigabe des Verfassers** (Invariante 7) über
+   `erteileFreigabe`, mit dem Abdruck genau dieses Textes
+   (`policy.nutzlastHash`). Wer danach ein Wort ändert, hat für das, was
+   hinausginge, keine Freigabe mehr.
+4. **Dann `gate()`** — dieselbe eine Entscheidung wie überall.
+5. **Dann `sendeNachAussen`**, das Werbung selbst mit dem Pflichthinweis
+   versieht und den Widerspruchsschlüssel vermerkt (V-092).
+
+Schritte 3–5 laufen in der Transaktion der Anfrage: scheitert der Versand,
+nimmt er die Freigabe mit. Eine Freigabe für eine Nachricht, die es nicht
+gibt, wäre ein Glied in der Kette, das nichts bezeugt.
+
+**Der Verfasser gibt selbst frei — kein Vier-Augen-Zwang, und das ist
+entschieden, nicht vergessen.** `0123` hat die Frage beantwortet: vier Augen
+sind eine Einstellung, kein CHECK; in einem Büro aus zwei Menschen sperrte
+`freigegeben_von <> erstellt_von` jede Aussendung ohne Ausweg.
+`crm.kommunikation_versenden` und `freigabe.entscheiden` sind im Katalog an
+dieselben drei Rollen gebunden (super_admin, admin, leitung): wer schreiben
+darf, darf benannt freigeben. Eine Nachricht, die ein AGENT entwirft, bleibt
+davon unberührt — sie wartet wie bisher im Freigabe-Posteingang auf einen
+Menschen.
+
+**Formularweg** (D-562): Rücksprung auf das Kontaktblatt mit `?fehler=` oder
+`?gesendet=1` und dem Anker `#senden`. Eine JSON-Antwort wäre eine weisse
+Seite, und der geschriebene Text wäre weg.
+
+**Was damit NICHT entschieden ist:** welcher Versender (O-36, O-603). Bis zur
+Antwort bleibt der Knopf stumm, und kein Weg täuscht einen Versand vor.
+
+| Betrifft | CRM-08, LEG-08, Invariante 7, O-36, D-562, `drizzle/0008`, `drizzle/0123`, `src/server/services/crm/nachricht-an-kontakt.ts`, `src/app/api/crm/nachrichten/route.ts`, V-092, V-101 |
+|---|---|
+
+### D-623 · Ein Vorführspeicher im Ordner — damit Dateien auf dem Vorführrechner funktionieren, ohne etwas vorzutäuschen (V-131)
+
+**Der Befund** (V-131): Ohne `SUPABASE_URL` lehnt `SupabaseSpeicher` jede
+Ablage ab — richtig so. Auf dem Vorführrechner hiess das aber: jeder Beleg,
+jede E-Rechnung, jedes Baustellenfoto, jede Vergabeunterlage, jeder
+DATEV-Stapel endete bei „nicht verbunden" — gezeigt werden konnte nur der
+Satz, warum es nicht geht. Dazu stand die Wahl des
+Speichers an **37 Stellen** als `new SupabaseSpeicher()` — ein zweiter
+Speicher hätte 37 Änderungen gebraucht.
+
+**Der Mandant hat die Entscheidung übergeben** („والاسئلة المفتوحة جاوب انت
+عنهن بذكاء بدالي") mit der Vorgabe, dass bei der Vorführung alles
+funktioniert.
+
+**Die Entscheidung.**
+
+1. **`waehleSpeicher()` entscheidet an EINER Stelle** (`server/storage/waehle.ts`):
+   Supabase, wenn verbunden — immer, auch wenn daneben ein Ordner eingetragen
+   ist; sonst der Vorführordner, wenn er eingetragen UND erlaubt ist; sonst
+   Supabase, nicht verbunden, wie bisher.
+2. **Der Vorführordner (`OrdnerSpeicher`) ist kein Vortäuschen.** Die Datei
+   liegt danach wirklich auf der Platte, sie lässt sich wirklich abrufen, und
+   sie ist nach einem Neustart noch da. Das unterscheidet ihn vom
+   verbotenen Fall („never simulate a successful external call"): es gibt
+   keinen externen Aufruf, der simuliert würde.
+3. **Drei Schranken halten ihn aus jedem Deployment:** `CSE_SPEICHER_ORDNER`
+   muss ausdrücklich gesetzt sein; `devFlaechenAn()` muss gelten — dieselbe
+   Schranke wie beim Entwicklungs-SMS-Dienst und der Entwicklungssitzung; und
+   auf Vercel (`VERCEL` gesetzt) gibt es ihn nie — ein flüchtiges
+   Dateisystem in einer ungewählten Region widerspräche der Datenresidenz.
+4. **Privat und signiert wie der echte** (DOC-03, SEC-A6). Der Ordner liegt
+   nicht unter `public/`. `signierteUrl` gibt `/api/speicher/…` mit Ablauf
+   (15 Minuten) und HMAC zurück; das Geheimnis wird einmal zufällig erzeugt
+   und liegt nur für den Eigentümer lesbar im Ordner. Kein Schlüssel führt
+   aus dem Ordner (`..`, absolute Pfade, fremde Behälter werden abgewiesen).
+   Die Auslieferung bestimmt den Typ aus dem Inhalt und setzt `nosniff`; was
+   sich nicht anzeigen lässt, kommt als Anhang.
+5. **Der Bildschirm sagt, was er ist.** Einstellungen › Integrationen führt
+   ihn als „Entwicklung" mit dem Namen „Vorführspeicher (Ordner auf diesem
+   Rechner)", nicht als „verbunden".
+
+**Eine Folge, die gewollt ist:** eine signierte Adresse kann jetzt relativ
+sein. Die vier Routen, die auf sie weiterleiten, lösen sie gegen den eigenen
+Ursprung auf (`new URL(url, erwarteterUrsprung(anfrage))`); eine absolute
+Supabase-Adresse bleibt davon unberührt. Ein fest eingetragenes `localhost`
+hätte jedes Telefon im WLAN ausgesperrt.
+
+**Das Windows-Startskript** setzt `CSE_SPEICHER_ORDNER` auf `.speicher` im
+Projekt (von git ignoriert) und wechselt selbst in die Projektwurzel.
+
+**Der Seed nutzt ihn, und sagt, was er getan hat.** Mit Speicher bekommen die
+Belegschaftsunterlagen ein Blatt, das sich als DEMODATEN ausweist (`demoPdf`),
+und die Behinderungsanzeigen gehen über den echten `dokumentiereVersand` —
+dieselbe Prüfung, dasselbe archivierte Schreiben wie über den Knopf. Ohne
+Speicher bleibt alles wie bisher.
+
+**Ein Fehler, den erst dieser Weg zeigte.** Der Seedtext „Dauerfrost unter
+−5 °C" trägt ein echtes Minuszeichen (U+2212), wie Word es setzt. Der
+PDF-Schreiber zählte es als nicht darstellbar, und `dokumentiereVersand` brach
+ab — über den Knopf genauso wie im Seed. `nachWinAnsi` bildet jetzt eine
+geschlossene Liste GLEICHBEDEUTENDER Zeichen ab (Minus, Bindestriche, schmale
+und feste Leerzeichen) und zählt weiter alles, was eine andere Bedeutung
+hätte — ein Name in arabischer oder kyrillischer Schrift bricht die Anzeige
+weiterhin ab, statt mit Fragezeichen hinauszugehen.
+
+| Betrifft | DOC-03, SEC-A6, ACC-03, TIM-10, CLAUDE.md „No fake integrations", Datenresidenz, `src/server/storage/ordner.ts`, `src/server/storage/waehle.ts`, `src/app/api/speicher/[bucket]/[...schluessel]/route.ts`, `scripts/windows-start.ps1`, V-131 |
+|---|---|
+
+### D-628 · Logo, Avatar und Titelbild — ein privater Behälter, eine Tür, der Inhalt als Name (V-100)
+
+_Nummer berichtigt am 2026-09-23: diese Entscheidung stand zuerst als D-622 da — eine Nummer, die schon vergeben war (die ältere D-622 betrifft Zusage und Absage einer Schicht). Die ältere behält ihre Nummer, weil auf sie schon länger verwiesen wird. In einer Datenbank, auf die `0393` bereits angewendet ist, trägt der Spaltenkommentar noch die alte Nummer; eine angewendete Migration wird nicht nachträglich umgeschrieben._
+
+**Der Befund** (V-100): `mandant_identitaet` trägt seit 0200 fünf Bildspalten
+— Logo für helle und dunkle Flächen, Drucklogo, Avatar, Titelbild —, und keine
+liess sich setzen: kein Behälter, kein Annahmeweg, kein Spaltenrecht (0200 sagte
+selbst: „der Bildupload bringt die Pfadspalten mit"). Der Bildschirm sagte es
+ehrlich; die Website zeigte trotzdem jeder Gesellschaft ein Platzhalterzeichen.
+
+**Der Mandant hat die Entscheidung übergeben** („والاسئلة المفتوحة جاوب انت
+عنهن بذكاء بدالي"). O-12 (die offiziellen Logodateien) und O-13 (echte
+Fotografie) bleiben offen — sie fragen, WELCHE Dateien, nicht OB es einen Weg
+für sie gibt.
+
+**Die Entscheidungen.**
+
+1. **Ein privater Behälter `marke`, kein öffentlicher.** Der Stack sagt
+   „private buckets, signed URLs only", und 07-INTEGRATIONEN §6.4 hat den
+   früheren `oeffentlich_web` ausdrücklich gestrichen. Ausgeliefert wird über
+   `GET /api/marke/<mandant>/<art>/<version>` — nur für eine VERÖFFENTLICHTE
+   Identität (gelesen über die Projektions-View, die Bedingung steht im SQL
+   und nicht nur in der Policy, weil der Renderer ein angemeldeter
+   Dienstprinzipal ist) oder für eine Sitzung in genau dieser Gesellschaft
+   (Vorschau). Sonst 404, nie 403 (AUT-06).
+2. **Der Inhalt ist der Name** (`<mandant>/<art>/<sha256>.<svg|png|jpg>`),
+   in der Datenbank festgehalten von `mi_bildpfad_eigen` (0393): ein Pfad
+   zeigt nur in den eigenen Ordner. Ein neues Logo überschreibt kein altes
+   Objekt, die Adresse trägt die Version im Pfad und darf deshalb unbegrenzt
+   zwischengespeichert werden. „Entfernen" nimmt die Zuordnung weg, nicht die
+   Datei.
+3. **Logos als SVG, PNG oder JPEG; Avatar und Titelbild als PNG oder JPEG.**
+   01-KERN §6.2 nennt SVG für Logos. Ein SVG ist aber ein Dokument mit
+   Skriptfähigkeit: `storage/svg.ts` weist ab, was ein Bild nicht braucht
+   (Skript, Ereignisattribute, eingebettetes HTML, Verweise nach draussen,
+   Entitäten), und die Auslieferung trägt eine CSP mit `sandbox` und ohne
+   Skriptquelle — gesetzt über eine eigene Regel in `next.config.ts`
+   (`MARKENBILD_KOEPFE`), weil die Live-Prüfung gegen den Produktionsbau
+   zeigte, dass die allgemeine Regel einen in der Route gesetzten Kopf
+   überschreibt. Raster wird
+   von Metadaten befreit (`exif.ts`) — ein Titelbild mit GPS-Daten ist die
+   stille Preisgabe, die TIM-10 für Schichtfotos verhindert.
+4. **Der Alternativtext ist Teil des Hochladens** (PUB-09, LEG-07, BFSG). Die
+   drei Logos teilen einen (0200); ist er schon gesetzt, trägt er das nächste.
+5. **Welches Logo wohin — nach der Fläche, nicht nach Geschmack.** Die
+   Website ist dark-first (DESIGN §1): dort steht das Logo für DUNKLE Flächen
+   (Kopfbild der Profilseite, Kopf der Profilunterseiten). Papier ist hell:
+   das gedruckte Angebot trägt das Drucklogo, sonst das für helle Flächen
+   (DESIGN §11 „each entity prints its own logo" — bis hierher druckte es nur
+   den Namen). Der Avatar ersetzt das vorläufige Zeichen überall, wo es auf
+   der Website steht, in derselben Grösse. Das Titelbild steht an der Stelle
+   der Motivtafel auf Karte und Kopfbild. Die Tabelle steht in DESIGN §1.
+6. **`platzhalter_medien` bleibt unberührt.** Es ist eine Tatsache über die
+   Fotografie der vier Bereiche (O-13), nicht über ein einzelnes Bild.
+7. **Kein stiller Erfolg ohne Recht.** Lesen darf jede Rolle des Bereichs,
+   schreiben nur `system.identitaet_verwalten`. Der Dienst prüft das
+   `returning` des UPDATE — sonst ginge es mit Protokollzeile und abgelegter
+   Datei weiter für eine Änderung, die RLS verworfen hat.
+
+**Was NICHT dazugehört:** die Rechnungs-PDF. Sie ist ein K-12-Dokument; ein
+Logo darin müsste in den kanonischen Payload wie die Fusszeile (V-099), und
+eine Bildeinbettung in PDF/A-3 ist ein eigener Schritt mit veraPDF-Prüfung.
+Sie trägt bis dahin weiter den Namen der Gesellschaft — aufgenommen als V-132
+im Vollständigkeitsregister, nicht als offene Frage: es fehlt Arbeit, keine
+Antwort.
+
+| Betrifft | TEN-07, PUB-09, PUB-14, PRO-01, LEG-07, DOC-03, TIM-10, DESIGN §1/§11, 01-KERN §6.2, 07-INTEGRATIONEN §6.4, `drizzle/0393`, `src/server/services/mandant/markenbild.ts`, `src/server/storage/svg.ts`, `src/app/api/einstellungen/identitaet/bild/route.ts`, `src/app/api/marke/[mandant]/[art]/[version]/route.ts`, O-12, O-13, V-100 |
+|---|---|
+
+### D-624 · Die Schicht hält fest, was DAMALS verlangt war — der Schnappschuss wird geschrieben, nicht gestrichen (V-129)
+
+**Der Befund** (V-129): `einsatz.anforderung_snapshot` und
+`einsatz.anforderung_erfuellt` standen seit 0028 in der Tabelle, mit einer
+Begründung („SEC-04 wird an dem gemessen, was DAMALS verlangt war — ein
+später geänderter Anforderungskatalog darf eine vergangene Schicht nicht
+rückwirkend rechtswidrig machen"), und niemand schrieb sie. Das Register
+nannte zwei ehrliche Auswege: den Schnappschuss füllen oder die Spalten
+streichen und den Kommentar richtigstellen — „eine Entscheidung über
+Rückwirkung".
+
+**Der Mandant hat die Entscheidung übergeben** („والاسئلة المفتوحة جاوب انت
+عنهن بذكاء بدالي").
+
+**Die Entscheidung: einlösen.** Streichen hiesse, eine Zusage aufzugeben, die
+03-GEWERKE §9.2/§9.4 trägt und die eine Aufsichtsbehörde bei einer
+Bewachungsschicht zuerst fragt: was war verlangt, und war die Besetzung
+danach richtig gemischt?
+
+1. **Beim Anlegen** jeder Schicht — Generator, Einzelschicht,
+   Eventbesetzung, Seed, rohes INSERT — schreibt ein BEFORE-Auslöser die
+   aufgelöste Anforderungsmenge (`kern.anforderung_aufloesen`: derselbe
+   Filter wie `app.qualifikationsanforderung`, vier Bereiche additiv,
+   `gueltig_ab` gegen den Berliner Tag des Beginns, K-11).
+2. **Bis zum Beginn folgt er dem Katalog**: bei jeder Besetzungsänderung
+   wird neu aufgelöst. Das ist genau die Menge, die das harte Tor je
+   Zuordnung in diesem Moment live prüft — Schnappschuss und Tor laufen nicht
+   auseinander, solange die Schicht in der Zukunft liegt.
+3. **Ab dem Beginn ist er eingefroren.** Ein später verschärfter Katalog
+   macht eine vergangene Schicht nicht rückwirkend falsch besetzt — das
+   Versprechen aus 0028, wörtlich.
+4. **`anforderung_erfuellt` wird gegen den Schnappschuss bewertet** (§9.4):
+   `jeder` — jede lebende Zuordnung hält den Nachweis am Schichttag;
+   `mindestens_einer` — mindestens `mindestanzahl` davon; mit
+   Registerpflicht zählt nur, wer eine lebende Eintragung hat. `NULL`,
+   solange niemand eingeteilt ist: unbesetzt ist nicht falsch gemischt.
+5. **Die Bewertung meldet, sie sperrt nicht.** Gesperrt wird weiter je
+   Zuordnung (0031), und `ea_geltung_zwischenstand` bleibt: eine harte
+   Anforderung kann weiter nur `jeder` sein. Eine Sperre auf Schichtebene
+   (die verzögerte Prüfung aus §9.4) erzwänge eine Reihenfolge beim
+   Einteilen — erst die Ersthelferin, dann die übrigen — und diese Regel zu
+   erfinden ist nicht Sache dieser Entscheidung.
+6. **Der Bestand** bekommt den Katalog vom Tag der Migration — für eine
+   vergangene Schicht gibt es kein besseres „damals" mehr, und die
+   Spaltenkommentare sagen es.
+
+**Sichtbar** auf dem Schichtblatt (`/dienstplan/einsatz/[id]`): das Feld
+„Qualifikationsmischung" (erfüllt / nicht erfüllt / nicht bewertet / keine
+Anforderung hinterlegt) und die Liste „Anforderungen dieser Schicht" mit dem
+Satz, ob sie noch dem Katalog folgt oder eingefroren ist.
+
+**Eigentum** (K-01): alle vier neuen Funktionen gehören `cse_definer`, setzen
+`search_path`, geben PUBLIC kein EXECUTE; `cse_definer` bekommt Spaltenrechte
+auf genau das, was die Bewertung liest, und das Schreibrecht auf genau die
+zwei Spalten, die sie schreibt.
+
+| Betrifft | SEC-04, TIM-05, 03-GEWERKE §9.2/§9.4, K-01, K-11, `drizzle/0028`, `drizzle/0031`, `drizzle/0394`, V-129 |
+|---|---|
+
+### D-625 · Die Rechnung druckt ihr Logo — festgehalten wie die Fusszeile, geprüft wie ein Beleg (V-132)
+
+**Der Befund** (V-132): DESIGN §11 verlangt „each entity prints its own
+logo", das Angebotsblatt tut es seit V-100, die ZUGFeRD-Rechnung druckte den
+Namen. Ein Logo dort ist ein K-12-Fall: läse das PDF es aus der lebenden
+Identität, änderte ein neues Logo rückwirkend jede alte Rechnung, und die
+Kette meldete weiter „intakt".
+
+**Der Mandant hat die Entscheidung übergeben** („والاسئلة المفتوحة جاوب انت
+عنهن بذكاء بدالي"). Keine Rechts- oder Geldfrage: welches Bild oben links
+steht, ändert keinen Betrag und keine Pflichtangabe nach § 14 UStG.
+
+**Die Entscheidung.**
+
+1. **`cse.rechnung.v4`**: `leistender.logo = { schluessel, sha256, mime } | null`,
+   bei der Festschreibung kopiert. Nicht die Bytes: der Schlüssel im
+   Behälter `marke` IST der Inhalt (`<mandant>/<art>/<sha256>.<endung>`,
+   D-628), dort wird nichts überschrieben oder gelöscht, und die Prüfsumme
+   steht in der Nutzlast — also in der Hashkette. Das ist so gut wie eine
+   Kopie, ohne jede Rechnung um ein Bild zu vergrössern.
+2. **v2 und v3 bleiben vollwertig lesbar**, mit `logo: null` — sie
+   entstanden, bevor ein Logo die Rechnung erreichen konnte. Der Leser ist
+   dabei **strenger** als bei der Fusszeile: eine v4-Zeile ohne das Feld ist
+   beschädigt, eine v3-Zeile mit dem Feld ebenso; Schlüssel, Prüfsumme,
+   Ordner des Leistenden und Typ müssen zueinander passen.
+3. **Welches Logo:** das Drucklogo, sonst das für helle Flächen (DESIGN §4,
+   dieselbe Wahl wie das Angebotsblatt), nie das für dunkle Flächen. **Nur
+   Raster** (PNG, JPEG): ein SVG liesse sich in PDF/A-3 nur umgerechnet
+   einbetten, und die Umrechnung wäre ein zweites Bild, das niemand gesehen
+   hat. Liegen beide Papierlogos nur als SVG vor, druckt die Rechnung den
+   Namen wie bisher — und die Identitätsseite sagt das, bevor die erste
+   Rechnung ohne Logo hinausgeht.
+4. **Das Blatt entsteht nur mit genau diesen Bytes.** `baueZugferdPdf`
+   prüft die SHA-256 der übergebenen Datei gegen die Nutzlast; fehlen sie,
+   weichen sie ab, oder kommen Bytes ohne Logo in der Nutzlast, entsteht
+   kein Blatt (`RechnungslogoFehler`, 409 mit Satz; beim Kunden ohne den
+   Speicherschlüssel). Ein Blatt, das heute ohne und morgen mit Logo aus
+   demselben Snapshot käme, wären zwei Dokumente zu einer Nummer. Eine
+   Rechnung OHNE Logo braucht keinen Speicher und entsteht wie bisher.
+5. **Grösse und Lage**: oben links über dem Namen, wie im Angebot; Höhe
+   `marke-xl` (56 CSS-px = 42 pt), Breite folgt der Datei, höchstens der
+   Satzspiegel; `object-contain` — nie beschnitten, nie verzerrt. Der übrige
+   Kopf rückt um Logo, `--druck-block` und eine Zeile nach unten.
+6. **CMYK-JPEG wird abgewiesen** — beim Hochladen eines Papierlogos mit
+   einem Satz, und beim Erzeugen noch einmal: ein PDF/A-3 mit sRGB-Profil
+   darf kein DeviceCMYK enthalten (ISO 19005-3, 6.2.4.3).
+
+**Geprüft**: veraPDF nimmt die Rechnung ohne Logo, mit PNG **mit
+Alphakanal** (`/SMask`) und mit JPEG je als PDF/A-3B an
+(`tests/compliance/zugferd/verapdf.test.ts`, lokal 0 verletzte Regeln);
+`tests/kern/rechnung-logo.test.ts` hält Nutzlast, Wahl, Leser, Blatt und
+die Farbkomponenten fest; dieselbe Rechnung zweimal ergibt dieselben Bytes,
+auch mit Logo.
+
+| Betrifft | FIN-12, K-12, DESIGN §4/§11, V-099, V-100, V-132, D-628, `src/server/services/finanz/rechnungslogo.ts`, `src/server/services/finanz/zugferd/pdfa3.ts`, `src/server/storage/raster.ts` |
+|---|---|
+
+### D-629 · Das Rechnungsblatt druckt die Nutzlast — vollständig, mehrseitig, und ohne selbst zu rechnen (V-134)
+
+**Der Befund** (V-134): das Blatt der ZUGFeRD-Rechnung war eine Seite mit
+gekürzter Bezeichnung und englisch formatierter Menge. Es liess den Hinweis
+auf die Steuerschuldnerschaft des Leistungsempfängers weg, die Abschläge, den
+Zahlbetrag und den Einbehalt nach § 48 EStG. Die eingebettete XML war
+vollständig, das Blatt, das ein Mensch liest, nicht.
+
+**Der Mandant hat die Entscheidung übergeben.** Es ist keine Rechts- oder
+Geldfrage: welche Angaben auf eine Rechnung gehören, steht in § 14 UStG, und
+jede davon ist schon ein Feld der Nutzlast. Entschieden wird hier nur, wie
+das Blatt sie zeigt.
+
+1. **Das Blatt rechnet nicht.** Jeder Betrag ist ein Feld der Nutzlast,
+   formatiert, nie addiert. Ein Blatt, das eine Summe selbst bildet, kann
+   eine andere Zahl zeigen als die eingebettete XML, und dann gäbe es zu
+   einer Nummer zwei Beträge. Deshalb stehen die Abschläge je als Zeile mit
+   Netto und Steuer, und der Abzug als EIN Betrag aus `abzug_brutto_cent`.
+2. **Jeder Hinweis kommt aus der Nutzlast**: `steuerhinweis` aus
+   `steuerfall.ts`, Befreiungsgründe, `hinweise`, Kopf- und Schlusstext. Das
+   Blatt formuliert keinen Rechtshinweis selbst.
+3. **Zahl- und Überweisungsbetrag erscheinen nur, wenn sie vom Gesamtbetrag
+   abweichen.** Bei einer gewöhnlichen Rechnung ist der Gesamtbetrag der
+   Betrag, und eine zweite Zeile mit derselben Zahl wäre Rauschen.
+4. **Mehrseitig**, mit wiederholtem Tabellenkopf, festem Fuss auf jeder
+   Seite (DESIGN §11) und „Seite x von y“. Summen- und Zahlungsblock werden
+   nicht zwischen zwei Seiten geteilt.
+5. **Deutsche Formate**: Menge `30,87 m²`, Daten `11.09.2026`, Prozent aus
+   Basispunkten ohne Gleitkomma (`2,5 %`, vorher „3 %“). Eine Preisbasis
+   ungleich 1 steht als eigene Zeile („Einzelpreis je 100 m²“), weil die
+   Spalte zu schmal ist, um es daneben zu sagen.
+6. **Zeichen ausserhalb der eingebetteten Schrift werden `?`.** Ein Verweis
+   auf `.notdef` ist in PDF/A-3 unzulässig (ISO 19005-3, 6.2.11.8). Die
+   eingebettete XML trägt den Namen unverändert, und bei einer E-Rechnung
+   ist sie das Massgebliche. Eine zweite Schrift (Arabisch, CJK) wäre die
+   vollständige Lösung. Solange kein Kunde mit einem solchen Namen fakturiert
+   wird, ist sie nicht gebaut.
+7. **Werte aus DESIGN §11**: Papier, Text, leiser Text, Linien und die Masse
+   der Tabelle kommen aus `lib/design/theme.ts`. Die alte Fassung hatte ein
+   eigenes Grau (`#555`) und 7-pt-Fusszeilen, beides nicht aus DESIGN.md.
+
+8. **Ein Prozenttext für einen Beleg.** Das Blatt schreibt Sätze mit
+   `prozentText` (jetzt in `finanz/prozent.ts`), derselben Funktion, mit der
+   das Kundenportal dieselbe Rechnung zeigt: „19,0 %“ hier wie dort. Ein
+   eigener Formatierer daneben (die erste Fassung schrieb „19 %“) wären zwei
+   Schreibweisen für einen Beleg.
+9. **Umbrochen wird nur an gewöhnlichen Leerzeichen.** `\s` träfe auch das
+   geschützte Leerzeichen, und „1.000,00 €“ bräche vor dem Zeichen um
+   (DESIGN §5).
+10. **Archivierte Blätter behalten ihre Fassung.** Das Belegarchiv (§ 147 AO,
+    `buchhaltung/belegarchiv.ts`) hat für jede festgeschriebene Rechnung das
+    Blatt abgelegt, das damals entstand. Ein neuer Abruf baut mit dieser
+    Vorlage — mit denselben Angaben aus derselben Nutzlast, nur vollständig
+    und mehrseitig gesetzt. Das ist genau die Trennung, die `belegarchiv.ts`
+    vorsieht: der Nachweis ist das Archiv, nicht der Nachbau.
+
+**Nicht geändert**: die eingebettete CII und die XRechnung. Sie waren schon
+vollständig. Skonto steht auf dem Blatt, sobald eine Rechnung es trägt; heute
+setzt keine Oberfläche `skonto_bp` an einer Ausgangsrechnung.
+
+| Betrifft | FIN-12, § 14 Abs. 4/5 UStG, § 14a Abs. 5 UStG, § 48 EStG, DESIGN §11, V-134, `src/server/services/finanz/zugferd/blatt-inhalt.ts`, `src/server/services/finanz/zugferd/blatt.ts`, `src/server/services/finanz/zugferd/pdfa3.ts` |
+|---|---|
+
+### D-630 · Die 2FA-Pflicht der Rolle gilt in der Datenbank, und die Pforte leitet auf den Faktor-Schritt (V-136)
+
+**Der Befund** (V-136, AUT-02): der zweite Faktor war für `admin` und
+`super_admin` eine Weiterleitung nach dem Kennwort, keine Pflicht. Eine
+`aal1`-Sitzung hielt alle Rechte der Rolle.
+
+**Die Entscheidung.**
+
+1. **In der Datenbank, nicht nur im Tor.** `app.hat_recht_fuer` gewährt über
+   eine Rolle mit `erfordert_2fa` nichts ohne `aal2` (0395). Damit greift die
+   Pflicht an jeder Policy, jeder API und jedem Dienst, auch an einem Weg,
+   den das Tor eines Tages vergisst (Invariante 3: RLS ist die zweite Linie).
+2. **Die Pforte leitet auf den Faktor-Schritt, nicht auf 404.** Für die drei
+   Routen mit eigenem `aal2`-Wächter bleibt es bei 404 (AUT-06). Für die
+   Pflicht aus der Rolle ist die Weiterleitung richtig: sie fällt für jede
+   Adresse gleich aus und verrät deshalb nichts über die Seite. Ohne
+   eingerichteten Faktor geht es auf „einrichten“, sonst auf „prüfen“, jeweils
+   mit Rückweg.
+3. **K-15 bleibt.** Kein `aal2`-Gate auf dem Lesen von `benutzer_mandant`;
+   `leitung`, `mitarbeiter` und `kunde` verlangen keinen Faktor und sind
+   nicht berührt. Hintergrundläufe binden keinen Benutzer und fragen mit dem
+   Vorgabewert `aal2`.
+4. **Harness, Seed und Entwicklungszugang stellen eine VOLLSTÄNDIGE Anmeldung
+   dar** (`aal2`). Der Harness stand auf `aal1`, und 984 Prüfungen stützten
+   sich unbemerkt darauf, dass ein Admin dort alles darf. Wer den halben
+   Zustand prüft, sagt `aal: 'aal1'`.
+5. **Vorführbetrieb:** die Konten aus dem Seed tragen einen Platzhalter-Faktor
+   ohne Geheimnis. Mit `CSE_DEV_FLAECHEN` nennt die Code-Seite deshalb den
+   Weg, der funktioniert (`/dev/anmelden`, dort mit beiden Stufen), statt eine
+   Seite zu zeigen, an der jeder Code scheitert.
+
+**Zwei Meldungen, eine Abweisung.** `app.kundenzugang_ausstellen` und
+`app.verwaltungskonto_einladen` fragen das Recht vor der Stufe. Bei `aal1`
+weist seit 0395 schon die Rechtefrage ab. Abgewiesen wird in beiden Fällen,
+und im Portal kommt eine `aal1`-Sitzung wegen Punkt 2 gar nicht bis zu diesen
+Formularen. Die Reihenfolge der Sätze zu tauschen, hieße, beide Funktionen
+vollständig neu zu schreiben; das ist den Unterschied nicht wert.
+
+| Betrifft | AUT-02, AUT-06, D-33, K-15, V-136, `drizzle/0395`, `src/app/portal/zugang.ts`, `src/app/auth/zwei-faktor/pruefen/page.tsx`, `tests/isolation/harness.ts`, `tests/isolation/eigene-datenbank.ts`, `src/server/db/seed/sitzung.ts` |
+|---|---|
+
+### D-631 · Eine Web-Anfrage kommt vollständig beim Menschen an: Einsendung, Kontakt, Meldung, erste Reaktion, Herkunft (V-137)
+
+**Der Befund** (V-137; REQ-01…07, CRM-02/03): die Annahme legte Lead,
+Eingang und Frist an, aber auf dem Weg zum Menschen ging fast alles
+verloren. Die Einsendung (m², Frequenz, Kräfte, Gewerk, Name, E-Mail,
+Telefon) lag nur in `formular_eingang.daten`, das keine Portalseite las. Das
+hochgeladene LV hatte keinen Bezug zum Eingang. Niemand wurde über eine neue
+Anfrage benachrichtigt. Die erste Reaktion ließ sich nicht erfassen: die
+SLA-Uhr steht erst bei einer AUSGEHENDEN Aktivität (0017), das Leadblatt
+schrieb jede Aktivität als `intern`, und das UWG-Tor (0020) verlangt für
+ausgehend per E-Mail oder Telefon einen Ansprechpartner, den ein Web-Lead nie
+hatte. Deshalb eskalierte jede Web-Anfrage stündlich ohne Ende, auch nach
+„gewonnen“, mit roher UUID und UTC-Zeit im Verlauf. UTM kam nie an, und als
+Referrer stand die eigene Formularseite in jedem Lead.
+
+**Die Entscheidung.**
+
+1. **Der Anfragende wird Ansprechpartner, mit der Grundlage `anfrage`.**
+   `app.lead_kontakt_aus_anfrage` (0396) legt ihn in der Annahme-Transaktion
+   an. Gibt es im Mandanten schon einen nicht anonymisierten Kontakt mit
+   derselben E-Mail, verknüpft sie diesen: ein Mensch, ein Kontakt, und ein
+   Widerspruch gilt für ihn. Das freiwillige Werbe-Häkchen begründet KEINE
+   Einwilligung, weil es keinen Kanal nennt (0020). Es bleibt in der
+   Einsendung sichtbar; über Werbung entscheidet ein Mensch.
+2. **Die erste Reaktion ist eine ausgehende Aktivität an diesen Kontakt.**
+   Das Leadblatt fragt die Richtung ab. Ein ausgehender Anruf oder eine
+   ausgehende E-Mail geht mit Zweck `vertraglich`, Kanal und Ansprechpartner
+   durch das unveränderte UWG-Tor; `kern.setze_erste_reaktion` hält dann die
+   Uhr an. Ohne Kontakt kommt eine Meldung statt einer stillen Zeile.
+3. **Eskaliert werden nur offene Leads** (`neu`, `in_bearbeitung`). Der
+   Verlauf nennt die Stufe und die Frist in Berliner Zeit, keine Kennung.
+   Die Meldung geht als Benachrichtigung `crm.lead_sla_ueberschritten` an den
+   Besitzer bzw. an die Eskalation des Formulars.
+4. **Die neue Anfrage wird gemeldet.** `crm.neuer_lead` geht an den Besitzer
+   (`app.lead_eingang_melden`, 0396). Nur für einen Lead, der in derselben
+   Transaktion angenommen wurde, und nur mit einem Ziel, das auf genau diesen
+   Lead zeigt. Der Eingangs-Prinzipal kann so weder eine alte noch eine
+   fremde Meldung auslösen.
+5. **Das Leadblatt zeigt die Einsendung** mit den Beschriftungen der
+   Formularversion, deutschen Zahlen und Daten und Ja/Nein statt `true`, dazu
+   Ansprechpartner (mailto/tel), LV (`dokument.formular_eingang_id`, jetzt
+   gesetzt), Herkunft, Besitzer und Priorität. Priorität und Besitzer lassen
+   sich setzen; Besitzer kann nur jemand werden, der in diesem Bereich
+   arbeitet.
+6. **Herkunft ohne Speicher im Browser.** D-61 schließt Cookies und
+   `localStorage` aus. Eine Kampagnenzuordnung ist nicht „unbedingt
+   erforderlich“ (§ 25 Abs. 2 TDDDG), und es gibt kein Banner, das eine
+   Einwilligung einholen könnte. Die Formularseite liest deshalb ihren
+   EIGENEN Aufruf: die `utm_*`-Parameter und den `Referer`, aber nur einen
+   fremden. Von außen ist die Formularseite der Einstieg, von einer eigenen
+   Seite ist es diese vorige Seite. Die Bereichsauswahl reicht die Herkunft
+   an ihre Links weiter. Das Formular trägt sie als versteckte Felder, und
+   die Annahme prüft sie erneut: nur fremde http(s)-Adressen ohne
+   Zugangsdaten, nur eigene Pfade (kein `//fremd`), keine Steuerzeichen,
+   Längengrenzen. **Die Grenze, bewusst:** wer über mehrere Seiten zum
+   Formular klickt, kommt mit der vorigen Seite als Einstieg und ohne die
+   Kampagnenparameter der ersten Seite an. Das zu ändern bräuchte Speicher
+   im Browser und damit eine Einwilligung; die Seite hat keine.
+7. **Fehler auf dem Leadblatt kommen an.** `/api/crm/lead` schickt Schlüssel
+   und Satz; die Seite zeigt den übersetzten Schlüssel, sonst den Satz, und
+   nie einen rohen Schlüssel.
+
+**Nicht Teil dieser Entscheidung:** dass die Herkunft bis zum Auftrag
+weitergetragen wird (REQ-07, zweiter Halbsatz). Das hängt an der Kette
+Lead → Angebot → Auftrag, die eigens behoben wird.
+
+| Betrifft | REQ-01…07, CRM-02, CRM-03, D-61, D-83, D-599, V-137, `drizzle/0396`, `src/server/services/lead/{annahme,einsendung,eskalation,sla}.ts`, `src/lib/formular/herkunft.ts`, `src/app/api/{anfrage,lead,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx` |
+|---|---|
+
+### D-632 · Die Kette Lead → Angebot → Auftrag trägt die Herkunft bis in den Bericht (V-138)
+
+**Der Befund** (V-138; CRM-05, REQ-07 zweiter Halbsatz, REP-03):
+`angebot.lead_id` (0024) und `auftrag.lead_id` (0025) standen mit
+Fremdschlüssel und Index da, und kein Weg schrieb sie — weder
+`legeAngebotAn` noch die Maske „Neues Angebot", das Raumbuch, der direkte
+Weg `/api/auftrag` oder der Seed. `wandleInAuftrag` reichte ein NULL weiter.
+`lead.kunde_id` und `lead.ansprechpartner_id` ließen sich nach der Anlage
+nicht mehr setzen und hatten, wie `empfehlung_von_kunde_id` und
+`ausschreibung_id`, seit 0017 keinen Fremdschlüssel. Das Leadblatt zeigte
+nichts von dem, was aus der Anfrage wurde; das Kundenblatt hatte die Reiter
+Angebote, Rechnungen, Dokumente und Kommunikation der Seitenkarte (§5.2)
+nicht, und seine Auftragszeilen führten nirgends hin. Der Herkunftsbericht
+zählt Aufträge über `auftrag.lead_id` und zeigte deshalb für jeden Kanal
+„0 Aufträge, 0,00 €" — auch in der Demo.
+
+**Die Entscheidung.**
+
+1. **Der Lead bekommt seinen Kunden auf dem Leadblatt**, auf zwei Wegen:
+   „Als Kunde übernehmen" (legt ihn über `legeKundeAn` an, mit Kundennummer
+   und Firmenidentität, D-634) und „Einem bestehenden Kunden zuordnen". Eine
+   NEUE Anfrage steht danach auf `in_bearbeitung`; ein Stand, den ein Mensch
+   gesetzt hat, bleibt. Der Anfragende wandert mit, wenn er noch keinem
+   Kunden gehört — sonst wäre er nicht Ansprechpartner des Angebots
+   (`angebot_ansprechpartner_fk`). Führt der Kunde schon einen Kontakt mit
+   derselben E-Mail, zeigt der Lead auf DEN (ein Mensch, ein Kontakt, wie
+   D-631).
+2. **Die Rechtsgrundlage eines übernommenen Kunden ist `keine`.** Die
+   Antwort auf die Anfrage (Zweck `vertraglich`) hängt am Werbetor nicht an
+   der Grundlage des Kunden und bleibt offen. Ob der Kunde Werbung bekommen
+   darf, ist eine Feststellung mit Quelle und Datum, die ein Mensch trifft;
+   ob `anfrage` überhaupt Werbung trägt, ist O-660. Folge, bewusst: das Tor
+   wird für den mitgewanderten Kontakt strenger, nie lockerer.
+3. **Ein Angebot oder Auftrag hängt nur an einem Lead DESSELBEN Kunden in
+   derselben Gesellschaft.** Ein Lead ohne Kunden wird nicht nebenbei dem
+   Kunden des Angebots zugeordnet — das wäre eine Zuordnung, die niemand
+   getroffen hat. Geprüft im Dienst (`pruefeLeadBindung`, ein Satz statt
+   eines Codes) und in der Datenbank (`kern.lead_bezug_stimmt`, 0400).
+   Hängt ein Vorgang am Lead, wechselt dessen Kunde nicht mehr
+   (`kern.lead_kunde_bleibt`) — auch für eine Rolle, die die Angebote gar
+   nicht sehen darf.
+4. **Der Stand des Leads folgt der Kette, nur vorwärts.** Ein versendetes
+   Angebot stellt einen OFFENEN Lead (`neu`, `in_bearbeitung`) auf
+   `angebot`; ein Auftrag stellt jeden noch nicht gewonnenen Lead auf
+   `gewonnen` und stempelt `konvertiert_am`, auch einen, den jemand
+   verloren gegeben hatte — der unterschriebene Auftrag ist die spätere und
+   stärkere Tatsache; der Verlustgrund bleibt stehen. Eine Ablehnung stellt
+   NICHTS zurück: eine Anfrage kann ein zweites Angebot bekommen, und ein
+   Verlust trägt einen Grund, den ein Mensch schreibt. Jede Nachführung
+   schreibt eine Systemzeile in den Verlauf.
+5. **Die Nachführung läuft als Definer-Auslöser, nicht im Dienst.**
+   Versenden (`angebot.versenden`) und Annehmen (`angebot.annahme_erfassen`)
+   sind nicht `crm.schreiben`; als `cse_app` geschrieben hätte die
+   Nachführung den Versand einer solchen Rolle abgebrochen. `cse_definer`
+   darf an `lead` genau `status` und `konvertiert_am` schreiben, im aktiven
+   Mandanten, und in `lead_aktivitaet` nur interne Systemzeilen.
+6. **Drei Wege tragen die Anfrage:** die Maske „Neues Angebot" und das
+   Raumbuch mit `?lead=` (der Kunde steht dann fest), und „Auftrag direkt
+   anlegen" für den Auftrag ohne Angebot. `wandleInAuftrag` reicht sie
+   weiter. Angebots- und Auftragsblatt nennen die Anfrage (mit
+   `crm.lesen`).
+7. **Lead- und Kundenblatt zeigen die Kette**, je Stufe nur mit dem Recht
+   ihrer Zielseite (AUT-06): Angebote, Aufträge, Rechnungen; am Kunden
+   zusätzlich Anfragen, Dokumente und den Verlauf der Kommunikation.
+8. **Formulare bekommen ihre Seite zurück** (D-599): das Raumbuch und
+   `/api/auftrag` antworteten auf Abweisungen mit JSON; jetzt kehren sie
+   mit Schlüssel auf ihre Maske zurück.
+9. **Der Seed geht die ganze Kette über die echten Dienste:** Empfehlung →
+   Angebot mit Anfrage → Versand → Auftrag. Der Herkunftsbericht zeigt
+   damit schon in der Demo einen Kanal mit Auftrag.
+
+**Nicht Teil dieser Entscheidung:** ein bestehendes Angebot oder einen
+bestehenden Auftrag nachträglich einer Anfrage zuzuordnen. Versendete
+Angebote sind unveränderlich; für Entwürfe und Aufträge aus der Zeit vor
+0400 gibt es keinen Weg, und die Plattform ist nicht in Betrieb — ein
+Nachtragsweg wäre eine Fläche ohne Fall.
+
+| Betrifft | CRM-05, REQ-07, REP-03, 04-SEITENKARTE §5.2, AUT-06, D-599, D-631, O-660, V-138, `drizzle/0400`, `src/server/services/crm/lead-kette.ts`, `src/server/services/angebot/{index,von-hand}.ts`, `src/app/api/{angebot,angebot/von-hand,auftrag,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/{leads,kunden}/[id]/page.tsx`, `src/app/portal/[mandant]/{angebote,auftraege}/{neu,[id]}/page.tsx`, `src/app/portal/[mandant]/objekte/[id]/raumbuch/page.tsx`, `src/server/db/seed/vertrieb.ts` |
+|---|---|
+
+### D-633 · Vergaberadar und Empfehlung werden Leadquellen mit Erzeuger (V-139)
+
+**Der Befund** (V-139, CRM-07): CRM-07 nennt vier Leadquellen. `lead_quelle`
+kannte sie seit 0017, der CHECK `lead_herkunft_stimmig` verlangte für
+`vergabe_radar` eine `ausschreibung_id` und für `empfehlung` einen
+empfehlenden Kunden — und keine Zeile Code schrieb eines davon. Ein
+Radartreffer ließ sich nicht übernehmen, die Maske „Neuer Lead" kannte keine
+Empfehlung, und der Herkunftsbericht beschriftete zwei Werte, die nie
+entstanden. Übernommene Akquiseziele (0171) standen im Bericht unter
+„Manuell erfasst".
+
+**Die Entscheidung.**
+
+1. **Die Empfehlung ist eine Angabe der Maske „Neuer Lead"**: wer einen
+   empfehlenden Kunden wählt, erfasst eine Empfehlung. Kein zweites Feld
+   „Herkunft" daneben — ohne Javascript könnten die beiden einander
+   widersprechen. Der Empfehlende ist ein Kunde DIESER Gesellschaft; ein
+   Kunde, der sich selbst empfiehlt, ist ein Bestandskunde mit neuem Bedarf
+   und wird abgewiesen, sonst zählte der Kanal „Empfehlung" Anfragen, die
+   keine sind.
+2. **Ein Radartreffer wird auf der Bekanntmachung übernommen**, unter
+   `crm.schreiben` (der Lead) und `radar.lesen` (die Bekanntmachung).
+   Betreff und Beschreibung (gekürzt auf 2.000 Zeichen, mit Quellkennung)
+   kommen aus der Bekanntmachung, der Auftraggeber auch — fehlt er, nennt
+   ihn der Mensch; erfunden wird keiner. Der geschätzte Wert wandert nur in
+   Euro: eine Fremdwährung wird nicht umgerechnet (O-47), und ein Betrag
+   ohne Währung ist kein Euro-Betrag. Der Besitzer ist, wer übernimmt.
+3. **Einmal je Gesellschaft.** `lead_ausschreibung_uk` (0400) hält den
+   gleichzeitigen zweiten Klick; eine andere Gesellschaft darf dieselbe
+   Bekanntmachung übernehmen, sie bietet selbst. Der Vorgang des Radars
+   (Stand, Mappe) bleibt unberührt: er führt die Vergabe, der Lead den
+   Vertrieb.
+4. **Der Bericht nennt die Akquise beim Namen**, bereichsweise und in der
+   Gruppe.
+5. **Seed:** ein Radar-Lead im Bau über denselben Dienst, eine Empfehlung in
+   der Reinigung (D-632 Punkt 9).
+
+| Betrifft | CRM-07, REP-03, RAD-07, O-47, D-07, V-139, `drizzle/0400`, `src/server/services/crm/{anlegen,lead-radar}.ts`, `src/server/services/bericht/{kennzahlen,gruppe}.ts`, `src/app/api/crm/lead/route.ts`, `src/app/portal/[mandant]/crm/leads/neu/page.tsx`, `src/app/portal/[mandant]/radar/[id]/page.tsx`, `src/app/portal/gruppe/leads/page.tsx`, `src/server/db/seed/radar.ts` |
+|---|---|
+
+### D-634 · Ein Kunde findet seine Firma über die USt-IdNr. (V-140)
+
+**Der Befund** (V-140, CRM-06): die Gruppenliste erkennt denselben Kunden in
+mehreren Gesellschaften allein an `kunde.firma_id`. `app.firma_aufloesen`
+(0020) ist laut Migration die EINZIGE Stelle, an der eine `firma` entsteht,
+und hatte in der Anwendung keinen Aufrufer. Jeder im Portal angelegte Kunde
+blieb ohne Firma, auch mit USt-IdNr.; „auch in" war für echte Daten leer.
+
+**Die Entscheidung.**
+
+1. **Die Identität ist die USt-IdNr., nicht der Name.** `legeKundeAn` löst
+   für Firma und Behörde MIT USt-IdNr. über `app.firma_aufloesen` auf und
+   schreibt `firma_id` mit. Ohne Nummer entsteht keine Firma: zwei „Muster
+   GmbH" in Berlin sind zwei Unternehmen, und eine Zusammenführung über den
+   Namen legte die Historie des einen in die des anderen. Eine
+   Privatperson ist keine Firma.
+2. **Nachgetragen, nicht getauscht.** `aendereKunde` verbindet einen Kunden
+   ohne Firma, sobald seine USt-IdNr. eingetragen wird. Trägt er schon
+   eine, bleibt sie — an derselben Firma können Kunden anderer
+   Gesellschaften hängen, und eine berichtigte Nummer ist eine Frage der
+   Zusammenführung (`firma.zusammengefuehrt_in_firma_id`), nicht eines
+   stillen Umhängens.
+3. **Der Bestand wird nachgeholt** (0401) — mit derselben Regel wortgleich
+   in SQL, weil die Funktion eine Sitzung mit `crm.schreiben` verlangt und
+   eine Migration keine hat. Nicht angefasst: Privatkunden, archivierte und
+   anonymisierte Kunden (eine Anonymisierung bekommt nachträglich keine
+   Identität), Kunden mit Firma.
+4. **Kein Dublettenhinweis nach Namen in der Maske.** `app.firma_kandidaten`
+   gibt nur Kennungen und eine Ähnlichkeit heraus — eine Anzeige daraus
+   bräuchte den Namen einer Firma, die möglicherweise nur eine andere
+   Gesellschaft kennt. Das wäre die Auskunft, die die Funktion verweigert.
+
+| Betrifft | CRM-06, TEN-02, V-140, `drizzle/0020` (`app.firma_aufloesen`), `drizzle/0401`, `src/server/services/crm/{anlegen,aendern}.ts`, `src/app/portal/gruppe/kunden/page.tsx` |
+|---|---|
+
+### D-635 · Jede Anfrage bekommt ihren Ansprechpartner, und ausgehend gilt der Zweck ihrer Herkunft (V-141)
+
+**Der Befund** (V-141; Nachprüfung von V-138, CRM-05, Teil des Befunds
+„`lead.kunde_id` und `lead.ansprechpartner_id` lassen sich nach der Anlage
+nicht setzen"): V-138 machte den Kunden setzbar, den Ansprechpartner nicht.
+Nur die Annahme eines Webformulars legte einen Kontakt an (0396). Jeder Lead,
+der von Hand, aus einer Empfehlung, aus dem Vergaberadar oder aus der Akquise
+entstand, blieb ohne — auch nach „Als Kunde übernehmen". Das Leadblatt riet,
+„den Kontakt am Kunden anzulegen"; der Lead zeigte danach trotzdem auf
+niemanden, und jeder ausgehende Anruf und jede ausgehende E-Mail brach mit
+`kein_kontakt` ab — gerade für die Quellen, die V-139 neu geschaffen hatte.
+
+Beim Beheben fiel das zweite Stück auf: `/api/lead` schrieb JEDE ausgehende
+Aktivität mit dem Zweck `vertraglich`. Für eine Web-Anfrage stimmt das
+(D-631). Sobald jeder Lead einen Kontakt bekommen kann, wäre dieselbe Zeile
+ein Weg am Werbetor vorbei: ein recherchiertes Akquiseziel, dem niemand eine
+Frage gestellt hat, liesse sich als „Antwort" anrufen — genau das, was
+`akquise/uebernahme.ts` ausschliesst („wer diese Firma anschreiben will, muss
+zuerst einen Kontakt anlegen und dessen Rechtsgrundlage benennen") und was
+CLAUDE.md als Kaltakquise aus dem Umfang nimmt.
+
+**Die Entscheidung.**
+
+1. **Das Leadblatt setzt den Ansprechpartner** — einen Kontakt des Kunden der
+   Anfrage wählen oder einen neuen anlegen (`services/crm/lead-kontakt.ts`,
+   `was=kontakt_waehlen` / `was=kontakt_anlegen` auf `/api/crm/lead`, Recht
+   `crm.schreiben`). Zur Wahl stehen nur erreichbare Kontakte DIESES Kunden:
+   nicht archiviert, nicht anonymisiert, nicht ausgeschieden (V-110). Ein
+   neuer Kontakt entsteht beim Kunden der Anfrage; hat sie noch keinen, ohne
+   Kunden, und er wandert mit, sobald sie einen bekommt (D-632 Punkt 1). Jede
+   Zuordnung schreibt eine Systemzeile in den Verlauf.
+2. **Die Rechtsgrundlage eines so angelegten Kontakts ist `keine`.** Sie ist
+   eine Feststellung mit Quelle und Datum, die ein Mensch auf dem
+   Kontaktblatt unter eigenem Recht trifft (`crm/kontakt-grundlage.ts`,
+   K-05). Ein Anlegeformular setzt sie nie nebenbei — das Leadblatt verweist
+   auf das Kontaktblatt.
+3. **Ein Mensch, ein Kontakt** — dieselbe Regel wie in der Annahme (D-631):
+   gibt es im Bereich schon einen erreichbaren Kontakt mit derselben
+   E-Mail-Adresse, zeigt die Anfrage auf IHN, bevorzugt den ihres Kunden, und
+   die Seite sagt es. Ein Widerspruch an ihm gilt damit auch hier. Ein
+   ausgeschiedener Zwilling wird nicht wiederbelebt; hält der
+   Eindeutigkeitsschlüssel die Adresse für denselben Kunden, sagt die Seite
+   warum.
+4. **Der Zweck eines ausgehenden Kontakts folgt der Herkunft** — hinter einer
+   Schnittstelle (`LEAD_ZWECK_REGEL`), weil ein Teil davon eine Rechtsfrage
+   ist:
+   - Webformular → `vertraglich` (D-631: der Mensch hat angefragt).
+   - Akquise → `werbung` (entschieden: recherchiert, niemand hat gefragt).
+   - Von Hand, Empfehlung, Vergaberadar → **Platzhalter `werbung`** bis zur
+     Antwort auf **O-907**. Der restriktive Zweig: der Kontakt braucht eine
+     festgestellte Grundlage, sonst weist das Tor ab. Das ist nie lockerer
+     als vorher — vorher ging für diese Leads gar nichts hinaus.
+   Das Leadblatt sagt das VOR dem Anruf und nennt die Frage; eine Abweisung
+   kommt mit eigenem Satz (`uwg_werbung`). Eingehendes geht am Tor vorbei
+   (es verlässt das Haus nicht) und bleibt `vertraglich` wie bisher.
+5. **Genauer als D-632 Punkt 1: der Zwilling beim Kunden.** Führt der Kunde
+   dieselbe E-Mail-Adresse schon, kann der Anfragende nicht wandern
+   (`ansprechpartner_email_uk`). Die Anfrage zeigt dann auf den Kontakt des
+   Kunden — aber nur, wenn der erreichbar ist UND dem Anfragenden nicht
+   widersprochen wurde (das Tor verweigert ihm sonst sogar die vertragliche
+   Antwort). Sonst bleibt sie bei ihm: auf einen Zwilling ohne Vermerk
+   umzustellen hiesse, einen Widerspruch mit einem Klick zu umgehen.
+   **Der Kontakt der Anfrage bleibt stehen**, ohne Kunden. Er ist der Beleg
+   der Anfrage — Grundlage `anfrage` mit Quelle und Datum — und trägt, was an
+   ihm vermerkt wurde. Ihn zu archivieren verlöre genau das, und den Vermerk
+   auf den Zwilling zu übertragen verlangte eine Regel, die es nicht gibt:
+   „ein Mensch, ein Kontakt" hält das Datenmodell JE KUNDE, nicht über die
+   Grenze Anfrage/Kunde hinweg. Ob ein Widerspruch für alle Datensätze
+   derselben Adresse gilt, ist **O-908**.
+6. **Die Aktivität hält der Dienst fest** (`halteLeadAktivitaetFest`); die
+   Route prüft das Recht und leitet um — wie CLAUDE.md es für jede Route
+   verlangt.
+7. **Seed:** die Empfehlung in der Reinigung bekommt über denselben Dienst
+   einen Kontakt ihres Kunden.
+
+| Betrifft | CRM-03, CRM-04, CRM-05, CRM-07, REQ-05, LEG-08, § 7 UWG, Art. 21 DSGVO, D-631, D-632, O-907, O-908, V-110, V-141, `src/server/services/crm/{lead-kontakt,lead-kette}.ts`, `src/app/api/{lead,crm/lead}/route.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx`, `src/lib/i18n/verwaltung/crm-lead.ts`, `src/server/db/seed/vertrieb.ts` |
+|---|---|
+
+### D-636 · Die Kette hält auch am Rand: im Rennen, nach dem Archiv, beim Berichtigen (V-142)
+
+**Der Befund** (V-142; Nachprüfung von V-138 bis V-140): Die Kette hielt,
+solange niemand gleichzeitig klickte, archivierte oder sich vertat.
+
+- `kern.lead_bezug_stimmt` (0400) las den Lead ohne Sperre. Hängte jemand
+  die Anfrage um, während ein anderer ein Angebot für den alten Kunden
+  anlegte, sahen beide Prüfungen den jeweils anderen Schritt nicht — danach
+  stand ein Angebot für Kunde A an einer Anfrage von Kunde B.
+- Legten zwei Gesellschaften im selben Augenblick dieselbe neue USt-IdNr.
+  an, fiel die zweite auf `firma_ust_id_uk` — ein roher `23505`, also 500.
+  Vor V-140 unerreichbar, weil `app.firma_aufloesen` keinen Aufrufer hatte.
+- `firmaFuer` gab das Land des Kunden nicht weiter; jede neue Firma bekam
+  `DE`, während 0401 für den Bestand `coalesce(kunde.land, 'DE')` nahm. Die
+  „wortgleiche" Regel aus D-634 Punkt 3 war es nicht.
+- `lead_ausschreibung_uk` zählte archivierte Leads mit: eine Bekanntmachung,
+  deren Lead archiviert wurde, liess sich nie wieder übernehmen.
+- Einen falsch zugeordneten Kunden erlaubten Dienst und Datenbank zu
+  berichtigen, solange nichts an der Anfrage hängt — das Leadblatt bot es nie
+  an.
+- Die Rechnungen auf dem Leadblatt hingen zusätzlich an `auftrag.lesen`. Wer
+  `finanzen.lesen` hielt, aber nicht `auftrag.lesen`, las „Noch keine
+  Rechnung zu diesen Aufträgen", obwohl es welche geben konnte.
+- „Neues Angebot" und „Neuer Auftrag" suchten den Kunden der Anfrage in ihrer
+  Auswahlliste (nicht archiviert; beim Angebot die ersten 500 Namen). Fehlte
+  er dort, hiess es „Die Anfrage hat noch keinen Kunden" — ein falscher Grund.
+- Einige Lesezugriffe der Kette verliessen sich allein auf RLS; die
+  Kopfkommentare von 0400 und 0401 behaupteten eine Kommentarregel „wie in
+  0392", die 0392 und 0393 nicht einhalten.
+
+**Die Entscheidung.**
+
+1. **Der Bezug wird unter Sperre gelesen** (0402): `kern.lead_bezug_stimmt`
+   liest die Zeile des Leads mit `FOR SHARE`. Ein Umhängen wartet, bis das
+   Angebot festgeschrieben ist, und sieht es dann; ein Angebot wartet auf das
+   Umhängen und liest den neuen Kunden. Die umgekehrte Reihenfolge hielt
+   schon vorher: der Fremdschlüssel sperrt den Lead für `FOR UPDATE` in
+   `ordneLeadKundeZu`.
+2. **Zwei Gesellschaften, dieselbe neue Nummer:** `firmaFuer` nimmt vor
+   `app.firma_aufloesen` eine Transaktionssperre auf die normalisierte Nummer
+   (`pg_advisory_xact_lock`, wie der Schichtgenerator). Die zweite
+   Gesellschaft wartet, bis die erste festgeschrieben hat, und findet dann
+   deren Firma; beide Kunden hängen an DERSELBEN. Ein Auffangen des `23505`
+   ging nicht: postgres.js verwirft eine Transaktion, in der eine Anweisung
+   scheiterte, auch wenn der Aufrufer den Fehler fängt — ein
+   Sicherungspunkt mit Wiederholung lief im Test genau daran auf. Die
+   Funktion selbst (0020) bleibt unverändert.
+3. **Das Land geht mit:** `aendereKunde` gibt das Land, das der Kunde nach der
+   Änderung trägt, an `app.firma_aufloesen`; `legeKundeAn` die Vorgabe der
+   Funktion, die dieselbe ist wie die der Spalte (`DE`). Damit gilt die Regel
+   aus 0401 wirklich wortgleich.
+4. **Ein laufender Lead je Bekanntmachung und Gesellschaft** (0402): ein
+   archivierter Lead ist beendet (0017) und gibt die Vergabe frei. Der
+   Schlüssel soll zwei GLEICHZEITIG bearbeitete Leads verhindern (D-633
+   Punkt 3), nicht eine Vergabe für immer sperren. Der archivierte bleibt,
+   wie jeder archivierte Lead, im Bericht.
+5. **Berichtigen, solange nichts an der Anfrage hängt — auch kein
+   zurückgezogener Entwurf.** Das Leadblatt bietet „Kunden berichtigen" an,
+   solange es weder Angebot noch Auftrag sieht; Dienst und Auslöser prüfen,
+   was diese Sitzung nicht sehen darf. Ein zurückgezogener oder archivierter
+   Entwurf zählt mit: er trägt den ersten Kunden UND diese Anfrage, und hinge
+   sie danach am zweiten, widerspräche er der Regel, die
+   `kern.lead_bezug_stimmt` für jeden Vorgang hält. Ihn abzuhängen hiesse,
+   die Geschichte des Angebots umzuschreiben. Die Folge, bewusst: nach einem
+   Entwurf für den falschen Kunden wird die Anfrage mit Grund geschlossen und
+   eine neue für den richtigen erfasst — beide erzählen dann, was geschah. Der
+   Verlauf nennt die Berichtigung („Kunde berichtigt: K-… statt K-…"); der
+   Ansprechpartner bleibt, wo er ist, und wird neu gewählt (D-635).
+6. **Rechnungen ohne Auftragsrecht:** sie hängen an den Aufträgen. Ohne
+   `auftrag.lesen` sagt das Leadblatt genau das und nennt das Recht, statt
+   „keine Rechnung" zu behaupten. Eine eigene Leseschicht an den Aufträgen
+   vorbei wäre ein Weg, Aufträge über ihre Rechnungen zu erschliessen.
+7. **Die Masken lesen den Kunden aus der Zeile der Anfrage**, nicht aus ihrer
+   Auswahlliste; ist er archiviert, sagen sie DAS.
+8. **Mandantenfilter auch dort, wo RLS ohnehin filtert** (Invariante 3: RLS
+   ist die zweite Linie): Kunde und Empfehler in `leseLeadKette`, die
+   Vorprüfung und die Nummer des alten Kunden in `ordneLeadKundeZu`, beide
+   `update kunde` in `aendereKunde`.
+9. Die Kopfkommentare von 0400 und 0401 nennen jetzt 0394 bis 0396 bzw. 0400
+   als Vorbild — nur Kommentare, keine Schemaänderung.
+
+| Betrifft | CRM-05, CRM-06, CRM-07, TEN-02, AUT-06, Invariante 3, D-632, D-633, D-634, D-635, V-142, `drizzle/0402`, `drizzle/0400` (Kommentar), `drizzle/0401` (Kommentar), `src/server/services/crm/{anlegen,aendern,lead-kette,lead-radar}.ts`, `src/app/portal/[mandant]/crm/leads/[id]/page.tsx`, `src/app/portal/[mandant]/{angebote,auftraege}/neu/page.tsx`, `src/app/portal/[mandant]/radar/[id]/page.tsx`, `src/lib/i18n/verwaltung/crm-kette.ts` |
+|---|---|
+
+### D-637 · Die Formularwege der Kette sind Dienste, und eine Abweisung bringt die Maske samt Eingaben zurück (V-143)
+
+**Der Befund** (V-143; Nachprüfung von V-138, D-632 Punkt 8): D-632 sagte
+ohne Einschränkung, das Raumbuch und `/api/auftrag` kehrten mit Schlüssel auf
+ihre Maske zurück. Es stimmte nur zum Teil. `/api/auftrag` antwortete auf
+einen Auftrag, den die Datenbank nicht zurückgab, und auf die Antworten des
+Tors weiter mit JSON; der Raumbuchweg in `/api/angebot` antwortete auf ein
+unvollständiges Formular und auf ein Raumbuch ohne kalkulierbare Fläche mit
+JSON. Und wo die Maske zurückkam, kam sie LEER: nur `?lead=` blieb, jede
+andere Eingabe war weg. Dazu die Prüflücke: beide Wege standen ganz in ihren
+Routen, und eine Route lässt sich hier nicht gegen eine echte Datenbank
+prüfen. Ungeprüft war damit gerade, worauf es ankommt — dass eine abgewiesene
+Anfrage keine Auftragsnummer verbraucht, dass der Auftrag und das
+Raumbuch-Angebot die Anfrage tragen, und dass eine fremde Anfrage kein halbes
+Angebot hinterlässt. Der Isolationstest „der Weg von /api/auftrag" fügte per
+SQL ein und rief die Route nie.
+
+**Die Entscheidung.**
+
+1. **Beide Wege werden Dienste:** `services/auftrag/direkt.ts`
+   (`legeAuftragDirektAn`: Anfrage prüfen, DANN die Nummer ziehen, anlegen)
+   und `services/angebot/aus-raumbuch.ts` (`legeAngebotAusRaumbuchAn`:
+   Grundlage, Kalkulation, Angebot, Zeilen). Die Routen lesen das Formular,
+   prüfen das Recht, rufen den Dienst und antworten — wie CLAUDE.md es für
+   jede Route verlangt.
+2. **Was die EINGABE oder den VORGANG betrifft, kommt als Seite zurück**, mit
+   Schlüssel und Satz: `/api/auftrag` auch für „nicht angelegt", das Raumbuch
+   für `angebot_unvollstaendig` und `nichts_zu_kalkulieren`. Ein Programm
+   (`application/json`) bekommt weiter JSON (D-599).
+3. **D-632 Punkt 8, genau gefasst:** die Antworten des TORS — keine Sitzung,
+   kein zweiter Faktor, kein Recht — bleiben JSON wie auf jeder Route dieser
+   Anwendung (`uebergang.ts`, `autorisierungsAntwort`, D-562). Hinter
+   demselben Tor steht die Maske selbst; es gibt nichts, wohin man
+   zurückkehren könnte. Das ist eine Grenze, keine Lücke.
+4. **Die Maske kommt mit ihren Eingaben zurück** (`lib/formular/maske.ts`):
+   die Werte reisen in der Adresse, je Wert höchstens 1.000 Zeichen, und die
+   Maske belegt ihre Felder damit vor; eine Auswahl übernimmt nur einen Wert,
+   den sie auch anbietet. Mit diesem Weg reist nichts Geheimes — die Maske
+   fragt Stammdaten eines Vorgangs. Die Maske „Neues Angebot" von Hand macht
+   es noch nicht; sie ist nicht Teil dieses Befunds.
+5. **Geprüft gegen die Datenbank:** eine abgewiesene Anfrage lässt den
+   Auftragskreis unberührt, ein Auftrag mit Anfrage stellt sie auf
+   „gewonnen"; das Raumbuch-Angebot trägt die Anfrage, eine fremde hinterlässt
+   nichts, ein leeres Raumbuch und ein unvollständiges Formular legen nichts
+   an. Der alte Test heisst jetzt, was er prüft: den Auslöser am Dienst
+   vorbei.
+
+| Betrifft | CRM-05, OPS-10, REP-03, D-562, D-599, D-632, V-143, `src/server/services/auftrag/direkt.ts`, `src/server/services/angebot/aus-raumbuch.ts`, `src/lib/formular/maske.ts`, `src/app/api/{auftrag,angebot}/route.ts`, `src/app/portal/[mandant]/auftraege/neu/page.tsx`, `src/lib/i18n/verwaltung/crm-kette.ts`, `src/server/registry/dienste.ts` |
+|---|---|
+
+### D-638 · Was an der Kette noch schief stand — und was bewusst bleibt (V-144)
+
+**Der Befund** (V-144; Nachprüfung von V-138 bis V-140, die kleinen Punkte):
+der Satz „Sichtbar für, wer dieses Recht hält:" war kein deutscher Satz; die
+Abweisung `kein_schreibrecht` nannte den rohen Schlüssel `crm.schreiben`
+statt des Namens, den `<Recht>` überall sonst zeigt; `src/lib/vorgang-pille.ts`
+begründete sich damit, die Pillenabbildung je Seite abzulösen — und liess die
+sechs Kopien stehen (jetzt sieben Abbildungen); ein Unit-Test prüfte in
+einem `try/catch` nichts, wenn keine Ausnahme flog. Dazu drei Punkte, die
+eine Entscheidung verlangten statt einer Änderung.
+
+**Die Entscheidung.**
+
+1. **Rechte heissen, wie sie heissen:** „Das sieht, wer dieses Recht hält:"
+   (mit V-142), und `kein_schreibrecht` nennt den Namen aus
+   `lib/i18n/rechtname.ts` — derselbe, den `<Recht>` zeigt, in beiden
+   Sprachen. Eine Prüfung hält fest, dass kein Satz der Kette einen rohen
+   Schlüssel trägt.
+2. **Eine Pillenabbildung:** Angebots-, Auftrags-, Rechnungs- und Leadliste,
+   Lead- und Kundenblatt lesen aus `lib/vorgang-pille.ts`. Die Kopien trugen
+   dieselben Werte (die Leadseiten zusätzlich `qualifiziert`, einen Wert, den
+   `lead_status` nicht kennt); eine Prüfung hält fest, dass keine Seite der
+   Kette wieder eine eigene führt.
+3. **Der Test prüft, was er behauptet:** die Ausnahme muss fliegen, mit
+   genau diesem Grund.
+4. **Bewusst unverändert: die Systemzeilen im Verlauf bleiben deutsch.**
+   „Als Kunde … übernommen", „Angebot … versendet", „Aus dem Vergaberadar
+   übernommen", seit V-141/V-142 auch „Ansprechpartner: …" und „Kunde
+   berichtigt: …" stehen als Text in `lead_aktivitaet.betreff` und erscheinen
+   so auch in der englischen Oberfläche. Das ist das Muster jeder Aktivität
+   dieser Tabelle: der Verlauf ist eine Aufzeichnung, und eine Aufzeichnung
+   wird nicht nachträglich übersetzt. Eine Übersetzung bräuchte einen
+   Schlüssel je Zeile — eine eigene Spalte für alle Aktivitäten, nicht eine
+   Nachbesserung dieser Kette.
+5. **Bewusst unverändert: D-632 Punkt 4** (ein Auftrag stellt auch einen
+   verlorenen Lead auf „gewonnen", der Verlustgrund bleibt stehen). Das ist
+   eine Ablaufregel, keine Rechts- oder Finanzregel; der Nutzer hat solche
+   Fragen delegiert, und D-632 hält sie mit Begründung fest. Sie folgt
+   derselben Regel wie `setzeLeadStatus`, der beim Stand „gewonnen" den Grund
+   ebenfalls stehen lässt; kein Bericht zählt Verlustgründe ohne den Stand.
+6. **Bewusst unverändert: ein zurückgezogener Entwurf sperrt das Berichtigen
+   des Kunden** (D-636 Punkt 5), und **der Kontakt einer Anfrage bleibt neben
+   dem Zwilling beim Kunden stehen** (D-635 Punkt 5, O-908).
+
+| Betrifft | D-592, D-632, D-635, D-636, V-144, `src/lib/i18n/verwaltung/crm-kette.ts`, `src/lib/vorgang-pille.ts`, `src/app/portal/[mandant]/{angebote,auftraege,finanzen/rechnungen,crm/leads}/page.tsx`, `src/app/portal/[mandant]/crm/{leads,kunden}/[id]/page.tsx`, `tests/kern/crm-kette.test.ts` |
+### D-640 · Die Wiedervorlage erinnert: ein Lauf je Mandant, alle fünfzehn Minuten, an den Zuständigen (V-146)
+
+**Der Befund** (V-146, CRM-04): Lead- und Kontaktblatt bieten das Feld
+„Erinnerung“ an, `legeWiedervorlageAn` schreibt `lead_aktivitaet.erinnerung_am`,
+`verschiebe` führt es mit. Gelesen hat den Wert nichts: kein Lauf, keine
+Benachrichtigungsart, kein Kalenderalarm. Wer eine Erinnerung eintrug, bekam
+keine; die Wiedervorlage erschien nur, wenn jemand von sich aus die Liste
+öffnete.
+
+**Die Entscheidung.**
+
+1. **Der Weg ist der Posteingang** (NOT-01). Die Art
+   `crm.wiedervorlage_erinnerung` (`services/crm/benachrichtigung.ts`) führt
+   auf `/crm/wiedervorlagen`, wo sich die Wiedervorlage erledigen und
+   verschieben lässt. Sie ist **nie sammelbar**: eine Erinnerung in der
+   Tageszusammenfassung käme nach dem Termin. Vorgabekanäle wie bei den
+   anderen Vertriebsarten (`app`, `email`); die E-Mail wirkt erst, wenn ein
+   Versender verbunden ist (O-36). Der Text ist deutsch wie jede Meldung an
+   die Verwaltung.
+2. **Empfänger ist der Zuständige, sonst wer die Wiedervorlage angelegt hat.**
+   Hat dieser Mensch kein aktives Konto, wird der Anspruch zurückgegeben
+   (`erinnert_am` wieder NULL), dieselbe Regel wie beim Nachtrag: ein wieder
+   aktiviertes Konto bekommt die Erinnerung noch. Steht gar kein Mensch an der
+   Zeile, bleibt der Anspruch stehen, und die Zahl steht im Laufbericht
+   (`ohneEmpfaenger`); da kann sich nichts mehr ändern.
+   *Nachgeschärft durch D-647 (V-153):* Empfänger ist nur, wer `crm.lesen`
+   in diesem Bereich hält; ohne einen solchen wird die Zeile gar nicht erst
+   beansprucht (`wartend`), statt den Anspruch alle fünfzehn Minuten zu
+   nehmen und zurückzugeben.
+3. **Alle fünfzehn Minuten, je Mandant** (`wiedervorlage_erinnerung`,
+   `*/15 * * * *`). Das Formular nimmt eine Uhrzeit auf die Minute; ein
+   stündlicher Lauf brächte „08:05“ um 09:00. Die Auswahl ist ein einziges
+   `update … set erinnert_am = now() … returning` auf einem Teilindex, der
+   Anspruch und Zustellung liegen in einer Transaktion: zwei Läufe stellen
+   nie doppelt zu, und ein Fehler rollt den Anspruch mit zurück.
+4. **Verschieben macht die Erinnerung neu.** `verschiebe` setzt `erinnert_am`
+   zurück; die mitgewanderte Erinnerung wird zum neuen Termin zugestellt.
+5. **Die Rolle ist eng** (0405). Der Lauf fährt als `cse_job` mit gebundenem
+   Mandanten (`alsJobSitzung`) und hat auf `lead_aktivitaet` nur die Spalten,
+   die er wählt und zurückgibt, und `update` auf genau `erinnert_am`.
+   `inhalt` und `rechtsgrundlage_snapshot` bleiben ihm entzogen. Die Policies
+   hängen an `app.aktiver_mandant()`, nicht an `using (true)`.
+
+**Nicht Teil dieser Entscheidung:** ein Alarm (`VALARM`) im gespiegelten
+Kalendereintrag. Der Posteingang ist der eine Weg; zwei Erinnerungen an
+denselben Termin auf zwei Wegen wären eine zu viel, und welche davon gilt,
+wäre wieder eine Frage.
+
+| Betrifft | CRM-04, NOT-01, NOT-03, D-378, D-493, V-146, `drizzle/0405`, `src/server/jobs/wiedervorlageErinnerung.ts`, `src/server/services/crm/{benachrichtigung,wiedervorlage}.ts`, `src/server/benachrichtigung/bootstrap.ts`, `src/server/jobs/bootstrap.ts`, `docs/JOB-AUSLOESER.sql` |
+|---|---|
+
+### D-641 · Der Kommunikationsverlauf am Kunden und am Kontakt: Aktivitäten und Nachrichten in einer Liste, Notizen auch ohne Lead (V-147)
+
+**Der Befund** (V-147, CRM-03, 04-SEITENKARTE Reiter „Kommunikation“): das
+Kundenblatt zeigte gar keinen Verlauf, obwohl `0017` eigens
+`lead_aktivitaet_kunde_idx` anlegte; Wiedervorlagen am Kunden und
+Kundenportal-Nachrichten erschienen nirgends. Das Kontaktblatt las nur
+`lead_aktivitaet` und zeigte rohe Werte (`ausgehend · email`). Was über
+„Nachricht senden“ hinausgeht, steht aber in `nachricht` — sobald ein Versender
+verbunden ist, fehlte jede versendete Nachricht genau in dem Verlauf, der sie
+belegen soll. Eine Notiz ließ sich nur an einen Lead hängen.
+
+**Die Entscheidung.**
+
+1. **Eine Liste aus beiden Quellen** (`services/crm/verlauf.ts`), neueste
+   zuerst, die jüngsten 50. Am **Kunden**: Aktivitäten am Kunden, an seinen
+   Leads und an seinen Ansprechpartnern; Nachrichten mit seinem `kunde_id`,
+   mit einem seiner Kontakte als Rechtsgrundlage-Kontakt oder als Empfänger.
+   Am **Kontakt**: seine Aktivitäten und jede Nachricht an ihn oder auf seiner
+   Grundlage. Ein Bauteil für beide Blätter (`Kommunikationsverlauf`), damit
+   die zwei Fassungen nicht wieder auseinanderlaufen.
+2. **Der Beleg steht dabei.** Bei allem, was hinausging, die Rechtsgrundlage
+   IM MOMENT DES SENDENS (`rechtsgrundlage_snapshot`,
+   `nachricht.rechtsgrundlage`), nicht der heutige Stand; bei Nachrichten der
+   Zustellstand — `ausstehend` heißt auf dem Bildschirm „nicht versendet“
+   (O-36). Keine rohen Aufzählungswerte, de und en.
+3. **Die Rechte entscheidet die Datenbank.** `lead_aktivitaet` hinter
+   `crm.lesen`, `nachricht` hinter `nachricht.lesen`. Fehlt das zweite oder
+   `system.benutzer_lesen`, sagt das Blatt, was fehlt, statt eine kürzere
+   Liste als die ganze auszugeben.
+4. **Festhalten am Kunden und am Kontakt** über eine eigene Route
+   `POST /api/crm/notiz` (nicht `/api/lead`, die dem Leadblatt gehört und den
+   nächsten Schritt am Lead setzt). Art Notiz/Anruf/E-Mail/Termin, Richtung,
+   und bei ein- und ausgehend der **Zweck, den der Mensch wählt**
+   (vertraglich/transaktional/Werbung, Vorgabe vertraglich — *ersetzt durch
+   D-647: Pflichtwahl ohne Vorauswahl*). Eine Notiz
+   bleibt immer intern. Ein ausgehender Anruf oder eine ausgehende E-Mail
+   verlangt einen Ansprechpartner; ob er kontaktiert werden durfte, prüft das
+   unveränderte UWG-Tor der Datenbank (0020) gegen den lebenden Kontakt —
+   sagt es Nein, wird nichts festgehalten, und das Blatt nennt den Grund.
+   Angelegt, nie geändert; `geschehen_am` setzt der Server.
+5. **Ein Kontakt ohne Kunden hat hier keinen Weg**: eine Aktivität hängt an
+   einem Lead oder an einem Kunden (`lead_aktivitaet_hat_bezug`). Das
+   Kontaktblatt sagt das und verweist auf das Leadblatt, statt ein Formular
+   anzubieten, das immer scheitert.
+6. **Die Rückmeldung trägt einen eigenen Namen** (`?notiz=<grund>`,
+   `?notiert=1`): das Kontaktblatt liest `fehler` für den Sendeweg und
+   `meldung` für seine übrigen Formulare. Jeder Grund des Dienstes hat einen
+   Satz in beiden Sprachen (geprüft).
+
+**Nicht Teil dieser Entscheidung:** der Verlauf auf dem Leadblatt (V-137) —
+er liest weiter nur die Aktivitäten des Leads. Nachrichten tragen keinen
+Leadbezug, den er lesen könnte.
+
+| Betrifft | CRM-03, CRM-08, LEG-08, O-36, V-101, V-137, V-147, `src/server/services/crm/verlauf.ts`, `src/components/portal/Kommunikationsverlauf.tsx`, `src/lib/i18n/verwaltung/crm-verlauf.ts`, `src/app/api/crm/notiz/route.ts`, `src/app/portal/[mandant]/crm/{kunden,kontakte}/[id]/page.tsx` |
+|---|---|
+
+### D-642 · Ein abgewiesenes Formular sagt es auf der Seite, von der es kam — Kundenblatt und vier Recruiting-Seiten (V-148)
+
+**Der Befund** (V-148, D-562): drei Muster derselben Lücke — eine Route
+leitet eine Abweisung mit Grund zurück, die Seite liest ihn nicht.
+(1) `/crm/kunden/[id]` nahm keine Suchparameter an; `POST /api/crm/kunde`
+schickte `?meldung=`. Wer „Bestandskunde“ oder „Einwilligung“ wählte und nicht
+sagte, woher sie stammt bzw. für welchen Kanal, bekam keinen Kontakt und
+keinen Satz. (2) Das Leadblatt las `?meldung=` bereits (V-137) — dieser Teil
+war widerlegt. (3) Bewertung, Entscheidung, neue Stelle und Veröffentlichung
+schicken `zurueck` auf sich selbst, `fuehreRecruitingAus` hängt
+`?fehler=<grund>` an, und keine der vier nahm Suchparameter an: ein
+Bewertungskriterium ohne Begründung wurde abgewiesen, alle Eingaben waren
+weg, kein Satz.
+
+**Die Entscheidung.**
+
+1. **Das Kundenblatt liest Satz und Schlüssel.** Die Kundenroute schickt
+   zusätzlich `?grund=` (nicht `?fehler=`: das Kontaktblatt liest diesen
+   Namen für den Sendeweg, V-101). Das Blatt zeigt über dem Kopf einen
+   Hinweis mit dem übersetzten Satz, sonst dem deutschen Satz der Route —
+   nie den Schlüssel — und öffnet das Kontaktformular wieder.
+2. **Die vier Recruiting-Seiten lesen `?fehler=`** über ein gemeinsames
+   Bauteil (`recruiting/rueckmeldung.tsx`). Je Seite eine eigene Satztabelle
+   in de und en: derselbe Schlüssel meint auf zwei Seiten Verschiedenes
+   (`unvollstaendig`). Ein unbekannter Grund fällt auf „Der Vorgang wurde
+   abgewiesen.“ zurück. Ein Test hält fest, dass jeder Grund, den die
+   jeweilige Route und ihr Dienst werfen können, einen Satz hat.
+3. **Die Veröffentlichung liest auch ihren Erfolg** (`?gesendet=1`) — und
+   „nicht verbunden“, den ehrlichen Normalfall jeder Börse, als Satz:
+   vermerkt, nichts hinausgegangen (O-374, D-02).
+4. **Die Eingaben kommen nicht zurück, und das steht da.** Sie über die
+   Adresse zurückzugeben hieße, Begründungen einer Bewerberbewertung (AGG)
+   und Stellentexte in Adresszeilen und Zugriffsprotokolle zu schreiben. Die
+   langen Formulare (Bewertung, neue Stelle) sagen deshalb ausdrücklich, dass
+   die Eingaben neu einzutragen sind; der Satz sagt, was zu ändern ist.
+
+**Nicht Teil dieser Entscheidung:** die Erfolgsmeldungen, die auf anderen
+Seiten ankommen (`?bewertet=1`, `?entschieden=1` auf dem Bewerbungsblatt,
+`?angelegt=1` auf dem Stellenblatt) — das sind keine Fehler-Rückwege.
+
+| Betrifft | D-562, D-599, V-101, V-137, V-148, REC-02, REC-05, REC-08, REC-09, `src/app/api/crm/kunde/route.ts`, `src/app/portal/[mandant]/crm/kunden/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/{rueckmeldung.tsx,kandidaten/[id]/bewertung,kandidaten/[id]/entscheidung,stellen/neu,stellen/[id]/veroeffentlichung}`, `src/lib/i18n/verwaltung/{crm-kunde,recruiting-rueckmeldung}.ts` |
+|---|---|
+
+### D-643 · Jede Übersichtszahl führt zu ihren Zeilen — Wiedervorlagen, Aktivität, Angebote der Gruppe (V-149)
+
+**Der Befund** (V-149, DSH-04 „no dead numbers"): drei Zahlen führten nicht
+zu der Menge, die sie zählen. (a) „Offene Wiedervorlagen" zählt alle
+Zuständigen, `/crm/wiedervorlagen` öffnet in der Vorgabe „nur meine" — die
+CRM-Übersicht hatte das mit `?wer=alle` schon behoben, das Kachelregister
+nicht. (b) „Aktivität (7 Tage)" zählt `lead_aktivitaet` und führte auf die
+Kundenliste, auf der keine Aktivität steht. (c) „Angebote offen" in der
+Gruppenübersicht war eine nackte Zahl; `/portal/gruppe/angebote` gab es nicht.
+
+**Die Entscheidung.**
+
+1. **Die Wiedervorlagen-Kachel trägt `?wer=alle`.** Dieselbe Lösung wie auf
+   der CRM-Übersicht; die Liste liest genau diesen Parameter.
+2. **Eine eigene Aktivitätsliste, keine umgebogene Kundenliste.**
+   `/portal/[mandant]/crm/aktivitaet` (`crm.lesen`) zeigt über
+   `leseAktivitaeten` dieselbe Tabelle mit derselben Frist
+   (`AKTIVITAET_TAGE = 7`) — und bewusst KEINE Nachrichten: die zählt die
+   Kachel nicht, und eine Liste, die mehr zeigt als die Zahl, ist dieselbe
+   tote Zahl andersherum. Dargestellt mit dem Verlaufsbauteil aus V-147,
+   je Zeile mit Verweis auf Lead oder Kunde (nur, wenn lesbar). In der
+   Gruppe gibt es keine solche Liste (O-910); dort bleibt das Ziel die
+   Übersicht.
+3. **`/portal/gruppe/angebote`** (`gruppe.angebot.lesen`, `t_gruppe` auf
+   `angebot`) — lesend, mit Bereichs- und Standfilter. Die Zelle der
+   Übersicht führt mit `?status=offen&bereich=…` dorthin.
+4. **Eine Menge, ein Ort** (`services/bericht/mengen.ts`): welche Stände
+   „offen", „aktiv", „in Arbeit" heissen, steht einmal. Kachel, Liste und
+   Gruppenübersicht bauen ihr Prädikat daraus; die Übersicht bekommt die
+   Werte als Parameter statt als zweite Schreibweise im SQL. Filter aus der
+   Adresse werden nur gegen die Werteliste angenommen, nie als Text.
+
+**Nicht Teil dieser Entscheidung:** welche Stände „offen" heissen — das
+folgt den Aufzählungen selbst (0024, 0025, 0071) und ist keine neue Regel.
+
+| Betrifft | DSH-04, CRM-03, CRM-04, OPS-08, V-147, V-149, `src/server/services/bericht/{kacheln,mengen}.ts`, `src/server/services/crm/verlauf.ts`, `src/app/portal/[mandant]/crm/aktivitaet/page.tsx`, `src/app/portal/gruppe/{page,angebote/page,tor}.tsx`, `docs/architecture/04-SEITENKARTE.md` |
+|---|---|
+
+### D-644 · Die gebauten Module haben ihre Kachel, und die Gruppenübersicht zählt Projekte, Einsatz und Aufgaben (V-150)
+
+**Der Befund** (V-150, DSH-01, DSH-03): das Kachelregister trug 13 Kacheln
+und begründete das Fehlen der übrigen mit „Modul noch nicht gemergt".
+Aufträge, Angebote, Bauprojekte, Forderungen und Aufgaben waren längst
+gebaut — die Übersicht jeder Gesellschaft zeigte trotzdem keine einzige
+Auftrags-, Projekt-, Angebots- oder Finanzzahl. Der Gruppenübersicht fehlten
+aktive Projekte, „aktuell im Einsatz", anstehende Aufgaben und letzte
+Aktivität.
+
+**Die Entscheidung.**
+
+1. **Fünf neue Kacheln, jede mit dem Recht ihres Moduls und einer Liste,
+   die GENAU ihre Menge zeigt:** `auftraege_aktiv` (`auftrag.lesen` →
+   `auftraege?status=aktiv`), `projekte_in_arbeit` (`bau.lesen` →
+   `bau/projekte?status=in_arbeit`), `angebote_offen` (`angebot.lesen` →
+   `angebote?status=offen`), `forderungen_offen` (`buchhaltung.lesen` →
+   `buchhaltung/offene-posten?art=debitor`, dieselbe Bedingung wie
+   `postenListe`) und `aufgaben_offen` (`aufgabe.lesen` → `aufgaben`,
+   `OFFENE_ZUSTAENDE` aus `kern/aufgabe.ts`). Die drei Listen, die bisher
+   keinen Filter kannten, lesen jetzt `?status=` gegen die Werteliste und
+   sagen es in einer Zeile über der Liste („Gefiltert: … · Alle anzeigen",
+   DESIGN §Filter line).
+2. **Der Kunde kommt in diesen Listen per LEFT JOIN.** Die Kachel zählt die
+   Hauptzeile allein; ein innerer Join auf `kunde` liess ein Projekt ohne
+   `crm.lesen` aus der Liste fallen, das die Kachel zählte. Die Zelle zeigt
+   dann einen Strich.
+3. **Umsatz, Aufwand und Ergebnis werden keine Kacheln.** Das Register zählt
+   Zeilen; Geld steht auf `/finanzen` (Bereich) und `/gruppe/finanzen`
+   (Gruppe, mit Aufwand je Bereich) — D-479, keine GuV. Benachrichtigungen
+   bleiben in der Glocke.
+4. **Die Gruppenübersicht bekommt drei Spalten:** „Bauprojekte in Arbeit"
+   (`gruppe.bau.lesen` → `/gruppe/projekte?status=in_arbeit`), „Offene
+   Aufgaben" (`gruppe.aufgabe.lesen` → neue Seite `/gruppe/aufgaben`, über
+   `t_aufgabe_gruppe` aus 0230) und „Im Einsatz" (`gruppe.zeit.lesen` →
+   `/gruppe/auslastung?bereich=…#im-einsatz`, ein neuer Abschnitt aus
+   `zeiteintrag_offen`). Wie jede Zelle dort: `null` und ein Strich, wo das
+   Recht in DIESEM Bereich fehlt — nie die 0 der Policy.
+5. **„Letzte Aktivität" bekommt die Gruppe nicht.** `lead_aktivitaet` hat
+   keinen Gruppenleseweg, und einen zu öffnen hiesse, Gesprächsinhalte aller
+   Gesellschaften in der Gruppe lesbar zu machen. Das ist O-910 und wird
+   nicht nebenbei entschieden.
+6. **Eine Ausnahme in `tests/kern/verweis-rechte.test.ts`:** der Verweis
+   „Im Einsatz" auf `/gruppe/auslastung` ist über `gruppenUebersicht()`
+   bewacht (die Zelle ist ohne `gruppe.zeit.lesen` im Bereich `null`,
+   `Zahl` rendert dann keinen Verweis). Für die statische Vermessung ist das
+   unsichtbar, weil das Recht im Dienst steht — dieselbe Lage wie die zwei
+   bestehenden Einträge. `tests/isolation/kennzahlen-listen.test.ts` hält die
+   `null`-Zelle fest.
+
+| Betrifft | DSH-01, DSH-03, DSH-04, DSH-05, OPS-05, OPS-08, OPS-11, FIN-15, TEN-05, D-479, O-910, V-150, `src/server/services/bericht/{kacheln,mengen}.ts`, `src/server/services/gruppe/{uebersicht,auslastung,aufgaben}.ts`, `src/server/services/bau/lv.ts`, `src/app/portal/[mandant]/{page,auftraege/page,angebote/page,bau/projekte/page}.tsx`, `src/app/portal/gruppe/{page,aufgaben/page,auslastung/page,auftraege/page,projekte/page}.tsx`, `src/components/portal/Listenfilter.tsx`, `src/lib/i18n/verwaltung/kennzahlen.ts`, `docs/DESIGN.md`, `tests/kern/verweis-rechte.test.ts` |
+|---|---|
+
+### D-645 · Eine Kachel erscheint nur, wenn sich ihr Ziel öffnet — Recht, Zielrechte und Modulbuchung (V-151)
+
+**Der Befund** (V-151, DSH-04, AUT-06, D-377; Nachprüfung von V-150): die
+neue Kachel „Bauprojekte in Arbeit“ (`bau.lesen`) erschien bei Leitung und
+Administration in JEDER Gesellschaft — beide halten `bau.lesen` global
+(0008) —, und in der Reinigung, der Security und bei Operations führte sie auf
+`/bau/projekte?status=in_arbeit`: ein 404, weil die Pforte eine Seite eines
+nicht gebuchten Gewerks so beantwortet. Das Dashboard filterte nur nach dem
+Recht der Kachel; `Kachel.modul` las niemand, `app.hat_recht` schneidet nur
+mit `benutzer_mandant.module`, nicht mit `mandant.module`, und kein Test
+fragte, ob sich das Ziel einer sichtbaren Kachel öffnet. Dieselbe Lücke in
+kleiner: „Offene Forderungen“ hing an `buchhaltung.lesen`, `offener_posten`
+liest aber nur, wer `zahlung.lesen` hält (0121) — eine Rolle ohne das zweite
+sah „0“, eine Aussage über das Recht statt über die Forderungen. Und
+„Offene Konflikte“ (`dienstplan.arbzg_lesen`) führt auf eine Seite, die
+zusätzlich `dienstplan.lesen` verlangt.
+
+**Die Entscheidung.**
+
+1. **Die Kachel fragt, was die Pforte fragen wird.** `kachelErreichbar`
+   (`services/bericht/dashboard.ts`) verlangt das Recht der Kachel und ihre
+   `zusatzRechte`, die Buchung ihres Moduls und ihrer Rechte (`modulAktiv`),
+   eine Zielroute im Manifest, die in dieser Gesellschaft nicht gesperrt ist,
+   und JEDES Leserecht dieser Route. Fällt eines, erscheint die Kachel nicht —
+   nicht ausgegraut (AUT-06).
+2. **Eine Regel, eine Funktion.** Ob eine Route am Modul scheitert, sagt
+   `routeGesperrt` (`registry/routen.ts`); die Pforte (`app/portal/zugang.ts`)
+   und die Übersicht rufen beide genau diese Funktion. Die Regel stand vorher
+   nur in der Pforte, und die Übersicht wusste nichts von ihr.
+3. **Die Buchung ist ein Pflichtargument von `dashboard()`.**
+   `bereichsDashboard` liest Buchung und Rechte in derselben gebundenen
+   Transaktion wie die Zahlen, in einer Rundreise (`kachelRechte`). Die
+   Entwicklungsfläche `/dev/dashboard`, deren Ziele `/dev/kennzahl/…` sind und
+   sich immer öffnen, sagt ausdrücklich „keine Buchung“
+   (`gepflegt: false`) — derselbe Wert, den eine Gesellschaft ohne gepflegte
+   Liste hat (0103).
+4. **`zusatzRechte` für die Rechte der gezählten Tabelle.** „Offene
+   Forderungen“ trägt `zahlung.lesen`; Recht und Modul der Kachel bleiben
+   `buchhaltung`, weil ihr Ziel die Liste der Buchhaltung ist.
+
+**Nicht Teil dieser Entscheidung:** ein zweiter Faktor, den ein Ziel verlangt
+(`aal2`). Keine Kachel führt heute auf eine solche Route; der Test in
+`tests/kern/kennzahlen-erreichbar.test.ts` schlägt an dem Tag an, an dem eine
+dazukommt, statt dass die Übersicht die Stufe der Sitzung raten müsste.
+
+| Betrifft | DSH-03, DSH-04, AUT-06, D-377, D-644, V-150, V-151, `src/server/services/bericht/{dashboard,kacheln}.ts`, `src/server/registry/{kennzahlen,routen}.ts`, `src/app/portal/zugang.ts`, `src/app/portal/[mandant]/page.tsx`, `src/app/dev/dashboard/page.tsx`, `tests/kern/kennzahlen-erreichbar.test.ts`, `tests/isolation/kennzahlen-listen.test.ts` |
+|---|---|
+
+### D-646 · Die Gruppenübersicht: jede Zahl mit ihrem Filter, jede Liste als Dienst, jede Beschriftung in der Sprache der Sitzung (V-152)
+
+**Der Befund** (V-152, DSH-04, AUT-06, D-592; Nachprüfung von V-149/V-150):
+die Summenkachel „Aufträge aktiv“ oben auf `/portal/gruppe` führte weiter auf
+`/gruppe/auftraege` ohne `?status=aktiv` — die Liste zeigte alle nicht
+archivierten Aufträge, die Zahl zählte nur `aktiv`; `gruppe/auftraege`
+beschrieb diese Abweichung sogar selbst. „Neue Anfragen“ zählte `status =
+'neu'` und führte auf die ganze Pipeline; dasselbe im Bereich für die Kacheln
+„Neue Anfragen“ und „Frist überschritten“ (beide auf die ungefilterte
+Leadliste). Von den Spaltenköpfen der Übersicht waren nur die drei neuen
+übersetzt — im englischen Portal eine gemischte Tabelle. „Forderungen offen“
+zählte mit `gruppe.zahlung.lesen` und führte auf `/gruppe/offene-posten`, das
+`gruppe.buchhaltung.lesen` verlangt. Und die Listen hinter „Aktive Aufträge“,
+„Offene Angebote“ und „Angebote offen“ hatten ihre Abfrage in der Seite: ob
+sie dieselbe Menge zeigen wie die Zahl, prüfte nur ein Vergleich von
+Quelltext-Zeichenketten, einer davon an Leerzeichen gebunden.
+
+**Die Entscheidung.**
+
+1. **Die Ziele der Übersicht stehen im Dienst** (`UEBERSICHT_ZIELE`,
+   `SUMMEN_ZIELE`, `uebersichtZiel` in `services/gruppe/uebersicht.ts`), jedes
+   MIT dem Filter seiner Menge: `auftraege?status=aktiv`,
+   `leads?status=neu`, `angebote?status=offen`, `projekte?status=in_arbeit`.
+   Die Seite baut keine Adresse mehr selbst; ein Test misst jedes Ziel am
+   Manifest.
+2. **Eine Zelle ist eine Zahl, wo die Sitzung das Recht der Zahl UND das der
+   Liste dahinter hält** (`UEBERSICHT_ZIELRECHTE`, heute nur „Forderungen
+   offen“ → `gruppe.buchhaltung.lesen`). Sonst `null`, also ein Strich statt
+   eines Verweises auf einen 404 (AUT-06). Eine **Summe** geht über die
+   Bereiche mit Zahl; ist es keiner, steht ein Strich ohne Verweis — „0“ wäre
+   eine Aussage über das Recht.
+3. **Leadlisten filtern nach Stand und Frist** (`?status=` gegen `lead_status`,
+   `?frist=ueberschritten`), im Bereich wie in der Gruppe, mit der Zeile
+   „Gefiltert: … · Alle anzeigen“. Das Prädikat „Reaktionsfrist
+   überschritten“ steht EINMAL (`fristUeberschrittenSql`, `mengen.ts`); die
+   Kachel und beide Listen benutzen es.
+4. **Die Listen hinter den Zahlen sind ein Dienst** (`services/bericht/listen.ts`:
+   Aufträge, Angebote, Leads — im Bereich und in der Gruppe). Im Bereich steht
+   `mandant_id = app.aktiver_mandant()` in der Abfrage und nicht nur in der
+   Policy (Invariante 3). `tests/isolation/kennzahlen-listen.test.ts` (5)(6)
+   vergleicht Zahl und Liste an echten Zeilen, auch ohne Leserecht auf den
+   Kunden.
+5. **Die Übersicht spricht ganz die Sprache der Sitzung** — Titel, Summen,
+   alle Spaltenköpfe, Hinweis (`KENNZAHL_TEXTE`); ihre Zeile in der
+   Ausnahmeliste der Übersetzungswache ist gestrichen. Die übrigen
+   Gruppenlisten bleiben, wie sie sind: deutsch mit zweisprachiger
+   Filterzeile — dieselbe Lage wie jede Modulseite, deren Fließtexte nach
+   D-592 noch folgen.
+
+**Nicht Teil dieser Entscheidung:** eine eigene Gruppenliste für
+Wiedervorlagen. Die Kachel „Offene Wiedervorlagen“ führt in der Gruppe weiter
+auf die Leadliste; `lead_aktivitaet` hat keinen Gruppenleseweg (O-910).
+
+| Betrifft | DSH-01, DSH-04, AUT-06, D-592, D-643, D-644, V-149, V-150, V-152, `src/server/services/bericht/{listen,mengen,kacheln}.ts`, `src/server/services/gruppe/uebersicht.ts`, `src/app/portal/gruppe/{page,auftraege/page,angebote/page,leads/page}.tsx`, `src/app/portal/[mandant]/{auftraege/page,angebote/page,crm/leads/page}.tsx`, `src/lib/i18n/verwaltung/kennzahlen.ts`, `scripts/guards/uebersetzung-ausnahmen.ts`, `tests/kern/{kennzahlen-ziele,verweis-rechte}.test.ts`, `tests/isolation/kennzahlen-listen.test.ts`, `tests/e2e/gruppe.spec.ts` |
+|---|---|
+
+### D-647 · CRM-Pflege nachgeschärft: Erinnerung nur an Berechtigte und ohne Altlast, geprüfte Bezüge, Zweck ohne Vorgabe, ehrliche Rückmeldungen (V-153)
+
+**Der Befund** (V-153; Nachprüfung von V-146, V-147, V-148): (1) 0405 füllte
+`erinnert_am` für den Altbestand nicht vor — der erste Lauf nach dem
+Einspielen hätte jede offene Wiedervorlage mit längst vergangener Erinnerung
+auf einmal zugestellt, per E-Mail, sobald ein Versender verbunden ist; der
+Seed hat eine solche Zeile. (2) Der Lauf prüfte den Empfänger weder auf
+Mitgliedschaft noch auf `crm.lesen` — der Betreff ging trotzdem in
+Posteingang und E-Mail —, ein stillgelegtes Konto liess den Anspruch alle
+fünfzehn Minuten nehmen und zurückgeben, ohne Ende, und der Text „Sie haben
+um eine Erinnerung gebeten“ war falsch, wenn Zuständiger und Anlegender
+verschiedene Menschen sind. (3) `halteFest` prüfte `kundeId` nicht gegen den
+Mandanten (`lead_aktivitaet.kunde_id` hat keinen Fremdschlüssel), dasselbe
+Muster in `legeWiedervorlageAn`; eine Kennung ohne UUID-Form endete als 500.
+(4) Der Zweck einer Notiz war vorgewählt `vertraglich` — die Klasse, die das
+UWG-Tor nie sperrt. (5) Ohne `crm.schreiben` zeigten Kunden- und Kontaktblatt
+weder Formular noch Satz. (6) Das Kundenblatt setzte als Rückfall den Text aus
+`?meldung=` in seinen Warnkasten. (7) Die Recruiting-Rückmeldung überschrieb
+einen vermerkten Veröffentlichungsversuch mit „Nicht gespeichert.“.
+
+**Die Entscheidung.**
+
+1. **Der Altbestand wird nicht nachgeholt, wo seine Wiedervorlage schon fällig
+   ist** (`drizzle/0406`). Eine Erinnerung ist ein Hinweis VOR einem Termin;
+   liegt die Fälligkeit selbst in der Vergangenheit, steht die Wiedervorlage
+   überfällig in Liste und Übersicht, und eine Meldung Tage danach wäre nur
+   Lärm. Diese Zeilen werden gestempelt, ohne Zustellung. Liegt die
+   Fälligkeit noch vor uns, bekommt die Erinnerung der erste Lauf — spät, aber
+   vor dem Termin. Der Seed folgt derselben Regel.
+2. **Empfänger ist nur, wer die Wiedervorlage lesen darf**
+   (`kern.traeger_des_rechts(mandant, 'crm.lesen')`: aktive Menschenkonten mit
+   dem Recht in DIESEM Bereich, dieselbe Auflösung wie `app.hat_recht`).
+   Zuerst der Zuständige, sonst wer sie angelegt hat. Darf keiner von beiden,
+   wird die Zeile nicht beansprucht: sie wartet ohne Schreibvorgang, bis wieder
+   jemand berechtigt ist (ein wieder aktiviertes Konto bekommt sie noch,
+   D-640), und steht als `wartend` im Laufbericht. Das Zurückgeben des
+   Anspruchs bleibt nur für das Fenster zwischen Auswahl und Zustellung.
+3. **Der Text sagt, warum die Meldung an diesen Menschen geht** — „als
+   zuständig eingetragen“ oder „angelegt; zuständig ist niemand“ bzw. „der
+   eingetragene Zuständige hat hier keinen Zugang zum CRM“. Geht sie an den
+   Anlegenden, führt sie auf `/crm/wiedervorlagen?wer=alle`: die Vorgabe
+   „nur meine“ zeigte sie ihm nicht.
+4. **Bezüge werden vor dem Schreiben geprüft**, mit dem Mandanten der Sitzung
+   in der Abfrage (Invariante 3): Kunde, Lead, Ansprechpartner müssen hier
+   stehen, eine Kennung ohne UUID-Form ist `ungueltiger_bezug`, und zuständig
+   kann nur sein, wer das CRM hier lesen darf (`zustaendig_ohne_zugang`) —
+   dieselbe Frage wie im Lauf. Ein Fremdschlüssel auf
+   `lead_aktivitaet.kunde_id` kommt NICHT dazu: der Bestand wurde nie
+   geprüft, und eine Migration, die an einer verwaisten Zeile scheitert, hielte
+   jedes Einspielen an; die Dienste sind die einzigen Schreiber.
+5. **Der Zweck ist eine Pflichtwahl ohne Vorauswahl** bei ein- und ausgehenden
+   Einträgen (`ohne_zweck`); eine interne Notiz braucht keinen. Damit gibt es
+   keine Vorgabe, nach der zu fragen wäre — D-641 Punkt 4 („Vorgabe
+   vertraglich“) ist hiermit ersetzt.
+6. **Formular ODER Satz**: ohne `crm.schreiben` steht „Festhalten kann, wer
+   dieses Recht hält: …“ (`NotizKeinRecht`).
+7. **Nie Text aus der Adresse im Warnkasten**: das Kundenblatt übersetzt
+   bekannte Schlüssel, alles andere wird „Der Vorgang wurde abgewiesen.“ —
+   dasselbe wie `grundAus` im Recruiting.
+8. **„Nicht veröffentlicht.“ statt „Nicht gespeichert.“**, wo der Versuch
+   vermerkt ist (`kanal_nicht_verbunden`, `veroeffentlichung_fehlgeschlagen`):
+   gespeichert ist der Vermerk, hinausgegangen ist nichts.
+
+**Nicht Teil dieser Entscheidung:** das Formular „Nachricht senden“ auf dem
+Kontaktblatt (V-101) wählt seinen Zweck weiter `vertraglich` vor; es gehört
+nicht zu diesem Befund und wird hier nicht nebenbei geändert. Ebenso zeigen
+Leadblatt, Kontaktblatt und Wiedervorlagenliste weiter den Satz, den ihre
+Routen als `?meldung=` schicken — ein älteres Muster, das eine eigene
+Durchsicht braucht.
+
+| Betrifft | CRM-03, CRM-04, LEG-08, NOT-01, D-562, D-599, D-640, D-641, D-642, V-146, V-147, V-148, V-153, `drizzle/0406`, `src/server/jobs/wiedervorlageErinnerung.ts`, `src/server/services/crm/{benachrichtigung,verlauf,wiedervorlage}.ts`, `src/server/db/seed/crm.ts`, `src/components/portal/Kommunikationsverlauf.tsx`, `src/app/portal/[mandant]/crm/{kunden,kontakte}/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/rueckmeldung.tsx`, `src/lib/i18n/verwaltung/{crm-verlauf,crm-kunde,recruiting-rueckmeldung}.ts`, `tests/kern/crm-notiz-route.test.ts` |
+### D-648 · Eine Referenz lässt sich anlegen — als Entwurf, ohne Freigabe, frei oder aus einem Auftrag (V-154)
+
+**Der Befund** (V-154; PRO-05, PRO-02): kein Dienst und keine Route schrieb
+ein `insert into referenz` — nur der Seed. Die Kundenfreigabe am Auftrag und
+ihr Hinweistext versprachen „die öffentliche Referenz legt danach ein Mensch
+unter `/website/referenzen` an", und dort gab es Bearbeiten, Kundenfreigabe
+und Veröffentlichen einer BESTEHENDEN Zeile; der Leerzustand der Liste hatte
+keinen Knopf. Eine echte Gesellschaft brachte damit kein einziges Projekt auf
+ihr Profil, auf `/projekte` oder in die Sitemap.
+
+**Die Entscheidung.**
+
+1. **`legeReferenzAn` in `services/inhalt/redaktion.ts`** legt einen ENTWURF
+   an: `status = 'entwurf'`, `freigegeben_vom_kunden = false`, Mandant aus
+   der Sitzung (`app.aktiver_mandant()`, Invariante 3). Veröffentlichen und
+   Kundenfreigabe bleiben eigene Handlungen mit eigenem Beleg und eigenem
+   Recht — eine Anlage, die beides mitbrächte, wäre ein Kundenname auf der
+   Website, über den niemand einzeln entschieden hat.
+2. **Dasselbe Recht wie beim Ändern.** Die Route trägt `referenz.schreiben`;
+   `t_referenz_pflege` verlangt für das `insert` ebenso
+   `referenz.kundenfreigabe_erfassen`, und der Dienst prüft es vorher, damit
+   ein Mensch einen Satz liest und keinen 500. Keine Migration: Grant und
+   Policy für `insert` bestehen seit 0015, der Slug-Auslöser seit 0170.
+3. **Der Slug** kommt, wenn keiner mitgegeben wird, aus `app.slug_aus_titel`
+   — derselben Funktion wie `trg_referenz_slug` — und wird VOR dem Schreiben
+   auf Eindeutigkeit geprüft, auch gegen gelöschte Zeilen (Invariante 8).
+   Titel, Slug-Form und Jahr prüft `pruefeKopffelder`, dieselbe Stelle wie
+   beim Ändern: zwei abgeschriebene Prüfungen laufen auseinander.
+4. **Die Kennung entsteht im Dienst, nicht über `returning`** — eine Rolle,
+   der ein Override das Lesen entzieht, bekäme sonst nach gelungener Anlage
+   einen Fehler und legte ein zweites Mal an.
+5. **Die Oberfläche.** „Neue Referenz" auf der Liste (auch im Leerzustand)
+   und `/portal/[mandant]/website/referenzen/neu` (Seitenkarte §5.21, jetzt
+   mit `/neu`). Nach dem Anlegen führt die Route auf das Blatt der neuen
+   Zeile (`WebsiteWeiter` in `api/website/gemeinsam.ts`), weil dort der
+   nächste Schritt steht; Fehler kommen als `?fehler=<grund>` auf das
+   Formular zurück, zweisprachig (`verwaltung/website-referenz.ts`).
+6. **Aus dem Auftrag.** Auf der Kundenfreigabe eines Auftrags mit GELTENDER
+   Freigabe (`freigabeGilt`: erteilt und nicht widerrufen) steht „Referenz aus
+   diesem Auftrag anlegen" → `/neu?auftrag=<id>`. Vorbelegt werden Titel und
+   Kundenname, sonst nichts. Das Blatt der neuen Referenz schlägt danach
+   Datum (Berliner Kalendertag, `freigabe_tag`) und Beleg der
+   Auftragsfreigabe VOR; der Haken bleibt leer. Ob die Auftragsfreigabe die
+   Referenz in ihrer veröffentlichten Fassung deckt, ist eine Rechtsfrage:
+   **O-913**. `referenz` bekommt keinen Fremdschlüssel auf `auftrag` — die
+   öffentliche Zeile bleibt eine Neuschöpfung (PRO-05).
+7. **Der letzte Schritt desselben Wegs antwortet mit einer Seite.**
+   `api/website/referenzen` (Veröffentlichen/Zurückziehen) gab bei einer
+   Abweisung `{"fehler": grund}` zurück — erreichbar, wenn die Freigabe in
+   einem zweiten Fenster zurückgenommen wurde. Jetzt geht der Grund auf die
+   Seite zurück (`grundAufsFormular`, D-599), und Liste wie
+   Veröffentlichungsblatt nennen den Satz.
+
+**Nachtrag (V-161, D-654) — was davon nicht mehr gilt.** Die FREIE Anlage
+(„frei oder aus einem Auftrag" in der Überschrift) ist zurückgenommen: SPEC
+PRO-05 nennt eine Referenz ausdrücklich „a completed `auftrag` with customer
+release on file, not a marketing entry typed by hand". Eine Referenz entsteht
+jetzt nur aus einem ABGESCHLOSSENEN Auftrag mit geltender Kundenfreigabe
+(Punkt 6 verlangte nur die geltende Freigabe); „Neue Referenz" (Punkt 5)
+führt deshalb zuerst auf die Wahl des Auftrags. Und Punkt 6 letzter Satz gilt
+nicht mehr: `referenz` trägt seit 0410 die Herkunft `auftrag_id` — als Beleg,
+woher sie stammt, nicht als Kopplung. Das Blatt schlägt Datum und Beleg aus
+diesem Auftrag vor und nicht mehr aus `?auftrag=` in der Adresse. Die Punkte
+1 bis 4 und 7 gelten weiter.
+
+| Betrifft | PRO-02, PRO-05, O-735, O-913, V-154, V-161, D-654, `src/server/services/inhalt/redaktion.ts`, `src/server/services/auftrag/kundenfreigabe.ts`, `src/app/api/website/{gemeinsam.ts,referenz/route.ts,referenzen/route.ts}`, `src/app/portal/[mandant]/website/referenzen/{page.tsx,neu/page.tsx,[id]/page.tsx,[id]/veroeffentlichen/page.tsx}`, `src/app/portal/[mandant]/auftraege/[id]/kundenfreigabe/page.tsx`, `src/lib/i18n/verwaltung/website-referenz.ts`, `docs/architecture/04-SEITENKARTE.md` |
+|---|---|
+
+### D-649 · Über uns, Aktuelles und Karriere stehen im Fuss und im Telefonmenü — nicht in der Kopfzeile (V-155)
+
+**Der Befund** (V-155; PUB-01, REC-03): `/ueber-uns` und `/news` (auch unter
+`/en`) waren gebaut, befüllt und in der Sitemap, `/karriere` war das
+öffentliche Recruiting-Portal — und keine Seite verlinkte sie. Die Kopfzeile
+führt vier Punkte, das Telefonmenü dieselben vier, der Fuss Gesellschaften
+und Rechtliches. SEITENKARTE §11.4 nannte „Über uns" und „News" in der
+Kopfzeile; DESIGN §5 hatte die Kopfzeile auf vier Punkte gekürzt (D-417),
+ohne einen anderen Ort zu nennen.
+
+**Die Entscheidung.**
+
+1. **Die Kopfzeile bleibt bei vier Punkten.** D-417 hat gemessen, dass mehr
+   Punkte die `lg`-Stufe sprengen; das gilt weiter.
+2. **Drei Verweise der GRUPPE** (`lib/oeffentliche-navigation.ts`): im
+   Telefonmenü direkt nach den vier, vor den Gesellschaften und „Angebot
+   anfragen"; im Fuss als eigenes `nav` „Die Gruppe" über dem Rechtlichen,
+   in derselben Spalte (eine vierte Spalte hätte die Anschriften umbrechen
+   lassen). Beschriftungen in `SHELL_TEXTE` (de/en); „Aktuelles" heisst die
+   Seite auf Deutsch selbst.
+3. **Eine nur deutsche Seite wird von einer englischen aus trotzdem verlinkt**
+   — auf ihre deutsche Adresse, mit `hrefLang="de"` und dem Hinweis „(in
+   German)" (`verweisIn` in `lib/sprache.ts`). Der Sprachumschalter lässt
+   eine fehlende Sprache weg (D-583), weil er „dieselbe Seite in einer
+   anderen Sprache" meint; ein Fussverweis meint „wo sind die Stellen", und
+   die Antwort ist die deutsche Karriereseite. `/en/karriere` wäre ein 404.
+4. **DESIGN §5 und SEITENKARTE §11.4 nennen den Ort jetzt.**
+
+| Betrifft | PUB-01, REC-03, D-417, D-583, O-512, V-155, `src/components/oeffentlich/OeffentlicheShell.tsx`, `src/lib/oeffentliche-navigation.ts`, `src/lib/sprache.ts`, `src/lib/i18n/texte.ts`, `docs/DESIGN.md` §5, `docs/architecture/04-SEITENKARTE.md` §11.4 |
+|---|---|
+
+### D-650 · Die englischen Pflichtformulare sind geroutet, und die Pflichtwege sind verlinkt (V-156)
+
+**Der Befund** (V-156; D-82, D-83, PUB-09, LEG-07, LEG-09): `Anfrage.tsx`
+(Betroffenenanfrage) und `Feedback.tsx` (Barrieremeldung) trugen vollständige
+englische Texte, ihre Routen leiteten mit `mitSprache(…, 'en')` zurück — aber
+`/en/datenschutz/anfrage`, `…/danke` und `/en/barrierefreiheit/feedback` gab
+es nicht. Weil die Pfade nicht in `NUR_DEUTSCH` standen, bot die Sprachwahl
+auf den deutschen Formularen `/en/…` an: 404. Die englische
+Widerspruchsseite verwies fest auf `/en/datenschutz/anfrage`: 404.
+`sprachpfade.test.ts` verglich nur das erste Pfadsegment und liess beides
+durch. Keine Seite verlinkte das BFSG-Meldeformular (die Erklärung nannte nur
+eine E-Mail-Adresse), und die Betroffenenanfrage war nur über den
+Werbewiderspruch erreichbar. Dazu reichten beide Routen den deutschen Satz
+des Dienstes auch an die englische Seite.
+
+**Die Entscheidung.**
+
+1. **Drei englische Seiten**, die die vorhandenen Komponenten mit
+   `sprache='en'` rendern — derselbe Schreibweg, dieselben Felder (D-83).
+2. **Die Prüfung vergleicht den vollen Pfad.** Jede deutsche Seite hat eine
+   englische Datei desselben Musters, wird über `/en/[seite]` ausgeliefert
+   oder steht in `NUR_DEUTSCH`; und keine englische Seite ohne deutsche.
+3. **Die Erklärung zur Barrierefreiheit führt zuerst auf das Formular**, dann
+   auf E-Mail und Telefon. „Kein Meldeweg hinterlegt" war mit dem Formular
+   falsch; der Satz sagt jetzt, dass nur eine Adresse fehlt.
+4. **Unter der Datenschutzerklärung stehen die zwei Pflichtwege**
+   (`Betroffenenwege`, dieselbe Bauart wie die Pflichtangaben unter dem
+   Impressum): Betroffenenanfrage und Werbewiderspruch. Der Erklärungstext
+   selbst bleibt redaktionell und unverändert. Art. 12 Abs. 2 DSGVO verlangt,
+   die Ausübung zu erleichtern.
+5. **Die Meldungen der Pflichtformulare sprechen die Sprache der Seite** —
+   übersetzt über den GRUND des Dienstfehlers (`pflichtwegMeldung`), nicht
+   über den deutschen Wortlaut.
+6. **`/werbewiderspruch` bleibt in `NUR_DEUTSCH`** (O-34, unverändert); von
+   englischen Seiten führt der Verweis dorthin mit „(in German)".
+
+| Betrifft | D-82, D-83, D-583, D-600, PUB-09, LEG-07, LEG-09, O-34, V-156, `src/app/(public)/en/{datenschutz/anfrage,datenschutz/anfrage/danke,barrierefreiheit/feedback}/page.tsx`, `src/app/(public)/barrierefreiheit/Erklaerung.tsx`, `src/app/(public)/OeffentlicheSeite.tsx`, `src/components/oeffentlich/Betroffenenwege.tsx`, `src/app/api/{datenschutz/anfrage,barrierefreiheit/meldung}/route.ts`, `src/lib/i18n/texte.ts`, `tests/kern/sprachpfade.test.ts` |
+|---|---|
+
+### D-651 · Der Honigtopf antwortet in der Form des Erfolgs, und die englische Anfrage bekommt englische Sammelsätze (V-157)
+
+**Der Befund** (V-157; REQ-01, D-82, D-83, D-599): das Angebotsformular
+schickt `antwort=seite`; Erfolg und Fehler gehen per 303 auf Seiten. Der
+Honigtopf-Zweig antwortete aber VOR dieser Weiche mit JSON. Ein falsch
+positiver Treffer (Passwortverwalter im versteckten Feld) sah eine weisse
+Seite statt der Dankseite, die `lead/annahme.ts` zusagt, und ein Bot erkannte
+am anderen Antworttyp, dass er erkannt war. Auf `/en/angebot/<bereich>`
+standen der deutsche Sammelsatz („Bitte prüfen Sie die markierten Felder.")
+und die deutsche Ratenlimitmeldung über englischen Feldmeldungen.
+
+**Die Entscheidung.**
+
+1. **Ein Honigtopf-Treffer mit `antwort=seite` bekommt 303 auf die Dankseite
+   seiner Sprache** — OHNE Vorgangsnummer. Es gibt keinen Vorgang; eine
+   erfundene Nummer wäre eine, auf die sich ein Mensch am Telefon beruft und
+   die niemand findet. Die Dankseite zeigt den Nummernblock ohnehin nur mit
+   Nummer. Ein Programm bekommt weiter JSON. Ob ein Treffer aufbewahrt wird,
+   bleibt O-905.
+2. **Die Sammelsätze stehen in `API_TEXTE`** (`pruefen`,
+   `datenschutzBestaetigen`, `zuVieleAnfragen`). Welcher gilt, sagt der
+   GRUND des `FormularFehler` (seit V-160, siehe unten), nicht ein Abgleich
+   auf den deutschen Wortlaut; auf Deutsch bleibt der Satz des Dienstes.
+
+**Nachtrag (V-160) — was „dieselbe Form" nicht leistet.** Dieselbe Form ist
+nicht dieselbe Antwort: ein Erfolg führt auf `…/danke?nr=L-…` und trägt im
+JSON eine `leadnummer`, ein Treffer führt auf `…/danke` ohne `nr` und trägt
+keine. Ein Programm, das beide Antworten vergleicht, erkennt den Treffer
+weiterhin. Geschlossen ist die Lücke für den Menschen (Dankseite statt JSON)
+und für einen Bot, der nur auf Statuscode oder Antworttyp schaut. Der Rest
+ist der Preis dafür, keine Nummer zu erfinden, und er ist bewusst gewählt.
+Die Zusagen in `lead/annahme.ts` und am Zweig in `api/anfrage/route.ts`
+nennen ihn jetzt.
+
+**Nachtrag (V-160) — die Ursache statt der Felder.** Punkt 2 las die Ursache
+in der ersten Fassung aus den FELDERN (`datenschutz_hinweis` darunter →
+„bestätigen"). Die Formularversion führt die Checkbox aber als Pflichtfeld,
+und die Prüfung meldet sie zusammen mit allen anderen. Bei drei leeren
+Feldern und fehlendem Häkchen stand dann auf Deutsch „Bitte prüfen Sie die
+markierten Felder.", auf Englisch „Please confirm that you have read the
+privacy notice". `FormularFehler` trägt jetzt einen `grund`
+(`pruefen` · `datenschutz` · `automatisiert` · `zu_viele` · `sonst`), gesetzt
+an derselben Stelle wie der deutsche Satz. Fehlt NUR die Bestätigung, ist
+der Grund in beiden Sprachen „bestätigen", sonst „prüfen". Ein Grund ohne
+eigenen Satz bekommt auf Englisch den allgemeinen (`nichtGespeichert`).
+
+| Betrifft | REQ-01, D-82, D-83, D-599, O-905, V-157, V-160, `src/app/api/anfrage/route.ts`, `src/lib/i18n/texte.ts` (`API_TEXTE`, `formularSammelmeldung`), `src/lib/formular/schema.ts` (`FormularFehler.grund`), `src/server/services/lead/annahme.ts` |
+|---|---|
+
+### D-652 · Nach Einteilen, Absagen und Bewerben kommt eine Seite mit einem Satz — kein JSON (V-158)
+
+**Der Befund** (V-158; D-599, REC-03): `POST /api/einsaetze/[id]/absagen`
+und `…/besetzen` werden nur von HTML-Formularen aufgerufen und antworteten
+auf Fachfehler mit `{"fehler": code}`, den Satz des Dienstes verwarfen sie.
+Das Absagefeld verlangte `required`, der Dienst drei Zeichen — „ok" endete als
+`{"fehler":"ungueltige_eingabe"}`; ein Doppelklick auf „Einteilen" als
+`{"fehler":"ungueltiger_zustand"}`. Die öffentliche Bewerbung antwortete auf
+jeden Fehler mit JSON; `name@firma` liess der Browser durch, der Dienst nicht.
+Dazu las das Schichtblatt `?fehler=` gar nicht — auch nicht den, den
+`api/dienstplan/einsatz` bei einer abgewiesenen Schicht-Absage schon schickte.
+
+**Die Entscheidung.**
+
+1. **Die Einteilungsrouten schicken den GRUND zurück** (`?fehler=<grund>`,
+   `grundAufsFormular` in `api/formular-antwort.ts`), nicht den Satz: drei
+   der Dienstsätze tragen eine Kennung, alle sind deutsch, und das
+   Schichtblatt spricht zwei Sprachen. `api/einsaetze/fehler.ts` bildet jede
+   Fehlerklasse auf einen Grund ab; unbekannte Fachfehler werden
+   `abgewiesen`. Ohne `zurueck` bleibt es beim JSON, jetzt mit Satz.
+2. **Das Schichtblatt liest `?fehler=`** und nennt den Satz aus
+   `SCHICHT_TEXTE.fehler` in der Sprache der Sitzung — für alle drei
+   Formulare der Seite; ein unbekannter Grund bekommt einen allgemeinen
+   Satz, nie den rohen Schlüssel.
+3. **Das Absagefeld verlangt drei Zeichen** (`minLength={3}`, wie der
+   Dienst), und die beiden Einteilungsformulare stehen nur, wo
+   `dienstplan.schreiben` da ist — die Route verlangt es.
+4. **Die Bewerbung folgt D-599:** das Formular trägt `antwort=seite`, die
+   Route leitet mit dem Grund auf die Formularseite zurück (eine geschlossene
+   Stelle auf die Liste, weil ihr Blatt 404 antwortet), dort steht der Satz
+   als `role="alert"`. Die Eingaben reisen NICHT in die Adresse (Name,
+   E-Mail, Nachricht gehören in kein Zugriffsprotokoll); deshalb trägt das
+   E-Mail-Feld die Regel des Dienstes als `pattern`, abgeleitet aus
+   `BEWERBUNG_EMAIL` und nicht abgeschrieben.
+
+**Nachtrag (V-160).** Fehlte beim Einteilen die Beschäftigung, schickte
+`besetzen` den Grund des Absagens (`keine_auswahl`) — dessen Satz lautet
+„Welche Einteilung gemeint war …". Das Einteilen hat jetzt seinen eigenen
+Grund `keine_anstellung` mit eigenem Satz in beiden Sprachen („Welche
+Beschäftigung eingeteilt werden soll …"). Ausserdem schlägt das Schichtblatt
+den Grund nur als eigenen Eintrag nach (D-653).
+
+| Betrifft | D-599, REC-03, TIM-05, R-08, V-158, V-160, `src/app/api/einsaetze/{fehler.ts,[id]/absagen/route.ts,[id]/besetzen/route.ts}`, `src/app/api/formular-antwort.ts`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/lib/i18n/verwaltung/dienstplan-schicht.ts`, `src/app/api/karriere/bewerbung/route.ts`, `src/app/(public)/karriere/{Formular.tsx,meldung.ts,page.tsx,initiativbewerbung/page.tsx,[stelle]/bewerbung/page.tsx}`, `src/server/services/recruiting/dienst.ts` |
+|---|---|
+
+### D-653 · Ein Grund aus der Adresse wird nur als eigener Eintrag nachgeschlagen, und ein Rückweg bleibt auch nach dem Normalisieren im eigenen Ursprung (V-159)
+
+**Der Befund** (V-159; Nachprüfung von V-154 und V-158): zwei Wege, auf denen
+ein Wert aus der Adresse mehr tat, als er sollte.
+
+1. `bewerbungsMeldung` schlug `?fehler=<grund>` in einem gewöhnlichen
+   Objektliteral nach, mit Rückfall auf den allgemeinen Satz. Ein
+   Objektliteral erbt von `Object.prototype`: `?fehler=__proto__` fand
+   `Object.prototype` selbst, `?fehler=toString` eine Funktion. Beides ist
+   nicht `undefined`, also griff der Rückfall nicht, und der Typ behauptete
+   weiter `string`. React zeichnet kein Objekt als Kind; `/karriere`,
+   `/karriere/initiativbewerbung` und `/karriere/<id>/bewerbung` antworteten
+   auf eine Adresse, die jeder tippen kann, mit einer Fehlerseite (500), und
+   `?fehler=toString` zeigte einen leeren Alarmkasten. Dasselbe Nachschlagen
+   stand in den Portalseiten, die V-154 und V-158 angelegt oder geändert
+   haben (Referenzliste, Anlegen, Referenzblatt, Veröffentlichen,
+   Schichtblatt).
+2. `internesZiel` prüfte den Ursprung des Rückwegs und las danach den PFAD
+   ein zweites Mal als Adresse ein. Die erste Prüfung normalisiert aber:
+   `/.//boese.example`, `/portal/..//boese.example`, `/%2e//boese.example`
+   und `/./\boese.example` sind Pfade dieser Anwendung und haben danach den
+   Pfad `//boese.example`. Das zweite Einlesen machte daraus eine
+   schemalose Adresse; die 303-Umleitung ging nach `https://boese.example/`.
+   Von fremden Seiten aus war das nicht auslösbar (jeder Aufrufer verlangt
+   `istGleicherUrsprung`), aber der Test zu V-158 behauptete „nie nach
+   draussen" und prüfte nur eine absolute Adresse.
+
+**Die Entscheidung.**
+
+1. **`eigenerEintrag(tabelle, schluessel)`** (`src/lib/nachschlagen.ts`)
+   liefert nur, was die Tabelle SELBST trägt (`Object.hasOwn`, nicht `in`).
+   Ein Schlüssel, der keine Zeichenkette ist, findet nichts. Die Seite
+   entscheidet dann über ihren allgemeinen Satz; der rohe Schlüssel steht nie
+   da. Benutzt in `karriere/meldung.ts`, `pflichtwegMeldung` und den fünf
+   Portalseiten dieser Gruppe.
+2. **Die älteren Seiten mit demselben Muster** (etwa `angebote/neu`,
+   `einstellungen/modelle`, `freigaben/[id]`, `auth/passwort-neu` — dort erst
+   mit gültigem Token erreichbar) liegen hinter einer Anmeldung und ausserhalb
+   dieser Gruppe. Sie werden hier nicht angefasst, weil andere Zweige
+   dieselben Dateien ändern; der Helfer steht bereit, und
+   `tests/kern/nachschlagen.test.ts` hält fest, dass die Seiten dieser Gruppe
+   ihn benutzen. Ein Schlüssel des Prototyps führt dort zu einer Fehlerseite
+   für den Angemeldeten selbst, nicht zu fremden Daten.
+3. **Ein Pfad, der nach dem Normalisieren mit `//` beginnt, ist kein
+   Rückweg.** `innerhalb` weist ihn ab, baut das Ziel durch SETZEN von Pfad,
+   Abfrage und Anker auf dem eigenen Ursprung und vergleicht den Ursprung am
+   Ende noch einmal. Das schützt jeden Aufrufer von `internesZiel`, nicht nur
+   die Formulare dieser Gruppe.
+
+| Betrifft | D-560, D-599, D-652, V-154, V-158, V-159, `src/lib/nachschlagen.ts`, `src/app/(public)/karriere/meldung.ts`, `src/lib/i18n/texte.ts` (`pflichtwegMeldung`), `src/app/portal/[mandant]/website/referenzen/{page.tsx,neu/page.tsx,[id]/page.tsx,[id]/veroeffentlichen/page.tsx}`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/server/auth/ursprung.ts`, `tests/kern/{nachschlagen,weiterleitung-ziel,einteilung-bewerbung-rueckweg}.test.ts` |
+|---|---|
+
+### D-654 · Eine Referenz entsteht aus einem abgeschlossenen Auftrag mit geltender Kundenfreigabe und hält fest, aus welchem (V-161)
+
+**Der Befund** (V-161; Nachprüfung von V-154; PRO-05, D-648): der Weg, den
+V-154 baute, wich an sieben Stellen von dem ab, was er versprach.
+
+1. **Frei statt aus dem Auftrag.** SPEC PRO-05: „a reference is a completed
+   `auftrag` with customer release on file, not a marketing entry typed by
+   hand". Die Anlage nahm Titel, Kunde und Text beliebig, und der Verweis von
+   der Kundenfreigabe verlangte nur eine geltende Freigabe, keinen Abschluss.
+   O-913 fragte nach der Reichweite der Freigabe, nicht nach dieser
+   Abweichung; festgehalten war sie nirgends.
+2. **Ein Vorschlag aus irgendeinem Auftrag.** Das Referenzblatt las
+   `?auftrag=<id>` aus der Adresse und schlug Datum und Beleg eines
+   BELIEBIGEN Auftrags der Gesellschaft mit geltender Freigabe vor — ohne
+   Fremdschlüssel und ohne Abgleich, ob die Referenz aus ihm stammt.
+3. **Eine falsche Aussage.** Ohne `auftrag.lesen` blieb der Auftrag ungelesen,
+   und `/neu` sagte trotzdem „Dieser Auftrag trägt keine geltende
+   Kundenfreigabe".
+4. **Nach einer Abweisung war alles weg** (Titel, Kunde, Beschreibung), und
+   ein Doppelklick auf „Als Entwurf anlegen" legte beim ersten POST an und
+   meldete beim zweiten `slug_vergeben` — „Nichts wurde angelegt".
+5. **Zwei Sprachen auf einer Seite.** Nur die neuen Sätze waren übersetzt;
+   Überschrift, Einleitung, Tabelle und Feldbeschriftungen blieben deutsch.
+6. **Die Weiche `{ weiter }` war nur am Quelltext geprüft.**
+7. **Der Seed begeht den Weg nicht**, und die Merker stimmten nicht: kein
+   `TODO(client, O-913)` im Code, dafür ein alter Merker mit der Nummer der
+   Fotografie (O-13) auf einer längst gebauten Aufgabe.
+
+**Die Entscheidung.**
+
+1. **Nur aus einem abgeschlossenen Auftrag mit geltender Kundenfreigabe** —
+   die SPEC wörtlich. Die Regel steht an EINER Stelle
+   (`referenzHindernis`, `REFERENZFAEHIGE_ZUSTAENDE` in
+   `services/auftrag/kundenfreigabe.ts`): Seiten, Verweis und Dienst fragen
+   sie, und `legeReferenzAn` prüft sie beim Anlegen ein zweites Mal
+   (`pruefeHerkunft`), mit eigenem Grund je Hindernis. Ein stornierter
+   Auftrag ist kein „noch nicht", sondern ein „nie". Ob ein laufender
+   Dauerauftrag genügt — in Reinigung und Objektschutz die übliche Referenz —,
+   ist eine Frage an den Auftraggeber: **O-914**; die Antwort ist eine Zeile.
+   Die freie Anlage aus V-154 entfällt (sie war nur im nicht zusammengeführten
+   Zweig); ein Projekt aus der Zeit vor der Plattform wird als Auftrag
+   angelegt, freigegeben und abgeschlossen.
+2. **Die Referenz hält ihre Herkunft** (`referenz.auftrag_id`, 0410):
+   zusammengesetzter Fremdschlüssel über die Gesellschaft, ein Auslöser hält
+   ihn nach dem Anlegen fest. O-735 und der Kommentar an `ladeFreigabestand`
+   hielten „bewusst kein Fremdschlüssel" fest; ihr Grund war, dass Beleg und
+   Veröffentlichung getrennt bleiben und ein Widerruf keine Referenz entfernt.
+   Das gilt weiter — der Schlüssel ist Herkunft, keine Kopplung: nichts
+   kaskadiert, kein Auslöser auf `auftrag` liest ihn, und die Referenz trägt
+   ihre eigene Freigabe. Der Altbestand (Demoreferenzen, D-537) bleibt ohne
+   Herkunft.
+3. **Das Blatt schlägt aus der eigenen Herkunft vor** und zeigt sie („Angelegt
+   aus Auftrag …", ein Widerruf dort als Hinweis, O-735). Der Haken bleibt
+   leer (O-913, jetzt mit Merker an `legeReferenzAn`).
+4. **Jede Aussage über den Auftrag stimmt.** `/neu` ohne Auftrag zeigt die
+   Wahl (bereit, darunter die laufenden); ohne `auftrag.lesen` nennt die
+   Seite das fehlende Recht; ein unbekannter, ein nicht freigegebener, ein
+   laufender und ein stornierter Auftrag bekommen je ihren Satz.
+5. **Nichts geht verloren, nichts entsteht zweimal.** Derselbe Auftrag unter
+   derselben Adresse ist dieselbe Referenz: ein zweiter POST legt nichts an
+   und führt mit `vorhanden=1` auf sie. Bei einer Abweisung gibt die Route
+   Titel, Slug, Kundenname und Jahr in der Adresse zurück (höchstens 200
+   Zeichen je Wert, nichts Personenbezogenes, kein Freitext); die
+   Beschreibung steht erst auf dem Blatt der neuen Zeile. Liegt die Adresse
+   aus dem vorbelegten Titel schon fest, sagt es das Feld vor dem Absenden
+   und wird Pflicht.
+6. **Die vier Referenzseiten sprechen eine Sprache** (`verwaltung/
+   website-referenz.ts`) und stehen nicht mehr in der Ausnahmeliste der
+   Sprachwache. Rechte erscheinen über `Recht`, nicht als roher Schlüssel.
+7. **Die Antwort des Gerüsts ist eine Funktion** (`antwortNachHandlung`,
+   `antwortNachAbweisung` in `api/website/gemeinsam.ts`) und wird am
+   Verhalten geprüft.
+8. **Der Seed begeht den Weg** — nur mit `CSE_DEV_FLAECHEN` (D-537): ein
+   abgeschlossener Auftrag mit Kundenfreigabe (Wortlaut und Schreiben
+   `DEMODATEN:`) über die echten Dienste und die Entwurfsreferenz daraus.
+   Der Auftrag aus dem Demoangebot bleibt `angelegt`: er erscheint unter
+   „noch nicht abgeschlossen" und zeigt damit auch diesen Zweig.
+
+| Betrifft | PRO-05, D-537, D-648, O-735, O-913, O-914, V-154, V-161, `drizzle/0410_referenz_herkunft.sql`, `src/server/services/auftrag/kundenfreigabe.ts`, `src/server/services/inhalt/{redaktion.ts,referenz.ts}`, `src/app/api/website/{gemeinsam.ts,referenz/route.ts}`, `src/app/portal/[mandant]/website/referenzen/{page.tsx,neu/page.tsx,[id]/page.tsx,[id]/veroeffentlichen/page.tsx}`, `src/app/portal/[mandant]/auftraege/[id]/kundenfreigabe/page.tsx`, `src/lib/i18n/verwaltung/website-referenz.ts`, `scripts/guards/uebersetzung-ausnahmen.ts`, `src/server/db/seed/{referenzauftrag.ts,index.ts}`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/referenz-anlegen.test.ts`, `tests/kern/referenz-anlegen-weg.test.ts` |
+|---|---|
+
+### D-728 · Ein Schlüssel aus der Adresse wird überall nur als eigener Eintrag nachgeschlagen (V-234)
+
+**Der Befund** (V-234; gefunden bei der Prüfung von V-159): die Seiten lesen
+den Grund einer Abweisung aus `?fehler=` bzw. `?grund=` und schlagen ihn in
+einem gewöhnlichen Objektliteral nach, `TABELLE[fehler] ?? Rückfall`. Ein
+Objektliteral erbt von `Object.prototype`. `?fehler=__proto__` findet deshalb
+`Object.prototype`, `?fehler=toString` eine Funktion. Beides ist nicht
+`undefined`, also greift der Rückfall nicht, und React weigert sich, ein
+Objekt oder eine Funktion als Kind zu zeigen: die Seite antwortet mit 500.
+V-159 hat das für die Karriereseiten und die sechs Seiten der
+Website-Gruppe behoben. Dasselbe Muster stand in 45 weiteren Dateien —
+jede Portalseite mit `?fehler=`, darunter das Leadblatt aus V-137.
+
+**Die Entscheidung.**
+
+1. **Eine Stelle, ein Weg:** `eigenerEintrag(tabelle, schluessel)` aus
+   `src/lib/nachschlagen.ts` (V-159) ersetzt jedes `TABELLE[fehler]` und
+   `TABELLE[grund]` — 51 Stellen in 45 Dateien, mechanisch und ohne
+   Verhaltensänderung für bekannte Schlüssel.
+2. **Eine Prüfung über den ganzen Quellbaum**, nicht über eine Liste:
+   `tests/kern/nachschlagen.test.ts` liest `src/app`, `src/components` und
+   `src/lib` und schlägt fehl, sobald außerhalb eines Kommentars wieder ein
+   `[fehler]` oder `[grund]` nachgeschlagen wird. Eine Liste schützt nur, was
+   jemand hineinschreibt.
+3. **Nicht Teil dieser Entscheidung:** dass einige Seiten einen UNBEKANNTEN
+   Schlüssel als Text zeigen (`?? fehler`). Das zeigt einen rohen Schlüssel,
+   bricht aber nichts; es gehört zu den rohen Schlüsseln der Verwaltung
+   (Befund 68), die eigens behoben werden.
+
+| Betrifft | D-599, D-653, V-137, V-159, V-234, `src/lib/nachschlagen.ts`, `tests/kern/nachschlagen.test.ts`, 45 Seiten unter `src/app/portal` und `src/components/portal` |
+|---|---|
+
+### D-656 · Ein fehlendes Recht ist auf jeder schreibenden Route ein 404 — nie ein 500 (V-162)
+
+**Der Befund** (V-162, AUT-06): `authorize` wirft `NichtGefundenFehler` (Recht
+fehlt, fremder Mandant, Schreiben ohne genau einen aktiven Mandanten),
+`ZweiterFaktorFehler` und `NichtAngemeldetFehler`. `server/auth/antwort.ts`
+übersetzt sie, und die Gerüste (`uebergang.ts`, `*/gemeinsam.ts`,
+`sicherheit/antwort.ts`) benutzen den Übersetzer. 37 Routen mit eigenem
+`try`/`catch` fingen nur ihre Fachklasse und warfen den Rest weiter — ein
+fehlendes Recht wurde dort ein **500**. `website/referenzen` hatte den Fall
+im Betrieb, die übrigen 37 hatten ihn nur noch nicht.
+
+**Die Entscheidung.**
+
+1. **Derselbe Übersetzer, an derselben Stelle.** Jede der 37 Routen ruft
+   `autorisierungsAntwort(fehler)` unmittelbar vor ihrem `throw fehler`. Die
+   Fachfehler behalten ihren Weg (zurück aufs Formular, mit Grund); nur, was
+   bisher ungefangen hinausflog, wird jetzt 404, 403 oder 401. Ein
+   Programmfehler bleibt ein Wurf und damit ein roter Lauf.
+2. **Die Antwort ist die der übrigen Routen, byte-gleich.** Ein fehlendes
+   Recht sieht auf allen schreibenden Routen gleich aus — auch dort, wo ein
+   Browserformular absendet. Eine eigene Browserseite nur für diese 37 wäre
+   eine zweite Antwort auf dieselbe Frage und damit genau die Unterscheidung,
+   die AUT-06 nicht will. Der Fall ist im Portal selten: jeder Knopf steht
+   hinter derselben Rechtefrage (`haeltRechte`), und ein POST ohne Knopf
+   kommt nicht von einem Menschen, der eine Seite erwartet.
+3. **Eine Sperrklinke statt einer Liste.** `tests/kern/autorisierung-uebersetzt.test.ts`
+   liest jede `route.ts`: wer `authorize` ruft (selbst oder in einem Gerüst
+   eine Ebene tief), muss den Wurf übersetzen — mit `autorisierungsAntwort`,
+   `instanceof NichtGefundenFehler` oder der `status`/`code`-Weiche. Die 38.
+   Route ist damit automatisch dabei; die Prüfung zeigt ihr Nein an drei
+   erfundenen Beispielen.
+
+| Betrifft | AUT-06, AUT-02, V-128, V-162, `src/server/auth/antwort.ts`, 37 Routen unter `src/app/api/**` (Liste in V-162), `tests/kern/autorisierung-uebersetzt.test.ts` |
+|---|---|
+
+### D-657 · Das Prüfprotokoll trägt die IP der Anfrage und den handelnden Agenten (V-163)
+
+**Der Befund** (V-163, SEC-A9): `audit_log` hat seit 0003 `akteur_typ`,
+`agent_id` und `ip`; `app.protokolliere` (0004) ist der einzige Schreiber.
+Keine Sitzungsbindung setzte `app.ip` — jede Zeile trug `ip = NULL`, die
+Spalte im GoBD-/Revisionsexport war immer leer. `agent_id` schrieb niemand,
+und kein Weg setzte `akteur_typ = 'agent'`.
+
+**Die Entscheidung.**
+
+1. **Die IP reist mit der Sitzung, nicht mit der Sitzungszeile.**
+   `aktuelleSitzung()` liest sie aus der Anfrage (`anfrageAdresse`: erster
+   Eintrag aus `x-forwarded-for`, sonst `x-real-ip`, nur was `isIP` als
+   Adresse erkennt — dieselbe Regel wie am Einmalcode und an der Freigabe),
+   `bindeSitzung` setzt `app.ip`. Damit tragen alle Wege sie, die über
+   `withTenant`, `bindeAnfrage`, `bindePersoenlich`, `withGroupScope` oder
+   `withPersonScope` binden. Ohne Anfrage (Hintergrundlauf, Test) bleibt die
+   Spalte leer statt erfunden. *(Berichtigt in D-661: drei Wege OHNE Sitzung
+   — Sperre der Bremse, Kennwort und zweiter Faktor per Token — blieben bis
+   V-167 trotz bekannter Adresse leer; sie binden sie jetzt mit
+   `bindeHerkunft`. Der Check-in mit der Marke und der Einmalcode der Kraft
+   folgten erst mit V-235, D-729.)*
+2. **Ein kaputter Wert wird NULL, nicht ein Abbruch** (0415).
+   `app.protokolliere` castet nur, was `pg_input_is_valid` für `inet` hält.
+   Vorher hätte ein unbrauchbarer Wert in `app.ip` jede protokollierende
+   Transaktion abgebrochen, auch ein Festschreiben. Kein Ausnahmeblock: der
+   wäre eine Untertransaktion je Protokollzeile im heißesten Pfad (0204).
+3. **Was ein Agentenlauf schreibt, schreibt der Agent.** `alsAgent`
+   (`server/kontext`) setzt `app.akteur_typ = 'agent'` und `app.agent_id` für
+   die Dauer des Laufs und stellt danach zurück; der Orchestrator legt es um
+   alles nach dem Anlegen der Aufgabe (die Aufgabe selbst ist der Auftrag des
+   Menschen). `akteur_id` bleibt der angemeldete Mensch — in wessen Auftrag.
+   `app.protokolliere` schreibt `agent_id` nur zu `akteur_typ = 'agent'`; eine
+   Menschenzeile mit Agentenkennung wäre eine Aussage, die niemand traf.
+   Heute schreibt ein Demolauf selbst keine Protokollzeile (Freigabe und
+   Artefakt tragen keinen Auslöser); die Prüfung misst deshalb den Zustand
+   der Transaktion AM Anlegen der Freigabe — genau den liest jeder
+   protokollierende Auslöser.
+4. **Die öffentliche Formularannahme schreibt keine IP.** Dort handelt der
+   Dienstprinzipal `formular_eingang` für einen anonymen Besucher, und dessen
+   rohe Adresse wird nirgends gespeichert (02-CRM-OPERATIONS,
+   `formular_eingang.ip_hash`: „The raw IP is never stored"). Das Protokoll
+   macht davon keine Ausnahme; SEC-A9 meint den angemeldeten Akteur.
+5. **Die Protokollseiten nennen bei einer Agentenzeile den Agenten**, nicht
+   den auslösenden Menschen (Gesellschaft und Gruppe).
+6. **Der Eigentümer von `app.protokolliere` bleibt `postgres`** (Altlast nach
+   D-300). `cse_definer` bekäme sonst ein INSERT auf `audit_log` — den
+   Schreibpfad für jede Definer-Funktion, den 0204 bewusst verweigert.
+
+**Offen, und nicht hier zu entscheiden:** wie lange die IP im Protokoll
+stehen darf. Das ist eine Lösch- und Aufbewahrungsregel und gehört zu O-92;
+der Marker steht in 0415.
+
+| Betrifft | SEC-A9, LEG-09, O-92, D-300, V-163, `drizzle/0415`, `src/server/auth/adresse.ts`, `src/server/auth/anfrage-sitzung.ts`, `src/server/kontext/index.ts`, `src/server/agent/orchestrator.ts`, `src/app/portal/[mandant]/einstellungen/protokoll/page.tsx`, `src/app/portal/gruppe/protokoll/page.tsx`, `tests/isolation/pruefprotokoll-ip-agent.test.ts`, `tests/kern/anfrage-adresse.test.ts` |
+|---|---|
+
+### D-658 · Die Module einer Administration lassen sich zuweisen — über genau einen Weg (V-164)
+
+**Der Befund** (V-164, AUT-01): SPEC §3 nennt für `admin` „assigned modules
+within assigned areas“. Die Spalte `benutzer_mandant.module` gibt es seit 0007,
+und `app.hat_recht_fuer` wertet sie als Schnittmenge aus (zuletzt 0395). Keine
+Funktion, keine Route, keine Oberfläche und kein Seed schrieb sie. Jede
+Administration hielt damit alle Module ihrer Rolle. Den Auslöser
+`bm_module_pruefen`, den 03-AUTH §7.1 verlangt, gab es auch nicht. Und
+`t_bm_entziehen` (0102) gibt jeder Kontoverwaltung ein UPDATE auf die ganze
+Zeile, also auch auf die eigene Modulliste.
+
+**Die Entscheidung.**
+
+1. **Ein Schreibweg: `app.mitgliedschaft_module_setzen`** (0416, Definer,
+   Eigentümer `cse_definer`). Er verlangt genau einen aktiven Mandanten ohne
+   Lesemodus (Invariante 10), den zweiten Faktor, `system.module_zuweisen` im
+   aktiven Mandanten und eine lebende Mitgliedschaft DIESES Mandanten. Jede
+   Änderung schreibt `audit_log` mit vorher und nachher. Die Route
+   `/api/einstellungen/mitgliedschaft-module` fragt Recht und Faktor vorher
+   (`authorize`, `erfordert2fa`); die Datenbank fragt beides noch einmal.
+2. **Nur die Plattformrolle `admin`.** SPEC §3 nennt die Modulzuweisung nur
+   für sie. `leitung` ist „own business area only“, `mitarbeiter` und `kunde`
+   haben ihre Decken (K-04), und eine eigene Rolle einer Gesellschaft IST
+   schon ein Zuschnitt ihrer Rechte (AUT-03).
+3. **Nie das eigene Konto.** Wer seine eigene Liste erweitern könnte, hätte
+   keine (03-AUTH §12.1: „an admin widening their own module set is the
+   risk“).
+4. **Niemand vergibt mehr, als er selbst hält.** Ist die eigene
+   Mitgliedschaft in dieser Gesellschaft auf Module beschränkt, darf nur eine
+   Teilmenge davon vergeben werden, und nie „alle Module der Rolle“. Sonst
+   könnten zwei beschränkte Konten mit `system.module_zuweisen` einander über
+   Kreuz alles geben. Die globale Rolle trägt keine Schnittmenge (0395,
+   Zweig 1) und ist nicht beschränkt. Heute hält das Recht ohnehin nur
+   `super_admin`; die Regel gilt für den Tag, an dem O-76 es an `admin` bindet.
+   *(Genauer seit D-731 Nr. 2: ausgenommen ist nur, wessen globale Rolle
+   `system.module_zuweisen` selbst gewährt — nicht jede globale Rolle.)*
+5. **„Alle Module der Rolle“ ist eine eigene Wahl** (`NULL`). Eine leere
+   Liste weist der Auslöser ab: kein Recht in einer Gesellschaft ist ein
+   Entzug, keine Zuweisung. Und aus einer leeren Auswahl wird nicht still
+   „alles“.
+6. **Der Auslöser `kern.bm_module_pruefen`** prüft jeden Wert gegen den
+   Katalog (`select distinct modul from berechtigung`) und speichert die Liste
+   sortiert und ohne Doppel. Er sperrt außerdem den Anwendungsweg
+   (`current_user = cse_app`) an der Spalte vorbei, damit das UPDATE aus
+   `t_bm_entziehen` die eigene Liste nicht mehr leeren kann. Seed und
+   Migrationen (Eigentümer) prüft er auch, sperrt sie aber nicht.
+7. **Die Oberfläche benennt, sie zeigt keine Schlüssel.** Auf dem
+   Benutzerblatt steht ein Formular (Umfang „alle“ oder Auswahl, eine Liste
+   aus dem Katalog). Die Seite `einstellungen/module` bekommt die Übersicht
+   „Module der Administrationen“, die SEITENKARTE §5.24 für sie vorsieht.
+   Überall stehen Modulnamen (de/en, `MODUL_NAMEN`), auch in der
+   Benutzerliste. `tests/kern/modul-namen.test.ts` hält die Namensliste gegen
+   den Katalog. Ein fehlendes Recht bleibt die 404 aller Routen (D-656); die
+   übrigen Gründe kommen als Satz auf das Blatt zurück (D-599).
+8. **Der Seed führt es vor.** `admin.vertrieb@cse-gruppe.de` ist die
+   Vertriebsadministration der Reinigung mit `angebot, auftrag, bericht, crm,
+   kalkulation, katalog, objekt`. Es ist ein eigenes Konto ohne Person: es
+   führt kein Wachbuch und steht in keinem Dienstplan, und eine erfundene
+   Beschäftigung wäre eine Kostenstelle ohne Satz (O-347). Zwei Seed-Abfragen,
+   die „eine Administration der Gesellschaft“ wählen, ordnen jetzt nach
+   E-Mail statt nach der Reihenfolge der Tabelle.
+
+**Die Rechte gelten mit der nächsten Anfrage** (03-AUTH §7.3, kein Cache);
+eine laufende Sitzung muss nicht enden.
+
+| Betrifft | AUT-01, AUT-03, AUT-06, K-04, K-15, O-76, O-347, D-599, D-656, V-164, `drizzle/0416`, `src/server/services/system/mitgliedschaft-module.ts`, `src/app/api/einstellungen/mitgliedschaft-module/route.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/{ModulZuweisung.tsx,[id]/page.tsx,page.tsx}`, `src/app/portal/[mandant]/einstellungen/module/page.tsx`, `src/lib/i18n/verwaltung/einstellungen/module-zuweisung.ts`, `src/server/db/seed/{index,eingang,konto}.ts`, `tests/isolation/mitgliedschaft-module.test.ts`, `tests/kern/modul-namen.test.ts` |
+|---|---|
+
+### D-659 · Der Bereichswechsel steht in der echten Kopfzeile — mit Live-Zählern nach den Rechten des Betrachters (V-165)
+
+**Der Befund** (V-165, TEN-06, TEN-10, DESIGN §6): Die echten Portalseiten
+rendern `PortalRahmen`. Dort stand oben links ein statisches Zeichen, und die
+Kopfzeile trug für JEDE Sitzung den Verweis „Bereich wechseln“, auch bei nur
+einem Bereich. Das widerspricht TEN-06 und D-43. `/auth/bereich` zeigte keine
+Zähler; der Gruppeneintrag hatte keine `NUR LESEN`-Pille und sagte fest
+„vier“ Gesellschaften. Das Klappmenü mit Zählern, Pille und ⌘K
+(`BereichsUmschalter`) lebte nur in `/dev/portal`, mit festen Zahlen. Die
+Zählerquelle `app.mandant_kennzahlen` gab es nicht, und die Rechtefrage aus
+„Carried over“ Nr. 2 war offen.
+
+**Die Entscheidung.**
+
+1. **Die Zähler folgen den Leserechten des Betrachters, je Bereich.** Das
+   beantwortet „Carried over“ Nr. 2. `app.mandant_kennzahlen()` (0417,
+   Definer, `cse_definer`) liefert eine Zeile nur, wenn `app.hat_recht` im
+   jeweiligen Bereich das Leserecht bejaht. Darin stecken die Modulliste der
+   Mitgliedschaft (D-658), der zweite Faktor (0395) und die Gruppenansicht.
+   Ohne Recht gibt es keine Zeile und keine Null, denn eine Null wäre eine
+   Aussage über den Bestand. Die Funktion gibt nur Anzahlen zurück (`integer`,
+   nie Geld, nie Zeilen; EMP-13, D-09 §6).
+2. **Zwei Zähler, dieselben Zahlen wie die Übersichten.** `auftraege_aktiv`
+   (`auftrag.status = aktiv`, nicht archiviert, `auftrag.lesen`) ist dieselbe
+   Zahl wie in der Gruppenübersicht. `projekte_laufend` (`geplant`,
+   `in_arbeit`, `bau.lesen`) ist dieselbe Zahl wie in der Bauübersicht und
+   gilt nur, wo Bau gebucht oder die Buchung nie gepflegt ist (D-377, O-355).
+3. **Welcher Zähler in einer Zeile steht, hängt an den Gewerken**, nicht an
+   einer Liste von Gesellschaften (TEN-08). Ist Bau gebucht, sind es die
+   Projekte, sonst die Aufträge. Ohne Gewerk (CSE Operations) steht kein
+   Zähler da: dort ist ein Auftrag nicht die Arbeit, und eine Null wäre nur
+   Schmuck (DESIGN §6 zeigt es genauso). `waehleZaehler` ist die geprüfte
+   Regel dafür.
+4. **Live gezählt statt aus einer Zwischentabelle.** Anders als 01-KERN §6.3
+   gibt es keine Tabelle `mandant_kennzahl` und keinen Job dafür. TEN-10 sagt
+   „live“. Die Zählungen laufen über vorhandene Indizes (`auftrag_liste_idx`,
+   `projekt_status_idx`), eine je Bereich. Sie laufen nur für Sitzungen mit
+   mehr als einem Bereich und nur für die internen Leisten. Eine Tabelle
+   bräuchte einen Job, eine Frist und hätte trotzdem einen veralteten Stand.
+5. **Ein Bereich: kein Umschalter und kein Verweis** (TEN-06, D-43), weder in
+   der Kopfzeile noch im Blatt hinter `Mehr`, im Telefonmenü oder im Satz
+   „Gewechselt wird über …“ auf der Kontowurzel. Das Tor (`portalZugang`)
+   liest die Bereiche in seiner gebundenen Transaktion (`umschalterStand`)
+   und legt sie in den Anfragespeicher. Die fünf Seiten unter `/portal/konto`
+   gehen nicht durch das Tor; sie tun dasselbe in `leseKonto`
+   (`merkeUmschalter`) — ohne das trug ihre Kopfzeile den Verweis weiter für
+   jedes Konto. Der Rahmen entscheidet mit `kopfWechsel`, einer reinen,
+   geprüften Funktion; er fragt die Datenbank nicht selbst. Fehlt der Stand
+   ganz (nur die Vorschau unter `/dev/portal`), bleibt der Verweis: niemand
+   soll ohne Ausgang dastehen, weil ein Wert fehlte.
+6. **Mehr als einer:** Im internen Portal und in der Gruppenansicht steht der
+   Umschalter oben links an der Stelle des Zeichens (DESIGN §6 „Placement“),
+   mit Unterzeile „Gewerk · Zähler“, `NUR LESEN` am Gruppeneintrag und ⌘K.
+   Ein Wechsel ist ein POST an `/api/sitzung/mandant`, derselbe Weg wie die
+   Bereichswahl. Der Server prüft die Mitgliedschaft, protokolliert und
+   landet auf der Übersicht des neuen Bereichs (Regel 6). Der Verweis
+   „Bereich wechseln“ bleibt daneben: er ist der Weg ohne JavaScript. Das
+   Mitarbeiter- und das Kundenportal behalten nur den Verweis, weil der
+   Bereich dort keine Arbeitsumgebung ist, sondern die Frage, in welches
+   Portal man will.
+7. **Der Umschalter ERSETZT das Logo, er steht nicht daneben.** Das Zeichen
+   wandert in den Auslöser, der Seitenname bleibt der Weg zur Übersicht.
+   Trägt die Seite denselben Namen wie der Auslöser — die Übersicht eines
+   Bereichs, die Gruppenübersicht —, entfällt das zweite Logo dort, wo der
+   Auslöser seinen Namen zeigt; zweimal „CSE Dienstleistungen GmbH“
+   nebeneinander war genau die Übersicht, auf der jeder Wechsel landet. Der
+   Name im Auslöser erscheint ab `lg`, darunter nur Zeichen und Chevron:
+   zwischen 640 und 1024 px steht rechts die ganze Sitzungsnavigation, und
+   ein voller Firmenname links daneben schob die Zeile über den Rand
+   (DESIGN §8). Ein langer Name wird gekürzt statt zu schieben (TEN-08).
+   Der Auslöser steht auf derselben Kante wie das Zeichen, das er ersetzt.
+8. **`/auth/bereich` zeigt dieselben Zähler**, die Pille am Gruppeneintrag
+   und die wirkliche Zahl der Gesellschaften. Die Seite spricht jetzt de/en
+   (`BEREICHSWECHSEL_TEXTE`). Die Sprache liest `leseEigeneSprache`, dieselbe
+   Regel wie im Tor (mit Person `person.sprache`, sonst `benutzer.sprache`).
+9. **Die Gewerke kommen aus `app.umschalter_bereiche()`** (0417). Das sind die
+   Bereiche von `switcher_bereiche` (0018) plus `mandant.module`, oder
+   `NULL`, solange die Buchung nie gepflegt wurde. Unbekannt ist nicht leer.
+   `switcher_bereiche` bleibt unverändert; die Kontoseite liest dieselbe
+   Menge jetzt über `umschalter_bereiche`, weil sie daraus auch ihre
+   Kopfzeile baut — eine Abfrage statt zwei.
+10. **Die eigenen Policies der beiden Funktionen tragen allein.**
+    `d_umschalter_*` gelten nur für `cse_definer` und nur für `select`, und
+    sie fragen `switcher_mandanten()` als Unterabfrage — einmal je Anweisung
+    (InitPlan, 01-KERN §1.3), nicht je Zeile. Die breiten `using (true)`-
+    Policies anderer Migrationen decken das Lesen heute mit ab; die
+    Isolationsprüfung lässt sie in einer zurückgerollten Transaktion fallen
+    und bekommt dieselben Bereiche und Zähler, und ohne die eigenen fehlen
+    sie (Gegenprobe). Eine spätere Verengung jener Policies nimmt dem
+    Umschalter also nichts weg.
+    *(Unter einer Bedingung, festgehalten in D-731 Nr. 3:
+    `switcher_mandanten` liest an der RLS vorbei. Unter `cse_definer` läsen
+    die eigenen Policies sich selbst.)*
+
+| Betrifft | TEN-05, TEN-06, TEN-07, TEN-08, TEN-09, TEN-10, DESIGN §6, DESIGN §8, D-43, D-377, D-658, O-355, V-165, „Carried over“ Nr. 2, `drizzle/0417`, `src/server/services/mandant/umschalter.ts`, `src/server/konto/sprache.ts`, `src/app/portal/{zugang,huellen-speicher}.ts`, `src/app/portal/konto/{konto.ts,[[...rest]]/page.tsx}`, `src/components/portal/{PortalRahmen,TabLeiste,BereichsUmschalter,BereichsWechsel,kopf-wechsel,typen}`, `src/app/auth/bereich/page.tsx`, `src/lib/i18n/verwaltung/bereichswechsel.ts`, `docs/architecture/02-datenmodell/01-KERN.md` §6.3, `docs/architecture/05-API-KARTE.md`, `tests/isolation/bereichswechsel.test.ts`, `tests/kern/bereichswechsel.test.ts`, `tests/e2e/{bereichswechsel,portal-ausgang}.spec.ts` |
+|---|---|
+
+### D-660 · Die Bereichszähler zählen nur, was der Betrachter dort selbst sähe — nie für ein Kundenkonto (V-166)
+
+**Der Befund** (V-166, Prüfung von V-165; TEN-10, 05-API-KARTE „A count is a
+real disclosure“): `/auth/bereich` fragte `umschalterStand` ohne Angabe, und
+„mit Zählern“ war die Vorgabe. Ein Kundenkonto mit Zugang in zwei
+Gesellschaften (0249 gibt einem bestehenden Kundenkonto eine zweite
+Mitgliedschaft) sah dort „Reinigung · 57 laufende Aufträge“: den Bestand der
+Gesellschaft über ALLE Kunden. `app.mandant_kennzahlen` (0417) fragte nur
+`app.hat_recht`, und die Rolle `kunde` hält `auftrag.lesen` und `bau.lesen`
+plattformweit (0008). Auf die eigenen Zeilen beschränkt sie allein die RLS
+(`p_kunde_decke` auf `auftrag`, `p_portal_decke` auf `projekt`), und die
+Definer-Zählung unter `cse_definer` sieht diese Decken nicht. D-659 Nr. 4
+(„nur für die internen Leisten“) stimmte damit für die Bereichswahl nicht.
+Der abgebrochene Nachbesserungsstand (WIP) rechnete das Portal je Bereich
+außerdem mit dem Gültigkeitsfenster der Mitgliedschaft und zählte deshalb
+für ein Konto mit globaler interner Rolle und abgelaufener Kundenzeile den
+ganzen Bestand — die Isolationsprüfung zeigt beides.
+
+**Die Entscheidung.**
+
+1. **Die Anwendung fragt Zähler nur für eine interne Sitzung.**
+   `umschalterStand` verlangt jetzt beide Angaben ausdrücklich
+   (`StandFragen { gruppe, zaehler }`); eine vergessene Angabe heißt nicht
+   mehr still „ja“, der Compiler lässt keinen Aufruf ohne sie durch. Tor und
+   Kontoseiten fragen Gruppe und Zähler für die internen Leisten, die
+   Bereichswahl fragt die Gruppe immer (ob eine Sitzung sie betreten darf,
+   sagt `app.darf_gruppenansicht`) und die Zähler nur, wenn `zaehltFuer` ja
+   sagt: internes Portal oder Gruppenansicht.
+2. **Die Datenbank sagt dasselbe noch einmal, für den Aufrufer, der es
+   vergisst** (0418). `app.mandant_kennzahlen` liefert nur, wenn
+   `app.portal() = 'intern'` ist — Kundenportal, Kundensicht und
+   Mitarbeiterportal bekommen keine Zeile.
+3. **Und je Bereich nur, wo der Betrachter nach einem Wechsel intern
+   arbeitete.** Das Portal im Bereich wird genau so bestimmt wie in
+   `app.sitzung_aufloesen` (0138): die Rolle der nicht entzogenen
+   Mitgliedschaft in DIESEM Bereich, sonst die globale Rolle, sonst
+   `mitarbeiter`. Bewusst OHNE Gültigkeitsfenster, weil der Wechsel keines
+   kennt: eine abgelaufene Kundenmitgliedschaft neben einer globalen
+   internen Rolle ergibt nach dem Wechsel eine Kundensitzung, und die RLS
+   zeigt dann nur die eigenen Vorgänge. Nur mit internem Portal UND
+   Leserecht ist die Zahl dieselbe, die die RLS dem Betrachter dort zeigt:
+   `p_kunde_decke` lässt ein internes Portal durch, `p_portal_decke` öffnet
+   ihm alle Projekte. Sonst gibt es für den Bereich keine Zeile, auch keine
+   Null.
+4. **Ein Kundenkonto sieht auf der Bereichswahl seine Bereiche, sonst
+   nichts** — keine Zahl, keinen Gruppeneintrag. Eine Zahl nur der EIGENEN
+   Aufträge wäre zulässig gewesen, ist aber nicht TEN-10: der Zähler gehört
+   dem Umschalter der internen Leisten (D-659 Nr. 4), und das Kundenportal
+   trägt keinen.
+5. **Die Spaltengrants für `cse_definer` beschränken heute nichts** — weder
+   die aus 0416 und 0417 noch die aus 0418. 0155 gibt `cse_definer` `select`
+   auf ganz `rolle`, `benutzer` und `benutzer_mandant`, 0191 `insert` und
+   `update` auf ganz `benutzer_mandant`. D-658 und D-659 sprachen von
+   „eigenen Spaltengrants“; sie nennen die gebrauchten Spalten und tragen
+   erst, wenn die Tabellengrants enger werden. Die Tabellengrants hier zu
+   verengen hieße, jede Definer-Funktion auf diesen drei Tabellen neu
+   durchzugehen — das ist nicht Teil dieser Behebung.
+6. **Die eigenen Policies der Zählung fragen nur Funktionen, keine Tabelle.**
+   Die erste Fassung von `d_umschalter_rolle` (aus dem abgebrochenen Stand)
+   fragte `benutzer_mandant` und schloss damit einen Kreis mit
+   `d_bm_verwaltungsrolle` (0372) und `d_bm_kundenrolle` (0249), deren
+   `with check` `rolle` fragt: jedes Anlegen einer Mitgliedschaft als
+   `cse_definer` — Einladung eines Verwaltungskontos, Kundenzugang — brach
+   mit „infinite recursion detected in policy“ ab. Jetzt sieht `cse_definer`
+   auf `rolle` wie `t_rolle_lesen` (0007) die Plattformrollen und die Rollen
+   der Bereiche des Umschalters; eine Mitgliedschaftsrolle gehört immer
+   ihrem Bereich (`kern.bm_rolle_pruefen`). Die Isolationsprüfung weist
+   jedes `FROM` in einer `d_umschalter_*`-Bedingung ab und legt eine
+   Kundenmitgliedschaft als `cse_definer` an (§4, §7).
+
+| Betrifft | TEN-06, TEN-10, DESIGN §6, D-43, D-659, D-658, V-165, V-166, K-04, `drizzle/0418`, `src/server/services/mandant/umschalter.ts`, `src/app/auth/bereich/page.tsx`, `src/app/portal/zugang.ts`, `src/app/portal/konto/konto.ts`, `src/server/registry/dienste.ts`, `docs/architecture/05-API-KARTE.md`, `docs/architecture/02-datenmodell/01-KERN.md` §6.3, `docs/ROADMAP.md`, `tests/isolation/bereichswechsel.test.ts` §5–§6, `tests/kern/bereichswechsel.test.ts` §5 |
+|---|---|
+
+### D-661 · Auch Wege ohne Sitzung tragen die Adresse der Anfrage ins Prüfprotokoll (V-167)
+
+**Der Befund** (V-167, Prüfung von V-163; SEC-A9): D-657 Nr. 1 sagte, ohne
+IP blieben nur Läufe ohne Anfrage. Drei Wege MIT Anfrage schrieben aber ohne
+Sitzungsbindung ins Protokoll und trugen `ip = NULL`, obwohl die Adresse
+bekannt war: `auth.konto_gesperrt` aus der Bremse
+(`app.versuch_protokollieren`, 0379 — dort liegt sie sogar als `p_ip` vor),
+`auth.kennwort_gesetzt` aus `app.kennwort_token_einloesen` (Einladung und
+Zurücksetzung, 0155) und `auth.zweiter_faktor_eingerichtet` aus
+`app.token_faktor_bestaetigen` (Einladung einer Rolle mit Pflicht zum
+zweiten Faktor, 0155). `app.protokolliere` liest die Adresse aus `app.ip`
+(0415), und das setzte nur `bindeSitzung`. Außerdem behauptete
+`server/auth/adresse.ts`, der Proxy hänge die Adresse des Geräts VORN an
+`x-forwarded-for` an — ein gewöhnlicher Reverse-Proxy hängt hinten an.
+
+**Die Entscheidung.**
+
+1. **Eine Herkunftsbindung für Wege ohne Sitzung.** `bindeHerkunft`
+   (`server/kontext`) setzt NUR `app.ip`, transaktionslokal. Kein Konto,
+   kein Portal, keine Rolle: wer hier handelt, ist noch nicht angemeldet,
+   und eine Bindung, die mehr behauptete, wäre eine erfundene Sitzung.
+2. **Die drei Dienste binden selbst, und die Adresse ist Pflicht.**
+   `meldeAnMitKennwort` (hatte sie schon), `loeseKennwortTokenEin` und
+   `bestaetigeFaktorMitToken` nehmen `ip: string | null` als Pflichtangabe —
+   eine Seite, die sie vergisst, übersetzt nicht. `null` heißt ehrlich:
+   keine Adresse bekannt, die Spalte bleibt leer.
+3. **Die Adresse kommt aus derselben Regel wie bei einer Sitzung**
+   (`anfrageAdresse`) — auf `/auth/passwort-neu` und auf dem Token-Weg von
+   `/auth/zwei-faktor/einrichten`. Die Anmeldung behält `herkunft()`:
+   dieselbe Adresse steht dort in `anmeldeversuch.ip` und
+   `benutzer_sitzung.ip`, und eine zweite Lesart ergäbe zwei Adressen für
+   denselben Versuch.
+4. **In der Anwendung und nicht in `app.versuch_protokollieren`.** Die
+   Funktion kennt `p_ip`, aber `app.protokolliere` liest die Adresse aus der
+   Bindung. Sie müsste `app.ip` für ihre eine Zeile umsetzen und
+   zurückstellen, und sie ist eine Altlast unter `postgres` (D-300), die
+   dafür neu ersetzt würde. Ein Mechanismus für alle drei Wege, so wie
+   `bindeSitzung` für alle übrigen; ihr einziger Aufrufer ist
+   `app.kennwort_anmelden` aus `meldeAnMitKennwort`.
+5. **Der Akteur dieser Zeilen bleibt, wie er war:** `system`, ohne Konto.
+   Wer den Token hält oder das Kennwort tippt, ist nicht angemeldet; das
+   betroffene Konto steht in `objekt_id`.
+6. **Die Adresse ist die des Geräts nur, weil der Proxy den Kopf SETZT.**
+   Vercel (Stack, EINRICHTEN) überschreibt `x-forwarded-for` mit der Adresse
+   der Verbindung; was der Browser mitschickt, kommt nicht durch. Ein Proxy,
+   der anhängt (nginx `$proxy_add_x_forwarded_for`), machte den ersten
+   Eintrag frei wählbar — im Protokoll, an der Bremse, am Einmalcode, an der
+   Freigabe, am Check-in. Wer die Plattform je hinter einem eigenen Proxy
+   betreibt, lässt ihn den Kopf ersetzen (nginx:
+   `proxy_set_header X-Forwarded-For $remote_addr;`). Die Lesart selbst
+   bleibt: alle Stellen lesen den ersten Eintrag, und eine Stelle, die
+   anders läse, gäbe eine zweite Antwort auf dieselbe Frage.
+7. **D-657 Nr. 1 gilt damit wörtlich:** ohne IP bleiben nur Läufe ohne
+   Anfrage (Hintergrund, Test). O-92 (wie lange die IP stehen darf) bleibt
+   offen und gilt für diese Zeilen genauso. *(Berichtigt in D-729: das war
+   nicht wahr. Der Check-in mit der Marke — Einlösen, Nachreichung,
+   Aufnahme als `cse_checkin` — und der Einmalcode der Kraft schrieben
+   weiter ohne Adresse, obwohl sie vorlag; seit V-235 binden auch sie.)*
+
+| Betrifft | SEC-A9, AUT-01, AUT-02, AUT-07, D-300, D-657, O-92, V-163, V-167, `src/server/kontext/index.ts`, `src/server/auth/kennwort-anmeldung.ts`, `src/server/auth/adresse.ts`, `src/app/auth/passwort-neu/page.tsx`, `src/app/auth/zwei-faktor/einrichten/page.tsx`, `tests/isolation/pruefprotokoll-ip-agent.test.ts` §3, `tests/isolation/anmeldung-kennwort.test.ts` |
+|---|---|
+
+### D-662 · Eine Administration entsteht nur über ihre zwei Wege — auch nicht über die Zeile daneben (V-168)
+
+**Der Befund** (V-168, Prüfung von V-164; AUT-01, 03-AUTH §12.1): Der
+Auslöser `kern.bm_module_pruefen` (0416) sperrt den Anwendungsweg nur beim
+SETZEN einer Modulliste. Mit `system.benutzer_verwalten` führten auf
+Datenbankebene drei Umwege zu einer Administration mit allen Modulen der
+Rolle, ohne `system.module_zuweisen` und ohne die Decke der eigenen Module
+(D-658 Nr. 4): entziehen (`t_bm_entziehen`, ein UPDATE auf `entzogen_am`,
+der Auslöser hängt an `update of module`) und ohne Liste neu anlegen
+(`t_bm_schreiben`); eine entzogene, unbeschränkte Administration
+wiederbeleben; eine andere Mitgliedschaft per `rolle_id` umwidmen. Heute
+nimmt kein Code diese Wege. Daneben drei kleinere Folgen von V-164: Die
+Isolationsprüfung des INSERT-Zweigs legte für eine FREMDE Gesellschaft an
+und erwartete einen Wurf ohne Meldung, bewies also nicht, welcher Grund ihn
+auslöste. Fünf Seed-Stellen wählten ihr handelndes Konto mit
+`order by r.schluessel limit 1`, und seit V-164 trägt die Reinigung zwei
+Administrationen — welche gewählt wurde, hing an der Zeilenfolge, und
+`admin.vertrieb` hält weder Dienstplan noch Zeit. Das Benutzerblatt schlug
+`?module=` und `?konto=` im Objektliteral nach (`?module=__proto__` warf
+beim Zeichnen) und gab einen unbekannten `?konto=`-Wert roh aus.
+
+**Die Entscheidung.**
+
+1. **Auf dem Anwendungsweg entsteht keine lebende Administration** (0419,
+   `kern.bm_administration_pruefen`). Unter `current_user = cse_app` wird
+   jedes INSERT einer lebenden Mitgliedschaft mit der Plattformrolle
+   `admin` abgewiesen, ebenso jedes UPDATE, das eine Mitgliedschaft erst
+   dazu macht (`rolle_id` wechselt auf `admin`, oder `entzogen_am` geht von
+   gesetzt auf leer). Eine Administration hat genau zwei Wege, beide als
+   `cse_definer`: `app.verwaltungskonto_einladen` legt sie an (D-610, nur
+   `super_admin`), `app.mitgliedschaft_module_setzen` ändert ihre Module
+   (D-658). Seed und Migration laufen als Eigentümer und sind nicht gemeint.
+   *(Berichtigt in D-730: so war das nicht vollständig wahr. Der Auslöser hing
+   nur an `rolle_id` und `entzogen_am`, `cse_app` hielt ein UPDATE auf die
+   ganze Zeile — `benutzer_id` einer lebenden Administration umschreiben
+   oder das Fenster einer abgelaufenen wieder öffnen ging an allen
+   Auslösern vorbei. Seit 0460 fragt der Auslöser die ganze Zeile, und
+   `cse_app` hält nur noch Spaltenrechte.)*
+2. **Entziehen bleibt, Pflege bleibt.** Eine Administration zu entziehen und
+   eine lebende weiter zu pflegen (`gueltig_bis`, `ist_standard`) geht wie
+   bisher über `t_bm_entziehen`. Andere Rollen tragen keine Modulliste
+   (0416) und sind nicht gemeint.
+   *(Genauer seit D-730: das Fenster einer Administration lässt sich auf dem
+   Anwendungsweg nur verkürzen; verlängern, wieder öffnen und vorziehen
+   heißt neu einladen.)*
+3. **Ein eigener Auslöser, keine neue Fassung von `bm_module_pruefen`.** Jener
+   prüft den Katalog an der Spalte `module`, dieser den Weg an `rolle_id`
+   und `entzogen_am`. Ohne `security definer`, wie 0416: `current_user` ist
+   der Aufrufer.
+4. **Die Prüfung sagt, welcher Grund abweist.** Der INSERT-Zweig von
+   `bm_module_pruefen` wird im AKTIVEN Mandanten geprüft, mit einer Rolle,
+   die 0419 nicht sperrt, gegen die Meldung — und die Gegenprobe ohne Liste
+   geht durch.
+5. **Der Seed wählt nach Bedeutung, nicht nach Zeilenfolge.** Alle sieben
+   Stellen, die ein handelndes Konto über die Rolle suchen, ordnen
+   `r.schluessel, bm.module is not null, b.email`: zuerst eine Mitgliedschaft
+   ohne Modulliste (alle Module der Rolle), dann die E-Mail. D-658 Nr. 8
+   hatte zwei davon über die E-Mail allein gerichtet.
+6. **Das Benutzerblatt nimmt `eigenerEintrag`** für `?konto=` und
+   `?module=` (D-653) und zeigt `?anzahl=` nur als Zahl; ein unbekannter
+   Wert erzeugt keine Meldung.
+
+| Betrifft | AUT-01, AUT-04, 03-AUTH §12.1, D-610, D-653, D-658, V-164, V-168, `drizzle/0419`, `src/server/db/seed/{zeit,reinigung,security,eingang,konto}.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/[id]/page.tsx`, `tests/isolation/mitgliedschaft-module.test.ts` §2, §4, `tests/kern/nachschlagen.test.ts` |
+|---|---|
+
+### D-663 · Die Texte des Bereichswechsels und der Modulzuweisung nennen keine Entwurfskennung, und ⌘K meldet sich nicht je Rendern neu an (V-169)
+
+**Der Befund** (V-169, Prüfung von V-164/V-165): Die Gruppenzeile der
+Bereichswahl endete auf „(Invariante 10)“ bzw. „(invariant 10)“, die
+Erklärung der Modulzuweisung auf „(AUT-01)“ — Verweise für die, die den Code
+lesen, auf dem Bildschirm ohne Bedeutung. Im `BereichsUmschalter` hing der
+globale ⌘K-Listener an `[aktiv, zeilen]`; `zeilen` entsteht bei jedem
+Rendern neu, der Listener wurde also bei jedem Rendern ab- und wieder
+angemeldet.
+
+**Die Entscheidung.**
+
+1. **Was der Mensch liest, nennt keine Kennung des Entwurfs** — keine
+   Invariante, keine SPEC-, D-, K-, O- oder V-Nummer — in den Texttabellen
+   dieser Gruppe (`bereichswechsel.ts`, `module-zuweisung.ts`). Die
+   Aussage bleibt („nur lesen“, „eingeschränkt auf die gewählten Module“),
+   nur der Verweis fällt. Eine Prüfung läuft über jede Zeichenkette beider
+   Tabellen in beiden Sprachen, auch über die erzeugten.
+2. **Der ⌘K-Listener hängt an einer Zahl** (`startFokus`, die Stelle des
+   aktiven Bereichs in der Liste), nicht an der je Rendern neuen Liste. Er
+   wird nur neu angemeldet, wenn sich diese Stelle ändert.
+3. **Nicht Teil dieser Entscheidung, bewusst:**
+   - Andere, ältere Seiten tragen dieselbe Sorte Verweis im Text (etwa
+     `portal/gruppe/freigaben`, die Kundenfreigabe eines Dokuments: „(Invariante
+     10)“). Sie gehören nicht zu den Befunden dieser Gruppe.
+   - Benutzerliste und Benutzerblatt bleiben deutsch bis auf die
+     Modulzuweisung (V-164), die zweisprachig ist. Beide Seiten stehen in der
+     eingefrorenen Ausnahmeliste der Übersetzungswache
+     (`scripts/guards/uebersetzung-ausnahmen.ts`). Nur die Spaltenköpfe
+     „Rolle“ und „Module“ umzustellen, ergäbe eine andere Mischung — die Zelle
+     „Rolle“ zeigt die deutsche Rollenbezeichnung aus der Datenbank, daneben
+     stehen ein Dutzend weitere deutsche Köpfe. Die Abhilfe ist, beide Seiten
+     ganz auf die Verwaltungstexte umzustellen und aus der Liste zu
+     streichen.
+   - `/auth/bereich` spricht de/en. Eine Kraft mit zwei Anstellungen und
+     Arabisch oder Türkisch landet dort weiter auf Deutsch — vor V-165 sprach
+     die Seite nur Deutsch, es ist also kein Rückschritt. Arabisch verlangt
+     außerdem die Schreibrichtung von rechts; die Seite setzt heute keine.
+
+| Betrifft | DESIGN §6, D-659, D-658, V-164, V-165, V-169, `src/lib/i18n/verwaltung/bereichswechsel.ts`, `src/lib/i18n/verwaltung/einstellungen/module-zuweisung.ts`, `src/components/portal/BereichsUmschalter.tsx`, `tests/kern/bereichswechsel.test.ts` §6 |
+|---|---|
+
+### D-729 · Auch der Check-in und der Einmalcode tragen die Adresse der Anfrage ins Prüfprotokoll (V-235)
+
+**Der Befund** (V-235, Prüfung von V-167; SEC-A9): D-661 Nr. 7 sagte, ohne
+IP blieben nur Läufe ohne Anfrage. Zwei Familien von Wegen MIT Anfrage
+schrieben aber weiter `ip = NULL`:
+
+- **Der Check-in mit der Marke.** `/api/check-in/[token]`,
+  `…/offline` und `…/medien` lesen die Adresse und reichen sie als `p_ip`
+  an `app.checkin_verbrauchen` bzw. `app.offline_ereignis_annehmen`. Dort
+  landet sie in `checkin_token.ip_adresse`, an der Bremse und im
+  `nachher`-JSON von `zeit.eingestempelt` — aber nicht in der Spalte `ip`:
+  `app.protokolliere` liest `app.ip` (0415), und `withCheckin` setzte als
+  einzige GUC die Rolle. Betroffen waren `zeiteintrag.insert`/`.update`
+  (Auslöser aus 0034), `zeit.eingestempelt`/`zeit.ausgestempelt` (0035)
+  und `zeit.offline_empfangen` (0090).
+- **Der Einmalcode der Kraft.** `app.zugang_code_einloesen` (0114) setzt
+  `mitarbeiter_zugang.letzter_login_am`; der Auslöser der Tabelle (0384)
+  schreibt `mitarbeiter_zugang.update` — vor jeder Sitzung, ohne Adresse,
+  obwohl `/auth/mitarbeiter/code` sie mit `herkunft()` schon liest.
+
+Kein Test deckte einen dieser Wege ab.
+
+**Die Entscheidung.**
+
+1. **`withCheckin` bindet die Herkunft, und sie ist Pflicht.** Die
+   Signatur ist `withCheckin(tx, ip, fn)`; vor dem Rollenwechsel setzt
+   `bindeHerkunft` `app.ip`, transaktionslokal. Das ist keine Sitzung —
+   kein Konto, kein Mandant, kein Portal —, die Marke bleibt die einzige
+   Berechtigung (K-08). `loeseCheckinEin` und `nimmClaimAn` nehmen
+   `ip: string | null` als Pflichtangabe, wie die Dienste aus D-661 Nr. 2.
+   `markePraesentierbar` liest nur und bindet ausdrücklich keine Adresse.
+2. **`codeEinloesen` bindet sie selbst**, ebenfalls als Pflichtangabe,
+   und erst, nachdem Nummer und Code überhaupt die Form haben — eine
+   Eingabe, die gar nicht zur Datenbank geht, bindet nichts.
+3. **Eine Lesart.** Die drei Check-in-Routen nehmen `anfrageAdresse`
+   (D-661 Nr. 6) statt einer eigenen Kopie ohne Prüfung. Nebenbei: ein
+   Kopf, der keine Adresse ist, lief bisher roh in den `inet`-Parameter,
+   an dem Postgres ihn mit `invalid input syntax` abweist, und der Dienst
+   reichte den Fehler an die Route durch; jetzt wird er `null`, bevor er
+   die Datenbank erreicht. Die Stempeluhr aus
+   der Sitzung reicht `sitzung.ip` durch — dieselbe Adresse, die
+   `withTenant` für das Protokoll bindet.
+4. **In der Anwendung, nicht in den Funktionen** — aus demselben Grund
+   wie D-661 Nr. 4: ein Mechanismus für alle Wege ohne Sitzung, und keine
+   Definer-Funktion, die `app.ip` für ihre eigenen Zeilen umsetzt. Wer
+   `app.checkin_verbrauchen` am Anwendungsweg vorbei aufruft, bekommt die
+   Adresse weiter nur in `checkin_token` — das ist kein Weg der Plattform.
+5. **Was jetzt ohne Adresse bleibt, ist nachgezählt**, nicht behauptet:
+   alle Transaktionen unter `src/app`, die keine Sitzung binden. Die
+   Anmeldung und ihre Tokens binden seit D-661, Check-in und Einmalcode
+   seit hier. Die öffentlichen Formulare (`withEingang`) speichern die
+   rohe Adresse bewusst nirgends (D-657 Nr. 4). Der Kalenderabruf per
+   Token liest nur. Abmelden, „Kennwort vergessen“ und das Anfordern
+   eines Einmalcodes schreiben keine Protokollzeile. Ohne Adresse bleiben
+   damit die Läufe ohne Anfrage eines Menschen (Nachtläufe, auch wenn der
+   Zeitplaner sie per HTTP anstößt; Seed; Test) und die Formularannahme.
+   Ein neuer Weg ohne Sitzung muss die Herkunft selbst binden; das sagt
+   der Kommentar an `bindeHerkunft`.
+
+| Betrifft | SEC-A9, K-08, D-657, D-661, O-92, V-167, V-235, `src/server/kontext/checkin.ts`, `src/server/kontext/index.ts` (`bindeHerkunft`), `src/server/services/zeit/checkin.ts`, `src/server/services/zeit/offline.ts`, `src/server/auth/mitarbeiter-anmeldung.ts`, `src/app/api/check-in/[token]/{route,offline/route,medien/route}.ts`, `src/app/api/mein/stempeluhr/route.ts`, `src/app/auth/mitarbeiter/code/page.tsx`, `docs/architecture/03-AUTH-BERECHTIGUNGEN.md` (Check-in-Prinzipal), `tests/isolation/pruefprotokoll-ip-agent.test.ts` §4, `tests/kern/mitarbeiter-anmeldung.test.ts` |
+|---|---|
+
+### D-730 · Eine Administration entsteht auch nicht über Konto oder Fenster — die Zeile zählt, nicht die Spalte (V-236)
+
+**Der Befund** (V-236, Prüfung von V-168; AUT-01, 03-AUTH §12.1): D-662 Nr. 1
+sagte, auf dem Anwendungsweg entstehe keine lebende Administration. Die
+Auslöser auf `benutzer_mandant` hingen aber an einzelnen Spalten — 0419 an
+`rolle_id` und `entzogen_am`, 0416 an `module`, 0007 an `rolle_id` und
+`mandant_id` —, und `cse_app` hielt seit 0007 ein UPDATE auf die ganze Zeile,
+das `t_bm_entziehen` (0102) nicht einschränkt. Mit
+`system.benutzer_verwalten` und dem zweiten Faktor gingen zwei Wege durch:
+
+- `update benutzer_mandant set benutzer_id = X` an einer lebenden
+  Administration ohne Modulliste — das Konto X war danach eine
+  Administration mit allen Modulen der Rolle, ohne
+  `app.verwaltungskonto_einladen` (D-610) und ohne
+  `system.module_zuweisen`;
+- `set gueltig_bis = null` an einer abgelaufenen, nie entzogenen
+  Administration — `app.hat_recht_fuer` prüft das Fenster (0395), die Zeile
+  galt wieder. Ebenso ein früheres `gueltig_ab`.
+
+`tests/isolation/mitgliedschaft-module.test.ts` §4 erlaubte die Pflege von
+`gueltig_bis` ausdrücklich und prüfte keinen der beiden Wege.
+
+**Die Entscheidung.**
+
+1. **Erste Linie: Spaltenrechte** (0460). `cse_app` hält auf
+   `benutzer_mandant` kein UPDATE auf die Tabelle mehr, sondern eines auf
+   die Spalten, die eine Mitgliedschaft PFLEGEN: `rolle_id`, `module`,
+   `aus_anstellung`, `ist_standard`, `gueltig_ab`, `gueltig_bis`,
+   `entzogen_am`, `entzogen_von`, `entzugsgrund`, `geaendert_von`. Nicht
+   darunter ist, was eine Mitgliedschaft IST — `id`, `benutzer_id`,
+   `mandant_id` — und ihre Spur (`erstellt_am`, `erstellt_von`,
+   `geaendert_am`). Eine Mitgliedschaft wechselt nie das Konto; wer eine
+   für ein anderes Konto braucht, legt sie an, und die alte bleibt als
+   Antwort auf „wer hatte wann Zugriff“ stehen (Invariante 8). Das ist das
+   Muster, das 0007 für `benutzer` selbst vorschreibt (K-05). Kein
+   Anwendungscode schreibt `benutzer_mandant` direkt; die Definer-Wege
+   (0191, 0249, 0372, 0416) laufen als `cse_definer` und sind nicht berührt.
+2. **Zweite Linie: der Auslöser fragt die ganze Zeile.**
+   `kern.bm_administration_pruefen` hängt jetzt an JEDEM Update, und die
+   Frage ist nicht mehr „welche Spalte hat sich geändert“, sondern „gibt die
+   Zeile danach mehr Administration als vorher“. Eine Zeile, die nach der
+   Anweisung eine lebende Mitgliedschaft mit der Plattformrolle `admin` ist,
+   geht auf dem Anwendungsweg nur durch, wenn sie das vorher schon war —
+   dasselbe Konto, dieselbe Gesellschaft, und ein Fenster, das im alten
+   liegt. Anlegen, Wiederbeleben und Umwidmen (0419) fallen unter dieselbe
+   eine Frage. Die zweite Linie hält auch allein: die Prüfung gibt das
+   Spaltenrecht auf `benutzer_id` in einer zurückgerollten Transaktion
+   zurück, und der Auslöser weist ab.
+3. **Pflege heißt Verkürzen.** Ein Ende setzen oder früher legen, einen
+   späteren Beginn, `ist_standard`, entziehen und herabstufen bleiben.
+   Verlängern, ein abgelaufenes Fenster wieder öffnen und den Beginn
+   vorziehen geben einem Konto Tage mit Administration, die es nicht hatte
+   — das ist Anlegen, und Anlegen hat einen Weg: die alte Zeile entziehen
+   und über `app.verwaltungskonto_einladen` neu einladen (0372 nimmt ein
+   vorhandenes Konto an, sobald es in der Gesellschaft keine lebende
+   Mitgliedschaft mehr hat; nur `super_admin`, D-610).
+4. **Seed und Migration bleiben Eigentümer** und sind nicht gemeint; die
+   Meldung und `detail = administration_nur_ueber_funktion` bleiben die aus
+   0419, damit die Oberfläche und die bestehenden Prüfungen nichts Neues
+   lernen müssen.
+
+| Betrifft | AUT-01, 03-AUTH §12.1, K-05, Invariante 8, D-610, D-658, D-662, V-168, V-236, `drizzle/0460`, `tests/isolation/mitgliedschaft-module.test.ts` §4 |
+|---|---|
+
+### D-731 · Die kleinen Punkte aus der Prüfung von V-163 bis V-169 (V-237)
+
+**Der Befund** (V-237): Neben den zwei offenen Punkten (V-235, V-236) nannte
+der unabhängige Prüfer der Gruppe sechs kleinere Stellen. Jede ist hier mit
+ihrer Entscheidung verzeichnet, in der Reihenfolge, in der sie behoben wurde.
+
+**Die Entscheidungen.**
+
+1. **Die Protokollzeile der Modulzuweisung nennt nur, was sich änderte**
+   (0461). `app.mitgliedschaft_module_setzen` schrieb vorher `{module}`,
+   nachher `{module, benutzer_id}`; `app.protokolliere` zählt jedes Feld aus
+   nachher, dessen Wert in vorher ein anderer ist, und ein fehlendes Feld ist
+   dort NULL. Jede Zeile trug deshalb `geaendert_felder = {benutzer_id,
+   module}` — eine Kontoänderung, die nie stattfand. Jetzt steht das Konto
+   auf beiden Seiten: es ist der Bezug der Zeile. `app.protokolliere` bleibt,
+   wie es ist — „ein Feld nur in nachher ist neu“ ist für andere Aufrufer
+   richtig, und der heißeste Pfad der Plattform bekommt keine neue Fassung
+   für einen Fehler an einer Stelle.
+2. **Von der Decke der eigenen Module ist nur ausgenommen, wessen globale
+   Rolle das Recht selbst gewährt** (0462; berichtigt D-658 Nr. 4). Bis
+   0462 war jedes Konto mit IRGENDEINER globalen Rolle ausgenommen. Die
+   Begründung — die globale Rolle trägt keine Schnittmenge — gilt aber nur
+   für Rechte, die aus ihr kommen. Gefragt wird jetzt, was Zweig 1 von
+   `app.hat_recht_fuer` (0395) fragt: gewährt die globale Rolle
+   `system.module_zuweisen` in dieser Gesellschaft (zuerst die Zeile der
+   Gesellschaft, sonst die Vorgabe der Plattform)? Wenn nicht, kommt das
+   Recht aus der Mitgliedschaft, und deren Modulliste ist die Decke. Heute
+   latent: `super_admin` ist die einzige globale Rolle, hält das Recht per
+   Vorgabe, und ihm lässt sich kein Recht entziehen (0008). Die Suche ist
+   eine zweite Fassung von Zweig 1, weil `hat_recht_fuer` „ob“ beantwortet,
+   nicht „woher“; die Prüfung hält beide nebeneinander. Die Funktion liest
+   dafür `berechtigung` und `rolle_berechtigung` und bringt eigene, enge
+   `d_`-Policies mit.
+3. **Die Umschalter-Policies sind kreisfrei nur, solange
+   `app.switcher_mandanten` an der RLS vorbei liest — das ist jetzt
+   festgenagelt, nicht umgebaut.** `d_umschalter_mandant`, `_auftrag`,
+   `_projekt` (0417) und `d_umschalter_rolle` (0418) fragen
+   `switcher_mandanten()`, und die Funktion liest `mandant` und
+   `benutzer_mandant`, über `app.ist_super_admin` auch `benutzer` und
+   `rolle`. Heute gehören beide `postgres` (D-300, Superuser mit
+   `BYPASSRLS`). Zöge `switcher_mandanten` zu `cse_definer` um — das Ziel
+   von D-300 —, läse sie `mandant` unter `d_umschalter_mandant`, die wieder
+   sie fragt; solange `d_feed_mandant` (`using (true)`, 0161) daneben
+   steht, faltet der Planer das „oder“ weg, fällt auch sie, bricht jede
+   Zählung mit „stack depth limit exceeded“ ab. D-659 Nr. 10 („eine spätere
+   Verengung jener Policies nimmt dem Umschalter nichts weg“) gilt also nur
+   unter dieser Bedingung. `tests/isolation/bereichswechsel.test.ts` §4
+   hält sie fest: die Liste der `cse_definer`-Policies, die
+   `switcher_mandanten` oder `ist_super_admin` fragen, und dass beide
+   Funktionen an der RLS vorbei lesen; die Gegenprobe zieht die Funktion in
+   einer zurückgerollten Transaktion um, lässt die breiten Policies fallen
+   und sieht den Abbruch. Nicht umgebaut, weil eine Policy, die den Kreis
+   ohne die Funktion ausdrückte, eine zweite Fassung der Bereichsregel wäre
+   (Mitgliedschaft, Fenster, Archiv, globale Rolle), und zwei Fassungen
+   derselben Regel laufen auseinander. Wer die Funktion umzieht, sieht rot
+   und baut vorher die Policies um.
+4. **DESIGN §6 sagt jetzt, was gebaut ist — und das Klappmenü blendet ein,
+   wie §6 es verlangt.** Vier Abweichungen standen ohne Nachtrag in
+   DESIGN.md (CLAUDE.md: erst DESIGN.md, dann Code):
+   - *Einblenden:* dem Muster gefolgt. `.cse-klappmenue` (`globals.css`,
+     neben `.cse-auftritt`) blendet mit `opacity 0→1` und
+     `translateY(-4px→0)` ein, über `--base` mit `--ease`. §6 nannte
+     180 ms; das ist kein Token, und §7 sagt für Klappmenüs und Dialoge
+     `--base`. §6 verweist jetzt auf §7 statt auf eine eigene Zahl. Bei
+     `prefers-reduced-motion` gilt die globale Regel (kein Versatz).
+   - *Name im Auslöser erst ab `lg`:* DESIGN angepasst. Das ist D-659 Nr. 7
+     — zwischen `sm` und `lg` schob ein voller Firmenname die Kopfzeile über
+     den Rand (§8); der Seitentitel daneben und der zugängliche Name des
+     Knopfs nennen den Bereich.
+   - *„Security“ statt „Sicherheit“, keine Zeile für CSE Operations:*
+     DESIGN angepasst. Die zweite Zeile sind die gebuchten Gewerke unter
+     ihren Modulnamen — dieselben Wörter wie in der Modulzuweisung (V-164);
+     ein Gewerk, das im Umschalter anders hieße als auf dem Benutzerblatt,
+     wären zwei. Operations bucht kein Gewerk; „Digital & KI“ wäre eine
+     Beschriftung ohne Buchung und eine Null nur Schmuck (D-659 Nr. 3). Der
+     Zähler heißt, wie ihn die Anwendung zeigt („laufende Aufträge“,
+     „laufende Projekte“). 01-KERN §6.2 nannte `kurzname` noch als Zeile 2
+     im Umschalter; das ist berichtigt.
+   Kein neuer Wert: `-4px` und `320px` stehen in §6, `--base` und `--ease`
+   in §7.
+5. **Die Prüfung der Agentenzeile misst eine echte Zeile.** In
+   `pruefprotokoll-ip-agent.test.ts` lief die Schleife über die
+   Protokollzeilen „während des Laufs“ über null Zeilen — ein Demolauf
+   schreibt selbst keine (D-657 Nr. 3) —, und die Erwartung danach war auf
+   einer leeren Menge trivial wahr. Jetzt schreibt der Spion im Moment, in
+   dem die Freigabe entsteht, eine Zeile über `app.protokolliere` — genau
+   das, was ein protokollierender Auslöser dort täte, im Zustand, den der
+   Lauf gesetzt hat. Geprüft wird diese Zeile (Agent, Agentenkennung der
+   Freigabe, der Mensch als Auftraggeber, seine Adresse) und jede Zeile
+   zwischen einer Marke davor und einer danach; die Menge ist nie leer.
+6. **Formatierung:** `const uhr =(await …` in
+   `server/auth/kennwort-anmeldung.ts` (`bestaetigeFaktorMitToken`) steht
+   jetzt wie jede andere Zeile der Datei.
+
+| Betrifft | SEC-A9, AUT-01, 03-AUTH §12.1, O-76, O-355, D-300, D-657, D-658, D-659, V-164, V-165, V-237, DESIGN §6, §7, `drizzle/0461`, `drizzle/0462`, `src/styles/globals.css`, `src/components/portal/BereichsUmschalter.tsx`, `docs/architecture/02-datenmodell/01-KERN.md` §6.2, `tests/isolation/mitgliedschaft-module.test.ts` §1, §2, `tests/isolation/bereichswechsel.test.ts` §4, `tests/isolation/pruefprotokoll-ip-agent.test.ts` §2, `tests/kern/bereichswechsel.test.ts` §7, `src/server/auth/kennwort-anmeldung.ts` |
+### D-664 · Die Koordinaten eines Objekts trägt ein Mensch ein — in Dezimalgrad, als Paar, ohne Gleitkomma (V-170)
+
+**Der Befund** (V-170, OPS-01, Folge BAU-08): OPS-01 verlangt Objekte „with
+address and coordinates". `objekt.geo_lat`/`geo_lon` gibt es seit 0021 mit
+drei CHECKs, aber weder Anlegen noch Ändern schrieb sie, kein Formular fragte
+danach, und auch der Seed füllte sie nicht. Der einzige Leser, die
+Wetteranheftung im Bautagebuch, endete deshalb für jede Baustelle im Befund
+`ohne_koordinaten` — „Keine Koordinaten am Objekt hinterlegt" —, ohne dass es
+einen Ort gab, an dem man sie hätte hinterlegen können.
+
+**Die Entscheidung.**
+
+1. **Von Hand, freiwillig, als Paar.** Das Objektformular fragt Breiten- und
+   Längengrad; beide oder keiner (`objekt_geo_vollstaendig`). Beide leer räumt
+   ein vorhandenes Paar beim Ändern ab. Eine automatische Geokodierung der
+   Adresse ist das NICHT — sie bleibt O-122 und hängt an einem Dienst, der
+   eine Datenverarbeitung mit sich bringt. Eine Eingabe von Hand hängt an
+   dieser Frage nicht.
+2. **Dezimalgrad mit Komma oder Punkt.** Eine Koordinate hat höchstens drei
+   Vorkommastellen und keinen Tausenderpunkt; `52,520008` von der Tastatur und
+   `52.520008` aus einer Karte meinen dasselbe. Ein Leerzeichen MITTEN in der
+   Zahl wird abgewiesen, nicht zusammengeschoben.
+3. **Sechs Nachkommastellen, gerundet in ganzen Zahlen.** Eine Karte liefert
+   `52.52000659999999`; die Spalte trägt sechs Stellen (etwa zehn Zentimeter).
+   `leseKoordinate` rundet halb vom Nullpunkt weg in Mikrograd als `bigint` —
+   die Regel, die Postgres für `numeric` selbst anwendet — und übergibt einen
+   fertigen `numeric(9,6)`-Text. Geprüft wird der GERUNDETE Wert gegen ±90°/
+   ±180°, also genau der, der in der Spalte landet. Das ist keine Fachregel
+   über Geld oder Fristen, sondern die Genauigkeit einer Spalte, die es seit
+   0021 gibt.
+4. **Die Abweisung kommt als Schlüssel und Satz.** `api/objekt` gibt neben dem
+   deutschen Satz des Dienstes den `grund` mit; Anlegen- und Ändern-Seite
+   zeigen den übersetzten Text, sonst den Satz — nie den Schlüssel.
+5. **Das Objektblatt zeigt das Paar** (deutsches Komma) oder sagt, dass keines
+   hinterlegt ist und wofür es gebraucht wird.
+6. **Der Seed trägt Näherungswerte** für die fünf Vorführobjekte, aus einer
+   Karte abgelesen und so beschriftet. Das Wetter im Bautagebuch kommt damit
+   über „keine Koordinaten" hinaus bis zur Stationsfrage (`keine_station`); die
+   DWD-Anbindung selbst bleibt „nicht verbunden".
+
+**Nicht Teil dieser Entscheidung:** eine Karte (O-360) und die Zuordnung einer
+DWD-Station zum Projekt.
+
+| Betrifft | OPS-01, BAU-08, O-122, O-360, V-170, `drizzle/0021`, `src/server/services/objekt/anlegen.ts`, `src/app/api/objekt/route.ts`, `src/app/portal/[mandant]/objekte/{ObjektFormular.tsx,neu/page.tsx,[id]/page.tsx,[id]/bearbeiten/page.tsx}`, `src/lib/i18n/verwaltung/objekte.ts`, `src/server/db/seed/operations.ts` |
+|---|---|
+
+### D-665 · Der Raumbuch-Import liest CSV und sagt es vorher — Excel wird am Inhalt erkannt und abgewiesen, bis O-919 beantwortet ist (V-171)
+
+**Der Befund** (V-171, OPS-04): OPS-04 verlangt einen „Excel/CSV import for
+Raumbuch with preview before commit", und die ROADMAP hakte „Excel/CSV
+Raumbuch import" ab. Die Route wies `.xls`/`.xlsx` aber ausdrücklich ab, das
+Dateifeld nahm nur `.csv`, und die Begründung („bis eine geprüfte Bibliothek
+dafür eingerichtet ist") stand nur in einem Code-Kommentar — weder als
+Entscheidung noch als offene Frage noch im Register. Die Abweisung kam als
+weisse Seite (`{"fehler":"kein_csv",…}`, HTTP 415), und jede andere Abweisung
+der Route ebenso.
+
+**Die Entscheidung.**
+
+1. **Keine neue Abhängigkeit in diesem Schritt.** Die Plattform bringt keine
+   Bibliothek für Excel-Arbeitsmappen mit (`package.json`). Eine, die fremde
+   ZIP- und XML-Dateien entpackt, ist eine Sicherheits- und Pflegefrage und
+   wird nicht nebenbei aufgenommen; ein selbstgebauter halber Leser, der
+   Formeln und verbundene Zellen übersieht und Erfolg meldet, ist schlimmer
+   als keiner. Die Frage steht als **O-919**.
+2. **Die Grenze steht auf der Seite, VOR dem Hochladen** — mit dem Weg, der
+   funktioniert: in Excel als CSV speichern.
+3. **Excel wird am INHALT erkannt**, nicht nur am Namen: ZIP (`.xlsx`,
+   `.xlsm`, `.ods`) und das Verbunddateiformat von `.xls`. Eine umbenannte
+   Arbeitsmappe fällt mit demselben Satz, statt als „leere Kopfzeile" aus
+   Binärzeichen.
+4. **Die CSV, die ein deutsches Excel wirklich schreibt, kommt an.**
+   „CSV (Trennzeichen-getrennt)" ist Windows-1252; UTF-8 wird streng gelesen,
+   nur ungültiges UTF-8 geht an Windows-1252. Ohne das fand „Fläche" keine
+   Spalte — der Umweg, auf den die Abweisung verweist, wäre selbst eine
+   Sackgasse gewesen.
+5. **Jede Abweisung führt auf die Importseite zurück** (D-599): Schlüssel und
+   bei einer verschobenen Zeile deren Nummer, übersetzt in die Sprache der
+   Sitzung. JSON bleibt für keine Sitzung, kein Recht, fremden Ursprung und
+   ein unbekanntes Objekt (AUT-06). Der Bereich kommt aus der Sitzung, nicht
+   aus `?mandant=`.
+6. **Die ROADMAP sagt, was gilt:** CSV abgehakt, Excel offen mit Verweis auf
+   diese Entscheidung.
+
+| Betrifft | OPS-04, D-599, AUT-06, O-919, V-171, `src/server/services/raumbuch/{tabelle,import}.ts`, `src/app/api/raumbuch-import/route.ts`, `src/app/portal/[mandant]/objekte/[id]/raumbuch/import/page.tsx`, `src/lib/i18n/verwaltung/raumbuch-import.ts`, `docs/ROADMAP.md` |
+|---|---|
+
+### D-666 · Auftragsassistent und Kalkulationsbestätigung geben ihre Maske zurück — mit Satz, Feld und dem Bereich der Sitzung (V-172)
+
+**Der Befund** (V-172, OPS-07, OPS-10, Invariante 3): beide Formulare sind
+einfache POST-Formulare ohne Client-Logik, und beide Routen antworteten auf
+jede Abweisung mit `NextResponse.json`. Wer in „Wochenstunden" „1.234,5" oder
+„40 Std" eintrug, sah `{"fehler":"keine_zahl","felder":[…]}`, und die Eingabe
+war verloren — `Number(roh.replace(',', '.'))` machte aus „1.234,5" `NaN`.
+Ebenso ein fehlender Nummernkreis (409) und jede `KalkulationFehler`; die
+Kalkulationsseite hatte keine Anzeige für `?fehler=`. Beide Routen nahmen den
+Slug für die Umleitung aus `?mandant=` — dasselbe Muster, das in
+`api/radar/profil` und `api/radar/vorgang` schon als Mangel beseitigt war.
+
+**Die Entscheidung.**
+
+1. **Eine fachliche Abweisung führt auf die Maske** — `/auftraege/neu?fehler=…`
+   bzw. `/angebote/[id]/kalkulation?fehler=…&feld=…` —, und die Seite zeigt
+   den Satz zum Schlüssel in der Sprache der Sitzung, nie den Schlüssel.
+   JSON bleibt für keine Sitzung, kein Recht, fremden Ursprung und
+   „unbekannt" (AUT-06).
+2. **Die Antwort kommt erst NACH der Rechteprüfung.** Die Zahlen werden vor
+   der Transaktion rein geprüft, die Abweisung aber erst gegeben, wenn
+   `authorize` bestanden ist: wer nicht anlegen darf, erfährt nicht, dass
+   seine Zahl zu gross war.
+3. **Deutsche Zahlen über den geprüften Leser** (`leseZahl`): Tausenderpunkt
+   und Dezimalkomma; die Grenzen sind die CHECKs aus 0025 (0 … 5.000 ganze
+   Personen, 0 … 10.000 Wochenstunden). `pruefeAuftragsangaben` ist die EINE
+   Stelle dafür — der Assistent und die Auftragspflege (V-173) teilen sie.
+4. **Was sonst als Datenbankfehler käme, wird vorher gefragt**
+   (`pruefeAuftragsbezug`): ein Datum, das es nicht gibt (22007), eine
+   Laufzeit vor dem Start (23514), ein Kunde oder Objekt, das diese Sitzung
+   nicht sieht (23503), eine Leitung, die hier nicht Mitglied ist (der
+   Auslöser aus 0025 fragt es danach ein zweites Mal). Alles VOR der Nummer:
+   eine Abweisung verbraucht keine Auftragsnummer.
+5. **Eine `KalkulationFehler` nennt ihr Feld** — Stundensatz, Gemeinkosten,
+   Wagnis und Gewinn, Frequenzfaktor, Basis. „Keine Zahl" allein liess raten,
+   welcher der drei Werte gemeint war.
+6. **Der Bereich kommt aus der Sitzung**, gelesen in der Transaktion und nach
+   aussen gereicht; `?mandant=` fällt aus beiden Formularen. Das Muster steckt
+   in weiteren Routen (Prüfung: 28); die übrigen sind nicht Teil dieses
+   Befunds.
+
+**Zur Kette Lead → Angebot → Auftrag** (Zweig `wf/crm-kette`): dieselben
+Schlüssel (`unvollstaendig`, `keine_zahl`, `ausserhalb_bereich`, Gründe des
+Nummernkreises) und dieselbe Form `zurMaske(grund)`; die Anfrage-Bindung
+(`leadId`) gehört dorthin und wird hier nicht vorweggenommen.
+
+| Betrifft | OPS-07, OPS-10, D-599, AUT-06, Invariante 3, V-172, `src/server/services/auftrag/angaben.ts`, `src/server/services/kalkulation/bestaetigung.ts`, `src/app/api/{auftrag,kalkulation}/route.ts`, `src/app/portal/[mandant]/auftraege/neu/page.tsx`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/lib/i18n/verwaltung/{auftrag,kalkulation}.ts` |
+|---|---|
+
+### D-667 · Ein Auftrag lässt sich nach der Anlage pflegen — mit festem Kern, und der Wert aus dem Angebot bleibt (V-173)
+
+**Der Befund** (V-173, OPS-05, OPS-09, OPS-10): OPS-05 verlangt Aufträge mit
+Art, Laufzeit, WERT und verantwortlicher Leitung, OPS-10 zeigt Ort,
+Personalbedarf, Stunden, Ausstattung, Start und Leitung. Die zwei
+Entstehungswege füllten je die halbe Menge: der Assistent hatte kein
+Wertfeld (ein so angelegter Auftrag hatte für immer keinen Wert, die
+Wertkennzahlen zählten ihn mit 0, eine Abschlagsrechnung hatte keine
+Grundlage), die Wandlung aus dem Angebot setzte den Wert, aber nie
+Personalbedarf, Stunden oder Ausstattung. Einen Änderungsweg gab es nicht:
+das einzige `update auftrag` betraf Zustand, Abschluss und Kundenfreigabe.
+
+**Die Entscheidung.**
+
+1. **Der Assistent fragt den Wert** — freiwillig, deutsch geschrieben, über
+   `parseGeld` in ganze Cent (Invariante 1), nie geschätzt. Ein negativer
+   Betrag ist ein Tippfehler und wird abgewiesen (`wert_ungueltig`).
+2. **Die Annahme fragt Personalbedarf, Stunden und Ausstattung** und reicht
+   sie an `wandleInAuftrag` — geprüft mit demselben Leser wie der Assistent
+   (`pruefeAuftragsangaben`), freiwillig, nie geschätzt.
+3. **Gepflegt werden** Bezeichnung, Beschreibung, Leitung, Laufzeit, Wert,
+   Personalbedarf, Wochenstunden und Ausstattung — auf einer eigenen Seite
+   `/auftraege/[id]/bearbeiten`, unter `auftrag.schreiben` (dasselbe Recht wie
+   Anlegen und Zustand), über `POST /api/auftrag/aendern` mit dem Bereich aus
+   der Sitzung und der Abweisung auf der Maske.
+4. **Nicht gepflegt werden** Nummer, Kunde, Art, Start und Objekt: sie tragen
+   Rechnungen, Einsätze, Leistungsnachweise und Abrechnungszeiträume, und ein
+   anderer Vertragspartner oder Ort ist ein anderer Auftrag.
+5. **Der Wert eines Auftrags AUS EINEM ANGEBOT bleibt**, wie er ist. Er ist
+   `angebot.netto_cent` und wird nicht neu gerechnet (`wandleInAuftrag`); ihn
+   hier zu überschreiben, wäre eine zweite Wahrheit über denselben Betrag. Die
+   Seite zeigt ihn zum Lesen, der Dienst weist eine Abweichung ab
+   (`wert_aus_angebot`) — eine Änderung des Vertragswerts ist ein Nachtrag.
+   **Berichtigt (V-239, D-732):** der letzte Halbsatz galt nur für den Bau.
+   Nachträge gibt es nur dort (§ 2 VOB/B, 0080); für Reinigung und Sicherheit
+   hatte ein falscher Vertragswert damit keinen Weg, und der Text behauptete
+   einen. Die Sperre bleibt; welcher Weg dort gilt, ist O-921, und die Seite
+   sagt es so.
+6. **Abgeschlossen und storniert sind gesperrt** (O-734, 0389); die Seite sagt
+   warum, statt ein Formular anzubieten.
+7. **Jede Änderung steht im Protokoll** (`auftrag.geaendert`) mit Vorher und
+   Nachher der GEÄNDERTEN Felder. Speichern ohne Änderung schreibt nichts und
+   ist kein Fehler.
+8. **Sperren, dann vergleichen:** `for update` befragt die UPDATE-Policy
+   `t_mandant` — eine fremde Gesellschaft und die Gruppenansicht bekommen
+   keine Zeile (Invariante 3, 10).
+9. **Berichtigt (V-177): die Mitgliedschaft der Leitung wird nur bei einem
+   WECHSEL geprüft** — so wie der Auslöser
+   `kern.auftrag_verantwortlich_im_mandant` (0025), der bei unveränderter
+   Leitung sofort zurückkehrt. Die erste Fassung fragte sie bei jedem
+   Speichern; hatte die bisherige Leitung die Gesellschaft verlassen, war
+   dann keine einzige Änderung mehr möglich, auch nicht ein Tippfehler in der
+   Bezeichnung. Die Pflegeseite behält die bisherige Leitung in der Auswahl
+   und nennt sie „nicht mehr in dieser Gesellschaft"; eine andere wählt,
+   wer sie ablösen will. **Wählbar** ist in Pflege, Assistent und Annahme,
+   wer HEUTE Mitglied ist (`waehlbareLeitungen` über `app.ist_mitglied`,
+   mit `gueltig_ab`/`gueltig_bis`) — dieselbe Frage wie Dienst und Auslöser.
+
+| Betrifft | OPS-05, OPS-09, OPS-10, O-734, Invariante 1, 3, 10, V-173, V-177, `src/server/services/auftrag/{aendern,angaben}.ts`, `src/server/services/angebot/index.ts`, `src/app/api/auftrag/{route.ts,aendern/route.ts}`, `src/app/api/angebot/entscheidung/route.ts`, `src/app/portal/[mandant]/auftraege/{neu,[id],[id]/bearbeiten}/page.tsx`, `src/app/portal/[mandant]/angebote/[id]/annahme/page.tsx`, `src/lib/i18n/verwaltung/auftrag.ts`, `docs/architecture/04-SEITENKARTE.md` |
+|---|---|
+
+### D-668 · Material und Gerät gehen in die Kalkulation — erfasst, nie vorbelegt, und die Gemeinkostenbasis wirkt (V-174)
+
+**Der Befund** (V-174, OPS-07): OPS-07 verlangt die Kostenblöcke „labour +
+material + equipment + overhead + risk/profit". Das Schema trug sie seit 0023
+(`kostenart` 'material'/'geraet', `summe_material_cent`/`summe_geraet_cent`),
+aber `kalkuliere` kannte nur Lohn → Gemeinkosten → Wagnis/Gewinn, und kein Weg
+legte eine Material- oder Gerätezeile an. Ein Reinigungsangebot enthielt nie
+Reinigungsmittel oder Maschinen und war systematisch zu niedrig. Die wählbare
+Gemeinkostenbasis `selbstkosten`/`je_kostenart` wurde gespeichert und dann
+doch auf den Lohn gerechnet.
+
+**Die Entscheidung.**
+
+1. **Die Höhe wird nie vorbelegt.** Material und Gerät sind die Summe der
+   Zeilen, die ein Mensch auf der Kalkulationsseite erfasst: Menge ×
+   Einzelpreis, über `multipliziereMitMenge` (halb aufwärts, eine
+   Rundungsstelle). Der Preis kommt über `parseGeld`, beides nie negativ.
+2. **Die Menge ist eine deutsche Zahl** (`leseZahl`, wie die Angaben des
+   Auftrags in D-666): „1.234,5" ist tausendzweihundertvierunddreißig Komma
+   fünf, „1.000" ist tausend. Eine Schreibweise mit zwei Lesarten („12.50" —
+   deutsch 1.250, englisch 12,5) wird mit `mehrdeutig` am Feld abgewiesen,
+   nicht gedeutet: ein Faktor hundert auf der Menge ist ein Faktor hundert
+   auf dem Preis. Was die Seite zum Berichtigen vorbelegt („1.234,50"), liest
+   der Dienst genauso zurück. Die Grenzen sind technische, keine Fachregeln:
+   weniger als eine Milliarde Einheiten (`numeric(12,3)`), Beträge bis
+   `Number.MAX_SAFE_INTEGER` Cent (R-12); darüber gibt es einen Satz statt
+   eines 22003. **Berichtigt (V-240):** die Angaben des Auftrags lasen
+   `leseZahl` bis dahin OHNE `mehrdeutig` — „12.50" Wochenstunden wurden still
+   12,5. `pruefeAuftragsangaben` weist eine solche Zahl jetzt ebenso ab
+   (`mehrdeutig`, mit Feld, in beiden Sprachen).
+3. **Einzelkosten gehen IMMER in den Preis.** Die Basis entscheidet nur,
+   worauf der Gemeinkostenzuschlag rechnet: `lohn` auf den Lohn,
+   `selbstkosten` auf Lohn + Material + Gerät (so steht es auch in der
+   Auswahl). **Berichtigt (V-240):** die Auswahl hiess „Selbstkosten (Lohn +
+   Material + Gerät)". Das legte fest, was O-16 offenlässt — 0023 nennt die
+   Zusammensetzung der Selbstkosten ausdrücklich eine offene Frage, und
+   fachlich sind Lohn, Material und Gerät die EINZELKOSTEN (Selbstkosten
+   enthalten die Gemeinkosten schon). Die Auswahl heisst jetzt „Lohn +
+   Material + Gerät (Einzelkosten)", der Satz darunter nennt O-16. Der
+   gespeicherte Schlüssel bleibt `selbstkosten` (Aufzählung aus 0023) — ein
+   Schlüssel, keine Aussage; `selbstkosten_cent` schreibt weiter niemand.
+   Wagnis und Gewinn rechnen weiter auf die Summe davor
+   (Einzelkosten + Gemeinkosten). Welche Basis gruppenweit gilt, bleibt O-16.
+4. **`je_kostenart` wird abgewiesen** (`basis_offen`), nicht still wie `lohn`
+   gerechnet: sie braucht einen Zuschlag je Kostenart, und diese Sätze sind
+   offen. `// TODO(client, O-16)` steht am Dienst; die Auswahl zeigt die
+   Option sichtbar, aber nicht wählbar.
+5. **Im Angebot** stecken Material und Gerät wie Gemeinkosten, Wagnis und
+   Gewinn anteilig im Preis der Leistungszeilen (`verteileNetto`, größter
+   Rest). Das ist dieselbe offene Frage O-208, ob Zuschläge eigene Positionen
+   wären. Ohne eine Lohnzeile, die sie tragen könnte, wird abgewiesen
+   (`ohne_lohn`).
+6. **Nach jeder Kostenzeile wird neu gerechnet**, über dieselbe Funktion wie
+   bei der Bestätigung (`rechneKalkulationNeu` → `kalkuliere`) und mit den
+   Zahlen, die der Kopf trägt. Kalkulationssumme und `angebot.netto_cent`
+   nennen danach denselben Betrag. Vor der Bestätigung sind das die
+   Platzhalterzahlen, mit denen das Angebot entstand. Der Kopf führt Wagnis
+   und Gewinn als EINEN Satz (`wagnis_gewinn_bp`), deshalb rechnet die
+   Neuberechnung ihn wie die Bestätigung als einen Zuschlag. Der Preis
+   bleibt ein Platzhalterpreis und gesperrt, bis ein Mensch bestätigt.
+7. **Nichts wird gelöscht** (Invariante 8): berichtigt wird die Zeile selbst.
+   Eine Zeile, die nicht mehr gelten soll, bekommt die Menge 0 und bleibt als
+   Beleg. Jede Änderung steht mit Vorher/Nachher im Protokoll
+   (`kalkulation.kostenposition`).
+8. **Gesperrt** nach dem Versand (festgeschrieben) UND nach der
+   Preisfreigabe, denn „ein anderer Preis braucht eine neue Angebotsversion"
+   (O-732). Das gilt für eine Kostenzeile und ebenso für eine neue
+   Bestätigung: auch sie rechnete den freigegebenen Betrag um. Bisher ließ
+   `bestaetigeKalkulation` das bis zum Versand zu. Die Seite bietet dann
+   beides nicht mehr an und sagt warum.
+9. **Die Zuschlagszeilen tragen ihren eigenen Bezug** (Gemeinkosten: den
+   Betrag nach der Basis; Wagnis/Gewinn: Einzelkosten + Gemeinkosten) und ihre
+   Nummer hinter der höchsten vorhandenen. Vorher trugen beide den Lohn, und
+   eine Materialzeile vor der Bestätigung hätte `kp_position_uk` verletzt.
+10. **Die Kalkulationsseite** zeigt die fünf Blöcke aus den Summen der
+    Datenbank (sie rechnet nichts), den Rechenweg nur noch für Lohnzeilen und
+    einen eigenen Abschnitt „Material und Gerät" mit Anlegen und Berichtigen.
+    Eine abgewiesene Kostenzeile kommt mit Satz und Feld zurück („Die
+    Kostenzeile wurde nicht gespeichert"), nicht als „nichts bestätigt".
+11. **Der Seed** trägt zwei Zeilen in den Entwurf „Grundreinigung", über
+    denselben Dienst und als Demodaten bezeichnet. Das sind keine
+    Katalogpreise.
+
+**Nicht Teil dieser Entscheidung:** eine Kalkulation für Angebote von Hand
+(Security, Bau, `angebot/von-hand.ts`), die ihren Preis je Position selbst
+tragen — **berichtigt (V-238):** das stand hier ohne offene Frage; es ist
+jetzt O-920, und Maske wie Kalkulationsblatt sagen es (D-671);
+`kalkulation.selbstkosten_cent`, dessen Zusammensetzung O-16 ist. Und
+das Zusammenspiel mit einem von Hand berichtigten Raumbuch-Entwurf (D-626):
+jede Neuberechnung (Bestätigung wie Kostenzeile) bepreist die
+Leistungspositionen aus den Lohnzeilen der Kalkulation neu. Eine entfernte
+Position trägt dann ihren Anteil weiter in der Kalkulation, nicht im Angebot.
+Das war bei der Bestätigung schon so und wird hier nicht geändert.
+
+| Betrifft | OPS-07, O-16, O-208, O-732, D-626, D-666, Invariante 1, 6, 8, V-174, `src/server/services/kalkulation/{index,bestaetigung,kostenposition}.ts`, `src/app/api/kalkulation/route.ts`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/lib/i18n/verwaltung/kalkulation.ts`, `src/server/db/seed/vertrieb.ts` |
+|---|---|
+
+### D-669 · Den Plattformkatalog pflegt die Super-Administration, den Registrierungsstand jede Gesellschaft, und eine neue Plattform erreicht auch die Bekanntmachungen von gestern (V-175)
+
+**Der Befund** (V-175, RAD-09): RAD-09 verlangt festzuhalten, auf welchen
+Vergabeplattformen die Gruppe registriert ist, und Bekanntmachungen auf
+Plattformen ohne Registrierung zu markieren. `vergabeplattform` und
+`mandant_plattform_registrierung` hatten seit 0145 Schema, RLS und
+Schreibrechte, aber keinen Dienst, keine Route und kein Formular. Dass der
+Katalog leer ausgeliefert wird, ist entschieden (O-07, D-490). Die Antwort auf
+O-07 ließ sich aber nie eintragen. `ausschreibung.vergabeplattform_id` blieb
+deshalb immer leer, und die Warnung „nicht freigeschaltet" (Liste, Kennzahl,
+Detailblatt) konnte nie auslösen. `ausschreibung_vorgang.plattform_pruefung`
+schrieb nur der Seed.
+
+**Die Entscheidung.**
+
+1. **Den Katalog pflegt die Super-Administration**, weil er keiner
+   Gesellschaft gehört. Das sagt `r_plattform_schreiben` (0145, 0146) seit
+   jeher; `services/radar/plattform.ts` fragt `app.ist_super_admin()` vorher
+   und gibt einen Satz statt einer Policy-Verletzung. Eintragen, ändern,
+   bestätigen, archivieren gehen über `POST /api/radar/plattform`. Das Tor der
+   Route ist das Recht der Seite (`radar.plattform_verwalten`).
+2. **Eingetragen wird, was ein Mensch weiß; vorbelegt wird nichts.** Ein
+   neuer Eintrag trägt `ist_platzhalter`, bis ihn die Super-Administration
+   eigens bestätigt („gilt für die Gruppe", O-07). Der Seed bleibt leer
+   (D-490). Eine Demoplattform wäre eine Behauptung über die Konten des
+   Betriebs.
+3. **Eine neue oder geänderte Plattform ordnet die schon eingelesenen
+   Bekanntmachungen ohne Plattform nach.** Sonst erreichte ein heute
+   eingetragener Hostname nur die Bekanntmachungen von morgen, nicht die, deren
+   Frist schon läuft. `cse_app` darf `ausschreibung` weiter nur lesen. Der
+   Definer `app.radar_plattform_nachordnen()` (0420) setzt `quell_url` auf
+   sich selbst, und `trg_plattform_zuordnen` entscheidet wie beim Einlesen.
+   Eine zweite Fassung der Hostregel gibt es nicht. Eine vorhandene Zuordnung
+   bleibt. Das Tor steht zweimal: in der Funktion (Super-Administration,
+   internes Portal, nicht nur lesend) und in den `d_`-Policies. Die Seite
+   nennt, wie viele Bekanntmachungen dabei eine Plattform bekamen.
+   **Berichtigt (V-240, 0422):** die erste Fassung schrieb bei jeder
+   Katalogänderung ALLE Bekanntmachungen ohne Plattform an und sperrte sie
+   bis zum Ende der Transaktion gegen den Einlesejob — auch die, zu denen gar
+   keine Plattform passt. Jetzt wird nur angeschrieben, wessen Host zu einem
+   Muster einer nicht archivierten Plattform passt. Die Hostregel steht dafür
+   in `app.radar_url_host` und `app.radar_host_passt`, und der Auslöser aus
+   0145 ruft dieselben zwei Funktionen: es bleibt EINE Fassung.
+4. **Hostnamen sind Hostnamen.** Getrennt durch Komma oder Zeilenwechsel,
+   klein geschrieben, höchstens zwanzig; aus einer eingefügten Adresse wird
+   ihr Host. Eine Basisadresse ist http(s) und trägt nie Zugangsdaten.
+5. **Den Registrierungsstand pflegt jede Gesellschaft selbst** (Stand,
+   Anmeldekennung, freigeschaltet am, gültig bis, verantwortlich, Notiz), eine
+   Zeile je Plattform (`mpr_uk`), als Upsert unter `radar.plattform_verwalten`.
+   Protokolliert wird mit Vorher und Nachher. `zuletzt_bestaetigt_am` stempelt
+   die Serveruhr. Die CHECKs aus 0145 (registriert braucht ein Datum, die
+   Gültigkeit endet nicht vorher) und die Mitgliedschaft der Verantwortlichen
+   werden vorher als Satz geprüft.
+6. **Ein Kennwort steht nirgends** (SEC-A5). Gefragt wird die Anmeldekennung.
+   `credential_ref`, der Name eines Geheimnisses im Vault, bleibt unbenutzt,
+   solange kein Vault angebunden ist. Ein Feld dafür verwiese auf etwas, das
+   es nicht gibt.
+7. **Abgelaufen wird nicht still umgedeutet.** Liegt „gültig bis" vor heute,
+   sagt die Seite das und bittet um Prüfung. Den Stand ändert ein Mensch.
+   **Berichtigt (V-240):** die WARNUNG rechnet die Gültigkeit jetzt überall
+   ein, nicht nur auf der Plattformseite, und sie beachtet
+   `registrierung_erforderlich`. „Freigeschaltet" heisst an EINER Stelle
+   (`freischaltungSql` in `services/radar/plattform.ts`): die Plattform
+   verlangt laut Eintrag keine Registrierung, ODER der Stand ist
+   `registriert` und „gültig bis" ist leer oder nicht vor dem heutigen
+   Berliner Tag. Ohne Plattform wird nichts behauptet. Liste, Kennzahl
+   „Ohne Freischaltung", Detailblatt (bei abgelaufener Gültigkeit mit dem
+   Datum statt „Stand: registriert"), Plattformseite, Vergabemappe und
+   Gruppenansicht fragen dieselbe Stelle; bisher meldeten sie auch Plattformen
+   ohne Registrierungspflicht als „nicht freigeschaltet", und eine abgelaufene
+   Registrierung galt überall sonst als freigeschaltet. Der Stand der Zeile
+   bleibt unverändert. Liste, Kennzahl und Detail binden die Registrierung
+   ausdrücklich an `app.aktiver_mandant()`, die Mappe an ihre eigene
+   Gesellschaft — nicht nur über RLS (Invariante 3).
+8. **Die Plattformprüfung am Vorgang** (`plattform_pruefung`) setzt, wer
+   `radar.status_setzen` hält, auf der Seite „Stand setzen", mit Serverzeit.
+   Sie ändert keinen Stand. Sie hängt am Vorgang, und der entsteht mit dem
+   ersten gesetzten Stand (RAD-07). Ohne Vorgang wird abgewiesen, statt still
+   einen zu eröffnen.
+9. **Die Seite ist zweisprachig** (`lib/i18n/verwaltung/radar-plattform.ts`).
+   Stände erscheinen in Worten, auch in der Warnung des Detailblatts, das
+   bisher den Aufzählungswert zeigte. Datumsangaben stehen als TT.MM.JJJJ.
+   Schlüssel aus der Adresse gehen nur über `eigenerEintrag`. Die Seite ist
+   aus der Ausnahmeliste der Übersetzungswache gestrichen.
+
+**Nicht Teil dieser Entscheidung:** welche Plattformen gelten und wer dort
+registriert ist. Das bleibt O-07 und wird von Menschen eingetragen. Ebenso
+wenig ob die Radarliste die Plattformprüfung des Vorgangs zusätzlich zur
+Registrierung als Warnung führt; sie zeigt weiter den Registrierungsstand der
+Gesellschaft.
+
+| Betrifft | RAD-09, O-07, D-07, D-490, SEC-A5, Invariante 3, 5, V-175, `drizzle/0420`, `src/server/services/radar/{plattform,vorgang}.ts`, `src/app/api/radar/{plattform,vorgang}/route.ts`, `src/app/portal/[mandant]/radar/{plattformen/page.tsx,[id]/page.tsx,[id]/status/page.tsx,daten.ts}`, `src/lib/i18n/verwaltung/radar-plattform.ts`, `scripts/guards/uebersetzung-ausnahmen.ts` |
+|---|---|
+
+### D-670 · Aufgaben und Dokumente stehen am Auftrag und am Bau-Projekt, und ein Dokument hängt an einem Auftrag derselben Gesellschaft (V-176)
+
+**Der Befund** (V-176, OPS-11): OPS-11 verlangt „Tasks, deadlines, status,
+documents on every order and project". Die Seitenkarte nennt für das
+Auftragsblatt die Reiter „Dokumente" und „Aufgaben". Gebaut waren Kopf,
+Beschreibung und Zustand (V-081); das Bau-Projektblatt zeigte
+Vertragsgrundlage, Geld und sechs Vorgänge. Keines der beiden Blätter zeigte
+eine Aufgabe oder ein Dokument. Aufgaben ließen sich seit V-096 an einen
+Auftrag hängen, erschienen aber nur in der Gesamtliste, deren Filter nur den
+Bezugs-TYP kannte. `dokument` kannte keinen Auftrag (0009: Kunde, Objekt,
+Formulareingang).
+
+**Die Entscheidung.**
+
+1. **Ein Dokument hängt an höchstens einem Auftrag.** `dokument.auftrag_id`
+   (0421) trägt einen zusammengesetzten Fremdschlüssel (mandant_id,
+   auftrag_id): nur ein Auftrag derselben Gesellschaft, auch wenn jemand am
+   Ablagedienst vorbeischreibt. `legeAb` prüft den Auftrag zusätzlich unter
+   RLS, damit ein fremder oder unsichtbarer Auftrag einen Satz ergibt
+   (`BezugUnbekannt`) und keinen 23503. Die Wege, die keinen Auftrag kennen
+   (DATEV-Stapel, Kontoauszug, Formulareingang), legen unverändert ab. Der
+   Bestand vor 0421 bleibt ohne Auftrag.
+2. **Ein Bau-Projekt hat keine eigene Ablage.** `projekt.auftrag_id` ist NOT
+   NULL und eindeutig (0071), das Projekt ist die Bauakte genau eines
+   Auftrags. Das Projektblatt zeigt die Dokumente dieses Auftrags. Eine eigene
+   Projektspalte wäre eine zweite Ablage derselben Akte, und ein Dokument
+   könnte an der einen hängen und an der anderen fehlen.
+3. **Die Aufgaben eines Auftrags kommen auf beiden Wegen.** Gezählt werden
+   `aufgabe.auftrag_id` und der polymorphe Bezug `auftrag`. Das
+   Anlegeformular schreibt beide, ein Wächter oder Agent vielleicht nur den
+   zweiten. Das Projektblatt nimmt die Aufgaben mit Bezug `projekt` dazu.
+   `AufgabeFilter` bekommt `auftragId` und `projektId` im gemeinsamen
+   WHERE-Baustein, damit Liste und Kopfzahl dieselbe Menge zählen. Die
+   Kennung wird geprüft, bevor sie castet.
+4. **Das Blatt zeigt die offenen Aufgaben mit Frist und Stand, höchstens
+   zehn; die Zahl zählt alle.** `aufgabenAkte` im Dienst bildet die Kopfzahl
+   aus der Zählung, zählt als überfällig nur Offenes (Berliner Kalendertag,
+   `fristlage`) und schreibt die Frist als TT.MM.JJJJ, beim Zeitpunkt mit
+   Uhrzeit, in Europe/Berlin (`fristInWorten`). Sind keine offen, sagt das
+   Blatt, wie viele erledigt oder abgebrochen sind, statt „keine Aufgabe". Von
+   den Dokumenten stehen die zwanzig neuesten mit Kategorie in Worten und
+   Ablagetag. Beide Grenzen sind Anzeigegrenzen; die ganze Menge steht in der
+   gefilterten Aufgabenliste und in der Ablage.
+5. **Ein fehlendes Recht ist ein Satz, keine leere Liste.** Ohne
+   `aufgabe.lesen` oder `dokument.lesen` nennt die Hälfte das fehlende Recht.
+   „Aufgabe anlegen" steht nur mit `aufgabe.schreiben`, „Dokument ablegen" nur
+   mit `dokument.schreiben`, also mit den Rechten ihrer Ziele (AUT-06). Der
+   Verweis vom Projekt auf seinen Auftrag steht nur mit `auftrag.lesen`.
+6. **Angelegt wird auf den bestehenden Wegen, vorgewählt statt nachgebaut.**
+   „Aufgabe anlegen" öffnet `/aufgaben?auftrag=…` (vom Projekt
+   `?projekt=…`) mit dem Auftrag im Auswahlfeld, beim Projekt dessen Auftrag.
+   „Dokument ablegen" öffnet die Ablage mit dem Auftrag vorgewählt, und der
+   Rückweg nach einem Fehler behält ihn. Die Aufgabenliste löst
+   `?auftrag=`/`?projekt=` unter RLS auf (`vorgangImFilter`). Was die
+   Sitzung nicht sieht, filtert sie nicht, denn ein Filter auf einen
+   unsichtbaren Vorgang verriete, welche Aufgaben an ihm hängen. Die Seite
+   sagt das und zeigt alle.
+7. **Zweisprachig.** Alle neuen Sätze stehen in
+   `lib/i18n/verwaltung/vorgang-akte.ts`, Zustände und Kategorien in Worten.
+   Die beiden Blätter, die Aufgabenliste und die Ablage bleiben auf der
+   Ausnahmeliste der Übersetzungswache, weil ihre älteren Teile deutsch sind.
+   Der neue Teil ist es nicht.
+8. **Seed.** Das Kundenschreiben des Vertriebs hängt an seinem Auftrag,
+   ebenso das des Referenzauftrags (den es nur mit `CSE_DEV_FLAECHEN` gibt,
+   D-537). Die Aufgabe „Leistungsnachweis vom Kunden einholen" hing schon am
+   ersten Auftrag jeder Gesellschaft mit Aufträgen. Im Demobestand zeigen
+   damit ein Auftragsblatt der Reinigung und das Projektblatt des Baus je eine
+   überfällige Aufgabe, und ein zweites Auftragsblatt der Reinigung zeigt ein
+   Dokument.
+
+**Nicht Teil dieser Entscheidung:** die übrigen Reiter der Seitenkarte
+(Leistungen, Einsätze, Zeiten, Nachweise, Rechnungen). Ebenso wenig das
+nachträgliche Umhängen eines abgelegten Dokuments an einen Auftrag. Das wäre
+eine Änderung an einer Akte und bräuchte ein eigenes Recht und ein Protokoll.
+
+| Betrifft | OPS-11, AUT-06, V-096, Invariante 2, 3, V-176, `drizzle/0421`, `src/server/services/dokument/{ablage,vorgang}.ts`, `src/server/services/kern/aufgabe.ts`, `src/components/portal/VorgangAkte.tsx`, `src/app/portal/[mandant]/{auftraege/[id],bau/projekte/[id],aufgaben,dokumente/upload}/page.tsx`, `src/app/api/dokumente/upload/route.ts`, `src/lib/i18n/verwaltung/vorgang-akte.ts`, `src/server/db/seed/{vertrieb,referenzauftrag}.ts` |
+|---|---|
+
+### D-671 · Ein Angebot von Hand sagt, dass es keine Kalkulation hat — bis O-920 beantwortet ist (V-238)
+
+**Der Befund** (V-238, OPS-07): D-668 brachte Material, Gerät und die
+Gemeinkostenbasis in die Kalkulation der Reinigung. Angebote von Hand
+(Sicherheit, Bau, `angebot/von-hand.ts`) führte D-668 nur unter „Nicht Teil",
+ohne offene Frage und ohne `TODO(client)`. Ein solches Angebot trägt je
+Position den Einzelpreis, den ein Mensch einträgt; woraus er entstanden ist,
+weiss die Plattform nicht. Das stand nirgends, wo es jemand liest.
+
+**Die Entscheidung** (Ablauf, keine Preisregel).
+
+1. **Keine erfundene Kalkulation.** Welche Grundlage eine Kalkulation für
+   Wachdienst und Bau hätte, hat niemand gesagt. Eine Formel aus Stunden mal
+   Satz oder aus Einheitspreisen wäre eine Preisregel, die niemand aufgestellt
+   hat. Die Frage steht als **O-920** im Register und als
+   `// TODO(client, O-920)` am Dienst.
+2. **Der ehrliche Zustand steht an EINER Stelle:** `HAND_ANGEBOT_KALKULATION`
+   (`vorhanden: false`, `offeneFrage: 'O-920'`) in `angebot/von-hand.ts`,
+   ausdrücklich als Platzhalter bezeichnet. Die Antwort ändert diese Stelle.
+3. **Die Maske sagt es** (`/angebote/neu`, zweisprachig): der Einzelpreis ist
+   der eingetragene; Lohn, Material, Gerät, Gemeinkosten sowie Wagnis und
+   Gewinn werden weder getrennt erfasst noch nachgerechnet; ob und wie das
+   kommt, ist O-920. Das Kalkulationsblatt eines Angebots ohne Kalkulation
+   nennt dieselbe Frage.
+
+**Nicht Teil dieser Entscheidung:** die Zuschläge je Bereich (O-16) und
+jede Form einer Kalkulation für Sicherheit oder Bau.
+
+| Betrifft | OPS-07, O-16, O-920, D-668, V-005, V-238, `src/server/services/angebot/von-hand.ts`, `src/lib/i18n/verwaltung/angebot-hand.ts`, `src/app/portal/[mandant]/angebote/{neu,[id]/kalkulation}/page.tsx` |
+|---|---|
+
+### D-732 · Der Wert eines Auftrags aus einem Angebot bleibt gesperrt, und die Seite sagt, welcher Weg ihn ändert — im Bau der Nachtrag, sonst O-921 (V-239)
+
+**Der Befund** (V-239, OPS-05): D-667 Punkt 5 sperrt den Wert eines Auftrags
+aus einem Angebot in der Pflege und begründete das mit „eine Änderung des
+Vertragswerts ist ein Nachtrag". Nachträge gibt es nur im Bau (0080, § 2
+VOB/B, am Projekt). Für Reinigung und Sicherheit war ein falscher Vertragswert
+damit auf keinem Weg korrigierbar, und die Seite verwies auf einen Weg, den es
+dort nicht gibt. Die Sperre war eine selbst gesetzte Fachregel ohne offene
+Frage.
+
+**Die Entscheidung.**
+
+1. **Die Sperre bleibt, in allen Gesellschaften.** Sie ist keine Preisregel,
+   sondern die Weigerung, eine zweite Wahrheit über den angenommenen Betrag zu
+   führen (`angebot.netto_cent`). Sie aufzuheben hiesse, die offene Frage
+   stillschweigend mit „Berichtigung in der Pflege" zu beantworten.
+2. **Welcher Weg den Wert ändert, sagt EINE Funktion:**
+   `wertAenderungsweg(mandant.module)` in `auftrag/aendern.ts` — `nachtrag`,
+   wenn die Gesellschaft das Gewerk Bau gebucht hat, sonst `offen`. Sie ist als
+   Platzhalter bezeichnet und trägt `// TODO(client, O-921)`; die Antwort
+   ändert sie, nicht ihre Aufrufer.
+3. **Die Pflegeseite sagt es unter dem Wert**, zweisprachig: im Bau „ein
+   Nachtrag nach § 2 VOB/B am Projekt", sonst „noch nicht entschieden
+   (O-921); bis dahin bleibt er, wie der Kunde ihn angenommen hat". Die
+   Abweisung `wert_aus_angebot` behauptet keinen Nachtrag mehr.
+4. D-667 Punkt 5 ist an Ort und Stelle berichtigt.
+
+| Betrifft | OPS-05, O-921, D-667, V-173, V-239, `drizzle/0080`, `src/server/services/auftrag/aendern.ts`, `src/lib/i18n/verwaltung/auftrag.ts`, `src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx` |
+|---|---|
+
+### D-733 · Anzeige in der Sprache der Seite, Eingaben zurück auf die Maske, Zeilen der Datei — die kleinen Punkte der Gruppe operations (V-240)
+
+**Der Befund** (V-240): der unabhängige Prüfer der Gruppe operations fand
+dreizehn kleine Punkte. Die Berichtigungen an bestehenden Entscheidungen stehen
+dort, wo sie gelten: D-668 (die Basis heisst „Lohn + Material + Gerät
+(Einzelkosten)", `mehrdeutig` auch beim Auftrag) und D-669 (EINE Frage
+„freigeschaltet?", gezieltes Nachordnen, 0422). Hier stehen die
+Ablaufentscheidungen, die neu sind.
+
+**Die Entscheidung.**
+
+1. **Eine Seite, die ihre Sprache kennt, zeigt Zahlen und Tage in ihr.**
+   Englisch: `formatiereGeldIn` („€12,500.00"), `formatiereMengeIn`
+   („1,234.50"), `tagInSprache` („29 Mar 2026", britisches Englisch, mittlere
+   Länge, über UTC hin und zurück ohne Zonenversatz), `fristInWorten(…,
+   sprache)` (dieselbe Form, Uhrzeit weiter Europe/Berlin),
+   `koordinateAlsText(…, sprache)` (Punkt). Deutsch bleibt alles, wie es war.
+   Betroffen sind die zweisprachigen Blätter dieser Gruppe: Auftragspflege,
+   Kalkulation, Objektblatt, Akte an Auftrag und Projekt. **Formulare
+   bleiben deutsch geschrieben**, auch englisch vorbelegt: `parseGeld` und
+   `leseZahl` lesen nur deutsche Schreibweise, und die englischen Hilfetexte
+   sagen das seit V-172. (Die Koordinate liest Punkt und Komma.)
+2. **Ein Dienst liefert Tage als `JJJJ-MM-TT`, das Blatt schreibt sie.**
+   `leseDokumenteAmAuftrag` gab `TT.MM.JJJJ` aus der Datenbank und legte
+   damit die Sprache fest; jetzt formatiert `VorgangAkte`.
+3. **Eine Zahl in einem Satz reist als Zahl, nicht als Satz.**
+   `einsaetze_offen` kommt als `?anzahl=` (nur ganze Zahl gelesen), und die
+   Seite bildet den Satz in ihrer Sprache. `?meldung=` fällt auf den
+   Objektseiten weg: ein unbekannter Grund wird „Die Eingabe wurde
+   abgewiesen", nie Text aus der Adresse (dieselbe Regel wie V-153).
+4. **Eine abgewiesene Pflege oder Annahme bringt ihre Eingaben zurück.** Das
+   Übergangsgerüst (`api/uebergang.ts`) nimmt dafür `maskeFelder` und baut
+   den Rückweg mit `maskeMitEingaben` (D-599); ohne Angabe bleibt es beim
+   Grund allein. Die Pflegeseite erkennt die Rückkehr an der Leitung (Pflicht,
+   reist immer mit); ein leer gelassenes Feld bleibt leer und fällt nicht auf
+   den gespeicherten Wert zurück. Die Annahmeseite belegt nur das Formular
+   vor, das abgeschickt wurde (`ausgang`), und eine Auswahl nur mit einem
+   Wert, den sie anbietet.
+5. **Die Abweisung `feldzahl` nennt die Zeile der Datei.** Der CSV-Leser
+   zählt jeden Zeilenumbruch, auch den in Anführungszeichen, und merkt sich,
+   in welcher Zeile ein Datensatz beginnt; gefilterte Leerzeilen zählen mit.
+6. **Ein Recht heisst beim Namen** (`rechtName`, wie V-144), ein unbekannter
+   Aufgabenstand „Stand unbekannt", und je Ansicht gibt es einen
+   Primary-Knopf (auf der Kalkulation „Werte bestätigen"; „Speichern und neu
+   rechnen" ist sekundär).
+7. **`credential_ref` bekommt kein Feld** — D-669 Punkt 6 gilt: solange kein
+   Tresor angebunden ist, verwiese ein Feld für den Namen eines Geheimnisses
+   auf etwas, das es nicht gibt, und lüde dazu ein, das Geheimnis selbst
+   einzutragen.
+
+| Betrifft | V-240, V-144, V-153, D-599, D-668, D-669, RAD-09, OPS-04, OPS-07, OPS-11, Invariante 2, `src/server/services/finanz/{geld,menge}.ts`, `src/lib/datum/kalendertag.ts`, `src/server/services/kern/aufgabe.ts`, `src/server/services/dokument/vorgang.ts`, `src/components/portal/VorgangAkte.tsx`, `src/server/services/objekt/anlegen.ts`, `src/app/api/{uebergang.ts,objekt/route.ts,auftrag/aendern/route.ts,angebot/entscheidung/route.ts}`, `src/server/services/raumbuch/tabelle.ts`, `src/lib/i18n/verwaltung/{objekte,vorgang-akte,angebot-hand}.ts` |
+|---|---|
+
+### D-696 · Ein Angebot druckt, zeigt und zählt nur, was darauf steht — und schreibt den Satz wie das Kundenportal (V-202, V-203)
+
+**Der Befund** (V-203; V-202): seit 0392 (V-130, D-626) wird eine Position aus
+einem Angebotsentwurf nicht gelöscht, sondern mit `entfernt_am` markiert, und
+die beiden Summen der Datenbank — `angebot.netto_cent` und die beim Versand
+eingefrorene `angebot_steuer` — zählen nur lebende Zeilen. Die Leser hatten
+den Filter nicht bekommen: das Angebotsdokument (`/angebote/[id]/pdf`)
+druckte die entfernte Zeile mit Menge und Preis unter einer Netto-Zeile ohne
+sie, das Kundenportal zeigte sie dem Kunden und zählte sie in der Liste mit,
+und die Preisfreigabe zeigte das Netto je Steuersatz einschliesslich der
+entfernten Zeile neben `netto_cent` ohne sie — freigegeben wurde eine Zahl,
+die so nie hinausging. Versandseite und Versanddienst zählten ebenso. Die
+Kundenpolicy `t_kunde` (0024) gab dem Kunden jede Zeile eines versendeten
+Angebots frei. Daneben (V-202) schrieben Dokument, Detailblatt und
+Preisfreigabe den Satz mit `(bp / 100).toLocaleString()` als „19 %", das
+Kundenportal für dasselbe Angebot mit `prozentText` „19,0 %".
+
+**Die Entscheidung.**
+
+1. **Ein Leser, ein Filter.** `src/server/services/angebot/lebend.ts` trägt
+   `positionenFuerDokument`, `steuerJeSatzVorVersand` (dieselbe Gruppierung
+   und derselbe Filter wie `kern.angebot_versand_festschreiben`, also genau
+   die Zahl, die beim Versand eingefroren wird) und `lebendeLeistungenZahl`
+   (die Zählung als Unterabfrage für Kopfabfragen mit `for update`).
+   Dokument, Freigabe, Versandseite, Versanddienst und Kundenportal fragen
+   diese Stellen; das Kundenportal filtert seine Positionsliste selbst.
+2. **Die zweite Linie in der Datenbank** (`drizzle/0440`): `t_kunde` auf
+   `angebotsposition` verlangt zusätzlich `entfernt_am is null`. Eine
+   entfernte Zeile ist ein Arbeitsstand des Hauses, kein Teil des
+   Vertragsangebots; nach dem Versand ändert sich `entfernt_am` nicht mehr
+   (`ap_unveraenderlich`). Intern bleibt die Zeile sichtbar (Invariante 8).
+3. **Eine Prüfung über den ganzen Quellbaum**: `tests/kern/angebot-lebend.test.ts`
+   findet jede lesende Abfrage auf `angebotsposition` ohne `entfernt_am`.
+4. **Ein Satz, eine Schreibweise** (D-629 Nr. 8 auf das Angebot angewandt):
+   Dokument, Detailblatt und Preisfreigabe setzen den Steuersatz mit
+   `prozentText` aus `finanz/prozent.ts` — „19,0 %" wie im Kundenportal.
+   Die Zuschlagssätze der Kalkulation (`alsProzent`) sind keine Belegzeile
+   und bleiben, wie sie sind. Mit V-204 nachgezogen: Rechnungsblatt,
+   Abschlags- und Festschreibungsseite der Ausgangsrechnung (Steuersatz,
+   Bauabzugsteuer, Sicherheitseinbehalt) — vorher „19,00 %“ bzw. „19 %“
+   für denselben Beleg. Die Seiten eingehender Belege (Eingangsrechnung,
+   Ausgabe) sind nicht Teil dieser Entscheidung.
+
+| Betrifft | OPS-08, D-626, D-629, V-130, V-202, V-203, Invariante 3, Invariante 8, `drizzle/0440`, `src/server/services/angebot/{lebend,index}.ts`, `src/server/services/kundenportal/angebot.ts`, `src/app/portal/[mandant]/angebote/[id]/{page,pdf/page,freigabe/page,versand/page}.tsx`, `tests/kern/angebot-lebend.test.ts`, `tests/isolation/angebotsentwurf.test.ts` §7 |
+|---|---|
+
+### D-697 · Der Kopf eines Rechnungsentwurfs ist änderbar — und nur der eines Entwurfs (V-204)
+
+**Der Befund** (V-204, FIN-04, FIN-05): nach dem Anlegen liessen sich
+`leistung_von/bis`, `zahlungsziel_tage`, `zahlungsmittel_code`, `objekt_id`
+und die Texte eines Entwurfs nicht mehr ändern — kein Dienst, keine Aktion,
+kein Formular. Der Leistungszeitraum war im Anlegeformular freiwillig, das
+Zahlungsziel wurde nur beim Anlegen aufgelöst. Die Vorabprüfung sperrte zu
+Recht und verwies beim Zeitraum auf das Rechnungsblatt, das ihn nur anzeigte,
+beim Zahlungsziel auf Kunde und Einstellung, die den bestehenden Entwurf nicht
+mehr erreichen. Einziger Ausweg: verwerfen und jede Position neu erfassen.
+
+**Die Entscheidung.**
+
+1. **Ein Entwurf ändert seinen ganzen Kopf** — `aendereEntwurfKopf` in
+   `finanz/entwurf.ts`, Aktion `kopf` an `POST /api/rechnungen`
+   (`finanzen.schreiben`), Abschnitt „Kopf des Entwurfs" (`#kopf`) auf dem
+   Rechnungsblatt: Rechnungsart, Auftrag (D-698), Leistungsort,
+   Leistungszeitraum, Vereinnahmung, Zahlungsziel, Zahlungsart, Kopf- und
+   Fusstext. Die Maske ist mit dem heutigen Stand vorbelegt; ein leeres Feld
+   heisst „leer". Ein leeres Zahlungsziel wird neu aufgelöst — dieselbe Kette
+   wie beim Anlegen (Kunde, Einstellung); einen Vorgabewert gibt es weiter
+   nicht (O-66).
+2. **Nur ein Entwurf** (Invariante 4): der Dienst sperrt die Zeile
+   (`for update`), fragt nach `status = 'entwurf'` und schreibt mit derselben
+   Bedingung; `t_mandant` (0075) verlangt sie im `WITH CHECK` ein drittes Mal.
+   Ein festgeschriebener Beleg bekommt keine Maske und am Dienst `kein_entwurf`.
+3. **Unfertig darf ein Entwurf sein, verkehrt nicht.** Ein Zeitraum, der vor
+   seinem Beginn endet, wird abgewiesen; ein fehlender nicht. Der Kopf sagt
+   selbst, was für §14 Abs. 4 Nr. 6 UStG fehlt (`grundOhneLeistungszeitpunkt`:
+   Zeitraum, bei Abschlag und Anzahlung ersatzweise die Vereinnahmung), und die
+   Vorabprüfung verweist für Zeitraum, Vereinnahmung und Zahlungsziel jetzt auf
+   `#kopf` (`alsVerweis` trägt den Anker als `hash`, sonst kodierte Next.js ihn
+   als `%23`). **Abweichung vom Vorschlag des Prüfers:** das Anlegeformular
+   markiert den Zeitraum nicht als Pflicht. Die Art wird im selben Formular
+   gewählt, und ohne Skript lässt sich „Pflicht nur bei Rechnung und
+   Schlussrechnung" nicht ausdrücken; ein Zwang für alle Arten schlösse die
+   Abschlagsrechnung mit Vereinnahmung aus, und ein Zwang am Dienst sperrte den
+   legitimen Weg „Entwurf jetzt, Zeitraum später". Seit dieser Entscheidung ist
+   das keine Sackgasse mehr; die Festschreibung weist unverändert ab.
+4. **Der Abzug gehört zur Zuordnung.** Wechselt eine Schlussrechnung ihre Art
+   oder ihren Auftrag, fallen die Bezugszeilen auf `wirksam = false`
+   (Invariante 8: sie bleiben stehen), `abzug_brutto_cent` auf 0 und der
+   Zahlbetrag auf brutto — in DERSELBEN Anweisung, weil
+   `rechnung_zahlbetrag_stimmig` sie sofort prüft. „Abschläge abziehen" stellt
+   den Abzug wieder her. Das Blatt meldet es (`?hinweis=abzug_zurueckgenommen`).
+5. **Der Stichtag verschiebt keinen Steuersatz.** Gilt die Steuergruppe einer
+   Zeile am neuen Stichtag nicht (§13 Abs. 1 Nr. 1 UStG, derselbe Stichtag wie
+   `fuegePositionHinzu`), wird abgewiesen — umgeschrieben wird nichts.
+   Danach laufen Summen und Steuerfall neu: `reverse_charge` fällt in der
+   Kopfänderung, und `schreibeSteuerfall` setzt es wieder, wenn der
+   §13b-Status am neuen Stichtag trägt (sonst wiese `fin.reverse_charge_pruefen`
+   schon die Kopfänderung ab).
+6. **Ein Formular bekommt seine Seite zurück** (D-599): trägt es `zurueck`,
+   führt eine Abweisung dorthin — mit `?fehler=`, der Maske, aus der sie kam
+   (`maske`), und deren Eingaben; ohne `zurueck` antwortet die Route wie
+   bisher mit JSON. Kennungen und Tage werden vor dem Schreiben geprüft (400
+   statt einer 500 aus Postgres); der Slug des Rückwegs kommt aus der Sitzung.
+
+| Betrifft | FIN-04, FIN-05, O-66, D-599, D-728, V-204, Invariante 4, Invariante 8, `src/server/services/finanz/entwurf.ts`, `src/server/services/finanz/{rechnung,ustg14}.ts`, `src/app/api/rechnungen/route.ts`, `src/app/portal/[mandant]/finanzen/rechnungen/[id]/{page,pruefung/page,festschreiben/page}.tsx`, `src/lib/verweis.ts`, `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts`, `tests/kern/rechnung-entwurf.test.ts`, `tests/isolation/rechnung-entwurf.test.ts` §2 |
+|---|---|
+
+### D-698 · Ein Rechnungsentwurf trägt Auftrag und Rechnungsart — Abschlag und Schlussrechnung sind erreichbar (V-205)
+
+**Der Befund** (V-205, FIN-07, FIN-08, FIN-18): der einzige Weg zu einem
+Entwurf sendete weder Auftrag noch Rechnungsart, und keine Stelle setzte sie
+nachträglich. Jede Portalrechnung war `standard` ohne Auftrag: Abschlags- und
+Schlussrechnung unerreichbar, „Abschläge abziehen" nie sichtbar, Zeitzeile und
+Vertragsherkunft nie angeboten, FIN-18 griff nie, und die Prüfliste „Auftrag
+ohne Rechnung" führte jeden abgeschlossenen Auftrag für immer. Auch der Seed
+legte nur `standard` ohne Auftrag an.
+
+**Die Entscheidung.**
+
+1. **Auftrag und Rechnungsart beim Anlegen und im Kopf.** Die Maske bietet die
+   Arten aus `ENTWURF_RECHNUNGSARTEN` (ohne `storno` — eine Stornorechnung
+   entsteht nur aus `storniere()`), die Aufträge nach Kunden gruppiert und
+   die Vereinnahmung für Abschlag und Anzahlung (§14 Abs. 4 Nr. 6 UStG,
+   zweite Alternative; gespeichert nur bei diesen beiden Arten).
+   `?auftrag=<id>` belegt Kunde und Auftrag vor — übernommen nur, wenn die
+   Kennung in der angebotenen Liste steht. Das Auftragsblatt und die
+   Abrechnungsseite verweisen darauf („Rechnung anlegen", nur mit
+   `finanzen.schreiben`, nicht bei einem stornierten Auftrag).
+2. **Ein Auftrag gehört zu DIESEM Kunden** (`pruefeAuftragZuordnung`, beim
+   Anlegen und im Kopf): derselbe Kunde, nicht storniert (dieselbe Lesart wie
+   die Prüfliste), sichtbar unter `auftrag.lesen` — wer zuordnet, muss sehen
+   können, was er zuordnet. Ohne das Recht zeigt die Maske das fehlende Recht
+   (`<Recht>`) und lässt die Zuordnung, wie sie ist.
+3. **Ein Auftrag mit Belegen darunter wechselt nicht** (`zuordnung_gebunden`):
+   hängt an einer Zeile eine Vertragszeile, eine Abrechnungsvereinbarung, eine
+   LV-Position oder eine Herkunft ausser „von Hand" (Zeit, Aufmaß, Abruf,
+   Ausgabe), gehört die Zeile zum bisherigen Auftrag. Von Hand erfasste Zeilen
+   mit Begründung hindern nichts.
+4. **Der Seed zeigt beides**: im Bau eine festgeschriebene Abschlagsrechnung
+   mit Vereinnahmung statt Zeitraum und eine Schlussrechnung als Entwurf am
+   selben Auftrag, von der sie abgezogen ist.
+
+| Betrifft | FIN-07, FIN-08, FIN-18, O-53, D-697, V-205, `src/server/services/finanz/{rechnung,entwurf}.ts`, `src/app/api/rechnungen/route.ts`, `src/app/portal/[mandant]/finanzen/rechnungen/{neu/page,[id]/page}.tsx`, `src/app/portal/[mandant]/auftraege/[id]/{page,abrechnung/page}.tsx`, `src/server/db/seed/rechnung.ts`, `tests/isolation/rechnung-entwurf.test.ts` §1, §3, §4 |
+|---|---|
+
+### D-699 · Die Abrechnungsart rechnet auf einer Rechnung, und Material hat einen Weg dorthin (V-206)
+
+**Der Befund** (V-206, FIN-01, FIN-07): `berechneAbrechnung` und
+`bestueckeAusAbrechnungsart` hatten ausser den Tests keinen Aufrufer — die je
+Auftrag festgelegte Abrechnungsart wirkte auf keine Rechnung, und die
+Abrechnungsseite verwies auf einen „Abrechnungslauf", den es nicht gab.
+`POST /api/rechnungen` kannte als Herkunft nur `vertrag` und `manuell`: Aufmaß,
+Einzelabruf und Material hatten keinen Weg auf eine Rechnung, obwohl die
+Ausgabe- und die Sonderleistungsseite genau das versprachen.
+
+**Die Entscheidung.**
+
+1. **„Nach Abrechnungsart übernehmen" auf dem Rechnungsblatt**
+   (`#abrechnungsart`, Aktion `aus-abrechnungsart`, `finanzen.schreiben`).
+   Auftrag und Zeitraum stehen im Kopf und nirgends sonst: die Periode der
+   Abrechnung IST der Leistungszeitraum des Entwurfs (FIN-05). Die Vorschau
+   rechnet mit derselben Funktion wie die Übernahme und zeigt die Befunde VOR
+   dem Knopf; Leistungszeile (O-53) per GET-Auswahl, Aufmaßblätter
+   ausdrücklich angekreuzt, Fertigstellungsgrad über den einen Prozentleser
+   (`finanz/prozent.ts`). Geschrieben wird allein über
+   `bestueckeAusAbrechnungsart` → `fuegePositionHinzu`.
+2. **Blockiert die Strategie, entsteht keine Zeile** — `befund_blockiert` mit
+   den Befunden, `nichts_abzurechnen`, wenn nichts da ist. Eine Übernahme, die
+   „erfolgreich nichts" schreibt, wäre die stille Fassung desselben Abbruchs.
+3. **Einmal je Entwurf** (`schon_uebernommen`): dieselbe Vereinbarung wird auf
+   einem Entwurf nur einmal übernommen, beim Aufmaß dasselbe Blatt nur einmal
+   (dort dürfen mehrere Blätter nacheinander kommen; die Summe über Belege
+   hinweg hält 0107). Ein zweiter Klick schriebe sonst dieselbe Pauschale
+   doppelt. Das ist eine Ablaufregel der Maske, keine Abrechnungsregel.
+   *Berichtigt mit V-207:* über den einen Entwurf hinaus sperrte das nichts —
+   derselbe Monat ließ sich auf jeder weiteren Rechnung abrechnen. Die Sperre
+   über alle Belege steht in D-700.
+4. **Die Herkunft ist lesbar.** Eine Zeile aus einer Vereinbarung ohne Beleg
+   (Monatspauschale) trägt die Art beim Namen und den Zeitraum deutsch
+   („Monatspauschale laut Abrechnungsvereinbarung des Auftrags (01.08.2026 bis
+   31.08.2026)") statt Schlüssel, Kennung und ISO-Tagen; die Vereinbarung
+   steht maschinenlesbar in `rechnungsposition.vertrag_abrechnung_id`.
+5. **Material**: im Formular „Position hinzufügen" die Herkunft „Material —
+   Ausgabe als Beleg" (Quelle `material`), angeboten und geprüft nach
+   derselben Regel: weiterberechenbar, freigegeben oder gebucht, noch auf
+   keiner wirksamen Zeile, keinem anderen Auftrag oder Kunden zugeordnet;
+   sichtbar unter `eingang.lesen` (sonst `<Recht>`). **Den Preis setzt der
+   Mensch** — ob zum Einstand oder mit Aufschlag, ist offen (O-931); die Maske
+   zeigt den Einstand nur als Auskunft. Nach einem Storno ist die Ausgabe
+   wieder frei (`gibQuellenFrei`) — nach dem Verwerfen eines Entwurfs erst
+   seit V-207 (D-700 Nr. 8). *Berichtigt mit V-208:* geprüft wurde erst NACH
+   einer Begrenzung auf 200 Ausgaben der ganzen Gesellschaft, und ein
+   verdeckter Auftrag passte auf jeden Kunden — D-701.
+6. **Einzelabrufe** laufen denselben Weg (Art `einzelabruf`); Sonderleistungs-,
+   Ausgabe- und Abrechnungsseite nennen ihn jetzt. Einen automatischen
+   Abrechnungslauf gibt es weiterhin nicht — die Übernahme ist ein Schritt
+   eines Menschen am Entwurf.
+
+| Betrifft | FIN-01, FIN-05, FIN-07, O-04, O-53, O-931, D-350, D-697, D-698, V-206, `src/server/services/finanz/entwurf.ts`, `src/server/services/finanz/abrechnungsart/{index,typen}.ts`, `src/app/api/rechnungen/route.ts`, `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `src/app/portal/[mandant]/{auftraege/[id]/abrechnung,reinigung/sonderleistungen}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/belege.ts`, `tests/isolation/rechnung-entwurf.test.ts` §5, §6 |
+|---|---|
+
+### D-700 · Dieselbe Vereinbarung wird über alle Belege hinweg einmal berechnet — und ein verworfener Entwurf gibt frei (V-207)
+
+**Der Befund** (V-207, FIN-01, FIN-07, FIN-08): seit V-206 ist die
+Übernahme nach Abrechnungsart erreichbar, und ihre Sperre `schon_uebernommen`
+fragte nur DIESEN Entwurf. Stunde, Abruf und Ausgabe sperren sich in der
+Datenbank selbst (`quelle_zeiteintrag_uk`, `quelle_sonderleistung_uk`,
+`quelle_ausgabe_uk`), das Aufmaßblatt über seine Summe (0107). Eine
+Monatspauschale und ein Festpreis-Los haben keinen solchen Beleg: ihre Zeile
+trägt die Vereinbarung (`vertrag_abrechnung_id`), die Herkunft ist `manuell`
+mit Notiz, und keine Strategie las, was schon berechnet war. Derselbe August
+ließ sich auf beliebig vielen Rechnungen abrechnen, der volle Festpreis
+„nach Abnahme" stand auf jeder Rechnung, deren Zeitraum die Abnahme
+enthielt, und „anteilig" rechnete Grad × Festpreis, ohne bisher Berechnetes
+abzuziehen. Beim Nachprüfen fiel dazu auf: `verwerfe()` gab die Ansprüche
+eines Entwurfs nie frei — nur das Storno tat es —, obwohl 0107, die
+Verwerfen-Seite und D-699 Nr. 5 das Gegenteil sagten.
+
+**Die Entscheidung.**
+
+1. **Jede Strategie ohne eigenen Beleg bekommt die bisherigen Ansprüche**
+   (`AbrechnungsEingabe.bisher`, Pflichtfeld, geladen an EINER Stelle in
+   `berechneMitKonfiguration`): jede Zeile derselben Vereinbarung mit
+   WIRKSAMER Herkunft — festgeschrieben oder Entwurf, auch der eigene. Ein
+   Entwurf beansprucht wie bei der Stunde; frei wird der Anspruch mit Storno
+   oder Verwerfen. Arten mit eigenem Beleg (`stundenbasiert`, `einzelabruf`,
+   `einheitspreis_aufmass`) erklären `sperrtUeberBeleg: true` und bekommen
+   eine leere Liste; eine sechste Art ohne die Angabe bekommt die Liste.
+2. **Monatspauschale: ein Zeitraum einmal.** Überschneidet ein Abschnitt einen
+   bisherigen Anspruch, blockiert ein Befund mit Monat, Tagen und dem Beleg
+   (Nummer, oder „Entwurf vom …") — die ganze Übernahme, nicht still der eine
+   Monat. Eine VOLLE Pauschale (voller Monat oder `teilmonat = keine`)
+   beansprucht den ganzen Kalendermonat, sonst wären zwei halbe Novemberrechnungen
+   zwei volle Novemberpauschalen; anteilig nach Kalendertagen nur ihre Tage.
+   Das folgt aus dem hinterlegten Parameter, es ist keine neue Regel.
+3. **Festpreis-Los nach Abnahme: einmal.** Steht das Los schon auf einem
+   lebenden Beleg, blockiert ein Befund — auch auf einer Rechnung für einen
+   späteren Zeitraum.
+4. **Festpreis-Los anteilig: der Grad ist der Gesamtstand** (O-932). Die
+   Zeile trägt `anteil(Festpreis, Grad) − bisher Berechnetes`
+   (`anteiligerRest`, eine Rundung über den ganzen Stand: 30 %, 60 %, 100 %
+   ergeben zusammen genau den Festpreis). Ergibt der Stand nichts Neues,
+   blockiert ein Befund. Die Lesart „Zuwachs seit der letzten Rechnung" wäre
+   ebenso denkbar; ausgeliefert ist die, bei der eine Verwechslung eine
+   sichtbare Unterberechnung ergibt (die Vorschau zeigt das bisher Berechnete)
+   und keine stille Doppelberechnung. Maske und Befund sagen „Gesamtstand".
+5. **Die eine Ausnahme ist FIN-08.** Eine Schlussrechnung führt die
+   Gesamtleistung und zieht die festgeschriebenen Abschläge und Anzahlungen
+   ihres Auftrags ab; die Festschreibung hält an, solange einer nicht
+   abgezogen ist (`offeneAbschlaege`). Für sie zählen deren Ansprüche nicht —
+   sonst stünde derselbe Betrag zweimal gegen den Kunden, einmal weggelassen
+   und einmal abgezogen. Ein Abschlag im Entwurf zählt weiter (abziehen lässt
+   er sich erst mit Nummer).
+6. **Nebenläufigkeit.** Die Übernahme sperrt den Entwurf (`for update`) und
+   die Vereinbarung (`pg_advisory_xact_lock`, dieselbe Machart wie
+   Firmenanlage und Dienstplangenerator), bevor sie liest, was schon
+   berechnet ist. Eine Datenbanksperre wie bei der Stunde gibt es nicht: die
+   Regel hängt an Art, Parameter und Rechnungsart, und eine zweite Fassung
+   davon in SQL liefe auseinander. Der Schreibweg ist einer
+   (`bestueckeAusAbrechnungsart`).
+7. **Das Rechnungsblatt zeigt, was schon berechnet ist** („Aus dieser
+   Vereinbarung schon berechnet": Beleg als Link, Zeitraum, Netto) vor den
+   Befunden, zweisprachig.
+8. **Ein verworfener Entwurf gibt frei.** `verwerfe()` ruft jetzt
+   `gibQuellenFrei()` und nimmt die Abzüge eines verworfenen
+   Schlussrechnungsentwurfs zurück. Weil verwerfen darf, wer
+   `finanzen.entwurf_verwerfen` hält (für `leitung` bindbar, ohne
+   `finanzen.schreiben`), trägt 0442 je eine enge Update-Policy
+   `t_verwerfen_gibt_frei` (nur am verworfenen Beleg, nur `wirksam` nach
+   unten) und holt die Freigabe für schon Verworfenes nach. 0441 lässt die
+   reine Rücknahme eines Abzugs durch `fin.abschlag_pruefen`, auch wenn der
+   Abschlag inzwischen storniert ist.
+
+D-699 Nr. 3 und Nr. 5 an Ort und Stelle mit Verweis berichtigt.
+
+| Betrifft | FIN-01, FIN-07, FIN-08, O-04, O-932, D-362, D-699, V-206, V-207, `src/server/services/finanz/abrechnungsart/{typen,index,monatspauschale,festpreis-los,stunden,einzelabruf,einheitspreis-aufmass}.ts`, `src/server/services/finanz/{entwurf,rechnung}.ts`, `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts`, `drizzle/0441`, `drizzle/0442`, `tests/isolation/rechnung-entwurf.test.ts` §4, §7, `tests/kern/abrechnungsart.test.ts` |
+|---|---|
+
+### D-701 · Die Materialauswahl prüft, bevor sie begrenzt — und ein verdeckter Bezug passt nicht (V-208)
+
+**Der Befund** (V-208, FIN-07): `weiterberechenbareAusgaben` holte die 200
+neuesten weiterberechenbaren, freigegebenen oder gebuchten Ausgaben der
+GANZEN Gesellschaft und prüfte erst danach in Javascript, ob eine schon
+weiterberechnet ist und ob sie zu Kunde und Auftrag passt. Weiterberechnete
+Ausgaben bleiben für immer in dieser Menge. Mit mehr als 200 davon fiel jede
+ältere, noch offene Ausgabe still aus der Auswahl — und mit der letzten auch
+die Herkunft „Material". D-699 Nr. 5 („angeboten und geprüft nach derselben
+Regel") stimmte damit nicht. Dazu: Kunde und Auftrag einer Ausgabe kamen
+aus Auftrag, Projekt und Objekt UNTER RLS. Wer den Auftrag nicht sehen darf,
+las dort `null` — und eine Ausgabe am Auftrag von Kunde B passte damit auf
+einen Entwurf von Kunde A.
+
+**Die Entscheidung.**
+
+1. **Erst prüfen, dann begrenzen.** Weiterberechnet, verdeckter Bezug,
+   anderer Auftrag, anderer Kunde stehen im `WHERE`; die Begrenzung
+   (`AUSGABEN_HOECHSTENS = 500`) greift erst auf die passenden, und wird sie
+   erreicht, sagt das Blatt es (`abgeschnitten`) — nie still. Die Regel steht
+   einmal in SQL (`PASST_ZUM_BELEG`) und wird von Auswahl und Übernahme
+   (`fuegeMaterialPositionHinzu`) gleich gelesen.
+2. **Ein verdeckter Bezug passt nicht** (fail closed). Hängt eine Ausgabe an
+   einem Auftrag, Projekt oder Objekt, das der Mensch nicht sieht, lässt sich
+   nicht prüfen, ob sie zu dieser Rechnung gehört: die Auswahl bietet sie
+   nicht an und nennt, wie viele es sind; die Übernahme weist sie mit Satz
+   ab. Ein Definer, der den Kunden an der RLS vorbei liest, wäre eine zweite
+   Lesart des Auftrags neben `auftrag.lesen` — dieselbe Abwägung wie D-698
+   Nr. 2 („wer zuordnet, muss sehen können, was er zuordnet").
+3. **Nichts bindet sich von selbst.** Das Positionsformular wählt „Material"
+   nie vor (die Vertragszeile, wo es sie gibt, sonst „von Hand" — wie vor
+   V-206), und die Ausgabe hat keine Vorwahl. Sonst hing unter einer von Hand
+   erfassten Zeile unbemerkt die erste Ausgabe der Liste, und die Begründung
+   fiel weg; eine Entwurfsposition lässt sich nicht einzeln entfernen.
+
+D-699 Nr. 5 an Ort und Stelle mit Verweis berichtigt.
+
+| Betrifft | FIN-07, D-698, D-699, V-206, V-208, `src/server/services/finanz/entwurf.ts` (`weiterberechenbareAusgaben`, `fuegeMaterialPositionHinzu`), `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts`, `tests/isolation/rechnung-entwurf.test.ts` §6 |
+|---|---|
+
+### D-702 · Die kleinen Punkte des Rechnungsentwurfs: Kopf, Eingaben, Sprache, Leistungsort (V-209)
+
+**Der Befund** (V-209): der unabhängige Prüfer der Gruppe rechnung fand neben
+den zwei blockierenden Punkten (V-207, V-208) fünfzehn kleine. Vier davon
+sind mit V-207/V-208 erledigt (Vorwahl „Material", verdeckter Bezug, Rücknahme
+eines Abzugs mit storniertem Abschlag, Sperre der Übernahme). Die übrigen:
+
+**Die Entscheidung.**
+
+1. **Der Kopf verlässt den Zeitraum der übernommenen Zeilen nicht**
+   (`zeitraum_gebunden`). Zeilen aus der Abrechnungsart tragen den Zeitraum,
+   für den sie übernommen wurden; der Leistungszeitraum des Kopfes muss sie
+   einschließen. Erweitern geht, verschieben oder leeren nicht. Zeilen von
+   Hand und aus der Zeiterfassung wählen ihren Zeitraum selbst und binden
+   nichts.
+2. **Eingaben werden gelesen, nicht an Postgres durchgereicht.** Ein Tag muss
+   als Datum existieren (`istKalendertag`: der 30. Februar ist eine
+   Abweisung, keine 500); ein Fertigstellungsgrad von 0 ist
+   `fertigstellung_ungueltig` („über 0 und bis 100") statt „es fehlt eine
+   Menge"; `aktion=kopf` ohne Rechnungsart ist `unvollstaendig` statt still
+   `standard` — sonst verlor eine Schlussrechnung ihre Art und ihren Abzug.
+3. **Die Abweisung steht dort, wohin der Browser springt.** Die Route führt
+   auf den Anker der Maske zurück; „Nichts wurde gespeichert" steht jetzt im
+   Abschnitt dieser Maske, oben nur ohne bekannte Maske.
+4. **Die Kopfmaske nach einer Abweisung zeigt, was geschickt wurde** — ein
+   bewusst geleertes Feld bleibt leer, statt auf den gespeicherten Wert
+   zurückzufallen.
+5. **Sprache.** „Rechnung anlegen" (Auftragsblatt), der Weg zur Rechnung auf
+   der Abrechnungs- und der Sonderleistungsseite, die Abrechnungsart (mit
+   englischer Erläuterung hinter dem deutschen Fachbegriff) und die Einheit
+   der Vorschau (Bezeichnung statt Schlüssel) folgen der Sprache der Seite.
+   Die Befunde der Abrechnungsregeln bleiben deutsch — sie entstehen in den
+   Strategien als Satz mit Zahlen und Belegnummern, und die englische
+   Überschrift sagt das („in German"); was daneben zählt, die Liste des schon
+   Berechneten (D-700 Nr. 7), ist übersetzt.
+6. **Keine internen Hinweise im Satz.** `kein_entwurf` nennt den Weg (Storno)
+   statt „(Invariante 4)"; die Vorabprüfung zum Zahlungsziel nennt „die
+   Vorgabe der Gesellschaft für das Zahlungsziel" statt des Schlüssels
+   `finanzen.zahlungsziel_tage_standard`; `nicht_uebernommen` hat einen Satz
+   in beiden Sprachen.
+7. **„Rechnung zu diesem Auftrag anlegen" nicht bei einem stornierten
+   Auftrag** — jetzt auch auf der Abrechnungsseite, wie D-698 Nr. 1 sagt.
+8. **Der Leistungsort muss sichtbar sein** (`objekt_passt_nicht`, beim
+   Anlegen und bei einem neuen Objekt im Kopf) — dieselbe Regel wie beim
+   Auftrag (D-698 Nr. 2). Die Auswahl ordnet die Objekte nach Kunden (neuer
+   Entwurf) bzw. „dieses Kunden" zuerst (Kopf). **Ob das Objekt zum Kunden
+   gehören MUSS, entscheidet die Plattform nicht** (O-933,
+   `OBJEKT_KUNDE_REGEL` offen): Hausverwaltung und Eigentümer oder
+   Generalunternehmer und Bauherr sind übliche Fälle, und eine erfundene
+   Sperre bräche sie.
+
+| Betrifft | FIN-04, FIN-05, FIN-07, FIN-08, O-66, O-933, D-599, D-697, D-698, D-699, D-728, V-204, V-205, V-206, V-209, `src/app/api/rechnungen/route.ts`, `src/server/services/finanz/{entwurf,rechnung,ustg14}.ts`, `src/app/portal/[mandant]/finanzen/rechnungen/{[id],neu}/page.tsx`, `src/app/portal/[mandant]/auftraege/[id]/{page,abrechnung/page}.tsx`, `src/app/portal/[mandant]/reinigung/sonderleistungen/page.tsx`, `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts`, `tests/isolation/rechnung-entwurf.test.ts` §2, §5, `tests/isolation/rechnung.test.ts`, `tests/kern/rechnung-entwurf.test.ts` |
+### D-704 · Ein DATEV-Stapel umfasst höchstens ein Wirtschaftsjahr — abgewiesen wird vor dem Stempel, nicht geteilt (V-212)
+
+**Der Befund** (V-212, ACC-02): das Belegdatum steht in jeder Zeile des
+EXTF-Stapels als `TTMM`, das Jahr kommt aus dem WJ-Beginn im Kopf, und der
+wurde nur aus `von` abgeleitet. Weder Formular noch Route, Dienst oder Tabelle
+verhinderten einen Zeitraum über die Grenze. 01.12.2025–31.01.2026 bei
+Kalender-WJ schrieb eine Buchung vom 15.01.2026 als `1501` unter den
+WJ-Beginn 2025 — für DATEV der 15.01.2025 —, und die Zeilen waren danach als
+exportiert gestempelt.
+
+**Die Entscheidung.**
+
+1. **Das Wirtschaftsjahr kommt aus den Stammdaten, nicht aus einer Annahme.**
+   Geprüft wird mit `wj_beginn_monat`/`wj_beginn_tag`, die
+   `app.datev_stammdaten` gerade geprüft zurückgegeben hat und die der Stapel
+   einfriert. Welches Wirtschaftsjahr gilt, bleibt O-05.
+2. **Abweisen, nicht teilen.** Ein Zeitraum über die Grenze ergibt keinen
+   Stapel und keinen Stempel, sondern einen Satz: „… reicht über den Beginn des
+   Wirtschaftsjahres am 01.01.2026 … Bitte in zwei Stapel teilen."
+   (`pruefeEinWirtschaftsjahr`, `ExportFehler` mit Grund `wirtschaftsjahr`).
+   Still in zwei Dateien zu teilen hiesse, dass ein Klick zwei Übergaben an den
+   Steuerberater erzeugt, von denen der Mensch nur eine gewählt hat.
+3. **Drei Stellen, eine Rechnung.** `wirtschaftsjahrGrenzeIm` (über
+   `wirtschaftsjahrVon`) steht in der Vorschau der Seite, die den Knopf sperrt
+   und das Datum nennt, und im Dienst, der VOR dem Paket und vor
+   `datev_zeilen_stempeln` wirft. Die Pruefbedingung
+   `datev_export_ein_wirtschaftsjahr` (0445) rechnet dasselbe aus den
+   eingefrorenen Spalten der Zeile nach — über `extract`, damit ein WJ-Beginn am
+   30. im Februar nicht in einen Datumsfehler läuft.
+4. **Die Vorschau sagt nur, was sie weiss.** Sieht die Person die Stammdaten
+   nicht (`buchhaltung_konfiguration.lesen` fehlt), nimmt die Vorschau KEIN
+   Kalenderjahr an — sie sperrte sonst einen Zeitraum, der im abweichenden
+   Wirtschaftsjahr in Ordnung ist. Dann entscheidet der Dienst beim Erzeugen
+   (`liesWirtschaftsjahrWennGepflegt`).
+5. **`not valid`:** ein früher über die Grenze erzeugter Stapel ist ein Beleg
+   dafür, was übergeben wurde; er wird weder gelöscht noch umgeschrieben.
+   **Berichtigt durch D-708:** eine Prüfbedingung mit `not valid` prüft
+   trotzdem jedes `update` einer alten Zeile, der alte Stapel liess sich also
+   nicht verwerfen. Seit 0448 prüft ein Auslöser nur beim Einfügen.
+6. **Ein Browser bekommt eine Seite** (D-599): jede Abweisung der Route führt
+   mit Zeitraum und `?fehler=<grund>` auf die Vorschau zurück, die den Grund
+   über `eigenerEintrag()` als Satz zeigt; Programme ohne `mandant` bekommen
+   JSON wie bisher, der Zeitraum über die Grenze als 400. Auth-Würfe gehen über
+   `autorisierungsAntwort`.
+
+| Betrifft | ACC-02, O-05, D-599, V-212, `drizzle/0445_datev_stapel_ein_wirtschaftsjahr.sql`, `src/server/services/buchhaltung/datev/export.ts`, `src/server/services/buchhaltung/wirtschaftsjahr.ts`, `src/app/api/buchhaltung/datev/route.ts`, `src/app/portal/[mandant]/buchhaltung/datev/neu/page.tsx` |
+|---|---|
+
+### D-705 · Das Mahnschreiben ist ein Geschäftsbrief, und der Mahntext der Stufe steht darin (V-213, V-214)
+
+**Der Befund** (V-213, V-214, FIN-15): das PDF, das als Mahnschreiben abgelegt
+wird und den Verzugsbeginn belegt, entstand aus `mahnungstext()` und hatte
+keinen Absender (keine Firma, Anschrift, kein Registergericht, keine
+Geschäftsführung), vom Empfänger nur „Kunde: Name", Tage als `2026-09-23`
+und den Zins als „900 Basispunkte". Das abgelegte PDF war vom Mahnungsblatt
+aus nicht erreichbar, und die Rückmeldung nach dem Versand zeigte den rohen
+UTC-Zeitstempel. `mahnstufe.textbaustein` gab es seit `0125`, die
+Vorlagenseite verwies für seine Pflege auf Einstellungen › Mahnwesen — dort
+gab es kein Feld, kein Weg schrieb ihn, und der Mahnungsdienst las ihn nicht.
+
+**Die Entscheidung.**
+
+1. **Der Brief hat einen Kopf und einen Fuss aus `mandant`.** Absenderzeile
+   (Firma · Strasse · PLZ Ort), darunter die Anschrift des Empfängers; am
+   Ende nach der freien Fusszeile (V-099) die Pflichtangaben in derselben
+   Reihenfolge wie im Angebotsblatt. Was in den Unternehmensdaten fehlt,
+   fehlt im Brief — erfunden wird nichts. Das Mahnungsblatt nennt die leeren
+   Angaben; gesperrt wird nicht (O-934).
+2. **Gemahnt wird, wer die Rechnung bekommt.** Die Anschrift ist die
+   abweichende Rechnungsanschrift des Kunden, wenn eine gepflegt ist, sonst
+   seine Anschrift — dieselbe Verzweigung wie auf der Rechnung. Ein Land steht
+   nur, wenn es nicht Deutschland ist.
+3. **Tage als `TT.MM.JJJJ`, der Satz als Prozent p. a.** (`tagDeutsch`,
+   `prozentText`). Das Mahnungsblatt zeigt Tage, Beträge und Satz in der
+   Sprache der Sitzung (`tagInSprache`, `formatiereGeldIn`, neu
+   `prozentTextIn`); das Schreiben bleibt deutsch.
+4. **Die Freigabe bindet den ganzen Brief** (Invariante 7): Absender,
+   Empfänger und Mahntext stehen in `mahnungNutzlast`. Wer nach der Freigabe
+   die Kundenanschrift, den Registereintrag oder den Mahntext ändert, hat
+   einen anderen Brief, und das Tor lässt ihn nicht hinaus. **Folge beim
+   Einspielen:** eine Mahnung, die schon `freigegeben` ist, aber noch nicht
+   versendet, passt nicht mehr zu ihrem Abdruck. Einen Rückweg von
+   `freigegeben` gibt es heute nicht (0130 lässt nur `versendet` zu): eine
+   freigegebene Mahnung wird deshalb VOR dem Einspielen versendet, sonst
+   bleibt sie stehen. **Berichtigt durch D-709:** live gelesen hielt jede
+   Pflege der Stammdaten nach der Freigabe die Mahnung für immer fest; seit
+   0449 friert die Freigabe den Brief ein. Die Folge beim Einspielen bleibt.
+5. **Das Mahnungsblatt zeigt das Schreiben**, aus derselben Funktion wie das
+   PDF, damit wer freigibt den Brief sieht und nicht nur Beträge; nach dem
+   Versand verweist es auf das abgelegte PDF über den signierten
+   Dokumentabruf (nur mit `dokument.lesen`). Die Rückmeldung nennt die
+   Versandzeit als Berliner Ortszeit.
+6. **Der Mahntext wird mit jeder Fassung einer Stufe gepflegt** (Einstellungen
+   › Mahnwesen, Feld „Mahntext dieser Stufe"). Ein leeres Feld übernimmt den
+   Text der laufenden Fassung — wer die Gebühr ändert, verliert nicht nebenbei
+   den Brieftext; „Diese Fassung ohne Mahntext" entfernt ihn ausdrücklich.
+   Höchstens `MASKE_WERT_HOECHSTENS` (1000) Zeichen, weil eine Abweisung die
+   Eingaben in der Adresse zurückbringt (D-599) und ein längerer Text gekürzt
+   zurückkäme. Im Brief steht er zwischen Datum und Forderungsliste; fehlt er,
+   bleibt die Stelle leer. **Kein vorgeschlagener Wortlaut** — der Seed trägt
+   einen ausdrücklich als PLATZHALTER (O-19) beschrifteten Satz.
+7. Die Rückmeldung nach dem Versand sagt, was die Plattform tut: der Posten
+   trägt den Versandtag als Beginn des Verzugs, nicht das Mahndatum (0125).
+
+| Betrifft | FIN-15, D-599, V-099, V-213, V-214, O-19, O-934, Invariante 7, `src/server/services/finanz/mahnung/{index,stufen}.ts`, `src/server/services/finanz/prozent.ts`, `src/app/api/finanzen/mahnungen/route.ts`, `src/app/api/einstellungen/mahnwesen/route.ts`, `src/app/portal/[mandant]/finanzen/mahnungen/{page,[id]/page}.tsx`, `src/app/portal/[mandant]/einstellungen/{mahnwesen,vorlagen}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/mahnungen.ts`, `src/server/db/seed/index.ts` |
+|---|---|
+
+### D-706 · Betriebsausgaben sind Aufwand — in Monatszahlen, Gruppe, Periodenschluss, Jahrespaket und Z3 (V-215)
+
+**Der Befund** (V-215, FIN-17, ACC-08, ACC-09, ACC-11): seit V-011 lassen
+sich Betriebsausgaben erfassen, freigeben und buchen, und sie erzeugen
+Buchungssätze mit Herkunft `ausgabe`. Jede Auswertung zu Aufwand und Ergebnis
+las aber nur `eingangsrechnung`: „Aufwand netto" der Monatszahlen, der Saldo
+je Gesellschaft und Gruppe, die beim Periodenschluss eingefrorenen Zahlen und
+die Monatstabelle des Jahrespakets. Das Z3-Paket hatte keine Tabelle der
+Ausgaben, das Journal keine `ausgabe_id`, und der Herkunftstext unterschlug
+zwei Werte des Enums. D-475/D-484 schliessen Personal und Abschreibung aus,
+nicht erfasste Betriebsausgaben — das war keine Entscheidung, sondern eine
+Lücke.
+
+**Die Entscheidung.**
+
+1. **Aufwand = Eingangsrechnungen + Betriebsausgaben**, beide freigegeben oder
+   gebucht, netto; Eingangsrechnungen nach Rechnungsdatum, Ausgaben nach
+   Belegdatum (`ausgabedatum`). D-484 ist an Ort und Stelle ergänzt.
+2. **Eine Ausgabe aus einer Lieferantenrechnung zählt einmal** — dort, wo sie
+   herkommt: `eingangsrechnung_id` gesetzt heisst, sie steht schon im
+   Eingang. (Heute setzt kein Weg diese Spalte; die Regel steht trotzdem,
+   damit der erste, der sie setzt, nicht doppelt zählt.)
+3. **Eine Quelle: `app.ausgaben_aufwand` (0446).** Im Bereich unter
+   `eingang.lesen` für den aktiven Mandanten, in der Gruppe unter
+   `gruppe.eingang.lesen` — dieselben Rechte wie die Eingangsrechnungen. Eine
+   Definer-Funktion, weil die Gruppendecke (0180) Erstattungen als ZEILEN
+   ausblendet; eine Summe darüber wäre kleiner als die Summe der
+   Gesellschaften. Sie gibt nur Summen und Anzahl je Gesellschaft und Monat
+   heraus, keine Person — dieselbe Abwägung, mit der 0180 `buchungssatz` ohne
+   die Decke liess.
+4. **Die Bildschirme nennen beide Quellen.** Monatszahlen: Spalten
+   „Eingangsrechnungen netto" (→ `/finanzen/eingangsrechnungen?monat=`),
+   „Betriebsausgaben netto" (→ `/finanzen/ausgaben?monat=`, neuer
+   Monatsfilter) und „Aufwand netto". Gruppe: Kachel und Spalte
+   „Betriebsausgaben", Tabelle „Betriebsausgaben je Monat", Ergebnis je Monat
+   aus dem Aufwand, Saldo „aus Belegen". Finanzübersicht: Kachel
+   „Betriebsausgaben {Jahr}".
+5. **Eingefrorene Monate bleiben, wie sie geschlossen wurden.** Ein vor dieser
+   Änderung geschlossener Monat mit Ausgaben zeigt jetzt „weicht ab" — das
+   ist die Aussage, für die die eingefrorene Zahl da ist (D-484), und sie
+   wird nicht nachträglich umgeschrieben (GoBD). Neue Schlüsse frieren den
+   Aufwand mit Ausgaben ein.
+6. **Jahrespaket:** `aufwand` umfasst beide Quellen; die Aufteilung steht in
+   drei neuen Spalten am ENDE (`aufwand_eingangsrechnungen`,
+   `aufwand_ausgaben`, `ausgaben`), damit ein Leser nach Spaltenposition
+   nichts verschoben findet.
+7. **Z3:** Tabellen `ausgaben` (Kopf mit Kategorie, Beträgen, Zahlungsmittel,
+   Beleg, Status, Kostenzuordnung, `ist_erstattung` über den protokollfreien
+   Definer aus 0184 — ohne Person) und `ausgabensteuer` (Aufteilung je
+   Steuersatz); `buchungen` mit `ausgabe_id`; der Herkunftstext nennt alle
+   Werte des Enums aus 0127 (ein Test hält ihn am Enum).
+
+| Betrifft | FIN-17, ACC-08, ACC-09, ACC-11, D-475, D-484, V-011, V-215, `drizzle/0446_aufwand_aus_betriebsausgaben.sql`, `src/server/services/buchhaltung/{aufwand,monatszahlen,jahrespaket,z3}.ts`, `src/server/services/gruppe/finanzen.ts`, `src/server/services/finanz/ausgabe.ts`, `src/app/portal/[mandant]/buchhaltung/monatszahlen/page.tsx`, `src/app/portal/[mandant]/finanzen/{page,ausgaben/page}.tsx`, `src/app/portal/gruppe/finanzen/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{uebersicht,belege}.ts` |
+|---|---|
+
+### D-707 · Zahlungen an Lieferanten werden erfasst, nicht ausgelöst — aus der Eingangsrechnung und aus dem Kontoauszug (V-216)
+
+**Der Befund** (V-216, FIN-14, ACC-04, ACC-07): das Buchen einer
+Eingangsrechnung eröffnet einen Kreditorposten (0123), ausgeglichen wird ein
+Posten nur über `zahlung_zuordnung` — und für Kreditoren gab es keinen Weg
+dorthin. Die Zahlungsroute kannte nur den Eingang auf eine Rechnung, der
+Bankabgleich wies jeden Ausgang ab, `erfasseZahlung` wurde nur mit
+`richtung = eingang` gerufen, und die Eingangsrechnung hatte keine
+Zahlungsaktion. Jede gebuchte Eingangsrechnung stand für immer als unbezahlt
+in Offene Posten, Altersstruktur, Gruppensumme „Kreditoren offen" und
+Jahrespaket.
+
+**Die Entscheidung.**
+
+1. **Erfasst wird, was hinausging — ausgelöst wird nichts.** Es gibt keine
+   Bankanbindung und keinen Zahlungsverkehr; die Überweisung macht ein Mensch
+   in seinem Bankprogramm. Die Plattform hält danach fest, dass sie geschah
+   (`verbucheZahlungsausgang`). Deshalb keine Freigabe nach Invariante 7 —
+   nichts verlässt das System; freigegeben wurde die Rechnung vor dem Buchen.
+   Recht: `zahlung.schreiben`, wie beim Eingang.
+2. **Zwei Wege, ein Dienst.** Das Formular „Zahlung an den Lieferanten
+   erfassen" auf der gebuchten Eingangsrechnung (solange offen) und die
+   Klärung eines Ausgangs im Kontoauszug gehen beide über
+   `verbucheZahlungsausgang`. Der Verwendungszweck ist mit der
+   Rechnungsnummer des Lieferanten vorbelegt. `bar` wird nicht angeboten: eine
+   Barzahlung verlangt eine Kasse (`zahlung_bar_braucht_kasse`).
+3. **Eine Überzahlung wird ein Guthaben beim Lieferanten** —
+   `kreditor_guthaben` über `fin.op_kreditor_guthaben_eroeffnen` (0447), das
+   Gegenstück zu `fin.op_guthaben_eroeffnen`, protokolliert. Sie wird weder
+   auf die Rechnung gebucht (die Datenbank weist das ab) noch weggeworfen.
+4. **Ein Ausgang wird im Bankabgleich nie automatisch zugeordnet.**
+   `schlageVorAusgang` nennt die passenden Verbindlichkeiten (Betrag und
+   Rechnungsnummer des Lieferanten oder eigene Belegnummer im Zweck) im Satz
+   an der Zeile; bestätigt wird in der Klärung, die dafür die offenen
+   Verbindlichkeiten zur Wahl stellt. Anders als beim Eingang kann ein
+   Ausgang mit passendem Betrag ebenso Lohn, Steuer oder Erstattung sein.
+   Die Schutzregel „ein Ausgang trifft nie eine Ausgangsrechnung" bleibt
+   (`schlageVor`), und die Datenbank prüft sie seit 0130
+   (`fin.zuordnung_richtung_pruefen`) — der Befund, das verhindere nur die
+   Oberfläche, war an dieser Stelle falsch; 0447 legt deshalb keinen zweiten
+   Riegel an.
+5. **Die Rückmeldung kommt als Seite** (D-599): die Route führt auf die
+   Eingangsrechnung zurück, mit `?meldung=` oder mit `?fehler=` und den
+   Eingaben; beide Schlüssel nur über `eigenerEintrag()`. Die Eingangsrechnung
+   listet die Zahlungen auf ihren Posten mit Verweis auf die Zahlungsakte,
+   die Richtung und — bei einem Lieferantenguthaben — „Guthaben beim
+   Lieferanten" nennt; dort wird storniert, und das Storno öffnet den Posten
+   wieder.
+6. **Nicht gebaut:** eine eigene Liste aller Zahlungsausgänge (die
+   Zahlungsseite bleibt die der Eingänge) und das Verrechnen eines
+   Lieferantenguthabens mit einer späteren Rechnung über die Oberfläche —
+   `gleicheAus` kann es, ein Formular dafür gibt es auf der Kreditorenseite
+   noch nicht.
+
+| Betrifft | FIN-14, ACC-04, ACC-07, D-599, D-728, Invariante 7, V-216, `drizzle/0447_zahlungsausgang_an_lieferanten.sql`, `drizzle/0130` (Richtungsprüfung), `src/server/services/finanz/zahlung/index.ts`, `src/server/services/finanz/bank/{abgleich,import}.ts`, `src/app/api/finanzen/zahlungen/route.ts`, `src/app/api/buchhaltung/bank/umsatz/route.ts`, `src/app/portal/[mandant]/finanzen/eingangsrechnungen/[id]/page.tsx`, `src/app/portal/[mandant]/finanzen/zahlungen/[id]/page.tsx`, `src/app/portal/[mandant]/buchhaltung/bank/[auszugId]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,mahnungen}.ts` |
+|---|---|
+
+### D-708 · Die WJ-Prüfung des DATEV-Stapels greift beim Erzeugen — ein alter Stapel bleibt verwerfbar (V-217, berichtigt D-704 §5)
+
+**Der Befund** (Prüfung von V-212): 0445 legte `datev_export_ein_wirtschaftsjahr`
+als `check … not valid` an. `not valid` heisst nur, dass der Bestand beim
+Anlegen nicht geprüft wird. PostgreSQL prüft die Bedingung aber bei JEDEM
+späteren `update` einer Zeile, auch einer alten und auch dann, wenn nur
+`status` geändert wird. Ein Stapel über die WJ-Grenze, der vor 0445 entstand
+und noch auf „erzeugt" stand, liess sich deshalb weder verwerfen noch als
+übergeben vermerken (`verwirfStapel`/`vermerkeUebergabe` → `23514` → 500).
+Er blieb für immer „erzeugt". Das ist gerade der Stapel, den man verwerfen
+will („Zeitraum falsch gewählt"). D-704 §5 behauptete, der alte Stapel bleibe
+unberührt; die Migration selbst sagte „gilt für jede geänderte Zeile".
+
+**Die Entscheidung.**
+
+1. **Geprüft wird beim Einfügen, nicht beim Vermerk.** 0448 ersetzt die
+   Prüfbedingung durch den Auslöser `datev_export_ein_wirtschaftsjahr`
+   (`before insert`, `fin.datev_export_ein_wirtschaftsjahr()`). Die Rechnung
+   ist unverändert (`extract`, dieselbe wie `wirtschaftsjahrVon`).
+2. **Ein Auslöser für `update` ist nicht nötig.** `von`, `bis`,
+   `wj_beginn_monat` und `wj_beginn_tag` ändern sich nach dem Erzeugen nie
+   mehr: `datev_export_unveraenderlich` (0133) lässt nur Zustand, Vermerk,
+   Ablage und Aufbewahrung beweglich. Was die Prüfbedingung bei einem
+   `update` zusätzlich prüfte, war also nur der Bestand, und genau den soll
+   sie nicht prüfen.
+3. **Der alte Stapel wird weder umgeschrieben noch gelöscht**
+   (Invariante 8). Er lässt sich verwerfen (mit Grund) oder als übergeben
+   vermerken, wie jeder andere.
+4. **Die Meldung bleibt erkennbar.** Der Auslöser wirft `23514` mit
+   `constraint = datev_export_ein_wirtschaftsjahr` und nennt den Namen im
+   Text, wie vorher die Bedingung. Der Dienst prüft wie bisher VOR Paket und
+   Stempel (D-704 §2), die Datenbank ist die zweite Linie.
+5. **0445 bleibt, wie sie ist.** Migrationen werden nach Dateiname
+   eingespielt und nicht erneut ausgeführt; eine Datenbank, auf der 0445
+   schon lief, bekäme eine geänderte 0445 nie zu sehen. Deshalb eine neue
+   Migration, die die Bedingung entfernt.
+
+| Betrifft | ACC-02, D-704, V-212, V-217, Invariante 8, `drizzle/0445_datev_stapel_ein_wirtschaftsjahr.sql`, `drizzle/0448_datev_wirtschaftsjahr_nur_beim_erzeugen.sql`, `drizzle/0133_datev_export.sql` (`datev_export_unveraenderlich`), `src/server/services/buchhaltung/datev/stapel.ts`, `tests/isolation/datev-stapel.test.ts` (§7), `tests/isolation/datev-export.test.ts` (2a) |
+|---|---|
+
+### D-709 · Die Freigabe friert den Brief der Mahnung ein — eine Pflege der Stammdaten hält keine freigegebene Mahnung mehr fest (V-217, berichtigt D-705 §4)
+
+**Der Befund** (Prüfung von V-213): `KOPF_SQL` las den Briefkopf LIVE — die
+Kunden- bzw. Rechnungsanschrift und sechzehn Felder aus `mandant` (Telefon,
+E-Mail, Web, Bank, IBAN, BIC, Geschäftsführung, Register …) —, und
+`mahnungNutzlast` bindet alles an den Abdruck der Freigabe. Aus
+`freigegeben` führt aber kein Weg zurück: `verwirf` und `gibFrei` verlangen
+`entwurf`, `fin.mahnung_uebergang` lässt nur `freigegeben → versendet` zu.
+Wer nach der Freigabe irgendeines dieser Felder pflegte (neue Anschrift im
+CRM, neue Telefonnummer, neuer Geschäftsführer), hatte eine Mahnung, die für
+immer hing: der Versand wurde mit `FreigabeErforderlich` abgewiesen,
+verwerfen und neu freigeben ging nicht, und der Mahnlauf sperrte ihre Posten
+dauerhaft („Es liegt bereits ein Mahnungsentwurf vor", 0125). Vor V-213
+lösten das nur `kunde.name` und `brief_fuss` aus, danach fast jede
+Stammdatenpflege. Der Test (8) hielt dieses Hängen als erwünscht fest.
+
+**Die Entscheidung.**
+
+1. **Eingefroren, nicht zurückgenommen.** Die Freigabe schreibt in derselben
+   Anweisung, die den Zustand kippt, den Brief in `mahnung.brief` (0449):
+   Kundenname, Stufenbezeichnung, Absender mit Pflichtangaben,
+   Empfängeranschrift, Mahntext und Fusszeile — aus DENSELBEN Werten, aus
+   denen der Abdruck entsteht. Ab da liest der Dienst den Brief von dort;
+   Versand, PDF und Mahnungsblatt zeigen genau den freigegebenen Brief, und
+   eine spätere Pflege wirkt auf die nächste Mahnung. Dasselbe Muster wie der
+   Schnappschuss der Rechnung (K-12).
+2. **Kein Rückweg `freigegeben → entwurf`.** Er hätte die Nummer (schon
+   gezogen, lückenlos) und die Freigabe (in der Kette) zurücknehmen müssen;
+   0130 hat bewusst entschieden, dass eine freigegebene Mahnung eine Nummer
+   trägt und nicht verworfen wird. Das Einfrieren löst den Befund, ohne diese
+   Entscheidung aufzuheben. Wer nach der Freigabe merkt, dass die Anschrift
+   falsch war, sieht den eingefrorenen Brief auf dem Blatt und dokumentiert
+   beim Versand den tatsächlichen Empfänger; ein Widerruf der Freigabe ist
+   nicht gebaut.
+3. **Die Datenbank hält es fest** (0449): ein Entwurf trägt keinen Brief
+   (`mahnung_brief_erst_mit_freigabe`), der Übergang `entwurf → freigegeben`
+   verlangt ihn, und danach ändert er sich nie mehr
+   (`mahnung_4_brief_eingefroren`, auch nicht zwischen Freigabe und Versand;
+   ab `versendet` hält ohnehin `mahnung_3_unveraenderlich` die Zeile fest).
+4. **Das Tor bleibt, wo es hingehört.** Was jemand an der Mahnung SELBST
+   ändert (Beträge, Positionen), hält sie weiter am Tor (Invariante 7) — die
+   Freigabe gilt einem Betrag, nicht einer Kennung.
+5. **Streng zurückgelesen.** `briefAusSpalte` prüft jedes Feld; eine
+   beschädigte Spalte wirft, statt still die Stammdaten zu nehmen — sonst
+   ginge ein Brief hinaus, den niemand freigegeben hat. Die Feldliste ist ein
+   Satz über alle Schlüssel von `MahnAbsender`/`MahnEmpfaenger`, damit ein
+   neues Feld den Übersetzer anhält statt den Abdruck.
+6. **Der Bestand.** Eine Mahnung, die vor 0449 freigegeben wurde, hat keinen
+   eingefrorenen Brief und wird weiter live gelesen; D-705 §4 gilt für sie
+   unverändert. Das Mahnungsblatt sagt dann ausdrücklich, dass die Vorschau
+   die heutigen Stammdaten zeigt und das abgelegte Schreiben maßgeblich ist
+   (`briefNichtEingefroren`); bei einem eingefrorenen sagt es, dass eine
+   Pflege erst die nächste Mahnung ändert.
+7. **Mit erledigt:** ein Empfänger im Ausland bekommt in der letzten Zeile den
+   deutschen Namen des Landes in Grossbuchstaben (`landZeile`, wie die
+   Deutsche Post das Bestimmungsland verlangt), nicht den Code „AT". Ein Code,
+   den die Länderliste der Laufzeit nicht kennt, bleibt, wie er ist.
+
+| Betrifft | FIN-15, K-12, D-705, V-213, V-217, Invariante 7, `drizzle/0449_mahnung_brief_eingefroren.sql`, `drizzle/0125_mahnwesen.sql`, `drizzle/0130_pruefbefunde_finanzen.sql`, `src/server/services/finanz/mahnung/index.ts`, `src/app/portal/[mandant]/finanzen/mahnungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/mahnungen.ts`, `tests/isolation/mahnung.test.ts` (8), (9), `tests/kern/mahnschreiben.test.ts` |
+|---|---|
+
+### D-710 · Die kleinen Befunde der Prüfung von V-210 bis V-216 — Platzhaltertext, Aufwandsliste, Zahlungsabweisungen, Hinweiskasten (V-217)
+
+**Der Befund** (Prüfung der Gruppe buchhaltung, neben den beiden blockierenden
+Punkten aus D-708 und D-709): (1) „weggelassen = übernommen" holte den
+Mahntext auch aus einer Platzhalterfassung — mit dem Seed stand
+„PLATZHALTER (O-19): …" in jeder Stufe, und die erste echte Fassung ohne
+eigenen Text erbte ihn in den Brief an den Kunden; (2) die Mahnwesen- und die
+Kontoklärungsroute übersetzten Auth-Würfe von Hand, `KontoGesperrtFehler` und
+`ZuVieleVersucheFehler` endeten als 500; (3) Erfolgsmeldung und Abweisungen
+der Stufenpflege nannten Tage als `2026-10-01`, die Zinsart stand als
+Schlüssel (`gesetzlich_b2b`) in der Tabelle; (4) der Zahlungsausgang liess
+`2026-02-31` durch (`22008` → 500), ein Konto einer anderen Gesellschaft
+endete als Fremdschlüsselverletzung (500), und der Satz zu `abgewiesen`
+behauptete für jede Abweisung, der Betrag sei null; der Text `bezahlt` war
+unbenutzt; (5) die Verweise auf die Ausgabenliste (Monatszahlen `?monat=`,
+Finanzübersicht `?jahr=`) zeigten alle Zustände und auch Ausgaben aus
+Eingangsrechnungen, die Summe passte nicht zur Spalte; (6) vier Seiten bauten
+den Warnkasten aus Klassen nach, statt `<Hinweis>` zu nehmen; (7) ein
+Testsatz prüfte bei `mehrdeutig` trivial `false`; (8) Tage im Kontoauszug
+und Beträge der Zahlungstabelle standen nicht in der Hausschreibweise bzw.
+der Sprache der Sitzung, und das Kontoauszugsblatt samt der neuen Maske für
+den Ausgang war nur deutsch.
+
+**Die Entscheidung.**
+
+1. **Übernommen wird nur aus einer bestätigten Fassung.** Der Text einer
+   Platzhalterfassung ist niemandes Wortlaut; die neue Fassung ohne eigenen
+   Text hat dann keinen (`bestaetigeStufe`), und die Maske sagt es. Die
+   Platzhalterfassung selbst bleibt, wie sie ist.
+2. **Auth-Würfe an einer Stelle:** beide Routen gehen über
+   `autorisierungsAntwort` (404/403/401/429, nie 500).
+3. **Ein Tag, den es gibt.** `istGueltigerKalendertag` (`lib/datum/kalendertag`)
+   prüft Muster UND Kalender; Zahlungsausgang, Zahlungseingang und „Gültig ab"
+   der Stufenpflege benutzen ihn und führen mit einem Satz zurück.
+4. **Zwei neue Gründe am `ZahlungFehler`:** `betrag_nicht_positiv` (vorher
+   `abgewiesen`) und `bankkonto_fremd` (aus `zahlung_bankkonto_fk`, 23503 —
+   die Schranke bleibt die Wahrheit, der Dienst macht einen Satz daraus). Der
+   Satz zu `abgewiesen` fragt nach dem Recht, statt den Betrag zu beschuldigen.
+   Ein Unit-Test hält fest, dass jeder Grund einen Satz in beiden Sprachen hat.
+   Programme bekommen für beide 400 statt 409. Eine Kontokennung, die keine
+   ist, weist die Route schon vor dem Dienst ab — beim Ausgang mit Satz am
+   Formular, beim Eingang (JSON) mit 400 statt `22P02`.
+5. **Die verlinkte Liste zählt wie die Spalte.** `AusgabeFilter.nurAufwand`
+   (`?aufwand=ja`, Kästchen „nur Aufwand" in der Liste) ist dieselbe Lesart wie
+   `app.ausgaben_aufwand` (0446): freigegeben oder gebucht, ohne Ausgaben aus
+   Eingangsrechnungen. Monatszahlen und Finanzübersicht verlinken damit; die
+   Liste bleibt ohne den Filter, wie sie war.
+6. **`<Hinweis>` bekommt eine Rolle.** `rolle` (`alert`/`status`) für Kästen,
+   die den Ausgang eines Formulars melden (DESIGN §5 „Notices", §9 „errors
+   announced via aria-live"); die vier nachgebauten Kästen dieser Gruppe
+   gehen darüber, dazu auf den angefassten Seiten die älteren: „abgelehnt
+   mit" und „keine Aufteilung" auf der Eingangsrechnung, „ohne Mahntext" auf
+   der Mahnung. Ein statischer Hinweis (Briefkopflücke) trägt keine Rolle.
+   Ältere Seiten mit nachgebauten Kästen werden umgestellt, wenn sie
+   angefasst werden — sie alle hier umzustellen, wäre ein Eingriff in rund
+   siebzig Seiten ohne Befund. Keine Kästen im Sinne von §5 sind die Tafeln,
+   die je nach Zustand die Farbe wechseln und ihren Zustand als
+   `data-offen`/`data-stimmt` für die Browsersuite tragen (DATEV-Vorschau
+   mit Überschrift und Liste, Saldenprobe des Kontoauszugs); sie bleiben,
+   wie sie sind.
+7. **Ein Primary je Ansicht:** auf dem Mahnungsentwurf ist „Freigeben" der
+   Primary, „Verwerfen" ein stiller Knopf.
+8. Der Text `bezahlt` steht jetzt dort, wo das Formular verschwindet: „Diese
+   Eingangsrechnung ist vollständig bezahlt, ausgeglichen am …".
+
+9. **Das Kontoauszugsblatt spricht zwei Sprachen**
+   (`lib/i18n/verwaltung/finanzen/kontoauszug.ts`). Es war ganz deutsch,
+   auch die mit V-216 neue Maske für den Ausgang, und es zeigte bei einer
+   Abweisung den deutschen Satz des Dienstes so, wie er als `?meldung=` in
+   der Adresse stand — in jeder Sprache deutsch und mit jedem Text, den
+   jemand in einen Link schreibt. Jetzt:
+   (a) Beschriftungen, Tage (`tagInSprache`) und Beträge (`formatiereGeldIn`)
+   folgen der Sprache der Sitzung, die Pille trägt `sprache`; die Seite ist
+   von der Ausnahmeliste der Sperrklinke gestrichen
+   (`scripts/guards/uebersetzung-ausnahmen.ts`).
+   (b) Die Klärung schickt SCHLÜSSEL, wie es D-599 und die Rückmeldung
+   `?meldung=zugeordnet` schon taten: `ImportFehler` trägt statt des einen
+   Grundes `klaerung` sieben (`KlaerungGrund`), der Zahlungsausgang seine
+   Gründe mit dem Vorsatz `zahlung_`, die Route selbst `posten_waehlen`. Das
+   Blatt schlägt über `eigenerEintrag` nach; ein unbekannter Schlüssel
+   bekommt den allgemeinen Satz, nie den Rohwert — auch als Meldung nicht.
+   `tests/kern/kontoauszug-texte.test.ts` hält fest, dass jeder Grund in
+   beiden Sprachen einen Satz hat, und dass kein Satz für einen Grund steht,
+   den es nicht gibt.
+   (c) Nicht übersetzt werden DATEN: die Begründung des Abgleichs
+   (`vorschlag_text`) und die Klärungsnotiz stehen, wie sie geschrieben
+   wurden. Die übrigen Blätter der Buchhaltung (Bankliste, Import, DATEV,
+   Monatszahlen) bleiben auf der Ausnahmeliste; sie werden umgestellt, wenn
+   sie angefasst werden (D-592).
+
+| Betrifft | FIN-14, FIN-15, FIN-17, ACC-04, D-599, D-705, D-706, D-707, D-728, V-214, V-215, V-216, V-217, O-19, `src/server/services/finanz/mahnung/stufen.ts`, `src/server/services/finanz/zahlung/index.ts`, `src/server/services/finanz/ausgabe.ts`, `src/lib/datum/kalendertag.ts`, `src/components/ui/Hinweis.tsx`, `docs/DESIGN.md` §5, `src/app/api/einstellungen/mahnwesen/route.ts`, `src/app/api/buchhaltung/bank/umsatz/route.ts`, `src/app/api/finanzen/zahlungen/route.ts`, `src/app/portal/[mandant]/{einstellungen/mahnwesen,buchhaltung/datev/neu,buchhaltung/bank/[auszugId],buchhaltung/monatszahlen,finanzen,finanzen/ausgaben,finanzen/eingangsrechnungen/[id],finanzen/mahnungen/[id]}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,belege,kontoauszug}.ts`, `src/server/services/finanz/bank/import.ts` (`KlaerungGrund`), `scripts/guards/uebersetzung-ausnahmen.ts`, D-592, `tests/kern/kontoauszug-texte.test.ts` |
+### D-735 · Die Statushistorie des Radars liest über einen Definer — `cse_app` bekommt kein Recht auf die Nutzlast des Protokolls (V-241)
+
+**Der Befund** (V-241): `/portal/[mandant]/radar/[id]/status` las die
+Historie mit `select … a.nachher ->> 'status' … from audit_log` als
+`cse_app`. `cse_app` hält auf `audit_log` seit 0005 ein Spaltenrecht OHNE
+`vorher` und `nachher` — mit Absicht, weil die Nutzlast einer Protokollzeile
+Werte tragen kann, die die Tabelle selbst ihrem Leser vorenthält. Jeder
+Vorgang mit einem gesetzten Stand endete in „permission denied for table
+audit_log" und einer Fehlerseite. Solange der Seed keinen Vorgang mit Stand
+anlegte, fiel das nicht auf; seither traf der Verweislauf der Browsersuite
+(`verweise.spec.ts`, leitung und admin in der Reinigung) die Seite als 500.
+
+**Die Entscheidung.**
+
+1. **Kein weiteres Spaltenrecht.** `grant select (nachher) on audit_log to
+   cse_app` hätte die Nutzlast JEDER Protokollzeile geöffnet, nicht nur
+   dieser einen Aktion.
+2. **Ein Definer-Leser für genau diese Frage:** `app.radar_stand_verlauf(uuid)`
+   (0463) gibt je Zeile `radar.stand_gesetzt` nur `audit_id`, `erstellt_am`,
+   `akteur_typ`, `akteur_id`, den Stand und `mit_grund` heraus. Eigentümer
+   `cse_definer` (liest über `d_audit_lesen`, 0204), `set search_path`,
+   `revoke … from public`.
+3. **Dieselben Bedingungen wie die Lesepolicy des Vorgangs** (`t_lesen`,
+   `p_intern_ceiling`): internes Portal, ein aktiver Mandant, `radar.lesen`
+   in ihm — sonst eine Abweisung (42501), keine leere Liste; eine leere
+   Historie hiesse „nie ein Stand gesetzt". Gelesen werden nur Zeilen mit
+   `mandant_id = app.aktiver_mandant()`: eine fremde Gesellschaft bekommt für
+   dieselbe Kennung nichts.
+4. **Der Name bleibt beim Aufrufer.** `leseStandHistorie` verbindet
+   `akteur_id` weiter als `cse_app` mit `benutzer`; ob ein Name sichtbar ist,
+   entscheidet dort die Policy auf `benutzer`, nicht ein Definer.
+5. **Kein Protokolleintrag je Lesen** (wie `app.belagsart_historie_lesen`):
+   die eigene Statushistorie ist keine sensible Nutzlast, und eine Zeile je
+   Seitenaufruf ertränkte das Protokoll, aus dem sie liest.
+
+| Betrifft | V-241, RAD-06, REP-06, K-01, K-04, Invariante 3, `drizzle/0463_radar_stand_verlauf.sql`, `src/app/portal/[mandant]/radar/daten.ts`, `tests/isolation/radar-stand-verlauf.test.ts` |
+|---|---|
+
+### D-736 · Zwei Felder mit derselben Beschriftung sind ein Mangel — der Ausgleichsbetrag heisst „Ausgleichsbetrag (€)" (V-242)
+
+**Der Befund** (V-242): `/portal/[mandant]/finanzen/zahlungen` trägt seit
+V-091 zwei Formulare: „Posten gegen Posten ausgleichen" und „Zahlungseingang
+erfassen". Beide Betragsfelder hiessen „Betrag in Euro" (`t.betragInEuro`).
+Sobald ein Guthaben und eine offene Forderung zugleich dastehen, erscheint das
+Ausgleichsformular — und ein Screenreader bot zwei gleichnamige Felder an, ohne
+dass zu hören war, welches Geld wohin geht (WCAG 1.3.1, 2.4.6). Die
+Browsersuite fiel daran im strikten Modus (drei Fälle in `zahlung.spec.ts`).
+
+**Die Entscheidung.** Das Ausgleichsfeld bekommt eine eigene Beschriftung,
+`ausgleichBetrag`: „Ausgleichsbetrag (€)" / „Offset amount (€)" — dieselbe
+Form wie „Auftragswert netto (€)". Bewusst NICHT „Ausgleichsbetrag in Euro":
+die Beschriftung des einen Feldes darf die des anderen nicht enthalten, sonst
+bleibt die Verwechslung für jede Suche nach Teilnamen bestehen. Die Prüfung
+der Browsersuite bleibt, wie sie war.
+
+| Betrifft | V-242, V-091, FIN-14, WCAG 1.3.1/2.4.6, `src/app/portal/[mandant]/finanzen/zahlungen/page.tsx`, `src/lib/i18n/verwaltung/finanzen/zahlungen.ts`, `tests/e2e/zahlung.spec.ts` |
+|---|---|
+
+### D-737 · Ein gezeigter Verweis führt auf eine Seite, die es gibt und die dieser Mensch öffnen darf — Kalender und Monatszahlen (V-243)
+
+**Der Befund** (V-243), gefunden vom Verweislauf der Browsersuite
+(`verweise.spec.ts`, leitung und admin der Reinigung):
+
+1. `kalenderZeilen` gab einer Schicht den Weg `/portal/<slug>/dienstplan` —
+   eine Wurzelseite hat der Dienstplan nicht (Woche, Tag, Monat, Einsatz).
+   Jede Schicht im Kalender war ein Verweis auf 404.
+2. Dieselbe Datei gab einer Vergabefrist `/radar/vorgaenge/<vorgang_id>` — eine
+   Route, die es nie gab. Sie fiel nur nicht auf, weil selten eine Frist im
+   gezeigten Fenster lag.
+3. `/buchhaltung/monatszahlen` verwies unbedingt auf
+   `/portal/gruppe/finanzen`. Die Route verlangt `gruppe.finanzen.lesen`, ihr
+   Tor `app.darf_gruppenansicht()`; eine Administration der Reinigung ohne
+   beides klickte ins Nichts.
+
+**Die Entscheidung.**
+
+1. Die Schicht führt auf ihre Einsatzseite `/dienstplan/einsatz/<id>`, die
+   Vergabefrist auf die Bekanntmachung `/radar/<ausschreibung_id>` — genau
+   die Ziele, die der Gruppenkalender (`gruppe/kalender.ts`) schon immer
+   hatte. Beide Seiten verlangen das Recht, ohne das die Policy die Zeile gar
+   nicht erst herausgibt (`dienstplan.lesen` auf `einsatz`, `radar.lesen` auf
+   `ausschreibung_vorgang`); wer die Zeile sieht, darf die Seite öffnen.
+2. Der Satz „Gruppensicht: Finanzen der Gruppe" steht nur, wenn die Sitzung
+   `gruppe.finanzen.lesen` hält UND `app.darf_gruppenansicht()` ja sagt —
+   dieselbe Regel wie für die Monatslisten darüber (AUT-06, D-581).
+3. `tests/isolation/kalender.test.ts` (7) bildet jeden Weg des Kalenders auf
+   eine Datei unter `src/app` ab: ein Weg ohne gebaute Seite wird rot, bevor
+   ihn ein Browser findet.
+
+| Betrifft | V-243, CAL-01, AUT-06, D-581, `src/server/services/kalender/eintraege.ts`, `src/app/portal/[mandant]/buchhaltung/monatszahlen/page.tsx`, `tests/isolation/kalender.test.ts`, `tests/e2e/verweise.spec.ts` |
+|---|---|
+
+### D-738 · Arbeiterportal: 16 px Fliesstext und 44 px Tippziele auch in den neuen Bausteinen — und Rot ist keine Textfarbe (V-244)
+
+**Der Befund** (V-244), gefunden von der Browsersuite:
+
+1. Die seit dem letzten Stand gebauten Teile des Arbeiterportals setzten
+   Fliesstext in `text-sm` (14 px): Stempelkarte (`serverUhrHinweis`,
+   „seit …"), Monats- und Jahreswechsler, Absagefeld, Nachweise („Hochladen
+   geht hier nicht"), Hinweise im Abwesenheitsformular, Bautagebuch,
+   Leistungsnachweis, Wachbuch, Einwand, Monatsnachweis-Knöpfe,
+   `Laufzeit`. DESIGN §8: „Body text never below 16px". Gemessen fiel es auf
+   `/portal/mein`, `/zeiten`, `/stundenkonto`, `/nachweise`.
+2. Die drei Häkchen im Abwesenheitsformular (halber Tag am Beginn/Ende,
+   AU liegt vor) waren 24 × 24 px — DESIGN §8 verlangt 44 × 44.
+3. Achtzehn Aufklapper (`<summary>`) waren `text-brand`: rote Schrift in
+   14 px auf der dunklen Fläche hat einen Kontrast von 4,09 : 1 (WCAG AA
+   verlangt 4,5 : 1), und DESIGN §1 sagt „never red body text". axe meldete
+   es auf dem Angebot (Spalte „Berichtigen").
+
+**Die Entscheidung.**
+
+1. Im Arbeiterportal ist Fliesstext `text-base`, auch in Hinweisen und in
+   den Knöpfen der Wechsler — kein neuer Wert, die Regel aus §8.
+2. Häkchen sind `min-h-11 min-w-11`, die Zeile richtet sich mittig aus.
+3. Ein Aufklapper ist `min-h-11 cursor-pointer font-semibold text-text` —
+   das Muster, das `KontoHandlungen` und die Lieferantenseite schon hatten;
+   im Arbeiterportal in `text-base`. Rot bleibt Knöpfen, der aktiven
+   Navigation und Pfeilen.
+
+| Betrifft | V-244, DESIGN §1, §8, §9, EMP-12, `src/app/portal/mein/**`, 18 `<summary>` unter `src/app/portal/**`, `tests/e2e/mitarbeiter.spec.ts` (6), `tests/e2e/angebot-portal.spec.ts` (4) |
+|---|---|
+
+### D-739 · Das KI-Budget nennt die Warnschwelle — gesetzt in ihrer Zeile, sonst „nicht hinterlegt (O-195)" (V-245)
+
+**Der Befund** (V-245): `/portal/[mandant]/agenten/budget` las
+`warnschwelle_prozent` und zeigte es nirgends. Bis V-015 stand unter der
+Tabelle unbedingt „Warnschwelle: nicht hinterlegt (offene Frage O-195)"; mit
+der Maske, die eine Schwelle setzen lässt, fiel der Satz ersatzlos weg. Die
+Seite schwieg damit über eine offene Finanzregel — genau das, was
+`agenten.spec.ts` zusichert („wird nicht erfunden, und der Bildschirm sagt
+das").
+
+**Die Entscheidung.** Eine gesetzte Schwelle steht in ihrer Zeile („Warnung
+ab 80 %"). Solange eine gezeigte Zeile keine hat oder es keine Zeile gibt,
+steht der Satz wieder unter der Tabelle, zweisprachig (`warnschwelleOffen`),
+und sagt dazu, wer sie einträgt. Kein Vorgabewert, O-195 bleibt offen.
+
+| Betrifft | V-245, V-015, O-195, AGT-05, `src/app/portal/[mandant]/agenten/budget/page.tsx`, `src/lib/i18n/verwaltung/agent-budget.ts`, `tests/e2e/agenten.spec.ts` |
+|---|---|
+
+### D-745 · Ein Verweis in die Gruppensicht fragt, was ihr Tor fragt — Rechte aus dem Manifest, im aktiven Mandanten (V-253)
+
+**Der Befund** (V-253; Prüfung von V-243): Die Bedingung, unter der
+`/buchhaltung/monatszahlen` auf `/portal/gruppe/finanzen` verweist (D-737),
+stand als zwei Abfragen und ein fest geschriebener Rechteschlüssel in der
+Seite — und hatte keinen eigenen Test. Weder „ohne Recht fehlt der Satz"
+noch „mit Recht und Gruppenzugang steht er" war geprüft; den ersten Fall fing
+nur der Verweislauf der Browsersuite indirekt ab, den zweiten nichts. Ein
+Satz, der künftig für jede Rolle verschwände, fiele keinem Test auf.
+
+**Die Entscheidung.**
+
+1. **Eine Stelle:** `gruppenverweisOffen(kontext, ziel)`
+   (`src/server/services/gruppe/verweis.ts`) beantwortet, ob eine Seite einer
+   Gesellschaft auf eine Seite der Gruppensicht verweisen darf. Sie stellt
+   dieselben Fragen wie das Ziel, wenn es aus einer Mandantensitzung
+   aufgerufen wird: die Leserechte der Zielroute im AKTIVEN Mandanten (so
+   fragt `pruefeZugang`), den zweiten Faktor, wenn die Route ihn verlangt,
+   und `app.darf_gruppenansicht()` (sonst antwortet `gruppenTor` mit 404).
+2. **Die Rechte kommen aus dem Manifest**, nicht aus der Seite: ändert es
+   den Schlüssel der Zielroute, folgt der Verweis. Eine Adresse, die keine
+   Gruppenroute ist oder die das Manifest nicht kennt, bekommt nie einen
+   Verweis — lieber keiner als einer auf 404.
+3. **Geprüft:** `tests/isolation/gruppenverweis.test.ts` — ein Fall mit allen
+   Bedingungen (ja), je einer ohne das Recht bei offener Gruppenansicht, mit
+   dem Recht nur in einem anderen Bereich und ohne Gruppenansicht (nein), ein
+   Ziel mit zwei Leserechten, keine und eine unbekannte Gruppenroute;
+   `tests/e2e/buchhaltung.spec.ts`: die Administration der Reinigung sieht
+   den Satz nicht, die Plattformverwaltung sieht ihn, und sein Ziel
+   antwortet mit 200.
+
+| Betrifft | V-243, V-253, D-581, D-737, AUT-06, `src/server/services/gruppe/verweis.ts`, `src/app/portal/[mandant]/buchhaltung/monatszahlen/page.tsx`, `tests/isolation/gruppenverweis.test.ts`, `tests/e2e/buchhaltung.spec.ts` |
+|---|---|
+
+### D-746 · Arbeiterportal: jedes Häkchen hat 44 px, geprüft am Quellbaum — und die Warnschwelle des KI-Budgets ist in beiden Zweigen geprüft, ohne dass der Seed eine erfindet (V-254)
+
+**Der Befund** (V-254; Prüfung von V-244 und V-245):
+
+1. V-244 brachte die drei Häkchen der Abwesenheit auf 44 × 44 px. Das
+   vierte, das derselbe Zweig ins Arbeiterportal brachte — „nachgetragen"
+   im Wachbuch —, behielt seine native Grösse; nur die Beschriftung darum
+   war 44 px hoch. Ebenso „Präsenz bestätigt" und „Polizei informiert" auf
+   derselben Seite (älter als der Zweig). `mitarbeiter.spec.ts` (6) misst
+   jedes `input`, aber nur auf den Seiten seiner Liste, und die
+   Wachbuchseite hängt an einer Security-Schicht, die die gemessene Person
+   nicht hat.
+2. Der Zweig „Warnung ab N %" der Budgetseite und das Verschwinden des
+   O-195-Satzes, sobald jede Zeile eine Schwelle hat, liefen in keinem Test
+   und in keiner Seed-Zeile: der Seed setzt `warnschwelle_prozent` mit
+   Absicht nicht (eine gesetzte Zahl wäre eine still erfundene Finanzregel,
+   O-195). Dazu zwei kleine Punkte: englisch stand „Warning from 80 %"
+   (V-213: englisch ohne Leerzeichen vor dem Prozentzeichen), und der
+   mehrsätzige Erklärsatz stand in `text-xs text-text-subtle`, das DESIGN §9
+   Meta, Zeitstempeln und Platzhaltern vorbehält.
+
+**Die Entscheidung.**
+
+1. Alle drei Häkchen des Wachbuchs sind `min-h-11 min-w-11 shrink-0` —
+   dieselbe Regel wie D-738 Nr. 2. Eine Wache über den QUELLBAUM
+   (`tests/kern/mein-haekchen.test.ts`) prüft jedes `checkbox` und `radio`
+   unter `src/app/portal/mein`: ein neues Häkchen auf einer neuen Seite ist
+   damit geprüft, bevor eine Seitenliste der Browsersuite es kennt.
+2. Die Bedingung des O-195-Satzes ist eine reine Funktion
+   (`warnschwelleOffen` in `src/server/agent/budget.ts`), in beiden Zweigen
+   geprüft (`tests/kern/agent-budget-warnschwelle.test.ts`). **Der Seed
+   bekommt bewusst KEINE Schwelle.** Die Definition of done („seed data
+   exercises it") erfüllen für diesen Zweig der Test und eine
+   Browserprüfung, die selbst eine Schwelle über die Maske setzt — für
+   Dezember 2099, einen Monat, den kein Agent bucht, damit die Zeile des
+   laufenden Monats unberührt bleibt; die Zahl ist Testeingabe, keine
+   Vorgabe. Eine Seed-Zeile mit Schwelle sähe abgestimmt aus, und genau das
+   schliesst O-195 aus.
+3. `warnungAb` ist eine Funktion der Sprache: „Warnung ab 80 %", „Warns at
+   80%". Der Erklärsatz steht in `text-sm text-text-muted` mit
+   `max-w-prose`, wie die Erklärung der Maske darunter.
+
+| Betrifft | V-244, V-245, V-254, D-738, D-739, O-195, DESIGN §8, §9, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/app/portal/[mandant]/agenten/budget/page.tsx`, `src/server/agent/budget.ts`, `src/lib/i18n/verwaltung/agent-budget.ts`, `tests/kern/mein-haekchen.test.ts`, `tests/kern/agent-budget-warnschwelle.test.ts`, `tests/e2e/agenten.spec.ts` |
+|---|---|
+
+### D-747 · Ein Muster ist keine Adresse: daraus entsteht kein Rückweg — und die Wache davor sieht alle fünf Eingänge des Tors (V-255)
+
+**Der Befund** (V-255; Prüfung von V-248): V-248 hat zwei Dinge eingeführt
+und keines davon festgehalten. (1) Eine Verhaltensregel: `rueckwegFuer`
+gibt für einen Pfad mit einem `[…]`-Segment `null` zurück
+(`src/server/registry/rueckweg.ts`) — V-241 bis V-245 bekamen je eine
+Entscheidung, diese Regel keine. (2) Eine statische Wache
+(`tests/kern/rueckweg.test.ts` (7)), die nur `portalZugang` und `mandantTor`
+mit einem Literal als erstem Argument erfasste — nicht `meinPortal`,
+`kundePortal` und `gruppenTor`, nicht die rund 160 Aufrufe mit einer
+Variablen (`const pfad = …`) und nicht den Weiterreicher
+`RecruitingSeite({ unterpfad })`. Gäbe dort jemand ein Muster weiter,
+blendete die Regel (1) den Pfeil still aus, und der Verweislauf der
+Browsersuite fände nichts mehr — aber das `zurueck` des Sprachumschalters,
+das Wechselblatt und das `weiter=` nach der Zwei-Faktor-Anmeldung bekämen
+das Muster weiterhin. Heute gibt es keinen solchen Aufruf; die neue Wache
+bestätigt das über alle Eingänge.
+
+**Die Entscheidung.**
+
+1. **Die Regel bleibt, und sie ist die zweite Linie.** Aus einem Pfad mit
+   `[…]`-Segment leitet `rueckwegFuer` keinen Rückweg ab: welcher Datensatz
+   gemeint war, steht in einem Muster nicht, und einen Vorfahren daraus zu
+   raten hiesse, ins Leere zu zeigen — lieber kein Pfeil als einer auf 404
+   (AUT-06, D-613). Sie ersetzt nicht, dem Tor die Adresse zu geben: sie
+   deckt nur den Pfeil.
+2. **Die erste Linie ist die Wache, und sie liest den Syntaxbaum**
+   (`tests/kern/hilfen/tor-adresse.ts`): jeder Aufruf der fünf Eingänge,
+   das erste Argument aufgelöst über Literale, Vorlagen, `?:`, `+` und
+   Deklarationen im Gültigkeitsbereich. Die Weitergabe innerhalb der Tore
+   wird an deren Aufrufern geprüft, ein Weiterreicher (Parameter einer
+   anderen Funktion, auch nur in `${…}` eingesetzt) an jedem Aufruf und
+   jedem JSX-Element. Ein erstes Argument, das sich nicht auflösen lässt,
+   wird als „unprüfbar" gemeldet und nicht übergangen.
+3. **Die Wache wird selbst geprüft** (Gegenprobe im selben Abschnitt): ein
+   Muster über jeden Eingang, über eine Variable und über einen
+   Weiterreicher wird gefunden, ein unauflösbares Argument gemeldet; die
+   Adresse und die Weitergabe im Tor bleiben ohne Befund.
+4. **Keine Laufzeitsperre im Tor.** Ein Muster im Tor ist ein
+   Programmierfehler, den die Wache vor dem Zusammenführen findet; ein Wurf
+   zur Laufzeit machte aus einem falschen Pfeil eine 500 für den Menschen
+   davor.
+
+| Betrifft | V-248, V-255, D-613, AUT-06, `src/server/registry/rueckweg.ts`, `tests/kern/rueckweg.test.ts` (7), `tests/kern/hilfen/tor-adresse.ts` |
+### D-680 · Die Monatsansicht verweist auf den Tag, sobald sie eine Schicht nicht zeigt (V-186)
+
+**Der Befund** (V-186): der `Monatsplan` zeigte je Tag höchstens vier
+Schichten und darunter „und N weitere" als blossen Text. Weder dieser Text
+noch die Tagesüberschrift führten irgendwohin. An einem Objekt mit zehn
+parallelen Wachen — genau der Fall aus TIM-04, „none hidden" — waren sechs
+davon aus der Monatsansicht weder sichtbar noch erreichbar.
+
+**Die Entscheidung.**
+
+1. **Die Karte bleibt bei vier Schichten** (`MONATSKARTE_HOECHSTENS`). Der
+   Monat ist Übersicht, keine Disposition; eine Karte mit zehn Zeilen
+   zerlegt das Kartenraster auf 375 px. Was nicht auf die Karte passt, ist
+   **einen Tipp entfernt**, nicht verborgen.
+2. **Zwei Wege in die Tagesansicht** (`/dienstplan/tag?tag=`), die jede
+   Schicht des Tages zeigt: der Kopf jeder Karte — auch an einem Tag ohne
+   Schicht, denn dort wird geplant — und unter einer vollen Karte der
+   Verweis „und N weitere — alle M in der Tagesansicht". `tagZiel` ist eine
+   Pflichteigenschaft des `Monatsplan`, damit keine künftige Seite ihn ohne
+   den Weg einbindet.
+3. **Jeder Verweis der Karte hat 44 px Zielfläche** (DESIGN §8, `min-h-11`),
+   auch die Schichtzeilen, die vorher eine Textzeile hoch waren.
+4. **Die Monatsseite spricht die Sprache der Sitzung** (`MONAT_TEXTE`,
+   de/en, Zahlen nach Sprache); das fehlende Recht heisst beim Namen
+   (`<Recht>`), nicht `zeit.abwesenheit_lesen`. Die Tagesbeschriftung aus
+   `dienstplan/daten.ts` („Mo 04.01.") und die Wochen- und Tagesansicht
+   bleiben vorerst deutsch — sie teilen die Beschriftung, und ihre Umstellung
+   ist ein eigener Schritt. **Berichtigt (V-193, D-687 Nr. 2):** die
+   Monatsseite schreibt ihre Tage jetzt in der Sprache der Sitzung
+   (`tagKurz`), und auch ein Monat ohne Schicht zeigt seine Tage (Nr. 2 galt
+   vorher nur in Monaten mit mindestens einer Schicht).
+
+| Betrifft | TIM-01, TIM-04, DESIGN §8, V-186, `src/components/portal/Wochenplan.tsx` (`Monatsplan`), `src/app/portal/[mandant]/dienstplan/monat/page.tsx`, `src/lib/i18n/verwaltung/dienstplan-monat.ts`, `tests/kern/monatsplan.test.ts` |
+|---|---|
+
+### D-681 · Ein Antrag fragt nach allem, was seine Art verlangt, und eine Abweisung kommt als Satz zurück — der Schichttausch wartet auf O-925 (V-187)
+
+**Der Befund** (V-187; Befunde 35 und 78 der Prüfung, derselbe Fehler):
+`/portal/mein/antraege/neu` bot die Systemart „Schichttausch" an, die laut
+0074 `einsatz_id` und `tausch_partner_anstellung_id` verlangt, und hatte für
+keines der beiden ein Feld. Der Auslöser `antrag_pflichtfelder` warf
+`check_violation`; die Route übersetzte nur Fehler mit numerischem `status`,
+ein PostgresError hat keinen — jeder Tauschantrag endete als rohe 500.
+Dasselbe beim Urlaubsantrag ohne Zeitraum oder Abwesenheitsart (die Felder
+waren nicht als Pflicht markiert). Jede andere Abweisung kam als JSON.
+
+**Die Entscheidung.**
+
+1. **Der Dienst prüft vor dem Auslöser, was die Art verlangt**
+   (`reicheAntragEin` → `AntragAbgewiesen` mit Grund, Status 422):
+   Zeitraum, Reihenfolge von „Von" und „Bis", Abwesenheitsart, Schicht,
+   Tauschpartner, archivierte Art. Der Auslöser bleibt die zweite Linie.
+2. **Die Schicht muss die eigene sein und noch bevorstehen:** eine lebende,
+   nicht abgesagte Einteilung DIESER Beschäftigung, deren Beginn nach der
+   Uhr der Datenbank in der Zukunft liegt (Invariante 5). Die
+   Fremdschlüssel prüfen nur die Gesellschaft; ohne diese Prüfung ließe sich
+   jede Schicht der Gesellschaft in einen Antrag schreiben. Das ist keine
+   neue Fachregel, sondern die Bedeutung von „meine Schicht tauschen".
+3. **Das Formular bietet die eigenen kommenden Schichten an**
+   (`listeTauschbareSchichten`, beide Gesellschaften, jede beschriftet,
+   höchstens 60 — die Länge einer Auswahl auf einem Telefon, keine Regel).
+   Ohne JavaScript kann es ein Feld nicht erst nach der Wahl der Art zeigen:
+   ein Feld ist Pflicht, wenn JEDE angebotene Art es verlangt, sonst steht
+   „Pflicht bei: …" darunter.
+4. **Den Tauschpartner bietet niemand an, bis O-925 beantwortet ist.** Eine
+   Liste anderer Beschäftigter berührt EMP-13 („never see other employees'
+   data") und ist eine Datenschutzfrage, keine Oberflächenfrage.
+   `TAUSCHPARTNER_QUELLE` ist der beschriftete Platzhalter
+   `TAUSCHPARTNER_NICHT_FESTGELEGT` mit `TODO(client, O-925)`; eine Art,
+   die einen Partner verlangt, steht deshalb nicht in der Auswahl, sondern
+   als Satz darunter („kann hier noch nicht beantragt werden — sprechen Sie
+   die Planung an"), und der Dienst nimmt keinen Partner an, auch keinen aus
+   einer nachgebauten Anfrage. Die Antwort ersetzt die Quelle; Formular
+   (Auswahl je Gesellschaft), Dienst (nur angebotene Partner) und Prüfungen
+   stehen schon.
+5. **Jede Abweisung führt auf die Maske** (`zurMaske`, `maskeMitEingaben`,
+   D-599): Grund als Schlüssel, Satz in der Sprache der Kraft
+   (`ANTRAG_FORM_TEXTE`, de/en/ar/tr, über `eigenerEintrag`), die Auswahlen
+   und Tage vorbelegt, nur mit Werten, die die Seite anbietet (D-733 Nr. 4).
+   Die Datenbank-Codes 23514, 23503 und 22007/22008 werden zu
+   „ungueltige_eingabe" bzw. „kein_datum" (`datenbankGrund`); alles andere
+   bleibt ein Serverfehler. Eine fremde Beschäftigung bleibt 404 (AUT-06).
+6. **Freitext reist nicht in der Adresse.** Die Nachricht kann sagen, warum
+   jemand frei braucht; eine Adresse landet in Verlauf und Protokollen. Die
+   Maske sagt stattdessen, dass die Nachricht noch einmal einzugeben ist.
+
+| Betrifft | EMP-10, EMP-13, O-613, O-925, D-599, D-728, D-733, V-187, `src/server/services/abwesenheit/antrag.ts`, `src/server/services/mitarbeiter/tausch.ts`, `src/app/api/mein/{formular.ts,antraege/route.ts}`, `src/app/portal/mein/antraege/neu/page.tsx`, `src/app/portal/mein/bausteine.tsx` (`Abgewiesen`), `src/lib/i18n/mein-formulare.ts`, `tests/isolation/antrag-tausch.test.ts`, `tests/kern/antrag-rueckweg.test.ts` |
+|---|---|
+
+### D-682 · Eine Abwesenheitsmeldung kommt mit einem Satz zurück — auch die doppelte und die mit einer Bescheinigung vor dem ersten Tag (V-188)
+
+**Der Befund** (V-188; Befund 81 der Prüfung): `POST /api/mein/abwesenheit`
+übersetzte nur Fehler mit numerischem `status`. Die Ausschlussbedingung
+`ab_keine_dublette` (23P01 — dieselbe Art für dieselben Tage noch einmal)
+und die Prüfbedingung `ab_au_bis` (23514 — „Bescheinigung gültig bis" vor
+dem ersten Tag) tragen keinen; beide endeten als rohe 500, ausgerechnet auf
+dem Weg, den jemand morgens krank vom Telefon aus nimmt. Jede andere
+Abweisung kam als JSON. Die Büroroute kannte 23P01 („die häufigste Eingabe
+am Telefon"), aber nicht 23514. „Bis" vor „Von" endete nicht als 500 — der
+Prüfer hat das selbst widerlegt —, sondern als JSON-400 (`ZeitraumFehler`).
+
+**Die Entscheidung.**
+
+1. **Der Dienst prüft die Bescheinigung vor dem Schreiben**
+   (`meldeAbwesenheit` → `AuBisVorBeginn`, dieselbe Regel wie `ab_au_bis`;
+   keine neue Regel). `ZeitraumFehler` nennt seinen Grund
+   (`kein_datum`, `zeitraum_verkehrt`, `zeitraum_zu_lang`), der Satz bleibt
+   für die Verwaltungsseite, die ihn schon zeigt.
+2. **Jede Abweisung führt auf die Maske** `/portal/mein/abwesenheit/neu`
+   (`zurMaske`, D-681 Nr. 5): Grund als Schlüssel, Satz in der Sprache der
+   Kraft (`MELDUNG_FORM_TEXTE`, de/en/ar/tr), Auswahlen, Tage und Haken
+   vorbelegt. Die doppelte Meldung heißt „ueberlappt" und sagt, wo die
+   vorhandene steht; die Art mit ungeklärter Lohnwirkung (O-139) heißt
+   „art_ungeklaert" statt JSON-409. Ein fehlendes Recht bleibt 404
+   (`autorisierungsAntwort`, D-656).
+3. **Die Bemerkung reist nie in der Adresse.** `cse_app` darf sie nicht
+   einmal lesen (0073, Art. 9 DSGVO); die Maske bittet darum, sie noch
+   einmal einzugeben.
+4. **Die Büroroute kommt ebenso zurück:** `ZeitraumFehler`,
+   `AuBisVorBeginn` und ein 23514 führen über `fehlerweg` auf die
+   Aufnahmeseite, die für jeden Grund einen Satz in de/en hat
+   (`ABWESENHEIT_AUFNAHME_TEXTE.abgewiesen`); sie fängt jetzt auch
+   Auth-Würfe mit `autorisierungsAntwort`.
+5. **Nicht Teil:** das `min` von „Bescheinigung gültig bis" an „Von" zu
+   koppeln. Ohne JavaScript gibt es keinen Weg dafür, und die
+   Serverprüfung ist ohnehin die Linie, die zählt.
+
+| Betrifft | EMP-10, O-139, D-599, D-656, D-681, V-188, `src/server/services/abwesenheit/{index,tage}.ts`, `src/app/api/mein/abwesenheit/route.ts`, `src/app/api/personal/abwesenheit/route.ts`, `src/app/portal/mein/abwesenheit/neu/page.tsx`, `src/app/portal/[mandant]/personal/abwesenheiten/erfassen/page.tsx`, `src/lib/i18n/{mein-formulare.ts,verwaltung/personal.ts}`, `tests/kern/meldung-rueckweg.test.ts`, `tests/isolation/meldung-rueckweg.test.ts` |
+|---|---|
+
+### D-683 · „Eine Zeit fehlt" hat einen eigenen Weg — ohne Eintrag, mit Beschäftigung, und das Absenden endet auf einer Seite (V-189)
+
+**Der Befund** (V-189; Befund 36 der Prüfung): `zeit_einwand.zeiteintrag_id`
+ist genau für den Fall nullbar, dass es keinen Eintrag gibt (0052: „ich
+habe gearbeitet, es steht nichts da" — Einstempeln vergessen, Marke
+gescheitert), und V-067 hat auf der Planerseite den Zweig `e.eintrag ===
+null` samt „Zeit nacherfassen" gebaut. Das einzige Formular der Arbeiterin,
+`/portal/mein/zeiten/[id]/einwand`, antwortete ohne Eintrag mit 404 und
+schickte die Kennung des Eintrags immer mit. Der häufigste Fall im
+Lohnstreit hatte keinen Weg. Dazu: das Absenden endete auf einer weissen
+Seite mit `{"einwand": "…"}`, ein Ende vor dem Beginn (`ze_fenster`) als
+500.
+
+**Die Entscheidung.**
+
+1. **Eine eigene Seite `/portal/mein/zeiten/einwand`** („Eine Zeit
+   fehlt"): Beschäftigung als Pflichtwahl (D-09), Tag (Pflicht, höchstens
+   heute nach der Uhr der Datenbank), behaupteter Beginn und Ende und Pause
+   (freiwillig — wer die Uhrzeit nicht weiss, schreibt es in die
+   Begründung; der Dienst verlangt sie nicht, und diese Seite erfindet keine
+   Pflicht), Begründung (Pflicht). **Berichtigt (V-193, D-687 Nr. 1):**
+   „höchstens heute" galt nur im Browser; jetzt prüft es der Dienst, samt
+   der behaupteten Zeit. Die Art steht fest (`eintrag_fehlt`), und
+   es reist KEIN `zeiteintrag` mit. Darunter die eigenen Meldungen ohne
+   Eintrag mit Zustand und Entscheidung (`EinwandListe`, jetzt ein
+   Baustein, den auch der Einwand zu einem Eintrag benutzt).
+2. **Derselbe Weg wie der Einwand zu einem Eintrag:** `POST
+   /api/zeit/einwand`, Mandant aus der Beschäftigung (K-02), `withTenant`
+   mit `portal: 'mitarbeiter'`, Policy `t_selbst_einreichen`. Keine zweite
+   Route. Die behauptete Zeit bleibt eine Behauptung (Invariante 5), als
+   Berliner Wanduhrzeit gelesen — auch über Mitternacht und die Nacht der
+   Zeitumstellung.
+3. **Zwei Einstiege:** „Meine Zeiten" verweist darauf, und das Blatt einer
+   BEENDETEN Schicht — nicht abgesagt, nicht an jemand anderen gegangen,
+   nicht ausgefallen; „nicht erschienen" gehört dazu, dort widerspricht, wer
+   da war — fragt, ob es einen eigenen Eintrag gibt
+   (`eigenerEintragZurSchicht`, Personen-Scope): gibt es einen, führt es zu
+   ihm (dort steht der Einwand); gibt es keinen, zu „Eine Zeit fehlt",
+   vorbelegt mit Tag und Beschäftigung (vorbelegt wird nur, was die Seite
+   anbietet, D-733 Nr. 4).
+4. **Ein Formular bekommt eine Seite zurück, kein JSON** (D-599): beide
+   Einwandformulare schicken `maske` und `zurueck`; die Route leitet einen
+   Erfolg mit `?gemeldet=1` auf die Seite, die die Meldung zeigt, und eine
+   Abweisung als Grund auf die Maske (`EINWAND_FORM_TEXTE`, vier Sprachen).
+   Ein Ende vor dem Beginn prüft die Route vor der Datenbank
+   (`fenster_verkehrt`, dieselbe Bedingung wie `ze_fenster`); 23514, 23503
+   und 22007/22008 sind die zweite Linie (`datenbankGrund`). Ohne `maske`
+   und `zurueck` antwortet die Route wie bisher mit JSON. Die Begründung
+   reist nicht in der Adresse.
+5. **VOLLSTÄNDIGKEIT §9.1 ist präzisiert:** die damalige Widerlegung
+   betraf nur die wählbare Art, nicht den Fall ohne Eintrag.
+
+| Betrifft | EMP-07, TIM-11, D-09, D-599, D-733, V-051, V-067, V-189, `drizzle/0052`, `src/app/portal/mein/zeiten/{einwand,[id]/einwand}/page.tsx`, `src/app/portal/mein/zeiten/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/page.tsx`, `src/app/portal/mein/bausteine.tsx` (`EinwandListe`), `src/app/api/zeit/einwand/route.ts`, `src/server/services/mitarbeiter/zeiten.ts` (`eigenerEintragZurSchicht`), `src/lib/i18n/mein-formulare.ts`, `docs/architecture/04-SEITENKARTE.md` §7, `tests/kern/einwand-ohne-eintrag.test.ts`, `tests/isolation/einwand-ohne-eintrag.test.ts` |
+|---|---|
+
+### D-684 · § 5 ArbZG misst die Ruhezeit zwischen Arbeitstagen — der geteilte Dienst ist kein Verstoss, und wo der Arbeitstag endet, fragt O-926 (V-190)
+
+**Der Befund** (V-190; Befund 38 der Prüfung): `pruefeArbzg` mass die
+Ruhezeit zwischen JEDEM Paar aufeinanderfolgender Blöcke einer Person und
+meldete unter elf Stunden `ruhezeit_unter_11h` mit Schwere `verstoss` —
+auch zwischen Früh- und Abendreinigung desselben Tages. § 5 Abs. 1 ArbZG
+verlangt die Ruhezeit „nach Beendigung der täglichen Arbeitszeit"; die
+Unterbrechung eines geteilten Dienstes ist keine. Jeder solche Tag trug
+einen falschen Rechtsverstoss: beim Einteilen eine Warnung, die quittiert
+werden musste (`pruefeEinteilung`, `besetzeEinsatz`), nachts eine
+Konfliktkarte (`erkenneKonflikte`). Der Test schrieb es fest (06–14 und
+18–19 am selben Tag = 240 min). Die Auslegung war still gewählt.
+
+**Die Entscheidung — nur, was eindeutig aus dem Gesetz folgt.**
+
+1. **Eine Lücke innerhalb desselben Arbeitstags ist keine Ruhezeit und
+   kein § 5-Befund.** Das folgt aus dem Wortlaut von § 5 Abs. 1. Die Teile
+   zählen weiter zusammen zur täglichen Arbeitszeit nach § 3 (die
+   Tagessumme je Berliner Kalendertag des Beginns bleibt, wie sie war, auch
+   über zwei Gesellschaften, K-06). Ein `hinweis` statt nichts wäre keine
+   Hilfe: jede Befundschwere hält die Einteilung an und erzeugt nachts eine
+   Karte.
+2. **Wo ein Arbeitstag endet, ist offen** (O-926): Berliner Kalendertag
+   oder 24 Stunden ab Arbeitsbeginn. Die Stelle ist austauschbar
+   (`Arbeitstagsgrenze`, `ArbzgOptionen.arbeitstag`); ausgeliefert ist der
+   beschriftete Platzhalter `ARBEITSTAG_BEIDE_LESARTEN` mit
+   `TODO(client, O-926)`: zwei Blöcke gelten nur dann als ein Arbeitstag,
+   wenn BEIDE Lesarten es sagen — gleicher Kalendertag des Beginns UND
+   weniger als 24 Stunden nach Beginn des Arbeitstags (erster Block nach der
+   letzten Ruhezeit von elf Stunden; nach 24 Stunden beginnt der nächste).
+   Wo sie auseinandergehen — geteilter Dienst über Mitternacht, eine Kette
+   kurzer Pausen über mehr als 24 Stunden —, wird gemessen und gemeldet wie
+   bisher. Verschwiegen wird nur, was nach keiner Lesart ein Verstoss ist.
+3. **Jeder Ruhezeitbefund nennt die Lesart**, mit der er entstand, samt
+   offener Frage — wie die § 3-Befunde schon ihre Tageszuordnung nennen.
+4. **Gemessen wird weiter gegen das SPÄTESTE Ende** (die Tests für
+   verschachtelte, gleich beginnende und gesellschaftsübergreifende
+   Schichten liegen jetzt mit der Folgeschicht am nächsten Tag); die Tests
+   über Mitternacht und die Zeitumstellung bleiben unverändert grün.
+5. **Grenze der Sicht:** der Arbeitstagsbeginn sieht nur die übergebenen
+   Blöcke; `pruefeEinsatz` liest 24 Stunden davor und danach. Eine Kette
+   kurzer Pausen, die länger ist, trägt ihre Befunde schon an den früheren
+   Lücken.
+
+| Betrifft | TIM-05, TIM-06, TIM-14, D-09, K-06, O-18, O-50, O-926, V-190, `src/server/services/zeit/arbzg.ts`, `src/server/services/arbzg/pruefung.ts` (Kommentar), `tests/kern/arbzg.test.ts`, `tests/kern/arbzg-teildienst.test.ts` |
+|---|---|
+
+### D-685 · Die Leistungszeile lässt sich an Einzelschicht, Turnus und Posten setzen — und der Generator trägt sie auf die künftigen Schichten (V-191)
+
+**Der Befund** (V-191; Befund 34 der Prüfung, TIM-12/FIN-07): ein
+Zeiteintrag hängt über `auftrag_leistung_id` am Auftrag und erbt die
+Spalte beim Anlegen AUSSCHLIESSLICH von seiner Schicht (`z_erben`, 0034);
+die Schicht bekommt sie vom Träger (Turnus, Posten, Veranstaltung) oder beim
+Anlegen. Weder `legeTurnusSerieAn` noch die Turnuspflege noch
+`legePostenAn` noch die Einzelschicht schrieben eine, und keine Seite konnte
+sie nachträglich setzen — nur der Seed tat es. Jede Stunde aus einer über
+die Oberfläche geplanten Schicht landete dauerhaft in
+`zeiteintrag_ohne_auftrag`; die Stundenabrechnung fand sie nie. Die Maske
+der Einzelschicht versprach das Gegenteil („Mit Auftrag hängt sie an dessen
+Abrechnung") und schrieb nur `einsatz.auftrag_id`, das in der Zeitkette
+niemand liest.
+
+**Die Entscheidung.**
+
+1. **Ein Feld, ein Dienst, eine Prüfung.** `listeAnkerbareLeistungen`
+   bietet die lebenden Leistungszeilen nicht stornierter Aufträge an
+   (`gueltig_bis` einschliesslich, heute nach `app.berlin_heute()`), den
+   bisherigen Anker immer mit; `pruefeLeistungsanker` prüft vor dem
+   Schreiben — `leistung_unbekannt`, `leistung_beendet`,
+   `leistung_anderer_auftrag` — mit Satz statt Fremdschlüsselfehler. Den
+   Auftrag leitet weiter die Datenbank aus der Zeile ab
+   (`kern.einsatz_auftrag_ableiten`), die Zusammengehörigkeit prüft weiter
+   `einsatz_leistung_fk`. Welche Zeile gilt, entscheidet ein Mensch; nichts
+   wird vorgeschlagen. **Berichtigt (V-192, D-686 Nr. 1):** „immer" galt
+   nur bis zur Obergrenze der Liste; die bisherige Zeile kommt jetzt
+   ungekappt mit.
+2. **Einzelschicht:** beim Anlegen (`auftragLeistungId`), und nachträglich
+   auf dem Schichtblatt (`setzeLeistungsanker`, `aktion=leistung`) —
+   solange keine Zeit erfasst ist (danach tragen die Einträge den Anker, den
+   die Schicht damals hatte) und nur für `quelle = 'manuell'` (eine
+   Serienschicht trägt den Anker ihres Trägers, den der Generator bei jedem
+   Lauf schreibt). Trug die Schicht schon eine Zeile, folgt der Auftrag der
+   neuen; nannte sie nur einen Auftrag, muss die Zeile zu ihm gehören.
+   **Berichtigt (V-192, D-686 Nr. 5):** die Herkunft steht jetzt in
+   `einsatz.auftrag_von_hand` (0431) und wird nicht mehr aus dem Stand
+   geraten; das Lösen nimmt einen abgeleiteten Auftrag mit.
+3. **Turnus:** beim Anlegen (beide Masken) und in der Turnuspflege
+   (`aendereTurnus`: `undefined` lässt den Anker, `null` löst ihn); geprüft
+   nur, wenn er sich ändert. **Posten:** beim Anlegen und auf dem Postenblatt
+   (`setzePostenLeistung`, danach läuft der Generator).
+4. **Der Generator trägt den Anker auf die künftigen Schichten** — im
+   Aktualisierungszweig seines Upserts, also nur auf Schichten, die noch
+   nicht begonnen haben und keine erfasste Zeit tragen. Bei derselben Zeile
+   bleibt `auftrag_id`, bei einer neuen folgt er ihr. Die Vergangenheit
+   wird nicht umgeschrieben.
+5. **Ohne `auftrag.lesen` gibt es kein Feld, sondern einen Satz**
+   (`LeistungsankerFeld`, ein Baustein für alle sieben Stellen). Ein
+   Auswahlfeld, dessen Liste die RLS leert, schickte „ohne" und löschte in
+   einer Pflegemaske einen Anker, den jemand anderes gesetzt hat. Die
+   Turnuspflege ändert den Anker deshalb nur, wenn das Feld GESCHICKT wurde.
+6. **Die Zusage der Einzelschichtmaske ist berichtigt:** der Auftrag allein
+   bringt keine Stunde in eine Abrechnung, die Leistungszeile tut es.
+7. **Nicht Teil:** (a) Zeit, die schon ohne Anker erfasst ist, bleibt in
+   `zeiteintrag_ohne_auftrag` — sie hat den Anker beim Anlegen geerbt, und
+   ihre Korrektur ist ein eigener Vorgang. (b) Der Anker des REVIERS
+   (`revier.auftrag_leistung_id`) — der Generator liest den des Turnus.
+   (c) `kern.einsatz_auftrag_ableiten` liest die Leistungszeile unter der
+   RLS des Aufrufers: wer ohne `auftrag.lesen` einen verankerten Turnus
+   ändert, dessen Lauf scheitert beim Ableiten für NEUE Schichten. Das galt
+   schon für die geseedeten Anker; es als `SECURITY DEFINER` zu führen ist
+   ein eigener Schritt. **Berichtigt (V-192, D-686 Nr. 2 und 10):** (c) ist
+   erledigt (`drizzle/0430`); (a) und (b) fragt O-927.
+
+| Betrifft | TIM-12, FIN-07, CLN-02, SEC-01, D-150, V-013, V-191, `src/server/services/dienstplan/{leistungsanker,einzelschicht,serie,serie-pflege,generator}.ts`, `src/server/services/security/posten.ts`, `src/app/api/{dienstplan/einsatz,dienstplan/serien,dienstplan/serien/[id],reinigung/turnus,sicherheit/posten}/route.ts`, `src/components/portal/LeistungsankerFeld.tsx`, `src/lib/i18n/verwaltung/{leistungsanker,dienstplan-schicht}.ts`, sieben Masken unter `dienstplan/`, `reinigung/turnus/` und `security/posten/`, `tests/isolation/leistungsanker.test.ts`, `tests/kern/leistungsanker.test.ts` |
+|---|---|
+
+### D-686 · Der Leistungsanker hält — jenseits der Liste, ohne `auftrag.lesen`, gegen einen ungültigen Wert und nach dem Lösen; eine Abweisung kommt als Satz auf die Maske (V-192)
+
+**Der Befund** (V-192; die zweite Prüfung von V-191 durch den unabhängigen
+Prüfer der Gruppe zeit). `listeAnkerbareLeistungen` versprach, den bisherigen
+Anker IMMER mitzuliefern (D-685 Nr. 1), und kappte mit `limit` NACH dem
+`or al.id = bisher`. Bei mehr als 300 lebenden Leistungszeilen im Mandanten
+fiel der bisherige Anker aus der Liste — sortiert nach Auftragsnummer
+absteigend gerade der alte, lange laufende Vertrag —, das Feld wählte
+„ohne", und das nächste Speichern der Turnuspflege, auch nur einer Uhrzeit,
+löste ihn; der Generator trug das auf alle künftigen Schichten. Genau der
+Fehler, den D-685 Nr. 5 verhindern sollte.
+
+**Die Entscheidung.**
+
+1. **Der bisherige Anker kommt ungekappt mit.** Die Abfrage hat zwei Teile:
+   die gekappte Liste der lebenden Zeilen und, daneben und ungekappt, die
+   bisherige Zeile (lebend oder nicht, `union` hält sie einmal). Das Feld
+   (`LeistungsankerFeld`) wählt den bisherigen Anker immer vor; fehlt er
+   trotzdem in der Liste, steht er als eigene Zeile „bisherige
+   Leistungszeile (bleibt, wie sie ist)" da, statt dass „ohne" ihn beim
+   Speichern löst.
+2. **Die Ableitung des Auftrags liest als `cse_definer`** (`drizzle/0430`,
+   D-685 Nr. 7(c) erledigt). Der Generator läuft nach jeder Pflege über ALLE
+   Serien der Gesellschaft, und sein Upsert feuert
+   `kern.einsatz_auftrag_ableiten` für jede vorgeschlagene Zeile. Unter der
+   RLS des Aufrufers warf er ohne `auftrag.lesen` 23503, sobald eine einzige
+   Serie verankert war — auch beim Ändern einer fremden, unverankerten, und
+   als 500. Eine eigene Rolle mit `dienstplan.schreiben` ohne `auftrag.lesen`
+   ist zulässig; ob sie planen kann, darf nicht davon abhängen, ob irgendwo
+   ein Anker steht. Die Funktion liest genau `auftrag_id` der Zeile, die die
+   Schicht selbst nennt, in der Gesellschaft der Schicht; Grant und Policy
+   (`d_auftrag_leistung_lesen`) stehen seit 0107, die Liste der
+   Definer-Policies wächst nicht. Einen gewählten Anker prüfen die Dienste
+   weiter vorher unter der RLS des Menschen.
+3. **Ein Wert, der keine Kennung ist, wird abgewiesen — er löst den Anker
+   nicht.** Schichtblatt, Einzelschicht und Postenblatt machten aus ihm
+   still `null`, also „ohne"; eine verstümmelte oder nachgebaute Anfrage
+   löste damit einen Anker. Leer heisst weiter „ohne" (das Feld schickt
+   genau das), alles andere, was keine Kennung ist, kommt als
+   `leistung_unbekannt` auf die Maske zurück.
+4. **Der Sofortlauf erfindet keinen Tag** (`generiereSofort`). An drei
+   Stellen stand `heute?.tag ?? '2026-01-01'`: ohne Antwort der Datenbank
+   lief der Generator still ab einem festen Tag. Jetzt kommt der Tag aus
+   `berlinHeute`, und ohne Antwort gibt es einen Fehler statt eines Laufs.
+5. **Woher der Auftrag einer Einzelschicht stammt, steht in der Datenbank**
+   (`einsatz.auftrag_von_hand`, `drizzle/0431`). D-685 Nr. 2 unterscheidet
+   einen GENANNTEN Auftrag (die Zeile muss zu ihm gehören) von einem
+   ABGELEITETEN (er folgt der Zeile), aber der Dienst riet die Herkunft aus
+   dem Stand. Nach dem Lösen stand ein abgeleiteter Auftrag ohne Zeile da und
+   galt beim nächsten Setzen als genannt — die Zeile eines anderen Auftrags
+   wurde abgewiesen, obwohl ihn nie ein Mensch nannte. Jetzt gilt: hat ein
+   Mensch den Auftrag in der Maske genannt (mit oder ohne Zeile), bindet er
+   jede Zeile, und das Lösen lässt ihn stehen; sonst folgt er der Zeile und
+   geht mit ihr. Der Bestand: eine von Hand geplante Schicht mit Auftrag und
+   ohne Zeile hat ihn von einem Menschen (abgeleitet wird nur aus einer
+   Zeile); eine Prüfung hält fest, dass „von Hand" einen Auftrag heisst.
+   Der Seed legt eine Einzelschicht mit genanntem Auftrag und Leistungszeile
+   über den Dienst an (`seedEinzelschichtMitAnker`) — vorher zeigte keine
+   Demoschicht diesen Weg.
+6. **Welche Aufträge neue Zeit annehmen, steht an EINER Stelle**
+   (`ANKERBARE_AUFTRAGSZUSTAENDE`). Die Leistungszeile nahm jeden nicht
+   stornierten Auftrag an — auch `abgeschlossen` und `angelegt` —, die
+   Auftragsauswahl derselben Maske nur `aktiv` und `pausiert`. `storniert`
+   nie und `abgeschlossen` nicht, solange O-734 offen ist, folgen aus dem
+   Zustand (beide einwegig; Zeit an einem abgeschlossenen Auftrag fände keine
+   Rechnung mehr). Ob `angelegt` und `pausiert` neue Zeit annehmen, ist eine
+   Frage an den Auftraggeber (O-927 Nr. 4); bis zur Antwort gilt der
+   beschriftete Platzhalter mit der Menge, die die Auftragsauswahl schon
+   hatte — `aktiv` und `pausiert` —, jetzt für beide Felder.
+7. **Die Auswahl nennt Kunde und Objekt jeder Zeile.** Sie zeigte nur
+   „Auftragsnummer · Pos. · Bezeichnung"; ein Turnus am Objekt von Kunde A
+   liess sich an den Auftrag von Kunde B hängen, ohne dass es jemand sah, und
+   die Stundenabrechnung rechnete bei B ab. OB der Auftrag dem Kunden des
+   Objekts gehören muss, prüft die Plattform nicht — eine Hausverwaltung, die
+   für einen Eigentümer bestellt, ist ein legitimer Fall, in dem beide
+   auseinandergehen; das fragt O-927 Nr. 3. Kunde und Objekt kommen über
+   einen äusseren Verbund: ohne `crm.lesen` bzw. `objekt.lesen` bleiben sie
+   leer, die Zeile verschwindet nicht.
+8. **Ein abgewiesener Anker kommt als Satz auf die Maske** (D-599). Die
+   Anlage einer Serie (`POST /api/dienstplan/serien`) und eines Postens
+   (`POST /api/sicherheit/posten`) antworteten mit JSON-422; jetzt führen sie
+   mit dem Grund als Schlüssel und den Eingaben auf ihre Maske zurück
+   (`maskeMitEingaben`; vorbelegt wird nur, was die Maske anbietet, D-733
+   Nr. 4). Der Turnus der Reinigung (`POST /api/reinigung/turnus`) schickte
+   den deutschen SATZ in die Adresse; ein Ankerfehler reist jetzt als
+   Schlüssel zurück in die Vorschau, mit allen Eingaben, und die Seite
+   schlägt ihn in der Sprache der Sitzung nach. **Nicht Teil:** die übrigen
+   Abweisungen dieser drei Wege (Pflichtfelder, Regel, Recht) antworten
+   weiter wie bisher — JSON bzw. ein Satz in der Adresse. Das ist die Altlast
+   aus D-599; das Anker-Feld hat sie nicht erzeugt.
+9. **Die kleinen Punkte an den Blättern.** Das Schichtblatt zeigt bei
+   erfasster Zeit einen Hinweis statt des Fehlersatzes („Nichts wurde
+   gespeichert", obwohl nichts versucht wurde), und „gespeichert" spricht
+   von DIESER Schicht, nicht von „künftigen Schichten". Das Postenblatt zeigt
+   an einem archivierten Posten einen Satz statt des Formulars, und der
+   Dienst weist ihn mit Grund ab (`PostenArchiviert`, zurück aufs Blatt —
+   vorher JSON); ein fremder Posten ist 404. Das Serienblatt zeigt für einen
+   unbekannten Grund einen Satz statt des Schlüssels aus der Adresse, und
+   eine Erfolgsmeldung nur für eine Handlung, die es kennt.
+10. **Offen, nicht gebaut** (D-685 Nr. 7(a) und (b)): Zeit, die schon ohne
+   Anker erfasst ist, bleibt in `zeiteintrag_ohne_auftrag`, und
+   `revier.auftrag_leistung_id` bleibt ungelesen. Ob und bis wann erfasste
+   Zeit nachträglich eine Leistungszeile bekommt und ob ein Turnus den Anker
+   seines Reviers erbt, entscheidet, bei welchem Kunden eine Stunde
+   abgerechnet wird — das fragt O-927 Nr. 1 und 2.
+
+| Betrifft | TIM-12, FIN-07, K-01, Invariante 5, D-599, D-685, D-733, O-734, O-927, V-191, V-192, `drizzle/0430_auftrag_ableiten_als_definer.sql`, `drizzle/0431_auftrag_von_hand.sql`, `src/server/db/seed/auftrag.ts`, `src/server/services/dienstplan/{leistungsanker,einzelschicht,generator,serie,serie-pflege}.ts`, `src/server/services/security/posten.ts`, `src/app/api/{dienstplan/einsatz,dienstplan/serien,reinigung/turnus,sicherheit/posten}/route.ts`, `src/components/portal/LeistungsankerFeld.tsx`, `src/lib/i18n/verwaltung/{leistungsanker,dienstplan-serie-pflege}.ts`, `src/app/portal/[mandant]/{dienstplan/einsatz/neu,dienstplan/einsatz/[id],dienstplan/serien/neu,dienstplan/serien/[id],reinigung/turnus/neu,security/posten/neu,security/posten/[id]}/page.tsx`, `tests/isolation/leistungsanker.test.ts`, `tests/kern/leistungsanker-feld.test.ts`, `tests/kern/leistungsanker.test.ts` |
+|---|---|
+
+### D-687 · Die zweite Prüfung von V-186 bis V-190: der Einwand gilt gegen die Uhr der Datenbank, der leere Monat hat Tage, und das Arbeiterportal schreibt Tage in der gesetzlichen Form (V-193)
+
+**Der Befund** (V-193; die zweite Prüfung der Gruppe zeit durch den
+unabhängigen Prüfer). Vier Zusagen hielten nur halb: D-683 („Tag höchstens
+heute nach der Uhr der Datenbank") galt nur im Browser (`max={heute}`); weder
+Route noch `reicheEinwandEin` prüften Tag oder behauptete Zeit, ein
+nachgebauter POST legte einen Einwand für einen künftigen Tag an. D-680 („auch
+an einem Tag ohne Schicht, denn dort wird geplant") galt nur in Monaten mit
+mindestens einer Schicht — war der Monat leer, ersetzte der Satz „nichts
+geplant" das ganze Raster; und die englische Monatsseite schrieb die Tage
+deutsch („Mo 04.01."). Dazu die kleinen Punkte: die Einwandliste schrieb den
+Tag des Einwands als TT.MM.JJJJ und daneben Eingangs- und Entscheidungstag nach
+Sprache (englisch 09/21/2026, arabisch mit anderen Ziffern), die Pause stand
+mit festem „(min)" da, die Pflichtwahl der Gesellschaft wählte die erste vor,
+und der Seed zeigte den geteilten Dienst ohne Befund nicht.
+
+**Die Entscheidung.**
+
+1. **Tag und behauptete Zeit eines Einwands gelten gegen die Uhr der
+   Datenbank** (`reicheEinwandEin` → `EinwandZeitFehler`, Invariante 5): ein
+   Tag nach `app.berlin_heute()` (`tag_in_zukunft`) und ein behaupteter
+   Beginn oder ein Ende nach `now()` (`zeit_in_zukunft`) werden abgewiesen —
+   ein Einwand behauptet geleistete Arbeit. Bei „Eine Zeit fehlt", wo die
+   Kraft Tag UND Zeit selbst wählt, liegt der behauptete Beginn an diesem Tag
+   (`beginn_nicht_am_tag`): der Tag eines Einwands ist der Berliner
+   Kalendertag, an dem die Arbeit begann (0052, K-11), wie beim Eintrag, dessen
+   Tag der seines Beginns ist. Beim Einwand zu einem Eintrag gilt das nicht —
+   dort kann gerade der Beginn falsch erfasst sein. Keine neue Regel: es ist
+   die Zusage von D-683, jetzt auf dem Server. Die Route führt jeden Grund auf
+   die Maske (vier Sprachen), ohne Maske als JSON 422. Die Einwandfälle in
+   `tests/isolation/zeit-auftrag.test.ts` liegen deshalb im September statt im
+   Oktober: ein Eintrag in der Zukunft entsteht im Betrieb nicht.
+2. **Der Monat zeigt seine Tage immer** (`monat/page.tsx`): der Satz „nichts
+   geplant" steht über dem Raster, nicht an seiner Stelle, und jeder Tag führt
+   in die Tagesansicht. Die Tagesbeschriftung schreibt `tagKurz`
+   (`@/lib/datum/kalendertag`) in der Sprache der Sitzung — deutsch „Mo
+   04.01." wie bisher (dieselbe Funktion benutzt jetzt `dienstplan/daten.ts`),
+   englisch „Sun 04 Jan" (britisch, über UTC, wie `tagInSprache`, D-733).
+   **Nicht Teil:** die Wochen- und die Tagesansicht selbst. Sie stehen in der
+   eingefrorenen Ausnahmeliste der Übersetzungswache, der Befund 39 betraf
+   die Monatsansicht; ihre Umstellung bleibt ein eigener Schritt (D-680 Nr. 4).
+3. **Das Arbeiterportal schreibt jeden Tag in der gesetzlichen Form** —
+   TT.MM.JJJJ, Berliner Kalendertag, in jeder Sprache (SEITENKARTE §12:
+   „numbers, money and time never localise away from the legal form"). Die
+   Einwandliste formatiert Eingangs- und Entscheidungstag deshalb wie den Tag
+   des Einwands; die Schichtauswahl des Antrags (`tagDeutsch`) war schon
+   richtig. Die Pause trägt ihre Einheit in der Sprache der Kraft
+   (`pauseMinuten`).
+4. **Die Gesellschaft ist eine Pflichtwahl ohne Vorauswahl** (D-09): ein
+   leerer erster Eintrag „Gesellschaft wählen", `required` verlangt die Wahl —
+   auf „Eine Zeit fehlt" und ebenso auf Antrag und Abwesenheitsmeldung, die
+   dasselbe Muster trugen und in ihrem Kommentar schon „kein Vorgabewert"
+   versprachen. Vorbelegt wird nur, was die Seite anbietet (D-733 Nr. 4).
+5. **Der Seed zeigt den geteilten Dienst** (`seedGeteilterDienst`): eine
+   Frühschicht 06:00–09:30 und am selben Tag 17:00–18:30 für dieselbe Kraft,
+   eingeteilt über `besetzeEinsatz` OHNE Bestätigung — mit einem Befund bliebe
+   sie aus, und der Seed sagte es. Der Ruhezeitkonflikt (22:00–02:00 vor einer
+   Frühschicht) bleibt der eine echte Verstoss der Demo.
+6. **Geprüft und nicht geändert:** der Rückfall der Arbeiterrouten auf
+   `ungueltige_eingabe` für einen übrigen Dienstfehler. Beim EINREICHEN gibt
+   es keinen spezifischen Grund, der dort verloren ginge: `UrlaubskontoFehlt`
+   wirft nur die Entscheidung (`entscheideAntrag`), der Kontoauslöser (0073)
+   greift erst bei `genehmigt`, und die Meldung der Kraft entsteht als
+   `erfasst`; jeder Grund von `reicheAntragEin` und `meldeAbwesenheit` hat
+   seinen eigenen Zweig.
+
+| Betrifft | EMP-07, EMP-10, TIM-01, TIM-04, TIM-06, TIM-11, D-09, D-599, D-680, D-683, D-684, D-733, SEITENKARTE §12, V-186, V-189, V-190, V-193, `src/server/services/zeit/einwand.ts`, `src/app/api/zeit/einwand/route.ts`, `src/lib/i18n/{mein-formulare,texte}.ts`, `src/app/portal/[mandant]/dienstplan/{monat/page.tsx,daten.ts}`, `src/lib/datum/kalendertag.ts`, `src/lib/i18n/verwaltung/dienstplan-monat.ts`, `src/app/portal/mein/{bausteine.tsx,zeiten/einwand/page.tsx,zeiten/[id]/einwand/page.tsx,antraege/neu/page.tsx,abwesenheit/neu/page.tsx}`, `src/server/db/seed/zeit.ts`, `tests/isolation/{einwand-ohne-eintrag,zeit-auftrag}.test.ts`, `tests/kern/{einwand-ohne-eintrag,monatsplan,mein-einwand-form}.test.ts` |
 |---|---|

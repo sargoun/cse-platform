@@ -32,6 +32,7 @@ import {
   abstimmungOffenePosten, altersstruktur, klasseFuer, postenListe,
 } from '../../src/server/services/buchhaltung/offene-posten.js';
 import { monatszahlen } from '../../src/server/services/buchhaltung/monatszahlen.js';
+import { ausgaben, summen } from '../../src/server/services/finanz/ausgabe.js';
 import { KALENDERJAHR } from '../../src/server/services/buchhaltung/wirtschaftsjahr.js';
 import { PeriodenschlussFehler, schliessePeriode } from '../../src/server/services/buchhaltung/periodenschluss.js';
 import { gruppenFinanzen } from '../../src/server/services/gruppe/finanzen.js';
@@ -417,5 +418,214 @@ describe('(4) das Periodenschloss', () => {
     expect(m.aufwandCent).toBe(100_000n);
     expect(m.periode?.eingefroren?.aufwandCent).toBe(80_000n);
     expect(m.periode?.abweichung).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (5) Betriebsausgaben zaehlen zum Aufwand (V-215, D-706)
+// ---------------------------------------------------------------------------
+
+/**
+ * Eine Betriebsausgabe mit Beleg — als `postgres` gesetzt, weil die Fixtur
+ * den Ausgangszustand herstellt; den Schreibweg prueft `ausgabe*.test.ts`.
+ */
+async function ausgabe(
+  mandantId: string, datum: string, nettoCent: bigint,
+  { status = 'gebucht', anstellungId = null, eingangsrechnungId = null }: {
+    status?: 'erfasst' | 'freigegeben' | 'gebucht' | 'abgelehnt';
+    anstellungId?: string | null;
+    eingangsrechnungId?: string | null;
+  } = {},
+): Promise<string> {
+  const [k] = await sql.unsafe<{ id: string }[]>(
+    `insert into ausgabe_kategorie (mandant_id, schluessel, bezeichnung, erstellt_von_art, erstellt_von)
+     values ($1, $2, 'Kraftstoff', 'mensch', $3) returning id`,
+    [mandantId, `kraftstoff-${zufall()}`, benutzer]);
+  const schluessel = `mandant/${mandantId}/beleg/${zufall()}.pdf`;
+  const [d] = await sql.unsafe<{ id: string }[]>(
+    `insert into dokument (mandant_id, kategorie, titel, objekt_schluessel, mime_typ,
+                           mime_verifiziert, groesse_bytes, entstanden_am, exif_entfernt)
+     values ($1,'buchhaltung','Tankbeleg',$2,'application/pdf',true,2048,$3::date,true)
+     returning id`, [mandantId, schluessel, datum]);
+  const [v] = await sql.unsafe<{ id: string }[]>(
+    `insert into dokument_version (mandant_id, dokument_id, version, objekt_schluessel,
+                                   sha256, groesse_bytes, mime_typ)
+     values ($1,$2,1,$3,$4,2048,'application/pdf') returning id`,
+    [mandantId, d!.id, schluessel, SHA]);
+  const steuer = nettoCent * 19n / 100n;
+  const [b] = await sql.unsafe<{ id: string }[]>(
+    `insert into beleg (mandant_id, belegnummer, typ, quelle, dokument_id,
+                        dokument_version_id, datei_sha256, seiten, belegdatum,
+                        betrag_brutto_cent, erstellt_von_art, erstellt_von)
+     values ($1,$2,'kassenbeleg','scan',$3,$4,$5,1,$6::date,$7,'mensch',$8)
+     returning id`,
+    [mandantId, `B-${zufall()}`, d!.id, v!.id, SHA, datum, (nettoCent + steuer).toString(), benutzer]);
+  const [a] = await sql.unsafe<{ id: string }[]>(
+    `insert into ausgabe (mandant_id, kategorie_id, bezeichnung, ausgabedatum,
+                          netto_cent, steuer_cent, brutto_cent, zahlungsmittel,
+                          beleg_id, anstellung_id, eingangsrechnung_id, status,
+                          freigegeben_von, freigegeben_am, abgelehnt_grund,
+                          erstellt_von_art, erstellt_von)
+     values ($1,$2,'Tankbeleg',$3::date,$4,$5,$6,'karte',$7,$8,$9,'erfasst',
+             null, null, null, 'mensch',$10)
+     returning id`,
+    [mandantId, k!.id, datum, nettoCent.toString(), steuer.toString(),
+      (nettoCent + steuer).toString(), b!.id, anstellungId, eingangsrechnungId, benutzer]);
+  await sql.unsafe(
+    `insert into ausgabe_steuer (mandant_id, ausgabe_id, steuersatz_gruppe_id, satz_bp, kategorie,
+                                 netto_cent, steuer_cent, erstellt_von_art, erstellt_von)
+     select $1, $2, g.id, g.satz_bp, g.kategorie, $3, $4, 'mensch', $5
+       from steuersatz_gruppe g where g.schluessel = 'ust_19'`,
+    [mandantId, a!.id, nettoCent.toString(), steuer.toString(), benutzer]);
+  /* Die Zustaende ueber ihre Uebergaenge (0180), nicht gesetzt. */
+  if (status === 'abgelehnt') {
+    await sql.unsafe(
+      `update ausgabe set status = 'abgelehnt', abgelehnt_grund = 'Beleg unleserlich' where id = $1`,
+      [a!.id]);
+  }
+  if (status === 'freigegeben' || status === 'gebucht') {
+    await sql.unsafe(
+      `update ausgabe set status = 'freigegeben', freigegeben_von = $2 where id = $1`,
+      [a!.id, benutzer]);
+  }
+  if (status === 'gebucht') {
+    await sql.unsafe(`update ausgabe set status = 'gebucht' where id = $1`, [a!.id]);
+  }
+  return a!.id;
+}
+
+describe('(5) Betriebsausgaben zaehlen zum Aufwand — im Bereich, in der Gruppe, beim Schliessen', () => {
+  it('eine gebuchte und eine freigegebene Ausgabe senken das Ergebnis; erfasste und abgelehnte nicht',
+    async () => {
+      await festgeschrieben(100_000n);
+      const tag = await heute();
+      const jahr = Number(tag.slice(0, 4));
+      const monat = tag.slice(0, 7);
+      await ausgabe(f.reinigung, tag, 3_000n, { status: 'gebucht' });
+      await ausgabe(f.reinigung, tag, 2_000n, { status: 'freigegeben' });
+      await ausgabe(f.reinigung, tag, 7_000n, { status: 'erfasst' });
+      await ausgabe(f.reinigung, tag, 9_000n, { status: 'abgelehnt' });
+      /* Eine Erstattung ist Aufwand der Gesellschaft wie jede andere Ausgabe. */
+      await ausgabe(f.reinigung, tag, 500n, { anstellungId: f.fatimaReinigung });
+
+      const z = await alsApp(sitzung(), (tx) => monatszahlen(kontextAus(tx), jahr, KALENDERJAHR));
+      const m = z.monate.find((x) => x.monat === monat)!;
+      expect(m.aufwandEingangCent).toBe(0n);
+      expect(m.aufwandAusgabenCent).toBe(5_500n);
+      expect(m.ausgaben).toBe(3);
+      expect(m.aufwandCent).toBe(5_500n);
+      expect(m.ergebnisCent).toBe(100_000n - 5_500n);
+      expect(z.summe.aufwandCent).toBe(5_500n);
+    });
+
+  it('eine Ausgabe aus einer Eingangsrechnung zaehlt dort und nicht noch einmal', async () => {
+    const lieferant = await legeLieferantAn();
+    const tag = await heute();
+    const jahr = Number(tag.slice(0, 4));
+    const er = await eingangsrechnungFreigegeben(lieferant, tag, 40_000n);
+    await ausgabe(f.reinigung, tag, 40_000n, { eingangsrechnungId: er });
+
+    const z = await alsApp(sitzung(), (tx) => monatszahlen(kontextAus(tx), jahr, KALENDERJAHR));
+    const m = z.monate.find((x) => x.monat === tag.slice(0, 7))!;
+    expect(m.aufwandEingangCent).toBe(40_000n);
+    expect(m.aufwandAusgabenCent).toBe(0n);
+    expect(m.aufwandCent).toBe(40_000n);
+  });
+
+  it('die Gruppe ist weiterhin die Summe der Gesellschaften — auch mit einer Erstattung, die sie als Zeile nicht sieht',
+    async () => {
+      await macheFakturierfaehig(f.security);
+      const kundeSecurity = await legeKundeAn(f.security);
+      await festgeschrieben(100_000n);
+      await festgeschrieben(80_000n, f.security, kundeSecurity);
+      const tag = await heute();
+      const jahr = Number(tag.slice(0, 4));
+      const monatNr = Number(tag.slice(5, 7));
+      await ausgabe(f.reinigung, tag, 4_000n);
+      await ausgabe(f.reinigung, tag, 1_250n, { anstellungId: f.fatimaReinigung });
+      await ausgabe(f.security, tag, 6_000n);
+
+      const r = await alsApp(sitzung(), (tx) => monatszahlen(kontextAus(tx), jahr, KALENDERJAHR));
+      const s = await alsApp(sitzung(f.security),
+        (tx) => monatszahlen(kontextAus(tx, f.security), jahr, KALENDERJAHR));
+      expect(r.summe.aufwandCent).toBe(5_250n);
+      expect(s.summe.aufwandCent).toBe(6_000n);
+
+      const g = await sql.begin(async (tx) =>
+        withGroupScope(tx as never, gruppenSitzung(benutzer), (k) => gruppenFinanzen(k, jahr)));
+      /* Die Gruppe SIEHT die Erstattung als Zeile nicht (0180) — und zaehlt sie trotzdem mit. */
+      const sichtbar = await sql.begin(async (tx) =>
+        withGroupScope(tx as never, gruppenSitzung(benutzer), (k) => k.abfrage<{ n: string }>(
+          'select count(*)::text as n from ausgabe')));
+      /* Drei Ausgaben, zwei Zeilen: die Erstattung bleibt der Gruppe verborgen. */
+      expect(sichtbar[0]?.n).toBe('2');
+
+      const rein = g.bereiche.find((b) => b.mandantId === f.reinigung)!;
+      expect(rein.ausgabenCent).toBe(5_250n);
+      expect(rein.aufwandCent).toBe(5_250n);
+      expect(rein.saldoCent).toBe(100_000n - 5_250n);
+      expect(g.summe.aufwandCent).toBe(r.summe.aufwandCent + s.summe.aufwandCent);
+      expect(g.summe.saldoCent).toBe(r.summe.ergebnisCent + s.summe.ergebnisCent);
+      const gM = g.aufwandJeMonat.find((x) => x.monat === monatNr)!;
+      expect(gM.summe).toBe(11_250n);
+      expect(g.ausgabenJeMonat.find((x) => x.monat === monatNr)!.summe).toBe(11_250n);
+    });
+
+  it('im Bereich liefert die Funktion nur den aktiven Mandanten (Invariante 3)', async () => {
+    const tag = await heute();
+    await ausgabe(f.reinigung, tag, 4_000n);
+    await ausgabe(f.security, tag, 6_000n);
+    const zeilen = await alsApp(sitzung(), (tx) => tx.unsafe<{ mandant_id: string; netto: string }[]>(
+      "select mandant_id::text as mandant_id, netto_cent::text as netto from app.ausgaben_aufwand('2000-01-01', '2100-12-31')"));
+    expect(zeilen.map((z) => z.mandant_id)).toEqual([f.reinigung]);
+    expect(zeilen[0]?.netto).toBe('4000');
+  });
+
+  it('ein Monat schliesst mit dem Aufwand aus Ausgaben', async () => {
+    const tag = await heute();
+    const vormonat = monatVerschieben(`${tag.slice(0, 7)}-01`, -1);
+    const grenzen = monatsgrenzen(vormonat);
+    const jahr = Number(vormonat.slice(0, 4)); const monat = Number(vormonat.slice(5, 7));
+    await ausgabe(f.reinigung, grenzen.bis, 12_345n);
+
+    await alsApp(sitzung(), (tx) => schliessePeriode(kontextAus(tx), { jahr, monat, art: 'endgueltig' }));
+    const [p] = await sql.unsafe<{ aufwand: string; ergebnis: string }[]>(
+      `select aufwand_cent::text as aufwand, ergebnis_cent::text as ergebnis
+         from periode where mandant_id = $1 and jahr = $2 and monat = $3`, [f.reinigung, jahr, monat]);
+    expect(p).toMatchObject({ aufwand: '12345', ergebnis: '-12345' });
+  });
+
+  /*
+   * V-217: die Spalte „Betriebsausgaben" verlinkt auf die Ausgabenliste des
+   * Monats. Ohne Filter zeigte die Liste alle Zustände und auch Ausgaben aus
+   * Eingangsrechnungen, und ihre Summe passte nicht zur Spalte.
+   */
+  it('die verlinkte Liste (?monat=…&aufwand=ja) summiert genau die Spalte', async () => {
+    const lieferant = await legeLieferantAn();
+    const tag = await heute();
+    const jahr = Number(tag.slice(0, 4));
+    const monat = tag.slice(0, 7);
+    await ausgabe(f.reinigung, tag, 3_000n, { status: 'gebucht' });
+    await ausgabe(f.reinigung, tag, 2_000n, { status: 'freigegeben' });
+    await ausgabe(f.reinigung, tag, 7_000n, { status: 'erfasst' });
+    await ausgabe(f.reinigung, tag, 9_000n, { status: 'abgelehnt' });
+    const er = await eingangsrechnungFreigegeben(lieferant, tag, 40_000n);
+    await ausgabe(f.reinigung, tag, 40_000n, { eingangsrechnungId: er });
+
+    const z = await alsApp(sitzung(), (tx) => monatszahlen(kontextAus(tx), jahr, KALENDERJAHR));
+    const spalte = z.monate.find((x) => x.monat === monat)!.aufwandAusgabenCent;
+    expect(spalte).toBe(5_000n);
+
+    const mitFilter = await alsApp(sitzung(), (tx) =>
+      summen(kontextAus(tx), { monat, nurAufwand: true }));
+    expect(mitFilter.nettoCent).toBe(spalte);
+    const liste = await alsApp(sitzung(), (tx) =>
+      ausgaben(kontextAus(tx), { monat, nurAufwand: true }));
+    expect(liste.map((a) => a.status).sort()).toEqual(['freigegeben', 'gebucht']);
+    expect(liste.every((a) => a.eingangsrechnungId === null)).toBe(true);
+
+    /* Ohne den Filter sind es alle fünf — die Abweichung, die der Befund meinte. */
+    const ohne = await alsApp(sitzung(), (tx) => summen(kontextAus(tx), { monat }));
+    expect(ohne.nettoCent).toBe(61_000n);
   });
 });

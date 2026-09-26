@@ -9,6 +9,7 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { haeltRechte } from '../../../rechte';
 import { ladeReviere, mitLesekontext, type RevierZeile } from '../daten';
 
 /**
@@ -51,6 +52,13 @@ export default async function ReviereListe({
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /*
+   * Der Knopf haengt an `reinigung.schreiben` — demselben Recht, das Route und
+   * RLS verlangen. Ihn jedem zu zeigen hiesse, die Haelfte der Belegschaft auf
+   * eine Seite zu schicken, die ihr nur sagt, dass sie dort nichts darf.
+   */
+  const darf = await haeltRechte(sitzung, 'reinigung.schreiben');
+
   const reviere = await mitLesekontext(sitzung, async (kontext) => ladeReviere(kontext));
 
   const ohneRaeume = reviere.filter((r) => r.anzahlRaeume === 0).length;
@@ -69,11 +77,23 @@ export default async function ReviereListe({
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="m-0 text-h1 text-text">Reviere</h1>
-        <p className="m-0 text-sm text-text-muted">
-          {reviere.length === 1 ? '1 Zone' : `${String(reviere.length)} Zonen`}
-        </p>
+      <div className="mb-s5 flex flex-wrap items-center justify-between gap-s3">
+        <div className="flex flex-wrap items-baseline gap-s3">
+          <h1 className="m-0 text-h1 text-text">Reviere</h1>
+          <p className="m-0 text-sm text-text-muted">
+            {reviere.length === 1 ? '1 Zone' : `${String(reviere.length)} Zonen`}
+          </p>
+        </div>
+        {darf['reinigung.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/reinigung/reviere/neu`}
+            data-cse="revier-neu"
+            className="inline-flex min-h-11 items-center rounded-md bg-brand px-s4
+                       text-sm font-semibold text-white hover:bg-brand-hover"
+          >
+            Neues Revier
+          </Link>
+        )}
       </div>
 
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
@@ -102,6 +122,15 @@ export default async function ReviereListe({
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Für diese Gesellschaft ist noch keine Zone zugeschnitten. Ein Revier
           entsteht am Objekt — es ist die Einheit, gegen die der Dienstplan plant.
+          {darf['reinigung.schreiben'] === true && (
+            <>
+              {' '}
+              <Link href={`/portal/${mandant}/reinigung/reviere/neu`}
+                    className="underline underline-offset-2 hover:text-text">
+                Die erste zuschneiden.
+              </Link>
+            </>
+          )}
         </p>
       ) : (
         <DataTable<RevierZeile>

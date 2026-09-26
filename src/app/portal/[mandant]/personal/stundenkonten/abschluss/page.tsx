@@ -53,7 +53,7 @@ export default async function Monatsabschluss({
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
-  const darf = await haeltRechte(sitzung, 'zeit.konto_lesen');
+  const darf = await haeltRechte(sitzung, 'zeit.konto_lesen', 'zeit.lesen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const frage = await searchParams;
@@ -89,6 +89,7 @@ export default async function Monatsabschluss({
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
+      aktiverTab="personal"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -196,11 +197,37 @@ export default async function Monatsabschluss({
               schluessel: 'abschluss',
               kopf: 'Abschluss',
               zelle: (z) => (z.offeneZeiten > 0 ? (
-                <span className="text-warning">
-                  {z.offeneZeiten === 1
-                    ? '1 Zeiteintrag ist nicht freigegeben'
-                    : `${String(z.offeneZeiten)} Zeiteinträge sind nicht freigegeben`}
-                </span>
+                /*
+                 * **Die Zahl führt jetzt zu den Einträgen** (V-070).
+                 *
+                 * Sie stand als Satz da und zeigte auf nichts: wer die drei
+                 * offenen Einträge sehen wollte, musste sie in einer
+                 * Wochenliste suchen, ohne zu wissen, in welcher Woche. Der
+                 * Verweis spannt das Fenster über den GANZEN Monat und
+                 * filtert auf die Person und auf „nicht freigegeben" — also
+                 * genau auf die Menge, deren Grösse hier steht.
+                 *
+                 * `zeit.lesen` bewacht das Ziel; die Seite hier trägt
+                 * `zeit.konto_lesen`. Ohne das erste führte der Verweis auf
+                 * 404 und verriete, was er nicht zeigen darf (AUT-06).
+                 */
+                darf['zeit.lesen'] === true ? (
+                  <Link
+                    href={`/portal/${mandant}/zeiten?monat=${monat.slice(0, 7)}&person=${z.personId}&merkmal=nicht_freigegeben`}
+                    data-cse="zu-offenen-zeiten"
+                    className="text-warning underline underline-offset-2 hover:text-text"
+                  >
+                    {z.offeneZeiten === 1
+                      ? '1 Zeiteintrag ist nicht freigegeben'
+                      : `${String(z.offeneZeiten)} Zeiteinträge sind nicht freigegeben`}
+                  </Link>
+                ) : (
+                  <span className="text-warning">
+                    {z.offeneZeiten === 1
+                      ? '1 Zeiteintrag ist nicht freigegeben'
+                      : `${String(z.offeneZeiten)} Zeiteinträge sind nicht freigegeben`}
+                  </span>
+                )
               ) : (
                 <form
                   method="post"

@@ -262,10 +262,54 @@ export default async function CheckinLinks(
                     <input type="hidden" name="zuordnung" value={z.zuordnungId} />
                     <input type="hidden" name="zweck" value="checkin" />
                     <input type="hidden" name="zurueck" value={pfad} />
-                    <Button type="submit" variante="primary" data-cse="marke-ausgeben">
-                      {z.tokenId === null ? 'Link ausgeben' : 'Neuen Link ausgeben'}
+                    <Button type="submit" data-cse="marke-ausgeben"
+                            variante={z.eingeloestAm !== null && z.zweck === 'checkin'
+                              ? 'ghost' : 'secondary'}>
+                      {z.tokenId === null ? 'Einstempel-Link ausgeben'
+                        : 'Neuen Einstempel-Link ausgeben'}
                     </Button>
                   </form>
+
+                  {/*
+                    * **Die Ausstempel-Marke** (V-068).
+                    *
+                    * `token_zweck` kennt seit je `checkin` UND `checkout`; die
+                    * Route nimmt beides entgegen (`ZWECKE`), `loeseCheckinEin`
+                    * unterscheidet beides, und `app.checkin_einloesen` schreibt
+                    * beim Auschecken das Ende. Nur AUSGEGEBEN wurde nie eine:
+                    * diese Oberflaeche schickte fest `zweck="checkin"`.
+                    *
+                    * Die Folge traf genau die Kraefte, fuer die der ganze Weg
+                    * gebaut ist — die ohne Portalkonto (EMP-01). Sie konnten
+                    * einstempeln und danach nie ausstempeln; ihr Eintrag lief
+                    * weiter, bis jemand ihn von Hand schloss.
+                    *
+                    * **Der Knopf steht erst nach dem EINLOESEN da**, und das
+                    * ist keine Zierde: eine Ausstempel-Marke fuer jemanden, der
+                    * noch nicht eingestempelt hat, ist ein Link, der ins Leere
+                    * fuehrt — `app.checkin_einloesen` weist ihn ab, weil es
+                    * keinen offenen Eintrag gibt. Ein Knopf, der einen Fehler
+                    * erzeugt, ist schlechter als keiner.
+                    */}
+                  {z.eingeloestAm !== null && z.zweck === 'checkin' && (
+                    <form method="post" action="/api/checkin-marken">
+                      <input type="hidden" name="aktion" value="ausgeben" />
+                      <input type="hidden" name="mandant" value={mandant} />
+                      <input type="hidden" name="zuordnung" value={z.zuordnungId} />
+                      <input type="hidden" name="zweck" value="checkout" />
+                      <input type="hidden" name="zurueck" value={pfad} />
+                      {/*
+                        * `secondary` und nicht `primary`: DESIGN §5 laesst
+                        * EINEN roten Knopf je Bildschirm zu, und hier stehen
+                        * bis zu vierzig Karten. Die Rangfolge macht stattdessen
+                        * der Knopf daneben — er faellt auf `ghost`, sobald das
+                        * Einstempeln erledigt ist.
+                        */}
+                      <Button type="submit" variante="secondary" data-cse="marke-checkout">
+                        Ausstempel-Link ausgeben
+                      </Button>
+                    </form>
+                  )}
 
                   {/*
                     * Widerrufen nur, solange die Marke noch etwas bewirken kann.

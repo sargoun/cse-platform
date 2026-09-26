@@ -5,7 +5,7 @@
  * Der Katalog gehört diesem Dokument und nur ihm (K-19); eine abgetippte
  * zweite Fassung gewinnt beim ersten Widerspruch, ohne dass ihn jemand sieht.
  *
- * 242 Schlüssel.
+ * 243 Schlüssel.
  */
 import type { KatalogEintrag } from '../../../scripts/katalog/extrahiere.js';
 
@@ -224,6 +224,7 @@ export const KATALOG: readonly KatalogEintrag[] = [
   { schluessel: "system.rolle_verwalten", modul: "system", objekt: "rolle", aktion: "verwalten", gebunden: ["super_admin"], bindbar: ["admin"], nurGlobal: false },
   { schluessel: "system.sitzung_lesen", modul: "system", objekt: "sitzung", aktion: "lesen", gebunden: ["super_admin","admin"], bindbar: ["leitung"], nurGlobal: false },
   { schluessel: "system.sitzung_widerrufen", modul: "system", objekt: "sitzung", aktion: "widerrufen", gebunden: ["super_admin","admin"], bindbar: ["leitung"], nurGlobal: false },
+  { schluessel: "system.verwaltungskonto_erstellen", modul: "system", objekt: "verwaltungskonto", aktion: "erstellen", gebunden: ["super_admin"], bindbar: [], nurGlobal: true },
   { schluessel: "system.zwei_faktor_zuruecksetzen", modul: "system", objekt: "zwei_faktor", aktion: "zuruecksetzen", gebunden: ["super_admin"], bindbar: [], nurGlobal: true },
   { schluessel: "vergabe.einreichung_erfassen", modul: "vergabe", objekt: "einreichung", aktion: "erfassen", gebunden: ["super_admin","admin","leitung"], bindbar: [], nurGlobal: false },
   { schluessel: "vergabe.lesen", modul: "vergabe", objekt: "vergabe", aktion: "lesen", gebunden: ["super_admin","admin","leitung"], bindbar: [], nurGlobal: false },
@@ -236,7 +237,7 @@ export const KATALOG: readonly KatalogEintrag[] = [
   { schluessel: "wissen.vertraulich_lesen", modul: "wissen", objekt: "vertraulich", aktion: "lesen", gebunden: ["super_admin"], bindbar: ["admin","leitung"], nurGlobal: false },
   { schluessel: "zahlung.lesen", modul: "zahlung", objekt: "zahlung", aktion: "lesen", gebunden: ["super_admin","admin","leitung","kunde"], bindbar: [], nurGlobal: false },
   { schluessel: "zahlung.schreiben", modul: "zahlung", objekt: "zahlung", aktion: "schreiben", gebunden: ["super_admin","admin"], bindbar: ["leitung"], nurGlobal: false },
-  { schluessel: "zeit.abrechnung_freigeben", modul: "zeit", objekt: "abrechnung", aktion: "freigeben", gebunden: [], bindbar: [], nurGlobal: false },
+  { schluessel: "zeit.abrechnung_freigeben", modul: "zeit", objekt: "abrechnung", aktion: "freigeben", gebunden: ["super_admin","admin"], bindbar: ["leitung"], nurGlobal: false },
   { schluessel: "zeit.abwesenheit_genehmigen", modul: "zeit", objekt: "abwesenheit", aktion: "genehmigen", gebunden: ["super_admin","admin","leitung"], bindbar: [], nurGlobal: false },
   { schluessel: "zeit.abwesenheit_grund_lesen", modul: "zeit", objekt: "abwesenheit_grund", aktion: "lesen", gebunden: ["super_admin","admin"], bindbar: ["leitung"], nurGlobal: false },
   { schluessel: "zeit.abwesenheit_lesen", modul: "zeit", objekt: "abwesenheit", aktion: "lesen", gebunden: ["super_admin","admin","leitung"], bindbar: [], nurGlobal: false },

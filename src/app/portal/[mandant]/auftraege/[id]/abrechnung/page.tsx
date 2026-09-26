@@ -17,6 +17,10 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { RECHNUNG_ENTWURF_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-entwurf';
 
 /**
  * `/portal/[mandant]/auftraege/[id]/abrechnung` — wie DIESER Auftrag
@@ -31,8 +35,13 @@ import { haeltRechte } from '@/app/portal/rechte';
  * Prüfpfad.
  *
  * **Und jede Art trägt die Marke „provisorisch"** (O-04). Fehlt ein
- * Parameter, steht das an der Zeile — nicht erst in der Fehlermeldung des
- * Abrechnungslaufs, wenn jemand schon eine Rechnung erwartet.
+ * Parameter, steht das an der Zeile — nicht erst in der Vorschau des
+ * Rechnungsentwurfs, wenn jemand schon eine Rechnung erwartet.
+ *
+ * **Wo die Art wirkt** (V-206, D-699): im Rechnungsentwurf dieses Auftrags,
+ * Abschnitt „Nach Abrechnungsart übernehmen". Einen eigenen Abrechnungslauf
+ * gibt es nicht — der Zeitraum ist der Leistungszeitraum des Entwurfs, und
+ * jede Zeile entsteht durch `fuegePositionHinzu` mit Beleg darunter.
  *
  * // TODO(client, O-04): sind dies exakt die fünf Abrechnungsarten?
  * Bezeichnung, Rundung und Satzbasis je Art bestätigen.
@@ -46,6 +55,7 @@ interface Kopf {
   readonly auftragsnummer: string;
   readonly bezeichnung: string;
   readonly kunde: string;
+  readonly status: string;
 }
 
 interface Leistungszeile {
@@ -62,6 +72,25 @@ function offeneParameter(k: VertragAbrechnung): readonly string[] {
     .map((p) => p.schluessel);
 }
 
+/**
+ * Die Sätze zu den Gründen, mit denen `api/abrechnung` zurückkommt (V-024).
+ *
+ * Sie stehen hier, weil sie hier gelesen werden. Vorher antwortete die Route
+ * mit `{"fehler":"keine_abrechnungsart"}` als JSON — eine weisse Seite mit
+ * einem Datenfeld für einen Menschen, der auf einen Knopf gedrückt hat.
+ */
+const FEHLERTEXT: Readonly<Record<string, string>> = {
+  unvollstaendig: 'Es fehlt eine Pflichtangabe.',
+  ungueltig: 'Ein Betrag oder eine Frist war keine gültige Zahl.',
+  keine_abrechnungsart:
+    'Diese Abrechnungsart gibt es nicht mehr, oder sie endet bereits an oder vor dem '
+    + 'genannten Tag.',
+  offener_parameter:
+    'Der gewählten Art fehlt ein Parameter, der im Vertrag stehen muss. Nichts wurde '
+    + 'gespeichert und nichts geraten (O-04).',
+  unbekannte_art: 'Für diese Abrechnungsart ist keine Umsetzung registriert.',
+};
+
 function betragDerArt(k: VertragAbrechnung): string {
   if (k.pauschaleNettoCent !== null) {
     return `${formatiereGeld(k.pauschaleNettoCent)} je Monat`;
@@ -72,9 +101,14 @@ function betragDerArt(k: VertragAbrechnung): string {
 }
 
 export default async function AuftragAbrechnung(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
+  const suche = await searchParams;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/auftraege/${id}/abrechnung`);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -83,13 +117,13 @@ export default async function AuftragAbrechnung(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
-  const darf = await haeltRechte(sitzung, 'auftrag.lesen');
+  const darf = await haeltRechte(sitzung, 'auftrag.lesen', 'finanzen.schreiben');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
       kopf: (await kontext.abfrage<Kopf>(
-        `select a.auftragsnummer, a.bezeichnung, k.name as kunde
+        `select a.auftragsnummer, a.bezeichnung, k.name as kunde, a.status::text as status
            from auftrag a
            join kunde k on k.mandant_id = a.mandant_id and k.id = a.kunde_id
           where a.id = $1`, [id]))[0] ?? null,
@@ -117,6 +151,9 @@ export default async function AuftragAbrechnung(
       aktiverTab="auftraege"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['auftrag.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/auftraege/${id}`, text: `${daten.kopf.auftragsnummer} · ${daten.kopf.bezeichnung}` } }
+        : {})}
     >
       {/*
         * Der Auftrag dahinter öffnet mit `auftrag.lesen` (Manifest); diese
@@ -124,18 +161,39 @@ export default async function AuftragAbrechnung(
         * auf 404 und verriet damit, was er nicht zeigen darf (AUT-06, D-581).
         * Nummer und Bezeichnung stehen in der Überschrift darunter ohnehin.
         */}
-      {darf['auftrag.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/auftraege/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← {daten.kopf.auftragsnummer} · {daten.kopf.bezeichnung}
-          </Link>
-        </nav>
-      )}
       <h1 className="mb-s2 text-h1 text-text">Abrechnung</h1>
       <p className="mb-s5 text-sm text-text-muted">{daten.kopf.kunde}</p>
+
+      {/*
+        * Der Weg zur Rechnung (V-206): die hier festgelegte Art rechnet im
+        * Rechnungsentwurf dieses Auftrags. Vorher verwies die Seite auf einen
+        * „Abrechnungslauf", den es nicht gab.
+        */}
+      {/*
+        * V-209: in der Sprache der Seite, und nicht bei einem stornierten
+        * Auftrag (D-698 Nr. 1) — die Maske böte ihn ohnehin nicht an.
+        */}
+      {darf['finanzen.schreiben'] === true && daten.kopf.status !== 'storniert' && (
+        <p className="mb-s5 max-w-prose text-sm text-text-muted" data-cse="abrechnung-rechnungsweg">
+          {nachSprache(RECHNUNG_ENTWURF_TEXTE, zugang.sprache).wegAbrechnung}{' '}
+          <Link
+            href={alsRoute(`/portal/${mandant}/finanzen/rechnungen/neu?auftrag=${id}`)}
+            className="underline underline-offset-2"
+          >
+            {nachSprache(RECHNUNG_ENTWURF_TEXTE, zugang.sprache).wegAbrechnungLink}
+          </Link>
+        </p>
+      )}
+
+      {fehler === null ? null : (
+        <p
+          data-cse="abrechnung-fehler"
+          className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-warning"
+        >
+          <strong>Nichts wurde gespeichert.</strong>{' '}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+        </p>
+      )}
 
       {daten.konfigurationen.length === 0 ? (
         <p className="max-w-prose rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-warning">
@@ -217,6 +275,53 @@ export default async function AuftragAbrechnung(
                     registriert. Der Auftrag lässt sich nicht berechnen.
                   </p>
                 ) : null}
+
+                {/*
+                  * **Eine laufende Konfiguration beenden** (V-024).
+                  *
+                  * `aktion=beenden` steht seit je in `api/abrechnung` und
+                  * `beendeKonfiguration` im Dienst — nur schickte kein
+                  * Formular sie je. Eine Abrechnungsart, die einmal gilt,
+                  * galt damit für immer: die Reihe konnte nur wachsen, und
+                  * der Preisstand von 2024 stand neben dem von 2026 ohne Ende.
+                  *
+                  * **Sie wird nicht gelöscht, sondern datiert beendet.** Eine
+                  * festgeschriebene Rechnung muss nachrechenbar bleiben; die
+                  * Reihe ist die Antwort auf „nach welcher Regel ist das
+                  * entstanden".
+                  */}
+                {k.gueltigBis !== null ? null : (
+                  <form
+                    method="post"
+                    action={`/api/abrechnung?mandant=${mandant}`}
+                    data-cse="abrechnung-beenden"
+                    className="mt-s4 flex flex-wrap items-end gap-s3 border-t border-line pt-s4"
+                  >
+                    <input type="hidden" name="aktion" value="beenden" />
+                    <input type="hidden" name="auftragId" value={id} />
+                    <input type="hidden" name="konfigurationId" value={k.id} />
+                    <div className="min-w-[14ch] flex-1">
+                      <label className="block text-sm text-text" htmlFor={`bis-${k.id}`}>
+                        Gilt letztmals am
+                      </label>
+                      <input
+                        id={`bis-${k.id}`} name="gueltigBis" type="date" required
+                        min={k.gueltigAb} className={FELD}
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
+                    >
+                      Beenden
+                    </button>
+                    <p className="w-full text-xs text-text-muted">
+                      Der Tag zählt mit. Ab dem Folgetag greift die nächste
+                      Konfiguration — gibt es keine, lässt sich der Auftrag
+                      danach nicht mehr berechnen.
+                    </p>
+                  </form>
+                )}
               </li>
             );
           })}

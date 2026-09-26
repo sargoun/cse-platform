@@ -32,17 +32,18 @@ import { seedEingang } from './eingang.js';
 import { seedFinanzAusgaben } from './finanz-ausgabe.js';
 import { seedRechnungen } from './rechnung.js';
 import { seedSocial } from './social.js';
+import { seedReferenzAusAuftrag } from './referenzauftrag.js';
 import { seedRecruiting } from './recruiting.js';
 import { seedAkquise } from './akquise.js';
 import { seedBerichtsdaten } from './berichtsdaten.js';
-import { seedRadar } from './radar.js';
+import { seedRadar, seedRadarLead } from './radar.js';
 import { DEMO_KENNWORT, seedZugangsdaten } from './zugang.js';
 import { seedBenachrichtigungen } from './benachrichtigung.js';
 import { seedKern } from './kern.js';
 import { seedDatenschutz } from './datenschutz.js';
 import { seedCrm } from './crm.js';
 import { devFlaechenAn } from '../../../lib/dev-flaechen.js';
-import { SupabaseSpeicher } from '../../storage/adapter.js';
+import { waehleSpeicher } from '../../storage/waehle.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 if (url === undefined || url === '') {
@@ -977,13 +978,20 @@ async function main(): Promise<void> {
       [2, 'Erste Mahnung (unbestätigt)', 28],
       [3, 'Letzte Mahnung (unbestätigt)', 42],
     ] as const) {
+      /*
+       * Der Mahntext (V-214) als ausdrücklicher PLATZHALTER, kein Wortlaut:
+       * was eine Erinnerung oder eine letzte Mahnung sagt, entscheidet die
+       * Gesellschaft. So zeigen Vorlagenseite und Schreiben, WO er steht.
+       */
+      const mahntext = `PLATZHALTER (O-19): Der Mahntext der Stufe ${String(stufe)} `
+        + 'kommt von der Gesellschaft und wird unter Einstellungen › Mahnwesen eingetragen.';
       await sql`
         insert into mahnstufe
           (mandant_id, stufe, bezeichnung, tage_nach_faelligkeit, gebuehr_cent,
-           zinsberechnung, ist_platzhalter, gueltig_ab,
+           zinsberechnung, textbaustein, ist_platzhalter, gueltig_ab,
            erstellt_von_art, erstellt_von_dienst)
         values (${ids.get(b.slug)!}, ${stufe}, ${bez}, ${tage}, 0,
-                'keine', true, ${heute}, 'system', 'job:seed')
+                'keine', ${mahntext}, true, ${heute}, 'system', 'job:seed')
         on conflict do nothing`;
     }
   }
@@ -1497,6 +1505,52 @@ async function main(): Promise<void> {
   process.stdout.write(`  ${konten.length} Rollenkonten (admin, leitung, mitarbeiter, kunde)\n`);
 
   /**
+   * **Eine Administration mit ZUGEWIESENEN Modulen** (AUT-01, V-164, D-658).
+   *
+   * SPEC §3: „Admin — assigned modules within assigned areas". Die Spalte
+   * `benutzer_mandant.module` wirkt seit 0008 als Schnittmenge — und kein
+   * geseedetes Konto trug je eine Liste, also liess sich die Einschraenkung
+   * weder vorfuehren noch widerlegen. Dieses Konto ist die Vertriebs-
+   * Administration der Reinigung: Kunden, Angebote, Auftraege, Objekte, die
+   * Uebersicht — und ausdruecklich NICHT Finanzen, Personal oder System.
+   *
+   * **Ein eigenes Konto und kein umgebautes.** `admin.reinigung` traegt die
+   * Browsersuite; ihm Module zu nehmen, hiesse, dreissig Pruefungen aus dem
+   * falschen Grund rot zu machen. Und ein Konto OHNE Person, mit Absicht:
+   * diese Administration fuehrt kein Wachbuch und steht in keinem Dienstplan
+   * — eine erfundene Beschaeftigung dazu waere eine Kostenstelle ohne Satz
+   * (O-347) und ein Mensch, den es nicht gibt.
+   *
+   * Der Seed schreibt die Liste direkt: er laeuft als Eigentuemer, und der
+   * Ausloeser `kern.bm_module_pruefen` (0416) prueft sie trotzdem gegen den
+   * Katalog. Der Anwendungsweg geht ueber `app.mitgliedschaft_module_setzen`.
+   */
+  {
+    const email = 'admin.vertrieb@cse-gruppe.de';
+    const id = await authBenutzer(email);
+    await sql`
+      insert into auth.mfa_factors (user_id)
+      select ${id}
+       where not exists (select 1 from auth.mfa_factors f where f.user_id = ${id})`;
+    await sql`
+      insert into benutzer (id, email, name, status)
+      values (${id}, ${email}, 'Administration Vertrieb Reinigung', 'aktiv')
+      on conflict (id) do update set status = 'aktiv'`;
+    await sql`
+      insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, ist_standard)
+      values (${id}, ${ids.get('reinigung')!}, ${rollenIds.get('admin')!}, true)
+      on conflict do nothing`;
+    const vertrieb = ['angebot', 'auftrag', 'bericht', 'crm', 'kalkulation', 'katalog', 'objekt'];
+    await sql`
+      update benutzer_mandant set module = ${vertrieb}::text[]
+       where benutzer_id = ${id} and mandant_id = ${ids.get('reinigung')!}
+         and entzogen_am is null
+         and module is distinct from ${vertrieb}::text[]`;
+    process.stdout.write(
+      `  1 Administration mit zugewiesenen Modulen (${vertrieb.join(', ')}) — AUT-01\n`);
+  }
+
+  /**
    * **Die Telefonzugaenge — ohne die sich niemand anmelden kann** (EMP-01,
    * PR 20).
    *
@@ -1554,13 +1608,21 @@ async function main(): Promise<void> {
    */
   const [kundenKonto] = await sql<{ id: string }[]>`
     select id from benutzer where email = 'kunde.demo@example.test' limit 1`;
-  const ops = await seedOperations(sql, ids, kundenKonto?.id ?? null);
+  /*
+   * Der Dateispeicher, einmal gewaehlt fuer den ganzen Lauf (V-131, D-623):
+   * Supabase, wenn verbunden, sonst der Vorfuehrordner, sonst keiner.
+   */
+  const dateiSpeicher = waehleSpeicher();
+  const verbundenerSpeicher = dateiSpeicher.verbunden ? dateiSpeicher : null;
+  const ops = await seedOperations(sql, ids, kundenKonto?.id ?? null, verbundenerSpeicher);
   process.stdout.write(
     `  ${String(ops.objekte)} Objekte, ${String(ops.raeume)} Raeume, `
     + 'Belagsarten und Reinigungsklassen (Leistungswerte: Platzhalter, O-17)\n'
     + `  ${String(ops.belegschaftsdokumente)} der Belegschaft freigegebene `
-    + 'Unterlagen (EMP-11, DOC-04) — Metadaten ohne Datei, der Bucket ist nicht '
-    + 'verbunden\n',
+    + 'Unterlagen (EMP-11, DOC-04) — '
+    + (verbundenerSpeicher === null
+      ? 'Metadaten ohne Datei, der Bucket ist nicht verbunden\n'
+      : `${String(ops.mitDatei)} Dateien als DEMODATEN beschriftet im Speicher\n`),
   );
 
   /**
@@ -1736,8 +1798,10 @@ async function main(): Promise<void> {
     process.stdout.write(
       `  ${String(vertrieb.angebote)} Angebote mit ${String(vertrieb.positionen)} `
       + `Positionen aus der Kalkulation (${vertrieb.angebotsnummer ?? 'ohne Nummer'} `
-      + `versendet → Auftrag ${vertrieb.auftragsnummer ?? '—'}, `
-      + `${String(vertrieb.entwuerfe)} Entwurf ohne Nummer — den sieht der Kunde nicht)\n`,
+      + `versendet → Auftrag ${vertrieb.auftragsnummer ?? '—'} `
+      + `aus Anfrage ${vertrieb.anfrage ?? '—'}, `
+      + `${String(vertrieb.entwuerfe)} Entwurf ohne Nummer — den sieht der Kunde nicht, `
+      + `mit ${String(vertrieb.kostenzeilen)} Material-/Gerätezeilen aus Demodaten)\n`,
     );
     if (vertrieb.offeneFragen.length > 0) {
       process.stdout.write(
@@ -1754,7 +1818,7 @@ async function main(): Promise<void> {
    * Der Auftrag entsteht hier direkt, denn ein Bauauftrag kommt aus dem LV des
    * Auftraggebers und nicht aus der Reinigungskalkulation.
    */
-  const bau = await seedBau(sql, ids);
+  const bau = await seedBau(sql, ids, verbundenerSpeicher);
   if (bau.projekte === 0) {
     // Zweiter Lauf: das Bauprojekt steht. Ein eingereichter Nachtrag laesst
     // sich nicht zurueckziehen und ein abgeschlossener Bautag nicht aendern.
@@ -1771,7 +1835,9 @@ async function main(): Promise<void> {
     process.stdout.write(
       `  ${String(bau.behinderungen)} Behinderungen nach \u00a7 6 VOB/B, davon `
       + `${String(bau.behinderungenLaufend)} laufend ohne angezeigten Wegfall (BAU-06) `
-      + '\u2014 Versandbeleg fehlt: Medienspeicher nicht verbunden\n',
+      + (bau.behinderungenMitBeleg > 0
+        ? `\u2014 ${String(bau.behinderungenMitBeleg)} ueber dokumentiereVersand mit archiviertem Schreiben\n`
+        : '\u2014 Versandbeleg fehlt: Medienspeicher nicht verbunden\n'),
     );
     process.stdout.write(
       `  ${String(bau.bautage)} Bautage mit ${String(bau.mannstunden)} Mannstundenzeilen `
@@ -1806,6 +1872,14 @@ async function main(): Promise<void> {
     + `${String(radar.empfaenger)} Benachrichtigungsempfaenger OHNE Punktschwelle — `
     + `Fristwarnungen laufen, Treffermeldungen erst mit einer Schwelle (O-15)\n`,
   );
+  /*
+   * Und eine Bekanntmachung als Lead (V-139, CRM-07) — über den Dienst, den
+   * auch der Knopf auf `/radar/[id]` ruft.
+   */
+  const radarLead = await seedRadarLead(sql, ids);
+  process.stdout.write(radarLead === null
+    ? '  Radar-Lead: bereits vorhanden oder keine Bauleitung\n'
+    : `  Radar-Lead ${radarLead} im Bau (Herkunft Vergaberadar, Bekanntmachung demo-2026-0003)\n`);
 
   const frei = await seedFreigaben(sql, ids);
   process.stdout.write(
@@ -1818,8 +1892,7 @@ async function main(): Promise<void> {
    * Eine E-Rechnung im Posteingang (PR 63) — nur, wenn der Objektspeicher
    * verbunden ist; sonst sagt der Seed das und legt nichts an (ACC-03).
    */
-  const speicher = new SupabaseSpeicher();
-  const eingang = await seedEingang(sql, ids, speicher.verbunden ? speicher : null);
+  const eingang = await seedEingang(sql, ids, verbundenerSpeicher);
   process.stdout.write(
     eingang.status === 'angelegt'
       ? `  E-Rechnung im Freigabe-Posteingang: 1 Vorschlag (UBL, ${String(eingang.unsichereFelder)} unsichere Felder) — PR 63\n`
@@ -1917,6 +1990,18 @@ async function main(): Promise<void> {
         + `${String(social.referenzen)} freigegebene Referenzen (SOC-04) und `
         + `${String(social.galeriebilder)} Galeriebilder — als PLATZHALTER markiert, `
         + `weil die fünf CC0-Motive kein Objekt dieser Gruppe zeigen (O-13)\n`));
+
+  /**
+   * Eine Referenz aus einem ABGESCHLOSSENEN Auftrag (V-161, PRO-05) — nach den
+   * Kunden und dem Auftragskreis, nur auf der Vorführfläche (D-537): die
+   * Kundenfreigabe darin ist erfunden und steht als DEMODATEN im Wortlaut.
+   */
+  const referenzAuftrag = await seedReferenzAusAuftrag(sql, ids, demodaten);
+  process.stdout.write(referenzAuftrag.auftragsnummer === null
+    ? `  Referenz aus Auftrag: keine — ${referenzAuftrag.grund ?? 'übersprungen'}\n`
+    : `  Auftrag ${referenzAuftrag.auftragsnummer} abgeschlossen, mit Kundenfreigabe `
+      + `(DEMODATEN); daraus die Referenz „${referenzAuftrag.referenz ?? '—'}" als Entwurf `
+      + 'ohne eigene Freigabe (O-913)\n');
 
   /**
    * Recruiting NACH den Freigaben: eine veröffentlichte Stelle hängt an einer

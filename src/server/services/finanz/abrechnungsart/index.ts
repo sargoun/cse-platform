@@ -15,18 +15,20 @@
  * eine Rechnung nach einer Regel, die im Vertrag nicht steht, und einen
  * Augenblick spaeter ist sie festgeschrieben, gehasht und unveraenderlich.
  */
-import type { Cent } from '../geld.js';
+import { cent, type Cent } from '../geld.js';
 import type { QuelleEingabe } from '../positionsquelle.js';
 import { fuegePositionHinzu, type Abfrage } from '../rechnung.js';
 import { EINHEITSPREIS_AUFMASS } from './einheitspreis-aufmass.js';
 import { EINZELABRUF } from './einzelabruf.js';
 import { FESTPREIS_LOS } from './festpreis-los.js';
 import { MONATSPAUSCHALE } from './monatspauschale.js';
-import { hole, registriere } from './register.js';
+import { hole, istRegistriert, registriere } from './register.js';
+import { tagDeutsch } from '../../../../lib/datum/kalendertag.js';
 import { STUNDENBASIERT } from './stunden.js';
 import {
   AbrechnungFehler,
   type AbrechnungsBefund,
+  type BisherigerAnspruch,
   type Abrechnungsart,
   type HerkunftVerweis,
   type Periode,
@@ -54,7 +56,7 @@ export { alleAbrechnungsarten, entferne, hole, istRegistriert, registriere } fro
 export {
   ABRECHNUNGSARTEN, AbrechnungFehler, type AbrechnungGrund, type AbrechnungsBefund,
   type AbrechnungsEingabe, type Abrechnungsart, type AbrechnungsartSchluessel,
-  type HerkunftVerweis, type OffenerParameter, type Periode,
+  type BisherigerAnspruch, type HerkunftVerweis, type OffenerParameter, type Periode,
   type RechnungspositionEntwurf, type VertragAbrechnung,
 } from './typen.js';
 export { EINHEITSPREIS_AUFMASS } from './einheitspreis-aufmass.js';
@@ -375,6 +377,13 @@ export interface AbrechnungsAuftrag {
   readonly periode: Periode;
   readonly aufmassIds?: readonly string[] | undefined;
   readonly fertigstellungBp?: number | undefined;
+  /**
+   * Der Beleg, für den gerechnet wird — `null` für eine Rechnung ohne Beleg
+   * (ein Test, eine Auskunft). Er entscheidet eine Sache: eine
+   * SCHLUSSRECHNUNG zählt die festgeschriebenen Abschläge ihres Auftrags
+   * nicht als „schon berechnet", weil sie sie abzieht (FIN-08, D-700).
+   */
+  readonly rechnungId?: string | null | undefined;
 }
 
 export interface AbrechnungsErgebnis {
@@ -382,6 +391,81 @@ export interface AbrechnungsErgebnis {
   readonly art: Abrechnungsart;
   readonly befunde: readonly AbrechnungsBefund[];
   readonly positionen: readonly RechnungspositionEntwurf[];
+  /** Was aus dieser Vereinbarung schon auf lebenden Belegen steht (V-207). */
+  readonly bisher: readonly BisherigerAnspruch[];
+}
+
+interface AnspruchZeile {
+  readonly rechnung_id: string;
+  readonly nummer: string | null;
+  readonly angelegt_am: string;
+  readonly leistung_von: string | null;
+  readonly leistung_bis: string | null;
+  readonly netto_cent: string;
+}
+
+/**
+ * **Was aus einer Vereinbarung schon berechnet ist** (V-207, D-700).
+ *
+ * Jede Zeile mit dieser `vertrag_abrechnung_id`, deren Herkunft noch WIRKSAM
+ * ist — auf einem festgeschriebenen Beleg wie auf einem Entwurf, auch auf
+ * dem, der gerade bestückt wird. Ein Entwurf beansprucht den Monat wie eine
+ * Stunde: zwei Entwürfe über denselben August werden sonst beide
+ * festgeschrieben. Storno und Verwerfen setzen `wirksam` auf `false`
+ * (`gibQuellenFrei`), und der Anspruch ist wieder frei.
+ *
+ * **Die eine Ausnahme ist FIN-08.** Eine Schlussrechnung führt die
+ * Gesamtleistung und zieht die festgeschriebenen Abschläge und Anzahlungen
+ * ihres Auftrags danach ab; die Festschreibung hält an, solange einer nicht
+ * abgezogen ist (`offeneAbschlaege`). Für sie ist der Anspruch eines solchen
+ * Abschlags deshalb nicht „schon berechnet" — zählte er, stünde derselbe
+ * Betrag zweimal gegen den Kunden: einmal weggelassen, einmal abgezogen.
+ * Ein Abschlag im Entwurf zählt weiter: abziehen lässt er sich erst mit
+ * Nummer (0117), und bis dahin wäre er doppelt.
+ */
+export async function ladeBisherigeAnsprueche(
+  db: Abfrage, konfigurationId: string, rechnungId: string | null,
+): Promise<readonly BisherigerAnspruch[]> {
+  const zeilen = await db.abfrage<AnspruchZeile>(
+    `select r.id::text as rechnung_id, r.nummer,
+            to_char((r.erstellt_am at time zone 'Europe/Berlin')::date, 'YYYY-MM-DD')
+              as angelegt_am,
+            to_char(p.leistung_von, 'YYYY-MM-DD') as leistung_von,
+            to_char(p.leistung_bis, 'YYYY-MM-DD') as leistung_bis,
+            p.netto_cent::text as netto_cent
+       from rechnungsposition p
+       join rechnung r on r.mandant_id = p.mandant_id and r.id = p.rechnung_id
+      where p.vertrag_abrechnung_id = $1::uuid
+        and exists (select 1 from rechnungsposition_quelle q
+                     where q.rechnungsposition_id = p.id and q.wirksam)
+        and not exists (
+          select 1 from rechnung s
+           where s.id = $2::uuid and s.id <> r.id
+             and s.rechnungsart = 'schluss' and s.auftrag_id = r.auftrag_id
+             and r.rechnungsart in ('abschlag', 'anzahlung')
+             and r.status = 'festgeschrieben')
+      order by p.leistung_von nulls first, r.erstellt_am, p.position_nr`,
+    [konfigurationId, rechnungId]);
+  return zeilen.map((z) => ({
+    rechnungId: z.rechnung_id,
+    nummer: z.nummer,
+    angelegtAm: z.angelegt_am,
+    leistungVon: z.leistung_von,
+    leistungBis: z.leistung_bis,
+    nettoCent: cent(BigInt(z.netto_cent)),
+  }));
+}
+
+/**
+ * Serialisiert jede Übernahme aus DERSELBEN Vereinbarung bis zum Ende der
+ * Transaktion (V-207). Ohne sie lesen zwei gleichzeitige Übernahmen — zwei
+ * Entwürfe, zwei Fenster, ein Doppelklick — beide „noch nichts berechnet"
+ * und schreiben beide. Dieselbe Machart wie die Firmenanlage im CRM und der
+ * Dienstplangenerator.
+ */
+async function sperreVereinbarung(db: Abfrage, konfigurationId: string): Promise<void> {
+  await db.abfrage(
+    `select pg_advisory_xact_lock(hashtext($1))`, [`vertrag_abrechnung:${konfigurationId}`]);
 }
 
 /**
@@ -411,20 +495,29 @@ export async function berechneMitKonfiguration(
   db: Abfrage,
   art: Abrechnungsart,
   konfiguration: VertragAbrechnung,
-  auftrag: Pick<AbrechnungsAuftrag, 'periode' | 'aufmassIds' | 'fertigstellungBp'>,
+  auftrag: Pick<AbrechnungsAuftrag, 'periode' | 'aufmassIds' | 'fertigstellungBp' | 'rechnungId'>,
 ): Promise<AbrechnungsErgebnis> {
+  /*
+   * V-207 (D-700): was schon berechnet ist, liest die Strategie aus der
+   * Eingabe — hier geladen, an EINER Stelle, damit keine Strategie und kein
+   * Aufrufer es vergessen kann.
+   */
+  const bisher = art.sperrtUeberBeleg === true
+    ? []
+    : await ladeBisherigeAnsprueche(db, konfiguration.id, auftrag.rechnungId ?? null);
   const eingabe = {
     konfiguration,
     periode: auftrag.periode,
     aufmassIds: auftrag.aufmassIds,
     fertigstellungBp: auftrag.fertigstellungBp,
+    bisher,
   };
   const befunde = await art.pruefe(db, eingabe);
   if (befunde.some((b) => b.art === 'fehler')) {
-    return { konfiguration, art, befunde, positionen: [] };
+    return { konfiguration, art, befunde, positionen: [], bisher };
   }
   const positionen = await art.positionen(db, eingabe);
-  return { konfiguration, art, befunde, positionen };
+  return { konfiguration, art, befunde, positionen, bisher };
 }
 
 // ---------------------------------------------------------------------------
@@ -445,10 +538,19 @@ function alsQuellen(
 ): readonly QuelleEingabe[] {
   return herkunft.map((h) => {
     if (h.art === 'vertrag_abrechnung') {
+      /*
+       * Die Notiz steht als Herkunft unter der Zeile auf dem Rechnungsblatt
+       * (DSH-04) — sie nennt deshalb die Art beim Namen und den Zeitraum
+       * deutsch, und keine Kennung (V-206). Welche Vereinbarung gemeint ist,
+       * steht maschinenlesbar in `rechnungsposition.vertrag_abrechnung_id`.
+       */
+      const art = istRegistriert(entwurf.abrechnungsart)
+        ? hole(entwurf.abrechnungsart).bezeichnung : entwurf.abrechnungsart;
+      const von = entwurf.leistungVon === null ? '?' : tagDeutsch(entwurf.leistungVon);
+      const bis = entwurf.leistungBis === null ? '?' : tagDeutsch(entwurf.leistungBis);
       return {
         typ: 'manuell' as const,
-        notiz: `${entwurf.abrechnungsart} nach Vertragsabrechnung ${h.id} `
-          + `(${entwurf.leistungVon ?? '?'} bis ${entwurf.leistungBis ?? '?'})`,
+        notiz: `${art} laut Abrechnungsvereinbarung des Auftrags (${von} bis ${bis})`,
       };
     }
     return { typ: h.art, id: h.id, mengeAnteil: h.anteil };
@@ -535,7 +637,15 @@ export async function bestueckeAusAbrechnungsart(
     );
   }
 
-  const ergebnis = await berechneAbrechnung(db, auftrag);
+  /*
+   * V-207: erst die Vereinbarung sperren, dann lesen, was schon berechnet
+   * ist, dann schreiben — in dieser Reihenfolge und in einer Transaktion.
+   */
+  const konfiguration = await ladeKonfiguration(db, auftrag);
+  await sperreVereinbarung(db, konfiguration.id);
+  const ergebnis = await berechneMitKonfiguration(
+    db, hole(konfiguration.abrechnungsart), konfiguration,
+    { ...auftrag, rechnungId: auftrag.rechnungId ?? rechnungId });
   if (ergebnis.positionen.length === 0) {
     return { ...ergebnis, positionIds: [] };
   }

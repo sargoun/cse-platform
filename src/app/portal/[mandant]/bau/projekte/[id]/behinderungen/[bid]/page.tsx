@@ -103,7 +103,7 @@ export default async function BehinderungDetail(
       <section className="mb-s6">
         <h2 className="mb-s2 text-h3 text-text">Anzeigetext</h2>
         <pre
-          className="overflow-x-auto whitespace-pre-wrap rounded-lg border border-line bg-surface p-s5 text-sm text-text"
+          className="overflow-x-auto whitespace-pre-wrap rounded-lg border border-line bg-surface p-s5 font-sans text-sm text-text"
           data-cse="anzeigetext"
         >
           {b.anzeigetext ?? 'Zu dieser Behinderung wurde noch kein Anzeigetext erzeugt.'}

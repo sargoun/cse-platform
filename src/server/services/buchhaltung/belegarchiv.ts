@@ -123,7 +123,7 @@ export async function archiviereRechnungsbeleg(
   let pdf: Uint8Array;
   try {
     const erzeugt = await zugferdZurRechnung(
-      { abfrage: kontext.abfrage.bind(kontext) }, rechnungId);
+      { abfrage: kontext.abfrage.bind(kontext) }, rechnungId, speicher);
     if (erzeugt === null) {
       return {
         grund: 'nicht_festgeschrieben', belegId: null, dokumentId: null,

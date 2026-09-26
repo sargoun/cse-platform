@@ -17,9 +17,9 @@ import { IdentitaetFehler, setzeIdentitaet }
  *
  * Der Handler bleibt duenn: pruefen, den Dienst rufen, antworten. Welche
  * Felder ueberhaupt pflegbar sind, entscheidet nicht er, sondern
- * `setzeIdentitaet` — Farbe (Token, DESIGN §1), Bildpfade (kein Hochladeweg)
- * und Profiltexte (je Sprache in `unternehmensprofil`, D-82) sind bewusst
- * nicht dabei.
+ * `setzeIdentitaet` — Farbe (Token, DESIGN §1), Bildpfade (die setzt
+ * `/api/einstellungen/identitaet/bild` mit der Datei, V-100) und Profiltexte
+ * (je Sprache in `unternehmensprofil`, D-82) sind bewusst nicht dabei.
  *
  * `system.identitaet_verwalten` und nicht `system.mandant_verwalten`: das
  * Erscheinungsbild ist nicht die Firmierung. Wer das Logo pflegt, aendert

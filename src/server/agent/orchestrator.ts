@@ -1,5 +1,5 @@
 import 'server-only';
-import type { SchreibKontext } from '../kontext/index.js';
+import { alsAgent, type SchreibKontext } from '../kontext/index.js';
 import { kanonisiere } from '../services/finanz/kanonisch.js';
 import { risikoPunkte, stufeRisikoEin, type VorgangTyp }
   from '../services/freigabe/posteingang.js';
@@ -139,6 +139,28 @@ export async function fuehreLaufAus(
       schritte: 0, bestand: true, gestoert: null,
     };
   }
+
+  /*
+   * **Ab hier handelt der Agent — und das Protokoll sagt es** (SEC-A9, V-163).
+   *
+   * Artefakt, Freigabe, Kosten und Schritte entstehen durch diesen Lauf, nicht
+   * durch den Menschen, der ihn angestossen hat. Bis V-163 stand jede dieser
+   * Zeilen im Prüfprotokoll als `mensch` mit dessen Kennung: `app.akteur_typ`
+   * setzte niemand auf `agent`, und `audit_log.agent_id` schrieb niemand.
+   * `alsAgent` stellt beides fuer die Dauer des Laufs um und danach zurueck —
+   * die Transaktion des Aufrufers geht als Mensch weiter. Die Aufgabe selbst
+   * (oben) bleibt der Auftrag des Menschen: ER hat sie angelegt.
+   */
+  return alsAgent(kontext, aufgabe.agentId, () => laufeAlsAgent(kontext, auftrag, aufgabe));
+}
+
+/** Der Lauf selbst — Modell, Budget, Entwurf, Freigabe. Nur ueber `alsAgent`. */
+async function laufeAlsAgent(
+  kontext: SchreibKontext,
+  auftrag: LaufAuftrag,
+  aufgabe: Awaited<ReturnType<typeof starteAufgabe>>,
+): Promise<LaufErgebnis> {
+  const db = { abfrage: kontext.abfrage.bind(kontext) };
 
   let port: ModellPort;
   try {

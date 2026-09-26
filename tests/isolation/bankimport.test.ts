@@ -507,9 +507,11 @@ describe('(9) die Klaerung leert die Schlange', () => {
     await offenerPosten();
     const { umsatzId, auszugId } = await wartendeZeile('Gebuehr');
 
+    /* Der Grund ist ein Schlüssel, den das Blatt übersetzt (V-217, D-710). */
     await expect(alsApp(sitzung(), async (tx) =>
       markiereOhneBezug(alsImport(tx), umsatzId, 'kurz')))
-      .rejects.toThrow(ImportFehler);
+      .rejects.toSatisfy((e: unknown) =>
+        e instanceof ImportFehler && e.grund === 'begruendung_fehlt');
 
     const k = await alsApp(sitzung(), async (tx) =>
       markiereOhneBezug(alsImport(tx), umsatzId, 'Kontofuehrungsgebuehr September'));

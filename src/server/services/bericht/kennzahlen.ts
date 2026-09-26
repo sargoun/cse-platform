@@ -181,7 +181,14 @@ export interface AttributionsZeile {
  * Der Kanal steht in `formular_eingang` (UTM-Parameter, Verweisadresse), nicht
  * am Lead: ein Lead kann von Hand entstehen, und dann gibt es keinen Kanal —
  * das ist eine Antwort und keine Lücke. `lead.quelle` ist die gröbere Angabe
- * (Webformular, Radar, Empfehlung, manuell) und bleibt der Rückfall.
+ * (Webformular, Radar, Empfehlung, Akquise, manuell) und bleibt der Rückfall.
+ * Die Akquise stand bis V-139 unter „Manuell erfasst" — ein übernommenes
+ * Akquiseziel ist aber ein eigener Kanal, und genau diese Frage stellt REP-03.
+ *
+ * **Die Aufträge kommen seit V-138 an.** `auftrag.lead_id` schrieb bis dahin
+ * kein Weg; jede Zeile zeigte 0 Aufträge. Jetzt trägt das Angebot die Anfrage
+ * (`legeAngebotAn`), der Auftrag erbt sie (`wandleInAuftrag`) oder bekommt
+ * sie direkt (`/api/auftrag`).
  *
  * **Gezählt wird der Auftrag, nicht das Angebot.** „Channel to SIGNED order"
  * heisst unterschrieben; ein Angebot, das nie angenommen wurde, hat keinen
@@ -201,6 +208,7 @@ export async function attribution(
                          when 'webformular' then 'Website (ohne UTM)'
                          when 'vergabe_radar' then 'Vergaberadar'
                          when 'empfehlung' then 'Empfehlung'
+                         when 'akquise' then 'Akquise'
                          else 'Manuell erfasst'
                        end) as kanal,
               nullif(fe.utm_medium, '')   as medium,

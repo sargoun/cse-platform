@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { StatusPill } from '@/components/ui/StatusPill';
 import {
@@ -100,13 +99,9 @@ export default async function MeinObjektBlatt(
   const zutrittLeer = zugang !== null && zugangIstLeer(zugang);
 
   return (
-    <MeinRahmen basis={basis} titel={o.bezeichnung} aktiverTab="heute">
-      <Link
-        href="/portal/mein/objekte"
-        className="mb-s4 inline-flex min-h-11 items-center text-base text-text underline"
-      >
-        ← {t.objekte}
-      </Link>
+    <MeinRahmen basis={basis} titel={o.bezeichnung} aktiverTab="heute"
+      zurueck={{ ziel: "/portal/mein/objekte", text: t.objekte }}
+    >
 
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <Gesellschaft slug={o.mandantSlug} name={o.mandantName} />

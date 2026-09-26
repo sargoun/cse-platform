@@ -10,6 +10,8 @@ import {
   legePlanungsserieAn, legeTurnusSerieAn, type SerienErgebnis,
 } from '@/server/services/dienstplan/serie';
 import { alsAntwort } from '../../sicherheit/antwort';
+import { LeistungsankerFehler } from '@/server/services/dienstplan/leistungsanker';
+import { maskeMitEingaben } from '@/lib/formular/maske';
 
 /**
  * `POST /api/dienstplan/serien` — eine Serie anlegen und sofort planen
@@ -19,6 +21,11 @@ import { alsAntwort } from '../../sicherheit/antwort';
  * Feiertagsregel → Turnus + Serie + Schichten. `art=posten`: die Serie zu
  * einem Posten mit Dienstzeiten. Formular-POST vom eigenen Ursprung; zurueck
  * geht es auf die Serienliste mit der Zahl der erzeugten Schichten.
+ *
+ * **Ein abgewiesener Anker kommt auf die Maske zurueck** (V-192, D-599): mit
+ * dem Grund als Schluessel und den Eingaben — vorher als JSON-422 im Browser.
+ * Die uebrigen Abweisungen dieses Wegs antworten weiter mit JSON; das ist die
+ * Altlast aus D-599, nicht ein Fall, den das Anker-Feld neu erzeugt.
  */
 export const dynamic = 'force-dynamic';
 
@@ -74,11 +81,24 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           beginnLokal: beginn, dauerMinuten: Number.isFinite(dauer) ? Math.trunc(dauer) : 0,
           gueltigAb, gueltigBis: text(daten, 'gueltig_bis'),
           feiertagsregel: daten.get('feiertage') === 'unveraendert' ? 'unveraendert' : 'ausfall',
+          // Der Abrechnungsanker (V-191, TIM-12) — freiwillig, geprueft im Dienst.
+          auftragLeistungId: text(daten, 'auftrag_leistung'),
         });
       })) as Promise<SerienErgebnis | NextResponse>);
     if (aus instanceof NextResponse) return aus;
     ergebnis = aus;
   } catch (fehler) {
+    if (fehler instanceof LeistungsankerFehler) {
+      const maske = maskeMitEingaben(`${liste}/neu`, fehler.grund, {
+        revier: text(daten, 'revier'), leistung: text(daten, 'leistung'),
+        bezeichnung: text(daten, 'bezeichnung'), beginn: text(daten, 'beginn'),
+        dauer: text(daten, 'dauer'), gueltig_ab: text(daten, 'gueltig_ab'),
+        gueltig_bis: text(daten, 'gueltig_bis'), feiertage: text(daten, 'feiertage'),
+        wochentage: daten.getAll('wochentag').map((w) => String(w)).join(','),
+        auftrag_leistung: text(daten, 'auftrag_leistung'),
+      });
+      return NextResponse.redirect(internesZiel(maske, liste, anfrage), 303);
+    }
     const antwort = alsAntwort(fehler);
     if (antwort !== null) return antwort;
     throw fehler;

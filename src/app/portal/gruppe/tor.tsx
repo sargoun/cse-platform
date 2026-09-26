@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { bindeAnfrage, withGroupScope, type LeseKontext } from '@/server/kontext/index';
+import type { ZurueckProps } from '@/components/portal/Zurueck';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import { AreaBadge } from '@/components/ui/AreaBadge';
@@ -27,7 +28,13 @@ import { portalZugang, type PortalZugang } from '../zugang';
  */
 export type GruppenTor =
   | { readonly art: 'anmeldung' }
-  | { readonly art: 'wechsel'; readonly aktuellerName: string | null; readonly pfad: string }
+  | {
+    readonly art: 'wechsel';
+    readonly aktuellerName: string | null;
+    /** Der Slug des aktuellen Bereichs — fuer sein Zeichen (DESIGN §5). */
+    readonly aktuellerSlug: string | null;
+    readonly pfad: string;
+  }
   | { readonly art: 'ok'; readonly zugang: PortalZugang };
 
 interface Vorentscheid {
@@ -57,7 +64,7 @@ export async function gruppenTor(pfad: string): Promise<GruppenTor> {
   // 404 und nicht 403: eine Absage, die sich von "gibt es nicht"
   // unterscheidet, ist eine Auskunft ueber das, was es gibt (AUT-06).
   if (!darf) notFound();
-  return { art: 'wechsel', aktuellerName, pfad };
+  return { art: 'wechsel', aktuellerName, aktuellerSlug: zugang.mandantSlug, pfad };
 }
 
 /** Die Antwort auf ein Tor, das nicht `ok` sagt. */
@@ -66,6 +73,7 @@ export function GruppenAntwort({ tor }: { readonly tor: Exclude<GruppenTor, { ar
   return (
     <Wechselblatt
       aktuell={tor.aktuellerName}
+      aktuellSlug={tor.aktuellerSlug}
       zielTitel="Gruppenübersicht"
       zielSlug={null}
       zurueck={tor.pfad}
@@ -138,7 +146,9 @@ export function BereichFilter({ bereiche, aktiv, basis }: {
         Alle Bereiche
       </a>
       {bereiche.map((b) => (
-        <a key={b.slug} href={`${basis}?bereich=${b.slug}`}
+        /* `&`, wenn die Basis schon einen Filter trägt (V-149: `?status=offen`)
+           — sonst entstünde `?status=offen?bereich=…`, und beide gingen verloren. */
+        <a key={b.slug} href={`${basis}${basis.includes('?') ? '&' : '?'}bereich=${b.slug}`}
            aria-current={aktiv?.slug === b.slug ? 'page' : undefined}
            data-bereich={b.slug}
            className={pille(aktiv?.slug === b.slug)}>
@@ -176,15 +186,25 @@ export function KeinRecht() {
 }
 
 /** Der Rahmen jeder Gruppenseite: neutraler Streifen, `NUR LESEN`, Gruppenleiste. */
-export function GruppenRahmen({ zugang, titel, aktiverTab, children }: {
+export function GruppenRahmen({ zugang, titel, aktiverTab, zurueck, children }: {
   readonly zugang: PortalZugang;
   readonly titel: string;
   readonly aktiverTab: string;
+  /**
+   * Der Weg eine Ebene hinauf — durchgereicht an `PortalRahmen`
+   * (DESIGN §5 „The way back", D-613).
+   *
+   * Er steht hier als Durchreiche und nicht als eigener Baustein, damit der
+   * Pfeil in jedem Portal an derselben Stelle sitzt: zuerst im `main`, vor
+   * jeder Ueberschrift.
+   */
+  readonly zurueck?: ZurueckProps;
   readonly children: ReactNode;
 }) {
   return (
     <PortalRahmen
       titel={titel}
+      {...(zurueck === undefined ? {} : { zurueck })}
       wurzelTitel="Gruppenübersicht"
       bereich={null}
       nurLesen

@@ -106,7 +106,12 @@ export interface CheckinEingabe {
   readonly token: string;
   /** Die Uhr des Geraets. Wird GESPEICHERT und ist nie massgeblich (TIM-08). */
   readonly geraeteZeit?: Date | null;
-  readonly ip?: string | null;
+  /**
+   * Die Adresse der Anfrage (`anfrageAdresse`) — PFLICHT, und `null` heisst
+   * ehrlich: keine bekannt. Sie steht in `checkin_token.ip_adresse` und, ueber
+   * `withCheckin`, in jeder Protokollzeile des Check-ins (SEC-A9, V-235).
+   */
+  readonly ip: string | null;
   readonly userAgent?: string | null;
   /**
    * Nur uebergeben, wenn die Oberflaeche einen Punkt erhoben hat. Ist
@@ -154,14 +159,14 @@ export async function loeseCheckinEin(
 
   let zeilen: readonly VerbrauchZeile[];
   try {
-    zeilen = await withCheckin(tx, async (k) =>
+    zeilen = await withCheckin(tx, eingabe.ip, async (k) =>
       k.rufe<VerbrauchZeile>(
         `select ergebnis, zeiteintrag_id, objekt, beginn, zeitabweichung_sek
            from app.checkin_verbrauchen($1, $2::timestamptz, $3::inet, $4, $5::jsonb)`,
         [
           hash,
           eingabe.geraeteZeit?.toISOString() ?? null,
-          eingabe.ip ?? null,
+          eingabe.ip,
           eingabe.userAgent ?? null,
           /**
            * Das OBJEKT, nicht `JSON.stringify(objekt)`.
@@ -216,9 +221,17 @@ export async function loeseCheckinEin(
  * Der Kanal ist ein Adapter, kein Schema-Fakt. Solange keiner verbunden ist,
  * steht `unverbunden` auf der Zeile und die Oberflaeche sagt das — sie
  * simuliert keinen Versand.
- * // TODO(client, O-93): Wie erreicht der Check-in-Link den Mitarbeitenden —
- * SMS, E-Mail, aushaengender QR-Code am Objekt oder Portal-Link, wer ist der
- * SMS-Anbieter (EU-Verarbeitung, AVV), und wer traegt die Kosten?
+ * **O-93 ist beantwortet — D-618: zwei Tueren zu derselben Uhr.** Der
+ * Token-Link bleibt genau, wie er ist, fuer jeden OHNE Sitzung: QR am Objekt,
+ * Link der Planung, geteiltes Geraet. Wer im Arbeiterportal angemeldet ist,
+ * stempelt ueber die Sitzung — sie ist der staerkere Beweis. Ein Token ist
+ * ein Inhaberpapier: weiterleitbar, abfotografierbar, ueber die Schulter
+ * lesbar. Eine Sitzung haengt an einem Konto aus Telefonnummer und
+ * Einmalcode (EMP-01). Was die Sitzung ersetzt, ist die ZUSTELLUNG der Marke,
+ * nicht die Marke.
+ *
+ * Der Kanal `sms` bleibt damit eine Option fuer den Ausnahmefall (und ist
+ * ohnehin unverbunden, O-82); der taegliche Weg kostet nichts.
  */
 export async function gibCheckinAus(
   kontext: SchreibKontext,
@@ -341,4 +354,58 @@ export async function widerrufeCheckin(
   const [z] = await kontext.schreibe<{ ok: boolean }>(
     `select app.checkin_widerrufen($1::uuid, $2) as ok`, [tokenId, grund]);
   return z?.ok === true;
+}
+
+/**
+ * Ein- oder ausstempeln AUS DER SITZUNG — die zweite Tuer zur selben Uhr
+ * (D-618, O-93, Migration 0373).
+ *
+ * **Warum das hier steht und nicht in `services/mitarbeiter/`.** Die Dienste
+ * des Arbeiterportals lesen ausnahmslos; seine drei Schreibwege — Einwand,
+ * Antrag, Abwesenheitsmeldung — liegen alle im FACHdienst ihrer Domaene, und
+ * `tests/kern/mitarbeiter.test.ts` besteht darauf: „Ein vierter, im
+ * Portaldienst angelegter waere genau der, der an ihnen vorbeifuehrt."
+ * Stempeln ist Zeiterfassung, also gehoert es hierher — neben `gibCheckinAus`
+ * und `loeseCheckinEin`.
+ *
+ * **Die Sitzung ersetzt die ZUSTELLUNG der Marke, nicht die Marke.**
+ * `app.checkin_aus_der_sitzung` stellt sie serverseitig aus und loest sie im
+ * selben Vorgang ein; `app.checkin_verbrauchen` bleibt der einzige Schreiber
+ * von `zeiteintrag` (K-08). Geprueft wird in der DATENBANK: Portal
+ * (`mitarbeiter`, K-04) und Personenzugehoerigkeit der Einteilung.
+ *
+ * **`geraeteZeit` ist Dokumentation, nie Grundlage** (Invariante 5). Sie
+ * landet in `zeiteintrag.geraete_zeit_*`, die Datenbank leitet
+ * `zeitabweichung_sek` ab, und die abgerechnete Dauer bleibt die Differenz
+ * zweier Serverinstants.
+ */
+export type StempelErgebnis =
+  | { readonly art: 'eingecheckt'; readonly objekt: string | null }
+  | { readonly art: 'ausgecheckt'; readonly objekt: string | null }
+  | { readonly art: 'abgelehnt' };
+
+export async function stempleAusDerSitzung(
+  kontext: SchreibKontext,
+  eingabe: {
+    readonly zuordnungId: string;
+    readonly zweck: TokenZweck;
+    readonly geraeteZeit?: Date | null;
+    readonly ip?: string | null;
+    readonly userAgent?: string | null;
+  },
+): Promise<StempelErgebnis> {
+  const [z] = await kontext.schreibe<{
+    ergebnis: string; zeiteintrag_id: string | null; objekt: string | null;
+  }>(
+    `select ergebnis, zeiteintrag_id, objekt
+       from app.checkin_aus_der_sitzung($1::uuid, $2::token_zweck, $3::timestamptz,
+                                        $4::inet, $5, null)`,
+    [eingabe.zuordnungId, eingabe.zweck,
+      eingabe.geraeteZeit?.toISOString() ?? null,
+      eingabe.ip ?? null, eingabe.userAgent ?? null]);
+
+  if (z === undefined || z.ergebnis === 'abgelehnt') return { art: 'abgelehnt' };
+  return z.ergebnis === 'eingecheckt'
+    ? { art: 'eingecheckt', objekt: z.objekt }
+    : { art: 'ausgecheckt', objekt: z.objekt };
 }

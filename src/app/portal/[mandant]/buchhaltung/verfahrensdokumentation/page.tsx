@@ -76,7 +76,7 @@ export default async function Verfahrensdoku({ params }: { params: Promise<{ man
       nurLesen
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="buchhaltung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >

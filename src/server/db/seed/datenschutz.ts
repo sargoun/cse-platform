@@ -20,8 +20,9 @@ import type postgres from 'postgres';
  *
  * **Jeder Zustand kommt einmal vor**, sonst sind die Filter leer und der
  * Fristbalken hat nur eine Farbe: ein frischer Eingang, einer in Arbeit mit
- * Zuordnung, einer ÜBERFÄLLIG, einer mit verlängerter Frist, einer
- * beantwortet — samt Auskunftsartefakt mit Prüfsumme.
+ * Zuordnung, einer ÜBERFÄLLIG, einer mit verlängerter Frist, einer mit
+ * offener Identität (V-088) und einer beantwortet — samt Auskunftsartefakt
+ * mit Prüfsumme.
  *
  * **Die Widersprüche entstehen auf dem ECHTEN Weg**, nicht als
  * Zeitstempel-Update: der Token wird ausgegeben, gehasht abgelegt und über
@@ -58,6 +59,15 @@ interface Vorlage {
   readonly zuordnung: 'person' | 'ansprechpartner' | 'bewerbung' | 'keine';
   readonly verlaengert?: string;
   readonly entscheidung?: string;
+  /**
+   * Der Grund des Identitätszweifels (V-088, Art. 12 Abs. 6).
+   *
+   * Er steht nicht optional neben dem Status: `0388` hält beides zusammen,
+   * und `identitaet_offen` ohne ihn weist die Datenbank ab. Genau darum steht
+   * er hier — eine Vorlage, die den Zustand ohne Grund setzte, fiele beim
+   * Seedlauf auf, nicht erst in der Oberfläche.
+   */
+  readonly identitaetGrund?: string;
 }
 
 const VORLAGEN: readonly Vorlage[] = [
@@ -118,6 +128,26 @@ const VORLAGEN: readonly Vorlage[] = [
     zuordnung: 'keine',
     verlaengert: 'Der Antrag betrifft vier Datenklassen und zwei Gesellschaften; '
       + 'die Zusammenstellung braucht mehr Zeit (Art. 12 Abs. 3 Satz 3).',
+  },
+  {
+    /*
+     * Der Zustand `identitaet_offen` — bis V-088 hatte ihn niemand erzeugt,
+     * und ein Filter, den nie eine Zeile trifft, beweist nichts. Die
+     * Monatsfrist läuft dabei WEITER (O-903): die Zeile steht mit 20 Tagen
+     * in der Fälligkeitsliste, nicht daneben.
+     */
+    art: 'uebertragbarkeit',
+    name: 'Grete Lindqvist',
+    email: 'g.lindqvist@example.test',
+    rolle: null,
+    nachricht: 'Bitte senden Sie mir alle Daten, die Sie über mich haben, in '
+      + 'einem maschinenlesbaren Format zu.',
+    vorTagen: 20,
+    status: 'identitaet_offen',
+    zuordnung: 'keine',
+    identitaetGrund: 'Der Antrag kam von einer anderen Adresse als der im Konto '
+      + 'hinterlegten und nennt weder Kundennummer noch Objekt; die Angaben '
+      + 'reichen nicht, um die Person zu erkennen (Art. 12 Abs. 6).',
   },
   {
     art: 'auskunft',
@@ -194,7 +224,7 @@ export async function seedDatenschutz(
 
   /*
    * Zwei Gesellschaften bekommen die vollen Vorgänge: ein Posteingang mit
-   * sechs Zeilen je Bereich wäre eine Demo, die nach Datenmüll aussieht. Die
+   * sieben Zeilen je Bereich wäre eine Demo, die nach Datenmüll aussieht. Die
    * Widersprüche entstehen dagegen in ALLEN vier, weil das Nachweisblatt je
    * Gesellschaft gelesen wird.
    */
@@ -217,6 +247,7 @@ export async function seedDatenschutz(
         insert into betroffenenanfrage
           (mandant_id, art, status, name, email, nachricht, rolle_angabe,
            eingegangen_am, verlaengert_bis, verlaengert_grund,
+           identitaet_angefordert_am, identitaet_grund,
            person_id, ansprechpartner_id, bewerbung_id,
            beantwortet_am, beantwortet_von, entscheidung)
         values (
@@ -227,6 +258,9 @@ export async function seedDatenschutz(
           ${v.verlaengert === undefined ? null
             : sql`((now() - ${`${String(v.vorTagen)} days`}::interval) + interval '3 months')`},
           ${v.verlaengert ?? null},
+          ${v.identitaetGrund === undefined ? null
+            : sql`now() - ${`${String(v.vorTagen - 2)} days`}::interval`},
+          ${v.identitaetGrund ?? null},
           ${zuordnung === 'person' ? zielId : null},
           ${zuordnung === 'ansprechpartner' ? zielId : null},
           ${zuordnung === 'bewerbung' ? zielId : null},
@@ -371,6 +405,8 @@ export async function seedDatenschutz(
         await tx`select set_config('app.portal', 'intern', true)`;
         await tx`select set_config('app.readonly', 'off', true)`;
         await tx`select set_config('app.benutzer_id', ${bearbeiter}, true)`;
+        /* Ein vollständig angemeldeter Mensch (V-136, siehe seed/sitzung.ts). */
+        await tx`select set_config('app.aal', 'aal2', true)`;
         await tx`select app.widerspruch_verarbeitung_setzen(
                    ${ziele.ansprechpartnerId}::uuid, null,
                    'Am Telefon erklärt und im Vorgang festgehalten; die Grundlage fällt damit auf „keine".')`;

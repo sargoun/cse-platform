@@ -14,6 +14,7 @@ import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/buchhaltung/datev/[id]` — ein Stapel, seine Datei und
@@ -50,6 +51,7 @@ interface KopfRoh {
   readonly format_ungeprueft: boolean;
   readonly erstellt_am: string;
   readonly uebergeben_am: string | null;
+  readonly uebergeben_notiz: string | null;
   readonly verwerfungsgrund: string | null;
 }
 
@@ -66,10 +68,30 @@ const STATUS: Readonly<Record<string, 'Bereit' | 'Abgeschlossen' | 'Abgelehnt'>>
   erzeugt: 'Bereit', uebergeben: 'Abgeschlossen', verworfen: 'Abgelehnt',
 };
 
+const FELD = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface px-s3 py-s2 '
+  + 'text-sm text-text';
+
+/** Die Sätze zu den Gründen, die `services/buchhaltung/datev/stapel.ts` nennt. */
+const FEHLERTEXT: Readonly<Record<string, string>> = {
+  nicht_gefunden: 'Diesen Stapel gibt es in dieser Gesellschaft nicht.',
+  nicht_offen:
+    'Dieser Stapel trägt bereits einen Vermerk. Was übergeben wurde, wird nicht '
+    + 'nachträglich verworfen — für denselben Zeitraum entsteht ein neuer Stapel.',
+  grund_zu_kurz:
+    'Ein verworfener Stapel braucht einen Grund, mindestens fünf Zeichen. In drei '
+    + 'Jahren weiss sonst niemand mehr, warum dieser Monat nicht beim Büro liegt.',
+  abgewiesen: 'Ihnen fehlt buchhaltung.exportieren.',
+};
+
 export default async function DatevStapel(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
+  const suche = await searchParams;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   kennungOder404(id);
   /* Ein Wort im Pfad ist ein 404, kein 500 — die Umwandlung nach uuid geschieht sonst in der Datenbank. */
   if (!istUuid(id)) notFound();
@@ -91,6 +113,7 @@ export default async function DatevStapel(
                 sachkontenlaenge, extf_version,
                 versteuerungsart::text as versteuerungsart, festschreibung,
                 datei_sha256, dokument_id, format_ungeprueft, verwerfungsgrund,
+                uebergeben_notiz,
                 to_char(erstellt_am at time zone 'Europe/Berlin',
                         'DD.MM.YYYY HH24:MI') as erstellt_am,
                 to_char(uebergeben_am at time zone 'Europe/Berlin',
@@ -210,6 +233,108 @@ export default async function DatevStapel(
       {k.verwerfungsgrund === null ? null : (
         <section className="mb-s7 rounded-lg border border-warning bg-warning-soft p-s5 text-sm">
           Verworfen: {k.verwerfungsgrund}
+        </section>
+      )}
+
+      {k.uebergeben_notiz === null ? null : (
+        <section className="mb-s7 rounded-lg border border-line bg-surface p-s5 text-sm text-text">
+          Zur Übergabe vermerkt: {k.uebergeben_notiz}
+        </section>
+      )}
+
+      {fehler === null ? null : (
+        <section
+          data-cse="datev-vermerk-fehler"
+          className="mb-s7 rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-warning"
+        >
+          <strong>Nichts wurde vermerkt.</strong>{' '}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+        </section>
+      )}
+
+      {/*
+        * **Der Vermerk** (V-027) — und er SENDET nichts.
+        *
+        * `datev_export_status` kennt „übergeben" und „verworfen" seit `0133`,
+        * die Einzelseite zeigte beide Felder an, und gesetzt hat sie nie
+        * jemand: jeder Stapel stand für immer auf „erzeugt". Damit beantwortet
+        * die Liste die einzige Frage nicht, für die es sie gibt — welcher
+        * Monat liegt beim Steuerbüro und welcher nicht.
+        *
+        * Es gibt keinen DATEV-Endpunkt und keine Zugangsdaten (O-05). Wer die
+        * Datei übergibt, ist ein Mensch; was hier entsteht, ist SEIN Vermerk
+        * mit seinem Namen und der Serveruhr daneben. Ein Knopf „an DATEV
+        * senden" wäre die erfundene Integration.
+        *
+        * Beide Wege führen nur aus „erzeugt" heraus. Einen übergebenen Stapel
+        * später zu verwerfen, weil das Büro ihn zurückweist, schriebe um, was
+        * geschehen IST — der ehrliche Weg ist ein NEUER Stapel für denselben
+        * Zeitraum.
+        */}
+      {k.status !== 'erzeugt' ? null : (
+        <section data-cse="datev-vermerk" className="mb-s7 grid grid-cols-1 gap-s5 sm:grid-cols-2">
+          <form
+            method="post" action={`/api/buchhaltung/datev/${k.id}/stand`}
+            className="rounded-lg border border-line bg-surface p-s5"
+          >
+            <input type="hidden" name="stapel" value={k.id} />
+            <input type="hidden" name="vermerk" value="uebergeben" />
+            <input
+              type="hidden" name="zurueck"
+              value={`/portal/${mandant}/buchhaltung/datev/${k.id}`}
+            />
+            <h2 className="text-h3 text-text">Als übergeben vermerken</h2>
+            <p className="mt-s2 text-sm text-text-muted">
+              Die Datei liegt beim Steuerbüro. Dieser Vermerk sagt, dass ein
+              Mensch sie dorthin gegeben hat — gesendet wird von hier nichts.
+            </p>
+            <label className="mt-s4 block text-sm text-text" htmlFor="notiz">
+              Notiz <span className="text-text-muted">(freiwillig)</span>
+            </label>
+            <input
+              id="notiz" name="notiz" type="text" maxLength={500} className={FELD}
+              placeholder="z. B. „per DATEV Unternehmen online hochgeladen, 14.01."
+              data-cse="datev-uebergabe-notiz"
+            />
+            <button
+              type="submit" data-cse="datev-uebergeben"
+              className="mt-s4 min-h-11 rounded-md bg-brand px-s5 py-s3 text-sm font-semibold text-white hover:bg-brand-hover"
+            >
+              Übergabe vermerken
+            </button>
+          </form>
+
+          <form
+            method="post" action={`/api/buchhaltung/datev/${k.id}/stand`}
+            className="rounded-lg border border-line bg-surface p-s5"
+          >
+            <input type="hidden" name="stapel" value={k.id} />
+            <input type="hidden" name="vermerk" value="verworfen" />
+            <input
+              type="hidden" name="zurueck"
+              value={`/portal/${mandant}/buchhaltung/datev/${k.id}`}
+            />
+            <h2 className="text-h3 text-text">Verwerfen</h2>
+            <p className="mt-s2 text-sm text-text-muted">
+              Diese Datei geht nicht ans Büro. Der Stapel bleibt stehen —
+              gelöscht wird nichts (Invariante 8) —, zählt aber nicht mehr als
+              der Export dieses Zeitraums.
+            </p>
+            <label className="mt-s4 block text-sm text-text" htmlFor="grund">
+              Grund <span className="text-text-muted">(Pflicht)</span>
+            </label>
+            <input
+              id="grund" name="grund" type="text" required minLength={5} maxLength={500}
+              className={FELD} placeholder="z. B. „Zeitraum falsch gewählt"
+              data-cse="datev-verwerfen-grund"
+            />
+            <button
+              type="submit" data-cse="datev-verwerfen"
+              className="mt-s4 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
+            >
+              Stapel verwerfen
+            </button>
+          </form>
         </section>
       )}
 

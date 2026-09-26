@@ -4,8 +4,9 @@
  * Eine Art ist REGISTRIERT, und die Registrierung verlangt drei Dinge, die
  * jede fuer sich einen Ausfall verhindern:
  *
- *  - **Titel und Text auf Deutsch.** Eine Benachrichtigung ohne Text ist eine
- *    leere Zeile im Posteingang, die niemand deuten kann.
+ *  - **Titel und Text.** Eine Benachrichtigung ohne Text ist eine leere Zeile
+ *    im Posteingang, die niemand deuten kann. Deutsch, ausser bei den drei
+ *    Arten, die einen ARBEITER erreichen — die lesen `k.sprache` (V-102).
  *  - **Ein Zielaufloeser.** NOT-03: eine Benachrichtigung, die nirgendwohin
  *    fuehrt, ist eine Mitteilung ueber ein Problem, das man nicht ansehen
  *    kann. Deshalb scheitert sie bei der ERZEUGUNG, nicht beim Klick.
@@ -30,11 +31,31 @@ export interface BenachrichtigungsKontext {
   readonly objektTyp: string;
   readonly objektId: string;
   readonly daten: Record<string, unknown>;
+  /**
+   * Die Sprache der EMPFÄNGERIN — `person.sprache` (V-102, O-889).
+   *
+   * **Nur die drei Arten lesen sie, die in `/portal/mein` landen.** Die
+   * Meldungen an die Verwaltung bleiben deutsch: das interne Portal ist
+   * deutsch, und seine Begriffe tragen juristische Bedeutung.
+   *
+   * Fehlt sie, gilt Deutsch. Das ist kein Vorgabewert aus Bequemlichkeit,
+   * sondern die Lage jeder Art, die keinen einzelnen Menschen adressiert —
+   * eine Wächtermeldung an die Planung hat keine Empfängersprache.
+   */
+  readonly sprache?: string | null;
 }
 
 export interface ArtDefinition {
   readonly schluessel: string;
-  /** Deutsch. Der Posteingang ist intern; Arbeiterportale uebersetzen. */
+  /**
+   * Der Titel im Posteingang.
+   *
+   * **Gespeichert, nicht gerendert.** `benachrichtigung` traegt den fertigen
+   * Text; er entsteht hier und steht danach fest. Wer eine Art in mehreren
+   * Sprachen braucht, liest `k.sprache` — das tun die drei Arten, die einen
+   * ARBEITER erreichen (V-102). Alle anderen bleiben deutsch: das interne
+   * Portal ist deutsch, und seine Begriffe tragen juristische Bedeutung.
+   */
   readonly titel: (k: BenachrichtigungsKontext) => string;
   readonly text: (k: BenachrichtigungsKontext) => string;
   /** Muss einen Pfad liefern, oder `null`, wenn das Ziel nicht existiert. */

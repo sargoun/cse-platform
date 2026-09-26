@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SICHERHEITSKOEPFE } from '../../src/lib/sicherheitskoepfe.js';
+import { MARKENBILD_KOEPFE, SICHERHEITSKOEPFE } from '../../src/lib/sicherheitskoepfe.js';
 import {
   ALT_SITZUNG_COOKIE, sitzungsKeksName, sitzungsKeksOptionen, SITZUNG_MAX_ALTER_SEK,
 } from '../../src/server/auth/sitzung.js';
@@ -30,9 +30,26 @@ describe('SEC-A7 — die Sicherheitskoepfe', () => {
    */
   it('next.config.ts haengt GENAU diese Koepfe an jede Route', async () => {
     const regeln = await konfiguration.headers!();
-    expect(regeln).toHaveLength(1);
+    expect(regeln).toHaveLength(2);
     expect(regeln[0]!.source).toBe('/(.*)');
     expect(regeln[0]!.headers).toEqual(SICHERHEITSKOEPFE);
+  });
+
+  it('die Markenbilder bekommen danach eine strengere Richtlinie — sandbox, kein Skript (V-100)', async () => {
+    /*
+     * Gefunden in der Live-Prüfung gegen den Produktionsbau: die Route setzte
+     * die Richtlinie selbst, und die allgemeine Regel überschrieb sie. Die
+     * zweite Regel muss NACH der ersten stehen — Next.js lässt die spätere
+     * gewinnen.
+     */
+    const regeln = await konfiguration.headers!();
+    expect(regeln[1]!.source).toBe('/api/marke/:pfad*');
+    expect(regeln[1]!.headers).toEqual(MARKENBILD_KOEPFE);
+    const csp = MARKENBILD_KOEPFE.find((k) => k.key === 'Content-Security-Policy')!.value;
+    expect(csp).toContain('sandbox');
+    expect(csp).toContain("default-src 'none'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).not.toMatch(/script-src/u);
   });
 
   it('kein Einbetten in fremde Seiten — X-Frame-Options UND frame-ancestors', () => {

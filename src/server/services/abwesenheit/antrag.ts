@@ -25,6 +25,9 @@ import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { mengeNachPostgres } from '../finanz/menge.js';
 import { rechneTage, type Wochentag } from './tage.js';
 import { ArtUngeklaertFehler } from './index.js';
+import {
+  TAUSCHPARTNER_QUELLE, type TauschpartnerQuelle,
+} from '../mitarbeiter/tausch.js';
 
 export type AntragStatus =
   'eingereicht' | 'in_pruefung' | 'genehmigt' | 'abgelehnt'
@@ -35,6 +38,15 @@ export interface AntragZeile {
   readonly anstellungId: string;
   readonly personName: string;
   readonly art: string;
+  /**
+   * Dieselbe Bezeichnung in den Sprachen, die `antragsart` führt (V-062).
+   *
+   * Leer, solange niemand übersetzt hat — dann gilt `art`. Die WAHL trifft
+   * die Oberfläche, weil dieselbe Zeile im Arbeiterportal (vier Sprachen,
+   * SPEC §10) und im Genehmigungsposteingang der Verwaltung (zwei) steht,
+   * und die beiden Leser nicht dieselbe Sprache sprechen.
+   */
+  readonly artI18n: Readonly<Record<string, string>>;
   readonly artSchluessel: string;
   readonly status: AntragStatus;
   readonly vonDatum: string | null;
@@ -84,6 +96,32 @@ export class KommentarFehlt extends Error {
   }
 }
 
+/**
+ * Warum ein Antrag nicht eingereicht wird — als Schlüssel, den das Formular in
+ * der Sprache der Kraft nachschlägt (`ANTRAG_GRUENDE`, V-187).
+ */
+export type AntragAbweisung =
+  | 'art_nicht_waehlbar' | 'zeitraum_fehlt' | 'zeitraum_verkehrt'
+  | 'abwesenheitsart_fehlt' | 'schicht_fehlt' | 'schicht_nicht_waehlbar'
+  | 'tauschpartner_fehlt' | 'tauschpartner_nicht_waehlbar';
+
+/**
+ * Ein Antrag, dem etwas fehlt, was seine Art verlangt — oder der etwas
+ * trägt, was ihm nicht gehört.
+ *
+ * `status` 422 und nicht 500: vorher prüfte nur der Auslöser
+ * `antrag_pflichtfelder` (0074), und sein `check_violation` hat keinen
+ * `status` — die Route warf ihn weiter, die Kraft sah eine weisse Seite.
+ */
+export class AntragAbgewiesen extends Error {
+  readonly code = 'ungueltige_eingabe';
+  readonly status = 422;
+  constructor(readonly grund: AntragAbweisung) {
+    super(`Der Antrag wurde abgewiesen: ${grund}`);
+    this.name = 'AntragAbgewiesen';
+  }
+}
+
 export class UrlaubskontoFehlt extends Error {
   readonly code = 'ungueltiger_zustand';
   readonly status = 409;
@@ -97,10 +135,31 @@ export class UrlaubskontoFehlt extends Error {
   }
 }
 
+/**
+ * Die eine Zeilenabfrage des Antrags.
+ *
+ * **`art_i18n` wird NICHT hier in einer Sprache ausgewählt** (V-062).
+ * `antragsart.bezeichnung_i18n` liegt seit `0074` da; das Arbeiterportal
+ * spricht vier Sprachen (SPEC §10) und zeigte die deutsche `bezeichnung` —
+ * „Urlaubsantrag" auf einem Bildschirm, den jemand auf Arabisch eingestellt
+ * hat, weil er kein Deutsch liest.
+ *
+ * Ausgewählt wird erst bei der Anzeige: DIESE Abfrage bedient auch den
+ * Genehmigungsposteingang der Verwaltung, und der spricht eine andere Sprache
+ * als die antragstellende Person. Ein `->> $1` hier hiesse eine Sprache je
+ * Abfrage, also entweder zwei Abfragen oder die falsche Sprache auf einer der
+ * beiden Seiten.
+ *
+ * (Kein Backtick in den SQL-Kommentaren darunter: die Anweisung steht in
+ * einem Template-Literal, und ein Backtick darin beendet es.)
+ */
 const ZEILE = `
   select a.id, a.anstellung_id,
          (p.vorname || ' ' || p.nachname)          as person_name,
          art.bezeichnung                           as art,
+         -- Die Uebersetzungen der Art als GANZE Karte, nicht in einer Sprache
+         -- ausgewaehlt (V-062, Erklaerung darueber im Kommentar zu ZEILE).
+         art.bezeichnung_i18n                      as art_i18n,
          art.schluessel                            as art_schluessel,
          a.status::text                            as status,
          to_char(a.von_datum, 'YYYY-MM-DD')        as von_datum,
@@ -120,6 +179,7 @@ const ZEILE = `
 interface RohZeile {
   readonly id: string; readonly anstellung_id: string; readonly person_name: string;
   readonly art: string; readonly art_schluessel: string; readonly status: AntragStatus;
+  readonly art_i18n: Readonly<Record<string, string>> | null;
   readonly von_datum: string | null; readonly bis_datum: string | null;
   readonly nachricht: string | null; readonly eingereicht_am: Date;
   readonly entschieden_am: Date | null; readonly entscheidung_kommentar: string | null;
@@ -131,12 +191,33 @@ interface RohZeile {
   readonly storniert_am: Date | null;
 }
 
+/**
+ * Die Bezeichnung der Antragsart in DIESER Sprache — oder die deutsche
+ * (V-062).
+ *
+ * **Warum ein Rückfall auf Deutsch und keine Lücke.** `bezeichnung_i18n` ist
+ * gepflegt, nicht erzeugt: eine Art, die jemand heute anlegt, hat morgen noch
+ * keine türkische Fassung. Ein leeres Feld wäre schlimmer als ein deutsches
+ * Wort — der Mensch sähe nicht, worum es geht, und könnte auch niemanden
+ * danach fragen.
+ *
+ * Eine Zeichenkette aus Leerzeichen zählt als nicht übersetzt: sie steht in
+ * gepflegten Katalogen häufiger da, als man denkt.
+ */
+export function artInSprache(
+  zeile: Pick<AntragZeile, 'art' | 'artI18n'>, sprache: string,
+): string {
+  const uebersetzt = zeile.artI18n[sprache];
+  return uebersetzt !== undefined && uebersetzt.trim() !== '' ? uebersetzt : zeile.art;
+}
+
 function zeile(z: RohZeile): AntragZeile {
   return {
     id: z.id,
     anstellungId: z.anstellung_id,
     personName: z.person_name,
     art: z.art,
+    artI18n: z.art_i18n ?? {},
     artSchluessel: z.art_schluessel,
     status: z.status,
     vonDatum: z.von_datum,
@@ -197,15 +278,33 @@ export interface AntragEingabe {
 /**
  * Reicht einen Antrag ein.
  *
- * Die Pflichtfelder prüft der Auslöser `antrag_pflichtfelder` (0074) — nicht,
- * weil der Dienst es nicht könnte, sondern damit auch der Weg an ihm vorbei
- * daran scheitert. Was der Dienst hinzufügt, ist die Person hinter der
- * Anmeldung: `eingereicht_von_benutzer_id` ist NOT NULL, und ein Antrag ohne
- * Absender wäre wertlos.
+ * **Die Pflichtfelder prüft der Dienst zuerst, der Auslöser danach.** Der
+ * Auslöser `antrag_pflichtfelder` (0074) bleibt die zweite Linie: auch der
+ * Weg an diesem Dienst vorbei scheitert an ihm. Der Dienst prüft dieselben
+ * Spalten der Art VORHER und sagt, welches Feld fehlt (`AntragAbgewiesen`,
+ * V-187) — der Auslöser wirft einen `check_violation`, den die Route nur als
+ * „passt nicht zusammen" übersetzen kann.
+ *
+ * **Die Schicht muss die eigene sein und noch bevorstehen.** Ein Tausch
+ * betrifft eine Schicht, auf der die gewählte Beschäftigung eingeteilt ist
+ * (nicht entfernt, nicht abgesagt) und die nach der Uhr der DATENBANK noch
+ * nicht begonnen hat (Invariante 5). Die Fremdschlüssel prüfen nur die
+ * Gesellschaft; ohne diese Prüfung ließe sich jede Schicht der Gesellschaft
+ * in einen Antrag schreiben, deren Kennung man kennt.
+ *
+ * **Einen Tauschpartner nimmt der Dienst nur aus der festgelegten Quelle**
+ * (`TAUSCHPARTNER_QUELLE`, O-925). Ist keine festgelegt, wird keiner
+ * angenommen — auch keiner, den eine nachgebaute Anfrage mitschickt.
+ *
+ * Was der Dienst hinzufügt, ist die Person hinter der Anmeldung:
+ * `eingereicht_von_benutzer_id` ist NOT NULL, und ein Antrag ohne Absender
+ * wäre wertlos.
  */
 export async function reicheAntragEin(
   kontext: SchreibKontext, eingabe: AntragEingabe,
+  quelle: TauschpartnerQuelle = TAUSCHPARTNER_QUELLE,
 ): Promise<AntragZeile> {
+  await pruefeAntrag(kontext, eingabe, quelle);
   const [neu] = await kontext.schreibe<{ id: string }>(
     `insert into antrag
        (mandant_id, anstellung_id, antragsart_id, von_datum, bis_datum,
@@ -225,6 +324,68 @@ export async function reicheAntragEin(
   const gelesen = await findeAntrag(kontext, neu!.id);
   if (gelesen === null) throw new AntragNichtGefunden(neu!.id);
   return gelesen;
+}
+
+/** Die Vorprüfung von `reicheAntragEin` — dieselben Spalten wie der Auslöser. */
+async function pruefeAntrag(
+  kontext: SchreibKontext, eingabe: AntragEingabe, quelle: TauschpartnerQuelle,
+): Promise<void> {
+  const [art] = await kontext.abfrage<{
+    erfordert_zeitraum: boolean; erfordert_abwesenheitsart: boolean;
+    erfordert_einsatz: boolean; erfordert_tauschpartner: boolean;
+  }>(
+    `select erfordert_zeitraum, erfordert_abwesenheitsart,
+            erfordert_einsatz, erfordert_tauschpartner
+       from antragsart
+      where id = $1::uuid and archiviert_am is null`,
+    [eingabe.antragsartId],
+  );
+  if (art === undefined) throw new AntragAbgewiesen('art_nicht_waehlbar');
+
+  const von = eingabe.vonDatum ?? null;
+  const bis = eingabe.bisDatum ?? null;
+  if (art.erfordert_zeitraum && (von === null || bis === null)) {
+    throw new AntragAbgewiesen('zeitraum_fehlt');
+  }
+  // `JJJJ-MM-TT` vergleicht sich als Zeichenkette wie als Datum.
+  if (von !== null && bis !== null && bis < von) {
+    throw new AntragAbgewiesen('zeitraum_verkehrt');
+  }
+  if (art.erfordert_abwesenheitsart && (eingabe.abwesenheitsartId ?? null) === null) {
+    throw new AntragAbgewiesen('abwesenheitsart_fehlt');
+  }
+
+  const einsatzId = eingabe.einsatzId ?? null;
+  if (art.erfordert_einsatz && einsatzId === null) {
+    throw new AntragAbgewiesen('schicht_fehlt');
+  }
+  if (einsatzId !== null) {
+    const eigene = await kontext.abfrage<{ ja: number }>(
+      `select 1 as ja
+         from einsatz_zuordnung z
+        where z.einsatz_id = $1::uuid
+          and z.anstellung_id = $2::uuid
+          and z.entfernt_am is null
+          and z.status <> 'abgesagt'
+          and z.beginn_zeitpunkt > now()
+        limit 1`,
+      [einsatzId, eingabe.anstellungId],
+    );
+    if (eigene.length === 0) throw new AntragAbgewiesen('schicht_nicht_waehlbar');
+  }
+
+  const partner = eingabe.tauschPartnerAnstellungId ?? null;
+  if (art.erfordert_tauschpartner && partner === null) {
+    throw new AntragAbgewiesen(
+      quelle.festgelegt ? 'tauschpartner_fehlt' : 'tauschpartner_nicht_waehlbar');
+  }
+  if (partner !== null) {
+    if (!quelle.festgelegt) throw new AntragAbgewiesen('tauschpartner_nicht_waehlbar');
+    const angeboten = await quelle.lese(kontext, eingabe.anstellungId);
+    if (!angeboten.some((p) => p.anstellungId === partner)) {
+      throw new AntragAbgewiesen('tauschpartner_nicht_waehlbar');
+    }
+  }
 }
 
 interface EntscheidungsZeile {

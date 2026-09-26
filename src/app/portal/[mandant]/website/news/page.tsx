@@ -14,6 +14,7 @@ import { type BeitragStatus, STATUS_TEXT } from '@/server/services/social/weg';
 import { haeltRechte } from '@/app/portal/rechte';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { WebsiteSpruenge } from '../spruenge';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/website/news` — was auf
@@ -177,9 +178,9 @@ export default async function WebsiteNews(
         <Hinweis art="warnung" cse="ohne-social-lesen" className="mb-s5 max-w-prose">
           <strong className="block">Diese Liste ist dieser Sitzung nicht lesbar.</strong>
           Die Tabelle <code className="font-mono">beitrag</code> hängt am Recht{' '}
-          <code className="font-mono">social.lesen</code> (Policy{' '}
+          <Recht schluessel="social.lesen" /> (Policy{' '}
           <code className="font-mono">t_beitrag_lesen</code>), diese Route dagegen an{' '}
-          <code className="font-mono">referenz.schreiben</code>. Hier steht deshalb
+          <Recht schluessel="referenz.schreiben" />. Hier steht deshalb
           nichts — und das heisst nicht, dass es keine Neuigkeiten gibt.
         </Hinweis>
       )}

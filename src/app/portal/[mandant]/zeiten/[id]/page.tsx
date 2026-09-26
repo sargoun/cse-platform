@@ -231,7 +231,49 @@ export default async function Zeiteintragsblatt(
               : 'ohne Auftrag — nicht abrechenbar (FIN-18)'}
           />
           <Feld label="Fassung" wert={`Version ${String(e.version)}`} zahl />
+
+          {/*
+            * **Freigabe, Abrechnung, Sperre** (V-071).
+            *
+            * Die drei kamen seit je mit der Zeile mit — `freigegeben_am`,
+            * `abgerechnet_am`, `gesperrt_am` stehen in `ZEILE_SPALTEN` — und
+            * KEINE Seite zeigte sie. Genau sie beantworten aber die Frage, die
+            * am Eintrag gestellt wird: Lässt sich das noch korrigieren? Ist
+            * das schon im Lohn? Ist der Monat zu?
+            *
+            * Mit ZEITPUNKT und nicht als „ja": „Freigegeben: ja" ist die halbe
+            * Auskunft; im Streit lautet die Frage, wann.
+            */}
+          <Feld
+            label="Freigegeben"
+            wert={e.freigegebenAmLokal ?? 'noch nicht'}
+            zahl={e.freigegebenAmLokal !== null}
+          />
+          <Feld
+            label="Abgerechnet"
+            wert={e.abgerechnetAmLokal ?? 'noch nicht'}
+            zahl={e.abgerechnetAmLokal !== null}
+          />
+          <Feld
+            label="Monat gesperrt"
+            wert={e.gesperrtAmLokal ?? 'nein'}
+            zahl={e.gesperrtAmLokal !== null}
+          />
         </dl>
+
+        {/*
+          * Was die drei BEDEUTEN, steht als Satz darunter — eine Zeitangabe
+          * allein sagt nicht, dass sie eine Tür schliesst.
+          */}
+        {(e.abgerechnetAmLokal !== null || e.gesperrtAmLokal !== null) && (
+          <p data-cse="zeit-gesperrt-hinweis" className="mt-s3 max-w-prose text-sm text-text-muted">
+            {e.abgerechnetAmLokal !== null
+              ? 'Dieser Eintrag ist abgerechnet. Eine Korrektur ändert ihn nicht, '
+                + 'sondern erzeugt eine neue Fassung; die alte bleibt als Beleg stehen.'
+              : 'Der Monat dieses Eintrags ist gesperrt. Eine spätere Korrektur '
+                + 'erscheint als Ausgleichsbuchung im ersten offenen Monat.'}
+          </p>
+        )}
 
         {e.einsatzId !== null && darf['dienstplan.lesen'] === true && (
           <p className="m-0 mt-s4 text-sm">

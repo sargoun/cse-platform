@@ -115,11 +115,32 @@ export default async function Nachweisregister({
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
+      aktiverTab="personal"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="m-0 text-h1 text-text">Nachweise</h1>
+        <span className="flex flex-wrap items-baseline gap-s4">
+          <h1 className="m-0 text-h1 text-text">Nachweise</h1>
+          {/*
+            * **Der Weg zur Aufnahme — bis V-010 gab es ihn nicht**, und
+            * dahinter auch keine Seite: `0030` baute das ganze Register, und
+            * eintragen konnte es nur der Seed. Die Plattform warnte vor einer
+            * ablaufenden Sachkunde und sperrte die Schicht ohne sie — die
+            * Zeile, vor der sie warnt, entstand nirgends.
+            */}
+          {darf['personal.nachweis_verwalten'] === true ? (
+            <Link
+              href={`/portal/${mandant}/personal/nachweise/erfassen`}
+              data-cse="zur-nachweisaufnahme"
+              className="inline-flex min-h-11 items-center rounded-md border
+                         border-line-strong px-s4 text-sm text-text no-underline
+                         hover:bg-surface-2"
+            >
+              Nachweis aufnehmen
+            </Link>
+          ) : null}
+        </span>
         <p className="m-0 text-sm text-text-muted">
           Stichtag <span className="tabular-nums">{heute}</span>
           {' · '}

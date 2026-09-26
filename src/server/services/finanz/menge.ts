@@ -96,3 +96,63 @@ export function formatiereMenge(menge: MilliMenge): string {
   const alsZahl = Number(ganz) + Number(abs % 1000n) / 1000;
   return DE_MENGE.format(negativ ? -alsZahl : alsZahl);
 }
+
+const EN_MENGE = new Intl.NumberFormat('en-GB', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 3,
+});
+
+/**
+ * Display a quantity in the language of the page (V-240): German `"1.234,50"`,
+ * English `"1,234.50"`. Display only — a form keeps German notation, because
+ * the readers of this platform read German numbers. Same guard as
+ * `formatiereMenge`.
+ */
+export function formatiereMengeIn(menge: MilliMenge, sprache: string | null | undefined): string {
+  if (sprache !== 'en') return formatiereMenge(menge);
+  const negativ = menge < 0n;
+  const abs = negativ ? -menge : menge;
+  const ganz = abs / 1000n;
+  if (!Number.isSafeInteger(Number(ganz))) {
+    throw new MengeFehler(`Menge zu gross fuer die Anzeige: ${String(menge)}`);
+  }
+  const alsZahl = Number(ganz) + Number(abs % 1000n) / 1000;
+  return EN_MENGE.format(negativ ? -alsZahl : alsZahl);
+}
+
+const EINGABE_MUSTER = /^(-?)(\d{1,9})(?:[.,](\d{1,3}))?$/u;
+
+/**
+ * `"25,5"` oder `"25.5"` → `25_500n` — die Menge aus einem FORMULAR.
+ *
+ * **Warum das nicht `mengeAusPostgres` ist.** Der Parser oben nimmt genau die
+ * Gestalt, die Postgres ausgibt, und mit Absicht keine andere: ein
+ * deutschformatierter Wert bedeutet dort, dass er aus einem Formular kam und
+ * noch nicht geprüft ist. Diese Funktion ist die andere Seite derselben
+ * Unterscheidung — sie nimmt, was ein Mensch tippt, und gibt dieselbe geprüfte
+ * `MilliMenge` zurück. Beide Wege enden im selben Typ, und keiner von beiden
+ * sieht je eine Gleitkommazahl.
+ *
+ * **Komma und Punkt gelten beide.** Ein deutsches Tastenfeld schreibt „25,5",
+ * ein Ziffernblock schickt „25.5", und beide meinen dasselbe. Die Trennung, an
+ * der es hängt, ist die zwischen geprüft und ungeprüft — nicht die zwischen
+ * zwei Schreibweisen desselben Zeichens.
+ *
+ * Eine vierte Nachkommastelle wird abgewiesen und nicht gerundet: die Spalte
+ * hält drei, und stilles Runden verstecke, dass jemand etwas anderes gemeint
+ * hat.
+ */
+export function mengeAusEingabe(text: string): MilliMenge {
+  const roh = text.trim();
+  if (roh === '') {
+    throw new MengeFehler('Keine Menge eingegeben.');
+  }
+  const treffer = EINGABE_MUSTER.exec(roh);
+  if (treffer === null) {
+    throw new MengeFehler(
+      `Das ist keine Zahl mit höchstens drei Nachkommastellen: ${JSON.stringify(text)}`);
+  }
+  const [, zeichen, ganz, bruch = ''] = treffer;
+  const tausendstel = BigInt(ganz ?? '0') * 1000n + BigInt(bruch.padEnd(3, '0'));
+  return milliMenge(zeichen === '-' ? -tausendstel : tausendstel);
+}

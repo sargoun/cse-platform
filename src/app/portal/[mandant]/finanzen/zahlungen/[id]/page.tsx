@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -45,6 +44,7 @@ interface Kopf {
   readonly storno_grund: string | null;
   readonly konto: string | null;
   readonly iban: string | null;
+  readonly richtung: string;
 }
 
 interface ZuordnungZeile {
@@ -61,7 +61,7 @@ export default async function ZahlungDetail(
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
-  const zugang = await portalZugang(`/portal/${mandant}/finanzen/zahlungen/[id]`);
+  const zugang = await portalZugang(`/portal/${mandant}/finanzen/zahlungen/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {
@@ -87,17 +87,22 @@ export default async function ZahlungDetail(
                 to_char(z.valuta, 'DD.MM.YYYY') as valuta, z.betrag_cent::text,
                 z.zahlungsmittel::text as zahlungsmittel, z.referenz, z.notiz,
                 to_char(z.storniert_am, 'DD.MM.YYYY') as storniert_am, z.storno_grund,
-                b.bezeichnung as konto, b.iban
+                b.bezeichnung as konto, b.iban, z.richtung::text as richtung
            from zahlung z
            left join bankkonto b on b.id = z.bankkonto_id and b.mandant_id = z.mandant_id
           where z.id = $1::uuid`, [id]))[0] ?? null,
       zeilen: await kontext.abfrage<ZuordnungZeile>(
         `select zz.id, zz.art::text as art, zz.betrag_cent::text, zz.notiz,
-                r.nummer as rechnungsnummer, op.art::text as posten_art
+                -- V-216: auf der Kreditorenseite die Nummer des Lieferanten
+                coalesce(r.nummer, er.rechnungsnummer_lieferant, er.interne_belegnummer)
+                  as rechnungsnummer,
+                op.art::text as posten_art
            from zahlung_zuordnung zz
            join offener_posten op on op.id = zz.offener_posten_id
                                  and op.mandant_id = zz.mandant_id
            left join rechnung r on r.id = op.rechnung_id and r.mandant_id = op.mandant_id
+           left join eingangsrechnung er on er.id = op.eingangsrechnung_id
+                                        and er.mandant_id = op.mandant_id
           where zz.zahlung_id = $1::uuid
           order by zz.erstellt_am`, [id]),
     }))) as Promise<{ kopf: Kopf | null; zeilen: readonly ZuordnungZeile[] }>);
@@ -115,6 +120,7 @@ export default async function ZahlungDetail(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/finanzen/zahlungen`, text: tz.titel }}
       titel={`${t.zahlung} ${t.vom} ${kopf.zahlungsdatum}`}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -124,14 +130,6 @@ export default async function ZahlungDetail(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label={g.zurueck} className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/finanzen/zahlungen`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {tz.titel}
-        </Link>
-      </nav>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">
@@ -149,6 +147,12 @@ export default async function ZahlungDetail(
       )}
 
       <dl className="mb-s7 grid max-w-prose grid-cols-1 gap-s3 rounded-lg border border-line bg-surface p-s5 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-text-muted">{t.richtung}</dt>
+          <dd className="text-text" data-cse="zahlung-richtung">
+            {kopf.richtung === 'ausgang' ? t.richtungAusgang : t.richtungEingang}
+          </dd>
+        </div>
         <div>
           <dt className="text-text-muted">{tz.zahlungsmittel}</dt>
           <dd className="text-text">
@@ -193,7 +197,8 @@ export default async function ZahlungDetail(
                 {
                   schluessel: 'beleg', kopf: t.beleg,
                   zelle: (z) => z.rechnungsnummer
-                    ?? (z.posten_art === 'debitor_guthaben' ? t.guthabenDesKunden : '—'),
+                    ?? (z.posten_art === 'debitor_guthaben' ? t.guthabenDesKunden
+                      : z.posten_art === 'kreditor_guthaben' ? t.guthabenBeimLieferanten : '—'),
                 },
                 {
                   schluessel: 'betrag', kopf: g.betrag, numerisch: true,

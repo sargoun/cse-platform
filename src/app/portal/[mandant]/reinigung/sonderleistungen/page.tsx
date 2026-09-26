@@ -18,6 +18,9 @@ import {
   PFLEGBARE_STATUS, SONDERLEISTUNG_STATUS, STATUS_TEXT,
   type AbrufAuswahl, type AbrufZeile, type KatalogAusschnitt, type SonderleistungStatus,
 } from '@/server/services/reinigung/sonderleistung';
+import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { RECHNUNG_ENTWURF_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-entwurf';
 
 /**
  * `/portal/[mandant]/reinigung/sonderleistungen` — Glas, Sonderreinigung,
@@ -93,6 +96,8 @@ export default async function Sonderleistungen(
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
   const { sitzung } = zugang;
+  /* V-209: der Weg auf die Rechnung in der Sprache der Seite. */
+  const weg = nachSprache(RECHNUNG_ENTWURF_TEXTE, zugang.sprache);
 
   /* AUT-06: der Leistungsnachweis dahinter verlangt `nachweis.lesen`, das
      Pflegen der Abrufe `reinigung.schreiben`, das der Katalogzeilen
@@ -159,16 +164,8 @@ export default async function Sonderleistungen(
       aktiverTab="reinigung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/reinigung`, text: 'Reinigung' }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/reinigung`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Reinigung
-        </Link>
-      </nav>
-
       <h1 className="mb-s2 text-h1 text-text">Sonderleistungen</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Glasreinigung, Sonderreinigung, Warenräumung — Leistungen, die einzeln
@@ -176,6 +173,15 @@ export default async function Sonderleistungen(
         die <strong className="text-text">Katalogzeilen</strong> mit ihren
         Zeitwerten, unten die <strong className="text-text">einzelnen Abrufe</strong>
         {' '}je Objekt.
+      </p>
+      {/*
+        * V-206: der Weg auf die Rechnung. Bis dahin hatte die Übernahme in
+        * `einzelabruf.ts` keinen Aufrufer — die Seite versprach eine
+        * Abrechenbarkeit, die keine Maske einlöste.
+        */}
+      <p className="mb-s5 max-w-prose text-sm text-text-muted" data-cse="abruf-rechnungsweg">
+        {weg.wegAbrufVor}<strong className="text-text">{weg.wegAbrufErbracht}</strong>
+        {weg.wegAbrufNach}
       </p>
 
       {meldung !== null && (
@@ -244,9 +250,9 @@ export default async function Sonderleistungen(
         {!daten.katalog.geprueft ? (
           <Hinweis art="hinweis" cse="katalog-ungeprueft" className="max-w-prose">
             <strong>Nicht geprüft.</strong> Der Leistungskatalog liegt hinter dem
-            Recht <code>katalog.lesen</code>, das dieses Konto hier nicht hält.
+            Recht <Recht schluessel="katalog.lesen" />, das dieses Konto hier nicht hält.
             Das ist nicht dasselbe wie ein leerer Katalog — die Abrufe unten sind
-            davon unberührt, weil sie auf <code>reinigung.lesen</code> laufen.
+            davon unberührt, weil sie auf <Recht schluessel="reinigung.lesen" /> laufen.
           </Hinweis>
         ) : daten.katalog.zeilen.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
@@ -531,20 +537,20 @@ export default async function Sonderleistungen(
 
           {daten.auswahl.geprueft['objekt.lesen'] !== true && (
             <Hinweis art="warnung" cse="abruf-kein-objektrecht" className="mb-s4 max-w-prose">
-              <strong>Die Objektauswahl ist leer, weil <code>objekt.lesen</code> fehlt.</strong>{' '}
+              <strong>Die Objektauswahl ist leer, weil <Recht schluessel="objekt.lesen" /> fehlt.</strong>{' '}
               Ein Abruf hängt zwingend an einem Objekt und an dessen Kunden.
             </Hinweis>
           )}
           {daten.auswahl.geprueft['katalog.lesen'] !== true && (
             <Hinweis art="warnung" cse="abruf-kein-katalogrecht" className="mb-s4 max-w-prose">
-              <strong>Die Katalogauswahl ist leer, weil <code>katalog.lesen</code> fehlt.</strong>{' '}
+              <strong>Die Katalogauswahl ist leer, weil <Recht schluessel="katalog.lesen" /> fehlt.</strong>{' '}
               Ein Abruf hängt zwingend an einer Katalogposition.
             </Hinweis>
           )}
           {daten.auswahl.geprueft['auftrag.lesen'] !== true ? (
             <Hinweis art="warnung" cse="abruf-kein-auftragsrecht" className="mb-s4 max-w-prose">
               <strong>Die Vertragszeilen sind nicht geprüft, weil{' '}
-              <code>auftrag.lesen</code> fehlt.</strong>{' '}
+              <Recht schluessel="auftrag.lesen" /> fehlt.</strong>{' '}
               Die Auswahl bleibt deshalb leer — das heisst <em>nicht</em>, dass
               es keine Vertragszeilen gibt. Ein hier ohne Vertragszeile erfasster
               Abruf ist nicht abrechenbar: die Rechnungsübernahme verbindet
@@ -696,7 +702,7 @@ export default async function Sonderleistungen(
             <div>
               <Button
                 type="submit"
-                variante="primary"
+                variante="secondary"
                 data-cse="abruf-erfassen"
                 disabled={!kannErfassen}
               >

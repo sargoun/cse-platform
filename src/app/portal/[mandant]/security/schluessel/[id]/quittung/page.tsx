@@ -1,5 +1,5 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
+import { Geraetezeit } from '@/app/portal/mein/Geraetezeit';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -114,12 +114,13 @@ export default async function Quittung(
 
   return (
     <PortalRahmen
+      {...(darf['schluessel.lesen'] === true ? { zurueck: { ziel: `/portal/${mandant}/security/schluessel/${id}`, text: schluessel.bezeichnung } } : {})}
       titel="Schlüsselquittung"
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="schluessel"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -130,14 +131,6 @@ export default async function Quittung(
         * und verriete, was er nicht zeigen darf (AUT-06; Copilot-Runde auf
         * PR 16 / D-581).
         */}
-      {darf['schluessel.lesen'] === true && (
-        <Link
-          href={`/portal/${mandant}/security/schluessel/${id}`}
-          className="mb-s4 inline-block min-h-11 text-sm text-text underline"
-        >
-          ← {schluessel.bezeichnung}
-        </Link>
-      )}
 
       <h1 className="mb-s2 text-h1 text-text">Schlüsselquittung</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
@@ -174,6 +167,15 @@ export default async function Quittung(
           type="hidden" name="zurueck"
           value={`/portal/${mandant}/security/schluessel/${id}`}
         />
+
+        {/*
+          * Die Gerätezeit (V-060, TIM-08). `api/sicherheit/schluessel/[id]/quittung`
+          * nimmt sie seit je entgegen — dieses Formular schickte keine, und die
+          * Abweichung stand damit auf jeder Quittung auf „—". Massgeblich ist
+          * `erfasst_am` aus der Serveruhr; diese Zahl steht daneben, damit eine
+          * falsch gehende Uhr auffällt statt unsichtbar zu bleiben.
+          */}
+        <Geraetezeit marke="geraetezeit" />
 
         <label className="mb-s4 block">
           <span className={feld}>Vorgang</span>
@@ -263,6 +265,32 @@ export default async function Quittung(
             className="w-full rounded-md border border-line bg-surface-3 px-s3 py-s2
                        text-sm text-text"
           />
+        </label>
+
+        {/*
+          * **Nachgetragen** (V-078, TIM-09).
+          *
+          * `schluessel_ereignis.nachgetragen` steht seit `0070` da, der
+          * Dienst nimmt es entgegen, die Route reicht es durch — geschickt
+          * hat es nie ein Formular. Eine Schlüsselübergabe am Tor um 05:50
+          * wird selten am Tor getippt; wer sie um 14:00 einträgt, soll das
+          * sagen können, ohne die Uhrzeit zu fälschen.
+          *
+          * **Keine Uhrabweichung:** die misst die Gerätezeit daneben. Dieses
+          * Häkchen ist die Aussage eines Menschen über den Vorgang, nicht über
+          * sein Telefon.
+          */}
+        <label className="mb-s5 flex min-h-11 items-start gap-s3 text-sm text-text">
+          <input type="checkbox" name="nachgetragen" value="1" className="mt-s1"
+                 data-cse="quittung-nachgetragen" />
+          <span>
+            Nachgetragen
+            <span className="mt-s1 block text-xs text-text-muted">
+              Der Vorgang ist früher geschehen und wird jetzt erst eingetippt.
+              Die Zeit der Quittung bleibt die des Servers; dieses Häkchen sagt
+              nur, dass sie nicht die Zeit der Übergabe ist.
+            </span>
+          </span>
         </label>
 
         <Button type="submit" variante="primary">Quittung schreiben</Button>

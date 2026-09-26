@@ -1,5 +1,7 @@
 import { tabZiel, type TabZiel } from '@/server/registry/tableiste';
-import { GRUPPEN_NAVIGATION, NAVIGATION } from '@/server/registry/navigation';
+import {
+  GRUPPEN_NAVIGATION, KUNDEN_NAVIGATION, NAVIGATION,
+} from '@/server/registry/navigation';
 import { Icon } from '@/components/ui/Icon';
 import { Sprachumschalter } from './Sprachumschalter';
 
@@ -42,6 +44,16 @@ export interface TabLeisteProps {
   readonly navigationsRechte?: Readonly<Record<string, boolean>>;
   readonly gruppenansicht?: boolean;
   /**
+   * Welcher der DREI Baeume hinter `Mehr` steht (V-043).
+   *
+   * `gruppenansicht` allein konnte das nicht sagen: das Kundenportal ist
+   * weder Gruppe noch intern, bekam deshalb `NAVIGATION` — und ein
+   * Kundenkonto mit `objekt.lesen` sah dort interne Punkte, die unter
+   * `/portal/kunde` auf 404 fuehren. Ein 404 aus einem Menuepunkt verraet
+   * die Existenz dessen, was er nicht zeigen darf (AUT-06).
+   */
+  readonly kundenansicht?: boolean;
+  /**
    * Uebersetzte Beschriftungen je Tab-Schluessel (D-419).
    *
    * Das Register traegt deutsche Labels; das Mitarbeiterportal spricht vier
@@ -50,6 +62,12 @@ export interface TabLeisteProps {
   readonly beschriftungen?: Readonly<Record<string, string>>;
   /** Traegt das Blatt den Sprachumschalter? Nur das interne Portal (D-592). */
   readonly intern?: boolean;
+  /**
+   * Steht „Bereich wechseln" im Blatt? Nur mit mehr als einem Bereich
+   * (TEN-06, V-165) — der Rahmen weiss es aus dem Tor. Fehlt die Angabe,
+   * bleibt der Verweis: das ist der Stand vor V-165.
+   */
+  readonly bereichsVerweis?: boolean;
 }
 
 /**
@@ -65,10 +83,13 @@ export interface TabLeisteProps {
  * ausgegraut: ein Menuepunkt, der auf 404 fuehrt, verraet die Existenz
  * dessen, was er nicht zeigen darf (AUT-06).
  */
-function MehrZelle({ wurzel, rechte, gruppenansicht, beschriftungen, intern }: {
+function MehrZelle({
+  wurzel, rechte, gruppenansicht, kundenansicht, beschriftungen, intern, bereichsVerweis,
+}: {
   readonly wurzel: string;
   readonly rechte: Readonly<Record<string, boolean>>;
   readonly gruppenansicht: boolean;
+  readonly kundenansicht: boolean;
   /**
    * Die Karte der Huelle — dieselbe wie oben in der Leiste.
    *
@@ -81,6 +102,8 @@ function MehrZelle({ wurzel, rechte, gruppenansicht, beschriftungen, intern }: {
   readonly beschriftungen?: Readonly<Record<string, string>>;
   /** Traegt das Blatt den Sprachumschalter? Nur das interne Portal (D-592). */
   readonly intern: boolean;
+  /** „Bereich wechseln" nur mit mehr als einem Bereich (TEN-06, V-165). */
+  readonly bereichsVerweis: boolean;
 }) {
   const b = (schluessel: string, vorgabe: string): string =>
     beschriftungen?.[schluessel] ?? vorgabe;
@@ -101,7 +124,9 @@ function MehrZelle({ wurzel, rechte, gruppenansicht, beschriftungen, intern }: {
    * ausdruecklich erlaubt ist, erscheint hier nicht (AUT-06). Ein fehlender
    * Schluessel blendet aus, statt aufzudecken.
    */
-  const punkte = (gruppenansicht ? GRUPPEN_NAVIGATION : NAVIGATION)
+  const punkte = (gruppenansicht ? GRUPPEN_NAVIGATION
+    : kundenansicht ? KUNDEN_NAVIGATION
+    : NAVIGATION)
     .filter((n) => rechte[n.schluessel] === true);
 
   return (
@@ -163,9 +188,10 @@ function MehrZelle({ wurzel, rechte, gruppenansicht, beschriftungen, intern }: {
           */}
         <h2 className="mt-s5 text-h3 text-text">{b('sitzung.label', 'Sitzung')}</h2>
         <ul className="m-0 list-none p-0">
-          {([['/auth/bereich', b('sitzung.bereich', 'Bereich wechseln')],
-             ['/portal/konto', b('sitzung.konto', 'Konto')],
-             ['/', b('sitzung.website', 'Website')]] as const).map(([ziel, text]) => (
+          {([...(bereichsVerweis
+               ? [['/auth/bereich', b('sitzung.bereich', 'Bereich wechseln')] as const] : []),
+             ['/portal/konto', b('sitzung.konto', 'Konto')] as const,
+             ['/', b('sitzung.website', 'Website')] as const]).map(([ziel, text]) => (
                <li key={ziel} className="border-b border-line">
                  <a href={ziel} data-cse="mehr-sitzung"
                     className="flex min-h-[44px] items-center py-s3 text-sm text-text">
@@ -200,7 +226,7 @@ function MehrZelle({ wurzel, rechte, gruppenansicht, beschriftungen, intern }: {
 
 export function TabLeiste({
   ziele, aktiv, wurzel, label, sichtbar, navigationsRechte, gruppenansicht = false,
-  beschriftungen, intern = false,
+  kundenansicht = false, beschriftungen, intern = false, bereichsVerweis = true,
 }: TabLeisteProps) {
   const gezeigt = ziele.filter((z) => sichtbar?.[z.schluessel] !== false);
   return (
@@ -224,7 +250,9 @@ export function TabLeiste({
               wurzel={wurzel}
               rechte={navigationsRechte}
               gruppenansicht={gruppenansicht}
+              kundenansicht={kundenansicht}
               intern={intern}
+              bereichsVerweis={bereichsVerweis}
               {...(beschriftungen === undefined ? {} : { beschriftungen })}
             />
           );

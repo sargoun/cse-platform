@@ -23,10 +23,13 @@
 import { cent, type Cent } from '../geld.js';
 import type {
   Abzug, Anschrift, Bauabzugsteuer, Empfaenger, Kontakt, Leistender, Leistungsort,
-  Position, Quelle, RechnungVollstaendig, Steuerzeile, Zahlungsangaben, Zuschlag,
+  Position, Quelle, RechnungsLogo, RechnungVollstaendig, Steuerzeile, Zahlungsangaben,
+  Zuschlag,
 } from '../kanonisch.js';
-import { SCHEMA_VERSION, SCHEMA_VERSION_V1 } from '../kanonisch.js';
+import { SCHEMA_VERSION, SCHEMA_VERSION_V1, SCHEMA_VERSION_V2, SCHEMA_VERSION_V3 }
+  from '../kanonisch.js';
 import { mengeAusPostgres, type MilliMenge } from '../menge.js';
+import { zerlegeLogoSchluessel } from '../rechnungslogo.js';
 
 export class SnapshotFehler extends Error {
   constructor(nachricht: string) {
@@ -80,6 +83,29 @@ function feld(o: Objekt, name: string, pfad: string): unknown {
     );
   }
   return o[name];
+}
+
+/**
+ * Ein Feld, das es in ÄLTEREN Gestalten noch nicht gab.
+ *
+ * `feld()` wirft, wenn ein Schlüssel fehlt, und das ist richtig: §5.3
+ * schreibt jeden Nullwert AUS, ein fehlendes Feld ist damit eine beschädigte
+ * Zeile. Für ein Feld, das erst in einer späteren Gestalt dazugekommen ist,
+ * gilt das nicht — sein Fehlen in einer v2-Zeile ist deren Zustand, nicht
+ * ihr Schaden.
+ *
+ * Deshalb eine eigene Funktion und nicht ein `?? null` in `feld()`: so bleibt
+ * an jeder Aufrufstelle sichtbar, dass hier bewusst toleriert wird, und die
+ * strenge Regel gilt überall sonst unverändert.
+ */
+function neuerFeldwert(o: Objekt, name: string, pfad: string): string | null {
+  if (!(name in o)) return null;
+  const w = o[name];
+  if (w === null) return null;
+  if (typeof w !== 'string') {
+    throw new SnapshotFehler(`${pfad}.${name}: Zeichenkette oder null erwartet`);
+  }
+  return w;
 }
 
 function text(o: Objekt, name: string, pfad: string): string {
@@ -175,7 +201,55 @@ function leseKontakt(wert: unknown, pfad: string): Kontakt {
   };
 }
 
-function leseLeistender(wert: unknown): Leistender {
+/**
+ * Das Drucklogo einer v4-Zeile (V-132).
+ *
+ * Anders als die Fusszeile nicht über `neuerFeldwert`: die Gestalt sagt
+ * genau, ob das Feld da sein MUSS. Eine v4-Zeile ohne `logo` ist beschädigt
+ * (`feld()` wirft), eine v2/v3-Zeile MIT `logo` ebenso — sie kann es nie
+ * getragen haben.
+ *
+ * Der Schlüssel wird mit derselben Regel geprüft, mit der die Festschreibung
+ * ihn wählt (`rechnungslogo.ts`): er ist die Adresse, unter der der Druck
+ * gleich die Bytes holt. Die Prüfsumme muss die im Schlüssel sein und der
+ * Ordner der des Leistenden — sonst zeigte die Rechnung ein Bild, das die
+ * Kette nicht beweist, oder das einer anderen Gesellschaft.
+ */
+function leseLogo(
+  o: Objekt, p: string, version: string, leistenderId: string,
+): RechnungsLogo | null {
+  if (version !== SCHEMA_VERSION) {
+    if ('logo' in o) {
+      throw new SnapshotFehler(
+        `${p}.logo steht in einer ${version}-Zeile; das Feld gibt es erst ab ${SCHEMA_VERSION}.`,
+      );
+    }
+    return null;
+  }
+  const w = feld(o, 'logo', p);
+  if (w === null) return null;
+  const q = `${p}.logo`;
+  const l = objekt(w, q);
+  const schluessel = text(l, 'schluessel', q);
+  const sha256 = text(l, 'sha256', q);
+  const mime = text(l, 'mime', q);
+  const z = zerlegeLogoSchluessel(schluessel);
+  if (z === null) {
+    throw new SnapshotFehler(`${q}.schluessel: kein druckbares Logo im Behälter marke`);
+  }
+  if (z.mandantId !== leistenderId) {
+    throw new SnapshotFehler(`${q}.schluessel: liegt nicht im Ordner des Leistenden`);
+  }
+  if (z.sha256 !== sha256) {
+    throw new SnapshotFehler(`${q}.sha256: stimmt nicht mit dem Schlüssel überein`);
+  }
+  if (z.mime !== mime) {
+    throw new SnapshotFehler(`${q}.mime: ${z.mime} erwartet, gefunden ${mime}`);
+  }
+  return { schluessel, sha256, mime: z.mime };
+}
+
+function leseLeistender(wert: unknown, version: string): Leistender {
   const p = '$.leistender';
   const o = objekt(wert, p);
   return {
@@ -191,6 +265,11 @@ function leseLeistender(wert: unknown): Leistender {
     geschaeftsfuehrer: textOderNull(o, 'geschaeftsfuehrer', p),
     eadresse: textOderNull(o, 'eadresse', p),
     eadresseSchema: textOderNull(o, 'eadresse_schema', p),
+    /* Neu in v3 (V-099). Eine v2-Zeile trägt sie nicht — das ist kein
+       Schaden, sondern ihr Zustand. */
+    fusszeile: neuerFeldwert(o, 'fusszeile', p),
+    /* Neu in v4 (V-132) — siehe `leseLogo`. */
+    logo: leseLogo(o, p, version, text(o, 'id', p)),
   };
 }
 
@@ -363,15 +442,28 @@ export function leseNutzlast(bytes: Uint8Array | string): RechnungVollstaendig {
   const o = objekt(geparst, '$');
   const version = text(o, 'schema', '$');
   if (version === SCHEMA_VERSION_V1) throw new SnapshotZuAltFehler(version);
-  if (version !== SCHEMA_VERSION) {
+  /*
+   * **v2, v3 UND v4 sind gültig** (V-099, V-132), und das ist kein
+   * Nachlassen der Strenge: v3 fügt ein Feld HINZU (`leistender.fusszeile`),
+   * v4 ein weiteres (`leistender.logo`). Eine ältere Zeile hat sie nicht,
+   * weil sie entstand, bevor Fusszeile oder Logo überhaupt ein Dokument
+   * erreichten — sie liest sich vollständig, und ihre Kette bleibt heil.
+   *
+   * v1 ist der andere Fall: dort fehlen Strasse, Ort, PLZ und Ländercode
+   * einzeln, und aus einer Zeile liessen sie sich nur raten. Deshalb steht
+   * v1 weiterhin als Fehler da und v2 nicht.
+   */
+  if (version !== SCHEMA_VERSION && version !== SCHEMA_VERSION_V3
+      && version !== SCHEMA_VERSION_V2) {
     throw new SnapshotFehler(
       `Unbekannte Gestalt ${JSON.stringify(version)}. Bekannt sind `
-      + `${SCHEMA_VERSION_V1} (zu alt) und ${SCHEMA_VERSION}.`,
+      + `${SCHEMA_VERSION_V1} (zu alt), ${SCHEMA_VERSION_V2}, ${SCHEMA_VERSION_V3} `
+      + `und ${SCHEMA_VERSION}.`,
     );
   }
 
   return {
-    leistender: leseLeistender(feld(o, 'leistender', '$')),
+    leistender: leseLeistender(feld(o, 'leistender', '$'), version),
     empfaenger: leseEmpfaenger(feld(o, 'empfaenger', '$')),
     nummernkreisId: text(o, 'nummernkreis_id', '$'),
     nummer: text(o, 'nummer', '$'),

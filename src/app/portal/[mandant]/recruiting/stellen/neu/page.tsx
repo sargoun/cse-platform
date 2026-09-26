@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { RecruitingSeite } from '../../rahmen';
 import { FELD, KNOPF } from '../../felder';
+import { grundAus, RecruitingRueckmeldung } from '../../rueckmeldung';
 
 /**
  * `/portal/[mandant]/recruiting/stellen/neu` — der Entwurf (REC-02,
@@ -24,15 +25,20 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Neue Stelle — Recruiting' };
 
 export default async function NeueStelle(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  /* V-148: die Abweisung kommt als `?fehler=` auf DIESE Seite zurück. */
+  const grund = grundAus(await searchParams);
   return (
     <RecruitingSeite
       mandant={mandant}
       unterpfad="stellen/neu"
       titel="Neue Stelle"
-      kinder={async () => (
+      kinder={async (zugang) => (
         <>
           <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
             <h1 className="m-0 text-h1 text-text">Neue Stelle</h1>
@@ -40,6 +46,9 @@ export default async function NeueStelle(
               Zurück zur Liste
             </Link>
           </div>
+
+          <RecruitingRueckmeldung sprache={zugang.sprache} seite="stelleNeu" grund={grund}
+                                  eingabenErneut />
 
           <Hinweis art="hinweis" cse="stelle-neu-hinweis" className="mb-s5 max-w-prose">
             <strong>Diese Stelle entsteht als Entwurf.</strong> Sie erscheint

@@ -7,7 +7,8 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant } from '@/server/kontext/index';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { legeMediumAb, MedienFehler, MEDIEN_MAX_BYTES } from '@/server/services/zeit/medien';
 import {
   BautagebuchFehler, ersetzeBautag, findeOderLegeBautagAn, gegenzeichneBautag,
@@ -129,7 +130,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     readonly ablage: Awaited<ReturnType<typeof legeMediumAb>>;
   }[] = [];
   if (dateien.length > 0) {
-    const speicher = new SupabaseSpeicher();
+    const speicher = waehleSpeicher();
     try {
       for (const datei of dateien) {
         const medienId = randomUUID();

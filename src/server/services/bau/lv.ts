@@ -279,11 +279,25 @@ export interface ProjektZeile {
   readonly aufmass_anzahl: number;
 }
 
-/** Die Bauprojekte des Mandanten — die juengste Frist zuerst. */
+/**
+ * Eine Zeile der Projektliste. Der Kunde kann fehlen: er steht hinter
+ * `crm.lesen`, die Liste hinter `bau.lesen` (V-150).
+ */
+export type ProjektListenZeile = Omit<ProjektZeile, 'kunde'> & { readonly kunde: string | null };
+
+/**
+ * Die Bauprojekte des Mandanten — die juengste Frist zuerst.
+ *
+ * **`status` filtert, und der Kunde kommt per LEFT JOIN** (V-150, DSH-04).
+ * Die Kachel „Bauprojekte in Arbeit" führt mit `?status=in_arbeit` hierher
+ * und zählt `projekt` allein. Mit dem inneren Join fiele ein Projekt, dessen
+ * Kunden die Sitzung nicht lesen darf, aus der Liste — und die Kachel zählte
+ * es trotzdem.
+ */
 export async function listeProjekte(
-  kontext: LeseKontext,
-): Promise<readonly ProjektZeile[]> {
-  return kontext.abfrage<ProjektZeile>(
+  kontext: LeseKontext, filter: { readonly status?: string | null } = {},
+): Promise<readonly ProjektListenZeile[]> {
+  return kontext.abfrage<ProjektListenZeile>(
     `select p.id, p.nummer, p.bezeichnung, k.name as kunde,
             p.art::text as art, p.status::text as status,
             p.vertragsgrundlage::text as vertragsgrundlage,
@@ -293,9 +307,11 @@ export async function listeProjekte(
             (select count(*) from aufmass a
               where a.projekt_id = p.id and a.storniert_am is null)::int as aufmass_anzahl
        from projekt p
-       join kunde k on k.id = p.kunde_id and k.mandant_id = p.mandant_id
+       left join kunde k on k.id = p.kunde_id and k.mandant_id = p.mandant_id
       where p.archiviert_am is null
+        and ($1::text is null or p.status::text = $1)
       order by p.soll_ende nulls last, p.nummer`,
+    [filter.status ?? null],
   );
 }
 

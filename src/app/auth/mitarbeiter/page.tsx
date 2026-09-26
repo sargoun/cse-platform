@@ -4,6 +4,7 @@ import type postgres from 'postgres';
 import { devFlaechenAn } from '@/lib/dev-flaechen';
 import { db } from '@/server/db/pool';
 import { Button } from '@/components/ui/Button';
+import { AuthSchale } from '../AuthSchale';
 import { FormField } from '@/components/ui/FormField';
 import { codeAnfordern } from '@/server/auth/mitarbeiter-anmeldung';
 import { smsDienst } from '@/server/auth/sms';
@@ -95,15 +96,16 @@ export default async function MitarbeiterAnmeldung(
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-form flex-col gap-s5 p-s6">
-      <h1 className="text-h1 text-text">Anmeldung für Mitarbeitende</h1>
-      <p className="max-w-[60ch] text-base text-text-muted">
-        {ohneZustellung
-          ? 'Geben Sie Ihre Mobilnummer ein und danach den sechsstelligen Code, den Ihnen Ihre '
-            + 'Einsatzleitung nennt. Ein Kennwort brauchen Sie nicht.'
-          : 'Geben Sie Ihre Mobilnummer ein. Sie erhalten einen sechsstelligen Code per SMS. '
-            + 'Ein Kennwort brauchen Sie nicht.'}
-      </p>
+    <AuthSchale
+      titel="Anmeldung für Mitarbeitende"
+      schritt={1}
+      schritte={2}
+      unterzeile={ohneZustellung
+        ? 'Geben Sie Ihre Mobilnummer ein und danach den sechsstelligen Code, den Ihnen Ihre '
+          + 'Einsatzleitung nennt. Ein Kennwort brauchen Sie nicht.'
+        : 'Geben Sie Ihre Mobilnummer ein. Sie erhalten einen sechsstelligen Code per SMS. '
+          + 'Ein Kennwort brauchen Sie nicht.'}
+    >
 
       {abgelaufen && (
         <p
@@ -179,6 +181,6 @@ export default async function MitarbeiterAnmeldung(
           ? 'Ob sie hinterlegt ist, sagt diese Seite bewusst nicht.'
           : 'Wenn sie hinterlegt ist, kommt gleich ein Code — ob sie es ist, sagt diese Seite bewusst nicht.'}
       </p>
-    </main>
+    </AuthSchale>
   );
 }

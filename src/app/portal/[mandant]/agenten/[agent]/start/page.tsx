@@ -18,6 +18,7 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '../../../../rechte';
 import { kennungFuer } from '../../kennung';
 import { MAX_SCHRITTE_PLATZHALTER } from '@/server/agent/limits.platzhalter';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/agenten/[agent]/start` — das Vorschaltblatt vor einem
@@ -347,7 +348,7 @@ export default async function AgentStart(
           {!darfBudget ? (
             <span className="text-text-muted">
               hier nicht sichtbar — dafür braucht es das Recht
-              {' '}<code className="text-xs">agent.lesen</code>. Das heisst nicht, dass
+              {' '}<Recht schluessel="agent.lesen" />. Das heisst nicht, dass
               keine Obergrenze gilt.
             </span>
           ) : budget === null ? (

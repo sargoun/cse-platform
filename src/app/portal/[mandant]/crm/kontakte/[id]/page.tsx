@@ -22,6 +22,16 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
+import { Recht } from '@/components/ui/Recht';
+import { kanalVerbunden } from '@/server/services/crm/nachricht-an-kontakt';
+import {
+  Kommunikationsverlauf, NotizFormular, NotizKeinRecht, NotizRueckmeldung,
+} from '@/components/portal/Kommunikationsverlauf';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { VERLAUF_TEXTE } from '@/lib/i18n/verwaltung/crm-verlauf';
+import {
+  leseKontaktVerlauf, VERLAUF_GRENZE, type VerlaufEintrag,
+} from '@/server/services/crm/verlauf';
 
 /**
  * `/portal/[mandant]/crm/kontakte/[id]` — das Blatt eines Ansprechpartners
@@ -73,6 +83,26 @@ const GRUNDLAGE_TEXT: Readonly<Record<string, string>> = {
   keine: 'keine',
 };
 
+/**
+ * Die Rückmeldungen von `POST /api/crm/nachrichten` (V-101, D-562).
+ *
+ * Jede nennt, was NICHT geschehen ist — bei einer Aussendung ist das die
+ * Auskunft, die zählt. „Nicht gesendet" allein liesse offen, ob etwas halb
+ * geschrieben liegt.
+ */
+const SENDE_FEHLER: Readonly<Record<string, string>> = {
+  keine_grundlage: 'Für diesen Kanal und diesen Zweck ist keine Rechtsgrundlage '
+    + 'aufgezeichnet (§ 7 UWG). Das ist ein hartes Tor — auch eine Freigabe hebt es '
+    + 'nicht auf. Es wurde nichts geschrieben.',
+  nicht_verbunden: 'Für diesen Kanal ist kein Versender verbunden (O-36). Es wurde '
+    + 'nichts geschrieben und nichts gesendet.',
+  kein_text: 'Eine Nachricht ohne Text ist keine.',
+  kein_kontakt: 'Diesen Kontakt gibt es hier nicht.',
+  freigabe: 'Die Freigabe passte nicht zu dem, was hinausgehen sollte. Es wurde '
+    + 'nichts gesendet.',
+  ungueltig: 'Kanal oder Zweck fehlt.',
+};
+
 const KANAL_TEXT: Readonly<Record<string, string>> = {
   email: 'E-Mail', telefon: 'Telefon', sms: 'SMS', post: 'Post', whatsapp: 'WhatsApp',
 };
@@ -95,21 +125,14 @@ interface Kopf {
   readonly anonymisiert: boolean;
 }
 
-interface VerlaufZeile {
-  readonly id: string;
-  readonly typ: string;
-  readonly richtung: string;
-  readonly zweck: string;
-  readonly kanal: string | null;
-  readonly betreff: string;
-  readonly geschehen: string;
-  readonly akteur: string | null;
-}
-
 export default async function Kontaktblatt(
   { params, searchParams }: {
     params: Promise<{ mandant: string; id: string }>;
-    searchParams: Promise<{ meldung?: string; erfolg?: string }>;
+    searchParams: Promise<{
+      meldung?: string; erfolg?: string; fehler?: string; gesendet?: string;
+      /* V-147: die Rückmeldung von `POST /api/crm/notiz` — ein eigener Name. */
+      notiz?: string; notiert?: string;
+    }>;
   },
 ) {
   const { mandant, id } = await params;
@@ -133,10 +156,32 @@ export default async function Kontaktblatt(
    */
   const darf = await haeltRechte(sitzung,
     'crm.rechtsgrundlage_setzen', 'crm.rechtsgrundlage_lesen', 'system.benutzer_lesen',
-    'crm.schreiben', 'aufgabe.schreiben', 'kalender.schreiben', 'dokument.lesen');
+    'crm.schreiben', 'aufgabe.schreiben', 'kalender.schreiben', 'dokument.lesen',
+    /* V-101: das Recht des Sendewegs — seit 0008 im Katalog, bis hierher ungenutzt. */
+    'crm.kommunikation_versenden',
+    /* V-147: ohne es zeigt der Verlauf nur die eigenen Nachrichten — und sagt es. */
+    'nachricht.lesen');
+
+  const darfNamen = darf['system.benutzer_lesen'] === true;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
+      /*
+       * **Die Auswahl der Zustaendigen nur mit `system.benutzer_lesen`**
+       * (V-079). Eine Liste, die Namen nennt, IST die Auskunft — AUT-06 gilt
+       * auch fuer ein `<select>`. Ohne das Recht bleibt „mir selbst
+       * zuweisen", und dafuer braucht es keinen fremden Namen.
+       */
+      const zustaendige = darfNamen
+        ? await kontext.abfrage<{ id: string; name: string }>(
+          `select distinct b.id, b.name
+             from benutzer b
+             join benutzer_mandant bm on bm.benutzer_id = b.id
+            where bm.mandant_id = app.aktiver_mandant()
+              and b.status = 'aktiv' and b.deaktiviert_am is null
+              and not b.ist_dienstkonto
+            order by b.name limit 200`)
+        : [];
       const [kopf] = await kontext.abfrage<Kopf>(
         `select ap.id, ap.anrede, ap.titel,
                 btrim(coalesce(ap.vorname, '') || ' ' || ap.nachname) as name,
@@ -165,27 +210,23 @@ export default async function Kontaktblatt(
 
       const antworten = await torAntworten(kontext, id);
 
-      const verlauf = await kontext.abfrage<VerlaufZeile>(
-        `select la.id, la.typ::text as typ, la.richtung::text as richtung,
-                la.zweck::text as zweck, la.kanal, la.betreff,
-                to_char(la.geschehen_am at time zone 'Europe/Berlin',
-                        'DD.MM.YYYY HH24:MI') as geschehen,
-                b.name as akteur
-           from lead_aktivitaet la
-           left join benutzer b on b.id = la.benutzer_id
-          where la.mandant_id = app.aktiver_mandant()
-            and la.ansprechpartner_id = $1::uuid
-          order by la.geschehen_am desc
-          limit 50`, [id]);
+      /*
+       * **Aktivitäten UND Nachrichten** (V-147, CRM-03). Hier stand eine
+       * Abfrage nur auf `lead_aktivitaet`; was über „Nachricht senden"
+       * hinausgeht, landet aber in `nachricht` — und fehlte damit genau in
+       * dem Verlauf, der es belegen soll.
+       */
+      const verlauf = await leseKontaktVerlauf(kontext, id);
 
-      return { kopf, stand, kundenLage, antworten, verlauf };
+      return { kopf, stand, kundenLage, antworten, verlauf, zustaendige };
     })) as Promise<{
       kopf: Kopf; stand: GrundlageStand | null; kundenLage: KundenLage | null;
-      antworten: readonly TorAntwort[]; verlauf: readonly VerlaufZeile[];
+      antworten: readonly TorAntwort[]; verlauf: readonly VerlaufEintrag[];
+      zustaendige: readonly { id: string; name: string }[];
     } | null>);
 
   if (daten === null) notFound();
-  const { kopf, stand, kundenLage, antworten, verlauf } = daten;
+  const { kopf, stand, kundenLage, antworten, verlauf, zustaendige } = daten;
 
   /*
    * `abmeldezeileGerendert = null` — NICHT `true`.
@@ -201,6 +242,8 @@ export default async function Kontaktblatt(
   });
   const abweichungen = lage === null ? [] : abweichungenVomTor(lage);
 
+  const tv = nachSprache(VERLAUF_TEXTE, zugang.sprache);
+
   const knopf = 'inline-flex min-h-11 items-center rounded-md border '
     + 'border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2';
   const FELD = 'min-h-11 w-full rounded-md border border-line bg-surface px-s3 py-s2 '
@@ -214,19 +257,11 @@ export default async function Kontaktblatt(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="crm"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/crm/kontakte`, text: 'Alle Ansprechpartner' }}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/crm/kontakte`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Alle Ansprechpartner
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-center justify-between gap-s3">
         <div className="flex flex-wrap items-center gap-s3">
           <h1 className="m-0 text-h1 text-text">{kopf.name}</h1>
@@ -237,12 +272,42 @@ export default async function Kontaktblatt(
             <StatusPill zustand="Archiviert" />
           )}
         </div>
-        {darf['crm.rechtsgrundlage_setzen'] === true ? (
-          <Link href={alsRoute(`${pfad}/rechtsgrundlage`)} className={knopf}
-                data-cse="kontakt-grundlage-aendern">
-            Rechtsgrundlage ändern
-          </Link>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-s3">
+          {/*
+            * **Den Hauptkontakt bestimmen** (V-097).
+            *
+            * `ist_hauptkontakt` steht seit `0020` da, ein partieller
+            * eindeutiger Index hält genau einen je Kunde, diese Seite zeigte
+            * das Etikett an — gesetzt wurde die Spalte NUR beim Anlegen des
+            * allerersten Kontakts. Wer den Hauptkontakt wechseln wollte, weil
+            * die Objektleiterin gewechselt hat, konnte es nicht; das Etikett
+            * blieb auf einem Menschen stehen, der das Haus verlassen hat.
+            *
+            * Kein Knopf bei einem ausgeschiedenen Kontakt und keiner bei dem,
+            * der es schon IST: eine Handlung ohne Wirkung ist eine, die
+            * jemand für kaputt hält.
+            */}
+          {darf['crm.schreiben'] === true
+            && kopf.kunde_id !== null
+            && kopf.ausgeschieden_am === null
+            && !kopf.ist_hauptkontakt ? (
+              <form method="post" action={`/api/crm/kunde?mandant=${mandant}`} className="m-0">
+                <input type="hidden" name="aktion" value="hauptkontakt" />
+                <input type="hidden" name="id" value={kopf.id} />
+                <input type="hidden" name="kundeId" value={kopf.kunde_id} />
+                <input type="hidden" name="zurueck" value={pfad} />
+                <button type="submit" className={knopf} data-cse="zum-hauptkontakt">
+                  Zum Hauptkontakt machen
+                </button>
+              </form>
+            ) : null}
+          {darf['crm.rechtsgrundlage_setzen'] === true ? (
+            <Link href={alsRoute(`${pfad}/rechtsgrundlage`)} className={knopf}
+                  data-cse="kontakt-grundlage-aendern">
+              Rechtsgrundlage ändern
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       {typeof suche.meldung === 'string' && suche.meldung !== '' ? (
@@ -310,8 +375,8 @@ export default async function Kontaktblatt(
         {stand === null ? (
           <Hinweis art="hinweis" cse="grundlage-verdeckt" className="mt-s3 max-w-prose">
             <strong>Der Nachweis ist Ihnen nicht sichtbar.</strong> Dafür fehlt
-            <code className="text-text"> crm.rechtsgrundlage_lesen</code> — ein
-            eigenes Recht neben <code className="text-text">crm.lesen</code>, mit dem
+            <Recht schluessel="crm.rechtsgrundlage_lesen" /> — ein
+            eigenes Recht neben <Recht schluessel="crm.lesen" />, mit dem
             die Seitenkarte auch den Werbewiderspruchs-Katalog bewacht. Das heisst
             nicht, dass keine Grundlage hinterlegt ist. Die Antwort des Sendetores
             steht darunter und ist von diesem Recht unabhängig.
@@ -493,54 +558,131 @@ export default async function Kontaktblatt(
             }]),
           ]}
         />
-        <p className="mt-s3 max-w-prose text-xs text-text-muted">
-          <strong>Es gibt hier keinen Sendeknopf.</strong> Der Endpunkt für eine
-          Ausgangsnachricht (<code className="text-text">POST /api/crm/nachrichten</code>,
-          CRM-08) ist nicht gebaut. Ein Knopf, der nichts tut, verspricht einen Weg,
-          den es nicht gibt. Und nichts verlässt das System ohne menschliche Freigabe
-          durch <code className="text-text">server/agent/policy.ts</code>.
-        </p>
       </section>
 
-      <section aria-labelledby="verlauf">
-        <h2 id="verlauf" className="text-h2 text-text">Verlauf</h2>
-        {verlauf.length === 0 ? (
-          <p className="mt-s3 text-sm text-text-muted">
-            Zu diesem Kontakt ist noch keine Kommunikation festgehalten.
+      {/*
+        * **Eine Nachricht an diesen Kontakt** (V-101, CRM-08, D-627).
+        *
+        * Hier stand: „Es gibt hier keinen Sendeknopf. Der Endpunkt … ist nicht
+        * gebaut." Jetzt ist er gebaut — und die Seite sagt VORHER, ob etwas
+        * hinausgehen kann, statt es nach dem Klick zu melden. Ohne verbundenen
+        * Versender (O-36) ist der Knopf nicht scharf und der Grund steht
+        * daneben: ein Knopf, der nichts tut, verspräche einen Weg, den es noch
+        * nicht gibt.
+        *
+        * Wer auf „Senden" drückt, gibt die Nachricht BENANNT frei — die
+        * Freigabe trägt den Abdruck genau dieses Textes (Invariante 7). Werbung
+        * bekommt den Pflichthinweis nach § 7 Abs. 3 Nr. 4 UWG vom Dienst
+        * angehängt; niemand muss daran denken.
+        */}
+      {darf['crm.kommunikation_versenden'] === true && (
+        <section aria-labelledby="senden" className="mb-s7" id="senden">
+          <h2 id="senden-titel" className="text-h2 text-text">Nachricht senden</h2>
+          {typeof suche.fehler === 'string' && suche.fehler !== '' ? (
+            <Hinweis art="warnung" cse="senden-fehler" className="mt-s3 max-w-prose">
+              {SENDE_FEHLER[suche.fehler] ?? 'Die Nachricht wurde nicht gesendet.'}
+            </Hinweis>
+          ) : null}
+          {suche.gesendet === '1' ? (
+            <Hinweis art="erfolg" cse="senden-ok" className="mt-s3 max-w-prose">
+              Gesendet — mit Ihrer Freigabe in der Kette.
+            </Hinweis>
+          ) : null}
+          {!kanalVerbunden('email') && !kanalVerbunden('sms') ? (
+            <Hinweis art="hinweis" cse="senden-nicht-verbunden" className="mt-s3 max-w-prose">
+              <strong>Versand: nicht verbunden.</strong> Es ist weder ein E-Mail- noch ein
+              SMS-Anbieter hinterlegt (O-36). Die Nachricht lässt sich schreiben, aber
+              nicht absenden — hinausgehen wird erst etwas, wenn ein Anbieter mit
+              Auftragsverarbeitungsvertrag in der EU eingerichtet ist. Bis dahin wird
+              nichts geschrieben, was wie ein Versand aussähe.
+            </Hinweis>
+          ) : null}
+          <form method="post" action="/api/crm/nachrichten" data-cse="senden-formular"
+                className="mt-s4 flex max-w-prose flex-col gap-s3">
+            <input type="hidden" name="ansprechpartner" value={id} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <div className="grid gap-s3 sm:grid-cols-2">
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                Kanal
+                <select name="kanal" defaultValue="email" className={FELD}>
+                  <option value="email">
+                    E-Mail{kanalVerbunden('email') ? '' : ' (nicht verbunden)'}
+                  </option>
+                  <option value="sms">
+                    SMS{kanalVerbunden('sms') ? '' : ' (nicht verbunden)'}
+                  </option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                Zweck
+                <select name="zweck" defaultValue="vertraglich" className={FELD}>
+                  <option value="vertraglich">vertraglich</option>
+                  <option value="transaktional">transaktional</option>
+                  <option value="werbung">Werbung (nur mit Rechtsgrundlage)</option>
+                </select>
+              </label>
+            </div>
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              Betreff
+              <input name="betreff" className={FELD} />
+            </label>
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              Text
+              <textarea name="text" rows={6} required className={FELD} />
+            </label>
+            <p className="m-0 text-xs text-text-muted">
+              Mit dem Absenden geben Sie die Nachricht benannt frei; der Abdruck genau
+              dieses Textes steht danach in der Freigabekette. Bei Werbung hängt die
+              Plattform den Hinweis auf das Widerspruchsrecht selbst an (§ 7 Abs. 3
+              Nr. 4 UWG).
+            </p>
+            <div>
+              <button type="submit" className={knopf} data-cse="senden-knopf"
+                      disabled={!kanalVerbunden('email') && !kanalVerbunden('sms')}>
+                Senden
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+
+      {/*
+        * **Der Verlauf — mit den Nachrichten und in Sätzen** (V-147, CRM-03).
+        *
+        * Hier stand eine eigene Tabelle über `lead_aktivitaet` allein, mit
+        * rohen Werten (`ausgehend · email`, `vertraglich`). Jetzt dasselbe
+        * Bauteil wie auf dem Kundenblatt: Aktivitäten und Nachrichten an
+        * diesen Menschen, mit der Rechtsgrundlage IM MOMENT DES SENDENS.
+        */}
+      <section aria-labelledby="verlauf" id="kommunikation" className="mb-s7">
+        <h2 id="verlauf" className="text-h2 text-text">{tv.titel}</h2>
+        <p className="mt-s2 max-w-prose text-sm text-text-muted">{tv.erklaerungKontakt}</p>
+        <NotizRueckmeldung sprache={zugang.sprache}
+                           grund={typeof suche.notiz === 'string' ? suche.notiz : null}
+                           notiert={suche.notiert === '1'} />
+        <Kommunikationsverlauf
+          eintraege={verlauf}
+          sprache={zugang.sprache}
+          mandant={mandant}
+          blatt="kontakt"
+          darfNamen={darf['system.benutzer_lesen'] === true}
+          darfNachrichten={darf['nachricht.lesen'] === true}
+          grenze={VERLAUF_GRENZE}
+        />
+        {darf['crm.schreiben'] !== true ? (
+          <NotizKeinRecht sprache={zugang.sprache} />
+        ) : kopf.kunde_id === null ? (
+          <p className="mt-s4 max-w-prose text-sm text-text-muted" data-cse="notiz-ohne-kunde">
+            {tv.notizOhneKunde}
           </p>
         ) : (
-          <DataTable
-            beschriftung="Kommunikation mit diesem Ansprechpartner, neueste zuerst"
-            zeilen={verlauf}
-            schluessel={(z) => z.id}
-            spalten={[
-              { schluessel: 'wann', kopf: 'Wann', zelle: (z) => z.geschehen },
-              { schluessel: 'betreff', kopf: 'Betreff', zelle: (z) => z.betreff },
-              { schluessel: 'typ', kopf: 'Art', zelle: (z) => z.typ },
-              {
-                schluessel: 'richtung', kopf: 'Richtung',
-                zelle: (z) => `${z.richtung}${z.kanal === null ? '' : ` · ${z.kanal}`}`,
-              },
-              { schluessel: 'zweck', kopf: 'Zweck', zelle: (z) => z.zweck },
-              {
-                schluessel: 'akteur', kopf: 'Wer',
-                zelle: (z) => (z.akteur ?? (
-                  darf['system.benutzer_lesen'] === true
-                    ? <span className="text-text-subtle">System</span>
-                    : <span className="text-text-subtle" data-cse="akteur-verdeckt"
-                            title="Dafür fehlt system.benutzer_lesen">—</span>
-                )),
-              },
-            ]}
+          <NotizFormular
+            sprache={zugang.sprache}
+            zurueck={pfad}
+            kundeId={kopf.kunde_id}
+            ansprechpartnerId={id}
+            kontakte={[]}
           />
-        )}
-        {darf['system.benutzer_lesen'] === true ? null : (
-          <p className="mt-s3 max-w-prose text-xs text-text-muted"
-             data-cse="verlauf-akteur-hinweis">
-            Die Namen der Handelnden sind Ihnen nicht sichtbar — dafür fehlt
-            <code className="text-text"> system.benutzer_lesen</code>. Ein „—" in der
-            Spalte „Wer" heisst deshalb hier nicht, dass niemand gehandelt hat.
-          </p>
         )}
       </section>
 
@@ -549,7 +691,7 @@ export default async function Kontaktblatt(
         {darf['crm.schreiben'] !== true ? (
           <p className="mt-s3 max-w-prose text-sm text-text-muted"
              data-cse="wv-kein-schreibrecht">
-            Eine Wiedervorlage legt an, wer <code className="text-text">crm.schreiben</code>{' '}
+            Eine Wiedervorlage legt an, wer <Recht schluessel="crm.schreiben" />{' '}
             hält.
           </p>
         ) : kopf.kunde_id === null ? (
@@ -618,6 +760,39 @@ export default async function Kontaktblatt(
               </span>
 
               <label className="flex flex-col gap-s2 text-sm text-text">
+                Zuständig
+                {/*
+                  **V-079** — die Route liest `zustaendigBenutzerId` seit je,
+                  und kein Formular schickte es. Eine Wiedervorlage ohne
+                  Zuständigen steht in der Liste mit „niemand zugewiesen" und
+                  wartet auf niemanden.
+                */}
+                {darfNamen ? (
+                  <select name="zustaendigBenutzerId" defaultValue="" className={FELD}
+                          data-cse="wv-zustaendig">
+                    <option value="">niemandem zugewiesen</option>
+                    {zustaendige.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-s3">
+                      <input type="checkbox" name="zustaendigBenutzerId"
+                             value={sitzung.benutzerId} className="min-h-5 min-w-5"
+                             data-cse="wv-mir" />
+                      Mir selbst zuweisen
+                    </span>
+                    <span className="text-xs text-text-muted">
+                      Andere Menschen stehen hier nicht zur Wahl — dafür fehlt
+                      `system.benutzer_lesen`. Eine Auswahlliste, die Namen nennt, wäre
+                      selbst die Auskunft.
+                    </span>
+                  </>
+                )}
+              </label>
+
+              <label className="flex flex-col gap-s2 text-sm text-text">
                 Notiz (optional)
                 <input name="notiz" className={FELD} data-cse="wv-notiz" />
               </label>
@@ -642,7 +817,7 @@ export default async function Kontaktblatt(
             Datenschutz · Widersprüche
           </Link>{' '}
           und hängt am selben Recht wie dieser Nachweisblock
-          (<code className="text-text">crm.rechtsgrundlage_lesen</code>). Der Verweis
+          (<Recht schluessel="crm.rechtsgrundlage_lesen" />). Der Verweis
           erscheint deshalb nur, wenn Sie es halten — er führt nie auf ein 404.
         </p>
       ) : null}

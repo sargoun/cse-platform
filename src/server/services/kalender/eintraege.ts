@@ -196,6 +196,16 @@ export async function kalenderZeilen(
      * `einsatz_zuordnung` sagt, WER sie hat -- ohne sie zeigte der
      * persoenliche Kalender fremde Schichten, und mit `distinct` zeigt er
      * eine Schicht mit drei Menschen einmal und nicht dreimal.
+     *
+     * **Der Weg fuehrt auf DIESE Schicht** (V-243, D-737):
+     * `/dienstplan/einsatz/<id>`. Hier stand `/dienstplan` — eine Adresse,
+     * die es nicht gibt (das Modul hat Woche, Tag, Monat, aber keine
+     * Wurzelseite; `waechter/benachrichtigung.ts` sagt dasselbe). Jeder
+     * Schichteintrag im Kalender war ein Verweis auf 404. Die Seite der
+     * Schicht verlangt `dienstplan.lesen` — dasselbe Recht, ohne das die
+     * Policy `t_mandant` die Zeile gar nicht erst herausgibt; wer sie hier
+     * sieht, darf sie also auch öffnen. Der Gruppenkalender
+     * (`gruppe/kalender.ts`) führte schon immer dorthin.
      */
     const zeilen = await db.abfrage<KalenderZeile>(
       `select distinct on (e.id)
@@ -207,7 +217,7 @@ export async function kalenderZeilen(
               case when e.status = 'storniert' then 'Abgesagt' else null end as beschreibung,
               (e.status = 'storniert') as abgesagt,
               coalesce(e.geaendert_am, e.erstellt_am)::text as geaendert,
-              ${WEG('e', '/dienstplan')} as weg
+              ${WEG('e', '/dienstplan/einsatz/')} || e.id::text as weg
          from einsatz e
          left join objekt o on o.id = e.objekt_id
          left join einsatz_zuordnung z
@@ -253,6 +263,14 @@ export async function kalenderZeilen(
                and coalesce(p.ist_ende, p.soll_ende) between $1::date and $2::date
                and $3::uuid is null`,
     },
+    /*
+     * **Der Weg fuehrt auf die Bekanntmachung** (V-243, D-737):
+     * `/radar/<ausschreibung_id>` — dort stehen Frist, Stand und die Mappe.
+     * Hier stand `/radar/vorgaenge/<vorgang_id>`, eine Route, die es nie
+     * gab; der Gruppenkalender fuehrte schon immer auf `/radar/<id>` der
+     * Ausschreibung. Die Seite verlangt `radar.lesen`, und ohne dieses Recht
+     * gibt `t_lesen` den Vorgang gar nicht erst heraus.
+     */
     {
       quelle: 'vergabe',
       sql: `select v.id::text as id, 'vergabe'::text as quelle,
@@ -261,7 +279,7 @@ export async function kalenderZeilen(
                    true as ganztaegig, null::text as ort,
                    'Vergabeverfahren' as beschreibung, false as abgesagt,
                    coalesce(v.geaendert_am, v.erstellt_am)::text as geaendert,
-                   ${WEG('v', '/radar/vorgaenge/')} || v.id::text as weg
+                   ${WEG('v', '/radar/')} || v.ausschreibung_id::text as weg
               from ausschreibung_vorgang v
               join ausschreibung a on a.id = v.ausschreibung_id
              where v.geloescht_am is null

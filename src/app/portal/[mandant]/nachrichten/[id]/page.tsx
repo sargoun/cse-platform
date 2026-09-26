@@ -12,6 +12,7 @@ import { ladeFaden, versandwege, type Faden } from '@/server/services/kern/nachr
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../../unterseite';
 import { kennungOder404 } from '../../../kennung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/nachrichten/[id]` — EIN Faden in Zeitfolge (EMP-11,
@@ -134,19 +135,11 @@ export default async function FadenSeite(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="nachrichten"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/nachrichten`, text: 'Alle Nachrichten' }}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/nachrichten`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Alle Nachrichten
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{faden.betreff ?? 'Ohne Betreff'}</h1>
         {faden.geschlossenAm !== null && <StatusPill zustand="Abgeschlossen" />}
@@ -325,7 +318,7 @@ export default async function FadenSeite(
         </section>
       ) : (
         <p data-cse="antworten-fehlt" className="mt-s5 text-sm text-text-muted">
-          Zum Antworten fehlt das Recht <code>nachricht.versenden</code>.
+          Zum Antworten fehlt das Recht <Recht schluessel="nachricht.versenden" />.
         </p>
       )}
     </PortalRahmen>

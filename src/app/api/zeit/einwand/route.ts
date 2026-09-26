@@ -1,13 +1,15 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
+import { autorisierungsAntwort } from '@/server/auth/antwort';
+import { datenbankGrund, zurMaske } from '@/app/api/mein/formular';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/index';
 import { berlinFormularZeitpunkt } from '@/lib/datum/formularzeit';
 import {
-  EinwandOhneBezugFehler, KeineAnstellungFehler, mandantDerAnstellung, reicheEinwandEin,
-  type EinwandArt,
+  EinwandOhneBezugFehler, EinwandZeitFehler, KeineAnstellungFehler, mandantDerAnstellung,
+  reicheEinwandEin, type EinwandArt,
 } from '@/server/services/zeit/einwand';
 
 /**
@@ -35,6 +37,16 @@ import {
  * Also: im Personen-Scope die Anstellung aufloesen — dort greift die
  * Personen-RLS, eine fremde id liefert null Zeilen —, dann `withTenant` mit
  * genau diesem Mandanten neu betreten.
+ *
+ * **Ein Formular bekommt eine Seite zurueck, kein JSON** (V-189, D-599). Die
+ * beiden Formulare — der Einwand zu einem Eintrag und „Eine Zeit fehlt" ohne
+ * Eintrag — schicken `maske` (ihr eigener Pfad) und `zurueck` (wohin nach
+ * dem Absenden). Mit ihnen fuehrt eine Abweisung als Grund auf die Maske
+ * zurueck und ein Erfolg mit `?gemeldet=1` auf die Seite, die die Meldung
+ * zeigt. Vorher endete das Absenden auf einer weissen Seite mit
+ * `{"einwand": "…"}`, und ein Ende vor dem Beginn (`ze_fenster`) als 500.
+ * Ohne die beiden Felder antwortet die Route wie bisher mit JSON — fuer
+ * einen JSON-Aufrufer ist das die richtige Antwort.
  */
 export const dynamic = 'force-dynamic';
 
@@ -81,26 +93,46 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const art = textOder(daten, 'art');
   const betrifftDatum = textOder(daten, 'datum');
   const begruendung = textOder(daten, 'begruendung');
+  const pauseRoh = textOder(daten, 'pause');
+  const maskePfad = textOder(daten, 'maske');
+  const zurueck = textOder(daten, 'zurueck');
 
-  if (anstellungId === null) {
-    return NextResponse.json({ fehler: 'keine_anstellung' }, { status: 400 });
-  }
-  if (art === null || !ARTEN.includes(art as EinwandArt)) {
-    return NextResponse.json({ fehler: 'unbekannte_art' }, { status: 400 });
-  }
-  if (betrifftDatum === null || !DATUM.test(betrifftDatum)) {
-    return NextResponse.json({ fehler: 'kein_datum' }, { status: 400 });
-  }
+  /**
+   * Die Abweisung: auf die Maske, wenn ein Formular fragt, sonst JSON.
+   *
+   * Was zurueckreist, sind Beschaeftigung, Tag, Uhrzeiten und Pause — die
+   * Begruendung NICHT: sie ist Freitext ueber einen Lohnstreit, und eine
+   * Adresse landet in Verlauf und Protokollen. Die Maske bittet darum, sie
+   * noch einmal einzugeben.
+   */
+  const abweisen = (grund: string, status = 400): NextResponse => (maskePfad === null
+    ? NextResponse.json({ fehler: grund }, { status })
+    : zurMaske(anfrage, maskePfad, grund, {
+      anstellung: anstellungId, datum: betrifftDatum,
+      beginn: textOder(daten, 'beginn'), ende: textOder(daten, 'ende'), pause: pauseRoh,
+      begruendung_neu: begruendung === null ? null : 'ja',
+    }));
+
+  if (anstellungId === null) return abweisen('keine_anstellung');
+  if (art === null || !ARTEN.includes(art as EinwandArt)) return abweisen('unbekannte_art');
+  if (betrifftDatum === null || !DATUM.test(betrifftDatum)) return abweisen('kein_datum');
   if (begruendung === null) {
     // Ohne Begruendung ist es keine Meldung, sondern ein Klick — und die
     // Planung haette nichts, worueber sie entscheiden koennte.
-    return NextResponse.json({ fehler: 'keine_begruendung' }, { status: 400 });
+    return abweisen('keine_begruendung');
   }
 
-  const pauseRoh = textOder(daten, 'pause');
   const pause = pauseRoh === null ? null : Number(pauseRoh);
   if (pause !== null && (!Number.isInteger(pause) || pause < 0)) {
-    return NextResponse.json({ fehler: 'pause_ungueltig' }, { status: 400 });
+    return abweisen('pause_ungueltig');
+  }
+  const behauptetBeginn = zeitpunktOder(daten, 'beginn');
+  const behauptetEnde = zeitpunktOder(daten, 'ende');
+  // Dieselbe Bedingung wie `ze_fenster` (0052) — vorher prueft, damit sie als
+  // Satz ankommt und nicht als `check_violation` durch die Route faellt.
+  if (behauptetBeginn !== null && behauptetEnde !== null
+      && behauptetEnde.getTime() <= behauptetBeginn.getTime()) {
+    return abweisen('fenster_verkehrt');
   }
 
   try {
@@ -122,20 +154,32 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         zeiteintragId: textOder(daten, 'zeiteintrag'),
         art: art as EinwandArt,
         betrifftDatum,
-        behauptetBeginn: zeitpunktOder(daten, 'beginn'),
-        behauptetEnde: zeitpunktOder(daten, 'ende'),
+        behauptetBeginn,
+        behauptetEnde,
         behauptetPauseMinuten: pause,
         begruendung,
         eingereichtVonBenutzerId: sitzung.benutzerId,
       }));
     });
-    return NextResponse.json({ einwand: id }, { status: 201 });
+    if (zurueck === null) return NextResponse.json({ einwand: id }, { status: 201 });
+    const ziel = new URL(internesZiel(zurueck, '/portal/mein/zeiten', anfrage));
+    ziel.searchParams.set('gemeldet', '1');
+    return NextResponse.redirect(ziel, 303);
   } catch (fehler) {
+    // Eine fremde Beschaeftigung bietet kein Formular an (AUT-06).
     if (fehler instanceof KeineAnstellungFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }
-    if (fehler instanceof EinwandOhneBezugFehler) {
-      return NextResponse.json({ fehler: 'kein_zeiteintrag' }, { status: 400 });
+    const auth = autorisierungsAntwort(fehler);
+    if (auth !== null) return auth;
+    if (fehler instanceof EinwandOhneBezugFehler) return abweisen('kein_zeiteintrag');
+    // Tag und behauptete Zeit gegen die Uhr der Datenbank (V-193, Invariante 5).
+    if (fehler instanceof EinwandZeitFehler) return abweisen(fehler.grund, 422);
+    // Die zweite Linie: Pruefbedingung, Fremdschluessel (ein Eintrag einer
+    // anderen Beschaeftigung), ein Tag, den es nicht gibt.
+    const ausDatenbank = datenbankGrund(fehler);
+    if (ausDatenbank !== null) {
+      return abweisen(ausDatenbank === 'ueberlappt' ? 'ungueltige_eingabe' : ausDatenbank);
     }
     throw fehler;
   }

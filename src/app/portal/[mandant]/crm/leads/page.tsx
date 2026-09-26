@@ -5,13 +5,21 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
-import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { StatusPill } from '@/components/ui/StatusPill';
+import { LEAD_PILLE } from '@/lib/vorgang-pille';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '../../../rechte';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { CRM_WEGE_TEXTE } from '@/lib/i18n/verwaltung/crm';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { Listenfilter } from '@/components/portal/Listenfilter';
+import { KENNZAHL_TEXTE } from '@/lib/i18n/verwaltung/kennzahlen';
+import { leadFristAus, leadStatusAus } from '@/server/services/bericht/mengen';
+import { listeLeads, type LeadZeile } from '@/server/services/bericht/listen';
 
 /**
  * `/portal/[mandant]/crm/leads` — der Posteingang (CRM-07).
@@ -26,38 +34,23 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  */
 export const dynamic = 'force-dynamic';
 
-const STATUS_PILLE: Readonly<Record<string, PillZustand>> = {
-  neu: 'Offen',
-  in_bearbeitung: 'In Arbeit',
-  qualifiziert: 'Bereit',
-  angebot: 'Angebot',
-  gewonnen: 'Abgeschlossen',
-  verloren: 'Abgelehnt',
-  kein_bedarf: 'Archiviert',
-};
-
-interface LeadZeile {
-  readonly id: string;
-  readonly leadnummer: string;
-  readonly betreff: string | null;
-  readonly firma_name: string | null;
-  readonly quelle: string;
-  readonly status: string;
-  readonly prioritaet: string;
-  readonly punktzahl: number | null;
-  readonly punktzahl_begruendung: string | null;
-  readonly wert: string | null;
-  readonly frist: string | null;
-  readonly frist_ueberschritten: boolean;
-  readonly naechste_aktion_text: string | null;
-  readonly naechste_aktion_am: string | null;
-  readonly besitzer: string | null;
-}
 
 export default async function Leadliste(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  /*
+   * **Die Filter der Kacheln** (V-152, DSH-04): „Neue Anfragen" führt mit
+   * `?status=neu` hierher, „Frist überschritten" mit `?frist=ueberschritten`.
+   * Ohne sie zeigte die Liste alle Leads, und die Zahl der Kachel stand
+   * nirgends. Beide gegen die Werteliste geprüft — ein fremdes Wort ist kein
+   * Filter.
+   */
+  const suche = await searchParams;
+  const filter = { status: leadStatusAus(suche['status']), frist: leadFristAus(suche['frist']) };
   const zugang = await portalZugang(`/portal/${mandant}/crm/leads`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -67,27 +60,25 @@ export default async function Leadliste(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* Die Abfrage steht im Dienst (`listeLeads`) und wird dort gegen die Kacheln geprüft. */
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, sitzung, async (kontext) => kontext.abfrage<LeadZeile>(
-      `select l.id, l.leadnummer, l.betreff, l.firma_name, l.quelle::text as quelle,
-              l.status::text as status, l.prioritaet::text as prioritaet,
-              l.punktzahl, l.punktzahl_begruendung,
-              l.geschaetzter_wert_cent::text as wert,
-              to_char(l.sla_frist_am at time zone 'Europe/Berlin', 'DD.MM. HH24:MI') as frist,
-              (l.sla_frist_am is not null and l.erste_reaktion_am is null
-               and l.sla_frist_am < now()) as frist_ueberschritten,
-              l.naechste_aktion_text,
-              to_char(l.naechste_aktion_am at time zone 'Europe/Berlin', 'DD.MM.YYYY')
-                as naechste_aktion_am,
-              b.name as besitzer
-         from lead l
-         left join benutzer b on b.id = l.besitzer_benutzer_id
-        where l.archiviert_am is null
-        order by (l.status in ('gewonnen','verloren','kein_bedarf')),
-                 l.sla_frist_am nulls last, l.erstellt_am desc`,
-    ))) as Promise<readonly LeadZeile[]>);
+    withTenant(tx, sitzung, (kontext) => listeLeads(kontext, filter))) as
+    Promise<readonly LeadZeile[]>);
+  const tk = nachSprache(KENNZAHL_TEXTE, zugang.sprache);
+  const gefiltert = filter.status !== null || filter.frist !== null;
+  const filterSatz = [
+    filter.status === null ? null : (tk.leadStatus[filter.status] ?? tk.keinTreffer),
+    filter.frist === null ? null : tk.fristUeberschritten,
+  ].filter((t): t is string => t !== null).join(' · ');
 
   const offen = zeilen.filter((z) => !['gewonnen', 'verloren', 'kein_bedarf'].includes(z.status));
+
+  /*
+   * V-036: die Maske „Neuer Lead" war gebaut und von nirgends verlinkt — der
+   * Weg fuer die Anfrage, die am Telefon oder auf einer Messe kam.
+   */
+  const darf = await haeltRechte(sitzung, 'crm.schreiben');
+  const tCrm = nachSprache(CRM_WEGE_TEXTE, zugang.sprache);
 
   return (
     <PortalRahmen
@@ -96,7 +87,7 @@ export default async function Leadliste(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="crm"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -105,12 +96,42 @@ export default async function Leadliste(
         <p className="m-0 text-sm text-text-muted">
           {`${String(offen.length)} offen von ${String(zeilen.length)}`}
         </p>
+        {darf['crm.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/crm/leads/neu`}
+            data-cse="lead-neu"
+            className="ml-auto inline-flex min-h-11 items-center rounded-md bg-brand
+                       px-s4 text-sm text-white hover:bg-brand-hover"
+          >
+            {tCrm.neuerLead}
+          </Link>
+        )}
       </div>
 
-      {zeilen.length === 0 ? (
+      {gefiltert ? (
+        <Listenfilter sprache={zugang.sprache} beschreibung={filterSatz}
+                      alleZiel={`/portal/${mandant}/crm/leads`} />
+      ) : null}
+
+      {zeilen.length === 0 && gefiltert ? (
+        <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
+          {tk.keinTreffer}
+        </p>
+      ) : zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Kein Lead im Posteingang. Anfragen aus dem Angebotsformular der
           Website landen hier.
+          {darf['crm.schreiben'] === true && (
+            <>
+              {' '}
+              <Link
+                href={`/portal/${mandant}/crm/leads/neu`}
+                className="text-brand underline-offset-2 hover:underline"
+              >
+                {tCrm.erstenLeadAnlegen}
+              </Link>
+            </>
+          )}
         </p>
       ) : (
         <DataTable
@@ -181,7 +202,7 @@ export default async function Leadliste(
             {
               schluessel: 'status',
               kopf: 'Status',
-              zelle: (z) => <StatusPill zustand={STATUS_PILLE[z.status] ?? 'Offen'} />,
+              zelle: (z) => <StatusPill zustand={LEAD_PILLE[z.status] ?? 'Offen'} />,
             },
           ]}
         />

@@ -16,6 +16,7 @@ import { kennungFuer } from '../../../kennung';
 import { Schrittkette } from '../../../Schrittkette';
 import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/agenten/[agent]/aufgaben/[id]` — ein Lauf, von vorne bis
@@ -80,7 +81,7 @@ export default async function Lauf(
   const kennung = kennungFuer(agent);
   if (kennung === undefined) notFound();
 
-  const zugang = await portalZugang(`/portal/${mandant}/agenten/[agent]/aufgaben/[id]`);
+  const zugang = await portalZugang(`/portal/${mandant}/agenten/${agent}/aufgaben/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {
@@ -244,7 +245,7 @@ export default async function Lauf(
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Die Schrittkette zeigt, welche Werkzeuge dieser Lauf benutzt hat und
           was er einem Modell geschickt hat. Dafür braucht es das Recht
-          <code className="mx-s2">agent.protokoll_lesen</code>; dieses Konto hat
+          <Recht schluessel="agent.protokoll_lesen" />; dieses Konto hat
           es nicht.
         </p>
       )}

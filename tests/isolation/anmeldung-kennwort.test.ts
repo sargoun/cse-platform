@@ -339,7 +339,7 @@ describe('(7) Einladung und Zurücksetzung', () => {
     expect(inhalt?.zweck).toBe('zuruecksetzen');
 
     const neu = 'ganz-neues-kennwort-2026';
-    const wer = await ohneSitzung((tx) => loeseKennwortTokenEin(tx, token, neu));
+    const wer = await ohneSitzung((tx) => loeseKennwortTokenEin(tx, token, neu, null));
     expect(wer?.benutzerId).toBe(k.id);
     expect(wer?.brauchtFaktor).toBe(false);
 
@@ -349,7 +349,7 @@ describe('(7) Einladung und Zurücksetzung', () => {
     expect(Number(offen!.n)).toBe(0);
 
     // Zweites Einlösen: nichts.
-    expect(await ohneSitzung((tx) => loeseKennwortTokenEin(tx, token, neu))).toBeNull();
+    expect(await ohneSitzung((tx) => loeseKennwortTokenEin(tx, token, neu, null))).toBeNull();
 
     await bremseLoeschen();
     expect((await anmelden(k.email, neu)).ergebnis).toBe('ok');
@@ -362,7 +362,7 @@ describe('(7) Einladung und Zurücksetzung', () => {
     const token = await ohneSitzung((tx) => legeKennwortTokenAn(tx, k.email, 'einladung'));
 
     const e = await ohneSitzung((tx) =>
-      loeseKennwortTokenEin(tx, token, 'mein-eigenes-kennwort'));
+      loeseKennwortTokenEin(tx, token, 'mein-eigenes-kennwort', null));
     expect(e?.brauchtFaktor).toBe(false);
 
     const [b] = await sql.unsafe<{ status: string }[]>(
@@ -387,7 +387,7 @@ describe('(7) Einladung und Zurücksetzung', () => {
     const k = await legeKontoAn({ kennwort: null, status: 'eingeladen', rolle: 'admin' });
     const token = await ohneSitzung((tx) => legeKennwortTokenAn(tx, k.email, 'einladung'));
 
-    const e = await ohneSitzung((tx) => loeseKennwortTokenEin(tx, token, 'mein-eigenes-kennwort'));
+    const e = await ohneSitzung((tx) => loeseKennwortTokenEin(tx, token, 'mein-eigenes-kennwort', null));
     expect(e?.brauchtFaktor).toBe(true);
 
     // Noch nicht aktiv — und der Token ist NICHT verbraucht.
@@ -407,7 +407,7 @@ describe('(7) Einladung und Zurücksetzung', () => {
 
     const [jetzt] = await sql.unsafe<{ t: Date }[]>(`select now() as t`);
     const code = codeFuer(ein!.geheimnis, schritt(new Date(jetzt!.t)));
-    expect(await ohneSitzung((tx) => bestaetigeFaktorMitToken(tx, token, code))).toBe(k.id);
+    expect(await ohneSitzung((tx) => bestaetigeFaktorMitToken(tx, token, code, null))).toBe(k.id);
 
     const [nachher] = await sql.unsafe<{ status: string }[]>(
       `select status from benutzer where id = $1`, [k.id]);
@@ -426,7 +426,7 @@ describe('(7) Einladung und Zurücksetzung', () => {
     const k = await legeKontoAn();
     const token = await ohneSitzung((tx) => legeKennwortTokenAn(tx, k.email, 'zuruecksetzen'));
 
-    expect(await ohneSitzung((tx) => loeseKennwortTokenEin(tx, token, 'kurz'))).toBeNull();
+    expect(await ohneSitzung((tx) => loeseKennwortTokenEin(tx, token, 'kurz', null))).toBeNull();
 
     // Immer noch gültig.
     const [z] = await sql.unsafe<{ eingeloest_am: Date | null }[]>(

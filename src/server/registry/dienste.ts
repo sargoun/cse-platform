@@ -102,6 +102,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'radar', pfad: 'radar/profil',
     schreibend: true, schreibRecht: 'radar.profil_schreiben',
   },
+  /**
+   * V-175 — Plattformkatalog und Registrierungsstand (RAD-09). Das Recht ist
+   * das der Seite; den Katalog schreibt zusaetzlich nur die
+   * Super-Administration (Dienst und `r_plattform_schreiben`).
+   */
+  {
+    modul: 'radar', pfad: 'radar/plattform',
+    schreibend: true, schreibRecht: 'radar.plattform_verwalten',
+  },
   { modul: 'buchhaltung', pfad: 'buchhaltung/kontenrahmen', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/kontierung', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/index', schreibend: false },
@@ -145,6 +154,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   {
     modul: 'buchhaltung', pfad: 'buchhaltung/datev/export',
+    schreibend: true, schreibRecht: 'buchhaltung.exportieren',
+  },
+  /**
+   * Der Vermerk am Stapel (V-027) — dasselbe Recht wie beim Erzeugen. Er
+   * SENDET nichts: es gibt keinen DATEV-Endpunkt (O-05); wer die Datei dem
+   * Steuerbuero gibt, ist ein Mensch, und was hier entsteht, ist sein Vermerk
+   * darueber.
+   */
+  {
+    modul: 'buchhaltung', pfad: 'buchhaltung/datev/stapel',
     schreibend: true, schreibRecht: 'buchhaltung.exportieren',
   },
   { modul: 'finanzen', pfad: 'finanz/geld', schreibend: false },
@@ -194,6 +213,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'kalkulation.schreiben',
   },
   /**
+   * V-174 — Material und Geraet: eine erfasste Kostenzeile aendert, worauf
+   * der Preis ruht, und rechnet ihn neu. Dasselbe Recht wie die Bestaetigung.
+   */
+  {
+    modul: 'objekt', pfad: 'kalkulation/kostenposition',
+    schreibend: true, schreibRecht: 'kalkulation.schreiben',
+  },
+  /**
    * Der Angebotsdienst SCHREIBT — und sein Recht ist `angebot.versenden`,
    * nicht `angebot.schreiben`: der Uebergang, der etwas aus dem Haus laesst,
    * ist der, der ein eigenes Recht braucht (Invariante 7).
@@ -202,6 +229,43 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'angebot', pfad: 'angebot/index',
     schreibend: true, schreibRecht: 'angebot.versenden',
   },
+  /**
+   * Das Angebot VON HAND (V-005) — `angebot.schreiben` und nicht
+   * `angebot.versenden`: hier entsteht ein Entwurf ohne Nummer, und er
+   * verlaesst das Haus nicht. Zwei von drei Gesellschaften hatten bis dahin
+   * gar keinen Entstehungsweg: die Kalkulation rechnet aus Flaechen, und ein
+   * Raumbuch gibt es in der Sicherheit und im Bau nicht.
+   */
+  {
+    modul: 'angebot', pfad: 'angebot/von-hand',
+    schreibend: true, schreibRecht: 'angebot.schreiben',
+  },
+  /**
+   * Die Berichtigung eines ENTWURFS (V-130, D-626) — dasselbe Recht wie das
+   * Anlegen und aus demselben Grund: ein Blatt ohne Nummer, das ausser dem
+   * Haus niemand gesehen hat. Die Trennlinie zu `angebot.versenden` ist
+   * `versendet_am`, und `ap_unveraenderlich` (0024) haelt sie in der
+   * Datenbank.
+   */
+  {
+    modul: 'angebot', pfad: 'angebot/entwurf',
+    schreibend: true, schreibRecht: 'angebot.schreiben',
+  },
+  /**
+   * Das Angebot AUS DEM RAUMBUCH (V-143, D-637) — bis dahin stand der Weg
+   * ganz in `/api/angebot`. `angebot.schreiben` wie der Entwurf von Hand:
+   * es entsteht ein Blatt ohne Nummer, das das Haus nicht verlässt.
+   */
+  {
+    modul: 'angebot', pfad: 'angebot/aus-raumbuch',
+    schreibend: true, schreibRecht: 'angebot.schreiben',
+  },
+  /**
+   * Die lebenden Positionen eines Angebots (V-203, D-696) — nur lesend. Der
+   * Filter auf `entfernt_am` steht hier einmal, und Dokument, Freigabe,
+   * Versand und Kundenportal fragen ihn ab.
+   */
+  { modul: 'angebot', pfad: 'angebot/lebend', schreibend: false },
   /**
    * Der Tabellenleser liest nur; der Import SCHREIBT — und zwar zweimal
    * verschieden: die Vorschau legt Zwischenzeilen an, die Uebernahme aendert
@@ -218,6 +282,66 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'objekt_import', pfad: 'raumbuch/import',
     schreibend: true, schreibRecht: 'objekt_import.schreiben',
   },
+  /**
+   * V-039 — die eigenen Anmeldungen sehen und beenden.
+   *
+   * **Kein Schreibrecht, und das ist kein Loch.** Die Policy
+   * `t_sitzung_eigene_schreiben` deckelt das UPDATE auf `benutzer_id =
+   * app.aktueller_benutzer()`; ein Rechteschluessel fuer „die eigene
+   * Anmeldung beenden" waere einer, den jede Rolle hielte — also keiner
+   * (K-19, §12.4 Selbstzugriff).
+   */
+  { modul: 'system', pfad: 'konto/sitzungen', schreibend: false },
+  /**
+   * V-120 — das Modellregister.
+   *
+   * Die Zeile ist eine RECHTSAUSSAGE und kein Schalter: sie bezeugt, dass
+   * ein Mensch hingesehen hat. Deshalb aal2 in der Policy (0381) und
+   * deshalb setzt die Datenbank den Zeugen, statt ihn abzufragen.
+   */
+  {
+    modul: 'system', pfad: 'system/modellregister',
+    schreibend: true, schreibRecht: 'system.einstellung_verwalten',
+  },
+  /**
+   * V-006 — die Kreditorenstammdaten.
+   *
+   * `eingang.schreiben` ist dasselbe Recht wie fuer die
+   * Eingangsrechnung selbst: wer Rechnungen erfasst, legt den
+   * Lieferanten an, von dem sie kommen. Ein eigenes Recht braeuchten
+   * genau dieselben Menschen zusaetzlich (K-19).
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/lieferant',
+    schreibend: true, schreibRecht: 'eingang.schreiben',
+  },
+  /**
+   * V-011 — der Schreibweg der Ausgabe.
+   *
+   * `eingang.schreiben` ist das kleinere der zwei Rechte: erfassen ist
+   * Belegarbeit. Freigeben, ablehnen und buchen verlangen
+   * `eingang.freigeben`, und die Route prueft das je Handlung — wer eine
+   * Quittung eintippen darf, gibt sie nicht schon deshalb frei.
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/ausgabe-schreiben',
+    schreibend: true, schreibRecht: 'eingang.schreiben',
+  },
+  /**
+   * V-022, V-074, V-075, V-076 — ein Konto zuruecknehmen.
+   *
+   * **Das Schreibrecht ist `system.benutzer_verwalten` und deckt drei der
+   * vier Handlungen.** Der Sitzungswiderruf haengt am kleineren
+   * `system.sitzung_widerrufen` (bindbar bis `leitung`): er nimmt ein
+   * Plaetzchen aus dem Verkehr, keinen Menschen aus dem Betrieb. Beide
+   * Rechte prueft die Datenbank je Funktion selbst (`drizzle/0379`) —
+   * das Register nennt hier das groessere, weil es das ist, an dem die
+   * Route haengt.
+   */
+  {
+    modul: 'system', pfad: 'konto/verwaltung',
+    schreibend: true, schreibRecht: 'system.benutzer_verwalten',
+  },
   { modul: 'zeit', pfad: 'zeit/dauer', schreibend: false },
   /**
    * **Was ein `datetime-local`-Feld schickt, wird hier zum Instant.**
@@ -229,6 +353,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * `social/planeingabe` re-exportiert weiter.
    */
   { modul: 'zeit', pfad: 'zeit/formulareingabe', schreibend: false },
+  /**
+   * V-051 — die Artdefinition der Meldung „Ihre Zeitmeldung wurde …".
+   *
+   * `schreibend: false`: die Datei baut Titel, Text und Ziel und schreibt
+   * nichts. Die Zustellung macht `app.einwand_entscheidung_melden` (0377),
+   * aufgerufen aus `zeit/einwand`.
+   */
+  { modul: 'zeit', pfad: 'zeit/benachrichtigung', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/spalten', schreibend: false },
   /**
    * Der Check-in SCHREIBT — die Marke und den Zeiteintrag. Sein Recht ist
@@ -246,6 +378,27 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * Gruppenansicht laeuft sie nicht: Invariante 10, und ohne genau einen
    * aktiven Mandanten waere jede `WITH CHECK` ohnehin falsch.
    */
+  /**
+   * V-064 — was die Verwaltung mit einem LAUFENDEN Eintrag darf.
+   *
+   * `zeit.korrigieren` wie bei `zeit/korrektur` daneben: es ist derselbe
+   * Vorgang in einer frueheren Phase. Wer Zeiten nur ERFASST
+   * (`zeit.schreiben`), setzt damit noch keine fremde Arbeitszeit fest.
+   */
+  {
+    modul: 'zeit', pfad: 'zeit/laufender-eintrag',
+    schreibend: true, schreibRecht: 'zeit.korrigieren',
+  },
+  /**
+   * V-066/V-067 — eine Arbeitszeit eintragen, zu der es KEIN Geraetereignis
+   * gibt. `zeit.nacherfassung_pruefen` ist die Entscheidung (TIM-09); den
+   * Schreibzugriff verlangt die Policy `t_mandant` ohnehin als
+   * `zeit.schreiben`.
+   */
+  {
+    modul: 'zeit', pfad: 'zeit/nacherfassung',
+    schreibend: true, schreibRecht: 'zeit.nacherfassung_pruefen',
+  },
   {
     modul: 'zeit', pfad: 'zeit/korrektur',
     schreibend: true, schreibRecht: 'zeit.korrigieren',
@@ -254,7 +407,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * „Aktuell im Einsatz" ZAEHLT nur (DSH-05) — in der Gruppenansicht ist
    * daran nichts gefaehrlich, und schreiben kann es nicht.
    */
-  { modul: 'zeit', pfad: 'zeit/live', schreibend: false },
+  /*
+   * `zeit/live` ist am 23.09.2026 ENTFALLEN (V-072).
+   *
+   * Der Dienst bildete `zeiteintrag_offen` ein drittes Mal ab — die Sicht
+   * selbst ist die eine Wahrheit, `/zeiten/live` liest sie ueber
+   * `ladeLaufende`, und die Dashboard-Kachel liest sie ueber das
+   * Kennzahlenregister, das SQL nimmt und keine Funktion. Gebaut war er fuer
+   * genau diese Kachel und von ihr nie aufrufbar; einen Aufrufer hatte er in
+   * zwei Jahren nicht. Was bleibt, ist eine Frage mit einer Antwort statt
+   * dreier Wege zu ihr.
+   */
   /**
    * Die Offline-Warteschlange (TIM-09). Sie SCHREIBT — die nachgereichte
    * Behauptung und, wenn ein Mensch entscheidet, den Zeiteintrag samt
@@ -483,6 +646,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'crm.kommunikation_versenden',
   },
   { modul: 'crm', pfad: 'lead/benachrichtigung', schreibend: false },
+  /* V-137: eine Einsendung, gegen die Felder ihrer Version lesbar gemacht — rein. */
+  { modul: 'crm', pfad: 'lead/einsendung', schreibend: false },
   /*
    * Kunde, Kontakt und Lead von Hand anlegen (CRM-01, CRM-03, CRM-07). Ein
    * eigener Dienst und nicht ein Zweig in `lead/annahme`: die Annahme ist der
@@ -493,6 +658,60 @@ export const DIENSTE: readonly DienstEintrag[] = [
   {
     modul: 'crm', pfad: 'crm/anlegen',
     schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Die Kette Lead → Angebot → Auftrag (V-138, CRM-05, D-632): den Kunden
+   * einer Anfrage setzen (schreibt `kunde`, `lead`, `ansprechpartner`) und
+   * die Kette für Lead- und Kundenblatt lesen. Die Prüfung, ob ein Angebot
+   * oder Auftrag an einem Lead hängen darf, liest nur.
+   */
+  {
+    modul: 'crm', pfad: 'crm/lead-kette',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Ein Treffer des Vergaberadars wird zum Lead (V-139, CRM-07, D-633). Das
+   * Schreibrecht ist das des Leads; die Bekanntmachung liest der Dienst unter
+   * `radar.lesen`, und an ihrem Vorgang ändert er nichts.
+   */
+  {
+    modul: 'crm', pfad: 'crm/lead-radar',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Der Mensch hinter der Anfrage (V-141, CRM-03, CRM-04, D-635): den
+   * Ansprechpartner eines Leads wählen oder anlegen (schreibt `lead`,
+   * `ansprechpartner`, `lead_aktivitaet`) und eine Aktivität festhalten —
+   * ausgehend mit dem Zweck, den die Herkunft trägt (O-907).
+   */
+  {
+    modul: 'crm', pfad: 'crm/lead-kontakt',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Kunde und Ansprechpartner AENDERN (V-017, V-018, V-019). Eigene Datei und
+   * nicht ein Zweig in `crm/anlegen`: sie fasst vier Spalten mit Absicht NICHT
+   * an — `debitorennummer`, `zahlungsziel_tage`, `mahnsperre_bis`,
+   * `mahnsperre_grund`. `cse_app` darf sie schreiben, aber nicht LESEN (K-05);
+   * ein Formular, das den ganzen Datensatz zurueckschreibt, ueberschriebe sie
+   * mit null — eine geloeschte Mahnsperre ist eine Mahnung an einen Kunden,
+   * mit dem gerade verhandelt wird. Wer sie aendern will, geht ueber
+   * `crm/kondition` und braucht `crm_entgelt.lesen` dazu.
+   */
+  {
+    modul: 'crm', pfad: 'crm/aendern',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /**
+   * Die Nachricht an einen Kontakt (V-101, CRM-08, D-627) — der erste
+   * Aufrufer von `sendeNachAussen`. `crm.kommunikation_versenden` stand seit
+   * 0008 im Katalog und wurde bis hierher von keiner Route benutzt. Der Dienst
+   * schreibt die benannte Freigabe des Verfassers und — sobald ein Versender
+   * verbunden ist — die Nachricht; ohne Versender schreibt er NICHTS.
+   */
+  {
+    modul: 'crm', pfad: 'crm/nachricht-an-kontakt',
+    schreibend: true, schreibRecht: 'crm.kommunikation_versenden',
   },
   /*
    * Die Zahlungskonditionen (CRM-01, FIN-15, K-05). Schreibrecht ist
@@ -530,6 +749,19 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'crm', pfad: 'crm/kundenzugang',
     schreibend: true, schreibRecht: 'system.benutzer_verwalten',
   },
+  /**
+   * **Die Einladung eines Verwaltungskontos (AUT-04, D-610, 0372).** Die
+   * Schwester von `crm/kundenzugang` — dieselbe Kette aus
+   * `kern.kennwort_token`, derselbe einmalige Klartext, dieselbe
+   * Definer-Funktion, die das Recht noch einmal prueft. Der Unterschied ist
+   * das Recht: `system.verwaltungskonto_erstellen` ist `nur_global` und
+   * damit dem Super-Admin vorbehalten, waehrend `system.benutzer_verwalten`
+   * bei der Gesellschaft bleibt.
+   */
+  {
+    modul: 'system', pfad: 'system/verwaltungskonto',
+    schreibend: true, schreibRecht: 'system.verwaltungskonto_erstellen',
+  },
   /*
    * Wiedervorlagen (CRM-04). Schreibt in `lead_aktivitaet` und spiegelt nach
    * `aufgabe` und `kalender_eintrag`, soweit `aufgabe.schreiben` und
@@ -537,6 +769,21 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   {
     modul: 'crm', pfad: 'crm/wiedervorlage',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Die Art der Wiedervorlage-Erinnerung (V-146, CRM-04). Definiert nur Titel,
+   * Text und Ziel; zugestellt wird im Lauf `wiedervorlage_erinnerung` als
+   * `cse_job` — kein Recht aus dem Katalog, weil hier kein Mensch handelt.
+   */
+  { modul: 'crm', pfad: 'crm/benachrichtigung', schreibend: false },
+  /*
+   * Der Kommunikationsverlauf (V-147, CRM-03). Liest Aktivitäten und
+   * Nachrichten eines Kunden oder Kontakts; `halteFest` schreibt eine
+   * Aktivität am Kunden oder Kontakt — ausgehend durch das UWG-Tor (0020).
+   */
+  {
+    modul: 'crm', pfad: 'crm/verlauf',
     schreibend: true, schreibRecht: 'crm.schreiben',
   },
   /*
@@ -579,6 +826,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
   // gefährlich, und schreiben können sie nicht.
   { modul: 'bericht', pfad: 'bericht/kacheln', schreibend: false },
   { modul: 'bericht', pfad: 'bericht/dashboard', schreibend: false },
+  /*
+   * Die Mengen hinter den Kennzahlen (V-149, V-150): Statuslisten, die eine
+   * Kachel, ihre Liste und die Gruppenübersicht teilen. Rein, ohne Datenbank.
+   */
+  { modul: 'bericht', pfad: 'bericht/mengen', schreibend: false },
+  /*
+   * Die Listen hinter den Kennzahlen, im Bereich und in der Gruppe (V-152):
+   * als Dienst, damit Zahl und Liste an echten Zeilen verglichen werden.
+   * Sie lesen nur.
+   */
+  { modul: 'bericht', pfad: 'bericht/listen', schreibend: false },
   /**
    * Nachweise und Qualifikationen (PR 31, SEC-02/03/04, LEG-04, EMP-08).
    *
@@ -677,6 +935,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * `bau.aufmass_freigeben` — geprueft an der Route, weil sie ein zweiter
    * Vorgang ist und nicht ein zweites Schreibrecht desselben.
    */
+  /**
+   * V-003 — das Bauprojekt selbst. `bau.schreiben` und nicht
+   * `bau.aufmass_erfassen`: ein Vorhaben ANLEGEN ist die Handlung der
+   * Bauleitung, ein Aufmass aufnehmen die der Kraft vor Ort.
+   */
+  {
+    modul: 'bau', pfad: 'bau/projekt',
+    schreibend: true, schreibRecht: 'bau.schreiben',
+  },
   { modul: 'bau', pfad: 'bau/rechenansatz', schreibend: false },
   { modul: 'bau', pfad: 'bau/lv', schreibend: false },
   {
@@ -779,8 +1046,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'dienstplan', pfad: 'mitarbeiter/schichten', schreibend: false },
   { modul: 'zeit', pfad: 'mitarbeiter/stunden', schreibend: false },
   { modul: 'zeit', pfad: 'mitarbeiter/zeiten', schreibend: false },
+  /**
+   * Was die Oberflaeche wissen muss, um den richtigen Stempelknopf zu zeigen
+   * (D-618) — LESEND, wie jeder Dienst dieses Portals. Der Stempel selbst
+   * steht in `zeit/checkin`.
+   */
+  { modul: 'zeit', pfad: 'mitarbeiter/stempeluhr', schreibend: false },
   { modul: 'nachweis', pfad: 'mitarbeiter/nachweise', schreibend: false },
   { modul: 'zeit', pfad: 'mitarbeiter/antraege', schreibend: false },
+  { modul: 'zeit', pfad: 'mitarbeiter/tausch', schreibend: false },
   { modul: 'zeit', pfad: 'mitarbeiter/felder', schreibend: false },
   /**
    * Die vier Nachzuegler des Mitarbeiterportals (0300–0304). Ebenfalls
@@ -811,6 +1085,33 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'dokument', pfad: 'mitarbeiter/dokumente', schreibend: false },
   { modul: 'objekt', pfad: 'mitarbeiter/objekte', schreibend: false },
+  /*
+   * Objekt anlegen, aendern, archivieren (OPS-01, V-001, V-020). Bis PR dieses
+   * Registereintrags entstand JEDE Objektzeile im Seed — die Plattform konnte
+   * Objekte zeigen und bebuchen, aber kein einziges erfassen. Schreibrecht ist
+   * `objekt.schreiben`, dasselbe, das die Policy `t_mandant` im `with check`
+   * verlangt: eine Stelle, zwei Zusagen, dieselbe Antwort.
+   */
+  {
+    modul: 'objekt', pfad: 'objekt/anlegen',
+    schreibend: true, schreibRecht: 'objekt.schreiben',
+  },
+  /**
+   * V-044 — was an einem Objekt haengt: Reviere, Posten,
+   * Dienstanweisungen, Schluessel, Auftraege, Einsaetze, Dokumente,
+   * Pruefungen. Rein lesend; jede Unterabfrage laeuft unter der Policy
+   * IHRER Tabelle, und der Reiter darueber unter dem Recht seines Moduls.
+   */
+  { modul: 'objekt', pfad: 'objekt/umfeld', schreibend: false },
+  /**
+   * V-010 — den Qualifikationsnachweis aufnehmen, bestaetigen,
+   * widerrufen. Er haengt am MENSCHEN (Invariante 9); das Modul ist
+   * trotzdem `personal`, weil das Recht dort liegt.
+   */
+  {
+    modul: 'personal', pfad: 'nachweis/aufnahme',
+    schreibend: true, schreibRecht: 'personal.nachweis_verwalten',
+  },
   /**
    * **Der Posteingang der Kraft (0350, EMP-11).** Beide lesend: der Faden wird
    * gelesen, geantwortet wird ueber `kern/nachricht` — den Fachdienst, der
@@ -891,6 +1192,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'finanzen', pfad: 'finanz/abrechnungsart/index',
     schreibend: true, schreibRecht: 'finanzen.schreiben',
   },
+  /**
+   * Der Rechnungsentwurf nach dem Anlegen (V-204 … V-206, D-697 … D-699):
+   * Kopf und Zuordnung, die Übernahme nach Abrechnungsart, Material aus einer
+   * Ausgabe. Er ändert nur ENTWÜRFE — `finanzen.schreiben`, wie das Anlegen;
+   * die Festschreibung bleibt beim engeren Recht in `finanz/rechnung`.
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/entwurf',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
 
   /**
    * PR 50 — der Abzug der Abschlaege in einer Schlussrechnung (FIN-08).
@@ -962,6 +1273,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * sie liest nichts und schreibt nichts.
    */
   { modul: 'finanzen', pfad: 'finanz/zahlungsmittel', schreibend: false },
+  /*
+   * V-132, D-625: welches Logo eine Rechnung druckt — eine reine Wahl aus zwei
+   * Pfaden und die Prüfung des Schlüssels; sie liest und schreibt nichts.
+   */
+  { modul: 'finanzen', pfad: 'finanz/rechnungslogo', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/index', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/xml', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xml-lesen', schreibend: false },
@@ -982,6 +1298,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
   /* PR 65 — Offene Posten, Monatszahlen, Periodenschloss. */
   { modul: 'buchhaltung', pfad: 'buchhaltung/offene-posten', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/monatszahlen', schreibend: false },
+  /* V-215 — der Aufwand aus Betriebsausgaben, eine Quelle für alle Auswertungen. */
+  { modul: 'buchhaltung', pfad: 'buchhaltung/aufwand', schreibend: false },
   {
     modul: 'buchhaltung', pfad: 'buchhaltung/periodenschluss',
     schreibend: true, schreibRecht: 'buchhaltung.festschreiben',
@@ -1034,6 +1352,35 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'personal', pfad: 'personal/zugangscode',
     schreibend: true, schreibRecht: 'personal.zugang_verwalten',
   },
+  /* V-014 — den Zugang selbst einrichten, umschreiben, sperren, entsperren.
+     Fuenf Migrationen bauten um diese Zeile herum; angelegt hat sie bis
+     dahin nur der Seed. */
+  {
+    modul: 'personal', pfad: 'personal/zugang',
+    schreibend: true, schreibRecht: 'personal.zugang_verwalten',
+  },
+  /* V-013 — die einzelne Schicht: `einsatz.quelle = 'manuell'` stand seit
+     0028 im Vokabular, angelegt hat so eine Zeile nie jemand. */
+  {
+    modul: 'dienstplan', pfad: 'dienstplan/einzelschicht',
+    schreibend: true, schreibRecht: 'dienstplan.schreiben',
+  },
+  /* V-021 — eine Serie aendern, beenden, archivieren. `archiviert_am` stand
+     seit 0028 da und wurde nie geschrieben. */
+  {
+    modul: 'dienstplan', pfad: 'dienstplan/serie-pflege',
+    schreibend: true, schreibRecht: 'dienstplan.schreiben',
+  },
+  /* V-191 — die Leistungszeile als Abrechnungsanker: welche lebenden Zeilen
+     sich waehlen lassen und ob eine gewaehlte passt. Liest nur; geschrieben
+     wird der Anker von Einzelschicht, Serie, Serienpflege und Posten. */
+  { modul: 'dienstplan', pfad: 'dienstplan/leistungsanker', schreibend: false },
+  /* V-015 — die eine Zahl, ohne die kein Agent laeuft. Eigenes Recht, weil
+     sich sonst begrenzt, wer seine Grenze selbst verstellt (AGT-05). */
+  {
+    modul: 'agent', pfad: 'agent/budget-pflege',
+    schreibend: true, schreibRecht: 'agent.budget_verwalten',
+  },
   {
     modul: 'dokument', pfad: 'dokument/aufbewahrung',
     schreibend: true, schreibRecht: 'dokument.aufbewahrung_verwalten',
@@ -1041,6 +1388,72 @@ export const DIENSTE: readonly DienstEintrag[] = [
   {
     modul: 'dokument', pfad: 'dokument/loeschung',
     schreibend: true, schreibRecht: 'dokument.archivieren',
+  },
+  /**
+   * V-023 — die Abweichung dieser Gesellschaft an der Rechtematrix.
+   *
+   * `system.rolle_verwalten` und nicht `system.rolle_lesen`: wer die Matrix
+   * ansehen darf, verstellt sie damit nicht. Das Lesen ist bis `leitung`
+   * bindbar, das Verwalten nur bis `admin` — und der zweite Faktor ist
+   * Pflicht, weil `p_rb_aal2` (0008) restriktiv darauf besteht.
+   */
+  {
+    modul: 'system', pfad: 'system/rollenrecht',
+    schreibend: true, schreibRecht: 'system.rolle_verwalten',
+  },
+  /**
+   * V-164 — die Module einer Administration (AUT-01). Schreibt ueber
+   * `app.mitgliedschaft_module_setzen` (0416), das dasselbe Recht noch einmal
+   * fragt, dazu den zweiten Faktor und ein fremdes Konto.
+   */
+  {
+    modul: 'system', pfad: 'system/mitgliedschaft-module',
+    schreibend: true, schreibRecht: 'system.module_zuweisen',
+  },
+  /**
+   * V-165 — was der Bereichsumschalter ueber eine Anmeldung weiss (TEN-06,
+   * TEN-10, DESIGN §6). Lesend: `app.umschalter_bereiche`,
+   * `app.darf_gruppenansicht` und `app.mandant_kennzahlen` (0417, 0418) —
+   * nur Anzahlen, nur fuer interne Sitzungen (`zaehltFuer`) und nur, wo der
+   * Betrachter im jeweiligen Bereich intern arbeitet und das Leserecht haelt
+   * (V-166, D-660).
+   */
+  { modul: 'system', pfad: 'mandant/umschalter', schreibend: false },
+  /**
+   * V-081 — der Auftrag laeuft, ruht oder ist storniert.
+   *
+   * `auftrag.schreiben` und ausdruecklich nicht `auftrag.abschliessen`:
+   * Pausieren und Stornieren sind Auftragspflege, der Abschluss stellt nach
+   * D-366 die FIN-18-Warnung scharf und traegt sein eigenes Recht (0296).
+   * `abgeschlossen` ist ueber diesen Dienst gar nicht erreichbar.
+   */
+  {
+    modul: 'auftrag', pfad: 'auftrag/status',
+    schreibend: true, schreibRecht: 'auftrag.schreiben',
+  },
+  /**
+   * Der Auftrag OHNE Angebot, der Weg des Assistenten (OPS-10, V-143,
+   * D-637): Anfrage prüfen, dann erst die Nummer ziehen, anlegen. Bis dahin
+   * stand das in der Route und liess sich nicht gegen die Datenbank prüfen.
+   * Seit V-172/V-173 prüft er vorher auch den Bezug und trägt den Wert.
+   */
+  {
+    modul: 'auftrag', pfad: 'auftrag/direkt',
+    schreibend: true, schreibRecht: 'auftrag.schreiben',
+  },
+  /**
+   * V-172 — die Angaben eines Auftrags aus dem Formular: deutsche Zahlen,
+   * Grenzen aus 0025, Kunde/Objekt/Leitung unter RLS. Liest nur; geschrieben
+   * wird im Assistenten (`auftrag/direkt`) und in `auftrag/aendern`.
+   */
+  { modul: 'auftrag', pfad: 'auftrag/angaben', schreibend: false },
+  /**
+   * V-173 — Stammdaten eines Auftrags pflegen. `auftrag.schreiben`; gesperrt
+   * für abgeschlossen und storniert, der Wert aus einem Angebot bleibt.
+   */
+  {
+    modul: 'auftrag', pfad: 'auftrag/aendern',
+    schreibend: true, schreibRecht: 'auftrag.schreiben',
   },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
@@ -1146,6 +1559,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'bericht', pfad: 'gruppe/finanzen', schreibend: false },
   { modul: 'bericht', pfad: 'gruppe/offene-posten', schreibend: false },
   { modul: 'bericht', pfad: 'gruppe/auslastung', schreibend: false },
+  /* V-150 (DSH-01): die Liste hinter „Offene Aufgaben" der Gruppenübersicht. */
+  { modul: 'bericht', pfad: 'gruppe/aufgaben', schreibend: false },
   /**
    * Die beiden Nachzuegler derselben Art (RAD-07/REP-06, CAL-01/CAL-02): die
    * Vergabepipeline und der zusammengefuehrte Kalender ueber alle
@@ -1158,6 +1573,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'bericht', pfad: 'gruppe/radar', schreibend: false },
   { modul: 'bericht', pfad: 'gruppe/kalender', schreibend: false },
+  /*
+   * V-253, D-745: ob eine Seite einer Gesellschaft auf eine Gruppenseite
+   * verweisen darf — dieselben zwei Fragen wie das Tor des Ziels, nur
+   * Prädikate, kein Schreibweg.
+   */
+  { modul: 'bericht', pfad: 'gruppe/verweis', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/diff-json', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/json', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/laden', schreibend: false },
@@ -1206,6 +1627,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'finanzen', pfad: 'finanz/zugferd/cii', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/zugferd/icc', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/zugferd/pdfa3', schreibend: false },
+  /*
+   * V-134, D-629: das Rechnungsblatt — was darauf steht (aus der Nutzlast,
+   * formatiert, nie gerechnet) und wie es gesetzt wird. Beide lesen nichts.
+   */
+  { modul: 'finanzen', pfad: 'finanz/zugferd/blatt-inhalt', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/zugferd/blatt', schreibend: false },
   /**
    * **Die Berichte (PR 79, REP-01…REP-07) — alle vier lesend, ausnahmslos.**
    *
@@ -1452,6 +1879,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'system', pfad: 'mandant/identitaet',
     schreibend: true, schreibRecht: 'system.identitaet_verwalten',
   },
+  /*
+   * V-100, D-628: Logo, Avatar und Titelbild — dasselbe Recht wie die
+   * uebrige Identitaet. Die Pfadspalten bekamen ihr Spaltenrecht erst mit
+   * diesem Dienst (0393).
+   */
+  {
+    modul: 'system', pfad: 'mandant/markenbild',
+    schreibend: true, schreibRecht: 'system.identitaet_verwalten',
+  },
   {
     modul: 'system', pfad: 'einstellung/vorlagen',
     schreibend: true, schreibRecht: 'bau.schreiben',
@@ -1512,6 +1948,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
   { modul: 'security', pfad: 'security/uebersicht', schreibend: false },
   { modul: 'security', pfad: 'security/veranstaltung', schreibend: false },
+  /**
+   * V-004 — die Veranstaltung ANLEGEN. Eigene Zeile und eigene Datei, weil
+   * `security/veranstaltung` daneben als lesend gefuehrt ist und es bleiben
+   * soll: eine Schreibfunktion darin machte die Registerzeile still falsch.
+   */
+  {
+    modul: 'security', pfad: 'security/veranstaltung-anlegen',
+    schreibend: true, schreibRecht: 'security.schreiben',
+  },
 
   /**
    * **Die fuenf Stammdatenkataloge (SEITENKARTE §5.13, 0275–0279).**
@@ -1699,6 +2144,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
 
   /**
+   * **Die Dokumente eines Auftrags (OPS-11, V-176, 0421).** Liest nur —
+   * `dokument.auftrag_id` unter `t_mandant`, also mit `dokument.lesen`; das
+   * Auftrags- und das Projektblatt fragen das Recht vorher und sagen, warum
+   * die Liste fehlt. Geschrieben wird der Bezug von `dokument/ablage`.
+   */
+  { modul: 'dokument', pfad: 'dokument/vorgang', schreibend: false },
+
+  /**
    * **Einstellen (D-09, EMP-14).** Erst der Mensch, dann die Beschaeftigung —
    * in EINER Transaktion, weil eine `person` ohne Beschaeftigung von dieser
    * Gesellschaft aus unsichtbar ist. Setzt weder Stundensatz noch
@@ -1729,8 +2182,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * prueft `zeit.abrechnung_freigeben` selbst, und die schmale Policy
    * `z_definer_abrechnungsfreigabe` laesst nur abgeschlossene, nicht
    * stornierte, noch nicht freigegebene Zeilen zu. Der Schluessel steht im
-   * Katalog und haengt an keiner Rolle, solange O-39 offen ist; der Dienst ist
-   * damit gebaut und heute unerreichbar.
+   * Katalog und haengt seit D-611/0371 an `super_admin` und `admin`; fuer
+   * `leitung` ist er je Gesellschaft anlegbar (D-612).
    */
   {
     modul: 'zeit', pfad: 'zeit/abrechnungsfreigabe',

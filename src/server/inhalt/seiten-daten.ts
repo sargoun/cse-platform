@@ -1,6 +1,7 @@
 import 'server-only';
 import { headers } from 'next/headers';
 import { kanonischeBasis } from '@/lib/domains';
+import { herkunftAus, type Herkunft } from '@/lib/formular/herkunft';
 import { ladeSeite, pruefeSeite, type Seite } from '@/server/services/inhalt/seite';
 import { faqAus, leistungenAus, breadcrumb, faqPage, localBusiness, organisation, seitenService, services, webSite }
   from '@/server/services/inhalt/jsonld';
@@ -13,6 +14,17 @@ import { BCP47, SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 export async function basisAusAnfrage(): Promise<string> {
   const kopf = await headers();
   return kanonischeBasis(kopf.get('host'));
+}
+
+/**
+ * Die Herkunft DIESES Seitenaufrufs (REQ-07) — aus seiner Adresse und seinem
+ * `Referer`-Kopf, ohne Speicher im Browser (D-61, D-631).
+ */
+export async function herkunftDerAnfrage(
+  suche: Readonly<Record<string, string | string[] | undefined>>, pfad: string,
+): Promise<Herkunft> {
+  const kopf = await headers();
+  return herkunftAus(suche, kopf.get('referer'), kopf.get('host'), pfad);
 }
 
 /** Eine halbe Anschrift ist keine — `napAus()` wuerde ohnehin werfen. */

@@ -11,6 +11,8 @@ import {
 } from '@/server/services/finanz/xrechnung/dienst';
 import { SnapshotZuAltFehler } from '@/server/services/finanz/xrechnung/aus-snapshot';
 import { XRechnungUnvollstaendigFehler } from '@/server/services/finanz/xrechnung/index';
+import { RechnungslogoFehler } from '@/server/services/finanz/zugferd/pdfa3';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
 
 /**
  * `GET /api/finanzen/rechnungen/[id]/zugferd.pdf` — die Rechnung als ZUGFeRD
@@ -127,6 +129,17 @@ export async function GET(
     if (fehler instanceof KeinSnapshotFehler) {
       return NextResponse.json(
         { fehler: 'kein_snapshot', meldung: fehler.message }, { status: 409 },
+      );
+    }
+    /* Das festgeschriebene Logo ist nicht zu haben oder nicht dasselbe (V-132). */
+    if (fehler instanceof NichtVerbundenFehler) {
+      return NextResponse.json(
+        { fehler: 'nicht_verbunden', meldung: fehler.message }, { status: 409 },
+      );
+    }
+    if (fehler instanceof RechnungslogoFehler) {
+      return NextResponse.json(
+        { fehler: 'logo', meldung: fehler.message }, { status: 409 },
       );
     }
     throw fehler;

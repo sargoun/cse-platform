@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
@@ -9,6 +8,10 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/crm/leads/neu` — einen Lead von Hand anlegen (CRM-07).
@@ -50,6 +53,8 @@ export default async function LeadNeu(
   const darf = await haeltRechte(zugang.sitzung, 'crm.schreiben', 'crm.lesen');
   const suche = await searchParams;
   const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const k = nachSprache(KETTE_TEXTE, zugang.sprache);
 
   const kunden = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) => kontext.abfrage<KundeZeile>(
@@ -60,34 +65,28 @@ export default async function LeadNeu(
 
   return (
     <PortalRahmen
+      {...(darf['crm.lesen'] === true ? { zurueck: { ziel: `/portal/${mandant}/crm/leads`, text: 'Leads' } } : {})}
       titel="Neuer Lead"
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="crm"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      {darf['crm.lesen'] === true && (
-        <p className="mb-s3 text-sm">
-          <Link href={`/portal/${mandant}/crm/leads`}
-                className="text-text-muted underline-offset-2 hover:underline">
-            ← Leads
-          </Link>
-        </p>
-      )}
       <h1 className="mb-s5 mt-0 text-h1 text-text">Neuer Lead</h1>
 
-      {meldung !== null && (
+      {(meldung !== null || fehler !== null) && (
         <Hinweis art="warnung" cse="lead-meldung" className="mb-s5 max-w-prose">
-          {meldung}
+          {/* Der übersetzte Schlüssel gewinnt; der Satz der Route ist der Rückfall. */}
+          {(fehler === null ? undefined : eigenerEintrag(k.fehler, fehler)) ?? meldung ?? k.nichtAngelegt}
         </Hinweis>
       )}
 
       {darf['crm.schreiben'] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
-          Zum Anlegen fehlt Ihnen <code className="font-mono">crm.schreiben</code>.
+          Zum Anlegen fehlt Ihnen <Recht schluessel="crm.schreiben" />.
         </Hinweis>
       ) : (
         <form method="post" action="/api/crm/lead" data-cse="lead-formular"
@@ -118,6 +117,24 @@ export default async function LeadNeu(
                 <span className="text-xs text-text-muted">
                   Eines von beiden muss stehen — ein Lead ohne Namen ist eine Notiz.
                 </span>
+              </label>
+
+              {/*
+                **Die Empfehlung** (V-139, CRM-07). Eine der vier Leadquellen
+                der Spezifikation, und bis hierher ohne Erzeuger: der CHECK
+                verlangte einen empfehlenden Kunden, und kein Formular fragte
+                nach ihm. Wer ihn wählt, erfasst eine Empfehlung.
+              */}
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                {k.empfohlenVonFeld}
+                <select name="empfehlungVonKundeId" className={FELD} defaultValue=""
+                        data-cse="lead-empfehlung">
+                  <option value="">{k.keineEmpfehlung}</option>
+                  {kunden.map((kd) => (
+                    <option key={kd.id} value={kd.id}>{`${kd.name} (${kd.kundennummer})`}</option>
+                  ))}
+                </select>
+                <span className="text-xs text-text-muted">{k.empfehlungErklaerung}</span>
               </label>
 
               <label className="flex flex-col gap-s2 text-sm text-text">

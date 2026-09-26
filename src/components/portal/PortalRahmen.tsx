@@ -1,13 +1,18 @@
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
 import { Marke } from '@/components/marke/Marke';
+import { rueckzielName } from '@/lib/i18n/verwaltung/rueckziele';
 import { Glocke } from './Glocke';
+import { Zurueck, type ZurueckProps } from './Zurueck';
 import { TabLeiste } from './TabLeiste';
 import { SeitenNavigation } from './SeitenNavigation';
 import { istInterneLeiste, tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
 import { Sprachumschalter } from './Sprachumschalter';
-import { NAVIGATION } from '@/server/registry/navigation';
-import { internBeschriftungen } from '@/lib/i18n/intern';
+import { BereichsWechsel } from './BereichsWechsel';
+import { kopfWechsel } from './kopf-wechsel';
+import { KUNDEN_NAVIGATION, NAVIGATION } from '@/server/registry/navigation';
+import { internBeschriftungen, internSprache } from '@/lib/i18n/intern';
+import { BEREICHSWECHSEL_TEXTE } from '@/lib/i18n/verwaltung/bereichswechsel';
 import { gemerkteHuelle } from '@/app/portal/huellen-speicher';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -59,12 +64,26 @@ export interface PortalRahmenProps {
    * Registers.
    */
   readonly beschriftungen?: Readonly<Record<string, string>>;
+  /**
+   * Der Weg eine Ebene HINAUF — auf jede Seite, ueber der eine Liste steht
+   * (DESIGN §5 „The way back", D-613).
+   *
+   * **Nicht dasselbe wie die Spur.** `wurzelTitel` fuehrt auf die
+   * PORTALWURZEL; wer auf `personal/anstellungen/[id]/entgelt` steht, landet
+   * damit ganz oben und nicht bei der Anstellung. Dieser Verweis fuehrt dahin,
+   * wo der Datensatz wohnt — die Liste, aus der die Seite kommt.
+   *
+   * Er steht hier und nicht in jeder Seite, damit er ueberall an derselben
+   * Stelle sitzt: zuerst im `main`, vor jeder Ueberschrift. Gemessen trugen
+   * ihn 15 von 350 Detailseiten, und keine zwei an derselben Stelle.
+   */
+  readonly zurueck?: ZurueckProps;
   readonly children: React.ReactNode;
 }
 
 export function PortalRahmen({
   titel, wurzelTitel, bereich, nurLesen, leiste, wurzel, aktiverTab, sichtbareTabs,
-  navigationsRechte, beschriftungen, children,
+  navigationsRechte, beschriftungen, zurueck, children,
 }: PortalRahmenProps) {
   const tabs = tableiste(leiste);
   /**
@@ -102,6 +121,7 @@ export function PortalRahmen({
    */
   const stand = gemerkteHuelle();
   const karte = beschriftungen ?? internBeschriftungen(stand.sprache);
+  const abgeleitet = stand.rueckweg;
   const b = (schluessel: string, vorgabe: string): string =>
     karte[schluessel] ?? vorgabe;
   /**
@@ -117,6 +137,39 @@ export function PortalRahmen({
    * nur fuer Leisten ohne `Mehr` (D-419).
    */
   const ohneMehr = !tabs.ziele.some((z) => z.schluessel === 'mehr');
+  /**
+   * **Der Bereichswechsel nach DESIGN §6** (TEN-06, TEN-10, V-165, D-659).
+   *
+   * Das Tor hat die Bereiche dieser Anmeldung in seiner gebundenen
+   * Transaktion gelesen (`umschalterStand`) und in den Anfragespeicher
+   * gelegt — die Kontoseiten, die an ihm vorbeigehen, tun dasselbe in
+   * `leseKonto`. Was davon erscheint, entscheidet `kopfWechsel`: bei einem
+   * Bereich weder Umschalter noch Verweis „Bereich wechseln" (Kopfzeile,
+   * Telefonmenü, `Mehr`-Blatt), bei mehreren im internen Portal und in der
+   * Gruppenansicht der Umschalter oben links, an der Stelle des Zeichens
+   * (§6 „Placement"), und daneben der Verweis als Weg ohne JavaScript.
+   */
+  const sprache = internSprache(stand.sprache);
+  const tWechsel = BEREICHSWECHSEL_TEXTE[sprache];
+  const { verweis: bereichsVerweis, umschalter } = kopfWechsel(stand.umschalter, leiste, sprache);
+  /**
+   * **Der Umschalter IST das Logo** (§6 „Placement": „replacing a static
+   * logo"). Das Zeichen wandert in den Auslöser; der Seitenname bleibt der
+   * Weg zur Übersicht. Trägt die Seite aber denselben Namen wie der Auslöser
+   * — die Übersicht eines Bereichs, die Gruppenübersicht —, stünde er ab
+   * `lg` zweimal nebeneinander, denn ab dort zeigt der Auslöser seinen Namen.
+   * Dort entfällt das zweite Logo; darunter zeigt der Auslöser nur Zeichen
+   * und Chevron, und der Name bleibt, wo er war.
+   */
+  const logoImUmschalter = umschalter !== null && titel === umschalter.name;
+  /**
+   * Die Kante des Logos: als erstes Element der Zeile zieht es sich um seine
+   * Innenpolsterung nach links (`-ms-s2`), damit das Zeichen auf der Rinne
+   * steht. Steht der Umschalter davor, gehoert die Kante ihm.
+   */
+  const logoKante = umschalter === null ? '-ms-s2' : logoImUmschalter ? 'lg:hidden' : '';
+  const zeichen = (groesse: 'sm'): React.ReactNode => (umschalter !== null ? null
+    : bereich === null ? <Marke art="gruppe" groesse={groesse} /> : <Marke art={bereich} groesse={groesse} />);
   return (
     /*
      * `sicher-oben`: mit `viewport-fit=cover` beginnt der Inhalt bei y=0 — im
@@ -168,6 +221,28 @@ export function PortalRahmen({
           * Zeilenhoehe von `text-h3` sind 28. Neun Bildschirme unter
           * `/portal/mein/**` fielen daran, jeder mit genau diesem einen Knoten.
           */}
+        {umschalter !== null && (
+          /*
+           * An der Stelle des Zeichens (§6 „Placement") — mit derselben Kante
+           * wie das Logo, das er ersetzt (`-ms-s2`), damit das Zeichen beim
+           * Wechsel von einem auf zwei Bereiche nicht springt.
+           */
+          <div data-cse="kopf-umschalter" className="-ms-s2 min-w-0">
+            <BereichsWechsel
+              bereiche={umschalter.bereiche}
+              aktiv={umschalter.aktiv}
+              gruppenansicht={umschalter.gruppenansicht}
+              gruppeSichtbar={umschalter.gruppeSichtbar}
+              /* Nur die vier Woerter, nicht die ganze Tabelle: an eine
+                 Client-Komponente geht nichts, was eine Funktion traegt. */
+              texte={{
+                kopf: tWechsel.kopf, gruppenuebersicht: tWechsel.gruppenuebersicht,
+                bereichWaehlen: tWechsel.bereichWaehlen, ausloeser: tWechsel.ausloeser,
+              }}
+              sprache={stand.sprache}
+            />
+          </div>
+        )}
         {wurzelTitel === undefined || wurzelTitel === titel ? (
           /*
            * Das Logo der Gesellschaft als Weg zur Uebersicht — Zeichen und
@@ -176,10 +251,10 @@ export function PortalRahmen({
            */
           wurzelOffen ? (
             <a href={wurzel} data-cse="portal-logo"
-               className="-ms-s2 flex min-h-11 min-w-11 items-center gap-s2 rounded-md px-s2
+               className={`flex min-h-11 min-w-11 items-center gap-s2 rounded-md px-s2
                           text-h3 text-text transition-colors duration-fast ease-brand
-                          hover:bg-surface-2">
-              {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
+                          hover:bg-surface-2 ${logoKante}`}>
+              {zeichen('sm')}
               <span className="truncate">{titel}</span>
             </a>
           ) : (
@@ -189,9 +264,9 @@ export function PortalRahmen({
              * dasselbe wie ein offener (AUT-06); er ist nur hoeflicher dabei.
              */
             <span data-cse="portal-logo-ohne-ziel"
-                  className="-ms-s2 flex min-h-11 min-w-11 items-center gap-s2 px-s2
-                             text-h3 text-text">
-              {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
+                  className={`flex min-h-11 min-w-11 items-center gap-s2 px-s2
+                             text-h3 text-text ${logoKante}`}>
+              {zeichen('sm')}
               <span className="truncate">{titel}</span>
             </span>
           )
@@ -222,14 +297,14 @@ export function PortalRahmen({
               <a href={wurzel} data-cse="spur-zurueck"
                  className="flex min-h-11 min-w-11 items-center gap-s2 text-sm text-text-muted
                             transition-colors duration-fast ease-brand hover:text-text">
-                {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
+                {zeichen('sm')}
                 <span aria-hidden="true">‹</span>
                 <span className="truncate">{wurzelTitel}</span>
               </a>
             ) : (
               <span data-cse="spur-ohne-ziel"
                     className="flex min-h-11 min-w-11 items-center gap-s2 text-sm text-text-muted">
-                {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
+                {zeichen('sm')}
                 <span className="truncate">{wurzelTitel}</span>
               </span>
             )}
@@ -268,7 +343,23 @@ export function PortalRahmen({
         <nav
           aria-label={b('sitzung.label', 'Sitzung')}
           data-cse="sitzungsnavigation"
-          className="hidden items-center gap-s4 sm:flex"
+          /*
+           * **Gruppiert, nicht aufgereiht.**
+           *
+           * Hier standen fuenf gleich aussehende graue Woerter in einer
+           * Reihe — „Bereich wechseln · Konto · Website · Deutsch English ·
+           * Abmelden". Alles gleich gewichtet heisst: nichts gewichtet. Das
+           * Auge muss jedes Wort einzeln lesen, um den Ausgang zu finden.
+           *
+           * Jetzt sind es drei Gruppen mit einer Haarlinie dazwischen:
+           * WOHIN (Bereich, Konto, Website) · WIE (Sprache) · RAUS
+           * (Abmelden). Die Abmeldung steht hinter der zweiten Linie, weil
+           * sie die einzige Handlung hier ist, die die Sitzung beendet.
+           *
+           * `gap-s3` statt `gap-s4`: die Trennlinien uebernehmen die
+           * Gliederung, die vorher der Abstand allein leisten musste.
+           */
+          className="hidden items-center gap-s3 sm:flex"
         >
           {/*
             * Auch im Mitarbeiterportal: ein Konto kann in einer Gesellschaft
@@ -276,18 +367,28 @@ export function PortalRahmen({
             * Bereichswahl der einzige Weg in das andere Portal (§4.4). Nur die
             * Beschriftung folgt der Sprache der Person (D-419).
             */}
-          <a href="/auth/bereich"
-             className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
-            {b('sitzung.bereich', 'Bereich wechseln')}
-          </a>
+          {bereichsVerweis && (
+            <a href="/auth/bereich" data-cse="sitzung-bereich"
+               className="flex min-h-11 items-center rounded-md px-s2 text-sm text-text-muted
+                          transition-colors duration-fast ease-brand hover:bg-surface-2
+                          hover:text-text">
+              {b('sitzung.bereich', 'Bereich wechseln')}
+            </a>
+          )}
           <a href="/portal/konto"
-             className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
+             className="flex min-h-11 items-center rounded-md px-s2 text-sm text-text-muted
+                        transition-colors duration-fast ease-brand hover:bg-surface-2
+                        hover:text-text">
             {b('sitzung.konto', 'Konto')}
           </a>
           <a href="/"
-             className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
+             className="flex min-h-11 items-center rounded-md px-s2 text-sm text-text-muted
+                        transition-colors duration-fast ease-brand hover:bg-surface-2
+                        hover:text-text">
             {b('sitzung.website', 'Website')}
           </a>
+          {/* Die erste Haarlinie: hierhinter endet „wohin". */}
+          <span aria-hidden="true" className="h-5 w-px shrink-0 bg-line" />
           {/*
             * Der Sprachumschalter — nur im internen Portal (D-592). Das
             * Mitarbeiterportal spricht vier Sprachen und waehlt sie auf der
@@ -301,10 +402,13 @@ export function PortalRahmen({
             * Ein FORMULAR, kein Verweis: eine Abmeldung aendert Zustand, und
             * ein GET dafuer laesst sich von einem fremden Bild-Tag ausloesen.
             */}
-          <form method="post" action="/api/abmelden">
+          {/* Die zweite Haarlinie: dahinter steht nur noch der Ausgang. */}
+          <span aria-hidden="true" className="h-5 w-px shrink-0 bg-line" />
+          <form method="post" action="/api/abmelden" className="m-0">
             <button type="submit"
-                    className="flex min-h-11 items-center text-sm text-text-muted
-                               hover:text-text">
+                    className="flex min-h-11 items-center rounded-md px-s2 text-sm
+                               text-text-muted transition-colors duration-fast ease-brand
+                               hover:bg-danger-soft hover:text-danger">
               {b('sitzung.abmelden', 'Abmelden')}
             </button>
           </form>
@@ -330,10 +434,11 @@ export function PortalRahmen({
             >
               <ul className="m-0 list-none p-0">
                 {([
-                  ['/auth/bereich', b('sitzung.bereich', 'Bereich wechseln')],
-                  ['/portal/konto', b('sitzung.konto', 'Konto')],
-                  ['/', b('sitzung.website', 'Website')],
-                ] as const).map(([ziel, text]) => (
+                  ...(bereichsVerweis
+                    ? [['/auth/bereich', b('sitzung.bereich', 'Bereich wechseln')] as const] : []),
+                  ['/portal/konto', b('sitzung.konto', 'Konto')] as const,
+                  ['/', b('sitzung.website', 'Website')] as const,
+                ]).map(([ziel, text]) => (
                   <li key={ziel}>
                     <a href={ziel} data-cse="sitzungsmenue-ziel"
                        className="flex min-h-11 items-center rounded-md px-s2 text-sm text-text
@@ -412,15 +517,32 @@ export function PortalRahmen({
           * (`registry/tableiste.ts`). Genau diese fuenf stehen hier, mit den
           * `gruppe.*`-Rechten, die `sichtbareTabs` ohnehin schon bewertet hat.
           */}
+        {/*
+          * **Und die KUNDIN bekommt ihren eigenen Baum** (V-043).
+          *
+          * Die Kundenleiste fuehrt fuenf Ziele; gebaut sind zehn Listen mit
+          * ihren Blaettern. `angebote`, `objekte`, `projekte`, `zahlungen`,
+          * `dokumente` und `reklamationen` waren damit fertig und aus keiner
+          * Leiste erreichbar — von `/portal/kunde/rechnungen/[id]` kam man
+          * ohne Adresszeile nicht einmal zu den Zahlungen.
+          *
+          * `KUNDEN_NAVIGATION` lag seit dem Kundenportal-Stapel bereit und
+          * wurde von NICHTS gerendert. Der Kommentar dort nannte die drei
+          * Stellen, die den dritten Baum lesen lernen muessen — Schiene,
+          * `Mehr`-Blatt und Rechtekarte — und sagte, sie gehoerten zusammen
+          * eingespielt. Genau das geschieht hier.
+          */}
         <SeitenNavigation
           ziele={leiste === 'intern_global' || leiste === 'intern_admin'
             || leiste === 'intern_leitung'
             ? NAVIGATION
-            : tabs.ziele}
+            : leiste === 'kunde'
+              ? KUNDEN_NAVIGATION
+              : tabs.ziele}
           wurzel={wurzel}
           {...(aktiverTab === undefined ? {} : { aktiv: aktiverTab })}
           {...(leiste === 'intern_global' || leiste === 'intern_admin'
-            || leiste === 'intern_leitung'
+            || leiste === 'intern_leitung' || leiste === 'kunde'
             ? (navigationsRechte === undefined ? {} : { sichtbar: navigationsRechte })
             : (sichtbareTabs === undefined ? {} : { sichtbar: sichtbareTabs }))}
           bereich={bereich}
@@ -443,7 +565,36 @@ export function PortalRahmen({
           * so breit wie das Fenster; was wirklich breiter ist (das Raster,
           * eine Tabelle ab `md`), rollt in seinem eigenen Behaelter (D-420).
           */}
-        <main className="ueber-tableiste sicher-seiten min-w-0 flex-1 p-s5">{children}</main>
+        <main className="ueber-tableiste sicher-seiten min-w-0 flex-1 p-s5">
+          {/*
+            * **Der Rueckweg — abgeleitet, wenn die Seite keinen nennt**
+            * (DESIGN §5 „The way back", D-613, V-108).
+            *
+            * Gemessen am 22.09.2026: von 311 Seiten unter `/portal/[mandant]`
+            * trugen ZWEI einen. Der Mandant hat es selbst gefunden — er
+            * klickte in der Beschaeftigungsliste auf eine Person und stand
+            * auf einem Blatt ohne Ausgang.
+            *
+            * 283 Dateien zu aendern waere einmalig richtig und beim naechsten
+            * neuen Bildschirm wieder falsch. Das Tor leitet den Rueckweg
+            * deshalb aus der ADRESSE ab (`rueckwegFuer`), prueft ihn gegen
+            * die Rechte seines Ziels (AUT-06) und legt ihn in den
+            * Anfragespeicher; hier wird er nur noch gezeichnet.
+            *
+            * **Eine Seite, die es besser weiss, gewinnt.** `zurueck` als
+            * Eigenschaft schlaegt die Ableitung — etwa dort, wo das Ziel
+            * nicht der Vorfahr in der Adresse ist.
+            */}
+          {zurueck !== undefined ? (
+            <Zurueck ziel={zurueck.ziel} text={zurueck.text}
+                     sprache={beschriftungen?.['sitzung.sprache'] ?? null} />
+          ) : abgeleitet !== null && (
+            <Zurueck ziel={abgeleitet.ziel}
+                     text={rueckzielName(abgeleitet.segment, internSprache(stand.sprache))}
+                     sprache={beschriftungen?.['sitzung.sprache'] ?? null} />
+          )}
+          {children}
+        </main>
       </div>
 
       <TabLeiste
@@ -453,9 +604,11 @@ export function PortalRahmen({
         {...(sichtbareTabs === undefined ? {} : { sichtbar: sichtbareTabs })}
         {...(navigationsRechte === undefined ? {} : { navigationsRechte })}
         gruppenansicht={leiste === 'gruppe'}
+        kundenansicht={leiste === 'kunde'}
         label={titel}
         beschriftungen={karte}
         intern={istInterneLeiste(leiste)}
+        bereichsVerweis={bereichsVerweis}
       />
     </div>
   );

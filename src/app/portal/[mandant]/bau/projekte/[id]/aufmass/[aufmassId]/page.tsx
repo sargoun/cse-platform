@@ -23,6 +23,7 @@ import { slugTor } from '../../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../../kennung';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/aufmass/[aufmassId]` — ein Blatt mit
@@ -187,7 +188,7 @@ export default async function AufmassBlatt(
             data-cse="freigabe-fremd"
           >
             Das Blatt ist bereit zur Gegenzeichnung. Sie feststellen zu lassen
-            ist ein eigenes Recht (<code>bau.aufmass_freigeben</code>) — wer ein
+            ist ein eigenes Recht (<Recht schluessel="bau.aufmass_freigeben" />) — wer ein
             Blatt aufnimmt, stellt damit noch nicht fest, dass der Auftraggeber
             es anerkannt hat.
           </p>

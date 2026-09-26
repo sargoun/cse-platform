@@ -9,8 +9,8 @@ import { withTenant } from '@/server/kontext/index';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { GeldFehler, parseGeld } from '@/server/services/finanz/geld';
 import {
-  ProfilFehler, entferneCpv, entferneEmpfaenger, schreibeProfil, setzeCpv, setzeEmpfaenger,
-  teileListe,
+  ProfilFehler, entferneCpv, entferneEmpfaenger, legeProfilAn, schreibeProfil, setzeCpv,
+  setzeEmpfaenger, teileListe,
 } from '@/server/services/radar/profil';
 import type { Wirkung } from '@/server/services/radar/bewertung';
 import { alsAntwort } from '../../sicherheit/antwort';
@@ -19,11 +19,17 @@ import { alsAntwort } from '../../sicherheit/antwort';
  * `POST /api/radar/profil` — ein Suchprofil des Vergaberadars pflegen
  * (RAD-04, RAD-05).
  *
- * **Fünf Handlungen an einer Adresse, weil sie EIN Profil betreffen**:
- * Stammdaten setzen, eine CPV-Zeile anlegen oder ändern, eine entfernen,
- * einen Empfänger eintragen, einen entfernen. Jede geht durch dasselbe Tor
- * (`radar.profil_schreiben`) und durch dieselbe Transaktion — fünf Routen
- * wären fünf Stellen, an denen jemand das `authorize` vergisst.
+ * **Sechs Handlungen an einer Adresse, weil sie EIN Profil betreffen**: eins
+ * anlegen, seine Stammdaten setzen, eine CPV-Zeile anlegen oder ändern, eine
+ * entfernen, einen Empfänger eintragen, einen entfernen. Jede geht durch
+ * dasselbe Tor (`radar.profil_schreiben`) und durch dieselbe Transaktion —
+ * sechs Routen wären sechs Stellen, an denen jemand das `authorize` vergisst.
+ *
+ * **`anlegen` ist die einzige Handlung ohne Profilkennung** (V-016) und wird
+ * deshalb VOR der Kennungsprüfung entschieden. Sie landet danach auf dem
+ * Blatt des neuen Profils, nicht auf der Liste: dort steht, was als Nächstes
+ * fehlt (CPV, Region, Stichwörter) und warum das Profil noch abgeschaltet
+ * ist.
  *
  * **Der Handler bleibt dünn**: prüfen, den Dienst rufen, umleiten. Was ein
  * Profil überhaupt tragen darf, entscheidet `services/radar/profil.ts`; was
@@ -65,7 +71,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
   const profil = text('profil') ?? '';
   const was = text('was') ?? '';
-  if (!UUID.test(profil)) {
+  /*
+   * **`anlegen` trägt noch keine Kennung** (V-016) — es erzeugt sie erst. Die
+   * Prüfung steht deshalb hinter der Fallunterscheidung und nicht davor; für
+   * jede andere Handlung bleibt sie die erste Wand.
+   */
+  if (was !== 'anlegen' && !UUID.test(profil)) {
     return NextResponse.json({ fehler: 'unbekanntes_profil' }, { status: 400 });
   }
 
@@ -87,7 +98,21 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
    * `authorize`, und ein `ProfilFehler` kann erst danach entstehen.
    */
   let slug = '';
-  const seite = (): string => `/portal/${slug}/radar/profile/${profil}`;
+  /*
+   * Die Kennung des EBEN angelegten Profils. Sie steht erst nach dem Dienst
+   * fest, und dieselbe Überlegung wie beim Slug gilt auch hier: sie wird
+   * ausserhalb der Transaktion gehalten, damit die Umleitung sie hat.
+   */
+  let angelegt = '';
+  const liste = (): string => `/portal/${slug}/radar/profile`;
+  /*
+   * Wohin zurück: auf das Blatt des neuen Profils, sobald es eines gibt; auf
+   * die LISTE, solange ein `anlegen` fehlgeschlagen ist (ein Blatt ohne
+   * Kennung gibt es nicht); sonst auf das Blatt, das bearbeitet wurde.
+   */
+  const seite = (): string => angelegt !== ''
+    ? `${liste()}/${angelegt}`
+    : was === 'anlegen' ? liste() : `${liste()}/${profil}`;
 
   try {
     await db().begin(async (tx: postgres.TransactionSql) =>
@@ -100,6 +125,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
         if (bereich === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
         slug = bereich.slug;
+
+        if (was === 'anlegen') {
+          angelegt = await legeProfilAn(kontext, text('name') ?? '');
+          return;
+        }
 
         if (was === 'stammdaten') {
           const min = text('wertMin');

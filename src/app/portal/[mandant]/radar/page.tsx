@@ -130,7 +130,8 @@ export default async function Radar(
       schluessel: 'plattform', kopf: 'Plattform',
       zelle: (z) => (z.plattformName === null
         ? <span className="text-xs text-text-subtle">{z.plattformHinweis ?? 'unbekannt'}</span>
-        : z.registrierung === 'registriert'
+        /* V-240: registriert UND gültig, oder keine Registrierungspflicht. */
+        : z.freigeschaltet !== false
           ? <span className="text-xs text-text-muted">{z.plattformName}</span>
           : (
             /*
@@ -160,7 +161,7 @@ export default async function Radar(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="radar"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >

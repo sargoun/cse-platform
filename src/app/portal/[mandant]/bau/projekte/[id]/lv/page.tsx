@@ -19,6 +19,8 @@ import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../kennung';
+import { Recht } from '@/components/ui/Recht';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/lv` — das Leistungsverzeichnis als
@@ -69,6 +71,13 @@ export default async function LeistungsverzeichnisSeite(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /*
+   * **Das Recht der Importseite — VOR dem Rendern** (AUT-06).
+   * `…/lv/import` verlangt `bau.schreiben`; dieses Blatt selbst nur
+   * `bau.lesen`. Ein Knopf, den jeder sieht, führte für den Rest auf 404.
+   */
+  const darf = await haeltRechte(sitzung, 'bau.schreiben');
+
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
       const projekt = await findeProjekt(kontext, id);
@@ -112,12 +121,31 @@ export default async function LeistungsverzeichnisSeite(
             {daten.projekt.nummer} · {daten.projekt.bezeichnung} · {daten.projekt.kunde}
           </p>
         </div>
-        <Link
-          href={`/portal/${mandant}/bau/projekte/${id}/aufmass`}
-          className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-line-strong hover:text-text"
-        >
-          Zu den Aufmaßen
-        </Link>
+        <div className="flex flex-wrap gap-s3">
+          {/*
+            * **Der Weg zum GAEB-Import — er fehlte** (V-125). `…/lv/import`
+            * war gebaut, bewacht und im Manifest geführt und von keiner
+            * Seite aus erreichbar. Ein Leistungsverzeichnis entsteht im
+            * Regelfall NICHT von Hand, sondern kommt als GAEB-Datei vom
+            * Auftraggeber — der Weg dorthin gehört an das Blatt, das das
+            * Verzeichnis zeigt, und nirgendwo sonst hin.
+            */}
+          {darf['bau.schreiben'] === true && (
+            <Link
+              href={`/portal/${mandant}/bau/projekte/${id}/lv/import`}
+              data-cse="zum-lv-import"
+              className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-line-strong hover:text-text"
+            >
+              GAEB einlesen
+            </Link>
+          )}
+          <Link
+            href={`/portal/${mandant}/bau/projekte/${id}/aufmass`}
+            className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-line-strong hover:text-text"
+          >
+            Zu den Aufmaßen
+          </Link>
+        </div>
       </div>
 
       {daten.verzeichnisse.length > 1 && (
@@ -202,7 +230,7 @@ export default async function LeistungsverzeichnisSeite(
             <p className="mt-s3 text-sm text-warning">
               Für mindestens eine Position ist kein Einheitspreis lesbar. Die
               Summe bleibt deshalb offen — sie wäre sonst zu niedrig, ohne dass
-              man es ihr ansieht (Recht <code>bau.preis_lesen</code>).
+              man es ihr ansieht (Recht <Recht schluessel="bau.preis_lesen" />).
             </p>
           )}
           {ausgenommen > 0 && (

@@ -113,6 +113,23 @@ export default async function Benachrichtigungen(
   return (
     <PortalRahmen
       titel="Benachrichtigungen"
+      /*
+       * **Der Weg hinaus — und warum ausgerechnet diese Seite ihn braucht.**
+       *
+       * Sie ist die EINZIGE Modulwurzel, die weder in der Navigation noch in
+       * der Tableiste steht: hierher kommt man nur über die Glocke in der
+       * Kopfzeile. `rueckwegFuer` leitet für eine dreisegmentige Adresse
+       * keinen Rückweg ab (und das bleibt richtig — über einer Modulwurzel
+       * liegt nur die Portalwurzel), und ohne `wurzelTitel` rendert die Hülle
+       * die Logo-Form: Zeichen plus Seitenname, die wie eine Überschrift
+       * aussieht und niemandem sagt, dass sie ein Weg ist.
+       *
+       * Mit `wurzelTitel` steht dort `‹ Übersicht › Benachrichtigungen` —
+       * dieselbe Spur wie überall sonst, und ein sichtbarer Ausgang. Der
+       * Mandant hat es am Telefon gefunden: er tippte auf die Glocke und kam
+       * nicht mehr weg.
+       */
+      wurzelTitel="Übersicht"
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}
@@ -223,7 +240,7 @@ export default async function Benachrichtigungen(
                   * dafür wäre eine offene Weiterleitung (D-504).
                   */}
                 <form method="post" action={`/api/benachrichtigungen/${e.id}/oeffnen`}>
-                  <Button type="submit" variante="primary" data-cse="oeffnen">
+                  <Button type="submit" variante="secondary" data-cse="oeffnen">
                     Ansehen
                   </Button>
                 </form>

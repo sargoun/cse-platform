@@ -56,6 +56,7 @@ export type KartenZiel =
   | 'finanzen/rechnungen'
   | 'finanzen/zahlungen'
   | 'finanzen/eingangsrechnungen'
+  | 'finanzen/lieferanten'
   | 'finanzen/mahnungen'
   | 'finanzen/ausgangsbuch'
   | 'finanzen/ausgaben'
@@ -112,6 +113,8 @@ export interface UebersichtTexte {
   readonly posten: string;
   readonly eingangsrechnungenZuPruefen: string;
   readonly eingang: string;
+  /** V-215: die Kachel der Betriebsausgaben des Jahres. */
+  readonly ausgabenKachel: string;
   readonly freigegebenGebucht: string;
   readonly mahnungenInArbeit: string;
   readonly kachelFussnote: string;
@@ -281,6 +284,12 @@ export interface UebersichtTexte {
   readonly fakturiertNetto: string;
   readonly eingangsrechnungenWort: string;
   readonly eingangsrechnungenNetto: string;
+  /** V-215: Betriebsausgaben zählen zum Aufwand. */
+  readonly ausgabenNetto: string;
+  readonly ausgabenNettoKopf: string;
+  readonly ausgabenWort: string;
+  readonly ausgabenJeMonat: string;
+  readonly tabelleAusgabenMonate: string;
   readonly saldoAusRechnungen: string;
   readonly forderungenOffen: string;
   readonly verbindlichkeitenOffen: string;
@@ -318,6 +327,7 @@ const DE: UebersichtTexte = {
   posten: 'Posten',
   eingangsrechnungenZuPruefen: 'Eingangsrechnungen zu prüfen',
   eingang: 'Eingang',
+  ausgabenKachel: 'Betriebsausgaben',
   freigegebenGebucht: '(freigegeben, gebucht)',
   mahnungenInArbeit: 'Mahnungen in Arbeit',
   kachelFussnote:
@@ -351,6 +361,12 @@ const DE: UebersichtTexte = {
       titel: 'Ausgaben',
       text: 'Barkasse, Tankbeleg, Material, Auslagenerstattung — der Aufwand, '
         + 'der keine Lieferantenrechnung ist.',
+    },
+    'finanzen/lieferanten': {
+      titel: 'Lieferanten',
+      text: 'Kreditoren und Nachunternehmen: Nummer, Steuerangaben, '
+        + '§-13b-Umkehr und §-48-Freistellung — die Stammdaten, gegen die jede '
+        + 'Eingangsrechnung läuft.',
     },
     'finanzen/belege': {
       titel: 'Belege',
@@ -635,7 +651,12 @@ const DE: UebersichtTexte = {
   fakturiertNetto: 'Fakturiert netto',
   eingangsrechnungenWort: 'Eingangsrechnungen',
   eingangsrechnungenNetto: 'Eingangsrechnungen netto',
-  saldoAusRechnungen: 'Saldo aus Rechnungen',
+  ausgabenNetto: 'Betriebsausgaben netto',
+  ausgabenNettoKopf: 'Ausgaben netto',
+  ausgabenWort: 'Betriebsausgaben',
+  ausgabenJeMonat: 'Betriebsausgaben je Monat',
+  tabelleAusgabenMonate: 'je Monat und Gesellschaft',
+  saldoAusRechnungen: 'Saldo aus Belegen',
   forderungenOffen: 'Forderungen offen',
   verbindlichkeitenOffen: 'Verbindlichkeiten offen',
   jeGesellschaft: 'Je Gesellschaft',
@@ -647,7 +668,8 @@ const DE: UebersichtTexte = {
   saldoKopf: 'Saldo',
   saldoHinweis:
     'Saldo = fakturierte Ausgangsrechnungen − freigegebene und gebuchte '
-    + 'Eingangsrechnungen, jeweils netto nach Rechnungsdatum. Das ist keine '
+    + 'Eingangsrechnungen und Betriebsausgaben, jeweils netto nach Rechnungs- '
+    + 'bzw. Belegdatum. Das ist keine '
     + 'Gewinn-und-Verlust-Rechnung: Personal, Abschreibungen, Abgrenzungen und '
     + 'Steuern fehlen; den Jahresabschluss erstellt der Steuerberater aus dem '
     + 'DATEV-Export.',
@@ -664,7 +686,8 @@ const DE: UebersichtTexte = {
   ergebnisKopf: 'Ergebnis',
   bwaHinweis:
     'BWA-artig, keine Betriebswirtschaftliche Auswertung: Erlöse und Aufwand '
-    + 'aus den Belegen nach Rechnungsdatum, je Gesellschaft dieselbe Rechnung '
+    + '(Eingangsrechnungen und Betriebsausgaben) aus den Belegen nach Rechnungs- '
+    + 'bzw. Belegdatum, je Gesellschaft dieselbe Rechnung '
     + 'wie unter Buchhaltung › Monatszahlen; die Gruppe ist die Summe der '
     + 'Gesellschaften.',
 };
@@ -681,6 +704,7 @@ const EN: UebersichtTexte = {
   posten: 'items',
   eingangsrechnungenZuPruefen: 'Incoming invoices to check',
   eingang: 'Incoming',
+  ausgabenKachel: 'Operating expenses',
   freigegebenGebucht: '(approved, posted)',
   mahnungenInArbeit: 'Mahnungen (dunning letters) in progress',
   kachelFussnote:
@@ -715,6 +739,12 @@ const EN: UebersichtTexte = {
       titel: 'Expenses',
       text: 'Petty cash, fuel receipt, materials, reimbursed outlays — the '
         + 'costs that are not a supplier invoice.',
+    },
+    'finanzen/lieferanten': {
+      titel: 'Lieferanten (suppliers)',
+      text: 'Creditors and subcontractors: number, tax details, § 13b reverse '
+        + 'charge and § 48 exemption — the master data every incoming invoice '
+        + 'is checked against.',
     },
     'finanzen/belege': {
       titel: 'Belege (source documents)',
@@ -999,7 +1029,12 @@ const EN: UebersichtTexte = {
   fakturiertNetto: 'Invoiced net',
   eingangsrechnungenWort: 'Incoming invoices',
   eingangsrechnungenNetto: 'Incoming invoices net',
-  saldoAusRechnungen: 'Balance from invoices',
+  ausgabenNetto: 'Operating expenses net',
+  ausgabenNettoKopf: 'Expenses net',
+  ausgabenWort: 'Operating expenses',
+  ausgabenJeMonat: 'Operating expenses per month',
+  tabelleAusgabenMonate: 'per month and company',
+  saldoAusRechnungen: 'Balance from Belege',
   forderungenOffen: 'Receivables open',
   verbindlichkeitenOffen: 'Payables open',
   jeGesellschaft: 'Per company',
@@ -1011,7 +1046,8 @@ const EN: UebersichtTexte = {
   saldoKopf: 'Balance',
   saldoHinweis:
     'Balance = invoiced outgoing invoices − approved and posted incoming '
-    + 'invoices, each net by invoice date. This is not a profit and loss '
+    + 'invoices and operating expenses, each net by invoice or receipt date. '
+    + 'This is not a profit and loss '
     + 'account: staff costs, depreciation, accruals and taxes are missing; the '
     + 'Jahresabschluss (annual accounts) is drawn up by the tax adviser from '
     + 'the DATEV export.',
@@ -1028,8 +1064,9 @@ const EN: UebersichtTexte = {
   ergebnisKopf: 'Result',
   bwaHinweis:
     'BWA-style, not a Betriebswirtschaftliche Auswertung (the standard German '
-    + 'monthly management report): revenue and costs from the Belege by '
-    + 'invoice date, per company the same calculation as under Buchhaltung › '
+    + 'monthly management report): revenue and costs (incoming invoices and '
+    + 'operating expenses) from the Belege by invoice or receipt date, per '
+    + 'company the same calculation as under Buchhaltung › '
     + 'Monatszahlen (accounting › monthly figures); the group is the total of '
     + 'the companies.',
 };

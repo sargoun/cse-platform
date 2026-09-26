@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { basisAusAnfrage } from '@/server/inhalt/seiten-daten';
+import { basisAusAnfrage, herkunftDerAnfrage } from '@/server/inhalt/seiten-daten';
+import { herkunftAlsSuche } from '@/lib/formular/herkunft';
 import { FORMULAR_SCHLUESSEL, angebotPfad } from '@/lib/formular/bereiche';
 import { bereicheLesen, oeffentlichLesen } from '@/server/inhalt/lesen';
 import { AUSWAHL_TEXTE } from '@/lib/i18n/texte';
@@ -47,7 +48,10 @@ export async function auswahlMetadaten(
 }
 
 export async function Angebotsauswahl(
-  { sprache = VORGABE_SPRACHE }: { readonly sprache?: Sprache } = {},
+  { sprache = VORGABE_SPRACHE, suche = {} }: {
+    readonly sprache?: Sprache;
+    readonly suche?: Readonly<Record<string, string | string[] | undefined>>;
+  } = {},
 ) {
   const bereiche = await oeffentlichLesen((k) => bereicheLesen(k, sprache));
   const mitFormular = bereiche.filter(
@@ -58,6 +62,12 @@ export async function Angebotsauswahl(
   if (mitFormular.length === 0) notFound();
 
   const t = AUSWAHL_TEXTE[sprache];
+  /*
+   * **Die Herkunft reist an den Links mit (REQ-07, D-631).** Sonst hielte die
+   * Formularseite diese Auswahl für den Einstieg und verlöre die
+   * Kampagnenparameter, mit denen der Besuch hier ankam.
+   */
+  const weiter = herkunftAlsSuche(await herkunftDerAnfrage(suche, mitSprache('/angebot', sprache)));
 
   return (
     <section className="mx-auto flex max-w-content flex-col gap-s5 px-s5 py-s6">
@@ -68,7 +78,7 @@ export async function Angebotsauswahl(
         {mitFormular.map((b) => (
           <li key={b.slug}>
             <a
-              href={mitSprache(angebotPfad(b.slug), sprache)}
+              href={`${mitSprache(angebotPfad(b.slug), sprache)}${weiter}`}
               data-cse="angebot-bereich"
               data-bereich={b.slug}
               className="flex min-h-11 items-center gap-s4 rounded-lg border border-line bg-surface p-s5

@@ -94,7 +94,7 @@ function Zelle({ zelle }: { readonly zelle: RadarZelle }) {
         * über die Security — und eine Gruppensicht, die das verschwiege,
         * liesse genau den Bereich bieten, der es nicht kann.
         */}
-      {zelle.vorgangStatus !== null && zelle.registrierung !== 'registriert' ? (
+      {zelle.vorgangStatus !== null && zelle.freigeschaltet === false ? (
         <span data-cse="radar-nicht-freigeschaltet"
               className="text-xs font-semibold text-danger">
           nicht freigeschaltet

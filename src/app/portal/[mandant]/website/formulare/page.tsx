@@ -14,6 +14,7 @@ import { listeFormulare, type FormularZeile } from '@/server/services/inhalt/for
 import { haeltRechte } from '@/app/portal/rechte';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { WebsiteSpruenge } from '../spruenge';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/website/formulare` — die Anfrageformulare dieser
@@ -175,8 +176,8 @@ export default async function WebsiteFormulare(
       {!liest && (
         <Hinweis art="warnung" cse="ohne-formular-lesen" className="mb-s5 max-w-prose">
           <strong className="block">Zuständigkeit und Eingänge sind hier nicht lesbar.</strong>
-          Sie hängen am Recht <code className="font-mono">formular.lesen</code>; diese
-          Sitzung hält nur <code className="font-mono">formular.schreiben</code>. Die
+          Sie hängen am Recht <Recht schluessel="formular.lesen" />; diese
+          Sitzung hält nur <Recht schluessel="formular.schreiben" />. Die
           Spalten stehen deshalb leer — nicht auf null.
         </Hinweis>
       )}

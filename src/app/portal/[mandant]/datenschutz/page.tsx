@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type postgres from 'postgres';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -61,7 +62,13 @@ export default async function Anfragen(
   const tor = await mandantTor(`/portal/${mandant}/datenschutz`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
-  const darf = await haeltRechte(zugang.sitzung, 'datenschutz.auskunft_erstellen');
+  /*
+   * `referenz.schreiben` ist das Tor der Barrierenliste (Register §5.25) —
+   * gefragt wird genau das Recht, mit dem die Route bewacht ist, damit der
+   * Verweis nie auf eine 404 fuehrt (AUT-06, D-581).
+   */
+  const darf = await haeltRechte(
+    zugang.sitzung, 'datenschutz.auskunft_erstellen', 'referenz.schreiben');
 
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) => liste(kontext))
@@ -78,7 +85,7 @@ export default async function Anfragen(
       nurLesen={false}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="dashboard"
+      aktiverTab="datenschutz"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -88,6 +95,55 @@ export default async function Anfragen(
           {`${String(offen.length)} offen von ${String(zeilen.length)}`}
         </p>
       </div>
+
+      {/*
+        * **Der Weg für den Brief und den Anruf** (V-031, Art. 12 Abs. 1).
+        *
+        * Diese Liste hatte genau eine Quelle: das öffentliche Formular. Art. 12
+        * Abs. 1 kennt diese Beschränkung nicht — der Antrag geht „schriftlich
+        * oder in anderer Form", der mündliche ausdrücklich eingeschlossen. Ein
+        * Brief löste damit dieselbe Monatsfrist aus wie das Formular und hatte
+        * in der Plattform, die diese Frist überwacht, keinen Platz.
+        *
+        * Der Knopf steht am Recht dieser Liste (`datenschutz.auskunft_erstellen`,
+        * §5.25) — wer den Vorgang führen darf, nimmt den Brief auf, der ihn
+        * auslöst.
+        */}
+      {darf['datenschutz.auskunft_erstellen'] === true && (
+        <Link
+          href={`/portal/${mandant}/datenschutz/aufnehmen`}
+          data-cse="anfrage-aufnehmen"
+          className="mb-s5 inline-flex min-h-11 items-center rounded-md bg-brand
+                     px-s4 text-sm font-semibold text-white hover:bg-brand-hover"
+        >
+          Anfrage aufnehmen
+        </Link>
+      )}
+
+      {/*
+        * **Der Eingang zu den gemeldeten Barrieren** (V-032, LEG-07, BFSG).
+        *
+        * Das öffentliche Meldeformular schreibt seit je hinein — und NIEMAND
+        * las. Eine Barrieremeldung, die niemand öffnet, ist dasselbe wie kein
+        * Meldeweg, nur mit mehr Aufwand: das BFSG verlangt einen erreichbaren
+        * Kanal, und erreichbar heisst, dass am anderen Ende jemand sitzt.
+        *
+        * Sie steht hier, weil beides derselbe Schreibtisch ist: wer
+        * Betroffenenanfragen bearbeitet, bearbeitet auch diese Meldungen.
+        */}
+      {darf['referenz.schreiben'] === true && (
+        <nav aria-label="Weiter" className="mb-s5 flex flex-wrap gap-s2">
+          <Link
+            href={`/portal/${mandant}/datenschutz/barrieren`}
+            data-cse="zu-den-barrieren"
+            className="inline-flex min-h-11 items-center rounded-md border border-line
+                       px-s3 text-sm text-text-muted transition-colors duration-fast
+                       hover:border-line-strong hover:text-text"
+          >
+            Gemeldete Barrieren (BFSG)
+          </Link>
+        </nav>
+      )}
 
       {ueberfaellig.length > 0 && (
         <Hinweis art="warnung" cse="anfragen-ueberfaellig" className="mb-s5 max-w-prose">
@@ -179,7 +235,7 @@ export default async function Anfragen(
                   ? <span className="text-text-subtle">—</span>
                   : (
                     <details data-cse="anfrage-entscheiden">
-                      <summary className="cursor-pointer text-sm text-brand">
+                      <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">
                         Entscheiden
                       </summary>
                       <form method="post" action="/api/datenschutz/bearbeiten"

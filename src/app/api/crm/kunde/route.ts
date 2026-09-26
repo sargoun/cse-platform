@@ -3,12 +3,18 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
+import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import {
   CrmFehler, legeKontaktAn, legeKundeAn, type KundeTyp, type Rechtsgrundlage,
 } from '@/server/services/crm/anlegen';
+import {
+  aendereKontakt, aendereKunde, archiviereKunde, scheideKontaktAus,
+  setzeHauptkontakt,
+  setzeKundeStatus, type KundeStatus,
+} from '@/server/services/crm/aendern';
 
 /**
  * `POST /api/crm/kunde` — einen Kunden oder einen Ansprechpartner anlegen
@@ -55,6 +61,101 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
 
+        /*
+         * **Die Handlung steht im Feld `aktion`, nicht in der Adresse**
+         * (V-017…V-019). Dieselbe Begruendung wie bei `api/objekt`: alle
+         * Zweige verlangen `crm.schreiben` und entstehen aus Formularen
+         * derselben Flaeche; fuenf Routen waeren fuenf Stellen, an denen
+         * dieses Recht steht, und die fuenfte ist die, die beim naechsten
+         * Umbau vergessen wird.
+         *
+         * Ohne `aktion` bleibt es beim alten Verhalten — ANLEGEN. Die
+         * bestehenden Formulare schicken das Feld nicht, und eine Route, die
+         * ihre Aufrufer beim Umbau bricht, ist ein Umbau zu viel.
+         */
+        const aktion = String(daten.get('aktion') ?? 'anlegen');
+        const bereichVon = (): string => zurueck.split('/')[2] ?? '';
+
+        if (aktion === 'kunde_aendern') {
+          const id = wert('id');
+          if (id === undefined) throw new CrmFehler('Kein Kunde angegeben.', 'id_fehlt');
+          await aendereKunde(kontext, {
+            id,
+            name: String(daten.get('name') ?? ''),
+            typ: String(daten.get('typ') ?? 'firma') as KundeTyp,
+            rechtsform: wert('rechtsform'),
+            ustId: wert('ustId'),
+            steuernummer: wert('steuernummer'),
+            strasse: wert('strasse'),
+            hausnummer: wert('hausnummer'),
+            plz: wert('plz'),
+            ort: wert('ort'),
+            land: wert('land'),
+            emailZentral: wert('emailZentral'),
+            telefonZentral: wert('telefonZentral'),
+            webseite: wert('webseite'),
+            notiz: wert('notiz'),
+          });
+          return `/portal/${bereichVon()}/crm/kunden/${id}`;
+        }
+
+        if (aktion === 'kunde_status') {
+          const id = wert('id');
+          if (id === undefined) throw new CrmFehler('Kein Kunde angegeben.', 'id_fehlt');
+          await setzeKundeStatus(kontext, id, String(daten.get('status') ?? '') as KundeStatus);
+          return `/portal/${bereichVon()}/crm/kunden/${id}`;
+        }
+
+        if (aktion === 'kunde_archivieren') {
+          const id = wert('id');
+          if (id === undefined) throw new CrmFehler('Kein Kunde angegeben.', 'id_fehlt');
+          await archiviereKunde(kontext, id);
+          /* Danach auf die LISTE: das Blatt daneben ist leer. */
+          return `/portal/${bereichVon()}/crm/kunden`;
+        }
+
+        if (aktion === 'kontakt_aendern') {
+          const id = wert('id');
+          if (id === undefined) throw new CrmFehler('Kein Kontakt angegeben.', 'id_fehlt');
+          await aendereKontakt(kontext, {
+            id,
+            nachname: String(daten.get('nachname') ?? ''),
+            vorname: wert('vorname'),
+            anrede: wert('anrede'),
+            titel: wert('titel'),
+            position: wert('position'),
+            abteilung: wert('abteilung'),
+            email: wert('email'),
+            telefon: wert('telefon'),
+            mobil: wert('mobil'),
+          });
+          return zurueck;
+        }
+
+        if (aktion === 'kontakt_ausgeschieden') {
+          const id = wert('id');
+          if (id === undefined) throw new CrmFehler('Kein Kontakt angegeben.', 'id_fehlt');
+          await scheideKontaktAus(kontext, id);
+          return zurueck;
+        }
+
+        /*
+         * **Der Hauptkontakt** (V-097) — eine Eigenschaft des KUNDEN, nicht
+         * des Kontakts, und deshalb mit BEIDEN Kennungen. Es kann nur einer
+         * sein (`ansprechpartner_hauptkontakt_uk`); der Dienst löscht deshalb
+         * zuerst den alten und setzt dann den neuen, in derselben
+         * Transaktion.
+         */
+        if (aktion === 'hauptkontakt') {
+          const id = wert('id');
+          const kunde = wert('kundeId');
+          if (id === undefined || kunde === undefined) {
+            throw new CrmFehler('Kunde oder Kontakt fehlt.', 'id_fehlt');
+          }
+          await setzeHauptkontakt(kontext, kunde, id);
+          return zurueck;
+        }
+
         const kundeId = wert('kundeId');
         if (kundeId !== undefined) {
           /* Ein Ansprechpartner zu einem bestehenden Kunden. */
@@ -100,10 +201,20 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   } catch (fehler) {
     if (fehler instanceof CrmFehler) {
       const trenner = zurueck.includes('?') ? '&' : '?';
+      /*
+       * Satz UND Schlüssel (V-148): das Kundenblatt übersetzt den Schlüssel,
+       * der Satz bleibt der Rückfall für Blätter, die nur `meldung` lesen.
+       * `grund` und nicht `fehler`: das Kontaktblatt liest `fehler` für den
+       * Sendeweg (V-101) — ein gescheiterter Hauptkontakt ist keine Nachricht,
+       * die nicht hinausging.
+       */
       return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`,
+        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`
+          + `&grund=${encodeURIComponent(fehler.grund)}`,
         '/portal', anfrage), 303);
     }
+    const autorisierung = autorisierungsAntwort(fehler);
+    if (autorisierung !== null) return autorisierung;
     throw fehler;
   }
 

@@ -1,8 +1,9 @@
 import 'server-only';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import type postgres from 'postgres';
 import { db } from '../db/pool.js';
 import { SITZUNG_COOKIE, sitzungAufloesen } from './sitzung.js';
+import { anfrageAdresse } from './adresse.js';
 import type { Sitzung } from '../kontext/index.js';
 
 /**
@@ -19,8 +20,17 @@ import type { Sitzung } from '../kontext/index.js';
 export async function aktuelleSitzung(): Promise<Sitzung | null> {
   const token = (await cookies()).get(SITZUNG_COOKIE)?.value;
   if (token === undefined || token === '') return null;
-  return db().begin(async (tx: postgres.TransactionSql) =>
-    sitzungAufloesen(tx, token)) as Promise<Sitzung | null>;
+  const sitzung = await (db().begin(async (tx: postgres.TransactionSql) =>
+    sitzungAufloesen(tx, token)) as Promise<Sitzung | null>);
+  if (sitzung === null) return null;
+  /*
+   * **Die Adresse DIESER Anfrage reist mit der Sitzung** (SEC-A9, V-163).
+   * Jede Bindung (`withTenant`, `bindeAnfrage`, …) setzt sie als `app.ip`, und
+   * `app.protokolliere` schreibt sie in jede Protokollzeile. Hier und nicht in
+   * `sitzungAufloesen`: die Sitzungszeile kennt keine Anfrage, und dieselbe
+   * Sitzung kommt morgen von einer anderen Adresse.
+   */
+  return { ...sitzung, ip: anfrageAdresse(await headers()) };
 }
 
 /**

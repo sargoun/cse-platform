@@ -193,22 +193,18 @@ export function slugAus(
   return /^[a-z0-9-]{1,40}$/u.test(roh) ? roh : null;
 }
 
-/** Der Weg zurueck in die Liste — auf jeder Detailseite an derselben Stelle. */
-export function Zurueck({
-  ziel, text,
-}: { readonly ziel: '/portal/kunde/nachrichten' | '/portal/kunde/reklamationen'
-  | '/portal/kunde/rechnungen' | '/portal/kunde/projekte' | '/portal/kunde/nachweise'
-  | '/portal/kunde/auftraege' | '/portal/kunde/angebote' | '/portal/kunde/objekte'
-  | '/portal/kunde/dokumente';
-  readonly text: string }) {
-  return (
-    <nav aria-label="Zurück" className="mb-s4">
-      <Link href={ziel} className="text-sm text-text-muted underline hover:text-text">
-        ← {text}
-      </Link>
-    </nav>
-  );
-}
+/**
+ * Der Weg zurueck in die Liste — **jetzt die Komponente der Plattform**
+ * (`components/portal/Zurueck`, DESIGN §5 „The way back", D-613).
+ *
+ * Hier stand die Fassung, die es zuerst gab: dieselbe Gestalt, aber mit einem
+ * `ziel`, das auf neun feste Kundenpfade typisiert war. Genau diese Enge hat
+ * sie in diesem Portal eingesperrt — gemessen stand sie auf 2 von 309
+ * Verwaltungsseiten. Der Re-Export bleibt, damit die neun Kundenseiten ihren
+ * Import behalten; was sie bekommen, ist ab jetzt dasselbe Bauteil wie
+ * ueberall sonst.
+ */
+export { Zurueck } from '@/components/portal/Zurueck';
 
 /**
  * Eine offene Geschaeftsfrage, sichtbar an der Stelle, an der sonst ein Knopf

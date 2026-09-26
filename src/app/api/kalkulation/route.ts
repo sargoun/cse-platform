@@ -10,6 +10,7 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
 import { withTenant } from '@/server/kontext/index';
 import { bestaetigeKalkulation, KalkulationFehler }
   from '@/server/services/kalkulation/bestaetigung';
+import { setzeKostenposition } from '@/server/services/kalkulation/kostenposition';
 
 /**
  * `POST /api/kalkulation` — die Werte bestaetigen, auf denen ein Preis ruht.
@@ -23,8 +24,25 @@ import { bestaetigeKalkulation, KalkulationFehler }
  * genau die offene Frage. Wer hier Zahlen eintraegt, sagt „fuer DIESES
  * Angebot rechnen wir so“ — und die Kalkulation haelt fest, wer das wann
  * gesagt hat.
+ *
+ * **Eine Abweisung fuehrt auf die Kalkulationsseite zurueck** (V-172, D-599):
+ * mit dem Grund und dem Feld, das ihn ausloeste. Bis hierher kam jede
+ * `KalkulationFehler` — ein unlesbarer Stundensatz, ein Zuschlag ausserhalb
+ * des Bereichs — als weisse Seite `{"fehler":…,"text":…}` heraus. JSON bleibt
+ * nur fuer keine Sitzung, kein Recht und fremden Ursprung.
+ *
+ * **Der Bereich kommt aus der SITZUNG** (Invariante 3), nicht aus
+ * `?mandant=`.
+ *
+ * **Zweite Handlung: `aktion=kostenposition`** (V-174, OPS-07) — eine Material-
+ * oder Gerätezeile anlegen oder berichtigen und den Preis neu rechnen.
+ * Dasselbe Recht, dieselbe Seite, dieselbe Abweisung mit Feld: beides ändert,
+ * worauf der Preis ruht. Gelöscht wird nichts (Invariante 8); eine Zeile, die
+ * nicht mehr gelten soll, bekommt die Menge null.
  */
 export const dynamic = 'force-dynamic';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
@@ -41,14 +59,27 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return typeof wert === 'string' && wert.trim() !== '' ? wert.trim() : null;
   };
 
-  const angebotId = text('angebotId');
+  const roh = text('angebotId');
+  const angebotId = roh !== null && UUID.test(roh) ? roh : null;
   const basis = text('gemeinkostenBasis');
-  if (angebotId === null || basis === null) {
-    return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
-  }
+  /* Zwei Handlungen, und nur diese zwei — alles andere ist die Bestätigung. */
+  const aktion = text('aktion') === 'kostenposition' ? 'kostenposition' : 'bestaetigen';
+
+  let slug = '';
+  const zurSeite = (grund: string, feld: string | null): NextResponse => {
+    const pfad = slug === '' ? '/portal'
+      : angebotId === null ? `/portal/${slug}/angebote`
+        : `/portal/${slug}/angebote/${angebotId}/kalkulation`;
+    const ziel = new URL(pfad, erwarteterUrsprung(anfrage));
+    ziel.searchParams.set('fehler', grund);
+    if (feld !== null) ziel.searchParams.set('feld', feld);
+    /* Die Seite sagt dann „die Kostenzeile", nicht „nichts bestätigt" (V-174). */
+    if (aktion === 'kostenposition') ziel.searchParams.set('aktion', aktion);
+    return NextResponse.redirect(ziel, 303);
+  };
 
   try {
-    const ergebnis = await (db().begin(async (tx: postgres.TransactionSql) =>
+    await (db().begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
         await authorize(
           {
@@ -63,7 +94,33 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           { recht: 'kalkulation.schreiben', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
+        const [bereich] = await kontext.abfrage<{ slug: string }>(
+          `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
+        if (bereich === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
+        slug = bereich.slug;
 
+        if (angebotId === null) {
+          throw new KalkulationFehler('Kein Angebot benannt', 'nicht_gefunden');
+        }
+        if (aktion === 'kostenposition') {
+          const positionId = text('positionId');
+          if (positionId !== null && !UUID.test(positionId)) {
+            throw new KalkulationFehler('Diese Kostenzeile gibt es nicht', 'nicht_gefunden');
+          }
+          await setzeKostenposition(kontext, angebotId, {
+            kostenart: text('kostenart') ?? '',
+            bezeichnung: text('bezeichnung') ?? '',
+            menge: text('menge') ?? '',
+            einheit: text('einheit') ?? '',
+            einzelpreisEuro: text('einzelpreis') ?? '',
+            positionId,
+          });
+          return { bestaetigt: false };
+        }
+        if (basis === null) {
+          throw new KalkulationFehler(
+            'Die Gemeinkostenbasis fehlt', 'unvollstaendig', 'gemeinkostenBasis');
+        }
         return bestaetigeKalkulation(kontext, angebotId, {
           stundensatzEuro: text('stundensatz'),
           gemeinkostenBasis: basis,
@@ -75,12 +132,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         });
       })) as Promise<{ readonly bestaetigt: boolean }>);
 
-    if (!ergebnis.bestaetigt) {
-      return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
-    }
-    const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-    return NextResponse.redirect(
-      new URL(`/portal/${slug}/angebote/${angebotId}`, erwarteterUrsprung(anfrage)), 303);
+    /* Nach einer Kostenzeile zurück auf die Kalkulation — dort steht, was sie bewirkt hat. */
+    const ziel = aktion === 'kostenposition'
+      ? `/portal/${slug}/angebote/${String(angebotId)}/kalkulation?kostenposition=1`
+      : `/portal/${slug}/angebote/${String(angebotId)}`;
+    return NextResponse.redirect(new URL(ziel, erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
     if (fehler instanceof NichtAngemeldetFehler) {
       return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
@@ -91,8 +147,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
     }
-    if (fehler instanceof KalkulationFehler) {
-      return NextResponse.json({ fehler: fehler.grund, text: fehler.message }, { status: 400 });
+    if (fehler instanceof KalkulationFehler && slug !== '') {
+      return zurSeite(fehler.grund, fehler.feld);
     }
     throw fehler;
   }

@@ -1,4 +1,5 @@
 import { tabZiel, type TabZiel } from '@/server/registry/tableiste';
+import { NAVI_GRUPPEN } from '@/server/registry/navigation';
 import { Icon } from '@/components/ui/Icon';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -16,8 +17,18 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  * die naechste Stelle, an der eine Seite erreichbar bleibt, die es nicht mehr
  * gibt.
  */
+/** Ein Tab-Ziel, das zusaetzlich seine Gruppe tragen darf (D-616). */
+export type NaviZiel = TabZiel & { readonly gruppe?: string };
+
 export interface SeitenNavigationProps {
-  readonly ziele: readonly TabZiel[];
+  /**
+   * Die Ziele — aus `tableiste.ts` (flach) oder aus `NAVIGATION` (gegliedert).
+   *
+   * `gruppe` ist optional, weil die beiden Register verschieden sind und es
+   * auch bleiben sollen: die Gruppen- und die Kundenleiste haben 18 und 11
+   * Punkte, und eine Ueberschrift ueber zwei Punkten gliedert nichts.
+   */
+  readonly ziele: readonly NaviZiel[];
   readonly aktiv?: string;
   readonly wurzel: string;
   readonly label: string;
@@ -49,6 +60,17 @@ export function SeitenNavigation({
    * Bildschirm.
    */
   if (gezeigt.length === 0) return null;
+
+  /*
+   * Die Gruppen in Registerreihenfolge. `TabZiel` traegt kein `gruppe` — die
+   * Leisten sind flach —, `NaviEintrag` schon; der Zugriff geht deshalb ueber
+   * eine schmale Form statt ueber eine Typzusammenfuehrung, die beide
+   * Register aneinanderbaende.
+   */
+  const gruppen = NAVI_GRUPPEN
+    .map((g) => ({ schluessel: g, eintraege: gezeigt.filter((z) => z.gruppe === g) }))
+    .filter((g) => g.eintraege.length > 0);
+  const ungruppiert = gezeigt.filter((z) => z.gruppe === undefined);
   /*
    * **248px, Beschriftung `sm`, 3px-Balken am aktiven Punkt — DESIGN §5.**
    *
@@ -65,12 +87,45 @@ export function SeitenNavigation({
       data-cse="seitennavigation"
       className="hidden w-[248px] shrink-0 border-r border-line bg-surface p-s3 md:block"
     >
-      <ul className="flex flex-col gap-s1">
-        {gezeigt.map((z) => {
-          const ziel = tabZiel(wurzel, z);
-          const istAktiv = z.schluessel === aktiv;
-          return (
-            <li key={z.schluessel}>
+      {/*
+        * **Gegliedert, wo eine Gruppe dransteht** (DESIGN-PLAN §4, D-616).
+        *
+        * Der Befund des Mandanten — „ich finde nichts, alles ist ineinander"
+        * — hatte eine mechanische Ursache: 32 flache Eintraege ohne
+        * Gruppenfeld. Die Gruppen- und die Kundenleiste tragen weiterhin
+        * keines (18 und 11 Punkte); fuer sie faellt der Zweig unten auf die
+        * flache Liste zurueck, also auf genau das Verhalten von vorher.
+        *
+        * **Gefiltert wird VORHER.** `gezeigt` enthaelt nur, was der Benutzer
+        * darf (AUT-06); eine Gruppe, von der nichts uebrig bleibt, faellt
+        * damit ganz weg — eine Ueberschrift ohne Punkte verriete genau das,
+        * was der Filter verbirgt.
+        */}
+      {gruppen.length > 0 && gruppen.map((g) => (
+        <div key={g.schluessel} className="mb-s3 flex flex-col gap-s1">
+          <h2 className="px-s3 pb-s1 text-micro font-semibold uppercase tracking-widest
+                         text-text-subtle">
+            {beschriftungen?.[`leiste.${g.schluessel}`] ?? g.schluessel}
+          </h2>
+          <ul className="flex flex-col gap-s1">
+            {g.eintraege.map((z) => punkt(z))}
+          </ul>
+        </div>
+      ))}
+      {ungruppiert.length > 0 && (
+        <ul className="flex flex-col gap-s1">
+          {ungruppiert.map((z) => punkt(z))}
+        </ul>
+      )}
+    </nav>
+  );
+
+  /** Eine Zeile — eine Stelle, aus beiden Zweigen gerufen. */
+  function punkt(z: NaviZiel) {
+    const ziel = tabZiel(wurzel, z);
+    const istAktiv = z.schluessel === aktiv;
+    return (
+      <li key={z.schluessel}>
               <a
                 href={ziel}
                 data-cse="nav-punkt"
@@ -88,10 +143,7 @@ export function SeitenNavigation({
                 <Icon name={z.icon} groesse="md" className="shrink-0" />
                 {beschriftungen?.[z.schluessel] ?? z.label}
               </a>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
+      </li>
+    );
+  }
 }

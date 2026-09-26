@@ -13,6 +13,8 @@ import { withEingang } from '../../src/server/kontext/eingang.js';
 import { nimmAn, pruefeRatenlimit, RatenlimitFehler, LIMIT_JE_IP }
   from '../../src/server/services/lead/annahme.js';
 import { eskaliereFaellige } from '../../src/server/services/lead/eskalation.js';
+import { setzeLeadPflege, CrmFehler } from '../../src/server/services/crm/anlegen.js';
+import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import { Felder, type FormularFeld } from '../../src/lib/formular/schema.js';
 
 interface FormularZeile {
@@ -270,7 +272,7 @@ describe('(2) die Eskalation läuft einmal je Stunde und wird protokolliert', ()
       select richtung, betreff from lead_aktivitaet
        where lead_id = ${leadId} and typ = 'system' and richtung = 'intern'`;
     expect(zeilen.length).toBe(1);
-    expect(zeilen[0]!.betreff).toContain('SLA');
+    expect(zeilen[0]!.betreff).toContain('Reaktionszeit überschritten');
 
     // Und die Uhr steht danach immer noch: eine Eskalation an die eigene
     // Leitung ist keine Antwort an den Anfragenden.
@@ -343,5 +345,154 @@ describe('der Eingangsprinzipal schreibt und liest NICHT', () => {
         kontext.abfrage(`select id from formular_eingang where id = $1`, [eingangId]),
       )) as Promise<readonly unknown[]>);
     expect(sichtbar).toEqual([]);
+  });
+});
+
+describe('(6) V-137: der Anfragende ist erreichbar, und die Kette schliesst sich', () => {
+  const lauf = { unsafe: (q: string, w?: readonly unknown[]) => sql.unsafe(q, (w ?? []) as never[]) };
+  const zufallMail = (): string => `anfrage-${String(Math.random()).slice(2, 10)}@beispiel.test`;
+
+  it('die Annahme legt den Anfragenden als Ansprechpartner an — Grundlage anfrage', async () => {
+    const email = zufallMail();
+    const { leadId, eingangId } = await sende('angebot_reinigung', { ...REINIGUNG, email });
+    const [z] = await sql<{
+      nachname: string; email: string; telefon: string; kunde_id: string | null;
+      rechtsgrundlage: string; rechtsgrundlage_quelle: string;
+    }[]>`
+      select a.nachname, a.email, a.telefon, a.kunde_id, a.rechtsgrundlage::text as rechtsgrundlage,
+             a.rechtsgrundlage_quelle
+        from lead l join ansprechpartner a on a.id = l.ansprechpartner_id
+       where l.id = ${leadId}`;
+    expect(z).toBeDefined();
+    expect(z!.nachname).toBe('A. Muster');
+    expect(z!.email).toBe(email);
+    expect(z!.telefon).toBe('+49 30 1');
+    expect(z!.kunde_id).toBeNull();
+    expect(z!.rechtsgrundlage).toBe('anfrage');
+    expect(z!.rechtsgrundlage_quelle).toContain(eingangId);
+  });
+
+  it('auch mit Werbehäkchen bleibt die Grundlage anfrage — das Häkchen nennt keinen Kanal', async () => {
+    const { leadId } = await sende('angebot_reinigung',
+      { ...REINIGUNG, email: zufallMail(), einwilligung_werbung: 'on' });
+    const [z] = await sql<{ g: string }[]>`
+      select a.rechtsgrundlage::text as g from lead l
+        join ansprechpartner a on a.id = l.ansprechpartner_id where l.id = ${leadId}`;
+    expect(z!.g).toBe('anfrage');
+  });
+
+  it('dieselbe E-Mail zweimal ist EIN Mensch — derselbe Kontakt, zwei Leads', async () => {
+    const email = zufallMail();
+    const a = await sende('angebot_reinigung', { ...REINIGUNG, email });
+    const b = await sende('angebot_reinigung', { ...REINIGUNG, email: email.toUpperCase() });
+    const zeilen = await sql<{ ansprechpartner_id: string }[]>`
+      select ansprechpartner_id from lead where id in (${a.leadId}, ${b.leadId})`;
+    expect(new Set(zeilen.map((z) => z.ansprechpartner_id)).size).toBe(1);
+    const [n] = await sql<{ n: number }[]>`
+      select count(*)::int as n from ansprechpartner
+       where lower(email) = ${email} and mandant_id = ${ids.get('reinigung')!}`;
+    expect(n!.n).toBe(1);
+  });
+
+  it('der Besitzer bekommt „neue Anfrage" — mit Verweis auf genau diesen Lead', async () => {
+    const { leadId } = await sende('angebot_reinigung', { ...REINIGUNG, email: zufallMail() });
+    const [b] = await sql<{ empfaenger_id: string; ziel: string; titel: string; objekt_id: string }[]>`
+      select empfaenger_id, ziel, titel, objekt_id from benachrichtigung
+       where art = 'crm.neuer_lead' and objekt_id = ${leadId}`;
+    expect(b).toBeDefined();
+    expect(b!.empfaenger_id).toBe(adminId);
+    expect(b!.ziel).toBe(`/portal/reinigung/crm/leads/${leadId}`);
+    expect(b!.titel).toContain('Neue Anfrage');
+  });
+
+  it('der Eingangs-Prinzipal kann keine fremde oder alte Meldung auslösen', async () => {
+    const { leadId } = await sende('angebot_reinigung', { ...REINIGUNG, email: zufallMail() });
+    const formular = formulare.get('angebot_reinigung')!;
+    /* Eine NEUE Transaktion: der Lead ist nicht in ihr entstanden. */
+    const ok = await sql.begin(async (tx) => withEingang(tx, formular.mandant_id, async (k) => {
+      const [z] = await k.abfrage<{ ok: boolean }>(
+        `select app.lead_eingang_melden($1::uuid, 'x', 'y', $2) as ok`,
+        [leadId, `/portal/reinigung/crm/leads/${leadId}`]);
+      return z!.ok;
+    }));
+    expect(ok).toBe(false);
+    const [n] = await sql<{ n: number }[]>`
+      select count(*)::int as n from benachrichtigung
+       where art = 'crm.neuer_lead' and objekt_id = ${leadId}`;
+    expect(n!.n).toBe(1);
+  });
+
+  it('eine ausgehende E-Mail an den Anfragenden hält die Uhr an — ohne Handarbeit', async () => {
+    const { leadId } = await sende('angebot_reinigung', { ...REINIGUNG, email: zufallMail() });
+    const [l] = await sql<{ ansprechpartner_id: string }[]>`
+      select ansprechpartner_id from lead where id = ${leadId}`;
+    await alsApp(
+      { scope: 'mandant', mandantId: ids.get('reinigung')!, benutzerId: adminId,
+        portal: 'intern', readonly: false },
+      (tx) => tx`
+        insert into lead_aktivitaet (mandant_id, lead_id, ansprechpartner_id, typ,
+                                     richtung, zweck, kanal, betreff)
+        values (${ids.get('reinigung')!}, ${leadId}, ${l!.ansprechpartner_id}, 'email',
+                'ausgehend', 'vertraglich', 'email', 'Angebot folgt')`);
+    const [nachher] = await sql<{ erste_reaktion_am: Date | null }[]>`
+      select erste_reaktion_am from lead where id = ${leadId}`;
+    expect(nachher!.erste_reaktion_am).not.toBeNull();
+  });
+
+  it('ein gewonnener Lead eskaliert nicht mehr — auch ohne erfasste Reaktion', async () => {
+    const { leadId } = await sende('angebot_reinigung', { ...REINIGUNG, email: zufallMail() });
+    await sql`update lead set sla_frist_am = now() - interval '2 hours', status = 'gewonnen'
+               where id = ${leadId}`;
+    const bericht = await eskaliereFaellige(lauf, ids.get('reinigung')!, new Date());
+    expect(bericht.leads).not.toContain(leadId);
+  });
+
+  it('die Eskalation meldet sich bei der zuständigen Person — ohne UUID im Verlauf', async () => {
+    const { leadId } = await sende('angebot_reinigung', { ...REINIGUNG, email: zufallMail() });
+    await sql`update lead set sla_frist_am = now() - interval '2 hours' where id = ${leadId}`;
+    await eskaliereFaellige(lauf, ids.get('reinigung')!, new Date());
+    const [b] = await sql<{ empfaenger_id: string; sammelbar: boolean }[]>`
+      select empfaenger_id, sammelbar from benachrichtigung
+       where art = 'crm.lead_sla_ueberschritten' and objekt_id = ${leadId}`;
+    expect(b).toBeDefined();
+    expect(b!.sammelbar).toBe(false);
+    const [a] = await sql<{ inhalt: string }[]>`
+      select inhalt from lead_aktivitaet
+       where lead_id = ${leadId} and typ = 'system' and richtung = 'intern'`;
+    expect(a!.inhalt).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/u);
+    expect(a!.inhalt).toMatch(/Gemeldet an /u);
+    expect(a!.inhalt).not.toMatch(/T\d\d:\d\d:\d\d/u);
+  });
+
+  it('Priorität und Besitzer lassen sich setzen — ein Fremder wird nicht Besitzer', async () => {
+    const { leadId } = await sende('angebot_reinigung', { ...REINIGUNG, email: zufallMail() });
+    const kontext = (tx: Parameters<Parameters<typeof alsApp>[1]>[0]): SchreibKontext => {
+      const lauf2 = async <R,>(q: string, w?: readonly unknown[]) =>
+        (await tx.unsafe(q, (w ?? []) as never[])) as unknown as readonly R[];
+      return { scope: 'mandant', portal: 'intern', benutzerId: adminId,
+        aktiverMandantId: ids.get('reinigung')!, mandantIds: [ids.get('reinigung')!],
+        abfrage: lauf2, schreibe: lauf2 };
+    };
+    const sitzung = { scope: 'mandant' as const, mandantId: ids.get('reinigung')!,
+      benutzerId: adminId, portal: 'intern' as const, readonly: false };
+    await alsApp(sitzung, (tx) => setzeLeadPflege(kontext(tx), leadId, { prioritaet: 'hoch' }));
+    const [p] = await sql<{ prioritaet: string }[]>`
+      select prioritaet::text as prioritaet from lead where id = ${leadId}`;
+    expect(p!.prioritaet).toBe('hoch');
+
+    /* Unverändert mitgeschickt (so tut es das Formular): keine Prüfung, kein Fehler. */
+    await alsApp(sitzung, (tx) => setzeLeadPflege(kontext(tx), leadId,
+      { prioritaet: 'niedrig', besitzerBenutzerId: adminId }));
+
+    const [fremd] = await sql<{ id: string }[]>`
+      select b.id from benutzer b
+       where b.globale_rolle_id is null and not b.ist_dienstkonto
+         and not exists (select 1 from benutzer_mandant bm
+                          where bm.benutzer_id = b.id and bm.mandant_id = ${ids.get('reinigung')!})
+       limit 1`;
+    await expect(alsApp(sitzung, (tx) => setzeLeadPflege(kontext(tx), leadId,
+      { besitzerBenutzerId: fremd!.id }))).rejects.toBeInstanceOf(CrmFehler);
+    await expect(alsApp(sitzung, (tx) => setzeLeadPflege(kontext(tx), leadId,
+      { prioritaet: 'dringend' }))).rejects.toBeInstanceOf(CrmFehler);
   });
 });

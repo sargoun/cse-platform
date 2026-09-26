@@ -109,6 +109,8 @@ export const EINZELABRUF: Abrechnungsart = {
   schluessel: 'einzelabruf',
   bezeichnung: 'Einzelabruf',
   istProvisorisch: true,
+  // V-207: jeder Abruf sperrt sich selbst (quelle_sonderleistung_uk, D-700).
+  sperrtUeberBeleg: true,
   offeneParameter: [
     {
       schluessel: 'mindestabrufmenge',

@@ -34,6 +34,7 @@
  * Form: ein Abruf, EINE Protokollzeile.
  */
 import { createHash, randomBytes } from 'node:crypto';
+import { kanonischeBasis } from '../../../lib/domains.js';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 
 export class WiderspruchFehler extends Error {
@@ -148,11 +149,40 @@ export async function gibTokenAus(
     readonly nachrichtId?: string | null;
   },
 ): Promise<{ readonly id: string; readonly klartext: string }> {
+  const { klartext, hash } = neuerToken();
+  const id = await vermerkeToken(kontext, z, hash);
+  return { id, klartext };
+}
+
+/**
+ * Den AUSGEGEBENEN Token vermerken — die zweite Hälfte von `gibTokenAus`.
+ *
+ * **Warum die beiden Hälften einzeln erreichbar sind** (V-092, V-115). Der
+ * Token gehört in den TEXT der Nachricht, und die Nachricht muss es schon
+ * geben, bevor der Vermerk sie nennen kann: `werbewiderspruch_token.nachricht_id`
+ * trägt einen Fremdschlüssel auf `nachricht`. Die Reihenfolge ist also
+ * zwingend Klartext → Text bauen → Nachricht schreiben → Vermerk. Ein
+ * `gibTokenAus`, das beides in einem Zug tut, kann in dieser Reihenfolge nicht
+ * benutzt werden, ohne die Nachricht nachträglich umzuschreiben — und eine
+ * ausgehende Nachricht wird nicht umgeschrieben.
+ *
+ * Gespeichert wird der SHA-256, nie der Token (K-08): wer die Tabelle liest,
+ * kann keinen fremden Widerspruch einlösen.
+ */
+export async function vermerkeToken(
+  kontext: SchreibKontext,
+  z: {
+    readonly ansprechpartnerId: string;
+    readonly kundeId?: string | null;
+    readonly kanal: Kanal;
+    readonly nachrichtId?: string | null;
+  },
+  hash: string,
+): Promise<string> {
   if (!(KANAELE as readonly string[]).includes(z.kanal)) {
     throw new WiderspruchFehler(
       `Kein Kanal dieses Hauses: „${z.kanal}".`, 'kanal_unbekannt');
   }
-  const { klartext, hash } = neuerToken();
   const [zeile] = await kontext.schreibe<{ id: string }>(
     `select app.werbewiderspruch_token_ausgeben($1::uuid, $2::uuid, $3, $4::uuid, $5)
               as id`,
@@ -163,12 +193,61 @@ export async function gibTokenAus(
       + 'ohne ihn darf nicht hinausgehen (§ 7 Abs. 3 Nr. 4 UWG).',
       'kein_token', 500);
   }
-  return { id: zeile.id, klartext };
+  return zeile.id;
 }
 
 /** Der Pfad, der in die Nachricht geschrieben wird. */
 export function tokenPfad(klartext: string): string {
   return `/werbewiderspruch/${encodeURIComponent(klartext)}`;
+}
+
+/**
+ * **Der Pflichthinweis des § 7 Abs. 3 Nr. 4 UWG, an den Text gehängt**
+ * (V-092, V-115).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Der Befund.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `gibTokenAus` war gebaut, geprüft und hatte im ganzen Baum **keinen
+ * Aufrufer**. Der Widerspruchsweg existierte vollständig — die öffentliche
+ * Seite, die Einlösung, die Drossel, das Protokoll —, und der Schlüssel dazu
+ * entstand nirgends. Solange kein Versender verbunden ist (O-36), fällt das
+ * nicht auf; in der Sekunde, in der einer verbunden wird, ginge eine
+ * Werbemail ohne den gesetzlich vorgeschriebenen Hinweis hinaus.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Was das Gesetz verlangt — und was hier deshalb steht.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * § 7 Abs. 3 Nr. 4 UWG erlaubt Direktwerbung an Bestandskunden nur, wenn
+ * „der Kunde bei Erhebung der Adresse und bei jeder Verwendung klar und
+ * deutlich darauf hingewiesen wird, dass er der Verwendung jederzeit
+ * widersprechen kann, ohne dass hierfür andere als die Übermittlungskosten
+ * nach den Basistarifen entstehen". **Bei JEDER Verwendung** — also in jeder
+ * einzelnen Nachricht, nicht einmal im Impressum.
+ *
+ * Der Satz unten ist dieser Hinweis, und der Link ist er in ausführbarer
+ * Form. Beides ist kein Textvorschlag, den jemand kürzen darf: die beiden
+ * Bestandteile (jederzeitiger Widerspruch, keine Kosten über den Basistarif)
+ * stehen wörtlich im Gesetz.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Ohne absolute Adresse geht gar nichts.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `kanonischeBasis()` wirft ohne `CSE_KANONISCHE_BASIS`, und das ist hier die
+ * richtige Antwort: `/werbewiderspruch/…` in einer E-Mail ist kein Link,
+ * sondern eine Zeichenkette. Eine Werbemail mit einem unklickbaren Hinweis
+ * erfüllt den Absatz nicht — sie darf dann nicht hinausgehen.
+ */
+export function mitPflichthinweis(koerper: string, klartext: string): string {
+  const basis = kanonischeBasis();
+  return `${koerper}\n\n—\n`
+    + 'Sie können der Verwendung Ihrer Adresse für Werbung jederzeit '
+    + 'widersprechen, ohne dass für Sie andere als die Übermittlungskosten nach '
+    + 'den Basistarifen entstehen (§ 7 Abs. 3 Nr. 4 UWG):\n'
+    + `${basis}${tokenPfad(klartext)}`;
 }
 
 /* =========================================================================

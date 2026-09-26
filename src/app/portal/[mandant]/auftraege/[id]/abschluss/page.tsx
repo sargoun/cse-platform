@@ -15,6 +15,8 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { FELD, FEHLERTEXT, type AbschlussKopf } from './daten';
+import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/auftraege/[id]/abschluss` — OPS-05, und die
@@ -123,18 +125,10 @@ export default async function Abschluss(
       aktiverTab="auftraege"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['auftrag.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/auftraege/${id}`, text: kopf.auftragsnummer } }
+        : {})}
     >
-      {darf['auftrag.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/auftraege/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← {kopf.auftragsnummer}
-          </Link>
-        </nav>
-      )}
-
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">Auftrag abschließen</h1>
         <StatusPill zustand={abgeschlossen ? 'Abgeschlossen' : 'In Arbeit'} />
@@ -143,7 +137,7 @@ export default async function Abschluss(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="abschluss-fehler" className="mb-s5">
           <strong>Der Auftrag ist nicht abgeschlossen.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 
@@ -188,7 +182,7 @@ export default async function Abschluss(
               + 'Prüfpunkten trägt eine Zahl.'}{' '}
           Die Zahlen kommen aus einer Datenbankfunktion mit eigenem Recht — nicht
           aus direkten Zählungen. Eine Rolle ohne{' '}
-          <code className="text-text">zeit.lesen</code> hätte sonst „nichts offen"
+          <Recht schluessel="zeit.lesen" /> hätte sonst „nichts offen"
           gelesen, obwohl sie nichts sehen konnte (AUT-05).
         </p>
 

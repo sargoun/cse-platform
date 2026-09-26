@@ -30,7 +30,16 @@ export class NichtVerbundenFehler extends Error {
  * lesbarer Bucket mit Aufnahmen von Arbeitsplaetzen und den Menschen darauf
  * ist ein Datenschutzvorfall, kein Bequemlichkeitsgewinn.
  */
-export const BUCKETS = ['dokumente', 'archiv', 'einsatz-medien'] as const;
+/*
+ * `marke` (V-100, D-628) traegt Logo, Avatar und Titelbild einer
+ * Gesellschaft — Material, das auf der Website steht, und trotzdem ein
+ * PRIVATER Behaelter: ausgeliefert wird es ueber `/api/marke/…`, und die
+ * Route gibt ein Bild nur heraus, wenn die Identitaet veroeffentlicht ist
+ * oder der Anfragende in dieser Gesellschaft angemeldet ist. Ein
+ * oeffentlicher Behaelter „nur fuer Logos" waere genau die zweite Liste,
+ * vor der dieser Kommentar warnt.
+ */
+export const BUCKETS = ['dokumente', 'archiv', 'einsatz-medien', 'marke'] as const;
 export type Bucket = (typeof BUCKETS)[number];
 
 /**

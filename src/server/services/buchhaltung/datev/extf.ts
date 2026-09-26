@@ -145,6 +145,29 @@ export function belegdatumText(iso: string): string {
   return `${treffer[3]!}${treffer[2]!}`;
 }
 
+/** Die Höchstlänge der Stapelbezeichnung im Kopf (Feld 17 der Kopfzeile). */
+export const BEZEICHNUNG_HOECHSTENS = 30;
+
+/**
+ * Die Bezeichnung eines Stapels: `Stapel 01.08.2026-31.08.2026` — 28 Zeichen.
+ *
+ * **Sie muss in 30 Zeichen passen, und zwar ganz (V-211).** Die erste Fassung
+ * hiess `Buchungsstapel 2026-08-01 bis 2026-08-31`, 40 Zeichen; der Kopf
+ * schnitt sie auf „Buchungsstapel 2026-08-01 bis ", und das Enddatum fehlte in
+ * genau der Zeile, an der man im DATEV-Stapelverzeichnis einen Stapel
+ * erkennt. Geschrieben in der Hausschreibweise, weil die Bezeichnung ein
+ * Text für Menschen ist; die Kopffelder `Datum von`/`Datum bis` tragen das
+ * Datum daneben ohnehin maschinenlesbar.
+ */
+export function stapelBezeichnung(von: string, bis: string): string {
+  const deutsch = (iso: string): string => {
+    const treffer = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(iso);
+    if (treffer === null) throw new ExtfFehler(`"${iso}" ist kein ISO-Datum.`);
+    return `${treffer[3]!}.${treffer[2]!}.${treffer[1]!}`;
+  };
+  return `Stapel ${deutsch(von)}-${deutsch(bis)}`;
+}
+
 /** `2026-08-15` → `20260815`. Die Kopffelder tragen das volle Datum. */
 export function vollesDatumText(iso: string): string {
   const treffer = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(iso);
@@ -164,17 +187,28 @@ export function vollesDatumText(iso: string): string {
  */
 export function textFeld(wert: string | null, maximum: number): string {
   if (wert === null || wert === '') return '';
-  const sauber = wert
-    /*
-     * Eine FOLGE von Steuerzeichen wird EIN Leerzeichen, nicht eines je
-     * Zeichen: ein CRLF ist ein Umbruch, und zwei Leerzeichen daraus zu
-     * machen hiesse, dass derselbe Text je nach Betriebssystem des
-     * Erfassenden verschieden in der Datei steht.
-     */
-    .replace(/[\r\n\t]+/gu, ' ')
-    .replace(/"/gu, '""')
-    .slice(0, maximum);
-  return `"${sauber}"`;
+  /*
+   * Eine FOLGE von Steuerzeichen wird EIN Leerzeichen, nicht eines je
+   * Zeichen: ein CRLF ist ein Umbruch, und zwei Leerzeichen daraus zu
+   * machen hiesse, dass derselbe Text je nach Betriebssystem des
+   * Erfassenden verschieden in der Datei steht.
+   */
+  const einzeilig = wert.replace(/[\r\n\t]+/gu, ' ');
+  /*
+   * **Erst kürzen, DANN maskieren (V-211).** Die erste Fassung verdoppelte
+   * zuerst und schnitt danach. Fiel der Schnitt zwischen die beiden Zeichen
+   * eines verdoppelten `""`, endete das Feld auf `"` + schliessendem `"` —
+   * für DATEV ein maskiertes Zeichen statt des Feldendes. Das Feld blieb
+   * offen, und jedes folgende `;` der Zeile gehörte zum Buchungstext. Und
+   * jeder Text mit Anführungszeichen verlor still so viele Zeichen, wie er
+   * Anführungszeichen trug.
+   *
+   * Die Länge, die DATEV vorgibt, ist die des INHALTS. Gezählt wird in
+   * Codepunkten (`Array.from`), nicht in UTF-16-Einheiten: ein Schnitt
+   * mitten in einem Ersatzpaar hinterliesse ein halbes Zeichen.
+   */
+  const gekuerzt = Array.from(einzeilig).slice(0, maximum).join('');
+  return `"${gekuerzt.replace(/"/gu, '""')}"`;
 }
 
 /** Ein Zahlenfeld ohne Anführungszeichen — leer, wenn es keines gibt. */
@@ -241,7 +275,7 @@ export function baueKopf(k: ExtfKopf): string {
     k.beraterNummer, k.mandantenNummer, vollesDatumText(k.wjBeginn),
     String(k.sachkontenlaenge),
     vollesDatumText(k.von), vollesDatumText(k.bis),
-    textFeld(k.bezeichnung, 30), '', '1', '0',
+    textFeld(k.bezeichnung, BEZEICHNUNG_HOECHSTENS), '', '1', '0',
     k.festschreibung ? '1' : '0', '"EUR"', '', '', '', '',
     textFeld(k.kontenrahmen.toUpperCase().replace(/^SKR/u, ''), 4), '', '', '', '',
   ];

@@ -401,6 +401,94 @@ function gleich(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((w, i) => w === b[i]);
 }
 
+/**
+ * **Ein Suchprofil anlegen** (V-016, RAD-04).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Der Befund.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `schreibeProfil` ändert Vorhandenes, `setzeCpv` und `setzeEmpfaenger`
+ * hängen an einem Profil, `leseProfile` zeigt eine Liste — **und angelegt
+ * wurde ein Profil nirgends ausser im Seed.** Die Übersichtsseite sagte
+ * „Kein Profil angelegt. Ohne Profil bewertet der Lauf nichts" und bot
+ * keinen Weg zu einem; wer nach dem Seed eine neue Suche brauchte, hatte
+ * keinen.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Das neue Profil ist ABGESCHALTET, und das ist kein Vorsichtsreflex.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Die Spalte steht auf `default true`; hier wird sie ausdrücklich auf `false`
+ * gesetzt. Der Grund steht in `bewertung.ts`: ein Profil OHNE Wertgrenzen
+ * bekommt für jede Bekanntmachung in Euro das volle Wertkriterium („Der
+ * Auftragswert liegt im Rahmen des Profils"), und dasselbe gilt für die
+ * Frist. Ein frisch angelegtes, leeres und aktives Profil hätte also in der
+ * NÄCHSTEN Nacht jede Bekanntmachung bewertet — nicht mit null Punkten,
+ * sondern weit oben in der Rangfolge, und ein Mensch hätte am Morgen eine
+ * Liste gelesen, die nichts aussagt.
+ *
+ * Eingeschaltet wird auf dem Profilblatt, wenn CPV, Region und Stichwörter
+ * darin stehen. Das ist ein Klick mehr und eine falsche Rangfolge weniger.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * **Es entsteht NUR der Name.**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Kein zweites Formular für CPV, Region, Stichwörter, Wertgrenzen — die
+ * stehen auf dem Profilblatt, und dort steht neben ihnen, was gesperrt ist
+ * und warum (O-15, O-47, O-98, O-191, O-721). Ein Anlegeformular mit
+ * denselben Feldern wäre ein zweiter Ort, an dem diese Sätze zu pflegen
+ * wären — und der erste, an dem sie eines Tages fehlen.
+ *
+ * `ist_platzhalter` bleibt `true` (O-98), `gewichtung`, `skala_max`,
+ * `waehrung`, `negativ_wirkung` und `benachrichtigung_ab_punkte` bleiben bei
+ * ihren Vorgabewerten: jeder andere Wert wäre eine Behauptung über eine
+ * offene Frage.
+ */
+export async function legeProfilAn(
+  kontext: SchreibKontext, name: string,
+): Promise<string> {
+  const geprueft = pruefeName(name);
+
+  /*
+   * **Ein von der Policy abgewiesener INSERT WIRFT** — er gibt nicht null
+   * Zeilen zurück (derselbe Befund wie bei V-015). `t_profil_schreiben`
+   * verlangt `radar.profil_schreiben` UND `not app.ist_readonly()`; die
+   * Gruppenansicht ist damit draussen (Invariante 10). Ohne diesen Fang
+   * bekäme ein Mensch einen 500er, wo „dir fehlt dieses Recht" die Wahrheit
+   * ist.
+   */
+  let zeile: { id: string } | undefined;
+  try {
+    [zeile] = await kontext.schreibe<{ id: string }>(
+      `insert into radar_profil (mandant_id, name, ist_aktiv, erstellt_von)
+       values (app.aktiver_mandant(), $1, false, $2::uuid)
+       returning id`,
+      [geprueft, kontext.benutzerId]);
+  } catch (fehler: unknown) {
+    const text = fehler instanceof Error ? fehler.message : String(fehler);
+    if (text.includes('row-level security') || text.includes('row level security')) {
+      throw new ProfilFehler('gesperrt',
+        'Das Profil wurde nicht angelegt — fehlt `radar.profil_schreiben` in dieser '
+        + 'Gesellschaft? In der Gruppenansicht entsteht ausserdem nichts '
+        + '(Invariante 10).');
+    }
+    /* Alles andere ist KEINE Rechtefrage und wird nicht als eine verkleidet. */
+    throw fehler;
+  }
+  if (zeile === undefined) {
+    throw new ProfilFehler('gesperrt', 'Das Profil liess sich nicht anlegen.');
+  }
+
+  await kontext.schreibe(
+    `select app.protokolliere('radar.profil_angelegt', 'radar_profil', $1, null,
+                              $2::jsonb, app.aktiver_mandant())`,
+    [zeile.id, { name: geprueft, istAktiv: false }]);
+
+  return zeile.id;
+}
+
 export async function schreibeProfil(
   kontext: SchreibKontext, id: string, e: ProfilEingabe,
 ): Promise<void> {

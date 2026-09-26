@@ -129,7 +129,19 @@ describe('(1) Serien anlegen', () => {
     }));
     expect(a.bestandSchon).toBe(false);
     expect(a.erzeugt).toBeGreaterThanOrEqual(30);
-    expect(a.uebersprungen).toEqual([]);
+    /*
+     * Höchstens EIN Termin wird übersprungen: der von heute 06:00, wenn die
+     * Prüfung nach 06:00 an einem Werktag läuft — er hat schon begonnen und
+     * entsteht nicht neu (V-135). Bis V-135 stand hier `toEqual([])`, und das
+     * galt nur, weil der Generator diese Schicht in die Vergangenheit legte.
+     */
+    expect(a.uebersprungen.length).toBeLessThanOrEqual(1);
+    expect(a.uebersprungen.every((u) => u.grund === 'vergangen_oder_gearbeitet')).toBe(true);
+    const [begonnen] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from einsatz
+        where planungsserie_id = $1 and storniert_am is null and beginn_zeitpunkt <= now()`,
+      [a.planungsserieId]);
+    expect(begonnen!.n).toBe(0);
     const [zahl] = await sql.unsafe<{ n: number; erster: string }[]>(
       `select count(*)::int as n, min(plan_datum)::text as erster from einsatz
         where planungsserie_id = $1 and mandant_id = $2 and objekt_id = $3 and storniert_am is null`,
@@ -216,9 +228,9 @@ describe('(2) der Anmeldecode aus der Hand der Einsatzleitung', () => {
     expect(JSON.stringify(protokoll!.nachher)).not.toContain(a.code);
 
     /* Einloesbar wie ein SMS-Code — und genau einmal. */
-    const person = await sql.begin(async (tx) => codeEinloesen(tx, TELEFON, a.code));
+    const person = await sql.begin(async (tx) => codeEinloesen(tx, TELEFON, a.code, null));
     expect(person).toBe(f.jonas);
-    const nochmal = await sql.begin(async (tx) => codeEinloesen(tx, TELEFON, a.code));
+    const nochmal = await sql.begin(async (tx) => codeEinloesen(tx, TELEFON, a.code, null));
     expect(nochmal).toBeNull();
 
     /* Drei offene Codes sind die Grenze — der vierte ist „bremse". */
@@ -287,7 +299,7 @@ describe('(2b) der Zugangsstand sagt, woran die Anmeldung haengt', () => {
 
     /* Der Code stimmt — die Sitzung kommt trotzdem nicht. */
     const ergebnis = await sql.begin(async (tx) => {
-      const personId = await codeEinloesen(tx, TELEFON, a.code);
+      const personId = await codeEinloesen(tx, TELEFON, a.code, null);
       return personId === null ? null : mitarbeiterSitzungAusstellen(tx, personId, null, null);
     });
     expect(ergebnis, 'kein benutzbares Konto (0115) — genau dieser Fall hiess bisher „falscher Code"')

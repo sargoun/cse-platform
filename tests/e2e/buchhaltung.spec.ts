@@ -67,10 +67,58 @@ test.describe('Buchhaltung (PR 65)', () => {
     await expect(page.locator('[data-cse="monat-filter"]')).toBeVisible();
 
     await page.goto(`/portal/${MANDANT}/buchhaltung/monatszahlen`);
-    const aufwand = page.locator('[data-cse="monat-aufwand"]:visible').first();
-    await aufwand.click();
+    const eingang = page.locator('[data-cse="monat-eingang"]:visible').first();
+    await eingang.click();
     await expect(page).toHaveURL(/\/finanzen\/eingangsrechnungen\?monat=/u);
     await expect(page.locator('[data-cse="monat-filter"]')).toBeVisible();
+
+    // V-215: die Betriebsausgaben zaehlen zum Aufwand und fuehren auf ihre Liste.
+    await page.goto(`/portal/${MANDANT}/buchhaltung/monatszahlen`);
+    await expect(page.locator('[data-cse="monat-aufwand"]:visible')).toHaveCount(12);
+    const ausgaben = page.locator('[data-cse="monat-ausgaben"]:visible').first();
+    await ausgaben.click();
+    await expect(page).toHaveURL(/\/finanzen\/ausgaben\?monat=/u);
+    await expect(page.locator('[data-cse="monat-filter"]')).toBeVisible();
+    // V-217: die Liste zaehlt wie die Spalte — nur freigegeben/gebucht, ohne Eingangsrechnungen.
+    await expect(page).toHaveURL(/aufwand=ja/u);
+    await expect(page.locator('[data-cse="filter-aufwand"]')).toBeChecked();
+  });
+
+  /**
+   * **Der Gruppensatz steht nur, wo sein Ziel öffnet** (V-243, D-737; V-253,
+   * D-745).
+   *
+   * Die Administration der Reinigung hält kein Gruppenrecht: der Satz fehlt.
+   * Die Plattformverwaltung hält `gruppe.finanzen.lesen` und darf die
+   * Gruppenansicht betreten: der Satz steht da, und sein Ziel antwortet. Die
+   * zweite Hälfte ist der Grund für diesen Fall — ein Satz, der für JEDE Rolle
+   * verschwindet, wäre ohne sie genauso grün wie der richtige. Die Regel
+   * selbst prüft `tests/isolation/gruppenverweis.test.ts` Bedingung für
+   * Bedingung; hier steht, dass die Seite sie fragt.
+   */
+  test('ohne Gruppenrecht steht kein Satz „Gruppensicht"', async ({ page }) => {
+    await anmelden(page);
+    await page.goto(`/portal/${MANDANT}/buchhaltung/monatszahlen`);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('BWA-artig');
+    await expect(page.locator('[data-cse="monatszahlen-gruppe"]')).toHaveCount(0);
+  });
+
+  test('mit Gruppenrecht und Gruppenansicht steht er — und sein Ziel antwortet', async ({ page }) => {
+    await page.goto('/dev/anmelden');
+    await alsKonto(page, KONTO.gruppe);
+    const pfad = `/portal/${MANDANT}/buchhaltung/monatszahlen`;
+    await page.goto(pfad);
+    // Die Gruppensitzung bekommt auf einer Mandantsseite das Wechselblatt (D-474).
+    const wechsel = page.locator('[data-cse="wechsel-knopf"]');
+    if ((await wechsel.count()) > 0) await wechsel.click();
+    await expect(page).toHaveURL(new RegExp(`${pfad}$`, 'u'));
+
+    const satz = page.locator('[data-cse="monatszahlen-gruppe"]');
+    await expect(satz).toBeVisible();
+    const ziel = await satz.getByRole('link', { name: 'Finanzen der Gruppe' }).getAttribute('href');
+    expect(ziel).toMatch(/^\/portal\/gruppe\/finanzen\?jahr=\d{4}$/u);
+    const antwort = await page.goto(ziel ?? '');
+    expect(antwort?.status(), ziel ?? '').toBe(200);
   });
 
   test('das Periodenschloss: ein Monat mit Zeilen ohne Konto schliesst nicht — ein leerer Monat vorlaeufig, offen, endgueltig', async ({ page }) => {

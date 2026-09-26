@@ -144,8 +144,11 @@ export default async function Praeferenzen(
                     <div className="min-w-0 max-w-prose">
                       <p className="text-base text-text">{a.schluessel.split('.')[1]}</p>
                       <p className="text-sm text-text-muted">
+                        {/* Die Vorschau in DER Sprache, in der die Meldung
+                            ankaeme (V-102) — sonst verspraeche die Seite
+                            Deutsch und zugestellt wuerde Arabisch. */}
                         {a.text({
-                          mandantId: '', mandantSlug: k.slug,
+                          mandantId: '', mandantSlug: k.slug, sprache: k.sprache,
                           objektTyp: 'beispiel', objektId: '', daten: {},
                         })}
                       </p>

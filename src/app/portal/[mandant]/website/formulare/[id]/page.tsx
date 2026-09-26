@@ -24,6 +24,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { WebsiteSpruenge } from '../../spruenge';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/website/formulare/[id]` — eine Formularversion pflegen
@@ -229,6 +230,7 @@ export default async function WebsiteFormular(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/website/formulare`, text: 'Formulare' }}
       titel={`${f.schluessel} · Version ${String(f.version)}`}
       wurzelTitel="Website"
       bereich={mandant as BereichSchluessel}
@@ -241,12 +243,6 @@ export default async function WebsiteFormular(
     >
       <WebsiteSpruenge mandant={mandant} zweig="formulare"
                        sitzung={zugang.sitzung} />
-      <p className="mb-s3 text-sm">
-        <Link href={`/portal/${mandant}/website/formulare`}
-              className="text-text-muted underline-offset-2 hover:underline">
-          ← Formulare
-        </Link>
-      </p>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 min-w-0 text-h1 text-text">{f.titel}</h1>
@@ -291,7 +287,7 @@ export default async function WebsiteFormular(
       {daten.dienstkonto && (
         <Hinweis art="warnung" cse="dienstkonto" className="mb-s5 max-w-prose">
           <strong className="block">Diese Sitzung ist ein Dienstkonto.</strong>
-          Der Annahmeprinzipal hält <code className="font-mono">formular.schreiben</code>,
+          Der Annahmeprinzipal hält <Recht schluessel="formular.schreiben" />,
           weil er Einsendungen speichern muss — nicht, um ein öffentliches Formular zu
           ändern (03-AUTH §14.3). Welches Recht das Live-Stellen tragen soll, ist offen
           (O-682); bis dahin ist hier nichts änderbar.
@@ -348,8 +344,8 @@ export default async function WebsiteFormular(
         {!liest ? (
           <Hinweis art="warnung" cse="zustaendigkeit-nicht-lesbar" className="max-w-prose">
             Die Zuständigkeit hängt am Recht{' '}
-            <code className="font-mono">formular.lesen</code>. Diese Sitzung hält nur{' '}
-            <code className="font-mono">formular.schreiben</code> — hier steht deshalb
+            <Recht schluessel="formular.lesen" />. Diese Sitzung hält nur{' '}
+            <Recht schluessel="formular.schreiben" /> — hier steht deshalb
             nichts, und das heisst nicht, dass nichts eingetragen ist.
           </Hinweis>
         ) : (
@@ -392,7 +388,7 @@ export default async function WebsiteFormular(
                   <p className="m-0 max-w-prose text-xs text-warning"
                      data-cse="ohne-benutzerliste">
                     Die Mitgliederliste ist dieser Sitzung <strong>beschnitten</strong>
-                    {' '}(<code className="font-mono">system.benutzer_lesen</code> fehlt):
+                    {' '}(<Recht schluessel="system.benutzer_lesen" /> fehlt):
                     darin steht nur der eigene Zugang. Wer sonst noch in Frage käme, ist
                     hier nicht zu sehen — die Reaktionszeit lässt sich trotzdem eintragen.
                   </p>

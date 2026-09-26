@@ -38,7 +38,8 @@ export default async function GruppenProtokoll({ searchParams }: { searchParams:
     const aktiv = await bereichAus(searchParams, bereiche);
     const zeilen = await kontext.abfrage<Zeile>(
       `select a.id::text as id, m.slug, m.name as bereich_name, a.ebene::text as ebene,
-              a.akteur_typ::text as akteur_typ, coalesce(b.name, ag.name) as akteur,
+              a.akteur_typ::text as akteur_typ, case when a.akteur_typ = 'agent' then coalesce(ag.name, b.name)
+                   else coalesce(b.name, ag.name) end as akteur,
               a.aktion, a.objekt_typ, a.objekt_id,
               to_char(a.erstellt_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI:SS') as zeit
          from audit_log a

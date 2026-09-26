@@ -35,10 +35,12 @@ export interface MarkenKarteProps {
    * eines deutschen Wortes fuer jemanden, der kein Deutsch kann.
    */
   readonly sprache?: Sprache;
+  /** Der hochgeladene Avatar der Gesellschaft, wenn veröffentlicht (V-100). */
+  readonly avatar?: { readonly adresse: string } | null;
 }
 
 export function MarkenKarte({
-  bereich, titel, anspruch, href, bild, sprache = VORGABE_SPRACHE,
+  bereich, titel, anspruch, href, bild, sprache = VORGABE_SPRACHE, avatar = null,
 }: MarkenKarteProps) {
   const t = shellTexte(sprache);
   return (
@@ -64,7 +66,7 @@ export function MarkenKarte({
         style={{ background: KARTEN_GRADIENT }}
       />
       <span className="relative flex flex-col gap-s1 p-s4">
-        <Marke art={bereich} groesse="md" className="mb-s2" />
+        <Marke art={bereich} groesse="md" className="mb-s2" bild={avatar} />
         <span className="text-h3 text-white">{titel}</span>
         {/*
           * Zwei Zeilen, immer — auch wenn der Anspruch nur eine braucht.

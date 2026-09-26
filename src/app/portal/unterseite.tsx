@@ -58,6 +58,12 @@ export interface SlugWechsel {
   readonly art: 'wechsel';
   /** Was gerade aktiv ist, in Worten — `null` heisst: kein Bereich. */
   readonly aktuell: string | null;
+  /**
+   * Der Slug des aktuellen Bereichs — fuer SEIN Zeichen auf dem Wechselblatt
+   * (DESIGN §5: die Entscheidungsseite zeigt beide Seiten mit ihrer
+   * Identitaetsfarbe). `null` heisst Gruppenuebersicht.
+   */
+  readonly aktuellSlug: string | null;
   readonly ziel: string;
   /** Der Name des Ziels, wo die Sitzung ihn lesen darf — sonst `null`. */
   readonly zielName: string | null;
@@ -76,7 +82,7 @@ export async function slugTor(
    */
   if (zugang.wechselZiel !== null && zugang.wechselZiel.slug === slug) {
     return {
-      art: 'wechsel', aktuell: 'der Gruppenübersicht', ziel: slug,
+      art: 'wechsel', aktuell: 'der Gruppenübersicht', aktuellSlug: null, ziel: slug,
       zielName: zugang.wechselZiel.name, zurueck: zugang.pfad,
     };
   }
@@ -103,7 +109,10 @@ export async function slugTor(
   // Unbekannter Slug UND fremder Bereich geben hier dieselbe `null` zurueck —
   // die Funktion in der Datenbank unterscheidet sie absichtlich nicht (AUT-06).
   if (befund.zielId === null) notFound();
-  return { art: 'wechsel', aktuell: befund.aktuell, ziel: slug, zielName: null, zurueck: zugang.pfad };
+  return {
+    art: 'wechsel', aktuell: befund.aktuell, aktuellSlug: zugang.mandantSlug,
+    ziel: slug, zielName: null, zurueck: zugang.pfad,
+  };
 }
 
 /**
@@ -137,6 +146,7 @@ export function MandantAntwort({ tor }: { readonly tor: Exclude<MandantTor, { ar
   return (
     <Wechselblatt
       aktuell={tor.blatt.aktuell}
+      aktuellSlug={tor.blatt.aktuellSlug}
       zielTitel={tor.blatt.zielName ?? tor.slug}
       zielSlug={tor.blatt.ziel}
       zurueck={tor.blatt.zurueck}
@@ -182,7 +192,12 @@ export async function MandantUnterseite({ segmente, mandant }: {
 
   const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {
-    return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
+    return (
+      <Wechselblatt
+        aktuell={tor.aktuell} aktuellSlug={tor.aktuellSlug}
+        zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck}
+      />
+    );
   }
 
   const route = findeRoute(pfad);

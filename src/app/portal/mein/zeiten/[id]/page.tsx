@@ -7,7 +7,7 @@ import {
 } from '@/server/services/mitarbeiter/zeiten';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
-import { Feld, Felder, Gesellschaft } from '../../bausteine';
+import { Feld, Felder, Gesellschaft, Hinweis } from '../../bausteine';
 
 /**
  * `/portal/mein/zeiten/[id]` — ein Eintrag, mit Serverzeit UND Geraetezeit
@@ -40,13 +40,29 @@ export default async function MeinZeiteintrag(
   const t = basis.texte;
 
   return (
-    <MeinRahmen basis={basis} titel={t.zeiten} aktiverTab="stunden">
-      <Link
-        href="/portal/mein/zeiten"
-        className="mb-s4 inline-block min-h-11 text-base text-text underline"
-      >
-        ← {t.zeiten}
-      </Link>
+    <MeinRahmen basis={basis} titel={t.zeiten} aktiverTab="stunden"
+      zurueck={{ ziel: "/portal/mein/zeiten", text: t.zeiten }}
+    >
+
+      {/*
+        * **Dass korrigiert wurde, steht hier — warum, steht in der Nachricht.**
+        *
+        * `zeiteintrag_korrektur` traegt Art, Grund und Begruendung, und
+        * `p_ma_decke` (0036:403) sperrt die Tabelle fuer dieses Portal
+        * ausdruecklich: „Der Arbeitnehmer sieht seine STUNDEN; die Spur
+        * darueber bekommt er auf Auskunft, nicht als Bildschirm." Diese Decke
+        * bleibt, wo sie ist.
+        *
+        * Was hier steht, ist die Fassungsnummer des Eintrags SELBST — kein
+        * Grund, kein Name, kein Betrag. Zusammen mit der Nachricht, die der
+        * Korrekturdienst verschickt, weiss die Mitarbeiterin beides: dass ihre
+        * Stunden sich geaendert haben, und warum. Vorher wusste sie keines von
+        * beidem, ausser sie sah zufaellig nach.
+        */}
+      {z.fassung > 1 && (
+        <Hinweis marke="zeit-korrigiert"
+                 text={`${t.korrigiertHinweis} (${t.korrigiertFassung} ${String(z.fassung)})`} />
+      )}
 
       <div className="mb-s5 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">

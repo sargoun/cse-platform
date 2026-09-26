@@ -416,12 +416,18 @@ describe('(4) ein Mitarbeitender ändert keinen Zeiteintrag — unter keiner Rol
     expect(Number(danach!.pause)).toBe(30);
   });
 
+  /*
+   * Die Einwandfälle liegen im SEPTEMBER, nicht im Oktober wie der Rest der
+   * Datei: ein Einwand behauptet geleistete Arbeit, und seit V-193 weist der
+   * Dienst einen Tag nach heute und eine Zeit nach jetzt ab (Uhr der
+   * Datenbank). Ein Zeiteintrag in der Zukunft entsteht im Betrieb nicht.
+   */
   it('was sie hat, ist der Einwand — und er erreicht die Planung', async () => {
     const bau = await baueAuftrag(f.reinigung);
-    const einsatz = await baueEinsatz(bau, '2026-10-21T05:00:00Z', '2026-10-21T09:00:00Z');
+    const einsatz = await baueEinsatz(bau, '2026-09-21T05:00:00Z', '2026-09-21T09:00:00Z');
     const id = await baueZeiteintrag({
       mandant: f.reinigung, anstellung: f.fatimaReinigung, person: f.fatima,
-      von: '2026-10-21T05:00:00Z', bis: '2026-10-21T09:00:00Z', einsatz,
+      von: '2026-09-21T05:00:00Z', bis: '2026-09-21T09:00:00Z', einsatz,
     });
     const kraft = await konto(`kraft-${zufall()}@cse.test`, f.fatima);
     await mitglied(kraft, f.reinigung, 'mitarbeiter');
@@ -435,8 +441,8 @@ describe('(4) ein Mitarbeitender ändert keinen Zeiteintrag — unter keiner Rol
         kontextAus(tx, f.reinigung, kraft, 'mitarbeiter'),
         {
           anstellungId: f.fatimaReinigung, zeiteintragId: id, art: 'zeit_falsch',
-          betrifftDatum: '2026-10-21',
-          behauptetEnde: new Date('2026-10-21T10:00:00Z'),
+          betrifftDatum: '2026-09-21',
+          behauptetEnde: new Date('2026-09-21T10:00:00Z'),
           begruendung: 'Ich habe bis 12 Uhr gearbeitet.',
           eingereichtVonBenutzerId: kraft,
         },
@@ -447,7 +453,7 @@ describe('(4) ein Mitarbeitender ändert keinen Zeiteintrag — unter keiner Rol
     // Der Zeiteintrag ist unveraendert — das ist der ganze Punkt.
     const [z] = await sql.unsafe<{ ende: Date }[]>(
       `select ende_zeitpunkt as ende from zeiteintrag where id = $1`, [id]);
-    expect(z!.ende.toISOString()).toBe('2026-10-21T09:00:00.000Z');
+    expect(z!.ende.toISOString()).toBe('2026-09-21T09:00:00.000Z');
 
     // Und er liegt im Eingang der Planung.
     const eingang = await alsApp(
@@ -471,7 +477,7 @@ describe('(4) ein Mitarbeitender ändert keinen Zeiteintrag — unter keiner Rol
         {
           // Jonas' Beschaeftigung, dieselbe Gesellschaft.
           anstellungId: f.jonasReinigung, art: 'eintrag_fehlt',
-          betrifftDatum: '2026-10-21', begruendung: 'Für einen Kollegen.',
+          betrifftDatum: '2026-09-21', begruendung: 'Für einen Kollegen.',
           eingereichtVonBenutzerId: kraft,
         },
       ),
@@ -491,7 +497,7 @@ describe('(4) ein Mitarbeitender ändert keinen Zeiteintrag — unter keiner Rol
         kontextAus(tx, f.reinigung, kraft, 'mitarbeiter'),
         {
           anstellungId: f.fatimaReinigung, art: 'eintrag_fehlt',
-          betrifftDatum: '2026-10-22', begruendung: 'Ich war da.',
+          betrifftDatum: '2026-09-22', begruendung: 'Ich war da.',
           eingereichtVonBenutzerId: kraft,
         },
       ),
@@ -553,7 +559,7 @@ describe('(4) ein Mitarbeitender ändert keinen Zeiteintrag — unter keiner Rol
     await mitglied(kraft, f.reinigung, 'mitarbeiter');
     const eintrag = await baueZeiteintrag({
       mandant: f.reinigung, anstellung: f.fatimaReinigung, person: f.fatima,
-      von: '2026-10-22T05:00:00Z', bis: '2026-10-22T13:00:00Z', pause: 30,
+      von: '2026-09-22T05:00:00Z', bis: '2026-09-22T13:00:00Z', pause: 30,
     });
 
     const einwandId = await alsApp(
@@ -565,7 +571,7 @@ describe('(4) ein Mitarbeitender ändert keinen Zeiteintrag — unter keiner Rol
         kontextAus(tx, f.reinigung, kraft, 'mitarbeiter'),
         {
           anstellungId: f.fatimaReinigung, zeiteintragId: eintrag, art: 'zeit_falsch',
-          betrifftDatum: '2026-10-22',
+          betrifftDatum: '2026-09-22',
           begruendung: 'Ich habe eine halbe Stunde vor dem Stempeln angefangen.',
           eingereichtVonBenutzerId: kraft,
         },
@@ -591,8 +597,8 @@ describe('(4) ein Mitarbeitender ändert keinen Zeiteintrag — unter keiner Rol
         begruendung: 'Beginn um 30 Minuten vorverlegt, wie gemeldet und bestaetigt.',
         durchgefuehrtVon: bau.planer,
         zeitEinwandId: einwandId,
-        beginnZeitpunkt: new Date('2026-10-22T04:30:00Z'),
-        behauptetBeginn: new Date('2026-10-22T04:30:00Z'),
+        beginnZeitpunkt: new Date('2026-09-22T04:30:00Z'),
+        behauptetBeginn: new Date('2026-09-22T04:30:00Z'),
       }),
     );
 

@@ -4,7 +4,9 @@ import { bindeAnfrage, gruppenMandanten } from '@/server/kontext/index';
 import { istPortalSprache, type PortalSprache } from '@/lib/i18n/texte';
 import { NAVIGATION } from '@/server/registry/navigation';
 import { modulAktiv, type Modulbuchung } from '@/server/registry/modul';
-import { leisteFuer, tableiste } from '@/server/registry/tableiste';
+import { istInterneLeiste, leisteFuer, tableiste } from '@/server/registry/tableiste';
+import { umschalterStand, type UmschalterStand } from '@/server/services/mandant/umschalter';
+import { merkeUmschalter } from '../huellen-speicher';
 
 /**
  * Was eine Kontoseite ueber das angemeldete Konto wissen muss.
@@ -27,6 +29,12 @@ export interface KontoBild {
   readonly aktiv: string | null;
   readonly slug: string | null;
   readonly bereiche: readonly { slug: string; name: string; ist_standard: boolean }[];
+  /**
+   * Die Bereiche fuer die Kopfzeile (TEN-06, TEN-10, V-165) — derselbe Stand,
+   * den das Tor fuer jede andere Portalseite liest. `bereiche` darueber ist
+   * seine Liste, ohne Zaehler.
+   */
+  readonly umschalter: UmschalterStand;
   readonly sichtbareTabs: Readonly<Record<string, boolean>>;
   readonly navigationsRechte: Readonly<Record<string, boolean>>;
   /** Die Sprache der Person (EMP-12) — fuer die Leiste einer Arbeiterin (D-419). */
@@ -34,7 +42,7 @@ export interface KontoBild {
 }
 
 export async function leseKonto(sitzung: Parameters<typeof bindeAnfrage>[1]): Promise<KontoBild> {
-  return db().begin(async (tx: postgres.TransactionSql) => {
+  const bild = await (db().begin(async (tx: postgres.TransactionSql) => {
     /*
      * Eine Abfrage, ein Kontext. `bindeAnfrage` setzt die K-02-GUCs; alles
      * darunter liest unter der RLS dieser Sitzung und nicht daneben.
@@ -77,14 +85,29 @@ export async function leseKonto(sitzung: Parameters<typeof bindeAnfrage>[1]): Pr
             sprache: string | null; rolle: string | null; aktiv: string | null;
             slug: string | null }[];
 
+    const leiste = leisteFuer(sitzung.portal, sitzung.ansicht, z?.rolle ?? null);
     /*
-     * `switcher_bereiche()` und nicht die RLS-Sicht auf `mandant`: im
+     * **Die Bereiche — fuer die Liste auf dieser Seite UND fuer die Kopfzeile**
+     * (TEN-06, TEN-10, V-165).
+     *
+     * Eine Definer-Funktion und nicht die RLS-Sicht auf `mandant`: im
      * Mandanten-Scope zeigt die Sicht nur den AKTIVEN Bereich, und dann
      * behauptete diese Seite, das Konto habe genau eine Mitgliedschaft.
+     * `app.umschalter_bereiche()` (0417) ist dieselbe Menge in derselben
+     * Reihenfolge wie `switcher_bereiche()` (0018), die hier bisher gefragt
+     * wurde — mit den Gewerken dazu. Die Kontoseiten gehen nicht durch das
+     * Tor; ohne diesen Stand zeigte ihre Kopfzeile jedem Konto „Bereich
+     * wechseln", auch dem mit einem einzigen Bereich. Zaehler und Gruppenrecht
+     * nur fuer die internen Leisten, wie im Tor (D-660).
      */
-    const bereiche = (await tx.unsafe(
-      `select slug, name, ist_standard from app.switcher_bereiche()`,
-    )) as { slug: string; name: string; ist_standard: boolean }[];
+    const intern = istInterneLeiste(leiste);
+    const umschalter = await umschalterStand({
+      abfrage: async <T,>(q: string, w: readonly unknown[] = []) =>
+        (await tx.unsafe(q, w as never[])) as unknown as readonly T[],
+    }, { gruppe: intern, zaehler: intern });
+    const bereiche = umschalter.bereiche.map((e) => ({
+      slug: e.slug, name: e.name, ist_standard: e.istStandard,
+    }));
 
     /*
      * **Die Rechte der Leiste in DERSELBEN gebundenen Transaktion.**
@@ -95,7 +118,7 @@ export async function leseKonto(sitzung: Parameters<typeof bindeAnfrage>[1]): Pr
      * zurueck in die Module. Genau so war es hier schon einmal, unter einer
      * anderen Ursache.
      */
-    const ziele = tableiste(leisteFuer(sitzung.portal, sitzung.ansicht, z?.rolle ?? null)).ziele;
+    const ziele = tableiste(leiste).ziele;
     const gefragt = [...new Set([
       ...ziele.map((t) => t.recht).filter((r): r is string => r !== null),
       ...NAVIGATION.map((n) => n.recht),
@@ -154,8 +177,19 @@ export async function leseKonto(sitzung: Parameters<typeof bindeAnfrage>[1]): Pr
       aktiv: z?.aktiv ?? null,
       slug: z?.slug ?? null,
       bereiche,
+      umschalter,
       sichtbareTabs,
       navigationsRechte,
     };
-  }) as Promise<KontoBild>;
+  }) as Promise<KontoBild>);
+  /*
+   * Nach der Transaktion, wie im Tor: der Anfragespeicher gehoert der
+   * Anfrage, nicht der Verbindung.
+   */
+  merkeUmschalter({
+    stand: bild.umschalter,
+    aktiverMandantId: sitzung.aktiverMandantId,
+    gruppenansicht: sitzung.ansicht === 'gruppe',
+  });
+  return bild;
 }

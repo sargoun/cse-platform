@@ -17,6 +17,7 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
 import {
   listeTurnusse, type TurnusListe, type TurnusZeile,
 } from '@/server/services/reinigung/turnus';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/reinigung/turnus` — die Reinigungsturnusse (CLN-02,
@@ -112,16 +113,8 @@ export default async function TurnusListe(
       aktiverTab="reinigung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/reinigung`, text: 'Reinigung' }}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/reinigung`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Reinigung
-        </Link>
-      </nav>
-
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">Turnus</h1>
         <div className="flex flex-wrap items-baseline gap-s4">
@@ -211,7 +204,7 @@ export default async function TurnusListe(
           <strong>Ob eine Serie besteht, Generatorstand und Schichtzahl sind
           nicht geprüft.</strong> Alle drei stehen in der Planungsserie und in
           den Schichten, und die liegen hinter dem Recht
-          {' '}<code>dienstplan.lesen</code>. Die Regeln selbst stehen unten
+          {' '}<Recht schluessel="dienstplan.lesen" />. Die Regeln selbst stehen unten
           vollständig — ob daraus Schichten entstanden sind, sagt diese Ansicht
           nicht. Eine Null wäre hier eine Entwarnung und „ohne Serie" ein
           Fehlalarm; beides hat niemand geprüft.

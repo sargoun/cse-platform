@@ -5,9 +5,12 @@
  * **Sie ist ein BELEG, keine Veroeffentlichung.** PRO-05 trennt zwei
  * Handlungen, und die Trennung ist der ganze Punkt: hier wird festgehalten,
  * dass der Kunde schriftlich zugestimmt hat; die oeffentliche `referenz`-Zeile
- * legt danach ein Mensch unter `/website/referenzen` an und kopiert dabei nur,
- * was freigegeben ist. Eine automatische Uebernahme waere eine
- * Veroeffentlichung, die niemand entschieden hat (Invariante 7).
+ * legt danach ein Mensch unter `/website/referenzen/neu` an (V-154 — der Weg
+ * fehlte bis dahin), und zwar erst, wenn der Auftrag ABGESCHLOSSEN ist
+ * (`referenzfaehig`, V-161). Er kopiert dabei nur, was freigegeben ist, und
+ * die Referenz haelt fest, aus welchem Auftrag sie stammt (0410). Eine
+ * automatische Uebernahme waere eine Veroeffentlichung, die niemand
+ * entschieden hat (Invariante 7).
  *
  * **Drei Angaben sind PFLICHT, sobald die Freigabe gilt** — nicht aus
  * Formstrenge, sondern weil der CHECK `auftrag_referenzfreigabe_vollstaendig`
@@ -45,8 +48,24 @@ export interface Freigabestand {
   readonly kunde_id: string;
   readonly kunde: string;
   readonly objekt: string | null;
+  /**
+   * Der Zustand des Auftrags (`auftrag_status`) — seit V-161 Teil der Frage,
+   * ob aus ihm eine Referenz entstehen darf (`referenzfaehig`, PRO-05: ein
+   * ABGESCHLOSSENER Auftrag).
+   */
+  readonly status: string;
   readonly freigegeben: boolean;
   readonly freigabe_am: string | null;
+  /**
+   * Derselbe Zeitpunkt als Berliner KALENDERTAG `YYYY-MM-DD` (V-154) — die
+   * Form, die ein `<input type="date">` als Vorgabe braucht.
+   *
+   * Die Referenz, die aus diesem Auftrag angelegt wird, schlägt ihn als Datum
+   * ihrer eigenen Kundenfreigabe vor. Aus `freigabe_am` (`DD.MM.YYYY HH24:MI`)
+   * zurückgeschnitten wäre er eine zweite Umrechnung derselben Uhrzeit — und
+   * die zweite ist die, die um Mitternacht einen Tag daneben liegt.
+   */
+  readonly freigabe_tag: string | null;
   readonly freigabe_text: string | null;
   readonly freigabe_dokument_id: string | null;
   readonly freigabe_dokument: string | null;
@@ -56,14 +75,20 @@ export interface Freigabestand {
   /**
    * Eine Referenz mit DIESEM Kundennamen — kein Fremdschluessel, ein Vergleich.
    *
-   * `referenz` traegt `kunde_name` als freien Text und KEIN `auftrag_id`.
-   * Das ist nicht vergessen, sondern PRO-05: die oeffentliche Zeile ist eine
-   * Neuschoepfung, die nur uebernimmt, was freigegeben ist, und sie nennt
-   * einen Kunden manchmal anders, als die Kundenakte ihn fuehrt. Der
+   * `referenz` traegt `kunde_name` als freien Text: die oeffentliche Zeile
+   * ist eine Neuschoepfung, die nur uebernimmt, was freigegeben ist, und sie
+   * nennt einen Kunden manchmal anders, als die Kundenakte ihn fuehrt. Der
    * Vergleich hier ist deshalb ein HINWEIS („es gibt schon eine Referenz mit
-   * diesem Namen"), nie eine Zuordnung — und die Seite formuliert ihn so.
+   * diesem Namen"), nie eine Zuordnung — und die Seite formuliert ihn so. Er
+   * findet auch den Altbestand, der vor V-161 ohne Herkunft entstand.
    */
   readonly referenz_gleichnamig: string;
+  /**
+   * Die Referenzen, die aus DIESEM Auftrag angelegt wurden (V-161,
+   * `referenz.auftrag_id`, 0410). Die Herkunft ist ein Beleg, keine Kopplung:
+   * sie kaskadiert nicht, und ein Widerruf entfernt keine Zeile (O-735).
+   */
+  readonly referenzen_aus_auftrag: string;
   /**
    * Zwei Rechte, die das Tor dieser Seite NICHT verlangt.
    *
@@ -74,6 +99,107 @@ export interface Freigabestand {
    */
   readonly darf_referenz_lesen: boolean;
   readonly darf_dokument_lesen: boolean;
+}
+
+/**
+ * Gilt die Freigabe HEUTE — erteilt UND nicht widerrufen?
+ *
+ * `freigegeben_vom_kunden` allein sagt das nicht: nach einem Widerruf bleibt
+ * es auf `true` stehen (der CHECK verlangt es, solange die drei
+ * Pflichtangaben da sind). Die Seite am Auftrag rechnet das seit je so; mit
+ * der Referenzanlage aus dem Auftrag (V-154) fragen es zwei weitere Seiten,
+ * und eine davon hätte sonst eine widerrufene Freigabe als Vorschlag in eine
+ * neue Referenz getragen.
+ */
+export function freigabeGilt(
+  stand: Pick<Freigabestand, 'freigegeben' | 'widerrufen_am'>,
+): boolean {
+  return stand.freigegeben && stand.widerrufen_am === null;
+}
+
+/**
+ * Die Zustände, aus denen eine Referenz entstehen darf — SPEC PRO-05: „a
+ * reference is a COMPLETED `auftrag` with customer release on file, not a
+ * marketing entry typed by hand" (V-161, D-654).
+ *
+ * **Eine Stelle, damit die Antwort austauschbar bleibt.** In der Reinigung und
+ * im Objektschutz laufen Aufträge als Dauerauftrag oder Rahmenvertrag über
+ * Jahre; „wir reinigen seit 2019 die Zentrale der X AG" ist dort DIE übliche
+ * Referenz, und nach dieser Regel entsteht sie erst mit dem Abschluss. Ob ein
+ * laufender Auftrag mit geltender Freigabe genügt, entscheidet der
+ * Auftraggeber — bis dahin gilt die SPEC wörtlich.
+ */
+// TODO(client, O-914): Darf auch ein LAUFENDER Auftrag (aktiv oder pausiert — etwa ein Dauerauftrag der Reinigung oder des Objektschutzes) mit geltender Kundenfreigabe zur Referenz werden, oder nur ein abgeschlossener (SPEC PRO-05)?
+export const REFERENZFAEHIGE_ZUSTAENDE: readonly string[] = ['abgeschlossen'];
+
+/**
+ * Warum aus einem Auftrag (noch) keine Referenz entstehen darf — oder `null`.
+ *
+ * `storniert` steht für sich: ein stornierter Vertrag ist kein „noch nicht",
+ * sondern ein „nie" — er kommt nicht zustande (0389), und aus ihm entsteht
+ * auch nach einer Antwort auf O-914 keine Referenz.
+ */
+export type ReferenzHindernis = 'ohne_freigabe' | 'storniert' | 'nicht_abgeschlossen';
+
+export function referenzHindernis(
+  stand: Pick<Freigabestand, 'freigegeben' | 'widerrufen_am' | 'status'>,
+): ReferenzHindernis | null {
+  if (!freigabeGilt(stand)) return 'ohne_freigabe';
+  if (stand.status === 'storniert') return 'storniert';
+  if (!REFERENZFAEHIGE_ZUSTAENDE.includes(stand.status)) return 'nicht_abgeschlossen';
+  return null;
+}
+
+/** Darf aus diesem Auftrag eine Referenz entstehen (PRO-05, V-161)? */
+export function referenzfaehig(
+  stand: Pick<Freigabestand, 'freigegeben' | 'widerrufen_am' | 'status'>,
+): boolean {
+  return referenzHindernis(stand) === null;
+}
+
+/** Ein Auftrag mit Kundenfreigabe — die Auswahl unter `/website/referenzen/neu`. */
+export interface AuftragMitFreigabe {
+  readonly auftrag_id: string;
+  readonly auftragsnummer: string;
+  readonly bezeichnung: string;
+  readonly kunde: string;
+  readonly status: string;
+  readonly freigegeben: boolean;
+  /** `DD.MM.YYYY HH24:MI` in Berlin, wie in `Freigabestand` — oder `null`. */
+  readonly widerrufen_am: string | null;
+  /** Der Berliner Kalendertag des Abschlusses, `DD.MM.YYYY` — oder `null`. */
+  readonly abgeschlossen_am: string | null;
+  /** Wie viele Referenzen schon aus ihm entstanden sind (0410). */
+  readonly referenzen: number;
+}
+
+/**
+ * Die Aufträge dieser Gesellschaft, deren Kunde der Veröffentlichung
+ * zugestimmt hat und nicht widerrufen hat (V-161).
+ *
+ * Der Abschluss wird hier NICHT gefiltert: die Seite trennt mit
+ * `referenzHindernis` in „bereit" und „läuft noch" — dieselbe Regel wie der
+ * Dienst, der beim Anlegen prüft, und nicht eine zweite in SQL, die beim
+ * ersten geänderten Zustand auseinanderliefe. Ohne `auftrag.lesen` gibt die
+ * Policy nichts heraus; die Seite fragt das Recht deshalb vorher und sagt es.
+ */
+export async function listeAuftraegeMitFreigabe(
+  db: Abfrage,
+): Promise<readonly AuftragMitFreigabe[]> {
+  return db.abfrage<AuftragMitFreigabe>(
+    `select a.id as auftrag_id, a.auftragsnummer, a.bezeichnung, k.name as kunde,
+            a.status::text as status, a.freigegeben_vom_kunden as freigegeben,
+            to_char(a.freigabe_widerrufen_am at time zone 'Europe/Berlin',
+                    'DD.MM.YYYY HH24:MI') as widerrufen_am,
+            to_char(a.abgeschlossen_am at time zone 'Europe/Berlin', 'DD.MM.YYYY')
+              as abgeschlossen_am,
+            (select count(*) from referenz r
+              where r.auftrag_id = a.id and r.geloescht_am is null)::int as referenzen
+       from auftrag a
+       join kunde k on k.id = a.kunde_id
+      where a.mandant_id = app.aktiver_mandant()
+        and a.freigegeben_vom_kunden and a.freigabe_widerrufen_am is null
+      order by a.abgeschlossen_am desc nulls last, a.auftragsnummer`);
 }
 
 /**
@@ -92,9 +218,12 @@ export async function ladeFreigabestand(
   const [z] = await db.abfrage<Freigabestand>(
     `select a.id as auftrag_id, a.auftragsnummer, a.bezeichnung,
             a.kunde_id, k.name as kunde, o.bezeichnung as objekt,
+            a.status::text as status,
             a.freigegeben_vom_kunden as freigegeben,
             to_char(a.freigabe_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
               as freigabe_am,
+            to_char(a.freigabe_am at time zone 'Europe/Berlin', 'YYYY-MM-DD')
+              as freigabe_tag,
             a.freigabe_text, a.freigabe_dokument_id,
             d.titel as freigabe_dokument,
             a.freigabe_durch_ansprechpartner_id as ansprechpartner_id,
@@ -105,6 +234,9 @@ export async function ladeFreigabestand(
               where r.geloescht_am is null
                 and lower(btrim(r.kunde_name)) = lower(btrim(k.name)))::text
               as referenz_gleichnamig,
+            (select count(*) from referenz r
+              where r.geloescht_am is null and r.auftrag_id = a.id)::text
+              as referenzen_aus_auftrag,
             (select app.hat_recht('referenz.lesen', app.aktiver_mandant()))
               as darf_referenz_lesen,
             (select app.hat_recht('dokument.lesen', app.aktiver_mandant()))

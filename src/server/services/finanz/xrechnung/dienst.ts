@@ -9,9 +9,13 @@ import 'server-only';
  * Fehler, den niemand sieht: die Seite zeigt die richtige Rechnung, die
  * Adresse liefert eine andere.
  */
-import { baueZugferdPdf } from '../zugferd/pdfa3.js';
+import { baueZugferdPdf, RechnungslogoFehler } from '../zugferd/pdfa3.js';
 import { baueUbl, type UblOptionen } from './index.js';
 import { leseNutzlast } from './aus-snapshot.js';
+import type { RechnungsLogo } from '../kanonisch.js';
+import { NichtVerbundenFehler, type Speicher } from '../../../storage/adapter.js';
+import { waehleSpeicher } from '../../../storage/waehle.js';
+import { MARKE_BUCKET } from '../../mandant/markenbild.js';
 
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -90,8 +94,33 @@ export async function ublZurRechnung(
  * K-11). Wer zweimal herunterlädt, bekommt zweimal dieselbe Datei — und ihr
  * SHA-256 taugt als Nachweis.
  */
+/**
+ * Die Bytes des festgeschriebenen Logos (V-132) — aus dem Behälter `marke`,
+ * unter dem Schlüssel, den die Nutzlast nennt. Geprüft werden sie in
+ * `baueZugferdPdf` gegen die Prüfsumme derselben Nutzlast.
+ *
+ * Ist der Speicher nicht verbunden, entsteht das Blatt nicht: ein Blatt ohne
+ * das festgeschriebene Logo wäre ein anderes Dokument zu derselben Nummer.
+ * Eine Rechnung ohne Logo braucht keinen Speicher und entsteht wie bisher.
+ */
+async function holeLogo(
+  speicher: Speicher, logo: RechnungsLogo | null,
+): Promise<Uint8Array | undefined> {
+  if (logo === null) return undefined;
+  if (!speicher.verbunden) throw new NichtVerbundenFehler('Dateispeicher (Rechnungslogo)');
+  try {
+    return await speicher.hole(MARKE_BUCKET, logo.schluessel);
+  } catch (fehler: unknown) {
+    if (fehler instanceof NichtVerbundenFehler) throw fehler;
+    throw new RechnungslogoFehler(
+      `Das Logo dieser Rechnung (${logo.schluessel}) ist im Speicher nicht zu finden. `
+      + 'Es wird nie gelöscht (D-628) — fehlt es, ist der Speicher nicht der, in den es '
+      + 'hochgeladen wurde.');
+  }
+}
+
 export async function zugferdZurRechnung(
-  db: Abfrage, rechnungId: string,
+  db: Abfrage, rechnungId: string, speicher: Speicher = waehleSpeicher(),
 ): Promise<{ readonly pdf: Uint8Array; readonly nummer: string } | null> {
   const [zeile] = await db.abfrage<SnapshotZeile>(
     `select r.nummer, s.schema_version, s.nutzlast_bytes,
@@ -108,8 +137,10 @@ export async function zugferdZurRechnung(
   }
 
   const rechnung = leseNutzlast(zeile.nutzlast_bytes);
+  const logo = await holeLogo(speicher, rechnung.leistender.logo);
   const pdf = await baueZugferdPdf(rechnung, {
     erzeugtAm: new Date(rechnung.festgeschriebenAm),
+    ...(logo === undefined ? {} : { logo }),
   });
   return { pdf, nummer: rechnung.nummer };
 }

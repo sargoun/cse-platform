@@ -14,6 +14,9 @@
  * weiterhin nichts gehoert.
  */
 import { entscheideEskalation, type EskalationsLage } from './sla.js';
+import { ART_LEAD_SLA, registriereLeadArten } from './benachrichtigung.js';
+import { erzeuge } from '../../benachrichtigung/registry.js';
+import { stelleZuAnKonto } from '../../benachrichtigung/ablage.js';
 
 export interface Abfrage {
   unsafe(sql: string, werte?: readonly unknown[]): Promise<readonly unknown[]>;
@@ -57,6 +60,10 @@ export async function eskaliereFaellige(
         and l.sla_frist_am is not null
         and l.erste_reaktion_am is null
         and l.archiviert_am is null
+        -- V-137: ein gewonnener, verlorener oder ins Angebot gegangener Lead
+        -- ist erledigt — die Uhr, die ihn meldet, auch. Vorher eskalierte er
+        -- stuendlich weiter, eine Stufe nach der anderen, fuer immer.
+        and l.status in ('neu', 'in_bearbeitung')
         and l.sla_frist_am <= $2`,
     [mandantId, jetzt.toISOString()],
   )) as Zeile[];
@@ -95,16 +102,47 @@ export async function eskaliereFaellige(
     )) as { id: string }[];
     if (getroffen.length === 0) continue;
 
+    /*
+     * Wer benachrichtigt wird, steht in der Zeile — als ROLLE, nicht als
+     * Kennung (V-137). Vorher stand hier die rohe Benutzer-UUID; der Lauf
+     * darf keine Namen lesen, und muss es nicht: die Meldung geht an genau
+     * diese Person, und der Verlauf sagt, an welche Stelle.
+     */
+    const empfaenger = z.eskalation_benutzer_id ?? z.besitzer_benutzer_id;
+    const an = z.eskalation_benutzer_id === null
+      ? 'an den Besitzer des Leads'
+      : 'an die für dieses Formular hinterlegte Eskalation';
     await db.unsafe(
       `insert into lead_aktivitaet
          (mandant_id, lead_id, typ, richtung, zweck, betreff, inhalt, akteur_art)
        values ($1, $2, 'system', 'intern', 'intern', $3, $4, 'system')`,
       [
         z.mandant_id, z.id,
-        `SLA überschritten — Stufe ${String(entscheidung.neueStufe)}`,
-        `${entscheidung.grund}. Zuständig: ${z.eskalation_benutzer_id ?? z.besitzer_benutzer_id}.`,
+        `Reaktionszeit überschritten — Stufe ${String(entscheidung.neueStufe)}`,
+        `${entscheidung.grund}. Gemeldet ${an}.`,
       ],
     );
+
+    /*
+     * **Und die Person erfährt es** (V-137, REQ-06, NOT-01). Die Art
+     * `crm.lead_sla_ueberschritten` war registriert und entstand nie — die
+     * Eskalation stand nur im Verlauf, den niemand öffnet, dessen Lead er
+     * übersehen hat. Nie sammelbar: am nächsten Morgen gelesen heisst nach
+     * der Frist gelesen.
+     */
+    registriereLeadArten();
+    const [m] = (await db.unsafe(
+      `select slug from mandant where id = $1::uuid`, [z.mandant_id],
+    )) as { slug: string }[];
+    if (m !== undefined) {
+      await stelleZuAnKonto(db, [{
+        benachrichtigung: erzeuge(ART_LEAD_SLA, {
+          mandantId: z.mandant_id, mandantSlug: m.slug, objektTyp: 'lead', objektId: z.id,
+          daten: { leadnummer: z.leadnummer, stufe: entscheidung.neueStufe },
+        }),
+        benutzerId: empfaenger, objektTyp: 'lead', objektId: z.id,
+      }]);
+    }
     eskaliert.push(z.id);
   }
 

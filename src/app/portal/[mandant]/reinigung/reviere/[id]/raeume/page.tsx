@@ -37,7 +37,7 @@ export default async function RaeumeZuordnen({
 }) {
   const { mandant, id } = await params;
   kennungOder404(id);
-  const zugang = await portalZugang(`/portal/${mandant}/reinigung/reviere/[id]/raeume`);
+  const zugang = await portalZugang(`/portal/${mandant}/reinigung/reviere/${id}/raeume`);
   if (zugang === null) return <AnmeldungNoetig />;
 
   const tor = await slugTor(zugang, mandant);
@@ -75,18 +75,10 @@ export default async function RaeumeZuordnen({
       aktiverTab="reinigung"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['reinigung.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/reinigung/reviere/${id}`, text: revier.bezeichnung } }
+        : {})}
     >
-      {darf['reinigung.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s4">
-          <Link
-            href={`/portal/${mandant}/reinigung/reviere/${id}`}
-            className="text-sm text-text-muted underline hover:text-text"
-          >
-            ← {revier.bezeichnung}
-          </Link>
-        </nav>
-      )}
-
       <h1 className="mb-s3 text-h1 text-text">Räume zuordnen</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Die ausgewählten Räume bilden die Zone {revier.bezeichnung} im Objekt{' '}

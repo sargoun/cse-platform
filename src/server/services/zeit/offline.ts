@@ -173,13 +173,17 @@ export async function nimmClaimAn(
     readonly token: string;
     readonly ereignisse: readonly OfflineEreignis[];
     readonly rohJeEreignis?: readonly string[];
-    readonly ip?: string | null;
+    /**
+     * Die Adresse der Anfrage — PFLICHT wie beim Check-in (`loeseCheckinEin`);
+     * `withCheckin` bindet sie fuer `zeit.offline_empfangen` (SEC-A9, V-235).
+     */
+    readonly ip: string | null;
     readonly userAgent?: string | null;
   },
 ): Promise<readonly OfflineAnnahme[]> {
   let zeilen: readonly AnnahmeZeile[];
   try {
-    zeilen = await withCheckin(tx, async (k) =>
+    zeilen = await withCheckin(tx, eingabe.ip, async (k) =>
       k.rufe<AnnahmeZeile>(
         `select ereignis_kennung, vorgang_id, ergebnis
            from app.offline_ereignis_annehmen($1, $2::jsonb, $3::inet)`,
@@ -196,7 +200,7 @@ export async function nimmClaimAn(
            */
           alsNutzlast(eingabe.ereignisse, eingabe.rohJeEreignis ?? [],
             eingabe.userAgent ?? null),
-          eingabe.ip ?? null,
+          eingabe.ip,
         ],
       ));
   } catch (fehler: unknown) {
@@ -234,7 +238,8 @@ export async function markePraesentierbar(
   tx: Transaktion,
   token: string,
 ): Promise<boolean> {
-  const zeilen = await withCheckin(tx, async (k) =>
+  /* Keine Herkunft: die Funktion liest nur und schreibt keine Protokollzeile. */
+  const zeilen = await withCheckin(tx, null, async (k) =>
     k.rufe<{ ok: boolean }>(
       `select app.checkin_marke_praesentierbar($1) as ok`,
       [tokenHash(token)],

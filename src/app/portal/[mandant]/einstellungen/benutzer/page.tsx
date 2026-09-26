@@ -7,6 +7,13 @@ import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
+import { Recht } from '@/components/ui/Recht';
+import { internSprache } from '@/lib/i18n/intern';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import {
+  MODUL_ZUWEISUNG_TEXTE, modulName,
+} from '@/lib/i18n/verwaltung/einstellungen/module-zuweisung';
 
 /**
  * `/portal/[mandant]/einstellungen/benutzer` — die Konten dieser Gesellschaft
@@ -49,6 +56,17 @@ export default async function Benutzerliste(
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang, mandantId } = tor;
 
+  /*
+   * **Das Recht der Einladeseite — VOR dem Rendern** (AUT-06, D-567).
+   *
+   * `/einstellungen/benutzer/einladen` verlangt `system.verwaltungskonto_erstellen`;
+   * ein Knopf davor, den jeder sieht, führte für den Rest auf 404 und verriete
+   * damit die Existenz dessen, was er nicht zeigen darf.
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'system.verwaltungskonto_erstellen');
+  const sprache = internSprache(zugang.sprache);
+  const tModule = nachSprache(MODUL_ZUWEISUNG_TEXTE, zugang.sprache);
+
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) => kontext.abfrage<Zeile>(
       `select b.id, b.name, b.email, b.status::text as status,
@@ -71,7 +89,7 @@ export default async function Benutzerliste(
       nurLesen
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="einstellungen"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
@@ -80,6 +98,37 @@ export default async function Benutzerliste(
         {String(zeilen.length)} Konten mit Zugang zu dieser Gesellschaft. Dienstkonten
         (Formulare, Website) stehen nicht in dieser Liste.
       </p>
+
+      {/*
+        * ═══════════════════════════════════════════════════════════════════
+        * **Der Weg zum ersten Konto — er fehlte** (V-125).
+        * ═══════════════════════════════════════════════════════════════════
+        *
+        * `/einstellungen/benutzer/einladen` war gebaut, bewacht und im
+        * Manifest geführt — und **von keiner Seite aus erreichbar**. Wer ein
+        * Verwaltungskonto anlegen wollte, musste die Adresse kennen. Eine
+        * Seite ohne Eingang ist keine Seite; für den Betrieb ist sie nicht
+        * vorhanden, und gerade diese hier ist der erste Schritt nach der
+        * Einrichtung.
+        */}
+      {darf['system.verwaltungskonto_erstellen'] === true ? (
+        <p className="mb-s5">
+          <Link
+            href={`/portal/${mandant}/einstellungen/benutzer/einladen`}
+            data-cse="zum-einladen"
+            className="inline-flex min-h-11 items-center rounded-md border border-line-strong
+                       px-s5 py-s3 text-sm text-text no-underline hover:bg-surface-2"
+          >
+            Konto einladen
+          </Link>
+        </p>
+      ) : (
+        <p className="mb-s5 text-sm text-text-muted" data-cse="kein-einladen">
+          Ein neues Verwaltungskonto anzulegen verlangt{' '}
+          <Recht schluessel="system.verwaltungskonto_erstellen" sprache={zugang.sprache} />.
+        </p>
+      )}
+
       <DataTable
         beschriftung="Konten dieser Gesellschaft"
         zeilen={zeilen}
@@ -95,8 +144,10 @@ export default async function Benutzerliste(
           { schluessel: 'email', kopf: 'E-Mail', zelle: (z) => z.email },
           { schluessel: 'rolle', kopf: 'Rolle',
             zelle: (z) => `${z.rolle}${z.aus_anstellung ? ' · aus Anstellung' : ''}` },
+          /* Benannt, nicht als Schluessel (V-164): `crm, finanzen` sagt niemandem etwas. */
           { schluessel: 'module', kopf: 'Module',
-            zelle: (z) => (z.module === null ? 'alle der Rolle' : z.module.join(', ') || 'keine') },
+            zelle: (z) => (z.module === null ? tModule.alleDerRolle
+              : z.module.map((m) => modulName(m, sprache)).join(', ')) },
           { schluessel: 'faktor', kopf: 'Zweiter Faktor',
             zelle: (z) => (z.zweiter_faktor
               ? 'eingerichtet'

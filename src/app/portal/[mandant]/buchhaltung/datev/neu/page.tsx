@@ -4,12 +4,17 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '@/app/portal/rechte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
+import { wirtschaftsjahrGrenzeIm } from '@/server/services/buchhaltung/datev/export';
+import { liesWirtschaftsjahrWennGepflegt } from '@/server/services/buchhaltung/wirtschaftsjahr';
 
 /**
  * `/portal/[mandant]/buchhaltung/datev/neu` — Zeitraum wählen, Stapel
@@ -32,6 +37,23 @@ interface VorschauRoh {
   readonly summe_soll_cent: string;
   readonly schon_exportiert: string;
 }
+
+/**
+ * Der Grund einer Abweisung aus `/api/buchhaltung/datev` (D-599, V-212) —
+ * nachgeschlagen über `eigenerEintrag()`, nie roh angezeigt.
+ */
+const FEHLER: Readonly<Record<string, string>> = {
+  zeitraum: 'Der Zeitraum ist unvollständig oder das Ende liegt vor dem Anfang.',
+  wirtschaftsjahr:
+    'Der Zeitraum reicht über den Beginn eines Wirtschaftsjahres. Ein DATEV-Stapel '
+    + 'umfasst höchstens ein Wirtschaftsjahr — bitte in zwei Stapel teilen.',
+  leer: 'Im Zeitraum steht keine Buchungszeile. Es ist keine Datei entstanden.',
+  stammdaten: 'Für diese Gesellschaft fehlen die DATEV-Stammdaten (O-05). Es ist keine Datei entstanden.',
+  nicht_bereit:
+    'Die DATEV-Stammdaten sind unvollständig oder stehen als Platzhalter, oder eine Zeile '
+    + 'im Zeitraum hat keinen Beleg oder kein Konto. Es ist keine Datei entstanden.',
+  speicher: 'Die Datei liess sich nicht ablegen. Es ist kein Stapel entstanden.',
+};
 
 export default async function DatevNeu(
   { params, searchParams }: {
@@ -70,6 +92,14 @@ export default async function DatevNeu(
 
   const vorschau = !gewaehlt ? null : await (db().begin(SCHNAPPSCHUSS,
     async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => {
+      /*
+       * Die Wirtschaftsjahresgrenze (V-212) nur, wenn die Stammdaten SICHTBAR
+       * sind: ohne sie sagt die Vorschau nichts, statt ein Kalenderjahr
+       * anzunehmen, und der Dienst prüft beim Erzeugen mit den echten Werten.
+       */
+      const wj = await liesWirtschaftsjahrWennGepflegt(kontext);
+      const grenze = wj === null || von === null || bis === null ? null
+        : wirtschaftsjahrGrenzeIm(von, bis, wj.beginnMonat, wj.beginnTag);
       const [z] = await kontext.abfrage<VorschauRoh>(
         `select count(*)::text as zeilen,
                 count(*) filter (
@@ -82,13 +112,16 @@ export default async function DatevNeu(
            from buchungssatz
           where belegdatum between $1::date and $2::date`,
         [von, bis]);
-      return z ?? null;
-    }))) as VorschauRoh | null;
+      return z === undefined ? null : { ...z, grenze };
+    }))) as (VorschauRoh & { readonly grenze: string | null }) | null;
 
   const offen = Number(vorschau?.offen ?? '0');
   const zeilen = Number(vorschau?.zeilen ?? '0');
   const erneut = Number(vorschau?.schon_exportiert ?? '0');
-  const kannErzeugen = gewaehlt && zeilen > 0 && offen === 0;
+  const wjGrenze = vorschau?.grenze ?? null;
+  const kannErzeugen = gewaehlt && zeilen > 0 && offen === 0 && wjGrenze === null;
+  const fehlerText = suche['fehler'] === undefined ? null
+    : (eigenerEintrag(FEHLER, suche['fehler']) ?? 'Der Stapel wurde abgewiesen. Es ist keine Datei entstanden.');
 
   const feld = 'min-h-11 rounded-md border border-line bg-surface-3 p-s3 text-sm text-text';
   const knopf = 'min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2';
@@ -111,6 +144,12 @@ export default async function DatevNeu(
           Zurück
         </Link>
       </div>
+
+      {fehlerText !== null ? (
+        <Hinweis art="warnung" rolle="alert" cse="datev-fehler" className="mb-s5">
+          {fehlerText}
+        </Hinweis>
+      ) : null}
 
       <form method="get" className="mb-s7 flex flex-wrap items-end gap-s4">
         <div className="flex flex-col gap-s2">
@@ -167,6 +206,15 @@ export default async function DatevNeu(
                       </Link>
                     </>
                   )}
+                </li>
+              ) : null}
+              {wjGrenze !== null ? (
+                <li data-cse="datev-wj-grenze">
+                  Der Zeitraum reicht über den Beginn des Wirtschaftsjahres am{' '}
+                  <strong className="text-text tabular-nums">{tagDeutsch(wjGrenze)}</strong>.
+                  Das Belegdatum steht im Stapel ohne Jahr, das Jahr kommt aus dem
+                  Kopf — ein Stapel umfasst deshalb höchstens ein Wirtschaftsjahr.
+                  Bitte in zwei Stapel teilen.
                 </li>
               ) : null}
               {erneut > 0 ? (

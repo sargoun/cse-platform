@@ -1,0 +1,164 @@
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { Button } from '@/components/ui/Button';
+import {
+  findeEigeneAbwesenheit, type EigeneAbwesenheit,
+} from '@/server/services/mitarbeiter/antraege';
+import { AnmeldungNoetig } from '../../../Anmeldung';
+import { meinPortal, MeinRahmen } from '../../rahmen';
+import { Feld, Felder, Gesellschaft } from '../../bausteine';
+
+/**
+ * `/portal/mein/abwesenheit/[id]` — eine einzelne eigene Abwesenheit
+ * (V-056, EMP-10).
+ *
+ * **Der Befund, aus dem diese Seite entstand.** `/portal/mein/antraege`
+ * listete die eigenen Abwesenheiten als Kacheln ohne Ziel — kein Verweis,
+ * kein Blatt, kein Knopf. Darunter lag mehr als ein fehlender Link:
+ * `cse_app` hatte auf `abwesenheit` genau EINE UPDATE-Policy, und die
+ * verlangt `zeit.abwesenheit_genehmigen`, ein Recht der Planung. Wer sich um
+ * 05:40 krank gemeldet und dabei den falschen Tag getippt hat, konnte das
+ * nicht zurücknehmen — nicht über die Oberfläche und auch nicht darunter.
+ * `t_selbst_zurueckziehen` (0386) trägt den Weg jetzt, in derselben Form wie
+ * `antrag.t_selbst_zurueckziehen` (0301).
+ *
+ * **Die ART steht hier NICHT** — und der Satz daneben sagt warum.
+ * `abwesenheitsart_id`, `au_*`, `dokument_id` und `bemerkung` gibt
+ * `abwesenheit` der Anwendungsrolle gar nicht zu lesen (0073, Art. 9 DSGVO),
+ * auch nicht für die eigene Zeile. Eine Lücke ohne Erklärung sieht aus wie
+ * ein Fehler, und wer sie für einen hält, ruft an.
+ *
+ * **Eine fremde Abwesenheit ist hier nicht verboten, sondern nicht
+ * vorhanden** (AUT-06): `t_person` liefert im Personen-Scope null Zeilen, und
+ * diese Seite antwortet 404.
+ */
+export const dynamic = 'force-dynamic';
+
+function abwesenheitPille(status: string): PillZustand {
+  switch (status) {
+    case 'beantragt': return 'Wartet';
+    case 'genehmigt': return 'Abgeschlossen';
+    case 'abgelehnt': return 'Abgelehnt';
+    case 'storniert': return 'Archiviert';
+    default: return 'In Arbeit';
+  }
+}
+
+/**
+ * `numeric(12,3)` als Tausendstel — „1500" sind anderthalb Tage.
+ *
+ * `Intl.NumberFormat` und nicht `toLocaleString` mit Optionen: die
+ * Zeitzonenwache liest den zweiten Aufruf als Datumsanzeige, und sie hat
+ * recht, streng zu sein — `new Date(x).toLocaleString('de-DE', {…})` ist
+ * Zeichen für Zeichen derselbe Aufruf. Eine Zahl, die einmal zuviel gemeldet
+ * wird, kostet eine Zeile; ein Datum in Serverzone kostet einen Streit über
+ * Stunden.
+ */
+const TAGE_FORMAT = new Intl.NumberFormat('de-DE', {
+  minimumFractionDigits: 0, maximumFractionDigits: 1,
+});
+
+function tageText(tausendstel: string | null): string {
+  if (tausendstel === null) return '—';
+  const zahl = Number(tausendstel);
+  if (!Number.isFinite(zahl)) return tausendstel;
+  return TAGE_FORMAT.format(zahl / 1000);
+}
+
+export default async function MeineAbwesenheit(
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const ergebnis = await meinPortal<EigeneAbwesenheit | null>(
+    `/portal/mein/abwesenheit/${id}`,
+    async (kontext, teil) => findeEigeneAbwesenheit(kontext, teil.anstellungen, id),
+  );
+  if (ergebnis.art === 'anmeldung') return <AnmeldungNoetig />;
+  if (ergebnis.daten === null) notFound();
+
+  const { basis, daten } = ergebnis;
+  const a = daten.abwesenheit;
+  const t = basis.texte;
+
+  /* Berliner Ortszeit (Invariante 2) — dieselbe Formatierung wie auf dem
+     Antragsblatt, damit zwei Seiten desselben Portals gleich schreiben. */
+  const zeitpunkt = new Intl.DateTimeFormat(basis.sprache === 'de' ? 'de-DE' : basis.sprache, {
+    timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
+  });
+  const halbe = [a.vonHalbtags ? t.halberTagBeginn : null, a.bisHalbtags ? t.halberTagEnde : null]
+    .filter((x): x is string => x !== null).join(' · ');
+
+  return (
+    <MeinRahmen basis={basis} titel={t.abwesenheitBlatt} aktiverTab="heute">
+      <Link
+        href="/portal/mein/antraege"
+        className="mb-s4 inline-block min-h-11 text-base text-text underline"
+      >
+        ← {t.antraege}
+      </Link>
+
+      <div className="mb-s5 flex flex-wrap items-center gap-s3">
+        <h1 className="m-0 text-h1 text-text">{t.abwesenheitBlatt}</h1>
+        <StatusPill sprache={basis.sprache} zustand={abwesenheitPille(a.status)} />
+      </div>
+
+      <section
+        data-cse="abwesenheit"
+        data-mandant={daten.mandantSlug}
+        className="mb-s5 rounded-lg border border-line bg-surface p-s4"
+      >
+        <Felder>
+          <Feld label={t.gesellschaft}>
+            <Gesellschaft slug={daten.mandantSlug} name={daten.mandantName} />
+          </Feld>
+          <Feld label={t.von}><span className="cse-zahl">{a.von}</span></Feld>
+          <Feld label={t.bis}><span className="cse-zahl">{a.bis}</span></Feld>
+          <Feld label={t.tage}>
+            <span className="cse-zahl">{tageText(a.tageAngerechnet)}</span>
+          </Feld>
+          {halbe !== '' && <Feld label={t.halbeTage}>{halbe}</Feld>}
+          <Feld label={t.gemeldetAm}>
+            <time dateTime={a.gemeldetAm.toISOString()} className="cse-zahl">
+              {zeitpunkt.format(a.gemeldetAm)}
+            </time>
+          </Feld>
+          {a.storniertAm !== null && (
+            <Feld label={t.storniertAm}>
+              <time dateTime={a.storniertAm.toISOString()} className="cse-zahl">
+                {zeitpunkt.format(a.storniertAm)}
+              </time>
+            </Feld>
+          )}
+        </Felder>
+      </section>
+
+      <p data-cse="art-verdeckt" className="mb-s5 max-w-prose text-base text-text-muted">
+        {t.abwesenheitArtVerdeckt}
+      </p>
+
+      {daten.zurueckziehbar ? (
+        <section data-cse="abwesenheit-zuruecknehmen">
+          <p className="mb-s3 max-w-prose text-base text-text-muted">
+            {t.abwesenheitRuecknahmeHinweis}
+          </p>
+          {/*
+            Ein echtes `<form method="post">` ohne JavaScript — die Geräte sind
+            alte Diensttelefone (SEITENKARTE §13). Das Ziel kommt aus dem Pfad
+            und nicht aus einem Feld.
+          */}
+          <form method="post" action={`/api/mein/abwesenheit/${a.id}/zurueckziehen`}>
+            <input type="hidden" name="zurueck" value="/portal/mein/antraege" />
+            <Button type="submit" variante="secondary" data-cse="abwesenheit-zurueckziehen">
+              {t.abwesenheitRuecknahme}
+            </Button>
+          </form>
+        </section>
+      ) : (
+        <p data-cse="nicht-ruecknehmbar" className="m-0 max-w-prose text-base text-text-muted">
+          {t.abwesenheitNichtRuecknehmbar}
+        </p>
+      )}
+    </MeinRahmen>
+  );
+}

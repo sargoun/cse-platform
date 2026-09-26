@@ -36,7 +36,8 @@ import {
   legeVor, signiere,
 } from '../../src/server/services/reinigung/leistungsnachweis.js';
 import {
-  findeOderLegeBautagAn, heftePositionAn, lesePositionen,
+  findeOderLegeBautagAn, hefteMannstundenAn, heftePositionAn, hefteTagesfotoAn,
+  korrigiereMannstunden, leseMannstunden, lesePositionen, leseTagesfotos,
 } from '../../src/server/services/bau/bautagebuch.js';
 import {
   findeAntrag, reicheAntragEin, zieheAntragZurueck,
@@ -761,5 +762,132 @@ describe('0304 — der Leistungsnachweis auf der Schicht', () => {
           bestaetigtePruefsumme: 'b'.repeat(64),
         });
       })).rejects.toThrow(/nicht mehr die aktuellen/u);
+  });
+});
+
+
+/**
+ * **V-063 — die Kolonne stellt ihre EIGENE Zeile richtig und hängt ein
+ * Tagesfoto an.**
+ *
+ * Beide Wege waren in der Datenbank seit `0303` gebaut —
+ * `t_selbst_m1_storno` und `t_selbst_schichtmedien` mit
+ * `bezug_tabelle = 'bautagebuch'` — und es gab keine Route und kein Formular
+ * dorthin. Geprüft wird hier, dass die Policies tun, was ihr Kommentar sagt,
+ * und zwar unter GENAU der Sitzung, die die neuen Routen bauen
+ * (`aufDerSchicht`: Personen-Scope, dann der Mandant der Schicht).
+ */
+describe('V-063 — Korrektur und Tagesfoto auf der eigenen Schicht', () => {
+  /** Die Baustelle im Bau, zwei Kräfte darauf: Fatima und Jonas. */
+  async function kolonne(): Promise<{
+    fatima: string; jonas: string; gewerk: string; projekt: string;
+  }> {
+    await mitglied(fatimaKonto, f.bau, 'mitarbeiter');
+    await mitglied(jonasKonto, f.bau, 'mitarbeiter');
+    const b = await baustelle(f.bau, fatimaKonto);
+    const anstellung = async (person: string): Promise<string> => {
+      const [a] = await sql.unsafe<{ id: string }[]>(
+        `insert into anstellung (mandant_id, person_id, personalnummer, eintritt, status)
+         values ($1,$2,$3, current_date - 30, 'aktiv') returning id`,
+        [f.bau, person, `B-${zufall()}`] as never[]);
+      return a!.id;
+    };
+    const sf = await schicht({ mandant: f.bau, anstellung: await anstellung(f.fatima),
+      person: f.fatima, objekt: b.objekt, projekt: b.projekt });
+    const sj = await schicht({ mandant: f.bau, anstellung: await anstellung(f.jonas),
+      person: f.jonas, objekt: b.objekt, projekt: b.projekt });
+    return { fatima: sf.zuordnung, jonas: sj.zuordnung, gewerk: b.gewerk, projekt: b.projekt };
+  }
+
+  /** Eine eigene Mannstundenzeile — so, wie die Route `mannstunden` sie anlegt. */
+  async function zeile(konto: string, person: string, zuordnung: string, gewerk: string,
+    minuten: number): Promise<string> {
+    return aufDerSchicht(konto, person, zuordnung, async (k, bezug) => {
+      const tag = await findeOderLegeBautagAn(k, bezug!.projektId!, bezug!.vonDatum);
+      return hefteMannstundenAn(k, {
+        bautagebuchId: tag, gewerkId: gewerk, herkunft: 'eigen',
+        anzahlPersonen: 1, dauerMinuten: minuten, taetigkeit: 'Schalung',
+      });
+    });
+  }
+
+  async function tagesZeilen(projekt: string) {
+    return imPersonenScope(fatimaKonto, f.fatima, async (k) => {
+      const [tag] = await k.abfrage<{ id: string }>(
+        `select id from bautagebuch where projekt_id = $1::uuid`, [projekt]);
+      return leseMannstunden(k, tag!.id);
+    });
+  }
+
+  it('die eigene Zeile: storniert MIT Grund, der Ersatz daneben, beide lesbar', async () => {
+    const k = await kolonne();
+    const falsch = await zeile(fatimaKonto, f.fatima, k.fatima, k.gewerk, 540);
+
+    const neu = await aufDerSchicht(fatimaKonto, f.fatima, k.fatima, async (c) =>
+      korrigiereMannstunden(c, {
+        zeileId: falsch,
+        grund: 'Neun statt acht Stunden eingetippt',
+        ersatz: { gewerkId: k.gewerk, herkunft: 'eigen', anzahlPersonen: 1,
+                  dauerMinuten: 480, taetigkeit: 'Schalung' },
+      }));
+
+    const zeilen = await tagesZeilen(k.projekt);
+    const alt = zeilen.find((z) => z.id === falsch)!;
+    const ersatz = zeilen.find((z) => z.id === neu)!;
+    /* LEG-01: die falsche Zeile verschwindet nicht — sie steht daneben. */
+    expect(alt.storniert).toBe(true);
+    expect(alt.storno_grund).toBe('Neun statt acht Stunden eingetippt');
+    expect(alt.ersetzt_durch_id).toBe(neu);
+    expect(ersatz.storniert).toBe(false);
+    expect(ersatz.dauer_minuten).toBe(480);
+    /* Und beide gehören ihr — die Oberfläche zeigt den Knopf genau daran. */
+    expect(alt.eigene).toBe(true);
+    expect(ersatz.eigene).toBe(true);
+  });
+
+  it('eine FREMDE Zeile lässt sich nicht richtigstellen — und es bleibt nichts zurück',
+    async () => {
+      const k = await kolonne();
+      const seine = await zeile(jonasKonto, f.jonas, k.jonas, k.gewerk, 480);
+      const vorher = await tagesZeilen(k.projekt);
+
+      /*
+       * Fatima sieht die Zeile (die Kolonne sieht ihren Tag), aber
+       * `t_selbst_m1_storno` lässt das UPDATE nur an der EIGENEN zu. Die
+       * Ersatzzeile ist dann schon geschrieben — der Dienst wirft bei null
+       * getroffenen Zeilen, und die Transaktion nimmt sie wieder mit.
+       */
+      await expect(aufDerSchicht(fatimaKonto, f.fatima, k.fatima, async (c) =>
+        korrigiereMannstunden(c, {
+          zeileId: seine,
+          grund: 'Gar nicht meine Zeile',
+          ersatz: { gewerkId: k.gewerk, herkunft: 'eigen', anzahlPersonen: 1,
+                    dauerMinuten: 60, taetigkeit: null },
+        }))).rejects.toThrow();
+
+      const nachher = await tagesZeilen(k.projekt);
+      expect(nachher).toHaveLength(vorher.length);
+      expect(nachher.find((z) => z.id === seine)!.storniert).toBe(false);
+      /* Und für Fatima ist Jonas' Zeile keine eigene — kein Knopf daran. */
+      expect(nachher.find((z) => z.id === seine)!.eigene).toBe(false);
+    });
+
+  it('ein Tagesfoto hängt am Bautag der eigenen Schicht — und ist lesbar', async () => {
+    const k = await kolonne();
+    const medienId = crypto.randomUUID();
+    await aufDerSchicht(fatimaKonto, f.fatima, k.fatima, async (c, bezug) => {
+      const tag = await findeOderLegeBautagAn(c, bezug!.projektId!, bezug!.vonDatum);
+      await hefteTagesfotoAn(c, {
+        bautagebuchId: tag, medienId, art: 'foto', bucket: 'einsatz-medien',
+        pfad: `${f.bau}/${crypto.randomUUID()}`, mimeTyp: 'image/jpeg',
+        groesseBytes: 2048, sha256: 'b'.repeat(64), beschreibung: 'Bewehrung Achse C',
+      });
+    });
+    const fotos = await imPersonenScope(fatimaKonto, f.fatima, async (c) => {
+      const [tag] = await c.abfrage<{ id: string }>(
+        `select id from bautagebuch where projekt_id = $1::uuid`, [k.projekt]);
+      return leseTagesfotos(c, tag!.id);
+    });
+    expect(fotos.map((x) => x.id)).toContain(medienId);
   });
 });

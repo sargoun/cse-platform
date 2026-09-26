@@ -38,6 +38,7 @@ import {
   type RechnungspositionEntwurf,
   type VertragAbrechnung,
   alsTag,
+  belegBenannt,
   fehler,
   ganzeMenge,
   leistungszeitraum,
@@ -47,12 +48,20 @@ import {
   steuergruppeDerLeistung,
   steuergruppeDesAuftrags,
   tageImMonat,
+  ueberschneidet,
   zerlegeTag,
 } from './typen.js';
+import { tagDeutsch } from '../../../../lib/datum/kalendertag.js';
 
 /** Wie viele Kalendertage dieser Abschnitt aus seinem Monat abdeckt. */
 function abgedeckteTage(abschnitt: Periode): number {
   return zerlegeTag(abschnitt.bis).tag - zerlegeTag(abschnitt.von).tag + 1;
+}
+
+/** Der ganze Kalendermonat, in dem der Abschnitt liegt. */
+function ganzerMonat(abschnitt: Periode): Periode {
+  const { jahr, monat } = zerlegeTag(abschnitt.von);
+  return { von: alsTag(jahr, monat, 1), bis: alsTag(jahr, monat, tageImMonat(jahr, monat)) };
 }
 
 /** Deckt der Abschnitt seinen Kalendermonat vollstaendig ab? */
@@ -120,6 +129,35 @@ export const MONATSPAUSCHALE: Abrechnungsart = {
         'gueltig_ab',
         `Die Abrechnungskonfiguration gilt im Zeitraum ${periode.von} bis ${periode.bis} `
         + 'an keinem Tag.',
+      ));
+    }
+    /*
+     * **Ein Monat wird EINMAL berechnet — über alle Belege hinweg** (V-207,
+     * D-700). Die Zeile einer Pauschale hat keinen Beleg, den ein Index
+     * sperren könnte; ihr Anspruch ist der Zeitraum, für den sie den Betrag
+     * verlangt. Steht davon schon ein Tag auf einer lebenden Zeile derselben
+     * Vereinbarung, ist das dieselbe Pauschale ein zweites Mal — abgewiesen,
+     * mit dem Beleg beim Namen. Nicht still übersprungen: eine Rechnung über
+     * Juli bis September mit nur zwei Monatszeilen sähe vollständig aus.
+     *
+     * Welcher Zeitraum das ist, sagt der eigene Parameter: eine VOLLE
+     * Pauschale (voller Monat, oder `teilmonat = keine`) verlangt den ganzen
+     * Monat — zwei Rechnungen über je eine Hälfte des Novembers wären sonst
+     * zwei volle Novemberpauschalen. Nur anteilig nach Kalendertagen deckt
+     * die Zeile genau ihre Tage, und die zweite Hälfte bleibt abrechenbar.
+     */
+    const teilmonat = konfiguration.parameter['teilmonat'];
+    for (const abschnitt of teile) {
+      const bereich = istVollerMonat(abschnitt) || teilmonat !== 'kalendertage'
+        ? ganzerMonat(abschnitt) : abschnitt;
+      const schon = eingabe.bisher.filter((a) => ueberschneidet(a, bereich));
+      if (schon.length === 0) continue;
+      befunde.push(fehler(
+        'leistung_von',
+        `Die Monatspauschale ${monatsName(abschnitt)} (${tagDeutsch(abschnitt.von)} bis `
+        + `${tagDeutsch(abschnitt.bis)}) ist schon auf ${schon.map(belegBenannt).join(', ')} `
+        + 'berechnet. Ein zweites Mal wäre dieselbe Pauschale doppelt — den Leistungszeitraum '
+        + 'dieses Entwurfs anpassen, oder den anderen Beleg verwerfen bzw. stornieren.',
       ));
     }
     if (konfiguration.parameter['teilmonat'] === 'arbeitstage'

@@ -1,26 +1,121 @@
-import { MandantUnterseite } from '../../../../unterseite';
+import type postgres from 'postgres';
+import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { withTenant } from '@/server/kontext/index';
+import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Hinweis } from '@/components/ui/Hinweis';
+import type { BereichSchluessel } from '@/lib/design/theme';
+import { mandantTor, MandantAntwort } from '../../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { REVIER_TEXTE } from '@/lib/i18n/verwaltung/reinigung';
+import { RevierFormular, type ObjektAuswahl } from '../../RevierFormular';
+import { Recht } from '@/components/ui/Recht';
 
 /**
- * `/portal/[mandant]/reinigung/reviere/neu` — noch nicht gebaut, und das steht hier
- * ausdrücklich als eigene Datei.
+ * `/portal/[mandant]/reinigung/reviere/neu` — ein Revier zuschneiden
+ * (V-002, CLN-01, OPS-02).
  *
- * **Warum eine Datei fuer eine Seite, die es nicht gibt.** Ohne sie greift
- * Next.js die Nachbarroute `[id]`, reicht `neu` als Kennung in ein
- * `$1::uuid` und die Anwendung antwortet **500** — „Da ist etwas
- * schiefgegangen." Die Seitenkarte fuehrt diese Adresse; wer sie oeffnet, soll
- * lesen, dass das Modul noch gebaut wird, und nicht, dass der Server kaputt
- * ist. Der Unterschied ist nicht Kosmetik: ein 500 sagt „mein Fehler", wo
- * „noch nicht da" die Wahrheit ist.
+ * **Diese Datei war ein Platzhalter, und der Platzhalter war ehrlich.** Es gab
+ * keinen Dienst, keine Route und keinen Knopf; jede Revierzeile der Plattform
+ * entstand im Seed. Damit war der gesamte Reinigungsdienstplan für neue
+ * Flächen zu — ein Turnus hängt am Revier, ein Einsatz am Turnus, ein
+ * Leistungsnachweis am Einsatz. Die Fehlermeldung `RaumNichtEntfernbar`
+ * verwies ihrerseits auf zwei Wege („neu anlegen", „archivieren"), die es
+ * beide nicht gab.
  *
- * `kennungOder404` faengt denselben Fall inzwischen auch in der `[id]`-Seite
- * ab — dann aber als 404, und ein 404 auf eine Adresse, die im Manifest steht,
- * ist die zweitbeste Antwort. Diese Datei gibt die beste.
+ * **Die Objektauswahl hängt an `objekt.lesen`, und die Seite sagt es.** Ohne
+ * das Recht bleibt die Liste leer; das ist dann kein Haus ohne Gebäude,
+ * sondern ein fehlendes Leserecht — und der Unterschied gehört auf den
+ * Bildschirm, nicht in eine leere Auswahlliste (AUT-06).
  */
 export const dynamic = 'force-dynamic';
 
-export default async function Platzhalter(
-  { params }: { params: Promise<{ mandant: string }> },
+/**
+ * Die beiden Rechteschluessel, wie sie dem Menschen ANGEZEIGT werden.
+ *
+ * Sie sind **Daten, keine Beschriftung**: dieselbe Zeichenkette steht in
+ * `katalog.generiert.ts` und in jedem Protokolleintrag. Uebersetzt waere sie
+ * falsch, und als Literal im JSX-Text zaehlte die Uebersetzungswache sie zu
+ * Recht als deutsches Wort mit. In den PRUEFUNGEN unten steht dagegen das
+ * Literal, weil `tests/kern/verweis-rechte.test.ts` den Quelltext liest und
+ * eine Bewachung nur an `haeltRechte(…, '…')` erkennt.
+ */
+const RECHT_SCHREIBEN = 'reinigung.schreiben';
+const RECHT_OBJEKT = 'objekt.lesen';
+
+export const metadata = { title: 'Neues Revier' };
+
+export default async function RevierNeu(
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
-  return <MandantUnterseite segmente={['reinigung', 'reviere', 'neu']} mandant={mandant} />;
+  const pfad = `/portal/${mandant}/reinigung/reviere/neu`;
+  const tor = await mandantTor(pfad, mandant);
+  if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
+  const { zugang } = tor;
+  const t = nachSprache(REVIER_TEXTE, zugang.sprache);
+
+  /*
+   * Drei Rechte, und jedes beantwortet eine andere Frage: `reinigung.schreiben`
+   * ob das Formular ueberhaupt etwas bewirken kann, `reinigung.lesen` ob der
+   * Rueckweg auf die Revierliste gezeigt werden darf (AUT-06, D-581), und
+   * `objekt.lesen`, ob die Auswahlliste gefuellt werden kann.
+   */
+  const darf = await haeltRechte(
+    zugang.sitzung, 'reinigung.schreiben', 'reinigung.lesen', 'objekt.lesen');
+  const suche = await searchParams;
+  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+
+  const objekte = darf['objekt.lesen'] !== true ? [] : await (db().begin(
+    SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+      withTenant(tx, zugang.sitzung, async (kontext) => kontext.abfrage<ObjektAuswahl>(
+        `select id, bezeichnung from objekt
+          where archiviert_am is null
+          order by bezeichnung
+          limit 500`,
+      ))) as Promise<readonly ObjektAuswahl[]>);
+
+  return (
+    <PortalRahmen
+      titel={t.neuTitel}
+      wurzelTitel={t.modul}
+      bereich={mandant as BereichSchluessel}
+      nurLesen={false}
+      leiste={zugang.leiste}
+      wurzel={`/portal/${mandant}`}
+      aktiverTab="reinigung"
+      sichtbareTabs={zugang.sichtbareTabs}
+      navigationsRechte={zugang.navigationsRechte}
+        {...(darf['reinigung.lesen'] === true
+          ? { zurueck: { ziel: `/portal/${mandant}/reinigung/reviere`, text: t.alleReviere } }
+          : {})}
+    >
+      <h1 className="mb-s5 mt-0 text-h1 text-text">{t.neuTitel}</h1>
+
+      {meldung !== null && (
+        <Hinweis art="warnung" cse="revier-meldung" className="mb-s5 max-w-prose">
+          {meldung}
+        </Hinweis>
+      )}
+
+      {darf['reinigung.schreiben'] !== true ? (
+        <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">
+          {t.keinSchreibrechtAnlegen}{' '}
+          <Recht schluessel={RECHT_SCHREIBEN} sprache={zugang.sprache} />.
+        </Hinweis>
+      ) : objekte.length === 0 ? (
+        <Hinweis art="warnung" cse="revier-ohne-objekt" className="max-w-prose">
+          {darf['objekt.lesen'] === true ? t.keinObjekt : t.objektPflicht}{' '}
+          {darf['objekt.lesen'] !== true && (
+            <Recht schluessel={RECHT_OBJEKT} sprache={zugang.sprache} />
+          )}
+        </Hinweis>
+      ) : (
+        <RevierFormular zurueck={pfad} objekte={objekte} t={t} />
+      )}
+    </PortalRahmen>
+  );
 }

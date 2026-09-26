@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import type postgres from 'postgres';
 import { db } from '@/server/db/pool';
@@ -6,13 +7,17 @@ import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { formularSchluessel } from '@/lib/formular/bereiche';
 import { Felder, FormularFehler } from '@/lib/formular/schema';
 import { istUebermittlung } from '@/lib/formular/uebermittlung';
+import {
+  eigenerPfad, fremdeAdresse, utmAus, UTM_SCHLUESSEL,
+} from '@/lib/formular/herkunft';
 import { ipHash, nimmAn, pruefeRatenlimit, RatenlimitFehler, istBot }
   from '@/server/services/lead/annahme';
 import { bestaetige } from '@/server/services/lead/bestaetigung';
 import { pruefeUpload } from '@/server/storage/mime';
 import { ladeHoch } from '@/server/services/dokument/upload';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
-import { API_TEXTE } from '@/lib/i18n/texte';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
+import { API_TEXTE, formularSammelmeldung } from '@/lib/i18n/texte';
 import { uebersetzeFeldmeldungen } from '@/lib/i18n/formular-en';
 import { mitSprache, SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
@@ -132,11 +137,40 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
     return antworteFehler(404, t.keinFormular);
   }
 
-  // 1 — Honigtopf. VOR jeder Datenbankberührung: ein Bot soll nicht einmal
-  // eine Abfrage kosten.
+  /*
+   * 1 — Honigtopf. VOR jeder Datenbankberührung: ein Bot soll nicht einmal
+   * eine Abfrage kosten. Die Antwort ist dieselbe wie bei Erfolg — wer
+   * erfährt, dass er erkannt wurde, probiert das nächste Feld.
+   *
+   * **„Dieselbe" heisst: dieselbe FORM (V-157).** Hier stand nur das JSON —
+   * auch für ein Formular mit `antwort=seite`, bei dem der Erfolg per 303 auf
+   * die Dankseite führt. Ein Mensch, dessen Passwortverwalter das versteckte
+   * Feld füllte (der falsch positive Fall, den `annahme.ts` ausdrücklich
+   * nennt), sah eine weisse Seite mit `{"ok":true,…}` statt der zugesagten
+   * Dankseite; und ein Bot erkannte am ANDEREN Antworttyp, dass er erkannt
+   * war — genau das, was dieser Zweig verhindern soll.
+   *
+   * Die Dankseite bekommt KEINE Vorgangsnummer: es gibt keinen Vorgang, und
+   * eine erfundene Nummer wäre eine, auf die sich ein Mensch am Telefon
+   * beruft und die niemand findet. Die Seite kennt diesen Fall schon — sie
+   * zeigt den Nummernblock nur, wenn eine Nummer da ist. Ob ein solcher
+   * Treffer aufbewahrt werden soll, bleibt O-905.
+   *
+   * **Was damit NICHT erreicht ist, ausdrücklich** (V-160, D-651): dieselbe
+   * Form heisst nicht dieselbe Antwort. Ein Erfolg führt auf `…/danke?nr=L-…`
+   * und trägt im JSON eine `leadnummer`; der Treffer führt auf `…/danke` ohne
+   * `nr` und trägt keine. Ein Programm, das beide Antworten vergleicht,
+   * erkennt den Treffer also weiterhin. Geschlossen ist die Lücke für den
+   * MENSCHEN (Dankseite statt JSON) und für einen Bot, der nur auf den
+   * Statuscode oder den Antworttyp schaut. Die restliche Unterscheidbarkeit
+   * ist der Preis dafür, keine Nummer zu erfinden — bewusst so gewählt.
+   */
   if (istBot(formData.get('website') as string | null ?? undefined)) {
-    // Dieselbe Antwort wie bei Erfolg. Wer erfährt, dass er erkannt wurde,
-    // probiert das nächste Feld.
+    if (alsSeite) {
+      return NextResponse.redirect(new URL(
+        mitSprache(`/angebot/${bereich}/danke`, sprache), anfrage.url,
+      ), 303);
+    }
     return NextResponse.json({ ok: true, meldung: t.dank });
   }
 
@@ -152,17 +186,25 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
   }
   const felder = felderGeprueft.data;
 
-  // 2 — die Attribution (REQ-07), aus dem Formular und dem Referer-Kopf.
+  /*
+   * 2 — die Attribution (REQ-07), aus den versteckten Feldern des Formulars.
+   *
+   * **Nicht aus dem `Referer` dieses POST.** Der ist immer die eigene
+   * Formularseite — genau das stand vorher als „Herkunft" in jedem Lead. Die
+   * Formularseite hat ihre eigene Herkunft beim Öffnen festgehalten (D-631);
+   * hier wird sie nur noch einmal geprüft, denn die Felder kann jeder setzen.
+   */
   const s = (name: string): string | undefined => {
     const w = formData.get(name);
     return typeof w === 'string' && w !== '' ? w : undefined;
   };
+  const utm = utmAus(Object.fromEntries(UTM_SCHLUESSEL.map((k) => [k, s(k)])));
   const attribution = {
-    utmQuelle: s('utm_source'), utmMedium: s('utm_medium'),
-    utmKampagne: s('utm_campaign'), utmBegriff: s('utm_term'),
-    utmInhalt: s('utm_content'),
-    referrer: anfrage.headers.get('referer') ?? undefined,
-    landingPage: s('landing_page'),
+    utmQuelle: utm.utm_source, utmMedium: utm.utm_medium,
+    utmKampagne: utm.utm_campaign, utmBegriff: utm.utm_term,
+    utmInhalt: utm.utm_content,
+    referrer: fremdeAdresse(s('referrer_extern'), anfrage.headers.get('host')),
+    landingPage: eigenerPfad(s('landing_page')),
   };
 
   // 3 — die Werte. Dateifelder gehören nicht in `daten`.
@@ -253,6 +295,13 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
          * eine Rueckfrage und den Anfragenden das Vertrauen — und niemand
          * merkt, dass die Datei nie ankam.
          */
+        /*
+         * Die Kennung des Eingangs entsteht VOR der Datei (V-137): das
+         * Leistungsverzeichnis soll ihn als Bezug tragen
+         * (`dokument.formular_eingang_id`), sonst liegt es als Dokument ohne
+         * Herkunft im Archiv und das Leadblatt findet es nicht.
+         */
+        const eingangId = randomUUID();
         let dokumentId: string | null = null;
         if (datei !== null) {
           /**
@@ -276,7 +325,7 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
               daten: datei.bytes,
               behaupteterTyp: datei.mime,
             },
-            new SupabaseSpeicher(),
+            waehleSpeicher(),
             jahr,
           );
           /**
@@ -296,13 +345,13 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
           await kontext.schreibe(
             `insert into dokument (id, mandant_id, kategorie, titel, mime_typ,
                                    mime_verifiziert, groesse_bytes, bucket,
-                                   objekt_schluessel, exif_entfernt)
-             values ($1, $2, 'angebot', $3, $4, true, $5, $6, $7, $8)`,
+                                   objekt_schluessel, exif_entfernt, formular_eingang_id)
+             values ($1, $2, 'angebot', $3, $4, true, $5, $6, $7, $8, $9)`,
             [
               hoch.dokumentId, formular.mandant_id,
               `Leistungsverzeichnis ${datei.name}`, hoch.mimeTyp,
               hoch.groesseBytes, hoch.bucket, hoch.objektSchluessel,
-              hoch.exifEntfernt,
+              hoch.exifEntfernt, eingangId,
             ],
           );
           await kontext.schreibe(
@@ -332,6 +381,7 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
             werte, attribution,
             ...(hash === undefined ? {} : { ip: hash }),
             userAgent: anfrage.headers.get('user-agent') ?? undefined,
+            eingangId,
             ...(datei === null || dokumentId === null
               ? {}
               : { datei: { dokumentId, dateiname: datei.name } }),
@@ -391,7 +441,9 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
       leadnummer: ergebnis.leadnummer,
     });
   } catch (fehler) {
-    if (fehler instanceof RatenlimitFehler) return antworteFehler(429, fehler.message);
+    // Der Satz kommt aus `API_TEXTE` und nicht aus dem Dienst: der Dienst
+    // spricht deutsch, auch zu `/en/angebot/<bereich>` (V-157).
+    if (fehler instanceof RatenlimitFehler) return antworteFehler(429, t.zuVieleAnfragen);
     // Kein simulierter Erfolg: der Speicher ist nicht verbunden, und das steht
     // in der Antwort statt in einem Logfile.
     if (fehler instanceof NichtVerbundenFehler) {
@@ -409,7 +461,13 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
       const felder = sprache === 'de'
         ? fehler.felder
         : uebersetzeFeldmeldungen(schluessel, fehler.felder);
-      return antworteFehler(400, fehler.message, felder);
+      /*
+       * Und der Sammelsatz darüber ebenso (V-157). Die Feldmeldungen wurden
+       * seit D-83 übersetzt, der Satz im `role="alert"` nicht — auf der
+       * englischen Seite stand „Bitte prüfen Sie die markierten Felder." über
+       * englischen Feldern.
+       */
+      return antworteFehler(400, formularSammelmeldung(sprache, fehler), felder);
     }
     return antworteFehler(500, t.nichtGespeichert);
   }

@@ -7,6 +7,7 @@ import { istGleicherUrsprung, erwarteterUrsprung, internesZiel } from '@/server/
 import { rechtepruefer } from '@/server/auth/zugang';
 import { db } from '@/server/db/pool';
 import { type SchreibKontext, withTenant } from '@/server/kontext/index';
+import { maskeMitEingaben } from '@/lib/formular/maske';
 import { liesRumpf, type Rumpf } from './rumpf';
 
 /**
@@ -54,6 +55,12 @@ export interface Uebergang<T> {
    * hierher gehoert und weitergeworfen werden soll.
    */
   readonly grundVon: (fehler: unknown) => string | null;
+  /**
+   * Die Formularfelder, die bei einer Abweisung mit auf die Maske reisen
+   * (V-240, `maskeMitEingaben`, D-599). Ohne Angabe reist nur der Grund —
+   * wie bisher. Nur Stammdaten eines Vorgangs, nie etwas Geheimes.
+   */
+  readonly maskeFelder?: readonly string[];
 }
 
 export async function fuehreUebergangAus<T>(
@@ -111,6 +118,17 @@ export async function fuehreUebergangAus<T>(
        */
       const zurueck = rumpf.felder['zurueck'];
       if (!rumpf.json && zurueck !== undefined && zurueck !== '') {
+        /*
+         * V-240: nennt der Uebergang Maskenfelder, reisen deren Eingaben mit —
+         * eine abgewiesene Pflege zeigt dann, was getippt wurde, nicht wieder
+         * den alten Stand aus der Datenbank.
+         */
+        if (uebergang.maskeFelder !== undefined) {
+          const werte = Object.fromEntries(
+            uebergang.maskeFelder.map((name) => [name, rumpf.felder[name]]));
+          return NextResponse.redirect(
+            internesZiel(maskeMitEingaben(zurueck, grund, werte), HEIMWEG, anfrage), 303);
+        }
         const trenner = zurueck.includes('?') ? '&' : '?';
         return NextResponse.redirect(
           internesZiel(

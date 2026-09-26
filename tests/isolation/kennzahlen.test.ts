@@ -83,11 +83,16 @@ describe('(1) DSH-04: jede Kachel zeigt die Zahl, die hinter ihrem Link steht', 
   it('es gibt überhaupt Kacheln zu prüfen', () => {
     // Ohne diese Zusage bestünde alles Folgende auf einer leeren Liste.
     // Zwölf seit Phase 5: `schichten_unbesetzt`, `konflikte_offen`,
-    // `antraege_offen`, `abwesend_heute` und `nachweise_abgelaufen` kommen dazu. Die Zahl steht hier
+    // `antraege_offen`, `abwesend_heute` und `nachweise_abgelaufen` kommen dazu;
+    // die dreizehnte ist `aktuell_im_einsatz` (V-072) — DSH-05 nennt sie
+    // namentlich, und sie stand auf keinem Dashboard. Die Zahl steht hier
     // und nicht im Einheitstest allein, weil DIESE Datei jede Kachel gegen die
     // echte Datenbank stellt — eine Kachel, die sich hier nicht mitzählt, wird
     // nie gegen ihre Liste geprüft.
-    expect(alle.length).toBe(12);
+    // Achtzehn seit V-150 (DSH-01): `auftraege_aktiv`, `projekte_in_arbeit`,
+    // `angebote_offen`, `forderungen_offen` und `aufgaben_offen` — Module,
+    // die gebaut waren und auf keiner Übersicht eine Zahl hatten.
+    expect(alle.length).toBe(18);
   });
 
   it.each([['reinigung'], ['security'], ['bau'], ['operations']])(
@@ -256,7 +261,9 @@ describe('withDevAdmin — der Kontext der Entwicklungsflaechen', () => {
       withDevAdmin(tx, mandantId, (kontext) =>
         dashboard(kontext,
           { mandantId, mandantSlug: 'reinigung', mandantIds: kontext.mandantIds },
-          () => true))));
+          // Keine Buchung filtert (V-151): hier geht es um die Bindung des
+          // Super-Admins, nicht um die Module der Gesellschaft.
+          () => true, { module: [], gepflegt: false }))));
 
     expect(werte.length).toBe(alle.length);
     /**

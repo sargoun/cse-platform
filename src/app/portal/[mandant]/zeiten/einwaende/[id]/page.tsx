@@ -14,6 +14,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
 import { ENTSCHIEDEN, leseEinwand, type EinwandBlatt } from '@/server/services/zeit/einwand';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/zeiten/einwaende/[id]` — der einzelne Einwand in voll
@@ -100,10 +101,39 @@ const KORREKTUR_GRUND_TEXT: Readonly<Record<string, string>> = {
   sonstiges: 'Sonstiges',
 };
 
+
+/**
+ * Die Sätze zu den Gründen, mit denen `api/zeit/einwand/entscheidung`
+ * zurückkommt (V-052, D-562).
+ *
+ * Vorher antwortete die Route auf jede Abweisung mit JSON — eine weisse Seite
+ * mit einem Datenfeld für einen Menschen, der gerade „Entscheiden" gedrückt
+ * hat, und mit dem getippten Text verloren.
+ */
+const FEHLERTEXT: Readonly<Record<string, string>> = {
+  kein_einwand: 'Es war kein Einwand benannt.',
+  unbekannter_status: 'Diesen Zustand gibt es nicht.',
+  begruendung_zu_kurz:
+    'Eine Entscheidung braucht eine Begründung von mindestens zehn Zeichen. Im '
+    + 'Streit steht sonst da, dass jemand etwas weggeklickt hat.',
+  nicht_gefunden: 'Diesen Einwand gibt es in dieser Gesellschaft nicht.',
+  bereits_entschieden:
+    'Über diesen Einwand ist bereits entschieden. Ein neuer Sachverhalt ist ein '
+    + 'neuer Einwand.',
+  eigener_einwand:
+    'Über den eigenen Einwand entscheidet man nicht (EMP-07) — die Aufzeichnung '
+    + 'behält ihren Beweiswert nur, wenn die betroffene Person sie nicht selbst bewegt.',
+};
+
 export default async function Einwandblatt(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
+  const suche = await searchParams;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   kennungOder404(id);
   const pfad = `/portal/${mandant}/zeiten/einwaende/${id}`;
   const zugang = await portalZugang(pfad);
@@ -117,7 +147,8 @@ export default async function Einwandblatt(
   // Invariante 10: kein Schreibweg ohne genau einen aktiven Mandanten.
   if (sitzung.aktiverMandantId === null) notFound();
 
-  const darf = await haeltRechte(sitzung, 'zeit.lesen', 'zeit.korrigieren');
+  const darf = await haeltRechte(
+    sitzung, 'zeit.lesen', 'zeit.korrigieren', 'zeit.nacherfassung_pruefen');
   /* Ohne `zeit.lesen` traefe die Policy null Zeilen — dann ist 404 die
      ehrliche Antwort und nicht ein leeres Blatt (AUT-06). */
   if (darf['zeit.lesen'] !== true) notFound();
@@ -153,6 +184,16 @@ export default async function Einwandblatt(
           </Link>
         </div>
       </div>
+
+      {fehler === null ? null : (
+        <p
+          data-cse="einwand-fehler"
+          className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-warning"
+        >
+          <strong>Nichts wurde entschieden.</strong>{' '}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+        </p>
+      )}
 
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Der Mensch ändert seinen Zeiteintrag nie selbst — das ist der Grund,
@@ -365,6 +406,23 @@ export default async function Einwandblatt(
                   <option value="anerkannt">Anerkannt</option>
                   <option value="teilweise_anerkannt">Teilweise anerkannt</option>
                   <option value="abgelehnt">Abgelehnt</option>
+                  {/*
+                    * **„Zurückgezogen" ist keine Entscheidung** (V-052).
+                    *
+                    * Der Zustand steht seit `0052` im Aufzählungstyp, die
+                    * Route lässt ihn seit je zu, der Auslöser ebenfalls — und
+                    * KEIN Formular schickte ihn. Der häufigste Fall dahinter
+                    * ist banal: die Arbeiterin meldet sich und sagt, sie habe
+                    * den Plan falsch gelesen. Das als „abgelehnt" zu buchen
+                    * wäre eine Entscheidung GEGEN sie, und die stünde für
+                    * immer in ihrer Akte.
+                    *
+                    * Ob sie den Rückzug auch selbst erklären darf, ist offen
+                    * (O-901): `0052` gibt ihr ausdrücklich kein UPDATE.
+                    */}
+                  <option value="zurueckgezogen">
+                    Zurückgezogen (die Person hat den Einwand zurückgenommen)
+                  </option>
                 </select>
               </label>
               <Button type="submit" variante="primary">Entscheiden</Button>
@@ -452,6 +510,38 @@ export default async function Einwandblatt(
                 >
                   Korrektur schreiben
                 </Link>
+              </p>
+            )}
+
+            {/*
+              * **Der Fall OHNE Zeiteintrag** (V-067).
+              *
+              * `art = 'eintrag_fehlt'` heisst: es gibt keinen Eintrag, den man
+              * korrigieren könnte (§6.27 lässt `zeiteintrag_id` dann NULL).
+              * Der Abschnitt hier sagte trotzdem „anerkannt, aber keine
+              * Korrektur" und bot nichts an — eine anerkannte Meldung, die
+              * ins Leere führt, sieht aus wie erledigt und ist es nicht.
+              *
+              * Der Weg ist die freie Nacherfassung (V-066), mit der Person
+              * vorbelegt und dem Einwand im Anhang. Die ZEITEN bleiben leer:
+              * eine vorbelegte Behauptung wäre von einer Entscheidung nicht
+              * mehr zu unterscheiden (§1.8).
+              */}
+            {darf['zeit.nacherfassung_pruefen'] === true && e.eintrag === null && (
+              <p className="m-0 mt-s3 text-sm">
+                <Link
+                  href={{
+                    pathname: `/portal/${mandant}/zeiten/nacherfassung`,
+                    query: { anstellung: e.anstellungId, einwand: e.id },
+                  }}
+                  data-cse="zur-nacherfassung"
+                  className="text-warning underline"
+                >
+                  Zeit nacherfassen
+                </Link>
+                {' — '}
+                zu dieser Meldung gibt es keinen Eintrag, der sich korrigieren
+                liesse; er muss erst entstehen.
               </p>
             )}
           </div>

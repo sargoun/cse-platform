@@ -78,6 +78,10 @@ function grundfall(): RechnungVollstaendig {
       geschaeftsfuehrer: 'Sara Gouneili',
       eadresse: 'DE123456789',
       eadresseSchema: '9930',
+      /* Neu in `cse.rechnung.v3` (V-099): die Fusszeile der Gesellschaft,
+         beim Festschreiben KOPIERT statt verwiesen (K-12). */
+      fusszeile: 'CSE Dienstleistungen GmbH · Karl-Marx-Allee 31 · 10178 Berlin',
+      logo: null,
     },
     empfaenger: {
       id: '22222222-2222-2222-2222-222222222222',

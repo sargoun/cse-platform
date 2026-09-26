@@ -69,7 +69,8 @@ export interface MahnungenTexte {
   readonly tabellePositionen: string;
   readonly verzugAb: string;
   readonly tage: string;
-  readonly satzBp: string;
+  /** Der Zinssatz p. a. als Prozent — vorher „Satz (bp)" mit Basispunkten (V-213). */
+  readonly zinssatz: string;
   readonly zins: string;
   readonly mahngebuehr: string;
   readonly verzugszinsen: string;
@@ -81,7 +82,37 @@ export interface MahnungenTexte {
   readonly verwerfenErklaerung: string;
   readonly verwerfenPlatzhalter: string;
   readonly versandTitel: string;
+
+  /* ── Das Schreiben (V-213, V-214) ───────────────────────────────────── */
+  readonly schreibenTitel: string;
+  /** Unter der Vorschau: das Schreiben ist deutsch, auch in englischer Oberfläche. */
+  readonly schreibenErklaerung: string;
+  readonly schreibenOeffnen: string;
+  readonly schreibenSigniert: string;
+  readonly schreibenOhneRecht: string;
+  readonly mahntextFehlt: string;
+  /**
+   * Ab der Freigabe: der Brief ist eingefroren, eine Pflege der Stammdaten
+   * wirkt erst auf die nächste Mahnung (V-217, D-709).
+   */
+  readonly briefEingefroren: string;
+  /**
+   * Freigegeben oder versendet VOR 0449: kein eingefrorener Brief, die
+   * Vorschau zeigt die heutigen Stammdaten (V-217).
+   */
+  readonly briefNichtEingefroren: string;
+  /** Vor der Liste der leeren Briefkopfangaben. */
+  readonly briefkopfFehlt: string;
+  /** Hinter der Liste: wo sie gepflegt werden. */
+  readonly briefkopfPflege: string;
+  readonly briefkopfAngaben: Readonly<Record<
+    'anschrift' | 'registergericht' | 'registernummer' | 'geschaeftsfuehrung', string>>;
   readonly versandErklaerung: string;
+
+  /* ── Abschliessen (V-084) ────────────────────────────────────────────── */
+  readonly erledigenTitel: string;
+  readonly erledigenErklaerung: string;
+  readonly erledigenKnopf: string;
   readonly weg: string;
   readonly empfaenger: string;
 
@@ -106,6 +137,11 @@ export interface MahnungenTexte {
   readonly tabelleZuordnung: string;
   readonly beleg: string;
   readonly guthabenDesKunden: string;
+  /** V-216: der Rest eines Zahlungsausgangs über dem offenen Betrag. */
+  readonly guthabenBeimLieferanten: string;
+  readonly richtung: string;
+  readonly richtungEingang: string;
+  readonly richtungAusgang: string;
 
   /** Steht HINTER dem Restbetrag, deshalb ohne fuehrendes Grosswort. */
   readonly restOhneForderung: string;
@@ -164,7 +200,7 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
       'Positionen der Mahnung mit Rechnung, Betrag, Verzugsbeginn, Tagen, Satz und Zins',
     verzugAb: 'Verzug ab',
     tage: 'Tage',
-    satzBp: 'Satz (bp)',
+    zinssatz: 'Satz p. a.',
     zins: 'Zins',
     mahngebuehr: 'Mahngebühr',
     verzugszinsen: 'Verzugszinsen',
@@ -180,6 +216,43 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
       + '(Invariante 8).',
     verwerfenPlatzhalter: 'Kunde hat nachweislich am Vortag gezahlt',
     versandTitel: 'Versand dokumentieren',
+
+    schreibenTitel: 'Das Schreiben',
+    schreibenErklaerung:
+      'So geht die Mahnung hinaus: Briefkopf, Anschrift, Mahntext der Stufe, '
+      + 'Forderungen und Pflichtangaben. Wer freigibt, gibt genau diesen Text frei.',
+    schreibenOeffnen: 'Abgelegtes Schreiben öffnen (PDF)',
+    schreibenSigniert:
+      'Das Schreiben, wie es hinausging — der Beleg für den Verzugsbeginn. Der '
+      + 'Verweis ist eine zeitlich begrenzte, signierte Adresse.',
+    schreibenOhneRecht:
+      'Das abgelegte Schreiben öffnet, wer Dokumente lesen darf.',
+    mahntextFehlt:
+      'Für diese Stufe ist kein Mahntext hinterlegt — das Schreiben nennt nur die '
+      + 'Forderungen. Gepflegt wird er unter Einstellungen › Mahnwesen.',
+    briefEingefroren:
+      'Der Brief ist mit der Freigabe eingefroren: Anschrift, Briefkopf, Mahntext und '
+      + 'Fußzeile stehen so da, wie sie freigegeben wurden. Wer die Stammdaten danach '
+      + 'pflegt, ändert erst die nächste Mahnung.',
+    briefNichtEingefroren:
+      'Diese Mahnung wurde freigegeben, bevor die Freigabe den Brief einfror. Die '
+      + 'Vorschau zeigt deshalb die heutigen Stammdaten; maßgeblich ist das abgelegte '
+      + 'Schreiben, sobald es vorliegt.',
+    briefkopfFehlt: 'Im Briefkopf fehlen:',
+    briefkopfPflege: 'Gepflegt werden sie unter Einstellungen › Unternehmensdaten.',
+    briefkopfAngaben: {
+      anschrift: 'Anschrift',
+      registergericht: 'Registergericht',
+      registernummer: 'Registernummer',
+      geschaeftsfuehrung: 'Geschäftsführung',
+    },
+    erledigenTitel: 'Erledigt',
+    erledigenErklaerung:
+      'Die Sache ist beigelegt — bezahlt, verrechnet oder auf anderem Weg. Die '
+      + 'Mahnung bleibt vollständig stehen; nur ihr Zustand sagt es. Ob ein '
+      + 'bezahlter offener Posten seine Mahnung von selbst schliesst, ist offen '
+      + '(O-902) — bis dahin setzt es ein Mensch, und er sieht dabei den Betrag.',
+    erledigenKnopf: 'Als erledigt vermerken',
     versandErklaerung:
       'Es gibt keinen automatischen Versand: die Mahnung geht als Brief, '
       + 'Einschreiben oder durch Boten hinaus, und hier wird festgehalten, '
@@ -207,6 +280,10 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
     tabelleZuordnung: 'Zuordnungen dieser Zahlung mit Art, Betrag und Beleg',
     beleg: 'Beleg',
     guthabenDesKunden: 'Guthaben des Kunden',
+    guthabenBeimLieferanten: 'Guthaben beim Lieferanten',
+    richtung: 'Richtung',
+    richtungEingang: 'Zahlungseingang',
+    richtungAusgang: 'Zahlungsausgang an einen Lieferanten',
     restOhneForderung: 'dieser Zahlung sind keiner Forderung zugeordnet.',
 
     stornoTitel: 'Zahlung stornieren',
@@ -267,7 +344,7 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
       'Items of the Mahnung with invoice, amount, start of default, days, rate and interest',
     verzugAb: 'In default from',
     tage: 'Days',
-    satzBp: 'Rate (bp)',
+    zinssatz: 'Rate p.a.',
     zins: 'Interest',
     mahngebuehr: 'Mahngebühr (dunning fee)',
     verzugszinsen: 'Default interest',
@@ -283,6 +360,44 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
       + '(Invariant 8).',
     verwerfenPlatzhalter: 'Customer demonstrably paid the day before',
     versandTitel: 'Record dispatch',
+
+    schreibenTitel: 'The letter',
+    schreibenErklaerung:
+      'This is how the Mahnung goes out: letterhead, address, text of the '
+      + 'Mahnstufe, claims and mandatory company details. The letter is in German, '
+      + 'as it is sent. Whoever approves it approves exactly this text.',
+    schreibenOeffnen: 'Open the filed letter (PDF)',
+    schreibenSigniert:
+      'The letter as it was sent — the record of when default began. The link is '
+      + 'a signed address that expires.',
+    schreibenOhneRecht:
+      'The filed letter can be opened by anyone allowed to read documents.',
+    mahntextFehlt:
+      'No text is stored for this Mahnstufe — the letter lists the claims only. '
+      + 'It is maintained under Settings › Mahnwesen (dunning).',
+    briefEingefroren:
+      'The letter was frozen when it was approved: address, letterhead, text and '
+      + 'footer read exactly as approved. Changes to the master data after that only '
+      + 'affect the next Mahnung.',
+    briefNichtEingefroren:
+      'This Mahnung was approved before approval froze the letter. The preview '
+      + 'therefore shows today\'s master data; the filed letter is authoritative once '
+      + 'it exists.',
+    briefkopfFehlt: 'Missing from the letterhead:',
+    briefkopfPflege: 'They are maintained under Settings › Unternehmensdaten (company details).',
+    briefkopfAngaben: {
+      anschrift: 'address',
+      registergericht: 'register court',
+      registernummer: 'register number',
+      geschaeftsfuehrung: 'managing directors',
+    },
+    erledigenTitel: 'Settled',
+    erledigenErklaerung:
+      'The matter is closed — paid, offset, or settled some other way. The Mahnung '
+      + '(dunning letter) stays on file in full; only its state says so. Whether a '
+      + 'paid open item closes its Mahnung by itself is open (O-902) — until then a '
+      + 'human sets it, and sees the amount while doing so.',
+    erledigenKnopf: 'Mark as settled',
     versandErklaerung:
       'There is no automatic dispatch: the Mahnung goes out as a letter, as '
       + 'Einschreiben (registered post) or by courier, and what is recorded '
@@ -310,6 +425,10 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
     tabelleZuordnung: 'Allocations of this payment with type, amount and document',
     beleg: 'Document',
     guthabenDesKunden: 'Credit balance of the customer',
+    guthabenBeimLieferanten: 'Credit balance with the supplier',
+    richtung: 'Direction',
+    richtungEingang: 'Incoming payment',
+    richtungAusgang: 'Outgoing payment to a supplier',
     restOhneForderung: 'of this payment is not allocated to any receivable.',
 
     stornoTitel: 'Reverse the payment (Storno)',

@@ -1,0 +1,30 @@
+-- ===========================================================================
+-- 0391 — Der Ablaufwaechter darf die Sprache LESEN (V-102)
+-- ===========================================================================
+--
+-- **Ein Spaltenrecht, und es fehlte.** `meldeAblaufwarnungen` liest ab
+-- sofort `person.sprache`, damit die Ablaufwarnung in der Sprache der
+-- Empfaengerin entsteht — eine Meldung, die eine Sperre nach § 34a GewO
+-- ankuendigt, muss ihr Adressat lesen koennen. `0149` gibt `cse_job` auf
+-- `person` aber ein SPALTENGENAUES Leserecht:
+--
+--     grant select (id, vorname, nachname) on person to cse_job;
+--
+-- Die Policy `j_person_waechter` sagt `using (true)` und klingt grosszuegig;
+-- das Spaltenrecht daneben ist die echte Grenze. Ohne diese Zeile antwortete
+-- die Abfrage mit `permission denied for column sprache` — und zwar nicht
+-- hier, sondern nachts um 02:05, in dem einen Lauf, der keinen Zuschauer hat.
+--
+-- **Warum jetzt, wo der Job die Rolle noch gar nicht bindet.** `bootstrap.ts`
+-- sagt es selbst (D-378): `nachweis_warnungen` laeuft heute mit der Rolle aus
+-- `DATABASE_URL`, nicht als `cse_job`. Der Fehler trifft also erst den
+-- Umbau, der genau das nachholen soll — und dann als eine von vielen
+-- Meldungen in einer Runde, in der ohnehin Rechte nachgezogen werden. Eine
+-- Falle, die man kennt und stehen laesst, ist eine gestellte Falle.
+--
+-- **Nur diese eine Spalte.** `person` traegt `telefon`, und diese Nummer IST
+-- der Anmeldeweg einer Mitarbeiterin (`app.zugang_code_anfordern`, EMP-01);
+-- `0165` begruendet ausfuehrlich, warum auf dieser Tabelle nie ein
+-- tabellenweites Recht steht. Hier gilt dasselbe in der Leserichtung.
+
+grant select (sprache) on person to cse_job;

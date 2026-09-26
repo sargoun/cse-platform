@@ -143,7 +143,7 @@ describe('die beiden Sitzungen dieser Datei', () => {
     // Dieselbe Person, aal1: `app.ist_super_admin()` ist dann falsch (0004).
     const ohne = await alsApp({
       scope: 'mandant', mandantId: f.reinigung, mandantIds: [f.reinigung],
-      benutzerId: chef, readonly: false, portal: 'intern',
+      benutzerId: chef, readonly: false, portal: 'intern', aal: 'aal1',
     }, async (tx) => tx.unsafe<{ chef: boolean }[]>(
       `select app.ist_super_admin() as chef`));
     expect(ohne[0]?.chef).toBe(false);

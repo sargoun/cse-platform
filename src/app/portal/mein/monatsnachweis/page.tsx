@@ -2,11 +2,15 @@ import { notFound } from 'next/navigation';
 import { berlinHeute } from '@/server/db/heute';
 import { FARBEN_DRUCK, FARBEN_MARKE, MASSE_DRUCK } from '@/lib/design/theme';
 import { stundenMinutenText } from '@/lib/datum/stunden';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { leseNachweis, type MiLoGNachweis } from '@/server/services/zeit/milog';
 import { leseKonten, type Stundenkonto } from '@/server/services/zeit/stundenkonto';
 import { leseEigeneAnstellungen } from '@/server/services/mitarbeiter/person';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { meinPortal } from '../rahmen';
+import Link from 'next/link';
+import { Monatswechsler } from '../bausteine';
+import { DruckKnopf } from './DruckKnopf';
 
 /**
  * `/portal/mein/monatsnachweis` — der Stundennachweis eines Monats, je
@@ -52,12 +56,26 @@ function einzeln(wert: string | string[] | undefined): string | null {
   return typeof wert === 'string' && wert !== '' ? wert : null;
 }
 
+interface Beschaeftigung {
+  readonly anstellungId: string;
+  readonly mandantName: string;
+}
+
 interface Daten {
   readonly nachweis: MiLoGNachweis;
   readonly konto: Stundenkonto | null;
   readonly mandantName: string;
   readonly personalnummer: string | null;
   readonly anstellungId: string;
+  /**
+   * ALLE eigenen Beschäftigungen — für die Wahl (V-055, D-09).
+   *
+   * Zwei Arbeitsverhältnisse sind zwei Aufzeichnungen gegen zwei Arbeitgeber.
+   * Die Seite nahm stillschweigend die erste; wer für die zweite einen
+   * Nachweis brauchte, musste `?anstellung=` mit einer UUID tippen, die
+   * nirgends stand.
+   */
+  readonly beschaeftigungen: readonly Beschaeftigung[];
 }
 
 /** `HH:MM` Berliner Ortszeit aus einem ISO-Instant — die Zone steht dabei. */
@@ -106,6 +124,9 @@ export default async function Monatsnachweis({
         mandantName: gewaehlt.mandantName,
         personalnummer: gewaehlt.personalnummer,
         anstellungId: gewaehlt.anstellungId,
+        beschaeftigungen: anstellungen.map((a) => ({
+          anstellungId: a.anstellungId, mandantName: a.mandantName,
+        })),
       };
     },
   );
@@ -192,8 +213,83 @@ export default async function Monatsnachweis({
         dir={basis.sprache === 'ar' ? 'rtl' : 'ltr'}
         data-cse="nachweis-kopfzeile"
       >
-        {t.monatsnachweis} · {t.drucken}
+        {t.monatsnachweis}
       </p>
+
+      {/*
+        * **„Drucken" war ein WORT, kein Knopf** (V-055).
+        *
+        * Die Kopfzeile schrieb „Monatsnachweis · Drucken" — eine Anleitung
+        * ohne Bedienelement. Auf einem Telefon gibt es kein Datei-Menü, und
+        * wer das Blatt für die Lohnstelle auf Papier braucht, fand hier
+        * nichts. Der Knopf trägt `cse-nicht-drucken` und steht damit nie auf
+        * dem Ausdruck selbst.
+        */}
+      <p className="cse-nicht-drucken" data-cse="nachweis-werkzeuge">
+        <DruckKnopf text={t.drucken} />
+      </p>
+
+      {/*
+        * **Die Wahl der Beschäftigung** (V-055, D-09).
+        *
+        * Zwei Arbeitsverhältnisse sind zwei Aufzeichnungen gegen zwei
+        * Arbeitgeber — sie zu addieren gäbe eine Zahl, gegen die niemand
+        * einen Anspruch hat. Die Seite nahm stillschweigend die erste; wer
+        * für die zweite einen Nachweis brauchte, musste `?anstellung=` mit
+        * einer UUID tippen, die nirgends stand.
+        *
+        * Bei EINER Beschäftigung steht hier nichts: eine Wahl mit einer
+        * Möglichkeit ist keine.
+        */}
+      {daten.beschaeftigungen.length < 2 ? null : (
+        <nav
+          aria-label={t.gesellschaft}
+          data-cse="nachweis-beschaeftigung"
+          className="cse-nicht-drucken mb-s4 flex flex-wrap items-center gap-s3"
+        >
+          {daten.beschaeftigungen.map((b) => (
+            b.anstellungId === daten.anstellungId ? (
+              <span
+                key={b.anstellungId}
+                aria-current="page"
+                className="inline-flex min-h-11 items-center rounded-md border border-line-strong bg-surface-2 px-s4 text-base font-semibold text-text"
+              >
+                {b.mandantName}
+              </span>
+            ) : (
+              <Link
+                key={b.anstellungId}
+                href={`/portal/mein/monatsnachweis?monat=${monatsErster}&anstellung=${b.anstellungId}`}
+                className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-base text-text hover:bg-surface-2"
+              >
+                {b.mandantName}
+              </Link>
+            )
+          ))}
+        </nav>
+      )}
+
+      {/*
+        * Der Monatswechsler (V-053) — auf dem Bildschirm, nie auf dem Papier.
+        *
+        * Der Nachweis ist das Blatt, das man beim Lohnstreit vorlegt; ein
+        * Bedienelement darauf waere bestenfalls sinnlos und schlimmstenfalls
+        * eine zweite Aussage neben der Aufzeichnung. `cse-nicht-drucken` ist
+        * dieselbe Klasse, die die Kopfzeile darueber verschwinden laesst.
+        *
+        * Die gewaehlte BESCHAEFTIGUNG wandert mit: wer zwei hat (D-09) und
+        * einen Monat zurueckblaettert, landete sonst wieder bei der ersten.
+        */}
+      <div className="cse-nicht-drucken">
+        <Monatswechsler
+          pfad="/portal/mein/monatsnachweis"
+          monat={monatsErster}
+          heute={heute}
+          texte={t}
+          sprache={basis.sprache}
+          zusatz={{ anstellung: daten.anstellungId }}
+        />
+      </div>
 
       <header>
         <p style={{ margin: 0, fontSize: '14pt', fontWeight: 600 }}>{daten.mandantName}</p>
@@ -239,7 +335,7 @@ export default async function Monatsnachweis({
         <tbody>
           {n.zeilen.map((z) => (
             <tr key={`${z.zeiteintragId}-${z.anteilBeginn}`}>
-              <td>{z.kalendertag}</td>
+              <td>{tagDeutsch(z.kalendertag)}</td>
               <td className="zahl">{UHR.format(new Date(z.beginn))}</td>
               <td className="zahl">{UHR.format(new Date(z.ende))}</td>
               <td className="zahl">{String(z.pauseMinuten)}</td>

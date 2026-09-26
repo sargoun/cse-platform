@@ -7,7 +7,8 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { MediumEntferntFehler, signierteMedienAdresse } from '@/server/services/zeit/medien';
 
 /**
@@ -58,7 +59,7 @@ export async function GET(
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
         return signierteMedienAdresse(
-          kontext, id, new SupabaseSpeicher(), Math.floor(Date.now() / 1000),
+          kontext, id, waehleSpeicher(), Math.floor(Date.now() / 1000),
         );
       })) as Awaited<ReturnType<typeof signierteMedienAdresse>>;
 

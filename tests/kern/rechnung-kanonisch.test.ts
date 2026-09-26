@@ -41,6 +41,10 @@ function beispiel(): RechnungVollstaendig {
       geschaeftsfuehrer: 'Sara Gouneili',
       eadresse: null,
       eadresseSchema: null,
+      /* Neu in `cse.rechnung.v3` (V-099): die Fusszeile der Gesellschaft,
+         beim Festschreiben KOPIERT statt verwiesen (K-12). */
+      fusszeile: null,
+      logo: null,
     },
     empfaenger: {
       id: '22222222-2222-2222-2222-222222222222',

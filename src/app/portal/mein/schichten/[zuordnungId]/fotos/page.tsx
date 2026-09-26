@@ -1,7 +1,7 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { StatusPill } from '@/components/ui/StatusPill';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { signierteMedienAdresse } from '@/server/services/zeit/medien';
 import { findeEigeneSchicht, type EigeneSchicht }
   from '@/server/services/mitarbeiter/schichten';
@@ -57,7 +57,7 @@ export default async function MeineSchichtfotos(
   { params }: { params: Promise<{ zuordnungId: string }> },
 ) {
   const { zuordnungId } = await params;
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
 
   const ergebnis = await meinPortal<Blatt | null>(
     `/portal/mein/schichten/${zuordnungId}/fotos`,
@@ -110,17 +110,13 @@ export default async function MeineSchichtfotos(
     + 'text-base text-text';
 
   return (
-    <MeinRahmen basis={basis} titel={t.fotos} aktiverTab="schichten">
-      <Link
-        href={`/portal/mein/schichten/${zuordnungId}`}
-        className="mb-s4 inline-block min-h-11 text-base text-text underline"
-      >
-        ← {t.schichten}
-      </Link>
+    <MeinRahmen basis={basis} titel={t.fotos} aktiverTab="schichten"
+      zurueck={{ ziel: `/portal/mein/schichten/${zuordnungId}`, text: t.schichten }}
+    >
 
       <h1 className="mb-s2 text-h1 text-text">{t.fotos}</h1>
       <p className="mb-s5 text-base text-text-muted">
-        {schicht.objekt ?? '—'} · <span className="cse-zahl">{schicht.planDatum}</span>
+        {schicht.objekt ?? '—'} · <span className="cse-zahl">{tagInSprache(schicht.planDatum, basis.sprache)}</span>
       </p>
 
       {!verbunden && (

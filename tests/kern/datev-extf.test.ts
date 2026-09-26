@@ -9,7 +9,8 @@ import { describe, expect, it } from 'vitest';
 import { nachCp1252, passtInCp1252 } from '../../src/server/services/buchhaltung/datev/cp1252.js';
 import {
   FORMAT_SPEZIFIKATIONSABGELEITET, KOPF_FELDER, SPALTEN,
-  baueKopf, baueZeile, belegdatumText, betragText, schreibeExtf, textFeld,
+  BEZEICHNUNG_HOECHSTENS, baueKopf, baueZeile, belegdatumText, betragText, schreibeExtf,
+  stapelBezeichnung, textFeld,
   ExtfFehler, type ExtfBuchung, type ExtfKopf,
 } from '../../src/server/services/buchhaltung/datev/extf.js';
 
@@ -178,7 +179,69 @@ describe('(3) ein Text zerreisst die Zeile nicht', () => {
     expect(textFeld(null, 60)).toBe('');
     expect(textFeld('', 60)).toBe('');
   });
+
+  /*
+   * V-211: erst gekürzt, dann maskiert. Die erste Fassung verdoppelte zuerst
+   * und schnitt danach; traf der Schnitt ein verdoppeltes Paar, blieb das Feld
+   * offen, und der Rest der Zeile war Buchungstext.
+   */
+  it('ein Anführungszeichen an der Längengrenze lässt das Feld nicht offen', () => {
+    const text = 'RE R-2026-00012 Wohnungsbaugenossenschaft Berlin "Am Parks"';
+    expect(Array.from(text)).toHaveLength(59);
+    const feld = textFeld(text, 60);
+    const felder = leseCsvZeile(`${feld};"H";1`);
+    expect(felder).toEqual([text, 'H', '1']);
+  });
+
+  it('der Schnitt trifft ein Anführungszeichen — das Feld bleibt geschlossen', () => {
+    // 59 Zeichen, das 60. ist ein Anführungszeichen, das 61. ein Buchstabe.
+    const text = `${'A'.repeat(59)}"B`;
+    const felder = leseCsvZeile(`${textFeld(text, 60)};"S";2`);
+    expect(felder).toEqual([`${'A'.repeat(59)}"`, 'S', '2']);
+  });
+
+  it('ein Text mit Anführungszeichen wird nicht um deren Zahl gekürzt', () => {
+    const text = 'Objekt "Mitte" und "Nord"';
+    expect(leseCsvZeile(textFeld(text, text.length))).toEqual([text]);
+  });
+
+  it('gekürzt wird in Zeichen, nicht in UTF-16-Einheiten', () => {
+    const text = `${'A'.repeat(59)}😀Z`;
+    expect(textFeld(text, 60)).toBe(`"${'A'.repeat(59)}😀"`);
+  });
+
+  it('die Stapelbezeichnung passt ganz in den Kopf und nennt das Enddatum', () => {
+    const bezeichnung = stapelBezeichnung('2026-08-01', '2026-08-31');
+    expect(bezeichnung).toBe('Stapel 01.08.2026-31.08.2026');
+    expect(Array.from(bezeichnung).length).toBeLessThanOrEqual(BEZEICHNUNG_HOECHSTENS);
+    const kopf = leseCsvZeile(baueKopf({ ...KOPF, bezeichnung }));
+    expect(kopf).toContain('Stapel 01.08.2026-31.08.2026');
+  });
 });
+
+/**
+ * Ein CSV-Leser nach RFC 4180 mit `;` — so, wie DATEV ein Feld liest: in
+ * Anführungszeichen, `""` ist ein Zeichen, das Feld endet am einzelnen `"`.
+ * Wirft, wenn am Zeilenende eine Anführung offen ist.
+ */
+function leseCsvZeile(zeile: string): string[] {
+  const felder: string[] = [];
+  let feld = '';
+  let inAnfuehrung = false;
+  for (let i = 0; i < zeile.length; i += 1) {
+    const c = zeile[i]!;
+    if (inAnfuehrung) {
+      if (c === '"' && zeile[i + 1] === '"') { feld += '"'; i += 1; }
+      else if (c === '"') inAnfuehrung = false;
+      else feld += c;
+    } else if (c === '"') inAnfuehrung = true;
+    else if (c === ';') { felder.push(feld); feld = ''; }
+    else feld += c;
+  }
+  if (inAnfuehrung) throw new Error(`offene Anführung in ${zeile}`);
+  felder.push(feld);
+  return felder;
+}
 
 describe('(4) derselbe Zeitraum zweimal ergibt identische Bytes', () => {
   it('zwei Läufe mit demselben Erzeugungszeitpunkt sind byte-gleich', () => {

@@ -5,7 +5,8 @@ import { findeRoute } from '@/server/registry/routen';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { KpiStat } from '@/components/ui/KpiStat';
 import { Icon } from '@/components/ui/Icon';
-import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import { cent, formatiereGeld, type Cent } from '@/server/services/finanz/geld';
+import { ausgabenAufwand, jeGesellschaft } from '@/server/services/buchhaltung/aufwand';
 import type { IconName } from '@/lib/design/icons';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../unterseite';
@@ -61,6 +62,13 @@ const KARTEN: readonly Karte[] = [
   { pfad: 'finanzen/rechnungen', icon: 'rechnung' },
   { pfad: 'finanzen/zahlungen', icon: 'euro' },
   { pfad: 'finanzen/eingangsrechnungen', icon: 'dokument' },
+  /*
+   * **Die Lieferantenstammdaten — sie standen hier nicht** (V-125, ein
+   * Befund in eigener Sache: die Seite entstand zwei Änderungen zuvor und
+   * bekam keinen Eingang). Ohne sie ist jede Eingangsrechnung ohne
+   * Gegenüber, und § 13b und § 48 hängen an genau diesen Zeilen.
+   */
+  { pfad: 'finanzen/lieferanten', icon: 'gruppe' },
   { pfad: 'finanzen/mahnungen', icon: 'warnung' },
   { pfad: 'finanzen/ausgangsbuch', icon: 'export' },
   { pfad: 'finanzen/ausgaben', icon: 'euro' },
@@ -87,7 +95,7 @@ export default async function Finanzuebersicht(
     return route?.bewachung.art === 'recht' ? [...route.bewachung.lesen] : [];
   }))];
 
-  const { gehalten, z } = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+  const { gehalten, z, ausgabenJahrCent } = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
       const rechte = await kontext.abfrage<{ recht: string; ok: boolean }>(
         `select r as recht, app.hat_recht(r, $2::uuid) as ok from unnest($1::text[]) as r`,
@@ -122,8 +130,19 @@ export default async function Finanzuebersicht(
                 (select count(*) from mahnung m
                   where m.status in ('entwurf', 'freigegeben'))::int as mahnungen_offen
            from heute`);
-      return { gehalten: new Set(rechte.filter((r) => r.ok).map((r) => r.recht)), z: z ?? null };
-    })) as Promise<{ gehalten: ReadonlySet<string>; z: Kennzahlen | null }>);
+      /*
+       * Die Betriebsausgaben des Jahres (V-215) — aus derselben Quelle wie
+       * Monatszahlen und Gruppe (`app.ausgaben_aufwand`, 0446). Vorher stand
+       * hier nur der Eingang, und wer den Aufwand des Jahres suchte, sah die
+       * Tankquittungen nicht.
+       */
+      const ausgaben = z === undefined ? null : jeGesellschaft(await ausgabenAufwand(
+        kontext, `${String(z.jahr)}-01-01`, `${String(z.jahr)}-12-31`)).get(mandantId);
+      return {
+        gehalten: new Set(rechte.filter((r) => r.ok).map((r) => r.recht)), z: z ?? null,
+        ausgabenJahrCent: ausgaben?.nettoCent ?? cent(0n),
+      };
+    })) as Promise<{ gehalten: ReadonlySet<string>; z: Kennzahlen | null; ausgabenJahrCent: Cent }>);
   if (z === null) throw new Error('Die Finanzuebersicht hat keine Kennzahlenzeile erhalten.');
 
   const geld = (roh: string): string => formatiereGeld(cent(BigInt(roh)));
@@ -181,6 +200,10 @@ export default async function Finanzuebersicht(
             <a href={`${basis}/eingangsrechnungen`} className="group block rounded-lg" data-cse="kachel" data-kachel="eingang-jahr">
               <KpiStat label={`${t.eingang} ${String(z.jahr)} ${t.netto} ${t.freigegebenGebucht}`} wert={geld(z.eingang_jahr_netto_cent)}
                        ton="muted" icon="export" interaktiv />
+            </a>
+            <a href={`${basis}/ausgaben?jahr=${String(z.jahr)}&aufwand=ja`} className="group block rounded-lg" data-cse="kachel" data-kachel="ausgaben-jahr">
+              <KpiStat label={`${t.ausgabenKachel} ${String(z.jahr)} ${t.netto} ${t.freigegebenGebucht}`}
+                       wert={formatiereGeld(ausgabenJahrCent)} ton="muted" icon="euro" interaktiv />
             </a>
           </>
         ) : null}

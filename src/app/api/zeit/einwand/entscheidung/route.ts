@@ -41,6 +41,31 @@ const ZULAESSIG = new Set([
 ]);
 const MINDESTLAENGE = 10;
 
+/**
+ * Zurueck auf die Seite — MIT Grund (V-052, D-562).
+ *
+ * Diese Route liest ausschliesslich `formData`; jeder Aufruf kommt also aus
+ * einem Formular. Eine 400 mit `{"fehler":"begruendung_zu_kurz"}` war deshalb
+ * immer eine weisse Seite mit einem Datenfeld — fuer einen Menschen, der
+ * gerade „Entscheiden" gedrueckt hat, und mit dem getippten Text verloren.
+ * Beide Einwandseiten fuehren eine Satztabelle fuer genau diese Gruende.
+ *
+ * Ohne `zurueck` bleibt es bei JSON: dann gibt es keine Seite, auf die man
+ * zurueckkehren koennte, und ein erfundenes Ziel waere schlimmer.
+ */
+function zurueck(
+  anfrage: NextRequest, daten: FormData, grund: string, status: number,
+): NextResponse {
+  const roh = daten.get('zurueck');
+  if (typeof roh !== 'string' || roh === '') {
+    return NextResponse.json({ fehler: grund }, { status });
+  }
+  const ziel = new URL(internesZiel(
+    roh, `/portal/${String(daten.get('mandant') ?? '')}/zeiten/einwaende`, anfrage));
+  ziel.searchParams.set('fehler', grund);
+  return NextResponse.redirect(ziel, 303);
+}
+
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
     return NextResponse.json({ fehler: 'fremder_ursprung' }, { status: 403 });
@@ -56,16 +81,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const begruendung = daten.get('begruendung');
 
   if (typeof id !== 'string' || id === '') {
-    return NextResponse.json({ fehler: 'kein_einwand' }, { status: 400 });
+    return zurueck(anfrage, daten, 'kein_einwand', 400);
   }
   if (typeof status !== 'string' || !ZULAESSIG.has(status)) {
-    return NextResponse.json({ fehler: 'unbekannter_status' }, { status: 400 });
+    return zurueck(anfrage, daten, 'unbekannter_status', 400);
   }
   const text = typeof begruendung === 'string' ? begruendung.trim() : '';
   if (MIT_BEGRUENDUNG.has(status) && text.length < MINDESTLAENGE) {
-    return NextResponse.json(
-      { fehler: 'begruendung_zu_kurz', mindestens: MINDESTLAENGE }, { status: 400 },
-    );
+    return zurueck(anfrage, daten, 'begruendung_zu_kurz', 400);
   }
 
   try {
@@ -96,10 +119,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       }));
   } catch (fehler) {
     if (fehler instanceof EinwandNichtGefundenFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
+      return zurueck(anfrage, daten, 'nicht_gefunden', 404);
     }
     if (fehler instanceof EinwandBereitsEntschiedenFehler) {
-      return NextResponse.json({ fehler: 'bereits_entschieden' }, { status: 409 });
+      return zurueck(anfrage, daten, 'bereits_entschieden', 409);
     }
     /*
      * EMP-07, und der Fall endete vorher in einem ungefangenen 500.
@@ -112,7 +135,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      * Dienst; dieser Zweig ist die Uebersetzung.
      */
     if (fehler instanceof EinwandEigenerFehler) {
-      return NextResponse.json({ fehler: 'eigener_einwand' }, { status: 409 });
+      return zurueck(anfrage, daten, 'eigener_einwand', 409);
     }
     // AUT-06: fehlendes Recht sieht von aussen aus wie eine fehlende Zeile.
     if (fehler instanceof NichtGefundenFehler) {

@@ -10,13 +10,14 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
-import { SupabaseSpeicher } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { formatiereBytes, KATEGORIE } from '../../darstellung';
 import { FEHLERTEXT } from './daten';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/dokumente/[id]/kundenfreigabe` — der Schalter
@@ -76,7 +77,7 @@ export default async function Dokumentfreigabe(
 
   if (daten === null) notFound();
   const { stand, zugriffe } = daten;
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
   const nurLesen = zugang.sitzung.ansicht === 'gruppe';
   const ohneKunde = stand.kunde_id === null;
 
@@ -88,21 +89,13 @@ export default async function Dokumentfreigabe(
       nurLesen={nurLesen}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="dokumente"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['dokument.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/dokumente/${id}`, text: stand.titel } }
+        : {})}
     >
-      {darf['dokument.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/dokumente/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← {stand.titel}
-          </Link>
-        </nav>
-      )}
-
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">Kundenfreigabe</h1>
         <StatusPill zustand={stand.sichtbar_fuer_kunde ? 'Aktiv' : 'Inaktiv'} />
@@ -111,7 +104,7 @@ export default async function Dokumentfreigabe(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="freigabe-fehler" className="mb-s5">
           <strong>Der Schalter wurde nicht umgelegt.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 

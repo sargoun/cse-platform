@@ -9,7 +9,8 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
-import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { legeMediumAb, MedienFehler, MEDIEN_MAX_BYTES } from '@/server/services/zeit/medien';
 import {
   AufmassFehler, ZeilenFehler, erfasseAufmass, hefteFotoAn,
@@ -138,7 +139,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   // scheitern, liegt hoechstens ein Objekt zu viel im Bucket, nie eine Zeile
   // ohne Datei.
   const dateien = formular.getAll('fotos').filter((d): d is File => d instanceof File);
-  const speicher = new SupabaseSpeicher();
+  const speicher = waehleSpeicher();
   const ablagen: {
     readonly medienId: string;
     readonly ablage: Awaited<ReturnType<typeof legeMediumAb>>;

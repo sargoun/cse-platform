@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -19,6 +18,8 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../kennung';
 import { FEHLERTEXT, PILLE } from '../daten';
 import { PositionsFelder } from './PositionsFelder';
+import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/leistungskatalog/[id]` — eine Fassung mit ihrem
@@ -92,19 +93,11 @@ export default async function Katalogfassung(
       nurLesen={archiviert || zugang.sitzung.ansicht === 'gruppe'}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
-      aktiverTab="mehr"
+      aktiverTab="leistungskatalog"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      zurueck={{ ziel: `/portal/${mandant}/leistungskatalog`, text: 'Alle Fassungen' }}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/leistungskatalog`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Alle Fassungen
-        </Link>
-      </nav>
-
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{kopf.bezeichnung}</h1>
         <StatusPill zustand={PILLE[kopf.status] ?? 'Entwurf'} />
@@ -121,7 +114,7 @@ export default async function Katalogfassung(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="katalog-fehler" className="mb-s5">
           <strong>Nichts wurde gespeichert.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 
@@ -473,7 +466,7 @@ export default async function Katalogfassung(
       ) : archiviert ? null : (
         <p data-cse="nur-lesen" className="mt-s6 text-sm text-text-muted">
           Sie sehen diese Fassung, ändern sie aber nicht: dafür verlangt die
-          Plattform <code className="text-text">katalog.schreiben</code>.
+          Plattform <Recht schluessel="katalog.schreiben" />.
         </p>
       )}
     </PortalRahmen>

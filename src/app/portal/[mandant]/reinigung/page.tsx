@@ -14,6 +14,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { mandantTor, MandantAntwort } from '../../unterseite';
 import { ladeReinigungKopf, type ReinigungKopf } from '@/server/services/reinigung/uebersicht';
 import { lesbareRegel } from '@/lib/datum/regeltext';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/reinigung` — der Modulkopf der Gebäudereinigung
@@ -132,6 +133,29 @@ export default async function ReinigungKopfSeite(
         />
       </div>
 
+      {/*
+        * ═══════════════════════════════════════════════════════════════════
+        * **Die Sprungzeile — und warum sie neu ist** (V-125).
+        * ═══════════════════════════════════════════════════════════════════
+        *
+        * `/reinigung/sonderleistungen` war gebaut, bewacht und im Manifest
+        * geführt — und **von keiner Seite aus erreichbar**. Glas-, Sonder- und
+        * Grundreinigung sind das, was neben dem Turnus separat beauftragt und
+        * separat abgerechnet wird; ohne Eingang gibt es sie für den Betrieb
+        * nicht. Sie steht unter demselben `reinigung.lesen` wie dieses Blatt,
+        * also braucht der Verweis keinen eigenen Wächter (AUT-06).
+        */}
+      <p className="mb-s6 flex flex-wrap gap-s4 text-sm">
+        <Link
+          href={`/portal/${mandant}/reinigung/sonderleistungen`}
+          data-cse="zu-sonderleistungen"
+          className="inline-flex min-h-11 items-center rounded-md border border-line-strong
+                     px-s4 py-s2 text-text no-underline hover:bg-surface-2"
+        >
+          Sonderleistungen
+        </Link>
+      </p>
+
       {/* --- Liste 1: die Schichten des Berliner Kalendertages -------------- */}
       <section className="mb-s6" data-cse="reinigung-heute">
         <div className="mb-s4 flex flex-wrap items-baseline justify-between gap-s3">
@@ -204,7 +228,7 @@ export default async function ReinigungKopfSeite(
         {kopf.offeneNachweise === null ? (
           <Hinweis art="hinweis" cse="nachweise-ungeprueft" className="max-w-prose">
             <strong>Nicht geprüft.</strong> Leistungsnachweise liegen hinter dem
-            Recht <code>nachweis.lesen</code>, das dieses Konto hier nicht hält.
+            Recht <Recht schluessel="nachweis.lesen" />, das dieses Konto hier nicht hält.
           </Hinweis>
         ) : kopf.offeneNachweise.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
@@ -257,7 +281,7 @@ export default async function ReinigungKopfSeite(
         {kopf.stehendeSerien === null && (
           <Hinweis art="hinweis" cse="serien-ungeprueft" className="mb-s4 max-w-prose">
             <strong>Der Generatorstand ist nicht geprüft.</strong> Er steht in
-            der Planungsserie, und die liegt hinter <code>dienstplan.lesen</code>.
+            der Planungsserie, und die liegt hinter <Recht schluessel="dienstplan.lesen" />.
             Die Regeln selbst stehen unten — ob daraus Schichten entstanden
             sind, sagt diese Ansicht nicht.
           </Hinweis>

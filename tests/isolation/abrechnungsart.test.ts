@@ -863,6 +863,8 @@ describe('(3) Einheitspreis nach Aufmaß', () => {
             }),
             periode: { von: '2026-08-01', bis: '2026-08-31' },
             aufmassIds: [blatt],
+            // Das Aufmaß sperrt sich über seine Summe (0107) — keine Liste nötig (V-207).
+            bisher: [],
           });
           return { ergebnis: vorschau, fehler: null };
         } catch (e) { return { ergebnis: vorschau, fehler: e }; }

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import {
   BESTAETIGUNGSTEXT, bereiteUnterschriftVor, type Unterschriftsvorschau,
 } from '@/server/services/reinigung/leistungsnachweis';
@@ -47,8 +48,16 @@ export const dynamic = 'force-dynamic';
 interface Blatt {
   readonly schicht: EigeneSchicht;
   readonly nachweise: readonly SchichtNachweis[];
-  /** Die Vorschau des EINEN vorgelegten Nachweises — oder `null`. */
+  /** Die Vorschau des gewählten vorgelegten Nachweises — oder `null`. */
   readonly vorschau: Unterschriftsvorschau | null;
+  /**
+   * Die offenen Nachweise dieser Schicht (V-058).
+   *
+   * Sind es zwei, war das Blatt bis hierher eine Sackgasse: `vorschau` blieb
+   * `null`, und die Seite zeigte darauf das ANLEGEFORMULAR — jeder weitere
+   * Klick ein dritter vorgelegter Nachweis. Jetzt steht eine Wahl da.
+   */
+  readonly offene: readonly SchichtNachweis[];
 }
 
 function nachweisPille(n: SchichtNachweis): PillZustand {
@@ -62,16 +71,50 @@ function nachweisPille(n: SchichtNachweis): PillZustand {
   }
 }
 
+/** Drei Zeilen stehen ohne Zutun da, höchstens zwanzig sind erreichbar (V-059). */
+const ZEILEN_VORGABE = 3;
+const ZEILEN_MAX = 20;
+const ZEILEN_SCHRITT = 3;
+
 export default async function MeinLeistungsnachweis(
-  { params }: { params: Promise<{ zuordnungId: string }> },
+  { params, searchParams }: {
+    params: Promise<{ zuordnungId: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { zuordnungId } = await params;
+  const suche = await searchParams;
+  /*
+   * Die Wahl kommt aus der Adresse und wird gegen die OFFENE LISTE geprüft,
+   * nie geglaubt: eine fremde Kennung ergibt keine Vorschau, kein 403 und
+   * keinen Fehler — sie fällt einfach aus der Wahl (AUT-06).
+   */
+  const gewaehlt = typeof suche['nachweis'] === 'string' ? suche['nachweis'] : null;
+  /*
+   * **Wie viele Positionszeilen das Formular zeigt** (V-059).
+   *
+   * Es waren genau drei, fest verdrahtet in Seite UND Route, und es gab
+   * keinen Knopf „Zeile hinzufügen". Ein Leistungsnachweis mit vier
+   * Positionen liess sich damit nicht erfassen — bei einer Grundreinigung mit
+   * Glas, Sanitär, Boden und Sonderfläche ist das der Regelfall und nicht die
+   * Ausnahme.
+   *
+   * Der Wert wird hier gezwungen und in der Route ein zweites Mal begrenzt:
+   * ein Formular ist das, was ankommt.
+   */
+  const zeilenRoh = Number(typeof suche['zeilen'] === 'string' ? suche['zeilen'] : '');
+  const zeilenZahl = Number.isInteger(zeilenRoh) && zeilenRoh > 0
+    ? Math.min(zeilenRoh, ZEILEN_MAX) : ZEILEN_VORGABE;
+  const mehrZeilen = Math.min(zeilenZahl + ZEILEN_SCHRITT, ZEILEN_MAX);
+
   const ergebnis = await meinPortal<Blatt | null>(
     `/portal/mein/schichten/${zuordnungId}/leistungsnachweis`,
     async (kontext) => {
       const schicht = await findeEigeneSchicht(kontext, zuordnungId);
       if (schicht === null) return null;
-      if (schicht.objektId === null) return { schicht, nachweise: [], vorschau: null };
+      if (schicht.objektId === null) {
+        return { schicht, nachweise: [], vorschau: null, offene: [] };
+      }
 
       const nachweise = await listeSchichtNachweise(kontext, {
         objektId: schicht.objektId,
@@ -98,17 +141,32 @@ export default async function MeinLeistungsnachweis(
        * die Fehlerseite — und nicht ein Formular, das etwas anderes tut, als
        * sie glaubt.
        */
-      const vorschau = offen.length === 1 && offen[0] !== undefined
-        ? await bereiteUnterschriftVor(kontext, offen[0].id)
-        : null;
-      return { schicht, nachweise, vorschau };
+      /*
+       * **Bei ZWEI offenen Nachweisen wählt der Mensch** (V-058). Bis hierher
+       * stand hier „genau EIN vorgelegter Nachweis bekommt das
+       * Unterschriftsblatt; gäbe es zwei, steht nur die Liste da" — und was
+       * darunter tatsächlich stand, war das Anlegeformular: die Seite bot als
+       * Ausweg aus „zu viele" das Anlegen eines weiteren an.
+       *
+       * Die Frage „welcher wird jetzt unterschrieben" kann der Bildschirm
+       * wirklich nicht beantworten. Der Mensch davor kann es — er hat die
+       * Schicht gearbeitet. Also fragt die Seite ihn, statt zu raten oder zu
+       * schweigen.
+       */
+      const ziel = offen.length === 1
+        ? offen[0]
+        : offen.find((n) => n.id === gewaehlt);
+      const vorschau = ziel === undefined
+        ? null
+        : await bereiteUnterschriftVor(kontext, ziel.id);
+      return { schicht, nachweise, vorschau, offene: offen };
     },
   );
   if (ergebnis.art === 'anmeldung') return <AnmeldungNoetig />;
   if (ergebnis.daten === null) notFound();
 
   const { basis } = ergebnis;
-  const { schicht, nachweise, vorschau } = ergebnis.daten;
+  const { schicht, nachweise, vorschau, offene } = ergebnis.daten;
   const t = basis.texte;
   /*
    * Mit der Minute des Schichtendes schliesst die Erfassung, und die Seite
@@ -127,20 +185,16 @@ export default async function MeinLeistungsnachweis(
   const eingabe =
     'min-h-11 w-full rounded-md border border-line-strong bg-surface px-s3 py-s2 '
     + 'text-base text-text';
-  const ZEILEN = [0, 1, 2];
+  const ZEILEN = Array.from({ length: zeilenZahl }, (_, i) => i);
 
   return (
-    <MeinRahmen basis={basis} titel={t.leistungsnachweis} aktiverTab="schichten">
-      <Link
-        href={`/portal/mein/schichten/${zuordnungId}`}
-        className="mb-s4 inline-block min-h-11 text-base text-text underline"
-      >
-        ← {t.schichten}
-      </Link>
+    <MeinRahmen basis={basis} titel={t.leistungsnachweis} aktiverTab="schichten"
+      zurueck={{ ziel: `/portal/mein/schichten/${zuordnungId}`, text: t.schichten }}
+    >
 
       <h1 className="mb-s2 text-h1 text-text">{t.leistungsnachweis}</h1>
       <p className="mb-s5 text-base text-text-muted">
-        {schicht.objekt ?? '—'} · <span className="cse-zahl">{schicht.planDatum}</span>
+        {schicht.objekt ?? '—'} · <span className="cse-zahl">{tagInSprache(schicht.planDatum, basis.sprache)}</span>
       </p>
 
       {schicht.objektId === null ? <Leer text={t.keineEintraege} /> : (
@@ -163,7 +217,7 @@ export default async function MeinLeistungsnachweis(
                     </div>
                     <Felder>
                       <Feld label={t.leistungszeitraum}>
-                        <span className="cse-zahl">{n.von} – {n.bis}</span>
+                        <span className="cse-zahl">{tagInSprache(n.von, basis.sprache)} – {tagInSprache(n.bis, basis.sprache)}</span>
                       </Feld>
                       <Feld label={t.positionen}>
                         <span className="cse-zahl">{n.positionen}</span>
@@ -186,7 +240,43 @@ export default async function MeinLeistungsnachweis(
             )}
           </section>
 
-          {vorschau === null ? (
+          {/*
+            **Zwei offene Nachweise sind eine Wahl, kein Anlass zum Anlegen**
+            (V-058). Vorher fiel dieser Fall in den `vorschau === null`-Zweig
+            und bekam das Anlegeformular — der Ausweg aus „zu viele" war ein
+            weiterer.
+          */}
+          {vorschau === null && offene.length > 1 ? (
+            <section data-cse="nachweis-wahl">
+              <h2 className="mb-s3 text-h2 text-text">{t.mehrereOffen}</h2>
+              <p className="mb-s4 max-w-prose text-base text-text-muted">
+                {t.mehrereOffenHinweis}
+              </p>
+              <ul className="m-0 flex list-none flex-col gap-s3 p-0">
+                {offene.map((n) => (
+                  <li key={n.id} data-cse="nachweis-wahl-zeile"
+                      className="rounded-lg border border-line bg-surface">
+                    <Link
+                      href={`/portal/mein/schichten/${zuordnungId}/leistungsnachweis?nachweis=${n.id}`}
+                      className="block p-s4 no-underline hover:bg-surface-2"
+                    >
+                      <Felder>
+                        <Feld label={t.leistungszeitraum}>
+                          <span className="cse-zahl">{tagInSprache(n.von, basis.sprache)} – {tagInSprache(n.bis, basis.sprache)}</span>
+                        </Feld>
+                        <Feld label={t.positionen}>
+                          <span className="cse-zahl">{n.positionen}</span>
+                        </Feld>
+                      </Felder>
+                      <span className="mt-s3 block text-base text-text underline">
+                        {t.diesenUnterschreiben}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : vorschau === null ? (
             <section data-cse="nachweis-formular">
               <h2 className="mb-s3 text-h2 text-text">{t.entwurfAnlegen}</h2>
               {sperre !== null ? <Hinweis text={sperre} marke="erfassung-zu" /> : (
@@ -204,6 +294,7 @@ export default async function MeinLeistungsnachweis(
                   name="zurueck"
                   value={`/portal/mein/schichten/${zuordnungId}/leistungsnachweis`}
                 />
+                <input type="hidden" name="zeilen" value={String(zeilenZahl)} />
                 {ZEILEN.map((i) => (
                   <fieldset
                     key={i}
@@ -247,6 +338,23 @@ export default async function MeinLeistungsnachweis(
                     </div>
                   </fieldset>
                 ))}
+                {/*
+                  * **Mehr Zeilen** (V-059) — ohne Javascript, also über die
+                  * Adresse. Der Satz daneben sagt, dass Getipptes dabei
+                  * verloren geht: ein Verweis, der still löscht, ist eine
+                  * Falle, und auf einem Diensttelefon tippt man langsam.
+                  */}
+                {zeilenZahl < ZEILEN_MAX ? (
+                  <p className="m-0 text-base text-text-muted">
+                    <Link
+                      href={`/portal/mein/schichten/${zuordnungId}/leistungsnachweis?zeilen=${String(mehrZeilen)}`}
+                      data-cse="mehr-zeilen"
+                      className="underline underline-offset-2"
+                    >
+                      {t.mehrZeilen}
+                    </Link>{' — '}{t.mehrZeilenHinweis}
+                  </p>
+                ) : null}
                 <button
                   type="submit"
                   className="inline-flex min-h-11 items-center justify-center rounded-md bg-brand
@@ -267,7 +375,7 @@ export default async function MeinLeistungsnachweis(
                 <Felder>
                   <Feld label={t.leistungszeitraum}>
                     <span className="cse-zahl">
-                      {vorschau.kopf.leistungszeitraumVon} – {vorschau.kopf.leistungszeitraumBis}
+                      {tagInSprache(vorschau.kopf.leistungszeitraumVon, basis.sprache)} – {tagInSprache(vorschau.kopf.leistungszeitraumBis, basis.sprache)}
                     </span>
                   </Feld>
                   <Feld label={t.objekt}>{vorschau.kopf.objekt ?? '—'}</Feld>

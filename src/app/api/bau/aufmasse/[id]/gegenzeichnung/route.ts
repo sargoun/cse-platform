@@ -81,6 +81,15 @@ export async function POST(
           vorbehalt: feld('vorbehalt') === '' ? null : feld('vorbehalt'),
           signaturMedienId: feld('unterschrift_medien_id') === ''
             ? null : feld('unterschrift_medien_id'),
+          /*
+           * **V-093** — die einseitige Feststellung nach § 14 Abs. 2 VOB/B.
+           * Vorgabe bleibt `auftraggeber`: die gemeinsame Feststellung ist
+           * der Regelfall, und jeder bisherige Aufrufer meint sie.
+           */
+          rolle: feld('rolle') === 'auftragnehmer' ? 'auftragnehmer' : 'auftraggeber',
+          ankuendigungAm: feld('ankuendigung_am') === ''
+            ? null : feld('ankuendigung_am'),
+          anstellungId: feld('anstellung') === '' ? null : feld('anstellung'),
         });
       }))) as { readonly status: string; readonly hash: string };
   } catch (fehler: unknown) {

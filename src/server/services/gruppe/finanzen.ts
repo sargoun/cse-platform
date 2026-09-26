@@ -2,20 +2,25 @@ import type { LeseKontext } from '../../kontext/index.js';
 import { cent, type Cent } from '../finanz/geld.js';
 import { MONATSNAMEN } from '../../../lib/datum/kalendertag.js';
 import { rechteJeBereich } from './uebersicht.js';
+import { ausgabenAufwand, jeGesellschaft } from '../buchhaltung/aufwand.js';
 
 /**
  * Finanzen ueber die Gruppe (FIN-17, REP-01): je Gesellschaft und je Monat,
  * was fakturiert und was eingegangen ist — netto, in Cent, aus der Datenbank.
  *
  * **Das ist keine Gewinn-und-Verlust-Rechnung, und die Seite sagt das.**
- * „Saldo" ist die Differenz aus festgeschriebenen Ausgangsrechnungen und
- * freigegebenen oder gebuchten Eingangsrechnungen. Personal, Abschreibung,
+ * „Saldo" ist die Differenz aus festgeschriebenen Ausgangsrechnungen und dem
+ * Aufwand: freigegebene oder gebuchte Eingangsrechnungen UND Betriebsausgaben
+ * (V-215, D-706 — vorher fehlten die Ausgaben, und der Saldo war um jede
+ * gebuchte Tankquittung zu hoch). Personal, Abschreibung,
  * Steuern, Abgrenzung fehlen — den Jahresabschluss macht der Steuerberater
  * (CLAUDE.md, „Out of scope"). Eine Zahl, die „Gewinn" hiesse, waere hier eine
  * erfundene Geschaeftsregel.
  *
  * **Drei Rechte, drei Spalten.** `rechnung` steht unter `gruppe.finanzen.lesen`,
- * `eingangsrechnung` unter `gruppe.eingang.lesen`, `offener_posten` unter
+ * `eingangsrechnung` und `ausgabe` unter `gruppe.eingang.lesen` (die Ausgaben
+ * über `app.ausgaben_aufwand`, 0446, damit die Erstattungen mitzählen, die die
+ * Gruppendecke als Zeilen ausblendet), `offener_posten` unter
  * `gruppe.zahlung.lesen` (Policies `t_gruppe`). Fehlt eines davon in einem
  * Bereich, bleibt die Spalte dort `null` — der Saldo auch, denn eine Differenz
  * aus einer Zahl und einem Strich ist keine Zahl.
@@ -34,6 +39,11 @@ export interface BereichFinanzen {
   readonly rechnungen: number | null;
   readonly eingangCent: Cent | null;
   readonly eingangsrechnungen: number | null;
+  /** Betriebsausgaben netto (V-215) — unter demselben Recht wie der Eingang. */
+  readonly ausgabenCent: Cent | null;
+  readonly ausgaben: number | null;
+  /** Eingangsrechnungen + Betriebsausgaben. */
+  readonly aufwandCent: Cent | null;
   readonly saldoCent: Cent | null;
   readonly forderungenOffenCent: Cent | null;
   readonly verbindlichkeitenOffenCent: Cent | null;
@@ -52,9 +62,14 @@ export interface GruppenFinanzen {
   readonly bereiche: readonly BereichFinanzen[];
   readonly fakturiertJeMonat: readonly MonatsZeile[];
   readonly eingangJeMonat: readonly MonatsZeile[];
+  readonly ausgabenJeMonat: readonly MonatsZeile[];
+  /** Eingangsrechnungen + Betriebsausgaben je Monat — die Grundlage des Ergebnisses. */
+  readonly aufwandJeMonat: readonly MonatsZeile[];
   readonly summe: {
     readonly fakturiertCent: Cent;
     readonly eingangCent: Cent;
+    readonly ausgabenCent: Cent;
+    readonly aufwandCent: Cent;
     readonly saldoCent: Cent | null;
     readonly forderungenOffenCent: Cent;
     readonly verbindlichkeitenOffenCent: Cent;
@@ -99,6 +114,23 @@ function monatsMatrix(
   return monate;
 }
 
+/**
+ * Zwei Monatsmatrizen derselben Form Zelle für Zelle addiert — `null` bleibt
+ * `null`, wenn eine der beiden Zellen `null` ist (das Recht fehlt).
+ */
+export function summiereMatrizen(
+  a: readonly MonatsZeile[], b: readonly MonatsZeile[],
+): readonly MonatsZeile[] {
+  return a.map((zeile, i) => {
+    const andere = b[i];
+    const werte = zeile.werte.map((w, j) => {
+      const v = andere?.werte[j] ?? null;
+      return w === null || v === null ? null : cent(w + v);
+    });
+    return { monat: zeile.monat, label: zeile.label, werte, summe: summeCent(werte) };
+  });
+}
+
 export async function gruppenFinanzen(kontext: LeseKontext, jahr: number): Promise<GruppenFinanzen> {
   if (!Number.isInteger(jahr) || jahr < 2000 || jahr > 2100) {
     throw new RangeError(`Kein Geschaeftsjahr: ${String(jahr)}`);
@@ -131,9 +163,19 @@ export async function gruppenFinanzen(kontext: LeseKontext, jahr: number): Promi
     [jahr],
   );
 
+  /*
+   * Die Betriebsausgaben des Kalenderjahrs, je Gesellschaft und Monat —
+   * dieselbe Quelle wie die Monatszahlen im Bereich (V-215).
+   */
+  const ausgabenZeilen = await ausgabenAufwand(kontext, `${String(jahr)}-01-01`, `${String(jahr)}-12-31`);
+  const ausgabenJe = jeGesellschaft(ausgabenZeilen);
+
   const bereiche: BereichFinanzen[] = roh.map((z) => {
     const fakturiert = darf(z.mandant_id, FINANZEN_RECHTE.rechnungen) ? cent(BigInt(z.fakturiert_cent)) : null;
-    const eingang = darf(z.mandant_id, FINANZEN_RECHTE.eingang) ? cent(BigInt(z.eingang_cent)) : null;
+    const eingangsrecht = darf(z.mandant_id, FINANZEN_RECHTE.eingang);
+    const eingang = eingangsrecht ? cent(BigInt(z.eingang_cent)) : null;
+    const ausgaben = eingangsrecht ? ausgabenJe.get(z.mandant_id) ?? { nettoCent: cent(0n), anzahl: 0 } : null;
+    const aufwand = eingang === null || ausgaben === null ? null : cent(eingang + ausgaben.nettoCent);
     const posten = darf(z.mandant_id, FINANZEN_RECHTE.posten);
     return {
       mandantId: z.mandant_id,
@@ -143,7 +185,10 @@ export async function gruppenFinanzen(kontext: LeseKontext, jahr: number): Promi
       rechnungen: fakturiert === null ? null : z.rechnungen,
       eingangCent: eingang,
       eingangsrechnungen: eingang === null ? null : z.eingangsrechnungen,
-      saldoCent: fakturiert === null || eingang === null ? null : cent(fakturiert - eingang),
+      ausgabenCent: ausgaben?.nettoCent ?? null,
+      ausgaben: ausgaben?.anzahl ?? null,
+      aufwandCent: aufwand,
+      saldoCent: fakturiert === null || aufwand === null ? null : cent(fakturiert - aufwand),
       forderungenOffenCent: posten ? cent(BigInt(z.forderungen_cent)) : null,
       verbindlichkeitenOffenCent: posten ? cent(BigInt(z.verbindlichkeiten_cent)) : null,
     };
@@ -170,19 +215,31 @@ export async function gruppenFinanzen(kontext: LeseKontext, jahr: number): Promi
 
   const fakturiertCent = summeCent(bereiche.map((b) => b.fakturiertCent));
   const eingangCent = summeCent(bereiche.map((b) => b.eingangCent));
+  const ausgabenCent = summeCent(bereiche.map((b) => b.ausgabenCent));
+  const aufwandCent = summeCent(bereiche.map((b) => b.aufwandCent));
   const alleSaldi = bereiche.every((b) => b.saldoCent !== null);
+  const ausgabenMonate: MonatRoh[] = ausgabenZeilen.map((a) => ({
+    mandant_id: a.mandantId, monat: Number(a.monat.slice(5, 7)), summe_cent: a.nettoCent.toString(),
+  }));
+  const eingangJeMonat = monatsMatrix(eingangMonate, bereiche,
+    (id) => darf(id, FINANZEN_RECHTE.eingang));
+  const ausgabenJeMonat = monatsMatrix(ausgabenMonate, bereiche,
+    (id) => darf(id, FINANZEN_RECHTE.eingang));
   return {
     jahr,
     bereiche,
     fakturiertJeMonat: monatsMatrix(fakturiertMonate, bereiche,
       (id) => darf(id, FINANZEN_RECHTE.rechnungen)),
-    eingangJeMonat: monatsMatrix(eingangMonate, bereiche,
-      (id) => darf(id, FINANZEN_RECHTE.eingang)),
+    eingangJeMonat,
+    ausgabenJeMonat,
+    aufwandJeMonat: summiereMatrizen(eingangJeMonat, ausgabenJeMonat),
     summe: {
       fakturiertCent,
       eingangCent,
+      ausgabenCent,
+      aufwandCent,
       // Ein Gruppensaldo aus unvollstaendigen Spalten waere eine falsche Zahl.
-      saldoCent: alleSaldi && bereiche.length > 0 ? cent(fakturiertCent - eingangCent) : null,
+      saldoCent: alleSaldi && bereiche.length > 0 ? cent(fakturiertCent - aufwandCent) : null,
       forderungenOffenCent: summeCent(bereiche.map((b) => b.forderungenOffenCent)),
       verbindlichkeitenOffenCent: summeCent(bereiche.map((b) => b.verbindlichkeitenOffenCent)),
     },

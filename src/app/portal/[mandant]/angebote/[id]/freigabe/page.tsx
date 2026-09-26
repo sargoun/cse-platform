@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import { prozentText } from '@/server/services/finanz/prozent';
+import { lebendeLeistungenZahl, steuerJeSatzVorVersand } from '@/server/services/angebot/lebend';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
@@ -13,6 +15,8 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { alsProzent, FEHLERTEXT, type Kopf, type SteuerZeile } from './daten';
+import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/angebote/[id]/freigabe` — die Preisfreigabe (OPS-08).
@@ -78,8 +82,7 @@ export default async function Preisfreigabe(
                 fb.name as freigegeben_von,
                 to_char(a.versendet_am at time zone 'Europe/Berlin',
                         'DD.MM.YYYY HH24:MI') as versendet_am,
-                (select count(*) from angebotsposition p
-                  where p.angebot_id = a.id and p.typ = 'leistung')::text as positionen,
+                ${lebendeLeistungenZahl('a')}::text as positionen,
                 k.id as kalkulation_id,
                 k.stundenverrechnungssatz_cent::text as satz_cent,
                 k.gemeinkosten_basis::text as gemeinkosten_basis,
@@ -105,14 +108,7 @@ export default async function Preisfreigabe(
            left join kalkulation_platzhalter kp on kp.angebot_id = a.id
           where a.id = $1`, [id]);
       if (kopf === undefined) return null;
-      const steuer = await kontext.abfrage<SteuerZeile>(
-        `select steuersatz_bp, steuer_kennzeichen::text as steuer_kennzeichen,
-                sum(gesamtpreis_cent)::text as netto_cent,
-                count(*)::text as zeilen
-           from angebotsposition
-          where angebot_id = $1 and typ = 'leistung'
-          group by steuersatz_bp, steuer_kennzeichen
-          order by steuersatz_bp`, [id]);
+      const steuer: readonly SteuerZeile[] = await steuerJeSatzVorVersand(kontext, id);
       return { kopf, steuer };
     })) as Promise<{ kopf: Kopf; steuer: readonly SteuerZeile[] } | null>);
 
@@ -146,18 +142,10 @@ export default async function Preisfreigabe(
       aktiverTab="angebote"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
+      {...(darf['angebot.lesen'] === true
+        ? { zurueck: { ziel: `/portal/${mandant}/angebote/${id}`, text: 'Zum Angebot' } }
+        : {})}
     >
-      {darf['angebot.lesen'] === true && (
-        <nav aria-label="Zurück" className="mb-s3">
-          <Link
-            href={`/portal/${mandant}/angebote/${id}`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            ← Zum Angebot
-          </Link>
-        </nav>
-      )}
-
       <div className="mb-s4 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">Preisfreigabe</h1>
         <StatusPill zustand={schonFrei ? 'Bereit' : offen ? 'Wartet' : 'In Prüfung'} />
@@ -166,15 +154,15 @@ export default async function Preisfreigabe(
       <p className="mb-s5 max-w-[72ch] text-base text-text-muted">
         Die Freigabe verantwortet den <strong>Preis</strong> — nicht den Versand.
         Das sind zwei Entscheidungen mit zwei Rechten: wer freigibt, hält{' '}
-        <code className="text-text">angebot.preis_freigeben</code>, wer versendet,{' '}
-        <code className="text-text">angebot.versenden</code>. Erst beides, dann
+        <Recht schluessel="angebot.preis_freigeben" />, wer versendet,{' '}
+        <Recht schluessel="angebot.versenden" />. Erst beides, dann
         geht das Angebot hinaus.
       </p>
 
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="freigabe-fehler" className="mb-s5">
           <strong>Die Freigabe ist nicht erfolgt.</strong>{' '}
-          {FEHLERTEXT[fehler] ?? 'Der Vorgang wurde abgewiesen.'}
+          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 
@@ -226,7 +214,7 @@ export default async function Preisfreigabe(
           spalten={[
             {
               schluessel: 'satz', kopf: 'Steuersatz', numerisch: true,
-              zelle: (z) => `${(z.steuersatz_bp / 100).toLocaleString('de-DE')} %`,
+              zelle: (z) => prozentText(z.steuersatz_bp),
             },
             {
               schluessel: 'kz', kopf: 'Kennzeichen',
@@ -258,7 +246,7 @@ export default async function Preisfreigabe(
         {sichtFehlt ? (
           <Hinweis art="warnung" cse="kalkulation-verdeckt">
             <strong>Der Kalkulationsstand ist Ihnen nicht sichtbar.</strong> Ihnen
-            fehlt <code className="text-text">kalkulation.lesen</code>; die
+            fehlt <Recht schluessel="kalkulation.lesen" />; die
             Datenbank antwortet deshalb mit nichts, und das heißt hier
             ausdrücklich <em>nicht</em> „alles bestätigt". Die Freigabe bleibt
             gesperrt, weil sich ihre Voraussetzung von hier aus nicht prüfen lässt.

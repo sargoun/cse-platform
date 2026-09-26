@@ -28,9 +28,16 @@ test.describe('Gruppenansicht', () => {
     // Ein Super-Admin haelt jedes Recht: kein Strich in der Matrix.
     await expect(page.locator('[data-cse="gruppe-matrix"] [data-cse="tabelle"] [data-cse="kein-recht"]'))
       .toHaveCount(0);
-    // Die Reinigung hat Auftraege im Seed — die Zahl ist ein Verweis auf die Liste.
+    // Die Reinigung hat Auftraege im Seed — die Zahl ist ein Verweis auf die Liste,
+    // MIT dem Stand, den sie zählt (V-150, V-152, DSH-04).
     const reinigung = matrix.filter({ has: page.locator('[data-bereich="reinigung"]') });
-    await expect(reinigung.locator('a[href="/portal/gruppe/auftraege?bereich=reinigung"]')).toBeVisible();
+    await expect(reinigung.locator('a[href="/portal/gruppe/auftraege?status=aktiv&bereich=reinigung"]'))
+      .toBeVisible();
+    await expect(reinigung.locator('a[href="/portal/gruppe/leads?status=neu&bereich=reinigung"]'))
+      .toBeVisible();
+    // Und die Summe darüber ebenso — sie zählt dieselbe Menge.
+    await expect(page.locator('[data-cse="gruppe-summen"] a[href="/portal/gruppe/auftraege?status=aktiv"]'))
+      .toBeVisible();
 
     // Kein Formular im Inhalt — die Gruppenansicht kennt keine Handlung.
     await expect(page.locator('main form')).toHaveCount(0);

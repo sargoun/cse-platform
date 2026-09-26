@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
@@ -72,6 +71,7 @@ export default async function WebsiteSeite(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/website/seiten`, text: 'Seiten' }}
       titel={seite.titel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -83,12 +83,6 @@ export default async function WebsiteSeite(
     >
       <WebsiteSpruenge mandant={mandant} zweig="seiten"
                        sitzung={zugang.sitzung} />
-      <p className="mb-s3 text-sm">
-        <Link href={`/portal/${mandant}/website/seiten`}
-              className="text-text-muted underline-offset-2 hover:underline">
-          ← Seiten
-        </Link>
-      </p>
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{seite.titel}</h1>
         <span>

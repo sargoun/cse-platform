@@ -76,6 +76,25 @@ export function internSprache(portal: PortalSprache | null | undefined): InternS
 export const INTERN_BESCHRIFTUNGEN:
 Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
   de: {
+    /* Die sieben Gruppen der Leiste (DESIGN-PLAN §4, D-616). Arbeitsbegriffe
+       der Gewerke, keine Modulnamen: „Geld" steht ueber dem Rechnungskreis,
+       weil danach gesucht wird — „Abrechnung" waere richtiger und wuerde
+       seltener gefunden.
+
+       **Das Praefix heisst `leiste.` und nicht `gruppe.`, und das ist kein
+       Geschmack.** `gruppe` IST ein Modul (§7.4), und der Rechte-Scanner
+       liest jedes `'<modul>.<wort>'` als Rechteschluessel: `'gruppe.heute'`
+       meldete K-19 prompt als „Schluessel ohne Katalogzeile". Dieselbe Falle
+       umgehen die Huellenschluessel oben schon seit langem — `sitzung.label`,
+       `pfad.label`, `sprache.label` tragen alle ein Praefix, das kein Modul
+       ist. */
+    'leiste.heute': 'Heute',
+    'leiste.kunden': 'Kunden & Aufträge',
+    'leiste.einsatz': 'Einsatz',
+    'leiste.personal': 'Personal',
+    'leiste.geld': 'Geld',
+    'leiste.aussen': 'Aussenauftritt',
+    'leiste.werkzeuge': 'Werkzeuge',
     dashboard: 'Übersicht',
     crm: 'CRM',
     objekte: 'Objekte',
@@ -111,6 +130,7 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
     einstellungen: 'Einstellungen',
     uebersicht: 'Übersicht',
     finanzen: 'Finanzen',
+    buchhaltung: 'Buchhaltung',
     'offene-posten': 'Offene Posten',
     kunden: 'Kunden',
     leads: 'Leads',
@@ -120,6 +140,7 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
     berichte: 'Berichte',
     protokoll: 'Protokoll',
     radar: 'Radar',
+    datenschutz: 'Datenschutz',
     mehr: 'Mehr',
     'sitzung.label': 'Sitzung',
     'sitzung.bereich': 'Bereich wechseln',
@@ -130,6 +151,13 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
     'sprache.label': 'Sprache',
   },
   en: {
+    'leiste.heute': 'Today',
+    'leiste.kunden': 'Customers & orders',
+    'leiste.einsatz': 'Operations',
+    'leiste.personal': 'People',
+    'leiste.geld': 'Money',
+    'leiste.aussen': 'Public presence',
+    'leiste.werkzeuge': 'Tools',
     dashboard: 'Overview',
     crm: 'CRM',
     /*
@@ -185,6 +213,7 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
     einstellungen: 'Settings',
     uebersicht: 'Overview',
     finanzen: 'Finance',
+    buchhaltung: 'Buchhaltung (bookkeeping)',
     'offene-posten': 'Open items',
     kunden: 'Customers',
     leads: 'Leads',
@@ -194,6 +223,12 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
     berichte: 'Reports',
     protokoll: 'Audit log',
     radar: 'Radar',
+    /*
+     * `Datenschutz` bleibt stehen: es ist der Titel des Postfachs nach
+     * Art. 12–22 DSGVO und der Name, unter dem das Haus die Akte fuehrt.
+     * „Data protection" waere naeher am Wort und weiter vom Vorgang.
+     */
+    datenschutz: 'Datenschutz (data protection)',
     mehr: 'More',
     'sitzung.label': 'Session',
     'sitzung.bereich': 'Switch area',

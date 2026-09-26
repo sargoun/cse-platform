@@ -1,5 +1,4 @@
 import type postgres from 'postgres';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -154,6 +153,7 @@ export default async function NeueEingangsrechnung(
 
   return (
     <PortalRahmen
+      zurueck={{ ziel: `/portal/${mandant}/finanzen/eingangsrechnungen`, text: t.titel }}
       titel={t.erfassenTitel}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
@@ -163,14 +163,6 @@ export default async function NeueEingangsrechnung(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label={g.zurueck} className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/finanzen/eingangsrechnungen`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {t.titel}
-        </Link>
-      </nav>
 
       <h1 className="mb-s5 text-h1 text-text">{t.erfassenTitel}</h1>
 
