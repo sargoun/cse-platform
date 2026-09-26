@@ -441,6 +441,18 @@ describe('(5) ein echter Programmfehler bleibt laut', () => {
  */
 describe('(9) der Demoentwurf ist fertig, nicht halb', () => {
   it('kein Lauf eines der vier Agenten lässt einen Platzhalter stehen', async () => {
+    /*
+     * **Der Akquise-Agent braucht eine offene Anfrage** (V-230, D-724): ohne
+     * sie gibt es keinen Entwurf mehr (`KeineOffeneAnfrage`), statt eines an
+     * „die anfragende Stelle". Diese hier lässt die Bedarfsbeschreibung leer —
+     * dann trägt der Entwurf den Lückensatz, und auch er darf keinen
+     * Platzhalter stehen lassen.
+     */
+    await sql.unsafe(
+      `insert into lead (mandant_id, leadnummer, quelle, firma_name, betreff, status,
+                         besitzer_benutzer_id)
+       values ($1, $2, 'manuell', 'Platzhalter GmbH', 'Glasreinigung', 'neu', $3)`,
+      [f.reinigung, `L-${zufall()}`, benutzer]);
     for (const agent of ['ceo_assistent', 'akquise', 'backoffice', 'finanzen']) {
       await schalteAgentEin(agent);
       const auftrag = ENTWURF_AUFTRAEGE[agent];

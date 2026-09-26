@@ -3362,6 +3362,7 @@ Beantworten helfen:
 | O-890 | **Muss ein von der Verwaltung geschlossener Zeiteintrag gegengezeichnet werden, bevor er abrechenbar ist?** `zeiteintrag_status` führt seit `0034` den Wert `offen_nacherfassung`, und **nichts im Baum schreibt ihn**. Er wäre der ehrliche Zustand für „von der Planung gesetzt, aber noch nicht bestätigt" — nur beschreibt kein Dokument, **wer** ihn wieder wegnimmt und was bis dahin gilt: zählt die Stunde ins Stundenkonto? Steht sie im Monatsnachweis? Darf sie abgerechnet werden? Ein Eintrag in einem Zustand, aus dem kein Weg herausführt, ist schlimmer als keiner. Gebaut ist deshalb der Weg, der am wenigsten erfindet: `schliesseLaufendenEintrag` schliesst nach `abgeschlossen`, und die Spur bleibt vollständig (`quelle_ende = 'planer_entscheidung'`, `nacherfasst = true`, `behauptet_ende`, Begründung in `notiz`). Das Recht `zeit.nacherfassung_pruefen` existiert bereits — sobald die Antwort da ist, ist die Umkehr **eine Zeile** im Dienst plus ein Filter auf der Prüfseite. | TIM-11, V-064, `drizzle/0034`, `src/server/services/zeit/laufender-eintrag.ts` |
 | O-889 | **Soll eine Benachrichtigung in der Sprache der Empfängerin entstehen (`person.sprache`) oder in der Sprache der Gesellschaft, die sie versendet?** `benachrichtigung` trägt **gespeicherten** Text: Titel und Text entstehen beim Erzeugen und stehen danach fest — eine Meldung, deren Sprache sich später ändert, gibt es nicht. **Ausgeliefert ist seit V-102 die Sprache der EMPFÄNGERIN**, und der Grund ist der Zweck der Meldung: sie soll gelesen werden. Eine Ablaufwarnung kündigt eine Sperre nach § 34a GewO an; wer sie nicht lesen kann, erscheint zur Schicht und wird weggeschickt. Betroffen sind **genau die drei Arten, die in `/portal/mein` landen** (`nachweis.ablauf_60/30/7`, `zeit.einwand_entschieden`, `dienstplan.plan_veroeffentlicht`); alle übrigen bleiben deutsch, weil das interne Portal deutsch ist und seine Begriffe juristische Bedeutung tragen — `tests/kern/benachrichtigung-sprachen.test.ts` §5 hält diesen Umfang fest. **Eingesetzter Text wird NICHT übersetzt**: die Bezeichnung einer Qualifikation, die Begründung der Planung, der Name der Gesellschaft — sie zu übersetzen hiesse, sie zu erfinden. Übersetzt wird dagegen, was die Plattform selbst formuliert, bis hin zur Fügung zwischen zwei Kalendertagen. **Offen bleibt die Bestätigung**: sagt der Auftraggeber, es solle die Sprache der Gesellschaft sein, ist die Änderung eine Zeile je Erzeuger — die Sprache steht als `sprache` im `BenachrichtigungsKontext` und nicht in den Texten. | NOT-01, NOT-02, SPEC §10, D-419, V-102, `src/lib/i18n/benachrichtigung.ts`, `src/server/benachrichtigung/registry.ts` |
 | O-888 | **Kodiert die Tausenderstelle der Objektnummer die Gesellschaft?** Der Bestand legt es nahe: die Reinigung führt `OBJ-1001 … OBJ-1003`, SSE Security `OBJ-2001`, REALTIME Bau `OBJ-3001` (`src/server/db/seed/operations.ts`). Ist das eine Hausregel oder ein Zufall der Demo-Daten? **Die Plattform erfindet dazu nichts**: `legeObjektAn` zählt aus dem Bestand DIESER Gesellschaft weiter und übernimmt damit von selbst, was dort schon gilt — ohne die Regel je auszusprechen. Nur der allererste Fall, eine Gesellschaft ohne ein einziges Objekt, hat keinen Bestand; dort steht `OBJ-1001` als **klar bezeichneter Platzhalter**. Das Feld ist im Formular von Hand überschreibbar, damit niemand an der Vorgabe hängenbleibt. Sagt der Auftraggeber eine Maske zu, ist die Änderung **eine Zeile** im Dienst. | OPS-01, V-001, `src/server/services/objekt/anlegen.ts` |
+| O-940 | **Welche Angaben braucht jede Gesellschaft, um auf eine Anfrage ein verbindliches Angebot rechnen zu können — und welche davon soll der Antwortentwurf des Akquise-Agenten nachfragen?** Heute nennt der Entwurf als Lücke jedes Feld des EIGENEN Anfrageformulars der Gesellschaft, das der Anfragende leer gelassen hat, ausser Häkchen, Freitext und Datei (`KEINE_LUECKE`), bei einer von Hand erfassten Anfrage nur eine fehlende Bedarfsbeschreibung; ist nichts leer, entfällt der Satz. Welche Angabe für ein Angebot tatsächlich nötig ist (Reinigung: Fläche, Turnus, Objektart? Security: Kräftezahl, Einsatzzeit? Bau: Leistungsverzeichnis?), ist eine fachliche Regel der Gesellschaften und wird hier nicht erfunden. | §17 Acquisition Agent, D-724, V-230, `src/server/services/lead/einsendung.ts` (`anfrageLuecken`), `src/server/agent/auftraege.ts` |
 
 
 ### D-619 — Ein Objekt entsteht in der Anwendung, nicht im Seed
@@ -19806,4 +19807,49 @@ standen nur die Knopf-Läufe.
    `agent.protokoll_lesen`).
 
 | Betrifft | AGT-01, AGT-04, AGT-07, D-599, D-722, V-229, `src/server/services/agent/assistent.ts`, `src/app/api/agenten/assistent/route.ts`, `src/app/portal/[mandant]/agenten/assistent/page.tsx`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts`, `tests/isolation/agent-assistent.test.ts` |
+|---|---|
+
+### D-724 · Der Akquise-Entwurf nennt nur Lücken, die in der Anfrage leer sind, und keine interne Zahl (V-230)
+
+**Der Befund** (Audit Befund 58, §17 „names gaps", Invariante 6/7): der
+einzige Lauf des Akquise-Agenten antwortete auf die jüngste Anfrage — ohne
+Statusfilter, also auch auf eine längst gewonnene oder verlorene. Die Lücke,
+die der Entwurf dem Kunden nannte, war fest verdrahtet („Für ein verbindliches
+Angebot fehlt uns noch die Angabe zur Personenzahl") und stand in jeder
+Antwort, auch bei Reinigung und Bau. Und der Satz „derzeit bearbeiten wir N
+Anfragen" legte einem Interessenten das interne Auftragsvolumen offen.
+
+**Die Entscheidung.**
+
+1. **Nur eine offene Anfrage:** die jüngste in `neu` oder `in_bearbeitung`
+   (nicht archiviert). `angebot` hat seine Antwort schon bekommen, die
+   Ausgänge brauchen keine. Gibt es keine, gibt es keinen Lauf
+   (`KeineOffeneAnfrage`): die Laufroute legt keine Aufgabe an und leitet mit
+   `KEINE_ANFRAGE` auf das Agentenblatt, das Vorschaltblatt sagt es statt der
+   Tatsachen.
+2. **Die Lücke kommt aus den Daten** (`anfrageLuecken`,
+   `services/lead/einsendung.ts`): die Beschriftungen der Felder des
+   Anfrageformulars, die in `formular_eingang.daten` leer sind, in der
+   Reihenfolge des Formulars — ohne Häkchen (ein nicht gesetztes ist eine
+   Antwort), Freitext (Zusatz, keine Bedarfsangabe) und Datei (steht in der
+   Ablage, nicht in `daten`). Bei einer von Hand erfassten Anfrage ist die
+   einzige Angabe, deren Fehlen die Daten zeigen, die Bedarfsbeschreibung.
+   Welche Angaben eine Gesellschaft für ein verbindliches Angebot wirklich
+   braucht, ist eine fachliche Regel und offen (O-940).
+3. **Ist nichts leer, entfällt der Satz.** Die Demovorlage trägt ihn als
+   optionalen Baustein `[[…]]`: fehlt eine seiner Tatsachen, verschwindet der
+   ganze Satz (`fuelle`, `modell/demo.ts`). Ausserhalb von `[[…]]` bleibt ein
+   Platzhalter ohne Tatsache sichtbar stehen, wie bisher. Der Satz heisst
+   jetzt „Für die weitere Bearbeitung fehlen uns aus Ihrer Anfrage noch
+   folgende Angaben: …" — er behauptet nicht mehr, was für ein verbindliches
+   Angebot nötig ist (O-940).
+4. **Keine interne Zahl:** `offene_anfragen` ist keine Tatsache des
+   Akquise-Entwurfs mehr, und `zusammenfassung` nennt kein Volumen. Die
+   Startseite braucht die Zahl nicht; sie steht in den Berichten (REP-02).
+5. **Der Seed zeigt den Fall ohne Lücke:** seine jüngste offene Anfrage ist
+   von Hand erfasst und vollständig beschrieben (Webanfragen legt der Seed
+   bewusst nicht an, siehe `seed/operations.ts`), der Demoentwurf nennt also
+   keine erfundene Lücke. Die Fälle mit Lücke prüfen die Tests.
+
+| Betrifft | §17, AGT-07, Invariante 6, Invariante 7, O-940, V-230, `src/server/agent/{auftraege.ts,modell/demo.ts}`, `src/server/services/lead/einsendung.ts`, `src/app/api/agenten/lauf/route.ts`, `src/app/portal/[mandant]/agenten/[agent]/{page,start/page}.tsx`, `tests/kern/akquise-entwurf.test.ts`, `tests/isolation/{akquise-tatsachen,agent-lauf}.test.ts` |
 |---|---|

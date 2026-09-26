@@ -10,7 +10,9 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { mikrocentNachCent } from '@/server/agent/kosten';
-import { ENTWURF_AUFTRAEGE, fuelleTatsachen } from '@/server/agent/auftraege';
+import {
+  ENTWURF_AUFTRAEGE, KeineOffeneAnfrage, fuelleTatsachen,
+} from '@/server/agent/auftraege';
 import { VORGANG_LABEL } from '../../../freigaben/darstellung';
 import type { VorgangTyp } from '@/server/services/freigabe/posteingang';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -85,8 +87,7 @@ const TATSACHE_LABEL: Readonly<Record<string, string>> = {
   empfaenger: 'Empfänger der Anfrage',
   datum: 'Eingang der Anfrage',
   betreff: 'Betreff der Anfrage',
-  offene_anfragen: 'Offene Anfragen',
-  offen: 'Was im Entwurf offen bleibt',
+  offen: 'Angaben, die in der Anfrage fehlen',
   ohne_unterschrift: 'Leistungsnachweise ohne Unterschrift',
   nachweise_gesamt: 'Leistungsnachweise insgesamt',
   ueberfaellige_forderungen: 'Überfällige Forderungen',
@@ -160,8 +161,17 @@ export default async function AgentStart(
        * meint. Zwei Abfragen liefen auseinander, und dann stünde auf dem
        * Vorschaltblatt eine andere Zahl als im Entwurf.
        */
-      const tatsachen = await fuelleTatsachen(
-        { abfrage: kontext.abfrage.bind(kontext) }, kennung);
+      /*
+       * Ohne offene Anfrage hat der Akquise-Agent nichts zu beantworten
+       * (V-230): das Blatt sagt es, statt mit einem Fehler abzubrechen.
+       */
+      let tatsachen: Readonly<Record<string, string>> | null;
+      try {
+        tatsachen = await fuelleTatsachen({ abfrage: kontext.abfrage.bind(kontext) }, kennung);
+      } catch (fehler) {
+        if (!(fehler instanceof KeineOffeneAnfrage)) throw fehler;
+        tatsachen = null;
+      }
 
       return {
         kopf, tatsachen,
@@ -178,7 +188,7 @@ export default async function AgentStart(
       };
     })) as Promise<{
       kopf: AgentKopf;
-      tatsachen: Readonly<Record<string, string>>;
+      tatsachen: Readonly<Record<string, string>> | null;
       modell: string | null;
       anbieter: string | null;
       budget: BudgetStand | null;
@@ -292,7 +302,13 @@ export default async function AgentStart(
           dazugekommen ist. Das Datum kommt von der Serveruhr
           (<code className="text-xs">app.berlin_heute()</code>), nie aus dem Browser.
         </p>
-        {Object.keys(tatsachen).length === 0 ? (
+        {tatsachen === null ? (
+          <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted"
+             data-cse="start-keine-anfrage">
+            Es gibt keine offene Anfrage (neu oder in Bearbeitung), auf die ein Entwurf
+            antworten könnte. Ein Lauf entstünde deshalb nicht — er schriebe an niemanden.
+          </p>
+        ) : Object.keys(tatsachen).length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
             Für diesen Agenten füllt <code className="text-xs">fuelleTatsachen()</code>
             {' '}keine Werte. Ein Platzhalter ohne Tatsache bleibt im Entwurf STEHEN und

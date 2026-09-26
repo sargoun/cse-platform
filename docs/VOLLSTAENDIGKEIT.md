@@ -429,6 +429,8 @@ stehen hier, weil ein Befund ohne Nummer ein Befund ist, den niemand wiederfinde
 
 | V-229 | **Fragen an den CEO-Assistenten hinterliessen keine Spur — weder Aufgabe noch Schritt** — die Seite rief `suche_bestand` in einer Lesetransaktion auf; `starteAufgabe`/`protokolliereSchritt`/`beendeAufgabe` rief nur der Orchestrator | Audit Befund 59; `agenten/assistent/page.tsx`, `agent/laufzeit.ts` | behindert | **erledigt** (D-723) — Katalogkarten sind Formulare an `POST /api/agenten/assistent` (`agent.aufgabe_starten`); `beantworteFrage` legt Aufgabe und Schritt an (Werkzeug, Eingabe, Ausgabe, kein Modell, null Kosten, Dauer), idempotent je Formular; abgewiesene Fragen stehen mit Grund im Protokoll; die Seite zeigt die Antwort der protokollierten Aufgabe; `tests/isolation/agent-assistent.test.ts` |
 
+| V-230 | **Der Akquise-Entwurf nannte eine erfundene Lücke („Personenzahl“) und verriet der anfragenden Firma interne Anfragezahlen** — `fuelleTatsachen` wählte die jüngste Anfrage ohne Statusfilter, schrieb fest `offen: 'die Angabe zur Personenzahl'` und „derzeit bearbeiten wir N Anfragen“ in den Text an den Kunden | Audit Befund 58; `agent/auftraege.ts`, `agent/modell/demo.ts` | falsch | **erledigt** (D-724, O-940) — nur offene Anfragen (`neu`, `in_bearbeitung`), sonst kein Lauf (`KeineOffeneAnfrage`, Laufroute und Vorschaltblatt sagen es); Lücken aus den leeren Formularfeldern (`anfrageLuecken`), ohne Lücke entfällt der Satz (`[[…]]` in der Demovorlage); keine interne Zahl; `tests/kern/akquise-entwurf.test.ts`, `tests/isolation/akquise-tatsachen.test.ts`, `tests/isolation/agent-lauf.test.ts` (9) |
+
 ---
 
 ## 9. Was geprüft und **widerlegt** wurde

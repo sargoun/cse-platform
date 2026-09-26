@@ -1,5 +1,7 @@
 import 'server-only';
 import type { VorgangTyp } from '../services/freigabe/posteingang.js';
+import { anfrageLuecken, lueckenText } from '../services/lead/einsendung.js';
+import { Felder } from '../../lib/formular/schema.js';
 
 /**
  * **Was ein Agent formulieren darf — die Liste, nicht der Rumpf der Anfrage.**
@@ -74,6 +76,21 @@ export const ENTWURF_AUFTRAEGE: Readonly<Record<string, EntwurfAuftrag>> = {
   },
 };
 
+/**
+ * Der Akquise-Agent findet keine offene Anfrage — es gibt nichts zu
+ * beantworten, und ein Entwurf „an die anfragende Stelle" wäre einer an
+ * niemanden (V-230). Die Laufroute und das Vorschaltblatt sagen das, statt
+ * einen Lauf zu starten.
+ */
+export class KeineOffeneAnfrage extends Error {
+  readonly code = 'KEINE_ANFRAGE' as const;
+  constructor() {
+    super('Es gibt keine offene Anfrage (neu oder in Bearbeitung), auf die ein Entwurf '
+      + 'antworten könnte.');
+    this.name = 'KeineOffeneAnfrage';
+  }
+}
+
 export interface Leser {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
 }
@@ -133,28 +150,56 @@ export async function fuelleTatsachen(
   }
 
   if (agent === 'akquise') {
+    /*
+     * **Nur eine OFFENE Anfrage, nur ihre eigenen Lücken, keine interne Zahl**
+     * (V-230, D-724).
+     *
+     * Vorher: die jüngste Anfrage ohne Statusfilter (auch eine längst
+     * gewonnene oder verlorene), die Zahl der laufenden Anfragen im Text an
+     * den Interessenten — das interne Auftragsvolumen — und als Lücke fest
+     * eine Personenzahl, egal was die Anfrage enthielt.
+     *
+     * Jetzt: die jüngste Anfrage in `neu` oder `in_bearbeitung` (eine im Stand
+     * `angebot` hat ihre Antwort schon bekommen), und als Lücke nur, was ihr
+     * Formular leer lässt (`anfrageLuecken`). Ohne Formular (von Hand erfasst,
+     * Radar, Empfehlung) ist die einzige Angabe, deren Fehlen die Daten
+     * zeigen, die Beschreibung des Bedarfs. Liest diese Sitzung das Formular
+     * nicht (RLS), wird keine Lücke genannt — lieber keine als eine erfundene.
+     */
     const [z] = await db.abfrage<{
-      firma: string | null; eingang: string | null; betreff: string | null; offen: string;
+      firma: string | null; eingang: string | null; betreff: string | null;
+      bedarf: string | null; mit_formular: boolean;
+      daten: Record<string, unknown> | null; felder: unknown;
     }>(
       `select l.firma_name as firma,
               to_char(l.erstellt_am at time zone 'Europe/Berlin', 'DD.MM.YYYY') as eingang,
-              l.betreff,
-              (select count(*) from lead
-                where status in ('neu','in_bearbeitung','angebot'))::text as offen
+              l.betreff, l.bedarf_zusammenfassung as bedarf,
+              (l.formular_eingang_id is not null) as mit_formular,
+              fe.daten, fd.felder
          from lead l
+         left join formular_eingang fe
+                on fe.mandant_id = l.mandant_id and fe.id = l.formular_eingang_id
+         left join formular_definition fd
+                on fd.mandant_id = fe.mandant_id and fd.id = fe.formular_definition_id
+        where l.status in ('neu', 'in_bearbeitung')
+          and l.archiviert_am is null
         order by l.erstellt_am desc
         limit 1`);
-    const betreff = z?.betreff ?? 'die eingegangene Anfrage';
-    const offene = z?.offen ?? '0';
+    if (z === undefined) throw new KeineOffeneAnfrage();
+
+    const felder = Felder.safeParse(z.felder);
+    const luecken = z.mit_formular
+      ? (felder.success && z.daten !== null ? anfrageLuecken(felder.data, z.daten) : [])
+      : (z.bedarf === null || z.bedarf.trim() === '' ? ['eine Beschreibung Ihres Bedarfs'] : []);
+    const offen = lueckenText(luecken);
+    const betreff = z.betreff ?? 'Ihre Anfrage';
     return {
       stand,
-      empfaenger: z?.firma ?? 'die anfragende Stelle',
-      datum: z?.eingang ?? stand,
+      empfaenger: z.firma ?? 'die anfragende Stelle',
+      datum: z.eingang ?? stand,
       betreff,
-      offene_anfragen: offene,
-      zusammenfassung: `Ihr Anliegen „${betreff}" ist bei uns aufgenommen; `
-        + `derzeit bearbeiten wir ${offene} Anfragen.`,
-      offen: 'die Angabe zur Personenzahl',
+      zusammenfassung: `Ihr Anliegen „${betreff}" ist bei uns aufgenommen.`,
+      ...(offen === null ? {} : { offen }),
     };
   }
 

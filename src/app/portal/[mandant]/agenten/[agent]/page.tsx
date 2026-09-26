@@ -290,6 +290,9 @@ export default async function AgentDetail(
                 {laufCode === 'RESIDENCY_BLOCKED'
                   ? 'Für das Formulieren ist kein Modell mit EU-Verarbeitung und '
                     + 'Nullspeicherung freigegeben (§8, D-04). Die Arbeit läuft von Hand weiter.'
+                  : laufCode === 'KEINE_ANFRAGE'
+                    ? 'Es gibt keine offene Anfrage, auf die ein Entwurf antworten könnte — '
+                      + 'es ist nichts entstanden.'
                   : `Der Modellaufruf endete mit „${laufCode ?? 'unbekannt'}". `
                     + 'Der Vorgang steht im Agentenzentrum.'}
             </>
