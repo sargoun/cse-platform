@@ -72,7 +72,7 @@ export default async function MeinBautagebuch(
   const { zuordnungId } = await params;
   const ergebnis = await meinPortal<Blatt | null>(
     `/portal/mein/schichten/${zuordnungId}/bautagebuch`,
-    async (kontext) => {
+    async (kontext, { sprache }) => {
       const schicht = await findeEigeneSchicht(kontext, zuordnungId);
       if (schicht === null) return null;
       const leer = {
@@ -99,13 +99,18 @@ export default async function MeinBautagebuch(
        * statt einer Meldung.
        */
       const bezug = await findeSchichtBezug(kontext, zuordnungId);
-      const gewerke = bezug === null ? [] : await listeGewerke(kontext, bezug.mandantId);
+      /*
+       * V-185 (EMP-12): der Gewerkname in der Sprache DIESES Bildschirms —
+       * die Übersetzung aus dem Katalog, ohne sie der deutsche Name. Die
+       * Pflegeseite verspricht das; gelesen hat es bis dahin kein Weg.
+       */
+      const gewerke = bezug === null ? [] : await listeGewerke(kontext, bezug.mandantId, sprache);
       if (tag === null) return { ...leer, gewerke };
 
       return {
         schicht,
         tag,
-        mannstunden: await leseMannstunden(kontext, tag.id),
+        mannstunden: await leseMannstunden(kontext, tag.id, sprache),
         positionen: await lesePositionen(kontext, tag.id),
         fotos: await leseTagesfotos(kontext, tag.id),
         abgleich: await gleicheMannstundenAb(kontext, tag.id),

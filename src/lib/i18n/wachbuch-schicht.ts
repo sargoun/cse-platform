@@ -10,6 +10,10 @@
  *
  * `Wachbuch` bleibt im Deutschen stehen, wo es ein Eigenname der Pflicht nach
  * § 34a GewO ist; im Arabischen und Türkischen wird erklärt, nicht ersetzt.
+ *
+ * **Der Rückfall für einen unbekannten Grund wiederholt nicht die
+ * Überschrift** (`abgewiesen`) — die Seite setzt beide nebeneinander. Er sagt,
+ * was die Wache jetzt tun kann (V-180).
  */
 import type { PortalSprache } from './texte.js';
 
@@ -54,7 +58,7 @@ export const WACHBUCH_SCHICHT_TEXTE: Readonly<Record<PortalSprache, WachbuchSchi
       foto_bereinigung: 'Aus einem Foto ließen sich die Ortsdaten nicht entfernen, deshalb wurde nichts gespeichert.',
       speicher_nicht_verbunden: 'Der Medienspeicher ist nicht verbunden — bitte ohne Foto senden.',
     },
-    fehlerUnbekannt: 'Der Eintrag wurde nicht geschrieben.',
+    fehlerUnbekannt: 'Bitte noch einmal senden. Bleibt es dabei, der Einsatzleitung Bescheid geben.',
   },
   en: {
     schluessel: 'Key',
@@ -83,7 +87,7 @@ export const WACHBUCH_SCHICHT_TEXTE: Readonly<Record<PortalSprache, WachbuchSchi
       foto_bereinigung: 'Location data could not be removed from a photo, so nothing was saved.',
       speicher_nicht_verbunden: 'The media storage is not connected — please send without a photo.',
     },
-    fehlerUnbekannt: 'The entry was not written.',
+    fehlerUnbekannt: 'Please send it again. If it happens again, tell the dispatcher.',
   },
   ar: {
     schluessel: 'المفتاح',
@@ -112,7 +116,7 @@ export const WACHBUCH_SCHICHT_TEXTE: Readonly<Record<PortalSprache, WachbuchSchi
       foto_bereinigung: 'تعذّر حذف بيانات الموقع من إحدى الصور، لذلك لم يُحفظ شيء.',
       speicher_nicht_verbunden: 'مخزن الوسائط غير متصل — يرجى الإرسال بدون صورة.',
     },
-    fehlerUnbekannt: 'لم تتم كتابة القيد.',
+    fehlerUnbekannt: 'يرجى الإرسال مرة أخرى. إذا تكرر ذلك، أبلغ إدارة العمليات.',
   },
   tr: {
     schluessel: 'Anahtar',
@@ -141,6 +145,6 @@ export const WACHBUCH_SCHICHT_TEXTE: Readonly<Record<PortalSprache, WachbuchSchi
       foto_bereinigung: 'Bir fotoğraftan konum verileri silinemedi, bu yüzden hiçbir şey kaydedilmedi.',
       speicher_nicht_verbunden: 'Medya deposu bağlı değil — lütfen fotoğrafsız gönderin.',
     },
-    fehlerUnbekannt: 'Kayıt yazılmadı.',
+    fehlerUnbekannt: 'Lütfen tekrar gönderin. Tekrarlanırsa operasyon yönetimine haber verin.',
   },
 };

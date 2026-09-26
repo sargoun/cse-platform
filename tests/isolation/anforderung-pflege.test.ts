@@ -12,6 +12,15 @@
  * Schichten ihres Bereichs nach — eine schon eingeteilte Wache ohne Nachweis
  * steht danach als „falsch gemischt" im Plan —, eine begonnene Schicht bleibt
  * bei dem, was damals verlangt war (V-129).
+ *
+ * **Nachgeschaerft nach der Pruefung der Gruppe** (V-179): „ohne Recht
+ * schreibt die Datenbank nicht" lief als Leitung MIT `security.schreiben` und
+ * scheiterte nur an `readonly` — es prueft jetzt eine Rolle, die das Recht
+ * wirklich nicht haelt, neben einer Gegenprobe mit ihm; der „fremde Posten"
+ * war die Null-Kennung, jetzt ist es der Posten einer anderen Gesellschaft,
+ * mit Grund und Status; und der Weg ueber die Veranstaltung samt den drei
+ * uebrigen Zweigen des Nachzugs (Veranstaltung, Objekt, Gesellschaft) stand in
+ * keiner Zeile (4).
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
@@ -22,6 +31,7 @@ import {
 } from '../../src/server/services/security/anforderung.js';
 import { besetzeEinsatz } from '../../src/server/services/dienstplan/einteilung.js';
 import { QualifikationFehlt } from '../../src/server/services/nachweis/tor.js';
+import { erzeugeVeranstaltungsschicht } from '../../src/server/services/security/eventbesetzung.js';
 
 let f: Fixtur;
 let chef = '';
@@ -100,6 +110,33 @@ async function schicht(
      returning id`,
     [f.security, `anf:${zufall()}`, TAG, objektId, kundeId, postenId]);
   return e!.id;
+}
+
+/** Eine Veranstaltung am `TAG`, mit Objekt oder — ein Veranstaltungsort als Text — ohne. */
+async function veranstaltung(kundeId: string, objektId: string | null): Promise<string> {
+  const [v] = await sql.unsafe<{ id: string }[]>(
+    `insert into veranstaltung (mandant_id, objekt_id, veranstaltungsort_text, kunde_id,
+                                bezeichnung, beginn, ende, soll_besetzung, erstellt_von_art)
+     values ($1,$2,$3,$4,'Werksfest',
+             (select zeitpunkt from app.loese_ortszeit($5::date,'18:00','Europe/Berlin')),
+             (select zeitpunkt from app.loese_ortszeit($5::date + 1,'02:00','Europe/Berlin')),
+             1,'system')
+     returning id`,
+    [f.security, objektId, objektId === null ? 'Festwiese Nord' : null, kundeId, TAG]);
+  return v!.id;
+}
+
+/** Eine Rolle DIESER Gesellschaft mit genau diesen Rechten. */
+async function rolleMit(rechte: readonly string[]): Promise<string> {
+  const [r] = await sql.unsafe<{ id: string }[]>(
+    `insert into rolle (mandant_id, schluessel, bezeichnung, geltungsbereich, portal)
+     values ($1, $2, $2, 'mandant', 'intern') returning id`,
+    [f.security, `anf_${zufall()}`]);
+  await sql.unsafe(
+    `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+     select $1, b.id, $2, true from berechtigung b where b.schluessel = any($3::text[])`,
+    [r!.id, f.security, [...rechte]]);
+  return r!.id;
 }
 
 async function qualifikation(): Promise<string> {
@@ -244,13 +281,54 @@ describe('(2) was abgewiesen wird — mit einem Grund', () => {
   });
 
   it('ein fremder Posten ist nicht vorhanden, nicht verboten (AUT-06)', async () => {
+    /*
+     * Ein ECHTER Posten einer anderen Gesellschaft — nicht die Null-Kennung,
+     * die es nirgends gibt: die Frage ist, ob die Grenze des Mandanten traegt.
+     */
+    const [k] = await sql.unsafe<{ id: string }[]>(
+      `insert into kunde (mandant_id, kundennummer, name) values ($1, $2, 'Fremdkunde')
+       returning id`, [f.reinigung, `K-${zufall()}`]);
+    const [o] = await sql.unsafe<{ id: string }[]>(
+      `insert into objekt (mandant_id, kunde_id, objektnummer, bezeichnung, strasse, plz, ort)
+       values ($1, $2, $3, 'Fremdobjekt', 'Teststr. 9', '10115', 'Berlin') returning id`,
+      [f.reinigung, k!.id, `O-${zufall()}`]);
+    const [fremd] = await sql.unsafe<{ id: string }[]>(
+      `insert into posten (mandant_id, objekt_id, bezeichnung, min_besetzung, soll_besetzung,
+                           gueltig_ab, erstellt_von_art)
+       values ($1,$2,'Fremdwache',1,1,'2030-01-01','system') returning id`, [f.reinigung, o!.id]);
     const q = await qualifikation();
-    await expect(alsChef((k) => legeAnforderungAn(k, sperre(
-      '00000000-0000-0000-0000-000000000000', q))))
-      .rejects.toBeInstanceOf(AnforderungFehler);
+    const fehler = await alsChef((kx) => legeAnforderungAn(kx, sperre(fremd!.id, q)))
+      .then(() => null, (x: unknown) => x);
+    expect(fehler).toBeInstanceOf(AnforderungFehler);
+    expect(fehler).toMatchObject({ grund: 'nicht_gefunden', status: 404 });
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from einsatzanforderung where posten_id = $1`, [fremd!.id]);
+    expect(n!.n).toBe(0);
   });
 
-  it('ohne security.schreiben schreibt die Datenbank nicht (zweite Linie)', async () => {
+  it('ohne security.schreiben schreibt die Datenbank nicht (zweite Linie) — mit ihm schon',
+    async () => {
+      const { objektId } = await objekt();
+      const p = await posten(objektId);
+      const q = await qualifikation();
+      const einfuegen = (benutzer: string) => alsApp(
+        { scope: 'mandant', mandantId: f.security, benutzerId: benutzer, portal: 'intern',
+          readonly: false },
+        (tx) => tx.unsafe(
+          `insert into einsatzanforderung (mandant_id, geltungsbereich, posten_id, qualifikation_id)
+           values ($1, 'posten', $2, $3)`, [f.security, p, q]),
+      );
+      /* Eine Rolle, die lesen darf und NICHT schreiben — nicht nur-lesend gebunden. */
+      const leser = await konto();
+      await sql.unsafe(
+        `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+        [leser, f.security, await rolleMit(['security.lesen'])]);
+      await expect(einfuegen(leser)).rejects.toThrow(/row-level security/u);
+      /* Die Gegenprobe: dieselbe Anweisung mit dem Recht geht durch. */
+      await expect(einfuegen(chef)).resolves.toBeDefined();
+    });
+
+  it('eine nur-lesende Sitzung schreibt nicht, auch mit dem Recht', async () => {
     const { objektId } = await objekt();
     const p = await posten(objektId);
     const q = await qualifikation();
@@ -302,5 +380,84 @@ describe('(3) die Schichten ziehen nach — die Vergangenheit nicht (0465, V-129
     const [z] = await sql.unsafe<{ n: number }[]>(
       `select count(*)::int as n from einsatzanforderung where id = $1`, [id]);
     expect(z!.n).toBe(1);
+  });
+});
+
+describe('(4) von der Veranstaltung aus — und die uebrigen Zweige des Nachzugs (0465)', () => {
+  function vonVeranstaltung(
+    v: string, q: string, bereich: AnforderungEingabe['bereich'],
+  ): AnforderungEingabe {
+    return {
+      ...sperre('', q), herkunft: { art: 'veranstaltung', id: v }, bereich,
+      zwingend: false, geltung: 'jeder',
+    };
+  }
+
+  it('Bereich Veranstaltung: die Zeile haengt an ihr, und ihre kuenftige Schicht zieht nach',
+    async () => {
+      const { objektId, kundeId } = await objekt();
+      const v = await veranstaltung(kundeId, objektId);
+      const q = await qualifikation();
+      const { einsatzId } = await alsChef((k) => erzeugeVeranstaltungsschicht(k, v));
+      expect((await stand(einsatzId)).n).toBe(0);
+
+      const { id } = await alsChef((k) => legeAnforderungAn(k, vonVeranstaltung(v, q, 'veranstaltung')));
+      const [z] = await sql.unsafe<{
+        geltungsbereich: string; veranstaltung_id: string; posten_id: string | null;
+        objekt_id: string | null;
+      }[]>(
+        `select geltungsbereich::text, veranstaltung_id, posten_id, objekt_id
+           from einsatzanforderung where id = $1`, [id]);
+      expect(z).toEqual({
+        geltungsbereich: 'veranstaltung', veranstaltung_id: v, posten_id: null, objekt_id: null,
+      });
+      expect((await stand(einsatzId)).n).toBe(1);
+      const liste = await alsChef((k) =>
+        leseAnforderungen(k, { art: 'veranstaltung', id: v, objektId }));
+      expect(liste.map((a) => a.bereich)).toEqual(['veranstaltung']);
+    });
+
+  it('eine Veranstaltung ohne Objekt: eine Objektanforderung hat keinen Ort (kein_objekt)',
+    async () => {
+      const { kundeId } = await objekt();
+      const v = await veranstaltung(kundeId, null);
+      const q = await qualifikation();
+      await expect(alsChef((k) => legeAnforderungAn(k, vonVeranstaltung(v, q, 'objekt'))))
+        .rejects.toMatchObject({ grund: 'kein_objekt', status: 422 });
+      /* Fuer die Veranstaltung selbst geht es. */
+      await expect(alsChef((k) => legeAnforderungAn(k, vonVeranstaltung(v, q, 'veranstaltung'))))
+        .resolves.toMatchObject({ herkunft: { art: 'veranstaltung', id: v } });
+    });
+
+  it('Bereich Objekt: ueber die Veranstaltung eingetragen, zieht auch die Postenschicht am Objekt nach',
+    async () => {
+      const { objektId, kundeId } = await objekt();
+      const v = await veranstaltung(kundeId, objektId);
+      const p = await posten(objektId);
+      const q = await qualifikation();
+      const postenschicht = await schicht(objektId, kundeId, p);
+      const { einsatzId } = await alsChef((k) => erzeugeVeranstaltungsschicht(k, v));
+
+      const { id } = await alsChef((k) => legeAnforderungAn(k, vonVeranstaltung(v, q, 'objekt')));
+      const [z] = await sql.unsafe<{ objekt_id: string; veranstaltung_id: string | null }[]>(
+        `select objekt_id, veranstaltung_id from einsatzanforderung where id = $1`, [id]);
+      expect(z).toEqual({ objekt_id: objektId, veranstaltung_id: null });
+      expect((await stand(postenschicht)).n).toBe(1);
+      expect((await stand(einsatzId)).n).toBe(1);
+    });
+
+  it('Bereich Gesellschaft: jede kuenftige Schicht zieht nach — eine fremde nicht', async () => {
+    const { objektId, kundeId } = await objekt();
+    const p = await posten(objektId);
+    const q = await qualifikation();
+    const e = await schicht(objektId, kundeId, p);
+    await alsChef((k) => legeAnforderungAn(k, sperre(p, q, {
+      bereich: 'mandant', zwingend: false, bestaetigt: true,
+    })));
+    expect((await stand(e)).n).toBe(1);
+    const [fremd] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from einsatz
+        where mandant_id <> $1 and jsonb_array_length(anforderung_snapshot) > 0`, [f.security]);
+    expect(fremd!.n).toBe(0);
   });
 });

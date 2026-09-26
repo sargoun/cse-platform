@@ -8,6 +8,7 @@
  * ist — als Plattformlauf vor dem Generator. Der Weg durch die echte
  * Datenbank steht in `tests/isolation/feiertage-pflege.test.ts`.
  */
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   PFLEGE_FOLGEJAHRE, pflegeJahre, vergleicheFeiertage,
@@ -131,5 +132,26 @@ describe('(5) der Hinweis auf einen fehlenden Kalender spricht beide Sprachen', 
     expect(FEIERTAG_TEXTE.de.kalenderFehlt('BE', [2029, 2030])).toContain('BE 2029 und 2030');
     expect(FEIERTAG_TEXTE.en.kalenderFehlt('BE', [2029])).toContain('BE 2029');
     expect(FEIERTAG_TEXTE.en.kalenderFehltTitel).not.toBe(FEIERTAG_TEXTE.de.kalenderFehltTitel);
+  });
+});
+
+describe('(6) und beide Turnusseiten zeigen ihn — aus dem, was die Vorschau liefert', () => {
+  /*
+   * Die Daten dahinter (`feiertageFehlen`, `ohneKalender`) prueft die
+   * Isolationssuite (5) an echten Zeilen. Hier steht, dass die Seiten sie
+   * auch zeigen: ein Entfernen des Hinweises bliebe sonst so still wie der
+   * fehlende Kalender selbst.
+   */
+  it.each([
+    ['Turnusblatt', 'src/app/portal/[mandant]/reinigung/turnus/[id]/page.tsx',
+      '(daten.vorschau?.feiertageFehlen.length ?? 0) > 0'],
+    ['neuer Turnus', 'src/app/portal/[mandant]/reinigung/turnus/neu/page.tsx',
+      'daten.ohneKalender.length > 0'],
+  ])('%s', (_name, datei, bedingung) => {
+    const seite = readFileSync(datei, 'utf8');
+    const stelle = seite.indexOf(bedingung);
+    expect(stelle).toBeGreaterThan(-1);
+    expect(seite.slice(stelle, stelle + 400)).toContain('cse="turnus-feiertagskalender-fehlt"');
+    expect(seite).toContain('tF.kalenderFehlt(');
   });
 });

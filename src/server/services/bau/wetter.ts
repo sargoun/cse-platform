@@ -37,6 +37,16 @@ export const WETTER_OHNE_KOORDINATEN = 'Keine Koordinaten am Objekt hinterlegt' 
 export const WETTER_OHNE_STATION = 'Keine DWD-Station zur Baustelle aufgelöst' as const;
 /** §16: die Namensnennung ist Bedingung der Nutzung, keine Hoeflichkeit. */
 export const WETTER_QUELLENHINWEIS = 'Quelle: Deutscher Wetterdienst' as const;
+/**
+ * Der Tag war beim Schreiben nicht mehr offen — abgeschlossen oder storniert
+ * (V-183). An ihm bewegt sich nichts mehr (0082); angeheftet wurde nichts.
+ */
+export const WETTER_TAG_NICHT_OFFEN = 'Der Bautag ist nicht mehr offen — kein Wetter angeheftet' as const;
+/**
+ * Der Tag trug beim Schreiben schon Wetter, und der Nachtlauf ueberschreibt
+ * keines (D-677 Nr. 3, `j_wetter_anheften`).
+ */
+export const WETTER_SCHON_BELEGT = 'Der Bautag trägt schon Wetter — es bleibt, wie es ist' as const;
 
 export const WETTER_SNAPSHOT_FASSUNG = 'bautagebuch-wetter-v1' as const;
 
@@ -47,7 +57,11 @@ export type WetterBefundArt =
   | 'unlesbar'
   | 'keine_daten'
   | 'ohne_koordinaten'
-  | 'keine_station';
+  | 'keine_station'
+  /** V-183: abgeschlossen oder storniert, vor dem Abruf oder beim Schreiben. */
+  | 'nicht_offen'
+  /** V-183, nur der Nachtlauf: der Tag trug schon Wetter (von Hand oder angeheftet). */
+  | 'schon_belegt';
 
 export interface WetterBefund {
   readonly art: WetterBefundArt;
@@ -187,6 +201,8 @@ export function wetterFeldText(art: WetterBefundArt): string {
     case 'angeheftet': return WETTER_QUELLENHINWEIS;
     case 'ohne_koordinaten': return WETTER_OHNE_KOORDINATEN;
     case 'keine_station': return WETTER_OHNE_STATION;
+    case 'nicht_offen': return WETTER_TAG_NICHT_OFFEN;
+    case 'schon_belegt': return WETTER_SCHON_BELEGT;
     default: return WETTER_NICHT_VERFUEGBAR;
   }
 }
@@ -196,9 +212,16 @@ interface TagZeile {
   readonly datum: string;
   readonly projekt_id: string;
   readonly abgeschlossen_am: string | null;
+  readonly storniert: boolean;
+  readonly wetter_quelle: string;
   readonly geo_lat: string | null;
   readonly geo_lon: string | null;
   readonly wetter_station_id: string | null;
+}
+
+/** Ein Befund ohne Anheftung — der Tag bleibt, wie er ist. */
+function ohneAnheftung(art: WetterBefundArt, stationId: string | null = null): WetterBefund {
+  return { art, text: wetterFeldText(art), beobachtungen: 0, stationId };
 }
 
 /**
@@ -228,6 +251,7 @@ export async function hefteWetterAn(
   const [tag] = await kontext.abfrage<TagZeile>(
     `select b.id, to_char(b.datum, 'YYYY-MM-DD') as datum, b.projekt_id,
             to_char(b.abgeschlossen_am, 'YYYY-MM-DD"T"HH24:MI:SSOF') as abgeschlossen_am,
+            (b.storniert_am is not null) as storniert, b.wetter_quelle::text as wetter_quelle,
             o.geo_lat::text as geo_lat, o.geo_lon::text as geo_lon,
             p.wetter_station_id
        from bautagebuch b
@@ -240,6 +264,15 @@ export async function hefteWetterAn(
   if (tag === undefined) {
     return { art: 'keine_daten', text: WETTER_NICHT_VERFUEGBAR, beobachtungen: 0, stationId: null };
   }
+  /*
+   * V-183: VOR dem Abruf, was sich am Tag nicht mehr bewegen darf. Ein
+   * abgeschlossener oder stornierter Tag bekommt nichts (0082) — bisher
+   * fragte der Weg trotzdem beim DWD und meldete danach „angeheftet", obwohl
+   * das UPDATE keine Zeile traf. Der Nachtlauf fasst ausserdem kein Wetter an,
+   * das schon da ist (D-677 Nr. 3); der Knopf darf es neu holen.
+   */
+  if (tag.abgeschlossen_am !== null || tag.storniert) return ohneAnheftung('nicht_offen');
+  if (akteur === 'system' && tag.wetter_quelle !== 'keine') return ohneAnheftung('schon_belegt');
   if (tag.geo_lat === null || tag.geo_lon === null) {
     return {
       art: 'ohne_koordinaten', text: WETTER_OHNE_KOORDINATEN, beobachtungen: 0, stationId: null,
@@ -312,7 +345,15 @@ export async function hefteWetterAn(
     if (zeile?.id != null) kennungen.set(m.beobachtetAm, zeile.id);
   }
 
-  await kontext.schreibe(
+  /*
+   * `returning id`: ob eine Zeile getroffen wurde, sagt nur die Antwort. Der
+   * Abruf dauert bis zu 30 s, und im Nachtlauf liegt die Kandidatenliste noch
+   * laenger zurueck — wer den Tag inzwischen schliesst, storniert oder (fuer
+   * den Lauf) mit Wetter versieht, laesst das UPDATE leer ausgehen, ohne
+   * Fehler. Bisher stand dann trotzdem „angeheftet" im Befund und im
+   * Laufprotokoll (V-183).
+   */
+  const getroffen = await kontext.schreibe<{ id: string }>(
     `update bautagebuch
         set wetter_quelle = 'dwd',
             wetter_frueh_id  = $3::uuid,
@@ -324,7 +365,10 @@ export async function hefteWetterAn(
             niederschlag_mm  = $9::numeric,
             geaendert_von    = app.aktueller_benutzer(),
             geaendert_von_art = $10::akteur_art
-      where id = $1 and mandant_id = $2 and abgeschlossen_am is null`,
+      where id = $1 and mandant_id = $2
+        and abgeschlossen_am is null and storniert_am is null
+        and ($10::akteur_art <> 'system' or wetter_quelle = 'keine')
+      returning id`,
     [
       tag.id, kontext.aktiverMandantId,
       kennungen.get(belegung.frueh) ?? null,
@@ -335,6 +379,16 @@ export async function hefteWetterAn(
       akteur,
     ],
   );
+  if (getroffen.length === 0) {
+    /* Warum nicht — erneut gelesen, denn es hat sich eben erst entschieden. */
+    const [jetzt] = await kontext.abfrage<{ offen: boolean }>(
+      `select (abgeschlossen_am is null and storniert_am is null) as offen
+         from bautagebuch where id = $1 and mandant_id = $2`,
+      [tag.id, kontext.aktiverMandantId],
+    );
+    return ohneAnheftung(jetzt?.offen === true ? 'schon_belegt' : 'nicht_offen',
+      schnappschuss.station_id);
+  }
 
   return {
     art: 'angeheftet',
@@ -412,6 +466,91 @@ export async function leseWetterAnzeige(
  * einmal angehefteter Tag wird vom Lauf nicht wieder angefasst.
  */
 export const WETTER_ZUORDNUNG_TAGE = 7;
+
+/**
+ * Erreicht der Nachtlauf diesen Bautag noch (V-183, D-677)? — die Frage, die
+ * die Tagesseite stellen muss, BEVOR sie „das Wetter heftet der Nachtlauf
+ * automatisch an" sagt.
+ *
+ * Der Lauf fasst nur `datum >= heute - tage` an (`ordneWetterZu`). Ein
+ * offener Tag von vor drei Wochen — nachgetragen, als Ersatztag mit altem
+ * Datum angelegt, oder sieben Naechte ohne Koordinaten — bekam trotzdem die
+ * Zusage, und wer ihr glaubte, drueckte den Knopf nicht: der Tag blieb ohne
+ * Wetter, und genau dieser Beleg fehlt im Behinderungsstreit (BAU-08).
+ *
+ * **Echt groesser, nicht groesser-gleich.** Der Lauf um 04:40 UTC hat den Tag
+ * `heute - tage` am selben Berliner Tag schon zum letzten Mal angefasst; mit
+ * `>=` versprach die Seite ihn fuer diesen Tag bis Mitternacht weiter. Ein
+ * kuenftiger Tag wird erreicht, sobald er vorbei ist.
+ *
+ * Rein, ohne Uhr: `heute` ist der Berliner Kalendertag aus der Datenbank
+ * (`berlinHeute()`), beide als `JJJJ-MM-TT`. Gerechnet wird in ganzen
+ * Kalendertagen, nicht in Stunden — eine Zeitumstellung verschiebt nichts.
+ */
+export function nachtlaufErreichtTag(
+  datum: string, heute: string, tage: number = WETTER_ZUORDNUNG_TAGE,
+): boolean {
+  const tagNummer = (kalendertag: string): number => {
+    const [j, m, t] = kalendertag.split('-').map(Number);
+    return Date.UTC(j ?? Number.NaN, (m ?? Number.NaN) - 1, t ?? Number.NaN) / 86_400_000;
+  };
+  const abstand = tagNummer(heute) - tagNummer(datum);
+  if (!Number.isFinite(abstand)) return false;
+  return abstand < tage;
+}
+
+/** Was der Nachtlauf an einem Projekt braucht, bevor er fragen kann (§16, §25.2). */
+export interface WetterVoraussetzung {
+  /** Das Objekt der Baustelle traegt Breite und Laenge. */
+  readonly koordinaten: boolean;
+  /** Dem Projekt ist eine DWD-Station zugeordnet. */
+  readonly station: boolean;
+}
+
+/**
+ * Ob der Weg zum Wetter fuer dieses Projekt ueberhaupt offen ist — dieselben
+ * zwei Pruefungen, mit denen `hefteWetterAn` VOR dem Abruf aufhoert
+ * (`ohne_koordinaten`, `keine_station`). Ohne sie heftet auch der Nachtlauf
+ * nichts an, und die Tagesseite sagt das mit dem Grund, statt ihn zu
+ * versprechen. `null`, wenn das Projekt hier nicht zu sehen ist.
+ */
+export async function leseWetterVoraussetzung(
+  kontext: LeseKontext, projektId: string,
+): Promise<WetterVoraussetzung | null> {
+  const [zeile] = await kontext.abfrage<{ koordinaten: boolean; station: boolean }>(
+    `select (o.geo_lat is not null and o.geo_lon is not null) as koordinaten,
+            coalesce(p.wetter_station_id, '') <> '' as station
+       from projekt p
+       left join objekt o on o.id = p.objekt_id and o.mandant_id = p.mandant_id
+      where p.id = $1::uuid`,
+    [projektId],
+  );
+  return zeile === undefined ? null : { koordinaten: zeile.koordinaten, station: zeile.station };
+}
+
+/**
+ * Was der Nachtlauf fuer einen offenen Bautag ohne Wetter tun WIRD — die eine
+ * Antwort, aus der die Tagesseite ihren Satz waehlt (V-183, D-677):
+ *
+ *  - `automatisch`: er heftet an, sobald der Tag vorbei ist;
+ *  - `ohne_koordinaten` / `keine_station`: er fragt gar nicht erst — derselbe
+ *    Grund, mit dem `hefteWetterAn` aufhoert, und die Pflege, die ihn behebt;
+ *  - `ausserhalb_fenster`: der Tag liegt vor den letzten
+ *    `WETTER_ZUORDNUNG_TAGE` Tagen, der Lauf erreicht ihn nie mehr.
+ *
+ * Ist die Voraussetzung nicht lesbar (`null`), wird nichts versprochen — sie
+ * zaehlt wie fehlende Koordinaten.
+ */
+export type NachtlaufAussicht =
+  | 'automatisch' | 'ausserhalb_fenster' | 'ohne_koordinaten' | 'keine_station';
+
+export function nachtlaufAussicht(
+  datum: string, heute: string, voraussetzung: WetterVoraussetzung | null,
+): NachtlaufAussicht {
+  if (voraussetzung === null || !voraussetzung.koordinaten) return 'ohne_koordinaten';
+  if (!voraussetzung.station) return 'keine_station';
+  return nachtlaufErreichtTag(datum, heute) ? 'automatisch' : 'ausserhalb_fenster';
+}
 
 /**
  * Fuehrt eine Arbeit in EINER eigenen Transaktion mit gebundenem Mandanten

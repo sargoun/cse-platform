@@ -49,7 +49,21 @@ import { waehleSpeicher } from '@/server/storage/waehle';
  * Seite selbst und, getrennt benannt, die Aufnahmen der Schicht, an der sie
  * hängt. Beide als signierte Links, beide nur, soweit diese Anmeldung sie
  * lesen darf. Die Richtigstellung kann Fotos mitbringen — sie ist eine neue
- * Seite; an diese hier hängt niemand nachträglich eines (0467).
+ * Seite; an diese hier hängt niemand nachträglich eines (0467, 0469).
+ *
+ * **Eine Abweisung steht immer da, auch am stornierten Eintrag** (V-180,
+ * D-599). Korrigieren zwei Kräfte dieselbe Seite, scheitert die zweite an
+ * `SchonStorniert` (`ungueltiger_zustand`) — und landet auf einem Blatt, das
+ * inzwischen storniert ist. Stand der Grund nur im Abschnitt „Richtigstellen",
+ * der am stornierten Eintrag fehlt, sah die Seite aus wie ein Erfolg; Text und
+ * Fotos der zweiten Kraft waren verworfen. Der Grund steht deshalb über dem
+ * Blatt und verweist auf die Seite, an die eine Korrektur jetzt anknüpft.
+ *
+ * **Das Formular nur für den, der schreiben darf** (`wachbuch.schreiben`).
+ * Das Blatt selbst verlangt nur `wachbuch.lesen`; ein Leser bekam trotzdem
+ * das Formular und danach einen Grund, den keine Tabelle kannte
+ * (`NICHT_GEFUNDEN` aus dem Rechtetor). Eine Wahl, die nur scheitern kann,
+ * ist keine — er liest statt ihrer den Satz, warum.
  */
 export const dynamic = 'force-dynamic';
 
@@ -112,8 +126,9 @@ export default async function Wachbuchblatt(
   /* D-599/D-728: der Grund einer abgewiesenen Richtigstellung. */
   const fehler = typeof suche['fehler'] === 'string'
     ? (eigenerEintrag(tW.fehler, suche['fehler']) ?? tW.fehlerUnbekannt) : null;
-  /* AUT-06: der Verweis auf die Quittung nur, wo ihr Ziel lesbar ist. */
-  const darf = await haeltRechte(sitzung, 'schluessel.lesen');
+  /* AUT-06: der Verweis auf die Quittung nur, wo ihr Ziel lesbar ist — und
+     das Formular der Richtigstellung nur, wo es gelingen kann. */
+  const darf = await haeltRechte(sitzung, 'schluessel.lesen', 'wachbuch.schreiben');
 
   const feld = 'mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted';
   const eingabe = 'min-h-11 w-full rounded-md border border-line bg-surface-3 '
@@ -146,6 +161,26 @@ export default async function Wachbuchblatt(
           Zum Buch
         </Link>
       </div>
+
+      {fehler !== null && (
+        <Hinweis art="warnung" cse="wachbuch-abgewiesen" rolle="alert"
+                 className="mb-s5 max-w-prose">
+          <strong>{tW.abgewiesen}</strong>{' '}
+          {fehler}
+          {eintrag.storniert && eintrag.ersetztDurchId !== null && (
+            <>
+              {' '}
+              <Link
+                href={`/portal/${mandant}/security/wachbuch/${eintrag.ersetztDurchId}`}
+                className="underline-offset-2 hover:underline"
+                data-cse="wachbuch-abgewiesen-weiter"
+              >
+                {tW.zurRichtigstellung}
+              </Link>
+            </>
+          )}
+        </Hinweis>
+      )}
 
       <article
         data-cse="wachbuch-blatt"
@@ -267,15 +302,14 @@ export default async function Wachbuchblatt(
         </p>
       </section>
 
-      {!eintrag.storniert && (
+      {!eintrag.storniert && darf['wachbuch.schreiben'] !== true && (
+        <p className="m-0 max-w-prose text-sm text-text-muted" data-cse="richtigstellen-ohne-recht">
+          {tW.richtigstellenOhneRecht}
+        </p>
+      )}
+
+      {!eintrag.storniert && darf['wachbuch.schreiben'] === true && (
         <section>
-          {fehler !== null && (
-            <Hinweis art="warnung" cse="wachbuch-abgewiesen" rolle="alert"
-                     className="mb-s4 max-w-prose">
-              <strong>{tW.abgewiesen}</strong>{' '}
-              {fehler}
-            </Hinweis>
-          )}
           <h2 className="mb-s2 text-h3 text-text">Richtigstellen</h2>
           <p className="mb-s4 max-w-prose text-sm text-text-muted">
             Der Eintrag bleibt stehen und wird als storniert gekennzeichnet; die

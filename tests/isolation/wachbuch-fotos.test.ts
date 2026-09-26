@@ -20,16 +20,26 @@
  *  4. lesen darf, wer das Buch lesen darf — ohne Zeitrecht; wer beides nicht
  *     haelt, sieht nichts;
  *  5. die Wache im Mitarbeiterportal (M1) haengt ihr Foto an die eigene Seite
- *     und sieht es im eigenen Portal (`t_person`).
+ *     und sieht es im eigenen Portal (`t_person`);
+ *  6. auch per UPDATE wechselt ein Foto seine Seite nicht — kein Schichtfoto
+ *     wird an eine alte Seite gehaengt, kein Seitenfoto auf eine andere
+ *     geschoben, von keiner Rolle (0469, V-184, D-678); was nicht der Bezug
+ *     ist, bleibt aenderbar;
+ *  7. die Aufnahmen der Schicht, die die Wache im Portal gemacht hat, sieht
+ *     die Verwaltung auf Schichtblatt und Wachbuchblatt (`listeSchichtMedien`
+ *     im internen Scope, `t_mandant` mit `zeit.lesen`) — und wer nur das Buch
+ *     lesen darf, sieht sie nicht (V-181, Audit-Befund 31).
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import { schreibeEintrag } from '../../src/server/services/security/wachbuch.js';
 import {
-  legeWachbuchFotosAb, signierteAdressen,
+  legeSchichtMediumAb, legeWachbuchFotosAb, signierteAdressen, type MedienAblage,
 } from '../../src/server/services/zeit/medien.js';
-import { listeWachbuchMedien } from '../../src/server/services/mitarbeiter/medien.js';
+import {
+  listeSchichtMedien, listeWachbuchMedien,
+} from '../../src/server/services/mitarbeiter/medien.js';
 import {
   LokalerSpeicher, NichtVerbundenFehler, type Speicher,
 } from '../../src/server/storage/adapter.js';
@@ -119,6 +129,51 @@ function als<T>(
 const seite = (k: SchreibKontext, betreff: string): Promise<string> => schreibeEintrag(k, {
   objektId, art: 'vorkommnis', betreff, eintragstext: 'Schranke beschädigt vorgefunden.',
 });
+
+/**
+ * Eine laufende Schicht an diesem Objekt, darauf eine Wache (Rolle
+ * `mitarbeiter`) mit eigener Beschaeftigung — der Mensch, der im Portal
+ * schreibt und aufnimmt.
+ */
+async function schichtMitWache(): Promise<{
+  readonly einsatz: string; readonly mensch: string; readonly wache: string;
+}> {
+  const [k] = await sql.unsafe<{ kunde_id: string }[]>(
+    `select kunde_id from objekt where id = $1`, [objektId]);
+  const [e] = await sql.unsafe<{ id: string }[]>(
+    `insert into einsatz (mandant_id, quell_schluessel, plan_datum,
+                          beginn_zeitpunkt, ende_zeitpunkt, beginn_lokal, ende_lokal,
+                          objekt_id, kunde_id, endet_am_folgetag, erstellt_von_art)
+     select $1, $2, (now() at time zone 'Europe/Berlin')::date,
+            now() - interval '1 hour', now() + interval '4 hours',
+            ((now() - interval '1 hour') at time zone 'Europe/Berlin')::time,
+            ((now() + interval '4 hours') at time zone 'Europe/Berlin')::time,
+            $3, $4,
+            ((now() + interval '4 hours') at time zone 'Europe/Berlin')::date
+              > ((now() - interval '1 hour') at time zone 'Europe/Berlin')::date,
+            'system'
+     returning id`, [f.security, `E-${zufall()}`, objektId, k!.kunde_id]);
+  const [mensch] = await sql.unsafe<{ id: string }[]>(
+    `insert into person (vorname, nachname) values ('Nadia','Kowalski') returning id`);
+  const [beschaeftigung] = await sql.unsafe<{ id: string }[]>(
+    `insert into anstellung (mandant_id, person_id, personalnummer, eintritt,
+                             stundensatz_intern)
+     values ($1,$2,$3,'2024-01-01',1780) returning id`,
+    [f.security, mensch!.id, `S-${zufall()}`]);
+  await sql.unsafe(
+    `insert into einsatz_zuordnung (mandant_id, einsatz_id, anstellung_id, person_id,
+                                    erstellt_von_art)
+     values ($1,$2,$3,$4,'system')`, [f.security, e!.id, beschaeftigung!.id, mensch!.id]);
+  const wache = await konto(mensch!.id, await rolleId('mitarbeiter'));
+  return { einsatz: e!.id, mensch: mensch!.id, wache };
+}
+
+/** Eine abgelegte Schichtaufnahme — die Datei selbst braucht die Zeile nicht. */
+const ABLAGE: Omit<MedienAblage, 'pfad'> = {
+  art: 'foto', bucket: 'einsatz-medien', mimeTyp: 'image/png', groesseBytes: PNG.length,
+  sha256: 'a'.repeat(64), exifEntfernt: true, aufgenommenAmGeraet: null,
+  beschreibung: 'Schranke von aussen',
+};
 
 beforeEach(async () => {
   f = await seed();
@@ -280,5 +335,93 @@ describe('(5) die Wache im Mitarbeiterportal — M1-Scope', () => {
         }, [eintragId]);
       });
     expect(eigene.get(eintragId) ?? []).toHaveLength(1);
+  });
+});
+
+describe('(6) auch per UPDATE wechselt ein Foto seine Seite nicht (0469, V-184)', () => {
+  /** Der Wurf aus `kern.einsatz_medien_bezug_fest` — oder null, wenn es durchging. */
+  async function umhaengen(
+    fn: () => Promise<unknown>,
+  ): Promise<string | null> {
+    return fn().then(() => null, (x: unknown) => String((x as Error).message));
+  }
+
+  it('kein Schichtfoto an eine alte Seite, kein Seitenfoto auf eine andere', async () => {
+    const { einsatz, mensch, wache } = await schichtMitWache();
+    const schichtfoto = await als(wache, mensch, (k) => legeSchichtMediumAb(k, {
+      einsatzId: einsatz, ablage: { ...ABLAGE, pfad: `${f.security}/${crypto.randomUUID()}` },
+    }), 'mitarbeiter');
+    const alt = await als(leitung, f.fatima, (k) => seite(k, 'Seite A'));
+    const { andere, seitenfoto } = await als(leitung, f.fatima, async (k) => {
+      const id = await seite(k, 'Seite B');
+      const [foto] = await legeWachbuchFotosAb(k, {
+        eintragId: id, dateien: [{ daten: PNG, behaupteterTyp: 'image/png' }],
+      }, new LokalerSpeicher());
+      return { andere: id, seitenfoto: foto! };
+    });
+
+    /* Die Leitung haelt zeit.schreiben — t_mandant (0041) liesse das UPDATE durch. */
+    const alsLeitung = (satz: string, werte: readonly unknown[]) =>
+      umhaengen(() => als(leitung, f.fatima, (k) => k.schreibe(satz, werte)));
+    expect(await alsLeitung(
+      `update einsatz_medien set bezug_tabelle = 'wachbuch_eintrag', bezug_id = $2
+        where id = $1`, [schichtfoto, alt])).toMatch(/wechselt seinen Bezug nicht/u);
+    expect(await alsLeitung(
+      `update einsatz_medien set bezug_id = $2 where id = $1`, [seitenfoto, alt]))
+      .toMatch(/wechselt seinen Bezug nicht/u);
+    /* Auch nicht zurueck an die Schicht, und auch nicht als Eigentuemer. */
+    expect(await alsLeitung(
+      `update einsatz_medien set bezug_tabelle = 'einsatz', bezug_id = $2 where id = $1`,
+      [seitenfoto, einsatz])).toMatch(/wechselt seinen Bezug nicht/u);
+    expect(await umhaengen(() => sql.unsafe(
+      `update einsatz_medien set bezug_id = $2 where id = $1`, [seitenfoto, alt])))
+      .toMatch(/wechselt seinen Bezug nicht/u);
+
+    const zeilen = await sql.unsafe<{ id: string; bezug_tabelle: string; bezug_id: string }[]>(
+      `select id, bezug_tabelle, bezug_id from einsatz_medien where id = any($1::uuid[])`,
+      [[schichtfoto, seitenfoto]]);
+    expect(new Map(zeilen.map((z) => [z.id, [z.bezug_tabelle, z.bezug_id]]))).toEqual(new Map([
+      [schichtfoto, ['einsatz', einsatz]],
+      [seitenfoto, ['wachbuch_eintrag', andere]],
+    ]));
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from einsatz_medien where bezug_id = $1`, [alt]);
+    expect(n!.n).toBe(0);
+  });
+
+  it('was nicht der Bezug ist, bleibt aenderbar — auch derselbe Bezug im SET', async () => {
+    const eintrag = await als(leitung, f.fatima, async (k) => {
+      const id = await seite(k, 'Mit Foto');
+      await legeWachbuchFotosAb(k, {
+        eintragId: id, dateien: [{ daten: PNG, behaupteterTyp: 'image/png' }],
+      }, new LokalerSpeicher());
+      return id;
+    });
+    const zeilen = await als(leitung, f.fatima, (k) => k.schreibe<{ id: string }>(
+      `update einsatz_medien set beschreibung = 'Schranke, Nahaufnahme', bezug_id = bezug_id
+        where bezug_id = $1 returning id`, [eintrag]));
+    expect(zeilen).toHaveLength(1);
+  });
+});
+
+describe('(7) die Aufnahmen der Schicht erreichen die Verwaltung (V-181)', () => {
+  it('mit zeit.lesen sieht die Leitung sie — mit wachbuch.lesen allein niemand', async () => {
+    const { einsatz, mensch, wache } = await schichtMitWache();
+    const aufnahme = await als(wache, mensch, (k) => legeSchichtMediumAb(k, {
+      einsatzId: einsatz, ablage: { ...ABLAGE, pfad: `${f.security}/${crypto.randomUUID()}` },
+    }), 'mitarbeiter');
+
+    /* Schichtblatt und Wachbuchblatt lesen im internen Scope (`t_mandant`, zeit.lesen). */
+    const gesehen = await als(leitung, f.fatima, (k) => listeSchichtMedien(k, einsatz));
+    expect(gesehen.map((m) => m.id)).toEqual([aufnahme]);
+    expect(gesehen[0]).toMatchObject({ art: 'foto', mimeTyp: 'image/png', entfernt: false });
+
+    const nurZeit = await konto(null, await rolleMit(['zeit.lesen']));
+    expect((await als(nurZeit, null, (k) => listeSchichtMedien(k, einsatz))).map((m) => m.id))
+      .toEqual([aufnahme]);
+
+    /* Das Buch lesen heisst nicht, die Zeitdokumentation der Schicht zu lesen. */
+    const nurBuch = await konto(null, await rolleMit(['wachbuch.lesen']));
+    expect(await als(nurBuch, null, (k) => listeSchichtMedien(k, einsatz))).toEqual([]);
   });
 });

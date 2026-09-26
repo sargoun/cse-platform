@@ -8,8 +8,11 @@ import { Button } from '@/components/ui/Button';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { wetterPort } from '@/server/versand/dwd';
 import {
-  WETTER_NICHT_VERFUEGBAR, WETTER_QUELLENHINWEIS, leseWetterAnzeige, type WetterAnzeige,
+  WETTER_NICHT_VERFUEGBAR, WETTER_OHNE_KOORDINATEN, WETTER_OHNE_STATION, WETTER_QUELLENHINWEIS,
+  WETTER_ZUORDNUNG_TAGE, leseWetterAnzeige, leseWetterVoraussetzung, nachtlaufAussicht,
+  type WetterAnzeige, type WetterVoraussetzung,
 } from '@/server/services/bau/wetter';
+import { berlinHeute } from '@/server/db/heute';
 import {
   HERKUNFT_TEXT, POSITION_ARTEN, POSITION_ART_TEXT, alsStunden, findeBautagZuDatum, gleicheMannstundenAb,
   istKalendertag, leseMannstunden, lesePositionen, leseTagesfotos, listeGewerke,
@@ -62,6 +65,8 @@ interface Seitendaten {
   readonly positionen: readonly PositionZeile[];
   readonly fotos: readonly TagesfotoZeile[];
   readonly wetter: WetterAnzeige | null;
+  /** V-183: ob der Nachtlauf an diesem Projekt ueberhaupt fragen kann. */
+  readonly wetterVoraussetzung: WetterVoraussetzung | null;
   readonly abgleich: MannstundenAbgleich | null;
 }
 
@@ -110,7 +115,8 @@ export default async function Bautag(
       if (kopf === null) {
         return {
           projekt, kopf: null, gewerke,
-          mannstunden: [], positionen: [], fotos: [], wetter: null, abgleich: null,
+          mannstunden: [], positionen: [], fotos: [], wetter: null,
+          wetterVoraussetzung: null, abgleich: null,
         };
       }
       return {
@@ -121,6 +127,7 @@ export default async function Bautag(
         positionen: await lesePositionen(kontext, kopf.id),
         fotos: await leseTagesfotos(kontext, kopf.id),
         wetter: await leseWetterAnzeige(kontext, kopf.id),
+        wetterVoraussetzung: await leseWetterVoraussetzung(kontext, id),
         abgleich: await gleicheMannstundenAb(kontext, kopf.id),
       };
     }),
@@ -132,6 +139,12 @@ export default async function Bautag(
   const kopf = daten.kopf;
   const offen = kopf === null || (!kopf.storniert && kopf.abgeschlossen_lokal === null);
   const quelle = wetterPort();
+  /*
+   * V-183: was der Nachtlauf an DIESEM Tag tun wird — entschieden im Dienst
+   * (`nachtlaufAussicht`), mit dem Berliner „heute" aus der Datenbank. Die
+   * Seite sagt „automatisch" nur, wo der Lauf es halten kann.
+   */
+  const aussicht = nachtlaufAussicht(datum, await berlinHeute(), daten.wetterVoraussetzung);
   const [jahr, monat, tag] = datum.split('-');
   const datumLokal = `${tag ?? ''}.${monat ?? ''}.${jahr ?? ''}`;
 
@@ -239,13 +252,29 @@ export default async function Bautag(
         )}
 
         {/* V-183: BAU-08 verlangt das Wetter AUTOMATISCH — das tut der Nachtlauf
-            `wetter_zuordnung`, für Tage bis gestern, solange der Tag offen ist. */}
+            `wetter_zuordnung`, für die offenen Tage der letzten
+            WETTER_ZUORDNUNG_TAGE Tage, sobald der Tag vorbei ist. Versprochen
+            wird das nur, wo er es halten kann: im Fenster, mit Koordinaten am
+            Objekt und einer Station am Projekt. Sonst steht da, warum nicht —
+            und dass das Wetter hier nachzutragen ist. */}
         {kopf !== null && offen && quelle.verbunden && daten.wetter?.quelle === 'keine' && (
-          <p className="m-0 mt-s3 text-xs text-text-subtle" data-cse="wetter-automatisch">
-            Das Wetter heftet der Nachtlauf automatisch an, sobald der Tag vorbei ist —
-            solange der Bautag dann noch offen ist. Wer ihn vorher abschließt, trägt es
-            hier selbst nach.
-          </p>
+          aussicht === 'automatisch' ? (
+            <p className="m-0 mt-s3 text-xs text-text-subtle" data-cse="wetter-automatisch">
+              Das Wetter heftet der Nachtlauf automatisch an, sobald der Tag vorbei ist —
+              solange der Bautag dann noch offen ist. Wer ihn vorher abschließt, trägt es
+              hier selbst nach.
+            </p>
+          ) : aussicht === 'ausserhalb_fenster' ? (
+            <p className="m-0 mt-s3 text-sm text-warning" data-cse="wetter-ausserhalb-fenster">
+              Der Nachtlauf blickt nur {WETTER_ZUORDNUNG_TAGE} Tage zurück — diesen Tag
+              erreicht er nicht mehr. Das Wetter bitte hier nachtragen.
+            </p>
+          ) : (
+            <p className="m-0 mt-s3 text-sm text-warning" data-cse="wetter-ohne-voraussetzung">
+              {aussicht === 'ohne_koordinaten' ? WETTER_OHNE_KOORDINATEN : WETTER_OHNE_STATION}
+              {' '}— daran scheitert auch der Nachtlauf; er heftet hier kein Wetter an.
+            </p>
+          )
         )}
 
         {kopf !== null && offen && quelle.verbunden && (

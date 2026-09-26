@@ -37,6 +37,11 @@ import { waehleSpeicher } from '@/server/storage/waehle';
  * Art `Schlüssel` hier ausgegraut („mit PR 42") — gebaut war die
  * Schlüsselverwaltung längst. Den Schlüssel eines fremden Objekts weist der
  * Dienst ab, bevor geschrieben wird, und die Seite sagt, warum (`?fehler=`).
+ * **Die Art `Schlüssel` steht nur da, wo ein Schlüssel wählbar ist**: ohne
+ * `schluessel.lesen` oder ohne erfassten Schlüssel könnte sie nur an
+ * `schluessel_fehlt` scheitern, und der getippte Text wäre danach weg. Eine
+ * Wahl, die nur scheitern kann, ist keine — wie im Formular der Wache
+ * (`ARTEN_OHNE_SCHLUESSEL`); an ihrer Stelle steht der Satz, warum.
  *
  * **Und die Fotos** (V-181, SEC-05 „with photos"): ein Dateifeld im selben
  * Formular. Sie gehören zu der Seite, die dieses Formular schreibt, und zu
@@ -130,6 +135,10 @@ export default async function WachbuchNeu(
         schluessel: readonly Schluesselzeile[] | null;
       }>);
 
+  /* V-180: die Art `schluessel` nur, wenn es einen Schlüssel zu wählen gibt. */
+  const schluesselWaehlbar = schluessel !== null && schluessel.length > 0;
+  const arten = WACHBUCH_ARTEN.filter((a) => a !== 'schluessel' || schluesselWaehlbar);
+
   const feld = 'mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted';
   const eingabe = 'min-h-11 w-full rounded-md border border-line bg-surface-3 '
     + 'px-s3 py-s2 text-sm text-text';
@@ -200,7 +209,7 @@ export default async function WachbuchNeu(
           <fieldset className="mb-s4 border-0 p-0">
             <legend className={feld}>Art</legend>
             <div className="flex flex-wrap gap-s3">
-              {WACHBUCH_ARTEN.map((a) => (
+              {arten.map((a) => (
                 <label key={a} className="flex items-center gap-s2 text-sm text-text">
                   <input
                     type="radio"
@@ -214,6 +223,11 @@ export default async function WachbuchNeu(
                 </label>
               ))}
             </div>
+            {!schluesselWaehlbar && (
+              <p className="m-0 mt-s2 text-sm text-text-muted" data-cse="wachbuch-ohne-schluessel">
+                {schluessel === null ? tW.schluesselOhneRecht : tW.keinSchluessel}
+              </p>
+            )}
           </fieldset>
 
           <label className="mb-s4 block">
@@ -246,11 +260,7 @@ export default async function WachbuchNeu(
             </label>
           )}
 
-          {schluessel !== null && (schluessel.length === 0 ? (
-            <p className="mb-s4 text-sm text-text-muted" data-cse="wachbuch-ohne-schluessel">
-              {tW.keinSchluessel}
-            </p>
-          ) : (
+          {schluesselWaehlbar && (
             <label className="mb-s4 block">
               <span className={feld}>{tW.schluessel}</span>
               <select name="schluessel" className={eingabe} data-cse="wachbuch-schluessel">
@@ -263,7 +273,7 @@ export default async function WachbuchNeu(
               </select>
               <span className="mt-s1 block text-xs text-text-muted">{tW.schluesselHinweis}</span>
             </label>
-          ))}
+          )}
 
           <label className="mb-s5 flex items-center gap-s2 text-sm text-text">
             <input type="checkbox" name="polizei" value="1" className="min-h-6 min-w-6" />

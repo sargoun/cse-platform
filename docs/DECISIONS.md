@@ -19243,8 +19243,13 @@ hätte jede schon eingeteilte künftige Schicht als erfüllt stehen lassen.
    `cse_definer`) löst für jede künftige, nicht stornierte Schicht des
    Bereichs Schnappschuss und Mischungsbewertung mit denselben zwei
    Funktionen wie 0394 neu auf. Eine begonnene Schicht bleibt eingefroren.
-   Neue Rechte braucht er nicht: `e_definer_besetzung`/`e_definer_status`
-   (0394) geben ihm genau die zwei Spalten.
+   Neue Rechte braucht er nicht: die zwei Spalten gibt ihm das Spaltenrecht
+   aus 0394 (`grant update (anforderung_snapshot, anforderung_erfuellt)`).
+   Die Update-Policies, über die er schreibt, stehen in 0374
+   (`e_definer_besetzung`) und 0390 (`e_definer_status`) und sind offen
+   (`using (true)`) — die Grenze zieht allein das Spaltenrecht, nicht die
+   Policy. (Berichtigt nach der Prüfung der Gruppe: hier stand, die Policies
+   stammten aus 0394 und gäben die zwei Spalten.)
 6. **Die Route** `POST /api/sicherheit/anforderungen` (`security.schreiben`,
    `fuehreUebergangAus`, D-599): Abweisungen kehren als `?fehler=<grund>` auf
    die Seite zurück und stehen dort als Satz in beiden Sprachen.
@@ -19253,10 +19258,21 @@ hätte jede schon eingeteilte künftige Schicht als erfüllt stehen lassen.
    Nachzug sichtbar wird. Eine Sperre im Seed wäre die Antwort auf O-342,
    die niemand gegeben hat.
 
+**Nachgeschärft nach der Prüfung der Gruppe.** Zwei der Prüfungen, die V-179
+nannte, prüften etwas anderes: „ohne Recht schreibt die Datenbank nicht" lief
+als Leitung MIT `security.schreiben` und scheiterte nur an `readonly`, der
+„fremde Posten" war die Null-Kennung. Beide prüfen jetzt, was sie sagen (eine
+Rolle nur mit `security.lesen`, daneben die Gegenprobe mit dem Recht; der
+Posten einer anderen Gesellschaft mit `nicht_gefunden`/404), und der Weg über
+die Veranstaltung — samt `kein_objekt` und den Zweigen Veranstaltung, Objekt
+und Gesellschaft des Nachzugs aus 0465 — ist geprüft. Das Feld
+„Mindestanzahl" nimmt seine Breite aus dem Raster (`md:grid-cols-2`) statt
+aus einem Einzelwert `max-w-[12rem]`, den DESIGN.md nicht kennt (§3).
+
 **Nicht Teil dieser Entscheidung:** die Schichtprüfung für „mindestens N
 Personen" (§9.4), welche Qualifikation welcher Posten verlangt (O-342).
 
-| Betrifft | SEC-01, SEC-04, SEC-08, V-179, V-129, D-624, O-342, `src/server/services/security/anforderung.ts`, `src/app/api/sicherheit/anforderungen/route.ts`, `src/app/portal/[mandant]/security/{Anforderungsblock.tsx,posten/[id]/page.tsx,veranstaltungen/[id]/page.tsx}`, `src/lib/i18n/verwaltung/anforderung.ts`, `drizzle/0465_anforderung_zieht_schichten_nach.sql`, `src/server/db/seed/security.ts`, `tests/kern/anforderung-eingabe.test.ts`, `tests/isolation/anforderung-pflege.test.ts` |
+| Betrifft | SEC-01, SEC-04, SEC-08, V-179, V-129, D-624, O-342, `src/server/services/security/anforderung.ts`, `src/app/api/sicherheit/anforderungen/route.ts`, `src/app/portal/[mandant]/security/{Anforderungsblock.tsx,posten/[id]/page.tsx,veranstaltungen/[id]/page.tsx}`, `src/lib/i18n/verwaltung/anforderung.ts`, `drizzle/0465_anforderung_zieht_schichten_nach.sql`, `drizzle/0374_schicht_zusage.sql`, `drizzle/0390_einsatzstatus_folgt_der_zeit.sql`, `drizzle/0394_schicht_haelt_anforderung_fest.sql`, `src/server/db/seed/security.ts`, `tests/kern/anforderung-eingabe.test.ts` (3), `tests/isolation/anforderung-pflege.test.ts` (2), (4) |
 |---|---|
 
 ### D-674 · Das Wachbuch nimmt Schlüsseleinträge an, und eine Quittung kann ihre Seite schreiben (V-180)
@@ -19310,9 +19326,43 @@ als sofort geschrieben im Buch (TIM-09).
    Dienst: zwei Quittungen, zwei Seiten der Art „Schlüssel", der Bund liegt
    danach wieder im Depot.
 
+**Nachgebessert nach der Prüfung der Gruppe** — fünf Stellen hielten die
+Punkte oben nicht:
+
+- **Zu Nr. 3: das Häkchen stand vor.** Die Quittungsseite setzte „Zugleich im
+  Wachbuch vermerken" mit `defaultChecked`, für jedes Konto mit
+  `wachbuch.schreiben` — genau die Vorgabe, die Nr. 3 ausschließt. Ein Konto
+  ohne Beschäftigung hier (der Super-Admin des Seeds, eine Leitung ohne
+  SSE-Anstellung) scheiterte damit an jeder Übergabe (`kein_urheber`). Jetzt
+  steht das Häkchen nie vor, und es erscheint nur, wo die Sitzung Urheber sein
+  kann (`hatWachbuchUrheber`, dieselbe Abfrage wie `schreibeEintrag`); sonst
+  steht der Satz, warum die Quittung keine Seite schreibt.
+- **Zu Nr. 6: die Abweisung am stornierten Eintrag war stumm.** Korrigieren
+  zwei Kräfte dieselbe Seite, scheitert die zweite an `SchonStorniert` und
+  landet auf dem inzwischen stornierten Blatt — der Grund stand nur im
+  Abschnitt „Richtigstellen", der dort fehlt. Er steht jetzt über dem Blatt
+  und verweist auf die Seite, an die eine Korrektur anknüpft.
+- **Das Formular der Richtigstellung nur mit `wachbuch.schreiben`.** Das Blatt
+  verlangt `wachbuch.lesen`; ein Leser bekam das Formular und danach
+  `NICHT_GEFUNDEN` aus dem Rechtetor. Statt des Formulars steht jetzt der
+  Satz, dass Richtigstellen darf, wer das Buch führt.
+- **Der Rückfall für einen unbekannten Grund wiederholte die Überschrift**
+  („Der Eintrag wurde nicht geschrieben. Der Eintrag wurde nicht
+  geschrieben."). `fehlerUnbekannt` sagt jetzt in allen Tabellen (Leitstelle
+  de/en, Quittung de/en, Schicht de/en/ar/tr, Gewerk de/en), was zu tun ist.
+- **Die Art „Schlüssel" im Formular der Leitstelle nur mit wählbarem
+  Schlüssel** — ohne `schluessel.lesen` oder ohne erfassten Schlüssel konnte
+  sie nur an `schluessel_fehlt` scheitern; an ihrer Stelle steht der Grund,
+  wie im Formular der Wache (`ARTEN_OHNE_SCHLUESSEL`).
+
+Dazu die Prüfungen, die fehlten: die Route des Mitarbeiterportals am Verhalten
+(`nachgetragen` kommt im Dienst an, jede Abweisung ist eine Seite mit Grund),
+die Quittungsroute mit `im_wachbuch`/`kein_wachbuchrecht`, und die Seite, die
+zusammen mit einer NACH ihr scheiternden Quittung zurückrollt.
+
 **Nicht Teil dieser Entscheidung:** Fotos am Wachbucheintrag (V-181, D-675).
 
-| Betrifft | SEC-05, SEC-07, TIM-09, V-180, D-599, D-728, `src/server/services/security/{wachbuch,schluessel}.ts`, `src/server/services/mitarbeiter/schichtbuch.ts`, `src/app/api/sicherheit/{wachbuch,schluessel/[id]/quittung}/route.ts`, `src/app/api/mein/schichten/[zuordnungId]/wachbuch/route.ts`, `src/app/portal/[mandant]/security/{wachbuch/neu,wachbuch/[id],schluessel/[id],schluessel/[id]/quittung}/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/lib/i18n/{wachbuch-schicht,verwaltung/wachbuch}.ts`, `drizzle/0466_wachbuch_schluessel.sql`, `src/server/db/seed/{wachbuch,index}.ts`, `tests/kern/wachbuch-schluessel-texte.test.ts`, `tests/isolation/{wachbuch-schluessel,security-wachbuch}.test.ts` |
+| Betrifft | SEC-05, SEC-07, TIM-09, V-180, D-599, D-728, `src/server/services/security/{wachbuch,schluessel}.ts`, `src/server/services/mitarbeiter/schichtbuch.ts`, `src/app/api/sicherheit/{wachbuch,schluessel/[id]/quittung}/route.ts`, `src/app/api/mein/schichten/[zuordnungId]/wachbuch/route.ts`, `src/app/portal/[mandant]/security/{wachbuch/neu,wachbuch/[id],schluessel/[id],schluessel/[id]/quittung}/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/lib/i18n/{wachbuch-schicht,verwaltung/wachbuch}.ts`, `drizzle/0466_wachbuch_schluessel.sql`, `src/server/db/seed/{wachbuch,index}.ts`, `tests/kern/wachbuch-schluessel-texte.test.ts`, `tests/kern/{quittung-wachbuch,wachbuch-leitstelle,wachbuch-schicht-route,nachgetragen}.test.ts`, `tests/isolation/{wachbuch-schluessel,security-wachbuch}.test.ts` |
 |---|---|
 
 ### D-675 · Ein Foto kommt mit der Wachbuchseite, nie danach — und die Leitstelle sieht es (V-181)
@@ -19338,7 +19388,10 @@ geschriebener Eintrag konnte gar keines bekommen.
    `wachbuch_eintrag` nur an einer Seite zu, die DIESE Transaktion vom
    Menschen dieser Sitzung geschrieben hat
    (`app.wachbuch_seite_eben_geschrieben`, `cse_definer`; `erfasst_am = now()`
-   ist der Stempel aus `kern.wachbuch_eintrag_vorbereiten`). Restriktiv, weil
+   ist der Stempel aus `kern.wachbuch_eintrag_vorbereiten`). Das galt zuerst
+   nur für INSERT — per UPDATE ließ sich ein Schichtfoto an eine alte Seite
+   hängen und ein Seitenfoto verschieben; seit 0469 wechselt kein Medium seinen
+   Bezug mehr (D-678, V-184). Restriktiv, weil
    `t_mandant` (0041) mit `zeit.schreiben` jeden Bezug erlaubt und erlaubende
    Policies ODER-verknüpft werden — die Prüfung fand genau das: eine Leitung
    mit Zeitrecht hängte ein Foto an eine alte Seite. Ein späteres Foto
@@ -19375,12 +19428,18 @@ geschriebener Eintrag konnte gar keines bekommen.
    (Platzhalterbild, als DEMODATEN beschriftet), sonst keine — eine Seite
    ohne Foto bekäme es nach Punkt 1 auch später nicht.
 
+**Nachgeprüft:** dass die Verwaltung die Aufnahmen der Schicht wirklich sieht
+(Schichtblatt, Wachbuchblatt: `listeSchichtMedien` im internen Scope über
+`t_mandant` mit `zeit.lesen`) und wer nur das Buch lesen darf, nicht — geprüft
+in `tests/isolation/wachbuch-fotos.test.ts` (7); lief vorher nur im
+Personenscope der Kraft.
+
 **Nicht Teil dieser Entscheidung:** ob die Wache die Fotos der Übergabeseite
 einer Kollegin sieht (sie sieht den Text im eingestellten Fenster, O-151,
 die Aufnahmen nicht), ob ein Kunde Wachbuchfotos sieht (O-78), Pflichtfotos
 je Eintragsart (O-133).
 
-| Betrifft | SEC-05, TIM-10, LEG-10, V-181, D-599, D-728, O-78, O-133, O-151, `drizzle/0467_wachbuch_fotos.sql`, `src/server/services/zeit/medien.ts`, `src/server/services/mitarbeiter/medien.ts`, `src/server/services/security/wachbuch.ts`, `src/app/api/sicherheit/wachbuch/route.ts`, `src/app/api/mein/schichten/[zuordnungId]/wachbuch/route.ts`, `src/app/portal/[mandant]/security/wachbuch/{page,neu/page,[id]/page}.tsx`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/components/portal/Aufnahmeliste.tsx`, `src/lib/i18n/{wachbuch-schicht,verwaltung/wachbuch,verwaltung/aufnahmen}.ts`, `src/server/db/seed/{wachbuch,index}.ts`, `tests/kern/wachbuch-fotos.test.ts`, `tests/isolation/wachbuch-fotos.test.ts` |
+| Betrifft | SEC-05, TIM-10, LEG-10, V-181, D-599, D-728, O-78, O-133, O-151, `drizzle/0467_wachbuch_fotos.sql`, `src/server/services/zeit/medien.ts`, `src/server/services/mitarbeiter/medien.ts`, `src/server/services/security/wachbuch.ts`, `src/app/api/sicherheit/wachbuch/route.ts`, `src/app/api/mein/schichten/[zuordnungId]/wachbuch/route.ts`, `src/app/portal/[mandant]/security/wachbuch/{page,neu/page,[id]/page}.tsx`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/components/portal/Aufnahmeliste.tsx`, `src/lib/i18n/{wachbuch-schicht,verwaltung/wachbuch,verwaltung/aufnahmen}.ts`, `src/server/db/seed/{wachbuch,index}.ts`, `drizzle/0469_medium_bezug_fest.sql`, D-678, `tests/kern/wachbuch-fotos.test.ts`, `tests/isolation/wachbuch-fotos.test.ts` |
 |---|---|
 
 ### D-676 · Der Gewerkekatalog hat einen Eingang — eintragen, umbenennen, archivieren (V-182)
@@ -19402,10 +19461,13 @@ einzutragen, gab es nicht.
    nie löschen (`trg_gewerk_kein_hard_delete`; an einem Gewerk hängen
    gebuchte Mannstunden). Er schlägt kein Gewerk vor und legt keines an, das
    ein Mensch nicht eingetragen hat.
-2. **Der Code ist fest, der Name nicht.** Die Mannstunden eines Tages zeigen
-   „Code · Bezeichnung"; ein Code, der sich unter gebuchten Stunden ändert,
-   schriebe die Anzeige eines abgeschlossenen Tages um. Wer einen anderen
-   Code braucht, archiviert und trägt neu ein — der archivierte Code ist dann
+2. **Der Code ist fest — und der Name, sobald ein abgeschlossener Tag ihn
+   trägt** (D-679). Die Mannstunden eines Tages zeigen „Code · Bezeichnung";
+   ein Code, der sich unter gebuchten Stunden ändert, schriebe die Anzeige
+   eines abgeschlossenen Tages um, und ein Name genauso. Hier stand zuerst
+   „der Code ist fest, der Name nicht" — mit derselben Begründung, die für den
+   Namen ebenso trägt (Prüfung der Gruppe). Wer einen anderen Code oder
+   Namen braucht, archiviert und trägt neu ein — der archivierte Code ist dann
    wieder frei (`gewerk_code_uk` gilt nur unter lebenden Zeilen). Die Form:
    ein bis zwölf Buchstaben, Ziffern, Binde- oder Unterstriche, groß
    geschrieben. Eine engere Form (etwa die STLB-Nummer) wäre eine Antwort auf
@@ -19415,7 +19477,11 @@ einzutragen, gab es nicht.
    dahinter — dieselbe Kennzeichnung, die der Seed seit D-317 benutzt.
 4. **Übersetzungen sind Daten.** Die Bezeichnung für das Mitarbeiterportal
    (en, ar, tr) steht in `bezeichnung_i18n`; eine leere wird weggelassen, und
-   die Kraft sieht dann die deutsche.
+   die Kraft sieht dann die deutsche. Gelesen hat die Spalte zuerst kein Weg
+   (die Pflegeseite versprach es trotzdem); seit der Nachbesserung lesen
+   `listeGewerke` und `leseMannstunden` mit der Sprache des Portals
+   (`coalesce(nullif(bezeichnung_i18n ->> sprache, ''), bezeichnung)`), und die
+   Bautagebuchseite der Kraft gibt ihre Sprache mit (V-185).
 5. **Route und Seite.** `POST /api/bau/gewerke` (`bau.schreiben`,
    `fuehreUebergangAus`, D-599) und `/portal/[mandant]/bau/gewerke` (lesen mit
    `bau.lesen`, pflegen mit `bau.schreiben`, zweisprachig). Jede Zeile nennt
@@ -19428,7 +19494,7 @@ einzutragen, gab es nicht.
 **Nicht Teil dieser Entscheidung:** welche Gewerke geführt werden und ob die
 Liste den STLB-Bau-Leistungsbereichen folgt (O-159, bleibt offen).
 
-| Betrifft | BAU-07, V-182, D-317, D-599, D-728, O-159, `src/server/services/bau/gewerk.ts`, `src/app/api/bau/gewerke/route.ts`, `src/app/portal/[mandant]/bau/{gewerke/page,GewerkFormular,page,projekte/[id]/bautagebuch/[datum]/page}.tsx`, `src/lib/i18n/verwaltung/gewerke.ts`, `src/server/auth/route-manifest.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/server/registry/{dienste,routen.generiert}.ts`, `src/server/db/seed/bau.ts`, `tests/kern/gewerk-eingabe.test.ts`, `tests/isolation/gewerk-katalog.test.ts` |
+| Betrifft | BAU-07, V-182, V-185, D-317, D-599, D-679, D-728, O-159, `src/server/services/bau/gewerk.ts`, `src/server/services/bau/bautagebuch.ts` (`listeGewerke`, `leseMannstunden`), `src/app/portal/mein/schichten/[zuordnungId]/bautagebuch/page.tsx`, `src/app/api/bau/gewerke/route.ts`, `src/app/portal/[mandant]/bau/{gewerke/page,GewerkFormular,page,projekte/[id]/bautagebuch/[datum]/page}.tsx`, `src/lib/i18n/verwaltung/gewerke.ts`, `src/server/auth/route-manifest.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/server/registry/{dienste,routen.generiert}.ts`, `src/server/db/seed/bau.ts`, `tests/kern/gewerk-eingabe.test.ts`, `tests/isolation/gewerk-katalog.test.ts` |
 |---|---|
 
 ### D-677 · Das Wetter hängt ein Nachtlauf an, nicht nur ein Knopf — und ohne DWD tut er nichts (V-183)
@@ -19481,9 +19547,120 @@ und genau dieser Beleg fehlt im Behinderungs- oder Bauzeitenstreit.
    Mandanten. `job:dwd_import` (stündlicher Vorabimport) ist nicht gebaut —
    die Beobachtungen übernimmt weiter `app.wetter_beobachtung_uebernehmen`
    beim Anheften.
+7. **Die Tagesseite verspricht den Lauf nur, wo er kommt** (Nachbesserung
+   nach der Prüfung der Gruppe). „Das Wetter heftet der Nachtlauf automatisch
+   an" stand an JEDEM offenen Tag ohne Wetter — auch an einem von vor drei
+   Wochen, den der Lauf nie mehr erreicht, und an einem Projekt ohne
+   Koordinaten oder Station, an dem er gar nicht erst fragt. Wer dem Satz
+   glaubte, drückte den Knopf nicht, und genau der Beleg für den
+   Behinderungsstreit fehlte. Die Seite wählt ihren Satz jetzt aus
+   `nachtlaufAussicht`: „automatisch" nur für `datum > heute −
+   WETTER_ZUORDNUNG_TAGE` (echt größer: der Lauf um 04:40 UTC hat den Tag
+   `heute − 7` am selben Tag zum letzten Mal angefasst), mit „heute" aus der
+   Datenbank und derselben Konstante wie der Lauf; sonst sagt sie, dass der
+   Lauf diesen Tag nicht mehr erreicht bzw. woran er scheitert (Koordinaten,
+   Station), und dass das Wetter hier nachzutragen ist.
+8. **Gezählt wird, was geschrieben wurde** (Nachbesserung). `hefteWetterAn`
+   meldete „angeheftet", auch wenn das UPDATE keine Zeile traf — der Tag war
+   zwischen Kandidatenliste und Schreiben geschlossen, storniert oder (für
+   den Lauf) von Hand mit Wetter versehen worden, und das Laufprotokoll
+   zählte ein Anheften, das nicht stattfand. Jetzt prüft der Weg VOR dem
+   Abruf, ob der Tag offen ist (für den Lauf auch, ob er noch kein Wetter
+   trägt), schreibt mit `returning id` und meldet sonst `nicht_offen` bzw.
+   `schon_belegt` — im Befund und im Laufprotokoll (`ohne_wetter`). Der Knopf
+   darf vorhandenes Wetter weiter neu holen; das betrifft nur den Lauf.
+
+Nachgeprüft, was als geprüft galt: „fremder Mandant unsichtbar" war
+tautologisch (der Dienst filtert selbst nach Mandant) und prüft jetzt die
+Policies `j_wetter_lesen`/`j_wetter_projekt`/`j_wetter_anheften` ohne diesen
+Filter; der registrierte Lauf selbst läuft und meldet ohne DWD
+`verbunden: false`, `befund: 'nicht_verbunden'`.
 
 **Nicht Teil dieser Entscheidung:** Wetter an abgeschlossenen Tagen (O-922),
 welche Uhrzeiten als früh, mittag und abend gelten (O-213).
 
-| Betrifft | BAU-08, V-183, D-318, O-213, O-922, `src/server/services/bau/wetter.ts`, `src/server/jobs/{wetterZuordnung,bootstrap}.ts`, `drizzle/0468_wetter_zuordnung_job.sql`, `docs/JOB-AUSLOESER.sql`, `src/app/portal/[mandant]/bau/projekte/[id]/bautagebuch/[datum]/page.tsx`, `tests/kern/{wetter-zuordnung,jobs-bootstrap}.test.ts`, `tests/isolation/wetter-zuordnung.test.ts` |
+| Betrifft | BAU-08, V-183, D-318, O-213, O-922, `src/server/services/bau/wetter.ts` (`nachtlaufAussicht`, `leseWetterVoraussetzung`, `hefteWetterAn`), `src/server/db/heute.ts`, `src/server/jobs/{wetterZuordnung,bootstrap}.ts`, `drizzle/0468_wetter_zuordnung_job.sql`, `docs/JOB-AUSLOESER.sql`, `src/app/portal/[mandant]/bau/projekte/[id]/bautagebuch/[datum]/page.tsx`, `tests/kern/{wetter-zuordnung,jobs-bootstrap}.test.ts`, `tests/isolation/wetter-zuordnung.test.ts` |
+|---|---|
+
+### D-678 · Ein Medium wechselt seinen Bezug nie — auch nicht per UPDATE (V-184)
+
+**Der Befund** (V-184; Prüfung der Gruppe „einsatz", zu V-181/D-675): D-675
+Nr. 1 sagt, ein Foto komme MIT der Wachbuchseite und nie danach, und „die
+Datenbank hält das fest". Gehalten hat sie es nur für INSERT: die restriktive
+Policy `p_wachbuch_medien_mit_seite` (0467) gilt `for insert`. `t_mandant` auf
+`einsatz_medien` (0041) gilt `for all`, `cse_app` hält seit 0041 `update` auf
+der ganzen Tabelle, und kein Auslöser verbot, `bezug_tabelle` oder `bezug_id`
+zu ändern — `kern.einsatz_medien_bezug_pruefen` prüft nur, ob der neue
+Elternteil im selben Mandanten existiert. Eine Leitung mit `zeit.schreiben`
+hängte so ein Schichtfoto per UPDATE an eine Seite von gestern (UPDATE 1) oder
+schob ein Seitenfoto auf eine andere Seite; das Wachbuchblatt zeigte es danach
+als Teil der alten Seite. Genau den Angreifer, den D-675 nennt, hielt die
+Datenbank nur auf einem von zwei Wegen auf. Heute ändert kein Weg der
+Anwendung den Bezug; ein späterer Bearbeitungsweg (etwa für die Beschreibung)
+hätte die Lücke still geöffnet.
+
+**Die Entscheidung.**
+
+1. **Der Bezug eines Mediums ist unveränderlich — für jeden Bezug**, nicht nur
+   das Wachbuch. Ein Foto ist der Beleg der Zeile, an der es hängt (Schicht,
+   Wachbuchseite, Bautag, Leistungsnachweis, Aufmaß); an eine andere
+   gehängt, ist es an beiden Stellen ein falscher Beleg. Ein falsch
+   zugeordnetes Foto wird archiviert und neu aufgenommen — wie jede andere
+   Korrektur im Haus: durch eine neue Zeile, nicht durch Umschreiben.
+2. **Ein BEFORE-UPDATE-Auslöser** (`trg_medien_0_bezug_fest`,
+   `kern.einsatz_medien_bezug_fest`, 0469) und keine Policy: eine Policy
+   sieht nur die neue Zeile und kann alt und neu nicht vergleichen. Er gilt
+   für jede Rolle — `cse_app`, `cse_definer`, `cse_job`, den Eigentümer — und
+   feuert nur, wenn eine der beiden Spalten im `SET` steht; derselbe Wert
+   dort ist keine Änderung. Kein `security definer`: er liest nichts.
+3. **Was nicht der Bezug ist, bleibt änderbar** (Beschreibung, Archivierung,
+   Aufbewahrung — die Wege, die 0041 vorsieht).
+
+**Nicht Teil dieser Entscheidung:** ob `mandant_id` eines Mediums änderbar
+sein soll (der Auslöser aus 0041 prüft den Elternteil im selben Mandanten;
+kein Weg ändert ihn).
+
+| Betrifft | SEC-05, TIM-10, V-181, V-184, D-675, `drizzle/0469_medium_bezug_fest.sql`, `drizzle/0041_einsatz_medien.sql`, `drizzle/0467_wachbuch_fotos.sql`, `tests/isolation/wachbuch-fotos.test.ts` (6) |
+|---|---|
+
+### D-679 · Der Name eines Gewerks steht fest, sobald ein abgeschlossener Bautag ihn trägt — und jede Katalogänderung steht im Prüfprotokoll (V-182)
+
+**Der Befund** (Prüfung der Gruppe „einsatz", zu V-182/D-676): D-676 Nr. 2
+begründete den festen Code damit, dass ein Code, der sich unter gebuchten
+Stunden ändert, „die Anzeige eines abgeschlossenen Tages umschriebe" — und
+ließ den Namen frei. Die Anzeige ist aber „Code · Bezeichnung", gelesen live
+aus `gewerk`; einen Schnappschuss gibt es nicht (`bautagebuch_mannstunden`
+speichert keinen Gewerknamen, `kern.bautagebuch_einfrieren` friert nur den
+Tageskopf). Aus „Trockenbau" wurde „Elektro", und ein vom Auftraggeber
+gegengezeichneter Tag zeigte danach Elektro-Stunden. Dazu stand `gewerk`
+weder im Audit-Register, noch rief der Dienst `app.protokolliere` auf: den
+Namen, den der Auftraggeber gegengezeichnet hatte, konnte danach niemand mehr
+rekonstruieren.
+
+**Die Entscheidung.**
+
+1. **Der Name steht fest, sobald ein abgeschlossener oder stornierter Bautag
+   eine Mannstundenzeile dieses Gewerks trägt** (auch eine stornierte Zeile:
+   sie steht als Korrekturspur auf dem Tag). `aendereGewerk` weist dann ab
+   (`name_fest`, 409, mit Satz); die Sperre steht auch in der Änderung selbst,
+   damit ein zwischen Lesen und Schreiben geschlossener Tag sie nicht umgeht.
+   Der Weg zu einem neuen Namen ist derselbe wie beim Code: archivieren und
+   neu eintragen — der Code wird dabei frei, und der alte Tag zeigt weiter,
+   was er beim Abschluss zeigte. An offenen Tagen bleibt der Name frei.
+2. **Frei bleiben Reihenfolge, Leistungsbereich, Bestätigung und die
+   Übersetzungen** des Mitarbeiterportals: sie sind nicht Teil der
+   gegengezeichneten Fassung (die zeigt die Verwaltung, deutsch).
+3. **Die Pflegeseite sagt es vorher.** Ein Gewerk, dessen Name fest ist
+   (`nameFest` in `leseGewerkeKatalog`), zeigt sein Namensfeld
+   schreibgeschützt mit dem Satz, was stattdessen geht — kein Feld, dessen
+   Änderung der Dienst nur abweisen kann.
+4. **Jede Katalogänderung steht im Prüfprotokoll** (`bau.gewerk_angelegt`,
+   `bau.gewerk_geaendert`, `bau.gewerk_archiviert`; vorher und nachher mit
+   den Spaltennamen der Tabelle), wie in den übrigen Katalogen des Hauses.
+
+Gewählt wurde die Sperre und nicht ein Schnappschuss des Namens beim
+Abschluss: sie ändert kein Schema, keinen Abschluss und keine Anzeige, und
+sie wendet die Begründung an, die D-676 für den Code schon gegeben hat.
+
+| Betrifft | BAU-07, V-182, D-676, O-159, `src/server/services/bau/gewerk.ts`, `src/app/portal/[mandant]/bau/{GewerkFormular.tsx,gewerke/page.tsx}`, `src/lib/i18n/verwaltung/gewerke.ts`, `tests/kern/gewerk-eingabe.test.ts`, `tests/isolation/gewerk-katalog.test.ts` (6), (7) |
 |---|---|

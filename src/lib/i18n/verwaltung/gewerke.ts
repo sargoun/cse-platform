@@ -6,8 +6,10 @@
  * deutsch**, wie in `bau.ts`: sie sind die Wörter des Bautagebuchs, das im
  * Streitfall vorgelegt wird, und „trade" oder „man-hours" sind
  * Beschreibungen, keine Namen. Die Übersetzungen, die ein Gewerk selbst trägt
- * (en, ar, tr), sind Daten und stehen hier nicht — sie liest das
- * Mitarbeiterportal aus `gewerk.bezeichnung_i18n`.
+ * (en, ar, tr), sind Daten und stehen hier nicht — das Mitarbeiterportal liest
+ * sie aus `gewerk.bezeichnung_i18n`, in der Sprache seines Bildschirms
+ * (`listeGewerke` und `leseMannstunden` mit `sprache`, V-185), und fällt ohne
+ * Eintrag auf die deutsche Bezeichnung zurück. Das sagt die Pflegeseite zu.
  *
  * **Jede Abweisung hat einen Satz.** Die Route schickt den GRUND als
  * `?fehler=` zurück (D-599); die Seite schlägt ihn nur als eigenen Eintrag
@@ -28,6 +30,12 @@ export interface GewerkTexte {
   readonly code: string;
   readonly codeHinweis: string;
   readonly bezeichnung: string;
+  /**
+   * Unter dem Namensfeld, wenn der Name schon an einem abgeschlossenen
+   * Bautag steht (D-679): er ist dann fest, und die Seite sagt, was stattdessen
+   * geht.
+   */
+  readonly bezeichnungFest: string;
   readonly uebersetzungen: string;
   readonly uebersetzungenHinweis: string;
   readonly sprache: Readonly<Record<'en' | 'ar' | 'tr', string>>;
@@ -71,6 +79,9 @@ export const GEWERK_TEXTE: Readonly<Record<InternSprache, GewerkTexte>> = {
     codeHinweis: '1 bis 12 Zeichen, z. B. TRO. Er steht vor jeder Mannstundenzeile und '
       + 'lässt sich später nicht ändern.',
     bezeichnung: 'Bezeichnung',
+    bezeichnungFest: 'Dieser Name steht schon an einem abgeschlossenen Bautag und bleibt '
+      + 'deshalb, wie er ist — sonst zeigte der Tag einen anderen Namen als beim Abschluss. '
+      + 'Ein neuer Name heißt: archivieren und neu eintragen; der Code wird dabei frei.',
     uebersetzungen: 'Bezeichnung im Mitarbeiterportal',
     uebersetzungenHinweis: 'Freiwillig. Ohne Übersetzung sieht die Kraft die deutsche '
       + 'Bezeichnung.',
@@ -104,8 +115,12 @@ export const GEWERK_TEXTE: Readonly<Record<InternSprache, GewerkTexte>> = {
       doppelt: 'Diesen Code führt schon ein lebendes Gewerk dieser Gesellschaft.',
       nicht_gefunden: 'Dieses Gewerk gibt es hier nicht (oder es ist archiviert).',
       schon_archiviert: 'Dieses Gewerk ist schon archiviert.',
+      name_fest: 'Der Name steht schon an einem abgeschlossenen Bautag — umbenannt, zeigte '
+        + 'dieser Tag einen anderen Namen als beim Abschluss. Archivieren Sie das Gewerk und '
+        + 'tragen Sie es unter dem neuen Namen neu ein.',
     },
-    fehlerUnbekannt: 'Die Eingabe wurde nicht gespeichert.',
+    fehlerUnbekannt: 'Einen Grund dafür nennt diese Seite nicht — bitte die Angaben prüfen '
+      + 'und erneut speichern.',
   },
   en: {
     modul: 'Construction',
@@ -123,6 +138,9 @@ export const GEWERK_TEXTE: Readonly<Record<InternSprache, GewerkTexte>> = {
     codeHinweis: '1 to 12 characters, e.g. TRO. It precedes every Mannstunden line and '
       + 'cannot be changed later.',
     bezeichnung: 'Name',
+    bezeichnungFest: 'This name already appears on a closed Bautag and therefore stays as it '
+      + 'is — otherwise that day would show a different name than when it was closed. A new '
+      + 'name means: archive and enter anew; the code becomes free again.',
     uebersetzungen: 'Name in the employee portal',
     uebersetzungenHinweis: 'Optional. Without a translation the worker sees the German name.',
     sprache: { en: 'English', ar: 'Arabic', tr: 'Turkish' },
@@ -154,7 +172,11 @@ export const GEWERK_TEXTE: Readonly<Record<InternSprache, GewerkTexte>> = {
       doppelt: 'A living Gewerk of this company already uses this code.',
       nicht_gefunden: 'This Gewerk does not exist here (or it is archived).',
       schon_archiviert: 'This Gewerk is already archived.',
+      name_fest: 'The name already appears on a closed Bautag — renamed, that day would show '
+        + 'a different name than when it was closed. Archive the Gewerk and enter it anew '
+        + 'under the new name.',
     },
-    fehlerUnbekannt: 'The input was not saved.',
+    fehlerUnbekannt: 'This page has no reason on record for it — please check the details and '
+      + 'save again.',
   },
 };

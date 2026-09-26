@@ -13,8 +13,18 @@
  *     Tag bleiben, wie sie sind; auch eine Policy-Umgehung am Dienst vorbei
  *     ueberschreibt kein vorhandenes Wetter (0468);
  *  3. ohne verbundene Quelle geschieht nichts — gezaehlt wird, geschrieben
- *     nicht;
- *  4. der Lauf sieht nur die Tage der Gesellschaft, deren Sitzung er bindet.
+ *     nicht; und der REGISTRIERTE Lauf meldet genau das im Laufprotokoll
+ *     (`verbunden: false`, `befund: 'nicht_verbunden'`);
+ *  4. der Lauf sieht nur die Tage der Gesellschaft, deren Sitzung er bindet —
+ *     geprueft an der Policy selbst (`j_wetter_lesen`, `j_wetter_projekt`,
+ *     `j_wetter_anheften`), ohne den Mandantenfilter des Dienstes, der sonst
+ *     jede Policy verdeckte;
+ *  5. gezaehlt wird, was geschrieben wurde: wird der Tag waehrend des Abrufs
+ *     geschlossen oder von Hand mit Wetter versehen, steht „nicht_offen" bzw.
+ *     „schon_belegt" im Ergebnis, nicht „angeheftet"; ein geschlossener Tag
+ *     fragt die Quelle gar nicht erst;
+ *  6. was die Tagesseite fuer ihr Versprechen braucht
+ *     (`leseWetterVoraussetzung`): Koordinaten am Objekt, Station am Projekt.
  *
  * Die Quelle ist ein DOPPEL (`WetterDoppel`), und es heisst so: nichts geht
  * nach draussen, und kein Wert steht ausserhalb dieses Tests.
@@ -27,8 +37,13 @@ import { alsJobSitzung } from '../../src/server/jobs/sitzung.js';
 import {
   NichtVerbundenerWetterPort, type WetterMessung, type WetterPort,
 } from '../../src/server/versand/dwd.js';
-import { ordneWetterZu, type KontextLauf } from '../../src/server/services/bau/wetter.js';
+import {
+  hefteWetterAn, leseWetterVoraussetzung, ordneWetterZu, WETTER_ZUORDNUNG_TAGE,
+  type KontextLauf,
+} from '../../src/server/services/bau/wetter.js';
 import { legeBautagAn, schliesseBautag } from '../../src/server/services/bau/bautagebuch.js';
+import { registriereWetterZuordnung } from '../../src/server/jobs/wetterZuordnung.js';
+import { leereRegister } from '../../src/server/jobs/registry.js';
 
 let f: Fixtur;
 const zufall = (): string => String(Math.random()).slice(2, 10);
@@ -37,8 +52,16 @@ class WetterDoppel implements WetterPort {
   readonly verbunden = true;
   readonly bezeichnung = 'WetterDoppel (Test)' as const;
   anfragen = 0;
-  beobachtungen(anfrage: { readonly tag: string }): Promise<readonly WetterMessung[]> {
+  /**
+   * Was WAEHREND des Abrufs geschieht — der Abruf beim DWD dauert bis zu 30 s,
+   * und in dieser Zeit schliesst die Bauleitung ihren Tag oder traegt Wetter
+   * von Hand ein. Laeuft in einer eigenen Verbindung und ist committet, bevor
+   * die Antwort zurueckkommt.
+   */
+  waehrenddessen: (() => Promise<void>) | null = null;
+  async beobachtungen(anfrage: { readonly tag: string }): Promise<readonly WetterMessung[]> {
     this.anfragen += 1;
+    if (this.waehrenddessen !== null) await this.waehrenddessen();
     const messung = (stunde: string, temperaturC: number): WetterMessung => ({
       stationId: '00433', stationName: 'Berlin-Tempelhof',
       breitengrad: 52.4675, laengengrad: 13.4021, entfernungKm: 0,
@@ -47,7 +70,7 @@ class WetterDoppel implements WetterPort {
       quelleUrl: 'https://opendata.example.invalid/00433-BEOB.csv',
       abgerufenAm: `${anfrage.tag}T23:00:00.000Z`,
     });
-    return Promise.resolve([messung('06', 11.5), messung('12', 17.25), messung('18', 14)]);
+    return [messung('06', 11.5), messung('12', 17.25), messung('18', 14)];
   }
 }
 
@@ -225,5 +248,131 @@ describe('(4) je Mandant', () => {
     expect(ergebnis).toMatchObject({ offen: 0, angeheftet: 0 });
     expect(quelle.anfragen).toBe(0);
     expect((await wetter(tag)).wetter_quelle).toBe('keine');
+  });
+
+  it('die Policies selbst binden an den Mandanten — ohne den Filter des Dienstes', async () => {
+    /*
+     * Der Fall oben bliebe gruen, wenn `j_wetter_lesen` `using (true)` hiesse:
+     * `ordneWetterZu` filtert die Kandidaten selbst mit `b.mandant_id = $1`.
+     * Hier fragt `cse_job` ohne jeden Mandantenfilter nach genau dieser Zeile.
+     */
+    const bau = await baustelle(f.bau);
+    const gestern = await tagVor(1);
+    const tag = await alsBauleitung(f.bau, bau.benutzer,
+      (k) => legeBautagAn(k, { projektId: bau.projekt, datum: gestern }));
+    const sieht = (mandant: string) => jobLauf(mandant)(async (k) => ({
+      tage: (await k.abfrage<{ n: number }>(
+        `select count(*)::int as n from bautagebuch where id = $1`, [tag]))[0]?.n,
+      projekte: (await k.abfrage<{ n: number }>(
+        `select count(*)::int as n from projekt where id = $1`, [bau.projekt]))[0]?.n,
+    }), { schreibend: false });
+    /* Die Gegenprobe: an den Bau gebunden sieht er beides — die Rechte reichen also. */
+    expect(await sieht(f.bau)).toEqual({ tage: 1, projekte: 1 });
+    expect(await sieht(f.reinigung)).toEqual({ tage: 0, projekte: 0 });
+
+    const geschrieben = await jobLauf(f.reinigung)((k) => k.schreibe<{ id: string }>(
+      `update bautagebuch set wetter_quelle = 'keine' where id = $1 returning id`, [tag]),
+    { schreibend: true });
+    expect(geschrieben).toHaveLength(0);
+  });
+});
+
+describe('(3b) der registrierte Lauf — ohne DWD steht das im Laufprotokoll', () => {
+  it('verbunden: false, befund: nicht_verbunden, und gezaehlt, was er angefasst haette',
+    async () => {
+      const vorher = process.env['DWD_OPENDATA_BASE'];
+      delete process.env['DWD_OPENDATA_BASE'];
+      leereRegister();
+      try {
+        const bau = await baustelle(f.bau);
+        const gestern = await tagVor(1);
+        const tag = await alsBauleitung(f.bau, bau.benutzer,
+          (k) => legeBautagAn(k, { projektId: bau.projekt, datum: gestern }));
+        const lauf = registriereWetterZuordnung(sql);
+        const protokoll = await lauf.ausfuehren({ mandantId: f.bau, laufId: 'lauf', versuch: 1 });
+        expect(protokoll).toMatchObject({
+          verbunden: false, befund: 'nicht_verbunden', offen: 1, angeheftet: 0,
+          fenster_tage: WETTER_ZUORDNUNG_TAGE, abgeschlossen_ohne_wetter: 0, ohne_wetter: {},
+        });
+        /* Die Quelle heisst, wie sie heisst — der nicht verbundene Port, kein Doppel. */
+        expect(protokoll['quelle']).toBe('DWD Open Data');
+        expect((await wetter(tag)).wetter_quelle).toBe('keine');
+
+        /* Ohne Mandanten laeuft er nicht — er ist je_mandant. */
+        await expect(lauf.ausfuehren({ mandantId: null, laufId: 'lauf', versuch: 1 }))
+          .rejects.toThrow(/je_mandant/u);
+      } finally {
+        leereRegister();
+        if (vorher !== undefined) process.env['DWD_OPENDATA_BASE'] = vorher;
+      }
+    });
+});
+
+describe('(5) gezaehlt wird, was geschrieben wurde', () => {
+  it('waehrend des Abrufs geschlossen: nicht_offen, nichts angeheftet', async () => {
+    const bau = await baustelle(f.bau);
+    const gestern = await tagVor(1);
+    const tag = await alsBauleitung(f.bau, bau.benutzer,
+      (k) => legeBautagAn(k, { projektId: bau.projekt, datum: gestern }));
+    const quelle = new WetterDoppel();
+    quelle.waehrenddessen = () =>
+      alsBauleitung(f.bau, bau.benutzer, (k) => schliesseBautag(k, tag));
+
+    const ergebnis = await ordneWetterZu(jobLauf(f.bau), quelle);
+    expect(ergebnis).toMatchObject({
+      verbunden: true, offen: 1, angeheftet: 0, befunde: { nicht_offen: 1 },
+    });
+    expect(quelle.anfragen).toBe(1);
+    expect(await wetter(tag)).toMatchObject({ wetter_quelle: 'keine', temperatur_max_c: null });
+  });
+
+  it('waehrenddessen von Hand eingetragen: schon_belegt — und das Wetter von Hand bleibt',
+    async () => {
+      const bau = await baustelle(f.bau);
+      const gestern = await tagVor(1);
+      const tag = await alsBauleitung(f.bau, bau.benutzer,
+        (k) => legeBautagAn(k, { projektId: bau.projekt, datum: gestern }));
+      const quelle = new WetterDoppel();
+      quelle.waehrenddessen = async () => {
+        await sql.unsafe(`update bautagebuch set wetter_quelle = 'manuell' where id = $1`, [tag]);
+      };
+
+      const ergebnis = await ordneWetterZu(jobLauf(f.bau), quelle);
+      expect(ergebnis).toMatchObject({ angeheftet: 0, befunde: { schon_belegt: 1 } });
+      expect((await wetter(tag)).wetter_quelle).toBe('manuell');
+    });
+
+  it('ein geschlossener Tag fragt die Quelle gar nicht erst — auch am Knopf', async () => {
+    const bau = await baustelle(f.bau);
+    const gestern = await tagVor(1);
+    const quelle = new WetterDoppel();
+    const befund = await alsBauleitung(f.bau, bau.benutzer, async (k) => {
+      const id = await legeBautagAn(k, { projektId: bau.projekt, datum: gestern });
+      await schliesseBautag(k, id);
+      return hefteWetterAn(k, { bautagebuchId: id }, quelle);
+    });
+    expect(befund).toMatchObject({ art: 'nicht_offen', beobachtungen: 0 });
+    expect(quelle.anfragen).toBe(0);
+  });
+});
+
+describe('(6) was die Tagesseite fuer ihr Versprechen braucht', () => {
+  it('Koordinaten am Objekt und Station am Projekt — jede fehlende Angabe benannt', async () => {
+    const bau = await baustelle(f.bau);
+    const lies = () => alsBauleitung(f.bau, bau.benutzer,
+      (k) => leseWetterVoraussetzung(k, bau.projekt));
+    expect(await lies()).toEqual({ koordinaten: true, station: true });
+
+    await sql.unsafe(`update projekt set wetter_station_id = null where id = $1`, [bau.projekt]);
+    expect(await lies()).toEqual({ koordinaten: true, station: false });
+
+    await sql.unsafe(
+      `update objekt set geo_lat = null, geo_lon = null
+        where id = (select objekt_id from projekt where id = $1)`, [bau.projekt]);
+    expect(await lies()).toEqual({ koordinaten: false, station: false });
+
+    /* Ein Projekt, das diese Sitzung nicht sieht, verspricht nichts. */
+    expect(await alsBauleitung(f.bau, bau.benutzer, (k) => leseWetterVoraussetzung(
+      k, '00000000-0000-4000-8000-000000000000'))).toBeNull();
   });
 });
