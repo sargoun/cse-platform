@@ -301,6 +301,19 @@ async function legeAn(
     select id from beitrag where mandant_id = ${mandantId} and titel = ${a.titel}`;
   if (schon !== undefined) return 0;
 
+  /*
+   * **Der veröffentlichte Beitrag trägt ein Bild** (SOC-02, V-225, D-719) —
+   * das Galeriemotiv SEINER Gesellschaft (ein Platzhalter, O-13, und als
+   * solcher markiert). Es steht in der Nutzlast der Freigabe, wie `legeVor`
+   * es hineinlegt: freigegeben wurden Text UND Bild.
+   */
+  const [bild] = a.veroeffentlicht
+    ? await sql<{ id: string; alt: string }[]>`
+        select id, alt_text as alt from medien
+         where mandant_id = ${mandantId} and galerie_rang is not null
+         order by galerie_rang, id limit 1`
+    : [];
+
   let freigabeId: string | null = null;
   if (a.status !== 'entwurf') {
     const offen = a.status === 'vorgelegt';
@@ -320,7 +333,10 @@ async function legeAn(
      * `jcsDigest` ist dieselbe kanonische Form (RFC 8785), die
      * `app.freigabe_entscheiden` beim Vergleich bildet.
      */
-    const nutzlast = { titel: a.titel, text: a.text };
+    const nutzlast = {
+      titel: a.titel, text: a.text,
+      ...(bild === undefined ? {} : { bild: { medien_id: bild.id, alt: bild.alt } }),
+    };
     const [f] = await sql<{ id: string }[]>`
       insert into freigabe (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung,
                             risiko, vorschau_payload, payload_hash,
@@ -339,11 +355,12 @@ async function legeAn(
 
   const [b] = await imMandanten(sql, mandantId, (tx) => tx<{ id: string }[]>`
     insert into beitrag (mandant_id, titel, text, art, status, freigabe_id,
-                         geplant_fuer, veroeffentlicht_am)
+                         geplant_fuer, veroeffentlicht_am, medien_id)
     values (${mandantId}, ${a.titel}, ${a.text}, ${a.art}::beitrag_art,
             ${a.status}::beitrag_status, ${freigabeId},
             ${a.geplantFuer === null ? null : tx`now() + interval '3 days'`},
-            ${a.veroeffentlicht ? tx`now() - interval '4 days'` : null})
+            ${a.veroeffentlicht ? tx`now() - interval '4 days'` : null},
+            ${bild?.id ?? null})
     returning id`);
   if (b !== undefined) await verknuepfeKanaele(sql, mandantId, b.id, a);
   return 1;

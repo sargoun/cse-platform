@@ -21,6 +21,11 @@ import {
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { internSprache } from '@/lib/i18n/intern';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { SOCIAL_BILD_TEXTE } from '@/lib/i18n/verwaltung/social-bild';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { waehleSpeicher } from '@/server/storage/waehle';
 
 /**
  * `/portal/[mandant]/social/posts/[id]` — der Beitrag und sein Stand
@@ -125,7 +130,13 @@ export default async function Beitrag(
    */
   const darf = await haeltRechte(zugang.sitzung, 'freigabe.entscheiden', 'social.schreiben');
   const suche = await searchParams;
-  const abgewiesen = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  /* Ein Schlüssel oder nichts — nachgeschlagen nur über `eigenerEintrag` (D-728). */
+  const abgewiesen = typeof suche['fehler'] === 'string' && /^[a-z_]{1,64}$/u.test(suche['fehler'])
+    ? suche['fehler'] : null;
+  /* V-225: die Abweisung der Bildroute trägt `bild_…` und gehört in den Bildabschnitt. */
+  const bildFehler = abgewiesen !== null && abgewiesen.startsWith('bild_') ? abgewiesen : null;
+  const tb = nachSprache(SOCIAL_BILD_TEXTE, internSprache(zugang.sprache));
+  const speicherVerbunden = waehleSpeicher().verbunden;
   /**
    * Der Rueckweg, den die Routen bei einer Abweisung nehmen.
    *
@@ -259,9 +270,9 @@ export default async function Beitrag(
         </Hinweis>
       ) : null}
 
-      {abgewiesen === null ? null : (
+      {abgewiesen === null || bildFehler !== null ? null : (
         <Hinweis art="warnung" cse="beitrag-fehler" className="mb-s5 max-w-prose">
-          {FEHLER[abgewiesen] ?? 'Der Schritt wurde abgewiesen.'}
+          {eigenerEintrag(FEHLER, abgewiesen) ?? 'Der Schritt wurde abgewiesen.'}
         </Hinweis>
       )}
 
@@ -340,6 +351,91 @@ export default async function Beitrag(
             </p>
           )}
         </form>
+      </section>
+
+      {/* ---------------------------------------- Das Bild (SOC-02, V-225, D-719) */}
+      <section className="mb-s6 max-w-prose" data-cse="beitrag-bild-abschnitt"
+               aria-labelledby="beitrag-bild-titel">
+        <h2 id="beitrag-bild-titel" className="mb-s3 text-h2 text-text">{tb.titel}</h2>
+        {suche['bild'] === '1' && (
+          <Hinweis art="erfolg" cse="beitrag-bild-angehaengt" className="mb-s4">
+            {tb.angehaengt}
+          </Hinweis>
+        )}
+        {suche['bild'] === 'entfernt' && (
+          <Hinweis art="erfolg" cse="beitrag-bild-entfernt" className="mb-s4">
+            {tb.entfernt}
+          </Hinweis>
+        )}
+        {bildFehler !== null && (
+          <Hinweis art="warnung" cse="beitrag-bild-fehler" className="mb-s4">
+            <strong>{tb.nichtGespeichert}</strong>{' '}
+            {eigenerEintrag(tb.fehler, bildFehler) ?? tb.fehlerSonst}
+          </Hinweis>
+        )}
+        {b.bildAdresse === null ? (
+          <p className="mb-s4 text-sm text-text-muted" data-cse="beitrag-ohne-bild">{tb.keines}</p>
+        ) : (
+          <figure className="m-0 mb-s4" data-cse="beitrag-bild-vorschau">
+            {/*
+              * Ein einfaches img und kein Bildoptimierer: die Adresse ist die
+              * Tür `/api/beitragsbild/<id>`, die auf eine signierte, ablaufende
+              * Adresse weiterleitet — ein Optimierer hielte das Ergebnis
+              * länger fest, als die Signatur gilt.
+              */}
+            <img src={b.bildAdresse} alt={b.bildAlt ?? ''}
+                 className="max-h-72 w-auto rounded-lg border border-line" />
+            <figcaption className="mt-s2 text-xs text-text-muted">
+              {b.bildAlt}
+              {b.bildPlatzhalter === true ? ` · ${tb.platzhalter}` : ''}
+            </figcaption>
+          </figure>
+        )}
+        {!bearbeitbar ? (
+          <p className="mb-s3 text-xs text-text-subtle" data-cse="beitrag-bild-nur-entwurf">
+            {tb.nurEntwurf}
+          </p>
+        ) : !speicherVerbunden ? (
+          <p className="mb-s3 text-sm text-warning" data-cse="beitrag-bild-ohne-speicher">
+            {tb.ohneSpeicher}
+          </p>
+        ) : (
+          <div className="mb-s3 flex flex-col gap-s4">
+            <form method="post" action={`/api/social/beitraege/${id}/bild`}
+                  encType="multipart/form-data" data-cse="beitrag-bild-formular"
+                  className="flex flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+              <input type="hidden" name="zurueck" value={hierher} />
+              <div className="flex flex-col gap-s2">
+                <label htmlFor="bild-datei" className="text-xs text-text-muted">{tb.datei}</label>
+                <input id="bild-datei" name="datei" type="file" required
+                       accept="image/png,image/jpeg" className="text-sm text-text"
+                       data-cse="beitrag-bild-datei" />
+              </div>
+              <div className="flex flex-col gap-s2">
+                <label htmlFor="bild-alt" className="text-xs text-text-muted">{tb.alt}</label>
+                <input id="bild-alt" name="alt" required minLength={3} maxLength={300}
+                       className={FELD} data-cse="beitrag-bild-alt" />
+                <p className="text-xs text-text-subtle">{tb.altHinweis}</p>
+              </div>
+              <div>
+                <Button type="submit" variante="secondary" data-cse="beitrag-bild-anhaengen">
+                  {b.medienId === null ? tb.anhaengen : tb.ersetzen}
+                </Button>
+              </div>
+            </form>
+            {b.medienId !== null && (
+              <form method="post" action={`/api/social/beitraege/${id}/bild`}
+                    encType="multipart/form-data" data-cse="beitrag-bild-entfernen">
+                <input type="hidden" name="zurueck" value={hierher} />
+                <input type="hidden" name="aktion" value="entfernen" />
+                <Button type="submit" variante="ghost" data-cse="beitrag-bild-entfernen-knopf">
+                  {tb.entfernen}
+                </Button>
+              </form>
+            )}
+          </div>
+        )}
+        <p className="m-0 text-xs text-text-subtle" data-cse="beitrag-bild-rechte">{tb.rechte}</p>
       </section>
 
       <section className="mb-s6" data-cse="beitrag-kanaele">

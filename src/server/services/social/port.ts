@@ -49,6 +49,17 @@ export interface BeitragAuftrag {
    * E-Mail (D-532).
    */
   readonly adresse: string | null;
+  /**
+   * Das Bild des Beitrags (SOC-02, V-225) — eine ABSOLUTE Adresse, unter der
+   * die Plattform es abholt, oder nichts. Instagram, TikTok und YouTube
+   * verlangen Medien; ein Adapter für sie prüft dieses Feld, statt ohne Bild
+   * „veröffentlicht" zu melden.
+   */
+  readonly medien?: {
+    readonly url: string;
+    readonly mimeTyp: string;
+    readonly alt: string;
+  };
 }
 
 export interface Veroeffentlicht {
