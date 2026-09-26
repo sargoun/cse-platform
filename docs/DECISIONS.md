@@ -19654,9 +19654,13 @@ IST der Zugang … ohne Anmeldung".
    reicht die Beschriftungen weiter, formatiert keinen Zeitpunkt selbst;
    keine Kontoseite, auf die die Wurzel verweist, steht noch auf der
    Ausnahmeliste — das Profil ausgenommen, das seine vier Sprachen als
-   Tabelle im Rumpf trägt).
+   Tabelle im Rumpf trägt) und `tests/e2e/arbeiter-sprache.spec.ts` (die
+   Seite auf Arabisch: `rtl`, Titel, Warnung, kein Verweis auf den Kalender
+   eines Bereichs). Die Einleitung der Verwaltung beginnt jetzt mit „Nur
+   lesend." statt „Ein **lesender** Zugang …" — dieselbe Aussage, in einer
+   Form, die jede Sprache ohne Umstellung des Satzes trägt.
 
-| Betrifft | CAL-03, EMP-12, SEITENKARTE §12, D-419, D-557, D-694, D-695, D-738, V-200, `src/app/portal/konto/kalender-feed/page.tsx`, `src/lib/i18n/konto.ts` (`KALENDER_FEED_TEXTE`), `src/server/kalender/feed.ts` (`FEED_STANDARD_BEZEICHNUNG`), `scripts/guards/uebersetzung-ausnahmen.ts`, `tests/kern/konto-sprachen.test.ts` |
+| Betrifft | CAL-03, EMP-12, SEITENKARTE §12, D-419, D-557, D-694, D-695, D-738, V-200, `src/app/portal/konto/kalender-feed/page.tsx`, `src/lib/i18n/konto.ts` (`KALENDER_FEED_TEXTE`), `src/server/kalender/feed.ts` (`FEED_STANDARD_BEZEICHNUNG`), `scripts/guards/uebersetzung-ausnahmen.ts`, `tests/kern/konto-sprachen.test.ts`, `tests/e2e/arbeiter-sprache.spec.ts` |
 |---|---|
 
 ### D-751 · Der Sprachkeks ist ein Sitzungskeks, bis die Dauer entschieden ist — und die Datenschutzerklärung sagt, dass es ihn gibt (V-200 Nachtrag, O-928)
