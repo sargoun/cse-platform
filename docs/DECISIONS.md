@@ -19939,3 +19939,36 @@ Vorgangsstand stand als eigene Liste in Radarliste und Gruppenradar.
 
 | Betrifft | D-728, V-123, V-232, `src/lib/i18n/beschriftung/{radar,recruiting,zeit,dienstplan}.ts`, `src/server/services/radar/quelle.ts`, `src/app/portal/[mandant]/radar/{page,[id]/page,[id]/mappe/page}.tsx`, `src/app/portal/gruppe/radar/page.tsx`, `src/app/portal/[mandant]/recruiting/stellen/[id]/{page,veroeffentlichung/page}.tsx`, `src/app/portal/[mandant]/zeiten/{[id]/korrektur,einwaende/[id]}/page.tsx`, `src/app/portal/[mandant]/security/veranstaltungen/[id]/page.tsx`, `src/app/portal/[mandant]/buchhaltung/datev/[id]/page.tsx`, `src/app/portal/[mandant]/crm/kontakte/[id]/{page,rechtsgrundlage/page}.tsx`, `tests/kern/beschriftung-verwaltung.test.ts`, `tests/e2e/radar.spec.ts` |
 |---|---|
+
+### D-727 · Grössen und Zahlen aus einer Funktion in `src/lib`, Geld nur über `formatiereGeld` (V-233)
+
+**Der Befund** (Audit Befund 69, DESIGN §5, SEITENKARTE §12): die Ablage, die
+Gruppenablage, das Archiv und die Kundenfreigabe schrieben Dateigrössen mit
+`toFixed(1)` als „2.5 MB"; Jahrespaket, Z3-Export und Zeiteintrag ersetzten
+den Punkt von Hand, das Arbeiterportal hatte eine eigene Funktion. Die
+Sonderleistungen und das Unterschriftsblatt des Leistungsnachweises bauten
+Cent-Beträge selbst, ohne Tausenderpunkt („1234,56 €") — das Blatt liegt dem
+Kunden bei der Unterschrift vor.
+
+**Die Entscheidung.**
+
+1. **`src/lib/zahl.ts`:** `groesseText` (binär, B/KB/MB, eine
+   Nachkommastelle unter zehn, „—" für eine fehlende oder unlesbare Angabe,
+   gerechnet ab Text über `BigInt`) und `zahlText` (Tausendertrennung).
+   Deutsch ist die Vorgabe, `en` schreibt britisch; das Arbeiterportal ruft
+   ohne Sprache und bleibt in der gesetzlichen Form (SEITENKARTE §12).
+   `groesseText` in `services/mitarbeiter/dokumente.ts` ruft sie auf, die
+   sieben Helfer in den Seiten sind weg.
+2. **Das Kundenportal behält seinen eigenen Weg** (`kundenportal/dokument.ts`
+   `dateigroesse`, dezimal mit „kB", geprüft): der Kunde vergleicht mit dem,
+   was sein Rechner beim Herunterladen sagt. Zwei Konventionen, jede an
+   genau einer Stelle.
+3. **Geld nur über `formatiereGeld(cent(BigInt(…)))`** (Invariante 1), Mengen
+   aus `numeric(…,3)` über `formatiereMenge(mengeAusPostgres(…))` — auf den
+   Sonderleistungen und dem Unterschriftsblatt.
+4. **Nicht Teil:** der Vorgabewert eines Eingabefelds
+   (`leistungskatalog/[id]/PositionsFelder.tsx`): ein Formular bleibt in der
+   Schreibweise, die `parseGeld` liest.
+
+| Betrifft | DESIGN §5, SEITENKARTE §12, Invariante 1, V-233, `src/lib/zahl.ts`, `src/server/services/mitarbeiter/dokumente.ts`, `src/app/portal/[mandant]/dokumente/{darstellung.ts,page.tsx,[id]/page.tsx,[id]/kundenfreigabe/page.tsx}`, `src/app/portal/[mandant]/buchhaltung/{archiv,jahrespaket,z3-export}/page.tsx`, `src/app/portal/gruppe/dokumente/page.tsx`, `src/app/portal/[mandant]/zeiten/[id]/page.tsx`, `src/app/portal/[mandant]/reinigung/{sonderleistungen/page.tsx,leistungsnachweise/[id]/unterschrift/page.tsx}`, `tests/kern/zahl.test.ts` |
+|---|---|

@@ -43,9 +43,14 @@ export function zahlText(
  *
  * **Binär (1024), wie der Rest der internen Oberfläche** und wie die
  * Obergrenze in 0009 (256 MB = 268 435 456 Byte). Das Kundenportal schreibt
- * dezimal mit „kB" und hat dafür einen eigenen, begründeten Weg
+ * dezimal mit „kB" und hat dafür einen eigenen, begründeten und geprüften Weg
  * (`kundenportal/dokument.ts` `dateigroesse`): der Kunde vergleicht mit dem,
  * was sein Rechner beim Herunterladen sagt.
+ *
+ * Vorher schrieben die Ablage, die Gruppenablage, das Archiv und die
+ * Kundenfreigabe „2.5 MB" mit Punkt (`toFixed(1)`), Jahrespaket, Z3-Export
+ * und Zeiteintrag ersetzten den Punkt von Hand, und das Arbeiterportal hatte
+ * eine eigene Funktion (V-233). Jetzt rufen alle diese eine.
  *
  * **Eine Nachkommastelle unter zehn, keine darüber** — „1,5 KB", „10 KB",
  * „256 MB". **Nimmt Text** (so liefert die Datenbank `bigint`) und rechnet in
@@ -53,7 +58,7 @@ export function zahlText(
  * positive Angabe ist „—" und nicht „0 B": eine Datei ohne Grösse ist eine
  * Aussage, die niemand geprüft hat.
  */
-export function dateigroesse(
+export function groesseText(
   bytes: string | number | bigint | null | undefined, sprache: string | null = 'de',
 ): string {
   if (bytes === null || bytes === undefined) return '—';

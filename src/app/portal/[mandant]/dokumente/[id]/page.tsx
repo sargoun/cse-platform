@@ -11,9 +11,10 @@ import { waehleSpeicher } from '@/server/storage/waehle';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
-import { formatiereBytes, KATEGORIE } from '../darstellung';
+import { KATEGORIE } from '../darstellung';
 import { kennungOder404 } from '../../../kennung';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { groesseText } from '@/lib/zahl';
 
 /**
  * `/portal/[mandant]/dokumente/[id]` — die Metadaten eines Dokuments
@@ -211,7 +212,7 @@ export default async function Dokumentblatt(
             <Feld label="Typ" wert={d.mime_typ ?? '—'} />
             <Feld label="Typ geprüft" wert={d.mime_verifiziert ? 'aus den Bytes bestätigt' : 'nicht geprüft'} />
             <Feld label="EXIF" wert={d.exif_entfernt ? 'entfernt' : 'nicht entfernt'} />
-            <Feld label="Größe" wert={formatiereBytes(d.groesse)} />
+            <Feld label="Größe" wert={groesseText(d.groesse)} />
             <Feld label="Ablage" wert={<code className="text-xs">{d.bucket}</code>} />
             <Feld label="Aufbewahren bis" wert={d.aufbewahrung_bis ?? 'keine Frist hinterlegt'} />
             <Feld label="Löschsperre" wert={d.loeschsperre ? 'ja — kein Löschen möglich' : 'nein'} />

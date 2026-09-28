@@ -10,7 +10,8 @@ import { waehleSpeicher } from '@/server/storage/waehle';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '@/app/portal/rechte';
 import { mandantTor, MandantAntwort } from '../../unterseite';
-import { formatiereBytes, ilikeMuster, KATEGORIE, KATEGORIEN } from './darstellung';
+import { ilikeMuster, KATEGORIE, KATEGORIEN } from './darstellung';
+import { groesseText } from '@/lib/zahl';
 
 /**
  * `/portal/[mandant]/dokumente` — die Ablage dieser Gesellschaft: Kategorien,
@@ -192,7 +193,7 @@ export default async function Dokumente(
             { schluessel: 'sichtbar', kopf: 'Sichtbar für',
               zelle: (z) => [z.sichtbar_fuer_kunde ? 'Kunde' : null, z.sichtbar_fuer_mitarbeiter ? 'Beschäftigte' : null]
                 .filter((t) => t !== null).join(', ') || 'nur intern' },
-            { schluessel: 'groesse', kopf: 'Größe', numerisch: true, zelle: (z) => formatiereBytes(z.groesse) },
+            { schluessel: 'groesse', kopf: 'Größe', numerisch: true, zelle: (z) => groesseText(z.groesse) },
             { schluessel: 'erstellt', kopf: 'Abgelegt', zelle: (z) => z.erstellt },
           ]}
         />

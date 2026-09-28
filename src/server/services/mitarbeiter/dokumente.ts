@@ -69,6 +69,7 @@
  */
 import type { LeseKontext } from '../../kontext/index.js';
 import { SIGNATUR_SEKUNDEN } from '../../storage/adapter.js';
+import { groesseText as groesseTextLib } from '../../../lib/zahl.js';
 
 /**
  * Die Geltungsdauer einer signierten Adresse in MINUTEN — fuer den Satz auf
@@ -308,24 +309,7 @@ export async function zaehleEigeneKategorien(
  * „KB" und „MB" auch auf arabischen Geraeten so erscheinen.
  */
 export function groesseText(bytes: string): string {
-  /*
-   * **Die leere Zeichenkette zuerst.** `BigInt('')` ist `0n` und wirft nicht —
-   * eine fehlende Angabe saehe damit aus wie eine Datei von null Bytes, und
-   * das ist eine Aussage ueber die Datei, die niemand geprueft hat. `0` selbst
-   * kommt aus der Datenbank ohnehin nicht (CHECK `groesse_bytes > 0`, 0009).
-   */
-  if (bytes.trim() === '') return '—';
-  let wert: bigint;
-  try {
-    wert = BigInt(bytes);
-  } catch {
-    // Eine unlesbare Groesse ist keine Groesse. Kein erfundener Wert.
-    return '—';
-  }
-  if (wert <= 0n) return '—';
-  if (wert < 1024n) return `${wert.toString()} B`;
-  const kb = Number(wert) / 1024;
-  if (kb < 1024) return `${kb.toFixed(kb < 10 ? 1 : 0).replace('.', ',')} KB`;
-  const mb = kb / 1024;
-  return `${mb.toFixed(mb < 10 ? 1 : 0).replace('.', ',')} MB`;
+  /* Eine Funktion für alle Portale (`src/lib/zahl.ts`, V-233) — in der
+     gesetzlichen, deutschen Form, gleich in jeder Sprache (SEITENKARTE §12). */
+  return groesseTextLib(bytes);
 }

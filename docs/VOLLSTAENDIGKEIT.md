@@ -435,6 +435,8 @@ stehen hier, weil ein Befund ohne Nummer ein Befund ist, den niemand wiederfinde
 
 | V-232 | **Die Verwaltung zeigte rohe Enum-Schlüssel, obwohl daneben Karten existierten** — „Stand: in_arbeit“, „oeffentlichevergabe — uebersprungen“, „Letzter Versuch: nicht_verbunden“, „(Stand: in_pruefung)“, „nicht_erschienen“, „ausgangsrechnung“; Kanal- und Vorgangskarten doppelt | Audit Befund 68; Radar, Recruiting, Zeiten, Security, DATEV, CRM | falsch | **erledigt** (D-726) — Karten in `src/lib/i18n/beschriftung/{radar,recruiting,zeit,dienstplan}.ts` (de/en) bzw. die vorhandenen `BELEGE_TEXTE`/`VERLAUF_TEXTE`, von allen betroffenen Seiten benutzt; `tests/kern/beschriftung-verwaltung.test.ts` gegen die Migrationen |
 
+| V-233 | **Zahlen- und Geldformat von Hand gebaut: „2.5 MB“ mit Punkt, Beträge ohne Tausenderpunkt** — `formatiereBytes` und `groesse()` mit `toFixed(1)`, weitere Seiten mit eigenen Helfern; Sonderleistungen und Unterschriftsblatt formatierten Cent selbst („1234,56 €“) | Audit Befund 69; `dokumente/darstellung.ts`, `gruppe/dokumente/page.tsx`, `reinigung/sonderleistungen/page.tsx`, `leistungsnachweise/[id]/unterschrift/page.tsx` | falsch | **erledigt** (D-727) — `groesseText`/`zahlText` in `src/lib/zahl.ts` für alle Grössen (auch Arbeiterportal), Geld über `formatiereGeld`, Mengen über `formatiereMenge`; `tests/kern/zahl.test.ts` |
+
 ---
 
 ## 9. Was geprüft und **widerlegt** wurde
