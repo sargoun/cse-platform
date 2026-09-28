@@ -11,6 +11,8 @@ import { berlinZeit } from '../../../marken';
 import {
   grundAus, RecruitingRueckmeldung, VeroeffentlichtHinweis,
 } from '../../../rueckmeldung';
+import { beschriftung } from '@/lib/i18n/beschriftung/basis';
+import { VEROEFFENTLICHUNG_ERGEBNIS_TEXT } from '@/lib/i18n/beschriftung/recruiting';
 
 /**
  * `/portal/[mandant]/recruiting/stellen/[id]/veroeffentlichung` — wohin eine
@@ -158,7 +160,7 @@ export default async function Veroeffentlichung(
                     <p className="m-0 mt-s2 max-w-prose text-xs text-text-muted">{b.grund}</p>
                     {vermerk !== undefined && (
                       <p className="m-0 mt-s2 text-xs text-text-subtle">
-                        Letzter Versuch: {vermerk.ergebnis}
+                        Letzter Versuch: {beschriftung(VEROEFFENTLICHUNG_ERGEBNIS_TEXT, vermerk.ergebnis)}
                         {vermerk.meldung !== null && ` — ${vermerk.meldung}`}
                       </p>
                     )}

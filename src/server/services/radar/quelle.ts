@@ -1,4 +1,5 @@
 import 'server-only';
+import { RADAR_QUELLE_TEXT } from '../../../lib/i18n/beschriftung/radar.js';
 
 /**
  * Die beiden Quellen des Vergaberadars — und was „verbunden" hier heisst
@@ -39,10 +40,8 @@ const UMGEBUNG: Readonly<Record<QuellSchluessel, string>> = {
   ted: 'RADAR_TED_URL',
 };
 
-const NAME: Readonly<Record<QuellSchluessel, string>> = {
-  oeffentlichevergabe: 'oeffentlichevergabe.de (OCDS)',
-  ted: 'TED Search API v3',
-};
+/** Der Name der Quelle — dieselbe Karte, die die Radarseiten zeigen (V-232). */
+const NAME: Readonly<Record<QuellSchluessel, string>> = RADAR_QUELLE_TEXT.de;
 
 export function quellStand(schluessel: QuellSchluessel): QuellStand {
   /* Getrimmt: ein Leerzeichen ist keine Adresse, und ein Lauf, der `" "` abruft, ist kein Lauf. */

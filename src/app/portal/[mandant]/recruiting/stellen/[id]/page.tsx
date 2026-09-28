@@ -13,6 +13,8 @@ import { haeltRechte } from '../../../../rechte';
 import { RecruitingSeite, leseImMandanten } from '../../rahmen';
 import { KNOPF } from '../../felder';
 import { BEWERBUNG_MARKE, berlinZeit } from '../../marken';
+import { beschriftung } from '@/lib/i18n/beschriftung/basis';
+import { VEROEFFENTLICHUNG_ERGEBNIS_TEXT } from '@/lib/i18n/beschriftung/recruiting';
 
 /**
  * `/portal/[mandant]/recruiting/stellen/[id]` — eine Ausschreibung (REC-02).
@@ -39,13 +41,6 @@ const FEHLER: Readonly<Record<string, string>> = {
   schon_vorgelegt: 'Diese Anzeige liegt schon im Freigabe-Posteingang. Zwei Bitten '
     + 'um dieselbe Entscheidung sind eine zu viel.',
   unbekannt: 'Diese Stelle gibt es nicht.',
-};
-
-const ERGEBNIS: Readonly<Record<string, string>> = {
-  offen: 'noch nicht versucht',
-  veroeffentlicht: 'veröffentlicht',
-  nicht_verbunden: 'nicht verbunden',
-  fehlgeschlagen: 'fehlgeschlagen',
 };
 
 export default async function Stellenblatt(
@@ -250,8 +245,8 @@ export default async function Stellenblatt(
                       schluessel: 'ergebnis',
                       kopf: 'Ergebnis',
                       zelle: (w) => (w.ergebnis === 'veroeffentlicht'
-                        ? <span className="text-success">{ERGEBNIS[w.ergebnis]}</span>
-                        : <span className="text-warning">{ERGEBNIS[w.ergebnis] ?? w.ergebnis}</span>),
+                        ? <span className="text-success">{beschriftung(VEROEFFENTLICHUNG_ERGEBNIS_TEXT, w.ergebnis)}</span>
+                        : <span className="text-warning">{beschriftung(VEROEFFENTLICHUNG_ERGEBNIS_TEXT, w.ergebnis)}</span>),
                     },
                     { schluessel: 'meldung', kopf: 'Grund', zelle: (w) => w.meldung ?? '—' },
                   ]}

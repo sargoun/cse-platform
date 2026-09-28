@@ -19891,3 +19891,51 @@ das Werkzeug roh in der Schrittkette, Quelltext im Vorschaltblatt
 
 | Betrifft | AGT-01, AGT-04, D-722, D-728, V-231, `src/lib/i18n/beschriftung/{basis,agent}.ts`, `src/app/portal/[mandant]/agenten/{darstellung.ts,Schrittkette.tsx,[agent]/page.tsx,[agent]/aufgaben/[id]/page.tsx,[agent]/start/page.tsx}`, `src/app/portal/[mandant]/freigaben/darstellung.ts`, `src/server/services/agent/richtlinie.ts`, `tests/kern/beschriftung.test.ts`, `tests/kern/hilfen/beschriftung.ts` |
 |---|---|
+
+### D-726 · Die Verwaltung zeigt Wörter statt Enum-Schlüssel — aus den Karten, die es schon gab (V-232)
+
+**Der Befund** (Audit Befund 68, V-123-Prinzip „Satz statt Schlüssel"):
+„Stand: in_arbeit" (Vorgangsblatt des Radars), „Letzter Lauf:
+oeffentlichevergabe — uebersprungen" (Radarliste), „Letzter Versuch:
+nicht_verbunden" (Veröffentlichung einer Stelle), „(Stand: in_pruefung)"
+(Korrekturseite), „nicht_erschienen" (Veranstaltungsblatt) und
+„ausgangsrechnung" (DATEV-Stapel) — jedes Mal hatte dieselbe Anwendung ein
+paar Dateien weiter eine Karte dafür. Die Kanäle des Kontaktblatts hatten
+eine eigene Karte neben der des Kommunikationsverlaufs, und derselbe
+Vorgangsstand stand als eigene Liste in Radarliste und Gruppenradar.
+
+**Die Entscheidung.**
+
+1. **Die Karten ziehen um, nicht die Wörter:** `beschriftung/radar.ts`
+   (Vorgang, Mappe, Radarlauf, Quelle — `services/radar/quelle.ts` liest ihre
+   Quellennamen von dort), `beschriftung/recruiting.ts` (Ergebnis einer
+   Veröffentlichung, vorher nur auf dem Stellenblatt),
+   `beschriftung/zeit.ts` (Stand eines Einwands aus Sicht der Planung, vorher
+   nur auf dem Einwandblatt), `beschriftung/dienstplan.ts` (Stand einer
+   Einteilung, neu). Die Belegarten des DATEV-Stapels kommen aus
+   `BELEGE_TEXTE` (`i18n/verwaltung/finanzen/belege.ts`), die Kanäle des
+   Kontaktblatts und der Rechtsgrundlage aus `VERLAUF_TEXTE`
+   (`i18n/verwaltung/crm-verlauf.ts`) — beides gab es zweisprachig schon.
+2. **Jede Karte hat Deutsch und Englisch**, und `tests/kern/
+   beschriftung-verwaltung.test.ts` hält sie gegen ihre Migration.
+3. **Die Seiten bleiben, was sie sind:** sie stehen in der Ausnahmeliste der
+   Übersetzungswache und rufen die deutsche Seite der Karte; wer sie
+   umstellt, gibt die Sprache mit.
+4. **Nebenbei auf denselben Seiten:** der Tag des Einwands auf der
+   Korrekturseite über `tagDeutsch` statt über drei `slice`, der Name einer
+   Datenbankbedingung (`lead_aktivitaet_hat_bezug`) und die Tabelle `einsatz`
+   aus dem sichtbaren Text entfernt, der vermerkte Stand des Radarvorgangs als
+   Wort („geprüft" statt `geprueft`, die Browserprüfung liest jetzt das Wort),
+   und die rohen Rechteschlüssel dieser Seiten als `<Recht>` — Vorgangsblatt
+   und Mappe des Radars (`radar.status_setzen`, `vergabe.schreiben`,
+   `vergabe.einreichung_erfassen`), Korrekturseite (`zeit.konto_korrigieren`),
+   Veranstaltungsblatt (`dienstplan.schreiben`), DATEV-Stapel
+   (`buchhaltung.exportieren`) und Kontaktblatt (`aufgabe.schreiben`,
+   `kalender.schreiben`, `system.benutzer_lesen`; im `title` der Name über
+   `rechtName`). Ein unbekannter Abweisungsgrund der Korrekturseite steht
+   nicht mehr roh im Satz.
+5. **Nicht Teil:** rohe RECHTE-Schlüssel über den ganzen Baum — die behandelt
+   eine eigene Gruppe; hier nur, wo eine Seite ohnehin geändert wurde.
+
+| Betrifft | D-728, V-123, V-232, `src/lib/i18n/beschriftung/{radar,recruiting,zeit,dienstplan}.ts`, `src/server/services/radar/quelle.ts`, `src/app/portal/[mandant]/radar/{page,[id]/page,[id]/mappe/page}.tsx`, `src/app/portal/gruppe/radar/page.tsx`, `src/app/portal/[mandant]/recruiting/stellen/[id]/{page,veroeffentlichung/page}.tsx`, `src/app/portal/[mandant]/zeiten/{[id]/korrektur,einwaende/[id]}/page.tsx`, `src/app/portal/[mandant]/security/veranstaltungen/[id]/page.tsx`, `src/app/portal/[mandant]/buchhaltung/datev/[id]/page.tsx`, `src/app/portal/[mandant]/crm/kontakte/[id]/{page,rechtsgrundlage/page}.tsx`, `tests/kern/beschriftung-verwaltung.test.ts`, `tests/e2e/radar.spec.ts` |
+|---|---|

@@ -433,6 +433,8 @@ stehen hier, weil ein Befund ohne Nummer ein Befund ist, den niemand wiederfinde
 
 | V-231 | **Agenten- und Aufgabenblatt zeigten rohe Enum-Schlüssel, und ein gescheiterter Lauf stand als „Wartet“ da** — Aktionen (`email_senden`) und Vorgangsarten (`interner_hinweis`) roh, obwohl `AKTION_TEXT`/`VORGANG_LABEL` existierten; dazu Störungscode im Satz, Rechteschlüssel in Anführungszeichen, Werkzeug roh in der Schrittkette, Quelltext im Vorschaltblatt, Pillenkarte mit Werten, die das Enum nicht hat | Audit Befund 61; `agenten/[agent]/page.tsx`, `agenten/[agent]/aufgaben/[id]/page.tsx` | falsch | **erledigt** (D-725) — gemeinsame Karten in `src/lib/i18n/beschriftung/` (de/en), alte Namen als deutsche Sicht darauf; `AUFGABE_PILLE` mit den sieben echten Zuständen; ein Satz je Störungscode; `<Recht>`; `tests/kern/beschriftung.test.ts` gegen die Migrationen |
 
+| V-232 | **Die Verwaltung zeigte rohe Enum-Schlüssel, obwohl daneben Karten existierten** — „Stand: in_arbeit“, „oeffentlichevergabe — uebersprungen“, „Letzter Versuch: nicht_verbunden“, „(Stand: in_pruefung)“, „nicht_erschienen“, „ausgangsrechnung“; Kanal- und Vorgangskarten doppelt | Audit Befund 68; Radar, Recruiting, Zeiten, Security, DATEV, CRM | falsch | **erledigt** (D-726) — Karten in `src/lib/i18n/beschriftung/{radar,recruiting,zeit,dienstplan}.ts` (de/en) bzw. die vorhandenen `BELEGE_TEXTE`/`VERLAUF_TEXTE`, von allen betroffenen Seiten benutzt; `tests/kern/beschriftung-verwaltung.test.ts` gegen die Migrationen |
+
 ---
 
 ## 9. Was geprüft und **widerlegt** wurde

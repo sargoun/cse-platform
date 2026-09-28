@@ -17,6 +17,8 @@ import {
   findeVeranstaltung, type VeranstaltungBlatt,
 } from '@/server/services/security/veranstaltung';
 import { Recht } from '@/components/ui/Recht';
+import { beschriftung } from '@/lib/i18n/beschriftung/basis';
+import { ZUORDNUNG_STATUS_TEXT } from '@/lib/i18n/beschriftung/dienstplan';
 
 /**
  * `/portal/[mandant]/security/veranstaltungen/[id]` — ein Eventdienst und sein
@@ -261,12 +263,17 @@ export default async function VeranstaltungBlattSeite(
         ) : schichten.length === 0 ? (
           <Hinweis art="warnung" cse="besetzung-keine-schicht" className="max-w-prose">
             <strong>Es ist keine Schicht angelegt.</strong> Für diese Veranstaltung
-            gibt es noch keine <code>einsatz</code>-Zeile — also auch keine
-            Einteilung, keinen Check-in und keinen Zeiteintrag.
+            gibt es noch keinen Einsatz — also auch keine Einteilung, keinen Check-in
+            und keinen Zeiteintrag.
             {kopf.hatObjekt
               ? darf['dienstplan.schreiben'] === true
                 ? ' Die Schicht entsteht auf dem Besetzungsbrett.'
-                : ' Die Schicht entsteht auf dem Besetzungsbrett; dafür fehlt dieses Konto das Recht dienstplan.schreiben.'
+                : (
+                  <>
+                    {' Die Schicht entsteht auf dem Besetzungsbrett; dafür fehlt diesem Konto '}
+                    das Recht <Recht schluessel="dienstplan.schreiben" />.
+                  </>
+                )
               : ' Solange der Ort nur als Text erfasst ist, lässt sich keine anlegen.'}
           </Hinweis>
         ) : (
@@ -317,8 +324,9 @@ export default async function VeranstaltungBlattSeite(
                               {b.funktion !== null && (
                                 <span className="ml-s2 text-text-muted">{b.funktion}</span>
                               )}
-                              <span className="ml-s2 text-micro text-text-muted">
-                                {b.status}
+                              <span className="ml-s2 text-micro text-text-muted"
+                                    data-status={b.status}>
+                                {beschriftung(ZUORDNUNG_STATUS_TEXT, b.status)}
                                 {b.zugesagtAmLokal !== null && ` · zugesagt ${b.zugesagtAmLokal}`}
                                 {b.abgesagtAmLokal !== null
                                   && ` · abgesagt ${b.abgesagtAmLokal}${b.absageGrund === null ? '' : ` (${b.absageGrund})`}`}

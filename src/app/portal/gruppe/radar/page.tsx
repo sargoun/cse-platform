@@ -14,6 +14,8 @@ import {
   gruppenLesen, gruppenTor, ladeBereiche, LeereListe, mandantIdsFuer, KeinRecht,
   type Suchparameter,
 } from '../tor';
+import { beschriftung } from '@/lib/i18n/beschriftung/basis';
+import { AUSSCHREIBUNG_STATUS_TEXT } from '@/lib/i18n/beschriftung/radar';
 
 /**
  * `/portal/gruppe/radar` — die Vergabepipeline über alle Gesellschaften
@@ -41,12 +43,6 @@ export const dynamic = 'force-dynamic';
 const BERLIN = new Intl.DateTimeFormat('de-DE', {
   timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
 });
-
-const VORGANG: Readonly<Record<string, string>> = {
-  neu: 'neu', geprueft: 'geprüft', verworfen: 'verworfen', in_bearbeitung: 'in Bearbeitung',
-  eingereicht: 'eingereicht', zuschlag: 'Zuschlag', nicht_beruecksichtigt: 'nicht berücksichtigt',
-  verfahren_aufgehoben: 'Verfahren aufgehoben',
-};
 
 /** Der Wert einer Vergabe — oder die Fremdwährung, die NICHT umgerechnet wird (O-47). */
 function Wert({ zeile }: { readonly zeile: GruppenRadarZeile }) {
@@ -85,7 +81,7 @@ function Zelle({ zelle }: { readonly zelle: RadarZelle }) {
       )}
       {zelle.vorgangStatus === null ? null : (
         <span className="text-xs text-text-muted">
-          {VORGANG[zelle.vorgangStatus] ?? zelle.vorgangStatus}
+          {beschriftung(AUSSCHREIBUNG_STATUS_TEXT, zelle.vorgangStatus)}
         </span>
       )}
       {/*

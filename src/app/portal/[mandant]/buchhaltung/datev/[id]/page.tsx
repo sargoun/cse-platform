@@ -15,6 +15,10 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { BELEGE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/belege';
+import { lesbar } from '@/lib/i18n/beschriftung/basis';
+import type { ReactNode } from 'react';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/buchhaltung/datev/[id]` — ein Stapel, seine Datei und
@@ -72,7 +76,7 @@ const FELD = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface px-
   + 'text-sm text-text';
 
 /** Die Sätze zu den Gründen, die `services/buchhaltung/datev/stapel.ts` nennt. */
-const FEHLERTEXT: Readonly<Record<string, string>> = {
+const FEHLERTEXT: Readonly<Record<string, ReactNode>> = {
   nicht_gefunden: 'Diesen Stapel gibt es in dieser Gesellschaft nicht.',
   nicht_offen:
     'Dieser Stapel trägt bereits einen Vermerk. Was übergeben wurde, wird nicht '
@@ -80,7 +84,7 @@ const FEHLERTEXT: Readonly<Record<string, string>> = {
   grund_zu_kurz:
     'Ein verworfener Stapel braucht einen Grund, mindestens fünf Zeichen. In drei '
     + 'Jahren weiss sonst niemand mehr, warum dieser Monat nicht beim Büro liegt.',
-  abgewiesen: 'Ihnen fehlt buchhaltung.exportieren.',
+  abgewiesen: <>Ihnen fehlt das Recht <Recht schluessel="buchhaltung.exportieren" />.</>,
 };
 
 export default async function DatevStapel(
@@ -362,7 +366,8 @@ export default async function DatevStapel(
                 </a>
               ),
             },
-            { schluessel: 'typ', kopf: 'Typ', zelle: (z) => z.typ },
+            { schluessel: 'typ', kopf: 'Typ',
+              zelle: (z) => eigenerEintrag(BELEGE_TEXTE.de.typNamen, z.typ) ?? lesbar(z.typ) },
             { schluessel: 'zeilen', kopf: 'Zeilen', numerisch: true, zelle: (z) => z.zeilen },
             {
               schluessel: 'summe', kopf: 'Soll', numerisch: true,
