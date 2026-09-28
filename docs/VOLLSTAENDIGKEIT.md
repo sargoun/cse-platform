@@ -431,6 +431,8 @@ stehen hier, weil ein Befund ohne Nummer ein Befund ist, den niemand wiederfinde
 
 | V-230 | **Der Akquise-Entwurf nannte eine erfundene Lücke („Personenzahl“) und verriet der anfragenden Firma interne Anfragezahlen** — `fuelleTatsachen` wählte die jüngste Anfrage ohne Statusfilter, schrieb fest `offen: 'die Angabe zur Personenzahl'` und „derzeit bearbeiten wir N Anfragen“ in den Text an den Kunden | Audit Befund 58; `agent/auftraege.ts`, `agent/modell/demo.ts` | falsch | **erledigt** (D-724, O-940) — nur offene Anfragen (`neu`, `in_bearbeitung`), sonst kein Lauf (`KeineOffeneAnfrage`, Laufroute und Vorschaltblatt sagen es); Lücken aus den leeren Formularfeldern (`anfrageLuecken`), ohne Lücke entfällt der Satz (`[[…]]` in der Demovorlage); keine interne Zahl; `tests/kern/akquise-entwurf.test.ts`, `tests/isolation/akquise-tatsachen.test.ts`, `tests/isolation/agent-lauf.test.ts` (9) |
 
+| V-231 | **Agenten- und Aufgabenblatt zeigten rohe Enum-Schlüssel, und ein gescheiterter Lauf stand als „Wartet“ da** — Aktionen (`email_senden`) und Vorgangsarten (`interner_hinweis`) roh, obwohl `AKTION_TEXT`/`VORGANG_LABEL` existierten; dazu Störungscode im Satz, Rechteschlüssel in Anführungszeichen, Werkzeug roh in der Schrittkette, Quelltext im Vorschaltblatt, Pillenkarte mit Werten, die das Enum nicht hat | Audit Befund 61; `agenten/[agent]/page.tsx`, `agenten/[agent]/aufgaben/[id]/page.tsx` | falsch | **erledigt** (D-725) — gemeinsame Karten in `src/lib/i18n/beschriftung/` (de/en), alte Namen als deutsche Sicht darauf; `AUFGABE_PILLE` mit den sieben echten Zuständen; ein Satz je Störungscode; `<Recht>`; `tests/kern/beschriftung.test.ts` gegen die Migrationen |
+
 ---
 
 ## 9. Was geprüft und **widerlegt** wurde

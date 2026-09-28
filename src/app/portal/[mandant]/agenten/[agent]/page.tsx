@@ -8,7 +8,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { DataTable } from '@/components/ui/DataTable';
-import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { StatusPill } from '@/components/ui/StatusPill';
 import { formatiereGeld, cent } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
@@ -25,8 +25,10 @@ import { standAus } from '@/server/agent/tools/freischaltung';
 import { Recht } from '@/components/ui/Recht';
 import { beschriftung } from '@/lib/i18n/beschriftung/basis';
 import {
-  NEBENWIRKUNG_TEXT, UNTERGRENZE_TEXT, WERKZEUG_TEXT,
+  LAUF_STOERUNG_TEXT, NEBENWIRKUNG_TEXT, UNTERGRENZE_TEXT, VERSAND_AKTION_TEXT, VORGANG_TEXT,
+  WERKZEUG_TEXT,
 } from '@/lib/i18n/beschriftung/agent';
+import { AUFGABE_PILLE } from '../darstellung';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
@@ -43,15 +45,6 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * Wahrheit, und beim neunten Werkzeug wäre sie die falsche.
  */
 export const dynamic = 'force-dynamic';
-
-const PILLE: Readonly<Record<string, PillZustand>> = {
-  wartend: 'Wartet',
-  laufend: 'In Arbeit',
-  abgeschlossen: 'Abgeschlossen',
-  abgebrochen: 'Abgelehnt',
-  fehler: 'Fehler',
-  wartet_freigabe: 'In Prüfung',
-};
 
 /** Warum ein Werkzeug nicht gesetzt wurde — ein Satz je Grund aus `werkzeug-pflege.ts`. */
 const WERKZEUG_FEHLER: Readonly<Record<string, string>> = {
@@ -287,14 +280,11 @@ export default async function AgentDetail(
           ) : (
             <>
               <strong>Kein Lauf.</strong>{' '}
-                {laufCode === 'RESIDENCY_BLOCKED'
-                  ? 'Für das Formulieren ist kein Modell mit EU-Verarbeitung und '
-                    + 'Nullspeicherung freigegeben (§8, D-04). Die Arbeit läuft von Hand weiter.'
-                  : laufCode === 'KEINE_ANFRAGE'
-                    ? 'Es gibt keine offene Anfrage, auf die ein Entwurf antworten könnte — '
-                      + 'es ist nichts entstanden.'
-                  : `Der Modellaufruf endete mit „${laufCode ?? 'unbekannt'}". `
-                    + 'Der Vorgang steht im Agentenzentrum.'}
+                {/* Ein Satz je Grund, nie der Code selbst (V-231); ein unbekannter
+                    Grund sagt, wo er steht, statt ihn roh zu zeigen. */}
+                {eigenerEintrag(LAUF_STOERUNG_TEXT.de, laufCode)
+                  ?? 'Der Lauf ist nicht zustande gekommen. Der Grund steht im Protokoll '
+                    + 'der Aufgabe im Agentenzentrum.'}
             </>
           )}
         </Hinweis>
@@ -347,7 +337,7 @@ export default async function AgentDetail(
         ) : !darfStarten ? (
           <p className="mt-s4 text-sm text-text-muted" data-cse="agent-kein-startrecht">
             Einen Lauf auszulösen ist eine eigene Befugnis
-            („agent.aufgabe_starten"), und dieses Konto hält sie nicht.
+            (<Recht schluessel="agent.aufgabe_starten" />), und dieses Konto hält sie nicht.
           </p>
         ) : modell === null ? (
           <p className="mt-s4 text-sm text-text-muted" data-cse="agent-kein-modell">
@@ -586,9 +576,12 @@ export default async function AgentDetail(
       ) : (
         <ul className="mb-s6 grid grid-cols-1 gap-s3 sm:grid-cols-2">
           {richtlinien.map((r) => (
-            <li key={r.aktion} className="rounded-lg border border-line bg-surface p-s4">
+            <li key={r.aktion} data-aktion={r.aktion}
+                className="rounded-lg border border-line bg-surface p-s4">
               <div className="flex items-baseline justify-between gap-s3">
-                <span className="text-sm text-text">{r.aktion}</span>
+                <span className="text-sm text-text">
+                  {beschriftung(VERSAND_AKTION_TEXT, r.aktion)}
+                </span>
                 <StatusPill zustand={r.auto_erlaubt ? 'Aktiv' : 'In Prüfung'} />
               </div>
               <p className="mt-s2 text-xs text-text-muted">
@@ -638,7 +631,8 @@ export default async function AgentDetail(
                 </Link>
               ),
             },
-            { schluessel: 'vorgang', kopf: 'Vorgang', zelle: (a) => a.vorgang },
+            { schluessel: 'vorgang', kopf: 'Vorgang',
+              zelle: (a) => beschriftung(VORGANG_TEXT, a.vorgang) },
             {
               schluessel: 'schritte',
               kopf: 'Schritte',
@@ -657,7 +651,7 @@ export default async function AgentDetail(
               kopf: 'Zustand',
               zelle: (a) => (
                 <span className="inline-flex flex-wrap items-center gap-s2">
-                  <StatusPill zustand={PILLE[a.status] ?? 'Wartet'} />
+                  <StatusPill zustand={eigenerEintrag(AUFGABE_PILLE, a.status) ?? 'Wartet'} />
                   {a.budget_stopp
                     ? <span className="text-xs text-warning">Budget</span>
                     : null}
