@@ -19547,11 +19547,41 @@ und genau dieser Beleg fehlt im Behinderungs- oder Bauzeitenstreit.
    Mandanten. `job:dwd_import` (stündlicher Vorabimport) ist nicht gebaut —
    die Beobachtungen übernimmt weiter `app.wetter_beobachtung_uebernehmen`
    beim Anheften.
+7. **Die Tagesseite verspricht den Lauf nur, wo er kommt** (Nachbesserung
+   nach der Prüfung der Gruppe). „Das Wetter heftet der Nachtlauf automatisch
+   an" stand an JEDEM offenen Tag ohne Wetter — auch an einem von vor drei
+   Wochen, den der Lauf nie mehr erreicht, und an einem Projekt ohne
+   Koordinaten oder Station, an dem er gar nicht erst fragt. Wer dem Satz
+   glaubte, drückte den Knopf nicht, und genau der Beleg für den
+   Behinderungsstreit fehlte. Die Seite wählt ihren Satz jetzt aus
+   `nachtlaufAussicht`: „automatisch" nur für `datum > heute −
+   WETTER_ZUORDNUNG_TAGE` (echt größer: der Lauf um 04:40 UTC hat den Tag
+   `heute − 7` am selben Tag zum letzten Mal angefasst), mit „heute" aus der
+   Datenbank und derselben Konstante wie der Lauf; sonst sagt sie, dass der
+   Lauf diesen Tag nicht mehr erreicht bzw. woran er scheitert (Koordinaten,
+   Station), und dass das Wetter hier nachzutragen ist. Darf die Anmeldung
+   das Objekt nicht lesen (`objekt.lesen`), sagt die Seite über den Lauf
+   nichts — sie kennt die Koordinaten dann nicht, der Lauf womöglich schon.
+8. **Gezählt wird, was geschrieben wurde** (Nachbesserung). `hefteWetterAn`
+   meldete „angeheftet", auch wenn das UPDATE keine Zeile traf — der Tag war
+   zwischen Kandidatenliste und Schreiben geschlossen, storniert oder (für
+   den Lauf) von Hand mit Wetter versehen worden, und das Laufprotokoll
+   zählte ein Anheften, das nicht stattfand. Jetzt prüft der Weg VOR dem
+   Abruf, ob der Tag offen ist (für den Lauf auch, ob er noch kein Wetter
+   trägt), schreibt mit `returning id` und meldet sonst `nicht_offen` bzw.
+   `schon_belegt` — im Befund und im Laufprotokoll (`ohne_wetter`). Der Knopf
+   darf vorhandenes Wetter weiter neu holen; das betrifft nur den Lauf.
+
+Nachgeprüft, was als geprüft galt: „fremder Mandant unsichtbar" war
+tautologisch (der Dienst filtert selbst nach Mandant) und prüft jetzt die
+Policies `j_wetter_lesen`/`j_wetter_projekt`/`j_wetter_anheften` ohne diesen
+Filter; der registrierte Lauf selbst läuft und meldet ohne DWD
+`verbunden: false`, `befund: 'nicht_verbunden'`.
 
 **Nicht Teil dieser Entscheidung:** Wetter an abgeschlossenen Tagen (O-922),
 welche Uhrzeiten als früh, mittag und abend gelten (O-213).
 
-| Betrifft | BAU-08, V-183, D-318, O-213, O-922, `src/server/services/bau/wetter.ts`, `src/server/jobs/{wetterZuordnung,bootstrap}.ts`, `drizzle/0468_wetter_zuordnung_job.sql`, `docs/JOB-AUSLOESER.sql`, `src/app/portal/[mandant]/bau/projekte/[id]/bautagebuch/[datum]/page.tsx`, `tests/kern/{wetter-zuordnung,jobs-bootstrap}.test.ts`, `tests/isolation/wetter-zuordnung.test.ts` |
+| Betrifft | BAU-08, V-183, D-318, O-213, O-922, `src/server/services/bau/wetter.ts` (`nachtlaufAussicht`, `leseWetterVoraussetzung`, `hefteWetterAn`), `src/server/db/heute.ts`, `src/server/jobs/{wetterZuordnung,bootstrap}.ts`, `drizzle/0468_wetter_zuordnung_job.sql`, `docs/JOB-AUSLOESER.sql`, `src/app/portal/[mandant]/bau/projekte/[id]/bautagebuch/[datum]/page.tsx`, `tests/kern/{wetter-zuordnung,jobs-bootstrap}.test.ts`, `tests/isolation/wetter-zuordnung.test.ts` |
 |---|---|
 
 ### D-678 · Ein Medium wechselt seinen Bezug nie — auch nicht per UPDATE (V-184)

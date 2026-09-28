@@ -9,12 +9,18 @@
  *     Abruf, kein Befund, der wie ein Versuch aussieht;
  *  2. mit Quelle bekommt jeder offene Tag seinen EIGENEN schreibenden Lauf
  *     (eine Transaktion je Tag), und abgeschlossene Tage keinen;
- *  3. der Lauf ist registriert, je Mandant, und steht im Zeitplan.
+ *  3. der Lauf ist registriert, je Mandant, und steht im Zeitplan;
+ *  4. die Tagesseite verspricht den Lauf nur, wo er ihn halten kann
+ *     (`nachtlaufAussicht`): im Fenster der letzten sieben Tage — echt
+ *     groesser, nicht groesser-gleich —, mit Koordinaten und Station; sonst
+ *     sagt sie, warum nicht.
  */
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
-  ordneWetterZu, WETTER_ZUORDNUNG_TAGE, type KontextLauf,
+  nachtlaufAussicht, nachtlaufErreichtTag, ordneWetterZu, WETTER_ZUORDNUNG_TAGE,
+  type KontextLauf,
 } from '../../src/server/services/bau/wetter.js';
 import {
   NichtVerbundenerWetterPort, type WetterMessung, type WetterPort,
@@ -107,5 +113,66 @@ describe('(3) der Lauf ist registriert', () => {
     expect(job).toMatchObject({
       schluessel: 'wetter_zuordnung', bereich: 'je_mandant', zeitplan: '40 4 * * *',
     });
+  });
+});
+
+describe('(4) die Tagesseite verspricht den Nachtlauf nur, wo er kommt (V-183)', () => {
+  const MIT = { koordinaten: true, station: true } as const;
+
+  it('das Fenster: heute bis heute-6 ja, heute-7 und aelter nein', () => {
+    const heute = '2026-03-10';
+    expect(nachtlaufErreichtTag('2026-03-10', heute)).toBe(true);
+    expect(nachtlaufErreichtTag('2026-03-09', heute)).toBe(true);
+    expect(nachtlaufErreichtTag('2026-03-04', heute)).toBe(true);
+    /* heute-7: der Lauf von heute 04:40 UTC war sein letzter Versuch. */
+    expect(nachtlaufErreichtTag('2026-03-03', heute)).toBe(false);
+    expect(nachtlaufErreichtTag('2026-02-17', heute)).toBe(false);
+    /* Ein kuenftiger Tag wird erreicht, sobald er vorbei ist. */
+    expect(nachtlaufErreichtTag('2026-03-12', heute)).toBe(true);
+  });
+
+  it('in Kalendertagen, ueber Monats-, Jahres- und Schaltjahresgrenzen und die Zeitumstellung', () => {
+    expect(nachtlaufErreichtTag('2025-12-27', '2026-01-02')).toBe(true);
+    expect(nachtlaufErreichtTag('2025-12-26', '2026-01-02')).toBe(false);
+    /* 2028 ist ein Schaltjahr: vom 23. Februar bis zum 1. März sind es sieben Tage. */
+    expect(nachtlaufErreichtTag('2028-02-24', '2028-03-01')).toBe(true);
+    expect(nachtlaufErreichtTag('2028-02-23', '2028-03-01')).toBe(false);
+    expect(nachtlaufErreichtTag('2027-02-23', '2027-03-01')).toBe(true);
+    /* Die Nacht der Vorstellung (29.03.2026) liegt im Fenster — ein Tag bleibt ein Tag. */
+    expect(nachtlaufErreichtTag('2026-03-27', '2026-04-02')).toBe(true);
+    expect(nachtlaufErreichtTag('2026-03-26', '2026-04-02')).toBe(false);
+    /* Eine unlesbare Angabe verspricht nichts. */
+    expect(nachtlaufErreichtTag('kaputt', '2026-04-02')).toBe(false);
+  });
+
+  it('das Fenster ist dieselbe Konstante, die der Lauf benutzt', () => {
+    expect(nachtlaufErreichtTag('2026-03-04', '2026-03-10', WETTER_ZUORDNUNG_TAGE)).toBe(true);
+    expect(nachtlaufErreichtTag('2026-03-04', '2026-03-10', 6)).toBe(false);
+  });
+
+  it('ohne Koordinaten oder Station kommt der Lauf nie — die Seite sagt den Grund', () => {
+    expect(nachtlaufAussicht('2026-03-09', '2026-03-10', MIT)).toBe('automatisch');
+    expect(nachtlaufAussicht('2026-02-17', '2026-03-10', MIT)).toBe('ausserhalb_fenster');
+    expect(nachtlaufAussicht('2026-03-09', '2026-03-10', { koordinaten: false, station: true }))
+      .toBe('ohne_koordinaten');
+    expect(nachtlaufAussicht('2026-03-09', '2026-03-10', { koordinaten: true, station: false }))
+      .toBe('keine_station');
+    /* Was diese Anmeldung nicht lesen darf, weiss die Seite nicht — sie sagt nichts. */
+    expect(nachtlaufAussicht('2026-03-09', '2026-03-10', null)).toBe('unbekannt');
+    expect(nachtlaufAussicht('2026-03-09', '2026-03-10', { koordinaten: null, station: true }))
+      .toBe('unbekannt');
+  });
+
+  it('die Tagesseite waehlt ihren Satz aus nachtlaufAussicht, mit dem Berliner Heute der Datenbank', () => {
+    const seite = readFileSync(
+      'src/app/portal/[mandant]/bau/projekte/[id]/bautagebuch/[datum]/page.tsx', 'utf8');
+    expect(seite).toContain(
+      'nachtlaufAussicht(datum, await berlinHeute(), daten.wetterVoraussetzung)');
+    expect(seite).toMatch(/aussicht === 'automatisch' \? \(\s*<p[^>]*data-cse="wetter-automatisch"/u);
+    expect(seite).toContain('data-cse="wetter-ausserhalb-fenster"');
+    expect(seite).toContain('data-cse="wetter-ohne-voraussetzung"');
+    expect(seite).toContain("&& aussicht !== 'unbekannt' && (");
+    /* Keine zweite Zahl neben der Konstante. */
+    expect(seite).toContain('{WETTER_ZUORDNUNG_TAGE} Tage');
   });
 });
