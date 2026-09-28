@@ -61,6 +61,17 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + '`?mandant=` steht nur für den Dateinamen in der Adresse (Invariante 3).',
   },
   {
+    pfad: 'api/beitragsbild/[id]',
+    recht: null,
+    grund:
+      'SOC-02, SOC-05, V-225. Das Bild eines VERÖFFENTLICHTEN Beitrags steht auf der '
+      + 'öffentlichen Gesellschaftsseite, und die hat keine Sitzung. Die Route gibt keine '
+      + 'Bytes heraus, sondern leitet auf eine signierte, nach SIGNATUR_SEKUNDEN ablaufende '
+      + 'Adresse des privaten Behälters — und nur für ein Bild, das an einem '
+      + 'veröffentlichten, nicht zurückgezogenen Beitrag hängt; ein Entwurfsbild nur für eine '
+      + 'Sitzung derselben Gesellschaft mit social.lesen. Alles andere ist 404, nie 403.',
+  },
+  {
     pfad: 'api/kalender/[token]',
     recht: null,
     grund:
@@ -2943,6 +2954,8 @@ export const ROUTEN: readonly RouteEintrag[] = [
    * nicht haelt, sieht es nicht.
    */
   { pfad: 'api/recruiting/gespraeche', recht: 'recruiting.bewerbung_lesen' },
+  /* Ein Bild am Beitragsentwurf (SOC-02, V-225, D-719) — wie Text und Kanäle. */
+  { pfad: 'api/social/beitraege/[id]/bild', recht: 'social.schreiben' },
   /*
    * Eine Bewerbung aus dem Postfach von Hand erfassen (REC-03, V-224, D-718) —
    * ein Schreibrecht, kein Leserecht (Invariante 10).

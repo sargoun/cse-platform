@@ -3364,6 +3364,7 @@ Beantworten helfen:
 | O-888 | **Kodiert die Tausenderstelle der Objektnummer die Gesellschaft?** Der Bestand legt es nahe: die Reinigung führt `OBJ-1001 … OBJ-1003`, SSE Security `OBJ-2001`, REALTIME Bau `OBJ-3001` (`src/server/db/seed/operations.ts`). Ist das eine Hausregel oder ein Zufall der Demo-Daten? **Die Plattform erfindet dazu nichts**: `legeObjektAn` zählt aus dem Bestand DIESER Gesellschaft weiter und übernimmt damit von selbst, was dort schon gilt — ohne die Regel je auszusprechen. Nur der allererste Fall, eine Gesellschaft ohne ein einziges Objekt, hat keinen Bestand; dort steht `OBJ-1001` als **klar bezeichneter Platzhalter**. Das Feld ist im Formular von Hand überschreibbar, damit niemand an der Vorgabe hängenbleibt. Sagt der Auftraggeber eine Maske zu, ist die Änderung **eine Zeile** im Dienst. | OPS-01, V-001, `src/server/services/objekt/anlegen.ts` |
 | O-937 | **Welche Dokumentkategorien sollen Fassungen führen — DOC-05 sagt „versioning where the document type warrants it" und nennt die Typen nicht?** Seit V-219 lässt sich zu einem abgelegten Dokument eine zweite Fassung ablegen (`legeFassungAn`, `POST /api/dokumente/[id]/version`): neue Zeile in `dokument_version`, neues Objekt im Speicher, die alte Fassung bleibt Zeile und Datei. Fest steht eine Seite: Rechnung, Beleg und Buchhaltungsunterlage bekommen KEINE (GoBD, § 147 AO; berichtigt wird durch Gegenbuchung bzw. Storno) — das prüfen Dienst und Datenbank (0470). Offen sind die übrigen sechs: Kundenunterlage, Vertrag, Angebot, Personalunterlage, Projektunterlage, Unternehmensunterlage. Denkbar sind (a) alle sechs, (b) nur Vertrag, Angebot und Projektunterlage (die Unterlagen, die typischerweise überarbeitet werden), (c) je Kategorie einstellbar. Bei der Personalunterlage kommt hinzu, dass eine ältere Fassung personenbezogene Angaben weiter vorhält, die die neue berichtigt hat (Art. 16 DSGVO). **Ausgeliefert ist (a) als Platzhalter** (`FASSUNG_ERLAUBT_PLATZHALTER`): gesperrt wird nur, was GoBD sperrt. Die Antwort ändert diese eine Liste (und, falls enger, den Auslöser in 0470), nicht die Aufrufer. | DOC-05, DOC-07, Art. 16 DSGVO, V-219, D-713, `src/server/services/dokument/kategorie.ts` (`FASSUNG_ERLAUBT_PLATZHALTER`, `fassungMoeglich`), `drizzle/0470` |
 | O-938 | **Welches Postfach nimmt Bewerbungen an — und ab wann läuft ihre Löschfrist?** REC-03 verlangt Bewerbungen über das Karriereformular UND über ein überwachtes Postfach. Seit V-224 gibt es den Anschluss als Vertrag (`BewerbungsPostfach`) mit genau einem Adapter, `NichtVerbundenesPostfach`, der nichts holt und das sagt; unter Einstellungen › Integrationen steht „Bewerbungspostfach: nicht verbunden". Eine Bewerbung, die per E-Mail kam, überträgt bis dahin ein Mensch (`/recruiting/bewerbungen/neu`, Quelle `mail`). Zu entscheiden: (1) welche Adresse und welcher Anbieter (IMAP bei welchem Hoster, Microsoft 365 per Graph, ein Weiterleitungsdienst) — in welcher Region und unter welchem Auftragsverarbeitungsvertrag, denn das Postfach enthält Lebensläufe; (2) beginnt die Löschfrist (REC-07, `recruiting.aufbewahrung_tage`) mit dem Eingang im Postfach oder mit der Übernahme in die Plattform — **ausgeliefert ist die Übernahme als Platzhalter**, weil beim Formular beides zusammenfällt; (3) ob nach der Übernahme die Nachricht im Postfach gelöscht wird (berührt O-117). Die Antwort ändert `bewerbungsPostfach()` und, falls (2) anders entschieden wird, die eine Zeile in `erfasseBewerbungAusPostfach`. | REC-03, REC-07, LEG-11, O-117, O-375, V-224, D-718, `src/server/integrationen/bewerbungspostfach.ts`, `src/server/services/recruiting/postfach.ts` |
+| O-939 | **Welchen Nachweis verlangt die Plattform, bevor ein Bild an einem Beitrag hinausgeht — Nutzungsrecht und, bei erkennbaren Personen, Einwilligung?** Seit V-225 lässt sich einem Beitrag ein Bild anhängen (privat abgelegt, mit in der Freigabe). Wer es veröffentlicht, braucht das Nutzungsrecht (UrhG) und bei erkennbaren Personen deren Einwilligung (§ 22 KUG, Art. 6/7 DSGVO) — bei Beschäftigten auf einem Objektfoto zusätzlich die Freiwilligkeit im Arbeitsverhältnis (§ 26 BDSG). Denkbar sind (a) ein Pflichthäkchen „Rechte liegen vor" mit Person und Zeitpunkt, (b) ein hochgeladener Beleg (Lizenz, Einwilligungserklärung) als Dokument am Bild, (c) nichts in der Plattform — die Freigabe durch einen Menschen gilt als Prüfung. **Ausgeliefert ist (c) mit einem Hinweis am Formular**; kein Häkchen wird erfunden, das eine Rechtslage behauptete. Die Antwort ändert `legeBeitragsbildAn` (Pflichtangabe) und das Formular am Beitrag. | SOC-02, SOC-08, LEG-*, § 22 KUG, V-225, D-719, `src/server/services/inhalt/medien.ts`, `src/app/portal/[mandant]/social/posts/[id]/page.tsx` |
 
 
 ### D-619 — Ein Objekt entsteht in der Anwendung, nicht im Seed
@@ -19980,4 +19981,62 @@ keine Löschfrist (REC-07); `bewerbung_quelle = 'mail'` setzte niemand.
 6. **Der Seed** erfasst eine Bewerbung aus dem Postfach über den Dienst.
 
 | Betrifft | REC-03, REC-07, LEG-11, O-117, O-375, O-938, Invariante 7, V-224, `drizzle/0472_bewerbung_aus_dem_postfach.sql`, `src/server/integrationen/bewerbungspostfach.ts`, `src/server/registry/integrationen.ts`, `src/server/services/recruiting/postfach.ts`, `src/app/api/recruiting/bewerbungen/route.ts`, `src/app/portal/[mandant]/recruiting/bewerbungen/{page,neu/page}.tsx`, `src/app/portal/[mandant]/recruiting/rahmen.tsx`, `src/server/db/seed/postfach.ts`, `tests/kern/{bewerbungspostfach,integrationen}.test.ts`, `tests/isolation/recruiting-postfach.test.ts` |
+|---|---|
+
+### D-719 · Ein Beitrag trägt ein Bild — privat abgelegt, über eine Tür ausgeliefert, und es geht mit in die Freigabe (V-225)
+
+**Der Befund** (V-225; Audit-Befund 49, SOC-02, SOC-05): SOC-02 nennt Bilder
+als Inhalt eines Beitrags, und 0163 hängt sie als `beitrag.medien_id` an —
+keine Zeile Code schrieb oder las die Spalte, für `medien` gab es keinen
+Annahmeweg, das Beitragsformular hatte kein Dateifeld, und die öffentliche
+Beitragsseite zeigte nur Text.
+
+**Die Entscheidung.**
+
+1. **Privater Behälter, signierte Adresse** (DOC-03; Stack: „private
+   buckets, signed URLs only"): das Bild liegt im Behälter `marke`, der schon
+   das Material der Website trägt, unter `<mandant>/beitrag/<sha256>.<endung>`
+   — der Inhalt ist der Name, nichts wird überschrieben. Die Zeile in
+   `medien` trägt Behälter und Schlüssel (`0473`, CHECK
+   `medien_hochgeladen_eigen`: eigener Ordner, Format des Dienstes, Adresse
+   ist die Tür). Ausgeliefert wird über `GET /api/beitragsbild/[id]`: eine
+   Weiterleitung auf eine signierte Adresse mit `SIGNATUR_SEKUNDEN`
+   Laufzeit, nie Bytes — und nur, wenn das Bild an einem veröffentlichten,
+   nicht zurückgezogenen Beitrag hängt oder die Sitzung zu dieser
+   Gesellschaft gehört und `social.lesen` hält (Vorschau am Entwurf); sonst
+   404, nie 403.
+2. **Dieselbe Prüfung wie beim Markenbild** (`legeBeitragsbildAn`,
+   `services/social/beitragsbild.ts`): PNG oder JPEG, erkannt am INHALT;
+   Metadaten entfernt (keine GPS-Daten des Aufnahmeorts); dieselbe
+   Grössengrenze; Alternativtext Pflicht (PUB-09, BFSG), verlangt VOR dem
+   Hochladen.
+3. **Nur am Entwurf, nur ein Bild derselben Gesellschaft**
+   (`setzeBeitragsbild`, `POST /api/social/beitraege/[id]/bild`): dieselbe
+   Regel wie für Text und Kanäle, mit der Bedingung IM `update`; der
+   Auslöser `beitrag_medien_eigen` (0473) hält die Gesellschaft auch an der
+   Route vorbei. Entfernen löst nur die Zuordnung — Datei und Zeile bleiben.
+4. **Das Bild gehört zur Entscheidung** (Invariante 7): `legeVor` nimmt es
+   in die Nutzlast der Freigabe (`bild: { medien_id, alt }`); ohne Bild
+   bleibt die Nutzlast, wie sie war. Wer freigibt, gibt Text UND Bild frei.
+5. **Recht:** `social.schreiben` — dasselbe wie für den Entwurf; die neue
+   Policy `t_medien_beitragsbild` lässt es dafür zu, nur für hochgeladene
+   Bilder der eigenen Gesellschaft. Der Veröffentlichungslauf (`cse_job`)
+   liest `medien`, um den Kanälen eine ABSOLUTE Adresse zu nennen — ohne
+   kanonische Basis geht kein Bild mit. Kein Kanal ist verbunden (O-10); der
+   Port trägt das Feld, und ein Adapter für Instagram, TikTok oder YouTube
+   prüft es, statt ohne Bild „veröffentlicht" zu melden.
+6. **Oberfläche:** Abschnitt „Bild" am Beitrag (Vorschau, Anhängen,
+   Ersetzen, Entfernen; ohne Speicher „nicht verbunden"); Hinweis auf
+   `/posts/neu`; die öffentliche Beitragsseite zeigt das Bild — ein
+   hochgeladenes lädt der Browser über die Tür, am Bildoptimierer vorbei,
+   der eine signierte Adresse länger festhielte, als sie gilt.
+7. **Rechte am Bild** (Urheberrecht, KUG bei erkennbaren Personen): welchen
+   Nachweis die Plattform verlangen soll, ist offen (O-939); die Seite sagt,
+   dass es ihn braucht.
+8. **Der Seed:** der veröffentlichte Beitrag jeder Gesellschaft trägt ihr
+   Galeriemotiv (als Platzhalter markiert, in der Nutzlast seiner Freigabe);
+   dem Entwurf der Reinigung hängt der Dienst ein Bild an — mit Speicher
+   hochgeladen, ohne Speicher das Galeriemotiv.
+
+| Betrifft | SOC-02, SOC-05, SOC-06, SOC-08, DOC-03, PUB-09, O-10, O-13, O-939, Invariante 7, V-225, `drizzle/0473_beitragsbild.sql`, `src/server/services/social/beitragsbild.ts`, `src/server/services/social/{dienst,port}.ts`, `src/app/api/beitragsbild/[id]/route.ts`, `src/app/api/social/beitraege/[id]/bild/route.ts`, `src/app/portal/[mandant]/social/posts/{[id],neu}/page.tsx`, `src/app/(public)/unternehmen/[bereich]/_profil/Inhalte.tsx`, `src/lib/i18n/verwaltung/social-bild.ts`, `src/server/db/seed/{social,beitragsbild}.ts`, `tests/isolation/social-beitragsbild.test.ts` |
 |---|---|

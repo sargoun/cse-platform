@@ -1727,6 +1727,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'recruiting', pfad: 'recruiting/gespraech', schreibend: true,
     schreibRecht: 'kalender.schreiben',
   },
+  /* Das Bild eines Beitrags annehmen (SOC-02, V-225, D-719). */
+  {
+    modul: 'social', pfad: 'social/beitragsbild', schreibend: true,
+    schreibRecht: 'social.schreiben',
+  },
   /* Eine Bewerbung aus dem Postfach von Hand erfassen (REC-03, V-224, D-718). */
   {
     modul: 'recruiting', pfad: 'recruiting/postfach', schreibend: true,

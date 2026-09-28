@@ -36,6 +36,7 @@ import { seedSocial } from './social.js';
 import { seedReferenzAusAuftrag } from './referenzauftrag.js';
 import { seedRecruiting } from './recruiting.js';
 import { seedGespraeche } from './gespraech.js';
+import { seedBeitragsbild } from './beitragsbild.js';
 import { seedPostfach } from './postfach.js';
 import { seedKandidat } from './kandidat.js';
 import { seedStellenentwurf } from './stellenentwurf.js';
@@ -2024,6 +2025,17 @@ async function main(): Promise<void> {
    * Kunden und dem Auftragskreis, nur auf der Vorführfläche (D-537): die
    * Kundenfreigabe darin ist erfunden und steht als DEMODATEN im Wortlaut.
    */
+  /*
+   * Das Bild am Entwurf (V-225, D-719): mit Speicher hochgeladen, ohne das
+   * Galeriemotiv — über die Dienste, nach dem Social Media Center.
+   */
+  const beitragsbild = await seedBeitragsbild(sql, ids, verbundenerSpeicher, demodaten);
+  if (beitragsbild.angehaengt > 0) {
+    process.stdout.write(beitragsbild.hochgeladen
+      ? '  Beitragsbild: am Entwurf der Reinigung, hochgeladen in den privaten Behälter\n'
+      : '  Beitragsbild: am Entwurf der Reinigung das Galeriemotiv (kein Speicher verbunden)\n');
+  }
+
   const referenzAuftrag = await seedReferenzAusAuftrag(sql, ids, demodaten);
   process.stdout.write(referenzAuftrag.auftragsnummer === null
     ? `  Referenz aus Auftrag: keine — ${referenzAuftrag.grund ?? 'übersprungen'}\n`

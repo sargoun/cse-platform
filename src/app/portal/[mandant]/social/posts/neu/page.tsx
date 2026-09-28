@@ -12,6 +12,9 @@ import {
 } from '@/server/services/social/dienst';
 import { PLATTFORM_NAME, type Plattform } from '@/server/services/social/port';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
+import { internSprache } from '@/lib/i18n/intern';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { SOCIAL_BILD_TEXTE } from '@/lib/i18n/verwaltung/social-bild';
 
 /**
  * `/portal/[mandant]/social/posts/neu` — der Entwurf (SOC-02, SOC-04).
@@ -96,6 +99,11 @@ export default async function NeuerBeitrag(
         Mensch ihn freigegeben hat — auf diesem Bildschirm gibt es dafür keinen Knopf,
         und das ist Absicht (SOC-08).
       </Hinweis>
+
+      {/* V-225: wo das Bild hinkommt — an den Entwurf, mit Alternativtext. */}
+      <p className="mb-s5 max-w-prose text-sm text-text-muted" data-cse="neu-bild-hinweis">
+        {nachSprache(SOCIAL_BILD_TEXTE, internSprache(zugang.sprache)).neuHinweis}
+      </p>
 
       {abgewiesen === null ? null : (
         <Hinweis art="warnung" cse="neu-fehler" className="mb-s5 max-w-prose">
