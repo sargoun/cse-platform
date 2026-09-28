@@ -41,6 +41,8 @@ import {
   AGENTEN, fuerAgent, type AgentKennung,
 } from '../../agent/tools/register-werkzeuge.js';
 import { MIT_AUSFUEHRER } from '../../agent/tools/ausfuehrer.js';
+import { beantworteFrage } from '../../services/agent/assistent.js';
+import { alsPortalSitzung } from './sitzung.js';
 import { DEMO_KENNWORT, seedZugangsdaten } from './zugang.js';
 import { seedBenachrichtigungen } from './benachrichtigung.js';
 import { seedKern } from './kern.js';
@@ -1981,6 +1983,34 @@ async function main(): Promise<void> {
       + `${String(berichtsdaten.zeiten)} freigegebene Zeiten und `
       + `${String(berichtsdaten.termine)} Termine — damit jede Gesellschaft in jedem der `
       + 'sechs Berichte und im Kalender eine Zeile hat\n');
+  }
+
+  /**
+   * **Eine Frage an den CEO-Assistenten, protokolliert** (V-229, D-723).
+   *
+   * Seit jede Frage eine Aufgabe mit Schritt ist, soll die Vorführfläche das
+   * auch zeigen: im Agentenzentrum steht ein Lauf des CEO-Assistenten, sein
+   * Schritt nennt Werkzeug, Eingabe und Dauer, und die Assistentenseite
+   * verweist auf ihn. Gestellt wird sie über denselben Dienst wie im Portal
+   * (`beantworteFrage`), in der Sitzung der Administration — kein `insert`
+   * an der Laufzeit vorbei. Derselbe Schlüssel bei jedem Seedlauf: ein
+   * zweiter Lauf findet die Aufgabe und legt keine neue an.
+   */
+  if (demodaten) {
+    const reinigung = ids.get('reinigung');
+    const [chef] = await sql<{ id: string }[]>`
+      select id from benutzer where email = 'admin.reinigung@cse-gruppe.de'`;
+    if (reinigung !== undefined && chef !== undefined) {
+      const frage = await alsPortalSitzung(sql, reinigung, chef.id, (kontext) =>
+        beantworteFrage(kontext, {
+          abfrageId: 'offene_rechnungen_anzahl',
+          schluessel: 'seed-ceo-frage-1',
+          angefordertVon: chef.id,
+        }));
+      process.stdout.write(
+        `  CEO-Assistent: eine Frage ${frage.bestand ? 'war schon' : 'ist jetzt'} als `
+        + 'Aufgabe mit Schritt protokolliert (AGT-04)\n');
+    }
   }
 
   /**

@@ -19805,8 +19805,12 @@ standen nur die Knopf-Läufe.
    „Abfrage ‚offene_rechnungen_anzahl‘" unter der Antwort; jetzt steht dort
    der Verweis auf die protokollierte Aufgabe (nur mit
    `agent.protokoll_lesen`).
+6. **Die Vorführfläche zeigt eine protokollierte Frage:** der Seed stellt mit
+   Demodaten eine Katalogfrage der Reinigung über denselben Dienst in der
+   Sitzung der Administration (`alsPortalSitzung`), mit festem Schlüssel —
+   ein zweiter Seedlauf findet die Aufgabe und legt keine neue an.
 
-| Betrifft | AGT-01, AGT-04, AGT-07, D-599, D-722, V-229, `src/server/services/agent/assistent.ts`, `src/app/api/agenten/assistent/route.ts`, `src/app/portal/[mandant]/agenten/assistent/page.tsx`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts`, `tests/isolation/agent-assistent.test.ts` |
+| Betrifft | AGT-01, AGT-04, AGT-07, D-599, D-722, V-229, `src/server/services/agent/assistent.ts`, `src/app/api/agenten/assistent/route.ts`, `src/app/portal/[mandant]/agenten/assistent/page.tsx`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts`, `src/server/db/seed/index.ts`, `tests/isolation/agent-assistent.test.ts` |
 |---|---|
 
 ### D-724 · Der Akquise-Entwurf nennt nur Lücken, die in der Anfrage leer sind, und keine interne Zahl (V-230)
