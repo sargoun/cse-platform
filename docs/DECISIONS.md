@@ -3356,6 +3356,7 @@ Beantworten helfen:
 | O-925 | **Wen darf eine Beschäftigte beim Schichttausch als Tauschpartner sehen und wählen — und auf welcher Grundlage?** Die Systemart `schichttausch` (0074) verlangt Schicht UND Tauschpartner (`erfordert_tauschpartner`, Auslöser `antrag_pflichtfelder`). Die Schicht ist eigene Sache der Kraft (EMP-02) und wird seit V-187 angeboten: ihre kommenden, nicht abgesagten Einteilungen, geprüft im Dienst. Der Partner ist dagegen eine Liste ANDERER Beschäftigter, und EMP-13 sagt „Employees never see … other employees' data". **Zu entscheiden:** (1) der Kreis — alle aktiven Beschäftigten derselben Gesellschaft, nur die am selben Objekt oder Revier Eingesetzten, nur die mit derselben Qualifikation (SEC-04), oder gar keine Liste und der Partner wird von der Planung gesucht; (2) die Namensform — Vor- und Nachname, Vorname und Initial, Personalnummer; (3) die Grundlage — reicht § 26 BDSG, braucht es eine Einwilligung oder eine Betriebsvereinbarung (hängt mit O-06 zusammen). **Ausgeliefert ist die vorsichtige Lesart:** `TAUSCHPARTNER_QUELLE` ist der Platzhalter `TAUSCHPARTNER_NICHT_FESTGELEGT`, das Formular führt den Schichttausch nicht in der Auswahl, sondern sagt in vier Sprachen, dass er dort noch nicht beantragt werden kann und die Planung ihn aufnimmt; der Dienst nimmt keinen Partner an, auch keinen aus einer nachgebauten Anfrage. Die Antwort ersetzt eine Zeile (die Quelle) und liefert eine Lesefunktion — Formular, Dienst und Prüfungen stehen. Die GENEHMIGUNG eines Tauschs ist O-613. | EMP-10, EMP-13, O-06, O-613, D-681, V-187, `src/server/services/mitarbeiter/tausch.ts` (`TAUSCHPARTNER_QUELLE`), `src/server/services/abwesenheit/antrag.ts` (`reicheAntragEin`), `src/app/portal/mein/antraege/neu/page.tsx` |
 | O-926 | **Wo endet ein Arbeitstag im Sinne der §§ 3 und 5 ArbZG — am Berliner Kalendertag oder 24 Stunden nach Arbeitsbeginn (individueller Werktag) —, und wie wird ein geteilter Dienst über Mitternacht behandelt?** § 5 Abs. 1 verlangt elf Stunden Ruhe „nach Beendigung der täglichen Arbeitszeit"; die Unterbrechung eines geteilten Dienstes (Früh- und Abendreinigung) ist keine Ruhezeit. Das folgt aus dem Gesetz und ist seit V-190 gebaut. Offen ist die GRENZE des Arbeitstags: nach der Kalendertag-Lesart beginnt um 00:00 Berliner Zeit ein neuer, nach der Werktag-Lesart 24 Stunden nach dem ersten Arbeitsbeginn. Die Lesarten gehen auseinander bei (a) einem geteilten Dienst über Mitternacht (22:00–23:30 und 00:30–06:00 — nach der Kalendertag-Lesart zwei Arbeitstage mit einer Stunde Ruhe, nach der Werktag-Lesart einer), (b) einer Kette kurzer Pausen über mehr als 24 Stunden, (c) der klassischen Folge 14:00–23:00 und 07:00 am nächsten Tag, die nach der reinen Werktag-Lesart gar keine Ruhezeit auslöste. Dieselbe Frage trägt die § 3-Summe, die heute je Berliner Kalendertag des Schichtbeginns gebildet und in jeder Begründung so benannt wird. **Ausgeliefert ist der vorsichtige Platzhalter** `ARBEITSTAG_BEIDE_LESARTEN`: zwei Blöcke gelten nur als EIN Arbeitstag, wenn beide Lesarten es sagen (gleicher Kalendertag UND weniger als 24 Stunden nach Beginn des Arbeitstags); sonst misst die Prüfung wie bisher und meldet einen Verstoss, dessen Begründung die Lesart und diese Nummer nennt. Verschwiegen wird nur, was nach keiner Lesart ein Verstoss ist. Die Antwort ersetzt die `Arbeitstagsgrenze` (und gegebenenfalls die § 3-Zuordnung), nicht die Rechnung. Hängt mit O-18 (Zehn-Stunden-Ausnahme) und O-50 (strengere Tarifregeln) zusammen. | TIM-05, TIM-06, TIM-14, D-09, D-684, V-190, O-18, O-50, `src/server/services/zeit/arbzg.ts` (`Arbeitstagsgrenze`, `ARBEITSTAG_BEIDE_LESARTEN`) |
 | O-927 | **Welche Leistungszeile darf die Zeit einer Schicht tragen — über die Wahl eines Menschen beim Planen hinaus?** Seit V-191 setzt ein Mensch die Leistungszeile an Einzelschicht, Turnus und Posten; der Zeiteintrag erbt sie beim Erfassen (`z_erben`, 0034) und hält sie danach fest (`z_unveraenderlich`). Jede der vier Fragen entscheidet, bei welchem Kunden eine geleistete Stunde abgerechnet wird, und keine davon beantwortet SPEC oder das Datenmodell: **(1) Nachträgliche Zuordnung.** Darf Zeit, die schon OHNE Leistungszeile erfasst ist (`zeiteintrag_ohne_auftrag`, Ursache `einsatz_ohne_leistung`), einer Leistungszeile zugeordnet werden — und bis wann: vor der Freigabe, nach der Freigabe, nach der Abrechnung, in einem gesperrten Monat (dort verlangt jede Korrektur eine Gegenbuchung, O-891)? Heute übernimmt eine Korrektur die Zeile der alten Fassung, und die Zeit bleibt ohne Auftrag; für den Abruf stellt O-708 dieselbe Frage. **(2) Der Anker des Reviers.** `revier.auftrag_leistung_id` (0029) liest niemand; der Generator nimmt den des Turnus. Soll ein Turnus ohne eigene Zeile die seines Reviers übernehmen, und welche gilt, wenn beide gesetzt sind und auseinandergehen? **(3) Der Kunde.** Muss der Auftrag der gewählten Zeile dem Kunden des Objekts (Reviers, Postens) gehören, an dem die Schicht stattfindet? Die Datenbank prüft nur, dass Zeile und Auftrag zusammengehören (`einsatz_leistung_fk`); seit V-192 nennt die Auswahl Kunde und Objekt jeder Zeile, verhindert aber nichts — eine Hausverwaltung, die für einen Eigentümer bestellt, wäre ein Fall, in dem beide auseinandergehen dürfen. **(4) Der Zustand des Auftrags.** In welchen Zuständen nimmt ein Auftrag neue Zeit an? `storniert` nie (einwegig, 0389), `abgeschlossen` nicht, solange O-734 offen ist. Offen sind `angelegt` (ein neuer Auftrag steht dort, bis jemand ihn aktiviert) und `pausiert`. Der Platzhalter `ANKERBARE_AUFTRAGSZUSTAENDE` nimmt `aktiv` und `pausiert` — dieselbe Menge wie die Auftragsauswahl der Einzelschicht (V-013); die Antwort ersetzt nur ihn. | TIM-12, FIN-07, O-708, O-734, O-891, D-685, D-686, V-191, V-192, `src/server/services/dienstplan/leistungsanker.ts` (`ANKERBARE_AUFTRAGSZUSTAENDE`), `drizzle/0029`, `drizzle/0034`, `drizzle/0050` |
+| O-928 | **Darf der Sprachkeks „cse_sprache" über die Browsersitzung hinaus bestehen — und wenn ja, wie lange?** Seit V-200 merkt sich das Telefon einer Kraft die Sprache der Flächen ohne Sitzung (Stempeluhr, Anmeldung): ein Keks mit einem von vier Werten (de, en, ar, tr), gesetzt nur auf ausdrückliche Wahl — die Sprachwahl dieser Flächen oder das Speichern der Sprache im Profil der Arbeiterhülle —, gelesen vor der Anmeldung, und die Abmeldung löscht ihn nicht, weil die Stempeluhr ohne Anmeldung benutzt wird. V-200 gab ihm ein Jahr, begründet mit „eine Spracheinstellung ist keine Sitzung"; das war eine still entschiedene Rechtsfrage (§ 25 Abs. 2 Nr. 2 TDDDG, vormals TTDSG: „unbedingt erforderlich" für einen ausdrücklich gewünschten Dienst — die Art.-29-Gruppe (WP194) nennt Oberflächen-Kekse ohne weiteren Hinweis nur als Sitzungs- oder Kurzzeitkeks ausgenommen). **Ausgeliefert ist der Sitzungskeks** (`SPRACH_KEKS_SEKUNDEN = null`, kein `Max-Age`): er endet mit dem Browser; `Accept-Language` trägt die Sprache des Telefons ohnehin. Die Datenschutzerklärung (Seed de/en) beschreibt genau das. Zu entscheiden: (1) Sitzungskeks oder dauerhaft; (2) falls dauerhaft, die Dauer und ob der Hinweis in der Erklärung genügt; (3) ob die Erklärung den Namen des Gesetzes auf TDDDG umstellen soll (der ganze Absatz nennt noch TTDSG). Die Antwort ändert `SPRACH_KEKS_SEKUNDEN` und den Satz der Erklärung, nicht die Aufrufer. | EMP-12, TIM-07, D-61, D-694, D-751, V-200, `src/lib/i18n/geraetesprache.ts` (`SPRACH_KEKS_SEKUNDEN`), `src/server/konto/sprach-keks.ts`, `src/server/db/seed/{inhalt,inhalt-en}.ts` |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` |
 | O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` |
@@ -19617,4 +19618,721 @@ und der Seed zeigte den geteilten Dienst ohne Befund nicht.
    seinen eigenen Zweig.
 
 | Betrifft | EMP-07, EMP-10, TIM-01, TIM-04, TIM-06, TIM-11, D-09, D-599, D-680, D-683, D-684, D-733, SEITENKARTE §12, V-186, V-189, V-190, V-193, `src/server/services/zeit/einwand.ts`, `src/app/api/zeit/einwand/route.ts`, `src/lib/i18n/{mein-formulare,texte}.ts`, `src/app/portal/[mandant]/dienstplan/{monat/page.tsx,daten.ts}`, `src/lib/datum/kalendertag.ts`, `src/lib/i18n/verwaltung/dienstplan-monat.ts`, `src/app/portal/mein/{bausteine.tsx,zeiten/einwand/page.tsx,zeiten/[id]/einwand/page.tsx,antraege/neu/page.tsx,abwesenheit/neu/page.tsx}`, `src/server/db/seed/zeit.ts`, `tests/isolation/{einwand-ohne-eintrag,zeit-auftrag}.test.ts`, `tests/kern/{einwand-ohne-eintrag,monatsplan,mein-einwand-form}.test.ts` |
+|---|---|
+
+### D-688 · Tage und Mengen im Arbeiterportal stehen als Zahl in der Sprache der Seite — die unterschriebene Tabelle bleibt deutsch (V-194)
+
+**Der Befund** (V-194; Audit Befund 62): `abwesenheit.tage_angerechnet` ist
+`numeric(12,3)` und kommt als Text „5.000" — das IST die Zahl fünf. Das Blatt
+einer eigenen Abwesenheit (`/portal/mein/abwesenheit/[id]`) behandelte den
+Text als Tausendstel und teilte durch 1000: eine fünftägige Krankmeldung
+stand dort mit „0". Die Liste unter „Anträge" gab „5.000" roh aus, und das
+liest ein deutscher Leser als fünftausend. Bei der Gegenprobe über das ganze
+Arbeiterportal fanden sich zwei weitere `numeric(12,3)`-Werte in Rohform: die
+Menge auf dem Unterschriftsblatt des Leistungsnachweises („12.500") und die
+Menge einer Bautagebuchzeile. Das Urlaubskonto rechnete richtig, schrieb aber
+„30,00 Tage" neben ein „5" der Verwaltung.
+
+**Die Entscheidung.**
+
+1. **Eine Funktion für Tage:** `formatiereTage` und `tageAusPostgres` in
+   `services/finanz/menge.ts`. Ganze Tage ohne Nachkommastellen („5"), ein
+   halber bleibt sichtbar („1,5", „0,5"), `null` ist „—" und nicht „0" — „noch
+   nicht berechnet" ist keine Null. Abwesenheitsblatt, Antragsliste und
+   Urlaubskonto benutzen sie; die Teilung durch 1000 ist weg.
+2. **Die Schreibweise folgt der Sprache der Seite, wie beim Kalendertag**
+   (V-210): englisch mit englischem Dezimalzeichen („1.5"), deutsch, türkisch
+   und arabisch in der deutschen Form („1,5") — dieselbe Regel wie
+   `formatiereMengeIn` (V-240). Geld und Zeitpunkte bleiben, wie SEITENKARTE
+   §12 sie festlegt; diese Entscheidung betrifft Mengen und Tage.
+3. **Die Tabelle, die der Kunde unterschreibt, bleibt deutsch** — auch auf
+   einem Telefon mit englischer Oberfläche. Sie gehört zu dem Blatt unter dem
+   deutschen Bestätigungstext (SEITENKARTE §12, 0066), also `formatiereMenge`
+   ohne Sprache. Die Menge einer Bautagebuchzeile ist dagegen die eigene
+   Aufzeichnung der Kraft und folgt ihrer Sprache.
+4. **Geprüft am Quellbaum, nicht an einer Liste:** `tests/kern/mein-tage.test.ts`
+   liest jede `.tsx` unter `src/app/portal/mein` und schlägt fehl, sobald
+   `tageAngerechnet`, `menge`, `anspruchTage` oder `restTage` wieder roh in
+   einer JSX-Klammer steht oder eine Tageszahl durch 1000 geteilt wird.
+
+| Betrifft | EMP-05, EMP-10, EMP-12, CLN-04, BAU-07, V-194, V-210, V-240, SEITENKARTE §12, `src/server/services/finanz/menge.ts` (`formatiereTage`, `tageAusPostgres`), `src/app/portal/mein/{abwesenheit/[id],antraege,urlaub}/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/{leistungsnachweis,bautagebuch}/page.tsx`, `tests/kern/mein-tage.test.ts` |
+|---|---|
+
+### D-689 · Ein Wert aus der Datenbank steht im Arbeiterportal als Wort unter seiner eigenen Beschriftung — ein unbekannter als Strich (V-195)
+
+**Der Befund** (V-195; Audit Befund 65): Auf Bildschirmen, die in vier
+Sprachen stehen, lagen vier Stellen daneben. Das Schichtblatt zeigte unter
+„Status" den rohen Wert von `dienstplan_zuordnung.status` (`geplant`,
+`zugesagt`, `abgesagt`, `ersetzt`, `nicht_erschienen`) — auch auf Arabisch.
+„Meine Nachweise" stellte die Rechtsgrundlage („§34a Abs. 1a GewO") unter die
+Beschriftung „Status" / „الحالة" und zeigte den Status im Bewacherregister
+roh. Die Schichtkarte schrieb in jeder Sprache „23-Stunden-Tag" bzw.
+„25-Stunden-Tag"; die Übersetzungswache sah es nicht, weil der Text in einem
+Ternär stand. Bei der Gegenprobe fanden sich vier Rückfälle, die einen
+unbekannten Wert als Schlüssel gezeigt hätten (`?? e.status`, `?? e.art`,
+`?? tag.status`, `?? abgleich.befund`), und ein Nachschlagen aus der Adresse
+im Prototyp: `ANTWORT_TEXT[antwort]!(t)` auf dem Schichtblatt —
+`?antwort=constructor` rief den Konstruktor von `Object`, gab React ein
+Objekt, und die Seite antwortete mit 500.
+
+**Die Entscheidung.**
+
+1. **Die Wörter stehen in `MeinTexte`**, nicht in einer zweiten Karte:
+   `zuordnungStatus`, `bewacherStatus`, `rechtsgrundlage`, `zeitanomalie` —
+   damit prüft `tests/kern/mitarbeiter-sprachen.test.ts` sie auf
+   Vollständigkeit in allen vier Sprachen mit.
+2. **Die Vokabulare bleiben Platzhalter** (O-170, O-40). Die Wörter
+   übersetzen sie, sie erfinden keinen Zustand dazu; das Deutsche ist
+   wortgleich mit der Verwaltung (`STATUS_TEXT`), damit Büro und Kraft
+   dasselbe lesen. `ZUORDNUNG_STATUS_SCHLUESSEL` und
+   `BEWACHER_STATUS_SCHLUESSEL` werden gegen die Migrationen 0028/0031 und
+   den Dienst gehalten: ein neuer Wert ohne Wort fällt im Test auf, nicht auf
+   dem Telefon.
+3. **Ein unbekannter Wert wird ein Strich, nie ein Schlüssel.** Wo ein
+   Datenbankwert nachgeschlagen wird, fällt er auf „—" zurück; aus der
+   Adresse wird nur ein eigener Eintrag nachgeschlagen (D-728), und die
+   Quellbaumprüfung aus D-728 kennt jetzt auch `[antwort]`.
+4. **Die Fundstelle bleibt unübersetzt** — „§34a Abs. 1a GewO" ist eine
+   Fundstelle, kein Wort (dieselbe Regel wie `nachweisBlatt`); übersetzt wird
+   die Beschriftung darüber.
+5. **Die Wache der Übersetzung wird NICHT auf Ternäre ausgedehnt.** Gezählt:
+   62 Dateien unter `src/app/portal` und `src/components` ausserhalb der
+   Ausnahmeliste trügen dann einen Fund, fast alle
+   Klassennamen oder Pillenschlüssel (`'Archiviert' : 'Fehler'`) — eine Wache,
+   die überwiegend Technik meldet, wird abgeschaltet. Geprüft wird stattdessen
+   am Quellbaum des Arbeiterportals (`tests/kern/mein-rohwerte.test.ts`).
+
+| Betrifft | EMP-02, EMP-08, EMP-12, SEC-03, O-40, O-170, D-728, V-195, `src/lib/i18n/texte.ts` (`MeinTexte`, `ZUORDNUNG_STATUS_SCHLUESSEL`, `BEWACHER_STATUS_SCHLUESSEL`), `src/app/portal/mein/{bausteine.tsx,nachweise/page.tsx,schichten/[zuordnungId]/page.tsx}`, `src/app/portal/mein/zeiten/[id]/einwand/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/{wachbuch,bautagebuch}/page.tsx`, `tests/kern/mein-rohwerte.test.ts`, `tests/kern/nachschlagen.test.ts` |
+|---|---|
+
+### D-690 · Der Personalbereich schreibt Tage, Stunden und Kalendertage deutsch — umgeschrieben wird nur die Anzeige (V-196)
+
+**Der Befund** (V-196; Audit Befund 67): `numeric`-Spalten wurden per `::text`
+gelesen und ohne Formatierung ausgegeben. Das Stundenkonto der Beschäftigung
+zeigte „Urlaub (Tage)" und „Krank (Tage)" als „5.000" bzw. „0.000", die
+Abwesenheiten ebenso — deutsch gelesen fünftausend. „Wochenstunden" stand
+als „38.50 h", „Arbeitstage pro Woche" als „5.000", auf dem Vertrags- wie auf
+dem Entgeltblatt und in dessen Konditionentabelle. Die Listen der
+Beschäftigungen und die Personenseite zeigten Eintritt und Austritt als
+„2026-01-15", das Detailblatt derselben Beschäftigung als „15.01.2026"; das
+Entgeltblatt schrieb Stichtag, Geltungsbeginn und Konditionszeitraum als
+ISO-Tag. Die Gegenprobe über den ganzen Personalbereich fand dieselbe
+Rohform auf acht weiteren Seiten: Antrags- und Abwesenheitsblatt, Antrags-
+und Abwesenheitsliste, Nachweisregister und -blatt (samt Stichtag und
+Bewacherregister), Personenblatt, „Beschäftigung beenden" und der gesperrte
+Austritt auf dem Vertragsblatt; das Personen- und das Nachweisblatt zeigten
+dazu den Status des Bewacherregisters als Schlüssel.
+
+**Die Entscheidung.**
+
+1. **Die Dienste und Abfragen bleiben, wie sie sind** — ISO-Tag und Punkt.
+   Links (`?stichtag=`), Vergleiche (`giltAb === stichtag`) und die
+   Formularwerte hängen daran; eine Anzeigeform in der Abfrage hätte sie
+   gebrochen. Umgeschrieben wird in der Seite: `tageAusPostgres` für Tage
+   (D-688, „5", „1,5", `null` → „—"), `formatiereMenge(mengeAusPostgres(…))`
+   für Wochenstunden (`numeric(5,2)`, „38,50 h" — dieselbe Form, die die
+   Liste der Beschäftigungen schon schrieb), `tagDeutsch` für Kalendertage.
+   Das Beschäftigungsblatt, das als einzige Seite `DD.MM.YYYY` in der
+   Abfrage bildete, liest jetzt auch ISO und schreibt in der Seite um — eine
+   Regel für alle, damit die Prüfung sie am Quelltext halten kann.
+   **Berichtigt (Prüfer der Gruppe):** umgestellt war nur die Kopfabfrage;
+   die Abwesenheiten desselben Blatts bildeten weiter `DD.MM.YYYY`. Jetzt
+   lesen auch sie ISO und schreiben über `tagDeutsch` um, und
+   `tests/kern/personal-zahlen.test.ts` hält die Regel: keine Datei des
+   Bereichs enthält `'DD.MM.YYYY'`. V-196 steht auf „falsch", nicht auf
+   „Schönheit" — „5.000" Tage sind keine korrekte Anzeige.
+2. **Deutsch und nicht „in der Sprache der Seite"**: die Seiten stehen auf
+   der Ausnahmeliste der Übersetzungswache, ihr Text ist deutsch. Eine
+   englische Zahl in einem deutschen Satz wäre der umgekehrte Fehler.
+3. **Geprüft über den ganzen Personalbereich**, nicht über die Liste des
+   Befunds: `tests/kern/personal-zahlen.test.ts` liest jede `.tsx` unter
+   `personal/` und findet einen ISO-Tag im sichtbaren Text; Technik (`href`,
+   `key`, `min`, `defaultValue` eines Datumsfelds) bleibt ISO.
+4. **Nebenbei:** die drei Rechteschlüssel auf Vertrags- und Entgeltblatt
+   (`personal.entgelt_lesen`, `personal.entgelt_schreiben`) stehen als
+   `<Recht>` statt als Quelltext; der Status im Bewacherregister steht als
+   Wort (`STATUS_TEXT`), und der Status eines Kontomonats oder Nachweises
+   fällt bei einem unbekannten Wert auf „—" statt auf den Schlüssel.
+5. **Die Antrags- und die Abwesenheitsliste und das Nachweisblatt** bekommen
+   ihre Kalendertage mit V-197: dieselben Seiten bekommen dort ihren
+   Fehler-Rückweg, und eine Datei gehört einem Befund.
+
+| Betrifft | EMP-04, EMP-05, SEC-03, D-688, V-196, V-197, `src/app/portal/[mandant]/personal/anstellungen/{page,[id]/page,[id]/vertrag/page,[id]/entgelt/page,[id]/beenden/page}.tsx`, `src/app/portal/[mandant]/personal/{antraege/[id],abwesenheiten/[id],nachweise,personen/[id]}/page.tsx`, `tests/kern/personal-zahlen.test.ts` |
+|---|---|
+
+### D-691 · Eine Seite, auf die ein Formular zurückführt, liest den Grund, den die Route mitgibt — sonst ist der Rückweg ein Weg ins Leere (V-197)
+
+**Der Befund** (V-197; Audit Befund 79): Fünf Formulare schicken `zurueck`
+bzw. `fehlerweg` auf ihre eigene Seite, und ihre Routen bilden einen
+fachlichen Fehler richtig als Umleitung ab — `POST /api/antraege/[id]` und
+`POST /api/abwesenheiten/[id]` mit `?meldung=<Satz>` (`fehlerAufsFormular`),
+`POST /api/finanzen/ausgaben`, `/api/personal/nachweise` und
+`/api/dienstplan/einsatz` mit `?fehler=<grund>`. Die Zielseiten nahmen den
+Parameter nicht an: „Ablehnen" in der Antrags- oder Abwesenheitsliste ohne
+Kommentar bzw. Grund (das Feld kann nicht `required` sein, weil „Genehmigen"
+dasselbe Formular benutzt), „Freigeben" einer Ausgabe ohne Beleg,
+Bestätigen oder Widerrufen eines schon entschiedenen Nachweises — der Klick
+landete auf derselben Seite, nichts war geschehen, und kein Satz sagte,
+warum. Der Kommentar in `api/abwesenheiten/[id]` behauptete „Die Seiten
+lesen `?meldung=`". Das Schichtblatt (`dienstplan/einsatz/[id]`) liest
+`?fehler=` seit V-158; das ist hier nur gegengeprüft.
+
+**Die Entscheidung.**
+
+1. **Die Liste liest, was ihr Blatt liest.** Antrags- und Abwesenheitsliste
+   zeigen `?meldung=` wie ihre Detailblätter (V-158): „Der Vorgang lief nicht
+   durch." und der Satz des Dienstes, im Hinweiskasten `warnung` mit
+   `role="alert"` (DESIGN §5 „Notices"). Der Satz kommt aus dem Dienst und
+   ist deutsch — wie die beiden Listen. **Berichtigt (D-753):** der Satz des
+   Dienstes trug nach einer schon getroffenen Entscheidung die volle Kennung
+   und sagte, den Vorgang gebe es nicht; und jeder Text aus einem
+   präparierten Link stand als rote Meldung da. Listen und Blätter lesen
+   jetzt `?fehler=<grund>` und schlagen den Satz nach.
+2. **Ausgabe- und Nachweisblatt schlagen `?fehler=` in ihren zweisprachigen
+   Tabellen nach** (`AUSGABE_ERFASSEN_TEXTE.fehler`,
+   `NACHWEIS_ERFASSEN_TEXTE.fehler`), nur als eigener Eintrag (D-728). Ein
+   unbekannter Grund bekommt einen allgemeinen Satz (`fehlerAllgemein`,
+   `fehlerSonst`) — auch auf den beiden Erfassungsseiten, die bis hierhin
+   den rohen Schlüssel zeigten.
+3. **`nicht_gefunden` beim Nachweis nennt den häufigen Fall.** Der Dienst
+   wirft ihn auch, wenn der Nachweis schon bestätigt oder widerrufen ist; „ist
+   nicht erreichbar" allein ließ glauben, er sei weg.
+4. **Jeder Grund, den ein Dienst werfen kann, hat einen Satz** — geprüft
+   gegen die Union am Konstruktor von `AusgabeFehler`, `NachweisFehler` und
+   `SchichtFehler`, in beiden Sprachen.
+
+| Betrifft | D-599, D-562, D-728, EMP-10, TIM-02, ACC-03, V-158, V-197, `src/app/portal/[mandant]/personal/{antraege,abwesenheiten,nachweise/[id],nachweise/erfassen}/page.tsx`, `src/app/portal/[mandant]/finanzen/ausgaben/{[id],erfassen}/page.tsx`, `src/lib/i18n/verwaltung/finanzen/ausgabe-erfassen.ts`, `src/lib/i18n/verwaltung/personal-nachweis.ts`, `tests/kern/fehler-rueckweg-seiten.test.ts` |
+|---|---|
+
+### D-692 · Ein Formular des Arbeiterportals endet auf einer Seite in der Sprache der Person — der Erfolg wie die Abweisung (V-198)
+
+**Der Befund** (V-198; Audit Befund 63): Die Arbeiterseiten schicken bewusst
+echte `<form method="post">` ohne JavaScript (SEITENKARTE §13), und mehrere
+Routen antworteten darauf mit JSON — der Browser zeigte es als weisse Seite.
+(1) Ein Einwand gegen einen Zeiteintrag endete auch im ERFOLG in
+`{"einwand":"<uuid>"}` (201). (2) Eine Krankmeldung mit einer Art, deren
+Lohnwirkung offen ist (O-139), endete in JSON mit dem deutschen Satz des
+Dienstes — das Formular bietet genau diese Arten an. (3) Wachbuch: „Präsenz
+bestätigt" ohne Kontrollpunkt → JSON mit deutschem Satz. (4) Ein
+Urlaubsantrag ohne Datum scheiterte am Auslöser `antrag_pflichtfelder`
+(0074); der Fehler trägt keinen numerischen `status`, die Route warf ihn
+weiter, und es blieb ein 500 ohne Text. Dieselbe Form hatten die übrigen
+Schreibwege unter `api/mein`: Kenntnisnahme einer Dienstanweisung (neuere
+Fassung), Rücknahme von Abwesenheit und Antrag, Antwort im Faden,
+Leistungsnachweis, Bautagebuch und Fotos über `dienstFehlerAntwort`.
+
+**Die Entscheidung.**
+
+1. **Die Route schickt einen GRUND, die Seite den Satz.**
+   `grundAufsFormularweg(anfrage, daten, grund, status)`
+   (`src/app/api/formular-antwort.ts`) leitet mit 303 auf das Formularfeld
+   `fehlerweg`, sonst auf `zurueck`, und hängt `?fehler=<grund>` an — über
+   `internesZiel`, also nie nach draussen. Trägt der Aufruf keines der beiden
+   Felder, ist er ein Programm und bekommt JSON mit Status wie bisher (D-599).
+2. **`fehlerweg` ist die Seite des Formulars**, wo der Erfolg woanders
+   hinführt: Abwesenheit melden und Antrag stellen führen im Erfolg auf die
+   Liste, im Fehlschlag zurück auf das Formular; Rücknahme und Kenntnisnahme
+   zurück auf ihr Blatt (meist ein Wettlauf — entschieden oder neu gefasst,
+   während die Seite offen war); die Unterschrift unter einem
+   Leistungsnachweis auf dasselbe Blatt (`?nachweis=`). Schichtwege, deren
+   `zurueck` schon die eigene Seite ist, brauchen kein zweites Feld.
+   **Nachtrag (Prüfer der Gruppe):** der Wettlauf der Rücknahme kam als
+   `nicht_gefunden` zurück, und das Blatt zeigte über dem Vorgang mit seinem
+   neuen Stand „Das gibt es für Ihre Anmeldung nicht (mehr)." — ein Satz, der
+   dem Bildschirm darunter widersprach. Jetzt unterscheidet die Route: hat
+   der Personen-Scope die Zeile geliefert und scheitert erst die Rücknahme,
+   ist das `ungueltiger_zustand` (409, „Das geht in diesem Stand nicht mehr.
+   Die Seite zeigt den aktuellen Stand."); ein fremder oder fehlender Vorgang
+   bleibt `nicht_gefunden` (404). Der genauere Satz verrät nichts: das Blatt
+   zeigt ohnehin nur eigene Vorgänge (AUT-06). Geprüft an der echten Route
+   (`tests/kern/mein-ruecknahme-route.test.ts`).
+   **Nachtrag zu den Prüfungen (Prüfer der Gruppe):** die Fälle des Befunds
+   waren nur an Hilfsfunktionen und am Quelltext geprüft. Jetzt am Verhalten:
+   `dienstFehlerAntwort` (Grund vor Code, leerer Grund ist keiner,
+   `fehlerweg` vor `zurueck`, JSON ohne Formular, `null` für einen
+   Programmfehler) in `tests/kern/mein-formular-rueckweg.test.ts`, und
+   `pflichtfeldGrund` am ECHTEN postgres.js-Fehler des Auslösers
+   (`fehlt_zeitraum`, `fehlt_abwesenheitsart`) und der Prüfung `an_zeitraum`
+   (`zeitraum`) in `tests/isolation/abwesenheit.test.ts` §2b. Eine
+   Browserprüfung der drei Fehlerfälle bleibt aus: Playwright läuft in
+   diesem Zweig nicht, und die Weiche ist an der Route selbst geprüft.
+3. **Der Einwand endet auf seinem Blatt**:
+   `/portal/mein/zeiten/<id>/einwand?gesendet=1` bestätigt den Eingang
+   („eingegangen, nicht entschieden", EMP-07) und zeigt die Meldung in der
+   Liste darunter; ohne `zurueck` antwortet die Route einem Programm weiter
+   mit 201 und der Kennung.
+4. **Was die Datenbank abweist, wird ein Grund, wo er sicher erkennbar ist.**
+   `pflichtfeldGrund` (`services/abwesenheit/antrag.ts`) liest aus einer
+   `check_violation` den Hinweis des Auslösers („Fehlendes Feld: …") bzw.
+   die Prüfung `an_zeitraum` und gibt `fehlt_zeitraum`,
+   `fehlt_abwesenheitsart`, `fehlt_einsatz`, `fehlt_tauschpartner` oder
+   `zeitraum` zurück; alles andere bleibt ein Fehler, den die Route
+   weiterwirft. Die Krankmeldung bildet `ArtUngeklaertFehler` auf
+   `art_ungeklaert` und `ZeitraumFehler` auf `zeitraum` ab; das Wachbuch
+   trägt neben seinem deutschen Satz einen Schlüssel
+   (`WachbuchEingabeFehlt.grund`), denn fünf Fälle teilen denselben `code`.
+   Überschneidung und Prüfungen der Abwesenheitsmeldung selbst (23P01/23514)
+   sind Befund 81 einer anderen Gruppe und hier bewusst nicht angefasst.
+5. **Das Antragsformular sagt VOR dem Absenden, was eine Art verlangt** —
+   „Pflicht bei: …" unter Zeitraum und Abwesenheitsart, gelesen aus
+   denselben Spalten `antragsart.erfordert_*`, die der Auslöser prüft. Ohne
+   JavaScript kann ein Feld nicht je nach Auswahl `required` werden. Eine
+   Art, deren Pflichtfelder das Formular nicht anbietet (Schicht und
+   Tauschpartner beim Schichttausch), bleibt sichtbar, ist aber nicht wählbar
+   („hier noch nicht möglich"): angeboten wäre sie ein sicherer Fehlschlag.
+   Welche Art was verlangt, entscheidet weiter allein die Datenbank.
+   **Die Lücke dahinter ist V-260 (offen):** EMP-10 verlangt den
+   Tauschantrag, und kein Formular dieses Portals schickt `einsatz` und
+   `tauschpartner`; was eine Genehmigung bewirkt, ist O-613.
+6. **Der Satz steht in der Sprache der Person** — `MEIN_FORMULAR_TEXTE`
+   (de/en/ar/tr, `src/lib/i18n/mein-formular.ts`), nachgeschlagen nur als
+   eigener Eintrag (D-728); ein Grund, den die Tabelle nicht kennt, bekommt
+   den allgemeinen Satz, nie den Schlüssel. Kein Satz verspricht eine Frist,
+   Zuständigkeit oder Rechtsfolge; „an die Einsatzleitung wenden" steht nur,
+   wo das Portal keinen Weg hat (O-139, Schichttausch). Der Kasten ist
+   `components/ui/Hinweis` (`warnung` mit `role="alert"`, die Bestätigung
+   `erfolg` mit `role="status"`) — mit der neuen Grösse `groesse="base"`,
+   weil DESIGN §5 Hinweise in `sm` setzt und Fliesstext im Arbeiterportal nie
+   unter 16 px liegt (§8, D-738); §5 nennt die Ausnahme jetzt. Er steht über
+   dem Formular im `MeinRahmen`, der `lang` und `dir` (Arabisch `rtl`) setzt.
+7. **Was bleibt JSON**: die Wächter VOR dem Lesen des Formulars (fremder
+   Ursprung 403, keine Sitzung 401, Konto ohne Person 404) — wie auf allen
+   Schreibwegen der Plattform — und Eingaben, die kein Formular dieses
+   Portals erzeugt (unbekannte Handlung, keine UUID). Eine Beschäftigung, die
+   es für die Anmeldung nicht (mehr) gibt, geht dagegen zurück aufs Formular
+   („gibt es für Ihre Anmeldung nicht (mehr)") — dieselbe Auskunft wie das
+   bisherige 404, also kein neues Orakel (AUT-06).
+
+**Nachsatz (Zusammenführung mit der Gruppe zeit, V-186…V-193, D-680…D-687).**
+Beide Gruppen hatten Antrag, Abwesenheitsmeldung und Einwand je auf eine Seite
+zurückgeführt; es bleibt EIN Weg, und kein Grund, keine Vorbelegung und kein
+Satz geht verloren. (a) Der Rückweg ist `grundAufsFormularweg`; er trägt jetzt
+auch die Eingaben (`rueckweg.werte`, Regeln von `maskeMitEingaben`, Freitext
+nie) und — für Routen mit genau einer Maske (Meldung, Antrag) — deren Maske,
+wenn ein Formular `zurueck`, aber kein `fehlerweg` schickt. `zurMaske` ist
+entfallen, `datenbankGrund` bleibt die zweite Linie. Ohne beide Felder
+antworten alle drei Routen JSON mit Status (Nr. 1, D-599) — auch Meldung und
+Antrag, die vorher immer umleiteten. Die Einwandformulare schicken `fehlerweg`
+statt `maske`. (b) Reihenfolge der Gründe: beim Antrag `AntragAbgewiesen`
+(D-681), dann `pflichtfeldGrund` (Nr. 4), dann `datenbankGrund`, dann der
+`code` — über den Dienst erreicht eine unvollständige Eingabe den Auslöser
+nicht mehr, deshalb prüft `tests/isolation/abwesenheit.test.ts` §2b beide
+Linien, die zweite am INSERT selbst; bei der Meldung behält `ZeitraumFehler`
+seinen genauen Grund (`zeitraum_verkehrt`, `zeitraum_zu_lang`, D-682) statt
+`zeitraum`, und `AbwesenheitNichtGefunden` heißt beim Melden
+`art_nicht_waehlbar`. (c) Ein
+fehlendes Recht aus `authorize` bleibt byte-gleich JSON 404
+(`autorisierungsAntwort`, D-656 Nr. 2, D-682 Nr. 2), auch hinter dem
+Formular; die Beschäftigung, die es nicht (mehr) gibt, geht wie jeder
+fachliche Fehler eines Dienstes aufs Formular (Nr. 7). (d) Ein Kasten:
+`FormularFehler` schlägt zuerst in der Tabelle der Maske nach
+(`ANTRAG_FORM_TEXTE`, `MELDUNG_FORM_TEXTE`, `EINWAND_FORM_TEXTE` als
+`MaskenSaetze`: Titel, Gründe, Rückfall), dann in `MEIN_FORMULAR_TEXTE`;
+`zusatz` bittet um den Freitext. Der aus Klassen nachgebaute Kasten
+`Abgewiesen` ist entfallen (DESIGN §5). (e) Der Erfolg des Einwands folgt
+`zurueck`, wie es ist; beide Einwandseiten tragen `?gesendet=1` darin (statt
+des angehängten `?gemeldet=1`, D-683 Nr. 4), die Bestätigung ist
+`EinwandGesendet` — auf „Eine Zeit fehlt" mit dem Satz `gemeldet`, denn dort
+gibt es keinen Eintrag, der „bleibt, wie er ist". (f) Das Antragsformular
+zeigt eine nicht einreichbare Art (`artEinreichbar`, heute nur mangels
+Tauschpartner, O-925 — die Schicht bietet es seit V-187 an) gesperrt mit
+„hier noch nicht möglich" (Nr. 5) und darunter den Satz, an wen man sich
+wendet (D-681 Nr. 4); „Pflicht bei: …" (`MEIN_FORMULAR_TEXTE.pflichtBei`)
+steht an jedem Feld, das nicht jede angebotene Art verlangt, mit
+`aria-describedby`. (g) Einwandliste und Schichtauswahl schreiben ihre Tage
+wie das übrige Arbeiterportal
+(`tagInSprache`, `tagVonZeitpunktInSprache`, D-693, D-695): D-687 Nr. 3 gilt
+für Deutsch, Arabisch und Türkisch, Englisch schreibt britisch — sonst stünde
+auf dem Einwandblatt der Tag des Eintrags in einer anderen Form als die Liste
+darunter. (h) Das Schichtblatt der Verwaltung schlägt die Gründe des
+Leistungsankers nach `SCHICHT_TEXTE` in `LEISTUNGSANKER_TEXTE` nach (D-686);
+die Gegenprüfung von D-691 Nr. 4 geht dieselbe Kette.
+
+| Betrifft | D-599, D-728, D-691, EMP-07, EMP-09, EMP-10, EMP-11, EMP-12, SEC-05, CLN-04, BAU-07, TIM-10, O-139, V-198, `src/app/api/formular-antwort.ts`, `src/app/api/zeit/einwand/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/[id]/zurueckziehen/route.ts`, `src/app/api/mein/dienstanweisungen/[id]/kenntnisnahme/route.ts`, `src/app/api/mein/nachrichten/[id]/route.ts`, `src/app/api/mein/schichten/**`, `src/server/services/abwesenheit/antrag.ts` (`pflichtfeldGrund`), `src/server/services/security/wachbuch.ts`, `src/lib/i18n/mein-formular.ts`, `src/app/portal/mein/FormularAntwort.tsx`, `src/components/ui/Hinweis.tsx` (`groesse`), DESIGN §5 „Notices", `tests/kern/mein-formular-rueckweg.test.ts`, `tests/e2e/mitarbeiter.spec.ts` |
+|---|---|
+
+### D-693 · Das Arbeiterportal schreibt jeden Kalendertag in der Sprache der Seite — ISO bleibt Adresse, Schlüssel und Formularwert (V-199)
+
+**Der Befund** (V-199; Audit Befund 66): Die Dienste des Arbeiterportals
+liefern Kalendertage als `JJJJ-MM-TT` — für Logik, Adressen und Schlüssel —,
+und die Seiten gaben sie unverändert aus. Auf dem Blatt eines Zeiteintrags
+stand die Überschrift „2026-09-11" über dem Feld Beginn „11.09.2026 22:00".
+Dieselbe Rohform hatten die Monatsgrenzen der Zeitenliste, Wochenwechsler
+und Tagesüberschriften der Schichtliste, die Ablaufdaten der Nachweise auf
+„Heute" und „Meine Nachweise" (samt Stichtag und Bewacherregister), der
+Zeitraum von Anträgen und Abwesenheiten (Liste und Blatt), der betroffene Tag
+eines Einwands, „gilt ab" einer Dienstanweisung und das Entstehungsdatum
+eines Dokuments. V-210 hatte den Monatsnachweis und die Schichtseiten
+umgestellt; die übrigen Seiten blieben ISO.
+
+**Die Entscheidung.**
+
+1. **Dieselbe Regel wie V-210:** `tagInSprache(tag, basis.sprache)` —
+   Deutsch, Arabisch und Türkisch `TT.MM.JJJJ`, Englisch „11 Sep 2026".
+   Umgeschrieben wird nur die Anzeige; Dienste, `href`, `key`, `data-*` und
+   versteckte Formularfelder (der `datum` des Einwands, `?woche=`) behalten
+   ISO, weil dort ein Programm liest.
+2. **Der Monatsnachweis bleibt deutsch** (`tagDeutsch`, V-210): er ist das
+   Blatt nach § 17 MiLoG.
+3. **Zeitpunkte gehören in die gesetzliche Form, wie SEITENKARTE §12 sie
+   festlegt** — Europe/Berlin, in jeder Sprache. Diese Entscheidung betrifft
+   Kalendertage. **Berichtigt (V-201, D-695):** hier stand, die Zeitpunkte
+   seien schon so und Tag und Zeitpunkt stünden auf Deutsch, Arabisch und
+   Türkisch in derselben Schreibweise. Das stimmte nicht: fünf Blätter
+   formatierten mit `Intl.DateTimeFormat(<Portalsprache>, …)` — Arabisch mit
+   12-Stunden-Uhr, Englisch als `en-US` („Sep 11, 2026, 10:30 PM",
+   „09/11/2026"), Türkisch „11 Eyl 2026 22:30". Erst `zeitpunktInSprache`
+   (D-695) macht die Aussage wahr. Der englische Tag lautet mit der
+   ICU-Fassung der Laufzeit „11 Sept 2026", nicht „11 Sep 2026".
+4. **Geprüft am Quellbaum, nicht an einer Liste:**
+   `tests/kern/mein-kalendertage.test.ts` liest jede `.tsx` unter
+   `src/app/portal/mein` — auch eine künftige — und schlägt fehl, sobald ein
+   Feld, das ein Dienst als ISO-Tag liefert, roh in einer JSX-Klammer, in
+   einem Vorlagentext oder als `tagePlus(…)` auf dem Bildschirm steht.
+   Beschriftungen (`t.von`, `b.tag` …) und Eigenschaften, die ein Programm
+   liest, sind ausgenommen; eine Gegenprobe beweist, dass das Muster die
+   gefundenen Fälle trifft.
+
+| Betrifft | EMP-03, EMP-07, EMP-08, EMP-09, EMP-10, EMP-12, SEC-03, V-199, V-210, D-688, SEITENKARTE §12, `src/app/portal/mein/{page,nachweise/page,zeiten/page,zeiten/[id]/page,zeiten/[id]/einwand/page,schichten/page,antraege/page,antraege/[id]/page,abwesenheit/[id]/page,dienstanweisungen/page,dienstanweisungen/[id]/page,dokumente/[id]/page}.tsx`, `tests/kern/mein-kalendertage.test.ts` |
+|---|---|
+
+### D-694 · Stempeluhr und Anmeldung der Beschäftigten sprechen die Sprache des Geräts — die Kontoseiten die der Person (V-200)
+
+**Der Befund** (V-200; Audit Befunde 37 und 64, derselbe Mangel):
+SEITENKARTE §12 zählt die Stempeluhr (`/check-in/[token]`), die Anmeldung
+(`/auth/mitarbeiter`, `/code`) und die Kontoseiten der Arbeiterhülle zu den
+vier Sprachen. Alle drei waren fest deutsch: „Zeiterfassung",
+„Einstempeln", „Ohne Verbindung gemerkt", „Dieser Link ist nicht gültig.",
+„Geben Sie Ihre Mobilnummer ein …", „Code eingeben". Keine Datei las eine
+Sprache, keine setzte `lang` oder `dir`. Die Stempeluhr zeigte bei einer
+Ablehnung die deutsche `message` der Route. Die Kontowurzel blieb laut
+Kommentar deutsch, „bis das Profil gebaut ist" — das Profil gibt es seit
+D-557; die Benachrichtigungseinstellungen trugen den Schlüssel jeder Art
+(`plan_veroeffentlicht`) als Überschrift. Die Wache
+`seite-ohne-uebersetzung` sah beide Flächen nicht: sie las nur
+`src/app/portal` und `src/components`.
+
+**Die Entscheidung.**
+
+1. **Vor der Anmeldung spricht das GERÄT** — der Sprachkeks `cse_sprache`,
+   dann `Accept-Language`, dann Deutsch (`geraeteSprache`,
+   `src/lib/i18n/geraetesprache.ts`). Für die Anmeldung ist das die Regel der
+   SEITENKARTE. **Für die Stempeluhr ist es eine bewusste Abweichung**: §12
+   nannte `person.sprache` über die Marke. Die Seite löst ihre Marke vor dem
+   Antippen aber absichtlich nicht auf (AUT-06, D-135) — eine Seite, die für
+   eine gültige Marke Arabisch zeigt und für eine ungültige Deutsch, ist
+   genau das Orakel, gegen das sie gebaut ist. Nach dem Antippen die Sprache
+   aus der Antwort zu lesen, hiesse, `app.checkin_verbrauchen` (K-08) um eine
+   Spalte für eine Anzeigeeinstellung zu erweitern; der Keks trägt dieselbe
+   Wahl ohne das. SEITENKARTE §12 ist entsprechend berichtigt.
+2. **Der Keks** trägt einen von vier Werten und nichts über einen Menschen
+   (`httpOnly`, `sameSite=lax`, ein Jahr, `secure` wie jeder Keks der
+   Installation, `sprachKeksOptionen`). Gesetzt wird er an zwei Stellen: von
+   der Sprachwahl dieser Flächen (`GET /api/geraetesprache`, Manifest mit
+   Begründung) und beim Speichern der Sprache im Profil
+   (`/api/konto/sprache`) — wer im Portal Arabisch wählt, bekommt die
+   Stempeluhr auf demselben Telefon auf Arabisch. **Berichtigt (D-751):**
+   „ein Jahr" war eine still entschiedene Rechtsfrage und widersprach der
+   Datenschutzerklärung, auf die die Anmeldung verweist; bis O-928 ist er
+   ein Sitzungskeks, die Erklärung beschreibt ihn, und das Profil setzt ihn
+   nur noch in der Hülle der Beschäftigten.
+3. **Die Sprachwahl sind Verweise, keine Knöpfe** — die Stempelfläche hat
+   genau einen Knopf (DESIGN §8), und die Browserprüfung zählt ihn. Die Route
+   ist deshalb ein `GET`; sie ändert keine Zeile. Zwei Riegel: kein Keks, wenn
+   `Sec-Fetch-Site` eine fremde Seite meldet, und der Rückweg bleibt im
+   eigenen Ursprung (`internesZiel`). Die Reihe steht in DESIGN §5 („Filter
+   pills"): 44 px je Ziel, jede Sprache nennt sich selbst mit eigenem `lang`
+   und `dir`.
+4. **Eine Ablehnung wird nach ihrem CODE übersetzt**, nicht nach der
+   deutschen `message` (`stempelMeldung`, `fotoMeldung`): `kein_benutzerkonto`
+   hat einen eigenen Satz (die Marke bleibt unverbraucht), jede andere
+   Ablehnung denselben. **Berichtigt (D-752):** hier stand, auch „zu dieser
+   Schicht läuft keine Zeiterfassung" bekomme den allgemeinen Satz (AUT-06).
+   Das war falsch — der Fall entsteht nur mit einer gültigen Marke, und die
+   Kraft las, ihr Link sei kaputt; er hat jetzt seinen eigenen Code und Satz.
+5. **Nicht übersetzt**: die Uhrzeit (Berliner Zeit in deutscher Form,
+   SEITENKARTE §12), Fundstellen (`TIM-10`, `O-82`) und die Namen der
+   Verwaltungsmenüs („Personal → Person → Zugang"), weil die Einsatzleitung
+   dieses Wort auf ihrem Bildschirm sieht. Mobilnummer und Code stehen auch
+   auf Arabisch von links nach rechts (`dir="ltr"`).
+6. **Die Anmeldung verweist auf die Datenschutzerklärung**, und jede
+   Übersetzung sagt dabei, dass die deutsche Fassung verbindlich ist — wie die
+   Website (D-84). Englisch führt auf `/en/datenschutz`, Arabisch und
+   Türkisch auf die deutsche Seite. **Nachtrag:** dieselbe Regel gilt für den
+   Rückweg „Zur Website" des Rahmens — Englisch auf `/en` (D-82), sonst `/`;
+   er zeigte fest auf die deutsche Startseite.
+7. **Die Kontoseiten der Arbeiterhülle folgen `person.sprache`**:
+   Kontowurzel und Benachrichtigungseinstellungen lesen
+   `KONTO_WURZEL_TEXTE`/`KONTO_BENACHRICHTIGUNG_TEXTE` (de/en/ar/tr) und
+   setzen `lang`/`dir`; die Verwaltung liest Deutsch wie bisher. Die Rolle
+   steht mit ihrem Namen (`rolle.bezeichnung`), nicht als Schlüssel. Jede
+   Benachrichtigungsart heisst nach ihrem Namen; die Arbeiterhülle zeigt nur
+   die Arten mit einem Ziel unter `/portal/mein` (V-102), und die Wahl der
+   übrigen reist als verstecktes Feld mit, damit Speichern sie nicht ändert.
+   **Nachtrag (D-750):** hier fehlte der Kalender-Feed, auf den die
+   übersetzte Wurzel verweist; er folgt jetzt derselben Regel. Profil und
+   Sicherheit taten es schon vorher (D-557, V-039).
+8. **Fliesstext in 16 px** auf allen diesen Flächen (DESIGN §8, D-738);
+   `AuthSchale` bekommt `sprache`, Beschriftung und Sprachwahl als
+   Eigenschaften und bleibt für die Anmeldung der Verwaltung, wie sie war.
+   **Nachtrag (Prüfer der Gruppe):** die Felder waren ausgelassen —
+   Beschriftung, Hinweis und Fehler von `FormField` standen fest in `xs`
+   (13 px). `FormField` hat jetzt `groesse` wie `Hinweis` (`sm`|`base`),
+   beide Anmeldeseiten setzen `base`, DESIGN §5 „Forms" nennt die Regel
+   (`tests/kern/arbeiter-anmeldung-flaechen.test.ts`). Die vier angefassten
+   Kästen (`anmeldung-abgelaufen`, `keks-ohne-secure`,
+   `sms-nicht-verbunden`, `dev-code`) waren aus Klassen nachgebaut — ohne
+   Rolle, mit `rounded-md p-s4` statt `rounded-lg p-s5`; sie sind jetzt
+   `Hinweis groesse="base"` wie `code-fehler` (DESIGN §5 „Notices": beim
+   Anfassen umstellen, V-217), und „abgelaufen" als Ausgang eines
+   abgeschickten Formulars mit `rolle="alert"`.
+9. **Die Wache sieht die Flächen**: `seite-ohne-uebersetzung` liest jetzt
+   auch `src/app/check-in` und `src/app/auth/mitarbeiter`; Kontowurzel und
+   Benachrichtigungen sind von der Ausnahmeliste gestrichen. Die Browsersuite
+   läuft mit `locale: de-DE`, weil Playwright sonst `en-US` schickt; die
+   anderen Sprachen prüft `tests/e2e/arbeiter-sprache.spec.ts` ausdrücklich.
+
+| Betrifft | EMP-01, EMP-12, TIM-07, TIM-10, AUT-06, D-84, D-135, D-419, D-557, D-738, V-102, V-200, SEITENKARTE §12, DESIGN §5 „Filter pills", `src/lib/i18n/{geraetesprache,vor-anmeldung,vorlage,konto}.ts`, `src/app/check-in/[token]/{page,Stempeluhr,Schichtfoto}.tsx`, `src/app/auth/{AuthSchale.tsx,mitarbeiter/page.tsx,mitarbeiter/code/page.tsx}`, `src/app/api/geraetesprache/route.ts`, `src/app/api/konto/sprache/route.ts`, `src/server/konto/sprach-keks.ts`, `src/components/sprache/GeraeteSprachwahl.tsx`, `src/app/portal/konto/{[[...rest]],benachrichtigungen}/page.tsx`, `src/app/portal/konto/konto.ts`, `scripts/guards/run-all.ts`, `playwright.config.ts`, `tests/kern/{geraetesprache,konto-sprachen}.test.ts`, `tests/e2e/arbeiter-sprache.spec.ts` |
+|---|---|
+
+### D-695 · Ein Zeitpunkt steht auf den Flächen der Beschäftigten in der gesetzlichen Form — die Portalsprache wählt Wörter, nicht die Uhr (V-201)
+
+**Der Befund** (V-201; Prüfer der Gruppe arbeiterportal, Nebenbefund des
+umsetzenden Agenten): Abwesenheits- und Antragsblatt, Posteingang, Faden
+und die Sicherheitsseite des Kontos formatierten Zeitpunkte mit
+`new Intl.DateTimeFormat(<Portalsprache>, …)`. Die Sprache wählt in Intl
+nicht nur Wörter, sondern Uhr und Reihenfolge: Arabisch „11‏/09‏/2026،
+10:30 م" mit 12-Stunden-Uhr, Englisch — `PORTAL_BCP47.en` ist `en`, also
+`en-US` — „Sep 11, 2026, 10:30 PM", Türkisch „11 Eyl 2026 22:30". Das
+Einwandblatt schrieb Eingangs- und Entscheidungsdatum englisch „09/11/2026",
+in Europa der 9. November, unter dem betroffenen Tag „11 Sept 2026". Daneben
+stand auf denselben Blättern der Kalendertag über `tagInSprache` als
+„11.09.2026". D-693 Nr. 3 bescheinigte, die Zeitpunkte folgten schon
+SEITENKARTE §12. Die arabisch-indischen Ziffern, die der Nebenbefund
+nannte, gibt es auf dem Server nicht: `ar` rechnet dort mit `latn`.
+
+**Die Entscheidung.**
+
+1. **Eine Funktion für den Zeitpunkt, nach dem Muster von `tagInSprache`**
+   (`src/lib/datum/zeitpunkt.ts`): `zeitpunktInSprache` schreibt Deutsch,
+   Arabisch und Türkisch `TT.MM.JJJJ HH:MM` — die Form der
+   MiLoG-Aufzeichnung und der Zeitenliste, die die Browserprüfung „Zahlen,
+   Geld und Zeit bleiben in der gesetzlichen Form" misst —, Englisch
+   britisch „11 Sept 2026, 22:30" wie `fristInWorten(…, 'en')` (V-240).
+   `tagVonZeitpunktInSprache` schreibt den Berliner Kalendertag eines
+   Zeitpunkts in derselben Form wie `tagInSprache`. Immer Europe/Berlin,
+   immer 24-Stunden-Uhr, immer lateinische Ziffern.
+2. **Die Wörter übersetzt die Seite, die Zahl nicht.** Auf Arabisch steht
+   das Datum in einem `dir="rtl"`-Satz von links nach rechts, wie jede Zahl
+   dort (`cse-zahl`); das ist die Regel für Geld und Stunden seit D-419.
+3. **Geprüft am Quellbaum:** unter `portal/mein`, `portal/konto`,
+   `check-in` und `auth/mitarbeiter` steht kein `Intl.DateTimeFormat` mit
+   einer anderen Sprache als der festen deutschen Form (Stempeluhr und
+   Monatsnachweis) und kein `toLocale…String`; eine Gegenprobe beweist,
+   dass das Muster die alten Zeilen trifft.
+4. **D-693 Nr. 3 ist berichtigt**, ebenso V-199 im Register.
+
+| Betrifft | EMP-07, EMP-10, EMP-12, AUT-05, SEITENKARTE §12, D-419, D-693, D-733, V-199, V-201, V-240, `src/lib/datum/zeitpunkt.ts`, `src/app/portal/mein/{abwesenheit/[id],antraege/[id],nachrichten,nachrichten/[id],zeiten/[id]/einwand}/page.tsx`, `src/app/portal/konto/sicherheit/page.tsx`, `tests/kern/zeitpunkt-sprache.test.ts` |
+|---|---|
+
+### D-750 · Der Kalender-Feed spricht in der Arbeiterhülle die Sprache der Person — gerade seine Warnung (V-200 Nachtrag)
+
+**Der Befund** (Prüfer der Gruppe arbeiterportal, zweimal gemeldet):
+SEITENKARTE §12 zählt `/portal/konto/**` bei `app.portal() = 'mitarbeiter'`
+zu den vier Sprachen. V-200 übersetzte Kontowurzel und
+Benachrichtigungen und meldete „Kontoseiten" als erledigt. Die Wurzel
+verweist jede Kraft auf `/portal/konto/kalender-feed` („رابط التقويم",
+„Takvim bağlantısı"), und diese Seite war vollständig deutsch: kein `lang`,
+kein `dir`, keine `meinBeschriftungen` für die Leiste (die Hülle fiel auf
+die Beschriftung der Verwaltung zurück), Zeitpunkte fest `de-DE`, Fliesstext
+in 13 und 14 px. Die Übersetzungswache schwieg, weil die Datei auf ihrer
+Ausnahmeliste stand. Unlesbar war damit ausgerechnet der Satz „Die Adresse
+IST der Zugang … ohne Anmeldung".
+
+**Die Entscheidung.**
+
+1. **Dieselbe Regel wie Wurzel und Benachrichtigungen:** in der Hülle der
+   Beschäftigten `person.sprache` (`KALENDER_FEED_TEXTE`, de/en/ar/tr, in
+   `src/lib/i18n/konto.ts`), `lang`/`dir`/`data-sprache` am Rand und
+   `meinBeschriftungen` für die Leiste; die Verwaltung liest Deutsch wie
+   bisher. Die Datei ist von der Ausnahmeliste gestrichen — die Wache sieht
+   sie jetzt.
+2. **Fliesstext der Beschäftigten in 16 px** (DESIGN §8, D-738): Absätze,
+   Zeilen der Zugänge und die Hinweiskästen (`Hinweis groesse="base"`); die
+   Verwaltung behält `sm`/`xs`.
+3. **Zeitpunkte über `zeitpunktInSprache`** (D-695): Berliner Zeit in der
+   gesetzlichen Form, „noch nie" in der Sprache der Seite.
+4. **Der Name eines Zugangs ohne eigenen Namen** steht deutsch in der Zeile
+   (`FEED_STANDARD_BEZEICHNUNG`, „Mein Kalender"); die Seite zeigt ihn in der
+   Sprache der Person. Ein eigener Name bleibt, wie er ist — er ist Inhalt,
+   nicht Oberfläche.
+5. **Die Adresse steht von links nach rechts**, auch auf Arabisch
+   (`dir="ltr"` am `<code>`), wie Mobilnummer und Code der Anmeldung (D-694
+   Nr. 5).
+6. **„Zum Kalender" fehlt in der Arbeiterhülle**: der Kalender eines Bereichs
+   liegt unter `/portal/<bereich>`, und diese Familie betritt das Portal
+   `mitarbeiter` nicht (`ERLAUBTE_FAMILIEN`, K-04-Decke) — der Verweis hätte
+   auf `/portal/mein` zurückgeleitet.
+7. **Geprüft:** `tests/kern/konto-sprachen.test.ts` (vier Sprachen
+   vollständig, nur Deutsch ist deutsch; die Warnung trägt in jeder Sprache
+   ihren Satz; die Seite liest die Sprache der Person, setzt `lang`/`dir`,
+   reicht die Beschriftungen weiter, formatiert keinen Zeitpunkt selbst;
+   keine Kontoseite, auf die die Wurzel verweist, steht noch auf der
+   Ausnahmeliste — das Profil ausgenommen, das seine vier Sprachen als
+   Tabelle im Rumpf trägt) und `tests/e2e/arbeiter-sprache.spec.ts` (die
+   Seite auf Arabisch: `rtl`, Titel, Warnung, kein Verweis auf den Kalender
+   eines Bereichs). Die Einleitung der Verwaltung beginnt jetzt mit „Nur
+   lesend." statt „Ein **lesender** Zugang …" — dieselbe Aussage, in einer
+   Form, die jede Sprache ohne Umstellung des Satzes trägt.
+
+| Betrifft | CAL-03, EMP-12, SEITENKARTE §12, D-419, D-557, D-694, D-695, D-738, V-200, `src/app/portal/konto/kalender-feed/page.tsx`, `src/lib/i18n/konto.ts` (`KALENDER_FEED_TEXTE`), `src/server/kalender/feed.ts` (`FEED_STANDARD_BEZEICHNUNG`), `scripts/guards/uebersetzung-ausnahmen.ts`, `tests/kern/konto-sprachen.test.ts`, `tests/e2e/arbeiter-sprache.spec.ts` |
+|---|---|
+
+### D-751 · Der Sprachkeks ist ein Sitzungskeks, bis die Dauer entschieden ist — und die Datenschutzerklärung sagt, dass es ihn gibt (V-200 Nachtrag, O-928)
+
+**Der Befund** (Prüfer der Gruppe arbeiterportal): V-200 führte `cse_sprache`
+mit `maxAge` ein Jahr und `path=/` ein. `GET /api/geraetesprache` setzt ihn
+vor jeder Anmeldung, `/api/konto/sprache` bei jeder gespeicherten Sprache —
+auch beim de/en-Umschalter der Verwaltung —, und die Abmeldung löscht ihn
+nicht (gewollt: die Stempeluhr läuft ohne Anmeldung). Die geseedete
+Datenschutzerklärung (de und en), auf die die Anmeldung seit D-694 Nr. 6
+ausdrücklich verweist, sagte dagegen: nach der Anmeldung ein Sitzungscookie,
+„es endet mit der Abmeldung". D-694 begründete weder die Speicherung nach
+§ 25 TTDSG (heute TDDDG) noch die Dauer; das Haus hat für Speicher im Browser
+sonst eine ausdrückliche Abwägung (D-61, D-631 Nr. 6).
+
+**Die Entscheidung.**
+
+1. **Die Dauer ist offen (O-928)** und steht als Platzhalter an EINER Stelle:
+   `SPRACH_KEKS_SEKUNDEN = null` in `src/lib/i18n/geraetesprache.ts` mit
+   `TODO(client, O-928)`. `null` heisst Sitzungskeks — kein `Max-Age`, er
+   endet mit dem Browser. Das ist die kürzeste Form, die die Funktion noch
+   trägt; die Sprache des Telefons kommt ohnehin über `Accept-Language`.
+   Ein Jahr wäre die stille Antwort auf eine Rechtsfrage gewesen.
+2. **Gesetzt wird er nur auf eine ausdrückliche Wahl, und nur, wo er einen
+   Zweck hat:** die Sprachwahl der Flächen ohne Sitzung, und das Speichern
+   der Sprache im Profil NUR in der Hülle der Beschäftigten. Die Verwaltung
+   liest den Keks nirgends; ihn dort nebenbei zu setzen, war ein Keks ohne
+   Zweck (Art. 5 Abs. 1 lit. c DSGVO).
+3. **Die Datenschutzerklärung sagt es** (Seed de/en, Absatz „Keine Dritten auf
+   dieser Seite"): Name, Inhalt (nur das Kürzel der Sprache), Zweck, wann er
+   entsteht, dass er mit dem Browser endet und dass die Abmeldung ihn nicht
+   löscht. Die rechtliche Einordnung folgt der des Sitzungscookies im selben
+   Absatz (§ 25 Abs. 2 Nr. 2); sie zu bestätigen und die Dauer festzulegen,
+   ist O-928. Die Antwort ändert den Wert UND diesen Satz.
+4. **Geprüft:** `tests/kern/sprach-keks.test.ts` — die echte Route
+   `GET /api/geraetesprache` (Keks mit Attributen und ohne `Max-Age`/
+   `Expires`; beide Riegel: `cross-site`/`same-site` setzen nichts, ein Wert
+   ausserhalb der vier — auch `__proto__` — setzt nichts; Rückweg im eigenen
+   Ursprung; `no-store`), `sprachKeksOptionen` in Produktion und Entwicklung,
+   `POST /api/konto/sprache` (Keks nur nach gespeichertem Wert und nur für
+   Beschäftigte; abgewiesen → kein Keks), und dass Platzhalter, Register und
+   Erklärung zusammenpassen. `tests/e2e/arbeiter-sprache.spec.ts` prüft den
+   Sitzungskeks im Browser (`expires = -1`).
+
+| Betrifft | EMP-12, TIM-07, AUT-06, D-61, D-631, D-694, O-928, V-200, `src/lib/i18n/geraetesprache.ts`, `src/server/konto/sprach-keks.ts`, `src/app/api/{geraetesprache,konto/sprache}/route.ts`, `src/server/db/seed/{inhalt,inhalt-en}.ts`, `tests/kern/sprach-keks.test.ts`, `tests/e2e/arbeiter-sprache.spec.ts` |
+|---|---|
+
+### D-752 · Ausstempeln ohne laufende Zeiterfassung ist keine Ablehnung der Marke — eigener Code, eigener Satz (V-200 Nachtrag)
+
+**Der Befund** (Prüfer der Gruppe arbeiterportal): `stempelMeldung` bildete
+jeden Code ausser `kein_benutzerkonto` auf „Dieser Link ist nicht gültig." ab,
+und `KeinOffenerEintragFehler` trug denselben Code `ungueltiger_zustand` wie
+`TokenAbgelehntFehler`. Wer mit einer gültigen Ausstempelmarke ausstempelte,
+während das Einstempeln noch in der Offline-Schlange lag (TIM-09: die
+Warteschlange legt nur ein `offline_ereignis` zur Prüfung an, keinen
+laufenden Eintrag) oder vergessen war, las seit V-200 in allen vier
+Sprachen, der Link sei ungültig. Vor V-200 stand dort — nur deutsch — der
+zutreffende Satz „Zu dieser Schicht läuft keine Zeiterfassung.".
+
+**Die Entscheidung.**
+
+1. **`KeinOffenerEintragFehler` trägt `kein_offener_eintrag`** (weiter 409).
+   `app.checkin_verbrauchen` (0035) wirft P0004 erst, nachdem die Marke jede
+   Prüfung bestanden hat — es gibt sie, sie liegt im Fenster, ist weder
+   widerrufen noch benutzt, und die Person hat ein Konto —, und die
+   Transaktion fällt zurück: die Marke bleibt unverbraucht. Ein eigener Satz
+   verrät deshalb keinem Durchprobierenden etwas (AUT-06); wer ihn sieht, hat
+   eine gültige Marke. Dieselbe Begründung, die `kein_benutzerkonto` schon
+   trug.
+2. **Der Satz** (`STEMPEL_TEXTE.keinOffenerEintrag`, de/en/ar/tr) sagt, was
+   die Plattform weiss: zu dieser Schicht läuft keine Zeiterfassung,
+   vielleicht wartet das Einstempeln noch auf die Übertragung, der Link
+   bleibt gültig, und an wen die Kraft sich wendet. Er verspricht nicht, dass
+   ein zweiter Versuch gelingt.
+3. **Jede Ablehnung der Marke selbst** behält den einen Satz „Dieser Link ist
+   nicht gültig." (AUT-06, D-131).
+4. **Geprüft:** `tests/kern/stempel-meldung.test.ts` gegen die echten Codes
+   der Fehlerklassen in vier Sprachen (auch `__proto__` und ein fehlender
+   Code fallen auf den allgemeinen Satz), die Klasse selbst, und dass Route
+   und Stempeluhr den Code weiterreichen bzw. nur ihn lesen. Dieselbe Datei
+   prüft `fotoMeldung` — die zweite Code-Tabelle aus V-200, die bis dahin
+   keinen Test hatte — gegen `NichtVerbundenFehler.code`,
+   `KeinBenutzerkontoFuerMediumFehler.code` und jeden Grund, den
+   `MedienFehler` tragen kann (aus seiner Union gelesen): ein falsch
+   geschriebener Code fiele sonst still auf „Die Aufnahme ging nicht
+   durch."
+
+| Betrifft | TIM-07, TIM-09, AUT-06, D-131, D-694 Nr. 4, V-200, `src/server/services/zeit/checkin.ts` (`KeinOffenerEintragFehler`), `src/lib/i18n/vor-anmeldung.ts` (`stempelMeldung`, `STEMPEL_TEXTE.keinOffenerEintrag`), `tests/kern/stempel-meldung.test.ts` |
+|---|---|
+
+### D-753 · Eine abgewiesene Entscheidung über Abwesenheit oder Antrag reist als Grund — nie als Satz des Dienstes, nie mit Kennung (V-197 Nachtrag)
+
+**Der Befund** (Prüfer der Gruppe arbeiterportal): Antrags- und
+Abwesenheitsliste lasen seit V-197 `?meldung=` und gaben den Text
+unverändert in einem Warnkasten mit `role="alert"` aus; die Blätter taten es
+schon vorher, das Antragsblatt zeigte dazu `?fehler=` als rohen Schlüssel in
+Maschinenschrift. Die Routen `POST /api/abwesenheiten/[id]` und
+`POST /api/antraege/[id]` schickten `(fehler as Error).message`.
+`genehmigeAbwesenheit`, `lehneAbwesenheitAb` und `entscheideAntrag` werfen
+`…NichtGefunden`, sobald der Vorgang nicht mehr offen ist — eine Kollegin war
+schneller, die Liste war veraltet, oder jemand klickte zweimal. Auf der Liste
+stand dann „Abwesenheit 5b0d6c1e-… gibt es in dieser Gesellschaft nicht.":
+eine volle Kennung (Hausregel „keine UUIDs", D-599) und eine falsche
+Aussage. Jeder präparierte Link `…/personal/abwesenheiten?meldung=…` schrieb
+seine eigene rote Systemmeldung (React maskiert, also kein Skript — aber
+verfälschter Inhalt auf einer Innenseite). Und ein zweites „Genehmigen" eines
+Urlaubsantrags traf vor der Prüfung des Stands das INSERT der Abwesenheit
+und damit die Sperre `ab_keine_dublette` (0073): 23P01 ohne Status, eine 500.
+
+**Die Entscheidung.**
+
+1. **Die Route schickt einen GRUND** (`grundAufsFormular`, `?fehler=`), wie
+   Ausgabe, Nachweis und Schicht (D-691 Nr. 2, V-158). Die Fehlerklassen
+   tragen ihn neben ihrem deutschen Satz (`grund`, wie
+   `WachbuchEingabeFehlt`): `nicht_gefunden`, `grund_fehlt`,
+   `kommentar_fehlt`, `urlaubskonto_fehlt`, `art_ungeklaert`; eine Klasse
+   ohne eigenen Grund reist mit ihrem `code`. Eine Schnittstelle (JSON)
+   bekommt weiter `{ fehler, meldung }` mit Status (D-599).
+2. **Die Seite schlägt den Satz nach** (`ENTSCHEIDUNG_FEHLER_TEXTE`, de/en,
+   `src/lib/i18n/verwaltung/personal-entscheidung.ts`), nur als eigener
+   Eintrag (D-728); ein unbekannter Grund bekommt „Es wurde nichts
+   geändert.", nie den Schlüssel und nie Text aus der Adresse. Alle vier
+   Seiten (zwei Listen, zwei Blätter), Kasten `Hinweis` `warnung` mit
+   `role="alert"`. Die Sprache ist die der Sitzung wie beim Nachweisblatt
+   (D-691 Nr. 2); die Seiten selbst stehen noch auf der Ausnahmeliste.
+3. **`nicht_gefunden` nennt den häufigen Fall**: „Darüber ist schon
+   entschieden, oder der Vorgang ist nicht mehr da — die Seite zeigt den
+   aktuellen Stand." (wie D-691 Nr. 3 beim Nachweis). Die offenen Fragen
+   O-18 und O-139 stehen mit Nummer im Satz, wie im Dienst; das Jahr des
+   fehlenden Urlaubskontos reist nicht mit („das Jahr dieses Urlaubs").
+4. **`entscheideAntrag` prüft den Stand VOR der Abwesenheit**, unter
+   `for update of a`: ein entschiedener Antrag wirft `AntragNichtGefunden`,
+   bevor ein INSERT die Dublettensperre trifft, und zwei gleichzeitige
+   Entscheidungen laufen hintereinander. Welche Stände offen sind, ändert
+   sich nicht — es sind dieselben zwei, die das Update schon prüfte.
+5. **`fehlerAufsFormular`** hat keinen Aufrufer mehr; es bleibt stehen (andere
+   Zweige), sein Kommentar verweist neue Aufrufer auf `grundAufsFormular`.
+6. **Geprüft:** `tests/kern/personal-entscheidung-rueckweg.test.ts` (die
+   echten Routen mit ersetzter Sitzung, Datenbank und Dienst: jeder Grund
+   jeder Fehlerklasse, `&` an einer Liste mit Woche, nie nach draussen, keine
+   Kennung in der Adresse, JSON für eine Schnittstelle; die Tabelle in beiden
+   Sprachen ohne Kennung und ohne Prototyp-Treffer; keine der vier Seiten
+   liest `?meldung=`), `tests/kern/fehler-rueckweg-seiten.test.ts` (an das
+   bewusst geänderte `?fehler=` angepasst, um die Blätter erweitert),
+   `tests/isolation/abwesenheit.test.ts` §2a (zweite Genehmigung →
+   `AntragNichtGefunden` mit Grund, genau eine Abwesenheit; Ablehnung nach
+   der Genehmigung ändert nichts).
+
+| Betrifft | EMP-10, D-599, D-691, D-728, V-158, V-197, O-18, O-139, `src/app/api/{abwesenheiten,antraege}/[id]/route.ts`, `src/app/api/formular-antwort.ts`, `src/server/services/abwesenheit/{index,antrag}.ts` (`grund`, `entscheideAntrag`), `src/lib/i18n/verwaltung/personal-entscheidung.ts`, `src/app/portal/[mandant]/personal/{abwesenheiten,antraege}/{page,[id]/page}.tsx`, `tests/kern/{personal-entscheidung-rueckweg,fehler-rueckweg-seiten}.test.ts`, `tests/isolation/abwesenheit.test.ts` |
 |---|---|

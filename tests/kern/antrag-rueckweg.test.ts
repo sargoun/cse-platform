@@ -12,6 +12,12 @@
  * Geprüft wird die ECHTE Route; ersetzt sind Sitzung, Datenbank und der
  * Dienst (dessen Prüfungen `tests/isolation/antrag-tausch.test.ts` an echten
  * Zeilen hält).
+ *
+ * **Seit der Zusammenführung mit V-198** (D-692 Nachsatz) läuft der Rückweg
+ * über `grundAufsFormularweg`: ein FORMULAR — erkennbar an `zurueck` bzw.
+ * `fehlerweg`, die die Seite schickt — kommt auf die Maske zurück, ein Aufruf
+ * ohne beide ist ein Programm und bekommt JSON (D-599, D-692 Nr. 1). Die
+ * Anfragen unten tragen deshalb die Felder des echten Formulars.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -23,6 +29,7 @@ import {
 import {
   ANTRAG_FORM_TEXTE, ANTRAG_GRUENDE, MELDUNG_FORM_TEXTE, MELDUNG_GRUENDE,
 } from '../../src/lib/i18n/mein-formulare.js';
+import { formularFehlerSatz, MEIN_FORMULAR_TEXTE } from '../../src/lib/i18n/mein-formular.js';
 import { PORTAL_SPRACHEN } from '../../src/lib/i18n/texte.js';
 import { datenbankGrund } from '../../src/app/api/mein/formular.js';
 import {
@@ -60,6 +67,8 @@ const MASKE = '/portal/mein/antraege/neu';
 const ANSTELLUNG = '5b0d6c1e-0a41-4c55-9d1c-1c2f3b4a5d6e';
 const ART = '6c1e5b0d-0a41-4c55-9d1c-1c2f3b4a5d6f';
 const SCHICHT = '7d2f6c1e-0a41-4c55-9d1c-1c2f3b4a5d70';
+/** Was das echte Formular neben seinen Feldern schickt (V-198, D-692 Nr. 2). */
+const FORMULAR = { zurueck: '/portal/mein/antraege', fehlerweg: MASKE } as const;
 
 function anfrage(felder: Record<string, string>): NextRequest {
   const daten = new FormData();
@@ -102,9 +111,9 @@ describe('POST /api/mein/antraege — der Rückweg auf die Maske', () => {
 
   it('ohne Beschäftigung, ohne Art, mit unlesbarem Datum: die Maske, nicht JSON', async () => {
     for (const [felder, grund] of [
-      [{ antragsart: ART }, 'keine_anstellung'],
-      [{ anstellung: ANSTELLUNG }, 'keine_antragsart'],
-      [{ anstellung: ANSTELLUNG, antragsart: ART, von: '06.07.2029' }, 'kein_datum'],
+      [{ ...FORMULAR, antragsart: ART }, 'keine_anstellung'],
+      [{ ...FORMULAR, anstellung: ANSTELLUNG }, 'keine_antragsart'],
+      [{ ...FORMULAR, anstellung: ANSTELLUNG, antragsart: ART, von: '06.07.2029' }, 'kein_datum'],
     ] as const) {
       const antwort = await POST(anfrage(felder));
       expect(antwort.status).toBe(303);
@@ -117,7 +126,7 @@ describe('POST /api/mein/antraege — der Rückweg auf die Maske', () => {
   it('die Abweisung des Dienstes kommt als Grund zurück — mit den gewählten Werten, ohne die Nachricht', async () => {
     zustand.reiche.mockRejectedValue(new AntragAbgewiesen('schicht_nicht_waehlbar'));
     const antwort = await POST(anfrage({
-      anstellung: ANSTELLUNG, antragsart: ART, einsatz: SCHICHT,
+      ...FORMULAR, anstellung: ANSTELLUNG, antragsart: ART, einsatz: SCHICHT,
       nachricht: 'Mein Kind ist krank',
     }));
     expect(antwort.status).toBe(303);
@@ -136,16 +145,41 @@ describe('POST /api/mein/antraege — der Rückweg auf die Maske', () => {
     zustand.reiche.mockRejectedValue(Object.assign(
       new Error('Diese Antragsart verlangt einen Tauschpartner'),
       { name: 'PostgresError', code: '23514' }));
-    const antwort = await POST(anfrage({ anstellung: ANSTELLUNG, antragsart: ART }));
+    const antwort = await POST(anfrage({ ...FORMULAR, anstellung: ANSTELLUNG, antragsart: ART }));
     expect(antwort.status).toBe(303);
     expect(ziel(antwort).searchParams.get('fehler')).toBe('ungueltige_eingabe');
+  });
+
+  it('nennt der Auslöser das fehlende Feld, reist dieser Grund (V-198, `pflichtfeldGrund`)', async () => {
+    zustand.reiche.mockRejectedValue(Object.assign(new Error('Fehlendes Feld'),
+      { name: 'PostgresError', code: '23514', hint: 'Fehlendes Feld: von_datum' }));
+    const antwort = await POST(anfrage({ ...FORMULAR, anstellung: ANSTELLUNG, antragsart: ART }));
+    expect(ziel(antwort).pathname).toBe(MASKE);
+    expect(ziel(antwort).searchParams.get('fehler')).toBe('fehlt_zeitraum');
+  });
+
+  it('ein Formular ohne `fehlerweg` (eine Seite von vor V-198) kommt trotzdem auf die Maske', async () => {
+    const antwort = await POST(anfrage({ zurueck: '/portal/mein/antraege', antragsart: ART }));
+    expect(antwort.status).toBe(303);
+    expect(ziel(antwort).pathname).toBe(MASKE);
+    expect(ziel(antwort).searchParams.get('fehler')).toBe('keine_anstellung');
+  });
+
+  it('ohne `zurueck` und `fehlerweg` ist der Aufrufer ein Programm: JSON mit Status (D-599)', async () => {
+    const ohne = await POST(anfrage({ antragsart: ART }));
+    expect(ohne.status).toBe(400);
+    expect(await ohne.json()).toEqual({ fehler: 'keine_anstellung' });
+    zustand.reiche.mockRejectedValue(new AntragAbgewiesen('zeitraum_fehlt'));
+    const dienst = await POST(anfrage({ anstellung: ANSTELLUNG, antragsart: ART }));
+    expect(dienst.status).toBe(422);
+    expect(await dienst.json()).toEqual({ fehler: 'zeitraum_fehlt' });
   });
 
   it('ein Datum, das es nicht gibt (31.02.), wird „kein_datum" — nicht 500', async () => {
     zustand.reiche.mockRejectedValue(Object.assign(new Error('date/time field value out of range'),
       { name: 'PostgresError', code: '22008' }));
     const antwort = await POST(anfrage({
-      anstellung: ANSTELLUNG, antragsart: ART, von: '2029-02-31', bis: '2029-03-02',
+      ...FORMULAR, anstellung: ANSTELLUNG, antragsart: ART, von: '2029-02-31', bis: '2029-03-02',
     }));
     expect(ziel(antwort).searchParams.get('fehler')).toBe('kein_datum');
   });
@@ -183,7 +217,23 @@ describe('die Sätze der Maske — vier Sprachen, jeder Grund, keine Kennung', (
   it('die Seite schlägt den Grund als eigenen Eintrag nach, nie roh', () => {
     const seite = readFileSync(resolve(import.meta.dirname,
       '../../src/app/portal/mein/antraege/neu/page.tsx'), 'utf8');
-    expect(seite).toContain('eigenerEintrag(ft.gruende, fehler) ?? ft.unbekannt');
+    /*
+     * Seit der Zusammenführung mit V-198 schlägt `FormularFehler` nach
+     * (`formularFehlerSatz`): die Sätze dieser Maske zuerst, dann die des
+     * Portals, dann der Rückfall der Maske — jeweils nur als eigener Eintrag.
+     */
+    expect(seite).toContain('<FormularFehler sprache={basis.sprache} grund={fehler} maske={ft}');
+    const ft = ANTRAG_FORM_TEXTE.de;
+    expect(formularFehlerSatz('de', 'schicht_nicht_waehlbar', ft))
+      .toBe(ft.gruende.schicht_nicht_waehlbar);
+    expect(formularFehlerSatz('de', 'keine_anstellung', ft)).toBe(ft.gruende.keine_anstellung);
+    // Ein Grund, den nur das Portal kennt (V-198), bekommt dessen Satz …
+    expect(formularFehlerSatz('de', 'fehlt_zeitraum', ft))
+      .toBe(MEIN_FORMULAR_TEXTE.de.gruende.fehlt_zeitraum);
+    // … und einer, den keiner kennt, den Rückfall der Maske — nie den Schlüssel.
+    for (const fremd of ['erfunden', '__proto__', 'constructor', 'toString']) {
+      expect(formularFehlerSatz('de', fremd, ft), fremd).toBe(ft.unbekannt);
+    }
     // Jedes Feld, das eine Art verlangen kann, steht im Formular.
     for (const name of ['anstellung', 'antragsart', 'abwesenheitsart', 'von', 'bis',
       'einsatz', 'tauschpartner', 'nachricht']) {

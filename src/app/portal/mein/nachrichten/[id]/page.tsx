@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { zeitpunktInSprache } from '@/lib/datum/zeitpunkt';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
 import { findeEintrag, type Eintrag } from '@/server/benachrichtigung/posteingang';
@@ -9,6 +10,7 @@ import { AnmeldungNoetig } from '../../../Anmeldung';
 import { kennungOder404 } from '../../../kennung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
 import { Feld, Felder, Gesellschaft, Hinweis } from '../../bausteine';
+import { FormularFehler } from '../../FormularAntwort';
 
 /**
  * `/portal/mein/nachrichten/[id]` — EIN Eintrag, und es gibt zwei Arten davon
@@ -83,9 +85,6 @@ export default async function MeineNachricht(
 
   const { basis } = ergebnis;
   const t = basis.texte;
-  const zeitpunkt = new Intl.DateTimeFormat(basis.sprache === 'de' ? 'de-DE' : basis.sprache, {
-    timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
-  });
 
   /*
    * Der Rueckweg als EIGENSCHAFT der Huelle, nicht als Knoten im Rumpf
@@ -129,7 +128,7 @@ export default async function MeineNachricht(
             )}
             <Feld label={t.empfangenAm}>
               <time dateTime={e.erstelltAm.toISOString()} className="cse-zahl">
-                {zeitpunkt.format(e.erstelltAm)}
+                {zeitpunktInSprache(e.erstelltAm, basis.sprache)}
               </time>
             </Feld>
             <Feld label={t.status}>
@@ -138,7 +137,7 @@ export default async function MeineNachricht(
                   {t.gelesen}
                   {' · '}
                   <time dateTime={e.gelesenAm.toISOString()} className="cse-zahl">
-                    {zeitpunkt.format(e.gelesenAm)}
+                    {zeitpunktInSprache(e.gelesenAm, basis.sprache)}
                   </time>
                 </>
               )}
@@ -177,6 +176,9 @@ export default async function MeineNachricht(
               : t.gespeichert}
         </p>
       )}
+
+      {/* Eine abgewiesene Antwort — leer, oder der Faden ist inzwischen zu (V-198). */}
+      <FormularFehler sprache={basis.sprache} grund={suche['fehler']} />
 
       <div className="mb-s5 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{titel}</h1>
@@ -225,7 +227,7 @@ export default async function MeineNachricht(
                 {z.vonMir ? t.ichSelbst : z.absender ?? t.unbekannterAbsender}
               </span>
               <time dateTime={z.erstelltAm.toISOString()} className="cse-zahl">
-                {zeitpunkt.format(z.erstelltAm)}
+                {zeitpunktInSprache(z.erstelltAm, basis.sprache)}
               </time>
             </p>
             <p className="m-0 max-w-[60ch] whitespace-pre-line text-base text-text">

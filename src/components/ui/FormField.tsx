@@ -16,9 +16,19 @@ export interface FormFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   readonly label: string;
   readonly fehler?: string;
   readonly hinweis?: string;
+  /**
+   * `sm` setzt Beschriftung, Hinweis und Fehler in `xs` (DESIGN §5 „Forms");
+   * `base` auf den Flächen der Beschäftigten, wo Fliesstext nie kleiner als
+   * 16 px ist (§8, D-738) — dieselbe Regel wie `Hinweis groesse="base"`. Das
+   * Eingabefeld selbst ist in beiden `base` (sonst zoomt iOS).
+   */
+  readonly groesse?: 'sm' | 'base';
 }
 
-export function FormField({ label, fehler, hinweis, className = '', ...rest }: FormFieldProps) {
+export function FormField({
+  label, fehler, hinweis, groesse = 'sm', className = '', ...rest
+}: FormFieldProps) {
+  const text = groesse === 'base' ? 'text-base' : 'text-xs';
   const id = useId();
   const fehlerId = `${id}-fehler`;
   const hinweisId = `${id}-hinweis`;
@@ -28,7 +38,7 @@ export function FormField({ label, fehler, hinweis, className = '', ...rest }: F
 
   return (
     <div className={`flex flex-col gap-s2 ${className}`}>
-      <label htmlFor={id} className="text-xs text-text-muted">
+      <label htmlFor={id} className={`${text} text-text-muted`}>
         {label}
       </label>
       <input
@@ -44,14 +54,14 @@ export function FormField({ label, fehler, hinweis, className = '', ...rest }: F
         {...rest}
       />
       {hinweis !== undefined && (
-        <p id={hinweisId} className="text-xs text-text-subtle">
+        <p id={hinweisId} className={`${text} text-text-subtle`}>
           {hinweis}
         </p>
       )}
       {/* Always present, so the region exists before the message does — an
           aria-live region added at the same moment as its content is often
           not announced. */}
-      <p id={fehlerId} role="alert" aria-live="polite" className="text-xs text-danger">
+      <p id={fehlerId} role="alert" aria-live="polite" className={`${text} text-danger`}>
         {fehler ?? ''}
       </p>
     </div>

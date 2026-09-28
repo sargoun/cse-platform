@@ -10,10 +10,13 @@
  * Formularen ohne JavaScript angesprochen; die Kraft landete auf einer weissen
  * Seite, ihre Eingaben waren weg.
  *
- * **Es reist nur der Grund, nie ein Satz** (`grundAufsFormular`, V-158): die
- * Seite schlägt ihn hier in der Sprache der Kraft nach, über
- * `eigenerEintrag` (D-728). Ein Grund, den die Tabelle nicht kennt, bekommt
- * den allgemeinen Satz — nie den rohen Schlüssel.
+ * **Es reist nur der Grund, nie ein Satz** (`grundAufsFormularweg`, V-158,
+ * V-198): die Seite schlägt ihn in der Sprache der Kraft nach, über
+ * `eigenerEintrag` (D-728) — zuerst in der Tabelle ihrer Maske hier, dann in
+ * der des ganzen Arbeiterportals (`formularFehlerSatz` mit `MaskenSaetze`,
+ * `mein-formular.ts`; zusammengeführt, D-692 Nachsatz). Ein Grund, den keine
+ * der beiden kennt, bekommt den allgemeinen Satz der Maske — nie den rohen
+ * Schlüssel.
  *
  * **Keine Entwurfskennung im Text** (D-663): die offene Frage O-925 steht in
  * DECISIONS.md, nicht auf dem Telefon der Kraft.

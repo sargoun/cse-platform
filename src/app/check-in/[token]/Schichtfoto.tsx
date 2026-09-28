@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { fotoMeldung, type StempelTexte } from '@/lib/i18n/vor-anmeldung';
 import { neueId } from './warteschlange';
 
 /**
@@ -42,20 +43,21 @@ type Zustand =
 
 interface Antwort {
   readonly exif_entfernt?: unknown;
-  readonly error?: { readonly message?: unknown };
+  readonly error?: { readonly code?: unknown };
 }
 
-export function Schichtfoto({ token }: { readonly token: string }) {
+/** Die erlaubte Grösse in MB — für den Satz, nicht für die Prüfung. */
+const MAX_MB = MAX_BYTES / 1_048_576;
+
+export function Schichtfoto(
+  { token, texte }: { readonly token: string; readonly texte: StempelTexte },
+) {
   const [zustand, setzeZustand] = useState<Zustand>({ art: 'bereit' });
   const feld = useRef<HTMLInputElement | null>(null);
 
   const sende = async (datei: File): Promise<void> => {
     if (datei.size > MAX_BYTES) {
-      setzeZustand({
-        art: 'fehler',
-        meldung: `Die Aufnahme ist zu gross (erlaubt sind ${
-          String(MAX_BYTES / 1_048_576)} MB).`,
-      });
+      setzeZustand({ art: 'fehler', meldung: fotoMeldung(texte, 'zu_gross', MAX_MB) });
       return;
     }
     setzeZustand({ art: 'sendet' });
@@ -87,11 +89,10 @@ export function Schichtfoto({ token }: { readonly token: string }) {
       });
       const daten = (await antwort.json().catch(() => ({}))) as Antwort;
       if (!antwort.ok) {
+        /* Der Satz aus dem CODE, in der Sprache des Geräts (V-200) — die
+           `message` der Route ist deutsch. */
         setzeZustand({
-          art: 'fehler',
-          meldung: typeof daten.error?.message === 'string'
-            ? daten.error.message
-            : 'Die Aufnahme ging nicht durch.',
+          art: 'fehler', meldung: fotoMeldung(texte, daten.error?.code, MAX_MB),
         });
         return;
       }
@@ -100,11 +101,7 @@ export function Schichtfoto({ token }: { readonly token: string }) {
       /*
        * Kein Netz. Es wird NICHTS gemerkt und nichts behauptet — siehe oben.
        */
-      setzeZustand({
-        art: 'fehler',
-        meldung: 'Keine Verbindung. Die Aufnahme wurde nicht übertragen; '
-          + 'der Stempel oben ist davon nicht betroffen.',
-      });
+      setzeZustand({ art: 'fehler', meldung: texte.fotoKeineVerbindung });
     } finally {
       if (feld.current !== null) feld.current.value = '';
     }
@@ -112,9 +109,8 @@ export function Schichtfoto({ token }: { readonly token: string }) {
 
   if (zustand.art === 'fertig') {
     return (
-      <p className="m-0 text-sm text-text-muted" aria-live="polite" data-cse="foto-fertig">
-        Aufnahme übertragen
-        {zustand.exifEntfernt ? ' — ohne Ortsdaten abgelegt.' : '.'}
+      <p className="m-0 text-base text-text-muted" aria-live="polite" data-cse="foto-fertig">
+        {zustand.exifEntfernt ? `${texte.fotoFertig} ${texte.fotoOhneOrt}` : `${texte.fotoFertig}.`}
       </p>
     );
   }
@@ -133,7 +129,7 @@ export function Schichtfoto({ token }: { readonly token: string }) {
                    hover:bg-surface-2"
         data-cse="foto-aufnehmen"
       >
-        {zustand.art === 'sendet' ? 'Wird übertragen …' : 'Foto von der Schicht'}
+        {zustand.art === 'sendet' ? texte.fotoSendet : texte.fotoAufnehmen}
         <input
           ref={feld}
           type="file"
@@ -148,10 +144,8 @@ export function Schichtfoto({ token }: { readonly token: string }) {
           }}
         />
       </label>
-      <p className="m-0 min-h-5 text-xs text-text-subtle" aria-live="polite">
-        {zustand.art === 'fehler'
-          ? zustand.meldung
-          : 'Freiwillig. Ortsdaten werden vor der Ablage entfernt (TIM-10).'}
+      <p className="m-0 min-h-6 text-base text-text-subtle" aria-live="polite">
+        {zustand.art === 'fehler' ? zustand.meldung : texte.fotoHinweis}
       </p>
     </div>
   );

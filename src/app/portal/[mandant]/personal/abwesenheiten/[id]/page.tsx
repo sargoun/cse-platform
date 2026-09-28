@@ -2,10 +2,14 @@ import Link from 'next/link';
 import type postgres from 'postgres';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { ENTSCHEIDUNG_FEHLER_TEXTE } from '@/lib/i18n/verwaltung/personal-entscheidung';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { DataTable } from '@/components/ui/DataTable';
 import { haeltRechte } from '@/app/portal/rechte';
@@ -98,7 +102,10 @@ export default async function Abwesenheitsblatt({
 
   const suche = await searchParams;
   const grundGewuenscht = suche['grund'] === '1';
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  /* Der Grund eines abgewiesenen Formulars, als Satz nachgeschlagen (D-753) —
+     nie Text aus der Adresse. */
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerTexte = nachSprache(ENTSCHEIDUNG_FEHLER_TEXTE, zugang.sprache);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -202,17 +209,18 @@ export default async function Abwesenheitsblatt({
         )}
       </nav>
 
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="abwesenheit-meldung" className="mb-s5 max-w-prose">
-          <strong>Der Vorgang lief nicht durch.</strong> {meldung}
+      {fehler !== null && (
+        <Hinweis art="warnung" cse="abwesenheit-fehler" rolle="alert" className="mb-s5 max-w-prose">
+          <strong>{fehlerTexte.titel}</strong>{' '}
+          {eigenerEintrag(fehlerTexte.fehler, fehler) ?? fehlerTexte.sonst}
         </Hinweis>
       )}
 
       <section className="mb-s6 rounded-lg border border-line bg-surface p-s5">
         <h2 className="mb-s4 text-h3 text-text">Zeitraum</h2>
         <dl data-cse="abwesenheit-felder" className="m-0 grid grid-cols-[auto_1fr] gap-x-s5 gap-y-s3">
-          <Feld label="Von" wert={`${zeile.von}${zeile.vonHalbtags ? ' (halber Tag)' : ''}`} />
-          <Feld label="Bis" wert={`${zeile.bis}${zeile.bisHalbtags ? ' (halber Tag)' : ''}`} />
+          <Feld label="Von" wert={`${tagDeutsch(zeile.von)}${zeile.vonHalbtags ? ' (halber Tag)' : ''}`} />
+          <Feld label="Bis" wert={`${tagDeutsch(zeile.bis)}${zeile.bisHalbtags ? ' (halber Tag)' : ''}`} />
           <Feld label="Angerechnete Tage" wert={tageText(zeile.tageAngerechnet)} />
           <Feld label="Gemeldet" wert={berlinAnzeige(zeile.gemeldetAm)} />
           <Feld

@@ -7,12 +7,14 @@ import {
   type TauschbareSchicht, type TauschpartnerWahl,
 } from '@/server/services/mitarbeiter/tausch';
 import { ANTRAG_FORM_TEXTE } from '@/lib/i18n/mein-formulare';
-import { eigenerEintrag } from '@/lib/nachschlagen';
+import { MEIN_FORMULAR_TEXTE } from '@/lib/i18n/mein-formular';
+import { setzeEin } from '@/lib/i18n/vorlage';
 import { vorbelegt } from '@/lib/formular/maske';
-import { tagDeutsch } from '@/lib/datum/kalendertag';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
-import { Abgewiesen, Leer } from '../../bausteine';
+import { Leer } from '../../bausteine';
+import { FormularFehler } from '../../FormularAntwort';
 
 /**
  * `/portal/mein/antraege/neu` — Urlaub oder Schichttausch beantragen (EMP-10).
@@ -33,20 +35,23 @@ import { Abgewiesen, Leer } from '../../bausteine';
  * Diensttelefon funktionieren, also ohne JavaScript (SEITENKARTE §13).
  *
  * **Jedes Feld, das eine Art verlangt, steht da — und sagt, fuer welche Art**
- * (V-187). Vorher bot die Seite den Schichttausch an und fragte weder nach
- * der Schicht noch nach dem Partner; jeder Tauschantrag endete am Ausloeser
- * `antrag_pflichtfelder` als rohe 500, und auch ein Urlaubsantrag ohne
- * Zeitraum. Ohne JavaScript kann die Seite ein Feld nicht erst nach der Wahl
- * der Art zeigen; sie markiert es deshalb als Pflicht, wenn JEDE angebotene
- * Art es verlangt, und sonst mit „Pflicht bei: …". Geprueft wird ohnehin im
- * Dienst (`reicheAntragEin`), und eine Abweisung kommt als Satz auf diese
- * Maske zurueck, mit den gewaehlten Werten.
+ * (V-187, V-198). Vorher bot die Seite den Schichttausch an und fragte weder
+ * nach der Schicht noch nach dem Partner; jeder Tauschantrag endete am
+ * Ausloeser `antrag_pflichtfelder` als rohe 500, und auch ein Urlaubsantrag
+ * ohne Zeitraum. Ohne JavaScript kann die Seite ein Feld nicht erst nach der
+ * Wahl der Art zeigen oder `required` machen; sie markiert es deshalb als
+ * Pflicht, wenn JEDE angebotene Art es verlangt, und sonst mit „Pflicht bei:
+ * …" darunter — gelesen aus denselben Spalten `antragsart.erfordert_*`, die
+ * der Ausloeser prueft. Geprueft wird ohnehin im Dienst (`reicheAntragEin`),
+ * und eine Abweisung kommt als Satz auf diese Maske zurueck, mit den
+ * gewaehlten Werten.
  *
- * **Eine Art, die hier nicht erfuellbar ist, steht nicht in der Auswahl,
- * sondern als Satz darunter.** Heute ist das der Schichttausch: wen eine
- * Kraft als Tauschpartner sehen darf, ist offen (O-925,
- * `TAUSCHPARTNER_QUELLE`). Eine Auswahl, die an der Datenbank scheitert,
- * waere schlechter als der Satz, an wen man sich wendet.
+ * **Eine Art, die hier nicht erfuellbar ist, ist nicht waehlbar.** Heute ist
+ * das der Schichttausch: wen eine Kraft als Tauschpartner sehen darf, ist
+ * offen (O-925, `TAUSCHPARTNER_QUELLE`). Sie bleibt in der Auswahl sichtbar,
+ * aber gesperrt („hier noch nicht möglich", V-198), und unter dem Formular
+ * steht, an wen man sich wendet (V-187) — eine Auswahl, die an der Datenbank
+ * scheitert, waere schlechter als beides.
  */
 export const dynamic = 'force-dynamic';
 
@@ -64,9 +69,18 @@ function artenMit(arten: readonly AntragsartWahl[], bedingung: (a: AntragsartWah
 }
 
 export default async function NeuerAntrag(
-  { searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> },
+  { searchParams }: {
+    readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
+  /*
+   * **Der Rückweg eines abgewiesenen Formulars** (V-187, V-198, D-692). Ein
+   * Antrag, dem fehlt, was seine Art verlangt, scheiterte am Auslöser
+   * `antrag_pflichtfelder` (0074); das endete als 500 ohne Text. Jetzt kommt
+   * der Grund als `?fehler=` hierher zurück, mit den gewählten Werten.
+   */
   const suche = await searchParams;
+  const fehler = suche['fehler'];
   const ergebnis = await meinPortal<Daten>('/portal/mein/antraege/neu',
     async (kontext, basis) => {
       const quelle = TAUSCHPARTNER_QUELLE;
@@ -88,12 +102,10 @@ export default async function NeuerAntrag(
   const { basis, daten } = ergebnis;
   const t = basis.texte;
   const ft = ANTRAG_FORM_TEXTE[basis.sprache];
+  const f = MEIN_FORMULAR_TEXTE[basis.sprache];
   const eingabe =
     'min-h-11 w-full rounded-md border border-line-strong bg-surface px-s3 py-s2 '
     + 'text-base text-text';
-
-  const fehler = vorbelegt(suche, 'fehler');
-  const satz = fehler === undefined ? null : (eigenerEintrag(ft.gruende, fehler) ?? ft.unbekannt);
 
   const angeboten = daten.antragsarten.filter((a) => artEinreichbar(a));
   const nichtMoeglich = daten.antragsarten.filter((a) => !artEinreichbar(a));
@@ -111,12 +123,15 @@ export default async function NeuerAntrag(
     return wert !== undefined && /^\d{4}-\d{2}-\d{2}$/u.test(wert) ? wert : undefined;
   };
 
+  /** „Pflicht bei: …" — die angebotenen Arten, die das Feld verlangen (V-187, V-198). */
+  const pflichtBei = (b: (a: AntragsartWahl) => boolean): string =>
+    setzeEin(f.pflichtBei, { arten: artenMit(angeboten, b) });
   const zeitraumPflicht = jede((a) => a.erfordertZeitraum);
   const zeitraumHinweis = !zeitraumPflicht && manche((a) => a.erfordertZeitraum)
-    ? ft.pflichtBei(artenMit(angeboten, (a) => a.erfordertZeitraum)) : null;
+    ? pflichtBei((a) => a.erfordertZeitraum) : null;
   const artPflicht = jede((a) => a.erfordertAbwesenheitsart);
   const artHinweis = !artPflicht && manche((a) => a.erfordertAbwesenheitsart)
-    ? ft.pflichtBei(artenMit(angeboten, (a) => a.erfordertAbwesenheitsart)) : null;
+    ? pflichtBei((a) => a.erfordertAbwesenheitsart) : null;
   const schichtNoetig = manche((a) => a.erfordertEinsatz);
   const schichtPflicht = jede((a) => a.erfordertEinsatz);
   const partnerNoetig = manche((a) => a.erfordertTauschpartner);
@@ -135,14 +150,9 @@ export default async function NeuerAntrag(
     >
       <h1 className="mb-s5 text-h1 text-text">{t.antragNeu}</h1>
 
-      {satz !== null && (
-        <Abgewiesen
-          marke="antrag-abgewiesen"
-          titel={ft.nichtGesendet}
-          text={satz}
-          zusatz={vorbelegt(suche, 'nachricht_neu') === 'ja' ? ft.nachrichtErneut : null}
-        />
-      )}
+      {/* Die Sätze dieser Maske zuerst (`ANTRAG_FORM_TEXTE`), dann die des Portals. */}
+      <FormularFehler sprache={basis.sprache} grund={fehler} maske={ft}
+        zusatz={vorbelegt(suche, 'nachricht_neu') === 'ja' ? ft.nachrichtErneut : null} />
 
       {basis.anstellungen.length === 0 || angeboten.length === 0
         ? <Leer text={t.keineEintraege} />
@@ -154,6 +164,8 @@ export default async function NeuerAntrag(
           className="flex max-w-prose flex-col gap-s4"
         >
           <input type="hidden" name="zurueck" value="/portal/mein/antraege" />
+          {/* Ein Fehlschlag kommt HIERHER zurück, nicht auf die Liste (D-692). */}
+          <input type="hidden" name="fehlerweg" value="/portal/mein/antraege/neu" />
 
           <div className="flex flex-col gap-s2">
             <label htmlFor="antrag-anstellung" className="text-base text-text">
@@ -178,9 +190,21 @@ export default async function NeuerAntrag(
             </label>
             <select id="antrag-art" name="antragsart" required className={eingabe}
               defaultValue={gewaehlt('antragsart', angeboten.map((a) => a.id))}>
-              {angeboten.map((a) => (
-                <option key={a.id} value={a.id}>{a.bezeichnung}</option>
-              ))}
+              {/*
+                Eine Art, deren Pflichtfelder dieses Formular nicht erfüllen
+                kann (heute der Tauschpartner, O-925), bleibt sichtbar, ist
+                aber nicht wählbar: angeboten wäre sie ein sicherer
+                Fehlschlag (V-198). Was stattdessen zu tun ist, steht unter
+                dem Formular (V-187); die Lücke selbst ist V-260.
+              */}
+              {daten.antragsarten.map((a) => {
+                const nichtHier = !artEinreichbar(a);
+                return (
+                  <option key={a.id} value={a.id} disabled={nichtHier}>
+                    {nichtHier ? `${a.bezeichnung} ${f.nichtHier}` : a.bezeichnung}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -196,6 +220,7 @@ export default async function NeuerAntrag(
             </label>
             <select id="antrag-abwesenheitsart" name="abwesenheitsart" className={eingabe}
               required={artPflicht}
+              aria-describedby={artHinweis === null ? undefined : 'antrag-art-pflicht'}
               defaultValue={gewaehlt('abwesenheitsart', daten.abwesenheitsarten.map((a) => a.id)) ?? ''}>
               <option value="">—</option>
               {daten.abwesenheitsarten.map((a) => (
@@ -203,7 +228,8 @@ export default async function NeuerAntrag(
               ))}
             </select>
             {artHinweis !== null && (
-              <p className="m-0 text-base text-text-muted" data-cse="pflicht-abwesenheitsart">{artHinweis}</p>
+              <p id="antrag-art-pflicht" className="m-0 text-base text-text-muted"
+                 data-cse="pflicht-abwesenheitsart">{artHinweis}</p>
             )}
           </div>
 
@@ -213,17 +239,20 @@ export default async function NeuerAntrag(
                 {t.von}{zeitraumPflicht && pflichtMarke}
               </label>
               <input id="antrag-von" name="von" type="date" className={eingabe}
-                required={zeitraumPflicht} defaultValue={datum('von')} />
+                required={zeitraumPflicht} defaultValue={datum('von')}
+                aria-describedby={zeitraumHinweis === null ? undefined : 'antrag-zeitraum-pflicht'} />
             </div>
             <div className="flex flex-col gap-s2">
               <label htmlFor="antrag-bis" className="text-base text-text">
                 {t.bis}{zeitraumPflicht && pflichtMarke}
               </label>
               <input id="antrag-bis" name="bis" type="date" className={eingabe}
-                required={zeitraumPflicht} defaultValue={datum('bis')} />
+                required={zeitraumPflicht} defaultValue={datum('bis')}
+                aria-describedby={zeitraumHinweis === null ? undefined : 'antrag-zeitraum-pflicht'} />
             </div>
             {zeitraumHinweis !== null && (
-              <p className="m-0 text-base text-text-muted sm:col-span-2" data-cse="pflicht-zeitraum">
+              <p id="antrag-zeitraum-pflicht" className="m-0 text-base text-text-muted sm:col-span-2"
+                 data-cse="pflicht-zeitraum">
                 {zeitraumHinweis}
               </p>
             )}
@@ -241,11 +270,12 @@ export default async function NeuerAntrag(
               ) : (
                 <select id="antrag-einsatz" name="einsatz" className={eingabe}
                   required={schichtPflicht}
+                  aria-describedby={schichtPflicht ? undefined : 'antrag-schicht-pflicht'}
                   defaultValue={gewaehlt('einsatz', daten.schichten.map((s) => s.einsatzId)) ?? ''}>
                   <option value="">{ft.schichtWaehlen}</option>
                   {daten.schichten.map((s) => (
                     <option key={s.einsatzId} value={s.einsatzId}>
-                      {tagDeutsch(s.tag)} · {s.beginnUhrzeit}–{s.endeUhrzeit}
+                      {tagInSprache(s.tag, basis.sprache)} · {s.beginnUhrzeit}–{s.endeUhrzeit}
                       {s.endetAmFolgetag ? ` ${ft.folgetag}` : ''}
                       {s.objekt === null ? '' : ` · ${s.objekt}`} · {s.mandantName}
                     </option>
@@ -253,8 +283,9 @@ export default async function NeuerAntrag(
                 </select>
               )}
               {!schichtPflicht && (
-                <p className="m-0 text-base text-text-muted" data-cse="pflicht-schicht">
-                  {ft.pflichtBei(artenMit(angeboten, (a) => a.erfordertEinsatz))}
+                <p id="antrag-schicht-pflicht" className="m-0 text-base text-text-muted"
+                   data-cse="pflicht-schicht">
+                  {pflichtBei((a) => a.erfordertEinsatz)}
                 </p>
               )}
             </div>
@@ -267,6 +298,7 @@ export default async function NeuerAntrag(
               </label>
               <select id="antrag-tauschpartner" name="tauschpartner" className={eingabe}
                 required={partnerPflicht}
+                aria-describedby={partnerPflicht ? undefined : 'antrag-partner-pflicht'}
                 defaultValue={gewaehlt('tauschpartner',
                   daten.partner.flatMap((g) => g.wahl.map((p) => p.anstellungId))) ?? ''}>
                 <option value="">{ft.tauschpartnerWaehlen}</option>
@@ -279,8 +311,9 @@ export default async function NeuerAntrag(
                 ))}
               </select>
               {!partnerPflicht && (
-                <p className="m-0 text-base text-text-muted" data-cse="pflicht-tauschpartner">
-                  {ft.pflichtBei(artenMit(angeboten, (a) => a.erfordertTauschpartner))}
+                <p id="antrag-partner-pflicht" className="m-0 text-base text-text-muted"
+                   data-cse="pflicht-tauschpartner">
+                  {pflichtBei((a) => a.erfordertTauschpartner)}
                 </p>
               )}
             </div>

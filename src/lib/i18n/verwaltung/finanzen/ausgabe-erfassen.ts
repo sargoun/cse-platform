@@ -69,6 +69,11 @@ export interface AusgabeErfassenTexte {
   readonly entschieden: string;
 
   readonly fehler: Readonly<Record<string, string>>;
+  /**
+   * Der Satz für einen Grund, den `fehler` nicht kennt (V-197) — nie der rohe
+   * Schlüssel aus der Adresse.
+   */
+  readonly fehlerAllgemein: string;
 }
 
 export const AUSGABE_ERFASSEN_TEXTE:
@@ -179,6 +184,7 @@ Readonly<Record<InternSprache, AusgabeErfassenTexte>> = {
         + 'inzwischen entschieden.',
       grund_fehlt: 'Eine Ablehnung ohne Grund ist keine Auskunft.',
     },
+    fehlerAllgemein: 'Der Schritt lief nicht durch. Die Ausgabe steht, wie sie war.',
   },
 
   en: {
@@ -286,5 +292,6 @@ Readonly<Record<InternSprache, AusgabeErfassenTexte>> = {
         + 'the meantime.',
       grund_fehlt: 'A rejection without a reason is no answer.',
     },
+    fehlerAllgemein: 'The step did not go through. The expense is as it was.',
   },
 };

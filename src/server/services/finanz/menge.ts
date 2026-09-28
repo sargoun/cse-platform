@@ -120,6 +120,53 @@ export function formatiereMengeIn(menge: MilliMenge, sprache: string | null | un
   return EN_MENGE.format(negativ ? -alsZahl : alsZahl);
 }
 
+const DE_TAGE = new Intl.NumberFormat('de-DE', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 3,
+});
+const EN_TAGE = new Intl.NumberFormat('en-GB', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 3,
+});
+
+/**
+ * Tage für die Anzeige (V-194): `5_000n` → „5", `1_500n` → „1,5" — englisch
+ * „1.5". Anzeige, nie Rechnung (R-15).
+ *
+ * **Warum nicht `formatiereMenge`.** Die feste zweite Nachkommastelle ist für
+ * Quadratmeter und Stunden richtig und für Tage ein Lesefehler: „5,00 Tage"
+ * sieht nach einer Rechnung aus, „5 Tage" ist, was auf dem Antrag stand. Ein
+ * halber Tag bleibt sichtbar („0,5"), weil die Nachkommastellen nur wegfallen,
+ * wo sie null sind.
+ *
+ * **Warum nicht „durch 1000 teilen".** Genau so zeigte das Arbeiterportal eine
+ * Krankmeldung über fünf Tage mit „0": der Text aus der Datenbank ist schon
+ * die Zahl (`"5.000"`), nicht ihre Tausendstel.
+ */
+export function formatiereTage(menge: MilliMenge, sprache?: string | null): string {
+  const negativ = menge < 0n;
+  const abs = negativ ? -menge : menge;
+  const ganz = abs / 1000n;
+  if (!Number.isSafeInteger(Number(ganz))) {
+    throw new MengeFehler(`Menge zu gross fuer die Anzeige: ${String(menge)}`);
+  }
+  const alsZahl = Number(ganz) + Number(abs % 1000n) / 1000;
+  return (sprache === 'en' ? EN_TAGE : DE_TAGE).format(negativ ? -alsZahl : alsZahl);
+}
+
+/**
+ * Eine Tageszahl, wie sie aus Postgres kommt (`numeric(12,3)` als Text), für
+ * die Anzeige — und `null` als Gedankenstrich (V-194).
+ *
+ * **Die Null-Prüfung steht HIER und nicht in `mengeAusPostgresOderNull`.**
+ * Jene macht aus `null` die Menge null — für eine Summe über keine Zeilen
+ * richtig, für „noch nicht berechnet" falsch: „0 Tage" behauptete eine Zahl,
+ * die niemand ausgerechnet hat.
+ */
+export function tageAusPostgres(text: string | null, sprache?: string | null): string {
+  return text === null ? '—' : formatiereTage(mengeAusPostgres(text), sprache);
+}
+
 const EINGABE_MUSTER = /^(-?)(\d{1,9})(?:[.,](\d{1,3}))?$/u;
 
 /**

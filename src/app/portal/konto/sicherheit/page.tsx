@@ -11,6 +11,7 @@ import {
   meinBeschriftungen, meinTexte, PORTAL_BCP47, PORTAL_RICHTUNG,
 } from '@/lib/i18n/texte';
 import { SICHERHEIT_TEXTE } from '@/lib/i18n/konto';
+import { zeitpunktInSprache } from '@/lib/datum/zeitpunkt';
 import { leseKonto } from '../konto';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { meineSitzungen, type EigeneSitzung } from '@/server/services/konto/sitzungen';
@@ -82,9 +83,12 @@ export default async function Sicherheit(
     );
   }) as Promise<readonly EigeneSitzung[]>);
 
-  const zeit = new Intl.DateTimeFormat(PORTAL_BCP47[aktuell], {
-    timeZone: 'Europe/Berlin', dateStyle: 'short', timeStyle: 'short',
-  });
+  /*
+   * Berliner Ortszeit in der gesetzlichen Form (SEITENKARTE §12, V-201) —
+   * hier stand `Intl.DateTimeFormat(PORTAL_BCP47[aktuell], …)`, auf Englisch
+   * „9/11/26, 10:30 PM", auf Arabisch mit 12-Stunden-Uhr.
+   */
+  const zeit = { format: (d: Date): string => zeitpunktInSprache(d, aktuell) };
 
   const karte = 'rounded-lg border border-line bg-surface p-s5';
   const knopf = 'inline-flex min-h-11 items-center rounded-md border border-line-strong '

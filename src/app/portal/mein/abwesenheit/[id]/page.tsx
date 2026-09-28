@@ -1,13 +1,17 @@
 import Link from 'next/link';
+import { zeitpunktInSprache } from '@/lib/datum/zeitpunkt';
 import { notFound } from 'next/navigation';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
+import { tageAusPostgres } from '@/server/services/finanz/menge';
 import {
   findeEigeneAbwesenheit, type EigeneAbwesenheit,
 } from '@/server/services/mitarbeiter/antraege';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
 import { Feld, Felder, Gesellschaft } from '../../bausteine';
+import { FormularFehler } from '../../FormularAntwort';
 
 /**
  * `/portal/mein/abwesenheit/[id]` — eine einzelne eigene Abwesenheit
@@ -45,31 +49,15 @@ function abwesenheitPille(status: string): PillZustand {
   }
 }
 
-/**
- * `numeric(12,3)` als Tausendstel — „1500" sind anderthalb Tage.
- *
- * `Intl.NumberFormat` und nicht `toLocaleString` mit Optionen: die
- * Zeitzonenwache liest den zweiten Aufruf als Datumsanzeige, und sie hat
- * recht, streng zu sein — `new Date(x).toLocaleString('de-DE', {…})` ist
- * Zeichen für Zeichen derselbe Aufruf. Eine Zahl, die einmal zuviel gemeldet
- * wird, kostet eine Zeile; ein Datum in Serverzone kostet einen Streit über
- * Stunden.
- */
-const TAGE_FORMAT = new Intl.NumberFormat('de-DE', {
-  minimumFractionDigits: 0, maximumFractionDigits: 1,
-});
-
-function tageText(tausendstel: string | null): string {
-  if (tausendstel === null) return '—';
-  const zahl = Number(tausendstel);
-  if (!Number.isFinite(zahl)) return tausendstel;
-  return TAGE_FORMAT.format(zahl / 1000);
-}
-
 export default async function MeineAbwesenheit(
-  { params }: { params: Promise<{ id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { id } = await params;
+  /* Der Grund einer Abweisung, zurückgeschickt von der Route (V-198, D-692). */
+  const fehler = (await searchParams)['fehler'];
   const ergebnis = await meinPortal<EigeneAbwesenheit | null>(
     `/portal/mein/abwesenheit/${id}`,
     async (kontext, teil) => findeEigeneAbwesenheit(kontext, teil.anstellungen, id),
@@ -81,11 +69,6 @@ export default async function MeineAbwesenheit(
   const a = daten.abwesenheit;
   const t = basis.texte;
 
-  /* Berliner Ortszeit (Invariante 2) — dieselbe Formatierung wie auf dem
-     Antragsblatt, damit zwei Seiten desselben Portals gleich schreiben. */
-  const zeitpunkt = new Intl.DateTimeFormat(basis.sprache === 'de' ? 'de-DE' : basis.sprache, {
-    timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
-  });
   const halbe = [a.vonHalbtags ? t.halberTagBeginn : null, a.bisHalbtags ? t.halberTagEnde : null]
     .filter((x): x is string => x !== null).join(' · ');
 
@@ -103,6 +86,8 @@ export default async function MeineAbwesenheit(
         <StatusPill sprache={basis.sprache} zustand={abwesenheitPille(a.status)} />
       </div>
 
+      <FormularFehler sprache={basis.sprache} grund={fehler} />
+
       <section
         data-cse="abwesenheit"
         data-mandant={daten.mandantSlug}
@@ -112,21 +97,31 @@ export default async function MeineAbwesenheit(
           <Feld label={t.gesellschaft}>
             <Gesellschaft slug={daten.mandantSlug} name={daten.mandantName} />
           </Feld>
-          <Feld label={t.von}><span className="cse-zahl">{a.von}</span></Feld>
-          <Feld label={t.bis}><span className="cse-zahl">{a.bis}</span></Feld>
+          <Feld label={t.von}>
+            <span className="cse-zahl">{tagInSprache(a.von, basis.sprache)}</span>
+          </Feld>
+          <Feld label={t.bis}>
+            <span className="cse-zahl">{tagInSprache(a.bis, basis.sprache)}</span>
+          </Feld>
           <Feld label={t.tage}>
-            <span className="cse-zahl">{tageText(a.tageAngerechnet)}</span>
+            {/*
+              `numeric(12,3)` kommt als Text „5.000" — das IST die Zahl (fünf
+              Tage), nicht ihre Tausendstel. Hier stand eine Teilung durch
+              1000, und jede Krankmeldung über fünf Tage zeigte „0" (V-194).
+            */}
+            <span className="cse-zahl">{tageAusPostgres(a.tageAngerechnet, basis.sprache)}</span>
           </Feld>
           {halbe !== '' && <Feld label={t.halbeTage}>{halbe}</Feld>}
           <Feld label={t.gemeldetAm}>
             <time dateTime={a.gemeldetAm.toISOString()} className="cse-zahl">
-              {zeitpunkt.format(a.gemeldetAm)}
+              {/* Berliner Ortszeit, gesetzliche Form (SEITENKARTE §12, V-201). */}
+              {zeitpunktInSprache(a.gemeldetAm, basis.sprache)}
             </time>
           </Feld>
           {a.storniertAm !== null && (
             <Feld label={t.storniertAm}>
               <time dateTime={a.storniertAm.toISOString()} className="cse-zahl">
-                {zeitpunkt.format(a.storniertAm)}
+                {zeitpunktInSprache(a.storniertAm, basis.sprache)}
               </time>
             </Feld>
           )}
@@ -149,6 +144,8 @@ export default async function MeineAbwesenheit(
           */}
           <form method="post" action={`/api/mein/abwesenheit/${a.id}/zurueckziehen`}>
             <input type="hidden" name="zurueck" value="/portal/mein/antraege" />
+            {/* Entschieden, während das Blatt offen war? Zurück HIERHER (V-198). */}
+            <input type="hidden" name="fehlerweg" value={`/portal/mein/abwesenheit/${a.id}`} />
             <Button type="submit" variante="secondary" data-cse="abwesenheit-zurueckziehen">
               {t.abwesenheitRuecknahme}
             </Button>

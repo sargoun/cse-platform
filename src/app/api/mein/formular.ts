@@ -1,10 +1,6 @@
-import { NextResponse, type NextRequest } from 'next/server';
-import { internesZiel } from '@/server/auth/ursprung';
-import { maskeMitEingaben } from '@/lib/formular/maske';
-
 /**
- * Der Rückweg eines abgewiesenen Formulars im Mitarbeiterportal (V-187,
- * V-188, D-599).
+ * Die zweite Linie der Formulare im Mitarbeiterportal: ein Fehler der
+ * DATENBANK als Grund (V-187, V-188, V-189, D-599).
  *
  * **Der Befund.** `POST /api/mein/antraege` und `POST /api/mein/abwesenheit`
  * antworteten auf jede Abweisung mit JSON, und auf eine Abweisung der
@@ -14,21 +10,18 @@ import { maskeMitEingaben } from '@/lib/formular/maske';
  * Formulare laufen ohne JavaScript; eine JSON-Antwort ist dort genauso eine
  * weisse Seite wie der Absturz.
  *
- * **Die Maske kommt mit ihren Eingaben zurück** (`maskeMitEingaben`) — aber
- * nur mit Auswahlen und Tagen. Freitext reist NICHT in der Adresse: die
- * Bemerkung einer Krankmeldung darf `cse_app` nicht einmal lesen (0073,
- * Art. 9 DSGVO), und eine Adresse landet in Verlauf und Protokollen. Die
- * Seite sagt stattdessen, dass die Nachricht noch einmal einzugeben ist.
+ * **Der Rückweg selbst ist `grundAufsFormularweg`** (`api/formular-antwort.ts`,
+ * V-198): der Grund als `?fehler=`, die Maske mit ihren Eingaben — aber nur
+ * mit Auswahlen und Tagen. Freitext reist NICHT in der Adresse: die Bemerkung
+ * einer Krankmeldung darf `cse_app` nicht einmal lesen (0073, Art. 9 DSGVO),
+ * und eine Adresse landet in Verlauf und Protokollen. Hier stand bis zur
+ * Zusammenführung mit V-198 ein eigener Rückweg (`zurMaske`); zwei Weichen für
+ * dieselbe Frage wären beim nächsten Umbau zwei verschiedene geworden
+ * (D-692 Nachsatz).
  */
-export function zurMaske(
-  anfrage: NextRequest,
-  maske: string,
-  grund: string,
-  werte: Readonly<Record<string, string | null | undefined>>,
-): NextResponse {
-  return NextResponse.redirect(
-    internesZiel(maskeMitEingaben(maske, grund, werte), maske, anfrage), 303);
-}
+
+/** Ein Grund, den die Datenbank für eine Eingabe liefert. */
+export type DatenbankGrund = 'ueberlappt' | 'ungueltige_eingabe' | 'kein_datum';
 
 /**
  * Ein Fehler der DATENBANK als Grund — oder `null`, wenn er keiner ist, den
@@ -41,13 +34,21 @@ export function zurMaske(
  * (`22007`/`22008`, etwa der 31.02.). Alles andere bleibt ein Serverfehler —
  * und wird weitergeworfen, statt als „Eingabe prüfen" verkleidet zu werden.
  */
-export function datenbankGrund(
-  fehler: unknown,
-): 'ueberlappt' | 'ungueltige_eingabe' | 'kein_datum' | null {
+export function datenbankGrund(fehler: unknown): DatenbankGrund | null {
   if (typeof fehler !== 'object' || fehler === null) return null;
   const code = (fehler as { code?: unknown }).code;
   if (code === '23P01') return 'ueberlappt';
   if (code === '23514' || code === '23503') return 'ungueltige_eingabe';
   if (code === '22007' || code === '22008') return 'kein_datum';
   return null;
+}
+
+/**
+ * Der HTTP-Status eines Datenbankgrunds für einen Aufrufer ohne Formular
+ * (D-599: ein Programm bekommt JSON) — dieselbe Zahl wie die Büroroute
+ * `api/personal/abwesenheit`: die doppelte Meldung ist ein Konflikt mit einer
+ * vorhandenen Zeile, alles andere eine Eingabe, die nicht passt.
+ */
+export function datenbankStatus(grund: DatenbankGrund): number {
+  return grund === 'ueberlappt' ? 409 : 400;
 }

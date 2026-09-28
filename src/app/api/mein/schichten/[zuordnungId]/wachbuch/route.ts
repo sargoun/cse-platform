@@ -1,8 +1,9 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import type { NextRequest, NextResponse } from 'next/server';
 import {
   istWachbuchArt, schreibeEintrag, type WachbuchArt,
 } from '@/server/services/security/wachbuch';
 import { aufDerSchicht, dienstFehlerAntwort, zurueckZu } from '../../bruecke';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 
 /**
  * `POST /api/mein/schichten/[zuordnungId]/wachbuch` — die Wache schreibt eine
@@ -49,14 +50,14 @@ export async function POST(
   const eintragstext = textOder(daten, 'eintragstext');
 
   if (art === null || !istWachbuchArt(art)) {
-    return NextResponse.json({ fehler: 'unbekannte_art' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'unbekannte_art', 400);
   }
   if (betreff === null) {
-    return NextResponse.json({ fehler: 'kein_betreff' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'kein_betreff', 400);
   }
   if (eintragstext === null) {
     // Ein Eintrag ohne Text dokumentiert nichts. Was ist passiert?
-    return NextResponse.json({ fehler: 'kein_text' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'kein_text', 400);
   }
 
   try {
@@ -101,10 +102,10 @@ export async function POST(
       });
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
     if (ergebnis.wert === null) {
-      return NextResponse.json({ fehler: 'kein_objekt' }, { status: 422 });
+      return grundAufsFormularweg(anfrage, daten, 'kein_objekt', 422);
     }
   } catch (fehler: unknown) {
-    const antwort = dienstFehlerAntwort(fehler);
+    const antwort = dienstFehlerAntwort(fehler, { anfrage, daten });
     if (antwort !== null) return antwort;
     throw fehler;
   }

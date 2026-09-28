@@ -11,6 +11,11 @@
  * Geprüft werden die ECHTE Route (Sitzung, Datenbank und Dienst ersetzt) und
  * die Quelltexte der Seiten; den Dienst an echten Zeilen prüft
  * `tests/isolation/einwand-ohne-eintrag.test.ts`.
+ *
+ * **Seit der Zusammenführung mit V-198** (D-692 Nachsatz) schicken beide
+ * Einwandformulare `fehlerweg` (ihre eigene Seite) statt `maske`, und
+ * `zurueck` trägt die Bestätigung selbst (`?gesendet=1`) — die Route folgt ihm,
+ * wie es ist, statt `?gemeldet=1` anzuhängen (D-692 Nr. 3).
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -18,6 +23,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { EinwandOhneBezugFehler, EinwandZeitFehler } from '../../src/server/services/zeit/einwand.js';
 import { EINWAND_FORM_TEXTE, EINWAND_GRUENDE } from '../../src/lib/i18n/mein-formulare.js';
+import { formularFehlerSatz } from '../../src/lib/i18n/mein-formular.js';
 import { PORTAL_SPRACHEN } from '../../src/lib/i18n/texte.js';
 import { ROUTEN } from '../../src/server/registry/routen.generiert.js';
 
@@ -59,7 +65,7 @@ function anfrage(felder: Record<string, string>): NextRequest {
 }
 
 const FORMULAR = {
-  art: 'eintrag_fehlt', maske: MASKE, zurueck: MASKE, anstellung: ANSTELLUNG,
+  art: 'eintrag_fehlt', fehlerweg: MASKE, zurueck: `${MASKE}?gesendet=1`, anstellung: ANSTELLUNG,
   datum: '2026-03-28', beginn: '2026-03-28T22:00', ende: '2026-03-29T06:00', pause: '30',
   begruendung: 'Die Marke am Tor ging nicht, ich war da.',
 };
@@ -85,7 +91,7 @@ describe('POST /api/zeit/einwand aus „Eine Zeit fehlt"', () => {
     const antwort = await POST(anfrage(FORMULAR));
     expect(antwort.status).toBe(303);
     expect(ziel(antwort).pathname).toBe(MASKE);
-    expect(ziel(antwort).searchParams.get('gemeldet')).toBe('1');
+    expect(ziel(antwort).searchParams.get('gesendet')).toBe('1');
     expect(zustand.reiche).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       anstellungId: ANSTELLUNG, zeiteintragId: null, art: 'eintrag_fehlt',
       betrifftDatum: '2026-03-28', behauptetPauseMinuten: 30,
@@ -140,9 +146,9 @@ describe('POST /api/zeit/einwand aus „Eine Zeit fehlt"', () => {
       expect(ziel(antwort).searchParams.get('datum')).toBe('2026-03-28');
       expect(ziel(antwort).toString()).not.toContain('Marke');
     }
-    // Ohne Maske: JSON mit 422, wie jede andere Abweisung dieser Route.
+    // Ohne Formularfelder: JSON mit 422, wie jede andere Abweisung dieser Route.
     const ohne: Record<string, string> = { ...FORMULAR };
-    delete ohne['maske'];
+    delete ohne['fehlerweg'];
     delete ohne['zurueck'];
     zustand.reiche.mockRejectedValueOnce(new EinwandZeitFehler('tag_in_zukunft'));
     const json = await POST(anfrage(ohne));
@@ -150,9 +156,9 @@ describe('POST /api/zeit/einwand aus „Eine Zeit fehlt"', () => {
     expect(await json.json()).toEqual({ fehler: 'tag_in_zukunft' });
   });
 
-  it('ohne `maske` und `zurueck` bleibt die Route, wie sie war: JSON', async () => {
+  it('ohne `fehlerweg` und `zurueck` bleibt die Route, wie sie war: JSON', async () => {
     const ohne: Record<string, string> = { ...FORMULAR };
-    delete ohne['maske'];
+    delete ohne['fehlerweg'];
     delete ohne['zurueck'];
     const erfolg = await POST(anfrage(ohne));
     expect(erfolg.status).toBe(201);
@@ -174,16 +180,25 @@ describe('die Seiten', () => {
     expect(seite).toContain('name="art" value="eintrag_fehlt"');
     expect(seite).not.toContain('name="zeiteintrag"');
     for (const name of ['anstellung', 'datum', 'beginn', 'ende', 'pause', 'begruendung',
-      'maske', 'zurueck']) {
+      'fehlerweg', 'zurueck']) {
       expect(seite).toContain(`name="${name}"`);
     }
-    expect(seite).toContain('eigenerEintrag(ft.gruende, fehler) ?? ft.unbekannt');
+    expect(seite).toContain('name="zurueck" value={`${MASKE}?gesendet=1`}');
+    /*
+     * Nachgeschlagen wird in `FormularFehler` (`formularFehlerSatz`): die Sätze
+     * dieser Maske zuerst, dann die des Portals, nur als eigener Eintrag.
+     */
+    expect(seite).toContain('<FormularFehler sprache={basis.sprache} grund={fehler} maske={ft}');
+    const ft = EINWAND_FORM_TEXTE.de;
+    expect(formularFehlerSatz('de', 'beginn_nicht_am_tag', ft)).toBe(ft.gruende.beginn_nicht_am_tag);
+    expect(formularFehlerSatz('de', '__proto__', ft)).toBe(ft.unbekannt);
   });
 
   it('der Einwand zu einem Eintrag kommt ebenfalls auf seine Seite zurück', () => {
     const seite = lies('src/app/portal/mein/zeiten/[id]/einwand/page.tsx');
-    expect(seite).toContain('name="maske"');
+    expect(seite).toContain('name="fehlerweg"');
     expect(seite).toContain('name="zurueck"');
+    expect(seite).toContain('maske={ft}');
   });
 
   it('„Meine Zeiten" und das Blatt einer beendeten Schicht führen dorthin', () => {

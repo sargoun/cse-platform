@@ -5,7 +5,8 @@ import { AreaBadge } from '@/components/ui/AreaBadge';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
 import { stundenMinutenText } from '@/lib/datum/stunden';
-import { tagDeutsch } from '@/lib/datum/kalendertag';
+import { tagInSprache } from '@/lib/datum/kalendertag';
+import { tagVonZeitpunktInSprache } from '@/lib/datum/zeitpunkt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import {
   EINWAND_ART_TEXTE, EINWAND_STATUS_TEXTE,
@@ -101,15 +102,23 @@ export function SchichtKarte({
   readonly sprache: PortalSprache;
   readonly alsLink?: boolean;
 }) {
+  const zeitanomalie = schicht.zeitanomalie === 'dst_luecke' || schicht.zeitanomalie === 'dst_doppelt'
+    ? texte.zeitanomalie[schicht.zeitanomalie] : undefined;
   const inhalt = (
     <>
       <div className="mb-s3 flex flex-wrap items-center gap-s3">
         <Gesellschaft slug={schicht.mandantSlug} name={schicht.mandantName} />
         <StatusPill zustand={schichtPille(schicht)} sprache={sprache} />
-        {schicht.zeitanomalie !== 'keine' && (
-          <span data-cse="zeitanomalie" className="text-sm text-warning">
+        {/*
+          Der Tag der Zeitumstellung in der Sprache der Person (V-195). Hier
+          stand ein deutsches Wort in einem Ternär — die Übersetzungswache sah
+          es nicht, und die Kraft las in jeder Sprache „23-Stunden-Tag".
+        */}
+        {zeitanomalie !== undefined && (
+          <span data-cse="zeitanomalie" data-art={schicht.zeitanomalie}
+                className="text-base text-warning">
             <Icon name="warnung" groesse="sm" className="inline-block align-[-2px]" />{' '}
-            {schicht.zeitanomalie === 'dst_luecke' ? '23-Stunden-Tag' : '25-Stunden-Tag'}
+            {zeitanomalie}
           </span>
         )}
       </div>
@@ -193,32 +202,6 @@ export function Hinweis(
 }
 
 /**
- * Warum ein Formular zurückkam — über dem Formular, in der Sprache der Kraft
- * (V-187, V-188, D-599).
- *
- * `role="alert"`: ein Screenreader liest den Satz beim Laden vor, ohne dass
- * jemand ihn suchen muss (DESIGN §9). Der Rahmen aus `--warning` trägt die
- * Bedeutung nicht allein — die erste Zeile sagt, dass nichts gesendet wurde.
- * Fliesstext in `text-base` (DESIGN §8: nie unter 16 px).
- */
-export function Abgewiesen({ titel, text, zusatz, marke = 'abgewiesen' }: {
-  readonly titel: string;
-  readonly text: string;
-  /** Ein zweiter Satz, etwa dass die Nachricht noch einmal einzugeben ist. */
-  readonly zusatz?: string | null;
-  readonly marke?: string;
-}) {
-  return (
-    <div role="alert" data-cse={marke}
-         className="mb-s4 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-base text-text">
-      <p className="m-0 font-semibold">{titel}</p>
-      <p className="m-0 mt-s1">{text}</p>
-      {zusatz !== undefined && zusatz !== null && <p className="m-0 mt-s1">{zusatz}</p>}
-    </div>
-  );
-}
-
-/**
  * Die eigenen Einwände und was aus ihnen wurde (V-051, V-189, EMP-07).
  *
  * Steht hier, weil ZWEI Seiten sie zeigen: der Einwand zu einem Eintrag
@@ -231,11 +214,6 @@ export function Abgewiesen({ titel, text, zusatz, marke = 'abgewiesen' }: {
  * die Wörter darum herum. Das Datum steht in Berliner Zeit (Invariante 2),
  * der Zustand als Wort, nie als Enum-Wert.
  */
-/** Der Berliner Kalendertag eines Zeitpunkts als TT.MM.JJJJ (Invariante 2). */
-const TAG_BERLIN = new Intl.DateTimeFormat('de-DE', {
-  timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit',
-});
-
 export function EinwandListe({ einwaende, texte, sprache }: {
   readonly einwaende: readonly EinwandZeile[];
   readonly texte: MeinTexte;
@@ -245,14 +223,18 @@ export function EinwandListe({ einwaende, texte, sprache }: {
   const arten = EINWAND_ART_TEXTE[sprache];
   const statusWort = EINWAND_STATUS_TEXTE[sprache];
   /*
-   * Jeder Tag dieser Liste in DERSELBEN, der gesetzlichen Form: TT.MM.JJJJ,
-   * Berliner Kalendertag, in jeder Sprache (SEITENKARTE §12 — „numbers,
-   * money and time never localise away from the legal form", V-193). Vorher
-   * stand der Tag des Einwands deutsch da und daneben Eingangs- und
-   * Entscheidungstag nach Sprache — englisch als 09/21/2026, arabisch mit
-   * arabisch-indischen Ziffern: drei Schreibweisen auf einer Karte.
+   * Jeder Tag dieser Liste in DERSELBEN Form, Berliner Kalendertag
+   * (SEITENKARTE §12, V-193). Vorher stand der Tag des Einwands deutsch da
+   * und daneben Eingangs- und Entscheidungstag nach Sprache — englisch als
+   * 09/21/2026, arabisch mit arabisch-indischen Ziffern: drei Schreibweisen
+   * auf einer Karte. Die Form ist die des ganzen Arbeiterportals
+   * (`tagInSprache`/`tagVonZeitpunktInSprache`, V-199, V-201, D-693, D-695):
+   * TT.MM.JJJJ auf Deutsch, Arabisch und Türkisch, britisch auf Englisch —
+   * dieselbe wie der Tag des Eintrags darüber auf dem Einwandblatt
+   * (zusammengeführt, D-692 Nachsatz).
    */
-  const tagText = (wert: Date | null): string => (wert === null ? '—' : TAG_BERLIN.format(wert));
+  const tagText = (wert: Date | null): string =>
+    (wert === null ? '—' : tagVonZeitpunktInSprache(wert, sprache));
   if (einwaende.length === 0) return <Leer text={t.keineEintraege} />;
   return (
     <ul data-cse="eigene-einwaende" className="m-0 flex list-none flex-col gap-s3 p-0">
@@ -267,7 +249,7 @@ export function EinwandListe({ einwaende, texte, sprache }: {
               </Feld>
               <Feld label={t.einwandArt}>{arten[e.art]}</Feld>
               <Feld label={t.datum}>
-                <span className="cse-zahl">{tagDeutsch(e.betrifftDatum)}</span>
+                <span className="cse-zahl">{tagInSprache(e.betrifftDatum, sprache)}</span>
               </Feld>
               <Feld label={t.einwandEingereichtAm}>
                 <span className="cse-zahl">{tagText(e.eingereichtAm)}</span>

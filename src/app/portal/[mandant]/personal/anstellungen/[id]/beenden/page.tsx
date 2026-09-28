@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type postgres from 'postgres';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
@@ -160,7 +161,7 @@ export default async function Beendenblatt({
           <span className="text-sm text-text-muted">
             Personalnummer <span className="tabular-nums">{zeile.personalnummer}</span>
             {' · '}
-            Eintritt <span className="tabular-nums">{zeile.eintritt}</span>
+            Eintritt <span className="tabular-nums">{tagDeutsch(zeile.eintritt)}</span>
           </span>
         </span>
       </div>
@@ -192,7 +193,9 @@ export default async function Beendenblatt({
       {beendet && (
         <Hinweis art="hinweis" cse="beenden-bereits" className="mb-s5 max-w-prose">
           <strong>Diese Beschäftigung ist bereits beendet.</strong> Austritt{' '}
-          <span className="tabular-nums">{zeile.austritt ?? '—'}</span>
+          <span className="tabular-nums">
+            {zeile.austritt === null ? '—' : tagDeutsch(zeile.austritt)}
+          </span>
           {zeile.austrittGrund === null ? '' : ` — Grund: ${zeile.austrittGrund}`}.
           Eine Beendigung wird nicht überschrieben und nicht zurückgedreht: eine
           neue Beschäftigung ist eine neue Zeile, mit eigenem Eintritt und
@@ -294,7 +297,7 @@ export default async function Beendenblatt({
               />
               <span className="text-xs text-text-subtle">
                 Der letzte Tag der Beschäftigung, nicht früher als der Eintritt
-                ({zeile.eintritt}). Liegt er in der Zukunft, bleibt der Status
+                ({tagDeutsch(zeile.eintritt)}). Liegt er in der Zukunft, bleibt der Status
                 stehen und wechselt an diesem Tag auf „beendet" — erst dann
                 erlischt der abgeleitete Portalzugang (K-14).
               </span>

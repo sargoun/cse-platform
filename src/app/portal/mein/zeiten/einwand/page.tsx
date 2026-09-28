@@ -2,11 +2,11 @@ import { listeEigeneEinwaende, type EinwandZeile }
   from '@/server/services/zeit/einwand';
 import { berlinHeute } from '@/server/db/heute';
 import { EINWAND_FORM_TEXTE } from '@/lib/i18n/mein-formulare';
-import { eigenerEintrag } from '@/lib/nachschlagen';
 import { vorbelegt } from '@/lib/formular/maske';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
-import { Abgewiesen, EinwandListe, Leer } from '../../bausteine';
+import { EinwandListe, Leer } from '../../bausteine';
+import { EinwandGesendet, FormularFehler } from '../../FormularAntwort';
 
 /**
  * `/portal/mein/zeiten/einwand` — „Eine Zeit fehlt": der Einwand OHNE
@@ -35,6 +35,11 @@ import { Abgewiesen, EinwandListe, Leer } from '../../bausteine';
  * anbietet (D-733 Nr. 4).
  *
  * Ein echtes `<form method="post">`, ohne JavaScript (SEITENKARTE §13).
+ *
+ * **Nach dem Absenden kommt diese Seite zurueck** — derselbe Weg wie beim
+ * Einwand zu einem Eintrag (V-189, V-198, D-692): `zurueck` ist diese Seite
+ * mit `?gesendet=1` (die Bestaetigung), `fehlerweg` diese Seite (eine
+ * Abweisung als `?fehler=`, mit Tag, Uhrzeiten und Pause vorbelegt).
  */
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +53,8 @@ export default async function EintragFehlt(
   { searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> },
 ) {
   const suche = await searchParams;
+  const fehler = suche['fehler'];
+  const gesendet = suche['gesendet'] === '1';
   const ergebnis = await meinPortal<Daten>(MASKE, async (kontext) => ({
     ohneEintrag: (await listeEigeneEinwaende(kontext)).filter((e) => e.zeiteintragId === null),
   }));
@@ -62,8 +69,6 @@ export default async function EintragFehlt(
     'min-h-11 w-full rounded-md border border-line-strong bg-surface px-s3 py-s2 '
     + 'text-base text-text';
 
-  const fehler = vorbelegt(suche, 'fehler');
-  const satz = fehler === undefined ? null : (eigenerEintrag(ft.gruende, fehler) ?? ft.unbekannt);
   const anstellung = vorbelegt(suche, 'anstellung');
   const gewaehlt = anstellung !== undefined
     && basis.anstellungen.some((a) => a.anstellungId === anstellung) ? anstellung : undefined;
@@ -84,16 +89,17 @@ export default async function EintragFehlt(
       <h1 className="mb-s4 text-h1 text-text">{ft.titel}</h1>
       <p className="mb-s5 max-w-prose text-base text-text-muted">{ft.erklaerung}</p>
 
-      {satz !== null && (
-        <Abgewiesen marke="eintrag-fehlt-abgewiesen" titel={ft.nichtGesendet} text={satz}
-          zusatz={vorbelegt(suche, 'begruendung_neu') === 'ja' ? ft.begruendungErneut : null} />
+      {/*
+        Eingegangen — und ohne Eintrag heisst der zweite Satz, was jetzt
+        geschieht (`ft.gemeldet`), nicht „der Zeiteintrag bleibt": es gibt
+        keinen. Eine Abweisung und „eingegangen" zugleich wäre ein Widerspruch.
+      */}
+      {gesendet && fehler === undefined && (
+        <EinwandGesendet sprache={basis.sprache} text={ft.gemeldet} />
       )}
-      {satz === null && vorbelegt(suche, 'gemeldet') === '1' && (
-        <p role="status" data-cse="eintrag-fehlt-gemeldet"
-           className="mb-s4 max-w-prose rounded-lg border border-success bg-success-soft p-s4 text-base text-text">
-          {ft.gemeldet}
-        </p>
-      )}
+      {/* Die Sätze dieser Maske zuerst (`EINWAND_FORM_TEXTE`), dann die des Portals. */}
+      <FormularFehler sprache={basis.sprache} grund={fehler} maske={ft}
+        zusatz={vorbelegt(suche, 'begruendung_neu') === 'ja' ? ft.begruendungErneut : null} />
 
       {basis.anstellungen.length === 0 ? <Leer text={t.keineEintraege} /> : (
         <form
@@ -108,8 +114,8 @@ export default async function EintragFehlt(
             (`ze_bezug_ausser_eintrag_fehlt`, 0052).
           */}
           <input type="hidden" name="art" value="eintrag_fehlt" />
-          <input type="hidden" name="maske" value={MASKE} />
-          <input type="hidden" name="zurueck" value={MASKE} />
+          <input type="hidden" name="zurueck" value={`${MASKE}?gesendet=1`} />
+          <input type="hidden" name="fehlerweg" value={MASKE} />
 
           <div className="flex flex-col gap-s2">
             <label htmlFor="fehlt-anstellung" className="text-base text-text">

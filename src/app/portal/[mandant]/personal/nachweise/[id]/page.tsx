@@ -9,6 +9,9 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { NACHWEIS_ERFASSEN_TEXTE } from '@/lib/i18n/verwaltung/personal-nachweis';
 import { DataTable } from '@/components/ui/DataTable';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
+import { STATUS_TEXT as BEWACHER_STATUS_TEXT } from '@/server/services/security/bewacherregister';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
@@ -48,11 +51,20 @@ const STATUS_TEXT: Readonly<Record<string, string>> = {
 };
 
 export default async function Nachweisblatt({
-  params,
+  params, searchParams,
 }: {
   params: Promise<{ mandant: string; id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { mandant, id } = await params;
+  /*
+   * **Der Rückweg der zwei Formulare dieses Blatts** (V-197). Bestätigen und
+   * Widerrufen schicken `fehlerweg` hierher, und die Route hängt den Grund als
+   * `?fehler=` an (`grund_fehlt`, `nicht_gefunden` …). Das Blatt nahm keine
+   * Suchparameter an: wer einen schon entschiedenen Nachweis bestätigte oder
+   * ohne Grund widerrief, stand wieder vor derselben Seite, ohne ein Wort.
+   */
+  const fehler = (await searchParams)['fehler'];
   kennungOder404(id);
   const pfad = `/portal/${mandant}/personal/nachweise/${id}`;
   const zugang = await portalZugang(pfad);
@@ -120,9 +132,15 @@ export default async function Nachweisblatt({
         <p className="m-0 text-sm text-text-muted">
           {kopf.qualifikation}
           {' · '}
-          Stichtag <span className="tabular-nums">{heute}</span>
+          Stichtag <span className="tabular-nums">{tagDeutsch(heute)}</span>
         </p>
       </div>
+
+      {typeof fehler === 'string' && (
+        <Hinweis art="warnung" cse="nachweis-fehler" rolle="alert" className="mb-s5 max-w-prose">
+          {eigenerEintrag(t.fehler, fehler) ?? t.fehlerSonst}
+        </Hinweis>
+      )}
 
       {darf['personal.nachweis_lesen'] === true && (
         <nav className="mb-s5 flex flex-wrap gap-s2">
@@ -147,9 +165,13 @@ export default async function Nachweisblatt({
       )}
 
       <dl className="mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 xl:grid-cols-3">
-        <Feld name="Status" wert={STATUS_TEXT[kopf.status] ?? kopf.status} />
-        <Feld name="Gültig ab" wert={kopf.gueltigAb} zahl />
-        <Feld name="Gültig bis" wert={kopf.gueltigBis ?? 'unbefristet'} zahl />
+        <Feld name="Status" wert={STATUS_TEXT[kopf.status] ?? '—'} />
+        <Feld name="Gültig ab" wert={tagDeutsch(kopf.gueltigAb)} zahl />
+        <Feld
+          name="Gültig bis"
+          wert={kopf.gueltigBis === null ? 'unbefristet' : tagDeutsch(kopf.gueltigBis)}
+          zahl
+        />
         <Feld name="Nummer" wert={kopf.nummer ?? '—'} />
         <Feld name="Ausstellende Stelle" wert={kopf.ausstellendeStelle ?? '—'} />
         <Feld
@@ -193,7 +215,7 @@ export default async function Nachweisblatt({
             {
               schluessel: 'bezug',
               kopf: 'Bezogen auf Ablauf',
-              zelle: (w) => <span className="tabular-nums">{w.gueltigBis}</span>,
+              zelle: (w) => <span className="tabular-nums">{tagDeutsch(w.gueltigBis)}</span>,
             },
             {
               schluessel: 'wann',
@@ -231,9 +253,9 @@ export default async function Nachweisblatt({
             kopf: 'Gültig',
             zelle: (n) => (
               <span className="tabular-nums">
-                {n.gueltigAb}
+                {tagDeutsch(n.gueltigAb)}
                 {' – '}
-                {n.gueltigBis ?? 'unbefristet'}
+                {n.gueltigBis === null ? 'unbefristet' : tagDeutsch(n.gueltigBis)}
               </span>
             ),
           },
@@ -257,8 +279,16 @@ export default async function Nachweisblatt({
         {lage.bewacher.vorhanden ? (
           <dl className="grid grid-cols-1 gap-s4 sm:grid-cols-2">
             <Feld name="Bewacher-ID" wert={lage.bewacher.bewacherId ?? '—'} zahl />
-            <Feld name="Status" wert={lage.bewacher.status ?? '—'} />
-            <Feld name="Gültig bis" wert={lage.bewacher.gueltigBis ?? 'unbefristet'} zahl />
+            <Feld
+              name="Status"
+              wert={eigenerEintrag(BEWACHER_STATUS_TEXT, lage.bewacher.status) ?? '—'}
+            />
+            <Feld
+              name="Gültig bis"
+              wert={lage.bewacher.gueltigBis === null
+                ? 'unbefristet' : tagDeutsch(lage.bewacher.gueltigBis)}
+              zahl
+            />
             <Feld
               name="Deckt den Stichtag"
               wert={lage.bewacher.gueltigAmStichtag ? 'Ja' : 'Nein'}

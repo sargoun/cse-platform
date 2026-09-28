@@ -337,7 +337,14 @@ export const SEITEN: readonly SeitenInhalt[] = [
           + 'Werbezwecken. Deshalb gibt es auch keinen Cookie-Banner: es gibt '
           + 'nichts zu erlauben. Nach der Anmeldung in einem Portal setzt die '
           + 'Anwendung ein technisch notwendiges Sitzungscookie (§ 25 Abs. 2 Nr. 2 '
-          + 'TTDSG); es endet mit der Abmeldung.',
+          + 'TTDSG); es endet mit der Abmeldung. Wählen Sie als Beschäftigte oder '
+          + 'Beschäftigter auf der Anmeldeseite oder der Stempeluhr eine Sprache '
+          + 'oder speichern Sie sie in Ihrem Profil, merkt sich Ihr Browser diese '
+          + 'Wahl in einem Cookie namens „cse_sprache". Es enthält nur das Kürzel '
+          + 'der Sprache (de, en, ar oder tr) und nichts über Ihre Person und dient '
+          + 'allein dazu, diese Seiten auch ohne Anmeldung in Ihrer Sprache zu '
+          + 'zeigen (§ 25 Abs. 2 Nr. 2 TTDSG). Es endet, wenn Sie den Browser '
+          + 'schließen; die Abmeldung löscht es nicht.',
       },
       {
         art: 'text',

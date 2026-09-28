@@ -1,8 +1,7 @@
 import { notFound } from 'next/navigation';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { EINWAND_ARTEN, EINWAND_ART_TEXTE } from '@/lib/i18n/texte';
 import { EINWAND_FORM_TEXTE } from '@/lib/i18n/mein-formulare';
-import { eigenerEintrag } from '@/lib/nachschlagen';
-import { vorbelegt } from '@/lib/formular/maske';
 import {
   findeEigenenZeiteintrag, type EigenerZeiteintrag,
 } from '@/server/services/mitarbeiter/zeiten';
@@ -10,7 +9,8 @@ import { listeEigeneEinwaende, type EinwandZeile }
   from '@/server/services/zeit/einwand';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
-import { Abgewiesen, EinwandListe, Feld, Felder } from '../../../bausteine';
+import { EinwandListe, Feld, Felder } from '../../../bausteine';
+import { EinwandGesendet, FormularFehler } from '../../../FormularAntwort';
 
 /**
  * `/portal/mein/zeiten/[id]/einwand` — der EINZIGE Schreibweg des Menschen in
@@ -35,10 +35,11 @@ import { Abgewiesen, EinwandListe, Feld, Felder } from '../../../bausteine';
  * Diensttelefon in einem Treppenhaus funktionieren, und das heisst ohne
  * JavaScript (SEITENKARTE §13).
  *
- * **Nach dem Absenden kommt diese Seite zurueck** (V-189): das Formular
- * schickt `maske` und `zurueck`, die Route leitet mit `?gemeldet=1` hierher
- * und eine Abweisung mit `?fehler=`. Vorher endete das Absenden auf einer
- * weissen Seite mit `{"einwand": "…"}`.
+ * **Nach dem Absenden kommt diese Seite zurueck** (V-189, V-198): das
+ * Formular schickt `zurueck` (diese Seite mit `?gesendet=1`) und `fehlerweg`
+ * (diese Seite); die Route leitet den Erfolg dorthin und eine Abweisung mit
+ * `?fehler=`. Vorher endete das Absenden auf einer weissen Seite mit
+ * `{"einwand": "…"}`.
  *
  * **Fuer eine Schicht OHNE Eintrag gibt es diese Seite nicht** — sie braucht
  * einen Eintrag. Dafuer steht `/portal/mein/zeiten/einwand` („Eine Zeit
@@ -58,7 +59,15 @@ export default async function EinwandFormular(
   },
 ) {
   const { id } = await params;
+  /*
+   * **Wohin ein abgeschickter Einwand führt** (V-189, V-198, D-692, D-599).
+   * Die Route antwortete auch bei ERFOLG mit `{"einwand":"<uuid>"}` — eine
+   * weisse Seite mit einer Kennung. Jetzt kommt sie hierher zurück:
+   * `?gesendet=1` nach dem Eingang, `?fehler=<grund>` nach einer Abweisung.
+   */
   const suche = await searchParams;
+  const fehler = suche['fehler'];
+  const gesendet = suche['gesendet'] === '1';
   const ergebnis = await meinPortal<Daten>(
     `/portal/mein/zeiten/${id}/einwand`,
     async (kontext) => ({
@@ -76,9 +85,6 @@ export default async function EinwandFormular(
   const ft = EINWAND_FORM_TEXTE[basis.sprache];
   const arten = EINWAND_ART_TEXTE[basis.sprache];
   const zuDiesem = daten.eigene.filter((e) => e.zeiteintragId === z.id);
-  const pfad = `/portal/mein/zeiten/${z.id}/einwand`;
-  const fehler = vorbelegt(suche, 'fehler');
-  const satz = fehler === undefined ? null : (eigenerEintrag(ft.gruende, fehler) ?? ft.unbekannt);
   const eingabe =
     'min-h-11 w-full rounded-md border border-line-strong bg-surface px-s3 py-s2 '
     + 'text-base text-text';
@@ -90,20 +96,17 @@ export default async function EinwandFormular(
 
       <h1 className="mb-s4 text-h1 text-text">{t.einwandMelden}</h1>
 
-      {satz !== null && (
-        <Abgewiesen marke="einwand-abgewiesen" titel={ft.nichtGesendet} text={satz}
-          zusatz={vorbelegt(suche, 'begruendung_neu') === 'ja' ? ft.begruendungErneut : null} />
-      )}
-      {satz === null && vorbelegt(suche, 'gemeldet') === '1' && (
-        <p role="status" data-cse="einwand-gemeldet"
-           className="mb-s4 max-w-prose rounded-lg border border-success bg-success-soft p-s4 text-base text-text">
-          {ft.gemeldet}
-        </p>
-      )}
+      {/* Eine Abweisung und „eingegangen" zugleich wäre ein Widerspruch (V-189). */}
+      {gesendet && fehler === undefined && <EinwandGesendet sprache={basis.sprache} />}
+      {/* Die Sätze dieser Maske zuerst (`EINWAND_FORM_TEXTE`), dann die des Portals. */}
+      <FormularFehler sprache={basis.sprache} grund={fehler} maske={ft}
+        zusatz={suche['begruendung_neu'] === 'ja' ? ft.begruendungErneut : null} />
 
       <section className="mb-s5 rounded-lg border border-line bg-surface p-s4">
         <Felder>
-          <Feld label={t.datum}><span className="cse-zahl">{z.tag}</span></Feld>
+          <Feld label={t.datum}>
+            <span className="cse-zahl">{tagInSprache(z.tag, basis.sprache)}</span>
+          </Feld>
           <Feld label={t.beginn}><span className="cse-zahl">{z.beginnLokal}</span></Feld>
           <Feld label={t.ende}><span className="cse-zahl">{z.endeLokal ?? '—'}</span></Feld>
           <Feld label={t.gesellschaft}>{z.mandantName}</Feld>
@@ -126,8 +129,13 @@ export default async function EinwandFormular(
         <input type="hidden" name="anstellung" value={z.anstellungId} />
         <input type="hidden" name="zeiteintrag" value={z.id} />
         <input type="hidden" name="datum" value={z.tag} />
-        <input type="hidden" name="maske" value={pfad} />
-        <input type="hidden" name="zurueck" value={pfad} />
+        {/*
+          Nach dem Absenden zurück auf DIESE Seite (V-189, V-198): sie bestätigt
+          den Eingang und zeigt die Meldung unten in der Liste — oder den
+          Grund, warum sie nicht gespeichert wurde.
+        */}
+        <input type="hidden" name="zurueck" value={`/portal/mein/zeiten/${z.id}/einwand?gesendet=1`} />
+        <input type="hidden" name="fehlerweg" value={`/portal/mein/zeiten/${z.id}/einwand`} />
 
         <div className="flex flex-col gap-s2">
           <label htmlFor="einwand-art" className="text-base text-text">
@@ -200,7 +208,8 @@ export default async function EinwandFormular(
       </form>
 
       {/*
-        * **Was aus der Meldung wurde** (V-051, EMP-07).
+        * **Was aus der Meldung wurde** (V-051, V-189, EMP-07) — `EinwandListe`,
+        * derselbe Baustein wie auf „Eine Zeit fehlt".
         *
         * Vorher stand hier der rohe Enum-Wert — `teilweise_anerkannt` — und
         * sonst nichts. Wann entschieden wurde und mit welcher Begruendung
@@ -211,7 +220,9 @@ export default async function EinwandFormular(
         * Die Begruendung steht in der Sprache, in der die Planung sie
         * geschrieben hat, und wird NICHT uebersetzt: sie ist eine Aussage
         * eines Menschen ueber einen Einzelfall, keine Beschriftung. Was
-        * uebersetzt wird, sind die Woerter darum herum.
+        * uebersetzt wird, sind die Woerter darum herum. Eingangs- und
+        * Entscheidungstag stehen in derselben Form wie der Tag oben
+        * (`tagVonZeitpunktInSprache`, V-201).
         */}
       <section className="mt-s6">
         <h2 className="mb-s3 text-h3 text-text">{t.meineMeldungen}</h2>

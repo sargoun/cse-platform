@@ -81,6 +81,8 @@ export interface AntragZeile {
 export class AntragNichtGefunden extends Error {
   readonly code = 'nicht_gefunden';
   readonly status = 404;
+  /** Der Grund für `?fehler=` (D-753) — der Satz oben ist deutsch und trägt die Kennung. */
+  readonly grund = 'nicht_gefunden';
   constructor(id: string) {
     super(`Antrag ${id} gibt es in dieser Gesellschaft nicht.`);
     this.name = 'AntragNichtGefunden';
@@ -90,6 +92,8 @@ export class AntragNichtGefunden extends Error {
 export class KommentarFehlt extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
+  /** Der Grund für `?fehler=` (D-753) — der Satz oben ist deutsch. */
+  readonly grund = 'kommentar_fehlt';
   constructor() {
     super('Eine Ablehnung ohne Wort ist keine Entscheidung.');
     this.name = 'KommentarFehlt';
@@ -125,6 +129,8 @@ export class AntragAbgewiesen extends Error {
 export class UrlaubskontoFehlt extends Error {
   readonly code = 'ungueltiger_zustand';
   readonly status = 409;
+  /** Der Grund für `?fehler=` (D-753) — der Satz oben nennt das Jahr, die Seite nicht. */
+  readonly grund = 'urlaubskonto_fehlt';
   constructor(jahr: number) {
     super(
       `Für ${String(jahr)} ist kein Urlaubsanspruch hinterlegt (O-18). `
@@ -273,6 +279,36 @@ export interface AntragEingabe {
   readonly einsatzId?: string | null;
   readonly tauschPartnerAnstellungId?: string | null;
   readonly nachricht?: string | null;
+}
+
+/**
+ * Der Grund einer `check_violation` aus `antrag` — oder `null`, wenn es keine
+ * ist (V-198).
+ *
+ * `antrag_pflichtfelder` (0074) nennt das fehlende Feld im Hinweis
+ * („Fehlendes Feld: von_datum"), `an_zeitraum` ist die Prüfung „bis nicht vor
+ * von". Der Fehler des Treibers trägt keinen numerischen `status`, und so
+ * endete ein Urlaubsantrag ohne Datum als 500 ohne Text. Was hier nicht
+ * erkannt wird, bleibt ein Fehler, den der Aufrufer weiterwirft.
+ */
+export type AntragPflichtGrund =
+  | 'zeitraum' | 'fehlt_zeitraum' | 'fehlt_abwesenheitsart' | 'fehlt_einsatz'
+  | 'fehlt_tauschpartner';
+
+export function pflichtfeldGrund(fehler: unknown): AntragPflichtGrund | null {
+  if (fehler === null || typeof fehler !== 'object') return null;
+  const f = fehler as { code?: unknown; hint?: unknown; constraint_name?: unknown };
+  if (f.code !== '23514') return null;
+  if (f.constraint_name === 'an_zeitraum') return 'zeitraum';
+  const feld = typeof f.hint === 'string'
+    ? /Fehlendes Feld: (\w+)/u.exec(f.hint)?.[1] : undefined;
+  switch (feld) {
+    case 'von_datum': return 'fehlt_zeitraum';
+    case 'abwesenheitsart_id': return 'fehlt_abwesenheitsart';
+    case 'einsatz_id': return 'fehlt_einsatz';
+    case 'tausch_partner_anstellung_id': return 'fehlt_tauschpartner';
+    default: return null;
+  }
 }
 
 /**
@@ -441,10 +477,25 @@ export async function entscheideAntrag(
        from antrag a
        join antragsart art on art.id = a.antragsart_id
        left join abwesenheitsart aa on aa.id = a.abwesenheitsart_id
-      where a.id = $1::uuid`,
+      where a.id = $1::uuid
+        for update of a`,
     [eingabe.antragId],
   );
   if (a === undefined) throw new AntragNichtGefunden(eingabe.antragId);
+  /*
+   * **Schon entschieden ist wie nicht vorhanden — und zwar VOR der
+   * Abwesenheit** (D-753). Das Update unten ändert nur offene Anträge und
+   * wirft sonst dieselbe Ausnahme; bei einer Genehmigung stand davor aber
+   * schon das INSERT der Abwesenheit. Ein zweiter Klick auf „Genehmigen"
+   * (oder eine Kollegin, die schneller war) traf damit zuerst die Sperre
+   * `ab_keine_dublette` (0073) — ein 23P01 ohne Status, also eine 500 statt
+   * des Satzes „schon entschieden". `for update of a` reiht zwei
+   * GLEICHZEITIGE Entscheidungen hintereinander: die zweite liest den Antrag
+   * erst, wenn die erste festgeschrieben ist, und sieht dann ihren Stand.
+   */
+  if (a.status !== 'eingereicht' && a.status !== 'in_pruefung') {
+    throw new AntragNichtGefunden(eingabe.antragId);
+  }
 
   let abwesenheitId: string | null = null;
   let tageText: string | null = null;

@@ -52,6 +52,11 @@ export interface NachweisErfassenTexte {
   readonly widerrufenAm: string;
 
   readonly fehler: Readonly<Record<string, string>>;
+  /**
+   * Der Satz für einen Grund, den `fehler` nicht kennt (V-197) — nie der rohe
+   * Schlüssel aus der Adresse.
+   */
+  readonly fehlerSonst: string;
 }
 
 export const NACHWEIS_ERFASSEN_TEXTE:
@@ -113,7 +118,9 @@ Readonly<Record<InternSprache, NachweisErfassenTexte>> = {
 
     fehler: {
       unvollstaendig: 'Es fehlt eine Angabe — bitte sehen Sie die Felder durch.',
-      nicht_gefunden: 'Dieser Nachweis ist nicht erreichbar.',
+      nicht_gefunden:
+        'Dieser Nachweis ist nicht erreichbar — oder schon entschieden: bestätigt '
+        + 'oder widerrufen. Laden Sie das Blatt neu, dann steht der Stand da.',
       abgewiesen:
         'Die Datenbank hat die Zeile abgewiesen — fehlt das Recht in dieser '
         + 'Gesellschaft, oder gehört der Mensch nicht zu ihr?',
@@ -124,6 +131,7 @@ Readonly<Record<InternSprache, NachweisErfassenTexte>> = {
       grund_fehlt: 'Ein Widerruf ohne Grund ist keine Auskunft.',
       zeitraum: 'Das Ende der Gültigkeit liegt vor ihrem Beginn.',
     },
+    fehlerSonst: 'Der Schritt lief nicht durch. Der Nachweis steht, wie er war.',
   },
 
   en: {
@@ -182,7 +190,9 @@ Readonly<Record<InternSprache, NachweisErfassenTexte>> = {
 
     fehler: {
       unvollstaendig: 'Something is missing — please check the fields.',
-      nicht_gefunden: 'This certificate is not reachable.',
+      nicht_gefunden:
+        'This certificate is not reachable — or already decided: confirmed or '
+        + 'revoked. Reload the page to see its current state.',
       abgewiesen:
         'The database refused the row — is the right missing in this Gesellschaft, '
         + 'or does the person not belong to it?',
@@ -193,5 +203,6 @@ Readonly<Record<InternSprache, NachweisErfassenTexte>> = {
       grund_fehlt: 'A revocation without a reason is no answer.',
       zeitraum: 'The end of validity lies before its start.',
     },
+    fehlerSonst: 'The step did not go through. The certificate is as it was.',
   },
 };

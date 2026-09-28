@@ -3,6 +3,8 @@ import { KpiStat } from '@/components/ui/KpiStat';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
 import { berlinHeute } from '@/server/db/heute';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import {
   leseEigeneNachweise, type EigeneNachweislage, type Warnlage,
 } from '@/server/services/mitarbeiter/nachweise';
@@ -72,7 +74,7 @@ export default async function MeineNachweise() {
       <div className="mb-s4 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{t.nachweise}</h1>
         <p className="m-0 text-base text-text-muted">
-          <span className="cse-zahl">{daten.stichtag}</span>
+          <span className="cse-zahl">{tagInSprache(daten.stichtag, basis.sprache)}</span>
         </p>
       </div>
 
@@ -151,10 +153,18 @@ export default async function MeineNachweise() {
               </div>
               <Felder>
                 <Feld label={t.gueltigBis}>
-                  <span className="cse-zahl">{n.gueltigBis ?? t.unbefristet}</span>
+                  <span className="cse-zahl">
+                    {n.gueltigBis === null
+                      ? t.unbefristet : tagInSprache(n.gueltigBis, basis.sprache)}
+                  </span>
                 </Feld>
+                {/*
+                  Die Fundstelle („§34a Abs. 1a GewO") unter IHRER Beschriftung
+                  (V-195) — hier stand „Status", und ein Paragraph ist kein
+                  Zustand. Die Fundstelle selbst bleibt unübersetzt.
+                */}
                 {n.rechtsgrundlage !== null && (
-                  <Feld label={t.status}>{n.rechtsgrundlage}</Feld>
+                  <Feld label={t.rechtsgrundlage}>{n.rechtsgrundlage}</Feld>
                 )}
                 {n.tageBisAblauf !== null && (
                   <Feld label={t.laeuftAb}>
@@ -177,12 +187,17 @@ export default async function MeineNachweise() {
                                                       bg-surface-2 p-s4">
         <h2 className="mb-s3 text-h3 text-text">{t.registerBewacher}</h2>
         <Felder>
+          {/* Der Status als Wort in der Sprache der Person, nie als Schlüssel (V-195). */}
           <Feld label={t.status}>
-            {daten.bewacher.vorhanden ? (daten.bewacher.status ?? '—') : '—'}
+            <span data-cse="bewacher-status" data-status={daten.bewacher.status ?? ''}>
+              {daten.bewacher.vorhanden
+                ? (eigenerEintrag(t.bewacherStatus, daten.bewacher.status) ?? '—') : '—'}
+            </span>
           </Feld>
           <Feld label={t.gueltigBis}>
             <span className="cse-zahl">
-              {daten.bewacher.gueltigBis ?? t.unbefristet}
+              {daten.bewacher.gueltigBis === null
+                ? t.unbefristet : tagInSprache(daten.bewacher.gueltigBis, basis.sprache)}
             </span>
           </Feld>
           <Feld label={t.registerBewacher}>{t.nichtVerbunden}</Feld>

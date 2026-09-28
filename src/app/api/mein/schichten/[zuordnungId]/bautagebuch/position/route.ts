@@ -1,8 +1,9 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import type { NextRequest, NextResponse } from 'next/server';
 import {
   findeOderLegeBautagAn, heftePositionAn, istPositionArt, type PositionArt,
 } from '@/server/services/bau/bautagebuch';
 import { aufDerSchicht, dienstFehlerAntwort, zurueckZu } from '../../../bruecke';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 
 /**
  * `POST /api/mein/schichten/[zuordnungId]/bautagebuch/position` — Geraet,
@@ -49,13 +50,13 @@ export async function POST(
   const bezeichnung = textOder(daten, 'bezeichnung');
   const menge = textOder(daten, 'menge');
   if (art === null || !istPositionArt(art)) {
-    return NextResponse.json({ fehler: 'unbekannte_art' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'unbekannte_art', 400);
   }
   if (bezeichnung === null) {
-    return NextResponse.json({ fehler: 'keine_bezeichnung' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_bezeichnung', 400);
   }
   if (menge !== null && !MENGE.test(menge)) {
-    return NextResponse.json({ fehler: 'menge_ungueltig' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'menge_ungueltig', 400);
   }
 
   try {
@@ -74,10 +75,10 @@ export async function POST(
     });
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
     if (ergebnis.wert === null) {
-      return NextResponse.json({ fehler: 'kein_projekt' }, { status: 422 });
+      return grundAufsFormularweg(anfrage, daten, 'kein_projekt', 422);
     }
   } catch (fehler: unknown) {
-    const antwort = dienstFehlerAntwort(fehler);
+    const antwort = dienstFehlerAntwort(fehler, { anfrage, daten });
     if (antwort !== null) return antwort;
     throw fehler;
   }

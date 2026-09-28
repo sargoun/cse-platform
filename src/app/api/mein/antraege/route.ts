@@ -6,9 +6,12 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/index';
 import { KeineAnstellungFehler, mandantDerAnstellung }
   from '@/server/services/zeit/einwand';
-import { AntragAbgewiesen, reicheAntragEin } from '@/server/services/abwesenheit/antrag';
+import {
+  AntragAbgewiesen, pflichtfeldGrund, reicheAntragEin,
+} from '@/server/services/abwesenheit/antrag';
 import { autorisierungsAntwort } from '@/server/auth/antwort';
-import { datenbankGrund, zurMaske } from '../formular';
+import { grundAufsFormularweg, type FormularRueckweg } from '@/app/api/formular-antwort';
+import { datenbankGrund, datenbankStatus } from '../formular';
 
 /**
  * `POST /api/mein/antraege` — der Mensch reicht einen Antrag ein (EMP-10).
@@ -33,16 +36,19 @@ import { datenbankGrund, zurMaske } from '../formular';
  * diesem Mandanten betreten, mit `portal: 'mitarbeiter'`, damit die Decke
  * weiter gilt.
  *
- * **303 und kein JSON — auch nicht bei einer Abweisung** (V-187, D-599).
- * Das Formular ist ein echtes `<form method="post">`, damit es auf einem
- * alten Diensttelefon ohne JavaScript funktioniert; eine JSON-Antwort waere
- * dort eine Sackgasse. Vorher kam jede Abweisung als JSON zurueck, und die
- * des Ausloesers `antrag_pflichtfelder` (0074) — etwa jeder Tauschantrag,
- * weil das Formular weder Schicht noch Partner schickte — als rohe 500. Jetzt
- * fuehrt jede Abweisung auf die Maske, mit dem Grund als Schluessel und den
- * gewaehlten Werten (`zurMaske`). Nur eine FREMDE Beschaeftigung bleibt 404:
- * das Formular bietet sie nicht an, und wer sie schickt, hat die Anfrage
- * nachgebaut (AUT-06).
+ * **303 und kein JSON — auch nicht bei einer Abweisung** (V-187, V-198,
+ * D-599, D-692). Das Formular ist ein echtes `<form method="post">`, damit es
+ * auf einem alten Diensttelefon ohne JavaScript funktioniert; eine
+ * JSON-Antwort waere dort eine Sackgasse. Vorher kam jede Abweisung als JSON
+ * zurueck, und die des Ausloesers `antrag_pflichtfelder` (0074) — etwa jeder
+ * Tauschantrag, weil das Formular weder Schicht noch Partner schickte, oder
+ * ein Urlaubsantrag ohne Datum — als rohe 500. Jetzt fuehrt jede Abweisung
+ * auf die Maske (`grundAufsFormularweg`), mit dem Grund als Schluessel und
+ * den gewaehlten Werten. Den Grund nennt zuerst der Dienst
+ * (`AntragAbgewiesen`), dahinter der Ausloeser (`pflichtfeldGrund`) und die
+ * uebrigen Pruefungen der Datenbank (`datenbankGrund`). Ein Aufruf ohne
+ * `fehlerweg` und `zurueck` ist kein Formular, sondern ein Programm, und
+ * bekommt JSON mit Status.
  */
 export const dynamic = 'force-dynamic';
 
@@ -90,15 +96,22 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
    * sagen, WARUM jemand frei braucht, und eine Adresse landet in Verlauf und
    * Protokollen; die Maske bittet darum, sie noch einmal einzugeben.
    */
-  const maske = (grund: string): NextResponse => zurMaske(anfrage, MASKE, grund, {
-    anstellung: anstellungId, antragsart: antragsartId, abwesenheitsart: abwesenheitsartId,
-    von, bis, einsatz: einsatzId, tauschpartner: tauschPartnerAnstellungId,
-    nachricht_neu: textOder(daten, 'nachricht') === null ? null : 'ja',
-  });
-  if (anstellungId === null) return maske('keine_anstellung');
-  if (antragsartId === null) return maske('keine_antragsart');
+  const rueckweg: FormularRueckweg = {
+    maske: MASKE,
+    werte: {
+      anstellung: anstellungId, antragsart: antragsartId, abwesenheitsart: abwesenheitsartId,
+      von, bis, einsatz: einsatzId, tauschpartner: tauschPartnerAnstellungId,
+      nachricht_neu: textOder(daten, 'nachricht') === null ? null : 'ja',
+    },
+  };
+  if (anstellungId === null) {
+    return grundAufsFormularweg(anfrage, daten, 'keine_anstellung', 400, rueckweg);
+  }
+  if (antragsartId === null) {
+    return grundAufsFormularweg(anfrage, daten, 'keine_antragsart', 400, rueckweg);
+  }
   if ((von !== null && !DATUM.test(von)) || (bis !== null && !DATUM.test(bis))) {
-    return maske('kein_datum');
+    return grundAufsFormularweg(anfrage, daten, 'kein_datum', 400, rueckweg);
   }
 
   try {
@@ -122,23 +135,39 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     });
   } catch (fehler) {
     if (fehler instanceof KeineAnstellungFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
+      /*
+       * Eine Beschäftigung, die es für diese Anmeldung nicht (mehr) gibt —
+       * fremd (AUT-06: dieselbe Antwort wie „gibt es nicht") oder beendet,
+       * während das Formular offen war. Zurück aufs Formular (V-198).
+       */
+      return grundAufsFormularweg(anfrage, daten, 'nicht_gefunden', 404, rueckweg);
     }
     const auth = autorisierungsAntwort(fehler);
     if (auth !== null) return auth;
     // Die Vorpruefung des Dienstes nennt das Feld (V-187).
-    if (fehler instanceof AntragAbgewiesen) return maske(fehler.grund);
-    // Die zweite Linie: Ausloeser, Pruefbedingung, Fremdschluessel, Kalender.
+    if (fehler instanceof AntragAbgewiesen) {
+      return grundAufsFormularweg(anfrage, daten, fehler.grund, fehler.status, rueckweg);
+    }
+    /*
+     * **Was die Art verlangt, prüft dahinter die Datenbank**
+     * (`antrag_pflichtfelder`, 0074) — und sie wirft `check_violation` mit dem
+     * fehlenden Feld im Hinweis. Der Fehler trägt keinen numerischen `status`;
+     * hier wurde er weitergeworfen, und ein Urlaubsantrag ohne Datum endete als
+     * 500 ohne Text (V-198). Er ist eine Auskunft über das Formular.
+     */
+    const pflicht = pflichtfeldGrund(fehler);
+    if (pflicht !== null) return grundAufsFormularweg(anfrage, daten, pflicht, 400, rueckweg);
+    // Die uebrige zweite Linie: Pruefbedingung, Fremdschluessel, Kalender.
     const ausDatenbank = datenbankGrund(fehler);
     if (ausDatenbank !== null) {
-      return maske(ausDatenbank === 'ueberlappt' ? 'ungueltige_eingabe' : ausDatenbank);
+      const grund = ausDatenbank === 'ueberlappt' ? 'ungueltige_eingabe' : ausDatenbank;
+      return grundAufsFormularweg(anfrage, daten, grund, datenbankStatus(grund), rueckweg);
     }
     const status = (fehler as { status?: number }).status;
     const code = (fehler as { code?: string }).code;
-    if (status === 404) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
+    if (typeof status === 'number' && typeof code === 'string') {
+      return grundAufsFormularweg(anfrage, daten, code, status, rueckweg);
     }
-    if (typeof status === 'number' && typeof code === 'string') return maske('ungueltige_eingabe');
     throw fehler;
   }
 

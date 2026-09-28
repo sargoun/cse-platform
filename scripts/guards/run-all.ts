@@ -1413,7 +1413,12 @@ function wacheSeiteOhneUebersetzung(): void {
 
   const erlaubt = new Set(UEBERSETZUNG_AUSNAHMEN);
   const gesehen = new Set<string>();
-  const wurzeln = ['src/app/portal', 'src/components'];
+  /*
+   * Dazu die beiden Flächen der Beschäftigten OHNE Sitzung (V-200, SEITENKARTE
+   * §12): Stempeluhr und Anmeldung. Sie lagen ausserhalb der Wurzeln, und
+   * genau dort blieben sie fest deutsch, ohne dass diese Wache etwas sah.
+   */
+  const wurzeln = ['src/app/portal', 'src/components', 'src/app/check-in', 'src/app/auth/mitarbeiter'];
   let gelesen = 0;
 
   for (const wurzel of wurzeln) {

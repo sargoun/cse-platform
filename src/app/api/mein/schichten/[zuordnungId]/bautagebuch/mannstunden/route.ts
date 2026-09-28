@@ -1,7 +1,8 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import type { NextRequest, NextResponse } from 'next/server';
 import { findeOderLegeBautagAn, hefteMannstundenAn }
   from '@/server/services/bau/bautagebuch';
 import { aufDerSchicht, dienstFehlerAntwort, zurueckZu } from '../../../bruecke';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 
 /**
  * `POST /api/mein/schichten/[zuordnungId]/bautagebuch/mannstunden` — die
@@ -46,13 +47,13 @@ export async function POST(
   const minuten = Number(textOder(daten, 'minuten') ?? '');
 
   if (gewerkId === null || !UUID.test(gewerkId)) {
-    return NextResponse.json({ fehler: 'kein_gewerk' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'kein_gewerk', 400);
   }
   if (!Number.isInteger(personen) || personen <= 0) {
-    return NextResponse.json({ fehler: 'personen_ungueltig' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'personen_ungueltig', 400);
   }
   if (!Number.isInteger(minuten) || minuten < 0 || minuten > 1440) {
-    return NextResponse.json({ fehler: 'dauer_ungueltig' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'dauer_ungueltig', 400);
   }
 
   try {
@@ -70,10 +71,10 @@ export async function POST(
     });
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
     if (ergebnis.wert === null) {
-      return NextResponse.json({ fehler: 'kein_projekt' }, { status: 422 });
+      return grundAufsFormularweg(anfrage, daten, 'kein_projekt', 422);
     }
   } catch (fehler: unknown) {
-    const antwort = dienstFehlerAntwort(fehler);
+    const antwort = dienstFehlerAntwort(fehler, { anfrage, daten });
     if (antwort !== null) return antwort;
     throw fehler;
   }

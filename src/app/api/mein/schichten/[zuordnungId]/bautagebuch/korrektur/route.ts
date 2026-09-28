@@ -1,6 +1,7 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import type { NextRequest, NextResponse } from 'next/server';
 import { korrigiereMannstunden } from '@/server/services/bau/bautagebuch';
 import { aufDerSchicht, dienstFehlerAntwort, zurueckZu } from '../../../bruecke';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 
 /**
  * `POST /api/mein/schichten/[zuordnungId]/bautagebuch/korrektur` — die EIGENE
@@ -62,7 +63,7 @@ export async function POST(
   const minuten = Number(textOder(daten, 'minuten') ?? '');
 
   if (zeileId === null || !UUID.test(zeileId)) {
-    return NextResponse.json({ fehler: 'keine_zeile' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_zeile', 400);
   }
   /*
    * **Der Grund ist Pflicht, und zwar hier und nicht erst in der Datenbank.**
@@ -71,16 +72,16 @@ export async function POST(
    * Spur, nicht nur das Ergebnis.
    */
   if (grund === null) {
-    return NextResponse.json({ fehler: 'kein_grund' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'kein_grund', 400);
   }
   if (gewerkId === null || !UUID.test(gewerkId)) {
-    return NextResponse.json({ fehler: 'kein_gewerk' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'kein_gewerk', 400);
   }
   if (!Number.isInteger(personen) || personen <= 0) {
-    return NextResponse.json({ fehler: 'personen_ungueltig' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'personen_ungueltig', 400);
   }
   if (!Number.isInteger(minuten) || minuten < 0 || minuten > 1440) {
-    return NextResponse.json({ fehler: 'dauer_ungueltig' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'dauer_ungueltig', 400);
   }
 
   try {
@@ -106,10 +107,10 @@ export async function POST(
     });
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
     if (ergebnis.wert === null) {
-      return NextResponse.json({ fehler: 'kein_projekt' }, { status: 422 });
+      return grundAufsFormularweg(anfrage, daten, 'kein_projekt', 422);
     }
   } catch (fehler: unknown) {
-    const antwort = dienstFehlerAntwort(fehler);
+    const antwort = dienstFehlerAntwort(fehler, { anfrage, daten });
     if (antwort !== null) return antwort;
     throw fehler;
   }

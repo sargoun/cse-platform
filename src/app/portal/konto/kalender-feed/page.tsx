@@ -8,7 +8,15 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { Button } from '@/components/ui/Button';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { leisteFuer } from '@/server/registry/tableiste';
-import { eigeneFeeds, type FeedStand } from '@/server/kalender/feed';
+import {
+  eigeneFeeds, FEED_STANDARD_BEZEICHNUNG, type FeedStand,
+} from '@/server/kalender/feed';
+import {
+  meinBeschriftungen, meinTexte, PORTAL_BCP47, PORTAL_RICHTUNG, type PortalSprache,
+} from '@/lib/i18n/texte';
+import { KALENDER_FEED_TEXTE } from '@/lib/i18n/konto';
+import { setzeEin } from '@/lib/i18n/vorlage';
+import { zeitpunktInSprache } from '@/lib/datum/zeitpunkt';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { leseKonto } from '../konto';
 
@@ -29,16 +37,16 @@ import { leseKonto } from '../konto';
  * **Und die Seite sagt, was der Zugang kann.** Wer eine Adresse weitergibt,
  * die „nur ein Kalender" heisst, soll wissen, dass sie ohne Anmeldung gilt,
  * bis jemand sie widerruft.
+ *
+ * **In der Sprache der Person, wo die Hülle die der Beschäftigten ist**
+ * (SEITENKARTE §12, D-694 Nr. 7, D-750): die übersetzte Kontowurzel
+ * verweist jede Kraft hierher, und genau die Warnung unten muss sie lesen
+ * können. Die Verwaltung liest Deutsch wie Kontowurzel und
+ * Benachrichtigungen; Zeitpunkte stehen in Berliner Zeit in der gesetzlichen
+ * Form (`zeitpunktInSprache`, V-201).
  */
 export const dynamic = 'force-dynamic';
 
-
-function zeitpunkt(roh: string | null): string {
-  if (roh === null) return 'noch nie';
-  return new Intl.DateTimeFormat('de-DE', {
-    dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Berlin',
-  }).format(new Date(roh));
-}
 
 export default async function KalenderFeed({ searchParams }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -68,72 +76,81 @@ export default async function KalenderFeed({ searchParams }: {
     : sitzung.portal === 'kunde' ? '/portal/kunde'
     : k.slug === null ? '/auth/bereich' : `/portal/${k.slug}`;
 
+  const arbeiter = sitzung.portal === 'mitarbeiter';
+  const sprache: PortalSprache = arbeiter ? (k.sprache ?? 'de') : 'de';
+  const t = KALENDER_FEED_TEXTE[sprache];
+  const meine = arbeiter ? meinTexte(sprache) : null;
+  /* Fliesstext der Beschäftigten nie unter 16 px (DESIGN §8, D-738). */
+  const klein = arbeiter ? 'text-base' : 'text-sm';
+  const kleiner = arbeiter ? 'text-base' : 'text-xs';
+  const groesse = arbeiter ? 'base' : 'sm';
+  const zeitpunkt = (roh: string | null): string =>
+    roh === null ? t.nochNie : zeitpunktInSprache(roh, sprache);
+  const name = (f: FeedStand): string =>
+    f.bezeichnung === FEED_STANDARD_BEZEICHNUNG ? t.standardName : f.bezeichnung;
+
   return (
+    <div lang={PORTAL_BCP47[sprache]} dir={PORTAL_RICHTUNG[sprache]} data-sprache={sprache}>
     <PortalRahmen
-      titel="Kalender abonnieren"
-      wurzelTitel="Konto"
+      titel={t.titel}
+      wurzelTitel={t.konto}
       bereich={null}
       nurLesen={sitzung.ansicht === 'gruppe'}
       leiste={leisteFuer(sitzung.portal, sitzung.ansicht, k.rolle)}
       wurzel={wurzel}
       sichtbareTabs={k.sichtbareTabs}
       navigationsRechte={k.navigationsRechte}
+      {...(meine === null ? {} : { beschriftungen: meinBeschriftungen(meine) })}
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
-        <h1 className="text-h1 text-text">Kalender abonnieren</h1>
-        {k.slug === null ? null : (
+        <h1 className="text-h1 text-text">{t.titel}</h1>
+        {/* Der Kalender eines Bereichs ist Verwaltung — die Hülle der
+            Beschäftigten betritt `/portal/<bereich>` nicht (K-04-Decke). */}
+        {k.slug === null || arbeiter ? null : (
           <Link href={`/portal/${k.slug}/kalender`} data-cse="zum-kalender"
-                className="text-sm text-text underline underline-offset-2">
-            Zum Kalender
+                className={`${klein} text-text underline underline-offset-2`}>
+            {t.zumKalender}
           </Link>
         )}
       </div>
 
-      <p className="mb-s5 max-w-prose text-sm text-text-muted">
-        Ein <strong className="text-text">lesender</strong> Zugang für Ihr Kalenderprogramm —
-        Apple Kalender, Outlook, Thunderbird. Er zeigt Ihre Termine, Ihre Schichten und Ihre
-        Fristen aus allen Bereichen, in denen Sie Mitglied sind. Ändern lässt sich darüber
-        nichts.
+      <p className={`mb-s5 max-w-prose ${klein} text-text-muted`}>
+        <strong className="text-text">{t.nurLesend}</strong>{' '}
+        {t.einleitung}
       </p>
 
       {frisch !== null && (
-        <Hinweis art="erfolg" cse="feed-neu" className="mb-s5 max-w-prose">
-          <strong>Diese Adresse sehen Sie genau einmal.</strong> Kopieren Sie sie jetzt in Ihr
-          Kalenderprogramm. Gespeichert ist nur ihre Prüfsumme — wir können sie Ihnen später
-          nicht noch einmal zeigen, und niemand kann sie aus der Datenbank lesen.
-          <code data-cse="feed-adresse"
-                className="mt-s3 block overflow-x-auto rounded-md bg-surface-3 p-s3
-                           text-xs text-text">
-            /api/kalender/{frisch}
+        <Hinweis art="erfolg" cse="feed-neu" groesse={groesse} className="mb-s5 max-w-prose">
+          <strong>{t.neuTitel}</strong>{' '}
+          {t.neuText}
+          <code data-cse="feed-adresse" dir="ltr"
+                className={`mt-s3 block overflow-x-auto rounded-md bg-surface-3 p-s3
+                           ${kleiner} text-text`}>
+            {`/api/kalender/${frisch}`}
           </code>
         </Hinweis>
       )}
 
       {widerrufen && (
-        <Hinweis art="hinweis" cse="feed-widerrufen-bestaetigt" className="mb-s5 max-w-prose">
-          <strong>Widerrufen.</strong> Der nächste Abruf mit dieser Adresse bekommt nichts
-          mehr — sofort, nicht beim nächsten Abgleich.
+        <Hinweis art="hinweis" cse="feed-widerrufen-bestaetigt" groesse={groesse}
+                 className="mb-s5 max-w-prose">
+          <strong>{t.widerrufenTitel}</strong>{' '}
+          {t.widerrufenText}
           {' '}
-          <span className="text-text-muted">
-            Sollte der Zugang unten noch stehen, ist das eine veraltete Anzeige und kein
-            offener Zugang (O-510): ein Neuladen der Seite zeigt den richtigen Stand.
-          </span>
+          <span className="text-text-muted">{t.widerrufenVeraltet}</span>
         </Hinweis>
       )}
 
-      <Hinweis art="warnung" cse="feed-warnung" className="mb-s6 max-w-prose">
-        <strong>Die Adresse IST der Zugang.</strong> Wer sie hat, sieht Ihre Termine — ohne
-        Anmeldung und ohne zweiten Faktor, bis Sie widerrufen. Ein Kalenderprogramm kann sich
-        nicht anmelden; das ist der Grund, und es ist auch die Grenze. Geben Sie die Adresse
-        nicht weiter, und widerrufen Sie sie, wenn ein Gerät abhandenkommt.
+      <Hinweis art="warnung" cse="feed-warnung" groesse={groesse} className="mb-s6 max-w-prose">
+        <strong>{t.warnungTitel}</strong>{' '}
+        {t.warnungText}
       </Hinweis>
 
       <section className="mb-s6">
-        <h2 className="mb-s3 text-h3 text-text">Ihre Zugänge</h2>
+        <h2 className="mb-s3 text-h3 text-text">{t.zugaenge}</h2>
         {feeds.length === 0 ? (
-          <Hinweis art="hinweis" cse="feed-leer" className="max-w-prose">
-            Sie haben noch keinen Zugang. Ohne einen holt kein Kalenderprogramm etwas ab —
-            und das ist der Ruhezustand, nicht ein fehlender Schritt.
+          <Hinweis art="hinweis" cse="feed-leer" groesse={groesse} className="max-w-prose">
+            {t.leer}
           </Hinweis>
         ) : (
           <ul className="flex list-none flex-col gap-s3 p-0">
@@ -141,19 +158,29 @@ export default async function KalenderFeed({ searchParams }: {
               <li key={f.id}>
                 <Card className="flex flex-wrap items-center justify-between gap-s3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-text" data-cse="feed-name">
-                      {f.bezeichnung}
+                    <p className={`${klein} font-medium text-text`} data-cse="feed-name">
+                      {name(f)}
                     </p>
-                    <p className="mt-s1 text-xs text-text-muted">
-                      Angelegt {zeitpunkt(f.erstelltAm)} · zuletzt abgerufen{' '}
-                      {zeitpunkt(f.letzterAbrufAm)}
-                      {f.abrufe > 0 && ` · ${String(f.abrufe)}×`}
+                    <p className={`mt-s1 ${kleiner} text-text-muted`}>
+                      {t.angelegt}{' '}
+                      <span className="cse-zahl">{zeitpunkt(f.erstelltAm)}</span>
+                      {' · '}
+                      {t.zuletztAbgerufen}{' '}
+                      <span className="cse-zahl">{zeitpunkt(f.letzterAbrufAm)}</span>
+                      {f.abrufe > 0 && (
+                        <>
+                          {' · '}
+                          <span className="cse-zahl">
+                            {setzeEin(t.abrufe, { anzahl: String(f.abrufe) })}
+                          </span>
+                        </>
+                      )}
                     </p>
                   </div>
                   <form method="post" action="/api/kalender-feed/widerrufen">
                     <input type="hidden" name="id" value={f.id} />
                     <Button type="submit" variante="secondary" data-cse="feed-widerrufen">
-                      Widerrufen
+                      {t.widerrufen}
                     </Button>
                   </form>
                 </Card>
@@ -165,13 +192,13 @@ export default async function KalenderFeed({ searchParams }: {
 
       <form method="post" action="/api/kalender-feed/anlegen">
         <Button type="submit" variante="primary" data-cse="feed-anlegen">
-          Neuen Zugang anlegen
+          {t.anlegen}
         </Button>
       </form>
-      <p className="mt-s2 max-w-prose text-xs text-text-subtle">
-        Ein zweiter Zugang ist sinnvoll, wenn Sie zwei Geräte getrennt widerrufen können
-        wollen. Der alte bleibt gültig, bis Sie ihn widerrufen.
+      <p className={`mt-s2 max-w-prose ${kleiner} text-text-subtle`}>
+        {t.zweiterZugang}
       </p>
     </PortalRahmen>
+    </div>
   );
 }

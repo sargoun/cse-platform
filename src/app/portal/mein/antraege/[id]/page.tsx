@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation';
+import { zeitpunktInSprache } from '@/lib/datum/zeitpunkt';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
 import {
@@ -8,6 +10,7 @@ import { artInSprache } from '@/server/services/abwesenheit/antrag';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
 import { Feld, Felder, Gesellschaft } from '../../bausteine';
+import { FormularFehler } from '../../FormularAntwort';
 
 /**
  * `/portal/mein/antraege/[id]` — ein einzelner Antrag (EMP-10, EMP-15, NOT-03).
@@ -44,9 +47,14 @@ function antragPille(status: string): PillZustand {
 }
 
 export default async function MeinAntrag(
-  { params }: { params: Promise<{ id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { id } = await params;
+  /* Der Grund einer Abweisung, zurückgeschickt von der Route (V-198, D-692). */
+  const fehler = (await searchParams)['fehler'];
   const ergebnis = await meinPortal<EigenerAntrag | null>(
     `/portal/mein/antraege/${id}`,
     async (kontext, teil) => findeEigenenAntrag(kontext, teil.anstellungen, id),
@@ -68,13 +76,10 @@ export default async function MeinAntrag(
 
   /*
    * Die Zeitpunkte kommen als `Date` aus dem Dienst und werden HIER in
-   * Berliner Ortszeit gezeigt (Invariante 2) — mit derselben Formatierung wie
-   * der Posteingang, damit zwei Seiten desselben Portals dieselbe Uhrzeit
-   * gleich schreiben.
+   * Berliner Ortszeit gezeigt (Invariante 2) — über `zeitpunktInSprache`, wie
+   * der Posteingang: `TT.MM.JJJJ HH:MM` in jeder Sprache ausser Englisch,
+   * nie mit der 12-Stunden-Uhr der Portalsprache (SEITENKARTE §12, V-201).
    */
-  const zeitpunkt = new Intl.DateTimeFormat(basis.sprache === 'de' ? 'de-DE' : basis.sprache, {
-    timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
-  });
 
   return (
     <MeinRahmen basis={basis} titel={t.antraege} aktiverTab="heute"
@@ -85,6 +90,8 @@ export default async function MeinAntrag(
         <h1 className="m-0 text-h1 text-text">{artName}</h1>
         <StatusPill sprache={basis.sprache} zustand={antragPille(a.status)} />
       </div>
+
+      <FormularFehler sprache={basis.sprache} grund={fehler} />
 
       <section
         data-cse="antrag"
@@ -97,21 +104,25 @@ export default async function MeinAntrag(
           </Feld>
           <Feld label={t.antragArt}>{artName}</Feld>
           <Feld label={t.von}>
-            <span className="cse-zahl">{a.vonDatum ?? '—'}</span>
+            <span className="cse-zahl">
+              {a.vonDatum === null ? '—' : tagInSprache(a.vonDatum, basis.sprache)}
+            </span>
           </Feld>
           <Feld label={t.bis}>
-            <span className="cse-zahl">{a.bisDatum ?? '—'}</span>
+            <span className="cse-zahl">
+              {a.bisDatum === null ? '—' : tagInSprache(a.bisDatum, basis.sprache)}
+            </span>
           </Feld>
           <Feld label={t.nachricht}>{a.nachricht ?? '—'}</Feld>
           <Feld label={t.eingereichtAm}>
             <time dateTime={a.eingereichtAm.toISOString()} className="cse-zahl">
-              {zeitpunkt.format(a.eingereichtAm)}
+              {zeitpunktInSprache(a.eingereichtAm, basis.sprache)}
             </time>
           </Feld>
           {a.entschiedenAm !== null && (
             <Feld label={t.entschiedenAm}>
               <time dateTime={a.entschiedenAm.toISOString()} className="cse-zahl">
-                {zeitpunkt.format(a.entschiedenAm)}
+                {zeitpunktInSprache(a.entschiedenAm, basis.sprache)}
               </time>
             </Feld>
           )}
@@ -133,6 +144,8 @@ export default async function MeinAntrag(
           */}
           <form method="post" action={`/api/mein/antraege/${a.id}/zurueckziehen`}>
             <input type="hidden" name="zurueck" value="/portal/mein/antraege" />
+            {/* Entschieden, während das Blatt offen war? Zurück HIERHER (V-198). */}
+            <input type="hidden" name="fehlerweg" value={`/portal/mein/antraege/${a.id}`} />
             <Button type="submit" variante="secondary" data-cse="antrag-zurueckziehen">
               {t.zurueckziehen}
             </Button>

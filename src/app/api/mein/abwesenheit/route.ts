@@ -13,7 +13,8 @@ import {
   AbwesenheitNichtGefunden, ArtUngeklaertFehler, AuBisVorBeginn, meldeAbwesenheit,
 } from '@/server/services/abwesenheit/index';
 import { ZeitraumFehler } from '@/server/services/abwesenheit/tage';
-import { datenbankGrund, zurMaske } from '../formular';
+import { grundAufsFormularweg, type FormularRueckweg } from '@/app/api/formular-antwort';
+import { datenbankGrund, datenbankStatus } from '../formular';
 
 /**
  * `POST /api/mein/abwesenheit` — der Mensch meldet eine Abwesenheit (EMP-10).
@@ -42,15 +43,18 @@ import { datenbankGrund, zurMaske } from '../formular';
  * deshalb genau diesen Mandanten als aktiven — geprueft wird die
  * Mitgliedschaft des Menschen DORT, nicht anderswo.
  *
- * **Jede Abweisung fuehrt auf die Maske zurueck** (V-188, D-599). Vorher
- * kamen die Abweisungen der Route als JSON, und die der DATENBANK gar nicht:
- * die doppelte Meldung (`ab_keine_dublette`, 23P01) und die Bescheinigung vor
- * dem ersten Tag (`ab_au_bis`, 23514) trugen keinen `status`, wurden
- * weitergeworfen und endeten als rohe 500 — ausgerechnet auf dem Weg, den
- * jemand morgens krank vom Telefon aus nimmt. Die Buero-Route kannte die
- * doppelte Meldung schon als „die haeufigste Eingabe am Telefon"; dieser Weg
- * nicht. Die Bescheinigung prueft jetzt der Dienst VOR dem Schreiben
- * (`AuBisVorBeginn`), die Datenbank bleibt die zweite Linie.
+ * **Jede Abweisung fuehrt auf die Maske zurueck** (V-188, V-198, D-599,
+ * D-692). Vorher kamen die Abweisungen der Route als JSON, und die der
+ * DATENBANK gar nicht: die doppelte Meldung (`ab_keine_dublette`, 23P01) und
+ * die Bescheinigung vor dem ersten Tag (`ab_au_bis`, 23514) trugen keinen
+ * `status`, wurden weitergeworfen und endeten als rohe 500 — ausgerechnet auf
+ * dem Weg, den jemand morgens krank vom Telefon aus nimmt. Die Buero-Route
+ * kannte die doppelte Meldung schon als „die haeufigste Eingabe am Telefon";
+ * dieser Weg nicht. Die Bescheinigung prueft jetzt der Dienst VOR dem
+ * Schreiben (`AuBisVorBeginn`), die Datenbank bleibt die zweite Linie. Der Weg
+ * zurueck ist `grundAufsFormularweg`: der Grund als `?fehler=`, die gewaehlten
+ * Werte dazu, und ein Aufruf ohne `fehlerweg` und `zurueck` ist ein Programm
+ * und bekommt JSON mit Status.
  */
 export const dynamic = 'force-dynamic';
 
@@ -94,17 +98,24 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
    * landet in Verlauf und Protokollen. Die Maske bittet darum, sie noch einmal
    * einzugeben.
    */
-  const maske = (grund: string): NextResponse => zurMaske(anfrage, MASKE, grund, {
-    anstellung: anstellungId, abwesenheitsart: abwesenheitsartId, von, bis,
-    von_halbtags: ja('von_halbtags'), bis_halbtags: ja('bis_halbtags'),
-    au_vorliegt: ja('au_vorliegt'), au_bis: auBis,
-    bemerkung_neu: textOder(daten, 'bemerkung') === null ? null : 'ja',
-  });
-  if (anstellungId === null) return maske('keine_anstellung');
-  if (abwesenheitsartId === null) return maske('keine_art');
+  const rueckweg: FormularRueckweg = {
+    maske: MASKE,
+    werte: {
+      anstellung: anstellungId, abwesenheitsart: abwesenheitsartId, von, bis,
+      von_halbtags: ja('von_halbtags'), bis_halbtags: ja('bis_halbtags'),
+      au_vorliegt: ja('au_vorliegt'), au_bis: auBis,
+      bemerkung_neu: textOder(daten, 'bemerkung') === null ? null : 'ja',
+    },
+  };
+  if (anstellungId === null) {
+    return grundAufsFormularweg(anfrage, daten, 'keine_anstellung', 400, rueckweg);
+  }
+  if (abwesenheitsartId === null) {
+    return grundAufsFormularweg(anfrage, daten, 'keine_art', 400, rueckweg);
+  }
   if (von === null || bis === null || !DATUM.test(von) || !DATUM.test(bis)
       || (auBis !== null && !DATUM.test(auBis))) {
-    return maske('kein_datum');
+    return grundAufsFormularweg(anfrage, daten, 'kein_datum', 400, rueckweg);
   }
 
   try {
@@ -143,23 +154,50 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       });
     });
   } catch (fehler) {
-    // Eine fremde Beschaeftigung bietet das Formular nicht an (AUT-06).
     if (fehler instanceof KeineAnstellungFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
+      /*
+       * Eine Beschäftigung, die es für diese Anmeldung nicht (mehr) gibt —
+       * fremd (AUT-06: dieselbe Antwort wie „gibt es nicht") oder beendet,
+       * während das Formular offen war. Zurück aufs Formular (V-198).
+       */
+      return grundAufsFormularweg(anfrage, daten, 'nicht_gefunden', 404, rueckweg);
     }
+    /*
+     * Ein fehlendes Recht sieht auf jeder schreibenden Route gleich aus — ein
+     * 404, byte-gleich, auch hinter einem Browserformular (D-656 Nr. 2,
+     * D-682 Nr. 2).
+     */
     const auth = autorisierungsAntwort(fehler);
     if (auth !== null) return auth;
-    // „Fuer diese Art ist nicht hinterlegt, ob sie bezahlt ist" (O-139) ist
-    // eine Auskunft, kein Serverfehler — und keine JSON-Seite.
-    if (fehler instanceof ArtUngeklaertFehler) return maske('art_ungeklaert');
-    if (fehler instanceof AbwesenheitNichtGefunden) return maske('art_nicht_waehlbar');
-    if (fehler instanceof ZeitraumFehler) return maske(fehler.grund);
-    if (fehler instanceof AuBisVorBeginn) return maske(fehler.grund);
+    /*
+     * Die Abweisungen des Dienstes behalten ihren Grund (V-188): „Fuer diese
+     * Art ist nicht hinterlegt, ob sie bezahlt ist" (O-139) ist eine Auskunft
+     * und kein Serverfehler — und sie gehoert auf die Seite des Formulars, in
+     * der Sprache der Person (V-198); das Formular bietet genau diese Arten
+     * an, als ungeklaert markiert. Eine Art, die es nicht (mehr) gibt, ist
+     * beim MELDEN keine fehlende Abwesenheit, sondern eine Auswahl, die nicht
+     * mehr geht.
+     */
+    if (fehler instanceof ArtUngeklaertFehler) {
+      return grundAufsFormularweg(anfrage, daten, 'art_ungeklaert', fehler.status, rueckweg);
+    }
+    if (fehler instanceof AbwesenheitNichtGefunden) {
+      return grundAufsFormularweg(anfrage, daten, 'art_nicht_waehlbar', fehler.status, rueckweg);
+    }
+    if (fehler instanceof ZeitraumFehler || fehler instanceof AuBisVorBeginn) {
+      return grundAufsFormularweg(anfrage, daten, fehler.grund, fehler.status, rueckweg);
+    }
+    // Die zweite Linie: Ausschluss (die doppelte Meldung), Pruefbedingung, Kalender.
     const ausDatenbank = datenbankGrund(fehler);
-    if (ausDatenbank !== null) return maske(ausDatenbank);
+    if (ausDatenbank !== null) {
+      return grundAufsFormularweg(
+        anfrage, daten, ausDatenbank, datenbankStatus(ausDatenbank), rueckweg);
+    }
     const status = (fehler as { status?: number }).status;
     const code = (fehler as { code?: string }).code;
-    if (typeof status === 'number' && typeof code === 'string') return maske('ungueltige_eingabe');
+    if (typeof status === 'number' && typeof code === 'string') {
+      return grundAufsFormularweg(anfrage, daten, code, status, rueckweg);
+    }
     throw fehler;
   }
 

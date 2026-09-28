@@ -133,7 +133,7 @@ export default async function NachweisErfassen(
 
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="nachweis-fehler" className="mb-s5 max-w-prose">
-          {eigenerEintrag(t.fehler, fehler) ?? fehler}
+          {eigenerEintrag(t.fehler, fehler) ?? t.fehlerSonst}
         </Hinweis>
       )}
 

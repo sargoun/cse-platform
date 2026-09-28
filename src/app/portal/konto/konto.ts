@@ -26,6 +26,12 @@ export interface KontoBild {
   readonly email: string | null;
   readonly person: string | null;
   readonly rolle: string | null;
+  /**
+   * Der NAME der Rolle (`rolle.bezeichnung`) für die Anzeige (V-200). `rolle`
+   * ist der Schlüssel und bleibt für die Leiste; auf dem Bildschirm stand er
+   * roh („admin").
+   */
+  readonly rolleName: string | null;
   readonly aktiv: string | null;
   readonly slug: string | null;
   readonly bereiche: readonly { slug: string; name: string; ist_standard: boolean }[];
@@ -70,6 +76,7 @@ export async function leseKonto(sitzung: Parameters<typeof bindeAnfrage>[1]): Pr
                    else p.vorname || ' ' || p.nachname end as person,
               p.sprache,
               r.schluessel as rolle,
+              r.bezeichnung as rolle_name,
               m.name       as aktiv,
               m.slug       as slug
          from benutzer b
@@ -82,8 +89,8 @@ export async function leseKonto(sitzung: Parameters<typeof bindeAnfrage>[1]): Pr
         where b.id = $2`,
       [sitzung.aktiverMandantId, sitzung.benutzerId],
     )) as { name: string | null; email: string | null; person: string | null;
-            sprache: string | null; rolle: string | null; aktiv: string | null;
-            slug: string | null }[];
+            sprache: string | null; rolle: string | null; rolle_name: string | null;
+            aktiv: string | null; slug: string | null }[];
 
     const leiste = leisteFuer(sitzung.portal, sitzung.ansicht, z?.rolle ?? null);
     /*
@@ -174,6 +181,7 @@ export async function leseKonto(sitzung: Parameters<typeof bindeAnfrage>[1]): Pr
       person: z?.person ?? null,
       sprache: istPortalSprache(rohSprache) ? rohSprache : null,
       rolle: z?.rolle ?? null,
+      rolleName: z?.rolle_name ?? null,
       aktiv: z?.aktiv ?? null,
       slug: z?.slug ?? null,
       bereiche,

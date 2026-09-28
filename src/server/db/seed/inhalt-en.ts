@@ -265,7 +265,14 @@ export const SEITEN_EN: readonly SeitenInhalt[] = [
           + 'servers and sets no analytics or advertising cookies. That is why '
           + 'there is no cookie banner: there is nothing to consent to. After '
           + 'signing in to a portal the application sets one strictly necessary '
-          + 'session cookie (§ 25(2) no. 2 TTDSG); it ends when you sign out.',
+          + 'session cookie (§ 25(2) no. 2 TTDSG); it ends when you sign out. If '
+          + 'you, as an employee, choose a language on the sign-in page or the '
+          + 'time clock, or save one in your profile, your browser remembers that '
+          + 'choice in a cookie named "cse_sprache". It holds only the language '
+          + 'code (de, en, ar or tr) and nothing about you, and serves only to '
+          + 'show these pages in your language even without signing in (§ 25(2) '
+          + 'no. 2 TTDSG). It ends when you close the browser; signing out does '
+          + 'not delete it.',
       },
       {
         art: 'text',

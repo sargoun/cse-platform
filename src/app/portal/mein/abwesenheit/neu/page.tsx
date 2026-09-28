@@ -3,11 +3,11 @@ import {
   leseAbwesenheitsarten, type AbwesenheitsartWahl,
 } from '@/server/services/mitarbeiter/antraege';
 import { MELDUNG_FORM_TEXTE } from '@/lib/i18n/mein-formulare';
-import { eigenerEintrag } from '@/lib/nachschlagen';
 import { vorbelegt } from '@/lib/formular/maske';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
-import { Abgewiesen, Leer } from '../../bausteine';
+import { Leer } from '../../bausteine';
+import { FormularFehler } from '../../FormularAntwort';
 
 /**
  * `/portal/mein/abwesenheit/neu` — Krankheit oder Abwesenheit melden (EMP-10).
@@ -26,8 +26,8 @@ import { Abgewiesen, Leer } from '../../bausteine';
  * Dienst weist sie beim Melden mit einer Meldung ab, die den Grund nennt;
  * eine Art, die aus dem Formular fehlt, erzeugt stattdessen einen Anruf.
  *
- * **Eine Abweisung kommt als Satz auf diese Seite zurueck** (V-188), mit den
- * gewaehlten Werten — vorher endeten die doppelte Meldung und die
+ * **Eine Abweisung kommt als Satz auf diese Seite zurueck** (V-188, V-198),
+ * mit den gewaehlten Werten — vorher endeten die doppelte Meldung und die
  * Bescheinigung vor dem ersten Tag als rohe 500, alles andere als JSON. Die
  * Bemerkung reist nicht mit (Art. 9 DSGVO); der Satz bittet darum, sie noch
  * einmal einzugeben.
@@ -35,9 +35,20 @@ import { Abgewiesen, Leer } from '../../bausteine';
 export const dynamic = 'force-dynamic';
 
 export default async function NeueAbwesenheit(
-  { searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> },
+  { searchParams }: {
+    readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
+  /*
+   * **Der Rückweg eines abgewiesenen Formulars** (V-188, V-198, D-692). Eine
+   * Art mit ungeklärter Lohnwirkung (O-139), ein Zeitraum mit dem Ende vor dem
+   * Beginn, die doppelte Meldung — die Route schickt den Grund als `?fehler=`
+   * hierher zurück, dazu die gewählten Werte, und der Satz steht in der
+   * Sprache der Person über dem Formular. Hier stand JSON mit dem deutschen
+   * Satz des Dienstes, oder eine rohe 500.
+   */
   const suche = await searchParams;
+  const fehler = suche['fehler'];
   const ergebnis = await meinPortal<readonly AbwesenheitsartWahl[]>(
     '/portal/mein/abwesenheit/neu',
     async (kontext, basis) => leseAbwesenheitsarten(kontext, basis.sprache),
@@ -47,8 +58,6 @@ export default async function NeueAbwesenheit(
   const { basis, daten } = ergebnis;
   const t = basis.texte;
   const ft = MELDUNG_FORM_TEXTE[basis.sprache];
-  const fehler = vorbelegt(suche, 'fehler');
-  const satz = fehler === undefined ? null : (eigenerEintrag(ft.gruende, fehler) ?? ft.unbekannt);
   /** Eine Vorbelegung zaehlt nur, wenn die Auswahl den Wert anbietet (D-733). */
   const gewaehlt = (feld: string, angebot: readonly string[]): string | undefined => {
     const wert = vorbelegt(suche, feld);
@@ -73,14 +82,9 @@ export default async function NeueAbwesenheit(
       </Link>
       <h1 className="mb-s5 text-h1 text-text">{t.abwesenheitMelden}</h1>
 
-      {satz !== null && (
-        <Abgewiesen
-          marke="abwesenheit-abgewiesen"
-          titel={ft.nichtGesendet}
-          text={satz}
-          zusatz={haken('bemerkung_neu') ? ft.bemerkungErneut : null}
-        />
-      )}
+      {/* Die Sätze dieser Maske zuerst (`MELDUNG_FORM_TEXTE`), dann die des Portals. */}
+      <FormularFehler sprache={basis.sprache} grund={fehler} maske={ft}
+        zusatz={haken('bemerkung_neu') ? ft.bemerkungErneut : null} />
 
       {basis.anstellungen.length === 0 ? <Leer text={t.keineEintraege} /> : (
         <form
@@ -90,6 +94,8 @@ export default async function NeueAbwesenheit(
           className="flex max-w-prose flex-col gap-s4"
         >
           <input type="hidden" name="zurueck" value="/portal/mein/antraege" />
+          {/* Ein Fehlschlag kommt HIERHER zurück, nicht auf die Liste (D-692). */}
+          <input type="hidden" name="fehlerweg" value="/portal/mein/abwesenheit/neu" />
 
           <div className="flex flex-col gap-s2">
             <label htmlFor="abw-anstellung" className="text-base text-text">
