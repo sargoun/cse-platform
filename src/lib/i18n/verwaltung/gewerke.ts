@@ -105,7 +105,8 @@ export const GEWERK_TEXTE: Readonly<Record<InternSprache, GewerkTexte>> = {
       nicht_gefunden: 'Dieses Gewerk gibt es hier nicht (oder es ist archiviert).',
       schon_archiviert: 'Dieses Gewerk ist schon archiviert.',
     },
-    fehlerUnbekannt: 'Die Eingabe wurde nicht gespeichert.',
+    fehlerUnbekannt: 'Einen Grund dafür nennt diese Seite nicht — bitte die Angaben prüfen '
+      + 'und erneut speichern.',
   },
   en: {
     modul: 'Construction',
@@ -155,6 +156,7 @@ export const GEWERK_TEXTE: Readonly<Record<InternSprache, GewerkTexte>> = {
       nicht_gefunden: 'This Gewerk does not exist here (or it is archived).',
       schon_archiviert: 'This Gewerk is already archived.',
     },
-    fehlerUnbekannt: 'The input was not saved.',
+    fehlerUnbekannt: 'This page has no reason on record for it — please check the details and '
+      + 'save again.',
   },
 };

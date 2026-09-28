@@ -16,6 +16,11 @@
  *  3. die Richtigstellung einer Schluesselseite behaelt den Schluessel;
  *  4. eine Quittung mit `imWachbuch` schreibt die Seite in DERSELBEN
  *     Transaktion und zeigt auf sie; ohne Urheber scheitert beides zusammen;
+ *     scheitert die Quittung NACH der Seite, rollt die Seite mit zurueck;
+ *     ohne das Haekchen entsteht keine Seite, und die Quittung gelingt auch
+ *     einem Konto ohne Beschaeftigung (D-674 Nr. 3: keine Vorgabe) —
+ *     `hatWachbuchUrheber` sagt der Quittungsseite, ob sie das Haekchen
+ *     ueberhaupt anbieten kann;
  *  5. die Wache im Mitarbeiterportal (M1-Scope) schreibt die Seite mit dem
  *     Schluessel ihres Objekts (`schluessel.t_selbst_m1`, 0466).
  */
@@ -23,11 +28,11 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
-  BezugPasstNichtZumObjekt, korrigiereEintrag, leseBuch, leseEintrag, pruefeKette,
-  schreibeEintrag, KeinUrheber,
+  BezugPasstNichtZumObjekt, hatWachbuchUrheber, korrigiereEintrag, leseBuch, leseEintrag,
+  pruefeKette, schreibeEintrag, KeinUrheber,
 } from '../../src/server/services/security/wachbuch.js';
 import {
-  legeSchluesselAn, leseQuittungen, uebergib,
+  legeSchluesselAn, leseQuittungen, SchonAusgegeben, uebergib,
 } from '../../src/server/services/security/schluessel.js';
 
 let f: Fixtur;
@@ -86,6 +91,13 @@ function alsBenutzer<T>(
 }
 const alsWache = <T,>(fn: (k: SchreibKontext) => Promise<T>): Promise<T> =>
   alsBenutzer(wache, f.fatima, fn);
+
+/** Wie viele Seiten das Buch des Test-Objekts hat — gezaehlt als Eigentuemer. */
+async function seitenAmObjekt(): Promise<number> {
+  const [n] = await sql.unsafe<{ n: number }[]>(
+    `select count(*)::int as n from wachbuch_eintrag where objekt_id = $1`, [objektId]);
+  return n!.n;
+}
 
 beforeEach(async () => {
   f = await seed();
@@ -185,7 +197,33 @@ describe('(2) die Quittung schreibt ihre Seite — in derselben Transaktion', ()
     }));
     const [q] = await alsWache((k) => leseQuittungen(k, schluesselId));
     expect(q!.wachbuchEintragId).toBeNull();
+    /* Nicht nur kein Verweis: es ist auch keine Seite entstanden. */
+    expect(await seitenAmObjekt()).toBe(0);
   });
+
+  it('ohne Beschaeftigung und OHNE Haekchen gelingt die Quittung — sie haengt nicht am Wachbuch',
+    async () => {
+      /*
+       * Der Fall, den D-674 Nr. 3 schuetzt: ein Konto mit beiden Rechten, aber
+       * ohne Beschaeftigung in dieser Gesellschaft (der Super-Admin des Seeds,
+       * eine Leitung ohne SSE-Anstellung). Mit vorgesetztem Haekchen scheiterte
+       * es an jeder Uebergabe; ohne es quittiert es wie vor V-180.
+       */
+      await alsBenutzer(ohnePerson, null, (k) => uebergib(k, {
+        schluesselId, empfaengerArt: 'mitarbeiter', anstellungId: f.fatimaSecurity,
+        empfaengerName: 'Fatima Yildiz', unterzeichnerName: 'Fatima Yildiz',
+      }));
+      const quittungen = await alsWache((k) => leseQuittungen(k, schluesselId));
+      expect(quittungen).toHaveLength(1);
+      expect(quittungen[0]!.wachbuchEintragId).toBeNull();
+      expect(await seitenAmObjekt()).toBe(0);
+    });
+
+  it('hatWachbuchUrheber: mit Beschaeftigung ja, ohne nein — die Quittungsseite fragt es',
+    async () => {
+      expect(await alsWache((k) => hatWachbuchUrheber(k))).toBe(true);
+      expect(await alsBenutzer(ohnePerson, null, (k) => hatWachbuchUrheber(k))).toBe(false);
+    });
 
   it('ohne Beschaeftigung als Urheber scheitern Seite UND Quittung zusammen', async () => {
     const fehler = await alsBenutzer(ohnePerson, null, (k) => uebergib(k, {
@@ -197,6 +235,30 @@ describe('(2) die Quittung schreibt ihre Seite — in derselben Transaktion', ()
       `select count(*)::int as n from schluessel_quittung where schluessel_id = $1`,
       [schluesselId]);
     expect(n!.n).toBe(0);
+  });
+
+  it('scheitert die Quittung NACH ihrer Seite, rollt die Seite mit zurueck', async () => {
+    /*
+     * Der Fall oben scheitert schon an der Seite. Hier entsteht die Seite
+     * zuerst, und erst die Quittung faellt: der Schluessel ist schon draussen,
+     * `sq_offene_ausgabe_uk` weist die zweite Ausgabe ab (SchonAusgegeben).
+     * „Seite und Quittung in EINER Transaktion" heisst: die Seite steht dann
+     * auch nicht da.
+     */
+    const ausgabe = {
+      schluesselId, empfaengerArt: 'mitarbeiter' as const, anstellungId: f.fatimaSecurity,
+      empfaengerName: 'Fatima Yildiz', unterzeichnerName: 'Fatima Yildiz', imWachbuch: true,
+    };
+    await alsWache((k) => uebergib(k, ausgabe));
+    expect(await seitenAmObjekt()).toBe(1);
+
+    const fehler = await alsWache((k) => uebergib(k, ausgabe)).then(() => null, (x: unknown) => x);
+    expect(fehler).toBeInstanceOf(SchonAusgegeben);
+    expect(await seitenAmObjekt()).toBe(1);
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from schluessel_quittung where schluessel_id = $1`,
+      [schluesselId]);
+    expect(n!.n).toBe(1);
   });
 });
 

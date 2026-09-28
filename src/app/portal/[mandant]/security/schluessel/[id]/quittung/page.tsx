@@ -12,6 +12,7 @@ import {
   findeSchluessel, leseQuittungen,
   type QuittungZeile, type SchluesselZeile,
 } from '@/server/services/security/schluessel';
+import { hatWachbuchUrheber } from '@/server/services/security/wachbuch';
 import { AnmeldungNoetig } from '../../../../../Anmeldung';
 import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
@@ -80,11 +81,13 @@ export default async function Quittung(
     ? (eigenerEintrag(tQ.fehler, suche['fehler']) ?? tQ.fehlerUnbekannt) : null;
   if (sitzung.aktiverMandantId === null) notFound();
 
-  const { schluessel, quittungen, anstellungen, kunden } = await (db().begin(
+  const { schluessel, quittungen, anstellungen, kunden, urheber } = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => ({
         schluessel: await findeSchluessel(kontext, id),
         quittungen: await leseQuittungen(kontext, id),
+        /* V-180, D-674 Nr. 3: ohne Beschaeftigung hier traegt eine Seite keinen Urheber. */
+        urheber: darf['wachbuch.schreiben'] === true && await hatWachbuchUrheber(kontext),
         anstellungen: await kontext.abfrage<Wahlzeile>(
           `select a.id, (p.vorname || ' ' || p.nachname) as name
              from anstellung a
@@ -100,6 +103,7 @@ export default async function Quittung(
         quittungen: readonly QuittungZeile[];
         anstellungen: readonly Wahlzeile[];
         kunden: readonly Wahlzeile[];
+        urheber: boolean;
       }>);
 
   if (schluessel === null) notFound();
@@ -312,14 +316,19 @@ export default async function Quittung(
 
         {/*
           * V-180 (SEC-05 „key"): dieselbe Bewegung als Seite im Wachbuch des
-          * Objekts. Angeboten nur, wer das Buch führen darf; vorausgewählt,
-          * weil eine Schlüsselübergabe am Objekt dorthin gehört — abwählbar,
-          * weil der Urheber einer Seite eine Beschäftigung in dieser
-          * Gesellschaft sein muss.
+          * Objekts — nur auf AUSDRÜCKLICHEN Wunsch, das Häkchen steht nie vor
+          * (D-674 Nr. 3). Eine Seite ist unveränderlich und trägt ihren
+          * Urheber als Beschäftigung in dieser Gesellschaft; wer sie nicht
+          * gewählt hat, bekäme sonst eine Seite oder eine gescheiterte
+          * Quittung, die er so nicht wollte.
+          *
+          * Angeboten nur, wer das Buch führen darf UND hier beschäftigt ist.
+          * Ohne Beschäftigung könnte das Häkchen nur scheitern
+          * (`kein_urheber`) — dann steht statt seiner der Satz, warum.
           */}
-        {darf['wachbuch.schreiben'] === true && (
+        {darf['wachbuch.schreiben'] === true && (urheber ? (
           <label className="mb-s5 flex min-h-11 items-start gap-s3 text-sm text-text">
-            <input type="checkbox" name="im_wachbuch" value="1" defaultChecked
+            <input type="checkbox" name="im_wachbuch" value="1"
                    className="mt-s1" data-cse="quittung-im-wachbuch" />
             <span>
               {tQ.imWachbuch}
@@ -328,7 +337,11 @@ export default async function Quittung(
               </span>
             </span>
           </label>
-        )}
+        ) : (
+          <p className="mb-s5 text-sm text-text-muted" data-cse="quittung-ohne-urheber">
+            {tQ.imWachbuchOhneUrheber}
+          </p>
+        ))}
 
         <Button type="submit" variante="primary">Quittung schreiben</Button>
       </form>

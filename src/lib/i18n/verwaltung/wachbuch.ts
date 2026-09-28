@@ -9,6 +9,12 @@
  * **Jede Abweisung hat einen Satz.** Die Route schickt den GRUND als
  * `?fehler=` zurück (D-599); die Seite schlägt ihn hier nach
  * (`eigenerEintrag`, D-728) und zeigt nie den Schlüssel selbst.
+ *
+ * **Der Rückfall sagt etwas anderes als die Überschrift.** Die Seiten setzen
+ * `<strong>{abgewiesen}</strong> {fehler}`; war `fehlerUnbekannt` derselbe
+ * Satz wie `abgewiesen`, stand ein unbekannter Grund doppelt da („Der Eintrag
+ * wurde nicht geschrieben. Der Eintrag wurde nicht geschrieben."). Er sagt
+ * deshalb, was jetzt zu tun ist (V-180).
  */
 import type { InternSprache } from '../intern.js';
 
@@ -19,6 +25,15 @@ export interface WachbuchTexte {
   readonly ohneSchluessel: string;
   readonly schluesselZeile: (schluessel: string) => string;
   readonly quittungVerweis: string;
+  /**
+   * Statt der Art „Schlüssel", wenn diese Anmeldung keinen Schlüssel lesen
+   * darf — die Art könnte dann nur scheitern (V-180).
+   */
+  readonly schluesselOhneRecht: string;
+  /** Der Verweis auf die Seite, die einen stornierten Eintrag ersetzt hat (V-180). */
+  readonly zurRichtigstellung: string;
+  /** Statt des Formulars, wenn diese Anmeldung das Buch nur lesen darf. */
+  readonly richtigstellenOhneRecht: string;
   /**
    * V-181: Fotos an der Seite — nur beim Schreiben, nie danach. Die Liste
    * selbst spricht `AUFNAHMEN_TEXTE` (`./aufnahmen.ts`), dieselbe wie auf dem
@@ -39,6 +54,11 @@ export interface WachbuchTexte {
 export interface QuittungWachbuchTexte {
   readonly imWachbuch: string;
   readonly imWachbuchHinweis: string;
+  /**
+   * Statt des Häkchens, wenn dieses Konto hier keine Beschäftigung hat: die
+   * Seite trüge keinen Urheber, und das Häkchen könnte nur scheitern (D-674).
+   */
+  readonly imWachbuchOhneUrheber: string;
   readonly wachbuchVerweis: string;
   readonly abgewiesen: string;
   readonly fehler: Readonly<Record<string, string>>;
@@ -50,6 +70,9 @@ export const QUITTUNG_WACHBUCH_TEXTE: Readonly<Record<InternSprache, QuittungWac
     imWachbuch: 'Zugleich im Wachbuch des Objekts vermerken',
     imWachbuchHinweis: 'Schreibt in derselben Buchung eine Seite der Art „Schlüssel" — '
       + 'Sie stehen darauf als Urheber, mit Ihrer Beschäftigung in dieser Gesellschaft.',
+    imWachbuchOhneUrheber: 'Eine Seite im Wachbuch des Objekts schreibt diese Quittung nicht: '
+      + 'der Urheber einer Seite ist eine Beschäftigung in dieser Gesellschaft, und dieses '
+      + 'Konto hat hier keine.',
     wachbuchVerweis: 'Im Wachbuch',
     abgewiesen: 'Die Quittung wurde nicht geschrieben.',
     fehler: {
@@ -65,12 +88,15 @@ export const QUITTUNG_WACHBUCH_TEXTE: Readonly<Record<InternSprache, QuittungWac
         + 'Gesellschaft — dieses Konto hat hier keine. Ohne das Häkchen lässt sich '
         + 'quittieren.',
     },
-    fehlerUnbekannt: 'Die Quittung wurde nicht geschrieben.',
+    fehlerUnbekannt: 'Einen Grund dafür nennt diese Seite nicht. Bitte die Angaben prüfen '
+      + 'und erneut quittieren; bleibt es dabei, die Administration informieren.',
   },
   en: {
     imWachbuch: 'Also record in the Objekt\'s Wachbuch',
     imWachbuchHinweis: 'Writes a page of type "Schlüssel" in the same booking — you '
       + 'appear on it as the author, with your employment at this company.',
+    imWachbuchOhneUrheber: 'This receipt does not write a page in the Objekt\'s Wachbuch: the '
+      + 'author of a page is an employment with this company, and this account has none here.',
     wachbuchVerweis: 'In the Wachbuch',
     abgewiesen: 'The receipt was not written.',
     fehler: {
@@ -85,7 +111,8 @@ export const QUITTUNG_WACHBUCH_TEXTE: Readonly<Record<InternSprache, QuittungWac
       kein_urheber: 'A Wachbuch page carries its author as an employment with this '
         + 'company — this account has none here. Without the tick you can receipt.',
     },
-    fehlerUnbekannt: 'The receipt was not written.',
+    fehlerUnbekannt: 'This page has no reason on record for it. Please check the details and '
+      + 'receipt again; if it persists, inform the administration.',
   },
 };
 
@@ -98,6 +125,11 @@ export const WACHBUCH_TEXTE: Readonly<Record<InternSprache, WachbuchTexte>> = {
     ohneSchluessel: '— keiner —',
     schluesselZeile: (schluessel) => `Schlüssel ${schluessel}`,
     quittungVerweis: 'Zur Quittung',
+    schluesselOhneRecht: 'Die Art „Schlüssel" schreibt, wer die Schlüssel dieser Gesellschaft '
+      + 'lesen darf — dieses Konto hält das Recht dafür nicht.',
+    zurRichtigstellung: 'Zur Richtigstellung',
+    richtigstellenOhneRecht: 'Richtigstellen darf, wer das Wachbuch führt — dieses Konto darf '
+      + 'es nur lesen.',
     fotos: 'Fotos',
     fotoHinweis: 'Freiwillig. Die Fotos gehören zu diesem Eintrag und lassen sich später '
       + 'nicht ergänzen — ein späteres Foto ist ein neuer Eintrag. Ortsdaten werden vor '
@@ -134,7 +166,8 @@ export const WACHBUCH_TEXTE: Readonly<Record<InternSprache, WachbuchTexte>> = {
       ungueltiger_zustand: 'Dieser Eintrag ist bereits storniert — die Korrektur knüpft an '
         + 'den Eintrag an, der ihn ersetzt hat.',
     },
-    fehlerUnbekannt: 'Der Eintrag wurde nicht geschrieben.',
+    fehlerUnbekannt: 'Einen Grund dafür nennt diese Seite nicht. Bitte die Angaben prüfen '
+      + 'und erneut senden; bleibt es dabei, die Administration informieren.',
   },
   en: {
     schluessel: 'Key (required for type Schlüssel)',
@@ -144,6 +177,11 @@ export const WACHBUCH_TEXTE: Readonly<Record<InternSprache, WachbuchTexte>> = {
     ohneSchluessel: '— none —',
     schluesselZeile: (schluessel) => `Key ${schluessel}`,
     quittungVerweis: 'To the receipt',
+    schluesselOhneRecht: 'The type "Schlüssel" is written by whoever may read this company\'s '
+      + 'keys — this account does not hold that right.',
+    zurRichtigstellung: 'To the correction',
+    richtigstellenOhneRecht: 'Corrections are written by whoever keeps the Wachbuch — this '
+      + 'account may only read it.',
     fotos: 'Photos',
     fotoHinweis: 'Optional. The photos belong to this entry and cannot be added later — a '
       + 'later photo is a new entry. Location data is removed before saving.',
@@ -178,6 +216,7 @@ export const WACHBUCH_TEXTE: Readonly<Record<InternSprache, WachbuchTexte>> = {
       ungueltiger_zustand: 'This entry is already cancelled — the correction attaches to '
         + 'the entry that replaced it.',
     },
-    fehlerUnbekannt: 'The entry was not written.',
+    fehlerUnbekannt: 'This page has no reason on record for it. Please check the details and '
+      + 'send again; if it persists, inform the administration.',
   },
 };

@@ -120,6 +120,16 @@ interface UrheberZeile {
   readonly person_id: string;
 }
 
+/** Die Beschaeftigung dieser Sitzung im aktiven Mandanten — siehe `urheber`. */
+const URHEBER_ABFRAGE = `select a.id as anstellung_id, a.person_id
+       from anstellung a
+      where a.person_id = app.aktuelle_person()
+        and a.mandant_id = app.aktiver_mandant()
+        and a.geloescht_am is null
+        and a.status = 'aktiv'
+      order by a.eintritt, a.id
+      limit 1`;
+
 /**
  * Wer schreibt — aus der SITZUNG, nie aus der Anfrage.
  *
@@ -133,18 +143,22 @@ interface UrheberZeile {
  * dann mal unter der einen, mal unter der anderen Nummer im Buch.
  */
 async function urheber(kontext: SchreibKontext): Promise<UrheberZeile> {
-  const [zeile] = await kontext.abfrage<UrheberZeile>(
-    `select a.id as anstellung_id, a.person_id
-       from anstellung a
-      where a.person_id = app.aktuelle_person()
-        and a.mandant_id = app.aktiver_mandant()
-        and a.geloescht_am is null
-        and a.status = 'aktiv'
-      order by a.eintritt, a.id
-      limit 1`,
-  );
+  const [zeile] = await kontext.abfrage<UrheberZeile>(URHEBER_ABFRAGE);
   if (zeile === undefined) throw new KeinUrheber();
   return zeile;
+}
+
+/**
+ * Ob diese Sitzung im aktiven Mandanten Urheber einer Seite sein KANN —
+ * dieselbe Abfrage, die `schreibeEintrag` stellt, nur ohne Wurf.
+ *
+ * Fuer die Seiten, die eine Seite nur auf Wunsch mitschreiben (die
+ * Schluesselquittung, V-180, D-674 Nr. 3): ohne Beschaeftigung in dieser
+ * Gesellschaft kann das Haekchen nur scheitern, und eine Wahl, die nur
+ * scheitern kann, ist keine. Die Seite sagt dann, warum es fehlt.
+ */
+export async function hatWachbuchUrheber(kontext: LeseKontext): Promise<boolean> {
+  return (await kontext.abfrage<UrheberZeile>(URHEBER_ABFRAGE)).length > 0;
 }
 
 function pruefeText(eingabe: EintragEingabe): void {

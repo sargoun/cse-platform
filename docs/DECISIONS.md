@@ -19310,9 +19310,43 @@ als sofort geschrieben im Buch (TIM-09).
    Dienst: zwei Quittungen, zwei Seiten der Art „Schlüssel", der Bund liegt
    danach wieder im Depot.
 
+**Nachgebessert nach der Prüfung der Gruppe** — fünf Stellen hielten die
+Punkte oben nicht:
+
+- **Zu Nr. 3: das Häkchen stand vor.** Die Quittungsseite setzte „Zugleich im
+  Wachbuch vermerken" mit `defaultChecked`, für jedes Konto mit
+  `wachbuch.schreiben` — genau die Vorgabe, die Nr. 3 ausschließt. Ein Konto
+  ohne Beschäftigung hier (der Super-Admin des Seeds, eine Leitung ohne
+  SSE-Anstellung) scheiterte damit an jeder Übergabe (`kein_urheber`). Jetzt
+  steht das Häkchen nie vor, und es erscheint nur, wo die Sitzung Urheber sein
+  kann (`hatWachbuchUrheber`, dieselbe Abfrage wie `schreibeEintrag`); sonst
+  steht der Satz, warum die Quittung keine Seite schreibt.
+- **Zu Nr. 6: die Abweisung am stornierten Eintrag war stumm.** Korrigieren
+  zwei Kräfte dieselbe Seite, scheitert die zweite an `SchonStorniert` und
+  landet auf dem inzwischen stornierten Blatt — der Grund stand nur im
+  Abschnitt „Richtigstellen", der dort fehlt. Er steht jetzt über dem Blatt
+  und verweist auf die Seite, an die eine Korrektur anknüpft.
+- **Das Formular der Richtigstellung nur mit `wachbuch.schreiben`.** Das Blatt
+  verlangt `wachbuch.lesen`; ein Leser bekam das Formular und danach
+  `NICHT_GEFUNDEN` aus dem Rechtetor. Statt des Formulars steht jetzt der
+  Satz, dass Richtigstellen darf, wer das Buch führt.
+- **Der Rückfall für einen unbekannten Grund wiederholte die Überschrift**
+  („Der Eintrag wurde nicht geschrieben. Der Eintrag wurde nicht
+  geschrieben."). `fehlerUnbekannt` sagt jetzt in allen Tabellen (Leitstelle
+  de/en, Quittung de/en, Schicht de/en/ar/tr, Gewerk de/en), was zu tun ist.
+- **Die Art „Schlüssel" im Formular der Leitstelle nur mit wählbarem
+  Schlüssel** — ohne `schluessel.lesen` oder ohne erfassten Schlüssel konnte
+  sie nur an `schluessel_fehlt` scheitern; an ihrer Stelle steht der Grund,
+  wie im Formular der Wache (`ARTEN_OHNE_SCHLUESSEL`).
+
+Dazu die Prüfungen, die fehlten: die Route des Mitarbeiterportals am Verhalten
+(`nachgetragen` kommt im Dienst an, jede Abweisung ist eine Seite mit Grund),
+die Quittungsroute mit `im_wachbuch`/`kein_wachbuchrecht`, und die Seite, die
+zusammen mit einer NACH ihr scheiternden Quittung zurückrollt.
+
 **Nicht Teil dieser Entscheidung:** Fotos am Wachbucheintrag (V-181, D-675).
 
-| Betrifft | SEC-05, SEC-07, TIM-09, V-180, D-599, D-728, `src/server/services/security/{wachbuch,schluessel}.ts`, `src/server/services/mitarbeiter/schichtbuch.ts`, `src/app/api/sicherheit/{wachbuch,schluessel/[id]/quittung}/route.ts`, `src/app/api/mein/schichten/[zuordnungId]/wachbuch/route.ts`, `src/app/portal/[mandant]/security/{wachbuch/neu,wachbuch/[id],schluessel/[id],schluessel/[id]/quittung}/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/lib/i18n/{wachbuch-schicht,verwaltung/wachbuch}.ts`, `drizzle/0466_wachbuch_schluessel.sql`, `src/server/db/seed/{wachbuch,index}.ts`, `tests/kern/wachbuch-schluessel-texte.test.ts`, `tests/isolation/{wachbuch-schluessel,security-wachbuch}.test.ts` |
+| Betrifft | SEC-05, SEC-07, TIM-09, V-180, D-599, D-728, `src/server/services/security/{wachbuch,schluessel}.ts`, `src/server/services/mitarbeiter/schichtbuch.ts`, `src/app/api/sicherheit/{wachbuch,schluessel/[id]/quittung}/route.ts`, `src/app/api/mein/schichten/[zuordnungId]/wachbuch/route.ts`, `src/app/portal/[mandant]/security/{wachbuch/neu,wachbuch/[id],schluessel/[id],schluessel/[id]/quittung}/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/lib/i18n/{wachbuch-schicht,verwaltung/wachbuch}.ts`, `drizzle/0466_wachbuch_schluessel.sql`, `src/server/db/seed/{wachbuch,index}.ts`, `tests/kern/wachbuch-schluessel-texte.test.ts`, `tests/kern/{quittung-wachbuch,wachbuch-leitstelle,wachbuch-schicht-route,nachgetragen}.test.ts`, `tests/isolation/{wachbuch-schluessel,security-wachbuch}.test.ts` |
 |---|---|
 
 ### D-675 · Ein Foto kommt mit der Wachbuchseite, nie danach — und die Leitstelle sieht es (V-181)
