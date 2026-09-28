@@ -6,7 +6,14 @@
  * steht in `tests/isolation/anforderung-pflege.test.ts`. Hier steht, was
  * vorher abgewiesen wird — mit einem Satz statt einer Bedingungsverletzung —
  * und dass jede Abweisung auf der Seite in beiden Sprachen einen Satz hat.
+ *
+ * Dazu (3): die Bausteine, die die Gruppe „einsatz" neu gebaut hat, tragen
+ * keinen frei gewählten Wert. Im Anforderungsblock stand `max-w-[12rem]` —
+ * eine Breite, die DESIGN.md nicht kennt (§3: „Set as a theme token, never as
+ * a one-off"). Erlaubt ist nur, was DESIGN.md selbst nennt: die Laufweite
+ * `tracking-[0.08em]` der Mikroschrift (§2).
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   AnforderungFehler, pruefeAnforderungEingabe, type AnforderungEingabe,
@@ -96,6 +103,26 @@ describe('(2) jede Abweisung hat einen Satz — in beiden Sprachen', () => {
         expect(t.fehler[g], g).toMatch(/\S/u);
         expect(t.fehler[g]).not.toContain(g);
       }
+    });
+  }
+});
+
+describe('(3) die neuen Bausteine tragen keinen frei gewählten Wert (DESIGN §2, §3)', () => {
+  const DATEIEN = [
+    'src/app/portal/[mandant]/security/Anforderungsblock.tsx',
+    'src/app/portal/[mandant]/bau/GewerkFormular.tsx',
+    'src/app/portal/[mandant]/bau/gewerke/page.tsx',
+    'src/components/portal/Aufnahmeliste.tsx',
+  ];
+  /** Die EINE Ausnahme, die DESIGN.md §2 selbst nennt: die Mikroschrift. */
+  const ERLAUBT = new Set(['tracking-[0.08em]']);
+
+  for (const datei of DATEIEN) {
+    it(datei, () => {
+      const frei = [...readFileSync(datei, 'utf8').matchAll(/[a-z][a-z0-9:-]*-\[[^\]\s]+\]/gu)]
+        .map((m) => m[0].replace(/^(?:[a-z0-9]+:)+/u, ''))
+        .filter((w) => !ERLAUBT.has(w));
+      expect(frei).toEqual([]);
     });
   }
 });

@@ -177,11 +177,15 @@ export function Anforderungsblock({
                 {texte.werMindestens}
               </label>
             </div>
-            <label className="mt-s2 block max-w-[12rem]">
-              <span className={beschriftung}>{texte.mindestanzahl}</span>
-              <input type="number" name="mindestanzahl" min={1} max={99} defaultValue={1}
-                     className={feld} />
-            </label>
+            {/* Die Breite aus dem Raster (DESIGN §3: Breiten sind Token, nie ein
+                Einzelwert in der Datei) — wie „Gültig ab" und „Rechtsgrundlage". */}
+            <div className="mt-s2 grid gap-s4 md:grid-cols-2">
+              <label className="block">
+                <span className={beschriftung}>{texte.mindestanzahl}</span>
+                <input type="number" name="mindestanzahl" min={1} max={99} defaultValue={1}
+                       className={feld} />
+              </label>
+            </div>
           </fieldset>
 
           <label className="mb-s4 flex min-h-11 items-center gap-s2 text-sm text-text">

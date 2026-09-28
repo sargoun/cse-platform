@@ -19243,8 +19243,13 @@ hätte jede schon eingeteilte künftige Schicht als erfüllt stehen lassen.
    `cse_definer`) löst für jede künftige, nicht stornierte Schicht des
    Bereichs Schnappschuss und Mischungsbewertung mit denselben zwei
    Funktionen wie 0394 neu auf. Eine begonnene Schicht bleibt eingefroren.
-   Neue Rechte braucht er nicht: `e_definer_besetzung`/`e_definer_status`
-   (0394) geben ihm genau die zwei Spalten.
+   Neue Rechte braucht er nicht: die zwei Spalten gibt ihm das Spaltenrecht
+   aus 0394 (`grant update (anforderung_snapshot, anforderung_erfuellt)`).
+   Die Update-Policies, über die er schreibt, stehen in 0374
+   (`e_definer_besetzung`) und 0390 (`e_definer_status`) und sind offen
+   (`using (true)`) — die Grenze zieht allein das Spaltenrecht, nicht die
+   Policy. (Berichtigt nach der Prüfung der Gruppe: hier stand, die Policies
+   stammten aus 0394 und gäben die zwei Spalten.)
 6. **Die Route** `POST /api/sicherheit/anforderungen` (`security.schreiben`,
    `fuehreUebergangAus`, D-599): Abweisungen kehren als `?fehler=<grund>` auf
    die Seite zurück und stehen dort als Satz in beiden Sprachen.
@@ -19253,10 +19258,21 @@ hätte jede schon eingeteilte künftige Schicht als erfüllt stehen lassen.
    Nachzug sichtbar wird. Eine Sperre im Seed wäre die Antwort auf O-342,
    die niemand gegeben hat.
 
+**Nachgeschärft nach der Prüfung der Gruppe.** Zwei der Prüfungen, die V-179
+nannte, prüften etwas anderes: „ohne Recht schreibt die Datenbank nicht" lief
+als Leitung MIT `security.schreiben` und scheiterte nur an `readonly`, der
+„fremde Posten" war die Null-Kennung. Beide prüfen jetzt, was sie sagen (eine
+Rolle nur mit `security.lesen`, daneben die Gegenprobe mit dem Recht; der
+Posten einer anderen Gesellschaft mit `nicht_gefunden`/404), und der Weg über
+die Veranstaltung — samt `kein_objekt` und den Zweigen Veranstaltung, Objekt
+und Gesellschaft des Nachzugs aus 0465 — ist geprüft. Das Feld
+„Mindestanzahl" nimmt seine Breite aus dem Raster (`md:grid-cols-2`) statt
+aus einem Einzelwert `max-w-[12rem]`, den DESIGN.md nicht kennt (§3).
+
 **Nicht Teil dieser Entscheidung:** die Schichtprüfung für „mindestens N
 Personen" (§9.4), welche Qualifikation welcher Posten verlangt (O-342).
 
-| Betrifft | SEC-01, SEC-04, SEC-08, V-179, V-129, D-624, O-342, `src/server/services/security/anforderung.ts`, `src/app/api/sicherheit/anforderungen/route.ts`, `src/app/portal/[mandant]/security/{Anforderungsblock.tsx,posten/[id]/page.tsx,veranstaltungen/[id]/page.tsx}`, `src/lib/i18n/verwaltung/anforderung.ts`, `drizzle/0465_anforderung_zieht_schichten_nach.sql`, `src/server/db/seed/security.ts`, `tests/kern/anforderung-eingabe.test.ts`, `tests/isolation/anforderung-pflege.test.ts` |
+| Betrifft | SEC-01, SEC-04, SEC-08, V-179, V-129, D-624, O-342, `src/server/services/security/anforderung.ts`, `src/app/api/sicherheit/anforderungen/route.ts`, `src/app/portal/[mandant]/security/{Anforderungsblock.tsx,posten/[id]/page.tsx,veranstaltungen/[id]/page.tsx}`, `src/lib/i18n/verwaltung/anforderung.ts`, `drizzle/0465_anforderung_zieht_schichten_nach.sql`, `drizzle/0374_schicht_zusage.sql`, `drizzle/0390_einsatzstatus_folgt_der_zeit.sql`, `drizzle/0394_schicht_haelt_anforderung_fest.sql`, `src/server/db/seed/security.ts`, `tests/kern/anforderung-eingabe.test.ts` (3), `tests/isolation/anforderung-pflege.test.ts` (2), (4) |
 |---|---|
 
 ### D-674 · Das Wachbuch nimmt Schlüsseleinträge an, und eine Quittung kann ihre Seite schreiben (V-180)
