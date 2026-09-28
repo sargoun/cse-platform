@@ -7,6 +7,10 @@ import type { GewerkKatalogZeile } from '@/server/services/bau/gewerk';
  * eines lebenden — derselbe Satz Felder, nur der Code ist beim Ändern fest
  * (BAU-07, V-182). Ein echtes `<form method="post">` ohne Skript; die Route
  * ist `POST /api/bau/gewerke`, der Rückweg die Katalogseite (`zurueck`).
+ *
+ * **Steht der Name an einem abgeschlossenen Bautag, ist auch er fest**
+ * (D-679): das Feld ist schreibgeschützt und sagt, warum — ein Feld, dessen
+ * Änderung der Dienst nur abweisen kann, lädt nicht zum Ändern ein.
  */
 export function GewerkFormular({ t, pfad, zeile }: {
   readonly t: GewerkTexte;
@@ -39,7 +43,15 @@ export function GewerkFormular({ t, pfad, zeile }: {
       <label className="mb-s4 block" htmlFor={`${praefix}-bezeichnung`}>
         <span className={beschriftung}>{t.bezeichnung}</span>
         <input id={`${praefix}-bezeichnung`} name="bezeichnung" required maxLength={120}
-               defaultValue={zeile?.bezeichnung} className={feld} />
+               defaultValue={zeile?.bezeichnung} className={feld}
+               readOnly={zeile?.nameFest === true}
+               aria-describedby={zeile?.nameFest === true ? `${praefix}-name-fest` : undefined} />
+        {zeile?.nameFest === true && (
+          <span id={`${praefix}-name-fest`} className="mt-s1 block text-xs text-text-muted"
+                data-cse="gewerk-name-fest">
+            {t.bezeichnungFest}
+          </span>
+        )}
       </label>
 
       <fieldset className="mb-s4 border-0 p-0">

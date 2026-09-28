@@ -16,7 +16,14 @@
  *     angeboten und laesst sich nicht mehr aendern;
  *  3. aendern benennt um, der Code bleibt;
  *  4. ohne `bau.schreiben` schreibt die Datenbank nicht (zweite Linie), und
- *     eine fremde Gesellschaft sieht nichts.
+ *     eine fremde Gesellschaft sieht nichts;
+ *  5. das Mitarbeiterportal zeigt die Uebersetzung, die der Katalog traegt —
+ *     in der Auswahlliste und an der gebuchten Mannstundenzeile; ohne sie die
+ *     deutsche Bezeichnung (V-185, D-676 Nr. 4);
+ *  6. der Name steht fest, sobald ein abgeschlossener Bautag ihn traegt — der
+ *     Tag zeigt danach weiter, was er beim Abschluss zeigte; archivieren und
+ *     neu eintragen geht (D-679); an offenen Tagen bleibt er frei;
+ *  7. jede Katalogaenderung steht im Pruefprotokoll, mit vorher und nachher.
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
@@ -24,7 +31,9 @@ import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
   aendereGewerk, archiviereGewerk, GewerkFehler, legeGewerkAn, leseGewerkeKatalog,
 } from '../../src/server/services/bau/gewerk.js';
-import { listeGewerke } from '../../src/server/services/bau/bautagebuch.js';
+import {
+  hefteMannstundenAn, legeBautagAn, leseMannstunden, listeGewerke, schliesseBautag,
+} from '../../src/server/services/bau/bautagebuch.js';
 
 let f: Fixtur;
 let bauleitung = '';
@@ -78,6 +87,40 @@ function als<T>(
 
 async function grund(p: Promise<unknown>): Promise<string | null> {
   return p.then(() => null, (x: unknown) => (x instanceof GewerkFehler ? x.grund : String(x)));
+}
+
+/** Eine Baustelle des Baus mit Projekt — der Bautag haengt an ihr. */
+async function projekt(benutzer: string): Promise<string> {
+  const [k] = await sql.unsafe<{ id: string }[]>(
+    `insert into kunde (mandant_id, kundennummer, name) values ($1,$2,'Bauherr') returning id`,
+    [f.bau, `K-${zufall()}`]);
+  const [o] = await sql.unsafe<{ id: string }[]>(
+    `insert into objekt (mandant_id, kunde_id, objektnummer, bezeichnung, strasse, plz, ort)
+     values ($1,$2,$3,'Baustelle','Musterweg','13403','Berlin') returning id`,
+    [f.bau, k!.id, `O-${zufall()}`]);
+  const [a] = await sql.unsafe<{ id: string }[]>(
+    `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, status, bezeichnung,
+                          verantwortlich_benutzer_id, start_datum, objekt_id)
+     values ($1,$2,$3,'projekt','aktiv','Rohbau',$4,'2026-01-01',$5) returning id`,
+    [f.bau, `AU-${zufall()}`, k!.id, benutzer, o!.id]);
+  const [p] = await sql.unsafe<{ id: string }[]>(
+    `insert into projekt (mandant_id, auftrag_id, nummer, bezeichnung, kunde_id, art,
+                          vertragsgrundlage, objekt_id)
+     values ($1,$2,$3,'Rohbau',$4,'hochbau','vob_b',$5) returning id`,
+    [f.bau, a!.id, `P-${zufall()}`, k!.id, o!.id]);
+  return p!.id;
+}
+
+/** Ein Bautag mit EINER Mannstundenzeile dieses Gewerks. */
+async function gebucht(gewerkId: string, datum = '2030-03-05'): Promise<string> {
+  const p = await projekt(bauleitung);
+  return als(bauleitung, f.bau, async (k) => {
+    const tag = await legeBautagAn(k, { projektId: p, datum });
+    await hefteMannstundenAn(k, {
+      bautagebuchId: tag, gewerkId, herkunft: 'eigen', anzahlPersonen: 2, dauerMinuten: 480,
+    });
+    return tag;
+  });
 }
 
 beforeEach(async () => {
@@ -202,5 +245,134 @@ describe('(4) die Datenbank als zweite Linie', () => {
     const fremd = await konto(f.reinigung, await systemrolle('leitung'));
     const gesehen = await als(fremd, f.reinigung, (k) => leseGewerkeKatalog(k));
     expect(gesehen).toEqual([]);
+  });
+});
+
+describe('(5) das Mitarbeiterportal zeigt die Uebersetzung (V-185, EMP-12)', () => {
+  it('Auswahlliste: tr und ar uebersetzt, en ohne Eintrag und de deutsch', async () => {
+    await als(bauleitung, f.bau, (k) => legeGewerkAn(k, {
+      code: 'TRO', bezeichnung: 'Trockenbau',
+      uebersetzungen: { en: '', ar: 'أعمال الجدران الجافة', tr: 'Kuru yapı' },
+      bestaetigt: true,
+    }));
+    const name = async (sprache: 'de' | 'en' | 'ar' | 'tr'): Promise<string | undefined> =>
+      (await als(bauleitung, f.bau, (k) => listeGewerke(k, f.bau, sprache)))[0]?.bezeichnung;
+    expect(await name('tr')).toBe('Kuru yapı');
+    expect(await name('ar')).toBe('أعمال الجدران الجافة');
+    /* Eine leere Uebersetzung wird nicht gespeichert — die Kraft sieht die deutsche. */
+    expect(await name('en')).toBe('Trockenbau');
+    expect(await name('de')).toBe('Trockenbau');
+    /* Ohne Sprache bleibt es der Weg der Verwaltung: deutsch. */
+    expect((await als(bauleitung, f.bau, (k) => listeGewerke(k)))[0]?.bezeichnung)
+      .toBe('Trockenbau');
+  });
+
+  it('die gebuchte Mannstundenzeile nennt das Gewerk in derselben Sprache', async () => {
+    const id = await als(bauleitung, f.bau, (k) => legeGewerkAn(k, {
+      code: 'EST', bezeichnung: 'Estrich', uebersetzungen: { tr: 'Şap işleri', en: 'Screed' },
+      bestaetigt: true,
+    }));
+    const tag = await gebucht(id);
+    const zeile = async (sprache: 'de' | 'en' | 'ar' | 'tr') =>
+      (await als(bauleitung, f.bau, (k) => leseMannstunden(k, tag, sprache)))[0];
+    expect((await zeile('tr'))?.gewerk).toBe('Şap işleri');
+    expect((await zeile('en'))?.gewerk).toBe('Screed');
+    expect((await zeile('ar'))?.gewerk).toBe('Estrich');
+    expect((await zeile('de'))?.gewerk).toBe('Estrich');
+    expect((await zeile('tr'))?.gewerk_code).toBe('EST');
+  });
+});
+
+describe('(6) der Name steht fest, sobald ein abgeschlossener Tag ihn traegt (D-679)', () => {
+  it('abgeschlossen: umbenennen wird abgewiesen, alles andere geht — und der Tag bleibt, wie er war',
+    async () => {
+      const id = await als(bauleitung, f.bau, (k) => legeGewerkAn(k, {
+        code: 'TRO', bezeichnung: 'Trockenbau', bestaetigt: false,
+      }));
+      const tag = await gebucht(id);
+      await als(bauleitung, f.bau, (k) => schliesseBautag(k, tag));
+
+      expect(await grund(als(bauleitung, f.bau, (k) => aendereGewerk(k, id, {
+        bezeichnung: 'Elektro', bestaetigt: false,
+      })))).toBe('name_fest');
+
+      /* Derselbe Name: Reihenfolge, Bestaetigung und Uebersetzung aendern sich. */
+      await als(bauleitung, f.bau, (k) => aendereGewerk(k, id, {
+        bezeichnung: ' Trockenbau ', sortierung: 5, bestaetigt: true,
+        uebersetzungen: { tr: 'Kuru yapı' },
+      }));
+      const [z] = await sql.unsafe<{ bezeichnung: string; ist_platzhalter: boolean }[]>(
+        `select bezeichnung, ist_platzhalter from gewerk where id = $1`, [id]);
+      expect(z).toEqual({ bezeichnung: 'Trockenbau', ist_platzhalter: false });
+
+      const katalog = await als(bauleitung, f.bau, (k) => leseGewerkeKatalog(k));
+      expect(katalog.find((g) => g.id === id)?.nameFest).toBe(true);
+      const [zeile] = await als(bauleitung, f.bau, (k) => leseMannstunden(k, tag));
+      expect(zeile?.gewerk).toBe('Trockenbau');
+    });
+
+  it('archivieren und neu eintragen: der alte Tag behaelt den alten Namen, der Code ist frei',
+    async () => {
+      const alt = await als(bauleitung, f.bau, (k) => legeGewerkAn(k, {
+        code: 'TRO', bezeichnung: 'Trockenbau', bestaetigt: true,
+      }));
+      const tag = await gebucht(alt);
+      await als(bauleitung, f.bau, (k) => schliesseBautag(k, tag));
+      await als(bauleitung, f.bau, (k) => archiviereGewerk(k, alt));
+      const neu = await als(bauleitung, f.bau, (k) => legeGewerkAn(k, {
+        code: 'TRO', bezeichnung: 'Trocken- und Akustikbau', bestaetigt: true,
+      }));
+      const [zeile] = await als(bauleitung, f.bau, (k) => leseMannstunden(k, tag));
+      expect(zeile).toMatchObject({ gewerk_code: 'TRO', gewerk: 'Trockenbau' });
+      expect((await als(bauleitung, f.bau, (k) => listeGewerke(k))).map((g) => g.id))
+        .toEqual([neu]);
+    });
+
+  it('an einem OFFENEN Tag ist der Name frei — und nichts zeigt ihn als fest', async () => {
+    const id = await als(bauleitung, f.bau, (k) => legeGewerkAn(k, {
+      code: 'MAL', bezeichnung: 'Maler', bestaetigt: false,
+    }));
+    const tag = await gebucht(id);
+    expect((await als(bauleitung, f.bau, (k) => leseGewerkeKatalog(k)))[0]?.nameFest)
+      .toBe(false);
+    await als(bauleitung, f.bau, (k) => aendereGewerk(k, id, {
+      bezeichnung: 'Maler- und Lackierarbeiten', bestaetigt: false,
+    }));
+    const [zeile] = await als(bauleitung, f.bau, (k) => leseMannstunden(k, tag));
+    expect(zeile?.gewerk).toBe('Maler- und Lackierarbeiten');
+  });
+});
+
+describe('(7) jede Katalogaenderung steht im Pruefprotokoll', () => {
+  it('angelegt, geaendert (mit vorher und nachher) und archiviert', async () => {
+    const id = await als(bauleitung, f.bau, (k) => legeGewerkAn(k, {
+      code: 'FLI', bezeichnung: 'Fliesen', bestaetigt: false,
+    }));
+    await als(bauleitung, f.bau, (k) => aendereGewerk(k, id, {
+      bezeichnung: 'Fliesenarbeiten', bestaetigt: false,
+    }));
+    await als(bauleitung, f.bau, (k) => archiviereGewerk(k, id));
+
+    const zeilen = await sql.unsafe<{
+      aktion: string; mandant_id: string; akteur_id: string | null;
+      vorher: Record<string, unknown> | null; nachher: Record<string, unknown> | null;
+      geaendert_felder: string[] | null;
+    }[]>(
+      `select aktion, mandant_id, akteur_id, vorher, nachher, geaendert_felder
+         from audit_log where objekt_typ = 'gewerk' and objekt_id = $1
+        order by erstellt_am, aktion`, [id]);
+    expect(zeilen.map((z) => z.aktion).sort()).toEqual([
+      'bau.gewerk_angelegt', 'bau.gewerk_archiviert', 'bau.gewerk_geaendert',
+    ]);
+    for (const z of zeilen) {
+      expect(z.mandant_id).toBe(f.bau);
+      expect(z.akteur_id).toBe(bauleitung);
+    }
+    const geaendert = zeilen.find((z) => z.aktion === 'bau.gewerk_geaendert');
+    expect(geaendert?.vorher?.['bezeichnung']).toBe('Fliesen');
+    expect(geaendert?.nachher?.['bezeichnung']).toBe('Fliesenarbeiten');
+    expect(geaendert?.geaendert_felder).toContain('bezeichnung');
+    expect(zeilen.find((z) => z.aktion === 'bau.gewerk_archiviert')?.nachher?.['archiviert_am'])
+      .not.toBeNull();
   });
 });

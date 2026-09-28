@@ -19445,10 +19445,13 @@ einzutragen, gab es nicht.
    nie löschen (`trg_gewerk_kein_hard_delete`; an einem Gewerk hängen
    gebuchte Mannstunden). Er schlägt kein Gewerk vor und legt keines an, das
    ein Mensch nicht eingetragen hat.
-2. **Der Code ist fest, der Name nicht.** Die Mannstunden eines Tages zeigen
-   „Code · Bezeichnung"; ein Code, der sich unter gebuchten Stunden ändert,
-   schriebe die Anzeige eines abgeschlossenen Tages um. Wer einen anderen
-   Code braucht, archiviert und trägt neu ein — der archivierte Code ist dann
+2. **Der Code ist fest — und der Name, sobald ein abgeschlossener Tag ihn
+   trägt** (D-679). Die Mannstunden eines Tages zeigen „Code · Bezeichnung";
+   ein Code, der sich unter gebuchten Stunden ändert, schriebe die Anzeige
+   eines abgeschlossenen Tages um, und ein Name genauso. Hier stand zuerst
+   „der Code ist fest, der Name nicht" — mit derselben Begründung, die für den
+   Namen ebenso trägt (Prüfung der Gruppe). Wer einen anderen Code oder
+   Namen braucht, archiviert und trägt neu ein — der archivierte Code ist dann
    wieder frei (`gewerk_code_uk` gilt nur unter lebenden Zeilen). Die Form:
    ein bis zwölf Buchstaben, Ziffern, Binde- oder Unterstriche, groß
    geschrieben. Eine engere Form (etwa die STLB-Nummer) wäre eine Antwort auf
@@ -19458,7 +19461,11 @@ einzutragen, gab es nicht.
    dahinter — dieselbe Kennzeichnung, die der Seed seit D-317 benutzt.
 4. **Übersetzungen sind Daten.** Die Bezeichnung für das Mitarbeiterportal
    (en, ar, tr) steht in `bezeichnung_i18n`; eine leere wird weggelassen, und
-   die Kraft sieht dann die deutsche.
+   die Kraft sieht dann die deutsche. Gelesen hat die Spalte zuerst kein Weg
+   (die Pflegeseite versprach es trotzdem); seit der Nachbesserung lesen
+   `listeGewerke` und `leseMannstunden` mit der Sprache des Portals
+   (`coalesce(nullif(bezeichnung_i18n ->> sprache, ''), bezeichnung)`), und die
+   Bautagebuchseite der Kraft gibt ihre Sprache mit (V-185).
 5. **Route und Seite.** `POST /api/bau/gewerke` (`bau.schreiben`,
    `fuehreUebergangAus`, D-599) und `/portal/[mandant]/bau/gewerke` (lesen mit
    `bau.lesen`, pflegen mit `bau.schreiben`, zweisprachig). Jede Zeile nennt
@@ -19471,7 +19478,7 @@ einzutragen, gab es nicht.
 **Nicht Teil dieser Entscheidung:** welche Gewerke geführt werden und ob die
 Liste den STLB-Bau-Leistungsbereichen folgt (O-159, bleibt offen).
 
-| Betrifft | BAU-07, V-182, D-317, D-599, D-728, O-159, `src/server/services/bau/gewerk.ts`, `src/app/api/bau/gewerke/route.ts`, `src/app/portal/[mandant]/bau/{gewerke/page,GewerkFormular,page,projekte/[id]/bautagebuch/[datum]/page}.tsx`, `src/lib/i18n/verwaltung/gewerke.ts`, `src/server/auth/route-manifest.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/server/registry/{dienste,routen.generiert}.ts`, `src/server/db/seed/bau.ts`, `tests/kern/gewerk-eingabe.test.ts`, `tests/isolation/gewerk-katalog.test.ts` |
+| Betrifft | BAU-07, V-182, V-185, D-317, D-599, D-679, D-728, O-159, `src/server/services/bau/gewerk.ts`, `src/server/services/bau/bautagebuch.ts` (`listeGewerke`, `leseMannstunden`), `src/app/portal/mein/schichten/[zuordnungId]/bautagebuch/page.tsx`, `src/app/api/bau/gewerke/route.ts`, `src/app/portal/[mandant]/bau/{gewerke/page,GewerkFormular,page,projekte/[id]/bautagebuch/[datum]/page}.tsx`, `src/lib/i18n/verwaltung/gewerke.ts`, `src/server/auth/route-manifest.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/server/registry/{dienste,routen.generiert}.ts`, `src/server/db/seed/bau.ts`, `tests/kern/gewerk-eingabe.test.ts`, `tests/isolation/gewerk-katalog.test.ts` |
 |---|---|
 
 ### D-677 · Das Wetter hängt ein Nachtlauf an, nicht nur ein Knopf — und ohne DWD tut er nichts (V-183)
@@ -19570,4 +19577,46 @@ sein soll (der Auslöser aus 0041 prüft den Elternteil im selben Mandanten;
 kein Weg ändert ihn).
 
 | Betrifft | SEC-05, TIM-10, V-181, V-184, D-675, `drizzle/0469_medium_bezug_fest.sql`, `drizzle/0041_einsatz_medien.sql`, `drizzle/0467_wachbuch_fotos.sql`, `tests/isolation/wachbuch-fotos.test.ts` (6) |
+|---|---|
+
+### D-679 · Der Name eines Gewerks steht fest, sobald ein abgeschlossener Bautag ihn trägt — und jede Katalogänderung steht im Prüfprotokoll (V-182)
+
+**Der Befund** (Prüfung der Gruppe „einsatz", zu V-182/D-676): D-676 Nr. 2
+begründete den festen Code damit, dass ein Code, der sich unter gebuchten
+Stunden ändert, „die Anzeige eines abgeschlossenen Tages umschriebe" — und
+ließ den Namen frei. Die Anzeige ist aber „Code · Bezeichnung", gelesen live
+aus `gewerk`; einen Schnappschuss gibt es nicht (`bautagebuch_mannstunden`
+speichert keinen Gewerknamen, `kern.bautagebuch_einfrieren` friert nur den
+Tageskopf). Aus „Trockenbau" wurde „Elektro", und ein vom Auftraggeber
+gegengezeichneter Tag zeigte danach Elektro-Stunden. Dazu stand `gewerk`
+weder im Audit-Register, noch rief der Dienst `app.protokolliere` auf: den
+Namen, den der Auftraggeber gegengezeichnet hatte, konnte danach niemand mehr
+rekonstruieren.
+
+**Die Entscheidung.**
+
+1. **Der Name steht fest, sobald ein abgeschlossener oder stornierter Bautag
+   eine Mannstundenzeile dieses Gewerks trägt** (auch eine stornierte Zeile:
+   sie steht als Korrekturspur auf dem Tag). `aendereGewerk` weist dann ab
+   (`name_fest`, 409, mit Satz); die Sperre steht auch in der Änderung selbst,
+   damit ein zwischen Lesen und Schreiben geschlossener Tag sie nicht umgeht.
+   Der Weg zu einem neuen Namen ist derselbe wie beim Code: archivieren und
+   neu eintragen — der Code wird dabei frei, und der alte Tag zeigt weiter,
+   was er beim Abschluss zeigte. An offenen Tagen bleibt der Name frei.
+2. **Frei bleiben Reihenfolge, Leistungsbereich, Bestätigung und die
+   Übersetzungen** des Mitarbeiterportals: sie sind nicht Teil der
+   gegengezeichneten Fassung (die zeigt die Verwaltung, deutsch).
+3. **Die Pflegeseite sagt es vorher.** Ein Gewerk, dessen Name fest ist
+   (`nameFest` in `leseGewerkeKatalog`), zeigt sein Namensfeld
+   schreibgeschützt mit dem Satz, was stattdessen geht — kein Feld, dessen
+   Änderung der Dienst nur abweisen kann.
+4. **Jede Katalogänderung steht im Prüfprotokoll** (`bau.gewerk_angelegt`,
+   `bau.gewerk_geaendert`, `bau.gewerk_archiviert`; vorher und nachher mit
+   den Spaltennamen der Tabelle), wie in den übrigen Katalogen des Hauses.
+
+Gewählt wurde die Sperre und nicht ein Schnappschuss des Namens beim
+Abschluss: sie ändert kein Schema, keinen Abschluss und keine Anzeige, und
+sie wendet die Begründung an, die D-676 für den Code schon gegeben hat.
+
+| Betrifft | BAU-07, V-182, D-676, O-159, `src/server/services/bau/gewerk.ts`, `src/app/portal/[mandant]/bau/{GewerkFormular.tsx,gewerke/page.tsx}`, `src/lib/i18n/verwaltung/gewerke.ts`, `tests/kern/gewerk-eingabe.test.ts`, `tests/isolation/gewerk-katalog.test.ts` (6), (7) |
 |---|---|

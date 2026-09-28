@@ -9,8 +9,14 @@
  *  2. jede Abweisung hat auf der Seite einen Satz, in beiden Sprachen, und
  *     keiner zeigt den rohen Grund;
  *  3. Route und Seite stehen im Manifest und in der Seitenkarte, mit dem
- *     Recht, das die Policy von `gewerk` verlangt (`bau.schreiben`, 0082).
+ *     Recht, das die Policy von `gewerk` verlangt (`bau.schreiben`, 0082);
+ *  4. das Mitarbeiterportal fragt den Katalog in SEINER Sprache (V-185): die
+ *     Pflegeseite verspricht „Bezeichnung im Mitarbeiterportal", und die
+ *     Bautagebuchseite der Kraft liest Auswahl und Mannstunden mit
+ *     `basis.sprache` — was dabei herauskommt, steht an echten Zeilen in
+ *     `tests/isolation/gewerk-katalog.test.ts` (5).
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   GewerkFehler, pruefeGewerkCode, type GewerkGrund,
@@ -90,5 +96,22 @@ describe('(3) Route, Seite und Dienst sind verdrahtet', () => {
     expect(DIENSTE.find((d) => d.pfad === 'bau/gewerk')).toMatchObject({
       modul: 'bau', schreibend: true, schreibRecht: 'bau.schreiben',
     });
+  });
+});
+
+describe('(4) das Mitarbeiterportal fragt in seiner Sprache (V-185)', () => {
+  const seite = readFileSync(
+    'src/app/portal/mein/schichten/[zuordnungId]/bautagebuch/page.tsx', 'utf8');
+
+  it('Auswahlliste und Mannstundenzeilen mit der Sprache des Bildschirms', () => {
+    expect(seite).toContain('async (kontext, { sprache }) =>');
+    expect(seite).toContain('listeGewerke(kontext, bezug.mandantId, sprache)');
+    expect(seite).toContain('leseMannstunden(kontext, tag.id, sprache)');
+  });
+
+  it('und die Pflegeseite sagt es in beiden Sprachen zu', () => {
+    expect(GEWERK_TEXTE.de.uebersetzungen).toBe('Bezeichnung im Mitarbeiterportal');
+    expect(GEWERK_TEXTE.de.uebersetzungenHinweis).toContain('deutsche');
+    expect(GEWERK_TEXTE.en.uebersetzungenHinweis).toContain('German');
   });
 });
