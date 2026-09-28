@@ -19338,7 +19338,10 @@ geschriebener Eintrag konnte gar keines bekommen.
    `wachbuch_eintrag` nur an einer Seite zu, die DIESE Transaktion vom
    Menschen dieser Sitzung geschrieben hat
    (`app.wachbuch_seite_eben_geschrieben`, `cse_definer`; `erfasst_am = now()`
-   ist der Stempel aus `kern.wachbuch_eintrag_vorbereiten`). Restriktiv, weil
+   ist der Stempel aus `kern.wachbuch_eintrag_vorbereiten`). Das galt zuerst
+   nur für INSERT — per UPDATE ließ sich ein Schichtfoto an eine alte Seite
+   hängen und ein Seitenfoto verschieben; seit 0469 wechselt kein Medium seinen
+   Bezug mehr (D-678, V-184). Restriktiv, weil
    `t_mandant` (0041) mit `zeit.schreiben` jeden Bezug erlaubt und erlaubende
    Policies ODER-verknüpft werden — die Prüfung fand genau das: eine Leitung
    mit Zeitrecht hängte ein Foto an eine alte Seite. Ein späteres Foto
@@ -19375,12 +19378,18 @@ geschriebener Eintrag konnte gar keines bekommen.
    (Platzhalterbild, als DEMODATEN beschriftet), sonst keine — eine Seite
    ohne Foto bekäme es nach Punkt 1 auch später nicht.
 
+**Nachgeprüft:** dass die Verwaltung die Aufnahmen der Schicht wirklich sieht
+(Schichtblatt, Wachbuchblatt: `listeSchichtMedien` im internen Scope über
+`t_mandant` mit `zeit.lesen`) und wer nur das Buch lesen darf, nicht — geprüft
+in `tests/isolation/wachbuch-fotos.test.ts` (7); lief vorher nur im
+Personenscope der Kraft.
+
 **Nicht Teil dieser Entscheidung:** ob die Wache die Fotos der Übergabeseite
 einer Kollegin sieht (sie sieht den Text im eingestellten Fenster, O-151,
 die Aufnahmen nicht), ob ein Kunde Wachbuchfotos sieht (O-78), Pflichtfotos
 je Eintragsart (O-133).
 
-| Betrifft | SEC-05, TIM-10, LEG-10, V-181, D-599, D-728, O-78, O-133, O-151, `drizzle/0467_wachbuch_fotos.sql`, `src/server/services/zeit/medien.ts`, `src/server/services/mitarbeiter/medien.ts`, `src/server/services/security/wachbuch.ts`, `src/app/api/sicherheit/wachbuch/route.ts`, `src/app/api/mein/schichten/[zuordnungId]/wachbuch/route.ts`, `src/app/portal/[mandant]/security/wachbuch/{page,neu/page,[id]/page}.tsx`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/components/portal/Aufnahmeliste.tsx`, `src/lib/i18n/{wachbuch-schicht,verwaltung/wachbuch,verwaltung/aufnahmen}.ts`, `src/server/db/seed/{wachbuch,index}.ts`, `tests/kern/wachbuch-fotos.test.ts`, `tests/isolation/wachbuch-fotos.test.ts` |
+| Betrifft | SEC-05, TIM-10, LEG-10, V-181, D-599, D-728, O-78, O-133, O-151, `drizzle/0467_wachbuch_fotos.sql`, `src/server/services/zeit/medien.ts`, `src/server/services/mitarbeiter/medien.ts`, `src/server/services/security/wachbuch.ts`, `src/app/api/sicherheit/wachbuch/route.ts`, `src/app/api/mein/schichten/[zuordnungId]/wachbuch/route.ts`, `src/app/portal/[mandant]/security/wachbuch/{page,neu/page,[id]/page}.tsx`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/wachbuch/page.tsx`, `src/components/portal/Aufnahmeliste.tsx`, `src/lib/i18n/{wachbuch-schicht,verwaltung/wachbuch,verwaltung/aufnahmen}.ts`, `src/server/db/seed/{wachbuch,index}.ts`, `drizzle/0469_medium_bezug_fest.sql`, D-678, `tests/kern/wachbuch-fotos.test.ts`, `tests/isolation/wachbuch-fotos.test.ts` |
 |---|---|
 
 ### D-676 · Der Gewerkekatalog hat einen Eingang — eintragen, umbenennen, archivieren (V-182)
@@ -19486,4 +19495,45 @@ und genau dieser Beleg fehlt im Behinderungs- oder Bauzeitenstreit.
 welche Uhrzeiten als früh, mittag und abend gelten (O-213).
 
 | Betrifft | BAU-08, V-183, D-318, O-213, O-922, `src/server/services/bau/wetter.ts`, `src/server/jobs/{wetterZuordnung,bootstrap}.ts`, `drizzle/0468_wetter_zuordnung_job.sql`, `docs/JOB-AUSLOESER.sql`, `src/app/portal/[mandant]/bau/projekte/[id]/bautagebuch/[datum]/page.tsx`, `tests/kern/{wetter-zuordnung,jobs-bootstrap}.test.ts`, `tests/isolation/wetter-zuordnung.test.ts` |
+|---|---|
+
+### D-678 · Ein Medium wechselt seinen Bezug nie — auch nicht per UPDATE (V-184)
+
+**Der Befund** (V-184; Prüfung der Gruppe „einsatz", zu V-181/D-675): D-675
+Nr. 1 sagt, ein Foto komme MIT der Wachbuchseite und nie danach, und „die
+Datenbank hält das fest". Gehalten hat sie es nur für INSERT: die restriktive
+Policy `p_wachbuch_medien_mit_seite` (0467) gilt `for insert`. `t_mandant` auf
+`einsatz_medien` (0041) gilt `for all`, `cse_app` hält seit 0041 `update` auf
+der ganzen Tabelle, und kein Auslöser verbot, `bezug_tabelle` oder `bezug_id`
+zu ändern — `kern.einsatz_medien_bezug_pruefen` prüft nur, ob der neue
+Elternteil im selben Mandanten existiert. Eine Leitung mit `zeit.schreiben`
+hängte so ein Schichtfoto per UPDATE an eine Seite von gestern (UPDATE 1) oder
+schob ein Seitenfoto auf eine andere Seite; das Wachbuchblatt zeigte es danach
+als Teil der alten Seite. Genau den Angreifer, den D-675 nennt, hielt die
+Datenbank nur auf einem von zwei Wegen auf. Heute ändert kein Weg der
+Anwendung den Bezug; ein späterer Bearbeitungsweg (etwa für die Beschreibung)
+hätte die Lücke still geöffnet.
+
+**Die Entscheidung.**
+
+1. **Der Bezug eines Mediums ist unveränderlich — für jeden Bezug**, nicht nur
+   das Wachbuch. Ein Foto ist der Beleg der Zeile, an der es hängt (Schicht,
+   Wachbuchseite, Bautag, Leistungsnachweis, Aufmaß); an eine andere
+   gehängt, ist es an beiden Stellen ein falscher Beleg. Ein falsch
+   zugeordnetes Foto wird archiviert und neu aufgenommen — wie jede andere
+   Korrektur im Haus: durch eine neue Zeile, nicht durch Umschreiben.
+2. **Ein BEFORE-UPDATE-Auslöser** (`trg_medien_0_bezug_fest`,
+   `kern.einsatz_medien_bezug_fest`, 0469) und keine Policy: eine Policy
+   sieht nur die neue Zeile und kann alt und neu nicht vergleichen. Er gilt
+   für jede Rolle — `cse_app`, `cse_definer`, `cse_job`, den Eigentümer — und
+   feuert nur, wenn eine der beiden Spalten im `SET` steht; derselbe Wert
+   dort ist keine Änderung. Kein `security definer`: er liest nichts.
+3. **Was nicht der Bezug ist, bleibt änderbar** (Beschreibung, Archivierung,
+   Aufbewahrung — die Wege, die 0041 vorsieht).
+
+**Nicht Teil dieser Entscheidung:** ob `mandant_id` eines Mediums änderbar
+sein soll (der Auslöser aus 0041 prüft den Elternteil im selben Mandanten;
+kein Weg ändert ihn).
+
+| Betrifft | SEC-05, TIM-10, V-181, V-184, D-675, `drizzle/0469_medium_bezug_fest.sql`, `drizzle/0041_einsatz_medien.sql`, `drizzle/0467_wachbuch_fotos.sql`, `tests/isolation/wachbuch-fotos.test.ts` (6) |
 |---|---|
