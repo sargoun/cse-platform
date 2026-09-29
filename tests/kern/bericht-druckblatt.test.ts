@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { blattFormat, type BerichtTabelle } from '../../src/server/services/bericht/export.js';
 import { druckblattStil } from '../../src/app/portal/[mandant]/berichte/druck/[bericht]/stil.js';
-import { DRUCK_HOCH_BIS_SPALTEN, MASSE_DRUCK } from '../../src/lib/design/theme.js';
+import { DRUCK_HOCH_BIS_SPALTEN, FARBEN_MARKE, MASSE_DRUCK } from '../../src/lib/design/theme.js';
 
 function tabelle(spalten: number): BerichtTabelle {
   return {
@@ -97,5 +97,48 @@ describe('die Masse stehen in DESIGN §11', () => {
       expect(design, name).toContain(`| \`--${name}\` | \`${wert}\` |`);
     }
     expect(design).toContain(`| \`--druck-hoch-bis-spalten\` | \`${String(DRUCK_HOCH_BIS_SPALTEN)}\` |`);
+  });
+});
+
+/*
+ * Firmenzeile 14 pt, Titel 13 pt, Kopflinie 3 px und Zeilenhöhe 1,5 standen
+ * als Literale im Berichtsblatt — übernommen aus Angebot und Monatsnachweis,
+ * wo sie seit D-204 stehen; keiner der Werte war ein Token in §11 (V-269).
+ */
+describe('Firmenzeile, Titel, Kopflinie und Zeilenhöhe sind Token — in allen drei Blättern', () => {
+  const KOPF_TOKEN = [
+    'druck-firma-groesse', 'druck-titel-groesse', 'druck-kopflinie', 'druck-zeilenhoehe',
+  ] as const;
+  const BERICHT_STIL = 'src/app/portal/[mandant]/berichte/druck/[bericht]/stil.ts';
+  const BERICHT_SEITE = 'src/app/portal/[mandant]/berichte/druck/[bericht]/page.tsx';
+  const ANGEBOT = 'src/app/portal/[mandant]/angebote/[id]/pdf/page.tsx';
+  const MONATSNACHWEIS = 'src/app/portal/mein/monatsnachweis/page.tsx';
+
+  it('das Berichtsblatt setzt die vier Masse aus MASSE_DRUCK', () => {
+    const stil = druckblattStil('hoch');
+    expect(stil).toContain(`line-height: ${MASSE_DRUCK['druck-zeilenhoehe']};`);
+    expect(stil).toContain(`.cse-blatt .firma { margin: 0; font-size: ${MASSE_DRUCK['druck-firma-groesse']};`);
+    expect(stil).toContain(`.cse-blatt h1 { margin: 0; font-size: ${MASSE_DRUCK['druck-titel-groesse']}; }`);
+    expect(stil).toContain(`border-top: ${MASSE_DRUCK['druck-kopflinie']} solid ${FARBEN_MARKE.red};`);
+    expect(readFileSync(BERICHT_SEITE, 'utf8')).toMatch(/<p className="firma">/u);
+  });
+
+  it('kein Blatt schreibt 12, 13 oder 14 pt, 3 px oder die Zeilenhöhe 1,5 selbst', () => {
+    for (const datei of [BERICHT_STIL, BERICHT_SEITE, ANGEBOT, MONATSNACHWEIS]) {
+      expect(readFileSync(datei, 'utf8'), datei)
+        .not.toMatch(/\b1[234]pt\b|\b3px solid|line-height: 1\.5\b/u);
+    }
+  });
+
+  it('Angebot und Monatsnachweis lesen dieselben vier Token', () => {
+    for (const datei of [ANGEBOT, MONATSNACHWEIS]) {
+      const quelle = readFileSync(datei, 'utf8');
+      for (const name of KOPF_TOKEN) expect(quelle, `${datei}: ${name}`).toContain(`MASSE_DRUCK['${name}']`);
+    }
+  });
+
+  it('Punkte, nicht Pixel — kein Druckmass ist in px angegeben (§11)', () => {
+    for (const [name, wert] of Object.entries(MASSE_DRUCK)) expect(wert, name).not.toMatch(/px$/u);
+    expect(MASSE_DRUCK['druck-kopflinie']).toBe('2.25pt'); // die 3 px von vorher, 1 px = 0,75 pt
   });
 });

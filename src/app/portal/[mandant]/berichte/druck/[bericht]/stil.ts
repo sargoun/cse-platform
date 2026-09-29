@@ -15,6 +15,10 @@ import { FARBEN_DRUCK, FARBEN_MARKE, MASSE_DRUCK } from '@/lib/design/theme';
  * abschneidet. Die Köpfe brechen um, nur die Zahlen im Rumpf nicht; am
  * Bildschirm rollt die Tabelle in ihrem eigenen Behälter (`.rollbar`), und
  * auf dem Telefon hat das Blatt den Rand `--s4` statt 20 mm (D-420).
+ *
+ * **Jedes Mass ein Token aus §11** — auch Firmenzeile, Titel, Kopflinie und
+ * Zeilenhöhe, die bis V-269 als Literale (14 pt, 13 pt, 3 px, 1,5) im Blatt
+ * standen; 10 pt Satz und 20 mm Rand nennt §11 selbst.
  */
 export function druckblattStil(format: 'hoch' | 'quer'): string {
   return `
@@ -22,7 +26,10 @@ export function druckblattStil(format: 'hoch' | 'quer'): string {
                      color: ${FARBEN_DRUCK['druck-text']};
                      max-width: ${MASSE_DRUCK[format === 'quer' ? 'druck-blatt-quer' : 'druck-blatt-hoch']};
                      margin: 0 auto; padding: 20mm;
-                     font-size: 10pt; line-height: 1.5; }
+                     font-size: 10pt; line-height: ${MASSE_DRUCK['druck-zeilenhoehe']}; }
+        .cse-blatt .firma { margin: 0; font-size: ${MASSE_DRUCK['druck-firma-groesse']};
+                            font-weight: 600; }
+        .cse-blatt h1 { margin: 0; font-size: ${MASSE_DRUCK['druck-titel-groesse']}; }
         .cse-blatt table { width: 100%; border-collapse: collapse; }
         .cse-blatt th, .cse-blatt td {
                      padding: ${MASSE_DRUCK['druck-zelle-y']} ${MASSE_DRUCK['druck-zelle-x']};
@@ -38,7 +45,8 @@ export function druckblattStil(format: 'hoch' | 'quer'): string {
         @media (max-width: 767.98px) { .cse-blatt { padding: var(--s4); } }
         .cse-blatt .leise { color: ${FARBEN_DRUCK['druck-text-leise']};
                             font-size: ${MASSE_DRUCK['druck-meta-groesse']}; }
-        .cse-blatt .kopflinie { border: 0; border-top: 3px solid ${FARBEN_MARKE.red};
+        .cse-blatt .kopflinie { border: 0;
+                                border-top: ${MASSE_DRUCK['druck-kopflinie']} solid ${FARBEN_MARKE.red};
                                 margin: ${MASSE_DRUCK['druck-block']} 0
                                         calc(2 * ${MASSE_DRUCK['druck-block']}); }
         .cse-blatt .fuss { border-top: 1px solid ${FARBEN_DRUCK['druck-linie']};

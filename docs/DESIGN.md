@@ -1126,11 +1126,18 @@ document uses, and — like the palette above — nothing outside one may use th
 | `--druck-kopf-sperrung` | `0.08em` | its letter-spacing — same as `micro` in §2 |
 | `--druck-meta-groesse` | `9pt` | footer, long text under a position |
 | `--druck-block` | `12pt` | gap between two blocks on the sheet |
+| `--druck-firma-groesse` | `14pt` | the entity name at the head of the sheet, semibold |
+| `--druck-titel-groesse` | `13pt` | the document title under the header rule |
+| `--druck-kopflinie` | `2.25pt` | thickness of the header rule — the `3px` the sheets drew, in points |
+| `--druck-zeilenhoehe` | `1.5` | line height of the `10pt` body |
 
 Points, not pixels: a PDF is laid out in points, and `10pt` body from the list
 above only means anything if what sits next to it is measured the same way.
 
-The header rule is `--red` from §1 — the one place CSE red appears on paper.
+The header rule is `--red` from §1, `--druck-kopflinie` thick — the one place
+CSE red appears on paper. The sheets the browser prints — offer, monthly
+record, report — take entity name, title, rule and line height from these
+tokens; a literal `14pt` in a page file is a value DESIGN.md does not know.
 
 **A wide table prints landscape — it is never shrunk or clipped.** Portrait
 A4 leaves 170mm between the margins. A report table with more than six

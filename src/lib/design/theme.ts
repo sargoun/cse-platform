@@ -75,6 +75,11 @@ export const MASSE_DRUCK = {
   'druck-kopf-sperrung': '0.08em',
   'druck-meta-groesse': '9pt',
   'druck-block': '12pt',
+  /** Kopf eines Blatts: Name der Gesellschaft, Titel, Kopflinie; die Zeilenhöhe des Satzes (V-269). */
+  'druck-firma-groesse': '14pt',
+  'druck-titel-groesse': '13pt',
+  'druck-kopflinie': '2.25pt',
+  'druck-zeilenhoehe': '1.5',
   /** Die Bildschirmbreite eines Blatts im Hoch- und im Querformat (V-269). */
   'druck-blatt-hoch': '210mm',
   'druck-blatt-quer': '297mm',

@@ -20237,6 +20237,17 @@ Muster `/^-?[\d.,]+ (%|h)$/u` traf: die Stundenspalten „Ist" und „Soll"
    Monatsnachweis). Der Rückweg „Zurück zum Bericht" ist ein 44-px-Ziel
    (DESIGN §8). Die Regeln stehen in `druck/[bericht]/stil.ts`, damit sie
    sich ohne Browser prüfen lassen.
+6. **Firmenzeile, Titel, Kopflinie und Zeilenhöhe sind Token** (DESIGN §11,
+   neu: `--druck-firma-groesse` 14pt, `--druck-titel-groesse` 13pt,
+   `--druck-kopflinie` 2.25pt, `--druck-zeilenhoehe` 1.5). Das Berichtsblatt
+   schrieb sie als Literale, übernommen aus Angebot und Monatsnachweis, wo sie
+   seit D-204 stehen — in DESIGN.md stand keiner. Jetzt lesen alle drei
+   Blätter dieselben Token. Die Kopflinie steht in Punkten wie jedes Druckmass
+   („Points, not pixels"): 2,25 pt sind genau die 3 px von vorher. Einzige
+   sichtbare Änderung: der Titel des Monatsnachweises stand mit 12 pt, die
+   beiden anderen mit 13 pt — ein Titel, ein Token, jetzt 13 pt. Die
+   gezeichnete Rechnung (`zugferd/blatt.ts`, V-134) setzt mit eigenem Renderer
+   in PDF-Punkten und gehört nicht zu dieser Nachbesserung.
 
 **Geprüft:** `tests/kern/bericht-export.test.ts` (37,5/19,25/40, dieselben
 Stellen wie die Datei, Stundenspalten rechts auch negativ, keine Rundung ohne
@@ -20250,9 +20261,11 @@ Bildschirmfarbe, 44 px, nicht im Druck; auf dunklen Seiten unverändert),
 `tests/kern/bericht-druckblatt.test.ts` (Format ab sieben Spalten quer,
 Cent-Zwillinge zählen nicht; quer/hoch in `@page` und Breite; Köpfe ohne
 `nowrap`; Rollbehälter und Telefonrand; jedes Druckmass mit Wert in DESIGN
-§11), `tests/isolation/bericht.test.ts` (8): die Pipeline hoch, die übrigen
+§11; die vier Kopfmasse aus `MASSE_DRUCK` im Berichtsblatt, kein Literal
+12/13/14 pt, 3 px oder Zeilenhöhe 1,5 in einem der drei Blätter, kein
+Druckmass in px), `tests/isolation/bericht.test.ts` (8): die Pipeline hoch, die übrigen
 fünf quer; `tests/e2e/berichte.spec.ts` prüft `data-format` und die Höhe
 des Rückwegs (nicht gelaufen — Playwright ist in dieser Runde ausgesetzt).
 
-| Betrifft | REP-07, DESIGN §5, DESIGN §9, DESIGN §11, D-204, D-420, D-721, V-055, V-227, V-269, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/lib/design/theme.ts`, `src/components/ui/DruckKnopf.tsx`, `src/app/portal/mein/{bausteine.tsx,monatsnachweis/page.tsx}`, `src/app/portal/[mandant]/berichte/druck/[bericht]/{page.tsx,stil.ts}`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `tests/kern/{bericht-export,zahl,druck-steuerung,bericht-druckblatt}.test.ts`, `tests/design/tokens.test.ts`, `tests/isolation/bericht.test.ts` (8), `tests/e2e/berichte.spec.ts` |
+| Betrifft | REP-07, DESIGN §5, DESIGN §9, DESIGN §11, D-204, D-420, D-721, V-055, V-227, V-269, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/lib/design/theme.ts`, `src/components/ui/DruckKnopf.tsx`, `src/app/portal/mein/{bausteine.tsx,monatsnachweis/page.tsx}`, `src/app/portal/[mandant]/berichte/druck/[bericht]/{page.tsx,stil.ts}`, `src/app/portal/[mandant]/angebote/[id]/pdf/page.tsx`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `tests/kern/{bericht-export,zahl,druck-steuerung,bericht-druckblatt}.test.ts`, `tests/design/tokens.test.ts`, `tests/isolation/bericht.test.ts` (8), `tests/e2e/berichte.spec.ts` |
 |---|---|

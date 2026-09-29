@@ -130,11 +130,11 @@ export default async function BerichtDruckblatt({ params, searchParams }: {
       </div>
 
       <header>
-        <p style={{ margin: 0, fontSize: '14pt', fontWeight: 600 }}>{kopf.firma}</p>
+        <p className="firma">{kopf.firma}</p>
         <hr className="kopflinie" />
       </header>
 
-      <h1 style={{ fontSize: '13pt', margin: 0 }}>{t.dokumentTitel(titel, kopf.name)}</h1>
+      <h1>{t.dokumentTitel(titel, kopf.name)}</h1>
       <dl data-cse="bericht-druck-kopf" style={{ margin: `${MASSE_DRUCK['druck-block']} 0` }}>
         <div>
           <dt style={{ display: 'inline' }}>{`${t.zeitraum}: `}</dt>

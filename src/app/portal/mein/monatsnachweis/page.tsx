@@ -163,7 +163,7 @@ export default async function Monatsnachweis({
         .cse-blatt { background: ${FARBEN_DRUCK['druck-papier']};
                      color: ${FARBEN_DRUCK['druck-text']};
                      max-width: 210mm; margin: 0 auto; padding: 20mm;
-                     font-size: 10pt; line-height: 1.5; }
+                     font-size: 10pt; line-height: ${MASSE_DRUCK['druck-zeilenhoehe']}; }
         .cse-blatt table { width: 100%; border-collapse: collapse; }
         .cse-blatt th, .cse-blatt td {
                      padding: ${MASSE_DRUCK['druck-zelle-y']} ${MASSE_DRUCK['druck-zelle-x']};
@@ -188,7 +188,8 @@ export default async function Monatsnachweis({
         @media (max-width: 767.98px) { .cse-blatt { padding: var(--s4); } }
         .cse-blatt .leise { color: ${FARBEN_DRUCK['druck-text-leise']};
                             font-size: ${MASSE_DRUCK['druck-meta-groesse']}; }
-        .cse-blatt .kopflinie { border: 0; border-top: 3px solid ${FARBEN_MARKE.red};
+        .cse-blatt .kopflinie { border: 0;
+                                border-top: ${MASSE_DRUCK['druck-kopflinie']} solid ${FARBEN_MARKE.red};
                                 margin: ${MASSE_DRUCK['druck-block']} 0
                                         calc(2 * ${MASSE_DRUCK['druck-block']}); }
         .cse-blatt .fuss { border-top: 1px solid ${FARBEN_DRUCK['druck-linie']};
@@ -298,11 +299,13 @@ export default async function Monatsnachweis({
       </div>
 
       <header>
-        <p style={{ margin: 0, fontSize: '14pt', fontWeight: 600 }}>{daten.mandantName}</p>
+        <p style={{ margin: 0, fontSize: MASSE_DRUCK['druck-firma-groesse'], fontWeight: 600 }}>
+          {daten.mandantName}
+        </p>
         <hr className="kopflinie" />
       </header>
 
-      <h1 style={{ margin: 0, fontSize: '12pt' }}>
+      <h1 style={{ margin: 0, fontSize: MASSE_DRUCK['druck-titel-groesse'] }}>
         {b.titel} — {String(monatNr).padStart(2, '0')}/{String(jahr)}
       </h1>
       <p className="leise" style={{ marginTop: '2pt' }}>
