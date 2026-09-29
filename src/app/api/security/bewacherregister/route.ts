@@ -64,12 +64,19 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   const daten = await anfrage.formData();
-  const mandant = (text(daten, 'mandant') ?? '').replace(/[^a-z0-9-]/gu, '');
   const art = text(daten, 'art');
   if (art !== 'erfassen' && art !== 'aendern') {
     return NextResponse.json({ fehler: 'art_unbekannt' }, { status: 400 });
   }
-  const liste = `/portal/${mandant}/security/bewacherregister`;
+  /*
+   * **Die Liste liegt im Bereich der SITZUNG** (Invariante 3; V-275 Nachtrag,
+   * D-773): der Slug des aktiven Mandanten, gelesen gleich nach dem Tor und
+   * VOR dem Schreiben — er gilt für den Erfolg UND für jede Abweisung danach.
+   * Vorher kam er aus dem Formularfeld `mandant`: ein Programm ohne das Feld
+   * landete auf `/portal//…`, und ein fremder Slug im Feld bestimmte das
+   * Ziel. Vor dem Slug antwortet nur das Tor, und das braucht kein Ziel.
+   */
+  let liste = '/portal';
 
   let erfolg: BewacherErfolg;
   try {
@@ -79,6 +86,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           sitzung, { recht: 'personal.bewacher_verwalten', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
+        const [aktiv] = await kontext.abfrage<{ slug: string }>(
+          `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
+        if (aktiv === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
+        liste = `/portal/${aktiv.slug}/security/bewacherregister`;
         /* Nicht gebucht sieht aus wie nicht vorhanden (D-377, AUT-06). */
         if (!(await securityGebucht(kontext))) {
           throw new NichtGefundenFehler('Security ist in dieser Gesellschaft nicht gebucht');

@@ -312,7 +312,6 @@ export default async function Sonderleistungen(
                       data-cse="zeitwert-formular"
                       className="mt-s4 flex flex-wrap items-end gap-s3 border-t border-line pt-s4"
                     >
-                      <input type="hidden" name="mandant" value={mandant} />
                       <input type="hidden" name="art" value="zeitwert" />
                       <input type="hidden" name="position" value={z.id} />
                       <label className="block">
@@ -492,7 +491,6 @@ export default async function Sonderleistungen(
                         className="flex flex-wrap items-end gap-s2"
                         data-cse="abruf-status-formular"
                       >
-                        <input type="hidden" name="mandant" value={mandant} />
                         <input type="hidden" name="art" value="status" />
                         <input type="hidden" name="abruf" value={a.id} />
                         <select
@@ -515,7 +513,6 @@ export default async function Sonderleistungen(
                         className="flex flex-wrap items-end gap-s2"
                         data-cse="abruf-storno-formular"
                       >
-                        <input type="hidden" name="mandant" value={mandant} />
                         <input type="hidden" name="art" value="storno" />
                         <input type="hidden" name="abruf" value={a.id} />
                         <input
@@ -580,7 +577,6 @@ export default async function Sonderleistungen(
             className="flex max-w-form flex-col gap-s4 rounded-lg border border-line
                        bg-surface p-s5"
           >
-            <input type="hidden" name="mandant" value={mandant} />
             <input type="hidden" name="art" value="abruf" />
             <label className="block">
               <span className="mb-s1 block text-sm text-text">Objekt (mit Kunde)</span>

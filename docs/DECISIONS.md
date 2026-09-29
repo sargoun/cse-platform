@@ -23454,10 +23454,32 @@ und damit zu diesem Teil gehören:
    dann führt der Erfolg in den Bereich, in dem geschrieben wurde. Geprüft
    in `tests/kern/rueckweg-{veranstaltung,revier,projekt,zeit-nacherfassung}.test.ts`
    (Programm ohne `zurueck` je Aktion, fremder Bereich in `zurueck`, kein
-   Slug → 404 ohne Schreiben). **Offen, nicht angefasst:** Bewacherregister,
-   Sonderleistung und Turnus nehmen den Bereich aus dem Formularfeld
-   `mandant` — ein Programm ohne dieses Feld landet dort ebenso auf
-   `/portal//…`, mit Erfolg wie mit Fehler.
+   Slug → 404 ohne Schreiben).
+4. **Auch Bewacherregister, Sonderleistung und Turnus nehmen den Bereich
+   aus der Sitzung** — Invariante 3: der aktive Mandant kommt aus der
+   Sitzung, nie aus Client-Zustand, und das gilt auch für den Slug einer
+   Umleitung. Vorher bauten die drei ihr Ziel UND ihren Rückweg aus dem
+   Formularfeld `mandant`: ohne das Feld ging es auf
+   `/portal//security/bewacherregister`, `/portal//reinigung/sonderleistungen`
+   bzw. `/portal//reinigung/turnus/…`, mit einem fremden Slug im Feld in
+   dessen Bereich — im Erfolg wie mit einer Abweisung (einen Unterschied
+   zwischen Programm und Formular machen diese Routen nicht: beide bekommen
+   die Umleitung). Jetzt lesen sie den Slug des aktiven Mandanten gleich
+   nach `authorize` und VOR dem Schreiben, wie Nr. 3; er gilt für den Erfolg
+   und für jede Abweisung danach — vorher antwortet nur das Tor, und das
+   ohne Ziel —, und fehlt er, ist nichts geschrieben (byte-gleiche 404).
+   Keine der drei Routen liest das Feld mehr, und die sieben Formulare, die
+   es an sie schickten (Bewacherregister 1, Sonderleistungen 4,
+   Turnusblatt 1, `/turnus/neu` 1), schicken es nicht mehr. Per grep
+   geprüft: die übrigen 90 Felder `mandant` in 62 Seiten gehen an andere
+   Routen (Dienstplan, Bau, Sicherheit, Freigaben, Vergabe, Personal …),
+   die es selbst lesen — nicht Teil dieser Entscheidung. Geprüft in
+   `tests/kern/rueckweg-{bewacherregister,sonderleistung,turnus}.test.ts`
+   (ohne Feld: Erfolg und Abweisung im aktiven Bereich; ein fremder Slug im
+   Feld ändert kein Ziel; der Bereich folgt dem aktiven Mandanten; kein Slug
+   → 404 ohne Schreiben; Seiten und Route ohne das Feld) und in
+   `tests/kern/leistungsanker-rueckweg.test.ts` (der abgewiesene Anker geht
+   ohne Feld in die Vorschau des aktiven Bereichs).
 
 | Betrifft | D-769, D-753, D-728, D-741, D-766, D-599, AUT-06, V-192, V-275, `src/app/api/{security/veranstaltungen,security/bewacherregister,reinigung/reviere,reinigung/sonderleistungen,reinigung/turnus,bau/projekte,zeit/nacherfassung,zeit/laufend}/route.ts`, `src/app/portal/[mandant]/{security/veranstaltungen/neu,security/bewacherregister,reinigung/reviere/neu,reinigung/sonderleistungen,reinigung/turnus,reinigung/turnus/[id],reinigung/turnus/neu,bau/projekte/neu,zeiten/nacherfassung,zeiten/live}/page.tsx`, `src/app/portal/[mandant]/reinigung/turnus/rueckmeldung.ts`, `src/app/portal/[mandant]/zeiten/nacherfassung/vorgaben.ts`, `src/app/portal/mein/bausteine.tsx`, `src/server/services/{security/veranstaltung-anlegen,security/bewacherregister,reinigung/revier,reinigung/sonderleistung,reinigung/turnus,dienstplan/serie,dienstplan/generator,bau/projekt,zeit/nacherfassung,zeit/laufender-eintrag}.ts`, `src/lib/i18n/verwaltung/{security,reinigung,bau,zeit}.ts`, `tests/kern/rueckweg-*.test.ts`, `tests/kern/stempeluhr-rueckweg.test.ts`, `tests/kern/hilfen/rueckweg-betrieb.ts`, `tests/kern/leistungsanker-rueckweg.test.ts` |
 |---|---|

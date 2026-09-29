@@ -21,7 +21,8 @@ import {
   TURNUS_ANLAGE_TEXTE, TURNUS_AUSNAHME_TEXTE,
 } from '../../src/lib/i18n/verwaltung/reinigung.js';
 import {
-  formular, fremdesFormular, KENNUNG, pruefeSaetze, pruefeSeite, rueckweg, SITZUNG,
+  formular, fremdesFormular, KENNUNG, kontextMitBereich, lies,
+  pruefeSaetze, pruefeSeite, rueckweg, SITZUNG,
 } from './hilfen/rueckweg-betrieb.js';
 
 const zustand = vi.hoisted(() => ({
@@ -29,6 +30,8 @@ const zustand = vi.hoisted(() => ({
   planungsrecht: vi.fn(),
   ausnahme: vi.fn(),
   turnus: vi.fn(),
+  /** Der Slug des aktiven Mandanten, den die Mandantenschicht liefert. */
+  bereich: 'reinigung' as string | null,
 }));
 
 vi.mock('@/server/auth/anfrage-sitzung', () => ({
@@ -39,7 +42,7 @@ vi.mock('@/server/db/pool', () => ({
 }));
 vi.mock('@/server/kontext/index', () => ({
   withTenant: <T,>(_tx: unknown, _s: unknown, fn: (k: unknown) => Promise<T>) =>
-    fn({ abfrage: () => Promise.resolve([]) }),
+    fn(kontextMitBereich(() => zustand.bereich)),
 }));
 vi.mock('@/server/auth/authorize', () => ({ authorize: zustand.authorize }));
 vi.mock('@/server/auth/zugang', () => ({ rechtepruefer: () => ({}) }));
@@ -63,11 +66,11 @@ const { POST } = await import('../../src/app/api/reinigung/turnus/route.js');
 
 const LISTE = '/portal/reinigung/reinigung/turnus';
 const AUSNAHME = [
-  ['mandant', 'reinigung'], ['art', 'ausnahme'], ['turnus', KENNUNG], ['datum', '2026-10-05'],
+  ['art', 'ausnahme'], ['turnus', KENNUNG], ['datum', '2026-10-05'],
   ['ausnahme_art', 'ausfall'], ['grund', 'Objekt geschlossen'],
 ] as const;
 const TURNUS = [
-  ['mandant', 'reinigung'], ['art', 'turnus'], ['revier', KENNUNG], ['leistung', KENNUNG],
+  ['art', 'turnus'], ['revier', KENNUNG], ['leistung', KENNUNG],
   ['bezeichnung', 'Abendreinigung'], ['wochentag', 'MO'], ['beginn', '18:00'], ['dauer', '120'],
   ['gueltig_ab', '2026-10-01'],
 ] as const;
@@ -82,6 +85,7 @@ beforeEach(() => {
     planungsserieId: KENNUNG, traegerId: KENNUNG, bestandSchon: false, erzeugt: 8,
     aktualisiert: 0, uebersprungen: [], generiertBis: '2026-11-26',
   });
+  zustand.bereich = 'reinigung';
 });
 
 describe('POST /api/reinigung/turnus (Ausnahme) — der Grund geht aufs Turnusblatt', () => {
@@ -200,5 +204,67 @@ describe('die Sätze der beiden Turnusseiten', () => {
       'eigenerEintrag(tL.fehler, fehlerAusApi)', 'eigenerEintrag(tA.fehler, fehlerAusApi) ?? tA.sonst',
       'rolle="alert"',
     ]);
+  });
+});
+
+/*
+ * **Der Bereich kommt aus der Sitzung** (V-275 Nachtrag, D-773;
+ * Invariante 3). Vorher las die Route das Formularfeld `mandant`: ohne das
+ * Feld ging es auf `/portal//reinigung/turnus`, mit einem fremden Slug in dessen
+ * Bereich — im Erfolg wie mit einer Abweisung. Die Route unterscheidet kein
+ * Programm von einem Formular: beide bekommen die Umleitung.
+ */
+describe('Liste, Blatt und Anlage liegen im Bereich der Sitzung — nicht in dem aus dem Formular', () => {
+  const mitFeld = (slug: string, felder: readonly (readonly [string, string])[]) =>
+    [['mandant', slug] as const, ...felder];
+
+  it('ohne Feld `mandant`: jeder Erfolg und jede Abweisung im aktiven Bereich', async () => {
+    const faelle: readonly [readonly (readonly [string, string])[], string][] = [
+      [AUSNAHME, `${LISTE}/${KENNUNG}?ausnahme=1`],
+      [ohne(AUSNAHME, 'grund'), `${LISTE}/${KENNUNG}?fehler=ausnahme_unvollstaendig`],
+      [TURNUS, `${LISTE}?angelegt=1&erzeugt=8`],
+      [ohne(TURNUS, 'beginn'), `${LISTE}/neu?fehler=turnus_unvollstaendig`],
+    ];
+    for (const [felder, pfad] of faelle) {
+      const ziel = rueckweg(await POST(formular('/api/reinigung/turnus', felder)));
+      expect(`${ziel.pathname}${ziel.search}`).toBe(pfad);
+    }
+  });
+
+  it('ein fremder Slug im Feld `mandant` ändert das Ziel nicht — weder im Erfolg noch im Fehler', async () => {
+    for (const fremd of ['security', 'bau', 'operations', '']) {
+      const blatt = rueckweg(await POST(formular('/api/reinigung/turnus', mitFeld(fremd, AUSNAHME))));
+      expect(`${blatt.pathname}${blatt.search}`, fremd).toBe(`${LISTE}/${KENNUNG}?ausnahme=1`);
+      const liste = rueckweg(await POST(formular('/api/reinigung/turnus', mitFeld(fremd, TURNUS))));
+      expect(`${liste.pathname}${liste.search}`, fremd).toBe(`${LISTE}?angelegt=1&erzeugt=8`);
+    }
+    zustand.turnus.mockRejectedValue(new SerieEingabeFehlt('x', 'wochentag_fehlt'));
+    const fehler = rueckweg(await POST(formular('/api/reinigung/turnus', mitFeld('bau', TURNUS))));
+    expect(`${fehler.pathname}${fehler.search}`).toBe(`${LISTE}/neu?fehler=wochentag_fehlt`);
+  });
+
+  it('der Bereich folgt dem aktiven Mandanten', async () => {
+    zustand.bereich = 'reinigung-sued';
+    const ziel = rueckweg(await POST(formular('/api/reinigung/turnus', mitFeld('reinigung', TURNUS))));
+    expect(ziel.pathname).toBe('/portal/reinigung-sued/reinigung/turnus');
+  });
+
+  it('ohne Slug der Sitzung wird nichts geschrieben — die byte-gleiche 404', async () => {
+    zustand.bereich = null;
+    for (const felder of [AUSNAHME, TURNUS]) {
+      const r = await POST(formular('/api/reinigung/turnus', felder));
+      expect(r.status).toBe(404);
+      expect(await r.text()).toBe(await nichtGefundenAntwort().text());
+    }
+    expect(zustand.ausnahme).not.toHaveBeenCalled();
+    expect(zustand.turnus).not.toHaveBeenCalled();
+  });
+
+  it('weder Blatt noch Anlage schicken ein Feld `mandant`, die Route liest keines', () => {
+    for (const seite of ['src/app/portal/[mandant]/reinigung/turnus/[id]/page.tsx',
+      'src/app/portal/[mandant]/reinigung/turnus/neu/page.tsx']) {
+      expect(lies(seite), seite).not.toContain('name="mandant"');
+    }
+    expect(lies('src/app/api/reinigung/turnus/route.ts')).not.toContain("'mandant'");
   });
 });

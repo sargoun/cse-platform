@@ -668,7 +668,6 @@ export default async function TurnusNeu(
                 data-cse="turnus-anlegen-formular"
                 className="mt-s5 rounded-lg border border-line bg-surface p-s5"
               >
-                <input type="hidden" name="mandant" value={mandant} />
                 <input type="hidden" name="art" value="turnus" />
                 <input type="hidden" name="revier" value={gewaehltesRevier ?? ''} />
                 <input type="hidden" name="leistung" value={gewaehlteLeistung ?? ''} />

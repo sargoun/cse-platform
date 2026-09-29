@@ -34,7 +34,11 @@ vi.mock('@/server/db/pool', () => ({
 }));
 vi.mock('@/server/kontext/index', () => ({
   withTenant: <T,>(_tx: unknown, _s: unknown, fn: (k: unknown) => Promise<T>) =>
-    fn({ abfrage: () => Promise.resolve([]) }),
+    /* Nur der Slug des aktiven Mandanten hat eine Zeile (Turnus, V-275 Nachtrag, D-773). */
+    fn({
+      abfrage: (sql: string) => Promise.resolve(
+        sql.includes('app.aktiver_mandant()') ? [{ slug: 'reinigung' }] : []),
+    }),
 }));
 vi.mock('@/server/auth/authorize', () => ({ authorize: () => Promise.resolve(undefined) }));
 vi.mock('@/server/auth/zugang', () => ({ rechtepruefer: () => ({}) }));
@@ -134,8 +138,10 @@ describe('POST /api/sicherheit/posten (Anlage) — ein Ankerfehler kommt auf die
 
 describe('POST /api/reinigung/turnus — der Grund reist als Schlüssel, nicht als Satz (VORHER ?fehler=<Satz>)', () => {
   it('303 zurück in die Vorschau, mit allen Eingaben und dem Schlüssel', async () => {
+    /* Ohne Feld `mandant`: der Turnus nimmt den Bereich aus der Sitzung (V-275 Nachtrag). */
     const antwort = await TURNUS(anfrage('/api/reinigung/turnus', [
-      ...TURNUS_FELDER, ['frequenz', 'woechentlich'], ['interval', '1'],
+      ...TURNUS_FELDER.filter(([k]) => k !== 'mandant'), ['frequenz', 'woechentlich'],
+      ['interval', '1'],
     ]));
     expect(antwort.status).toBe(303);
     const z = ziel(antwort);

@@ -6,6 +6,7 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import {
   erfasseAbruf, setzeStatus, setzeZeitwert, storniereAbruf, SONDERLEISTUNG_STATUS,
@@ -67,13 +68,20 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   const daten = await anfrage.formData();
-  const mandant = (text(daten, 'mandant') ?? '').replace(/[^a-z0-9-]/gu, '');
   const roheArt = text(daten, 'art');
   const art: Art | undefined = ARTEN.find((a) => a === roheArt);
   if (art === undefined) {
     return NextResponse.json({ fehler: 'art_unbekannt' }, { status: 400 });
   }
-  const liste = `/portal/${mandant}/reinigung/sonderleistungen`;
+  /*
+   * **Die Seite liegt im Bereich der SITZUNG** (Invariante 3; V-275 Nachtrag,
+   * D-773): der Slug des aktiven Mandanten, gelesen gleich nach dem Tor und
+   * VOR dem Schreiben — er gilt für den Erfolg UND für jede Abweisung danach.
+   * Vorher kam er aus dem Formularfeld `mandant`: ein Programm ohne das Feld
+   * landete auf `/portal//…`, und ein fremder Slug im Feld bestimmte das
+   * Ziel. Vor dem Slug antwortet nur das Tor, und das braucht kein Ziel.
+   */
+  let liste = '/portal';
 
   let erfolg: SonderleistungErfolg;
   try {
@@ -93,6 +101,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
+        const [aktiv] = await kontext.abfrage<{ slug: string }>(
+          `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
+        if (aktiv === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
+        liste = `/portal/${aktiv.slug}/reinigung/sonderleistungen`;
 
         if (art === 'zeitwert') {
           const position = text(daten, 'position');

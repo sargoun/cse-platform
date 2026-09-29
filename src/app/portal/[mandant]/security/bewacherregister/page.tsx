@@ -384,7 +384,6 @@ export default async function Bewacherregister(
                       data-cse="bewacher-formular"
                       className="mt-s4 flex flex-wrap items-end gap-s3 border-t border-line pt-s4"
                     >
-                      <input type="hidden" name="mandant" value={mandant} />
                       <input
                         type="hidden"
                         name="art"

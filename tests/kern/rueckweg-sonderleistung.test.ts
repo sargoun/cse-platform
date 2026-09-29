@@ -21,7 +21,8 @@ import { nichtGefundenAntwort } from '../../src/server/auth/antwort.js';
 import { eigenerEintrag } from '../../src/lib/nachschlagen.js';
 import { SONDERLEISTUNG_TEXTE } from '../../src/lib/i18n/verwaltung/reinigung.js';
 import {
-  formular, fremdesFormular, KENNUNG, pruefeSaetze, pruefeSeite, rueckweg, SITZUNG,
+  formular, fremdesFormular, KENNUNG, kontextMitBereich, lies,
+  pruefeSaetze, pruefeSeite, rueckweg, SITZUNG,
 } from './hilfen/rueckweg-betrieb.js';
 
 const zustand = vi.hoisted(() => ({
@@ -31,6 +32,8 @@ const zustand = vi.hoisted(() => ({
   status: vi.fn(),
   storno: vi.fn(),
   zeitwert: vi.fn(),
+  /** Der Slug des aktiven Mandanten, den die Mandantenschicht liefert. */
+  bereich: 'reinigung' as string | null,
 }));
 
 vi.mock('@/server/auth/anfrage-sitzung', () => ({
@@ -41,7 +44,7 @@ vi.mock('@/server/db/pool', () => ({
 }));
 vi.mock('@/server/kontext/index', () => ({
   withTenant: <T,>(_tx: unknown, _s: unknown, fn: (k: unknown) => Promise<T>) =>
-    fn({ abfrage: zustand.abfrage }),
+    fn(kontextMitBereich(() => zustand.bereich, zustand.abfrage)),
 }));
 vi.mock('@/server/auth/authorize', () => ({ authorize: zustand.authorize }));
 vi.mock('@/server/auth/zugang', () => ({ rechtepruefer: () => ({}) }));
@@ -61,17 +64,17 @@ const { POST } = await import('../../src/app/api/reinigung/sonderleistungen/rout
 
 const SEITE = '/portal/reinigung/reinigung/sonderleistungen';
 const ABRUF = [
-  ['mandant', 'reinigung'], ['art', 'abruf'], ['objekt', KENNUNG], ['position', KENNUNG],
+  ['art', 'abruf'], ['objekt', KENNUNG], ['position', KENNUNG],
   ['bezeichnung', 'Glasreinigung Halle 3'], ['beauftragt_am', '2026-09-28'],
 ] as const;
 const STATUS = [
-  ['mandant', 'reinigung'], ['art', 'status'], ['abruf', KENNUNG], ['status', 'erbracht'],
+  ['art', 'status'], ['abruf', KENNUNG], ['status', 'erbracht'],
 ] as const;
 const STORNO = [
-  ['mandant', 'reinigung'], ['art', 'storno'], ['abruf', KENNUNG], ['grund', 'doppelt erfasst'],
+  ['art', 'storno'], ['abruf', KENNUNG], ['grund', 'doppelt erfasst'],
 ] as const;
 const ZEITWERT = [
-  ['mandant', 'reinigung'], ['art', 'zeitwert'], ['position', KENNUNG], ['zeitwert', '12,5'],
+  ['art', 'zeitwert'], ['position', KENNUNG], ['zeitwert', '12,5'],
 ] as const;
 const ohne = (felder: readonly (readonly [string, string])[], feld: string) =>
   felder.filter(([k]) => k !== feld);
@@ -83,6 +86,7 @@ beforeEach(() => {
   zustand.status.mockReset().mockResolvedValue({ von: 'geplant', nach: 'erbracht' });
   zustand.storno.mockReset().mockResolvedValue(undefined);
   zustand.zeitwert.mockReset().mockResolvedValue(undefined);
+  zustand.bereich = 'reinigung';
 });
 
 describe('POST /api/reinigung/sonderleistungen — Gründe statt Sätze', () => {
@@ -213,5 +217,59 @@ describe('die Sätze der Sonderleistungen', () => {
       'eigenerEintrag(tS.fehler, fehler) ?? tS.sonst',
       'rolle="status"', 'rolle="alert"',
     ]);
+  });
+});
+
+/*
+ * **Der Bereich kommt aus der Sitzung** (V-275 Nachtrag, D-773;
+ * Invariante 3). Vorher las die Route das Formularfeld `mandant`: ohne das
+ * Feld ging es auf `/portal//reinigung/sonderleistungen`, mit einem fremden Slug in dessen
+ * Bereich — im Erfolg wie mit einer Abweisung. Die Route unterscheidet kein
+ * Programm von einem Formular: beide bekommen die Umleitung.
+ */
+describe('die Seite liegt im Bereich der Sitzung — nicht in dem aus dem Formular', () => {
+  it('ohne Feld `mandant`: Erfolg und Abweisung gehen auf die Seite des aktiven Bereichs', async () => {
+    for (const [felder, erfolg] of [
+      [ABRUF, 'abruf_erfasst'], [STATUS, 'status_gesetzt'],
+      [STORNO, 'abruf_storniert'], [ZEITWERT, 'zeitwert_gesetzt'],
+    ] as const) {
+      const ziel = rueckweg(await POST(formular('/api/reinigung/sonderleistungen', felder)));
+      expect(`${ziel.pathname}${ziel.search}`, erfolg).toBe(`${SEITE}?erfolg=${erfolg}`);
+    }
+    zustand.zeitwert.mockRejectedValueOnce(new AbrufEingabeFehlt('x', 'zeitwert_ungueltig'));
+    const fehler = rueckweg(await POST(formular('/api/reinigung/sonderleistungen', ZEITWERT)));
+    expect(`${fehler.pathname}${fehler.search}`).toBe(`${SEITE}?fehler=zeitwert_ungueltig`);
+  });
+
+  it('ein fremder Slug im Feld `mandant` ändert das Ziel nicht — weder im Erfolg noch im Fehler', async () => {
+    for (const fremd of ['security', 'bau', 'operations', '']) {
+      const ziel = rueckweg(await POST(formular('/api/reinigung/sonderleistungen',
+        [['mandant', fremd], ...STATUS])));
+      expect(`${ziel.pathname}${ziel.search}`, fremd).toBe(`${SEITE}?erfolg=status_gesetzt`);
+    }
+    const fehler = rueckweg(await POST(formular('/api/reinigung/sonderleistungen',
+      [['mandant', 'security'], ...ohne(STATUS, 'status')])));
+    expect(`${fehler.pathname}${fehler.search}`).toBe(`${SEITE}?fehler=zustand_unvollstaendig`);
+  });
+
+  it('der Bereich folgt dem aktiven Mandanten', async () => {
+    zustand.bereich = 'reinigung-sued';
+    const ziel = rueckweg(await POST(formular('/api/reinigung/sonderleistungen',
+      [['mandant', 'reinigung'], ...STATUS])));
+    expect(ziel.pathname).toBe('/portal/reinigung-sued/reinigung/sonderleistungen');
+  });
+
+  it('ohne Slug der Sitzung wird nichts geschrieben — die byte-gleiche 404', async () => {
+    zustand.bereich = null;
+    const r = await POST(formular('/api/reinigung/sonderleistungen', ABRUF));
+    expect(r.status).toBe(404);
+    expect(await r.text()).toBe(await nichtGefundenAntwort().text());
+    expect(zustand.erfasse).not.toHaveBeenCalled();
+  });
+
+  it('kein Formular der Seite schickt ein Feld `mandant`, die Route liest keines', () => {
+    expect(lies('src/app/portal/[mandant]/reinigung/sonderleistungen/page.tsx'))
+      .not.toContain('name="mandant"');
+    expect(lies('src/app/api/reinigung/sonderleistungen/route.ts')).not.toContain("'mandant'");
   });
 });

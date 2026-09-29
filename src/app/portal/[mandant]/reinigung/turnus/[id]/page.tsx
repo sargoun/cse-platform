@@ -508,7 +508,6 @@ export default async function TurnusBlattSeite(
             className="mt-s5 flex max-w-form flex-col gap-s4 rounded-lg border border-line
                        bg-surface p-s5"
           >
-            <input type="hidden" name="mandant" value={mandant} />
             <input type="hidden" name="art" value="ausnahme" />
             <input type="hidden" name="turnus" value={t.id} />
             <h3 className="m-0 text-h3 text-text">Ausnahme erfassen</h3>

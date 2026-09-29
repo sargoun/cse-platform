@@ -20,7 +20,8 @@ import { nichtGefundenAntwort } from '../../src/server/auth/antwort.js';
 import { eigenerEintrag } from '../../src/lib/nachschlagen.js';
 import { BEWACHERREGISTER_TEXTE } from '../../src/lib/i18n/verwaltung/security.js';
 import {
-  formular, fremdesFormular, KENNUNG, pruefeSaetze, pruefeSeite, rueckweg, SITZUNG,
+  formular, fremdesFormular, KENNUNG, kontextMitBereich, lies,
+  pruefeSaetze, pruefeSeite, rueckweg, SITZUNG,
 } from './hilfen/rueckweg-betrieb.js';
 
 const zustand = vi.hoisted(() => ({
@@ -28,6 +29,8 @@ const zustand = vi.hoisted(() => ({
   gebucht: vi.fn(),
   erfasse: vi.fn(),
   aktualisiere: vi.fn(),
+  /** Der Slug des aktiven Mandanten, den die Mandantenschicht liefert. */
+  bereich: 'security' as string | null,
 }));
 
 vi.mock('@/server/auth/anfrage-sitzung', () => ({
@@ -38,7 +41,7 @@ vi.mock('@/server/db/pool', () => ({
 }));
 vi.mock('@/server/kontext/index', () => ({
   withTenant: <T,>(_tx: unknown, _s: unknown, fn: (k: unknown) => Promise<T>) =>
-    fn({ abfrage: () => Promise.resolve([]) }),
+    fn(kontextMitBereich(() => zustand.bereich)),
 }));
 vi.mock('@/server/auth/authorize', () => ({ authorize: zustand.authorize }));
 vi.mock('@/server/auth/zugang', () => ({ rechtepruefer: () => ({}) }));
@@ -56,8 +59,7 @@ const { POST } = await import('../../src/app/api/security/bewacherregister/route
 
 const LISTE = '/portal/security/security/bewacherregister';
 const ERFASSEN = [
-  ['mandant', 'security'], ['art', 'erfassen'], ['person', KENNUNG],
-  ['bewacher_id', 'B-123'], ['status', 'registriert'],
+  ['art', 'erfassen'], ['person', KENNUNG], ['bewacher_id', 'B-123'], ['status', 'registriert'],
 ] as const;
 const AENDERN = [...ERFASSEN.filter(([k]) => k !== 'art'), ['art', 'aendern'],
   ['eintrag', KENNUNG]] as const;
@@ -67,6 +69,7 @@ beforeEach(() => {
   zustand.gebucht.mockReset().mockResolvedValue(true);
   zustand.erfasse.mockReset().mockResolvedValue({ id: KENNUNG });
   zustand.aktualisiere.mockReset().mockResolvedValue(undefined);
+  zustand.bereich = 'security';
 });
 
 describe('POST /api/security/bewacherregister — Schlüssel statt Sätze', () => {
@@ -168,5 +171,54 @@ describe('die Sätze des Bewacherregisters', () => {
       'eigenerEintrag(tR.fehler, fehler) ?? tR.sonst',
       'rolle="status"', 'rolle="alert"',
     ]);
+  });
+});
+
+/*
+ * **Der Bereich kommt aus der Sitzung** (V-275 Nachtrag, D-773;
+ * Invariante 3). Vorher las die Route das Formularfeld `mandant`: ohne das
+ * Feld ging es auf `/portal//security/bewacherregister`, mit einem fremden Slug in dessen
+ * Bereich — im Erfolg wie mit einer Abweisung. Die Route unterscheidet kein
+ * Programm von einem Formular: beide bekommen die Umleitung.
+ */
+describe('die Liste liegt im Bereich der Sitzung — nicht in dem aus dem Formular', () => {
+  const mitFeld = (slug: string) => [['mandant', slug] as const, ...ERFASSEN];
+
+  it('ohne Feld `mandant`: Erfolg und Abweisung gehen auf die Liste des aktiven Bereichs', async () => {
+    const erfolg = rueckweg(await POST(formular('/api/security/bewacherregister', ERFASSEN)));
+    expect(`${erfolg.pathname}${erfolg.search}`).toBe(`${LISTE}?erfolg=erfasst`);
+    zustand.erfasse.mockRejectedValue(new BewacherEingabeFehlt('x', 'datum_ungueltig'));
+    const fehler = rueckweg(await POST(formular('/api/security/bewacherregister', ERFASSEN)));
+    expect(`${fehler.pathname}${fehler.search}`).toBe(`${LISTE}?fehler=datum_ungueltig`);
+  });
+
+  it('ein fremder Slug im Feld `mandant` ändert das Ziel nicht — weder im Erfolg noch im Fehler', async () => {
+    for (const fremd of ['reinigung', 'bau', 'operations', '']) {
+      const erfolg = rueckweg(await POST(formular('/api/security/bewacherregister', mitFeld(fremd))));
+      expect(`${erfolg.pathname}${erfolg.search}`, fremd).toBe(`${LISTE}?erfolg=erfasst`);
+    }
+    zustand.erfasse.mockRejectedValue(new BewacherEingabeFehlt('x', 'status_unbekannt'));
+    const fehler = rueckweg(await POST(formular('/api/security/bewacherregister', mitFeld('bau'))));
+    expect(`${fehler.pathname}${fehler.search}`).toBe(`${LISTE}?fehler=status_unbekannt`);
+  });
+
+  it('der Bereich folgt dem aktiven Mandanten', async () => {
+    zustand.bereich = 'wache-ost';
+    const ziel = rueckweg(await POST(formular('/api/security/bewacherregister', mitFeld('security'))));
+    expect(ziel.pathname).toBe('/portal/wache-ost/security/bewacherregister');
+  });
+
+  it('ohne Slug der Sitzung wird nichts geschrieben — die byte-gleiche 404', async () => {
+    zustand.bereich = null;
+    const r = await POST(formular('/api/security/bewacherregister', ERFASSEN));
+    expect(r.status).toBe(404);
+    expect(await r.text()).toBe(await nichtGefundenAntwort().text());
+    expect(zustand.erfasse).not.toHaveBeenCalled();
+  });
+
+  it('das Formular schickt kein Feld `mandant` mehr, die Route liest keines', () => {
+    expect(lies('src/app/portal/[mandant]/security/bewacherregister/page.tsx'))
+      .not.toContain('name="mandant"');
+    expect(lies('src/app/api/security/bewacherregister/route.ts')).not.toContain("'mandant'");
   });
 });
