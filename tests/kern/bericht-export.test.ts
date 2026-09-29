@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  istBericht, koernungAus, MIT_KOERNUNG, zellenFuerBlatt, type BerichtTabelle,
+  istBericht, koernungAus, MIT_KOERNUNG, PROJEKT_STATUS_TEXT, zellenFuerBlatt,
+  type BerichtTabelle,
 } from '../../src/server/services/bericht/export.js';
 import { alsCsv, datumText, type Spalte } from '../../src/server/services/bericht/ausgabe.js';
 import { cent, type Cent } from '../../src/server/services/finanz/geld.js';
 import { BERICHT_DRUCK_TEXTE } from '../../src/lib/i18n/verwaltung/bericht-druck.js';
+import { enumWerte } from './hilfen/beschriftung.js';
 
 /**
  * REP-07: zwei Ausgänge, eine Quelle (V-227, D-721).
@@ -190,5 +192,26 @@ describe('das Register nennt den zweiten Ausgang dort, wo der erste steht', () =
   it('D-569 (Seitenränder) nicht', () => {
     expect(abschnitt('D-569')).not.toContain('REP-07');
     expect(abschnitt('D-569')).not.toContain('Nachtrag (D-721');
+  });
+});
+
+/*
+ * Der Projektstand steht seit V-227 als Wort in Datei und Blatt. Die Karte war
+ * ein `Record<string, string>`, und anders als die übrigen Karten der Gruppe
+ * prüfte sie niemand gegen die Migration: ein neuer Stand stünde in Datei und
+ * Blatt unbemerkt roh (`in_abnahme`) — V-269.
+ */
+describe('PROJEKT_STATUS_TEXT kennt genau die Stände aus der Migration', () => {
+  it('jeder Wert von `projekt_status` hat ein Wort — und keiner mehr', () => {
+    const werte = enumWerte('projekt_status');
+    expect(werte.length).toBeGreaterThan(0);
+    expect(Object.keys(PROJEKT_STATUS_TEXT).sort()).toEqual([...werte].sort());
+  });
+
+  it('kein Wort ist ein Schlüssel', () => {
+    for (const [schluessel, wort] of Object.entries(PROJEKT_STATUS_TEXT)) {
+      expect(wort, schluessel).not.toMatch(/_/u);
+      expect(wort, schluessel).not.toBe(schluessel);
+    }
   });
 });

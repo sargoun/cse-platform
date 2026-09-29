@@ -19738,7 +19738,11 @@ nur CSV, und die ROADMAP hakte REP-07 trotzdem ab.
 5. **Nebenbei in der Datei geändert, weil das Blatt dieselben Werte zeigt:**
    Tage stehen als TT.MM.JJJJ (`datumText`) statt `YYYY-MM-DD`, und der Stand
    eines Projekts als Wort (`PROJEKT_STATUS_TEXT`, dieselbe Karte wie auf der
-   Projektseite) statt als roher Wert `in_arbeit`.
+   Projektseite) statt als roher Wert `in_arbeit`. **Ergänzt in V-269:** keine
+   Prüfung las bis dahin eine Datenzelle der echten Datei, und die Karte stand
+   nicht gegen die Migration — jetzt `tests/isolation/bericht.test.ts` (8)
+   (Von/Bis des Umsatzes, Stand und Soll-Ende eines Projekts, leeres Ist-Ende)
+   und `tests/kern/bericht-export.test.ts` (Karte = `projekt_status`).
 
 | Betrifft | REP-07, D-204, D-506, V-227, DESIGN §11, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/app/api/berichte/[bericht]/csv/route.ts`, `src/app/portal/[mandant]/berichte/{rahmen.tsx,projekte/page.tsx,druck/[bericht]/page.tsx}`, `src/components/ui/DruckKnopf.tsx`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `docs/architecture/04-SEITENKARTE.md`, `docs/ROADMAP.md`, `tests/kern/bericht-export.test.ts`, `tests/isolation/bericht.test.ts` (8), `tests/e2e/berichte.spec.ts` |
 |---|---|

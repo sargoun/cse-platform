@@ -767,4 +767,59 @@ describe('(8) REP-07: Datei und Druckblatt aus einer Quelle (D-721)', () => {
     expect(blatt.zeilen[i]![soll]!.text).toMatch(/^\d+:\d{2} h$/u);
     expect(blatt.zeilen[i]![soll]!.zahl).toBe(true);
   });
+
+  /**
+   * **Die Datenzellen der ECHTEN Datei** (D-721 Nr. 5, V-269). V-227 änderte die
+   * Form einer bestehenden Exportdatei: Tage als TT.MM.JJJJ statt JJJJ-MM-TT,
+   * der Projektstand als Wort statt `in_arbeit`. Geprüft wurden bis hierher nur
+   * Köpfe und Zeilenzahl — keine Zelle. Hier: die Zeiträume des Umsatzes und
+   * ein Projekt mit Stand und Soll-Ende, gelesen aus der Datei, die
+   * `alsCsv` schreibt.
+   */
+  it('in der Datei stehen Tage als TT.MM.JJJJ und der Projektstand als Wort', async () => {
+    const jahr = await berlinJahr();
+    const wer = await legeLeitungAn(f.bau, 'admin');
+    const datei = (t: Awaited<ReturnType<typeof berichtTabelle>>): string[][] =>
+      alsCsv(t.spalten, t.zeilen as readonly never[]).replace('\uFEFF', '').trimEnd()
+        .split('\r\n').map((z) => z.split(';'));
+
+    const umsatz = datei(await alsBereich(f.bau,
+      (k) => berichtTabelle('umsatz', k, jahr, 'quartal'), wer));
+    const von = umsatz[0]!.indexOf('Von');
+    const bis = umsatz[0]!.indexOf('Bis');
+    expect(umsatz.length, 'vier Quartale und der Kopf').toBe(5);
+    expect(umsatz[1]![von]).toBe(`01.01.${String(jahr)}`);
+    expect(umsatz[4]![bis]).toBe(`31.12.${String(jahr)}`);
+    for (const zeile of umsatz.slice(1)) {
+      expect(zeile[von]).toMatch(/^\d{2}\.\d{2}\.\d{4}$/u);
+      expect(zeile[bis]).toMatch(/^\d{2}\.\d{2}\.\d{4}$/u);
+    }
+
+    const [k] = await sql.unsafe<{ id: string }[]>(
+      `insert into kunde (mandant_id, kundennummer, name)
+       values ($1::uuid, $2, 'Bauherr Süd') returning id`, [f.bau, `K-${zufall()}`]);
+    const [au] = await sql.unsafe<{ id: string }[]>(
+      `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, status, bezeichnung,
+                            verantwortlich_benutzer_id, start_datum)
+       values ($1::uuid, $2, $3::uuid, 'projekt', 'aktiv', 'Rohbau Süd', $4::uuid, $5::date)
+       returning id`,
+      [f.bau, `AU-${zufall()}`, k!.id, wer, `${String(jahr)}-01-01`]);
+    const nummer = `P-${zufall()}`;
+    await sql.unsafe(
+      `insert into projekt (mandant_id, auftrag_id, nummer, bezeichnung, kunde_id, art,
+                            vertragsgrundlage, status, soll_beginn, soll_ende,
+                            auftragssumme_netto_cent)
+       values ($1::uuid, $2::uuid, $3, 'Rohbau Süd', $4::uuid, 'hochbau', 'vob_b',
+               'in_arbeit', $5::date, $6::date, 100000)`,
+      [f.bau, au!.id, nummer, k!.id, `${String(jahr)}-02-01`, `${String(jahr)}-11-30`]);
+
+    const projekte = datei(await alsBereich(f.bau,
+      (k2) => berichtTabelle('projekte', k2, jahr, 'jahr'), wer));
+    const zeile = projekte.find((z) => z[0] === nummer);
+    expect(zeile, 'das Projekt steht in der Datei').toBeDefined();
+    expect(zeile![projekte[0]!.indexOf('Status')]).toBe('In Arbeit');
+    expect(zeile![projekte[0]!.indexOf('Soll-Ende')]).toBe(`30.11.${String(jahr)}`);
+    /* Kein Ist-Ende: leer, nicht „null" und kein erfundener Tag. */
+    expect(zeile![projekte[0]!.indexOf('Ist-Ende')]).toBe('');
+  });
 });
