@@ -63,7 +63,7 @@ export default async function NeuerTermin({ params, searchParams }: {
   return (
     <PortalRahmen
       titel={t.neuTitel}
-      wurzelTitel={t.zumKalender}
+      wurzelTitel={t.modul}
       bereich={mandant as BereichSchluessel}
       nurLesen={false}
       leiste={zugang.leiste}

@@ -10,6 +10,8 @@ import type { InternSprache } from '../intern.js';
 import type { EigeneArt, TerminAbweisung } from '../../../server/services/kalender/termin.js';
 
 export interface KalenderTerminTexte {
+  /** Der Modulname — Titel der Spur, die zur Portalwurzel führt (PortalRahmen). */
+  readonly modul: string;
   readonly neuerTermin: string;
   readonly neuTitel: string;
   readonly neuEinleitung: string;
@@ -59,6 +61,7 @@ export interface KalenderTerminTexte {
 
 export const KALENDER_TERMIN_TEXTE: Readonly<Record<InternSprache, KalenderTerminTexte>> = {
   de: {
+    modul: 'Kalender',
     neuerTermin: 'Neuer Termin',
     neuTitel: 'Neuer Termin',
     neuEinleitung:
@@ -138,6 +141,7 @@ export const KALENDER_TERMIN_TEXTE: Readonly<Record<InternSprache, KalenderTermi
     fehlerSonst: 'Der Termin wurde abgewiesen.',
   },
   en: {
+    modul: 'Calendar',
     neuerTermin: 'New appointment',
     neuTitel: 'New appointment',
     neuEinleitung:

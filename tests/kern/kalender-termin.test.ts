@@ -180,3 +180,21 @@ describe('die Hinweise nennen nur, was die Seite zeigt', () => {
     expect(KALENDER_TERMIN_TEXTE.en.ohneRechtNach).toMatch(/^[a-z].*\.$/u);
   });
 });
+
+/**
+ * Die Spur führt zur Portalwurzel (PortalRahmen) und heisst deshalb wie das
+ * Modul — nicht „Zum Kalender", was ein anderes Ziel verspricht als der
+ * gleichlautende Link darunter (WCAG 2.4.4; V-267, Prüfung der Gruppe
+ * kalender-dokumente).
+ */
+describe('/kalender/neu: die Spur trägt den Modulnamen', () => {
+  it('wurzelTitel ist t.modul — Kalender / Calendar; „Zum Kalender" bleibt der Link zu /kalender', () => {
+    const seite = readFileSync('src/app/portal/[mandant]/kalender/neu/page.tsx', 'utf8');
+    expect(seite).toContain('wurzelTitel={t.modul}');
+    expect(seite).not.toContain('wurzelTitel={t.zumKalender}');
+    const link = seite.slice(seite.indexOf('data-cse="zum-kalender"') - 120);
+    expect(link).toMatch(/href=\{alsRoute\(`\/portal\/\$\{mandant\}\/kalender`\)\}/u);
+    expect(KALENDER_TERMIN_TEXTE.de.modul).toBe('Kalender');
+    expect(KALENDER_TERMIN_TEXTE.en.modul).toBe('Calendar');
+  });
+});
