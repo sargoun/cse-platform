@@ -19818,7 +19818,9 @@ der iCal-Ausgang `STATUS:CANCELLED` schreibt.
 5. **Wer anlegt, führt den Termin**; Teilnehmende nur aus DIESER
    Gesellschaft und nur, wer sie unter RLS sehen darf
    (`system.benutzer_lesen`) — dieselbe Grenze in der Auswahl des Formulars
-   wie im Dienst. Wer ändert, übernimmt die Führung nicht.
+   wie im Dienst. Wer ändert, übernimmt die Führung nicht, und die Auswahl
+   entscheidet nur über die, die das Formular anbietet — die ändernde Person
+   und alle übrigen bleiben (D-760).
 6. **Bildschirme:** `/kalender/neu` (neu, ganz zweisprachig), „Neuer Termin"
    auf `/kalender` nur mit `kalender.schreiben`, „Termin ändern" und
    „Absagen" auf `/kalender/[id]`; ein Formular (`TerminFormular.tsx`) für
@@ -20103,4 +20105,39 @@ entfernt und die alte liegen lassen.
    beginnt.
 
 | Betrifft | DOC-05, DOC-07, LEG-01, § 257 Abs. 5 HGB, Art. 5 Abs. 1 lit. e DSGVO, Art. 17 DSGVO, O-937, O-955, D-49, D-713, V-219, V-266, `drizzle/0474_fassung_traegt_ihre_frist.sql`, `src/server/services/dokument/{loeschung,ablage}.ts`, `src/server/jobs/dokumentAufbewahrung.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `tests/isolation/{dokument-loeschen,aufbewahrung-lauf,dokument-fassung}.test.ts` |
+|---|---|
+
+### D-760 · Kalender und Recruiting: wer einen Termin ändert, wirft niemanden still hinaus (V-267)
+
+**Der Befund** (V-267; Prüfung der Gruppe kalender-dokumente):
+`aendereTermin` ersetzte die Teilnehmenden durch „führende Person + Auswahl"
+und filterte die ändernde Person heraus; das Formular auf `/kalender/[id]`
+bietet die angemeldete Person gar nicht an. Änderte also eine Eingeladene
+(mit `kalender.schreiben`, `t_kalender_schreiben` erlaubt es) nur den Ort,
+war sie danach nicht mehr Teilnehmerin — der Termin fiel aus „Nur meine" und
+aus ihrem Abonnement, ohne Hinweis. Ohne `system.benutzer_lesen` war die
+Auswahl leer, und jede Änderung setzte die Teilnehmenden auf die führende
+Person zurück.
+
+**Die Entscheidung.**
+
+1. **Die Auswahl entscheidet nur über die, die das Formular anbietet**
+   (`waehlbareTeilnehmer`, `teilnehmerNachAenderung`,
+   `services/kalender/termin.ts`). Seite und Dienst fragen dieselbe Abfrage:
+   aktive Menschen dieser Gesellschaft, keine Dienstkonten, nicht die Sitzung
+   selbst, nur mit `system.benutzer_lesen`. Wer angeboten war und nicht mehr
+   angehakt ist, fällt heraus — ausdrücklich. Wer nicht angeboten war, bleibt,
+   wie er war: die ändernde Person selbst, wer inzwischen ausgeschieden ist,
+   und ohne das Recht alle. Die führende Person steht immer darin und nicht
+   zur Wahl (ein Kästchen, dessen Haken nichts bewirkt, wäre eine falsche
+   Auskunft). Eine eigene Abmeldung aus einem Termin gibt es damit nicht; wer
+   gehen will, bittet die führende Person.
+2. **Das Protokoll nennt die Teilnehmenden** vorher und nachher
+   (`kalender.termin_geaendert`) — wer ging und wer kam, ist keine stille
+   Änderung.
+3. **Die Seite sagt es:** am Formular, wen die Auswahl nicht berührt; ohne
+   `system.benutzer_lesen` der Satz „Die Teilnehmenden bleiben bei dieser
+   Änderung, wie sie sind" mit dem fehlenden Recht.
+
+| Betrifft | CAL-01, CAL-02, D-715, V-221, V-267, `drizzle/0160` (`t_kalender_schreiben`, `t_kalender_eigene`), `src/server/services/kalender/termin.ts`, `src/app/portal/[mandant]/kalender/{TerminFormular.tsx,[id]/page.tsx,neu/page.tsx}`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/kalender-termin.test.ts` |
 |---|---|

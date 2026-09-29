@@ -168,6 +168,64 @@ export function leseTerminZeiten(f: TerminZeitfelder): { beginn: Date; ende: Dat
   return { beginn, ende };
 }
 
+/** Wer lesen darf — für die Auswahl des Formulars genügt eine Abfrage. */
+interface Leser {
+  abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
+}
+
+export interface WaehlbarePerson {
+  readonly id: string;
+  readonly name: string;
+}
+
+/**
+ * Wen das Terminformular als Teilnehmende ANBIETET — für die Seite UND für
+ * den Dienst dieselbe Abfrage (V-267, D-760).
+ *
+ * Aktive Menschen DIESER Gesellschaft, keine Dienstkonten, nicht die
+ * Sitzung selbst — und nur mit `system.benutzer_lesen` (dieselbe Grenze wie
+ * `t_benutzer_lesen`, 0007). Ohne das Recht ist die Liste leer.
+ *
+ * **Warum der Dienst sie auch fragt.** Beim Ändern entscheidet diese Liste,
+ * wen die Auswahl ABWÄHLEN kann: wer angeboten war und nicht mehr angehakt
+ * ist, fällt heraus — ausdrücklich. Wer nicht angeboten war (die ändernde
+ * Person selbst, wer ausgeschieden ist, und ohne das Recht alle), bleibt,
+ * wie er war. Vorher ersetzte die Auswahl die Teilnehmenden ganz, und die
+ * ändernde Person — die sich selbst nie angeboten sieht — fiel still heraus.
+ */
+export async function waehlbareTeilnehmer(kontext: Leser): Promise<readonly WaehlbarePerson[]> {
+  return kontext.abfrage<WaehlbarePerson>(
+    `select distinct b.id::text as id, b.name
+       from benutzer b
+       join benutzer_mandant bm on bm.benutzer_id = b.id
+      where bm.mandant_id = app.aktiver_mandant() and bm.entzogen_am is null
+        and b.status = 'aktiv' and b.ist_dienstkonto = false
+        and b.id <> app.aktueller_benutzer()
+        and app.hat_recht('system.benutzer_lesen', app.aktiver_mandant())
+      order by b.name`);
+}
+
+/**
+ * Die Teilnehmenden nach einer Änderung — rein, damit
+ * `tests/kern/kalender-termin.test.ts` jeden Fall ohne Datenbank hält.
+ *
+ * Wer angeboten war, steht darin, wenn er angehakt ist; wer nicht angeboten
+ * war, bleibt, wie er war. Die führende Person steht immer darin (sie behält
+ * den Termin in „Nur meine" und im Abonnement). Die Reihenfolge ist die der
+ * Eingaben, ohne Doppel.
+ */
+export function teilnehmerNachAenderung(e: {
+  readonly vorher: readonly string[];
+  readonly angeboten: ReadonlySet<string>;
+  readonly auswahl: readonly string[];
+  readonly fuehrend: string | null;
+}): readonly string[] {
+  const bleiben = e.vorher.filter((x) => !e.angeboten.has(x));
+  return [...new Set([
+    ...(e.fuehrend === null ? [] : [e.fuehrend]), ...bleiben, ...e.auswahl,
+  ])];
+}
+
 /**
  * Nur Menschen DIESER Gesellschaft nehmen teil — gelesen unter RLS.
  *
@@ -221,6 +279,8 @@ interface Bestand {
   readonly beginn: Date;
   readonly ende: Date;
   readonly ganztaegig: boolean;
+  readonly besitzer: string | null;
+  readonly teilnehmer: readonly string[];
 }
 
 /** Der Stand unter Sperre — und nur, was dieser Dienst ändern darf. */
@@ -228,7 +288,8 @@ async function sperre(kontext: SchreibKontext, id: string): Promise<Bestand> {
   if (!UUID.test(id)) throw new TerminFehler('Diesen Termin gibt es nicht.', 'nicht_gefunden');
   const [k] = await kontext.abfrage<Bestand>(
     `select art::text as art, (abgesagt_am is not null) as abgesagt, titel, beginn, ende,
-            ganztaegig
+            ganztaegig, besitzer_benutzer_id::text as besitzer,
+            coalesce(teilnehmer::text[], '{}') as teilnehmer
        from kalender_eintrag
       where id = $1::uuid and mandant_id = app.aktiver_mandant()
       for update`, [id]);
@@ -253,20 +314,28 @@ export async function aendereTermin(
 ): Promise<void> {
   const t = pruefeTermin(eingabe);
   const vorher = await sperre(kontext, id);
-  const teilnehmer = t.teilnehmer.filter((x) => x !== kontext.benutzerId);
-  await pruefeTeilnehmer(kontext, teilnehmer);
+  const auswahl = t.teilnehmer.filter((x) => x !== kontext.benutzerId);
+  await pruefeTeilnehmer(kontext, auswahl);
   /*
-   * Die Führung bleibt, wer sie hat: wer ändert, übernimmt den Termin nicht.
-   * Die Teilnehmenden ersetzt die Auswahl — und die führende Person steht
-   * immer darin, damit sie ihn in „Nur meine" und im Abonnement behält.
+   * **Niemand fällt still heraus** (V-267, D-760). Die Auswahl entscheidet
+   * nur über die Menschen, die das Formular angeboten hat
+   * (`waehlbareTeilnehmer` — dieselbe Abfrage wie auf der Seite). Wer nicht
+   * angeboten war, bleibt: die ändernde Person selbst, wer inzwischen
+   * ausgeschieden ist, und ohne `system.benutzer_lesen` alle. Die Führung
+   * bleibt, wer sie hat — wer ändert, übernimmt den Termin nicht —, und die
+   * führende Person steht immer darin, damit sie ihn in „Nur meine" und im
+   * Abonnement behält.
    */
+  const angeboten = new Set((await waehlbareTeilnehmer(kontext)).map((b) => b.id));
+  const teilnehmer = teilnehmerNachAenderung({
+    vorher: vorher.teilnehmer, angeboten, auswahl,
+    fuehrend: vorher.besitzer ?? (kontext.benutzerId === '' ? null : kontext.benutzerId),
+  });
   const zeilen = await kontext.schreibe<{ id: string }>(
     `update kalender_eintrag
         set art = $2::kalender_art, titel = $3, beschreibung = $4, ort = $5,
             beginn = $6::timestamptz, ende = $7::timestamptz, ganztaegig = $8,
-            teilnehmer = (select array_agg(distinct x)
-                            from unnest(array_prepend(coalesce(besitzer_benutzer_id,
-                                          app.aktueller_benutzer()), $9::uuid[])) as x),
+            teilnehmer = $9::uuid[],
             geaendert_von = app.aktueller_benutzer()
       where id = $1::uuid and mandant_id = app.aktiver_mandant() and abgesagt_am is null
       returning id`,
@@ -276,14 +345,16 @@ export async function aendereTermin(
     throw new TerminFehler('Der Termin hat sich inzwischen geändert — oder diese Sitzung darf '
       + 'ihn nicht ändern.', 'gleichzeitig');
   }
+  /* Wer hinzukam und wer ging, steht im Protokoll — auch das ist keine stille Änderung. */
   await kontext.schreibe(
     `select app.protokolliere('kalender.termin_geaendert', 'kalender_eintrag', $1, $2::jsonb,
                               $3::jsonb, app.aktiver_mandant())`,
     [id,
       { art: vorher.art, titel: vorher.titel, beginn: vorher.beginn.toISOString(),
-        ende: vorher.ende.toISOString(), ganztaegig: vorher.ganztaegig },
+        ende: vorher.ende.toISOString(), ganztaegig: vorher.ganztaegig,
+        teilnehmer: [...vorher.teilnehmer] },
       { art: t.art, titel: t.titel, beginn: t.beginn.toISOString(),
-        ende: t.ende.toISOString(), ganztaegig: t.ganztaegig }]);
+        ende: t.ende.toISOString(), ganztaegig: t.ganztaegig, teilnehmer: [...teilnehmer] }]);
 }
 
 /** Absagen — mit Grund (CHECK `ke_absage_begruendet`, 0160), stehen lassen. */

@@ -10,7 +10,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  EIGENE_ARTEN, TerminFehler, leseTerminZeiten, pruefeTermin, type TerminEingabe,
+  EIGENE_ARTEN, TerminFehler, leseTerminZeiten, pruefeTermin, teilnehmerNachAenderung,
+  type TerminEingabe,
 } from '../../src/server/services/kalender/termin.js';
 
 const STUNDE = 3600 * 1000;
@@ -84,5 +85,45 @@ describe('die Zeit — Berliner Wanduhr rein, Instants raus (Invariante 2)', () 
       .toThrow(expect.objectContaining({ grund: 'kein_kalendertag' }) as Error);
     expect(() => leseTerminZeiten({ ganztaegig: false, beginn: 'morgen', ende: '' }))
       .toThrow(expect.objectContaining({ grund: 'zeitpunkt_unlesbar' }) as Error);
+  });
+});
+
+/**
+ * **Niemand fällt still heraus** (V-267, D-760). Die Auswahl entscheidet nur
+ * über die Menschen, die das Formular angeboten hat; wer nicht angeboten war,
+ * bleibt, wie er war. Vorher ersetzte die Auswahl die Teilnehmenden ganz —
+ * und die ändernde Person, die sich selbst nie angeboten sieht, fiel heraus.
+ */
+describe('die Teilnehmenden nach einer Änderung', () => {
+  const A = '00000000-0000-4000-8000-00000000000a';   // führt
+  const B = '00000000-0000-4000-8000-00000000000b';   // ändert, nimmt teil
+  const C = '00000000-0000-4000-8000-00000000000c';
+  const D = '00000000-0000-4000-8000-00000000000d';
+
+  it('die ändernde Teilnehmerin wird nicht angeboten — und bleibt', () => {
+    expect(teilnehmerNachAenderung({
+      vorher: [A, B, C], angeboten: new Set([A, C, D]), auswahl: [C], fuehrend: A,
+    })).toEqual([A, B, C]);
+  });
+
+  it('wer angeboten war und nicht mehr angehakt ist, fällt heraus — ausdrücklich', () => {
+    expect(teilnehmerNachAenderung({
+      vorher: [A, C], angeboten: new Set([C, D]), auswahl: [D], fuehrend: A,
+    })).toEqual([A, D]);
+  });
+
+  it('ohne Auswahl (kein Recht, die Namen zu lesen) bleiben alle, wie sie waren', () => {
+    expect(teilnehmerNachAenderung({
+      vorher: [A, B, C], angeboten: new Set(), auswahl: [], fuehrend: A,
+    })).toEqual([A, B, C]);
+  });
+
+  it('die führende Person steht immer darin, und nichts doppelt', () => {
+    expect(teilnehmerNachAenderung({
+      vorher: [B], angeboten: new Set([A, B]), auswahl: [C, C], fuehrend: A,
+    })).toEqual([A, C]);
+    expect(teilnehmerNachAenderung({
+      vorher: [], angeboten: new Set(), auswahl: [], fuehrend: null,
+    })).toEqual([]);
   });
 });

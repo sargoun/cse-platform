@@ -30,6 +30,11 @@ export interface KalenderTerminTexte {
   readonly teilnehmende: string;
   readonly teilnehmendeHinweis: string;
   readonly teilnehmendeOhneRecht: string;
+  /** Beim Ändern: wen die Auswahl nicht berührt (V-267, D-760). */
+  readonly teilnehmendeAendernHinweis: string;
+  /** Beim Ändern ohne `system.benutzer_lesen`: vor und nach dem Rechtenamen. */
+  readonly teilnehmendeBleibenVor: string;
+  readonly teilnehmendeBleibenNach: string;
   readonly anlegen: string;
   readonly nichtGespeichert: string;
   readonly bearbeitenTitel: string;
@@ -82,6 +87,13 @@ export const KALENDER_TERMIN_TEXTE: Readonly<Record<InternSprache, KalenderTermi
       + 'in ihrem abonnierten Kalender.',
     teilnehmendeOhneRecht:
       'Andere Teilnehmende wählt, wer die Namen der Benutzer dieser Gesellschaft lesen darf:',
+    teilnehmendeAendernHinweis:
+      'Wer den Termin führt, bleibt darin. Ihre eigene Teilnahme und Teilnehmende, die hier '
+      + 'nicht zur Wahl stehen, ändert dieses Formular nicht. Wer abgewählt wird, sieht den '
+      + 'Termin nicht mehr unter „Nur meine" und in seinem Abonnement.',
+    teilnehmendeBleibenVor:
+      'Die Teilnehmenden bleiben bei dieser Änderung, wie sie sind. Andere wählt, wer',
+    teilnehmendeBleibenNach: 'hält.',
     anlegen: 'Termin anlegen',
     nichtGespeichert: 'Nicht gespeichert.',
     bearbeitenTitel: 'Termin ändern',
@@ -153,6 +165,13 @@ export const KALENDER_TERMIN_TEXTE: Readonly<Record<InternSprache, KalenderTermi
       + 'their subscribed calendar.',
     teilnehmendeOhneRecht:
       'Other participants are chosen by whoever may read the names of this company’s users:',
+    teilnehmendeAendernHinweis:
+      'Whoever leads the appointment stays in it. Your own participation and participants who '
+      + 'are not offered here are not changed by this form. Whoever is deselected no longer '
+      + 'sees the appointment in their own view and in their subscribed calendar.',
+    teilnehmendeBleibenVor:
+      'The participants stay as they are with this change. Only a session holding',
+    teilnehmendeBleibenNach: 'can choose others.',
     anlegen: 'Create appointment',
     nichtGespeichert: 'Not saved.',
     bearbeitenTitel: 'Change the appointment',

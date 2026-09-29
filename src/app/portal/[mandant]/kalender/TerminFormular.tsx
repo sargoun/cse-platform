@@ -124,7 +124,9 @@ export function TerminFormular({ t, aktion, zurueck, benutzer, werte, knopf, cse
               {b.name}
             </label>
           ))}
-          <p className="m-0 text-xs text-text-subtle">{t.teilnehmendeHinweis}</p>
+          <p className="m-0 text-xs text-text-subtle">
+            {aendern === true ? t.teilnehmendeAendernHinweis : t.teilnehmendeHinweis}
+          </p>
         </fieldset>
       )}
 

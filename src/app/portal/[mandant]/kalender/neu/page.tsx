@@ -15,6 +15,7 @@ import { vorbelegt } from '@/lib/formular/maske';
 import { haeltRechte } from '@/app/portal/rechte';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../../unterseite';
+import { waehlbareTeilnehmer, type WaehlbarePerson } from '@/server/services/kalender/termin';
 import { TerminFormular } from '../TerminFormular';
 
 /**
@@ -56,14 +57,8 @@ export default async function NeuerTermin({ params, searchParams }: {
   const darf = await haeltRechte(zugang.sitzung, 'system.benutzer_lesen');
   const benutzer = darf['system.benutzer_lesen'] !== true ? null
     : await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-      withTenant(tx, zugang.sitzung, (kontext) => kontext.abfrage<{ id: string; name: string }>(
-        `select distinct b.id, b.name
-           from benutzer b
-           join benutzer_mandant bm on bm.benutzer_id = b.id
-          where bm.mandant_id = app.aktiver_mandant() and bm.entzogen_am is null
-            and b.status = 'aktiv' and b.ist_dienstkonto = false
-            and b.id <> app.aktueller_benutzer()
-          order by b.name`))) as Promise<readonly { id: string; name: string }[]>);
+      withTenant(tx, zugang.sitzung, (kontext) => waehlbareTeilnehmer(kontext))) as
+      Promise<readonly WaehlbarePerson[]>);
 
   return (
     <PortalRahmen

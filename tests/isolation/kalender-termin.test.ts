@@ -146,6 +146,91 @@ describe('(2) ändern', () => {
     expect(p!.nachher['titel']).toBe('Begehung verschoben');
   });
 
+  /**
+   * **Niemand verliert still seine Teilnahme** (V-267, D-760). Das Formular
+   * auf `/kalender/[id]` bietet die angemeldete Person nicht an — sie schickt
+   * also nie sich selbst mit. Vorher ersetzte die Auswahl die Teilnehmenden
+   * ganz, und wer als Eingeladene Ort oder Zeit änderte, war danach nicht
+   * mehr Teilnehmerin: der Termin fiel aus „Nur meine" und aus ihrem
+   * Abonnement.
+   */
+  it('eine Teilnehmerin ändert den Ort — und bleibt Teilnehmerin', async () => {
+    const kollegin = await konto(f.reinigung, 'leitung', 'Kollegin');
+    const id = await als(leitung, f.reinigung,
+      (k) => legeTerminAn(k, termin({ teilnehmer: [kollegin] })));
+    /* Genau, was ihr Formular schickt: die Führung steht nicht zur Wahl, sie selbst auch nicht. */
+    await als(kollegin, f.reinigung, (k) => aendereTermin(k, id, termin({
+      ort: 'Raum 2', titel: 'Begehung (Raum geändert)', teilnehmer: [],
+    })));
+    const [z] = await sql.unsafe<{ teilnehmer: string[]; ort: string; besitzer: string }[]>(
+      `select teilnehmer::text[] as teilnehmer, ort, besitzer_benutzer_id::text as besitzer
+         from kalender_eintrag where id = $1`, [id]);
+    expect(z!.ort).toBe('Raum 2');
+    expect(z!.besitzer).toBe(leitung);
+    expect([...z!.teilnehmer].sort()).toEqual([leitung, kollegin].sort());
+    /* Und sie sieht ihn weiter unter „Nur meine" (t_kalender_eigene). */
+    const [tage] = await sql.unsafe<{ von: string; bis: string }[]>(
+      `select app.berlin_heute()::text as von, (app.berlin_heute() + 5)::text as bis`);
+    const zeilen = await als(kollegin, f.reinigung, (k) => kalenderZeilen(k, {
+      zeitraum: { von: tage!.von, bis: tage!.bis, bezeichnung: 'Test' }, nurBenutzerId: kollegin,
+    }));
+    expect(zeilen.some((x) => x.id === id)).toBe(true);
+  });
+
+  it('ohne system.benutzer_lesen bleiben alle Teilnehmenden, wie sie waren', async () => {
+    const b = await konto(f.reinigung, 'leitung', 'B');
+    const c = await konto(f.reinigung, 'leitung', 'C');
+    const id = await als(leitung, f.reinigung,
+      (k) => legeTerminAn(k, termin({ teilnehmer: [b, c] })));
+    /* Eine Rolle, die Termine setzt, aber die Namen der anderen nicht lesen darf. */
+    const [r] = await sql.unsafe<{ id: string }[]>(
+      `insert into rolle (mandant_id, schluessel, bezeichnung, geltungsbereich, portal)
+       values ($1, $2, 'Termine ohne Namen', 'mandant', 'intern') returning id`,
+      [f.reinigung, `termine_${zufall()}`]);
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       select $1, b.id, $2, true from berechtigung b
+        where b.schluessel in ('kalender.lesen', 'kalender.schreiben')`, [r!.id, f.reinigung]);
+    const email = `termin-ohne-${zufall()}@cse.test`;
+    const [u] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ($1) returning id`, [email]);
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status) values ($1,$2,'Ohne Namen','aktiv')`,
+      [u!.id, email]);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+      [u!.id, f.reinigung, r!.id]);
+
+    await als(u!.id, f.reinigung, (k) => aendereTermin(k, id, termin({
+      titel: 'Begehung, neuer Titel', teilnehmer: [],
+    })));
+    const [z] = await sql.unsafe<{ teilnehmer: string[]; titel: string }[]>(
+      `select teilnehmer::text[] as teilnehmer, titel from kalender_eintrag where id = $1`, [id]);
+    expect(z!.titel).toBe('Begehung, neuer Titel');
+    expect([...z!.teilnehmer].sort()).toEqual([leitung, b, c].sort());
+  });
+
+  it('wer angeboten war und abgewählt wird, fällt heraus — und das Protokoll sagt es', async () => {
+    const b = await konto(f.reinigung, 'leitung', 'B');
+    const c = await konto(f.reinigung, 'leitung', 'C');
+    const id = await als(leitung, f.reinigung,
+      (k) => legeTerminAn(k, termin({ teilnehmer: [b, c] })));
+    /* Wer ausgeschieden ist, steht nicht mehr zur Wahl — und bleibt deshalb stehen. */
+    await sql.unsafe(
+      `update benutzer_mandant set entzogen_am = now()
+        where benutzer_id = $1 and mandant_id = $2`, [c, f.reinigung]);
+    await als(leitung, f.reinigung, (k) => aendereTermin(k, id, termin({ teilnehmer: [] })));
+    const [z] = await sql.unsafe<{ teilnehmer: string[] }[]>(
+      `select teilnehmer::text[] as teilnehmer from kalender_eintrag where id = $1`, [id]);
+    expect([...z!.teilnehmer].sort()).toEqual([leitung, c].sort());
+    const [p] = await sql.unsafe<{ vorher: { teilnehmer: string[] }; nachher: { teilnehmer: string[] } }[]>(
+      `select vorher, nachher from audit_log
+        where objekt_typ = 'kalender_eintrag' and objekt_id = $1
+          and aktion = 'kalender.termin_geaendert'`, [id]);
+    expect([...p!.vorher.teilnehmer].sort()).toEqual([leitung, b, c].sort());
+    expect([...p!.nachher.teilnehmer].sort()).toEqual([leitung, c].sort());
+  });
+
   it('eine Wiedervorlage und ein Gespräch ändert man an ihrer Quelle, nicht hier', async () => {
     for (const art of ['wiedervorlage', 'bewerbungsgespraech']) {
       const [w] = await sql.unsafe<{ id: string }[]>(

@@ -17,7 +17,9 @@ import { KALENDER_TERMIN_TEXTE } from '@/lib/i18n/verwaltung/kalender-termin';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { berlinFormularWert } from '@/lib/datum/formularzeit';
 import { berlinKalendertag } from '@/server/services/zeit/dauer';
-import { istEigeneArt } from '@/server/services/kalender/termin';
+import {
+  istEigeneArt, waehlbareTeilnehmer, type WaehlbarePerson,
+} from '@/server/services/kalender/termin';
 import { TerminFormular } from '../TerminFormular';
 
 /**
@@ -50,6 +52,8 @@ interface Zeile {
   readonly abgesagt_am: string | null;
   readonly abgesagt_grund: string | null;
   readonly besitzer: string | null;
+  /** Die Kennung der führenden Person — sie steht nicht zur Wahl (V-267). */
+  readonly besitzer_id: string | null;
   readonly teilnehmer_namen: readonly string[];
   /** V-221: die Kennungen der Teilnehmenden — für das Formular „Termin ändern". */
   readonly teilnehmer: readonly string[];
@@ -138,6 +142,7 @@ export default async function Termin({ params, searchParams }: {
                 k.abgesagt_am::text as abgesagt_am, k.abgesagt_grund,
                 (select b.name from benutzer b where b.id = k.besitzer_benutzer_id)
                   as besitzer,
+                k.besitzer_benutzer_id::text as besitzer_id,
                 coalesce((select array_agg(b.name order by b.name)
                             from benutzer b where b.id = any (k.teilnehmer)), '{}')
                   as teilnehmer_namen,
@@ -154,19 +159,18 @@ export default async function Termin({ params, searchParams }: {
    * dieselbe Schranke wie `t_kalender_schreiben`, 0160) — und nur, was der
    * Kalender selbst besitzt. Die Namen der anderen für die Teilnehmerauswahl
    * nur mit `system.benutzer_lesen`.
+   *
+   * V-267: die Auswahl kommt aus `waehlbareTeilnehmer` — derselben Abfrage,
+   * nach der der Dienst entscheidet, wen sie abwählen kann. Die führende
+   * Person steht nicht zur Wahl: sie bleibt ohnehin darin, und ein Kästchen,
+   * dessen Haken nichts bewirkt, wäre eine falsche Auskunft.
    */
   const darf = await haeltRechte(zugang.sitzung, 'kalender.schreiben', 'system.benutzer_lesen');
   const benutzer = zeile === null || darf['system.benutzer_lesen'] !== true
     || !istEigeneArt(zeile.art) || zeile.abgesagt_am !== null ? []
-    : await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-      withTenant(tx, zugang.sitzung, (kontext) => kontext.abfrage<{ id: string; name: string }>(
-        `select distinct b.id, b.name
-           from benutzer b
-           join benutzer_mandant bm on bm.benutzer_id = b.id
-          where bm.mandant_id = app.aktiver_mandant() and bm.entzogen_am is null
-            and b.status = 'aktiv' and b.ist_dienstkonto = false
-            and b.id <> app.aktueller_benutzer()
-          order by b.name`))) as Promise<readonly { id: string; name: string }[]>);
+    : (await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+      withTenant(tx, zugang.sitzung, (kontext) => waehlbareTeilnehmer(kontext))) as
+      Promise<readonly WaehlbarePerson[]>)).filter((b) => b.id !== zeile.besitzer_id);
 
   const rahmen = (kinder: React.ReactNode) => (
     <PortalRahmen
@@ -293,6 +297,13 @@ export default async function Termin({ params, searchParams }: {
         </p>
       ) : (
         <div className="flex flex-col gap-s5">
+          {darf['system.benutzer_lesen'] !== true && (
+            <p className="m-0 text-xs text-text-muted" data-cse="termin-teilnehmende-bleiben">
+              {t.teilnehmendeBleibenVor}{' '}
+              <Recht schluessel="system.benutzer_lesen" sprache={sprache} />{' '}
+              {t.teilnehmendeBleibenNach}
+            </p>
+          )}
           <TerminFormular
             t={t}
             aktion={`/api/kalender/eintraege/${zeile.id}`}
