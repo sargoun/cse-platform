@@ -15,7 +15,8 @@
  *  4. **Die Abschlussquote gehört zur Kohorte**: ein Lead vom Januar zählt im
  *     Januar, auch wenn er im März gewonnen wurde.
  *  5. **Die Pipeline zeigt jede Stufe, auch die leere — kumulativ, und
- *     Bereichs- und Gruppenfassung zählen dieselbe Menge gleich** (D-720).
+ *     Bereichs- und Gruppenfassung zählen dieselbe Menge gleich** (D-720);
+ *     gefunden ist, was das Profil trifft, nicht jede Bewertung (D-762).
  *  6. **Die Gruppenfassung teilt auf, statt zu summieren.**
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
@@ -29,6 +30,10 @@ import { pipelineJeBereich, umsatzJeBereich } from '../../src/server/services/be
 import { abschnitte, ganzesJahr } from '../../src/server/services/bericht/zeitraum.js';
 import { berichtTabelle, zellenFuerBlatt } from '../../src/server/services/bericht/export.js';
 import { alsCsv } from '../../src/server/services/bericht/ausgabe.js';
+import {
+  bewerte as radarBewerte, type BewertungsErgebnis,
+} from '../../src/server/services/radar/bewertung.js';
+import { istFund, type FundBewertung } from '../../src/server/services/radar/fund.platzhalter.js';
 import {
   finalisiere, fuegePositionHinzu, legeEntwurfAn, verwerfe, vonHand,
 } from '../../src/server/services/finanz/rechnung.js';
@@ -374,17 +379,53 @@ describe('(5) die Pipeline zählt kumulativ, und Bereich und Gruppe zählen glei
     return a!.id;
   }
 
+  /**
+   * Eine Bewertung mit ihrer Aufschlüsselung (V-269, D-762). Ohne Angabe
+   * trifft der CPV-Code — die Leistung, die das Profil sucht; das ist der
+   * Fund, den die Fälle 1 bis 9 meinen. `aufschluesselung` setzt eine andere.
+   */
+  const LEISTUNG_TRIFFT: readonly FundBewertung['aufschluesselung'][number][] = [
+    { regel: 'cpv', treffer: true }, { regel: 'region', treffer: true },
+  ];
+
   async function bewerte(
     mandant: string, profilId: string, ausschreibung: string, am: string,
     ausgeschlossen = false,
+    aufschluesselung: readonly unknown[] = LEISTUNG_TRIFFT,
   ): Promise<void> {
     await sql.unsafe(
       `insert into bewertung (mandant_id, ausschreibung_id, radar_profil_id, regel_version,
                               profil_version, punkte, skala_max, ausgeschlossen,
-                              ausschluss_grund, begruendung, eingaben_hash, berechnet_am)
-       values ($1, $2, $3, 'v1', 1, 12, 20, $4, $5, 'Testbewertung', $6, $7::timestamptz)`,
+                              ausschluss_grund, begruendung, eingaben_hash, berechnet_am,
+                              aufschluesselung)
+       values ($1, $2, $3, 'v1', 1, 12, 20, $4, $5, 'Testbewertung', $6, $7::timestamptz,
+               $8::jsonb)`,
       [mandant, ausschreibung, profilId, ausgeschlossen,
-        ausgeschlossen ? 'Ausschlusskriterium' : null, zufall(), am]);
+        ausgeschlossen ? 'Ausschlusskriterium' : null, zufall(), am,
+        aufschluesselung as never]);
+  }
+
+  /**
+   * **Die Streusalzlieferung des Seeds, gegen ein Reinigungsprofil bewertet —
+   * mit der ECHTEN Bewertung** (`bewerte` aus `radar/bewertung.ts`): Region,
+   * Wert und Frist treffen, CPV-Code und Stichwort nicht. Nicht
+   * ausgeschlossen, mit Punkten — und trotzdem kein Fund.
+   */
+  function streusalz(): BewertungsErgebnis {
+    return radarBewerte({
+      id: 'streusalz', titel: 'Lieferung von Streusalz für den Winterdienst',
+      beschreibung: 'Lieferung von 400 Tonnen Auftausalz, Abruf nach Bedarf.',
+      cpvHaupt: '34927100-2', cpvWeitere: [], nutsCodes: ['DE300'],
+      wertCent: 96_000_00n, waehrung: 'EUR',
+      fristAngebot: new Date('2019-03-20T10:00:00Z'), oberhalbSchwellenwert: false,
+    }, {
+      id: 'reinigung', version: 1, name: 'Unterhaltsreinigung Berlin',
+      cpv: [{ cpvCode: '90910000', praefixLaenge: 8, wirkung: 'positiv' }],
+      nutsPraefixe: ['DE3'], positivKeywords: ['Unterhaltsreinigung', 'Gebäudereinigung'],
+      negativKeywords: [], negativWirkung: 'abzug',
+      wertMinCent: 50_000_00n, wertMaxCent: 2_000_000_00n, waehrung: 'EUR',
+      fristMinTage: null, oberhalbSchwellenwert: null, skalaMax: 100, gewichtung: {},
+    }, new Date('2019-03-01T10:00:00Z'));
   }
 
   async function vorgang(
@@ -402,7 +443,8 @@ describe('(5) die Pipeline zählt kumulativ, und Bereich und Gruppe zählen glei
   }
 
   /**
-   * Neun Fälle, jeder für eine Regel aus D-720:
+   * Elf Fälle, jeder für eine Regel aus D-720 und D-762 („bewertet" heisst
+   * hier: CPV-Code trifft, ausser wo anders gesagt):
    *  1 bewertet, sonst nichts                       → gefunden
    *  2 bewertet, aber ausgeschlossen                → gar nicht
    *  3 bewertet + geprüft                           → gefunden, gesichtet
@@ -412,12 +454,14 @@ describe('(5) die Pipeline zählt kumulativ, und Bereich und Gruppe zählen glei
    *  7 ZWEIMAL bewertet + nicht berücksichtigt      → einmal, bis geboten
    *  8 bewertet 2019, Vorgang erst 2020 (geprüft)   → Kohorte 2019
    *  9 bewertet 2020                                → nicht in 2019
+   * 10 bewertet, aber nur Region/Wert/Frist treffen → gar nicht (Streusalz)
+   * 11 bewertet, nur ein Stichwort trifft           → gefunden
    */
   async function legeFaelleAn(mandant: string): Promise<void> {
     const p1 = await profil(mandant);
     const p2 = await profil(mandant);
     const im = '2019-03-01T10:00:00Z';
-    const a = await Promise.all(Array.from({ length: 9 }, () => bekanntmachung()));
+    const a = await Promise.all(Array.from({ length: 11 }, () => bekanntmachung()));
     await bewerte(mandant, p1, a[0]!, im);
     await bewerte(mandant, p1, a[1]!, im, true);
     await bewerte(mandant, p1, a[2]!, im);
@@ -433,6 +477,10 @@ describe('(5) die Pipeline zählt kumulativ, und Bereich und Gruppe zählen glei
     await bewerte(mandant, p1, a[7]!, '2019-12-31T12:00:00Z');
     await vorgang(mandant, a[7]!, 'geprueft', '2020-01-03T10:00:00Z');
     await bewerte(mandant, p1, a[8]!, '2020-02-01T10:00:00Z');
+    const salz = streusalz();
+    await bewerte(mandant, p1, a[9]!, im, salz.ausgeschlossen, salz.aufschluesselung);
+    await bewerte(mandant, p2, a[10]!, im, false,
+      [{ regel: 'cpv', treffer: false }, { regel: 'stichwort', treffer: true }]);
   }
 
   it('fünf Stufen, auch ohne einen einzigen Fall', async () => {
@@ -449,7 +497,7 @@ describe('(5) die Pipeline zählt kumulativ, und Bereich und Gruppe zählen glei
       await legeLeitungAn(f.reinigung, 'admin'));
     const zahl = (s: string): number => stufen.find((x) => x.stufe === s)!.anzahl;
 
-    expect(zahl('gefunden'), 'Fälle 1, 3–8').toBe(7);
+    expect(zahl('gefunden'), 'Fälle 1, 3–8, 11 — nicht 2 und nicht 10').toBe(8);
     expect(zahl('gesichtet'), 'Fälle 3–8').toBe(6);
     expect(zahl('geboten'), 'Fälle 5–7').toBe(3);
     expect(zahl('gewonnen'), 'Fall 5').toBe(1);
@@ -459,6 +507,34 @@ describe('(5) die Pipeline zählt kumulativ, und Bereich und Gruppe zählen glei
     // Ein Trichter: keine Stufe ist grösser als die vor ihr.
     const trichter = stufen.filter((s) => s.imTrichter).map((s) => s.anzahl);
     expect([...trichter].sort((x, y) => y - x)).toEqual(trichter);
+  });
+
+  /**
+   * **Bewertet ist nicht gefunden** (V-269, D-762, O-941). Der Radar bewertet
+   * jede Bekanntmachung gegen jedes Profil; zählte jede Bewertung, stünde das
+   * ganze Einlesevolumen unter „Gefunden". Die Streusalzlieferung hat Punkte,
+   * ist nicht ausgeschlossen — und ist kein Fund, weil ihre Leistung das
+   * Profil nicht trifft. Datenbank (`fundSql`) und Dienst (`istFund`) sagen
+   * dasselbe.
+   */
+  it('eine Bewertung ohne Leistungstreffer zählt nicht — die Streusalzlieferung', async () => {
+    const salz = streusalz();
+    expect(salz.ausgeschlossen).toBe(false);
+    expect(salz.punkte).toBeGreaterThan(0);
+    expect(istFund(salz)).toBe(false);
+
+    const p = await profil(f.reinigung);
+    const a = await bekanntmachung();
+    await bewerte(f.reinigung, p, a, '2019-06-01T10:00:00Z', false, salz.aufschluesselung);
+    const leitung = await legeLeitungAn(f.reinigung, 'admin');
+    const zahl = async (): Promise<number> => (await alsBereich(f.reinigung,
+      (k) => pipeline(k, zeitraum), leitung)).find((x) => x.stufe === 'gefunden')!.anzahl;
+    const vorher = await zahl();
+    expect(vorher, 'die Streusalzbewertung allein zählt nicht').toBe(0);
+
+    /* Eröffnet ein Mensch einen Vorgang, ist sie im Blick — über den Vorgang. */
+    await vorgang(f.reinigung, a, 'verworfen', '2019-06-02T10:00:00Z');
+    expect(await zahl()).toBe(1);
   });
 
   it('die Gruppenfassung nennt für dieselben Zeilen dieselben Zahlen', async () => {
@@ -476,7 +552,7 @@ describe('(5) die Pipeline zählt kumulativ, und Bereich und Gruppe zählen glei
 
     for (const s of bereich) {
       expect(reinigung[s.stufe], s.stufe).toBe(s.anzahl);
-      // Die Gesellschaften teilen nichts: der Bau hat seine eigenen sieben Fälle.
+      // Die Gesellschaften teilen nichts: der Bau hat seine eigenen acht Fälle.
       expect(bau[s.stufe], s.stufe).toBe(s.anzahl);
     }
     expect(reinigung.zuschlagswertCent).toBe(1_000_000n);

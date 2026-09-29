@@ -36,8 +36,13 @@ export default async function Pipeline({ params, searchParams }: {
       fussnote={
         <>
           <strong>Gezählt wird, was eine Stufe erreicht hat, im Jahr des Eingangs.</strong>{' '}
-          Gefunden ist jede Bekanntmachung, die das Radar für diese Gesellschaft bewertet und
-          nicht ausgeschlossen hat, und jede, zu der jemand einen Vorgang eröffnet hat.
+          Gefunden ist jede Bekanntmachung, deren Leistung ein Suchprofil dieser Gesellschaft
+          trifft — ein CPV-Code oder ein Stichwort des Profils, nicht ausgeschlossen —, und
+          jede, zu der jemand einen Vorgang eröffnet hat. Bewertet wird jede eingelesene
+          Bekanntmachung; eine Bewertung allein ist noch kein Fund.{' '}
+          <span data-cse="pipeline-fund-platzhalter">
+            Diese Lesart ist ein Platzhalter, bis geklärt ist, was als gefunden zählt (O-941).
+          </span>{' '}
           Gesichtet ist ein Vorgang mit einem Stand, auch ein verworfener. Geboten ist, was
           eingereicht wurde — mit oder ohne Ergebnis, auch wenn die Vergabestelle das
           Verfahren danach aufgehoben hat. Ein Fall erscheint im Jahr, in dem er gefunden

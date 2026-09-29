@@ -1,6 +1,7 @@
 import 'server-only';
 import { addiere, cent, NULL_CENT, type Cent } from '../finanz/geld.js';
 import type { Zeitraum } from './zeitraum.js';
+import { FUND_PLATZHALTER, fundSql, type FundDefinition } from '../radar/fund.platzhalter.js';
 
 /**
  * Die sechs Berichte aus SPEC §5.23 (REP-01…REP-06) — als Abfragen, nicht als
@@ -451,8 +452,12 @@ export function verzug(soll: string | null, ist: string | null): number | null {
  * ERREICHT hat:
  *
  *  - **gefunden**: jede Bekanntmachung, die das Radar für diese Gesellschaft
- *    bewertet und nicht ausgeschlossen hat (`bewertung`), und jede, zu der ein
- *    Mensch einen Vorgang eröffnet hat — auch ohne Bewertung.
+ *    GEFUNDEN hat — eine Bewertung, die `fundSql` erfüllt —, und jede, zu der
+ *    ein Mensch einen Vorgang eröffnet hat, auch ohne Bewertung. Bewertet
+ *    wird jede Bekanntmachung gegen jedes Profil; eine Bewertung allein ist
+ *    deshalb kein Fund (V-269). Was einer ist, ist offen und steht als
+ *    beschrifteter Platzhalter in `radar/fund.platzhalter.ts` (O-941): eine
+ *    Bewertung, in der CPV-Code oder Stichwort des Profils positiv treffen.
  *  - **gesichtet**: ein Vorgang, dessen Stand nicht mehr `neu` ist. Auch ein
  *    verworfener ist gesichtet worden: verwerfen kann nur, wer hingesehen hat.
  *  - **geboten**: eingereicht oder einer der drei Ausgänge — ein Ausgang lässt
@@ -462,9 +467,9 @@ export function verzug(soll: string | null, ist: string | null): number | null {
  *  - **gewonnen**: Zuschlag. Nur hier steht ein Zuschlagswert.
  *
  * **Die Kohorte ist der Eingang.** Ein Fall gehört in das Jahr, in dem er
- * zuerst auftauchte — die früheste nicht ausgeschlossene Bewertung oder, falls
- * früher oder allein, die Eröffnung des Vorgangs. Damit ist jede Stufe eine
- * Teilmenge der vorigen, und der Balken darf ein Trichter sein.
+ * zuerst auftauchte — der früheste Fund oder, falls früher oder allein, die
+ * Eröffnung des Vorgangs. Damit ist jede Stufe eine Teilmenge der vorigen, und
+ * der Balken darf ein Trichter sein.
  *
  * **Eine Zählung, zwei Aufrufer.** `pipelineZahlen` ist die einzige Stelle,
  * an der diese Definition steht; die Bereichsfassung (`pipeline`) und die
@@ -497,11 +502,14 @@ export const PIPELINE_GEBOTEN: readonly string[] = [
 /**
  * Die Zählung je Gesellschaft — der EINE Ort der Definition.
  *
- * `least()` überspringt in PostgreSQL ein NULL: ein Fall ohne Bewertung hat
- * den Eingang seines Vorgangs, einer ohne Vorgang den seiner Bewertung.
+ * `least()` überspringt in PostgreSQL ein NULL: ein Fall ohne Fund hat den
+ * Eingang seines Vorgangs, einer ohne Vorgang den seines ersten Funds.
+ *
+ * `fund` ist die Lesart von „gefunden" — heute der Platzhalter aus O-941.
+ * Bereich und Gruppe rufen beide ohne sie auf und zählen damit gleich.
  */
 export async function pipelineZahlen(
-  db: Abfrage, zeitraum: Zeitraum,
+  db: Abfrage, zeitraum: Zeitraum, fund: FundDefinition = FUND_PLATZHALTER,
 ): Promise<ReadonlyMap<string, PipelineZahlen>> {
   const zeilen = await db.abfrage<{
     mandant_id: string; gefunden: string; gesichtet: string; geboten: string;
@@ -510,7 +518,7 @@ export async function pipelineZahlen(
     `with fund as (
        select b.mandant_id, b.ausschreibung_id, min(b.berechnet_am) as am
          from bewertung b
-        where not b.ausgeschlossen
+        where ${fundSql('b', '$4')}
         group by b.mandant_id, b.ausschreibung_id
      ), vorgang as (
        select v.mandant_id, v.ausschreibung_id, v.erstellt_am, v.status::text as status,
@@ -535,7 +543,7 @@ export async function pipelineZahlen(
        from fall
       where (eingang at time zone 'Europe/Berlin')::date between $1::date and $2::date
       group by mandant_id`,
-    [zeitraum.von, zeitraum.bis, PIPELINE_GEBOTEN],
+    [zeitraum.von, zeitraum.bis, PIPELINE_GEBOTEN, fund.regeln],
   );
   return new Map(zeilen.map((z) => [z.mandant_id, {
     gefunden: zahl(z.gefunden),

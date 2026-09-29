@@ -3363,6 +3363,7 @@ Beantworten helfen:
 | O-889 | **Soll eine Benachrichtigung in der Sprache der Empfängerin entstehen (`person.sprache`) oder in der Sprache der Gesellschaft, die sie versendet?** `benachrichtigung` trägt **gespeicherten** Text: Titel und Text entstehen beim Erzeugen und stehen danach fest — eine Meldung, deren Sprache sich später ändert, gibt es nicht. **Ausgeliefert ist seit V-102 die Sprache der EMPFÄNGERIN**, und der Grund ist der Zweck der Meldung: sie soll gelesen werden. Eine Ablaufwarnung kündigt eine Sperre nach § 34a GewO an; wer sie nicht lesen kann, erscheint zur Schicht und wird weggeschickt. Betroffen sind **genau die drei Arten, die in `/portal/mein` landen** (`nachweis.ablauf_60/30/7`, `zeit.einwand_entschieden`, `dienstplan.plan_veroeffentlicht`); alle übrigen bleiben deutsch, weil das interne Portal deutsch ist und seine Begriffe juristische Bedeutung tragen — `tests/kern/benachrichtigung-sprachen.test.ts` §5 hält diesen Umfang fest. **Eingesetzter Text wird NICHT übersetzt**: die Bezeichnung einer Qualifikation, die Begründung der Planung, der Name der Gesellschaft — sie zu übersetzen hiesse, sie zu erfinden. Übersetzt wird dagegen, was die Plattform selbst formuliert, bis hin zur Fügung zwischen zwei Kalendertagen. **Offen bleibt die Bestätigung**: sagt der Auftraggeber, es solle die Sprache der Gesellschaft sein, ist die Änderung eine Zeile je Erzeuger — die Sprache steht als `sprache` im `BenachrichtigungsKontext` und nicht in den Texten. | NOT-01, NOT-02, SPEC §10, D-419, V-102, `src/lib/i18n/benachrichtigung.ts`, `src/server/benachrichtigung/registry.ts` |
 | O-888 | **Kodiert die Tausenderstelle der Objektnummer die Gesellschaft?** Der Bestand legt es nahe: die Reinigung führt `OBJ-1001 … OBJ-1003`, SSE Security `OBJ-2001`, REALTIME Bau `OBJ-3001` (`src/server/db/seed/operations.ts`). Ist das eine Hausregel oder ein Zufall der Demo-Daten? **Die Plattform erfindet dazu nichts**: `legeObjektAn` zählt aus dem Bestand DIESER Gesellschaft weiter und übernimmt damit von selbst, was dort schon gilt — ohne die Regel je auszusprechen. Nur der allererste Fall, eine Gesellschaft ohne ein einziges Objekt, hat keinen Bestand; dort steht `OBJ-1001` als **klar bezeichneter Platzhalter**. Das Feld ist im Formular von Hand überschreibbar, damit niemand an der Vorgabe hängenbleibt. Sagt der Auftraggeber eine Maske zu, ist die Änderung **eine Zeile** im Dienst. | OPS-01, V-001, `src/server/services/objekt/anlegen.ts` |
 | O-940 | **Welche Angaben braucht jede Gesellschaft, um auf eine Anfrage ein verbindliches Angebot rechnen zu können — und welche davon soll der Antwortentwurf des Akquise-Agenten nachfragen?** Heute nennt der Entwurf als Lücke jedes Feld des EIGENEN Anfrageformulars der Gesellschaft, das der Anfragende leer gelassen hat, ausser Häkchen, Freitext und Datei (`KEINE_LUECKE`), bei einer von Hand erfassten Anfrage nur eine fehlende Bedarfsbeschreibung; ist nichts leer, entfällt der Satz. Welche Angabe für ein Angebot tatsächlich nötig ist (Reinigung: Fläche, Turnus, Objektart? Security: Kräftezahl, Einsatzzeit? Bau: Leistungsverzeichnis?), ist eine fachliche Regel der Gesellschaften und wird hier nicht erfunden. | §17 Acquisition Agent, D-724, V-230, `src/server/services/lead/einsendung.ts` (`anfrageLuecken`), `src/server/agent/auftraege.ts` |
+| O-941 | **Was zählt in der Vergabepipeline (REP-06) als „gefunden"?** Der Radar bewertet jede eingelesene Bekanntmachung gegen jedes aktive Suchprofil jeder Gesellschaft, und ausgeschlossen wird nur, was ein Mensch im Profil ausdrücklich ausschliesst; „jede nicht ausgeschlossene Bewertung" (D-720) war deshalb je Gesellschaft das ganze Einlesevolumen. Der Code legt „Treffer" nicht eindeutig fest: die Trefferbenachrichtigung (RAD-08) meldet ab einer Punktschwelle, die selbst offen ist (O-15) und im Seed fehlt; die Profilseite sagt, ein Profil ohne CPV-Zeile „trifft über Stichwörter und Region"; der Seed nennt die Streusalzlieferung eine, „die kein Profil trifft", obwohl ihre Region jedes Profil trifft. Zur Wahl stehen: (a) die LEISTUNG trifft — CPV-Code (Wirkung `positiv`) oder Positiv-Stichwort des Profils; (b) die Punktzahl erreicht die Benachrichtigungsschwelle (RAD-08, setzt O-15 voraus); (c) jede bewertete Bekanntmachung; (d) erst ein eröffneter Vorgang. Ein eröffneter Vorgang zählt in jedem Fall. Bis zur Antwort gilt (a) als beschrifteter Platzhalter (`FUND_PLATZHALTER`); die Antwort ändert diese eine Definition, nicht die Zählung, und Bereich und Gruppe zählen weiter gleich. | REP-06, RAD-05, RAD-08, O-15, D-720, D-762, V-269, `src/server/services/radar/fund.platzhalter.ts`, `src/server/services/bericht/kennzahlen.ts` (`pipelineZahlen`) |
 
 
 ### D-619 — Ein Objekt entsteht in der Anwendung, nicht im Seed
@@ -19643,24 +19644,31 @@ auf beiden Seiten verschiedene Zahlen.
    `pipeline()` (Bereich) summiert, was RLS ihr zeigt; `pipelineJeBereich()`
    (Gruppe, lesend) hängt dieselbe Zählung an die Liste der Gesellschaften.
    Die Trefferquote rechnet `trefferquoteBp` im Dienst, nicht die Seite.
-2. **Die Stufen, jede kumulativ:** *gefunden* = eine nicht ausgeschlossene
-   `bewertung` dieser Gesellschaft ODER ein eröffneter Vorgang (auch ohne
-   Bewertung — `setzeVorgangsstand` verlangt keine); *gesichtet* = ein
+2. **Die Stufen, jede kumulativ:** *gefunden* = ein FUND des Radars für
+   diese Gesellschaft ODER ein eröffneter Vorgang (auch ohne Bewertung —
+   `setzeVorgangsstand` verlangt keine). **Berichtigt durch D-762:** hier
+   stand „eine nicht ausgeschlossene `bewertung`"; bewertet wird aber jede
+   Bekanntmachung gegen jedes Profil, und ein Fund ist erst eine Bewertung,
+   deren Leistung das Profil trifft (Platzhalter, O-941); *gesichtet* = ein
    Vorgang mit einem Stand ausser `neu` (auch ein verworfener: verwerfen kann
    nur, wer hingesehen hat); *geboten* = `eingereicht` oder einer der drei
    Ausgänge (`einreichung.ts` setzt einen Ausgang nur aus `eingereicht`, also
    hat jeder ein Angebot hinter sich, auch das aufgehobene Verfahren);
    *gewonnen* = `zuschlag`, und nur dort steht der Zuschlagswert.
    *Verworfen* steht als Ausgang NEBEN dem Trichter, nicht darin.
-3. **Die Kohorte ist der Eingang:** die früheste nicht ausgeschlossene
-   Bewertung oder, falls früher oder allein, die Eröffnung des Vorgangs. Jede
+3. **Die Kohorte ist der Eingang:** der früheste Fund (D-762) oder, falls
+   früher oder allein, die Eröffnung des Vorgangs. Jede
    Stufe ist damit eine Teilmenge der vorigen. Eine Bekanntmachung, die zwei
    Profile bewertet haben, ist EIN Fall.
 4. **Der Stand heute bleibt, wo er hingehört:** die Gruppenübersicht des
    Radars (`gruppe/radar.ts`) zählt weiter nach dem heutigen Stand, ihr
    „eingereicht" umfasst jetzt aber dieselbe Menge wie „geboten" (mit
    `verfahren_aufgehoben`).
-5. **Der Seed zeigt einen verworfenen Fall** je Gesellschaft ohne Mappe; einen
+5. **Der Seed zeigt einen verworfenen Fall** je Gesellschaft, deren Profil
+   etwas gefunden hat, das weder einen Vorgang hat noch als Lead verfolgt wird
+   — **berichtigt durch D-762**: hier stand „je Gesellschaft ohne Mappe"; der
+   Fall entstand aber nur bei Security und Bau und lag dort auf der
+   Streusalzlieferung, die kein Profil trifft. Einen
    eingereichten oder gewonnenen legt er nicht an — eingereicht wird von Hand
    auf der Plattform (D-07), und ein Seed, der das behauptete, erzählte eine
    Abgabe, die es nie gab.
@@ -19975,4 +19983,66 @@ Kunden bei der Unterschrift vor.
    Schreibweise, die `parseGeld` liest.
 
 | Betrifft | DESIGN §5, SEITENKARTE §12, Invariante 1, V-233, `src/lib/zahl.ts`, `src/server/services/mitarbeiter/dokumente.ts`, `src/app/portal/[mandant]/dokumente/{darstellung.ts,page.tsx,[id]/page.tsx,[id]/kundenfreigabe/page.tsx}`, `src/app/portal/[mandant]/buchhaltung/{archiv,jahrespaket,z3-export}/page.tsx`, `src/app/portal/gruppe/dokumente/page.tsx`, `src/app/portal/[mandant]/zeiten/[id]/page.tsx`, `src/app/portal/[mandant]/reinigung/{sonderleistungen/page.tsx,leistungsnachweise/[id]/unterschrift/page.tsx}`, `tests/kern/zahl.test.ts` |
+|---|---|
+
+### D-762 · „Gefunden" ist ein Fund des Radars, nicht jede Bewertung — die Lesart ist ein Platzhalter (V-269, O-941)
+
+**Der Befund** (zweite Prüfung von V-226, REP-06): D-720 zählte als
+*gefunden* jede nicht ausgeschlossene `bewertung`. Der Radar bewertet aber
+JEDE eingelesene Bekanntmachung gegen JEDES aktive Profil (`lauf.ts`), und
+ausgeschlossen wird nur, was ein Mensch im Profil ausdrücklich ausschliesst
+(`bewerte`: „Der Code selbst wirft nichts weg"). In der Seed-Vorlage zählten
+Reinigung, Security und Bau je sechs Funde — darunter die
+Streusalzlieferung, die der Seed als „eine, die kein Profil trifft" anlegt,
+und für die Reinigung der Objektschutz und der Rückbau. Aus „Gefunden ist
+immer 0" war „Gefunden ist immer alles" geworden. Dazu legte der Seed den
+verworfenen Fall von Security und Bau genau auf die Streusalzlieferung
+(„jüngste Bekanntmachung ohne Vorgang"), und die Reinigung bekam keinen,
+weil der Block nur für Security und Bau lief.
+
+**Die Entscheidung.**
+
+1. **Ein Fund ist eine Frage an das Radar, keine an die Bewertungstabelle.**
+   Was als Fund zählt, steht an EINER Stelle
+   (`src/server/services/radar/fund.platzhalter.ts`): `istFund` ohne
+   Datenbank, `fundSql` als Bedingung über `bewertung`, beide aus derselben
+   `FundDefinition`. `pipelineZahlen` fragt `fundSql`; Bereich
+   (`pipeline`) und Gruppe (`pipelineJeBereich`) rufen dieselbe Funktion und
+   zählen weiter gleich (D-720 Nr. 1).
+2. **„Treffer" ist im Code nicht eindeutig festgelegt** — Schwelle der
+   Trefferbenachrichtigung (RAD-08, offen O-15), „trifft über Stichwörter
+   und Region" auf der Profilseite, „trifft kein Profil" im Seed trotz
+   passender Region. Das ist eine fachliche Frage und steht als **O-941**
+   offen. Bis zur Antwort gilt als beschrifteter Platzhalter
+   (`FUND_PLATZHALTER`, `TODO(client, O-941)`): **die Leistung trifft** —
+   ein CPV-Code des Profils mit Wirkung `positiv` oder ein Positiv-Stichwort,
+   in einer nicht ausgeschlossenen Bewertung. Region, Wert, Frist und
+   Schwellenwert bewerten einen Fund, begründen aber keinen. Das ist die
+   Lesart des Seeds; die Streusalzlieferung ist damit nirgends ein Fund,
+   jede Gesellschaft findet ihr Gewerk (Reinigung drei, Security eine, Bau
+   eine Bekanntmachung).
+3. **Ein eröffneter Vorgang zählt weiter**, auch ohne Fund: wer einen
+   Vorgang anlegt, hat die Bekanntmachung im Blick (D-720 Nr. 2). Die
+   Kohorte ist der früheste Fund oder die Eröffnung.
+4. **Beide Berichtsseiten sagen es** in der Fussnote — mit dem Hinweis, dass
+   die Lesart ein Platzhalter ist (O-941). Die Gruppenübersicht des Radars
+   zählt weiter „bewertet" unter diesem Wort; das ist keine Stufe der
+   Pipeline.
+5. **Der Seed verwirft nur, was gefunden wurde.** Der verworfene Fall hat
+   einen eigenen Block mit eigener Wiederholbarkeit, je Gesellschaft auf dem
+   ältesten Fund ohne Vorgang und ohne übernommenen Lead: Reinigung (die
+   Rahmenvereinbarung des Bundes), Security (der Objektschutz). Der Bau
+   verfolgt seinen einzigen Fund als Lead (V-139) und Operations hat kein
+   Suchprofil — beide bekommen keinen Fall, statt einen auf einer
+   Bekanntmachung, die sie nie gefunden hätten.
+
+**Geprüft:** `tests/kern/radar-fund.test.ts` rechnet die ECHTE Bewertung
+(`bewerte`) über die exportierten Vorlagen des Seeds (Streusalz für kein
+Profil ein Fund, obwohl bewertet und mit Punkten; die Fundmatrix je
+Gesellschaft; `istFund` je Regel; die Lesart austauschbar);
+`tests/isolation/bericht.test.ts` (5) mit elf Fällen — darunter die
+Streusalzbewertung aus `bewerte` (zählt nicht, mit Vorgang schon) und ein
+reiner Stichworttreffer (zählt) —, Bereich und Gruppe weiter gleich.
+
+| Betrifft | REP-06, RAD-05, RAD-08, O-15, O-941, D-720, V-226, V-269, `src/server/services/radar/fund.platzhalter.ts`, `src/server/services/bericht/kennzahlen.ts`, `src/app/portal/[mandant]/berichte/pipeline/page.tsx`, `src/app/portal/gruppe/berichte/pipeline/page.tsx`, `src/server/db/seed/{berichtsdaten,radar}.ts`, `tests/kern/radar-fund.test.ts`, `tests/isolation/bericht.test.ts` (5) |
 |---|---|

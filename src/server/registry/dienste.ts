@@ -38,6 +38,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'radar', pfad: 'radar/bewertung', schreibend: false },
   { modul: 'radar', pfad: 'radar/gewichte.platzhalter', schreibend: false },
+  /* Was „gefunden" heisst (REP-06, O-941) — liest nichts, schreibt nichts. */
+  { modul: 'radar', pfad: 'radar/fund.platzhalter', schreibend: false },
   { modul: 'radar', pfad: 'radar/import', schreibend: false },
   { modul: 'radar', pfad: 'radar/lauf', schreibend: false },
   { modul: 'radar', pfad: 'radar/ocds', schreibend: false },

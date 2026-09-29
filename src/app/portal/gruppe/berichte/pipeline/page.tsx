@@ -21,11 +21,14 @@ export default async function Pipeline({ searchParams }: {
       bericht="pipeline"
       suche={searchParams}
       fussnote={<>Dieselbe Zählung wie auf der Seite jeder Gesellschaft: eine Stufe zählt,
-        was sie erreicht hat, im Jahr des Eingangs. Gefunden ist, was das Radar bewertet
-        und nicht ausgeschlossen hat oder wozu ein Vorgang eröffnet wurde; gesichtet ist
-        ein Vorgang mit Stand; geboten ist, was eingereicht wurde, samt Zuschlag, Absage
-        und aufgehobenem Verfahren. Die Trefferquote ist gewonnen geteilt durch geboten;
-        verworfene Fälle zählen dort nicht mit, weil sie nie geboten wurden.</>}
+        was sie erreicht hat, im Jahr des Eingangs. Gefunden ist, was ein Suchprofil der
+        Gesellschaft über CPV-Code oder Stichwort trifft und nicht ausschliesst, oder wozu
+        ein Vorgang eröffnet wurde — eine Bewertung allein ist noch kein Fund;{' '}
+        <span data-cse="pipeline-fund-platzhalter">diese Lesart ist ein Platzhalter, bis
+          geklärt ist, was als gefunden zählt (O-941)</span>. Gesichtet ist ein Vorgang mit
+        Stand; geboten ist, was eingereicht wurde, samt Zuschlag, Absage und aufgehobenem
+        Verfahren. Die Trefferquote ist gewonnen geteilt durch geboten; verworfene Fälle
+        zählen dort nicht mit, weil sie nie geboten wurden.</>}
       kinder={async (kontext, jahr) => {
         const zeilen = await pipelineJeBereich(kontext, jahr);
         return (
