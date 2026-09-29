@@ -229,3 +229,76 @@ test.describe('Ein Lauf, von vorne bis hinten', () => {
     await expect(page.locator('h1')).not.toContainText('schiefgegangen');
   });
 });
+
+/**
+ * **Werkzeugpflege und Assistentenfrage im Browser** (V-228, V-229, V-270,
+ * D-722, D-723, D-763).
+ *
+ * Die zwei POST-Wege und das umgebaute Assistentenblatt hatten weder Routen-
+ * noch Browsertest (`tests/kern/agent-routen.test.ts` prüft seitdem die
+ * Routen). Hier der Weg, den ein Mensch geht: „Bestand abfragen" für den
+ * CEO-Assistenten ausschalten — der Assistent sagt, dass er nicht antwortet,
+ * und eine Frage bleibt ohne Antwort; wieder einschalten, ohne
+ * Freigabepflicht — die Antwort steht da, als `status` angesagt, und die
+ * Aufgabe in der Liste des Agenten. Am Ende steht der Stand des Seeds wieder
+ * (freigeschaltet, nur mit Freigabe, D-763 Nr. 6).
+ *
+ * `agent.werkzeug_verbinden` hält nur das Gruppenkonto; es wechselt dafür in
+ * die Gesellschaft (D-474), wie beim Budget oben.
+ */
+test.describe('Werkzeugpflege und Assistentenfrage', () => {
+  test('die Administration der Reinigung sieht den Stand, aber keine Schalter', async ({ page }) => {
+    await anmelden(page, KONTO.adminReinigung);
+    await page.goto(`/portal/${MANDANT}/agenten/ceo-assistent`);
+    await expect(page.locator('[data-cse="agent-werkzeug"][data-werkzeug="suche_bestand"]'))
+      .toBeVisible();
+    await expect(page.locator('[data-cse="werkzeug-formular"]')).toHaveCount(0);
+  });
+
+  test('ausgeschaltet antwortet der Assistent nicht — eingeschaltet sofort', async ({ page }) => {
+    await anmelden(page, KONTO.gruppe);
+    await page.goto(`/portal/${MANDANT}/agenten/ceo-assistent`);
+    const wechsel = page.locator('[data-cse="wechsel-knopf"]');
+    if ((await wechsel.count()) > 0) await wechsel.click();
+    await expect(page).toHaveURL(new RegExp(`/portal/${MANDANT}/agenten/ceo-assistent`, 'u'));
+
+    const zeile = page.locator('[data-cse="agent-werkzeug"][data-werkzeug="suche_bestand"]');
+    const setze = async (aktiv: boolean, freigabe: boolean): Promise<void> => {
+      await page.goto(`/portal/${MANDANT}/agenten/ceo-assistent`);
+      const formular = zeile.locator('[data-cse="werkzeug-formular"]');
+      await formular.locator('[data-cse="werkzeug-aktiv"]').setChecked(aktiv);
+      await formular.locator('[data-cse="werkzeug-freigabe"]').setChecked(freigabe);
+      await formular.locator('[data-cse="werkzeug-speichern"]').click();
+      await expect(page).toHaveURL(/werkzeug=gesetzt/u);
+      await expect(page.locator('[data-cse="werkzeug-gesetzt"]')).toHaveAttribute('role', 'status');
+      await expect(zeile).toHaveAttribute('data-aktiv', aktiv ? '1' : '0');
+    };
+    const fragen = async (): Promise<void> => {
+      await page.locator('[data-cse="assistent-frage"]').first().click();
+      await expect(page).toHaveURL(/aufgabe=[0-9a-f-]{36}/u);
+    };
+
+    try {
+      await setze(false, true);
+      await page.goto(`/portal/${MANDANT}/agenten/assistent`);
+      await expect(page.locator('[data-cse="assistent-gesperrt"]')).toBeVisible();
+      await fragen();
+      await expect(page.locator('[data-cse="assistent-keine-antwort"]'))
+        .toHaveAttribute('role', 'alert');
+
+      await setze(true, false);
+      await page.goto(`/portal/${MANDANT}/agenten/assistent`);
+      await expect(page.locator('[data-cse="assistent-gesperrt"]')).toHaveCount(0);
+      await fragen();
+      const antwort = page.locator('[data-cse="assistent-antwort"]');
+      await expect(antwort).toHaveAttribute('role', 'status');
+      await expect(antwort.locator('[data-cse="assistent-zahl"]')).toBeVisible();
+
+      await page.goto(`/portal/${MANDANT}/agenten/ceo-assistent`);
+      await expect(page.locator('a[href*="/agenten/ceo-assistent/aufgaben/"]').first())
+        .toBeVisible();
+    } finally {
+      await setze(true, true);
+    }
+  });
+});
