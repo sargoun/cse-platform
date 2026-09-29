@@ -202,8 +202,39 @@ export interface Spiegel {
   readonly aktivitaetId: string;
   readonly aufgabeId: string | null;
   readonly kalenderId: string | null;
-  /** Deutsche Sätze für das, was NICHT entstanden ist — nie stillschweigend. */
+  /**
+   * Deutsche Sätze für das, was NICHT entstanden ist — nie stillschweigend.
+   * Die Seite bekommt sie nicht mehr über die Adresse: die Route meldet
+   * `anlageSchluessel`, und die Seite setzt denselben Befund in ihrer Sprache
+   * (D-769, V-274).
+   */
   readonly nichtGespiegelt: readonly string[];
+}
+
+/**
+ * Wie `POST /api/crm/wiedervorlage` einen Erfolg meldet — als Schlüssel
+ * (`?erfolg=`), den die Seite nachschlägt (D-769, D-772, V-274). Hier stand
+ * der Satz selbst in der Adresse, beim Anlegen mit dem, was vom Spiegel
+ * fehlte, samt Rechteschlüssel in Backticks.
+ */
+export const WIEDERVORLAGE_ERFOLGE = [
+  'erledigt', 'verschoben',
+  'angelegt', 'angelegt_ohne_aufgabe', 'angelegt_ohne_kalender', 'angelegt_ohne_spiegel',
+] as const;
+export type WiedervorlageErfolg = (typeof WIEDERVORLAGE_ERFOLGE)[number];
+
+/**
+ * Der Erfolg des Anlegens — und was vom Spiegel NICHT entstand (O-663):
+ * dieselbe Auskunft wie `nichtGespiegelt`, als Schlüssel. Verschwiegen wird
+ * nichts; der Satz dazu steht auf der Seite.
+ */
+export function anlageSchluessel(
+  spiegel: Pick<Spiegel, 'aufgabeId' | 'kalenderId'>,
+): WiedervorlageErfolg {
+  if (spiegel.aufgabeId === null) {
+    return spiegel.kalenderId === null ? 'angelegt_ohne_spiegel' : 'angelegt_ohne_aufgabe';
+  }
+  return spiegel.kalenderId === null ? 'angelegt_ohne_kalender' : 'angelegt';
 }
 
 export interface NeueWiedervorlage {

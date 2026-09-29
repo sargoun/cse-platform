@@ -9,6 +9,7 @@ import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import { CrmFehler, legeLeadAn, setzeLeadPflege, setzeLeadStatus }
   from '@/server/services/crm/anlegen';
+import { zurueckMitSchluessel } from '@/app/api/crm/rueckweg';
 import { ordneLeadKundeZu, uebernehmeLeadAlsKunde } from '@/server/services/crm/lead-kette';
 import { legeLeadKontaktAn, waehleLeadKontakt } from '@/server/services/crm/lead-kontakt';
 import { uebernimmAusschreibungAlsLead } from '@/server/services/crm/lead-radar';
@@ -29,6 +30,11 @@ import { uebernimmAusschreibungAlsLead } from '@/server/services/crm/lead-radar'
  * einen Lead einträgt, hat das Gespräch geführt. Ein Vorgabebesitzer wäre eine
  * Zuweisung, die niemand getroffen hat — und ein Lead, für den sich niemand
  * zuständig fühlt, ist ein verlorener.
+ *
+ * **Eine Abweisung reist als `?fehler=<grund>`, nie als Satz** (D-769, D-772).
+ * Hier stand dazu der Satz des Dienstes — „der Rückfall für Seiten, die nur
+ * `meldung` lesen"; seit V-250 las ihn keine der drei Seiten mehr, er stand
+ * nur noch in der Adresse.
  */
 export const dynamic = 'force-dynamic';
 
@@ -159,17 +165,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         return `/portal/${bereich}/crm/leads/${neu.id}`;
       }));
   } catch (fehler) {
-    if (fehler instanceof CrmFehler) {
-      const trenner = zurueck.includes('?') ? '&' : '?';
-      return NextResponse.redirect(internesZiel(
-        // Schlüssel UND Satz: die Seite übersetzt den Schlüssel, der Satz
-        // bleibt der Rückfall für Seiten, die nur `meldung` lesen.
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`
-          + `&fehler=${encodeURIComponent(fehler.grund)}`,
-        '/portal', anfrage), 303);
-    }
+    /* Die Anmeldung zuerst (D-766, D-769 Nr. 7) — ein fehlendes Recht bleibt 404. */
     const autorisierung = autorisierungsAntwort(fehler, anfrage);
     if (autorisierung !== null) return autorisierung;
+    if (fehler instanceof CrmFehler) {
+      return zurueckMitSchluessel(anfrage, zurueck, 'fehler', fehler.grund);
+    }
     throw fehler;
   }
 

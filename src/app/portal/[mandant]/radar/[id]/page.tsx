@@ -218,13 +218,13 @@ export default async function Bekanntmachung(
       </div>
 
       {vermerkt !== null ? (
-        <Hinweis art="erfolg" cse="radar-vermerkt" className="mb-s5 max-w-prose">
+        <Hinweis art="erfolg" rolle="status" cse="radar-vermerkt" className="mb-s5 max-w-prose">
           <strong>Vermerkt.</strong> Der Stand dieser Bekanntmachung ist jetzt
           „{vermerkt}".
         </Hinweis>
       ) : null}
       {abgewiesen !== null ? (
-        <Hinweis art="warnung" cse="radar-abgewiesen" className="mb-s5 max-w-prose">
+        <Hinweis art="warnung" rolle="alert" cse="radar-abgewiesen" className="mb-s5 max-w-prose">
           <strong>Nicht geändert.</strong> {abgewiesen === 'grund'
             ? 'Ein Verwerfen braucht einen Grund — RAD-07 verlangt ihn, und in einem halben Jahr erinnert sich niemand mehr ohne ihn.'
             : abgewiesen === 'mappe_recht'
@@ -396,7 +396,7 @@ export default async function Bekanntmachung(
           <h2 className="mb-s2 text-h2 text-text">{k.radarTitel}</h2>
           <p className="mb-s3 text-sm text-text-muted">{k.radarErklaerung}</p>
           {leadFehler === null ? null : (
-            <Hinweis art="warnung" cse="radar-lead-fehler" className="mb-s3">
+            <Hinweis art="warnung" rolle="alert" cse="radar-lead-fehler" className="mb-s3">
               {leadFehler}
             </Hinweis>
           )}

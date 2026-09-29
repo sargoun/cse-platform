@@ -281,6 +281,8 @@ export function NotizKeinRecht({ sprache }: { readonly sprache: PortalSprache | 
  * Die Rückmeldung von `POST /api/crm/notiz` — `?notiz=<grund>` oder
  * `?notiert=1` (D-599). Jeder Grund hat einen Satz in beiden Sprachen; ein
  * unbekannter fällt auf „Nicht festgehalten." zurück, nie auf den Schlüssel.
+ * Beide Kästen melden den Ausgang des Formulars und werden angesagt:
+ * `rolle="alert"` und `rolle="status"` (DESIGN §5 „Notices", D-769 Nr. 2).
  */
 export function NotizRueckmeldung({ sprache, grund, notiert }: {
   readonly sprache: PortalSprache | null;
@@ -290,14 +292,14 @@ export function NotizRueckmeldung({ sprache, grund, notiert }: {
   const t = nachSprache(VERLAUF_TEXTE, sprache);
   if (grund !== null) {
     return (
-      <Hinweis art="warnung" cse="notiz-fehler" className="mt-s4 max-w-prose">
+      <Hinweis art="warnung" rolle="alert" cse="notiz-fehler" className="mt-s4 max-w-prose">
         <strong>{t.nichtGespeichert}</strong> {eigenerEintrag(t.notizFehler, grund) ?? ''}
       </Hinweis>
     );
   }
   if (notiert) {
     return (
-      <Hinweis art="erfolg" cse="notiz-erfolg" className="mt-s4 max-w-prose">
+      <Hinweis art="erfolg" rolle="status" cse="notiz-erfolg" className="mt-s4 max-w-prose">
         {t.notiert}
       </Hinweis>
     );

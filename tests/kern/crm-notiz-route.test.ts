@@ -11,10 +11,28 @@
  * Geprüft wird die ECHTE Route; ersetzt sind nur Sitzung, Datenbank und der
  * Dienst dahinter (dessen Verhalten `tests/isolation/crm-verlauf.test.ts` an
  * echten Zeilen prüft).
+ *
+ * **Seit D-772 (V-274)** dazu: JEDER Grund, den `halteFest` werfen kann (am
+ * Quelltext gelesen), kommt als `?notiz=<grund>` zurück und hat auf beiden
+ * Blättern einen Satz in beiden Sprachen; ein fehlendes Recht ist die
+ * byte-gleiche 404 und kommt VOR dem Rückweg; die beiden Kästen werden
+ * angesagt (`role="alert"`, `role="status"`).
  */
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import * as React from 'react';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { CrmFehler } from '../../src/server/services/crm/anlegen.js';
+import { NichtGefundenFehler } from '../../src/server/auth/fehler.js';
+import { NotizRueckmeldung } from '../../src/components/portal/Kommunikationsverlauf.js';
+import { VERLAUF_TEXTE } from '../../src/lib/i18n/verwaltung/crm-verlauf.js';
+import { eigenerEintrag } from '../../src/lib/nachschlagen.js';
+import { gruendeAb } from './hilfen/gruende.js';
+
+(globalThis as { React?: typeof React }).React = React;
 
 const zustand = vi.hoisted(() => ({
   sitzung: null as null | Record<string, unknown>,
@@ -126,5 +144,44 @@ describe('POST /api/crm/notiz', () => {
     zustand.sitzung = { aktiverMandantId: null };
     expect((await POST(anfrage({ inhalt: 'x', zurueck: BLATT }))).status).toBe(401);
     expect(zustand.halteFest).not.toHaveBeenCalled();
+  });
+});
+
+describe('D-772: jeder Grund der Notiz reist als Schlüssel und hat einen Satz', () => {
+  const WURZEL = resolve(import.meta.dirname, '../..');
+  const fund = gruendeAb({ datei: 'src/app/api/crm/notiz/route.ts', funktion: 'POST' }, ['CrmFehler'],
+    (d) => (existsSync(d) ? readFileSync(d, 'utf8') : null), WURZEL);
+  const ALLE = [...fund.gruende].sort();
+
+  it('am Quelltext gelesen, ohne offene Stelle', () => {
+    expect(fund.offen).toEqual([]);
+    expect(ALLE).toEqual(expect.arrayContaining(['ohne_zweck', 'uwg', 'ungueltiger_bezug']));
+  });
+
+  it.each(ALLE)('%s → `?notiz=<grund>`, nie der Satz', async (g) => {
+    zustand.halteFest.mockRejectedValue(new CrmFehler('Satz mit 5b0d6c1e-0a41-4c55-9d1c-1c2f3b4a5d6e', g as never));
+    const antwort = await POST(anfrage({ inhalt: 'x', zurueck: BLATT }));
+    expect(antwort.headers.get('location')).toBe(`${HIER}${BLATT}?notiz=${g}#kommunikation`);
+    for (const s of ['de', 'en'] as const) {
+      expect(eigenerEintrag(VERLAUF_TEXTE[s].notizFehler, g), `${s}.${g}`).toBeTruthy();
+    }
+  });
+
+  it('ein fehlendes Recht ist die byte-gleiche 404 — auch aus einem Formular', async () => {
+    zustand.authorize.mockRejectedValue(new NichtGefundenFehler('Recht crm.schreiben fehlt'));
+    const antwort = await POST(anfrage({ inhalt: 'x', zurueck: BLATT }));
+    expect(antwort.status).toBe(404);
+    expect(await antwort.json()).toEqual({ fehler: 'nicht_gefunden' });
+    expect(zustand.halteFest).not.toHaveBeenCalled();
+  });
+
+  it('die Rückmeldung wird angesagt — und ein fremder Grund bleibt der allgemeine Satz', () => {
+    const fehler = (grund: string): string => renderToStaticMarkup(
+      createElement(NotizRueckmeldung, { sprache: 'de', grund, notiert: false }));
+    expect(fehler('ohne_zweck')).toContain('role="alert"');
+    expect(fehler('__proto__')).toBe(fehler('gibt_es_nicht'));
+    expect(fehler('__proto__')).toContain(VERLAUF_TEXTE.de.nichtGespeichert);
+    expect(renderToStaticMarkup(createElement(NotizRueckmeldung,
+      { sprache: 'en', grund: null, notiert: true }))).toContain('role="status"');
   });
 });

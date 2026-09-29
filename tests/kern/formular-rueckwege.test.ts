@@ -7,7 +7,8 @@
  *
  *  1. `/crm/kunden/[id]` nahm keine Suchparameter an; `POST /api/crm/kunde`
  *     schickte `?meldung=`. Ein Ansprechpartner mit „Bestandskunde" ohne
- *     Quelle verschwand ohne Satz.
+ *     Quelle verschwand ohne Satz. (Seit D-772 schickt die Route nur noch den
+ *     Grund, `?grund=`; der Satz steht auf dem Blatt.)
  *  2. Vier Recruiting-Seiten schicken `zurueck` auf sich selbst,
  *     `fuehreRecruitingAus` hängt `?fehler=<grund>` an — keine der vier las
  *     ihn.
@@ -33,6 +34,7 @@ import { NotizKeinRecht } from '../../src/components/portal/Kommunikationsverlau
 import { RECRUITING_GESPRAECH_TEXTE } from '../../src/lib/i18n/verwaltung/recruiting-gespraech.js';
 import { RECRUITING_KANDIDAT_TEXTE } from '../../src/lib/i18n/verwaltung/recruiting-kandidat.js';
 import { SOCIAL_BILD_TEXTE } from '../../src/lib/i18n/verwaltung/social-bild.js';
+import { eigenerEintrag } from '../../src/lib/nachschlagen.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 /*
@@ -260,12 +262,21 @@ describe('(b2) Gespräch, Kandidat, Postfach, Beitragsbild: jeder Grund hat eine
 });
 
 describe('(c) das Kundenblatt liest die Abweisung des Kontaktformulars', () => {
-  it('die Route schickt Satz UND Schlüssel — und nicht als ?fehler=', () => {
+  /*
+   * Bis D-772 stand hier: „die Route schickt Satz UND Schlüssel" — geprüft
+   * wurde `meldung=${encodeURIComponent(fehler.message)}`. Genau das hebt
+   * D-769 auf: ein Satz in der Adresse ist einer, den jeder Link schreiben
+   * kann, und er war immer deutsch. Die Route schickt jetzt NUR den Grund;
+   * welche Adresse daraus wird, prüft `crm-kunde-rueckweg.test.ts` an der
+   * echten Route.
+   */
+  it('die Route schickt nur den Schlüssel (`?grund=`) — keinen Satz, und nicht als ?fehler=', () => {
     const route = lies('src/app/api/crm/kunde/route.ts');
-    expect(route).toContain('meldung=${encodeURIComponent(fehler.message)}');
-    expect(route).toContain('&grund=${encodeURIComponent(fehler.grund)}');
+    expect(route).toContain("zurueckMitSchluessel(anfrage, zurueck, 'grund', fehler.grund)");
+    expect(route).not.toContain('meldung=${');
+    expect(route).not.toContain('fehler.message');
     // `fehler` liest das Kontaktblatt für den Sendeweg (V-101).
-    expect(route).not.toMatch(/[?&]fehler=/u);
+    expect(route).not.toMatch(/[?&]fehler=|'fehler', fehler\.grund/u);
   });
 
   it('die Seite nimmt searchParams, zeigt die Meldung und öffnet das Formular', () => {
@@ -279,12 +290,20 @@ describe('(c) das Kundenblatt liest die Abweisung des Kontaktformulars', () => {
     /*
      * Der Rückfall war `?? meldung`: der Satz aus `?meldung=` stand im
      * Warnkasten des Portals, also jeder Text, den ein Verweis mitbringt.
+     *
+     * Bis D-772 verlangte dieser Test die Nachschlagung mit eckigen Klammern
+     * (`tk.kontaktFehler[meldungGrund]`) — `?grund=__proto__` fand damit
+     * `Object.prototype`, und das Blatt antwortete mit 500. Jetzt schlägt der
+     * gemeinsame Kasten nur als eigener Eintrag nach (D-728), mit
+     * `tk.abgewiesen` als allgemeinem Satz; das Rendern mit `__proto__` prüft
+     * `crm-kunde-rueckweg.test.ts`.
      */
     const seite = lies('src/app/portal/[mandant]/crm/kunden/[id]/page.tsx');
     expect(seite).not.toMatch(/\?\?\s*meldung\b/u);
     expect(seite).not.toMatch(/\{meldung\}/u);
-    expect(seite).toContain('tk.kontaktFehler[meldungGrund]');
-    expect(seite).toContain('tk.abgewiesen');
+    expect(seite).not.toMatch(/kontaktFehler\[/u);
+    expect(seite).toContain('fehler: tk.kontaktFehler');
+    expect(seite).toContain('sonst: tk.abgewiesen');
     for (const sprache of ['de', 'en'] as const) {
       expect(KUNDE_RUECKMELDUNG[sprache].abgewiesen).toBeTruthy();
     }
@@ -297,7 +316,8 @@ describe('(c) das Kundenblatt liest die Abweisung des Kontaktformulars', () => {
       ['grundlage_ohne_quelle', 'einwilligung_ohne_kanal']));
     for (const sprache of ['de', 'en'] as const) {
       for (const g of liste) {
-        expect(KUNDE_RUECKMELDUNG[sprache].kontaktFehler[g], `${sprache}: ${g}`).toBeTruthy();
+        expect(eigenerEintrag(KUNDE_RUECKMELDUNG[sprache].kontaktFehler, g), `${sprache}: ${g}`)
+          .toBeTruthy();
       }
     }
   });

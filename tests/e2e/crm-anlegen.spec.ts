@@ -58,8 +58,10 @@ test.describe('Einen Kunden anlegen', () => {
      * Zurueck auf das Formular mit dem Grund — kein JSON, kein 500. Die
      * Portalformulare haben kein JavaScript, und eine JSON-Antwort waere
      * derselbe Fehler wie auf der oeffentlichen Angebotsanfrage (D-599).
+     * Seit D-772 reist nur der Grund (`?grund=`), nie der Satz des Dienstes;
+     * den Satz schlaegt die Seite nach.
      */
-    await page.waitForURL(/\/crm\/kunden\/neu\?meldung=/u);
+    await page.waitForURL(/\/crm\/kunden\/neu\?grund=grundlage_ohne_quelle$/u);
     const meldung = page.locator('[data-cse="kunde-meldung"]');
     await expect(meldung).toBeVisible();
     await expect(meldung).toContainText('Abmahnung');
@@ -108,7 +110,8 @@ test.describe('Einen Lead anlegen', () => {
     await page.locator('[data-cse="lead-betreff"]').fill('Ohne jeden Namen');
     await page.locator('[data-cse="lead-anlegen"]').click();
 
-    await page.waitForURL(/\/crm\/leads\/neu\?meldung=/u);
+    /* Seit D-772 reist nur der Grund; den Satz schlaegt die Seite nach. */
+    await page.waitForURL(/\/crm\/leads\/neu\?fehler=ohne_namen$/u);
     await expect(page.locator('[data-cse="lead-meldung"]')).toContainText('Namen');
   });
 

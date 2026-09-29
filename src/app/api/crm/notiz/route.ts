@@ -68,14 +68,17 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         });
       })) as Promise<string>);
   } catch (fehler) {
+    /*
+     * AUT-06 (V-162, D-656): ein fehlendes Recht ist ein 404, kein 500 — und
+     * es kommt VOR dem Rückweg aufs Blatt (D-766, D-769 Nr. 7).
+     */
+    const autorisierung = autorisierungsAntwort(fehler, anfrage);
+    if (autorisierung !== null) return autorisierung;
     if (fehler instanceof CrmFehler) {
       return NextResponse.redirect(internesZiel(
         `${zurueck}${trenner}notiz=${encodeURIComponent(fehler.grund)}#kommunikation`,
         '/portal', anfrage), 303);
     }
-    /* AUT-06 (V-162, D-656): ein fehlendes Recht ist ein 404, kein 500. */
-    const autorisierung = autorisierungsAntwort(fehler, anfrage);
-    if (autorisierung !== null) return autorisierung;
     throw fehler;
   }
 
