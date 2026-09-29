@@ -21,7 +21,10 @@ import { AblageFehler, FassungFehler, legeFassungAn } from '@/server/services/do
  * MIME-Prüfung findet an den BYTES statt, bevor irgendetwas im Bucket liegt.
  *
  * **Recht: `dokument.schreiben`** — wer ablegen darf, darf eine neue Fassung
- * ablegen. Die alte bleibt Zeile und Datei; überschrieben wird nichts.
+ * ablegen. Die alte bleibt Zeile und Datei; überschrieben wird nichts. An
+ * einem für den Kunden freigegebenen Dokument zusätzlich
+ * `dokument.kunde_freigeben` und das Häkchen `kundenfreigabe=ja` (D-759) —
+ * das prüft der Dienst, nicht die Route, damit es für jeden Aufrufer gilt.
  *
  * **Ein Formular bekommt seine Seite zurück** (D-599): Erfolg als
  * `?fassung=<n>`, eine Abweisung als `?vorgang=fassung&fehler=<grund>` über
@@ -83,6 +86,8 @@ export async function POST(
           dateiname: datei.name,
           daten: bytes,
           behaupteterTyp: datei.type,
+          /* V-266, D-759: nur das ausdrückliche Wort gilt, nie ein fehlendes Feld. */
+          kundenfreigabeBestaetigt: feld(daten, 'kundenfreigabe') === 'ja',
         });
         return { slug: m?.slug ?? '', version: ergebnis.version };
       })) as Promise<{ slug: string; version: number }>);
@@ -101,7 +106,7 @@ export async function POST(
           303);
       }
       const status = grund === 'nicht_gefunden' ? 404
-        : grund === 'kein_recht' ? 403
+        : grund === 'kein_recht' || grund === 'kundenfreigabe_recht' ? 403
           : grund === 'speicher' ? 503 : grund.startsWith('datei_') || grund === 'leer' ? 400 : 409;
       return NextResponse.json({ fehler: grund }, { status });
     }

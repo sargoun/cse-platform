@@ -19702,7 +19702,8 @@ Vertrag liess sich nur als neues, unverbundenes Dokument ablegen.
    § 147 AO verlangen den unveränderten Buchungsbeleg, und berichtigt wird
    durch Gegenbuchung bzw. Storno (Invariante 4), nie durch den Austausch der
    Datei. Ebenso ein Dokument, auf das sich eine Buchungszeile beruft
-   (ACC-03). Welche der übrigen sechs Kategorien Fassungen führen sollen,
+   (ACC-03) — seit 0488 für jede Sitzung, auch ohne `buchhaltung.lesen`
+   (D-759). Welche der übrigen sechs Kategorien Fassungen führen sollen,
    entscheidet der Mandant (**O-937**); bis dahin sperrt die Plattform nur, was
    GoBD sperrt (`FASSUNG_ERLAUBT_PLATZHALTER`).
 5. **Die zweite Linie steht in der Datenbank** (`0470`,
@@ -20111,6 +20112,60 @@ entfernt und die alte liegen lassen.
    beginnt.
 
 | Betrifft | DOC-05, DOC-07, LEG-01, § 257 Abs. 5 HGB, Art. 5 Abs. 1 lit. e DSGVO, Art. 17 DSGVO, O-937, O-955, D-49, D-713, V-219, V-266, `drizzle/0474_fassung_traegt_ihre_frist.sql`, `src/server/services/dokument/{loeschung,ablage}.ts`, `src/server/jobs/dokumentAufbewahrung.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `tests/isolation/{dokument-loeschen,aufbewahrung-lauf,dokument-fassung}.test.ts` |
+|---|---|
+
+### D-759 · Eine neue Fassung an einem für den Kunden freigegebenen Dokument legt ab, wer die Kundenfreigabe erteilen darf — mit ausdrücklichem Wort; und die Buchungssperre gilt für jede Sitzung (V-266)
+
+**Der Befund** (V-266 c, d; Prüfung der Gruppe kalender-dokumente): (c) Die
+Kundenfreigabe ist der Schalter, der ein Dokument aus dem Haus lässt, mit
+eigenem Recht und Pflichtgrund (0297). `legeFassungAn` las
+`sichtbar_fuer_kunde` nicht, die Route verlangte nur `dokument.schreiben`,
+und der Auslöser aus 0297/0325 griff nur, wenn sich der SCHALTER änderte —
+eine neue Fassung tauscht aber die Datei hinter einer bestehenden Freigabe.
+Ein freigegebenes Dokument lieferte danach einen Inhalt aus, über den niemand
+mit dem Freigaberecht entschieden hatte (Invariante 7). Heute latent (das
+Kundenportal liefert noch keine Dokumente, O-671; dieselben Rollen halten
+beide Rechte), aber 0297 baut genau solche Wege ausdrücklich zu. (d) Die
+Sperre „an einer Buchung" (D-713 Nr. 4) lief unter der RLS des Aufrufers;
+`buchungssatz` liest nur, wer `buchhaltung.lesen` hält — für die Rolle
+leitung griff sie nie. Die Zweige „gelöscht" und „nicht sichtbar" von Dienst
+und Auslöser hatten keinen Test.
+
+**Die Entscheidung — der Ablauf an einem freigegebenen Dokument.**
+
+1. **Das Blatt sagt vorher, was geschieht.** Ist das Dokument für den Kunden
+   freigegeben, steht am Formular „Neue Fassung ablegen" ein Pflichthäkchen:
+   „Dieses Dokument ist für den Kunden freigegeben: er sieht die neue Fassung
+   sofort. Ich gebe sie für ihn frei." Ohne das Recht steht statt des
+   Formulars der Satz, wer ablegen darf — oder dass die Kundenfreigabe vorher
+   zurückgenommen wird (über ihren eigenen Weg, mit Grund).
+2. **Ablegen darf nur, wer auch `dokument.kunde_freigeben` hält** — dasselbe
+   Recht wie der Schalter selbst: wer ändert, was der Kunde zu sehen bekommt,
+   entscheidet darüber. Und nur mit dem ausdrücklichen Wort
+   (`kundenfreigabe=ja`); ein fehlendes Feld ist nie eine Zustimmung
+   (`kundenfreigabe_recht` bzw. `kundenfreigabe_bestaetigen`, eigene Sätze
+   auf dem Blatt, de/en).
+3. **Die Freigabe bleibt stehen** — der Kunde bekommt die neue Fassung. Eine
+   stille Rücknahme wäre die andere Hälfte desselben Fehlers: 0297 sagt es,
+   „zurückzunehmen ist nicht harmloser als freizugeben". Das Prüfprotokoll
+   der Fassung trägt `kundenfreigabe: fuer_kunden_sichtbar`.
+4. **Die zweite Linie** (`0488`, `kern.dokument_kundenfreigabe_pruefen`, ersetzt
+   0325): ändert sich an einer freigegebenen Zeile die Datei, gilt dasselbe
+   wie beim Umlegen des Schalters — ohne Menschen in der Sitzung nie, sonst
+   nur mit dem Recht.
+5. **Der Buchungsbezug für jede Sitzung gleich** (`fin.dokument_hat_buchung`,
+   Definer mit Eigentümer `cse_definer`, `search_path`, ohne PUBLIC; liest
+   über `d_beleg_dokument` und `d_bs_beleg` genau die Spalten aus 0132 im
+   aktiven Mandanten und gibt nur einen Wahrheitswert zurück). Der Dienst und
+   der Auslöser der Kette (`kern.dokument_fassung_pruefen`, 0488 ersetzt 0474)
+   fragen beide sie. Ohne gebundene Gesellschaft (Eigentümer, Seed) sieht sie
+   nichts — Fassungen legt im Betrieb nur eine Sitzung an.
+
+**Nicht Teil:** ob der Kunde benachrichtigt wird, wenn eine neue Fassung
+erscheint (kein Postausgang, O-501; das Kundenportal liefert noch keine
+Dokumente, O-671).
+
+| Betrifft | DOC-04, DOC-05, ACC-03, Invariante 7, O-501, O-671, D-713, V-219, V-266, `drizzle/0297`, `drizzle/0325`, `drizzle/0488_fassung_kundenfreigabe_und_buchung.sql`, `src/server/services/dokument/ablage.ts`, `src/app/api/dokumente/[id]/version/route.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `tests/isolation/dokument-fassung.test.ts`, `tests/kern/dokument-fassung.test.ts` |
 |---|---|
 
 ### D-760 · Kalender und Recruiting: wer einen Termin ändert, wirft niemanden still hinaus — und der Seed stellt die Bewerbung aus dem Postfach nicht vor die jüngste (V-267)

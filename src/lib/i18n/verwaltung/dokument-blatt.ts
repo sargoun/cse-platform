@@ -20,7 +20,8 @@ import type { InternSprache } from '../intern.js';
 export type FassungAbweisungText =
   | 'nicht_gefunden' | 'geloescht' | 'kategorie_gesperrt' | 'an_buchung' | 'ohne_kette'
   | 'leer' | 'kein_recht' | 'speicher' | 'datei_leer' | 'datei_unbekannt'
-  | 'datei_nicht_erlaubt' | 'datei_widerspruch' | 'datei_zu_gross';
+  | 'datei_nicht_erlaubt' | 'datei_widerspruch' | 'datei_zu_gross'
+  | 'kundenfreigabe_recht' | 'kundenfreigabe_bestaetigen';
 
 /** Die Gründe, mit denen die Mitarbeiterfreigabe abgewiesen wird (`DokumentfreigabeFehler`). */
 export type MitarbeiterfreigabeAbweisung =
@@ -50,6 +51,10 @@ export interface DokumentBlattTexte {
   readonly faGesperrtKategorie: string;
   readonly faGesperrtBuchung: string;
   readonly faOhneSpeicher: string;
+  /** An einem für den Kunden freigegebenen Dokument (V-266, D-759): Häkchen und Satz. */
+  readonly faKundenfreigabeBestaetigen: string;
+  readonly faKundenfreigabeOhneRechtVor: string;
+  readonly faKundenfreigabeOhneRechtNach: string;
   /** `{n}` ist die Nummer der abgelegten Fassung. */
   readonly faAbgelegt: string;
   readonly faNichtAbgelegt: string;
@@ -118,6 +123,14 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
     faOhneSpeicher:
       'Der Dateispeicher ist nicht verbunden — eine neue Fassung lässt sich nicht ablegen '
       + '(Einstellungen › Integrationen).',
+    faKundenfreigabeBestaetigen:
+      'Dieses Dokument ist für den Kunden freigegeben: er sieht die neue Fassung sofort. '
+      + 'Ich gebe sie für ihn frei.',
+    faKundenfreigabeOhneRechtVor:
+      'Dieses Dokument ist für den Kunden freigegeben — eine neue Fassung ändert, was er zu '
+      + 'sehen bekommt. Sie legt ab, wer',
+    faKundenfreigabeOhneRechtNach:
+      'hält; oder die Kundenfreigabe wird vorher zurückgenommen.',
     faAbgelegt: 'Fassung {n} ist abgelegt. Die vorige bleibt in der Kette und abrufbar.',
     faNichtAbgelegt: 'Keine Fassung abgelegt.',
     faFehler: {
@@ -138,6 +151,12 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
       datei_widerspruch:
         'Der Inhalt der Datei passt nicht zu dem Typ, den der Browser angegeben hat.',
       datei_zu_gross: 'Die Datei ist zu groß.',
+      kundenfreigabe_recht:
+        'Dieses Dokument ist für den Kunden freigegeben. Eine neue Fassung legt ab, wer auch '
+        + 'die Kundenfreigabe erteilen darf.',
+      kundenfreigabe_bestaetigen:
+        'Der Kunde sieht die neue Fassung sofort — das bestätigt das Häkchen am Formular. '
+        + 'Ohne es wurde nichts abgelegt.',
     },
     faFehlerSonst: 'Die Fassung wurde abgewiesen.',
 
@@ -218,6 +237,14 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
     faOhneSpeicher:
       'The file storage is not connected — no new version can be filed '
       + '(Settings › Integrations).',
+    faKundenfreigabeBestaetigen:
+      'This document is released to the customer: they see the new version at once. I '
+      + 'release it to them.',
+    faKundenfreigabeOhneRechtVor:
+      'This document is released to the customer — a new version changes what they get to '
+      + 'see. It is filed by a session holding',
+    faKundenfreigabeOhneRechtNach:
+      '— or the customer release is withdrawn first.',
     faAbgelegt: 'Version {n} is filed. The previous one stays in the chain and can be downloaded.',
     faNichtAbgelegt: 'No version filed.',
     faFehler: {
@@ -236,6 +263,12 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
       datei_nicht_erlaubt: 'This file type or size is not permitted.',
       datei_widerspruch: 'The file content does not match the type the browser declared.',
       datei_zu_gross: 'The file is too large.',
+      kundenfreigabe_recht:
+        'This document is released to the customer. A new version is filed by whoever may '
+        + 'also grant the customer release.',
+      kundenfreigabe_bestaetigen:
+        'The customer sees the new version at once — the tick on the form confirms this. '
+        + 'Without it nothing was filed.',
     },
     faFehlerSonst: 'The version was rejected.',
 

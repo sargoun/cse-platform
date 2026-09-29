@@ -331,7 +331,8 @@ export async function legeAb(
 /** Warum eine neue Fassung abgewiesen wird — je ein eigener Satz auf dem Blatt. */
 export type FassungAbweisung =
   | 'nicht_gefunden' | 'geloescht' | 'kategorie_gesperrt' | 'an_buchung'
-  | 'ohne_kette' | 'leer' | 'kein_recht';
+  | 'ohne_kette' | 'leer' | 'kein_recht'
+  | 'kundenfreigabe_recht' | 'kundenfreigabe_bestaetigen';
 
 export class FassungFehler extends Error {
   constructor(nachricht: string, readonly grund: FassungAbweisung) {
@@ -345,6 +346,12 @@ export interface FassungEingabe {
   readonly daten: Uint8Array;
   /** Was der Browser behauptet. Wird verglichen, nie geglaubt. */
   readonly behaupteterTyp: string;
+  /**
+   * Nur an einem für den Kunden freigegebenen Dokument: das ausdrückliche Wort,
+   * dass der Kunde die neue Fassung sieht (V-266, D-759). Ein fehlendes Feld ist
+   * nie eine Zustimmung.
+   */
+  readonly kundenfreigabeBestaetigt?: boolean;
 }
 
 export interface FassungErgebnis {
@@ -385,9 +392,19 @@ export function fassungSchluessel(
  * Liste und Abruf ohne Fassungsnummer das Aktuelle liefern.
  *
  * **Gesperrt** (`fassungMoeglich`, 0470): Rechnung, Beleg und Buchhaltung —
- * GoBD; und ein Dokument, auf das sich eine Buchungszeile beruft (ACC-03). Die
- * zweite Prüfung sieht nur, wer die Buchhaltung lesen darf; die Kategorie
- * prüft zusätzlich die Datenbank (`kern.dokument_fassung_pruefen`, 0470).
+ * GoBD; und ein Dokument, auf das sich eine Buchungszeile beruft (ACC-03).
+ * Den Buchungsbezug beantwortet seit 0488 ein Definer
+ * (`fin.dokument_hat_buchung`) für jede Sitzung gleich — vorher lief die
+ * Prüfung unter der RLS des Aufrufers, und für eine Sitzung ohne
+ * `buchhaltung.lesen` (die Rolle leitung) griff sie nie. Beides prüft
+ * zusätzlich die Datenbank (`kern.dokument_fassung_pruefen`).
+ *
+ * **Und die Kundenfreigabe entscheidet mit** (DOC-04, Invariante 7, D-759):
+ * an einem für den Kunden freigegebenen Dokument tauscht eine neue Fassung,
+ * was der Kunde zu sehen bekommt. Ablegen darf dann nur, wer auch
+ * `dokument.kunde_freigeben` hält, und nur mit dem ausdrücklichen Wort am
+ * Formular (`kundenfreigabeBestaetigt`); die Datenbank hält das Recht in
+ * zweiter Linie (0488).
  *
  * **Die Fassung trägt ihre eigene Aufbewahrungsfrist** (V-266, D-758): mit
  * dem Einfügen der Fassung rechnet die Datenbank die Frist, die heute für die
@@ -418,15 +435,11 @@ export async function legeFassungAn(
    */
   const [d] = await kontext.abfrage<{
     id: string; mandant_id: string; kategorie: string; titel: string; bucket: string;
-    geloescht_am: Date | null; an_buchung: boolean;
+    geloescht_am: Date | null; an_buchung: boolean; sichtbar_fuer_kunde: boolean;
   }>(
     `select d.id, d.mandant_id, d.kategorie::text as kategorie, d.titel, d.bucket,
-            d.geloescht_am,
-            exists (select 1 from beleg bl
-                      join buchungssatz bs on bs.beleg_id = bl.id
-                                          and bs.mandant_id = bl.mandant_id
-                     where bl.dokument_id = d.id and bl.mandant_id = d.mandant_id)
-              as an_buchung
+            d.geloescht_am, fin.dokument_hat_buchung(d.id) as an_buchung,
+            d.sichtbar_fuer_kunde
        from dokument d
       where d.id = $1::uuid and d.mandant_id = app.aktiver_mandant()
       for update of d`, [dokumentId]);
@@ -447,6 +460,21 @@ export async function legeFassungAn(
     throw new FassungFehler(
       'Eine Buchungszeile beruft sich auf dieses Dokument (ACC-03) — seine Datei wird nicht '
       + 'durch eine neue Fassung ersetzt.', 'an_buchung');
+  }
+  if (d.sichtbar_fuer_kunde) {
+    const [r] = await kontext.abfrage<{ ja: boolean }>(
+      `select app.hat_recht('dokument.kunde_freigeben', app.aktiver_mandant()) as ja`);
+    if (r?.ja !== true) {
+      throw new FassungFehler(
+        'Dieses Dokument ist für den Kunden freigegeben. Eine neue Fassung ändert, was er zu '
+        + 'sehen bekommt — sie legt ab, wer auch die Kundenfreigabe erteilen darf (DOC-04).',
+        'kundenfreigabe_recht');
+    }
+    if (roh.kundenfreigabeBestaetigt !== true) {
+      throw new FassungFehler(
+        'Der Kunde sieht die neue Fassung sofort. Das bestätigt ein Häkchen am Formular — '
+        + 'ohne es wird nichts abgelegt.', 'kundenfreigabe_bestaetigen');
+    }
   }
   const [kette] = await kontext.abfrage<{ hoechste: number | null }>(
     `select max(version) as hoechste from dokument_version
@@ -507,7 +535,8 @@ export async function legeFassungAn(
     `select app.protokolliere('dokument.fassung_abgelegt', 'dokument', $1, $2::jsonb,
                               $3::jsonb, app.aktiver_mandant())`,
     [d.id, { version: version - 1 },
-      { version, sha256: hoch.sha256, groesse_bytes: hoch.groesseBytes, mime_typ: hoch.mimeTyp }]);
+      { version, sha256: hoch.sha256, groesse_bytes: hoch.groesseBytes, mime_typ: hoch.mimeTyp,
+        ...(d.sichtbar_fuer_kunde ? { kundenfreigabe: 'fuer_kunden_sichtbar' } : {}) }]);
 
   /* Jetzt, und keine Zeile früher. */
   await puffer.schreibeDurch(speicher);

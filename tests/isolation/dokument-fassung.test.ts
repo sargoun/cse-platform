@@ -182,7 +182,8 @@ describe('(1) die Kette wächst, und nichts wird überschrieben', () => {
     expect(Buffer.from(bytes).toString('latin1')).not.toContain('GPSLatitude');
 
     /* Ein Inhalt, der dem behaupteten Typ widerspricht, kommt nicht hinein. */
-    await expect(neueFassung(speicher, id, PDF('x'), ablage, 'image/png')).rejects.toThrow();
+    await expect(neueFassung(speicher, id, PDF('x'), ablage, 'image/png'))
+      .rejects.toMatchObject({ name: 'MimeFehler', grund: 'widerspruch' });
     const [n] = await sql.unsafe<{ n: string }[]>(
       `select count(*)::text as n from dokument_version where dokument_id = $1`, [id]);
     expect(n!.n).toBe('2');
@@ -244,7 +245,8 @@ describe('(2) was keine neue Fassung bekommt', () => {
   it('ohne dokument.schreiben keine Fassung, und eine fremde Gesellschaft ist „nicht gefunden"', async () => {
     const speicher = new LokalerSpeicher();
     const id = await vertrag(speicher);
-    await expect(neueFassung(speicher, id, PDF('ohne Recht'), nurLesen)).rejects.toThrow();
+    await expect(neueFassung(speicher, id, PDF('ohne Recht'), nurLesen))
+      .rejects.toThrow(/row-level security/u);
     const [n] = await sql.unsafe<{ n: string }[]>(
       `select count(*)::text as n from dokument_version where dokument_id = $1`, [id]);
     expect(n!.n).toBe('1');
@@ -364,5 +366,193 @@ describe('(3) die Aufbewahrung einer Fassung — die längere gilt', () => {
     const nachher = await frist(id);
     expect(nachher.bis).toBe(`${String(nachher.jahr + 6)}-12-31`);
     expect(nachher.faellig).toBe(false);
+  });
+});
+
+/**
+ * **Die Kundenfreigabe entscheidet mit** (V-266, D-759, 0488). An einem für
+ * den Kunden freigegebenen Dokument tauscht eine neue Fassung, was der Kunde
+ * zu sehen bekommt. Bis 0488 genügte dafür `dokument.schreiben` — der
+ * Auslöser aus 0297 griff nur, wenn sich der SCHALTER änderte.
+ */
+describe('(4) eine neue Fassung an einem für den Kunden freigegebenen Dokument', () => {
+  async function freigegeben(speicher: LokalerSpeicher): Promise<string> {
+    const id = await vertrag(speicher);
+    /* Der Schalter steht schon — gesetzt an den Auslösern vorbei, wie ihn die Freigabe setzt. */
+    await sql.begin(async (tx) => {
+      await tx.unsafe(`set local session_replication_role = replica`);
+      await tx.unsafe(`update dokument set sichtbar_fuer_kunde = true where id = $1`, [id]);
+    });
+    return id;
+  }
+
+  async function mitFreigaberecht(): Promise<string> {
+    const wer = await konto('kundenfreigabe');
+    await mitglied(wer, f.reinigung, await rolleMit(f.reinigung, 'freigabe',
+      ['dokument.lesen', 'dokument.schreiben', 'dokument.kunde_freigeben']));
+    return wer;
+  }
+
+  async function fassungen(id: string): Promise<number> {
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from dokument_version where dokument_id = $1`, [id]);
+    return n!.n;
+  }
+
+  it('ohne dokument.kunde_freigeben: abgewiesen, nichts abgelegt', async () => {
+    const speicher = new LokalerSpeicher();
+    const id = await freigegeben(speicher);
+    await expect(als(ablage, (tx) => legeFassungAn(kontextAus(tx, ablage, f.reinigung),
+      speicher, id, {
+        dateiname: 'neu.pdf', daten: PDF('neu'), behaupteterTyp: 'application/pdf',
+        kundenfreigabeBestaetigt: true,
+      }))).rejects.toMatchObject({ grund: 'kundenfreigabe_recht' });
+    expect(await fassungen(id)).toBe(1);
+  });
+
+  it('mit dem Recht, aber ohne das ausdrückliche Wort: abgewiesen', async () => {
+    const speicher = new LokalerSpeicher();
+    const id = await freigegeben(speicher);
+    const wer = await mitFreigaberecht();
+    await expect(als(wer, (tx) => legeFassungAn(kontextAus(tx, wer, f.reinigung), speicher, id, {
+      dateiname: 'neu.pdf', daten: PDF('neu'), behaupteterTyp: 'application/pdf',
+    }))).rejects.toMatchObject({ grund: 'kundenfreigabe_bestaetigen' });
+    expect(await fassungen(id)).toBe(1);
+  });
+
+  it('mit Recht und Wort: abgelegt, die Freigabe bleibt, das Protokoll sagt es', async () => {
+    const speicher = new LokalerSpeicher();
+    const id = await freigegeben(speicher);
+    const wer = await mitFreigaberecht();
+    const e = await als(wer, (tx) => legeFassungAn(kontextAus(tx, wer, f.reinigung), speicher,
+      id, {
+        dateiname: 'neu.pdf', daten: PDF('neu'), behaupteterTyp: 'application/pdf',
+        kundenfreigabeBestaetigt: true,
+      }));
+    expect(e.version).toBe(2);
+    const [d] = await sql.unsafe<{ frei: boolean }[]>(
+      `select sichtbar_fuer_kunde as frei from dokument where id = $1`, [id]);
+    expect(d!.frei).toBe(true);
+    const [p] = await sql.unsafe<{ nachher: Record<string, unknown> }[]>(
+      `select nachher from audit_log
+        where objekt_typ = 'dokument' and objekt_id = $1 and aktion = 'dokument.fassung_abgelegt'`,
+      [id]);
+    expect(p!.nachher).toMatchObject({ version: 2, kundenfreigabe: 'fuer_kunden_sichtbar' });
+  });
+
+  it('an der Route vorbei hält die Datenbank das Recht (Auslöser, 0488)', async () => {
+    const speicher = new LokalerSpeicher();
+    const id = await freigegeben(speicher);
+    await expect(als(ablage, (tx) => tx.unsafe(
+      `update dokument set objekt_schluessel = $2 where id = $1`,
+      [id, fassungSchluessel(f.reinigung, 'vertrag', id, 2)])))
+      .rejects.toThrow(/kunde_freigeben fehlt/u);
+  });
+});
+
+/**
+ * **Die Buchungssperre gilt für jede Sitzung** (V-266, D-759, 0488). Die
+ * Prüfung lief unter der RLS des Aufrufers; `buchungssatz` liest nur, wer
+ * `buchhaltung.lesen` hält — für die Rolle leitung griff die Sperre nie.
+ * Dazu die Zweige der Kette, die bis hierher keinen Test hatten: gelöscht und
+ * nicht sichtbar.
+ */
+describe('(5) Buchung, gelöscht, nicht sichtbar — auch an der Route vorbei', () => {
+  async function anBuchung(speicher: LokalerSpeicher): Promise<string> {
+    const id = await vertrag(speicher);
+    const [v] = await sql.unsafe<{ id: string; sha: string }[]>(
+      `select id, sha256 as sha from dokument_version where dokument_id = $1 and version = 1`,
+      [id]);
+    const [bl] = await sql.unsafe<{ id: string }[]>(
+      `insert into beleg (mandant_id, belegnummer, typ, quelle, dokument_id,
+                          dokument_version_id, datei_sha256, belegdatum,
+                          erstellt_von_art, erstellt_von)
+       values ($1,$2,'kassenbeleg','scan',$3,$4,$5,app.berlin_heute(),'mensch',$6)
+       returning id`,
+      [f.reinigung, `B-${zufall()}`, id, v!.id, v!.sha, ablage]);
+    await sql.unsafe(
+      `insert into periode (mandant_id, jahr, monat, beginn_am, ende_am,
+                            erstellt_von_art, erstellt_von_dienst)
+       select $1, extract(year from app.berlin_heute())::int,
+              extract(month from app.berlin_heute())::smallint,
+              date_trunc('month', app.berlin_heute())::date,
+              (date_trunc('month', app.berlin_heute()) + interval '1 month'
+               - interval '1 day')::date,
+              'system', 'test:dokument-fassung'
+       on conflict do nothing`, [f.reinigung]);
+    const [periode] = await sql.unsafe<{ id: string }[]>(
+      `select id from periode
+        where mandant_id = $1 and app.berlin_heute() between beginn_am and ende_am`,
+      [f.reinigung]);
+    await sql.unsafe(
+      `insert into buchungssatz
+         (mandant_id, buchung_id, buchungsdatum, belegdatum, periode_id, umsatz_cent,
+          soll_haben, beleg_id, buchungstext, herkunft, erstellt_von_art, erstellt_von_dienst)
+       select $1, b.id, app.berlin_heute(), app.berlin_heute(), $2, 10000,
+              v.sh::soll_haben, $3, 'Testbuchung zum Vertrag', 'manuell', 'system',
+              'test:dokument-fassung'
+         from (select gen_random_uuid() as id) b,
+              (values ('soll'), ('haben')) as v(sh)`,
+      [f.reinigung, periode!.id, bl!.id]);
+    return id;
+  }
+
+  it('an einer Buchung: abgewiesen — auch ohne buchhaltung.lesen, auch am Dienst vorbei', async () => {
+    const speicher = new LokalerSpeicher();
+    const id = await anBuchung(speicher);
+    const [sieht] = await als(ablage, (tx) => tx.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from buchungssatz`));
+    expect(sieht!.n, 'diese Sitzung sieht keine Buchung — und wird trotzdem gesperrt').toBe(0);
+    await expect(neueFassung(speicher, id, PDF('ersetzt den Beleg')))
+      .rejects.toMatchObject({ grund: 'an_buchung' });
+    await expect(als(ablage, (tx) => tx.unsafe(
+      `insert into dokument_version (mandant_id, dokument_id, version, objekt_schluessel,
+                                     sha256, groesse_bytes, mime_typ)
+       values ($1, $2, 2, $3, $4, 72, 'application/pdf')`,
+      [f.reinigung, id, `t/${zufall()}`, 'c'.repeat(64)])))
+      .rejects.toThrow(/Buchungszeile beruft sich/u);
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from dokument_version where dokument_id = $1`, [id]);
+    expect(n!.n).toBe(1);
+  });
+
+  it('ein gelöschtes Dokument: der Dienst sagt „gelöscht", die Datenbank sperrt', async () => {
+    const speicher = new LokalerSpeicher();
+    const id = await vertrag(speicher, 'angebot');
+    await sql.begin(async (tx) => {
+      await tx.unsafe(`set local session_replication_role = replica`);
+      await tx.unsafe(
+        `update dokument set geloescht_am = now(), loeschgrund = 'Probe: gelöscht'
+          where id = $1`, [id]);
+    });
+    await expect(neueFassung(speicher, id, PDF('zu spät')))
+      .rejects.toMatchObject({ grund: 'geloescht' });
+    await expect(als(ablage, (tx) => tx.unsafe(
+      `insert into dokument_version (mandant_id, dokument_id, version, objekt_schluessel,
+                                     sha256, groesse_bytes, mime_typ)
+       values ($1, $2, 2, $3, $4, 72, 'application/pdf')`,
+      [f.reinigung, id, `t/${zufall()}`, 'd'.repeat(64)])))
+      .rejects.toThrow(/geloescht und bekommt keine Fassung/u);
+  });
+
+  it('ein Dokument, das die Sitzung nicht sieht, bekommt keine Fassung', async () => {
+    const [fremd] = await sql.unsafe<{ id: string }[]>(
+      `insert into dokument (mandant_id, kategorie, titel, bucket, objekt_schluessel,
+                             mime_typ, mime_verifiziert, groesse_bytes, exif_entfernt,
+                             entstanden_am)
+       values ($1, 'vertrag', 'Fremd', 'dokumente', $2, 'application/pdf', true, 72, true,
+               current_date)
+       returning id`, [f.security, `fremd/${zufall()}.pdf`]);
+    await sql.unsafe(
+      `insert into dokument_version (mandant_id, dokument_id, version, objekt_schluessel,
+                                     sha256, groesse_bytes, mime_typ)
+       values ($1, $2, 1, $3, $4, 72, 'application/pdf')`,
+      [f.security, fremd!.id, `fremd/${zufall()}.pdf`, 'e'.repeat(64)]);
+    await expect(als(ablage, (tx) => tx.unsafe(
+      `insert into dokument_version (mandant_id, dokument_id, version, objekt_schluessel,
+                                     sha256, groesse_bytes, mime_typ)
+       values ($1, $2, 2, $3, $4, 72, 'application/pdf')`,
+      [f.security, fremd!.id, `t/${zufall()}`, 'f'.repeat(64)])))
+      .rejects.toThrow(/nicht sichtbar|row-level security/u);
   });
 });

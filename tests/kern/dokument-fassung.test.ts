@@ -8,7 +8,7 @@
  *  - Der Schlüssel einer Fassung ist ein GESCHWISTER der ersten, kein
  *    Unterordner: im Vorführordner ist der erste Schlüssel eine Datei.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -28,13 +28,25 @@ describe('welche Kategorien eine zweite Fassung bekommen', () => {
       .toEqual([...KATEGORIEN].sort());
   });
 
-  it('der Auslöser in 0470 sperrt genau dieselben Kategorien', () => {
-    const sql = readFileSync(fileURLToPath(
-      new URL('../../drizzle/0470_dokument_fassungskette.sql', import.meta.url)), 'utf8');
-    const treffer = /v_kategorie in \(([^)]*)\)/u.exec(sql);
-    expect(treffer).not.toBeNull();
-    const liste = (treffer![1] ?? '').split(',').map((t) => t.trim().replace(/'/gu, ''));
-    expect(liste.sort()).toEqual([...FASSUNG_GESPERRT].sort());
+  /*
+   * JEDE Fassung des Auslösers — 0470, 0474 und 0488 ersetzen ihn nacheinander
+   * (V-266). Geprüft wird die neueste, die auf der Datenbank gilt, und jede
+   * davor: eine, die nur die erste liest, bliebe grün, während die geltende
+   * eine andere Liste trüge.
+   */
+  it('der Auslöser sperrt in jeder seiner Fassungen genau dieselben Kategorien', () => {
+    const ordner = fileURLToPath(new URL('../../drizzle/', import.meta.url));
+    const dateien = readdirSync(ordner).filter((d) => d.endsWith('.sql')).sort()
+      .filter((d) => /create (or replace )?function kern\.dokument_fassung_pruefen\(/u
+        .test(readFileSync(`${ordner}${d}`, 'utf8')));
+    expect(dateien[0]).toBe('0470_dokument_fassungskette.sql');
+    expect(dateien.length).toBeGreaterThanOrEqual(3);
+    for (const datei of dateien) {
+      const treffer = /v_kategorie in \(([^)]*)\)/u.exec(readFileSync(`${ordner}${datei}`, 'utf8'));
+      expect(treffer, datei).not.toBeNull();
+      const liste = (treffer![1] ?? '').split(',').map((t) => t.trim().replace(/'/gu, ''));
+      expect(liste.sort(), datei).toEqual([...FASSUNG_GESPERRT].sort());
+    }
   });
 });
 

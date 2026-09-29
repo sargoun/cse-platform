@@ -363,6 +363,17 @@ export default async function Dokumentblatt(
           <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-ohne-speicher">
             {t.faOhneSpeicher}
           </p>
+        ) : d.sichtbar_fuer_kunde && darf['dokument.kunde_freigeben'] !== true ? (
+          /*
+           * V-266, D-759: an einem für den Kunden freigegebenen Dokument ändert
+           * eine neue Fassung, was er zu sehen bekommt — das entscheidet, wer
+           * die Kundenfreigabe erteilen darf (0297, 0488).
+           */
+          <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-kundenfreigabe">
+            {t.faKundenfreigabeOhneRechtVor}{' '}
+            <Recht schluessel="dokument.kunde_freigeben" sprache={sprache} />{' '}
+            {t.faKundenfreigabeOhneRechtNach}
+          </p>
         ) : (
           <form method="post" action={`/api/dokumente/${d.id}/version`}
                 encType="multipart/form-data" data-cse="fassung-formular"
@@ -375,6 +386,14 @@ export default async function Dokumentblatt(
                      className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text" />
             </label>
             <p className="m-0 text-xs text-text-muted">{t.faNeuErklaerung}</p>
+            {d.sichtbar_fuer_kunde ? (
+              <label className="flex items-start gap-s3 text-sm text-text">
+                <input type="checkbox" name="kundenfreigabe" value="ja" required
+                       data-cse="fassung-kundenfreigabe-bestaetigen"
+                       className="mt-s1 min-h-5 min-w-5" />
+                {t.faKundenfreigabeBestaetigen}
+              </label>
+            ) : null}
             <div>
               <Button type="submit" variante="secondary" data-cse="fassung-abschicken">
                 {t.faAbschicken.replace('{n}', String(naechsteFassung))}
