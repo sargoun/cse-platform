@@ -19984,7 +19984,9 @@ keine Löschfrist (REC-07); `bewerbung_quelle = 'mail'` setzte niemand.
 5. **Keine Kaltakquise, kein Scraping** (CLAUDE.md): erfasst wird, was jemand
    von sich aus geschickt hat; es gibt keinen Weg, der ein Postfach oder
    eine Börse nach Menschen durchsucht.
-6. **Der Seed** erfasst eine Bewerbung aus dem Postfach über den Dienst.
+6. **Der Seed** erfasst eine Bewerbung aus dem Postfach über den Dienst —
+   als E-Mail von vor fünf Tagen, mit Entwurf der Eingangsbestätigung (D-760
+   Nr. 4).
 
 | Betrifft | REC-03, REC-07, LEG-11, O-117, O-375, O-938, Invariante 7, V-224, `drizzle/0472_bewerbung_aus_dem_postfach.sql`, `src/server/integrationen/bewerbungspostfach.ts`, `src/server/registry/integrationen.ts`, `src/server/services/recruiting/postfach.ts`, `src/app/api/recruiting/bewerbungen/route.ts`, `src/app/portal/[mandant]/recruiting/bewerbungen/{page,neu/page}.tsx`, `src/app/portal/[mandant]/recruiting/rahmen.tsx`, `src/server/db/seed/postfach.ts`, `tests/kern/{bewerbungspostfach,integrationen}.test.ts`, `tests/isolation/recruiting-postfach.test.ts` |
 |---|---|
@@ -20107,7 +20109,7 @@ entfernt und die alte liegen lassen.
 | Betrifft | DOC-05, DOC-07, LEG-01, § 257 Abs. 5 HGB, Art. 5 Abs. 1 lit. e DSGVO, Art. 17 DSGVO, O-937, O-955, D-49, D-713, V-219, V-266, `drizzle/0474_fassung_traegt_ihre_frist.sql`, `src/server/services/dokument/{loeschung,ablage}.ts`, `src/server/jobs/dokumentAufbewahrung.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `tests/isolation/{dokument-loeschen,aufbewahrung-lauf,dokument-fassung}.test.ts` |
 |---|---|
 
-### D-760 · Kalender und Recruiting: wer einen Termin ändert, wirft niemanden still hinaus (V-267)
+### D-760 · Kalender und Recruiting: wer einen Termin ändert, wirft niemanden still hinaus — und der Seed stellt die Bewerbung aus dem Postfach nicht vor die jüngste (V-267)
 
 **Der Befund** (V-267; Prüfung der Gruppe kalender-dokumente):
 `aendereTermin` ersetzte die Teilnehmenden durch „führende Person + Auswahl"
@@ -20138,6 +20140,18 @@ Person zurück.
 3. **Die Seite sagt es:** am Formular, wen die Auswahl nicht berührt; ohne
    `system.benutzer_lesen` der Satz „Die Teilnehmenden bleiben bei dieser
    Änderung, wie sie sind" mit dem fehlenden Recht.
+4. **Die Bewerbung aus dem Postfach ist im Seed eine E-Mail von vor fünf
+   Tagen** (V-267 b). Der Dienst stempelt die Übertragung; im Seed stand die
+   übertragene Bewerbung deshalb als jüngste ganz oben — vor der
+   Karriereseiten-Bewerbung von vorgestern, an der der Seed den Entwurf der
+   Eingangsbestätigung zeigt, und `tests/e2e/bewerbung-antwort.spec.ts` fand
+   auf der ersten Zeile keinen Entwurf mehr (rot). Behoben am Seed, nicht am
+   Test: `seedPostfach` setzt nach dem Dienst den Eingang der E-Mail
+   (`eingegangen_am`, fünf Tage zurück); die Löschfrist bleibt, wie der Dienst
+   sie ab der Übernahme gesetzt hat (O-938). Dazu legt der Seed die
+   Eingangsbestätigung über `entwirf` als Entwurf an — wie für jede lebende
+   Bewerbung — und nimmt einen Menschen mit `recruiting.bewerbung_bewerten`,
+   dem Recht der Route.
 
-| Betrifft | CAL-01, CAL-02, D-715, V-221, V-267, `drizzle/0160` (`t_kalender_schreiben`, `t_kalender_eigene`), `src/server/services/kalender/termin.ts`, `src/app/portal/[mandant]/kalender/{TerminFormular.tsx,[id]/page.tsx,neu/page.tsx}`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/kalender-termin.test.ts` |
+| Betrifft | CAL-01, CAL-02, REC-03, O-938, D-715, D-718, V-221, V-224, V-267, `drizzle/0160` (`t_kalender_schreiben`, `t_kalender_eigene`), `src/server/services/kalender/termin.ts`, `src/app/portal/[mandant]/kalender/{TerminFormular.tsx,[id]/page.tsx,neu/page.tsx}`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/postfach.ts`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/{kalender-termin,recruiting-postfach}.test.ts`, `tests/e2e/bewerbung-antwort.spec.ts` |
 |---|---|

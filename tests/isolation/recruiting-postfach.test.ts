@@ -14,7 +14,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index.js';
 import { erfasseBewerbungAusPostfach } from '../../src/server/services/recruiting/postfach.js';
-import { aufbewahrungTage } from '../../src/server/services/recruiting/dienst.js';
+import { aufbewahrungTage, listeBewerbungen } from '../../src/server/services/recruiting/dienst.js';
 import { POSTFACH_ADRESSE, seedPostfach } from '../../src/server/db/seed/postfach.js';
 
 let f: Fixtur;
@@ -145,5 +145,40 @@ describe('(3) der Seed', () => {
       `select quelle::text as quelle from bewerbung where email = $1`, [POSTFACH_ADRESSE]);
     expect(b!.quelle).toBe('mail');
     expect(await seedPostfach(sql, ids, true)).toEqual({ erfasst: 0 });
+  });
+
+  /**
+   * **Die übertragene Bewerbung verdrängt die jüngste nicht von Platz 1**
+   * (V-267, D-760). Die Liste sortiert nach Eingang; der Seed legt die
+   * Karriereseiten-Bewerbungen mit Eingang vor zwei Tagen an und zeigt an der
+   * jüngsten den Entwurf der Eingangsbestätigung, den der Browsertest auf der
+   * ersten Zeile sucht (`bewerbung-antwort.spec.ts`). Die Postfach-Bewerbung
+   * kam vor fünf Tagen — und trägt ihren eigenen Entwurf.
+   */
+  it('im Postfach eingegangen vor fünf Tagen, mit Entwurf der Eingangsbestätigung', async () => {
+    const s = await stelle(f.reinigung);
+    const [juengste] = await sql.unsafe<{ id: string }[]>(
+      `insert into bewerbung (mandant_id, stelle_id, quelle, name, email, eingegangen_am,
+                              aufbewahrung_bis)
+       values ($1, $2, 'karriereseite', 'Lena Brandt', 'lena@beispiel.test',
+               now() - interval '2 days', app.berlin_heute() + 100)
+       returning id`, [f.reinigung, s]);
+    await seedPostfach(sql, new Map([['reinigung', f.reinigung]]), true);
+
+    const [b] = await sql.unsafe<{ id: string; frueher: boolean; frist: boolean }[]>(
+      `select id, eingegangen_am < now() - interval '4 days' as frueher,
+              aufbewahrung_bis >= app.berlin_heute() + 1 as frist
+         from bewerbung where email = $1`, [POSTFACH_ADRESSE]);
+    expect(b!.frueher, 'Eingang der E-Mail, nicht der Übertragung').toBe(true);
+    expect(b!.frist, 'die Frist beginnt mit der Übernahme (O-938)').toBe(true);
+
+    const liste = await als((k) => listeBewerbungen(k));
+    expect(liste[0]!.id, 'die jüngste bleibt vorn').toBe(juengste!.id);
+    expect(liste.map((z) => z.id)).toContain(b!.id);
+
+    const [a] = await sql.unsafe<{ art: string; stand: string }[]>(
+      `select art::text as art, stand::text as stand from bewerbung_antwort
+        where bewerbung_id = $1`, [b!.id]);
+    expect(a).toEqual({ art: 'eingangsbestaetigung', stand: 'entwurf' });
   });
 });
