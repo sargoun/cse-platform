@@ -510,10 +510,11 @@ export default async function Dokumentblatt(
               </Button>
             </div>
             <p className="m-0 text-xs text-text-muted">
-              Gelöscht werden die Zeile und die Datei — in dieser Reihenfolge, damit im
-              Bucket nichts liegen bleibt, worauf keine Zeile mehr zeigt. Die Zeile bleibt
-              mit Zeitpunkt, Person und Grund erhalten (kein hartes Löschen, Invariante 8);
-              die Datei ist danach fort und kommt nicht zurück.{' '}
+              Gelöscht werden die Zeile und die Dateien aller Fassungen — in dieser
+              Reihenfolge, damit im Bucket nichts liegen bleibt, worauf keine Zeile mehr
+              zeigt. Die Zeile bleibt mit Zeitpunkt, Person und Grund erhalten (kein hartes
+              Löschen, Invariante 8); die Dateien sind danach fort und kommen nicht
+              zurück.{' '}
               <strong>Die Datenbank kann trotzdem ablehnen:</strong> ob sich eine
               Buchungszeile auf dieses Dokument beruft, ist ohne{' '}
               <Recht schluessel="buchhaltung.lesen" /> von hier aus nicht zu sehen — die

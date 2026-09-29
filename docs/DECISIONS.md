@@ -20040,3 +20040,35 @@ Beitragsseite zeigte nur Text.
 
 | Betrifft | SOC-02, SOC-05, SOC-06, SOC-08, DOC-03, PUB-09, O-10, O-13, O-939, Invariante 7, V-225, `drizzle/0473_beitragsbild.sql`, `src/server/services/social/beitragsbild.ts`, `src/server/services/social/{dienst,port}.ts`, `src/app/api/beitragsbild/[id]/route.ts`, `src/app/api/social/beitraege/[id]/bild/route.ts`, `src/app/portal/[mandant]/social/posts/{[id],neu}/page.tsx`, `src/app/(public)/unternehmen/[bereich]/_profil/Inhalte.tsx`, `src/lib/i18n/verwaltung/social-bild.ts`, `src/server/db/seed/{social,beitragsbild}.ts`, `tests/isolation/social-beitragsbild.test.ts` |
 |---|---|
+
+### D-758 · Ein gelöschtes Dokument nimmt die Dateien aller Fassungen mit (V-266)
+
+**Der Befund** (V-266 a; Prüfung der Gruppe kalender-dokumente): V-219 legt
+je Fassung ein eigenes Objekt an (`<mandant>/<kategorie>/<dokument>.v<n>`),
+und `dokument.objekt_schluessel` zeigt danach auf die neueste. Der EINE
+Löschweg `loescheDokument` entfernte aber nur, was das weiche Löschen
+zurückgab — die neueste Datei. Fassung 1 … n-1 blieben nach dem Löschen für
+immer im privaten Behälter, bei der Löschung von Hand ebenso wie im Nachtlauf
+nach Fristablauf (DOC-07, Art. 5 Abs. 1 lit. e und Art. 17 DSGVO); kein Weg
+kam je wieder an sie heran. Gerade der Fall aus O-937 (eine ältere
+Personalunterlage mit inzwischen berichtigten Angaben, Art. 16 DSGVO) blieb
+damit als Datei liegen, während das Blatt versprach, die Datei sei „fort".
+
+**Die Entscheidung.**
+
+1. **Die ganze Kette geht mit.** Nach dem weichen Löschen liest der Dienst
+   die Schlüssel aller Fassungen (`dokument_version`, unter derselben Bindung
+   — `t_version_lesen` bzw. `j_dokument_version_lesen`) und entfernt jedes
+   Objekt im Behälter des Dokuments. Die Zeilen der Kette bleiben
+   (Invariante 8); nur die Bytes sind fort. `Geloescht.entfernt` nennt jeden
+   entfernten Schlüssel.
+2. **Die älteren zuerst, die neueste zuletzt.** Scheitert unterwegs ein
+   Objekt, rollt die Transaktion die Zeile zurück — und die Datei, auf die
+   die Zeile zeigt, liegt dann noch: Liste und Abruf zeigen weiter, was die
+   Zeile verspricht. Der Nachtlauf zählt den Fall als Fehler und versucht es
+   in der nächsten Nacht wieder.
+3. **Das Blatt sagt es:** „Gelöscht werden die Zeile und die Dateien aller
+   Fassungen".
+
+| Betrifft | DOC-05, DOC-07, LEG-01, Art. 5 Abs. 1 lit. e DSGVO, Art. 17 DSGVO, O-937, D-713, V-219, V-266, `src/server/services/dokument/loeschung.ts`, `src/server/jobs/dokumentAufbewahrung.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `tests/isolation/{dokument-loeschen,aufbewahrung-lauf}.test.ts` |
+|---|---|

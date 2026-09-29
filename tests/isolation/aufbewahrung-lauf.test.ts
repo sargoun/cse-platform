@@ -326,6 +326,44 @@ describe('§4 der Lauf selbst — mit der Rolle, die der Zeitplan setzt', () => 
   });
 
   /**
+   * **Und er nimmt ALLE Fassungen mit** (V-266, D-758). Seit V-219 liegt je
+   * Fassung ein eigenes Objekt im Behälter; der Lauf entfernte nur das, auf
+   * das die Zeile zeigt — Fassung 1 … n-1 blieben nach Fristablauf für
+   * immer liegen (Art. 5 Abs. 1 lit. e DSGVO).
+   *
+   * Die Fixtur legt Fassung 2 an den Auslösern vorbei an: seit 0474 verlängert
+   * eine neue Fassung die Frist bis zum Ende ihres eigenen Fristjahrs, und die
+   * Uhr der Datenbank lässt sich nicht vorstellen. So sieht ein Dokument aus,
+   * dessen verlängerte Frist inzwischen abgelaufen ist.
+   */
+  it('entfernt die Dateien aller Fassungen, nicht nur die der neuesten', async () => {
+    const speicher = new LokalerSpeicher();
+    const id = await dokument(f.reinigung, { entstanden: '2015-06-01' });
+    const [o] = await sql.unsafe<{ b: Bucket; s: string }[]>(
+      `select bucket as b, objekt_schluessel as s from dokument where id = $1`, [id]);
+    const zweite = `${f.reinigung}/angebot/${id}.v2`;
+    await sql.begin(async (tx) => {
+      await tx.unsafe(`set local session_replication_role = replica`);
+      await tx.unsafe(
+        `insert into dokument_version (mandant_id, dokument_id, version, objekt_schluessel,
+                                       sha256, groesse_bytes, mime_typ)
+         values ($1, $2, 1, $3, $4, 100, 'application/pdf'),
+                ($1, $2, 2, $5, $6, 100, 'application/pdf')`,
+        [f.reinigung, id, o!.s, 'a'.repeat(64), zweite, 'b'.repeat(64)]);
+      await tx.unsafe(`update dokument set objekt_schluessel = $2 where id = $1`, [id, zweite]);
+    });
+    await speicher.lege(o!.b, o!.s, new Uint8Array([1]));
+    await speicher.lege(o!.b, zweite, new Uint8Array([2]));
+    expect((await frist(id)).bis, 'die Frist ist abgelaufen').toBe('2021-12-31');
+
+    const befund = await laufe(sql, f.reinigung, speicher);
+    expect(befund.fehler, befund.letzterFehler ?? '').toBe(0);
+    expect((await stand(id)).weg).toBe(true);
+    expect(speicher.rohBytes(o!.b, zweite), 'die neueste Fassung ist fort').toBeUndefined();
+    expect(speicher.rohBytes(o!.b, o!.s), 'und die erste auch').toBeUndefined();
+  });
+
+  /**
    * **Der Grund nennt die Frist, nicht den Lauf.** Wer in fünf Jahren fragt,
    * warum dieses Dokument fehlt, liest genau diese Zeile — und „automatisch
    * gelöscht" beantwortet die Frage nicht.
