@@ -15,6 +15,7 @@ import { internSprache } from '@/lib/i18n/intern';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KALENDER_TERMIN_TEXTE } from '@/lib/i18n/verwaltung/kalender-termin';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { vorbelegt, vorbelegteListe } from '@/lib/formular/maske';
 import { berlinFormularWert } from '@/lib/datum/formularzeit';
 import { berlinKalendertag } from '@/server/services/zeit/dauer';
 import {
@@ -210,6 +211,40 @@ export default async function Termin({ params, searchParams }: {
 
   const zurueck = `/portal/${mandant}/kalender/${zeile.id}`;
   const letzterTag = new Date(new Date(zeile.ende).getTime() - 1);
+  /*
+   * V-267: nach einer Abweisung stehen die EINGABEN wieder da, nicht der alte
+   * Stand — die Route schickt sie mit (`maskeFelder`, `maskeListen`), wie es
+   * D-715 Nr. 6 zusagt. Erkannt an der Art: das Auswahlfeld reist immer mit.
+   * Ausnahme `gleichzeitig`: dort sagt der Satz, dass die Seite den AKTUELLEN
+   * Stand zeigt — und das tut sie.
+   */
+  const mitEingaben = fehler !== null && fehler !== 'gleichzeitig'
+    && vorbelegt(suche, 'art') !== undefined;
+  const gespeichert = {
+    art: zeile.art,
+    titel: zeile.titel,
+    ort: zeile.ort ?? '',
+    beschreibung: zeile.beschreibung ?? '',
+    ganztaegig: zeile.ganztaegig,
+    beginn: zeile.ganztaegig ? '' : berlinFormularWert(new Date(zeile.beginn)),
+    ende: zeile.ganztaegig ? '' : berlinFormularWert(new Date(zeile.ende)),
+    vonTag: zeile.ganztaegig ? berlinKalendertag(new Date(zeile.beginn)) : '',
+    bisTag: zeile.ganztaegig ? berlinKalendertag(letzterTag) : '',
+    teilnehmer: zeile.teilnehmer,
+  };
+  const eingabe = (name: string): string => vorbelegt(suche, name) ?? '';
+  const werte = !mitEingaben ? gespeichert : {
+    art: eingabe('art'),
+    titel: eingabe('titel'),
+    ort: eingabe('ort'),
+    beschreibung: eingabe('beschreibung'),
+    ganztaegig: vorbelegt(suche, 'ganztaegig') === 'ja',
+    beginn: eingabe('beginn'),
+    ende: eingabe('ende'),
+    vonTag: eingabe('vonTag'),
+    bisTag: eingabe('bisTag'),
+    teilnehmer: vorbelegteListe(suche, 'teilnehmer') ?? [],
+  };
 
   return rahmen(
     <>
@@ -310,18 +345,7 @@ export default async function Termin({ params, searchParams }: {
             zurueck={zurueck}
             benutzer={benutzer}
             aendern
-            werte={{
-              art: zeile.art,
-              titel: zeile.titel,
-              ort: zeile.ort ?? '',
-              beschreibung: zeile.beschreibung ?? '',
-              ganztaegig: zeile.ganztaegig,
-              beginn: zeile.ganztaegig ? '' : berlinFormularWert(new Date(zeile.beginn)),
-              ende: zeile.ganztaegig ? '' : berlinFormularWert(new Date(zeile.ende)),
-              vonTag: zeile.ganztaegig ? berlinKalendertag(new Date(zeile.beginn)) : '',
-              bisTag: zeile.ganztaegig ? berlinKalendertag(letzterTag) : '',
-              teilnehmer: zeile.teilnehmer,
-            }}
+            werte={werte}
             knopf={t.speichern}
             cse="termin-aendern"
           />

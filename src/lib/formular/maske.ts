@@ -28,19 +28,35 @@ export const MASKE_WERT_HOECHSTENS = 1000;
  * Leere und fehlende Werte fallen weg; `fehler` steht zuletzt und gewinnt
  * gegen ein gleichnamiges Feld — eine Eingabe namens `fehler` darf den Grund
  * nicht überschreiben.
+ *
+ * **Ein Feld aus mehreren Werten** (Kästchen gleichen Namens, V-267) reist als
+ * Liste: jeder Wert einmal (`?teilnehmer=a&teilnehmer=b`), jeder gekürzt wie
+ * ein einzelner. Ohne das kam ein abgewiesenes Terminformular mit allen
+ * Textfeldern und LEEREN Teilnehmenden zurück — wer korrigierte und erneut
+ * absandte, legte den Termin still ohne die Eingeladenen an.
  */
 export function maskeMitEingaben(
   pfad: string,
   grund: string,
-  werte: Readonly<Record<string, string | null | undefined>>,
+  werte: Readonly<Record<string, string | readonly string[] | null | undefined>>,
 ): string {
   const [basis, vorhanden] = pfad.split('?', 2) as [string, string | undefined];
   const suche = new URLSearchParams(vorhanden ?? '');
+  const gekuerzt = (t: string): string =>
+    (t.length > MASKE_WERT_HOECHSTENS ? t.slice(0, MASKE_WERT_HOECHSTENS) : t);
   for (const [name, wert] of Object.entries(werte)) {
     if (name === 'fehler' || wert === null || wert === undefined) continue;
+    if (typeof wert !== 'string') {
+      suche.delete(name);
+      for (const w of wert) {
+        const t = w.trim();
+        if (t !== '') suche.append(name, gekuerzt(t));
+      }
+      continue;
+    }
     const t = wert.trim();
     if (t === '') continue;
-    suche.set(name, t.length > MASKE_WERT_HOECHSTENS ? t.slice(0, MASKE_WERT_HOECHSTENS) : t);
+    suche.set(name, gekuerzt(t));
   }
   suche.set('fehler', grund);
   return `${basis}?${suche.toString()}`;
@@ -56,4 +72,18 @@ export function vorbelegt(
   const wert = suche[name];
   if (typeof wert !== 'string') return undefined;
   return wert.length > MASKE_WERT_HOECHSTENS ? wert.slice(0, MASKE_WERT_HOECHSTENS) : wert;
+}
+
+/**
+ * Die vorbelegten Werte eines Felds aus mehreren (Kästchen gleichen Namens) —
+ * `undefined`, wenn die Adresse keinen trägt. Jeder Wert gekürzt wie bei
+ * `vorbelegt`.
+ */
+export function vorbelegteListe(
+  suche: Readonly<Record<string, string | string[] | undefined>>, name: string,
+): readonly string[] | undefined {
+  const wert = suche[name];
+  if (wert === undefined) return undefined;
+  return (typeof wert === 'string' ? [wert] : wert)
+    .map((w) => (w.length > MASKE_WERT_HOECHSTENS ? w.slice(0, MASKE_WERT_HOECHSTENS) : w));
 }

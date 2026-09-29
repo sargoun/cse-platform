@@ -1,7 +1,7 @@
 import { type NextRequest, type NextResponse } from 'next/server';
 import { fuehreUebergangAus, grundAus } from '../../uebergang';
 import { TerminFehler, legeTerminAn } from '@/server/services/kalender/termin';
-import { TERMIN_MASKE, terminAusRumpf } from './termin-rumpf';
+import { TERMIN_MASKE, TERMIN_MASKE_LISTEN, terminAusRumpf } from './termin-rumpf';
 
 /**
  * `POST /api/kalender/eintraege` — einen eigenen Termin anlegen (CAL-01,
@@ -26,6 +26,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     recht: 'kalender.schreiben',
     grundVon: (f) => grundAus(f, TerminFehler),
     maskeFelder: TERMIN_MASKE,
+    maskeListen: TERMIN_MASKE_LISTEN,
     handle: async (kontext, rumpf) => legeTerminAn(kontext, terminAusRumpf(rumpf)),
     ziel: (slug, id) => `/portal/${slug}/kalender/${id}?erledigt=angelegt`,
   });

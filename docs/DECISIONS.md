@@ -19827,7 +19827,8 @@ der iCal-Ausgang `STATUS:CANCELLED` schreibt.
 6. **Bildschirme:** `/kalender/neu` (neu, ganz zweisprachig), „Neuer Termin"
    auf `/kalender` nur mit `kalender.schreiben`, „Termin ändern" und
    „Absagen" auf `/kalender/[id]`; ein Formular (`TerminFormular.tsx`) für
-   beide Wege, Rückweg mit Grund und Maske (V-240).
+   beide Wege, Rückweg mit Grund und Maske (V-240) — seit D-760 Nr. 6 auch
+   auf `/kalender/[id]` und mit der Auswahl der Teilnehmenden.
 7. **Einladungen gehen nicht hinaus.** Der Termin steht im Kalender der
    Teilnehmenden und in ihrem Abonnement; eine E-Mail an Kunden entsteht
    hier nicht (Invariante 7).
@@ -20221,8 +20222,18 @@ Person zurück.
    **O-954**. Bis zur Antwort hält das Protokoll den Übergang und DASS ein
    Grund erfasst ist (`grund_erfasst: true`); der Wortlaut steht in der Zeile
    und geht mit ihr.
+6. **Das Terminformular behält nach einer Abweisung, was getippt wurde**
+   (V-267 d), wie D-715 Nr. 6 es zusagt. `/kalender/[id]` belegte das
+   Formular immer aus der Datenbank — über „Das Ende liegt nicht nach dem
+   Beginn." standen die alten, gültigen Zeiten; `/kalender/neu` brachte alle
+   Textfelder zurück, aber keine Teilnehmenden, und ein erneutes Absenden legte
+   den Termin still ohne die Eingeladenen an. Jetzt reisen Felder aus mehreren
+   Werten als Liste (`maskeMitEingaben`, `maskeListen` im Übergangsgerüst,
+   `vorbelegteListe`), und beide Seiten lesen die Maske. Ausnahme bleibt
+   `gleichzeitig`: dort sagt der Satz, dass die Seite den aktuellen Stand
+   zeigt — und sie zeigt ihn.
 
-| Betrifft | CAL-01, CAL-02, REC-03, O-938, D-715, D-718, V-221, V-224, V-267, `drizzle/0160` (`t_kalender_schreiben`, `t_kalender_eigene`), `src/server/services/kalender/termin.ts`, `src/app/portal/[mandant]/kalender/{TerminFormular.tsx,[id]/page.tsx,neu/page.tsx}`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/postfach.ts`, `src/server/services/recruiting/gespraech.ts`, `src/server/services/datenschutz/auskunft.ts`, O-954, `tests/kern/kalender-termin.test.ts`, `tests/isolation/{kalender-termin,recruiting-postfach,recruiting-gespraech,datenschutz-dienste}.test.ts`, `tests/e2e/bewerbung-antwort.spec.ts` |
+| Betrifft | CAL-01, CAL-02, REC-03, O-938, D-715, D-718, V-221, V-224, V-267, `drizzle/0160` (`t_kalender_schreiben`, `t_kalender_eigene`), `src/server/services/kalender/termin.ts`, `src/app/portal/[mandant]/kalender/{TerminFormular.tsx,[id]/page.tsx,neu/page.tsx}`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/postfach.ts`, `src/server/services/recruiting/gespraech.ts`, `src/server/services/datenschutz/auskunft.ts`, O-954, `src/lib/formular/maske.ts`, `src/app/api/uebergang.ts`, `src/app/api/kalender/eintraege/{route,termin-rumpf}.ts`, `src/app/api/kalender/eintraege/[id]/route.ts`, `tests/kern/crm-kette.test.ts`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/{kalender-termin,recruiting-postfach,recruiting-gespraech,datenschutz-dienste}.test.ts`, `tests/e2e/bewerbung-antwort.spec.ts` |
 |---|---|
 
 ### D-761 · Beitragsbilder: die Pflege von `medien` bleibt in der eigenen Gesellschaft, ein hochgeladenes Bild bleibt, wie es angenommen wurde, und es gehört nicht in den Bildbestand der Website (V-268)

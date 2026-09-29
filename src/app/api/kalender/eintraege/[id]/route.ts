@@ -3,7 +3,7 @@ import { fuehreUebergangAus, grundAus, UUID } from '../../../uebergang';
 import {
   TerminFehler, aendereTermin, sageTerminAb,
 } from '@/server/services/kalender/termin';
-import { TERMIN_MASKE, terminAusRumpf } from '../termin-rumpf';
+import { TERMIN_MASKE, TERMIN_MASKE_LISTEN, terminAusRumpf } from '../termin-rumpf';
 
 /**
  * `POST /api/kalender/eintraege/[id]` — einen eigenen Termin ändern oder
@@ -23,6 +23,7 @@ export async function POST(
     recht: 'kalender.schreiben',
     grundVon: (f) => grundAus(f, TerminFehler),
     maskeFelder: TERMIN_MASKE,
+    maskeListen: TERMIN_MASKE_LISTEN,
     handle: async (kontext, rumpf) => {
       if (!UUID.test(id)) throw new TerminFehler('Diesen Termin gibt es nicht.', 'nicht_gefunden');
       const aktion = rumpf.felder['aktion'] ?? '';

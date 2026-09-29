@@ -8,6 +8,7 @@
  * an einem Umstellungstag 23 oder 25 Stunden hat. Die Dauer ist in jedem Fall
  * die Differenz zweier Instants.
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   EIGENE_ARTEN, TerminFehler, leseTerminZeiten, pruefeTermin, teilnehmerNachAenderung,
@@ -125,5 +126,32 @@ describe('die Teilnehmenden nach einer Änderung', () => {
     expect(teilnehmerNachAenderung({
       vorher: [], angeboten: new Set(), auswahl: [], fuehrend: null,
     })).toEqual([]);
+  });
+});
+
+/**
+ * **Die Maske, die D-715 Nr. 6 zusagt** (V-267, D-760). Die Routen schickten
+ * die Eingaben mit — `/kalender/[id]` belegte das Formular trotzdem immer aus
+ * der Datenbank, und `/kalender/neu` verlor die Teilnehmenden.
+ */
+describe('nach einer Abweisung stehen die Eingaben wieder da', () => {
+  it('beide Routen schicken Textfelder UND die Auswahl der Teilnehmenden mit', () => {
+    for (const route of ['src/app/api/kalender/eintraege/route.ts',
+      'src/app/api/kalender/eintraege/[id]/route.ts']) {
+      const quelle = readFileSync(route, 'utf8');
+      expect(quelle, route).toContain('maskeFelder: TERMIN_MASKE');
+      expect(quelle, route).toContain('maskeListen: TERMIN_MASKE_LISTEN');
+    }
+    expect(readFileSync('src/app/api/kalender/eintraege/termin-rumpf.ts', 'utf8'))
+      .toMatch(/TERMIN_MASKE_LISTEN = \['teilnehmer'\]/u);
+  });
+
+  it('beide Seiten lesen die Maske — /kalender/[id] ausser bei „gleichzeitig"', () => {
+    const neu = readFileSync('src/app/portal/[mandant]/kalender/neu/page.tsx', 'utf8');
+    expect(neu).toContain("vorbelegteListe(suche, 'teilnehmer')");
+    const blatt = readFileSync('src/app/portal/[mandant]/kalender/[id]/page.tsx', 'utf8');
+    expect(blatt).toMatch(/mitEingaben = fehler !== null && fehler !== 'gleichzeitig'/u);
+    expect(blatt).toContain("vorbelegteListe(suche, 'teilnehmer')");
+    expect(blatt).toContain('werte={werte}');
   });
 });

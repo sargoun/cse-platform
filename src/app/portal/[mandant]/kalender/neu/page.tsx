@@ -11,7 +11,7 @@ import { internSprache } from '@/lib/i18n/intern';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KALENDER_TERMIN_TEXTE } from '@/lib/i18n/verwaltung/kalender-termin';
 import { eigenerEintrag } from '@/lib/nachschlagen';
-import { vorbelegt } from '@/lib/formular/maske';
+import { vorbelegt, vorbelegteListe } from '@/lib/formular/maske';
 import { haeltRechte } from '@/app/portal/rechte';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../../unterseite';
@@ -110,7 +110,8 @@ export default async function NeuerTermin({ params, searchParams }: {
           ende: vorbelegt(suche, 'ende') ?? '',
           vonTag: vorbelegt(suche, 'vonTag') ?? '',
           bisTag: vorbelegt(suche, 'bisTag') ?? '',
-          teilnehmer: [],
+          /* V-267: auch die Auswahl kommt nach einer Abweisung zurück. */
+          teilnehmer: vorbelegteListe(suche, 'teilnehmer') ?? [],
         }}
         knopf={t.anlegen}
         cse="termin-neu"

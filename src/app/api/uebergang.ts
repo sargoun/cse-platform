@@ -61,6 +61,11 @@ export interface Uebergang<T> {
    * wie bisher. Nur Stammdaten eines Vorgangs, nie etwas Geheimes.
    */
   readonly maskeFelder?: readonly string[];
+  /**
+   * Die Felder aus MEHREREN Werten (Kästchen gleichen Namens), die mit auf die
+   * Maske reisen — als Liste (V-267). Nur zusammen mit `maskeFelder`.
+   */
+  readonly maskeListen?: readonly string[];
 }
 
 export async function fuehreUebergangAus<T>(
@@ -124,8 +129,10 @@ export async function fuehreUebergangAus<T>(
          * den alten Stand aus der Datenbank.
          */
         if (uebergang.maskeFelder !== undefined) {
-          const werte = Object.fromEntries(
-            uebergang.maskeFelder.map((name) => [name, rumpf.felder[name]]));
+          const werte: Record<string, string | readonly string[] | undefined> = {
+            ...Object.fromEntries(uebergang.maskeFelder.map((name) => [name, rumpf.felder[name]])),
+            ...Object.fromEntries((uebergang.maskeListen ?? []).map((name) => [name, rumpf.alle(name)])),
+          };
           return NextResponse.redirect(
             internesZiel(maskeMitEingaben(zurueck, grund, werte), HEIMWEG, anfrage), 303);
         }

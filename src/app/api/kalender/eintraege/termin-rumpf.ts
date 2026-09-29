@@ -13,6 +13,12 @@ export const TERMIN_MASKE = [
   'art', 'titel', 'ort', 'beschreibung', 'ganztaegig', 'beginn', 'ende', 'vonTag', 'bisTag',
 ] as const;
 
+/**
+ * Und die Kästchen der Teilnehmenden — als Liste (V-267). Ohne sie kam die
+ * Maske mit allen Textfeldern und leerer Auswahl zurück.
+ */
+export const TERMIN_MASKE_LISTEN = ['teilnehmer'] as const;
+
 /** Die Eingabe aus dem Rumpf. Die Zeiten löst `leseTerminZeiten` auf (Invariante 2). */
 export function terminAusRumpf(rumpf: Rumpf): TerminEingabe {
   const ganztaegig = (rumpf.felder['ganztaegig'] ?? '') === 'ja';

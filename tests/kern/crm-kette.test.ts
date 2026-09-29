@@ -19,7 +19,7 @@ import {
   betreffAus, LEAD_ZWECK_REGEL, PLATZHALTER_LEAD_ZWECK,
 } from '../../src/server/services/crm/lead-kontakt.js';
 import {
-  MASKE_WERT_HOECHSTENS, maskeMitEingaben, vorbelegt,
+  MASKE_WERT_HOECHSTENS, maskeMitEingaben, vorbelegt, vorbelegteListe,
 } from '../../src/lib/formular/maske.js';
 import { rechtName } from '../../src/lib/i18n/rechtname.js';
 
@@ -314,6 +314,26 @@ describe('maskeMitEingaben / vorbelegt — die Eingaben reisen in der Adresse', 
       'https://cse.test');
     expect(url.searchParams.get('beschreibung')).toHaveLength(MASKE_WERT_HOECHSTENS);
     expect(vorbelegt({ a: 'z'.repeat(5000) }, 'a')).toHaveLength(MASKE_WERT_HOECHSTENS);
+  });
+
+  /**
+   * V-267: ein Feld aus mehreren Kästchen reist als Liste — sonst kam das
+   * Terminformular mit allen Texten und leerer Auswahl zurück.
+   */
+  it('ein Feld aus mehreren Werten reist als Liste und kommt als Liste zurück', () => {
+    const url = new URL(maskeMitEingaben('/k/neu?x=1', 'ende_vor_beginn', {
+      titel: 'Runde', teilnehmer: ['a', ' b ', '', 'c'.repeat(5000)],
+    }), 'https://cse.test');
+    expect(url.searchParams.getAll('teilnehmer')).toEqual(
+      ['a', 'b', 'c'.repeat(MASKE_WERT_HOECHSTENS)]);
+    expect(url.searchParams.get('x')).toBe('1');
+    expect(url.searchParams.get('fehler')).toBe('ende_vor_beginn');
+    const ohne = new URL(maskeMitEingaben('/k/neu', 'x', { teilnehmer: [] }), 'https://cse.test');
+    expect(ohne.searchParams.has('teilnehmer')).toBe(false);
+
+    expect(vorbelegteListe({ t: ['a', 'b'] }, 't')).toEqual(['a', 'b']);
+    expect(vorbelegteListe({ t: 'a' }, 't')).toEqual(['a']);
+    expect(vorbelegteListe({}, 't')).toBeUndefined();
   });
 
   it('vorbelegt nimmt nur einen einzelnen Text', () => {
