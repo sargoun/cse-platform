@@ -33,7 +33,7 @@ export const GRUPPEN_BERICHTE = [
   { schluessel: 'projekte', titel: 'Projekte', spec: 'REP-05',
     beschreibung: 'Laufend, abgeschlossen, verspätet' },
   { schluessel: 'pipeline', titel: 'Vergabepipeline', spec: 'REP-06',
-    beschreibung: 'Gefunden, eingereicht, Zuschlag' },
+    beschreibung: 'Gefunden, gesichtet, geboten, gewonnen' },
 ] as const;
 
 export type GruppenBericht = (typeof GRUPPEN_BERICHTE)[number]['schluessel'];

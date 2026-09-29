@@ -10,13 +10,16 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { mikrocentNachCent } from '@/server/agent/kosten';
-import { ENTWURF_AUFTRAEGE, fuelleTatsachen } from '@/server/agent/auftraege';
-import { VORGANG_LABEL } from '../../../freigaben/darstellung';
-import type { VorgangTyp } from '@/server/services/freigabe/posteingang';
+import {
+  ENTWURF_AUFTRAEGE, KeineOffeneAnfrage, fuelleTatsachen,
+} from '@/server/agent/auftraege';
+import { beschriftung } from '@/lib/i18n/beschriftung/basis';
+import { VORGANG_TEXT } from '@/lib/i18n/beschriftung/agent';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '../../../../rechte';
 import { kennungFuer } from '../../kennung';
+import { startSperre } from '../../darstellung';
 import { MAX_SCHRITTE_PLATZHALTER } from '@/server/agent/limits.platzhalter';
 import { Recht } from '@/components/ui/Recht';
 
@@ -85,8 +88,7 @@ const TATSACHE_LABEL: Readonly<Record<string, string>> = {
   empfaenger: 'Empfänger der Anfrage',
   datum: 'Eingang der Anfrage',
   betreff: 'Betreff der Anfrage',
-  offene_anfragen: 'Offene Anfragen',
-  offen: 'Was im Entwurf offen bleibt',
+  offen: 'Angaben, die in der Anfrage fehlen',
   ohne_unterschrift: 'Leistungsnachweise ohne Unterschrift',
   nachweise_gesamt: 'Leistungsnachweise insgesamt',
   ueberfaellige_forderungen: 'Überfällige Forderungen',
@@ -160,8 +162,17 @@ export default async function AgentStart(
        * meint. Zwei Abfragen liefen auseinander, und dann stünde auf dem
        * Vorschaltblatt eine andere Zahl als im Entwurf.
        */
-      const tatsachen = await fuelleTatsachen(
-        { abfrage: kontext.abfrage.bind(kontext) }, kennung);
+      /*
+       * Ohne offene Anfrage hat der Akquise-Agent nichts zu beantworten
+       * (V-230): das Blatt sagt es, statt mit einem Fehler abzubrechen.
+       */
+      let tatsachen: Readonly<Record<string, string>> | null;
+      try {
+        tatsachen = await fuelleTatsachen({ abfrage: kontext.abfrage.bind(kontext) }, kennung);
+      } catch (fehler) {
+        if (!(fehler instanceof KeineOffeneAnfrage)) throw fehler;
+        tatsachen = null;
+      }
 
       return {
         kopf, tatsachen,
@@ -178,7 +189,7 @@ export default async function AgentStart(
       };
     })) as Promise<{
       kopf: AgentKopf;
-      tatsachen: Readonly<Record<string, string>>;
+      tatsachen: Readonly<Record<string, string>> | null;
       modell: string | null;
       anbieter: string | null;
       budget: BudgetStand | null;
@@ -194,6 +205,11 @@ export default async function AgentStart(
   const gestoppt = budget !== null
     && (budget.status === 'gestoppt'
       || (budget.stoppt && restCent !== null && restCent <= 0n));
+  /* Ein Knopf nur, wo ein Lauf entstünde (V-271) — die Regel ist geprüft
+     (`tests/kern/agent-start-sperre.test.ts`). */
+  const sperre = startSperre({
+    istAktiv: kopf.ist_aktiv, hatAuftrag: auftrag !== undefined, modell, gestoppt, tatsachen,
+  });
 
   return (
     <PortalRahmen
@@ -243,8 +259,7 @@ export default async function AgentStart(
         <h2 className="text-h2 text-text">Was dieser Lauf tut</h2>
         {auftrag === undefined ? (
           <p className="mt-s3 text-sm text-text-muted" data-cse="start-ohne-auftrag">
-            Für diesen Agenten ist kein von Hand auslösbarer Auftrag hinterlegt
-            (<code className="text-xs">server/agent/auftraege.ts</code>). Solange keiner
+            Für diesen Agenten ist kein von Hand auslösbarer Auftrag hinterlegt. Solange keiner
             eingetragen ist, gibt es hier nichts zu starten — die Liste der Aufträge ist
             der geschlossene Satz, und ein Formular, das eine Vorlage mitgäbe, wäre ein
             Weg, das Modell an den Diensten vorbei zu füttern.
@@ -255,11 +270,11 @@ export default async function AgentStart(
             <dd className="text-text" data-cse="start-titel">{auftrag.titel}</dd>
             <dt className="text-text-muted">Vorgangsart</dt>
             <dd className="text-text" data-cse="start-vorgang" data-typ={auftrag.vorgangTyp}>
-              {VORGANG_LABEL[auftrag.vorgangTyp as VorgangTyp] ?? auftrag.vorgangTyp}
+              {beschriftung(VORGANG_TEXT, auftrag.vorgangTyp)}
             </dd>
             <dt className="text-text-muted">Was eine Genehmigung auslöst</dt>
             <dd className="text-text">
-              <code className="text-xs">{auftrag.aktion}</code>
+              {beschriftung(VORGANG_TEXT, auftrag.aktion)}
               {auftrag.aktion === 'interner_hinweis'
                 ? ' — eine Handlung im Haus, kein Versand.'
                 : ' — ein Mensch übernimmt den Text und verschickt ihn selbst.'}
@@ -288,14 +303,22 @@ export default async function AgentStart(
           Genau diese Werte gehen in den Entwurf. Sie sind aus den Tabellen dieser
           Gesellschaft gezählt — <strong>gerechnet, nicht vom Modell geschätzt</strong>
           {' '}(Invariante 6). Das Modell setzt sie in Sätze und rechnet nichts; nach dem
-          Lauf prüft <code className="text-xs">pruefeZahlenherkunft</code>, dass keine Zahl
-          dazugekommen ist. Das Datum kommt von der Serveruhr
-          (<code className="text-xs">app.berlin_heute()</code>), nie aus dem Browser.
+          Lauf prüft die Plattform, dass keine Zahl dazugekommen ist. Das Datum kommt von
+          der Uhr der Datenbank (Berliner Kalendertag), nie aus dem Browser.
         </p>
-        {Object.keys(tatsachen).length === 0 ? (
+        {tatsachen === null ? (
+          <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted"
+             data-cse="start-keine-anfrage">
+            Es gibt keine offene Anfrage über das Anfrageformular (neu oder in Bearbeitung),
+            auf die ein Entwurf antworten könnte. Von Hand erfasste, empfohlene,
+            recherchierte und aus dem Vergaberadar übernommene Leads bekommen keinen
+            Antwortentwurf: hinter ihnen steht keine belegte Anfrage des Kontakts (O-907).
+            Ein Lauf entstünde deshalb nicht — er schriebe an niemanden.
+          </p>
+        ) : Object.keys(tatsachen).length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Für diesen Agenten füllt <code className="text-xs">fuelleTatsachen()</code>
-            {' '}keine Werte. Ein Platzhalter ohne Tatsache bleibt im Entwurf STEHEN und
+            Für diesen Agenten liest die Plattform keine Werte. Ein Platzhalter ohne
+            Tatsache bleibt im Entwurf STEHEN und
             fällt auf — er wird nicht stillschweigend leer.
           </p>
         ) : (
@@ -372,25 +395,27 @@ export default async function AgentStart(
       </section>
 
       {/* ------------------------------------------------------------ Der Knopf */}
-      {!kopf.ist_aktiv ? (
+      {sperre === 'agent_aus' ? (
         <Hinweis art="warnung" cse="start-agent-aus" className="max-w-prose">
           <strong>Der Agent ist abgeschaltet.</strong> Solange er aus ist, läuft er
           nicht — auch nicht auf Knopfdruck. Abgeschaltet ist er, solange kein
           Modellzugang eingerichtet ist (D-435).
         </Hinweis>
-      ) : auftrag === undefined ? null : modell === null ? (
+      ) : sperre === 'kein_modell' ? (
         <Hinweis art="warnung" cse="start-kein-modell" className="max-w-prose">
           <strong>Ohne freigegebenes Modell gibt es keinen Lauf.</strong> Die Arbeit läuft
           von Hand weiter; nichts wird ersatzweise erfunden. Ein Knopf, der verspricht,
           was nicht geht, wäre schlimmer als keiner.
         </Hinweis>
-      ) : gestoppt ? (
+      ) : sperre === 'budget_stopp' ? (
         <Hinweis art="warnung" cse="start-budget-stopp" className="max-w-prose">
           <strong>Das Monatsbudget ist ausgeschöpft.</strong> Der harte Stopp aus AGT-05
           weist weitere Läufe ab — ein Knopf, den der Deckel abweisen würde, hätte gar
           nicht erst dastehen dürfen.
         </Hinweis>
-      ) : (
+      ) : sperre !== null ? null : (
+        /* Ohne Auftrag sagt es der Abschnitt „Was dieser Lauf tut", ohne offene
+           Anfrage der Abschnitt „Womit er formuliert" — dort, oben, steht der Grund. */
         <form method="post" action="/api/agenten/lauf"
               data-cse="start-formular"
               className="max-w-prose rounded-lg border border-line bg-surface p-s5">

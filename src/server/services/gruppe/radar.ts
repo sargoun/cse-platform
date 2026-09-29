@@ -2,6 +2,7 @@ import type { LeseKontext } from '../../kontext/index.js';
 import { cent, NULL_CENT, type Cent } from '../finanz/geld.js';
 import { rechteJeBereich } from './uebersicht.js';
 import { freischaltungSql } from '../radar/plattform.js';
+import { PIPELINE_GEBOTEN } from '../bericht/kennzahlen.js';
 
 /**
  * Die Vergabepipeline über alle Gesellschaften (RAD-07, REP-06, TEN-05).
@@ -154,6 +155,11 @@ const zahl = (roh: unknown): number => Number(roh ?? 0);
  * `make_interval(days => $n)` nimmt den Wert als Parameter; `'$1 days'`
  * wäre eine Verkettung im SQL-Text und damit genau die Stelle, an der ein
  * Wert aus einer Anfrage in einer Abfrage landet.
+ *
+ * **„eingereicht" ist `PIPELINE_GEBOTEN`, als Parameter** (`$2`, D-720 Nr. 4,
+ * V-269). Hier stand die Liste der vier Stände ein zweites Mal im SQL-Text —
+ * zwei Definitionen derselben Menge, wie sie Befund 55 verursacht haben; die
+ * Seite sagt „dieselbe Menge wie „geboten" im Bericht", und jetzt ist sie es.
  */
 const BEREICHE_SQL = `
   select m.id as mandant_id, m.slug, m.name,
@@ -190,7 +196,7 @@ const BEREICHE_SQL = `
              and v.status = 'in_bearbeitung')::int as in_bearbeitung,
          (select count(*) from ausschreibung_vorgang v
            where v.mandant_id = m.id and v.geloescht_am is null
-             and v.status in ('eingereicht', 'zuschlag', 'nicht_beruecksichtigt'))::int
+             and v.status::text = any ($2::text[]))::int
            as eingereicht,
          (select count(*) from ausschreibung_vorgang v
            where v.mandant_id = m.id and v.geloescht_am is null
@@ -397,7 +403,8 @@ export async function gruppenRadar(
   const darf = (mandantId: string): boolean =>
     rechte.get(mandantId)?.has(RADAR_RECHT) === true;
 
-  const roh = await kontext.abfrage<BereichRoh>(BEREICHE_SQL, [optionen.knappTage]);
+  const roh = await kontext.abfrage<BereichRoh>(
+    BEREICHE_SQL, [optionen.knappTage, PIPELINE_GEBOTEN]);
   const bereiche: readonly BereichRadar[] = roh.map((b) => {
     const ok = darf(b.mandant_id);
     return {

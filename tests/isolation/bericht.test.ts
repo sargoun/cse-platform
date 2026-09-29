@@ -14,7 +14,9 @@
  *     Behauptungen des Lieferanten.
  *  4. **Die Abschlussquote gehört zur Kohorte**: ein Lead vom Januar zählt im
  *     Januar, auch wenn er im März gewonnen wurde.
- *  5. **Die Pipeline zeigt jede Stufe, auch die leere.**
+ *  5. **Die Pipeline zeigt jede Stufe, auch die leere — kumulativ, und
+ *     Bereichs- und Gruppenfassung zählen dieselbe Menge gleich** (D-720);
+ *     gefunden ist, was das Profil trifft, nicht jede Bewertung (D-762).
  *  6. **Die Gruppenfassung teilt auf, statt zu summieren.**
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
@@ -24,8 +26,16 @@ import type { LeseKontext } from '../../src/server/kontext/index.js';
 import {
   attribution, auftragsReihe, pipeline, projektReihe, umsatzReihe,
 } from '../../src/server/services/bericht/kennzahlen.js';
-import { umsatzJeBereich } from '../../src/server/services/bericht/gruppe.js';
+import { pipelineJeBereich, umsatzJeBereich } from '../../src/server/services/bericht/gruppe.js';
 import { abschnitte, ganzesJahr } from '../../src/server/services/bericht/zeitraum.js';
+import {
+  berichtTabelle, blattFormat, zellenFuerBlatt,
+} from '../../src/server/services/bericht/export.js';
+import { alsCsv } from '../../src/server/services/bericht/ausgabe.js';
+import {
+  bewerte as radarBewerte, type BewertungsErgebnis,
+} from '../../src/server/services/radar/bewertung.js';
+import { istFund, type FundBewertung } from '../../src/server/services/radar/fund.platzhalter.js';
 import {
   finalisiere, fuegePositionHinzu, legeEntwurfAn, verwerfe, vonHand,
 } from '../../src/server/services/finanz/rechnung.js';
@@ -346,16 +356,212 @@ describe('(4) die Abschlussquote gehört zur Kohorte', () => {
   });
 });
 
-describe('(5) die Pipeline zeigt jede Stufe', () => {
-  it('acht Stufen, auch ohne einen einzigen Vorgang', async () => {
-    const jahr = ganzesJahr(await berlinJahr());
-    const stufen = await alsBereich(f.reinigung, (k) => pipeline(k, jahr));
-    expect(stufen).toHaveLength(8);
-    expect(stufen.map((s) => s.status)).toEqual([
-      'neu', 'geprueft', 'in_bearbeitung', 'eingereicht',
-      'zuschlag', 'nicht_beruecksichtigt', 'verfahren_aufgehoben', 'verworfen',
-    ]);
-    expect(stufen.every((s) => s.anzahl >= 0)).toBe(true);
+describe('(5) die Pipeline zählt kumulativ, und Bereich und Gruppe zählen gleich', () => {
+  /**
+   * **Ein Jahr, in dem sonst nichts liegt.** Die Fälle bekommen ihren Eingang
+   * ausdrücklich in 2019 — dann zählt der Bericht genau sie, und ein anderer
+   * Test, der im laufenden Jahr eine Bekanntmachung anlegt, verschiebt hier
+   * keine Zahl.
+   */
+  const JAHR = 2019;
+  const zeitraum = ganzesJahr(JAHR);
+
+  async function profil(mandant: string): Promise<string> {
+    const [p] = await sql.unsafe<{ id: string }[]>(
+      `insert into radar_profil (mandant_id, name, ist_aktiv, ist_platzhalter, skala_max)
+       values ($1, $2, true, true, 20) returning id`, [mandant, `Profil ${zufall()}`]);
+    return p!.id;
+  }
+
+  async function bekanntmachung(): Promise<string> {
+    const [a] = await sql.unsafe<{ id: string }[]>(
+      `insert into ausschreibung (quelle, quell_id, titel, rohdaten_hash, quell_status)
+       values ('oeffentlichevergabe', $1, 'Unterhaltsreinigung', $1, 'aktiv') returning id`,
+      [`rep06-${zufall()}`]);
+    return a!.id;
+  }
+
+  /**
+   * Eine Bewertung mit ihrer Aufschlüsselung (V-269, D-762). Ohne Angabe
+   * trifft der CPV-Code — die Leistung, die das Profil sucht; das ist der
+   * Fund, den die Fälle 1 bis 9 meinen. `aufschluesselung` setzt eine andere.
+   */
+  const LEISTUNG_TRIFFT: readonly FundBewertung['aufschluesselung'][number][] = [
+    { regel: 'cpv', treffer: true }, { regel: 'region', treffer: true },
+  ];
+
+  async function bewerte(
+    mandant: string, profilId: string, ausschreibung: string, am: string,
+    ausgeschlossen = false,
+    aufschluesselung: readonly unknown[] = LEISTUNG_TRIFFT,
+  ): Promise<void> {
+    await sql.unsafe(
+      `insert into bewertung (mandant_id, ausschreibung_id, radar_profil_id, regel_version,
+                              profil_version, punkte, skala_max, ausgeschlossen,
+                              ausschluss_grund, begruendung, eingaben_hash, berechnet_am,
+                              aufschluesselung)
+       values ($1, $2, $3, 'v1', 1, 12, 20, $4, $5, 'Testbewertung', $6, $7::timestamptz,
+               $8::jsonb)`,
+      [mandant, ausschreibung, profilId, ausgeschlossen,
+        ausgeschlossen ? 'Ausschlusskriterium' : null, zufall(), am,
+        aufschluesselung as never]);
+  }
+
+  /**
+   * **Die Streusalzlieferung des Seeds, gegen ein Reinigungsprofil bewertet —
+   * mit der ECHTEN Bewertung** (`bewerte` aus `radar/bewertung.ts`): Region,
+   * Wert und Frist treffen, CPV-Code und Stichwort nicht. Nicht
+   * ausgeschlossen, mit Punkten — und trotzdem kein Fund.
+   */
+  function streusalz(): BewertungsErgebnis {
+    return radarBewerte({
+      id: 'streusalz', titel: 'Lieferung von Streusalz für den Winterdienst',
+      beschreibung: 'Lieferung von 400 Tonnen Auftausalz, Abruf nach Bedarf.',
+      cpvHaupt: '34927100-2', cpvWeitere: [], nutsCodes: ['DE300'],
+      wertCent: 96_000_00n, waehrung: 'EUR',
+      fristAngebot: new Date('2019-03-20T10:00:00Z'), oberhalbSchwellenwert: false,
+    }, {
+      id: 'reinigung', version: 1, name: 'Unterhaltsreinigung Berlin',
+      cpv: [{ cpvCode: '90910000', praefixLaenge: 8, wirkung: 'positiv' }],
+      nutsPraefixe: ['DE3'], positivKeywords: ['Unterhaltsreinigung', 'Gebäudereinigung'],
+      negativKeywords: [], negativWirkung: 'abzug',
+      wertMinCent: 50_000_00n, wertMaxCent: 2_000_000_00n, waehrung: 'EUR',
+      fristMinTage: null, oberhalbSchwellenwert: null, skalaMax: 100, gewichtung: {},
+    }, new Date('2019-03-01T10:00:00Z'));
+  }
+
+  async function vorgang(
+    mandant: string, ausschreibung: string, status: string, am: string,
+    wertCent: bigint | null = null,
+  ): Promise<void> {
+    await sql.unsafe(
+      `insert into ausschreibung_vorgang
+         (mandant_id, ausschreibung_id, status, erstellt_von_art, erstellt_am,
+          verworfen_grund, entschieden_am, zuschlagswert_cent)
+       values ($1, $2, $3::ausschreibung_status, 'mensch', $4::timestamptz,
+               case when $3 = 'verworfen' then 'Leistung passt nicht' end,
+               case when $3 = 'zuschlag' then $4::timestamptz end, $5::bigint)`,
+      [mandant, ausschreibung, status, am, wertCent === null ? null : String(wertCent)]);
+  }
+
+  /**
+   * Elf Fälle, jeder für eine Regel aus D-720 und D-762 („bewertet" heisst
+   * hier: CPV-Code trifft, ausser wo anders gesagt):
+   *  1 bewertet, sonst nichts                       → gefunden
+   *  2 bewertet, aber ausgeschlossen                → gar nicht
+   *  3 bewertet + geprüft                           → gefunden, gesichtet
+   *  4 bewertet + verworfen                         → gefunden, gesichtet, verworfen
+   *  5 NUR Vorgang (ohne Bewertung), Zuschlag       → alle vier Stufen
+   *  6 bewertet + Verfahren aufgehoben              → gefunden, gesichtet, geboten
+   *  7 ZWEIMAL bewertet + nicht berücksichtigt      → einmal, bis geboten
+   *  8 bewertet 2019, Vorgang erst 2020 (geprüft)   → Kohorte 2019
+   *  9 bewertet 2020                                → nicht in 2019
+   * 10 bewertet, aber nur Region/Wert/Frist treffen → gar nicht (Streusalz)
+   * 11 bewertet, nur ein Stichwort trifft           → gefunden
+   */
+  async function legeFaelleAn(mandant: string): Promise<void> {
+    const p1 = await profil(mandant);
+    const p2 = await profil(mandant);
+    const im = '2019-03-01T10:00:00Z';
+    const a = await Promise.all(Array.from({ length: 11 }, () => bekanntmachung()));
+    await bewerte(mandant, p1, a[0]!, im);
+    await bewerte(mandant, p1, a[1]!, im, true);
+    await bewerte(mandant, p1, a[2]!, im);
+    await vorgang(mandant, a[2]!, 'geprueft', '2019-03-02T10:00:00Z');
+    await bewerte(mandant, p1, a[3]!, im);
+    await vorgang(mandant, a[3]!, 'verworfen', '2019-03-02T10:00:00Z');
+    await vorgang(mandant, a[4]!, 'zuschlag', '2019-05-01T10:00:00Z', 1_000_000n);
+    await bewerte(mandant, p1, a[5]!, im);
+    await vorgang(mandant, a[5]!, 'verfahren_aufgehoben', '2019-04-01T10:00:00Z');
+    await bewerte(mandant, p1, a[6]!, im);
+    await bewerte(mandant, p2, a[6]!, '2019-03-05T10:00:00Z');
+    await vorgang(mandant, a[6]!, 'nicht_beruecksichtigt', '2019-04-01T10:00:00Z');
+    await bewerte(mandant, p1, a[7]!, '2019-12-31T12:00:00Z');
+    await vorgang(mandant, a[7]!, 'geprueft', '2020-01-03T10:00:00Z');
+    await bewerte(mandant, p1, a[8]!, '2020-02-01T10:00:00Z');
+    const salz = streusalz();
+    await bewerte(mandant, p1, a[9]!, im, salz.ausgeschlossen, salz.aufschluesselung);
+    await bewerte(mandant, p2, a[10]!, im, false,
+      [{ regel: 'cpv', treffer: false }, { regel: 'stichwort', treffer: true }]);
+  }
+
+  it('fünf Stufen, auch ohne einen einzigen Fall', async () => {
+    const stufen = await alsBereich(f.reinigung, (k) => pipeline(k, ganzesJahr(1990)),
+      await legeLeitungAn(f.reinigung, 'admin'));
+    expect(stufen.map((s) => s.stufe)).toEqual(
+      ['gefunden', 'gesichtet', 'geboten', 'gewonnen', 'verworfen']);
+    expect(stufen.every((s) => s.anzahl === 0)).toBe(true);
+  });
+
+  it('jede Stufe zählt, was sie erreicht hat — nicht den heutigen Stand', async () => {
+    await legeFaelleAn(f.reinigung);
+    const stufen = await alsBereich(f.reinigung, (k) => pipeline(k, zeitraum),
+      await legeLeitungAn(f.reinigung, 'admin'));
+    const zahl = (s: string): number => stufen.find((x) => x.stufe === s)!.anzahl;
+
+    expect(zahl('gefunden'), 'Fälle 1, 3–8, 11 — nicht 2 und nicht 10').toBe(8);
+    expect(zahl('gesichtet'), 'Fälle 3–8').toBe(6);
+    expect(zahl('geboten'), 'Fälle 5–7').toBe(3);
+    expect(zahl('gewonnen'), 'Fall 5').toBe(1);
+    expect(zahl('verworfen'), 'Fall 4').toBe(1);
+    expect(stufen.find((x) => x.stufe === 'gewonnen')!.zuschlagswertCent).toBe(1_000_000n);
+
+    // Ein Trichter: keine Stufe ist grösser als die vor ihr.
+    const trichter = stufen.filter((s) => s.imTrichter).map((s) => s.anzahl);
+    expect([...trichter].sort((x, y) => y - x)).toEqual(trichter);
+  });
+
+  /**
+   * **Bewertet ist nicht gefunden** (V-269, D-762, O-941). Der Radar bewertet
+   * jede Bekanntmachung gegen jedes Profil; zählte jede Bewertung, stünde das
+   * ganze Einlesevolumen unter „Gefunden". Die Streusalzlieferung hat Punkte,
+   * ist nicht ausgeschlossen — und ist kein Fund, weil ihre Leistung das
+   * Profil nicht trifft. Datenbank (`fundSql`) und Dienst (`istFund`) sagen
+   * dasselbe.
+   */
+  it('eine Bewertung ohne Leistungstreffer zählt nicht — die Streusalzlieferung', async () => {
+    const salz = streusalz();
+    expect(salz.ausgeschlossen).toBe(false);
+    expect(salz.punkte).toBeGreaterThan(0);
+    expect(istFund(salz)).toBe(false);
+
+    const p = await profil(f.reinigung);
+    const a = await bekanntmachung();
+    await bewerte(f.reinigung, p, a, '2019-06-01T10:00:00Z', false, salz.aufschluesselung);
+    const leitung = await legeLeitungAn(f.reinigung, 'admin');
+    const zahl = async (): Promise<number> => (await alsBereich(f.reinigung,
+      (k) => pipeline(k, zeitraum), leitung)).find((x) => x.stufe === 'gefunden')!.anzahl;
+    const vorher = await zahl();
+    expect(vorher, 'die Streusalzbewertung allein zählt nicht').toBe(0);
+
+    /* Eröffnet ein Mensch einen Vorgang, ist sie im Blick — über den Vorgang. */
+    await vorgang(f.reinigung, a, 'verworfen', '2019-06-02T10:00:00Z');
+    expect(await zahl()).toBe(1);
+  });
+
+  it('die Gruppenfassung nennt für dieselben Zeilen dieselben Zahlen', async () => {
+    await legeFaelleAn(f.reinigung);
+    await legeFaelleAn(f.bau);
+    const bereich = await alsBereich(f.reinigung, (k) => pipeline(k, zeitraum),
+      await legeLeitungAn(f.reinigung, 'admin'));
+
+    const chef = await legeGruppenleitungAn();
+    const gruppe = await inGruppe([f.reinigung, f.security, f.bau, f.operations], chef,
+      (k) => pipelineJeBereich(k, zeitraum));
+    const reinigung = gruppe.find((z) => z.mandantId === f.reinigung)!;
+    const bau = gruppe.find((z) => z.mandantId === f.bau)!;
+    const security = gruppe.find((z) => z.mandantId === f.security)!;
+
+    for (const s of bereich) {
+      expect(reinigung[s.stufe], s.stufe).toBe(s.anzahl);
+      // Die Gesellschaften teilen nichts: der Bau hat seine eigenen acht Fälle.
+      expect(bau[s.stufe], s.stufe).toBe(s.anzahl);
+    }
+    expect(reinigung.zuschlagswertCent).toBe(1_000_000n);
+    expect(reinigung.trefferquoteBp).toBe(3333);
+    // Wer nichts hat, hat die leere Zählung — und keine Quote.
+    expect(security.gefunden).toBe(0);
+    expect(security.trefferquoteBp).toBeNull();
   });
 });
 
@@ -490,5 +696,130 @@ describe('(7) die Gruppenfassung teilt auf, statt zu summieren', () => {
     );
     expect(zeilen.every((z) => z.rechnungen === 0)).toBe(true);
     expect(zeilen.reduce((s, z) => s + z.erloeseCent, 0n)).toBe(0n);
+  });
+});
+
+describe('(8) REP-07: Datei und Druckblatt aus einer Quelle (D-721)', () => {
+  /**
+   * **Für jeden der sechs Berichte dieselben Spalten und Zeilen.** Die
+   * CSV-Datei und das Druckblatt fragen beide `berichtTabelle`; der Beweis
+   * dafür, dass das auch gegen echte Zeilen gilt, steht hier: die Köpfe der
+   * Datei ohne ihre Cent-Zwillinge sind die Köpfe des Blatts, und die Datei
+   * hat genau eine Zeile mehr (die Kopfzeile) als das Blatt Zeilen.
+   */
+  it('jeder Bericht: dieselben Köpfe, dieselbe Zeilenzahl', async () => {
+    const jahr = await berlinJahr();
+    await macheFakturierfaehig(f.reinigung);
+    const wer = await legeLeitungAn(f.reinigung, 'admin');
+    await legeRechnungAn(f.reinigung, wer, await legeKundeAn(f.reinigung),
+      'festgeschrieben', 1000n);
+
+    for (const bericht of ['umsatz', 'auftraege', 'attribution', 'mitarbeiter', 'projekte',
+      'pipeline'] as const) {
+      const tabelle = await alsBereich(f.reinigung,
+        (k) => berichtTabelle(bericht, k, jahr, 'quartal'), wer);
+      const csv = alsCsv(tabelle.spalten, tabelle.zeilen as readonly never[]);
+      const csvZeilen = csv.replace('\uFEFF', '').trimEnd().split('\r\n');
+      const blatt = zellenFuerBlatt(tabelle);
+      expect(blatt.koepfe.map((k) => k.text), bericht).toEqual(
+        csvZeilen[0]!.split(';').filter((k) => !k.endsWith(' (Cent)')));
+      expect(csvZeilen.length - 1, bericht).toBe(blatt.zeilen.length);
+      /* Hoch passt nur die Pipeline (vier Spalten); die übrigen fünf drucken quer
+         (DESIGN §11, V-269) — vorher liefen vier davon über das Blatt hinaus. */
+      expect(blattFormat(tabelle), bericht).toBe(bericht === 'pipeline' ? 'hoch' : 'quer');
+    }
+  });
+
+  /**
+   * **37,5 Wochenstunden sind auf dem Blatt 37,5 — nicht 38** (V-269). Die
+   * Spalte ist `numeric(5,2)`; das Blatt rundete jede Zahl auf eine ganze,
+   * die Datei derselben Quelle schrieb 37.5. Und die Stundenspalten stehen
+   * rechts, weil die Spalte es sagt — nicht, weil ein Muster „… h" trifft.
+   */
+  it('die Wochenstunden mit ihrer Genauigkeit, die Stunden rechtsbündig', async () => {
+    const jahr = await berlinJahr();
+    const wer = await legeLeitungAn(f.reinigung, 'admin');
+    const [p] = await sql.unsafe<{ id: string }[]>(
+      `insert into person (vorname, nachname) values ('Mira', $1) returning id`,
+      [`Genau-${zufall()}`]);
+    await sql.unsafe(
+      `insert into anstellung (mandant_id, person_id, personalnummer, eintritt, wochenstunden)
+       values ($1::uuid, $2::uuid, $3, $4::date, 37.5)`,
+      [f.reinigung, p!.id, `PN-${zufall()}`, `${String(jahr)}-01-01`]);
+
+    const tabelle = await alsBereich(f.reinigung,
+      (k) => berichtTabelle('mitarbeiter', k, jahr, 'jahr'), wer);
+    const csv = alsCsv(tabelle.spalten, tabelle.zeilen as readonly never[])
+      .replace('\uFEFF', '').trimEnd().split('\r\n');
+    const blatt = zellenFuerBlatt(tabelle);
+    const spalte = blatt.koepfe.findIndex((k) => k.text === 'Wochenstunden Soll');
+    const i = blatt.zeilen.findIndex((z) => z[0]!.text.startsWith('Mira Genau-'));
+    expect(i, 'die Anstellung steht im Bericht').toBeGreaterThanOrEqual(0);
+
+    expect(blatt.zeilen[i]![spalte]!.text).toBe('37,5');
+    expect(csv[i + 1]!.split(';')[spalte]).toBe('37.5');
+
+    expect(blatt.koepfe.filter((k) => k.zahl).map((k) => k.text)).toEqual([
+      'Wochenstunden Soll', 'Ist', 'Ist (Minuten)', 'Soll', 'Soll (Minuten)', 'Auslastung',
+      'Ist minus Soll (Minuten)',
+    ]);
+    const soll = blatt.koepfe.findIndex((k) => k.text === 'Soll');
+    expect(blatt.zeilen[i]![soll]!.text).toMatch(/^\d+:\d{2} h$/u);
+    expect(blatt.zeilen[i]![soll]!.zahl).toBe(true);
+  });
+
+  /**
+   * **Die Datenzellen der ECHTEN Datei** (D-721 Nr. 5, V-269). V-227 änderte die
+   * Form einer bestehenden Exportdatei: Tage als TT.MM.JJJJ statt JJJJ-MM-TT,
+   * der Projektstand als Wort statt `in_arbeit`. Geprüft wurden bis hierher nur
+   * Köpfe und Zeilenzahl — keine Zelle. Hier: die Zeiträume des Umsatzes und
+   * ein Projekt mit Stand und Soll-Ende, gelesen aus der Datei, die
+   * `alsCsv` schreibt.
+   */
+  it('in der Datei stehen Tage als TT.MM.JJJJ und der Projektstand als Wort', async () => {
+    const jahr = await berlinJahr();
+    const wer = await legeLeitungAn(f.bau, 'admin');
+    const datei = (t: Awaited<ReturnType<typeof berichtTabelle>>): string[][] =>
+      alsCsv(t.spalten, t.zeilen as readonly never[]).replace('\uFEFF', '').trimEnd()
+        .split('\r\n').map((z) => z.split(';'));
+
+    const umsatz = datei(await alsBereich(f.bau,
+      (k) => berichtTabelle('umsatz', k, jahr, 'quartal'), wer));
+    const von = umsatz[0]!.indexOf('Von');
+    const bis = umsatz[0]!.indexOf('Bis');
+    expect(umsatz.length, 'vier Quartale und der Kopf').toBe(5);
+    expect(umsatz[1]![von]).toBe(`01.01.${String(jahr)}`);
+    expect(umsatz[4]![bis]).toBe(`31.12.${String(jahr)}`);
+    for (const zeile of umsatz.slice(1)) {
+      expect(zeile[von]).toMatch(/^\d{2}\.\d{2}\.\d{4}$/u);
+      expect(zeile[bis]).toMatch(/^\d{2}\.\d{2}\.\d{4}$/u);
+    }
+
+    const [k] = await sql.unsafe<{ id: string }[]>(
+      `insert into kunde (mandant_id, kundennummer, name)
+       values ($1::uuid, $2, 'Bauherr Süd') returning id`, [f.bau, `K-${zufall()}`]);
+    const [au] = await sql.unsafe<{ id: string }[]>(
+      `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, status, bezeichnung,
+                            verantwortlich_benutzer_id, start_datum)
+       values ($1::uuid, $2, $3::uuid, 'projekt', 'aktiv', 'Rohbau Süd', $4::uuid, $5::date)
+       returning id`,
+      [f.bau, `AU-${zufall()}`, k!.id, wer, `${String(jahr)}-01-01`]);
+    const nummer = `P-${zufall()}`;
+    await sql.unsafe(
+      `insert into projekt (mandant_id, auftrag_id, nummer, bezeichnung, kunde_id, art,
+                            vertragsgrundlage, status, soll_beginn, soll_ende,
+                            auftragssumme_netto_cent)
+       values ($1::uuid, $2::uuid, $3, 'Rohbau Süd', $4::uuid, 'hochbau', 'vob_b',
+               'in_arbeit', $5::date, $6::date, 100000)`,
+      [f.bau, au!.id, nummer, k!.id, `${String(jahr)}-02-01`, `${String(jahr)}-11-30`]);
+
+    const projekte = datei(await alsBereich(f.bau,
+      (k2) => berichtTabelle('projekte', k2, jahr, 'jahr'), wer));
+    const zeile = projekte.find((z) => z[0] === nummer);
+    expect(zeile, 'das Projekt steht in der Datei').toBeDefined();
+    expect(zeile![projekte[0]!.indexOf('Status')]).toBe('In Arbeit');
+    expect(zeile![projekte[0]!.indexOf('Soll-Ende')]).toBe(`30.11.${String(jahr)}`);
+    /* Kein Ist-Ende: leer, nicht „null" und kein erfundener Tag. */
+    expect(zeile![projekte[0]!.indexOf('Ist-Ende')]).toBe('');
   });
 });

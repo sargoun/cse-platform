@@ -596,7 +596,11 @@ Radar first — the agents operate on its output.
       company under `/portal/[mandant]/berichte`, the same six split per
       company under `/portal/gruppe/berichte` (read-only, Invariant 10), year
       and granularity as links so a report is shareable, and CSV behind its
-      own right `bericht.exportieren` (REP-07). Money stays integer cents;
+      own right `bericht.exportieren` (REP-07). The PDF half of REP-07 is an
+      A4 print sheet per report (`/portal/[mandant]/berichte/druck/[bericht]`,
+      same right, same rows and columns as the CSV from one source
+      `berichtTabelle`, printed or saved as PDF by the browser — D-204, D-721,
+      V-227; until V-227 only the CSV existed). Money stays integer cents;
       the protected columns (`anstellung.stundensatz_intern`,
       `projekt.auftragssumme_netto_cent`) are read only as an aggregate,
       through `app.projekt_kennzahlen` / `…_gruppe`

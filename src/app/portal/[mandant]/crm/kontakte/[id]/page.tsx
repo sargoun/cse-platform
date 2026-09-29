@@ -32,6 +32,14 @@ import { VERLAUF_TEXTE } from '@/lib/i18n/verwaltung/crm-verlauf';
 import {
   leseKontaktVerlauf, VERLAUF_GRENZE, type VerlaufEintrag,
 } from '@/server/services/crm/verlauf';
+import { lesbar } from '@/lib/i18n/beschriftung/basis';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { rechtName } from '@/lib/i18n/rechtname';
+
+/** Der Kanal als Wort — die Karte des Kommunikationsverlaufs (V-232). */
+function kanalText(kanal: string): string {
+  return eigenerEintrag<string>(VERLAUF_TEXTE.de.kanaele, kanal) ?? lesbar(kanal);
+}
 
 /**
  * `/portal/[mandant]/crm/kontakte/[id]` — das Blatt eines Ansprechpartners
@@ -101,10 +109,6 @@ const SENDE_FEHLER: Readonly<Record<string, string>> = {
   freigabe: 'Die Freigabe passte nicht zu dem, was hinausgehen sollte. Es wurde '
     + 'nichts gesendet.',
   ungueltig: 'Kanal oder Zweck fehlt.',
-};
-
-const KANAL_TEXT: Readonly<Record<string, string>> = {
-  email: 'E-Mail', telefon: 'Telefon', sms: 'SMS', post: 'Post', whatsapp: 'WhatsApp',
 };
 
 interface Kopf {
@@ -413,7 +417,7 @@ export default async function Kontaktblatt(
                     : darf['dokument.lesen'] !== true ? (
                       /* Kein Verweis ohne `dokument.lesen` — er führte auf ein 404. */
                       <span className="text-text-subtle"
-                            title="Zum Öffnen fehlt dokument.lesen">
+                            title={`Zum Öffnen fehlt das Recht „${rechtName('dokument.lesen')}“`}>
                         hinterlegt, aber nicht zu öffnen
                       </span>
                     ) : (
@@ -434,7 +438,7 @@ export default async function Kontaktblatt(
                       ? 'keiner — die Einwilligung trägt damit nichts'
                       : '—'
                     : stand.einwilligungKanaele
-                      .map((k) => KANAL_TEXT[k] ?? k).join(', ')}
+                      .map((k) => kanalText(k)).join(', ')}
                 </dd>
               </div>
               <div>
@@ -521,7 +525,7 @@ export default async function Kontaktblatt(
           spalten={[
             {
               schluessel: 'kanal', kopf: 'Kanal',
-              zelle: (z) => KANAL_TEXT[z.kanal] ?? z.kanal,
+              zelle: (z) => kanalText(z.kanal),
             },
             {
               schluessel: 'werbung', kopf: 'Werbung',
@@ -697,9 +701,8 @@ export default async function Kontaktblatt(
         ) : kopf.kunde_id === null ? (
           <p className="mt-s3 max-w-prose text-sm text-text-muted" data-cse="wv-ohne-kunde">
             Dieser Ansprechpartner hängt an keinem Kunden. Eine Wiedervorlage hängt
-            aber immer an einem Lead oder an einem Kunden
-            (<code className="text-text">lead_aktivitaet_hat_bezug</code>) — ordnen Sie
-            ihn zuerst einem Kunden zu.
+            aber immer an einem Lead oder an einem Kunden — ordnen Sie ihn zuerst
+            einem Kunden zu.
           </p>
         ) : (
           <>
@@ -717,10 +720,15 @@ export default async function Kontaktblatt(
                 ? 'Sie wird zugleich als Aufgabe und als Kalendereintrag gespiegelt '
                   + '(O-663) — sonst stünde derselbe Vorgang hier offen und in der '
                   + 'Aufgabenliste gar nicht.'
-                : 'Gespiegelt wird sie nur, soweit die Rechte reichen: für die Aufgabe '
-                  + 'braucht es `aufgabe.schreiben`, für den Kalendereintrag '
-                  + '`kalender.schreiben`. Was nicht entsteht, sagt Ihnen die Meldung '
-                  + 'nach dem Speichern beim Namen (O-663) — verschwiegen wird nichts.'}
+                : (
+                  <>
+                    Gespiegelt wird sie nur, soweit die Rechte reichen: für die Aufgabe
+                    braucht es <Recht schluessel="aufgabe.schreiben" />, für den
+                    Kalendereintrag <Recht schluessel="kalender.schreiben" />. Was nicht
+                    entsteht, sagt Ihnen die Meldung nach dem Speichern beim Namen (O-663) —
+                    verschwiegen wird nichts.
+                  </>
+                )}
             </p>
             <form
               method="post" action="/api/crm/wiedervorlage"
@@ -784,9 +792,9 @@ export default async function Kontaktblatt(
                       Mir selbst zuweisen
                     </span>
                     <span className="text-xs text-text-muted">
-                      Andere Menschen stehen hier nicht zur Wahl — dafür fehlt
-                      `system.benutzer_lesen`. Eine Auswahlliste, die Namen nennt, wäre
-                      selbst die Auskunft.
+                      Andere Menschen stehen hier nicht zur Wahl — dafür fehlt das Recht
+                      {' '}<Recht schluessel="system.benutzer_lesen" />. Eine Auswahlliste, die
+                      Namen nennt, wäre selbst die Auskunft.
                     </span>
                   </>
                 )}

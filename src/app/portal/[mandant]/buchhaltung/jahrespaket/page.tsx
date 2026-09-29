@@ -14,6 +14,7 @@ import { liesWirtschaftsjahr, wirtschaftsjahrVon } from '@/server/services/buchh
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { groesseText } from '@/lib/zahl';
 
 /**
  * `/portal/[mandant]/buchhaltung/jahrespaket` — das Jahrespaket fuer den
@@ -27,12 +28,6 @@ export const dynamic = 'force-dynamic';
 
 function deutschesDatum(iso: string): string {
   return `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
-}
-
-function groesse(bytes: number): string {
-  if (bytes < 1024) return `${String(bytes)} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1).replace('.', ',')} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
 }
 
 export default async function JahrespaketSeite(
@@ -152,7 +147,7 @@ export default async function JahrespaketSeite(
         schluessel={(d) => d.pfad}
         spalten={[
           { schluessel: 'pfad', kopf: 'Datei', zelle: (d) => <span className="font-mono text-xs">{d.pfad}</span> },
-          { schluessel: 'groesse', kopf: 'Größe', numerisch: true, zelle: (d) => groesse(d.groesseBytes) },
+          { schluessel: 'groesse', kopf: 'Größe', numerisch: true, zelle: (d) => groesseText(d.groesseBytes) },
           { schluessel: 'sha', kopf: 'SHA-256',
             zelle: (d) => <span className="font-mono text-xs text-text-muted" title={d.sha256}>{d.sha256.slice(0, 12)}…</span> },
         ]}

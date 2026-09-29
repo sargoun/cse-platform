@@ -21,6 +21,18 @@ import {
 import { Recht } from '@/components/ui/Recht';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { RECHNUNG_ENTWURF_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-entwurf';
+import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import { formatiereMenge, mengeAusPostgres } from '@/server/services/finanz/menge';
+
+/** Ganze Cent als Betrag — `formatiereGeld`, mit Tausenderpunkt (Invariante 1, V-233). */
+function geldText(roh: string | null): string {
+  return roh === null ? '—' : formatiereGeld(cent(BigInt(roh)));
+}
+
+/** Eine Menge aus `numeric(…,3)` in deutscher Schreibweise (`formatiereMenge`, V-233). */
+function mengeText(roh: string | null): string {
+  return roh === null ? '—' : formatiereMenge(mengeAusPostgres(roh));
+}
 
 /**
  * `/portal/[mandant]/reinigung/sonderleistungen` — Glas, Sonderreinigung,
@@ -65,21 +77,6 @@ const PILLE: Readonly<Record<SonderleistungStatus, PillZustand>> = {
   abgerechnet: 'Abgeschlossen',
   storniert: 'Archiviert',
 };
-
-/** Punkt zu Komma — die Datenbank liefert Punkte, DESIGN §5 zeigt Kommas. */
-function deutsch(wert: string | null): string {
-  return wert === null ? '—' : wert.replace('.', ',');
-}
-
-/** Cent als Betrag — ganzzahlig gerechnet, nie durch einen Double. */
-function euroAusCent(cent: string | null): string {
-  if (cent === null) return '—';
-  const negativ = cent.startsWith('-');
-  const ziffern = (negativ ? cent.slice(1) : cent).padStart(3, '0');
-  const ganz = ziffern.slice(0, -2);
-  const rest = ziffern.slice(-2);
-  return `${negativ ? '-' : ''}${ganz},${rest} €`;
-}
 
 export default async function Sonderleistungen(
   { params, searchParams }: {
@@ -271,16 +268,16 @@ export default async function Sonderleistungen(
                       {z.kurztext}
                     </span>
                     <span className="text-sm tabular-nums text-text-muted">
-                      Zeitwert {deutsch(z.zeitwertMinuten)} Min. / {z.einheit}
+                      Zeitwert {mengeText(z.zeitwertMinuten)} Min. / {z.einheit}
                     </span>
                   </div>
                   {z.langtext !== null && (
                     <p className="m-0 mt-s2 max-w-prose text-sm text-text-muted">{z.langtext}</p>
                   )}
                   <p className="m-0 mt-s2 text-sm text-text-muted">
-                    Listenpreis {euroAusCent(z.standardEinzelpreisCent)}
+                    Listenpreis {geldText(z.standardEinzelpreisCent)}
                     {z.leistungswert !== null
-                      && ` · Leistungswert ${deutsch(z.leistungswert)} m²/h`}
+                      && ` · Leistungswert ${mengeText(z.leistungswert)} m²/h`}
                     {' · '}
                     {z.abrufe === 0 ? 'kein Abruf' : `${String(z.abrufe)} Abruf(e)`}
                     {' · gültig ab '}
@@ -421,7 +418,7 @@ export default async function Sonderleistungen(
                 numerisch: true,
                 zelle: (a) => (a.menge === null
                   ? '—'
-                  : `${deutsch(a.menge)} ${a.einheit ?? ''}`.trim()),
+                  : `${mengeText(a.menge)} ${a.einheit ?? ''}`.trim()),
               },
               {
                 schluessel: 'nachweis',

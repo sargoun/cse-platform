@@ -1143,11 +1143,48 @@ document uses, and — like the palette above — nothing outside one may use th
 | `--druck-kopf-sperrung` | `0.08em` | its letter-spacing — same as `micro` in §2 |
 | `--druck-meta-groesse` | `9pt` | footer, long text under a position |
 | `--druck-block` | `12pt` | gap between two blocks on the sheet |
+| `--druck-firma-groesse` | `14pt` | the entity name at the head of the sheet, semibold |
+| `--druck-titel-groesse` | `13pt` | the document title under the header rule |
+| `--druck-kopflinie` | `2.25pt` | thickness of the header rule — the `3px` the sheets drew, in points |
+| `--druck-zeilenhoehe` | `1.5` | line height of the `10pt` body |
 
 Points, not pixels: a PDF is laid out in points, and `10pt` body from the list
 above only means anything if what sits next to it is measured the same way.
 
-The header rule is `--red` from §1 — the one place CSE red appears on paper.
+The header rule is `--red` from §1, `--druck-kopflinie` thick — the one place
+CSE red appears on paper. The sheets the browser prints — offer, monthly
+record, report — take entity name, title, rule and line height from these
+tokens; a literal `14pt` in a page file is a value DESIGN.md does not know.
+
+**A wide table prints landscape — it is never shrunk or clipped.** Portrait
+A4 leaves 170mm between the margins. A report table with more than six
+columns does not fit that at `10pt`: the browser either scales the whole page
+down (10pt became 6.7pt) or cuts the right-hand columns off. Such a sheet is
+laid out and printed as **A4 landscape** (257mm between the margins) — on
+screen `297mm` wide, so the preview is the paper — and a table of up to six
+columns stays portrait (`210mm`). The orientation follows the table
+(`blattFormat` in `bericht/export.ts`), it is not measured in the browser.
+Header cells wrap; only the figures in body cells keep `white-space: nowrap`.
+On screen the table sits in its own horizontal scroll container, and below
+the `md` breakpoint the sheet takes `--s4` padding instead of 20mm — the
+table scrolls, never the page (§5 Tables, D-420). A link back from the sheet
+is a `44px` target like every other (§8).
+
+| Token | Value | Use |
+|---|---|---|
+| `--druck-blatt-hoch` | `210mm` | screen width of a portrait sheet |
+| `--druck-blatt-quer` | `297mm` | screen width of a landscape sheet |
+| `--druck-hoch-bis-spalten` | `6` | the widest table that still prints portrait |
+
+**Controls that sit on the sheet use the print palette too.** On screen the
+sheet is white, so a control drawn on it with the screen palette — `--text`
+on a transparent button — is near-white on white (1.04:1) and cannot be read,
+on a phone never, since there is no hover. A control on the sheet (print,
+month switch, choice of employment) is drawn with `--druck-text` text on
+`--druck-papier`, with a `1px` border in `--druck-text-leise` (9.7:1, well over
+the 3:1 a control boundary needs); its hover is an underline, not a fill. It
+keeps the `44px` target of §8, carries `cse-nicht-drucken`, and never prints.
+Token: `DRUCK_STEUERUNG` in `theme.ts`.
 
 ---
 

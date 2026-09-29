@@ -11,6 +11,7 @@ import { liesWirtschaftsjahr, wirtschaftsjahrVon } from '@/server/services/buchh
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { groesseText } from '@/lib/zahl';
 
 /**
  * `/portal/[mandant]/buchhaltung/z3-export` — die Datentraegerueberlassung
@@ -26,12 +27,6 @@ export const dynamic = 'force-dynamic';
 
 function deutschesDatum(iso: string): string {
   return `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
-}
-
-function groesse(bytes: number): string {
-  if (bytes < 1024) return `${String(bytes)} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1).replace('.', ',')} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
 }
 
 export default async function Z3Export(
@@ -118,7 +113,7 @@ export default async function Z3Export(
         <li><KpiStat label="Tabellen" wert={String(z.tabellen.length)} icon="buch" /></li>
         <li><KpiStat label="Zeilen gesamt" wert={String(zeilenGesamt)} icon="rechnung" /></li>
         <li><KpiStat label="Unvollständige Buchungszeilen" wert={String(z.unvollstaendig)} icon="warnung" ton={z.unvollstaendig > 0 ? 'warning' : 'success'} /></li>
-        <li><KpiStat label="Paket" wert={groesse(z.zip.byteLength)} icon="export" ton="muted" /></li>
+        <li><KpiStat label="Paket" wert={groesseText(z.zip.byteLength)} icon="export" ton="muted" /></li>
       </ul>
 
       {z.unvollstaendig > 0 ? (
@@ -162,7 +157,7 @@ export default async function Z3Export(
           { schluessel: 'datei', kopf: 'Datei', zelle: (t) => <span className="font-mono text-xs">{t.datei}</span> },
           { schluessel: 'text', kopf: 'Inhalt', zelle: (t) => t.text },
           { schluessel: 'zeilen', kopf: 'Zeilen', numerisch: true, zelle: (t) => String(t.zeilen) },
-          { schluessel: 'groesse', kopf: 'Größe', numerisch: true, zelle: (t) => groesse(t.groesseBytes) },
+          { schluessel: 'groesse', kopf: 'Größe', numerisch: true, zelle: (t) => groesseText(t.groesseBytes) },
           { schluessel: 'sha', kopf: 'SHA-256',
             zelle: (t) => <span className="font-mono text-xs text-text-muted" title={t.sha256}>{t.sha256.slice(0, 12)}…</span> },
         ]}

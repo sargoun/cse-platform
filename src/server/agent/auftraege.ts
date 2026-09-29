@@ -1,5 +1,9 @@
 import 'server-only';
 import type { VorgangTyp } from '../services/freigabe/posteingang.js';
+import { anfrageLuecken, lueckenText } from '../services/lead/einsendung.js';
+import { Felder } from '../../lib/formular/schema.js';
+import type { SchreibKontext } from '../kontext/index.js';
+import { fuehreLaufAus, type AgentKennung, type LaufErgebnis } from './orchestrator.js';
 
 /**
  * **Was ein Agent formulieren darf — die Liste, nicht der Rumpf der Anfrage.**
@@ -74,8 +78,67 @@ export const ENTWURF_AUFTRAEGE: Readonly<Record<string, EntwurfAuftrag>> = {
   },
 };
 
+/**
+ * Der Akquise-Agent findet keine offene Anfrage — es gibt nichts zu
+ * beantworten, und ein Entwurf „an die anfragende Stelle" wäre einer an
+ * niemanden (V-230). Die Laufroute und das Vorschaltblatt sagen das, statt
+ * einen Lauf zu starten.
+ */
+export class KeineOffeneAnfrage extends Error {
+  readonly code = 'KEINE_ANFRAGE' as const;
+  constructor() {
+    super('Es gibt keine offene Anfrage über das Anfrageformular (neu oder in '
+      + 'Bearbeitung), auf die ein Entwurf antworten könnte.');
+    this.name = 'KeineOffeneAnfrage';
+  }
+}
+
 export interface Leser {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
+}
+
+/**
+ * **Ein Lauf auf Knopfdruck** — was `POST /api/agenten/lauf` tut, ohne HTTP
+ * (V-230, V-271, D-724 Nr. 1).
+ *
+ * **Erst die Tatsachen, dann die Aufgabe.** Findet `fuelleTatsachen` keine
+ * offene Anfrage, entsteht KEINE Zeile: die Antwort ist `{ lauf: null, code:
+ * 'KEINE_ANFRAGE' }`, und die Route leitet mit diesem Code zurück. Ein Entwurf
+ * „an die anfragende Stelle" wäre einer an niemanden. Die Reihenfolge stand
+ * bis V-271 in der Route und war nur dort — geprüft wurde sie nie; jetzt
+ * prüft sie `tests/isolation/akquise-tatsachen.test.ts` (6) an echten Zeilen.
+ */
+export async function starteLaufAufKnopfdruck(
+  kontext: SchreibKontext,
+  eingabe: {
+    readonly agent: AgentKennung;
+    /** Der Schlüssel des Formulars — derselbe bei jeder Wiederholung (Idempotenz). */
+    readonly schluessel: string;
+    readonly angefordertVon: string;
+    readonly codeVersion: string;
+  },
+): Promise<{ readonly lauf: LaufErgebnis | null; readonly code: string | null }> {
+  const auftrag = ENTWURF_AUFTRAEGE[eingabe.agent];
+  if (auftrag === undefined) {
+    throw new Error(`Für den Agenten „${eingabe.agent}" gibt es keinen Auftrag.`);
+  }
+  let tatsachen: Readonly<Record<string, string>>;
+  try {
+    // Die Tatsachen kommen aus DIESER Gesellschaft, durch RLS begrenzt.
+    tatsachen = await fuelleTatsachen({ abfrage: kontext.abfrage.bind(kontext) }, eingabe.agent);
+  } catch (fehler) {
+    if (fehler instanceof KeineOffeneAnfrage) return { lauf: null, code: fehler.code };
+    throw fehler;
+  }
+  const lauf = await fuehreLaufAus(kontext, {
+    ...auftrag,
+    agent: eingabe.agent,
+    tatsachen,
+    idempotenzSchluessel: `${eingabe.agent}:${eingabe.schluessel}`,
+    angefordertVon: eingabe.angefordertVon,
+    codeVersion: eingabe.codeVersion,
+  });
+  return { lauf, code: null };
 }
 
 /**
@@ -133,28 +196,69 @@ export async function fuelleTatsachen(
   }
 
   if (agent === 'akquise') {
+    /*
+     * **Nur eine OFFENE Anfrage, nur ihre eigenen Lücken, keine interne Zahl**
+     * (V-230, D-724).
+     *
+     * Vorher: die jüngste Anfrage ohne Statusfilter (auch eine längst
+     * gewonnene oder verlorene), die Zahl der laufenden Anfragen im Text an
+     * den Interessenten — das interne Auftragsvolumen — und als Lücke fest
+     * eine Personenzahl, egal was die Anfrage enthielt.
+     *
+     * **Und nur, wo jemand GEFRAGT hat** (V-271, D-764). Der Entwurf beginnt
+     * mit „Vielen Dank für Ihre Anfrage vom …" — das ist eine Tatsache, und
+     * belegt ist sie nur durch einen `formular_eingang`: die Einsendung des
+     * Anfrageformulars, mit Zeitpunkt und Datenschutzbestätigung. Ein
+     * recherchierter Lead (`akquise`) hat niemanden gefragt (D-631), ein Lead
+     * aus dem Vergaberadar ist eine öffentliche Bekanntmachung, und ob eine
+     * von Hand erfasste Anfrage oder eine Empfehlung eine Anfrage des
+     * Kontakts ist, ist offen (O-907). Keiner davon bekommt einen Dank für
+     * eine Anfrage, die es so nicht gab.
+     *
+     * **Kein interner Betreff im Text.** `lead.betreff` ist ein Arbeitstitel —
+     * beim Webformular „Anfrage {Formularschlüssel}", bei der Akquise
+     * „Akquise: {Firma}". Der Entwurf nennt stattdessen den öffentlichen
+     * Titel des Formulars, das der Anfragende selbst ausgefüllt hat; liest
+     * die Sitzung es nicht, nennt er keinen.
+     *
+     * Als Lücke nur, was das Formular leer lässt (`anfrageLuecken`); liest
+     * diese Sitzung das Formular nicht (RLS), wird keine Lücke genannt —
+     * lieber keine als eine erfundene.
+     */
     const [z] = await db.abfrage<{
-      firma: string | null; eingang: string | null; betreff: string | null; offen: string;
+      firma: string | null; eingang: string | null; formular: string | null;
+      daten: Record<string, unknown> | null; felder: unknown;
     }>(
       `select l.firma_name as firma,
               to_char(l.erstellt_am at time zone 'Europe/Berlin', 'DD.MM.YYYY') as eingang,
-              l.betreff,
-              (select count(*) from lead
-                where status in ('neu','in_bearbeitung','angebot'))::text as offen
+              fd.titel as formular,
+              fe.daten, fd.felder
          from lead l
+         left join formular_eingang fe
+                on fe.mandant_id = l.mandant_id and fe.id = l.formular_eingang_id
+         left join formular_definition fd
+                on fd.mandant_id = fe.mandant_id and fd.id = fe.formular_definition_id
+        where l.status in ('neu', 'in_bearbeitung')
+          and l.archiviert_am is null
+          and l.formular_eingang_id is not null
+          and l.quelle not in ('akquise', 'vergabe_radar')
         order by l.erstellt_am desc
         limit 1`);
-    const betreff = z?.betreff ?? 'die eingegangene Anfrage';
-    const offene = z?.offen ?? '0';
+    if (z === undefined) throw new KeineOffeneAnfrage();
+
+    const felder = Felder.safeParse(z.felder);
+    const luecken = felder.success && z.daten !== null ? anfrageLuecken(felder.data, z.daten) : [];
+    const offen = lueckenText(luecken);
+    const formular = z.formular === null || z.formular.trim() === '' ? null : z.formular.trim();
     return {
       stand,
-      empfaenger: z?.firma ?? 'die anfragende Stelle',
-      datum: z?.eingang ?? stand,
-      betreff,
-      offene_anfragen: offene,
-      zusammenfassung: `Ihr Anliegen „${betreff}" ist bei uns aufgenommen; `
-        + `derzeit bearbeiten wir ${offene} Anfragen.`,
-      offen: 'die Angabe zur Personenzahl',
+      empfaenger: z.firma ?? 'die anfragende Stelle',
+      datum: z.eingang ?? stand,
+      ...(formular === null ? {} : { formular }),
+      zusammenfassung: formular === null
+        ? 'Ihr Anliegen ist bei uns aufgenommen.'
+        : `Ihre Anfrage über unser Formular „${formular}" ist bei uns aufgenommen.`,
+      ...(offen === null ? {} : { offen }),
     };
   }
 

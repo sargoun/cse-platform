@@ -687,7 +687,9 @@ export async function seedOperations(
        * (CHECK `lead_herkunft_stimmig`). Einen zu erfinden hiesse, eine
        * Anfrage zu behaupten, die niemand gestellt hat — die Herkunft eines
        * Leads ist genau das, was REQ-07 und REP-03 auswerten. Wer einen
-       * Webformular-Lead sehen will, schickt das Angebotsformular ab.
+       * Webformular-Lead sehen will, schickt das Angebotsformular ab — die
+       * Vorführfläche tut genau das, über `nimmAn` (`seed/webanfrage.ts`,
+       * V-271).
        */
       // Der liegengebliebene: Frist vorbei, niemand hat reagiert.
       ['L-2026-0001', 'Unterhaltsreinigung Buerohaus, 3 Etagen',

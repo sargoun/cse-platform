@@ -18,6 +18,7 @@ import {
   BEWEGUNG,
   FARBEN_BASIS,
   FARBEN_BEREICH,
+  FARBEN_DRUCK,
   FARBEN_MARKE,
   FARBEN_SEMANTIK,
   RADIUS,
@@ -174,6 +175,29 @@ describe('(2) contrast — BFSG applies, WCAG 2.1 AA', () => {
       const stellen = String(gedruckt).split('.')[1]!.length;
       const gerechnet = Number(kontrast(vorne, hinten).toFixed(stellen));
       expect(gerechnet, text).toBe(gedruckt);
+    }
+  });
+
+  /**
+   * **Ein Bedienelement auf dem weissen Blatt** (DESIGN §11, V-269). Der
+   * Druckknopf trug `--text` auf dem Papier des Blatts — 1,04:1, unlesbar.
+   * Die Druckfarben tragen: Text 18,9:1, Rand und leiser Text 9,7:1 (über den
+   * 3:1, die eine Bedienelementgrenze braucht, und über 4,5 für Text). Die
+   * beiden Zahlen, die DESIGN.md dazu druckt, rechnet dieser Fall nach.
+   */
+  it('controls on the sheet: the print palette passes, the screen palette does not', () => {
+    const papier = FARBEN_DRUCK['druck-papier'];
+    expect(kontrast(FARBEN_DRUCK['druck-text'], papier)).toBeGreaterThanOrEqual(4.5);
+    expect(kontrast(FARBEN_DRUCK['druck-text-leise'], papier)).toBeGreaterThanOrEqual(4.5);
+    expect(kontrast(FARBEN_BASIS.text, papier)).toBeLessThan(3);
+    for (const [vorne, text] of [
+      [FARBEN_BASIS.text, '(1.04:1)'],
+      [FARBEN_DRUCK['druck-text-leise'], '(9.7:1'],
+    ] as const) {
+      expect(DESIGN, `DESIGN.md no longer states ${text}`).toContain(text);
+      const gedruckt = Number(/(\d+\.\d+):1/u.exec(text)![1]);
+      const stellen = String(gedruckt).split('.')[1]!.length;
+      expect(Number(kontrast(vorne, papier).toFixed(stellen)), text).toBe(gedruckt);
     }
   });
 

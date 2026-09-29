@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { berlinHeute } from '@/server/db/heute';
-import { FARBEN_DRUCK, FARBEN_MARKE, MASSE_DRUCK } from '@/lib/design/theme';
+import { DRUCK_STEUERUNG, FARBEN_DRUCK, FARBEN_MARKE, MASSE_DRUCK } from '@/lib/design/theme';
 import { stundenMinutenText } from '@/lib/datum/stunden';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { leseNachweis, type MiLoGNachweis } from '@/server/services/zeit/milog';
@@ -10,7 +10,7 @@ import { AnmeldungNoetig } from '../../Anmeldung';
 import { meinPortal } from '../rahmen';
 import Link from 'next/link';
 import { Monatswechsler } from '../bausteine';
-import { DruckKnopf } from './DruckKnopf';
+import { DruckKnopf } from '@/components/ui/DruckKnopf';
 
 /**
  * `/portal/mein/monatsnachweis` — der Stundennachweis eines Monats, je
@@ -163,7 +163,7 @@ export default async function Monatsnachweis({
         .cse-blatt { background: ${FARBEN_DRUCK['druck-papier']};
                      color: ${FARBEN_DRUCK['druck-text']};
                      max-width: 210mm; margin: 0 auto; padding: 20mm;
-                     font-size: 10pt; line-height: 1.5; }
+                     font-size: 10pt; line-height: ${MASSE_DRUCK['druck-zeilenhoehe']}; }
         .cse-blatt table { width: 100%; border-collapse: collapse; }
         .cse-blatt th, .cse-blatt td {
                      padding: ${MASSE_DRUCK['druck-zelle-y']} ${MASSE_DRUCK['druck-zelle-x']};
@@ -188,7 +188,8 @@ export default async function Monatsnachweis({
         @media (max-width: 767.98px) { .cse-blatt { padding: var(--s4); } }
         .cse-blatt .leise { color: ${FARBEN_DRUCK['druck-text-leise']};
                             font-size: ${MASSE_DRUCK['druck-meta-groesse']}; }
-        .cse-blatt .kopflinie { border: 0; border-top: 3px solid ${FARBEN_MARKE.red};
+        .cse-blatt .kopflinie { border: 0;
+                                border-top: ${MASSE_DRUCK['druck-kopflinie']} solid ${FARBEN_MARKE.red};
                                 margin: ${MASSE_DRUCK['druck-block']} 0
                                         calc(2 * ${MASSE_DRUCK['druck-block']}); }
         .cse-blatt .fuss { border-top: 1px solid ${FARBEN_DRUCK['druck-linie']};
@@ -248,11 +249,15 @@ export default async function Monatsnachweis({
           className="cse-nicht-drucken mb-s4 flex flex-wrap items-center gap-s3"
         >
           {daten.beschaeftigungen.map((b) => (
+            /* Auf dem weissen Blatt in Druckfarben (DESIGN §11, V-269): mit
+               `text-text` stand die Wahl fast-weiss auf weiss. Die gewählte
+               trägt `aria-current` und fette Schrift — nicht eine dunkle Fläche. */
             b.anstellungId === daten.anstellungId ? (
               <span
                 key={b.anstellungId}
                 aria-current="page"
-                className="inline-flex min-h-11 items-center rounded-md border border-line-strong bg-surface-2 px-s4 text-base font-semibold text-text"
+                style={DRUCK_STEUERUNG}
+                className="inline-flex min-h-11 items-center rounded-md border px-s4 text-base font-semibold"
               >
                 {b.mandantName}
               </span>
@@ -260,7 +265,8 @@ export default async function Monatsnachweis({
               <Link
                 key={b.anstellungId}
                 href={`/portal/mein/monatsnachweis?monat=${monatsErster}&anstellung=${b.anstellungId}`}
-                className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-base text-text hover:bg-surface-2"
+                style={DRUCK_STEUERUNG}
+                className="inline-flex min-h-11 items-center rounded-md border px-s4 text-base underline-offset-2 hover:underline"
               >
                 {b.mandantName}
               </Link>
@@ -288,15 +294,18 @@ export default async function Monatsnachweis({
           texte={t}
           sprache={basis.sprache}
           zusatz={{ anstellung: daten.anstellungId }}
+          aufPapier
         />
       </div>
 
       <header>
-        <p style={{ margin: 0, fontSize: '14pt', fontWeight: 600 }}>{daten.mandantName}</p>
+        <p style={{ margin: 0, fontSize: MASSE_DRUCK['druck-firma-groesse'], fontWeight: 600 }}>
+          {daten.mandantName}
+        </p>
         <hr className="kopflinie" />
       </header>
 
-      <h1 style={{ margin: 0, fontSize: '12pt' }}>
+      <h1 style={{ margin: 0, fontSize: MASSE_DRUCK['druck-titel-groesse'] }}>
         {b.titel} — {String(monatNr).padStart(2, '0')}/{String(jahr)}
       </h1>
       <p className="leise" style={{ marginTop: '2pt' }}>

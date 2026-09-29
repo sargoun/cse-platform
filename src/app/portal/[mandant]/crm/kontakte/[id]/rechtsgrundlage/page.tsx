@@ -20,6 +20,14 @@ import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import { Recht } from '@/components/ui/Recht';
+import { VERLAUF_TEXTE } from '@/lib/i18n/verwaltung/crm-verlauf';
+import { lesbar } from '@/lib/i18n/beschriftung/basis';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+
+/** Der Kanal als Wort — die Karte des Kommunikationsverlaufs (V-232). */
+function kanalText(kanal: string): string {
+  return eigenerEintrag<string>(VERLAUF_TEXTE.de.kanaele, kanal) ?? lesbar(kanal);
+}
 
 /**
  * `/portal/[mandant]/crm/kontakte/[id]/rechtsgrundlage` — die Grundlage nach
@@ -58,10 +66,6 @@ export const dynamic = 'force-dynamic';
 const BERLIN = new Intl.DateTimeFormat('de-DE', {
   timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
 });
-
-const KANAL_TEXT: Readonly<Record<string, string>> = {
-  email: 'E-Mail', telefon: 'Telefon', sms: 'SMS', post: 'Post', whatsapp: 'WhatsApp',
-};
 
 const FELD = 'min-h-11 w-full rounded-md border border-line bg-surface px-s3 py-s2 '
   + 'text-sm text-text';
@@ -225,7 +229,7 @@ export default async function Rechtsgrundlage(
                 <dd className="m-0 mt-s1 text-sm text-text">
                   {stand.einwilligungKanaele.length === 0
                     ? '—'
-                    : stand.einwilligungKanaele.map((k) => KANAL_TEXT[k] ?? k).join(', ')}
+                    : stand.einwilligungKanaele.map((k) => kanalText(k)).join(', ')}
                 </dd>
               </div>
               <div>
@@ -334,7 +338,7 @@ export default async function Rechtsgrundlage(
                       defaultChecked={stand?.einwilligungKanaele.includes(k) ?? false}
                       data-cse="grundlage-kanal"
                     />
-                    {KANAL_TEXT[k]}
+                    {kanalText(k)}
                   </label>
                 ))}
               </div>
@@ -421,7 +425,7 @@ export default async function Rechtsgrundlage(
                       disabled={!darfSchreiben}>
                 <option value="">nicht angegeben</option>
                 {(['email', 'telefon', 'sms', 'post', 'whatsapp'] as const).map((k) => (
-                  <option key={k} value={k}>{KANAL_TEXT[k]}</option>
+                  <option key={k} value={k}>{kanalText(k)}</option>
                 ))}
               </select>
             </label>
@@ -512,7 +516,7 @@ export default async function Rechtsgrundlage(
           spalten={[
             {
               schluessel: 'kanal', kopf: 'Kanal',
-              zelle: (z) => KANAL_TEXT[z.kanal] ?? z.kanal,
+              zelle: (z) => kanalText(z.kanal),
             },
             {
               schluessel: 'werbung', kopf: 'Werbung',

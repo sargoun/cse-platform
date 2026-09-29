@@ -17,6 +17,10 @@ import { KETTE_TEXTE } from '@/lib/i18n/verwaltung/crm-kette';
 import { RADAR_PLATTFORM_TEXTE } from '@/lib/i18n/verwaltung/radar-plattform';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { tagInSprache } from '@/lib/datum/kalendertag';
+import { beschriftung } from '@/lib/i18n/beschriftung/basis';
+import { MAPPE_STATUS_TEXT } from '@/lib/i18n/beschriftung/radar';
+import { Recht } from '@/components/ui/Recht';
+import { vermerkterStand } from './vermerkt';
 
 /**
  * `/portal/[mandant]/radar/[id]` — eine Bekanntmachung (RAD-03, RAD-05,
@@ -88,7 +92,8 @@ export default async function Bekanntmachung(
   const darf = await haeltRechte(zugang.sitzung, 'radar.plattform_verwalten',
     'crm.schreiben', 'crm.lesen');
   const suche = await searchParams;
-  const vermerkt = typeof suche['vermerkt'] === 'string' ? suche['vermerkt'] : null;
+  /* Nur ein Stand, den die Route setzt — nie Text aus der Adresse (V-271). */
+  const vermerkt = vermerkterStand(suche['vermerkt']);
   const fehlerRoh = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const k = nachSprache(KETTE_TEXTE, zugang.sprache);
   /* Der Registrierungsstand in Worten, nie als Aufzählungswert (V-175). */
@@ -214,7 +219,8 @@ export default async function Bekanntmachung(
 
       {vermerkt !== null ? (
         <Hinweis art="erfolg" cse="radar-vermerkt" className="mb-s5 max-w-prose">
-          <strong>Vermerkt.</strong> Der Stand dieser Bekanntmachung ist jetzt „{vermerkt}".
+          <strong>Vermerkt.</strong> Der Stand dieser Bekanntmachung ist jetzt
+          „{vermerkt}".
         </Hinweis>
       ) : null}
       {abgewiesen !== null ? (
@@ -222,7 +228,12 @@ export default async function Bekanntmachung(
           <strong>Nicht geändert.</strong> {abgewiesen === 'grund'
             ? 'Ein Verwerfen braucht einen Grund — RAD-07 verlangt ihn, und in einem halben Jahr erinnert sich niemand mehr ohne ihn.'
             : abgewiesen === 'mappe_recht'
-              ? '„In Bearbeitung" legt die Vergabemappe an — dafür fehlt das Recht vergabe.schreiben.'
+              ? (
+                <>
+                  „In Bearbeitung" legt die Vergabemappe an — dafür fehlt das Recht{' '}
+                  <Recht schluessel="vergabe.schreiben" />.
+                </>
+              )
               : 'Die Handlung wurde abgewiesen.'}
         </Hinweis>
       ) : null}
@@ -415,7 +426,7 @@ export default async function Bekanntmachung(
                  data-cse="radar-mappe">
           <h2 className="mb-s2 text-h2 text-text">Vergabemappe</h2>
           <p className="mb-s3 text-sm text-text-muted">
-            Stand: <strong>{daten.mappe.status}</strong>.{' '}
+            Stand: <strong>{beschriftung(MAPPE_STATUS_TEXT, daten.mappe.status)}</strong>.{' '}
             {daten.mappe.offen > 0
               ? `${String(daten.mappe.offen)} Pflichtposition${daten.mappe.offen === 1 ? '' : 'en'} noch offen.`
               : 'Alle Pflichtpositionen geprüft.'}
@@ -487,7 +498,7 @@ export default async function Bekanntmachung(
         </section>
       ) : (
         <p className="max-w-prose text-xs text-text-muted">
-          Den Stand setzt, wer <span className="font-mono">radar.status_setzen</span> hält.
+          Den Stand setzt, wer <Recht schluessel="radar.status_setzen" /> hält.
         </p>
       )}
     </PortalRahmen>

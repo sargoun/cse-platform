@@ -38,6 +38,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'radar', pfad: 'radar/bewertung', schreibend: false },
   { modul: 'radar', pfad: 'radar/gewichte.platzhalter', schreibend: false },
+  /* Was „gefunden" heisst (REP-06, O-941) — liest nichts, schreibt nichts. */
+  { modul: 'radar', pfad: 'radar/fund.platzhalter', schreibend: false },
   { modul: 'radar', pfad: 'radar/import', schreibend: false },
   { modul: 'radar', pfad: 'radar/lauf', schreibend: false },
   { modul: 'radar', pfad: 'radar/ocds', schreibend: false },
@@ -1412,6 +1414,18 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'agent', pfad: 'agent/budget-pflege',
     schreibend: true, schreibRecht: 'agent.budget_verwalten',
   },
+  /* Werkzeuge je Gesellschaft ein- und ausschalten (AGT-01, AGT-02, V-228, D-722):
+     dasselbe Recht wie die Schreibpolicy `t_werkzeug_schreiben` (0150). */
+  {
+    modul: 'agent', pfad: 'agent/werkzeug-pflege',
+    schreibend: true, schreibRecht: 'agent.werkzeug_verbinden',
+  },
+  /* Jede Frage an den CEO-Assistenten ist eine Aufgabe mit Schritt (AGT-04, V-229,
+     D-723). Schreibt `agent_aufgabe`/`agent_schritt` unter `agent.aufgabe_starten`. */
+  {
+    modul: 'agent', pfad: 'agent/assistent',
+    schreibend: true, schreibRecht: 'agent.aufgabe_starten',
+  },
   {
     modul: 'dokument', pfad: 'dokument/aufbewahrung',
     schreibend: true, schreibRecht: 'dokument.aufbewahrung_verwalten',
@@ -1682,6 +1696,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'bericht', pfad: 'bericht/ausgabe', schreibend: false },
   { modul: 'bericht', pfad: 'bericht/kennzahlen', schreibend: false },
   { modul: 'bericht', pfad: 'bericht/gruppe', schreibend: false },
+  /* Eine Quelle fuer CSV-Datei und Druckblatt (REP-07, V-227, D-721). Liest nur. */
+  { modul: 'bericht', pfad: 'bericht/export', schreibend: false },
   /**
    * **Der Kalender (CAL-01…CAL-03) — beide lesend.**
    *

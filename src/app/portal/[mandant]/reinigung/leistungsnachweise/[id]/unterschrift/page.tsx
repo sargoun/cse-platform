@@ -16,6 +16,8 @@ import { mitLesekontext } from '../../../daten';
 import { bereiteUnterschriftVor } from '@/server/services/reinigung/leistungsnachweis';
 import type { SchnappschussPosition } from '@/server/services/reinigung/schnappschuss';
 import { kennungOder404 } from '../../../../../kennung';
+import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import { formatiereMenge, mengeAusPostgres } from '@/server/services/finanz/menge';
 
 /**
  * `/portal/[mandant]/reinigung/leistungsnachweise/[id]/unterschrift` — der
@@ -38,14 +40,6 @@ import { kennungOder404 } from '../../../../../kennung';
  * statt einen Erfolg vorzutäuschen (CLAUDE.md: keine Schein-Integrationen).
  */
 export const dynamic = 'force-dynamic';
-
-function cent(text: string | null): string {
-  if (text === null) return '—';
-  const roh = text.startsWith('-') ? text.slice(1) : text;
-  const ganz = roh.length > 2 ? roh.slice(0, -2) : '0';
-  const rest = roh.padStart(3, '0').slice(-2);
-  return `${text.startsWith('-') ? '-' : ''}${ganz},${rest} €`;
-}
 
 export default async function Unterschriftsblatt({
   params,
@@ -143,14 +137,15 @@ export default async function Unterschriftsblatt({
             schluessel: 'menge',
             kopf: 'Menge',
             numerisch: true,
-            zelle: (p) => p.menge.replace('.', ','),
+            zelle: (p) => formatiereMenge(mengeAusPostgres(p.menge)),
           },
           { schluessel: 'einheit', kopf: 'Einheit', zelle: (p) => p.einheit },
           {
             schluessel: 'preis',
             kopf: 'Einzelpreis',
             numerisch: true,
-            zelle: (p) => cent(p.einzelpreisCent),
+            zelle: (p) => (p.einzelpreisCent === null
+              ? '—' : formatiereGeld(cent(BigInt(p.einzelpreisCent)))),
           },
         ]}
       />

@@ -75,7 +75,22 @@ export const MASSE_DRUCK = {
   'druck-kopf-sperrung': '0.08em',
   'druck-meta-groesse': '9pt',
   'druck-block': '12pt',
+  /** Kopf eines Blatts: Name der Gesellschaft, Titel, Kopflinie; die Zeilenhöhe des Satzes (V-269). */
+  'druck-firma-groesse': '14pt',
+  'druck-titel-groesse': '13pt',
+  'druck-kopflinie': '2.25pt',
+  'druck-zeilenhoehe': '1.5',
+  /** Die Bildschirmbreite eines Blatts im Hoch- und im Querformat (V-269). */
+  'druck-blatt-hoch': '210mm',
+  'druck-blatt-quer': '297mm',
 } as const;
+
+/**
+ * §11 — die breiteste Tabelle, die noch hochkant druckt. Mehr Spalten passen
+ * bei 10 pt nicht in 170 mm: das Blatt geht ins Querformat, statt dass der
+ * Browser es verkleinert oder abschneidet (V-269).
+ */
+export const DRUCK_HOCH_BIS_SPALTEN = 6;
 
 export const FARBEN_DRUCK = {
   'druck-papier': '#FFFFFF',
@@ -84,6 +99,21 @@ export const FARBEN_DRUCK = {
   'druck-linie': '#DDDDDD',
   'druck-linie-leicht': '#EEEEEE',
 } as const;
+
+/**
+ * §11 — ein Bedienelement AUF dem Blatt am Bildschirm (Drucken, Monatswechsel,
+ * Wahl der Beschäftigung): Druckfarben statt Bildschirmfarben. Mit `--text`
+ * stand der Druckknopf fast-weiss auf weiss da (1,04:1, V-269). Kein Token
+ * eigener Farbe, sondern die Zuordnung der drei vorhandenen.
+ */
+export const DRUCK_STEUERUNG = {
+  color: FARBEN_DRUCK['druck-text'],
+  borderColor: FARBEN_DRUCK['druck-text-leise'],
+  backgroundColor: FARBEN_DRUCK['druck-papier'],
+} as const;
+
+/** Leiser Text auf einem solchen Bedienelement — z. B. der Monat neben dem Pfeil. */
+export const DRUCK_STEUERUNG_LEISE = { color: FARBEN_DRUCK['druck-text-leise'] } as const;
 
 /** §1 Semantic. Pills use the `-soft` background with solid text, never fills. */
 export const FARBEN_SEMANTIK = {

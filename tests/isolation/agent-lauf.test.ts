@@ -441,6 +441,34 @@ describe('(5) ein echter Programmfehler bleibt laut', () => {
  */
 describe('(9) der Demoentwurf ist fertig, nicht halb', () => {
   it('kein Lauf eines der vier Agenten lässt einen Platzhalter stehen', async () => {
+    /*
+     * **Der Akquise-Agent braucht eine offene Anfrage über das Formular**
+     * (V-230, D-724; V-271, D-764): ohne sie gibt es keinen Entwurf
+     * (`KeineOffeneAnfrage`), und ein von Hand erfasster Lead ist keine —
+     * hinter ihm steht keine belegte Anfrage. Diese Einsendung lässt ein Feld
+     * des Formulars leer — dann trägt der Entwurf den Lückensatz, und auch er
+     * darf keinen Platzhalter stehen lassen.
+     */
+    const [formular] = await sql.unsafe<{ id: string }[]>(
+      `insert into formular_definition (mandant_id, schluessel, titel, felder,
+                                        datenschutz_hinweis_version)
+       values ($1, $2, 'Angebot anfragen', $3::jsonb, 'v1') returning id`,
+      [f.reinigung, `lauf_${zufall()}`, [
+        { typ: 'text', schluessel: 'firma', label: 'Firma', pflicht: true, sortierung: 1,
+          fehlermeldung: 'Bitte angeben.' },
+        { typ: 'dezimal', schluessel: 'flaeche_qm', label: 'Fläche in m²', pflicht: false,
+          sortierung: 2, nachkommastellen: 2, fehlermeldung: 'Bitte angeben.' },
+      ]] as never[]);
+    const [eingang] = await sql.unsafe<{ id: string }[]>(
+      `insert into formular_eingang (mandant_id, formular_definition_id, daten,
+                                     datenschutz_hinweis_bestaetigt, datenschutz_hinweis_version)
+       values ($1, $2, $3::jsonb, true, 'v1') returning id`,
+      [f.reinigung, formular!.id, { firma: 'Platzhalter GmbH' }] as never[]);
+    await sql.unsafe(
+      `insert into lead (mandant_id, leadnummer, quelle, formular_eingang_id, firma_name, betreff,
+                         status, besitzer_benutzer_id)
+       values ($1, $2, 'webformular', $3, 'Platzhalter GmbH', 'Glasreinigung', 'neu', $4)`,
+      [f.reinigung, `L-${zufall()}`, eingang!.id, benutzer]);
     for (const agent of ['ceo_assistent', 'akquise', 'backoffice', 'finanzen']) {
       await schalteAgentEin(agent);
       const auftrag = ENTWURF_AUFTRAEGE[agent];

@@ -15,6 +15,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
 import { ENTSCHIEDEN, leseEinwand, type EinwandBlatt } from '@/server/services/zeit/einwand';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { beschriftung } from '@/lib/i18n/beschriftung/basis';
+import { EINWAND_STATUS_TEXT } from '@/lib/i18n/beschriftung/zeit';
 
 /**
  * `/portal/[mandant]/zeiten/einwaende/[id]` — der einzelne Einwand in voll
@@ -56,15 +58,6 @@ const ART_TEXT: Readonly<Record<string, string>> = {
   pause_falsch: 'Pause falsch',
   zuordnung_falsch: 'Zuordnung falsch',
   sonstiges: 'Sonstiges',
-};
-
-const STATUS_TEXT: Readonly<Record<string, string>> = {
-  offen: 'Offen',
-  in_pruefung: 'In Prüfung',
-  anerkannt: 'Anerkannt',
-  teilweise_anerkannt: 'Teilweise anerkannt',
-  abgelehnt: 'Abgelehnt',
-  zurueckgezogen: 'Zurückgezogen',
 };
 
 const EINTRAG_STATUS_TEXT: Readonly<Record<string, string>> = {
@@ -209,7 +202,7 @@ export default async function Einwandblatt(
         >
           <h2 className="mb-s4 mt-0 text-h3 text-text">Die Meldung</h2>
           <dl className="m-0 grid grid-cols-1 gap-s4 sm:grid-cols-2">
-            <Feld label="Zustand" wert={STATUS_TEXT[e.status] ?? e.status} />
+            <Feld label="Zustand" wert={beschriftung(EINWAND_STATUS_TEXT, e.status)} />
             <Feld label="Art" wert={ART_TEXT[e.art] ?? e.art} />
             <Feld label="Betroffener Tag (Berlin)" wert={e.betrifftDatum} zahl />
             <Feld label="Eingereicht" wert={e.eingereichtLokal} zahl />
@@ -347,7 +340,7 @@ export default async function Einwandblatt(
         {entschieden ? (
           <div className="rounded-lg border border-line bg-surface p-s5">
             <dl className="m-0 grid grid-cols-1 gap-s4 sm:grid-cols-3">
-              <Feld label="Entscheidung" wert={STATUS_TEXT[e.status] ?? e.status} />
+              <Feld label="Entscheidung" wert={beschriftung(EINWAND_STATUS_TEXT, e.status)} />
               <Feld label="Am (Serveruhr)" wert={e.entschiedenLokal ?? '—'} zahl />
               <Feld
                 label="Von"
@@ -435,7 +428,7 @@ export default async function Einwandblatt(
           </form>
         ) : (
           <p className="max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Dieser Einwand ist nicht mehr zu entscheiden ({STATUS_TEXT[e.status] ?? e.status}).
+            Dieser Einwand ist nicht mehr zu entscheiden ({beschriftung(EINWAND_STATUS_TEXT, e.status)}).
           </p>
         )}
       </section>

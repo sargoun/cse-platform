@@ -147,6 +147,14 @@ test.describe('Agentenlauf (AGT-01)', () => {
   /**
    * Die Aufgabe steht danach in der Liste des Agenten — mit dem Stand, der
    * sagt, dass sie auf einen Menschen wartet und nicht fertig ist.
+   *
+   * **Das Wort ist „In Prüfung", nicht mehr „Wartet"** (V-231, D-725 Nr. 2).
+   * Bis dahin kannte die Pillenkarte den Schlüssel `wartet_freigabe`, den
+   * `agent_aufgabe_status` nicht hat; der echte Stand `wartet_auf_freigabe`
+   * fiel auf den Rückfall „Wartet", und diesen Rückfall las der Test. Geprüft
+   * wird dasselbe Verhalten wie vorher — der Lauf liegt beim Menschen, er ist
+   * nicht abgeschlossen — jetzt aber an der Zeile DIESES Laufs und über den
+   * maschinenlesbaren Zustand der Pille, nicht irgendwo in der Tabelle.
    */
   test('die Aufgabe steht in der Liste und wartet auf eine Freigabe', async ({ page }) => {
     await anmelden(page, KONTO.adminReinigung);
@@ -156,8 +164,16 @@ test.describe('Agentenlauf (AGT-01)', () => {
 
     await page.goto(`/portal/${MANDANT}/agenten/finanzen`);
     const liste = page.locator('table');
-    await expect(liste).toContainText('Hinweis: offene Posten');
-    /* Der Zustand sagt „Wartet" — nicht „Fertig": die Entscheidung steht aus. */
-    await expect(liste).toContainText('Wartet');
+    /* Die Liste ist nach Beginn absteigend sortiert: die erste Zeile mit
+       diesem Titel ist der Lauf, den dieser Test eben gestartet hat. */
+    const zeile = liste.locator('tbody tr')
+      .filter({ hasText: 'Hinweis: offene Posten' }).first();
+    await expect(zeile).toBeVisible();
+    /* Der Zustand sagt „In Prüfung" — nicht „Abgeschlossen": die Entscheidung
+       steht aus. */
+    await expect(zeile.locator('[data-zustand]'))
+      .toHaveAttribute('data-zustand', 'In Prüfung');
+    await expect(zeile).toContainText('In Prüfung');
+    await expect(zeile).not.toContainText('Abgeschlossen');
   });
 });

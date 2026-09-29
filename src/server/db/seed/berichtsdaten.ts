@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import { FUND_PLATZHALTER, fundSql } from '../../services/radar/fund.platzhalter.js';
 
 /**
  * Was den sechs Berichten fehlte, damit jede Gesellschaft eine Zeile hat.
@@ -17,8 +18,9 @@ import type postgres from 'postgres';
  *
  *  · **Anfragen** für Security und Bau (REP-02, REP-03) — die Reinigung hat
  *    ihre schon aus dem Vertriebsseed.
- *  · **Vergabevorgänge** für Security und Bau (REP-06) — es gibt sieben
- *    Bekanntmachungen im Radar und genau einen Vorgang dazu.
+ *  · **Vergabevorgänge** (REP-06) — es gibt sieben Bekanntmachungen im
+ *    Radar und genau einen Vorgang dazu: ein geprüfter für Security und Bau,
+ *    dazu ein verworfener je Gesellschaft, deren Profil etwas gefunden hat.
  *  · **Freigegebene Zeiten** für den Bau (REP-04) — die Reinigung und die
  *    Security haben ihre aus dem Zeitseed, der Bau hatte keine einzige.
  *  · **Termine** je Gesellschaft (CAL-01) — der Kalender zeigt Schichten und
@@ -331,6 +333,64 @@ export async function seedBerichtsdaten(
               'unbekannt'::plattform_pruefung, 'system',
               now() - make_interval(days => 21))`;
     vorgaenge += ergebnis.count;
+  }
+
+  /*
+   * **Und je Gesellschaft ein verworfener Fall** (V-226, D-720; V-269,
+   * D-762). Der Bericht zeigt „verworfen" als Ausgang neben dem Trichter;
+   * ohne eine Zeile stünde dort immer 0, und niemand sähe, dass ein
+   * verworfener Fall trotzdem als gesichtet zählt. Der Grund ist Pflicht
+   * (RAD-07, `av_verworfen_begruendet`). Kein eingereichter und kein
+   * gewonnener Fall: eingereicht wird von Hand auf der Vergabeplattform
+   * (D-07), und ein Seed, der das behauptete, erzählte eine Abgabe, die es nie
+   * gab.
+   *
+   * **Eigener Block, eigene Wiederholbarkeit.** Er stand in der Schleife
+   * oben, also nur bei Security und Bau und nur ohne jeden Vorgang — die
+   * Reinigung, der Bereich der Vorführung, hat ihren Vorgang aus der
+   * Vergabemappe und bekam nie einen verworfenen Fall.
+   *
+   * **Verworfen wird, was das Radar GEFUNDEN hat** (`fundSql`, O-941). Die
+   * Schleife oben nahm die jüngste Bekanntmachung ohne Vorgang; das war die
+   * Streusalzlieferung, die laut Radarseed kein Profil trifft — und über den
+   * Vorgang stand sie danach in Security und Bau als „gefunden" im Bericht.
+   * Eine Bekanntmachung, die schon als Lead übernommen ist, bleibt aussen
+   * vor: wer sie verfolgt, hat sie nicht verworfen. Ohne passenden Fund
+   * entsteht kein Fall (Operations hat kein Suchprofil, der Bau verfolgt
+   * seinen einzigen Fund als Lead).
+   */
+  for (const slug of ['reinigung', 'security', 'bau', 'operations']) {
+    const mandantId = ids.get(slug);
+    if (mandantId === undefined) continue;
+    const [schon] = await sql<{ id: string }[]>`
+      select id from ausschreibung_vorgang
+       where mandant_id = ${mandantId} and status = 'verworfen'::ausschreibung_status
+       limit 1`;
+    if (schon !== undefined) continue;
+
+    const [fund] = await sql.unsafe<{ id: string }[]>(
+      `select a.id from ausschreibung a
+        where not exists (select 1 from ausschreibung_vorgang v
+                           where v.ausschreibung_id = a.id and v.mandant_id = $1::uuid)
+          and not exists (select 1 from lead l
+                           where l.ausschreibung_id = a.id and l.mandant_id = $1::uuid)
+          and exists (select 1 from bewertung b
+                       where b.ausschreibung_id = a.id and b.mandant_id = $1::uuid
+                         and ${fundSql('b', '$2')})
+        order by a.erstellt_am, a.id limit 1`,
+      [mandantId, [...FUND_PLATZHALTER.regeln]]);
+    if (fund === undefined) continue;
+
+    const verworfen = await sql`
+      insert into ausschreibung_vorgang
+        (mandant_id, ausschreibung_id, status, verworfen_grund, plattform_pruefung,
+         erstellt_von_art, erstellt_am, status_geaendert_am)
+      values (${mandantId}, ${fund.id}, 'verworfen'::ausschreibung_status,
+              'Demodaten: Nach Sichtung nicht angeboten — die Kapazität im '
+              || 'Leistungszeitraum ist belegt.',
+              'unbekannt'::plattform_pruefung, 'system',
+              now() - make_interval(days => 14), now() - make_interval(days => 14))`;
+    vorgaenge += verworfen.count;
   }
 
   /*

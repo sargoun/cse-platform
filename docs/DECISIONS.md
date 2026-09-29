@@ -3364,6 +3364,8 @@ Beantworten helfen:
 | O-890 | **Muss ein von der Verwaltung geschlossener Zeiteintrag gegengezeichnet werden, bevor er abrechenbar ist?** `zeiteintrag_status` führt seit `0034` den Wert `offen_nacherfassung`, und **nichts im Baum schreibt ihn**. Er wäre der ehrliche Zustand für „von der Planung gesetzt, aber noch nicht bestätigt" — nur beschreibt kein Dokument, **wer** ihn wieder wegnimmt und was bis dahin gilt: zählt die Stunde ins Stundenkonto? Steht sie im Monatsnachweis? Darf sie abgerechnet werden? Ein Eintrag in einem Zustand, aus dem kein Weg herausführt, ist schlimmer als keiner. Gebaut ist deshalb der Weg, der am wenigsten erfindet: `schliesseLaufendenEintrag` schliesst nach `abgeschlossen`, und die Spur bleibt vollständig (`quelle_ende = 'planer_entscheidung'`, `nacherfasst = true`, `behauptet_ende`, Begründung in `notiz`). Das Recht `zeit.nacherfassung_pruefen` existiert bereits — sobald die Antwort da ist, ist die Umkehr **eine Zeile** im Dienst plus ein Filter auf der Prüfseite. | TIM-11, V-064, `drizzle/0034`, `src/server/services/zeit/laufender-eintrag.ts` |
 | O-889 | **Soll eine Benachrichtigung in der Sprache der Empfängerin entstehen (`person.sprache`) oder in der Sprache der Gesellschaft, die sie versendet?** `benachrichtigung` trägt **gespeicherten** Text: Titel und Text entstehen beim Erzeugen und stehen danach fest — eine Meldung, deren Sprache sich später ändert, gibt es nicht. **Ausgeliefert ist seit V-102 die Sprache der EMPFÄNGERIN**, und der Grund ist der Zweck der Meldung: sie soll gelesen werden. Eine Ablaufwarnung kündigt eine Sperre nach § 34a GewO an; wer sie nicht lesen kann, erscheint zur Schicht und wird weggeschickt. Betroffen sind **genau die drei Arten, die in `/portal/mein` landen** (`nachweis.ablauf_60/30/7`, `zeit.einwand_entschieden`, `dienstplan.plan_veroeffentlicht`); alle übrigen bleiben deutsch, weil das interne Portal deutsch ist und seine Begriffe juristische Bedeutung tragen — `tests/kern/benachrichtigung-sprachen.test.ts` §5 hält diesen Umfang fest. **Eingesetzter Text wird NICHT übersetzt**: die Bezeichnung einer Qualifikation, die Begründung der Planung, der Name der Gesellschaft — sie zu übersetzen hiesse, sie zu erfinden. Übersetzt wird dagegen, was die Plattform selbst formuliert, bis hin zur Fügung zwischen zwei Kalendertagen. **Offen bleibt die Bestätigung**: sagt der Auftraggeber, es solle die Sprache der Gesellschaft sein, ist die Änderung eine Zeile je Erzeuger — die Sprache steht als `sprache` im `BenachrichtigungsKontext` und nicht in den Texten. | NOT-01, NOT-02, SPEC §10, D-419, V-102, `src/lib/i18n/benachrichtigung.ts`, `src/server/benachrichtigung/registry.ts` |
 | O-888 | **Kodiert die Tausenderstelle der Objektnummer die Gesellschaft?** Der Bestand legt es nahe: die Reinigung führt `OBJ-1001 … OBJ-1003`, SSE Security `OBJ-2001`, REALTIME Bau `OBJ-3001` (`src/server/db/seed/operations.ts`). Ist das eine Hausregel oder ein Zufall der Demo-Daten? **Die Plattform erfindet dazu nichts**: `legeObjektAn` zählt aus dem Bestand DIESER Gesellschaft weiter und übernimmt damit von selbst, was dort schon gilt — ohne die Regel je auszusprechen. Nur der allererste Fall, eine Gesellschaft ohne ein einziges Objekt, hat keinen Bestand; dort steht `OBJ-1001` als **klar bezeichneter Platzhalter**. Das Feld ist im Formular von Hand überschreibbar, damit niemand an der Vorgabe hängenbleibt. Sagt der Auftraggeber eine Maske zu, ist die Änderung **eine Zeile** im Dienst. | OPS-01, V-001, `src/server/services/objekt/anlegen.ts` |
+| O-940 | **Welche Angaben braucht jede Gesellschaft, um auf eine Anfrage ein verbindliches Angebot rechnen zu können — und welche davon soll der Antwortentwurf des Akquise-Agenten nachfragen?** Heute nennt der Entwurf als Lücke jedes Feld des EIGENEN Anfrageformulars der Gesellschaft, das der Anfragende leer gelassen hat, ausser Häkchen, Freitext und Datei (`KEINE_LUECKE`), bei einer von Hand erfassten Anfrage nur eine fehlende Bedarfsbeschreibung; ist nichts leer, entfällt der Satz. Welche Angabe für ein Angebot tatsächlich nötig ist (Reinigung: Fläche, Turnus, Objektart? Security: Kräftezahl, Einsatzzeit? Bau: Leistungsverzeichnis?), ist eine fachliche Regel der Gesellschaften und wird hier nicht erfunden. | §17 Acquisition Agent, D-724, V-230, `src/server/services/lead/einsendung.ts` (`anfrageLuecken`), `src/server/agent/auftraege.ts` |
+| O-941 | **Was zählt in der Vergabepipeline (REP-06) als „gefunden"?** Der Radar bewertet jede eingelesene Bekanntmachung gegen jedes aktive Suchprofil jeder Gesellschaft, und ausgeschlossen wird nur, was ein Mensch im Profil ausdrücklich ausschliesst; „jede nicht ausgeschlossene Bewertung" (D-720) war deshalb je Gesellschaft das ganze Einlesevolumen. Der Code legt „Treffer" nicht eindeutig fest: die Trefferbenachrichtigung (RAD-08) meldet ab einer Punktschwelle, die selbst offen ist (O-15) und im Seed fehlt; die Profilseite sagt, ein Profil ohne CPV-Zeile „trifft über Stichwörter und Region"; der Seed nennt die Streusalzlieferung eine, „die kein Profil trifft", obwohl ihre Region jedes Profil trifft. Zur Wahl stehen: (a) die LEISTUNG trifft — CPV-Code (Wirkung `positiv`) oder Positiv-Stichwort des Profils; (b) die Punktzahl erreicht die Benachrichtigungsschwelle (RAD-08, setzt O-15 voraus); (c) jede bewertete Bekanntmachung; (d) erst ein eröffneter Vorgang. Ein eröffneter Vorgang zählt in jedem Fall. Bis zur Antwort gilt (a) als beschrifteter Platzhalter (`FUND_PLATZHALTER`); die Antwort ändert diese eine Definition, nicht die Zählung, und Bereich und Gruppe zählen weiter gleich. | REP-06, RAD-05, RAD-08, O-15, D-720, D-762, V-269, `src/server/services/radar/fund.platzhalter.ts`, `src/server/services/bericht/kennzahlen.ts` (`pipelineZahlen`) |
 
 
 ### D-619 — Ein Objekt entsteht in der Anwendung, nicht im Seed
@@ -10221,6 +10223,13 @@ Gruppenansicht zu prüfen hiesse, sich einen Bereich auszusuchen. Die
 Stundenauswertung nennt dort ausserdem nur Köpfe und keine Namen — die
 namentliche Auswertung gehört dorthin, wo das Arbeitsverhältnis besteht
 (D-09, K-05).
+
+**Nachtrag (D-721, V-227):** REP-07 verlangt CSV UND PDF, diese Entscheidung
+behandelte nur die Datei. Der zweite Ausgang ist ein Druckblatt je Bericht
+aus derselben Quelle (`berichtTabelle`) unter demselben Recht
+(`/portal/[mandant]/berichte/druck/[bericht]`); es zeigt dieselben Werte mit
+derselben Genauigkeit wie die Datei und druckt eine breite Tabelle quer
+(V-269, D-765). Der Nachtrag stand zuerst versehentlich bei D-569.
 
 ### D-507 · Vier stille Leerstellen in einem Bericht — und warum jede stumm war
 
@@ -20888,4 +20897,711 @@ und damit die Sperre `ab_keine_dublette` (0073): 23P01 ohne Status, eine 500.
    der Genehmigung ändert nichts).
 
 | Betrifft | EMP-10, D-599, D-691, D-728, V-158, V-197, O-18, O-139, `src/app/api/{abwesenheiten,antraege}/[id]/route.ts`, `src/app/api/formular-antwort.ts`, `src/server/services/abwesenheit/{index,antrag}.ts` (`grund`, `entscheideAntrag`), `src/lib/i18n/verwaltung/personal-entscheidung.ts`, `src/app/portal/[mandant]/personal/{abwesenheiten,antraege}/{page,[id]/page}.tsx`, `tests/kern/{personal-entscheidung-rueckweg,fehler-rueckweg-seiten}.test.ts`, `tests/isolation/abwesenheit.test.ts` |
+### D-720 · Die Vergabepipeline zählt kumulativ, und Bereich und Gruppe zählen mit derselben Funktion (V-226)
+
+**Der Befund** (Audit Befund 55, REP-06): der Bereichsbericht zählte
+`ausschreibung_vorgang` nach dem HEUTIGEN Status und nannte `neu` „Gefunden".
+`setzeVorgangsstand` legt einen Vorgang aber mit `neu` an und überschreibt den
+Stand in derselben Transaktion; kein Weg führt zurück. „Gefunden" war im
+Betrieb immer 0, und ein gewonnener Vorgang zählte nur unter „Zuschlag", nicht
+unter „eingereicht". Die Seite zeichnete das trotzdem als Trichter. Die
+Gruppenfassung hatte eine eigene Abfrage, die kumulativ zählte und
+`verfahren_aufgehoben` aus „eingereicht" ausliess: für dieselben Zeilen standen
+auf beiden Seiten verschiedene Zahlen.
+
+**Die Entscheidung.**
+
+1. **Eine Zählung, zwei Aufrufer.** `pipelineZahlen` (`bericht/kennzahlen.ts`)
+   ist der einzige Ort der Definition und liefert je Gesellschaft fünf Zahlen.
+   `pipeline()` (Bereich) summiert, was RLS ihr zeigt; `pipelineJeBereich()`
+   (Gruppe, lesend) hängt dieselbe Zählung an die Liste der Gesellschaften.
+   Die Trefferquote rechnet `trefferquoteBp` im Dienst, nicht die Seite.
+2. **Die Stufen, jede kumulativ:** *gefunden* = ein FUND des Radars für
+   diese Gesellschaft ODER ein eröffneter Vorgang (auch ohne Bewertung —
+   `setzeVorgangsstand` verlangt keine). **Berichtigt durch D-762:** hier
+   stand „eine nicht ausgeschlossene `bewertung`"; bewertet wird aber jede
+   Bekanntmachung gegen jedes Profil, und ein Fund ist erst eine Bewertung,
+   deren Leistung das Profil trifft (Platzhalter, O-941); *gesichtet* = ein
+   Vorgang mit einem Stand ausser `neu` (auch ein verworfener: verwerfen kann
+   nur, wer hingesehen hat); *geboten* = `eingereicht` oder einer der drei
+   Ausgänge (`einreichung.ts` setzt einen Ausgang nur aus `eingereicht`, also
+   hat jeder ein Angebot hinter sich, auch das aufgehobene Verfahren);
+   *gewonnen* = `zuschlag`, und nur dort steht der Zuschlagswert.
+   *Verworfen* steht als Ausgang NEBEN dem Trichter, nicht darin.
+3. **Die Kohorte ist der Eingang:** der früheste Fund (D-762) oder, falls
+   früher oder allein, die Eröffnung des Vorgangs. Jede
+   Stufe ist damit eine Teilmenge der vorigen. Eine Bekanntmachung, die zwei
+   Profile bewertet haben, ist EIN Fall.
+4. **Der Stand heute bleibt, wo er hingehört:** die Gruppenübersicht des
+   Radars (`gruppe/radar.ts`) zählt weiter nach dem heutigen Stand, ihr
+   „eingereicht" umfasst jetzt aber dieselbe Menge wie „geboten" (mit
+   `verfahren_aufgehoben`). **Ergänzt in V-269:** die Menge stand dort als
+   zweite Liste im SQL — zwei Definitionen derselben Menge, wie sie Befund 55
+   verursacht haben, und kein Test zählte `verfahren_aufgehoben`. Jetzt geht
+   `PIPELINE_GEBOTEN` selbst als Parameter in die Abfrage, und
+   `tests/isolation/gruppe-radar-kalender.test.ts` zählt jeden ihrer Stände.
+5. **Der Seed zeigt einen verworfenen Fall** je Gesellschaft, deren Profil
+   etwas gefunden hat, das weder einen Vorgang hat noch als Lead verfolgt wird
+   — **berichtigt durch D-762**: hier stand „je Gesellschaft ohne Mappe"; der
+   Fall entstand aber nur bei Security und Bau und lag dort auf der
+   Streusalzlieferung, die kein Profil trifft. Einen
+   eingereichten oder gewonnenen legt er nicht an — eingereicht wird von Hand
+   auf der Plattform (D-07), und ein Seed, der das behauptete, erzählte eine
+   Abgabe, die es nie gab.
+
+**Nicht Teil:** die Statushistorie aus `audit_log` (D-735) als Quelle. Sie
+kennt nur die Stände, die über `setzeVorgangsstand` gesetzt wurden, nicht die
+der Mappe, und `cse_app` liest sie nicht; der heutige Stand zusammen mit der
+Regel „ein Ausgang setzt eingereicht voraus" beantwortet dieselbe Frage ohne
+sie.
+
+| Betrifft | REP-06, RAD-07, D-07, D-506, D-735, V-226, Invariante 6, Invariante 10, `src/server/services/bericht/{kennzahlen,gruppe}.ts`, `src/server/services/gruppe/radar.ts`, `src/app/portal/[mandant]/berichte/{pipeline/page,rahmen}.tsx`, `src/app/portal/gruppe/berichte/{pipeline/page,rahmen}.tsx`, `src/app/portal/gruppe/radar/page.tsx`, `src/app/api/berichte/[bericht]/csv/route.ts`, `src/server/db/seed/berichtsdaten.ts`, `tests/kern/bericht-pipeline.test.ts`, `tests/isolation/bericht.test.ts` (5) |
+|---|---|
+
+### D-721 · Der PDF-Teil von REP-07 ist ein Druckblatt aus derselben Quelle wie die CSV-Datei (V-227)
+
+**Der Befund** (Audit Befunde 60 und 75, REP-07 „Export to CSV and PDF"): es
+gab nur `GET /api/berichte/[bericht]/csv`. Keine der sechs Berichtsseiten bot
+ein PDF oder eine Druckfassung an, ein Browserdruck gab die dunkle App-Seite
+mit Navigation aus (DESIGN §11: „Print ist nicht die App"), D-506 behandelte
+nur CSV, und die ROADMAP hakte REP-07 trotzdem ab.
+
+**Die Entscheidung.**
+
+1. **Ein Druckblatt, keine erzeugte Datei** — dieselbe Entscheidung wie beim
+   Angebot und beim Monatsnachweis (D-204): ein serverseitiger PDF-Renderer
+   ist eine eigene Abhängigkeit, und ein Knopf „PDF" ohne Datei wäre eine
+   vorgetäuschte Funktion. `/portal/[mandant]/berichte/druck/[bericht]` IST
+   das Dokument: A4 (seit D-765 ab sieben Spalten quer), 20 mm Rand, 10 pt, die Drucktoken aus DESIGN §11
+   (`FARBEN_DRUCK`, `MASSE_DRUCK`), CSE-Rot nur in der Kopflinie; der
+   Druckdialog des Browsers macht Papier oder eine PDF-Datei daraus. Der
+   Druckknopf (`DruckKnopf`, jetzt in `components/ui`, geteilt mit dem
+   Monatsnachweis) und der Rückweg stehen über dem Blatt und nicht darauf.
+   **Berichtigt durch D-765:** sie standen IM Blatt, und der Knopf trug die
+   Bildschirmfarbe — fast-weiss auf weiss.
+   Die Adresse ist `berichte/druck/[bericht]` und nicht
+   `berichte/[bericht]/druck`: neben den sechs festen Berichtsordnern wäre
+   ein dynamisches Segment auf derselben Ebene eine Frage an die
+   Routenauflösung, die niemand stellen muss.
+2. **Eine Quelle für beide Ausgänge.** Die Spalten standen in der CSV-Route;
+   sie stehen jetzt in `services/bericht/export.ts` (`berichtTabelle`), und
+   Route und Blatt fragen beide diese Funktion. Das Blatt zeigt dieselben
+   Spaltenköpfe und Werte in derselben Reihenfolge; die Cent-Zwillingsspalte
+   der Datei bleibt dort (sie ist für eine Maschine, die weiterrechnet), und
+   eine ganze Zahl bekommt auf Papier ihren Tausenderpunkt (`zahlText`,
+   `src/lib/zahl.ts`). **Berichtigt durch D-765:** `zahlText(w)` rundete JEDE
+   Zahl auf eine ganze — 37,5 Wochenstunden standen als „38" auf dem Blatt,
+   37.5 in der Datei —, und rechtsbündig war nur, was ein Muster im Text
+   traf, die Stundenspalten („163:20 h") nicht.
+3. **Dasselbe Recht wie die Datei: `bericht.exportieren`** — in der
+   Seitenkarte als Wache der Adresse und INNERHALB der Bindung noch einmal
+   gefragt, wie in der CSV-Route. Ohne das Recht erscheint im Berichtsrahmen
+   weder „Als CSV" noch „Als PDF drucken", und die Adresse antwortet 404.
+4. **Der Rahmen des Blatts spricht die Sprache der Sitzung, die Tabelle
+   bleibt die deutsche Datei** (`i18n/verwaltung/bericht-druck.ts`); das
+   englische Blatt sagt es dazu. Der Stand kommt aus `app.berlin_heute()`
+   als TT.MM.JJJJ. **Berichtigt durch D-765 Nr. 7:** die Abfrage formatierte
+   ihn deutsch, und der englische Rahmen schrieb „As of: 28.09.2026" — jetzt
+   liefert sie den Tag als JJJJ-MM-TT, und der Kopf schreibt ihn in der
+   Sprache des Rahmens (D-733), englisch „28 Sept 2026".
+5. **Nebenbei in der Datei geändert, weil das Blatt dieselben Werte zeigt:**
+   Tage stehen als TT.MM.JJJJ (`datumText`) statt `YYYY-MM-DD`, und der Stand
+   eines Projekts als Wort (`PROJEKT_STATUS_TEXT`, dieselbe Karte wie auf der
+   Projektseite) statt als roher Wert `in_arbeit`. **Ergänzt in V-269:** keine
+   Prüfung las bis dahin eine Datenzelle der echten Datei, und die Karte stand
+   nicht gegen die Migration — jetzt `tests/isolation/bericht.test.ts` (8)
+   (Von/Bis des Umsatzes, Stand und Soll-Ende eines Projekts, leeres Ist-Ende)
+   und `tests/kern/bericht-export.test.ts` (Karte = `projekt_status`).
+
+| Betrifft | REP-07, D-204, D-506, V-227, DESIGN §11, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/app/api/berichte/[bericht]/csv/route.ts`, `src/app/portal/[mandant]/berichte/{rahmen.tsx,projekte/page.tsx,druck/[bericht]/page.tsx}`, `src/components/ui/DruckKnopf.tsx`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `docs/architecture/04-SEITENKARTE.md`, `docs/ROADMAP.md`, `tests/kern/bericht-export.test.ts`, `tests/isolation/bericht.test.ts` (8), `tests/e2e/berichte.spec.ts` |
+|---|---|
+
+### D-722 · Werkzeuge sind je Gesellschaft pflegbar, die Laufzeit fragt ihren Stand, und „bereit" heisst: es gibt einen Ausführer (V-228)
+
+**Der Befund** (Audit Befund 57, AGT-01, AGT-02): das Agentenblatt zeigte je
+Werkzeug „freigeschaltet / nicht freigeschaltet" aus `agent_werkzeug`, aber
+kein Dienst, keine Route und kein Formular pflegte die Tabelle — Zeilen
+entstanden nur im Seed. Keine Laufzeit las sie: der CEO-Assistent benutzte
+`suche_bestand` auch dann, wenn das Blatt es als nicht freigeschaltet
+auswies. Und sieben der neun Werkzeuge hatten keinen Ausführer; D-495 und der
+Kommentar im Register versprachen `kein_modellzugang`, gebaut war es nicht.
+
+**Die Entscheidung.**
+
+1. **Pflegbar:** `setzeWerkzeug` (`services/agent/werkzeug-pflege.ts`) hinter
+   `POST /api/agenten/werkzeug` unter `agent.werkzeug_verbinden` (dasselbe
+   Recht wie die Policy `t_werkzeug_schreiben`), je Werkzeugzeile auf dem
+   Agentenblatt ein Formular mit zwei Schaltern (freigeschaltet, nur mit
+   Freigabe). Nur Paare aus `WERKZEUG_REGISTER` (D-513); ein Werkzeug der
+   Nebenwirkung `versand` weist der Dienst ohne Freigabe ab, bevor die
+   Datenbank es mit `aw_versand_immer_freigabe` tut (Invariante 7) — auf dem
+   Blatt ist dieser Schalter gesetzt und gesperrt. Jedes Setzen steht als
+   `agent.werkzeug_gesetzt` im Protokoll. Ein abgewiesener Wunsch kehrt als
+   Satz auf das Blatt zurück (D-599). **Berichtigt durch D-763:** der zweite
+   Schalter („nur mit Freigabe") war pflegbar, aber keine Laufzeit las ihn —
+   das Blatt schrieb „nur mit Freigabe", der Assistent antwortete sofort.
+   Seit V-270 hält die Laufzeit ein solches Ergebnis im Posteingang zurück.
+2. **Die Laufzeit fragt den Stand:** `werkzeugStand` / `verlangeWerkzeug`
+   (`agent/tools/freischaltung.ts`) lesen die Zeile der aktiven Gesellschaft
+   mit RLS; keine Zeile heisst „aus". Der CEO-Assistent fragt vor jeder
+   Antwort (seit D-763 über `verlangeWerkzeug`; vorher über `werkzeugStand`,
+   das Tor hatte keinen Aufrufer) und antwortet sonst „nicht freigeschaltet".
+   Der Orchestrator ruft
+   heute kein Werkzeug des Registers auf (sein Formulierungsschritt geht über
+   den Modellport, `werkzeug` = null) — das Tor steht für den ersten
+   Werkzeugaufruf bereit, eine Attrappe davor gibt es nicht.
+3. **Ehrlich ohne Ausführer:** `tools/ausfuehrer.ts` hält fest, welche
+   Werkzeuge einen Ausführer haben (die zwei mit `ohneModell`), und
+   `ohneAusfuehrer` antwortet für die sieben mit `kein_modellzugang` ohne
+   Daten. **Berichtigt durch D-763 Nr. 8:** die Funktion hatte keinen
+   Aufrufer, und ein Kerntest prüfte nur, dass ein Kommentar ihren Namen
+   nennt; jetzt weist das Tor `verlangeWerkzeug` ein freigeschaltetes Werkzeug
+   ohne Ausführer mit genau dieser Antwort ab. Das Blatt zeigt drei Stände: „bereit" (freigeschaltet UND
+   ausführbar), „freigeschaltet, aber ohne Ausführer — braucht Modellzugang",
+   „nicht freigeschaltet". Ein Modellwerkzeug lässt sich freischalten — das
+   ist die Entscheidung der Gesellschaft, es zu erlauben, sobald es läuft —,
+   wird dadurch aber nicht „bereit".
+4. **Wörter statt Schlüssel:** Werkzeug, Wirkung und Untergrenze stehen als
+   Wort (`i18n/beschriftung/agent.ts`, de/en); die Kennung bleibt im `title`.
+5. **Der Seed legt nur Paare aus dem Register an** (vorher alle neun für alle
+   vier, auch `sende_email` für den CEO-Assistenten) und schaltet die zwei mit
+   Ausführer frei.
+6. **Nicht Teil:** `agent.ist_aktiv` pflegbar zu machen. Der Schalter ist
+   global (Tabelle `agent`, 0128), AGT-01 verlangt seine Anzeige, und das
+   Audit hat diesen Teil ausdrücklich nicht als Befund gewertet.
+
+| Betrifft | AGT-01, AGT-02, AGT-07, D-435, D-495, D-513, D-599, V-228, Invariante 7, `src/server/services/agent/werkzeug-pflege.ts`, `src/server/agent/tools/{ausfuehrer,freischaltung,register-werkzeuge}.ts`, `src/app/api/agenten/werkzeug/route.ts`, `src/server/auth/route-manifest.ts`, `src/app/portal/[mandant]/agenten/{[agent],assistent}/page.tsx`, `src/lib/i18n/beschriftung/{basis,agent}.ts`, `src/server/db/seed/index.ts`, `tests/kern/agent-werkzeug-pflege.test.ts`, `tests/isolation/agent-werkzeug-pflege.test.ts` |
+|---|---|
+
+### D-723 · Jede Frage an den CEO-Assistenten ist eine Aufgabe mit einem protokollierten Schritt (V-229)
+
+**Der Befund** (Audit Befund 59, AGT-04, AGT-01 „activity, logs"): der
+CEO-Assistent beantwortete Fragen über das Agentenwerkzeug `suche_bestand`,
+aber die Seite rief es in einer Lesetransaktion auf und legte weder
+`agent_aufgabe` noch `agent_schritt` an. Die tägliche Hauptfunktion dieses
+Agenten hinterliess keine Spur; im Agentenzentrum und im Schrittprotokoll
+standen nur die Knopf-Läufe.
+
+**Die Entscheidung.**
+
+1. **Geschrieben wird auf einen POST, nie beim Anzeigen.** Die Katalogkarten
+   sind Formulare an `POST /api/agenten/assistent` (Recht der Seite:
+   `agent.aufgabe_starten`; die Schreibpolicy auf `agent_aufgabe` fragt
+   dasselbe). Ein GET, der eine Zeile anlegt, legte sie auch beim Vorladen
+   eines Links an. Die Route leitet mit 303 auf `?aufgabe=` zurück (D-599),
+   und die Seite zeigt die Antwort DIESER Aufgabe (`agent_aufgabe.ergebnis`),
+   nicht eine neu gerechnete.
+2. **Dieselben Funktionen wie der Orchestrator** (`beantworteFrage`,
+   `services/agent/assistent.ts`): `starteAufgabe` (Agent `ceo_assistent`,
+   Vorgangsart `interner_hinweis`, ausgelöst durch `mensch`, angefordert von
+   der Person), `protokolliereSchritt` (Werkzeug `suche_bestand`, Eingabe die
+   Abfragekennung, Ausgabe Frage, Antwort und Stand, Quellen aus dem
+   Wertregister, kein Modell, null Tokens und Kosten — gerechnet hat die
+   Datenbank —, gemessene Dauer) und `beendeAufgabe`.
+3. **Ein Schlüssel je Anzeige des Formulars** (`idempotenz_schluessel`
+   `assistent:<schlüssel>`): ein Doppelklick bleibt eine Aufgabe.
+4. **Auch die abgewiesene Frage steht im Protokoll.** Ist `suche_bestand` für
+   den Assistenten nicht freigeschaltet (D-722), entsteht die Aufgabe mit
+   einem Schritt `abgelehnt_richtlinie` und endet `abgebrochen` mit dem Satz,
+   warum; eine Katalogabfrage, die nichts liefert, endet `fehlgeschlagen`.
+   Eine Frage ausserhalb des Katalogs legt nichts an.
+5. **Kein roher Schlüssel auf der Seite:** die Abfragekennung stand als
+   „Abfrage ‚offene_rechnungen_anzahl‘" unter der Antwort; jetzt steht dort
+   der Verweis auf die protokollierte Aufgabe (nur mit
+   `agent.protokoll_lesen`).
+6. **Die Vorführfläche zeigt eine protokollierte Frage:** der Seed stellt mit
+   Demodaten eine Katalogfrage der Reinigung über denselben Dienst in der
+   Sitzung der Administration (`alsPortalSitzung`), mit festem Schlüssel —
+   ein zweiter Seedlauf findet die Aufgabe und legt keine neue an.
+
+| Betrifft | AGT-01, AGT-04, AGT-07, D-599, D-722, V-229, `src/server/services/agent/assistent.ts`, `src/app/api/agenten/assistent/route.ts`, `src/app/portal/[mandant]/agenten/assistent/page.tsx`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts`, `src/server/db/seed/index.ts`, `tests/isolation/agent-assistent.test.ts` |
+|---|---|
+
+### D-724 · Der Akquise-Entwurf nennt nur Lücken, die in der Anfrage leer sind, und keine interne Zahl (V-230)
+
+**Der Befund** (Audit Befund 58, §17 „names gaps", Invariante 6/7): der
+einzige Lauf des Akquise-Agenten antwortete auf die jüngste Anfrage — ohne
+Statusfilter, also auch auf eine längst gewonnene oder verlorene. Die Lücke,
+die der Entwurf dem Kunden nannte, war fest verdrahtet („Für ein verbindliches
+Angebot fehlt uns noch die Angabe zur Personenzahl") und stand in jeder
+Antwort, auch bei Reinigung und Bau. Und der Satz „derzeit bearbeiten wir N
+Anfragen" legte einem Interessenten das interne Auftragsvolumen offen.
+
+**Die Entscheidung.**
+
+1. **Nur eine offene Anfrage:** die jüngste in `neu` oder `in_bearbeitung`
+   (nicht archiviert) — **berichtigt durch D-764:** und nur eine, hinter der
+   eine Einsendung des Anfrageformulars steht (`formular_eingang_id`, nie
+   `akquise` oder `vergabe_radar`); vorher antwortete der Entwurf auch dem
+   Radar- und dem Recherche-Lead. `angebot` hat seine Antwort schon bekommen, die
+   Ausgänge brauchen keine. Gibt es keine, gibt es keinen Lauf
+   (`KeineOffeneAnfrage`): die Laufroute legt keine Aufgabe an und leitet mit
+   `KEINE_ANFRAGE` auf das Agentenblatt, das Vorschaltblatt sagt es statt der
+   Tatsachen.
+2. **Die Lücke kommt aus den Daten** (`anfrageLuecken`,
+   `services/lead/einsendung.ts`): die Beschriftungen der Felder des
+   Anfrageformulars, die in `formular_eingang.daten` leer sind, in der
+   Reihenfolge des Formulars — ohne Häkchen (ein nicht gesetztes ist eine
+   Antwort), Freitext (Zusatz, keine Bedarfsangabe) und Datei (steht in der
+   Ablage, nicht in `daten`). ~~Bei einer von Hand erfassten Anfrage ist die
+   einzige Angabe, deren Fehlen die Daten zeigen, die Bedarfsbeschreibung.~~
+   **Entfällt (D-764):** eine von Hand erfasste Anfrage bekommt keinen Entwurf
+   mehr. Welche Angaben eine Gesellschaft für ein verbindliches Angebot wirklich
+   braucht, ist eine fachliche Regel und offen (O-940).
+3. **Ist nichts leer, entfällt der Satz.** Die Demovorlage trägt ihn als
+   optionalen Baustein `[[…]]`: fehlt eine seiner Tatsachen, verschwindet der
+   ganze Satz (`fuelle`, `modell/demo.ts`). Ausserhalb von `[[…]]` bleibt ein
+   Platzhalter ohne Tatsache sichtbar stehen, wie bisher. Der Satz heisst
+   jetzt „Für die weitere Bearbeitung fehlen uns aus Ihrer Anfrage noch
+   folgende Angaben: …" — er behauptet nicht mehr, was für ein verbindliches
+   Angebot nötig ist (O-940).
+4. **Keine interne Zahl:** `offene_anfragen` ist keine Tatsache des
+   Akquise-Entwurfs mehr, und `zusammenfassung` nennt kein Volumen. Die
+   Startseite braucht die Zahl nicht; sie steht in den Berichten (REP-02).
+5. **Der Seed zeigt den Fall ohne Lücke:** ~~seine jüngste offene Anfrage ist
+   von Hand erfasst und vollständig beschrieben~~ — **berichtigt durch
+   D-764:** das stimmte nicht (die jüngste offene im Bau war der Radar-Lead),
+   und eine von Hand erfasste bekommt keinen Entwurf mehr. Die Vorführfläche
+   schickt stattdessen das Angebotsformular der Reinigung ab
+   (`seed/webanfrage.ts`, über `nimmAn`); alle Pflichtfelder sind gefüllt, der
+   Demoentwurf nennt also keine Lücke. Die Fälle mit Lücke prüfen die Tests.
+
+| Betrifft | §17, AGT-07, Invariante 6, Invariante 7, O-940, V-230, `src/server/agent/{auftraege.ts,modell/demo.ts}`, `src/server/services/lead/einsendung.ts`, `src/app/api/agenten/lauf/route.ts`, `src/app/portal/[mandant]/agenten/[agent]/{page,start/page}.tsx`, `tests/kern/akquise-entwurf.test.ts`, `tests/isolation/{akquise-tatsachen,agent-lauf}.test.ts` |
+|---|---|
+
+### D-725 · Die Agentenblätter zeigen Wörter aus gemeinsamen Karten, und der Zustand einer Aufgabe hat eine Pille, die stimmt (V-231)
+
+**Der Befund** (Audit Befund 61, AGT-01): unter „Was hinausgehen darf"
+standen die Aktionen roh (`email_senden`, `rechnung_senden`), in der
+Läufe-Tabelle und auf dem Aufgabenblatt die Vorgangsart (`interner_hinweis`,
+`anfrage_antwort_entwurf`), obwohl `AKTION_TEXT` (`services/agent/richtlinie.ts`)
+und `VORGANG_LABEL` (`freigaben/darstellung.ts`) sie als Wort kannten. Beim
+Gegenprüfen kamen dazu: der Störungscode eines Laufs im Satz („endete mit
+‚RATE_LIMITED‘"), das Recht `agent.aufgabe_starten` in Anführungszeichen,
+das Werkzeug roh in der Schrittkette, Quelltext im Vorschaltblatt
+(`server/agent/auftraege.ts`, `pruefeZahlenherkunft`, `app.berlin_heute()`,
+`fuelleTatsachen()`) — und eine Pillenkarte, die `wartet_freigabe` und
+`fehler` kannte, Werte, die `agent_aufgabe_status` gar nicht hat: ein
+`fehlgeschlagen`er Lauf stand als „Wartet" da. `bewerbung_antwort_entwurf`
+(0173) fehlte in der Vorgangskarte ganz.
+
+**Die Entscheidung.**
+
+1. **Gemeinsame Karten** in `src/lib/i18n/beschriftung/` (`basis.ts`:
+   `beschriftung()` schlägt nur eigene Einträge nach, D-728, und macht einen
+   unbekannten Wert lesbar statt roh; `agent.ts`: Werkzeug, Wirkung,
+   Untergrenze, `VORGANG_TEXT`, `VERSAND_AKTION_TEXT`, `LAUF_STOERUNG_TEXT`,
+   je deutsch und englisch). `VORGANG_LABEL` und `AKTION_TEXT` bleiben unter
+   ihrem Namen als deutsche Sicht auf diese Karten — ihre Aufrufer ändern sich
+   nicht, und es gibt nur noch eine Liste.
+2. **Eine Pillenkarte für beide Blätter** (`agenten/darstellung.ts`
+   `AUFGABE_PILLE`) mit genau den sieben Zuständen des Enums;
+   `fehlgeschlagen` ist „Fehler", `wartet_auf_freigabe` „In Prüfung",
+   `gestoppt_budget` „Abgelehnt" (das Blatt schreibt „Budget" dazu).
+3. **Ein Satz je Störungscode**, der Code bleibt nur im Adressparameter; ein
+   unbekannter Code sagt, wo der Grund steht.
+4. **Der Rechteschlüssel als `<Recht>`**, kein Quelltext im sichtbaren Text.
+5. `tests/kern/beschriftung.test.ts` hält jede Karte gegen ihre Migration
+   (`enumWerte`) und die Blätter gegen die rohen Ausdrücke.
+
+| Betrifft | AGT-01, AGT-04, D-722, D-728, V-231, `src/lib/i18n/beschriftung/{basis,agent}.ts`, `src/app/portal/[mandant]/agenten/{darstellung.ts,Schrittkette.tsx,[agent]/page.tsx,[agent]/aufgaben/[id]/page.tsx,[agent]/start/page.tsx}`, `src/app/portal/[mandant]/freigaben/darstellung.ts`, `src/server/services/agent/richtlinie.ts`, `tests/kern/beschriftung.test.ts`, `tests/kern/hilfen/beschriftung.ts` |
+|---|---|
+
+### D-726 · Die Verwaltung zeigt Wörter statt Enum-Schlüssel — aus den Karten, die es schon gab (V-232)
+
+**Der Befund** (Audit Befund 68, V-123-Prinzip „Satz statt Schlüssel"):
+„Stand: in_arbeit" (Vorgangsblatt des Radars), „Letzter Lauf:
+oeffentlichevergabe — uebersprungen" (Radarliste), „Letzter Versuch:
+nicht_verbunden" (Veröffentlichung einer Stelle), „(Stand: in_pruefung)"
+(Korrekturseite), „nicht_erschienen" (Veranstaltungsblatt) und
+„ausgangsrechnung" (DATEV-Stapel) — jedes Mal hatte dieselbe Anwendung ein
+paar Dateien weiter eine Karte dafür. Die Kanäle des Kontaktblatts hatten
+eine eigene Karte neben der des Kommunikationsverlaufs, und derselbe
+Vorgangsstand stand als eigene Liste in Radarliste und Gruppenradar.
+
+**Die Entscheidung.**
+
+1. **Die Karten ziehen um, nicht die Wörter:** `beschriftung/radar.ts`
+   (Vorgang, Mappe, Radarlauf, Quelle — `services/radar/quelle.ts` liest ihre
+   Quellennamen von dort), `beschriftung/recruiting.ts` (Ergebnis einer
+   Veröffentlichung, vorher nur auf dem Stellenblatt),
+   `beschriftung/zeit.ts` (Stand eines Einwands aus Sicht der Planung, vorher
+   nur auf dem Einwandblatt), `beschriftung/dienstplan.ts` (Stand einer
+   Einteilung, neu). Die Belegarten des DATEV-Stapels kommen aus
+   `BELEGE_TEXTE` (`i18n/verwaltung/finanzen/belege.ts`), die Kanäle des
+   Kontaktblatts und der Rechtsgrundlage aus `VERLAUF_TEXTE`
+   (`i18n/verwaltung/crm-verlauf.ts`) — beides gab es zweisprachig schon.
+2. **Jede Karte hat Deutsch und Englisch**, und `tests/kern/
+   beschriftung-verwaltung.test.ts` hält sie gegen ihre Migration.
+3. **Die Seiten bleiben, was sie sind:** sie stehen in der Ausnahmeliste der
+   Übersetzungswache und rufen die deutsche Seite der Karte; wer sie
+   umstellt, gibt die Sprache mit.
+4. **Nebenbei auf denselben Seiten:** der Tag des Einwands auf der
+   Korrekturseite über `tagDeutsch` statt über drei `slice`, der Name einer
+   Datenbankbedingung (`lead_aktivitaet_hat_bezug`) und die Tabelle `einsatz`
+   aus dem sichtbaren Text entfernt, der vermerkte Stand des Radarvorgangs als
+   Wort („geprüft" statt `geprueft`, die Browserprüfung liest jetzt das Wort;
+   **berichtigt in V-271:** `?vermerkt=` lief durch `beschriftung()`, deren
+   lesbarer Rückfall für Datenbankwerte gedacht ist — `?vermerkt=Zuschlag_an_uns`
+   stand als „Zuschlag an uns" im Erfolgskasten; jetzt nur ein Stand, den die
+   Vorgangsroute setzt (`vermerkterStand`, `SETZBAR`), sonst kein Kasten),
+   und die rohen Rechteschlüssel dieser Seiten als `<Recht>` — Vorgangsblatt
+   und Mappe des Radars (`radar.status_setzen`, `vergabe.schreiben`,
+   `vergabe.einreichung_erfassen`), Korrekturseite (`zeit.konto_korrigieren`),
+   Veranstaltungsblatt (`dienstplan.schreiben`), DATEV-Stapel
+   (`buchhaltung.exportieren`) und Kontaktblatt (`aufgabe.schreiben`,
+   `kalender.schreiben`, `system.benutzer_lesen`; im `title` der Name über
+   `rechtName`). Ein unbekannter Abweisungsgrund der Korrekturseite steht
+   nicht mehr roh im Satz.
+5. **Nicht Teil:** rohe RECHTE-Schlüssel über den ganzen Baum — die behandelt
+   eine eigene Gruppe; hier nur, wo eine Seite ohnehin geändert wurde.
+
+| Betrifft | D-728, V-123, V-232, `src/lib/i18n/beschriftung/{radar,recruiting,zeit,dienstplan}.ts`, `src/server/services/radar/quelle.ts`, `src/app/portal/[mandant]/radar/{page,[id]/page,[id]/mappe/page}.tsx`, `src/app/portal/gruppe/radar/page.tsx`, `src/app/portal/[mandant]/recruiting/stellen/[id]/{page,veroeffentlichung/page}.tsx`, `src/app/portal/[mandant]/zeiten/{[id]/korrektur,einwaende/[id]}/page.tsx`, `src/app/portal/[mandant]/security/veranstaltungen/[id]/page.tsx`, `src/app/portal/[mandant]/buchhaltung/datev/[id]/page.tsx`, `src/app/portal/[mandant]/crm/kontakte/[id]/{page,rechtsgrundlage/page}.tsx`, `tests/kern/beschriftung-verwaltung.test.ts`, `tests/e2e/radar.spec.ts` |
+|---|---|
+
+### D-727 · Grössen und Zahlen aus einer Funktion in `src/lib`, Geld nur über `formatiereGeld` (V-233)
+
+**Der Befund** (Audit Befund 69, DESIGN §5, SEITENKARTE §12): die Ablage, die
+Gruppenablage, das Archiv und die Kundenfreigabe schrieben Dateigrössen mit
+`toFixed(1)` als „2.5 MB"; Jahrespaket, Z3-Export und Zeiteintrag ersetzten
+den Punkt von Hand, das Arbeiterportal hatte eine eigene Funktion. Die
+Sonderleistungen und das Unterschriftsblatt des Leistungsnachweises bauten
+Cent-Beträge selbst, ohne Tausenderpunkt („1234,56 €") — das Blatt liegt dem
+Kunden bei der Unterschrift vor.
+
+**Die Entscheidung.**
+
+1. **`src/lib/zahl.ts`:** `groesseText` (binär, B/KB/MB, eine
+   Nachkommastelle unter zehn, „—" für eine fehlende oder unlesbare Angabe,
+   gerechnet ab Text über `BigInt`) und `zahlText` (Tausendertrennung).
+   Deutsch ist die Vorgabe, `en` schreibt britisch; das Arbeiterportal ruft
+   ohne Sprache und bleibt in der gesetzlichen Form (SEITENKARTE §12).
+   `groesseText` in `services/mitarbeiter/dokumente.ts` ruft sie auf, die
+   sieben Helfer in den Seiten sind weg.
+2. **Das Kundenportal behält seinen eigenen Weg** (`kundenportal/dokument.ts`
+   `dateigroesse`, dezimal mit „kB", geprüft): der Kunde vergleicht mit dem,
+   was sein Rechner beim Herunterladen sagt. Zwei Konventionen, jede an
+   genau einer Stelle.
+3. **Geld nur über `formatiereGeld(cent(BigInt(…)))`** (Invariante 1), Mengen
+   aus `numeric(…,3)` über `formatiereMenge(mengeAusPostgres(…))` — auf den
+   Sonderleistungen und dem Unterschriftsblatt.
+4. **Nicht Teil:** der Vorgabewert eines Eingabefelds
+   (`leistungskatalog/[id]/PositionsFelder.tsx`): ein Formular bleibt in der
+   Schreibweise, die `parseGeld` liest.
+
+| Betrifft | DESIGN §5, SEITENKARTE §12, Invariante 1, V-233, `src/lib/zahl.ts`, `src/server/services/mitarbeiter/dokumente.ts`, `src/app/portal/[mandant]/dokumente/{darstellung.ts,page.tsx,[id]/page.tsx,[id]/kundenfreigabe/page.tsx}`, `src/app/portal/[mandant]/buchhaltung/{archiv,jahrespaket,z3-export}/page.tsx`, `src/app/portal/gruppe/dokumente/page.tsx`, `src/app/portal/[mandant]/zeiten/[id]/page.tsx`, `src/app/portal/[mandant]/reinigung/{sonderleistungen/page.tsx,leistungsnachweise/[id]/unterschrift/page.tsx}`, `tests/kern/zahl.test.ts` |
+|---|---|
+
+### D-762 · „Gefunden" ist ein Fund des Radars, nicht jede Bewertung — die Lesart ist ein Platzhalter (V-269, O-941)
+
+**Der Befund** (zweite Prüfung von V-226, REP-06): D-720 zählte als
+*gefunden* jede nicht ausgeschlossene `bewertung`. Der Radar bewertet aber
+JEDE eingelesene Bekanntmachung gegen JEDES aktive Profil (`lauf.ts`), und
+ausgeschlossen wird nur, was ein Mensch im Profil ausdrücklich ausschliesst
+(`bewerte`: „Der Code selbst wirft nichts weg"). In der Seed-Vorlage zählten
+Reinigung, Security und Bau je sechs Funde — darunter die
+Streusalzlieferung, die der Seed als „eine, die kein Profil trifft" anlegt,
+und für die Reinigung der Objektschutz und der Rückbau. Aus „Gefunden ist
+immer 0" war „Gefunden ist immer alles" geworden. Dazu legte der Seed den
+verworfenen Fall von Security und Bau genau auf die Streusalzlieferung
+(„jüngste Bekanntmachung ohne Vorgang"), und die Reinigung bekam keinen,
+weil der Block nur für Security und Bau lief.
+
+**Die Entscheidung.**
+
+1. **Ein Fund ist eine Frage an das Radar, keine an die Bewertungstabelle.**
+   Was als Fund zählt, steht an EINER Stelle
+   (`src/server/services/radar/fund.platzhalter.ts`): `istFund` ohne
+   Datenbank, `fundSql` als Bedingung über `bewertung`, beide aus derselben
+   `FundDefinition`. `pipelineZahlen` fragt `fundSql`; Bereich
+   (`pipeline`) und Gruppe (`pipelineJeBereich`) rufen dieselbe Funktion und
+   zählen weiter gleich (D-720 Nr. 1).
+2. **„Treffer" ist im Code nicht eindeutig festgelegt** — Schwelle der
+   Trefferbenachrichtigung (RAD-08, offen O-15), „trifft über Stichwörter
+   und Region" auf der Profilseite, „trifft kein Profil" im Seed trotz
+   passender Region. Das ist eine fachliche Frage und steht als **O-941**
+   offen. Bis zur Antwort gilt als beschrifteter Platzhalter
+   (`FUND_PLATZHALTER`, `TODO(client, O-941)`): **die Leistung trifft** —
+   ein CPV-Code des Profils mit Wirkung `positiv` oder ein Positiv-Stichwort,
+   in einer nicht ausgeschlossenen Bewertung. Region, Wert, Frist und
+   Schwellenwert bewerten einen Fund, begründen aber keinen. Das ist die
+   Lesart des Seeds; die Streusalzlieferung ist damit nirgends ein Fund,
+   jede Gesellschaft findet ihr Gewerk (Reinigung drei, Security eine, Bau
+   eine Bekanntmachung).
+3. **Ein eröffneter Vorgang zählt weiter**, auch ohne Fund: wer einen
+   Vorgang anlegt, hat die Bekanntmachung im Blick (D-720 Nr. 2). Die
+   Kohorte ist der früheste Fund oder die Eröffnung.
+4. **Beide Berichtsseiten sagen es** in der Fussnote — mit dem Hinweis, dass
+   die Lesart ein Platzhalter ist (O-941). Die Gruppenübersicht des Radars
+   zählt weiter „bewertet" unter diesem Wort; das ist keine Stufe der
+   Pipeline.
+5. **Der Seed verwirft nur, was gefunden wurde.** Der verworfene Fall hat
+   einen eigenen Block mit eigener Wiederholbarkeit, je Gesellschaft auf dem
+   ältesten Fund ohne Vorgang und ohne übernommenen Lead: Reinigung (die
+   Rahmenvereinbarung des Bundes), Security (der Objektschutz). Der Bau
+   verfolgt seinen einzigen Fund als Lead (V-139) und Operations hat kein
+   Suchprofil — beide bekommen keinen Fall, statt einen auf einer
+   Bekanntmachung, die sie nie gefunden hätten.
+
+**Geprüft:** `tests/kern/radar-fund.test.ts` rechnet die ECHTE Bewertung
+(`bewerte`) über die exportierten Vorlagen des Seeds (Streusalz für kein
+Profil ein Fund, obwohl bewertet und mit Punkten; die Fundmatrix je
+Gesellschaft; `istFund` je Regel; die Lesart austauschbar);
+`tests/isolation/bericht.test.ts` (5) mit elf Fällen — darunter die
+Streusalzbewertung aus `bewerte` (zählt nicht, mit Vorgang schon) und ein
+reiner Stichworttreffer (zählt) —, Bereich und Gruppe weiter gleich.
+
+| Betrifft | REP-06, RAD-05, RAD-08, O-15, O-941, D-720, V-226, V-269, `src/server/services/radar/fund.platzhalter.ts`, `src/server/services/bericht/kennzahlen.ts`, `src/app/portal/[mandant]/berichte/pipeline/page.tsx`, `src/app/portal/gruppe/berichte/pipeline/page.tsx`, `src/server/db/seed/{berichtsdaten,radar}.ts`, `tests/kern/radar-fund.test.ts`, `tests/isolation/bericht.test.ts` (5) |
+|---|---|
+
+### D-763 · „Ergebnis nur mit Freigabe" wirkt: die Laufzeit hält das Ergebnis im Posteingang zurück und liefert es nur durch das Tor aus (V-270)
+
+**Der Befund** (zweite Prüfung von V-228, AGT-02, AGT-03, Invariante 7):
+V-228 machte `agent_werkzeug.ist_aktiv` wirksam, `erfordert_freigabe` blieb
+Anzeige — bekam aber einen Formularschalter („Ergebnis nur mit Freigabe")
+und die Bestätigung „Der Stand gilt ab sofort, für jeden Aufruf dieses
+Werkzeugs". Keine Laufzeit las den Schalter. Der Seed setzt ihn für jedes
+Werkzeug, das Agentenblatt schrieb für „Bestand abfragen" „in dieser
+Gesellschaft: nur mit Freigabe", und der CEO-Assistent zeigte jede Antwort
+sofort. Stand und Verhalten fielen weiter auseinander, jetzt mit einem
+Bedienelement ohne Wirkung.
+
+**Die Entscheidung.**
+
+1. **Zurückhalten über den vorhandenen Freigabeweg.** Trägt das Werkzeug in
+   der aktiven Gesellschaft `erfordert_freigabe`, legt
+   `halteErgebnisZurueck` (`agent/tools/ergebnis-freigabe.ts`) das Ergebnis
+   als `freigabe` in den Posteingang: Aktion `werkzeug_ergebnis`, Vorgang
+   `interner_hinweis`, Titel und Zusammenfassung mit Frage und Antwort,
+   Vorschau = das Ergebnis, `payload_hash` nach RFC 8785 (derselbe Abdruck,
+   den `app.freigabe_entscheiden` prüft), Risiko aus `stufeRisikoEin` mit
+   denselben Tatsachen wie ein Lauf des Orchestrators. Die Aufgabe steht auf
+   `wartet_auf_freigabe`, ihr `ergebnis` trägt nur die Kennung der Freigabe;
+   der Schritt nennt die Freigabe (`freigabe_id`) statt der Antwort — sonst
+   stünde das zurückgehaltene Ergebnis im Protokoll, bevor es jemand
+   freigegeben hat.
+2. **Ausgeliefert wird nur durch das Tor** — `gateWerkzeugErgebnis` in
+   `server/agent/policy.ts`, fail-closed wie `gate()`: genehmigt, von einem
+   benannten Menschen, dieselbe Aktion, Gesellschaft und Aufgabe, und der
+   Abdruck des Ergebnisses gleich dem `nutzlast_hash` des entschiedenen
+   Kettenglieds. `leseFrage` liest die Antwort deshalb aus der Freigabe, nie
+   aus der Aufgabe; offen heisst „wartet", abgelehnt, ohne Menschen oder
+   nach der Freigabe verändert heisst keine Antwort. Die Aktion ist keine der
+   acht `AKTIONEN`: eine `agent_richtlinie` kann ein zurückgehaltenes
+   Ergebnis nicht freischalten.
+3. **Die Aufgabe folgt der Entscheidung** auf jedem Weg (Einzelentscheidung,
+   Stapel, Fensterlauf): `app.werkzeug_ergebnis_folgt_freigabe`
+   (`drizzle/0475`, Definer `cse_definer`, dasselbe Muster wie
+   `app.antwort_folgt_freigabe`, 0174) setzt sie bei `genehmigt` auf
+   `abgeschlossen`, bei jedem anderen Endstand auf `abgebrochen` mit dem Satz,
+   warum. Er liefert nichts aus.
+4. **Wer keine Freigabe vorlegen darf** (`freigabe.entscheiden` fehlt — die
+   Schreibbedingung von `t_mandant` auf `freigabe`), bekommt eine abgewiesene
+   Frage mit Schritt `abgelehnt_richtlinie`, statt einer Zeile, die an RLS
+   scheitert. Wer die Freigabe nicht lesen darf, sieht „die Freigabe ist für
+   diesen Zugang nicht lesbar" statt der Antwort.
+5. **Die Seiten sagen es:** die Assistentenseite nennt die Pflicht über dem
+   Katalog und zeigt nach einer Frage „Die Antwort liegt zur Freigabe" (mit
+   Weg zur Freigabe, wo lesbar) oder die freigegebene Antwort; das
+   Agentenblatt schreibt „nur mit Freigabe — das Ergebnis geht erst nach
+   Genehmigung im Posteingang weiter". Ohne den Schalter antwortet der
+   Assistent sofort, wie bisher.
+6. **Der Seed bleibt bei `erfordert_freigabe = true`** (die Vorgabe, nicht die
+   Feineinstellung, D-722 Nr. 5): die Frage der Vorführfläche wartet deshalb
+   im Posteingang der Reinigung auf ihre Freigabe — ein Schalter, der wirkt.
+7. **Nicht Teil:** ein Rücknahmefenster für eine ausgelieferte Antwort. Die
+   Aktion hat keinen Ausführer im Sinne von §4.8 (`fuehreAus`); die
+   Genehmigung ist die Freigabe, und ein Fenster wird nicht armiert.
+8. **Das Tor antwortet für ein Werkzeug ohne Ausführer mit
+   `ohneAusfuehrer`** (D-495, D-722 Nr. 3). `verlangeWerkzeug` ist die eine
+   Stelle, die jeder Werkzeugaufruf passiert — heute der des CEO-Assistenten,
+   morgen der erste des Orchestrators (D-722 Nr. 2). Ein freigeschaltetes
+   Modellwerkzeug weist es ab, und die Abweisung trägt als `ergebnis` genau
+   die Antwort aus `ohneAusfuehrer`: `kein_modellzugang`, ohne Daten
+   (`sperrErgebnis`, `agent/tools/freischaltung.ts`); nicht freigeschaltet
+   heisst `nicht_erlaubt`. Bis hierher hatte `ohneAusfuehrer` keinen
+   Aufrufer, und der Kerntest „das Register verspricht nichts mehr, was kein
+   Code hält" prüfte einen Kommentar — er ist durch eine Prüfung der Antwort
+   ersetzt. Dass „die sieben antworten `kein_modellzugang`" (D-495, ROADMAP)
+   stimmt, heisst: an dem Tor, das jeder Aufruf passiert. Einen Dispatcher
+   für Werkzeuge, die niemand ruft, gibt es weiter nicht.
+
+**Geprüft:** `tests/kern/werkzeug-ergebnis-gate.test.ts` (Tor: genehmigt
+liefert, ohne/offen/abgelehnt/ohne Menschen/fremd/verändert nicht; Abdruck =
+RFC 8785; keine Richtlinie); `tests/isolation/agent-assistent.test.ts` (6):
+wartet mit offener Freigabe und ohne Antwort im Schritt, genehmigt über
+`vermerkeAnsicht` und `entscheideFreigabe` liefert genau die freigegebene
+Antwort, abgelehnt bricht ab, nach der Freigabe verändert liefert nicht, ohne
+Schalter sofort und ohne Freigabe, ohne `freigabe.entscheiden` abgewiesen;
+die Fälle 1, 2 und 5 setzen den Schalter jetzt ausdrücklich aus.
+Nr. 8: `tests/kern/agent-werkzeug-pflege.test.ts` (für jedes der sieben die
+Abweisung = `ohneAusfuehrer`, nicht freigeschaltet = `nicht_erlaubt`),
+`tests/isolation/agent-werkzeug-pflege.test.ts` (4) (`lies_dokument`
+freigeschaltet: `kein_modellzugang` gegen die echte Zeile).
+
+| Betrifft | AGT-02, AGT-03, AGT-04, AGT-07, APR-07, APR-08, Invariante 7, D-495, D-722, D-723, V-228, V-270, `src/server/agent/policy.ts`, `src/server/agent/tools/{ergebnis-freigabe,freischaltung,ausfuehrer,register-werkzeuge}.ts`, `drizzle/0475_werkzeugergebnis_folgt_freigabe.sql`, `src/server/services/agent/assistent.ts`, `src/app/portal/[mandant]/agenten/{assistent,[agent]}/page.tsx`, `src/server/db/seed/index.ts`, `tests/kern/werkzeug-ergebnis-gate.test.ts`, `tests/isolation/agent-assistent.test.ts` |
+|---|---|
+
+### D-764 · Der Akquise-Entwurf antwortet nur, wo jemand über das Formular gefragt hat — und nennt keinen internen Betreff (V-271)
+
+**Der Befund** (zweite Prüfung von V-230, §17, Invariante 7): V-230 filterte
+die Anfrage nur nach Status, nicht nach Herkunft. Der Entwurf „Vielen Dank für
+Ihre Anfrage vom {datum}. Ihr Anliegen „{betreff}" ist bei uns aufgenommen."
+ging damit auch an Leads, hinter denen keine Anfrage steht: an die
+Vergabestelle eines übernommenen Radar-Leads (im Seed die jüngste offene
+Anfrage im Bau) und an eine recherchierte Firma (`akquise` heisst:
+niemand hat gefragt, D-631). Bei einem Akquise-Lead stand dazu der interne
+Arbeitstitel „Akquise: {Firma}" im Text an die Firma, bei einer Webanfrage
+„Anfrage {Formularschlüssel}". Dieselbe Klasse wie Befund 58: eine erfundene
+Tatsache in einem Kundenentwurf. D-724 Nr. 5 behauptete einen von Hand
+erfassten Seed-Fall.
+
+**Die Entscheidung.**
+
+1. **Nur eine belegte Anfrage.** `fuelleTatsachen` wählt die jüngste offene
+   Anfrage mit `formular_eingang_id` — die Einsendung des Anfrageformulars
+   mit Zeitpunkt und Datenschutzbestätigung —, nie `akquise` und nie
+   `vergabe_radar`. Von Hand erfasste Leads und Empfehlungen haben keinen
+   Beleg, dass der Kontakt gefragt hat; ob sie eine Anfrage begründen, ist
+   O-907, und bis zur Antwort bekommen sie keinen Dank für eine Anfrage.
+   Gibt es keine belegte Anfrage, gibt es keinen Lauf (`KeineOffeneAnfrage`),
+   und Vorschaltblatt und Laufroute sagen, warum.
+2. **Kein interner Betreff.** `lead.betreff` ist ein Arbeitstitel und steht
+   weder im Text noch in den Tatsachen. Der Entwurf nennt den öffentlichen
+   Titel des Formulars, das der Anfragende ausgefüllt hat
+   (`formular_definition.titel`) — liest die Sitzung ihn nicht, nennt er
+   keinen („Ihr Anliegen ist bei uns aufgenommen.").
+3. **Die Lücken kommen nur noch aus dem Formular** (D-724 Nr. 2); der
+   Sonderfall „von Hand erfasst: die Bedarfsbeschreibung" entfällt mit Nr. 1.
+4. **Der Seed schickt das Formular ab, statt einen Eingang zu erfinden:**
+   `seed/webanfrage.ts` ruft auf der Vorführfläche `nimmAn` als
+   Eingangsprinzipal gegen das veröffentlichte Formular der Reinigung — der
+   Weg von `POST /api/anfrage`, mit Prüfung, SLA und Eingangsaktivität,
+   wiederholbar. `seed/operations.ts` bleibt dabei: einen `formular_eingang`
+   per `insert` anzulegen hiesse, eine Anfrage zu behaupten.
+5. **Ohne offene Anfrage steht kein Startknopf da.** Das Vorschaltblatt
+   schrieb „Ein Lauf entstünde deshalb nicht", und darunter stand „Lauf
+   starten und vorlegen" trotzdem — der Klick führte nur zurück auf „Kein
+   Lauf". Ohne Modell und beim Budgetstopp blendete dasselbe Blatt den Knopf
+   schon aus. Die Kette ist jetzt eine geprüfte Regel (`startSperre` in
+   `agenten/darstellung.ts`): Agent aus, kein Auftrag, kein Modell,
+   Budgetstopp, keine Anfrage — in dieser Reihenfolge, und nur ohne Sperre
+   ein Formular. Den Grund „keine Anfrage" nennt der Abschnitt „Womit er
+   formuliert" darüber.
+6. **„Keine Anfrage → kein Lauf" ist ein Dienst, kein Absatz der Route.**
+   D-724 Nr. 1 versprach: die Laufroute legt keine Aufgabe an und leitet mit
+   `KEINE_ANFRAGE` zurück — geprüft war nur, dass `fuelleTatsachen` wirft, und
+   der Kerntest verwies auf einen Abschnitt „agent-lauf.test.ts (10)", den es
+   nicht gab. Die Reihenfolge (erst die Tatsachen, dann die Aufgabe) steht
+   jetzt in `starteLaufAufKnopfdruck` (`agent/auftraege.ts`); die Route ruft
+   ihn und leitet um.
+
+**Geprüft:** `tests/isolation/akquise-tatsachen.test.ts` (4) jüngere Leads
+aus Handerfassung, Recherche und Radar werden übergangen, ohne Einsendung
+kein Entwurf; (5) der Arbeitstitel „Anfrage angebot_reinigung" steht nirgends,
+der öffentliche Titel des Formulars schon; `tests/isolation/agent-lauf.test.ts`
+(9) läuft den Akquise-Agenten gegen eine Einsendung; der Demo-Seed legt die
+Webanfrage an und findet sie beim zweiten Lauf wieder;
+`tests/kern/agent-start-sperre.test.ts` (Nr. 5: kein Knopf ohne Anfrage, die
+übrigen Gründe in ihrer Reihenfolge, das Formular nur ohne Sperre);
+`tests/isolation/akquise-tatsachen.test.ts` (6) (Nr. 6: ohne offene Anfrage
+`KEINE_ANFRAGE` und keine `agent_aufgabe`, mit einer entsteht sie).
+
+| Betrifft | §17, AGT-07, Invariante 7, D-631, D-724, O-907, O-940, V-230, V-271, `src/server/agent/auftraege.ts`, `src/lib/i18n/beschriftung/agent.ts`, `src/app/portal/[mandant]/agenten/[agent]/start/page.tsx`, `src/app/portal/[mandant]/agenten/darstellung.ts`, `src/app/api/agenten/lauf/route.ts`, `src/server/db/seed/{webanfrage,operations,index}.ts`, `tests/isolation/{akquise-tatsachen,agent-lauf}.test.ts`, `tests/kern/{akquise-entwurf,agent-start-sperre}.test.ts` |
+|---|---|
+
+### D-765 · Das Druckblatt eines Berichts zeigt die Werte der Datei mit derselben Genauigkeit und setzt Zahlen rechts, weil die Spalte es sagt (V-269)
+
+**Der Befund** (zweite Prüfung von V-227, REP-07, DESIGN §5/§11): das Blatt
+schrieb jede rohe Zahl mit `zahlText(w)` — null Nachkommastellen. Die einzige
+nicht ganzzahlige Spalte der sechs Berichte, „Wochenstunden Soll"
+(`anstellung.wochenstunden numeric(5,2)`), stand damit als „38" statt 37,5
+auf Papier, in der CSV-Datei derselben Quelle als 37.5 — ein Dokument, das
+das Haus verlässt, nannte eine andere vertragliche Wochenarbeitszeit als die
+Datenbank. Die Sätze des Blatts versprachen dazu „dieselbe Zahlenform wie die
+Datei" (en: „the same … number format as the file"), obwohl das Blatt
+Tausenderpunkt und Dezimalkomma setzt. Und rechtsbündig war nur, was das
+Muster `/^-?[\d.,]+ (%|h)$/u` traf: die Stundenspalten „Ist" und „Soll"
+(„163:20 h", mit Doppelpunkt) standen links, ohne Tabellenziffern.
+
+**Die Entscheidung.**
+
+1. **Die Spalte sagt, was sie ist.** `Spalte` (`bericht/ausgabe.ts`) trägt
+   `zahl: true` für jede Zahlenspalte — Anzahl, Minuten, Stunden, Prozent,
+   Geld — und `nachkomma` für die höchste Stellenzahl einer rohen Zahl, so
+   viele wie ihre Quelle (`numeric(5,2)` → 2). `berichtTabelle` setzt beides
+   für alle sechs Berichte; `zellenFuerBlatt` rät nicht mehr am Text.
+2. **Dieselbe Genauigkeit wie die Datei.** Eine rohe Zahl steht mit genau
+   den Stellen, die sie hat, höchstens `nachkomma`, ohne erfundene Nullen
+   (`zahlText(w, 'de', n, 0)` — `zahlText` hat dafür die Untergrenze
+   `mindestens` bekommen): 37,5 bleibt 37,5, 40 bleibt 40. Eine Spalte ohne
+   `nachkomma` wird gar nicht gerundet.
+3. **Die Sätze sagen, was stimmt:** dieselben Zeilen, Spalten und Werte wie
+   die Datei — ohne ihre Cent-Spalten, Zahlen in deutscher Schreibweise (de
+   und en).
+4. **Ein Bedienelement auf dem Blatt trägt die Druckfarben** (DESIGN §11,
+   neu: `DRUCK_STEUERUNG`). Der Druckknopf stand mit `text-text` (#FAFAFA)
+   auf dem am Bildschirm weissen Blatt — 1,04:1, ein leerer umrandeter
+   Kasten, lesbar nur beim Überfahren, auf dem Telefon nie; auf dem
+   Monatsnachweis, von dem das Blatt ihn übernahm, ebenso, und dort dazu der
+   Monatswechsel und die Wahl der Beschäftigung. Jetzt: Text `--druck-text`,
+   Rand `--druck-text-leise` (9,7:1), Fläche `--druck-papier`, Hover als
+   Unterstreichung; `DruckKnopf` immer (er steht nur auf Blättern), der
+   `Monatswechsler` mit `aufPapier`, die Wahl der Beschäftigung direkt. Der
+   Monatswechsel auf den dunklen Seiten bleibt, wie er war.
+5. **Eine breite Tabelle druckt quer — nie verkleinert, nie abgeschnitten**
+   (DESIGN §11, neu: `--druck-blatt-hoch`, `--druck-blatt-quer`,
+   `--druck-hoch-bis-spalten`). Vier der sechs Tabellen waren breiter als
+   die 170 mm eines Hochformats (gerechnet: Projekte ≈ 954 px, Stunden
+   ≈ 933 px gegen 643 px), auch weil `.zahl` die versalen Köpfe ohne Umbruch
+   hielt: am Bildschirm ragten sie über das weisse Blatt auf den dunklen
+   Grund, im Druck wurde die Seite verkleinert oder abgeschnitten, auf dem
+   Telefon lief jede seitwärts. Jetzt entscheidet `blattFormat` aus der
+   Tabelle: bis sechs Spalten hoch, darüber quer (257 mm Satzbreite), am
+   Bildschirm 297 mm breit. Die Köpfe brechen um, nur `td.zahl` nicht; die
+   Tabelle steht in einem Rollbehälter (`.rollbar`, im Druck `overflow:
+   visible`), unter `md` hat das Blatt den Rand `--s4` (D-420, wie der
+   Monatsnachweis). Der Rückweg „Zurück zum Bericht" ist ein 44-px-Ziel
+   (DESIGN §8). Die Regeln stehen in `druck/[bericht]/stil.ts`, damit sie
+   sich ohne Browser prüfen lassen.
+6. **Firmenzeile, Titel, Kopflinie und Zeilenhöhe sind Token** (DESIGN §11,
+   neu: `--druck-firma-groesse` 14pt, `--druck-titel-groesse` 13pt,
+   `--druck-kopflinie` 2.25pt, `--druck-zeilenhoehe` 1.5). Das Berichtsblatt
+   schrieb sie als Literale, übernommen aus Angebot und Monatsnachweis, wo sie
+   seit D-204 stehen — in DESIGN.md stand keiner. Jetzt lesen alle drei
+   Blätter dieselben Token. Die Kopflinie steht in Punkten wie jedes Druckmass
+   („Points, not pixels"): 2,25 pt sind genau die 3 px von vorher. Einzige
+   sichtbare Änderung: der Titel des Monatsnachweises stand mit 12 pt, die
+   beiden anderen mit 13 pt — ein Titel, ein Token, jetzt 13 pt. Die
+   gezeichnete Rechnung (`zugferd/blatt.ts`, V-134) setzt mit eigenem Renderer
+   in PDF-Punkten und gehört nicht zu dieser Nachbesserung.
+7. **Der Stand steht in der Sprache des Rahmens** (D-733 Nr. 1 und 2). Die
+   Abfrage lieferte ihn fertig formatiert (`to_char(…, 'DD.MM.YYYY')`), und im
+   englischen Rahmen stand „As of: 28.09.2026". Jetzt liefert sie den
+   Kalendertag als JJJJ-MM-TT, und der Kopf des Blatts (`druck/[bericht]/
+   kopf.tsx`) schreibt ihn mit `tagInSprache`: deutsch „28.09.2026", englisch
+   „28 Sept 2026". Deutsch bleibt nur die Tabelle (D-721 Nr. 4), nicht der
+   Kopf. Der Kopf ist dafür ein eigener Baustein neben der Seite, damit er sich
+   ohne Datenbank rendern und prüfen lässt.
+
+**Geprüft:** `tests/kern/bericht-export.test.ts` (37,5/19,25/40, dieselben
+Stellen wie die Datei, Stundenspalten rechts auch negativ, keine Rundung ohne
+`nachkomma`, die berichtigten Sätze), `tests/kern/zahl.test.ts`
+(`mindestens`), `tests/isolation/bericht.test.ts` (8) mit einer echten
+Anstellung zu 37,5 Wochenstunden: Blatt „37,5", Datei „37.5", die sieben
+Zahlenspalten des Stundenberichts rechts; `tests/kern/druck-steuerung.test.ts`
+rendert Druckknopf und Monatswechsel (Druckfarben auf Papier, keine
+Bildschirmfarbe, 44 px, nicht im Druck; auf dunklen Seiten unverändert),
+`tests/design/tokens.test.ts` rechnet 1,04:1 und 9,7:1 nach;
+`tests/kern/bericht-druckblatt.test.ts` (Format ab sieben Spalten quer,
+Cent-Zwillinge zählen nicht; quer/hoch in `@page` und Breite; Köpfe ohne
+`nowrap`; Rollbehälter und Telefonrand; jedes Druckmass mit Wert in DESIGN
+§11; die vier Kopfmasse aus `MASSE_DRUCK` im Berichtsblatt, kein Literal
+12/13/14 pt, 3 px oder Zeilenhöhe 1,5 in einem der drei Blätter, kein
+Druckmass in px; der gerenderte Kopf: „As of: 28 Sept 2026" englisch, „Stand:
+28.09.2026" deutsch, keine formatierende Abfrage mehr), `tests/isolation/bericht.test.ts` (8): die Pipeline hoch, die übrigen
+fünf quer; `tests/e2e/berichte.spec.ts` prüft `data-format` und die Höhe
+des Rückwegs (nicht gelaufen — Playwright ist in dieser Runde ausgesetzt).
+
+| Betrifft | REP-07, DESIGN §5, DESIGN §9, DESIGN §11, D-204, D-420, D-721, D-733, V-055, V-227, V-269, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/lib/design/theme.ts`, `src/components/ui/DruckKnopf.tsx`, `src/app/portal/mein/{bausteine.tsx,monatsnachweis/page.tsx}`, `src/app/portal/[mandant]/berichte/druck/[bericht]/{page.tsx,stil.ts,kopf.tsx}`, `src/app/portal/[mandant]/angebote/[id]/pdf/page.tsx`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `tests/kern/{bericht-export,zahl,druck-steuerung,bericht-druckblatt}.test.ts`, `tests/design/tokens.test.ts`, `tests/isolation/bericht.test.ts` (8), `tests/e2e/berichte.spec.ts` |
 |---|---|

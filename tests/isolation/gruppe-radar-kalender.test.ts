@@ -22,6 +22,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import { withGroupScope, type Sitzung } from '../../src/server/kontext/index.js';
 import { gruppenRadar, RADAR_RECHT } from '../../src/server/services/gruppe/radar.js';
+import { PIPELINE_GEBOTEN } from '../../src/server/services/bericht/kennzahlen.js';
 import {
   gruppenKalenderZeilen, gruppenPersonen, gruppenTeams, quellenRechte,
   PERSONENFILTER_RECHT, QUELLEN_RECHT,
@@ -563,6 +564,51 @@ describe('der Gruppenradar', () => {
     expect(zeile).toBeDefined();
     expect(zeile!.zellen.find((c) => c.slug === 'reinigung')?.vorgangStatus)
       .toBe('geprueft');
+  });
+
+  /**
+   * **„eingereicht" ist dieselbe Menge wie „geboten" im Bericht** (D-720 Nr. 4,
+   * V-226, V-269): auch ein nicht berücksichtigtes und ein aufgehobenes
+   * Verfahren haben das Haus verlassen. Bis V-269 stand die Liste als Kopie im
+   * SQL; jetzt ist es `PIPELINE_GEBOTEN` selbst, und dieser Fall zählt jeden
+   * ihrer Stände — ausser `eingereicht`, das eine eingereichte Vergabemappe
+   * verlangt (0147) — und zwei Stände, die NICHT zählen.
+   */
+  it('„eingereicht" zählt jeden Stand aus PIPELINE_GEBOTEN — auch ein aufgehobenes Verfahren', async () => {
+    const chef = await konto(`radar-geboten-${zufall()}@cse.test`);
+    await mitglied(chef, f.reinigung);
+    await mitglied(chef, f.security);
+    await gewaehre(RADAR_RECHT, f.reinigung);
+    const eingereicht = async (): Promise<number | null> => {
+      const radar = await imGruppenScope(chef, async (k) =>
+        gruppenRadar(k, { ...OPTIONEN, mandantIds: k.mandantIds }));
+      return radar.bereiche.find((b) => b.slug === 'reinigung')?.eingereicht ?? null;
+    };
+
+    const vorher = await eingereicht();
+    const aufgehoben = await bekanntmachung('Verfahren aufgehoben', 20);
+    await vorgang(f.reinigung, aufgehoben, 'verfahren_aufgehoben');
+    expect(await eingereicht(), 'ein aufgehobenes Verfahren hat das Haus verlassen')
+      .toBe((vorher ?? 0) + 1);
+
+    const zaehlen = PIPELINE_GEBOTEN.filter((s) => s !== 'eingereicht' && s !== 'verfahren_aufgehoben');
+    for (const status of zaehlen) {
+      const a = await bekanntmachung(`Stand ${status}`, 20);
+      await sql.unsafe(
+        `insert into ausschreibung_vorgang
+           (mandant_id, ausschreibung_id, status, erstellt_von_art, entschieden_am)
+         values ($1, $2, $3::ausschreibung_status, 'mensch', now())`,
+        [f.reinigung, a, status]);
+    }
+    await vorgang(f.reinigung, await bekanntmachung('Nur geprüft', 20), 'geprueft');
+    await sql.unsafe(
+      `insert into ausschreibung_vorgang
+         (mandant_id, ausschreibung_id, status, erstellt_von_art, verworfen_grund)
+       values ($1, $2, 'verworfen', 'mensch', 'Leistung passt nicht')`,
+      [f.reinigung, await bekanntmachung('Verworfen', 20)]);
+
+    expect(await eingereicht(), 'jeder weitere Stand aus PIPELINE_GEBOTEN, geprüft und verworfen nicht')
+      .toBe((vorher ?? 0) + 1 + zaehlen.length);
   });
 
   it('abgelaufene Fristen erscheinen erst auf Verlangen', async () => {

@@ -172,7 +172,7 @@ export default async function Angebotsdokument(
         .cse-blatt { background: ${FARBEN_DRUCK['druck-papier']};
                      color: ${FARBEN_DRUCK['druck-text']};
                      max-width: 210mm; margin: 0 auto; padding: 20mm;
-                     font-size: 10pt; line-height: 1.5; }
+                     font-size: 10pt; line-height: ${MASSE_DRUCK['druck-zeilenhoehe']}; }
         .cse-blatt table { width: 100%; border-collapse: collapse; }
         .cse-blatt th, .cse-blatt td {
                      padding: ${MASSE_DRUCK['druck-zelle-y']} ${MASSE_DRUCK['druck-zelle-x']};
@@ -189,7 +189,8 @@ export default async function Angebotsdokument(
                            white-space: nowrap; }
         .cse-blatt .leise { color: ${FARBEN_DRUCK['druck-text-leise']};
                             font-size: ${MASSE_DRUCK['druck-meta-groesse']}; }
-        .cse-blatt .kopflinie { border: 0; border-top: 3px solid ${FARBEN_MARKE.red};
+        .cse-blatt .kopflinie { border: 0;
+                                border-top: ${MASSE_DRUCK['druck-kopflinie']} solid ${FARBEN_MARKE.red};
                                 margin: ${MASSE_DRUCK['druck-block']} 0
                                         calc(2 * ${MASSE_DRUCK['druck-block']}); }
         .cse-blatt .fuss { border-top: 1px solid ${FARBEN_DRUCK['druck-linie']};
@@ -213,7 +214,9 @@ export default async function Angebotsdokument(
             alt: kopf.m_logo_alt ?? kopf.m_firma,
           }} />
         ) : null}
-        <p style={{ margin: 0, fontSize: '14pt', fontWeight: 600 }}>{kopf.m_firma}</p>
+        <p style={{ margin: 0, fontSize: MASSE_DRUCK['druck-firma-groesse'], fontWeight: 600 }}>
+          {kopf.m_firma}
+        </p>
         <hr className="kopflinie" />
       </header>
 
@@ -250,7 +253,7 @@ export default async function Angebotsdokument(
         </dl>
       </div>
 
-      <h1 style={{ fontSize: '13pt', marginTop: '12mm' }}>{kopf.titel}</h1>
+      <h1 style={{ fontSize: MASSE_DRUCK['druck-titel-groesse'], marginTop: '12mm' }}>{kopf.titel}</h1>
       {kopf.einleitungstext === null ? null : <p>{kopf.einleitungstext}</p>}
 
       <table>
