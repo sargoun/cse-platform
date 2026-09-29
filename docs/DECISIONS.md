@@ -22179,7 +22179,19 @@ Dokumente, O-671). Die ältere Ablageroute `api/dokumente/upload` hat dieselbe
 Lücke beim ersten Ablegen (`ExifFehler` fällt durch `alsAntwort`) — sie ist
 vorbestehend und nicht Gegenstand dieser Gruppe.
 
-| Betrifft | DOC-04, DOC-05, ACC-03, Invariante 7, O-501, O-671, D-713, V-219, V-266, `drizzle/0297`, `drizzle/0325`, `drizzle/0488_fassung_kundenfreigabe_und_buchung.sql`, `src/server/services/dokument/ablage.ts`, `src/app/api/dokumente/[id]/version/{route,grund}.ts`, `src/server/storage/exif.ts` (`ExifFehler`), `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `tests/isolation/dokument-fassung.test.ts`, `tests/kern/dokument-fassung.test.ts` |
+**Nachsatz (Schlussdurchgang): die Lücke der Ablageroute ist geschlossen.**
+`POST /api/dokumente/upload` bildet `ExifFehler` jetzt auf
+`?fehler=datei_metadaten` ab — ohne Satz in der Adresse, denn der Satz des
+Dienstes nennt Anforderungsnummern und ein präparierter Link schriebe sonst
+seinen eigenen. Das Formular zeigt denselben Satz wie das Blatt der Fassung
+(`FEHLER_TEXT.datei_metadaten` liest `DOKUMENT_BLATT_TEXTE.de.faFehler`; die
+Seite ist noch deutsch). Geprüft in `tests/kern/dokument-ablage-rueckweg.test.ts`:
+die echte Route mit echtem Dienst und echter Prüfkette, ersetzt sind nur
+Sitzung, Datenbank, Tor und Speicher — TIFF, GIF, WebP und ein verschlüsseltes
+PDF landen mit Grund auf dem Formular und legen nichts ab; ein
+unverschlüsseltes PDF läuft als Gegenprobe ganz durch.
+
+| Betrifft | DOC-04, DOC-05, ACC-03, Invariante 7, O-501, O-671, D-713, V-219, V-266, `drizzle/0297`, `drizzle/0325`, `drizzle/0488_fassung_kundenfreigabe_und_buchung.sql`, `src/server/services/dokument/ablage.ts`, `src/app/api/dokumente/[id]/version/{route,grund}.ts`, `src/server/storage/exif.ts` (`ExifFehler`), `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `tests/isolation/dokument-fassung.test.ts`, `tests/kern/dokument-fassung.test.ts`; Nachsatz: `src/app/api/dokumente/upload/route.ts`, `src/app/portal/[mandant]/dokumente/upload/page.tsx`, `tests/kern/dokument-ablage-rueckweg.test.ts` |
 |---|---|
 
 ### D-760 · Kalender und Recruiting: wer einen Termin ändert, wirft niemanden still hinaus — und der Seed stellt die Bewerbung aus dem Postfach nicht vor die jüngste (V-267)
