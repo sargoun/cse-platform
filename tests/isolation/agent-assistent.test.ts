@@ -62,6 +62,14 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   await sql.unsafe(`delete from agent_werkzeug`);
+  /*
+   * Der Agent selbst muss eingeschaltet sein — die Datei stellt das her,
+   * statt es vorauszusetzen. `agent` ist eine Referenztabelle und überlebt
+   * seed(); agent-laufzeit.test.ts schaltet im selben Klon alle Agenten ab,
+   * und danach scheiterte hier jede Frage an AgentInaktiv (AGT-01). So hält
+   * es auch agent-lauf.test.ts und akquise-tatsachen.test.ts.
+   */
+  await sql.unsafe(`update agent set ist_aktiv = true where kennung = 'ceo_assistent'`);
 });
 afterAll(schliessen);
 
