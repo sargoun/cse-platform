@@ -1,6 +1,6 @@
 import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
-import { CrmFehler, type Rechtsgrundlage } from './anlegen.js';
+import { CrmFehler, type CrmGrund, type Rechtsgrundlage } from './anlegen.js';
 import { istUuid } from '../../../lib/uuid.js';
 import {
   GRUNDLAGEN as MATRIX_GRUNDLAGEN, KANAELE,
@@ -414,6 +414,68 @@ export async function setzeGrundlage(
     [eingabe.ansprechpartnerId, quelle !== '', kanaele.length]);
 }
 
+/**
+ * Die Sätze der Widerspruchs-Definer (0248 `app.werbewiderspruch_manuell_setzen`,
+ * 0222 `app.widerspruch_verarbeitung_setzen`) und ihr Grund — wörtlich, wie die
+ * Datenbank sie liefert (D-769 Nr. 8, D-772, V-274).
+ *
+ * **Warum hier und nicht in der Route.** Die Route reichte bisher JEDEN
+ * einzeiligen Fehlertext roh durch die Adresse — vor der Übersetzung der
+ * Autorisierung, sodass auch „Nicht gefunden" eines fehlenden Rechts im
+ * Warnkasten stand. Die Abweisungen der Definer sind echte Antworten mit
+ * Grund; sie gehören als `CrmFehler` mit Schlüssel aus dem Dienst, wie jede
+ * andere Abweisung dieser Datei. `tests/kern/crm-grundlage-rueckweg.test.ts`
+ * liest die Sätze aus den Migrationen, `tests/isolation/crm-rueckweg-datenbank.test.ts`
+ * löst sie an der echten Datenbank aus.
+ */
+export const WIDERSPRUCH_DATENBANK_GRUENDE: ReadonlyMap<string, CrmGrund> = new Map([
+  ['Ein Werbewiderspruch wird nur im internen Portal erfasst (K-04)', 'nur_intern'],
+  ['Der Art.-21-Widerspruch wird nur im internen Portal entschieden (K-04)', 'nur_intern'],
+  ['In der Gruppenansicht wird nichts erfasst (Invariante 10)', 'gruppenansicht'],
+  ['In der Gruppenansicht wird nichts entschieden (Invariante 10)', 'gruppenansicht'],
+  ['crm.rechtsgrundlage_setzen fehlt', 'kein_setzrecht'],
+  ['datenschutz.auskunft_erstellen fehlt', 'kein_widerspruchsrecht'],
+  ['Ein von Hand erfasster Widerspruch braucht ein angemeldetes Konto', 'ohne_konto'],
+  ['Ohne Betroffenen gibt es keinen Widerspruch', 'ohne_betroffenen'],
+  ['Ein Widerspruch kann nicht in der Zukunft eingegangen sein', 'eingang_in_zukunft'],
+  ['Diesen Kanal gibt es nicht', 'kanal_unbekannt'],
+  ['Ein Art.-21-Widerspruch wird begruendet festgehalten — er ist unwiderruflich',
+    'ohne_begruendung'],
+  ['Diesen Kontakt gibt es in dieser Gesellschaft nicht', 'nicht_gefunden'],
+  ['Diese Firma gibt es in dieser Gesellschaft nicht', 'nicht_gefunden'],
+]);
+
+/** Der Grund zu einem Satz der Datenbank — ein unbekannter Satz ist `widerspruch_abgewiesen`, nie er selbst. */
+export function grundAusWiderspruch(satz: string): CrmGrund {
+  return WIDERSPRUCH_DATENBANK_GRUENDE.get(satz) ?? 'widerspruch_abgewiesen';
+}
+
+/**
+ * Die SQLSTATE, mit denen die beiden Definer ABWEISEN, und der Status dazu:
+ * ein fehlendes Recht, Portal oder Konto (`insufficient_privilege`), eine
+ * unbrauchbare Angabe (`check_violation`), ein Kontakt, den es hier nicht
+ * gibt (`no_data_found`). Jeder andere Wurf — ein Datum, das keines ist, eine
+ * abgebrochene Verbindung — bleibt ein Fehler: keine erfundene Abweisung.
+ */
+const ABWEISUNG_DER_DATENBANK: ReadonlyMap<string, number> = new Map([
+  ['42501', 403], ['23514', 400], ['P0002', 404],
+]);
+
+/** Ein Aufruf eines Widerspruchs-Definers — seine Abweisungen als `CrmFehler` mit Grund. */
+async function widerspruchsDefiner<T>(aufruf: () => Promise<T>): Promise<T> {
+  try {
+    return await aufruf();
+  } catch (fehler) {
+    const f = fehler as { readonly code?: unknown; readonly message?: unknown };
+    const status = typeof f.code === 'string' ? ABWEISUNG_DER_DATENBANK.get(f.code) : undefined;
+    if (status !== undefined) {
+      const satz = typeof f.message === 'string' ? f.message : '';
+      throw new CrmFehler(satz, grundAusWiderspruch(satz), status);
+    }
+    throw fehler;
+  }
+}
+
 export interface WerbewiderspruchErfassen {
   readonly ansprechpartnerId?: string | undefined;
   readonly kundeId?: string | undefined;
@@ -452,14 +514,14 @@ export async function erfasseWerbewiderspruch(
    * ungenutzter Zweig trotzdem geprüft wird, ist kein Schutz.
    */
   const tag = eingabe.eingegangenAm?.trim();
-  const [z] = await kontext.schreibe<{ anzahl: number }>(
+  const [z] = await widerspruchsDefiner(() => kontext.schreibe<{ anzahl: number }>(
     `select app.werbewiderspruch_manuell_setzen(
               $1::uuid, $2::uuid, $3,
               coalesce(($4::date::timestamp at time zone 'Europe/Berlin'), now()),
               $5) as anzahl`,
     [eingabe.ansprechpartnerId ?? null, eingabe.kundeId ?? null,
       eingabe.kanal === undefined || eingabe.kanal === '' ? null : eingabe.kanal,
-      tag === undefined || tag === '' ? null : tag, eingabe.bemerkung ?? null]);
+      tag === undefined || tag === '' ? null : tag, eingabe.bemerkung ?? null]));
   if ((z?.anzahl ?? 0) === 0) {
     throw new CrmFehler('Der Widerspruch wurde nicht erfasst.', 'nicht_erfasst', 400);
   }
@@ -484,9 +546,9 @@ export async function erfasseVollwiderspruch(
       'Ein Widerspruch nach Art. 21 DSGVO wird begründet festgehalten — er wird '
       + 'nicht zurückgenommen.', 'ohne_begruendung');
   }
-  const [z] = await kontext.schreibe<{ anzahl: number }>(
+  const [z] = await widerspruchsDefiner(() => kontext.schreibe<{ anzahl: number }>(
     `select app.widerspruch_verarbeitung_setzen($1::uuid, null, $2) as anzahl`,
-    [ansprechpartnerId, bemerkung.trim()]);
+    [ansprechpartnerId, bemerkung.trim()]));
   if ((z?.anzahl ?? 0) === 0) {
     throw new CrmFehler('Der Widerspruch wurde nicht erfasst.', 'nicht_erfasst', 400);
   }

@@ -19,6 +19,9 @@
  *     Abbildung, fällt also nicht auf `abgewiesen`.
  *  3. Ein Erfolg ist ein Schlüssel; die Zahl beendeter Sitzungen reist nicht
  *     mehr im Satz, sie steht im Protokoll des Definers.
+ *  4. Dasselbe für die beiden Widerspruchs-Definer (0248, 0222): jeder
+ *     erreichbare Wurf wird ein `CrmFehler` mit seinem Grund
+ *     (`WIDERSPRUCH_DATENBANK_GRUENDE`), mit dem Status seines SQLSTATE.
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createHash, randomBytes } from 'node:crypto';
@@ -27,6 +30,10 @@ import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
   ZUGANG_DATENBANK_GRUENDE, ZugangFehler, entzieheZugang, ladeNeuEin, stelleZugangAus,
 } from '../../src/server/services/crm/kundenzugang.js';
+import { CrmFehler } from '../../src/server/services/crm/anlegen.js';
+import {
+  WIDERSPRUCH_DATENBANK_GRUENDE, erfasseVollwiderspruch, erfasseWerbewiderspruch,
+} from '../../src/server/services/crm/kontakt-grundlage.js';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 
 let f: Fixtur;
@@ -106,15 +113,25 @@ async function als<T>(lage: Lage, fn: (k: SchreibKontext) => Promise<T>): Promis
   });
 }
 
-/** Der Wurf eines Dienstes — und die Zusicherung, dass es einer war. */
-async function wurf(p: Promise<unknown>): Promise<ZugangFehler> {
+/** Der Wurf eines Dienstes — und die Zusicherung, dass es einer der erwarteten Klasse war. */
+async function wurf<F extends Error = ZugangFehler>(
+  p: Promise<unknown>, klasse: abstract new (...a: never[]) => F = ZugangFehler as never,
+): Promise<F> {
   try {
     await p;
   } catch (fehler) {
-    expect(fehler).toBeInstanceOf(ZugangFehler);
-    return fehler as ZugangFehler;
+    expect(fehler).toBeInstanceOf(klasse);
+    return fehler as F;
   }
   throw new Error('Der Dienst hat nicht abgewiesen.');
+}
+
+async function kontakt(mandantId: string): Promise<string> {
+  const [z] = await sql.unsafe<{ id: string }[]>(
+    `insert into ansprechpartner (mandant_id, kunde_id, nachname, email)
+     values ($1, $2, 'Beispiel', $3) returning id`,
+    [mandantId, await kunde(mandantId), `k-${zufall()}@example.test`]);
+  return z!.id;
 }
 
 async function zugangVon(kundeId: string): Promise<string> {
@@ -266,5 +283,82 @@ describe('Kundenzugang · ein Erfolg ist ein Schlüssel', () => {
       `select nachher->>'beendete_sitzungen' as n from audit_log
         where aktion = 'kunde.zugang_entzogen' and objekt_id = $1`, [kd]);
     expect(p!.n).toBe('1');
+  });
+});
+
+describe('Widerspruch · jeder erreichbare Wurf der Definer wird ein CrmFehler mit Grund (0248, 0222)', () => {
+  /** Ein Tag, der sicher in der Zukunft liegt — in jeder Zeitzone. */
+  const uebermorgen = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
+
+  it('Werbewiderspruch: Portal, Gruppenansicht, Recht, Zukunft, Kanal, fremder Kontakt', async () => {
+    const a = await kontakt(f.reinigung);
+    const fremd = await kontakt(f.bau);
+    const werbung = (eingabe: Parameters<typeof erfasseWerbewiderspruch>[1]) =>
+      (k: SchreibKontext) => erfasseWerbewiderspruch(k, eingabe);
+    const faelle: readonly [Lage, Parameters<typeof erfasseWerbewiderspruch>[1], string, number][] = [
+      [{ portal: 'kunde' }, { ansprechpartnerId: a }, 'nur_intern', 403],
+      [{ readonly: true }, { ansprechpartnerId: a }, 'gruppenansicht', 403],
+      [{}, { ansprechpartnerId: a, eingegangenAm: uebermorgen }, 'eingang_in_zukunft', 400],
+      [{}, { ansprechpartnerId: a, kanal: 'brieftaube' }, 'kanal_unbekannt', 400],
+      [{}, { ansprechpartnerId: fremd }, 'nicht_gefunden', 404],
+    ];
+    for (const [lage, eingabe, grund, status] of faelle) {
+      const e = await wurf(als(lage, werbung(eingabe)), CrmFehler);
+      expect([e.grund, e.status], grund).toEqual([grund, status]);
+      expect(WIDERSPRUCH_DATENBANK_GRUENDE.get(e.message), e.message).toBe(grund);
+    }
+
+    await recht('admin', 'crm.rechtsgrundlage_setzen', f.reinigung, false);
+    const ohneRecht = await wurf(als({}, werbung({ ansprechpartnerId: a })), CrmFehler);
+    expect([ohneRecht.grund, ohneRecht.status]).toEqual(['kein_setzrecht', 403]);
+    expect(WIDERSPRUCH_DATENBANK_GRUENDE.has(ohneRecht.message)).toBe(true);
+  });
+
+  it('Werbewiderspruch: ohne Betroffenen weist schon der Dienst ab; ein gültiger wird erfasst', async () => {
+    const ohne = await wurf(als({}, (k) => erfasseWerbewiderspruch(k, {})), CrmFehler);
+    expect(ohne.grund).toBe('ohne_betroffenen');
+
+    const a = await kontakt(f.reinigung);
+    await als({}, (k) => erfasseWerbewiderspruch(k, { ansprechpartnerId: a, kanal: 'telefon' }));
+    const [z] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from werbewiderspruch
+        where ansprechpartner_id = $1 and art = 'werbung'`, [a]);
+    expect(z!.n).toBe('1');
+  });
+
+  it('Vollwiderspruch: das eigene Recht, Portal, Gruppenansicht, fremder Kontakt', async () => {
+    const a = await kontakt(f.reinigung);
+    const fremd = await kontakt(f.bau);
+    /* Die Rolle `admin` hält das Recht der Datenschutzstelle nicht — so ist es vergeben. */
+    const ohneRecht = await wurf(
+      als({}, (k) => erfasseVollwiderspruch(k, a, 'Schreiben vom 12.03.')), CrmFehler);
+    expect([ohneRecht.grund, ohneRecht.status]).toEqual(['kein_widerspruchsrecht', 403]);
+    expect(WIDERSPRUCH_DATENBANK_GRUENDE.has(ohneRecht.message)).toBe(true);
+
+    await recht('admin', 'datenschutz.auskunft_erstellen', f.reinigung, true);
+    const faelle: readonly [Lage, string, string, number][] = [
+      [{ portal: 'kunde' }, a, 'nur_intern', 403],
+      [{ readonly: true }, a, 'gruppenansicht', 403],
+      [{}, fremd, 'nicht_gefunden', 404],
+    ];
+    for (const [lage, id, grund, status] of faelle) {
+      const e = await wurf(als(lage, (k) => erfasseVollwiderspruch(k, id, 'Schreiben vom 12.03.')),
+        CrmFehler);
+      expect([e.grund, e.status], grund).toEqual([grund, status]);
+      expect(WIDERSPRUCH_DATENBANK_GRUENDE.get(e.message), e.message).toBe(grund);
+    }
+  });
+
+  it('Vollwiderspruch: ohne Begründung weist schon der Dienst ab; ein begründeter wird erfasst', async () => {
+    await recht('admin', 'datenschutz.auskunft_erstellen', f.reinigung, true);
+    const a = await kontakt(f.reinigung);
+    const ohne = await wurf(als({}, (k) => erfasseVollwiderspruch(k, a, '   ')), CrmFehler);
+    expect(ohne.grund).toBe('ohne_begruendung');
+
+    await als({}, (k) => erfasseVollwiderspruch(k, a, 'Schreiben vom 12.03.'));
+    const [z] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from werbewiderspruch
+        where ansprechpartner_id = $1 and art = 'verarbeitung'`, [a]);
+    expect(z!.n).toBe('1');
   });
 });

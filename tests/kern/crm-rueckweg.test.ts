@@ -4,7 +4,9 @@
  *
  *  1. `CrmFehler` trägt einen GETYPTEN Grund (`CrmGrund`), und die Liste ist
  *     genau die Menge, die der Baum wirft — kein Grund ohne Wurf, kein Wurf
- *     ohne Grund in der Liste.
+ *     ohne Grund in der Liste. Die eine Stelle, deren Grund aus einer
+ *     Tabelle kommt (die Sätze der Widerspruchs-Definer), zählt mit ihrer
+ *     Tabelle.
  *  2. `gruendeAb` (tests/kern/hilfen/gruende.ts) liest, welche Gründe eine
  *     Route schicken kann; die Gegenprobe zeigt jede Form an erfundenen
  *     Dateien.
@@ -24,6 +26,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
 import { CRM_GRUENDE } from '../../src/server/services/crm/anlegen.js';
+import { WIDERSPRUCH_DATENBANK_GRUENDE } from '../../src/server/services/crm/kontakt-grundlage.js';
 import {
   Abweisung, Bestaetigung, abweisungsSatz, einSchluessel,
 } from '../../src/components/portal/Rueckweg.js';
@@ -64,7 +67,17 @@ describe('(1) CrmFehler trägt einen getypten Grund — genau die Gründe, die d
         offen.push(...fund.offen);
       }
     }
-    expect(offen, 'jeder Wurf nennt seinen Grund als festes Wort').toEqual([]);
+    /*
+     * Der eine Wurf, dessen Grund erst zur Laufzeit feststeht: die Abbildung
+     * der Sätze der Widerspruchs-Definer (0248, 0222). Welche Gründe sie
+     * bilden kann, steht in ihrer Tabelle — dazu `widerspruch_abgewiesen` für
+     * jeden Satz, den sie nicht kennt. Jeder ANDERE Wurf nennt ein festes Wort.
+     */
+    expect([...new Set(offen.map((o) => o.replace(/:\d+$/u, '')))])
+      .toEqual(['src/server/services/crm/kontakt-grundlage.ts#widerspruchsDefiner']);
+    for (const g of [...WIDERSPRUCH_DATENBANK_GRUENDE.values(), 'widerspruch_abgewiesen']) {
+      geworfen.add(g);
+    }
     expect([...geworfen].sort()).toEqual([...CRM_GRUENDE].sort());
   });
 

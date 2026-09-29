@@ -389,3 +389,89 @@ export const ZUGANG_RUECKWEG: NurDeutsch<RueckwegTexte<ZugangGrund, ZugangErfolg
     },
   },
 };
+
+/* ── Rechtsgrundlage und Widerspruch (`POST /api/crm/ansprechpartner/[id]/rechtsgrundlage`
+ *    und `…/widerspruch`) ───────────────────────────────────────────────────
+ * Beide Formulare stehen auf EINER Seite und kehren dorthin zurück — die
+ * Tabelle deckt die Gründe beider Routen, samt denen, die der Dienst aus den
+ * Sätzen der Definer (0248, 0222) bildet.
+ */
+
+export const GRUNDLAGE_GRUENDE = [
+  /* die Grundlage setzen (`setzeGrundlage`) */
+  'kein_setzrecht', 'kein_schreibrecht', 'grundlage_ohne_quelle', 'einwilligung_ohne_kanal',
+  'beleg_keine_kennung', 'aehnlich_ohne_begruendung', 'nachweis_in_zukunft', 'nicht_gefunden',
+  /* einen Widerspruch erfassen (`erfasseWerbewiderspruch`, `erfasseVollwiderspruch`) */
+  'ohne_betroffenen', 'nicht_erfasst', 'ohne_begruendung', 'nur_intern', 'gruppenansicht',
+  'kein_widerspruchsrecht', 'ohne_konto', 'eingang_in_zukunft', 'kanal_unbekannt',
+  'widerspruch_abgewiesen',
+] as const satisfies readonly CrmGrund[];
+export type GrundlageGrund = (typeof GRUNDLAGE_GRUENDE)[number];
+
+/** Wie die beiden Routen einen Erfolg melden (`?erfolg=`). */
+export const GRUNDLAGE_ERFOLGE = ['gespeichert', 'werbewiderspruch', 'vollwiderspruch'] as const;
+export type GrundlageErfolg = (typeof GRUNDLAGE_ERFOLGE)[number];
+
+const GRUNDLAGE_SETZEN = rechtName('crm.rechtsgrundlage_setzen', 'de');
+const AUSKUENFTE = rechtName('datenschutz.auskunft_erstellen', 'de');
+
+export const GRUNDLAGE_RUECKWEG: NurDeutsch<RueckwegTexte<GrundlageGrund, GrundlageErfolg>> = {
+  de: {
+    titel: 'Nicht gespeichert.',
+    sonst: 'Es wurde nichts geändert.',
+    fehler: {
+      kein_setzrecht:
+        `Die Rechtsgrundlage setzt und einen Werbewiderspruch erfasst nur, wer das Recht `
+        + `„${GRUNDLAGE_SETZEN}" hält.`,
+      kein_schreibrecht:
+        `Zum Speichern fehlt das Recht „${KUNDENDATEN}": gespeichert wird am Ansprechpartner `
+        + 'selbst, und den ändert nur, wer es zusätzlich hält. Beide Rechte gehören zusammen '
+        + 'erteilt.',
+      grundlage_ohne_quelle:
+        'Zu einer Rechtsgrundlage gehört, woher sie kommt (§ 7 UWG) — sonst ist sie in einer '
+        + 'Abmahnung nichts wert. Beispiel: „Häkchen im Angebotsformular vom 12.03." oder '
+        + '„bestehender Rahmenvertrag RV-2024-08".',
+      einwilligung_ohne_kanal:
+        'Eine Einwilligung gilt für bestimmte Wege. Ohne Kanal ist sie eine Einwilligung in '
+        + 'nichts — das Tor weist dann jede elektronische Nachricht ab.',
+      beleg_keine_kennung:
+        '„Beleg (Dokumentkennung)" erwartet die Kennung aus der Adresszeile des Dokuments '
+        + '(36 Zeichen, mit Bindestrichen) — keine Nummer und keinen Dateinamen.',
+      aehnlich_ohne_begruendung:
+        'Die Feststellung „ähnliche eigene Leistung" (§ 7 Abs. 3 Nr. 2 UWG) ist eine rechtliche '
+        + 'Wertung und braucht ihre Begründung — eine Wertung, die niemand begründet hat, ist '
+        + 'kein Nachweis.',
+      nachweis_in_zukunft: 'Ein Nachweis kann nicht in der Zukunft erbracht worden sein.',
+      nicht_gefunden: 'Diesen Kontakt gibt es in dieser Gesellschaft nicht, oder er ist archiviert.',
+      ohne_betroffenen: 'Ohne Betroffenen gibt es keinen Widerspruch.',
+      nicht_erfasst: 'Der Widerspruch wurde nicht erfasst — die Datenbank hat keinen Eintrag angelegt.',
+      ohne_begruendung:
+        'Ein Widerspruch nach Art. 21 DSGVO wird begründet festgehalten — er wird nicht '
+        + 'zurückgenommen.',
+      nur_intern: 'Ein Widerspruch wird nur im internen Portal erfasst.',
+      gruppenansicht:
+        'In der Gruppenansicht wird nichts erfasst. Wählen Sie zuerst die Gesellschaft, zu der '
+        + 'der Kontakt gehört.',
+      kein_widerspruchsrecht:
+        `Den Widerspruch nach Art. 21 DSGVO erfasst nur, wer das Recht „${AUSKUENFTE}" hält — `
+        + 'er ist die Entscheidung der Datenschutzstelle.',
+      ohne_konto:
+        'Ein von Hand erfasster Widerspruch braucht ein angemeldetes Konto — er nennt, wer ihn '
+        + 'erfasst hat.',
+      eingang_in_zukunft: 'Ein Widerspruch kann nicht in der Zukunft eingegangen sein.',
+      kanal_unbekannt: 'Diesen Eingangsweg gibt es nicht — wählen Sie einen aus der Liste.',
+      widerspruch_abgewiesen: 'Die Datenbank hat den Widerspruch abgewiesen; es wurde nichts erfasst.',
+    },
+    erfolg: {
+      gespeichert:
+        'Die Rechtsgrundlage ist gespeichert. Was jetzt hinausgehen darf, steht unten in der '
+        + 'Antwort des Tores.',
+      werbewiderspruch:
+        'Der Werbewiderspruch ist erfasst. Werbung ist ab jetzt gesperrt; Rechnungen und '
+        + 'Terminbestätigungen gehen weiter.',
+      vollwiderspruch:
+        'Der Widerspruch nach Art. 21 DSGVO ist erfasst. Die Rechtsgrundlage steht damit '
+        + 'zwingend auf „keine", und er wird nicht zurückgenommen.',
+    },
+  },
+};
