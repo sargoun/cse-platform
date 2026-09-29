@@ -27,6 +27,7 @@ import type {
 import type {
   TurnusAnlageGrund, TurnusAusnahmeGrund,
 } from '../../../server/services/reinigung/turnus.js';
+import type { GeneratorUebersprungen } from '../../../server/services/dienstplan/generator.js';
 
 export interface RevierTexte {
   /* ── Überschriften und Wege ────────────────────────────────────────── */
@@ -421,6 +422,13 @@ export interface TurnusAnlageTexte {
   readonly titel: string;
   readonly sonst: string;
   readonly fehler: Readonly<Record<TurnusAnlageGrund, string>>;
+  /**
+   * Unter „Die Regel wurde abgewiesen" in der Vorschau, wenn die Vorschau
+   * selbst an einer Angabe scheitert (Beginn, Dauer, Gültigkeit) — dort gibt
+   * es keinen Grund, und der Satz des Dienstes wiederholte die Angabe aus der
+   * Adresse (V-275).
+   */
+  readonly vorschauSonst: string;
 }
 
 export const TURNUS_ANLAGE_TEXTE: Readonly<Record<'de', TurnusAnlageTexte>> = {
@@ -457,6 +465,45 @@ export const TURNUS_ANLAGE_TEXTE: Readonly<Record<'de', TurnusAnlageTexte>> = {
       serie_nicht_angelegt:
         'Die Planungsserie wurde nicht angelegt — der Turnus gehört nicht zu dieser '
         + 'Gesellschaft, oder Ihr Konto darf hier nicht schreiben.',
+    },
+    vorschauSonst:
+      'Beginn, Dauer oder Gültigkeit passen nicht — bitte die Angaben oben prüfen und die '
+      + 'Vorschau neu erstellen.',
+  },
+};
+
+/**
+ * Was der Generator beim Anlegen eines Turnus übersprungen hat — der Satz zum
+ * SCHLÜSSEL, den `POST /api/reinigung/turnus` als `?uebersprungen=` an die
+ * Serienliste reicht (V-275, D-773).
+ *
+ * Bis dahin stand das Wort selbst auf der Liste („Übersprungen:
+ * objekt_ohne_kunde"), und jeder Text aus einem präparierten Link ebenso. Die
+ * Liste schlägt nur als eigenen Eintrag nach (D-728); ein Wort, das die
+ * Tabelle nicht kennt, bekommt `sonst`. Mitgeschickt wird nur der ERSTE Grund
+ * — deshalb sagt jeder Satz „mindestens ein Termin". **Nur deutsch**, wie die
+ * Serienliste (Ausnahmeliste der Übersetzungswache).
+ */
+export interface TurnusListeTexte {
+  readonly sonst: string;
+  readonly gruende: Readonly<Record<GeneratorUebersprungen, string>>;
+}
+
+export const TURNUS_LISTE_TEXTE: Readonly<Record<'de', TurnusListeTexte>> = {
+  de: {
+    sonst: 'Der Generator hat mindestens einen Termin übersprungen.',
+    gruende: {
+      feiertag:
+        'Mindestens ein Termin fällt auf einen Feiertag und nach der Feiertagsregel aus.',
+      ausnahme_ausfall: 'Mindestens ein Termin fällt wegen einer eingetragenen Ausnahme aus.',
+      ausserhalb_gueltigkeit:
+        'Mindestens ein Termin liegt ausserhalb der Gültigkeit des Turnus.',
+      vergangen_oder_gearbeitet:
+        'Mindestens eine Schicht liegt schon in der Vergangenheit oder ist gearbeitet — sie '
+        + 'wird nicht neu geschrieben.',
+      objekt_ohne_kunde:
+        'Am Objekt dieses Reviers hängt kein Kunde — ohne Kunden schreibt der Generator keine '
+        + 'Schicht. Bitte zuerst den Kunden am Objekt hinterlegen.',
     },
   },
 };

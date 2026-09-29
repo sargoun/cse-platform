@@ -18,6 +18,7 @@ import {
   listeTurnusse, type TurnusListe, type TurnusZeile,
 } from '@/server/services/reinigung/turnus';
 import { Recht } from '@/components/ui/Recht';
+import { anlageRueckmeldung } from './rueckmeldung';
 
 /**
  * `/portal/[mandant]/reinigung/turnus` — die Reinigungsturnusse (CLN-02,
@@ -62,15 +63,13 @@ export default async function TurnusListe(
    * einschliesslich „0 Schichten erzeugt, weil Objekt ohne Kunde", also der
    * einen Meldung, nach der jemand sonst eine Stunde sucht.
    */
-  const suche = await searchParams;
-  const einzeln = (k: string): string | null => (
-    typeof suche[k] === 'string' && suche[k] !== '' ? suche[k] : null);
-  const angelegt = einzeln('angelegt');
-  const erzeugtRoh = einzeln('erzeugt');
-  const erzeugt = erzeugtRoh !== null && /^\d+$/u.test(erzeugtRoh)
-    ? Number(erzeugtRoh) : null;
-  const bestandSchon = einzeln('bestand') === '1';
-  const uebersprungen = einzeln('uebersprungen');
+  /*
+   * Alles aus der Adresse ist geprüft, bevor es hier ankommt
+   * (`anlageRueckmeldung`, V-275): die Zahl nur als Ziffernfolge, der
+   * übersprungene Grund nur als eigener Eintrag nachgeschlagen — hier stand
+   * vorher das Wort selbst, und jeder Text aus einem präparierten Link.
+   */
+  const anlage = anlageRueckmeldung(await searchParams);
 
   const tor = await mandantTor(`/portal/${mandant}/reinigung/turnus`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
@@ -147,26 +146,26 @@ export default async function TurnusListe(
         keine gemessene Zeit.
       </p>
 
-      {angelegt !== null && (
-        <Hinweis art="erfolg" cse="turnus-angelegt" className="mb-s5 max-w-prose">
+      {anlage !== null && (
+        <Hinweis art="erfolg" rolle="status" cse="turnus-angelegt" className="mb-s5 max-w-prose">
           <strong>
-            {bestandSchon
+            {anlage.bestandSchon
               ? 'Turnus angelegt, die Planungsserie bestand schon.'
               : 'Turnus und Planungsserie angelegt.'}
           </strong>{' '}
-          {erzeugt === null
+          {anlage.erzeugt === null
             ? 'Wie viele Schichten der Generator daraus geschrieben hat, meldet '
               + 'die Weiterleitung nicht.'
-            : erzeugt === 0
+            : anlage.erzeugt === 0
               ? 'Der Generator hat dabei KEINE Schicht geschrieben.'
-              : `Der Generator hat dabei ${String(erzeugt)} Schicht(en) geschrieben.`}
-          {uebersprungen !== null && (
+              : `Der Generator hat dabei ${String(anlage.erzeugt)} Schicht(en) geschrieben.`}
+          {anlage.uebersprungen !== null && (
             <>
               {' '}
-              <strong className="text-text">Übersprungen:</strong> {uebersprungen}
+              <strong className="text-text">Übersprungen:</strong> {anlage.uebersprungen}
             </>
           )}
-          {erzeugt === 0 && uebersprungen === null && (
+          {anlage.erzeugt === 0 && anlage.uebersprungen === null && (
             <>
               {' '}
               Das ist nicht zwingend ein Fehler: liegt der Beginn ausserhalb des

@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { berlinHeute } from '@/server/db/heute';
-import { tagePlus } from '@/lib/datum/kalendertag';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
@@ -34,6 +33,7 @@ import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { FEIERTAG_TEXTE } from '@/lib/i18n/verwaltung/feiertage';
 import { TURNUS_ANLAGE_TEXTE } from '@/lib/i18n/verwaltung/reinigung';
+import { vorschauFehlerSatz, vorschauFenster } from '../rueckmeldung';
 
 /**
  * `/portal/[mandant]/reinigung/turnus/neu` — eine Regel bauen und VORHER
@@ -166,12 +166,16 @@ export default async function TurnusNeu(
       });
     } catch (fehler) {
       if (!(fehler instanceof SerieEingabeFehlt)) throw fehler;
-      regelFehlerText = fehler.message;
+      /*
+       * Der SATZ zum Grund, nie die Meldung (V-275): die wiederholte den
+       * Wochentag aus der Adresse — „„<Text>" ist kein Wochentag".
+       */
+      regelFehlerText = vorschauFehlerSatz(fehler);
     }
   }
 
-  const fenster = { vonDatum: gueltigAb > heute ? gueltigAb : heute, bisDatum: '' };
-  fenster.bisDatum = tagePlus(fenster.vonDatum, VORSCHAU_TAGE);
+  /* Nie aus einem `?gueltig_ab=`, das kein Kalendertag ist — daran warf die Seite (V-275). */
+  const fenster = vorschauFenster(gueltigAb, heute, VORSCHAU_TAGE);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -252,7 +256,12 @@ export default async function TurnusNeu(
         [], daten.feiertagsKarte, fenster,
       );
     } catch (fehler) {
-      vorschauFehler = fehler instanceof Error ? fehler.message : String(fehler);
+      /*
+       * Die Meldung der Vorschau nannte Feldnamen des Quelltexts und
+       * wiederholte die Angabe aus der Adresse („… ist kein Kalendertag:
+       * <Text>"). Jetzt ein Satz der Seite (V-275).
+       */
+      vorschauFehler = vorschauFehlerSatz(fehler);
     }
   }
 

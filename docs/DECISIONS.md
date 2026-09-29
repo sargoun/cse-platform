@@ -23381,10 +23381,8 @@ roh (die neunte, `/turnus/neu`, seit V-250 einen allgemeinen Satz):
 **Nicht Teil dieser Entscheidung:** `fehlerAufsFormular` bleibt stehen, und
 die Wache `adressparameter` wird nicht verschärft — beides macht der Schritt,
 der alle fünf Teile zusammenführt (D-769). Die Serienliste
-(`/reinigung/turnus`) zeigt `?uebersprungen=` weiter als Wort, und die
-Vorschau auf `/turnus/neu` zeigt den Satz aus `turnusRegel` samt dem
-Wochentag aus der Adresse — beides ist kein Rückweg und steht als Befund in
-V-275.
+(`/reinigung/turnus`) und die Vorschau auf `/turnus/neu`, zuerst als Befund
+offen gelassen, regelt der Nachtrag unten (Nr. 1).
 
 **Geprüft:** je Route ein Kern-Test der echten Route (ersetzt sind Sitzung,
 Datenbank, Tor und Dienst): jeder Grund jeder Fehlerklasse → 303 mit
@@ -23400,5 +23398,27 @@ Handgriffe in `tests/kern/hilfen/rueckweg-betrieb.ts`). Die Stempeluhr:
 `tests/kern/stempeluhr-rueckweg.test.ts` rendert den echten Baustein — vor
 der Änderung rot, danach grün, in allen vier Sprachen.
 
-| Betrifft | D-769, D-753, D-728, D-741, D-766, D-599, AUT-06, V-192, V-275, `src/app/api/{security/veranstaltungen,security/bewacherregister,reinigung/reviere,reinigung/sonderleistungen,reinigung/turnus,bau/projekte,zeit/nacherfassung,zeit/laufend}/route.ts`, `src/app/portal/[mandant]/{security/veranstaltungen/neu,security/bewacherregister,reinigung/reviere/neu,reinigung/sonderleistungen,reinigung/turnus/[id],reinigung/turnus/neu,bau/projekte/neu,zeiten/nacherfassung,zeiten/live}/page.tsx`, `src/app/portal/mein/bausteine.tsx`, `src/server/services/{security/veranstaltung-anlegen,security/bewacherregister,reinigung/revier,reinigung/sonderleistung,reinigung/turnus,dienstplan/serie,bau/projekt,zeit/nacherfassung,zeit/laufender-eintrag}.ts`, `src/lib/i18n/verwaltung/{security,reinigung,bau,zeit}.ts`, `tests/kern/rueckweg-*.test.ts`, `tests/kern/stempeluhr-rueckweg.test.ts`, `tests/kern/hilfen/rueckweg-betrieb.ts`, `tests/kern/leistungsanker-rueckweg.test.ts` |
+**Nachtrag (Nachrunde zu V-275).** Drei Befunde der ersten Runde gehören zu
+D-769 und damit zu diesem Teil:
+
+1. **Serienliste und Vorschau zeigen nichts mehr aus der Adresse.** Vorher
+   stand `?angelegt=1&uebersprungen=<Text>` als „Übersprungen: <Text>" im
+   grünen Kasten; `?vorschau=1&wochentag=<Text>` ergab „„<Text>" ist kein
+   Wochentag (MO … SU).", `?gueltig_ab=<Text>` einen Satz mit Feldnamen des
+   Quelltexts und dem Text, und ein `?gueltig_ab=` aus Buchstaben warf in
+   `tagePlus` — `/turnus/neu` war eine Fehlerseite. Jetzt führt der
+   Generator seine Gründe als Liste (`GENERATOR_UEBERSPRUNGEN`, der Bericht
+   ist darüber getypt); die Liste schlägt `?uebersprungen=` in
+   `TURNUS_LISTE_TEXTE` nach, ein unbekanntes Wort ergibt „Der Generator hat
+   mindestens einen Termin übersprungen.", und `erzeugt` gilt nur als
+   Ziffernfolge (sonst meldet die Liste, dass die Zahl fehlt). Die Vorschau
+   zeigt zu `SerieEingabeFehlt` den Satz seines Grundes aus
+   `TURNUS_ANLAGE_TEXTE`, zu jedem anderen Fehler `vorschauSonst`; ihr
+   Fenster wird nur aus einem gültigen Kalendertag gerechnet, sonst ab
+   heute (die Vorschau weist die Angabe dann selbst ab). Beides steht in
+   `reinigung/turnus/rueckmeldung.ts` neben den Seiten; geprüft mit
+   präparierten Adressen durch die echten `turnusRegel` und `turnusVorschau`
+   (`tests/kern/rueckweg-turnus-adresse.test.ts`).
+
+| Betrifft | D-769, D-753, D-728, D-741, D-766, D-599, AUT-06, V-192, V-275, `src/app/api/{security/veranstaltungen,security/bewacherregister,reinigung/reviere,reinigung/sonderleistungen,reinigung/turnus,bau/projekte,zeit/nacherfassung,zeit/laufend}/route.ts`, `src/app/portal/[mandant]/{security/veranstaltungen/neu,security/bewacherregister,reinigung/reviere/neu,reinigung/sonderleistungen,reinigung/turnus,reinigung/turnus/[id],reinigung/turnus/neu,bau/projekte/neu,zeiten/nacherfassung,zeiten/live}/page.tsx`, `src/app/portal/[mandant]/reinigung/turnus/rueckmeldung.ts`, `src/app/portal/mein/bausteine.tsx`, `src/server/services/{security/veranstaltung-anlegen,security/bewacherregister,reinigung/revier,reinigung/sonderleistung,reinigung/turnus,dienstplan/serie,dienstplan/generator,bau/projekt,zeit/nacherfassung,zeit/laufender-eintrag}.ts`, `src/lib/i18n/verwaltung/{security,reinigung,bau,zeit}.ts`, `tests/kern/rueckweg-*.test.ts`, `tests/kern/stempeluhr-rueckweg.test.ts`, `tests/kern/hilfen/rueckweg-betrieb.ts`, `tests/kern/leistungsanker-rueckweg.test.ts` |
 |---|---|

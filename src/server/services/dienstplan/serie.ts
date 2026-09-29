@@ -1,7 +1,9 @@
 import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { WOCHENTAGE, leseRegel, type Wochentag } from '../../../lib/datum/rrule.js';
-import { generiereSofort, type SerienBericht } from './generator.js';
+import {
+  generiereSofort, type GeneratorUebersprungen, type SerienBericht,
+} from './generator.js';
 import { MAX_DAUER_MINUTEN } from './vorkommnisse.js';
 import { pruefeLeistungsanker } from './leistungsanker.js';
 
@@ -117,7 +119,9 @@ export interface SerienErgebnis {
   readonly bestandSchon: boolean;
   readonly erzeugt: number;
   readonly aktualisiert: number;
-  readonly uebersprungen: readonly { readonly quellSchluessel: string; readonly grund: string }[];
+  readonly uebersprungen: readonly {
+    readonly quellSchluessel: string; readonly grund: GeneratorUebersprungen;
+  }[];
   readonly generiertBis: string | null;
 }
 
