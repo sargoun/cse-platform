@@ -91,8 +91,8 @@ export default async function Personenliste(
       {zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           In dieser Gesellschaft ist niemand beschäftigt. Sichtbar ist ein
-          Mensch hier, weil er hier arbeitet — `person` selbst trägt keinen
-          Mandanten (D-09).
+          Mensch hier, weil er hier arbeitet — er selbst gehört keiner einzelnen
+          Gesellschaft (D-09).
         </p>
       ) : (
         <DataTable

@@ -176,7 +176,7 @@ export default async function Import(
 
       <Hinweis art="hinweis" cse="import-weg" className="max-w-[72ch]">
         <strong>Sobald das Format bekannt ist, ändert sich genau eine Stelle.</strong>{' '}
-        <code>migrationPort()</code> gibt dann den echten Parser zurück statt des
+        Das Programm liest die Datei dann mit einem echten Einleser statt mit dem
         ablehnenden; Tabellen, Rechte und dieser Bildschirm bleiben, wie sie sind, und
         der Weg ist der bekannte: Datei mit Prüfsumme anlegen → Vorschau mit
         Fehlerbericht → Übernahme mit benanntem Menschen. Dieselbe Datei zweimal

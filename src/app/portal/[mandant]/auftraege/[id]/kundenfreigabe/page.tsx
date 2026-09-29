@@ -133,7 +133,9 @@ export default async function Kundenfreigabe(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="freigabe-fehler" className="mb-s5">
           <strong>Nichts wurde erfasst.</strong>{' '}
-          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+          {fehler === 'kein_recht'
+            ? <>Ihnen fehlt <Recht schluessel="referenz.kundenfreigabe_erfassen" />.</>
+            : eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 
@@ -189,7 +191,7 @@ export default async function Kundenfreigabe(
                 <span className="text-text-subtle">
                   {stand.darf_dokument_lesen
                     ? '—'
-                    : 'hinterlegt, aber Ihnen nicht sichtbar (dokument.lesen fehlt)'}
+                    : <>hinterlegt, aber Ihnen nicht sichtbar (es fehlt <Recht schluessel="dokument.lesen" />)</>}
                 </span>
               ) : darf['dokument.lesen'] === true && stand.freigabe_dokument_id !== null ? (
                 <Link
@@ -262,9 +264,9 @@ export default async function Kundenfreigabe(
               ))}
             </select>
             <p className="mt-s1 text-xs text-text-muted">
-              <strong>Pflicht.</strong> Der CHECK{' '}
-              <code>auftrag_referenzfreigabe_vollstaendig</code> verlangt es —
-              eine Freigabe ohne Beleg ist eine Behauptung. Es muss ein Dokument{' '}
+              <strong>Pflicht.</strong> Die Datenbank nimmt eine Freigabe nur mit
+              Datum, Ansprechpartner und Dokument an — eine Freigabe ohne Beleg ist
+              eine Behauptung. Es muss ein Dokument{' '}
               <em>dieses</em> Kunden sein; das prüft der Dienst, denn die
               Datenbank hat auf dieses Feld keinen Fremdschlüssel.
             </p>
@@ -328,10 +330,9 @@ export default async function Kundenfreigabe(
             {stand.darf_dokument_lesen && dokumente.length === 0 && (
               <li>
                 Zu {stand.kunde} ist kein Dokument abgelegt. Das Schreiben ist{' '}
-                <strong>Pflicht</strong> (
-                <code className="text-text">auftrag_referenzfreigabe_vollstaendig</code>
-                ) — erst die Zusage als Datei ablegen und dem Kunden zuordnen,
-                dann hier auswählen.
+                <strong>Pflicht</strong> — ohne Dokument nimmt die Datenbank die
+                Freigabe nicht an. Erst die Zusage als Datei ablegen und dem Kunden
+                zuordnen, dann hier auswählen.
               </li>
             )}
           </ul>
@@ -422,8 +423,8 @@ export default async function Kundenfreigabe(
             Es {Number(stand.referenz_gleichnamig) === 1 ? 'gibt' : 'gibt'}{' '}
             <strong>{stand.referenz_gleichnamig}</strong> Referenz(en) mit dem
             Kundennamen „{stand.kunde}". Das ist ein <em>Hinweis</em>, keine
-            Zuordnung: <code>referenz</code> führt den Kundennamen als freien
-            Text — zugeordnet ist nur, was aus diesem Auftrag angelegt wurde.
+            Zuordnung: eine Referenz führt den Kundennamen als freien Text —
+            zugeordnet ist nur, was aus diesem Auftrag angelegt wurde.
             {darf['referenz.schreiben'] === true ? (
               <>
                 {' '}

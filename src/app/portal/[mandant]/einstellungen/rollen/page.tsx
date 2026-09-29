@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Recht } from '@/components/ui/Recht';
 import { DataTable } from '@/components/ui/DataTable';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
@@ -116,8 +117,9 @@ export default async function Rollen(
         />
       </div>
       <p className="mt-s5 max-w-[72ch] text-sm text-text-subtle">
-        Der Editor der Matrix (`system.rolle_verwalten`) vergibt nie mehr, als die
-        vergebende Person selbst hält (SEC-A3) — er kommt mit der Rollenverwaltung.
+        Der Editor der Matrix (Recht <Recht schluessel="system.rolle_verwalten" />)
+        vergibt nie mehr, als die vergebende Person selbst hält (SEC-A3) — er kommt
+        mit der Rollenverwaltung.
       </p>
     </PortalRahmen>
   );

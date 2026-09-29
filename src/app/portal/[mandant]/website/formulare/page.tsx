@@ -184,9 +184,8 @@ export default async function WebsiteFormulare(
 
       {zeilen.length === 0 ? (
         <Hinweis art="hinweis" cse="keine-formulare">
-          Für diese Gesellschaft ist kein Anfrageformular angelegt.{' '}
-          <code className="font-mono">pnpm db:seed</code> legt den Erstbestand an; danach
-          wird hier gepflegt. Ohne lebende Version antwortet{' '}
+          Für diese Gesellschaft ist kein Anfrageformular angelegt. Den Erstbestand
+          legt die technische Betreuung beim Einrichten an; danach wird hier gepflegt. Ohne lebende Version antwortet{' '}
           <code className="font-mono">/angebot/{mandant}</code> mit 404.
         </Hinweis>
       ) : (

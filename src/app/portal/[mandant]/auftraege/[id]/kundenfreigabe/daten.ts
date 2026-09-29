@@ -18,7 +18,8 @@ export const PLATZHALTER_WORTLAUT =
 
 export const FEHLERTEXT: Readonly<Record<string, string>> = {
   unvollstaendig:
-    'Ansprechpartner, Schreiben und Wortlaut sind Pflicht — der CHECK verlangt alle drei.',
+    'Ansprechpartner, Schreiben und Wortlaut sind Pflicht — ohne alle drei nimmt die '
+    + 'Datenbank die Freigabe nicht an.',
   fremder_ansprechpartner:
     'Dieser Ansprechpartner gehört nicht zum Kunden dieses Auftrags.',
   fremdes_dokument:
@@ -27,5 +28,5 @@ export const FEHLERTEXT: Readonly<Record<string, string>> = {
   nicht_freigegeben: 'Es liegt keine Freigabe vor, die zu widerrufen wäre.',
   schon_widerrufen: 'Diese Freigabe ist schon widerrufen.',
   nicht_gefunden: 'Diesen Auftrag gibt es nicht.',
-  kein_recht: 'Ihnen fehlt referenz.kundenfreigabe_erfassen.',
+  // `kein_recht` setzt die Seite selbst: das Recht steht als Satz (`<Recht>`, V-250).
 };

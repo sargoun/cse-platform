@@ -177,9 +177,8 @@ export default async function WebsiteNews(
       {!liest && (
         <Hinweis art="warnung" cse="ohne-social-lesen" className="mb-s5 max-w-prose">
           <strong className="block">Diese Liste ist dieser Sitzung nicht lesbar.</strong>
-          Die Tabelle <code className="font-mono">beitrag</code> hängt am Recht{' '}
-          <Recht schluessel="social.lesen" /> (Policy{' '}
-          <code className="font-mono">t_beitrag_lesen</code>), diese Route dagegen an{' '}
+          Beiträge gibt die Datenbank nur mit{' '}
+          <Recht schluessel="social.lesen" /> heraus, diese Seite öffnet dagegen mit{' '}
           <Recht schluessel="referenz.schreiben" />. Hier steht deshalb
           nichts — und das heisst nicht, dass es keine Neuigkeiten gibt.
         </Hinweis>
@@ -217,7 +216,7 @@ export default async function WebsiteNews(
         Ob eine Projektschau dazugehört, ist redaktionell offen (O-548); sie hat mit{' '}
         <code className="font-mono">/unternehmen/{mandant}/projekte</code> ohnehin ihre
         eigene Liste. <strong>Die englische Newsseite zeigt dieselben Zeilen</strong> —{' '}
-        <code className="font-mono">beitrag</code> führt keine Sprachspalte (O-681).
+        ein Beitrag hat keine Sprachfassungen (O-681).
       </p>
     </PortalRahmen>
   );

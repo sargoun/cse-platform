@@ -275,7 +275,7 @@ export default async function MiLoGAufzeichnung({
             Die Spalte „Anteil im Monat" zeigt den Ausschnitt, „Dauer" den
             ganzen Eintrag. Aufbewahrt wird die Aufzeichnung zwei Jahre
             (§ 17 Abs. 2 MiLoG); gelöscht werden kann sie nicht — die Datenbank
-            weist ein `DELETE` ab.
+            weist jeden Löschversuch ab.
           </p>
         </section>
       )}

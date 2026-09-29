@@ -135,8 +135,7 @@ export interface RechnungAusgabeTexte {
   readonly zugferdZweck: string;
   readonly nichtVerbundenStrong: string;
   readonly nichtVerbundenText: string;
-  readonly verbundenVor: string;
-  readonly verbundenNach: string;
+  readonly verbundenHinweis: string;
   readonly wegeTitel: string;
   readonly tabelleWege: string;
   readonly kanal: string;
@@ -161,7 +160,6 @@ export interface RechnungAusgabeTexte {
   readonly verabredetesFormat: string;
   readonly nichtVerabredet: string;
   readonly bewertetVonVor: string;
-  readonly bewertetVonMitte: string;
   readonly blockiert: string;
   readonly bewertetVonNach: string;
   readonly erzeugnisseTitel: string;
@@ -186,8 +184,7 @@ export interface RechnungAusgabeTexte {
   readonly zugangNichtFestgestellt: string;
   readonly welcheFassung: string;
   readonly versandFreigebenFehltNach: string;
-  readonly versandstandFussVor: string;
-  readonly versandstandFussNach: string;
+  readonly versandstandFuss: string;
 
   /** Die vier Lagen des Empfaengers — `VersandArt` aus `crm/erechnung.ts`. */
   readonly lageNamen: Readonly<Record<
@@ -206,8 +203,7 @@ export interface RechnungAusgabeTexte {
 
   /* ── `/zugferd` ────────────────────────────────────────────────────── */
   readonly zugferdH1: string;
-  readonly veraPdfVor: string;
-  readonly veraPdfNach: string;
+  readonly veraPdf: string;
   readonly profil: string;
   readonly eingebetteteDatei: string;
   readonly summenprobe: string;
@@ -367,11 +363,10 @@ const DE: RechnungAusgabeTexte = {
     + 'Sendeknopf — und keinen vorgetäuschten Erfolg: ein Protokolleintrag '
     + '„gesendet" ohne Versand ist die Auskunft, dass eine Rechnung draussen '
     + 'sei, die es nicht ist.',
-  verbundenVor:
+  verbundenHinweis:
     'Mindestens ein Kanal ist verbunden. Gesendet wird trotzdem nur nach '
     + 'menschlicher Zustimmung: es entsteht eine Freigabe, und erst sie '
-    + 'erlaubt den Versand (Invariante 7, ',
-  verbundenNach: '). Automatisch verlässt nichts das Haus.',
+    + 'erlaubt den Versand (Invariante 7). Automatisch verlässt nichts das Haus.',
   wegeTitel: 'Die Wege und ihr Zustand',
   tabelleWege: 'Übertragungswege und ob sie verbunden sind',
   kanal: 'Kanal',
@@ -389,9 +384,8 @@ const DE: RechnungAusgabeTexte = {
   verabredeterWeg: 'Verabredeter Weg',
   verabredetesFormat: 'Verabredetes Format',
   nichtVerabredet: 'nicht verabredet',
-  bewertetVonVor: 'Bewertet von ',
-  bewertetVonMitte:
-    ' — derselben Stelle, die den Kundenstamm bewertet. Ein Käufer mit '
+  bewertetVonVor:
+    'Bewertet von derselben Regel, die den Kundenstamm bewertet. Ein Käufer mit '
     + 'XRechnungspflicht ohne hinterlegten Weg ',
   blockiert: 'blockiert',
   bewertetVonNach:
@@ -437,12 +431,10 @@ const DE: RechnungAusgabeTexte = {
   versandFreigebenFehltNach:
     '. Es sieht das Protokoll, gibt aber keinen Versand frei — und ein Knopf, '
     + 'der in ein 403 führt, verrät nur, was er nicht zeigt.',
-  versandstandFussVor:
+  versandstandFuss:
     'Der Versandstand ist ein Kind der Rechnung und keine Spalte darauf '
     + '(K-12): an einem festgeschriebenen Beleg ändert sich nichts, am Versand '
-    + 'dauernd. ',
-  versandstandFussNach:
-    ' belegt, welche Fassung hinausging — weil das Dokument aus dem Snapshot '
+    + 'dauernd. Die Prüfsumme des versandten Dokuments belegt, welche Fassung hinausging — weil das Dokument aus dem Snapshot '
     + 'mit dem Festschreibungszeitpunkt gerendert wird, ergibt derselbe Beleg '
     + 'bei jedem Abruf byte-gleich dieselbe Datei (Invariante 5, K-11), und '
     + 'der Hash ist damit nachprüfbar.',
@@ -473,9 +465,9 @@ const DE: RechnungAusgabeTexte = {
     + 'damit im Streitfall nachprüfbar ist, was tatsächlich versendet wurde.',
 
   zugferdH1: 'ZUGFeRD 2.x (PDF/A-3 mit CII)',
-  veraPdfVor: 'Geprüft wird das PDF/A-3 mit veraPDF im Bau (',
-  veraPdfNach:
-    '), nicht beim Aufruf. Die Aussage gilt dem Erzeuger, nicht diesem Beleg.',
+  veraPdf:
+    'Geprüft wird das PDF/A-3 mit veraPDF beim Bau des Programms, nicht beim Aufruf. '
+    + 'Die Aussage gilt dem Erzeuger, nicht diesem Beleg.',
   profil: 'Profil',
   eingebetteteDatei: 'Eingebettete Datei',
   summenprobe: 'Summenprobe',
@@ -648,11 +640,10 @@ const EN: RechnungAusgabeTexte = {
     + 'set up (O-22). There is therefore no send button — and no pretended '
     + 'success: a log entry reading "sent" without a dispatch is the statement '
     + 'that an invoice is out of the house when it is not.',
-  verbundenVor:
+  verbundenHinweis:
     'At least one channel is connected. Even so, nothing is sent without human '
     + 'approval: an approval is raised, and only that permits dispatch '
-    + '(invariant 7, ',
-  verbundenNach: '). Nothing leaves the house automatically.',
+    + '(invariant 7). Nothing leaves the house automatically.',
   wegeTitel: 'The channels and their state',
   tabelleWege: 'Transmission channels and whether they are connected',
   kanal: 'Channel',
@@ -670,10 +661,9 @@ const EN: RechnungAusgabeTexte = {
   verabredeterWeg: 'Agreed channel',
   verabredetesFormat: 'Agreed format',
   nichtVerabredet: 'not agreed',
-  bewertetVonVor: 'Assessed by ',
-  bewertetVonMitte:
-    ' — the same place that assesses the customer record. A buyer subject to '
-    + 'XRechnung without a channel on file ',
+  bewertetVonVor:
+    'Assessed by the same rule that assesses the customer record. A buyer '
+    + 'subject to XRechnung without a channel on file ',
   blockiert: 'blocks',
   bewertetVonNach:
     ' dispatch instead of falling back to some channel (07-INTEGRATIONEN '
@@ -718,12 +708,11 @@ const EN: RechnungAusgabeTexte = {
   versandFreigebenFehltNach:
     '. It sees the log but approves no dispatch — and a button that leads to a '
     + '403 only gives away what it does not show.',
-  versandstandFussVor:
+  versandstandFuss:
     'The dispatch state is a child of the invoice and not a column on it '
     + '(K-12): nothing changes on a finalised (festgeschrieben) document, '
-    + 'while dispatch changes constantly. ',
-  versandstandFussNach:
-    ' records which version went out — because the document is rendered from '
+    + 'while dispatch changes constantly. The checksum of the dispatched '
+    + 'document records which version went out — because the document is rendered from '
     + 'the snapshot with the Festschreibung timestamp, the same document '
     + 'yields the byte-identical file on every retrieval (invariant 5, K-11), '
     + 'and the hash is therefore verifiable.',
@@ -754,10 +743,9 @@ const EN: RechnungAusgabeTexte = {
     + 'actually sent can be verified in a dispute.',
 
   zugferdH1: 'ZUGFeRD 2.x (PDF/A-3 with CII)',
-  veraPdfVor: 'The PDF/A-3 is checked with veraPDF in the build (',
-  veraPdfNach:
-    '), not on request. The statement applies to the generator, not to this '
-    + 'document.',
+  veraPdf:
+    'The PDF/A-3 is checked with veraPDF when the program is built, not on request. '
+    + 'The statement applies to the generator, not to this document.',
   profil: 'Profile',
   eingebetteteDatei: 'Embedded file',
   summenprobe: 'Totals check',

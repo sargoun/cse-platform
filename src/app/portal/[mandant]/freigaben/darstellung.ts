@@ -77,9 +77,13 @@ export const FEHLER_TEXT: Readonly<Record<string, string>> = {
    * `erforderliches_recht` der Zeile (Vorgabe `freigabe.entscheiden`), und wer
    * nur das Einspruchsrecht haelt, kommt daran nicht vorbei.
    */
+  /*
+   * Einspruchs- und Rücknahmeseite setzen diesen Satz selbst, mit dem Recht
+   * DIESES Vorgangs als `<Recht>` (V-250); hier steht er ohne Schlüssel.
+   */
   recht: 'Dafür fehlt ein Recht an dieser Freigabe. Einspruch und Rücknahme verlangen '
-    + 'zusätzlich das Recht, das der Vorgang selbst fordert (Vorgabe: '
-    + 'freigabe.entscheiden) — die eigene Befugnis allein genügt nicht.',
+    + 'zusätzlich das Recht, das der Vorgang selbst fordert — die eigene Befugnis '
+    + 'allein genügt nicht.',
 };
 
 /**

@@ -68,7 +68,7 @@ export default async function Stellen(
             {stellen.length === 0 ? (
               <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
                 Keine Stelle erfasst. Eine veröffentlichte Stelle erscheint
-                sofort auf <code className="break-all">/karriere</code> —
+                sofort auf der Karriereseite der Website —
                 das ist der einzige Kanal, der ohne fremden Vertrag geht
                 (REC-09, O-374).
               </p>

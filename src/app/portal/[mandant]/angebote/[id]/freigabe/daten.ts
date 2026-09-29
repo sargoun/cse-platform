@@ -69,5 +69,5 @@ export const FEHLERTEXT: Readonly<Record<string, string>> = {
   ohne_positionen:
     'Das Angebot trägt keine Leistungsposition — es gibt keinen Preis freizugeben.',
   nicht_gefunden: 'Dieses Angebot gibt es nicht.',
-  kein_recht: 'Ihnen fehlt angebot.preis_freigeben.',
+  // `kein_recht` setzt die Seite selbst: das Recht steht als Satz (`<Recht>`, V-250).
 };

@@ -108,8 +108,9 @@ export const MEIN_FORMULAR_TEXTE: Readonly<Record<PortalSprache, MeinFormularTex
       fehlt_zeitraum: 'Diese Antragsart braucht einen Zeitraum — bitte „Von" und „Bis" eintragen.',
       fehlt_abwesenheitsart: 'Diese Antragsart braucht eine Abwesenheitsart.',
       fehlt_einsatz:
-        'Ein Schichttausch braucht die Schicht und die Person, mit der getauscht wird. Beides '
-        + 'lässt sich hier noch nicht wählen — bitte wenden Sie sich an Ihre Einsatzleitung.',
+        'Ein Schichttausch braucht die Schicht, die Sie tauschen möchten — bitte wählen Sie sie '
+        + 'im Formular. Die Person, mit der getauscht wird, lässt sich hier noch nicht wählen; '
+        + 'dafür wenden Sie sich bitte an Ihre Einsatzleitung.',
       fehlt_tauschpartner:
         'Ein Schichttausch braucht die Person, mit der getauscht wird. Sie lässt sich hier noch '
         + 'nicht wählen — bitte wenden Sie sich an Ihre Einsatzleitung.',
@@ -179,8 +180,9 @@ export const MEIN_FORMULAR_TEXTE: Readonly<Record<PortalSprache, MeinFormularTex
       fehlt_zeitraum: 'This type of request needs a period — please enter “From” and “To”.',
       fehlt_abwesenheitsart: 'This type of request needs a type of absence.',
       fehlt_einsatz:
-        'A shift swap needs the shift and the person you swap with. Neither can be chosen '
-        + 'here yet — please contact your site manager.',
+        'A shift swap needs the shift you want to swap — please choose it in the form. The '
+        + 'person you swap with cannot be chosen here yet; for that, please contact your site '
+        + 'manager.',
       fehlt_tauschpartner:
         'A shift swap needs the person you swap with. They cannot be chosen here yet — '
         + 'please contact your site manager.',
@@ -250,8 +252,8 @@ export const MEIN_FORMULAR_TEXTE: Readonly<Record<PortalSprache, MeinFormularTex
       fehlt_zeitraum: 'يحتاج هذا النوع من الطلبات إلى فترة — يرجى إدخال «من» و«إلى».',
       fehlt_abwesenheitsart: 'يحتاج هذا النوع من الطلبات إلى نوع غياب.',
       fehlt_einsatz:
-        'يحتاج تبادل المناوبة إلى المناوبة والشخص الذي تتبادل معه. لا يمكن اختيار أيٍّ منهما هنا '
-        + 'بعد — يرجى التواصل مع مسؤول العمل.',
+        'يحتاج تبادل المناوبة إلى المناوبة التي تريد تبادلها — يرجى اختيارها في النموذج. أما '
+        + 'الشخص الذي تتبادل معه فلا يمكن اختياره هنا بعد؛ لذلك يرجى التواصل مع مسؤول العمل.',
       fehlt_tauschpartner:
         'يحتاج تبادل المناوبة إلى الشخص الذي تتبادل معه. لا يمكن اختياره هنا بعد — يرجى '
         + 'التواصل مع مسؤول العمل.',
@@ -319,8 +321,9 @@ export const MEIN_FORMULAR_TEXTE: Readonly<Record<PortalSprache, MeinFormularTex
       fehlt_zeitraum: 'Bu talep türü bir süre gerektirir — lütfen “Başlangıç” ve “Bitiş” girin.',
       fehlt_abwesenheitsart: 'Bu talep türü bir devamsızlık türü gerektirir.',
       fehlt_einsatz:
-        'Vardiya değişimi, vardiyayı ve değiştireceğiniz kişiyi gerektirir. İkisi de burada '
-        + 'henüz seçilemez — lütfen ekip yöneticinize başvurun.',
+        'Vardiya değişimi, değiştirmek istediğiniz vardiyayı gerektirir — lütfen onu formda '
+        + 'seçin. Değiştireceğiniz kişi burada henüz seçilemez; bunun için lütfen ekip '
+        + 'yöneticinize başvurun.',
       fehlt_tauschpartner:
         'Vardiya değişimi, değiştireceğiniz kişiyi gerektirir. Burada henüz seçilemez — lütfen '
         + 'ekip yöneticinize başvurun.',

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { EINSPRUCH_MINUTEN, FENSTER_OFFENE_FRAGE }
   from '@/server/services/freigabe/fenster.platzhalter';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { formatiereGeld } from '@/server/services/finanz/geld';
 import { ladePosteingang, type PosteingangEintrag } from '@/server/services/freigabe/laden';
@@ -184,8 +185,13 @@ export default async function Freigaben(
           {stapelFehler === 'zu_gross'
             ? 'Mehr als fünfzig auf einmal ist keine Prüfung mehr, sondern ein Häkchen bei „alle".'
             : stapelFehler === 'kein_recht'
-              ? 'Stapelweise zu genehmigen ist eine eigene Befugnis („freigabe.stapel_entscheiden"), '
-                + 'und dieses Konto hält sie nicht. Einzeln entscheiden geht weiter.'
+              ? (
+                <>
+                  Stapelweise zu genehmigen ist eine eigene Befugnis
+                  (<Recht schluessel="freigabe.stapel_entscheiden" />), und dieses Konto hält
+                  sie nicht. Einzeln entscheiden geht weiter.
+                </>
+              )
               : 'Es war nichts ausgewählt.'}
         </Hinweis>
       ) : null}
@@ -288,8 +294,8 @@ export default async function Freigaben(
         {!darfStapel ? (
           <p className="mt-s4 max-w-prose text-sm text-text-muted" data-cse="stapel-kein-recht">
             Stapelweise zu genehmigen ist eine eigene Befugnis
-            („freigabe.stapel_entscheiden"), und dieses Konto hält sie nicht.
-            Einzeln entscheiden geht weiter.
+            (<Recht schluessel="freigabe.stapel_entscheiden" />), und dieses Konto hält sie
+            nicht. Einzeln entscheiden geht weiter.
           </p>
         ) : stapelbar.length === 0 ? (
           <p className="mt-s4 max-w-prose text-sm text-text-muted" data-cse="stapel-keiner">

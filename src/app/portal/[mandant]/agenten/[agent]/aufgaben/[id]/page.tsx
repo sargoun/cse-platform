@@ -242,7 +242,7 @@ export default async function Lauf(
       ) : (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Die Schrittkette zeigt, welche Werkzeuge dieser Lauf benutzt hat und
-          was er einem Modell geschickt hat. Dafür braucht es das Recht
+          was er einem Modell geschickt hat. Dafür braucht es das Recht{' '}
           <Recht schluessel="agent.protokoll_lesen" />; dieses Konto hat
           es nicht.
         </p>

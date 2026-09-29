@@ -15,7 +15,7 @@
  *    schlechter als keiner: er verrät die Existenz dessen, was er nicht
  *    zeigen darf.
  *
- * **Fünf Menschen statt einem, und bis zum Ende statt bis 150.** Bis D-574
+ * **Elf Läufe statt einem, und bis zum Ende statt bis 150.** Bis D-574
  * lief hier genau ein Lauf: `leitung` in `reinigung`, abgebrochen nach 150
  * Seiten. Beides war eine Stichprobe, die sich als Zusicherung las. Die
  * `leitung` sieht die Gruppenansicht nicht, betritt das Mitarbeiterportal
@@ -77,7 +77,8 @@ interface Lauf {
 }
 
 /**
- * Fünf Oberflächen, fünf Rechtelagen.
+ * Alle vier Gesellschaften, die Gruppe, zwei Mitarbeiterwege und der
+ * Kundenzugang — mit `admin` und `leitung` je Gesellschaft.
  *
  * **Die `leitung` ist mit Absicht dabei.** Sie hält viel und nicht alles —
  * genau die Lage, in der ein ungeprüfter Knopf auffällt. Eine
@@ -95,6 +96,23 @@ const LAEUFE: readonly Lauf[] = [
   { name: 'gruppe', konto: KONTO.gruppe, start: '/portal/gruppe', mindestens: 8 },
   { name: 'mitarbeiterin', konto: KONTO.fatima, start: '/portal/mein', mindestens: 4 },
   { name: 'kundin', konto: KONTO.kunde, start: '/portal/kunde', mindestens: 2 },
+  /*
+   * Die drei übrigen Gesellschaften — bis zum Schlussdurchgang lief kein
+   * einziger Lauf durch `bau`, `security` oder `operations`. Bau und Security
+   * haben eigene Seiten (Aufmass, Nachtrag, Bautagebuch; Wachbuch, Posten,
+   * Bewacherregister) und eigene Knöpfe darauf, und jede Gesellschaft hat
+   * ihren eigenen Datenbestand; ein toter Verweis dort blieb unsichtbar,
+   * solange nur `reinigung` abgelaufen wurde.
+   * `operations` hat keine menschliche Mitgliedschaft im Seed, also geht die
+   * Gruppenanmeldung über das Wechselblatt hinein. `amir` ist der
+   * Mitarbeiterweg in `security`.
+   */
+  { name: 'admin · bau', konto: KONTO.adminBau, start: '/portal/bau', mindestens: 100, wechsel: true },
+  { name: 'leitung · bau', konto: KONTO.leitungBau, start: '/portal/bau', mindestens: 100, wechsel: true },
+  { name: 'admin · security', konto: KONTO.adminSecurity, start: '/portal/security', mindestens: 100, wechsel: true },
+  { name: 'leitung · security', konto: KONTO.leitungSecurity, start: '/portal/security', mindestens: 100, wechsel: true },
+  { name: 'gruppe · operations', konto: KONTO.gruppe, start: '/portal/operations', mindestens: 100, wechsel: true },
+  { name: 'mitarbeiter · security', konto: KONTO.amir, start: '/portal/mein', mindestens: 4 },
 ];
 
 /**

@@ -238,8 +238,8 @@ export default async function ProtokollExport(
             </a>
           </div>
           <p className="mt-s4 text-xs text-text-muted">
-            Der SHA-256 des Manifests steht in der Kopfzeile der Antwort
-            (<code>x-cse-manifest-sha256</code>) und im Dateinamen des Bündels. Zwei
+            Der SHA-256 des Manifests steht im Dateinamen des Bündels und in einer
+            eigenen Kopfzeile der Antwort des Servers. Zwei
             Abrufe desselben Zeitraums ergeben dieselben Bytes — das Archiv trägt keine
             Uhr (STORE, Nullzeitstempel).
           </p>
@@ -248,7 +248,7 @@ export default async function ProtokollExport(
 
       <p className="mt-s7 max-w-[72ch] text-sm text-text-subtle">
         Signiert ist das Manifest, nicht eine Kette. Die Hashkette über das Protokoll
-        (<code>kern.audit_kette</code>) wird beim Bilden eines Bündels fortgeschrieben,
+        wird beim Bilden eines Bündels fortgeschrieben,
         und das Manifest nennt, wieviele Zeilen des Zeitraums gekettet sind — das Wort
         „revisionssicher" steht hier nicht, solange es keine Deckung hat. Wie lange
         Protokollzeilen aufbewahrt werden und auf welcher Rechtsgrundlage, ist offen

@@ -55,12 +55,6 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Belege — Finanzen' };
 
-/*
- * Der Spaltenname lautet in beiden Sprachen gleich und steht deshalb hier und
- * nicht in der Texttabelle (siehe den Kopf von `i18n/verwaltung/finanzen/belege.ts`).
- */
-const SPALTE_AUFBEWAHRUNG_BIS = 'aufbewahrung_bis';
-
 export default async function Belegliste(
   { params, searchParams }: {
     params: Promise<{ mandant: string }>;
@@ -292,9 +286,7 @@ export default async function Belegliste(
       )}
 
       <p className="mt-s5 max-w-prose text-xs text-text-muted">
-        {t.listeFussnoteVor}{' '}
-        <code>{SPALTE_AUFBEWAHRUNG_BIS}</code>{' '}
-        {t.listeFussnoteNach}
+        {t.listeFussnote}
       </p>
     </PortalRahmen>
   );

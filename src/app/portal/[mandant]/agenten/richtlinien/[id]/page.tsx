@@ -148,12 +148,10 @@ export default async function Richtlinie(
 
       {r.unbekannteAktion ? (
         <Hinweis art="warnung" cse="richtlinie-unbekannt" className="mb-s5 max-w-prose">
-          <strong>Diese Aktion kennt das Gate nicht.</strong> Die Spalte
-          {' '}<code className="text-xs">aktion</code> ist blanker Text;
-          {' '}<code className="text-xs">{r.aktion}</code> kommt in den acht
-          {' '}<code className="text-xs">AKTIONEN</code> aus
-          {' '}<code className="text-xs">server/agent/policy.ts</code> nicht vor.
-          {' '}<code className="text-xs">gate()</code> schlägt die Zeile deshalb nie nach:
+          <strong>Diese Aktion kennt das Gate nicht.</strong> Die Aktion einer
+          Richtlinie wird als freier Text gespeichert, und{' '}
+          <code className="text-xs">{r.aktion}</code> gehört nicht zu den acht Aktionen,
+          die das Gate im Programm kennt. Es schlägt die Zeile deshalb nie nach:
           sie wirkt wie keine, also „Freigabe nötig" — auch wenn hier „automatisch"
           eingestellt wäre. Speichern lässt sie sich von dieser Seite nicht; wer sie
           korrigieren will, legt die richtige Aktion in der Liste an.
@@ -163,8 +161,8 @@ export default async function Richtlinie(
       {r.imCodeGesperrt ? (
         <Hinweis art="warnung" cse="richtlinie-gesperrt" className="mb-s5 max-w-prose">
           <strong>Diese Aktion geht nie automatisch hinaus.</strong> {r.grund}{' '}
-          Die Sperre steht im Code (<code className="text-xs">server/agent/policy.ts</code>)
-          und nicht in dieser Tabelle — eine hier gespeicherte Erlaubnis wäre wirkungslos
+          Die Sperre steht fest im Programm und nicht in dieser Tabelle — eine hier
+          gespeicherte Erlaubnis wäre wirkungslos
           und sähe auf dem Bildschirm wie eine aus. Das Häkchen bleibt deshalb gesperrt.
         </Hinweis>
       ) : null}

@@ -398,11 +398,10 @@ export default async function Entgeltblatt({
 
       <p className="mt-s5 max-w-prose text-sm text-text-muted">
         <strong className="text-text">Offen (O-614):</strong> welche
-        Anmeldestufe diese Seite verlangt. 05-API-KARTE führt die Entgeltroute
-        als „Sitzung + 2FA", das Routen-Manifest führt sie mit{' '}
-        <span className="font-mono">aal2: false</span>. Ausgeliefert ist der
-        Stand des Manifests; welcher gilt, ist eine Entscheidung über die
-        Zugangssicherheit und nicht über diese Datei.
+        Anmeldestufe diese Seite verlangt. 05-API-KARTE führt die Entgeltseite
+        als „Sitzung + 2FA", das Verzeichnis der Seiten führt sie ohne zweiten
+        Faktor. Ausgeliefert ist der Stand des Verzeichnisses; welcher gilt, ist
+        eine Entscheidung über die Zugangssicherheit und nicht über diese Seite.
         {/* TODO(client, O-614): Verlangt der Zugriff auf Entgeltdaten eine zweite Anmeldestufe (05-API-KARTE: „sitzung+2fa") oder genuegt die Sitzung mit dem Recht (Routen-Manifest: aal2 false)? */}
       </p>
     </PortalRahmen>

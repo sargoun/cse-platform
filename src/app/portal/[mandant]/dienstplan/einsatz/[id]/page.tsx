@@ -6,6 +6,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
@@ -794,7 +795,8 @@ function Pruefblatt({
       </h5>
       {!vorschau.abwesenheitGeprueft ? (
         <p className="m-0 max-w-prose text-sm text-warning">
-          Nicht geprüft: dafür fehlt das Recht `zeit.abwesenheit_lesen`. Das ist
+          Nicht geprüft: dafür fehlt das Recht{' '}
+          <Recht schluessel="zeit.abwesenheit_lesen" />. Das ist
           <strong> nicht</strong> dasselbe wie „nicht abgemeldet".
         </p>
       ) : vorschau.abwesend === null ? (
@@ -855,8 +857,9 @@ function Pruefblatt({
       </h5>
       {vorschau.arbzg === null ? (
         <p className="m-0 max-w-prose text-sm text-warning">
-          Nicht geprüft: dafür fehlt das Recht `dienstplan.arbzg_pruefen`
-          (K-06). Das ist <strong>nicht</strong> dasselbe wie „kein Befund" —
+          Nicht geprüft: dafür fehlt das Recht{' '}
+          <Recht schluessel="dienstplan.arbzg_pruefen" /> (K-06). Das ist{' '}
+          <strong>nicht</strong> dasselbe wie „kein Befund" —
           und deshalb steht hier kein Häkchen.
         </p>
       ) : befunde.length === 0 ? (

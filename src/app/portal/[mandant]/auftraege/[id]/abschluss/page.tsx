@@ -137,7 +137,9 @@ export default async function Abschluss(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="abschluss-fehler" className="mb-s5">
           <strong>Der Auftrag ist nicht abgeschlossen.</strong>{' '}
-          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+          {fehler === 'kein_recht'
+            ? <>Ihnen fehlt <Recht schluessel="auftrag.abschliessen" />.</>
+            : eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 
@@ -278,9 +280,9 @@ export default async function Abschluss(
               {alsStundenText(BigInt(pruefliste.erfassteMinuten) * 60n)} Std.
             </strong>{' '}
             sind an diesem Auftrag erfasst ({pruefliste.erfassteMinuten} Minuten
-            netto). Die FIN-18-Warnung greift damit nicht. Die Zahl kommt aus{' '}
-            <code className="text-text">fin.auftrag_erfasste_minuten</code> — eine
-            Zahl, keine Zeilen: wer abschließt, erfährt <em>dass</em> Zeit erfasst
+            netto). Die FIN-18-Warnung greift damit nicht. Die Datenbank gibt dafür
+            nur die Summe heraus — eine Zahl, keine Zeilen: wer abschließt, erfährt{' '}
+            <em>dass</em> Zeit erfasst
             wurde, nicht von wem (EMP-13).
           </p>
         )}
@@ -374,8 +376,8 @@ export default async function Abschluss(
                   className={FELD}
                 />
                 <p className="mt-s1 text-xs text-text-muted">
-                  Braucht ein Abnahmedatum — von ihm läuft sie
-                  (<code>auftrag_gewaehrleistung_nach_abnahme</code>).
+                  Braucht ein Abnahmedatum — von ihm läuft sie; ohne Abnahme nimmt die
+                  Datenbank kein Gewährleistungsende an.
                 </p>
               </div>
             </div>
@@ -389,9 +391,8 @@ export default async function Abschluss(
                 er freigegeben wird und ob eine Bürgschaft ihn ersetzt, ist{' '}
                 <strong>nicht entschieden (O-20)</strong>. Hier wird deshalb nur
                 festgehalten, was vereinbart wurde — <em>gerechnet wird
-                nichts</em>. Und genau <strong>eines</strong> von beiden:{' '}
-                <code>auftrag_einbehalt_eindeutig</code> lässt keinen Satz und
-                keinen Betrag gleichzeitig zu.
+                nichts</em>. Und genau <strong>eines</strong> von beiden: die
+                Datenbank nimmt nie einen Satz und einen Betrag zugleich an.
               </p>
               <div className="grid grid-cols-1 gap-s4 sm:grid-cols-2">
                 <div>

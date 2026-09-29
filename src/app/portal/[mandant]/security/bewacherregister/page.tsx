@@ -236,8 +236,8 @@ export default async function Bewacherregister(
         <strong>Der Vorwarnvorlauf ist nicht entschieden (O-707).</strong>{' '}
         Die Kachel „Läuft in {BEWACHER_VORWARNUNG_TAGE} Tagen ab" rechnet gegen
         einen <strong>Platzhalter</strong>. Anders als bei den Qualifikationen,
-        wo die Schwellen als <code>warnung_tage</code> im Katalog stehen, trägt
-        <code> bewacher_eintrag</code> keine Warnstufen — in welchem Vorlauf
+        deren Katalog die Warnschwellen in Tagen führt, trägt ein Eintrag im
+        Bewacherregister keine Warnstufen — in welchem Vorlauf
         eine ablaufende Bewacher-Erlaubnis zu melden ist, muss der Auftraggeber
         festlegen. Bis dahin ist die Zahl ein Anhalt, keine Frist.
       </Hinweis>
@@ -474,8 +474,8 @@ export default async function Bewacherregister(
 
       <p className="mt-s6 max-w-prose text-xs text-text-subtle">
         Gelöscht wird hier nichts (Invariante 8). Ein Eintrag wird
-        fortgeschrieben; jede Änderung steht im Änderungsprotokoll
-        (<code>trg_bewacher_eintrag_audit</code>).
+        fortgeschrieben; jede Änderung schreibt die Datenbank selbst ins
+        Änderungsprotokoll.
       </p>
     </PortalRahmen>
   );

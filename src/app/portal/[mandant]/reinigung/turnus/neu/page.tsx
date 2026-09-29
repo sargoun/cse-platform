@@ -122,7 +122,10 @@ export default async function TurnusNeu(
   /*
    * Ein abgewiesener Anker kommt als SCHLÜSSEL (V-192) und wird hier ein Satz
    * in der Sprache der Sitzung. Die übrigen Abweisungen der Route kommen noch
-   * als Satz (D-599-Altlast, D-686 Nr. 7).
+   * als Satz (D-599-Altlast, D-686 Nr. 7) — die Seite zeigt ihn nicht: was in
+   * der Adresse steht, kann jeder hineinschreiben, und ein Wort, das die Seite
+   * nicht kennt, wird ein allgemeiner Satz (V-250). Was die Eingabe verfehlt,
+   * sagt die Vorschau, die dieselbe Regel liest.
    */
   const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
   const ankerFehler = fehlerAusApi === null ? undefined : eigenerEintrag(tL.fehler, fehlerAusApi);
@@ -285,7 +288,10 @@ export default async function TurnusNeu(
           {ankerFehler !== undefined ? (
             <><strong>{tL.nichtAngelegt}</strong>{' '}{ankerFehler}</>
           ) : (
-            <><strong>Nicht angelegt.</strong> {fehlerAusApi}</>
+            <>
+              <strong>Nicht angelegt.</strong> Prüfen Sie die Angaben in der Vorschau und legen
+              Sie die Serie von dort noch einmal an.
+            </>
           )}
         </Hinweis>
       )}
@@ -696,7 +702,12 @@ export default async function TurnusNeu(
                   <p className="m-0 mt-s3 text-xs text-warning">
                     {darfPlanen
                       ? 'Revier, Leistung und Bezeichnung sind Pflicht.'
-                      : 'Es fehlt das Recht dienstplan.schreiben — siehe oben.'}
+                      : (
+                        <>
+                          Es fehlt das Recht <Recht schluessel="dienstplan.schreiben" /> —
+                          siehe oben.
+                        </>
+                      )}
                   </p>
                 )}
               </form>

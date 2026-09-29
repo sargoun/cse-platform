@@ -96,7 +96,9 @@ export default async function Leistungskatalog(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="katalog-fehler" className="mb-s5">
           <strong>Nichts wurde gespeichert.</strong>{' '}
-          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+          {fehler === 'kein_recht'
+            ? <>Ihnen fehlt <Recht schluessel="katalog.schreiben" />.</>
+            : eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 
@@ -109,8 +111,7 @@ export default async function Leistungskatalog(
           Welche Zeitwerte, Leistungswerte und Standardpreise gelten und wer sie
           freigibt, ist nicht entschieden. Die Zahlen stehen als{' '}
           <em>gekennzeichnete Platzhalter</em> da — nicht als Preise, und nicht
-          als Nullwerte: der CHECK <code>lkp_kalkulierbar</code> verlangt
-          mindestens einen Wert je Position, „keinen erfinden" kann hier also
+          als Nullwerte: die Datenbank verlangt mindestens einen Wert je Position, „keinen erfinden" kann hier also
           nicht „leer lassen" heißen.
         </Hinweis>
       ) : null}

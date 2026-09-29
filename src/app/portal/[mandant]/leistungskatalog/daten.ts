@@ -42,11 +42,11 @@ export const FEHLERTEXT: Readonly<Record<string, string>> = {
   unvollstaendig: 'Eine Pflichtangabe fehlt.',
   zeitraum_unstimmig:
     'Das Ende der Gültigkeit liegt vor ihrem Beginn. Eine Position, die endet, bevor '
-    + 'sie gilt, hat nie gegolten — der CHECK lkp_zeitraum_stimmig lässt das nicht zu.',
+    + 'sie gilt, hat nie gegolten — die Datenbank lässt das nicht zu.',
   nicht_gefunden:
     'Diese Fassung oder Position gibt es nicht — oder die Position gehört zu einer '
     + 'anderen Fassung.',
-  kein_recht: 'Ihnen fehlt katalog.schreiben.',
+  // `kein_recht` setzen die Seiten selbst: das Recht steht als Satz (`<Recht>`, V-250).
 };
 
 /** Die vier Steuerkennzeichen mit ihrem deutschen Namen. */

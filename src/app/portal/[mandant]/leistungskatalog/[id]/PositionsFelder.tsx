@@ -38,8 +38,8 @@ export function PositionsFelder(
           <input id={f('oz')} name="oz" type="text" required placeholder="1.2"
                  defaultValue={zeile?.oz ?? ''} className={FELD} />
           <p className="mt-s1 text-xs text-text-muted">
-            Je Fassung eindeutig, solange die Position gilt
-            (<code>lkp_oz_uk</code>).
+            Je Fassung eindeutig, solange die Position gilt — eine zweite geltende
+            Position mit derselben Ordnungszahl nimmt die Datenbank nicht an.
           </p>
         </div>
         <div>
@@ -134,7 +134,7 @@ export function PositionsFelder(
                  className="mt-s1 min-h-5 min-w-5" />
           <span>
             Diese Werte sind für <strong>diese Fassung</strong> bestätigt.
-            Ohne Häkchen trägt die Position <code>ist_platzhalter</code> und
+            Ohne Häkchen ist die Position als Platzhalter gekennzeichnet und
             erscheint überall als unbestätigt. Das Häkchen beantwortet{' '}
             <strong>nicht</strong> O-17 oder O-731 — es sagt „für diese
             Fassung rechnen wir so".
@@ -181,9 +181,9 @@ export function PositionsFelder(
              defaultValue={zeile?.steuerbefreiung_grund ?? ''}
              className={FELD} />
       <p className="mt-s1 text-xs text-text-muted">
-        Pflicht bei <code>steuerfrei</code> (<code>lkp_steuerfrei_mit_grund</code>)
-        — eine Befreiung ohne genannte Norm ist im Streit mit dem Finanzamt
-        nichts.
+        Pflicht bei „steuerfrei" — ohne Grund nimmt die Datenbank die Position
+        nicht an, und eine Befreiung ohne genannte Norm ist im Streit mit dem
+        Finanzamt nichts.
       </p>
 
       <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">

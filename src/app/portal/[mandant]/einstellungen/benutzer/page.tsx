@@ -167,8 +167,8 @@ export default async function Benutzerliste(
       />
       <p className="mt-s5 max-w-[72ch] text-sm text-text-subtle">
         Einladen, Rollen ändern und Zugänge entziehen sind Schreibvorgänge mit
-        Zwei-Faktor-Pflicht (`system.benutzer_verwalten`, K-15) — sie kommen mit
-        der Benutzerverwaltung (Phase 1, AUT-01).
+        Zwei-Faktor-Pflicht (Recht <Recht schluessel="system.benutzer_verwalten" />,
+        K-15) — sie kommen mit der Benutzerverwaltung (Phase 1, AUT-01).
       </p>
     </PortalRahmen>
   );

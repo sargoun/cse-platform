@@ -13,6 +13,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
@@ -124,7 +125,9 @@ export default async function Raumblatt(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="raum-fehler" className="mb-s5">
           <strong>Nichts wurde gespeichert.</strong>{' '}
-          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+          {fehler === 'kein_recht'
+            ? <>Ihnen fehlt <Recht schluessel="objekt.schreiben" />.</>
+            : eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 
@@ -212,8 +215,8 @@ export default async function Raumblatt(
             <p className="mt-s1 text-xs text-text-muted">
               Nummer <strong>oder</strong> Bezeichnung ist Pflicht: ein Raum ohne
               beides ist in der Liste von jedem anderen unbenannten Raum nicht zu
-              unterscheiden. Nummer plus Etage ist je Objekt eindeutig
-              (<code>raum_natuerlich_uk</code>).
+              unterscheiden. Nummer plus Etage ist je Objekt eindeutig; einen zweiten
+              Raum mit beidem gleich nimmt die Datenbank nicht an.
             </p>
 
             <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">
@@ -251,7 +254,7 @@ export default async function Raumblatt(
                 <p className="mt-s1 text-xs text-text-muted">
                   Deutsch: <code>12,5</code>. Der Punkt ist der Tausendertrenner
                   — <code>1.234,5</code> sind 1234,5 m². Muss größer als null
-                  sein (<code>raum_flaeche_positiv</code>).
+                  sein; eine andere Fläche nimmt die Datenbank nicht an.
                 </p>
               </div>
               <div>
@@ -305,9 +308,8 @@ export default async function Raumblatt(
             </div>
 
             <p className="mt-s4 text-xs text-text-muted">
-              <strong>Kein Bemerkungsfeld</strong> — und das mit Absicht:
-              <code className="ml-s1 text-text">raum.bemerkung</code> ist der
-              Anwendungsrolle entzogen (0021), weil dort interne Notizen an
+              <strong>Kein Bemerkungsfeld</strong> — und das mit Absicht: die
+              Bemerkung eines Raums ist der Anwendung entzogen, weil dort interne Notizen an
               einem Ort stünden, den der Kunde im Portal selbst sieht. Ein Feld,
               das sich nicht zurücklesen lässt, wäre schlechter als keines.
             </p>
@@ -339,8 +341,8 @@ export default async function Raumblatt(
               Raum stilllegen
             </button>
             <p className="mt-s2 max-w-[72ch] text-xs text-text-muted">
-              <strong>Stilllegen, nicht löschen</strong> (Invariante 8) — der
-              Auslöser weist ein DELETE ohnehin ab. Danach zählt der Raum in
+              <strong>Stilllegen, nicht löschen</strong> (Invariante 8) — die
+              Datenbank weist ein Löschen ohnehin ab. Danach zählt der Raum in
               keiner Kalkulation mehr mit, und seine Nummer wird für einen
               Nachfolger frei.
             </p>
@@ -370,7 +372,7 @@ export default async function Raumblatt(
                 Leistungswert
               </dt>
               <dd className="m-0 cse-zahl text-sm text-text">
-                {formatiereMenge(richtzeit.richtzeit.posten.leistungswert)} m²/h
+                {formatiereMenge(richtzeit.richtzeit.posten.leistungswert)} m²/h{' '}
                 {richtzeit.richtzeit.posten.leistungswertIstPlatzhalter === true ? (
                   <span className="ml-s2 text-warning">
                     unbestätigt — offen (O-17)
@@ -393,8 +395,8 @@ export default async function Raumblatt(
             </dl>
           )}
           <p className="mt-s3 mb-0 text-xs text-text-muted">
-            Gerechnet in <code>services/kalkulation</code>, nicht auf dieser
-            Seite (Invariante 6). Stichtag ist der heutige{' '}
+            Gerechnet von der geprüften Kalkulation des Programms, nicht auf
+            dieser Seite (Invariante 6). Stichtag ist der heutige{' '}
             <em>Berliner</em> Kalendertag — an einem Wechseltag gilt sonst der
             Wert von gestern (D-93).
           </p>

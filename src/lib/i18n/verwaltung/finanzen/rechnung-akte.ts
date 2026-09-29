@@ -263,7 +263,6 @@ export interface RechnungAkteTexte {
 
   readonly grundMindestensVor: string;
   readonly zeichenAuditfaehig: string;
-  readonly grundWirdIn: string;
   readonly grundFestgehalten: string;
   readonly formNurStornoLang: string;
   readonly formKorrekturLang: string;
@@ -307,7 +306,6 @@ export interface RechnungAkteTexte {
   readonly istFestgeschrieben: string;
   readonly zurStornoseite: string;
   readonly stornoLaeuftUeber: string;
-  readonly undVerlangt: string;
   readonly rechtFehltErklaerung: string;
 
   /**
@@ -522,7 +520,9 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       'ist in dieser Gesellschaft kein offener Nummernkreis ohne Kontext '
       + 'eingerichtet. Ohne ihn entsteht keine Nummer, und ohne Nummer keine '
       + 'Rechnung.',
-    keinKreisNach: 'sucht genau diesen einen Kreis — auch für eine Stornorechnung.',
+    keinKreisNach:
+      'Die Datenbank zieht die Nummer genau aus diesem einen Kreis — auch für eine '
+      + 'Stornorechnung.',
     maske: 'Maske',
     ruecksetzung: 'Rücksetzung',
     nichtFestgelegt: 'nicht festgelegt',
@@ -613,10 +613,10 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
 
     grundMindestensVor: 'Grund (mindestens',
     zeichenAuditfaehig: 'Zeichen, auditfähig)',
-    grundWirdIn: 'Er wird in',
     grundFestgehalten:
-      'festgehalten und steht danach auf beiden Belegen. „Fehler" ist keine '
-      + 'Begründung — der Grund muss den Vorgang benennen.',
+      'Er wird mit der Verknüpfung der beiden Rechnungen festgehalten und steht '
+      + 'danach auf beiden Belegen. „Fehler" ist keine Begründung — der Grund muss '
+      + 'den Vorgang benennen.',
     formNurStornoLang: 'Nur Storno — die Rechnung wird aufgehoben',
     formKorrekturLang:
       'Storno und Neuausstellung — es entsteht zusätzlich ein neuer Entwurf',
@@ -676,8 +676,7 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       + 'verworfen, sondern durch eine Stornobuchung aufgehoben — das ist der '
       + 'einzige Weg zu einer Korrektur (Invariante 4).',
     zurStornoseite: 'Zur Stornoseite →',
-    stornoLaeuftUeber: 'Der Storno läuft über',
-    undVerlangt: 'und verlangt',
+    stornoLaeuftUeber: 'Der Storno läuft über die Stornoseite dieser Rechnung und verlangt',
     rechtFehltErklaerung:
       '. Dieses Konto hält das Recht nicht — deshalb steht hier der Weg als Satz '
       + 'und nicht als Verweis: ein Verweis auf 404 verrät, was er verbergen '
@@ -905,7 +904,8 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       + 'company. Without one no number comes into being, and without a number '
       + 'no invoice.',
     keinKreisNach:
-      'looks for precisely this one range — for a Storno invoice as well.',
+      'The database draws the number from precisely this one range — for a Storno '
+      + 'invoice as well.',
     maske: 'mask',
     ruecksetzung: 'reset',
     nichtFestgelegt: 'not specified',
@@ -1001,10 +1001,10 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
 
     grundMindestensVor: 'Reason (at least',
     zeichenAuditfaehig: 'characters, audit-proof)',
-    grundWirdIn: 'It is recorded in',
     grundFestgehalten:
-      'and then appears on both documents. "Error" is not a reason — the reason '
-      + 'must name what happened.',
+      'It is recorded with the link between the two invoices and then appears on '
+      + 'both documents. "Error" is not a reason — the reason must name what '
+      + 'happened.',
     formNurStornoLang: 'Storno only — the invoice is lifted',
     formKorrekturLang: 'Storno and reissue — a new draft is created as well',
     neuausstellungVor:
@@ -1063,8 +1063,7 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       + 'not discarded but lifted by a Storno (reversing entry) — that is the '
       + 'only route to a correction (invariant 4).',
     zurStornoseite: 'To the Storno page →',
-    stornoLaeuftUeber: 'The Storno runs via',
-    undVerlangt: 'and requires',
+    stornoLaeuftUeber: 'The Storno runs via this invoice’s Storno page and requires',
     rechtFehltErklaerung:
       '. This account does not hold that right — which is why the route is '
       + 'stated here in words and not as a link: a link to a 404 gives away '

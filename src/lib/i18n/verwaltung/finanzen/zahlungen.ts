@@ -69,6 +69,17 @@ export interface ZahlungenTexte {
   readonly ausgleichBuchen: string;
   readonly ausgleichNichtsZuTun: string;
   readonly ausgeglichen: string;
+  /**
+   * Die Rückmeldungen von `POST /api/finanzen/zahlungen` (`?hinweis=`). Vorher
+   * stand für `erfasst`, `guthaben` und `storniert` das Wort selbst auf dem
+   * Schirm (V-250).
+   */
+  readonly zahlungErfasst: string;
+  readonly zahlungGuthaben: string;
+  readonly zahlungStorniert: string;
+  /** Für einen Grund, den die Seite nicht kennt — nie der Grund selbst, der in der
+   *  Adresse steht und den jeder hineinschreiben kann (V-250). */
+  readonly hinweisSonst: string;
 
   readonly zuDenBankkonten: string;
 
@@ -120,6 +131,12 @@ export const ZAHLUNGEN_TEXTE: Readonly<Record<InternSprache, ZahlungenTexte>> = 
       'Für einen Ausgleich braucht es beides: eine offene Forderung und ein '
       + 'Guthaben.',
     ausgeglichen: 'Der Ausgleich ist gebucht.',
+    zahlungErfasst: 'Die Zahlung ist erfasst.',
+    zahlungGuthaben:
+      'Die Zahlung ist erfasst. Sie war höher als die offene Forderung — der Rest steht '
+      + 'unten als Guthaben des Kunden.',
+    zahlungStorniert: 'Die Zahlung ist storniert.',
+    hinweisSonst: 'Die Seite zeigt den aktuellen Stand der Zahlungen.',
 
     zuDenBankkonten: 'Bankkonten',
 
@@ -197,6 +214,12 @@ export const ZAHLUNGEN_TEXTE: Readonly<Record<InternSprache, ZahlungenTexte>> = 
     ausgleichBuchen: 'Book the offset',
     ausgleichNichtsZuTun: 'An offset needs both: an open receivable and a credit.',
     ausgeglichen: 'The offset has been booked.',
+    zahlungErfasst: 'The payment has been recorded.',
+    zahlungGuthaben:
+      'The payment has been recorded. It exceeded the open receivable — the rest is '
+      + 'listed below as the customer’s credit balance.',
+    zahlungStorniert: 'The payment has been reversed by a Storno (reversing entry).',
+    hinweisSonst: 'This page shows the current state of payments.',
 
     zuDenBankkonten: 'Bank accounts',
 

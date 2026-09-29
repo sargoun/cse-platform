@@ -383,8 +383,8 @@ const DE: WebsiteReferenzTexte = {
   blattNurLesbarVor: 'Eine Änderung an einer Referenz verlangt',
   blattNurLesbarUnd: 'UND',
   blattNurLesbarNach:
-    '— das zweite steht in der Policy t_referenz_pflege für jeden Schreibvorgang auf '
-    + 'dieser Tabelle, nicht nur für das Häkchen. Formulare, die nichts ändern, stehen '
+    '— das zweite verlangt die Datenbank für jede Änderung an einer Referenz, nicht '
+    + 'nur für das Häkchen. Formulare, die nichts ändern, stehen '
     + 'deshalb hier nicht.',
   herkunftTitel: 'Herkunft',
   herkunftAuftrag: (nr, kunde) => `Angelegt aus Auftrag ${nr} (${kunde}).`,
@@ -405,8 +405,7 @@ const DE: WebsiteReferenzTexte = {
     + 'Suchmaschine. Die alte Adresse antwortet danach mit 404.',
   adresseNochNicht:
     'Diese Adresse antwortet heute mit 404: öffentlich ist eine Referenz nur mit '
-    + 'Kundenfreigabe UND veröffentlichtem Zustand — beides prüft die Policy '
-    + 't_referenz_oeffentlich.',
+    + 'Kundenfreigabe UND veröffentlichtem Zustand — beides prüft die Datenbank.',
   projektTitel: 'Projekt',
   feldBeschreibung: 'Beschreibung',
   beschreibungHinweis:
@@ -415,8 +414,8 @@ const DE: WebsiteReferenzTexte = {
   feldSortierung: 'Sortierung',
   sortierungHinweis: 'Kleinere Zahlen stehen auf der Projektliste oben.',
   slugHinweisBlatt:
-    'Leer lassen schlägt einen aus dem Titel vor (app.slug_aus_titel) — dieselbe Funktion, '
-    + 'die beim Anlegen greift.',
+    'Leer lassen schlägt einen aus dem Titel vor — nach derselben Regel, die beim '
+    + 'Anlegen greift.',
   kundeHinweisBlatt: 'Er geht nur mit Kundenfreigabe hinaus — der Block darunter.',
   feldBild: 'Bild — aus den Bildern dieser Gesellschaft',
   keinBild: 'kein Bild',
@@ -431,7 +430,7 @@ const DE: WebsiteReferenzTexte = {
   freigabeTitel: 'Kundenfreigabe',
   freigabeErklaerung:
     'Ohne schriftliche Zustimmung des Kunden geht sein Name nicht auf die Website. Die '
-    + 'Datenbank lässt eine Freigabe ohne Datum gar nicht zu (referenz_freigabe_belegt) — '
+    + 'Datenbank lässt eine Freigabe ohne Datum gar nicht zu — '
     + 'und der Beleg steht dabei, weil beim Anruf des Kunden genau danach gefragt wird.',
   freigabeStand: 'Stand',
   erteiltAm: 'Erteilt am',
@@ -700,8 +699,8 @@ const EN: WebsiteReferenzTexte = {
   blattNurLesbarVor: 'A change to a reference requires',
   blattNurLesbarUnd: 'AND',
   blattNurLesbarNach:
-    '— the policy t_referenz_pflege demands the second for every write to this table, not '
-    + 'only for the tick. Forms that change nothing are therefore not shown here.',
+    '— the database demands the second for every change to a reference, not only for '
+    + 'the tick. Forms that change nothing are therefore not shown here.',
   herkunftTitel: 'Origin',
   herkunftAuftrag: (nr, kunde) => `Created from Auftrag ${nr} (${kunde}).`,
   herkunftZumAuftrag: 'To the Kundenfreigabe on the Auftrag',
@@ -721,7 +720,7 @@ const EN: WebsiteReferenzTexte = {
     + 'The old address then answers with 404.',
   adresseNochNicht:
     'Today this address answers with 404: a reference is only public with a Kundenfreigabe '
-    + 'AND in the published state — the policy t_referenz_oeffentlich checks both.',
+    + 'AND in the published state — the database checks both.',
   projektTitel: 'Project',
   feldBeschreibung: 'Description',
   beschreibungHinweis:
@@ -730,8 +729,8 @@ const EN: WebsiteReferenzTexte = {
   feldSortierung: 'Sort order',
   sortierungHinweis: 'Smaller numbers come first on the project list.',
   slugHinweisBlatt:
-    'Leaving it empty suggests one from the title (app.slug_aus_titel) — the same function '
-    + 'that applies when creating.',
+    'Leaving it empty suggests one from the title — by the same rule that applies when '
+    + 'creating.',
   kundeHinweisBlatt: 'It only goes out with a Kundenfreigabe — the block below.',
   feldBild: 'Image — from this Gesellschaft’s images',
   keinBild: 'no image',
@@ -746,7 +745,7 @@ const EN: WebsiteReferenzTexte = {
   freigabeTitel: 'Kundenfreigabe (customer release)',
   freigabeErklaerung:
     'Without the customer’s written consent their name does not go on the website. The '
-    + 'database does not even accept a release without a date (referenz_freigabe_belegt) — '
+    + 'database does not even accept a release without a date — '
     + 'and the evidence stands next to it, because that is exactly what is asked when the '
     + 'customer calls.',
   freigabeStand: 'State',

@@ -38,6 +38,9 @@ export interface UrlaubskontenTexte {
   readonly freiwillig: string;
   readonly gespeichert: string;
   readonly fehler: Readonly<Record<string, string>>;
+  /** Für einen Grund, den die Seite nicht kennt — nie der Grund selbst, der in der
+   *  Adresse steht und den jeder hineinschreiben kann (V-250). */
+  readonly fehlerSonst: string;
 }
 
 export const URLAUBSKONTEN_TEXTE:
@@ -100,6 +103,9 @@ Readonly<Record<InternSprache, UrlaubskontenTexte>> = {
       kein_anspruch: 'Bitte geben Sie die Urlaubstage an.',
       kein_datum: 'Das Verfallsdatum ist nicht lesbar.',
     },
+    fehlerSonst:
+      'Der Anspruch wurde nicht gespeichert. Prüfen Sie die Angaben und speichern Sie noch '
+      + 'einmal.',
   },
 
   en: {
@@ -161,5 +167,6 @@ Readonly<Record<InternSprache, UrlaubskontenTexte>> = {
       kein_anspruch: 'Please give the holiday days.',
       kein_datum: 'The expiry date is unreadable.',
     },
+    fehlerSonst: 'The entitlement was not saved. Check the entries and save again.',
   },
 };

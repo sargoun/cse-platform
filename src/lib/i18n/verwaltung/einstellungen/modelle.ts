@@ -47,6 +47,9 @@ export interface ModelleTexte {
   readonly keinSchreibrecht: string;
   readonly freiwillig: string;
   readonly fehler: Readonly<Record<string, string>>;
+  /** Für einen Grund, den die Seite nicht kennt — nie der Grund selbst, der in der
+   *  Adresse steht und den jeder hineinschreiben kann (V-250). */
+  readonly fehlerSonst: string;
 }
 
 export const MODELLE_TEXTE: Readonly<Record<InternSprache, ModelleTexte>> = {
@@ -132,6 +135,7 @@ export const MODELLE_TEXTE: Readonly<Record<InternSprache, ModelleTexte>> = {
       keine_kennung: 'Ohne Kennung keine Handlung.',
       kein_schreibrecht: 'Dafür fehlt das Recht.',
     },
+    fehlerSonst: 'Das wurde nicht gespeichert. Prüfen Sie die Angaben und versuchen Sie es noch einmal.',
   },
 
   en: {
@@ -213,5 +217,6 @@ export const MODELLE_TEXTE: Readonly<Record<InternSprache, ModelleTexte>> = {
       keine_kennung: 'No action without a reference.',
       kein_schreibrecht: 'That requires the right.',
     },
+    fehlerSonst: 'That was not saved. Check the entries and try again.',
   },
 };

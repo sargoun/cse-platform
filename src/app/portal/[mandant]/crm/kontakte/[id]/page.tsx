@@ -378,7 +378,7 @@ export default async function Kontaktblatt(
         <h2 id="grundlage" className="text-h2 text-text">Rechtsgrundlage</h2>
         {stand === null ? (
           <Hinweis art="hinweis" cse="grundlage-verdeckt" className="mt-s3 max-w-prose">
-            <strong>Der Nachweis ist Ihnen nicht sichtbar.</strong> Dafür fehlt
+            <strong>Der Nachweis ist Ihnen nicht sichtbar.</strong> Dafür fehlt{' '}
             <Recht schluessel="crm.rechtsgrundlage_lesen" /> — ein
             eigenes Recht neben <Recht schluessel="crm.lesen" />, mit dem
             die Seitenkarte auch den Werbewiderspruchs-Katalog bewacht. Das heisst
@@ -500,10 +500,9 @@ export default async function Kontaktblatt(
             )}
 
             <p className="mt-s4 max-w-prose text-xs text-text-muted">
-              Der Werbewiderspruch ist eine Einbahnstrasse: der Auslöser
-              <code className="text-text"> kern.erzwinge_widerspruch</code> lässt ihn
-              nicht wieder leeren. Ein Widerspruch nach Art. 21 DSGVO setzt die
-              Grundlage zwingend auf „keine".
+              Der Werbewiderspruch ist eine Einbahnstrasse: ist er einmal eingetragen,
+              lässt die Datenbank ihn nicht wieder leeren. Ein Widerspruch nach Art. 21
+              DSGVO setzt die Grundlage zwingend auf „keine".
             </p>
           </>
         )}
@@ -512,11 +511,10 @@ export default async function Kontaktblatt(
       <section aria-labelledby="tor" className="mb-s7">
         <h2 id="tor" className="text-h2 text-text">Was darf hinausgehen?</h2>
         <p className="mt-s2 max-w-prose text-sm text-text-muted">
-          Die Antworten kommen aus{' '}
-          <code className="text-text">app.darf_kontaktiert_werden</code> — derselben
-          Funktion, die der Sendepfad und der Auslöser
-          <code className="text-text"> kern.uwg_sendetor</code> fragen. Diese Seite
-          formuliert die Regel nicht nach.
+          Die Antworten kommen aus derselben Prüfung, die jede Nachricht vor dem
+          Versand bestehen muss: der Versandweg fragt sie, und die Datenbank fragt sie
+          beim Speichern der Nachricht ein zweites Mal. Diese Seite formuliert die
+          Regel nicht nach.
         </p>
         <DataTable
           beschriftung="Antwort des Sendetores je Kanal, für Werbung und für vertragliche Kommunikation"
@@ -701,8 +699,8 @@ export default async function Kontaktblatt(
         ) : kopf.kunde_id === null ? (
           <p className="mt-s3 max-w-prose text-sm text-text-muted" data-cse="wv-ohne-kunde">
             Dieser Ansprechpartner hängt an keinem Kunden. Eine Wiedervorlage hängt
-            aber immer an einem Lead oder an einem Kunden — ordnen Sie ihn zuerst
-            einem Kunden zu.
+            aber immer an einem Lead oder an einem Kunden — eine ohne Bezug nimmt die
+            Datenbank nicht an. Ordnen Sie ihn zuerst einem Kunden zu.
           </p>
         ) : (
           <>
@@ -764,7 +762,8 @@ export default async function Kontaktblatt(
               <span className="text-xs text-text-muted">
                 Beide Angaben werden als <strong>Berliner Zeit</strong> gelesen und als
                 Zeitpunkt gespeichert (Invariante 2). Eine Frist bestimmt ein Mensch —
-                <code className="text-text"> geschehen_am</code> bleibt die Serverzeit.
+                wann die Wiedervorlage eingetragen wurde, hält dagegen die Uhr des
+                Servers fest.
               </span>
 
               <label className="flex flex-col gap-s2 text-sm text-text">

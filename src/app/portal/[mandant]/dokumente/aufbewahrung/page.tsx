@@ -56,6 +56,8 @@ export default async function Aufbewahrung(
   const gesetzt = typeof suche['gesetzt'] === 'string' ? suche['gesetzt'] : null;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  /* Der Name der Kategorie — eine, die die Seite nicht kennt, bleibt ungenannt (V-250). */
+  const gesetztName = gesetzt === null ? undefined : eigenerEintrag(KATEGORIE, gesetzt);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => ({
@@ -95,7 +97,8 @@ export default async function Aufbewahrung(
 
       {gesetzt !== null ? (
         <Hinweis art="erfolg" cse="aufbewahrung-gesetzt" className="mb-s5 max-w-prose">
-          <strong>Regel gesetzt</strong> für „{KATEGORIE[gesetzt] ?? gesetzt}" — mit Spur im Protokoll.
+          <strong>Regel gesetzt</strong>
+          {gesetztName === undefined ? null : <> für „{gesetztName}"</>} — mit Spur im Protokoll.
         </Hinweis>
       ) : null}
       {fehler !== null ? (

@@ -354,9 +354,8 @@ export default async function Kontaktliste(
       <p className="mt-s5 max-w-prose text-xs text-text-muted">
         § 7 UWG: elektronische Werbung braucht eine vorherige ausdrückliche
         Einwilligung — auch gegenüber Unternehmen. Die Spalte „Werbung per E-Mail" ist
-        die Antwort von <code className="text-text">app.darf_kontaktiert_werden</code>,
-        derselben Funktion, die der Sendepfad fragt; sie ist keine zweite Formulierung
-        der Regel. Ein Widerspruch nach Art. 21 DSGVO schliesst jede Werbung aus,
+        die Antwort derselben Prüfung, die jede Nachricht vor dem Versand bestehen muss;
+        sie ist keine zweite Formulierung der Regel. Ein Widerspruch nach Art. 21 DSGVO schliesst jede Werbung aus,
         unabhängig von der Grundlage — Rechnungen und Terminbestätigungen gehen weiter.
       </p>
     </PortalRahmen>

@@ -155,8 +155,8 @@ export default async function Konditionen(
         <Hinweis art="warnung" cse="kondition-verdeckt" className="mb-s5 max-w-prose">
           <strong>Die Konditionen sind Ihnen nicht sichtbar.</strong> Diese vier
           Angaben sind der Anwendung spaltenweise entzogen (K-05) und kommen
-          ausschliesslich über <code className="text-text">app.zahlungskondition_lesen</code>
-          {' '}— und die verlangt <Recht schluessel="crm_entgelt.lesen" />. Das
+          ausschliesslich über eine eigene, geprüfte Abfrage — und die verlangt{' '}
+          <Recht schluessel="crm_entgelt.lesen" />. Das
           heisst nicht, dass keine hinterlegt sind.
         </Hinweis>
       ) : (
@@ -164,9 +164,9 @@ export default async function Konditionen(
           <p className="mb-s5 max-w-prose text-sm text-text-muted">
             Dieser Abruf steht im Prüfprotokoll. Debitorennummer, Zahlungsziel und
             Mahnsperre sind der Anwendung entzogen und werden über einen geprüften
-            Umweg gelesen — nicht aus Vorsicht, sondern weil ein
-            <code className="text-text"> select *</code> auf dem Kundenstamm sie sonst in
-            jeden Export und jede Fehlermeldung trüge.
+            Umweg gelesen — nicht aus Vorsicht, sondern weil jede Abfrage, die den
+            ganzen Kundenstamm liest, sie sonst in jeden Export und jede Fehlermeldung
+            trüge.
           </p>
 
           <dl className="m-0 mb-s6 grid grid-cols-1 gap-s5 lg:grid-cols-3"
@@ -180,8 +180,8 @@ export default async function Konditionen(
                 {kondition.debitorennummer ?? 'nicht gesetzt'}
               </dd>
               <p className="m-0 mt-s3 text-xs text-text-muted">
-                Freies Feld, eindeutig je Gesellschaft
-                (<code className="text-text">kunde_debitor_uk</code>). Ob sie dem
+                Freies Feld; unter den nicht archivierten Kunden einer Gesellschaft
+                lässt die Datenbank jede Nummer nur einmal zu. Ob sie dem
                 DATEV-Debitorenkreis des SKR folgen muss — Nummernband, Länge, führende
                 Ziffer —, ist offen (O-05); bis dahin wird nichts erzwungen, was später
                 falsch wäre.
@@ -227,10 +227,14 @@ export default async function Konditionen(
                 {kondition.mahnsperreBis === null ? null : (
                   <span className="mt-s2 block">
                     {sperreAktiv === null
-                      ? 'Ob sie den Lauf gerade anhält, ist Ihnen nicht sichtbar — dafür '
-                        + 'fehlt mahnung.lesen.'
+                      ? (
+                        <>
+                          Ob sie den Lauf gerade anhält, ist Ihnen nicht sichtbar — dafür
+                          fehlt <Recht schluessel="mahnung.lesen" />.
+                        </>
+                      )
                       : sperreAktiv
-                        ? `app.kunde_mahnsperre_aktiv hält den Mahnlauf an. Ab dem Tag `
+                        ? `Die Sperre hält den Mahnlauf an. Ab dem Tag `
                           + `nach dem ${tagDeutsch(kondition.mahnsperreBis)} mahnt er `
                           + 'wieder.'
                         : 'Die Sperre ist abgelaufen — der Mahnlauf läuft wieder. Sie '
@@ -246,7 +250,7 @@ export default async function Konditionen(
 
       {!darfSchreiben ? (
         <Hinweis art="hinweis" cse="kondition-nur-lesen" className="max-w-prose">
-          <strong>Hier ist nur Anzeige.</strong> Zum Ändern fehlt
+          <strong>Hier ist nur Anzeige.</strong> Zum Ändern fehlt{' '}
           <Recht schluessel="crm.schreiben" />. Das Lesen der Konditionen
           (<Recht schluessel="crm_entgelt.lesen" />) und das Ändern des
           Kundenstamms sind getrennte Rechte — wer eine Zahl sehen darf, darf sie nicht
@@ -286,7 +290,7 @@ export default async function Konditionen(
                 data-cse="kondition-ziel-feld"
               />
               <span className="text-xs text-text-muted">
-                0 bis 180 (<code className="text-text">kunde_zahlungsziel_plausibel</code>).
+                0 bis 180 — einen anderen Wert nimmt die Datenbank nicht an.
                 Leer heisst „nicht vereinbart" — dann schreibt die Faktura kein
                 Fälligkeitsdatum und die Festschreibung weist mit Grund ab. Das ist
                 gewollt: ein Vorgabewert triebe den Mahnlauf und die Verzugszinsen nach
@@ -299,8 +303,7 @@ export default async function Konditionen(
                 Mahnsperre
               </legend>
               <p className="m-0 text-xs text-text-muted">
-                <strong>Beide Felder gehören zusammen.</strong> Der CHECK
-                <code className="text-text"> kunde_mahnsperre_begruendet</code> nimmt nur
+                <strong>Beide Felder gehören zusammen.</strong> Die Datenbank nimmt nur
                 beides oder keines: eine Sperre ohne Grund hinterlässt später nur die
                 Auskunft, dass nicht gemahnt wurde — und niemand weiss, ob es so gewollt
                 war. Beide leeren hebt die Sperre auf.

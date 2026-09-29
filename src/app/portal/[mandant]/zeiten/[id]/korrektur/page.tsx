@@ -72,6 +72,8 @@ const GRUND_TEXT: readonly { readonly wert: string; readonly text: string }[] = 
  * Jedes davon ist eine Antwort der DATENBANK auf eine Eingabe, die fachlich
  * nicht geht, kein Programmfehler. Deshalb steht hier ein Satz und keine
  * Kennziffer: wer die Korrektur macht, ist Planerin und nicht Entwicklerin.
+ * Ein Satz, der ein Recht nennt, nennt es mit seinem Namen (`<Recht>`, V-250)
+ * — deshalb ist ein Eintrag ein `ReactNode` und nicht bloss Text.
  */
 const FEHLER_TEXT: Readonly<Record<string, ReactNode>> = {
   unbrauchbare_eingabe:
@@ -221,7 +223,9 @@ export default async function Korrekturblatt({
           data-cse="korrektur-fehler"
           className="mb-s5 max-w-prose rounded-lg border border-danger bg-danger-soft p-s4 text-sm text-danger"
         >
-          {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Korrektur wurde nicht geschrieben.'}
+          {eigenerEintrag(FEHLER_TEXT, fehler)
+            ?? 'Die Korrektur wurde nicht geschrieben. Prüfen Sie die Angaben und speichern Sie '
+              + 'noch einmal.'}
         </p>
       )}
 

@@ -170,11 +170,11 @@ export default async function Integrationen(
 
       {nieGelaufen === plan.length ? (
         <Hinweis art="warnung" cse="jobs-kein-ausloeser" className="mb-s5 max-w-prose">
-          <strong>Kein Wächter ist je gelaufen.</strong> Das ist kein Fehler im Code —
-          es fehlt der Auslöser. Der Plan dafür wird aus dem Job-Register erzeugt
-          (<code>pnpm jobs:plan</code> → <code>docs/JOB-AUSLOESER.sql</code>) und einmal
-          in der Datenbank eingespielt; ohne <code>JOB_TOKEN</code> nimmt die
-          Auslöseroute ohnehin nichts an.
+          <strong>Kein Wächter ist je gelaufen.</strong> Das ist kein Fehler im
+          Programm — es fehlt der Auslöser. Den Zeitplan dafür erzeugt die technische
+          Betreuung aus dem Register der Wächter und spielt ihn einmal in der
+          Datenbank ein; ohne das vereinbarte Zugangsgeheimnis nimmt der Server
+          ohnehin keinen Auslöser an.
         </Hinweis>
       ) : null}
 

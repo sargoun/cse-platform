@@ -298,9 +298,8 @@ export default async function Vorgangsakte(
             Art. 21 DSGVO für diese Personengruppe: kein Merkmal im Datenmodell
             (O-647).
           </strong>
-          Ein Widerspruchsmerkmal führen nur{' '}
-          <code className="font-mono">ansprechpartner</code> und{' '}
-          <code className="font-mono">kunde</code> — die werbliche Ansprache.
+          Ein Widerspruchsmerkmal führen nur Ansprechpartner und Kunden — die
+          werbliche Ansprache.
           Für eine Beschäftigte oder eine Bewerberin gibt es keine Spalte, die
           eine Verarbeitung anhält: die Verarbeitung ruht hier auf dem
           Arbeitsverhältnis beziehungsweise auf dem Bewerbungsverfahren
@@ -334,15 +333,13 @@ export default async function Vorgangsakte(
               und sie ist unwiderruflich.
             </strong>
             {ART_WIRKUNG.verarbeitung} Die Datenbank nimmt den Widerspruch nicht
-            zurück: <code className="font-mono">kern.erzwinge_widerspruch()</code>
-            {' '}wirft bei jedem Versuch. Der Werbewiderspruch nach § 7 UWG ist
+            zurück: sie weist jeden Versuch ab. Der Werbewiderspruch nach § 7 UWG ist
             etwas anderes und schwächer — er sperrt Werbung und lässt
             vertraglich notwendige Post laufen (eine Rechnung etwa).
-            Terminbestätigung, Leistungsnachweis und Mahnung sind als
-            {' '}<code className="font-mono">transaktional</code> geführt und
-            werden bis zur Entscheidung von O-65 ebenfalls abgewiesen —
-            nachgemessen in{' '}
-            <code className="font-mono">app.darf_kontaktiert_werden</code>.
+            Terminbestätigung, Leistungsnachweis und Mahnung gelten als
+            transaktionale Nachrichten und werden bis zur Entscheidung von O-65
+            ebenfalls abgewiesen — von derselben Prüfung, die jede Nachricht vor dem
+            Versand bestehen muss.
           </Hinweis>
 
           {extra.stand.length === 0 ? (

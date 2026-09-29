@@ -111,8 +111,16 @@ const OBJEKT: Readonly<Record<string, Wort>> = {
   katalog: { de: 'den Leistungskatalog', en: 'the service catalogue' },
   kommunikation: { de: 'die Kommunikation', en: 'communication' },
   konflikt: { de: 'Konflikte', en: 'conflicts' },
-  konto: { de: 'das Konto', en: 'the account' },
-  kunde: { de: 'Kunden', en: 'customers' },
+  /*
+   * Nur `zeit.konto_*`: Stunden- und Urlaubskonten. „das Konto" (bis V-250)
+   * las sich neben „Benutzerkonten" wie das Anmeldekonto.
+   */
+  konto: { de: 'Zeitkonten', en: 'time accounts' },
+  /*
+   * Einziger Träger: `dokument.kunde_freigeben` — ein Dokument FÜR den Kunden
+   * freigeben (DOC-04). „Kunden freigeben" (bis V-250) hiess etwas anderes.
+   */
+  kunde: { de: 'Dokumente für Kunden', en: 'documents for customers' },
   kundenfreigabe: { de: 'Kundenfreigaben', en: 'customer approvals' },
   loeschung: { de: 'Löschungen', en: 'erasures' },
   mahnung: { de: 'Mahnungen', en: 'dunning notices' },
@@ -131,7 +139,12 @@ const OBJEKT: Readonly<Record<string, Wort>> = {
   preis: { de: 'Preise', en: 'prices' },
   profil: { de: 'das Profil', en: 'the profile' },
   protokoll: { de: 'das Protokoll', en: 'the log' },
-  pruefdauer: { de: 'die Prüffrist', en: 'the review window' },
+  /*
+   * Die PrüfDAUER — wie lange geprüft wurde (APR-08, `/freigaben/pruefdauer`),
+   * keine Frist. Bis V-250 stand hier „die Prüffrist": neben der Seite
+   * „Prüfdauer" hiess das Recht nach etwas anderem.
+   */
+  pruefdauer: { de: 'die Prüfdauer', en: 'review times' },
   qualitaet: { de: 'die Qualität', en: 'quality' },
   radar: { de: 'den Ausschreibungsradar', en: 'the tender radar' },
   rechtsgrundlage: { de: 'Rechtsgrundlagen', en: 'legal bases' },
