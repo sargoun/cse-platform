@@ -156,7 +156,7 @@ export interface EingangsrechnungenTexte {
   readonly zahlungErfassen: string;
   /** Vor dem Tag, an dem der Kreditorposten ausgeglichen wurde (V-217). */
   readonly bezahlt: string;
-  /** Die Rückmeldung nach dem Erfassen — `?meldung=`, über `eigenerEintrag()`. */
+  /** Die Rückmeldung nach dem Erfassen — `?erfolg=` (D-774), über `eigenerEintrag()`. */
   readonly ausgangMeldungen: Readonly<Record<'ausgang_erfasst' | 'ausgang_guthaben', string>>;
   /** Der Grund einer Abweisung — `?fehler=`, über `eigenerEintrag()`. */
   readonly ausgangFehler: Readonly<Record<string, string>>;
