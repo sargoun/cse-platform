@@ -23368,6 +23368,15 @@ aus der Adresse mit eckigen Klammern nach.
     erwartete `?meldung=` (jetzt `?grund=grundlage_ohne_quelle` bzw.
     `?fehler=ohne_namen`; nicht lokal gelaufen). Keine offene Frage: jeder
     Satz sagt, was Dienst und Datenbank schon entscheiden.
+12. **Nachrunde — `POST /api/lead`** (vom Leadblatt, V-137): Anmeldung und
+    Recht werden vor dem `CrmFehler` übersetzt (`autorisierungsAntwort`).
+    Ein fehlendes Recht antwortete `{"fehler":"unbekannt"}` statt der
+    byte-gleichen 404 der übrigen Routen (D-656 Nr. 2); jetzt
+    `nichtGefundenAntwort()`. Ein Lead, den es hier nicht gibt — auch der
+    einer anderen Gesellschaft (AUT-06) —, antwortete ebenfalls `unbekannt`;
+    er bekommt dieselben Bytes, damit „gibt es nicht“ und „darf nicht“
+    gleich bleiben. Die übrigen JSON-Antworten (`fremder_ursprung`,
+    `unvollstaendig`, `typ`, `keine_sitzung`, `zweiter_faktor`) bleiben.
 
-| Betrifft | D-769, D-753, D-728, D-599, D-766, AUT-06, V-274, `src/app/api/crm/rueckweg.ts`, `src/app/api/crm/{kunde,lead,wiedervorlage,notiz}/route.ts`, `src/app/api/crm/kunde/{steuer,konditionen,zugang}/route.ts`, `src/app/api/crm/ansprechpartner/[id]/{rechtsgrundlage,widerspruch}/route.ts`, `src/server/services/crm/{anlegen,wiedervorlage,kundenzugang,kontakt-grundlage}.ts`, `src/server/services/finanz/kunde-steuer.ts`, `src/components/portal/Rueckweg.tsx`, `src/components/portal/Kommunikationsverlauf.tsx`, `src/lib/i18n/verwaltung/{crm-rueckweg,crm-kunde}.ts`, Seiten unter `src/app/portal/[mandant]/crm` (`kunden/neu`, `kunden/[id]` mit `steuer`, `zugang`, `konditionen`, `wiedervorlagen`, `kontakte/[id]` mit `rechtsgrundlage`, `leads/neu`, `leads/[id]`) und `src/app/portal/[mandant]/radar/[id]`, `tests/kern/crm-*-rueckweg.test.ts`, `tests/kern/crm-rueckweg.test.ts`, `tests/kern/crm-notiz-route.test.ts`, `tests/kern/hilfen/gruende.ts`, `tests/kern/formular-rueckwege.test.ts`, `tests/isolation/crm-rueckweg-datenbank.test.ts`, `tests/e2e/crm-anlegen.spec.ts` |
+| Betrifft | D-769, D-753, D-728, D-599, D-766, AUT-06, V-274, `src/app/api/crm/rueckweg.ts`, `src/app/api/crm/{kunde,lead,wiedervorlage,notiz}/route.ts`, `src/app/api/crm/kunde/{steuer,konditionen,zugang}/route.ts`, `src/app/api/crm/ansprechpartner/[id]/{rechtsgrundlage,widerspruch}/route.ts`, `src/server/services/crm/{anlegen,wiedervorlage,kundenzugang,kontakt-grundlage}.ts`, `src/server/services/finanz/kunde-steuer.ts`, `src/components/portal/Rueckweg.tsx`, `src/components/portal/Kommunikationsverlauf.tsx`, `src/lib/i18n/verwaltung/{crm-rueckweg,crm-kunde}.ts`, Seiten unter `src/app/portal/[mandant]/crm` (`kunden/neu`, `kunden/[id]` mit `steuer`, `zugang`, `konditionen`, `wiedervorlagen`, `kontakte/[id]` mit `rechtsgrundlage`, `leads/neu`, `leads/[id]`) und `src/app/portal/[mandant]/radar/[id]`, `tests/kern/crm-*-rueckweg.test.ts`, `tests/kern/crm-rueckweg.test.ts`, `tests/kern/crm-notiz-route.test.ts`, `tests/kern/hilfen/gruende.ts`, `tests/kern/formular-rueckwege.test.ts`, `tests/isolation/crm-rueckweg-datenbank.test.ts`, `tests/e2e/crm-anlegen.spec.ts`, `src/app/api/lead/route.ts`, `tests/kern/lead-route.test.ts` |
 |---|---|
