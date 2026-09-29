@@ -19,6 +19,7 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
 import { istKennung } from '../../../kennung';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { VORGANG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/vorgang-akte';
+import { DOKUMENT_BLATT_TEXTE } from '@/lib/i18n/verwaltung/dokument-blatt';
 
 /**
  * `/portal/[mandant]/dokumente/upload` — eine Datei ablegen (DOC-01, DOC-03,
@@ -60,6 +61,9 @@ const FEHLER_TEXT: Readonly<Record<string, string>> = {
   speicher: 'Der Dateispeicher ist nicht verbunden.',
   datei: 'Die Datei wurde abgelehnt.',
   eingabe: 'Die Angaben sind unvollständig.',
+  /* Derselbe Satz wie auf dem Blatt der zweiten Fassung (D-759) — eine
+     Quelle, damit die beiden Formulare nicht Verschiedenes raten lassen. */
+  datei_metadaten: DOKUMENT_BLATT_TEXTE.de.faFehler.datei_metadaten,
 };
 
 export default async function DokumentHochladen({

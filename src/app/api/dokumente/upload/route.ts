@@ -10,6 +10,7 @@ import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { NichtVerbundenFehler } from '@/server/storage/adapter';
 import { waehleSpeicher } from '@/server/storage/waehle';
 import { MimeFehler } from '@/server/storage/mime';
+import { ExifFehler } from '@/server/storage/exif';
 import { legeAb } from '@/server/services/dokument/ablage';
 import { alsAntwort } from '../../sicherheit/antwort';
 
@@ -92,10 +93,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const heim = '/portal';
     const zurueck = feld(daten, 'zurueck');
     const seite = zurueck === '' ? heim : zurueck;
-    const mit = (schluessel: string, text: string): NextResponse => NextResponse.redirect(
+    const mit = (schluessel: string, text?: string): NextResponse => NextResponse.redirect(
       internesZiel(
         `${seite}${seite.includes('?') ? '&' : '?'}fehler=${schluessel}`
-        + `&meldung=${encodeURIComponent(text)}`,
+        + (text === undefined ? '' : `&meldung=${encodeURIComponent(text)}`),
         heim, anfrage),
       303);
 
@@ -106,6 +107,15 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         + 'Behauptung.');
     }
     if (fehler instanceof MimeFehler) return mit('datei', fehler.message);
+    /*
+     * Metadaten, die sich nicht sicher entfernen lassen: TIFF, GIF, WebP, ein
+     * verschlüsseltes PDF, ein Video ohne lesbaren Kopf. Kein Dienstfehler
+     * mit `status`, also fiel er durch `alsAntwort` und endete als 500 —
+     * dieselbe Lücke, die D-759 für die zweite Fassung geschlossen hat. Er
+     * reist als Grund, ohne Satz: den Satz hat die Seite, derselbe wie auf
+     * dem Blatt der Fassung, und der des Dienstes nennt Anforderungsnummern.
+     */
+    if (fehler instanceof ExifFehler) return mit('datei_metadaten');
     const antwort = alsAntwort(fehler, anfrage);
     if (antwort !== null) {
       /* Ein Dienstfehler geht als Satz auf die Seite zurück, nicht als JSON auf
