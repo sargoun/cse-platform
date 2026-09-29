@@ -99,6 +99,15 @@ async function baustelle(mandant: string): Promise<Baustelle> {
                           verantwortlich_benutzer_id, start_datum, objekt_id)
      values ($1,$2,$3,'projekt','aktiv','Rohbau',$4,'2026-01-01',$5) returning id`,
     [mandant, `AU-${zufall()}`, k!.id, u!.id, o!.id]);
+  /*
+   * Die Station legt die Fixtur SELBST an. Vorher stand sie hier nicht: sie
+   * kam lokal aus bau-bautagebuch.test.ts, das zufällig vorher in derselben
+   * Datenbank lief — in CI läuft jede Datei auf ihrem eigenen Klon, und der
+   * Fremdschlüssel projekt_wetter_station_id_fkey hielt das Projekt auf.
+   */
+  await sql.unsafe(
+    `insert into wetter_station (id, name, breitengrad, laengengrad)
+     values ('00433','Berlin-Tempelhof',52.4675,13.4021) on conflict do nothing`);
   const [p] = await sql.unsafe<{ id: string }[]>(
     `insert into projekt (mandant_id, auftrag_id, nummer, bezeichnung, kunde_id, art,
                           vertragsgrundlage, objekt_id, wetter_station_id)
