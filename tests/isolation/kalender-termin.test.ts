@@ -121,7 +121,42 @@ describe('(1) anlegen', () => {
   });
 });
 
+/** Die Nacht der Rückstellung im nächsten Jahr — letzter Sonntag im Oktober. */
+function rueckstellungsnacht(): string {
+  const jahr = new Date().getUTCFullYear() + 1;
+  const ende = new Date(Date.UTC(jahr, 9, 31));
+  return `${String(jahr)}-10-${String(31 - ende.getUTCDay()).padStart(2, '0')}`;
+}
+
 describe('(2) ändern', () => {
+  /**
+   * **Eine unveränderte Zeit bleibt, wie sie gespeichert ist** (V-267, D-760
+   * Nr. 10). Der Termin liegt in der ZWEITEN 02:30 der Rückstellungsnacht;
+   * das Formular zeigt „02:30", und `planEingabe` löst das als die erste auf.
+   * Wer nur den Ort ändert, schickt die Zeiten unverändert zurück — und der
+   * Termin rückte ohne die Regel eine Stunde vor.
+   */
+  it('nur der Ort ändert sich: ein Termin der zweiten 02:30 bleibt, wo er war', async () => {
+    const tag = rueckstellungsnacht();
+    const zweite = new Date(`${tag}T01:30:00Z`);
+    const id = await als(leitung, f.reinigung, (k) => legeTerminAn(k, termin({
+      beginn: zweite, ende: new Date(zweite.getTime() + STUNDE),
+    })));
+    const zeiten = leseTerminZeiten({
+      ganztaegig: false, beginn: `${tag}T02:30`, ende: `${tag}T03:30`,
+    });
+    expect(zeiten.beginn.toISOString(), 'das Formular allein hiesse: die erste 02:30')
+      .toBe(`${tag}T00:30:00.000Z`);
+    await als(leitung, f.reinigung, (k) => aendereTermin(k, id, termin({
+      ort: 'Treffpunkt Pforte', ...zeiten,
+    })));
+    const [z] = await sql.unsafe<{ beginn: Date; ende: Date; ort: string }[]>(
+      `select beginn, ende, ort from kalender_eintrag where id = $1`, [id]);
+    expect(z!.ort).toBe('Treffpunkt Pforte');
+    expect(z!.beginn.toISOString()).toBe(zweite.toISOString());
+    expect(z!.ende.toISOString()).toBe(new Date(zweite.getTime() + STUNDE).toISOString());
+  });
+
   it('Zeiten und Titel ändern sich, die Führung bleibt, das Protokoll kennt vorher und nachher', async () => {
     const id = await als(leitung, f.reinigung, (k) => legeTerminAn(k, termin()));
     const zweite = await konto(f.reinigung, 'leitung', 'Zweite Leitung');

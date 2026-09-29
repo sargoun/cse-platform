@@ -28,6 +28,7 @@
  */
 import type { SchreibKontext } from '../../kontext/index.js';
 import { planEingabe } from '../zeit/formulareingabe.js';
+import { behalteGespeicherteZeit } from '../../../lib/datum/formularzeit.js';
 import { berlinTagesZeitpunkt, istKalendertag } from '../zeit/dauer.js';
 
 /** Die Arten, die dieser Dienst anlegt und ändert. */
@@ -308,12 +309,30 @@ async function sperre(kontext: SchreibKontext, id: string): Promise<Bestand> {
   return k;
 }
 
+/**
+ * **Eine unveränderte Zeit bleibt, wie sie gespeichert ist** (V-267, D-760
+ * Nr. 10; `behalteGespeicherteZeit`). Beginn und Ende, deren Berliner Wanduhr
+ * sich nicht geändert hat, behalten ihren gespeicherten Zeitpunkt — sonst
+ * rückte ein Termin aus der zweiten 02:xx der Rückstellungsnacht bei jeder
+ * Änderung, auch nur des Orts, eine Stunde vor. Ergäbe das kein gültiges
+ * Intervall (nur denkbar, wenn eine Zeit in dieser Stunde geändert wurde und
+ * die andere nicht), gilt die Auflösung des Formulars für beide. Rein.
+ */
+export function mitGespeichertenZeiten<T extends { readonly beginn: Date; readonly ende: Date }>(
+  neu: T, vorher: { readonly beginn: Date; readonly ende: Date },
+): T {
+  const beginn = behalteGespeicherteZeit(neu.beginn, vorher.beginn);
+  const ende = behalteGespeicherteZeit(neu.ende, vorher.ende);
+  return ende.getTime() > beginn.getTime() ? { ...neu, beginn, ende } : neu;
+}
+
 /** Ändern — Art, Titel, Zeiten, Ort, Beschreibung und Teilnehmende. */
 export async function aendereTermin(
   kontext: SchreibKontext, id: string, eingabe: TerminEingabe,
 ): Promise<void> {
-  const t = pruefeTermin(eingabe);
+  const geprueft = pruefeTermin(eingabe);
   const vorher = await sperre(kontext, id);
+  const t = mitGespeichertenZeiten(geprueft, vorher);
   const auswahl = t.teilnehmer.filter((x) => x !== kontext.benutzerId);
   await pruefeTeilnehmer(kontext, auswahl);
   /*

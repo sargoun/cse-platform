@@ -205,6 +205,33 @@ describe('(2) verschieben', () => {
               as minuten from gespraech where id = $1`, [id]);
     expect(d!.minuten).toBe(90);
   });
+
+  /**
+   * **Eine unveränderte Wanduhr behält den gespeicherten Zeitpunkt** (V-267,
+   * D-760 Nr. 10). Liegt das Gespräch in der ZWEITEN 02:30, zeigt das
+   * Formular „02:30", und `planEingabe` liest die erste: wer nur die Dauer
+   * ändert, rückte es ohne die Regel still eine Stunde vor.
+   */
+  it('nur die Dauer ändert sich: ein Gespräch der zweiten 02:30 bleibt, wo es war', async () => {
+    const jahr = new Date().getUTCFullYear() + 1;
+    const ende = new Date(Date.UTC(jahr, 9, 31));
+    const tag = `${String(jahr)}-10-${String(31 - ende.getUTCDay()).padStart(2, '0')}`;
+    const zweite = new Date(`${tag}T01:30:00Z`);
+    const id = await plane();
+    await als((k) => verschiebeGespraech(k, id, zweite, 60));
+    expect((await als((k) => ladeGespraech(k, id)))!.termin.toISOString())
+      .toBe(zweite.toISOString());
+
+    const ausDemFormular = planEingabe(`${tag}T02:30`) as Date;
+    expect(ausDemFormular.toISOString()).toBe(`${tag}T00:30:00.000Z`);
+    await als((k) => verschiebeGespraech(k, id, ausDemFormular, 90));
+    const g = await als((k) => ladeGespraech(k, id));
+    expect(g!.termin.toISOString()).toBe(zweite.toISOString());
+    expect(g!.dauerMinuten).toBe(90);
+
+    await expect(als((k) => verschiebeGespraech(k, id, ausDemFormular, 90)))
+      .rejects.toMatchObject({ grund: 'unveraendert' });
+  });
 });
 
 describe('(3) als geführt vermerken', () => {

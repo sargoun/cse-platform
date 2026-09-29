@@ -11,8 +11,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  EIGENE_ARTEN, TerminFehler, leseTerminZeiten, pruefeTermin, teilnehmerNachAenderung,
-  type TerminEingabe,
+  EIGENE_ARTEN, TerminFehler, leseTerminZeiten, mitGespeichertenZeiten, pruefeTermin,
+  teilnehmerNachAenderung, type TerminEingabe,
 } from '../../src/server/services/kalender/termin.js';
 import { KALENDER_TERMIN_TEXTE } from '../../src/lib/i18n/verwaltung/kalender-termin.js';
 
@@ -196,5 +196,49 @@ describe('/kalender/neu: die Spur trägt den Modulnamen', () => {
     expect(link).toMatch(/href=\{alsRoute\(`\/portal\/\$\{mandant\}\/kalender`\)\}/u);
     expect(KALENDER_TERMIN_TEXTE.de.modul).toBe('Kalender');
     expect(KALENDER_TERMIN_TEXTE.en.modul).toBe('Calendar');
+  });
+});
+
+/**
+ * **Eine unveränderte Zeit bleibt, wie sie gespeichert ist** (V-267, D-760
+ * Nr. 10). Ein Termin in der zweiten 02:xx der Rückstellungsnacht zeigt im
+ * Formular dieselbe Wanduhr wie die erste; unverändert zurückgeschickt, rückte
+ * er ohne diese Regel eine Stunde vor.
+ */
+describe('mitGespeichertenZeiten', () => {
+  const zweite = { beginn: new Date('2026-10-25T01:30:00Z'), ende: new Date('2026-10-25T02:30:00Z') };
+
+  function aufgeloest(beginn: string, ende: string): { beginn: Date; ende: Date } {
+    const z = leseTerminZeiten({ ganztaegig: false, beginn, ende });
+    return { beginn: z.beginn, ende: z.ende };
+  }
+
+  it('dieselbe Wanduhr: der gespeicherte Zeitpunkt bleibt — auch in der zweiten 02:30', () => {
+    const neu = aufgeloest('2026-10-25T02:30', '2026-10-25T03:30');
+    expect(neu.beginn.toISOString()).toBe('2026-10-25T00:30:00.000Z');
+    const t = mitGespeichertenZeiten(neu, zweite);
+    expect(t.beginn).toBe(zweite.beginn);
+    expect(t.ende).toBe(zweite.ende);
+  });
+
+  it('eine geänderte Zeit löst das Formular auf; die unveränderte bleibt', () => {
+    const t = mitGespeichertenZeiten(aufgeloest('2026-10-25T02:30', '2026-10-25T04:00'), zweite);
+    expect(t.beginn).toBe(zweite.beginn);
+    expect(t.ende.toISOString()).toBe('2026-10-25T03:00:00.000Z');
+  });
+
+  it('ergäbe das kein Intervall, gilt die Auflösung des Formulars für beide', () => {
+    const neu = aufgeloest('2026-10-25T02:30', '2026-10-25T02:45');
+    const t = mitGespeichertenZeiten(neu, zweite);
+    expect([t.beginn.toISOString(), t.ende.toISOString()])
+      .toEqual(['2026-10-25T00:30:00.000Z', '2026-10-25T00:45:00.000Z']);
+  });
+
+  it('an einem gewöhnlichen Tag ändert die Regel nichts', () => {
+    const vorher = { beginn: new Date('2026-09-01T07:00:00Z'), ende: new Date('2026-09-01T08:00:00Z') };
+    const gleich = aufgeloest('2026-09-01T09:00', '2026-09-01T10:00');
+    expect(mitGespeichertenZeiten(gleich, vorher)).toEqual({ ...gleich, ...vorher });
+    const spaeter = aufgeloest('2026-09-01T11:00', '2026-09-01T12:00');
+    expect(mitGespeichertenZeiten(spaeter, vorher)).toEqual(spaeter);
   });
 });

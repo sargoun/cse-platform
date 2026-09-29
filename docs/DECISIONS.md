@@ -20279,8 +20279,22 @@ Person zurück.
    nimmt `GESPRAECH_MARKE` die neutrale Marke, die auch ein stornierter
    Einsatz im Dienstplan der Gruppe trägt. Absage und Grund nennt der Kasten
    auf dem Gesprächsblatt.
+10. **Eine unveränderte Zeit bleibt, wie sie gespeichert ist** (V-267 l,
+    Invariante 2). `berlinFormularWert` belegt „Termin ändern" und „Gespräch
+    verschieben" mit der Berliner Wanduhr vor. In der Rückstellungsnacht gibt
+    es 02:00–02:59 zweimal; beide zeigen dieselbe Wanduhr, und `planEingabe`
+    liest die ERSTE. Ein Termin der zweiten Stunde rückte so bei jeder
+    Änderung — auch nur des Orts oder der Dauer — still eine Stunde vor. Jetzt
+    behält eine Zeit, deren Wanduhr sich nicht geändert hat, ihren
+    gespeicherten Zeitpunkt (`behalteGespeicherteZeit`,
+    `mitGespeichertenZeiten`, `verschiebeGespraech`); eine geänderte löst
+    `planEingabe` auf wie immer. Ergäbe das beim Termin kein Intervall (nur
+    denkbar, wenn in dieser Stunde eine Zeit geändert wurde und die andere
+    nicht), gilt die Auflösung des Formulars für beide. Wer ausdrücklich die
+    zweite 02:30 wählen will, kann das über das Formular weiterhin nicht —
+    das bleibt die benannte Grenze.
 
-| Betrifft | CAL-01, CAL-02, REC-03, O-938, D-715, D-718, V-221, V-224, V-267, `drizzle/0160` (`t_kalender_schreiben`, `t_kalender_eigene`), `src/server/services/kalender/termin.ts`, `src/app/portal/[mandant]/kalender/{TerminFormular.tsx,[id]/page.tsx,neu/page.tsx}`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/postfach.ts`, `src/server/services/recruiting/gespraech.ts`, `src/server/services/datenschutz/auskunft.ts`, O-954, `src/lib/formular/maske.ts`, `src/app/api/uebergang.ts`, `src/app/api/kalender/eintraege/{route,termin-rumpf}.ts`, `src/app/api/kalender/eintraege/[id]/route.ts`, `tests/kern/crm-kette.test.ts`, `src/app/portal/[mandant]/recruiting/stellen/neu/page.tsx`, `src/lib/i18n/verwaltung/recruiting-stellenentwurf.ts`, `tests/kern/stellenentwurf.test.ts`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/{kalender-termin,recruiting-postfach,recruiting-gespraech,datenschutz-dienste}.test.ts`, `tests/e2e/bewerbung-antwort.spec.ts`, D-717, `src/server/services/recruiting/kandidat.ts`, `src/app/api/recruiting/bewerbungen/[id]/kandidat/route.ts`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/recruiting-kandidat.ts`, `src/server/db/seed/kandidat.ts`, `tests/kern/kandidat-extraktion.test.ts`, `tests/isolation/recruiting-kandidat.test.ts`, `src/app/portal/[mandant]/recruiting/marken.ts`, `tests/kern/gespraech-marke.test.ts` |
+| Betrifft | CAL-01, CAL-02, REC-03, O-938, D-715, D-718, V-221, V-224, V-267, `drizzle/0160` (`t_kalender_schreiben`, `t_kalender_eigene`), `src/server/services/kalender/termin.ts`, `src/app/portal/[mandant]/kalender/{TerminFormular.tsx,[id]/page.tsx,neu/page.tsx}`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/postfach.ts`, `src/server/services/recruiting/gespraech.ts`, `src/server/services/datenschutz/auskunft.ts`, O-954, `src/lib/formular/maske.ts`, `src/app/api/uebergang.ts`, `src/app/api/kalender/eintraege/{route,termin-rumpf}.ts`, `src/app/api/kalender/eintraege/[id]/route.ts`, `tests/kern/crm-kette.test.ts`, `src/app/portal/[mandant]/recruiting/stellen/neu/page.tsx`, `src/lib/i18n/verwaltung/recruiting-stellenentwurf.ts`, `tests/kern/stellenentwurf.test.ts`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/{kalender-termin,recruiting-postfach,recruiting-gespraech,datenschutz-dienste}.test.ts`, `tests/e2e/bewerbung-antwort.spec.ts`, D-717, `src/server/services/recruiting/kandidat.ts`, `src/app/api/recruiting/bewerbungen/[id]/kandidat/route.ts`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/recruiting-kandidat.ts`, `src/server/db/seed/kandidat.ts`, `tests/kern/kandidat-extraktion.test.ts`, `tests/isolation/recruiting-kandidat.test.ts`, `src/app/portal/[mandant]/recruiting/marken.ts`, `tests/kern/gespraech-marke.test.ts`, `src/lib/datum/formularzeit.ts`, `tests/kern/formularzeit.test.ts` |
 |---|---|
 
 ### D-761 · Beitragsbilder: die Pflege von `medien` bleibt in der eigenen Gesellschaft, ein hochgeladenes Bild bleibt, wie es angenommen wurde, und es gehört nicht in den Bildbestand der Website (V-268)

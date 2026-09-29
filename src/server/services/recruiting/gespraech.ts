@@ -24,6 +24,7 @@
  * Dienst schreibt nur den Zustand und das Protokoll.
  */
 import type { SchreibKontext } from '../../kontext/index.js';
+import { behalteGespeicherteZeit } from '../../../lib/datum/formularzeit.js';
 import { RecruitingFehler } from './dienst.js';
 
 /** Fünf Minuten bis vier Stunden — dieselben Grenzen wie beim Anlegen. */
@@ -137,14 +138,20 @@ export async function verschiebeGespraech(
       + `${String(GESPRAECH_DAUER_MAX)} Minuten.`, 'unbrauchbare_dauer', 400);
   }
   const vorher = await sperre(kontext, id);
+  /*
+   * Eine unveränderte Wanduhr behält den gespeicherten Zeitpunkt (V-267,
+   * D-760 Nr. 10): ein Gespräch in der zweiten 02:xx der Rückstellungsnacht
+   * rückte sonst bei einer Änderung nur der Dauer still eine Stunde vor.
+   */
+  const neu = behalteGespeicherteZeit(termin, vorher.termin);
   const [zukunft] = await kontext.abfrage<{ ja: boolean }>(
-    `select $1::timestamptz > now() as ja`, [termin.toISOString()]);
+    `select $1::timestamptz > now() as ja`, [neu.toISOString()]);
   if (zukunft?.ja !== true) {
     throw new RecruitingFehler(
       'Der neue Termin liegt nicht in der Zukunft. Verschoben wird nach vorn, nicht in die '
       + 'Vergangenheit.', 'vergangenheit', 400);
   }
-  if (vorher.termin.getTime() === termin.getTime() && vorher.dauer_minuten === dauerMinuten) {
+  if (vorher.termin.getTime() === neu.getTime() && vorher.dauer_minuten === dauerMinuten) {
     throw new RecruitingFehler(
       'Termin und Dauer sind dieselben wie bisher — es gibt nichts zu verschieben.',
       'unveraendert', 400);
@@ -154,12 +161,12 @@ export async function verschiebeGespraech(
         set termin = $2::timestamptz, dauer_minuten = $3::int,
             geaendert_von = app.aktueller_benutzer()
       where id = $1::uuid and mandant_id = app.aktiver_mandant()`,
-    [id, termin.toISOString(), dauerMinuten]);
+    [id, neu.toISOString(), dauerMinuten]);
   await kontext.schreibe(
     `select app.protokolliere('recruiting.gespraech_verschoben', 'gespraech', $1, $2::jsonb,
                               $3::jsonb, app.aktiver_mandant())`,
     [id, { termin: vorher.termin.toISOString(), dauer_minuten: vorher.dauer_minuten },
-      { termin: termin.toISOString(), dauer_minuten: dauerMinuten }]);
+      { termin: neu.toISOString(), dauer_minuten: dauerMinuten }]);
 }
 
 /**

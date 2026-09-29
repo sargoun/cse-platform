@@ -114,3 +114,20 @@ export function berlinFormularWert(zeitpunkt: Date): string {
     teile.find((x) => x.type === art)?.value ?? '';
   return `${teil('year')}-${teil('month')}-${teil('day')}T${teil('hour')}:${teil('minute')}`;
 }
+
+/**
+ * **Die Grenze des Rundlaufs — und warum sie niemanden trifft** (V-267, D-760
+ * Nr. 10).
+ *
+ * In der Nacht der Rückstellung (letzter Sonntag im Oktober) gibt es 02:00 bis
+ * 02:59 zweimal. `berlinFormularWert` zeigt beide Stunden als dieselbe
+ * Wanduhr, und `planEingabe` löst sie als die ERSTE auf. Ein Termin der
+ * zweiten Stunde, unverändert zurückgeschickt, rückte so eine Stunde vor —
+ * still, denn die Anzeige danach ist dieselbe. Deshalb gilt beim Ändern: zeigt
+ * der geschickte Zeitpunkt dieselbe Berliner Wanduhr (auf die Minute) wie der
+ * gespeicherte, bleibt der GESPEICHERTE. Unveränderte Zeiten werden nicht neu
+ * aus der Wanduhr gelesen; eine geänderte löst `planEingabe` auf wie immer.
+ */
+export function behalteGespeicherteZeit(geschickt: Date, gespeichert: Date): Date {
+  return berlinFormularWert(geschickt) === berlinFormularWert(gespeichert) ? gespeichert : geschickt;
+}
