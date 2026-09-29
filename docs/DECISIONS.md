@@ -13979,6 +13979,17 @@ Vorgangsnummer — das einzige, womit ein Anfragender bei einem Rückruf auf sei
 Anfrage zeigen kann — und trägt `robots: noindex`, weil eine Adresse mit einer
 Vorgangsnummer darin nicht in einen Suchindex gehört.
 
+**Nachsatz (D-769, D-770, V-272).** „Der Text reist mit und nicht ein
+Schlüssel" gilt nicht mehr — D-769 ersetzt ihn. Ein Text in der Adresse hiess:
+jeder präparierte Link schrieb seinen eigenen Satz in den Warnkasten und unter
+die Felder des Formulars. Und der Einwand gegen einen Schlüssel — eine zweite
+Liste in der Oberfläche liefe auseinander — trägt nicht: die Seite lädt
+dieselbe veröffentlichte Definition, gegen die die Annahme prüft. Eine
+Abweisung kommt jetzt als `?fehler=<grund>&felder=<k1,k2,…>` zurück; die Seite
+zeigt den Sammelsatz aus `API_TEXTE` und unter jedem genannten Feld dessen
+`fehlermeldung` aus der Definition (englisch über dieselbe Auflage wie die
+Beschriftungen). Programme bekommen weiter JSON mit Satz und Feldmeldungen.
+
 ### D-598 · Eine Absage nennt keinen Grund — und die Datenbank passt darauf auf
 
 **Der Auftrag.** Der Agent soll auf Bewerbungen antworten und senden. Gebaut
@@ -23271,4 +23282,118 @@ Diese Parameter stehen nirgends mehr roh auf dem Schirm. Dazu prüft
 `encodeURIComponent` in `fehler`, `erfolg`, `ok` oder `grund` geht.
 
 | Betrifft | AUT-06, D-599, D-728, D-741, D-753, D-766, V-272–V-276 |
+|---|---|
+
+### D-770 · Die Website schickt eine Abweisung als Schlüssel zurück — Angebotsformular, Datenschutzanfrage und Barriere-Meldung schlagen ihren Satz selbst nach (V-272, Teil „öffentlich" von D-769)
+
+**Der Befund** (D-769, am Code gegengeprüft). Drei öffentliche Routen
+schrieben einen Satz in die Adresse, und sechs Seiten — je deutsch und
+englisch — zeigten ihn im `role="alert"`-Kasten:
+
+- `POST /api/anfrage` schickte `/angebot/<bereich>?meldung=<Sammelsatz>&felder=<JSON>`;
+  das JSON trug die Feldmeldungen, und die Seite setzte jede unter „ihr" Feld
+  (geprüft wurde nur die Form: ein Objekt aus Zeichenketten bis 300 Zeichen).
+  Ein präparierter Link schrieb also einen Warnkasten UND Text unter jedes
+  Feld des Formulars, an dem Umsatz ankommt. Die Meldung eines Dateifelds
+  (`dateiZuGross`, `dateityp`) war der deutsche Text der Definition, auch unter
+  `/en`. Ein unbekannter Bereich führte auf `/angebot`, das die Adresse nicht
+  las — der Satz ging verloren; ein Bereich ohne veröffentlichtes oder mit
+  kaputtem Formular führte auf sein Formular und dort ins 404 bzw. auf die
+  Fehlerseite.
+- `POST /api/datenschutz/anfrage` und `POST /api/barrierefreiheit/meldung`
+  schickten `?meldung=<Satz>` (deutsch der Satz des Dienstes, englisch der aus
+  `PFLICHTWEG_FEHLER_EN`). Der Fall „diese Gesellschaft / diesen Bereich gibt
+  es nicht" stand als Satz in der Route, ohne Schlüssel. `AnfrageFehler` und
+  `BarriereFehler` trugen ihren Grund als freies `string`.
+
+**Die Entscheidung** (D-769 Nr. 1–9 für die Website):
+
+1. **Angebot: `?fehler=<grund>&felder=<k1,k2,…>`.** Der Grund ist der NAME des
+   Sammelsatzes in `API_TEXTE` (`ANGEBOT_FEHLER_GRUENDE`: `pruefen`,
+   `datenschutzBestaetigen`, `zuVieleAnfragen`, `keinFormular`,
+   `nichtVerfuegbar`, `dateiZuGross`, `dateityp`, `uploadNichtVerbunden`,
+   `nichtGespeichert`). Nicht dabei sind `dank` — `?fehler=dank` ergäbe sonst
+   „Vielen Dank" in einem Warnkasten — und `unlesbar` (ein Rumpf, der sich nicht
+   lesen lässt, sagt nicht, dass er ein Formular war; er bleibt JSON). Ein
+   `FormularFehler` reist mit dem Grund, den `formularSammelgrund` aus
+   `FormularFehler.grund` macht: `pruefen` → `pruefen`, `datenschutz` →
+   `datenschutzBestaetigen`, `zu_viele` → `zuVieleAnfragen`, alles andere →
+   `nichtGespeichert` — dieselbe Abbildung, mit der die englische Seite ihren
+   Satz seit V-160 fand. Ein zweiter Satz von Namen neben `API_TEXTE` wäre eine
+   Abbildung mehr, die auseinanderläuft.
+2. **`felder` sind nur Schlüssel** in der Form eines Feldschlüssels
+   (`FELDSCHLUESSEL`, jetzt eine Konstante in `lib/formular/schema.ts`, gegen
+   die auch die Definition geprüft wird; der leere Schlüssel eines
+   Zod-Befunds „unbekanntes Feld" fällt so weg). Die Seite übernimmt nur
+   Schlüssel der Definition, die sie ohnehin lädt, und setzt unter jedes
+   genannte Feld dessen `fehlermeldung` — englisch über `uebersetzeFelder`,
+   dieselbe Auflage wie die Beschriftung. Damit sind auch die Dateifelder
+   englisch. D-599s Einwand gegen einen Schlüssel („eine zweite Liste liefe
+   auseinander") trägt nicht mehr: es gibt keine zweite Liste (Nachsatz dort).
+   Die Seite prüft nicht nach, ob das Feld beim Absenden wirklich falsch war —
+   ein präparierter Link kann ein Feld mit seiner EIGENEN Meldung markieren,
+   aber keinen Text mehr hineinschreiben.
+3. **Der Sammelsatz steht in `ANGEBOT_FEHLER_TEXTE`** (de/en), Satz für Satz
+   aus `API_TEXTE` gelesen; ein fremder Grund bekommt `nichtGespeichert`
+   („Die Anfrage konnte nicht gespeichert werden."). Nachgeschlagen wird nur
+   als eigener Eintrag (D-728), auch am Feld (`AnfrageFormular`: ein Feld
+   `constructor` fände sonst die Funktion). Ohne `?fehler=` zeigt die Seite
+   keine Abweisung, auch nicht mit `?felder=`.
+4. **Ohne zeigbares Formular geht es auf die Auswahl.** `keinFormular` und
+   `nichtVerfuegbar` führen immer auf `/angebot` (`/en/angebot`); die Auswahl
+   zeigt den Satz jetzt im selben Kasten wie das Formular (`role="alert"`).
+   Vorher nur ein unbekannter Bereich — und der ohne Satz.
+5. **Datenschutzanfrage und Barriere-Meldung: `?fehler=<grund>`.** Die Seite
+   schlägt ihn in `PFLICHTWEG_FEHLER_TEXTE[sprache].anfrage` bzw. `.barriere`
+   nach, Form `{ sonst, fehler }`: die deutsche Tabelle ist neu, die englische
+   ist `PFLICHTWEG_FEHLER_EN` in dieser Form. Die zwei Fälle der Route haben
+   Schlüssel: `gesellschaft_fehlt`, `bereich_fehlt`. Die deutschen Sätze sind
+   die des Dienstes, Wort für Wort — ein Programm bekommt sie weiter als
+   `meldung`, und die Prüfung hält beide zusammen. Ein fremder Grund bekommt
+   `sonst` („Ihre Anfrage/Meldung konnte nicht angenommen werden. Bitte prüfen
+   Sie Ihre Angaben."). Der Erfolg der Barriere-Meldung bleibt der Schlüssel
+   `ok=1` (schon vorhanden, streng verglichen); sein Satz steht jetzt in der
+   Tabelle der Seite statt im Ausdruck.
+6. **`AnfrageFehler` und `BarriereFehler` tragen einen getypten Grund**
+   (`AnfrageFehlerGrund`, `BarriereFehlerGrund` — jeder Grund, den der Dienst
+   wirft); `PFLICHTWEG_FEHLER_GRUENDE` ist gegen diese Typen geprüft
+   (`satisfies`). Laufzeit und Sätze ändern sich dadurch nicht.
+7. **Programme bekommen dasselbe JSON wie vorher**: beim Angebot
+   `{ ok: false, meldung, felder }` mit den Feldmeldungen der Definition
+   (englisch übersetzt, die eines Dateifelds wie bisher der Text der
+   Definition), bei den Pflichtformularen `{ ok: false, meldung }`, mit
+   denselben Status. Ein Fehler, der keine Abweisung des Dienstes ist, bleibt
+   bei den Pflichtformularen ein Wurf; das Angebot antwortet wie bisher mit
+   `nichtGespeichert` (500), jetzt als Grund — der Text der Datenbank
+   erschien dort nie und erscheint nicht.
+8. **Anmeldung und Rechte sind hier nicht berührt** (D-769 Nr. 7): die drei
+   Routen sind bewusst offen (Eingangsprinzipal, `route-manifest`); es gibt
+   weder eine Sitzung noch einen `status`/`code`-Zweig vor einem Recht.
+9. **Die Kästen bleiben, wie sie waren** — `<p role="alert">` bzw.
+   `role="status"` in der Art der Website, wie bei Karriere und
+   Werbewiderspruch; die Auswahl bekommt denselben Kasten wie das Formular.
+   Dass die Website ihre Kästen aus Klassen nachbaut, statt `Hinweis`
+   (DESIGN §5 „Notices") zu nehmen, ist ein Umbau aller Kästen der Website
+   zugleich und nicht Teil dieses Rückwegs.
+
+**Geprüft:** `tests/kern/angebot-rueckweg.test.ts` und
+`tests/kern/pflichtweg-rueckweg.test.ts` — die echten Routen (ersetzt nur
+Datenbank, Kontexte, Speicher, Bestätigungsmail; `nimmAn` und die
+Datenschutzdienste laufen echt): jeder Grund → 303 auf die Seite mit genau
+`fehler` (und `felder`), ohne `meldung`, ohne Kennung, ohne Eingabe; die
+Menge der Gründe, mit denen die Routen zurückkamen, ist genau die Liste;
+JSON wie vorher, de und en; ein Fehler ohne Grund bleibt ein Wurf; die
+Tabellen in beiden Sprachen ohne Kennung und ohne Prototyp-Treffer; die
+gerenderten Seiten zeigen den nachgeschlagenen Satz, für einen fremden Grund
+den allgemeinen, für den alten Parameter nichts; die Dateimeldung englisch;
+keine Seite liest `meldung`. Isolation (die Dateien, die die geänderten
+Dienste und die Annahme laden): `anfrage-aufnehmen`, `datenschutz-dienste`,
+`datenschutz-identitaet`, `lead` — unverändert grün. Angepasst:
+`tests/kern/anfrage-honigtopf.test.ts`
+(die Quelltextprobe nennt den neuen Aufruf `antworteFehler(429,
+'zuVieleAnfragen')`), `tests/e2e/sprachen.spec.ts` (5) (die Adresse der
+englischen Abweisung trägt `fehler=pruefen` und `felder`, kein `meldung`, der
+Satz ist englisch) und neu (8), `tests/e2e/angebot.spec.ts` (6).
+
+| Betrifft | D-769, D-599, D-728, D-83, V-156, V-157, V-160, V-272, `src/app/api/anfrage/route.ts`, `src/app/api/datenschutz/anfrage/route.ts`, `src/app/api/barrierefreiheit/meldung/route.ts`, `src/app/(public)/angebot/Auswahl.tsx`, `src/app/(public)/angebot/[bereich]/{Angebot,page}.tsx`, `src/app/(public)/en/angebot/[bereich]/page.tsx`, `src/app/(public)/datenschutz/anfrage/{Anfrage,page}.tsx`, `src/app/(public)/en/datenschutz/anfrage/page.tsx`, `src/app/(public)/barrierefreiheit/feedback/{Feedback,page}.tsx`, `src/app/(public)/en/barrierefreiheit/feedback/page.tsx`, `src/components/oeffentlich/AnfrageFormular.tsx`, `src/lib/i18n/texte.ts` (`ANGEBOT_FEHLER_*`, `formularSammelgrund`, `PFLICHTWEG_FEHLER_*`), `src/lib/formular/schema.ts` (`FELDSCHLUESSEL`), `src/server/services/datenschutz/{anfrage,barriere}.ts` (Grund-Typen), `tests/kern/{angebot-rueckweg,pflichtweg-rueckweg,anfrage-honigtopf}.test.ts`, `tests/e2e/{sprachen,angebot}.spec.ts` |
 |---|---|
