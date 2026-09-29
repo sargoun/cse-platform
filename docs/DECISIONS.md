@@ -23272,3 +23272,102 @@ Diese Parameter stehen nirgends mehr roh auf dem Schirm. Dazu prüft
 
 | Betrifft | AUT-06, D-599, D-728, D-741, D-753, D-766, V-272–V-276 |
 |---|---|
+
+### D-772 · CRM: der Rückweg trägt Schlüssel — eigene Namen, wo `fehler` schon vergeben ist, die Datenbanksätze werden im Dienst Gründe (V-274, Teil crm von D-769)
+
+**Der Befund** (V-274, Katalog von D-769): neun CRM-Routen schickten den
+Satz ihres Dienstes als `?meldung=` und ihre Erfolgssätze als `?erfolg=`
+zurück; sieben der elf Seiten zeigten sie roh. `kunde/zugang` und
+`ansprechpartner/[id]/widerspruch` reichten dazu die deutschen Sätze der
+Definer (0249, 0248, 0222) und jeden anderen einzeiligen Fehlertext durch —
+vor `autorisierungsAntwort`. Drei Seiten und eine Route schlugen einen Wert
+aus der Adresse mit eckigen Klammern nach.
+
+**Die Entscheidung** (setzt D-769 für den Teil crm um):
+
+1. **Ein Helfer, vier Namen.** `zurueckMitSchluessel(anfrage, zurueck,
+   parameter, schluessel)` (`src/app/api/crm/rueckweg.ts`) hängt genau
+   einen Schlüssel an, über `internesZiel`. `fehler` für Lead, Steuer,
+   Konditionen, Zugang, Rechtsgrundlage und Widerspruch; `grund` für
+   `POST /api/crm/kunde` — das Kontaktblatt liest `fehler` für den
+   Sendeweg (V-101); `wiedervorlage` für `POST /api/crm/wiedervorlage` —
+   Lead- und Kontaktblatt lesen `fehler` schon für andere Formulare, und
+   `betreff_fehlt` hiesse dort „Ein Lead braucht einen Betreff“; `notiz`
+   bleibt (V-147). Ein Erfolg reist als `?erfolg=<schluessel>`.
+2. **Nicht `grundAufsFormular`** (D-769 Nr. 3): er kennt nur `fehler` und
+   antwortet ohne `zurueck` mit JSON. Die CRM-Routen kehrten bei einer
+   fachlichen Abweisung immer zurück (ohne `zurueck` auf `/portal`); einen
+   JSON-Weg dafür gab es nicht, und dieser Schritt erfindet keinen.
+   Programme bekommen dieselben JSON-Antworten wie bisher (D-599 —
+   `unbekannte_kennung`, `unbekannter_vorgang`, `unbekannter_umfang`,
+   `fremder_ursprung`).
+3. **Getypte Gründe, gegen den Syntaxbaum geprüft.** `CrmFehler`
+   (`CRM_GRUENDE`), `SteuerFehler` (`STEUER_GRUENDE`) und `ZugangFehler`
+   (`ZUGANG_GRUENDE`) tragen `grund` als Vereinigung fester Wörter. Welche
+   Gründe eine Route schicken kann, liest `tests/kern/hilfen/gruende.ts`
+   aus dem Quelltext (Aufrufe in Dienste, beide Äste, Parameter); die Liste
+   muss GLEICH der Menge der Würfe sein, nicht nur sie enthalten. Eine
+   Stelle, deren Grund erst zur Laufzeit feststeht, ist ausdrücklich
+   benannt (`datei#funktion`) und zählt über ihre Tabelle.
+4. **Datenbanksätze werden im Dienst Gründe** (D-769 Nr. 8).
+   `ZUGANG_DATENBANK_GRUENDE` (0249) und `WIDERSPRUCH_DATENBANK_GRUENDE`
+   (0248, 0222) bilden jeden Satz wörtlich auf seinen Grund ab; ein Satz,
+   den die Tabelle nicht kennt, wird `abgewiesen` bzw.
+   `widerspruch_abgewiesen` — der allgemeine Satz der Seite, nie der Text.
+   Zum Grund wird nur eine ABWEISUNG: `insufficient_privilege` und
+   `no_data_found`, beim Widerspruch dazu `check_violation` (dort Zukunft,
+   Kanal, Begründung). Alles andere bleibt ein Fehler: der
+   `check_violation` am Einladungstoken (0249) ist ein Programmfehler, ein
+   Datum, das keines ist, ergibt beim Widerspruch jetzt einen Fehler statt
+   des rohen Postgres-Satzes im Kasten. Die Kerntests lesen die Sätze aus
+   der letzten Fassung jedes Definers in `drizzle/`, die Isolation löst sie
+   an der echten Datenbank aus.
+5. **Die Anmeldung zuerst, in allen neun Routen** (D-769 Nr. 7, D-766).
+   Der Rohtext-Zweig in `zugang` und `widerspruch` entfällt; vorher wurde
+   ein fehlendes Recht dort „Nicht gefunden“ im Warnkasten.
+6. **Die Seiten schlagen über zwei Bausteine nach**
+   (`src/components/portal/Rueckweg.tsx`): `Abweisung` (`rolle="alert"`,
+   unbekannter Grund → der allgemeine Satz der Seite) und `Bestaetigung`
+   (`rolle="status"`, NUR zu einem bekannten Schlüssel — ein allgemeines
+   „Gespeichert.“ wäre mit jedem Link fälschbar). `einSchluessel` nimmt nur
+   einen einzelnen, nicht leeren Wert. Nachgeschlagen wird nur mit
+   `eigenerEintrag` — auch an den drei Stellen, die es nicht taten:
+   Kundenblatt (`tk.kontaktFehler[…]`), Kontaktblatt (`SENDE_FEHLER[…]`),
+   Steuerroute (`RECHT[was]`, jetzt `istVorgang` gegen die Liste).
+7. **Sprache** (D-769 Nr. 4): die Tabellen stehen in
+   `src/lib/i18n/verwaltung/crm-rueckweg.ts` (dazu
+   `KONTAKT_ANLEGEN_GRUENDE` in `crm-kunde.ts`), deutsch für die Seiten der
+   Ausnahmeliste in derselben Form (`NurDeutsch`); zweisprachig ist nur die
+   Wiedervorlage, weil das Leadblatt der Sitzung folgt. Rechte stehen mit
+   ihrem Namen (`rechtName`), kein Schlüssel, kein Backtick, kein
+   Datenbankname im Satz.
+8. **Erfolgsschlüssel**: Wiedervorlage `erledigt`, `verschoben`,
+   `angelegt`, `angelegt_ohne_aufgabe` / `_ohne_kalender` / `_ohne_spiegel`
+   (`anlageSchluessel` — was vom Spiegel fehlt, O-663); Steuer der Vorgang
+   (`erechnung`, `bauleistender`, `bescheinigung`, `widerruf`); Konditionen
+   und Rechtsgrundlage `gespeichert`; Widerspruch `werbewiderspruch`,
+   `vollwiderspruch`; Zugang `ausgestellt`, `eingeladen`, `entzogen`,
+   `entzogen_mit_sitzungen`.
+9. **Werte fallen weg, statt in die Adresse zu gehen** (D-769 Nr. 5): die
+   Daten der kollidierenden Zeitscheibe (sie steht in der Liste darüber),
+   jede Eingabe (die Sätze beschreiben die erwartete Form), die Zahl
+   beendeter Sitzungen (eigener Schlüssel; die Zahl bleibt im Protokoll des
+   Definers, `beendete_sitzungen`), die Leadnummer.
+10. **Was sich nebenbei ändert:** das Leadblatt zeigt den Ausgang seiner
+    Wiedervorlage (vorher „Das ließ sich nicht speichern.“ oder nichts);
+    die Zugangsseite überschreibt eine Abweisung mit „Nicht ausgeführt.“
+    statt „Nicht ausgestellt.“ — sie gilt auch für Einladen und Entziehen;
+    `nichtGespiegelt` (wiedervorlage.ts) bleibt, reist aber nicht mehr.
+    Der Grund `grundlage_ohne_quelle` ist auf dem Leadweg unerreichbar (die
+    Kette legt den Kunden mit Grundlage „keine“ an) und wird für das
+    Leadblatt nicht verlangt — der Kerntest hält die Bedingung am
+    Quelltext fest.
+11. **Bewusst angepasste Tests:** `tests/kern/formular-rueckwege.test.ts`
+    (c) schrieb `meldung=${encodeURIComponent(fehler.message)}` und
+    `tk.kontaktFehler[meldungGrund]` fest; `tests/e2e/crm-anlegen.spec.ts`
+    erwartete `?meldung=` (jetzt `?grund=grundlage_ohne_quelle` bzw.
+    `?fehler=ohne_namen`; nicht lokal gelaufen). Keine offene Frage: jeder
+    Satz sagt, was Dienst und Datenbank schon entscheiden.
+
+| Betrifft | D-769, D-753, D-728, D-599, D-766, AUT-06, V-274, `src/app/api/crm/rueckweg.ts`, `src/app/api/crm/{kunde,lead,wiedervorlage,notiz}/route.ts`, `src/app/api/crm/kunde/{steuer,konditionen,zugang}/route.ts`, `src/app/api/crm/ansprechpartner/[id]/{rechtsgrundlage,widerspruch}/route.ts`, `src/server/services/crm/{anlegen,wiedervorlage,kundenzugang,kontakt-grundlage}.ts`, `src/server/services/finanz/kunde-steuer.ts`, `src/components/portal/Rueckweg.tsx`, `src/components/portal/Kommunikationsverlauf.tsx`, `src/lib/i18n/verwaltung/{crm-rueckweg,crm-kunde}.ts`, Seiten unter `src/app/portal/[mandant]/crm` (`kunden/neu`, `kunden/[id]` mit `steuer`, `zugang`, `konditionen`, `wiedervorlagen`, `kontakte/[id]` mit `rechtsgrundlage`, `leads/neu`, `leads/[id]`) und `src/app/portal/[mandant]/radar/[id]`, `tests/kern/crm-*-rueckweg.test.ts`, `tests/kern/crm-rueckweg.test.ts`, `tests/kern/crm-notiz-route.test.ts`, `tests/kern/hilfen/gruende.ts`, `tests/kern/formular-rueckwege.test.ts`, `tests/isolation/crm-rueckweg-datenbank.test.ts`, `tests/e2e/crm-anlegen.spec.ts` |
+|---|---|
