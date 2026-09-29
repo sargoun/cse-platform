@@ -18,8 +18,9 @@ import { RADAR_PLATTFORM_TEXTE } from '@/lib/i18n/verwaltung/radar-plattform';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { tagInSprache } from '@/lib/datum/kalendertag';
 import { beschriftung } from '@/lib/i18n/beschriftung/basis';
-import { AUSSCHREIBUNG_STATUS_TEXT, MAPPE_STATUS_TEXT } from '@/lib/i18n/beschriftung/radar';
+import { MAPPE_STATUS_TEXT } from '@/lib/i18n/beschriftung/radar';
 import { Recht } from '@/components/ui/Recht';
+import { vermerkterStand } from './vermerkt';
 
 /**
  * `/portal/[mandant]/radar/[id]` — eine Bekanntmachung (RAD-03, RAD-05,
@@ -91,7 +92,8 @@ export default async function Bekanntmachung(
   const darf = await haeltRechte(zugang.sitzung, 'radar.plattform_verwalten',
     'crm.schreiben', 'crm.lesen');
   const suche = await searchParams;
-  const vermerkt = typeof suche['vermerkt'] === 'string' ? suche['vermerkt'] : null;
+  /* Nur ein Stand, den die Route setzt — nie Text aus der Adresse (V-271). */
+  const vermerkt = vermerkterStand(suche['vermerkt']);
   const fehlerRoh = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const k = nachSprache(KETTE_TEXTE, zugang.sprache);
   /* Der Registrierungsstand in Worten, nie als Aufzählungswert (V-175). */
@@ -218,7 +220,7 @@ export default async function Bekanntmachung(
       {vermerkt !== null ? (
         <Hinweis art="erfolg" cse="radar-vermerkt" className="mb-s5 max-w-prose">
           <strong>Vermerkt.</strong> Der Stand dieser Bekanntmachung ist jetzt
-          „{beschriftung(AUSSCHREIBUNG_STATUS_TEXT, vermerkt)}".
+          „{vermerkt}".
         </Hinweis>
       ) : null}
       {abgewiesen !== null ? (

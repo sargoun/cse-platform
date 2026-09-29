@@ -19957,7 +19957,11 @@ Vorgangsstand stand als eigene Liste in Radarliste und Gruppenradar.
    Korrekturseite über `tagDeutsch` statt über drei `slice`, der Name einer
    Datenbankbedingung (`lead_aktivitaet_hat_bezug`) und die Tabelle `einsatz`
    aus dem sichtbaren Text entfernt, der vermerkte Stand des Radarvorgangs als
-   Wort („geprüft" statt `geprueft`, die Browserprüfung liest jetzt das Wort),
+   Wort („geprüft" statt `geprueft`, die Browserprüfung liest jetzt das Wort;
+   **berichtigt in V-271:** `?vermerkt=` lief durch `beschriftung()`, deren
+   lesbarer Rückfall für Datenbankwerte gedacht ist — `?vermerkt=Zuschlag_an_uns`
+   stand als „Zuschlag an uns" im Erfolgskasten; jetzt nur ein Stand, den die
+   Vorgangsroute setzt (`vermerkterStand`, `SETZBAR`), sonst kein Kasten),
    und die rohen Rechteschlüssel dieser Seiten als `<Recht>` — Vorgangsblatt
    und Mappe des Radars (`radar.status_setzen`, `vergabe.schreiben`,
    `vergabe.einreichung_erfassen`), Korrekturseite (`zeit.konto_korrigieren`),
