@@ -13,7 +13,8 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { BEGRUENDUNG_MINDESTLAENGE } from '@/server/services/zeit/laufender-eintrag';
 import { LaufendSchliessen } from './LaufendSchliessen';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
-import { LAUFEND_TEXTE } from '@/lib/i18n/verwaltung/zeit';
+import { LAUFEND_FEHLER_TEXTE, LAUFEND_TEXTE } from '@/lib/i18n/verwaltung/zeit';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/zeiten/live` — „Aktuell im Einsatz" (DSH-05, TIM-08).
@@ -54,7 +55,7 @@ export default async function LiveBrettSeite(
 ) {
   const { mandant } = await params;
   const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const pfad = `/portal/${mandant}/zeiten/live`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -73,6 +74,14 @@ export default async function LiveBrettSeite(
    */
   const darf = await haeltRechte(sitzung, 'zeit.korrigieren');
   const t = nachSprache(LAUFEND_TEXTE, zugang.sprache);
+  /*
+   * Eine Abweisung aus `POST /api/zeit/laufend` kommt als GRUND
+   * (`?fehler=`, V-275, D-769) und wird hier ein Satz in der Sprache der
+   * Sitzung — nur als eigener Eintrag nachgeschlagen (D-728). Ein Wort, das
+   * die Tabelle nicht kennt, wird der allgemeine Satz, nie das Wort selbst.
+   */
+  const tF = nachSprache(LAUFEND_FEHLER_TEXTE, zugang.sprache);
+  const fehlerText = fehler === null ? null : (eigenerEintrag(tF.fehler, fehler) ?? tF.sonst);
 
   const { standLokal, zeilen } = await ladeLaufende(sitzung);
   const auffaellig = zeilen.filter((z) => z.minuten >= AUFFAELLIG_AB_MINUTEN);
@@ -97,9 +106,9 @@ export default async function LiveBrettSeite(
         </p>
       </div>
 
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="laufend-meldung" className="mb-s4 max-w-prose">
-          {meldung}
+      {fehlerText !== null && (
+        <Hinweis art="warnung" rolle="alert" cse="laufend-fehler" className="mb-s4 max-w-prose">
+          <strong>{tF.titel}</strong> {fehlerText}
         </Hinweis>
       )}
 

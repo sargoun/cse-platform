@@ -17,6 +17,7 @@ import { ABLEHNUNG_GRUENDE, offeneAnsprueche, type OfflineWartend }
 import { BEGRUENDUNG_MINDESTLAENGE } from '@/server/services/zeit/nacherfassung';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { NACHERFASSUNG_FEHLER_TEXTE } from '@/lib/i18n/verwaltung/zeit';
 
 /**
  * `/portal/[mandant]/zeiten/nacherfassung` — was ein Telefon ohne Netz
@@ -122,6 +123,20 @@ export default async function Nacherfassung({
   const frage = await searchParams;
   const erledigt = typeof frage['erledigt'] === 'string' ? frage['erledigt'] : null;
   const fehler = typeof frage['fehler'] === 'string' ? frage['fehler'] : null;
+  /*
+   * **Zwei Formulare, ein `?fehler=`** (V-275, D-769). Die Ansprüche gehen an
+   * `api/offline-ereignis/[id]`, die freie Nacherfassung an
+   * `api/zeit/nacherfassung`; beide kommen mit einem Grund zurück. Das freie
+   * Formular trägt deshalb `?frei=1` in seinem `zurueck` — so steht sein Satz
+   * in SEINEM Kasten, der dafür aufgeht, und nicht über der Liste der
+   * Ansprüche. Nachgeschlagen wird nur als eigener Eintrag (D-728); ein
+   * Grund, den die Tabelle nicht kennt, wird der allgemeine Satz.
+   */
+  const frei = frage['frei'] === '1';
+  const tN = NACHERFASSUNG_FEHLER_TEXTE.de;
+  const freiFehler = frei && fehler !== null
+    ? (eigenerEintrag(tN.fehler, fehler) ?? tN.sonst) : null;
+  const anspruchFehler = frei ? null : fehler;
 
   /**
    * KEIN Schnappschuss-Lesen: `offeneAnsprueche` verlangt einen
@@ -150,7 +165,6 @@ export default async function Nacherfassung({
     anstellungen: readonly { id: string; name: string }[];
   }>);
   const { zeilen, anstellungen } = daten;
-  const meldung = typeof frage['meldung'] === 'string' ? frage['meldung'] : null;
   const vorgabeAnstellung = typeof frage['anstellung'] === 'string' ? frage['anstellung'] : null;
   const vorgabeEinwand = typeof frage['einwand'] === 'string' ? frage['einwand'] : null;
 
@@ -218,7 +232,7 @@ export default async function Nacherfassung({
         */}
       <details className="mb-s5 rounded-lg border border-line bg-surface p-s4"
                data-cse="frei-nacherfassen"
-               {...(vorgabeAnstellung === null ? {} : { open: true })}>
+               {...(vorgabeAnstellung === null && freiFehler === null ? {} : { open: true })}>
         <summary className="min-h-11 cursor-pointer list-none text-base text-text
                             underline underline-offset-2">
           Zeit ohne Anspruch nacherfassen
@@ -234,16 +248,17 @@ export default async function Nacherfassung({
           (Invariante 5).
         </p>
 
-        {meldung !== null && (
-          <Hinweis art="warnung" cse="nacherfassung-meldung" className="mt-s4 max-w-prose">
-            {meldung}
+        {freiFehler !== null && (
+          <Hinweis art="warnung" rolle="alert" cse="nacherfassung-fehler"
+                   className="mt-s4 max-w-prose">
+            <strong>{tN.titel}</strong> {freiFehler}
           </Hinweis>
         )}
 
         <form method="post" action="/api/zeit/nacherfassung"
               data-cse="nacherfassung-formular"
               className="mt-s4 flex max-w-form flex-col gap-s4">
-          <input type="hidden" name="zurueck" value={pfad} />
+          <input type="hidden" name="zurueck" value={`${pfad}?frei=1`} />
           {vorgabeEinwand !== null && (
             <input type="hidden" name="einwand" value={vorgabeEinwand} />
           )}
@@ -302,6 +317,7 @@ export default async function Nacherfassung({
       {erledigt !== null && (
         <p
           data-cse="anspruch-erledigt"
+          role="status"
           className="mb-s5 rounded-lg border border-success bg-success-soft p-s4 text-sm text-success"
         >
           {erledigt === 'abgelehnt'
@@ -310,12 +326,13 @@ export default async function Nacherfassung({
         </p>
       )}
 
-      {fehler !== null && (
+      {anspruchFehler !== null && (
         <p
           data-cse="anspruch-fehler"
+          role="alert"
           className="mb-s5 rounded-lg border border-danger bg-danger-soft p-s4 text-sm text-danger"
         >
-          {eigenerEintrag(ANSPRUCH_FEHLER, fehler)
+          {eigenerEintrag(ANSPRUCH_FEHLER, anspruchFehler)
             ?? 'Der Anspruch wurde nicht übernommen. Prüfen Sie die Angaben und entscheiden Sie '
               + 'noch einmal.'}
         </p>

@@ -62,12 +62,34 @@ import type { SchreibKontext } from '../../kontext/index.js';
  * ist eine Zeile.
  */
 
+/**
+ * Warum ein laufender Eintrag NICHT geschlossen oder storniert wurde — als
+ * Schlüssel (V-275, D-773, D-769).
+ *
+ * `POST /api/zeit/laufend` schickt ihn als `?fehler=<grund>` zurück aufs
+ * Live-Brett, und die Seite schlägt ihn in `LAUFEND_FEHLER_TEXTE` nach. Bis
+ * dahin reiste der Satz des Dienstes als `?meldung=` mit — deutsch auch in
+ * einer englischen Sitzung, und bei `nicht_gefunden` mit der vollen Kennung
+ * des Eintrags.
+ */
+export const LAUFEND_GRUENDE = [
+  'nicht_gefunden', 'ende_fehlt', 'pause_ungueltig', 'begruendung_zu_kurz',
+  'fenster_ungueltig', 'ende_in_zukunft', 'grund_zu_kurz',
+] as const;
+export type LaufendGrund = (typeof LAUFEND_GRUENDE)[number];
+
 export class LaufenderEintragNichtGefunden extends Error {
   readonly code = 'nicht_gefunden';
   readonly status = 404;
-  constructor(id: string) {
+  readonly grund = 'nicht_gefunden' as const satisfies LaufendGrund;
+  /**
+   * Die Kennung bleibt am Fehler (für das Protokoll), aber nicht im Satz:
+   * er reist bis zu einem Programm (`{ fehler, meldung }`), und eine volle
+   * Kennung in einer Meldung ist gegen die Hausregel (D-599, V-275).
+   */
+  constructor(readonly zeiteintragId: string) {
     // AUT-06: ein fremder Eintrag ist nicht vorhanden, nicht verboten.
-    super(`Zeiteintrag ${id} ist nicht vorhanden oder läuft nicht mehr.`);
+    super('Dieser Zeiteintrag ist nicht vorhanden oder läuft nicht mehr.');
     this.name = 'LaufenderEintragNichtGefunden';
   }
 }
@@ -75,7 +97,7 @@ export class LaufenderEintragNichtGefunden extends Error {
 export class LaufenderEintragFehler extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
-  constructor(nachricht: string, readonly grund: string) {
+  constructor(nachricht: string, readonly grund: Exclude<LaufendGrund, 'nicht_gefunden'>) {
     super(nachricht);
     this.name = 'LaufenderEintragFehler';
   }
