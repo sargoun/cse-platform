@@ -1,5 +1,7 @@
 'use client';
 
+import { DRUCK_STEUERUNG } from '@/lib/design/theme';
+
 /**
  * Der Knopf, der das Blatt druckt (V-055, EMP-03, § 17 MiLoG).
  *
@@ -20,6 +22,12 @@
  * der Berichte trägt denselben Knopf. Er lag vorher neben dem Monatsnachweis;
  * eine Kopie im Berichtsblatt wäre ein zweites Bauteil für denselben Klick.
  * `cse` benennt ihn für die Browserprüfung des jeweiligen Blatts.
+ *
+ * **Er steht auf dem weissen Blatt, also trägt er die Druckfarben** (DESIGN
+ * §11, `DRUCK_STEUERUNG`, V-269). Mit `text-text` stand er fast-weiss auf
+ * weiss da (1,04:1): ein leerer, dunkel umrandeter Kasten, lesbar nur beim
+ * Überfahren mit der Maus — auf dem Telefon nie. Der Hover ist eine
+ * Unterstreichung, keine Fläche aus der Bildschirmpalette.
  */
 export function DruckKnopf({ text, cse = 'nachweis-drucken' }: {
   readonly text: string;
@@ -30,8 +38,9 @@ export function DruckKnopf({ text, cse = 'nachweis-drucken' }: {
       type="button"
       data-cse={cse}
       onClick={() => { globalThis.print(); }}
-      className="cse-nicht-drucken inline-flex min-h-11 items-center rounded-md border
-                 border-line-strong px-s4 text-base text-text hover:bg-surface-2"
+      style={DRUCK_STEUERUNG}
+      className="cse-nicht-drucken inline-flex min-h-11 items-center rounded-md border px-s4
+                 text-base underline-offset-2 hover:underline"
     >
       {text}
     </button>

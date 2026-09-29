@@ -19701,6 +19701,8 @@ nur CSV, und die ROADMAP hakte REP-07 trotzdem ab.
    Druckdialog des Browsers macht Papier oder eine PDF-Datei daraus. Der
    Druckknopf (`DruckKnopf`, jetzt in `components/ui`, geteilt mit dem
    Monatsnachweis) und der Rückweg stehen über dem Blatt und nicht darauf.
+   **Berichtigt durch D-765:** sie standen IM Blatt, und der Knopf trug die
+   Bildschirmfarbe — fast-weiss auf weiss.
    Die Adresse ist `berichte/druck/[bericht]` und nicht
    `berichte/[bericht]/druck`: neben den sechs festen Berichtsordnern wäre
    ein dynamisches Segment auf derselben Ebene eine Frage an die
@@ -20210,13 +20212,26 @@ Muster `/^-?[\d.,]+ (%|h)$/u` traf: die Stundenspalten „Ist" und „Soll"
 3. **Die Sätze sagen, was stimmt:** dieselben Zeilen, Spalten und Werte wie
    die Datei — ohne ihre Cent-Spalten, Zahlen in deutscher Schreibweise (de
    und en).
+4. **Ein Bedienelement auf dem Blatt trägt die Druckfarben** (DESIGN §11,
+   neu: `DRUCK_STEUERUNG`). Der Druckknopf stand mit `text-text` (#FAFAFA)
+   auf dem am Bildschirm weissen Blatt — 1,04:1, ein leerer umrandeter
+   Kasten, lesbar nur beim Überfahren, auf dem Telefon nie; auf dem
+   Monatsnachweis, von dem das Blatt ihn übernahm, ebenso, und dort dazu der
+   Monatswechsel und die Wahl der Beschäftigung. Jetzt: Text `--druck-text`,
+   Rand `--druck-text-leise` (9,7:1), Fläche `--druck-papier`, Hover als
+   Unterstreichung; `DruckKnopf` immer (er steht nur auf Blättern), der
+   `Monatswechsler` mit `aufPapier`, die Wahl der Beschäftigung direkt. Der
+   Monatswechsel auf den dunklen Seiten bleibt, wie er war.
 
 **Geprüft:** `tests/kern/bericht-export.test.ts` (37,5/19,25/40, dieselben
 Stellen wie die Datei, Stundenspalten rechts auch negativ, keine Rundung ohne
 `nachkomma`, die berichtigten Sätze), `tests/kern/zahl.test.ts`
 (`mindestens`), `tests/isolation/bericht.test.ts` (8) mit einer echten
 Anstellung zu 37,5 Wochenstunden: Blatt „37,5", Datei „37.5", die sieben
-Zahlenspalten des Stundenberichts rechts.
+Zahlenspalten des Stundenberichts rechts; `tests/kern/druck-steuerung.test.ts`
+rendert Druckknopf und Monatswechsel (Druckfarben auf Papier, keine
+Bildschirmfarbe, 44 px, nicht im Druck; auf dunklen Seiten unverändert),
+`tests/design/tokens.test.ts` rechnet 1,04:1 und 9,7:1 nach.
 
-| Betrifft | REP-07, DESIGN §5, DESIGN §11, D-721, V-227, V-269, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `tests/kern/{bericht-export,zahl}.test.ts`, `tests/isolation/bericht.test.ts` (8) |
+| Betrifft | REP-07, DESIGN §5, DESIGN §9, DESIGN §11, D-204, D-420, D-721, V-055, V-227, V-269, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/lib/design/theme.ts`, `src/components/ui/DruckKnopf.tsx`, `src/app/portal/mein/{bausteine.tsx,monatsnachweis/page.tsx}`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `tests/kern/{bericht-export,zahl,druck-steuerung}.test.ts`, `tests/design/tokens.test.ts`, `tests/isolation/bericht.test.ts` (8) |
 |---|---|

@@ -85,6 +85,21 @@ export const FARBEN_DRUCK = {
   'druck-linie-leicht': '#EEEEEE',
 } as const;
 
+/**
+ * §11 — ein Bedienelement AUF dem Blatt am Bildschirm (Drucken, Monatswechsel,
+ * Wahl der Beschäftigung): Druckfarben statt Bildschirmfarben. Mit `--text`
+ * stand der Druckknopf fast-weiss auf weiss da (1,04:1, V-269). Kein Token
+ * eigener Farbe, sondern die Zuordnung der drei vorhandenen.
+ */
+export const DRUCK_STEUERUNG = {
+  color: FARBEN_DRUCK['druck-text'],
+  borderColor: FARBEN_DRUCK['druck-text-leise'],
+  backgroundColor: FARBEN_DRUCK['druck-papier'],
+} as const;
+
+/** Leiser Text auf einem solchen Bedienelement — z. B. der Monat neben dem Pfeil. */
+export const DRUCK_STEUERUNG_LEISE = { color: FARBEN_DRUCK['druck-text-leise'] } as const;
+
 /** §1 Semantic. Pills use the `-soft` background with solid text, never fills. */
 export const FARBEN_SEMANTIK = {
   success: '#22C55E',

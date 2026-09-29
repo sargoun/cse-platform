@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { berlinHeute } from '@/server/db/heute';
-import { FARBEN_DRUCK, FARBEN_MARKE, MASSE_DRUCK } from '@/lib/design/theme';
+import { DRUCK_STEUERUNG, FARBEN_DRUCK, FARBEN_MARKE, MASSE_DRUCK } from '@/lib/design/theme';
 import { stundenMinutenText } from '@/lib/datum/stunden';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { leseNachweis, type MiLoGNachweis } from '@/server/services/zeit/milog';
@@ -248,11 +248,15 @@ export default async function Monatsnachweis({
           className="cse-nicht-drucken mb-s4 flex flex-wrap items-center gap-s3"
         >
           {daten.beschaeftigungen.map((b) => (
+            /* Auf dem weissen Blatt in Druckfarben (DESIGN §11, V-269): mit
+               `text-text` stand die Wahl fast-weiss auf weiss. Die gewählte
+               trägt `aria-current` und fette Schrift — nicht eine dunkle Fläche. */
             b.anstellungId === daten.anstellungId ? (
               <span
                 key={b.anstellungId}
                 aria-current="page"
-                className="inline-flex min-h-11 items-center rounded-md border border-line-strong bg-surface-2 px-s4 text-base font-semibold text-text"
+                style={DRUCK_STEUERUNG}
+                className="inline-flex min-h-11 items-center rounded-md border px-s4 text-base font-semibold"
               >
                 {b.mandantName}
               </span>
@@ -260,7 +264,8 @@ export default async function Monatsnachweis({
               <Link
                 key={b.anstellungId}
                 href={`/portal/mein/monatsnachweis?monat=${monatsErster}&anstellung=${b.anstellungId}`}
-                className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-base text-text hover:bg-surface-2"
+                style={DRUCK_STEUERUNG}
+                className="inline-flex min-h-11 items-center rounded-md border px-s4 text-base underline-offset-2 hover:underline"
               >
                 {b.mandantName}
               </Link>
@@ -288,6 +293,7 @@ export default async function Monatsnachweis({
           texte={t}
           sprache={basis.sprache}
           zusatz={{ anstellung: daten.anstellungId }}
+          aufPapier
         />
       </div>
 

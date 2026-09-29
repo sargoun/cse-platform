@@ -1132,6 +1132,16 @@ above only means anything if what sits next to it is measured the same way.
 
 The header rule is `--red` from §1 — the one place CSE red appears on paper.
 
+**Controls that sit on the sheet use the print palette too.** On screen the
+sheet is white, so a control drawn on it with the screen palette — `--text`
+on a transparent button — is near-white on white (1.04:1) and cannot be read,
+on a phone never, since there is no hover. A control on the sheet (print,
+month switch, choice of employment) is drawn with `--druck-text` text on
+`--druck-papier`, with a `1px` border in `--druck-text-leise` (9.7:1, well over
+the 3:1 a control boundary needs); its hover is an underline, not a fill. It
+keeps the `44px` target of §8, carries `cse-nicht-drucken`, and never prints.
+Token: `DRUCK_STEUERUNG` in `theme.ts`.
+
 ---
 
 ## 12. Do not

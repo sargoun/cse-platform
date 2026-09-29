@@ -6,7 +6,9 @@ import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
 import { stundenMinutenText } from '@/lib/datum/stunden';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
-import type { BereichSchluessel } from '@/lib/design/theme';
+import {
+  DRUCK_STEUERUNG, DRUCK_STEUERUNG_LEISE, type BereichSchluessel,
+} from '@/lib/design/theme';
 import {
   EINWAND_ART_TEXTE, EINWAND_STATUS_TEXTE,
   type MeinTexte, type PortalSprache,
@@ -552,7 +554,7 @@ export function Zusagefeld({
  * Knopf erscheint genau dann, wenn man nicht schon dort steht.
  */
 export function Monatswechsler({
-  pfad, monat, heute, texte, zusatz, sprache,
+  pfad, monat, heute, texte, zusatz, sprache, aufPapier = false,
 }: {
   /** Die Adresse OHNE Abfrage, z. B. `/portal/mein/zeiten`. */
   readonly pfad: string;
@@ -572,6 +574,12 @@ export function Monatswechsler({
   readonly zusatz?: Readonly<Record<string, string>> | undefined;
   /** `dir`/`lang` fuer ein Blatt, das nicht in der Huelle steckt. */
   readonly sprache?: string | undefined;
+  /**
+   * **Auf dem weissen Blatt** (der Monatsnachweis): Druckfarben statt
+   * Bildschirmfarben (DESIGN §11, `DRUCK_STEUERUNG`, V-269). Mit `text-text`
+   * standen die Knöpfe dort fast-weiss auf weiss.
+   */
+  readonly aufPapier?: boolean;
 }) {
   const jetzt = heute.slice(0, 7);
   const gezeigt = monat.slice(0, 7);
@@ -589,8 +597,14 @@ export function Monatswechsler({
   /* Vorwaerts nur, solange das Ziel nicht IN der Zukunft liegt. */
   const darfVor = spaeter <= jetzt;
 
-  const knopf = 'inline-flex min-h-11 items-center gap-s2 rounded-md border border-line '
-    + 'px-s4 text-base text-text hover:bg-surface-2';
+  const knopf = aufPapier
+    ? 'inline-flex min-h-11 items-center gap-s2 rounded-md border px-s4 text-base '
+      + 'underline-offset-2 hover:underline'
+    : 'inline-flex min-h-11 items-center gap-s2 rounded-md border border-line '
+      + 'px-s4 text-base text-text hover:bg-surface-2';
+  const stil = aufPapier ? DRUCK_STEUERUNG : undefined;
+  const leise = aufPapier ? 'cse-zahl' : 'cse-zahl text-text-muted';
+  const leiseStil = aufPapier ? DRUCK_STEUERUNG_LEISE : undefined;
 
   /* `?monat=` zuerst, damit die Adresse lesbar bleibt; der Rest haengt an. */
   const ziel = (jjjjMm: string | null): LinkProps<string>['href'] => {
@@ -614,15 +628,15 @@ export function Monatswechsler({
          {...(sprache === undefined
            ? {} : { lang: sprache, dir: sprache === 'ar' ? 'rtl' as const : 'ltr' as const })}
          className="mb-s5 flex flex-wrap items-center gap-s3">
-      <Link href={ziel(vorher)} data-cse="monat-zurueck" className={knopf}>
+      <Link href={ziel(vorher)} data-cse="monat-zurueck" className={knopf} style={stil}>
         <span aria-hidden="true">←</span>
         {texte.monatVorher}
-        <span className="cse-zahl text-text-muted">{anzeige(vorher)}</span>
+        <span className={leise} style={leiseStil}>{anzeige(vorher)}</span>
       </Link>
 
       {darfVor ? (
-        <Link href={ziel(spaeter)} data-cse="monat-vor" className={knopf}>
-          <span className="cse-zahl text-text-muted">{anzeige(spaeter)}</span>
+        <Link href={ziel(spaeter)} data-cse="monat-vor" className={knopf} style={stil}>
+          <span className={leise} style={leiseStil}>{anzeige(spaeter)}</span>
           {texte.monatSpaeter}
           <span aria-hidden="true">→</span>
         </Link>
@@ -633,8 +647,12 @@ export function Monatswechsler({
          * statt `disabled`, weil das hier kein Formularelement ist.
          */
         <span data-cse="monat-vor-gesperrt" aria-disabled="true"
-              className="inline-flex min-h-11 items-center gap-s2 rounded-md border
-                         border-line px-s4 text-base text-text-subtle opacity-50">
+              style={aufPapier ? { ...DRUCK_STEUERUNG, ...DRUCK_STEUERUNG_LEISE } : undefined}
+              className={aufPapier
+                ? 'inline-flex min-h-11 items-center gap-s2 rounded-md border px-s4 text-base '
+                  + 'opacity-50'
+                : 'inline-flex min-h-11 items-center gap-s2 rounded-md border border-line px-s4 '
+                  + 'text-base text-text-subtle opacity-50'}>
           <span className="cse-zahl">{anzeige(spaeter)}</span>
           {texte.monatSpaeter}
           <span aria-hidden="true">→</span>
@@ -642,9 +660,9 @@ export function Monatswechsler({
       )}
 
       {gezeigt !== jetzt && (
-        <Link href={ziel(null)} data-cse="monat-heute" className={knopf}>
+        <Link href={ziel(null)} data-cse="monat-heute" className={knopf} style={stil}>
           {texte.monatHeute}
-          <span className="cse-zahl text-text-muted">{anzeige(jetzt)}</span>
+          <span className={leise} style={leiseStil}>{anzeige(jetzt)}</span>
         </Link>
       )}
     </nav>
