@@ -32,6 +32,7 @@ import {
   beitragDerFreigabe, bildDerFreigabe, type FreigabeBild,
 } from '@/server/services/social/beitragsbild';
 import { SOCIAL_BILD_TEXTE } from '@/lib/i18n/verwaltung/social-bild';
+import { AUSFUEHRUNG_RUECKWEG_TEXTE } from '@/lib/i18n/verwaltung/freigabe-ausfuehrung';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 
 /**
@@ -75,7 +76,11 @@ const FELD_LABEL: Readonly<Record<string, string>> = {
 };
 
 function Kasten(
-  { art, kinder, cse }: { art: 'hinweis' | 'warnung' | 'erfolg'; kinder: React.ReactNode; cse: string },
+  { art, kinder, cse, rolle }: {
+    art: 'hinweis' | 'warnung' | 'erfolg'; kinder: React.ReactNode; cse: string;
+    /** Wie `Hinweis` (DESIGN §5 „Notices"): `alert` für eine Abweisung des Formulars. */
+    rolle?: 'alert' | 'status';
+  },
 ) {
   const klasse = art === 'warnung'
     ? 'border-warning bg-warning-soft text-warning'
@@ -83,7 +88,7 @@ function Kasten(
       ? 'border-success bg-success-soft text-success'
       : 'border-line bg-surface text-text';
   return (
-    <section data-cse={cse} className={`mb-s6 rounded-lg border p-s5 text-sm ${klasse}`}>
+    <section data-cse={cse} role={rolle} className={`mb-s6 rounded-lg border p-s5 text-sm ${klasse}`}>
       {kinder}
     </section>
   );
@@ -147,7 +152,6 @@ export default async function Freigabe(
   const offen = f.status === 'offen';
   const gesperrt = f.unsichereFelder > 0;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
-  const fehlerMeldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   const entschieden = typeof suche['entschieden'] === 'string' ? suche['entschieden'] : null;
   const vorschlag = typeof suche['vorschlag'] === 'string' ? suche['vorschlag'] : null;
   /** Was das Fensterformular vermerkt hat (APR-05, APR-06). */
@@ -278,13 +282,19 @@ export default async function Freigabe(
         )}
         />
       ) : null}
+      {/*
+        * Der Grund einer Abweisung — der Entscheidung (`FEHLER_TEXT`) oder
+        * ihrer Ausführung (`ausfuehrung_<grund>`, D-774) —, nachgeschlagen als
+        * eigener Eintrag; ein unbekannter wird der allgemeine Satz. Hier stand
+        * bei `ausfuehrung` der Satz aus `?meldung=` roh.
+        */}
       {fehler !== null ? (
-        <Kasten art="warnung" cse="entscheidung-abgewiesen" kinder={(
+        <Kasten art="warnung" rolle="alert" cse="entscheidung-abgewiesen" kinder={(
           <>
             <strong>Nicht entschieden.</strong>{' '}
-            {fehler === 'ausfuehrung' && fehlerMeldung !== null
-              ? fehlerMeldung
-              : (eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Entscheidung wurde abgewiesen.')}
+            {eigenerEintrag(FEHLER_TEXT, fehler)
+              ?? eigenerEintrag(AUSFUEHRUNG_RUECKWEG_TEXTE.de.fehler, fehler)
+              ?? 'Die Entscheidung wurde abgewiesen.'}
           </>
         )}
         />

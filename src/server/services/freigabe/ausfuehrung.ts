@@ -24,9 +24,17 @@ export interface Ausgefuehrt {
   readonly bezugId: string | null;
 }
 
-/** Ein Ausfuehrer, der abweist — mit einem Satz fuer den Menschen (409, nie 500). */
+/**
+ * Warum ein Ausfuehrer abweist — heute die Gruende der Uebernahme eines
+ * Eingangsrechnungs-Vorschlags (`VorschlagFehler`, D-774). Die Seite der
+ * Freigabe schlaegt sie als `ausfuehrung_<grund>` nach; bis dahin reiste
+ * der Satz als `?meldung=`, und der vorhandene Grund blieb liegen.
+ */
+export type AusfuehrungGrund = VorschlagFehler['grund'];
+
+/** Ein Ausfuehrer, der abweist — mit einem Grund fuer die Seite (409, nie 500). */
 export class AusfuehrungAbgewiesen extends Error {
-  constructor(nachricht: string, readonly grund: string) {
+  constructor(nachricht: string, readonly grund: AusfuehrungGrund) {
     super(nachricht);
     this.name = 'AusfuehrungAbgewiesen';
   }
