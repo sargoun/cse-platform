@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/Button';
+import { Hinweis } from '@/components/ui/Hinweis';
 import type { FormularFeld } from '@/lib/formular/schema';
 import { UTM_SCHLUESSEL, type Herkunft } from '@/lib/formular/herkunft';
 import { ANFRAGE_TEXTE } from '@/lib/i18n/texte';
@@ -170,13 +171,14 @@ export function AnfrageFormular(
         */}
       <h1 className="text-h1 text-text [hyphens:auto] break-words">{titel}</h1>
 
-      {/* `role="alert"` und nicht nur roter Text: ein Screenreader-Nutzer
-          bekommt sonst keine Rückmeldung, dass die Absendung fehlschlug. */}
+      {/* Der Kasten der Abweisung ist ein `Hinweis` (DESIGN §5 „Notices",
+          V-217): `warnung` mit `role="alert"` — ein Screenreader-Nutzer
+          bekäme sonst keine Rückmeldung, dass die Absendung fehlschlug. Die
+          Meldung am einzelnen Feld bleibt am Feld, in `--danger` (§5 Forms). */}
       {meldung !== undefined && (
-        <p role="alert" data-cse="formular-meldung"
-           className="rounded-md border border-danger bg-danger-soft p-s4 text-base text-text">
+        <Hinweis art="warnung" rolle="alert" cse="formular-meldung">
           {meldung}
-        </p>
+        </Hinweis>
       )}
 
       <form

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { offeneStellen } from './daten';
 import { bewerbungsMeldung } from './meldung';
 
@@ -54,10 +55,9 @@ export default async function KarriereSeite(
       </header>
 
       {meldung !== undefined && (
-        <p role="alert" data-cse="bewerbung-meldung"
-           className="m-0 max-w-[72ch] rounded-md border border-danger bg-danger-soft p-s4 text-base text-text">
+        <Hinweis art="warnung" rolle="alert" cse="bewerbung-meldung" className="max-w-[72ch]">
           {meldung}
-        </p>
+        </Hinweis>
       )}
 
       <section className="flex flex-col gap-s4">

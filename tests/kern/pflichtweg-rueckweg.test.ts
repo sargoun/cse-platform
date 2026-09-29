@@ -275,10 +275,21 @@ describe('die Sätze', () => {
 
 /* ── Die Seiten ──────────────────────────────────────────────────────────── */
 
-/** Der Text im Kasten mit `role="…"` — `null`, wenn es keinen gibt. */
+/**
+ * Der Text im Kasten mit `role="…"` — `null`, wenn es keinen gibt.
+ *
+ * Der Kasten ist ein `Hinweis` (DESIGN §5 „Notices", Nachrunde zu V-272): eine
+ * Abweisung `warnung` mit `role="alert"`, der Dank `erfolg` mit
+ * `role="status"`. Hier stand ein nachgebautes `<p role="…">`; geprüft wird
+ * jetzt beides zusammen, Rolle und Art.
+ */
 function kasten(html: string, rolle: 'alert' | 'status'): string | null {
-  const m = new RegExp(`<p role="${rolle}"[^>]*>([^<]*)</p>`, 'u').exec(html);
-  return m?.[1] ?? null;
+  const m = new RegExp(
+    `<section data-cse="[^"]+" data-art="([a-z]+)" role="${rolle}"[^>]*>([^<]*)</section>`, 'u')
+    .exec(html);
+  if (m === null) return null;
+  expect(m[1], `der Kasten mit role="${rolle}"`).toBe(rolle === 'alert' ? 'warnung' : 'erfolg');
+  return m[2] ?? null;
 }
 const entities = (s: string | null): string | null =>
   s?.replace(/&quot;/gu, '"').replace(/&#x27;/gu, "'").replace(/&amp;/gu, '&') ?? null;
@@ -331,6 +342,7 @@ describe('die Seiten zeigen nur den nachgeschlagenen Satz', () => {
         expect(html).not.toContain('0900');
         expect(kasten(html, 'alert')).toBeNull();
         expect(kasten(html, 'status')).toBeNull();
+        expect(html).not.toMatch(/role="(?:alert|status)"/u);
       }
     }
   });

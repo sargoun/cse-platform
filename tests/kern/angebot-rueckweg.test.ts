@@ -341,9 +341,17 @@ describe('die Sätze', () => {
 
 /* ── Die Seiten ──────────────────────────────────────────────────────────── */
 
-/** Der Text im Kasten mit `role="alert"` — `null`, wenn es keinen gibt. */
+/**
+ * Der Text im Kasten mit `role="alert"` — `null`, wenn es keinen gibt. Der
+ * Kasten ist ein `Hinweis` `warnung` (DESIGN §5 „Notices", Nachrunde zu
+ * V-272); hier stand ein nachgebautes `<p role="alert">`.
+ */
 function warnung(html: string): string | null {
-  return /<p role="alert"[^>]*>([^<]*)<\/p>/u.exec(html)?.[1] ?? null;
+  const m = /<section data-cse="[^"]+" data-art="([a-z]+)" role="alert"[^>]*>([^<]*)<\/section>/u
+    .exec(html);
+  if (m === null) return null;
+  expect(m[1], 'die Abweisung ist ein Hinweis „warnung"').toBe('warnung');
+  return m[2] ?? null;
 }
 /** Die Meldung unter einem Feld — `null`, wenn es keine gibt. */
 function amFeld(html: string, schluessel: string): string | null {

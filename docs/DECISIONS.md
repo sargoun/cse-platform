@@ -23369,12 +23369,29 @@ englisch — zeigten ihn im `role="alert"`-Kasten:
 8. **Anmeldung und Rechte sind hier nicht berührt** (D-769 Nr. 7): die drei
    Routen sind bewusst offen (Eingangsprinzipal, `route-manifest`); es gibt
    weder eine Sitzung noch einen `status`/`code`-Zweig vor einem Recht.
-9. **Die Kästen bleiben, wie sie waren** — `<p role="alert">` bzw.
-   `role="status"` in der Art der Website, wie bei Karriere und
-   Werbewiderspruch; die Auswahl bekommt denselben Kasten wie das Formular.
-   Dass die Website ihre Kästen aus Klassen nachbaut, statt `Hinweis`
-   (DESIGN §5 „Notices") zu nehmen, ist ein Umbau aller Kästen der Website
-   zugleich und nicht Teil dieses Rückwegs.
+9. **Die Kästen sind Hinweise** (Nachrunde (a), DESIGN §5 „Notices",
+   V-217). Die Website baute ihre Kästen aus Klassen nach, eine Abweisung in
+   `border-danger bg-danger-soft` — einen danger-Hinweis kennt DESIGN nicht.
+   Jetzt nehmen alle sieben Kästen der Website `components/ui/Hinweis.tsx`:
+   Angebotsformular, Angebotsauswahl, Datenschutzanfrage, Barriere-Meldung
+   und — damit die Website einheitlich ist — Karriere (Seite und Formular)
+   und Werbewiderspruch. Eine Abweisung ist `warnung` mit `role="alert"`, eine
+   Bestätigung (der Dank der Barriere-Meldung, der angenommene
+   Werbewiderspruch) `erfolg` mit `role="status"`; der Werbewiderspruch trug
+   vorher auch bei der Bestätigung `role="alert"`, ein Screenreader kündigte
+   sie wie einen Fehler an. Die `data-cse`-Anker bleiben; `data-stand` am
+   Kasten des Werbewiderspruchs entfällt (kein Leser; Erfolg oder Warnung sagt
+   jetzt `data-art`). Schrift `sm` wie jeder Hinweis. Die Sätze bleiben, wie
+   sie sind: jeder sagt den Ausgang oder was zu tun ist selbst, und neben der
+   Farbe tragen Rolle und Text die Bedeutung (§9). Eine fett gesetzte
+   Einleitung („Nicht gesendet.") kommt nicht dazu — das wäre neuer Text auf
+   Pflicht- und Karriereseiten und bei der Karriere eine Doppelung („Ihre
+   Bewerbung ist nicht angekommen: …"); die Kästen, die V-217 umgestellt hat,
+   tragen auch keine. Die Meldung am einzelnen Feld bleibt am Feld (§5 Forms:
+   Rand und Text in `--danger`).
+
+**Nachrunde** (nach der Prüfung des Teils, dieselbe Nummer): (a) die Kästen
+der Website sind Hinweise — Nr. 9.
 
 **Geprüft:** `tests/kern/angebot-rueckweg.test.ts` und
 `tests/kern/pflichtweg-rueckweg.test.ts` — die echten Routen (ersetzt nur
@@ -23395,5 +23412,5 @@ Dienste und die Annahme laden): `anfrage-aufnehmen`, `datenschutz-dienste`,
 englischen Abweisung trägt `fehler=pruefen` und `felder`, kein `meldung`, der
 Satz ist englisch) und neu (8), `tests/e2e/angebot.spec.ts` (6).
 
-| Betrifft | D-769, D-599, D-728, D-83, V-156, V-157, V-160, V-272, `src/app/api/anfrage/route.ts`, `src/app/api/datenschutz/anfrage/route.ts`, `src/app/api/barrierefreiheit/meldung/route.ts`, `src/app/(public)/angebot/Auswahl.tsx`, `src/app/(public)/angebot/[bereich]/{Angebot,page}.tsx`, `src/app/(public)/en/angebot/[bereich]/page.tsx`, `src/app/(public)/datenschutz/anfrage/{Anfrage,page}.tsx`, `src/app/(public)/en/datenschutz/anfrage/page.tsx`, `src/app/(public)/barrierefreiheit/feedback/{Feedback,page}.tsx`, `src/app/(public)/en/barrierefreiheit/feedback/page.tsx`, `src/components/oeffentlich/AnfrageFormular.tsx`, `src/lib/i18n/texte.ts` (`ANGEBOT_FEHLER_*`, `formularSammelgrund`, `PFLICHTWEG_FEHLER_*`), `src/lib/formular/schema.ts` (`FELDSCHLUESSEL`), `src/server/services/datenschutz/{anfrage,barriere}.ts` (Grund-Typen), `tests/kern/{angebot-rueckweg,pflichtweg-rueckweg,anfrage-honigtopf}.test.ts`, `tests/e2e/{sprachen,angebot}.spec.ts` |
+| Betrifft | D-769, D-599, D-728, D-83, V-156, V-157, V-160, V-272, `src/app/api/anfrage/route.ts`, `src/app/api/datenschutz/anfrage/route.ts`, `src/app/api/barrierefreiheit/meldung/route.ts`, `src/app/(public)/angebot/Auswahl.tsx`, `src/app/(public)/angebot/[bereich]/{Angebot,page}.tsx`, `src/app/(public)/en/angebot/[bereich]/page.tsx`, `src/app/(public)/datenschutz/anfrage/{Anfrage,page}.tsx`, `src/app/(public)/en/datenschutz/anfrage/page.tsx`, `src/app/(public)/barrierefreiheit/feedback/{Feedback,page}.tsx`, `src/app/(public)/en/barrierefreiheit/feedback/page.tsx`, `src/components/oeffentlich/AnfrageFormular.tsx`, `src/lib/i18n/texte.ts` (`ANGEBOT_FEHLER_*`, `formularSammelgrund`, `PFLICHTWEG_FEHLER_*`), `src/lib/formular/schema.ts` (`FELDSCHLUESSEL`), `src/server/services/datenschutz/{anfrage,barriere}.ts` (Grund-Typen), `src/app/(public)/karriere/{page,Formular}.tsx`, `src/app/(public)/werbewiderspruch/Werbewiderspruch.tsx` (Nachrunde (a)), `tests/kern/{angebot-rueckweg,pflichtweg-rueckweg,anfrage-honigtopf,website-hinweise,einteilung-bewerbung-rueckweg}.test.ts`, `tests/e2e/{sprachen,angebot}.spec.ts` |
 |---|---|

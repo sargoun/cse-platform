@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { EMAIL_MUSTER } from './meldung';
 
 /**
@@ -24,7 +25,8 @@ export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche, meldu
   readonly bereiche?: readonly { readonly slug: string; readonly name: string }[];
   /**
    * Der Satz zu einer Abweisung (`?fehler=` → `bewerbungsMeldung`, V-158) —
-   * über dem Formular, als `role="alert"`, wie beim Angebotsformular (D-599).
+   * über dem Formular, als `Hinweis` `warnung` mit `role="alert"`, wie beim
+   * Angebotsformular (D-599, DESIGN §5 „Notices").
    */
   readonly meldung?: string | undefined;
 }) {
@@ -40,10 +42,9 @@ export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche, meldu
       className="flex max-w-form flex-col gap-s4"
     >
       {meldung !== undefined && (
-        <p role="alert" data-cse="bewerbung-meldung"
-           className="m-0 rounded-md border border-danger bg-danger-soft p-s4 text-base text-text">
+        <Hinweis art="warnung" rolle="alert" cse="bewerbung-meldung">
           {meldung}
-        </p>
+        </Hinweis>
       )}
       {/*
         * **Ein Browser bekommt eine Seite, kein JSON** (D-599, V-158). Das

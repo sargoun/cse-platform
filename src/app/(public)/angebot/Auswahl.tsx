@@ -8,6 +8,7 @@ import { ANGEBOT_FEHLER_TEXTE, AUSWAHL_TEXTE } from '@/lib/i18n/texte';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { alternativen, mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 import { BereichsAvatar } from '@/components/ui/AreaBadge';
+import { Hinweis } from '@/components/ui/Hinweis';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
 /**
@@ -85,12 +86,11 @@ export async function Angebotsauswahl(
       <h1 className="text-h1 text-text [hyphens:auto] break-words">{t.titel}</h1>
       <p className="max-w-[72ch] text-base text-text-muted">{t.einleitung}</p>
 
-      {/* Derselbe Kasten wie über dem Formular (`AnfrageFormular`), mit `role="alert"`. */}
+      {/* Derselbe Kasten wie über dem Formular: ein `Hinweis` `warnung` mit `role="alert"`. */}
       {grund !== null && (
-        <p role="alert" data-cse="angebot-auswahl-meldung"
-           className="max-w-[72ch] rounded-md border border-danger bg-danger-soft p-s4 text-base text-text">
+        <Hinweis art="warnung" rolle="alert" cse="angebot-auswahl-meldung" className="max-w-[72ch]">
           {eigenerEintrag(fehlerTexte.fehler, grund) ?? fehlerTexte.sonst}
-        </p>
+        </Hinweis>
       )}
 
       <ul data-cse="angebot-auswahl" className="grid gap-s4 sm:grid-cols-2">

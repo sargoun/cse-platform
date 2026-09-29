@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type postgres from 'postgres';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { db } from '@/server/db/pool';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { basisAusAnfrage } from '@/server/inhalt/seiten-daten';
@@ -142,10 +143,9 @@ export async function AnfrageSeiteFuer(
       <p className="max-w-[72ch] text-base text-text-muted">{t.einleitung}</p>
 
       {fehler !== null && (
-        <p role="alert" data-cse="anfrage-meldung"
-           className="max-w-[72ch] rounded-md border border-danger bg-danger-soft p-s4 text-base text-text">
+        <Hinweis art="warnung" rolle="alert" cse="anfrage-meldung" className="max-w-[72ch]">
           {eigenerEintrag(fehlerTexte.fehler, fehler) ?? fehlerTexte.sonst}
-        </p>
+        </Hinweis>
       )}
 
       <form

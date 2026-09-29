@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type postgres from 'postgres';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { db } from '@/server/db/pool';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { basisAusAnfrage } from '@/server/inhalt/seiten-daten';
@@ -202,13 +203,18 @@ export async function WerbewiderspruchSeiteFuer(
       <h1 className="text-h1 text-text [hyphens:auto] break-words">{t.titel}</h1>
       <p className="max-w-[72ch] text-base text-text-muted">{t.einleitung}</p>
 
+      {/*
+        * Ein `Hinweis` (DESIGN §5 „Notices", V-217): die Bestätigung `erfolg`
+        * mit `role="status"`, eine Abweisung `warnung` mit `role="alert"`.
+        * Vorher trug auch die Bestätigung `role="alert"` — ein Screenreader
+        * kündigte den angenommenen Widerspruch wie einen Fehler an.
+        */}
       {meldung === undefined ? null : (
-        <p role="alert" data-cse="werbewiderspruch-meldung" data-stand={stand}
-           className={meldung.art === 'erfolg'
-             ? 'max-w-[72ch] rounded-md border border-success bg-success-soft p-s4 text-base text-text'
-             : 'max-w-[72ch] rounded-md border border-danger bg-danger-soft p-s4 text-base text-text'}>
+        <Hinweis art={meldung.art === 'erfolg' ? 'erfolg' : 'warnung'}
+                 rolle={meldung.art === 'erfolg' ? 'status' : 'alert'}
+                 cse="werbewiderspruch-meldung" className="max-w-[72ch]">
           {meldung.text}
-        </p>
+        </Hinweis>
       )}
 
       <form method="post" action="/api/werbewiderspruch"
