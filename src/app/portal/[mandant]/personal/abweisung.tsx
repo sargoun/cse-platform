@@ -19,9 +19,14 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * `role="alert"` (über `rolle`): die Seite lädt nach dem Absenden neu, und ein
  * Screenreader soll den Satz ansagen, statt oben neu anzufangen (DESIGN §9).
  */
-export function PersonalAbweisung({ texte, grund, cse }: {
-  /** Die Tabelle der Seite — ihre Gründe sind Schlüssel, nachgeschlagen als Zeichenkette. */
-  readonly texte: PersonalRueckwegTexte<string>;
+export function PersonalAbweisung({ saetze, grund, cse }: {
+  /**
+   * Die Tabelle der Seite — ihre Gründe sind Schlüssel, nachgeschlagen als
+   * Zeichenkette. Nicht `texte`: unter diesem Namen reichen die Seiten des
+   * Arbeiterportals ihre Satztabelle weiter, und die Prüfung der Leser
+   * (`satztabellen-leser.test.ts`) hielte jedes `{ texte }` für einen davon.
+   */
+  readonly saetze: PersonalRueckwegTexte<string>;
   /** Der Suchparameter `fehler`, wie er in der Adresse stand — nur nachgeschlagen. */
   readonly grund: string | readonly string[] | undefined;
   /** Der `data-cse`-Anker der Seite (die Browserprüfungen kennen ihn). */
@@ -30,8 +35,8 @@ export function PersonalAbweisung({ texte, grund, cse }: {
   if (typeof grund !== 'string') return null;
   return (
     <Hinweis art="warnung" rolle="alert" cse={cse} className="mb-s5 max-w-prose">
-      <strong>{texte.titel}</strong>{' '}
-      {eigenerEintrag(texte.fehler, grund) ?? texte.sonst}
+      <strong>{saetze.titel}</strong>{' '}
+      {eigenerEintrag(saetze.fehler, grund) ?? saetze.sonst}
     </Hinweis>
   );
 }

@@ -193,7 +193,7 @@ export default async function Beendenblatt({
         )}
       </nav>
 
-      <PersonalAbweisung texte={BEENDEN_RUECKWEG.de} grund={suche['fehler']}
+      <PersonalAbweisung saetze={BEENDEN_RUECKWEG.de} grund={suche['fehler']}
                          cse="beenden-meldung" />
 
       {beendet && (

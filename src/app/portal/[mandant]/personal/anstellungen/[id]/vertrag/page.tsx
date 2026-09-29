@@ -129,7 +129,7 @@ export default async function Vertragsblatt({
         )}
       </nav>
 
-      <PersonalAbweisung texte={VERTRAG_RUECKWEG.de} grund={suche['fehler']}
+      <PersonalAbweisung saetze={VERTRAG_RUECKWEG.de} grund={suche['fehler']}
                          cse="vertrag-meldung" />
 
       <form

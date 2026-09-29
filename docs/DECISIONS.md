@@ -23372,5 +23372,22 @@ jeder der 41 Wurfstellen (ein Kontext liefert die Zeilen, die dorthin führen)
 mit dem richtigen Grund, und eine Sperrklinke: jede Fehlerklasse der vier
 Dateien trägt einen.
 
-| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/abweisung.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts` |
+**Nachtrag — die Nebenbefunde dieses Teils** (gemeldet mit V-273, behoben auf
+demselben Zweig):
+
+9. **Der Erfolg kommt auf dem Blatt der Beschäftigung an.** Einstellen schickte
+   `?eingestellt=1`, und keine Seite las es; Vertrag und Beenden führten ganz
+   ohne Parameter auf dasselbe Blatt — nach dem Absenden stand dort kein Wort.
+   Jetzt schicken Vertrag und Beenden einen Schlüssel
+   (`?erfolg=vertrag_gespeichert`, `?erfolg=beendigung_eingetragen`), und das
+   Blatt (`anstellungen/[id]/page.tsx`) schlägt ihn zusammen mit
+   `?eingestellt=1` in `ANSTELLUNG_ERFOLG` nach — nur als eigener Eintrag —
+   und zeigt ihn mit `PersonalErfolg` (`personal/bestaetigung.tsx`, `Hinweis`
+   `erfolg`, `role="status"`). **Ein unbekannter Schlüssel zeigt nichts**:
+   anders als eine Abweisung hat eine Bestätigung keinen allgemeinen Satz —
+   „gespeichert" zu sagen, ohne zu wissen, was geschah, wäre eine Bestätigung,
+   die ein Link erfinden kann. Die Sätze nennen keinen Wert; Personalnummer,
+   Eintritt und Austritt zeigt das Blatt darunter aus seinen Daten.
+
+| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts` |
 |---|---|

@@ -175,7 +175,7 @@ export default async function Entgeltblatt({
           heute gültigen Kondition.
         </Hinweis>
       )}
-      <PersonalAbweisung texte={ENTGELT_RUECKWEG.de} grund={suche['fehler']}
+      <PersonalAbweisung saetze={ENTGELT_RUECKWEG.de} grund={suche['fehler']}
                          cse="entgelt-meldung" />
 
       <section className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5">

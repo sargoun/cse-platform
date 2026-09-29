@@ -116,7 +116,7 @@ export default async function Zusammenfuehren({
           Auswertungen je Mensch zählen beide Zeilen als eine Person.
         </Hinweis>
       )}
-      <PersonalAbweisung texte={ZUSAMMENFUEHREN_RUECKWEG.de} grund={suche['fehler']}
+      <PersonalAbweisung saetze={ZUSAMMENFUEHREN_RUECKWEG.de} grund={suche['fehler']}
                          cse="merge-meldung" />
 
       <h2 className="mb-s3 text-h2 text-text">1. Finden</h2>

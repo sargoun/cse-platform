@@ -32,6 +32,7 @@ export async function POST(
         eintritt: rumpf.felder['eintritt'] ?? '',
       });
     },
-    ziel: (slug) => `/portal/${slug}/personal/anstellungen/${id}`,
+    /* Ein Schlüssel, den das Blatt nachschlägt (D-771 Nachtrag) — nie ein Satz. */
+    ziel: (slug) => `/portal/${slug}/personal/anstellungen/${id}?erfolg=vertrag_gespeichert`,
   });
 }

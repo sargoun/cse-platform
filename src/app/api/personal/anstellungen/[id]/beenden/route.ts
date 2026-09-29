@@ -30,6 +30,7 @@ export async function POST(
         grund: rumpf.felder['grund'] ?? '',
       });
     },
-    ziel: (slug) => `/portal/${slug}/personal/anstellungen/${id}`,
+    /* Ein Schlüssel, den das Blatt nachschlägt (D-771 Nachtrag) — nie ein Satz. */
+    ziel: (slug) => `/portal/${slug}/personal/anstellungen/${id}?erfolg=beendigung_eingetragen`,
   });
 }

@@ -163,7 +163,7 @@ export default async function Stammdatenblatt({
           was es selbst geschrieben hat.
         </Hinweis>
       )}
-      <PersonalAbweisung texte={STAMMDATEN_RUECKWEG.de} grund={suche['fehler']}
+      <PersonalAbweisung saetze={STAMMDATEN_RUECKWEG.de} grund={suche['fehler']}
                          cse="stammdaten-meldung" />
 
       <section className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5">

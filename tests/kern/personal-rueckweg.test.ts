@@ -26,10 +26,12 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { NextRequest } from 'next/server';
 import { eigenerEintrag } from '../../src/lib/nachschlagen.js';
 import {
-  BEENDEN_RUECKWEG, EINSTELLUNG_RUECKWEG, ENTGELT_RUECKWEG, STAMMDATEN_RUECKWEG,
-  VERTRAG_RUECKWEG, ZUSAMMENFUEHREN_RUECKWEG, type PersonalRueckwegTexte,
+  ANSTELLUNG_ERFOLG, ANSTELLUNG_ERFOLG_SCHLUESSEL, BEENDEN_RUECKWEG, EINSTELLUNG_RUECKWEG,
+  ENTGELT_RUECKWEG, STAMMDATEN_RUECKWEG, VERTRAG_RUECKWEG, ZUSAMMENFUEHREN_RUECKWEG,
+  type PersonalRueckwegTexte,
 } from '../../src/lib/i18n/verwaltung/personal-rueckweg.js';
 import { PersonalAbweisung } from '../../src/app/portal/[mandant]/personal/abweisung.js';
+import { PersonalErfolg } from '../../src/app/portal/[mandant]/personal/bestaetigung.js';
 import {
   NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler,
 } from '../../src/server/auth/fehler.js';
@@ -141,7 +143,7 @@ interface Route {
   readonly dienst: Mock;
   /** Gültige Felder eines Formulars, samt `zurueck`. */
   readonly felder: Readonly<Record<string, string>>;
-  /** Wohin ein Erfolg führt — ein Schlüssel oder gar kein Parameter. */
+  /** Wohin ein Erfolg führt — mit einem Schlüssel, den die Zielseite nachschlägt. */
   readonly erfolg: string;
   /** Jeder Grund, den die Route schicken kann, mit einem Fehler, der ihn trägt. */
   readonly gruende: readonly (readonly [string, () => Error])[];
@@ -176,7 +178,7 @@ const ROUTEN: readonly Route[] = [
     pfad: `/api/personal/anstellungen/${ID}/vertrag`,
     dienst: zustand.aendereVertrag,
     felder: { personalnummer: 'R-2', eintritt: '2025-02-01', zurueck: `${P}/anstellungen/${ID}/vertrag` },
-    erfolg: `${P}/anstellungen/${ID}`,
+    erfolg: `${P}/anstellungen/${ID}?erfolg=vertrag_gespeichert`,
     gruende: [
       ...VERTRAG_AENDERN_GRUENDE.map((g) => [g, () => new VertragEingabeFehler(g, SATZ)] as const),
       ['nicht_gefunden', () => new AnstellungNichtGefunden(FREMD)],
@@ -190,7 +192,7 @@ const ROUTEN: readonly Route[] = [
     pfad: `/api/personal/anstellungen/${ID}/beenden`,
     dienst: zustand.beendeAnstellung,
     felder: { austritt: '2026-12-31', grund: 'Eigenkündigung', zurueck: `${P}/anstellungen/${ID}/beenden` },
-    erfolg: `${P}/anstellungen/${ID}`,
+    erfolg: `${P}/anstellungen/${ID}?erfolg=beendigung_eingetragen`,
     gruende: [
       ...BEENDEN_EINGABE_GRUENDE.map((g) => [g, () => new VertragEingabeFehler(g, SATZ)] as const),
       ...BEENDIGUNG_GRUENDE.map((g) => [g, () => new BeendigungFehler(g, SATZ)] as const),
@@ -296,14 +298,18 @@ describe.each(ROUTEN.map((r) => [r.name, r] as const))('%s — der Rückweg trä
       .toBe(erwartet(route, 'ungueltige_eingabe'));
   });
 
-  it('Erfolg: 303 auf das Ziel — mit einem Schlüssel oder ohne Parameter, nie mit einem Satz', async () => {
+  it('Erfolg: 303 auf das Ziel — mit einem Schlüssel, den die Zielseite kennt, nie mit einem Satz', async () => {
     const r = await route.aufruf(formular(route.pfad, route.felder));
     expect(r.status).toBe(303);
     const ort = new URL(r.headers.get('location') ?? '');
     expect(`${ort.pathname}${ort.search}`).toBe(route.erfolg);
+    expect([...ort.searchParams].length, 'genau ein Schlüssel').toBe(1);
     for (const [name, wert] of ort.searchParams) {
       expect(name).not.toBe('meldung');
-      expect(wert, name).toBe('1');
+      // `?eingestellt=1`, `?gespeichert=1`, `?zusammengefuehrt=1` — oder `?erfolg=`
+      // mit einem Schlüssel, den das Blatt der Beschäftigung nachschlägt.
+      if (name === 'erfolg') expect(eigenerEintrag(ANSTELLUNG_ERFOLG.de, wert), wert).toBeDefined();
+      else expect(wert, name).toBe('1');
     }
     expect(route.dienst).toHaveBeenCalledOnce();
   });
@@ -416,7 +422,7 @@ describe('die Tabellen der sechs Seiten', () => {
 
 describe('der Kasten zeigt nur den nachgeschlagenen Satz', () => {
   const html = (grund: string | readonly string[] | undefined): string => renderToStaticMarkup(
-    createElement(PersonalAbweisung, { texte: VERTRAG_RUECKWEG.de, grund, cse: 'probe' }));
+    createElement(PersonalAbweisung, { saetze: VERTRAG_RUECKWEG.de, grund, cse: 'probe' }));
 
   it('ein bekannter Grund: sein Satz, als Warnung mit role="alert"', () => {
     const h = html('personalnummer_vergeben');
@@ -441,6 +447,56 @@ describe('der Kasten zeigt nur den nachgeschlagenen Satz', () => {
   });
 });
 
+describe('das Blatt der Beschäftigung bestätigt Einstellen, Vertrag und Beenden (D-771 Nachtrag)', () => {
+  const BLATT = 'src/app/portal/[mandant]/personal/anstellungen/[id]/page.tsx';
+  const html = (schluessel: string | readonly string[] | undefined): string => renderToStaticMarkup(
+    createElement(PersonalErfolg, { saetze: ANSTELLUNG_ERFOLG.de, schluessel, cse: 'probe' }));
+
+  it('jeder Schlüssel, den eine Route schickt, hat einen Satz — und die Tabelle keinen darüber hinaus', () => {
+    const geschickt = ROUTEN.map((r) => new URL(r.erfolg, HIER))
+      .filter((u) => u.pathname === `${P}/anstellungen/${u.pathname.split('/').at(-1) ?? ''}`)
+      .map((u) => (u.searchParams.get('eingestellt') === '1' ? 'eingestellt' : u.searchParams.get('erfolg')));
+    expect([...geschickt].sort()).toEqual([...ANSTELLUNG_ERFOLG_SCHLUESSEL].sort());
+    for (const k of ANSTELLUNG_ERFOLG_SCHLUESSEL) {
+      const e = ANSTELLUNG_ERFOLG.de[k];
+      expect(e.titel.trim(), k).not.toBe('');
+      expect(e.satz.trim(), k).not.toBe('');
+      expect(`${e.titel} ${e.satz}`, k).not.toMatch(UUID);
+      expect(`${e.titel} ${e.satz}`, k).not.toMatch(/\{\w+\}|\$\{|`/u);
+    }
+  });
+
+  it('ein bekannter Schlüssel: sein Satz, als Erfolg mit role="status"', () => {
+    const h = html('vertrag_gespeichert');
+    expect(h).toContain('role="status"');
+    expect(h).toContain('data-art="erfolg"');
+    expect(h).toContain('Vertragseckdaten gespeichert.');
+    expect(html('eingestellt')).toContain('Eingestellt.');
+    expect(html('beendigung_eingetragen')).toContain('Beendigung eingetragen.');
+  });
+
+  it.each(['__proto__', 'constructor', 'toString', '1', 'gespeichert', 'Alles gelöscht', ''])(
+    'unbekannt (%s): gar kein Kasten — eine Bestätigung erfindet kein Link',
+    (schluessel) => {
+      expect(html(schluessel)).toBe('');
+    },
+  );
+
+  it('ohne Schlüssel, oder mit zwei: kein Kasten', () => {
+    expect(html(undefined)).toBe('');
+    expect(html(['vertrag_gespeichert', 'eingestellt'])).toBe('');
+  });
+
+  it('das Blatt liest `?eingestellt=1` und `?erfolg=` — und zeigt keinen der beiden roh', () => {
+    const s = readFileSync(join(WURZEL, BLATT), 'utf8');
+    expect(s).toContain("suche['eingestellt'] === '1' ? 'eingestellt' : suche['erfolg']");
+    expect(s).toContain('<PersonalErfolg saetze={ANSTELLUNG_ERFOLG.de} schluessel={erfolg} cse="anstellung-erfolg" />');
+    const befunde = rohAusDerAdresse([[join(WURZEL, BLATT), s]],
+      (d) => { try { return readFileSync(d, 'utf8'); } catch { return null; } }, WURZEL);
+    expect(befunde).toEqual([]);
+  });
+});
+
 describe('die sechs Seiten lesen `?meldung=` nicht mehr', () => {
   const M = 'src/app/portal/[mandant]/personal';
   const SEITEN = [
@@ -458,7 +514,7 @@ describe('die sechs Seiten lesen `?meldung=` nicht mehr', () => {
     const s = readFileSync(join(WURZEL, seite), 'utf8');
     // Weder `suche['meldung']` noch `suche.meldung` noch eine Variable, die ihn hält.
     expect(s).not.toMatch(/['"]meldung['"]|\.meldung\b|\b(?:const|let)\s+meldung\b|\{\s*meldung\b/u);
-    expect(s).toContain(`<PersonalAbweisung texte={${tabelle}.de} grund={suche['fehler']}`);
+    expect(s).toContain(`<PersonalAbweisung saetze={${tabelle}.de} grund={suche['fehler']}`);
     expect(s).toContain(`cse="${anker}"`);
     if (erfolg !== null) {
       expect(s, 'ein Erfolgskasten sagt sich an').toMatch(

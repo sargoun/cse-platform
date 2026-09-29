@@ -205,6 +205,46 @@ export const STAMMDATEN_RUECKWEG: NurDeutsch<PersonalRueckwegTexte<StammdatenSei
   },
 };
 
+/**
+ * Was das Blatt einer Beschäftigung nach einem ERFOLG sagt (D-771 Nachtrag).
+ *
+ * Einstellen schickt seit jeher `?eingestellt=1`, und keine Seite las es:
+ * nach dem Anlegen kam das Blatt der neuen Beschäftigung ohne ein Wort.
+ * Vertrag und Beenden führten auf dasselbe Blatt ganz ohne Parameter. Jetzt
+ * schicken sie einen Schlüssel (`?erfolg=`), und das Blatt schlägt ihn hier
+ * nach — nur als eigener Eintrag; ein unbekannter Schlüssel zeigt nichts.
+ */
+export const ANSTELLUNG_ERFOLG_SCHLUESSEL = [
+  'eingestellt', 'vertrag_gespeichert', 'beendigung_eingetragen',
+] as const;
+export type AnstellungErfolg = (typeof ANSTELLUNG_ERFOLG_SCHLUESSEL)[number];
+
+/** Ein Erfolg: die fett gesetzten ersten Worte und der Satz dahinter (DESIGN §5 „Notices"). */
+export interface ErfolgSatz {
+  readonly titel: string;
+  readonly satz: string;
+}
+
+export const ANSTELLUNG_ERFOLG: NurDeutsch<Readonly<Record<AnstellungErfolg, ErfolgSatz>>> = {
+  de: {
+    eingestellt: {
+      titel: 'Eingestellt.',
+      satz: 'Angelegt sind die Vertragseckdaten. Stundensatz, Arbeitszeitmodell und '
+        + 'Wochenstunden folgen als datierte Kondition auf der Seite „Entgelt"; der '
+        + 'Portalzugang ist ein eigener Schritt (EMP-01).',
+    },
+    vertrag_gespeichert: {
+      titel: 'Vertragseckdaten gespeichert.',
+      satz: 'Personalnummer und Eintritt stehen unten so, wie sie jetzt gelten.',
+    },
+    beendigung_eingetragen: {
+      titel: 'Beendigung eingetragen.',
+      satz: 'Der Austritt steht unten. Der Status wechselt auf „beendet", sobald der letzte '
+        + 'Arbeitstag vorbei ist — erst dann erlischt der abgeleitete Portalzugang (K-14).',
+    },
+  },
+};
+
 export const ZUSAMMENFUEHREN_RUECKWEG:
 NurDeutsch<PersonalRueckwegTexte<ZusammenfuehrenSeitenGrund>> = {
   de: {

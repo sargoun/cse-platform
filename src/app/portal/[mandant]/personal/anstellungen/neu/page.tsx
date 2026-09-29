@@ -151,7 +151,7 @@ export default async function NeueAnstellung({
 
       {/* Eine Abweisung von `POST /api/personal/anstellungen` kommt als Grund
           zurück (`?fehler=`, D-771) — nie als Satz aus der Adresse. */}
-      <PersonalAbweisung texte={EINSTELLUNG_RUECKWEG.de} grund={suche['fehler']}
+      <PersonalAbweisung saetze={EINSTELLUNG_RUECKWEG.de} grund={suche['fehler']}
                          cse="einstellung-meldung" />
 
       <h2 className="mb-s3 text-h2 text-text">1. Den Menschen finden</h2>
