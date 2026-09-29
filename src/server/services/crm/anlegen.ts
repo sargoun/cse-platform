@@ -31,8 +31,56 @@ import type { SchreibKontext } from '../../kontext/index.js';
 export type KundeTyp = 'firma' | 'behoerde' | 'privat';
 export type Rechtsgrundlage = 'einwilligung' | 'bestandskunde' | 'anfrage' | 'keine';
 
+/**
+ * Jeder Grund, mit dem ein CRM-Dienst oder eine CRM-Route abweist (D-769,
+ * D-772, V-274).
+ *
+ * **Warum eine geschlossene Liste.** Der Grund reist in die Adresse
+ * (`?fehler=`, `?grund=`, `?wiedervorlage=`, `?notiz=`), und die Seite schlägt
+ * ihn in ihrer Tabelle nach — der Satz des Dienstes reist nie mit: er ist
+ * deutsch, nannte manchmal eine Eingabe, und jeder Text in der Adresse ist
+ * einer, den jemand in einen Link schreiben kann. Ein Tippfehler im Grund
+ * (`'nicht_gefunde'`) fiel bisher erst auf dem Schirm auf — als allgemeiner
+ * Satz statt des richtigen. Jetzt weist ihn der Übersetzer ab. Welche Gründe
+ * eine Route schicken kann, liest `tests/kern/hilfen/gruende.ts` am
+ * Syntaxbaum; jede Seite hat für jeden einen Satz.
+ */
+export const CRM_GRUENDE = [
+  /* Routen */
+  'id_fehlt',
+  /* Kunde und Kontakt anlegen (`anlegen.ts`) */
+  'name_fehlt', 'typ_fehlt', 'grundlage_ohne_quelle', 'einwilligung_ohne_kanal',
+  'kein_schreibrecht', 'nicht_angelegt',
+  /* Lead anlegen und pflegen (`anlegen.ts`) */
+  'betreff_fehlt', 'ohne_namen', 'kunde_unbekannt', 'unbekannte_quelle',
+  'empfehlung_ohne_kunde', 'empfehlung_selbst', 'unbekannter_status', 'verlust_ohne_grund',
+  'nicht_gefunden', 'unbekannte_prioritaet', 'unbekannter_besitzer',
+  /* Kunde und Kontakt ändern (`aendern.ts`) */
+  'status_unbekannt', 'auftraege_offen', 'nachname_fehlt', 'kontakt_unbekannt', 'abgewiesen',
+  /* Konditionen (`kondition.ts`) */
+  'kein_entgelt_leserecht', 'ziel_keine_zahl', 'ziel_zu_gross', 'mahnsperre_unvollstaendig',
+  'mahnsperre_vergangen', 'keine_angaben',
+  /* Rechtsgrundlage und Widerspruch (`kontakt-grundlage.ts`) */
+  'unbekannte_grundlage', 'kein_setzrecht', 'beleg_keine_kennung', 'aehnlich_ohne_begruendung',
+  'nachweis_in_zukunft', 'ohne_betroffenen', 'nicht_erfasst', 'ohne_begruendung',
+  /* Notiz und Verlauf (`verlauf.ts`) */
+  'ohne_inhalt', 'unbekannte_art', 'unbekannte_richtung', 'ohne_zweck', 'unbekannter_zweck',
+  'ohne_bezug', 'ungueltiger_bezug', 'kein_kunde', 'kein_kontakt', 'kontakt_ohne_kunde',
+  'fremder_kontakt', 'ohne_ansprechpartner', 'uwg',
+  /* Lead aus dem Vergaberadar (`lead-radar.ts`) */
+  'ohne_titel', 'ohne_auftraggeber', 'ausschreibung_unbekannt', 'schon_uebernommen',
+  /* Die Kette Lead → Kunde (`lead-kette.ts`) */
+  'lead_hat_kunde', 'lead_hat_vorgaenge',
+  /* Der Ansprechpartner eines Leads (`lead-kontakt.ts`) */
+  'kontakt_ausgeschieden', 'kontakt_fremd', 'email_ungueltig', 'kontakt_email_vergeben',
+  'unvollstaendig', 'uwg_werbung',
+  /* Wiedervorlagen (`wiedervorlage.ts`) */
+  'kein_datum', 'kein_lead', 'zustaendig_ohne_zugang', 'ohne_frist', 'ohne_grund', 'ohne_datum',
+] as const;
+export type CrmGrund = (typeof CRM_GRUENDE)[number];
+
 export class CrmFehler extends Error {
-  constructor(nachricht: string, readonly grund: string, readonly status = 400) {
+  constructor(nachricht: string, readonly grund: CrmGrund, readonly status = 400) {
     super(nachricht);
     this.name = 'CrmFehler';
   }
