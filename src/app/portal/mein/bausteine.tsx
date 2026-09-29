@@ -331,7 +331,15 @@ export function StempelUhr({
     eingecheckt: u.eingecheckt, ausgecheckt: u.ausgecheckt,
     abgelehnt: u.abgelehnt, schon_offen: u.schonOffen,
   };
-  const satz = meldung === null ? null : SAETZE[meldung] ?? null;
+  /*
+   * Nur als EIGENER Eintrag (D-728, D-769): `meldung` kommt aus `?stempel=`,
+   * und ein Objektliteral erbt von `Object.prototype`. `SAETZE['__proto__']`
+   * war `Object.prototype` selbst — nicht `null`, also kein Rückfall, und
+   * React warf „Objects are not valid as a React child": die Startseite jeder
+   * Beschäftigten war mit einem Link, den jeder tippen kann, eine Fehlerseite
+   * (V-275). Ein Wort, das die Uhr nicht kennt, ergibt keinen Satz.
+   */
+  const satz = eigenerEintrag(SAETZE, meldung) ?? null;
 
   return (
     <section data-cse="stempeluhr"
