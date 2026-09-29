@@ -5,10 +5,11 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
+import { istGleicherUrsprung } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import { CrmFehler } from '@/server/services/crm/anlegen';
 import { setzeKondition } from '@/server/services/crm/kondition';
+import { zurueckMitSchluessel } from '@/app/api/crm/rueckweg';
 
 /**
  * `POST /api/crm/kunde/konditionen` — Debitorennummer, Zahlungsziel und
@@ -29,6 +30,12 @@ import { setzeKondition } from '@/server/services/crm/kondition';
  *
  * Der Handler bleibt dünn: autorisieren, Dienst rufen, 303 zurück auf die
  * Seite — mit dem Grund, wenn es nicht ging (D-599).
+ *
+ * **Zurück reisen nur Schlüssel** (D-769, D-772): `?fehler=<grund>` und
+ * `?erfolg=gespeichert`. Hier standen der Satz des Dienstes — mit Namen aus
+ * dem Quelltext darin (ein Recht in Backticks, der Name einer Prüfbedingung)
+ * — und der Erfolgssatz in der Adresse; die Seite schlägt jetzt nach
+ * (`KONDITION_RUECKWEG`).
  */
 export const dynamic = 'force-dynamic';
 
@@ -70,20 +77,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         });
       }));
   } catch (fehler) {
-    if (fehler instanceof CrmFehler) {
-      const trenner = zurueck.includes('?') ? '&' : '?';
-      return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`,
-        '/portal', anfrage), 303);
-    }
+    /* Die Anmeldung zuerst (D-766, D-769 Nr. 7) — ein fehlendes Recht bleibt 404. */
     const autorisierung = autorisierungsAntwort(fehler, anfrage);
     if (autorisierung !== null) return autorisierung;
+    if (fehler instanceof CrmFehler) {
+      return zurueckMitSchluessel(anfrage, zurueck, 'fehler', fehler.grund);
+    }
     throw fehler;
   }
 
-  const trenner = zurueck.includes('?') ? '&' : '?';
-  return NextResponse.redirect(internesZiel(
-    `${zurueck}${trenner}erfolg=${encodeURIComponent(
-      'Die Konditionen sind gespeichert. Was daraus folgt, steht oben neben jeder '
-      + 'Angabe.')}`, '/portal', anfrage), 303);
+  return zurueckMitSchluessel(anfrage, zurueck, 'erfolg', 'gespeichert');
 }

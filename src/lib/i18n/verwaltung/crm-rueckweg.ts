@@ -279,3 +279,49 @@ export const STEUER_RUECKWEG: NurDeutsch<RueckwegTexte<SteuerGrund, SteuerVorgan
     },
   },
 };
+
+/* ── Konditionen (`POST /api/crm/kunde/konditionen`, `setzeKondition`) ───── */
+
+export const KONDITION_GRUENDE = [
+  'kein_schreibrecht', 'kein_entgelt_leserecht', 'nicht_gefunden', 'ziel_keine_zahl',
+  'ziel_zu_gross', 'mahnsperre_unvollstaendig', 'mahnsperre_vergangen', 'keine_angaben',
+] as const satisfies readonly CrmGrund[];
+export type KonditionGrund = (typeof KONDITION_GRUENDE)[number];
+
+const KONDITIONEN_LESEN = rechtName('crm_entgelt.lesen', 'de');
+
+export const KONDITION_RUECKWEG: NurDeutsch<RueckwegTexte<KonditionGrund, 'gespeichert'>> = {
+  de: {
+    titel: 'Nicht gespeichert.',
+    sonst: 'Es wurde nichts geändert.',
+    fehler: {
+      kein_schreibrecht:
+        `Zum Ändern der Konditionen fehlt das Recht „${KUNDENDATEN}" in dieser Gesellschaft.`,
+      kein_entgelt_leserecht:
+        `Zum Ändern der Konditionen fehlt das Recht „${KONDITIONEN_LESEN}". Wer die Konditionen `
+        + 'nicht sehen darf, darf sie nicht blind ersetzen — sonst stünde hier „gespeichert", '
+        + 'während Debitorennummer, Zahlungsziel und Mahnsperre überschrieben wären, ohne dass '
+        + 'jemand den vorherigen Stand gesehen hat.',
+      nicht_gefunden: 'Diesen Kunden gibt es hier nicht, oder er ist archiviert.',
+      ziel_keine_zahl: 'Das Zahlungsziel wird in ganzen Tagen angegeben.',
+      ziel_zu_gross:
+        'Mehr als 180 Tage Zahlungsziel nimmt die Datenbank nicht an — ein halbes Jahr ist im '
+        + 'Zweifel ein Tippfehler und triebe sonst den Mahnlauf und die Verzugszinsen nach '
+        + '§ 288 BGB.',
+      mahnsperre_unvollstaendig:
+        'Eine Mahnsperre besteht aus beidem: bis wann sie gilt und warum. Ohne Grund steht '
+        + 'später nur da, dass nicht gemahnt wurde — und niemand weiss, ob das so gewollt war. '
+        + 'Beide Felder leeren hebt die Sperre auf.',
+      mahnsperre_vergangen:
+        'Eine Mahnsperre, die schon abgelaufen ist, hält nichts an. Wählen Sie heute oder einen '
+        + 'späteren Tag — oder leeren Sie beide Felder. Eine bestehende abgelaufene Sperre '
+        + 'dürfen Sie unverändert stehen lassen; sie trägt den Grund, aus dem einmal nicht '
+        + 'gemahnt wurde.',
+      keine_angaben: 'Es wurde keine Angabe übergeben — es gibt nichts zu speichern.',
+    },
+    erfolg: {
+      gespeichert:
+        'Die Konditionen sind gespeichert. Was daraus folgt, steht oben neben jeder Angabe.',
+    },
+  },
+};

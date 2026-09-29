@@ -18,6 +18,8 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { Unternavigation } from '../Unternavigation';
 import { Recht } from '@/components/ui/Recht';
+import { Abweisung, Bestaetigung, einSchluessel } from '@/components/portal/Rueckweg';
+import { KONDITION_RUECKWEG } from '@/lib/i18n/verwaltung/crm-rueckweg';
 
 /**
  * `/portal/[mandant]/crm/kunden/[id]/konditionen` — Debitorennummer,
@@ -44,6 +46,10 @@ import { Recht } from '@/components/ui/Recht';
  * jedem Aufruf eine Protokollzeile. Das steht auf der Seite, nicht nur im
  * Quelltext: wer die Kondition eines Kunden liest, soll wissen, dass es
  * sichtbar ist.
+ *
+ * **Der Ausgang des Formulars kommt als Schlüssel zurück** (`?fehler=`,
+ * `?erfolg=`; D-769, D-772), die Sätze stehen in `KONDITION_RUECKWEG`. Hier
+ * standen der Satz des Dienstes und der Erfolgssatz roh aus der Adresse.
  */
 export const dynamic = 'force-dynamic';
 
@@ -60,7 +66,7 @@ interface Kopf {
 export default async function Konditionen(
   { params, searchParams }: {
     params: Promise<{ mandant: string; id: string }>;
-    searchParams: Promise<{ meldung?: string; erfolg?: string }>;
+    searchParams: Promise<{ fehler?: string; erfolg?: string }>;
   },
 ) {
   const { mandant, id } = await params;
@@ -140,16 +146,10 @@ export default async function Konditionen(
       <h1 className="mb-s3 text-h1 text-text">{kopf.name}</h1>
       <Unternavigation mandant={mandant} kundeId={id} aktiv="konditionen" rechte={darf} />
 
-      {typeof suche.meldung === 'string' && suche.meldung !== '' ? (
-        <Hinweis art="warnung" cse="kondition-meldung" className="mb-s5 max-w-prose">
-          <strong>Nicht gespeichert.</strong> {suche.meldung}
-        </Hinweis>
-      ) : null}
-      {typeof suche.erfolg === 'string' && suche.erfolg !== '' ? (
-        <Hinweis art="erfolg" cse="kondition-erfolg" className="mb-s5 max-w-prose">
-          {suche.erfolg}
-        </Hinweis>
-      ) : null}
+      <Abweisung saetze={KONDITION_RUECKWEG.de} grund={einSchluessel(suche.fehler)}
+                 cse="kondition-meldung" />
+      <Bestaetigung saetze={KONDITION_RUECKWEG.de.erfolg} erfolg={einSchluessel(suche.erfolg)}
+                    cse="kondition-erfolg" />
 
       {kondition === null ? (
         <Hinweis art="warnung" cse="kondition-verdeckt" className="mb-s5 max-w-prose">
