@@ -106,7 +106,8 @@ describe('POST /api/dienstplan/serien — ein Ankerfehler kommt auf die Maske (V
   });
 
   it('eine andere Abweisung dieses Wegs bleibt, wie sie war (D-599-Altlast, D-686 Nr. 8)', async () => {
-    zustand.turnus.mockRejectedValueOnce(new SerieEingabeFehlt('Mindestens ein Wochentag.'));
+    zustand.turnus.mockRejectedValueOnce(
+      new SerieEingabeFehlt('Mindestens ein Wochentag.', 'wochentag_fehlt'));
     const antwort = await SERIE(anfrage('/api/dienstplan/serien', TURNUS_FELDER));
     expect(antwort.status).toBe(400);
   });

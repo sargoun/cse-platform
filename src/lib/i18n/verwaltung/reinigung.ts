@@ -24,6 +24,9 @@ import type { RevierGrund } from '../../../server/services/reinigung/revier.js';
 import type {
   SonderleistungErfolg, SonderleistungGrund,
 } from '../../../server/services/reinigung/sonderleistung.js';
+import type {
+  TurnusAnlageGrund, TurnusAusnahmeGrund,
+} from '../../../server/services/reinigung/turnus.js';
 
 export interface RevierTexte {
   /* ── Überschriften und Wege ────────────────────────────────────────── */
@@ -363,6 +366,97 @@ export const SONDERLEISTUNG_TEXTE: Readonly<Record<'de', SonderleistungTexte>> =
       katalogzeile_unbekannt:
         'Diese Katalogzeile gibt es in dieser Gesellschaft nicht — die Liste zeigt den '
         + 'aktuellen Stand.',
+    },
+  },
+};
+
+/**
+ * Warum eine Ausnahme am Turnus nicht erfasst wurde — der Satz zum GRUND, den
+ * `POST /api/reinigung/turnus` (`art=ausnahme`) als `?fehler=` zurück aufs
+ * Turnusblatt schickt (V-275, D-773, D-769).
+ *
+ * **Nur deutsch, in derselben Form wie die zweisprachigen Tabellen:** das
+ * Turnusblatt steht noch auf der Ausnahmeliste der Übersetzungswache. Ein
+ * unbekannter Grund bekommt `sonst`; nie steht, was in der Adresse stand.
+ */
+export interface TurnusAusnahmeTexte {
+  readonly titel: string;
+  readonly sonst: string;
+  readonly fehler: Readonly<Record<TurnusAusnahmeGrund, string>>;
+}
+
+export const TURNUS_AUSNAHME_TEXTE: Readonly<Record<'de', TurnusAusnahmeTexte>> = {
+  de: {
+    titel: 'Nicht gespeichert.',
+    sonst: 'Die Ausnahme wurde nicht erfasst. Prüfen Sie die Angaben und versuchen Sie es '
+      + 'noch einmal.',
+    fehler: {
+      ausnahme_unvollstaendig: 'Datum und Grund sind Pflicht.',
+      art_ungueltig: 'Die Art ist Ausfall, Zusatztermin oder Verschiebung.',
+      datum_ungueltig: 'Das Datum ist ein Kalendertag.',
+      grund_fehlt:
+        'Eine Ausnahme braucht einen Grund — sonst steht im Plan eine Lücke ohne Erklärung.',
+      ersatzbeginn_ungueltig: 'Der Ersatzbeginn ist eine Uhrzeit (Stunde und Minute).',
+      ersatzbeginn_fehlt: 'Eine Verschiebung braucht einen Ersatzbeginn.',
+      dauer_ungueltig: 'Die abweichende Dauer liegt zwischen 15 und 1439 Minuten.',
+      turnus_unbekannt:
+        'Diesen Turnus gibt es in dieser Gesellschaft nicht mehr — die Liste der Turnusse '
+        + 'zeigt den aktuellen Stand.',
+    },
+  },
+};
+
+/**
+ * Warum ein Turnus nicht angelegt wurde — der Satz zum GRUND, den
+ * `POST /api/reinigung/turnus` (`art=turnus`) als `?fehler=` zurück auf
+ * `/reinigung/turnus/neu` schickt (V-275, D-773, D-769). Ein abgewiesener
+ * Abrechnungsanker hat seine eigenen Sätze (`LEISTUNGSANKER_TEXTE`, V-192).
+ *
+ * **Nur deutsch** wie die Seite (Ausnahmeliste der Übersetzungswache). Die
+ * Sätze wiederholen keine Eingabe — der Wochentag, der kein Wochentag war,
+ * steht in der Vorschau, nicht in der Adresse. `sonst` ist der Satz, den die
+ * Seite schon vor V-275 für jede Abweisung zeigte.
+ */
+export interface TurnusAnlageTexte {
+  readonly titel: string;
+  readonly sonst: string;
+  readonly fehler: Readonly<Record<TurnusAnlageGrund, string>>;
+}
+
+export const TURNUS_ANLAGE_TEXTE: Readonly<Record<'de', TurnusAnlageTexte>> = {
+  de: {
+    titel: 'Nicht angelegt.',
+    sonst: 'Prüfen Sie die Angaben in der Vorschau und legen Sie die Serie von dort noch '
+      + 'einmal an.',
+    fehler: {
+      turnus_unvollstaendig:
+        'Revier, Leistung, Bezeichnung, Beginn und „Gültig ab" sind Pflicht.',
+      kein_planungsrecht:
+        'Ein Turnus ohne Planungsserie erzeugt keine Schicht, und die Serie verlangt das Recht, '
+        + 'den Dienstplan zu bearbeiten. Es wurde deshalb nichts angelegt — auch der Turnus '
+        + 'nicht. Eine Ausnahme für einen einzelnen Tag ist ohne dieses Recht möglich.',
+      wochentag_unbekannt: 'Ein gewählter Wochentag ist keiner — erlaubt sind Montag bis Sonntag.',
+      wochentag_fehlt: 'Ein wöchentlicher Turnus braucht mindestens einen Wochentag.',
+      monatstag_unbekannt: 'Ein gewählter Monatstag ist keiner — erlaubt sind 1 bis 31.',
+      monatstag_fehlt: 'Ein monatlicher Turnus braucht mindestens einen Monatstag.',
+      intervall_ungueltig: 'Das Intervall ist eine ganze Zahl zwischen 1 und 52.',
+      bezeichnung_fehlt: 'Ein Turnus braucht eine Bezeichnung.',
+      beginn_ungueltig: 'Der Beginn ist eine Uhrzeit (Stunde und Minute).',
+      dauer_ungueltig:
+        'Die Dauer liegt zwischen 15 Minuten und knapp einem Tag — eine Schicht ist kürzer '
+        + 'als 24 Stunden.',
+      gueltig_ab_ungueltig: '„Gültig ab" ist ein Datum.',
+      gueltig_bis_ungueltig: '„Gültig bis" ist ein Datum nach „Gültig ab".',
+      feiertagsregel_ungueltig:
+        'An Feiertagen fällt der Termin aus oder bleibt unverändert — eines von beiden.',
+      turnus_nicht_angelegt:
+        'Der Turnus wurde nicht angelegt — das Revier oder die Leistung gehört nicht zu dieser '
+        + 'Gesellschaft.',
+      bundesland_ungueltig: 'Das Bundesland der Feiertage ist ein Kürzel wie BE.',
+      horizont_ungueltig: 'Der Planungshorizont liegt zwischen 1 und 400 Tagen.',
+      serie_nicht_angelegt:
+        'Die Planungsserie wurde nicht angelegt — der Turnus gehört nicht zu dieser '
+        + 'Gesellschaft, oder Ihr Konto darf hier nicht schreiben.',
     },
   },
 };

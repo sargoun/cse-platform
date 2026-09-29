@@ -26,6 +26,8 @@ import type { VorschauTermin } from '@/server/services/reinigung/turnusvorschau'
 import { Recht } from '@/components/ui/Recht';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { FEIERTAG_TEXTE } from '@/lib/i18n/verwaltung/feiertage';
+import { TURNUS_AUSNAHME_TEXTE } from '@/lib/i18n/verwaltung/reinigung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/reinigung/turnus/[id]` — eine Regel und was aus ihr
@@ -97,7 +99,15 @@ export default async function TurnusBlattSeite(
   const { mandant, id } = await params;
   const suche = await searchParams;
   const ausnahmeAngelegt = suche['ausnahme'] === '1';
-  const fehlerText = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  /*
+   * Eine abgewiesene Ausnahme kommt als GRUND (`?fehler=`, V-275, D-769) und
+   * wird hier ein Satz — nur als eigener Eintrag nachgeschlagen (D-728). Hier
+   * stand der Satz der Route roh, bei einem unbekannten Turnus mit Kennung;
+   * ein Wort, das die Tabelle nicht kennt, wird jetzt der allgemeine Satz.
+   */
+  const tA = TURNUS_AUSNAHME_TEXTE.de;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerText = fehler === null ? null : (eigenerEintrag(tA.fehler, fehler) ?? tA.sonst);
   kennungOder404(id);
   const tor = await mandantTor(`/portal/${mandant}/reinigung/turnus/${id}`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
@@ -185,7 +195,7 @@ export default async function TurnusBlattSeite(
       </div>
 
       {ausnahmeAngelegt && (
-        <Hinweis art="erfolg" cse="ausnahme-angelegt" className="mb-s5 max-w-prose">
+        <Hinweis art="erfolg" rolle="status" cse="ausnahme-angelegt" className="mb-s5 max-w-prose">
           <strong>Ausnahme erfasst.</strong> Die Vorschau unten rechnet sie schon
           mit ein. Der Generator zieht sie beim nächsten Lauf in die Schichten:{' '}
           <strong className="text-text">künftige</strong> Schichten des Tages
@@ -196,8 +206,8 @@ export default async function TurnusBlattSeite(
       )}
 
       {fehlerText !== null && (
-        <Hinweis art="warnung" cse="ausnahme-fehler" className="mb-s5 max-w-prose">
-          <strong>Nicht gespeichert.</strong> {fehlerText}
+        <Hinweis art="warnung" rolle="alert" cse="ausnahme-fehler" className="mb-s5 max-w-prose">
+          <strong>{tA.titel}</strong> {fehlerText}
         </Hinweis>
       )}
 

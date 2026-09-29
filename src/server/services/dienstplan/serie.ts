@@ -29,10 +29,36 @@ import { pruefeLeistungsanker } from './leistungsanker.js';
  * Anker steht nie in der Regel (`turnus_rrule_ohne_anker`). Was der Parser
  * nicht liest, wird nicht gespeichert.
  */
+/**
+ * Warum eine Regel, ein Turnus oder eine Serie NICHT angelegt wurde — als
+ * Schlüssel (V-275, D-773, D-769). `POST /api/reinigung/turnus` schickt ihn
+ * als `?fehler=<grund>` zurück auf `/reinigung/turnus/neu`, und die Seite
+ * schlägt ihn nach (`TURNUS_ANLAGE_TEXTE`) — bis dahin reiste der Satz, und
+ * einer davon wiederholte die Eingabe („„Montag" ist kein Wochentag").
+ *
+ * Nur diese Gründe kann `legeTurnusSerieAn` werfen (Regel, Eingabe, Anlage
+ * von Turnus und Serie); die der Einzeltermin-Ausnahme stehen darunter
+ * getrennt, damit die Seite der Anlage für jeden IHRER Gründe einen Satz hat.
+ */
+export const SERIE_REGEL_GRUENDE = [
+  'wochentag_unbekannt', 'wochentag_fehlt', 'monatstag_unbekannt', 'monatstag_fehlt',
+  'intervall_ungueltig', 'bezeichnung_fehlt', 'beginn_ungueltig', 'dauer_ungueltig',
+  'gueltig_ab_ungueltig', 'gueltig_bis_ungueltig', 'feiertagsregel_ungueltig',
+  'turnus_nicht_angelegt', 'bundesland_ungueltig', 'horizont_ungueltig', 'serie_nicht_angelegt',
+] as const;
+/** Die Gründe von `legeAusnahmeAn` (Einzeltermin-Ausnahme an einer Serie). */
+export const SERIE_AUSNAHME_GRUENDE = [
+  'ausnahme_datum_ungueltig', 'ausnahme_art_ungueltig', 'ausnahme_grund_zu_kurz',
+  'serie_unbekannt', 'ersatzzeit_fehlt', 'ersatztag_ungueltig', 'ausnahme_dauer_ungueltig',
+  'ersatzbesetzung_ungueltig', 'ausnahme_nicht_geschrieben',
+] as const;
+export type SerieRegelGrund = (typeof SERIE_REGEL_GRUENDE)[number];
+export type SerieEingabeGrund = SerieRegelGrund | (typeof SERIE_AUSNAHME_GRUENDE)[number];
+
 export class SerieEingabeFehlt extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
-  constructor(nachricht: string) {
+  constructor(nachricht: string, readonly grund: SerieEingabeGrund) {
     super(nachricht);
     this.name = 'SerieEingabeFehlt';
   }
@@ -107,11 +133,11 @@ export function wochenRegel(tage: readonly string[], interval = 1): string {
   for (const t of tage) {
     const kuerzel = t.trim().toUpperCase();
     if (!(WOCHENTAGE as readonly string[]).includes(kuerzel)) {
-      throw new SerieEingabeFehlt(`"${t}" ist kein Wochentag (MO … SU).`);
+      throw new SerieEingabeFehlt(`"${t}" ist kein Wochentag (MO … SU).`, 'wochentag_unbekannt');
     }
     gewaehlt.add(kuerzel as Wochentag);
   }
-  if (gewaehlt.size === 0) throw new SerieEingabeFehlt('Mindestens ein Wochentag.');
+  if (gewaehlt.size === 0) throw new SerieEingabeFehlt('Mindestens ein Wochentag.', 'wochentag_fehlt');
   const geordnet = WOCHENTAGE.filter((w) => gewaehlt.has(w));
   const regel = `FREQ=WEEKLY;BYDAY=${geordnet.join(',')}${intervalTeil(interval)}`;
   leseRegel(regel);
@@ -141,11 +167,12 @@ export function monatsRegel(tage: readonly number[], interval = 1): string {
   const gewaehlt = new Set<number>();
   for (const t of tage) {
     if (!Number.isInteger(t) || t < 1 || t > 31) {
-      throw new SerieEingabeFehlt(`"${String(t)}" ist kein Monatstag (1 … 31).`);
+      throw new SerieEingabeFehlt(
+        `"${String(t)}" ist kein Monatstag (1 … 31).`, 'monatstag_unbekannt');
     }
     gewaehlt.add(t);
   }
-  if (gewaehlt.size === 0) throw new SerieEingabeFehlt('Mindestens ein Monatstag.');
+  if (gewaehlt.size === 0) throw new SerieEingabeFehlt('Mindestens ein Monatstag.', 'monatstag_fehlt');
   const geordnet = [...gewaehlt].sort((a, b) => a - b);
   const regel = `FREQ=MONTHLY;BYMONTHDAY=${geordnet.join(',')}${intervalTeil(interval)}`;
   leseRegel(regel);
@@ -154,7 +181,8 @@ export function monatsRegel(tage: readonly number[], interval = 1): string {
 
 function intervalTeil(interval: number): string {
   if (!Number.isInteger(interval) || interval < 1 || interval > 52) {
-    throw new SerieEingabeFehlt('Das Intervall ist eine ganze Zahl zwischen 1 und 52.');
+    throw new SerieEingabeFehlt(
+      'Das Intervall ist eine ganze Zahl zwischen 1 und 52.', 'intervall_ungueltig');
   }
   return interval === 1 ? '' : `;INTERVAL=${String(interval)}`;
 }
@@ -176,8 +204,12 @@ export function turnusRegel(e: Pick<TurnusSerieEingabe,
 }
 
 function pruefeTurnusEingabe(e: TurnusSerieEingabe): { rrule: string; gueltigBis: string | null } {
-  if (e.bezeichnung.trim() === '') throw new SerieEingabeFehlt('Eine Serie braucht eine Bezeichnung.');
-  if (!UHRZEIT.test(e.beginnLokal)) throw new SerieEingabeFehlt('Der Beginn ist eine Uhrzeit HH:MM.');
+  if (e.bezeichnung.trim() === '') {
+    throw new SerieEingabeFehlt('Eine Serie braucht eine Bezeichnung.', 'bezeichnung_fehlt');
+  }
+  if (!UHRZEIT.test(e.beginnLokal)) {
+    throw new SerieEingabeFehlt('Der Beginn ist eine Uhrzeit HH:MM.', 'beginn_ungueltig');
+  }
   /**
    * `MAX_DAUER_MINUTEN` (1439) und nicht 1440. Die Grenze gehoert
    * `nominalesEnde`, das jede Schicht dieser Plattform durchlaeuft; hier stand
@@ -188,15 +220,19 @@ function pruefeTurnusEingabe(e: TurnusSerieEingabe): { rrule: string; gueltigBis
     || e.dauerMinuten > MAX_DAUER_MINUTEN) {
     throw new SerieEingabeFehlt(
       `Die Dauer liegt zwischen 15 Minuten und ${String(MAX_DAUER_MINUTEN)} Minuten `
-      + '(eine Schicht ist kuerzer als ein Tag).');
+      + '(eine Schicht ist kuerzer als ein Tag).', 'dauer_ungueltig');
   }
-  if (!DATUM.test(e.gueltigAb)) throw new SerieEingabeFehlt('„Gültig ab" ist ein Datum.');
+  if (!DATUM.test(e.gueltigAb)) {
+    throw new SerieEingabeFehlt('„Gültig ab" ist ein Datum.', 'gueltig_ab_ungueltig');
+  }
   const gueltigBis = e.gueltigBis === undefined || e.gueltigBis === null || e.gueltigBis === '' ? null : e.gueltigBis;
   if (gueltigBis !== null && (!DATUM.test(gueltigBis) || gueltigBis < e.gueltigAb)) {
-    throw new SerieEingabeFehlt('„Gültig bis" ist ein Datum nach „Gültig ab".');
+    throw new SerieEingabeFehlt(
+      '„Gültig bis" ist ein Datum nach „Gültig ab".', 'gueltig_bis_ungueltig');
   }
   if (e.feiertagsregel !== 'ausfall' && e.feiertagsregel !== 'unveraendert') {
-    throw new SerieEingabeFehlt('Die Feiertagsregel ist „ausfall" oder „unveraendert".');
+    throw new SerieEingabeFehlt(
+      'Die Feiertagsregel ist „ausfall" oder „unveraendert".', 'feiertagsregel_ungueltig');
   }
   return { rrule: turnusRegel(e), gueltigBis };
 }
@@ -223,7 +259,8 @@ export async function legeTurnusSerieAn(
       anker]);
   if (turnus === undefined) {
     throw new SerieEingabeFehlt(
-      'Der Turnus wurde nicht angelegt — das Revier oder die Leistung gehört nicht zu dieser Gesellschaft.');
+      'Der Turnus wurde nicht angelegt — das Revier oder die Leistung gehört nicht zu dieser Gesellschaft.',
+      'turnus_nicht_angelegt');
   }
   return legePlanungsserieAn(kontext, {
     quelle: 'turnus', traegerId: turnus.id, feiertageUeberspringen: e.feiertagsregel === 'ausfall',
@@ -241,10 +278,12 @@ export async function legePlanungsserieAn(
   kontext: SchreibKontext, e: PlanungsserieEingabe,
 ): Promise<SerienErgebnis> {
   const bundesland = e.bundesland ?? 'BE';
-  if (!/^[A-Z]{2}$/u.test(bundesland)) throw new SerieEingabeFehlt('Das Bundesland ist ein Kürzel wie BE.');
+  if (!/^[A-Z]{2}$/u.test(bundesland)) {
+    throw new SerieEingabeFehlt('Das Bundesland ist ein Kürzel wie BE.', 'bundesland_ungueltig');
+  }
   const horizont = e.horizontTage ?? 56;
   if (!Number.isInteger(horizont) || horizont < 1 || horizont > 400) {
-    throw new SerieEingabeFehlt('Der Horizont liegt zwischen 1 und 400 Tagen.');
+    throw new SerieEingabeFehlt('Der Horizont liegt zwischen 1 und 400 Tagen.', 'horizont_ungueltig');
   }
   const spalte = e.quelle === 'turnus' ? 'turnus_id' : 'posten_id';
 
@@ -266,7 +305,8 @@ export async function legePlanungsserieAn(
         kontext.benutzerId]);
     if (neu === undefined) {
       throw new SerieEingabeFehlt(
-        'Die Serie wurde nicht angelegt — der Träger gehört nicht zu dieser Gesellschaft, oder die Sitzung darf hier nicht schreiben.');
+        'Die Serie wurde nicht angelegt — der Träger gehört nicht zu dieser Gesellschaft, oder die Sitzung darf hier nicht schreiben.',
+        'serie_nicht_angelegt');
     }
     planungsserieId = neu.id;
   }
@@ -670,15 +710,20 @@ const MINDESTGRUND = 10;
 export async function legeAusnahmeAn(
   kontext: SchreibKontext, e: AusnahmeEingabe,
 ): Promise<{ readonly id: string; readonly bericht: SerienBericht | null }> {
-  if (!DATUM.test(e.datum)) throw new SerieEingabeFehlt('Das Datum ist ein Kalendertag JJJJ-MM-TT.');
+  if (!DATUM.test(e.datum)) {
+    throw new SerieEingabeFehlt(
+      'Das Datum ist ein Kalendertag JJJJ-MM-TT.', 'ausnahme_datum_ungueltig');
+  }
   if (!AUSNAHME_ARTEN.includes(e.art)) {
-    throw new SerieEingabeFehlt('Die Art ist „ausfall", „verschiebung" oder „zusatz".');
+    throw new SerieEingabeFehlt(
+      'Die Art ist „ausfall", „verschiebung" oder „zusatz".', 'ausnahme_art_ungueltig');
   }
   const grund = e.grund.trim();
   if (grund.length < MINDESTGRUND) {
     throw new SerieEingabeFehlt(
       `Der Grund ist Pflicht und mindestens ${String(MINDESTGRUND)} Zeichen lang — eine `
-      + 'Ausnahme ohne genannten Grund ist keine Dokumentation, sondern ein Klick.');
+      + 'Ausnahme ohne genannten Grund ist keine Dokumentation, sondern ein Klick.',
+      'ausnahme_grund_zu_kurz');
   }
 
   const [serie] = await kontext.abfrage<{
@@ -688,7 +733,9 @@ export async function legeAusnahmeAn(
       where id = $1 and archiviert_am is null`,
     [e.planungsserieId]);
   // AUT-06: eine fremde oder archivierte Serie ist nicht vorhanden.
-  if (serie === undefined) throw new SerieEingabeFehlt('Diese Serie ist nicht vorhanden.');
+  if (serie === undefined) {
+    throw new SerieEingabeFehlt('Diese Serie ist nicht vorhanden.', 'serie_unbekannt');
+  }
   if (serie.turnus_id === null && serie.posten_id === null) {
     throw new AusnahmeNichtTragfaehig(
       'Eine Veranstaltung kennt keine Einzeltermin-Ausnahme (SEC-08): ein einzelnes '
@@ -703,9 +750,11 @@ export async function legeAusnahmeAn(
     if (!UHRZEIT.test(zeit)) {
       throw new SerieEingabeFehlt(
         'Eine Verschiebung braucht eine Ersatz-Uhrzeit HH:MM — die Prüfbedingung der '
-        + 'Tabelle lässt sie nicht weg.');
+        + 'Tabelle lässt sie nicht weg.', 'ersatzzeit_fehlt');
     }
-    if (!DATUM.test(tag)) throw new SerieEingabeFehlt('Der Ersatztag ist ein Kalendertag.');
+    if (!DATUM.test(tag)) {
+      throw new SerieEingabeFehlt('Der Ersatztag ist ein Kalendertag.', 'ersatztag_ungueltig');
+    }
     ersatzBeginn = `${tag} ${zeit}`;
   }
 
@@ -725,11 +774,12 @@ export async function legeAusnahmeAn(
       && (!Number.isInteger(dauer) || dauer < 15 || dauer > MAX_DAUER_MINUTEN)) {
     throw new SerieEingabeFehlt(
       `Die Dauer liegt zwischen 15 Minuten und ${String(MAX_DAUER_MINUTEN)} Minuten — `
-      + 'eine Schicht über 24 Stunden ist keine Schicht.');
+      + 'eine Schicht über 24 Stunden ist keine Schicht.', 'ausnahme_dauer_ungueltig');
   }
   const staerke = e.ersatzBesetzung ?? null;
   if (staerke !== null && (!Number.isInteger(staerke) || staerke < 1)) {
-    throw new SerieEingabeFehlt('Die Ersatzbesetzung ist eine ganze Zahl ab 1.');
+    throw new SerieEingabeFehlt(
+      'Die Ersatzbesetzung ist eine ganze Zahl ab 1.', 'ersatzbesetzung_ungueltig');
   }
 
   /*
@@ -806,7 +856,7 @@ export async function legeAusnahmeAn(
     throw new SerieEingabeFehlt(
       'Die Ausnahme wurde nicht geschrieben — dafür fehlt das Gewerkerecht '
       + `(${serie.turnus_id !== null ? 'reinigung.schreiben' : 'security.schreiben'}) `
-      + 'oder die Serie gehört nicht zu dieser Gesellschaft.');
+      + 'oder die Serie gehört nicht zu dieser Gesellschaft.', 'ausnahme_nicht_geschrieben');
   }
 
   const berichte: readonly SerienBericht[] = await generiereSofort(

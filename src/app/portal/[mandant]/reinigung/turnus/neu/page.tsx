@@ -33,6 +33,7 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { FEIERTAG_TEXTE } from '@/lib/i18n/verwaltung/feiertage';
+import { TURNUS_ANLAGE_TEXTE } from '@/lib/i18n/verwaltung/reinigung';
 
 /**
  * `/portal/[mandant]/reinigung/turnus/neu` — eine Regel bauen und VORHER
@@ -121,14 +122,17 @@ export default async function TurnusNeu(
   const fehlerAusApi = einer(suche['fehler']);
   /*
    * Ein abgewiesener Anker kommt als SCHLÜSSEL (V-192) und wird hier ein Satz
-   * in der Sprache der Sitzung. Die übrigen Abweisungen der Route kommen noch
-   * als Satz (D-599-Altlast, D-686 Nr. 7) — die Seite zeigt ihn nicht: was in
-   * der Adresse steht, kann jeder hineinschreiben, und ein Wort, das die Seite
-   * nicht kennt, wird ein allgemeiner Satz (V-250). Was die Eingabe verfehlt,
-   * sagt die Vorschau, die dieselbe Regel liest.
+   * in der Sprache der Sitzung. Die übrigen Abweisungen der Route kommen seit
+   * V-275 ebenfalls als Grund (D-769) und werden ein Satz aus
+   * `TURNUS_ANLAGE_TEXTE` — nur als eigener Eintrag nachgeschlagen (D-728).
+   * Was in der Adresse steht, kann jeder hineinschreiben: ein Wort, das die
+   * Seite nicht kennt, wird der allgemeine Satz (V-250), nie das Wort selbst.
    */
   const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
   const ankerFehler = fehlerAusApi === null ? undefined : eigenerEintrag(tL.fehler, fehlerAusApi);
+  const tA = TURNUS_ANLAGE_TEXTE.de;
+  const anlageFehler = fehlerAusApi === null
+    ? null : (eigenerEintrag(tA.fehler, fehlerAusApi) ?? tA.sonst);
 
   /* ---- die Eingabe, wie sie aus der Vorschaurunde zurückkommt ----------- */
   const istVorschau = einer(suche['vorschau']) !== null;
@@ -284,14 +288,11 @@ export default async function TurnusNeu(
       </p>
 
       {fehlerAusApi !== null && (
-        <Hinweis art="warnung" cse="turnus-api-fehler" className="mb-s5 max-w-prose">
+        <Hinweis art="warnung" rolle="alert" cse="turnus-api-fehler" className="mb-s5 max-w-prose">
           {ankerFehler !== undefined ? (
             <><strong>{tL.nichtAngelegt}</strong>{' '}{ankerFehler}</>
           ) : (
-            <>
-              <strong>Nicht angelegt.</strong> Prüfen Sie die Angaben in der Vorschau und legen
-              Sie die Serie von dort noch einmal an.
-            </>
+            <><strong>{tA.titel}</strong> {anlageFehler}</>
           )}
         </Hinweis>
       )}
