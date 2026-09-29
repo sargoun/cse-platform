@@ -23415,7 +23415,10 @@ demselben Zweig):
     `DubletteImHaus` —, und beide Dienste reichen sie unter ihrem Namen durch
     (kein Aufrufer ändert seinen Import). Kein Test und kein Aufrufer erwartete
     einen der beiden Codes. Die vier Dienste haben damit 13 Fehlerklassen
-    statt 14; die Sperrklinke zählt `personalnummer.ts` mit.
+    statt 14; die Sperrklinke zählt `personalnummer.ts` mit. Das
+    Dienstregister (`registry/dienste.ts`) führt das Modul als nicht
+    schreibend — der Gegentest in `tests/kern/portal-shell.test.ts` verlangt
+    jeden Dienst unter `services/` dort.
 12. **Was die Datenbank abweist, wird ein Grund — was sie nicht kennt,
     bleibt ein Wurf** (Nebenbefund 3). Drei Wege endeten als 500:
     - **Ein Kalendertag, den es nicht gibt.** Die drei Dienste prüften nur
@@ -23454,5 +23457,5 @@ demselben Zweig):
       Gruppenansicht, das Recht (42501) sieht `authorize` zuerst, und ein
       unbekannter Datenbankfehler wird keine erfundene Abweisung.
 
-| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten,personalnummer}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts`, `tests/isolation/{personal-anstellung,einstellung,person-dublette}.test.ts`, V-217, `src/lib/datum/kalendertag.ts`, `drizzle/0194_person_zusammenfuehren.sql` |
+| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten,personalnummer}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts`, `tests/isolation/{personal-anstellung,einstellung,person-dublette}.test.ts`, V-217, `src/lib/datum/kalendertag.ts`, `drizzle/0194_person_zusammenfuehren.sql`, `src/server/registry/dienste.ts` |
 |---|---|
