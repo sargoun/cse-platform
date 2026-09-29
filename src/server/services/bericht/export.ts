@@ -85,11 +85,14 @@ export async function berichtTabelle(
           { kopf: 'Zeitraum', wert: (z) => z.zeitraum.bezeichnung },
           { kopf: 'Von', wert: (z) => datumText(z.zeitraum.von) },
           { kopf: 'Bis', wert: (z) => datumText(z.zeitraum.bis) },
-          { kopf: 'Erlöse', wert: (z) => geldText(z.erloeseCent), cent: (z) => z.erloeseCent },
-          { kopf: 'Rechnungen', wert: (z) => z.rechnungen },
-          { kopf: 'Aufwand', wert: (z) => geldText(z.aufwandCent), cent: (z) => z.aufwandCent },
-          { kopf: 'Eingangsrechnungen', wert: (z) => z.eingangsrechnungen },
-          { kopf: 'Ergebnis', wert: (z) => geldText(z.ergebnisCent), cent: (z) => z.ergebnisCent },
+          { kopf: 'Erlöse', wert: (z) => geldText(z.erloeseCent), cent: (z) => z.erloeseCent,
+            zahl: true },
+          { kopf: 'Rechnungen', wert: (z) => z.rechnungen, zahl: true },
+          { kopf: 'Aufwand', wert: (z) => geldText(z.aufwandCent), cent: (z) => z.aufwandCent,
+            zahl: true },
+          { kopf: 'Eingangsrechnungen', wert: (z) => z.eingangsrechnungen, zahl: true },
+          { kopf: 'Ergebnis', wert: (z) => geldText(z.ergebnisCent), cent: (z) => z.ergebnisCent,
+            zahl: true },
         ]),
       };
     case 'auftraege':
@@ -100,12 +103,12 @@ export async function berichtTabelle(
           { kopf: 'Zeitraum', wert: (z) => z.zeitraum.bezeichnung },
           { kopf: 'Von', wert: (z) => datumText(z.zeitraum.von) },
           { kopf: 'Bis', wert: (z) => datumText(z.zeitraum.bis) },
-          { kopf: 'Anfragen', wert: (z) => z.leads },
-          { kopf: 'Gewonnen', wert: (z) => z.leadsGewonnen },
-          { kopf: 'Quote', wert: (z) => prozent(z.quoteBp) },
-          { kopf: 'Aufträge', wert: (z) => z.auftraege },
+          { kopf: 'Anfragen', wert: (z) => z.leads, zahl: true },
+          { kopf: 'Gewonnen', wert: (z) => z.leadsGewonnen, zahl: true },
+          { kopf: 'Quote', wert: (z) => prozent(z.quoteBp), zahl: true },
+          { kopf: 'Aufträge', wert: (z) => z.auftraege, zahl: true },
           { kopf: 'Auftragswert netto', wert: (z) => geldText(z.auftragswertCent),
-            cent: (z) => z.auftragswertCent },
+            cent: (z) => z.auftragswertCent, zahl: true },
         ]),
       };
     case 'attribution':
@@ -116,11 +119,11 @@ export async function berichtTabelle(
           { kopf: 'Kanal', wert: (z) => z.kanal },
           { kopf: 'Medium', wert: (z) => z.medium },
           { kopf: 'Kampagne', wert: (z) => z.kampagne },
-          { kopf: 'Anfragen', wert: (z) => z.leads },
-          { kopf: 'Aufträge', wert: (z) => z.auftraege },
-          { kopf: 'Quote', wert: (z) => prozent(z.quoteBp) },
+          { kopf: 'Anfragen', wert: (z) => z.leads, zahl: true },
+          { kopf: 'Aufträge', wert: (z) => z.auftraege, zahl: true },
+          { kopf: 'Quote', wert: (z) => prozent(z.quoteBp), zahl: true },
           { kopf: 'Auftragswert netto', wert: (z) => geldText(z.auftragswertCent),
-            cent: (z) => z.auftragswertCent },
+            cent: (z) => z.auftragswertCent, zahl: true },
         ]),
       };
     case 'mitarbeiter':
@@ -130,13 +133,15 @@ export async function berichtTabelle(
         spalten: s<MitarbeiterZeile>([
           { kopf: 'Name', wert: (z) => z.name },
           { kopf: 'Personalnummer', wert: (z) => z.personalnummer },
-          { kopf: 'Wochenstunden Soll', wert: (z) => z.wochenstundenSoll },
-          { kopf: 'Ist', wert: (z) => stunden(z.istMinuten) },
-          { kopf: 'Ist (Minuten)', wert: (z) => z.istMinuten },
-          { kopf: 'Soll', wert: (z) => stunden(z.sollMinuten) },
-          { kopf: 'Soll (Minuten)', wert: (z) => z.sollMinuten },
-          { kopf: 'Auslastung', wert: (z) => prozent(z.auslastungBp) },
-          { kopf: 'Ist minus Soll (Minuten)', wert: (z) => z.mehrarbeitMinuten },
+          /* `anstellung.wochenstunden numeric(5,2)` — zwei Stellen, nie gerundet. */
+          { kopf: 'Wochenstunden Soll', wert: (z) => z.wochenstundenSoll, zahl: true,
+            nachkomma: 2 },
+          { kopf: 'Ist', wert: (z) => stunden(z.istMinuten), zahl: true },
+          { kopf: 'Ist (Minuten)', wert: (z) => z.istMinuten, zahl: true },
+          { kopf: 'Soll', wert: (z) => stunden(z.sollMinuten), zahl: true },
+          { kopf: 'Soll (Minuten)', wert: (z) => z.sollMinuten, zahl: true },
+          { kopf: 'Auslastung', wert: (z) => prozent(z.auslastungBp), zahl: true },
+          { kopf: 'Ist minus Soll (Minuten)', wert: (z) => z.mehrarbeitMinuten, zahl: true },
         ]),
       };
     case 'projekte':
@@ -150,14 +155,14 @@ export async function berichtTabelle(
             wert: (z) => eigenerEintrag(PROJEKT_STATUS_TEXT, z.status) ?? z.status },
           { kopf: 'Soll-Ende', wert: (z) => datumText(z.sollEnde) },
           { kopf: 'Ist-Ende', wert: (z) => datumText(z.istEnde) },
-          { kopf: 'Verzug (Tage)', wert: (z) => z.verzugTage },
+          { kopf: 'Verzug (Tage)', wert: (z) => z.verzugTage, zahl: true },
           { kopf: 'Auftragssumme', wert: (z) => geldText(z.auftragssummeCent),
-            cent: (z) => z.auftragssummeCent },
+            cent: (z) => z.auftragssummeCent, zahl: true },
           { kopf: 'Berechnet', wert: (z) => geldText(z.berechnetCent),
-            cent: (z) => z.berechnetCent },
+            cent: (z) => z.berechnetCent, zahl: true },
           { kopf: 'Kosten (Näherung)', wert: (z) => geldText(z.kostenCent),
-            cent: (z) => z.kostenCent },
-          { kopf: 'Marge', wert: (z) => prozent(z.margeBp) },
+            cent: (z) => z.kostenCent, zahl: true },
+          { kopf: 'Marge', wert: (z) => prozent(z.margeBp), zahl: true },
         ]),
       };
     case 'pipeline':
@@ -167,13 +172,20 @@ export async function berichtTabelle(
         spalten: s<PipelineStufe>([
           { kopf: 'Stufe', wert: (z) => z.bezeichnung },
           { kopf: 'Im Trichter', wert: (z) => (z.imTrichter ? 'ja' : 'nein') },
-          { kopf: 'Fälle', wert: (z) => z.anzahl },
+          { kopf: 'Fälle', wert: (z) => z.anzahl, zahl: true },
           { kopf: 'Zuschlagswert', wert: (z) => geldText(z.zuschlagswertCent),
-            cent: (z) => z.zuschlagswertCent },
+            cent: (z) => z.zuschlagswertCent, zahl: true },
         ]),
       };
   }
 }
+
+/**
+ * Die Obergrenze von `Intl.NumberFormat` für Nachkommastellen: eine Spalte
+ * ohne `nachkomma` wird nicht gerundet, sie zeigt die Stellen, die die Datei
+ * zeigt (`String(n)`).
+ */
+const OHNE_RUNDEN = 20;
 
 export interface BlattZelle {
   readonly text: string;
@@ -183,28 +195,36 @@ export interface BlattZelle {
 
 /**
  * Eine Tabelle als Zellen für das Druckblatt — dieselben `wert`-Funktionen wie
- * die Datei. Zwei Unterschiede, beide der Form und keiner dem Inhalt:
+ * die Datei, also dieselben Werte mit derselben Genauigkeit. Zwei
+ * Unterschiede, beide der Schreibweise und keiner dem Inhalt:
  *
  *  - Die Cent-Zwillingsspalte der CSV bleibt dort: sie steht für eine
  *    Maschine da, die weiterrechnet, und auf Papier rechnet niemand weiter.
- *  - Eine ganze Zahl bekommt ihren Tausenderpunkt (`zahlText`); in der Datei
- *    bleibt sie roh, damit eine Tabellenkalkulation sie als Zahl liest.
+ *  - Eine rohe Zahl steht in deutscher Schreibweise — Tausenderpunkt,
+ *    Dezimalkomma —, mit genau den Stellen, die sie hat, höchstens so vielen
+ *    wie ihre Quelle (`Spalte.nachkomma`): 37,5 Wochenstunden bleiben 37,5
+ *    und werden nicht 38 (V-269). In der Datei bleibt sie roh, damit eine
+ *    Tabellenkalkulation sie als Zahl liest.
+ *
+ * **Rechtsbündig ist, was die Spalte als Zahl ausweist** (`Spalte.zahl`,
+ * dazu jede Geldspalte und jede rohe Zahl) — nicht, was ein Muster im Text
+ * vermutet. Das Muster auf „… h" verfehlte „163:20 h" (V-269).
  */
 export function zellenFuerBlatt(tabelle: BerichtTabelle): {
   readonly koepfe: readonly BlattZelle[];
   readonly zeilen: readonly (readonly BlattZelle[])[];
 } {
   const roh = tabelle.zeilen as readonly never[];
-  const istZahl = (w: string | number | null): boolean => typeof w === 'number'
-    || (typeof w === 'string' && /^-?[\d.,]+ (%|h)$/u.test(w));
-  const zahlSpalte = tabelle.spalten.map((sp) =>
-    sp.cent !== undefined || roh.some((z) => istZahl(sp.wert(z))));
+  const zahlSpalte = tabelle.spalten.map((sp) => sp.zahl === true || sp.cent !== undefined
+    || roh.some((z) => typeof sp.wert(z) === 'number'));
   const koepfe = tabelle.spalten.map((sp, i) => ({ text: sp.kopf, zahl: zahlSpalte[i]! }));
   const zeilen = roh.map((z) =>
     tabelle.spalten.map((sp, i) => {
       const w = sp.wert(z);
       return {
-        text: w === null ? '' : typeof w === 'number' ? zahlText(w) : w,
+        text: w === null ? ''
+          : typeof w === 'number' ? zahlText(w, 'de', sp.nachkomma ?? OHNE_RUNDEN, 0)
+            : w,
         zahl: zahlSpalte[i]!,
       };
     }));

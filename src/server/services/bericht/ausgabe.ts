@@ -26,6 +26,21 @@ export interface Spalte<Z> {
   readonly wert: (zeile: Z) => string | number | null;
   /** Geldspalten bekommen zusätzlich eine Cent-Spalte. */
   readonly cent?: (zeile: Z) => Cent | null;
+  /**
+   * **Eine Zahlenspalte** — Anzahl, Minuten, Stunden, Prozent, Geld. Das
+   * Druckblatt setzt sie rechtsbündig mit Ziffern gleicher Breite (DESIGN §5,
+   * §11); die Datei braucht das Merkmal nicht. Ausdrücklich gesetzt und nicht
+   * am Text erraten: ein Muster auf „… h" verfehlte „163:20 h", und die
+   * Stundenspalten standen links (V-269).
+   */
+  readonly zahl?: true;
+  /**
+   * Wie viele Nachkommastellen eine ROHE Zahl dieser Spalte höchstens trägt —
+   * so viele wie ihre Quelle (`numeric(5,2)` → 2). Das Blatt schreibt sie mit
+   * genau der Genauigkeit der Datei, ohne erfundene Nullen: `37.5` wird
+   * „37,5", nie „38" (V-269). Ohne Angabe rundet das Blatt gar nicht.
+   */
+  readonly nachkomma?: number;
 }
 
 const BOM = '﻿';

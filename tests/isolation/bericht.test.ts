@@ -724,4 +724,42 @@ describe('(8) REP-07: Datei und Druckblatt aus einer Quelle (D-721)', () => {
       expect(csvZeilen.length - 1, bericht).toBe(blatt.zeilen.length);
     }
   });
+
+  /**
+   * **37,5 Wochenstunden sind auf dem Blatt 37,5 — nicht 38** (V-269). Die
+   * Spalte ist `numeric(5,2)`; das Blatt rundete jede Zahl auf eine ganze,
+   * die Datei derselben Quelle schrieb 37.5. Und die Stundenspalten stehen
+   * rechts, weil die Spalte es sagt — nicht, weil ein Muster „… h" trifft.
+   */
+  it('die Wochenstunden mit ihrer Genauigkeit, die Stunden rechtsbündig', async () => {
+    const jahr = await berlinJahr();
+    const wer = await legeLeitungAn(f.reinigung, 'admin');
+    const [p] = await sql.unsafe<{ id: string }[]>(
+      `insert into person (vorname, nachname) values ('Mira', $1) returning id`,
+      [`Genau-${zufall()}`]);
+    await sql.unsafe(
+      `insert into anstellung (mandant_id, person_id, personalnummer, eintritt, wochenstunden)
+       values ($1::uuid, $2::uuid, $3, $4::date, 37.5)`,
+      [f.reinigung, p!.id, `PN-${zufall()}`, `${String(jahr)}-01-01`]);
+
+    const tabelle = await alsBereich(f.reinigung,
+      (k) => berichtTabelle('mitarbeiter', k, jahr, 'jahr'), wer);
+    const csv = alsCsv(tabelle.spalten, tabelle.zeilen as readonly never[])
+      .replace('\uFEFF', '').trimEnd().split('\r\n');
+    const blatt = zellenFuerBlatt(tabelle);
+    const spalte = blatt.koepfe.findIndex((k) => k.text === 'Wochenstunden Soll');
+    const i = blatt.zeilen.findIndex((z) => z[0]!.text.startsWith('Mira Genau-'));
+    expect(i, 'die Anstellung steht im Bericht').toBeGreaterThanOrEqual(0);
+
+    expect(blatt.zeilen[i]![spalte]!.text).toBe('37,5');
+    expect(csv[i + 1]!.split(';')[spalte]).toBe('37.5');
+
+    expect(blatt.koepfe.filter((k) => k.zahl).map((k) => k.text)).toEqual([
+      'Wochenstunden Soll', 'Ist', 'Ist (Minuten)', 'Soll', 'Soll (Minuten)', 'Auslastung',
+      'Ist minus Soll (Minuten)',
+    ]);
+    const soll = blatt.koepfe.findIndex((k) => k.text === 'Soll');
+    expect(blatt.zeilen[i]![soll]!.text).toMatch(/^\d+:\d{2} h$/u);
+    expect(blatt.zeilen[i]![soll]!.zahl).toBe(true);
+  });
 });

@@ -27,13 +27,19 @@ function gebiet(sprache: string | null | undefined): string {
 
 /**
  * Eine Zahl mit Tausendertrennung und höchstens `nachkomma` Stellen —
- * `1234` → „1.234", `2.5` → „2,5".
+ * `zahlText(1234)` → „1.234", `zahlText(2.5, 'de', 1)` → „2,5".
+ *
+ * **`mindestens` ist die Untergrenze und sonst gleich `nachkomma`** — eine
+ * Grösse schreibt „2,0 MB" mit fester Stelle. Wer dieselbe Genauigkeit wie
+ * seine Quelle will und keine erfundenen Nullen, setzt `mindestens` auf 0:
+ * `zahlText(37.5, 'de', 2, 0)` → „37,5", `zahlText(38, 'de', 2, 0)` → „38"
+ * (V-269: das Druckblatt eines Berichts rundete 37,5 Wochenstunden auf 38).
  */
 export function zahlText(
-  n: number, sprache: string | null = 'de', nachkomma = 0,
+  n: number, sprache: string | null = 'de', nachkomma = 0, mindestens = nachkomma,
 ): string {
   return new Intl.NumberFormat(gebiet(sprache), {
-    minimumFractionDigits: nachkomma,
+    minimumFractionDigits: Math.min(mindestens, nachkomma),
     maximumFractionDigits: nachkomma,
   }).format(n);
 }

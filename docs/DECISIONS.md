@@ -19711,7 +19711,10 @@ nur CSV, und die ROADMAP hakte REP-07 trotzdem ab.
    Spaltenköpfe und Werte in derselben Reihenfolge; die Cent-Zwillingsspalte
    der Datei bleibt dort (sie ist für eine Maschine, die weiterrechnet), und
    eine ganze Zahl bekommt auf Papier ihren Tausenderpunkt (`zahlText`,
-   `src/lib/zahl.ts`).
+   `src/lib/zahl.ts`). **Berichtigt durch D-765:** `zahlText(w)` rundete JEDE
+   Zahl auf eine ganze — 37,5 Wochenstunden standen als „38" auf dem Blatt,
+   37.5 in der Datei —, und rechtsbündig war nur, was ein Muster im Text
+   traf, die Stundenspalten („163:20 h") nicht.
 3. **Dasselbe Recht wie die Datei: `bericht.exportieren`** — in der
    Seitenkarte als Wache der Adresse und INNERHALB der Bindung noch einmal
    gefragt, wie in der CSV-Route. Ohne das Recht erscheint im Berichtsrahmen
@@ -20176,4 +20179,44 @@ der öffentliche Titel des Formulars schon; `tests/isolation/agent-lauf.test.ts`
 Webanfrage an und findet sie beim zweiten Lauf wieder.
 
 | Betrifft | §17, AGT-07, Invariante 7, D-631, D-724, O-907, O-940, V-230, V-271, `src/server/agent/auftraege.ts`, `src/lib/i18n/beschriftung/agent.ts`, `src/app/portal/[mandant]/agenten/[agent]/start/page.tsx`, `src/server/db/seed/{webanfrage,operations,index}.ts`, `tests/isolation/{akquise-tatsachen,agent-lauf}.test.ts`, `tests/kern/akquise-entwurf.test.ts` |
+|---|---|
+
+### D-765 · Das Druckblatt eines Berichts zeigt die Werte der Datei mit derselben Genauigkeit und setzt Zahlen rechts, weil die Spalte es sagt (V-269)
+
+**Der Befund** (zweite Prüfung von V-227, REP-07, DESIGN §5/§11): das Blatt
+schrieb jede rohe Zahl mit `zahlText(w)` — null Nachkommastellen. Die einzige
+nicht ganzzahlige Spalte der sechs Berichte, „Wochenstunden Soll"
+(`anstellung.wochenstunden numeric(5,2)`), stand damit als „38" statt 37,5
+auf Papier, in der CSV-Datei derselben Quelle als 37.5 — ein Dokument, das
+das Haus verlässt, nannte eine andere vertragliche Wochenarbeitszeit als die
+Datenbank. Die Sätze des Blatts versprachen dazu „dieselbe Zahlenform wie die
+Datei" (en: „the same … number format as the file"), obwohl das Blatt
+Tausenderpunkt und Dezimalkomma setzt. Und rechtsbündig war nur, was das
+Muster `/^-?[\d.,]+ (%|h)$/u` traf: die Stundenspalten „Ist" und „Soll"
+(„163:20 h", mit Doppelpunkt) standen links, ohne Tabellenziffern.
+
+**Die Entscheidung.**
+
+1. **Die Spalte sagt, was sie ist.** `Spalte` (`bericht/ausgabe.ts`) trägt
+   `zahl: true` für jede Zahlenspalte — Anzahl, Minuten, Stunden, Prozent,
+   Geld — und `nachkomma` für die höchste Stellenzahl einer rohen Zahl, so
+   viele wie ihre Quelle (`numeric(5,2)` → 2). `berichtTabelle` setzt beides
+   für alle sechs Berichte; `zellenFuerBlatt` rät nicht mehr am Text.
+2. **Dieselbe Genauigkeit wie die Datei.** Eine rohe Zahl steht mit genau
+   den Stellen, die sie hat, höchstens `nachkomma`, ohne erfundene Nullen
+   (`zahlText(w, 'de', n, 0)` — `zahlText` hat dafür die Untergrenze
+   `mindestens` bekommen): 37,5 bleibt 37,5, 40 bleibt 40. Eine Spalte ohne
+   `nachkomma` wird gar nicht gerundet.
+3. **Die Sätze sagen, was stimmt:** dieselben Zeilen, Spalten und Werte wie
+   die Datei — ohne ihre Cent-Spalten, Zahlen in deutscher Schreibweise (de
+   und en).
+
+**Geprüft:** `tests/kern/bericht-export.test.ts` (37,5/19,25/40, dieselben
+Stellen wie die Datei, Stundenspalten rechts auch negativ, keine Rundung ohne
+`nachkomma`, die berichtigten Sätze), `tests/kern/zahl.test.ts`
+(`mindestens`), `tests/isolation/bericht.test.ts` (8) mit einer echten
+Anstellung zu 37,5 Wochenstunden: Blatt „37,5", Datei „37.5", die sieben
+Zahlenspalten des Stundenberichts rechts.
+
+| Betrifft | REP-07, DESIGN §5, DESIGN §11, D-721, V-227, V-269, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `tests/kern/{bericht-export,zahl}.test.ts`, `tests/isolation/bericht.test.ts` (8) |
 |---|---|

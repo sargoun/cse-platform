@@ -4,10 +4,13 @@
  *
  * **Der Rahmen folgt der Sprache, die Tabelle nicht.** Kopf, Hinweise und
  * Knöpfe stehen in der Sprache der Sitzung. Die Tabelle ist die CSV-Datei auf
- * Papier — dieselben Spaltenköpfe, dieselben Werte, dieselbe Zahlenform wie
- * in der Datei (`berichtTabelle`); sie bleibt deutsch, und das englische
- * Blatt sagt es dazu. Zwei Tabellen, die sich in einer Sprache unterscheiden,
- * liessen sich nicht mehr Zeile für Zeile gegen die Datei legen.
+ * Papier — dieselben Spaltenköpfe und dieselben Werte mit derselben
+ * Genauigkeit (`berichtTabelle`), ohne die Cent-Spalten und mit Zahlen in
+ * deutscher Schreibweise (V-269: „dieselbe Zahlenform wie die Datei" stimmte
+ * nicht — die Datei schreibt `37.5`, das Blatt „37,5"); sie bleibt deutsch,
+ * und das englische Blatt sagt es dazu. Zwei Tabellen, die sich in einer
+ * Sprache unterscheiden, liessen sich nicht mehr Zeile für Zeile gegen die
+ * Datei legen.
  */
 import type { InternSprache } from '../intern.js';
 
@@ -51,9 +54,10 @@ export const BERICHT_DRUCK_TEXTE: Readonly<Record<InternSprache, BerichtDruckTex
       + 'erscheinen nicht auf dem Ausdruck.',
     tabelle: (titel) => `${titel} — Tabelle`,
     leer: 'Im Zeitraum liegt keine Zeile.',
-    quelle: 'Dieselben Zeilen und Spalten wie die CSV-Datei dieses Berichts, gelesen zum '
-      + 'genannten Stand mit den Rechten der Person, die das Blatt aufgerufen hat. '
-      + 'Beträge in ganzen Cent gerechnet.',
+    quelle: 'Dieselben Zeilen, Spalten und Werte wie die CSV-Datei dieses Berichts — ohne '
+      + 'ihre Cent-Spalten, Zahlen in deutscher Schreibweise —, gelesen zum genannten Stand '
+      + 'mit den Rechten der Person, die das Blatt aufgerufen hat. Beträge in ganzen Cent '
+      + 'gerechnet.',
     tabelleDeutsch: null,
   },
   en: {
@@ -73,10 +77,11 @@ export const BERICHT_DRUCK_TEXTE: Readonly<Record<InternSprache, BerichtDruckTex
       + 'appear on the printout.',
     tabelle: (titel) => `${titel} — table`,
     leer: 'No rows in this period.',
-    quelle: 'The same rows and columns as this report’s CSV file, read as of the date '
-      + 'shown with the rights of the person who opened the sheet. Amounts calculated '
-      + 'in whole cents.',
+    quelle: 'The same rows, columns and values as this report’s CSV file — without its '
+      + 'cent columns, numbers in German notation — read as of the date shown with the '
+      + 'rights of the person who opened the sheet. Amounts calculated in whole cents.',
     tabelleDeutsch: 'The table is the CSV file on paper and stays in German — the same '
-      + 'column headings, values and number format as the file.',
+      + 'column headings and values as the file, with numbers in German notation '
+      + '(1.234,5 rather than 1234.5).',
   },
 };

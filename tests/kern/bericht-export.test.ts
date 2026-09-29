@@ -55,6 +55,71 @@ describe('zellenFuerBlatt — die Datei auf Papier', () => {
   });
 });
 
+/**
+ * **Dieselbe Genauigkeit wie die Datei, und rechts, was die Spalte als Zahl
+ * ausweist** (V-269). Das Blatt schrieb jede Zahl mit `zahlText(w)` — null
+ * Nachkommastellen —, also 37,5 Wochenstunden als „38", während die Datei
+ * derselben Quelle 37.5 schrieb. Und die Stundenspalten („163:20 h") standen
+ * links, weil ein Muster auf „… h" den Doppelpunkt nicht kannte.
+ */
+describe('zellenFuerBlatt — Genauigkeit und Ausrichtung aus der Spalte', () => {
+  interface Std { readonly name: string; readonly soll: number | null;
+    readonly ist: string; readonly minuten: number }
+  const stdSpalten: readonly Spalte<Std>[] = [
+    { kopf: 'Name', wert: (z) => z.name },
+    { kopf: 'Wochenstunden Soll', wert: (z) => z.soll, zahl: true, nachkomma: 2 },
+    { kopf: 'Ist', wert: (z) => z.ist, zahl: true },
+    { kopf: 'Ist (Minuten)', wert: (z) => z.minuten, zahl: true },
+  ];
+  const stdZeilen: readonly Std[] = [
+    { name: 'A', soll: 37.5, ist: '163:20 h', minuten: 9800 },
+    { name: 'B', soll: 19.25, ist: '-2:30 h', minuten: -150 },
+    { name: 'C', soll: 40, ist: '0:00 h', minuten: 0 },
+    { name: 'D', soll: null, ist: '1234:05 h', minuten: 74045 },
+  ];
+  const std: BerichtTabelle = {
+    zeilen: stdZeilen, zeitraum: '2026',
+    spalten: stdSpalten as unknown as BerichtTabelle['spalten'],
+  };
+
+  it('37,5 bleibt 37,5 — nicht 38 —, 19,25 bleibt 19,25, 40 bleibt 40', () => {
+    const texte = zellenFuerBlatt(std).zeilen.map((z) => z[1]!.text);
+    expect(texte).toEqual(['37,5', '19,25', '40', '']);
+  });
+
+  it('dieselben Stellen wie die Datei — nur die Schreibweise ist deutsch', () => {
+    const csv = alsCsv(stdSpalten, stdZeilen).replace('\uFEFF', '').split('\r\n');
+    expect(csv[1]).toContain(';37.5;');
+    expect(csv[2]).toContain(';19.25;');
+    const blatt = zellenFuerBlatt(std);
+    for (const [i, z] of stdZeilen.entries()) {
+      if (z.soll === null) continue;
+      expect(blatt.zeilen[i]![1]!.text.replace(',', '.'), z.name).toBe(String(z.soll));
+    }
+  });
+
+  it('die Stundenspalte „163:20 h" steht rechts — auch negativ und über tausend', () => {
+    const blatt = zellenFuerBlatt(std);
+    expect(blatt.koepfe.map((k) => k.zahl)).toEqual([false, true, true, true]);
+    expect(blatt.zeilen.every((z) => z[2]!.zahl)).toBe(true);
+    expect(blatt.zeilen.map((z) => z[3]!.text)).toEqual(['9.800', '-150', '0', '74.045']);
+  });
+
+  it('eine Zahl ohne erklärte Genauigkeit wird nicht gerundet', () => {
+    const t: BerichtTabelle = {
+      zeilen: [{ x: 2.345 }], zeitraum: '2026',
+      spalten: [{ kopf: 'X', wert: (z: { x: number }) => z.x }] as unknown as
+        BerichtTabelle['spalten'],
+    };
+    expect(zellenFuerBlatt(t).zeilen[0]![0]).toEqual({ text: '2,345', zahl: true });
+  });
+
+  it('der Satz unter dem Blatt behauptet keine Zahlenform, die es nicht hat', () => {
+    expect(BERICHT_DRUCK_TEXTE.en.tabelleDeutsch).not.toContain('number format as the file');
+    expect(BERICHT_DRUCK_TEXTE.de.quelle).toContain('deutscher Schreibweise');
+  });
+});
+
 describe('datumText — TT.MM.JJJJ ohne Date und ohne Zone', () => {
   it('schreibt den Kalendertag um und erfindet nichts', () => {
     expect(datumText('2026-12-31')).toBe('31.12.2026');

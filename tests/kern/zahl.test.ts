@@ -13,6 +13,20 @@ import { groesseText as groesseMitarbeiter } from '../../src/server/services/mit
  * Grössen und Zahlen durch `src/lib/zahl.ts`.
  */
 
+describe('zahlText — höchstens, und auf Wunsch ohne erfundene Nullen (V-269)', () => {
+  it('ohne Untergrenze feste Stellen, wie bisher', () => {
+    expect(zahlText(1234)).toBe('1.234');
+    expect(zahlText(2, 'de', 1)).toBe('2,0');
+  });
+
+  it('mit Untergrenze 0 die Stellen, die die Zahl hat — höchstens nachkomma', () => {
+    expect(zahlText(37.5, 'de', 2, 0)).toBe('37,5');
+    expect(zahlText(38, 'de', 2, 0)).toBe('38');
+    expect(zahlText(19.25, 'de', 2, 0)).toBe('19,25');
+    expect(zahlText(1234.5, 'en', 2, 0)).toBe('1,234.5');
+  });
+});
+
 describe('groesseText — deutsch mit Komma, englisch mit Punkt', () => {
   it('Byte, KB und MB, eine Nachkommastelle unter zehn', () => {
     expect(groesseText('512')).toBe('512 B');
