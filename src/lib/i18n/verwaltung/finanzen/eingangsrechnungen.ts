@@ -51,6 +51,10 @@ import { DOKUMENT_BLATT_TEXTE } from '../dokument-blatt.js';
  * `MimeFehler` als `datei_<grund>`, `ExifFehler` als `datei_metadaten`. Bis
  * dahin fielen beide durch die Übersetzung der Route und endeten als 500 —
  * ausgerechnet beim verschlüsselten PDF eines Lieferanten.
+ *
+ * Und die Abweisung des Dienstes beim Erfassen (`EingangsrechnungFehler`,
+ * D-774 Nachrunde) als `rechnung_abgewiesen` bzw. `rechnung_unvollstaendig`:
+ * das Formular endete bis dahin auf einer Seite mit JSON.
  */
 export const ERFASSEN_FEHLER_GRUENDE = [
   'unvollstaendig', 'ohne_beleg', 'dublette', 'betrag', 'speicher_nicht_verbunden',
@@ -59,6 +63,7 @@ export const ERFASSEN_FEHLER_GRUENDE = [
   'vorschlag_keine_erechnung', 'vorschlag_nicht_gefunden', 'vorschlag_nicht_genehmigt',
   'vorschlag_unvollstaendig', 'vorschlag_schon_uebernommen', 'vorschlag_kein_recht',
   'datei_leer', 'datei_unbekannt', 'datei_nicht_erlaubt', 'datei_widerspruch', 'datei_metadaten',
+  'rechnung_abgewiesen', 'rechnung_unvollstaendig',
 ] as const;
 export type ErfassenFehlerGrund = (typeof ERFASSEN_FEHLER_GRUENDE)[number];
 
@@ -454,6 +459,11 @@ const DE: EingangsrechnungenTexte = {
     datei_nicht_erlaubt: DATEI.de.datei_nicht_erlaubt,
     datei_widerspruch: DATEI.de.datei_widerspruch,
     datei_metadaten: DATEI.de.datei_metadaten,
+    rechnung_abgewiesen:
+      'Der Beleg oder die Eingangsrechnung wurde nicht angelegt — es wurde nichts gespeichert.',
+    rechnung_unvollstaendig:
+      'Den gewählten Steuersatz gibt es nicht. Bitte einen aus der Liste wählen — es wurde nichts '
+      + 'gespeichert.',
   },
   erfassenFehlerSonst: 'Es wurde nichts gespeichert.',
 
@@ -873,6 +883,11 @@ const EN: EingangsrechnungenTexte = {
     datei_nicht_erlaubt: DATEI.en.datei_nicht_erlaubt,
     datei_widerspruch: DATEI.en.datei_widerspruch,
     datei_metadaten: DATEI.en.datei_metadaten,
+    rechnung_abgewiesen:
+      'The Beleg (supporting document) or the incoming invoice was not created — nothing was '
+      + 'saved.',
+    rechnung_unvollstaendig:
+      'The chosen tax rate does not exist. Please choose one from the list — nothing was saved.',
   },
   erfassenFehlerSonst: 'Nothing was saved.',
 

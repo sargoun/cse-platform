@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { anmeldungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
+import { anmeldungsAntwort, istBrowserFormular, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
@@ -218,7 +218,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
          */
       }
     }
-    return uebersetze(fehler, anfrage);
+    return uebersetze(fehler, anfrage, {
+      /* Eines der zwei Formulare auf `/neu` — Erfassung oder E-Rechnung —, von einem Browser geschickt. */
+      neuFormular: (aktion === 'erfassen' || aktion === 'erechnung')
+        && istBrowserFormular(anfrage, daten),
+    });
   }
 }
 
@@ -379,7 +383,28 @@ async function schiebeWeiter(
     }))) as NextResponse;
 }
 
-function uebersetze(fehler: unknown, anfrage: NextRequest): NextResponse {
+/**
+ * Welcher Grund einer Abweisung des Dienstes auf `/neu` zurückreist, wenn ein
+ * Formular der Seite sie auslöste (D-774 Nachrunde).
+ *
+ * Beim Erfassen wirft `EingangsrechnungFehler` genau zwei: `abgewiesen`
+ * (`legeBelegAn`, auch unter `legeERechnungAb`, und `erfasseEingangsrechnung`)
+ * und `unvollstaendig` (`setzeSteuerzeile` — eine Steuersatzgruppe, die es
+ * nicht gibt). Die übrigen drei wirft nur ein Zustandswechsel des Blatts; sie
+ * bleiben JSON wie bisher. Ein neuer Grund des Dienstes bricht hier die
+ * Übersetzung, bis jemand entschieden hat, ob `/neu` einen Satz dafür braucht.
+ */
+const ERFASSEN_ABWEISUNG: Readonly<Record<EingangsrechnungFehler['grund'], ErfassenFehlerGrund | null>> = {
+  abgewiesen: 'rechnung_abgewiesen',
+  unvollstaendig: 'rechnung_unvollstaendig',
+  nicht_gefunden: null,
+  dublette: null,
+  vier_augen: null,
+};
+
+function uebersetze(
+  fehler: unknown, anfrage: NextRequest, herkunft: { readonly neuFormular: boolean },
+): NextResponse {
   const anmeldung = anmeldungsAntwort(fehler, anfrage);
   if (anmeldung !== null) return anmeldung;
   if (fehler instanceof NichtGefundenFehler) {
@@ -408,6 +433,14 @@ function uebersetze(fehler: unknown, anfrage: NextRequest): NextResponse {
     return zurueck(anfrage, '/neu', { fehler: `vorschlag_${fehler.grund}` });
   }
   if (fehler instanceof EingangsrechnungFehler) {
+    /*
+     * Ein Formular auf `/neu` endete hier auf einer weissen Seite mit
+     * `{"fehler":…,"meldung":…}` und Status 409 — die Eingabe weg, der Rückweg
+     * der Zurück-Knopf. Jetzt bekommt es seinen Grund; ein Programm bekommt
+     * weiter JSON (D-599: „ein Browser bekommt eine Seite, ein Programm JSON").
+     */
+    const grund = herkunft.neuFormular ? ERFASSEN_ABWEISUNG[fehler.grund] : null;
+    if (grund !== null) return zurueck(anfrage, '/neu', { fehler: grund });
     return NextResponse.json({ fehler: fehler.grund, meldung: fehler.message },
       { status: fehler.grund === 'nicht_gefunden' ? 404 : 409 });
   }

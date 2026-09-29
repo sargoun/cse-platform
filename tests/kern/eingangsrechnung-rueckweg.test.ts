@@ -33,6 +33,8 @@ const zustand = vi.hoisted(() => ({
   extrahiere: vi.fn(),
   legeERechnungAb: vi.fn(),
   inPruefung: vi.fn(),
+  abfrage: vi.fn(),
+  entfernt: [] as string[],
 }));
 
 vi.mock('@/server/auth/anfrage-sitzung', () => ({
@@ -44,14 +46,20 @@ vi.mock('@/server/db/pool', () => ({
 vi.mock('@/server/kontext/index', () => ({
   withTenant: <T,>(_tx: unknown, _s: unknown, fn: (k: unknown) => Promise<T>) => fn({
     aktiverMandantId: '00000000-0000-4000-8000-000000000002',
-    abfrage: () => Promise.resolve([]),
+    abfrage: (sql: string) => zustand.abfrage(sql) as Promise<unknown[]>,
     schreibe: () => Promise.resolve([]),
   }),
 }));
 vi.mock('@/server/auth/authorize', () => ({ authorize: zustand.authorize }));
 vi.mock('@/server/auth/zugang', () => ({ rechtepruefer: () => ({}) }));
 vi.mock('@/server/storage/waehle', () => ({
-  waehleSpeicher: () => ({ verbunden: true, entferne: () => Promise.resolve() }),
+  waehleSpeicher: () => ({
+    verbunden: true,
+    entferne: (_bucket: string, pfad: string) => {
+      zustand.entfernt.push(pfad);
+      return Promise.resolve();
+    },
+  }),
 }));
 vi.mock('@/server/services/dokument/upload', () => ({ ladeHoch: zustand.ladeHoch }));
 vi.mock('@/server/services/finanz/eingangsrechnung', async (original) => ({
@@ -86,15 +94,19 @@ const PDF = new Uint8Array([...Buffer.from('%PDF-1.7\n1 0 obj <<>>\n', 'latin1')
 function formular(
   felder: Record<string, string>,
   datei: { bytes: Uint8Array<ArrayBuffer>; typ: string; name: string } | null = null,
+  kopf: Record<string, string> = {},
 ): NextRequest {
   const daten = new FormData();
   for (const [k, v] of Object.entries(felder)) daten.append(k, v);
   if (datei !== null) daten.append('datei', new File([datei.bytes], datei.name, { type: datei.typ }));
   return new NextRequest(new URL('/api/finanzen/eingangsrechnungen?mandant=reinigung', HIER), {
     method: 'POST', body: daten,
-    headers: new Headers({ host: 'localhost:3001', origin: HIER }),
+    headers: new Headers({ host: 'localhost:3001', origin: HIER, ...kopf }),
   });
 }
+
+/** Was ein Browser beim Absenden eines Formulars mitschickt (D-599, D-766). */
+const BROWSER = { accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8' } as const;
 
 /** Ein vollständiges Erfassungsformular — mit Datei oder mit gewähltem Beleg. */
 const ERFASSEN = {
@@ -111,7 +123,9 @@ beforeEach(() => {
     sitzungId: '00000000-0000-4000-8000-000000000003',
   };
   for (const f of [zustand.authorize, zustand.dublette, zustand.ladeHoch, zustand.anhang,
-    zustand.extrahiere, zustand.legeERechnungAb, zustand.inPruefung]) f.mockReset();
+    zustand.extrahiere, zustand.legeERechnungAb, zustand.inPruefung, zustand.abfrage]) f.mockReset();
+  zustand.abfrage.mockResolvedValue([]);
+  zustand.entfernt = [];
   zustand.authorize.mockResolvedValue(zustand.sitzung);
   zustand.dublette.mockResolvedValue({ istDublette: false, treffer: [], warnung: null });
 });
@@ -206,6 +220,65 @@ describe('POST /api/finanzen/eingangsrechnungen — `/neu` bekommt einen Grund',
         .map((g) => `vorschlag_${new VorschlagFehler('x', g).grund}`),
     ];
     for (const g of alle) expect(ERFASSEN_FEHLER_GRUENDE, g).toContain(g);
+  });
+});
+
+/**
+ * **Die Abweisung des Dienstes beim Erfassen** (D-774 Nachrunde).
+ * `EingangsrechnungFehler` endete auch für die zwei Formulare auf `/neu` als
+ * JSON mit Status 409 — eine weisse Seite, die Eingabe weg. Ein Browser
+ * bekommt jetzt den Grund, ein Programm weiter JSON (D-599). Die Dienste
+ * laufen echt: `legeBelegAn`, `erfasseEingangsrechnung`, `setzeSteuerzeile`.
+ */
+describe('EingangsrechnungFehler beim Erfassen — das Formular bekommt einen Grund, ein Programm JSON', () => {
+  /** Was `ladeHoch` liefert, wenn die Datei durchgeht. */
+  const HOCH = {
+    dokumentId: '00000000-0000-4000-8000-0000000000d0', objektSchluessel: 'm/buchhaltung/d0',
+    bucket: 'dokumente', mimeTyp: 'application/pdf', groesseBytes: 32, exifEntfernt: true,
+    sha256: 'ab'.repeat(32), aufbewahrungBis: '2036-12-31', loeschsperre: true,
+  } as const;
+
+  it('der Beleg wird abgewiesen (`legeBelegAn`) → `rechnung_abgewiesen`, die Datei geht wieder', async () => {
+    zustand.ladeHoch.mockResolvedValue(HOCH);
+    const o = await ort(formular(ERFASSEN, PDF_DATEI, BROWSER));
+    expect(o).toBe(`${HIER}${NEU}?fehler=rechnung_abgewiesen`);
+    expect(decodeURIComponent(o)).not.toMatch(/Prüfwert|SHA-256/u);
+    expect(zustand.entfernt).toEqual([HOCH.objektSchluessel]);
+  });
+
+  it('die Steuersatzgruppe gibt es nicht (`setzeSteuerzeile`) → `rechnung_unvollstaendig`', async () => {
+    zustand.abfrage.mockImplementation((sql: string) => Promise.resolve(
+      /insert into eingangsrechnung\b/u.test(sql) ? [{ id: LIEFERANT }] : []));
+    const o = await ort(formular(
+      { ...ERFASSEN, belegId: LIEFERANT, steuergruppe: 'ust_77' }, null, BROWSER));
+    expect(o).toBe(`${HIER}${NEU}?fehler=rechnung_unvollstaendig`);
+    expect(o).not.toContain('ust_77');
+  });
+
+  it('auch der E-Rechnungs-Weg: der Beleg des Vorschlags wird abgewiesen → `rechnung_abgewiesen`', async () => {
+    zustand.extrahiere.mockReturnValue({ nutzlast: { rechnungsdatum: '2026-08-31' } });
+    zustand.legeERechnungAb.mockRejectedValue(new EingangsrechnungFehler(
+      'Dokument, Version und Prüfwert gehören nicht zusammen — es entsteht kein Beleg.', 'abgewiesen'));
+    const xml = new Uint8Array([...Buffer.from('<?xml version="1.0"?><Invoice/>', 'utf8')]);
+    expect(await ort(formular({ aktion: 'erechnung' },
+      { bytes: xml as Uint8Array<ArrayBuffer>, typ: 'application/xml', name: 'r.xml' }, BROWSER)))
+      .toBe(`${HIER}${NEU}?fehler=rechnung_abgewiesen`);
+  });
+
+  it('ein Programm (ohne `Accept: text/html`) bekommt weiter JSON `{ fehler, meldung }` mit 409', async () => {
+    zustand.ladeHoch.mockResolvedValue(HOCH);
+    const r = await route.POST(formular(ERFASSEN, PDF_DATEI));
+    expect(r.status).toBe(409);
+    const rumpf = await r.json() as { fehler: string; meldung: string };
+    expect(rumpf.fehler).toBe('abgewiesen');
+    expect(rumpf.meldung).toContain('Prüfwert');
+    expect(zustand.entfernt).toEqual([HOCH.objektSchluessel]);
+  });
+
+  it('beide Rückwege stehen in der Liste der Gründe', () => {
+    for (const g of ['rechnung_abgewiesen', 'rechnung_unvollstaendig']) {
+      expect(ERFASSEN_FEHLER_GRUENDE).toContain(g);
+    }
   });
 });
 
