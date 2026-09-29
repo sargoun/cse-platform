@@ -1995,6 +1995,11 @@ async function main(): Promise<void> {
    * (`beantworteFrage`), in der Sitzung der Administration — kein `insert`
    * an der Laufzeit vorbei. Derselbe Schlüssel bei jedem Seedlauf: ein
    * zweiter Lauf findet die Aufgabe und legt keine neue an.
+   *
+   * **Und die Antwort wartet auf ihre Freigabe** (V-270, D-763): der Seed
+   * setzt `erfordert_freigabe` für jedes Werkzeug (siehe oben), also hält die
+   * Laufzeit die Antwort zurück und legt sie im Posteingang der Reinigung vor.
+   * Genau das soll die Vorführfläche zeigen — ein Schalter, der wirkt.
    */
   if (demodaten) {
     const reinigung = ids.get('reinigung');
@@ -2007,9 +2012,14 @@ async function main(): Promise<void> {
           schluessel: 'seed-ceo-frage-1',
           angefordertVon: chef.id,
         }));
+      const [stand] = await sql<{ status: string }[]>`
+        select status::text as status from agent_aufgabe where id = ${frage.aufgabeId}`;
       process.stdout.write(
         `  CEO-Assistent: eine Frage ${frage.bestand ? 'war schon' : 'ist jetzt'} als `
-        + 'Aufgabe mit Schritt protokolliert (AGT-04)\n');
+        + 'Aufgabe mit Schritt protokolliert (AGT-04)'
+        + (stand?.status === 'wartet_auf_freigabe'
+          ? ' — die Antwort wartet im Posteingang auf ihre Freigabe (erfordert_freigabe)\n'
+          : '\n'));
     }
   }
 

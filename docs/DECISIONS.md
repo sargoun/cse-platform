@@ -19749,11 +19749,16 @@ Kommentar im Register versprachen `kein_modellzugang`, gebaut war es nicht.
    Datenbank es mit `aw_versand_immer_freigabe` tut (Invariante 7) — auf dem
    Blatt ist dieser Schalter gesetzt und gesperrt. Jedes Setzen steht als
    `agent.werkzeug_gesetzt` im Protokoll. Ein abgewiesener Wunsch kehrt als
-   Satz auf das Blatt zurück (D-599).
+   Satz auf das Blatt zurück (D-599). **Berichtigt durch D-763:** der zweite
+   Schalter („nur mit Freigabe") war pflegbar, aber keine Laufzeit las ihn —
+   das Blatt schrieb „nur mit Freigabe", der Assistent antwortete sofort.
+   Seit V-270 hält die Laufzeit ein solches Ergebnis im Posteingang zurück.
 2. **Die Laufzeit fragt den Stand:** `werkzeugStand` / `verlangeWerkzeug`
    (`agent/tools/freischaltung.ts`) lesen die Zeile der aktiven Gesellschaft
    mit RLS; keine Zeile heisst „aus". Der CEO-Assistent fragt vor jeder
-   Antwort und antwortet sonst „nicht freigeschaltet". Der Orchestrator ruft
+   Antwort (seit D-763 über `verlangeWerkzeug`; vorher über `werkzeugStand`,
+   das Tor hatte keinen Aufrufer) und antwortet sonst „nicht freigeschaltet".
+   Der Orchestrator ruft
    heute kein Werkzeug des Registers auf (sein Formulierungsschritt geht über
    den Modellport, `werkzeug` = null) — das Tor steht für den ersten
    Werkzeugaufruf bereit, eine Attrappe davor gibt es nicht.
@@ -20045,4 +20050,75 @@ Streusalzbewertung aus `bewerte` (zählt nicht, mit Vorgang schon) und ein
 reiner Stichworttreffer (zählt) —, Bereich und Gruppe weiter gleich.
 
 | Betrifft | REP-06, RAD-05, RAD-08, O-15, O-941, D-720, V-226, V-269, `src/server/services/radar/fund.platzhalter.ts`, `src/server/services/bericht/kennzahlen.ts`, `src/app/portal/[mandant]/berichte/pipeline/page.tsx`, `src/app/portal/gruppe/berichte/pipeline/page.tsx`, `src/server/db/seed/{berichtsdaten,radar}.ts`, `tests/kern/radar-fund.test.ts`, `tests/isolation/bericht.test.ts` (5) |
+|---|---|
+
+### D-763 · „Ergebnis nur mit Freigabe" wirkt: die Laufzeit hält das Ergebnis im Posteingang zurück und liefert es nur durch das Tor aus (V-270)
+
+**Der Befund** (zweite Prüfung von V-228, AGT-02, AGT-03, Invariante 7):
+V-228 machte `agent_werkzeug.ist_aktiv` wirksam, `erfordert_freigabe` blieb
+Anzeige — bekam aber einen Formularschalter („Ergebnis nur mit Freigabe")
+und die Bestätigung „Der Stand gilt ab sofort, für jeden Aufruf dieses
+Werkzeugs". Keine Laufzeit las den Schalter. Der Seed setzt ihn für jedes
+Werkzeug, das Agentenblatt schrieb für „Bestand abfragen" „in dieser
+Gesellschaft: nur mit Freigabe", und der CEO-Assistent zeigte jede Antwort
+sofort. Stand und Verhalten fielen weiter auseinander, jetzt mit einem
+Bedienelement ohne Wirkung.
+
+**Die Entscheidung.**
+
+1. **Zurückhalten über den vorhandenen Freigabeweg.** Trägt das Werkzeug in
+   der aktiven Gesellschaft `erfordert_freigabe`, legt
+   `halteErgebnisZurueck` (`agent/tools/ergebnis-freigabe.ts`) das Ergebnis
+   als `freigabe` in den Posteingang: Aktion `werkzeug_ergebnis`, Vorgang
+   `interner_hinweis`, Titel und Zusammenfassung mit Frage und Antwort,
+   Vorschau = das Ergebnis, `payload_hash` nach RFC 8785 (derselbe Abdruck,
+   den `app.freigabe_entscheiden` prüft), Risiko aus `stufeRisikoEin` mit
+   denselben Tatsachen wie ein Lauf des Orchestrators. Die Aufgabe steht auf
+   `wartet_auf_freigabe`, ihr `ergebnis` trägt nur die Kennung der Freigabe;
+   der Schritt nennt die Freigabe (`freigabe_id`) statt der Antwort — sonst
+   stünde das zurückgehaltene Ergebnis im Protokoll, bevor es jemand
+   freigegeben hat.
+2. **Ausgeliefert wird nur durch das Tor** — `gateWerkzeugErgebnis` in
+   `server/agent/policy.ts`, fail-closed wie `gate()`: genehmigt, von einem
+   benannten Menschen, dieselbe Aktion, Gesellschaft und Aufgabe, und der
+   Abdruck des Ergebnisses gleich dem `nutzlast_hash` des entschiedenen
+   Kettenglieds. `leseFrage` liest die Antwort deshalb aus der Freigabe, nie
+   aus der Aufgabe; offen heisst „wartet", abgelehnt, ohne Menschen oder
+   nach der Freigabe verändert heisst keine Antwort. Die Aktion ist keine der
+   acht `AKTIONEN`: eine `agent_richtlinie` kann ein zurückgehaltenes
+   Ergebnis nicht freischalten.
+3. **Die Aufgabe folgt der Entscheidung** auf jedem Weg (Einzelentscheidung,
+   Stapel, Fensterlauf): `app.werkzeug_ergebnis_folgt_freigabe`
+   (`drizzle/0475`, Definer `cse_definer`, dasselbe Muster wie
+   `app.antwort_folgt_freigabe`, 0174) setzt sie bei `genehmigt` auf
+   `abgeschlossen`, bei jedem anderen Endstand auf `abgebrochen` mit dem Satz,
+   warum. Er liefert nichts aus.
+4. **Wer keine Freigabe vorlegen darf** (`freigabe.entscheiden` fehlt — die
+   Schreibbedingung von `t_mandant` auf `freigabe`), bekommt eine abgewiesene
+   Frage mit Schritt `abgelehnt_richtlinie`, statt einer Zeile, die an RLS
+   scheitert. Wer die Freigabe nicht lesen darf, sieht „die Freigabe ist für
+   diesen Zugang nicht lesbar" statt der Antwort.
+5. **Die Seiten sagen es:** die Assistentenseite nennt die Pflicht über dem
+   Katalog und zeigt nach einer Frage „Die Antwort liegt zur Freigabe" (mit
+   Weg zur Freigabe, wo lesbar) oder die freigegebene Antwort; das
+   Agentenblatt schreibt „nur mit Freigabe — das Ergebnis geht erst nach
+   Genehmigung im Posteingang weiter". Ohne den Schalter antwortet der
+   Assistent sofort, wie bisher.
+6. **Der Seed bleibt bei `erfordert_freigabe = true`** (die Vorgabe, nicht die
+   Feineinstellung, D-722 Nr. 5): die Frage der Vorführfläche wartet deshalb
+   im Posteingang der Reinigung auf ihre Freigabe — ein Schalter, der wirkt.
+7. **Nicht Teil:** ein Rücknahmefenster für eine ausgelieferte Antwort. Die
+   Aktion hat keinen Ausführer im Sinne von §4.8 (`fuehreAus`); die
+   Genehmigung ist die Freigabe, und ein Fenster wird nicht armiert.
+
+**Geprüft:** `tests/kern/werkzeug-ergebnis-gate.test.ts` (Tor: genehmigt
+liefert, ohne/offen/abgelehnt/ohne Menschen/fremd/verändert nicht; Abdruck =
+RFC 8785; keine Richtlinie); `tests/isolation/agent-assistent.test.ts` (6):
+wartet mit offener Freigabe und ohne Antwort im Schritt, genehmigt über
+`vermerkeAnsicht` und `entscheideFreigabe` liefert genau die freigegebene
+Antwort, abgelehnt bricht ab, nach der Freigabe verändert liefert nicht, ohne
+Schalter sofort und ohne Freigabe, ohne `freigabe.entscheiden` abgewiesen;
+die Fälle 1, 2 und 5 setzen den Schalter jetzt ausdrücklich aus.
+
+| Betrifft | AGT-02, AGT-03, AGT-04, AGT-07, APR-07, APR-08, Invariante 7, D-722, D-723, V-228, V-270, `src/server/agent/policy.ts`, `src/server/agent/tools/ergebnis-freigabe.ts`, `drizzle/0475_werkzeugergebnis_folgt_freigabe.sql`, `src/server/services/agent/assistent.ts`, `src/app/portal/[mandant]/agenten/{assistent,[agent]}/page.tsx`, `src/server/db/seed/index.ts`, `tests/kern/werkzeug-ergebnis-gate.test.ts`, `tests/isolation/agent-assistent.test.ts` |
 |---|---|

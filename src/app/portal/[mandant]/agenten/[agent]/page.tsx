@@ -451,7 +451,8 @@ export default async function AgentDetail(
         * freigeschaltetes Modellwerkzeug ohne Ausführer sagt das, statt wie
         * die zwei auszusehen, die wirklich laufen. Und derselbe Stand gilt
         * zur Laufzeit: der CEO-Assistent fragt ihn vor jeder Antwort
-        * (`verlangeWerkzeug`).
+        * (`verlangeWerkzeug`), und „nur mit Freigabe" hält sein Ergebnis im
+        * Posteingang zurück, bis ein Mensch es genehmigt (V-270, D-763).
         *
         * **Pflegbar mit `agent.werkzeug_verbinden`** — je Werkzeug ein
         * Formular mit zwei Schaltern. Ein Versandwerkzeug trägt die
@@ -503,8 +504,11 @@ export default async function AgentDetail(
               <p className="mt-s2 text-xs text-text-subtle">
                 {`Wirkung: ${beschriftung(NEBENWIRKUNG_TEXT, w.nebenwirkung)} · `}
                 {`Richtlinie: ${beschriftung(UNTERGRENZE_TEXT, untergrenze(w.nebenwirkung))} · `}
+                {/* Seit V-270 hält die Laufzeit das Ergebnis dann zurück und legt
+                    es im Posteingang vor (`agent/tools/ergebnis-freigabe.ts`). */}
                 {stand.erfordertFreigabe
-                  ? 'in dieser Gesellschaft: nur mit Freigabe'
+                  ? 'in dieser Gesellschaft: nur mit Freigabe — das Ergebnis geht erst nach '
+                    + 'Genehmigung im Posteingang weiter'
                   : 'in dieser Gesellschaft: ohne eigene Freigabe'}
               </p>
               {darf['agent.werkzeug_verbinden'] !== true ? null : (

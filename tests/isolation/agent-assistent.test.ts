@@ -5,6 +5,8 @@ import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index
 import {
   AssistentFehler, beantworteFrage, leseFrage,
 } from '../../src/server/services/agent/assistent.js';
+import { entscheideFreigabe } from '../../src/server/services/freigabe/entscheiden.js';
+import { vermerkeAnsicht } from '../../src/server/services/freigabe/laden.js';
 
 /**
  * Jede Frage an den CEO-Assistenten ist eine Aufgabe mit einem Schritt
@@ -17,6 +19,17 @@ import {
  *     Protokoll — und es gibt keine Antwort.
  *  4. Eine Frage ausserhalb des Katalogs legt nichts an.
  *  5. Die Antwort liest nur die eigene Gesellschaft.
+ *  6. „Ergebnis nur mit Freigabe" wirkt (V-270, D-763): die Antwort wartet im
+ *     Posteingang, erscheint erst nach Genehmigung — durch das Tor in
+ *     `policy.ts` —, nie nach einer Ablehnung und nie, wenn sie nach der
+ *     Freigabe eine andere ist; wer keine Freigabe vorlegen darf, bekommt
+ *     eine abgewiesene Frage.
+ *
+ * **`schalte` setzt die Freigabepflicht ausdrücklich.** Bis V-270 legten die
+ * Fälle 1, 2 und 5 das Werkzeug MIT `erfordert_freigabe` an und erwarteten
+ * trotzdem die sofortige Antwort — genau der Befund: der Schalter wirkte
+ * nicht. Sie prüfen weiter die sofortige Antwort, jetzt für den Fall, für den
+ * sie gilt: ohne eigene Freigabe.
  */
 
 let f: Fixtur;
@@ -52,11 +65,11 @@ beforeEach(async () => {
 });
 afterAll(schliessen);
 
-async function schalte(mandant: string, aktiv: boolean): Promise<void> {
+async function schalte(mandant: string, aktiv: boolean, mitFreigabe = false): Promise<void> {
   await sql.unsafe(
     `insert into agent_werkzeug (mandant_id, agent_id, werkzeug, ist_aktiv, erfordert_freigabe,
                                  erstellt_von_art)
-     values ($1, $2, 'suche_bestand', $3, true, 'system')`, [mandant, ceo, aktiv]);
+     values ($1, $2, 'suche_bestand', $3, $4, 'system')`, [mandant, ceo, aktiv, mitFreigabe]);
 }
 
 function imKontext<T>(
@@ -178,5 +191,152 @@ describe('(5) die Antwort liest nur die eigene Gesellschaft', () => {
     }));
     const bau = await konto(f.bau, 'admin');
     expect(await imKontext((k) => leseFrage(k, r.aufgabeId), bau, f.bau)).toBeNull();
+  });
+});
+
+describe('(6) „Ergebnis nur mit Freigabe" wirkt — die Antwort geht über den Posteingang', () => {
+  async function frage(wer = chef): Promise<string> {
+    const r = await imKontext((k) => beantworteFrage(k, {
+      abfrageId: 'offene_rechnungen_anzahl', schluessel: zufall(), angefordertVon: wer,
+    }), wer);
+    return r.aufgabeId;
+  }
+
+  async function freigabeZu(aufgabeId: string) {
+    const [z] = await sql.unsafe<{
+      id: string; aktion: string; status: string; vorschau: Record<string, unknown>;
+      agent_aufgabe_id: string;
+    }[]>(
+      `select id, aktion, status::text as status, vorschau_payload as vorschau, agent_aufgabe_id
+         from freigabe where agent_aufgabe_id = $1`, [aufgabeId]);
+    return z;
+  }
+
+  /** Der echte Weg des Posteingangs: öffnen (APR-08), dann entscheiden. */
+  async function entscheide(
+    freigabeId: string, art: 'genehmigt' | 'abgelehnt', wer = chef,
+  ): Promise<void> {
+    await imKontext((k) => vermerkeAnsicht(k, freigabeId, 'web'), wer);
+    await imKontext((k) => entscheideFreigabe(k, {
+      freigabeId, art, begruendung: art === 'abgelehnt' ? 'Die Zahl gehört nicht an die Runde.' : null,
+      ip: null, userAgent: null, codeVersion: 'test',
+    }), wer);
+  }
+
+  it('die Antwort wartet: Aufgabe „wartet auf Freigabe", Freigabe offen, keine Antwort', async () => {
+    await schalte(f.reinigung, true, true);
+    const aufgabeId = await frage();
+
+    const [a] = await sql.unsafe<{ status: string; ergebnis: Record<string, unknown> }[]>(
+      `select status::text as status, ergebnis from agent_aufgabe where id = $1`, [aufgabeId]);
+    expect(a!.status).toBe('wartet_auf_freigabe');
+
+    const fz = await freigabeZu(aufgabeId);
+    expect(fz).toMatchObject({ aktion: 'werkzeug_ergebnis', status: 'offen' });
+    expect(fz!.vorschau).toMatchObject({
+      agent: 'ceo_assistent', werkzeug: 'suche_bestand', abfrageId: 'offene_rechnungen_anzahl',
+    });
+    expect(String(fz!.vorschau['anzeige'])).toMatch(/\d/u);
+    /* Die Aufgabe trägt nur die Kennung der Freigabe — nicht die Antwort. */
+    expect(a!.ergebnis).toEqual({ freigabe_id: fz!.id });
+
+    const gelesen = await imKontext((k) => leseFrage(k, aufgabeId));
+    expect(gelesen).toMatchObject({ antwort: null, freigabe: 'wartet', freigabeId: fz!.id });
+
+    /* Und das Protokoll nennt die Freigabe statt der Antwort. */
+    const [s] = await schritte(aufgabeId);
+    expect(s).toMatchObject({ werkzeug: 'suche_bestand', status: 'erfolg' });
+    expect(s!.ausgabe).toEqual({ zurueckgehalten: 'erfordert_freigabe', freigabe_id: fz!.id });
+    expect(JSON.stringify(s!.ausgabe)).not.toContain(String(fz!.vorschau['anzeige']));
+  });
+
+  it('genehmigt: die Aufgabe ist abgeschlossen, und die Antwort ist genau die freigegebene', async () => {
+    await schalte(f.reinigung, true, true);
+    const aufgabeId = await frage();
+    const fz = await freigabeZu(aufgabeId);
+    await entscheide(fz!.id, 'genehmigt');
+
+    const gelesen = await imKontext((k) => leseFrage(k, aufgabeId));
+    expect(gelesen).toMatchObject({ status: 'abgeschlossen', freigabe: 'geliefert' });
+    expect(gelesen!.antwort).toEqual({
+      frage: fz!.vorschau['frage'], anzeige: fz!.vorschau['anzeige'],
+      stand: fz!.vorschau['stand'], abfrageId: 'offene_rechnungen_anzahl',
+    });
+  });
+
+  it('abgelehnt: die Aufgabe bricht ab, und eine Antwort erscheint nie', async () => {
+    await schalte(f.reinigung, true, true);
+    const aufgabeId = await frage();
+    const fz = await freigabeZu(aufgabeId);
+    await entscheide(fz!.id, 'abgelehnt');
+
+    const gelesen = await imKontext((k) => leseFrage(k, aufgabeId));
+    expect(gelesen).toMatchObject({
+      status: 'abgebrochen', antwort: null, freigabe: 'nicht_freigegeben',
+    });
+    expect(gelesen!.fehlerText).toContain('nicht erteilt');
+  });
+
+  /**
+   * **Zwei Linien.** Die Datenbank verweigert die Änderung einer geöffneten
+   * Vorschau selbst (APR-02). Wer an diesem Auslöser vorbeischreibt, bekommt
+   * vom Tor trotzdem keine Antwort: der Abdruck ist nicht mehr der des
+   * entschiedenen Kettenglieds.
+   */
+  it('nach der Freigabe verändert, ist es nicht mehr die freigegebene Antwort — das Tor hält sie zurück', async () => {
+    await schalte(f.reinigung, true, true);
+    const aufgabeId = await frage();
+    const fz = await freigabeZu(aufgabeId);
+    await entscheide(fz!.id, 'genehmigt');
+    const aendern = `update freigabe
+                        set vorschau_payload = jsonb_set(vorschau_payload, '{anzeige}', '"999"')
+                      where id = $1`;
+    await expect(sql.unsafe(aendern, [fz!.id])).rejects.toThrow(/APR-02/u);
+
+    await sql.begin(async (tx) => {
+      await tx.unsafe('set local session_replication_role = replica');
+      await tx.unsafe(aendern, [fz!.id]);
+    });
+    const gelesen = await imKontext((k) => leseFrage(k, aufgabeId));
+    expect(gelesen).toMatchObject({ antwort: null, freigabe: 'nicht_freigegeben' });
+  });
+
+  it('ohne eigene Freigabe: die Antwort kommt sofort, und es entsteht keine Freigabe', async () => {
+    await schalte(f.reinigung, true, false);
+    const aufgabeId = await frage();
+    expect(await freigabeZu(aufgabeId)).toBeUndefined();
+    const gelesen = await imKontext((k) => leseFrage(k, aufgabeId));
+    expect(gelesen).toMatchObject({ status: 'abgeschlossen', freigabe: null });
+    expect(gelesen!.antwort?.abfrageId).toBe('offene_rechnungen_anzahl');
+  });
+
+  it('wer keine Freigabe vorlegen darf, bekommt eine abgewiesene Frage — keine Zeile, die an RLS scheitert', async () => {
+    await schalte(f.reinigung, true, true);
+    const leitung = await konto(f.reinigung, 'leitung');
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       select r.id, b.id, $1, false
+         from rolle r, berechtigung b
+        where r.schluessel = 'leitung' and r.mandant_id is null
+          and b.schluessel = 'freigabe.entscheiden'
+       on conflict (rolle_id, berechtigung_id, mandant_id) do update set gewaehrt = false`,
+      [f.reinigung]);
+    try {
+      const aufgabeId = await frage(leitung);
+      expect(await freigabeZu(aufgabeId)).toBeUndefined();
+      const [s] = await schritte(aufgabeId);
+      expect(s).toMatchObject({ status: 'abgelehnt_richtlinie' });
+      expect(s!.ausgabe).toEqual({ abgelehnt: 'freigabe_nicht_vorlegbar' });
+      const gelesen = await imKontext((k) => leseFrage(k, aufgabeId), leitung);
+      expect(gelesen).toMatchObject({ status: 'abgebrochen', antwort: null });
+      expect(gelesen!.fehlerText).toContain('nur mit Freigabe');
+    } finally {
+      await sql.unsafe(
+        `delete from rolle_berechtigung
+          where mandant_id = $1
+            and rolle_id = (select id from rolle where schluessel = 'leitung' and mandant_id is null)
+            and berechtigung_id = (select id from berechtigung where schluessel = 'freigabe.entscheiden')`,
+        [f.reinigung]);
+    }
   });
 });

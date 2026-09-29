@@ -18,6 +18,8 @@
  *    den Text aendert, hat keine Freigabe mehr fuer das, was er sendet.
  */
 import { createHash } from 'node:crypto';
+import { alsKanonischerWert } from '../services/freigabe/diff-json.js';
+import { jcsDigest } from '../services/freigabe/kette.js';
 
 export type Aktion =
   | 'email_senden' | 'angebot_senden' | 'social_veroeffentlichen'
@@ -50,6 +52,24 @@ export const AKTIONEN: readonly Aktion[] = [
   // mehr kennt als sein Register, macht genau diese Luecke unsichtbar.
   'nachtrag_einreichen', 'behinderung_senden',
 ];
+
+/**
+ * **Die Aktion eines zurückgehaltenen Werkzeugergebnisses.**
+ *
+ * `agent_werkzeug.erfordert_freigabe` sagt: was dieses Werkzeug liefert, geht
+ * erst nach menschlicher Freigabe weiter. Bis V-270 war das eine Anzeige —
+ * das Agentenblatt schrieb „nur mit Freigabe", und der CEO-Assistent zeigte
+ * jede Antwort sofort. Jetzt legt die Laufzeit das Ergebnis als `freigabe`
+ * mit dieser Aktion in den Posteingang (`agent/tools/ergebnis-freigabe.ts`),
+ * und ausgeliefert wird es nur durch `gateWerkzeugErgebnis`.
+ *
+ * **Keine der `AKTIONEN`, mit Absicht.** Die acht sind Aussendungen, und eine
+ * `agent_richtlinie` kann sie freischalten. Ein zurückgehaltenes Ergebnis
+ * lässt sich nicht freischalten: der einzige Weg ist eine genehmigte Freigabe
+ * zu GENAU diesem Ergebnis — eine Richtlinie „darf ohne Freigabe" wäre das
+ * Gegenteil dessen, was die Gesellschaft am Werkzeug eingestellt hat.
+ */
+export const AKTION_WERKZEUG_ERGEBNIS = 'werkzeug_ergebnis' as const;
 
 /** § 7 UWG: ohne aufgezeichnete Rechtsgrundlage kein Kontakt. */
 export type Rechtsgrundlage =
@@ -89,7 +109,7 @@ export interface Freigabe {
 
 export class FreigabeErforderlich extends Error {
   readonly code = 'FREIGABE_ERFORDERLICH' as const;
-  constructor(aktion: Aktion, grund: string) {
+  constructor(aktion: Aktion | typeof AKTION_WERKZEUG_ERGEBNIS, grund: string) {
     super(`${aktion} verlangt eine menschliche Freigabe: ${grund}`);
     this.name = 'FreigabeErforderlich';
   }
@@ -283,4 +303,66 @@ export function gate(
   }
 
   return { erlaubt: true, grund: 'richtlinie' };
+}
+
+// ---------------------------------------------------------------------------
+// Ein Werkzeugergebnis, das nur mit Freigabe weitergeht (V-270, D-763)
+// ---------------------------------------------------------------------------
+
+/**
+ * Der Abdruck eines Ergebnisses — RFC 8785 (JCS), derselbe, den der
+ * Posteingang über die Vorschau bildet (`payload_hash`) und den
+ * `app.freigabe_entscheiden` in den Schnappschuss schreibt. Ein Ergebnis,
+ * das nach der Freigabe ein anderes ist, hat einen anderen Abdruck.
+ */
+export function ergebnisAbdruck(inhalt: Readonly<Record<string, unknown>>): string {
+  return jcsDigest(alsKanonischerWert(inhalt));
+}
+
+/** Das Ergebnis, das ausgeliefert werden soll — genau so, wie es vorlag. */
+export interface ZurueckgehaltenesErgebnis {
+  readonly mandantId: string;
+  readonly aufgabeId: string;
+  readonly inhalt: Readonly<Record<string, unknown>>;
+}
+
+/** Die Freigabe dazu, wie die Datenbank sie führt. */
+export interface ErgebnisFreigabe {
+  readonly aktion: string;
+  readonly mandantId: string;
+  /** `freigabe.agent_aufgabe_id` — die Aufgabe, deren Ergebnis sie deckt. */
+  readonly aufgabeId: string | null;
+  readonly status: string;
+  readonly freigegebenVon: string | null;
+  /** `freigabe_snapshot.nutzlast_hash` der Entscheidung; ohne Entscheidung `null`. */
+  readonly nutzlastHash: string | null;
+}
+
+/**
+ * **Das Tor für ein zurückgehaltenes Ergebnis** — fail-closed wie `gate`.
+ *
+ * Ausgeliefert wird nur, wenn ein benannter Mensch GENAU dieses Ergebnis
+ * genehmigt hat: dieselbe Aktion, dieselbe Gesellschaft, dieselbe Aufgabe,
+ * derselbe Abdruck. Keine Freigabe, eine offene, eine abgelehnte, eine ohne
+ * Menschen oder eine zu anderem Inhalt ist ein Nein — und das Nein sagt, was
+ * fehlt.
+ */
+export function gateWerkzeugErgebnis(
+  ergebnis: ZurueckgehaltenesErgebnis, freigabe: ErgebnisFreigabe | null,
+): GateErgebnis {
+  const nein = (grund: string): GateErgebnis => ({
+    erlaubt: false, fehler: new FreigabeErforderlich(AKTION_WERKZEUG_ERGEBNIS, grund),
+  });
+  if (freigabe === null) return nein('zu diesem Ergebnis liegt keine Freigabe vor');
+  if (freigabe.aktion !== AKTION_WERKZEUG_ERGEBNIS
+      || freigabe.mandantId !== ergebnis.mandantId
+      || freigabe.aufgabeId !== ergebnis.aufgabeId) {
+    return nein('die Freigabe gehoert zu etwas anderem');
+  }
+  if (freigabe.status !== 'genehmigt') return nein(`Freigabe ist ${freigabe.status}`);
+  if (freigabe.freigegebenVon === null) return nein('genehmigt ohne benannten Menschen');
+  if (freigabe.nutzlastHash !== ergebnisAbdruck(ergebnis.inhalt)) {
+    return nein('das Ergebnis ist nicht das freigegebene (Hash-Abweichung)');
+  }
+  return { erlaubt: true, grund: 'freigabe' };
 }

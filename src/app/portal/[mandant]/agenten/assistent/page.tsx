@@ -13,7 +13,7 @@ import { slugTor } from '../../../unterseite';
 import { haeltRechte } from '../../../rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import { KATALOG } from '@/server/agent/tools/suche-bestand';
-import { werkzeugStand } from '@/server/agent/tools/freischaltung';
+import { werkzeugStand, type WerkzeugStand } from '@/server/agent/tools/freischaltung';
 import { leseFrage, type ProtokollierteFrage } from '@/server/services/agent/assistent';
 import { istUuid } from '@/lib/uuid';
 import { eigenerEintrag } from '@/lib/nachschlagen';
@@ -47,6 +47,12 @@ import { alsRoute } from '@/server/auth/kennwort-anmeldung';
  * hinterliess keine Spur; im Agentenzentrum standen nur die Knopf-Läufe.
  * Geschrieben wird nie beim Anzeigen — ein GET, der eine Zeile anlegt, legte
  * sie auch beim Vorladen eines Links an.
+ *
+ * **„Ergebnis nur mit Freigabe" wirkt** (V-270, D-763). Trägt das Werkzeug
+ * in dieser Gesellschaft die Freigabepflicht, geht die Antwort in den
+ * Posteingang, und diese Seite sagt das — statt einer Zahl, die niemand
+ * freigegeben hat. Genehmigt ein Mensch, steht die Antwort hier; die
+ * Auslieferung geht durch das Tor in `server/agent/policy.ts`.
  *
  * **Ohne Modell, und trotzdem vollständig.** Die Zahl kommt aus der
  * Datenbank, der Satz daneben aus einer Vorlage. Ein Modell würde den Satz
@@ -88,18 +94,25 @@ export default async function Assistent(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
-  const darf = await haeltRechte(sitzung, 'agent.protokoll_lesen', 'agent.werkzeug_verbinden');
+  const darf = await haeltRechte(sitzung, 'agent.protokoll_lesen', 'agent.werkzeug_verbinden',
+    'freigabe.entscheiden');
 
   /*
    * **Gelesen wird, was protokolliert ist** — die Antwort der Aufgabe, nicht
    * eine neu gerechnete. Und der Stand des Werkzeugs, damit die Seite sagt,
    * wenn der Assistent in dieser Gesellschaft gar nicht antworten darf.
    */
-  const { frage, freigeschaltet } = await (db().begin(SCHNAPPSCHUSS,
+  const { frage, stand } = await (db().begin(SCHNAPPSCHUSS,
     async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => ({
       frage: aufgabeId === null ? null : await leseFrage(kontext, aufgabeId),
-      freigeschaltet: (await werkzeugStand(kontext, 'ceo_assistent', 'suche_bestand')).bereit,
-    })))) as { frage: ProtokollierteFrage | null; freigeschaltet: boolean };
+      stand: await werkzeugStand(kontext, 'ceo_assistent', 'suche_bestand'),
+    })))) as { frage: ProtokollierteFrage | null; stand: WerkzeugStand };
+  const freigeschaltet = stand.bereit;
+  /* Das Blatt einer Freigabe verlangt `freigabe.entscheiden` (Routenmanifest). */
+  const zurFreigabe = frage === null || frage.freigabeId === null
+    || darf['freigabe.entscheiden'] !== true
+    ? null
+    : alsRoute(`/portal/${mandant}/freigaben/${frage.freigabeId}`);
 
   const aufgabeLink = frage === null || darf['agent.protokoll_lesen'] !== true
     ? null
@@ -146,13 +159,45 @@ export default async function Assistent(
         </Hinweis>
       ) : null}
 
+      {freigeschaltet && stand.erfordertFreigabe ? (
+        <Hinweis art="hinweis" cse="assistent-nur-mit-freigabe" className="mb-s5 max-w-prose">
+          <strong className="block">Antworten gehen hier nur mit Freigabe heraus.</strong>
+          Das Werkzeug „Bestand abfragen" gibt sein Ergebnis in dieser Gesellschaft erst
+          weiter, wenn ein Mensch es im Freigabe-Posteingang genehmigt hat. Bis dahin steht
+          die Antwort dort und nicht hier.
+        </Hinweis>
+      ) : null}
+
       {fehler !== null && (
         <Hinweis art="warnung" cse="assistent-abgewiesen" className="mb-s5 max-w-prose">
           {eigenerEintrag(FEHLER_TEXT, fehler) ?? FEHLER_TEXT['unbekannt']}
         </Hinweis>
       )}
 
-      {frage !== null && (
+      {frage !== null && frage.freigabe === 'wartet' ? (
+        <Hinweis art="hinweis" rolle="status" cse="assistent-wartet-auf-freigabe"
+                 className="mb-s5 max-w-prose">
+          <strong className="block">Die Antwort liegt zur Freigabe.</strong>
+          Sie steht im Freigabe-Posteingang dieser Gesellschaft und erscheint hier, sobald ein
+          Mensch sie genehmigt hat. Abgelehnt, bleibt sie dort.
+          {zurFreigabe === null ? null : (
+            <>
+              {' '}
+              <Link href={zurFreigabe} data-cse="assistent-zur-freigabe"
+                    className="underline underline-offset-2">
+                Zur Freigabe
+              </Link>
+            </>
+          )}
+        </Hinweis>
+      ) : frage !== null && frage.freigabe === 'nicht_lesbar' ? (
+        <Hinweis art="warnung" rolle="alert" cse="assistent-freigabe-nicht-lesbar"
+                 className="mb-s5 max-w-prose">
+          <strong className="block">Diese Antwort ging über eine Freigabe.</strong>
+          Die Freigabe ist für diesen Zugang nicht lesbar — die Antwort wird deshalb hier
+          nicht gezeigt.
+        </Hinweis>
+      ) : frage !== null && (
         frage.antwort === null ? (
           <Hinweis art="warnung" cse="assistent-keine-antwort" className="mb-s5 max-w-prose">
             {frage.fehlerText ?? 'Diese Frage blieb ohne Antwort.'}
@@ -174,7 +219,8 @@ export default async function Assistent(
             </p>
             <p className="m-0 mt-s3 text-xs text-text-subtle">
               {`Gelesen am ${frage.antwort.stand} · gerechnet hat die Datenbank, nicht ein `
-                + 'Modell · protokolliert als Aufgabe des Agenten.'}
+                + 'Modell · protokolliert als Aufgabe des Agenten'
+                + (frage.freigabe === 'geliefert' ? ' · im Posteingang freigegeben.' : '.')}
               {aufgabeLink === null ? null : (
                 <>
                   {' '}
