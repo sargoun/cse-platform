@@ -15,6 +15,9 @@ export interface RecruitingStellenentwurfTexte {
   readonly agentTitel: string;
   readonly agentErklaerung: string;
   readonly agentOhneRecht: string;
+  /** Ohne freigegebenes Modell — VOR dem Formular gesagt, nicht erst danach (V-267). */
+  readonly agentNichtVerbunden: string;
+  readonly agentDemo: string;
   readonly titel: string;
   readonly einsatzort: string;
   readonly beginn: string;
@@ -54,6 +57,12 @@ Readonly<Record<InternSprache, RecruitingStellenentwurfTexte>> = {
       + 'Heraus kommt ein Entwurf, den Sie prüfen, bearbeiten und zur Freigabe vorlegen; '
       + 'veröffentlicht wird nichts von selbst.',
     agentOhneRecht: 'Einen Agenten beauftragt, wer dieses Recht hält:',
+    agentNichtVerbunden:
+      'KI-Funktion nicht verbunden: für das Entwerfen ist kein Modell mit EU-Verarbeitung und '
+      + 'Nullspeicherung freigegeben (Einstellungen › Integrationen, O-26). Die Anzeige lässt '
+      + 'sich unten von Hand anlegen.',
+    agentDemo:
+      'Es läuft der Demobetrieb, kein Sprachmodell: der Entwurf kommt aus einer festen Vorlage.',
     titel: 'Titel',
     einsatzort: 'Einsatzort',
     beginn: 'Beginn',
@@ -112,6 +121,11 @@ Readonly<Record<InternSprache, RecruitingStellenentwurfTexte>> = {
       + 'result is a draft that you review, edit and submit for approval; nothing is published '
       + 'on its own.',
     agentOhneRecht: 'An agent is commissioned by whoever holds this permission:',
+    agentNichtVerbunden:
+      'AI function not connected: no model with EU processing and zero retention is approved '
+      + 'for drafting (Settings › Integrations, O-26). The ad can be created by hand below.',
+    agentDemo:
+      'The demo mode is running, not a language model: the draft comes from a fixed template.',
     titel: 'Title',
     einsatzort: 'Place of work',
     beginn: 'Start',

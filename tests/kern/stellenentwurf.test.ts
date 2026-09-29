@@ -133,3 +133,30 @@ describe('(4) die Felder eines Stellenformulars', () => {
     }
   });
 });
+
+/**
+ * **„Nicht verbunden" steht VOR dem Formular** (V-267, D-760). Die Seite
+ * fragt dieselbe Fähigkeit, mit der `fuehreLaufAus` den Stellenentwurf
+ * ausführt — sonst zeigte sie den Knopf für ein Modell, das der Lauf gar nicht
+ * nimmt, oder verschwiege eines, das er nimmt.
+ */
+describe('stellen/neu fragt das Modell, bevor es den Knopf zeigt', () => {
+  it('dieselbe Fähigkeit wie der Lauf — und ohne Modell der Hinweis statt des Formulars', () => {
+    const orchestrator = readFileSync(resolve(WURZEL, 'src/server/agent/orchestrator.ts'), 'utf8');
+    expect(orchestrator).toContain("auftrag.faehigkeit ?? 'entwurf_text'");
+    /* Der Stellenentwurf nennt keine eigene Fähigkeit — es gilt der Vorgabewert. */
+    const dienst = readFileSync(
+      resolve(WURZEL, 'src/server/services/recruiting/stellenentwurf.ts'), 'utf8');
+    expect(dienst).toContain('...STELLENANZEIGE_AUFTRAG,');
+    expect(dienst).not.toMatch(/faehigkeit:/u);
+
+    const seite = readFileSync(
+      resolve(WURZEL, 'src/app/portal/[mandant]/recruiting/stellen/neu/page.tsx'), 'utf8');
+    expect(seite).toContain("m.faehigkeit === 'entwurf_text'");
+    const hinweis = seite.indexOf('cse="stelle-agent-nicht-verbunden"');
+    const formular = seite.indexOf('data-cse="stelle-agent-formular"');
+    expect(hinweis).toBeGreaterThan(0);
+    expect(hinweis, 'der Hinweis steht als Zweig VOR dem Formular').toBeLessThan(formular);
+    expect(seite).toMatch(/ohneModell \? \(\s*<Hinweis art="warnung" cse="stelle-agent-nicht-verbunden">/u);
+  });
+});

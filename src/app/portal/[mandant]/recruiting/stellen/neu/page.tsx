@@ -7,6 +7,7 @@ import { internSprache } from '@/lib/i18n/intern';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { RECRUITING_STELLENENTWURF_TEXTE } from '@/lib/i18n/verwaltung/recruiting-stellenentwurf';
 import { bedarf } from '@/server/services/recruiting/dienst';
+import { modellStand } from '@/server/agent/modell/auswahl';
 import { haeltRechte } from '../../../../rechte';
 import { RecruitingSeite, leseImMandanten } from '../../rahmen';
 import { FELD, KNOPF } from '../../felder';
@@ -64,6 +65,17 @@ export default async function NeueStelle(
         const darf = await haeltRechte(zugang.sitzung, 'agent.aufgabe_starten');
         const objekte = (await leseImMandanten(zugang, (k) => bedarf(k, 4)))
           .filter((b): b is typeof b & { objektId: string } => b.objektId !== null);
+        /*
+         * V-267: ob für das Entwerfen überhaupt ein Modell freigegeben ist,
+         * steht VOR dem Formular fest — dieselbe Frage wie im Kandidatenabschnitt
+         * (`modellStand`, Fähigkeit `entwurf_text`, mit der `fuehreLaufAus` den
+         * Stellenentwurf ausführt). Vorher füllte man acht Felder aus, der Lauf
+         * scheiterte, eine fehlgeschlagene Aufgabe blieb im Agentenzentrum, und
+         * erst danach stand „nicht verbunden" da.
+         */
+        const entwerfen = (await leseImMandanten(zugang, (k) => modellStand(k)))
+          .find((m) => m.faehigkeit === 'entwurf_text') ?? null;
+        const ohneModell = entwerfen === null || entwerfen.modell === null;
         /* Einmal je gezeichnetem Formular: ein zweiter Klick trägt denselben Schlüssel. */
         const schluessel = randomUUID();
 
@@ -96,12 +108,21 @@ export default async function NeueStelle(
                   {t.agentOhneRecht}{' '}
                   <Recht schluessel="agent.aufgabe_starten" sprache={sprache} />
                 </p>
+              ) : ohneModell ? (
+                <Hinweis art="warnung" cse="stelle-agent-nicht-verbunden">
+                  {t.agentNichtVerbunden}
+                </Hinweis>
               ) : (
                 <form method="post" action="/api/recruiting/stellen/entwurf"
                       data-cse="stelle-agent-formular"
                       className="flex flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
                   <input type="hidden" name="zurueck" value={zurueck} />
                   <input type="hidden" name="schluessel" value={schluessel} />
+                  {entwerfen?.demo === true && (
+                    <p className="m-0 text-xs text-text-muted" data-cse="stelle-agent-demo">
+                      {t.agentDemo}
+                    </p>
+                  )}
 
                   <div className="flex flex-col gap-s2">
                     <label htmlFor="agent-titel" className="text-xs text-text-muted">

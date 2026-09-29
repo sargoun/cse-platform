@@ -19858,7 +19858,8 @@ Beschreibung und Anforderungen einer angelegten Stelle konnte niemand mehr
    Ohne freigegebenes Modell, ohne Budget oder mit ausgeschaltetem Agenten
    endet der Lauf sichtbar — die Aufgabe steht mit ihrem Grund im
    Agentenzentrum, die Seite nennt ihn (`ki_…`), und die Anzeige entsteht von
-   Hand. Kein neuer Anbieter, keine Attrappe.
+   Hand. Kein neuer Anbieter, keine Attrappe. Ein fehlendes Modell sagt die
+   Seite seit D-760 Nr. 7 schon vor dem Formular.
 2. **Die Tatsachen kommen von Menschen und aus der Datenbank**
    (Invariante 6, `fuelleStellenTatsachen`): Titel, Einsatzort, Beginn und
    Aufgaben gibt ein Mensch an; der Name der Gesellschaft kommt aus
@@ -20232,8 +20233,19 @@ Person zurück.
    `vorbelegteListe`), und beide Seiten lesen die Maske. Ausnahme bleibt
    `gleichzeitig`: dort sagt der Satz, dass die Seite den aktuellen Stand
    zeigt — und sie zeigt ihn.
+7. **„Nicht verbunden" steht vor dem Stellenformular des Agenten, nicht erst
+   danach** (V-267 e). `/recruiting/stellen/neu` prüfte nur das Recht; ohne
+   freigegebenes Modell füllte man acht Felder aus, der Lauf scheiterte, eine
+   fehlgeschlagene Aufgabe blieb im Agentenzentrum, und die Seite bat, alles
+   erneut einzutragen. Jetzt fragt die Seite `modellStand` für dieselbe
+   Fähigkeit, mit der `fuehreLaufAus` den Entwurf ausführt (`entwurf_text`),
+   und zeigt ohne Modell den Hinweis „KI-Funktion nicht verbunden (O-26) — die
+   Anzeige lässt sich unten von Hand anlegen" statt des Formulars; im
+   Demobetrieb sagt sie, dass der Entwurf aus einer festen Vorlage kommt.
+   Budget und abgeschalteter Agent zeigen sich weiter erst im Lauf (D-716
+   Nr. 1) — sie lassen sich vorher nicht verlässlich sagen.
 
-| Betrifft | CAL-01, CAL-02, REC-03, O-938, D-715, D-718, V-221, V-224, V-267, `drizzle/0160` (`t_kalender_schreiben`, `t_kalender_eigene`), `src/server/services/kalender/termin.ts`, `src/app/portal/[mandant]/kalender/{TerminFormular.tsx,[id]/page.tsx,neu/page.tsx}`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/postfach.ts`, `src/server/services/recruiting/gespraech.ts`, `src/server/services/datenschutz/auskunft.ts`, O-954, `src/lib/formular/maske.ts`, `src/app/api/uebergang.ts`, `src/app/api/kalender/eintraege/{route,termin-rumpf}.ts`, `src/app/api/kalender/eintraege/[id]/route.ts`, `tests/kern/crm-kette.test.ts`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/{kalender-termin,recruiting-postfach,recruiting-gespraech,datenschutz-dienste}.test.ts`, `tests/e2e/bewerbung-antwort.spec.ts` |
+| Betrifft | CAL-01, CAL-02, REC-03, O-938, D-715, D-718, V-221, V-224, V-267, `drizzle/0160` (`t_kalender_schreiben`, `t_kalender_eigene`), `src/server/services/kalender/termin.ts`, `src/app/portal/[mandant]/kalender/{TerminFormular.tsx,[id]/page.tsx,neu/page.tsx}`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/postfach.ts`, `src/server/services/recruiting/gespraech.ts`, `src/server/services/datenschutz/auskunft.ts`, O-954, `src/lib/formular/maske.ts`, `src/app/api/uebergang.ts`, `src/app/api/kalender/eintraege/{route,termin-rumpf}.ts`, `src/app/api/kalender/eintraege/[id]/route.ts`, `tests/kern/crm-kette.test.ts`, `src/app/portal/[mandant]/recruiting/stellen/neu/page.tsx`, `src/lib/i18n/verwaltung/recruiting-stellenentwurf.ts`, `tests/kern/stellenentwurf.test.ts`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/{kalender-termin,recruiting-postfach,recruiting-gespraech,datenschutz-dienste}.test.ts`, `tests/e2e/bewerbung-antwort.spec.ts` |
 |---|---|
 
 ### D-761 · Beitragsbilder: die Pflege von `medien` bleibt in der eigenen Gesellschaft, ein hochgeladenes Bild bleibt, wie es angenommen wurde, und es gehört nicht in den Bildbestand der Website (V-268)
