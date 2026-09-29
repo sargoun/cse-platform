@@ -10,6 +10,8 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { NichtVerbundenFehler } from '@/server/storage/adapter';
+import { MimeFehler } from '@/server/storage/mime';
+import { ExifFehler } from '@/server/storage/exif';
 import { waehleSpeicher } from '@/server/storage/waehle';
 import { ladeHoch } from '@/server/services/dokument/upload';
 import { GeldFehler, cent, parseGeld } from '@/server/services/finanz/geld';
@@ -386,6 +388,18 @@ function uebersetze(fehler: unknown, anfrage: NextRequest): NextResponse {
   if (fehler instanceof NichtVerbundenFehler) {
     return zurueck(anfrage, '/neu', { fehler: 'speicher_nicht_verbunden' });
   }
+  /*
+   * Die Prüfkette der Datei (`ladeHoch`, auf beiden Wegen: der Beleg der
+   * Erfassung und die E-Rechnung unter `legeERechnungAb`) — wie bei der
+   * Ablage: `MimeFehler` als `datei_<grund>`, `ExifFehler` als
+   * `datei_metadaten`. Keiner von beiden trägt einen Status; bis dahin fielen
+   * sie hier durch und endeten als 500 — beim verschlüsselten PDF eines
+   * Lieferanten ebenso wie bei einer Datei, deren Inhalt nicht zum
+   * angegebenen Typ passt (D-774 Nachrunde). Geschrieben ist in beiden Fällen
+   * nichts: die Kette prüft, bevor der Speicher etwas bekommt.
+   */
+  if (fehler instanceof MimeFehler) return zurueck(anfrage, '/neu', { fehler: `datei_${fehler.grund}` });
+  if (fehler instanceof ExifFehler) return zurueck(anfrage, '/neu', { fehler: 'datei_metadaten' });
   if (fehler instanceof GeldFehler) return zurueck(anfrage, '/neu', { fehler: 'betrag' });
   if (fehler instanceof FreigabeFehler) {
     return NextResponse.json({ fehler: 'freigabe', meldung: fehler.message }, { status: 409 });

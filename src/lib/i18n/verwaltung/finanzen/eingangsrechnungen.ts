@@ -37,6 +37,7 @@
  * zweite Spalte nur eine Erfindung waere.
  */
 import type { InternSprache } from '../../intern.js';
+import { DOKUMENT_BLATT_TEXTE } from '../dokument-blatt.js';
 
 /**
  * Jeder Grund, mit dem `POST /api/finanzen/eingangsrechnungen` auf `/neu`
@@ -45,6 +46,11 @@ import type { InternSprache } from '../../intern.js';
  * `VorschlagFehler` als `vorschlag_<grund>`. Bis dahin reiste daneben ein
  * Satz als `?meldung=`, und die Seite zeigte ihn roh — deutsch auch in einer
  * englischen Sitzung, mit der Rechnungsnummer, wie sie getippt war.
+ *
+ * Dazu die Prüfkette der Datei (D-774 Nachrunde), wie bei der Ablage:
+ * `MimeFehler` als `datei_<grund>`, `ExifFehler` als `datei_metadaten`. Bis
+ * dahin fielen beide durch die Übersetzung der Route und endeten als 500 —
+ * ausgerechnet beim verschlüsselten PDF eines Lieferanten.
  */
 export const ERFASSEN_FEHLER_GRUENDE = [
   'unvollstaendig', 'ohne_beleg', 'dublette', 'betrag', 'speicher_nicht_verbunden',
@@ -52,6 +58,7 @@ export const ERFASSEN_FEHLER_GRUENDE = [
   'erechnung_kein_xml', 'erechnung_kein_format', 'erechnung_unvollstaendig',
   'vorschlag_keine_erechnung', 'vorschlag_nicht_gefunden', 'vorschlag_nicht_genehmigt',
   'vorschlag_unvollstaendig', 'vorschlag_schon_uebernommen', 'vorschlag_kein_recht',
+  'datei_leer', 'datei_unbekannt', 'datei_nicht_erlaubt', 'datei_widerspruch', 'datei_metadaten',
 ] as const;
 export type ErfassenFehlerGrund = (typeof ERFASSEN_FEHLER_GRUENDE)[number];
 
@@ -311,6 +318,16 @@ export interface EingangsrechnungenTexte {
   readonly geprueftAm: string;
 }
 
+/**
+ * Die Sätze der Prüfkette stehen EINMAL — auf dem Blatt der zweiten Fassung
+ * (D-759); die Ablage nimmt sie von dort, und diese Maske auch. Dieselbe
+ * Prüfung, dieselbe Datei: drei Formulare sollen nicht Verschiedenes sagen.
+ */
+const DATEI = {
+  de: DOKUMENT_BLATT_TEXTE.de.faFehler,
+  en: DOKUMENT_BLATT_TEXTE.en.faFehler,
+} as const;
+
 const DE: EingangsrechnungenTexte = {
   titel: 'Eingangsrechnungen',
   eingangsrechnung: 'Eingangsrechnung',
@@ -431,6 +448,12 @@ const DE: EingangsrechnungenTexte = {
       + 'Hand erfassen.',
     vorschlag_schon_uebernommen: 'Dieser Vorschlag ist schon übernommen.',
     vorschlag_kein_recht: 'Einen Vorschlag übernimmt, wer Eingangsrechnungen erfassen darf.',
+    /* Die Prüfkette der Datei: dieselben Sätze wie auf dem Fassungsblatt und bei der Ablage (D-759). */
+    datei_leer: DATEI.de.datei_leer,
+    datei_unbekannt: DATEI.de.datei_unbekannt,
+    datei_nicht_erlaubt: DATEI.de.datei_nicht_erlaubt,
+    datei_widerspruch: DATEI.de.datei_widerspruch,
+    datei_metadaten: DATEI.de.datei_metadaten,
   },
   erfassenFehlerSonst: 'Es wurde nichts gespeichert.',
 
@@ -845,6 +868,11 @@ const EN: EingangsrechnungenTexte = {
       + 'below.',
     vorschlag_schon_uebernommen: 'This proposal has already been taken over.',
     vorschlag_kein_recht: 'A proposal is taken over by whoever may record incoming invoices.',
+    datei_leer: DATEI.en.datei_leer,
+    datei_unbekannt: DATEI.en.datei_unbekannt,
+    datei_nicht_erlaubt: DATEI.en.datei_nicht_erlaubt,
+    datei_widerspruch: DATEI.en.datei_widerspruch,
+    datei_metadaten: DATEI.en.datei_metadaten,
   },
   erfassenFehlerSonst: 'Nothing was saved.',
 
