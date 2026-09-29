@@ -683,18 +683,38 @@ export interface GespraechZeile {
   readonly bewerbungId: string;
   readonly bewerberName: string;
   readonly stelleTitel: string | null;
-  readonly status: 'geplant' | 'stattgefunden' | 'abgesagt' | 'verschoben';
+  /*
+   * Die drei Werte des Enums (0166) — `verschoben` stand hier, ohne dass es
+   * ihn in der Datenbank gab: ein verschobenes Gespräch bleibt `geplant`, sein
+   * alter Termin steht im Prüfprotokoll (V-220, D-714).
+   */
+  readonly status: 'geplant' | 'stattgefunden' | 'abgesagt';
   readonly termin: Date;
   readonly dauerMinuten: number;
   readonly ort: string | null;
   readonly fragen: readonly string[];
   readonly notiz: string | null;
+  /** V-220: wann, von wem und warum abgesagt — `null`, solange nicht abgesagt. */
+  readonly abgesagtAm: Date | null;
+  readonly abgesagtGrund: string | null;
+  readonly abgesagtVon: string | null;
+  /** V-220: wann und von wem als geführt vermerkt. */
+  readonly vermerktAm: Date | null;
+  readonly vermerktVon: string | null;
+  /** Hat der Termin nach der Uhr der DATENBANK begonnen (Invariante 5)? */
+  readonly begonnen: boolean;
 }
 
 const GESPRAECH_FELDER = `
   g.id, g.bewerbung_id as "bewerbungId", b.name as "bewerberName",
   s.titel as "stelleTitel", g.status::text as status, g.termin,
-  g.dauer_minuten as "dauerMinuten", g.ort, g.fragen, g.notiz`;
+  g.dauer_minuten as "dauerMinuten", g.ort, g.fragen, g.notiz,
+  g.abgesagt_am as "abgesagtAm", g.abgesagt_grund as "abgesagtGrund",
+  (select ab.name from benutzer ab where ab.id = g.abgesagt_von) as "abgesagtVon",
+  g.stattgefunden_vermerkt_am as "vermerktAm",
+  (select vb.name from benutzer vb where vb.id = g.stattgefunden_vermerkt_von)
+    as "vermerktVon",
+  (g.termin <= now()) as begonnen`;
 
 export async function listeGespraeche(
   kontext: LeseKontext,

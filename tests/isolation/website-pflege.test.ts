@@ -39,9 +39,10 @@ import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
   RedaktionFehler, aendereProfil, aendereReferenz, bilderZurWahl, erfasseKundenfreigabe,
-  ladeLeistungsAbschnitt, ladeReferenzZurPflege, legeLeistungsAbschnittAn, listeProfile,
-  listeProfilseiten, setzeLeistungen, setzeProfilStatus,
+  ladeLeistungsAbschnitt, ladeReferenzZurPflege, legeLeistungsAbschnittAn, listeGalerie,
+  listeProfile, listeProfilseiten, setzeGalerieRang, setzeLeistungen, setzeProfilStatus,
 } from '../../src/server/services/inhalt/redaktion.js';
+import { galerieDerGesellschaft } from '../../src/server/services/inhalt/galerie.js';
 import {
   aendereFormularKopf, istDienstkonto, ladeFormularZurPflege, legeNeueVersionAn,
   listeFormulare, setzeZustaendigkeit, veroeffentlicheFormular, verweigereDienstkonto,
@@ -150,6 +151,23 @@ async function medium(mandantId: string | null, alt: string): Promise<string> {
     `insert into medien (mandant_id, pfad, alt_text, ist_platzhalter)
      values ($1::uuid, $2, $3, true) returning id`,
     [mandantId, `/bilder/${zufall()}.svg`, alt]);
+  return m!.id;
+}
+
+/**
+ * Ein hochgeladenes Bild eines Social-Beitrags (V-225) — so, wie
+ * `legeBeitragsbildAn` es ablegt: privater Behälter, Schlüssel aus dem Inhalt,
+ * die Adresse ist die Tür.
+ */
+async function beitragsbild(mandantId: string, alt: string): Promise<string> {
+  const [m] = await sql.unsafe<{ id: string }[]>(
+    `with neu as (select gen_random_uuid() as id)
+     insert into medien (id, mandant_id, pfad, alt_text, ist_platzhalter, bucket,
+                         objekt_schluessel)
+     select neu.id, $1::uuid, '/api/beitragsbild/' || neu.id::text, $2, false, 'marke',
+            $1 || '/beitrag/' || encode(sha256(neu.id::text::bytea), 'hex') || '.png'
+       from neu returning id`,
+    [mandantId, alt]);
   return m!.id;
 }
 
@@ -681,6 +699,45 @@ describe('Referenzen: die Kundenfreigabe ist die Bedingung, nicht ein Häkchen',
 
     const bilder = await alsPflege(f.reinigung, admin, (k) => bilderZurWahl(k));
     expect(bilder.map((b) => b.id)).toEqual([eigen]);
+  });
+
+  /**
+   * **Ein Bild aus einem Social-Beitrag gehört nicht in den Bildbestand der
+   * Website** (V-268, D-761, 0487). Es ist für den BEITRAG freigegeben — und
+   * es stand in Galeriepflege und Bildauswahl als kaputte Kachel, liess sich
+   * in die öffentliche Galerie aufnehmen und an eine Referenz hängen.
+   */
+  it('ein Beitragsbild steht nicht in Auswahl und Galerie — und geht an keine Referenz', async () => {
+    const admin = await konto(f.reinigung);
+    const r = await referenz(f.reinigung, 'Praxis Süd');
+    const website = await medium(f.reinigung, 'Heller Flur einer Praxis');
+    const ausBeitrag = await beitragsbild(f.reinigung, 'Treppenhaus aus einem Beitrag');
+
+    const auswahl = await alsPflege(f.reinigung, admin, (k) => bilderZurWahl(k));
+    expect(auswahl.map((b) => b.id)).toEqual([website]);
+    const galerie = await alsPflege(f.reinigung, admin, (k) => listeGalerie(k, f.reinigung));
+    expect(galerie.map((b) => b.id)).toEqual([website]);
+
+    const nichtAufnehmen = await alsPflege(f.reinigung, admin,
+      (k) => setzeGalerieRang(k, ausBeitrag, 0)).catch((e: unknown) => e);
+    expect((nichtAufnehmen as RedaktionFehler).grund).toBe('bild_beitrag');
+    const nichtAnReferenz = await alsPflege(f.reinigung, admin, (k) => aendereReferenz(k, r, {
+      titel: 'Praxis Süd', slug: 'praxis-sued', kundeName: null, beschreibung: null,
+      jahr: 2025, medienId: ausBeitrag, sortierung: 0,
+    })).catch((e: unknown) => e);
+    expect((nichtAnReferenz as RedaktionFehler).grund).toBe('bild_beitrag');
+
+    /* Die zweite Linie hält es auch am Dienst vorbei — für jeden Schreiber. */
+    await expect(sql.unsafe(`update medien set galerie_rang = 0 where id = $1`, [ausBeitrag]))
+      .rejects.toThrow(/medien_beitragsbild_nicht_in_galerie/u);
+    await expect(sql.unsafe(`update referenz set medien_id = $2 where id = $1`, [r, ausBeitrag]))
+      .rejects.toThrow(/nicht an eine\s+Referenz/u);
+
+    /* Und der Weg für ein Bild der Website bleibt, bis in die öffentliche Galerie. */
+    await alsPflege(f.reinigung, admin, (k) => setzeGalerieRang(k, website, 0));
+    const oeffentlich = await alsPflege(f.reinigung, admin,
+      (k) => galerieDerGesellschaft(k, f.reinigung));
+    expect(oeffentlich.map((b) => b.id)).toEqual([website]);
   });
 
   it('ein Slug ausserhalb der Form wird abgewiesen — er ist eine Adresse', async () => {

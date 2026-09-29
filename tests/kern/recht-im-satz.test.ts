@@ -118,3 +118,58 @@ describe('ein Rechteschlüssel steht als Satz auf dem Schirm', () => {
     expect(roh, 'Schlüssel ohne Satz — in `rechtname.ts` nachtragen').toEqual([]);
   });
 });
+
+/**
+ * **Ein Satz, der vor dem Recht auf „wer" endet, geht danach weiter**
+ * (V-266, V-267; Prüfung der Gruppe kalender-dokumente). „Termine ändert und
+ * sagt ab, wer" + Recht + „." stand als „…, wer „den Kalender bearbeiten“."
+ * auf dem Schirm — ohne Verb. Das Hausmuster ist `…Vor` + Recht + `…Nach`
+ * („hält."), wie `nurSuperAdminVor`/`nurSuperAdminNach`.
+ */
+describe('„…, wer" + Recht + „hält"', () => {
+  const I18N = fileURLToPath(new URL('../../src/lib/i18n', import.meta.url));
+  const texte = (dir: string): readonly string[] => readdirSync(dir).flatMap((e) => {
+    const p = join(dir, e);
+    if (statSync(p).isDirectory()) return texte(p);
+    return e.endsWith('.ts') ? [p] : [];
+  });
+  /** `schluessel: 'a' + 'b'` — die Teile zusammengesetzt, auch über Zeilen. */
+  const EINTRAG = /(\w+):\s*((?:'[^'\n]*'\s*\+\s*)*'[^'\n]*')/gu;
+  const wert = (roh: string): string => [...roh.matchAll(/'([^'\n]*)'/gu)].map((m) => m[1]).join('');
+  const seiten = dateien(APP).map((f) => readFileSync(f, 'utf8'));
+
+  /** Der deutsche Wert eines Schlüssels — die deutsche Tabelle steht vorn. */
+  const deutsch = (inhalt: string, schluessel: string): string | null => {
+    const n = new RegExp(`\\b${schluessel}:\\s*((?:'[^'\\n]*'\\s*\\+\\s*)*'[^'\\n]*')`, 'u')
+      .exec(inhalt);
+    return n === null ? null : wert(n[1] ?? '');
+  };
+  /** Auf der Seite: `{t.xVor}{' '}` + `<Recht … />{' '}` + `{t.yNach}`. */
+  const FOLGE = /^\{' '\}\s*<Recht\b[^>]*\/>\{' '\}\s*\{\w+\.(\w+Nach)\}/u;
+
+  it('jeder solche Satz ist ein …Vor; die Seite setzt nach dem Recht ein …Nach, das mit „hält" beginnt', () => {
+    const befunde: string[] = [];
+    let gefunden = 0;
+    for (const f of texte(I18N)) {
+      const inhalt = readFileSync(f, 'utf8');
+      for (const m of inhalt.matchAll(EINTRAG)) {
+        const [, schluessel = '', roh = ''] = m;
+        if (!/, wer$/u.test(wert(roh))) continue;
+        gefunden += 1;
+        const ort = `${relative(I18N, f)} ${schluessel}`;
+        if (!schluessel.endsWith('Vor')) { befunde.push(`${ort}: kein …Vor`); continue; }
+        const stellen = seiten.flatMap((s) => s.split(`.${schluessel}}`).slice(1));
+        if (stellen.length === 0) befunde.push(`${ort}: keine Seite setzt ihn`);
+        for (const danach of stellen) {
+          const nach = FOLGE.exec(danach)?.[1];
+          const text = nach === undefined ? null : deutsch(inhalt, nach);
+          if (text === null || !text.startsWith('hält')) {
+            befunde.push(`${ort}: nach dem Recht folgt kein …Nach mit „hält" (${nach ?? '—'})`);
+          }
+        }
+      }
+    }
+    expect(gefunden, 'die Prüfung findet die Sätze').toBeGreaterThanOrEqual(5);
+    expect(befunde).toEqual([]);
+  });
+});

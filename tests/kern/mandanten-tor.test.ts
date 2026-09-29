@@ -85,6 +85,8 @@ describe('jede Mandantsseite hat überhaupt ein Slug-Tor', () => {
   'recruiting/bedarf/page.tsx',
   'recruiting/bewerbungen/[id]/antwort/page.tsx',
   'recruiting/bewerbungen/[id]/page.tsx',
+  /* V-224: die Erfassung aus dem Postfach — hinter `RecruitingSeite` wie ihre Geschwister. */
+  'recruiting/bewerbungen/neu/page.tsx',
   'recruiting/bewerbungen/page.tsx',
   'recruiting/datenschutz/page.tsx',
   'recruiting/gespraeche/[id]/page.tsx',

@@ -1642,6 +1642,7 @@ defaults to "keep forever" or "delete after a year" is both a GoBD risk and a DS
 |---|---|---|---|---|
 | `/portal/[mandant]/kalender` — month · week · day | `kalender.lesen` | `M1` | CAL-01, CAL-02 | 9 |
 | `/portal/[mandant]/kalender/[id]` | `kalender.lesen` / `kalender.schreiben` | `M1` | CAL-01 | 9 |
+| `/portal/[mandant]/kalender/neu` — a meeting, customer appointment or other own appointment | `kalender.lesen` + `kalender.schreiben` | `M1` | CAL-01 | 9 |
 | `/portal/[mandant]/nachrichten` , `/[id]` — the staff-side thread inbox | `nachricht.lesen` / `nachricht.versenden` | `M1` | EMP-11, NOT-03, SPEC §22 `nachricht` | 3 |
 | `/portal/[mandant]/benachrichtigungen` — notification centre; every item links to its record | `bericht.dashboard_lesen` | `M1` | NOT-01, NOT-03 | **2** |
 
@@ -1873,6 +1874,7 @@ edited in their own mandant. Two editors never own one page.
 | `/portal/[mandant]/recruiting/stellen/neu` — the AI drafts, a human edits and approves | `recruiting.stelle_lesen` + `recruiting.stelle_schreiben` | `M1` | REC-02, APR-01, invariant 7 | 9 |
 | `/portal/[mandant]/recruiting/stellen/[id]/veroeffentlichung` — channels; „nicht verbunden" where no API exists | `recruiting.stelle_lesen` + `recruiting.stelle_veroeffentlichen` | `M1` | REC-09, D-02 | 9 |
 | `/portal/[mandant]/recruiting/bewerbungen` , `/[id]` | `recruiting.bewerbung_lesen` | `M1` | REC-03, REC-04 | 9 |
+| `/portal/[mandant]/recruiting/bewerbungen/neu` — an application that came by e-mail, entered by hand while the mailbox is not connected | `recruiting.bewerbung_lesen` + `recruiting.bewerbung_bewerten` | `M1` | REC-03, REC-07 | 9 |
 | `/portal/[mandant]/recruiting/bewerbungen/[id]/antwort` — draft, approve and send the reply to the applicant | `recruiting.bewerbung_bewerten` (draft) + `recruiting.entscheiden` (approve) | `M1` | REC-03, § 22 AGG, invariant 7 | 9 |
 | `/portal/[mandant]/recruiting/kandidaten` , `/[id]` — the parsed CV record | `recruiting.bewerbung_lesen` | `M1` | REC-04, REC-05 | 9 |
 | `/portal/[mandant]/recruiting/kandidaten/[id]/bewertung` — ranked match with **visible criteria** | `recruiting.bewerbung_bewerten` | `M1` | REC-05, REC-08, LEG-12 | 9 |

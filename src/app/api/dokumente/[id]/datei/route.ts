@@ -26,6 +26,11 @@ import { waehleSpeicher } from '@/server/storage/waehle';
  *
  * Bis PR 12 versprach das Dokumentblatt diesen Abruf und bot ihn nicht
  * (Copilot-Befund).
+ *
+ * **Eine ältere Fassung über `?fassung=<n>`** (DOC-05, V-219, D-713). Ohne
+ * Angabe kommt die aktuelle — die, auf die `dokument` zeigt. Mit Angabe
+ * kommt genau diese Zeile der Kette, und der Abruf steht genauso in der Spur:
+ * eine ältere Fassung zu holen ist ein Zugriff wie jeder andere.
  */
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +51,15 @@ export async function GET(
     return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
   }
 
+  /*
+   * Die Fassung ist eine ganze Zahl ab 1 — alles andere ist keine Angabe, die
+   * es gibt, und wird wie ein unbekanntes Dokument beantwortet (AUT-06).
+   */
+  const fassungRoh = anfrage.nextUrl.searchParams.get('fassung');
+  const fassung = fassungRoh === null ? null
+    : /^[1-9][0-9]{0,5}$/u.test(fassungRoh) ? Number(fassungRoh) : 0;
+  if (fassung === 0) return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
+
   const speicher = waehleSpeicher();
   try {
     const ort = await (db().begin(
@@ -55,10 +69,15 @@ export async function GET(
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
         const [zeile] = await kontext.abfrage<OrtRoh>(
-          `select d.bucket, d.objekt_schluessel, d.geloescht_am::text as geloescht_am
-             from dokument d
-            where d.id = $1::uuid and d.mandant_id = $2::uuid`,
-          [id, kontext.aktiverMandantId]);
+          fassung === null
+            ? `select d.bucket, d.objekt_schluessel, d.geloescht_am::text as geloescht_am
+                 from dokument d
+                where d.id = $1::uuid and d.mandant_id = $2::uuid`
+            : `select d.bucket, v.objekt_schluessel, d.geloescht_am::text as geloescht_am
+                 from dokument d
+                 join dokument_version v on v.dokument_id = d.id and v.mandant_id = d.mandant_id
+                where d.id = $1::uuid and d.mandant_id = $2::uuid and v.version = $3::int`,
+          fassung === null ? [id, kontext.aktiverMandantId] : [id, kontext.aktiverMandantId, fassung]);
         if (zeile === undefined || zeile.geloescht_am !== null) throw new NichtGefundenFehler();
         if (!speicher.verbunden) throw new NichtVerbundenFehler('Supabase Storage');
         /*

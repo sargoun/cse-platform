@@ -6,6 +6,8 @@ import { withTenant } from '@/server/kontext/index';
 import type { LeseKontext } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import type { InternSprache } from '@/lib/i18n/intern';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { leserechte, routeMitPfad } from '@/server/registry/routen';
 import { MandantAntwort, mandantTor } from '../../unterseite';
 import { haeltRechte } from '../../rechte';
@@ -29,7 +31,12 @@ import type { PortalZugang } from '../../zugang';
 export interface RecruitingSeiteProps {
   readonly mandant: string;
   readonly unterpfad: string;
-  readonly titel: string;
+  /**
+   * Der Titel des Rahmens — fest (die älteren, noch deutschen Seiten) oder je
+   * Sprache (V-224): eine neue Seite wird zweisprachig gebaut (D-592), und ihr
+   * Titel steht vor dem Zugang fest, der die Sprache erst kennt.
+   */
+  readonly titel: string | Readonly<Record<InternSprache, string>>;
   readonly kinder: (zugang: PortalZugang) => Promise<ReactNode>;
 }
 
@@ -91,7 +98,7 @@ export async function RecruitingSeite(
 
   return (
     <PortalRahmen
-      titel={titel}
+      titel={typeof titel === 'string' ? titel : nachSprache(titel, zugang.sprache)}
       bereich={mandant as BereichSchluessel}
       nurLesen={zugang.sitzung.ansicht === 'gruppe'}
       leiste={zugang.leiste}

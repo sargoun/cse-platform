@@ -61,6 +61,17 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + '`?mandant=` steht nur für den Dateinamen in der Adresse (Invariante 3).',
   },
   {
+    pfad: 'api/beitragsbild/[id]',
+    recht: null,
+    grund:
+      'SOC-02, SOC-05, V-225. Das Bild eines VERÖFFENTLICHTEN Beitrags steht auf der '
+      + 'öffentlichen Gesellschaftsseite, und die hat keine Sitzung. Die Route gibt keine '
+      + 'Bytes heraus, sondern leitet auf eine signierte, nach SIGNATUR_SEKUNDEN ablaufende '
+      + 'Adresse des privaten Behälters — und nur für ein Bild, das an einem '
+      + 'veröffentlichten, nicht zurückgezogenen Beitrag hängt; ein Entwurfsbild nur für eine '
+      + 'Sitzung derselben Gesellschaft mit social.lesen. Alles andere ist 404, nie 403.',
+  },
+  {
     pfad: 'api/kalender/[token]',
     recht: null,
     grund:
@@ -2450,6 +2461,24 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Die Freigabe fuer die Belegschaft setzen oder zuruecknehmen (DOC-04,
+     * V-219, D-712). `dokument.schreiben` — dasselbe Recht wie das Kaestchen
+     * beim Ablegen: wer den Fehler machen darf, darf ihn auch beheben.
+     */
+    pfad: 'api/dokumente/[id]/mitarbeiterfreigabe',
+    recht: 'dokument.schreiben',
+  },
+  {
+    /**
+     * Eine neue Fassung eines bestehenden Dokuments ablegen (DOC-05, V-219,
+     * D-713) — die Adresse aus 05-API-KARTE. `dokument.schreiben`, wie beim
+     * Ablegen; die alte Fassung bleibt Zeile und Datei.
+     */
+    pfad: 'api/dokumente/[id]/version',
+    recht: 'dokument.schreiben',
+  },
+  {
+    /**
      * Ablegen, was ein MENSCH mitbringt (DOC-01, DOC-03, DOC-06, TIM-10).
      *
      * `dokument.schreiben` — dasselbe Recht wie jeder andere Schreibweg in
@@ -2981,6 +3010,42 @@ export const ROUTEN: readonly RouteEintrag[] = [
    * nicht haelt, sieht es nicht.
    */
   { pfad: 'api/recruiting/gespraeche', recht: 'recruiting.bewerbung_lesen' },
+  /* Ein Bild am Beitragsentwurf (SOC-02, V-225, D-719) — wie Text und Kanäle. */
+  { pfad: 'api/social/beitraege/[id]/bild', recht: 'social.schreiben' },
+  /*
+   * Eine Bewerbung aus dem Postfach von Hand erfassen (REC-03, V-224, D-718) —
+   * ein Schreibrecht, kein Leserecht (Invariante 10).
+   */
+  { pfad: 'api/recruiting/bewerbungen', recht: 'recruiting.bewerbung_bewerten' },
+  /*
+   * Der strukturierte Kandidatendatensatz (REC-04, V-223, D-717): ein
+   * SCHREIBrecht — ein Leserecht ist in der Gruppenansicht erreichbar. Der
+   * Vorschlag des Agenten prüft `agent.aufgabe_starten` dazu.
+   */
+  { pfad: 'api/recruiting/bewerbungen/[id]/kandidat', recht: 'recruiting.bewerbung_bewerten' },
+  {
+    pfad: 'api/recruiting/bewerbungen/[id]/kandidat/vorschlag',
+    recht: 'recruiting.bewerbung_bewerten',
+  },
+  /*
+   * Der Stellenentwurf durch den Agenten und das Bearbeiten eines Entwurfs
+   * (REC-02, V-222, D-716). Der Agentenweg prüft `agent.aufgabe_starten`
+   * dazu (`weitereRechte`).
+   */
+  { pfad: 'api/recruiting/stellen/entwurf', recht: 'recruiting.stelle_schreiben' },
+  { pfad: 'api/recruiting/stellen/[id]', recht: 'recruiting.stelle_schreiben' },
+  /*
+   * Eigene Termine des Kalenders anlegen, ändern und absagen (CAL-01, V-221,
+   * D-715) — dasselbe Recht, das `t_kalender_schreiben` (0160) prüft.
+   */
+  { pfad: 'api/kalender/eintraege', recht: 'kalender.schreiben' },
+  { pfad: 'api/kalender/eintraege/[id]', recht: 'kalender.schreiben' },
+  /*
+   * Ein Gespräch absagen, verschieben oder als geführt vermerken (REC-06,
+   * V-220, D-714) — dieselbe Schranke wie beim Anlegen; `kalender.schreiben`
+   * prüft die Route dazu (`weitereRechte`).
+   */
+  { pfad: 'api/recruiting/gespraeche/[id]', recht: 'recruiting.bewerbung_lesen' },
   {
     pfad: 'api/recruiting/bewerbungen/[id]/bewertung',
     recht: 'recruiting.bewerbung_bewerten',

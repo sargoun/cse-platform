@@ -8,7 +8,10 @@
  * dass eine Angabe MIT Zone unangetastet bleibt.
  */
 import { describe, expect, it } from 'vitest';
-import { berlinFormularZeit, berlinFormularZeitpunkt } from '../../src/lib/datum/formularzeit.js';
+import {
+  behalteGespeicherteZeit, berlinFormularWert, berlinFormularZeit, berlinFormularZeitpunkt,
+} from '../../src/lib/datum/formularzeit.js';
+import { planEingabe } from '../../src/server/services/zeit/formulareingabe.js';
 
 describe('Wanduhrzeit ohne Zone ist BERLINER Zeit', () => {
   it('Sommer: 06:00 Berlin sind 04:00 UTC', () => {
@@ -94,5 +97,66 @@ describe('was keine Zeitangabe ist, wird zu `null`', () => {
     expect(berlinFormularZeitpunkt(null)).toBeNull();
     expect(berlinFormularZeitpunkt(42)).toBeNull();
     expect(berlinFormularZeitpunkt(undefined)).toBeNull();
+  });
+});
+
+/**
+ * **Die Gegenrichtung: ein Instant als Wert eines `datetime-local`-Felds**
+ * (V-220, V-221; V-267, D-760 Nr. 10). `berlinFormularWert` belegt „Termin
+ * ändern" und „Gespräch verschieben" vor — „Test before UI for money and
+ * time" gilt auch für sie. Geprüft: Sommer, Winter, Jahreswechsel, Berliner
+ * Mitternacht und beide Umstellungsnächte, und der Rundlauf mit `planEingabe`.
+ */
+describe('berlinFormularWert — Berliner Wanduhr aus einem Instant', () => {
+  const FAELLE: readonly (readonly [string, string, string])[] = [
+    ['Sommer (MESZ)', '2026-07-01T04:00:00Z', '2026-07-01T06:00'],
+    ['Winter (MEZ)', '2026-01-15T05:00:00Z', '2026-01-15T06:00'],
+    ['Jahreswechsel', '2026-12-31T23:30:00Z', '2027-01-01T00:30'],
+    ['Berliner Mitternacht', '2026-07-01T22:00:00Z', '2026-07-02T00:00'],
+    ['Vorstellung: vor der Lücke', '2026-03-29T00:30:00Z', '2026-03-29T01:30'],
+    ['Vorstellung: nach der Lücke', '2026-03-29T01:30:00Z', '2026-03-29T03:30'],
+    ['Rückstellung: die erste 02:30', '2026-10-25T00:30:00Z', '2026-10-25T02:30'],
+    ['Rückstellung: die zweite 02:30', '2026-10-25T01:30:00Z', '2026-10-25T02:30'],
+  ];
+
+  it.each(FAELLE)('%s', (_fall, instant, wanduhr) => {
+    expect(berlinFormularWert(new Date(instant))).toBe(wanduhr);
+  });
+
+  it('Rundlauf mit planEingabe — für jeden Instant ausser der zweiten 02:xx', () => {
+    for (const [fall, instant] of FAELLE) {
+      if (fall === 'Rückstellung: die zweite 02:30') continue;
+      const zurueck = planEingabe(berlinFormularWert(new Date(instant)));
+      expect(zurueck instanceof Date ? zurueck.toISOString() : zurueck, fall)
+        .toBe(new Date(instant).toISOString());
+    }
+  });
+
+  /**
+   * **Die Grenze, benannt.** Die zweite 02:30 der Rückstellungsnacht zeigt
+   * dieselbe Wanduhr wie die erste, und `planEingabe` löst sie als die erste
+   * auf — eine Stunde früher. `behalteGespeicherteZeit` schliesst den Kreis
+   * beim Ändern: dieselbe Wanduhr heisst derselbe gespeicherte Zeitpunkt.
+   */
+  it('die zweite 02:30: planEingabe gibt die erste zurück — behalteGespeicherteZeit die gespeicherte', () => {
+    const gespeichert = new Date('2026-10-25T01:30:00Z');
+    const wert = berlinFormularWert(gespeichert);
+    const aufgeloest = planEingabe(wert);
+    expect(aufgeloest instanceof Date ? aufgeloest.toISOString() : aufgeloest)
+      .toBe('2026-10-25T00:30:00.000Z');
+    expect(behalteGespeicherteZeit(aufgeloest as Date, gespeichert)).toBe(gespeichert);
+  });
+
+  it('behalteGespeicherteZeit: nur bei derselben Wanduhr, sonst gilt das Geschickte', () => {
+    const gespeichert = new Date('2026-07-01T04:00:30Z');
+    const gleich = new Date('2026-07-01T04:00:00Z');
+    const anders = new Date('2026-07-01T05:00:00Z');
+    expect(behalteGespeicherteZeit(gleich, gespeichert)).toBe(gespeichert);
+    expect(behalteGespeicherteZeit(anders, gespeichert)).toBe(anders);
+    const erste = new Date('2026-10-25T00:30:00Z');
+    const zweite = new Date('2026-10-25T01:30:00Z');
+    expect(behalteGespeicherteZeit(zweite, erste)).toBe(erste);
+    expect(behalteGespeicherteZeit(new Date('2026-10-25T00:45:00Z'), zweite).toISOString())
+      .toBe('2026-10-25T00:45:00.000Z');
   });
 });

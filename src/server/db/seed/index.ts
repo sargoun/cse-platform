@@ -16,6 +16,7 @@
 import postgres from 'postgres';
 import { DATENSCHUTZ_VERSION, FORMULARE } from './formulare.js';
 import { seedOperations } from './operations.js';
+import { seedDokumentPflege } from './dokument-pflege.js';
 import { seedDienstplan, seedFeiertage } from './dienstplan.js';
 import { seedQualifikationen } from './qualifikation.js';
 import { seedAuftrag } from './auftrag.js';
@@ -34,6 +35,12 @@ import { seedRechnungen } from './rechnung.js';
 import { seedSocial } from './social.js';
 import { seedReferenzAusAuftrag } from './referenzauftrag.js';
 import { seedRecruiting } from './recruiting.js';
+import { seedGespraeche } from './gespraech.js';
+import { seedBeitragsbild } from './beitragsbild.js';
+import { seedPostfach } from './postfach.js';
+import { seedKandidat } from './kandidat.js';
+import { seedStellenentwurf } from './stellenentwurf.js';
+import { seedTermine } from './termine.js';
 import { seedAkquise } from './akquise.js';
 import { seedBerichtsdaten } from './berichtsdaten.js';
 import { seedRadar, seedRadarLead } from './radar.js';
@@ -1635,6 +1642,17 @@ async function main(): Promise<void> {
       : `${String(ops.mitDatei)} Dateien als DEMODATEN beschriftet im Speicher\n`),
   );
 
+  /*
+   * V-219: die Pflege eines abgelegten Dokuments — eine Freigabe für die
+   * Belegschaft, zurückgenommen über den Dienst (mit Grund im Prüfprotokoll).
+   */
+  const pflege = await seedDokumentPflege(sql, ids, verbundenerSpeicher);
+  process.stdout.write(
+    `  Dokumentpflege: ${String(pflege.zurueckgenommen)} Freigabe für die Belegschaft `
+    + `mit Grund zurückgenommen (DOC-04), ${String(pflege.fassungen)} Rahmenvertrag mit `
+    + 'zweiter Fassung (DOC-05) — '
+    + (pflege.mitDatei ? 'Dateien im Speicher\n' : 'Metadaten ohne Datei, der Bucket ist nicht verbunden\n'));
+
   /**
    * Der Qualifikationskatalog kommt VOR dem Dienstplan und vor jeder
    * Einteilung: `besetzeEinsatz` fragt `app.einsatz_qualifikation_erfuellt`,
@@ -2036,6 +2054,18 @@ async function main(): Promise<void> {
       + 'sechs Berichte und im Kalender eine Zeile hat\n');
   }
 
+  /*
+   * Eigene Termine über den Dienst (V-221, D-715) — NACH den Berichtslücken:
+   * die legen ihre Termine nur in eine Gesellschaft, die noch keinen hat.
+   */
+  const termine = await seedTermine(sql, ids, demodaten);
+  if (termine.angelegt > 0) {
+    process.stdout.write(
+      `  Kalender: ${String(termine.angelegt)} eigene Termine über den Dienst, davon `
+      + `${String(termine.geaendert)} geändert und ${String(termine.abgesagt)} abgesagt `
+      + '(mit Grund, bleibt stehen)\n');
+  }
+
   /**
    * **Eine Frage an den CEO-Assistenten, protokolliert** (V-229, D-723).
    *
@@ -2094,6 +2124,17 @@ async function main(): Promise<void> {
    * Kunden und dem Auftragskreis, nur auf der Vorführfläche (D-537): die
    * Kundenfreigabe darin ist erfunden und steht als DEMODATEN im Wortlaut.
    */
+  /*
+   * Das Bild am Entwurf (V-225, D-719): mit Speicher hochgeladen, ohne das
+   * Galeriemotiv — über die Dienste, nach dem Social Media Center.
+   */
+  const beitragsbild = await seedBeitragsbild(sql, ids, verbundenerSpeicher, demodaten);
+  if (beitragsbild.angehaengt > 0) {
+    process.stdout.write(beitragsbild.hochgeladen
+      ? '  Beitragsbild: am Entwurf der Reinigung, hochgeladen in den privaten Behälter\n'
+      : '  Beitragsbild: am Entwurf der Reinigung das Galeriemotiv (kein Speicher verbunden)\n');
+  }
+
   const referenzAuftrag = await seedReferenzAusAuftrag(sql, ids, demodaten);
   process.stdout.write(referenzAuftrag.auftragsnummer === null
     ? `  Referenz aus Auftrag: keine — ${referenzAuftrag.grund ?? 'übersprungen'}\n`
@@ -2115,6 +2156,39 @@ async function main(): Promise<void> {
       + `${String(recruiting.bewertungen)} Bewertungskriterien, `
       + `${String(recruiting.antworten)} Antwortentwürfe (KEINER gesendet — `
       + `kein Postausgang verbunden, O-501)\n`);
+
+  /*
+   * Gespräche in allen drei Ständen (V-220, D-714) — NACH den Bewerbungen,
+   * über die Dienste: geplant, abgesagt mit Grund, als geführt vermerkt.
+   */
+  /* Ein Mensch bearbeitet den Entwurf des Agenten — über den Dienst (V-222, D-716). */
+  const stellenentwurf = await seedStellenentwurf(sql, ids, demodaten);
+  if (stellenentwurf.bearbeitet > 0) {
+    process.stdout.write('  Stellenentwurf des Agenten: von einem Menschen bearbeitet '
+      + '(Anforderung ergänzt, im Prüfprotokoll)\n');
+  }
+
+  /* Kandidatendatensätze über die Dienste — einer bestätigt, einer nicht (V-223, D-717). */
+  const kandidaten = await seedKandidat(sql, ids, demodaten);
+  if (kandidaten.erfasst > 0) {
+    process.stdout.write(
+      `  Kandidatendatensätze: ${String(kandidaten.erfasst)} erfasst, davon `
+      + `${String(kandidaten.bestaetigt)} von einem Menschen bestätigt\n`);
+  }
+
+  /* Eine Bewerbung aus dem Postfach, von Hand über den Dienst erfasst (V-224, D-718). */
+  const postfach = await seedPostfach(sql, ids, demodaten);
+  if (postfach.erfasst > 0) {
+    process.stdout.write('  Bewerbungspostfach: nicht verbunden (O-938) — eine Bewerbung per '
+      + 'E-Mail von Hand erfasst\n');
+  }
+
+  const gespraeche = await seedGespraeche(sql, ids, demodaten);
+  process.stdout.write(
+    `  Gespräche: ${String(gespraeche.geplant)} geplant (${String(gespraeche.verschoben)} `
+    + `davon verschoben), ${String(gespraeche.abgesagt)} `
+    + `abgesagt (mit Grund, bleibt im Kalender stehen), ${String(gespraeche.gefuehrt)} als `
+    + 'geführt vermerkt — an die Bewerberin geht nichts ohne Freigabe\n');
 
   /*
    * Die Akquise. Die vier Quellen und der übersprungene Lauf entstehen immer;

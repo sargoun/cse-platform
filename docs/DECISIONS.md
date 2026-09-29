@@ -3366,6 +3366,11 @@ Beantworten helfen:
 | O-888 | **Kodiert die Tausenderstelle der Objektnummer die Gesellschaft?** Der Bestand legt es nahe: die Reinigung führt `OBJ-1001 … OBJ-1003`, SSE Security `OBJ-2001`, REALTIME Bau `OBJ-3001` (`src/server/db/seed/operations.ts`). Ist das eine Hausregel oder ein Zufall der Demo-Daten? **Die Plattform erfindet dazu nichts**: `legeObjektAn` zählt aus dem Bestand DIESER Gesellschaft weiter und übernimmt damit von selbst, was dort schon gilt — ohne die Regel je auszusprechen. Nur der allererste Fall, eine Gesellschaft ohne ein einziges Objekt, hat keinen Bestand; dort steht `OBJ-1001` als **klar bezeichneter Platzhalter**. Das Feld ist im Formular von Hand überschreibbar, damit niemand an der Vorgabe hängenbleibt. Sagt der Auftraggeber eine Maske zu, ist die Änderung **eine Zeile** im Dienst. | OPS-01, V-001, `src/server/services/objekt/anlegen.ts` |
 | O-940 | **Welche Angaben braucht jede Gesellschaft, um auf eine Anfrage ein verbindliches Angebot rechnen zu können — und welche davon soll der Antwortentwurf des Akquise-Agenten nachfragen?** Heute nennt der Entwurf als Lücke jedes Feld des EIGENEN Anfrageformulars der Gesellschaft, das der Anfragende leer gelassen hat, ausser Häkchen, Freitext und Datei (`KEINE_LUECKE`), bei einer von Hand erfassten Anfrage nur eine fehlende Bedarfsbeschreibung; ist nichts leer, entfällt der Satz. Welche Angabe für ein Angebot tatsächlich nötig ist (Reinigung: Fläche, Turnus, Objektart? Security: Kräftezahl, Einsatzzeit? Bau: Leistungsverzeichnis?), ist eine fachliche Regel der Gesellschaften und wird hier nicht erfunden. | §17 Acquisition Agent, D-724, V-230, `src/server/services/lead/einsendung.ts` (`anfrageLuecken`), `src/server/agent/auftraege.ts` |
 | O-941 | **Was zählt in der Vergabepipeline (REP-06) als „gefunden"?** Der Radar bewertet jede eingelesene Bekanntmachung gegen jedes aktive Suchprofil jeder Gesellschaft, und ausgeschlossen wird nur, was ein Mensch im Profil ausdrücklich ausschliesst; „jede nicht ausgeschlossene Bewertung" (D-720) war deshalb je Gesellschaft das ganze Einlesevolumen. Der Code legt „Treffer" nicht eindeutig fest: die Trefferbenachrichtigung (RAD-08) meldet ab einer Punktschwelle, die selbst offen ist (O-15) und im Seed fehlt; die Profilseite sagt, ein Profil ohne CPV-Zeile „trifft über Stichwörter und Region"; der Seed nennt die Streusalzlieferung eine, „die kein Profil trifft", obwohl ihre Region jedes Profil trifft. Zur Wahl stehen: (a) die LEISTUNG trifft — CPV-Code (Wirkung `positiv`) oder Positiv-Stichwort des Profils; (b) die Punktzahl erreicht die Benachrichtigungsschwelle (RAD-08, setzt O-15 voraus); (c) jede bewertete Bekanntmachung; (d) erst ein eröffneter Vorgang. Ein eröffneter Vorgang zählt in jedem Fall. Bis zur Antwort gilt (a) als beschrifteter Platzhalter (`FUND_PLATZHALTER`); die Antwort ändert diese eine Definition, nicht die Zählung, und Bereich und Gruppe zählen weiter gleich. | REP-06, RAD-05, RAD-08, O-15, D-720, D-762, V-269, `src/server/services/radar/fund.platzhalter.ts`, `src/server/services/bericht/kennzahlen.ts` (`pipelineZahlen`) |
+| O-937 | **Welche Dokumentkategorien sollen Fassungen führen — DOC-05 sagt „versioning where the document type warrants it" und nennt die Typen nicht?** Seit V-219 lässt sich zu einem abgelegten Dokument eine zweite Fassung ablegen (`legeFassungAn`, `POST /api/dokumente/[id]/version`): neue Zeile in `dokument_version`, neues Objekt im Speicher, die alte Fassung bleibt Zeile und Datei. Fest steht eine Seite: Rechnung, Beleg und Buchhaltungsunterlage bekommen KEINE (GoBD, § 147 AO; berichtigt wird durch Gegenbuchung bzw. Storno) — das prüfen Dienst und Datenbank (0470). Offen sind die übrigen sechs: Kundenunterlage, Vertrag, Angebot, Personalunterlage, Projektunterlage, Unternehmensunterlage. Denkbar sind (a) alle sechs, (b) nur Vertrag, Angebot und Projektunterlage (die Unterlagen, die typischerweise überarbeitet werden), (c) je Kategorie einstellbar. Bei der Personalunterlage kommt hinzu, dass eine ältere Fassung personenbezogene Angaben weiter vorhält, die die neue berichtigt hat (Art. 16 DSGVO). **Ausgeliefert ist (a) als Platzhalter** (`FASSUNG_ERLAUBT_PLATZHALTER`): gesperrt wird nur, was GoBD sperrt. Die Antwort ändert diese eine Liste (und, falls enger, den Auslöser in 0470), nicht die Aufrufer. | DOC-05, DOC-07, Art. 16 DSGVO, V-219, D-713, `src/server/services/dokument/kategorie.ts` (`FASSUNG_ERLAUBT_PLATZHALTER`, `fassungMoeglich`), `drizzle/0470` |
+| O-938 | **Welches Postfach nimmt Bewerbungen an — und ab wann läuft ihre Löschfrist?** REC-03 verlangt Bewerbungen über das Karriereformular UND über ein überwachtes Postfach. Seit V-224 gibt es den Anschluss als Vertrag (`BewerbungsPostfach`) mit genau einem Adapter, `NichtVerbundenesPostfach`, der nichts holt und das sagt; unter Einstellungen › Integrationen steht „Bewerbungspostfach: nicht verbunden". Eine Bewerbung, die per E-Mail kam, überträgt bis dahin ein Mensch (`/recruiting/bewerbungen/neu`, Quelle `mail`). Zu entscheiden: (1) welche Adresse und welcher Anbieter (IMAP bei welchem Hoster, Microsoft 365 per Graph, ein Weiterleitungsdienst) — in welcher Region und unter welchem Auftragsverarbeitungsvertrag, denn das Postfach enthält Lebensläufe; (2) beginnt die Löschfrist (REC-07, `recruiting.aufbewahrung_tage`) mit dem Eingang im Postfach oder mit der Übernahme in die Plattform — **ausgeliefert ist die Übernahme als Platzhalter**, weil beim Formular beides zusammenfällt; (3) ob nach der Übernahme die Nachricht im Postfach gelöscht wird (berührt O-117). Die Antwort ändert `bewerbungsPostfach()` und, falls (2) anders entschieden wird, die eine Zeile in `erfasseBewerbungAusPostfach`. | REC-03, REC-07, LEG-11, O-117, O-375, V-224, D-718, `src/server/integrationen/bewerbungspostfach.ts`, `src/server/services/recruiting/postfach.ts` |
+| O-939 | **Welchen Nachweis verlangt die Plattform, bevor ein Bild an einem Beitrag hinausgeht — Nutzungsrecht und, bei erkennbaren Personen, Einwilligung?** Seit V-225 lässt sich einem Beitrag ein Bild anhängen (privat abgelegt, mit in der Freigabe). Wer es veröffentlicht, braucht das Nutzungsrecht (UrhG) und bei erkennbaren Personen deren Einwilligung (§ 22 KUG, Art. 6/7 DSGVO) — bei Beschäftigten auf einem Objektfoto zusätzlich die Freiwilligkeit im Arbeitsverhältnis (§ 26 BDSG). Denkbar sind (a) ein Pflichthäkchen „Rechte liegen vor" mit Person und Zeitpunkt, (b) ein hochgeladener Beleg (Lizenz, Einwilligungserklärung) als Dokument am Bild, (c) nichts in der Plattform — die Freigabe durch einen Menschen gilt als Prüfung. **Ausgeliefert ist (c) mit einem Hinweis am Formular**; kein Häkchen wird erfunden, das eine Rechtslage behauptete. Die Antwort ändert `legeBeitragsbildAn` (Pflichtangabe) und das Formular am Beitrag. | SOC-02, SOC-08, LEG-*, § 22 KUG, V-225, D-719, `src/server/services/social/beitragsbild.ts` (`legeBeitragsbildAn`, dort steht das TODO), `src/app/portal/[mandant]/social/posts/[id]/page.tsx` |
+| O-954 | **Darf der Absagegrund eines Bewerbungsgesprächs wörtlich im unveränderlichen Prüfprotokoll stehen — und was gilt für ihn, wenn die Bewerbung nach Ablauf ihrer Frist gelöscht wird (REC-07)?** Seit V-220 wird ein Gespräch mit Pflichtgrund abgesagt (`gespraech.abgesagt_grund`); der Grund ist ein Satz eines Menschen über die Bewerberin (Seed: „hat eine andere Stelle angenommen“). Bis V-267 schrieb `sageGespraechAb` ihn zusätzlich wörtlich ins Prüfprotokoll. Das Protokoll ist unveränderlich; der Löschlauf (`bewerberLoeschung.ts`) löscht die Gesprächszeile — der Satz stünde danach allein im Protokoll weiter, unter der Kennung eines Gesprächs, das es nicht mehr gibt, und erschiene in keiner Löschentscheidung der Bewerbung. Gegeneinander stehen die Nachvollziehbarkeit (wer hat wann warum abgesagt, § 22 AGG im Streitfall) und Art. 5 Abs. 1 lit. c/e und Art. 17 DSGVO; das allgemeine Löschkonzept des Protokolls ist O-92. Denkbar sind (a) der Wortlaut im Protokoll, dauerhaft; (b) der Wortlaut im Protokoll, mit der Bewerbung geschwärzt (verlangt eine Schwärzung im sonst unveränderlichen Protokoll, wie bei der Agenten-Nutzlast 0128); (c) im Protokoll nur, DASS ein Grund erfasst ist — der Wortlaut steht in der Zeile und geht mit ihr. **Ausgeliefert ist (c) als Platzhalter** (`{ status: 'abgesagt', grund_erfasst: true }`); der Grund steht in der Art.-15-Auskunft der Bewerbung. Die Antwort ändert `sageGespraechAb` und, bei (b), den Löschlauf. | REC-06, REC-07, LEG-11, § 22 AGG, Art. 5 Abs. 1 lit. c/e DSGVO, Art. 15 DSGVO, Art. 17 DSGVO, O-92, V-220, V-267, D-714, D-760, `src/server/services/recruiting/gespraech.ts` (`sageGespraechAb`), `src/server/jobs/bewerberLoeschung.ts`, `src/server/services/datenschutz/auskunft.ts` |
+| O-955 | **Läuft nach einer neuen Fassung jede Fassung für sich ab — oder gilt die längere Frist für das ganze Dokument mit allen Fassungen?** Seit V-266 trägt jede Fassung jenseits der ersten ihre eigene Aufbewahrungsfrist: die Datenbank rechnet mit dem Ablegen die Frist, die an diesem Berliner Kalendertag für die Kategorie gilt (`app.aufbewahrung_regel` je Gesellschaft, `app.aufbewahrung_ende`), und das Dokument behält die LÄNGERE; eine Löschsperre der Regel kommt dazu, eine offene Frist bleibt offen (0474). Ein überarbeitetes und neu abgesandtes Angebot ist ein eigener Handelsbrief mit eigenem Fristbeginn (§ 257 Abs. 5 HGB) — das hält die Regel. Offen ist die andere Seite: die ÄLTERE Fassung hätte ihre eigene, frühere Frist, und Art. 5 Abs. 1 lit. e DSGVO verlangt, personenbezogene Angaben nicht länger als nötig zu halten (bei einer Kundenunterlage etwa ein Ansprechpartner, den die neue Fassung nicht mehr nennt). Denkbar sind (a) die längere Frist gilt für das ganze Dokument, alle Fassungen bleiben bis dahin; (b) jede Fassung läuft für sich ab, eine ältere wird nach ihrer Frist einzeln gelöscht (Datei entfernt, Zeile der Kette bleibt als Nachweis, D-713 „Nicht Teil“ wäre dann zu öffnen). **Ausgeliefert ist (a) als Platzhalter** — damit wird nichts zu früh gelöscht, und der Nachtlauf (0382) nimmt ein Dokument erst nach der längsten Frist mit, dann aber mit allen Fassungen (D-758). Die Antwort ändert `kern.dokument_fassung_pruefen` (0474) und, bei (b), den Löschweg um die einzelne Fassung. | DOC-05, DOC-07, § 257 Abs. 5 HGB, § 147 AO, Art. 5 Abs. 1 lit. e DSGVO, O-937, V-266, D-713, D-758, `drizzle/0474_fassung_traegt_ihre_frist.sql`, `src/server/services/dokument/ablage.ts` (`legeFassungAn`), `src/server/jobs/dokumentAufbewahrung.ts` |
 
 
 ### D-619 — Ein Objekt entsteht in der Anwendung, nicht im Seed
@@ -21604,4 +21609,749 @@ fünf quer; `tests/e2e/berichte.spec.ts` prüft `data-format` und die Höhe
 des Rückwegs (nicht gelaufen — Playwright ist in dieser Runde ausgesetzt).
 
 | Betrifft | REP-07, DESIGN §5, DESIGN §9, DESIGN §11, D-204, D-420, D-721, D-733, V-055, V-227, V-269, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/lib/design/theme.ts`, `src/components/ui/DruckKnopf.tsx`, `src/app/portal/mein/{bausteine.tsx,monatsnachweis/page.tsx}`, `src/app/portal/[mandant]/berichte/druck/[bericht]/{page.tsx,stil.ts,kopf.tsx}`, `src/app/portal/[mandant]/angebote/[id]/pdf/page.tsx`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `tests/kern/{bericht-export,zahl,druck-steuerung,bericht-druckblatt}.test.ts`, `tests/design/tokens.test.ts`, `tests/isolation/bericht.test.ts` (8), `tests/e2e/berichte.spec.ts` |
+### D-712 · Die Freigabe für die Belegschaft lässt sich zurücknehmen — mit dem Recht, mit dem sie gesetzt wird, und mit Grund (V-219)
+
+**Der Befund** (V-219 a; Audit-Befund 48, DOC-04): `sichtbar_fuer_mitarbeiter`
+wurde genau einmal gesetzt — beim Ablegen, über ein Kästchen im
+Uploadformular. Danach gab es keinen Weg zurück: kein Dienst, keine Route,
+kein Formular; das Dokumentblatt verlinkte nur die Kundenfreigabe. Nach
+`t_person` (0009) sieht jede Sitzung im Mitarbeiterportal der Gesellschaft ein
+freigegebenes Dokument, und die meisten Kategorien tragen eine Löschsperre —
+ein versehentlich freigegebener Vertrag oder eine Personalunterlage blieb
+damit dauerhaft für die ganze Belegschaft sichtbar. O-851 verliess sich
+darauf, dass eine falsche Freigabe „auffällt"; nach dem Auffallen gab es
+keinen Rückweg.
+
+**Die Entscheidung.**
+
+1. **Ein Schalter in beide Richtungen, auf dem Dokumentblatt**
+   (`setzeMitarbeiterfreigabe`, `services/dokument/mitarbeiterfreigabe.ts`;
+   `POST /api/dokumente/[id]/mitarbeiterfreigabe`). Die Richtung, die ein
+   Dokument der Belegschaft zeigt, braucht das ausdrückliche Wort
+   (`sichtbar=ja`); ein fehlendes Feld ist eine Rücknahme, nie eine Freigabe.
+2. **Dasselbe Recht wie das Kästchen beim Ablegen: `dokument.schreiben`.**
+   Wer den Fehler machen darf, darf ihn auch beheben — ein engeres Recht nur
+   für die Rücknahme hiesse, dass der Fehler leichter zu machen ist als zu
+   beheben. Die zweite Linie ist `t_mandant` (0009): das UPDATE verlangt
+   zusätzlich LESEND `dokument.lesen`; die Rolle `mitarbeiter` hält es nicht
+   und trifft null Zeilen (geprüft).
+3. **Immer mit Grund, im Prüfprotokoll** (`dokument.mitarbeiter_freigegeben`
+   bzw. `dokument.mitarbeiterfreigabe_zurueckgenommen`, mit Kategorie und
+   Richtung) — dieselbe Form wie die Kundenfreigabe (D-599-Rückweg auf das
+   Blatt, `?vorgang=mitarbeiterfreigabe&fehler=<grund>`), weil `dokument`
+   keine Spalte dafür hat und der Grund ins Audit gehört.
+4. **Die Kategorie steht im Abschnitt groß** — O-851 bleibt offen, und an
+   ihr fällt eine falsche Freigabe auf. Der Satz unter dem Knopf sagt, was die
+   Rücknahme nicht kann: eine schon geholte Datei zurückholen (dafür steht das
+   Zugriffsprotokoll).
+5. **Der Seed zeigt es über den Dienst** (`seed/dokument-pflege.ts`): eine
+   interne Einsatzplanung, beim Ablegen versehentlich freigegeben, mit Grund
+   zurückgenommen.
+
+**Nicht Teil:** welche Kategorien überhaupt freigegeben werden dürfen (O-851)
+— die Datenbank prüft weiterhin nur den Schalter.
+
+| Betrifft | DOC-04, EMP-11, O-851, D-599, V-219, `drizzle/0009` (`t_mandant`, `t_person`, `p_ma_ceiling`), `src/server/services/dokument/mitarbeiterfreigabe.ts`, `src/app/api/dokumente/[id]/mitarbeiterfreigabe/route.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `src/server/db/seed/dokument-pflege.ts`, `tests/isolation/dokument-mitarbeiterfreigabe.test.ts` |
+|---|---|
+
+### D-713 · Eine zweite Fassung überschreibt nichts — und Rechnung, Beleg und Buchhaltung bekommen keine (V-219)
+
+**Der Befund** (V-219 b; Audit-Befund 47, DOC-05): `dokument_version` war seit
+0009 als Kette angelegt — eindeutig je Dokument und Nummer, anfügend, mit dem
+SHA-256 der gespeicherten Bytes. Alle zehn Schreiber setzten aber das Literal
+`version = 1`; es gab keinen Dienst, keine Route und kein Formular für eine
+neue Fassung, und das Dokumentblatt zeigte keine Fassung, obwohl die
+Seitenkarte es als „metadata, versions, access log" führt. Ein überarbeiteter
+Vertrag liess sich nur als neues, unverbundenes Dokument ablegen.
+
+**Die Entscheidung.**
+
+1. **Eine Fassung ist eine neue Zeile mit eigenem Objekt**
+   (`legeFassungAn`, `services/dokument/ablage.ts`; `POST
+   /api/dokumente/[id]/version`, die Adresse aus der API-Karte). Die Datei
+   geht durch dieselbe Prüfkette wie beim Ablegen (`ladeHoch`: Größe, Typ aus
+   den Bytes, Metadaten, SHA-256) und gegen denselben Puffer — erst stehen
+   Zeile und Kette, dann gehen die Bytes hinaus. Die alte Fassung bleibt Zeile
+   UND Datei; `dokument` zeigt danach auf die neueste (Schlüssel, Typ, Größe),
+   damit Liste und Abruf ohne Nummer das Aktuelle liefern.
+2. **Der Schlüssel ist ein Geschwister, kein Unterordner**:
+   `<mandant>/<kategorie>/<dokument>.v<n>` (`fassungSchluessel`). Im
+   Vorführordner (V-131) ist der Schlüssel der ersten Fassung eine Datei, und
+   unter einer Datei lässt sich kein Ordner anlegen.
+3. **Die Kette ist lückenlos und beginnt bei der ersten Fassung.** Der Dienst
+   sperrt das Dokument (`for update`) und nimmt die höchste Nummer plus eins;
+   ein Dokument ohne erste Fassung (vor der Kette abgelegt) bekommt keine
+   zweite — neben eine Datei, deren Prüfsumme niemand kennt, stellt sich keine
+   zweite.
+4. **Rechnung, Beleg und Buchhaltung bekommen keine neue Fassung** — GoBD und
+   § 147 AO verlangen den unveränderten Buchungsbeleg, und berichtigt wird
+   durch Gegenbuchung bzw. Storno (Invariante 4), nie durch den Austausch der
+   Datei. Ebenso ein Dokument, auf das sich eine Buchungszeile beruft
+   (ACC-03) — seit 0488 für jede Sitzung, auch ohne `buchhaltung.lesen`
+   (D-759). Welche der übrigen sechs Kategorien Fassungen führen sollen,
+   entscheidet der Mandant (**O-937**); bis dahin sperrt die Plattform nur, was
+   GoBD sperrt (`FASSUNG_ERLAUBT_PLATZHALTER`).
+5. **Die zweite Linie steht in der Datenbank** (`0470`,
+   `kern.dokument_fassung_pruefen`): jede Fassung jenseits der ersten folgt
+   lückenlos der höchsten, nie an einem gelöschten Dokument und nie an
+   Rechnung, Beleg oder Buchhaltung — für jeden Schreiber, auch an der Route
+   vorbei. Kein Definer: wer eine Fassung anlegt, muss das Dokument sehen. Die
+   erste Fassung läuft unverändert durch; alle bisherigen Schreiber bleiben.
+   `tests/kern/dokument-fassung.test.ts` hält die Kategorienliste des Dienstes
+   und des Auslösers gleich. Seit 0474 trägt die Fassung dort auch ihre eigene
+   Aufbewahrungsfrist, und das Dokument behält die längere (D-758).
+6. **Das Dokumentblatt zeigt die Kette** (Nummer, Tag in der Sprache der
+   Sitzung und Berliner Uhrzeit, Person, Größe, Typ, SHA-256) und jede ältere
+   Fassung ist abrufbar: `GET /api/dokumente/[id]/datei?fassung=<n>` — über
+   eine signierte Adresse und mit Zeile im Zugriffsprotokoll wie der Abruf der
+   aktuellen.
+7. **Der Seed zeigt es** (`seed/dokument-pflege.ts`): ein Rahmenvertrag mit
+   zweiter Fassung — mit Speicher über die Dienste, ohne Speicher als Zeilen
+   mit der Prüfsumme der Demobytes (V-131).
+
+**Nicht Teil:** welche Fassung ein Abruf im Zugriffsprotokoll betraf
+(`dokument_zugriff` kennt keine Fassung) und eine Löschung einzelner
+Fassungen (Invariante 8: es gibt keine; ob eine ältere Fassung nach ihrer
+eigenen Frist einzeln gehen soll, ist O-955). Gelöscht wird das ganze
+Dokument — seit D-758 mit den Dateien aller Fassungen.
+
+| Betrifft | DOC-05, DOC-06, ACC-03, O-937, O-364, Invariante 4, Invariante 8, V-131, V-219, `drizzle/0470_dokument_fassungskette.sql`, `src/server/services/dokument/{ablage,upload,kategorie}.ts`, `src/app/api/dokumente/[id]/{version,datei}/route.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `src/server/db/seed/dokument-pflege.ts`, `tests/isolation/dokument-fassung.test.ts`, `tests/kern/dokument-fassung.test.ts` |
+|---|---|
+
+### D-714 · Ein Gespräch wird abgesagt, verschoben oder als geführt vermerkt — als Zustand mit Protokoll, nie als Löschung (V-220)
+
+**Der Befund** (V-220; Audit-Befund 53, REC-06 mit CAL-01): ein
+Bewerbungsgespräch liess sich anlegen und erschien im Kalender. Danach war es
+fest — `gespraech.status` blieb immer `geplant`; `stattgefunden` und
+`abgesagt` hatten keinen Erzeuger, obwohl Kalender und Gesprächsseite sie
+anzeigen. Ein abgesagter Termin blieb als lebender Termin im Kalender und im
+iCal-Feed stehen.
+
+**Die Entscheidung.**
+
+1. **Drei Übergänge, alle nur aus `geplant`** (`services/recruiting/
+   gespraech.ts`; `POST /api/recruiting/gespraeche/[id]` mit Feld `aktion`):
+   `sageGespraechAb` (Pflichtgrund — im Prüfprotokoll seit D-760 nur, DASS
+   einer erfasst ist, O-954), `verschiebeGespraech` (neuer Termin und
+   Dauer), `vermerkeGespraech` (als geführt). Jeder sperrt die Zeile und
+   schreibt mit `status = 'geplant'` IM `update` — wer gleichzeitig verliert,
+   bekommt `falscher_status` bzw. `gleichzeitig`, nie stillen Erfolg.
+   Dieselben Rechte wie beim Anlegen: `recruiting.bewerbung_lesen` UND
+   `kalender.schreiben`.
+2. **Die Uhr ist die der Datenbank** (Invariante 5): verschoben wird nur in
+   die Zukunft (`$termin > now()`), als geführt vermerkt nur, was begonnen
+   hat (`termin <= now()`). Die Berliner Wanduhr des Formulars löst
+   `planEingabe` auf (Invariante 2) — in der Nacht der Zeitumstellung gilt die
+   erste 02:30, die Dauer bleibt die Differenz zweier Instants.
+3. **Verschieben ist KEIN eigener Zustand.** Das Enum (0166) kennt keinen,
+   und ein verschobenes Gespräch ist dasselbe Gespräch zu einer anderen Zeit:
+   es bleibt `geplant`, der alte Termin steht im Prüfprotokoll
+   (`recruiting.gespraech_verschoben`, vorher/nachher). Der Typ
+   `GespraechZeile` führte ein `verschoben`, das es in der Datenbank nie gab —
+   gestrichen, samt Marke.
+4. **Absage und Vermerk sind Spalten mit Zeitpunkt und Person** (`0471`:
+   `abgesagt_am/_grund/_von`, `stattgefunden_vermerkt_am/_von`), der Grund
+   ist Pflicht (`gespraech_absage_vollstaendig`), und aus `abgesagt` und
+   `stattgefunden` führt kein Weg zurück; ein entschiedenes Gespräch ändert
+   weder Termin noch Dauer (`kern.gespraech_weg`). Die Notiz bleibt offen.
+   Gelöscht wird nichts (Invariante 8); der Löschlauf der Bewerbung (REC-07)
+   entfernt die Zeile weiterhin als `cse_job`.
+5. **Die Absage bleibt im Kalender stehen** — durchgestrichen, im Abonnement
+   `STATUS:CANCELLED` (`kalender/eintraege.ts`, `ical.ts` werteten das schon
+   aus; jetzt setzt es jemand).
+6. **Nichts geht an die Bewerberin** (Invariante 7). Der Dienst schreibt
+   Zustand und Protokoll; eine Nachricht über Absage oder neuen Termin
+   entsteht als Entwurf auf der Antwortseite der Bewerbung und geht durch die
+   Freigabe. Das Gesprächsblatt sagt das und verweist dorthin (mit deren zwei
+   Rechten, AUT-06).
+7. **Der Seed zeigt alle drei Stände** über die Dienste: ein geplantes, ein
+   abgesagtes (mit Grund) und ein geführtes Gespräch in der Reinigung.
+
+| Betrifft | REC-06, CAL-01, CAL-03, Invariante 2, Invariante 5, Invariante 7, Invariante 8, V-220, `drizzle/0471_gespraech_absage_vermerk.sql`, `src/server/services/recruiting/{gespraech,dienst}.ts`, `src/app/api/recruiting/gespraeche/[id]/route.ts`, `src/app/portal/[mandant]/recruiting/gespraeche/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/marken.ts`, `src/lib/i18n/verwaltung/recruiting-gespraech.ts`, `src/lib/datum/formularzeit.ts`, `src/server/db/seed/gespraech.ts`, `tests/isolation/recruiting-gespraech.test.ts`, `tests/isolation/kalender.test.ts` |
+|---|---|
+
+### D-715 · Der Kalender legt seine eigenen Termine an, ändert und sagt sie ab — nur Besprechung, Kundentermin und sonstigen Termin (V-221)
+
+**Der Befund** (V-221; Audit-Befund 46, CAL-01): `kalender_eintrag` kannte
+seit 0160 die Arten `besprechung`, `kundentermin` und `sonstiges`. Kein
+Bildschirm und keine Route legte einen solchen Termin an, änderte oder sagte
+ihn ab; Besprechungen und Kundentermine entstanden nur im Seed, und
+`abgesagt_am` setzte niemand, obwohl die Terminseite „Abgesagt" anzeigt und
+der iCal-Ausgang `STATUS:CANCELLED` schreibt.
+
+**Die Entscheidung.**
+
+1. **Ein Dienst, drei Wege** (`services/kalender/termin.ts`):
+   `legeTerminAn`, `aendereTermin`, `sageTerminAb`; Routen
+   `POST /api/kalender/eintraege` (anlegen) und
+   `POST /api/kalender/eintraege/[id]` mit Feld `aktion` (`aendern` |
+   `absagen`) — die Adressen der API-Karte, POST statt PATCH, weil ein
+   Browserformular kein PATCH kennt (D-599). Recht: `kalender.schreiben`,
+   dasselbe, das `t_kalender_schreiben` (0160) in der zweiten Linie prüft.
+2. **Nur, was der Kalender besitzt.** Wiedervorlagen gehören dem CRM (es
+   spiegelt sie hierher), Bewerbungsgespräche dem Recruiting (eigene Tabelle,
+   V-220). Ein Termin dieser Arten wird hier weder geändert noch abgesagt
+   (`fremde_art`); die Terminseite verweist auf die Quelle. Zwei Wahrheiten
+   über denselben Termin sind genau das, wogegen 0160 gebaut ist.
+3. **Die Zeit ist ein Instant** (Invariante 2): die Berliner Wanduhr des
+   Formulars löst `planEingabe` bzw. `berlinTagesZeitpunkt` auf; ganztägig
+   heisst Berliner Mitternacht bis Berliner Mitternacht NACH dem letzten Tag
+   (wie iCal) — an einem Umstellungstag 23 oder 25 Stunden, und das ist
+   richtig. `tests/kern/kalender-termin.test.ts` hält 22:00–06:00, beide
+   Umstellungsnächte und den ganztägigen Umstellungstag.
+4. **Absagen heisst: stehen lassen** — mit Grund (CHECK
+   `ke_absage_begruendet`, 0160) und Zeitpunkt der DATENBANK; danach ändert
+   niemand den Termin mehr. Gelöscht wird nichts. Jede Änderung und jede
+   Absage steht im Prüfprotokoll (vorher/nachher).
+5. **Wer anlegt, führt den Termin**; Teilnehmende nur aus DIESER
+   Gesellschaft und nur, wer sie unter RLS sehen darf
+   (`system.benutzer_lesen`) — dieselbe Grenze in der Auswahl des Formulars
+   wie im Dienst. Wer ändert, übernimmt die Führung nicht, und die Auswahl
+   entscheidet nur über die, die das Formular anbietet — die ändernde Person
+   und alle übrigen bleiben (D-760).
+6. **Bildschirme:** `/kalender/neu` (neu, ganz zweisprachig), „Neuer Termin"
+   auf `/kalender` nur mit `kalender.schreiben`, „Termin ändern" und
+   „Absagen" auf `/kalender/[id]`; ein Formular (`TerminFormular.tsx`) für
+   beide Wege, Rückweg mit Grund und Maske (V-240) — seit D-760 Nr. 6 auch
+   auf `/kalender/[id]` und mit der Auswahl der Teilnehmenden.
+7. **Einladungen gehen nicht hinaus.** Der Termin steht im Kalender der
+   Teilnehmenden und in ihrem Abonnement; eine E-Mail an Kunden entsteht
+   hier nicht (Invariante 7).
+8. **Der Seed** legt über die Dienste eine Besprechung, einen Kundentermin
+   und einen abgesagten Kundentermin (mit Grund) in der Reinigung an.
+
+| Betrifft | CAL-01, CAL-02, CAL-03, Invariante 2, Invariante 5, Invariante 7, Invariante 8, V-221, D-599, V-240, `src/server/services/kalender/termin.ts`, `src/app/api/kalender/eintraege/{route,termin-rumpf}.ts`, `src/app/api/kalender/eintraege/[id]/route.ts`, `src/app/portal/[mandant]/kalender/{page,TerminFormular}.tsx`, `src/app/portal/[mandant]/kalender/neu/page.tsx`, `src/app/portal/[mandant]/kalender/[id]/page.tsx`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/termine.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/kalender-termin.test.ts` |
+|---|---|
+
+### D-716 · Der Back-office-Agent entwirft eine Stellenanzeige, ein Mensch bearbeitet den Entwurf — und legt ihn selbst vor (V-222)
+
+**Der Befund** (V-222; Audit-Befund 50, REC-02 „AI drafts, a human edits and
+approves", SPEC §17 „drafts job ads"): `/recruiting/stellen/neu` war ein
+reines Handformular. Kein Weg liess den Agenten eine Anzeige entwerfen —
+`entwurf_von_art = 'agent'` setzte nur der Seed, obwohl die Vorlage
+`stellenanzeige_entwurf` im Demobetrieb seit je bereitlag —, und Titel,
+Beschreibung und Anforderungen einer angelegten Stelle konnte niemand mehr
+ändern.
+
+**Die Entscheidung.**
+
+1. **Die vorhandene Laufzeit, kein zweiter Weg zum Modell.**
+   `entwirfStellenanzeige` (`services/recruiting/stellenentwurf.ts`) ruft
+   `fuehreLaufAus` mit dem Auftrag `STELLENANZEIGE_AUFTRAG`
+   (`agent/auftraege.ts`): Modell aus dem Register, Budget reserviert,
+   Schritt protokolliert, Zahlenherkunft geprüft, Entwurf als Artefakt.
+   Ohne freigegebenes Modell, ohne Budget oder mit ausgeschaltetem Agenten
+   endet der Lauf sichtbar — die Aufgabe steht mit ihrem Grund im
+   Agentenzentrum, die Seite nennt ihn (`ki_…`), und die Anzeige entsteht von
+   Hand. Kein neuer Anbieter, keine Attrappe. Ein fehlendes Modell sagt die
+   Seite seit D-760 Nr. 7 schon vor dem Formular.
+2. **Die Tatsachen kommen von Menschen und aus der Datenbank**
+   (Invariante 6, `fuelleStellenTatsachen`): Titel, Einsatzort, Beginn und
+   Aufgaben gibt ein Mensch an; der Name der Gesellschaft kommt aus
+   `mandant`, der Bedarf eines gewählten Objekts aus `bedarf()` (gezählte
+   Zusagen). Das Modell formuliert nur den Fliesstext; jede Ziffer darin
+   muss in den Tatsachen stehen.
+3. **Die Anforderungen schreibt der Mensch.** Gegen sie läuft die Bewertung
+   (REC-05), und im AGG-Streit muss jede begründet werden; der Agent
+   übernimmt sie unverändert.
+4. **Der Lauf endet beim Artefakt** (`vorlegen: false`, neu im
+   Orchestrator): daraus entsteht ein Stellenentwurf mit
+   `entwurf_von_art = 'agent'`, und die Aufgabe trägt die Kennung der
+   Stelle. Keine zweite Freigabe im Posteingang für denselben Text — die
+   Freigabe der Anzeige erbittet ein Mensch mit „Zur Freigabe vorlegen"
+   (`legeStelleVor`), nachdem er den Entwurf gelesen hat (Invariante 7).
+   Ein Doppelklick legt keine zweite Stelle an (Idempotenzschlüssel des
+   Formulars).
+5. **Bearbeiten nur, solange der Entwurf keine Freigabe trägt**
+   (`aendereStelle`, `POST /api/recruiting/stellen/[id]`): die Freigabe
+   bindet ihren Abdruck an genau den vorgelegten Text; nach einer Ablehnung
+   ist der Entwurf wieder frei (0167). Die Bedingung steht IM `update`, die
+   Änderung im Prüfprotokoll. `entwurf_von_art` bleibt — es sagt, wer
+   entworfen hat, `geaendert_von`, wer zuletzt bearbeitet hat.
+6. **Eine Feldprüfung für drei Wege** (`api/recruiting/stellen/felder.ts`):
+   Stunden, Frist und Anforderungen liest dieselbe Funktion beim Anlegen von
+   Hand, beim Agentenentwurf und beim Bearbeiten.
+7. **Rechte:** Agentenentwurf `recruiting.stelle_schreiben` UND
+   `agent.aufgabe_starten`; Bearbeiten `recruiting.stelle_schreiben`. Wer das
+   zweite Recht nicht hält, sieht den Abschnitt mit dem fehlenden Recht.
+8. **Oberfläche:** „Vom Agenten entwerfen lassen" und „Von Hand anlegen" auf
+   `/stellen/neu`; „Entwurf bearbeiten" auf dem Stellenblatt; neue Teile
+   zweisprachig; die Abweisungen des Stellenblatts werden über
+   `eigenerEintrag` nachgeschlagen (D-728). Der Seed bearbeitet den
+   Agentenentwurf der Reinigung über `aendereStelle`.
+
+| Betrifft | REC-02, REC-05, SPEC §17, AGT-01, Invariante 6, Invariante 7, V-222, D-728, `src/server/agent/{orchestrator,auftraege}.ts`, `src/server/services/recruiting/stellenentwurf.ts`, `src/app/api/recruiting/stellen/{route,felder}.ts`, `src/app/api/recruiting/stellen/entwurf/route.ts`, `src/app/api/recruiting/stellen/[id]/route.ts`, `src/app/portal/[mandant]/recruiting/stellen/neu/page.tsx`, `src/app/portal/[mandant]/recruiting/stellen/[id]/page.tsx`, `src/lib/i18n/verwaltung/{recruiting-stellenentwurf,recruiting-rueckmeldung}.ts`, `tests/kern/stellenentwurf.test.ts`, `tests/isolation/recruiting-stellenentwurf.test.ts` |
+|---|---|
+
+### D-717 · Der Kandidatendatensatz entsteht von Hand oder als Vorschlag des Agenten — und gilt erst, wenn ein Mensch ihn bestätigt (V-223)
+
+**Der Befund** (V-223; Audit-Befund 52, REC-04): `kandidat` (0166:
+Qualifikationen, Sprachen, Erfahrungsjahre, `quelle_art`, Bestätigung durch
+einen Menschen) hatte im ganzen Baum keinen Schreiber, auch nicht im Seed,
+und keine Seite zeigte seine Felder. ROADMAP führte „the parsed candidate
+record" als erledigt.
+
+**Die Entscheidung.**
+
+1. **Drei Wege, eine Regel** (`services/recruiting/kandidat.ts`):
+   `erfasseKandidat` (ein Mensch trägt ein oder berichtigt),
+   `schlageKandidatVor` (der Agent liest aus), `bestaetigeKandidat` (ein
+   Mensch bestätigt). Gespeichert wird IMMER unbestätigt; jede Änderung nimmt
+   eine frühere Bestätigung zurück — bestätigt war der alte Stand. Die
+   Bestätigung setzt `bestaetigt_am` mit der Uhr der DATENBANK und
+   `bestaetigt_von` aus der Sitzung (CHECK
+   `kandidat_bestaetigung_vollstaendig`). Je Bewerbung genau ein Datensatz.
+   *Berichtigt (D-760 Nr. 8):* bestätigt wird nur der Stand, den die Seite
+   zeigte — das Formular trägt seinen Abdruck; hat sich der Datensatz
+   seither geändert, bestätigt der Klick nichts (`veraendert`).
+2. **Der Agent liest aus, über die vorhandene Laufzeit** (`fuehreLaufAus`,
+   Fähigkeit `extraktion_dokument`, `vorlegen: false`): das Register
+   entscheidet, ob ein Modell dafür freigegeben ist — eine Freigabe zum
+   Formulieren ist keine zum Auslesen personenbezogener Unterlagen. Das
+   Ergebnis steht als `quelle_art = 'agent'` UNBESTÄTIGT da. Ohne Modell,
+   ohne Budget, mit ausgeschaltetem Agenten oder mit einer Antwort, die kein
+   Datensatz ist, entsteht NICHTS; die Aufgabe steht mit Grund im
+   Agentenzentrum. Der Demobetrieb hat für diese Vorgangsart keine Vorlage
+   und sagt das — die Seite nennt es. Kein neuer Anbieter, keine Attrappe.
+3. **Das Modell rechnet nicht und bewertet nicht** (Invariante 6, REC-05):
+   Erfahrungsjahre übernimmt `leseExtraktion` nur, wenn die Zahl WÖRTLICH in
+   der Nachricht der Bewerbung steht; sonst bleiben sie leer („nicht
+   bekannt", nie „null Jahre"). Kein Rang, keine Punkte.
+4. **Die Quelle ist die Nachricht der Bewerbung**, nicht der Lebenslauf —
+   eine Datei kommt nicht an, solange O-375 offen ist; die Seite sagt das.
+5. **Recht:** `recruiting.bewerbung_bewerten` für Erfassen, Bestätigen und
+   Vorschlag, für den Vorschlag zusätzlich `agent.aufgabe_starten`. Die
+   zweite Linie (`t_kandidat_schreiben`, 0166) lässt schreiben, wer
+   `recruiting.bewerbung_lesen` hält — ein LESErecht ist aber in der
+   Gruppenansicht erreichbar (`hat_recht_fuer`: dort gelten nur lesen und
+   exportieren) und kann deshalb keinen Schreibweg tragen (Invariante 10,
+   Dienstregister). Die Arbeit an den Angaben einer Bewerberin ist Teil ihrer
+   Bewertung; dieselben drei Rollen halten beide Rechte (0008), es verliert
+   also niemand etwas. Wer das Recht nicht hält, sieht den Datensatz und den
+   Satz, welches Recht fehlt.
+6. **Oberfläche:** Abschnitt „Strukturierte Angaben" auf dem
+   Bewerbungsblatt (`/kandidaten/[id]` leitet dorthin): Quelle, Stand der
+   Bestätigung mit Zeitpunkt und Person, die Felder; Erfassen, Bestätigen und
+   Auslesen-Lassen; zweisprachig. Die Abweisung kommt mit
+   `vorgang=kandidat` zurück und steht im Abschnitt, nicht unter „Gespräch
+   planen".
+7. **Der Seed** legt über die Dienste zwei Datensätze an — einen bestätigten,
+   einen noch unbestätigten; keinen Agentenvorschlag (der Demobetrieb liest
+   nichts aus, und ein im Seed behaupteter Lauf wäre keiner).
+
+| Betrifft | REC-04, REC-05, O-375, Invariante 5, Invariante 6, V-223, `src/server/services/recruiting/kandidat.ts`, `src/server/agent/orchestrator.ts`, `src/app/api/recruiting/bewerbungen/[id]/kandidat/route.ts`, `src/app/api/recruiting/bewerbungen/[id]/kandidat/vorschlag/route.ts`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/recruiting-kandidat.ts`, `src/server/db/seed/kandidat.ts`, `docs/ROADMAP.md`, `tests/kern/kandidat-extraktion.test.ts`, `tests/isolation/recruiting-kandidat.test.ts` |
+|---|---|
+
+### D-718 · Das Bewerbungspostfach ist ein Vertrag mit dem Stand „nicht verbunden" — bis dahin erfasst ein Mensch, was per E-Mail kam (V-224)
+
+**Der Befund** (V-224; Audit-Befund 51, REC-03): REC-03 verlangt Bewerbungen
+über das Karriereformular UND über ein überwachtes Postfach. Gebaut war nur
+das Formular — kein Anschluss, keine Zeile „nicht verbunden" unter den
+Integrationen und keine Erfassung von Hand. Eine per E-Mail eingegangene
+Bewerbung konnte weder ankommen noch angelegt werden und bekam damit auch
+keine Löschfrist (REC-07); `bewerbung_quelle = 'mail'` setzte niemand.
+
+**Die Entscheidung.**
+
+1. **Der Anschluss als Vertrag, nicht als Zusage** (CLAUDE.md „No fake
+   integrations"): `BewerbungsPostfach` mit genau einem Adapter,
+   `NichtVerbundenesPostfach` (`integrationen/bewerbungspostfach.ts`). Er
+   holt nichts und WIRFT beim Abholen — eine leere Liste sähe aus wie ein
+   Postfach ohne Post. Das Register der Anbindungen liest den Zustand aus
+   demselben Adapter: „Bewerbungspostfach: nicht verbunden", O-938.
+2. **Die Erfassung von Hand** (`erfasseBewerbungAusPostfach`,
+   `POST /api/recruiting/bewerbungen`, Seite `/recruiting/bewerbungen/neu`,
+   ganz zweisprachig): Quelle `mail`, Löschfrist aus derselben Einstellung
+   und nach derselben Uhr (`app.berlin_heute()`) wie beim Formular — die
+   Frist beginnt mit der Erfassung (Platzhalter, O-938). Eine Stelle muss in
+   dieser Gesellschaft stehen und offen sein; ohne Stelle ist es eine
+   Initiativbewerbung per E-Mail. Recht: `recruiting.bewerbung_bewerten` —
+   ein Schreibrecht, kein Leserecht (Invariante 10, wie D-717); der Verweis
+   auf der Bewerbungsliste steht nur mit ihm.
+3. **Die Herkunft bleibt erhalten** (`0472`): `bewerbung_initiativ_ohne_stelle`
+   wird `bewerbung_quelle_und_stelle` — `initiativ` weiter nur ohne,
+   Karriereseite und Import weiter nur mit Stelle, `mail` mit und ohne. Jede
+   vorhandene Zeile erfüllt die neue Regel.
+4. **Nichts geht an die Bewerberin** (Invariante 7): eine Antwort entsteht
+   als Entwurf auf der Antwortseite und geht durch die Freigabe.
+5. **Keine Kaltakquise, kein Scraping** (CLAUDE.md): erfasst wird, was jemand
+   von sich aus geschickt hat; es gibt keinen Weg, der ein Postfach oder
+   eine Börse nach Menschen durchsucht.
+6. **Der Seed** erfasst eine Bewerbung aus dem Postfach über den Dienst —
+   als E-Mail von vor fünf Tagen, mit Entwurf der Eingangsbestätigung (D-760
+   Nr. 4).
+
+| Betrifft | REC-03, REC-07, LEG-11, O-117, O-375, O-938, Invariante 7, V-224, `drizzle/0472_bewerbung_aus_dem_postfach.sql`, `src/server/integrationen/bewerbungspostfach.ts`, `src/server/registry/integrationen.ts`, `src/server/services/recruiting/postfach.ts`, `src/app/api/recruiting/bewerbungen/route.ts`, `src/app/portal/[mandant]/recruiting/bewerbungen/{page,neu/page}.tsx`, `src/app/portal/[mandant]/recruiting/rahmen.tsx`, `src/server/db/seed/postfach.ts`, `tests/kern/{bewerbungspostfach,integrationen}.test.ts`, `tests/isolation/recruiting-postfach.test.ts` |
+|---|---|
+
+### D-719 · Ein Beitrag trägt ein Bild — privat abgelegt, über eine Tür ausgeliefert, und es geht mit in die Freigabe (V-225)
+
+**Der Befund** (V-225; Audit-Befund 49, SOC-02, SOC-05): SOC-02 nennt Bilder
+als Inhalt eines Beitrags, und 0163 hängt sie als `beitrag.medien_id` an —
+keine Zeile Code schrieb oder las die Spalte, für `medien` gab es keinen
+Annahmeweg, das Beitragsformular hatte kein Dateifeld, und die öffentliche
+Beitragsseite zeigte nur Text.
+
+**Die Entscheidung.**
+
+1. **Privater Behälter, signierte Adresse** (DOC-03; Stack: „private
+   buckets, signed URLs only"): das Bild liegt im Behälter `marke`, der schon
+   das Material der Website trägt, unter `<mandant>/beitrag/<sha256>.<endung>`
+   — der Inhalt ist der Name, nichts wird überschrieben. Die Zeile in
+   `medien` trägt Behälter und Schlüssel (`0473`, CHECK
+   `medien_hochgeladen_eigen`: eigener Ordner, Format des Dienstes, Adresse
+   ist die Tür). Ausgeliefert wird über `GET /api/beitragsbild/[id]`: eine
+   Weiterleitung auf eine signierte Adresse mit `SIGNATUR_SEKUNDEN`
+   Laufzeit, nie Bytes — und nur, wenn das Bild an einem veröffentlichten,
+   nicht zurückgezogenen Beitrag hängt oder die Sitzung zu dieser
+   Gesellschaft gehört und `social.lesen` hält (Vorschau am Entwurf); sonst
+   404, nie 403.
+2. **Dieselbe Prüfung wie beim Markenbild** (`legeBeitragsbildAn`,
+   `services/social/beitragsbild.ts`): PNG oder JPEG, erkannt am INHALT;
+   Metadaten entfernt (keine GPS-Daten des Aufnahmeorts); dieselbe
+   Grössengrenze; Alternativtext Pflicht (PUB-09, BFSG), verlangt VOR dem
+   Hochladen.
+3. **Nur am Entwurf, nur ein Bild derselben Gesellschaft**
+   (`setzeBeitragsbild`, `POST /api/social/beitraege/[id]/bild`): dieselbe
+   Regel wie für Text und Kanäle, mit der Bedingung IM `update`; der
+   Auslöser `beitrag_medien_eigen` (0473) hält die Gesellschaft auch an der
+   Route vorbei. Entfernen löst nur die Zuordnung — Datei und Zeile bleiben.
+4. **Das Bild gehört zur Entscheidung** (Invariante 7): `legeVor` nimmt es
+   in die Nutzlast der Freigabe (`bild: { medien_id, alt }`); ohne Bild
+   bleibt die Nutzlast, wie sie war. Wer freigibt, gibt Text UND Bild frei —
+   und sieht das Bild seit D-761 Nr. 7 auf dem Entscheidungsbildschirm; das
+   Bild ist nach dem Vorlegen fest (D-761 Nr. 3 und 4).
+5. **Recht:** `social.schreiben` — dasselbe wie für den Entwurf; die neue
+   Policy `t_medien_beitragsbild` lässt es dafür zu, nur für hochgeladene
+   Bilder der eigenen Gesellschaft. Der Veröffentlichungslauf (`cse_job`)
+   liest `medien`, um den Kanälen eine ABSOLUTE Adresse zu nennen — ohne
+   kanonische Basis geht kein Bild mit. Kein Kanal ist verbunden (O-10); der
+   Port trägt das Feld, und ein Adapter für Instagram, TikTok oder YouTube
+   prüft es, statt ohne Bild „veröffentlicht" zu melden.
+6. **Oberfläche:** Abschnitt „Bild" am Beitrag (Vorschau, Anhängen,
+   Ersetzen, Entfernen; ohne Speicher „nicht verbunden"); Hinweis auf
+   `/posts/neu`; die öffentliche Beitragsseite zeigt das Bild — ein
+   hochgeladenes lädt der Browser über die Tür, am Bildoptimierer vorbei,
+   der eine signierte Adresse länger festhielte, als sie gilt.
+7. **Rechte am Bild** (Urheberrecht, KUG bei erkennbaren Personen): welchen
+   Nachweis die Plattform verlangen soll, ist offen (O-939); die Seite sagt,
+   dass es ihn braucht.
+8. **Der Seed:** der veröffentlichte Beitrag jeder Gesellschaft trägt ihr
+   Galeriemotiv (als Platzhalter markiert, in der Nutzlast seiner Freigabe);
+   dem Entwurf der Reinigung hängt der Dienst ein Bild an — mit Speicher
+   hochgeladen, ohne Speicher das Galeriemotiv.
+
+| Betrifft | SOC-02, SOC-05, SOC-06, SOC-08, DOC-03, PUB-09, O-10, O-13, O-939, Invariante 7, V-225, `drizzle/0473_beitragsbild.sql`, `src/server/services/social/beitragsbild.ts`, `src/server/services/social/{dienst,port}.ts`, `src/app/api/beitragsbild/[id]/route.ts`, `src/app/api/social/beitraege/[id]/bild/route.ts`, `src/app/portal/[mandant]/social/posts/{[id],neu}/page.tsx`, `src/app/(public)/unternehmen/[bereich]/_profil/Inhalte.tsx`, `src/lib/i18n/verwaltung/social-bild.ts`, `src/server/db/seed/{social,beitragsbild}.ts`, `tests/isolation/social-beitragsbild.test.ts` |
+|---|---|
+
+### D-758 · Ein gelöschtes Dokument nimmt die Dateien aller Fassungen mit — und eine neue Fassung trägt ihre eigene Aufbewahrungsfrist, die längere gilt (V-266)
+
+**Der Befund** (V-266 a; Prüfung der Gruppe kalender-dokumente): V-219 legt
+je Fassung ein eigenes Objekt an (`<mandant>/<kategorie>/<dokument>.v<n>`),
+und `dokument.objekt_schluessel` zeigt danach auf die neueste. Der EINE
+Löschweg `loescheDokument` entfernte aber nur, was das weiche Löschen
+zurückgab — die neueste Datei. Fassung 1 … n-1 blieben nach dem Löschen für
+immer im privaten Behälter, bei der Löschung von Hand ebenso wie im Nachtlauf
+nach Fristablauf (DOC-07, Art. 5 Abs. 1 lit. e und Art. 17 DSGVO); kein Weg
+kam je wieder an sie heran. Gerade der Fall aus O-937 (eine ältere
+Personalunterlage mit inzwischen berichtigten Angaben, Art. 16 DSGVO) blieb
+damit als Datei liegen, während das Blatt versprach, die Datei sei „fort".
+
+Und umgekehrt (V-266 b): `aufbewahrung_bis` wird nur beim Anlegen der Zeile
+aus `entstanden_am` gerechnet (`kern.setze_aufbewahrung`, 0141). Eine neue
+Fassung änderte die Frist nicht — ein Angebot von 2019 mit heute abgelegter
+Überarbeitung stand mit „31.12.2025" da und damit im Kreis des Nachtlaufs
+(0382). Er hätte das Dokument in der nächsten Nacht samt der NEUEN Fassung
+gelöscht, und zusammen mit dem ersten Befund ausgerechnet deren Datei
+entfernt und die alte liegen lassen.
+
+**Die Entscheidung.**
+
+1. **Die ganze Kette geht mit.** Nach dem weichen Löschen liest der Dienst
+   die Schlüssel aller Fassungen (`dokument_version`, unter derselben Bindung
+   — `t_version_lesen` bzw. `j_dokument_version_lesen`) und entfernt jedes
+   Objekt im Behälter des Dokuments. Die Zeilen der Kette bleiben
+   (Invariante 8); nur die Bytes sind fort. `Geloescht.entfernt` nennt jeden
+   entfernten Schlüssel.
+2. **Die älteren zuerst, die neueste zuletzt.** Scheitert unterwegs ein
+   Objekt, rollt die Transaktion die Zeile zurück — und die Datei, auf die
+   die Zeile zeigt, liegt dann noch: Liste und Abruf zeigen weiter, was die
+   Zeile verspricht. Der Nachtlauf zählt den Fall als Fehler und versucht es
+   in der nächsten Nacht wieder.
+3. **Das Blatt sagt es:** „Gelöscht werden die Zeile und die Dateien aller
+   Fassungen".
+4. **Eine neue Fassung trägt ihre eigene Frist, das Dokument die längere**
+   (`0474`, `kern.dokument_fassung_pruefen`): mit jeder Fassung jenseits der
+   ersten rechnet die Datenbank die Frist, die an diesem Berliner
+   Kalendertag für die Kategorie gilt — dieselbe Regel wie beim Anlegen
+   (`app.aufbewahrung_regel` je Gesellschaft, `app.aufbewahrung_ende`, Uhr
+   der Datenbank) — und setzt `aufbewahrung_bis` auf die spätere der beiden.
+   Eine Löschsperre der Regel kommt dazu, gelöst wird keine (D-49); eine
+   offene Frist bleibt offen (K-17). Kürzer wird nichts, das hält 0141 ohnehin.
+   Ein überarbeitetes, neu abgesandtes Angebot ist ein eigener Handelsbrief mit
+   eigenem Fristbeginn (§ 257 Abs. 5 HGB).
+5. **In der Datenbank, nicht nur im Dienst:** der Auslöser der Kette gilt für
+   jeden Schreiber, auch an der Route vorbei — und der Nachtlauf löscht nach
+   der Zeile. Kein Definer: das UPDATE läuft als der Aufrufer unter
+   `t_mandant`.
+6. **Offen bleibt, ob eine ältere Fassung nach IHRER Frist einzeln gehen
+   soll** (Art. 5 Abs. 1 lit. e DSGVO) — **O-955**. Ausgeliefert ist der
+   Platzhalter „die längere Frist gilt für das ganze Dokument": nichts wird zu
+   früh gelöscht, und wenn der Nachtlauf es nimmt, dann mit allen Fassungen
+   (Nr. 1). Das Blatt sagt am Formular, dass die neue Fassung ihre eigene Frist
+   beginnt.
+
+| Betrifft | DOC-05, DOC-07, LEG-01, § 257 Abs. 5 HGB, Art. 5 Abs. 1 lit. e DSGVO, Art. 17 DSGVO, O-937, O-955, D-49, D-713, V-219, V-266, `drizzle/0474_fassung_traegt_ihre_frist.sql`, `src/server/services/dokument/{loeschung,ablage}.ts`, `src/server/jobs/dokumentAufbewahrung.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `tests/isolation/{dokument-loeschen,aufbewahrung-lauf,dokument-fassung}.test.ts` |
+|---|---|
+
+### D-759 · Eine neue Fassung an einem für den Kunden freigegebenen Dokument legt ab, wer die Kundenfreigabe erteilen darf — mit ausdrücklichem Wort; die Buchungssperre gilt für jede Sitzung, und jede Abweisung der Prüfkette ist ein Satz (V-266)
+
+**Der Befund** (V-266 c, d; Prüfung der Gruppe kalender-dokumente): (c) Die
+Kundenfreigabe ist der Schalter, der ein Dokument aus dem Haus lässt, mit
+eigenem Recht und Pflichtgrund (0297). `legeFassungAn` las
+`sichtbar_fuer_kunde` nicht, die Route verlangte nur `dokument.schreiben`,
+und der Auslöser aus 0297/0325 griff nur, wenn sich der SCHALTER änderte —
+eine neue Fassung tauscht aber die Datei hinter einer bestehenden Freigabe.
+Ein freigegebenes Dokument lieferte danach einen Inhalt aus, über den niemand
+mit dem Freigaberecht entschieden hatte (Invariante 7). Heute latent (das
+Kundenportal liefert noch keine Dokumente, O-671; dieselben Rollen halten
+beide Rechte), aber 0297 baut genau solche Wege ausdrücklich zu. (d) Die
+Sperre „an einer Buchung" (D-713 Nr. 4) lief unter der RLS des Aufrufers;
+`buchungssatz` liest nur, wer `buchhaltung.lesen` hält — für die Rolle
+leitung griff sie nie. Die Zweige „gelöscht" und „nicht sichtbar" von Dienst
+und Auslöser hatten keinen Test.
+
+**Die Entscheidung — der Ablauf an einem freigegebenen Dokument.**
+
+1. **Das Blatt sagt vorher, was geschieht.** Ist das Dokument für den Kunden
+   freigegeben, steht am Formular „Neue Fassung ablegen" ein Pflichthäkchen:
+   „Dieses Dokument ist für den Kunden freigegeben: er sieht die neue Fassung
+   sofort. Ich gebe sie für ihn frei." Ohne das Recht steht statt des
+   Formulars der Satz, wer ablegen darf — oder dass die Kundenfreigabe vorher
+   zurückgenommen wird (über ihren eigenen Weg, mit Grund).
+2. **Ablegen darf nur, wer auch `dokument.kunde_freigeben` hält** — dasselbe
+   Recht wie der Schalter selbst: wer ändert, was der Kunde zu sehen bekommt,
+   entscheidet darüber. Und nur mit dem ausdrücklichen Wort
+   (`kundenfreigabe=ja`); ein fehlendes Feld ist nie eine Zustimmung
+   (`kundenfreigabe_recht` bzw. `kundenfreigabe_bestaetigen`, eigene Sätze
+   auf dem Blatt, de/en).
+3. **Die Freigabe bleibt stehen** — der Kunde bekommt die neue Fassung. Eine
+   stille Rücknahme wäre die andere Hälfte desselben Fehlers: 0297 sagt es,
+   „zurückzunehmen ist nicht harmloser als freizugeben". Das Prüfprotokoll
+   der Fassung trägt `kundenfreigabe: fuer_kunden_sichtbar`.
+4. **Die zweite Linie** (`0488`, `kern.dokument_kundenfreigabe_pruefen`, ersetzt
+   0325): ändert sich an einer freigegebenen Zeile die Datei, gilt dasselbe
+   wie beim Umlegen des Schalters — ohne Menschen in der Sitzung nie, sonst
+   nur mit dem Recht.
+5. **Der Buchungsbezug für jede Sitzung gleich** (`fin.dokument_hat_buchung`,
+   Definer mit Eigentümer `cse_definer`, `search_path`, ohne PUBLIC; liest
+   über `d_beleg_dokument` und `d_bs_beleg` genau die Spalten aus 0132 im
+   aktiven Mandanten und gibt nur einen Wahrheitswert zurück). Der Dienst und
+   der Auslöser der Kette (`kern.dokument_fassung_pruefen`, 0488 ersetzt 0474)
+   fragen beide sie. Ohne gebundene Gesellschaft (Eigentümer, Seed) sieht sie
+   nichts — Fassungen legt im Betrieb nur eine Sitzung an.
+
+6. **Eine Datei, deren Metadaten sich nicht sicher entfernen lassen, ist ein
+   Satz auf dem Blatt, kein 500** (V-266 e). `ladeHoch` wirft `ExifFehler` für
+   jedes erlaubte Bild ohne Bereinigungsverfahren (TIFF, GIF, WebP) und für
+   jedes verschlüsselte PDF — ausgerechnet den eingescannten oder signierten
+   Vertrag, den typischen Fall einer zweiten Fassung. Die Abbildung der Route
+   kannte ihn nicht. Jetzt steht sie in einer eigenen Datei
+   (`api/dokumente/[id]/version/grund.ts`, `fassungGrund`) und bildet ihn auf
+   `datei_metadaten` ab („als PDF ohne Verschlüsselung, JPEG oder PNG
+   ablegen", de/en); ein Kern-Test führt jeden Wurf der Prüfkette durch und
+   verlangt Grund und Satz in beiden Sprachen.
+
+**Nicht Teil:** ob der Kunde benachrichtigt wird, wenn eine neue Fassung
+erscheint (kein Postausgang, O-501; das Kundenportal liefert noch keine
+Dokumente, O-671). Die ältere Ablageroute `api/dokumente/upload` hat dieselbe
+Lücke beim ersten Ablegen (`ExifFehler` fällt durch `alsAntwort`) — sie ist
+vorbestehend und nicht Gegenstand dieser Gruppe.
+
+| Betrifft | DOC-04, DOC-05, ACC-03, Invariante 7, O-501, O-671, D-713, V-219, V-266, `drizzle/0297`, `drizzle/0325`, `drizzle/0488_fassung_kundenfreigabe_und_buchung.sql`, `src/server/services/dokument/ablage.ts`, `src/app/api/dokumente/[id]/version/{route,grund}.ts`, `src/server/storage/exif.ts` (`ExifFehler`), `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `tests/isolation/dokument-fassung.test.ts`, `tests/kern/dokument-fassung.test.ts` |
+|---|---|
+
+### D-760 · Kalender und Recruiting: wer einen Termin ändert, wirft niemanden still hinaus — und der Seed stellt die Bewerbung aus dem Postfach nicht vor die jüngste (V-267)
+
+**Der Befund** (V-267; Prüfung der Gruppe kalender-dokumente):
+`aendereTermin` ersetzte die Teilnehmenden durch „führende Person + Auswahl"
+und filterte die ändernde Person heraus; das Formular auf `/kalender/[id]`
+bietet die angemeldete Person gar nicht an. Änderte also eine Eingeladene
+(mit `kalender.schreiben`, `t_kalender_schreiben` erlaubt es) nur den Ort,
+war sie danach nicht mehr Teilnehmerin — der Termin fiel aus „Nur meine" und
+aus ihrem Abonnement, ohne Hinweis. Ohne `system.benutzer_lesen` war die
+Auswahl leer, und jede Änderung setzte die Teilnehmenden auf die führende
+Person zurück.
+
+**Die Entscheidung.**
+
+1. **Die Auswahl entscheidet nur über die, die das Formular anbietet**
+   (`waehlbareTeilnehmer`, `teilnehmerNachAenderung`,
+   `services/kalender/termin.ts`). Seite und Dienst fragen dieselbe Abfrage:
+   aktive Menschen dieser Gesellschaft, keine Dienstkonten, nicht die Sitzung
+   selbst, nur mit `system.benutzer_lesen`. Wer angeboten war und nicht mehr
+   angehakt ist, fällt heraus — ausdrücklich. Wer nicht angeboten war, bleibt,
+   wie er war: die ändernde Person selbst, wer inzwischen ausgeschieden ist,
+   und ohne das Recht alle. Die führende Person steht immer darin und nicht
+   zur Wahl (ein Kästchen, dessen Haken nichts bewirkt, wäre eine falsche
+   Auskunft). Eine eigene Abmeldung aus einem Termin gibt es damit nicht; wer
+   gehen will, bittet die führende Person.
+2. **Das Protokoll nennt die Teilnehmenden** vorher und nachher
+   (`kalender.termin_geaendert`) — wer ging und wer kam, ist keine stille
+   Änderung.
+3. **Die Seite sagt es:** am Formular, wen die Auswahl nicht berührt; ohne
+   `system.benutzer_lesen` der Satz „Die Teilnehmenden bleiben bei dieser
+   Änderung, wie sie sind" mit dem fehlenden Recht.
+4. **Die Bewerbung aus dem Postfach ist im Seed eine E-Mail von vor fünf
+   Tagen** (V-267 b). Der Dienst stempelt die Übertragung; im Seed stand die
+   übertragene Bewerbung deshalb als jüngste ganz oben — vor der
+   Karriereseiten-Bewerbung von vorgestern, an der der Seed den Entwurf der
+   Eingangsbestätigung zeigt, und `tests/e2e/bewerbung-antwort.spec.ts` fand
+   auf der ersten Zeile keinen Entwurf mehr (rot). Behoben am Seed, nicht am
+   Test: `seedPostfach` setzt nach dem Dienst den Eingang der E-Mail
+   (`eingegangen_am`, fünf Tage zurück); die Löschfrist bleibt, wie der Dienst
+   sie ab der Übernahme gesetzt hat (O-938). Dazu legt der Seed die
+   Eingangsbestätigung über `entwirf` als Entwurf an — wie für jede lebende
+   Bewerbung — und nimmt einen Menschen mit `recruiting.bewerbung_bewerten`,
+   dem Recht der Route.
+5. **Der Absagegrund eines Gesprächs steht in der Auskunft — und nicht
+   wörtlich im Prüfprotokoll** (V-267 c). Die Art.-15-Auskunft der Bewerbung
+   las aus `gespraech` nur Termin, Status, Ort und Notiz; jetzt auch Absage
+   (Zeitpunkt, Grund) und Vermerk (Zeitpunkt). Das unveränderliche
+   Prüfprotokoll schrieb den Grund wörtlich mit — nach der Löschung der
+   Bewerbung (REC-07) stünde der Satz über die Bewerberin dort allein weiter.
+   Ob er das darf, ist nicht aus D-/O-Einträgen ableitbar (O-92 ist offen):
+   **O-954**. Bis zur Antwort hält das Protokoll den Übergang und DASS ein
+   Grund erfasst ist (`grund_erfasst: true`); der Wortlaut steht in der Zeile
+   und geht mit ihr.
+6. **Das Terminformular behält nach einer Abweisung, was getippt wurde**
+   (V-267 d), wie D-715 Nr. 6 es zusagt. `/kalender/[id]` belegte das
+   Formular immer aus der Datenbank — über „Das Ende liegt nicht nach dem
+   Beginn." standen die alten, gültigen Zeiten; `/kalender/neu` brachte alle
+   Textfelder zurück, aber keine Teilnehmenden, und ein erneutes Absenden legte
+   den Termin still ohne die Eingeladenen an. Jetzt reisen Felder aus mehreren
+   Werten als Liste (`maskeMitEingaben`, `maskeListen` im Übergangsgerüst,
+   `vorbelegteListe`), und beide Seiten lesen die Maske. Ausnahme bleibt
+   `gleichzeitig`: dort sagt der Satz, dass die Seite den aktuellen Stand
+   zeigt — und sie zeigt ihn.
+7. **„Nicht verbunden" steht vor dem Stellenformular des Agenten, nicht erst
+   danach** (V-267 e). `/recruiting/stellen/neu` prüfte nur das Recht; ohne
+   freigegebenes Modell füllte man acht Felder aus, der Lauf scheiterte, eine
+   fehlgeschlagene Aufgabe blieb im Agentenzentrum, und die Seite bat, alles
+   erneut einzutragen. Jetzt fragt die Seite `modellStand` für dieselbe
+   Fähigkeit, mit der `fuehreLaufAus` den Entwurf ausführt (`entwurf_text`),
+   und zeigt ohne Modell den Hinweis „KI-Funktion nicht verbunden (O-26) — die
+   Anzeige lässt sich unten von Hand anlegen" statt des Formulars; im
+   Demobetrieb sagt sie, dass der Entwurf aus einer festen Vorlage kommt.
+   Budget und abgeschalteter Agent zeigen sich weiter erst im Lauf (D-716
+   Nr. 1) — sie lassen sich vorher nicht verlässlich sagen.
+8. **Bestätigt wird der Kandidatendatensatz, den die Seite zeigte**
+   (V-267 f). „Angaben bestätigen" bestätigte, was beim KLICK unbestätigt
+   dastand; `legeVorschlagAb` und `erfasseKandidat` überschreiben einen
+   unbestätigten Datensatz jederzeit. Las derweil der Agent aus oder
+   berichtigte jemand, trug der Datensatz danach die Bestätigung eines
+   Menschen, der ihn nie gesehen hatte — gegen D-717 Nr. 1 und 2. Jetzt trägt
+   das Formular den Abdruck des gezeigten Stands (Quelle und Felder, von der
+   Datenbank gerechnet — dieselbe Überlegung wie D-716 Nr. 5), und
+   `bestaetigeKandidat` bestätigt nur, wenn er noch stimmt; sonst ist die
+   Antwort `veraendert` (409, de/en), und bestätigt ist nichts. Das Protokoll
+   `recruiting.kandidat_bestaetigt` nennt den Abdruck.
+9. **Ein abgesagtes Gespräch trägt die Marke „Archiviert", nicht
+   „Abgelehnt"** (V-267 k). „Abgelehnt" heisst im Recruiting, dass die
+   Gesellschaft die Bewerbung abgelehnt hat — eine Aussage über die
+   Bewerberin (§ 22 AGG); ein abgesagter Termin sagt darüber nichts. Das
+   feste Vokabular (DESIGN §5) hat kein „Abgesagt"; statt es zu erweitern,
+   nimmt `GESPRAECH_MARKE` die neutrale Marke, die auch ein stornierter
+   Einsatz im Dienstplan der Gruppe trägt. Absage und Grund nennt der Kasten
+   auf dem Gesprächsblatt.
+10. **Eine unveränderte Zeit bleibt, wie sie gespeichert ist** (V-267 l,
+    Invariante 2). `berlinFormularWert` belegt „Termin ändern" und „Gespräch
+    verschieben" mit der Berliner Wanduhr vor. In der Rückstellungsnacht gibt
+    es 02:00–02:59 zweimal; beide zeigen dieselbe Wanduhr, und `planEingabe`
+    liest die ERSTE. Ein Termin der zweiten Stunde rückte so bei jeder
+    Änderung — auch nur des Orts oder der Dauer — still eine Stunde vor. Jetzt
+    behält eine Zeit, deren Wanduhr sich nicht geändert hat, ihren
+    gespeicherten Zeitpunkt (`behalteGespeicherteZeit`,
+    `mitGespeichertenZeiten`, `verschiebeGespraech`); eine geänderte löst
+    `planEingabe` auf wie immer. Ergäbe das beim Termin kein Intervall (nur
+    denkbar, wenn in dieser Stunde eine Zeit geändert wurde und die andere
+    nicht), gilt die Auflösung des Formulars für beide. Wer ausdrücklich die
+    zweite 02:30 wählen will, kann das über das Formular weiterhin nicht —
+    das bleibt die benannte Grenze.
+
+| Betrifft | CAL-01, CAL-02, REC-03, O-938, D-715, D-718, V-221, V-224, V-267, `drizzle/0160` (`t_kalender_schreiben`, `t_kalender_eigene`), `src/server/services/kalender/termin.ts`, `src/app/portal/[mandant]/kalender/{TerminFormular.tsx,[id]/page.tsx,neu/page.tsx}`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/postfach.ts`, `src/server/services/recruiting/gespraech.ts`, `src/server/services/datenschutz/auskunft.ts`, O-954, `src/lib/formular/maske.ts`, `src/app/api/uebergang.ts`, `src/app/api/kalender/eintraege/{route,termin-rumpf}.ts`, `src/app/api/kalender/eintraege/[id]/route.ts`, `tests/kern/crm-kette.test.ts`, `src/app/portal/[mandant]/recruiting/stellen/neu/page.tsx`, `src/lib/i18n/verwaltung/recruiting-stellenentwurf.ts`, `tests/kern/stellenentwurf.test.ts`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/{kalender-termin,recruiting-postfach,recruiting-gespraech,datenschutz-dienste}.test.ts`, `tests/e2e/bewerbung-antwort.spec.ts`, D-717, `src/server/services/recruiting/kandidat.ts`, `src/app/api/recruiting/bewerbungen/[id]/kandidat/route.ts`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/recruiting-kandidat.ts`, `src/server/db/seed/kandidat.ts`, `tests/kern/kandidat-extraktion.test.ts`, `tests/isolation/recruiting-kandidat.test.ts`, `src/app/portal/[mandant]/recruiting/marken.ts`, `tests/kern/gespraech-marke.test.ts`, `src/lib/datum/formularzeit.ts`, `tests/kern/formularzeit.test.ts` |
+|---|---|
+
+### D-761 · Beitragsbilder: die Pflege von `medien` bleibt in der eigenen Gesellschaft, ein hochgeladenes Bild bleibt, wie es angenommen wurde, und es gehört nicht in den Bildbestand der Website (V-268)
+
+**Der Befund** (V-268 a; Prüfung der Gruppe kalender-dokumente, Sicherheit):
+0473 macht `medien.bucket` und `medien.objekt_schluessel` zu dem Zeiger, auf
+den die Tür `/api/beitragsbild/[id]` eine signierte Adresse ausstellt; die
+Freigabe eines Beitrags bindet nur `medien_id` und den Alternativtext. Die
+neuen Spalten erbten das tabellenweite UPDATE aus 0014, und `t_medien_pflege`
+prüfte nur `app.hat_recht('referenz.schreiben', app.aktiver_mandant())` —
+ohne jede Bedingung an die Zeile. Eine Sitzung mit `referenz.schreiben` in
+IRGENDEINER Gesellschaft konnte Zeiger, Adresse und Alternativtext jedes
+Beitragsbilds umschreiben (nachgestellt: eine Redaktion der Bau-Gesellschaft
+lenkt das Bild der Reinigung um, 1 Zeile). Ein freigegebenes,
+veröffentlichtes Bild liess sich so auf ein nie freigegebenes Objekt lenken
+(Invariante 7), über Gesellschaftsgrenzen (Invariante 3). Die Mandantengrenze
+des Anlegens (Policy, CHECK) hatte keine Isolationsprobe.
+
+**Die Entscheidung — die sicherere von zwei Behebungen** (`0486`):
+
+1. **Zugeteilt wird nur, was ein Weg braucht.** Angelegt wird ein
+   `medien`-Eintrag im Betrieb an genau einer Stelle (`legeBeitragsbildAn`):
+   nur deren acht Spalten. Geändert wird genau eine Spalte
+   (`setzeGalerieRang`): `galerie_rang`. Alles andere schreibt nur der Seed als
+   Eigentümer. Die Zuteilung aus 0014 (ganze Tabelle) ist entzogen.
+2. **`t_medien_pflege` gilt nur noch für das UPDATE und nur in der eigenen
+   Gesellschaft** (`mandant_id = app.aktiver_mandant()`); die Gruppenansicht
+   hat keinen aktiven Mandanten und ist nur lesend (Invariante 10). Angelegt
+   wird nur über `t_medien_beitragsbild` (0473).
+3. **Ein hochgeladenes Bild bleibt, wie es angenommen wurde** — als Auslöser
+   (`kern.medien_bild_fest`), also auch für den Eigentümer und für jede
+   künftige Zuteilung: Behälter und Schlüssel ändern sich bei keinem Bild,
+   Gesellschaft, Adresse und Alternativtext eines hochgeladenen nicht. Ein
+   anderes Bild ist eine neue Zeile, und nur ein Entwurf hängt es an.
+4. **Das Bild eines Beitrags wechselt nur am Entwurf** — in der Datenbank
+   (`kern.beitrag_medien_eigen`, 0486 ersetzt 0473): sobald ein Beitrag
+   vorgelegt ist, hängt die Freigabe an genau diesem Bild; der Dienst prüfte
+   das schon (`darfBearbeiten`), an ihm vorbei nicht.
+5. **Die Wege, die heute schreiben, bleiben**: die Galeriepflege der Website,
+   das Beitragsbild und der Seed. Geprüft mit fremder Gesellschaft, eigener
+   Redaktion, Gruppenansicht und Eigentümer.
+6. **Ein Beitragsbild gehört nicht in den Bildbestand der Website** (V-268 b).
+   Es ist für den BEITRAG freigegeben. Die Leser des Website-Bestands —
+   `listeGalerie`, `bilderZurWahl` (Referenzen, Profil) und die öffentliche
+   `galerieDerGesellschaft` — lesen nur `objekt_schluessel is null`;
+   `setzeGalerieRang` und `aendereReferenz` weisen ein hochgeladenes Bild mit
+   eigenem Grund ab (`bild_beitrag`, auf dem Referenzblatt de/en). Die zweite
+   Linie (`0487`): CHECK `medien_beitragsbild_nicht_in_galerie` und der
+   Auslöser `referenz_bild_der_website`. Vorher standen die Bilder in
+   Galeriepflege und Auswahl als kaputte Kacheln (der Bildoptimierer holt
+   ohne Sitzung und folgt keiner Weiterleitung) und liessen sich öffentlich
+   machen.
+7. **Wer freigibt, sieht das Bild** (V-268 c; Invariante 7). Entschieden wird
+   im Freigabe-Posteingang, und dort stand vom Bild nur eine gekürzte
+   Kennung im Nutzlastblatt. Jetzt zeigt `/freigaben/[id]` bei einem Beitrag
+   das Bild der Nutzlast (`bildDerFreigabe`: ein hochgeladenes über die Tür,
+   ein Website-Bild unter seinem Pfad, der Alternativtext der Nutzlast) und
+   verweist „Zum Beitrag" — der Verweis nur mit `social.lesen` (AUT-06). Die
+   Tür `/api/beitragsbild/[id]` öffnet dafür auch einer Sitzung ohne
+   `social.lesen`, wenn sie die Freigabe lesen darf, in deren Nutzlast das
+   Bild steht (`eigenesBeitragsbild`, unter `t_mandant` auf `freigabe`). Nennt
+   die Nutzlast ein Bild, das in dieser Gesellschaft nicht zu finden ist,
+   steht ein Warnkasten da: nicht freigeben, ohne es gesehen zu haben.
+8. **Erst der Beitrag, dann die Datei** (V-268 d). Die Bild-Route legte das
+   Bild ab (Zeile und Objekt) und fragte erst danach, ob der Beitrag es
+   bekommen darf; bei jeder fachlichen Abweisung rollte die Zeile zurück, das
+   Objekt blieb — ein bereinigtes Bild ohne Verweis im privaten Behälter, das
+   kein Lauf löscht. `haengeNeuesBildAn` (`services/social/dienst.ts`) sperrt
+   den Beitrag (`for update`, wie `legeVor`), prüft, dass es ihn in dieser
+   Gesellschaft gibt und dass er ein Entwurf ist, und legt erst dann ab; die
+   Route ruft nur ihn. Eine Waise bleibt nur noch, wenn das Festschreiben
+   selbst scheitert — der Fall, den `legeBeitragsbildAn` schon nennt.
+
+| Betrifft | SOC-02, SOC-08, PUB-04, DOC-03, Invariante 3, Invariante 7, Invariante 10, D-719, V-225, V-268, `drizzle/0014` (`t_medien_pflege`), `drizzle/0170`, `drizzle/0473`, `drizzle/0486_medien_pflege_eigene_gesellschaft.sql`, `drizzle/0487_beitragsbild_nicht_auf_der_website.sql`, `src/server/services/social/{beitragsbild,dienst}.ts`, `src/server/services/inhalt/{redaktion,galerie}.ts`, `src/app/api/beitragsbild/[id]/route.ts`, `src/app/api/social/beitraege/[id]/bild/route.ts`, `src/app/portal/[mandant]/freigaben/[id]/page.tsx`, `src/lib/i18n/verwaltung/{website-referenz,social-bild}.ts`, `tests/isolation/{social-beitragsbild,website-pflege}.test.ts`, `tests/kern/beitragsbild-kanal.test.ts` |
 |---|---|

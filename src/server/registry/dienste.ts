@@ -1764,6 +1764,41 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'recruiting', pfad: 'recruiting/antwort', schreibend: true,
     schreibRecht: 'recruiting.bewerbung_bewerten',
   },
+  /*
+   * Ein Gespräch absagen, verschieben, als geführt vermerken (REC-06, V-220,
+   * D-714). Die Route verlangt `recruiting.bewerbung_lesen` UND
+   * `kalender.schreiben`; das Register nennt das schreibende der beiden —
+   * ein Leserecht wäre in der Gruppenansicht erreichbar und bewiese nichts.
+   */
+  {
+    modul: 'recruiting', pfad: 'recruiting/gespraech', schreibend: true,
+    schreibRecht: 'kalender.schreiben',
+  },
+  /* Das Bild eines Beitrags annehmen (SOC-02, V-225, D-719). */
+  {
+    modul: 'social', pfad: 'social/beitragsbild', schreibend: true,
+    schreibRecht: 'social.schreiben',
+  },
+  /* Eine Bewerbung aus dem Postfach von Hand erfassen (REC-03, V-224, D-718). */
+  {
+    modul: 'recruiting', pfad: 'recruiting/postfach', schreibend: true,
+    schreibRecht: 'recruiting.bewerbung_bewerten',
+  },
+  /* Der Kandidatendatensatz — erfassen, bestätigen, auslesen lassen (REC-04, V-223, D-717). */
+  {
+    modul: 'recruiting', pfad: 'recruiting/kandidat', schreibend: true,
+    schreibRecht: 'recruiting.bewerbung_bewerten',
+  },
+  /* Stellenentwurf durch den Agenten, Entwurf bearbeiten (REC-02, V-222, D-716). */
+  {
+    modul: 'recruiting', pfad: 'recruiting/stellenentwurf', schreibend: true,
+    schreibRecht: 'recruiting.stelle_schreiben',
+  },
+  /* Die eigenen Termine des Kalenders (CAL-01, V-221, D-715). */
+  {
+    modul: 'kalender', pfad: 'kalender/termin', schreibend: true,
+    schreibRecht: 'kalender.schreiben',
+  },
   /* =====================================================================
    * **Die Domaenenwelle (Routenbau, 117 offene Adressen).** Fuenfzehn
    * Domaenen, nacheinander gebaut, gepruefet und behoben; die Eintraege lagen
@@ -2077,6 +2112,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
   {
     modul: 'dokument', pfad: 'dokument/kundenfreigabe',
     schreibend: true, schreibRecht: 'dokument.kunde_freigeben',
+  },
+  /**
+   * **Die Freigabe für die Belegschaft, in beide Richtungen (DOC-04, V-219,
+   * D-712).** Dasselbe Recht wie das Kästchen beim Ablegen
+   * (`dokument.schreiben`) — wer freigeben darf, darf auch zurücknehmen.
+   * `t_mandant` verlangt dazu LESEND `dokument.lesen`.
+   */
+  {
+    modul: 'dokument', pfad: 'dokument/mitarbeiterfreigabe',
+    schreibend: true, schreibRecht: 'dokument.schreiben',
   },
   /**
    * Der EINZELNE Raum (OPS-02, OPS-03) — neben dem Massenweg

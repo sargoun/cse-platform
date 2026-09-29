@@ -1,6 +1,8 @@
 import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { jcsDigest } from '../freigabe/kette.js';
+import type { Speicher } from '../../storage/adapter.js';
+import { type BeitragsbildEingabe, legeBeitragsbildAn } from './beitragsbild.js';
 import { plattformKanal } from '../../versand/social-plattform.js';
 import {
   type BeitragAuftrag, KanalNichtVerbundenFehler, PLATTFORM_NAME, type Plattform,
@@ -65,6 +67,19 @@ export interface BeitragZeile {
   readonly projektId: string | null;
   readonly referenzId: string | null;
   readonly erstelltAm: string;
+  /**
+   * **Das Bild des Beitrags** (SOC-02, V-225, D-719) — `null`, wenn er keines
+   * trägt. `bildAdresse` ist, was die Seite als Quelle nimmt: der statische
+   * Pfad eines Website-Bildes oder die Tür `/api/beitragsbild/<id>` eines
+   * hochgeladenen, das im privaten Behälter liegt.
+   */
+  readonly medienId: string | null;
+  readonly bildAdresse: string | null;
+  readonly bildAlt: string | null;
+  readonly bildPlatzhalter: boolean | null;
+  /** Hochgeladen (privat, über die Tür) — sonst ein statisches Bild der Website. */
+  readonly bildPrivat: boolean | null;
+  readonly bildTyp: string | null;
 }
 
 export interface KanalZeile {
@@ -91,7 +106,22 @@ const FELDER = `b.id, b.slug, b.titel, b.text, b.art::text as art, b.status::tex
                 b.geplant_fuer as "geplantFuer", b.veroeffentlicht_am as "veroeffentlichtAm",
                 b.zurueckgezogen_am as "zurueckgezogenAm", b.freigabe_id as "freigabeId",
                 b.projekt_id as "projektId", b.referenz_id as "referenzId",
-                b.erstellt_am as "erstelltAm"`;
+                b.erstellt_am as "erstelltAm",
+                b.medien_id as "medienId",
+                (select case when me.objekt_schluessel is null then me.pfad
+                             else '/api/beitragsbild/' || me.id::text end
+                   from medien me where me.id = b.medien_id) as "bildAdresse",
+                (select me.alt_text from medien me where me.id = b.medien_id) as "bildAlt",
+                (select me.ist_platzhalter from medien me where me.id = b.medien_id)
+                  as "bildPlatzhalter",
+                (select me.objekt_schluessel is not null from medien me
+                  where me.id = b.medien_id) as "bildPrivat",
+                (select case when coalesce(me.objekt_schluessel, me.pfad) ~* '[.]png$'
+                               then 'image/png'
+                             when coalesce(me.objekt_schluessel, me.pfad) ~* '[.]webp$'
+                               then 'image/webp'
+                             else 'image/jpeg' end
+                   from medien me where me.id = b.medien_id) as "bildTyp"`;
 
 /**
  * Die Beitraege — gefiltert nach Stand und, wo gewuenscht, nach ART.
@@ -340,6 +370,70 @@ export async function bearbeiteBeitrag(
 }
 
 /**
+ * **Ein Bild anhängen, ersetzen oder entfernen — nur am Entwurf** (SOC-02,
+ * V-225, D-719).
+ *
+ * Dieselbe Regel wie für Text und Kanäle: nach dem Vorlegen bindet die
+ * Freigabe an genau das, was vorlag (`legeVor` nimmt das Bild in die
+ * Nutzlast). Das Bild selbst legt `legeBeitragsbildAn`
+ * (`services/social/beitragsbild.ts`) ab; hier wird nur die Zuordnung gesetzt —
+ * mit der Bedingung IM `update` (`schreibeWennNoch`). Dass es ein Bild DIESER
+ * Gesellschaft ist, prüft zusätzlich der Auslöser aus 0473.
+ */
+export async function setzeBeitragsbild(
+  kontext: SchreibKontext, id: string, medienId: string | null,
+): Promise<void> {
+  const b = await ladeBeitrag(kontext, id);
+  if (b === null) throw new SocialFehler('Diesen Beitrag gibt es nicht.', 'unbekannt');
+  if (!darfBearbeiten(b.status)) {
+    throw new SocialFehler(
+      'Ein Bild ändert man nur am Entwurf. Die Freigabe hängt am Bild, das vorlag.',
+      'nicht_bearbeitbar');
+  }
+  if (medienId !== null) {
+    const [m] = await kontext.abfrage<{ id: string }>(
+      `select id from medien where id = $1::uuid and mandant_id = app.aktiver_mandant()`,
+      [medienId]);
+    if (m === undefined) {
+      throw new SocialFehler('Dieses Bild gehört nicht zu dieser Gesellschaft.', 'quelle_unzulaessig');
+    }
+  }
+  await schreibeWennNoch(kontext, id, b.status,
+    `update beitrag set medien_id = $2::uuid, geaendert_von = $3::uuid where id = $1::uuid`,
+    [id, medienId, kontext.benutzerId]);
+}
+
+/**
+ * **Erst der Beitrag, dann die Datei** (V-268 d, D-761 Nr. 8).
+ *
+ * Die Route legte das Bild ab (`medien`-Zeile UND Objekt im Behälter) und
+ * fragte erst danach `setzeBeitragsbild`, ob der Beitrag es überhaupt bekommen
+ * darf. Bei jeder fachlichen Abweisung — unbekannter oder fremder Beitrag,
+ * schon vorgelegt — rollte die Zeile zurück, das Objekt blieb: ein bereinigtes
+ * Bild ohne Verweis im privaten Behälter, das kein Lauf je löscht. Jetzt steht
+ * VOR der Ablage fest, dass es diesen Beitrag in dieser Gesellschaft gibt und
+ * dass er ein Entwurf ist; die Zeile bleibt bis zum Ende der Transaktion
+ * gesperrt (`for update`, wie in `legeVor`), zwischen Prüfung und Zuordnung
+ * legt also niemand vor. Was danach noch scheitern kann, ist das Festschreiben
+ * selbst — der Fall, den `legeBeitragsbildAn` beschreibt.
+ */
+export async function haengeNeuesBildAn(
+  kontext: SchreibKontext, speicher: Speicher, id: string, eingabe: BeitragsbildEingabe,
+): Promise<string> {
+  await kontext.abfrage(`select id from beitrag where id = $1::uuid for update`, [id]);
+  const b = await ladeBeitrag(kontext, id);
+  if (b === null) throw new SocialFehler('Diesen Beitrag gibt es nicht.', 'unbekannt');
+  if (!darfBearbeiten(b.status)) {
+    throw new SocialFehler(
+      'Ein Bild ändert man nur am Entwurf. Die Freigabe hängt am Bild, das vorlag.',
+      'nicht_bearbeitbar');
+  }
+  const medienId = await legeBeitragsbildAn(kontext, speicher, eingabe);
+  await setzeBeitragsbild(kontext, id, medienId);
+  return medienId;
+}
+
+/**
  * **Vorlegen heisst: eine Freigabe entsteht** (SOC-08, Invariante 7).
  *
  * Der Abdruck (`payload_hash`) bindet die Entscheidung an genau diesen Text.
@@ -431,12 +525,19 @@ export async function legeVor(kontext: SchreibKontext, id: string): Promise<stri
   }
 
   const kanaele = await kanaeleZuBeitrag(kontext, id);
+  /*
+   * **Das Bild gehört zur Entscheidung** (V-225). Wer freigibt, gibt Text UND
+   * Bild frei; der Abdruck bindet beides. Ohne Bild bleibt die Nutzlast, wie
+   * sie war — ein Schlüssel `bild: null` hätte jede vorhandene Prüfung auf
+   * die Form der Nutzlast verschoben, ohne etwas zu sagen.
+   */
   const nutzlast = {
     beitrag_id: b.id,
     titel: b.titel,
     text: b.text,
     art: b.art,
     kanaele: kanaele.map((k) => k.plattform),
+    ...(b.medienId === null ? {} : { bild: { medien_id: b.medienId, alt: b.bildAlt ?? '' } }),
   };
   /*
    * **Der Abdruck MUSS kanonisch sein (RFC 8785)** -- `JSON.stringify` genuegt
@@ -699,6 +800,26 @@ async function beitragsadresse(
 }
 
 /**
+ * Das Bild, wie ein Kanal es bekommt — eine ABSOLUTE Adresse, oder keines.
+ *
+ * Eine fremde Plattform holt das Bild selbst ab; eine relative Adresse wäre
+ * dort dasselbe Nichts wie der relative Link (D-532). Ohne kanonische Basis
+ * geht deshalb kein Bild mit, statt eines, das niemand laden kann.
+ */
+export function bildFuerKanal(
+  b: Pick<BeitragZeile, 'bildAdresse' | 'bildTyp' | 'bildAlt'>, basis: string | null,
+): { medien?: { url: string; mimeTyp: string; alt: string } } {
+  if (b.bildAdresse === null || basis === null || basis === '') return {};
+  return {
+    medien: {
+      url: `${basis.replace(/\/+$/u, '')}${b.bildAdresse}`,
+      mimeTyp: b.bildTyp ?? 'image/jpeg',
+      alt: b.bildAlt ?? '',
+    },
+  };
+}
+
+/**
  * **Veröffentlichen — und was dabei ehrlich bleiben muss** (SOC-05, SOC-07).
  *
  * Die eigene Gesellschaftsseite bekommt den Beitrag IMMER: `status =
@@ -745,7 +866,7 @@ export async function veroeffentliche(
   const zeilen = await kanaeleZuBeitrag(kontext, id);
   const ergebnisse = await sendeKanaele(
     kontext, id,
-    { beitragId: b.id, titel: b.titel, text: b.text, adresse },
+    { beitragId: b.id, titel: b.titel, text: b.text, adresse, ...bildFuerKanal(b, basis) },
     zeilen.filter((z) => z.ergebnis !== 'veroeffentlicht'));
 
   return { beitragId: id, aufWebsite: true, kanaele: ergebnisse };
@@ -813,7 +934,9 @@ export async function sendeErneut(
 
   const adresse = await beitragsadresse(kontext, id, basis);
   const ergebnisse = await sendeKanaele(
-    kontext, id, { beitragId: b.id, titel: b.titel, text: b.text, adresse }, offen);
+    kontext, id,
+    { beitragId: b.id, titel: b.titel, text: b.text, adresse, ...bildFuerKanal(b, basis) },
+    offen);
   return { beitragId: id, aufWebsite: true, kanaele: ergebnisse };
 }
 

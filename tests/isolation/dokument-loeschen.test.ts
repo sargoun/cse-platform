@@ -6,6 +6,7 @@ import { LokalerSpeicher, type Bucket, type Speicher } from '../../src/server/st
 import {
   LoeschungFehler, loescheDokument,
 } from '../../src/server/services/dokument/loeschung.js';
+import { legeAb, legeFassungAn } from '../../src/server/services/dokument/ablage.js';
 
 /**
  * **Ein Mensch kann ein Dokument löschen** (V-026, DOC-07, LEG-01).
@@ -185,6 +186,92 @@ describe('§1 der menschliche Weg', () => {
       dokumentId: d.id, grund: 'Falsche Datei hochgeladen, Ersatz liegt daneben.',
     }));
     expect((await stand(d.id)).weg).toBe(true);
+  });
+
+  /**
+   * **Alle Fassungen gehen mit** (V-266, D-758). Seit V-219 trägt jede Fassung
+   * ein eigenes Objekt, und die Zeile zeigt nur auf die neueste. Entfernt
+   * wurde bis dahin nur diese — Fassung 1 lag nach dem Löschen für immer im
+   * Behälter, und kein Weg kam je wieder an sie heran.
+   */
+  it('ein Dokument mit zwei Fassungen: beide Dateien sind fort, die ältere zuerst', async () => {
+    const speicher = new LokalerSpeicher();
+    const pdf = (inhalt: string): Uint8Array =>
+      Uint8Array.from([...Buffer.from('%PDF-1.7'), ...Buffer.from(inhalt), ...Buffer.alloc(64)]);
+    const e = await alsWer(mensch, (k) => legeAb(k, speicher, {
+      kategorie: 'angebot', titel: `Angebot ${zufall()}`, beschreibung: '', tags: '',
+      kundeId: '', objektId: '', sichtbarFuerMitarbeiter: false,
+      dateiname: 'angebot.pdf', daten: pdf('fassung-1'), behaupteterTyp: 'application/pdf',
+    }));
+    await alsWer(mensch, (k) => legeFassungAn(k, speicher, e.dokumentId, {
+      dateiname: 'angebot-2.pdf', daten: pdf('fassung-2'), behaupteterTyp: 'application/pdf',
+    }));
+    const kette = await sql.unsafe<{ version: number; schluessel: string }[]>(
+      `select version, objekt_schluessel as schluessel from dokument_version
+        where dokument_id = $1 order by version`, [e.dokumentId] as never[]);
+    expect(kette.map((v) => v.version)).toEqual([1, 2]);
+    for (const v of kette) {
+      expect(speicher.rohBytes('dokumente', v.schluessel), `Fassung ${String(v.version)} liegt`)
+        .toBeDefined();
+    }
+
+    const ort = await alsWer(mensch, (k) => loescheDokument(k, speicher, {
+      dokumentId: e.dokumentId, grund: 'Angebot zurückgezogen, beide Fassungen gegenstandslos.',
+    }));
+
+    /* Die Zeile zeigte auf die neueste; entfernt ist die ganze Kette, die neueste zuletzt. */
+    expect(ort.objektSchluessel).toBe(kette[1]!.schluessel);
+    expect(ort.entfernt).toEqual([kette[0]!.schluessel, kette[1]!.schluessel]);
+    for (const v of kette) {
+      expect(speicher.rohBytes('dokumente', v.schluessel), `Fassung ${String(v.version)} ist fort`)
+        .toBeUndefined();
+    }
+    /* Die Kette selbst bleibt als Zeilen stehen (Invariante 8) — nur die Bytes sind fort. */
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from dokument_version where dokument_id = $1`,
+      [e.dokumentId] as never[]);
+    expect(n!.n).toBe(2);
+    expect((await stand(e.dokumentId)).weg).toBe(true);
+  });
+
+  it('scheitert eine ältere Fassung im Speicher, bleibt die neueste Datei — und die Zeile', async () => {
+    /*
+     * Die Reihenfolge ist Absicht: erst die älteren, zuletzt die, auf die die
+     * Zeile zeigt. Scheitert unterwegs eine, rollt die Transaktion die Zeile
+     * zurück — und die Datei, die Liste und Abruf zeigen, liegt noch.
+     */
+    const speicher = new LokalerSpeicher();
+    const pdf = (inhalt: string): Uint8Array =>
+      Uint8Array.from([...Buffer.from('%PDF-1.7'), ...Buffer.from(inhalt), ...Buffer.alloc(64)]);
+    const e = await alsWer(mensch, (k) => legeAb(k, speicher, {
+      kategorie: 'angebot', titel: `Angebot ${zufall()}`, beschreibung: '', tags: '',
+      kundeId: '', objektId: '', sichtbarFuerMitarbeiter: false,
+      dateiname: 'angebot.pdf', daten: pdf('fassung-1'), behaupteterTyp: 'application/pdf',
+    }));
+    await alsWer(mensch, (k) => legeFassungAn(k, speicher, e.dokumentId, {
+      dateiname: 'angebot-2.pdf', daten: pdf('fassung-2'), behaupteterTyp: 'application/pdf',
+    }));
+    const [akt] = await sql.unsafe<{ schluessel: string }[]>(
+      `select objekt_schluessel as schluessel from dokument where id = $1`,
+      [e.dokumentId] as never[]);
+    const versuche: string[] = [];
+    const halb: Speicher = {
+      verbunden: true,
+      lege: (b, k, d) => speicher.lege(b, k, d),
+      hole: (b, k) => speicher.hole(b, k),
+      signierteUrl: (b, k, s) => speicher.signierteUrl(b, k, s),
+      entferne: (b, k) => {
+        versuche.push(k);
+        return k === akt!.schluessel ? speicher.entferne(b, k)
+          : Promise.reject(new Error('Bucket unerreichbar'));
+      },
+    };
+    await expect(alsWer(mensch, (k) => loescheDokument(k, halb, {
+      dokumentId: e.dokumentId, grund: 'Der Speicher antwortet nur halb.',
+    }))).rejects.toThrow(/Bucket unerreichbar/u);
+    expect(versuche, 'die neueste kam gar nicht erst dran').not.toContain(akt!.schluessel);
+    expect(speicher.rohBytes('dokumente', akt!.schluessel)).toBeDefined();
+    expect((await stand(e.dokumentId)).weg, 'die Transaktion hat zurückgerollt').toBe(false);
   });
 
   it('ein zweites Mal geht nicht — gelöscht ist gelöscht', async () => {

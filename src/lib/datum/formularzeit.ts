@@ -93,3 +93,41 @@ export function berlinFormularZeit(roh: unknown): FormularZeit | null {
 export function berlinFormularZeitpunkt(roh: unknown): Date | null {
   return berlinFormularZeit(roh)?.zeitpunkt ?? null;
 }
+
+const BERLIN_TEILE = new Intl.DateTimeFormat('en-GB', {
+  year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Berlin',
+});
+
+/**
+ * Die Gegenrichtung: ein Instant als Wert eines `datetime-local`-Felds —
+ * Berliner Wanduhr, `JJJJ-MM-TTTHH:MM` (V-220, V-221).
+ *
+ * Ein Formular, das einen gespeicherten Termin zum Ändern vorbelegt, braucht
+ * die Wanduhr, die der Mensch damals meinte — nicht die UTC-Zeit, die in der
+ * Spalte steht. Aus Teilen gebaut und nicht aus einer Sprachform: die
+ * Reihenfolge der Teile ist hier Syntax des Felds, nicht Darstellung.
+ */
+export function berlinFormularWert(zeitpunkt: Date): string {
+  const teile = BERLIN_TEILE.formatToParts(zeitpunkt);
+  const teil = (art: Intl.DateTimeFormatPartTypes): string =>
+    teile.find((x) => x.type === art)?.value ?? '';
+  return `${teil('year')}-${teil('month')}-${teil('day')}T${teil('hour')}:${teil('minute')}`;
+}
+
+/**
+ * **Die Grenze des Rundlaufs — und warum sie niemanden trifft** (V-267, D-760
+ * Nr. 10).
+ *
+ * In der Nacht der Rückstellung (letzter Sonntag im Oktober) gibt es 02:00 bis
+ * 02:59 zweimal. `berlinFormularWert` zeigt beide Stunden als dieselbe
+ * Wanduhr, und `planEingabe` löst sie als die ERSTE auf. Ein Termin der
+ * zweiten Stunde, unverändert zurückgeschickt, rückte so eine Stunde vor —
+ * still, denn die Anzeige danach ist dieselbe. Deshalb gilt beim Ändern: zeigt
+ * der geschickte Zeitpunkt dieselbe Berliner Wanduhr (auf die Minute) wie der
+ * gespeicherte, bleibt der GESPEICHERTE. Unveränderte Zeiten werden nicht neu
+ * aus der Wanduhr gelesen; eine geänderte löst `planEingabe` auf wie immer.
+ */
+export function behalteGespeicherteZeit(geschickt: Date, gespeichert: Date): Date {
+  return berlinFormularWert(geschickt) === berlinFormularWert(gespeichert) ? gespeichert : geschickt;
+}

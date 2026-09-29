@@ -3,7 +3,12 @@ import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { listeBewerbungen } from '@/server/services/recruiting/dienst';
+import { internSprache } from '@/lib/i18n/intern';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { RECRUITING_KANDIDAT_TEXTE } from '@/lib/i18n/verwaltung/recruiting-kandidat';
 import { RecruitingSeite, leseImMandanten } from '../rahmen';
+import { KNOPF } from '../felder';
+import { haeltRechte } from '../../../rechte';
 import { BEWERBUNG_MARKE, berlinDatum } from '../marken';
 
 /**
@@ -31,9 +36,26 @@ export default async function Bewerbungen(
       titel="Bewerbungen"
       kinder={async (zugang) => {
         const zeilen = await leseImMandanten(zugang, listeBewerbungen);
+        const t = nachSprache(RECRUITING_KANDIDAT_TEXTE, internSprache(zugang.sprache));
+        /* Der Verweis nur mit dem Recht, das die Seite dahinter verlangt (AUT-06). */
+        const darfErfassen = (await haeltRechte(zugang.sitzung, 'recruiting.bewerbung_bewerten'))[
+          'recruiting.bewerbung_bewerten'] === true;
         return (
           <>
-            <h1 className="mb-s5 text-h1 text-text">Bewerbungen</h1>
+            <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
+              <h1 className="m-0 text-h1 text-text">Bewerbungen</h1>
+              {/*
+                * V-224: das Postfach ist nicht angeschlossen (O-938) — eine
+                * Bewerbung, die per E-Mail kam, erfasst ein Mensch, der
+                * Bewerbungen bewertet (`recruiting.bewerbung_bewerten`).
+                */}
+              {darfErfassen && (
+                <Link href={`/portal/${mandant}/recruiting/bewerbungen/neu`} className={KNOPF}
+                      data-cse="bewerbung-aus-postfach">
+                  {t.pVerweis}
+                </Link>
+              )}
+            </div>
             {zeilen.length === 0 ? (
               <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
                 Keine Bewerbung. Was über <code className="break-all">/karriere</code>{' '}

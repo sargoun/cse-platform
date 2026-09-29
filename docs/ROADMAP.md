@@ -583,7 +583,9 @@ Radar first — the agents operate on its output.
       back. Nothing simulates a successful external call
 - [x] **Recruiting** (REC-01…REC-09, D-570, D-573): staffing requirement from
       unstaffed shifts, job ad drafting, inbound applications over
-      `/karriere/*` and the initiative form, the parsed candidate record,
+      `/karriere/*` and the initiative form, the structured candidate record
+      (V-223: entered by a person or read out by the agent, valid only once a
+      person confirms it — until V-223 nothing wrote it),
       the ranked shortlist **computed in TypeScript with its criteria on
       screen** (REC-05/REC-08 — the model never ranks), interviews with
       prepared questions on the calendar, the hiring decision bound to the

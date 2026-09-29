@@ -210,6 +210,13 @@ export interface GaleriePflegeZeile {
  * die Gruppenbilder (`mandant_id is null`) gehören in keine
  * Gesellschaftsgalerie, und `medien_galerie_braucht_mandant` verbietet ihnen
  * ohnehin einen Rang.
+ *
+ * **Nur der Bildbestand der Website** (`objekt_schluessel is null`, V-268,
+ * D-761). Seit V-225 liegen in `medien` auch die hochgeladenen Bilder der
+ * Social-Beiträge — privat, über eine signierte Adresse ausgeliefert und für
+ * den BEITRAG freigegeben, nicht für die Website. Sie standen hier als
+ * kaputte Kacheln (der Bildoptimierer holt ohne Sitzung und folgt keiner
+ * Weiterleitung) und liessen sich in die öffentliche Galerie übernehmen.
  */
 export async function listeGalerie(
   kontext: LeseKontext, mandantId: string,
@@ -218,7 +225,7 @@ export async function listeGalerie(
     `select m.id, m.pfad, m.alt_text as alt,
             m.ist_platzhalter as platzhalter, m.galerie_rang as rang
        from medien m
-      where m.mandant_id = $1::uuid
+      where m.mandant_id = $1::uuid and m.objekt_schluessel is null
       order by (m.galerie_rang is null), m.galerie_rang, m.erstellt_am`,
     [mandantId]);
 }
@@ -237,9 +244,24 @@ export async function setzeGalerieRang(
     throw new RedaktionFehler(
       'Der Rang ist eine ganze Zahl ab 0 — oder nichts.', 'rang_ungueltig');
   }
+  /*
+   * Ein Bild aus einem Social-Beitrag kommt nicht in die Galerie (V-268): es
+   * ist für den Beitrag freigegeben, nicht für die Website. Die Liste zeigt
+   * es nicht; ein gebauter Aufruf bekommt einen eigenen Grund, und
+   * `medien_beitragsbild_nicht_in_galerie` (0487) hält es in der Datenbank.
+   */
+  const [art] = await kontext.abfrage<{ hochgeladen: boolean }>(
+    `select objekt_schluessel is not null as hochgeladen from medien
+      where id = $1::uuid and mandant_id = app.aktiver_mandant()`, [medienId]);
+  if (art?.hochgeladen === true) {
+    throw new RedaktionFehler(
+      'Ein Bild aus einem Social-Beitrag kommt nicht in die Galerie der Website — es ist für '
+      + 'den Beitrag freigegeben, nicht für die Website.', 'bild_beitrag');
+  }
   const zeilen = await kontext.abfrage<{ id: string }>(
     `update medien set galerie_rang = $2::int
       where id = $1::uuid and mandant_id = app.aktiver_mandant()
+        and objekt_schluessel is null
       returning id`,
     [medienId, rang]);
   if (zeilen.length === 0) {
@@ -758,7 +780,11 @@ export async function ladeReferenzZurPflege(
   return r ?? null;
 }
 
-/** Die Bilder, aus denen eine Referenz wählen kann — NUR die dieser Gesellschaft. */
+/**
+ * Die Bilder, aus denen eine Referenz wählen kann — NUR die dieser Gesellschaft,
+ * und nur der Bildbestand der Website (V-268): ein Bild aus einem
+ * Social-Beitrag ist für den Beitrag freigegeben, nicht für eine Referenz.
+ */
 export async function bilderZurWahl(
   kontext: LeseKontext,
 ): Promise<readonly GaleriePflegeZeile[]> {
@@ -773,7 +799,7 @@ export async function bilderZurWahl(
     `select m.id, m.pfad, m.alt_text as alt,
             m.ist_platzhalter as platzhalter, m.galerie_rang as rang
        from medien m
-      where m.mandant_id = app.aktiver_mandant()
+      where m.mandant_id = app.aktiver_mandant() and m.objekt_schluessel is null
       order by (m.galerie_rang is null), m.galerie_rang, m.erstellt_am`);
 }
 
@@ -947,13 +973,18 @@ export async function aendereReferenz(
      * `t_medien_oeffentlich` liest jede Zeile. Ein präparierter POST könnte
      * sonst das Bild einer anderen Gesellschaft unter dieses Projekt setzen.
      */
-    const [m] = await kontext.abfrage<{ ja: boolean }>(
-      `select exists (select 1 from medien m
-                       where m.id = $1::uuid and m.mandant_id = app.aktiver_mandant()) as ja`,
+    const [m] = await kontext.abfrage<{ hochgeladen: boolean }>(
+      `select m.objekt_schluessel is not null as hochgeladen from medien m
+        where m.id = $1::uuid and m.mandant_id = app.aktiver_mandant()`,
       [felder.medienId]);
-    if (m?.ja !== true) {
+    if (m === undefined) {
       throw new RedaktionFehler(
         'Dieses Bild gehört nicht zu dieser Gesellschaft.', 'bild_fremd');
+    }
+    /* V-268: ein Bild aus einem Social-Beitrag ist für den Beitrag freigegeben. */
+    if (m.hochgeladen) {
+      throw new RedaktionFehler(
+        'Ein Bild aus einem Social-Beitrag gehört nicht an eine Referenz.', 'bild_beitrag');
     }
   }
 
