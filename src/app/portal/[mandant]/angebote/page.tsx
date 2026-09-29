@@ -5,6 +5,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
+import { Recht } from '@/components/ui/Recht';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { ANGEBOT_PILLE } from '@/lib/vorgang-pille';
 import { formatiereGeld, cent } from '@/server/services/finanz/geld';
@@ -132,7 +133,12 @@ export default async function Angebotsliste(
               </Link>
               .
             </>
-          ) : ' „Neues Angebot" — dafür fehlt Ihnen angebot.schreiben.'}
+          ) : (
+            <>
+              {' '}„Neues Angebot" — dafür fehlt Ihnen{' '}
+              <Recht schluessel="angebot.schreiben" />.
+            </>
+          )}
         </p>
       ) : (
         <DataTable

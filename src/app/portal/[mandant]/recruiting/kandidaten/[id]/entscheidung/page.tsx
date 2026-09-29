@@ -90,8 +90,8 @@ export default async function Entscheidung(
                 <strong>
                   Diese Bewerbung ist bereits entschieden: {BEWERBUNG_TEXT[b.status]}.
                 </strong>{' '}
-                Eine Entscheidung gibt es je Bewerbung genau einmal
-                (`entscheidung_je_bewerbung`). Sie zu überschreiben hiesse, den
+                Eine Entscheidung gibt es je Bewerbung genau einmal — eine zweite nimmt
+                die Datenbank gar nicht erst an. Sie zu überschreiben hiesse, den
                 Stand zu ändern, auf den sich jemand berufen hat — was sich
                 korrigieren lässt, ist der Status der Bewerbung, nicht die
                 Entscheidung selbst.

@@ -219,7 +219,12 @@ export default async function TurnusBlattSeite(
           </p>
           <p className="m-0 mt-s3 text-sm text-text-muted">
             {t.leistung === null
-              ? `Leistung ${UNGEPRUEFT} (Katalog liegt hinter katalog.lesen)`
+              ? (
+                <>
+                  Leistung {UNGEPRUEFT} (den Katalog liest nur, wer{' '}
+                  <Recht schluessel="katalog.lesen" /> hält)
+                </>
+              )
               : t.leistung}
             {t.leistungIstPlatzhalter === true && (
               <span className="ml-s2 text-warning">· Katalogwert unbestätigt</span>
@@ -266,7 +271,12 @@ export default async function TurnusBlattSeite(
           </div>
           <p className="m-0 mt-s3 text-sm text-text-muted">
             {!planbar
-              ? 'Die Planungsserie liegt hinter dienstplan.lesen. Keine Aussage heisst hier nicht „nichts geplant".'
+              ? (
+                <>
+                  Die Planungsserie sieht nur, wer <Recht schluessel="dienstplan.lesen" /> hält.
+                  Keine Aussage heisst hier nicht „nichts geplant".
+                </>
+              )
               : t.planungsserieId === null
                 ? 'Zu diesem Turnus gibt es keine Planungsserie — der Generator hat ihn noch nie gesehen.'
                 : `Der Turnus selbst ist bis ${t.letzteGenerierungBis ?? '—'} fortgeschrieben; `

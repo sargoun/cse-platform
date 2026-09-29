@@ -7,6 +7,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Card } from '@/components/ui/Card';
 import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -318,7 +319,12 @@ export default async function PruefungBlatt(
                       hinterlegt
                     </Link>
                   </>
-                ) : 'Ein Dokument ist hinterlegt (Ablage liegt hinter dokument.lesen).'}
+                ) : (
+                  <>
+                    Ein Dokument ist hinterlegt (die Ablage öffnet nur, wer{' '}
+                    <Recht schluessel="dokument.lesen" /> hält).
+                  </>
+                )}
             </p>
           </Card>
         </section>

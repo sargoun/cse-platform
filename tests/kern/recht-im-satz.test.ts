@@ -38,6 +38,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { KATALOG } from '../../src/server/auth/katalog.generiert.js';
 import { alleRechteschluessel, rechtName } from '../../src/lib/i18n/rechtname.js';
+import { pruefeSichtbarenText } from './hilfen/sichtbarer-text.js';
 
 const APP = fileURLToPath(new URL('../../src/app', import.meta.url));
 
@@ -116,5 +117,103 @@ describe('ein Rechteschlüssel steht als Satz auf dem Schirm', () => {
       return de.trim() === '' || en.trim() === '' || de.includes('.') || en.includes('.');
     });
     expect(roh, 'Schlüssel ohne Satz — in `rechtname.ts` nachtragen').toEqual([]);
+  });
+});
+
+/**
+ * **Nicht nur in `<code>`** (V-250, D-741).
+ *
+ * Die Prüfungen oben sahen nur die `<code>`-Hülle. Dieselben Schlüssel
+ * standen weiter roh da — als Text („dafür fehlt `zeit.abwesenheit_lesen`"),
+ * als Zeichenkette in einem Ast (`'… dafür fehlt Ihnen angebot.schreiben.'`),
+ * in `<span className="font-mono">`, als `<strong>{RECHT_EINGANG_LESEN}</strong>`,
+ * eingesetzt in eine Vorlage und in den Satztabellen der Seiten („Ihnen fehlt
+ * objekt.schreiben."). Dazu Markdown-Backticks, die im Browser Backticks
+ * bleiben. Diese Prüfung liest den Syntaxbaum (`hilfen/sichtbarer-text.ts`):
+ * jede Stelle, deren Wert gerendert wird, und jede Satztabelle.
+ */
+describe('kein Katalogschlüssel und kein Backtick im sichtbaren Text', () => {
+  const WURZEL = fileURLToPath(new URL('../..', import.meta.url));
+
+  function baum(dir: string, endung: RegExp): readonly string[] {
+    return readdirSync(dir).flatMap((e) => {
+      const p = join(dir, e);
+      // Routen antworten mit JSON oder leiten um — ihr Text ist kein Schirm.
+      if (statSync(p).isDirectory()) return e === 'api' ? [] : baum(p, endung);
+      return endung.test(e) ? [p] : [];
+    });
+  }
+
+  const lies = (d: string): string | null => {
+    try { return readFileSync(d, 'utf8'); } catch { return null; }
+  };
+  const pruefe = (dateien: readonly (readonly [string, string])[]): readonly string[] =>
+    pruefeSichtbarenText(dateien, SCHLUESSEL, lies, WURZEL)
+      .map((b) => `${relative(WURZEL, b.datei)}:${String(b.zeile)} ${b.art} ${b.fund} — ${b.text}`);
+
+  it('Seiten, Bausteine und Satztabellen — über den ganzen Baum', () => {
+    const dateien = [
+      ...baum(join(WURZEL, 'src/app'), /\.tsx?$/u),
+      ...baum(join(WURZEL, 'src/components'), /\.tsx?$/u),
+      ...baum(join(WURZEL, 'src/lib/i18n'), /\.ts$/u),
+    ];
+    // Die Prüfung liest überhaupt etwas — sonst wäre „keine Befunde" billig.
+    expect(dateien.length).toBeGreaterThan(600);
+    expect(pruefe(dateien.map((d) => [d, readFileSync(d, 'utf8')] as const)),
+      'ein Schlüssel gehört in `<Recht schluessel=…>`, ein Name in einen Satz').toEqual([]);
+  });
+
+  it('die Gegenprobe: jeder Weg eines Schlüssels auf den Schirm wird gefunden', () => {
+    const befunde = (quelle: string, datei = '/x/a.tsx', weitere: [string, string][] = []) =>
+      pruefeSichtbarenText([[datei, quelle], ...weitere], SCHLUESSEL, () => null, '/x')
+        .map((b) => `${b.art}:${b.fund}`);
+
+    // JSX-Text, mit und ohne Backticks.
+    expect(befunde('const a = <p>Dafür fehlt `zeit.abwesenheit_lesen`.</p>;'))
+      .toEqual(['backtick:`', 'schluessel:zeit.abwesenheit_lesen']);
+    expect(befunde('const a = <span className="font-mono">vergabe.schreiben</span>;'))
+      .toEqual(['schluessel:vergabe.schreiben']);
+    // Eine Zeichenkette in einem Ast, durch `?:`, `&&`, `??` und `+`.
+    expect(befunde("const a = <p>{x ? 'ok' : ' dafür fehlt Ihnen angebot.schreiben.'}</p>;"))
+      .toEqual(['schluessel:angebot.schreiben']);
+    expect(befunde("const a = <p>{x && 'Recht ' + 'kalkulation.lesen'}</p>;"))
+      .toEqual(['schluessel:kalkulation.lesen']);
+    expect(befunde("const a = <code>{recht ?? 'reinigung.lesen'}</code>;"))
+      .toEqual(['schluessel:reinigung.lesen']);
+    // Eine Konstante — in der Datei, in einer Vorlage, über den Import.
+    expect(befunde("const R = 'eingang.lesen'; const a = <p>Es fehlt <strong>{R}</strong></p>;"))
+      .toEqual(['schluessel:eingang.lesen']);
+    expect(befunde("const R = 'finanzen.lesen'; const a = <p>{`Es fehlt ${R}.`}</p>;"))
+      .toEqual(['schluessel:finanzen.lesen']);
+    expect(befunde("import { R } from './r'; const a = <p>{R}</p>;", '/x/a.tsx',
+      [['/x/r.ts', "export const R = 'versand.freigeben';"]]))
+      .toEqual(['schluessel:versand.freigeben']);
+    // Eine Beschriftung, ein Feldwert, eine Tabellenzelle, eine Funktion der Datei.
+    expect(befunde('const a = <Feld wert="kein Leserecht (zeit.konto_lesen)" />;'))
+      .toEqual(['schluessel:zeit.konto_lesen']);
+    expect(befunde("const s = [{ zelle: (z) => (z ? 'a' : 'Recht crm.lesen fehlt') }];"))
+      .toEqual(['schluessel:crm.lesen']);
+    expect(befunde("function satz() { return 'Es fehlt crm.schreiben.'; } const a = <p>{satz()}</p>;"))
+      .toEqual(['schluessel:crm.schreiben']);
+    // Eine Satztabelle neben der Seite und in `src/lib/i18n`.
+    expect(befunde("export const T = { kein_recht: 'Ihnen fehlt ' + 'objekt.schreiben.' };", '/x/daten.ts'))
+      .toEqual(['schluessel:objekt.schreiben']);
+    expect(befunde("export const T = { de: { rolle: '`admin` — Administration' } };", '/x/t.ts'))
+      .toEqual(['backtick:`']);
+  });
+
+  it('und findet nichts, wo kein Text entsteht', () => {
+    const befunde = (quelle: string, datei = '/x/a.tsx') =>
+      pruefeSichtbarenText([[datei, quelle]], SCHLUESSEL, () => null, '/x').map((b) => b.fund);
+
+    // Das Recht als Satz — der Schlüssel im `title` ist Absicht (Recht.tsx).
+    expect(befunde('const a = <p>Es fehlt <Recht schluessel="crm.lesen" />.</p>;')).toEqual([]);
+    expect(befunde('const a = <span title="Dafür fehlt crm.lesen">—</span>;')).toEqual([]);
+    // Steuerung: Feldzugriff, Aufruf, Vergleich, reiner Schlüssel als Wert.
+    expect(befunde("const a = <p>{darf['crm.lesen'] === true ? 'ja' : 'nein'}</p>;")).toEqual([]);
+    expect(befunde("const a = <p>{hatRecht('crm.lesen') ? 'ja' : 'nein'}</p>;")).toEqual([]);
+    expect(befunde("export const M = { recht: 'crm.lesen', pfad: '/crm' };", '/x/m.ts')).toEqual([]);
+    // Ein längerer Name, der einen Schlüssel enthält, ist keiner.
+    expect(befunde('const a = <p>Die Funktion app.crm.lesen_alt gibt es nicht.</p>;')).toEqual([]);
   });
 });

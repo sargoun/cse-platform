@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Recht } from '@/components/ui/Recht';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { internSprache } from '@/lib/i18n/intern';
@@ -127,8 +128,9 @@ export default async function Module(
         ))}
       </p>
       <p className="mt-s5 text-sm text-text-subtle">
-        Die Buchung ändert die Super-Administration (`system.module_zuweisen`,
-        Zwei-Faktor-Pflicht); die Änderung ist eine Zeile in `mandant.module`.
+        Die Buchung ändert die Super-Administration (Recht{' '}
+        <Recht schluessel="system.module_zuweisen" />, mit Zwei-Faktor-Pflicht); die
+        Änderung steht danach in der Modulliste der Gesellschaft.
       </p>
 
       <h2 className="mb-s3 mt-s6 text-h2 text-text">{tModule.uebersichtTitel}</h2>

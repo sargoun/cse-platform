@@ -46,6 +46,13 @@ export interface BudgetTexte {
   readonly gesetzt: string;
   readonly keinSchreibrecht: string;
   readonly fehler: Readonly<Record<string, string>>;
+  /**
+   * Die Frage hinter `fehler.abgewiesen` — um das Recht herum, das die Seite
+   * als `<Recht>` dazwischensetzt (V-250). Bis dahin stand der Schlüssel in
+   * Backticks im Satz, auf dem Schirm wörtlich.
+   */
+  readonly abgewiesenFrageVor: string;
+  readonly abgewiesenFrageNach: string;
 }
 
 export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
@@ -105,10 +112,10 @@ export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
         'Die Warnschwelle ist ein Anteil zwischen 1 und 100 Prozent — oder sie bleibt leer.',
       kein_agent: 'Ein Budget je Agent braucht den Agenten.',
       unvollstaendig: 'Es fehlt eine Angabe.',
-      abgewiesen:
-        'Die Datenbank hat den Schreibversuch abgewiesen. Fehlt `agent.budget_verwalten` '
-        + 'in dieser Gesellschaft, oder steht die Ansicht auf „nur lesen"?',
+      abgewiesen: 'Die Datenbank hat den Schreibversuch abgewiesen.',
     },
+    abgewiesenFrageVor: 'Fehlt in dieser Gesellschaft das Recht',
+    abgewiesenFrageNach: ', oder steht die Ansicht auf „nur lesen"?',
   },
 
   en: {
@@ -163,9 +170,9 @@ export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
       schwelle: 'The warning threshold is a share between 1 and 100 percent — or empty.',
       kein_agent: 'A per-agent budget needs the agent.',
       unvollstaendig: 'Something is missing.',
-      abgewiesen:
-        'The database refused the write. Is `agent.budget_verwalten` missing in this '
-        + 'Gesellschaft, or is the view read-only?',
+      abgewiesen: 'The database refused the write.',
     },
+    abgewiesenFrageVor: 'Is this Gesellschaft missing the right',
+    abgewiesenFrageNach: ', or is the view read-only?',
   },
 };

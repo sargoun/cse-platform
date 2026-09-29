@@ -322,7 +322,7 @@ export default async function AgentDetail(
         ) : !darfStarten ? (
           <p className="mt-s4 text-sm text-text-muted" data-cse="agent-kein-startrecht">
             Einen Lauf auszulösen ist eine eigene Befugnis
-            („agent.aufgabe_starten"), und dieses Konto hält sie nicht.
+            (<Recht schluessel="agent.aufgabe_starten" />), und dieses Konto hält sie nicht.
           </p>
         ) : modell === null ? (
           <p className="mt-s4 text-sm text-text-muted" data-cse="agent-kein-modell">

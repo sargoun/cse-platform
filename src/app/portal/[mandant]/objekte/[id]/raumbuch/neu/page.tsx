@@ -116,7 +116,9 @@ export default async function NeuerRaum(
 
       {fehler !== null ? (
         <Hinweis art="warnung" cse="raum-neu-fehler" className="mb-s5 max-w-prose">
-          {eigenerEintrag(t.fehler, fehler) ?? fehler}
+          {fehler === 'kein_recht'
+            ? <>{t.keinSchreibrecht} <Recht schluessel={RECHT} sprache={zugang.sprache} />.</>
+            : eigenerEintrag(t.fehler, fehler) ?? fehler}
         </Hinweis>
       ) : null}
 

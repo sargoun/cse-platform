@@ -5,6 +5,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { StatusPill } from '@/components/ui/StatusPill';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
@@ -88,8 +89,7 @@ const FEHLER: Readonly<Record<string, string>> = {
    * den Menschen zum Neuladen, wo ihm ein RECHT fehlt. Neu laden zeigt
    * denselben Zustand, er versucht es wieder, und nichts erklärt ihm, warum.
    */
-  kein_recht: 'Dieser Schritt verlangt zusätzlich das Recht, Beiträge zu bearbeiten '
-    + '(social.schreiben). Am Beitrag hat sich nichts geändert.',
+  // `kein_recht` setzt die Seite selbst: das Recht steht als Satz (`<Recht>`, V-250).
   grund_fehlt: 'Ein Rückzug ohne Grund ist keine Auskunft — er steht im Protokoll, '
     + 'und jemand wird danach fragen.',
   nicht_bearbeitbar: 'Bearbeitet wird nur der Entwurf. Nach dem Vorlegen bindet die '
@@ -261,7 +261,12 @@ export default async function Beitrag(
 
       {abgewiesen === null ? null : (
         <Hinweis art="warnung" cse="beitrag-fehler" className="mb-s5 max-w-prose">
-          {FEHLER[abgewiesen] ?? 'Der Schritt wurde abgewiesen.'}
+          {abgewiesen === 'kein_recht' ? (
+            <>
+              Dieser Schritt verlangt zusätzlich das Recht{' '}
+              <Recht schluessel="social.schreiben" />. Am Beitrag hat sich nichts geändert.
+            </>
+          ) : FEHLER[abgewiesen] ?? 'Der Schritt wurde abgewiesen.'}
         </Hinweis>
       )}
 

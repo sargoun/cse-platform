@@ -4,6 +4,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { Button } from '@/components/ui/Button';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
@@ -55,8 +56,7 @@ const WIRKUNG: Readonly<Record<string, string>> = {
 /** Was die Route beim Anlegen abweisen kann — als Satz, nicht als Code. */
 const FEHLER_TEXT: Readonly<Record<string, string>> = {
   name: 'Ein Profil braucht einen Namen (bis 120 Zeichen).',
-  gesperrt: 'Das Profil wurde nicht angelegt. Fehlt `radar.profil_schreiben` in dieser '
-    + 'Gesellschaft? In der Gruppenansicht entsteht ausserdem nichts — sie ist lesend.',
+  // `gesperrt` setzt die Seite selbst: das Recht steht als Satz (`<Recht>`, V-250).
 };
 
 export default async function Profile(
@@ -124,7 +124,13 @@ export default async function Profile(
       {fehler !== null ? (
         <Hinweis art="warnung" cse="radar-profil-fehler" className="mb-s5 max-w-prose">
           <strong>Nicht angelegt.</strong>{' '}
-          {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Eingabe wurde abgewiesen.'}
+          {fehler === 'gesperrt' ? (
+            <>
+              Das Profil wurde nicht angelegt. Fehlt{' '}
+              <Recht schluessel="radar.profil_schreiben" /> in dieser Gesellschaft? In der
+              Gruppenansicht entsteht ausserdem nichts — sie ist lesend.
+            </>
+          ) : eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Eingabe wurde abgewiesen.'}
         </Hinweis>
       ) : null}
 

@@ -96,7 +96,9 @@ export default async function Leistungskatalog(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="katalog-fehler" className="mb-s5">
           <strong>Nichts wurde gespeichert.</strong>{' '}
-          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+          {fehler === 'kein_recht'
+            ? <>Ihnen fehlt <Recht schluessel="katalog.schreiben" />.</>
+            : eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 

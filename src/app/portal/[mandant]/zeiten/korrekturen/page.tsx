@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Recht } from '@/components/ui/Recht';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
@@ -146,9 +147,9 @@ export default async function Korrekturbuch({
       )}
 
       <p className="mt-s5 max-w-prose text-sm text-text-muted">
-        Wer korrigiert hat, steht nur da, wenn die eigene Rolle Benutzerkonten
-        lesen darf (`system.benutzer_lesen`). Fehlt das Recht, fehlt der Name —
-        nicht die Korrektur.
+        Wer korrigiert hat, steht nur da, wenn die eigene Rolle das Recht{' '}
+        <Recht schluessel="system.benutzer_lesen" /> hält. Fehlt das Recht, fehlt der
+        Name — nicht die Korrektur.
       </p>
     </PortalRahmen>
   );

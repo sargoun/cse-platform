@@ -42,5 +42,5 @@ export const FEHLERTEXT: Readonly<Record<string, string>> = {
     'Dieser Raum ist stillgelegt und wird nicht mehr geändert — ein wieder genutzter '
     + 'Raum ist eine neue Zeile.',
   nicht_gefunden: 'Diesen Raum gibt es in diesem Objekt nicht.',
-  kein_recht: 'Ihnen fehlt objekt.schreiben.',
+  // `kein_recht` setzt die Seite selbst: das Recht steht als Satz (`<Recht>`, V-250).
 };

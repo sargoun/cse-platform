@@ -696,7 +696,12 @@ export default async function TurnusNeu(
                   <p className="m-0 mt-s3 text-xs text-warning">
                     {darfPlanen
                       ? 'Revier, Leistung und Bezeichnung sind Pflicht.'
-                      : 'Es fehlt das Recht dienstplan.schreiben — siehe oben.'}
+                      : (
+                        <>
+                          Es fehlt das Recht <Recht schluessel="dienstplan.schreiben" /> —
+                          siehe oben.
+                        </>
+                      )}
                   </p>
                 )}
               </form>

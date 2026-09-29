@@ -162,7 +162,9 @@ export default async function Preisfreigabe(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="freigabe-fehler" className="mb-s5">
           <strong>Die Freigabe ist nicht erfolgt.</strong>{' '}
-          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+          {fehler === 'kein_recht'
+            ? <>Ihnen fehlt <Recht schluessel="angebot.preis_freigeben" />.</>
+            : eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 

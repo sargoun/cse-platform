@@ -313,12 +313,17 @@ export default async function VeranstaltungBlattSeite(
         ) : schichten.length === 0 ? (
           <Hinweis art="warnung" cse="besetzung-keine-schicht" className="max-w-prose">
             <strong>Es ist keine Schicht angelegt.</strong> Für diese Veranstaltung
-            gibt es noch keine <code>einsatz</code>-Zeile — also auch keine
-            Einteilung, keinen Check-in und keinen Zeiteintrag.
+            gibt es damit auch keine Einteilung, keinen Check-in und keinen
+            Zeiteintrag.
             {kopf.hatObjekt
               ? darf['dienstplan.schreiben'] === true
                 ? ' Die Schicht entsteht auf dem Besetzungsbrett.'
-                : ' Die Schicht entsteht auf dem Besetzungsbrett; dafür fehlt dieses Konto das Recht dienstplan.schreiben.'
+                : (
+                  <>
+                    {' '}Die Schicht entsteht auf dem Besetzungsbrett; dafür fehlt diesem
+                    Konto das Recht <Recht schluessel="dienstplan.schreiben" />.
+                  </>
+                )
               : ' Solange der Ort nur als Text erfasst ist, lässt sich keine anlegen.'}
           </Hinweis>
         ) : (

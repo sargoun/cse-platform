@@ -5,6 +5,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { Button } from '@/components/ui/Button';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -528,7 +529,7 @@ export default async function Vergabemappe(
         ) : (
           <p className="text-sm text-text-muted">
             Eine Einreichung erfasst, wer{' '}
-            <span className="font-mono">vergabe.einreichung_erfassen</span> hält.
+            <Recht schluessel="vergabe.einreichung_erfassen" /> hält.
           </p>
         )}
       </section>
@@ -587,7 +588,7 @@ export default async function Vergabemappe(
           ) : (
             <p className="text-sm text-text-muted">
               Das Ergebnis erfasst, wer{' '}
-              <span className="font-mono">vergabe.einreichung_erfassen</span> hält.
+              <Recht schluessel="vergabe.einreichung_erfassen" /> hält.
             </p>
           )}
         </section>
@@ -595,7 +596,7 @@ export default async function Vergabemappe(
 
       {!darfSchreiben ? (
         <p className="mt-s5 max-w-prose text-xs text-text-muted">
-          Die Mappe führt, wer <span className="font-mono">vergabe.schreiben</span> hält.
+          Die Mappe führt, wer <Recht schluessel="vergabe.schreiben" /> hält.
         </p>
       ) : null}
     </PortalRahmen>

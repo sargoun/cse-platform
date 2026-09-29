@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Recht } from '@/components/ui/Recht';
 import { Wochenplan } from '@/components/portal/Wochenplan';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
@@ -99,9 +100,9 @@ export default async function Wochenansicht({
 
       {!abwesenheitGeprueft && (
         <p className="mb-s4 rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
-          Abwesenheiten werden hier nicht geprüft — dafür fehlt das Recht
-          `zeit.abwesenheit_lesen`. Das heißt <strong>nicht</strong>, dass
-          niemand abgemeldet ist.
+          Abwesenheiten werden hier nicht geprüft — dafür fehlt das Recht{' '}
+          <Recht schluessel="zeit.abwesenheit_lesen" />. Das heißt <strong>nicht</strong>,
+          dass niemand abgemeldet ist.
         </p>
       )}
       <nav aria-label="Woche wechseln" className="mb-s4 flex flex-wrap items-center gap-s2">

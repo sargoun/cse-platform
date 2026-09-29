@@ -66,9 +66,9 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
     name: 'Name',
     nameHinweis: 'Er steht in jeder Freigabe und in jedem Protokolleintrag.',
     rolle: 'Rolle in dieser Gesellschaft',
-    rolleAdmin: '`admin` — Administration der Gesellschaft: Stammdaten, Benutzer, '
+    rolleAdmin: 'Administration — verwaltet die Gesellschaft: Stammdaten, Benutzer, '
       + 'Finanzen, Freigaben.',
-    rolleLeitung: '`leitung` — Einsatz- und Objektleitung: Dienstplan, Zeiten, '
+    rolleLeitung: 'Leitung — Einsatz- und Objektleitung: Dienstplan, Zeiten, '
       + 'Nachweise; keine Benutzerverwaltung.',
     einladen: 'Einladen',
 
@@ -113,10 +113,10 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
     name: 'Name',
     nameHinweis: 'It appears in every approval and in every audit entry.',
     rolle: 'Role in this Gesellschaft',
-    rolleAdmin: '`admin` — administration of the Gesellschaft: master data, users, '
+    rolleAdmin: 'Administration — runs the Gesellschaft: master data, users, '
       + 'finances, approvals.',
-    rolleLeitung: '`leitung` — dispatch and site management: rosters, working time, '
-      + 'records; no user administration.',
+    rolleLeitung: 'Leitung (management) — dispatch and site management: rosters, '
+      + 'working time, records; no user administration.',
     einladen: 'Invite',
 
     linkTitel: 'The account has been created.',

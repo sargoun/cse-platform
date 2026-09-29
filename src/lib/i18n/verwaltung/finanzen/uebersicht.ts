@@ -503,8 +503,8 @@ const DE: UebersichtTexte = {
       'Der Genesis-Hash dieses Kreises ist nicht der letzte Hash seines '
       + 'Vorgängers (§5.7 Schritt 3b).',
     kettenkopf_weicht_ab:
-      'Der in `nummernkreis.letzter_hash` gespeicherte Kettenkopf ist nicht '
-      + 'der Hash des letzten Gliedes dieses Kreises.',
+      'Der am Nummernkreis gespeicherte Kettenkopf ist nicht der Hash des letzten '
+      + 'Gliedes dieses Kreises.',
   },
   liveTitel: 'Nachgerechnet, Glied für Glied',
   nichtNachgerechnet:
@@ -602,8 +602,8 @@ const DE: UebersichtTexte = {
     'in den drei Gesellschaften hält und wer den Jahreswechsel ausführt, ist '
     + 'nicht entschieden — und ein Knopf würde die Rolle erfinden, die ihn '
     + 'auslöst.',
-  rechtGehalten: 'Dieses Konto hält nummernkreis.verwalten.',
-  rechtFehlt: 'Diesem Konto fehlt nummernkreis.verwalten.',
+  rechtGehalten: 'Dieses Konto hält das Recht.',
+  rechtFehlt: 'Diesem Konto fehlt das Recht.',
   auchMitRecht: 'Auch mit dem Recht gibt es den Vorgang noch nicht.',
   zaehlerFussnote:
     'Der Zähler ist hier Ansicht. Er wird ausschliesslich beim Festschreiben '
@@ -883,7 +883,7 @@ const EN: UebersichtTexte = {
       'The genesis hash of this Nummernkreis is not the last hash of its '
       + 'predecessor (§5.7 step 3b).',
     kettenkopf_weicht_ab:
-      'The chain head stored in `nummernkreis.letzter_hash` is not the hash of '
+      'The chain head stored on the Nummernkreis (number range) is not the hash of '
       + 'the last link of this Nummernkreis.',
   },
   liveTitel: 'Recomputed, link by link',
@@ -981,8 +981,8 @@ const EN: UebersichtTexte = {
   keinKnopfNach:
     'in the three companies, and who carries out the turn of the year, is not '
     + 'decided — and a button would invent the role that triggers it.',
-  rechtGehalten: 'This account holds nummernkreis.verwalten.',
-  rechtFehlt: 'This account lacks nummernkreis.verwalten.',
+  rechtGehalten: 'This account holds the right.',
+  rechtFehlt: 'This account lacks the right.',
   auchMitRecht: 'Even with the right the procedure does not exist yet.',
   zaehlerFussnote:
     'The counter is a view here. It is counted on solely at Festschreibung '

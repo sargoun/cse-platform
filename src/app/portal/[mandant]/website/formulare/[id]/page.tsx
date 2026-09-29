@@ -75,17 +75,14 @@ const FEHLER: Readonly<Record<string, string>> = {
   titel_fehlt: 'Ein Formular ohne Titel hat keine Überschrift auf der öffentlichen Seite.',
   sla_ungueltig: 'Die Reaktionszeit ist eine ganze Zahl von Stunden über null — oder nichts.',
   besitzer_fehlt: 'Ohne Besitzer fällt eine Anfrage niemandem zu.',
-  besitzer_unbekannt: 'Dieser Mensch gehört nicht zu dieser Gesellschaft — oder diese '
-    + 'Sitzung darf die Mitgliederliste nicht lesen (system.benutzer_lesen).',
-  benutzer_unbekannt: 'Dieser Mensch gehört nicht zu dieser Gesellschaft — oder diese '
-    + 'Sitzung darf die Mitgliederliste nicht lesen (system.benutzer_lesen).',
+  /*
+   * `besitzer_unbekannt`, `benutzer_unbekannt` und `dienstkonto` setzt die
+   * Seite selbst: ihre Rechte stehen als Satz (`<Recht>`, V-250).
+   */
   schon_live: 'Diese Version ist schon live. Vermutlich war jemand anderes schneller — '
     + 'laden Sie die Seite neu.',
   nicht_geaendert: 'Der Schreibvorgang ging nicht durch. Das Formular gehört nicht zu '
     + 'dieser Gesellschaft, oder dieser Sitzung fehlt das Schreibrecht.',
-  dienstkonto: 'Ein Dienstkonto pflegt keine Website. Der Annahmeprinzipal hält '
-    + 'formular.schreiben, weil er Einsendungen speichern muss — nicht, um ein '
-    + 'öffentliches Formular zu ändern (O-682).',
 };
 
 function englisch(formularSchluessel: string, feldSchluessel: string): FeldTexte | null {
@@ -257,7 +254,18 @@ export default async function WebsiteFormular(
 
       {abgewiesen === null ? null : (
         <Hinweis art="warnung" cse="formular-fehler" className="mb-s5 max-w-prose">
-          {FEHLER[abgewiesen] ?? 'Die Handlung wurde abgewiesen.'}
+          {abgewiesen === 'besitzer_unbekannt' || abgewiesen === 'benutzer_unbekannt' ? (
+            <>
+              Dieser Mensch gehört nicht zu dieser Gesellschaft — oder diese Sitzung darf die
+              Mitgliederliste nicht lesen (<Recht schluessel="system.benutzer_lesen" />).
+            </>
+          ) : abgewiesen === 'dienstkonto' ? (
+            <>
+              Ein Dienstkonto pflegt keine Website. Der Annahmeprinzipal hält{' '}
+              <Recht schluessel="formular.schreiben" />, weil er Einsendungen speichern muss —
+              nicht, um ein öffentliches Formular zu ändern (O-682).
+            </>
+          ) : FEHLER[abgewiesen] ?? 'Die Handlung wurde abgewiesen.'}
         </Hinweis>
       )}
       {gespeichert === null ? null : (

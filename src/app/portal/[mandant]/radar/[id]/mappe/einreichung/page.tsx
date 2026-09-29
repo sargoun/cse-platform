@@ -5,6 +5,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { Button } from '@/components/ui/Button';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
@@ -44,7 +45,7 @@ const BERLIN = new Intl.DateTimeFormat('de-DE', {
 const FEHLER_TEXT: Readonly<Record<string, string>> = {
   plattform: 'Zu einer Einreichung gehört die Plattform, über die sie lief — aus dem Katalog oder im Klartext.',
   stand: 'Diese Mappe lässt sich nicht als eingereicht erfassen: sie ist bereits erfasst oder verworfen.',
-  recht: 'Dafür fehlt das Recht vergabe.einreichung_erfassen.',
+  // `recht` setzt die Seite selbst: das Recht steht als Satz (`<Recht>`, V-250).
 };
 
 export default async function Einreichung(
@@ -111,7 +112,10 @@ export default async function Einreichung(
 
       {fehler !== null ? (
         <Hinweis art="warnung" cse="einreichung-fehler" className="mb-s5 max-w-prose">
-          <strong>Nicht erfasst.</strong> {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Handlung wurde abgewiesen.'}
+          <strong>Nicht erfasst.</strong>{' '}
+          {fehler === 'recht'
+            ? <>Dafür fehlt das Recht <Recht schluessel="vergabe.einreichung_erfassen" />.</>
+            : eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Handlung wurde abgewiesen.'}
         </Hinweis>
       ) : null}
 

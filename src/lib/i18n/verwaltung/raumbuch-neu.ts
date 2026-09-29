@@ -104,7 +104,7 @@ const DE: RaumNeuTexte = {
     nicht_gefunden: 'Dieses Objekt gibt es in dieser Gesellschaft nicht.',
     objekt_archiviert:
       'Dieses Objekt ist archiviert. Ein archiviertes Objekt bekommt keine neuen Räume.',
-    kein_recht: 'Ihnen fehlt objekt.schreiben.',
+    // `kein_recht` setzt die Seite aus `keinSchreibrecht` und `<Recht>` (V-250).
   },
 };
 
@@ -166,7 +166,7 @@ const EN: RaumNeuTexte = {
     nicht_gefunden: 'This Objekt (site) does not exist in this Mandant (company).',
     objekt_archiviert:
       'This Objekt (site) is archived. An archived site takes no new rooms.',
-    kein_recht: 'You are missing objekt.schreiben.',
+    // `kein_recht`: the page builds it from `keinSchreibrecht` and `<Recht>` (V-250).
   },
 };
 

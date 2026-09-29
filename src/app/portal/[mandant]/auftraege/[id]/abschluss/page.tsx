@@ -137,7 +137,9 @@ export default async function Abschluss(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="abschluss-fehler" className="mb-s5">
           <strong>Der Auftrag ist nicht abgeschlossen.</strong>{' '}
-          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+          {fehler === 'kein_recht'
+            ? <>Ihnen fehlt <Recht schluessel="auftrag.abschliessen" />.</>
+            : eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 

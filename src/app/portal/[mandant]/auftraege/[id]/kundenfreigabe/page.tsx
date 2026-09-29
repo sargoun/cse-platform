@@ -133,7 +133,9 @@ export default async function Kundenfreigabe(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="freigabe-fehler" className="mb-s5">
           <strong>Nichts wurde erfasst.</strong>{' '}
-          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+          {fehler === 'kein_recht'
+            ? <>Ihnen fehlt <Recht schluessel="referenz.kundenfreigabe_erfassen" />.</>
+            : eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 
@@ -189,7 +191,7 @@ export default async function Kundenfreigabe(
                 <span className="text-text-subtle">
                   {stand.darf_dokument_lesen
                     ? '—'
-                    : 'hinterlegt, aber Ihnen nicht sichtbar (dokument.lesen fehlt)'}
+                    : <>hinterlegt, aber Ihnen nicht sichtbar (es fehlt <Recht schluessel="dokument.lesen" />)</>}
                 </span>
               ) : darf['dokument.lesen'] === true && stand.freigabe_dokument_id !== null ? (
                 <Link

@@ -28,7 +28,6 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
       'Auf diesem Lieferanten liegen noch nicht abgeschlossene '
       + 'Eingangsrechnungen. Schliessen Sie die zuerst ab — sonst zeigt eine '
       + 'offene Zahlung auf einen Empfänger, den niemand mehr auswählen kann.',
-    kein_schreibrecht: 'Dafür fehlt das Recht `eingang.schreiben`.',
     status_unbekannt: 'Unbekannter Status.',
   },
   en: {
@@ -47,7 +46,16 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
       'Incoming invoices on this Lieferant are not yet closed. Close those '
       + 'first — otherwise an open payment points to a payee nobody can select '
       + 'any more.',
-    kein_schreibrecht: 'That requires the right `eingang.schreiben`.',
     status_unbekannt: 'Unknown status.',
   },
+};
+
+/**
+ * Der Anfang des Satzes zu `kein_schreibrecht` — das Recht selbst setzt die
+ * Seite dahinter als `<Recht>` (Name im Satz, Schlüssel im `title`, V-250).
+ * Vorher stand hier der rohe Schlüssel in Backticks, auf dem Schirm wörtlich.
+ */
+export const LIEFERANT_FEHLT_RECHT: Readonly<Record<InternSprache, string>> = {
+  de: 'Dafür fehlt das Recht',
+  en: 'That requires the right',
 };

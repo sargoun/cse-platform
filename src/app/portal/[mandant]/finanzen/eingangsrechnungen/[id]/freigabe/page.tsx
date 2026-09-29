@@ -5,6 +5,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld, type Cent } from '@/server/services/finanz/geld';
 import { vierAugenGrenze } from '@/server/services/finanz/eingangsrechnung';
@@ -182,7 +183,8 @@ export default async function Freigabeblatt(
           <h1 className="mb-s3 text-h1 text-text">{t.freigabe}</h1>
           <Hinweis art="warnung" cse="freigabe-kein-leserecht">
             <p className="m-0 max-w-prose">
-              {t.diesemKontoFehlt} <strong>{RECHT_EINGANG_LESEN}</strong>
+              {t.diesemKontoFehlt}{' '}
+              <Recht schluessel={RECHT_EINGANG_LESEN} sprache={zugang.sprache} />
               {t.keinLeserechtFreigabe}
             </p>
           </Hinweis>
@@ -424,9 +426,13 @@ export default async function Freigabeblatt(
             </p>
             {freigabeMoeglich ? null : (
               <p className="m-0 mt-s3 max-w-prose text-sm text-warning">
-                {vierAugenSperrt
-                  ? t.gesperrtVierAugen
-                  : `${t.diesemKontoFehlt} ${RECHT_ENTSCHEIDEN}${t.rechtEntscheidenFehlt}`}
+                {vierAugenSperrt ? t.gesperrtVierAugen : (
+                  <>
+                    {t.diesemKontoFehlt}{' '}
+                    <Recht schluessel={RECHT_ENTSCHEIDEN} sprache={zugang.sprache} />
+                    {t.rechtEntscheidenFehlt}
+                  </>
+                )}
               </p>
             )}
             <button

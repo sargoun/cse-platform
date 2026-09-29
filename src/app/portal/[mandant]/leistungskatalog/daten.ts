@@ -46,7 +46,7 @@ export const FEHLERTEXT: Readonly<Record<string, string>> = {
   nicht_gefunden:
     'Diese Fassung oder Position gibt es nicht — oder die Position gehört zu einer '
     + 'anderen Fassung.',
-  kein_recht: 'Ihnen fehlt katalog.schreiben.',
+  // `kein_recht` setzen die Seiten selbst: das Recht steht als Satz (`<Recht>`, V-250).
 };
 
 /** Die vier Steuerkennzeichen mit ihrem deutschen Namen. */

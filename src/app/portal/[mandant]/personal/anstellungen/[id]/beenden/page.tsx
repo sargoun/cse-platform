@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type postgres from 'postgres';
+import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
@@ -7,6 +8,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -59,16 +61,22 @@ function tageText(roh: string | null): string {
 /** Ein Posten der Folgenliste — Text und Ton in einer Entscheidung. */
 interface Posten {
   readonly name: string;
-  readonly wert: string;
+  /** Ein fehlendes Leserecht steht als `<Recht>` darin (V-250), deshalb kein `string`. */
+  readonly wert: ReactNode;
   readonly warnt: boolean;
   readonly pruefbar: boolean;
+}
+
+/** „nicht prüfbar — kein Leserecht („…“)" — das Recht als Satz, der Schlüssel im `title`. */
+function ohneLeserecht(recht: string): ReactNode {
+  return <>nicht prüfbar — kein Leserecht (<Recht schluessel={recht} />)</>;
 }
 
 function posten(folgen: Beendigungsfolgen): readonly Posten[] {
   const zahl = (
     name: string, wert: number | null, einheit: string, recht: string,
   ): Posten => (wert === null
-    ? { name, wert: `nicht prüfbar — kein Leserecht (${recht})`, warnt: false, pruefbar: false }
+    ? { name, wert: ohneLeserecht(recht), warnt: false, pruefbar: false }
     : {
       name,
       wert: wert === 0 ? 'keine' : `${String(wert)} ${einheit}`,
@@ -85,7 +93,7 @@ function posten(folgen: Beendigungsfolgen): readonly Posten[] {
     }
     : {
       name: 'Resturlaub (offene Konten)',
-      wert: 'nicht prüfbar — kein Leserecht (zeit.konto_lesen)',
+      wert: ohneLeserecht('zeit.konto_lesen'),
       warnt: false,
       pruefbar: false,
     };

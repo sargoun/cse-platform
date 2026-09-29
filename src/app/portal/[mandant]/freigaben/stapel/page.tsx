@@ -312,8 +312,13 @@ export default async function Stapelmappe({
             ? `Mehr als ${String(STAPEL_HOECHSTZAHL)} auf einmal ist keine Prüfung mehr, `
               + 'sondern ein Häkchen bei „alle".'
             : fehler === 'kein_recht'
-              ? 'Stapelweise zu genehmigen ist eine eigene Befugnis '
-                + '(„freigabe.stapel_entscheiden"), und dieses Konto hält sie nicht.'
+              ? (
+                <>
+                  Stapelweise zu genehmigen ist eine eigene Befugnis
+                  (<Recht schluessel="freigabe.stapel_entscheiden" />), und dieses Konto hält
+                  sie nicht.
+                </>
+              )
               : 'Es war nichts ausgewählt.'}
         </Hinweis>
       )}

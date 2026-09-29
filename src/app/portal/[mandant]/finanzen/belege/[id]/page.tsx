@@ -6,6 +6,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { formatiereGeld } from '@/server/services/finanz/geld';
 import {
@@ -248,7 +249,8 @@ export default async function Belegblatt(
             </p>
           ) : (
             <p className="mb-s5 max-w-prose text-sm text-text-muted">
-              {t.diesemKontoFehlt} <strong>{RECHT_DOKUMENT_LESEN}</strong>
+              {t.diesemKontoFehlt}{' '}
+              <Recht schluessel={RECHT_DOKUMENT_LESEN} sprache={zugang.sprache} />
               {t.dateiBleibtZu}
             </p>
           )}

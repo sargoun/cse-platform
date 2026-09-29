@@ -65,8 +65,9 @@ export default async function WebsiteSeiten(
 
       {seiten.length === 0 ? (
         <Hinweis art="hinweis" cse="keine-seiten">
-          Für diese Gesellschaft ist noch keine Seite angelegt. `pnpm content:import`
-          legt den Erstbestand an; danach wird hier gepflegt.
+          Für diese Gesellschaft ist noch keine Seite angelegt. Den Erstbestand spielt
+          die technische Betreuung einmalig mit dem Inhaltsimport ein; danach wird hier
+          gepflegt.
         </Hinweis>
       ) : (
         <DataTable

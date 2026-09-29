@@ -365,10 +365,13 @@ export default async function Ausgabenblatt(
       >
         {daten.erstattung === null ? (
           <p className="m-0 max-w-prose text-text-muted">
-            {darf['personal.erstattung_lesen'] === true
-              ? t.keineErstattung
-              : `${t.keineAngabeErstattungVor}${RECHT_ERSTATTUNG_LESEN}`
-                + `${t.keineAngabeErstattungNach}`}
+            {darf['personal.erstattung_lesen'] === true ? t.keineErstattung : (
+              <>
+                {t.keineAngabeErstattungVor}
+                <Recht schluessel={RECHT_ERSTATTUNG_LESEN} sprache={zugang.sprache} />
+                {t.keineAngabeErstattungNach}
+              </>
+            )}
           </p>
         ) : (
           <>

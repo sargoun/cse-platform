@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import type postgres from 'postgres';
 import { Card } from '@/components/ui/Card';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { sichererRueckweg } from '@/server/auth/kennwort-anmeldung';
 import { bindeAnfrage } from '@/server/kontext';
@@ -85,7 +86,8 @@ export default async function KeinZugriff({ searchParams }: {
           {recht !== null && (
             <>
               <dt className="text-text-subtle">Benötigtes Recht</dt>
-              <dd data-cse="kz-recht" className="font-mono text-text">{recht}</dd>
+              {/* Der Satz, nicht der Schlüssel — der steht im `title` (V-250). */}
+              <dd data-cse="kz-recht" className="text-text"><Recht schluessel={recht} /></dd>
             </>
           )}
           {wohin !== null && (

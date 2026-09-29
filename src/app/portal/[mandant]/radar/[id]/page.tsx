@@ -5,6 +5,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { Button } from '@/components/ui/Button';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -222,7 +223,12 @@ export default async function Bekanntmachung(
           <strong>Nicht geändert.</strong> {abgewiesen === 'grund'
             ? 'Ein Verwerfen braucht einen Grund — RAD-07 verlangt ihn, und in einem halben Jahr erinnert sich niemand mehr ohne ihn.'
             : abgewiesen === 'mappe_recht'
-              ? '„In Bearbeitung" legt die Vergabemappe an — dafür fehlt das Recht vergabe.schreiben.'
+              ? (
+                <>
+                  „In Bearbeitung" legt die Vergabemappe an — dafür fehlt das Recht{' '}
+                  <Recht schluessel="vergabe.schreiben" />.
+                </>
+              )
               : 'Die Handlung wurde abgewiesen.'}
         </Hinweis>
       ) : null}
@@ -487,7 +493,7 @@ export default async function Bekanntmachung(
         </section>
       ) : (
         <p className="max-w-prose text-xs text-text-muted">
-          Den Stand setzt, wer <span className="font-mono">radar.status_setzen</span> hält.
+          Den Stand setzt, wer <Recht schluessel="radar.status_setzen" /> hält.
         </p>
       )}
     </PortalRahmen>

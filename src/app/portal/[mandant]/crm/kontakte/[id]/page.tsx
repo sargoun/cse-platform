@@ -717,10 +717,15 @@ export default async function Kontaktblatt(
                 ? 'Sie wird zugleich als Aufgabe und als Kalendereintrag gespiegelt '
                   + '(O-663) — sonst stünde derselbe Vorgang hier offen und in der '
                   + 'Aufgabenliste gar nicht.'
-                : 'Gespiegelt wird sie nur, soweit die Rechte reichen: für die Aufgabe '
-                  + 'braucht es `aufgabe.schreiben`, für den Kalendereintrag '
-                  + '`kalender.schreiben`. Was nicht entsteht, sagt Ihnen die Meldung '
-                  + 'nach dem Speichern beim Namen (O-663) — verschwiegen wird nichts.'}
+                : (
+                  <>
+                    Gespiegelt wird sie nur, soweit die Rechte reichen: für die Aufgabe
+                    braucht es <Recht schluessel="aufgabe.schreiben" />, für den
+                    Kalendereintrag <Recht schluessel="kalender.schreiben" />. Was nicht
+                    entsteht, sagt Ihnen die Meldung nach dem Speichern beim Namen (O-663)
+                    — verschwiegen wird nichts.
+                  </>
+                )}
             </p>
             <form
               method="post" action="/api/crm/wiedervorlage"
@@ -784,9 +789,9 @@ export default async function Kontaktblatt(
                       Mir selbst zuweisen
                     </span>
                     <span className="text-xs text-text-muted">
-                      Andere Menschen stehen hier nicht zur Wahl — dafür fehlt
-                      `system.benutzer_lesen`. Eine Auswahlliste, die Namen nennt, wäre
-                      selbst die Auskunft.
+                      Andere Menschen stehen hier nicht zur Wahl — dafür fehlt{' '}
+                      <Recht schluessel="system.benutzer_lesen" />. Eine Auswahlliste, die
+                      Namen nennt, wäre selbst die Auskunft.
                     </span>
                   </>
                 )}

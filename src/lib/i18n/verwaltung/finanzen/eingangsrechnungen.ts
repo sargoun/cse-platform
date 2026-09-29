@@ -235,7 +235,10 @@ export interface EingangsrechnungenTexte {
   readonly ausgangBescheinigung: string;
   readonly ausgangBagatelle: string;
   readonly ausgangEinbehalt: string;
-  readonly nichtBewertbarMitte: string;
+  /**
+   * Hinter „Diesem Konto fehlt <Recht>" — ohne Tabellennamen (V-250): bis
+   * dahin stand hier „Die Policy auf `freistellungsbescheinigung` …".
+   */
   readonly nichtBewertbarNach: string;
   readonly keinSatzVor: string;
   readonly keinSatzNach: string;
@@ -265,7 +268,7 @@ export interface EingangsrechnungenTexte {
   readonly fortgeschrieben: string;
   readonly prognoseErklaerung: string;
   readonly fsbTitel: string;
-  readonly fsbKeinRechtMitte: string;
+  /** Hinter „Diesem Konto fehlt <Recht>" — ohne Tabellennamen (V-250). */
   readonly fsbKeinRechtNach: string;
   readonly keineFsbHinterlegt: string;
   readonly tabelleFsb: string;
@@ -529,7 +532,7 @@ const DE: EingangsrechnungenTexte = {
   zurBuchungFreigeben: 'Zur Buchung freigeben',
   grundFuenf: 'Grund (mindestens fünf Zeichen)',
 
-  keinLeserechtSteuerMitte: '. Diese Route öffnet mit',
+  keinLeserechtSteuerMitte: '. Diese Seite öffnet mit',
   keinLeserechtSteuerNach:
     ', die Rechnung selbst liegt aber hinter dem Eingangsrecht — beide Mengen '
     + 'sind nicht deckungsgleich, und welche gelten soll, ist offen (O-604).',
@@ -577,13 +580,13 @@ const DE: EingangsrechnungenTexte = {
   ausgangBescheinigung: 'Angewandt: Ausgang 1 — gültige Freistellungsbescheinigung',
   ausgangBagatelle: 'Angewandt: Ausgang 2 — Jahressumme unter der Bagatellgrenze',
   ausgangEinbehalt: 'Angewandt: Ausgang 3 — es wird einbehalten',
-  nichtBewertbarMitte: '. Die Policy auf',
   nichtBewertbarNach:
-    'verlangt genau dieses Recht, die Bescheinigungen dieses Lieferanten sind '
-    + 'hier also unsichtbar — und eine leere Liste hiesse „keine '
-    + 'Bescheinigung", während sie „nicht sichtbar" bedeutet. Aus einer durch '
-    + 'RLS geleerten Liste wird hier kein Ausgang bestimmt und kein Einbehalt '
-    + 'gerechnet (O-604). Wer entscheidet, braucht das Leserecht.',
+    '. Freistellungsbescheinigungen gibt die Datenbank nur mit genau diesem Recht '
+    + 'heraus; die Bescheinigungen dieses Lieferanten sind hier also unsichtbar — '
+    + 'und eine leere Liste hiesse „keine Bescheinigung", während sie „nicht '
+    + 'sichtbar" bedeutet. Aus einer so geleerten Liste wird hier kein Ausgang '
+    + 'bestimmt und kein Einbehalt gerechnet (O-604). Wer entscheidet, braucht '
+    + 'das Leserecht.',
   keinSatzVor: 'Auf diesem Beleg steht kein Abzugssatz, und die Einstellung',
   keinSatzNach:
     'ist nicht belegt. Beides fehlt — also wird nichts gerechnet. 15 % wären '
@@ -629,9 +632,9 @@ const DE: EingangsrechnungenTexte = {
     + 'geschätzte Prognose wäre eine, die die Plattform behauptet und niemand '
     + 'verantwortet.',
   fsbTitel: 'Freistellungsbescheinigungen nach §48b EStG',
-  fsbKeinRechtMitte: '— und genau das verlangt die Policy auf',
   fsbKeinRechtNach:
-    '. Die Bescheinigungen bleiben deshalb ungezeigt; das ist kein leerer '
+    '— und genau das verlangt die Datenbank, bevor sie Freistellungsbescheinigungen '
+    + 'herausgibt. Die Bescheinigungen bleiben deshalb ungezeigt; das ist kein leerer '
     + 'Bestand, sondern ein fehlendes Recht (O-604).',
   keineFsbHinterlegt:
     'Für diesen Lieferanten ist keine Freistellungsbescheinigung '
@@ -908,7 +911,7 @@ const EN: EingangsrechnungenTexte = {
   zurBuchungFreigeben: 'Approve for booking',
   grundFuenf: 'Reason (at least five characters)',
 
-  keinLeserechtSteuerMitte: '. This route opens with',
+  keinLeserechtSteuerMitte: '. This page opens with',
   keinLeserechtSteuerNach:
     ', but the invoice itself sits behind the Eingang right — the two sets are '
     + 'not congruent, and which of them is to apply is open (O-604).',
@@ -961,12 +964,12 @@ const EN: EingangsrechnungenTexte = {
     'Applied: outcome 2 — annual total below the Bagatellgrenze (de-minimis '
     + 'threshold)',
   ausgangEinbehalt: 'Applied: outcome 3 — tax is retained',
-  nichtBewertbarMitte: '. The policy on',
   nichtBewertbarNach:
-    'requires precisely that right, so this supplier’s certificates are '
+    '. The database releases Freistellungsbescheinigungen (exemption certificates) '
+    + 'only with precisely that right, so this supplier’s certificates are '
     + 'invisible here — and an empty list would read as "no certificate" while '
     + 'it means "not visible". No outcome is determined and no retention '
-    + 'computed here from a list emptied by RLS (O-604). Whoever decides needs '
+    + 'computed here from a list emptied that way (O-604). Whoever decides needs '
     + 'the read right.',
   keinSatzVor: 'This document carries no withholding rate, and the setting',
   keinSatzNach:
@@ -1016,10 +1019,11 @@ const EN: EingangsrechnungenTexte = {
     + 'for.',
   fsbTitel:
     'Freistellungsbescheinigungen — exemption certificates under §48b EStG',
-  fsbKeinRechtMitte: '— and that is precisely what the policy on',
   fsbKeinRechtNach:
-    ' requires. The certificates therefore remain unshown; that is not an empty '
-    + 'stock, it is a missing right (O-604).',
+    '— and that is precisely what the database requires before it releases '
+    + 'Freistellungsbescheinigungen (exemption certificates). The certificates '
+    + 'therefore remain unshown; that is not an empty stock, it is a missing right '
+    + '(O-604).',
   keineFsbHinterlegt:
     'No Freistellungsbescheinigung (exemption certificate) is recorded for this '
     + 'supplier. Without one, tax is retained — that is outcome 3 and not an '

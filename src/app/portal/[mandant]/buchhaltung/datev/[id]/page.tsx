@@ -6,6 +6,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
+import { Recht } from '@/components/ui/Recht';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
@@ -80,7 +81,7 @@ const FEHLERTEXT: Readonly<Record<string, string>> = {
   grund_zu_kurz:
     'Ein verworfener Stapel braucht einen Grund, mindestens fünf Zeichen. In drei '
     + 'Jahren weiss sonst niemand mehr, warum dieser Monat nicht beim Büro liegt.',
-  abgewiesen: 'Ihnen fehlt buchhaltung.exportieren.',
+  // `abgewiesen` setzt die Seite selbst: das Recht steht als Satz (`<Recht>`, V-250).
 };
 
 export default async function DatevStapel(
@@ -248,7 +249,9 @@ export default async function DatevStapel(
           className="mb-s7 rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-warning"
         >
           <strong>Nichts wurde vermerkt.</strong>{' '}
-          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+          {fehler === 'abgewiesen'
+            ? <>Ihnen fehlt <Recht schluessel="buchhaltung.exportieren" />.</>
+            : eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </section>
       )}
 

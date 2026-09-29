@@ -343,6 +343,13 @@ export default async function AgentBudget(
       {fehler !== null && (
         <Hinweis art="warnung" cse="budget-fehler" className="mb-s4 max-w-prose">
           {eigenerEintrag(t.fehler, fehler) ?? fehler}
+          {fehler === 'abgewiesen' && (
+            <>
+              {' '}{t.abgewiesenFrageVor}{' '}
+              <Recht schluessel={RECHT_BUDGET} sprache={zugang.sprache} />
+              {t.abgewiesenFrageNach}
+            </>
+          )}
         </Hinweis>
       )}
 

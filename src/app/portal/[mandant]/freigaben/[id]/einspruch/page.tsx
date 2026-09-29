@@ -143,7 +143,14 @@ export default async function Einspruch(
       {fehler !== null ? (
         <Hinweis art="warnung" cse="einspruch-abgewiesen" className="mb-s5 max-w-prose">
           <strong>Kein Einspruch vermerkt.</strong>{' '}
-          {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Handlung wurde abgewiesen.'}
+          {fehler === 'recht' ? (
+            <>
+              Dafür fehlt ein Recht an dieser Freigabe: ein Einspruch verlangt zusätzlich
+              das Recht, das der Vorgang selbst fordert — hier{' '}
+              <Recht schluessel={f.erforderlichesRecht ?? 'freigabe.entscheiden'} />. Die
+              eigene Befugnis allein genügt nicht.
+            </>
+          ) : eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Handlung wurde abgewiesen.'}
         </Hinweis>
       ) : null}
 
@@ -222,9 +229,8 @@ export default async function Einspruch(
             <>
               <strong>Das Fenster läuft — aber nicht für dieses Konto.</strong>{' '}
               Einspruch verlangt zusätzlich das Recht, das dieser Vorgang selbst fordert
-              (<code className="text-xs">
-                {f.erforderlichesRecht ?? 'freigabe.entscheiden'}
-              </code>). Die eigene Befugnis
+              (<Recht schluessel={f.erforderlichesRecht ?? 'freigabe.entscheiden'} />). Die
+              eigene Befugnis
               {' '}<Recht schluessel="freigabe.einspruch_erheben" /> genügt dafür
               nicht — ein Knopf, den die Datenbank abweist, hätte gar nicht erst dastehen
               dürfen (offene Frage O-367).

@@ -20923,3 +20923,90 @@ eine Prüfung, die den Satz nur aufrief.
 
 | Betrifft | EMP-10, D-663, D-681, D-692, O-613, O-925, V-187, V-260, `src/lib/i18n/mein-formular.ts` (`fehlt_einsatz`), `src/lib/i18n/mein-formulare.ts` (`AntragFormTexte`), `tests/kern/{mein-formular-rueckweg,antrag-rueckweg}.test.ts` |
 |---|---|
+
+### D-741 · Ein Recht steht als Satz auch ausserhalb von `<code>` — kein Schlüssel und kein Backtick im sichtbaren Text, geprüft am Syntaxbaum (V-250)
+
+**Der Befund** (Durchgang über den sichtbaren Text, Nutzerwunsch „wo auf einer
+Seite Quelltext steht, mach einen Rahmen und einen Satz daraus"): V-123 hatte
+die 141 Stellen `<code>kalkulation.lesen</code>` zu `<Recht>` gemacht, und
+`recht-im-satz.test.ts` hielt genau diese Hülle fest. Dieselben Schlüssel
+standen weiter roh da — als Text zwischen zwei Elementen, in
+`<span className="font-mono">`, als Zeichenkette in einem Ast, als
+`<strong>{RECHT_…}</strong>`, eingesetzt in eine Vorlage, als Feldwert und in
+den Satztabellen, aus denen die Seiten ihre Fehlersätze nehmen — und
+Markdown-Backticks um technische Namen, die im Browser Backticks bleiben. Auf
+main 21561fd 117 Befunde an 98 Stellen in 64 Dateien, dazu zwei ohne
+Schlüssel im Quelltext (Kein-Zugriff-Seite, Beendigungsblatt).
+
+**Die Entscheidung.**
+
+1. **Jeder Schlüssel wird `<Recht schluessel=…>`.** Auf einer zweisprachigen
+   Seite mit der Sprache der Seite (`zugang.sprache`); auf einer Seite der
+   Ausnahmeliste der Übersetzungswache ohne `sprache` — der Satz darum ist
+   dort deutsch, ein englischer Rechtename darin wäre ein Sprachwechsel
+   mitten im Satz. `title` und `data-recht` tragen den Schlüssel weiter
+   (V-123); ein `title`, der ihn in einem Satz nennt, bleibt erlaubt.
+2. **Eine Satztabelle trägt keinen Schlüssel.** Wo ein Grund ein Recht nennt
+   (`kein_recht`, `recht`, `abgewiesen`, `gesperrt`, `dienstkonto` …), setzt
+   die Seite den Satz für diesen Grund selbst und das Recht als `<Recht>`
+   hinein; der Eintrag fällt aus der Tabelle, ein Kommentar sagt, wo er
+   steht. Steht die Tabelle in der Seite selbst (Zeitkorrektur,
+   `kein_kontorecht`), bleibt der Satz in der Tabelle, als `ReactNode` mit
+   `<Recht>` — `zeit-korrektur-weg.test.ts` verlangt dort für jedes Wort der
+   Route einen Eintrag, und das gilt weiter. Zweisprachige Tabellen bekommen die Teile um
+   das Recht herum (`abgewiesenFrageVor/Nach` im KI-Budget,
+   `LIEFERANT_FEHLT_RECHT`); wo der Satz davor das Recht schon nennt, sagt
+   die Tabelle „das Recht" (Nummernkreise). Einspruch und Rücknahme nennen
+   das Recht DIESES Vorgangs (`erforderlichesRecht`), nicht die Vorgabe.
+3. **Wo ein Satz ein Recht enthält, ist er kein `string` mehr**:
+   `hinweis` der Projektkacheln, `wert` im Antragsblatt und im
+   Beendigungsblatt und die Fehlersätze der Zeitkorrektur nehmen
+   `ReactNode`.
+4. **Technische Namen in denselben Sätzen werden Sätze an den Leser** —
+   gesagt wird die Wirkung, nicht der Mechanismus: `t_sitzung_eigene` →
+   „Die Sitzungen eines Kontos sieht nur sein Inhaber selbst";
+   `kern.verhindere_loeschung()`/`DELETE` → „die Datenbank weist jeden
+   Löschversuch ab"; `entscheidung_je_bewerbung` → „eine zweite nimmt die
+   Datenbank gar nicht erst an"; `pnpm content:import` → „spielt die
+   technische Betreuung einmalig mit dem Inhaltsimport ein" (Liste und Blatt
+   der Seiten); `person` → „ein Mensch gehört keiner einzelnen Gesellschaft";
+   `mandant.module` → „Modulliste der Gesellschaft";
+   `app.kunde_mahnsperre_aktiv` → „Die Sperre"; `fsb_umfang_auftrag` →
+   „Einen Auftrag nimmt die Datenbank genau dann an …"; die `einsatz`-Zeile
+   → „Schicht"; `nummernkreis.letzter_hash` → „am Nummernkreis gespeichert";
+   die Policy auf `freistellungsbescheinigung` → „gibt die Datenbank nur mit
+   genau diesem Recht heraus", „Route" → „Seite", „durch RLS geleert" → „so
+   geleert"; die Rollen `admin`/`leitung` → „Administration", „Leitung". Die
+   englische Fassung zieht mit, wo die Tabelle zweisprachig ist.
+5. **Drei Namen aus `rechtname.ts` sagten an den neuen Stellen Falsches** und
+   sind berichtigt — das ändert auch die Rechtematrix: `pruefdauer` „die
+   Prüffrist" → „die Prüfdauer" (“review times”), `konto` — nur
+   `zeit.konto_*` — „das Konto" → „Zeitkonten" (“time accounts”, neben
+   „Benutzerkonten" las es sich wie das Anmeldekonto), `kunde` — nur
+   `dokument.kunde_freigeben` — „Kunden freigeben" → „Dokumente für Kunden
+   freigeben".
+6. **Die Kein-Zugriff-Seite** zeigt das benötigte Recht als Satz; der
+   Schlüssel aus der Adresse steht im `title`.
+7. **Geprüft am Syntaxbaum** (`tests/kern/hilfen/sichtbarer-text.ts`,
+   `tests/kern/recht-im-satz.test.ts`): über `src/app` (ohne `api`),
+   `src/components` und `src/lib/i18n` jeder JSX-Text; jede Zeichenkette an
+   einer Stelle, deren Wert gerendert wird (Äste von `?:`, rechts von `&&`,
+   `||`/`??`/`+`, Vorlagen samt eingesetzter Werte, Listen, `.map`-Rückrufe,
+   Rückgaben einer Funktion derselben Datei, Konstanten der Datei und über
+   den Import); die Beschriftungen der Übersetzungswache ohne `title`, dazu
+   `wert`, `leer`, `was`, `weg`, `defaultValue`, `unterzeile`; Tabellenzellen
+   (`zelle`); die Werte jedes Objektfelds als Satztabelle — ein Wert, der NUR
+   ein Schlüssel ist, ist Steuerung (`recht: 'crm.lesen'`). Die Gegenprobe
+   findet jeden dieser Wege an einem Stück Quelltext und nichts an `<Recht>`,
+   `title`, `darf['…']`, `hatRecht('…')` und einem reinen Schlüsselwert.
+   `tests/kern/rechtname.test.ts` hält die drei Namen aus Nr. 5.
+8. **Nicht erfasst, bewusst:** ein Schlüssel, der über einen
+   Funktionsparameter in eine Vorlage fliesst (das Beendigungsblatt fand die
+   Suche von Hand; die Wache verfolgt Aufrufargumente nicht, weil
+   `hatRecht('…')` dieselbe Form hat), und der Rückfall `?? fehler`, mit dem
+   fünf Seiten einen unbekannten Grund aus der Adresse roh zeigen (KI-Budget,
+   Lieferant, Raum anlegen, Turnus, Zeitkorrektur) — kein Rechteschlüssel,
+   aber derselbe Befund in klein; er bleibt für einen eigenen Durchgang.
+
+| Betrifft | V-123, V-250, AUT-06, D-599, D-728, `src/components/ui/Recht.tsx`, `src/lib/i18n/rechtname.ts`, `src/lib/i18n/verwaltung/{agent-budget,raumbuch-neu}.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,uebersicht}.ts`, `src/app/auth/{kein-zugriff,zwei-faktor/wiederherstellung}/page.tsx`, 70 Seiten und Satztabellen unter `src/app/portal/[mandant]`, `tests/kern/{recht-im-satz,rechtname}.test.ts`, `tests/kern/hilfen/sichtbarer-text.ts` |
+|---|---|

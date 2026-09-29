@@ -6,6 +6,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { pruefstand } from '@/server/services/finanz/xrechnung/pruefstand';
 import {
@@ -383,7 +384,7 @@ export default async function Versandblatt(
                   ) : (
                     <span className="text-xs text-text-muted">
                       {t.diesemKontoFehlt}
-                      <strong>{RECHT_HERUNTERLADEN}</strong>
+                      <Recht schluessel={RECHT_HERUNTERLADEN} sprache={zugang.sprache} />
                       {t.dateiBleibtZu}
                     </span>
                   )}
@@ -513,7 +514,7 @@ export default async function Versandblatt(
       {festgeschrieben && verbunden && darf['versand.freigeben'] !== true ? (
         <p className="mt-s5 max-w-prose text-sm text-text-muted">
           {t.diesemKontoFehlt}
-          <strong>{RECHT_VERSAND_FREIGEBEN}</strong>
+          <Recht schluessel={RECHT_VERSAND_FREIGEBEN} sprache={zugang.sprache} />
           {t.versandFreigebenFehltNach}
         </p>
       ) : null}

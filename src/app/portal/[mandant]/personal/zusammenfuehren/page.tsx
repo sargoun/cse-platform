@@ -140,8 +140,8 @@ export default async function Zusammenfuehren({
         <p className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Zwei Zeichen genügen. Gesucht wird unter den Menschen, die in{' '}
           <strong className="text-text">dieser</strong> Gesellschaft beschäftigt
-          sind — `person` trägt keinen Mandanten (D-09), sichtbar ist ein Mensch
-          hier, weil er hier arbeitet.
+          sind — ein Mensch gehört keiner einzelnen Gesellschaft (D-09), sichtbar
+          ist er hier, weil er hier arbeitet.
         </p>
       ) : kandidaten.length === 0 ? (
         <p data-cse="merge-leer" className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">

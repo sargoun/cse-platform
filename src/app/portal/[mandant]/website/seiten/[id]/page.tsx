@@ -101,9 +101,8 @@ export default async function WebsiteSeite(
 
       {abschnitte.length === 0 ? (
         <Hinweis art="hinweis" cse="keine-abschnitte" className="max-w-prose">
-          Diese Seite hat keine Abschnitte. Der Erstbestand entsteht über
-          <code className="mx-s1 font-mono">pnpm content:import</code>; danach wird
-          hier gepflegt.
+          Diese Seite hat keine Abschnitte. Den Erstbestand spielt die technische
+          Betreuung einmalig mit dem Inhaltsimport ein; danach wird hier gepflegt.
         </Hinweis>
       ) : (
         <div className="flex flex-col gap-s5">

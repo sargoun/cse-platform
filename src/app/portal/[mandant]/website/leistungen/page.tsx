@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { StatusPill } from '@/components/ui/StatusPill';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
@@ -182,7 +183,8 @@ export default async function WebsiteLeistungen(
                     </form>
                   ) : (
                     <p className="m-0 text-xs text-text-subtle">
-                      Anlegen darf, wer die Website pflegt (referenz.schreiben).
+                      Anlegen darf, wer die Website pflegt (Recht{' '}
+                      <Recht schluessel="referenz.schreiben" />).
                     </p>
                   )}
                 </>

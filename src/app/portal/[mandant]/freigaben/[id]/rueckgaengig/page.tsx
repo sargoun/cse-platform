@@ -133,7 +133,14 @@ export default async function Rueckgaengig(
       {fehler !== null ? (
         <Hinweis art="warnung" cse="ruecknahme-abgewiesen" className="mb-s5 max-w-prose">
           <strong>Nicht zurückgenommen.</strong>{' '}
-          {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Handlung wurde abgewiesen.'}
+          {fehler === 'recht' ? (
+            <>
+              Dafür fehlt ein Recht an dieser Freigabe: eine Rücknahme verlangt zusätzlich
+              das Recht, das der Vorgang selbst fordert — hier{' '}
+              <Recht schluessel={f.erforderlichesRecht ?? 'freigabe.entscheiden'} />. Die
+              eigene Befugnis allein genügt nicht.
+            </>
+          ) : eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Handlung wurde abgewiesen.'}
         </Hinweis>
       ) : null}
 
@@ -196,7 +203,7 @@ export default async function Rueckgaengig(
         <Hinweis art="hinweis" cse="ruecknahme-kein-zeilenrecht" className="mb-s6 max-w-prose">
           <strong>Das Fenster läuft — aber nicht für dieses Konto.</strong> Eine Rücknahme
           verlangt zusätzlich das Recht, das dieser Vorgang selbst fordert
-          (<code className="text-xs">{f.erforderlichesRecht ?? 'freigabe.entscheiden'}</code>).
+          (<Recht schluessel={f.erforderlichesRecht ?? 'freigabe.entscheiden'} />).
           Die eigene Befugnis <Recht schluessel="freigabe.rueckgaengig" /> genügt
           dafür nicht (offene Frage O-367).
         </Hinweis>

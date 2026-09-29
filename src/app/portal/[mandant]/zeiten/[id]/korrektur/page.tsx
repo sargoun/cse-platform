@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
@@ -68,8 +69,10 @@ const GRUND_TEXT: readonly { readonly wert: string; readonly text: string }[] = 
  * Jedes davon ist eine Antwort der DATENBANK auf eine Eingabe, die fachlich
  * nicht geht, kein Programmfehler. Deshalb steht hier ein Satz und keine
  * Kennziffer: wer die Korrektur macht, ist Planerin und nicht Entwicklerin.
+ * Ein Satz, der ein Recht nennt, nennt es mit seinem Namen (`<Recht>`, V-250)
+ * — deshalb ist ein Eintrag ein `ReactNode` und nicht bloss Text.
  */
-const FEHLER_TEXT: Readonly<Record<string, string>> = {
+const FEHLER_TEXT: Readonly<Record<string, ReactNode>> = {
   unbrauchbare_eingabe:
     'Art, Grund und Begründung sind Pflicht. Die Begründung darf kurz sein — „Krank" '
     + 'genügt —, aber sie muss dastehen.',
@@ -87,12 +90,15 @@ const FEHLER_TEXT: Readonly<Record<string, string>> = {
    * V-065: seit die Gegenbuchung entsteht, ist der gesperrte Monat NICHT mehr
    * der haeufigste Grund fuer diese Abweisung — er hat seinen eigenen Text.
    */
-  kein_kontorecht:
-    'Der Monat dieses Eintrags ist abgeschlossen. Eine Korrektur daran verschiebt '
-    + 'Minuten auf dem Stundenkonto in den nächsten offenen Monat, und das verlangt '
-    + 'zusätzlich das Recht zeit.konto_korrigieren (§12.2). Wer es hält, kann die '
-    + 'Korrektur ausführen — es ist bewusst ein zweites Recht: eine Zeit '
-    + 'richtigstellen und ein Konto bewegen sind zwei Entscheidungen.',
+  kein_kontorecht: (
+    <>
+      Der Monat dieses Eintrags ist abgeschlossen. Eine Korrektur daran verschiebt
+      Minuten auf dem Stundenkonto in den nächsten offenen Monat, und das verlangt
+      zusätzlich das Recht <Recht schluessel="zeit.konto_korrigieren" /> (§12.2). Wer
+      es hält, kann die Korrektur ausführen — es ist bewusst ein zweites Recht: eine
+      Zeit richtigstellen und ein Konto bewegen sind zwei Entscheidungen.
+    </>
+  ),
   nicht_zulaessig:
     'Die Datenbank hat die Korrektur abgewiesen. Ein möglicher Grund ist ein bereits '
     + 'gesperrter Monat: dort braucht die Differenz eine Gegenbuchung, sonst käme sie '

@@ -193,8 +193,12 @@ export default async function Standseite(
             ? 'Ein Verwerfen braucht einen Grund — RAD-07 verlangt ihn, und in einem '
               + 'halben Jahr erinnert sich niemand mehr ohne ihn.'
             : fehler === 'mappe_recht'
-              ? '„In Bearbeitung" legt die Vergabemappe an — dafür fehlt das Recht '
-                + 'vergabe.schreiben.'
+              ? (
+                <>
+                  „In Bearbeitung" legt die Vergabemappe an — dafür fehlt das Recht{' '}
+                  <Recht schluessel="vergabe.schreiben" />.
+                </>
+              )
               : eigenerEintrag(tp.fehler, fehler) ?? 'Die Handlung wurde abgewiesen.'}
         </Hinweis>
       ) : pruefungVermerkt ? (
@@ -470,8 +474,12 @@ export default async function Standseite(
             er stünde sonst ein zweites Mal in einer Tabelle, aus der nicht gelöscht wird.
             Der Wortlaut des geltenden Verwerfungsgrundes steht oben; ältere sind mit ihrem
             Stand überschrieben, weil der Vorgang genau eine Zeile führt.
-            {namenSichtbar ? '' : ' Namen sind hier nicht sichtbar — dafür braucht es das '
-              + 'Recht system.benutzer_lesen.'}
+            {namenSichtbar ? null : (
+              <>
+                {' '}Namen sind hier nicht sichtbar — dafür braucht es das Recht{' '}
+                <Recht schluessel="system.benutzer_lesen" />.
+              </>
+            )}
           </p>
         </>
       )}

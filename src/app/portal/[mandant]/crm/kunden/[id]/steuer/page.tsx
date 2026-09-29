@@ -831,18 +831,21 @@ export default async function Steuer(
                              data-cse="steuer-48b-auftrag-feld" />
                     )}
                     <span className="text-xs text-text-muted">
-                      Der CHECK <code className="text-text">fsb_umfang_auftrag</code>
-                      {' '}nimmt den Auftrag genau dann, wenn der Umfang
+                      Einen Auftrag nimmt die Datenbank genau dann an, wenn der Umfang
                       „auftragsbezogen" ist.
                       {blatt.rechte.auftragLesen
                         ? (blatt.auftraege.length === 0
                           ? ' Zu diesem Kunden steht kein Auftrag — eine auftragsbezogene'
                             + ' Bescheinigung ist deshalb hier nicht erfassbar.'
                           : '')
-                        : ' Die Auswahl der Aufträge ist Ihnen nicht sichtbar — dafür'
-                          + ' fehlt `auftrag.lesen`. Erwartet wird deshalb die Kennung'
-                          + ' aus der Adresszeile des Auftrags, nicht die'
-                          + ' Auftragsnummer.'}
+                        : (
+                          <>
+                            {' '}Die Auswahl der Aufträge ist Ihnen nicht sichtbar — dafür
+                            fehlt <Recht schluessel="auftrag.lesen" />. Erwartet wird deshalb
+                            die Kennung aus der Adresszeile des Auftrags, nicht die
+                            Auftragsnummer.
+                          </>
+                        )}
                     </span>
                   </label>
                   <label className="flex flex-col gap-s2 text-sm text-text">

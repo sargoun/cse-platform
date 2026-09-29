@@ -10,6 +10,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { waehleSpeicher } from '@/server/storage/waehle';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
@@ -104,7 +105,13 @@ export default async function Dokumentfreigabe(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="freigabe-fehler" className="mb-s5">
           <strong>Der Schalter wurde nicht umgelegt.</strong>{' '}
-          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+          {fehler === 'kein_recht' ? (
+            <>
+              Ihnen fehlt <Recht schluessel="dokument.kunde_freigeben" />. Dokumente ablegen
+              zu dürfen (<Recht schluessel="dokument.schreiben" />) ist nicht dasselbe wie zu
+              entscheiden, was ein Kunde sieht.
+            </>
+          ) : eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 

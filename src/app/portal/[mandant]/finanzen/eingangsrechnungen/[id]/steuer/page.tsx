@@ -275,9 +275,10 @@ export default async function Steuerblatt(
           <h1 className="mb-s3 text-h1 text-text">{t.steuerlicheLage}</h1>
           <Hinweis art="warnung" cse="steuer-kein-leserecht">
             <p className="m-0 max-w-prose">
-              {t.diesemKontoFehlt} <strong>{RECHT_EINGANG_LESEN}</strong>
+              {t.diesemKontoFehlt}{' '}
+              <Recht schluessel={RECHT_EINGANG_LESEN} sprache={zugang.sprache} />
               {t.keinLeserechtSteuerMitte}{' '}
-              <strong>{RECHT_FREISTELLUNG_PFLEGEN}</strong>
+              <Recht schluessel={RECHT_FREISTELLUNG_PFLEGEN} sprache={zugang.sprache} />
               {t.keinLeserechtSteuerNach}
             </p>
           </Hinweis>
@@ -458,9 +459,13 @@ export default async function Steuerblatt(
         >
           <p className="m-0 text-text">
             <strong>
-              {ausgang === 'nicht_bewertbar'
-                ? `${t.ausgangNichtBewertbarVor} ${RECHT_FINANZEN_LESEN} `
-                  + t.ausgangNichtBewertbarNach
+              {ausgang === 'nicht_bewertbar' ? (
+                <>
+                  {t.ausgangNichtBewertbarVor}{' '}
+                  <Recht schluessel={RECHT_FINANZEN_LESEN} sprache={zugang.sprache} />{' '}
+                  {t.ausgangNichtBewertbarNach}
+                </>
+              )
                 : ausgang === 'kein_satz'
                   ? t.ausgangKeinSatz
                   : ausgang === 'keine_bauleistung'
@@ -473,10 +478,13 @@ export default async function Steuerblatt(
             </strong>
           </p>
           <p className="m-0 mt-s3 max-w-prose">
-            {ausgang === 'nicht_bewertbar'
-              ? `${t.diesemKontoFehlt} ${RECHT_FINANZEN_LESEN}`
-                + `${t.nichtBewertbarMitte} ${TABELLE_FREISTELLUNG} `
-                + t.nichtBewertbarNach
+            {ausgang === 'nicht_bewertbar' ? (
+              <>
+                {t.diesemKontoFehlt}{' '}
+                <Recht schluessel={RECHT_FINANZEN_LESEN} sprache={zugang.sprache} />
+                {t.nichtBewertbarNach}
+              </>
+            )
               : ausgang === 'kein_satz'
                 ? `${t.keinSatzVor} ${EINSTELLUNG_SATZ} ${t.keinSatzNach}`
                 : lage === null
@@ -597,8 +605,8 @@ export default async function Steuerblatt(
         {darf['finanzen.lesen'] !== true ? (
           <Hinweis art="warnung" cse="steuer-fsb-kein-recht">
             <p className="m-0 max-w-prose">
-              {t.diesemKontoFehlt} <strong>{RECHT_FINANZEN_LESEN}</strong>{' '}
-              {t.fsbKeinRechtMitte} <code>{TABELLE_FREISTELLUNG}</code>
+              {t.diesemKontoFehlt}{' '}
+              <Recht schluessel={RECHT_FINANZEN_LESEN} sprache={zugang.sprache} />{' '}
               {t.fsbKeinRechtNach}
             </p>
           </Hinweis>

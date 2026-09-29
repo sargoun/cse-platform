@@ -227,10 +227,14 @@ export default async function Konditionen(
                 {kondition.mahnsperreBis === null ? null : (
                   <span className="mt-s2 block">
                     {sperreAktiv === null
-                      ? 'Ob sie den Lauf gerade anhält, ist Ihnen nicht sichtbar — dafür '
-                        + 'fehlt mahnung.lesen.'
+                      ? (
+                        <>
+                          Ob sie den Lauf gerade anhält, ist Ihnen nicht sichtbar — dafür
+                          fehlt <Recht schluessel="mahnung.lesen" />.
+                        </>
+                      )
                       : sperreAktiv
-                        ? `app.kunde_mahnsperre_aktiv hält den Mahnlauf an. Ab dem Tag `
+                        ? `Die Sperre hält den Mahnlauf an. Ab dem Tag `
                           + `nach dem ${tagDeutsch(kondition.mahnsperreBis)} mahnt er `
                           + 'wieder.'
                         : 'Die Sperre ist abgelaufen — der Mahnlauf läuft wieder. Sie '
