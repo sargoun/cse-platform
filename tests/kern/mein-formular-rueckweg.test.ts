@@ -162,6 +162,30 @@ describe('jeder Grund hat einen Satz — in vier Sprachen', () => {
     }
   });
 
+  /*
+   * V-249: `fehlt_einsatz` sagte bis dahin in vier Sprachen, weder die Schicht
+   * noch der Tauschpartner liessen sich hier wählen („Beides …"). Seit V-187
+   * bietet das Antragsformular die eigenen kommenden Schichten an
+   * (`name="einsatz"`, `listeTauschbareSchichten`); offen ist nur der
+   * Tauschpartner (O-925, O-613). Der Satz schickt deshalb zur Schicht ins
+   * Formular und nur für den Partner an die Einsatzleitung.
+   */
+  it('fehlt_einsatz schickt zur Schicht ins Formular, das sie anbietet — offen ist nur der Partner', () => {
+    expect(quelle('src/app/portal/mein/antraege/neu/page.tsx')).toContain('name="einsatz"');
+    const erwartet = {
+      de: { veraltet: /Beides/u, formular: 'im Formular', weg: 'Einsatzleitung' },
+      en: { veraltet: /Neither/u, formular: 'in the form', weg: 'site manager' },
+      ar: { veraltet: /أيٍّ منهما/u, formular: 'في النموذج', weg: 'مسؤول العمل' },
+      tr: { veraltet: /İkisi de/u, formular: 'formda', weg: 'ekip yöneticinize' },
+    } as const;
+    for (const s of PORTAL_SPRACHEN) {
+      const satz = MEIN_FORMULAR_TEXTE[s].gruende.fehlt_einsatz;
+      expect(satz, s).not.toMatch(erwartet[s].veraltet);
+      expect(satz, s).toContain(erwartet[s].formular);
+      expect(satz, s).toContain(erwartet[s].weg);
+    }
+  });
+
   it('ein fremder Grund wird der allgemeine Satz — nie der Schlüssel, nie der Prototyp', () => {
     for (const s of PORTAL_SPRACHEN) {
       for (const k of ['__proto__', 'constructor', 'toString', 'erfunden']) {

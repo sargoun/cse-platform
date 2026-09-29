@@ -20889,3 +20889,37 @@ und damit die Sperre `ab_keine_dublette` (0073): 23P01 ohne Status, eine 500.
 
 | Betrifft | EMP-10, D-599, D-691, D-728, V-158, V-197, O-18, O-139, `src/app/api/{abwesenheiten,antraege}/[id]/route.ts`, `src/app/api/formular-antwort.ts`, `src/server/services/abwesenheit/{index,antrag}.ts` (`grund`, `entscheideAntrag`), `src/lib/i18n/verwaltung/personal-entscheidung.ts`, `src/app/portal/[mandant]/personal/{abwesenheiten,antraege}/{page,[id]/page}.tsx`, `tests/kern/{personal-entscheidung-rueckweg,fehler-rueckweg-seiten}.test.ts`, `tests/isolation/abwesenheit.test.ts` |
 |---|---|
+
+### D-740 · Der Satz „fehlt_einsatz" sagt, was das Antragsformular kann — und ein nie gezeigter Satz fällt weg (V-249)
+
+**Der Befund** (Durchgang über den sichtbaren Text): `MEIN_FORMULAR_TEXTE.gruende.fehlt_einsatz`
+sagte in vier Sprachen, ein Schichttausch brauche Schicht und Tauschpartner und
+„Beides lässt sich hier noch nicht wählen". Seit V-187 (D-681) bietet das
+Antragsformular die eigenen kommenden Schichten an (`name="einsatz"`,
+`listeTauschbareSchichten`); offen ist nur der Tauschpartner (O-925, O-613,
+V-260). Der Satz erscheint, wenn die zweite Linie greift — der Auslöser
+`antrag_pflichtfelder` meldet `einsatz_id`, `pflichtfeldGrund` macht daraus
+`fehlt_einsatz` — und schickte die Kraft für etwas an die Einsatzleitung, das
+sie auf derselben Seite selbst wählen kann. Daneben trug
+`ANTRAG_FORM_TEXTE.pflichtBei` (`mein-formulare.ts`) einen zweiten „Pflicht
+bei: …"-Satz in vier Sprachen, den keine Seite zeigt: das Formular setzt
+`MEIN_FORMULAR_TEXTE.pflichtBei` ein (`setzeEin`), und der einzige Leser war
+eine Prüfung, die den Satz nur aufrief.
+
+**Die Entscheidung.**
+
+1. **`fehlt_einsatz` schickt zur Schicht ins Formular** und nur für den
+   Tauschpartner an die Einsatzleitung — in allen vier Sprachen, derselbe
+   Ausweg wie `fehlt_tauschpartner`. Keine Entwurfskennung im Satz (D-663).
+2. **`ANTRAG_FORM_TEXTE.pflichtBei` entfällt** samt Eintrag im Typ; der
+   Kommentar an `nachrichtErneut` nennt, wo der gezeigte Satz steht.
+3. **Geprüft:** `tests/kern/mein-formular-rueckweg.test.ts` — das Formular
+   hat `name="einsatz"`, und `fehlt_einsatz` enthält in jeder Sprache den
+   Verweis aufs Formular und auf die Einsatzleitung, aber nicht mehr die
+   alte Aussage; `tests/kern/antrag-rueckweg.test.ts` prüft die
+   Entwurfskennung jetzt am tatsächlich gezeigten Satz
+   (`setzeEin(MEIN_FORMULAR_TEXTE[s].pflichtBei, …)`) statt an der
+   ungenutzten Funktion.
+
+| Betrifft | EMP-10, D-663, D-681, D-692, O-613, O-925, V-187, V-260, `src/lib/i18n/mein-formular.ts` (`fehlt_einsatz`), `src/lib/i18n/mein-formulare.ts` (`AntragFormTexte`), `tests/kern/{mein-formular-rueckweg,antrag-rueckweg}.test.ts` |
+|---|---|

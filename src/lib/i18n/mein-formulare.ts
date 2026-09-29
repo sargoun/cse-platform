@@ -47,10 +47,12 @@ export interface AntragFormTexte {
   readonly gruende: Readonly<Record<AntragGrund, string>>;
   /** Für einen Grund, den die Tabelle nicht kennt. */
   readonly unbekannt: string;
-  /** Die Nachricht reist nicht in der Adresse mit (Datenschutz). */
+  /**
+   * Die Nachricht reist nicht in der Adresse mit (Datenschutz). „Pflicht bei:
+   * …" unter einem Feld sagt `MEIN_FORMULAR_TEXTE.pflichtBei` (`mein-formular.ts`)
+   * — hier stand bis V-249 ein zweiter, nie gezeigter Satz dafür.
+   */
   readonly nachrichtErneut: string;
-  /** „Pflicht bei: Urlaubsantrag, Krankmeldung". */
-  readonly pflichtBei: (arten: string) => string;
   readonly schicht: string;
   readonly schichtWaehlen: string;
   readonly keineKommendeSchicht: string;
@@ -93,7 +95,6 @@ export const ANTRAG_FORM_TEXTE: Readonly<Record<PortalSprache, AntragFormTexte>>
     },
     unbekannt: 'Der Antrag wurde abgewiesen. Bitte prüfen Sie Ihre Angaben.',
     nachrichtErneut: 'Ihre Nachricht geben Sie bitte noch einmal ein.',
-    pflichtBei: (arten) => `Pflicht bei: ${arten}`,
     schicht: 'Schicht',
     schichtWaehlen: '— Schicht wählen —',
     keineKommendeSchicht: 'Sie haben keine kommende Schicht, die sich hier wählen ließe.',
@@ -125,7 +126,6 @@ export const ANTRAG_FORM_TEXTE: Readonly<Record<PortalSprache, AntragFormTexte>>
     },
     unbekannt: 'The request was refused. Please check your details.',
     nachrichtErneut: 'Please type your message again.',
-    pflichtBei: (arten) => `Required for: ${arten}`,
     schicht: 'Shift',
     schichtWaehlen: '— Choose a shift —',
     keineKommendeSchicht: 'You have no upcoming shift that could be chosen here.',
@@ -155,7 +155,6 @@ export const ANTRAG_FORM_TEXTE: Readonly<Record<PortalSprache, AntragFormTexte>>
     },
     unbekannt: 'تم رفض الطلب. يرجى التحقق من بياناتك.',
     nachrichtErneut: 'يرجى كتابة رسالتك مرة أخرى.',
-    pflichtBei: (arten) => `إلزامي لـ: ${arten}`,
     schicht: 'الوردية',
     schichtWaehlen: '— اختر وردية —',
     keineKommendeSchicht: 'ليست لديك وردية قادمة يمكن اختيارها هنا.',
@@ -186,7 +185,6 @@ export const ANTRAG_FORM_TEXTE: Readonly<Record<PortalSprache, AntragFormTexte>>
     },
     unbekannt: 'Talep reddedildi. Lütfen bilgilerinizi kontrol edin.',
     nachrichtErneut: 'Lütfen mesajınızı yeniden yazın.',
-    pflichtBei: (arten) => `Zorunlu: ${arten}`,
     schicht: 'Vardiya',
     schichtWaehlen: '— Vardiya seçin —',
     keineKommendeSchicht: 'Burada seçilebilecek yaklaşan bir vardiyanız yok.',
