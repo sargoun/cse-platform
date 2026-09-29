@@ -85,8 +85,8 @@ export const ENTWURF_AUFTRAEGE: Readonly<Record<string, EntwurfAuftrag>> = {
 export class KeineOffeneAnfrage extends Error {
   readonly code = 'KEINE_ANFRAGE' as const;
   constructor() {
-    super('Es gibt keine offene Anfrage (neu oder in Bearbeitung), auf die ein Entwurf '
-      + 'antworten könnte.');
+    super('Es gibt keine offene Anfrage über das Anfrageformular (neu oder in '
+      + 'Bearbeitung), auf die ein Entwurf antworten könnte.');
     this.name = 'KeineOffeneAnfrage';
   }
 }
@@ -159,22 +159,33 @@ export async function fuelleTatsachen(
      * den Interessenten — das interne Auftragsvolumen — und als Lücke fest
      * eine Personenzahl, egal was die Anfrage enthielt.
      *
-     * Jetzt: die jüngste Anfrage in `neu` oder `in_bearbeitung` (eine im Stand
-     * `angebot` hat ihre Antwort schon bekommen), und als Lücke nur, was ihr
-     * Formular leer lässt (`anfrageLuecken`). Ohne Formular (von Hand erfasst,
-     * Radar, Empfehlung) ist die einzige Angabe, deren Fehlen die Daten
-     * zeigen, die Beschreibung des Bedarfs. Liest diese Sitzung das Formular
-     * nicht (RLS), wird keine Lücke genannt — lieber keine als eine erfundene.
+     * **Und nur, wo jemand GEFRAGT hat** (V-271, D-764). Der Entwurf beginnt
+     * mit „Vielen Dank für Ihre Anfrage vom …" — das ist eine Tatsache, und
+     * belegt ist sie nur durch einen `formular_eingang`: die Einsendung des
+     * Anfrageformulars, mit Zeitpunkt und Datenschutzbestätigung. Ein
+     * recherchierter Lead (`akquise`) hat niemanden gefragt (D-631), ein Lead
+     * aus dem Vergaberadar ist eine öffentliche Bekanntmachung, und ob eine
+     * von Hand erfasste Anfrage oder eine Empfehlung eine Anfrage des
+     * Kontakts ist, ist offen (O-907). Keiner davon bekommt einen Dank für
+     * eine Anfrage, die es so nicht gab.
+     *
+     * **Kein interner Betreff im Text.** `lead.betreff` ist ein Arbeitstitel —
+     * beim Webformular „Anfrage {Formularschlüssel}", bei der Akquise
+     * „Akquise: {Firma}". Der Entwurf nennt stattdessen den öffentlichen
+     * Titel des Formulars, das der Anfragende selbst ausgefüllt hat; liest
+     * die Sitzung es nicht, nennt er keinen.
+     *
+     * Als Lücke nur, was das Formular leer lässt (`anfrageLuecken`); liest
+     * diese Sitzung das Formular nicht (RLS), wird keine Lücke genannt —
+     * lieber keine als eine erfundene.
      */
     const [z] = await db.abfrage<{
-      firma: string | null; eingang: string | null; betreff: string | null;
-      bedarf: string | null; mit_formular: boolean;
+      firma: string | null; eingang: string | null; formular: string | null;
       daten: Record<string, unknown> | null; felder: unknown;
     }>(
       `select l.firma_name as firma,
               to_char(l.erstellt_am at time zone 'Europe/Berlin', 'DD.MM.YYYY') as eingang,
-              l.betreff, l.bedarf_zusammenfassung as bedarf,
-              (l.formular_eingang_id is not null) as mit_formular,
+              fd.titel as formular,
               fe.daten, fd.felder
          from lead l
          left join formular_eingang fe
@@ -183,22 +194,24 @@ export async function fuelleTatsachen(
                 on fd.mandant_id = fe.mandant_id and fd.id = fe.formular_definition_id
         where l.status in ('neu', 'in_bearbeitung')
           and l.archiviert_am is null
+          and l.formular_eingang_id is not null
+          and l.quelle not in ('akquise', 'vergabe_radar')
         order by l.erstellt_am desc
         limit 1`);
     if (z === undefined) throw new KeineOffeneAnfrage();
 
     const felder = Felder.safeParse(z.felder);
-    const luecken = z.mit_formular
-      ? (felder.success && z.daten !== null ? anfrageLuecken(felder.data, z.daten) : [])
-      : (z.bedarf === null || z.bedarf.trim() === '' ? ['eine Beschreibung Ihres Bedarfs'] : []);
+    const luecken = felder.success && z.daten !== null ? anfrageLuecken(felder.data, z.daten) : [];
     const offen = lueckenText(luecken);
-    const betreff = z.betreff ?? 'Ihre Anfrage';
+    const formular = z.formular === null || z.formular.trim() === '' ? null : z.formular.trim();
     return {
       stand,
       empfaenger: z.firma ?? 'die anfragende Stelle',
       datum: z.eingang ?? stand,
-      betreff,
-      zusammenfassung: `Ihr Anliegen „${betreff}" ist bei uns aufgenommen.`,
+      ...(formular === null ? {} : { formular }),
+      zusammenfassung: formular === null
+        ? 'Ihr Anliegen ist bei uns aufgenommen.'
+        : `Ihre Anfrage über unser Formular „${formular}" ist bei uns aufgenommen.`,
       ...(offen === null ? {} : { offen }),
     };
   }

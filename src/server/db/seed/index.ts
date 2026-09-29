@@ -37,6 +37,7 @@ import { seedRecruiting } from './recruiting.js';
 import { seedAkquise } from './akquise.js';
 import { seedBerichtsdaten } from './berichtsdaten.js';
 import { seedRadar, seedRadarLead } from './radar.js';
+import { seedWebanfrage } from './webanfrage.js';
 import {
   AGENTEN, fuerAgent, type AgentKennung,
 } from '../../agent/tools/register-werkzeuge.js';
@@ -2078,6 +2079,18 @@ async function main(): Promise<void> {
       ? ' — keine Firmen ohne CSE_DEV_FLAECHEN\n'
       : `, ${String(akquise.ziele)} recherchierte Firmen OHNE Personendaten `
         + '(Art. 14 DSGVO — die Spalten dafür gibt es nicht)\n'));
+
+  /*
+   * **Eine echte Anfrage über das Angebotsformular** (V-271, D-764) — der
+   * einzige Fall, auf den der Antwortentwurf des Akquise-Agenten antworten
+   * darf. Abgeschickt über `nimmAn`, wie die Route es tut, nicht eingefügt.
+   */
+  const webanfrage = await seedWebanfrage(sql, ids, demodaten);
+  process.stdout.write(webanfrage.uebersprungen
+    ? '  Webanfrage: keine ohne CSE_DEV_FLAECHEN\n'
+    : `  Webanfrage: ${webanfrage.leadnummer ?? '—'} über das Angebotsformular der Reinigung `
+      + `(${webanfrage.neu ? 'abgeschickt über nimmAn' : 'stand schon'}) — der Fall, auf den `
+      + 'der Akquise-Entwurf antwortet\n');
 
   /*
    * Betroffenenrechte und Widersprueche — NACH dem CRM und dem Recruiting,

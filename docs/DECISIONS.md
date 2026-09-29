@@ -19839,7 +19839,10 @@ Anfragen" legte einem Interessenten das interne Auftragsvolumen offen.
 **Die Entscheidung.**
 
 1. **Nur eine offene Anfrage:** die jüngste in `neu` oder `in_bearbeitung`
-   (nicht archiviert). `angebot` hat seine Antwort schon bekommen, die
+   (nicht archiviert) — **berichtigt durch D-764:** und nur eine, hinter der
+   eine Einsendung des Anfrageformulars steht (`formular_eingang_id`, nie
+   `akquise` oder `vergabe_radar`); vorher antwortete der Entwurf auch dem
+   Radar- und dem Recherche-Lead. `angebot` hat seine Antwort schon bekommen, die
    Ausgänge brauchen keine. Gibt es keine, gibt es keinen Lauf
    (`KeineOffeneAnfrage`): die Laufroute legt keine Aufgabe an und leitet mit
    `KEINE_ANFRAGE` auf das Agentenblatt, das Vorschaltblatt sagt es statt der
@@ -19849,9 +19852,10 @@ Anfragen" legte einem Interessenten das interne Auftragsvolumen offen.
    Anfrageformulars, die in `formular_eingang.daten` leer sind, in der
    Reihenfolge des Formulars — ohne Häkchen (ein nicht gesetztes ist eine
    Antwort), Freitext (Zusatz, keine Bedarfsangabe) und Datei (steht in der
-   Ablage, nicht in `daten`). Bei einer von Hand erfassten Anfrage ist die
-   einzige Angabe, deren Fehlen die Daten zeigen, die Bedarfsbeschreibung.
-   Welche Angaben eine Gesellschaft für ein verbindliches Angebot wirklich
+   Ablage, nicht in `daten`). ~~Bei einer von Hand erfassten Anfrage ist die
+   einzige Angabe, deren Fehlen die Daten zeigen, die Bedarfsbeschreibung.~~
+   **Entfällt (D-764):** eine von Hand erfasste Anfrage bekommt keinen Entwurf
+   mehr. Welche Angaben eine Gesellschaft für ein verbindliches Angebot wirklich
    braucht, ist eine fachliche Regel und offen (O-940).
 3. **Ist nichts leer, entfällt der Satz.** Die Demovorlage trägt ihn als
    optionalen Baustein `[[…]]`: fehlt eine seiner Tatsachen, verschwindet der
@@ -19863,10 +19867,13 @@ Anfragen" legte einem Interessenten das interne Auftragsvolumen offen.
 4. **Keine interne Zahl:** `offene_anfragen` ist keine Tatsache des
    Akquise-Entwurfs mehr, und `zusammenfassung` nennt kein Volumen. Die
    Startseite braucht die Zahl nicht; sie steht in den Berichten (REP-02).
-5. **Der Seed zeigt den Fall ohne Lücke:** seine jüngste offene Anfrage ist
-   von Hand erfasst und vollständig beschrieben (Webanfragen legt der Seed
-   bewusst nicht an, siehe `seed/operations.ts`), der Demoentwurf nennt also
-   keine erfundene Lücke. Die Fälle mit Lücke prüfen die Tests.
+5. **Der Seed zeigt den Fall ohne Lücke:** ~~seine jüngste offene Anfrage ist
+   von Hand erfasst und vollständig beschrieben~~ — **berichtigt durch
+   D-764:** das stimmte nicht (die jüngste offene im Bau war der Radar-Lead),
+   und eine von Hand erfasste bekommt keinen Entwurf mehr. Die Vorführfläche
+   schickt stattdessen das Angebotsformular der Reinigung ab
+   (`seed/webanfrage.ts`, über `nimmAn`); alle Pflichtfelder sind gefüllt, der
+   Demoentwurf nennt also keine Lücke. Die Fälle mit Lücke prüfen die Tests.
 
 | Betrifft | §17, AGT-07, Invariante 6, Invariante 7, O-940, V-230, `src/server/agent/{auftraege.ts,modell/demo.ts}`, `src/server/services/lead/einsendung.ts`, `src/app/api/agenten/lauf/route.ts`, `src/app/portal/[mandant]/agenten/[agent]/{page,start/page}.tsx`, `tests/kern/akquise-entwurf.test.ts`, `tests/isolation/{akquise-tatsachen,agent-lauf}.test.ts` |
 |---|---|
@@ -20121,4 +20128,52 @@ Schalter sofort und ohne Freigabe, ohne `freigabe.entscheiden` abgewiesen;
 die Fälle 1, 2 und 5 setzen den Schalter jetzt ausdrücklich aus.
 
 | Betrifft | AGT-02, AGT-03, AGT-04, AGT-07, APR-07, APR-08, Invariante 7, D-722, D-723, V-228, V-270, `src/server/agent/policy.ts`, `src/server/agent/tools/ergebnis-freigabe.ts`, `drizzle/0475_werkzeugergebnis_folgt_freigabe.sql`, `src/server/services/agent/assistent.ts`, `src/app/portal/[mandant]/agenten/{assistent,[agent]}/page.tsx`, `src/server/db/seed/index.ts`, `tests/kern/werkzeug-ergebnis-gate.test.ts`, `tests/isolation/agent-assistent.test.ts` |
+|---|---|
+
+### D-764 · Der Akquise-Entwurf antwortet nur, wo jemand über das Formular gefragt hat — und nennt keinen internen Betreff (V-271)
+
+**Der Befund** (zweite Prüfung von V-230, §17, Invariante 7): V-230 filterte
+die Anfrage nur nach Status, nicht nach Herkunft. Der Entwurf „Vielen Dank für
+Ihre Anfrage vom {datum}. Ihr Anliegen „{betreff}" ist bei uns aufgenommen."
+ging damit auch an Leads, hinter denen keine Anfrage steht: an die
+Vergabestelle eines übernommenen Radar-Leads (im Seed die jüngste offene
+Anfrage im Bau) und an eine recherchierte Firma (`akquise` heisst:
+niemand hat gefragt, D-631). Bei einem Akquise-Lead stand dazu der interne
+Arbeitstitel „Akquise: {Firma}" im Text an die Firma, bei einer Webanfrage
+„Anfrage {Formularschlüssel}". Dieselbe Klasse wie Befund 58: eine erfundene
+Tatsache in einem Kundenentwurf. D-724 Nr. 5 behauptete einen von Hand
+erfassten Seed-Fall.
+
+**Die Entscheidung.**
+
+1. **Nur eine belegte Anfrage.** `fuelleTatsachen` wählt die jüngste offene
+   Anfrage mit `formular_eingang_id` — die Einsendung des Anfrageformulars
+   mit Zeitpunkt und Datenschutzbestätigung —, nie `akquise` und nie
+   `vergabe_radar`. Von Hand erfasste Leads und Empfehlungen haben keinen
+   Beleg, dass der Kontakt gefragt hat; ob sie eine Anfrage begründen, ist
+   O-907, und bis zur Antwort bekommen sie keinen Dank für eine Anfrage.
+   Gibt es keine belegte Anfrage, gibt es keinen Lauf (`KeineOffeneAnfrage`),
+   und Vorschaltblatt und Laufroute sagen, warum.
+2. **Kein interner Betreff.** `lead.betreff` ist ein Arbeitstitel und steht
+   weder im Text noch in den Tatsachen. Der Entwurf nennt den öffentlichen
+   Titel des Formulars, das der Anfragende ausgefüllt hat
+   (`formular_definition.titel`) — liest die Sitzung ihn nicht, nennt er
+   keinen („Ihr Anliegen ist bei uns aufgenommen.").
+3. **Die Lücken kommen nur noch aus dem Formular** (D-724 Nr. 2); der
+   Sonderfall „von Hand erfasst: die Bedarfsbeschreibung" entfällt mit Nr. 1.
+4. **Der Seed schickt das Formular ab, statt einen Eingang zu erfinden:**
+   `seed/webanfrage.ts` ruft auf der Vorführfläche `nimmAn` als
+   Eingangsprinzipal gegen das veröffentlichte Formular der Reinigung — der
+   Weg von `POST /api/anfrage`, mit Prüfung, SLA und Eingangsaktivität,
+   wiederholbar. `seed/operations.ts` bleibt dabei: einen `formular_eingang`
+   per `insert` anzulegen hiesse, eine Anfrage zu behaupten.
+
+**Geprüft:** `tests/isolation/akquise-tatsachen.test.ts` (4) jüngere Leads
+aus Handerfassung, Recherche und Radar werden übergangen, ohne Einsendung
+kein Entwurf; (5) der Arbeitstitel „Anfrage angebot_reinigung" steht nirgends,
+der öffentliche Titel des Formulars schon; `tests/isolation/agent-lauf.test.ts`
+(9) läuft den Akquise-Agenten gegen eine Einsendung; der Demo-Seed legt die
+Webanfrage an und findet sie beim zweiten Lauf wieder.
+
+| Betrifft | §17, AGT-07, Invariante 7, D-631, D-724, O-907, O-940, V-230, V-271, `src/server/agent/auftraege.ts`, `src/lib/i18n/beschriftung/agent.ts`, `src/app/portal/[mandant]/agenten/[agent]/start/page.tsx`, `src/server/db/seed/{webanfrage,operations,index}.ts`, `tests/isolation/{akquise-tatsachen,agent-lauf}.test.ts`, `tests/kern/akquise-entwurf.test.ts` |
 |---|---|

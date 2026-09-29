@@ -13,7 +13,14 @@ import { KeineOffeneAnfrage, fuelleTatsachen } from '../../src/server/agent/auft
  *     `offene_anfragen` gibt es nicht mehr.
  *  3. Nur eine offene Anfrage: eine jüngere gewonnene oder verlorene wird
  *     übergangen, und ohne offene gibt es keinen Entwurf.
- *  4. Von Hand erfasst: fehlt die Bedarfsbeschreibung, ist SIE die Lücke.
+ *  4. Nur, wo jemand gefragt hat (V-271, D-764): von Hand erfasste,
+ *     recherchierte und aus dem Radar übernommene Leads bekommen keinen
+ *     Dank für eine Anfrage — auch nicht, wenn sie jünger sind. Bis V-271
+ *     stand hier „von Hand erfasst: die Bedarfsbeschreibung ist die Lücke";
+ *     das war der Entwurf an einen Lead, hinter dem keine belegte Anfrage
+ *     steht.
+ *  5. Kein interner Betreff: der Text nennt den öffentlichen Titel des
+ *     Formulars, nie `lead.betreff`.
  */
 
 let f: Fixtur;
@@ -50,14 +57,15 @@ async function konto(): Promise<string> {
 /** Eine Webanfrage mit genau diesen Daten, eingegangen vor `tage` Tagen. */
 async function webAnfrage(
   daten: Record<string, unknown>, status: string, tage: number,
+  titel = 'Anfrage', betreff = 'Unterhaltsreinigung',
 ): Promise<void> {
   const [d] = await sql.unsafe<{ id: string }[]>(
     `insert into formular_definition (mandant_id, schluessel, titel, felder,
                                       datenschutz_hinweis_version)
-     values ($1, $2, 'Anfrage', $3::jsonb, 'v1') returning id`,
+     values ($1, $2, $3, $4::jsonb, 'v1') returning id`,
     /* Das OBJEKT, nicht sein JSON-Text: ein Text würde als jsonb-Zeichenkette
        gespeichert (D-467), und das Formular hätte keine Felder. */
-    [f.reinigung, `akq_${zufall()}`, FELDER] as never[]);
+    [f.reinigung, `akq_${zufall()}`, titel, FELDER] as never[]);
   const [e] = await sql.unsafe<{ id: string }[]>(
     `insert into formular_eingang (mandant_id, formular_definition_id, daten,
                                    datenschutz_hinweis_bestaetigt, datenschutz_hinweis_version)
@@ -66,11 +74,32 @@ async function webAnfrage(
   await sql.unsafe(
     `insert into lead (mandant_id, leadnummer, quelle, formular_eingang_id, firma_name, betreff,
                        status, besitzer_benutzer_id, verloren_grund, erstellt_am)
-     values ($1, $2, 'webformular', $3, $4, 'Unterhaltsreinigung', $5::lead_status, $6,
+     values ($1, $2, 'webformular', $3, $4, $8, $5::lead_status, $6,
              case when $5 in ('verloren','kein_bedarf') then 'Mitbewerber' end,
              now() - make_interval(days => $7::int))`,
     [f.reinigung, `L-${zufall()}`, e!.id, String(daten['firma'] ?? 'Web GmbH'), status,
-      benutzer, tage]);
+      benutzer, tage, betreff]);
+}
+
+/** Ein Lead ohne Einsendung: recherchiert oder aus dem Vergaberadar übernommen. */
+async function leadOhneAnfrage(
+  quelle: 'akquise' | 'vergabe_radar', firma: string, tage: number,
+): Promise<void> {
+  let ausschreibung: string | null = null;
+  if (quelle === 'vergabe_radar') {
+    const [a] = await sql.unsafe<{ id: string }[]>(
+      `insert into ausschreibung (quelle, quell_id, titel, rohdaten_hash, quell_status)
+       values ('oeffentlichevergabe', $1, 'Rückbau', $1, 'aktiv') returning id`,
+      [`akq-${zufall()}`]);
+    ausschreibung = a!.id;
+  }
+  await sql.unsafe(
+    `insert into lead (mandant_id, leadnummer, quelle, ausschreibung_id, firma_name, betreff,
+                       status, besitzer_benutzer_id, erstellt_am)
+     values ($1, $2, $3::lead_quelle, $4, $5, $6, 'neu', $7,
+             now() - make_interval(days => $8::int))`,
+    [f.reinigung, `L-${zufall()}`, quelle, ausschreibung, firma,
+      quelle === 'akquise' ? `Akquise: ${firma}` : 'Rückbau', benutzer, tage]);
 }
 
 async function handAnfrage(bedarf: string | null, status: string, tage: number): Promise<void> {
@@ -145,15 +174,33 @@ describe('(3) nur eine offene Anfrage bekommt einen Entwurf', () => {
   });
 });
 
-describe('(4) von Hand erfasst: die Bedarfsbeschreibung ist die einzige erkennbare Lücke', () => {
-  it('fehlt sie, wird sie genannt; steht sie da, gibt es keine Lücke', async () => {
-    await handAnfrage(null, 'neu', 1);
-    expect((await tatsachen())['offen']).toBe('eine Beschreibung Ihres Bedarfs');
-
-    /* Keine Löschung (trg_lead_kein_hard_delete): die erste wird archiviert. */
-    await sql.unsafe(`update lead set archiviert_am = now() where mandant_id = $1`,
-      [f.reinigung]);
+describe('(4) nur, wo jemand gefragt hat — Radar, Recherche und Handerfassung bekommen keinen Dank', () => {
+  it('jüngere Leads ohne Einsendung werden übergangen, geantwortet wird der Webanfrage', async () => {
+    await webAnfrage({ firma: 'Web GmbH', flaeche_qm: 300, frequenz: 'woechentlich' }, 'neu', 9);
     await handAnfrage('Fensterfront, zweimal im Jahr.', 'neu', 1);
-    expect(await tatsachen()).not.toHaveProperty('offen');
+    await leadOhneAnfrage('akquise', 'Recherchiert AG', 2);
+    await leadOhneAnfrage('vergabe_radar', 'Berliner Immobilienmanagement GmbH', 3);
+    expect((await tatsachen())['empfaenger']).toBe('Web GmbH');
+  });
+
+  it('ohne Einsendung kein Entwurf — auch nicht mit Bedarfsbeschreibung', async () => {
+    await handAnfrage(null, 'neu', 1);
+    await handAnfrage('Fensterfront, zweimal im Jahr.', 'in_bearbeitung', 2);
+    await leadOhneAnfrage('akquise', 'Recherchiert AG', 3);
+    await leadOhneAnfrage('vergabe_radar', 'Berliner Immobilienmanagement GmbH', 4);
+    await expect(tatsachen()).rejects.toBeInstanceOf(KeineOffeneAnfrage);
+  });
+});
+
+describe('(5) kein interner Betreff im Text an den Anfragenden', () => {
+  it('der Arbeitstitel des Leads steht nirgends, der öffentliche Titel des Formulars schon', async () => {
+    await webAnfrage({ firma: 'Nord GmbH', flaeche_qm: 1200, frequenz: 'woechentlich' }, 'neu', 1,
+      'Angebot für Gebäudereinigung anfragen', 'Anfrage angebot_reinigung');
+    const t = await tatsachen();
+    expect(t).not.toHaveProperty('betreff');
+    expect(JSON.stringify(t)).not.toContain('angebot_reinigung');
+    expect(t['zusammenfassung']).toBe(
+      'Ihre Anfrage über unser Formular „Angebot für Gebäudereinigung anfragen" ist bei uns '
+      + 'aufgenommen.');
   });
 });

@@ -179,8 +179,8 @@ export const LAUF_STOERUNG_TEXT: Karte<LaufStoerungSchluessel> = {
     PREIS_FEHLT: 'Für das Modell ist kein Preis hinterlegt — ein Lauf, dessen Kosten '
       + 'niemand kennt, startet nicht.',
     ZAHL_ERFUNDEN: 'Der Entwurf enthielt eine Zahl ohne Herkunft und wurde verworfen.',
-    KEINE_ANFRAGE: 'Es gibt keine offene Anfrage, auf die ein Entwurf antworten könnte — '
-      + 'es ist nichts entstanden.',
+    KEINE_ANFRAGE: 'Es gibt keine offene Anfrage über das Anfrageformular, auf die ein '
+      + 'Entwurf antworten könnte — es ist nichts entstanden.',
   },
   en: {
     RESIDENCY_BLOCKED: 'No model with EU processing and zero retention is approved for '
@@ -195,6 +195,7 @@ export const LAUF_STOERUNG_TEXT: Karte<LaufStoerungSchluessel> = {
     PREIS_FEHLT: 'No price is stored for the model — a run whose cost nobody knows does '
       + 'not start.',
     ZAHL_ERFUNDEN: 'The draft contained a number without a source and was discarded.',
-    KEINE_ANFRAGE: 'There is no open enquiry a draft could reply to — nothing was created.',
+    KEINE_ANFRAGE: 'There is no open enquiry from the enquiry form a draft could reply to — '
+      + 'nothing was created.',
   },
 };

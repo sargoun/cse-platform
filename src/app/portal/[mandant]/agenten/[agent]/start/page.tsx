@@ -303,8 +303,11 @@ export default async function AgentStart(
         {tatsachen === null ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted"
              data-cse="start-keine-anfrage">
-            Es gibt keine offene Anfrage (neu oder in Bearbeitung), auf die ein Entwurf
-            antworten könnte. Ein Lauf entstünde deshalb nicht — er schriebe an niemanden.
+            Es gibt keine offene Anfrage über das Anfrageformular (neu oder in Bearbeitung),
+            auf die ein Entwurf antworten könnte. Von Hand erfasste, empfohlene,
+            recherchierte und aus dem Vergaberadar übernommene Leads bekommen keinen
+            Antwortentwurf: hinter ihnen steht keine belegte Anfrage des Kontakts (O-907).
+            Ein Lauf entstünde deshalb nicht — er schriebe an niemanden.
           </p>
         ) : Object.keys(tatsachen).length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">

@@ -74,9 +74,12 @@ describe('anfrageLuecken — nur, was die Daten leer lassen', () => {
 });
 
 describe('der Entwurf an den Kunden', () => {
+  /* Wie `fuelleTatsachen` sie liefert: ohne `betreff` — der ist ein interner
+     Arbeitstitel (V-271) —, mit dem öffentlichen Titel des Formulars. */
   const tatsachen = {
     stand: '01.10.2026', empfaenger: 'Nord GmbH', datum: '30.09.2026',
-    betreff: 'Unterhaltsreinigung', zusammenfassung: 'Ihr Anliegen ist bei uns aufgenommen.',
+    formular: 'Angebot anfragen',
+    zusammenfassung: 'Ihre Anfrage über unser Formular „Angebot anfragen" ist bei uns aufgenommen.',
   };
 
   it('mit Lücke steht der Satz da, mit genau dieser Lücke', async () => {
