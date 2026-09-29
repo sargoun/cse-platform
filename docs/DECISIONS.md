@@ -23272,3 +23272,25 @@ Diese Parameter stehen nirgends mehr roh auf dem Schirm. Dazu prüft
 
 | Betrifft | AUT-06, D-599, D-728, D-741, D-753, D-766, V-272–V-276 |
 |---|---|
+
+### D-774 · Die Verwaltung schickt Schlüssel zurück: Konto, Einladung, Ablage, Aufbewahrung, Periodenschloss, Eingangsrechnung, Freigabe (V-276, Teil „verwaltung" von D-769)
+
+**Der Befund** (Teil C2 der Gruppe „rueckweg-schluessel"). Sieben Routen der
+Verwaltung schickten den Satz eines Dienstes, einer Datenbankfunktion oder
+eine eigene feste Zeile per `?meldung=` zurück auf ihre Seite, und die Seite
+zeigte ihn roh. Die Entscheidung ist D-769; hier steht, was dieser Teil
+daraus konkret gemacht hat.
+
+1. **Konto → Sicherheit** (`POST /api/konto/sitzung`,
+   `/portal/konto/sicherheit`). `SitzungFehler` trägt einen getypten Grund
+   (`diese_sitzung`, `nicht_gefunden`); die Route schickt ihn über
+   `grundAufsFormular` als `?fehler=`. Die Seite folgt der Sprache des KONTOS
+   in allen vier Portalsprachen (de, en, ar, tr — eine Reinigungskraft mit
+   arabischer Portalsprache beendet hier ihre Anmeldungen), deshalb stehen
+   die Sätze in `SICHERHEIT_TEXTE` (`nichtBeendet`, `fehler`,
+   `fehlerSonst`) und nicht zweisprachig unter `lib/i18n/verwaltung`. Ein
+   leeres `zurueck` führt auf die Sicherheitsseite statt in einen 500.
+   Warnkasten `rolle="alert"`, Bestätigung `rolle="status"`.
+
+| Betrifft | D-769, D-599, D-728, D-753, D-766, AUT-06, V-276, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `tests/kern/konto-sitzung-rueckweg.test.ts` |
+|---|---|
