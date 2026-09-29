@@ -65,11 +65,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
    * Zurück auf die Seite — mit genau einem Schlüssel. Eine Abweisung nimmt
    * einen Link aus einem früheren Versuch mit weg: sonst stünde er neben dem
    * Satz, der sagt, dass diesmal nichts ausgestellt wurde.
+   *
+   * **Mit dem Pfad, unter dem er gesetzt wurde.** `delete(name)` allein
+   * schreibt einen Löschkeks ohne `Path`; der Browser legt ihn unter den Pfad
+   * dieser Route, und der Keks unter dem Pfad der Seite bleibt stehen — so
+   * löschte die Route ihn bis D-774 nie.
    */
   const zurSeite = (such: { readonly erfolg: 'eingeladen' } | {
     readonly fehler: VerwaltungskontoFehlerGrund;
   }): NextResponse => {
-    if ('fehler' in such) keks.delete(EINLADUNG_COOKIE);
+    if ('fehler' in such) keks.delete({ name: EINLADUNG_COOKIE, path: seite });
     const ziel = internesZiel(seite, '/portal', anfrage);
     for (const [k, v] of Object.entries(such)) ziel.searchParams.set(k, v);
     return NextResponse.redirect(ziel, 303);

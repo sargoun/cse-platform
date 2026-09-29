@@ -42,7 +42,10 @@ vi.mock('next/headers', () => ({
     set: (name: string, wert: string, optionen: Record<string, unknown>) => {
       zustand.gesetzt.push({ name, wert, optionen });
     },
-    delete: (name: string) => { zustand.geloescht.push(name); },
+    /* Mit Pfad: ein Löschkeks ohne `Path` träfe den Keks unter dem Pfad der Seite nicht. */
+    delete: (arg: string | { name: string; path?: string }) => {
+      zustand.geloescht.push(typeof arg === 'string' ? arg : `${arg.name}@${arg.path ?? ''}`);
+    },
   }),
 }));
 vi.mock('@/server/db/pool', () => ({
@@ -136,7 +139,7 @@ describe('POST /api/system/verwaltungskonto — Erfolg und Abweisung als Schlüs
     zustand.schreibe.mockResolvedValue(zeile(false, satz));
     expect(await ort(await route.POST(formular({})))).toBe(`${HIER}${SEITE}?fehler=${grund}`);
     expect(zustand.gesetzt).toEqual([]);
-    expect(zustand.geloescht).toEqual([EINLADUNG_COOKIE]);
+    expect(zustand.geloescht).toEqual([`${EINLADUNG_COOKIE}@${SEITE}`]);
   });
 
   it('ein Satz der Datenbank, den der Dienst nicht kennt, wird der allgemeine Schlüssel — nie der Text', async () => {
@@ -152,6 +155,8 @@ describe('POST /api/system/verwaltungskonto — Erfolg und Abweisung als Schlüs
     expect(await ort(await route.POST(formular({ rolle: 'super_admin' }))))
       .toBe(`${HIER}${SEITE}?fehler=rolle_unzulaessig`);
     expect(zustand.schreibe).not.toHaveBeenCalled();
+    /* Auch diese Abweisung nimmt einen Link aus einem früheren Versuch mit weg. */
+    expect(zustand.geloescht).toEqual([`${EINLADUNG_COOKIE}@${SEITE}`]);
   });
 
   it('ein anderer Anbieter: `anbieter_fremd`', async () => {

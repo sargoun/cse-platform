@@ -23323,7 +23323,11 @@ daraus konkret gemacht hat.
      `rolle_unzulaessig` (vorher ein Satz mit Backticks).
    - Eine Abweisung löscht den Keks eines früheren Versuchs: sonst stünde
      dessen Link neben dem Satz, dass diesmal nichts ausgestellt wurde. Der
-     Warnkasten steht deshalb auch nicht mehr nur „ohne Link-Keks".
+     Warnkasten steht deshalb auch nicht mehr nur „ohne Link-Keks". Gelöscht
+     wird mit dem Pfad, unter dem der Keks gesetzt ist: `delete(name)` allein
+     schrieb einen Löschkeks ohne `Path`, den der Browser unter den Pfad der
+     Route legte — der Keks unter dem Pfad der Seite blieb stehen, auch beim
+     bisherigen Löschen nach einer Abweisung der Datenbank.
    - Ist der Keks abgelaufen und `?erfolg=eingeladen` noch da, sagt ein
      Erfolgskasten, dass der Link nur unmittelbar danach erscheint. Ein
      UNBEKANNTER Erfolgsschlüssel zeigt keinen Kasten: ein allgemeiner
