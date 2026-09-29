@@ -105,9 +105,20 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
       'Geben Sie diesen Link persönlich weiter — über einen Kanal, dem Sie trauen. '
       + 'Es ist kein Mailversand verbunden, und hier wird keiner vorgetäuscht.',
     linkKopieren: 'Einladungslink',
+    /*
+     * Bis D-774 (Nachrunde) versprach der Satz „stellen Sie einen neuen aus — der
+     * alte verfällt dabei". Einen solchen Weg gibt es für ein Verwaltungskonto
+     * nicht: eine zweite Einladung derselben Adresse weist die Datenbank als
+     * „schon eingetragen" ab (0372), und keine Route stellt für eine offene
+     * Einladung einen neuen Link aus. Der Satz sagt jetzt genau das.
+     * TODO(client, O-980): Wie wird ein verlorener oder abgelaufener Einladungslink eines Verwaltungskontos ersetzt — und von wem?
+     */
     linkEinmal:
-      'Er steht genau einmal hier. Gespeichert ist nur seine Prüfsumme; wenn Sie ihn '
-      + 'verlieren, stellen Sie einen neuen aus — der alte verfällt dabei.',
+      'Er steht genau einmal hier; gespeichert ist nur seine Prüfsumme, aus der er sich '
+      + 'nicht wiederherstellen lässt. Einen neuen Link für eine offene Einladung stellt '
+      + 'das Portal noch nicht aus — eine zweite Einladung derselben Adresse in dieser '
+      + 'Gesellschaft wird abgewiesen. Wie ein verlorener Link ersetzt wird, ist noch offen '
+      + '(O-980).',
     erfolg: {
       eingeladen:
         'Die Einladung ist ausgestellt; den Link zeigt die Seite nur unmittelbar danach — '
@@ -128,9 +139,17 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
       kundenkonto:
         'Diese Adresse gehört einem Kundenkonto. Ein Verwaltungszugang dafür höbe die '
         + 'Trennung der Portale auf (K-04).',
+      /*
+       * Der Satz der Datenbank (0372) riet „Ändern Sie seine Rolle, statt es
+       * erneut einzuladen" — einen Weg, die Rolle einer Mitgliedschaft zu
+       * ändern, gibt es nicht (D-774 Nachrunde).
+       * TODO(client, O-981): Soll sich die Rolle eines Verwaltungskontos in einer Gesellschaft ändern lassen — und von wem?
+       */
       schon_eingetragen:
-        'Dieses Konto ist in dieser Gesellschaft schon eingetragen. Ändern Sie seine Rolle, '
-        + 'statt es erneut einzuladen.',
+        'Dieses Konto ist in dieser Gesellschaft schon eingetragen; eine zweite Einladung legt '
+        + 'nichts an und stellt keinen neuen Link aus. Einen neuen Link für eine offene '
+        + 'Einladung stellt das Portal noch nicht aus (O-980), und die Rolle einer '
+        + 'Mitgliedschaft lässt sich hier noch nicht ändern (O-981).',
       nicht_ausgestellt: 'Die Datenbank hat keine Einladung ausgestellt; es wurde kein Konto '
         + 'angelegt.',
       anbieter_fremd:
@@ -187,8 +206,10 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
       + 'connected, and none is simulated here.',
     linkKopieren: 'Invitation link',
     linkEinmal:
-      'It is shown exactly once. Only its checksum is stored; if you lose it, issue a '
-      + 'new one — the old one expires in the process.',
+      'It is shown exactly once; only its checksum is stored, and the link cannot be '
+      + 'restored from it. The portal does not yet issue a new link for an open '
+      + 'invitation — a second invitation of the same address in this Gesellschaft is '
+      + 'rejected. How a lost link is replaced is still open (O-980).',
     erfolg: {
       eingeladen:
         'The invitation has been issued; the page shows the link only right afterwards — '
@@ -209,8 +230,10 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
         'This address belongs to a customer account. Administration access for it would '
         + 'break the separation of the portals (K-04).',
       schon_eingetragen:
-        'This account is already registered in this Gesellschaft. Change its role instead of '
-        + 'inviting it again.',
+        'This account is already registered in this Gesellschaft; a second invitation creates '
+        + 'nothing and issues no new link. The portal does not yet issue a new link for an '
+        + 'open invitation (O-980), and the role of a membership cannot be changed here yet '
+        + '(O-981).',
       nicht_ausgestellt: 'The database issued no invitation; no account was created.',
       anbieter_fremd:
         'Supabase Auth is active as the provider. An account is then created with the '

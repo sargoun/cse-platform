@@ -206,6 +206,50 @@ describe('Anmeldung und Recht zuerst (AUT-06, D-766)', () => {
   });
 });
 
+/**
+ * **Der Satz zum Link verspricht keinen Weg, den es nicht gibt** (D-774
+ * Nachrunde, O-980, O-981). `linkEinmal` sagte „wenn Sie ihn verlieren,
+ * stellen Sie einen neuen aus — der alte verfällt dabei"; eine zweite
+ * Einladung derselben Adresse ergibt aber `schon_eingetragen`, und dessen
+ * Satz riet, die Rolle zu ändern — auch dafür gibt es keinen Weg. Einen
+ * neuen Link für eine offene Einladung stellt beim Kundenzugang
+ * `app.kundenzugang_neu_einladen` aus (0249); für ein Verwaltungskonto gibt
+ * es nichts Entsprechendes.
+ */
+describe('der Satz zum Einladungslink sagt, was wirklich geht', () => {
+  const lies = (datei: string): string => readFileSync(join(WURZEL, datei), 'utf8');
+
+  it.each(['de', 'en'] as const)('%s: kein Versprechen eines neuen Links, dafür die offene Frage', (sprache) => {
+    const t = VERWALTUNGSKONTO_TEXTE[sprache];
+    expect(t.linkEinmal).not.toMatch(/stellen Sie einen neuen aus|verfällt dabei|issue a new one|expires in the process/u);
+    expect(t.linkEinmal).toContain('O-980');
+    expect(t.fehler.schon_eingetragen).not.toMatch(/Ändern Sie seine Rolle|Change its role/u);
+    expect(t.fehler.schon_eingetragen).toContain('O-980');
+    expect(t.fehler.schon_eingetragen).toContain('O-981');
+  });
+
+  it('der Satz bleibt wahr: die Datenbank weist eine zweite Einladung ab, und kein Dienst stellt neu aus', () => {
+    /* 0372: eine Mitgliedschaft in dieser Gesellschaft → „schon eingetragen", kein neuer Token. */
+    const einladung = lies('drizzle/0372_verwaltungskonto_einladung.sql');
+    expect(einladung).toMatch(/and bm\.entzogen_am is null\) then\s+return query select false, 'Dieses Konto ist in dieser Gesellschaft schon '/u);
+    /* Baut jemand den Weg, fällt dieser Test — und erinnert an die zwei Sätze und O-980. */
+    const dienst = lies('src/server/services/system/verwaltungskonto.ts');
+    expect(dienst).not.toMatch(/neu_einladen|neuEinladen|ladeNeuEin|linkNeu/u);
+    expect(lies('src/app/api/system/verwaltungskonto/route.ts')).not.toMatch(/neu_einladen|ladeNeuEin/u);
+  });
+
+  it.each(['O-980', 'O-981'])('%s steht im Register, und sein TODO steht an dem Satz, den die Antwort ändert', (frage) => {
+    const register = lies('docs/DECISIONS.md');
+    const start = register.indexOf('## Open — ask, do not guess');
+    const offen = register.slice(start, register.indexOf('\n## ', start + 1));
+    const zeile = offen.split('\n').find((z) => z.startsWith(`| ${frage} |`));
+    expect(zeile, `${frage} im Abschnitt „Open"`).toBeDefined();
+    expect(zeile).toContain('`src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`');
+    expect(lies('src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts'))
+      .toContain(`TODO(client, ${frage})`);
+  });
+});
+
 describe('die Sätze der Seite — de und en', () => {
   it('jeder Grund hat in beiden Sprachen einen Satz, ohne Kennung und ohne Platzhalter', () => {
     for (const sprache of ['de', 'en'] as const) {
