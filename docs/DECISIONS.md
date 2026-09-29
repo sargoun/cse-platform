@@ -23451,5 +23451,33 @@ daraus konkret gemacht hat.
    bekommt `rolle` wie `Hinweis`, die Abweisung `rolle="alert"`. JSON bleibt
    `{ fehler: 'ausfuehrung', grund, meldung }` mit 409.
 
+**Was alle sieben Teile gemeinsam haben.** Jede Route schickt nur noch
+Schlüssel; jede Seite schlägt sie mit `eigenerEintrag` in einer Tabelle unter
+`lib/i18n` nach (de/en, wo die Seite der Sitzung folgt; de/en/ar/tr auf der
+Sicherheitsseite, die dem Konto folgt; sonst deutsch in derselben Form); ein
+unbekannter Grund ergibt den allgemeinen Satz der Seite, ein unbekannter
+Erfolgsschlüssel keinen Kasten. Wo die Route ein Recht prüft, läuft
+`autorisierungsAntwort` vor jeder anderen Weiche. Programme bekommen JSON wie
+bisher. Kein Satz nennt eine Kennung oder eine Eingabe des Menschen; wo eine
+Meldung einen Wert trug, nennt die Seite ihn aus eigenen Daten (Monat) oder
+kommt ohne ihn aus (Kategorie, Frist, Rechnungsnummer, Belegnummer).
+`fehlerAufsFormular` und die Wache `adressparameter` bleiben, wie sie sind —
+beides gehört zum Schritt, der die fünf Teile zusammenführt (D-769).
+
+**Geprüft.** Je Route ein Kern-Test der echten Route
+(`tests/kern/{konto-sitzung,verwaltungskonto,dokument-upload,dokument-aufbewahrung,perioden,eingangsrechnung,zahlungsausgang,freigabe-entscheidung}-rueckweg.test.ts`):
+jeder Grund jeder Fehlerklasse → 303 auf die Seite mit `?fehler=<grund>`,
+ohne `meldung=` und ohne Kennung; der Erfolg als Schlüssel; JSON wie bisher;
+fehlendes Recht → byte-gleiche 404; die Tabelle in jeder Sprache der Seite,
+ohne Prototyp-Treffer; am Quelltext, dass die Seite `meldung` nicht liest und
+auf den allgemeinen Satz zurückfällt. Isolation (je Datei, die einen
+geänderten Dienst importiert): `eigene-sitzungen`,
+`verwaltungskonto-einladung`, `dokument-ablage`, `auftrag-akte`,
+`dokument-fassung`, `dokument-loeschen`, `eingang-vorschlag`. Bewusst
+angepasst: `tests/isolation/verwaltungskonto-einladung.test.ts`,
+`tests/kern/dokument-ablage-rueckweg.test.ts`, `tests/e2e/buchhaltung.spec.ts`
+(nicht lokal gelaufen). Keine offene Frage an den Mandanten: keine
+Geschäftsregel war zu entscheiden.
+
 | Betrifft | D-769, D-599, D-610, D-728, D-753, D-766, AUT-06, V-276, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/app/api/system/verwaltungskonto/route.ts`, `src/server/services/system/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `src/app/api/dokumente/upload/route.ts`, `src/server/services/dokument/ablage.ts`, `src/lib/i18n/verwaltung/dokument-rueckweg.ts`, `src/app/portal/[mandant]/dokumente/upload/page.tsx`, `src/app/api/dokumente/aufbewahrung/route.ts`, `src/app/portal/[mandant]/dokumente/aufbewahrung/page.tsx`, `src/app/api/buchhaltung/perioden/route.ts`, `src/lib/i18n/verwaltung/buchhaltung-perioden.ts`, `src/app/portal/[mandant]/buchhaltung/perioden/page.tsx`, `tests/e2e/buchhaltung.spec.ts`, `src/app/api/finanzen/eingangsrechnungen/route.ts`, `src/lib/i18n/verwaltung/finanzen/eingangsrechnungen.ts`, `src/app/portal/[mandant]/finanzen/eingangsrechnungen/neu/page.tsx`, `src/app/api/finanzen/zahlungen/route.ts`, `src/app/portal/[mandant]/finanzen/eingangsrechnungen/[id]/page.tsx`, `src/app/api/freigaben/[id]/entscheidung/route.ts`, `src/server/services/freigabe/ausfuehrung.ts`, `src/lib/i18n/verwaltung/freigabe-ausfuehrung.ts`, `src/app/portal/[mandant]/freigaben/[id]/page.tsx`, `tests/kern/{konto-sitzung,verwaltungskonto,freigabe-entscheidung,zahlungsausgang,eingangsrechnung,perioden,dokument-aufbewahrung,dokument-upload,dokument-ablage}-rueckweg.test.ts`, `tests/isolation/verwaltungskonto-einladung.test.ts` |
 |---|---|
