@@ -4,6 +4,7 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
@@ -46,7 +47,6 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   const daten = await anfrage.formData();
-  const zurueck = String(daten.get('zurueck') ?? '/portal');
   /* Das Feld, wie das Formular es schickt — fehlt es, fragt ein Programm (D-599). */
   const zurueckFeld = daten.get('zurueck');
   const formularZurueck = typeof zurueckFeld === 'string' && zurueckFeld !== ''
@@ -56,9 +56,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return t === '' ? undefined : t;
   };
   const aktion = String(daten.get('aktion') ?? 'anlegen');
-  const bereich = zurueck.split('/')[2] ?? '';
 
-  let ziel = zurueck;
+  let ziel = '/portal';
   try {
     ziel = await db().begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
@@ -75,6 +74,17 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           { recht: 'security.schreiben', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
+        /*
+         * **Der Bereich des Ziels kommt aus der SITZUNG** (Invariante 3; V-275
+         * Nachtrag, D-773): der Slug des aktiven Mandanten, wie in
+         * `api/kalkulation`. Er stand vorher in `zurueck` — ein Programm schickt
+         * keines und landete nach dem Speichern auf `/portal//…`. Gelesen wird
+         * VOR dem Schreiben: fehlt der Slug, ist nichts geschrieben (404).
+         */
+        const [aktiv] = await kontext.abfrage<{ slug: string }>(
+          `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
+        if (aktiv === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
+        const bereich = aktiv.slug;
 
         if (aktion === 'archivieren') {
           const id = wert('id');

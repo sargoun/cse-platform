@@ -1,6 +1,7 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
 import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
@@ -50,7 +51,6 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   const daten = await anfrage.formData();
-  const zurueck = String(daten.get('zurueck') ?? '/portal');
   /* Das Feld, wie das Formular es schickt — fehlt es, fragt ein Programm (D-599). */
   const zurueckFeld = daten.get('zurueck');
   const formularZurueck = typeof zurueckFeld === 'string' && zurueckFeld !== ''
@@ -76,9 +76,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const pauseRoh = wert('pause');
   const pause = pauseRoh === undefined ? undefined : Number(pauseRoh);
 
-  let neueId = '';
+  let ziel = '/portal';
   try {
-    neueId = await (db().begin(async (tx: postgres.TransactionSql) =>
+    ziel = await (db().begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
         await authorize(
           {
@@ -93,6 +93,17 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           { recht: 'zeit.nacherfassung_pruefen', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
+        /*
+         * **Der Bereich des Ziels kommt aus der SITZUNG** (Invariante 3; V-275
+         * Nachtrag, D-773): der Slug des aktiven Mandanten, wie in
+         * `api/kalkulation`. Er stand vorher in `zurueck` — ein Programm schickt
+         * keines und landete nach dem Speichern auf `/portal//…`. Gelesen wird
+         * VOR dem Schreiben: fehlt der Slug, ist nichts geschrieben (404).
+         */
+        const [aktiv] = await kontext.abfrage<{ slug: string }>(
+          `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
+        if (aktiv === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
+        const bereich = aktiv.slug;
         const neu = await erfasseZeitNach(kontext, {
           anstellungId: anstellung,
           beginn,
@@ -105,7 +116,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           begruendung: String(daten.get('begruendung') ?? ''),
           benutzerId: sitzung.benutzerId,
         });
-        return neu.id;
+        /*
+         * Auf den NEUEN Eintrag und nicht zurueck auf das Formular: wer eine
+         * Zeit nacherfasst hat, will sehen, was entstanden ist — mit dem
+         * Vermerk „nacherfasst" daran, der ihn ueberall begleitet.
+         */
+        return `/portal/${bereich}/zeiten/${neu.id}`;
       })) as Promise<string>);
   } catch (fehler) {
     /*
@@ -124,12 +140,5 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     throw fehler;
   }
 
-  /*
-   * Auf den NEUEN Eintrag und nicht zurueck auf das Formular: wer eine Zeit
-   * nacherfasst hat, will sehen, was entstanden ist — mit dem Vermerk
-   * „nacherfasst" daran, der ihn ueberall begleitet.
-   */
-  const bereich = zurueck.split('/')[2] ?? '';
-  return NextResponse.redirect(internesZiel(
-    `/portal/${bereich}/zeiten/${neueId}`, '/portal', anfrage), 303);
+  return NextResponse.redirect(internesZiel(ziel, '/portal', anfrage), 303);
 }

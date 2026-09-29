@@ -23398,8 +23398,8 @@ Handgriffe in `tests/kern/hilfen/rueckweg-betrieb.ts`). Die Stempeluhr:
 `tests/kern/stempeluhr-rueckweg.test.ts` rendert den echten Baustein — vor
 der Änderung rot, danach grün, in allen vier Sprachen.
 
-**Nachtrag (Nachrunde zu V-275).** Drei Befunde der ersten Runde gehören zu
-D-769 und damit zu diesem Teil:
+**Nachtrag (Nachrunde zu V-275).** Befunde der ersten Runde, die zu D-769
+und damit zu diesem Teil gehören:
 
 1. **Serienliste und Vorschau zeigen nichts mehr aus der Adresse.** Vorher
    stand `?angelegt=1&uebersprungen=<Text>` als „Übersprungen: <Text>" im
@@ -23437,6 +23437,27 @@ D-769 und damit zu diesem Teil:
    geprüft dorthin zurück (`zeiten/nacherfassung/vorgaben.ts`; präparierte
    Adressen und die echte Route in
    `tests/kern/rueckweg-zeit-nacherfassung.test.ts`).
+3. **Der Bereich eines Erfolgs kommt aus der Sitzung, nicht aus
+   `zurueck`.** Veranstaltung, Revier, Bauprojekt und Nacherfassung lasen
+   ihn aus dem zweiten Wegstück von `zurueck`: ein Programm ohne `zurueck`
+   landete nach dem Speichern auf `/portal//security/veranstaltungen/<Kennung>`
+   (ebenso `/portal//reinigung/reviere/…`, `/portal//bau/projekte/…`,
+   `/portal//zeiten/…`), und ein `zurueck` aus einem anderen Bereich
+   bestimmte das Ziel. Jetzt lesen alle vier nach dem Tor und VOR dem
+   Schreiben den Slug des aktiven Mandanten (`select m.slug from mandant m
+   where m.id = app.aktiver_mandant()`, wie `api/kalkulation`); fehlt er,
+   ist nichts geschrieben (byte-gleiche 404). Was ein Programm bekam, bleibt,
+   wo es kein Fehler war: im Erfolg die Umleitung (303) auf dasselbe Blatt,
+   jetzt mit Bereich — kein JSON —, bei einer Abweisung `{ fehler, meldung }`
+   mit Status wie bisher. Ein Formular merkt es nur, wenn der Mandant
+   zwischen Seite und Absenden in einem anderen Fenster gewechselt wurde:
+   dann führt der Erfolg in den Bereich, in dem geschrieben wurde. Geprüft
+   in `tests/kern/rueckweg-{veranstaltung,revier,projekt,zeit-nacherfassung}.test.ts`
+   (Programm ohne `zurueck` je Aktion, fremder Bereich in `zurueck`, kein
+   Slug → 404 ohne Schreiben). **Offen, nicht angefasst:** Bewacherregister,
+   Sonderleistung und Turnus nehmen den Bereich aus dem Formularfeld
+   `mandant` — ein Programm ohne dieses Feld landet dort ebenso auf
+   `/portal//…`, mit Erfolg wie mit Fehler.
 
 | Betrifft | D-769, D-753, D-728, D-741, D-766, D-599, AUT-06, V-192, V-275, `src/app/api/{security/veranstaltungen,security/bewacherregister,reinigung/reviere,reinigung/sonderleistungen,reinigung/turnus,bau/projekte,zeit/nacherfassung,zeit/laufend}/route.ts`, `src/app/portal/[mandant]/{security/veranstaltungen/neu,security/bewacherregister,reinigung/reviere/neu,reinigung/sonderleistungen,reinigung/turnus,reinigung/turnus/[id],reinigung/turnus/neu,bau/projekte/neu,zeiten/nacherfassung,zeiten/live}/page.tsx`, `src/app/portal/[mandant]/reinigung/turnus/rueckmeldung.ts`, `src/app/portal/[mandant]/zeiten/nacherfassung/vorgaben.ts`, `src/app/portal/mein/bausteine.tsx`, `src/server/services/{security/veranstaltung-anlegen,security/bewacherregister,reinigung/revier,reinigung/sonderleistung,reinigung/turnus,dienstplan/serie,dienstplan/generator,bau/projekt,zeit/nacherfassung,zeit/laufender-eintrag}.ts`, `src/lib/i18n/verwaltung/{security,reinigung,bau,zeit}.ts`, `tests/kern/rueckweg-*.test.ts`, `tests/kern/stempeluhr-rueckweg.test.ts`, `tests/kern/hilfen/rueckweg-betrieb.ts`, `tests/kern/leistungsanker-rueckweg.test.ts` |
 |---|---|

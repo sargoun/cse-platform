@@ -18,7 +18,8 @@ import { NichtGefundenFehler, ZweiterFaktorFehler } from '../../src/server/auth/
 import { nichtGefundenAntwort } from '../../src/server/auth/antwort.js';
 import { PROJEKT_FEHLER_TEXTE } from '../../src/lib/i18n/verwaltung/bau.js';
 import {
-  formular, fremdesFormular, KENNUNG, pruefeSaetze, pruefeSeite, rueckweg, SITZUNG,
+  formular, fremdesFormular, KENNUNG, kontextMitBereich,
+  pruefeSaetze, pruefeSeite, rueckweg, SITZUNG,
 } from './hilfen/rueckweg-betrieb.js';
 
 const zustand = vi.hoisted(() => ({
@@ -26,6 +27,8 @@ const zustand = vi.hoisted(() => ({
   anlegen: vi.fn(),
   aendern: vi.fn(),
   archivieren: vi.fn(),
+  /** Der Slug des aktiven Mandanten, den die Mandantenschicht liefert. */
+  bereich: 'bau' as string | null,
 }));
 
 vi.mock('@/server/auth/anfrage-sitzung', () => ({
@@ -36,7 +39,7 @@ vi.mock('@/server/db/pool', () => ({
 }));
 vi.mock('@/server/kontext/index', () => ({
   withTenant: <T,>(_tx: unknown, _s: unknown, fn: (k: unknown) => Promise<T>) =>
-    fn({ abfrage: () => Promise.resolve([]) }),
+    fn(kontextMitBereich(() => zustand.bereich)),
 }));
 vi.mock('@/server/auth/authorize', () => ({ authorize: zustand.authorize }));
 vi.mock('@/server/auth/zugang', () => ({ rechtepruefer: () => ({}) }));
@@ -64,6 +67,7 @@ beforeEach(() => {
   zustand.anlegen.mockReset().mockResolvedValue({ id: KENNUNG });
   zustand.aendern.mockReset().mockResolvedValue(undefined);
   zustand.archivieren.mockReset().mockResolvedValue(undefined);
+  zustand.bereich = 'bau';
 });
 
 describe('POST /api/bau/projekte — der Rückweg trägt einen Grund', () => {
@@ -136,5 +140,47 @@ describe('die Sätze des Bauvorhabens', () => {
     pruefeSeite('src/app/portal/[mandant]/bau/ProjektFormular.tsx', [
       '<input type="hidden" name="zurueck" value={zurueck} />',
     ]);
+  });
+});
+
+/*
+ * **Der Bereich des Erfolgs kommt aus der Sitzung** (V-275 Nachtrag, D-773).
+ * Vorher las die Route ihn aus `zurueck` — ein Programm ohne `zurueck`
+ * landete nach dem Speichern auf `/portal//bau/projekte/…`. Ein Programm
+ * bekommt weiter, was es bekam: im Erfolg die Umleitung (303), bei einer
+ * Abweisung JSON (oben).
+ */
+describe('der Bereich des Erfolgs kommt aus der Sitzung, nicht aus `zurueck`', () => {
+  const programm = (aktion: string): readonly (readonly [string, string])[] => [
+    ...FELDER.filter(([k]) => k !== 'zurueck' && k !== 'aktion'),
+    ['aktion', aktion], ['id', KENNUNG],
+  ];
+
+  it('ein Programm ohne `zurueck`: 303 in den aktiven Bereich — nie `/portal//…`', async () => {
+    for (const [aktion, pfad] of [
+      ['anlegen', `/portal/bau/bau/projekte/${KENNUNG}/lv`],
+      ['aendern', `/portal/bau/bau/projekte/${KENNUNG}`],
+      ['archivieren', '/portal/bau/bau/projekte'],
+    ] as const) {
+      const r = await POST(formular('/api/bau/projekte', programm(aktion)));
+      expect(r.status, aktion).toBe(303);
+      const ziel = new URL(r.headers.get('location') ?? '');
+      expect(`${ziel.pathname}${ziel.search}`, aktion).toBe(pfad);
+      expect(ziel.pathname, aktion).not.toContain('//');
+    }
+  });
+
+  it('ein `zurueck` aus einem anderen Bereich bestimmt das Ziel nicht — die Sitzung tut es', async () => {
+    const ziel = rueckweg(await POST(formular('/api/bau/projekte',
+      mit('zurueck', '/portal/reinigung/bau/projekte/neu'))));
+    expect(ziel.pathname).toBe(`/portal/bau/bau/projekte/${KENNUNG}/lv`);
+  });
+
+  it('ohne Slug der Sitzung wird nichts geschrieben — die byte-gleiche 404', async () => {
+    zustand.bereich = null;
+    const r = await POST(formular('/api/bau/projekte', mit('zurueck', null)));
+    expect(r.status).toBe(404);
+    expect(await r.text()).toBe(await nichtGefundenAntwort().text());
+    expect(zustand.anlegen).not.toHaveBeenCalled();
   });
 });

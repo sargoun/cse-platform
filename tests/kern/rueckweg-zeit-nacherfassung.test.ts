@@ -20,7 +20,8 @@ import { NichtGefundenFehler, ZweiterFaktorFehler } from '../../src/server/auth/
 import { nichtGefundenAntwort } from '../../src/server/auth/antwort.js';
 import { NACHERFASSUNG_FEHLER_TEXTE } from '../../src/lib/i18n/verwaltung/zeit.js';
 import {
-  formular, HIER, KENNUNG, pruefeSaetze, pruefeSeite, rueckweg, SITZUNG, WURZEL,
+  formular, HIER, KENNUNG, kontextMitBereich,
+  pruefeSaetze, pruefeSeite, rueckweg, SITZUNG, WURZEL,
 } from './hilfen/rueckweg-betrieb.js';
 import {
   freieVorgaben, freiesZurueck, vorbelegteAnstellung,
@@ -29,6 +30,8 @@ import {
 const zustand = vi.hoisted(() => ({
   authorize: vi.fn(),
   erfasse: vi.fn(),
+  /** Der Slug des aktiven Mandanten, den die Mandantenschicht liefert. */
+  bereich: 'reinigung' as string | null,
 }));
 
 vi.mock('@/server/auth/anfrage-sitzung', () => ({
@@ -39,7 +42,7 @@ vi.mock('@/server/db/pool', () => ({
 }));
 vi.mock('@/server/kontext/index', () => ({
   withTenant: <T,>(_tx: unknown, _s: unknown, fn: (k: unknown) => Promise<T>) =>
-    fn({ abfrage: () => Promise.resolve([]) }),
+    fn(kontextMitBereich(() => zustand.bereich)),
 }));
 vi.mock('@/server/auth/authorize', () => ({ authorize: zustand.authorize }));
 vi.mock('@/server/auth/zugang', () => ({ rechtepruefer: () => ({}) }));
@@ -65,6 +68,7 @@ const ohne = (feld: string): readonly (readonly [string, string])[] =>
 beforeEach(() => {
   zustand.authorize.mockReset().mockResolvedValue(undefined);
   zustand.erfasse.mockReset().mockResolvedValue({ id: NEU });
+  zustand.bereich = 'reinigung';
 });
 
 describe('POST /api/zeit/nacherfassung — der Rückweg trägt einen Grund', () => {
@@ -224,5 +228,35 @@ describe('aus dem Einwand: der Rückweg trägt die geprüften Kennungen weiter',
     expect(quelle).toContain('value={vorgaben.einwand}');
     expect(quelle).toContain('defaultValue={vorbelegteAnstellung(vorgaben, anstellungen)}');
     expect(quelle).not.toMatch(/frage\['(?:anstellung|einwand)'\]/u);
+  });
+});
+
+/*
+ * **Der Bereich des Erfolgs kommt aus der Sitzung** (V-275 Nachtrag, D-773).
+ * Vorher las die Route ihn aus `zurueck` — ein Programm ohne `zurueck`
+ * landete auf `/portal//zeiten/<neuer Eintrag>`. Ein Programm bekommt weiter,
+ * was es bekam: im Erfolg die Umleitung (303), bei einer Abweisung JSON.
+ */
+describe('der neue Eintrag liegt im Bereich der Sitzung, nicht in dem aus `zurueck`', () => {
+  it('ein Programm ohne `zurueck`: 303 auf den neuen Eintrag — nie `/portal//…`', async () => {
+    const r = await POST(formular('/api/zeit/nacherfassung', ohne('zurueck')));
+    expect(r.status).toBe(303);
+    const ziel = new URL(r.headers.get('location') ?? '');
+    expect(`${ziel.pathname}${ziel.search}`).toBe(`/portal/reinigung/zeiten/${NEU}`);
+    expect(ziel.pathname).not.toContain('//');
+  });
+
+  it('ein `zurueck` aus einem anderen Bereich bestimmt das Ziel nicht — die Sitzung tut es', async () => {
+    const r = await POST(formular('/api/zeit/nacherfassung',
+      [['zurueck', '/portal/bau/zeiten/nacherfassung?frei=1'], ...ohne('zurueck')]));
+    expect(rueckweg(r).pathname).toBe(`/portal/reinigung/zeiten/${NEU}`);
+  });
+
+  it('ohne Slug der Sitzung wird nichts geschrieben — die byte-gleiche 404', async () => {
+    zustand.bereich = null;
+    const r = await POST(formular('/api/zeit/nacherfassung', ohne('zurueck')));
+    expect(r.status).toBe(404);
+    expect(await r.text()).toBe(await nichtGefundenAntwort().text());
+    expect(zustand.erfasse).not.toHaveBeenCalled();
   });
 });

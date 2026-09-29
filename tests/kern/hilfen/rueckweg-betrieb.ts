@@ -43,6 +43,24 @@ export function formular(
   return new NextRequest(new URL(pfad, HIER), { method: 'POST', body: daten, headers: kopf });
 }
 
+/**
+ * Die Mandantenschicht, so weit diese Routen sie hier brauchen: `abfrage`
+ * beantwortet nur die Frage nach dem Slug des AKTIVEN Mandanten (D-773
+ * Nachtrag Nr. 3) — mit `bereich()`, oder ohne Zeile, wenn der `null` ist.
+ * Jede andere Abfrage bekommt wie bisher keine Zeile.
+ */
+export function kontextMitBereich(bereich: () => string | null): {
+  readonly abfrage: (sql: string) => Promise<readonly { readonly slug: string }[]>;
+} {
+  return {
+    abfrage: (sql: string) => {
+      const slug = bereich();
+      return Promise.resolve(
+        slug !== null && sql.includes('app.aktiver_mandant()') ? [{ slug }] : []);
+    },
+  };
+}
+
 /** Dasselbe Formular von einem fremden Ursprung — der Riegel davor antwortet mit JSON (403). */
 export function fremdesFormular(
   pfad: string, felder: readonly (readonly [string, string])[],
