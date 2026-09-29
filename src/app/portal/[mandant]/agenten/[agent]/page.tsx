@@ -28,7 +28,7 @@ import {
   LAUF_STOERUNG_TEXT, NEBENWIRKUNG_TEXT, UNTERGRENZE_TEXT, VERSAND_AKTION_TEXT, VORGANG_TEXT,
   WERKZEUG_TEXT,
 } from '@/lib/i18n/beschriftung/agent';
-import { AUFGABE_PILLE } from '../darstellung';
+import { AUFGABE_PILLE, ohneLaufSatz } from '../darstellung';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
@@ -121,6 +121,9 @@ export default async function AgentDetail(
   const darf = await haeltRechte(
     sitzung, 'agent.budget_verwalten', 'agent.protokoll_lesen', 'freigabe.lesen',
     'agent.werkzeug_verbinden',
+    /* Das Tor der Assistentenseite (Routenmanifest) — für den Verweis „Fragen
+       stellen" auf dem leeren Blatt des CEO-Assistenten (AUT-06). */
+    'agent.aufgabe_starten',
   );
   if (sitzung.aktiverMandantId === null) notFound();
 
@@ -615,10 +618,19 @@ export default async function AgentDetail(
       </div>
 
       {aufgaben.length === 0 ? (
-        <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          Dieser Agent hat noch nichts getan. Solange kein Modellzugang
-          eingerichtet ist, bleibt das so — die Laufzeit steht, der
-          Anbieterzugang fehlt.
+        <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted"
+           data-cse="agent-ohne-lauf">
+          {ohneLaufSatz(kopf.kennung)}
+          {kopf.kennung === 'ceo_assistent' && darf['agent.aufgabe_starten'] === true ? (
+            <>
+              {' '}
+              <Link href={`/portal/${mandant}/agenten/assistent`}
+                    data-cse="agent-zu-den-fragen"
+                    className="underline underline-offset-2">
+                Fragen stellen
+              </Link>
+            </>
+          ) : null}
         </p>
       ) : (
         <DataTable

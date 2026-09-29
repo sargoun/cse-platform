@@ -50,3 +50,21 @@ export function startSperre(lage: {
   if (lage.tatsachen === null) return 'keine_anfrage';
   return null;
 }
+
+/**
+ * Der Satz eines Agentenblatts, auf dem noch kein Lauf steht (V-271).
+ *
+ * **Er behauptet nichts über den Modellzugang.** Dort stand „Solange kein
+ * Modellzugang eingerichtet ist, bleibt das so — die Laufzeit steht, der
+ * Anbieterzugang fehlt": seit dem Demobetrieb (0154) zweifelhaft, und für den
+ * CEO-Assistenten seit V-229 falsch — jede Katalogfrage wird eine Aufgabe,
+ * ganz ohne Modell. Dieselbe Behauptung hat V-231 in der Schrittkette schon
+ * gestrichen. Wie ein Lauf entsteht, sagen die Abschnitte darüber (Knopf,
+ * Modell, Budget); dieser Satz sagt nur, was ist.
+ */
+export function ohneLaufSatz(kennung: string): string {
+  return kennung === 'ceo_assistent'
+    ? 'Dieser Agent hat in dieser Gesellschaft noch keine Aufgabe. Jede Frage an den '
+      + 'CEO-Assistenten wird eine — ohne Modell: die Antwort rechnet die Datenbank.'
+    : 'Dieser Agent hat in dieser Gesellschaft noch keine Aufgabe.';
+}
