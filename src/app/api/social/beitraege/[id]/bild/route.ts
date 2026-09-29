@@ -8,15 +8,18 @@ import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { waehleSpeicher } from '@/server/storage/waehle';
-import { MedienFehler, legeBeitragsbildAn } from '@/server/services/social/beitragsbild';
-import { SocialFehler, setzeBeitragsbild } from '@/server/services/social/dienst';
+import { MedienFehler } from '@/server/services/social/beitragsbild';
+import {
+  SocialFehler, haengeNeuesBildAn, setzeBeitragsbild,
+} from '@/server/services/social/dienst';
 
 /**
  * `POST /api/social/beitraege/[id]/bild` — einem ENTWURF ein Bild anhängen,
  * es ersetzen oder entfernen (SOC-02, V-225, D-719).
  *
  * Ein `multipart`-POST wie beim Ablegen eines Dokuments: der Typ wird an den
- * BYTES geprüft, bevor irgendetwas im Behälter liegt. Recht:
+ * BYTES geprüft, bevor irgendetwas im Behälter liegt — und vorher, ob dieser
+ * Beitrag ein Bild bekommen darf (`haengeNeuesBildAn`, V-268 d). Recht:
  * `social.schreiben` — dasselbe wie für Text und Kanäle des Entwurfs; nach
  * dem Vorlegen bindet die Freigabe an genau dieses Bild (`legeVor`).
  *
@@ -63,11 +66,10 @@ export async function POST(
           if (!(datei instanceof File) || datei.size === 0) {
             throw new MedienFehler('leer', 'Es war keine Datei dabei.');
           }
-          const medienId = await legeBeitragsbildAn(kontext, speicher, {
+          await haengeNeuesBildAn(kontext, speicher, id, {
             daten: new Uint8Array(await datei.arrayBuffer()),
             alt: feld(daten, 'alt'),
           });
-          await setzeBeitragsbild(kontext, id, medienId);
         }
         return m?.slug ?? '';
       })) as Promise<string>);

@@ -14,12 +14,14 @@ import type postgres from 'postgres';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index.js';
-import { LokalerSpeicher, type Speicher } from '../../src/server/storage/adapter.js';
+import { type Bucket, LokalerSpeicher, type Speicher } from '../../src/server/storage/adapter.js';
 import {
   beitragDerFreigabe, bildDerFreigabe, eigenesBeitragsbild, legeBeitragsbildAn,
   oeffentlichesBeitragsbild,
 } from '../../src/server/services/social/beitragsbild.js';
-import { ladeBeitrag, legeVor, setzeBeitragsbild } from '../../src/server/services/social/dienst.js';
+import {
+  haengeNeuesBildAn, ladeBeitrag, legeVor, setzeBeitragsbild,
+} from '../../src/server/services/social/dienst.js';
 import { setzeGalerieRang } from '../../src/server/services/inhalt/redaktion.js';
 import { seedBeitragsbild } from '../../src/server/db/seed/beitragsbild.js';
 
@@ -226,6 +228,66 @@ describe('(2) das Bild hängt am Entwurf — und geht mit in die Freigabe', () =
     const [n] = await sql.unsafe<{ n: number }[]>(
       `select count(*)::int as n from medien where id = $1`, [m]);
     expect(n!.n).toBe(1);
+  });
+});
+
+/**
+ * **Erst der Beitrag, dann die Datei** (V-268 d, D-761 Nr. 8). Die Route legte
+ * das Bild ab und fragte erst danach, ob der Beitrag es bekommen darf; bei
+ * jeder Abweisung blieb ein Objekt ohne Zeile im privaten Behälter.
+ */
+class ZaehlenderSpeicher extends LokalerSpeicher {
+  gelegt = 0;
+  override lege(bucket: Bucket, schluessel: string, daten: Uint8Array): Promise<void> {
+    this.gelegt += 1;
+    return super.lege(bucket, schluessel, daten);
+  }
+}
+
+describe('(2b) erst der Beitrag, dann die Datei — eine Abweisung lässt nichts im Behälter', () => {
+  async function hochgeladen(alt: string): Promise<number> {
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from medien where alt_text = $1`, [alt]);
+    return n!.n;
+  }
+
+  it('ein unbekannter, ein fremder und ein vorgelegter Beitrag: abgewiesen, nichts abgelegt', async () => {
+    const speicher = new ZaehlenderSpeicher();
+    await expect(als((k) => haengeNeuesBildAn(k, speicher, '00000000-0000-4000-8000-0000000000b1',
+      { daten: PNG, alt: 'Waise unbekannt' }))).rejects.toMatchObject({ grund: 'unbekannt' });
+
+    const fremder = await entwurf(f.security);
+    await expect(als((k) => haengeNeuesBildAn(k, speicher, fremder,
+      { daten: PNG, alt: 'Waise fremd' }))).rejects.toMatchObject({ grund: 'unbekannt' });
+
+    const vorgelegt = await entwurf();
+    await als((k) => legeVor(k, vorgelegt));
+    await expect(als((k) => haengeNeuesBildAn(k, speicher, vorgelegt,
+      { daten: PNG, alt: 'Waise vorgelegt' }))).rejects.toMatchObject({ grund: 'nicht_bearbeitbar' });
+
+    expect(speicher.gelegt, 'kein Objekt im Behälter').toBe(0);
+    for (const alt of ['Waise unbekannt', 'Waise fremd', 'Waise vorgelegt']) {
+      expect(await hochgeladen(alt), alt).toBe(0);
+    }
+    expect((await als((k) => ladeBeitrag(k, vorgelegt)))!.medienId).toBeNull();
+  });
+
+  it('am Entwurf: abgelegt, angehängt, genau ein Objekt', async () => {
+    const speicher = new ZaehlenderSpeicher();
+    const b = await entwurf();
+    const m = await als((k) => haengeNeuesBildAn(k, speicher, b, { daten: PNG, alt: 'Angenommen' }));
+    expect(speicher.gelegt).toBe(1);
+    expect((await als((k) => ladeBeitrag(k, b)))).toMatchObject({ medienId: m, bildAlt: 'Angenommen' });
+  });
+
+  it('ohne Social-Recht ist der Beitrag unbekannt (AUT-06) — und keine Datei liegt', async () => {
+    const leser = await konto(f.reinigung, 'mitarbeiter');
+    const speicher = new ZaehlenderSpeicher();
+    const b = await entwurf();
+    await expect(als((k) => haengeNeuesBildAn(k, speicher, b, { daten: PNG, alt: 'Ohne Recht' }),
+      leser)).rejects.toMatchObject({ grund: 'unbekannt' });
+    expect(speicher.gelegt).toBe(0);
+    expect(await hochgeladen('Ohne Recht')).toBe(0);
   });
 });
 

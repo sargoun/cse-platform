@@ -20336,6 +20336,15 @@ des Anlegens (Policy, CHECK) hatte keine Isolationsprobe.
    Bild steht (`eigenesBeitragsbild`, unter `t_mandant` auf `freigabe`). Nennt
    die Nutzlast ein Bild, das in dieser Gesellschaft nicht zu finden ist,
    steht ein Warnkasten da: nicht freigeben, ohne es gesehen zu haben.
+8. **Erst der Beitrag, dann die Datei** (V-268 d). Die Bild-Route legte das
+   Bild ab (Zeile und Objekt) und fragte erst danach, ob der Beitrag es
+   bekommen darf; bei jeder fachlichen Abweisung rollte die Zeile zurück, das
+   Objekt blieb — ein bereinigtes Bild ohne Verweis im privaten Behälter, das
+   kein Lauf löscht. `haengeNeuesBildAn` (`services/social/dienst.ts`) sperrt
+   den Beitrag (`for update`, wie `legeVor`), prüft, dass es ihn in dieser
+   Gesellschaft gibt und dass er ein Entwurf ist, und legt erst dann ab; die
+   Route ruft nur ihn. Eine Waise bleibt nur noch, wenn das Festschreiben
+   selbst scheitert — der Fall, den `legeBeitragsbildAn` schon nennt.
 
-| Betrifft | SOC-02, SOC-08, PUB-04, DOC-03, Invariante 3, Invariante 7, Invariante 10, D-719, V-225, V-268, `drizzle/0014` (`t_medien_pflege`), `drizzle/0170`, `drizzle/0473`, `drizzle/0486_medien_pflege_eigene_gesellschaft.sql`, `drizzle/0487_beitragsbild_nicht_auf_der_website.sql`, `src/server/services/social/{beitragsbild,dienst}.ts`, `src/server/services/inhalt/{redaktion,galerie}.ts`, `src/app/api/beitragsbild/[id]/route.ts`, `src/app/portal/[mandant]/freigaben/[id]/page.tsx`, `src/lib/i18n/verwaltung/{website-referenz,social-bild}.ts`, `tests/isolation/{social-beitragsbild,website-pflege}.test.ts`, `tests/kern/beitragsbild-kanal.test.ts` |
+| Betrifft | SOC-02, SOC-08, PUB-04, DOC-03, Invariante 3, Invariante 7, Invariante 10, D-719, V-225, V-268, `drizzle/0014` (`t_medien_pflege`), `drizzle/0170`, `drizzle/0473`, `drizzle/0486_medien_pflege_eigene_gesellschaft.sql`, `drizzle/0487_beitragsbild_nicht_auf_der_website.sql`, `src/server/services/social/{beitragsbild,dienst}.ts`, `src/server/services/inhalt/{redaktion,galerie}.ts`, `src/app/api/beitragsbild/[id]/route.ts`, `src/app/api/social/beitraege/[id]/bild/route.ts`, `src/app/portal/[mandant]/freigaben/[id]/page.tsx`, `src/lib/i18n/verwaltung/{website-referenz,social-bild}.ts`, `tests/isolation/{social-beitragsbild,website-pflege}.test.ts`, `tests/kern/beitragsbild-kanal.test.ts` |
 |---|---|

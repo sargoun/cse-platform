@@ -67,3 +67,29 @@ describe('bildAusNutzlast — was der Entscheidungsbildschirm zeigt', () => {
     expect(seite).toContain('data-cse="zum-beitrag"');
   });
 });
+
+/**
+ * V-268 d, D-761 Nr. 8: die Route fragt den Beitrag, bevor eine Datei im
+ * Behälter liegt — über `haengeNeuesBildAn`, nicht über die zwei Schritte
+ * „ablegen, dann zuordnen", zwischen denen eine Abweisung eine Waise liess.
+ */
+describe('die Bild-Route: erst der Beitrag, dann die Datei', () => {
+  it('ruft haengeNeuesBildAn — und legt nicht selbst ab', () => {
+    const route = readFileSync('src/app/api/social/beitraege/[id]/bild/route.ts', 'utf8');
+    expect(route).toContain('await haengeNeuesBildAn(kontext, speicher, id, {');
+    expect(route).not.toContain('legeBeitragsbildAn(');
+  });
+
+  it('der Dienst prüft und sperrt den Beitrag vor legeBeitragsbildAn', () => {
+    const dienst = readFileSync('src/server/services/social/dienst.ts', 'utf8');
+    const start = dienst.indexOf('export async function haengeNeuesBildAn(');
+    expect(start).toBeGreaterThan(0);
+    const rumpf = dienst.slice(start, dienst.indexOf('\n}\n', start));
+    const sperre = rumpf.indexOf('for update');
+    const pruefung = rumpf.indexOf('darfBearbeiten(b.status)');
+    const ablage = rumpf.indexOf('legeBeitragsbildAn(kontext, speicher, eingabe)');
+    expect(sperre).toBeGreaterThan(0);
+    expect(pruefung).toBeGreaterThan(sperre);
+    expect(ablage).toBeGreaterThan(pruefung);
+  });
+});

@@ -1,6 +1,8 @@
 import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { jcsDigest } from '../freigabe/kette.js';
+import type { Speicher } from '../../storage/adapter.js';
+import { type BeitragsbildEingabe, legeBeitragsbildAn } from './beitragsbild.js';
 import { plattformKanal } from '../../versand/social-plattform.js';
 import {
   type BeitragAuftrag, KanalNichtVerbundenFehler, PLATTFORM_NAME, type Plattform,
@@ -399,6 +401,36 @@ export async function setzeBeitragsbild(
   await schreibeWennNoch(kontext, id, b.status,
     `update beitrag set medien_id = $2::uuid, geaendert_von = $3::uuid where id = $1::uuid`,
     [id, medienId, kontext.benutzerId]);
+}
+
+/**
+ * **Erst der Beitrag, dann die Datei** (V-268 d, D-761 Nr. 8).
+ *
+ * Die Route legte das Bild ab (`medien`-Zeile UND Objekt im Behälter) und
+ * fragte erst danach `setzeBeitragsbild`, ob der Beitrag es überhaupt bekommen
+ * darf. Bei jeder fachlichen Abweisung — unbekannter oder fremder Beitrag,
+ * schon vorgelegt — rollte die Zeile zurück, das Objekt blieb: ein bereinigtes
+ * Bild ohne Verweis im privaten Behälter, das kein Lauf je löscht. Jetzt steht
+ * VOR der Ablage fest, dass es diesen Beitrag in dieser Gesellschaft gibt und
+ * dass er ein Entwurf ist; die Zeile bleibt bis zum Ende der Transaktion
+ * gesperrt (`for update`, wie in `legeVor`), zwischen Prüfung und Zuordnung
+ * legt also niemand vor. Was danach noch scheitern kann, ist das Festschreiben
+ * selbst — der Fall, den `legeBeitragsbildAn` beschreibt.
+ */
+export async function haengeNeuesBildAn(
+  kontext: SchreibKontext, speicher: Speicher, id: string, eingabe: BeitragsbildEingabe,
+): Promise<string> {
+  await kontext.abfrage(`select id from beitrag where id = $1::uuid for update`, [id]);
+  const b = await ladeBeitrag(kontext, id);
+  if (b === null) throw new SocialFehler('Diesen Beitrag gibt es nicht.', 'unbekannt');
+  if (!darfBearbeiten(b.status)) {
+    throw new SocialFehler(
+      'Ein Bild ändert man nur am Entwurf. Die Freigabe hängt am Bild, das vorlag.',
+      'nicht_bearbeitbar');
+  }
+  const medienId = await legeBeitragsbildAn(kontext, speicher, eingabe);
+  await setzeBeitragsbild(kontext, id, medienId);
+  return medienId;
 }
 
 /**
